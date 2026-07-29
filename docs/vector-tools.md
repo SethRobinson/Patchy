@@ -516,6 +516,26 @@ orientation (append_outline_loop normalizes by signed area), because an
 opposite-winding wedge cancels the segment quads it overlaps.
 stroke_arc_band_has_no_winding_notches pins this.
 
+### Stroke polyline lattice and band bounds (July 2026)
+
+subpath_polyline snaps every vertex (anchors included) to the flattener's
+1/256 fixed-point lattice. Off-lattice anchors used to leave a sub-quantum
+micro-segment whose direction was rounding noise; the default miter join
+(limit 100 admits turns to 178.85 degrees) amplified it into a spike up to
+100 x half-width long, translation-dependently. The coverage band is sized
+from the emitted outline edges' true hull (not a padded guess), so legitimate
+miter tips are drawn instead of cropped into bars at the buffer edge, and
+stroke curves flatten through the same adaptive flatten_cubic as fills.
+Pinned by stroke_bezier_circle_is_translation_stable,
+stroke_miter_spike_stays_in_bounds,
+stroke_curve_is_insensitive_to_sub_quantum_anchor_jitter, and stroke golden 3.
+
+Known gap: whether Photoshop consumes `strokeStyleMiterLimit` 100 as an
+SVG-style ratio (Patchy's reading; the value is a bare doub, not #Prc, and
+SVG export already assumes ratio) or as a percentage is unpinned. No captured
+fixture has a corner in the discriminating 4 < ratio < 100 range; settling it
+needs a COM probe with an acute mitered corner at limit 100 vs 4.
+
 ### Interior effects vs the vector stroke (probed July 2026)
 
 The fx-sofi-center/outside/nofill and fx-drsh-outside probes pinned where

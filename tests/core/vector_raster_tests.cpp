@@ -438,6 +438,21 @@ PathSubpath open_line(double x0, double y0, double x1, double y1) {
   return subpath;
 }
 
+PathSubpath circle_subpath(double cx, double cy, double r) {
+  constexpr double k = 0.5522847498307936;  // 4-cubic unit-circle handle length
+  const double h = k * r;
+  PathSubpath subpath;
+  subpath.closed = true;
+  subpath.op = PathCombineOp::Add;
+  subpath.anchors = {
+      PathAnchor{cx + r, cy, cx + r, cy - h, cx + r, cy + h, true},
+      PathAnchor{cx, cy + r, cx + h, cy + r, cx - h, cy + r, true},
+      PathAnchor{cx - r, cy, cx - r, cy + h, cx - r, cy - h, true},
+      PathAnchor{cx, cy - r, cx - h, cy - r, cx + h, cy - r, true},
+  };
+  return subpath;
+}
+
 void stroke_center_band_and_miter_corner() {
   VectorPath path;
   path.subpaths = {rect_subpath(8, 8, 24, 24, PathCombineOp::Add, 0)};
@@ -634,14 +649,32 @@ void stroke_golden_digests_are_stable() {
     stroke.alignment = patchy::VectorStrokeAlignment::Outside;
     goldens.push_back({"triangle-bevel-outside", triangle, stroke});
   }
-  // Re-pinned July 2026 for the outline-winding normalization (join wedges
-  // now share the segment quads' orientation; see
-  // stroke_arc_band_has_no_winding_notches) - a deliberate rendering fix
-  // that shifts AA seam cells on mitered/beveled corners.
-  const std::array<std::uint64_t, 3> expected = {
+  {
+    // Curved subpath at a non-lattice offset: exercises the curve flattener
+    // and the anchor lattice snap (the first three goldens are all straight
+    // segments, which is how the July 2026 micro-segment spikes went
+    // unpinned).
+    VectorPath circle;
+    circle.subpaths = {circle_subpath(24.37, 24.37, 12.0)};
+    patchy::VectorStroke stroke;
+    stroke.enabled = true;
+    stroke.width = 4.0;
+    goldens.push_back({"circle-nonlattice", circle, stroke});
+  }
+  // Goldens 1-2 re-pinned July 2026 (second time) for the polyline lattice
+  // snap + exact band bounds fixes: verified old-vs-new per-pixel before
+  // pinning - identical bounds, golden 0 byte-identical, golden 2 28 cells
+  // at +-1, golden 1 48 cells (one -2, two edge 255->254, all at dash-cap AA
+  // seams; coverage sum -0.016%). No structural change. The earlier re-pin
+  // was the outline-winding normalization (join wedges now share the segment
+  // quads' orientation; see stroke_arc_band_has_no_winding_notches). Golden 3
+  // (curved, non-lattice offset) pins the snap/bounds/adaptive-flatten fixes
+  // directly - the first three goldens are straight-segment-only.
+  const std::array<std::uint64_t, 4> expected = {
       0x2612ef398d543549ULL,
-      0x1b622f58b0b6eddfULL,
-      0x78fd384c6ca059d4ULL,
+      0x783d270f0818f0faULL,
+      0x64ab25fc123a02f4ULL,
+      0xbf0b76ea9ecb55bdULL,
   };
   bool all_match = true;
   for (std::size_t i = 0; i < goldens.size(); ++i) {
@@ -656,6 +689,97 @@ void stroke_golden_digests_are_stable() {
     }
   }
   CHECK(all_match);
+}
+
+void stroke_bezier_circle_is_translation_stable() {
+  // Regression (July 2026): anchors off the 1/256 flattener lattice left a
+  // sub-quantum micro-segment at each anchor whose direction was rounding
+  // noise; the default miter join (limit 100) amplified it into a spike that
+  // escaped the guessed coverage band and smeared a bar along the buffer
+  // edge, translation-dependently. Coverage must stay a clean ring for any
+  // sub-pixel placement.
+  patchy::VectorStroke stroke;
+  stroke.enabled = true;
+  stroke.width = 4.0;  // defaults otherwise: Center alignment, Miter, limit 100
+  const double radius = 12.0;
+  const std::array<double, 6> offsets = {0.0, 1.0 / 1024.0, 1.0 / 512.0, 3.0 / 1024.0, 0.3, 0.7};
+  for (const double offset : offsets) {
+    const double cx = 24.0 + offset;
+    const double cy = 24.0 + offset;
+    VectorPath path;
+    path.subpaths = {circle_subpath(cx, cy, radius)};
+    const auto band = stroke_coverage(path, stroke, Rect{0, 0, 64, 64});
+    CHECK(!band.bounds.empty());
+    // True extent is 2r + width; allow one AA pixel per side.
+    CHECK(band.bounds.width <= static_cast<std::int32_t>(2.0 * radius + stroke.width) + 2);
+    CHECK(band.bounds.height <= static_cast<std::int32_t>(2.0 * radius + stroke.width) + 2);
+    // Every covered pixel sits on the ring (no spikes, no edge bars).
+    for (std::int32_t y = band.bounds.y; y < band.bounds.y + band.bounds.height; ++y) {
+      for (std::int32_t x = band.bounds.x; x < band.bounds.x + band.bounds.width; ++x) {
+        if (coverage_pixel(band, x, y) == 0) {
+          continue;
+        }
+        const double dx = x + 0.5 - cx;
+        const double dy = y + 0.5 - cy;
+        const double off_ring = std::fabs(std::sqrt(dx * dx + dy * dy) - radius);
+        CHECK(off_ring <= stroke.width / 2.0 + 1.5);
+      }
+    }
+    // The band's midline is fully covered all the way around.
+    for (int degrees = 0; degrees < 360; degrees += 5) {
+      const double radians = degrees * 3.14159265358979323846 / 180.0;
+      const auto x = static_cast<std::int32_t>(std::lround(cx + radius * std::cos(radians)));
+      const auto y = static_cast<std::int32_t>(std::lround(cy + radius * std::sin(radians)));
+      CHECK(coverage_pixel(band, x, y) == 255);
+    }
+  }
+}
+
+void stroke_miter_spike_stays_in_bounds() {
+  // A legitimately sharp miter reaches ratio x half-width past the vertex
+  // (here ratio ~8.06, h = 3, tip at x ~64.2). The band must contain and draw
+  // the tip; the pre-July-2026 guessed padding cropped it at the buffer edge.
+  VectorPath path;
+  PathSubpath wedge;
+  wedge.closed = false;
+  wedge.op = PathCombineOp::Add;
+  wedge.anchors = {corner(8, 20), corner(40, 24), corner(8, 28)};
+  path.subpaths = {wedge};
+  patchy::VectorStroke stroke;
+  stroke.enabled = true;
+  stroke.width = 6.0;
+  const auto band = stroke_coverage(path, stroke, Rect{0, 0, 96, 64});
+  CHECK(!band.bounds.empty());
+  CHECK(band.bounds.contains(64, 24));            // tip pixel inside the band
+  CHECK(coverage_pixel(band, 63, 24) > 0);        // tip actually drawn
+  CHECK(coverage_pixel(band, 58, 24) > 100);      // wedge solidly covered
+  CHECK(band.bounds.x + band.bounds.width <= 66); // and bounds stay tight
+
+  // Limit 4 forces the bevel fallback at this ratio; the spike disappears.
+  stroke.miter_limit = 4.0;
+  const auto bevel = stroke_coverage(path, stroke, Rect{0, 0, 96, 64});
+  CHECK(coverage_pixel(bevel, 58, 24) == 0);
+  CHECK(bevel.bounds.x + bevel.bounds.width <= 44);
+}
+
+void stroke_curve_is_insensitive_to_sub_quantum_anchor_jitter() {
+  // Pins the lattice snap: moving every anchor by far less than the 1/256
+  // quantum must not change a single coverage byte (pre-snap it manufactured
+  // micro-segments whose miter wedges shifted bytes and bounds).
+  patchy::VectorStroke stroke;
+  stroke.enabled = true;
+  stroke.width = 4.0;
+  VectorPath base;
+  base.subpaths = {circle_subpath(24.0, 24.0, 12.0)};
+  const auto reference = stroke_coverage(base, stroke, Rect{0, 0, 64, 64});
+  const double jitter = 1.0 / 4096.0;
+  VectorPath moved;
+  moved.subpaths = {circle_subpath(24.0 + jitter, 24.0 + jitter, 12.0)};
+  const auto jittered = stroke_coverage(moved, stroke, Rect{0, 0, 64, 64});
+  CHECK(reference.bounds.x == jittered.bounds.x && reference.bounds.y == jittered.bounds.y);
+  CHECK(reference.bounds.width == jittered.bounds.width &&
+        reference.bounds.height == jittered.bounds.height);
+  CHECK(fnv1a_hash_bytes(reference.pixels.data()) == fnv1a_hash_bytes(jittered.pixels.data()));
 }
 
 void stroke_shape_composites_fill_and_stroke() {
@@ -870,6 +994,10 @@ std::vector<patchy::test::TestCase> vector_raster_tests() {
       {"stroke_joins_miter_bevel_round", stroke_joins_miter_bevel_round},
       {"stroke_dashes_and_offset", stroke_dashes_and_offset},
       {"stroke_golden_digests_are_stable", stroke_golden_digests_are_stable},
+      {"stroke_bezier_circle_is_translation_stable", stroke_bezier_circle_is_translation_stable},
+      {"stroke_miter_spike_stays_in_bounds", stroke_miter_spike_stays_in_bounds},
+      {"stroke_curve_is_insensitive_to_sub_quantum_anchor_jitter",
+       stroke_curve_is_insensitive_to_sub_quantum_anchor_jitter},
       {"stroke_shape_composites_fill_and_stroke", stroke_shape_composites_fill_and_stroke},
       {"vector_mask_composites_in_flatten", vector_mask_composites_in_flatten},
       {"vector_mask_multiplies_with_raster_mask", vector_mask_multiplies_with_raster_mask},

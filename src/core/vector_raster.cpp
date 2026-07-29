@@ -443,7 +443,16 @@ std::vector<DPoint> subpath_polyline(const PathSubpath& subpath) {
   if (count == 0) {
     return points;
   }
+  // Every vertex snaps to the 1/256 flattener lattice. Curve interiors arrive
+  // quantized from the integer flattener; anchor endpoints must land on the
+  // same lattice or the sub-quantum residual survives as a micro-segment whose
+  // direction is rounding noise - the miter join then amplifies it into a
+  // spike up to miter_limit x half-width long (the translation-dependent
+  // spikes/bars on imported stroked curves, July 2026). On-lattice values
+  // round-trip exactly, so the exact-equality dedupe needs no epsilon.
   const auto push = [&points](double x, double y) {
+    x = static_cast<double>(to_fixed(x)) / kSub;
+    y = static_cast<double>(to_fixed(y)) / kSub;
     if (!points.empty() && points.back().x == x && points.back().y == y) {
       return;
     }
@@ -463,7 +472,7 @@ std::vector<DPoint> subpath_polyline(const PathSubpath& subpath) {
       continue;
     }
     std::vector<Edge> segment_edges;
-    flatten_cubic_recursive(from, c1, c2, to, 6, segment_edges);
+    flatten_cubic(from, c1, c2, to, segment_edges);
     for (const auto& edge : segment_edges) {
       push(static_cast<double>(edge.to.x) / kSub, static_cast<double>(edge.to.y) / kSub);
     }
@@ -904,23 +913,6 @@ CoverageBuffer rasterize_vector_stroke(const VectorPath& path, const VectorStrok
   const double geometry_width = centered ? stroke.width : stroke.width * 2.0;
   const double half = geometry_width / 2.0;
 
-  // Bounds: path hull expanded by the band's reach (half width; miter/square
-  // caps reach at most half * max(miter_limit-capped ratio, sqrt(2)) - use a
-  // conservative 2x half + 2px guard).
-  const auto hull = path.bounds();
-  if (!hull.has_value()) {
-    return CoverageBuffer{};
-  }
-  const double reach = half * 2.0 + 2.0;
-  Rect band_bounds{static_cast<std::int32_t>(std::floor(hull->left - reach)),
-                   static_cast<std::int32_t>(std::floor(hull->top - reach)), 0, 0};
-  band_bounds.width = static_cast<std::int32_t>(std::ceil(hull->right + reach)) - band_bounds.x + 1;
-  band_bounds.height = static_cast<std::int32_t>(std::ceil(hull->bottom + reach)) - band_bounds.y + 1;
-  band_bounds = intersect_rects(band_bounds, options.clip);
-  if (band_bounds.empty()) {
-    return CoverageBuffer{};
-  }
-
   // Resolve dash entries (stroke-width multiples) to pixels.
   std::vector<double> dashes_px;
   dashes_px.reserve(stroke.dashes.size());
@@ -929,6 +921,12 @@ CoverageBuffer rasterize_vector_stroke(const VectorPath& path, const VectorStrok
   }
   const double offset_px = stroke.dash_offset * stroke.width;
 
+  // Build the outline first at origin (0,0), then size the band from the
+  // emitted edges' true hull: miter tips reach up to miter_limit x half-width
+  // past the path hull, so any up-front padding guess either wastes memory or
+  // crops spikes into artifacts at the buffer edge (the pre-July-2026
+  // half*2+2 guess did the latter). Every loop's interior lies inside its own
+  // vertex hull, so the edge hull is exact.
   std::vector<Edge> edges;
   for (const auto& subpath : path.subpaths) {
     const auto polyline = subpath_polyline(subpath);
@@ -937,12 +935,39 @@ CoverageBuffer rasterize_vector_stroke(const VectorPath& path, const VectorStrok
     }
     const auto runs = apply_dashes(polyline, subpath.closed, dashes_px, offset_px);
     for (const auto& run : runs) {
-      append_run_outline(run, half, stroke.cap, stroke.join, stroke.miter_limit, band_bounds.x,
-                         band_bounds.y, edges);
+      append_run_outline(run, half, stroke.cap, stroke.join, stroke.miter_limit, 0, 0, edges);
     }
   }
   if (edges.empty()) {
     return CoverageBuffer{};
+  }
+  std::int32_t min_fx = edges.front().from.x;
+  std::int32_t max_fx = min_fx;
+  std::int32_t min_fy = edges.front().from.y;
+  std::int32_t max_fy = min_fy;
+  for (const auto& edge : edges) {
+    min_fx = std::min({min_fx, edge.from.x, edge.to.x});
+    max_fx = std::max({max_fx, edge.from.x, edge.to.x});
+    min_fy = std::min({min_fy, edge.from.y, edge.to.y});
+    max_fy = std::max({max_fy, edge.from.y, edge.to.y});
+  }
+  const auto fixed_floor_div = [](std::int32_t v) {
+    return v >= 0 ? v / kSub : -((-v + kSub - 1) / kSub);
+  };
+  Rect band_bounds{fixed_floor_div(min_fx), fixed_floor_div(min_fy), 0, 0};
+  band_bounds.width = fixed_floor_div(max_fx) + 1 - band_bounds.x;
+  band_bounds.height = fixed_floor_div(max_fy) + 1 - band_bounds.y;
+  band_bounds = intersect_rects(band_bounds, options.clip);
+  if (band_bounds.empty()) {
+    return CoverageBuffer{};
+  }
+  const std::int32_t shift_x = band_bounds.x * kSub;
+  const std::int32_t shift_y = band_bounds.y * kSub;
+  for (auto& edge : edges) {
+    edge.from.x -= shift_x;
+    edge.from.y -= shift_y;
+    edge.to.x -= shift_x;
+    edge.to.y -= shift_y;
   }
   CoverageBuffer band;
   band.bounds = band_bounds;
