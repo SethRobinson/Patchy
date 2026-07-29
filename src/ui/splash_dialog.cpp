@@ -48,7 +48,7 @@ public:
       }
       QLabel#splashTitle {
         color: @splash_title_text;
-        font-size: 42px;
+        font-size: 32px;
         font-weight: 800;
       }
       QLabel#splashSubtitle {
@@ -115,7 +115,7 @@ public:
     copy->setSpacing(10);
     layout->addLayout(copy, 1);
 
-    auto* title = new QLabel(QObject::tr("Patchy"), this);
+    auto* title = new QLabel(QObject::tr("Patchy Image Editor"), this);
     title->setObjectName(QStringLiteral("splashTitle"));
     title->setTextFormat(Qt::PlainText);
     copy->addWidget(title);

@@ -1835,8 +1835,8 @@
     </message>
     <message>
         <location filename="../src/ui/splash_dialog.cpp" line="+217"/>
-        <source>Patchy</source>
-        <translation>Patchy</translation>
+        <source>Patchy Image Editor</source>
+        <translation>Patchy 画像エディター</translation>
     </message>
     <message>
         <location line="+5"/>
@@ -13631,6 +13631,10 @@ Clipped to the layer below</source>
 </context>
 <context>
     <name>patchy::ui::StartPanel</name>
+    <message>
+        <source>Patchy Image Editor</source>
+        <translation>Patchy 画像エディター</translation>
+    </message>
     <message>
         <source>Open source photo editing. Free forever, no subscriptions.</source>
         <translation>オープンソースの写真編集。永久無料、サブスクリプション不要。</translation>

@@ -109,7 +109,7 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
   header_row->addWidget(artwork);
   auto* header_text = new QVBoxLayout();
   header_text->setSpacing(4);
-  auto* title = new QLabel(QStringLiteral("Patchy"), column);
+  auto* title = new QLabel(tr("Patchy Image Editor"), column);
   title->setObjectName(QStringLiteral("startPanelTitle"));
   auto* tagline = new QLabel(tr("Open source photo editing. Free forever, no subscriptions."), column);
   tagline->setObjectName(QStringLiteral("startPanelTagline"));

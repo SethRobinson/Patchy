@@ -1,4 +1,6 @@
-# Patchy
+# Patchy Image Editor
+
+### [Download Patchy for Windows, macOS, and Linux](#download)
 
 Patchy is a free, open-source image editor for Windows, macOS, and Linux, built for accurate PSD and PSB editing and round trips with Adobe Photoshop. It supports editable text and vectors, masks, layer styles, Smart Objects and Smart Filters, legacy 8BF plug-ins, JavaScript scripting, and command-line automation.
 
