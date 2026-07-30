@@ -1120,7 +1120,9 @@ void layer_stroke_flat_wash_far_from_solid_still_strokes_in_full() {
   // reach half coverage still stroke as solid shapes (the pinned
   // photoshop-stroke-partial-alpha semantics), both past the direct-promote
   // bound and inside the near-solid annulus where the subpixel denial scan
-  // runs (the wash never crosses 0.5, so the scan must keep promoting).
+  // runs (the wash itself never crosses 0.5, so once the solid region's own
+  // crossing is out of reach the scan must keep promoting). Wash pixels
+  // within crossing reach of the solid square sit under its band anyway.
   constexpr std::int32_t kSide = 48;
   auto pixels = solid_rgba(kSide, kSide, 0, 0, 255, 0);
   for (std::int32_t y = 4; y < 20; ++y) {
@@ -1147,40 +1149,75 @@ void layer_stroke_flat_wash_far_from_solid_still_strokes_in_full() {
   CHECK(at(16, 1) > 0.9F);    // solid square's own band unaffected
 }
 
-void psd_bad_stroke_text_has_no_stroke_nubs_if_available() {
-  // The original report file: 119pt smooth-AA text with a 2px outside stroke.
-  // Pre-fix, the flat-wash promotion turned lattice-phase fringe pixels into
-  // isolated solid islands and the band bloomed a square nub around each one.
-  const auto path = patchy::test::local_psd_fixture_path("bad_stroke.psd");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] local bad_stroke.psd fixture missing: " << path.string() << '\n';
-    return;
-  }
-  const auto document = patchy::psd::DocumentIo::read_file(path);
-  const patchy::Layer* stroked = nullptr;
-  for (const auto& layer : document.layers()) {
-    if (!layer.layer_style().strokes.empty() && layer.layer_style().strokes.front().enabled &&
-        !layer.pixels().empty()) {
-      stroked = &layer;
-      break;
+void layer_stroke_transformed_corner_tip_never_nubs() {
+  // Alpha block lifted verbatim from bad_stroke_transformed.psd around one of
+  // its 51 nubs: transform re-rasterization stretches glyph-corner ramps so
+  // the 1-6/255 tip sits sqrt(8) from every half-covered pixel center with
+  // the bilinear half-coverage crossing ~2.5-2.75 px away — past the 2 px
+  // solid gate AND past a 2 px crossing scan. The 3 px crossing reach must
+  // deny it.
+  constexpr std::int32_t kSide = 48;
+  constexpr std::array<std::array<std::uint8_t, 9>, 5> kCornerRows{{
+      {44, 44, 40, 21, 6, 0, 0, 0, 0},
+      {135, 136, 123, 63, 18, 0, 0, 0, 0},
+      {241, 241, 218, 110, 31, 0, 0, 0, 0},
+      {255, 255, 229, 112, 32, 0, 0, 0, 0},
+      {255, 255, 229, 108, 30, 0, 0, 0, 0},
+  }};
+  auto pixels = solid_rgba(kSide, kSide, 0, 0, 255, 0);
+  constexpr std::int32_t kTipX = 30;
+  constexpr std::int32_t kTipY = 10;
+  for (std::size_t row = 0; row < kCornerRows.size(); ++row) {
+    for (std::size_t column = 0; column < kCornerRows[row].size(); ++column) {
+      pixels.pixel(kTipX - 4 + static_cast<std::int32_t>(column),
+                   kTipY + static_cast<std::int32_t>(row))[3] = kCornerRows[row][column];
     }
   }
-  CHECK(stroked != nullptr);
-  if (stroked == nullptr) {
-    return;
+  const auto bounds = patchy::Rect{0, 0, kSide, kSide};
+  const auto mask_bounds = patchy::outset_rect(bounds, 3);
+  const auto mask =
+      stroke_mask_for_pixels(pixels, bounds, mask_bounds, 2.0F, patchy::LayerStrokePosition::Outside);
+  CHECK(max_stroke_distance_from_solid(mask, pixels, bounds, mask_bounds) <= 4.0F);
+}
+
+void psd_bad_stroke_text_has_no_stroke_nubs_if_available() {
+  // The original report files: 119pt smooth-AA text with a 2px outside
+  // stroke, plain and free-transformed. Pre-fix, the flat-wash promotion
+  // turned lattice-phase fringe pixels (and, on the transformed raster,
+  // stretched glyph-corner ramp tips) into isolated solid islands and the
+  // band bloomed a square nub around each one.
+  for (const auto* name : {"bad_stroke.psd", "bad_stroke_transformed.psd"}) {
+    const auto path = patchy::test::local_psd_fixture_path(name);
+    if (!std::filesystem::exists(path)) {
+      std::cout << "[SKIP] local " << name << " fixture missing: " << path.string() << '\n';
+      continue;
+    }
+    const auto document = patchy::psd::DocumentIo::read_file(path);
+    const patchy::Layer* stroked = nullptr;
+    for (const auto& layer : document.layers()) {
+      if (!layer.layer_style().strokes.empty() && layer.layer_style().strokes.front().enabled &&
+          !layer.pixels().empty()) {
+        stroked = &layer;
+        break;
+      }
+    }
+    CHECK(stroked != nullptr);
+    if (stroked == nullptr) {
+      continue;
+    }
+    const auto& stroke = stroked->layer_style().strokes.front();
+    CHECK(stroke.position == patchy::LayerStrokePosition::Outside);
+    const auto bounds = stroked->bounds();
+    const auto radius = std::max(1, static_cast<int>(std::ceil(stroke.size)));
+    const auto mask_bounds = patchy::outset_rect(bounds, radius + 1);
+    const auto mask = patchy::render_detail::stroke_alpha_mask(
+        stroked->pixels(), *stroked, bounds, mask_bounds, stroke.size, stroke.position, std::nullopt,
+        !stroked->layer_style().layer_mask_hides_effects, nullptr);
+    const auto worst = max_stroke_distance_from_solid(mask, stroked->pixels(), bounds, mask_bounds);
+    std::cout << name << " worst band distance from solid: " << worst << " (limit "
+              << stroke.size + 2.0F << ")\n";
+    CHECK(worst <= stroke.size + 2.0F);
   }
-  const auto& stroke = stroked->layer_style().strokes.front();
-  CHECK(stroke.position == patchy::LayerStrokePosition::Outside);
-  const auto bounds = stroked->bounds();
-  const auto radius = std::max(1, static_cast<int>(std::ceil(stroke.size)));
-  const auto mask_bounds = patchy::outset_rect(bounds, radius + 1);
-  const auto mask = patchy::render_detail::stroke_alpha_mask(
-      stroked->pixels(), *stroked, bounds, mask_bounds, stroke.size, stroke.position, std::nullopt,
-      !stroked->layer_style().layer_mask_hides_effects, nullptr);
-  const auto worst = max_stroke_distance_from_solid(mask, stroked->pixels(), bounds, mask_bounds);
-  std::cout << "bad_stroke worst band distance from solid: " << worst << " (limit "
-            << stroke.size + 2.0F << ")\n";
-  CHECK(worst <= stroke.size + 2.0F);
 }
 
 }  // namespace
@@ -1234,6 +1271,8 @@ std::vector<patchy::test::TestCase> stroke_mask_effects_tests() {
        layer_stroke_aa_fringe_lattice_phase_never_nubs},
       {"layer_stroke_flat_wash_far_from_solid_still_strokes_in_full",
        layer_stroke_flat_wash_far_from_solid_still_strokes_in_full},
+      {"layer_stroke_transformed_corner_tip_never_nubs",
+       layer_stroke_transformed_corner_tip_never_nubs},
       {"psd_bad_stroke_text_has_no_stroke_nubs_if_available",
        psd_bad_stroke_text_has_no_stroke_nubs_if_available},
       {"psd_photoshop_stroke_partial_alpha_fixture_matches",
