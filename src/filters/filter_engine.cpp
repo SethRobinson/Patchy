@@ -1965,7 +1965,7 @@ void execute_builtin_filter(const FilterRegistry &registry,
 
   if (identifier == "patchy.filters.dust_and_scratches") {
     const auto radius = std::clamp(
-        filter_value(invocation, "radius", 1), 1, 100);
+        filter_value(invocation, "radius", 1), 1, 500);
     const auto threshold = std::clamp(
         filter_value(invocation, "threshold", 0), 0, 255);
     apply_dust_and_scratches_filter_pixels(pixels, radius, threshold,
@@ -2961,21 +2961,15 @@ FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
     metadata = catalog_metadata(
         Category::Sharpen, false, {std::move(radius)});
   } else if (identifier == "patchy.filters.median") {
-    auto radius = double_parameter("radius", "Radius", "filterRadius", 1.0,
-                                   500.0, 1.0, 0.01, Unit::Pixels,
-                                   Scale::Pixels);
-    radius.practical_minimum = 1.0;
-    radius.practical_maximum = 25.0;
-    metadata = catalog_metadata(Category::Noise, false,
-                                {std::move(radius)});
-  } else if (identifier == "patchy.filters.dust_and_scratches") {
-    auto radius = integer_parameter("radius", "Radius", "filterRadius", 1,
-                                    100, 1, Unit::Pixels, Scale::Pixels);
-    radius.practical_minimum = 1.0;
-    radius.practical_maximum = 25.0;
     metadata = catalog_metadata(
         Category::Noise, false,
-        {std::move(radius),
+        {double_parameter("radius", "Radius", "filterRadius", 1.0, 500.0, 1.0,
+                          0.01, Unit::Pixels, Scale::Pixels)});
+  } else if (identifier == "patchy.filters.dust_and_scratches") {
+    metadata = catalog_metadata(
+        Category::Noise, false,
+        {integer_parameter("radius", "Radius", "filterRadius", 1, 500, 1,
+                           Unit::Pixels, Scale::Pixels),
          integer_parameter("threshold", "Threshold", "filterThreshold", 0,
                            255, 0)});
   } else if (identifier == "patchy.filters.surface_blur") {

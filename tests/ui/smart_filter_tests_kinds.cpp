@@ -365,7 +365,7 @@ void ui_median_normal_pixel_layer_stays_destructive() {
     CHECK(std::abs(radius->minimum() - 1.0) < 0.000001);
     CHECK(std::abs(radius->maximum() - 500.0) < 0.000001);
     CHECK(std::abs(radius->singleStep() - 0.01) < 0.000001);
-    CHECK(slider->maximum() == 2400);
+    CHECK(slider->maximum() == 49900);
     CHECK(std::abs(radius->value() - 1.0) < 0.000001);
     radius->setValue(2.75);
     accepted = true;
@@ -466,7 +466,7 @@ void ui_dust_and_scratches_normal_pixel_layer_stays_destructive() {
       threshold_minimum = threshold->minimum();
       threshold_maximum = threshold->maximum();
       threshold_value = threshold->value();
-      radius->setValue(100);
+      radius->setValue(500);
       radius_value_after_typed_maximum = radius->value();
       slider_value_after_typed_maximum = radius_slider->value();
       radius->setValue(2);
@@ -481,11 +481,11 @@ void ui_dust_and_scratches_normal_pixel_layer_stays_destructive() {
   CHECK(callback_ran);
   CHECK(dialog_found);
   CHECK(controls_found);
-  CHECK(radius_minimum == 1 && radius_maximum == 100);
-  CHECK(radius_slider_minimum == 1 && radius_slider_maximum == 25);
+  CHECK(radius_minimum == 1 && radius_maximum == 500);
+  CHECK(radius_slider_minimum == 1 && radius_slider_maximum == 500);
   CHECK(radius_value == 1);
-  CHECK(radius_value_after_typed_maximum == 100);
-  CHECK(slider_value_after_typed_maximum == 25);
+  CHECK(radius_value_after_typed_maximum == 500);
+  CHECK(slider_value_after_typed_maximum == 500);
   CHECK(threshold_minimum == 0 && threshold_maximum == 255);
   CHECK(threshold_value == 0);
 
@@ -751,7 +751,7 @@ void ui_smart_filter_median_add_edit_and_reopen() {
     CHECK(std::abs(radius->minimum() - 1.0) < 0.000001);
     CHECK(std::abs(radius->maximum() - 500.0) < 0.000001);
     CHECK(std::abs(radius->singleStep() - 0.01) < 0.000001);
-    CHECK(slider->maximum() == 2400);
+    CHECK(slider->maximum() == 49900);
     radius->setValue(2.75);
     applied = true;
     dialog->accept();
@@ -922,8 +922,8 @@ void ui_smart_filter_dust_and_scratches_add_edit_and_reopen() {
   CHECK(apply_dialog_found);
   CHECK(apply_controls_found);
   CHECK(apply_radius_value == 1);
-  CHECK(apply_radius_minimum == 1 && apply_radius_maximum == 100);
-  CHECK(apply_slider_minimum == 1 && apply_slider_maximum == 25);
+  CHECK(apply_radius_minimum == 1 && apply_radius_maximum == 500);
+  CHECK(apply_slider_minimum == 1 && apply_slider_maximum == 500);
   CHECK(apply_threshold_value == 0);
   CHECK(apply_threshold_minimum == 0 && apply_threshold_maximum == 255);
 

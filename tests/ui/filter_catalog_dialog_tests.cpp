@@ -355,7 +355,7 @@ const std::vector<ExpectedFilterCatalogEntry>& expected_filter_catalog() {
        {{"radius", "filterRadius", 1, 500, 1, Unit::Pixels, Scale::Pixels,
          Kind::Double, 0.01}}},
       {"patchy.filters.dust_and_scratches", Category::Noise, false,
-       {{"radius", "filterRadius", 1, 100, 1, Unit::Pixels, Scale::Pixels},
+       {{"radius", "filterRadius", 1, 500, 1, Unit::Pixels, Scale::Pixels},
         {"threshold", "filterThreshold", 0, 255, 0, Unit::None}}},
       {"patchy.filters.surface_blur", Category::Blur, false,
        {{"radius", "filterRadius", 1, 100, 5, Unit::Pixels, Scale::Pixels,
@@ -505,15 +505,6 @@ void ui_filter_catalog_and_menu_contracts_are_stable() {
           actual.key == "radius") {
         CHECK(actual.practical_minimum == 0.1);
         CHECK(actual.practical_maximum == 12.0);
-      } else if (actual_filter.identifier == "patchy.filters.median" &&
-                 actual.key == "radius") {
-        CHECK(actual.practical_minimum == 1.0);
-        CHECK(actual.practical_maximum == 25.0);
-      } else if (actual_filter.identifier ==
-                     "patchy.filters.dust_and_scratches" &&
-                 actual.key == "radius") {
-        CHECK(actual.practical_minimum == 1.0);
-        CHECK(actual.practical_maximum == 25.0);
       } else if (actual_filter.identifier ==
                      "patchy.filters.surface_blur" &&
                  actual.key == "radius") {

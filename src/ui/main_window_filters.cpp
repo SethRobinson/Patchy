@@ -712,7 +712,7 @@ FilterDialogSpec editable_smart_filter_dialog_spec(
   radius.label = QObject::tr("Radius");
   radius.object_name = QStringLiteral("filterRadius");
   radius.minimum = dust || median || surface ? 1 : 0;
-  radius.maximum = surface || dust || median ? 25 : 12;
+  radius.maximum = dust || median ? 500 : (surface ? 25 : 12);
   radius.value = surface ? 5 : (dust || median ? 1 : (high_pass ? 10 : 2));
   radius.suffix = QObject::tr(" px");
   radius.parameter_key = "radius";
@@ -725,16 +725,14 @@ FilterDialogSpec editable_smart_filter_dialog_spec(
                                            : (median ? 1.0 : (high_pass ? 10.0 : 2.0))};
   radius.typed_minimum = dust || median || surface ? 1.0 : 0.1;
   radius.typed_maximum =
-      surface
-          ? 100.0
-          : (dust ? 100.0
-                  : (median
-                         ? 500.0
-                         : (high_pass || unsharp
-                                ? 1000.0
-                                : std::max(12.0,
-                                           smart_filter_radius_from_invocation(
-                                               initial_invocation, 2.0)))));
+      surface ? 100.0
+              : (dust || median
+                     ? 500.0
+                     : (high_pass || unsharp
+                            ? 1000.0
+                            : std::max(12.0,
+                                       smart_filter_radius_from_invocation(
+                                           initial_invocation, 2.0))));
   // Native descriptors retain fractional radius values. Gaussian Blur changes
   // at hundredths; Median currently floors for rendering but must not round a
   // value merely because the dialog was opened and accepted.
@@ -792,7 +790,7 @@ SmartFilterStack smart_filter_stack_with_invocation(
       throw std::invalid_argument("Smart Filter settings are unavailable");
     }
     dust->radius_pixels = smart_filter_integer_from_invocation(
-        invocation, "radius", dust->radius_pixels, 1, 100);
+        invocation, "radius", dust->radius_pixels, 1, 500);
     dust->threshold = smart_filter_integer_from_invocation(
         invocation, "threshold", dust->threshold, 0, 255);
   } else if (entry.kind == SmartFilterKind::SurfaceBlur) {
@@ -1024,7 +1022,7 @@ SmartFilterEntry make_editable_smart_filter_entry(
                                    invocation, "threshold", 15, 2, 255)};
   } else if (dust) {
     entry.parameters = DustAndScratchesSmartFilter{
-        smart_filter_integer_from_invocation(invocation, "radius", 1, 1, 100),
+        smart_filter_integer_from_invocation(invocation, "radius", 1, 1, 500),
         smart_filter_integer_from_invocation(invocation, "threshold", 0, 0,
                                              255)};
   } else if (median) {

@@ -1418,7 +1418,7 @@ void smart_filter_canonical_dust_and_scratches_descriptor_round_trips_and_preser
   auto edited = stack;
   auto& edited_dust = std::get<patchy::DustAndScratchesSmartFilter>(
       edited.entries.front().parameters);
-  edited_dust.radius_pixels = 100;
+  edited_dust.radius_pixels = 500;
   edited_dust.threshold = 255;
   edited.entries.front().opacity = 0.37;
   edited.entries.front().blend_mode = patchy::BlendMode::Multiply;
@@ -1434,7 +1434,7 @@ void smart_filter_canonical_dust_and_scratches_descriptor_round_trips_and_preser
   CHECK(regenerated_info->smart_filters->support ==
         patchy::SmartFilterStackSupport::Supported);
   const auto& reread = regenerated_info->smart_filters->entries.front();
-  CHECK(require_dust_and_scratches_filter(reread).radius_pixels == 100);
+  CHECK(require_dust_and_scratches_filter(reread).radius_pixels == 500);
   CHECK(require_dust_and_scratches_filter(reread).threshold == 255);
   CHECK(std::abs(reread.opacity - 0.37) < 1e-9);
   CHECK(reread.blend_mode == patchy::BlendMode::Multiply);

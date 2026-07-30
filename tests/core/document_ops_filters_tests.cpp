@@ -1034,15 +1034,15 @@ void filter_catalog_defines_stable_named_contracts() {
       } else if (is_median_radius) {
         CHECK(parameter.minimum == 1.0);
         CHECK(parameter.maximum == 500.0);
-        CHECK(parameter.practical_minimum == 1.0);
-        CHECK(parameter.practical_maximum == 25.0);
+        CHECK(!parameter.practical_minimum.has_value());
+        CHECK(!parameter.practical_maximum.has_value());
       } else if (actual.identifier ==
                      "patchy.filters.dust_and_scratches" &&
                  parameter.key == "radius") {
         CHECK(parameter.minimum == 1.0);
-        CHECK(parameter.maximum == 100.0);
-        CHECK(parameter.practical_minimum == 1.0);
-        CHECK(parameter.practical_maximum == 25.0);
+        CHECK(parameter.maximum == 500.0);
+        CHECK(!parameter.practical_minimum.has_value());
+        CHECK(!parameter.practical_maximum.has_value());
       } else if (is_surface_blur_radius) {
         CHECK(parameter.minimum == 1.0);
         CHECK(parameter.maximum == 100.0);
@@ -1211,12 +1211,12 @@ void filter_invocations_normalize_scale_and_reject_bad_data() {
       registry.default_invocation("patchy.filters.dust_and_scratches");
   CHECK(std::get<std::int64_t>(dust.parameters.at("radius")) == 1);
   CHECK(std::get<std::int64_t>(dust.parameters.at("threshold")) == 0);
-  dust.parameters["radius"] = std::int64_t{250};
+  dust.parameters["radius"] = std::int64_t{750};
   dust.parameters["threshold"] = std::int64_t{-20};
   const auto normalized_dust = registry.normalize(dust);
   CHECK(normalized_dust.has_value());
   CHECK(std::get<std::int64_t>(
-            normalized_dust->parameters.at("radius")) == 100);
+            normalized_dust->parameters.at("radius")) == 500);
   CHECK(std::get<std::int64_t>(
             normalized_dust->parameters.at("threshold")) == 0);
   CHECK(!registry.translation_invariant_support(*normalized_dust)

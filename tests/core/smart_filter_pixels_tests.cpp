@@ -916,11 +916,20 @@ void smart_filter_dust_and_scratches_matches_photoshop_threshold_and_native_path
 
   const auto single = solid_rgba(1, 1, 21, 87, 193, 44);
   const auto huge = patchy::render_photoshop_dust_and_scratches(
-      single, patchy::Rect{8, 9, 1, 1}, 100, 0);
+      single, patchy::Rect{8, 9, 1, 1}, 500, 0);
   CHECK(huge.bounds.x == 8 && huge.bounds.y == 9 &&
         huge.bounds.width == 1 && huge.bounds.height == 1);
   CHECK(std::equal(huge.pixels.data().begin(), huge.pixels.data().end(),
                    single.data().begin()));
+
+  bool rejected_above_maximum = false;
+  try {
+    (void)patchy::render_photoshop_dust_and_scratches(
+        single, patchy::Rect{8, 9, 1, 1}, 501, 0);
+  } catch (const std::invalid_argument &) {
+    rejected_above_maximum = true;
+  }
+  CHECK(rejected_above_maximum);
 
   bool saw_progress = false;
   patchy::FilterProgress cancel{[&](int completed, int total,

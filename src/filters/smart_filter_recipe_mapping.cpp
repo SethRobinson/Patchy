@@ -313,7 +313,7 @@ smart_filter_entries_from_recipe(const FilterRecipe& recipe,
       const auto* threshold =
           std::get_if<std::int64_t>(&threshold_value->second);
       if (radius == nullptr || threshold == nullptr || *radius < 1 ||
-          *radius > 100 || *threshold < 0 || *threshold > 255) {
+          *radius > 500 || *threshold < 0 || *threshold > 255) {
         return std::nullopt;
       }
       entry.kind = SmartFilterKind::DustAndScratches;

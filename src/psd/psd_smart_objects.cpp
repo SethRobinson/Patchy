@@ -225,13 +225,13 @@ smart_filter_descriptor_spec(const SmartFilterEntry &entry) {
     const auto* dust =
         std::get_if<DustAndScratchesSmartFilter>(&entry.parameters);
     if (dust == nullptr || dust->radius_pixels < 1 ||
-        dust->radius_pixels > 100 || dust->threshold < 0 ||
+        dust->radius_pixels > 500 || dust->threshold < 0 ||
         dust->threshold > 255) {
       return std::nullopt;
     }
     spec.radius = dust->radius_pixels;
     spec.minimum_radius = 1.0;
-    spec.maximum_radius = 100.0;
+    spec.maximum_radius = 500.0;
     spec.integer_radius = true;
     spec.threshold = dust->threshold;
     spec.default_entry_name = "Dust && Scratches...";
@@ -1249,7 +1249,7 @@ std::optional<SmartFilterStack> smart_filter_stack_from_descriptor(
             descriptor_value_either(*filter, "Thsh", "threshold");
         if (radius != nullptr &&
             radius->type == DescriptorValue::Type::Integer &&
-            radius->integer_value >= 1 && radius->integer_value <= 100 &&
+            radius->integer_value >= 1 && radius->integer_value <= 500 &&
             threshold != nullptr &&
             threshold->type == DescriptorValue::Type::Integer &&
             threshold->integer_value >= 0 &&
