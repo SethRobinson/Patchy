@@ -607,8 +607,10 @@ private:
   std::function<void(QAction*)> on_done_;
 };
 
-// Full-host click-swallowing dim layer behind an embedded dialog, giving it
-// modality within the host window.
+// Full-host click-swallowing dim layer behind a modal embedded dialog. Only
+// modal dialogs get one: a non-modal dialog is opened non-modally precisely so
+// the dialog behind it stays usable, and dimming it there is what made the
+// color picker look like it had frozen its parent.
 class EmbeddedDialogBlocker final : public QWidget {
 public:
   explicit EmbeddedDialogBlocker(QWidget* host) : QWidget(host) {
@@ -619,7 +621,6 @@ public:
     setStyleSheet(QStringLiteral(
         "QWidget#wasmEmbeddedDialogBlocker { background-color: rgba(0, 0, 0, 96); }"));
     setGeometry(host->rect());
-    host->installEventFilter(this);
     show();
     raise();
   }
@@ -628,85 +629,93 @@ protected:
   void mousePressEvent(QMouseEvent* event) override { event->accept(); }
   void mouseReleaseEvent(QMouseEvent* event) override { event->accept(); }
   void mouseDoubleClickEvent(QMouseEvent* event) override { event->accept(); }
-  bool eventFilter(QObject* watched, QEvent* event) override {
-    if (watched == parentWidget() && event->type() == QEvent::Resize) {
-      setGeometry(parentWidget()->rect());
-    }
-    return false;
-  }
 };
 
 constexpr const char* kEmbeddedProperty = "wasmEmbeddedDialog";
-constexpr const char* kEmbeddedFlagsProperty = "wasmEmbeddedDialogFlags";
 
-// Restores the embedded dialog to a plain (hidden) top-level when it closes,
-// and removes the blocker. Attached as an event filter on the dialog; the
-// restore must run before the caller's stack dialog is destroyed, and Hide is
-// delivered inside QDialog::exec's cleanup, which is exactly that moment.
-class EmbeddedDialogTeardown final : public QObject {
+// Keeps a dialog living as a child widget of `host` for the rest of its life.
+//
+// A window whose platform window is constructed while a nested event loop is
+// running never receives any input on Qt 6.8 wasm (docs/wasm.md records the
+// root cause), so a dialog opened from inside another dialog cannot be a
+// window at all. Reparented into the host, it is an ordinary child widget that
+// the host's own working listeners deliver input to.
+//
+// The dialog is never restored to a top-level. An earlier version put it back
+// on Hide, which meant getting hide-then-reshow, WA_DeleteOnClose dialogs
+// dying without a Hide, and stack dialogs unwinding through a nested loop all
+// right at once; staying a child widget needs none of that. This object is a
+// child of the dialog, so it dies with the dialog however that happens and
+// takes the dim layer with it.
+class EmbeddedDialog final : public QObject {
 public:
-  EmbeddedDialogTeardown(QDialog* dialog, EmbeddedDialogBlocker* blocker)
-      : QObject(dialog), dialog_(dialog), blocker_(blocker) {
-    dialog->installEventFilter(this);
+  EmbeddedDialog(QDialog& dialog, QWidget& host) : QObject(&dialog), dialog_(&dialog), host_(&host) {
+    dialog.setProperty(kEmbeddedProperty, true);
+    // Read modality before reparenting: a child widget cannot be modal, so
+    // from here on the dim layer is what carries modality inside the host.
+    const bool modal = dialog.isModal();
+    dialog.setParent(&host, Qt::Widget);
+    // As a child widget the dialog no longer gets a window background; without
+    // this the host paints through it.
+    dialog.setAutoFillBackground(true);
+    if (modal) {
+      blocker_ = new EmbeddedDialogBlocker(&host);
+    }
+    host.installEventFilter(this);
+    dialog.installEventFilter(this);
+    place();
+    dialog.show();
+    dialog.raise();
+    dialog.setFocus();
   }
+
+  ~EmbeddedDialog() override { delete blocker_.data(); }
 
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override {
-    if (watched == dialog_ && event->type() == QEvent::Hide && dialog_ != nullptr &&
-        dialog_->property(kEmbeddedProperty).toBool()) {
+    if (watched == host_ && event->type() == QEvent::Resize) {
       if (blocker_ != nullptr) {
-        blocker_->deleteLater();
+        blocker_->setGeometry(host_->rect());
       }
-      auto* dialog = dialog_.data();
-      dialog->setProperty(kEmbeddedProperty, false);
-      const auto flags =
-          static_cast<Qt::WindowFlags>(dialog->property(kEmbeddedFlagsProperty).toUInt());
-      dialog->removeEventFilter(this);
-      deleteLater();
-      dialog->setParent(nullptr, flags);
+      place();
+    } else if (watched == dialog_ && blocker_ != nullptr) {
+      // A closed but not yet destroyed modal dialog must not leave the host
+      // dimmed and inert; a reshown one needs its dim layer back.
+      if (event->type() == QEvent::Hide) {
+        blocker_->hide();
+      } else if (event->type() == QEvent::Show) {
+        blocker_->show();
+        blocker_->raise();
+        dialog_->raise();
+      }
     }
     return false;
   }
 
 private:
+  // Centers and clamps the dialog inside the host, the same shape of fit
+  // place_dialog gives a real window against the canvas.
+  void place() {
+    if (dialog_ == nullptr || host_ == nullptr) {
+      return;
+    }
+    const auto host_rect = host_->rect();
+    const QSize bound(std::max(1, host_rect.width() - 8), std::max(1, host_rect.height() - 8));
+    // Same last resort as clamped windows: when the layout minimum cannot fit
+    // the host, scroll the content so the button row stays reachable.
+    wrap_dialog_content_in_overflow_scroll(*dialog_, bound);
+    dialog_->adjustSize();
+    const QSize size(std::min(dialog_->width(), bound.width()),
+                     std::min(dialog_->height(), bound.height()));
+    dialog_->resize(size);
+    dialog_->move(std::max(0, (host_rect.width() - size.width()) / 2),
+                  std::max(0, (host_rect.height() - size.height()) / 2));
+  }
+
   QPointer<QDialog> dialog_;
+  QPointer<QWidget> host_;
   QPointer<EmbeddedDialogBlocker> blocker_;
 };
-
-// Reparents a dialog that would open as a (broken) secondary-parented window
-// into the host window as a child widget, centered and clamped, behind a
-// modality blocker. Runs from the QEvent::Show filter, so it covers every
-// dialog regardless of how it is shown: QMessageBox and QColorDialog statics,
-// exec_dialog, bare exec, the wasm save/picker prompts.
-void embed_dialog_in_host(QDialog& dialog, QWidget& host) {
-  dialog.setProperty(kEmbeddedProperty, true);
-  dialog.setProperty(kEmbeddedFlagsProperty,
-                     static_cast<uint>(dialog.windowFlags()));
-  auto* blocker = new EmbeddedDialogBlocker(&host);
-  new EmbeddedDialogTeardown(&dialog, blocker);
-  // WA_DeleteOnClose dialogs (the color picker) can die without a Hide the
-  // teardown filter would see; the blocker must never outlive the dialog it
-  // serves or the host is left dimmed and inert.
-  QObject::connect(&dialog, &QObject::destroyed, blocker, &QObject::deleteLater);
-  dialog.setParent(&host, Qt::Widget);
-  // As a child widget the dialog no longer gets a window background; without
-  // this the host paints through it.
-  dialog.setAutoFillBackground(true);
-  const auto host_rect = host.rect();
-  const QSize bound(std::max(1, host_rect.width() - 8), std::max(1, host_rect.height() - 8));
-  // Same last resort as clamped windows: when the layout minimum cannot fit
-  // the host, scroll the content so the button row stays reachable.
-  wrap_dialog_content_in_overflow_scroll(dialog, bound);
-  dialog.adjustSize();
-  const QSize size(std::min(dialog.width(), bound.width()),
-                   std::min(dialog.height(), bound.height()));
-  dialog.resize(size);
-  dialog.move(std::max(0, (host_rect.width() - size.width()) / 2),
-              std::max(0, (host_rect.height() - size.height()) / 2));
-  dialog.show();
-  dialog.raise();
-  dialog.setFocus();
-}
 
 // Host for a dialog that must not open as its own window: the parent's
 // window when that is a secondary top-level, else the active modal widget's
@@ -754,7 +763,7 @@ protected:
             [dialog_guard, host_guard] {
               if (dialog_guard != nullptr && host_guard != nullptr &&
                   !dialog_guard->property(kEmbeddedProperty).toBool()) {
-                embed_dialog_in_host(*dialog_guard, *host_guard);
+                new EmbeddedDialog(*dialog_guard, *host_guard);
               }
             },
             Qt::QueuedConnection);

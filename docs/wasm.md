@@ -402,35 +402,88 @@ Wasm-only accommodations for living inside a single browser canvas:
   compositor's stay-on-bottom stacking zone: clicking it still activates and
   focuses it, but the raise becomes a no-op, and dialogs and popups keep their
   normal order in the regular zone above.
-- **Dialog combos use an in-window chooser, not the native popup.** Any
-  top-level window opened from a secondary top-level window (any dialog,
-  modal or not) is broken on Qt 6.8 wasm. The native combo popup renders but
-  never receives pointer or key events: the options list appears, clicks
-  select nothing, Escape does not dismiss, and real mouse movement spams
-  "QWidget::mapFrom(): parent must be in parent hierarchy" warnings. A
-  replacement chooser shown as its own dialog fared worse (no input, and no
-  paint), whether parented to the dialog or parentless. Main-window popups
-  (the menu bar, the options-bar percent pickers) and dialogs opened from
-  the main window work, and the bug reproduces identically on the
-  single-threaded and multithreaded kits, so it is unrelated to threading.
-  The workaround (`install_wasm_dialog_combo_workaround`,
-  dialog_utils_wasm.cpp, installed from the MainWindow constructor)
-  intercepts every interaction that would open a dialog combo's popup (press
-  on the combo or its arrow, F4, Space, Alt+Down/Up) and shows a
-  popup-placed QListWidget as a plain child widget inside the dialog's own
-  window, which paints and receives input normally; a press outside the list
-  dismisses it. Picking emits the same activated/textActivated signals as a
-  real popup, which several dialogs ("Custom color..." rows) depend on. The
-  same filter fixes the other members of the bug class: every QDialog that
-  would open as a secondary-parented window (QMessageBox and QColorDialog
-  statics, sub-dialogs of dialogs, the wasm save/picker prompts opened from a
-  dialog) is intercepted at QEvent::Show and embedded as a centered child
-  widget of the host window behind a click-blocking dim layer, restored to a
-  plain top-level when it closes; and QMenu context menus inside dialogs go
-  through `exec_context_menu` (dialog_utils.cpp), which on wasm shows the
-  actions as an in-window list (flat menus only) and on desktop is exactly
-  `menu.exec`. New dialog code needs nothing special; new dialog context
-  menus must use `exec_context_menu` instead of `QMenu::exec`.
+- **Windows created inside a nested event loop are input-dead, so dialogs open
+  their popups and sub-dialogs as child widgets.** This is the root cause
+  behind the whole family of "it paints but nothing responds" symptoms on this
+  kit. The mechanism was measured in the browser on 2026-07-30; read it before
+  touching any of the workarounds below.
+
+  Qt registers each window's DOM event listeners in the `QWasmWindow`
+  constructor through `qstdweb::EventCallback`, which builds the listener with
+  an embind call (`val::module_property("QtEventListener").new_(...)`) and then
+  calls `addEventListener`. Under Asyncify, when that constructor runs while
+  the app is inside a **reentrant** `QEventLoop::exec`, the embind call hands
+  back a **Promise** instead of the listener object. Qt registers the Promise,
+  a Promise has no `handleEvent`, so the browser never calls anything: every
+  listener that window registers is inert for the window's entire lifetime
+  (pointerdown/move/up/cancel on `.qt-window-contents`, plus
+  pointerenter/leave/wheel/keydown/keyup on `.qt-window`). Patching
+  `EventTarget.prototype.addEventListener` from the page shows it directly: a
+  menu popup opened from the main loop registers `QtEventListener` objects
+  whose `handleEvent` is a function and works, while the same popup opened with
+  any dialog's loop running registers `Promise` objects and is dead. Upstream
+  QTBUG-145018 reports the same defect from the other end (its console shows
+  "Property 'handleEvent' is not callable") and attributes it to reentrant
+  `QEventLoop::exec` being mishandled on wasm between 6.8.0 and 6.10.0.
+
+  Consequences, all of which match observed behavior:
+
+  - Every window a dialog opens is created inside that dialog's nested loop,
+    so none of them can work: combo popups, context menus, and sub-dialogs
+    alike. Qt's popup event *forwarding* still works, which is why such a
+    popup reacts to events that land on a different window.
+  - The transient parent is irrelevant: the wasm plugin never reads
+    `transientParent`, and a menu-bar popup parented to the main window is
+    equally dead when it is opened while a non-modal dialog's loop is running.
+    Re-parenting a doomed window cannot fix it; only not being a window can.
+  - Dialogs and menus opened from the main window work because their windows
+    are created from the outer loop. A dialog's own window is created before
+    its `exec` starts, which is why the dialog itself always works.
+  - It reproduces identically on the single-threaded and multithreaded kits:
+    this is Asyncify, not threading.
+  - A widget that is already a child of a working window is unaffected. That
+    is the only mechanism available on this kit.
+
+  What the app does about it (`install_wasm_dialog_combo_workaround`,
+  dialog_utils_wasm.cpp, installed from the MainWindow constructor):
+
+  - **Dialog combos** get an in-window chooser instead of the native popup.
+    The filter intercepts every interaction that would open the popup (press
+    on the combo or its arrow, F4, Space, Alt+Down/Up) and shows a
+    popup-placed QListWidget as a plain child widget inside the dialog's own
+    window, which paints and receives input normally; a press outside the list
+    dismisses it. Picking emits the same activated/textActivated signals as a
+    real popup, which several dialogs ("Custom color..." rows) depend on.
+  - **Sub-dialogs of dialogs** (QMessageBox and QColorDialog statics, the
+    custom color picker, the wasm save/picker prompts) are intercepted at
+    QEvent::Show and reparented into the host window as a centered, clamped
+    child widget, one event-loop turn later so the reparent never happens
+    inside the Show delivery. Reparenting during Show left the window with a
+    stale paint/input offset of about 100 px until it was next moved. The
+    dialog then stays a child widget for the rest of its life: an earlier
+    version restored it to a top-level on Hide, which meant getting
+    hide-then-reshow, WA_DeleteOnClose dialogs dying without a Hide, and stack
+    dialogs unwinding through a nested loop all right at once, and it kept
+    failing. `EmbeddedDialog` is a child QObject of the dialog, so it dies with
+    the dialog however that happens.
+  - **Modality is respected.** A modal embedded dialog gets a click-swallowing
+    dim layer over the host; a non-modal one must not, because it was opened
+    non-modally precisely so the dialog behind it stays usable. Dimming a
+    non-modal picker is what made Layer Style look frozen behind the color
+    picker.
+  - **Dialog context menus** go through `exec_context_menu`
+    (dialog_utils.cpp), which on wasm shows the actions as an in-window list
+    (flat menus only) and on desktop is exactly `menu.exec`.
+
+  New dialog code needs nothing special; new dialog context menus must use
+  `exec_context_menu` instead of `QMenu::exec`.
+
+  Known limitation left in place: a popup or dialog opened from the **main
+  window** while a non-modal dialog (Layer Style, Curves) is open is created
+  inside that dialog's loop too, so a menu whose platform window does not exist
+  yet comes up dead. Menus the user has already opened once keep working,
+  because their platform window survives being hidden. Covering that properly
+  needs either the kit upgrade discussed below or an in-window menu bar.
 - **Dialogs clamp to the canvas.** Desktop window managers keep an oversized
   dialog's chrome reachable; the browser canvas has nothing equivalent, so a
   dialog taller than the canvas left its OK/Cancel row unreachable below the
@@ -558,6 +611,41 @@ pieces (rationale in the decision bullets above):
   watchdog interrupt, and before/after benchmark numbers (the
   `?PATCHY_RENDER_SINGLE_THREADED=1` control plus `build\wasm-st-baseline`,
   a preserved single-threaded build, exist for exactly that comparison).
+
+## Kit upgrade: what upstream has fixed since 6.8.3
+
+Researched 2026-07-30, while root-causing the reentrant-`exec` window defect
+above. The kit is still pinned at 6.8.3; this is the evidence for revisiting
+that, not a decision to.
+
+- **QTBUG-145018** is our bug seen from the other end (a QToolButton submenu
+  that paints but takes no input, console "Property 'handleEvent' is not
+  callable"). Qt's comment blames reentrant `QEventLoop::exec` on wasm between
+  6.8.0 and 6.10.0; the reporter says it does not reproduce on 6.10.2 or later.
+  Qt's own fix (`cd7a8af99c8c`) is in qtwidgets, not the wasm plugin: it makes
+  QToolButton use `popup()` instead of `exec()`. That is the upstream-sanctioned
+  shape of the fix, avoid the nested loop, and it is why an upgrade alone may
+  not fully cover an app whose dialogs are `exec`-based like ours.
+- **QTBUG-102827** (wasm crash with Asyncify plus nested exec loops) is fixed
+  in 6.10. **QTBUG-131699** (non-modal dialog invisible behind its parent) is
+  fixed in 6.10.0 Beta3, via `e48c19449e` "wasm: Fix stacking order problem for
+  transient parent windows", which is on 6.10 and was not cherry-picked to 6.9.
+- Later plugin commits that look relevant: `01d48cd` "wasm: process events
+  targeted at the window only" (6.11, stops events reaching the wrong window,
+  sets `pointer-events: none` on the canvas), `5396a9e` "wasm: Better handling
+  of transient parent" (dev/6.12, motivated by a dialog opened from a menu),
+  `52c5a78` "wasm: fix QWasmWindow child element layout" (canvas misaligned
+  under `display: flex`; relevant to coordinate offsets), and `d8112c7`
+  (ResizeObserver does not fire for a `display: none` container, leaving screen
+  geometry 0x0).
+- Nothing upstream matches the per-window devicePixelRatio/canvas-scale
+  mismatch that shows up when the browser's DPR changes after a window has been
+  sized: no wasm-plugin commit has touched `devicePixelRatio` since 2022.
+- Verdict: 6.10.2 or newer is the first version where the reentrancy defect is
+  claimed gone, so an upgrade is the honest long-term fix and would let the
+  choosers and the embedding both be deleted. It is a bigger change than it
+  looks (the emsdk pairing, the whole interactive battery to re-run), so it
+  wants its own task and a measured before/after, not a drive-by bump.
 
 ## Later steps (not built yet)
 

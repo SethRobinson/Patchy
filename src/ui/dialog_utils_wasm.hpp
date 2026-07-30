@@ -46,21 +46,25 @@ void download_file_in_browser(const QString& path);
 // file through `open_dropped_path`. Call once at startup.
 void install_web_drop_target(std::function<void(const QString& path)> open_dropped_path);
 
-// Application-wide workaround for a Qt 6.8 wasm input bug: any top-level
-// window opened from a secondary top-level window (any dialog, modal or not)
-// is broken. The native combo popup renders but never receives pointer or
-// key events, so it neither picks nor dismisses; a replacement chooser
-// dialog (dialog-parented or parentless) received no input and did not even
-// paint. Main-window popups, including the menus, work fine. The filter
-// therefore intercepts every interaction that would open a dialog combo's
-// popup and shows a popup-styled QListWidget as a plain child widget inside
-// the dialog's own window, which paints and receives input normally. Picks
-// emit the same activated/textActivated signals a real popup would; a press
-// outside the list dismisses it like a popup. The same filter also embeds
-// every QDialog that would open as a secondary-parented window (message
-// boxes, color pickers, sub-dialogs of dialogs) as a centered child widget of
-// the host window behind a click-blocking dim layer, because those windows
-// are equally input-dead.
+// Application-wide workaround for a Qt 6.8 wasm input bug: a top-level window
+// whose platform window is constructed while a nested event loop is running
+// receives no pointer or key input for its entire lifetime. Qt registers that
+// window's DOM listeners through an embind call that, re-entered under
+// Asyncify, hands back a Promise instead of the listener object, so the
+// browser has nothing to call. docs/wasm.md records the full root cause and
+// the evidence.
+//
+// Every window a dialog opens is created inside that dialog's nested loop, so
+// none of them can work: combo popups, context menus, and sub-dialogs alike.
+// Child widgets of an already-working window are unaffected, which is the only
+// mechanism available. The filter therefore intercepts every interaction that
+// would open a dialog combo's popup and shows a popup-styled QListWidget as a
+// plain child widget inside the dialog's own window; picks emit the same
+// activated/textActivated signals a real popup would, and a press outside the
+// list dismisses it like a popup. The same filter reparents every QDialog that
+// would open as a window from another dialog (message boxes, color pickers,
+// sub-dialogs) into the host window as a centered child widget, with a
+// click-blocking dim layer when the dialog is modal.
 void install_wasm_dialog_combo_workaround();
 
 // QMenu::exec replacement for menus opened from dialog contexts (flat menus
