@@ -133,7 +133,7 @@ public:
     copy->addWidget(divider);
 
     auto* version = new QLabel(
-        QObject::tr("Version %1 (built %2)").arg(QStringLiteral(PATCHY_VERSION), build_date_text()), this);
+        QObject::tr("Version %1 (built %2)").arg(QStringLiteral(PATCHY_VERSION), build_timestamp_text()), this);
     version->setObjectName(QStringLiteral("splashCredit"));
     version->setTextFormat(Qt::PlainText);
     copy->addWidget(version);

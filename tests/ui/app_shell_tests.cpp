@@ -2197,7 +2197,7 @@ void ui_about_dialog_shows_labeled_external_links() {
     CHECK(credit_labels.size() == 2);
     CHECK(credit_labels.first()->text().startsWith(QStringLiteral("Version ")));
     CHECK(credit_labels.first()->text().endsWith(
-        QStringLiteral("(built %1)").arg(patchy::ui::build_date_text())));
+        QStringLiteral("(built %1)").arg(patchy::ui::build_timestamp_text())));
 
     auto* contributors = dialog->findChild<QLabel*>(QStringLiteral("splashContributors"));
     CHECK(contributors != nullptr);
@@ -2430,7 +2430,7 @@ void ui_start_panel_shows_about_info_and_update_status() {
   auto* version = window.findChild<QLabel*>(QStringLiteral("startPanelVersion"));
   CHECK(version != nullptr);
   CHECK(version->text().startsWith(QStringLiteral("Version ")));
-  CHECK(version->text().endsWith(QStringLiteral("(built %1)").arg(patchy::ui::build_date_text())));
+  CHECK(version->text().endsWith(QStringLiteral("(built %1)").arg(patchy::ui::build_timestamp_text())));
   auto* credit = window.findChild<QLabel*>(QStringLiteral("startPanelCredit"));
   CHECK(credit != nullptr);
   CHECK(credit->text() == QStringLiteral("Created by Seth A. Robinson"));

@@ -198,7 +198,7 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
   };
 
   auto* version = new QLabel(
-      tr("Version %1 (built %2)").arg(QStringLiteral(PATCHY_VERSION), build_date_text()), this);
+      tr("Version %1 (built %2)").arg(QStringLiteral(PATCHY_VERSION), build_timestamp_text()), this);
   version->setObjectName(QStringLiteral("startPanelVersion"));
   version->setTextFormat(Qt::PlainText);
   auto* credit = new QLabel(tr("Created by Seth A. Robinson"), this);
