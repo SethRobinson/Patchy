@@ -885,7 +885,19 @@ if(PATCHY_BUILD_APP)
       # qt_add_executable generates the wasm deployment sidecars (patchy.html,
       # qtloader.js) that a plain add_executable does not.
       qt_add_executable(patchy src/app/main.cpp)
-      set_target_properties(patchy PROPERTIES QT_WASM_INITIAL_MEMORY "512MB")
+      # The pthread pool must cover the largest fan-out that can be spawned
+      # while the spawning thread immediately blocks on the results (Edit >
+      # Flatten runs the strip compositor on the main thread, up to 16 strips;
+      # a lazily spawned worker cannot finish instantiating while the main
+      # thread is blocked, which deadlocks). Sized to the visitor's machine:
+      # up to 16 join-fanout workers plus headroom for the preview/open/undo
+      # workers that may be live at the same time. Emscripten evaluates the
+      # expression at page load. No PTHREAD_POOL_SIZE_STRICT: overflow lazily
+      # spawns (fine from worker threads, which do yield) instead of aborting.
+      set_target_properties(patchy PROPERTIES
+        QT_WASM_INITIAL_MEMORY "512MB"
+        QT_WASM_PTHREAD_POOL_SIZE "Math.min(navigator.hardwareConcurrency,16)+8"
+      )
       # Asyncify keeps the nested-event-loop sites (QDialog::exec and friends)
       # working on wasm. Exceptions stay JS-based (-fexceptions, matching the
       # preset's compile flags) because Asyncify does not support wasm-native
@@ -893,13 +905,28 @@ if(PATCHY_BUILD_APP)
       # and /scripts, which is exactly where the existing
       # applicationDirPath()-relative probes look (appdir is "/" on wasm).
       # No -sSTACK_SIZE here: Qt's wasm target machinery sets its own, and a
-      # second value only earns a duplicate-flag link warning.
+      # second value only earns a duplicate-flag link warning. The pre-js
+      # forwards PATCHY_* URL query parameters into the app environment so the
+      # environment escape hatches work in a browser (the node test runner has
+      # its own pre-js doing the same from process.env).
+      # -Os beat -O3 in the July 2026 link-flag trial: -O3 was +0.8% size with
+      # no measurable runtime win and a slower wasm-opt pass; see docs/wasm.md.
+      # Workers get 4MB stacks: LibRaw's dcraw-derived decoders carry large
+      # stack locals (the reason wasm-core gives the main thread 8MB) and the
+      # compositor/preview workers now run there.
+      # -Wno-pthreads-mem-growth: same one-diagnostic suppression as the
+      # wasm-core preset; pthreads plus a growable heap slows JS-side heap
+      # views, which Qt touches only for canvas presentation.
       target_link_options(patchy PRIVATE
         -sASYNCIFY
         -Os
         -fexceptions
+        -pthread
+        -Wno-pthreads-mem-growth
+        -sDEFAULT_PTHREAD_STACK_SIZE=4MB
         -sALLOW_MEMORY_GROWTH=1
         -sMAXIMUM_MEMORY=4GB
+        "SHELL:--pre-js ${PROJECT_SOURCE_DIR}/scripts/wasm/app-env-pre.js"
         "SHELL:--preload-file ${CMAKE_BINARY_DIR}/fonts@/fonts"
         "SHELL:--preload-file ${CMAKE_BINARY_DIR}/translations@/translations"
         "SHELL:--preload-file ${CMAKE_BINARY_DIR}/scripts@/scripts"

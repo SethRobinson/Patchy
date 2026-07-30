@@ -41,6 +41,12 @@ createServer(async (request, response) => {
     response.writeHead(200, {
       'Content-Type': types[extname(file).toLowerCase()] ?? 'application/octet-stream',
       'Cache-Control': 'no-store',
+      // Cross-origin isolation, matching the deployed .htaccess: the
+      // multithreaded app needs SharedArrayBuffer, which browsers only enable
+      // when these two headers are present. Keeping them here makes the local
+      // dev loop match production.
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'require-corp',
     });
     response.end(body);
   } catch {

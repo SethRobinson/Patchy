@@ -1,6 +1,6 @@
 # One-time (idempotent) provisioning of the Qt for WebAssembly kit for the
-# wasm-release preset. Installs Qt 6.8.3 wasm_singlethread (plus qtimageformats)
-# into .deps/Qt/6.8.3/wasm_singlethread via aqtinstall, next to the existing
+# wasm-release preset. Installs Qt 6.8.3 wasm_multithread (plus qtimageformats)
+# into .deps/Qt/6.8.3/wasm_multithread via aqtinstall, next to the existing
 # desktop kits. Host tools (moc/rcc/lrelease) come from the already-vendored
 # .deps/Qt/6.8.3/msvc2022_64 through QT_HOST_PATH, so no --autodesktop install
 # is needed. Run scripts\wasm\setup-emsdk.ps1 first; Qt 6.8 pairs with the
@@ -8,17 +8,22 @@
 #
 # Run from anywhere:
 #   pwsh -File scripts\wasm\setup-qt-wasm.ps1
-# Rerunning is a fast no-op once everything is installed.
+# Rerunning is a fast no-op once everything is installed. Pass -WasmArch
+# wasm_singlethread to provision the old single-threaded kit instead (kits
+# coexist under .deps/Qt/6.8.3/).
+param(
+  [string]$WasmArch = 'wasm_multithread'
+)
 $ErrorActionPreference = 'Stop'
 
 $QtVersion = '6.8.3'
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $QtRoot = Join-Path $RepoRoot '.deps\Qt'
-$WasmKitDir = Join-Path $QtRoot "$QtVersion\wasm_singlethread"
+$WasmKitDir = Join-Path $QtRoot "$QtVersion\$WasmArch"
 $VenvDir = Join-Path $RepoRoot '.deps\aqt-venv'
 $HostKitDir = Join-Path $QtRoot "$QtVersion\msvc2022_64"
 
-Write-Host "== Patchy Qt wasm kit setup (Qt $QtVersion wasm_singlethread) =="
+Write-Host "== Patchy Qt wasm kit setup (Qt $QtVersion $WasmArch) =="
 
 if (-not (Test-Path (Join-Path $HostKitDir 'bin\qmake.exe'))) {
   throw "Host Qt kit not found at $HostKitDir (needed as QT_HOST_PATH)"
@@ -36,8 +41,8 @@ if (-not (Test-Path (Join-Path $VenvDir 'Scripts\aqt.exe'))) {
 }
 
 if (-not (Test-Path (Join-Path $WasmKitDir 'lib\cmake\Qt6\qt.toolchain.cmake'))) {
-  Write-Host "== Installing Qt $QtVersion wasm_singlethread (downloads ~1 GB) =="
-  & (Join-Path $VenvDir 'Scripts\aqt.exe') install-qt all_os wasm $QtVersion wasm_singlethread -m qtimageformats -O $QtRoot
+  Write-Host "== Installing Qt $QtVersion $WasmArch (downloads ~1 GB) =="
+  & (Join-Path $VenvDir 'Scripts\aqt.exe') install-qt all_os wasm $QtVersion $WasmArch -m qtimageformats -O $QtRoot
   if ($LASTEXITCODE -ne 0) { throw "aqt install-qt failed" }
 }
 

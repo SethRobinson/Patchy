@@ -9,6 +9,18 @@
 
 namespace patchy::ui {
 
+// True when this build runs "background" work inline on the calling thread
+// (single-threaded wasm: no worker threads exist). A pthreads-enabled wasm
+// build defines __EMSCRIPTEN_PTHREADS__ and gets real threads, exactly like
+// the desktop platforms. Callers that would only waste work by deferring to a
+// worker that runs inline (for example paintEvent's deferred render refresh)
+// branch on this instead of Q_OS_WASM.
+#if defined(Q_OS_WASM) && !defined(__EMSCRIPTEN_PTHREADS__)
+inline constexpr bool kBackgroundWorkRunsInline = true;
+#else
+inline constexpr bool kBackgroundWorkRunsInline = false;
+#endif
+
 // Detached render/preview workers tracked for shutdown. The async preview
 // machinery captures a raw QCoreApplication* and invokeMethods on it from
 // worker threads; nothing joined them at shutdown, so quitting mid-render
@@ -38,7 +50,7 @@ void wait_for_tracked_background_workers();
 // future_status::deferred forever, which turns that loop into a spin.
 template <typename Fn>
 [[nodiscard]] auto launch_async(Fn&& fn) -> std::future<std::invoke_result_t<Fn>> {
-#ifdef Q_OS_WASM
+#if defined(Q_OS_WASM) && !defined(__EMSCRIPTEN_PTHREADS__)
   std::promise<std::invoke_result_t<Fn>> promise;
   try {
     if constexpr (std::is_void_v<std::invoke_result_t<Fn>>) {

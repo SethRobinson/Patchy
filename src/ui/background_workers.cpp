@@ -32,9 +32,10 @@ void run_tracked_background_worker(std::function<void()> work) {
     }
     worker_finished.notify_all();
   };
-#ifdef Q_OS_WASM
+#if defined(Q_OS_WASM) && !defined(__EMSCRIPTEN_PTHREADS__)
   // Single-threaded wasm cannot spawn workers; run inline. Callers observe
   // the same ordering because completions are posted via queued invokeMethod.
+  // A pthreads-enabled wasm build takes the real-thread branch below.
   run_and_release(work);
 #else
   std::thread([run_and_release, work = std::move(work)] { run_and_release(work); }).detach();

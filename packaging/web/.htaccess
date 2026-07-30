@@ -12,6 +12,14 @@
 AddType application/wasm .wasm
 </IfModule>
 <IfModule mod_headers.c>
+# Cross-origin isolation: the multithreaded wasm build needs
+# SharedArrayBuffer, which browsers only enable when these two headers are
+# present on the document. "always" also covers error and redirected
+# responses. The page itself checks crossOriginIsolated and shows a clear
+# error instead of an inscrutable SharedArrayBuffer failure if a host ever
+# drops these (the upload script verifies them after each deploy).
+Header always set Cross-Origin-Opener-Policy "same-origin"
+Header always set Cross-Origin-Embedder-Policy "require-corp"
 <FilesMatch "\.html$">
 Header set Cache-Control "no-cache"
 </FilesMatch>

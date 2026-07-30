@@ -242,6 +242,12 @@ bool CanvasWidget::render_settled() const noexcept {
 }
 
 bool CanvasWidget::should_defer_full_refresh_to_async() const noexcept {
+  if constexpr (kBackgroundWorkRunsInline) {
+    // With workers running inline, deferring means composing the frame inside
+    // paintEvent anyway, plus a Document deep copy and a second repaint. The
+    // direct ensure_render_cache path is strictly cheaper there.
+    return false;
+  }
   if (!render_cache_dirty_ || document_ == nullptr || processing_operation_active()) {
     return false;
   }
@@ -262,6 +268,9 @@ bool CanvasWidget::should_defer_first_render_to_async() const noexcept {
   // composite: kick the async refresh and paint checkerboard plus the
   // processing spinner until the frame lands. Pixel-huge documents keep their
   // historical synchronous first paint.
+  if constexpr (kBackgroundWorkRunsInline) {
+    return false;
+  }
   if (document_ == nullptr || processing_operation_active()) {
     return false;
   }

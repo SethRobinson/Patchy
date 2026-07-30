@@ -119,6 +119,18 @@
 
       async function init() {
         try {
+          // The multithreaded wasm build needs SharedArrayBuffer, which
+          // browsers only enable on cross-origin isolated pages. The server
+          // must send Cross-Origin-Opener-Policy: same-origin and
+          // Cross-Origin-Embedder-Policy: require-corp (the staged .htaccess
+          // does). Failing here beats the inscrutable SharedArrayBuffer
+          // ReferenceError the loader would hit otherwise.
+          if (!window.crossOriginIsolated) {
+            showError('Patchy cannot start: this page is not cross-origin isolated.\n'
+              + 'The server must send the Cross-Origin-Opener-Policy: same-origin and\n'
+              + 'Cross-Origin-Embedder-Policy: require-corp response headers.');
+            return;
+          }
           setStatus('Contacting server...');
           const wasmBinary = await fetchWasmWithProgress('patchy.wasm?v=' + CACHE_TAG);
           el('loader').classList.remove('indeterminate');

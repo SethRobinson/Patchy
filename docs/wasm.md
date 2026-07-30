@@ -13,11 +13,14 @@ Two wasm configurations share the pinned Emscripten 3.1.56 toolchain:
   `patchy_color`, plus `patchy_plugins`, `patchy_lcms2`, `patchy_libraw`) and
   `patchy_core_tests`, run under node. No Qt at all
   (`PATCHY_BUILD_APP=OFF`).
-- **`wasm-release`** (steps 2-3): the full app linked against Qt for
-  WebAssembly (6.8.3 `wasm_singlethread`, static), booting in a browser tab
-  with Asyncify. File open/save/export run through the browser (picker in,
-  downloads out), files dragged from the desktop open, and settings persist
-  across reloads in localStorage.
+- **`wasm-release`** (steps 2-4a): the full app linked against Qt for
+  WebAssembly (6.8.3 `wasm_multithread`, static), booting in a browser tab
+  with Asyncify plus pthreads. File open/save/export run through the browser
+  (picker in, downloads out), files dragged from the desktop open, and
+  settings persist across reloads in localStorage. Previews, the compositor
+  strip renderers, and every background worker run on real threads exactly
+  like the desktop builds; the deployment requirement that buys this is
+  cross-origin isolation (COOP/COEP headers, see below).
 
 Desktop builds are unaffected: the presets, the `if(EMSCRIPTEN)` branches in
 CMakeLists, a handful of `Q_OS_WASM` gates in `src/ui`/`src/app`, and the
@@ -87,11 +90,12 @@ cd build\wasm-core; & ..\..\.deps\emsdk\node\22.16.0_64bit\bin\node.exe patchy_c
   flatten, `psd_channel_data.cpp` CMYK conversion). Building the runner with
   pthreads keeps them on the production code path with zero source changes;
   output is byte-identical regardless of strip count. The pool is pre-spawned
-  and must stay at or above the machine's logical core count, because the CMYK
-  site spawns `hardware_concurrency()` workers while the main thread blocks on
-  the results; a lazily spawned worker would deadlock there. STRICT=2 turns
-  pool exhaustion into a hard error instead of that silent hang, so on a
-  machine with more than about 30 logical cores, raise the pool size.
+  and must cover the largest blocking fan-out, because those sites spawn
+  workers while the calling thread blocks on the results; a lazily spawned
+  worker would deadlock there. Both sites cap at 16 workers (the CMYK cap
+  landed with the step-4a app threading), so 32 has comfortable headroom on
+  any machine. STRICT=2 turns pool exhaustion into a hard error instead of
+  that silent hang.
 - `-sNODERAWFS=1`: tests read fixtures straight from the real filesystem via
   the `PATCHY_SOURCE_DIR` compile definition, exactly like native runs. This
   keeps the 2.2 GB `local-test-fixtures/` reachable (a preloaded memory
@@ -159,9 +163,11 @@ pwsh -File scripts\wasm\setup-emsdk.ps1
 pwsh -File scripts\wasm\setup-qt-wasm.ps1
 ```
 
-The second script installs Qt 6.8.3 `wasm_singlethread` (plus qtimageformats)
-into `.deps\Qt\6.8.3\wasm_singlethread` via aqtinstall (venv under
-`.deps\aqt-venv`). Host tools (moc/rcc/lrelease) come from the vendored
+The second script installs Qt 6.8.3 `wasm_multithread` (plus qtimageformats)
+into `.deps\Qt\6.8.3\wasm_multithread` via aqtinstall (venv under
+`.deps\aqt-venv`). Pass `-WasmArch wasm_singlethread` to provision the old
+single-threaded kit instead; kits coexist side by side under
+`.deps\Qt\6.8.3\`. Host tools (moc/rcc/lrelease) come from the vendored
 `msvc2022_64` kit through `QT_HOST_PATH`; the preset chains the Qt toolchain
 file into emsdk's via `QT_CHAINLOAD_TOOLCHAIN_FILE`.
 
@@ -186,17 +192,55 @@ then browse to `http://localhost:8973/patchy.html`.
   `processEvents` pumps) work unmodified. Asyncify does not support
   wasm-native exception handling, so the app preset compiles with
   `-fexceptions` (JS-based); `wasm-core` keeps the faster `-fwasm-exceptions`
-  for the test runner, which never links Qt.
-- **Single-threaded.** The kit is `wasm_singlethread`; the browser build must
-  never create a thread. The seams: `run_tracked_background_worker` and
-  `launch_async` in `ui/background_workers.hpp` run work inline on wasm (the
+  for the test runner, which never links Qt. Asyncify coexists with pthreads:
+  the 2026-07 migration verified dialogs opening and closing into nested
+  loops with the worker pool live and zero console errors.
+- **Link optimization stays `-Os`.** The 2026-07 trial measured `-O3` at
+  74,029,730 bytes against 73,449,183 for `-Os` on the single-threaded build
+  (+0.8%) with no demonstrable runtime win and a slower wasm-opt pass, so
+  size keeps the tiebreak. `-msimd128` was trialed the same day on
+  `wasm-core`: all 726 tests pass and the three byte-stability canaries hold
+  byte-identically, but the full suite only improved from 47.5-47.6 s to
+  46.4-46.6 s (about 2%, below the adoption bar) while adding 83 KB, so it
+  was rejected; the canary result means it can be revisited cheaply if a
+  compute-heavy in-app benchmark ever argues for it.
+- **PATCHY_* escape hatches work in the browser.** The app link carries
+  `--pre-js scripts/wasm/app-env-pre.js`, which copies `PATCHY_*` keys from
+  the page URL's query string into the Emscripten environment before `main`
+  runs (the node runner's `node-env-pre.js` does the same from
+  `process.env`). `patchy.html?PATCHY_RENDER_SINGLE_THREADED=1` is the
+  in-build control group for threading comparisons; only `PATCHY_`-prefixed
+  keys are forwarded.
+- **Multithreaded (since step 4a, 2026-07; originally shipped
+  single-threaded).** The kit is `wasm_multithread`: pthreads on a
+  SharedArrayBuffer heap, which browsers only enable on cross-origin isolated
+  pages (the serving requirements live in the deployment section). The
+  threading seams in `ui/background_workers.{hpp,cpp}` and the script
+  watchdog in `ui/script_engine.cpp` are gated on
+  `defined(Q_OS_WASM) && !defined(__EMSCRIPTEN_PTHREADS__)`, so this build
+  takes the real-thread branches like the desktop platforms, and a
+  single-threaded wasm build (the seams stay for it) still runs work inline.
+  The compositor and `image_document_io` strip renderers need no gate at all;
+  they read `hardware_concurrency()`, which now reports the visitor's core
+  count. Previews therefore render off the main thread, cooperative
+  cancellation and the processing spinner work, and the script watchdog can
+  interrupt stuck scripts. If the inline fallback ever returns, remember the
   ready-future shape keeps the `wait_for == ready` event pumps working; never
   swap those sites to `std::launch::deferred`, which those pumps would spin
-  on forever). The compositor and `image_document_io` strip renderers
-  self-serialize at `hardware_concurrency()==1`, the CMYK site in
-  `psd_channel_data.cpp` has a portable one-worker inline path, and the
-  script watchdog thread is not spawned (stuck scripts cannot be interrupted;
-  nothing could preempt `evaluate()` on this platform anyway).
+  on forever.
+- **Pthread pool sizing.** `pthread_create` cannot finish lazily while the
+  spawning thread blocks, and Edit > Flatten runs the strip compositor on the
+  browser main thread and immediately joins, so the pool must pre-spawn the
+  largest blocking fan-out. The CMYK site in `psd_channel_data.cpp` and both
+  strip renderers are capped at 16 workers; the app sets
+  `QT_WASM_PTHREAD_POOL_SIZE` to the JS expression
+  `Math.min(navigator.hardwareConcurrency,16)+8` (evaluated at page load), 16
+  for the worst join fan-out plus headroom for concurrently live
+  preview/open/undo workers. `PTHREAD_POOL_SIZE_STRICT` is deliberately not
+  set: overflow lazily spawns (fine from worker threads, which yield)
+  instead of aborting a visitor's session. Workers get 4 MB stacks
+  (`-sDEFAULT_PTHREAD_STACK_SIZE`); LibRaw decode and full compositor walks
+  run there now.
 - **Compiled out or stubbed:** QtPrintSupport does not exist on wasm, so
   `print_dialog.cpp` is replaced by `print_dialog_wasm.cpp` stubs and the
   File menu hides Print/Page Setup (the portable placement/render half lives
@@ -384,11 +428,30 @@ The web build is part of the standard release flow; the batch-file details live
 in [release-process.md](release-process.md). Short version:
 `scripts\release\build-wasm.bat` (run by `release-all.bat`) builds the
 `wasm-release` preset and stages the deployable files into
-`build\package\wasm-site`; `scripts\release\start-local-wasm-server.bat`
-serves that staged payload for a browser check (it stops a server left over
-from a previous run, then opens the site in the default browser);
-`scripts\release\upload-wasm-to-rtsoft.bat` (run by `upload-to-rtsoft.bat`)
-publishes it to `rtsoft.com/patchy` over ssh/scp.
+`build\package\wasm-site` (including `patchy.worker.js`, the pthread worker
+bootstrap; a missing worker file means every visitor's pool spawn 404s);
+`scripts\release\start-local-wasm-server.bat` serves that staged payload for
+a browser check (it stops a server left over from a previous run, then opens
+the site in the default browser); `scripts\release\upload-wasm-to-rtsoft.bat`
+(run by `upload-to-rtsoft.bat`) publishes it to `rtsoft.com/patchy` over
+ssh/scp.
+
+**Cross-origin isolation is a hard serving requirement.** The multithreaded
+build needs SharedArrayBuffer, which browsers only enable when the document
+arrives with `Cross-Origin-Opener-Policy: same-origin` and
+`Cross-Origin-Embedder-Policy: require-corp`. Three layers keep that true:
+the staged `.htaccess` sets both headers (`Header always set`, inside the
+existing IfModule guard), `scripts\wasm\serve.mjs` sends them locally so the
+dev loop and the staged-site check match production, and the shell page
+checks `window.crossOriginIsolated` before fetching the wasm and shows a
+clear error naming the two headers instead of the inscrutable
+SharedArrayBuffer failure the loader would otherwise hit. Because the
+IfModule guard would silently drop the headers on a host without
+`mod_headers`, `upload-wasm-to-rtsoft.bat` curls the live site after every
+upload and fails loudly if either header is missing (rtsoft.com serves them
+today; verified 2026-07-30). Every page asset is same-origin, so
+`require-corp` needs no per-asset CORP headers, and the page's
+`target="_blank" rel="noopener"` outbound link is unaffected by COOP.
 
 The deployed page is not Qt's generated `patchy.html` shell (that one still
 lands in `build\wasm-release` and serves the dev loop via `serve-app.ps1`).
@@ -414,10 +477,50 @@ instantiation (with `wasmBinary` supplied, streaming is not used anyway).
 Compressed serving is a step-4 lever. The shell page's text is static html
 outside the Qt localization system and stays English.
 
+## Multithreading migration (step 4a, 2026-07)
+
+The switch from `wasm_singlethread` to `wasm_multithread` landed with these
+pieces (rationale in the decision bullets above):
+
+- Kit and preset: `setup-qt-wasm.ps1` installs `wasm_multithread`, the
+  `wasm-release` preset points at its toolchain and compiles with
+  `-fexceptions -pthread`, and the app link adds `-pthread`,
+  `-Wno-pthreads-mem-growth` (the same one-diagnostic suppression wasm-core
+  carries; pthreads plus a growable heap slows JS-side heap views, which Qt
+  touches only for canvas presentation), and the 4 MB worker stacks.
+- Threading seams re-gated on `!defined(__EMSCRIPTEN_PTHREADS__)`, the CMYK
+  worker cap, and the pool expression, as described above.
+- The single-threaded paint inversion is also fixed for any future
+  single-threaded build: `should_defer_full_refresh_to_async` and
+  `should_defer_first_render_to_async` (canvas_widget_render.cpp) return
+  false when `kBackgroundWorkRunsInline` (background_workers.hpp), because
+  deferring to an inline worker composed the frame inside `paintEvent`
+  anyway, plus a Document deep copy and a second repaint. On the
+  multithreaded build the predicate is false and the deferred path works as
+  designed.
+- Verified 2026-07-30 in Chromium behind the COOP/COEP `serve.mjs`:
+  zero-warning build, `patchy.worker.js` emitted and staged,
+  `crossOriginIsolated` true, pool workers spawn, boot to painted UI in
+  under a second on a warm cache, the New Document dialog opens and closes
+  into a nested exec loop with threads live, menu mnemonics track, the
+  Script Manager opens, reloads are clean, and the full `patchy_core_tests`
+  suite (including the three byte-stability canaries) passes under node with
+  the 16-worker CMYK cap. Sizes: `patchy.wasm` 79,734,153 bytes (76.0 MiB,
+  +8.6% over single-threaded for the pthread instrumentation), `patchy.js`
+  395,340, `patchy.worker.js` 2,839, `patchy.data` unchanged.
+- Still owed from the interactive battery (needs a visible browser pane):
+  preview scrub with live cancellation and the processing spinner, file
+  picker and drag-drop under threads, a corrupt-PSD worker exception, RAW
+  develop on the 4 MB worker stack, a CMYK PSD over 4 Mpx, a big-document
+  invalidation repaint, the pool=2 lazy-spawn probe, the stuck-script
+  watchdog interrupt, and before/after benchmark numbers (the
+  `?PATCHY_RENDER_SINGLE_THREADED=1` control plus `build\wasm-st-baseline`,
+  a preserved single-threaded build, exist for exactly that comparison).
+
 ## Later steps (not built yet)
 
-- Step 4: memory tuning (per-platform undo cap and byte budget, tile-cache
-  eviction), optional threaded rendering behind COOP/COEP hosting, texture
-  lazy-fetch and compressed packaging/deployment, the measured document-size
-  cap the web build advertises, and preset/library persistence (IDBFS or
-  OPFS) so user presets survive reloads.
+- Step 4 remainder: memory tuning (per-platform undo cap and byte budget,
+  tile-cache eviction), texture lazy-fetch and compressed
+  packaging/deployment, the measured document-size cap the web build
+  advertises, and preset/library persistence (IDBFS or OPFS) so user presets
+  survive reloads.

@@ -22,7 +22,7 @@ if not exist "%REPO%\.deps\emsdk\emsdk_env.bat" (
   echo The Emscripten SDK was not found. Run: pwsh -File scripts\wasm\setup-emsdk.ps1
   goto fail
 )
-if not exist "%REPO%\.deps\Qt\6.8.3\wasm_singlethread\lib\cmake\Qt6\qt.toolchain.cmake" (
+if not exist "%REPO%\.deps\Qt\6.8.3\wasm_multithread\lib\cmake\Qt6\qt.toolchain.cmake" (
   echo Qt for WebAssembly was not found. Run: pwsh -File scripts\wasm\setup-qt-wasm.ps1
   goto fail
 )
@@ -59,7 +59,9 @@ if errorlevel 1 goto fail
 
 echo Staging web site files...
 mkdir "%SITE_DIR%" || goto fail
-for %%F in (patchy.js patchy.wasm patchy.data qtloader.js) do (
+rem patchy.worker.js is the pthread worker bootstrap the multithreaded build
+rem emits; without it the deployed app fails at runtime with a worker 404.
+for %%F in (patchy.js patchy.wasm patchy.data patchy.worker.js qtloader.js) do (
   if not exist "%BUILD_DIR%\%%F" (
     echo %%F was not created in build\wasm-release.
     goto fail
