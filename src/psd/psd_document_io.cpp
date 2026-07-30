@@ -295,6 +295,11 @@ void copy_layer_state(Layer& target, const Layer& source) {
   target.mask() = source.mask();
   target.raw_psd_blending_ranges() = source.raw_psd_blending_ranges();
   target.set_blend_if_rgb_compatible(source.blend_if_rgb_compatible());
+  if (source.channel_restriction_supported()) {
+    target.set_restricted_channels(source.restricted_channels());
+  } else {
+    target.set_channel_restriction_unsupported();
+  }
   target.raw_psd_group_boundary_blending_ranges() = source.raw_psd_group_boundary_blending_ranges();
   target.unknown_psd_blocks() = source.unknown_psd_blocks();
   if (const auto* smart_filters = source.smart_filter_stack(); smart_filters != nullptr) {
@@ -650,6 +655,23 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
     layer.set_fill_opacity(static_cast<float>(record.fill_opacity.value_or(255U)) / 255.0F);
     layer.set_visible(record.visible);
     layer.set_blend_if_payload(record.blending_ranges, source_color_mode == kColorModeRgb);
+    if (record.channel_restrictions.has_value() || record.channel_restrictions_malformed) {
+      const bool rgb_indices =
+          record.channel_restrictions.has_value() &&
+          std::all_of(record.channel_restrictions->begin(), record.channel_restrictions->end(),
+                      [](std::uint32_t index) { return index <= 2U; });
+      if (!record.channel_restrictions_malformed && rgb_indices && source_color_mode == kColorModeRgb) {
+        std::uint8_t restricted = 0;
+        for (const auto index : *record.channel_restrictions) {
+          restricted |= static_cast<std::uint8_t>(1U << index);
+        }
+        layer.set_restricted_channels(restricted);
+      } else {
+        // Non-RGB channel indices (or an unknown payload shape) cannot map onto
+        // the RGB model: keep the preserved raw block authoritative.
+        layer.set_channel_restriction_unsupported();
+      }
+    }
     if (record.section_divider_type == 0U) {
       // Divider/folder records never carry the clipping flag into the model, so
       // groups always build unclipped even from stray bytes.

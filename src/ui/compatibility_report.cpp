@@ -36,7 +36,8 @@ bool known_round_trip_layer_block(const UnknownPsdBlock& block) {
          block.key == "lsdk" || block.key == "SoLd" || block.key == "SoLE" || block.key == "PlLd" ||
          block.key == "plLd" || block.key == "vmsk" || block.key == "vsms" || block.key == "vscg" ||
          block.key == "vstk" || block.key == "vogk" || block.key == "SoCo" || block.key == "GdFl" ||
-         block.key == "PtFl" || (block.key == "iOpa" && block.payload.size() == 4U);
+         block.key == "PtFl" || block.key == "brst" ||
+         (block.key == "iOpa" && block.payload.size() == 4U);
 }
 
 QString smart_object_layer_warning(const Layer& layer) {
@@ -96,6 +97,12 @@ void append_layer_warnings(const Layer& layer, QStringList& warnings) {
   if (blend_if_payload_has_non_identity_or_unsupported(layer.raw_psd_group_boundary_blending_ranges())) {
     warnings << QObject::tr("%1 contains Blend If data on a Photoshop group-boundary record. Patchy preserves "
                             "that boundary data but does not render or edit it.")
+                    .arg(QString::fromStdString(layer.name()));
+  }
+  if (!layer.channel_restriction_supported()) {
+    warnings << QObject::tr("%1 contains Photoshop channel blending restrictions for an unsupported color "
+                            "mode or payload shape. Patchy preserves them for PSD round-trip but does not "
+                            "render or edit them.")
                     .arg(QString::fromStdString(layer.name()));
   }
 

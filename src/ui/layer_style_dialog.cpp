@@ -825,8 +825,13 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     RgbColor background) {
   const auto request_started = std::chrono::steady_clock::now();
   const LayerStyleSettings original_settings{
-      static_cast<int>(std::round(layer.opacity() * 100.0F)), layer.blend_mode(), layer.layer_style(),
-      layer.blend_if(), false};
+      static_cast<int>(std::round(layer.opacity() * 100.0F)),
+      layer.blend_mode(),
+      layer.layer_style(),
+      layer.blend_if(),
+      false,
+      static_cast<int>(std::round(layer.fill_opacity() * 100.0F)),
+      layer.channel_restriction_supported() ? layer.restricted_channels() : std::uint8_t{0}};
   auto style = layer.layer_style();
   auto blend_if = layer.blend_if();
   const auto blend_if_payload_status = layer.blend_if_payload_status();
@@ -2035,6 +2040,52 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       QStringLiteral("layerStyleFillOpacitySpin"), 0, 100,
       static_cast<int>(std::round(layer.fill_opacity() * 100.0F)), QStringLiteral("%"));
   fill_opacity->setEnabled(layer.kind() != LayerKind::Group);
+  // Advanced Blending "Channels": checked = the channel composites, so the
+  // model's kRestrict* bits are the UNCHECKED boxes.
+  auto* channels_row = new QWidget(blending_group);
+  auto* channels_layout = new QHBoxLayout(channels_row);
+  channels_layout->setContentsMargins(0, 0, 0, 0);
+  channels_layout->setSpacing(12);
+  auto* channel_red = new QCheckBox(QObject::tr("R"), channels_row);
+  channel_red->setObjectName(QStringLiteral("layerStyleChannelRedCheck"));
+  auto* channel_green = new QCheckBox(QObject::tr("G"), channels_row);
+  channel_green->setObjectName(QStringLiteral("layerStyleChannelGreenCheck"));
+  auto* channel_blue = new QCheckBox(QObject::tr("B"), channels_row);
+  channel_blue->setObjectName(QStringLiteral("layerStyleChannelBlueCheck"));
+  const auto channel_restriction_supported = layer.channel_restriction_supported();
+  const auto initial_restricted_channels =
+      channel_restriction_supported ? layer.restricted_channels() : std::uint8_t{0};
+  const auto channels_tooltip =
+      channel_restriction_supported
+          ? QObject::tr("An unchecked channel keeps the layers below instead of compositing")
+          : QObject::tr("This layer preserves Photoshop channel restrictions Patchy cannot edit "
+                        "for this file's color mode");
+  for (auto* check : {channel_red, channel_green, channel_blue}) {
+    check->setToolTip(channels_tooltip);
+    check->setEnabled(channel_restriction_supported);
+    channels_layout->addWidget(check);
+  }
+  channel_red->setChecked((initial_restricted_channels & kRestrictRed) == 0U);
+  channel_green->setChecked((initial_restricted_channels & kRestrictGreen) == 0U);
+  channel_blue->setChecked((initial_restricted_channels & kRestrictBlue) == 0U);
+  channels_layout->addStretch(1);
+  blending_form->addRow(QObject::tr("Channels:"), channels_row);
+  const auto current_restricted_channels = [=]() -> std::uint8_t {
+    if (!channel_restriction_supported) {
+      return 0;
+    }
+    std::uint8_t restricted = 0;
+    if (!channel_red->isChecked()) {
+      restricted |= kRestrictRed;
+    }
+    if (!channel_green->isChecked()) {
+      restricted |= kRestrictGreen;
+    }
+    if (!channel_blue->isChecked()) {
+      restricted |= kRestrictBlue;
+    }
+    return restricted;
+  };
   auto* show_effects = new QCheckBox(QObject::tr("Show Effects"), blending_group);
   show_effects->setObjectName(QStringLiteral("layerStyleShowEffectsCheck"));
   show_effects->setChecked(style.effects_visible);
@@ -3195,7 +3246,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     }
     return LayerStyleSettings{opacity->value(), static_cast<BlendMode>(blend->currentData().toInt()),
                               std::move(result), blend_if, replace_unsupported_blend_if,
-                              fill_opacity->value()};
+                              fill_opacity->value(), current_restricted_channels()};
   };
   auto build_current_settings = [&]() {
     return build_current_settings_for_item(categories->currentItem());
@@ -3798,6 +3849,9 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   QObject::connect(show_effects, &QCheckBox::toggled, &dialog, [&emit_preview](bool) { emit_preview(true); });
   QObject::connect(mask_hides_effects, &QCheckBox::toggled, &dialog, [&emit_preview](bool) { emit_preview(true); });
   QObject::connect(blend_interior, &QCheckBox::toggled, &dialog, [&emit_preview](bool) { emit_preview(true); });
+  for (auto* channel_check : {channel_red, channel_green, channel_blue}) {
+    QObject::connect(channel_check, &QCheckBox::toggled, &dialog, [&emit_preview](bool) { emit_preview(true); });
+  }
   for (auto* spin : {bevel_size, bevel_soften, bevel_depth, bevel_angle, bevel_altitude, bevel_highlight_opacity,
                      bevel_shadow_opacity, bevel_contour_range, bevel_texture_scale, bevel_texture_depth,
                      pattern_overlay_opacity, pattern_overlay_angle, pattern_overlay_scale,

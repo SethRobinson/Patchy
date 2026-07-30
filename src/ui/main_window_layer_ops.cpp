@@ -1762,6 +1762,7 @@ void MainWindow::edit_active_layer_style() {
   const auto original_blend_if = layer->blend_if();
   const auto original_blend_if_payload = layer->raw_psd_blending_ranges();
   const auto original_blend_if_rgb_compatible = layer->blend_if_rgb_compatible();
+  const auto original_restricted_channels = layer->restricted_channels();
   const auto original_patterns = doc.metadata().patterns;
   auto set_layer_style_settings = [original_blend_if, original_blend_if_payload,
                                    original_blend_if_rgb_compatible](Layer& target,
@@ -1770,6 +1771,11 @@ void MainWindow::edit_active_layer_style() {
     target.set_fill_opacity(static_cast<float>(settings.fill_opacity) / 100.0F);
     target.set_blend_mode(settings.blend_mode);
     target.layer_style() = settings.style;
+    if (target.channel_restriction_supported()) {
+      // Unsupported preserved 'brst' payloads stay untouched: the dialog
+      // presents disabled checkboxes and reports a zero mask for them.
+      target.set_restricted_channels(settings.restricted_channels);
+    }
     if (!settings.replace_unsupported_blend_if && settings.blend_if == original_blend_if) {
       target.set_blend_if_payload(original_blend_if_payload, original_blend_if_rgb_compatible);
     } else {
@@ -1811,7 +1817,7 @@ void MainWindow::edit_active_layer_style() {
   auto restore_original = [this, &doc, layer_id, original_opacity, original_fill_opacity,
                            original_blend_mode, original_style,
                            original_blend_if_payload, original_blend_if_rgb_compatible,
-                           original_patterns] {
+                           original_restricted_channels, original_patterns] {
     doc.metadata().patterns = original_patterns;
     auto* target = doc.find_layer(layer_id);
     if (target == nullptr) {
@@ -1822,6 +1828,9 @@ void MainWindow::edit_active_layer_style() {
     target->set_fill_opacity(original_fill_opacity);
     target->set_blend_mode(original_blend_mode);
     target->layer_style() = original_style;
+    if (target->channel_restriction_supported()) {
+      target->set_restricted_channels(original_restricted_channels);
+    }
     target->set_blend_if_payload(original_blend_if_payload, original_blend_if_rgb_compatible);
     const auto after = layer_render_bounds(*target);
     if (canvas_ != nullptr) {
@@ -1948,6 +1957,9 @@ void MainWindow::copy_active_layer_style() {
       layer->blend_if_payload_status() == BlendIfPayloadStatus::Unsupported
           ? std::optional<LayerBlendIf>{}
           : std::optional<LayerBlendIf>{layer->blend_if()},
+      layer->channel_restriction_supported()
+          ? std::optional<std::uint8_t>{layer->restricted_channels()}
+          : std::optional<std::uint8_t>{},
       {}};
   // Carry the referenced pattern tiles so a cross-document paste can embed them.
   std::vector<std::string> referenced_pattern_ids;
@@ -2008,6 +2020,10 @@ void MainWindow::paste_layer_style_to_selected_layers() {
     layer->layer_style() = layer_style_clipboard_->style;
     if (layer_style_clipboard_->blend_if.has_value()) {
       (void)layer->set_blend_if(*layer_style_clipboard_->blend_if, true);
+    }
+    if (layer_style_clipboard_->restricted_channels.has_value() &&
+        layer->channel_restriction_supported()) {
+      layer->set_restricted_channels(*layer_style_clipboard_->restricted_channels);
     }
     affected = unite_rect(affected, layer_render_bounds(*layer));
     ++pasted_count;

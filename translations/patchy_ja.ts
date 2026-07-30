@@ -2163,6 +2163,10 @@
         <translation>%1 には、未対応のカラーモードまたはペイロード形式の Photoshop「ブレンド条件 (Blend If)」データが含まれています。Patchy は PSD 往復用に保持しますが、描画や編集は行いません。</translation>
     </message>
     <message>
+        <source>%1 contains Photoshop channel blending restrictions for an unsupported color mode or payload shape. Patchy preserves them for PSD round-trip but does not render or edit them.</source>
+        <translation>%1 には、未対応のカラーモードまたはペイロード形式の Photoshop チャンネル合成制限が含まれています。Patchy は PSD 往復用に保持しますが、描画や編集は行いません。</translation>
+    </message>
+    <message>
         <location line="+5"/>
         <source>%1 contains Blend If data on a Photoshop group-boundary record. Patchy preserves that boundary data but does not render or edit it.</source>
         <translation>%1 には Photoshop のグループ境界レコードに「ブレンド条件 (Blend If)」データが含まれています。Patchy はその境界データを保持しますが、描画や編集は行いません。</translation>
@@ -2285,6 +2289,18 @@
         <location line="+4"/>
         <source>Put the layer's blend mode over its overlays, satin, and inner glow instead of letting them blend with their own modes</source>
         <translation>オーバーレイ・サテン・光彩（内側）をそれぞれの描画モードで合成せず、レイヤーの描画モードでまとめて合成します</translation>
+    </message>
+    <message>
+        <source>Channels:</source>
+        <translation>チャンネル:</translation>
+    </message>
+    <message>
+        <source>An unchecked channel keeps the layers below instead of compositing</source>
+        <translation>チェックを外したチャンネルは合成されず、下のレイヤーの値を保持します</translation>
+    </message>
+    <message>
+        <source>This layer preserves Photoshop channel restrictions Patchy cannot edit for this file's color mode</source>
+        <translation>このレイヤーには、このファイルのカラーモードでは Patchy が編集できない Photoshop のチャンネル制限が保持されています</translation>
     </message>
     <message>
         <location line="+90"/>

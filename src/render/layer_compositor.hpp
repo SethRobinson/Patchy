@@ -40,6 +40,12 @@ struct CompositeSample {
          !blend_if_is_identity(layer.blend_if());
 }
 
+// Photoshop's Advanced Blending "Channels" restriction, as rendered: zero when
+// the imported payload is preserved but not modeled (non-RGB indices).
+[[nodiscard]] inline std::uint8_t layer_rendered_channel_restriction(const Layer& layer) noexcept {
+  return layer.channel_restriction_supported() ? layer.restricted_channels() : std::uint8_t{0};
+}
+
 [[nodiscard]] inline bool blend_if_has_underlying_ranges(const LayerBlendIf& settings) noexcept {
   const BlendIfThresholds identity;
   return std::any_of(settings.channels.begin(), settings.channels.end(), [&](const BlendIfChannelRanges& channel) {
@@ -1766,17 +1772,185 @@ void render_stroke(Target& destination, const Layer& layer, const PixelBuffer& s
   render_prepared_stroke(destination, layer, *prepared, layer_mask_bounds);
 }
 
+// Applies Photoshop's Advanced Blending "Channels" restriction to everything a
+// layer (or group) composites through it: a restricted channel keeps the
+// backdrop's PREMULTIPLIED value while the other channels and alpha composite
+// normally. COM calibration (July 2026): over a half-alpha gray-60 backdrop the
+// excluded channel reads 60 * 0.5 / out_alpha, and over an alpha-zero backdrop
+// it reads 0, refuting a straight-value keep. Nested restrictions push onto the
+// same adapter (the chain ORs), which caps template-instantiation depth exactly
+// like GroupMaskedTarget. composite_source_row is deliberately not forwarded so
+// restricted layers always take the per-pixel path.
+template <typename Base>
+class ChannelRestrictedTarget {
+public:
+  ChannelRestrictedTarget(Base& base, std::uint8_t restriction) : base_(base) {
+    push_channel_restriction(restriction);
+  }
+
+  void push_channel_restriction(std::uint8_t mask) {
+    masks_.push_back(mask);
+    combined_ |= mask;
+  }
+  void pop_channel_restriction() {
+    masks_.pop_back();
+    combined_ = 0;
+    for (const auto mask : masks_) {
+      combined_ |= mask;
+    }
+  }
+
+  void composite_color(std::int32_t x, std::int32_t y, RgbColor color, float alpha, BlendMode mode) {
+    const auto pre = base_.sample_color(x, y);
+    base_.composite_color(x, y, color, alpha, mode);
+    restore_restricted(x, y, pre);
+  }
+
+  void composite_special_fill_color(std::int32_t x, std::int32_t y, RgbColor color, float source_coverage,
+                                    float fill_opacity, float layer_opacity, BlendMode mode)
+    requires requires(Base& base) {
+      base.composite_special_fill_color(std::int32_t{}, std::int32_t{}, RgbColor{}, 0.0F, 0.0F, 0.0F,
+                                        BlendMode::Normal);
+    }
+  {
+    const auto pre = base_.sample_color(x, y);
+    base_.composite_special_fill_color(x, y, color, source_coverage, fill_opacity, layer_opacity, mode);
+    restore_restricted(x, y, pre);
+  }
+
+  void adjust_color(std::int32_t x, std::int32_t y, const AdjustmentSettings& settings, float amount)
+    requires requires(Base& base) {
+      base.adjust_color(std::int32_t{}, std::int32_t{}, std::declval<const AdjustmentSettings&>(), 0.0F);
+    }
+  {
+    const auto pre = base_.sample_color(x, y);
+    base_.adjust_color(x, y, settings, amount);
+    restore_restricted(x, y, pre);
+  }
+
+  void adjust_color(std::int32_t x, std::int32_t y, const AdjustmentLut& lut, float amount)
+    requires requires(Base& base) {
+      base.adjust_color(std::int32_t{}, std::int32_t{}, std::declval<const AdjustmentLut&>(), 0.0F);
+    }
+  {
+    const auto pre = base_.sample_color(x, y);
+    base_.adjust_color(x, y, lut, amount);
+    restore_restricted(x, y, pre);
+  }
+
+  [[nodiscard]] CompositeSample sample_color(std::int32_t x, std::int32_t y) const {
+    return base_.sample_color(x, y);
+  }
+
+  // Deliberately unrestricted: fade_toward_snapshot lerps two destination
+  // states that were both composited through this adapter already.
+  void store_color(std::int32_t x, std::int32_t y, RgbColor color, float alpha) {
+    base_.store_color(x, y, color, alpha);
+  }
+
+  void record_clip_coverage(std::int32_t x, std::int32_t y, float alpha)
+    requires requires(Base& base) { base.record_clip_coverage(std::int32_t{}, std::int32_t{}, 0.0F); }
+  {
+    base_.record_clip_coverage(x, y, alpha);
+  }
+
+  void profile_compositor_step(const char* step, const Layer& layer, Rect rect, double elapsed_ms)
+    requires requires(Base& base) {
+      base.profile_compositor_step(std::declval<const char*>(), std::declval<const Layer&>(), Rect{}, 0.0);
+    }
+  {
+    base_.profile_compositor_step(step, layer, rect, elapsed_ms);
+  }
+
+private:
+  void restore_restricted(std::int32_t x, std::int32_t y, const CompositeSample& pre) {
+    auto post = base_.sample_color(x, y);
+    if (post.alpha <= 0.0F) {
+      return;  // nothing visible; the premultiplied keep is vacuous at zero coverage
+    }
+    auto color = post.color;
+    bool changed = false;
+    const auto restore_channel = [&](std::uint8_t bit, std::uint8_t& post_value, std::uint8_t pre_value) {
+      if ((combined_ & bit) == 0U) {
+        return;
+      }
+      // Keeping the PREMULTIPLIED backdrop value: pre straight * pre alpha,
+      // re-straightened against the advanced alpha. Equal alphas restore the
+      // exact byte so alpha-neutral writes (adjustments) cannot drift.
+      const auto kept =
+          pre.alpha == post.alpha
+              ? pre_value
+              : static_cast<std::uint8_t>(std::clamp<long>(
+                    std::lround(static_cast<float>(pre_value) * pre.alpha / post.alpha), 0L, 255L));
+      if (post_value != kept) {
+        post_value = kept;
+        changed = true;
+      }
+    };
+    restore_channel(kRestrictRed, color.red, pre.color.red);
+    restore_channel(kRestrictGreen, color.green, pre.color.green);
+    restore_channel(kRestrictBlue, color.blue, pre.color.blue);
+    if (changed) {
+      base_.store_color(x, y, color, post.alpha);
+    }
+  }
+
+  Base& base_;
+  std::vector<std::uint8_t> masks_;
+  std::uint8_t combined_{0};
+};
+
+// Runs fn against a destination that applies the given channel restriction on
+// top of whatever the destination already restricts. A zero mask runs fn on the
+// destination unchanged; an adapter anywhere in the chain absorbs the push so
+// wrapper types cannot nest unboundedly.
+template <typename Target, typename Fn>
+void with_channel_restriction(Target& destination, std::uint8_t restriction, Fn&& fn) {
+  if (restriction == 0U) {
+    fn(destination);
+    return;
+  }
+  if constexpr (requires {
+                  destination.push_channel_restriction(std::uint8_t{});
+                  destination.pop_channel_restriction();
+                }) {
+    destination.push_channel_restriction(restriction);
+    fn(destination);
+    destination.pop_channel_restriction();
+  } else {
+    ChannelRestrictedTarget<Target> restricted(destination, restriction);
+    fn(restricted);
+  }
+}
+
 template <typename Target>
 void composite_layer(Target& destination, const Layer& layer, Rect clip,
                      const std::vector<LayerBoundsOverride>* overrides = nullptr,
                      bool throw_on_unsupported_pixel_format = false, StyleMaskProvider* masks = nullptr,
                      const CompositeSnapshot* blend_if_backdrop = nullptr,
-                     const PatternStore* patterns = nullptr);
+                     const PatternStore* patterns = nullptr, bool suppress_channel_restriction = false);
+
+template <typename Target>
+void composite_pass_through_group(Target& destination, const Layer& layer, Rect clip,
+                                  const std::vector<LayerBoundsOverride>* overrides,
+                                  bool throw_on_unsupported_pixel_format, StyleMaskProvider* masks,
+                                  const PatternStore* patterns, bool styled);
 
 template <typename Target>
 void composite_adjustment_layer(Target& destination, const Layer& layer, Rect clip,
-                                const std::vector<LayerBoundsOverride>* overrides) {
+                                const std::vector<LayerBoundsOverride>* overrides,
+                                bool suppress_channel_restriction = false) {
   if (!layer_visible_for_render(layer, overrides) || layer.opacity() <= 0.0F) {
+    return;
+  }
+  const auto channel_restriction = layer_rendered_channel_restriction(layer);
+  if (channel_restriction == kRestrictAllChannels) {
+    return;  // Photoshop removes an all-channels-restricted layer entirely
+  }
+  if (channel_restriction != 0U && !suppress_channel_restriction) {
+    with_channel_restriction(destination, channel_restriction, [&](auto& restricted) {
+      composite_adjustment_layer(restricted, layer, clip, overrides, true);
+    });
     return;
   }
   const auto settings = adjustment_settings_from_layer(layer);
@@ -1847,13 +2021,32 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
                            const std::vector<LayerBoundsOverride>* overrides,
                            bool throw_on_unsupported_pixel_format, StyleMaskProvider* masks = nullptr,
                            const CompositeSnapshot* blend_if_backdrop_override = nullptr,
-                           const PatternStore* patterns = nullptr) {
+                           const PatternStore* patterns = nullptr,
+                           bool suppress_channel_restriction = false) {
   // Styled GROUPS route through this same pipeline (July 2026): the group's
   // flattened children arrive as an override pixel buffer and the group plays
   // the layer's role. Plain groups never reach here (composite_layer
   // dispatches them to the group branch first).
   if (!layer_visible_for_render(layer, overrides) || layer.opacity() <= 0.0F ||
       (layer.kind() != LayerKind::Pixel && layer.kind() != LayerKind::Group)) {
+    return;
+  }
+  const auto channel_restriction = layer_rendered_channel_restriction(layer);
+  if (channel_restriction == kRestrictAllChannels) {
+    // All channels excluded: the layer, effects included, does not composite
+    // at all (the P4b probe: even its drop shadow vanishes).
+    return;
+  }
+  if (channel_restriction != 0U && !suppress_channel_restriction) {
+    // Wrapping here makes the layer's content AND its effects inherit the
+    // restriction uniformly (the P4 probe: a drop shadow and a color overlay
+    // both keep the backdrop's excluded channel). The clip-run base pass
+    // suppresses this and restricts at merge_into instead, because inside the
+    // isolated buffer the base's backdrop is transparent black.
+    with_channel_restriction(destination, channel_restriction, [&](auto& restricted) {
+      composite_pixel_layer(restricted, layer, clip, overrides, throw_on_unsupported_pixel_format, masks,
+                            blend_if_backdrop_override, patterns, true);
+    });
     return;
   }
   // Folder Fill is ignored, content and effects both (COM probe arm C of
@@ -2745,6 +2938,22 @@ public:
     base_.record_clip_coverage(x, y, alpha * mask_alpha(x, y));
   }
 
+  // Channel restrictions push through the mask chain onto an inner
+  // ChannelRestrictedTarget, keeping the wrapper set {plain, restricted,
+  // masked-restricted} closed under nesting instead of growing new template
+  // instantiations.
+  void push_channel_restriction(std::uint8_t mask)
+    requires requires(Base& base) { base.push_channel_restriction(std::uint8_t{}); }
+  {
+    base_.push_channel_restriction(mask);
+  }
+
+  void pop_channel_restriction()
+    requires requires(Base& base) { base.pop_channel_restriction(); }
+  {
+    base_.pop_channel_restriction();
+  }
+
   void profile_compositor_step(const char* step, const Layer& layer, Rect rect, double elapsed_ms)
     requires requires(Base& base) {
       base.profile_compositor_step(std::declval<const char*>(), std::declval<const Layer&>(), Rect{}, 0.0);
@@ -2810,14 +3019,24 @@ void composite_sibling_layers(Target& destination, const std::vector<Layer>& sib
       base_backdrop.emplace(destination, group_rect);
     }
     IsolatedClipGroupTarget group(group_rect, /*records_clip_coverage=*/true);
+    // A restricted clip BASE must not self-wrap inside the isolated buffer
+    // (its backdrop there is transparent black, so the kept channel would
+    // merge as black); the restriction instead rides the merge below, gating
+    // the whole clipped ensemble (the P7 probe: a member over a G-restricted
+    // base keeps the ORIGINAL backdrop's green). Restricted MEMBERS self-wrap
+    // normally: their backdrop is the base content (the P7b probe).
     composite_layer(group, layer, group_rect, overrides, throw_on_unsupported_pixel_format, masks,
-                    base_backdrop.has_value() ? &*base_backdrop : nullptr, patterns);
+                    base_backdrop.has_value() ? &*base_backdrop : nullptr, patterns,
+                    /*suppress_channel_restriction=*/true);
     group.freeze_clip();
     for (std::size_t member = index + 1; member < run_end; ++member) {
       composite_layer(group, siblings[member], group_rect, overrides, throw_on_unsupported_pixel_format, masks,
                       nullptr, patterns);
     }
-    group.merge_into(destination, layer.blend_mode());
+    with_channel_restriction(destination, layer_rendered_channel_restriction(layer),
+                             [&](auto& merge_destination) {
+                               group.merge_into(merge_destination, layer.blend_mode());
+                             });
     index = run_end;
   }
 }
@@ -2840,12 +3059,18 @@ template <typename Target>
 void composite_layer(Target& destination, const Layer& layer, Rect clip,
                      const std::vector<LayerBoundsOverride>* overrides,
                      bool throw_on_unsupported_pixel_format, StyleMaskProvider* masks,
-                     const CompositeSnapshot* blend_if_backdrop, const PatternStore* patterns) {
+                     const CompositeSnapshot* blend_if_backdrop, const PatternStore* patterns,
+                     bool suppress_channel_restriction) {
   if (!layer_visible_for_render(layer, overrides) || layer.opacity() <= 0.0F) {
     return;
   }
 
   if (layer.kind() == LayerKind::Group) {
+    if (layer_rendered_channel_restriction(layer) == kRestrictAllChannels) {
+      // All channels excluded removes the group and its effects entirely,
+      // mirroring the pixel-layer rule (the P4b probe).
+      return;
+    }
     // A group whose own style renders (July 2026; COM-calibrated rules in
     // docs/ps-compat.md): the flattened children become the pipeline's source
     // buffer and the group plays the layer's role (blend mode, opacity, mask,
@@ -2894,165 +3119,193 @@ void composite_layer(Target& destination, const Layer& layer, Rect clip,
                               throw_on_unsupported_pixel_format, masks, blend_if_backdrop, patterns);
         return;
       }
-      isolated.merge_layer_into(destination, layer, blend_if, backdrop.has_value() ? &*backdrop : nullptr,
-                                layer_mask_bounds_for_render(layer, overrides));
+      // A restricted isolated group applies its restriction where the merged
+      // result meets the backdrop (the P5 isolated arm: the group's excluded
+      // channel keeps the backdrop under Normal-mode children).
+      with_channel_restriction(destination, layer_rendered_channel_restriction(layer),
+                               [&](auto& merge_destination) {
+                                 isolated.merge_layer_into(merge_destination, layer, blend_if,
+                                                           backdrop.has_value() ? &*backdrop : nullptr,
+                                                           layer_mask_bounds_for_render(layer, overrides));
+                               });
       return;
     }
-    // Pass-through group Opacity is a post-composite fade (fade_toward_snapshot):
-    // snapshot the backdrop, composite the children at full strength, then
-    // interpolate. The fade covers the full clip because an interior adjustment
-    // with unlimited bounds can touch backdrop pixels outside the children's
-    // render bounds.
-    std::optional<CompositeSnapshot> before;
-    if (layer.opacity() < 1.0F) {
-      before.emplace(destination, clip);
-    }
-    // Styled pass-through groups do NOT isolate (the
-    // photoshop-group-fx-passthrough probe: a Multiply child keeps blending
-    // with the outside backdrop under a group drop shadow). The effects
-    // derive from the flattened silhouette - with child opacities, after the
-    // group mask via the renderers' own mask folding - exterior effects paint
-    // BEHIND the children and interior effects above them.
-    std::optional<PixelBuffer> silhouette;
-    Rect silhouette_rect{};
-    if (styled) {
-      silhouette_rect = intersect_rect(clip, layer_render_bounds(layer));
-      if (!silhouette_rect.empty()) {
-        IsolatedClipGroupTarget isolated(silhouette_rect);
-        composite_layers(isolated, layer.children(), silhouette_rect, overrides,
-                         throw_on_unsupported_pixel_format, masks, patterns);
-        silhouette = isolated.to_pixel_buffer();
-        const auto& style = layer.layer_style();
-        const auto mask_bounds = layer_mask_bounds_for_render(layer, overrides);
-        if (style.effects_visible) {
-          for (std::uint32_t index = 0; index < style.drop_shadows.size(); ++index) {
-            render_drop_shadow(destination, layer, *silhouette, clip, silhouette_rect,
-                               style.drop_shadows[index], mask_bounds, masks, index);
-          }
-          for (std::uint32_t index = 0; index < style.outer_glows.size(); ++index) {
-            render_outer_glow(destination, layer, *silhouette, clip, silhouette_rect,
-                              style.outer_glows[index], mask_bounds, masks, index);
-          }
-        }
-      }
-    }
-    // A group's raster/vector mask attenuates every child contribution in
-    // place. No isolation: the default group is pass-through, so child blend
-    // modes and interior adjustments must keep meeting the backdrop below the
-    // group, exactly as without a mask.
-    if ((layer.mask().has_value() && !layer.mask()->disabled) || layer_has_enabled_vector_mask(layer)) {
-      const auto mask_bounds = layer_mask_bounds_for_render(layer, overrides);
-      if constexpr (is_group_masked_target<Target>::value) {
-        destination.push_mask(layer, mask_bounds);
-        composite_layers(destination, layer.children(), clip, overrides, throw_on_unsupported_pixel_format,
-                         masks, patterns);
-        destination.pop_mask();
-      } else {
-        GroupMaskedTarget<Target> masked(destination);
-        masked.push_mask(layer, mask_bounds);
-        composite_layers(masked, layer.children(), clip, overrides, throw_on_unsupported_pixel_format, masks,
-                         patterns);
-      }
-    } else {
-      composite_layers(destination, layer.children(), clip, overrides, throw_on_unsupported_pixel_format, masks,
-                       patterns);
-    }
-    // Interior effects paint ABOVE the pass-through content, masked by the
-    // silhouette, each with its OWN blend mode (the photoshop-group-fx-interior
-    // probe: a Normal overlay covers a Multiply child's composite at full
-    // strength). Stack order mirrors composite_pixel_layer's destination
-    // passes: overlays under satin under inner glow/shadow, stroke, bevel.
-    if (silhouette.has_value()) {
-      const auto& style = layer.layer_style();
-      const auto mask_bounds = layer_mask_bounds_for_render(layer, overrides);
-      const auto draw_rect = intersect_rect(clip, silhouette_rect);
-      if (style.effects_visible && !draw_rect.empty()) {
-        for (const auto& overlay : style.pattern_overlays) {
-          render_pattern_overlay(destination, layer, *silhouette, clip, silhouette_rect, overlay,
-                                 mask_bounds, patterns, nullptr);
-        }
-        for (const auto& fill : style.gradient_fills) {
-          render_gradient_fill(destination, layer, *silhouette, clip, silhouette_rect, fill,
-                               mask_bounds, nullptr);
-        }
-        for (const auto& overlay : style.color_overlays) {
-          render_color_overlay(destination, layer, *silhouette, clip, silhouette_rect, overlay,
-                               mask_bounds, nullptr);
-        }
-        for (std::uint32_t index = 0; index < style.satins.size(); ++index) {
-          const auto& satin = style.satins[index];
-          if (!satin.enabled || satin.opacity <= 0.0F) {
-            continue;
-          }
-          const auto prepared = prepare_satin(layer, *silhouette, draw_rect, silhouette_rect, satin,
-                                              mask_bounds, masks, index);
-          const auto channels = silhouette->format().channels;
-          const auto* source_bytes = silhouette->data().data();
-          const auto source_stride = silhouette->stride_bytes();
-          for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
-            const auto* source_row =
-                source_bytes + static_cast<std::size_t>(y - silhouette_rect.y) * source_stride;
-            for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
-              const auto* src = source_row + static_cast<std::size_t>(x - silhouette_rect.x) * channels;
-              const auto source_alpha = (channels >= 4 ? static_cast<float>(src[3]) / 255.0F : 1.0F) *
-                                        layer_mask_alpha_for_render(layer, x, y, mask_bounds) *
-                                        layer.opacity();
-              if (source_alpha <= 0.0F) {
-                continue;
-              }
-              const auto mask_index = static_cast<std::size_t>(y - prepared.mask_bounds.y) *
-                                          static_cast<std::size_t>(prepared.mask_bounds.width) +
-                                      static_cast<std::size_t>(x - prepared.mask_bounds.x);
-              const auto alpha =
-                  source_alpha * prepared.entry->primary[mask_index] * clamp_unit(prepared.effect->opacity);
-              if (alpha > 0.0F) {
-                composite_effect_color(destination, x, y, prepared.effect->color, alpha,
-                                       prepared.effect->blend_mode, DissolveField::Satin);
-              }
-            }
-          }
-        }
-        for (std::uint32_t index = 0; index < style.inner_glows.size(); ++index) {
-          render_inner_glow(destination, layer, *silhouette, clip, silhouette_rect,
-                            style.inner_glows[index], mask_bounds, masks, index, nullptr);
-        }
-        for (std::uint32_t index = 0; index < style.inner_shadows.size(); ++index) {
-          render_inner_shadow(destination, layer, *silhouette, clip, silhouette_rect,
-                              style.inner_shadows[index], mask_bounds, masks, index, nullptr);
-        }
-        for (std::uint32_t index = 0; index < style.strokes.size(); ++index) {
-          render_stroke(destination, layer, *silhouette, clip, silhouette_rect, style.strokes[index],
-                        mask_bounds, masks, index);
-        }
-        for (std::uint32_t index = 0; index < style.bevels.size(); ++index) {
-          if (style.bevels[index].style == BevelEmbossStyleKind::StrokeEmboss) {
-            continue;
-          }
-          render_bevel_emboss(destination, layer, *silhouette, clip, silhouette_rect,
-                              style.bevels[index], mask_bounds, masks, index, patterns, &style.strokes);
-        }
-        for (std::uint32_t index = 0; index < style.bevels.size(); ++index) {
-          if (style.bevels[index].style != BevelEmbossStyleKind::StrokeEmboss) {
-            continue;
-          }
-          render_bevel_emboss(destination, layer, *silhouette, clip, silhouette_rect,
-                              style.bevels[index], mask_bounds, masks, index, patterns, &style.strokes);
-        }
-      }
-    }
-    if (before.has_value()) {
-      fade_toward_snapshot(destination, *before, clip, layer.opacity());
-    }
+    // The restriction survives pass-through (the P5 pass-through arm: a
+    // Multiply child keeps blending with the outside backdrop while the
+    // group's excluded channel holds it): no isolation, every write the
+    // children and the group's effects make is gated in place.
+    with_channel_restriction(destination, layer_rendered_channel_restriction(layer),
+                             [&](auto& pass_destination) {
+                               composite_pass_through_group(pass_destination, layer, clip, overrides,
+                                                            throw_on_unsupported_pixel_format, masks,
+                                                            patterns, styled);
+                             });
     return;
   }
 
   if (layer.kind() == LayerKind::Adjustment) {
-    composite_adjustment_layer(destination, layer, clip, overrides);
+    composite_adjustment_layer(destination, layer, clip, overrides, suppress_channel_restriction);
     return;
   }
 
   composite_pixel_layer(destination, layer, clip, overrides, throw_on_unsupported_pixel_format, masks,
-                        blend_if_backdrop, patterns);
+                        blend_if_backdrop, patterns, suppress_channel_restriction);
+}
+
+// The pass-through tail of composite_layer: children composite against the
+// live backdrop (optionally through the group's mask), group styles derive
+// from the flattened silhouette, and group Opacity fades the result back
+// toward the pre-group snapshot.
+template <typename Target>
+void composite_pass_through_group(Target& destination, const Layer& layer, Rect clip,
+                                  const std::vector<LayerBoundsOverride>* overrides,
+                                  bool throw_on_unsupported_pixel_format, StyleMaskProvider* masks,
+                                  const PatternStore* patterns, bool styled) {
+  // Pass-through group Opacity is a post-composite fade (fade_toward_snapshot):
+  // snapshot the backdrop, composite the children at full strength, then
+  // interpolate. The fade covers the full clip because an interior adjustment
+  // with unlimited bounds can touch backdrop pixels outside the children's
+  // render bounds.
+  std::optional<CompositeSnapshot> before;
+  if (layer.opacity() < 1.0F) {
+    before.emplace(destination, clip);
+  }
+  // Styled pass-through groups do NOT isolate (the
+  // photoshop-group-fx-passthrough probe: a Multiply child keeps blending
+  // with the outside backdrop under a group drop shadow). The effects
+  // derive from the flattened silhouette - with child opacities, after the
+  // group mask via the renderers' own mask folding - exterior effects paint
+  // BEHIND the children and interior effects above them.
+  std::optional<PixelBuffer> silhouette;
+  Rect silhouette_rect{};
+  if (styled) {
+    silhouette_rect = intersect_rect(clip, layer_render_bounds(layer));
+    if (!silhouette_rect.empty()) {
+      IsolatedClipGroupTarget isolated(silhouette_rect);
+      composite_layers(isolated, layer.children(), silhouette_rect, overrides,
+                       throw_on_unsupported_pixel_format, masks, patterns);
+      silhouette = isolated.to_pixel_buffer();
+      const auto& style = layer.layer_style();
+      const auto mask_bounds = layer_mask_bounds_for_render(layer, overrides);
+      if (style.effects_visible) {
+        for (std::uint32_t index = 0; index < style.drop_shadows.size(); ++index) {
+          render_drop_shadow(destination, layer, *silhouette, clip, silhouette_rect,
+                             style.drop_shadows[index], mask_bounds, masks, index);
+        }
+        for (std::uint32_t index = 0; index < style.outer_glows.size(); ++index) {
+          render_outer_glow(destination, layer, *silhouette, clip, silhouette_rect,
+                            style.outer_glows[index], mask_bounds, masks, index);
+        }
+      }
+    }
+  }
+  // A group's raster/vector mask attenuates every child contribution in
+  // place. No isolation: the default group is pass-through, so child blend
+  // modes and interior adjustments must keep meeting the backdrop below the
+  // group, exactly as without a mask.
+  if ((layer.mask().has_value() && !layer.mask()->disabled) || layer_has_enabled_vector_mask(layer)) {
+    const auto mask_bounds = layer_mask_bounds_for_render(layer, overrides);
+    if constexpr (is_group_masked_target<Target>::value) {
+      destination.push_mask(layer, mask_bounds);
+      composite_layers(destination, layer.children(), clip, overrides, throw_on_unsupported_pixel_format,
+                       masks, patterns);
+      destination.pop_mask();
+    } else {
+      GroupMaskedTarget<Target> masked(destination);
+      masked.push_mask(layer, mask_bounds);
+      composite_layers(masked, layer.children(), clip, overrides, throw_on_unsupported_pixel_format, masks,
+                       patterns);
+    }
+  } else {
+    composite_layers(destination, layer.children(), clip, overrides, throw_on_unsupported_pixel_format, masks,
+                     patterns);
+  }
+  // Interior effects paint ABOVE the pass-through content, masked by the
+  // silhouette, each with its OWN blend mode (the photoshop-group-fx-interior
+  // probe: a Normal overlay covers a Multiply child's composite at full
+  // strength). Stack order mirrors composite_pixel_layer's destination
+  // passes: overlays under satin under inner glow/shadow, stroke, bevel.
+  if (silhouette.has_value()) {
+    const auto& style = layer.layer_style();
+    const auto mask_bounds = layer_mask_bounds_for_render(layer, overrides);
+    const auto draw_rect = intersect_rect(clip, silhouette_rect);
+    if (style.effects_visible && !draw_rect.empty()) {
+      for (const auto& overlay : style.pattern_overlays) {
+        render_pattern_overlay(destination, layer, *silhouette, clip, silhouette_rect, overlay,
+                               mask_bounds, patterns, nullptr);
+      }
+      for (const auto& fill : style.gradient_fills) {
+        render_gradient_fill(destination, layer, *silhouette, clip, silhouette_rect, fill,
+                             mask_bounds, nullptr);
+      }
+      for (const auto& overlay : style.color_overlays) {
+        render_color_overlay(destination, layer, *silhouette, clip, silhouette_rect, overlay,
+                             mask_bounds, nullptr);
+      }
+      for (std::uint32_t index = 0; index < style.satins.size(); ++index) {
+        const auto& satin = style.satins[index];
+        if (!satin.enabled || satin.opacity <= 0.0F) {
+          continue;
+        }
+        const auto prepared = prepare_satin(layer, *silhouette, draw_rect, silhouette_rect, satin,
+                                            mask_bounds, masks, index);
+        const auto channels = silhouette->format().channels;
+        const auto* source_bytes = silhouette->data().data();
+        const auto source_stride = silhouette->stride_bytes();
+        for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
+          const auto* source_row =
+              source_bytes + static_cast<std::size_t>(y - silhouette_rect.y) * source_stride;
+          for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
+            const auto* src = source_row + static_cast<std::size_t>(x - silhouette_rect.x) * channels;
+            const auto source_alpha = (channels >= 4 ? static_cast<float>(src[3]) / 255.0F : 1.0F) *
+                                      layer_mask_alpha_for_render(layer, x, y, mask_bounds) *
+                                      layer.opacity();
+            if (source_alpha <= 0.0F) {
+              continue;
+            }
+            const auto mask_index = static_cast<std::size_t>(y - prepared.mask_bounds.y) *
+                                        static_cast<std::size_t>(prepared.mask_bounds.width) +
+                                    static_cast<std::size_t>(x - prepared.mask_bounds.x);
+            const auto alpha =
+                source_alpha * prepared.entry->primary[mask_index] * clamp_unit(prepared.effect->opacity);
+            if (alpha > 0.0F) {
+              composite_effect_color(destination, x, y, prepared.effect->color, alpha,
+                                     prepared.effect->blend_mode, DissolveField::Satin);
+            }
+          }
+        }
+      }
+      for (std::uint32_t index = 0; index < style.inner_glows.size(); ++index) {
+        render_inner_glow(destination, layer, *silhouette, clip, silhouette_rect,
+                          style.inner_glows[index], mask_bounds, masks, index, nullptr);
+      }
+      for (std::uint32_t index = 0; index < style.inner_shadows.size(); ++index) {
+        render_inner_shadow(destination, layer, *silhouette, clip, silhouette_rect,
+                            style.inner_shadows[index], mask_bounds, masks, index, nullptr);
+      }
+      for (std::uint32_t index = 0; index < style.strokes.size(); ++index) {
+        render_stroke(destination, layer, *silhouette, clip, silhouette_rect, style.strokes[index],
+                      mask_bounds, masks, index);
+      }
+      for (std::uint32_t index = 0; index < style.bevels.size(); ++index) {
+        if (style.bevels[index].style == BevelEmbossStyleKind::StrokeEmboss) {
+          continue;
+        }
+        render_bevel_emboss(destination, layer, *silhouette, clip, silhouette_rect,
+                            style.bevels[index], mask_bounds, masks, index, patterns, &style.strokes);
+      }
+      for (std::uint32_t index = 0; index < style.bevels.size(); ++index) {
+        if (style.bevels[index].style != BevelEmbossStyleKind::StrokeEmboss) {
+          continue;
+        }
+        render_bevel_emboss(destination, layer, *silhouette, clip, silhouette_rect,
+                            style.bevels[index], mask_bounds, masks, index, patterns, &style.strokes);
+      }
+    }
+  }
+  if (before.has_value()) {
+    fade_toward_snapshot(destination, *before, clip, layer.opacity());
+  }
 }
 
 }  // namespace patchy::render_detail

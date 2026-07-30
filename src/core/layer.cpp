@@ -326,6 +326,14 @@ bool Layer::blend_if_rgb_compatible() const noexcept {
   return blend_if_rgb_compatible_;
 }
 
+std::uint8_t Layer::restricted_channels() const noexcept {
+  return restricted_channels_;
+}
+
+bool Layer::channel_restriction_supported() const noexcept {
+  return channel_restriction_supported_;
+}
+
 std::vector<UnknownPsdBlock>& Layer::unknown_psd_blocks() noexcept {
   trace_revision_bump("unknown_psd_blocks", name_);
   render_revision_ = next_layer_revision();
@@ -550,6 +558,22 @@ void Layer::set_blend_if_payload(std::vector<std::uint8_t> payload, bool rgb_com
 
 void Layer::set_blend_if_rgb_compatible(bool compatible) noexcept {
   blend_if_rgb_compatible_ = compatible;
+}
+
+void Layer::set_restricted_channels(std::uint8_t mask) {
+  mask &= kRestrictAllChannels;
+  if (mask == restricted_channels_ && channel_restriction_supported_) {
+    return;
+  }
+  restricted_channels_ = mask;
+  channel_restriction_supported_ = true;
+  render_revision_ = next_layer_revision();
+  content_revision_ = next_layer_revision();
+}
+
+void Layer::set_channel_restriction_unsupported() noexcept {
+  restricted_channels_ = 0;
+  channel_restriction_supported_ = false;
 }
 
 void Layer::set_smart_filter_stack(SmartFilterStack stack) {

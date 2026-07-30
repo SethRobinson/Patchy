@@ -187,6 +187,82 @@ void psd_blend_interior_elements_round_trip() {
   }
 }
 
+void psd_channel_restrictions_round_trip() {
+  // Advanced Blending "Channels" ('brst'): ascending big-endian u32 indices of
+  // the EXCLUDED channels, written only when at least one channel is
+  // restricted (Photoshop 2026 omits the block otherwise).
+  const std::array<std::uint8_t, 5> masks{
+      0U, patchy::kRestrictRed, patchy::kRestrictGreen,
+      static_cast<std::uint8_t>(patchy::kRestrictRed | patchy::kRestrictBlue),
+      patchy::kRestrictAllChannels};
+  for (const auto mask : masks) {
+    patchy::Document document(4, 2, patchy::PixelFormat::rgb8());
+    auto& layer = document.add_pixel_layer("Restricted", solid_rgba(4, 2, 10, 20, 30, 255));
+    layer.set_restricted_channels(mask);
+
+    const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+    const auto payload = psd_layer_block_payload(psd_first_layer_extra_data(bytes), "brst");
+    CHECK(payload.has_value() == (mask != 0U));
+    if (payload.has_value()) {
+      std::vector<std::uint8_t> expected;
+      for (std::uint8_t index = 0; index < 3U; ++index) {
+        if (((mask >> index) & 1U) != 0U) {
+          expected.insert(expected.end(), {0U, 0U, 0U, index});
+        }
+      }
+      CHECK(*payload == expected);
+    }
+
+    const auto read = patchy::psd::DocumentIo::read(bytes);
+    CHECK(read.layers().size() == 1);
+    CHECK(read.layers().front().restricted_channels() == mask);
+    CHECK(read.layers().front().channel_restriction_supported());
+  }
+}
+
+void psd_channel_restrictions_unsupported_payload_preserved() {
+  // Channel indices past Blue (non-RGB sources) and payloads whose length is
+  // not a multiple of four cannot map onto the RGB model: they import as
+  // preserved raw blocks, render nothing, and re-emit byte-identically with no
+  // authored duplicate.
+  const std::vector<std::vector<std::uint8_t>> payloads{
+      {0x00, 0x00, 0x00, 0x05},
+      {0x00, 0x00, 0x00, 0x01, 0x00, 0x00},
+  };
+  for (const auto& exotic : payloads) {
+    patchy::Document document(4, 2, patchy::PixelFormat::rgb8());
+    auto& layer = document.add_pixel_layer("Exotic", solid_rgba(4, 2, 10, 20, 30, 255));
+    layer.unknown_psd_blocks().push_back(patchy::UnknownPsdBlock{"brst", exotic, false});
+    layer.set_channel_restriction_unsupported();
+
+    const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+    const auto payload = psd_layer_block_payload(psd_first_layer_extra_data(bytes), "brst");
+    CHECK(payload.has_value());
+    CHECK(*payload == exotic);
+
+    const auto read = patchy::psd::DocumentIo::read(bytes);
+    CHECK(read.layers().size() == 1);
+    CHECK(!read.layers().front().channel_restriction_supported());
+    CHECK(read.layers().front().restricted_channels() == 0U);
+
+    const auto resaved = patchy::psd::DocumentIo::write_layered_rgb8(read);
+    const auto extra = psd_first_layer_extra_data(resaved);
+    const auto resaved_payload = psd_layer_block_payload(extra, "brst");
+    CHECK(resaved_payload.has_value());
+    CHECK(*resaved_payload == exotic);
+    // Exactly one block: the preserved original, never an authored twin.
+    std::size_t brst_blocks = 0;
+    for (std::size_t index = 0; index + 8U <= extra.size(); ++index) {
+      if (extra[index] == '8' && extra[index + 1] == 'B' && extra[index + 2] == 'I' &&
+          extra[index + 3] == 'M' && extra[index + 4] == 'b' && extra[index + 5] == 'r' &&
+          extra[index + 6] == 's' && extra[index + 7] == 't') {
+        ++brst_blocks;
+      }
+    }
+    CHECK(brst_blocks == 1U);
+  }
+}
+
 void blend_interior_elements_moves_the_layer_blend_over_the_overlay() {
   // Photoshop's default ('infx' off) applies the layer's blend mode to its own
   // pixels only; the interior overlay then blends over that result with its own
@@ -969,6 +1045,9 @@ std::vector<patchy::test::TestCase> stroke_mask_effects_tests() {
       {"layer_mask_shapes_effects_regardless_of_link", layer_mask_shapes_effects_regardless_of_link},
       {"psd_layer_mask_hides_effects_round_trip", psd_layer_mask_hides_effects_round_trip},
       {"psd_blend_interior_elements_round_trip", psd_blend_interior_elements_round_trip},
+      {"psd_channel_restrictions_round_trip", psd_channel_restrictions_round_trip},
+      {"psd_channel_restrictions_unsupported_payload_preserved",
+       psd_channel_restrictions_unsupported_payload_preserved},
       {"blend_interior_elements_moves_the_layer_blend_over_the_overlay",
        blend_interior_elements_moves_the_layer_blend_over_the_overlay},
       {"exterior_effect_is_knocked_out_once_by_semi_transparent_content",

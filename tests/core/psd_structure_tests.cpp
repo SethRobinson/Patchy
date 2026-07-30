@@ -655,6 +655,138 @@ void psd_photoshop_blend_if_4b_fixture_round_trips_and_matches_render() {
   CHECK(metrics.mean_abs_channel_delta <= 0.60);
 }
 
+void psd_photoshop_channel_restrictions_fixture_matches_render() {
+  // Photoshop 2026-authored Advanced Blending "Channels" fixture (July 2026):
+  // arms over an opaque (100,120,140) backdrop for Normal, Multiply, a fill-50
+  // Linear Burn with only Green blending, a green-excluded square with a green
+  // drop shadow and color overlay, and an all-channels-excluded layer that
+  // must vanish entirely.
+  const auto psd_path =
+      patchy::test::committed_psd_fixture_path("photoshop-channel-restrictions.psd");
+  const auto bmp_path = psd_path.parent_path() / "photoshop-channel-restrictions.bmp";
+  CHECK(std::filesystem::exists(psd_path));
+  CHECK(std::filesystem::exists(bmp_path));
+
+  const auto document = patchy::psd::DocumentIo::read_file(psd_path);
+  const auto expect_mask = [&](const char* name, std::uint8_t mask) {
+    const auto* layer = find_layer_named(document.layers(), name);
+    CHECK(layer != nullptr);
+    if (layer != nullptr) {
+      CHECK(layer->channel_restriction_supported());
+      CHECK(layer->restricted_channels() == mask);
+    }
+  };
+  expect_mask("normal no G", patchy::kRestrictGreen);
+  expect_mask("multiply no G", patchy::kRestrictGreen);
+  expect_mask("fill50 linear burn only G",
+              static_cast<std::uint8_t>(patchy::kRestrictRed | patchy::kRestrictBlue));
+  expect_mask("effects no G", patchy::kRestrictGreen);
+  expect_mask("all restricted", patchy::kRestrictAllChannels);
+
+  const auto photoshop_render = patchy::bmp::DocumentIo::read_file(bmp_path);
+  const auto reference_flat = patchy::Compositor{}.flatten_rgb8(photoshop_render);
+  const auto rendered_flat = patchy::Compositor{}.flatten_rgb8(document);
+  const auto metrics = rgb_diff_metrics(reference_flat, rendered_flat);
+  CHECK(metrics.max_channel_delta <= 2);
+  CHECK(metrics.mean_abs_channel_delta <= 0.60);
+
+  // Round trip: the resave regenerates each brst from the model and rereads to
+  // the same masks.
+  const auto resaved = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto reread = patchy::psd::DocumentIo::read(resaved);
+  const auto* reread_all = find_layer_named(reread.layers(), "all restricted");
+  CHECK(reread_all != nullptr);
+  if (reread_all != nullptr) {
+    CHECK(reread_all->restricted_channels() == patchy::kRestrictAllChannels);
+  }
+  const auto* reread_fill = find_layer_named(reread.layers(), "fill50 linear burn only G");
+  CHECK(reread_fill != nullptr);
+  if (reread_fill != nullptr) {
+    CHECK(reread_fill->restricted_channels() ==
+          static_cast<std::uint8_t>(patchy::kRestrictRed | patchy::kRestrictBlue));
+  }
+}
+
+void psd_channel_restrictions_empty_payload_reads_unrestricted_if_available() {
+  // polymega_famicom.psd carries a genuine Photoshop 'brst' block with length
+  // zero (nothing restricted): it must import as an unrestricted, still
+  // editable mask, and a resave drops the empty block (absence means the same
+  // thing to Photoshop, matching the lmgm/infx omit-default precedent).
+  const auto path = patchy::test::local_psd_fixture_path("polymega_famicom.psd");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] local polymega_famicom.psd fixture missing: " << path.string() << '\n';
+    return;
+  }
+  const auto document = patchy::psd::DocumentIo::read_file(path);
+  const auto check_layers = [](const auto& self, const std::vector<patchy::Layer>& layers) -> void {
+    for (const auto& layer : layers) {
+      CHECK(layer.channel_restriction_supported());
+      CHECK(layer.restricted_channels() == 0U);
+      self(self, layer.children());
+    }
+  };
+  check_layers(check_layers, document.layers());
+  const auto resaved = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto reread = patchy::psd::DocumentIo::read(resaved);
+  const auto no_brst = [](const auto& self, const std::vector<patchy::Layer>& layers) -> bool {
+    for (const auto& layer : layers) {
+      if (patchy::test::layer_has_psd_block(layer, "brst") || !self(self, layer.children())) {
+        return false;
+      }
+    }
+    return true;
+  };
+  CHECK(no_brst(no_brst, reread.layers()));
+}
+
+void psd_akiko_channel_restriction_imports_green_if_available() {
+  // The July 2026 report file: Layer 0 excludes Green (brst payload
+  // 00 00 00 01) on top of a Gray Blend If, which Photoshop renders as the
+  // magenta look the pre-brst Patchy missed entirely. The BMP beside it is
+  // Photoshop 2026's own flatten of the file.
+  const auto psd_path = patchy::test::local_psd_fixture_path("akiko_cycling_okinawa.psd");
+  const auto bmp_path = patchy::test::local_psd_fixture_path("akiko_cycling_okinawa_photoshop.bmp");
+  if (!std::filesystem::exists(psd_path) || !std::filesystem::exists(bmp_path)) {
+    std::cout << "[SKIP] local akiko_cycling_okinawa fixtures missing: " << psd_path.string() << '\n';
+    return;
+  }
+  const auto document = patchy::psd::DocumentIo::read_file(psd_path);
+  const auto* restricted = find_layer_named(document.layers(), "Layer 0");
+  CHECK(restricted != nullptr);
+  if (restricted != nullptr) {
+    CHECK(restricted->channel_restriction_supported());
+    CHECK(restricted->restricted_channels() == patchy::kRestrictGreen);
+  }
+  const auto photoshop_render = patchy::bmp::DocumentIo::read_file(bmp_path);
+  const auto reference_flat = patchy::Compositor{}.flatten_rgb8(photoshop_render);
+  std::vector<std::uint8_t> merged_alpha;
+  auto rendered_flat = patchy::Compositor{}.flatten_rgb8(document, &merged_alpha);
+  // The document's canvas stays partly transparent (the Blend If gate thins
+  // Layer 0's coverage); Photoshop's flatten mats that onto white, so mat
+  // Patchy's straight-color flatten the same way before diffing.
+  for (std::int32_t y = 0; y < rendered_flat.height(); ++y) {
+    for (std::int32_t x = 0; x < rendered_flat.width(); ++x) {
+      const auto alpha =
+          static_cast<float>(
+              merged_alpha[static_cast<std::size_t>(y) * static_cast<std::size_t>(rendered_flat.width()) +
+                           static_cast<std::size_t>(x)]) /
+          255.0F;
+      auto* pixel = rendered_flat.pixel(x, y);
+      for (int channel = 0; channel < 3; ++channel) {
+        pixel[channel] = static_cast<std::uint8_t>(
+            std::lround(static_cast<float>(pixel[channel]) * alpha + 255.0F * (1.0F - alpha)));
+      }
+    }
+  }
+  // Measured July 2026: max 6, mean 0.29. The residue sits where the Blend If
+  // feather leaves partial coverage (Patchy's float coverage vs Photoshop's
+  // internal quantization, amplified by the white matting), not in the
+  // restricted channel; a restriction regression here shifts green by 50+.
+  const auto metrics = rgb_diff_metrics(reference_flat, rendered_flat);
+  CHECK(metrics.max_channel_delta <= 8);
+  CHECK(metrics.mean_abs_channel_delta <= 0.50);
+}
+
 void psd_round_trips_clipping_flag() {
   patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Base", solid_rgb(2, 2, 200, 60, 60));
@@ -1241,6 +1373,12 @@ std::vector<patchy::test::TestCase> psd_structure_tests() {
        psd_blending_ranges_round_trip_for_layers_and_group_records},
       {"psd_photoshop_blend_if_4b_fixture_round_trips_and_matches_render",
        psd_photoshop_blend_if_4b_fixture_round_trips_and_matches_render},
+      {"psd_photoshop_channel_restrictions_fixture_matches_render",
+       psd_photoshop_channel_restrictions_fixture_matches_render},
+      {"psd_channel_restrictions_empty_payload_reads_unrestricted_if_available",
+       psd_channel_restrictions_empty_payload_reads_unrestricted_if_available},
+      {"psd_akiko_channel_restriction_imports_green_if_available",
+       psd_akiko_channel_restriction_imports_green_if_available},
       {"psd_round_trips_clipping_flag", psd_round_trips_clipping_flag},
       {"psd_clipped_first_in_group_round_trips_and_renders_unclipped",
        psd_clipped_first_in_group_round_trips_and_renders_unclipped},

@@ -129,6 +129,12 @@ bool should_skip_layer_block(const EncodedLayer& encoded, const UnknownPsdBlock&
       block.key == "infx" || (block.key == "plAD" && encoded.kind == EncodedLayerKind::Adjustment)) {
     return true;
   }
+  // A modeled channel restriction regenerates 'brst' (or drops it when nothing
+  // is restricted); only unmodelable payloads re-emit the preserved block.
+  if (block.key == "brst" && encoded.layer != nullptr &&
+      encoded.layer->channel_restriction_supported()) {
+    return true;
+  }
   // Edited vector content regenerates its blocks; the preserved originals
   // would be stale (dirty-or-verbatim rule). vowv rides along with vogk.
   if (generated_vector_blocks && (is_vector_content_block_key(block.key) || block.key == "vowv")) {
@@ -528,6 +534,24 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
         // "Blend Interior Effects as Group" blending option (first byte is the bool).
         record.blend_interior_elements = record.additional_blocks.back().payload[0] != 0;
       }
+      if (key == "brst") {
+        // Advanced Blending "Channels": a bare list of big-endian u32 channel
+        // indices EXCLUDED from compositing, no count prefix (length/4 =
+        // count; empty = nothing restricted). Photoshop 2026 writes ascending
+        // indices, e.g. the all-unchecked payload 00000000 00000001 00000002.
+        const auto& restriction_payload = record.additional_blocks.back().payload;
+        if (restriction_payload.size() % 4U == 0U) {
+          BigEndianReader restriction_reader(restriction_payload);
+          std::vector<std::uint32_t> indices;
+          indices.reserve(restriction_payload.size() / 4U);
+          while (restriction_reader.remaining() >= 4U) {
+            indices.push_back(restriction_reader.read_u32());
+          }
+          record.channel_restrictions = std::move(indices);
+        } else {
+          record.channel_restrictions_malformed = true;
+        }
+      }
       if (key == "lsct" || key == "lsdk") {
         const auto& section_payload = record.additional_blocks.back().payload;
         if (section_payload.size() >= 4U) {
@@ -854,6 +878,20 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
       blend_interior.write_u8(0);
       blend_interior.write_u16(0);
       write_additional_layer_block(extra, {'i', 'n', 'f', 'x'}, blend_interior.bytes(), large_document);
+    }
+
+    if (encoded.layer->channel_restriction_supported() &&
+        encoded.layer->restricted_channels() != 0U) {
+      // Advanced Blending "Channels": Photoshop writes 'brst' only when at
+      // least one channel is unchecked, as ascending big-endian u32 indices of
+      // the excluded channels (0=R, 1=G, 2=B).
+      BigEndianWriter restrictions;
+      for (std::uint32_t index = 0; index < 3U; ++index) {
+        if ((encoded.layer->restricted_channels() >> index) & 1U) {
+          restrictions.write_u32(index);
+        }
+      }
+      write_additional_layer_block(extra, {'b', 'r', 's', 't'}, restrictions.bytes(), large_document);
     }
 
     for (const auto& block : encoded.layer->unknown_psd_blocks()) {

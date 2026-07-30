@@ -170,6 +170,17 @@ struct DecodedLayerBlendIf {
 [[nodiscard]] std::vector<std::uint8_t> encode_layer_blend_if(
     const LayerBlendIf& settings, std::span<const std::uint8_t> original_payload = {});
 
+// Photoshop's Advanced Blending "Channels" checkboxes (the 'brst' tagged
+// block). A SET bit means the channel is RESTRICTED: excluded from
+// compositing, so the composite keeps the backdrop's premultiplied value for
+// that channel. All three bits set means the layer, effects included, does not
+// composite at all (Photoshop 2026 COM calibration, July 2026).
+inline constexpr std::uint8_t kRestrictRed = 0x01U;
+inline constexpr std::uint8_t kRestrictGreen = 0x02U;
+inline constexpr std::uint8_t kRestrictBlue = 0x04U;
+inline constexpr std::uint8_t kRestrictAllChannels =
+    kRestrictRed | kRestrictGreen | kRestrictBlue;
+
 struct GradientColorStop {
   float location{0.0F};
   RgbColor color{};
@@ -532,6 +543,12 @@ public:
   [[nodiscard]] LayerBlendIf blend_if() const noexcept;
   [[nodiscard]] BlendIfPayloadStatus blend_if_payload_status() const noexcept;
   [[nodiscard]] bool blend_if_rgb_compatible() const noexcept;
+  // Advanced Blending channel restriction mask (kRestrict* bits; set = the
+  // channel is excluded from compositing). Modeled only for RGB-compatible
+  // 'brst' payloads; unsupported imports keep the raw block preserved and
+  // report channel_restriction_supported() == false with a zero mask.
+  [[nodiscard]] std::uint8_t restricted_channels() const noexcept;
+  [[nodiscard]] bool channel_restriction_supported() const noexcept;
   [[nodiscard]] std::vector<UnknownPsdBlock>& unknown_psd_blocks() noexcept;
   [[nodiscard]] const std::vector<UnknownPsdBlock>& unknown_psd_blocks() const noexcept;
   [[nodiscard]] LayerStyle& layer_style() noexcept;
@@ -568,6 +585,11 @@ public:
   [[nodiscard]] bool set_blend_if(const LayerBlendIf& settings, bool replace_unsupported = false);
   void set_blend_if_payload(std::vector<std::uint8_t> payload, bool rgb_compatible = true);
   void set_blend_if_rgb_compatible(bool compatible) noexcept;
+  void set_restricted_channels(std::uint8_t mask);
+  // Import-only: marks an unmodelable 'brst' payload (non-RGB source or
+  // unknown shape) so the writer re-emits the preserved raw block. No bump,
+  // mirroring set_blend_if_rgb_compatible.
+  void set_channel_restriction_unsupported() noexcept;
   void set_smart_filter_stack(SmartFilterStack stack);
   void clear_smart_filter_stack() noexcept;
   void set_vector_shape(VectorShapeContent content);
@@ -599,6 +621,8 @@ private:
   std::vector<std::uint8_t> raw_psd_blending_ranges_{};
   std::vector<std::uint8_t> raw_psd_group_boundary_blending_ranges_{};
   bool blend_if_rgb_compatible_{true};
+  std::uint8_t restricted_channels_{0};
+  bool channel_restriction_supported_{true};
   std::vector<UnknownPsdBlock> unknown_psd_blocks_{};
   LayerStyle layer_style_{};
   std::shared_ptr<const SmartFilterStack> smart_filter_stack_{};

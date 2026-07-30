@@ -473,8 +473,12 @@ bool has_enabled_backdrop_dependent_style(const LayerStyle& style) noexcept {
 }
 
 bool layer_style_cache_eligible(const Layer& layer, const PixelBuffer& source) {
+  // A channel restriction must apply against the live backdrop, never inside
+  // the cache's private transparent image (the restored channel would freeze
+  // to transparent black and the blit would paint it).
   if (layer.kind() != LayerKind::Pixel || layer.blend_mode() != BlendMode::Normal || has_enabled_mask(layer) ||
       patchy::layer_has_enabled_vector_mask(layer) || render_detail::layer_has_rendered_blend_if(layer) ||
+      render_detail::layer_rendered_channel_restriction(layer) != 0U ||
       source.empty() || source.format().bit_depth != BitDepth::UInt8 || source.format().channels < 3) {
     return false;
   }
@@ -906,6 +910,7 @@ void composite_document_layer(QImageCompositeTarget& target, const Layer& layer,
       ++profile->groups;
     }
     if (render_detail::layer_has_rendered_blend_if(layer) ||
+        render_detail::layer_rendered_channel_restriction(layer) != 0U ||
         layer.blend_mode() != BlendMode::PassThrough || layer.opacity() < 1.0F ||
         (layer.mask().has_value() && !layer.mask()->disabled) || layer_has_enabled_vector_mask(layer) ||
         group_style_renders(layer)) {

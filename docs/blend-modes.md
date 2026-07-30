@@ -84,7 +84,15 @@ every blend-if, masked, non-pass-through, or faded group through it
   padding (zero for empty styles).
 - Photoshop Knockout (shallow/deep) is not modeled. The single-pixel merged
   sampler `compose_layer_pixel` (src/ui/canvas_widget_render.cpp) still
-  ignores group opacity and child blend modes (pre-existing approximation).
+  ignores group opacity and child blend modes (pre-existing approximation);
+  it does apply per-layer channel restrictions (premultiplied keep, and the
+  all-excluded skip), though partial restrictions on GROUPS stay unhandled
+  there like the other group state.
+- Advanced Blending "Channels" restrictions ('brst') render on layers,
+  adjustment layers, groups (pass-through included, which does NOT force
+  isolation), and clip runs; the calibrated rules live in
+  [ps-compat.md](ps-compat.md) and the wrapper is `ChannelRestrictedTarget`
+  in render/layer_compositor.hpp.
 
 ## July 2026 modes (Vivid/Linear Light, Hard Mix, Darker/Lighter Color)
 

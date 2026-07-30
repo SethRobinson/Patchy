@@ -25,6 +25,9 @@ struct LayerStyleSettings {
   // the user explicitly chooses to replace them with editable RGB defaults.
   bool replace_unsupported_blend_if{false};
   int fill_opacity{100};
+  // Advanced Blending "Channels" (kRestrict* bits; set = excluded). Ignored on
+  // commit when the layer preserves an unsupported native 'brst' payload.
+  std::uint8_t restricted_channels{0};
 };
 
 // document_patterns (optional) lists the document's embedded pattern tiles.

@@ -1323,6 +1323,9 @@ private:
   struct LayerStyleClipboard {
     LayerStyle style;
     std::optional<LayerBlendIf> blend_if;
+    // Advanced Blending channel restriction mask; nullopt when the source
+    // preserves an unsupported native 'brst' payload.
+    std::optional<std::uint8_t> restricted_channels;
     // Pattern tiles the copied style references, so pasting into another
     // document can embed them there too.
     std::vector<PatternResource> patterns;

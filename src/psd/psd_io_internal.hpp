@@ -193,6 +193,11 @@ struct LayerRecord {
   std::uint32_t protection_flags{0};
   bool layer_mask_hides_effects{false};
   bool blend_interior_elements{false};
+  // 'brst' channel blending restrictions: the big-endian u32 channel indices
+  // the block excludes from compositing. nullopt = no brst block; malformed
+  // marks a payload whose length is not a multiple of four.
+  std::optional<std::vector<std::uint32_t>> channel_restrictions;
+  bool channel_restrictions_malformed{false};
   LayerStyle layer_style;
   // True once 'lmfx' supplied the style: the multi-instance block is
   // authoritative over the single-instance compatibility lfx2 beside it.

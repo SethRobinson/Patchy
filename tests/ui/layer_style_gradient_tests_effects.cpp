@@ -1114,6 +1114,114 @@ void ui_layer_style_blending_options_round_trip_the_interior_group_flag() {
   CHECK(!cleared->style.blend_interior_elements);
 }
 
+void ui_layer_style_blending_options_round_trip_channel_restrictions() {
+  // Advanced Blending "Channels": checked = the channel composites, so an
+  // imported Green exclusion loads with G unchecked and commits back as the
+  // kRestrict* mask. Preview-off must restore the layer's original mask AND
+  // its real Fill Opacity (original_settings used to default fill to 100).
+  patchy::Document direct_document(96, 72, patchy::PixelFormat::rgba8());
+  patchy::Layer direct_layer(direct_document.allocate_layer_id(), "Restricted",
+                             solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
+  direct_layer.set_restricted_channels(patchy::kRestrictGreen);
+  direct_layer.set_fill_opacity(0.4F);
+
+  std::vector<patchy::ui::LayerStyleSettings> previews;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    auto* red = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleChannelRedCheck"));
+    auto* green = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleChannelGreenCheck"));
+    auto* blue = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleChannelBlueCheck"));
+    auto* preview = dialog->findChild<QCheckBox*>(QStringLiteral("layerStylePreviewCheck"));
+    CHECK(red != nullptr && green != nullptr && blue != nullptr && preview != nullptr);
+    CHECK(red->isEnabled() && green->isEnabled() && blue->isEnabled());
+    CHECK(red->isChecked());
+    CHECK(!green->isChecked());
+    CHECK(blue->isChecked());
+
+    blue->setChecked(false);
+    QTest::qWait(80);
+    CHECK(!previews.empty());
+    CHECK(previews.back().restricted_channels ==
+          (patchy::kRestrictGreen | patchy::kRestrictBlue));
+
+    preview->setChecked(false);
+    QApplication::processEvents();
+    CHECK(previews.back().restricted_channels == patchy::kRestrictGreen);
+    CHECK(previews.back().fill_opacity == 40);
+    preview->setChecked(true);
+    QApplication::processEvents();
+
+    green->setChecked(true);
+    QTest::qWait(80);
+    dialog->accept();
+  });
+  const auto accepted = patchy::ui::request_layer_style_settings(
+      nullptr, direct_layer,
+      [&](const patchy::ui::LayerStyleSettings& settings) { previews.push_back(settings); });
+  CHECK(accepted.has_value());
+  CHECK(accepted->restricted_channels == patchy::kRestrictBlue);
+  CHECK(accepted->fill_opacity == 40);
+
+  // Cancel restores the live-previewed mask through MainWindow.
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  patchy::Layer layer(document.allocate_layer_id(), "Restrict Cancel",
+                      solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
+  const auto layer_id = layer.id();
+  layer.set_restricted_channels(patchy::kRestrictGreen);
+  document.add_layer(std::move(layer));
+  document.set_active_layer(layer_id);
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Restrict Cancel"));
+  show_window(window);
+  bool saw_live_preview = false;
+  QTimer::singleShot(0, &window, [&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    auto* blue = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleChannelBlueCheck"));
+    CHECK(blue != nullptr);
+    blue->setChecked(false);
+    QTest::qWait(80);
+    const auto* preview_layer = patchy::ui::MainWindowTestAccess::document(window).find_layer(layer_id);
+    CHECK(preview_layer != nullptr);
+    saw_live_preview = preview_layer->restricted_channels() ==
+                       (patchy::kRestrictGreen | patchy::kRestrictBlue);
+    dialog->reject();
+  });
+  require_action(window, "layerBlendingOptionsAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_live_preview);
+  const auto* restored = patchy::ui::MainWindowTestAccess::document(window).find_layer(layer_id);
+  CHECK(restored != nullptr);
+  CHECK(restored->restricted_channels() == patchy::kRestrictGreen);
+}
+
+void ui_layer_style_channel_checkboxes_disabled_for_unsupported_payload() {
+  // An unmodelable native 'brst' (non-RGB source) presents as disabled,
+  // checked boxes; committing must not clobber the preserved payload (the
+  // returned mask stays zero and MainWindow skips the setter).
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  patchy::Layer layer(document.allocate_layer_id(), "Unsupported Restriction",
+                      solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
+  layer.set_channel_restriction_unsupported();
+
+  QTimer::singleShot(0, [] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    auto* red = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleChannelRedCheck"));
+    auto* green = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleChannelGreenCheck"));
+    auto* blue = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleChannelBlueCheck"));
+    CHECK(red != nullptr && green != nullptr && blue != nullptr);
+    CHECK(!red->isEnabled() && !green->isEnabled() && !blue->isEnabled());
+    CHECK(red->isChecked() && green->isChecked() && blue->isChecked());
+    QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
+  });
+  const auto settings = patchy::ui::request_layer_style_settings(nullptr, layer, {});
+  CHECK(settings.has_value());
+  CHECK(settings->restricted_channels == 0U);
+}
+
 void ui_layer_style_gradient_stroke_controls_map_to_settings() {
   patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
   patchy::Layer layer(document.allocate_layer_id(), "Gradient Stroke",
@@ -1700,5 +1808,9 @@ std::vector<patchy::test::TestCase> layer_style_gradient_tests_part1() {
        ui_layer_style_bevel_texture_missing_pattern_presents_unchecked},
       {"ui_layer_style_pattern_overlay_controls_map_to_settings",
        ui_layer_style_pattern_overlay_controls_map_to_settings},
+      {"ui_layer_style_blending_options_round_trip_channel_restrictions",
+       ui_layer_style_blending_options_round_trip_channel_restrictions},
+      {"ui_layer_style_channel_checkboxes_disabled_for_unsupported_payload",
+       ui_layer_style_channel_checkboxes_disabled_for_unsupported_payload},
   };
 }

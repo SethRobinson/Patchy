@@ -1309,6 +1309,245 @@ void blend_math_color_burn_dodge_match_photoshop_captures() {
   }
 }
 
+void compositor_channel_restriction_keeps_backdrop_channel() {
+  // Advanced Blending "Channels" (Photoshop 2026 COM calibration, July 2026):
+  // an excluded channel keeps the backdrop's PREMULTIPLIED value while the
+  // other channels and alpha composite normally, applied after the blend
+  // kernel; all three excluded removes the layer, effects included.
+  {
+    patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Backdrop", solid_rgb(1, 1, 100, 120, 140));
+    auto& top = document.add_pixel_layer("Top", solid_rgba(1, 1, 255, 64, 32, 255));
+    top.set_restricted_channels(patchy::kRestrictGreen);
+    const auto normal = patchy::Compositor{}.flatten_rgb8(document);
+    CHECK(normal.pixel(0, 0)[0] == 255);
+    CHECK(normal.pixel(0, 0)[1] == 120);
+    CHECK(normal.pixel(0, 0)[2] == 32);
+    document.layers()[1].set_blend_mode(patchy::BlendMode::Multiply);
+    const auto multiply = patchy::Compositor{}.flatten_rgb8(document);
+    CHECK(multiply.pixel(0, 0)[0] == 100);
+    CHECK(multiply.pixel(0, 0)[1] == 120);
+    // Photoshop's sampler reads 18 here; Patchy's floor-rounded multiply
+    // kernel gives 17 (the known +/-1 rounding envelope). The restricted
+    // green is the exact pin.
+    CHECK(multiply.pixel(0, 0)[2] == 17);
+  }
+
+  // Premultiplied keep over partial and zero backdrop coverage: the probe over
+  // a half-alpha gray-60 backdrop reads 60 * 0.502 re-straightened, and over
+  // alpha zero the kept channel is empty (0), refuting a straight-value keep.
+  {
+    patchy::Document document(2, 1, patchy::PixelFormat::rgba8());
+    auto backdrop = solid_rgba(2, 1, 60, 60, 60, 128);
+    backdrop.pixel(1, 0)[3] = 0;
+    document.add_pixel_layer("Backdrop", std::move(backdrop));
+    auto& top = document.add_pixel_layer("Top", solid_rgba(2, 1, 200, 180, 60, 255));
+    top.set_restricted_channels(patchy::kRestrictGreen);
+    std::vector<std::uint8_t> merged_alpha;
+    const auto flattened = patchy::Compositor{}.flatten_rgb8(document, &merged_alpha);
+    CHECK(flattened.pixel(0, 0)[0] == 200);
+    CHECK(flattened.pixel(0, 0)[1] == 30);
+    CHECK(flattened.pixel(0, 0)[2] == 60);
+    CHECK(merged_alpha[0] == 255);
+    CHECK(flattened.pixel(1, 0)[0] == 200);
+    CHECK(flattened.pixel(1, 0)[1] == 0);
+    CHECK(flattened.pixel(1, 0)[2] == 60);
+    CHECK(merged_alpha[1] == 255);
+  }
+
+  // A semi-transparent restricted layer re-straightens the kept premultiplied
+  // value against the advanced alpha: 60 * 0.502 / 0.752 = 40 (the P2c probe).
+  {
+    patchy::Document document(1, 1, patchy::PixelFormat::rgba8());
+    document.add_pixel_layer("Backdrop", solid_rgba(1, 1, 60, 60, 60, 128));
+    auto& top = document.add_pixel_layer("Top", solid_rgba(1, 1, 200, 180, 60, 128));
+    top.set_restricted_channels(patchy::kRestrictGreen);
+    std::vector<std::uint8_t> merged_alpha;
+    const auto flattened = patchy::Compositor{}.flatten_rgb8(document, &merged_alpha);
+    CHECK(merged_alpha[0] >= 191 && merged_alpha[0] <= 192);
+    CHECK(flattened.pixel(0, 0)[1] == 40);
+    CHECK(flattened.pixel(0, 0)[2] == 60);
+    CHECK(std::abs(static_cast<int>(flattened.pixel(0, 0)[0]) - 153) <= 1);
+  }
+
+  // All channels excluded: the layer and its effects vanish, alpha included.
+  {
+    patchy::Document document(2, 1, patchy::PixelFormat::rgba8());
+    auto backdrop = solid_rgba(2, 1, 100, 120, 140, 255);
+    backdrop.pixel(1, 0)[3] = 0;
+    document.add_pixel_layer("Backdrop", std::move(backdrop));
+    auto& top = document.add_pixel_layer("Top", solid_rgba(2, 1, 255, 255, 255, 255));
+    patchy::LayerDropShadow shadow;
+    shadow.enabled = true;
+    top.layer_style().drop_shadows.push_back(shadow);
+    top.set_restricted_channels(patchy::kRestrictAllChannels);
+    std::vector<std::uint8_t> merged_alpha;
+    const auto flattened = patchy::Compositor{}.flatten_rgb8(document, &merged_alpha);
+    CHECK(flattened.pixel(0, 0)[0] == 100);
+    CHECK(flattened.pixel(0, 0)[1] == 120);
+    CHECK(flattened.pixel(0, 0)[2] == 140);
+    CHECK(merged_alpha[0] == 255);
+    CHECK(merged_alpha[1] == 0);
+  }
+
+  // The restriction covers the layer's whole ensemble: a Normal green color
+  // overlay and a Normal green drop shadow both keep the backdrop's green.
+  {
+    patchy::Document document(16, 8, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Backdrop", solid_rgb(16, 8, 100, 120, 140));
+    patchy::Layer square(document.allocate_layer_id(), "Square", solid_rgba(4, 4, 255, 64, 32, 255));
+    square.set_bounds(patchy::Rect{4, 2, 4, 4});
+    patchy::LayerDropShadow shadow;
+    shadow.enabled = true;
+    shadow.blend_mode = patchy::BlendMode::Normal;
+    shadow.color = patchy::RgbColor{20, 230, 40};
+    shadow.opacity = 1.0F;
+    shadow.angle_degrees = 180.0F;
+    shadow.distance = 6.0F;
+    shadow.size = 0.0F;
+    square.layer_style().drop_shadows.push_back(shadow);
+    patchy::LayerColorOverlay overlay;
+    overlay.enabled = true;
+    overlay.blend_mode = patchy::BlendMode::Normal;
+    overlay.color = patchy::RgbColor{0, 255, 0};
+    overlay.opacity = 1.0F;
+    square.layer_style().color_overlays.push_back(overlay);
+    square.set_restricted_channels(patchy::kRestrictGreen);
+    document.add_layer(std::move(square));
+    const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+    CHECK(flattened.pixel(5, 4)[0] == 0);
+    CHECK(flattened.pixel(5, 4)[1] == 120);
+    CHECK(flattened.pixel(5, 4)[2] == 0);
+    CHECK(flattened.pixel(11, 4)[0] == 20);
+    CHECK(flattened.pixel(11, 4)[1] == 120);
+    CHECK(flattened.pixel(11, 4)[2] == 40);
+  }
+
+  // Adjustment layers leave restricted channels unadjusted (the Invert probe).
+  {
+    patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Backdrop", solid_rgb(1, 1, 100, 120, 140));
+    patchy::AdjustmentSettings invert;
+    invert.kind = patchy::AdjustmentKind::Invert;
+    patchy::Layer adjustment(document.allocate_layer_id(), "Invert", patchy::LayerKind::Adjustment);
+    adjustment.set_bounds(patchy::Rect::from_size(1, 1));
+    patchy::configure_adjustment_layer(adjustment, invert);
+    adjustment.set_restricted_channels(patchy::kRestrictGreen);
+    document.add_layer(std::move(adjustment));
+    const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+    CHECK(flattened.pixel(0, 0)[0] == 155);
+    CHECK(flattened.pixel(0, 0)[1] == 120);
+    CHECK(flattened.pixel(0, 0)[2] == 115);
+  }
+
+  // A restricted clip BASE gates the whole merged ensemble against the
+  // original backdrop; a restricted MEMBER keeps the base's channel instead
+  // (its backdrop is the base content). P7/P7b probes.
+  {
+    patchy::Document document(16, 8, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Backdrop", solid_rgb(16, 8, 100, 120, 140));
+    patchy::Layer base(document.allocate_layer_id(), "Base", solid_rgba(8, 8, 10, 240, 80, 255));
+    base.set_bounds(patchy::Rect{2, 0, 8, 8});
+    base.set_restricted_channels(patchy::kRestrictGreen);
+    document.add_layer(std::move(base));
+    patchy::Layer member(document.allocate_layer_id(), "Member", solid_rgba(8, 8, 250, 20, 200, 255));
+    member.set_bounds(patchy::Rect{6, 0, 8, 8});
+    member.set_clipped(true);
+    document.add_layer(std::move(member));
+    const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+    CHECK(flattened.pixel(4, 4)[0] == 10);
+    CHECK(flattened.pixel(4, 4)[1] == 120);
+    CHECK(flattened.pixel(4, 4)[2] == 80);
+    CHECK(flattened.pixel(8, 4)[0] == 250);
+    CHECK(flattened.pixel(8, 4)[1] == 120);
+    CHECK(flattened.pixel(8, 4)[2] == 200);
+    CHECK(flattened.pixel(12, 4)[0] == 100);
+    CHECK(flattened.pixel(12, 4)[1] == 120);
+    CHECK(flattened.pixel(12, 4)[2] == 140);
+  }
+  {
+    patchy::Document document(16, 8, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Backdrop", solid_rgb(16, 8, 100, 120, 140));
+    patchy::Layer base(document.allocate_layer_id(), "Base", solid_rgba(8, 8, 10, 240, 80, 255));
+    base.set_bounds(patchy::Rect{2, 0, 8, 8});
+    document.add_layer(std::move(base));
+    patchy::Layer member(document.allocate_layer_id(), "Member", solid_rgba(8, 8, 250, 20, 200, 255));
+    member.set_bounds(patchy::Rect{6, 0, 8, 8});
+    member.set_clipped(true);
+    member.set_restricted_channels(patchy::kRestrictGreen);
+    document.add_layer(std::move(member));
+    const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+    CHECK(flattened.pixel(4, 4)[0] == 10);
+    CHECK(flattened.pixel(4, 4)[1] == 240);
+    CHECK(flattened.pixel(4, 4)[2] == 80);
+    CHECK(flattened.pixel(8, 4)[0] == 250);
+    CHECK(flattened.pixel(8, 4)[1] == 240);
+    CHECK(flattened.pixel(8, 4)[2] == 200);
+  }
+
+  // Groups: an isolated group restricts where its merged result meets the
+  // backdrop; a PASS-THROUGH group does NOT isolate (unlike blend-if) - its
+  // Multiply child still blends with the outside backdrop while the group's
+  // excluded channel holds it in place (the P5 probes).
+  {
+    patchy::Document document(2, 1, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Backdrop", solid_rgb(2, 1, 200, 150, 100));
+    patchy::Layer isolated(document.allocate_layer_id(), "Isolated", patchy::LayerKind::Group);
+    isolated.set_blend_mode(patchy::BlendMode::Normal);
+    patchy::Layer isolated_child(document.allocate_layer_id(), "Child A", solid_rgba(1, 1, 30, 220, 90, 255));
+    isolated_child.set_bounds(patchy::Rect{0, 0, 1, 1});
+    isolated.add_child(std::move(isolated_child));
+    isolated.set_restricted_channels(patchy::kRestrictGreen);
+    document.add_layer(std::move(isolated));
+    patchy::Layer pass_through(document.allocate_layer_id(), "Pass", patchy::LayerKind::Group);
+    pass_through.set_blend_mode(patchy::BlendMode::PassThrough);
+    patchy::Layer multiply_child(document.allocate_layer_id(), "Child B", solid_rgba(1, 1, 255, 0, 0, 255));
+    multiply_child.set_bounds(patchy::Rect{1, 0, 1, 1});
+    multiply_child.set_blend_mode(patchy::BlendMode::Multiply);
+    pass_through.add_child(std::move(multiply_child));
+    pass_through.set_restricted_channels(patchy::kRestrictGreen);
+    document.add_layer(std::move(pass_through));
+    const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
+    CHECK(flattened.pixel(0, 0)[0] == 30);
+    CHECK(flattened.pixel(0, 0)[1] == 150);
+    CHECK(flattened.pixel(0, 0)[2] == 90);
+    CHECK(flattened.pixel(1, 0)[0] == 200);
+    CHECK(flattened.pixel(1, 0)[1] == 150);
+    CHECK(flattened.pixel(1, 0)[2] == 0);
+  }
+
+  // The strip-parallel flatten must stay byte-identical to the sequential
+  // reference with a restricted layer spanning every strip.
+  {
+    patchy::Document document(2400, 2000, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Backdrop", solid_rgb(2400, 2000, 100, 120, 140));
+    auto& top = document.add_pixel_layer("Top", solid_rgba(2400, 2000, 255, 64, 32, 255));
+    top.set_blend_mode(patchy::BlendMode::Multiply);
+    top.set_restricted_channels(patchy::kRestrictGreen);
+    const auto parallel = patchy::Compositor{}.flatten_rgb8(document);
+#ifdef _WIN32
+    _putenv_s("PATCHY_RENDER_SINGLE_THREADED", "1");
+#else
+    setenv("PATCHY_RENDER_SINGLE_THREADED", "1", 1);
+#endif
+    const auto sequential = patchy::Compositor{}.flatten_rgb8(document);
+#ifdef _WIN32
+    _putenv_s("PATCHY_RENDER_SINGLE_THREADED", "");
+#else
+    unsetenv("PATCHY_RENDER_SINGLE_THREADED");
+#endif
+    bool identical = true;
+    for (std::int32_t y = 0; y < parallel.height() && identical; ++y) {
+      identical = std::memcmp(parallel.pixel(0, y), sequential.pixel(0, y),
+                              static_cast<std::size_t>(parallel.width()) * 3U) == 0;
+    }
+    CHECK(identical);
+    CHECK(parallel.pixel(1200, 1000)[0] == 100);
+    CHECK(parallel.pixel(1200, 1000)[1] == 120);
+    CHECK(parallel.pixel(1200, 1000)[2] == 17);
+  }
+}
+
 std::vector<patchy::test::TestCase> compositor_blend_if_tests() {
   return {
       {"blend_math_new_modes_match_photoshop_captures",
@@ -1370,5 +1609,7 @@ std::vector<patchy::test::TestCase> compositor_blend_if_tests() {
        compositor_pass_through_group_opacity_fades_over_transparency},
       {"psd_photoshop_group_opacity_fixture_matches_render",
        psd_photoshop_group_opacity_fixture_matches_render},
+      {"compositor_channel_restriction_keeps_backdrop_channel",
+       compositor_channel_restriction_keeps_backdrop_channel},
   };
 }

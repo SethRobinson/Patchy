@@ -170,8 +170,15 @@ void compose_layer_pixel(const Layer& layer, std::int32_t x, std::int32_t y, std
   if (!layer.visible() || layer.opacity() <= 0.0F) {
     return;
   }
+  const auto channel_restriction =
+      layer.channel_restriction_supported() ? layer.restricted_channels() : std::uint8_t{0};
+  if (channel_restriction == kRestrictAllChannels) {
+    return;  // all channels excluded removes the layer from compositing
+  }
 
   if (layer.kind() == LayerKind::Group) {
+    // Partial group restrictions stay unhandled here, like group opacity and
+    // child blend modes (this sampler is a documented approximation).
     for (const auto& child : layer.children()) {
       compose_layer_pixel(child, x, y, out, out_alpha);
     }
@@ -192,9 +199,15 @@ void compose_layer_pixel(const Layer& layer, std::int32_t x, std::int32_t y, std
     }
     const auto adjusted =
         apply_adjustment_to_color(RgbColor{clamp_byte(out[0]), clamp_byte(out[1]), clamp_byte(out[2])}, *settings);
-    out[0] = static_cast<float>(adjusted.red) * amount + out[0] * (1.0F - amount);
-    out[1] = static_cast<float>(adjusted.green) * amount + out[1] * (1.0F - amount);
-    out[2] = static_cast<float>(adjusted.blue) * amount + out[2] * (1.0F - amount);
+    if ((channel_restriction & kRestrictRed) == 0U) {
+      out[0] = static_cast<float>(adjusted.red) * amount + out[0] * (1.0F - amount);
+    }
+    if ((channel_restriction & kRestrictGreen) == 0U) {
+      out[1] = static_cast<float>(adjusted.green) * amount + out[1] * (1.0F - amount);
+    }
+    if ((channel_restriction & kRestrictBlue) == 0U) {
+      out[2] = static_cast<float>(adjusted.blue) * amount + out[2] * (1.0F - amount);
+    }
     return;
   }
 
@@ -226,7 +239,14 @@ void compose_layer_pixel(const Layer& layer, std::int32_t x, std::int32_t y, std
   const std::array<std::uint8_t, 3> dst_rgb = {clamp_byte(out[0]), clamp_byte(out[1]), clamp_byte(out[2])};
   const auto blended = composite_blended_rgb(src_rgb, dst_rgb, layer.blend_mode(), alpha, out_alpha);
   for (int channel = 0; channel < 3; ++channel) {
-    out[channel] = next_alpha > 0.0F ? static_cast<float>(blended[static_cast<std::size_t>(channel)]) : 0.0F;
+    if (next_alpha <= 0.0F) {
+      out[channel] = 0.0F;
+      continue;
+    }
+    // A restricted channel keeps the backdrop's premultiplied value.
+    out[channel] = ((channel_restriction >> channel) & 1U) != 0U
+                       ? out[channel] * out_alpha / next_alpha
+                       : static_cast<float>(blended[static_cast<std::size_t>(channel)]);
   }
   out_alpha = next_alpha;
 }
