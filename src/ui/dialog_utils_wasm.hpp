@@ -1,9 +1,14 @@
 #pragma once
 
+#include <QPoint>
+#include <QSize>
 #include <QString>
 
 #include <functional>
 
+class QAction;
+class QDialog;
+class QMenu;
 class QWidget;
 
 // Browser-side file access for the WebAssembly build (docs/wasm.md, step 3).
@@ -51,7 +56,22 @@ void install_web_drop_target(std::function<void(const QString& path)> open_dropp
 // popup and shows a popup-styled QListWidget as a plain child widget inside
 // the dialog's own window, which paints and receives input normally. Picks
 // emit the same activated/textActivated signals a real popup would; a press
-// outside the list dismisses it like a popup.
+// outside the list dismisses it like a popup. The same filter also embeds
+// every QDialog that would open as a secondary-parented window (message
+// boxes, color pickers, sub-dialogs of dialogs) as a centered child widget of
+// the host window behind a click-blocking dim layer, because those windows
+// are equally input-dead.
 void install_wasm_dialog_combo_workaround();
+
+// QMenu::exec replacement for menus opened from dialog contexts (flat menus
+// only): shows the actions as an in-window list child of `host`, waits, and
+// returns the picked action or null on dismissal.
+[[nodiscard]] QAction* exec_menu_in_window(QMenu& menu, QPoint global_position, QWidget& host);
+
+// Exported shim over dialog_utils.cpp's install_dialog_overflow_scroll so the
+// embedded-dialog path can make an oversized dialog's button row reachable by
+// scrolling. Declared here because this header is the wasm-only surface both
+// TUs share. Returns true when the content was wrapped.
+bool wrap_dialog_content_in_overflow_scroll(QDialog& dialog, QSize bound);
 
 }  // namespace patchy::ui::wasm_files

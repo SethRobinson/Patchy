@@ -3,15 +3,18 @@
 #include <emscripten.h>
 #include <emscripten/val.h>
 
+#include <QAction>
 #include <QApplication>
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
+#include <QEventLoop>
 #include <QFile>
 #include <QFileInfo>
 #include <QFormLayout>
 #include <QKeyEvent>
+#include <QMenu>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -438,73 +441,70 @@ bool key_would_open_popup(const QComboBox& combo, const QKeyEvent& key) {
   }
 }
 
-// The chooser is a plain child widget inside the dialog's own window, never a
-// new top-level window: every kind of top-level shown from a dialog context
+// The choosers are plain child widgets inside the dialog's own window, never
+// a new top-level window: every kind of top-level shown from a dialog context
 // is broken on this platform (the native popup paints but takes no input; a
 // dialog-parented or even parentless chooser dialog took no input and did not
 // paint). Child widgets inside the already-working dialog window both paint
 // and receive input.
-class DialogComboChooser final : public QListWidget {
+class InWindowPopupList : public QListWidget {
 public:
-  DialogComboChooser(QComboBox& combo, QWidget* host)
-      : QListWidget(host), combo_(&combo) {
+  explicit InWindowPopupList(QWidget* host) : QListWidget(host) {
     setObjectName(QStringLiteral("wasmComboChooserList"));
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    for (int index = 0; index < combo.count(); ++index) {
-      addItem(new QListWidgetItem(combo.itemIcon(index), combo.itemText(index)));
-    }
-    setCurrentRow(combo.currentIndex());
     connect(this, &QListWidget::itemClicked, this, [this] { pick(currentRow()); });
     connect(this, &QListWidget::itemActivated, this, [this] { pick(currentRow()); });
+  }
 
-    // Popup-like sizing and placement, clamped to the host window.
+  // The single open overlay, consulted by the application event filter for
+  // outside-press dismissal.
+  [[nodiscard]] static InWindowPopupList*& active() {
+    static InWindowPopupList* active_list = nullptr;
+    return active_list;
+  }
+
+  virtual void dismiss() {
+    if (active() == this) {
+      active() = nullptr;
+    }
+    hide();
+    deleteLater();
+  }
+
+  // True when a global-position press lands inside the list; presses outside
+  // dismiss it, matching popup semantics.
+  [[nodiscard]] bool contains_global(QPoint global_position) const {
+    return rect().contains(mapFromGlobal(global_position));
+  }
+
+protected:
+  virtual void pick(int row) = 0;
+
+  // Popup-like sizing and placement inside the host, anchored to an
+  // origin/height rect in host coordinates.
+  void place_near(QPoint anchor_top_left, int anchor_height, int minimum_width) {
+    auto* host = parentWidget();
     const auto host_rect = host->rect();
     const auto row_height = std::max(1, sizeHintForRow(0));
     const auto frame = 2 * (frameWidth() + 1);
-    const auto height = std::min(row_height * combo.count() + frame,
+    const auto height = std::min(row_height * count() + frame,
                                  std::max(row_height + frame, host_rect.height() - 8));
     const auto width =
-        std::clamp(std::max(combo.width(), sizeHintForColumn(0) + frame +
+        std::clamp(std::max(minimum_width, sizeHintForColumn(0) + frame +
                                                verticalScrollBar()->sizeHint().width()),
                    60, std::max(60, host_rect.width() - 8));
     resize(width, height);
-    auto position = combo.mapTo(host, QPoint(0, combo.height()));
+    auto position = anchor_top_left + QPoint(0, anchor_height);
     position.setX(std::clamp(position.x(), 0, std::max(0, host_rect.width() - width)));
     if (position.y() + height > host_rect.height()) {
-      position.setY(std::max(0, combo.mapTo(host, QPoint(0, 0)).y() - height));
+      position.setY(std::max(0, anchor_top_left.y() - height));
     }
     move(position);
     raise();
     show();
     setFocus();
     scrollToItem(currentItem());
-  }
-
-  void dismiss() {
-    hide();
-    deleteLater();
-  }
-
-  // True when a global-position press lands inside the chooser; presses
-  // outside dismiss it, matching popup semantics.
-  [[nodiscard]] bool contains_global(QPoint global_position) const {
-    return rect().contains(mapFromGlobal(global_position));
-  }
-
-private:
-  void pick(int row) {
-    if (combo_ != nullptr && row >= 0 && row < combo_->count()) {
-      if (row != combo_->currentIndex()) {
-        combo_->setCurrentIndex(row);
-      }
-      // A real popup pick reports through activated/textActivated (several
-      // dialogs act only on those, e.g. "Custom color..." rows); signals
-      // cannot be emitted from outside the class, so raise them by metacall.
-      QMetaObject::invokeMethod(combo_, "activated", Q_ARG(int, row));
-      QMetaObject::invokeMethod(combo_, "textActivated",
-                                Q_ARG(QString, combo_->itemText(row)));
-    }
-    dismiss();
+    active() = this;
   }
 
   void keyPressEvent(QKeyEvent* event) override {
@@ -518,9 +518,211 @@ private:
     }
     QListWidget::keyPressEvent(event);
   }
+};
+
+class DialogComboChooser final : public InWindowPopupList {
+public:
+  DialogComboChooser(QComboBox& combo, QWidget* host)
+      : InWindowPopupList(host), combo_(&combo) {
+    for (int index = 0; index < combo.count(); ++index) {
+      addItem(new QListWidgetItem(combo.itemIcon(index), combo.itemText(index)));
+    }
+    setCurrentRow(combo.currentIndex());
+    place_near(combo.mapTo(host, QPoint(0, 0)), combo.height(), combo.width());
+  }
+
+private:
+  void pick(int row) override {
+    if (combo_ != nullptr && row >= 0 && row < combo_->count()) {
+      if (row != combo_->currentIndex()) {
+        combo_->setCurrentIndex(row);
+      }
+      // A real popup pick reports through activated/textActivated (several
+      // dialogs act only on those, e.g. "Custom color..." rows); signals
+      // cannot be emitted from outside the class, so raise them by metacall.
+      // Queued, not direct: pick() runs inside this list's mouseReleaseEvent,
+      // and a handler that opens a nested dialog from here would run its
+      // whole life inside a widget being torn down mid-mouse-grab, leaving
+      // Qt's grab state stale (observed as every later click being dropped
+      // while drags still worked).
+      QMetaObject::invokeMethod(combo_, "activated", Qt::QueuedConnection, Q_ARG(int, row));
+      QMetaObject::invokeMethod(combo_, "textActivated", Qt::QueuedConnection,
+                                Q_ARG(QString, combo_->itemText(row)));
+    }
+    dismiss();
+  }
 
   QPointer<QComboBox> combo_;
 };
+
+// In-window replacement for QMenu::exec from dialog contexts (flat menus
+// only; the dialog menus in the codebase have no submenus). Reports the
+// picked action, or null on dismissal, through on_done.
+class DialogMenuChooser final : public InWindowPopupList {
+public:
+  DialogMenuChooser(QMenu& menu, QWidget* host, QPoint host_position,
+                    std::function<void(QAction*)> on_done)
+      : InWindowPopupList(host), on_done_(std::move(on_done)) {
+    for (auto* action : menu.actions()) {
+      if (action->isSeparator() || !action->isVisible()) {
+        continue;
+      }
+      auto* item = new QListWidgetItem(action->icon(), action->text().remove(QLatin1Char('&')));
+      if (!action->isEnabled()) {
+        item->setFlags(item->flags() & ~Qt::ItemIsEnabled);
+      }
+      item->setData(Qt::UserRole, QVariant::fromValue(static_cast<void*>(action)));
+      addItem(item);
+    }
+    place_near(host_position, 0, 120);
+  }
+
+  void dismiss() override {
+    finish(nullptr);
+  }
+
+private:
+  void pick(int row) override {
+    auto* action = row >= 0 && row < count()
+                       ? static_cast<QAction*>(item(row)->data(Qt::UserRole).value<void*>())
+                       : nullptr;
+    finish(action != nullptr && action->isEnabled() ? action : nullptr);
+  }
+
+  void finish(QAction* action) {
+    if (auto on_done = std::move(on_done_); on_done) {
+      on_done_ = {};
+      InWindowPopupList::dismiss();
+      // Queued for the same reason as the combo pick: finish() runs inside
+      // mouseReleaseEvent, and the caller resumed by on_done may open a
+      // dialog, which must not happen mid-grab inside a dying widget.
+      QMetaObject::invokeMethod(
+          qApp, [on_done = std::move(on_done), action] { on_done(action); },
+          Qt::QueuedConnection);
+      return;
+    }
+    InWindowPopupList::dismiss();
+  }
+
+  std::function<void(QAction*)> on_done_;
+};
+
+// Full-host click-swallowing dim layer behind an embedded dialog, giving it
+// modality within the host window.
+class EmbeddedDialogBlocker final : public QWidget {
+public:
+  explicit EmbeddedDialogBlocker(QWidget* host) : QWidget(host) {
+    setObjectName(QStringLiteral("wasmEmbeddedDialogBlocker"));
+    setAttribute(Qt::WA_StyledBackground, true);
+    // ID selector: high enough specificity that app-wide QSS cannot override
+    // the dim.
+    setStyleSheet(QStringLiteral(
+        "QWidget#wasmEmbeddedDialogBlocker { background-color: rgba(0, 0, 0, 96); }"));
+    setGeometry(host->rect());
+    host->installEventFilter(this);
+    show();
+    raise();
+  }
+
+protected:
+  void mousePressEvent(QMouseEvent* event) override { event->accept(); }
+  void mouseReleaseEvent(QMouseEvent* event) override { event->accept(); }
+  void mouseDoubleClickEvent(QMouseEvent* event) override { event->accept(); }
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (watched == parentWidget() && event->type() == QEvent::Resize) {
+      setGeometry(parentWidget()->rect());
+    }
+    return false;
+  }
+};
+
+constexpr const char* kEmbeddedProperty = "wasmEmbeddedDialog";
+constexpr const char* kEmbeddedFlagsProperty = "wasmEmbeddedDialogFlags";
+
+// Restores the embedded dialog to a plain (hidden) top-level when it closes,
+// and removes the blocker. Attached as an event filter on the dialog; the
+// restore must run before the caller's stack dialog is destroyed, and Hide is
+// delivered inside QDialog::exec's cleanup, which is exactly that moment.
+class EmbeddedDialogTeardown final : public QObject {
+public:
+  EmbeddedDialogTeardown(QDialog* dialog, EmbeddedDialogBlocker* blocker)
+      : QObject(dialog), dialog_(dialog), blocker_(blocker) {
+    dialog->installEventFilter(this);
+  }
+
+protected:
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (watched == dialog_ && event->type() == QEvent::Hide && dialog_ != nullptr &&
+        dialog_->property(kEmbeddedProperty).toBool()) {
+      if (blocker_ != nullptr) {
+        blocker_->deleteLater();
+      }
+      auto* dialog = dialog_.data();
+      dialog->setProperty(kEmbeddedProperty, false);
+      const auto flags =
+          static_cast<Qt::WindowFlags>(dialog->property(kEmbeddedFlagsProperty).toUInt());
+      dialog->removeEventFilter(this);
+      deleteLater();
+      dialog->setParent(nullptr, flags);
+    }
+    return false;
+  }
+
+private:
+  QPointer<QDialog> dialog_;
+  QPointer<EmbeddedDialogBlocker> blocker_;
+};
+
+// Reparents a dialog that would open as a (broken) secondary-parented window
+// into the host window as a child widget, centered and clamped, behind a
+// modality blocker. Runs from the QEvent::Show filter, so it covers every
+// dialog regardless of how it is shown: QMessageBox and QColorDialog statics,
+// exec_dialog, bare exec, the wasm save/picker prompts.
+void embed_dialog_in_host(QDialog& dialog, QWidget& host) {
+  dialog.setProperty(kEmbeddedProperty, true);
+  dialog.setProperty(kEmbeddedFlagsProperty,
+                     static_cast<uint>(dialog.windowFlags()));
+  auto* blocker = new EmbeddedDialogBlocker(&host);
+  new EmbeddedDialogTeardown(&dialog, blocker);
+  dialog.setParent(&host, Qt::Widget);
+  // As a child widget the dialog no longer gets a window background; without
+  // this the host paints through it.
+  dialog.setAutoFillBackground(true);
+  const auto host_rect = host.rect();
+  const QSize bound(std::max(1, host_rect.width() - 8), std::max(1, host_rect.height() - 8));
+  // Same last resort as clamped windows: when the layout minimum cannot fit
+  // the host, scroll the content so the button row stays reachable.
+  wrap_dialog_content_in_overflow_scroll(dialog, bound);
+  dialog.adjustSize();
+  const QSize size(std::min(dialog.width(), bound.width()),
+                   std::min(dialog.height(), bound.height()));
+  dialog.resize(size);
+  dialog.move(std::max(0, (host_rect.width() - size.width()) / 2),
+              std::max(0, (host_rect.height() - size.height()) / 2));
+  dialog.show();
+  dialog.raise();
+  dialog.setFocus();
+}
+
+// Host for a dialog that must not open as its own window: the parent's
+// window when that is a secondary top-level, else the active modal widget's
+// window (a main-parented dialog shown from within another dialog's nested
+// loop). Null when the dialog can use the normal window path.
+QWidget* embed_host_for(QDialog& dialog) {
+  if (auto* parent = dialog.parentWidget(); parent != nullptr) {
+    auto* window = parent->window();
+    if (window != &dialog && qobject_cast<QMainWindow*>(window) == nullptr) {
+      return window;
+    }
+  }
+  if (auto* modal = QApplication::activeModalWidget();
+      modal != nullptr && modal != &dialog && modal->window() != &dialog &&
+      qobject_cast<QMainWindow*>(modal->window()) == nullptr &&
+      qobject_cast<QDialog*>(modal->window()) != nullptr) {
+    return modal->window();
+  }
+  return nullptr;
+}
 
 class DialogComboPopupFilter final : public QObject {
 public:
@@ -528,16 +730,27 @@ public:
 
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override {
+    if (event->type() == QEvent::Show) {
+      auto* dialog = qobject_cast<QDialog*>(watched);
+      if (dialog == nullptr || !dialog->isWindow() ||
+          dialog->property(kEmbeddedProperty).toBool()) {
+        return false;
+      }
+      if (auto* host = embed_host_for(*dialog); host != nullptr) {
+        embed_dialog_in_host(*dialog, *host);
+      }
+      return false;
+    }
     if (event->type() == QEvent::MouseButtonPress) {
       const auto global_position =
           static_cast<QMouseEvent*>(event)->globalPosition().toPoint();
-      if (chooser_ != nullptr) {
-        // Presses inside the open chooser flow to it normally; the first
+      if (auto* overlay = InWindowPopupList::active(); overlay != nullptr) {
+        // Presses inside the open overlay flow to it normally; the first
         // press outside dismisses it and is consumed, like a real popup.
-        if (chooser_->contains_global(global_position)) {
+        if (overlay->contains_global(global_position)) {
           return false;
         }
-        chooser_->dismiss();
+        overlay->dismiss();
         return true;
       }
       auto* combo = combo_box_for(watched);
@@ -547,29 +760,38 @@ protected:
       if (!press_would_open_popup(*combo, combo->mapFromGlobal(global_position))) {
         return false;
       }
-      chooser_ = new DialogComboChooser(*combo, combo->window());
+      new DialogComboChooser(*combo, combo->window());
       return true;
     }
     if (event->type() == QEvent::KeyPress) {
-      if (chooser_ != nullptr) {
-        return false;  // the focused chooser handles its own keys
+      if (InWindowPopupList::active() != nullptr) {
+        return false;  // the focused overlay handles its own keys
       }
       auto* combo = combo_box_for(watched);
       if (combo == nullptr || !combo_needs_chooser(*combo) ||
           !key_would_open_popup(*combo, *static_cast<QKeyEvent*>(event))) {
         return false;
       }
-      chooser_ = new DialogComboChooser(*combo, combo->window());
+      new DialogComboChooser(*combo, combo->window());
       return true;
     }
     return false;
   }
-
-private:
-  QPointer<DialogComboChooser> chooser_;
 };
 
 }  // namespace
+
+QAction* exec_menu_in_window(QMenu& menu, QPoint global_position, QWidget& host) {
+  QAction* picked = nullptr;
+  QEventLoop loop;
+  new DialogMenuChooser(menu, &host, host.mapFromGlobal(global_position),
+                        [&picked, &loop](QAction* action) {
+                          picked = action;
+                          loop.quit();
+                        });
+  loop.exec();
+  return picked;
+}
 
 void install_wasm_dialog_combo_workaround() {
   static DialogComboPopupFilter* filter = nullptr;

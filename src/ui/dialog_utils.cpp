@@ -33,6 +33,7 @@
 #include <QLabel>
 #include <QLayout>
 #include <QLineEdit>
+#include <QMainWindow>
 #include <QMenu>
 #include <QMessageBox>
 #include <QMouseEvent>
@@ -1223,6 +1224,24 @@ int exec_dialog(QDialog& dialog) {
   remember_dialog_position(dialog);
   return dialog.exec();
 }
+
+QAction* exec_context_menu(QMenu& menu, QPoint global_position, QWidget& context) {
+#ifdef Q_OS_WASM
+  if (auto* window = context.window();
+      window != nullptr && qobject_cast<QMainWindow*>(window) == nullptr) {
+    return wasm_files::exec_menu_in_window(menu, global_position, *window);
+  }
+#endif
+  return menu.exec(global_position);
+}
+
+#ifdef Q_OS_WASM
+namespace wasm_files {
+bool wrap_dialog_content_in_overflow_scroll(QDialog& dialog, QSize bound) {
+  return install_dialog_overflow_scroll(dialog, bound);
+}
+}  // namespace wasm_files
+#endif
 
 #ifndef Q_OS_MACOS
 void keep_dialog_above_parent_window(QDialog& dialog) {

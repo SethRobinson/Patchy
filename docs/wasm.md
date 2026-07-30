@@ -420,12 +420,17 @@ Wasm-only accommodations for living inside a single browser canvas:
   popup-placed QListWidget as a plain child widget inside the dialog's own
   window, which paints and receives input normally; a press outside the list
   dismisses it. Picking emits the same activated/textActivated signals as a
-  real popup, which several dialogs ("Custom color..." rows) depend on.
-  Known remaining gaps of the same class, to convert to the same in-window
-  shape if they matter: QMenu context menus opened from inside a dialog (for
-  example the Script Manager's script-list right-click menu), and
-  second-level dialogs launched from a dialog (for example the color picker
-  behind a "Custom color..." row), which need verification.
+  real popup, which several dialogs ("Custom color..." rows) depend on. The
+  same filter fixes the other members of the bug class: every QDialog that
+  would open as a secondary-parented window (QMessageBox and QColorDialog
+  statics, sub-dialogs of dialogs, the wasm save/picker prompts opened from a
+  dialog) is intercepted at QEvent::Show and embedded as a centered child
+  widget of the host window behind a click-blocking dim layer, restored to a
+  plain top-level when it closes; and QMenu context menus inside dialogs go
+  through `exec_context_menu` (dialog_utils.cpp), which on wasm shows the
+  actions as an in-window list (flat menus only) and on desktop is exactly
+  `menu.exec`. New dialog code needs nothing special; new dialog context
+  menus must use `exec_context_menu` instead of `QMenu::exec`.
 - **Dialogs clamp to the canvas.** Desktop window managers keep an oversized
   dialog's chrome reachable; the browser canvas has nothing equivalent, so a
   dialog taller than the canvas left its OK/Cancel row unreachable below the
