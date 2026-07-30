@@ -10,6 +10,7 @@
 #include "core/layer_metadata.hpp"
 #include "core/layer_render_utils.hpp"
 #include "core/layer_tree.hpp"
+#include "core/rect_utils.hpp"
 #include "core/palette.hpp"
 #include "core/palette_presets.hpp"
 #include "core/pixel_tools.hpp"
@@ -2200,6 +2201,24 @@ void MainWindow::apply_filter(const QString& identifier) {
     const auto bounds = layer->bounds();
     auto original_pixels =
         std::make_shared<const PixelBuffer>(std::as_const(*layer).pixels());
+    // Canvas-filling filters (Clouds) render across the whole document, so
+    // they draw from the layer embedded in a document-wide transparent buffer.
+    // `original_pixels`/`bounds` stay pristine for Cancel and restore paths.
+    auto source_pixels = original_pixels;
+    Rect source_bounds = bounds;
+    if (filter->catalog.fills_entire_canvas &&
+        !layer_id_locks_transparent_pixels(*active)) {
+      const auto canvas_bounds = Rect::from_size(doc.width(), doc.height());
+      if (auto embedded = make_canvas_filling_filter_source(*original_pixels,
+                                                            bounds,
+                                                            canvas_bounds);
+          embedded.has_value()) {
+        source_bounds = embedded->bounds;
+        source_pixels =
+            std::make_shared<const PixelBuffer>(std::move(embedded->pixels));
+      }
+    }
+    const bool embedded_source = source_pixels != original_pixels;
     // Tracks the bounds the layer currently shows in the preview. Blur-family
     // filters grow the layer, so each swap must repaint the union of the previous
     // and new bounds to erase any stale halo left behind when the layer shrinks.
@@ -2216,6 +2235,7 @@ void MainWindow::apply_filter(const QString& identifier) {
     auto preview_state = std::make_shared<AsyncPixelPreviewState<FilterPreviewSettings>>();
     preview_state->start =
         [this, preview_state, active, original_pixels, last_preview_bounds, selection, bounds,
+         source_pixels, source_bounds, embedded_source,
          preview_registry](const FilterPreviewSettings& settings) {
           if (!settings.preview_enabled) {
             preview_state->pending.reset();
@@ -2232,19 +2252,23 @@ void MainWindow::apply_filter(const QString& identifier) {
 
           preview_state->in_flight = true;
           const auto generation = ++preview_state->generation;
-          auto result_bounds = std::make_shared<Rect>(bounds);
+          auto result_bounds = std::make_shared<Rect>(source_bounds);
           auto* app = QCoreApplication::instance();
           auto window = QPointer<MainWindow>(this);
           if (canvas_ != nullptr) {
             canvas_->begin_preview_render();
           }
-          run_tracked_background_worker([app, window, preview_state, generation, original_pixels, result_bounds, last_preview_bounds,
-                       selection, bounds, settings, preview_registry, active] {
+          run_tracked_background_worker([app, window, preview_state, generation, result_bounds, last_preview_bounds,
+                       selection, bounds, source_pixels, source_bounds, embedded_source, settings,
+                       preview_registry, active] {
             auto result = std::make_shared<PixelBuffer>();
             auto error = std::make_shared<QString>();
             try {
-              *result = build_filter_preview_pixels(*original_pixels, selection, bounds, *preview_registry, settings,
-                                                    nullptr, &*result_bounds);
+              *result = build_filter_preview_pixels(*source_pixels, selection, source_bounds, *preview_registry,
+                                                    settings, nullptr, &*result_bounds);
+              if (embedded_source) {
+                *result_bounds = trim_transparent_border(*result, *result_bounds, bounds);
+              }
             } catch (const std::exception& caught) {
               *error = QString::fromUtf8(caught.what());
             }
@@ -2291,7 +2315,7 @@ void MainWindow::apply_filter(const QString& identifier) {
 
     auto preview_edit_lock = lock_preview_dialog_edits();
     const FilterDialogPreviewSource dialog_preview_source{
-        original_pixels.get(), bounds, selection, &filters_};
+        source_pixels.get(), source_bounds, selection, &filters_};
     const auto settings =
         request_filter_settings(this, dialog_spec, preview_changed,
                                 std::move(initial_invocation),
@@ -2325,7 +2349,7 @@ void MainWindow::apply_filter(const QString& identifier) {
     remember_dialog_position(progress);
     progress.setValue(0);
     PixelBuffer final_pixels;
-    Rect final_bounds = bounds;
+    Rect final_bounds = source_bounds;
     try {
       run_filter_compute_with_progress(
           progress,
@@ -2338,9 +2362,12 @@ void MainWindow::apply_filter(const QString& identifier) {
             }
           },
           [&](FilterProgress& filter_progress) {
-            final_pixels = build_filter_preview_pixels(*original_pixels, selection, bounds, filters_,
+            final_pixels = build_filter_preview_pixels(*source_pixels, selection, source_bounds, filters_,
                                                        FilterPreviewSettings{true, *settings},
                                                        &filter_progress, &final_bounds);
+            if (embedded_source) {
+              final_bounds = trim_transparent_border(final_pixels, final_bounds, bounds);
+            }
           });
       progress.setValue(100);
     } catch (const FilterCancelled&) {
@@ -2644,6 +2671,15 @@ void MainWindow::visual_filter_gallery_dialog() {
     auto preview_registry = std::make_shared<const FilterRegistry>(filters_);
     const auto native_filter_canvas_bounds =
         Rect::from_size(source_document.width(), source_document.height());
+    // Canvas-filling recipes (Clouds) render from the layer embedded in a
+    // document-wide buffer; the embed is skipped for layers without alpha, for
+    // transparency-locked layers, and when the layer already covers the canvas.
+    const auto embed_union = unite_rect(bounds, native_filter_canvas_bounds);
+    const bool can_embed_canvas =
+        original_pixels->format().channels >= 4 &&
+        !layer_id_locks_transparent_pixels(layer_id) &&
+        !(embed_union.x == bounds.x && embed_union.y == bounds.y &&
+          embed_union.width == bounds.width && embed_union.height == bounds.height);
     using PreviewState = LatestCancellablePixelPreviewState<FilterRecipe>;
     auto preview_state = std::make_shared<PreviewState>();
     preview_state->start =
@@ -2726,7 +2762,8 @@ void MainWindow::visual_filter_gallery_dialog() {
     const auto preview_changed =
         [preview_state, restore_original, preview_registry,
          smart_object_target, native_base_stack,
-         native_new_stack_mask](const VisualFilterGalleryPreview& preview) {
+         native_new_stack_mask,
+         can_embed_canvas](const VisualFilterGalleryPreview& preview) {
       if (!preview.canvas_enabled || !preview.recipe.has_value()) {
         cancel_latest_cancellable_pixel_preview(preview_state);
         restore_original();
@@ -2743,6 +2780,14 @@ void MainWindow::visual_filter_gallery_dialog() {
         return;
       }
       if (smart_object_target) {
+        return;
+      }
+      if (can_embed_canvas &&
+          filter_recipe_fills_entire_canvas(*preview_registry,
+                                            *preview.recipe)) {
+        // The accepted exact render drives the canvas for canvas-filling
+        // recipes, exactly like the Smart Object wiring above.
+        cancel_latest_cancellable_pixel_preview(preview_state);
         return;
       }
       enqueue_latest_cancellable_pixel_preview(preview_state, *preview.recipe);
@@ -2768,34 +2813,62 @@ void MainWindow::visual_filter_gallery_dialog() {
             *native_unfiltered_pixels, native_unfiltered_bounds,
             native_filter_canvas_bounds, *candidate, progress);
       };
-      exact_preview_ready =
-          [this, session_id, layer_id, last_preview_bounds,
-           preview_shows_original, target_canvas,
-           restore_original](const VisualFilterGalleryExactPreview& preview) {
-        if (!preview.canvas_enabled || preview.rendered == nullptr) {
-          restore_original();
-          return;
+    } else {
+      // Plain layers use the exact path only for canvas-filling recipes
+      // (Clouds); every other recipe returns nullopt and keeps the proxy
+      // render byte-identical to before.
+      exact_recipe_renderer =
+          [preview_registry, original_pixels, selection, bounds,
+           native_filter_canvas_bounds, can_embed_canvas](
+              const FilterRecipe& recipe,
+              const FilterProgress* progress)
+              -> std::optional<FilterRenderResult> {
+        if (!can_embed_canvas ||
+            !filter_recipe_fills_entire_canvas(*preview_registry, recipe)) {
+          return std::nullopt;
         }
-        auto* live_session = session_with_id(session_id);
-        if (live_session == nullptr) {
-          return;
+        auto embedded = make_canvas_filling_filter_source(
+            *original_pixels, bounds, native_filter_canvas_bounds);
+        if (!embedded.has_value()) {
+          return std::nullopt;
         }
-        auto* live_layer = live_session->document.find_layer(layer_id);
-        if (live_layer == nullptr) {
-          return;
-        }
-        const auto dirty =
-            to_qrect(*last_preview_bounds)
-                .united(to_qrect(preview.rendered->bounds));
-        set_layer_pixels_with_bounds(*live_layer, preview.rendered->pixels,
-                                     preview.rendered->bounds);
-        *last_preview_bounds = preview.rendered->bounds;
-        *preview_shows_original = false;
-        if (target_canvas != nullptr) {
-          target_canvas->document_changed(dirty);
-        }
+        FilterRenderResult rendered;
+        rendered.bounds = embedded->bounds;
+        rendered.pixels = build_filter_preview_pixels(
+            embedded->pixels, selection, embedded->bounds, *preview_registry,
+            recipe, progress, &rendered.bounds);
+        rendered.bounds =
+            trim_transparent_border(rendered.pixels, rendered.bounds, bounds);
+        return rendered;
       };
     }
+    exact_preview_ready =
+        [this, session_id, layer_id, last_preview_bounds,
+         preview_shows_original, target_canvas,
+         restore_original](const VisualFilterGalleryExactPreview& preview) {
+      if (!preview.canvas_enabled || preview.rendered == nullptr) {
+        restore_original();
+        return;
+      }
+      auto* live_session = session_with_id(session_id);
+      if (live_session == nullptr) {
+        return;
+      }
+      auto* live_layer = live_session->document.find_layer(layer_id);
+      if (live_layer == nullptr) {
+        return;
+      }
+      const auto dirty =
+          to_qrect(*last_preview_bounds)
+              .united(to_qrect(preview.rendered->bounds));
+      set_layer_pixels_with_bounds(*live_layer, preview.rendered->pixels,
+                                   preview.rendered->bounds);
+      *last_preview_bounds = preview.rendered->bounds;
+      *preview_shows_original = false;
+      if (target_canvas != nullptr) {
+        target_canvas->document_changed(dirty);
+      }
+    };
 
     GalleryTargetContext gallery_target;
     gallery_target.kind = smart_object_target
@@ -2932,9 +3005,24 @@ void MainWindow::visual_filter_gallery_dialog() {
             }
           },
           [&](FilterProgress& filter_progress) {
-            final_result.pixels = build_filter_preview_pixels(
-                *original_pixels, selection, bounds, filters_, *result.recipe,
-                &filter_progress, &final_result.bounds);
+            std::optional<CanvasFilterSource> embedded;
+            if (can_embed_canvas &&
+                filter_recipe_fills_entire_canvas(filters_, *result.recipe)) {
+              embedded = make_canvas_filling_filter_source(
+                  *original_pixels, bounds, native_filter_canvas_bounds);
+            }
+            if (embedded.has_value()) {
+              final_result.bounds = embedded->bounds;
+              final_result.pixels = build_filter_preview_pixels(
+                  embedded->pixels, selection, embedded->bounds, filters_,
+                  *result.recipe, &filter_progress, &final_result.bounds);
+              final_result.bounds = trim_transparent_border(
+                  final_result.pixels, final_result.bounds, bounds);
+            } else {
+              final_result.pixels = build_filter_preview_pixels(
+                  *original_pixels, selection, bounds, filters_, *result.recipe,
+                  &filter_progress, &final_result.bounds);
+            }
             snap_filter_result_to_palette(final_result.pixels, final_result.bounds, selection,
                                           snap_context);
           });

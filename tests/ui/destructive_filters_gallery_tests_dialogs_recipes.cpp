@@ -720,6 +720,442 @@ void ui_expanding_filter_cancel_and_undo_redo_restore_pixels_and_bounds() {
                                                        applied_bounds.height));
 }
 
+void ui_clouds_fills_canvas_cancel_and_undo_redo_restore_pixels_and_bounds() {
+  patchy::Document document(120, 90, patchy::PixelFormat::rgba8());
+  patchy::Layer layer(document.allocate_layer_id(), "Floating Clouds",
+                      solid_pixels(24, 20, patchy::PixelFormat::rgba8(), QColor(220, 28, 24, 255)));
+  const auto layer_id = layer.id();
+  const patchy::Rect original_bounds{42, 31, 24, 20};
+  layer.set_bounds(original_bounds);
+  document.add_layer(std::move(layer));
+  document.set_active_layer(layer_id);
+  const patchy::Rect canvas_bounds{0, 0, 120, 90};
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Clouds Canvas Fill"));
+  show_window(window);
+  auto* clouds = require_action(window, "filterAction_patchy_filters_clouds");
+  const auto& original_document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  const auto* original_layer = original_document.find_layer(layer_id);
+  CHECK(original_layer != nullptr);
+  const auto original_pixels = original_layer->pixels();
+  const auto undo_depth_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+
+  // The live preview covers the entire canvas even though the layer's content
+  // rectangle is smaller, and Cancel restores pixels and bounds exactly.
+  bool saw_canvas_preview = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
+    CHECK(dialog != nullptr);
+    auto* seed = dialog->findChild<QSpinBox*>(QStringLiteral("filterSeedSpin"));
+    CHECK(seed != nullptr);
+    seed->setValue(2);
+    CHECK(process_events_until(
+        [&] {
+          const auto& preview_document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+          const auto* preview_layer = preview_document.find_layer(layer_id);
+          if (preview_layer == nullptr) {
+            return false;
+          }
+          saw_canvas_preview = filter_rect_equal(preview_layer->bounds(), canvas_bounds);
+          return saw_canvas_preview;
+        },
+        7000));
+    dialog->reject();
+  });
+  clouds->trigger();
+  process_events_for(100);
+  CHECK(saw_canvas_preview);
+  {
+    const auto& cancelled_document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    const auto* cancelled_layer = cancelled_document.find_layer(layer_id);
+    CHECK(cancelled_layer != nullptr);
+    CHECK(filter_rect_equal(cancelled_layer->bounds(), original_bounds));
+    CHECK(patchy::ui::pixel_buffers_equal(cancelled_layer->pixels(), original_pixels));
+  }
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth_before);
+  CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+
+  QTimer::singleShot(0, [] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
+    CHECK(dialog != nullptr);
+    dialog->accept();
+  });
+  clouds->trigger();
+  QApplication::processEvents();
+  patchy::Rect applied_bounds;
+  patchy::PixelBuffer applied_pixels;
+  {
+    const auto& applied_document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    const auto* applied_layer = applied_document.find_layer(layer_id);
+    CHECK(applied_layer != nullptr);
+    applied_bounds = applied_layer->bounds();
+    applied_pixels = applied_layer->pixels();
+    CHECK(filter_rect_equal(applied_bounds, canvas_bounds));
+    // Opaque clouds reach every corner of the previously transparent canvas.
+    CHECK(applied_pixels.pixel(0, 0)[3] == 255);
+    CHECK(applied_pixels.pixel(applied_pixels.width() - 1, 0)[3] == 255);
+    CHECK(applied_pixels.pixel(0, applied_pixels.height() - 1)[3] == 255);
+    CHECK(applied_pixels.pixel(applied_pixels.width() - 1, applied_pixels.height() - 1)[3] == 255);
+  }
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth_before + 1U);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+
+  require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
+  QApplication::processEvents();
+  {
+    const auto& undone_document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    const auto* undone_layer = undone_document.find_layer(layer_id);
+    CHECK(undone_layer != nullptr);
+    CHECK(filter_rect_equal(undone_layer->bounds(), original_bounds));
+    CHECK(patchy::ui::pixel_buffers_equal(undone_layer->pixels(), original_pixels));
+  }
+
+  require_hotkey_action(window, QStringLiteral("edit.redo"))->trigger();
+  QApplication::processEvents();
+  {
+    const auto& redone_document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    const auto* redone_layer = redone_document.find_layer(layer_id);
+    CHECK(redone_layer != nullptr);
+    CHECK(filter_rect_equal(redone_layer->bounds(), applied_bounds));
+    CHECK(patchy::ui::pixel_buffers_equal(redone_layer->pixels(), applied_pixels));
+  }
+
+  // A layer poking off the canvas renders into the union of the layer and
+  // canvas rectangles, so its off-canvas region is never cropped away.
+  patchy::Document off_canvas(120, 90, patchy::PixelFormat::rgba8());
+  patchy::Layer off_layer(off_canvas.allocate_layer_id(), "Off Canvas Clouds",
+                          solid_pixels(30, 20, patchy::PixelFormat::rgba8(), QColor(20, 160, 40, 255)));
+  const auto off_layer_id = off_layer.id();
+  off_layer.set_bounds(patchy::Rect{-10, 5, 30, 20});
+  off_canvas.add_layer(std::move(off_layer));
+  off_canvas.set_active_layer(off_layer_id);
+  patchy::ui::MainWindow off_window;
+  off_window.add_document_session(std::move(off_canvas), QStringLiteral("Clouds Off Canvas"));
+  show_window(off_window);
+  QTimer::singleShot(0, [] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
+    CHECK(dialog != nullptr);
+    dialog->accept();
+  });
+  require_action(off_window, "filterAction_patchy_filters_clouds")->trigger();
+  QApplication::processEvents();
+  const auto& off_document = std::as_const(patchy::ui::MainWindowTestAccess::document(off_window));
+  const auto* off_applied = off_document.find_layer(off_layer_id);
+  CHECK(off_applied != nullptr);
+  CHECK(filter_rect_equal(off_applied->bounds(), patchy::Rect{-10, 0, 130, 90}));
+  CHECK(off_applied->pixels().pixel(0, 0)[3] == 255);
+  CHECK(off_applied->pixels().pixel(129, 89)[3] == 255);
+}
+
+void ui_clouds_selection_renders_outside_content_rect_and_trims() {
+  patchy::Document document(100, 80, patchy::PixelFormat::rgba8());
+  patchy::Layer layer(document.allocate_layer_id(), "Clouds Selection",
+                      solid_pixels(20, 16, patchy::PixelFormat::rgba8(), QColor(220, 28, 24, 255)));
+  const auto layer_id = layer.id();
+  const patchy::Rect original_bounds{30, 25, 20, 16};
+  layer.set_bounds(original_bounds);
+  document.add_layer(std::move(layer));
+  document.set_active_layer(layer_id);
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Clouds Selection"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* clouds = require_action(window, "filterAction_patchy_filters_clouds");
+  const auto original_pixels =
+      std::as_const(patchy::ui::MainWindowTestAccess::document(window)).find_layer(layer_id)->pixels();
+  const QRect original_rect(original_bounds.x, original_bounds.y, original_bounds.width,
+                            original_bounds.height);
+
+  const auto select_rect = [&](QRect rect, const QString& name) {
+    patchy::PixelBuffer selection(100, 80, patchy::PixelFormat::gray8());
+    selection.clear(0U);
+    for (int y = rect.top(); y <= rect.bottom(); ++y) {
+      for (int x = rect.left(); x <= rect.right(); ++x) {
+        selection.pixel(x, y)[0] = 255U;
+      }
+    }
+    canvas->replace_selection_from_grayscale(selection, name);
+    QApplication::processEvents();
+    CHECK(canvas->has_selection());
+  };
+  const auto apply_clouds = [&] {
+    QTimer::singleShot(0, [] {
+      auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
+      CHECK(dialog != nullptr);
+      dialog->accept();
+    });
+    clouds->trigger();
+    QApplication::processEvents();
+  };
+  const auto check_result = [&](QRect selected_rect, patchy::Rect expected_bounds) {
+    const auto& applied_document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    const auto* applied = applied_document.find_layer(layer_id);
+    CHECK(applied != nullptr);
+    CHECK(filter_rect_equal(applied->bounds(), expected_bounds));
+    const auto& pixels = applied->pixels();
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        const QPoint doc_point(expected_bounds.x + x, expected_bounds.y + y);
+        const auto* px = pixels.pixel(x, y);
+        if (selected_rect.contains(doc_point)) {
+          // Clouds are opaque everywhere they were allowed to render,
+          // including selection regions with no prior layer content.
+          CHECK(px[3] == 255);
+        } else if (original_rect.contains(doc_point)) {
+          const auto* original = original_pixels.pixel(doc_point.x() - original_bounds.x,
+                                                       doc_point.y() - original_bounds.y);
+          CHECK(std::equal(original, original + 4, px));
+        } else {
+          CHECK(px[3] == 0);
+        }
+      }
+    }
+  };
+
+  // A selection straddling the content rect and the empty canvas beside it:
+  // clouds fill the whole selection and the trimmed layer grows to the union
+  // of the old content and the selection.
+  const QRect straddle(40, 30, 30, 20);
+  select_rect(straddle, QStringLiteral("Clouds straddle selection"));
+  apply_clouds();
+  check_result(straddle, patchy::Rect{30, 25, 40, 25});
+  {
+    // Inside both the selection and the old content the red pixel became a
+    // foreground/background cloud mix.
+    const auto& applied_document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    const auto* applied = applied_document.find_layer(layer_id);
+    const auto* px = applied->pixels().pixel(45 - 30, 35 - 25);
+    const auto* original = original_pixels.pixel(45 - original_bounds.x, 35 - original_bounds.y);
+    CHECK(!std::equal(original, original + 4, px));
+  }
+
+  require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
+  QApplication::processEvents();
+  {
+    const auto& undone_document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    const auto* undone = undone_document.find_layer(layer_id);
+    CHECK(undone != nullptr);
+    CHECK(filter_rect_equal(undone->bounds(), original_bounds));
+    CHECK(patchy::ui::pixel_buffers_equal(undone->pixels(), original_pixels));
+  }
+
+  // A selection entirely outside the content rect used to no-op; it now
+  // renders clouds there while the untouched content survives.
+  const QRect outside(60, 50, 20, 15);
+  select_rect(outside, QStringLiteral("Clouds outside selection"));
+  apply_clouds();
+  check_result(outside, patchy::Rect{30, 25, 50, 40});
+}
+
+void ui_clouds_skips_canvas_embed_for_locked_or_rgb_layers() {
+  const auto run_case = [](patchy::PixelBuffer source, patchy::LayerLockFlags locks,
+                           const QString& title) {
+    patchy::Document document(120, 90, patchy::PixelFormat::rgba8());
+    patchy::Layer layer(document.allocate_layer_id(), "Clouds Content Rect", std::move(source));
+    const auto layer_id = layer.id();
+    const patchy::Rect original_bounds{42, 31, 24, 20};
+    layer.set_bounds(original_bounds);
+    layer.set_lock_flags(locks);
+    document.add_layer(std::move(layer));
+    document.set_active_layer(layer_id);
+    patchy::ui::MainWindow window;
+    window.add_document_session(std::move(document), title);
+    show_window(window);
+    QTimer::singleShot(0, [] {
+      auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
+      CHECK(dialog != nullptr);
+      dialog->accept();
+    });
+    require_action(window, "filterAction_patchy_filters_clouds")->trigger();
+    QApplication::processEvents();
+    const auto& applied_document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    const auto* applied = applied_document.find_layer(layer_id);
+    CHECK(applied != nullptr);
+    CHECK(filter_rect_equal(applied->bounds(), original_bounds));
+    // Clouds still ran inside the content rectangle (the red base is gone).
+    const auto* px = applied->pixels().pixel(0, 0);
+    CHECK(!(px[0] == 220 && px[1] == 28 && px[2] == 24));
+  };
+
+  // Transparency-locked layers keep the historical content-rect render.
+  run_case(solid_pixels(24, 20, patchy::PixelFormat::rgba8(), QColor(220, 28, 24, 255)),
+           patchy::kLayerLockTransparentPixels, QStringLiteral("Clouds Transparency Lock"));
+  // Layers without an alpha channel cannot embed into transparency.
+  run_case(solid_pixels(24, 20, patchy::PixelFormat::rgb8(), QColor(220, 28, 24)),
+           patchy::kLayerLockNone, QStringLiteral("Clouds RGB Layer"));
+}
+
+void ui_canvas_filling_filter_helpers_cover_union_and_predicate() {
+  // make_canvas_filling_filter_source: union math and content placement.
+  const auto source = solid_pixels(4, 3, patchy::PixelFormat::rgba8(), QColor(10, 200, 30, 255));
+  const patchy::Rect bounds{10, 20, 4, 3};
+  const patchy::Rect canvas{0, 0, 50, 40};
+  const auto embedded = patchy::ui::make_canvas_filling_filter_source(source, bounds, canvas);
+  CHECK(embedded.has_value());
+  CHECK(filter_rect_equal(embedded->bounds, canvas));
+  CHECK(embedded->pixels.width() == 50 && embedded->pixels.height() == 40);
+  CHECK(embedded->pixels.pixel(0, 0)[3] == 0);
+  CHECK(embedded->pixels.pixel(49, 39)[3] == 0);
+  const auto* content = embedded->pixels.pixel(10, 20);
+  CHECK(content[0] == 10 && content[1] == 200 && content[2] == 30 && content[3] == 255);
+  CHECK(embedded->pixels.pixel(13, 22)[3] == 255);
+  CHECK(embedded->pixels.pixel(14, 22)[3] == 0);
+
+  // A layer poking off the canvas embeds into the union, not a canvas crop.
+  const auto off = patchy::ui::make_canvas_filling_filter_source(
+      solid_pixels(10, 8, patchy::PixelFormat::rgba8(), QColor(1, 2, 3, 255)),
+      patchy::Rect{-5, -4, 10, 8}, patchy::Rect{0, 0, 20, 16});
+  CHECK(off.has_value());
+  CHECK(filter_rect_equal(off->bounds, patchy::Rect{-5, -4, 25, 20}));
+  CHECK(off->pixels.pixel(0, 0)[3] == 255);
+  CHECK(off->pixels.pixel(24, 19)[3] == 0);
+
+  // No alpha channel, an already-covering layer, and an empty canvas skip the embed.
+  CHECK(!patchy::ui::make_canvas_filling_filter_source(
+             solid_pixels(4, 3, patchy::PixelFormat::rgb8(), QColor(1, 2, 3)), bounds, canvas)
+             .has_value());
+  CHECK(!patchy::ui::make_canvas_filling_filter_source(
+             solid_pixels(50, 40, patchy::PixelFormat::rgba8(), QColor(1, 2, 3, 255)),
+             patchy::Rect{0, 0, 50, 40}, canvas)
+             .has_value());
+  CHECK(!patchy::ui::make_canvas_filling_filter_source(
+             solid_pixels(60, 50, patchy::PixelFormat::rgba8(), QColor(1, 2, 3, 255)),
+             patchy::Rect{-4, -4, 60, 50}, canvas)
+             .has_value());
+  CHECK(!patchy::ui::make_canvas_filling_filter_source(source, bounds, patchy::Rect{}).has_value());
+
+  // filter_recipe_fills_entire_canvas: only enabled, nonzero-opacity Clouds count.
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  patchy::FilterRecipe recipe;
+  recipe.entries.push_back(
+      patchy::FilterRecipeEntry{registry.default_invocation("patchy.filters.box_blur")});
+  CHECK(!patchy::ui::filter_recipe_fills_entire_canvas(registry, recipe));
+  recipe.entries.push_back(
+      patchy::FilterRecipeEntry{registry.default_invocation("patchy.filters.clouds")});
+  CHECK(patchy::ui::filter_recipe_fills_entire_canvas(registry, recipe));
+  recipe.entries.back().enabled = false;
+  CHECK(!patchy::ui::filter_recipe_fills_entire_canvas(registry, recipe));
+  recipe.entries.back().enabled = true;
+  recipe.entries.back().opacity = 0.0;
+  CHECK(!patchy::ui::filter_recipe_fills_entire_canvas(registry, recipe));
+  recipe.entries.back().opacity = 0.5;
+  CHECK(patchy::ui::filter_recipe_fills_entire_canvas(registry, recipe));
+}
+
+void ui_filter_gallery_clouds_recipe_fills_canvas_and_plain_thumbnails_stay_proxy() {
+  GallerySettingsRestorer gallery_settings;
+  patchy::LayerId layer_id{};
+  patchy::Rect original_bounds;
+  patchy::PixelBuffer original_pixels;
+  auto document = make_filter_gallery_document(layer_id, original_bounds, original_pixels);
+  const patchy::Rect canvas_bounds{0, 0, 320, 240};
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Gallery Clouds Canvas"));
+  show_window(window);
+  const auto undo_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+
+  bool drove_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
+    CHECK(dialog != nullptr);
+    auto* looks = dialog->findChild<QListWidget*>(QStringLiteral("filterGalleryLooksList"));
+    auto* preview = dialog->findChild<QWidget*>(QStringLiteral("filterGalleryPreview"));
+    CHECK(looks != nullptr && preview != nullptr);
+    auto* clouds_item = require_gallery_filter_item(*looks, QStringLiteral("patchy.filters.clouds"));
+    looks->setCurrentItem(clouds_item);
+    QApplication::processEvents();
+    // The center preview switches to the full-resolution exact render and the
+    // live canvas preview grows the layer to the whole canvas.
+    CHECK(process_events_until(
+        [&] { return preview->property("filterGalleryExactPreview").toBool(); }, 10000));
+    CHECK(process_events_until(
+        [&] {
+          const auto& preview_document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+          const auto* preview_layer = preview_document.find_layer(layer_id);
+          return preview_layer != nullptr &&
+                 filter_rect_equal(preview_layer->bounds(), canvas_bounds);
+        },
+        10000));
+    // The clouds catalog thumbnail still renders from the layer-bounded proxy.
+    CHECK(process_events_until(
+        [&] { return clouds_item->data(Qt::UserRole + 2).toBool(); }, 10000));
+    CHECK(!clouds_item->data(Qt::UserRole + 5).toBool());
+    auto* buttons = dialog->findChild<QDialogButtonBox*>(QStringLiteral("filterGalleryButtonBox"));
+    CHECK(buttons != nullptr && buttons->button(QDialogButtonBox::Ok) != nullptr);
+    drove_dialog = true;
+    buttons->button(QDialogButtonBox::Ok)->click();
+  });
+  require_action(window, "filterGalleryAction")->trigger();
+  QApplication::processEvents();
+  CHECK(drove_dialog);
+  patchy::Rect applied_bounds;
+  patchy::PixelBuffer applied_pixels;
+  {
+    const auto& applied_document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    const auto* applied = applied_document.find_layer(layer_id);
+    CHECK(applied != nullptr);
+    applied_bounds = applied->bounds();
+    applied_pixels = applied->pixels();
+    CHECK(filter_rect_equal(applied_bounds, canvas_bounds));
+    CHECK(applied_pixels.pixel(0, 0)[3] == 255);
+    CHECK(applied_pixels.pixel(applied_pixels.width() - 1, applied_pixels.height() - 1)[3] == 255);
+  }
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before + 1U);
+
+  require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
+  QApplication::processEvents();
+  {
+    const auto& undone_document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    const auto* undone = undone_document.find_layer(layer_id);
+    CHECK(undone != nullptr);
+    CHECK(filter_rect_equal(undone->bounds(), original_bounds));
+    CHECK(patchy::ui::pixel_buffers_equal(undone->pixels(), original_pixels));
+  }
+
+  require_hotkey_action(window, QStringLiteral("edit.redo"))->trigger();
+  QApplication::processEvents();
+  {
+    const auto& redone_document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    const auto* redone = redone_document.find_layer(layer_id);
+    CHECK(redone != nullptr);
+    CHECK(filter_rect_equal(redone->bounds(), applied_bounds));
+    CHECK(patchy::ui::pixel_buffers_equal(redone->pixels(), applied_pixels));
+  }
+
+  // A recipe without a canvas-filling entry still applies inside the layer
+  // rectangle only.
+  require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
+  QApplication::processEvents();
+  bool drove_soft_glow = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
+    CHECK(dialog != nullptr);
+    auto* looks = dialog->findChild<QListWidget*>(QStringLiteral("filterGalleryLooksList"));
+    CHECK(looks != nullptr);
+    looks->setCurrentItem(require_gallery_filter_item(
+        *looks, QStringLiteral("patchy.filters.soft_glow")));
+    QApplication::processEvents();
+    auto* buttons = dialog->findChild<QDialogButtonBox*>(QStringLiteral("filterGalleryButtonBox"));
+    CHECK(buttons != nullptr && buttons->button(QDialogButtonBox::Ok) != nullptr);
+    drove_soft_glow = true;
+    buttons->button(QDialogButtonBox::Ok)->click();
+  });
+  require_action(window, "filterGalleryAction")->trigger();
+  QApplication::processEvents();
+  CHECK(drove_soft_glow);
+  {
+    const auto& glow_document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    const auto* glow = glow_document.find_layer(layer_id);
+    CHECK(glow != nullptr);
+    CHECK(filter_rect_equal(glow->bounds(), original_bounds));
+    CHECK(!patchy::ui::pixel_buffers_equal(glow->pixels(), original_pixels));
+  }
+}
+
 bool filter_recipe_entries_equal(const patchy::FilterRecipeEntry& lhs,
                                  const patchy::FilterRecipeEntry& rhs) {
   return filter_invocations_equal(lhs.invocation, rhs.invocation) &&
@@ -1850,6 +2286,16 @@ std::vector<patchy::test::TestCase> destructive_filters_gallery_tests_part1() {
       {"ui_blur_grows_layer_into_transparency", ui_blur_grows_layer_into_transparency},
       {"ui_expanding_filter_cancel_and_undo_redo_restore_pixels_and_bounds",
        ui_expanding_filter_cancel_and_undo_redo_restore_pixels_and_bounds},
+      {"ui_clouds_fills_canvas_cancel_and_undo_redo_restore_pixels_and_bounds",
+       ui_clouds_fills_canvas_cancel_and_undo_redo_restore_pixels_and_bounds},
+      {"ui_clouds_selection_renders_outside_content_rect_and_trims",
+       ui_clouds_selection_renders_outside_content_rect_and_trims},
+      {"ui_clouds_skips_canvas_embed_for_locked_or_rgb_layers",
+       ui_clouds_skips_canvas_embed_for_locked_or_rgb_layers},
+      {"ui_canvas_filling_filter_helpers_cover_union_and_predicate",
+       ui_canvas_filling_filter_helpers_cover_union_and_predicate},
+      {"ui_filter_gallery_clouds_recipe_fills_canvas_and_plain_thumbnails_stay_proxy",
+       ui_filter_gallery_clouds_recipe_fills_canvas_and_plain_thumbnails_stay_proxy},
       {"ui_filter_look_library_round_trips_and_isolates_bad_records",
        ui_filter_look_library_round_trips_and_isolates_bad_records},
       {"ui_filter_recipe_selection_is_restored_once_after_the_full_stack",

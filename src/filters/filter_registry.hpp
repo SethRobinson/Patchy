@@ -199,6 +199,10 @@ using FilterTranslationSupportFn =
 struct FilterCatalogMetadata {
   FilterCategory category{FilterCategory::Uncategorized};
   bool adjustment_only{false};
+  // Generative filters (Clouds) render across the whole document like
+  // Photoshop instead of only the layer's content rectangle. The UI wrapper,
+  // not the registry, performs that canvas embed.
+  bool fills_entire_canvas{false};
   std::uint32_t schema_version{1};
   std::vector<FilterParameterDefinition> parameters;
   ParameterizedPixelFilterFn execute;
@@ -264,5 +268,12 @@ private:
 };
 
 void register_builtin_filters(FilterRegistry &registry);
+
+// Crops fully transparent borders from `buffer`, returning the trimmed
+// document-space rectangle. A fully transparent buffer collapses to
+// `empty_result_bounds` when that rectangle lies inside `bounds`; buffers
+// without an alpha channel are returned unchanged.
+[[nodiscard]] Rect trim_transparent_border(PixelBuffer &buffer, Rect bounds,
+                                           Rect empty_result_bounds);
 
 } // namespace patchy

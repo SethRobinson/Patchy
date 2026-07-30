@@ -283,6 +283,8 @@ PixelBuffer pad_buffer_transparent(const PixelBuffer &source, int margin) {
   return padded;
 }
 
+} // namespace
+
 Rect trim_transparent_border(PixelBuffer &buffer, Rect bounds,
                              Rect empty_result_bounds) {
   if (buffer.format().channels < 4 || buffer.empty()) {
@@ -346,8 +348,6 @@ Rect trim_transparent_border(PixelBuffer &buffer, Rect bounds,
   buffer = std::move(cropped);
   return Rect{bounds.x + min_x, bounds.y + min_y, width, height};
 }
-
-} // namespace
 
 FilterCancelled::FilterCancelled() : std::runtime_error("Filter cancelled") {}
 

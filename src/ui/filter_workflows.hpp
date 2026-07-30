@@ -175,6 +175,19 @@ using FilterCancelled = ::patchy::FilterCancelled;
 [[nodiscard]] PixelBuffer build_filter_preview_pixels(
     const PixelBuffer& original, const QRegion& selection, Rect bounds, const FilterRegistry& registry,
     const FilterRecipe& recipe, const FilterProgress* progress = nullptr, Rect* result_bounds = nullptr);
+// True when any enabled, nonzero-opacity entry's catalog metadata declares
+// fills_entire_canvas (today only Clouds).
+[[nodiscard]] bool filter_recipe_fills_entire_canvas(const FilterRegistry& registry,
+                                                     const FilterRecipe& recipe);
+struct CanvasFilterSource {
+  PixelBuffer pixels;  // original embedded at its offset, transparent elsewhere
+  Rect bounds;         // unite of the layer bounds and the canvas rect
+};
+// Builds the document-wide source a canvas-filling filter renders from.
+// Returns nullopt when embedding does not apply: the layer has no alpha
+// channel, the canvas rect is empty, or the layer already covers the canvas.
+[[nodiscard]] std::optional<CanvasFilterSource> make_canvas_filling_filter_source(
+    const PixelBuffer& original, Rect bounds, Rect canvas_bounds);
 [[nodiscard]] bool pixel_buffers_equal(const PixelBuffer& lhs, const PixelBuffer& rhs);
 [[nodiscard]] bool editable_rgb8_layer(const Layer* layer);
 void apply_levels_to_pixels(PixelBuffer& pixels, Rect bounds, const QRegion& selection, LevelsSettings settings,

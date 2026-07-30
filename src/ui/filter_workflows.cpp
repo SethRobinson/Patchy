@@ -1,5 +1,6 @@
 #include "ui/filter_workflows.hpp"
 
+#include "core/rect_utils.hpp"
 #include "formats/acv_curves_io.hpp"
 #include "ui/blend_mode_ui.hpp"
 #include "ui/coalesced_preview_emitter.hpp"
@@ -897,6 +898,37 @@ PixelBuffer build_filter_preview_pixels(const PixelBuffer& original, const QRegi
                                          const FilterRegistry& registry, const FilterRecipe& recipe,
                                          const FilterProgress* progress, Rect* result_bounds) {
   return build_filter_preview_pixels_impl(original, selection, bounds, registry, recipe, progress, result_bounds);
+}
+
+bool filter_recipe_fills_entire_canvas(const FilterRegistry& registry, const FilterRecipe& recipe) {
+  for (const auto& entry : recipe.entries) {
+    if (!entry.enabled || entry.opacity <= 0.0) {
+      continue;
+    }
+    const auto* filter = registry.find(entry.invocation.filter_id);
+    if (filter != nullptr && filter->catalog.fills_entire_canvas) {
+      return true;
+    }
+  }
+  return false;
+}
+
+std::optional<CanvasFilterSource> make_canvas_filling_filter_source(const PixelBuffer& original, Rect bounds,
+                                                                    Rect canvas_bounds) {
+  if (original.format().channels < 4 || canvas_bounds.empty() || bounds.empty()) {
+    return std::nullopt;
+  }
+  const auto united = unite_rect(bounds, canvas_bounds);
+  if (united.x == bounds.x && united.y == bounds.y && united.width == bounds.width &&
+      united.height == bounds.height) {
+    return std::nullopt;
+  }
+  CanvasFilterSource source;
+  source.bounds = united;
+  source.pixels = PixelBuffer(united.width, united.height, original.format());
+  source.pixels.clear(0);
+  blit_buffer_rect(source.pixels, original, bounds.x - united.x, bounds.y - united.y);
+  return source;
 }
 
 bool pixel_buffers_equal(const PixelBuffer& lhs, const PixelBuffer& rhs) {

@@ -1002,6 +1002,10 @@ bool MainWindow::layer_id_locks_position(LayerId id) const {
   return (layer_id_effective_lock_flags(id) & kLayerLockPosition) != kLayerLockNone;
 }
 
+bool MainWindow::layer_id_locks_transparent_pixels(LayerId id) const {
+  return (layer_id_effective_lock_flags(id) & kLayerLockTransparentPixels) != kLayerLockNone;
+}
+
 std::vector<LayerId> MainWindow::layer_ids_without_image_pixel_lock(std::vector<LayerId> ids) const {
   ids.erase(std::remove_if(ids.begin(), ids.end(), [this](LayerId id) { return layer_id_locks_image_pixels(id); }),
             ids.end());

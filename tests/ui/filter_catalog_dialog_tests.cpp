@@ -430,6 +430,9 @@ void ui_filter_catalog_and_menu_contracts_are_stable() {
     CHECK(actual_filter.identifier == expected_filter.id);
     CHECK(actual_filter.catalog.category == expected_filter.category);
     CHECK(actual_filter.catalog.adjustment_only == expected_filter.adjustment_only);
+    // Clouds is the only canvas-filling (generative) filter in the catalog.
+    CHECK(actual_filter.catalog.fills_entire_canvas ==
+          (actual_filter.identifier == "patchy.filters.clouds"));
     CHECK(actual_filter.catalog.schema_version == 1U);
     CHECK(actual_filter.catalog.parameters.size() == expected_filter.parameters.size());
     CHECK(static_cast<bool>(actual_filter.catalog.execute));

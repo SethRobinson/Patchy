@@ -829,6 +829,7 @@ private:
   [[nodiscard]] LayerLockFlags layer_id_ancestor_lock_flags(LayerId id) const;
   [[nodiscard]] bool layer_id_locks_image_pixels(LayerId id) const;
   [[nodiscard]] bool layer_id_locks_position(LayerId id) const;
+  [[nodiscard]] bool layer_id_locks_transparent_pixels(LayerId id) const;
   [[nodiscard]] std::vector<LayerId> layer_ids_without_image_pixel_lock(std::vector<LayerId> ids) const;
   bool show_pixel_lock_message_if_all_locked(const std::vector<LayerId>& requested_ids,
                                              const std::vector<LayerId>& editable_ids);

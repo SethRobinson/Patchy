@@ -3159,6 +3159,7 @@ FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
          integer_parameter("contrast", "Contrast", "filterContrast", 0, 100, 40,
                            Unit::Percent),
          integer_parameter("seed", "Seed", "filterSeed", 1, 9999, 1)});
+    metadata.fills_entire_canvas = true;
   } else if (identifier == "patchy.filters.pixelate") {
     metadata = catalog_metadata(
         Category::Pixelate, false,

@@ -1723,7 +1723,8 @@ VisualFilterGalleryResult request_visual_filter_gallery(
         auto* app = QCoreApplication::instance();
         run_tracked_background_worker([app, thumbnail_render_state, proxy_registry,
                      thumbnail_proxy, exact_source_bounds, exact_renderer,
-                     recipe = std::move(recipe), invocation, id, generation,
+                     smart_object_target, recipe = std::move(recipe),
+                     invocation, id, generation,
                      rendered, error, cancelled, thumbnail_timer,
                      &filter_items]() mutable {
           FilterProgress progress{
@@ -1734,7 +1735,10 @@ VisualFilterGalleryResult request_visual_filter_gallery(
               }};
           try {
             std::optional<FilterRenderResult> exact;
-            if (exact_renderer) {
+            // Thumbnails consult the exact renderer only for Smart Object
+            // targets; plain-layer catalog thumbnails deliberately stay
+            // layer-bounded proxy renders.
+            if (exact_renderer && smart_object_target) {
               exact = exact_renderer(recipe, &progress);
             }
             if (exact.has_value()) {

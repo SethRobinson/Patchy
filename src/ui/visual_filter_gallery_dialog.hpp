@@ -37,6 +37,8 @@ using VisualFilterGalleryPreviewCallback =
 // document-space result. Returning nullopt keeps the gallery's catalog proxy
 // renderer as the fallback. The gallery invokes this callback only from a
 // worker thread; implementations should use progress to stop stale work.
+// Catalog thumbnails consult it only for Smart Object targets; plain-layer
+// thumbnails always stay layer-bounded proxy renders.
 using VisualFilterGalleryExactRecipeRenderer =
     std::function<std::optional<FilterRenderResult>(
         const FilterRecipe&, const FilterProgress*)>;
