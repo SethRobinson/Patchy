@@ -137,6 +137,7 @@
 #include <QPointingDevice>
 #include <QProgressDialog>
 #include <QPushButton>
+#include <QScrollArea>
 #include <QStackedWidget>
 #include <QRadioButton>
 #include <QSpinBox>
@@ -1157,6 +1158,12 @@ void ui_layer_style_gradient_stroke_controls_map_to_settings() {
     CHECK(gradient_group->isVisible());
     CHECK(editor->isVisible());
     CHECK(!editor->visibleRegion().isEmpty());
+    // The stroke page scrolls (its gradient block must not size the dialog),
+    // so bring the lower rows into the viewport before probing visibility.
+    auto* stroke_scroll = dialog->findChild<QScrollArea*>(QStringLiteral("layerStyleStrokeScroll"));
+    CHECK(stroke_scroll != nullptr);
+    stroke_scroll->ensureWidgetVisible(scale);
+    QApplication::processEvents();
     CHECK(!scale->visibleRegion().isEmpty());
     CHECK(!midpoint->isEnabled());
     fill->setCurrentIndex(0);
@@ -1199,6 +1206,57 @@ void ui_layer_style_gradient_stroke_controls_map_to_settings() {
   CHECK(result.gradient.color_stops.front().color.blue == 0x56);
   CHECK(std::abs(result.gradient.color_stops.back().midpoint - 0.64F) < 0.001F);
   CHECK(std::abs(result.gradient.alpha_stops.back().midpoint - 0.36F) < 0.001F);
+}
+
+void ui_layer_style_stroke_gradient_fill_keeps_dialog_height() {
+  // A gradient-fill stroke un-hides the stroke page's nested gradient block,
+  // which used to raise the stacked layout's minimum and open the whole dialog
+  // ~180px taller than any visible page needed. The stroke page scrolls
+  // instead now, so the dialog height must not depend on the stroke fill.
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+
+  int color_height = 0;
+  int color_minimum = 0;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    QApplication::processEvents();
+    color_height = dialog->height();
+    color_minimum = dialog->minimumSizeHint().height();
+    QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
+  });
+  patchy::Layer color_layer(document.allocate_layer_id(), "Color Stroke",
+                            solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
+  patchy::LayerStroke color_stroke;
+  color_stroke.enabled = true;
+  color_layer.layer_style().strokes.push_back(color_stroke);
+  CHECK(patchy::ui::request_layer_style_settings(nullptr, color_layer, {}).has_value());
+
+  int gradient_height = 0;
+  int gradient_minimum = 0;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    CHECK(dialog->findChild<QScrollArea*>(QStringLiteral("layerStyleStrokeScroll")) != nullptr);
+    QApplication::processEvents();
+    gradient_height = dialog->height();
+    gradient_minimum = dialog->minimumSizeHint().height();
+    QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
+  });
+  patchy::Layer gradient_layer(document.allocate_layer_id(), "Gradient Stroke",
+                               solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
+  patchy::LayerStroke gradient_stroke;
+  gradient_stroke.enabled = true;
+  gradient_stroke.uses_gradient = true;
+  gradient_stroke.gradient.color_stops = {{0.0F, patchy::RgbColor{255, 255, 255}},
+                                          {1.0F, patchy::RgbColor{0, 0, 0}}};
+  gradient_stroke.gradient.alpha_stops = {{0.0F, 1.0F}, {1.0F, 1.0F}};
+  gradient_layer.layer_style().strokes.push_back(gradient_stroke);
+  CHECK(patchy::ui::request_layer_style_settings(nullptr, gradient_layer, {}).has_value());
+
+  CHECK(color_height > 0);
+  CHECK(gradient_height == color_height);
+  CHECK(gradient_minimum == color_minimum);
 }
 
 void ui_layer_style_bevel_lighting_controls_map_to_settings() {
@@ -1627,6 +1685,8 @@ std::vector<patchy::test::TestCase> layer_style_gradient_tests_part1() {
        ui_layer_style_blending_options_round_trip_the_interior_group_flag},
       {"ui_layer_style_gradient_stroke_controls_map_to_settings",
        ui_layer_style_gradient_stroke_controls_map_to_settings},
+      {"ui_layer_style_stroke_gradient_fill_keeps_dialog_height",
+       ui_layer_style_stroke_gradient_fill_keeps_dialog_height},
       {"ui_layer_style_bevel_lighting_controls_map_to_settings",
        ui_layer_style_bevel_lighting_controls_map_to_settings},
       {"ui_layer_style_satin_controls_map_to_settings", ui_layer_style_satin_controls_map_to_settings},

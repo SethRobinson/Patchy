@@ -49,6 +49,8 @@
 #include <QPolygonF>
 #include <QPushButton>
 #include <QScreen>
+#include <QScrollArea>
+#include <QScrollBar>
 #include <QSignalBlocker>
 #include <QSize>
 #include <QSizePolicy>
@@ -871,7 +873,9 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
 
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("patchyLayerStyleDialog"));
-  dialog.resize(840, 680);
+  // Height below any plausible layout minimum: Qt clamps up to the minimum, so
+  // the dialog opens exactly as tall as its tallest settings page needs.
+  dialog.resize(840, 560);
   auto* root = install_dark_dialog_chrome(dialog, new QVBoxLayout(&dialog), QObject::tr("Layer Style"),
                                           DialogChromeCloseMode::Accept);
 
@@ -1215,23 +1219,23 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     configure_dialog_spinbox(state->stop_midpoint, 64);
     midpoint_layout->addWidget(state->stop_midpoint_label);
     midpoint_layout->addWidget(state->stop_midpoint);
-    midpoint_layout->addStretch(1);
-    form->addRow(QString(), midpoint_row);
 
-    auto *stop_buttons = new QWidget(parent_widget);
+    // The stop buttons share the midpoint row to keep the gradient block short;
+    // they stay a separate container because Solid/Noise switching toggles it.
+    auto *stop_buttons = new QWidget(midpoint_row);
     state->stop_button_controls = stop_buttons;
-    auto *
-    stop_button_layout = new QHBoxLayout(stop_buttons);
+    auto *stop_button_layout = new QHBoxLayout(stop_buttons);
     stop_button_layout->setContentsMargins(0, 0, 0, 0);
-    stop_button_layout->setSpacing(6);state->add_stop = new QPushButton(QObject::tr("Add Stop"), stop_buttons);
-
+    stop_button_layout->setSpacing(6);
+    state->add_stop = new QPushButton(QObject::tr("Add Stop"), stop_buttons);
     state->add_stop->setObjectName(object_prefix + QStringLiteral("AddStopButton"));
     state->remove_stop = new QPushButton(QObject::tr("Remove Stop"), stop_buttons);
     state->remove_stop->setObjectName(object_prefix + QStringLiteral("RemoveStopButton"));
     stop_button_layout->addWidget(state->add_stop);
     stop_button_layout->addWidget(state->remove_stop);
-    stop_button_layout->addStretch(1);
-    form->addRow(QString(), stop_buttons);
+    midpoint_layout->addWidget(stop_buttons);
+    midpoint_layout->addStretch(1);
+    form->addRow(QString(), midpoint_row);
 
     state->smoothness = add_slider_spin_row(
         form, parent_widget,QObject::tr("Smoothness"),
@@ -1304,17 +1308,25 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     }
     form->addRow(QString(), state->noise_controls);
 
-    state->reverse = new QCheckBox(QObject::tr("Reverse"), parent_widget);
+    // One shared row keeps the gradient block short enough that the Gradient
+    // Overlay page, the tallest in the stack, does not stretch the dialog.
+    auto *toggles_row = new QWidget(parent_widget);
+    auto *toggles_layout = new QHBoxLayout(toggles_row);
+    toggles_layout->setContentsMargins(0, 0, 0, 0);
+    toggles_layout->setSpacing(12);
+    state->reverse = new QCheckBox(QObject::tr("Reverse"), toggles_row);
     state->reverse->setObjectName(object_prefix +
                                   QStringLiteral("ReverseCheck"));
-    form->addRow(QString(), state->reverse);
-    state->dither = new QCheckBox(QObject::tr("Dither"), parent_widget);
+    toggles_layout->addWidget(state->reverse);
+    state->dither = new QCheckBox(QObject::tr("Dither"), toggles_row);
     state->dither->setObjectName(object_prefix + QStringLiteral("DitherCheck"));
-    form->addRow(QString(), state->dither);
+    toggles_layout->addWidget(state->dither);
     state->align =
-        new QCheckBox(QObject::tr("Align with Layer"), parent_widget);
+        new QCheckBox(QObject::tr("Align with Layer"), toggles_row);
     state->align->setObjectName(object_prefix + QStringLiteral("AlignCheck"));
-    form->addRow(QString(), state->align);
+    toggles_layout->addWidget(state->align);
+    toggles_layout->addStretch(1);
+    form->addRow(QString(), toggles_row);
     state->interpolation = new QComboBox(parent_widget);
     state->interpolation->setObjectName(object_prefix +
                                         QStringLiteral("InterpolationCombo"));
@@ -2520,9 +2532,32 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     stroke_form->setRowVisible(stroke_rows.row_container, !uses_gradient);
     stroke_form->setRowVisible(stroke_gradient_group, uses_gradient);
   };
+  // The stroke page scrolls instead of sizing the dialog: a stacked layout's
+  // minimum is the max over all pages, and this page's nested gradient block
+  // (Fill = Gradient) would otherwise floor the whole dialog ~180px above the
+  // tallest overlay page.
+  auto* stroke_scroll = new QScrollArea(&dialog);
+  stroke_scroll->setObjectName(QStringLiteral("layerStyleStrokeScroll"));
+  stroke_scroll->setWidgetResizable(true);
+  stroke_scroll->setFrameShape(QFrame::NoFrame);
+  stroke_scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+  set_themed_style(*stroke_scroll,
+                   QStringLiteral("QScrollArea#layerStyleStrokeScroll { background: transparent; }"
+                                  "QScrollArea#layerStyleStrokeScroll > QWidget > QWidget { "
+                                  "background: transparent; }"));
+  auto* stroke_scroll_page = new QWidget(stroke_scroll);
+  stroke_scroll_page->setObjectName(QStringLiteral("layerStyleStrokeScrollPage"));
+  auto* stroke_scroll_column = new QVBoxLayout(stroke_scroll_page);
+  stroke_scroll_column->setContentsMargins(0, 0, 6, 0);
+  stroke_scroll_column->addWidget(stroke_group);
+  stroke_scroll_column->addStretch(1);
+  stroke_scroll->setWidget(stroke_scroll_page);
+  // Measured while the gradient group is still visible so the sliders keep
+  // their full width when the vertical scrollbar appears.
+  stroke_scroll->setMinimumWidth(stroke_scroll_page->minimumSizeHint().width() +
+                                 stroke_scroll->verticalScrollBar()->sizeHint().width());
   update_stroke_fill_visibility();
-  stroke_layout->addWidget(stroke_group);
-  stroke_layout->addStretch(1);
+  stroke_layout->addWidget(stroke_scroll, 1);
 
   auto* inner_shadow_group = new QGroupBox(QObject::tr("Inner Shadow"), controls);
   auto* inner_shadow_form = new QFormLayout(inner_shadow_group);
