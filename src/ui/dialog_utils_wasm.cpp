@@ -684,6 +684,10 @@ void embed_dialog_in_host(QDialog& dialog, QWidget& host) {
                      static_cast<uint>(dialog.windowFlags()));
   auto* blocker = new EmbeddedDialogBlocker(&host);
   new EmbeddedDialogTeardown(&dialog, blocker);
+  // WA_DeleteOnClose dialogs (the color picker) can die without a Hide the
+  // teardown filter would see; the blocker must never outlive the dialog it
+  // serves or the host is left dimmed and inert.
+  QObject::connect(&dialog, &QObject::destroyed, blocker, &QObject::deleteLater);
   dialog.setParent(&host, Qt::Widget);
   // As a child widget the dialog no longer gets a window background; without
   // this the host paints through it.
