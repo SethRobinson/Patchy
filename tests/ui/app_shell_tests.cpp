@@ -2809,6 +2809,56 @@ void ui_light_scheme_dialog_chrome_separates_from_canvas() {
   CHECK(sampled);
 }
 
+// A floating dialog gets no window-manager shadow on wasm, and its title bar
+// shares @title_bar_bg with the main window's own chrome bar, so the 1px
+// @window_border outline is the only thing that can separate a dialog's edge
+// from the chrome behind it. Assert the outline is actually the outermost
+// pixel of the rendered dialog and that it reads against both the title-bar
+// fill inside it and the chrome surface it typically floats over.
+void ui_dialog_chrome_outline_reads_at_the_dialog_edge() {
+  ColorSchemeRestorer restore_active;
+
+  for (const auto preference :
+       {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer::apply(preference);
+    const bool light = preference == patchy::ui::ColorSchemePreference::Light;
+    const char* label = light ? "light" : "dark";
+
+    QDialog dialog;
+    auto* root = new QVBoxLayout(&dialog);
+    auto* content =
+        patchy::ui::install_dark_dialog_chrome(dialog, root, QStringLiteral("Outline Probe"));
+    content->addWidget(new QLabel(QStringLiteral("Probe body"), &dialog));
+    dialog.resize(300, 140);
+    dialog.show();
+    QApplication::processEvents();
+
+    const auto shot = dialog.grab().toImage();
+    CHECK(!shot.isNull());
+    if (shot.isNull()) {
+      return;
+    }
+    if (light) {
+      save_widget_artifact("ui_light_scheme_dialog_chrome_outline", dialog);
+    }
+
+    // Mid-width avoids the badge and the close button; row 0 is the outline
+    // if it is drawn at all, and row 17 is inside the 34px title bar's fill.
+    const auto edge = shot.pixelColor(shot.width() / 2, 0);
+    const auto title_fill = shot.pixelColor(shot.width() / 2, 17);
+    const int edge_vs_title = channel_delta(edge, title_fill);
+    const int edge_vs_chrome = channel_delta(edge, patchy::ui::theme().title_bar_bg);
+    if (edge_vs_title < 40 || edge_vs_chrome < 40) {
+      fprintf(stderr, "  %s: dialog edge %s vs title fill %s (%d), vs chrome bar %s (%d), want >= 40\n",
+              label, qPrintable(edge.name(QColor::HexRgb)), qPrintable(title_fill.name(QColor::HexRgb)),
+              edge_vs_title, qPrintable(patchy::ui::theme().title_bar_bg.name(QColor::HexRgb)),
+              edge_vs_chrome);
+    }
+    CHECK(edge_vs_title >= 40);
+    CHECK(edge_vs_chrome >= 40);
+  }
+}
+
 // Panel and list scroll bars are styled by the application sheet on every
 // platform rather than left to the native style. They have to be: the global
 // QWidget background rule reaches them anyway, and once QSS touches a scroll bar
@@ -3080,6 +3130,8 @@ std::vector<patchy::test::TestCase> app_shell_tests() {
        ui_theme_text_roles_contrast_with_their_backgrounds},
       {"ui_light_scheme_dialog_chrome_separates_from_canvas",
        ui_light_scheme_dialog_chrome_separates_from_canvas},
+      {"ui_dialog_chrome_outline_reads_at_the_dialog_edge",
+       ui_dialog_chrome_outline_reads_at_the_dialog_edge},
       {"ui_light_scheme_panel_scroll_bar_handle_reads_against_track",
        ui_light_scheme_panel_scroll_bar_handle_reads_against_track},
       {"ui_light_scheme_color_picker_selected_tab_reads_as_selected",

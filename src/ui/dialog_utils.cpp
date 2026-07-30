@@ -1155,7 +1155,11 @@ QVBoxLayout* install_dark_dialog_chrome(QDialog& dialog, QVBoxLayout* root, cons
   dialog.setWindowFlag(Qt::FramelessWindowHint, true);
   apply_frameless_window_effects_on_show(dialog, WindowCornerRadius::Standard);
   append_themed_style(dialog, dialog_chrome_style());
-  root->setContentsMargins(0, 0, 0, 0);
+  // 1px inset, not zero: QSS draws the QDialog border under child widgets, so
+  // a full-bleed title bar would cover the outline. That outline is the only
+  // edge a floating dialog has where no window-manager shadow exists (wasm),
+  // and in Light the title bar shares @title_bar_bg with the chrome behind it.
+  root->setContentsMargins(1, 1, 1, 1);
   root->setSpacing(0);
 
   auto* title_bar = new QWidget(&dialog);
