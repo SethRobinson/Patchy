@@ -1038,6 +1038,151 @@ void layer_stroke_knockout_blend_mode_uses_backdrop() {
   check_pixel_near(over_content, 20, 32, 86, 43, 22, 2);
 }
 
+// Computes the raw stroke band mask for `pixels` the way prepare_stroke_render
+// does (no layer mask, mask shapes the source).
+std::vector<float> stroke_mask_for_pixels(const patchy::PixelBuffer& pixels, patchy::Rect bounds,
+                                          patchy::Rect mask_bounds, float size,
+                                          patchy::LayerStrokePosition position) {
+  patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
+  patchy::Layer layer(document.allocate_layer_id(), "Stroke source", solid_rgba(1, 1, 0, 0, 0, 0));
+  layer.set_bounds(bounds);
+  return patchy::render_detail::stroke_alpha_mask(pixels, layer, bounds, mask_bounds, size, position,
+                                                  std::nullopt, true, nullptr);
+}
+
+// Largest Euclidean distance from any half-or-more-covered stroke band pixel
+// to the nearest half-or-more-covered matte pixel. A legitimate band pixel
+// stays within band + ~1.6 px of the solid matte (subpixel anchor + 1px AA
+// ramp); a promoted-fringe nub blooms past band + 2.
+float max_stroke_distance_from_solid(const std::vector<float>& mask, const patchy::PixelBuffer& pixels,
+                                     patchy::Rect bounds, patchy::Rect mask_bounds) {
+  std::vector<float> solid(mask.size(), 0.0F);
+  for (std::int32_t y = 0; y < mask_bounds.height; ++y) {
+    for (std::int32_t x = 0; x < mask_bounds.width; ++x) {
+      const auto source_x = mask_bounds.x + x - bounds.x;
+      const auto source_y = mask_bounds.y + y - bounds.y;
+      if (source_x < 0 || source_y < 0 || source_x >= pixels.width() || source_y >= pixels.height()) {
+        continue;
+      }
+      if (pixels.pixel(source_x, source_y)[3] >= 128) {
+        solid[static_cast<std::size_t>(y) * static_cast<std::size_t>(mask_bounds.width) +
+              static_cast<std::size_t>(x)] = 1.0F;
+      }
+    }
+  }
+  const auto distances = patchy::render_detail::stroke_distance_field(solid, mask_bounds.width,
+                                                                      mask_bounds.height, true);
+  float worst = 0.0F;
+  for (std::size_t index = 0; index < mask.size(); ++index) {
+    if (mask[index] >= 0.5F) {
+      worst = std::max(worst, distances[index]);
+    }
+  }
+  return worst;
+}
+
+void layer_stroke_aa_fringe_lattice_phase_never_nubs() {
+  // The bad_stroke.psd regression (July 2026): smooth-AA text carries fringe
+  // pixels whose distance to the nearest half-covered pixel CENTER exceeds
+  // 2 px at unlucky lattice phases even though the half-coverage contour
+  // passes within a pixel of them. The flat-wash promotion must not turn such
+  // pixels into isolated solid islands - each one bloomed into a square
+  // size+1 blob ("nub") off the glyph outline.
+  constexpr std::int32_t kSide = 48;
+  auto pixels = solid_rgba(kSide, kSide, 0, 0, 255, 0);
+  for (std::int32_t y = 0; y < kSide; ++y) {
+    for (std::int32_t x = 0; x < kSide; ++x) {
+      if (y >= 21 || (y == 20 && x >= 15)) {
+        pixels.pixel(x, y)[3] = 255;  // solid shape with a step at (15, 20)
+      } else if (y == 19 || y == 20) {
+        pixels.pixel(x, y)[3] = 125;  // just-under-half AA fringe
+      }
+    }
+  }
+  // Fringe tip: sqrt(5) ~ 2.24 px from the nearest solid center (15, 20) but
+  // only 1.67 px from the half-coverage sample between (15, 19) and (15, 20).
+  pixels.pixel(14, 18)[3] = 51;
+  const auto bounds = patchy::Rect{0, 0, kSide, kSide};
+  const auto mask_bounds = patchy::outset_rect(bounds, 3);
+  const auto mask =
+      stroke_mask_for_pixels(pixels, bounds, mask_bounds, 2.0F, patchy::LayerStrokePosition::Outside);
+  const auto at = [&](std::int32_t x, std::int32_t y) {
+    return mask[static_cast<std::size_t>(y - mask_bounds.y) * static_cast<std::size_t>(mask_bounds.width) +
+                static_cast<std::size_t>(x - mask_bounds.x)];
+  };
+  CHECK(at(14, 16) < 0.05F);  // the nub site: full-strength pre-fix
+  CHECK(at(25, 18) > 0.9F);   // the legitimate band above the solid edge
+  CHECK(max_stroke_distance_from_solid(mask, pixels, bounds, mask_bounds) <= 4.0F);
+}
+
+void layer_stroke_flat_wash_far_from_solid_still_strokes_in_full() {
+  // Guard rail for the refined promotion rule: painted regions that never
+  // reach half coverage still stroke as solid shapes (the pinned
+  // photoshop-stroke-partial-alpha semantics), both past the direct-promote
+  // bound and inside the near-solid annulus where the subpixel denial scan
+  // runs (the wash never crosses 0.5, so the scan must keep promoting).
+  constexpr std::int32_t kSide = 48;
+  auto pixels = solid_rgba(kSide, kSide, 0, 0, 255, 0);
+  for (std::int32_t y = 4; y < 20; ++y) {
+    for (std::int32_t x = 8; x < 24; ++x) {
+      pixels.pixel(x, y)[3] = 255;  // solid square
+    }
+  }
+  for (std::int32_t y = 22; y < 44; ++y) {
+    for (std::int32_t x = 4; x < 44; ++x) {
+      pixels.pixel(x, y)[3] = 64;  // flat 25% wash, top row 3 px from the square
+    }
+  }
+  const auto bounds = patchy::Rect{0, 0, kSide, kSide};
+  const auto mask_bounds = patchy::outset_rect(bounds, 4);
+  const auto mask =
+      stroke_mask_for_pixels(pixels, bounds, mask_bounds, 3.0F, patchy::LayerStrokePosition::Outside);
+  const auto at = [&](std::int32_t x, std::int32_t y) {
+    return mask[static_cast<std::size_t>(y - mask_bounds.y) * static_cast<std::size_t>(mask_bounds.width) +
+                static_cast<std::size_t>(x - mask_bounds.x)];
+  };
+  CHECK(at(32, 33) > 0.70F);  // wash interior: stroke fills the shape and the
+  CHECK(at(32, 33) < 0.80F);  // 25% content covers it
+  CHECK(at(24, 46) > 0.9F);   // full band on clean ground below the wash
+  CHECK(at(16, 1) > 0.9F);    // solid square's own band unaffected
+}
+
+void psd_bad_stroke_text_has_no_stroke_nubs_if_available() {
+  // The original report file: 119pt smooth-AA text with a 2px outside stroke.
+  // Pre-fix, the flat-wash promotion turned lattice-phase fringe pixels into
+  // isolated solid islands and the band bloomed a square nub around each one.
+  const auto path = patchy::test::local_psd_fixture_path("bad_stroke.psd");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] local bad_stroke.psd fixture missing: " << path.string() << '\n';
+    return;
+  }
+  const auto document = patchy::psd::DocumentIo::read_file(path);
+  const patchy::Layer* stroked = nullptr;
+  for (const auto& layer : document.layers()) {
+    if (!layer.layer_style().strokes.empty() && layer.layer_style().strokes.front().enabled &&
+        !layer.pixels().empty()) {
+      stroked = &layer;
+      break;
+    }
+  }
+  CHECK(stroked != nullptr);
+  if (stroked == nullptr) {
+    return;
+  }
+  const auto& stroke = stroked->layer_style().strokes.front();
+  CHECK(stroke.position == patchy::LayerStrokePosition::Outside);
+  const auto bounds = stroked->bounds();
+  const auto radius = std::max(1, static_cast<int>(std::ceil(stroke.size)));
+  const auto mask_bounds = patchy::outset_rect(bounds, radius + 1);
+  const auto mask = patchy::render_detail::stroke_alpha_mask(
+      stroked->pixels(), *stroked, bounds, mask_bounds, stroke.size, stroke.position, std::nullopt,
+      !stroked->layer_style().layer_mask_hides_effects, nullptr);
+  const auto worst = max_stroke_distance_from_solid(mask, stroked->pixels(), bounds, mask_bounds);
+  std::cout << "bad_stroke worst band distance from solid: " << worst << " (limit "
+            << stroke.size + 2.0F << ")\n";
+  CHECK(worst <= stroke.size + 2.0F);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> stroke_mask_effects_tests() {
@@ -1085,6 +1230,12 @@ std::vector<patchy::test::TestCase> stroke_mask_effects_tests() {
       {"drop_shadow_conceals_composes_with_stroke_knockout",
        drop_shadow_conceals_composes_with_stroke_knockout},
       {"layer_stroke_knockout_blend_mode_uses_backdrop", layer_stroke_knockout_blend_mode_uses_backdrop},
+      {"layer_stroke_aa_fringe_lattice_phase_never_nubs",
+       layer_stroke_aa_fringe_lattice_phase_never_nubs},
+      {"layer_stroke_flat_wash_far_from_solid_still_strokes_in_full",
+       layer_stroke_flat_wash_far_from_solid_still_strokes_in_full},
+      {"psd_bad_stroke_text_has_no_stroke_nubs_if_available",
+       psd_bad_stroke_text_has_no_stroke_nubs_if_available},
       {"psd_photoshop_stroke_partial_alpha_fixture_matches",
        psd_photoshop_stroke_partial_alpha_fixture_matches},
       {"psd_photoshop_stroke_positions_fixture_matches",

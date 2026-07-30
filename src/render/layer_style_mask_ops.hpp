@@ -55,6 +55,17 @@ void stroke_subpixel_distance_fields(const std::vector<float>& matte, int width,
                                      bool need_outside, bool need_inside,
                                      std::vector<float>& outside, std::vector<float>& inside);
 
+// True if the bilinearly-interpolated matte reaches half coverage (>= 0.5) at
+// any 1/3-px fine-grid sample (stroke_subpixel_distance_fields' grid) within
+// `reach` px (Euclidean, inclusive) of the coarse pixel center (x, y). Used by
+// the stroke contour's flat-wash promotion: an anti-aliased fringe always hugs
+// a half-coverage crossing, a flat sub-half wash never contains one. Bilinear
+// values are convex combinations of their cell corners, so this can only
+// return true within sqrt(2) px of a >= 0.5 coarse pixel; callers may skip the
+// scan when the coarse solid distance exceeds reach + sqrt(2).
+bool stroke_matte_reaches_half_coverage_near(const std::vector<float>& matte, int width, int height,
+                                             int x, int y, float reach);
+
 // The binary contour sits half a pixel past the last source pixel center, and the
 // 1px anti-aliasing ramp is centered on the band edge, so a band reaching `band`
 // pixels from the contour fully covers center distances d <= band and fades out by

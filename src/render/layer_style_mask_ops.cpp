@@ -192,6 +192,46 @@ void stroke_subpixel_distance_fields(const std::vector<float>& matte, int width,
   }
 }
 
+bool stroke_matte_reaches_half_coverage_near(const std::vector<float>& matte, int width, int height,
+                                             int x, int y, float reach) {
+  // Distances here are plain center-to-sample: this is the promotion
+  // heuristic's own reach, not band placement, so the supersampled fields'
+  // +1/3 px readback compensation does not apply. Fixed loop order and plain
+  // float bilinear math keep the result deterministic across toolchains.
+  constexpr int kScale = 3;
+  const auto steps = static_cast<int>(std::floor(static_cast<double>(reach) * kScale));
+  const auto steps_squared = steps * steps;
+  const auto center_fine_x = x * kScale + 1;
+  const auto center_fine_y = y * kScale + 1;
+  for (int j = -steps; j <= steps; ++j) {
+    for (int i = -steps; i <= steps; ++i) {
+      if (i * i + j * j > steps_squared) {
+        continue;
+      }
+      const auto fine_x = center_fine_x + i;
+      const auto fine_y = center_fine_y + j;
+      // Identical sample placement to the supersample loop above: fine centers
+      // land at -1/3, 0, +1/3 around each coarse center.
+      const auto cy = (static_cast<float>(fine_y) + 0.5F) / kScale - 0.5F;
+      const auto cx = (static_cast<float>(fine_x) + 0.5F) / kScale - 0.5F;
+      const auto y0 = std::clamp(static_cast<int>(std::floor(cy)), 0, height - 1);
+      const auto y1 = std::min(y0 + 1, height - 1);
+      const auto ty = std::clamp(cy - static_cast<float>(y0), 0.0F, 1.0F);
+      const auto x0 = std::clamp(static_cast<int>(std::floor(cx)), 0, width - 1);
+      const auto x1 = std::min(x0 + 1, width - 1);
+      const auto tx = std::clamp(cx - static_cast<float>(x0), 0.0F, 1.0F);
+      const auto* row0 = matte.data() + static_cast<std::size_t>(y0) * width;
+      const auto* row1 = matte.data() + static_cast<std::size_t>(y1) * width;
+      const auto top = row0[x0] + (row0[x1] - row0[x0]) * tx;
+      const auto bottom = row1[x0] + (row1[x1] - row1[x0]) * tx;
+      if (top + (bottom - top) * ty >= 0.5F) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 void box_blur_mask_into(const std::vector<float>& input, std::vector<float>& horizontal,
                                std::vector<float>& output, int width, int height, int radius) {
   for (int y = 0; y < height; ++y) {

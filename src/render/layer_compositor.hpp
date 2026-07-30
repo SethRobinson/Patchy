@@ -1468,10 +1468,19 @@ inline std::vector<float> stroke_alpha_mask(const PixelBuffer& source, const Lay
   // inter-glyph gaps Photoshop leaves clean — title.psd probes, July 2026),
   // while flat low-alpha regions are stroked in full (the pinned
   // photoshop-stroke-partial-alpha fixture's 25% strip). Approximate that
-  // with the half-covered-or-more pixels plus any painted pixel farther than
-  // 2 px from every such solid pixel: an AA fringe always hugs its solid
-  // core, a flat wash does not. Binary mattes are identical under all these
-  // conventions, so the pinned COM band calibration is unaffected.
+  // with the half-covered-or-more pixels plus any painted pixel that is both
+  // farther than 2 px from every such solid pixel CENTER and farther than
+  // 2 px from every half-coverage crossing of the bilinear field (the same
+  // subpixel convention the band anchor uses): an AA fringe always hugs a
+  // half-coverage crossing whatever the lattice phase, while a flat sub-half
+  // wash never contains one. Distance to solid centers alone misfired on
+  // smooth-AA text — fringe pixels at sqrt(5) from every solid center became
+  // isolated solid islands and the band bloomed a square size+1 "nub" around
+  // each (the bad_stroke.psd regression, July 2026; transforms widened the
+  // fringe and multiplied them). Residual: a faint tail extending 2+ px past
+  // the half-coverage crossing still promotes, as a contiguous ring, not
+  // blobs. Binary mattes are identical under all these conventions, so the
+  // pinned COM band calibration is unaffected.
   std::vector<float> contour(base.size(), 0.0F);
   auto has_solid_pixel = false;
   auto has_faint_pixel = false;
@@ -1489,10 +1498,24 @@ inline std::vector<float> stroke_alpha_mask(const PixelBuffer& source, const Lay
     }
   } else if (has_faint_pixel) {
     constexpr float kAaFringeReach = 2.0F;
+    // Bilinear values are convex combinations of their cell corners, so a
+    // half-coverage sample can only exist within sqrt(2) px of a solid pixel
+    // center: beyond kAaFringeReach + sqrt(2) the denial scan cannot succeed
+    // and the candidate promotes directly.
+    constexpr float kDenialSkip = kAaFringeReach + 1.4142137F;
     const auto solid_distance = stroke_distance_field(contour, width, height, true);
-    for (std::size_t index = 0; index < base.size(); ++index) {
-      if (base[index] > 0.0F && contour[index] == 0.0F && solid_distance[index] > kAaFringeReach) {
-        contour[index] = 1.0F;
+    for (std::int32_t y = 0; y < height; ++y) {
+      for (std::int32_t x = 0; x < width; ++x) {
+        const auto index = static_cast<std::size_t>(y) * static_cast<std::size_t>(width) +
+                           static_cast<std::size_t>(x);
+        if (base[index] <= 0.0F || contour[index] != 0.0F ||
+            solid_distance[index] <= kAaFringeReach) {
+          continue;
+        }
+        if (solid_distance[index] > kDenialSkip ||
+            !stroke_matte_reaches_half_coverage_near(base, width, height, x, y, kAaFringeReach)) {
+          contour[index] = 1.0F;
+        }
       }
     }
   }
