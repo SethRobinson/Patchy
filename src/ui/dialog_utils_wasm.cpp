@@ -737,7 +737,23 @@ protected:
         return false;
       }
       if (auto* host = embed_host_for(*dialog); host != nullptr) {
-        embed_dialog_in_host(*dialog, *host);
+        // Never reparent inside the Show delivery: the half-materialized
+        // window keeps a stale paint/input offset until its next move
+        // (observed as clicks landing ~100 px away from the painted controls
+        // until the dialog was dragged). Hide it and embed on the next
+        // event-loop turn, after this Show has fully unwound.
+        dialog->hide();
+        QPointer<QDialog> dialog_guard(dialog);
+        QPointer<QWidget> host_guard(host);
+        QMetaObject::invokeMethod(
+            qApp,
+            [dialog_guard, host_guard] {
+              if (dialog_guard != nullptr && host_guard != nullptr &&
+                  !dialog_guard->property(kEmbeddedProperty).toBool()) {
+                embed_dialog_in_host(*dialog_guard, *host_guard);
+              }
+            },
+            Qt::QueuedConnection);
       }
       return false;
     }
