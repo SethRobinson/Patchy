@@ -29,7 +29,7 @@ Required release handoff steps:
    cmd /s /c 'scripts\vs-env.bat -arch=x64 -host_arch=x64 >nul && "C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" --build --preset release'
    ```
 
-   Run this from the repository root in PowerShell or a real cmd prompt, never Git Bash or another POSIX shell. Nested quoting collapses there, cmd prints its banner, and exits 0 without building. Trust the build only if the log contains compile/link lines or `ninja: no work to do`, never the exit code alone.
+   Run this from the repository root in PowerShell or a real cmd prompt, never Git Bash or another POSIX shell. Nested quoting collapses there, cmd prints its banner, and exits 0 without building. Trust the build only if the log contains compile/link lines or `ninja: no work to do`, never the exit code alone. Builds that include an app target never end at `ninja: no work to do`: every build rewrites the generated build-stamp header (`cmake/write_build_stamp.cmake`), recompiles `build_info.cpp`, and relinks, so the in-app build date always matches the build that produced the binary.
 
    `scripts\vs-env.bat` is the one place that knows where VsDevCmd.bat lives; call it instead of VsDevCmd directly so every build gets the same developer environment and none of them print the spurious `'vswhere.exe' is not recognized` line. See [docs/release-process.md](docs/release-process.md).
 
@@ -46,7 +46,8 @@ Required release handoff steps:
 
    - Both binaries accept a name-substring filter as the first argument; the UI suite also reads `PATCHY_UI_TEST_FILTER`.
    - For a minor localized change with no core/shared code, serialization, byte-pinned/canary paths, rendering/compositing, or build-system work, filtered subsets covering the feature and changed tests are sufficient. Report the filters used.
-   - Run BOTH full suites for changes to `src/core`, shared helpers (`main_window_shared`, `canvas_widget_shared`, `psd_io_common`), PSD or other serialization, byte-pinned/canary paths, compositing/rendering, application-wide QSS/theme or hotkeys, CMake files/presets, refactors or file moves, and whenever uncertain.
+   - Run the full core suite for changes to `src/core`, shared helpers (`main_window_shared`, `canvas_widget_shared`, `psd_io_common`), PSD or other serialization, byte-pinned/canary paths, CMake files/presets, refactors or file moves, and whenever uncertain.
+   - Run the full UI visual suite only when the change can affect rendering or UI behavior: compositing/rendering, application-wide QSS/theme or hotkeys, widget/dialog code, or the visual tests themselves. Do not run it for build-system or other non-rendering changes (Seth, July 2026).
    - Packaging or uploading a release always requires both full suites. Filtered runs miss ordered cross-test state such as QSettings and artifact dependencies.
 
 3. Explicitly report whether `build\release\patchy.exe` exists.

@@ -853,6 +853,26 @@ if(PATCHY_BUILD_APP)
       $<$<PLATFORM_ID:Windows>:dwmapi>
     )
     target_compile_definitions(patchy_ui PRIVATE PATCHY_VERSION="${PROJECT_VERSION}")
+    # The build stamp shown beside the version must be fresh in every binary.
+    # A custom target is always out of date, so each build rewrites the
+    # generated header before patchy_ui compiles; the include directory is
+    # scoped to build_info.cpp alone, so each build recompiles exactly one TU
+    # and relinks. Never switch build_info.cpp back to __DATE__/__TIME__:
+    # those freeze when that TU last compiled, and incremental builds reuse
+    # the object file, shipping a stale date.
+    set(PATCHY_BUILD_STAMP_HEADER "${CMAKE_BINARY_DIR}/generated/patchy_build_stamp.hpp")
+    add_custom_target(patchy_build_stamp
+      COMMAND ${CMAKE_COMMAND}
+              "-DPATCHY_BUILD_STAMP_HEADER=${PATCHY_BUILD_STAMP_HEADER}"
+              -P "${PROJECT_SOURCE_DIR}/cmake/write_build_stamp.cmake"
+      BYPRODUCTS "${PATCHY_BUILD_STAMP_HEADER}"
+      COMMENT "Stamping the build date and time"
+      VERBATIM
+    )
+    add_dependencies(patchy_ui patchy_build_stamp)
+    set_source_files_properties(src/ui/build_info.cpp PROPERTIES
+      INCLUDE_DIRECTORIES "${CMAKE_BINARY_DIR}/generated"
+    )
     # main_window.cpp exceeds the default COFF section limit under MSVC.
     target_compile_options(patchy_ui PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/bigobj>)
     if(APPLE)
