@@ -1841,13 +1841,44 @@ void CanvasWidget::draw_rulers(QPainter& painter) const {
   painter.restore();
 }
 
-void CanvasWidget::draw_processing_overlay(QPainter& painter) const {
-  const auto first_render_wait = first_render_spinner_active();
-  if (!processing_overlay_visible_ && !first_render_wait) {
+void CanvasWidget::begin_preview_render() {
+  if (++preview_renders_in_flight_ != 1) {
     return;
   }
-  const QString overlay_message =
-      processing_overlay_visible_ ? processing_overlay_message_ : tr("Processing...");
+  preview_render_started_.start();
+  // The animation timer keeps itself alive while a preview is in flight (see
+  // timerEvent); its first tick past the badge delay paints the overlay, so
+  // no separate wake-up is needed for an otherwise idle canvas.
+  if (!processing_animation_timer_.isActive()) {
+    processing_animation_timer_.start(kProcessingAnimationIntervalMs, this);
+  }
+}
+
+void CanvasWidget::end_preview_render() {
+  if (preview_renders_in_flight_ <= 0) {
+    return;
+  }
+  if (--preview_renders_in_flight_ == 0 && preview_render_started_.isValid() &&
+      preview_render_started_.elapsed() >= processing_overlay_delay_ms()) {
+    update();
+  }
+}
+
+bool CanvasWidget::preview_render_overlay_visible() const {
+  return preview_renders_in_flight_ > 0 && preview_render_started_.isValid() &&
+         preview_render_started_.elapsed() >= processing_overlay_delay_ms();
+}
+
+void CanvasWidget::draw_processing_overlay(QPainter& painter) const {
+  const auto first_render_wait = first_render_spinner_active();
+  const auto preview_render_wait =
+      !processing_overlay_visible_ && !first_render_wait && preview_render_overlay_visible();
+  if (!processing_overlay_visible_ && !first_render_wait && !preview_render_wait) {
+    return;
+  }
+  const QString overlay_message = processing_overlay_visible_ ? processing_overlay_message_
+                                  : preview_render_wait      ? tr("Rendering preview...")
+                                                             : tr("Processing...");
 
   painter.save();
   painter.setRenderHint(QPainter::Antialiasing, true);
@@ -1923,7 +1954,9 @@ void CanvasWidget::hide_processing_overlay() {
   }
   processing_overlay_visible_ = false;
   processing_overlay_message_.clear();
-  processing_animation_timer_.stop();
+  if (preview_renders_in_flight_ == 0) {
+    processing_animation_timer_.stop();
+  }
   update();
 }
 

@@ -85,6 +85,26 @@ constexpr int kFilterProgressMinimumDurationMs = 1000;
     QProgressDialog& progress, std::function<QString(const QString&)> label_text,
     QEventLoop::ProcessEventsFlags event_flags, std::function<void()> tick_processing = {});
 
+// Runs a cancellable filter/adjustment compute under the given progress
+// dialog and returns when it finishes. On desktop the compute runs on the
+// calling thread with the dialog driven from the progress callback (the
+// progress_dialog_filter_progress shape, unchanged behavior). On threaded
+// wasm the compute runs on a worker while this thread waits in an event
+// loop: a processEvents pump never returns control to the browser, so a
+// main-thread compute would keep the dialog invisible and get the tab
+// flagged unresponsive, while an idle event loop suspends through Asyncify
+// and lets the browser present frames. The worker's progress callback only
+// writes atomics; a timer feeds them into the dialog on this thread, and the
+// dialog's Cancel reaches the worker through an atomic flag. Whatever the
+// compute throws (FilterCancelled included) is rethrown on the calling
+// thread, so caller catch blocks work identically on every platform. The
+// compute must not touch widgets or other UI state on the worker path;
+// capture what it reads up front.
+void run_filter_compute_with_progress(QProgressDialog& progress,
+                                      std::function<QString(const QString&)> label_text,
+                                      std::function<void()> tick_processing,
+                                      const std::function<void(FilterProgress&)>& compute);
+
 // Rasterize the canvas selection into an 8-bit coverage mask covering
 // selection_rect (document coordinates); 255 = fully selected.
 [[nodiscard]] PixelBuffer selection_mask_pixels(const CanvasWidget& canvas, QRect selection_rect);
@@ -315,6 +335,10 @@ struct DestructiveAdjustmentPreviewHooks {
   // queued invocation that may fire during teardown, so it must guard the
   // MainWindow lifetime itself (QPointer).
   std::function<void(PixelBuffer pixels)> apply_result;
+  // Optional canvas busy-badge hook (CanvasWidget::begin/end_preview_render):
+  // called with true on the UI thread when a render worker starts and false
+  // from its queued completion. Same teardown caveat as apply_result.
+  std::function<void(bool active)> preview_render_active;
 };
 
 // Builds the latest-wins preview state machine the four dialogs share:

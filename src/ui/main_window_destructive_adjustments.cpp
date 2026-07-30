@@ -290,6 +290,15 @@ void MainWindow::levels_dialog() {
       }
     }
   };
+  preview_hooks.preview_render_active = [window = QPointer<MainWindow>(this)](bool active) {
+    if (window != nullptr && window->canvas_ != nullptr) {
+      if (active) {
+        window->canvas_->begin_preview_render();
+      } else {
+        window->canvas_->end_preview_render();
+      }
+    }
+  };
   auto preview_state = make_destructive_adjustment_preview_state(std::move(preview_hooks));
   const auto preview_changed = [preview_state, bounds, selection](bool enabled,
                                                                   const LevelsSettings& settings) {
@@ -336,15 +345,18 @@ void MainWindow::levels_dialog() {
     progress.setMinimumDuration(kFilterProgressMinimumDurationMs);
     remember_dialog_position(progress);
     progress.setValue(0);
-    auto filter_progress = progress_dialog_filter_progress(
-        progress, [display_name](const QString& detail) { return tr("Applying %1...\n%2").arg(display_name, detail); },
-        QEventLoop::AllEvents, [this] {
-          if (canvas_ != nullptr) {
-            canvas_->tick_processing_operation();
-          }
-        });
     try {
-      apply_levels_to_pixels(final_pixels, bounds, selection, *settings, &filter_progress);
+      run_filter_compute_with_progress(
+          progress,
+          [display_name](const QString& detail) { return tr("Applying %1...\n%2").arg(display_name, detail); },
+          [this] {
+            if (canvas_ != nullptr) {
+              canvas_->tick_processing_operation();
+            }
+          },
+          [&](FilterProgress& filter_progress) {
+            apply_levels_to_pixels(final_pixels, bounds, selection, *settings, &filter_progress);
+          });
       progress.setValue(100);
     } catch (const FilterCancelled&) {
       layer = doc.find_layer(active_id);
@@ -420,6 +432,15 @@ void MainWindow::curves_dialog() {
       }
     }
   };
+  preview_hooks.preview_render_active = [window = QPointer<MainWindow>(this)](bool active) {
+    if (window != nullptr && window->canvas_ != nullptr) {
+      if (active) {
+        window->canvas_->begin_preview_render();
+      } else {
+        window->canvas_->end_preview_render();
+      }
+    }
+  };
   auto preview_state = make_destructive_adjustment_preview_state(std::move(preview_hooks));
   const auto preview_changed = [preview_state, bounds, selection](bool enabled,
                                                                   const CurvesSettings& settings) {
@@ -473,15 +494,18 @@ void MainWindow::curves_dialog() {
     progress.setMinimumDuration(kFilterProgressMinimumDurationMs);
     remember_dialog_position(progress);
     progress.setValue(0);
-    auto filter_progress = progress_dialog_filter_progress(
-        progress, [display_name](const QString& detail) { return tr("Applying %1...\n%2").arg(display_name, detail); },
-        QEventLoop::AllEvents, [this] {
-          if (canvas_ != nullptr) {
-            canvas_->tick_processing_operation();
-          }
-        });
     try {
-      apply_curves_to_pixels(final_pixels, bounds, selection, *settings, &filter_progress);
+      run_filter_compute_with_progress(
+          progress,
+          [display_name](const QString& detail) { return tr("Applying %1...\n%2").arg(display_name, detail); },
+          [this] {
+            if (canvas_ != nullptr) {
+              canvas_->tick_processing_operation();
+            }
+          },
+          [&](FilterProgress& filter_progress) {
+            apply_curves_to_pixels(final_pixels, bounds, selection, *settings, &filter_progress);
+          });
       progress.setValue(100);
     } catch (const FilterCancelled&) {
       statusBar()->showMessage(tr("Cancelled Curves"));
@@ -546,6 +570,15 @@ void MainWindow::hue_saturation_dialog() {
       set_layer_pixels_preserving_origin(*preview_layer, std::move(result), bounds);
       if (window->canvas_ != nullptr) {
         window->canvas_->document_changed(to_qrect(bounds));
+      }
+    }
+  };
+  preview_hooks.preview_render_active = [window = QPointer<MainWindow>(this)](bool active) {
+    if (window != nullptr && window->canvas_ != nullptr) {
+      if (active) {
+        window->canvas_->begin_preview_render();
+      } else {
+        window->canvas_->end_preview_render();
       }
     }
   };
@@ -623,6 +656,15 @@ void MainWindow::color_balance_dialog() {
       set_layer_pixels_preserving_origin(*preview_layer, std::move(result), bounds);
       if (window->canvas_ != nullptr) {
         window->canvas_->document_changed(to_qrect(bounds));
+      }
+    }
+  };
+  preview_hooks.preview_render_active = [window = QPointer<MainWindow>(this)](bool active) {
+    if (window != nullptr && window->canvas_ != nullptr) {
+      if (active) {
+        window->canvas_->begin_preview_render();
+      } else {
+        window->canvas_->end_preview_render();
       }
     }
   };

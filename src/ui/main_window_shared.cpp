@@ -40,11 +40,13 @@
 #include <QSpinBox>
 #include <QStandardPaths>
 #include <QStyle>
+#include <QTimer>
 #include <QToolBar>
 #include <QUrl>
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <atomic>
 #include <cctype>
 #include <cmath>
 #include <cstdint>
@@ -176,6 +178,73 @@ FilterProgress progress_dialog_filter_progress(QProgressDialog& progress,
   }};
 }
 
+void run_filter_compute_with_progress(QProgressDialog& progress,
+                                      std::function<QString(const QString&)> label_text,
+                                      std::function<void()> tick_processing,
+                                      const std::function<void(FilterProgress&)>& compute) {
+#if defined(Q_OS_WASM) && defined(__EMSCRIPTEN_PTHREADS__)
+  struct SharedProgress {
+    std::atomic<int> completed{0};
+    std::atomic<int> total{0};
+    std::atomic<int> stage{static_cast<int>(FilterProgressStage::Filtering)};
+    std::atomic<bool> cancelled{false};
+  };
+  const auto shared = std::make_shared<SharedProgress>();
+  const auto error = std::make_shared<std::exception_ptr>();
+  QEventLoop wait_loop;
+  QObject::connect(&progress, &QProgressDialog::canceled, &progress,
+                   [shared] { shared->cancelled.store(true, std::memory_order_relaxed); });
+  QTimer update_timer;
+  update_timer.setInterval(50);
+  int last_value = -1;
+  QObject::connect(&update_timer, &QTimer::timeout, &progress, [&] {
+    const auto total = shared->total.load(std::memory_order_relaxed);
+    const auto completed = shared->completed.load(std::memory_order_relaxed);
+    const auto value = total <= 0 ? 0 : std::clamp((completed * 100) / total, 0, 100);
+    if (value != last_value) {
+      progress.setValue(value);
+      progress.setLabelText(label_text(filter_progress_stage_text(
+          static_cast<FilterProgressStage>(shared->stage.load(std::memory_order_relaxed)))));
+      last_value = value;
+    }
+    if (tick_processing) {
+      tick_processing();
+    }
+  });
+  update_timer.start();
+  auto* app = QCoreApplication::instance();
+  // The references captured here stay valid: this function only returns
+  // after wait_loop quits, and the loop only quits from the queued
+  // completion the worker posts after it is done touching them.
+  run_tracked_background_worker([shared, error, app, &wait_loop, &compute] {
+    FilterProgress worker_progress{[shared](int completed, int total, FilterProgressStage stage) {
+      shared->completed.store(completed, std::memory_order_relaxed);
+      shared->total.store(total, std::memory_order_relaxed);
+      shared->stage.store(static_cast<int>(stage), std::memory_order_relaxed);
+      return !shared->cancelled.load(std::memory_order_relaxed);
+    }};
+    try {
+      compute(worker_progress);
+    } catch (...) {
+      *error = std::current_exception();
+    }
+    if (app == nullptr) {
+      return;
+    }
+    QMetaObject::invokeMethod(app, [&wait_loop] { wait_loop.quit(); }, Qt::QueuedConnection);
+  });
+  wait_loop.exec();
+  update_timer.stop();
+  if (*error) {
+    std::rethrow_exception(*error);
+  }
+#else
+  auto filter_progress = progress_dialog_filter_progress(progress, std::move(label_text),
+                                                         QEventLoop::AllEvents, std::move(tick_processing));
+  compute(filter_progress);
+#endif
+}
+
 std::shared_ptr<AsyncPixelPreviewState<DestructiveAdjustmentPreviewRequest>>
 make_destructive_adjustment_preview_state(DestructiveAdjustmentPreviewHooks hooks) {
   auto preview_state =
@@ -195,6 +264,9 @@ make_destructive_adjustment_preview_state(DestructiveAdjustmentPreviewHooks hook
     preview_state->in_flight = true;
     const auto generation = ++preview_state->generation;
     auto* app = QCoreApplication::instance();
+    if (hooks.preview_render_active) {
+      hooks.preview_render_active(true);
+    }
     run_tracked_background_worker([app, preview_state, generation, hooks, request] {
       auto result = std::make_shared<PixelBuffer>(*hooks.original_pixels);
       try {
@@ -209,6 +281,9 @@ make_destructive_adjustment_preview_state(DestructiveAdjustmentPreviewHooks hook
           app,
           [preview_state, hooks, generation, result]() mutable {
             preview_state->in_flight = false;
+            if (hooks.preview_render_active) {
+              hooks.preview_render_active(false);
+            }
             const auto has_pending = preview_state->pending.has_value();
             if (!preview_state->closed && !has_pending &&
                 generation == preview_state->generation && result != nullptr) {

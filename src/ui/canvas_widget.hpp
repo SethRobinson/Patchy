@@ -650,6 +650,13 @@ public:
   void begin_processing_operation(QString message = {}, int delay_ms_override = -1);
   void tick_processing_operation();
   void end_processing_operation();
+  // Non-blocking counterpart for background preview renders (filter and
+  // adjustment dialogs): while at least one preview worker is in flight and
+  // the standard overlay delay has passed, the processing overlay shows
+  // "Rendering preview..." so a slow preview reads as working, not broken.
+  // Callers pair begin at worker spawn with end in the queued completion.
+  void begin_preview_render();
+  void end_preview_render();
   bool wait_for_processing_operation(std::function<bool()> operation_ready, bool allow_overlay = true);
   void force_refresh();
   void document_changed();
@@ -941,6 +948,7 @@ private:
   [[nodiscard]] double ruler_pixels_per_unit(bool horizontal_axis) const noexcept;
   void show_ruler_unit_menu(QPoint global_position);
   void draw_processing_overlay(QPainter& painter) const;
+  [[nodiscard]] bool preview_render_overlay_visible() const;
   void show_processing_overlay(QString message = {});
   void hide_processing_overlay();
   void update_tool_cursor();
@@ -1622,6 +1630,8 @@ private:
   QBasicTimer processing_animation_timer_;
   bool processing_overlay_visible_{false};
   bool processing_render_wait_active_{false};
+  int preview_renders_in_flight_{0};
+  QElapsedTimer preview_render_started_{};
   int processing_operation_depth_{0};
   int processing_operation_delay_ms_{-1};  // <0 = processing_overlay_delay_ms()
   std::chrono::steady_clock::time_point processing_operation_started_{};

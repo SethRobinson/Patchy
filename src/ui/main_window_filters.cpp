@@ -1646,6 +1646,9 @@ void MainWindow::editable_smart_filter_dialog(
         const auto generation = ++preview_state->generation;
         auto* app = QCoreApplication::instance();
         auto window = QPointer<MainWindow>(this);
+        if (canvas_ != nullptr) {
+          canvas_->begin_preview_render();
+        }
         run_tracked_background_worker([app, window, preview_state, generation, layer_id,
                      unfiltered_pixels, unfiltered_bounds, last_preview_bounds,
                      filter_canvas_bounds, candidate = std::move(*candidate)] {
@@ -1666,6 +1669,9 @@ void MainWindow::editable_smart_filter_dialog(
               [window, preview_state, generation, layer_id, last_preview_bounds,
                result, error]() mutable {
                 preview_state->in_flight = false;
+                if (window != nullptr && window->canvas_ != nullptr) {
+                  window->canvas_->end_preview_render();
+                }
                 const bool has_pending = preview_state->pending.has_value();
                 if (!preview_state->closed && !has_pending &&
                     generation == preview_state->generation &&
@@ -2229,6 +2235,9 @@ void MainWindow::apply_filter(const QString& identifier) {
           auto result_bounds = std::make_shared<Rect>(bounds);
           auto* app = QCoreApplication::instance();
           auto window = QPointer<MainWindow>(this);
+          if (canvas_ != nullptr) {
+            canvas_->begin_preview_render();
+          }
           run_tracked_background_worker([app, window, preview_state, generation, original_pixels, result_bounds, last_preview_bounds,
                        selection, bounds, settings, preview_registry, active] {
             auto result = std::make_shared<PixelBuffer>();
@@ -2247,6 +2256,9 @@ void MainWindow::apply_filter(const QString& identifier) {
                 [window, preview_state, generation, active, result_bounds, last_preview_bounds, result,
                  error]() mutable {
                   preview_state->in_flight = false;
+                  if (window != nullptr && window->canvas_ != nullptr) {
+                    window->canvas_->end_preview_render();
+                  }
                   const auto has_pending = preview_state->pending.has_value();
                   if (!preview_state->closed && !has_pending && generation == preview_state->generation &&
                       window != nullptr) {
@@ -2312,27 +2324,24 @@ void MainWindow::apply_filter(const QString& identifier) {
     progress.setMinimumDuration(kFilterProgressMinimumDurationMs);
     remember_dialog_position(progress);
     progress.setValue(0);
-    int last_progress_value = -1;
-    FilterProgress filter_progress{[&](int completed, int total, FilterProgressStage stage) {
-      const auto value = total <= 0 ? 100 : std::clamp((completed * 100) / total, 0, 100);
-      if (value != last_progress_value) {
-        progress.setValue(value);
-        progress.setLabelText(tr("Applying %1...\n%2").arg(display_name, filter_progress_stage_text(stage)));
-        last_progress_value = value;
-        QApplication::processEvents();
-      }
-      if (canvas_ != nullptr) {
-        canvas_->tick_processing_operation();
-      }
-      return !progress.wasCanceled();
-    }};
-
     PixelBuffer final_pixels;
     Rect final_bounds = bounds;
     try {
-      final_pixels = build_filter_preview_pixels(*original_pixels, selection, bounds, filters_,
-                                                 FilterPreviewSettings{true, *settings}, &filter_progress,
-                                                 &final_bounds);
+      run_filter_compute_with_progress(
+          progress,
+          [display_name](const QString& detail) {
+            return tr("Applying %1...\n%2").arg(display_name, detail);
+          },
+          [this] {
+            if (canvas_ != nullptr) {
+              canvas_->tick_processing_operation();
+            }
+          },
+          [&](FilterProgress& filter_progress) {
+            final_pixels = build_filter_preview_pixels(*original_pixels, selection, bounds, filters_,
+                                                       FilterPreviewSettings{true, *settings},
+                                                       &filter_progress, &final_bounds);
+          });
       progress.setValue(100);
     } catch (const FilterCancelled&) {
       layer = doc.find_layer(*active);
@@ -2447,19 +2456,18 @@ void MainWindow::liquify_dialog() {
   progress.setWindowModality(Qt::WindowModal);
   progress.setMinimumDuration(kFilterProgressMinimumDurationMs);
   remember_dialog_position(progress);
-  int last_value = -1;
-  auto rendered = mesh->render(
-      original_pixels, [&](int completed, int total) {
-        const int value = total <= 0
-                              ? 100
-                              : std::clamp(completed * 100 / total, 0, 100);
-        if (value != last_value) {
-          progress.setValue(value);
-          last_value = value;
-          QApplication::processEvents();
+  std::optional<PixelBuffer> rendered;
+  run_filter_compute_with_progress(
+      progress, [](const QString&) { return tr("Applying Liquify..."); },
+      [this] {
+        if (canvas_ != nullptr) {
+          canvas_->tick_processing_operation();
         }
-        canvas_->tick_processing_operation();
-        return !progress.wasCanceled();
+      },
+      [&](FilterProgress& filter_progress) {
+        rendered = mesh->render(original_pixels, [&filter_progress](int completed, int total) {
+          return filter_progress.update(completed, total, FilterProgressStage::Distorting);
+        });
       });
   if (!rendered.has_value()) {
     statusBar()->showMessage(tr("Cancelled Liquify"));
@@ -2649,6 +2657,9 @@ void MainWindow::visual_filter_gallery_dialog() {
           auto cancelled = std::make_shared<bool>(false);
           auto* app = QCoreApplication::instance();
           auto window = QPointer<MainWindow>(this);
+          if (target_canvas != nullptr) {
+            target_canvas->begin_preview_render();
+          }
           const auto generation = work.generation;
           run_tracked_background_worker([app, window, preview_state, preview_registry,
                        original_pixels, selection, bounds, session_id,
@@ -2677,6 +2688,9 @@ void MainWindow::visual_filter_gallery_dialog() {
                 [window, preview_state, session_id, layer_id, last_preview_bounds, preview_shows_original,
                  target_canvas, generation, result, result_bounds, error, cancelled]() mutable {
                   preview_state->in_flight = false;
+                  if (window != nullptr && target_canvas != nullptr) {
+                    target_canvas->end_preview_render();
+                  }
                   const auto has_pending = preview_state->pending.has_value();
                   const auto is_latest =
                       generation == preview_state->generation.load(std::memory_order_acquire);
@@ -2901,29 +2915,29 @@ void MainWindow::visual_filter_gallery_dialog() {
     progress.setMinimumDuration(kFilterProgressMinimumDurationMs);
     remember_dialog_position(progress);
     progress.setValue(0);
-    int last_progress_value = -1;
-    FilterProgress filter_progress{[&](int completed, int total, FilterProgressStage stage) {
-      const auto value = total <= 0 ? 100 : std::clamp((completed * 100) / total, 0, 100);
-      if (value != last_progress_value) {
-        progress.setValue(value);
-        progress.setLabelText(tr("Applying %1...\n%2").arg(display_name, filter_progress_stage_text(stage)));
-        last_progress_value = value;
-        QApplication::processEvents();
-      }
-      if (target_canvas != nullptr) {
-        target_canvas->tick_processing_operation();
-      }
-      return !progress.wasCanceled();
-    }};
-
     FilterRenderResult final_result;
+    // Read on the UI thread up front: the compute below may run on a worker.
+    const auto* snap_context =
+        target_canvas != nullptr ? target_canvas->palette_snap_context() : nullptr;
     try {
       final_result.bounds = bounds;
-      final_result.pixels = build_filter_preview_pixels(
-          *original_pixels, selection, bounds, filters_, *result.recipe,
-          &filter_progress, &final_result.bounds);
-      snap_filter_result_to_palette(final_result.pixels, final_result.bounds, selection,
-                                    target_canvas != nullptr ? target_canvas->palette_snap_context() : nullptr);
+      run_filter_compute_with_progress(
+          progress,
+          [display_name](const QString& detail) {
+            return tr("Applying %1...\n%2").arg(display_name, detail);
+          },
+          [target_canvas] {
+            if (target_canvas != nullptr) {
+              target_canvas->tick_processing_operation();
+            }
+          },
+          [&](FilterProgress& filter_progress) {
+            final_result.pixels = build_filter_preview_pixels(
+                *original_pixels, selection, bounds, filters_, *result.recipe,
+                &filter_progress, &final_result.bounds);
+            snap_filter_result_to_palette(final_result.pixels, final_result.bounds, selection,
+                                          snap_context);
+          });
       progress.setValue(100);
     } catch (const FilterCancelled&) {
       restore_original();

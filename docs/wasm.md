@@ -508,6 +508,19 @@ pieces (rationale in the decision bullets above):
   the 16-worker CMYK cap. Sizes: `patchy.wasm` 79,734,153 bytes (76.0 MiB,
   +8.6% over single-threaded for the pthread instrumentation), `patchy.js`
   395,340, `patchy.worker.js` 2,839, `patchy.data` unchanged.
+- Long filter and adjustment commits no longer freeze the tab.
+  `run_filter_compute_with_progress` (main_window_shared) runs the commit
+  compute on a worker on threaded wasm while the main thread waits in an
+  event loop, so the progress dialog paints, animates, and can cancel; a
+  main-thread compute pumped with processEvents never returns control to the
+  browser, which is why the old path presented no frames and got the tab
+  flagged unresponsive. Desktop keeps the historical on-thread compute with
+  the dialog driven from the progress callback. All five commit sites go
+  through it: destructive filter, Filter Gallery, Liquify, Levels, Curves.
+- Slow live previews show a canvas badge on every platform: while a preview
+  worker is in flight past the standard overlay delay the canvas paints a
+  "Rendering preview..." spinner (see docs/filters.md), which matters most
+  on wasm where renders run a few times slower than native.
 - Still owed from the interactive battery (needs a visible browser pane):
   preview scrub with live cancellation and the processing spinner, file
   picker and drag-drop under threads, a corrupt-PSD worker exception, RAW

@@ -2674,9 +2674,12 @@ void CanvasWidget::timerEvent(QTimerEvent* event) {
   if (event->timerId() == processing_animation_timer_.timerId()) {
     processing_animation_frame_ = (processing_animation_frame_ + 1) % 12;
     ++render_cache_diagnostics_.processing_overlay_frames;
-    if (processing_overlay_visible_ || first_render_spinner_active()) {
+    if (processing_overlay_visible_ || first_render_spinner_active() ||
+        preview_render_overlay_visible()) {
       update();
-    } else {
+    } else if (preview_renders_in_flight_ == 0) {
+      // Keep ticking while a preview render is in flight but still inside the
+      // badge delay; the first post-delay tick paints the badge.
       processing_animation_timer_.stop();
     }
     event->accept();

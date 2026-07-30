@@ -917,12 +917,42 @@ std::optional<OpenDocumentResult> load_document_interactive(QWidget* parent, con
   });
   Q_UNUSED(close_progress);
 
+#if defined(Q_OS_WASM) && defined(__EMSCRIPTEN_PTHREADS__)
+  // future.wait_for on the browser main thread busy-spins (the main thread
+  // cannot Atomics.wait), so the pump below would starve the browser event
+  // loop for the whole load: no dialog frames, and the tab gets flagged
+  // unresponsive. Wait in an event loop instead; idle exec suspends through
+  // Asyncify, the dialog paints, and the worker's queued completion ends the
+  // wait. The references stay valid because this function only returns after
+  // the loop quits, which the worker posts after it is done touching them.
+  std::optional<OpenDocumentResult> loaded;
+  const auto error = std::make_shared<std::exception_ptr>();
+  QEventLoop wait_loop;
+  auto* app = QCoreApplication::instance();
+  run_tracked_background_worker([&loaded, error, app, &wait_loop, path] {
+    try {
+      loaded = load_document_from_path(path);
+    } catch (...) {
+      *error = std::current_exception();
+    }
+    if (app == nullptr) {
+      return;
+    }
+    QMetaObject::invokeMethod(app, [&wait_loop] { wait_loop.quit(); }, Qt::QueuedConnection);
+  });
+  wait_loop.exec();
+  if (*error) {
+    std::rethrow_exception(*error);
+  }
+  return loaded;
+#else
   auto open_future = launch_async([path] { return load_document_from_path(path); });
   while (open_future.wait_for(std::chrono::milliseconds(15)) != std::future_status::ready) {
     QApplication::processEvents(QEventLoop::AllEvents, 15);
   }
 
   return open_future.get();
+#endif
 }
 
 }  // namespace
