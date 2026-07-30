@@ -41,4 +41,17 @@ void download_file_in_browser(const QString& path);
 // file through `open_dropped_path`. Call once at startup.
 void install_web_drop_target(std::function<void(const QString& path)> open_dropped_path);
 
+// Application-wide workaround for a Qt 6.8 wasm input bug: any top-level
+// window opened from a secondary top-level window (any dialog, modal or not)
+// is broken. The native combo popup renders but never receives pointer or
+// key events, so it neither picks nor dismisses; a replacement chooser
+// dialog (dialog-parented or parentless) received no input and did not even
+// paint. Main-window popups, including the menus, work fine. The filter
+// therefore intercepts every interaction that would open a dialog combo's
+// popup and shows a popup-styled QListWidget as a plain child widget inside
+// the dialog's own window, which paints and receives input normally. Picks
+// emit the same activated/textActivated signals a real popup would; a press
+// outside the list dismisses it like a popup.
+void install_wasm_dialog_combo_workaround();
+
 }  // namespace patchy::ui::wasm_files

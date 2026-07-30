@@ -4707,6 +4707,9 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   // Qt 6.8 wasm never registers browser drag listeners for incoming files, so
   // the page-side glue owns external drops and reports them as MEMFS paths.
   wasm_files::install_web_drop_target([this](const QString& path) { handle_web_file_drop(path); });
+  // Popups opened from dialogs never receive input on Qt 6.8 wasm; dialog
+  // combos run a modal chooser instead (see dialog_utils_wasm.hpp).
+  wasm_files::install_wasm_dialog_combo_workaround();
 #endif
   document_tabs_->installEventFilter(this);
   suppress_native_tab_bar_base(*document_tabs_);

@@ -13,6 +13,7 @@ Keep this file at or below 30,000 bytes. Detailed implementation knowledge belon
 - Never use Computer Use, desktop UI automation, input injection, or another mechanism that controls applications on Seth's computer unless he explicitly authorizes computer control in the current request. Use Patchy's command-line screenshot and automation surfaces where possible; see [docs/testing.md](docs/testing.md).
 - Supported Windows, macOS, and Linux Debug and Release builds must have zero compiler, linker, and `lrelease` warnings. Keep warnings non-fatal. Fix Patchy-owned code explicitly. For vendored sources compiled into Patchy-owned targets, scope a suppression to one source and diagnostic. See [docs/platform.md](docs/platform.md).
 - User-facing documentation must not use em dashes. Write plain, direct prose without hype, emoji headings, "not just X, but Y" constructions, or stock AI phrasing such as "seamlessly", "robust", "comprehensive", and "delve".
+- When wasm work is finished, stop every local wasm server you started (`powershell -NoProfile -ExecutionPolicy Bypass -File scripts\wasm\free-server-port.ps1 -Port <port>` for each port used). Leftover servers are confusing; Seth restarts one manually when he wants it.
 
 The release process, including version bumps, README author crediting, batch-file order, and mandatory `NO_PAUSE=1` for non-interactive runs, lives in [docs/release-process.md](docs/release-process.md). Read it in full before bumping a version or running a release batch file.
 

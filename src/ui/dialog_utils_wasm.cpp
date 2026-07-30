@@ -11,13 +11,22 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QFormLayout>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
+#include <QListWidget>
+#include <QMainWindow>
+#include <QMouseEvent>
+#include <QPointer>
 #include <QPushButton>
 #include <QRegularExpression>
+#include <QScrollBar>
+#include <QStyle>
+#include <QStyleOptionComboBox>
 #include <QTimer>
 #include <QVBoxLayout>
 
+#include <algorithm>
 #include <cstdint>
 #include <string>
 #include <utility>
@@ -375,6 +384,201 @@ void download_file_in_browser(const QString& path) {
   anchor.call<void>("click");
   body.call<void>("removeChild", anchor);
   emscripten::val::global("URL").call<void>("revokeObjectURL", url);
+}
+
+// --------------------------------------------------------------------------
+// Dialog combo popup workaround (see the header comment).
+
+namespace {
+
+QComboBox* combo_box_for(QObject* object) {
+  for (auto* current = object; current != nullptr; current = current->parent()) {
+    if (auto* combo = qobject_cast<QComboBox*>(current)) {
+      return combo;
+    }
+    if (qobject_cast<QWidget*>(current) == nullptr) {
+      return nullptr;
+    }
+  }
+  return nullptr;
+}
+
+// Combos whose window is the main window keep the native popup: those work.
+bool combo_needs_chooser(const QComboBox& combo) {
+  return combo.isEnabled() && combo.count() > 0 &&
+         qobject_cast<QMainWindow*>(combo.window()) == nullptr;
+}
+
+bool press_would_open_popup(QComboBox& combo, QPoint combo_position) {
+  if (!combo.rect().contains(combo_position)) {
+    return false;
+  }
+  if (!combo.isEditable()) {
+    return true;
+  }
+  QStyleOptionComboBox option;
+  option.initFrom(&combo);
+  option.editable = true;
+  option.subControls = QStyle::SC_All;
+  return combo.style()->hitTestComplexControl(QStyle::CC_ComboBox, &option, combo_position,
+                                              &combo) == QStyle::SC_ComboBoxArrow;
+}
+
+bool key_would_open_popup(const QComboBox& combo, const QKeyEvent& key) {
+  switch (key.key()) {
+    case Qt::Key_F4:
+      return true;
+    case Qt::Key_Space:
+      return !combo.isEditable();
+    case Qt::Key_Up:
+    case Qt::Key_Down:
+      return (key.modifiers() & Qt::AltModifier) != 0;
+    default:
+      return false;
+  }
+}
+
+// The chooser is a plain child widget inside the dialog's own window, never a
+// new top-level window: every kind of top-level shown from a dialog context
+// is broken on this platform (the native popup paints but takes no input; a
+// dialog-parented or even parentless chooser dialog took no input and did not
+// paint). Child widgets inside the already-working dialog window both paint
+// and receive input.
+class DialogComboChooser final : public QListWidget {
+public:
+  DialogComboChooser(QComboBox& combo, QWidget* host)
+      : QListWidget(host), combo_(&combo) {
+    setObjectName(QStringLiteral("wasmComboChooserList"));
+    setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    for (int index = 0; index < combo.count(); ++index) {
+      addItem(new QListWidgetItem(combo.itemIcon(index), combo.itemText(index)));
+    }
+    setCurrentRow(combo.currentIndex());
+    connect(this, &QListWidget::itemClicked, this, [this] { pick(currentRow()); });
+    connect(this, &QListWidget::itemActivated, this, [this] { pick(currentRow()); });
+
+    // Popup-like sizing and placement, clamped to the host window.
+    const auto host_rect = host->rect();
+    const auto row_height = std::max(1, sizeHintForRow(0));
+    const auto frame = 2 * (frameWidth() + 1);
+    const auto height = std::min(row_height * combo.count() + frame,
+                                 std::max(row_height + frame, host_rect.height() - 8));
+    const auto width =
+        std::clamp(std::max(combo.width(), sizeHintForColumn(0) + frame +
+                                               verticalScrollBar()->sizeHint().width()),
+                   60, std::max(60, host_rect.width() - 8));
+    resize(width, height);
+    auto position = combo.mapTo(host, QPoint(0, combo.height()));
+    position.setX(std::clamp(position.x(), 0, std::max(0, host_rect.width() - width)));
+    if (position.y() + height > host_rect.height()) {
+      position.setY(std::max(0, combo.mapTo(host, QPoint(0, 0)).y() - height));
+    }
+    move(position);
+    raise();
+    show();
+    setFocus();
+    scrollToItem(currentItem());
+  }
+
+  void dismiss() {
+    hide();
+    deleteLater();
+  }
+
+  // True when a global-position press lands inside the chooser; presses
+  // outside dismiss it, matching popup semantics.
+  [[nodiscard]] bool contains_global(QPoint global_position) const {
+    return rect().contains(mapFromGlobal(global_position));
+  }
+
+private:
+  void pick(int row) {
+    if (combo_ != nullptr && row >= 0 && row < combo_->count()) {
+      if (row != combo_->currentIndex()) {
+        combo_->setCurrentIndex(row);
+      }
+      // A real popup pick reports through activated/textActivated (several
+      // dialogs act only on those, e.g. "Custom color..." rows); signals
+      // cannot be emitted from outside the class, so raise them by metacall.
+      QMetaObject::invokeMethod(combo_, "activated", Q_ARG(int, row));
+      QMetaObject::invokeMethod(combo_, "textActivated",
+                                Q_ARG(QString, combo_->itemText(row)));
+    }
+    dismiss();
+  }
+
+  void keyPressEvent(QKeyEvent* event) override {
+    if (event->key() == Qt::Key_Escape) {
+      dismiss();
+      return;
+    }
+    if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) {
+      pick(currentRow());
+      return;
+    }
+    QListWidget::keyPressEvent(event);
+  }
+
+  QPointer<QComboBox> combo_;
+};
+
+class DialogComboPopupFilter final : public QObject {
+public:
+  using QObject::QObject;
+
+protected:
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (event->type() == QEvent::MouseButtonPress) {
+      const auto global_position =
+          static_cast<QMouseEvent*>(event)->globalPosition().toPoint();
+      if (chooser_ != nullptr) {
+        // Presses inside the open chooser flow to it normally; the first
+        // press outside dismisses it and is consumed, like a real popup.
+        if (chooser_->contains_global(global_position)) {
+          return false;
+        }
+        chooser_->dismiss();
+        return true;
+      }
+      auto* combo = combo_box_for(watched);
+      if (combo == nullptr || !combo_needs_chooser(*combo)) {
+        return false;
+      }
+      if (!press_would_open_popup(*combo, combo->mapFromGlobal(global_position))) {
+        return false;
+      }
+      chooser_ = new DialogComboChooser(*combo, combo->window());
+      return true;
+    }
+    if (event->type() == QEvent::KeyPress) {
+      if (chooser_ != nullptr) {
+        return false;  // the focused chooser handles its own keys
+      }
+      auto* combo = combo_box_for(watched);
+      if (combo == nullptr || !combo_needs_chooser(*combo) ||
+          !key_would_open_popup(*combo, *static_cast<QKeyEvent*>(event))) {
+        return false;
+      }
+      chooser_ = new DialogComboChooser(*combo, combo->window());
+      return true;
+    }
+    return false;
+  }
+
+private:
+  QPointer<DialogComboChooser> chooser_;
+};
+
+}  // namespace
+
+void install_wasm_dialog_combo_workaround() {
+  static DialogComboPopupFilter* filter = nullptr;
+  if (filter != nullptr) {
+    return;
+  }
+  auto* app = QCoreApplication::instance();
+  filter = new DialogComboPopupFilter(app);
+  app->installEventFilter(filter);
 }
 
 }  // namespace patchy::ui::wasm_files

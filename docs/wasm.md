@@ -402,6 +402,30 @@ Wasm-only accommodations for living inside a single browser canvas:
   compositor's stay-on-bottom stacking zone: clicking it still activates and
   focuses it, but the raise becomes a no-op, and dialogs and popups keep their
   normal order in the regular zone above.
+- **Dialog combos use an in-window chooser, not the native popup.** Any
+  top-level window opened from a secondary top-level window (any dialog,
+  modal or not) is broken on Qt 6.8 wasm. The native combo popup renders but
+  never receives pointer or key events: the options list appears, clicks
+  select nothing, Escape does not dismiss, and real mouse movement spams
+  "QWidget::mapFrom(): parent must be in parent hierarchy" warnings. A
+  replacement chooser shown as its own dialog fared worse (no input, and no
+  paint), whether parented to the dialog or parentless. Main-window popups
+  (the menu bar, the options-bar percent pickers) and dialogs opened from
+  the main window work, and the bug reproduces identically on the
+  single-threaded and multithreaded kits, so it is unrelated to threading.
+  The workaround (`install_wasm_dialog_combo_workaround`,
+  dialog_utils_wasm.cpp, installed from the MainWindow constructor)
+  intercepts every interaction that would open a dialog combo's popup (press
+  on the combo or its arrow, F4, Space, Alt+Down/Up) and shows a
+  popup-placed QListWidget as a plain child widget inside the dialog's own
+  window, which paints and receives input normally; a press outside the list
+  dismisses it. Picking emits the same activated/textActivated signals as a
+  real popup, which several dialogs ("Custom color..." rows) depend on.
+  Known remaining gaps of the same class, to convert to the same in-window
+  shape if they matter: QMenu context menus opened from inside a dialog (for
+  example the Script Manager's script-list right-click menu), and
+  second-level dialogs launched from a dialog (for example the color picker
+  behind a "Custom color..." row), which need verification.
 - **Dialogs clamp to the canvas.** Desktop window managers keep an oversized
   dialog's chrome reachable; the browser canvas has nothing equivalent, so a
   dialog taller than the canvas left its OK/Cancel row unreachable below the
