@@ -591,7 +591,10 @@ The deployed page is not Qt's generated `patchy.html` shell (that one still
 lands in `build\wasm-release` and serves the dev loop via `serve-app.ps1`).
 The site stages a Patchy-branded shell configured from
 `packaging\web\patchy.html.in`: logo, app name and version, and a real
-download progress bar. Emscripten exposes no download-progress callback, so
+download progress bar. The browser-tab favicon is the app's own multi-size
+icon: `build-wasm.bat` stages `src\app\patchy.ico` as `favicon.ico`, the
+shell links it with the cache tag, and `patchy-logo.png` doubles as the
+`apple-touch-icon`. Emscripten exposes no download-progress callback, so
 the page fetches `patchy.wasm` itself with a byte-counting stream reader and
 hands the bytes to `qtLoad` as `wasmBinary`; `qtLoad` forwards unknown config
 keys to the Emscripten module factory, which is also how the page's

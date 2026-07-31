@@ -13,7 +13,8 @@
     <!-- 1:1 mapping between CSS pixels and Qt device independent pixels on mobile. -->
     <meta name="viewport" content="width=device-width, height=device-height, user-scalable=0"/>
     <title>Patchy Image Editor</title>
-    <link rel="icon" type="image/png" href="patchy-logo.png?v=__PATCHY_CACHE_TAG__">
+    <link rel="icon" type="image/x-icon" href="favicon.ico?v=__PATCHY_CACHE_TAG__">
+    <link rel="apple-touch-icon" href="patchy-logo.png?v=__PATCHY_CACHE_TAG__">
     <style>
       html, body { padding: 0; margin: 0; overflow: hidden; height: 100%; background: #151a23; }
       #screen { width: 100%; height: 100%; display: none; }

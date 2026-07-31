@@ -69,6 +69,8 @@ for %%F in (patchy.js patchy.wasm patchy.data qtloader.js) do (
   copy /Y "%BUILD_DIR%\%%F" "%SITE_DIR%\" >nul || goto fail
 )
 copy /Y "%REPO%\packaging\linux\icons\hicolor\256x256\apps\com.rtsoft.patchy.png" "%SITE_DIR%\patchy-logo.png" >nul || goto fail
+rem The browser-tab favicon is the app's own multi-size icon (16-256 px).
+copy /Y "%REPO%\src\app\patchy.ico" "%SITE_DIR%\favicon.ico" >nul || goto fail
 copy /Y "%REPO%\packaging\web\.htaccess" "%SITE_DIR%\.htaccess" >nul || goto fail
 
 rem Configure the shell template; it is staged as both patchy.html and an
