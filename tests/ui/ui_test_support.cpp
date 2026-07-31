@@ -2,7 +2,15 @@
 
 #include "ui_test_access.hpp"
 
+#include <QDir>
+#include <QFont>
+#include <QFontDatabase>
+#include <QFontInfo>
+#include <QFontMetrics>
 #include <QScrollBar>
+
+#include <cstdio>
+#include <functional>
 
 namespace patchy::test::ui {
 
@@ -531,6 +539,59 @@ void cleanup_after_visual_test() {
   auto settings = patchy::ui::app_settings();
   settings.remove(QStringLiteral("preferences/language"));
   settings.sync();
+}
+
+int run_bundled_web_fonts_probe() {
+  const QDir fonts_dir(QStringLiteral(PATCHY_SOURCE_DIR "/third_party/fonts-web"));
+  if (!fonts_dir.exists()) {
+    std::fprintf(stderr, "probe: missing directory %s\n", qPrintable(fonts_dir.absolutePath()));
+    return 1;
+  }
+  QStringList families;
+  bool failed = false;
+  std::function<void(const QDir&)> register_dir = [&](const QDir& dir) {
+    for (const auto& sub : dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+      register_dir(QDir(sub.absoluteFilePath()));
+    }
+    const QStringList filters = {QStringLiteral("*.ttf"), QStringLiteral("*.otf"),
+                                 QStringLiteral("*.ttc")};
+    for (const auto& file : dir.entryInfoList(filters, QDir::Files, QDir::Name)) {
+      const auto font_id = QFontDatabase::addApplicationFont(file.absoluteFilePath());
+      if (font_id < 0) {
+        std::fprintf(stderr, "probe: addApplicationFont failed: %s\n",
+                     qPrintable(file.absoluteFilePath()));
+        failed = true;
+        continue;
+      }
+      for (const auto& family : QFontDatabase::applicationFontFamilies(font_id)) {
+        if (!families.contains(family)) {
+          families.push_back(family);
+        }
+      }
+    }
+  };
+  register_dir(fonts_dir);
+  for (const auto& family : families) {
+    QFont font(family);
+    font.setStyleStrategy(QFont::NoFontMerging);
+    const QFontMetrics metrics(font);
+    if (metrics.height() <= 0) {
+      std::fprintf(stderr, "probe: no engine for family: %s\n", qPrintable(family));
+      failed = true;
+      continue;
+    }
+    const QFontInfo info(font);
+    if (info.family().compare(family, Qt::CaseInsensitive) != 0) {
+      std::fprintf(stderr, "probe: engine fell back for family: %s -> %s\n", qPrintable(family),
+                   qPrintable(info.family()));
+      failed = true;
+      continue;
+    }
+    std::printf("family: %s\n", qPrintable(family));
+  }
+  std::fflush(stdout);
+  std::fflush(stderr);
+  return failed ? 1 : 0;
 }
 
 bool color_close(QColor actual, QColor expected, int tolerance) {

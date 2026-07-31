@@ -105,3 +105,7 @@ window registers them for immediate use and persists them:
 Tests: `tests/core/font_zip_tests.cpp` (extractor) and the two `ui_user_fonts`
 / `ui_font_drop` cases in `tests/ui/text_editor_font_picker_tests.cpp`
 (registration, persistence, duplicates, invalid fonts, drop routing).
+`ui_bundled_web_fonts_register_and_create_engines` guards the whole
+`third_party/fonts-web` inventory but registers it in a child process
+(`--bundled-web-fonts-probe`) so the suite's font database stays clean; see
+[testing.md](testing.md).

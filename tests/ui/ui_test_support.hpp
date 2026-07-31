@@ -593,6 +593,14 @@ void verify_open_progress_dialog(const QString& expected_file_name, bool& saw_di
 
 void cleanup_after_visual_test();
 
+// Child-process body of ui_bundled_web_fonts_register_and_create_engines: registers the
+// whole third_party/fonts-web inventory and validates that every family produces a working
+// engine, printing "family: <name>" lines to stdout. Runs only in a child spawned with
+// --bundled-web-fonts-probe (see tests/ui/main.cpp): application fonts are never removed at
+// runtime, and permanently registering the inventory in the suite process changes Qt's
+// missing-family fallback for every later test. Returns a process exit code.
+int run_bundled_web_fonts_probe();
+
 bool color_close(QColor actual, QColor expected, int tolerance);
 
 bool images_equal_rgba(const QImage& left, const QImage& right);

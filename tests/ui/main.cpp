@@ -19,6 +19,7 @@
 #include <QSettings>
 #include <QString>
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
@@ -163,6 +164,14 @@ int main(int argc, char* argv[]) {
 #endif
   qputenv("QT_QPA_PLATFORM", QByteArray("offscreen"));
   QApplication app(argc, argv);
+  // Child mode for ui_bundled_web_fonts_register_and_create_engines: register and
+  // validate the bundled web-font inventory without polluting the parent suite's
+  // font database (application fonts are never removed at runtime). Must return
+  // before the QSettings bootstrap below so the child never rewrites the store
+  // the parent suite is using.
+  if (argc > 1 && std::string(argv[1]) == "--bundled-web-fonts-probe") {
+    return patchy::test::ui::run_bundled_web_fonts_probe();
+  }
   app.setFont(visual_test_font());
   ensure_artifact_dir();
   const auto test_settings_path = QDir::current().filePath(QStringLiteral("test-artifacts/settings"));
@@ -238,10 +247,29 @@ int main(int argc, char* argv[]) {
   if (argc > 1) {
     filter = argv[1];
   }
+  // The filter is a comma-separated list of name substrings; a test runs if its
+  // name contains any of them (a single substring behaves as before). Ordered
+  // cross-test repros need this: pick the polluting test and the victim in one run.
+  std::vector<std::string> filters;
+  for (std::size_t start = 0; start <= filter.size();) {
+    const auto comma = filter.find(',', start);
+    const auto end = comma == std::string::npos ? filter.size() : comma;
+    if (end > start) {
+      filters.push_back(filter.substr(start, end - start));
+    }
+    if (comma == std::string::npos) {
+      break;
+    }
+    start = comma + 1;
+  }
 
   int failures = 0;
   for (const auto& test : tests) {
-    if (!filter.empty() && test.name.find(filter) == std::string::npos) {
+    const bool selected =
+        filters.empty() || std::any_of(filters.begin(), filters.end(), [&test](const std::string& item) {
+          return test.name.find(item) != std::string::npos;
+        });
+    if (!selected) {
       continue;
     }
     cleanup_after_visual_test();

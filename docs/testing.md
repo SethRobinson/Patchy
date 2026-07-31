@@ -14,7 +14,7 @@ Local-fixture tests skip on remote machines because `local-test-fixtures` is del
 
 ## Running and filtering
 
-Run `patchy_ui_visual_tests.exe` with `QT_QPA_PLATFORM=offscreen`. Both release test binaries accept a name substring as their first argument. The UI suite also reads `PATCHY_UI_TEST_FILTER`; there is no `--test` flag.
+Run `patchy_ui_visual_tests.exe` with `QT_QPA_PLATFORM=offscreen`. Both release test binaries accept a name substring as their first argument. The UI suite also reads `PATCHY_UI_TEST_FILTER`; there is no `--test` flag. The UI filter may also be a comma-separated list of substrings (a test runs if its name contains any of them), which is how to reproduce ordered cross-test interactions: select the state-leaking test and its victim in one run. The core suite takes a single substring only.
 
 Never run two test processes (or a test process and the app) at the same time: they share the QSettings store, and a concurrent run rewrites preference keys mid-test, producing failures such as `ui_language_saved_preference_overrides_system_language` seeing its saved language clobbered. Run suites sequentially.
 
@@ -23,6 +23,8 @@ Tests save PNG artifacts through `save_widget_artifact(...)` into `test-artifact
 ## Offscreen fonts and input
 
 The offscreen platform does not enumerate installed Windows fonts. Register required faces through `tests/test_fonts.hpp` or `QFontDatabase::addApplicationFont`. Never remove an application font during the suite because invalidating an in-use font cache can crash it.
+
+Because fonts are never removed, every registration is permanent suite state: newly present families change which face Qt's missing-family fallback picks, which moves text metrics in every later test (the PSD text re-edit tests in `text_transform_commit_tests` pin committed rasters against that fallback and fail if a mass registration runs first). Register only the faces a test actually needs. A test that must register a large inventory runs it in a child process instead: `ui_bundled_web_fonts_register_and_create_engines` spawns `patchy_ui_visual_tests.exe --bundled-web-fonts-probe` (handled in `tests/ui/main.cpp` before the QSettings bootstrap, so the child never touches the parent's settings store).
 
 FreeType may expose an OpenType typographic family rather than its familiar GDI family, such as Arial with style Black for `ariblk.ttf`. Use `available_text_family_style_match`; do not gate tests on `QFontDatabase::families().contains(...)`.
 

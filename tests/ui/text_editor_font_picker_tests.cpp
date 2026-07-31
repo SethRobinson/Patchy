@@ -137,6 +137,7 @@
 #include <QPaintEvent>
 #include <QPixmap>
 #include <QPointingDevice>
+#include <QProcess>
 #include <QProgressDialog>
 #include <QPushButton>
 #include <QStackedWidget>
@@ -1556,49 +1557,37 @@ void ui_user_fonts_add_persist_and_clear() {
 // Every bundled web font must register in the FreeType font database (the
 // offscreen platform uses the same Qt-bundled FreeType the wasm build uses)
 // and produce a working engine for each of its families. Guards the wasm
-// build's whole font inventory from the desktop suite.
+// build's whole font inventory from the desktop suite. The registration runs
+// in a child process (--bundled-web-fonts-probe, handled in tests/ui/main.cpp
+// by run_bundled_web_fonts_probe): application fonts are never removed at
+// runtime, so registering the ~40-file inventory here would permanently change
+// Qt's missing-family fallback for every later test, and the PSD text re-edit
+// tests pin metrics against that fallback. The child exits before the suite's
+// QSettings bootstrap, so it never touches the store shared with this process.
 void ui_bundled_web_fonts_register_and_create_engines() {
-  const QDir fonts_dir(QStringLiteral(PATCHY_SOURCE_DIR "/third_party/fonts-web"));
-  CHECK(fonts_dir.exists());
-  QStringList families;
-  std::function<void(const QDir&)> register_dir = [&](const QDir& dir) {
-    for (const auto& sub : dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot)) {
-      register_dir(QDir(sub.absoluteFilePath()));
-    }
-    const QStringList filters = {QStringLiteral("*.ttf"), QStringLiteral("*.otf"),
-                                 QStringLiteral("*.ttc")};
-    for (const auto& file : dir.entryInfoList(filters, QDir::Files, QDir::Name)) {
-      const auto font_id = QFontDatabase::addApplicationFont(file.absoluteFilePath());
-      if (font_id < 0) {
-        throw std::runtime_error("addApplicationFont failed: " +
-                                 file.absoluteFilePath().toStdString());
-      }
-      for (const auto& family : QFontDatabase::applicationFontFamilies(font_id)) {
-        if (!families.contains(family)) {
-          families.push_back(family);
-        }
-      }
-    }
-  };
-  register_dir(fonts_dir);
-  CHECK(families.contains(QStringLiteral("Liberation Sans")));
-  CHECK(families.contains(QStringLiteral("Carlito")));
-  CHECK(families.contains(QStringLiteral("Noto Sans")));
-  CHECK(families.contains(QStringLiteral("Noto Serif")));
-  CHECK(families.contains(QStringLiteral("Noto Sans JP")));
-  for (const auto& family : families) {
-    QFont font(family);
-    font.setStyleStrategy(QFont::NoFontMerging);
-    const QFontMetrics metrics(font);
-    if (metrics.height() <= 0) {
-      throw std::runtime_error("no engine for family: " + family.toStdString());
-    }
-    const QFontInfo info(font);
-    if (info.family().compare(family, Qt::CaseInsensitive) != 0) {
-      throw std::runtime_error("engine fell back for family: " + family.toStdString() +
-                               " -> " + info.family().toStdString());
-    }
+  QProcess probe;
+  probe.setProgram(QCoreApplication::applicationFilePath());
+  probe.setArguments({QStringLiteral("--bundled-web-fonts-probe")});
+  probe.start();
+  CHECK(probe.waitForStarted(30000));
+  CHECK(probe.waitForFinished(180000));
+  auto probe_stdout = QString::fromUtf8(probe.readAllStandardOutput());
+  probe_stdout.replace(QStringLiteral("\r\n"), QStringLiteral("\n"));
+  if (probe.exitStatus() != QProcess::NormalExit || probe.exitCode() != 0) {
+    const auto probe_stderr = QString::fromUtf8(probe.readAllStandardError());
+    std::printf("  bundled-web-fonts probe stderr:\n%s\n", probe_stderr.toUtf8().constData());
   }
+  CHECK(probe.exitStatus() == QProcess::NormalExit);
+  CHECK(probe.exitCode() == 0);
+  const auto listed = [&probe_stdout](const char* family) {
+    return probe_stdout.contains(QStringLiteral("family: ") + QLatin1String(family) +
+                                 QLatin1Char('\n'));
+  };
+  CHECK(listed("Liberation Sans"));
+  CHECK(listed("Carlito"));
+  CHECK(listed("Noto Sans"));
+  CHECK(listed("Noto Serif"));
+  CHECK(listed("Noto Sans JP"));
 }
 
 // Dropping a font file on the main window registers it instead of trying to
