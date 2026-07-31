@@ -5,6 +5,7 @@
 
 #include <QApplication>
 #include <QComboBox>
+#include <QCoreApplication>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
@@ -69,9 +70,16 @@ EM_JS(void, patchy_js_open_file_picker, (const char* accept, int generation), {
 });
 
 // Page-side drop target for files dragged in from the desktop. Reading the
-// dropped Files is pure JS; only after every byte sits in a plain JS queue
-// does it call back into the module (the app idles in its main loop at drop
-// time, so the call-in is an ordinary event entry).
+// dropped Files is pure JS writing into a plain JS queue; the C++ side drains
+// that queue from a QTimer (install_web_drop_target). The JS must never call a
+// wasm export directly from the promise callback: a raw JS->wasm entry runs
+// outside Qt's suspend-resume control, and when the open path it triggers
+// suspends again (the open progress dialog's nested event loop) while the
+// suspended main loop has a resume already in flight (any live timer of an
+// open document), the single-slot Asyncify state is clobbered and the main
+// thread's continuation is silently lost - the app parks forever with no
+// console error. A Qt timer resumes the main loop first and runs the handler
+// inside it, which is the same reliable shape the file picker uses.
 EM_JS(void, patchy_js_install_drop_target, (), {
   if (window.__patchyDropQueue) {
     return;
@@ -100,7 +108,6 @@ EM_JS(void, patchy_js_install_drop_target, (), {
         (buf) => ({name : file.name, bytes : new Uint8Array(buf)})));
     Promise.all(reads).then((entries) => {
       window.__patchyDropQueue.push(...entries);
-      _patchy_wasm_drops_ready();
     }, () => {});
   });
 });
@@ -321,15 +328,21 @@ QString prompt_save_file(QWidget* parent, const QString& caption, const QString&
   return dir + QLatin1Char('/') + file_name;
 }
 
-void install_web_drop_target(std::function<void(const QString& path)> open_dropped_path) {
-  web_drop_handler() = std::move(open_dropped_path);
-  patchy_js_install_drop_target();
-}
+// Drains the page-side drop queue. Runs from the poll timer below, so the
+// call chain sits inside the resumed main loop and the open path may nest
+// event loops safely (see the comment on patchy_js_install_drop_target).
+void drain_web_drop_queue() {
+  // The handler can run a nested event loop (open progress dialog), which
+  // keeps the poll timer firing; do not re-enter a drain mid-open.
+  static bool draining = false;
+  if (draining) {
+    return;
+  }
+  draining = true;
+  struct DrainingReset {
+    ~DrainingReset() { draining = false; }
+  } draining_reset;
 
-// Called from the EM_JS drop handler once every dropped file's bytes sit in
-// the page-side queue; runs as an ordinary JS->wasm event entry while the app
-// idles in its main loop.
-extern "C" EMSCRIPTEN_KEEPALIVE void patchy_wasm_drops_ready() {
   auto& handler = web_drop_handler();
   auto queue = emscripten::val::global("window")["__patchyDropQueue"];
   if (!handler || queue.isUndefined() || queue.isNull()) {
@@ -346,6 +359,18 @@ extern "C" EMSCRIPTEN_KEEPALIVE void patchy_wasm_drops_ready() {
     if (!path.isEmpty()) {
       handler(path);
     }
+  }
+}
+
+void install_web_drop_target(std::function<void(const QString& path)> open_dropped_path) {
+  web_drop_handler() = std::move(open_dropped_path);
+  patchy_js_install_drop_target();
+  static QTimer* poll_timer = nullptr;
+  if (poll_timer == nullptr) {
+    poll_timer = new QTimer(QCoreApplication::instance());
+    poll_timer->setInterval(250);
+    QObject::connect(poll_timer, &QTimer::timeout, poll_timer, [] { drain_web_drop_queue(); });
+    poll_timer->start();
   }
 }
 

@@ -323,7 +323,7 @@ delegate to it under `Q_OS_WASM`, and `offer_browser_download_for_saved_file`
 sprite-sheet, smart-object, Curves-preset, gradient-export, and script-editor
 paths.
 
-Two platform findings constrain the shape; do not regress them:
+Three platform findings constrain the shape; do not regress them:
 
 - **A JS promise cannot complete into a nested event loop.** With the app
   suspended in `QEventLoop::exec` (Asyncify), DOM events still re-enter the
@@ -334,17 +334,40 @@ Two platform findings constrain the shape; do not regress them:
   the blocked C++ side polls that object with a QTimer (timers reliably
   resume the suspended loop). Never wait on a Qt async JS API from a nested
   loop.
-- **External drops arrive through page-side glue.** Qt 6.8 wasm registered no
-  browser dragover/drop listeners at all (only dragstart/dragleave/dragend for
-  its own drags), so the browser never delivered a desktop file drop to Qt.
-  The glue installs page-side dragover/drop listeners itself
-  (`install_web_drop_target`, wired in the MainWindow constructor), reads the
-  dropped files in JS, and reports them one MEMFS path at a time to
-  `MainWindow::handle_web_file_drop`. The desktop `QDropEvent` path stays
-  untouched. On Qt 6.10 the plugin does register its own `dragover`/`drop`
-  listeners on the window element, so both paths now exist; if a dropped file
-  is ever seen opening twice, gate one of them off rather than removing the
-  MEMFS glue, which is what feeds the path-based open pipeline.
+- **External drops arrive through page-side glue, drained by a Qt timer.**
+  Qt 6.8 wasm registered no browser dragover/drop listeners at all (only
+  dragstart/dragleave/dragend for its own drags), so the browser never
+  delivered a desktop file drop to Qt. The glue installs page-side
+  dragover/drop listeners itself (`install_web_drop_target`, wired in the
+  MainWindow constructor), reads the dropped files in JS into a plain JS
+  queue, and a 250 ms QTimer on the C++ side drains that queue into
+  `MainWindow::handle_web_file_drop`, one MEMFS path at a time. The desktop
+  `QDropEvent` path stays untouched. The timer is not a convenience, it is
+  the third platform finding (below): the glue used to call a wasm export
+  directly from its Promise.all callback, which froze the deployed build the
+  moment a drop happened while another document was open. Qt 6.10 also
+  registers its own `dragover`/`drop` listeners on the window element, but
+  its handlers run deferred (the JS listener only queues the event for the
+  suspend-resume control), so they see a neutered `dataTransfer` for real
+  drops, and its drag-move preview carries only `blob://placeholder` urls,
+  which `accept_open_file_drag` rejects; Qt's native path is inert for
+  external file drops and no double-open happens.
+- **A raw JS-to-wasm export call must never lead to a nested event loop.**
+  JS code (a promise callback, any hand-registered listener) must not call a
+  wasm export whose C++ path can suspend: that entry runs outside Qt's
+  suspend-resume control, and if the idle-suspended main loop already has a
+  resume in flight (any live timer of an open document), the nested suspend
+  clobbers the single-slot Asyncify state and the main thread's continuation
+  is silently lost. The app parks forever with the "Opening..." dialog up, JS
+  timers keep running, resizing leaves a white canvas, and the console shows
+  nothing. This froze the deployed 0.86 site on any drop made while a
+  document was open (2026-07-31): the drop glue used to call
+  `_patchy_wasm_drops_ready()` straight from its Promise.all callback. A
+  first drop on a fresh boot usually survived by timing luck, which is why
+  quick local checks kept passing. Page-side JS writes plain state; the C++
+  side polls it from a QTimer, whose handler the suspend-resume control runs
+  inside the resumed main loop, where nesting an exec is safe. The picker's
+  poll timer and the drop queue's drain timer are both this rule.
 
 The other step-3 decisions:
 
