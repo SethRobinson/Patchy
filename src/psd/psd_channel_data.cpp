@@ -13,6 +13,7 @@
 #include "core/smart_object.hpp"
 #include "core/style_contour.hpp"
 #include "core/text_warp.hpp"
+#include "core/worker_budget.hpp"
 #include "formats/acv_curves_io.hpp"
 #include "psd/psd_binary.hpp"
 #include "psd/psd_descriptor.hpp"
@@ -584,12 +585,14 @@ void convert_cmyk_planes_to_rgb(PixelBuffer& pixels, const std::uint8_t* cyan,
     convert_range(0, pixel_count);
     return;
   }
-  // Capped at 16 like the strip renderers: the caller blocks on the joins, so
-  // on wasm every worker must come from the pre-spawned pthread pool, and the
-  // pool is sized against this bound (see the app link block in
-  // CMakeLists.txt). Output is byte-identical for any worker count.
-  const auto worker_count =
-      std::min<std::size_t>(std::max<std::size_t>(1, std::thread::hardware_concurrency()), 16);
+  // Capped at 16 like the strip renderers, then clamped to the idle pthread
+  // pool when running on the wasm main thread: the caller blocks on the
+  // joins, and a fan-out that needs a lazily spawned worker while blocked
+  // deadlocks the tab (see core/worker_budget.hpp). Output is byte-identical
+  // for any worker count.
+  const auto worker_count = static_cast<std::size_t>(std::max(
+      1, max_blocking_fanout_workers(static_cast<int>(
+             std::min<std::size_t>(std::max<std::size_t>(1, std::thread::hardware_concurrency()), 16)))));
   // One worker means the split buys nothing; run inline instead of spawning a
   // single thread (which single-threaded wasm builds cannot create at all).
   if (worker_count <= 1) {

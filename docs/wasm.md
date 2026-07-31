@@ -292,19 +292,31 @@ then browse to `http://localhost:8973/patchy.html`.
   ready-future shape keeps the `wait_for == ready` event pumps working; never
   swap those sites to `std::launch::deferred`, which those pumps would spin
   on forever.
-- **Pthread pool sizing.** `pthread_create` cannot finish lazily while the
-  spawning thread blocks, and Edit > Flatten runs the strip compositor on the
-  browser main thread and immediately joins, so the pool must pre-spawn the
-  largest blocking fan-out. The CMYK site in `psd_channel_data.cpp` and both
-  strip renderers are capped at 16 workers; the app sets
-  `QT_WASM_PTHREAD_POOL_SIZE` to the JS expression
-  `Math.min(navigator.hardwareConcurrency,16)+8` (evaluated at page load), 16
-  for the worst join fan-out plus headroom for concurrently live
-  preview/open/undo workers. `PTHREAD_POOL_SIZE_STRICT` is deliberately not
-  set: overflow lazily spawns (fine from worker threads, which yield)
-  instead of aborting a visitor's session. Workers get 4 MB stacks
-  (`-sDEFAULT_PTHREAD_STACK_SIZE`); LibRaw decode and full compositor walks
-  run there now.
+- **Pthread pool sizing and the main-thread fan-out clamp.** `pthread_create`
+  cannot finish lazily while the spawning thread blocks, and Edit > Flatten
+  runs the strip compositor on the browser main thread and immediately joins,
+  so the pool must pre-spawn the largest blocking fan-out. The CMYK site in
+  `psd_channel_data.cpp` and both strip renderers are capped at 16 workers;
+  the app sets `QT_WASM_PTHREAD_POOL_SIZE` to the JS expression
+  `Math.min(navigator.hardwareConcurrency,16)+16` (evaluated at page load).
+  **Headroom alone proved insufficient (2026-08-01):** on a 60 MB 4-layer
+  PSD, image rotate followed by merge-visible reliably wedged the deployed
+  tab in ~90 s, because enough preview/thumbnail/undo workers were still
+  busy that the merge's 16-strip main-thread join exceeded the idle pool
+  (then +8 headroom) and waited forever on a lazy spawn that needs the main
+  thread back in the event loop. Verified by bisect: single-threaded mode
+  and a +40 pool both eliminate the hang; mimalloc/dlmalloc made no
+  difference. The guard is now structural:
+  `max_blocking_fanout_workers` (core/worker_budget.{hpp,cpp}) clamps every
+  main-thread blocking fan-out to the idle pre-spawned pool
+  (`PThread.unusedWorkers.length` minus a race margin of 2, via EM_ASM),
+  falling back to the sequential path when fewer than two workers are free;
+  worker-thread callers pass through unchanged (lazy spawning yields there).
+  Strip count never changes output bytes, so the canaries are unaffected.
+  `PTHREAD_POOL_SIZE_STRICT` stays unset: overflow lazily spawns (fine from
+  worker threads) instead of aborting a visitor's session. Workers get 4 MB
+  stacks (`-sDEFAULT_PTHREAD_STACK_SIZE`); LibRaw decode and full compositor
+  walks run there now.
 - **Compiled out or stubbed:** QtPrintSupport does not exist on wasm, so
   `print_dialog.cpp` is replaced by `print_dialog_wasm.cpp` stubs and the
   File menu hides Print/Page Setup (the portable placement/render half lives

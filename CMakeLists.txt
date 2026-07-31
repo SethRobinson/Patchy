@@ -108,6 +108,7 @@ add_library(patchy_core
   src/core/style_presets.cpp
   src/core/text_warp.cpp
   src/core/vector_live_shapes.cpp
+  src/core/worker_budget.cpp
   src/core/vector_raster.cpp
   src/core/vector_shape.cpp
   src/core/warp_mesh.hpp
@@ -1014,9 +1015,14 @@ if(PATCHY_BUILD_APP)
       # a lazily spawned worker cannot finish instantiating while the main
       # thread is blocked, which deadlocks). Sized to the visitor's machine:
       # up to 16 join-fanout workers plus headroom for the preview/open/undo
-      # workers that may be live at the same time. Emscripten evaluates the
-      # expression at page load. No PTHREAD_POOL_SIZE_STRICT: overflow lazily
-      # spawns (fine from worker threads, which do yield) instead of aborting.
+      # workers that may be live at the same time. Headroom alone is not the
+      # guard: on a 60 MB document enough previews stayed busy to exhaust the
+      # old +8 pool and wedge the tab (2026-08-01), so main-thread blocking
+      # fan-outs now also clamp themselves to the idle pool via
+      # core/worker_budget.hpp; the +16 keeps them parallel under load.
+      # Emscripten evaluates the expression at page load. No
+      # PTHREAD_POOL_SIZE_STRICT: overflow lazily spawns (fine from worker
+      # threads, which do yield) instead of aborting.
       # QT_QML_MODULE_NO_IMPORT_SCAN: Patchy ships no QML (Qt6::Qml is linked
       # for QJSEngine scripting only, which needs no QML plugins). Without the
       # opt-out, Qt's static-build finalizer runs qmlimportscanner with
@@ -1025,7 +1031,7 @@ if(PATCHY_BUILD_APP)
       # the whole QtQuick/Controls/Dialogs stack into patchy.wasm as dead code.
       set_target_properties(patchy PROPERTIES
         QT_WASM_INITIAL_MEMORY "512MB"
-        QT_WASM_PTHREAD_POOL_SIZE "Math.min(navigator.hardwareConcurrency,16)+8"
+        QT_WASM_PTHREAD_POOL_SIZE "Math.min(navigator.hardwareConcurrency,16)+16"
         QT_QML_MODULE_NO_IMPORT_SCAN TRUE
       )
       # The qmltooling debug-service plugins are default static plugins of

@@ -2,6 +2,7 @@
 
 #include "core/blend_math.hpp"
 #include "core/layer_metadata.hpp"
+#include "core/worker_budget.hpp"
 #include "core/smart_object.hpp"
 #include "core/layer_render_utils.hpp"
 #include "formats/bmp_document_io.hpp"
@@ -1080,8 +1081,11 @@ QImage render_document_rect(const Document& document, QRect document_rect, bool 
   RenderProfile profile;
   const auto clip_area = static_cast<std::int64_t>(clip.width) * static_cast<std::int64_t>(clip.height);
   const auto hardware_threads = static_cast<int>(std::thread::hardware_concurrency());
-  const auto parallel_strips =
-      std::clamp(std::min(clip.height / 128, hardware_threads), 1, 16);
+  // max_blocking_fanout_workers: this thread blocks on the strip futures, so
+  // on the wasm main thread the fan-out must fit the idle pthread pool or it
+  // deadlocks the tab (fewer strips render the same bytes, just slower).
+  const auto parallel_strips = max_blocking_fanout_workers(
+      std::clamp(std::min(clip.height / 128, hardware_threads), 1, 16));
   const bool parallel_render = !timed_render && parallel_strips >= 2 && clip_area >= 4'000'000 &&
                                !qEnvironmentVariableIsSet("PATCHY_RENDER_SINGLE_THREADED");
   DocumentStyleMaskProvider mask_provider(Rect::from_size(document.width(), document.height()));

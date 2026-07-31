@@ -2,6 +2,7 @@
 
 #include "core/blend_math.hpp"
 #include "core/environment.hpp"
+#include "core/worker_budget.hpp"
 #include "render/layer_compositor.hpp"
 
 #include <algorithm>
@@ -179,7 +180,12 @@ PixelBuffer Compositor::flatten_rgb8(const Document& document, std::vector<std::
   // PATCHY_RENDER_SINGLE_THREADED=1.
   const auto area = static_cast<std::int64_t>(document.width()) * static_cast<std::int64_t>(document.height());
   const auto hardware_threads = static_cast<int>(std::thread::hardware_concurrency());
-  const auto strips = std::clamp(std::min(document.height() / 128, hardware_threads), 1, 16);
+  // max_blocking_fanout_workers: this thread blocks on the strip joins below,
+  // so on the wasm main thread the fan-out must fit the idle pthread pool or
+  // it deadlocks the tab; fewer strips (or the sequential path) is the
+  // correct degradation and the bytes are identical for any strip count.
+  const auto strips = max_blocking_fanout_workers(
+      std::clamp(std::min(document.height() / 128, hardware_threads), 1, 16));
   const bool parallel =
       strips >= 2 && area >= 4'000'000 && !environment_variable_is_set("PATCHY_RENDER_SINGLE_THREADED");
   if (parallel) {
