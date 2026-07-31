@@ -291,6 +291,7 @@ void image_density_probe_reads_png_phys() {
 
 void image_density_probe_reads_jpeg_jfif_and_exif() {
   using patchy::formats::ImageDensityContainer;
+  using patchy::formats::probe_exif_tiff_density;
   using patchy::formats::probe_image_density;
 
   const auto jfif_inch = probe_image_density(density_probe_jpeg_fixture({jfif_app0_segment(1, 300, 150)}));
@@ -324,6 +325,12 @@ void image_density_probe_reads_jpeg_jfif_and_exif() {
   CHECK(exif_wins.density.has_value());
   CHECK(std::abs(exif_wins.density->horizontal_ppi - 240.0) < 0.0001);
   CHECK(std::abs(exif_wins.density->vertical_ppi - 240.0) < 0.0001);
+  const auto bare_tiff_density =
+      probe_exif_tiff_density(std::span<const std::uint8_t>(exif_ii).subspan(7U));
+  CHECK(bare_tiff_density.has_value());
+  CHECK(std::abs(bare_tiff_density->horizontal_ppi - 240.0) < 0.0001);
+  CHECK(!probe_exif_tiff_density(std::span<const std::uint8_t>(exif_ii).first(5U))
+             .has_value());
 
   // EXIF big-endian with ResolutionUnit 3 (centimeters): 118 px/cm -> 299.72 PPI.
   const std::vector<std::uint8_t> exif_mm{

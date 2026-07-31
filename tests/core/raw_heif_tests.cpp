@@ -565,10 +565,10 @@ void heif_reads_quadrant_fixture_if_available() {
   try {
     result = patchy::heif::read_heif(bytes);
   } catch (const std::exception& error) {
-    // Expected wherever no platform decoder exists: the non-Windows read always throws
-    // (macOS/Linux decode through Qt plugins the core suite does not link), and Windows
-    // throws marker-prefixed errors when the Store codec packages are absent. Anything
-    // else is a real failure.
+    // Expected wherever no platform decoder exists: macOS/Linux decode through Qt
+    // plugins the core suite does not link, wasm-core runs under Node without browser
+    // WebCodecs, and Windows reports missing Store codec packages. Anything else is a
+    // real failure.
     const std::string message = error.what();
     const auto starts_with = [&message](std::string_view prefix) {
       return message.rfind(std::string(prefix), 0) == 0;
@@ -576,7 +576,8 @@ void heif_reads_quadrant_fixture_if_available() {
     if (starts_with(patchy::heif::kHeifPackageMissingMarker) ||
         starts_with(patchy::heif::kHevcPackageMissingMarker) ||
         message.find("system codec") != std::string::npos ||
-        message.find("Flatpak codec extension") != std::string::npos) {
+        message.find("Flatpak codec extension") != std::string::npos ||
+        message.find("outside a browser") != std::string::npos) {
       std::cout << "[SKIP] HEIC platform decoder unavailable: " << message << '\n';
       return;
     }

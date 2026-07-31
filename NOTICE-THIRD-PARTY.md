@@ -102,6 +102,38 @@ their embedded ICC color profile on import. Only the MIT-licensed core is
 vendored (the optional lcms2 speed plugins are GPL-licensed and are not
 included); the license text is included at `src/color/lcms2/LICENSE`.
 
+## libheif (web build only)
+
+`src/formats/libheif/` vendors libheif 1.23.1
+(https://github.com/strukturag/libheif), Copyright Dirk Farin and
+contributors, under the GNU Lesser General Public License version 3 or later.
+The complete LGPL/GPL license text is included at
+`src/formats/libheif/COPYING` and is staged with the web application as
+`libheif-COPYING.txt`.
+
+Patchy fetched the official `v1.23.1` source archive from
+`https://github.com/strukturag/libheif/archive/refs/tags/v1.23.1.zip`. Its
+SHA-256 is
+`F2303C92396B672D8B1BF8156DC1FC1715CC5D4AE1F147D205EA957DB334B2FA`.
+Patchy's local change to `libheif/plugins/decoder_webcodecs.cc` adds runtime
+capability/error handling, safe asynchronous input copies, decoder/frame
+lifetime cleanup, decoded-buffer bounds checks, and support for odd-sized and
+multi-slice images. That modified source is included in this repository.
+
+libheif is linked only into Patchy's WebAssembly browser application as an
+HEIF container parser and bridge to the browser's WebCodecs HEVC decoder.
+The build disables libde265, x265, FFmpeg, every other software codec backend,
+every compressed-codec encoder backend, dynamic plug-in loading, and the
+experimental uncompressed codec. Patchy does not distribute an HEVC decoder
+or encoder.
+
+Patchy's complete corresponding application source is available under the MIT
+License at `https://github.com/SethRobinson/Patchy`. The pinned toolchain,
+configuration, and rebuild instructions are in `docs/wasm.md`; they permit a
+recipient to replace libheif with a modified interface-compatible version and
+relink the WebAssembly application. Release tags identify the source for each
+deployed version.
+
 ## LibRaw
 
 `src/formats/libraw/` vendors LibRaw 0.22.1 (https://www.libraw.org,

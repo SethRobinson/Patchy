@@ -293,6 +293,14 @@
         <translation>開けませんでした</translation>
     </message>
     <message>
+        <source>This browser or device cannot decode this HEIC image because an HEVC decoder is unavailable. Try another current browser or device with HEVC support.</source>
+        <translation>このブラウザーまたはデバイスでは HEVC デコーダーを利用できないため、この HEIC 画像をデコードできません。HEVC に対応した別の最新ブラウザーまたはデバイスをお試しください。</translation>
+    </message>
+    <message>
+        <source>Patchy could not decode this HEIC image. The file may be damaged or use a profile this browser does not support.</source>
+        <translation>Patchy はこの HEIC 画像をデコードできませんでした。ファイルが破損しているか、このブラウザーが対応していないプロファイルが使用されている可能性があります。</translation>
+    </message>
+    <message>
         <source>Open Microsoft Store</source>
         <translation>Microsoft Store を開く</translation>
     </message>

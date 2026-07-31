@@ -10,14 +10,16 @@
 
 namespace patchy::heif {
 
-// HEIF/HEIC still images (iPhone .heic, Sony/Fujifilm .hif). Decode-only, and the decoder
-// always comes from platform codecs -- Patchy must never ship an HEVC decoder (libheif/
-// libde265/x265 are off-limits; HEVC patent licensing rides with the OS codec vendor, see
-// docs/legal-constraints.md). Per platform:
+// HEIF/HEIC still images (iPhone .heic, Sony/Fujifilm .hif). Decode-only. Patchy must
+// never ship an HEVC decoder or encoder; compressed pictures always go to a decoder
+// supplied by the platform or browser (see docs/legal-constraints.md). Per platform:
 //   - Windows: read_heif() decodes through WIC (heif_document_io_win.cpp). The codecs are
 //     the Microsoft Store "HEIF Image Extensions" + "HEVC Video Extensions" packages,
 //     in-box on Windows 11 22H2+; missing-codec errors carry the marker prefixes below so
 //     the UI can offer a Store link.
+//   - WebAssembly browser app: a WASM-only libheif build parses the container and invokes
+//     the browser's HEVC VideoDecoder through WebCodecs. No software HEVC codec or encoder
+//     is compiled into the application.
 //   - macOS/Linux: read_heif() always throws; the registry-error -> QImageReader fallback
 //     in load_document_from_path then decodes via Qt's qmacheif (ImageIO) / the KDE
 //     runtime's kimg_heif (libheif + the ffmpeg-full Flatpak extension). The thrown
@@ -34,7 +36,7 @@ namespace patchy::heif {
 
 // Decodes the primary image into a single "Background" pixel-layer sRGB document (the
 // flat-reader convention). Throws std::runtime_error with a user-facing message on
-// failure; on non-Windows platforms it always throws (see above).
+// failure; on macOS/Linux and the node-only wasm-core build it always throws (see above).
 [[nodiscard]] FormatReadResult read_heif(std::span<const std::uint8_t> bytes);
 
 // Remaps tightly packed RGBA8 pixels by an EXIF/TIFF orientation value (1-8; orientations
@@ -54,6 +56,8 @@ struct OrientedImage {
 // text and shows an "Open Microsoft Store" button for the matching package.
 inline constexpr std::string_view kHeifPackageMissingMarker = "[heif-package-missing]";
 inline constexpr std::string_view kHevcPackageMissingMarker = "[hevc-package-missing]";
+inline constexpr std::string_view kBrowserHevcUnavailableMarker = "[browser-hevc-unavailable]";
+inline constexpr std::string_view kBrowserHeifDecodeFailedMarker = "[browser-heif-decode-failed]";
 
 // Microsoft Store product ids for the packages above (ms-windows-store://pdp/?ProductId=).
 inline constexpr std::string_view kHeifStoreProductId = "9PMMSR1CGPWG";  // HEIF Image Extensions, free

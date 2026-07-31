@@ -795,9 +795,9 @@ OpenDocumentResult load_document_from_path(QString path) {
     } catch (const std::exception& registry_error) {
       // Nonstandard files that a Qt plugin still understands (e.g. OS/2 BMPs) keep opening
       // through the Qt fallback; when Qt cannot read them either, report the registry
-      // reader's error, which names the real problem. HEIC/HEIF relies on this on
-      // macOS/Linux by design: the registry read always throws there and Qt's platform
-      // plugin (qmacheif / the KDE runtime's kimg_heif) does the decoding.
+      // reader's error, which names the real problem. Native macOS/Linux HEIC/HEIF
+      // relies on this by design: the registry read always throws there and Qt's
+      // platform plugin (qmacheif / the KDE runtime's kimg_heif) does the decoding.
       QImageReader reader(path);
       reader.setAutoTransform(true);
       auto image = reader.read();
@@ -846,12 +846,36 @@ OpenDocumentResult load_document_from_path(QString path) {
   return OpenDocumentResult{std::move(opened), info.fileName(), extension, std::move(import_notices)};
 }
 
-// Shows the open-failure box. Windows HEIC errors carry a marker naming the missing
-// Microsoft Store codec package (heif_document_io.hpp); those get an extra button that
-// deep-links to that package's Store page, Photos-app style.
+// Shows the open-failure box. Browser HEIC errors get a capability-focused message.
+// Windows HEIC errors carry a marker naming the missing Microsoft Store codec package
+// (heif_document_io.hpp); those get an extra button that deep-links to that package's
+// Store page, Photos-app style.
 void show_open_failed_message_box(QWidget* parent, const QString& error_text) {
   QString display_text = error_text;
   QString store_product_id;
+  const auto browser_hevc_marker =
+      QString::fromUtf8(heif::kBrowserHevcUnavailableMarker.data(),
+                        static_cast<qsizetype>(heif::kBrowserHevcUnavailableMarker.size()));
+  if (error_text.startsWith(browser_hevc_marker)) {
+    show_critical_message(
+        parent, QObject::tr("Open failed"),
+        QObject::tr("This browser or device cannot decode this HEIC image because an HEVC "
+                    "decoder is unavailable. Try another current browser or device with HEVC "
+                    "support."),
+        QStringLiteral("openFailedMessageBox"));
+    return;
+  }
+  const auto browser_decode_marker =
+      QString::fromUtf8(heif::kBrowserHeifDecodeFailedMarker.data(),
+                        static_cast<qsizetype>(heif::kBrowserHeifDecodeFailedMarker.size()));
+  if (error_text.startsWith(browser_decode_marker)) {
+    show_critical_message(
+        parent, QObject::tr("Open failed"),
+        QObject::tr("Patchy could not decode this HEIC image. The file may be damaged or use "
+                    "a profile this browser does not support."),
+        QStringLiteral("openFailedMessageBox"));
+    return;
+  }
   const auto try_marker = [&](std::string_view marker, std::string_view product_id) {
     const auto prefix = QString::fromUtf8(marker.data(), static_cast<qsizetype>(marker.size()));
     if (!error_text.startsWith(prefix)) {

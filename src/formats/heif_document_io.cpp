@@ -126,16 +126,18 @@ OrientedImage apply_exif_orientation(std::span<const std::uint8_t> rgba, std::in
   return out;
 }
 
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(PATCHY_HEIF_WEBCODECS)
 
-// Non-Windows read: always defer to the Qt fallback (load_document_from_path retries a
-// failed registry read through QImageReader, which has qmacheif on macOS and the KDE
-// runtime's kimg_heif on Linux). This message therefore surfaces only when the platform
-// codec is missing or the file is broken, so it doubles as the how-to-fix text.
+// macOS/Linux defer to the Qt fallback (load_document_from_path retries a failed registry
+// read through QImageReader, which has qmacheif on macOS and the KDE runtime's kimg_heif
+// on Linux). The node-only wasm-core build also keeps this stub because node has no
+// browser VideoDecoder.
 FormatReadResult read_heif(std::span<const std::uint8_t> bytes) {
   (void)bytes;
 #ifdef __APPLE__
   throw std::runtime_error("Unable to decode this HEIC image with the system codec.");
+#elif defined(__EMSCRIPTEN__)
+  throw std::runtime_error("Unable to decode this HEIC image outside a browser.");
 #else
   throw std::runtime_error(
       "Unable to decode this HEIC image. HEIC decoding needs the Flatpak codec extension; "
@@ -143,6 +145,6 @@ FormatReadResult read_heif(std::span<const std::uint8_t> bytes) {
 #endif
 }
 
-#endif  // !_WIN32
+#endif  // !_WIN32 && !PATCHY_HEIF_WEBCODECS
 
 }  // namespace patchy::heif

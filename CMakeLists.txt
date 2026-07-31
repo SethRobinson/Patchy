@@ -321,6 +321,72 @@ add_library(patchy_filters
 target_link_libraries(patchy_filters PUBLIC patchy_core)
 patchy_configure_target(patchy_filters)
 
+# The browser build may parse HEIF containers with libheif, but the compressed HEVC
+# picture is decoded only by the browser's WebCodecs implementation. Keep this dependency
+# out of every native build and the node-only wasm-core build. The explicit option list is
+# a legal boundary: no software HEVC decoder or encoder may enter Patchy's wasm binary.
+if(EMSCRIPTEN AND PATCHY_BUILD_APP)
+  function(patchy_add_wasm_libheif)
+    set(BUILD_SHARED_LIBS OFF)
+    set(BUILD_TESTING OFF)
+    set(BUILD_DOCUMENTATION OFF)
+    set(BUILD_DEVELOPMENT_TOOLS OFF)
+    set(ENABLE_COVERAGE OFF)
+    set(ENABLE_EXPERIMENTAL_FEATURES OFF)
+    set(ENABLE_MULTITHREADING_SUPPORT OFF)
+    set(ENABLE_PARALLEL_TILE_DECODING OFF)
+    set(ENABLE_PLUGIN_LOADING OFF)
+    set(WITH_EXAMPLES OFF)
+    set(WITH_GDK_PIXBUF OFF)
+    set(WITH_FUZZERS OFF)
+    set(WITH_HEADER_COMPRESSION OFF)
+    set(WITH_LIBSHARPYUV OFF)
+    set(WITH_UNCOMPRESSED_CODEC OFF)
+
+    set(WITH_LIBDE265 OFF)
+    set(WITH_X265 OFF)
+    set(WITH_KVAZAAR OFF)
+    set(WITH_FFMPEG_DECODER OFF)
+    set(WITH_AOM_DECODER OFF)
+    set(WITH_AOM_ENCODER OFF)
+    set(WITH_DAV1D OFF)
+    set(WITH_SvtEnc OFF)
+    set(WITH_RAV1E OFF)
+    set(WITH_JPEG_DECODER OFF)
+    set(WITH_JPEG_ENCODER OFF)
+    set(WITH_OpenJPEG_DECODER OFF)
+    set(WITH_OpenJPEG_ENCODER OFF)
+    set(WITH_OPENJPH_ENCODER OFF)
+    set(WITH_UVG266 OFF)
+    set(WITH_VVDEC OFF)
+    set(WITH_VVENC OFF)
+    set(WITH_X264 OFF)
+    set(WITH_OpenH264_DECODER OFF)
+    set(WITH_WEBCODECS ON)
+
+    add_subdirectory(
+      src/formats/libheif
+      "${CMAKE_CURRENT_BINARY_DIR}/libheif"
+      EXCLUDE_FROM_ALL
+    )
+
+    # Make the legal boundary fail closed if a future libheif update enables a
+    # compressed-codec backend that is not represented by today's option list.
+    # encoder_mask.cc stores a raw auxiliary mask; it is not an HEVC encoder.
+    get_target_property(patchy_libheif_sources heif SOURCES)
+    foreach(source IN LISTS patchy_libheif_sources)
+      get_filename_component(source_name "${source}" NAME)
+      if(source_name MATCHES "^(decoder|encoder)_.*\\.(c|cc|cpp|cxx)$" AND
+         NOT source_name STREQUAL "decoder_webcodecs.cc" AND
+         NOT source_name STREQUAL "encoder_mask.cc")
+        message(FATAL_ERROR
+          "Forbidden libheif codec backend entered the WASM build: ${source_name}")
+      endif()
+    endforeach()
+  endfunction()
+  patchy_add_wasm_libheif()
+endif()
+
 add_library(patchy_formats
   src/formats/af_document_io.cpp
   src/formats/af_tree.cpp
@@ -352,11 +418,18 @@ add_library(patchy_formats
 # PRIVATE too: af_document_io.cpp bakes Gaussian-blur layer effects through the calibrated
 # smart-filter blur (filters depends only on core, so no cycle).
 target_link_libraries(patchy_formats PUBLIC patchy_core patchy_render patchy_psd PRIVATE patchy_filters patchy_libraw)
-if(WIN32)
+if(EMSCRIPTEN AND PATCHY_BUILD_APP)
+  target_sources(patchy_formats PRIVATE src/formats/heif_document_io_wasm.cpp)
+  target_compile_definitions(patchy_formats PRIVATE PATCHY_HEIF_WEBCODECS=1)
+  target_include_directories(patchy_formats PRIVATE
+    "${PROJECT_SOURCE_DIR}/src/formats/libheif/libheif/api"
+    "${CMAKE_CURRENT_BINARY_DIR}/libheif"
+  )
+  target_link_libraries(patchy_formats PRIVATE heif patchy_lcms2)
+elseif(WIN32)
   # HEIF/HEIC decodes through Windows Imaging Component (the Microsoft Store HEIF/HEVC
-  # codec packages carry the HEVC patent licensing -- Patchy must never vendor an HEVC
-  # decoder). macOS/Linux decode HEIC via Qt image plugins instead, so they compile only
-  # the stub in heif_document_io.cpp.
+  # codec packages provide the HEVC decoder. macOS/Linux decode HEIC via Qt image plugins
+  # instead, so they compile only the stub in heif_document_io.cpp.
   target_sources(patchy_formats PRIVATE src/formats/heif_document_io_win.cpp)
   target_link_libraries(patchy_formats PRIVATE windowscodecs ole32)
 endif()

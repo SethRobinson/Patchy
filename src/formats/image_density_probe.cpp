@@ -259,4 +259,9 @@ ImageDensityProbe probe_image_density(std::span<const std::uint8_t> bytes) noexc
   return probe;
 }
 
+std::optional<ImageDensity> probe_exif_tiff_density(
+    std::span<const std::uint8_t> tiff_bytes) noexcept {
+  return probe_exif_density(tiff_bytes);
+}
+
 }  // namespace patchy::formats

@@ -207,7 +207,10 @@ void psd_channel_restrictions_round_trip() {
       std::vector<std::uint8_t> expected;
       for (std::uint8_t index = 0; index < 3U; ++index) {
         if (((mask >> index) & 1U) != 0U) {
-          expected.insert(expected.end(), {0U, 0U, 0U, index});
+          expected.push_back(0U);
+          expected.push_back(0U);
+          expected.push_back(0U);
+          expected.push_back(index);
         }
       }
       CHECK(*payload == expected);

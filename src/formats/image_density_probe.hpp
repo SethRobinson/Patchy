@@ -36,4 +36,9 @@ struct ImageDensityProbe {
 // beside EXIF 72 ppi opens as 72).
 [[nodiscard]] ImageDensityProbe probe_image_density(std::span<const std::uint8_t> bytes) noexcept;
 
+// Reads XResolution/YResolution from a TIFF stream such as the payload referenced by a
+// HEIF Exif metadata item. Returns nullopt for malformed, unitless, or absent density.
+[[nodiscard]] std::optional<ImageDensity> probe_exif_tiff_density(
+    std::span<const std::uint8_t> tiff_bytes) noexcept;
+
 }  // namespace patchy::formats

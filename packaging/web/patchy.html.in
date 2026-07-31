@@ -47,7 +47,7 @@
     <div id="loader">
       <img src="patchy-logo.png?v=__PATCHY_CACHE_TAG__" alt="Patchy logo">
       <h1 id="title">Patchy <span>__PATCHY_VERSION__</span></h1>
-      <p class="info">Free, open-source image editor &middot; <a href="https://www.rtsoft.com" target="_blank" rel="noopener">rtsoft.com</a></p>
+      <p class="info">Free, open-source image editor &middot; <a href="https://www.rtsoft.com" target="_blank" rel="noopener">rtsoft.com</a> &middot; <a href="NOTICE-THIRD-PARTY.md" target="_blank" rel="noopener">Source &amp; licenses</a></p>
       <div id="bar"><div id="bar-fill"></div></div>
       <div id="status">Preparing...</div>
       <noscript>JavaScript is disabled. Please enable JavaScript to use Patchy.</noscript>

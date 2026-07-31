@@ -26,6 +26,11 @@ Desktop builds are unaffected: the presets, the `if(EMSCRIPTEN)` branches in
 CMakeLists, a handful of `Q_OS_WASM` gates in `src/ui`/`src/app`, and the
 files under `scripts/wasm/` are the whole wasm surface.
 
+The app build also has one browser-only format dependency:
+`src/formats/libheif` parses HEIF containers and invokes the browser's
+WebCodecs HEVC decoder. It contains no software HEVC decoder or encoder. The
+Node-only `wasm-core` configuration does not build or link libheif.
+
 ## Toolchain setup
 
 ```powershell
@@ -147,8 +152,9 @@ pass:
 
 - `akiko_cycling_okinawa_with_filters`: that local fixture is absent on this
   machine; unrelated to wasm.
-- Two HEIC tests: no platform HEIC decoder outside Windows; the stub path is
-  the intended behavior.
+- Two HEIC tests: the Node runner has no browser `VideoDecoder`; the stub path
+  is the intended behavior. The browser app uses the WebCodecs path described
+  below.
 - `af_modern_embeds_are_center_anchored_if_available`: the tier-1 import of
   `restaurant-menu-inside.af` (a wild Affinity menu whose spreads hold a
   dozen 75-150 MB scan layers live at once) exceeds a 32-bit address space.
@@ -200,6 +206,27 @@ pwsh -File scripts\wasm\serve-app.ps1
 then browse to `http://localhost:8973/patchy.html`.
 
 ### Decisions and gates (step 2)
+
+- **HEIC uses the browser's HEVC decoder.** `wasm-release` statically links
+  libheif 1.23.1 as a container parser with only `WITH_WEBCODECS=ON`. CMake
+  explicitly disables libde265, x265, FFmpeg, all other compressed-codec
+  backends, all compressed-codec encoder backends, plug-in loading, and the
+  experimental uncompressed codec. The
+  adapter passes the file's `hvc1.*` configuration and compressed access unit
+  to `VideoDecoder` in the file-open worker, calls
+  `VideoDecoder.isConfigSupported()` first, and has no software fallback.
+  Safari 17.4+ exposes WebCodecs HEVC. Chrome/Edge availability depends on the
+  operating system and device decoder, while Firefox/Linux coverage varies,
+  so runtime capability is the only support promise. Unsupported files show
+  the localized browser/device message. The reader bounds dimensions and
+  every returned plane before copying, applies HEIF transforms and EXIF
+  density, preserves meaningful alpha, and converts an 8-bit embedded RGB ICC
+  profile to sRGB through the existing Little CMS build.
+- **libheif license delivery.** The LGPL-3.0-or-later source and license are
+  vendored, Patchy's MIT source and reproducible wasm build instructions allow
+  relinking with a modified library, and the staged web site carries
+  `NOTICE-THIRD-PARTY.md` plus `libheif-COPYING.txt`. Keep those files in
+  `build-wasm.bat` and `upload-wasm-to-rtsoft.bat`.
 
 - **Asyncify + JS exceptions.** `-sASYNCIFY -Os` on the app link makes the
   nested-event-loop sites (`QDialog::exec`, `run_non_modal_dialog`,

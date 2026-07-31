@@ -72,6 +72,8 @@ copy /Y "%REPO%\packaging\linux\icons\hicolor\256x256\apps\com.rtsoft.patchy.png
 rem The browser-tab favicon is the app's own multi-size icon (16-256 px).
 copy /Y "%REPO%\src\app\patchy.ico" "%SITE_DIR%\favicon.ico" >nul || goto fail
 copy /Y "%REPO%\packaging\web\.htaccess" "%SITE_DIR%\.htaccess" >nul || goto fail
+copy /Y "%REPO%\NOTICE-THIRD-PARTY.md" "%SITE_DIR%\NOTICE-THIRD-PARTY.md" >nul || goto fail
+copy /Y "%REPO%\src\formats\libheif\COPYING" "%SITE_DIR%\libheif-COPYING.txt" >nul || goto fail
 
 rem Configure the shell template; it is staged as both patchy.html and an
 rem index.html copy so https://rtsoft.com/patchy/ serves the app directly.

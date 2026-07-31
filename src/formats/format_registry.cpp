@@ -125,10 +125,9 @@ void register_builtin_formats(FormatRegistry& registry) {
                              },
                              [](const Document& document) { return ilbm::DocumentIo::write(document); },
                              [](std::span<const std::uint8_t> bytes) { return ilbm::DocumentIo::can_read(bytes); }});
-  // HEIF/HEIC is a read-only source (write stays null) decoded by PLATFORM codecs only:
-  // WIC on Windows; on macOS/Linux this read always throws and the registry-error ->
-  // QImageReader fallback in load_document_from_path decodes via qmacheif / kimg_heif
-  // (see heif_document_io.hpp for the licensing rationale).
+  // HEIF/HEIC is a read-only source (write stays null). Native builds use platform
+  // codecs; the browser build parses the container in WASM and sends HEVC data to the
+  // browser's WebCodecs decoder (see heif_document_io.hpp for the licensing boundary).
   registry.register_handler({"patchy.formats.heif",
                              "HEIF Image",
                              heif::heif_extensions(),

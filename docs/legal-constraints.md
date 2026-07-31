@@ -33,6 +33,13 @@ Read this file before changing any feature named below or introducing an adjacen
 - PSD interoperability is based on observed output from a licensed Photoshop, never decompilation. Do not copy verbatim Adobe specification text into the repository; link to it. Use self-authored fixtures only and do not support the undocumented PSDC cloud-document format.
 - "Smart Object(s)", "Smart Filter(s)", "Filter Gallery", and "PSD" are not Adobe trademarks in the reviewed record. PHOTOSHOP is registered and policed. Use referential language such as "compatible with Adobe Photoshop"; never use Adobe marks in Patchy's product name, icons, or branding, and retain README.md's Trademark Notice.
 - Bundled art and textures must never come from AI image generation. Acceptable sources are code generation or real photography/human artwork under a commercially compatible license, preferably CC0. Every third-party asset needs a `NOTICE-THIRD-PARTY.md` entry and must ship losslessly. Poly Haven textures are human-made.
-- HEIC/HEIF decoding uses platform codecs only. Never vendor libheif, libde265, x265, or another HEVC decoder/encoder, and do not add HEIC encoding. See [file-formats.md](file-formats.md) for the patent-pool rationale and platform design.
+- HEIC/HEIF decoding must use a platform or browser-provided HEVC decoder. Native builds
+  keep their existing platform-codec paths. The browser build may statically link the
+  vendored libheif container parser and its WebCodecs adapter, but every software HEVC
+  codec backend and HEVC encoder must remain disabled. Never vendor or link libde265, x265, or
+  another HEVC decoder/encoder, and do not add HEIC encoding. The WASM CMake option block,
+  the runtime `VideoDecoder.isConfigSupported()` check, and the distribution obligations
+  recorded in `NOTICE-THIRD-PARTY.md` are binding parts of this boundary. See
+  [file-formats.md](file-formats.md) for the platform and browser design.
 - Shipping dependencies must permit commercial distribution. GPL tools may be used locally for development or fixture generation only when they are not linked into or distributed with Patchy.
 - No Photoshop SDK code or Adobe-created assets may enter this repository or a Patchy binary. The only exception is the self-authored regression material in `test-fixtures/psd/`, which is not Adobe artwork.

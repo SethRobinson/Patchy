@@ -11,7 +11,7 @@ rem cd to the repo root (this script lives in scripts\release) so the relative
 rem paths below resolve from any cwd.
 cd /d "%~dp0..\.."
 set "SITE_DIR=build\package\wasm-site"
-for %%F in (patchy.data patchy.wasm patchy.js qtloader.js patchy-logo.png favicon.ico .htaccess patchy.html index.html) do (
+for %%F in (patchy.data patchy.wasm patchy.js qtloader.js patchy-logo.png favicon.ico NOTICE-THIRD-PARTY.md libheif-COPYING.txt .htaccess patchy.html index.html) do (
   if not exist "%SITE_DIR%\%%F" (
     echo %%F is missing from %SITE_DIR% - run scripts\release\build-wasm.bat first.
     if /i not "%~1"=="nopause" pause
@@ -22,7 +22,7 @@ echo Ensuring www/patchy exists on rtsoft.com...
 ssh rtsoft@rtsoft.com "mkdir -p www/patchy"
 if errorlevel 1 goto fail
 echo Uploading the wasm site to rtsoft.com/patchy...
-scp "%SITE_DIR%\patchy.data" "%SITE_DIR%\patchy.wasm" "%SITE_DIR%\patchy.js" "%SITE_DIR%\qtloader.js" "%SITE_DIR%\patchy-logo.png" "%SITE_DIR%\favicon.ico" "%SITE_DIR%\.htaccess" "%SITE_DIR%\patchy.html" "%SITE_DIR%\index.html" rtsoft@rtsoft.com:www/patchy/
+scp "%SITE_DIR%\patchy.data" "%SITE_DIR%\patchy.wasm" "%SITE_DIR%\patchy.js" "%SITE_DIR%\qtloader.js" "%SITE_DIR%\patchy-logo.png" "%SITE_DIR%\favicon.ico" "%SITE_DIR%\NOTICE-THIRD-PARTY.md" "%SITE_DIR%\libheif-COPYING.txt" "%SITE_DIR%\.htaccess" "%SITE_DIR%\patchy.html" "%SITE_DIR%\index.html" rtsoft@rtsoft.com:www/patchy/
 if errorlevel 1 goto fail
 rem The multithreaded app dies without cross-origin isolation, and .htaccess
 rem directives are IfModule-guarded (a host missing mod_headers serves the

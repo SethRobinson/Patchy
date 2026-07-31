@@ -28,7 +28,8 @@ All read AND write, except camera raw, HEIF/HEIC, and .af, which are read-only; 
 - **ILBM/PBM** — ByteRun1 via the shared `psd::decode_packbits`/`encode_packbits_row` (the encoder was promoted from psd_document_io.cpp to psd_descriptor.{hpp,cpp}); EHB supported, HAM rejected, writer emits planar ILBM with masking type 2 for transparency.
 - PNG/JPEG/TIFF/WebP stay on Qt.
 - **Camera raw** — read-only; see the section below.
-- **HEIF/HEIC** — read-only, platform codecs only; see the section below.
+- **HEIF/HEIC** — read-only, platform or browser-provided HEVC decoding only; see the
+  section below.
 - **.af (Affinity)** — read-only, tier-2 layer import (raster layers/groups/masks/clipping/CMYK-Lab/embedded docs); see the section below.
 
 ## Camera raw (CR2/CR3/NEF/ARW/RAF/DNG, ...)
@@ -94,16 +95,16 @@ on different threads), and lossy-/deflate-compressed DNG variants fail with a cl
 
 ## HEIF/HEIC (iPhone photos; .heic/.heif/.hif)
 
-Read-only, decoded by PLATFORM codecs only. **Never vendor an HEVC decoder or encoder
-(libheif/libde265/x265): the whole design exists so Microsoft/Apple/the Flatpak codec
-extension carry the HEVC patent licenses** ([legal-constraints.md](legal-constraints.md) has the binding rule;
-the GIMP/Krita bundle-libde265 posture was researched and deliberately rejected, July
-2026, decision by Seth). HEVC is heavily patent-encumbered: the Access Advance and
-Via LA pools plus bilateral holders like Nokia, who also hold HEIF container patents
-running to ~2035, so even the container is not safely reimplementable. Encoding stays impossible everywhere: the registry handler has no writer (so Save
-routes to Save As .psd like camera raw) and `write_flat_image_file` rejects heif
-extensions, because QImageWriter's platform plugins COULD silently HEVC-encode on
-macOS/Linux but not Windows.
+Read-only. The compressed picture is decoded only by a decoder supplied by the operating
+system or browser. **Never ship a software HEVC decoder or encoder.** Native builds keep
+the Microsoft/Apple/Flatpak codec paths. The WASM app statically links libheif only as an
+ISO-BMFF/HEIF container parser and bridge to the browser's WebCodecs `VideoDecoder`;
+libde265, x265, and all other software codec and encoder backends are disabled. This is
+the reviewed boundary in [legal-constraints.md](legal-constraints.md). HEVC remains
+patent-encumbered, so moving HEVC compression into Patchy would require a new legal
+review. Encoding stays impossible everywhere: the registry handler has no writer (so
+Save routes to Save As .psd like camera raw) and `write_flat_image_file` rejects HEIF
+extensions, because a QImageWriter platform plugin could otherwise encode HEVC silently.
 
 - **`formats/heif_document_io.{hpp,cpp}` + `heif_document_io_win.cpp`**: extensions
   (`heif::heif_extensions()`, single source of truth), ftyp-brand sniff (HEVC brands
@@ -129,6 +130,25 @@ macOS/Linux but not Windows.
     branch bakes heif-family images to sRGB via `convertToColorSpace` (scoped to heif so
     PNG/JPEG opens keep their bytes). The stub's thrown message doubles as the
     missing-codec/corrupt-file text when Qt also fails.
+  - **Browser WASM app**: `heif_document_io_wasm.cpp` parses the container with the
+    vendored libheif 1.23.1 build, selects only its `webcodecs` decoder plug-in, and asks
+    the browser to decode the extracted HEVC access unit. The adapter calls
+    `VideoDecoder.isConfigSupported()` with the file's `hvc1.*` profile before
+    configuring a decoder. Unsupported browsers/devices get a localized capability
+    message. There is deliberately no fallback decoder. The browser path applies HEIF
+    transforms, EXIF density, alpha, and 8-bit RGB ICC-to-sRGB conversion. It accepts the
+    browser's RGBA fallback for higher-bit-depth images.
+  - **Browser expectations**: Safari has exposed WebCodecs HEVC since Safari 17.4.
+    Current Chrome and Edge can expose platform HEVC through WebCodecs when the operating
+    system and device supply it. Firefox and Linux configurations remain variable.
+    Browser name/version is therefore never used as the gate. The per-file
+    `isConfigSupported()` result and actual decode are authoritative.
+- **WASM dependency boundary**: libheif is linked only into `wasm-release`, never native
+  builds or the Node-only `wasm-core` tests. Its CMake block disables plug-in loading,
+  libde265, x265, FFmpeg, AV1/JPEG/JPEG 2000/VVC/AVC backends, the uncompressed codec,
+  and every compressed-codec encoder backend. `NOTICE-THIRD-PARTY.md` records the exact source archive, checksum,
+  LGPL terms, local modification, and source/relink path. The web package includes the
+  notice and libheif's complete LGPL/GPL license text.
 - **Flatpak**: the KDE 6.8 runtime ships kimg_heif and libheif, but the HEVC decode
   plugin lives in `org.freedesktop.Platform.ffmpeg-full//24.08`, declared by the
   manifest's `add-extensions` block. Single-file BUNDLE installs never auto-pull it
@@ -137,10 +157,11 @@ macOS/Linux but not Windows.
   download section). packaging/linux/README.md has the details and when the block can
   be dropped. The remote Linux test machine uses aqt Qt (no kimageformats), so heif
   tests [SKIP] there while the extension-equipped Flatpak decodes (verified in-sandbox).
-- **Tests**: statistics only, never byte pins (lossy HEVC + per-platform CMS).
+- **Tests**: statistics only, never byte pins (lossy HEVC + per-platform/browser CMS).
   `test-fixtures/heif/quadrants.heic` was encoded from a Patchy-authored PNG with macOS
-  `sips`; decoder-dependent tests [SKIP] on the known codec-unavailable messages and
-  hard-fail on anything else. `ui_heif_open_is_read_only_if_available` needs the
+  `sips`; decoder-dependent tests [SKIP] on known codec-unavailable messages, including
+  Node's no-browser path, and hard-fail on anything else.
+  `ui_heif_open_is_read_only_if_available` needs the
   repeating-QTimer dismisser for the potential `openFailedMessageBox` (dismiss via
   `reject()` so the Store button can never fire in a test).
 
