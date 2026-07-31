@@ -1116,6 +1116,9 @@ void MainWindow::create_docks() {
   // visual-only until the next rebuild re-asserts the current state.
   connect(history_list_, &QListWidget::itemClicked, this,
           [this](QListWidgetItem* item) { handle_history_row_clicked(item); });
+  history_list_->setContextMenuPolicy(Qt::CustomContextMenu);
+  connect(history_list_, &QListWidget::customContextMenuRequested, this,
+          [this](const QPoint& position) { show_history_context_menu(position); });
   // Disabled while no document is open or a preview dialog holds the edit lock,
   // matching the undo/redo actions.
   register_document_widget(history_list_);

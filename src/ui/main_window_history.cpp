@@ -646,6 +646,70 @@ void MainWindow::jump_to_history_state(std::int64_t state_id) {
                              std::move(live_selection), active->current_state_label);
 }
 
+void MainWindow::show_history_context_menu(const QPoint& position) {
+  if (history_list_ == nullptr || !has_active_document() || preview_dialog_edit_locked()) {
+    return;
+  }
+  auto* item = history_list_->itemAt(position);
+  if (item == nullptr) {
+    return;
+  }
+  QMenu menu(history_list_);
+  auto* new_document_action = menu.addAction(tr("New Document From This State"));
+  hide_menu_action_icons(&menu);
+  auto* chosen = menu.exec(history_list_->viewport()->mapToGlobal(position));
+  if (chosen == new_document_action) {
+    open_history_state_as_new_document(item->data(Qt::UserRole).toLongLong());
+  }
+}
+
+void MainWindow::open_history_state_as_new_document(std::int64_t state_id) {
+  auto* active = active_session();
+  if (active == nullptr) {
+    return;
+  }
+  if (preview_dialog_edit_locked()) {
+    // add_document_session's activation tail must never run under the lock
+    // (see the comment in its body).
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  Document copy;
+  QString state_label;
+  if (state_id == active->current_state_id) {
+    // The live document may carry an uncommitted transform; settle it so the
+    // spawned document matches what the canvas shows (copy_merged precedent).
+    if (canvas_ != nullptr) {
+      canvas_->finish_free_transform();
+    }
+    copy = active->document;
+    state_label = active->current_state_label;
+  } else {
+    const auto find_state = [state_id](const std::vector<DocumentSession::HistoryState>& stack)
+        -> const DocumentSession::HistoryState* {
+      for (const auto& state : stack) {
+        if (state.state_id == state_id) {
+          return &state;
+        }
+      }
+      return nullptr;
+    };
+    const auto* state = find_state(active->undo_stack);
+    if (state == nullptr) {
+      state = find_state(active->redo_stack);
+    }
+    if (state == nullptr) {
+      refresh_history_panel();
+      return;
+    }
+    copy = state->document;
+    state_label = state->label;
+  }
+  auto title = state_label.isEmpty() ? tr("Untitled-%1").arg(sessions_.size() + 1) : state_label;
+  add_document_session(std::move(copy), title, QString(), tr("New document"));
+  statusBar()->showMessage(tr("Created new document from \"%1\"").arg(title));
+}
+
 void MainWindow::initialize_session_history(DocumentSession& target_session, QString initial_label) {
   target_session.undo_stack.clear();
   target_session.redo_stack.clear();

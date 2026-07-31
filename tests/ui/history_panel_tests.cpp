@@ -174,6 +174,70 @@ void ui_history_keyboard_undo_redo_moves_highlight() {
   CHECK(history->currentRow() == 2);
 }
 
+void ui_history_panel_rebuilds_on_activation() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* history = require_history_list(window);
+  auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
+  CHECK(tabs != nullptr);
+
+  fill_with(window, *canvas, QColor(200, 30, 30));
+  CHECK(history->count() == 2);
+
+  MainWindowTestAccess::create_default_document(window);
+  QApplication::processEvents();
+  CHECK(tabs->count() == 2);
+  CHECK(history->count() == 1);
+
+  tabs->setCurrentIndex(0);
+  QApplication::processEvents();
+  CHECK(history->count() == 2);
+  CHECK(history->currentRow() == 1);
+
+  tabs->setCurrentIndex(1);
+  QApplication::processEvents();
+  CHECK(history->count() == 1);
+  CHECK(history->currentRow() == 0);
+}
+
+void ui_history_new_document_from_state_creates_independent_session() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* history = require_history_list(window);
+  auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
+  CHECK(tabs != nullptr);
+
+  fill_with(window, *canvas, QColor(200, 30, 30));
+  fill_with(window, *canvas, QColor(30, 60, 220));
+  CHECK(history->count() == 3);
+  const auto red_state_id = history->item(1)->data(Qt::UserRole).toLongLong();
+
+  MainWindowTestAccess::open_history_state_as_new_document(window, red_state_id);
+  QApplication::processEvents();
+  CHECK(MainWindowTestAccess::session_count(window) == 2);
+  CHECK(tabs->currentIndex() == 1);
+  auto* spawned_canvas = require_canvas(window);
+  CHECK(spawned_canvas != canvas);
+  CHECK(color_close(canvas_pixel(*spawned_canvas, QPoint(40, 40)), QColor(200, 30, 30), 6));
+  CHECK(history->count() == 1);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == 0);
+
+  // Editing the spawned document must not leak into the original (the copy is
+  // copy-on-write, so shared pixels detach on the first mutation).
+  fill_with(window, *spawned_canvas, QColor(30, 160, 40));
+  tabs->setCurrentIndex(0);
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(40, 40)), QColor(30, 60, 220), 6));
+  CHECK(history->count() == 3);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == 2);
+
+  // The original still jumps within its own history.
+  click_history_row(*history, 1);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(40, 40)), QColor(200, 30, 30), 6));
+}
+
 void ui_history_clicks_blocked_during_preview_lock() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -212,6 +276,9 @@ std::vector<patchy::test::TestCase> history_panel_tests() {
        ui_history_new_edit_after_rollback_discards_future_rows},
       {"ui_history_cap_eviction_keeps_rows_consistent", ui_history_cap_eviction_keeps_rows_consistent},
       {"ui_history_keyboard_undo_redo_moves_highlight", ui_history_keyboard_undo_redo_moves_highlight},
+      {"ui_history_panel_rebuilds_on_activation", ui_history_panel_rebuilds_on_activation},
+      {"ui_history_new_document_from_state_creates_independent_session",
+       ui_history_new_document_from_state_creates_independent_session},
       {"ui_history_clicks_blocked_during_preview_lock", ui_history_clicks_blocked_during_preview_lock},
   };
 }

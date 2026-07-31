@@ -9602,6 +9602,14 @@ RGB: -
         <translation>編集</translation>
     </message>
     <message>
+        <source>New Document From This State</source>
+        <translation>この状態から新規ドキュメントを作成</translation>
+    </message>
+    <message>
+        <source>Created new document from &quot;%1&quot;</source>
+        <translation>&quot;%1&quot; から新規ドキュメントを作成しました</translation>
+    </message>
+    <message>
         <source>Reopened %1</source>
         <translation>%1 を開き直しました</translation>
     </message>

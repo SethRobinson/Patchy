@@ -240,6 +240,12 @@ public:
     return window.session().redo_stack.size();
   }
 
+  // Context menus are painful to drive offscreen (precedent:
+  // show_layer_context_menu); tests invoke the action directly.
+  static void open_history_state_as_new_document(MainWindow& window, std::int64_t state_id) {
+    window.open_history_state_as_new_document(state_id);
+  }
+
   static bool active_session_is_modified(MainWindow& window) {
     return window.session_is_modified(window.session());
   }

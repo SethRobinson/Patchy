@@ -1053,6 +1053,11 @@ private:
   // (multi-step undo/redo in one hop); unknown or current ids only re-sync the
   // panel highlight.
   void jump_to_history_state(std::int64_t state_id);
+  void show_history_context_menu(const QPoint& position);
+  // Opens the state as a new document tab. The value copy of the snapshot IS
+  // the deep copy (copy-on-write pixels), so edits cannot leak between the
+  // documents.
+  void open_history_state_as_new_document(std::int64_t state_id);
   // Centralized undo-stack push: cap eviction, redo clear, coalescing reset,
   // and the label/id handoff from the live state to the stored snapshot.
   void record_history_push(DocumentSession& target_session, DocumentSession::HistoryState state,
