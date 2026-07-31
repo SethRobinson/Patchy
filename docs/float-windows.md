@@ -57,7 +57,9 @@ with the usual save prompt, and Cancel keeps both the window and the document. H
   split (route data by owning session, gate UI on the active canvas). Inside the
   session-targeted `push_undo_snapshot`/`push_selection_history`, the History panel,
   status-bar label, and the pending layer-opacity flush run only when the target IS the
-  active session; the shared History panel mirrors the active document alone.
+  active session; the shared History panel mirrors the active document alone, and
+  `activate_document_canvas` rebuilds it from the incoming session's stacks
+  (`refresh_history_panel`), so a background session's rows appear when it activates.
 - Close paths are session-based: `close_document_session` is the real close (Close All /
   Close Others iterate `sessions_`; the smart-object child recursion resolves children by
   session id, since a floated child has no tab index and closing one child can

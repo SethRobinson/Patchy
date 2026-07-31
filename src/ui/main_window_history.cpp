@@ -434,6 +434,9 @@ void MainWindow::apply_history_restore_tail(DocumentSession& active_session,
   refresh_layer_list();
   refresh_layer_controls();
   refresh_channel_panel();
+  // Paths live in the Document and are restored with it; the old undo/redo
+  // tails forgot this refresh, leaving the Paths panel stale after an undo.
+  refresh_paths_panel();
   update_document_action_state();
   apply_history_render_refresh(canvas_, changed_region);
   refresh_palette_panel();

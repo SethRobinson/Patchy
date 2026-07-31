@@ -21,7 +21,7 @@ A built-in, deterministic performance harness: it closes all documents, builds t
 
 ## Undo/redo restore
 
-Undo/redo restores go through `CanvasWidget::set_document_for_history_restore`, which keeps the previous frame + render diagnostics when the restored document has the same size (plain `set_document` dumps both). Together with the paint deferral below, history steps on big documents swap frames instead of flashing checkerboard.
+Undo/redo restores go through `CanvasWidget::set_document_for_history_restore`, which keeps the previous frame + render diagnostics when the restored document has the same size (plain `set_document` dumps both). Together with the paint deferral below, history steps on big documents swap frames instead of flashing checkerboard. History-panel jumps (`jump_to_history_state`) rotate any number of states with pure moves and run the canvas/UI refresh tail once, diffing the pre-jump document against the final one, so a 20-state jump costs one repaint, not 20.
 
 ## Smart invalidation and style-mask caching
 
