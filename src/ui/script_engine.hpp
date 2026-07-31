@@ -247,6 +247,13 @@ public:
   // (when the session is the active one) select + scroll the row into view.
   void reveal_layer_row(std::int64_t session_id, LayerId layer_id);
 
+  // Closes the busy overlay and the app-modal stop panel, and restarts the
+  // burst clock so they do not immediately return. Call it immediately BEFORE
+  // creating a script canvas window: a window shown while an application-modal
+  // window is up is born blocked by it, and a blocked window never receives a
+  // key event again on wasm (docs/wasm.md).
+  void dismiss_busy_indicator();
+
   // Script canvas windows join the run lifecycle: the run stays live while any
   // window is open, and stopping the run closes them.
   void adopt_canvas_window(ScriptCanvasWindow* window);
@@ -346,6 +353,8 @@ private:
   // when the burst ends.
   void pump_progress_indicator();
   void end_progress_indicator();
+  // True while the run owns a script canvas window that is still on screen.
+  [[nodiscard]] bool has_open_canvas_window() const;
   // The stop panel's Stop button: confirmation popup ("Stop 'name'?" with an
   // optional undo-the-changes checkbox), then interrupt.
   void confirm_stop_from_panel();

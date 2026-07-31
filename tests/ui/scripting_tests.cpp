@@ -261,6 +261,121 @@ void ui_script_canvas_window_receives_space_key() {
   wait_for_run_end(host);
 }
 
+// Samples, from a timer that runs inside the busy pump's processEvents, whether
+// the app-modal stop panel was ever on screen at the same time as a script
+// canvas window. That overlap is the defect: Qt marks every window shown while
+// an application-modal window is up as blocked, and a blocked window is skipped
+// by the key-delivery path entirely. The desktop platforms lift the block when
+// the modal hides, but the wasm plugin never does, so the game window paints
+// and takes clicks yet never receives a keystroke again (docs/wasm.md).
+class StopPanelOverlapWatch {
+public:
+  explicit StopPanelOverlapWatch(patchy::ui::MainWindow& window) : window_(window) {
+    timer_ = new QTimer(&window);
+    QObject::connect(timer_, &QTimer::timeout, &window, [this] { sample(); });
+    timer_->start(5);
+  }
+
+  void sample() {
+    auto* panel = window_.findChild<QDialog*>(QStringLiteral("scriptStopPanel"));
+    const bool panel_up = panel != nullptr && panel->isVisible();
+    if (panel_up) {
+      saw_panel_ = true;
+      if (window_.findChild<QDialog*>(QStringLiteral("scriptCanvasWindowDialog")) != nullptr) {
+        overlapped_ = true;
+      }
+    }
+  }
+
+  void stop() { timer_->stop(); }
+  [[nodiscard]] bool overlapped() const { return overlapped_; }
+  [[nodiscard]] bool saw_panel() const { return saw_panel_; }
+
+private:
+  patchy::ui::MainWindow& window_;
+  QTimer* timer_{nullptr};
+  bool overlapped_{false};
+  bool saw_panel_{false};
+};
+
+// A script that has already been working long enough to raise the stop panel
+// must not create its canvas window underneath it.
+void ui_script_canvas_window_dismisses_stop_panel() {
+  qputenv("PATCHY_SCRIPT_BUSY_DELAY_MS", "0");
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    StopPanelOverlapWatch watch(window);
+    // Busy long enough to raise the panel, open the window, then stay busy so
+    // the sampler gets ticks in which the two could still overlap.
+    auto& host = start_script(window, QStringLiteral(R"JS(
+      var doc = app.activeDocument;
+      var layer = doc.addLayer('busy');
+      var start = Date.now();
+      while (Date.now() - start < 150) { layer.fillRect(0, 0, 2, 2, '#00ff00'); }
+      var win = patchy.ui.createCanvas({width: 120, height: 90, title: 'Game'});
+      win.onKeyDown = function (key) { console.log('key=' + key); };
+      win.onFrame = function () {};
+      start = Date.now();
+      while (Date.now() - start < 150) { layer.fillRect(0, 0, 2, 2, '#00ff00'); }
+    )JS"));
+    watch.stop();
+    CHECK(host.run_active());
+    CHECK(watch.saw_panel());    // the burst really was slow enough to raise it
+    CHECK(!watch.overlapped());  // ...and it was gone before the window existed
+    auto* dialog = window.findChild<QDialog*>(QStringLiteral("scriptCanvasWindowDialog"));
+    CHECK(dialog != nullptr);
+    CHECK(QApplication::activeModalWidget() == nullptr);
+    // The window is usable: keys reach the script rather than being dropped.
+    auto* surface = dialog->findChild<QWidget*>(QStringLiteral("scriptCanvasSurface"));
+    CHECK(surface != nullptr);
+    QTest::keyClick(surface, Qt::Key_Space);
+    QApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 50);
+    CHECK(backlog_contains(window, QStringLiteral("key=Space")));
+    host.stop_active_run();
+    wait_for_run_end(host);
+  }
+  qunsetenv("PATCHY_SCRIPT_BUSY_DELAY_MS");
+}
+
+// While a script owns an open canvas window, a slow frame callback must not
+// raise the stop panel over it (same blocking hazard, plus a game behind an
+// application-modal panel is unplayable on every platform).
+void ui_script_canvas_window_suppresses_stop_panel() {
+  qputenv("PATCHY_SCRIPT_BUSY_DELAY_MS", "0");
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto& host = start_script(window, QStringLiteral(R"JS(
+      var doc = app.activeDocument;
+      var layer = doc.addLayer('game');
+      var win = patchy.ui.createCanvas({width: 120, height: 90, title: 'Game'});
+      var frames = 0;
+      win.onFrame = function () {
+        var start = Date.now();
+        while (Date.now() - start < 60) { layer.fillRect(0, 0, 2, 2, '#0000ff'); }
+        console.log('frame=' + (++frames));
+      };
+    )JS"));
+    CHECK(host.run_active());
+    CHECK(window.findChild<QDialog*>(QStringLiteral("scriptCanvasWindowDialog")) != nullptr);
+    // Sample across several slow frames; each one crosses the zeroed threshold.
+    StopPanelOverlapWatch watch(window);
+    QElapsedTimer elapsed;
+    elapsed.start();
+    while (elapsed.elapsed() < 600) {
+      QApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 20);
+    }
+    watch.stop();
+    CHECK(backlog_contains(window, QStringLiteral("frame=3")));  // slow frames really ran
+    CHECK(!watch.saw_panel());
+    CHECK(QApplication::activeModalWidget() == nullptr);
+    host.stop_active_run();
+    wait_for_run_end(host);
+  }
+  qunsetenv("PATCHY_SCRIPT_BUSY_DELAY_MS");
+}
+
 void ui_script_undo_disable_skips_history() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -1625,6 +1740,10 @@ std::vector<patchy::test::TestCase> scripting_tests() {
       {"ui_script_get_pixels_reads_rgb_layers", ui_script_get_pixels_reads_rgb_layers},
       {"ui_script_fill_rect_partial_updates", ui_script_fill_rect_partial_updates},
       {"ui_script_canvas_window_receives_space_key", ui_script_canvas_window_receives_space_key},
+      {"ui_script_canvas_window_dismisses_stop_panel",
+       ui_script_canvas_window_dismisses_stop_panel},
+      {"ui_script_canvas_window_suppresses_stop_panel",
+       ui_script_canvas_window_suppresses_stop_panel},
       {"ui_script_undo_disable_skips_history", ui_script_undo_disable_skips_history},
       {"ui_script_timer_keeps_run_alive", ui_script_timer_keeps_run_alive},
       {"ui_script_watchdog_interrupts_infinite_loop", ui_script_watchdog_interrupts_infinite_loop},

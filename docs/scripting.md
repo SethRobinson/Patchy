@@ -221,7 +221,13 @@ everywhere a bundled script is resolved.
   is not reentrant; `end_progress_indicator()` closes overlay+panel when the burst,
   the session (close_session), or the run ends; and `ModalWatchdogPause` ends the
   indicator on entry (the panel must not fight the script's own dialogs) and restarts
-  the burst clock on exit. Side effect: the pump runs the coalesced refresh flush, so
+  the burst clock on exit. `createCanvas` does the same through
+  `dismiss_busy_indicator()`, and the panel is not raised at all while the run owns an
+  open canvas window (`has_open_canvas_window`): a window created under an
+  application-modal window is marked blocked by it, and a blocked window is skipped by
+  the key-delivery path, which on wasm is permanent and leaves the game window unable
+  to receive a single keystroke (see docs/wasm.md).
+  Side effect: the pump runs the coalesced refresh flush, so
   scripts that push pixels repeatedly (generative-art batches, fancy-background
   chunks) paint progressively. A pure-JS loop with no API calls cannot pump - heavy
   bundled scripts write their buffer to the layer a few times mid-computation for

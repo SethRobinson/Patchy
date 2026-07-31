@@ -472,6 +472,44 @@ Wasm-only accommodations for living inside a single browser canvas:
   shown through `exec_dialog`/`run_non_modal_dialog` rather than a bare
   `QDialog::exec`; the brush-tip, pattern, and style preset managers were
   converted for it.
+- **A window shown under an application-modal window never gets its keyboard
+  back.** Qt marks every window created while an application-modal window is
+  visible as blocked by it, and the key-delivery path drops events for a blocked
+  window outright (`QGuiApplicationPrivate::processKeyEvent` only sends when
+  `!blockedByModalWindow`, while the mouse path also checks the active popup, so
+  a blocked window keeps receiving clicks). The desktop platforms clear the flag
+  when the modal hides; the wasm plugin does not, so the window stays deaf for
+  the rest of its life. The symptom is distinctive and misleading: the window
+  paints, animates, and responds to the mouse, Qt's focus state is entirely
+  correct (`focusWindow`, `activeWindow`, `focusWidget` and the window's focus
+  object all point at it), Qt's own DOM `keydown` listener for that window still
+  fires, and yet no key event reaches any receiver in the application - an
+  app-wide `qApp` event filter sees nothing at all, and even Escape does not
+  close the dialog.
+
+  This is what made Breakout unplayable on the web build: it builds its
+  document, layers and brick field first, spending well over the 0.5 s busy
+  threshold before calling `patchy.ui.createCanvas`, so the app-modal script stop
+  panel was on screen at the moment the controller window was created and that
+  window came up permanently keyboard-dead (verified 2026-07-31). Pong opens its
+  window as its first statement, before any work, so the panel had not appeared
+  yet and it was never seen failing - which is exactly why the guard belongs in
+  the host and not in the scripts: whether a game is playable must not depend on
+  how much setup it happens to do first. Both games were re-verified playable in
+  the browser after the fix (Breakout launches and steers, Pong's paddle tracks
+  Up/Down). Two guards keep it from recurring, both in the script host:
+  `createCanvas` calls `dismiss_busy_indicator()` before constructing the
+  window, and `pump_progress_indicator` does not raise the stop panel while the run
+  owns an open canvas window (`has_open_canvas_window`). The interactive helpers
+  - alert, prompt, the pickers, showDialog, runCommand - already avoided the
+  hazard through `ModalWatchdogPause`; `createCanvas` was the one script-owned
+  UI surface that did not. Regression cover:
+  `ui_script_canvas_window_dismisses_stop_panel` and
+  `ui_script_canvas_window_suppresses_stop_panel` sample from inside the busy
+  pump and fail if a canvas window and the panel are ever on screen together.
+
+  The general rule for new code: never create a window while the app-modal busy
+  panel can be up. If some future surface needs to, dismiss the panel first.
 - **No `processEvents` pump runs mid-operation on wasm.** A pump cannot paint
   or deliver input here: the browser gets no turn until the main thread
   suspends in an idle event loop, and while wasm code runs, browser events only

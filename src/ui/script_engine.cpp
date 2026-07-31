@@ -591,10 +591,17 @@ void ScriptEngineHost::pump_progress_indicator() {
                                          /*delay_ms=*/0);
       canvas->tick_processing_operation();  // shows the overlay now
     }
-    if (stop_panel_ == nullptr) {
-      stop_panel_ = new ScriptStopPanel(&window_, [this] { confirm_stop_from_panel(); });
+    // Not while the script owns an interactive window: an application-modal
+    // panel over a game window makes it unplayable everywhere, and on wasm a
+    // window blocked by one never recovers its keyboard (dismiss_busy_indicator).
+    // The window itself, the Script Manager, and the watchdog remain as ways
+    // to end a run that stalls with a window open.
+    if (!has_open_canvas_window()) {
+      if (stop_panel_ == nullptr) {
+        stop_panel_ = new ScriptStopPanel(&window_, [this] { confirm_stop_from_panel(); });
+      }
+      stop_panel_->show();
     }
-    stop_panel_->show();
   }
   if (stop_panel_ != nullptr && stop_panel_->isVisible()) {
     static_cast<ScriptStopPanel*>(stop_panel_.data())
@@ -1820,6 +1827,24 @@ void ScriptEngineHost::reveal_layer_row(std::int64_t session_id, LayerId layer_i
 // ---------------------------------------------------------------------------
 // Script canvas windows
 
+void ScriptEngineHost::dismiss_busy_indicator() {
+  if (run_ == nullptr) {
+    return;
+  }
+  // A window created while an application-modal window is visible is born
+  // blocked by it. Qt lifts that block when the modal hides on the desktop
+  // platforms, but the wasm plugin never does, and a blocked window is dropped
+  // by the key-delivery path while still receiving mouse events - the script
+  // canvas window paints and takes clicks but is permanently deaf to the
+  // keyboard (docs/wasm.md). The interactive helpers avoid this through
+  // ModalWatchdogPause; a canvas window is not modal and does not block the
+  // script, so it dismisses the indicator directly instead.
+  end_progress_indicator();
+  // Restart the burst clock so the panel this dismissed does not reappear on
+  // the very next service call (the same reason ModalWatchdogPause does it).
+  run_->burst_clock.restart();
+}
+
 void ScriptEngineHost::adopt_canvas_window(ScriptCanvasWindow* window) {
   if (run_ == nullptr) {
     return;
@@ -1832,6 +1857,16 @@ void ScriptEngineHost::adopt_canvas_window(ScriptCanvasWindow* window) {
 void ScriptEngineHost::canvas_window_closed(ScriptCanvasWindow* window) {
   Q_UNUSED(window);
   schedule_completion_check();
+}
+
+bool ScriptEngineHost::has_open_canvas_window() const {
+  if (run_ == nullptr) {
+    return false;
+  }
+  return std::any_of(run_->windows.begin(), run_->windows.end(),
+                     [](const QPointer<ScriptCanvasWindow>& window) {
+                       return window != nullptr && window->is_open();
+                     });
 }
 
 QImage ScriptEngineHost::active_canvas_window_image() const {

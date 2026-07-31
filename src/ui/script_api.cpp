@@ -989,6 +989,9 @@ QJSValue ScriptUiObject::createCanvas(const QJSValue& options) {
   }
   width = std::clamp(width, 64, 4096);
   height = std::clamp(height, 64, 4096);
+  // Before the window exists, never after: a window shown under the app-modal
+  // stop panel is born blocked by it (docs/wasm.md).
+  host_.dismiss_busy_indicator();
   auto* window = new ScriptCanvasWindow(host_, width, height, title);
   host_.adopt_canvas_window(window);
   return host_.engine()->newQObject(window);
