@@ -1081,6 +1081,8 @@ void MainWindow::apply_color_scheme() {
   refresh_layer_list();
   refresh_channel_panel();
   refresh_paths_panel();
+  // Future-state rows stamp theme().history_future_text as a foreground brush.
+  refresh_history_panel();
 
   // 4. Canvas chrome is painted, not styled, so it needs an explicit repaint.
   for (const auto& session : sessions_) {

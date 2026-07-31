@@ -2114,8 +2114,8 @@ void ui_clone_tool_samples_source_and_paints_offset() {
 
   auto* history = window.findChild<QListWidget*>(QStringLiteral("historyList"));
   CHECK(history != nullptr);
-  CHECK(history->item(0) != nullptr);
-  CHECK(history->item(0)->text().contains(QStringLiteral("Clone")));
+  CHECK(history->currentItem() != nullptr);
+  CHECK(history->currentItem()->text().contains(QStringLiteral("Clone")));
   save_widget_artifact("ui_clone_tool_stamp", window);
 }
 
@@ -2329,8 +2329,8 @@ void ui_smudge_tool_drags_painted_pixels() {
   CHECK(color_close(canvas_pixel(*canvas, QPoint(230, 120)), Qt::white, 10));
   auto* history = window.findChild<QListWidget*>(QStringLiteral("historyList"));
   CHECK(history != nullptr);
-  CHECK(history->item(0) != nullptr);
-  CHECK(history->item(0)->text().contains(QStringLiteral("Smudge")));
+  CHECK(history->currentItem() != nullptr);
+  CHECK(history->currentItem()->text().contains(QStringLiteral("Smudge")));
   save_widget_artifact("ui_smudge_tool", window);
 }
 
@@ -2484,8 +2484,8 @@ void ui_mixer_brush_uses_compact_controls_and_round_trips_raster_pixels() {
                    layer->pixels().data().begin()));
 
   auto* history = window.findChild<QListWidget*>(QStringLiteral("historyList"));
-  CHECK(history != nullptr && history->item(0) != nullptr);
-  CHECK(history->item(0)->text().contains(QStringLiteral("Mixer Brush")));
+  CHECK(history != nullptr && history->currentItem() != nullptr);
+  CHECK(history->currentItem()->text().contains(QStringLiteral("Mixer Brush")));
   save_widget_artifact("ui_mixer_brush", window);
 }
 

@@ -782,7 +782,6 @@ void MainWindow::copy_selection() {
     }
     clipboard_ = std::move(payload);
     clear_system_clipboard();
-    update_history(tr("Copy"));
     statusBar()->showMessage(tr("Copied %1 layer(s)").arg(static_cast<qulonglong>(selected_layers.size())));
     return;
   }
@@ -835,7 +834,6 @@ void MainWindow::copy_selection() {
 
   clipboard_ = ClipboardPayload{std::move(copied), QPoint(copy_rect.x, copy_rect.y)};
   set_system_clipboard_image(qimage_from_pixel_buffer(clipboard_->pixels));
-  update_history(tr("Copy"));
   statusBar()->showMessage(
       tr("Copied %1 layer(s), %2 x %3 px")
           .arg(static_cast<qulonglong>(layers_to_copy.size()))
@@ -859,7 +857,6 @@ void MainWindow::copy_merged() {
   const auto image = qimage_from_document(document(), true).copy(QRect(copy_rect.x, copy_rect.y, copy_rect.width, copy_rect.height));
   clipboard_ = ClipboardPayload{pixels_from_image_rgba(image), QPoint(copy_rect.x, copy_rect.y)};
   set_system_clipboard_image(image);
-  update_history(tr("Copy merged"));
   statusBar()->showMessage(tr("Copied merged %1 x %2 px").arg(copy_rect.width).arg(copy_rect.height));
 }
 
@@ -1854,14 +1851,8 @@ void MainWindow::edit_active_layer_style() {
     for (auto& [name, tile] : pending_pattern_images) {
       Document image_document(tile.width(), tile.height(), PixelFormat::rgba8());
       image_document.add_pixel_layer(name.toStdString(), std::move(tile));
-      add_document_session(std::move(image_document), name);
-      auto& new_session = session();
-      new_session.undo_stack.clear();
-      new_session.redo_stack.clear();
-      if (history_list_ != nullptr) {
-        history_list_->clear();
-      }
-      update_history(tr("Open pattern as image"));
+      add_document_session(std::move(image_document), name, QString(),
+                           tr("Open pattern as image"));
       statusBar()->showMessage(tr("Opened pattern \"%1\" as a new image").arg(name));
     }
     pending_pattern_images.clear();
@@ -1975,7 +1966,6 @@ void MainWindow::copy_active_layer_style() {
   for (auto& satin : layer_style_clipboard_->style.satins) {
     satin.unsupported_contour_options = false;
   }
-  update_history(tr("Copy layer style"));
   statusBar()->showMessage(tr("Copied layer style"));
   refresh_layer_style_action_states();
 }

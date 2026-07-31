@@ -317,8 +317,9 @@ void ui_image_adjustments_menu_applies_active_layer_filters() {
   CHECK(canvas_pixel(*canvas, QPoint(140, 90)).red() < 80);
   auto* history = window.findChild<QListWidget*>(QStringLiteral("historyList"));
   CHECK(history != nullptr);
-  CHECK(history->item(0) != nullptr);
-  CHECK(history->item(0)->text().contains(QStringLiteral("Edge Detect")));
+  // The panel lists oldest-first; the highlighted current row names the latest action.
+  CHECK(history->currentItem() != nullptr);
+  CHECK(history->currentItem()->text().contains(QStringLiteral("Edge Detect")));
   save_widget_artifact("ui_filter_edge_detect", *canvas);
 
   auto* emboss = require_action(window, "filterAction_patchy_filters_emboss");
@@ -327,7 +328,7 @@ void ui_image_adjustments_menu_applies_active_layer_filters() {
                         {QStringLiteral("filterDepthSpin"), 140}});
   emboss->trigger();
   QApplication::processEvents();
-  CHECK(window.findChild<QListWidget*>(QStringLiteral("historyList"))->item(0)->text().contains(QStringLiteral("Emboss")));
+  CHECK(window.findChild<QListWidget*>(QStringLiteral("historyList"))->currentItem()->text().contains(QStringLiteral("Emboss")));
 
   canvas->set_primary_color(QColor(255, 0, 0));
   canvas->set_secondary_color(QColor(0, 0, 255));

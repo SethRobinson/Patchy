@@ -1,10 +1,9 @@
-// MainWindow's undo/redo history, split out of main_window.cpp: undo, redo,
-// both push_undo_snapshot overloads, push_selection_history, update_history,
-// update_undo_redo_actions, and the anonymous-namespace render-diff helpers
-// (LayerRenderSignature, history_restore_changed_region,
-// apply_history_render_refresh) that decide how much of the canvas an
-// undo/redo restore must recomposite.
-// Pure function moves from main_window.cpp; behavior must stay identical.
+// MainWindow's undo/redo history: undo, redo, both push_undo_snapshot
+// overloads, push_selection_history, the History panel rebuild
+// (refresh_history_panel/initialize_session_history), update_undo_redo_actions,
+// and the anonymous-namespace render-diff helpers (LayerRenderSignature,
+// history_restore_changed_region, apply_history_render_refresh) that decide how
+// much of the canvas an undo/redo restore must recomposite.
 
 #include "ui/main_window.hpp"
 #include "ui/main_window_shared.hpp"
@@ -72,6 +71,7 @@
 #include "ui/warp_text_dialog.hpp"
 #include "ui/qt_geometry.hpp"
 #include "ui/splash_dialog.hpp"
+#include "ui/theme_palette.hpp"
 #include "ui/update_checker.hpp"
 #include "ui/zoom_status_bar.hpp"
 #include "support/string_utils.hpp"
@@ -439,7 +439,7 @@ void MainWindow::apply_history_restore_tail(DocumentSession& active_session,
   refresh_palette_panel();
   schedule_palette_compliance_check();
   statusBar()->showMessage(status_message);
-  update_history(status_message);
+  refresh_history_panel();
   update_undo_redo_actions();
   refresh_document_tab_titles();
 }
@@ -515,7 +515,7 @@ void MainWindow::push_undo_snapshot(DocumentSession& target_session, QString lab
   // in a background session keeps its undo stack but must not inject its label
   // into the panel the user is looking at.
   if (target_is_active) {
-    update_history(label);
+    refresh_history_panel();
     statusBar()->showMessage(label);
   }
   update_undo_redo_actions();
@@ -553,18 +553,48 @@ void MainWindow::push_selection_history(DocumentSession& target_session, QString
   active_session.selection_move_coalescing = coalesce;
   // Panel/status mirror the active session only (see push_undo_snapshot).
   if (target_is_active) {
-    update_history(label);
+    refresh_history_panel();
     statusBar()->showMessage(label);
   }
   update_undo_redo_actions();
 }
 
-void MainWindow::update_history(QString label) {
+void MainWindow::refresh_history_panel() {
   if (history_list_ != nullptr) {
-    history_list_->insertItem(0, label);
-    history_list_->setCurrentRow(0);
+    history_list_->clear();
+    if (const auto* active = active_session(); active != nullptr) {
+      const auto add_row = [this](const QString& label, std::int64_t state_id, bool future) {
+        auto* item = new QListWidgetItem(label.isEmpty() ? tr("Edit") : label, history_list_);
+        item->setData(Qt::UserRole, QVariant::fromValue<qlonglong>(state_id));
+        if (future) {
+          item->setForeground(theme().history_future_text);
+        }
+      };
+      for (const auto& state : active->undo_stack) {
+        add_row(state.label, state.state_id, false);
+      }
+      add_row(active->current_state_label, active->current_state_id, false);
+      history_list_->setCurrentRow(static_cast<int>(active->undo_stack.size()));
+      // redo_stack.back() is the nearest future state, so the reverse walk
+      // lists the future in chronological order below the current row.
+      for (auto it = active->redo_stack.rbegin(); it != active->redo_stack.rend(); ++it) {
+        add_row(it->label, it->state_id, true);
+      }
+      history_list_->scrollToItem(history_list_->currentItem());
+    }
   }
   refresh_document_info();
+}
+
+void MainWindow::initialize_session_history(DocumentSession& target_session, QString initial_label) {
+  target_session.undo_stack.clear();
+  target_session.redo_stack.clear();
+  target_session.selection_move_coalescing = false;
+  target_session.current_state_label = std::move(initial_label);
+  target_session.current_state_id = target_session.next_history_state_id++;
+  if (&target_session == active_session()) {
+    refresh_history_panel();
+  }
 }
 
 void MainWindow::update_undo_redo_actions() {

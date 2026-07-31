@@ -125,7 +125,10 @@ public:
 #else
   static constexpr bool kWheelZoomsDefault = true;
 #endif
-  void add_document_session(Document document, QString title, QString path = {});
+  // initial_history_label names the new session's first history state ("Open",
+  // an import label, ...); empty means a generic "New document".
+  void add_document_session(Document document, QString title, QString path = {},
+                            QString initial_history_label = {});
   void open_command_line_files(const QStringList& paths);
   // Bring this already-running window to the foreground and open the files a second launch handed off
   // via the single-instance channel (see src/app/main.cpp).
@@ -1038,7 +1041,13 @@ private:
   void open_recent_document(QString path);
   QAction* add_tool_action(QToolBar* palette, QActionGroup* group, QString label, CanvasTool tool,
                            QKeySequence shortcut);
-  void update_history(QString label);
+  // Rebuilds the History panel from the active session's stacks (oldest state
+  // at the top, current state highlighted, redone-away future states dimmed),
+  // or clears it when no session is active.
+  void refresh_history_panel();
+  // Clears both stacks and seeds the first state's label/id; replaces the old
+  // per-site "clear stacks + clear panel" blocks at document-creation sites.
+  void initialize_session_history(DocumentSession& target_session, QString initial_label);
   // Centralized undo-stack push: cap eviction, redo clear, coalescing reset,
   // and the label/id handoff from the live state to the stored snapshot.
   void record_history_push(DocumentSession& target_session, DocumentSession::HistoryState state,

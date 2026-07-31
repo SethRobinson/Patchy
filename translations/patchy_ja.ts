@@ -9598,6 +9598,10 @@ RGB: -
         <translation>開き直す</translation>
     </message>
     <message>
+        <source>Edit</source>
+        <translation>編集</translation>
+    </message>
+    <message>
         <source>Reopened %1</source>
         <translation>%1 を開き直しました</translation>
     </message>

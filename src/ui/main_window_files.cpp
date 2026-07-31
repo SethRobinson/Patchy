@@ -1192,18 +1192,12 @@ void MainWindow::open_document_path(QString path) {
     render_pending_svg_text_layers(loaded->document);
     render_pending_af_text_layers(loaded->document);
 
-    add_document_session(std::move(loaded->document), loaded->file_name, path);
+    add_document_session(std::move(loaded->document), loaded->file_name, path, tr("Open"));
     if (!cli_automation_mode_ && is_photoshop_document_extension(loaded->extension) &&
         app_settings().value(QStringLiteral("imports/showPsdWarningsAndInfo"), false).toBool()) {
       show_compatibility_report(this, document(), loaded->file_name);
     }
     canvas_->fit_to_view();
-    session().undo_stack.clear();
-    session().redo_stack.clear();
-    if (history_list_ != nullptr) {
-      history_list_->clear();
-    }
-    update_history(tr("Open"));
     refresh_layer_list();
     refresh_layer_controls();
     if (!cli_automation_mode_) {
@@ -1294,9 +1288,7 @@ void MainWindow::reopen_document_session(DocumentSession& target_session) {
     layer_thumbnail_cache_.clear();
     channel_thumbnail_cache_.clear();
     target_session.document = std::move(loaded->document);
-    target_session.undo_stack.clear();
-    target_session.redo_stack.clear();
-    target_session.selection_move_coalescing = false;
+    initialize_session_history(target_session, tr("Reopen"));
     target_session.collapsed_layer_groups.clear();
     collect_initially_collapsed_layer_groups(target_session.document.layers(),
                                              target_session.collapsed_layer_groups);
@@ -1304,10 +1296,6 @@ void MainWindow::reopen_document_session(DocumentSession& target_session) {
     target_session.saved_revision = target_session.revision;
     canvas_->set_document(&target_session.document);
     canvas_->fit_to_view();
-    if (history_list_ != nullptr) {
-      history_list_->clear();
-    }
-    update_history(tr("Reopen"));
     refresh_layer_list();
     refresh_layer_controls();
     refresh_channel_panel();
@@ -1417,14 +1405,9 @@ void MainWindow::finish_scanner_import(ScannerAcquireResult result, bool delete_
     }
     // Untitled + modified: the scan exists nowhere else, so Save must prompt Save As and
     // closing must warn about unsaved changes.
-    add_document_session(std::move(loaded.document), tr("Scanned Image"), QString());
+    add_document_session(std::move(loaded.document), tr("Scanned Image"), QString(),
+                         tr("Import from scanner"));
     canvas_->fit_to_view();
-    session().undo_stack.clear();
-    session().redo_stack.clear();
-    if (history_list_ != nullptr) {
-      history_list_->clear();
-    }
-    update_history(tr("Import from scanner"));
     refresh_layer_list();
     refresh_layer_controls();
     update_undo_redo_actions();
@@ -1469,14 +1452,9 @@ void MainWindow::import_sprite_sheet() {
     if (const auto default_layer_id = default_non_group_layer_id(sliced->layers()); default_layer_id.has_value()) {
       sliced->set_active_layer(*default_layer_id);
     }
-    add_document_session(std::move(*sliced), tr("Sprite Frames"), QString());
+    add_document_session(std::move(*sliced), tr("Sprite Frames"), QString(),
+                         tr("Import sprite sheet"));
     canvas_->fit_to_view();
-    session().undo_stack.clear();
-    session().redo_stack.clear();
-    if (history_list_ != nullptr) {
-      history_list_->clear();
-    }
-    update_history(tr("Import sprite sheet"));
     refresh_layer_list();
     refresh_layer_controls();
     update_undo_redo_actions();
@@ -1585,14 +1563,9 @@ void MainWindow::import_image_sequence() {
   if (const auto default_layer_id = default_non_group_layer_id(imported->layers()); default_layer_id.has_value()) {
     imported->set_active_layer(*default_layer_id);
   }
-  add_document_session(std::move(*imported), tr("Image Sequence"), QString());
+  add_document_session(std::move(*imported), tr("Image Sequence"), QString(),
+                       tr("Import image sequence"));
   canvas_->fit_to_view();
-  session().undo_stack.clear();
-  session().redo_stack.clear();
-  if (history_list_ != nullptr) {
-    history_list_->clear();
-  }
-  update_history(tr("Import image sequence"));
   refresh_layer_list();
   refresh_layer_controls();
   update_undo_redo_actions();
@@ -1900,7 +1873,6 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
           persist_image_save_defaults(effective_image_options);
         }
       }
-      update_history(tr("Save"));
       if (!cli_automation_mode_) {
         add_recent_file(path);
       }
@@ -1929,7 +1901,6 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
       active_session.image_save_options_extension.clear();
     }
     set_session_saved(active_session);
-    update_history(tr("Save"));
     if (!cli_automation_mode_) {
       add_recent_file(path);
     }
@@ -2001,7 +1972,6 @@ void MainWindow::export_flat_image() {
       persist_image_save_defaults(effective_image_options);
     }
     remember_save_directory_for_path(path);
-    update_history(tr("Export flat image"));
     statusBar()->showMessage(tr("Exported %1").arg(path) + export_notes_suffix);
   } catch (const std::exception& error) {
     show_critical_message(this, tr("Export failed"), QString::fromUtf8(error.what()),

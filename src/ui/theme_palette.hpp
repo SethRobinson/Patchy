@@ -134,6 +134,9 @@ struct ThemePalette {
   QColor category_list_item_border;
   QColor category_selected_bg;
   QColor category_selected_border;
+  // History panel rows for redone-away "future" states: still clickable, so
+  // they dim without taking the disabled-item flags.
+  QColor history_future_text;
 
   // Layer rows and the layers panel.
   QColor layer_row_bg;

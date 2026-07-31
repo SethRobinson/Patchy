@@ -411,7 +411,8 @@ void MainWindow::open_smart_object_contents() {
   const auto file_name =
       QString::fromStdString(source->filename.empty() ? std::string("contents") : source->filename);
   const auto parent_title = parent_session.title.isEmpty() ? tr("Untitled") : parent_session.title;
-  add_document_session(std::move(*child_document), tr("%1 (embedded in %2)").arg(file_name, parent_title));
+  add_document_session(std::move(*child_document), tr("%1 (embedded in %2)").arg(file_name, parent_title),
+                       QString(), tr("Open"));
   auto& child_session = session();
   child_session.smart_object_link = DocumentSession::SmartObjectLink{parent_session_id, uuid};
   statusBar()->showMessage(tr("Editing smart object contents. Save (Ctrl+S) applies them back to %1").arg(parent_title));
@@ -538,7 +539,11 @@ bool MainWindow::commit_smart_object_child_session(DocumentSession& child_sessio
     parent->canvas->document_changed();
   }
   mark_session_modified(*parent);
-  update_history(tr("Edit Smart Object Contents"));
+  // The commit usually runs while the CHILD tab is active; the shared panel
+  // mirrors the active session only, so refresh only if the parent is it.
+  if (parent == active_session()) {
+    refresh_history_panel();
+  }
 
   child_session.saved_revision = child_session.revision;
   refresh_document_tab_titles();
@@ -715,7 +720,9 @@ void MainWindow::refresh_external_smart_object_after_save(DocumentSession& child
     parent->canvas->document_changed();
   }
   mark_session_modified(*parent);
-  update_history(tr("Update Smart Object Content"));
+  if (parent == active_session()) {
+    refresh_history_panel();
+  }
   statusBar()->showMessage(tr("Saved %1 and updated %2")
                                .arg(QFileInfo(child_session.path).fileName(),
                                     parent->title.isEmpty() ? tr("Untitled") : parent->title));

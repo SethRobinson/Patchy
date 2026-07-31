@@ -250,7 +250,8 @@ int qInitResources_icons();
 
 namespace patchy::ui {
 
-void MainWindow::add_document_session(Document document, QString title, QString path) {
+void MainWindow::add_document_session(Document document, QString title, QString path,
+                                      QString initial_history_label) {
   // The thumbnail cache is scoped to the active document; layer ids restart
   // per document, so entries must never leak across tabs.
   layer_thumbnail_cache_.clear();
@@ -370,6 +371,9 @@ void MainWindow::add_document_session(Document document, QString title, QString 
     }
     sync_brush_controls_from_canvas();
   }
+  initialize_session_history(*sessions_.back(), initial_history_label.isEmpty()
+                                                    ? tr("New document")
+                                                    : std::move(initial_history_label));
   refresh_layer_list();
   refresh_layer_controls();
   refresh_channel_panel();
@@ -449,6 +453,7 @@ void MainWindow::activate_document_canvas(CanvasWidget* canvas) {
     refresh_layer_controls();
     refresh_channel_panel();
     refresh_document_info();
+    refresh_history_panel();
     refresh_color_buttons();
     if (quick_mask_action_ != nullptr) {
       const QSignalBlocker blocker(quick_mask_action_);
@@ -495,6 +500,7 @@ void MainWindow::activate_document_canvas(CanvasWidget* canvas) {
   refresh_layer_controls();
   refresh_channel_panel();
   refresh_document_info();
+  refresh_history_panel();
   refresh_color_buttons();
   if (quick_mask_action_ != nullptr) {
     const QSignalBlocker blocker(quick_mask_action_);

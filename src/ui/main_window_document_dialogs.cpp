@@ -1060,14 +1060,8 @@ void MainWindow::reset_document(std::int32_t width, std::int32_t height, QColor 
   set_layer_locks_position(background_layer, true);
   new_document.add_pixel_layer("Paint Layer", make_solid_pixels(new_document.width(), new_document.height(), QColor(0, 0, 0, 0),
                                                              PixelFormat::rgba8()));
-  add_document_session(std::move(new_document), tr("Untitled-%1").arg(sessions_.size() + 1));
-  auto& active_session = session();
-  active_session.undo_stack.clear();
-  active_session.redo_stack.clear();
-  if (history_list_ != nullptr) {
-    history_list_->clear();
-  }
-  update_history(std::move(history_label));
+  add_document_session(std::move(new_document), tr("Untitled-%1").arg(sessions_.size() + 1),
+                       QString(), std::move(history_label));
   refresh_layer_list();
   refresh_layer_controls();
   update_undo_redo_actions();
@@ -1086,15 +1080,9 @@ void MainWindow::create_clipboard_document(const QImage& image, QString history_
   new_document.print_settings().horizontal_ppi = kUntaggedImportPpi;
   new_document.print_settings().vertical_ppi = kUntaggedImportPpi;
   new_document.add_pixel_layer(tr("Clipboard Image").toStdString(), std::move(pixels));
-  add_document_session(std::move(new_document), tr("Untitled-%1").arg(sessions_.size() + 1));
+  add_document_session(std::move(new_document), tr("Untitled-%1").arg(sessions_.size() + 1),
+                       QString(), std::move(history_label));
   fit_new_document_view(canvas_);
-  auto& active_session = session();
-  active_session.undo_stack.clear();
-  active_session.redo_stack.clear();
-  if (history_list_ != nullptr) {
-    history_list_->clear();
-  }
-  update_history(std::move(history_label));
   refresh_layer_list();
   refresh_layer_controls();
   update_undo_redo_actions();

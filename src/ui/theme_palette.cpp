@@ -131,6 +131,7 @@ const ThemePalette& dark_palette() {
       .category_list_item_border = rgb(0x3b3b3b),
       .category_selected_bg = rgb(0x2d4c6d),
       .category_selected_border = rgb(0x4f91ca),
+      .history_future_text = rgb(0x737373),
 
       // Layer rows and the layers panel.
       .layer_row_bg = rgb(0x242628),
@@ -726,6 +727,7 @@ std::span<const ThemePaletteRole> theme_palette_roles() {
       PATCHY_THEME_ROLE(category_list_item_border),
       PATCHY_THEME_ROLE(category_selected_bg),
       PATCHY_THEME_ROLE(category_selected_border),
+      PATCHY_THEME_ROLE(history_future_text),
 
       PATCHY_THEME_ROLE(layer_row_bg),
       PATCHY_THEME_ROLE(layer_row_border),
