@@ -207,6 +207,13 @@ private:
       // Selection state at this point in history, so undo/redo restores the
       // selection alongside the pixels (and selection-only edits are undoable).
       CanvasWidget::SelectionSnapshot selection;
+      // Action that produced this state (History panel row text). The label a
+      // push receives names the upcoming edit, so it becomes the label of the
+      // NEXT state, not of the snapshot being stored.
+      QString label;
+      // Monotonic per-session row identity; panel rows reference states by id
+      // because cap eviction from the stack front shifts vector indices.
+      std::int64_t state_id{0};
     };
 
     Document document;
@@ -253,6 +260,12 @@ private:
     // True when the top undo entry is a coalescable selection move, so the next
     // move in the run merges into it instead of pushing a new entry.
     bool selection_move_coalescing{false};
+    // Label and id of the live document's state (the action that produced it);
+    // pushes hand these to the stored snapshot and take fresh ones.
+    QString current_state_label;
+    std::int64_t current_state_id{0};
+    std::int64_t next_history_state_id{1};
+    static constexpr std::size_t kMaxUndoStates = 40;
   };
 
   struct ClipboardPayload {
@@ -1026,6 +1039,21 @@ private:
   QAction* add_tool_action(QToolBar* palette, QActionGroup* group, QString label, CanvasTool tool,
                            QKeySequence shortcut);
   void update_history(QString label);
+  // Centralized undo-stack push: cap eviction, redo clear, coalescing reset,
+  // and the label/id handoff from the live state to the stored snapshot.
+  void record_history_push(DocumentSession& target_session, DocumentSession::HistoryState state,
+                           QString action_label);
+  // One data-only history rotation (no canvas or UI work, so jumps can loop it).
+  // live_selection enters holding the live document's selection and exits
+  // holding the restored state's selection.
+  void rotate_history_state(DocumentSession& target_session, bool backward,
+                            CanvasWidget::SelectionSnapshot& live_selection);
+  // Shared canvas/panel refresh after undo/redo/jump rotations on the active
+  // session. before_document is the pre-restore document (left intact inside
+  // the opposite stack by the rotation) used for the partial-repaint diff.
+  void apply_history_restore_tail(DocumentSession& active_session, const Document& before_document,
+                                  CanvasWidget::SelectionSnapshot restored_selection,
+                                  const QString& status_message);
   void update_undo_redo_actions();
   void show_about();
 

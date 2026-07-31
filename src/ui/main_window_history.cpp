@@ -361,28 +361,54 @@ void apply_history_render_refresh(CanvasWidget* canvas, const std::optional<QReg
 
 }  // namespace
 
-void MainWindow::undo() {
-  finish_pending_layer_opacity_edit();
-  finish_pending_layer_fill_opacity_edit();
-  auto& active_session = session();
-  if (active_session.undo_stack.empty()) {
-    return;
+void MainWindow::record_history_push(DocumentSession& target_session,
+                                     DocumentSession::HistoryState state, QString action_label) {
+  // The stored snapshot is the PRE-edit document, so it takes over the label
+  // and id of the state it captures; the live document becomes a fresh state
+  // named after the action that is about to (or just did) mutate it.
+  state.label = std::move(target_session.current_state_label);
+  state.state_id = target_session.current_state_id;
+  target_session.undo_stack.push_back(std::move(state));
+  if (target_session.undo_stack.size() > DocumentSession::kMaxUndoStates) {
+    target_session.undo_stack.erase(target_session.undo_stack.begin());
   }
+  target_session.redo_stack.clear();
+  target_session.selection_move_coalescing = false;
+  target_session.current_state_label = std::move(action_label);
+  target_session.current_state_id = target_session.next_history_state_id++;
+}
+
+void MainWindow::rotate_history_state(DocumentSession& target_session, bool backward,
+                                      CanvasWidget::SelectionSnapshot& live_selection) {
+  auto& from = backward ? target_session.undo_stack : target_session.redo_stack;
+  auto& to = backward ? target_session.redo_stack : target_session.undo_stack;
+  // Braced-init evaluation is left to right, so the document moves out before
+  // revision/label are read; both history hops are moves (a copy here is a
+  // full multi-hundred-MB Document duplication on large canvases).
+  to.push_back(DocumentSession::HistoryState{
+      std::move(target_session.document), target_session.revision, std::move(live_selection),
+      std::move(target_session.current_state_label), target_session.current_state_id});
+  auto& restored = from.back();
+  target_session.document = std::move(restored.document);
+  target_session.revision = restored.revision;
+  live_selection = std::move(restored.selection);
+  target_session.current_state_label = std::move(restored.label);
+  target_session.current_state_id = restored.state_id;
+  from.pop_back();
+  target_session.selection_move_coalescing = false;
+}
+
+void MainWindow::apply_history_restore_tail(DocumentSession& active_session,
+                                            const Document& before_document,
+                                            CanvasWidget::SelectionSnapshot restored_selection,
+                                            const QString& status_message) {
+  // Rotations never touch the canvas, so reading the mask edit target here is
+  // equivalent to capturing it before them.
   const auto restore_smart_filter_mask_owner =
       canvas_->smart_filter_mask_owner_id();
   const auto restore_smart_filter_mask_mode = canvas_->mask_display_mode();
-  // Braced-init evaluation is left to right, so the document moves out before
-  // revision/selection are read; both history hops are moves (a copy here is a
-  // full multi-hundred-MB Document duplication on large canvases).
-  active_session.redo_stack.push_back(DocumentSession::HistoryState{
-      std::move(active_session.document), active_session.revision, canvas_->capture_selection_snapshot()});
-  active_session.document = std::move(active_session.undo_stack.back().document);
-  active_session.revision = active_session.undo_stack.back().revision;
-  auto restored_selection = std::move(active_session.undo_stack.back().selection);
-  active_session.undo_stack.pop_back();
-  active_session.selection_move_coalescing = false;
   const auto changed_region =
-      history_restore_changed_region(active_session.redo_stack.back().document, active_session.document);
+      history_restore_changed_region(before_document, active_session.document);
   const bool normal_composite_unchanged = changed_region.has_value() && changed_region->isEmpty();
   canvas_->set_document_for_history_restore(&active_session.document, normal_composite_unchanged);
   if (restore_smart_filter_mask_owner.has_value()) {
@@ -412,10 +438,25 @@ void MainWindow::undo() {
   apply_history_render_refresh(canvas_, changed_region);
   refresh_palette_panel();
   schedule_palette_compliance_check();
-  statusBar()->showMessage(tr("Undo"));
-  update_history(tr("Undo"));
+  statusBar()->showMessage(status_message);
+  update_history(status_message);
   update_undo_redo_actions();
   refresh_document_tab_titles();
+}
+
+void MainWindow::undo() {
+  finish_pending_layer_opacity_edit();
+  finish_pending_layer_fill_opacity_edit();
+  auto& active_session = session();
+  if (active_session.undo_stack.empty()) {
+    return;
+  }
+  auto live_selection = canvas_->capture_selection_snapshot();
+  rotate_history_state(active_session, /*backward=*/true, live_selection);
+  // The pre-undo document now sits intact at redo_stack.back(); the tail diffs
+  // it against the restored document for the partial repaint.
+  apply_history_restore_tail(active_session, active_session.redo_stack.back().document,
+                             std::move(live_selection), tr("Undo"));
 }
 
 void MainWindow::redo() {
@@ -425,51 +466,10 @@ void MainWindow::redo() {
   if (active_session.redo_stack.empty()) {
     return;
   }
-  const auto restore_smart_filter_mask_owner =
-      canvas_->smart_filter_mask_owner_id();
-  const auto restore_smart_filter_mask_mode = canvas_->mask_display_mode();
-  active_session.undo_stack.push_back(DocumentSession::HistoryState{
-      std::move(active_session.document), active_session.revision, canvas_->capture_selection_snapshot()});
-  active_session.document = std::move(active_session.redo_stack.back().document);
-  active_session.revision = active_session.redo_stack.back().revision;
-  auto restored_selection = std::move(active_session.redo_stack.back().selection);
-  active_session.redo_stack.pop_back();
-  active_session.selection_move_coalescing = false;
-  const auto changed_region =
-      history_restore_changed_region(active_session.undo_stack.back().document, active_session.document);
-  const bool normal_composite_unchanged = changed_region.has_value() && changed_region->isEmpty();
-  canvas_->set_document_for_history_restore(&active_session.document, normal_composite_unchanged);
-  if (restore_smart_filter_mask_owner.has_value()) {
-    const auto* restored_layer = std::as_const(active_session.document)
-                                     .find_layer(*restore_smart_filter_mask_owner);
-    const auto* restored_stack = restored_layer != nullptr
-                                     ? restored_layer->smart_filter_stack()
-                                     : nullptr;
-    auto restored_pixels =
-        restored_stack != nullptr &&
-                restored_stack->support == SmartFilterStackSupport::Supported
-            ? materialize_smart_filter_mask(
-                  restored_stack->mask, active_session.document.width(),
-                  active_session.document.height())
-            : std::nullopt;
-    if (restored_pixels.has_value()) {
-      static_cast<void>(canvas_->set_smart_filter_mask_edit_target(
-          *restore_smart_filter_mask_owner, std::move(*restored_pixels),
-          restore_smart_filter_mask_mode));
-    }
-  }
-  canvas_->apply_selection_snapshot(restored_selection);
-  refresh_layer_list();
-  refresh_layer_controls();
-  refresh_channel_panel();
-  update_document_action_state();
-  apply_history_render_refresh(canvas_, changed_region);
-  refresh_palette_panel();
-  schedule_palette_compliance_check();
-  statusBar()->showMessage(tr("Redo"));
-  update_history(tr("Redo"));
-  update_undo_redo_actions();
-  refresh_document_tab_titles();
+  auto live_selection = canvas_->capture_selection_snapshot();
+  rotate_history_state(active_session, /*backward=*/false, live_selection);
+  apply_history_restore_tail(active_session, active_session.undo_stack.back().document,
+                             std::move(live_selection), tr("Redo"));
 }
 
 void MainWindow::push_undo_snapshot(QString label) {
@@ -485,7 +485,6 @@ void MainWindow::push_undo_snapshot(DocumentSession& target_session, QString lab
     finish_pending_layer_fill_opacity_edit();
   }
   const auto started = std::chrono::steady_clock::now();
-  constexpr std::size_t kMaxUndo = 40;
   auto& active_session = target_session;
   const auto snapshot_revision = active_session.revision;
   auto snapshot_future = launch_async([&active_session] {
@@ -507,13 +506,10 @@ void MainWindow::push_undo_snapshot(DocumentSession& target_session, QString lab
   // non-active canvas must not record the active document's selection.
   auto snapshot_selection = active_session.canvas != nullptr ? active_session.canvas->capture_selection_snapshot()
                                                              : CanvasWidget::SelectionSnapshot{};
-  active_session.undo_stack.push_back(
-      DocumentSession::HistoryState{snapshot_future.get(), snapshot_revision, std::move(snapshot_selection)});
-  if (active_session.undo_stack.size() > kMaxUndo) {
-    active_session.undo_stack.erase(active_session.undo_stack.begin());
-  }
-  active_session.redo_stack.clear();
-  active_session.selection_move_coalescing = false;
+  record_history_push(
+      active_session,
+      DocumentSession::HistoryState{snapshot_future.get(), snapshot_revision, std::move(snapshot_selection)},
+      label);
   mark_session_modified(active_session);
   // The History panel and status bar mirror the ACTIVE session; an edit landing
   // in a background session keeps its undo stack but must not inject its label
@@ -534,7 +530,6 @@ void MainWindow::push_selection_history(DocumentSession& target_session, QString
     finish_pending_layer_opacity_edit();
     finish_pending_layer_fill_opacity_edit();
   }
-  constexpr std::size_t kMaxUndo = 40;
   auto& active_session = target_session;
   // A run of moves/nudges collapses into one undo step: once the first move has
   // pushed an entry holding the pre-run position, later moves leave the live
@@ -551,12 +546,10 @@ void MainWindow::push_selection_history(DocumentSession& target_session, QString
   // current document together with the pre-edit selection. The document is not
   // flagged modified for save purposes (a mere selection is not unsaved work),
   // but the change still joins the undo/redo history.
-  active_session.undo_stack.push_back(
-      DocumentSession::HistoryState{active_session.document, active_session.revision, std::move(before)});
-  if (active_session.undo_stack.size() > kMaxUndo) {
-    active_session.undo_stack.erase(active_session.undo_stack.begin());
-  }
-  active_session.redo_stack.clear();
+  record_history_push(
+      active_session,
+      DocumentSession::HistoryState{active_session.document, active_session.revision, std::move(before)},
+      label);
   active_session.selection_move_coalescing = coalesce;
   // Panel/status mirror the active session only (see push_undo_snapshot).
   if (target_is_active) {

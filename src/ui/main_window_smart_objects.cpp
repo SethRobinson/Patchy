@@ -521,18 +521,14 @@ bool MainWindow::commit_smart_object_child_session(DocumentSession& child_sessio
     return false;
   }
 
-  // One parent undo step for the whole commit (same 40-entry cap as push_undo_snapshot,
-  // which only operates on the active session).
-  parent->undo_stack.push_back(DocumentSession::HistoryState{
-      parent->document, parent->revision,
-      parent->canvas != nullptr ? parent->canvas->capture_selection_snapshot()
-                                : CanvasWidget::SelectionSnapshot{}});
-  constexpr std::size_t kMaxUndo = 40;
-  if (parent->undo_stack.size() > kMaxUndo) {
-    parent->undo_stack.erase(parent->undo_stack.begin());
-  }
-  parent->redo_stack.clear();
-  parent->selection_move_coalescing = false;
+  // One parent undo step for the whole commit (push_undo_snapshot itself only
+  // operates on the active session).
+  record_history_push(*parent,
+                      DocumentSession::HistoryState{
+                          parent->document, parent->revision,
+                          parent->canvas != nullptr ? parent->canvas->capture_selection_snapshot()
+                                                    : CanvasWidget::SelectionSnapshot{}},
+                      tr("Edit Smart Object Contents"));
   parent->document = std::move(updated_document);
   if (child_session.smart_object_link.has_value()) {
     child_session.smart_object_link->source_uuid = refreshed_source_uuid;
@@ -706,18 +702,14 @@ void MainWindow::refresh_external_smart_object_after_save(DocumentSession& child
     return;
   }
 
-  // One parent undo step for the refresh (same cap as push_undo_snapshot, which only
+  // One parent undo step for the refresh (push_undo_snapshot itself only
   // operates on the active session).
-  parent->undo_stack.push_back(DocumentSession::HistoryState{
-      parent->document, parent->revision,
-      parent->canvas != nullptr ? parent->canvas->capture_selection_snapshot()
-                                : CanvasWidget::SelectionSnapshot{}});
-  constexpr std::size_t kMaxUndo = 40;
-  if (parent->undo_stack.size() > kMaxUndo) {
-    parent->undo_stack.erase(parent->undo_stack.begin());
-  }
-  parent->redo_stack.clear();
-  parent->selection_move_coalescing = false;
+  record_history_push(*parent,
+                      DocumentSession::HistoryState{
+                          parent->document, parent->revision,
+                          parent->canvas != nullptr ? parent->canvas->capture_selection_snapshot()
+                                                    : CanvasWidget::SelectionSnapshot{}},
+                      tr("Update Smart Object Content"));
   parent->document = std::move(updated_document);
   if (parent->canvas != nullptr) {
     parent->canvas->document_changed();
