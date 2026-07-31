@@ -806,8 +806,7 @@ void ScriptEditorDialog::show_tree_context_menu(const QPoint& position) {
     folder_menu.setObjectName(QStringLiteral("scriptEditorTreeMenu"));
     auto* new_script_action = folder_menu.addAction(tr("New Script"));
     auto* open_folder_action = folder_menu.addAction(tr("Show in Folder"));
-    auto* chosen_folder =
-        exec_context_menu(folder_menu, script_tree_->viewport()->mapToGlobal(position), *this);
+    auto* chosen_folder = folder_menu.exec(script_tree_->viewport()->mapToGlobal(position));
     if (chosen_folder == new_script_action) {
       new_script();
     } else if (chosen_folder == open_folder_action) {
@@ -829,7 +828,7 @@ void ScriptEditorDialog::show_tree_context_menu(const QPoint& position) {
     menu.addSeparator();
     revert_action = menu.addAction(tr("Revert to Bundled"));
   }
-  auto* chosen = exec_context_menu(menu, script_tree_->viewport()->mapToGlobal(position), *this);
+  auto* chosen = menu.exec(script_tree_->viewport()->mapToGlobal(position));
   if (chosen == nullptr) {
     return;
   }

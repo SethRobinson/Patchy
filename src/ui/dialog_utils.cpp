@@ -40,6 +40,7 @@
 #include <QPainter>
 #include <QPixmap>
 #include <QPointer>
+#include <QTimer>
 #include <QPolygonF>
 #include <QPushButton>
 #include <QScreen>
@@ -1225,28 +1226,90 @@ int exec_dialog(QDialog& dialog) {
   return dialog.exec();
 }
 
-QAction* exec_context_menu(QMenu& menu, QPoint global_position, QWidget& context) {
 #ifdef Q_OS_WASM
-  if (auto* window = context.window();
-      window != nullptr && qobject_cast<QMainWindow*>(window) == nullptr) {
-    return wasm_files::exec_menu_in_window(menu, global_position, *window);
+namespace {
+
+// Qt's wasm compositor raises whichever window is clicked, and (through Qt
+// 6.10 at least) does not re-raise a window's transient children with it, so
+// a canvas click buried every open non-modal dialog behind the fullscreen
+// main window with no window manager to recover it. Mirror the macOS
+// child-window anchor at the application level: watch presses and window
+// activation app-wide, and when a window that hosts registered dialogs comes
+// forward, restack its visible dialogs above it one event-loop turn later
+// (after the compositor's own raise has happened).
+class WasmDialogRaiser : public QObject {
+ public:
+  static WasmDialogRaiser& instance() {
+    static auto* raiser = new WasmDialogRaiser(qApp);
+    return *raiser;
   }
-#endif
-  return menu.exec(global_position);
-}
 
-#ifdef Q_OS_WASM
-namespace wasm_files {
-bool wrap_dialog_content_in_overflow_scroll(QDialog& dialog, QSize bound) {
-  return install_dialog_overflow_scroll(dialog, bound);
-}
-}  // namespace wasm_files
-#endif
+  void watch(QDialog& dialog) {
+    dialogs_.removeAll(nullptr);
+    if (!dialogs_.contains(&dialog)) {
+      dialogs_.append(&dialog);
+    }
+  }
 
-#ifndef Q_OS_MACOS
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (event->type() != QEvent::MouseButtonPress && event->type() != QEvent::WindowActivate) {
+      return false;
+    }
+    auto* widget = qobject_cast<QWidget*>(watched);
+    if (widget == nullptr) {
+      return false;
+    }
+    QWidget* window = widget->window();
+    if (!hosts_registered_dialog(window)) {
+      return false;
+    }
+    QTimer::singleShot(0, this, [this, window = QPointer<QWidget>(window)] {
+      if (window == nullptr) {
+        return;
+      }
+      // Raising a dialog can bury its own child dialogs in turn, so walk the
+      // parent-window chain breadth-first (dialog stacks are shallow).
+      QList<QWidget*> hosts{window.data()};
+      for (int i = 0; i < hosts.size() && i < 8; ++i) {
+        for (const auto& dialog : dialogs_) {
+          if (dialog != nullptr && dialog->isVisible() && dialog->window() != hosts[i] &&
+              dialog->parentWidget() != nullptr &&
+              dialog->parentWidget()->window() == hosts[i]) {
+            dialog->raise();
+            hosts.append(dialog->window());
+          }
+        }
+      }
+    });
+    return false;
+  }
+
+ private:
+  explicit WasmDialogRaiser(QObject* parent) : QObject(parent) { qApp->installEventFilter(this); }
+
+  bool hosts_registered_dialog(const QWidget* window) const {
+    for (const auto& dialog : dialogs_) {
+      if (dialog != nullptr && dialog->isVisible() && dialog->window() != window &&
+          dialog->parentWidget() != nullptr && dialog->parentWidget()->window() == window) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  QList<QPointer<QDialog>> dialogs_;
+};
+
+}  // namespace
+
+void keep_dialog_above_parent_window(QDialog& dialog) {
+  WasmDialogRaiser::instance().watch(dialog);
+}
+#elif !defined(Q_OS_MACOS)
 void keep_dialog_above_parent_window(QDialog& dialog) {
   // Windows owned windows and X11/Wayland transients already stay above their
-  // parent; only macOS needs the child-window anchor (dialog_utils_mac.mm).
+  // parent; only macOS needs the child-window anchor (dialog_utils_mac.mm) and
+  // wasm the compositor restack above.
   Q_UNUSED(dialog);
 }
 #endif

@@ -1,14 +1,9 @@
 #pragma once
 
-#include <QPoint>
-#include <QSize>
 #include <QString>
 
 #include <functional>
 
-class QAction;
-class QDialog;
-class QMenu;
 class QWidget;
 
 // Browser-side file access for the WebAssembly build (docs/wasm.md, step 3).
@@ -40,42 +35,11 @@ namespace patchy::ui::wasm_files {
 void download_file_in_browser(const QString& path);
 
 // Registers page-side dragover/drop listeners for files dragged in from the
-// desktop. Qt 6.8 wasm has no external-drop support of its own (it never
-// registers a browser dragover handler, so the browser can never deliver a
-// drop to it). Dropped files are copied into MEMFS and reported one path per
-// file through `open_dropped_path`. Call once at startup.
+// desktop. Dropped files are copied into MEMFS and reported one path per
+// file through `open_dropped_path`. Call once at startup. (Qt 6.8 wasm had no
+// external-drop support at all; Qt 6.10 registers its own drop listeners on
+// the window element, so if the native path ever starts delivering dropped
+// files too, one of the two paths must be gated off.)
 void install_web_drop_target(std::function<void(const QString& path)> open_dropped_path);
-
-// Application-wide workaround for a Qt 6.8 wasm input bug: a top-level window
-// whose platform window is constructed while a nested event loop is running
-// receives no pointer or key input for its entire lifetime. Qt registers that
-// window's DOM listeners through an embind call that, re-entered under
-// Asyncify, hands back a Promise instead of the listener object, so the
-// browser has nothing to call. docs/wasm.md records the full root cause and
-// the evidence.
-//
-// Every window a dialog opens is created inside that dialog's nested loop, so
-// none of them can work: combo popups, context menus, and sub-dialogs alike.
-// Child widgets of an already-working window are unaffected, which is the only
-// mechanism available. The filter therefore intercepts every interaction that
-// would open a dialog combo's popup and shows a popup-styled QListWidget as a
-// plain child widget inside the dialog's own window; picks emit the same
-// activated/textActivated signals a real popup would, and a press outside the
-// list dismisses it like a popup. The same filter reparents every QDialog that
-// would open as a window from another dialog (message boxes, color pickers,
-// sub-dialogs) into the host window as a centered child widget, with a
-// click-blocking dim layer when the dialog is modal.
-void install_wasm_dialog_combo_workaround();
-
-// QMenu::exec replacement for menus opened from dialog contexts (flat menus
-// only): shows the actions as an in-window list child of `host`, waits, and
-// returns the picked action or null on dismissal.
-[[nodiscard]] QAction* exec_menu_in_window(QMenu& menu, QPoint global_position, QWidget& host);
-
-// Exported shim over dialog_utils.cpp's install_dialog_overflow_scroll so the
-// embedded-dialog path can make an oversized dialog's button row reachable by
-// scrolling. Declared here because this header is the wasm-only surface both
-// TUs share. Returns true when the content was wrapped.
-bool wrap_dialog_content_in_overflow_scroll(QDialog& dialog, QSize bound);
 
 }  // namespace patchy::ui::wasm_files

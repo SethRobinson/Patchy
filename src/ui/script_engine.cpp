@@ -366,6 +366,14 @@ bool ScriptEngineHost::call_script_callback(QJSValue callback, const QJSValueLis
   if (run_ == nullptr || run_->finishing || engine_ == nullptr || !callback.isCallable()) {
     return false;
   }
+  if (run_->sync_running || run_->in_callback) {
+    // The engine is not reentrant: a timer or input event dispatched from a
+    // mid-script pump must not call back into JS while evaluate() or another
+    // callback is still on the stack (the script-timer handler carries the
+    // same guard). Entering anyway also clobbered the outer burst's watchdog
+    // arm and interrupt flag.
+    return false;
+  }
   run_->in_callback = true;
   run_->burst_clock.restart();  // busy indicator measures this burst alone
   engine_->setInterrupted(false);
@@ -596,8 +604,14 @@ void ScriptEngineHost::pump_progress_indicator() {
   }
   // Pump with input allowed: the app-modal panel swallows everything except
   // its own Stop button, and the posted-event dispatch runs the coalesced
-  // refresh flush so progressive pixel writes repaint as they land.
+  // refresh flush so progressive pixel writes repaint as they land. Not on
+  // wasm: there the browser paints nothing and delivers no input until the
+  // main thread suspends in an idle event loop (docs/wasm.md), so this pump
+  // achieves nothing except dispatching Qt-internal timers into the middle of
+  // the running script, which is how a slow script froze the whole tab.
+#ifndef Q_OS_WASM
   QApplication::processEvents(QEventLoop::AllEvents, 16);
+#endif
 }
 
 void ScriptEngineHost::end_progress_indicator() {

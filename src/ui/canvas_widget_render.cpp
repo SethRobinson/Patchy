@@ -345,7 +345,12 @@ void CanvasWidget::tick_processing_operation() {
     }
   }
   if (processing_overlay_visible_) {
+    // Not on wasm: the browser paints nothing until the main thread suspends
+    // in an idle event loop, so a mid-operation pump cannot animate the
+    // overlay there; it only dispatches Qt timers into the running operation.
+#ifndef Q_OS_WASM
     QApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 16);
+#endif
   }
 }
 

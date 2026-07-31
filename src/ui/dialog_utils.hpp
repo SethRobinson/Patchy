@@ -85,13 +85,6 @@ void set_dialog_position_memory_id(QDialog& dialog, const QString& id);
 void remember_dialog_position(QDialog& dialog);
 int exec_dialog(QDialog& dialog);
 int run_non_modal_dialog(QDialog& dialog);
-// QMenu::exec for context menus that can be opened from inside a dialog. On
-// desktop this is exactly menu.exec(global_position). On wasm a menu popped
-// from a secondary window would render but never receive input (see
-// dialog_utils_wasm.hpp), so there it shows the actions as an in-window list
-// instead; menus popped from the main window keep the native popup. Flat
-// menus only.
-QAction* exec_context_menu(QMenu& menu, QPoint global_position, QWidget& context);
 // macOS: anchors the dialog's native window as a child window of its parent
 // widget's window whenever it is visible, so it can never drop behind the parent
 // (macOS has no Win32-style owned-window z-order; clicking the main window would

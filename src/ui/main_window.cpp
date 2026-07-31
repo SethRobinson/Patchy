@@ -4686,16 +4686,6 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   if (use_custom_window_chrome()) {
     setWindowFlag(Qt::FramelessWindowHint, true);
   }
-#ifdef Q_OS_WASM
-  // Qt's wasm compositor keeps one z-stack for every top-level window and
-  // raises whichever window is clicked, so a canvas click lifted the main
-  // window above a non-modal dialog (layer style, curves), hiding it with no
-  // window manager to bring it back while its edit lock stayed engaged.
-  // Parking the main window in the stay-on-bottom stacking zone makes that
-  // raise a no-op; dialogs and popups keep their normal order above it.
-  setWindowFlag(Qt::WindowStaysOnBottomHint, true);
-#endif
-
   document_tabs_ = new QTabWidget(this);
   document_tabs_->setObjectName(QStringLiteral("documentTabs"));
   document_tabs_->setDocumentMode(true);
@@ -4704,12 +4694,11 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   setAcceptDrops(true);
   document_tabs_->setAcceptDrops(true);
 #ifdef Q_OS_WASM
-  // Qt 6.8 wasm never registers browser drag listeners for incoming files, so
-  // the page-side glue owns external drops and reports them as MEMFS paths.
+  // External file drops arrive through the page-side glue as MEMFS paths.
+  // Qt 6.8 registered no browser drop listeners at all; Qt 6.10 registers its
+  // own on the window element, so if the native path ever starts delivering
+  // dropped files too (a dropped file opening twice), gate one path off.
   wasm_files::install_web_drop_target([this](const QString& path) { handle_web_file_drop(path); });
-  // Popups opened from dialogs never receive input on Qt 6.8 wasm; dialog
-  // combos run a modal chooser instead (see dialog_utils_wasm.hpp).
-  wasm_files::install_wasm_dialog_combo_workaround();
 #endif
   document_tabs_->installEventFilter(this);
   suppress_native_tab_bar_base(*document_tabs_);

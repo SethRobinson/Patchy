@@ -6,7 +6,7 @@ or `wasm-release` presets, the emsdk/Qt-kit provisioning, or anything under
 
 ## What exists today
 
-Two wasm configurations share the pinned Emscripten 3.1.56 toolchain:
+Two wasm configurations share the pinned Emscripten 4.0.7 toolchain:
 
 - **`wasm-core`** (step 1): the Qt-free engine libraries (`patchy_core`,
   `patchy_render`, `patchy_psd`, `patchy_filters`, `patchy_formats`,
@@ -14,7 +14,7 @@ Two wasm configurations share the pinned Emscripten 3.1.56 toolchain:
   `patchy_core_tests`, run under node. No Qt at all
   (`PATCHY_BUILD_APP=OFF`).
 - **`wasm-release`** (steps 2-4a): the full app linked against Qt for
-  WebAssembly (6.8.3 `wasm_multithread`, static), booting in a browser tab
+  WebAssembly (6.10.3 `wasm_multithread`, static), booting in a browser tab
   with Asyncify plus pthreads. File open/save/export run through the browser
   (picker in, downloads out), files dragged from the desktop open, and
   settings persist across reloads in localStorage. Previews, the compositor
@@ -32,13 +32,17 @@ files under `scripts/wasm/` are the whole wasm surface.
 pwsh -File scripts\wasm\setup-emsdk.ps1
 ```
 
-Idempotent. Clones emsdk into `.deps\emsdk` (gitignored, same idea as
-`.deps\Qt`) and installs + activates Emscripten 3.1.56. That version is pinned
-because it is what the Qt 6.8 documentation lists as supported for Qt for
-WebAssembly, so the later Qt-for-wasm work can reuse this toolchain unchanged.
-Activation only writes emsdk's local config; nothing touches the user or
-system environment. The SDK bundles its own node (22.16.0), which is what runs
-the test suite.
+Idempotent, and takes `-EmsdkVersion` to provision a different release
+(versions install side by side; `activate` selects). Clones emsdk into
+`.deps\emsdk` (gitignored, same idea as `.deps\Qt`), refreshes an existing
+clone with `git pull` (a stale checkout does not know newer releases and fails
+the install with "unknown version"), and installs + activates Emscripten
+4.0.7. That version is pinned because it is what the Qt 6.10 and 6.11
+documentation lists as supported for Qt for WebAssembly. Activation only
+writes emsdk's local config; nothing touches the user or system environment.
+The SDK bundles its own node (22.16.0), which is what runs the test suite;
+`.deps\emsdk\.emscripten` names the activated one, and the scripts glob
+`node\*\bin\node.exe`, so keep exactly one node directory there.
 
 ## Configure and build
 
@@ -132,7 +136,7 @@ compile-time `sizeof(void*) < 8` check rather than a platform ifdef; see below.
 
 ## Current status (2026-07)
 
-Full `patchy_core_tests` under the bundled node: 726 pass, 0 fail, about 45
+Full `patchy_core_tests` under the bundled node: 736 pass, 0 fail, about 45
 seconds wall on a 24-thread machine, with the 2.2 GB `local-test-fixtures/`
 corpus present and exercised. The three byte-stability canaries
 (`psd_layered_writer_bytes_are_stable`, `gif_encoder_bytes_are_stable`,
@@ -163,13 +167,23 @@ pwsh -File scripts\wasm\setup-emsdk.ps1
 pwsh -File scripts\wasm\setup-qt-wasm.ps1
 ```
 
-The second script installs Qt 6.8.3 `wasm_multithread` (plus qtimageformats)
-into `.deps\Qt\6.8.3\wasm_multithread` via aqtinstall (venv under
-`.deps\aqt-venv`). Pass `-WasmArch wasm_singlethread` to provision the old
-single-threaded kit instead; kits coexist side by side under
-`.deps\Qt\6.8.3\`. Host tools (moc/rcc/lrelease) come from the vendored
-`msvc2022_64` kit through `QT_HOST_PATH`; the preset chains the Qt toolchain
-file into emsdk's via `QT_CHAINLOAD_TOOLCHAIN_FILE`.
+The second script installs Qt 6.10.3 `wasm_multithread` (plus qtimageformats)
+into `.deps\Qt\6.10.3\wasm_multithread` via aqtinstall (venv under
+`.deps\aqt-venv`, upgraded on every run so it knows current Qt releases), and
+installs the matching `win64_msvc2022_64` host kit beside it when missing.
+`QT_HOST_PATH` must be the same Qt version as the wasm kit: moc, rcc, lrelease
+and the `qtbase_ja.qm` the build stages all come from it, so the script
+verifies those three after installing. Pass `-WasmArch wasm_singlethread` for
+the single-threaded kit or `-QtVersion` for another release; kits coexist side
+by side under `.deps\Qt\<version>\`, which also makes rollback a preset edit.
+The desktop presets stay on their own vendored 6.8.3 kit. The preset chains
+the Qt toolchain file into emsdk's via `QT_CHAINLOAD_TOOLCHAIN_FILE`.
+
+**Not 6.11 yet:** released aqtinstall (3.3.0) cannot install a 6.11 *desktop*
+host kit. download.qt.io restructured the 6.11 desktop repository into
+per-arch folders (`qt6_6111_msvc2022_64`) with no base `qt6_6111/Updates.xml`,
+and aqt still requests the base file, so the version-matched host kit is
+unobtainable. Revisit when aqtinstall understands the new layout.
 
 ### Build and run
 
@@ -195,6 +209,19 @@ then browse to `http://localhost:8973/patchy.html`.
   for the test runner, which never links Qt. Asyncify coexists with pthreads:
   the 2026-07 migration verified dialogs opening and closing into nested
   loops with the worker pool live and zero console errors.
+- **`-sASYNCIFY_STACK_SIZE=1048576` is load-bearing.** Emscripten's default is
+  4 KB, which is the buffer Asyncify saves the unwound call stack into on each
+  suspend. The main loop's idle suspend is shallow and fits; a dialog opened
+  from inside another dialog's nested `exec` suspends the whole UI call chain
+  and overflows it. Overflow is not diagnosed in a non-assertion build: the
+  asyncify runtime executes an `unreachable`, which surfaced as
+  `Aborted(RuntimeError: unreachable)` from `maybeStopUnwind`/`doRewind`
+  followed by `memory access out of bounds`, i.e. a hard tab crash the moment
+  the Layer Style dialog opened a color picker (2026-07-31). 1 MiB is
+  allocated per live suspend, so the worst case is a few MB against a 512 MB
+  initial heap. Qt 6.8 suspended through its own `qt_asyncify_suspend_js`
+  import; 6.10 rewrote that as a plain `EM_ASYNC_JS` await, which is why the
+  default only became too small on the newer kit.
 - **Link optimization stays `-Os`.** The 2026-07 trial measured `-O3` at
   74,029,730 bytes against 73,449,183 for `-Os` on the single-threaded build
   (+0.8%) with no demonstrable runtime win and a slower wasm-opt pass, so
@@ -307,14 +334,17 @@ Two platform findings constrain the shape; do not regress them:
   the blocked C++ side polls that object with a QTimer (timers reliably
   resume the suspended loop). Never wait on a Qt async JS API from a nested
   loop.
-- **Qt 6.8 wasm cannot receive external drops.** It never registers browser
-  dragover/drop listeners (only dragstart/dragleave/dragend for its own
-  drags), so the browser never delivers a desktop file drop to Qt. The glue
-  installs page-side dragover/drop listeners itself
+- **External drops arrive through page-side glue.** Qt 6.8 wasm registered no
+  browser dragover/drop listeners at all (only dragstart/dragleave/dragend for
+  its own drags), so the browser never delivered a desktop file drop to Qt.
+  The glue installs page-side dragover/drop listeners itself
   (`install_web_drop_target`, wired in the MainWindow constructor), reads the
   dropped files in JS, and reports them one MEMFS path at a time to
   `MainWindow::handle_web_file_drop`. The desktop `QDropEvent` path stays
-  untouched and simply never fires on wasm.
+  untouched. On Qt 6.10 the plugin does register its own `dragover`/`drop`
+  listeners on the window element, so both paths now exist; if a dropped file
+  is ever seen opening twice, gate one of them off rather than removing the
+  MEMFS glue, which is what feeds the path-based open pipeline.
 
 The other step-3 decisions:
 
@@ -391,99 +421,38 @@ Wasm-only accommodations for living inside a single browser canvas:
   MainWindow event filter so vertical drift during a tab reorder no longer
   ends the drag with tear-off's synthetic release. See
   [float-windows.md](float-windows.md).
-- **The main window stays on the bottom of the z-stack.** Qt's wasm
-  compositor keeps one z-stack for all top-level windows and raises whichever
-  window is clicked, so a canvas click lifted the fullscreen main window above
-  a non-modal dialog (layer style, curves): the dialog vanished with no window
-  manager to recover it while its preview edit lock stayed engaged, wedging
-  the app. Modal dialogs never had the problem (the plugin redirects
-  activation to the blocking modal window). The MainWindow constructor sets
-  `Qt::WindowStaysOnBottomHint` on wasm, which parks the main window in the
-  compositor's stay-on-bottom stacking zone: clicking it still activates and
-  focuses it, but the raise becomes a no-op, and dialogs and popups keep their
-  normal order in the regular zone above.
-- **Windows created inside a nested event loop are input-dead, so dialogs open
-  their popups and sub-dialogs as child widgets.** This is the root cause
-  behind the whole family of "it paints but nothing responds" symptoms on this
-  kit. The mechanism was measured in the browser on 2026-07-30; read it before
-  touching any of the workarounds below.
-
-  Qt registers each window's DOM event listeners in the `QWasmWindow`
-  constructor through `qstdweb::EventCallback`, which builds the listener with
-  an embind call (`val::module_property("QtEventListener").new_(...)`) and then
-  calls `addEventListener`. Under Asyncify, when that constructor runs while
-  the app is inside a **reentrant** `QEventLoop::exec`, the embind call hands
-  back a **Promise** instead of the listener object. Qt registers the Promise,
-  a Promise has no `handleEvent`, so the browser never calls anything: every
-  listener that window registers is inert for the window's entire lifetime
-  (pointerdown/move/up/cancel on `.qt-window-contents`, plus
-  pointerenter/leave/wheel/keydown/keyup on `.qt-window`). Patching
-  `EventTarget.prototype.addEventListener` from the page shows it directly: a
-  menu popup opened from the main loop registers `QtEventListener` objects
-  whose `handleEvent` is a function and works, while the same popup opened with
-  any dialog's loop running registers `Promise` objects and is dead. Upstream
-  QTBUG-145018 reports the same defect from the other end (its console shows
-  "Property 'handleEvent' is not callable") and attributes it to reentrant
-  `QEventLoop::exec` being mishandled on wasm between 6.8.0 and 6.10.0.
-
-  Consequences, all of which match observed behavior:
-
-  - Every window a dialog opens is created inside that dialog's nested loop,
-    so none of them can work: combo popups, context menus, and sub-dialogs
-    alike. Qt's popup event *forwarding* still works, which is why such a
-    popup reacts to events that land on a different window.
-  - The transient parent is irrelevant: the wasm plugin never reads
-    `transientParent`, and a menu-bar popup parented to the main window is
-    equally dead when it is opened while a non-modal dialog's loop is running.
-    Re-parenting a doomed window cannot fix it; only not being a window can.
-  - Dialogs and menus opened from the main window work because their windows
-    are created from the outer loop. A dialog's own window is created before
-    its `exec` starts, which is why the dialog itself always works.
-  - It reproduces identically on the single-threaded and multithreaded kits:
-    this is Asyncify, not threading.
-  - A widget that is already a child of a working window is unaffected. That
-    is the only mechanism available on this kit.
-
-  What the app does about it (`install_wasm_dialog_combo_workaround`,
-  dialog_utils_wasm.cpp, installed from the MainWindow constructor):
-
-  - **Dialog combos** get an in-window chooser instead of the native popup.
-    The filter intercepts every interaction that would open the popup (press
-    on the combo or its arrow, F4, Space, Alt+Down/Up) and shows a
-    popup-placed QListWidget as a plain child widget inside the dialog's own
-    window, which paints and receives input normally; a press outside the list
-    dismisses it. Picking emits the same activated/textActivated signals as a
-    real popup, which several dialogs ("Custom color..." rows) depend on.
-  - **Sub-dialogs of dialogs** (QMessageBox and QColorDialog statics, the
-    custom color picker, the wasm save/picker prompts) are intercepted at
-    QEvent::Show and reparented into the host window as a centered, clamped
-    child widget, one event-loop turn later so the reparent never happens
-    inside the Show delivery. Reparenting during Show left the window with a
-    stale paint/input offset of about 100 px until it was next moved. The
-    dialog then stays a child widget for the rest of its life: an earlier
-    version restored it to a top-level on Hide, which meant getting
-    hide-then-reshow, WA_DeleteOnClose dialogs dying without a Hide, and stack
-    dialogs unwinding through a nested loop all right at once, and it kept
-    failing. `EmbeddedDialog` is a child QObject of the dialog, so it dies with
-    the dialog however that happens.
-  - **Modality is respected.** A modal embedded dialog gets a click-swallowing
-    dim layer over the host; a non-modal one must not, because it was opened
-    non-modally precisely so the dialog behind it stays usable. Dimming a
-    non-modal picker is what made Layer Style look frozen behind the color
-    picker.
-  - **Dialog context menus** go through `exec_context_menu`
-    (dialog_utils.cpp), which on wasm shows the actions as an in-window list
-    (flat menus only) and on desktop is exactly `menu.exec`.
-
-  New dialog code needs nothing special; new dialog context menus must use
-  `exec_context_menu` instead of `QMenu::exec`.
-
-  Known limitation left in place: a popup or dialog opened from the **main
-  window** while a non-modal dialog (Layer Style, Curves) is open is created
-  inside that dialog's loop too, so a menu whose platform window does not exist
-  yet comes up dead. Menus the user has already opened once keep working,
-  because their platform window survives being hidden. Covering that properly
-  needs either the kit upgrade discussed below or an in-window menu bar.
+- **Non-modal dialogs are restacked above their parent window.** Qt's wasm
+  compositor raises whichever window is clicked and does not re-raise that
+  window's transient children with it, so a canvas click buried every open
+  non-modal dialog (Layer Style, Curves, the Script Manager, filter dialogs)
+  behind the fullscreen main window, with no window manager to recover it and,
+  for the preview dialogs, an edit lock still engaged. `keep_dialog_above_
+  parent_window` (dialog_utils.cpp) therefore has a wasm implementation beside
+  the macOS one: it registers every dialog `run_non_modal_dialog` shows, and
+  when a press or activation reaches a window that hosts registered dialogs it
+  restacks their visible dialogs above it one event-loop turn later (after the
+  compositor's own raise), walking the parent chain so a picker stays above the
+  Layer Style dialog that stays above the main window. The earlier fix parked
+  the main window in the compositor's stay-on-bottom zone with
+  `Qt::WindowStaysOnBottomHint`; that is gone, because Qt 6.10 honours
+  transient parents and placed a main-window-parented dialog (every script
+  dialog) into the bottom zone too, where it opened invisibly underneath the
+  window that spawned it.
+- **Windows created inside a nested event loop used to be input-dead.** On the
+  Qt 6.8 kit, a window whose platform window was constructed while the app was
+  inside a reentrant `QEventLoop::exec` registered its DOM listeners through an
+  embind call that handed back a Promise instead of the listener object, so the
+  browser had nothing to call: every combo popup, context menu and sub-dialog
+  opened from a dialog painted correctly and ignored all input (upstream
+  QTBUG-145018). Patchy carried a large workaround layer for this: in-window
+  combo choosers, an application-wide filter that reparented sub-dialogs into
+  their host window as child widgets, and an in-window replacement for dialog
+  context menus. All of it was deleted with the 6.10.3 upgrade, which fixes the
+  defect: a window created inside a nested loop now registers ordinary function
+  listeners (verified in the browser 2026-07-31 by censusing every
+  `addEventListener` call). Dialog combos, sub-dialogs, and dialog context
+  menus all use the normal Qt paths again. If a future kit regresses this, the
+  symptom to look for is a Promise where a listener object belongs.
 - **Dialogs clamp to the canvas.** Desktop window managers keep an oversized
   dialog's chrome reachable; the browser canvas has nothing equivalent, so a
   dialog taller than the canvas left its OK/Cancel row unreachable below the
@@ -503,6 +472,24 @@ Wasm-only accommodations for living inside a single browser canvas:
   shown through `exec_dialog`/`run_non_modal_dialog` rather than a bare
   `QDialog::exec`; the brush-tip, pattern, and style preset managers were
   converted for it.
+- **No `processEvents` pump runs mid-operation on wasm.** A pump cannot paint
+  or deliver input here: the browser gets no turn until the main thread
+  suspends in an idle event loop, and while wasm code runs, browser events only
+  accumulate in Qt's pending-event queue. What a pump does do is dispatch Qt's
+  own timers into the middle of the running operation. That is how a slow
+  script froze the tab past recovery: the script busy-indicator pump
+  (`pump_progress_indicator`, script_engine.cpp) dispatched a script canvas
+  window's 16 ms frame timer while `evaluate()` was still on the stack, the
+  frame handler pumped again, and the main thread never reached a suspend
+  point. Both pumps are compiled out under `Q_OS_WASM` (the other is the
+  processing-overlay tick in canvas_widget_render.cpp). The cost is that a long
+  synchronous burst shows no progress until it yields, which is the honest
+  behavior on this platform; long *filter* work is unaffected because it
+  already runs on a worker thread (`run_filter_compute_with_progress`). Two
+  companion guards belong to the same fix: `call_script_callback` refuses
+  reentry while script code is already executing, and the script canvas frame
+  timer is single-shot, re-armed after each frame, so a frame slower than its
+  interval cannot leave a permanently-expired timer in the queue.
 
 ## Release deployment (rtsoft.com/patchy)
 
@@ -510,11 +497,15 @@ The web build is part of the standard release flow; the batch-file details live
 in [release-process.md](release-process.md). Short version:
 `scripts\release\build-wasm.bat` (run by `release-all.bat`) builds the
 `wasm-release` preset and stages the deployable files into
-`build\package\wasm-site` (including `patchy.worker.js`, the pthread worker
-bootstrap; a missing worker file means every visitor's pool spawn 404s);
+`build\package\wasm-site` (no separate worker file: Emscripten 3.1.58+ folds
+the pthread bootstrap into `patchy.js`, where the 3.1.56 builds emitted
+`patchy.worker.js` alongside it);
 `scripts\release\start-local-wasm-server.bat` serves that staged payload for
 a browser check (it stops a server left over from a previous run, then opens
-the site in the default browser); `scripts\release\upload-wasm-to-rtsoft.bat`
+the site in the default browser), while
+`scripts\release\start-local-wasm-test-server.bat` serves the raw
+`build\wasm-release` directory for the development loop;
+`scripts\release\upload-wasm-to-rtsoft.bat`
 (run by `upload-to-rtsoft.bat`) publishes it to `rtsoft.com/patchy` over
 ssh/scp.
 
@@ -612,40 +603,51 @@ pieces (rationale in the decision bullets above):
   `?PATCHY_RENDER_SINGLE_THREADED=1` control plus `build\wasm-st-baseline`,
   a preserved single-threaded build, exist for exactly that comparison).
 
-## Kit upgrade: what upstream has fixed since 6.8.3
+## Kit upgrade to Qt 6.10.3 + emsdk 4.0.7 (2026-07-31)
 
-Researched 2026-07-30, while root-causing the reentrant-`exec` window defect
-above. The kit is still pinned at 6.8.3; this is the evidence for revisiting
-that, not a decision to.
+The kit moved from Qt 6.8.3 / Emscripten 3.1.56 to Qt 6.10.3 / Emscripten
+4.0.7 to fix the reentrant-`exec` window defect at the source rather than
+keep working around it. What the upgrade changed, in order of how much it
+cost to find:
 
-- **QTBUG-145018** is our bug seen from the other end (a QToolButton submenu
-  that paints but takes no input, console "Property 'handleEvent' is not
-  callable"). Qt's comment blames reentrant `QEventLoop::exec` on wasm between
-  6.8.0 and 6.10.0; the reporter says it does not reproduce on 6.10.2 or later.
-  Qt's own fix (`cd7a8af99c8c`) is in qtwidgets, not the wasm plugin: it makes
-  QToolButton use `popup()` instead of `exec()`. That is the upstream-sanctioned
-  shape of the fix, avoid the nested loop, and it is why an upgrade alone may
-  not fully cover an app whose dialogs are `exec`-based like ours.
-- **QTBUG-102827** (wasm crash with Asyncify plus nested exec loops) is fixed
-  in 6.10. **QTBUG-131699** (non-modal dialog invisible behind its parent) is
-  fixed in 6.10.0 Beta3, via `e48c19449e` "wasm: Fix stacking order problem for
-  transient parent windows", which is on 6.10 and was not cherry-picked to 6.9.
-- Later plugin commits that look relevant: `01d48cd` "wasm: process events
-  targeted at the window only" (6.11, stops events reaching the wrong window,
-  sets `pointer-events: none` on the canvas), `5396a9e` "wasm: Better handling
-  of transient parent" (dev/6.12, motivated by a dialog opened from a menu),
-  `52c5a78` "wasm: fix QWasmWindow child element layout" (canvas misaligned
-  under `display: flex`; relevant to coordinate offsets), and `d8112c7`
-  (ResizeObserver does not fire for a `display: none` container, leaving screen
-  geometry 0x0).
-- Nothing upstream matches the per-window devicePixelRatio/canvas-scale
-  mismatch that shows up when the browser's DPR changes after a window has been
-  sized: no wasm-plugin commit has touched `devicePixelRatio` since 2022.
-- Verdict: 6.10.2 or newer is the first version where the reentrancy defect is
-  claimed gone, so an upgrade is the honest long-term fix and would let the
-  choosers and the embedding both be deleted. It is a bigger change than it
-  looks (the emsdk pairing, the whole interactive battery to re-run), so it
-  wants its own task and a measured before/after, not a drive-by bump.
+- **The whole dialog input workaround layer is gone** (see the browser UI fit
+  section): combo choosers, sub-dialog embedding, in-window dialog context
+  menus, and their `exec_context_menu` funnel. Windows created inside a nested
+  loop take input normally now. This was the point of the upgrade.
+- **`-sASYNCIFY_STACK_SIZE=1048576` had to be added**, or the app hard-crashes
+  the tab the first time a dialog opens a dialog. Details in the decisions
+  section; this is the one change nobody would predict from the changelogs.
+- **`patchy.worker.js` no longer exists**; the staging and upload file lists
+  lost it.
+- **No `-sASYNCIFY_IMPORTS`**: 6.8 shipped its own `qt_asyncify_suspend_js` /
+  `qt_asyncify_resume_js` imports and set that flag from its cmake; 6.10
+  suspends through `EM_ASYNC_JS` instead and sets nothing.
+- **The main window no longer needs `Qt::WindowStaysOnBottomHint`** and must
+  not have it (QTBUG-131699's transient-parent stacking fix landed in 6.10,
+  which turned that hint into a trap for main-window-parented dialogs).
+  Dialog stacking is handled by the wasm `keep_dialog_above_parent_window`.
+- **Qt now registers its own drag/drop listeners** on the window element.
+- Sizes: `patchy.wasm` 81,986,408 -> 83,013,429 bytes (+1.3%), `patchy.js`
+  395,340 -> 357,451. Full `patchy_core_tests` under node: 736 pass, 0 fail,
+  with the three byte-stability canaries byte-identical on the new toolchain,
+  which makes wasm/musl-on-4.0.7 the fourth toolchain to reproduce the pinned
+  bytes.
+
+Upstream references behind the decision, researched 2026-07-30: QTBUG-145018
+(our defect from the other end: a submenu that paints but takes no input,
+console "Property 'handleEvent' is not callable"; Qt blames reentrant
+`QEventLoop::exec` on wasm between 6.8.0 and 6.10.0 and the reporter confirms
+6.10.2+ is clean), QTBUG-102827 (Asyncify plus nested exec loops, fixed in
+6.10), and QTBUG-131699 (non-modal dialog invisible behind its parent, fixed
+in 6.10.0 Beta3 via `e48c19449e`). Qt 6.11 carries further plugin work that
+may matter later: `01d48cd` "wasm: process events targeted at the window
+only", `5396a9e` "wasm: Better handling of transient parent", `52c5a78`
+"wasm: fix QWasmWindow child element layout", and `d8112c7` (ResizeObserver
+does not fire for a `display: none` container). Nothing upstream matches the
+per-window devicePixelRatio/canvas-scale mismatch seen when the browser DPR
+changes after a window is sized; no wasm-plugin commit has touched
+`devicePixelRatio` since 2022. Moving to 6.11 is blocked on aqtinstall, not
+on Qt (see the provisioning section).
 
 ## Later steps (not built yet)
 

@@ -171,6 +171,11 @@ ScriptCanvasWindow::ScriptCanvasWindow(ScriptEngineHost& host, int width, int he
 
   frame_timer_ = new QTimer(this);
   frame_timer_->setInterval(16);
+  // Single-shot, re-armed at the end of fire_frame: a frame whose handler
+  // runs longer than the interval must never leave a permanently-expired
+  // repeating timer in the queue, which any event dispatch mid-script would
+  // fire forever (on wasm that froze the tab beyond recovery).
+  frame_timer_->setSingleShot(true);
   connect(frame_timer_, &QTimer::timeout, this, &ScriptCanvasWindow::fire_frame);
 
   // Deliberately NOT run_non_modal_dialog: that helper parks the caller in a
@@ -262,8 +267,16 @@ void ScriptCanvasWindow::fire_frame() {
   const qint64 now = frame_clock_.elapsed();
   const double dt_ms = last_frame_ms_ == 0 ? 16.0 : static_cast<double>(now - last_frame_ms_);
   last_frame_ms_ = now;
+  // The call is refused (returns false) while script code is already on the
+  // stack - the engine is not reentrant - and the re-arm below simply tries
+  // again next interval.
   if (host_.call_script_callback(on_frame_, QJSValueList{QJSValue(dt_ms)})) {
     present();
+  }
+  // Re-check liveness before re-arming: the callback may have closed the
+  // window or stopped the run.
+  if (!closing_ && is_open() && on_frame_.isCallable()) {
+    frame_timer_->start();
   }
 }
 
