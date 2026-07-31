@@ -937,8 +937,16 @@ if(PATCHY_BUILD_APP)
       # -Wno-pthreads-mem-growth: same one-diagnostic suppression as the
       # wasm-core preset; pthreads plus a growable heap slows JS-side heap
       # views, which Qt touches only for canvas presentation.
+      # ASYNCIFY_STACK_SIZE: Emscripten's default is 4 KB per suspend, which
+      # fits the main loop's shallow idle suspend but silently overflows when
+      # a dialog opened from another dialog's nested exec suspends the full
+      # UI call chain (Qt 6.10 suspends via EM_ASYNC_JS with no size check in
+      # non-assertion builds; the overflow presents as "RuntimeError:
+      # unreachable" in maybeStopUnwind/doRewind plus memory-access-out-of-
+      # bounds). 1 MiB is allocated per live suspend, a few MB worst case.
       target_link_options(patchy PRIVATE
         -sASYNCIFY
+        -sASYNCIFY_STACK_SIZE=1048576
         -Os
         -fexceptions
         -pthread
