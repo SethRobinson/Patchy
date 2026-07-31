@@ -1221,8 +1221,20 @@ void remember_dialog_position(QDialog& dialog) {
   dialog.setProperty(kDialogPositionMemoryInstalledProperty, true);
 }
 
+#ifdef Q_OS_WASM
+namespace {
+void ensure_wasm_modal_burial_guard();
+}  // namespace
+#endif
+
 int exec_dialog(QDialog& dialog) {
   remember_dialog_position(dialog);
+#ifdef Q_OS_WASM
+  // The guard watches app-wide events; make sure it exists before the first
+  // modal ever shows (run_non_modal_dialog installs it too, but a modal can
+  // come first, e.g. New Document straight from the start panel).
+  ensure_wasm_modal_burial_guard();
+#endif
   return dialog.exec();
 }
 
@@ -1252,6 +1264,25 @@ class WasmDialogRaiser : public QObject {
   }
 
   bool eventFilter(QObject* watched, QEvent* event) override {
+    // A modal window that blocks another window must end up above everything
+    // it blocks, but the compositor inserts it directly above its transient
+    // parent (usually the bottom-most main window), and the stack's
+    // insertion-time activation runs at platform-window creation - before Qt
+    // registers the modal block - so it re-activates whichever sibling was
+    // already on top instead of redirecting to the modal. A script options
+    // dialog opened while the Script Manager sat above the main window
+    // therefore showed up *underneath* it: invisible yet application-modal,
+    // every click in the app silently swallowed, with the script parked
+    // forever in the dialog's nested event loop (the 2026-07 Export All
+    // Layers wasm freeze). WindowBlocked is the signature of exactly that
+    // moment, and it also fires for Qt's own static dialogs (getColor,
+    // getText, getExistingDirectory) that no Patchy-side show path can reach,
+    // so raise the active modal one turn later, after the compositor's
+    // insertion and Qt's modal bookkeeping have both settled.
+    if (event->type() == QEvent::WindowBlocked) {
+      schedule_modal_raise();
+      return false;
+    }
     if (event->type() != QEvent::MouseButtonPress && event->type() != QEvent::WindowActivate) {
       return false;
     }
@@ -1287,6 +1318,25 @@ class WasmDialogRaiser : public QObject {
  private:
   explicit WasmDialogRaiser(QObject* parent) : QObject(parent) { qApp->installEventFilter(this); }
 
+  // One raise per event-loop turn: showing one modal blocks many windows and
+  // each delivery lands here.
+  void schedule_modal_raise() {
+    if (modal_raise_pending_) {
+      return;
+    }
+    modal_raise_pending_ = true;
+    QTimer::singleShot(0, this, [this] {
+      modal_raise_pending_ = false;
+      // The stack may have changed since the block was seen; the CURRENT
+      // active modal is always the window that must be visible and on top.
+      if (auto* modal = QApplication::activeModalWidget();
+          modal != nullptr && modal->isVisible()) {
+        modal->raise();
+        modal->activateWindow();
+      }
+    });
+  }
+
   bool hosts_registered_dialog(const QWidget* window) const {
     for (const auto& dialog : dialogs_) {
       if (dialog != nullptr && dialog->isVisible() && dialog->window() != window &&
@@ -1298,7 +1348,10 @@ class WasmDialogRaiser : public QObject {
   }
 
   QList<QPointer<QDialog>> dialogs_;
+  bool modal_raise_pending_{false};
 };
+
+void ensure_wasm_modal_burial_guard() { WasmDialogRaiser::instance(); }
 
 }  // namespace
 

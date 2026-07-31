@@ -461,6 +461,29 @@ Wasm-only accommodations for living inside a single browser canvas:
   transient parents and placed a main-window-parented dialog (every script
   dialog) into the bottom zone too, where it opened invisibly underneath the
   window that spawned it.
+- **Modal dialogs are raised when they block (the Export All Layers freeze).**
+  The compositor gives a modal window `StayAboveTransientParent` placement,
+  which inserts it directly above its transient parent in the z-stack, not at
+  the top. Its transient parent is usually the bottom-most main window, so a
+  modal opened while any non-modal dialog (the Script Manager) sat above the
+  main window was created *underneath* that dialog. Nothing rescued it: the
+  window stack's insertion-time activation runs at platform-window creation,
+  before `QWindowPrivate::setVisible` registers the modal block, so it
+  re-activated the still-unblocked sibling on top instead of redirecting to
+  the modal, and `QWasmWindow::setVisible` never raises. The result was an
+  invisible application-modal dialog: every click in the app swallowed, the
+  Script Manager's stop button unreachable, timers still painting (the
+  "Running..." clock kept counting), and the script parked forever in the
+  dialog's nested exec (reported 2026-07-31 as "Export All Layers freezes the
+  wasm build"; `showOptions` was the buried dialog, but `app.alert`,
+  `app.prompt`, the Browse pickers, and the app-modal script stop panel all
+  hit the same trap). `WasmDialogRaiser` therefore also watches
+  `QEvent::WindowBlocked`, the signature of exactly that moment, and raises +
+  activates `QApplication::activeModalWidget()` one event-loop turn later,
+  which also covers Qt's own static dialogs (`getExistingDirectory`,
+  `getColor`, `getText`) that no Patchy-side show path could annotate.
+  `exec_dialog` installs the guard before its exec so the first modal of a
+  session is already covered.
 - **Windows created inside a nested event loop used to be input-dead.** On the
   Qt 6.8 kit, a window whose platform window was constructed while the app was
   inside a reentrant `QEventLoop::exec` registered its DOM listeners through an
