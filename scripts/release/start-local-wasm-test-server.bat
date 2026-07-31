@@ -9,7 +9,10 @@ rem upload-wasm-to-rtsoft.bat would publish it, use
 rem scripts\release\start-local-wasm-server.bat instead.)
 rem
 rem Run it repeatedly without cleaning up first: a previous local wasm server
-rem still holding the port is stopped before the fresh one starts.
+rem still holding the port is stopped before the fresh one starts, and the
+rem fresh one opens the page in the default browser (serve.mjs --open fires
+rem the moment the socket is accepting, so the browser never races ahead of
+rem the server).
 rem cd to the repo root (this script lives in scripts\release) so the relative
 rem paths below resolve from any cwd.
 cd /d "%~dp0..\.."
@@ -36,8 +39,8 @@ if "%PORT_STATE:~0,7%"=="failed:" (
 )
 if "%PORT_STATE:~0,8%"=="stopped:" echo Stopped the previous local server on port %PORT% ^(%PORT_STATE:~8%^).
 
-echo Starting the wasm dev server on http://localhost:%PORT%/patchy.html ^(Ctrl+C to stop^)...
-pwsh -NoProfile -File scripts\wasm\serve-app.ps1 %PORT%
+echo Starting the wasm dev server on http://localhost:%PORT%/patchy.html ^(opens in the default browser; Ctrl+C to stop^)...
+pwsh -NoProfile -File scripts\wasm\serve-app.ps1 %PORT% --open
 endlocal
 exit /b 0
 
