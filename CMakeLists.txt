@@ -1324,6 +1324,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/vector_shape_tool_tests.cpp
       tests/ui/svg_ui_tests.cpp
       tests/ui/scripting_tests.cpp
+      tests/ui/history_panel_tests.cpp
       tests/ui/readme_screenshot_tests.cpp
       tests/ui/readme_screenshot_tests_classic.cpp
       tests/ui/readme_screenshot_tests_scripting.cpp

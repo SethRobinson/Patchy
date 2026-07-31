@@ -1111,6 +1111,14 @@ void MainWindow::create_docks() {
   bind_widget_text(history_dock, "History");
   history_list_ = new QListWidget(history_dock);
   history_list_->setObjectName(QStringLiteral("historyList"));
+  // itemClicked (not currentRowChanged): the rebuild's programmatic
+  // setCurrentRow must never trigger a jump, and keyboard focus moves stay
+  // visual-only until the next rebuild re-asserts the current state.
+  connect(history_list_, &QListWidget::itemClicked, this,
+          [this](QListWidgetItem* item) { handle_history_row_clicked(item); });
+  // Disabled while no document is open or a preview dialog holds the edit lock,
+  // matching the undo/redo actions.
+  register_document_widget(history_list_);
   history_dock->setWidget(history_list_);
   install_collapsible_dock_title(history_dock, history_list_, QStringLiteral("history"),
                                  kHistoryDockExpandedMinimumHeight, QWIDGETSIZE_MAX, false);

@@ -586,6 +586,66 @@ void MainWindow::refresh_history_panel() {
   refresh_document_info();
 }
 
+void MainWindow::handle_history_row_clicked(QListWidgetItem* item) {
+  if (item == nullptr) {
+    return;
+  }
+  jump_to_history_state(item->data(Qt::UserRole).toLongLong());
+}
+
+void MainWindow::jump_to_history_state(std::int64_t state_id) {
+  auto* active = active_session();
+  if (active == nullptr) {
+    return;
+  }
+  if (preview_dialog_edit_locked()) {
+    // The list is disabled while the lock is held (register_document_widget),
+    // so this is defense in depth; the rebuild undoes Qt's click highlight.
+    show_preview_dialog_edit_lock_message();
+    refresh_history_panel();
+    return;
+  }
+  // Flushing a pending opacity edit can push a history entry (which clears the
+  // redo stack), so it must happen before the clicked id is resolved.
+  finish_pending_layer_opacity_edit();
+  finish_pending_layer_fill_opacity_edit();
+  if (state_id == active->current_state_id) {
+    refresh_history_panel();
+    return;
+  }
+  const auto steps_to_reach = [state_id](const std::vector<DocumentSession::HistoryState>& stack)
+      -> std::optional<std::size_t> {
+    for (std::size_t index = stack.size(); index-- > 0;) {
+      if (stack[index].state_id == state_id) {
+        return stack.size() - index;
+      }
+    }
+    return std::nullopt;
+  };
+  bool backward = true;
+  std::size_t steps = 0;
+  if (const auto backward_steps = steps_to_reach(active->undo_stack); backward_steps.has_value()) {
+    steps = *backward_steps;
+  } else if (const auto forward_steps = steps_to_reach(active->redo_stack); forward_steps.has_value()) {
+    backward = false;
+    steps = *forward_steps;
+  } else {
+    // Stale row: the state was evicted or discarded between press and release.
+    refresh_history_panel();
+    return;
+  }
+  auto live_selection = canvas_->capture_selection_snapshot();
+  for (std::size_t step = 0; step < steps; ++step) {
+    rotate_history_state(*active, backward, live_selection);
+  }
+  // The pre-jump document sits intact where the first rotation parked it in the
+  // opposite stack, `steps` entries below the top; the tail diffs it against
+  // the restored document so a multi-step jump still repaints partially.
+  const auto& opposite_stack = backward ? active->redo_stack : active->undo_stack;
+  apply_history_restore_tail(*active, opposite_stack[opposite_stack.size() - steps].document,
+                             std::move(live_selection), active->current_state_label);
+}
+
 void MainWindow::initialize_session_history(DocumentSession& target_session, QString initial_label) {
   target_session.undo_stack.clear();
   target_session.redo_stack.clear();

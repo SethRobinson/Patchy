@@ -232,6 +232,14 @@ public:
     window.undo();
   }
 
+  static void redo(MainWindow& window) {
+    window.redo();
+  }
+
+  static std::size_t active_session_redo_depth(MainWindow& window) {
+    return window.session().redo_stack.size();
+  }
+
   static bool active_session_is_modified(MainWindow& window) {
     return window.session_is_modified(window.session());
   }

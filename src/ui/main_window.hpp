@@ -1048,6 +1048,11 @@ private:
   // Clears both stacks and seeds the first state's label/id; replaces the old
   // per-site "clear stacks + clear panel" blocks at document-creation sites.
   void initialize_session_history(DocumentSession& target_session, QString initial_label);
+  void handle_history_row_clicked(QListWidgetItem* item);
+  // Photoshop-style jump: restores the state with this id from either stack
+  // (multi-step undo/redo in one hop); unknown or current ids only re-sync the
+  // panel highlight.
+  void jump_to_history_state(std::int64_t state_id);
   // Centralized undo-stack push: cap eviction, redo clear, coalescing reset,
   // and the label/id handoff from the live state to the stored snapshot.
   void record_history_push(DocumentSession& target_session, DocumentSession::HistoryState state,
