@@ -57,6 +57,7 @@
 #include "ui/localization.hpp"
 #include "ui/measurement_units.hpp"
 #include "ui/theme_manager.hpp"
+#include "ui/user_fonts.hpp"
 #include "ui/palette_convert_dialog.hpp"
 #include "ui/palette_panel.hpp"
 #include "ui/pattern_library.hpp"
@@ -537,6 +538,32 @@ void MainWindow::show_preferences() {
   const auto indexed_open_index = indexed_open_combo->findData(indexed_open_policy);
   indexed_open_combo->setCurrentIndex(indexed_open_index >= 0 ? indexed_open_index : 0);
   application_form->addRow(tr("Opening indexed images:"), indexed_open_combo);
+  // Fonts dropped onto the window persist (desktop: the AppData user-fonts
+  // directory; wasm: IndexedDB). This is the one way to empty that store;
+  // already-registered fonts stay usable because application fonts are never
+  // removed at runtime.
+  auto* remove_fonts_button = new QPushButton(tr("Remove Added Fonts..."), application_group);
+  remove_fonts_button->setObjectName(QStringLiteral("preferencesRemoveUserFontsButton"));
+  application_form->addRow(remove_fonts_button);
+  connect(remove_fonts_button, &QPushButton::clicked, &dialog, [&dialog] {
+    QMessageBox confirm(QMessageBox::Question, tr("Remove Added Fonts"),
+#ifdef Q_OS_WASM
+                        tr("Remove all fonts you added to Patchy? They stay usable until you "
+                           "reload the page."),
+#else
+                        tr("Remove all fonts you added to Patchy? They stay usable until you "
+                           "restart Patchy."),
+#endif
+                        QMessageBox::NoButton, &dialog);
+    confirm.setObjectName(QStringLiteral("preferencesRemoveUserFontsConfirm"));
+    auto* remove_button = confirm.addButton(tr("Remove"), QMessageBox::AcceptRole);
+    confirm.addButton(QMessageBox::Cancel);
+    confirm.setDefaultButton(remove_button);
+    exec_dialog(confirm);
+    if (confirm.clickedButton() == remove_button) {
+      user_fonts::clear_user_font_store();
+    }
+  });
   application_layout->addWidget(application_group);
 
   // Development: the profiling stress test (see main_window_stress_test.cpp).

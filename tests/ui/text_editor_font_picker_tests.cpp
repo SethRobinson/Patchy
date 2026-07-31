@@ -37,6 +37,8 @@
 #include "ui/filter_workflows.hpp"
 #include "ui/filter_look_library.hpp"
 #include "ui/font_picker.hpp"
+#include "ui/user_fonts.hpp"
+#include "formats/miniz/miniz.h"
 #include "ui/gradient_stops_editor.hpp"
 #include "ui/gradient_library.hpp"
 #include "ui/gradient_manager_dialog.hpp"
@@ -146,6 +148,7 @@
 #include <QSettings>
 #include <QSlider>
 #include <QStandardItemModel>
+#include <QStandardPaths>
 #include <QStatusBar>
 #include <QStyle>
 #include <QStyleOptionSlider>
@@ -1409,6 +1412,234 @@ void ui_text_size_popup_slider_caps_at_200pt() {
   text_size->setValue(48.0);
 }
 
+// User-added fonts (drag-and-drop feature): shared helper behavior on the
+// desktop store. QStandardPaths test mode redirects AppDataLocation so the
+// real user-fonts store is never touched.
+void ui_user_fonts_add_persist_and_clear() {
+  struct StandardPathsTestMode {
+    StandardPathsTestMode() { QStandardPaths::setTestModeEnabled(true); }
+    ~StandardPathsTestMode() { QStandardPaths::setTestModeEnabled(false); }
+  } standard_paths_test_mode;
+  namespace user_fonts = patchy::ui::user_fonts;
+
+  const auto store_dir = user_fonts::user_fonts_directory();
+  CHECK(!store_dir.isEmpty());
+  user_fonts::clear_user_font_store();
+  const QStringList font_filters = {QStringLiteral("*.ttf"), QStringLiteral("*.otf"),
+                                    QStringLiteral("*.ttc")};
+  CHECK(QDir(store_dir).entryList(font_filters, QDir::Files).isEmpty());
+
+  const auto regular_font =
+      QStringLiteral(PATCHY_SOURCE_DIR "/third_party/fonts/noto_naskh_arabic/NotoNaskhArabic-Regular.ttf");
+  const auto bold_font =
+      QStringLiteral(PATCHY_SOURCE_DIR "/third_party/fonts/noto_naskh_arabic/NotoNaskhArabic-Bold.ttf");
+  CHECK(QFileInfo::exists(regular_font));
+  CHECK(QFileInfo::exists(bold_font));
+
+  // A combo created BEFORE the registration must pick the new family up
+  // (QFontComboBox repopulates on fontDatabaseChanged).
+  patchy::ui::FontPickerCombo combo;
+  const auto model_contains = [&combo](const QString& family) {
+    for (int row = 0; row < combo.count(); ++row) {
+      if (combo.itemText(row).compare(family, Qt::CaseInsensitive) == 0) {
+        return true;
+      }
+    }
+    return false;
+  };
+  // No absence precondition: on Linux the offscreen platform sees fontconfig
+  // fonts and Noto faces are commonly installed system-wide, so the family may
+  // already exist there (it does not on the Windows/macOS offscreen runs,
+  // where the later model_contains check proves the combo refresh).
+  const auto family = QStringLiteral("Noto Naskh Arabic");
+
+  QTemporaryDir temp;
+  CHECK(temp.isValid());
+  const auto dropped_font = temp.filePath(QStringLiteral("PatchyUserFontFixture.ttf"));
+  CHECK(QFile::copy(regular_font, dropped_font));
+
+  // Loose font file: registers, persists into the store, refreshes the combo.
+  const auto added = user_fonts::add_user_fonts({dropped_font});
+  CHECK(added.added_families.contains(family));
+  CHECK(added.invalid_names.isEmpty());
+  CHECK(added.zips_without_fonts.isEmpty());
+  CHECK(added.duplicate_count == 0);
+  CHECK(QFileInfo::exists(store_dir + QStringLiteral("/PatchyUserFontFixture.ttf")));
+  QApplication::processEvents();
+  // The pre-existing combo picked the family up without a manual refresh
+  // (QFontComboBox repopulates on fontDatabaseChanged).
+  CHECK(model_contains(family));
+
+  // The identical bytes again: duplicate, no second store entry.
+  const auto duplicate = user_fonts::add_user_fonts({dropped_font});
+  CHECK(duplicate.added_families.isEmpty());
+  CHECK(duplicate.duplicate_count == 1);
+  CHECK(QDir(store_dir).entryList(font_filters, QDir::Files).size() == 1);
+
+  // A zip of fonts: the Bold face nested in a folder registers; junk entries
+  // are ignored.
+  QFile bold_file(bold_font);
+  CHECK(bold_file.open(QIODevice::ReadOnly));
+  const auto bold_bytes = bold_file.readAll();
+  const QByteArray junk_bytes(64, 'x');
+  mz_zip_archive zip{};
+  CHECK(mz_zip_writer_init_heap(&zip, 0, 0) == MZ_TRUE);
+  CHECK(mz_zip_writer_add_mem(&zip, "fonts/NotoNaskhArabic-Bold.ttf", bold_bytes.constData(),
+                              static_cast<std::size_t>(bold_bytes.size()), MZ_DEFAULT_LEVEL) == MZ_TRUE);
+  CHECK(mz_zip_writer_add_mem(&zip, "__MACOSX/._shadow.ttf", junk_bytes.constData(),
+                              static_cast<std::size_t>(junk_bytes.size()), MZ_DEFAULT_LEVEL) == MZ_TRUE);
+  CHECK(mz_zip_writer_add_mem(&zip, "readme.txt", junk_bytes.constData(),
+                              static_cast<std::size_t>(junk_bytes.size()), MZ_DEFAULT_LEVEL) == MZ_TRUE);
+  void* zip_buffer = nullptr;
+  std::size_t zip_size = 0;
+  CHECK(mz_zip_writer_finalize_heap_archive(&zip, &zip_buffer, &zip_size) == MZ_TRUE);
+  const auto zip_path = temp.filePath(QStringLiteral("fonts.zip"));
+  {
+    QFile zip_file(zip_path);
+    CHECK(zip_file.open(QIODevice::WriteOnly));
+    CHECK(zip_file.write(static_cast<const char*>(zip_buffer), static_cast<qint64>(zip_size)) ==
+          static_cast<qint64>(zip_size));
+  }
+  mz_free(zip_buffer);
+  mz_zip_writer_end(&zip);
+  const auto zip_added = user_fonts::add_user_fonts({zip_path});
+  CHECK(zip_added.added_families.contains(family));
+  CHECK(zip_added.invalid_names.isEmpty());
+  CHECK(zip_added.duplicate_count == 0);
+  CHECK(QFileInfo::exists(store_dir + QStringLiteral("/NotoNaskhArabic-Bold.ttf")));
+
+  // Garbage that only looks like a font: reported invalid, never persisted.
+  const auto garbage_path = temp.filePath(QStringLiteral("NotAFont.ttf"));
+  {
+    QFile garbage_file(garbage_path);
+    CHECK(garbage_file.open(QIODevice::WriteOnly));
+    CHECK(garbage_file.write(QByteArray(256, 'g')) == 256);
+  }
+  const auto invalid = user_fonts::add_user_fonts({garbage_path});
+  CHECK(invalid.added_families.isEmpty());
+  CHECK(invalid.invalid_names.contains(QStringLiteral("NotAFont.ttf")));
+  CHECK(!QFileInfo::exists(store_dir + QStringLiteral("/NotAFont.ttf")));
+
+  // A zip with no fonts inside reports that instead of claiming invalidity.
+  mz_zip_archive empty_zip{};
+  CHECK(mz_zip_writer_init_heap(&empty_zip, 0, 0) == MZ_TRUE);
+  CHECK(mz_zip_writer_add_mem(&empty_zip, "readme.txt", junk_bytes.constData(),
+                              static_cast<std::size_t>(junk_bytes.size()), MZ_DEFAULT_LEVEL) == MZ_TRUE);
+  void* empty_zip_buffer = nullptr;
+  std::size_t empty_zip_size = 0;
+  CHECK(mz_zip_writer_finalize_heap_archive(&empty_zip, &empty_zip_buffer, &empty_zip_size) == MZ_TRUE);
+  const auto fontless_zip_path = temp.filePath(QStringLiteral("no-fonts.zip"));
+  {
+    QFile fontless_file(fontless_zip_path);
+    CHECK(fontless_file.open(QIODevice::WriteOnly));
+    CHECK(fontless_file.write(static_cast<const char*>(empty_zip_buffer),
+                              static_cast<qint64>(empty_zip_size)) == static_cast<qint64>(empty_zip_size));
+  }
+  mz_free(empty_zip_buffer);
+  mz_zip_writer_end(&empty_zip);
+  const auto fontless = user_fonts::add_user_fonts({fontless_zip_path});
+  CHECK(fontless.added_families.isEmpty());
+  CHECK(fontless.zips_without_fonts.contains(QStringLiteral("no-fonts.zip")));
+
+  // The startup restore is idempotent against fonts already registered this
+  // session (content-hash dedupe), so no duplicate store entries appear.
+  user_fonts::restore_user_fonts_at_startup();
+  CHECK(QDir(store_dir).entryList(font_filters, QDir::Files).size() == 2);
+
+  // Clearing empties the store; already-registered fonts stay usable
+  // (application fonts are never removed at runtime).
+  user_fonts::clear_user_font_store();
+  CHECK(QDir(store_dir).entryList(font_filters, QDir::Files).isEmpty());
+  CHECK(model_contains(family));
+}
+
+// Every bundled web font must register in the FreeType font database (the
+// offscreen platform uses the same Qt-bundled FreeType the wasm build uses)
+// and produce a working engine for each of its families. Guards the wasm
+// build's whole font inventory from the desktop suite.
+void ui_bundled_web_fonts_register_and_create_engines() {
+  const QDir fonts_dir(QStringLiteral(PATCHY_SOURCE_DIR "/third_party/fonts-web"));
+  CHECK(fonts_dir.exists());
+  QStringList families;
+  std::function<void(const QDir&)> register_dir = [&](const QDir& dir) {
+    for (const auto& sub : dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+      register_dir(QDir(sub.absoluteFilePath()));
+    }
+    const QStringList filters = {QStringLiteral("*.ttf"), QStringLiteral("*.otf"),
+                                 QStringLiteral("*.ttc")};
+    for (const auto& file : dir.entryInfoList(filters, QDir::Files, QDir::Name)) {
+      const auto font_id = QFontDatabase::addApplicationFont(file.absoluteFilePath());
+      if (font_id < 0) {
+        throw std::runtime_error("addApplicationFont failed: " +
+                                 file.absoluteFilePath().toStdString());
+      }
+      for (const auto& family : QFontDatabase::applicationFontFamilies(font_id)) {
+        if (!families.contains(family)) {
+          families.push_back(family);
+        }
+      }
+    }
+  };
+  register_dir(fonts_dir);
+  CHECK(families.contains(QStringLiteral("Liberation Sans")));
+  CHECK(families.contains(QStringLiteral("Carlito")));
+  CHECK(families.contains(QStringLiteral("Noto Sans")));
+  CHECK(families.contains(QStringLiteral("Noto Serif")));
+  CHECK(families.contains(QStringLiteral("Noto Sans JP")));
+  for (const auto& family : families) {
+    QFont font(family);
+    font.setStyleStrategy(QFont::NoFontMerging);
+    const QFontMetrics metrics(font);
+    if (metrics.height() <= 0) {
+      throw std::runtime_error("no engine for family: " + family.toStdString());
+    }
+    const QFontInfo info(font);
+    if (info.family().compare(family, Qt::CaseInsensitive) != 0) {
+      throw std::runtime_error("engine fell back for family: " + family.toStdString() +
+                               " -> " + info.family().toStdString());
+    }
+  }
+}
+
+// Dropping a font file on the main window registers it instead of trying to
+// open it as a document (the desktop drop routing).
+void ui_font_drop_registers_instead_of_opening() {
+  struct StandardPathsTestMode {
+    StandardPathsTestMode() { QStandardPaths::setTestModeEnabled(true); }
+    ~StandardPathsTestMode() { QStandardPaths::setTestModeEnabled(false); }
+  } standard_paths_test_mode;
+  namespace user_fonts = patchy::ui::user_fonts;
+  user_fonts::clear_user_font_store();
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  // Pacifico is not used by ui_user_fonts_add_persist_and_clear, so its
+  // content hash is fresh for this test regardless of suite order.
+  const auto source_font =
+      QStringLiteral(PATCHY_SOURCE_DIR "/third_party/fonts-web/pacifico/Pacifico-Regular.ttf");
+  CHECK(QFileInfo::exists(source_font));
+  QTemporaryDir temp;
+  CHECK(temp.isValid());
+  const auto dropped_font = temp.filePath(QStringLiteral("PatchyDropFixture.ttf"));
+  CHECK(QFile::copy(source_font, dropped_font));
+
+  QMimeData mime;
+  mime.setUrls({QUrl::fromLocalFile(dropped_font)});
+  QDragEnterEvent enter(QPoint(50, 50), Qt::CopyAction, &mime, Qt::NoButton, Qt::NoModifier);
+  QApplication::sendEvent(&window, &enter);
+  CHECK(enter.isAccepted());
+  QDropEvent drop(QPointF(50, 50), Qt::CopyAction, &mime, Qt::NoButton, Qt::NoModifier);
+  QApplication::sendEvent(&window, &drop);
+  QApplication::processEvents();
+
+  CHECK(window.statusBar()->currentMessage().startsWith(QStringLiteral("Added fonts:")));
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("Pacifico")));
+  const auto store_dir = user_fonts::user_fonts_directory();
+  CHECK(QFileInfo::exists(store_dir + QStringLiteral("/PatchyDropFixture.ttf")));
+  user_fonts::clear_user_font_store();
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> text_editor_font_picker_tests() {
@@ -1436,5 +1667,9 @@ std::vector<patchy::test::TestCase> text_editor_font_picker_tests() {
       {"ui_text_tool_drag_creates_resizable_wrapped_text_box",
        ui_text_tool_drag_creates_resizable_wrapped_text_box},
       {"ui_text_size_popup_slider_caps_at_200pt", ui_text_size_popup_slider_caps_at_200pt},
+      {"ui_user_fonts_add_persist_and_clear", ui_user_fonts_add_persist_and_clear},
+      {"ui_bundled_web_fonts_register_and_create_engines",
+       ui_bundled_web_fonts_register_and_create_engines},
+      {"ui_font_drop_registers_instead_of_opening", ui_font_drop_registers_instead_of_opening},
   };
 }

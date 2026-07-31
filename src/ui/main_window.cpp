@@ -72,6 +72,7 @@
 #include "ui/zoom_status_bar.hpp"
 #include "ui/theme_manager.hpp"
 #include "ui/theme_qss.hpp"
+#include "ui/user_fonts.hpp"
 #include "support/string_utils.hpp"
 
 #include <QAbstractItemView>
@@ -406,6 +407,24 @@ std::optional<QString> available_text_family_match(const QString& family) {
       return candidate;
     }
   }
+#ifdef Q_OS_WASM
+  // The browser has no system fonts, so common system families resolve to
+  // their bundled metric-compatible stand-ins instead of raising the
+  // missing-font prompt. Only offer an alias whose target family actually
+  // exists (a build staged without third_party/fonts-web must not invent
+  // families). Committing such a text layer stores the alias family.
+  for (const auto& alias : user_fonts::kWasmFamilyAliases) {
+    if (compact_text_family_key(QString::fromLatin1(alias.missing)) != requested_key) {
+      continue;
+    }
+    const auto bundled = QString::fromLatin1(alias.bundled);
+    for (const auto& candidate : available) {
+      if (candidate.compare(bundled, Qt::CaseInsensitive) == 0) {
+        return candidate;
+      }
+    }
+  }
+#endif
   return std::nullopt;
 }
 
@@ -532,10 +551,22 @@ QString display_text_family_from_font(const QFont& font) {
 
 QStringList render_text_families_for_display_family(const QString& family) {
   const auto display_family = canonical_text_display_family(family);
+  QStringList families;
   if (text_family_uses_photoshop_latin_fallback(display_family)) {
-    return QStringList{preferred_latin_text_fallback_family(), display_family};
+    families = QStringList{preferred_latin_text_fallback_family(), display_family};
+  } else {
+    families = QStringList{display_family};
   }
-  return QStringList{display_family};
+#ifdef Q_OS_WASM
+  // Per-glyph CJK fallback: Japanese text typed into any Latin-only face
+  // renders through the bundled Noto Sans JP instead of tofu (no system
+  // fonts exist for Qt's own fallback machinery in the browser).
+  const auto jp_fallback = QStringLiteral("Noto Sans JP");
+  if (!families.contains(jp_fallback, Qt::CaseInsensitive)) {
+    families.append(jp_fallback);
+  }
+#endif
+  return families;
 }
 
 // A font registered with Windows can still be missing from Qt's database

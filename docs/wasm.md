@@ -280,11 +280,16 @@ then browse to `http://localhost:8973/patchy.html`.
   Script sound effects are silent no-ops (no QProcess in the
   browser). Scanner import was already platform-gated off.
 - **Assets.** `--preload-file` mounts the staged build-dir copies at
-  `/fonts`, `/translations`, and `/scripts` (~1.1 MB packed into
-  `patchy.data`). `applicationDirPath()` is `/` on wasm, so the existing
-  directory probes in `main.cpp` and `localization.cpp` find them with zero
-  code changes. `qtbase_ja.qm` is staged from the host kit (the wasm kit
-  ships no `.qm`). The 8.7 MB texture pack stays embedded in the binary for
+  `/fonts`, `/translations`, and `/scripts` packed into `patchy.data`.
+  `applicationDirPath()` is `/` on wasm, so the existing directory probes in
+  `main.cpp` and `localization.cpp` find them with zero code changes.
+  `qtbase_ja.qm` is staged from the host kit (the wasm kit ships no `.qm`).
+  The fonts tree merges `third_party/fonts-web` (about 23 MB of OFL fonts,
+  wasm only; see [fonts.md](fonts.md)) into the shared `third_party/fonts`
+  staging, which grew `patchy.data` from ~1.1 MB to ~24 MB; the app target
+  carries a `LINK_DEPENDS` on the fonts stamp so a fonts-only change repacks
+  `patchy.data` (the copy target alone only orders the staging, it does not
+  re-link). The 8.7 MB texture pack stays embedded in the binary for
   now; moving it to lazy HTTP fetch is a step 4 size lever.
 - `QT_WASM_INITIAL_MEMORY` is 512 MB with growth to a 4 GB cap. Qt's target
   machinery owns `-sSTACK_SIZE`; do not add a second one.
@@ -391,6 +396,16 @@ The other step-3 decisions:
   `stored_default_asset_version` (main_window_tool_options.cpp) treats every
   wasm session as unseeded. Defaults return on reload, user-created presets
   last one session; real persistence (IDBFS/OPFS) is a step-4 candidate.
+- **User-added fonts persist in IndexedDB** (the first real cross-reload
+  persistence beyond localStorage settings). Fonts or zips of fonts dropped
+  onto the window register immediately and are stored in DB `PatchyUserFonts`
+  by `src/ui/user_fonts_wasm.cpp`; a startup QTimer polls the page-side read
+  and re-registers them each boot. The glue follows the poll pattern above:
+  page JS writes plain state or the database, never a wasm export. The
+  IndexedDB put must copy bytes out of the heap first, both for the heap
+  growth rule and because the multithreaded heap is a SharedArrayBuffer,
+  whose views IndexedDB's structured clone refuses. See
+  [fonts.md](fonts.md) for the full architecture.
 - **One picker at a time**: a second Open while the browser chooser is up
   would nest a second Asyncify suspend and hang the runtime; the wait dialog
   is modal and `pick_open_file` carries a re-entrancy guard.
@@ -430,8 +445,9 @@ Wasm-only accommodations for living inside a single browser canvas:
 
 - **The start panel carries a web-version note** (`startPanelWasmNote`,
   start_panel.cpp): everything runs locally in the browser and nothing is
-  sent online, with a link to the GitHub download table for the desktop
-  build (system fonts, speed).
+  sent online, a font file or zip of fonts can be dropped in to use your own
+  fonts, and a link to the GitHub download table for the desktop build
+  (system fonts, speed).
 - **Float windows are disabled.** A browser tab is one window: Qt for
   WebAssembly has no window manager and no `startSystemMove`, so a floated
   document covered the whole canvas with no way to move, dock, or reach the
@@ -741,5 +757,6 @@ on Qt (see the provisioning section).
 - Step 4 remainder: memory tuning (per-platform undo cap and byte budget,
   tile-cache eviction), texture lazy-fetch and compressed
   packaging/deployment, the measured document-size cap the web build
-  advertises, and preset/library persistence (IDBFS or OPFS) so user presets
-  survive reloads.
+  advertises, and preset/library persistence so user presets survive reloads
+  (user-added fonts already persist through IndexedDB via the poll-pattern
+  glue in user_fonts_wasm.cpp; follow that shape rather than IDBFS).

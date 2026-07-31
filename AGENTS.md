@@ -111,6 +111,7 @@ Read the linked document before working on the feature. The document, not this i
 - **Layer-style and pattern presets:** [docs/style-presets.md](docs/style-presets.md).
 - **Gradients and GRD:** [docs/gradients.md](docs/gradients.md).
 - **Text tool and Character panel:** [docs/text-tool.md](docs/text-tool.md).
+- **Bundled fonts, wasm font aliases, and user-added fonts:** [docs/fonts.md](docs/fonts.md).
 - **Selection tools:** [docs/selection-tools.md](docs/selection-tools.md) and [docs/legal-constraints.md](docs/legal-constraints.md).
 - **Shape tools, Merge Down, and tool icons:** [docs/tools.md](docs/tools.md).
 - **Vector tools, shape layers, vector masks, and Paths:** [docs/vector-tools.md](docs/vector-tools.md) and [docs/legal-constraints.md](docs/legal-constraints.md).

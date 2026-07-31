@@ -44,6 +44,30 @@ project for Photoshop text-layer compatibility. The font files are distributed
 under the SIL Open Font License, Version 1.1; the license text is included at
 `fonts/noto_naskh_arabic/OFL.txt` in the release package.
 
+## Bundled fonts (web build only)
+
+The WebAssembly build bundles a set of open fonts under `third_party/fonts-web/`
+because a browser exposes no system fonts to the app. Desktop packages do not
+include these files. Every family is distributed under the SIL Open Font
+License, Version 1.1, and each family directory carries its own license text as
+`OFL.txt`, packaged into the web build's preloaded data file. All files are
+unmodified static-instance builds fetched from the projects' official
+repositories on 2026-07-31:
+
+| Family | Files | Source |
+| --- | --- | --- |
+| Liberation Sans / Serif / Mono | 12 (R/B/I/BI each) | github.com/liberationfonts/liberation-fonts, release 2.1.5 |
+| Carlito | 4 (R/B/I/BI) | github.com/google/fonts, `ofl/carlito` |
+| Noto Sans | 4 (R/B/I/BI) | github.com/notofonts/notofonts.github.io, `fonts/NotoSans/hinted/ttf` |
+| Noto Serif | 4 (R/B/I/BI) | github.com/notofonts/notofonts.github.io, `fonts/NotoSerif/hinted/ttf` |
+| Noto Sans JP | 2 (Regular, Bold) | Google Fonts static TTF builds (fonts.gstatic.com via the css2 API; the TrueType-outline builds Google serves for JP web use, preferred over the noto-cjk CFF OTFs for FreeType rendering consistency) |
+| Montserrat | 2 (Regular, Bold) | github.com/JulietaUla/Montserrat, `fonts/ttf` |
+| Oswald | 2 (Regular, Bold) | github.com/googlefonts/OswaldFont, `fonts/ttf` |
+| Caveat | 2 (Regular, Bold) | github.com/googlefonts/caveat, `fonts/ttf` |
+| Abril Fatface | 1 (Regular) | github.com/google/fonts, `ofl/abrilfatface` |
+| Pacifico | 1 (Regular) | github.com/google/fonts, `ofl/pacifico` |
+| Lobster | 1 (Regular) | github.com/google/fonts, `ofl/lobster` |
+
 ## miniz
 
 `src/formats/miniz/` vendors miniz 3.0.2 (https://github.com/richgel999/miniz),

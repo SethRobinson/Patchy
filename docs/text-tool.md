@@ -44,6 +44,9 @@ bottom, because pixels-only callers place the buffer at the frame corner.
   imported text silently fell to Tahoma). Attempted families are cached per
   run; application fonts are never removed (removeApplicationFont can crash
   live font users).
+- On wasm, `available_text_family_match` additionally resolves common system
+  families through the bundled metric-compatible alias table, and every text
+  render appends a Noto Sans JP fallback family. See [fonts.md](fonts.md).
 
 ## Character panel
 

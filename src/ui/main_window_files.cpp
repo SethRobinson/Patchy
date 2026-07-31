@@ -68,6 +68,7 @@
 #include "ui/image_sequence_dialog.hpp"
 #include "ui/sprite_sheet_dialog.hpp"
 #include "ui/tile_preview_window.hpp"
+#include "ui/user_fonts.hpp"
 #include "ui/warp_text_dialog.hpp"
 #include "ui/qt_geometry.hpp"
 #include "ui/start_panel.hpp"
@@ -653,6 +654,28 @@ QStringList supported_local_open_paths(const QMimeData* mime_data) {
   return paths;
 }
 
+// Dropped fonts (or a zip of fonts) register into the session instead of
+// opening as documents; same isLocalFile filtering as the open paths.
+QStringList font_or_zip_local_paths(const QMimeData* mime_data) {
+  QStringList paths;
+  if (mime_data == nullptr || !mime_data->hasUrls()) {
+    return paths;
+  }
+  for (const auto& url : mime_data->urls()) {
+    if (!url.isLocalFile()) {
+      continue;
+    }
+    const auto path = QDir::toNativeSeparators(url.toLocalFile());
+    if (!QFileInfo(path).isFile() || paths.contains(path)) {
+      continue;
+    }
+    if (user_fonts::is_user_font_path(path) || user_fonts::is_zip_path(path)) {
+      paths.push_back(path);
+    }
+  }
+  return paths;
+}
+
 struct OpenDocumentResult {
   Document document;
   QString file_name;
@@ -978,7 +1001,8 @@ bool MainWindow::accept_open_file_drag(QDropEvent* event) {
     show_preview_dialog_edit_lock_message();
     return false;
   }
-  if (event == nullptr || supported_local_open_paths(event->mimeData()).isEmpty()) {
+  if (event == nullptr || (supported_local_open_paths(event->mimeData()).isEmpty() &&
+                           font_or_zip_local_paths(event->mimeData()).isEmpty())) {
     if (event != nullptr) {
       event->ignore();
     }
@@ -1007,9 +1031,10 @@ bool MainWindow::open_dropped_files(QDropEvent* event) {
   }
 
   const auto paths = supported_local_open_paths(event->mimeData());
-  if (paths.isEmpty()) {
+  const auto font_paths = font_or_zip_local_paths(event->mimeData());
+  if (paths.isEmpty() && font_paths.isEmpty()) {
     event->ignore();
-    show_status_error(tr("Drop a supported image or Photoshop document"));
+    show_status_error(tr("Drop a supported image, Photoshop document, or font"));
     return false;
   }
 
@@ -1020,6 +1045,9 @@ bool MainWindow::open_dropped_files(QDropEvent* event) {
     event->acceptProposedAction();
   }
 
+  if (!font_paths.isEmpty()) {
+    show_user_font_drop_result(user_fonts::add_user_fonts(font_paths));
+  }
   for (const auto& path : paths) {
     open_document_path(path);
   }
@@ -1033,11 +1061,35 @@ void MainWindow::handle_web_file_drop(const QString& path) {
     show_preview_dialog_edit_lock_message();
     return;
   }
+  if (user_fonts::is_user_font_path(path) || user_fonts::is_zip_path(path)) {
+    show_user_font_drop_result(user_fonts::add_user_fonts({path}));
+    return;
+  }
   if (!is_supported_open_path(path)) {
-    show_status_error(tr("Drop a supported image or Photoshop document"));
+    show_status_error(tr("Drop a supported image, Photoshop document, or font"));
     return;
   }
   open_document_path(path);
+}
+
+void MainWindow::show_user_font_drop_result(const user_fonts::AddFontsResult& result) {
+  // One status line: failures are the actionable outcome, so they win over a
+  // partial success (the new families still show up in the font picker).
+  if (!result.invalid_names.isEmpty()) {
+    show_status_error(tr("Not a valid font file: %1").arg(result.invalid_names.join(QStringLiteral(", "))));
+    return;
+  }
+  if (!result.zips_without_fonts.isEmpty()) {
+    show_status_error(tr("No fonts found in %1").arg(result.zips_without_fonts.join(QStringLiteral(", "))));
+    return;
+  }
+  if (!result.added_families.isEmpty()) {
+    statusBar()->showMessage(tr("Added fonts: %1").arg(result.added_families.join(QStringLiteral(", "))));
+    return;
+  }
+  if (result.duplicate_count > 0) {
+    statusBar()->showMessage(tr("Fonts already added"));
+  }
 }
 
 void MainWindow::open_command_line_files(const QStringList& paths) {

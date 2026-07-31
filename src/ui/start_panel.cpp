@@ -177,6 +177,8 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
   set_themed_label_text(*wasm_note,
                         tr("Everything runs locally in your browser. Nothing you make is ever sent online.") +
                             QStringLiteral("<br/>") +
+                            tr("Drop a font file or a zip of fonts here to use your own fonts.") +
+                            QStringLiteral("<br/>") +
                             tr("For all your system fonts and better speed, get the %1.").arg(desktop_link));
   column_layout->addSpacing(2);
   column_layout->addWidget(wasm_note);

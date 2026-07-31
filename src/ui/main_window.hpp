@@ -77,6 +77,10 @@ struct VectorShapeContent;
 
 namespace patchy::ui {
 
+namespace user_fonts {
+struct AddFontsResult;
+}
+
 struct HueSaturationSettings;
 // Same aliases as filter_workflows.hpp (an alias cannot be forward-declared);
 // identical redeclaration is legal and compiler-checked.
@@ -489,6 +493,8 @@ private:
   // reports them here one MEMFS path at a time (Qt's own drag-drop path never
   // fires for external files there). Unused on desktop builds.
   void handle_web_file_drop(const QString& path);
+  // Status-bar summary for a font/zip drop (both the desktop and wasm paths).
+  void show_user_font_drop_result(const user_fonts::AddFontsResult& result);
   bool save_document();
   bool save_document_as();
   // flatten_confirmed: the caller already ran confirm_flatten_layers_for_save() for this

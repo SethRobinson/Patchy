@@ -40,6 +40,10 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(PATCHY_BUNDLED_FONTS_DIR "${PROJECT_SOURCE_DIR}/third_party/fonts")
+# Web-only font set: a browser exposes no system fonts, so the wasm app build
+# additionally stages third_party/fonts-web into the shared fonts tree (see the
+# patchy_bundled_fonts target). Desktop builds never stage it.
+set(PATCHY_BUNDLED_FONTS_WEB_DIR "${PROJECT_SOURCE_DIR}/third_party/fonts-web")
 
 function(patchy_configure_target target)
   target_compile_features(${target} PUBLIC cxx_std_20)
@@ -323,6 +327,7 @@ add_library(patchy_formats
   src/formats/aseprite_document_io.cpp
   src/formats/bmp_document_io.cpp
   src/formats/document_flatten.cpp
+  src/formats/font_zip.cpp
   src/formats/format_file_io.cpp
   src/formats/format_registry.cpp
   src/formats/gif_document_io.cpp
@@ -558,12 +563,27 @@ if(PATCHY_BUILD_APP)
     if(EXISTS "${PATCHY_BUNDLED_FONTS_DIR}")
       file(GLOB_RECURSE PATCHY_BUNDLED_FONT_FILES CONFIGURE_DEPENDS
         "${PATCHY_BUNDLED_FONTS_DIR}/*")
+      # Clean first: copy_directory never deletes, so a renamed or removed font
+      # would otherwise linger in existing build trees (and on wasm inside the
+      # preloaded patchy.data) forever.
+      set(PATCHY_FONTS_COPY_COMMANDS
+        COMMAND ${CMAKE_COMMAND} -E rm -rf "${CMAKE_BINARY_DIR}/fonts"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${PATCHY_BUNDLED_FONTS_DIR}"
+                "${CMAKE_BINARY_DIR}/fonts")
+      if(EMSCRIPTEN AND EXISTS "${PATCHY_BUNDLED_FONTS_WEB_DIR}")
+        file(GLOB_RECURSE PATCHY_BUNDLED_FONT_WEB_FILES CONFIGURE_DEPENDS
+          "${PATCHY_BUNDLED_FONTS_WEB_DIR}/*")
+        list(APPEND PATCHY_BUNDLED_FONT_FILES ${PATCHY_BUNDLED_FONT_WEB_FILES})
+        list(APPEND PATCHY_FONTS_COPY_COMMANDS
+          COMMAND ${CMAKE_COMMAND} -E copy_directory
+                  "${PATCHY_BUNDLED_FONTS_WEB_DIR}"
+                  "${CMAKE_BINARY_DIR}/fonts")
+      endif()
       set(PATCHY_FONTS_STAMP "${CMAKE_BINARY_DIR}/CMakeFiles/patchy_bundled_fonts.stamp")
       add_custom_command(
         OUTPUT "${PATCHY_FONTS_STAMP}"
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${PATCHY_BUNDLED_FONTS_DIR}"
-                "${CMAKE_BINARY_DIR}/fonts"
+        ${PATCHY_FONTS_COPY_COMMANDS}
         COMMAND ${CMAKE_COMMAND} -E touch "${PATCHY_FONTS_STAMP}"
         DEPENDS ${PATCHY_BUNDLED_FONT_FILES}
         COMMENT "Copying bundled fonts into the build directory"
@@ -813,6 +833,8 @@ if(PATCHY_BUILD_APP)
       src/ui/tool_cursors.cpp
       src/ui/update_checker.hpp
       src/ui/update_checker.cpp
+      src/ui/user_fonts.hpp
+      src/ui/user_fonts.cpp
       src/ui/warp_text_dialog.hpp
       src/ui/warp_text_dialog.cpp
       src/ui/window_effects.hpp
@@ -833,6 +855,8 @@ if(PATCHY_BUILD_APP)
         src/ui/print_dialog_wasm.cpp
         src/ui/dialog_utils_wasm.hpp
         src/ui/dialog_utils_wasm.cpp
+        src/ui/user_fonts_wasm.hpp
+        src/ui/user_fonts_wasm.cpp
       )
     else()
       target_sources(patchy_ui PRIVATE src/ui/print_dialog.cpp)
@@ -959,6 +983,13 @@ if(PATCHY_BUILD_APP)
         "SHELL:--preload-file ${CMAKE_BINARY_DIR}/translations@/translations"
         "SHELL:--preload-file ${CMAKE_BINARY_DIR}/scripts@/scripts"
       )
+      # A fonts-only change must repack patchy.data: patchy_copy_bundled_fonts
+      # orders the staging before the build but does not make the link step
+      # depend on it, so without this a changed font would not ship until the
+      # next unrelated relink.
+      if(DEFINED PATCHY_FONTS_STAMP)
+        set_property(TARGET patchy APPEND PROPERTY LINK_DEPENDS "${PATCHY_FONTS_STAMP}")
+      endif()
     else()
       add_executable(patchy WIN32 MACOSX_BUNDLE
         src/app/main.cpp
@@ -1097,6 +1128,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/document_ops_filters_tests.cpp
     tests/core/flat_formats_bmp_tests.cpp
     tests/core/flat_formats_misc_tests.cpp
+    tests/core/font_zip_tests.cpp
     tests/core/gradients_interior_effects_tests.cpp
     tests/core/infra_selection_tests.cpp
     tests/core/layer_metadata_tests.cpp

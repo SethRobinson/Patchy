@@ -9517,8 +9517,44 @@ RGB: -
     </message>
     <message>
         <location line="-63"/>
-        <source>Drop a supported image or Photoshop document</source>
-        <translation>対応画像または Photoshop ドキュメントをドロップしてください</translation>
+        <source>Drop a supported image, Photoshop document, or font</source>
+        <translation>対応画像、Photoshop ドキュメント、またはフォントをドロップしてください</translation>
+    </message>
+    <message>
+        <source>Not a valid font file: %1</source>
+        <translation>有効なフォントファイルではありません: %1</translation>
+    </message>
+    <message>
+        <source>No fonts found in %1</source>
+        <translation>%1 にフォントが見つかりませんでした</translation>
+    </message>
+    <message>
+        <source>Added fonts: %1</source>
+        <translation>フォントを追加しました: %1</translation>
+    </message>
+    <message>
+        <source>Fonts already added</source>
+        <translation>フォントは追加済みです</translation>
+    </message>
+    <message>
+        <source>Remove Added Fonts...</source>
+        <translation>追加したフォントを削除...</translation>
+    </message>
+    <message>
+        <source>Remove Added Fonts</source>
+        <translation>追加したフォントを削除</translation>
+    </message>
+    <message>
+        <source>Remove all fonts you added to Patchy? They stay usable until you restart Patchy.</source>
+        <translation>Patchy に追加したすべてのフォントを削除しますか? Patchy を再起動するまでは引き続き使用できます。</translation>
+    </message>
+    <message>
+        <source>Remove all fonts you added to Patchy? They stay usable until you reload the page.</source>
+        <translation>Patchy に追加したすべてのフォントを削除しますか? ページを再読み込みするまでは引き続き使用できます。</translation>
+    </message>
+    <message>
+        <source>Remove</source>
+        <translation>削除</translation>
     </message>
     <message>
         <location line="+109"/>
@@ -13700,6 +13736,10 @@ Clipped to the layer below</source>
     <message>
         <source>Everything runs locally in your browser. Nothing you make is ever sent online.</source>
         <translation>すべての処理はブラウザー内でローカルに実行されます。作品がオンラインに送信されることは一切ありません。</translation>
+    </message>
+    <message>
+        <source>Drop a font file or a zip of fonts here to use your own fonts.</source>
+        <translation>フォントファイルまたはフォントの zip をここにドロップすると、自分のフォントを使用できます。</translation>
     </message>
     <message>
         <source>For all your system fonts and better speed, get the %1.</source>

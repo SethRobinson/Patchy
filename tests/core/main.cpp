@@ -157,6 +157,7 @@ int main(int argc, char** argv) {
            flat_formats_bmp_tests,
            raw_heif_tests,
            flat_formats_misc_tests,
+           font_zip_tests,
            infra_selection_tests,
            vector_shape_tests,
            vector_raster_tests,

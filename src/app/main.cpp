@@ -5,6 +5,7 @@
 #include "ui/main_window.hpp"
 #include "ui/stress_test.hpp"
 #include "ui/theme_manager.hpp"
+#include "ui/user_fonts.hpp"
 
 #include <QApplication>
 #include <QByteArray>
@@ -281,6 +282,17 @@ QFont application_font() {
   auto font = QFontDatabase::systemFont(QFontDatabase::GeneralFont);
   font.setPointSize(9);
   return font;
+#elif defined(Q_OS_WASM)
+  // The browser exposes no system fonts and Qt's embedded fallback is
+  // Bitstream Vera, so prefer the bundled Noto Sans, with Noto Sans JP as the
+  // per-glyph fallback that keeps the Japanese UI translation from rendering
+  // tofu. Point size stays Qt's default; the browser's devicePixelRatio drives
+  // scaling on wasm.
+  auto font = QFontDatabase::systemFont(QFontDatabase::GeneralFont);
+  if (QFontDatabase::families().contains(QStringLiteral("Noto Sans"))) {
+    font.setFamilies({QStringLiteral("Noto Sans"), QStringLiteral("Noto Sans JP")});
+  }
+  return font;
 #else
   // macOS/Linux: the platform's default UI font at its native size (San Francisco 13pt
   // on macOS; the fontconfig default on Linux). Forcing 9pt reads tiny there.
@@ -314,6 +326,16 @@ int main(int argc, char* argv[]) {
   app.setOrganizationName(QStringLiteral("Seth A. Robinson"));
   app.setWindowIcon(patchy::ui::patchy_app_icon());
   load_bundled_fonts();
+#ifdef Q_OS_WASM
+  // Rendering-level stand-ins for system families the browser cannot provide.
+  // The text tool's family matching has its own lookup over the same table
+  // (available_text_family_match) because substitutions never appear in
+  // QFontDatabase::families().
+  for (const auto& alias : patchy::ui::user_fonts::kWasmFamilyAliases) {
+    QFont::insertSubstitution(QString::fromLatin1(alias.missing), QString::fromLatin1(alias.bundled));
+  }
+#endif
+  patchy::ui::user_fonts::restore_user_fonts_at_startup();
   app.setFont(application_font());
   patchy::ui::LocalizationManager::instance().load_saved_language();
   patchy::ui::ThemeManager::instance().load_saved_preference();
