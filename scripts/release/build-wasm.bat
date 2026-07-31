@@ -72,6 +72,10 @@ copy /Y "%REPO%\packaging\linux\icons\hicolor\256x256\apps\com.rtsoft.patchy.png
 rem The browser-tab favicon is the app's own multi-size icon (16-256 px).
 copy /Y "%REPO%\src\app\patchy.ico" "%SITE_DIR%\favicon.ico" >nul || goto fail
 copy /Y "%REPO%\packaging\web\.htaccess" "%SITE_DIR%\.htaccess" >nul || goto fail
+rem The shell page needs the uncompressed wasm size: its progress bar counts
+rem decompressed bytes, which Content-Length cannot provide once the server
+rem answers with a precompressed (br/gzip) variant.
+for %%S in ("%SITE_DIR%\patchy.wasm") do set "PATCHY_WASM_SIZE=%%~zS"
 copy /Y "%REPO%\NOTICE-THIRD-PARTY.md" "%SITE_DIR%\NOTICE-THIRD-PARTY.md" >nul || goto fail
 copy /Y "%REPO%\src\formats\libheif\COPYING" "%SITE_DIR%\libheif-COPYING.txt" >nul || goto fail
 
@@ -79,8 +83,25 @@ rem Configure the shell template; it is staged as both patchy.html and an
 rem index.html copy so https://rtsoft.com/patchy/ serves the app directly.
 set "PATCHY_WEB_TEMPLATE=%REPO%\packaging\web\patchy.html.in"
 set "PATCHY_WEB_SITE_DIR=%SITE_DIR%"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$html = Get-Content -Raw -LiteralPath $env:PATCHY_WEB_TEMPLATE; $html = $html.Replace('__PATCHY_VERSION__', $env:PATCHY_PACKAGE_VERSION).Replace('__PATCHY_CACHE_TAG__', $env:PATCHY_WEB_CACHE_TAG); if ($html -match '__PATCHY_') { Write-Error 'patchy.html.in still contains an unreplaced __PATCHY_ placeholder.'; exit 1 }; Set-Content -LiteralPath (Join-Path $env:PATCHY_WEB_SITE_DIR 'patchy.html') -Value $html -NoNewline -Encoding UTF8; Set-Content -LiteralPath (Join-Path $env:PATCHY_WEB_SITE_DIR 'index.html') -Value $html -NoNewline -Encoding UTF8"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$html = Get-Content -Raw -LiteralPath $env:PATCHY_WEB_TEMPLATE; $html = $html.Replace('__PATCHY_VERSION__', $env:PATCHY_PACKAGE_VERSION).Replace('__PATCHY_CACHE_TAG__', $env:PATCHY_WEB_CACHE_TAG).Replace('__PATCHY_WASM_SIZE__', $env:PATCHY_WASM_SIZE); if ($html -match '__PATCHY_') { Write-Error 'patchy.html.in still contains an unreplaced __PATCHY_ placeholder.'; exit 1 }; Set-Content -LiteralPath (Join-Path $env:PATCHY_WEB_SITE_DIR 'patchy.html') -Value $html -NoNewline -Encoding UTF8; Set-Content -LiteralPath (Join-Path $env:PATCHY_WEB_SITE_DIR 'index.html') -Value $html -NoNewline -Encoding UTF8"
 if errorlevel 1 goto fail
+
+echo Precompressing site assets...
+rem Brotli/gzip variants beside the identity files; the staged .htaccess
+rem rewrites to them for clients that accept the encoding. The emsdk-bundled
+rem node runs the compressor (no extra tool dependency); the scripts glob the
+rem single node directory the SDK keeps (see docs/wasm.md).
+set "NODE_EXE="
+for /d %%D in ("%REPO%\.deps\emsdk\node\*") do set "NODE_EXE=%%D\bin\node.exe"
+if not defined NODE_EXE (
+  echo The emsdk-bundled node was not found under .deps\emsdk\node.
+  goto fail
+)
+if not exist "%NODE_EXE%" (
+  echo The emsdk-bundled node was not found: "%NODE_EXE%".
+  goto fail
+)
+"%NODE_EXE%" "%REPO%\scripts\wasm\precompress-site.mjs" "%SITE_DIR%" || goto fail
 
 echo Wasm site staged: "%SITE_DIR%" (cache tag %PATCHY_WEB_CACHE_TAG%)
 echo Test it with scripts\release\start-local-wasm-server.bat, publish it with

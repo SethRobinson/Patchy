@@ -1,12 +1,16 @@
 <!doctype html>
 <!-- Patchy web shell template. scripts\release\build-wasm.bat substitutes
-     __PATCHY_VERSION__ and __PATCHY_CACHE_TAG__ and stages the result as both
-     patchy.html and index.html in build\package\wasm-site. The ?v= query
-     strings are the cache busters: every deploy gets a fresh tag, so browsers
-     re-fetch changed assets while .htaccess lets tagged URLs cache forever.
-     The page downloads patchy.wasm itself with a byte-counting reader (the
-     Emscripten loader has no download-progress callback) and passes the bytes
-     to qtLoad as wasmBinary. -->
+     __PATCHY_VERSION__, __PATCHY_CACHE_TAG__, and __PATCHY_WASM_SIZE__ and
+     stages the result as both patchy.html and index.html in
+     build\package\wasm-site. The ?v= query strings are the cache busters:
+     every deploy gets a fresh tag, so browsers re-fetch changed assets while
+     .htaccess lets tagged URLs cache forever. The page downloads patchy.wasm
+     itself with a byte-counting reader (the Emscripten loader has no
+     download-progress callback) and passes the bytes to qtLoad as wasmBinary.
+     When the server answers Brotli/gzip (the .htaccess rewrite to the
+     precompressed variants), the reader counts decompressed bytes while
+     Content-Length reports compressed ones, so the baked-in uncompressed size
+     is the progress total instead. -->
 <html lang="en">
   <head>
     <meta charset="utf-8">
@@ -55,6 +59,11 @@
 
     <script type="text/javascript">
       const CACHE_TAG = '__PATCHY_CACHE_TAG__';
+      // Uncompressed patchy.wasm size, baked in at staging time: the progress
+      // total for encoded (br/gzip) responses, where the byte-counting reader
+      // sees decompressed bytes but Content-Length carries the compressed
+      // count. Falls back to the indeterminate sweep if it were ever 0.
+      const WASM_SIZE = Number('__PATCHY_WASM_SIZE__') || 0;
       const el = id => document.getElementById(id);
       const formatMb = bytes => (bytes / (1024 * 1024)).toFixed(1);
 
@@ -81,7 +90,10 @@
         const response = await fetch(url);
         if (!response.ok)
           throw new Error('Download failed: HTTP ' + response.status + ' for ' + url);
-        const total = Number(response.headers.get('Content-Length') || 0);
+        const encoded = Boolean(response.headers.get('Content-Encoding'));
+        const total = encoded
+          ? WASM_SIZE
+          : (Number(response.headers.get('Content-Length') || 0) || WASM_SIZE);
         if (!response.body)
           return await response.arrayBuffer();
         const reader = response.body.getReader();

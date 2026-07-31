@@ -10,6 +10,28 @@
 # site without caching hints instead of failing with a 500.
 <IfModule mod_mime.c>
 AddType application/wasm .wasm
+# Precompressed variants (patchy.wasm.br and friends, written by
+# scripts\wasm\precompress-site.mjs during staging): the suffix is an
+# encoding, not a type, so the response keeps the inner extension's
+# Content-Type and gains the matching Content-Encoding. RemoveType clears
+# any distro mime mapping for .gz (often application/gzip), which would
+# otherwise fight the encoding.
+RemoveType .br .gz
+AddEncoding br .br
+AddEncoding gzip .gz
+</IfModule>
+# Serve the precompressed variant when the client accepts it and the file
+# exists. Only the large immutable assets are rewritten; the html entry
+# pages stay identity-encoded. Without mod_rewrite the identity files are
+# served, which is slower but correct.
+<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteCond %{HTTP:Accept-Encoding} br
+RewriteCond %{REQUEST_FILENAME}.br -f
+RewriteRule ^(.+)\.(js|wasm|data)$ $1.$2.br [L]
+RewriteCond %{HTTP:Accept-Encoding} gzip
+RewriteCond %{REQUEST_FILENAME}.gz -f
+RewriteRule ^(.+)\.(js|wasm|data)$ $1.$2.gz [L]
 </IfModule>
 <IfModule mod_headers.c>
 # Cross-origin isolation: the multithreaded wasm build needs
@@ -23,7 +45,12 @@ Header always set Cross-Origin-Embedder-Policy "require-corp"
 <FilesMatch "\.html$">
 Header set Cache-Control "no-cache"
 </FilesMatch>
-<FilesMatch "\.(js|wasm|data|png|ico|svg)$">
+<FilesMatch "\.(js|wasm|data|png|ico|svg)(\.(br|gz))?$">
 Header set Cache-Control "public, max-age=31536000, immutable"
+</FilesMatch>
+# The same URL can answer with br, gzip, or identity depending on the
+# client, so caches must key on Accept-Encoding.
+<FilesMatch "\.(js|wasm|data)(\.(br|gz))?$">
+Header append Vary Accept-Encoding
 </FilesMatch>
 </IfModule>

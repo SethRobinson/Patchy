@@ -249,15 +249,25 @@ then browse to `http://localhost:8973/patchy.html`.
   initial heap. Qt 6.8 suspended through its own `qt_asyncify_suspend_js`
   import; 6.10 rewrote that as a plain `EM_ASYNC_JS` await, which is why the
   default only became too small on the newer kit.
-- **Link optimization stays `-Os`.** The 2026-07 trial measured `-O3` at
-  74,029,730 bytes against 73,449,183 for `-Os` on the single-threaded build
-  (+0.8%) with no demonstrable runtime win and a slower wasm-opt pass, so
-  size keeps the tiebreak. `-msimd128` was trialed the same day on
-  `wasm-core`: all 726 tests pass and the three byte-stability canaries hold
-  byte-identically, but the full suite only improved from 47.5-47.6 s to
-  46.4-46.6 s (about 2%, below the adoption bar) while adding 83 KB, so it
-  was rejected; the canary result means it can be revisited cheaply if a
-  compute-heavy in-app benchmark ever argues for it.
+- **Link optimization is `-O3`, compile adds `-msimd128`, allocator is
+  mimalloc (2026-07-31 runtime pass).** All three were adopted from
+  interleaved in-app stress A/B runs (the browser harness below) after the
+  earlier size-based decisions were revisited with a runtime metric:
+  - `-msimd128` (wasm-release preset compile flags): every compute-heavy
+    stress step ran 5-16% faster (blurs -14%, screen glow -14%, grain -16%,
+    merge visible -11%) for +39 KB. The aggregate score barely moves because
+    I/O and text steps dominate it; the per-step wins are consistent. The
+    2026-07 wasm-core canary trial already proved the three byte-stability
+    canaries hold byte-identically under SIMD. Browser floor: Safari 16.4+
+    (the threaded build already requires cross-origin-isolation-era
+    browsers).
+  - Link `-O3` over `-Os`: filter/compositing steps 3-9% faster for +0.9%
+    size. The July `-Os` decision measured size only; with a runtime metric
+    the speed side wins (end-user speed outranks size for the web build).
+  - `-sMALLOC=mimalloc` over default dlmalloc: 5-8% whole-run improvement,
+    allocation-heavy steps up to -13% (vector shapes, blurs, canvas expand);
+    +343 KB. Emscripten's dlmalloc serializes on one lock under pthreads,
+    which the strip compositor and preview workers hit constantly.
 - **PATCHY_* escape hatches work in the browser.** The app link carries
   `--pre-js scripts/wasm/app-env-pre.js`, which copies `PATCHY_*` keys from
   the page URL's query string into the Emscripten environment before `main`
@@ -677,8 +687,87 @@ host missing `mod_headers` serves the site without caching hints instead of
 failing. MIME needs nothing special: if a server does not send
 `application/wasm`, Emscripten falls back from streaming to ArrayBuffer
 instantiation (with `wasmBinary` supplied, streaming is not used anyway).
-Compressed serving is a step-4 lever. The shell page's text is static html
-outside the Qt localization system and stays English.
+The shell page's text is static html outside the Qt localization system and
+stays English.
+
+**Compressed serving (2026-07-31).** `build-wasm.bat` runs
+`scripts\wasm\precompress-site.mjs` (emsdk-bundled node, zlib built-ins, no
+new tool) after staging, writing `.br` (Brotli quality 10) and `.gz` variants
+beside `patchy.wasm`, `patchy.js`, `patchy.data`, and `qtloader.js`; the
+first-visit transfer drops from ~92 MB to ~29 MB (patchy.wasm 61.6 -> 19.1 MB
+br, patchy.data 25.8 -> 9.6 MB). The staged `.htaccess` serves them via
+`AddEncoding br/gzip` plus `RemoveType` (so the inner extension keeps its
+Content-Type) and IfModule-guarded `mod_rewrite` rules keyed on
+Accept-Encoding and file existence; without the modules the identity files
+serve unchanged. Cache-Control and a `Vary: Accept-Encoding` cover the
+variant names. `serve.mjs` mirrors the same negotiation locally so the
+staged-site check exercises encoded responses. The shell page's progress bar
+counts decompressed bytes, which no longer match Content-Length on an
+encoded response, so `build-wasm.bat` bakes the uncompressed wasm byte count
+into the page (`__PATCHY_WASM_SIZE__`) as the progress total; the html entry
+pages themselves stay identity-encoded and no-cache. After each deploy,
+`upload-wasm-to-rtsoft.bat` uploads the variants and curls the live site
+with `Accept-Encoding`; a missing `Content-Encoding` is a loud warning, not
+a failure, because identity serving still works.
+
+## Runtime optimization pass (2026-07-31)
+
+End-user speed work; every decision here was measured with the in-app stress
+test (quick preset) run headless in the browser. Findings and mechanics:
+
+- **The dead QtQuick stack is gone.** Qt's static-build finalizer runs
+  qmlimportscanner with `-rootPath` at the repository root for any target
+  linking Qml. It walked into the vendored Qt kits under `.deps`, found Qt's
+  own internal QML files, and statically linked the whole
+  QtQuick/Controls/Dialogs stack into patchy.wasm as dead code (Patchy ships
+  no QML; Qt6::Qml is linked for QJSEngine only, which needs no QML plugins).
+  `QT_QML_MODULE_NO_IMPORT_SCAN TRUE` on the patchy target kills the scan
+  (and its repo-wide configure cost). A second door pulled QtQuick back in:
+  the qmltooling debug-service plugins are default static plugins of
+  Qt6::Qml, and `qmldbg_quickprofiler` links the Quick scene graph plus its
+  shader resources; `qt_import_plugins(patchy EXCLUDE_BY_TYPE qmltooling)`
+  closes it (QML debug services are dead weight in a deployed site). Both
+  together: 85,194,824 -> 64,625,537 bytes (-24.1%), and the link dropped
+  from ~533 s to ~366 s as a side effect. Boot, dialogs, scripting, and the
+  full stress scenario were verified unaffected, and warm stress scores
+  improved ~5-7% (less resident code).
+- **Codegen: `-msimd128`, link `-O3`, `-sMALLOC=mimalloc`** (details in the
+  decision bullet above). Adopted config, 2026-07-31: patchy.wasm 65,616,445
+  bytes.
+- **JSPI (`-sJSPI`, Asyncify's successor) dead-ends on the stock aqt kit;
+  revisit only with a source-built Qt.** Two hard findings from the spike:
+  (1) JSPI with JS-based `-fexceptions` boots to a permanent silent park:
+  the first Qt idle suspend sits under exception-handling invoke trampolines
+  (wasm->JS->wasm frames), which JSPI cannot suspend across. No console
+  error; qtLoad never resolves. (2) JSPI with `-fwasm-exceptions` cannot
+  link: Qt's prebuilt static libraries (libjpeg inside qjpeg,
+  qgrayraster.c) were compiled in Emscripten-JS setjmp/longjmp mode and
+  reference `emscripten_longjmp`, which the wasm-EH/wasm-SJLJ runtime does
+  not provide; mixing the modes is unsupported. The prize on the table if a
+  source-built kit (Qt configured with wasm EH + `-feature-wasm_jspi`) ever
+  happens: the JSPI link produced a 42,225,517-byte binary against
+  65,616,445 with Asyncify (the instrumentation is 23.4 MB, 36% of the
+  binary) and linked in 92 s instead of ~430 s, on top of removing
+  Asyncify's per-call runtime tax. JSPI also still prints an emcc
+  "experimental" warning on 4.0.7 and needs Chrome 137+/feature detection,
+  so it would ship as a second artifact set alongside the Asyncify build.
+- **Headless stress harness** (how to A/B the browser build without a
+  visible tab): serve the build directory plus a harness page that shims
+  `requestAnimationFrame` onto `setTimeout` AND re-implements the global
+  timers on a Web Worker (Chrome throttles a hidden tab's main-thread timers
+  to ~1/s, and Qt schedules everything through setTimeout; dedicated workers
+  are exempt, and message tasks are not throttled), suppresses
+  `<a download>` clicks (the stress PSD saves would otherwise pop real Save
+  As dialogs on the host), passes
+  `arguments: ['--stress-test=quick', '--stress-report-dir', '/stressout']`
+  to qtLoad, and polls the report out of MEMFS via the exported `FS`.
+  Protocol that survived the noise: V8 caches the optimized module per
+  origin, so the FIRST run of any new binary (or new port) pays tier-up and
+  must be discarded as a warm-up, and machine-load drift between runs is
+  larger than most effects, so configs are compared in interleaved pairs
+  (A, B, A, B on two ports), never sequentially. The unattended
+  `--run-script` mode works the same way for functional checks (write the
+  script into MEMFS from a `preRun` hook).
 
 ## Multithreading migration (step 4a, 2026-07)
 
@@ -782,8 +871,9 @@ on Qt (see the provisioning section).
 ## Later steps (not built yet)
 
 - Step 4 remainder: memory tuning (per-platform undo cap and byte budget,
-  tile-cache eviction), texture lazy-fetch and compressed
-  packaging/deployment, the measured document-size cap the web build
+  tile-cache eviction), texture lazy-fetch (compressed serving landed
+  2026-07-31; the 8.7 MB embedded texture pack is the remaining size lever),
+  the measured document-size cap the web build
   advertises, and preset/library persistence so user presets survive reloads
   (user-added fonts already persist through IndexedDB via the poll-pattern
   glue in user_fonts_wasm.cpp; follow that shape rather than IDBFS).

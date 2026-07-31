@@ -130,8 +130,8 @@
         "PATCHY_BUILD_TESTS": "OFF",
         "QT_HOST_PATH": "${sourceDir}/.deps/Qt/6.10.3/msvc2022_64",
         "QT_CHAINLOAD_TOOLCHAIN_FILE": "${sourceDir}/.deps/emsdk/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake",
-        "CMAKE_C_FLAGS": "-fexceptions -pthread",
-        "CMAKE_CXX_FLAGS": "-fexceptions -pthread"
+        "CMAKE_C_FLAGS": "-fexceptions -pthread -msimd128",
+        "CMAKE_CXX_FLAGS": "-fexceptions -pthread -msimd128"
       }
     }
   ],

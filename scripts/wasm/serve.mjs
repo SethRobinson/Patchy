@@ -37,9 +37,27 @@ createServer(async (request, response) => {
     if (file !== root && !file.startsWith(root + sep)) {
       throw new Error('outside root');
     }
-    const body = await readFile(file);
+    // Serve a precompressed variant when the client accepts it and staging
+    // produced one (scripts/wasm/precompress-site.mjs), mirroring the
+    // deployed .htaccess rewrite so the staged-site check exercises the same
+    // encoded responses as production.
+    const acceptEncoding = String(request.headers['accept-encoding'] ?? '');
+    let body;
+    let contentEncoding;
+    for (const [token, suffix] of [['br', '.br'], ['gzip', '.gz']]) {
+      if (body === undefined && acceptEncoding.includes(token)) {
+        try {
+          body = await readFile(file + suffix);
+          contentEncoding = token;
+        } catch {
+          // No precompressed variant; fall through to the identity file.
+        }
+      }
+    }
+    body ??= await readFile(file);
     response.writeHead(200, {
       'Content-Type': types[extname(file).toLowerCase()] ?? 'application/octet-stream',
+      ...(contentEncoding ? { 'Content-Encoding': contentEncoding, 'Vary': 'Accept-Encoding' } : {}),
       'Cache-Control': 'no-store',
       // Cross-origin isolation, matching the deployed .htaccess: the
       // multithreaded app needs SharedArrayBuffer, which browsers only enable

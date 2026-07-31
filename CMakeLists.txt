@@ -370,6 +370,12 @@ if(EMSCRIPTEN AND PATCHY_BUILD_APP)
       EXCLUDE_FROM_ALL
     )
 
+    # libheif enables -Wconversion on itself, and on wasm32 (32-bit size_t)
+    # its pervasive uint64_t-to-size_t narrowing trips -Wshorten-64-to-32 in a
+    # dozen upstream sources. One diagnostic, vendored target only; Patchy
+    # sources are unaffected.
+    target_compile_options(heif PRIVATE -Wno-shorten-64-to-32)
+
     # Make the legal boundary fail closed if a future libheif update enables a
     # compressed-codec backend that is not represented by today's option list.
     # encoder_mask.cc stores a raw auxiliary mask; it is not an HEVC encoder.
@@ -1011,10 +1017,22 @@ if(PATCHY_BUILD_APP)
       # workers that may be live at the same time. Emscripten evaluates the
       # expression at page load. No PTHREAD_POOL_SIZE_STRICT: overflow lazily
       # spawns (fine from worker threads, which do yield) instead of aborting.
+      # QT_QML_MODULE_NO_IMPORT_SCAN: Patchy ships no QML (Qt6::Qml is linked
+      # for QJSEngine scripting only, which needs no QML plugins). Without the
+      # opt-out, Qt's static-build finalizer runs qmlimportscanner with
+      # -rootPath at the repository root, walks into the vendored Qt kits under
+      # .deps, finds Qt's own internal QML files there, and statically links
+      # the whole QtQuick/Controls/Dialogs stack into patchy.wasm as dead code.
       set_target_properties(patchy PROPERTIES
         QT_WASM_INITIAL_MEMORY "512MB"
         QT_WASM_PTHREAD_POOL_SIZE "Math.min(navigator.hardwareConcurrency,16)+8"
+        QT_QML_MODULE_NO_IMPORT_SCAN TRUE
       )
+      # The qmltooling debug-service plugins are default static plugins of
+      # Qt6::Qml, and qmldbg_quickprofiler links the whole QtQuick scene graph
+      # plus its shader resources into the binary. QML debug services are dead
+      # weight in a deployed web build, so the category is excluded.
+      qt_import_plugins(patchy EXCLUDE_BY_TYPE qmltooling)
       # Asyncify keeps the nested-event-loop sites (QDialog::exec and friends)
       # working on wasm. Exceptions stay JS-based (-fexceptions, matching the
       # preset's compile flags) because Asyncify does not support wasm-native
@@ -1026,8 +1044,10 @@ if(PATCHY_BUILD_APP)
       # forwards PATCHY_* URL query parameters into the app environment so the
       # environment escape hatches work in a browser (the node test runner has
       # its own pre-js doing the same from process.env).
-      # -Os beat -O3 in the July 2026 link-flag trial: -O3 was +0.8% size with
-      # no measurable runtime win and a slower wasm-opt pass; see docs/wasm.md.
+      # Link opt is -O3 since the 2026-07-31 in-app stress A/B: -O3 ran the
+      # filter/compositing steps 3-9% faster than -Os for +0.9% size, and
+      # end-user speed outranks size for the web build. (The earlier July
+      # trial preferred -Os, but it measured size only; see docs/wasm.md.)
       # Workers get 4MB stacks: LibRaw's dcraw-derived decoders carry large
       # stack locals (the reason wasm-core gives the main thread 8MB) and the
       # compositor/preview workers now run there.
@@ -1044,7 +1064,8 @@ if(PATCHY_BUILD_APP)
       target_link_options(patchy PRIVATE
         -sASYNCIFY
         -sASYNCIFY_STACK_SIZE=1048576
-        -Os
+        -O3
+        -sMALLOC=mimalloc
         -fexceptions
         -pthread
         -Wno-pthreads-mem-growth
