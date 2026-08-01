@@ -3042,6 +3042,8 @@ void MainWindow::rotate_canvas_clockwise() {
   canvas_->set_document(&doc);
   restore_channel_target_after_document_reset(previous_channel_target, previous_channel_id,
                                               previous_channel_display);
+  // Swapped dimensions make the old pan stale, so recenter at the current zoom.
+  canvas_->center_document_in_view();
   refresh_layer_list();
   refresh_layer_controls();
   refresh_document_info();
@@ -3063,6 +3065,8 @@ void MainWindow::rotate_canvas_counterclockwise() {
   canvas_->set_document(&doc);
   restore_channel_target_after_document_reset(previous_channel_target, previous_channel_id,
                                               previous_channel_display);
+  // Swapped dimensions make the old pan stale, so recenter at the current zoom.
+  canvas_->center_document_in_view();
   refresh_layer_list();
   refresh_layer_controls();
   refresh_document_info();

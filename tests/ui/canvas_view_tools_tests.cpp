@@ -466,6 +466,77 @@ void ui_zoom_tool_double_click_keeps_view_centered_at_actual_pixels() {
   CHECK(std::abs(after.y() - widget_center.y()) <= 2);
 }
 
+void ui_image_resize_recenters_view_and_zoom_double_click_shows_document() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->fit_to_view();
+
+  // Image > Image Size to half keeps the zoom; the view must recenter on the
+  // smaller document instead of leaving it shrunk toward the top-left with the
+  // viewport center over grey margin.
+  accept_image_size_dialog(512, 384);
+  require_action(window, "imageSizeAction")->trigger();
+  QApplication::processEvents();
+  const QPoint widget_center(canvas->width() / 2, canvas->height() / 2);
+  const QPoint document_center(256, 192);
+  const auto after_resize = canvas->widget_position_for_document_point(document_center);
+  CHECK(std::abs(after_resize.x() - widget_center.x()) <= 2);
+  CHECK(std::abs(after_resize.y() - widget_center.y()) <= 2);
+
+  // Double-clicking the Zoom tool jumps to 100% and must leave the document
+  // centered; anchoring the stale viewport-center point used to push it almost
+  // entirely off screen.
+  auto* zoom_button = window.findChild<QToolButton*>(QStringLiteral("zoomToolButton"));
+  CHECK(zoom_button != nullptr);
+  send_double_click(*zoom_button, zoom_button->rect().center());
+  CHECK(std::abs(canvas->zoom() - 1.0) < 1e-6);
+  const auto after_zoom = canvas->widget_position_for_document_point(document_center);
+  CHECK(std::abs(after_zoom.x() - widget_center.x()) <= 2);
+  CHECK(std::abs(after_zoom.y() - widget_center.y()) <= 2);
+}
+
+void ui_zoom_preset_recovers_parked_view() {
+  patchy::Document document(200, 150, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Paint", solid_pixels(200, 150, patchy::PixelFormat::rgba8(), QColor(90, 120, 200)));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(400, 300);
+  canvas.set_document(&document);
+  canvas.show();
+  QApplication::processEvents();
+
+  // Park the half-zoom document almost entirely past the top-left edge with
+  // the hand-pan API; the 10%-visible pan rule allows it, so the viewport
+  // center ends up over grey margin.
+  canvas.set_zoom(0.5);
+  CHECK(canvas.begin_pan_at_global_position(canvas.mapToGlobal(QPoint(200, 150))));
+  CHECK(canvas.pan_to_global_position(canvas.mapToGlobal(QPoint(-400, -300))));
+  CHECK(canvas.end_pan());
+  const auto parked_origin = canvas.widget_position_for_document_point(QPoint(0, 0));
+  CHECK(parked_origin.x() < 0);
+  CHECK(parked_origin.y() < 0);
+
+  // A preset zoom where the document overflows the viewport clamps
+  // Photoshop-style: the anchor pins to the document, and no grey shows past
+  // the document edges.
+  canvas.set_zoom_centered(4.0);
+  CHECK(std::abs(canvas.zoom() - 4.0) < 1e-6);
+  const auto overflow_origin = canvas.widget_position_for_document_point(QPoint(0, 0));
+  const auto overflow_corner = canvas.widget_position_for_document_point(QPoint(200, 150));
+  CHECK(overflow_origin.x() <= 0);
+  CHECK(overflow_origin.y() <= 0);
+  CHECK(overflow_corner.x() >= canvas.width());
+  CHECK(overflow_corner.y() >= canvas.height());
+
+  // Back at 100% the document fits the viewport, so the preset recenters it.
+  canvas.set_zoom_centered(1.0);
+  CHECK(std::abs(canvas.zoom() - 1.0) < 1e-6);
+  const auto center = canvas.widget_position_for_document_point(QPoint(100, 75));
+  CHECK(std::abs(center.x() - 200) <= 2);
+  CHECK(std::abs(center.y() - 150) <= 2);
+}
+
 void ui_canvas_focus_in_restores_tool_cursor() {
   patchy::Document document(64, 64, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Paint", solid_pixels(64, 64, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0)));
@@ -1985,6 +2056,9 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_status_bar_zoom_percent_box_edits_zoom", ui_status_bar_zoom_percent_box_edits_zoom},
       {"ui_zoom_tool_double_click_keeps_view_centered_at_actual_pixels",
        ui_zoom_tool_double_click_keeps_view_centered_at_actual_pixels},
+      {"ui_image_resize_recenters_view_and_zoom_double_click_shows_document",
+       ui_image_resize_recenters_view_and_zoom_double_click_shows_document},
+      {"ui_zoom_preset_recovers_parked_view", ui_zoom_preset_recovers_parked_view},
       {"ui_canvas_focus_in_restores_tool_cursor", ui_canvas_focus_in_restores_tool_cursor},
       {"ui_max_brush_uses_overlay_cursor", ui_max_brush_uses_overlay_cursor},
       {"ui_canvas_pan_keeps_document_partly_visible", ui_canvas_pan_keeps_document_partly_visible},

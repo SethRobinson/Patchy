@@ -125,8 +125,46 @@ void CanvasWidget::set_zoom(double zoom) {
 
 void CanvasWidget::set_zoom_centered(double zoom) {
   const auto clamped = std::clamp(zoom, kMinZoom, kMaxZoom);
-  zoom_at_widget_point(QPointF(static_cast<double>(width()) / 2.0, static_cast<double>(height()) / 2.0),
-                       clamped / zoom_);
+  if (document_ == nullptr || document_->width() <= 0 || document_->height() <= 0) {
+    set_zoom(clamped);
+    return;
+  }
+  ZoomTraceScope trace("zoom_step", zoom_);
+  const QPointF viewport_center(static_cast<double>(width()) / 2.0, static_cast<double>(height()) / 2.0);
+  // Anchor the document point under the viewport center, clamped to the
+  // document bounds: when a geometry change left the view off-center, a raw
+  // center anchor can sit in the grey margin and pin empty space, pushing the
+  // document almost entirely off screen at the new zoom.
+  const QPointF document_anchor(
+      std::clamp((viewport_center.x() - pan_.x()) / zoom_, 0.0, static_cast<double>(document_->width())),
+      std::clamp((viewport_center.y() - pan_.y()) / zoom_, 0.0, static_cast<double>(document_->height())));
+  const auto old_zoom = zoom_;
+  const auto old_pan = pan_;
+  zoom_ = clamped;
+  pan_ = QPointF(viewport_center.x() - document_anchor.x() * zoom_,
+                 viewport_center.y() - document_anchor.y() * zoom_);
+  // Photoshop's scroll model, applied per axis at preset time: a document
+  // that fits the window is centered, and one that overflows never shows grey
+  // past its edges (hand-tool overscroll stays free afterwards).
+  const auto document_width = static_cast<double>(document_->width()) * zoom_;
+  const auto document_height = static_cast<double>(document_->height()) * zoom_;
+  if (document_width <= static_cast<double>(width())) {
+    pan_.setX((static_cast<double>(width()) - document_width) / 2.0);
+  } else {
+    pan_.setX(std::clamp(pan_.x(), static_cast<double>(width()) - document_width, 0.0));
+  }
+  if (document_height <= static_cast<double>(height())) {
+    pan_.setY((static_cast<double>(height()) - document_height) / 2.0);
+  } else {
+    pan_.setY(std::clamp(pan_.y(), static_cast<double>(height()) - document_height, 0.0));
+  }
+  constrain_pan();
+  if (std::abs(old_zoom - zoom_) < 0.0001 && (pan_ - old_pan).manhattanLength() < 0.01) {
+    return;
+  }
+  update_tool_cursor();
+  update();
+  notify_view_changed();
 }
 
 void CanvasWidget::zoom_at_widget_point(QPointF widget_position, double factor) {

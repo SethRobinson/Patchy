@@ -1151,6 +1151,9 @@ void MainWindow::resize_image_dialog() {
     canvas_->set_document(&doc);
     restore_channel_target_after_document_reset(previous_channel_target, previous_channel_id,
                                                 previous_channel_display);
+    // The old pan is meaningless for the resized document and can leave it
+    // mostly off screen, so recenter at the current zoom (same as crop).
+    canvas_->center_document_in_view();
     refresh_layer_list();
     refresh_layer_controls();
   }
@@ -1189,6 +1192,9 @@ void MainWindow::resize_canvas_dialog() {
   canvas_->set_document(&doc);
   restore_channel_target_after_document_reset(previous_channel_target, previous_channel_id,
                                               previous_channel_display);
+  // The old pan is meaningless for the resized document and can leave it
+  // mostly off screen, so recenter at the current zoom (same as crop).
+  canvas_->center_document_in_view();
   refresh_layer_list();
   refresh_layer_controls();
   refresh_document_info();

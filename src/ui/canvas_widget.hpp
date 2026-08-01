@@ -327,9 +327,13 @@ public:
   void set_document(Document* document);
   [[nodiscard]] double zoom() const noexcept;
   void set_zoom(double zoom);
-  // Absolute zoom anchored at the viewport center. UI zoom presets (menu Zoom
-  // In/Out, Actual Pixels, the status-bar zoom box) must use this instead of
-  // set_zoom, which preserves pan and can leave the canvas mostly off screen.
+  // Absolute zoom anchored at the viewport center, Photoshop-style: the anchor
+  // is clamped to the document bounds (so a view left off-center never pins
+  // grey margin), then per axis the document is centered when it fits the
+  // viewport and clamped to show no grey past its edges when it overflows. UI
+  // zoom presets (menu Zoom In/Out, Actual Pixels, the zoom-tool double-click,
+  // the status-bar zoom box) must use this instead of set_zoom, which
+  // preserves pan and can leave the canvas mostly off screen.
   void set_zoom_centered(double zoom);
   // In-canvas seamless tiling mode (View > Seamless Tiling in Window): paints wrap
   // copies of the committed composite around the document so tile seams are visible
@@ -343,8 +347,9 @@ public:
   void refresh_tool_cursor();
   void fit_to_view();
   // Recenters the document in the viewport at the current zoom. Used after
-  // operations that shrink the document (crop), where the stale pan could
-  // otherwise leave the remaining image mostly off screen.
+  // operations that change document geometry (crop, image/canvas resize,
+  // canvas rotate), where the stale pan could otherwise leave the remaining
+  // image mostly off screen.
   void center_document_in_view();
   void zoom_to_document_rect(QRect document_rect);
   void set_spacebar_panning(bool enabled);
