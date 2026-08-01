@@ -19,6 +19,7 @@
 #include "core/layer_tree.hpp"
 #include "core/pixel_tools.hpp"
 #include "core/quick_select.hpp"
+#include "core/worker_budget.hpp"
 #include "ui/edit_conversions.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/qt_geometry.hpp"
@@ -322,37 +323,68 @@ TransformedImage resample_transformed_rgba8(const QImage& source, const QTransfo
     return TransformedImage{std::move(transformed), bounds};
   }
 
-  for (int y = 0; y < transformed.height(); ++y) {
-    auto* row = transformed.scanLine(y);
-    for (int x = 0; x < transformed.width(); ++x) {
-      const auto source_point = document_to_source.map(QPointF(static_cast<double>(left + x) + 0.5,
-                                                               static_cast<double>(top + y) + 0.5));
-      PremultipliedSample sample;
-      switch (interpolation) {
-        case CanvasWidget::TransformInterpolation::NearestNeighbor:
-          sample = sample_nearest(converted, source_point);
-          break;
-        case CanvasWidget::TransformInterpolation::Bilinear:
-          sample = sample_bilinear(converted, source_point);
-          break;
-        case CanvasWidget::TransformInterpolation::Bicubic:
-          sample = sample_bicubic(converted, source_point);
-          break;
-      }
+  // Every output pixel is a pure function of (source, inverse transform, x, y),
+  // so splitting the destination rows across workers produces byte-identical
+  // results to the sequential walk; commit and preview share this function and
+  // both stay pinned. The single detach up front matters: concurrent
+  // scanLine() calls from workers would race on QImage's copy-on-write.
+  auto* transformed_bits = transformed.bits();
+  const auto transformed_stride = static_cast<std::size_t>(transformed.bytesPerLine());
+  const auto resample_rows = [&converted, &document_to_source, interpolation, transformed_bits, transformed_stride,
+                              left, top, width = transformed.width()](int row_begin, int row_end) {
+    for (int y = row_begin; y < row_end; ++y) {
+      auto* row = transformed_bits + static_cast<std::size_t>(y) * transformed_stride;
+      for (int x = 0; x < width; ++x) {
+        const auto source_point = document_to_source.map(QPointF(static_cast<double>(left + x) + 0.5,
+                                                                 static_cast<double>(top + y) + 0.5));
+        PremultipliedSample sample;
+        switch (interpolation) {
+          case CanvasWidget::TransformInterpolation::NearestNeighbor:
+            sample = sample_nearest(converted, source_point);
+            break;
+          case CanvasWidget::TransformInterpolation::Bilinear:
+            sample = sample_bilinear(converted, source_point);
+            break;
+          case CanvasWidget::TransformInterpolation::Bicubic:
+            sample = sample_bicubic(converted, source_point);
+            break;
+        }
 
-      auto* pixel = row + x * 4;
-      const auto alpha = clamp_sample_channel(sample.a);
-      pixel[3] = alpha;
-      if (alpha == 0) {
-        pixel[0] = 0;
-        pixel[1] = 0;
-        pixel[2] = 0;
-      } else {
-        pixel[0] = clamp_sample_channel(sample.r * 255.0 / static_cast<double>(alpha));
-        pixel[1] = clamp_sample_channel(sample.g * 255.0 / static_cast<double>(alpha));
-        pixel[2] = clamp_sample_channel(sample.b * 255.0 / static_cast<double>(alpha));
+        auto* pixel = row + x * 4;
+        const auto alpha = clamp_sample_channel(sample.a);
+        pixel[3] = alpha;
+        if (alpha == 0) {
+          pixel[0] = 0;
+          pixel[1] = 0;
+          pixel[2] = 0;
+        } else {
+          pixel[0] = clamp_sample_channel(sample.r * 255.0 / static_cast<double>(alpha));
+          pixel[1] = clamp_sample_channel(sample.g * 255.0 / static_cast<double>(alpha));
+          pixel[2] = clamp_sample_channel(sample.b * 255.0 / static_cast<double>(alpha));
+        }
       }
     }
+  };
+
+  const auto area = static_cast<std::int64_t>(transformed.width()) * transformed.height();
+  const auto hardware_threads = static_cast<int>(std::thread::hardware_concurrency());
+  // max_blocking_fanout_workers: this thread blocks on the row futures, so on
+  // the wasm main thread the fan-out must fit the idle pthread pool.
+  const auto workers = patchy::max_blocking_fanout_workers(
+      std::clamp(std::min(transformed.height() / 128, hardware_threads), 1, 16));
+  if (area >= 1'000'000 && workers >= 2 && !qEnvironmentVariableIsSet("PATCHY_RENDER_SINGLE_THREADED")) {
+    std::vector<std::future<void>> strips;
+    strips.reserve(static_cast<std::size_t>(workers));
+    const auto rows_per_strip = (transformed.height() + workers - 1) / workers;
+    for (int start = 0; start < transformed.height(); start += rows_per_strip) {
+      const auto end = std::min(start + rows_per_strip, transformed.height());
+      strips.push_back(std::async(std::launch::async, resample_rows, start, end));
+    }
+    for (auto& strip : strips) {
+      strip.get();
+    }
+  } else {
+    resample_rows(0, transformed.height());
   }
 
   const auto bounds = Rect{left, top, transformed.width(), transformed.height()};
@@ -506,7 +538,10 @@ bool CanvasWidget::begin_free_transform() {
   transform_source_image_ = QImage();
   transform_source_local_rect_ = *local_transform_rect;
   transform_base_cache_ = QImage();
-  transform_composited_preview_cache_ = QImage();
+  transform_base_display_mip_cache_.clear();
+  transform_base_display_mip_source_key_ = 0;
+  transform_preview_patches_.clear();
+  transform_preview_patches_rect_ = QRect();
   transform_requires_composited_preview_ = layer_needs_composited_transform_preview(*layer);
   setCursor(Qt::ArrowCursor);
   update();
@@ -527,8 +562,11 @@ void CanvasWidget::reset_free_transform_session_state() {
   transform_drag_start_scale_x_sign_ = 1.0;
   transform_drag_start_scale_y_sign_ = 1.0;
   transform_base_cache_ = QImage();
+  transform_base_display_mip_cache_.clear();
+  transform_base_display_mip_source_key_ = 0;
   transform_source_image_ = QImage();
-  transform_composited_preview_cache_ = QImage();
+  transform_preview_patches_.clear();
+  transform_preview_patches_rect_ = QRect();
   transform_requires_composited_preview_ = false;
   transform_source_local_rect_ = QRect();
 }
@@ -641,7 +679,7 @@ bool CanvasWidget::prepare_free_transform_source() {
     return false;
   }
   if (!transform_source_image_.isNull()) {
-    if (transform_requires_composited_preview_ && transform_composited_preview_cache_.isNull()) {
+    if (transform_requires_composited_preview_ && transform_preview_patches_.empty()) {
       refresh_transform_composited_preview_cache();
     }
     return true;
@@ -653,16 +691,53 @@ bool CanvasWidget::prepare_free_transform_source() {
 
   transform_source_image_ =
       qimage_from_pixel_buffer(std::as_const(*layer).pixels()).copy(transform_source_local_rect_);
-  const auto was_visible = layer->visible();
-  layer->set_visible(false);
-  transform_base_cache_ = render_document_image();
-  layer->set_visible(was_visible);
+  rebuild_transform_base_cache();
   refresh_transform_composited_preview_cache();
   return !transform_source_image_.isNull();
 }
 
+// Builds the with-the-layer-hidden backdrop for the transform session. Like
+// ensure_move_base_cache, the full recomposite (which caused a visible hitch
+// at drag start on heavy documents) is only the fallback: when the render
+// cache is current, reuse it and re-render just the region the layer (plus
+// its effects) occupies, with the layer hidden via a visibility override so
+// no revision-bumping visibility toggle is needed.
+void CanvasWidget::rebuild_transform_base_cache() {
+  transform_base_cache_ = QImage();
+  transform_base_display_mip_cache_.clear();
+  transform_base_display_mip_source_key_ = 0;
+  if (document_ == nullptr || !transform_layer_id_.has_value()) {
+    return;
+  }
+  const auto* layer = std::as_const(*document_).find_layer(*transform_layer_id_);
+  if (layer == nullptr) {
+    return;
+  }
+
+  const QRect canvas_rect(0, 0, document_->width(), document_->height());
+  const std::vector<LayerId> hidden{*transform_layer_id_};
+  if (render_cache_dirty_ || render_cache_.isNull() || render_cache_.size() != canvas_rect.size()) {
+    transform_base_cache_ = qimage_from_document_rect_with_hidden_layers(*document_, canvas_rect, true, hidden)
+                                .convertToFormat(QImage::Format_RGBA8888);
+    return;
+  }
+
+  const auto layer_rect = to_qrect(layer_bounds_with_effects(*layer, layer->bounds())).intersected(canvas_rect);
+  QImage base = render_cache_.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+  if (!layer_rect.isEmpty()) {
+    const auto cleared = qimage_from_document_rect_with_hidden_layers(*document_, layer_rect, true, hidden);
+    if (!cleared.isNull()) {
+      QPainter painter(&base);
+      painter.setCompositionMode(QPainter::CompositionMode_Source);
+      painter.drawImage(layer_rect.topLeft(), cleared.convertToFormat(QImage::Format_ARGB32_Premultiplied));
+    }
+  }
+  transform_base_cache_ = std::move(base);
+}
+
 void CanvasWidget::refresh_transform_composited_preview_cache() {
-  transform_composited_preview_cache_ = QImage();
+  transform_preview_patches_.clear();
+  transform_preview_patches_rect_ = QRect();
   if (!transform_requires_composited_preview_ || !transforming_layer_ || document_ == nullptr ||
       !transform_layer_id_.has_value() || transform_source_image_.isNull()) {
     return;
@@ -682,11 +757,56 @@ void CanvasWidget::refresh_transform_composited_preview_cache() {
     return;
   }
 
+  // Region-limited: the layer (plus its effects) can only contribute inside
+  // its transformed bounds, and everywhere else transform_base_cache_ already
+  // holds the final composite. Re-rendering the full canvas here on every
+  // mouse-move was the transform preview's dominant cost on large documents.
   const auto transformed_pixels = pixels_from_image_rgba(transformed_result.image);
-  transform_composited_preview_cache_ =
-      qimage_from_document_rect_with_layer_pixels(*document_, QRect(0, 0, document_->width(), document_->height()), true,
-                                                  *transform_layer_id_, transformed_pixels, transformed_result.bounds)
-          .convertToFormat(QImage::Format_RGBA8888);
+  const QRect canvas_rect(0, 0, document_->width(), document_->height());
+  const auto patch_rect =
+      to_qrect(layer_bounds_with_effects(*layer, transformed_result.bounds)).intersected(canvas_rect);
+  if (patch_rect.isEmpty()) {
+    return;
+  }
+  transform_preview_patches_ = qimage_patches_from_document_region_with_layer_pixels(
+      *document_, QRegion(patch_rect), true, *transform_layer_id_, transformed_pixels, transformed_result.bounds);
+  transform_preview_patches_rect_ = patch_rect;
+}
+
+// Document rect the active transform preview draws into: the rotated quad's
+// bounding box (the cheap blit and the controls), unioned with the composited
+// patches when present.
+QRect CanvasWidget::transform_preview_document_rect() const {
+  const auto center = transform_current_rect_.center();
+  QTransform rotation;
+  rotation.translate(center.x(), center.y());
+  rotation.rotate(transform_angle_);
+  rotation.translate(-center.x(), -center.y());
+  auto rect = rotation.mapRect(transform_current_rect_).toAlignedRect().adjusted(-1, -1, 1, 1);
+  if (!transform_preview_patches_rect_.isEmpty()) {
+    rect = rect.united(transform_preview_patches_rect_);
+  }
+  return rect;
+}
+
+// Bounded repaint for a preview change: old quad/patches area plus the new
+// one, padded for the handles, dashed outline, and the rotate stem that draw
+// in widget space around the quad. The full-widget update() this replaces
+// repainted (and at zoom < 1 re-downscaled) the entire canvas per mouse-move.
+void CanvasWidget::update_transform_preview_region(QRect previous_document_rect) {
+  const auto current_document_rect = transform_preview_document_rect();
+  QRect dirty;
+  if (!previous_document_rect.isEmpty()) {
+    dirty = dirty.united(widget_rect_for_document_rect(QRectF(previous_document_rect)).toAlignedRect());
+  }
+  if (!current_document_rect.isEmpty()) {
+    dirty = dirty.united(widget_rect_for_document_rect(QRectF(current_document_rect)).toAlignedRect());
+  }
+  if (dirty.isEmpty()) {
+    update();
+    return;
+  }
+  update(dirty.adjusted(-48, -48, 48, 48));
 }
 
 void CanvasWidget::refresh_free_transform_preview_caches() {
@@ -701,13 +821,10 @@ void CanvasWidget::refresh_free_transform_preview_caches() {
   // The Layer Style dialog previews edits live while a transform can still be
   // active, so the snapshots baked at transform start (and whether the preview
   // needs compositing at all) must be rebuilt from the current document state.
+  // The base cache rebuilds in BOTH regimes: the composited preview now draws
+  // patches over it instead of a full-canvas recomposite.
   transform_requires_composited_preview_ = layer_needs_composited_transform_preview(*layer);
-  if (!transform_requires_composited_preview_) {
-    const auto was_visible = layer->visible();
-    layer->set_visible(false);
-    transform_base_cache_ = render_document_image();
-    layer->set_visible(was_visible);
-  }
+  rebuild_transform_base_cache();
   refresh_transform_composited_preview_cache();
   if (isVisible()) {
     update();
@@ -801,12 +918,13 @@ bool CanvasWidget::set_transform_controls_state(QPointF reference_position, doub
   const auto anchor_offset =
       rotate_offset(anchor_offset_from_center(QSizeF(width, height), transform_reference_point_), rotation_degrees);
   const auto center = reference_position - anchor_offset;
+  const auto previous_preview_rect = transform_preview_document_rect();
   transform_current_rect_ = QRectF(center.x() - width / 2.0, center.y() - height / 2.0, width, height);
   transform_scale_x_sign_ = scale_x_sign;
   transform_scale_y_sign_ = scale_y_sign;
   transform_angle_ = rotation_degrees;
   refresh_transform_composited_preview_cache();
-  update();
+  update_transform_preview_region(previous_preview_rect);
   notify_transform_controls_changed();
   return true;
 }
@@ -900,7 +1018,7 @@ void CanvasWidget::draw_free_transform(QPainter& painter) const {
     return;
   }
 
-  if (!transform_source_image_.isNull() && transform_composited_preview_cache_.isNull()) {
+  if (!transform_source_image_.isNull() && transform_preview_patches_.empty()) {
     painter.save();
     painter.setRenderHint(QPainter::SmoothPixmapTransform,
                           transform_interpolation_ != TransformInterpolation::NearestNeighbor);
@@ -994,6 +1112,7 @@ void CanvasWidget::update_free_transform_preview(QPointF document_point, Qt::Key
   if (transform_drag_handle_ != TransformHandle::Rotate) {
     document_point = snapped_document_point_f(document_point);
   }
+  const auto previous_preview_rect = transform_preview_document_rect();
   auto rect = transform_drag_start_rect_;
   const auto drag_delta = document_point - transform_drag_start_point_;
 
@@ -1001,7 +1120,7 @@ void CanvasWidget::update_free_transform_preview(QPointF document_point, Qt::Key
     rect.translate(drag_delta);
     transform_current_rect_ = rect;
     refresh_transform_composited_preview_cache();
-    update();
+    update_transform_preview_region(previous_preview_rect);
     notify_transform_controls_changed();
     return;
   }
@@ -1016,7 +1135,7 @@ void CanvasWidget::update_free_transform_preview(QPointF document_point, Qt::Key
     }
     transform_angle_ = degrees;
     refresh_transform_composited_preview_cache();
-    update();
+    update_transform_preview_region(previous_preview_rect);
     notify_transform_controls_changed();
     return;
   }
@@ -1123,7 +1242,7 @@ void CanvasWidget::update_free_transform_preview(QPointF document_point, Qt::Key
   }
   transform_current_rect_ = rect;
   refresh_transform_composited_preview_cache();
-  update();
+  update_transform_preview_region(previous_preview_rect);
   notify_transform_controls_changed();
 }
 
@@ -1896,14 +2015,10 @@ bool CanvasWidget::switch_warp_to_free_transform() {
   transform_drag_start_scale_y_sign_ = 1.0;
   transform_source_image_ = baked.image;
   transform_source_local_rect_ = QRect(0, 0, baked.image.width(), baked.image.height());
-  transform_composited_preview_cache_ = QImage();
+  transform_preview_patches_.clear();
+  transform_preview_patches_rect_ = QRect();
   transform_requires_composited_preview_ = layer_needs_composited_transform_preview(*layer);
-  {
-    const auto was_visible = layer->visible();
-    layer->set_visible(false);
-    transform_base_cache_ = render_document_image();
-    layer->set_visible(was_visible);
-  }
+  rebuild_transform_base_cache();
   if (transform_requires_composited_preview_) {
     refresh_transform_composited_preview_cache();
   }

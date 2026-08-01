@@ -721,7 +721,11 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
               ? display_image_for_zoom()
               : (&image == &curves_clipping_preview_image_ && zoom_ < 1.0)
                     ? curves_clipping_display_image_for_zoom()
-                    : (&image == &move_base_cache_ && zoom_ < 1.0) ? move_base_display_image_for_zoom() : image;
+                    : (&image == &move_base_cache_ && zoom_ < 1.0)
+                          ? move_base_display_image_for_zoom()
+                          : (&image == &transform_base_cache_ && zoom_ < 1.0)
+                                ? transform_base_display_image_for_zoom()
+                                : image;
       if (uses_deep_zoom_pixel_renderer(zoom_)) {
         draw_deep_zoom_image(painter, display_image, exposed_rect);
       } else if (pixel_aligned_view) {
@@ -819,18 +823,19 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
     }
   };
   const bool draw_transform_overlay =
-      transforming_layer_ && !transform_source_image_.isNull() &&
-      (!transform_base_cache_.isNull() || !transform_composited_preview_cache_.isNull());
+      transforming_layer_ && !transform_source_image_.isNull() && !transform_base_cache_.isNull();
   const bool draw_warp_overlay = warping_layer_ && (!warp_preview_cache_.isNull() || !warp_base_cache_.isNull());
 
   painter.save();
   painter.setClipRect(target_rect);
   painter.setRenderHint(QPainter::SmoothPixmapTransform, uses_smooth_display_scaling(zoom_, deep_pixel_renderer));
   if (draw_transform_overlay) {
-    if (!transform_composited_preview_cache_.isNull()) {
-      draw_scaled_image(transform_composited_preview_cache_);
-    } else {
-      draw_scaled_image(transform_base_cache_);
+    // Base excludes the transformed layer; the composited-preview patches
+    // (when the layer needs one) draw the transformed result over it, so no
+    // checkerboard wipe is needed under them.
+    draw_scaled_image(transform_base_cache_);
+    for (const auto& patch : transform_preview_patches_) {
+      draw_document_patch(patch, false);
     }
   } else if (draw_warp_overlay) {
     if (!warp_preview_cache_.isNull()) {
@@ -1388,6 +1393,41 @@ const QImage& CanvasWidget::move_base_display_image_for_zoom() {
 
   const auto level = std::min<int>(target_level, static_cast<int>(move_base_display_mip_cache_.size()));
   return level <= 0 ? move_base_cache_ : move_base_display_mip_cache_[level - 1];
+}
+
+// Same mip mirror for the free-transform base image: without it, every
+// preview repaint at zoom < 1 smooth-downscaled the full-resolution base,
+// which dominated transform-drag frames on large documents.
+const QImage& CanvasWidget::transform_base_display_image_for_zoom() {
+  if (transform_base_cache_.isNull() || zoom_ >= 1.0) {
+    return transform_base_cache_;
+  }
+
+  if (transform_base_display_mip_cache_.empty() ||
+      transform_base_display_mip_source_key_ != transform_base_cache_.cacheKey()) {
+    transform_base_display_mip_cache_.clear();
+    transform_base_display_mip_source_key_ = transform_base_cache_.cacheKey();
+  }
+
+  const auto target_level = display_mip_level_for_zoom(zoom_);
+  if (target_level <= 0) {
+    return transform_base_cache_;
+  }
+
+  while (static_cast<int>(transform_base_display_mip_cache_.size()) < target_level) {
+    const auto& previous =
+        transform_base_display_mip_cache_.empty() ? transform_base_cache_ : transform_base_display_mip_cache_.back();
+    const QSize next_size(std::max(1, (previous.width() + 1) / 2),
+                          std::max(1, (previous.height() + 1) / 2));
+    if (next_size == previous.size()) {
+      break;
+    }
+    transform_base_display_mip_cache_.push_back(
+        previous.scaled(next_size, Qt::IgnoreAspectRatio, Qt::SmoothTransformation).convertToFormat(previous.format()));
+  }
+
+  const auto level = std::min<int>(target_level, static_cast<int>(transform_base_display_mip_cache_.size()));
+  return level <= 0 ? transform_base_cache_ : transform_base_display_mip_cache_[level - 1];
 }
 
 QColor CanvasWidget::compose_document_pixel(std::int32_t x, std::int32_t y) const {

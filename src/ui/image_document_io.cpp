@@ -1530,6 +1530,16 @@ QImage qimage_from_document_rect_with_layer_pixels(const Document& document, QRe
   return render_document_rect(document, document_rect, preserve_alpha, &overrides);
 }
 
+// Region variant of the pixel-substituting render above; same override
+// semantics (the mask, when present, stays at its document position).
+std::vector<RenderedDocumentPatch> qimage_patches_from_document_region_with_layer_pixels(
+    const Document& document, const QRegion& document_region, bool preserve_alpha, LayerId layer_id,
+    const PixelBuffer& layer_pixels, Rect layer_bounds) {
+  const std::vector<render_detail::LayerBoundsOverride> overrides{
+      render_detail::LayerBoundsOverride{layer_id, layer_bounds, &layer_pixels}};
+  return render_document_region(document, document_region, preserve_alpha, &overrides);
+}
+
 QImage qimage_from_document_rect_with_hidden_layers(const Document& document, QRect document_rect,
                                                     bool preserve_alpha,
                                                     const std::vector<LayerId>& hidden_layer_ids) {

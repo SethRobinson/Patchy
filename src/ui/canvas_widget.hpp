@@ -1257,6 +1257,10 @@ private:
   bool prepare_free_transform_source();
   void refresh_transform_composited_preview_cache();
   void refresh_free_transform_preview_caches();
+  void rebuild_transform_base_cache();
+  [[nodiscard]] QRect transform_preview_document_rect() const;
+  void update_transform_preview_region(QRect previous_document_rect);
+  [[nodiscard]] const QImage& transform_base_display_image_for_zoom();
   [[nodiscard]] TransformHandle transform_handle_at(QPoint widget_point) const;
   [[nodiscard]] TransformHandle transform_handle_at(QPoint widget_point, QRectF document_rect,
                                                     double angle_degrees) const;
@@ -1699,8 +1703,15 @@ private:
   TransformInterpolation transform_interpolation_{TransformInterpolation::Bicubic};
   CanvasAnchor transform_reference_point_{CanvasAnchor::Center};
   QImage transform_base_cache_{};
+  std::vector<QImage> transform_base_display_mip_cache_{};
+  qint64 transform_base_display_mip_source_key_{0};
   QImage transform_source_image_{};
-  QImage transform_composited_preview_cache_{};
+  // Composited preview for layers whose blend/opacity/mask/styles the plain
+  // rotated blit cannot represent: patches over the transformed bounds (plus
+  // effects) drawn above transform_base_cache_, replacing the historical
+  // full-canvas per-mouse-move recomposite.
+  std::vector<RenderedDocumentPatch> transform_preview_patches_;
+  QRect transform_preview_patches_rect_{};
   QRect transform_source_local_rect_{};
   bool transform_requires_composited_preview_{false};
   bool warping_layer_{false};

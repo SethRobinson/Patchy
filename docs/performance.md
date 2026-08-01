@@ -35,6 +35,16 @@ Layer's mutable accessors bump render/content revisions on ACCESS, so read-only 
 
 `opaque_pixel_local_rect` (the Move tool's passive-box bounds) reaches paint through `move_transform_controls_rect` and used to rescan the whole alpha channel every frame - selecting a 70 Mpx layer made every zoom/pan step take about half a second (diagnosed by stack-sampling the live app). The shared `visible_alpha_local_bounds(const Layer&)` helper in `layer_render_utils.cpp` now serves the Move tool and alpha-aligned layer effects. It uses a row scan with early exits and a bounded LRU keyed by the app-globally-unique PIXEL revision. A per-key in-flight latch prevents parallel render strips from duplicating a cold scan without blocking hits for other layers. Style edits do not change the pixel revision, while mutable pixel access and `set_pixels` do. `PATCHY_ZOOM_TRACE=1` prints paint/zoom/view-changed phase timings over 2 ms to stderr for attributing the next report like this one, and `patchy_perf_tests.exe zoom` (env `PATCHY_PERF_ONSCREEN=1`, `PATCHY_PERF_ZOOM_BG=1` selects the tent's 70 Mpx BG layer, `PATCHY_PERF_ZOOM_SELECTION=1` zooms with marching ants) measures per-step latency on the PSBtest tent file (~10-15 ms per step maximized; it was ~255-300 ms before the cache).
 
+## Free-transform preview: base cache + region patches (August 2026)
+
+A rotate/resize drag used to pay, per mouse-move, a full-canvas recomposite of every layer with the transformed pixels substituted, plus a full-canvas RGBA convert, plus (at zoom below 1) an unmipped smooth downscale of the whole document per paint. The session now mirrors the Move tool's structure:
+
+- `transform_base_cache_` (document with the layer hidden) builds once per session via `rebuild_transform_base_cache`, which patches the current render cache over just the layer's effect bounds using hidden-layer overrides (no visibility toggles, no revision churn); the full recomposite is only the stale-cache fallback. `refresh_free_transform_preview_caches` rebuilds it in both preview regimes.
+- The composited preview (`layer_needs_composited_transform_preview` layers) renders `qimage_patches_from_document_region_with_layer_pixels` over `layer_bounds_with_effects(transformed bounds)` only, drawn above the base in paint; simple layers keep the rotated-blit path. Repaints are bounded to the old-union-new preview rect (`update_transform_preview_region`), and the base has its own display mip chain (`transform_base_display_image_for_zoom`).
+- `resample_transformed_rgba8` splits destination rows across workers (byte-identical: each output pixel is a pure function of source and inverse transform; commit and preview share the function and pinned transform-commit bytes hold). `PATCHY_RENDER_SINGLE_THREADED=1` forces it sequential; the wasm main-thread fan-out clamp applies.
+
+Stress step `34_free_transform` (quick preset, the i9-12900KS baseline machine) dropped from ~381 ms to ~104 ms with this change. Commit-path bytes are untouched by design; the corpus digest tests and the transform-commit suites pin that.
+
 ## Layer-panel rebuilds are three strictly-separated passes
 
 `MainWindow::refresh_layer_list` (main_window_layer_panel.cpp) rebuilds in
