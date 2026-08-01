@@ -47,6 +47,29 @@ A rotate/resize drag used to pay, per mouse-move, a full-canvas recomposite of e
 
 Stress step `34_free_transform` (quick preset, the i9-12900KS baseline machine) dropped from ~381 ms to ~104 ms with this change. Commit-path bytes are untouched by design; the corpus digest tests and the transform-commit suites pin that. Step `61_transform_drag_proxy` drags a handle on the styled CRT screen for real: at standard and above it must report `transform_proxy_previews == 1` (the styled 1 Mpx gate), at quick 0 (live path) - same engages-at-standard convention as the move matrix. Step 34 drives the numeric path and must always report 0.
 
+## Text edit sessions (August 2026)
+
+Three changes cut what an inline text session costs, none of which changes committed pixels:
+
+- **The edited layer is hidden only when its preview replaces it**, in the same
+  `document_changed_effect_bounds` call (`hide_text_editor_source_layer`). It used to be hidden at
+  session start, so the text was missing until the first preview arrived.
+- **The expensive-style debounce keeps the last preview** instead of removing the preview layer for
+  `kExpensiveTextEditorPreviewDelayMs` and letting the editor widget paint raw glyphs meanwhile.
+  That removed a per-keystroke insert/remove pair of a styled layer plus its two recomposites.
+- **Commit repaints are bounded** to the committed layer's effect bounds. `commit_text_editor` ended
+  with a bare `document_changed()`, a full recomposite per commit.
+
+Measured on the i9-12900KS reference machine, quick preset, PRE and POST runs alternated three
+times to cancel machine drift (means, ms): `12_boot_text` 599 to 433, `15_game_title_text` 485 to
+401, `16_sticky_notes` 814 to 733, `17_title_text` 228 to 178, `18_text_reedit` 139 to 87,
+`58_marquee_text` 5480 to 3144. Overall rating 1059 to 1122.
+
+Do not read a single stress run as a measurement here: individual text steps swing by 50% or more
+run to run on this machine, and the July `kStepBaselines` are stale enough that step 58 looked like
+a regression against them while actually being 43% faster than the code it replaced. Alternate the
+two builds.
+
 ## Layer-panel rebuilds are three strictly-separated passes
 
 `MainWindow::refresh_layer_list` (main_window_layer_panel.cpp) rebuilds in

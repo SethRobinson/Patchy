@@ -6567,6 +6567,8 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
       layer->set_visible(restore_existing_visibility);
     }
   }
+  // The layer the commit ends up owning, so the final repaint can be bounded to it.
+  std::optional<LayerId> committed_layer_id = layer_id;
   push_undo_snapshot(tr("Type"));
   const auto name = text_layer_auto_name(settings.text);
   // A PSD-frame session rendered a document-space frame around raw-unit runs; persist the box
@@ -6632,9 +6634,10 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
   } else {
     // Reuse the provisional's id when one was just removed: the row the user has watched since
     // the click keeps identifying the same layer across the commit.
-    const auto committed_layer_id =
+    const auto new_layer_id =
         removed_provisional.has_value() ? *removed_provisional : document().allocate_layer_id();
-    Layer text_layer(committed_layer_id, name.toStdString(), std::move(pixels));
+    committed_layer_id = new_layer_id;
+    Layer text_layer(new_layer_id, name.toStdString(), std::move(pixels));
     text_layer.set_bounds(
         Rect{document_point.x(), document_point.y(), text_layer.pixels().width(), text_layer.pixels().height()});
     store_patchy_text_metadata(text_layer, settings, text_color, rich_text_runs, paragraph_runs, text_width,
@@ -6653,7 +6656,20 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
   }
   refresh_layer_list();
   refresh_layer_controls();
-  canvas_->document_changed();
+  // Bounded, not a full recomposite: removing the preview and restoring the source layer already
+  // dirtied everything they touched, so the only new region is the committed layer's own effect
+  // bounds. A full document_changed() here cost a whole recomposite per commit.
+  bool bounded_refresh = false;
+  if (committed_layer_id.has_value()) {
+    if (const auto* committed = std::as_const(document()).find_layer(*committed_layer_id);
+        committed != nullptr) {
+      canvas_->document_changed_effect_bounds(to_qrect(layer_render_bounds(*committed)));
+      bounded_refresh = true;
+    }
+  }
+  if (!bounded_refresh) {
+    canvas_->document_changed();
+  }
   refresh_text_color_button();
   statusBar()->showMessage(tr("Created text layer"));
 }
