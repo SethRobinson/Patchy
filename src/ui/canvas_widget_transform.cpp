@@ -20,6 +20,7 @@
 #include "core/pixel_tools.hpp"
 #include "core/quick_select.hpp"
 #include "core/worker_budget.hpp"
+#include "ui/background_workers.hpp"
 #include "ui/edit_conversions.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/qt_geometry.hpp"
@@ -79,6 +80,18 @@ namespace patchy::ui {
 namespace {
 
 constexpr double kMinimumTransformScalePercent = 0.01;
+
+// Latch thresholds for the drag-time proxy preview, measured on the larger of
+// the unclipped transformed-source AABB (what resample_transformed_rgba8
+// rasterizes per mouse-move) and the clipped effect-bounds patch rect (what
+// the composited preview re-renders per mouse-move). Distinct from the move
+// tool's dirty-rect constants: those meter repaint area, these meter recompute
+// area. Styled layers recompute effect masks every move (the override pixels
+// change), hence the stricter limit, mirroring the move tool's styled split.
+constexpr std::int64_t kTransformProxyAreaThreshold = 4'000'000;
+constexpr std::int64_t kStyledTransformProxyAreaThreshold = 1'000'000;
+// The proxy itself stays bounded so the latched blit is cheap at any zoom.
+constexpr std::int64_t kTransformProxyMaxPixels = 4'000'000;
 
 std::optional<QRect> move_layer_transform_local_rect(const Layer& layer) {
   if (!layer_has_movable_pixels(layer)) {
@@ -542,6 +555,9 @@ bool CanvasWidget::begin_free_transform() {
   transform_base_display_mip_source_key_ = 0;
   transform_preview_patches_.clear();
   transform_preview_patches_rect_ = QRect();
+  transform_drag_uses_proxy_preview_ = false;
+  transform_proxy_image_ = QImage();
+  transform_proxy_layer_opacity_ = 1.0;
   transform_requires_composited_preview_ = layer_needs_composited_transform_preview(*layer);
   setCursor(Qt::ArrowCursor);
   update();
@@ -567,6 +583,9 @@ void CanvasWidget::reset_free_transform_session_state() {
   transform_source_image_ = QImage();
   transform_preview_patches_.clear();
   transform_preview_patches_rect_ = QRect();
+  transform_drag_uses_proxy_preview_ = false;
+  transform_proxy_image_ = QImage();
+  transform_proxy_layer_opacity_ = 1.0;
   transform_requires_composited_preview_ = false;
   transform_source_local_rect_ = QRect();
 }
@@ -735,7 +754,7 @@ void CanvasWidget::rebuild_transform_base_cache() {
   transform_base_cache_ = std::move(base);
 }
 
-void CanvasWidget::refresh_transform_composited_preview_cache() {
+void CanvasWidget::refresh_transform_composited_preview_cache(bool processing_wait) {
   transform_preview_patches_.clear();
   transform_preview_patches_rect_ = QRect();
   if (!transform_requires_composited_preview_ || !transforming_layer_ || document_ == nullptr ||
@@ -747,30 +766,128 @@ void CanvasWidget::refresh_transform_composited_preview_cache() {
     return;
   }
 
-  const auto transformed_result =
-      resample_transformed_rgba8(transform_source_image_,
-                                  transform_source_to_document(transform_source_image_.size(), transform_current_rect_,
-                                                               transform_angle_, transform_scale_x_sign_,
-                                                               transform_scale_y_sign_),
-                                  transform_interpolation_);
-  if (transformed_result.image.isNull()) {
-    return;
-  }
-
   // Region-limited: the layer (plus its effects) can only contribute inside
   // its transformed bounds, and everywhere else transform_base_cache_ already
   // holds the final composite. Re-rendering the full canvas here on every
   // mouse-move was the transform preview's dominant cost on large documents.
-  const auto transformed_pixels = pixels_from_image_rgba(transformed_result.image);
+  const auto compute = [document = document_, layer, layer_id = *transform_layer_id_,
+                        source = transform_source_image_,
+                        source_to_document =
+                            transform_source_to_document(transform_source_image_.size(), transform_current_rect_,
+                                                         transform_angle_, transform_scale_x_sign_,
+                                                         transform_scale_y_sign_),
+                        interpolation =
+                            transform_interpolation_]() -> std::pair<std::vector<RenderedDocumentPatch>, QRect> {
+    const auto transformed_result = resample_transformed_rgba8(source, source_to_document, interpolation);
+    if (transformed_result.image.isNull()) {
+      return {};
+    }
+    const auto transformed_pixels = pixels_from_image_rgba(transformed_result.image);
+    const QRect canvas_rect(0, 0, document->width(), document->height());
+    const auto patch_rect =
+        to_qrect(layer_bounds_with_effects(*layer, transformed_result.bounds)).intersected(canvas_rect);
+    if (patch_rect.isEmpty()) {
+      return {};
+    }
+    auto patches = qimage_patches_from_document_region_with_layer_pixels(
+        *document, QRegion(patch_rect), true, layer_id, transformed_pixels, transformed_result.bounds);
+    return {std::move(patches), patch_rect};
+  };
+
+  std::pair<std::vector<RenderedDocumentPatch>, QRect> result;
+  if (processing_wait) {
+    // Release-time restore after a proxy-latched drag: same worker + overlay
+    // wait the move tool's release uses, so a long styled render shows the
+    // processing spinner instead of silently freezing the UI.
+    auto future = launch_async(compute);
+    const auto overlay_shown = wait_for_processing_operation(
+        [&future] { return future.wait_for(std::chrono::milliseconds(16)) == std::future_status::ready; }, true);
+    result = future.get();
+    if (overlay_shown) {
+      hide_processing_overlay();
+    }
+  } else {
+    result = compute();
+  }
+  transform_preview_patches_ = std::move(result.first);
+  transform_preview_patches_rect_ = result.second;
+}
+
+bool CanvasWidget::transform_drag_should_use_proxy_preview() const {
+  if (document_ == nullptr || !transform_layer_id_.has_value() || transform_source_image_.isNull()) {
+    return false;
+  }
+  const auto* layer = std::as_const(*document_).find_layer(*transform_layer_id_);
+  if (layer == nullptr) {
+    return false;
+  }
+
+  const auto transformed_rect =
+      transform_source_to_document(transform_source_image_.size(), transform_current_rect_, transform_angle_,
+                                   transform_scale_x_sign_, transform_scale_y_sign_)
+          .mapRect(QRectF(0.0, 0.0, transform_source_image_.width(), transform_source_image_.height()))
+          .toAlignedRect();
+  const auto resample_area =
+      static_cast<std::int64_t>(transformed_rect.width()) * static_cast<std::int64_t>(transformed_rect.height());
+
   const QRect canvas_rect(0, 0, document_->width(), document_->height());
-  const auto patch_rect =
-      to_qrect(layer_bounds_with_effects(*layer, transformed_result.bounds)).intersected(canvas_rect);
-  if (patch_rect.isEmpty()) {
+  const auto patch_rect = to_qrect(layer_bounds_with_effects(*layer, Rect{transformed_rect.x(), transformed_rect.y(),
+                                                                          transformed_rect.width(),
+                                                                          transformed_rect.height()}))
+                              .intersected(canvas_rect);
+  const auto patch_area =
+      static_cast<std::int64_t>(patch_rect.width()) * static_cast<std::int64_t>(patch_rect.height());
+
+  const auto area = std::max(resample_area, patch_area);
+  const bool styled = layer->layer_style().effects_visible && !layer->layer_style().empty();
+  return area >= (styled ? kStyledTransformProxyAreaThreshold : kTransformProxyAreaThreshold);
+}
+
+void CanvasWidget::ensure_transform_proxy_image() {
+  transform_proxy_layer_opacity_ = 1.0;
+  if (document_ != nullptr && transform_layer_id_.has_value()) {
+    if (const auto* layer = std::as_const(*document_).find_layer(*transform_layer_id_); layer != nullptr) {
+      transform_proxy_layer_opacity_ =
+          static_cast<double>(layer->opacity()) * static_cast<double>(layer->fill_opacity());
+    }
+  }
+  if (!transform_proxy_image_.isNull() || transform_source_image_.isNull()) {
     return;
   }
-  transform_preview_patches_ = qimage_patches_from_document_region_with_layer_pixels(
-      *document_, QRegion(patch_rect), true, *transform_layer_id_, transformed_pixels, transformed_result.bounds);
-  transform_preview_patches_rect_ = patch_rect;
+  const auto source_area = static_cast<std::int64_t>(transform_source_image_.width()) *
+                           static_cast<std::int64_t>(transform_source_image_.height());
+  if (source_area <= kTransformProxyMaxPixels) {
+    transform_proxy_image_ = transform_source_image_.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    return;
+  }
+  const auto scale = std::sqrt(static_cast<double>(kTransformProxyMaxPixels) / static_cast<double>(source_area));
+  const QSize proxy_size(std::max(1, static_cast<int>(std::lround(transform_source_image_.width() * scale))),
+                         std::max(1, static_cast<int>(std::lround(transform_source_image_.height() * scale))));
+  transform_proxy_image_ = transform_source_image_.scaled(proxy_size, Qt::IgnoreAspectRatio, Qt::SmoothTransformation)
+                               .convertToFormat(QImage::Format_ARGB32_Premultiplied);
+}
+
+// Drag-time preview refresh: heavy composited previews latch onto the bounded
+// proxy blit for the rest of the drag (the accurate patches come back with the
+// release-time refresh); everything else keeps the full-quality path. Only the
+// three update_free_transform_preview branches route here, so numeric edits,
+// nudges, interpolation changes, and Layer Style live edits can never latch.
+void CanvasWidget::refresh_transform_preview_for_drag() {
+  if (dragging_transform_ && transform_requires_composited_preview_) {
+    if (!transform_drag_uses_proxy_preview_ && transform_drag_should_use_proxy_preview()) {
+      transform_drag_uses_proxy_preview_ = true;
+      ++render_cache_diagnostics_.transform_proxy_previews;
+      ensure_transform_proxy_image();
+    }
+    if (transform_drag_uses_proxy_preview_) {
+      // Re-cleared every move so a mid-drag external refresh cannot leave a
+      // stale composited patch under the proxy.
+      transform_preview_patches_.clear();
+      transform_preview_patches_rect_ = QRect();
+      return;
+    }
+  }
+  refresh_transform_composited_preview_cache();
 }
 
 // Document rect the active transform preview draws into: the rotated quad's
@@ -1018,7 +1135,22 @@ void CanvasWidget::draw_free_transform(QPainter& painter) const {
     return;
   }
 
-  if (!transform_source_image_.isNull() && transform_preview_patches_.empty()) {
+  if (transform_drag_uses_proxy_preview_ && !transform_proxy_image_.isNull() && transform_preview_patches_.empty()) {
+    // Latched heavy drag: the bounded proxy stands in for the composited
+    // patches. Unlike the plain source blit below it applies the layer's
+    // opacity and scale-sign flips, matching what the release-time patches
+    // will show; blend mode, masks, and styles stay approximated until then.
+    painter.save();
+    painter.setRenderHint(QPainter::SmoothPixmapTransform,
+                          transform_interpolation_ != TransformInterpolation::NearestNeighbor);
+    painter.setOpacity(transform_proxy_layer_opacity_);
+    painter.translate(rect.center());
+    painter.rotate(transform_angle_);
+    painter.scale(transform_scale_x_sign_, transform_scale_y_sign_);
+    const QRectF local_rect(-rect.width() / 2.0, -rect.height() / 2.0, rect.width(), rect.height());
+    painter.drawImage(local_rect, transform_proxy_image_, QRectF(transform_proxy_image_.rect()));
+    painter.restore();
+  } else if (!transform_source_image_.isNull() && transform_preview_patches_.empty()) {
     painter.save();
     painter.setRenderHint(QPainter::SmoothPixmapTransform,
                           transform_interpolation_ != TransformInterpolation::NearestNeighbor);
@@ -1119,7 +1251,7 @@ void CanvasWidget::update_free_transform_preview(QPointF document_point, Qt::Key
   if (transform_drag_handle_ == TransformHandle::Move) {
     rect.translate(drag_delta);
     transform_current_rect_ = rect;
-    refresh_transform_composited_preview_cache();
+    refresh_transform_preview_for_drag();
     update_transform_preview_region(previous_preview_rect);
     notify_transform_controls_changed();
     return;
@@ -1134,7 +1266,7 @@ void CanvasWidget::update_free_transform_preview(QPointF document_point, Qt::Key
       degrees = std::round(degrees / 15.0) * 15.0;
     }
     transform_angle_ = degrees;
-    refresh_transform_composited_preview_cache();
+    refresh_transform_preview_for_drag();
     update_transform_preview_region(previous_preview_rect);
     notify_transform_controls_changed();
     return;
@@ -1241,7 +1373,7 @@ void CanvasWidget::update_free_transform_preview(QPointF document_point, Qt::Key
     rect.setHeight(1.0);
   }
   transform_current_rect_ = rect;
-  refresh_transform_composited_preview_cache();
+  refresh_transform_preview_for_drag();
   update_transform_preview_region(previous_preview_rect);
   notify_transform_controls_changed();
 }
@@ -2017,6 +2149,9 @@ bool CanvasWidget::switch_warp_to_free_transform() {
   transform_source_local_rect_ = QRect(0, 0, baked.image.width(), baked.image.height());
   transform_preview_patches_.clear();
   transform_preview_patches_rect_ = QRect();
+  transform_drag_uses_proxy_preview_ = false;
+  transform_proxy_image_ = QImage();
+  transform_proxy_layer_opacity_ = 1.0;
   transform_requires_composited_preview_ = layer_needs_composited_transform_preview(*layer);
   rebuild_transform_base_cache();
   if (transform_requires_composited_preview_) {

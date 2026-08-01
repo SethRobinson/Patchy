@@ -161,6 +161,7 @@ constexpr StepBaseline kStepBaselines[] = {
     {"32_move_multi_layer", 212.3},
     {"33_move_nudges", 473.8},
     {"34_free_transform", 431.4},
+    {"61_transform_drag_proxy", 400.0},
     {"35_zoom_pan", 139.5},
     {"36_history_build", 103.5},
     {"37_undo_redo", 4040.9},
@@ -364,6 +365,8 @@ CanvasWidget::RenderCacheDiagnostics diag_delta(const CanvasWidget::RenderCacheD
   delta.processing_overlay_frames =
       diag_field_delta(before.processing_overlay_frames, after.processing_overlay_frames);
   delta.move_outline_previews = diag_field_delta(before.move_outline_previews, after.move_outline_previews);
+  delta.transform_proxy_previews =
+      diag_field_delta(before.transform_proxy_previews, after.transform_proxy_previews);
   return delta;
 }
 
@@ -380,6 +383,7 @@ QJsonObject diag_to_json(const CanvasWidget::RenderCacheDiagnostics& diag) {
   object.insert(QStringLiteral("processing_overlays_shown"), diag.processing_overlays_shown);
   object.insert(QStringLiteral("processing_overlay_frames"), diag.processing_overlay_frames);
   object.insert(QStringLiteral("move_outline_previews"), diag.move_outline_previews);
+  object.insert(QStringLiteral("transform_proxy_previews"), diag.transform_proxy_previews);
   return object;
 }
 
@@ -2158,6 +2162,33 @@ void StressTestRunner::phase_interact() {
       pump();
     }
     canvas()->finish_free_transform();
+  });
+
+  // 61: a real handle drag on the styled CRT screen (glow + inner shadow,
+  // ~2.1 Mpx at standard). At standard and above the transformed area crosses
+  // the styled 1 Mpx proxy threshold, so the drag must latch onto the proxy
+  // preview (transform_proxy_previews == 1); at quick it stays live (== 0).
+  // The drag returns to its start and the session is cancelled, so the scene
+  // is unchanged for later steps.
+  fps_step("61_transform_drag_proxy", "Transform drag: styled CRT screen (proxy latch)", "interact", [&] {
+    select_move_targets({screen_id_});
+    w.activate_tool(CanvasTool::Move);
+    if (!canvas()->begin_free_transform()) {
+      report_.warnings.append(QStringLiteral("Transform proxy drag did not start"));
+      return;
+    }
+    const auto& const_doc = doc();
+    const auto* screen_layer = const_doc.find_layer(screen_id_);
+    if (screen_layer == nullptr) {
+      canvas()->cancel_free_transform();
+      report_.warnings.append(QStringLiteral("Transform proxy drag lost the screen layer"));
+      return;
+    }
+    const auto bounds = screen_layer->bounds();
+    const QPoint corner(bounds.x + bounds.width, bounds.y + bounds.height);
+    const QPoint dragged_out(corner.x() + at(0.02), corner.y() + at(0.015));
+    drag_path({corner, dragged_out, corner}, motion_steps(20));
+    canvas()->cancel_free_transform();
   });
 
   // 35: zoom ladder + pan drag.

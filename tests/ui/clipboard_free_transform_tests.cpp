@@ -31,6 +31,7 @@
 #include "ui/default_brush_tips.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/document_float_window.hpp"
+#include "ui/edit_conversions.hpp"
 #include "ui/compatibility_report.hpp"
 #include "ui/curves_editor.hpp"
 #include "ui/curves_presets.hpp"
@@ -971,6 +972,195 @@ void ui_layer_via_copy_and_cut_match_photoshop_shortcuts() {
   save_widget_artifact("ui_layer_via_copy_cut", window);
 }
 
+void ui_free_transform_drag_proxy_engages_above_threshold() {
+  // A half-opacity layer whose transformed area crosses the unstyled
+  // kTransformProxyAreaThreshold (4 Mpx): the handle drag must latch onto the
+  // proxy preview exactly once, keep it for the rest of the drag, and restore
+  // the accurate composited patches on release.
+  patchy::Document document(2600, 1900, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(2600, 1900, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  auto pixels = solid_pixels(2300, 1780, patchy::PixelFormat::rgba8(), QColor(220, 40, 40, 255));
+  patchy::Layer layer(document.allocate_layer_id(), "Half Opacity", std::move(pixels));
+  layer.set_bounds(patchy::Rect{100, 50, 2300, 1780});
+  layer.set_opacity(0.5F);
+  document.add_layer(std::move(layer));
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Proxy Latch"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(0.25);
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_show_transform_controls(true);
+  QApplication::processEvents();
+
+  const auto counter_before = canvas->render_cache_diagnostics().transform_proxy_previews;
+  const auto corner = canvas->widget_position_for_document_point(QPoint(2400, 1830));
+  send_mouse(*canvas, QEvent::MouseButtonPress, corner, Qt::LeftButton, Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+
+  send_mouse(*canvas, QEvent::MouseMove, corner + QPoint(14, 10), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(canvas->render_cache_diagnostics().transform_proxy_previews == counter_before + 1);
+  send_mouse(*canvas, QEvent::MouseMove, corner + QPoint(30, 22), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  // Sticky: one latch per drag, not one per mouse-move.
+  CHECK(canvas->render_cache_diagnostics().transform_proxy_previews == counter_before + 1);
+
+  // Mid-drag the proxy must draw at the ENLARGED geometry: a document point
+  // outside the original layer but inside the scaled rect shows the layer's
+  // half-opacity red blended over the white background (pink), not raw white.
+  const QColor expected_blend(238, 148, 148);
+  const auto mid_drag = canvas->grab().toImage();
+  const auto probe = canvas->widget_position_for_document_point(QPoint(2450, 900));
+  CHECK(mid_drag.rect().contains(probe));
+  CHECK(color_close(mid_drag.pixelColor(probe), expected_blend, 45));
+
+  send_mouse(*canvas, QEvent::MouseButtonRelease, corner + QPoint(30, 22), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  CHECK(canvas->render_cache_diagnostics().transform_proxy_previews == counter_before + 1);
+  // Release rendered the accurate composited patches at the final geometry.
+  const auto post_release = canvas->grab().toImage();
+  CHECK(color_close(post_release.pixelColor(probe), expected_blend, 45));
+
+  auto* apply = window.findChild<QPushButton*>(QStringLiteral("freeTransformApplyButton"));
+  CHECK(apply != nullptr);
+  apply->click();
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+  const auto bounds_after = canvas->active_layer_document_rect();
+  CHECK(bounds_after.has_value());
+  CHECK(bounds_after->right() > 2400);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(2450, 900)), expected_blend, 45));
+  save_widget_artifact("ui_free_transform_proxy_latch", window);
+}
+
+void ui_free_transform_drag_small_doc_stays_live() {
+  // Styled layer far below kStyledTransformProxyAreaThreshold: handle drags
+  // must keep the live composited preview (stroke visible mid-drag) and the
+  // proxy counter must not move.
+  patchy::Document document(360, 260, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(360, 260, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  auto pixels = solid_pixels(70, 46, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  fill_pixel_rect(pixels, QRect(54, 8, 14, 30), QColor(35, 85, 210, 255));
+  patchy::Layer styled_layer(document.allocate_layer_id(), "Styled Small", std::move(pixels));
+  styled_layer.set_bounds(patchy::Rect{120, 90, 70, 46});
+  patchy::LayerStroke stroke;
+  stroke.enabled = true;
+  stroke.blend_mode = patchy::BlendMode::Normal;
+  stroke.color = patchy::RgbColor{230, 35, 45};
+  stroke.opacity = 1.0F;
+  stroke.size = 8.0F;
+  stroke.position = patchy::LayerStrokePosition::Outside;
+  styled_layer.layer_style().strokes.push_back(stroke);
+  document.add_layer(std::move(styled_layer));
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Small Styled Live"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_show_transform_controls(true);
+  QApplication::processEvents();
+
+  const auto counter_before = canvas->render_cache_diagnostics().transform_proxy_previews;
+  // The passive box tracks the opaque pixels (the 14x30 bar at document
+  // 174,98): press its bottom-right handle and scale outward.
+  const auto corner = canvas->widget_position_for_document_point(QPoint(188, 128));
+  send_mouse(*canvas, QEvent::MouseButtonPress, corner, Qt::LeftButton, Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  send_mouse(*canvas, QEvent::MouseMove, corner + QPoint(24, 18), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  send_mouse(*canvas, QEvent::MouseMove, corner + QPoint(26, 20), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(canvas->render_cache_diagnostics().transform_proxy_previews == counter_before);
+
+  // Live composited preview mid-drag: the red stroke renders around the
+  // transformed bar, past its original right edge.
+  const auto mid_drag = canvas->grab().toImage();
+  int red_pixels = 0;
+  for (int document_y = 96; document_y <= 150; ++document_y) {
+    for (int document_x = 190; document_x <= 218; ++document_x) {
+      const auto widget_point = canvas->widget_position_for_document_point(QPoint(document_x, document_y));
+      if (!mid_drag.rect().contains(widget_point)) {
+        continue;
+      }
+      const auto color = mid_drag.pixelColor(widget_point);
+      if (color.red() > 190 && color.green() < 90 && color.blue() < 100) {
+        ++red_pixels;
+      }
+    }
+  }
+  CHECK(red_pixels > 10);
+
+  send_mouse(*canvas, QEvent::MouseButtonRelease, corner + QPoint(26, 20), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(canvas->render_cache_diagnostics().transform_proxy_previews == counter_before);
+  auto* cancel = window.findChild<QPushButton*>(QStringLiteral("freeTransformCancelButton"));
+  CHECK(cancel != nullptr);
+  cancel->click();
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+}
+
+void ui_edit_conversion_scanline_rewrites_are_byte_identical() {
+  // Odd sizes plus alphas {0, 1, 127, 255} pin the scanline conversions to the
+  // per-pixel QColor semantics they replaced, for both the 4-channel memcpy
+  // path and the 3-channel alpha-expansion path.
+  constexpr std::uint8_t kAlphas[] = {0U, 1U, 127U, 255U};
+  patchy::PixelBuffer rgba(5, 3, patchy::PixelFormat::rgba8());
+  for (int y = 0; y < rgba.height(); ++y) {
+    for (int x = 0; x < rgba.width(); ++x) {
+      auto* px = rgba.pixel(x, y);
+      px[0] = static_cast<std::uint8_t>(10 + x * 40 + y);
+      px[1] = static_cast<std::uint8_t>(200 - x * 30 + y * 2);
+      px[2] = static_cast<std::uint8_t>(x * 17 + y * 50);
+      px[3] = kAlphas[static_cast<std::size_t>(x + y) % 4U];
+    }
+  }
+  const auto& const_rgba = rgba;
+  const auto rgba_image = patchy::ui::qimage_from_pixel_buffer(rgba);
+  CHECK(rgba_image.format() == QImage::Format_RGBA8888);
+  bool rgba_matches = true;
+  for (int y = 0; y < rgba.height(); ++y) {
+    for (int x = 0; x < rgba.width(); ++x) {
+      const auto* px = const_rgba.pixel(x, y);
+      rgba_matches = rgba_matches && rgba_image.pixelColor(x, y) == QColor(px[0], px[1], px[2], px[3]);
+    }
+  }
+  CHECK(rgba_matches);
+
+  const auto round_trip = patchy::ui::pixels_from_image_rgba(rgba_image);
+  CHECK(round_trip.width() == rgba.width());
+  CHECK(round_trip.height() == rgba.height());
+  CHECK(round_trip.byte_size() == rgba.byte_size());
+  CHECK(std::memcmp(round_trip.data().data(), const_rgba.data().data(), rgba.byte_size()) == 0);
+
+  patchy::PixelBuffer rgb(3, 5, patchy::PixelFormat::rgb8());
+  for (int y = 0; y < rgb.height(); ++y) {
+    for (int x = 0; x < rgb.width(); ++x) {
+      auto* px = rgb.pixel(x, y);
+      px[0] = static_cast<std::uint8_t>(5 + x * 60 + y * 3);
+      px[1] = static_cast<std::uint8_t>(120 + x * 11 + y * 7);
+      px[2] = static_cast<std::uint8_t>(250 - x * 45 - y * 9);
+    }
+  }
+  const auto& const_rgb = rgb;
+  const auto rgb_image = patchy::ui::qimage_from_pixel_buffer(rgb);
+  bool rgb_matches = true;
+  for (int y = 0; y < rgb.height(); ++y) {
+    for (int x = 0; x < rgb.width(); ++x) {
+      const auto* px = const_rgb.pixel(x, y);
+      rgb_matches = rgb_matches && rgb_image.pixelColor(x, y) == QColor(px[0], px[1], px[2], 255);
+    }
+  }
+  CHECK(rgb_matches);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> clipboard_free_transform_tests() {
@@ -997,5 +1187,10 @@ std::vector<patchy::test::TestCase> clipboard_free_transform_tests() {
        ui_transform_controls_finish_on_tool_layer_and_duplicate_changes},
       {"ui_layer_via_copy_and_cut_match_photoshop_shortcuts",
        ui_layer_via_copy_and_cut_match_photoshop_shortcuts},
+      {"ui_free_transform_drag_proxy_engages_above_threshold",
+       ui_free_transform_drag_proxy_engages_above_threshold},
+      {"ui_free_transform_drag_small_doc_stays_live", ui_free_transform_drag_small_doc_stays_live},
+      {"ui_edit_conversion_scanline_rewrites_are_byte_identical",
+       ui_edit_conversion_scanline_rewrites_are_byte_identical},
   };
 }

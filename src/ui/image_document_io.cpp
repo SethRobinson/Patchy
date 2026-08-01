@@ -1283,15 +1283,12 @@ std::vector<RenderedDocumentPatch> render_document_region(
 PixelBuffer pixels_from_image_rgba(const QImage& image) {
   const auto converted = image.convertToFormat(QImage::Format_RGBA8888);
   PixelBuffer pixels(converted.width(), converted.height(), PixelFormat::rgba8());
+  // RGBA8888 stores bytes in R,G,B,A order, matching the buffer's channel
+  // layout, so rows copy wholesale. This runs per mouse-move during transform
+  // drags; the per-pixel QColor loop it replaces dominated that path.
+  const auto row_bytes = static_cast<std::size_t>(converted.width()) * 4U;
   for (int y = 0; y < converted.height(); ++y) {
-    for (int x = 0; x < converted.width(); ++x) {
-      const auto color = converted.pixelColor(x, y);
-      auto* px = pixels.pixel(x, y);
-      px[0] = static_cast<std::uint8_t>(color.red());
-      px[1] = static_cast<std::uint8_t>(color.green());
-      px[2] = static_cast<std::uint8_t>(color.blue());
-      px[3] = static_cast<std::uint8_t>(color.alpha());
-    }
+    std::memcpy(pixels.row(y).data(), converted.constScanLine(y), row_bytes);
   }
   return pixels;
 }
@@ -1345,14 +1342,11 @@ Document document_from_qimage(const QImage& image, std::string layer_name) {
                           : PixelBuffer(converted.width(), converted.height(), PixelFormat::rgb8());
 
   if (!has_alpha) {
+    // RGB888 scanlines can carry 4-byte alignment padding, so copy per row at
+    // the tight 3-bytes-per-pixel width rather than one whole-buffer memcpy.
+    const auto row_bytes = static_cast<std::size_t>(converted.width()) * 3U;
     for (int y = 0; y < converted.height(); ++y) {
-      for (int x = 0; x < converted.width(); ++x) {
-        const auto color = converted.pixelColor(x, y);
-        auto* px = pixels.pixel(x, y);
-        px[0] = static_cast<std::uint8_t>(color.red());
-        px[1] = static_cast<std::uint8_t>(color.green());
-        px[2] = static_cast<std::uint8_t>(color.blue());
-      }
+      std::memcpy(pixels.row(y).data(), converted.constScanLine(y), row_bytes);
     }
   }
 

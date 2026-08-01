@@ -466,6 +466,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
         return;
       }
       dragging_transform_ = true;
+      transform_drag_uses_proxy_preview_ = false;
       transform_drag_handle_ = handle;
       transform_drag_start_point_ = document_position_f(event->position());
       transform_drag_start_rect_ = transform_current_rect_;
@@ -724,6 +725,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       if (passive_handle != TransformHandle::None && passive_handle != TransformHandle::Move) {
         if (begin_free_transform() && prepare_free_transform_source()) {
           dragging_transform_ = true;
+          transform_drag_uses_proxy_preview_ = false;
           transform_drag_handle_ = passive_handle;
           transform_drag_start_point_ = document_position_f(event->position());
           transform_drag_start_rect_ = transform_current_rect_;
@@ -1601,6 +1603,14 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     update_free_transform_preview(document_position_f(event->position()), event->modifiers());
     dragging_transform_ = false;
     transform_drag_handle_ = TransformHandle::None;
+    if (transform_drag_uses_proxy_preview_) {
+      // The latched drag skipped the composited patches; render them once at
+      // the final geometry so the resting preview is accurate. The latch stays
+      // set until the patches exist so paints during the overlay wait keep
+      // showing the proxy rather than the raw source blit.
+      refresh_transform_composited_preview_cache(true);
+      transform_drag_uses_proxy_preview_ = false;
+    }
     update_tool_cursor();
     update();
     notify_transform_controls_changed();

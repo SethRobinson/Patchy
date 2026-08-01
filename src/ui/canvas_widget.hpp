@@ -275,6 +275,10 @@ public:
     // its per-step dirty area crossed the kMoveOutlineDirtyAreaThreshold /
     // kStyledMoveOutlineDirtyAreaThreshold limits. At most once per drag.
     int move_outline_previews{0};
+    // Times a free-transform drag latched onto the low-res proxy preview
+    // because its transformed area crossed the kTransformProxyAreaThreshold /
+    // kStyledTransformProxyAreaThreshold limits. At most once per drag.
+    int transform_proxy_previews{0};
   };
 
   struct PenInputSettings {
@@ -1255,7 +1259,10 @@ private:
   void notify_transform_controls_changed();
   [[nodiscard]] QPointF transform_reference_position(QRectF document_rect, double angle_degrees) const;
   bool prepare_free_transform_source();
-  void refresh_transform_composited_preview_cache();
+  void refresh_transform_composited_preview_cache(bool processing_wait = false);
+  void refresh_transform_preview_for_drag();
+  [[nodiscard]] bool transform_drag_should_use_proxy_preview() const;
+  void ensure_transform_proxy_image();
   void refresh_free_transform_preview_caches();
   void rebuild_transform_base_cache();
   [[nodiscard]] QRect transform_preview_document_rect() const;
@@ -1714,6 +1721,13 @@ private:
   QRect transform_preview_patches_rect_{};
   QRect transform_source_local_rect_{};
   bool transform_requires_composited_preview_{false};
+  // Heavy composited-preview drags latch onto a bounded low-res proxy blit
+  // (blend/mask/styles approximated until release) instead of resampling and
+  // patch-compositing the full transformed area per mouse-move. Sticky for
+  // the rest of the drag; the proxy image persists across drags in a session.
+  bool transform_drag_uses_proxy_preview_{false};
+  QImage transform_proxy_image_{};
+  double transform_proxy_layer_opacity_{1.0};
   bool warping_layer_{false};
   bool dragging_warp_handle_{false};
   int warp_drag_index_{-1};

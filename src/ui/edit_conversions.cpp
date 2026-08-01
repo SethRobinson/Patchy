@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cstring>
 
 namespace patchy::ui {
 
@@ -17,10 +18,30 @@ QImage qimage_from_pixel_buffer(const PixelBuffer& pixels) {
     return image;
   }
 
+  // Scanline copies instead of per-pixel QColor round-trips: RGBA8888 stores
+  // bytes in R,G,B,A order, matching the buffer's leading channels. This runs
+  // over the whole layer buffer at transform/warp session start.
+  const int width = pixels.width();
+  const std::size_t channels = pixels.format().channels;
   for (int y = 0; y < pixels.height(); ++y) {
-    for (int x = 0; x < pixels.width(); ++x) {
-      const auto* px = pixels.pixel(x, y);
-      image.setPixelColor(x, y, QColor(px[0], px[1], px[2], pixels.format().channels >= 4 ? px[3] : 255));
+    const auto src = pixels.row(y);
+    auto* dst = image.scanLine(y);
+    if (channels == 4U) {
+      std::memcpy(dst, src.data(), static_cast<std::size_t>(width) * 4U);
+    } else if (channels == 3U) {
+      for (int x = 0; x < width; ++x) {
+        dst[x * 4 + 0] = src[static_cast<std::size_t>(x) * 3U + 0U];
+        dst[x * 4 + 1] = src[static_cast<std::size_t>(x) * 3U + 1U];
+        dst[x * 4 + 2] = src[static_cast<std::size_t>(x) * 3U + 2U];
+        dst[x * 4 + 3] = 255U;
+      }
+    } else {
+      // Wider formats (extra channels beyond RGBA) keep a per-pixel copy of
+      // the leading four bytes; the source stride is `channels`, not 4.
+      for (int x = 0; x < width; ++x) {
+        std::memcpy(dst + static_cast<std::size_t>(x) * 4U,
+                    src.data() + static_cast<std::size_t>(x) * channels, 4U);
+      }
     }
   }
   return image;
