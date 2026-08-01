@@ -1222,6 +1222,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/adjustments_curves_tests.cpp
     tests/core/af_tests.cpp
     tests/core/brush_engine_tests.cpp
+    tests/core/composite_corpus_tests.cpp
     tests/core/compositor_blend_if_tests.cpp
     tests/core/compositor_layer_styles_tests.cpp
     tests/core/document_model_tests.cpp
@@ -1325,6 +1326,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/svg_ui_tests.cpp
       tests/ui/scripting_tests.cpp
       tests/ui/history_panel_tests.cpp
+      tests/ui/composite_render_tests.cpp
       tests/ui/readme_screenshot_tests.cpp
       tests/ui/readme_screenshot_tests_classic.cpp
       tests/ui/readme_screenshot_tests_scripting.cpp

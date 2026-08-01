@@ -233,6 +233,7 @@ int main(int argc, char* argv[]) {
            svg_ui_tests,
            scripting_tests,
            history_panel_tests,
+           composite_render_tests,
            readme_screenshot_tests,
        }) {
     auto group = registration();
