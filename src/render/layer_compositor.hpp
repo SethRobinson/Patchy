@@ -309,6 +309,121 @@ inline float layer_mask_alpha_for_render(const Layer& layer, std::int32_t x, std
   return mask_bounds.has_value() ? layer_mask_alpha_at(layer, x, y, *mask_bounds) : layer_mask_alpha_at(layer, x, y);
 }
 
+// Overrides-aware twin of layer_render_bounds: unions in any
+// LayerBoundsOverride rect (move/transform previews substitute bounds and
+// pixels), so isolated groups can bound their buffers while a preview
+// override is active instead of falling back to the full clip. The result is
+// a SUPERSET of anywhere the subtree can paint - an overridden layer
+// contributes both its historical rect and the override rect, each padded by
+// its effects - which is all the isolation merge needs (coverage can only
+// exist where pixel children painted).
+inline Rect layer_render_bounds_for_render(const Layer& layer, const std::vector<LayerBoundsOverride>* overrides) {
+  if (overrides == nullptr || overrides->empty()) {
+    return layer_render_bounds(layer);
+  }
+  if (layer.kind() == LayerKind::Group) {
+    Rect bounds;
+    for (const auto& child : layer.children()) {
+      bounds = unite_rect(bounds, layer_render_bounds_for_render(child, overrides));
+    }
+    const auto own_padding = layer_style_effect_padding(layer.layer_style());
+    return bounds.empty() || own_padding <= 0 ? bounds : outset_rect(bounds, own_padding);
+  }
+  const auto* override = layer_override_for_render(layer, overrides);
+  if (override == nullptr) {
+    return layer_render_bounds(layer);
+  }
+  return unite_rect(layer_render_bounds(layer), layer_bounds_with_effects(layer, override->bounds));
+}
+
+// Folds the layer's vector and raster mask factors over draw_rect into one
+// float plane, row-walked with raw pointers instead of the per-pixel
+// layer_mask_alpha_for_render call chain. The values are bit-identical to that
+// chain: the expressions below keep layer_mask_alpha_at's exact float
+// operation order (vector cache byte / 255, coverage * density + (1 -
+// density), then (vector_alpha * mask byte) / 255 with the division LAST), and
+// every disabled / non-gray8 / out-of-bounds edge lands on the same constant
+// expression. Pinned compositor bytes depend on this equivalence. The only
+// deliberate deviation: a baked cache whose bounds exceed its buffer would
+// throw in PixelBuffer::pixel(); here the inside span clips to the buffer so
+// the walk stays in memory (that state is unreachable from valid bakes).
+inline std::vector<float> build_mask_coverage_plane(const Layer& layer, Rect draw_rect,
+                                                    std::optional<Rect> mask_bounds_override) {
+  const auto plane_width = static_cast<std::size_t>(draw_rect.width);
+  std::vector<float> plane(plane_width * static_cast<std::size_t>(draw_rect.height), 1.0F);
+  const auto row_begin = draw_rect.x;
+  const auto row_end = draw_rect.x + draw_rect.width;
+
+  const auto* vector_mask = layer.vector_mask();
+  if (vector_mask != nullptr && !vector_mask->disabled) {
+    const auto density = static_cast<float>(vector_mask->density) / 255.0F;
+    const bool cache_valid = !vector_mask->cache_bounds.empty() && !vector_mask->cache.empty() &&
+                             vector_mask->cache.format() == PixelFormat::gray8();
+    const auto fallback_coverage = vector_mask->path.empty() && !vector_mask->inverted ? 1.0F : 0.0F;
+    const auto fallback_value = fallback_coverage * density + (1.0F - density);
+    const auto cache_bounds = vector_mask->cache_bounds;
+    const auto cache_rows =
+        cache_valid ? std::min(cache_bounds.height, vector_mask->cache.height()) : 0;
+    const auto inside_begin = cache_valid ? std::clamp(cache_bounds.x, row_begin, row_end) : row_begin;
+    const auto inside_end =
+        cache_valid
+            ? std::clamp(cache_bounds.x + std::min(cache_bounds.width, vector_mask->cache.width()), row_begin, row_end)
+            : row_begin;
+    auto* row_out = plane.data();
+    for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y, row_out += plane_width) {
+      if (!cache_valid || y < cache_bounds.y || y >= cache_bounds.y + cache_rows) {
+        std::fill(row_out, row_out + plane_width, fallback_value);
+        continue;
+      }
+      const auto* cache_row = vector_mask->cache.row(y - cache_bounds.y).data();
+      std::fill(row_out, row_out + static_cast<std::size_t>(inside_begin - row_begin), fallback_value);
+      for (std::int32_t x = inside_begin; x < inside_end; ++x) {
+        const auto coverage = static_cast<float>(cache_row[x - cache_bounds.x]) / 255.0F;
+        row_out[x - row_begin] = coverage * density + (1.0F - density);
+      }
+      std::fill(row_out + static_cast<std::size_t>(inside_end - row_begin), row_out + plane_width, fallback_value);
+    }
+  }
+
+  const auto& mask = layer.mask();
+  if (mask.has_value() && !mask->disabled) {
+    const auto mask_bounds = mask_bounds_override.value_or(mask->bounds);
+    const auto default_value = static_cast<float>(mask->default_color);
+    const bool pixels_valid = !mask->pixels.empty() && mask->pixels.format() == PixelFormat::gray8();
+    // layer_mask_alpha_at treats pixels beyond the buffer (bounds wider than
+    // the allocation) as default-colored, so the inside span clips to both.
+    const auto inside_rows = pixels_valid ? std::min(mask_bounds.height, mask->pixels.height()) : 0;
+    const auto inside_begin = pixels_valid ? std::clamp(mask_bounds.x, row_begin, row_end) : row_begin;
+    const auto inside_end =
+        pixels_valid
+            ? std::clamp(mask_bounds.x + std::min(mask_bounds.width, mask->pixels.width()), row_begin, row_end)
+            : row_begin;
+    auto* row_out = plane.data();
+    for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y, row_out += plane_width) {
+      if (!pixels_valid || y < mask_bounds.y || y >= mask_bounds.y + inside_rows) {
+        for (std::size_t index = 0; index < plane_width; ++index) {
+          row_out[index] = row_out[index] * default_value / 255.0F;
+        }
+        continue;
+      }
+      const auto* mask_row = mask->pixels.row(y - mask_bounds.y).data();
+      for (std::int32_t x = row_begin; x < inside_begin; ++x) {
+        auto& value = row_out[x - row_begin];
+        value = value * default_value / 255.0F;
+      }
+      for (std::int32_t x = inside_begin; x < inside_end; ++x) {
+        auto& value = row_out[x - row_begin];
+        value = value * static_cast<float>(mask_row[x - mask_bounds.x]) / 255.0F;
+      }
+      for (std::int32_t x = inside_end; x < row_end; ++x) {
+        auto& value = row_out[x - row_begin];
+        value = value * default_value / 255.0F;
+      }
+    }
+  }
+  return plane;
+}
+
 // Photoshop's "Layer Mask Hides Effects" blending option ('lmgm'): when set, the layer
 // mask additionally clips effect output where it lands. Only exterior effects (drop
 // shadow, outer glow, outside strokes) can place output beyond the masked shape;
@@ -2265,6 +2380,10 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
       const auto has_enabled_mask = (layer.mask().has_value() && !layer.mask()->disabled) ||
                                     layer_has_enabled_vector_mask(layer);
       const auto has_folded_overlays = !folded_overlays.empty();
+      // One row-walked pass instead of a per-pixel mask call chain; values are
+      // bit-identical to layer_mask_alpha_for_render (see the builder's note).
+      const auto mask_plane =
+          has_enabled_mask ? build_mask_coverage_plane(layer, draw_rect, layer_mask_bounds) : std::vector<float>{};
       bool composited_by_target = false;
       if (!has_blend_if && !has_enabled_mask && prepared_satins.empty() && folded_overlays.empty() &&
           knockout == nullptr && fill_opacity == 1.0F && layer.blend_mode() == BlendMode::Normal) {
@@ -2282,21 +2401,57 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
           composited_by_target = true;
         }
       }
+      // Row-kernel fast path: once no per-pixel gate beyond coverage remains
+      // (no blend-if, satins, folded overlays, knockout, special fill, or
+      // backdrop pre-blend), targets exposing composite_blended_row take a
+      // row walk - with the mask plane when a mask exists - instead of the
+      // per-pixel general loop. The kernel is a float-exact replica of
+      // composite_color (mode dispatch through the real blend_rgb), so bytes
+      // match the general loop bit for bit. Dissolve stays per-pixel: its
+      // coverage is a stochastic paint decision, not a colour function.
+      if (!composited_by_target && !has_blend_if && prepared_satins.empty() && !has_folded_overlays &&
+          knockout == nullptr && fill_opacity == 1.0F && !blend_against_backdrop &&
+          layer.blend_mode() != BlendMode::Dissolve) {
+        if constexpr (requires(Target& target, std::int32_t x, std::int32_t y, const std::uint8_t* row,
+                                const float* mask_row, std::int32_t width, std::uint16_t channel_count,
+                                float opacity, BlendMode mode) {
+                        target.composite_blended_row(x, y, row, mask_row, width, channel_count, opacity, mode);
+                      }) {
+          for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
+            const auto sy = y - bounds.y;
+            const auto sx = draw_rect.x - bounds.x;
+            const auto* source_row =
+                source_bytes + static_cast<std::size_t>(sy) * source_stride + static_cast<std::size_t>(sx) * channels;
+            const auto* mask_row = mask_plane.empty()
+                                       ? nullptr
+                                       : mask_plane.data() + static_cast<std::size_t>(y - draw_rect.y) *
+                                                                 static_cast<std::size_t>(draw_rect.width);
+            destination.composite_blended_row(draw_rect.x, y, source_row, mask_row, draw_rect.width, channels,
+                                              layer.opacity(), layer.blend_mode());
+          }
+          composited_by_target = true;
+        }
+      }
       if (!composited_by_target) {
+        const auto special_fill = fill_opacity != 1.0F && blend_mode_has_special_fill(layer.blend_mode());
         for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
           const auto sy = y - bounds.y;
           const auto* source_row = source_bytes + static_cast<std::size_t>(sy) * source_stride;
+          const auto* mask_row = mask_plane.empty()
+                                     ? nullptr
+                                     : mask_plane.data() + static_cast<std::size_t>(y - draw_rect.y) *
+                                                               static_cast<std::size_t>(draw_rect.width);
           for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
             const auto sx = x - bounds.x;
             const auto* src = source_row + static_cast<std::size_t>(sx) * channels;
             const auto source_alpha = channels >= 4 ? static_cast<float>(src[3]) / 255.0F : 1.0F;
+            // Without a mask the chain returns 1.0F and multiplying by it is
+            // exact, so skipping the multiply keeps the same bytes.
             auto source_coverage =
-                source_alpha * layer_mask_alpha_for_render(layer, x, y, layer_mask_bounds);
+                mask_row != nullptr ? source_alpha * mask_row[x - draw_rect.x] : source_alpha;
             if (knockout != nullptr) {
               source_coverage *= knockout->at(x, y);
             }
-            const auto special_fill = fill_opacity != 1.0F &&
-                                      blend_mode_has_special_fill(layer.blend_mode());
             auto alpha = source_coverage * layer.opacity();
             if (fill_opacity != 1.0F) {
               alpha *= fill_opacity;
@@ -3109,12 +3264,14 @@ void composite_layer(Target& destination, const Layer& layer, Rect clip,
     // transparency group).
     if (layer_has_rendered_blend_if(layer) || layer.blend_mode() != BlendMode::PassThrough) {
       // Blend-if groups keep the calibrated full-clip buffer; the plain
-      // isolated path bounds it by the children's render bounds instead
-      // (layer_render_bounds ignores LayerBoundsOverride, so overrides also
-      // fall back to the full clip). Coverage can only exist where pixel
-      // children painted, so the bounded buffer merges identically.
-      const auto isolated_rect = overrides == nullptr && !layer_has_rendered_blend_if(layer)
-                                     ? intersect_rect(clip, layer_render_bounds(layer))
+      // isolated path bounds it by the children's render bounds instead,
+      // override-aware since August 2026 (move/transform previews used to
+      // fall back to the full clip, allocating and merging a canvas-sized
+      // isolation buffer per group per preview frame). Coverage can only
+      // exist where pixel children painted, so the bounded buffer merges
+      // identically.
+      const auto isolated_rect = !layer_has_rendered_blend_if(layer)
+                                     ? intersect_rect(clip, layer_render_bounds_for_render(layer, overrides))
                                      : clip;
       if (isolated_rect.empty()) {
         return;
@@ -3206,7 +3363,10 @@ void composite_pass_through_group(Target& destination, const Layer& layer, Rect 
   std::optional<PixelBuffer> silhouette;
   Rect silhouette_rect{};
   if (styled) {
-    silhouette_rect = intersect_rect(clip, layer_render_bounds(layer));
+    // Override-aware: the children composite below WITH overrides, so a
+    // preview-moved child outside the historical bounds must still land
+    // inside the silhouette buffer.
+    silhouette_rect = intersect_rect(clip, layer_render_bounds_for_render(layer, overrides));
     if (!silhouette_rect.empty()) {
       IsolatedClipGroupTarget isolated(silhouette_rect);
       composite_layers(isolated, layer.children(), silhouette_rect, overrides,

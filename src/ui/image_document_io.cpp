@@ -225,6 +225,87 @@ public:
     }
   }
 
+  // Blended row: the general per-pixel loop's semantics for a layer with no
+  // per-pixel gates beyond coverage (no blend-if, satin, folded overlays,
+  // knockout, special fill, or backdrop pre-blend) hoisted to a row walk.
+  // mask_row is the precomputed mask-coverage plane row, or nullptr for
+  // unmasked layers. The arithmetic is a verbatim replica of composite_color +
+  // composite_blended_rgb - the mode dispatch goes through the real blend_rgb,
+  // and the float mix keeps its exact expression tree - so output bytes match
+  // the per-pixel path exactly. The one addition: a division by an output
+  // alpha of exactly 1.0F is skipped, which IEEE division makes byte-neutral.
+  // Do NOT reuse composite_source_row's integer math here: the two paths
+  // round differently by design.
+  void composite_blended_row(std::int32_t x, std::int32_t y, const std::uint8_t* source_row, const float* mask_row,
+                             std::int32_t width, std::uint16_t channels, float opacity, BlendMode mode) {
+    if (source_row == nullptr || width <= 0 || channels < 3) {
+      return;
+    }
+
+    auto image_x = x - origin_x_;
+    const auto image_y = y - origin_y_;
+    if (image_y < 0 || image_y >= destination_.height() || image_x >= destination_.width()) {
+      return;
+    }
+    if (image_x < 0) {
+      const auto skip = -image_x;
+      if (skip >= width) {
+        return;
+      }
+      source_row += static_cast<std::size_t>(skip) * channels;
+      if (mask_row != nullptr) {
+        mask_row += skip;
+      }
+      width -= skip;
+      image_x = 0;
+    }
+    width = std::min(width, destination_.width() - image_x);
+    if (width <= 0) {
+      return;
+    }
+
+    const std::size_t step = preserve_alpha_ ? 4U : 3U;
+    auto* dst = destination_.scanLine(image_y) + static_cast<std::size_t>(image_x) * step;
+    for (std::int32_t index = 0; index < width; ++index, dst += step) {
+      const auto* src = source_row + static_cast<std::size_t>(index) * channels;
+      const auto source_alpha = channels >= 4 ? static_cast<float>(src[3]) / 255.0F : 1.0F;
+      auto alpha = mask_row != nullptr ? source_alpha * mask_row[index] * opacity : source_alpha * opacity;
+      if (alpha <= 0.0F) {
+        continue;
+      }
+      alpha = clamp_unit(alpha);
+      const auto da = preserve_alpha_ ? static_cast<float>(dst[3]) / 255.0F : 1.0F;
+      // composite_blended_rgb's output_alpha; composite_color's out_a is the
+      // same expression, so one value serves both the mix and the alpha write.
+      const auto output_alpha = alpha + da * (1.0F - alpha);
+      if (output_alpha <= 0.0F) {
+        // Unreachable with alpha > 0; kept so the replica stays complete.
+        dst[0] = 0;
+        dst[1] = 0;
+        dst[2] = 0;
+        if (preserve_alpha_) {
+          dst[3] = clamp_byte(output_alpha * 255.0F);
+        }
+        continue;
+      }
+      const std::array<std::uint8_t, 3> src_rgb = {src[0], src[1], src[2]};
+      const std::array<std::uint8_t, 3> dst_rgb = {dst[0], dst[1], dst[2]};
+      const auto blended = blend_rgb(src_rgb, dst_rgb, mode);
+      const bool unit_output = output_alpha == 1.0F;
+      for (std::size_t channel = 0; channel < 3; ++channel) {
+        const auto source_value = static_cast<float>(src_rgb[channel]);
+        const auto destination_value = static_cast<float>(dst_rgb[channel]);
+        const auto blended_value = static_cast<float>(blended[channel]);
+        const auto numerator = source_value * alpha * (1.0F - da) + blended_value * alpha * da +
+                               destination_value * da * (1.0F - alpha);
+        dst[channel] = clamp_byte(unit_output ? numerator : numerator / output_alpha);
+      }
+      if (preserve_alpha_) {
+        dst[3] = clamp_byte(output_alpha * 255.0F);
+      }
+    }
+  }
+
   void composite_image(const QImage& image, Rect bounds, Rect clip) {
     if (image.isNull() || image.format() != QImage::Format_RGBA8888) {
       return;
