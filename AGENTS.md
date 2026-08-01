@@ -33,7 +33,7 @@ Required release handoff steps:
 
    `scripts\vs-env.bat` is the one place that knows where VsDevCmd.bat lives; call it instead of VsDevCmd directly so every build gets the same developer environment and none of them print the spurious `'vswhere.exe' is not recognized` line. See [docs/release-process.md](docs/release-process.md).
 
-   `build\release\CMakeCache.txt` carries hand-edited flags the preset does not set: `CMAKE_CXX_FLAGS_RELEASE=/O2 /Ob2 /DNDEBUG /Zi` and `CMAKE_EXE_LINKER_FLAGS_RELEASE=/DEBUG:FULL /INCREMENTAL:NO`. They emit `patchy.pdb` for symbolizing WER dumps from `%LOCALAPPDATA%\CrashDumps`. If reconfiguring from scratch, pass them again with `-D...`. To symbolize an older dump, rebuild that commit in a temporary worktree with the same flags; full links reproduce the binary layout.
+   CMakeLists.txt appends the MSVC Release codegen flags itself (August 2026): `/Zi /GL` on compiles and `/DEBUG:FULL /INCREMENTAL:NO /LTCG` on links, so every configure, from-scratch ones included, emits `patchy.pdb` (for symbolizing WER dumps from `%LOCALAPPDATA%\CrashDumps`) and link-time optimized binaries. Hand-editing `build\release\CMakeCache.txt` is no longer needed. To symbolize an older dump, rebuild that commit in a temporary worktree with the flags its own AGENTS.md names (commits before August 2026 relied on hand-edited cache flags `/O2 /Ob2 /DNDEBUG /Zi` and `/DEBUG:FULL /INCREMENTAL:NO`); full links reproduce the binary layout.
 
    A running `build\release\patchy.exe` locks the link step (`LNK1104`). Ask Seth to close it; never force-kill it because he may have unsaved work.
 

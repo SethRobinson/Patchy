@@ -58,6 +58,21 @@ function(patchy_configure_target target)
   endif()
 endfunction()
 
+# MSVC Release codegen: /Zi + /DEBUG:FULL emit patchy.pdb for symbolizing WER
+# dumps, /INCREMENTAL:NO keeps full links reproducible for dump-matching
+# rebuilds, and /GL + /LTCG enable link-time optimization so the per-pixel
+# compositor helpers (blend_math, layer mask sampling) inline across the
+# patchy_core / patchy_render / patchy_ui library boundaries. Set here instead
+# of hand-editing CMakeCache.txt so a from-scratch reconfigure produces the
+# same binaries. Duplicated flags from an older hand-edited cache are harmless.
+if(MSVC)
+  string(APPEND CMAKE_C_FLAGS_RELEASE " /Zi /GL")
+  string(APPEND CMAKE_CXX_FLAGS_RELEASE " /Zi /GL")
+  string(APPEND CMAKE_EXE_LINKER_FLAGS_RELEASE " /DEBUG:FULL /INCREMENTAL:NO /LTCG")
+  string(APPEND CMAKE_SHARED_LINKER_FLAGS_RELEASE " /DEBUG:FULL /INCREMENTAL:NO /LTCG")
+  string(APPEND CMAKE_STATIC_LINKER_FLAGS_RELEASE " /LTCG")
+endif()
+
 # Miniz declares an internal fixed table without const qualification. Keep strict
 # warnings on the owning target and isolate only that vendored diagnostic.
 if(MSVC)
