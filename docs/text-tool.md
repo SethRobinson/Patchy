@@ -1,12 +1,12 @@
 # Text tool and Character panel
 
-The inline text editor's session machinery, commit/cancel semantics, and the Character panel. The Photoshop text layout model lives in [ps-compat.md](ps-compat.md), Warp Text lives in [warp.md](warp.md), and offscreen font registration rules live in [testing.md](testing.md).
+The inline text editor's session machinery, commit/cancel semantics, and the Character panel. The Photoshop text layout model is the calibration section at the end of this document, Warp Text lives in [warp.md](warp.md), and offscreen font registration rules live in [testing.md](testing.md).
 
 Do NOT attempt to split the text code out of main_window.cpp as a pure file move: the text render pipeline is shared between too many members; it is really a "design a text_render module with its own header" job, not a file split (tried and backed out).
 
 ## Session lifecycle (provisional layer, commit, cancel)
 
-- A Type-tool click inserts a provisional 1x1 text layer immediately (marker `patchy.internal.provisional_text`); `commit_text_editor` removes it first via the marker-checked `MainWindow::take_provisional_text_layer` (a stale id can never delete an unrelated layer), then snapshots and recreates the committed layer under the same id — cancel/empty-commit leaves history and modified state untouched.
+- A Type-tool click inserts a provisional 1x1 text layer immediately (marker `patchy.internal.provisional_text`); `commit_text_editor` removes it first via the marker-checked `MainWindow::take_provisional_text_layer` (a stale id can never delete an unrelated layer), then snapshots and recreates the committed layer under the same id; cancel/empty-commit leaves history and modified state untouched.
 - Mutating actions that take no focus (e.g. the layer lock buttons) must call `finish_active_text_editor()` first, or they operate on a half-committed session.
 
 ## Delete semantics
@@ -28,7 +28,7 @@ font's descent bleed) and lines wholly past the frame stay hidden. The editor,
 Photoshop-layout, and metadata re-render paths (reopened documents, the Affinity post-open
 pass) all share this rule in `render_text_pixels_with_local_rect`; the metadata path
 historically skipped the line plan and cut the straddling line mid-glyph at the buffer edge
-(the tips.af regression, July 2026 — Affinity and Photoshop both draw the straddler whole).
+(the tips.af regression, July 2026; Affinity and Photoshop both draw the straddler whole).
 The metadata path keeps the buffer origin and width at the frame's and grows only the
 bottom, because pixels-only callers place the buffer at the frame corner.
 
@@ -53,4 +53,27 @@ bottom, because pixels-only callers place the buffer at the frame corner.
 - Opened via options bar > Character... while the Text tool is active. It edits the LIVE editor session (leading auto/fixed, tracking, H/V glyph scales) per selection.
 - With no live session its controls gray out and a hint label (`textCharacterHint`) says to click in text; the state is kept live by `refresh_options_bar()` calling `sync_text_character_dialog_from_editor()` (every session boundary funnels through that refresh). Without that call the non-modal dialog kept stale enabled controls after a commit and edits silently no-oped (`ui_text_character_panel_disables_without_session` pins it).
 - Its dialog (`textCharacterDialog`) is exempted from the editor's focus-loss auto-commit via `is_text_option_widget`.
-- Setting fixed leading opts the layer into the Photoshop layout marker at commit (explicit leading does not render under Qt-natural layout; see [ps-compat.md](ps-compat.md)).
+- Setting fixed leading opts the layer into the Photoshop layout marker at commit (explicit leading does not render under Qt-natural layout; see the Photoshop text model section below).
+
+## Photoshop text model (type layers)
+
+Probe PSDs `photoshop-text-*.psd`. The rules apply when `kLayerMetadataTextLayoutMode == "photoshop"` (set on import of non-Patchy TySh):
+
+- **Engine units are document pixels.** 24 pt UI at 300 dpi stores `/FontSize 100` with an identity transform; the transform does NOT carry DPI. UI pt = engine size x transform y-scale x 72/dpi.
+- **The TySh transform maps text space to document pixels.** Vertical scale (`hypot(yx, yy)`) multiplies sizes and leading; the x/y ratio is a pure horizontal glyph stretch (free transform folds into the matrix, so xx != yy is common). Never average the axes.
+- **Style runs omit properties equal to the ResourceDict normal style sheet**; a run without `/FontSize` uses the sheet's default (usually 12.0), never a sibling run's value.
+- **Leading is per-character; a line's baseline advance = the max effective leading among the ENTERED line's characters.** Fixed leading applies only with `/AutoLeading false`; otherwise the recorded `/Leading` is stale and the effective value is the paragraph auto-leading fraction (default 1.2) x FontSize, sub-pixel exact. Leading may be smaller than the em.
+- **Point text anchors the FIRST baseline at the transform translation (tx, ty)**; justification decides whether tx is line start, middle, or end. No leading on the first line.
+- **Box text puts the first baseline at box top + OS/2 sTypoAscender x size** (largest run on line 1; capHeight and hhea/winAscent are wrong). Read via QRawFont (`typographic_ascent_fraction`). Leading does not move the first baseline.
+- **Tracking = FontSize x tracking/1000 px per inter-glyph gap** (not after the last glyph), as absolute letter spacing.
+- **VerticalScale/HorizontalScale scale glyphs only**; auto leading stays 1.2 x FontSize, unscaled.
+
+Run format "patchy.text.runs" v3 adds double sizes, a leading column (number or `auto`), tracking, and H/V glyph scales; paragraph v3 appends the auto-leading fraction. Patchy-authored text keeps v1/v2 and Qt-natural layout (the PS model is opt-in per layer, so Patchy PSDs reopen unchanged). Export writes `/AutoLeading false` for fixed leading (PS ignores it otherwise), non-zero `/Tracking`, non-1 `/HorizontalScale`/`/VerticalScale`.
+
+- **Text renders UNHINTED**: PS never runs TrueType hinting; every antialiased `/AntiAlias` mode maps to `QFont::PreferNoHinting` (`configure_text_font_smoothing`); mode 0/None keeps `NoAntialias` + full hinting. Full hinting fattens stems on small-print-era fonts and shifts advances into collisions.
+- **Imported type layers keep Photoshop's raster until edited** (`should_regenerate_imported_text_preview`, psd_text_write.cpp): a missing font never changes appearance on open. Rasters are kept even under big effects; regenerate only when the stored preview is visibly NOT any run's declared fill color (baked-in effect pixels would corrupt the live outer-effect contour) or when the type block is Patchy-authored. Editing a kept raster warns before substituting fonts; `--append-text` substitutes silently.
+- **Black/Heavy faces (DirectWrite weight >= 800)** resolve to their FULL face name so the family+style matcher finds the real face (family+bold renders Bold, ~15% narrower); the bold flag stays set for fallback. Never feed such a name raw to the font combo: `QFont("Arial Black")` resolves to Tahoma; use `text_font_combo_font_for_family`.
+- **Rotated point-text anchoring**: committed placement pins the TEXT-SPACE anchor (justification fraction along the reading axis, first-line side on the stack axis), never a fixed document corner; the CS-era document-bounds fallback pins the fractionally corresponding point of the source ink box.
+- **Scaled BOX text**: runs and box dims (`patchy.text.box_width/height`, from `/BoxBounds`) are engine units, but a PSD-frame edit session works in DOCUMENT space; the render call's `layout_scale` folds the transform's vertical scale into glyph sizes WITHOUT scaling box dims, and commit stores frame dims divided back to raw units so runs + box + transform stay one coordinate system.
+- Committing a transformed point-text layer re-renders CRISP through the aligned transform even when the font is substituted (resampling would deliver the same glyphs blurry). The first re-edit after conversion settles placement by a few pixels; later cycles are identical.
+- Known gaps: LeadingType 1 (Japanese top-to-top), per-run BaselineShift, VerticalScale x auto leading under a folded transform; box-text RE-edits resample through the transform (crisp path is point-text only); during an edit session caret geometry uses Qt line spacing while the preview shows PS layout (committed result unaffected).

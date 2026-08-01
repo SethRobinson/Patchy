@@ -1,6 +1,6 @@
 # Binding legal and licensing constraints
 
-Read this file before changing any feature named below or introducing an adjacent implementation. The claim-level research record lives in [patent-research.md](patent-research.md); detailed compatibility records live in [smart-objects.md](smart-objects.md), [selection-tools.md](selection-tools.md), [liquify.md](liquify.md), [brushes.md](brushes.md), [vector-tools.md](vector-tools.md), and [file-formats.md](file-formats.md). These constraints are binding even when a broader feature appears technically straightforward.
+Read this file before changing any feature named below or introducing an adjacent implementation. The claim-level research record lives in [patent-research.md](patent-research.md); detailed compatibility records live in [smart-objects.md](smart-objects.md), [selection-tools.md](selection-tools.md), [liquify.md](liquify.md), [brushes.md](brushes.md), [vector-tools.md](vector-tools.md), [file-formats.md](file-formats.md), and [af-format.md](af-format.md). These constraints are binding even when a broader feature appears technically straightforward.
 
 ## Selection tools
 

@@ -1,328 +1,231 @@
 # Visual filters and recipes
 
-This document is the implementation contract for Patchy's built-in pixel filters, the shared filter catalog, and ordered filter recipes. The gallery and Smart Filter work build on these types, so persisted names and default behavior are compatibility surfaces.
+This document is the implementation contract for Patchy's built-in pixel filters, the shared filter catalog, and ordered filter recipes. The gallery and Smart Filter work build on these types, so persisted names and default behavior are compatibility surfaces. Kernels: `src/filters/builtin_filters.cpp`, `filter_engine.cpp`. Catalog metadata (types, units, steps, ranges): `src/filters/filter_registry.{hpp,cpp}`.
 
 ## Two execution contracts
 
-`FilterRegistry::apply(id, pixels)` is the legacy compatibility path. It keeps the original built-in function and its historical pixels.
+`FilterRegistry::apply(id, pixels)` is the legacy compatibility path: the original built-in function and its historical pixels. `FilterRegistry::apply(invocation, pixels)` is the named-parameter path used by dialogs, recipes, and previews; absent parameters use catalog defaults.
 
-`FilterRegistry::apply(invocation, pixels)` is the named-parameter path used by dialogs, recipes, preview rendering, and future galleries. It uses the catalog defaults when a parameter is absent.
-
-These paths are intentionally separate. Their defaults are not equivalent for every filter. Posterize, Gaussian Blur, Clouds, Glowing Edges, and some rounding paths have historical differences. Do not redirect the legacy wrapper through `default_invocation()` and do not change either output merely to make the two paths agree. Tests pin the two contracts independently.
+The paths are intentionally separate; defaults are not equivalent for every filter (Posterize, Gaussian Blur, Clouds, Glowing Edges, some rounding paths). Never redirect the legacy wrapper through `default_invocation()` or change either output to make the two agree. Tests pin both independently.
 
 ## Stable identifiers and schemas
 
-The 41 built-in filter IDs are persisted compatibility identifiers. Never rename or reuse one:
+Built-in filter IDs are `patchy.filters.` plus the 41 suffixes below: persisted, append-only, never renamed or reused. The list is in canonical catalog order and doubles as the version-1 parameter keys and defaults (used when a known parameter is missing):
 
 ```text
-patchy.filters.invert
-patchy.filters.brightness_contrast
-patchy.filters.grayscale
-patchy.filters.desaturate
-patchy.filters.auto_tone
-patchy.filters.auto_contrast
-patchy.filters.auto_color
-patchy.filters.soft_glow
-patchy.filters.punchy_color
-patchy.filters.noir
-patchy.filters.cinematic_matte
-patchy.filters.vintage_fade
-patchy.filters.sepia
-patchy.filters.threshold
-patchy.filters.posterize
-patchy.filters.box_blur
-patchy.filters.sharpen
-patchy.filters.unsharp_mask
-patchy.filters.gaussian_blur
-patchy.filters.motion_blur
-patchy.filters.radial_blur
-patchy.filters.edge_detect
-patchy.filters.emboss
-patchy.filters.glowing_edges
-patchy.filters.twirl
-patchy.filters.wave
-patchy.filters.pinch_bloat
-patchy.filters.clouds
-patchy.filters.pixelate
-patchy.filters.color_halftone
-patchy.filters.film_grain
-patchy.filters.add_noise
-patchy.filters.vignette
-patchy.filters.high_pass
-patchy.filters.median
-patchy.filters.dust_and_scratches
-patchy.filters.surface_blur
-patchy.filters.lens_blur
-patchy.filters.iris_blur
-patchy.filters.tilt_shift_blur
-patchy.filters.plastic_wrap
+invert: amount=100
+brightness_contrast: brightness=0 contrast=0
+grayscale, desaturate, auto_tone, auto_contrast, auto_color: amount=100
+soft_glow, punchy_color, noir, cinematic_matte, vintage_fade, sepia: amount=100
+threshold: threshold=128
+posterize: levels=4
+box_blur: radius=1
+sharpen: amount=100
+unsharp_mask: amount=150 radius=2 threshold=8
+gaussian_blur: radius=2
+motion_blur: angle=0 distance=12
+radial_blur: amount=35 samples=16 center_x=50.0 center_y=50.0
+edge_detect: strength=100
+emboss: angle=135 height=2 amount=100
+glowing_edges: edge_width=2 brightness=140 smoothness=2
+twirl: angle=180 radius=100 center_x=50.0 center_y=50.0
+wave: amplitude=12 wavelength=48 phase=0
+pinch_bloat: amount=35 radius=100 center_x=50.0 center_y=50.0
+clouds: scale=96 detail=6 contrast=40 seed=1
+pixelate: block_size=4
+color_halftone: cell_size=10 intensity=75 contrast=60
+film_grain: amount=50
+add_noise: amount=12.5 distribution=uniform monochromatic=false seed=1
+vignette: strength=55 center_x=50.0 center_y=50.0
+high_pass: radius=10.0
+median: radius=1.0
+dust_and_scratches: radius=1 threshold=0
+surface_blur: radius=5.0 threshold=15
+lens_blur: radius=15.0 blades=6 blade_curvature=50 rotation=0
+iris_blur: blur=15.0 center_x=50.0 center_y=50.0 angle=0 iris_width=50.0 iris_height=40.0 focus=50.0
+tilt_shift_blur: blur=15.0 center_x=50.0 center_y=50.0 angle=0 focus_half_width=10.0 transition_width=20.0
+plastic_wrap: highlight_strength=9 detail=7 smoothness=5
 ```
 
-Each `FilterInvocation` stores the filter ID, the filter's schema version, named parameters, and captured foreground/background colors. Schema version 1 is the initial catalog schema. A known ID with an unsupported schema is unsupported, not a request to run the newest schema.
-
-Parameter keys are stable within a filter schema. The version-1 keys and defaults are:
-
-| Filter suffix | Parameters |
-| --- | --- |
-| `invert` | `amount=100` |
-| `brightness_contrast` | `brightness=0`, `contrast=0` |
-| `grayscale`, `desaturate`, `auto_tone`, `auto_contrast`, `auto_color` | `amount=100` |
-| `soft_glow`, `punchy_color`, `noir`, `cinematic_matte`, `vintage_fade`, `sepia` | `amount=100` |
-| `threshold` | `threshold=128` |
-| `posterize` | `levels=4` |
-| `box_blur` | `radius=1` |
-| `sharpen` | `amount=100` |
-| `unsharp_mask` | `amount=150`, `radius=2`, `threshold=8` |
-| `gaussian_blur` | `radius=2` |
-| `motion_blur` | `angle=0`, `distance=12` |
-| `radial_blur` | `amount=35`, `samples=16`, `center_x=50.0`, `center_y=50.0` |
-| `edge_detect` | `strength=100` |
-| `emboss` | `angle=135`, `height=2`, `amount=100` |
-| `glowing_edges` | `edge_width=2`, `brightness=140`, `smoothness=2` |
-| `twirl` | `angle=180`, `radius=100`, `center_x=50.0`, `center_y=50.0` |
-| `wave` | `amplitude=12`, `wavelength=48`, `phase=0` |
-| `pinch_bloat` | `amount=35`, `radius=100`, `center_x=50.0`, `center_y=50.0` |
-| `clouds` | `scale=96`, `detail=6`, `contrast=40`, `seed=1` |
-| `pixelate` | `block_size=4` |
-| `color_halftone` | `cell_size=10`, `intensity=75`, `contrast=60` |
-| `film_grain` | `amount=50` |
-| `add_noise` | `amount=12.5`, `distribution=uniform`, `monochromatic=false`, `seed=1` |
-| `vignette` | `strength=55`, `center_x=50.0`, `center_y=50.0` |
-| `high_pass` | `radius=10.0` |
-| `median` | `radius=1.0` |
-| `dust_and_scratches` | `radius=1`, `threshold=0` |
-| `surface_blur` | `radius=5.0`, `threshold=15` |
-| `lens_blur` | `radius=15.0`, `blades=6`, `blade_curvature=50`, `rotation=0` |
-| `iris_blur` | `blur=15.0`, `center_x=50.0`, `center_y=50.0`, `angle=0`, `iris_width=50.0`, `iris_height=40.0`, `focus=50.0` |
-| `tilt_shift_blur` | `blur=15.0`, `center_x=50.0`, `center_y=50.0`, `angle=0`, `focus_half_width=10.0`, `transition_width=20.0` |
-| `plastic_wrap` | `highlight_strength=9`, `detail=7`, `smoothness=5` |
-
-Missing known parameters use these defaults. Unknown parameter keys are ignored so a newer writer can add harmless fields. Unknown filter IDs and unsupported schema versions make the invocation and its containing recipe unsupported. They must never fall back to a different filter.
-
-Values are normalized through the catalog before execution. Integer, double, boolean, and stable string-option values keep their declared types. Numeric values are clamped to the catalog range. A known key with the wrong type or an unknown option token is invalid rather than silently coerced.
+A `FilterInvocation` stores filter ID, schema version, named parameters, and captured foreground/background colors. Schema version 1 is the initial catalog schema. Parameter keys are stable within a schema; unknown keys are ignored. An unknown filter ID or unsupported schema version makes the invocation and its containing recipe unsupported; never run the newest schema instead or fall back to a different filter. Values normalize through the catalog before execution: declared types (integer, double, boolean, stable string option) kept, numerics clamped to range; a wrong-typed known key or unknown option token is invalid, not coerced.
 
 ## Categories and UI contracts
 
-Nine catalog filters carry `FilterCategory::Adjustment` and surface under Image > Adjustments: Invert, Brightness/Contrast, Grayscale, Desaturate, Auto Tone, Auto Contrast, Auto Color, Threshold, and Posterize. Grayscale currently has no direct action. The menu additionally holds the four dialog adjustments (Levels, Curves, Hue/Saturation, Color Balance), which are not catalog filters; see [ps-compat.md](ps-compat.md) for their engines.
+Nine catalog filters carry `FilterCategory::Adjustment` and surface under Image > Adjustments: Invert, Brightness/Contrast, Grayscale (no direct action yet), Desaturate, Auto Tone, Auto Contrast, Auto Color, Threshold, Posterize. The menu also holds the four dialog adjustments (Levels, Curves, Hue/Saturation, Color Balance), which are not catalog filters; see [adjustments-calibration.md](adjustments-calibration.md).
 
-The gallery exposes the other 32 effects in the fixed catalog and category order below. Display labels are translated, but order is never locale-sorted.
+The gallery exposes the other 32 effects in the fixed catalog and category order below. Labels are translated; order is never locale-sorted. An effect's ID suffix is its lowercased label with underscores ("&" becomes "and"), except where given in parentheses:
 
-| Category token | Gallery effects in order |
-| --- | --- |
-| `photo_looks` | Soft Glow (`patchy.filters.soft_glow`), Punchy Color (`patchy.filters.punchy_color`), Noir (`patchy.filters.noir`), Cinematic Matte (`patchy.filters.cinematic_matte`), Vintage Fade (`patchy.filters.vintage_fade`), Vintage Sepia (`patchy.filters.sepia`), Lens Vignette (`patchy.filters.vignette`) |
-| `blur` | Box Blur (`patchy.filters.box_blur`), Gaussian Blur (`patchy.filters.gaussian_blur`), Motion Blur (`patchy.filters.motion_blur`), Radial Blur (`patchy.filters.radial_blur`), Surface Blur (`patchy.filters.surface_blur`), Lens Blur (`patchy.filters.lens_blur`), Iris Blur (`patchy.filters.iris_blur`), Tilt-Shift Blur (`patchy.filters.tilt_shift_blur`) |
-| `sharpen` | Sharpen (`patchy.filters.sharpen`), Unsharp Mask (`patchy.filters.unsharp_mask`), High Pass (`patchy.filters.high_pass`) |
-| `distort` | Twirl (`patchy.filters.twirl`), Wave (`patchy.filters.wave`), Pinch/Bloat (`patchy.filters.pinch_bloat`) |
-| `noise` | Analog Grain (`patchy.filters.film_grain`), Add Noise (`patchy.filters.add_noise`), Median (`patchy.filters.median`), Dust & Scratches (`patchy.filters.dust_and_scratches`) |
-| `pixelate` | Pixel Mosaic (`patchy.filters.pixelate`), Color Halftone (`patchy.filters.color_halftone`) |
-| `stylize` | Edge Detect (`patchy.filters.edge_detect`), Emboss (`patchy.filters.emboss`), Glowing Edges (`patchy.filters.glowing_edges`) |
-| `render` | Clouds (`patchy.filters.clouds`) |
-| `artistic` | Plastic Wrap (`patchy.filters.plastic_wrap`) |
+```text
+photo_looks: Soft Glow, Punchy Color, Noir, Cinematic Matte, Vintage Fade, Vintage Sepia (sepia), Lens Vignette (vignette)
+blur: Box Blur, Gaussian Blur, Motion Blur, Radial Blur, Surface Blur, Lens Blur, Iris Blur, Tilt-Shift Blur
+sharpen: Sharpen, Unsharp Mask, High Pass
+distort: Twirl, Wave, Pinch/Bloat (pinch_bloat)
+noise: Analog Grain (film_grain), Add Noise, Median, Dust & Scratches
+pixelate: Pixel Mosaic (pixelate), Color Halftone
+stylize: Edge Detect, Emboss, Glowing Edges
+render: Clouds
+artistic: Plastic Wrap
+```
 
-The category selector starts with the synthetic `all` and `favorites` views, then uses the nine tokens in the table. These eleven tokens and their order are settings compatibility surfaces. Never persist a translated label or a `FilterCategory` ordinal.
+The category selector is `all`, `favorites`, then the nine tokens above. These eleven tokens and their order are settings compatibility surfaces. Never persist a translated label or a `FilterCategory` ordinal.
 
-Liquify sits directly under Filter Gallery as a top-level Filter menu action (not in a category submenu) and is deliberately outside this catalog and gallery. It records an ordered sequence of manual brush gestures rather than one stable filter invocation. Its separate implementation and PSD contract live in `docs/liquify.md`.
+Liquify is a top-level Filter menu action directly under Filter Gallery, deliberately outside this catalog; see `docs/liquify.md`.
 
-The catalog generates dialog controls, but the existing Qt object names such as `filterAmountSpin` and `filterRadiusSlider` remain test and automation contracts.
+The catalog generates dialog controls, but existing Qt object names such as `filterAmountSpin` and `filterRadiusSlider` remain test contracts. Editors are generated from `FilterParameterDefinition`, which owns types, units, defaults, ranges, object-name roots, and option tokens. Direct dialogs and the gallery build standard controls through the one shared `FilterParameterPanel` (`src/ui/filter_parameter_panel.{hpp,cpp}`); `FilterParameterPanelOptions` carries the deliberate presentation deltas (gallery PlusMinus spin buttons, 84 px double spins, practical-range integer spins).
 
-The catalog is also the type contract for generated editors. Integer and double parameters receive linked sliders and spin boxes, booleans receive check boxes, and stable string options receive combo boxes whose item data holds the option token. Double slider ticks are derived from the declared minimum, maximum, and step, while the spin box keeps the declared precision. Units, defaults, ranges, object-name roots, and option tokens all come from `FilterParameterDefinition`. Direct filter dialogs and the gallery build their standard controls through the one shared `FilterParameterPanel` (`src/ui/filter_parameter_panel.{hpp,cpp}`), so they stay in sync by construction; `FilterParameterPanelOptions` preserves the deliberate presentation deltas (the gallery's PlusMinus spin buttons, 84 px double spins, and practical-range integer spins versus the direct dialog's typed-range integer spins). The gallery adds visual companions without creating a second parameter model.
+`practical_minimum`/`practical_maximum` may narrow a linked slider without narrowing the semantic range; the spin box, normalization, recipes, and persistence keep `minimum`/`maximum`. Per-filter ranges are under Spatial scaling and bounds.
 
-`FilterParameterDefinition::practical_minimum` and `practical_maximum` may narrow a linked slider without narrowing the parameter's semantic range. The spin box, normalization, recipes, and persistence continue to use `minimum` and `maximum`. High Pass and Unsharp Mask keep their radius sliders useful through 12 px while accepting Photoshop-compatible typed radii through 1000 px. Unsharp Mask also accepts Amount 1 through 500 percent and Threshold 0 through 255. Motion Blur keeps practical Angle and Distance controls at -180 through 180 degrees and 1 through 64 px while accepting native typed values through +/-360 degrees and 999 px. Emboss keeps practical Angle, Height, and Amount controls at -180 through 180 degrees, 1 through 24 px, and 0 through 300 percent while accepting native typed values through +/-360 degrees, 100 px, and 500 percent. Median and Dust & Scratches declare no practical narrowing at all: both radius sliders span Photoshop's full native 1 through 500 px range, fractionally for Median and as integers for Dust & Scratches. Dust & Scratches Threshold spans 0 through 255. Surface Blur uses a practical 1 through 25 px radius slider while retaining its native fractional range through 100 px; Threshold spans 2 through 255. Lens Blur and Iris Blur use practical 0 through 50 px blur sliders while accepting typed values through 100 px. Tilt-Shift Blur uses a practical 0 through 50 px blur slider while retaining typed values through 500 px.
+`FilterParameterPresentation` roles (an enum; not persisted, never replacing the parameter key or value) select specialized UI/render behavior: never key off parameter key, label, unit, or filter ID instead. The center, tilt width, and iris dimension roles drive the padding remaps under Spatial scaling and bounds.
 
-`FilterParameterPresentation` is not persisted and does not replace the parameter key or value. Current roles are `Angle`, `CenterXPercent`, `CenterYPercent`, `EffectRadiusPercent`, `WaveAmplitude`, `WaveWavelength`, `WavePhase`, `TiltFocusHalfWidthPercent`, `TiltTransitionWidthPercent`, `IrisWidthPercent`, and `IrisHeightPercent`. UI and rendering code must select specialized behavior by these roles, not by a parameter key, display label, unit, or filter ID. The render wrapper uses the center, Tilt-Shift width, and Iris dimension roles to preserve their image-space geometry when transparent padding is added.
+Only eight catalog filter IDs are registered hotkey command IDs: Invert, Desaturate, Auto Tone, Auto Contrast, Auto Color, Brightness/Contrast, Threshold, Posterize. Catalog-generated direct Filter-menu actions are not HotkeyRegistry commands. Liquify uses the persisted command ID `filter.liquify` (Ctrl+Shift+X). A catalog refactor must not silently add or remove commands.
 
-Only eight catalog filter IDs are registered hotkey command IDs today: Invert, Desaturate, Auto Tone, Auto Contrast, Auto Color, Brightness/Contrast, Threshold, and Posterize. Catalog-generated direct Filter-menu actions are not HotkeyRegistry commands. The separate Liquify workspace uses the persisted command ID `filter.liquify` with Ctrl+Shift+X. A catalog refactor must not silently add or remove commands.
+Catalog names are canonical English translation sources (`QObject` context); submenu and action status text keep the `MainWindow` context.
 
-Human-readable catalog names are canonical English translation sources. UI code translates them in the existing `QObject` context, while submenu and action status text keep their existing `MainWindow` context.
+## Auto adjustments
 
-## Auto adjustments (Auto Tone, Auto Contrast, Auto Color)
+The three autos share one Qt-free kernel, `src/filters/auto_levels_math.{hpp,cpp}`, called byte-identically by both execution contracts:
 
-The three auto commands share one Qt-free kernel, `src/filters/auto_levels_math.{hpp,cpp}`, called byte-identically by both execution contracts:
-
-- The clip scan matches the Levels dialog Auto button: threshold `max(1, samples / 1000)` (a fixed 0.1% per end), an upward black scan, and a downward white scan bounded by `white > black + 1`. When either scan exhausts without exceeding the threshold the channel is left unchanged, so constant channels and 1x1 images are identity (matching Photoshop's observed handling of constant channels).
-- Application goes through a 256-entry LUT built from the kernel's own copy of the levels transfer. The per-channel transfer formula is deliberately per-consumer (see the `clamp_levels_record` note in `core/adjustment_layer.hpp`); this copy matches core `levels_channel` rounding, float round-trip included, so Auto Tone equals committing the Levels dialog's Auto scan on every channel.
-- **Auto Tone** (`patchy.filters.auto_tone`, Ctrl+Shift+L) clip-scans each RGB channel independently and stretches them separately, neutralizing color casts.
-- **Auto Contrast** (`patchy.filters.auto_contrast`, Ctrl+Alt+Shift+L) builds one merged R+G+B histogram (3 x width x height samples), takes a single black/white pair, and applies the same LUT to all three channels, so color casts survive. August 2026: this replaced the original per-channel min/max stretch, which was Auto Tone behavior under the wrong name and clipped nothing. The ID is unchanged; the algorithm change was deliberate and the affected test pins and artifacts were re-derived.
-- **Auto Color** (`patchy.filters.auto_color`, Ctrl+Shift+B) is the per-channel scan plus a neutral-midtone snap: the channel's whole-image mean, normalized into the stretched range, selects the integer `gamma_percent` in [10, 999] whose curve maps it closest to the 128 target, ties preferring the smaller gamma. Every result is therefore a state the Levels dialog can represent.
-- All three analyze the whole layer even when a selection is active; the apply wrapper restores unselected pixels afterward, like every destructive filter. Alpha is untouched; buffers must be UInt8 with at least three channels.
-- Photoshop calibration notes, including where Photoshop deliberately differs (its effective clip thresholds are larger on small images), live in [ps-compat.md](ps-compat.md).
+- Clip scan matches the Levels dialog Auto button: threshold `max(1, samples / 1000)` (0.1% per end), upward black scan, downward white scan bounded by `white > black + 1`. A scan that exhausts without exceeding the threshold leaves the channel unchanged, so constant channels and 1x1 images are identity (matches Photoshop).
+- Application uses a 256-entry LUT from the kernel's own copy of the levels transfer, matching core `levels_channel` rounding (float round-trip included): Auto Tone equals committing the Levels dialog's Auto scan per channel. The transfer formula is deliberately per-consumer (see `clamp_levels_record` in `core/adjustment_layer.hpp`).
+- **Auto Tone** (`auto_tone`, Ctrl+Shift+L): per-channel clip scan and stretch; neutralizes color casts.
+- **Auto Contrast** (`auto_contrast`, Ctrl+Alt+Shift+L): one merged R+G+B histogram, a single black/white pair, the same LUT on all three channels; casts survive. The composite stretch deliberately replaced the per-channel original (August 2026); ID unchanged, affected pins re-derived.
+- **Auto Color** (`auto_color`, Ctrl+Shift+B): the per-channel scan plus a neutral-midtone snap. The channel's whole-image mean, normalized into the stretched range, selects the integer `gamma_percent` in [10, 999] whose curve maps it closest to 128, ties preferring the smaller gamma. Every result is a state the Levels dialog can represent.
+- Whole-layer analysis even with a selection; the wrapper restores unselected pixels afterward. Alpha untouched; buffers must be UInt8 with 3+ channels.
+- Photoshop calibration deltas (bigger effective clip thresholds on small images): [adjustments-calibration.md](adjustments-calibration.md).
 
 ## Filter Gallery
 
-`Filter > Filter Gallery...` (renamed from "Visual Filters & Looks"; display strings only, every persisted identifier kept its original name) is the shared entry point for visual filter browsing. Its persisted hotkey command ID is `filter.gallery`; it has no default shortcut. Existing direct Filter-menu actions remain fast paths and keep their IDs, defaults, selection behavior, and output; their dialogs gained the gallery's visual companions through the shared parameter panel, without changing any accepted value or rendered pixel.
+`Filter > Filter Gallery...` is the shared browsing entry point; persisted hotkey command ID `filter.gallery`, no default shortcut. Direct Filter-menu actions stay fast paths; IDs, defaults, selection behavior, and output unchanged.
 
-Original is a UI sentinel, not a filter ID or persisted invocation. It remains visible at the top of every category and search view. Real items carry their exact built-in ID in `Qt::UserRole + 1`; Original carries an empty value. Real items also carry a session-only Smart Filter badge flag in `Qt::UserRole + 6` (never persisted). The gallery pre-creates all items in catalog order and filters them in place instead of rebuilding or sorting the list. Every real item receives a checkerboard placeholder icon at creation, so thumbnail readiness is signaled by the ready role (`Qt::UserRole + 2`), never by icon nullity.
+- Original is a UI sentinel (no filter ID, no invocation), always listed first. Real items carry their ID in `Qt::UserRole + 1` (Original: empty) and a session-only SF badge flag in `Qt::UserRole + 6`. Items are pre-created in catalog order and filtered in place. Thumbnail readiness is the ready role (`Qt::UserRole + 2`), never icon nullity.
+- Search: case-insensitive, localized; matches translated/English filter names and category names/tokens (underscores as spaces). Hiding the selected filter returns selection to Original without clearing the recipe; explicitly clicking Original clears it, even when already selected by filtering.
+- Favorites persist by filter ID in catalog order; loading drops missing/duplicate IDs and rewrites; toggling writes immediately (not undone by Cancel).
+- Settings keys (prefix `filters/gallery/`): `favorites` (ordered list of valid IDs), `category` (one of the eleven tokens; unknown falls back to `all`), `lastFilterId` (empty = Original; restored only when still visible), `liveCanvasPreview` (bool), `size` (880x560..3200x2400, default 1120x720). Search, zoom, pan, and parameter edits are session-only.
 
-Search is case-insensitive and localized. It matches the translated filter name, canonical English filter name, translated category name, and stable category token with underscores treated as spaces. Original stays visible when no real effect matches. Filtering the catalog rows does not render an effect or change the applied stack. If a search, category, or favorite change hides the selected catalog filter, the catalog selection returns to Original without clearing the active recipe. Explicitly clicking that Original row still clears the recipe, even when it was already selected by filtering.
+Widget object names are test contracts, all prefixed `filterGallery`; the full list lives in the dialog source. Catalog-generated controls keep their catalog object-name roots. The center/radius overlay lives inside `filterGalleryPreview`, not a separate child widget.
 
-Favorites are stored by stable filter ID and follow catalog order. Loading discards missing IDs and duplicate entries, then rewrites the cleaned list. Toggling a favorite writes immediately and is a harmless library preference, so Cancel does not undo it. The Favorites view may contain no real effects; Original still provides a safe no-op selection.
+Outcome surfacing (inline, before Apply): an "SF" thumbnail chip marks filters with a native Smart Filter mapping; the source is `native_smart_filter_kind_for` (`src/filters/smart_filter_recipe_mapping.hpp`, the single decision point). The "SF" glyph is deliberately unlocalized; the localized explanation is the row tooltip, fixed while the dialog is open (the `GalleryTargetContext` target kind cannot change). `filterGalleryOutcomeLabel` states what Apply will do; for a Smart Object it mirrors the caller's whole-recipe predicate (`smart_filter_stack_with_recipe`, which adds the 64-entry native stack cap; default `smart_filter_entries_from_recipe`); an empty recipe keeps the positive text (Original bakes nothing). Rows whose single entry fails the real mapper (parameter gates like Emboss Amount 0 included) carry a warning icon and tooltip; mapping is all-or-nothing over disabled entries too, so disabling a blocking row clears nothing. A recipe rejected only by the entry cap flips the outcome line but marks no row.
 
-The gallery settings keys are fixed:
+The angle dial appears for Motion Blur, Emboss, Twirl, Lens Blur Rotation, Iris Blur, and Tilt-Shift Blur, synced with the numeric controls; its hand wraps visually but Twirl keeps the full -720..720 value. The Wave graph syncs amplitude (vertical drag), phase (horizontal drag), and wavelength (wheel). Both companions also appear in the direct dialogs (including the Motion Blur Smart Filter dialog's angle control) under the same object names, `filterAngleDial` and `filterWaveformControl`.
 
-| Key | Value |
-| --- | --- |
-| `filters/gallery/favorites` | Ordered `QStringList` of valid built-in filter IDs |
-| `filters/gallery/category` | One of the eleven stable view/category tokens |
-| `filters/gallery/lastFilterId` | Last selected built-in filter ID, or empty for Original |
-| `filters/gallery/liveCanvasPreview` | Boolean live-preview preference |
-| `filters/gallery/size` | Last dialog size |
+Overlay controls:
 
-Unknown category tokens fall back to `all`. A saved filter is restored only when it still exists and is visible in the restored view. Saved sizes are accepted only from 880 by 560 through 3200 by 2400 pixels; the default is 1120 by 720. Search text, zoom, pan, and parameter edits are session-only.
+- Radial Blur, Twirl, Pinch/Bloat, and Lens Vignette declare `center_x`/`center_y` with the center roles; the preview draws a draggable crosshair (drag values quantize to the declared step). Twirl and Pinch/Bloat also mark integer `radius` as `EffectRadiusPercent`, adding a draggable radius circle. Drags update overlay and values immediately; a size-changing center proxy is adopted only on release so it cannot jump under the pointer.
+- Tilt-Shift Blur adds the tilt width roles: center handle, rotation handle, and short draggable grip bars marking focus band edges (solid) and full-blur onset (dashed). The bars deliberately do not span the image: boundary lines dividing the image around the center are an Apple patent claim (US 8971623, see docs/patent-research.md), and `ui_filter_gallery_tilt_shift_overlay_uses_grip_bars` pins the short-bar rendering. Width handles edit both sides symmetrically; the proxy render defers until the gesture ends.
+- Iris Blur uses the center and angle roles (crosshair and dial); Iris Width, Height, and Focus stay numeric. Patchy deliberately draws no editable iris boundary widget and supports no multiple pins; the one explicit ellipse is edited numerically and generates one scalar blend mask (see docs/patent-research.md).
 
-The gallery's automation contracts include `filterGalleryDialog`, `filterGallerySearchEdit`, `filterGalleryCategoryCombo`, `filterGalleryLooksList`, `filterGalleryEmptyLabel`, `filterGalleryPreview`, `filterGalleryParameters`, `filterGalleryParameterEditor`, `filterGalleryFavoriteButton`, `filterGalleryCanvasPreviewCheck`, `filterGalleryBeforeButton`, `filterGalleryStatusLabel`, `filterGalleryOutcomeLabel`, `filterGalleryButtonBox`, and the `filterGalleryZoom*` controls. The stack controls are `filterGalleryAppliedEffects`, `filterGalleryAppliedEffectsList`, `filterGalleryDuplicateEffectButton`, `filterGalleryRemoveEffectButton`, and the per-entry blending controls `filterGalleryBlendModeCombo`, `filterGalleryOpacitySlider`, and `filterGalleryOpacitySpin` (bound to the selected applied-effects row; disabled with no entry). Saved Look controls are `filterGallerySavedLooks`, `filterGallerySavedLooksCombo`, `filterGallerySaveLookButton`, `filterGalleryRenameLookButton`, and `filterGalleryDeleteLookButton`. Catalog-generated controls keep their catalog object-name roots. The gallery assigns `filterAngleDial` and `filterWaveformControl` to its two specialized widgets. The center/radius overlay is part of `filterGalleryPreview`, not a separate child widget.
+Preview pipeline:
 
-The gallery surfaces the destructive/non-destructive outcome inline, before Apply. Filters whose ID has a native Smart Filter mapping carry an "SF" chip composited into their thumbnail icon; the chip source is `native_smart_filter_kind_for` (src/filters/smart_filter_recipe_mapping.hpp, the single decision point) and the "SF" glyph is deliberately unlocalized, like the favorite star, with the localized explanation in the row tooltip. Tooltips are fixed for the dialog's lifetime because the target kind cannot change while it is open: the caller passes a `GalleryTargetContext` (plain layer or Smart Object, plus an optional whole-recipe predicate). `filterGalleryOutcomeLabel` states what Apply will do; for a Smart Object target it mirrors the caller's predicate (`smart_filter_stack_with_recipe`, which adds the 64-entry native stack cap on top of the mapper), falling back to `smart_filter_entries_from_recipe` when no predicate is supplied, and an empty recipe keeps the positive editable text because Original bakes nothing. Applied-effects rows whose single entry fails the real mapper (including parameter gates such as Emboss Amount 0) carry a warning icon and tooltip; the mapping is all-or-nothing over disabled entries too, so disabling a blocking row does not clear its mark or change the outcome line. A recipe rejected only by the caller's entry cap flips the outcome line while marking no individual row.
-
-The angle dial appears for Motion Blur, Emboss, Twirl, Lens Blur Rotation, Iris Blur, and Tilt-Shift Blur. It is synchronized with the standard numeric controls. Its hand wraps visually, but Twirl retains the full `-720` through `720` degree value. The Wave graph synchronizes amplitude, wavelength, and phase while retaining all three numeric controls. Horizontal dragging changes phase, vertical dragging changes amplitude, and the wheel changes wavelength. Both companions also appear in the direct filter dialogs (and the Motion Blur Smart Filter dialog's angle control carries the same role); each dialog assigns the same `filterAngleDial` and `filterWaveformControl` object names, which stay unambiguous because lookups are per-dialog.
-
-Radial Blur, Twirl, Pinch/Bloat, and Lens Vignette declare `center_x` and `center_y` as doubles from 0.0 through 100.0, with defaults of 50.0 and steps of 0.1. Their roles are `CenterXPercent` and `CenterYPercent`. The preview draws a draggable crosshair for these filters. Dragged values are quantized to the declared step before both the editor and invocation are updated. Twirl and Pinch/Bloat also mark their integer `radius` as `EffectRadiusPercent`, so the overlay adds a draggable radius circle and handle. Normal pan and zoom remain active when a drag does not begin near one of those handles. Spatial drags move the overlay and numeric values immediately, but a size-changing center proxy is adopted only after release so its coordinate system cannot jump under the pointer.
-
-Tilt-Shift Blur uses the same center and angle roles plus `TiltFocusHalfWidthPercent` and `TiltTransitionWidthPercent`. The preview draws a center handle, a rotation handle, and short draggable grip bars marking the focus band edges (solid) and the full-blur onset (dashed). The bars deliberately do not span the image: boundary lines that divide the image around the center are an Apple patent claim (US 8971623, see docs/patent-research.md), and `ui_filter_gallery_tilt_shift_overlay_uses_grip_bars` pins the short-bar rendering. Dragging either width handle edits both sides symmetrically. Normal pan and zoom remain available away from the handles, and the proxy render is deferred until the gesture finishes so expanding bounds cannot move the control under the pointer.
-
-Iris Blur uses the center and angle roles, so its preview provides the normal center crosshair and angle dial. Iris Width, Iris Height, and Focus remain linked numeric controls. Patchy deliberately does not draw Photoshop's editable iris boundary widget or support multiple pins. The one explicit ellipse is edited numerically and generates one scalar blend mask; see docs/patent-research.md.
-
-Thumbnail and center-preview work always starts from an immutable copy of the active layer. The center proxy has a maximum dimension of 640 pixels and the thumbnail proxy has a maximum dimension of 180 pixels. Both use bounded premultiplied bilinear resampling and a correspondingly scaled selection. Pixel-distance parameters are scaled through `FilterRegistry::scale`; percentages, angles, sample counts, centers, and captured colors do not scale. Final canvas preview and Apply always use the unscaled recipe at full layer resolution. Returning to the same effect after viewing another must reproduce the same pixels, never a cumulative re-filtering of an earlier preview.
-
-Catalog thumbnails remain single-filter previews. The center and live-canvas previews render the complete applied recipe from the immutable original. Recipe rendering traces the input bounds for every entry, including disabled and zero-opacity entries. The active center/radius control maps from that entry's traced input rectangle into the final displayed bounds, so it remains accurate when preceding or following filters expand the layer. A selection fixes every entry to the original local bounds because selected recipes never expand the layer, except through a canvas-filling entry's document-wide embed described under Spatial scaling and bounds.
-
-When a plain-layer recipe contains an enabled, nonzero-opacity canvas-filling entry (Clouds), the center and live-canvas previews render through the gallery's full-resolution exact path from the embedded document-wide source, exactly like Smart Object targets, so the preview matches Apply. Recipes without such an entry keep the bounded proxy render byte-identical to before. Catalog thumbnails consult the exact renderer only for Smart Object targets; plain-layer thumbnails deliberately stay layer-bounded proxy renders.
-
-Thumbnail icons are 128 by 78 pixels. Original is available immediately. Missing thumbnails are generated lazily, one visible filter per timer turn, and the per-dialog ready flag prevents repeat work. Hidden rows are skipped. Selecting and editing a filter refreshes that row's icon from the current invocation. The cache is session-local and is not persisted across gallery openings. Category, search, and favorite changes prioritize newly visible missing thumbnails without invalidating completed ones.
-
-Full-resolution live-canvas preview requests carry monotonically increasing generations. A finished worker may update the canvas only when it is still the newest generation and the dialog remains open. At most one request runs while the latest pending request replaces older pending work. Closing the dialog invalidates every unfinished result. While any live-canvas preview worker is in flight past the standard overlay delay, the canvas shows a "Rendering preview..." spinner badge (`CanvasWidget::begin/end_preview_render`), so an expensive preview (Dust and Scratches at large radii, Surface Blur) reads as working instead of unresponsive; the destructive adjustment dialogs and the smart-filter editor share the same badge. The bounded center preview uses the same latest-generation rule on its own worker, cooperatively cancels obsolete work, and is debounced before dispatch. Thumbnail work stays bounded to the 180-pixel proxy and advances one effect per event-loop turn. The momentary Before button aligns the immutable source to the current expanded result bounds, preserving zoom and pan while it is held; it does not change the live canvas preview. Live Canvas Preview is enabled by default and can restore or reapply the current full-resolution result without changing the dialog selection.
-
-Cancel restores the active layer's original pixels and document-space bounds exactly, adds no undo entry, and does not mark a previously clean document modified. Apply renders the complete recipe once more from the immutable original, commits one destructive transaction, and creates one undo entry. Undo and Redo restore both pixels and bounds. Original, an empty recipe, and a recipe with no enabled nonzero-opacity entries close without creating a no-op undo entry.
+- All preview work starts from an immutable copy of the active layer. Center proxy max dimension 640 px, thumbnail proxy 180 px; premultiplied bilinear, selection scaled alike. Only pixel-distance parameters scale (`FilterRegistry::scale`). Canvas preview and Apply always use the unscaled recipe at full resolution.
+- Catalog thumbnails are single-filter previews; center and live-canvas previews render the complete recipe from the immutable original. Rendering traces input bounds for every entry (disabled and zero-opacity included); the active center/radius control maps from its entry's traced input rectangle into the displayed bounds, staying accurate under expansion. A selection fixes every entry to the original local bounds (canvas-filling exception below).
+- A plain-layer recipe with an enabled, nonzero-opacity Clouds entry renders center and canvas previews through the full-resolution exact path from the embedded document-wide source (as for Smart Object targets; preview matches Apply); other recipes keep the bounded proxy byte-identical. Thumbnails use the exact renderer only for Smart Object targets.
+- Thumbnails are 128x78, generated lazily one visible filter per timer turn; editing a filter refreshes its row icon. The cache is session-local; view changes prioritize newly visible missing thumbnails, never invalidating completed ones.
+- Live-canvas preview requests carry increasing generations: only the newest finished worker may update the canvas, only while the dialog is open; one runs at a time, the newest pending wins, closing invalidates the rest. Past the standard overlay delay an in-flight worker shows a "Rendering preview..." spinner badge on the canvas (`CanvasWidget::begin/end_preview_render`), shared with the destructive adjustment dialogs and the smart-filter editor. The center preview follows the same rule on its own worker, debounced.
+- The momentary Before button shows the immutable source aligned to the current result bounds (zoom and pan preserved while held) without touching the live canvas preview. Live Canvas Preview defaults on; re-enabling restores or reapplies the current result without changing selection.
+- Cancel restores the layer's original pixels and document-space bounds exactly, adds no undo entry, and does not dirty a clean document. Apply renders the recipe once more from the immutable original and commits one destructive transaction with one undo entry. Original, an empty recipe, or one with no enabled nonzero-opacity entries close without an undo entry.
 
 ## Direct filter dialog preview
 
-When `MainWindow::apply_filter` opens a direct filter dialog it passes a `FilterDialogPreviewSource` (immutable layer pixels, bounds, selection, registry), and `request_filter_settings` adds a bounded in-dialog proxy preview above the generated controls. For a canvas-filling filter the source carries the embedded document-wide buffer and its union bounds, so the proxy, the live canvas preview, and Apply all show the same full-canvas result; the pristine layer snapshot still drives Cancel and restore. Without a source (the smart-filter editing dialogs) the dialog keeps its historical lightweight layout and creates no preview surface.
+`MainWindow::apply_filter` passes a `FilterDialogPreviewSource` (immutable pixels, bounds, selection, registry); `request_filter_settings` adds a bounded in-dialog proxy preview above the generated controls. A canvas-filling source carries the embedded document-wide buffer and union bounds, so proxy, canvas preview, and Apply agree; the pristine snapshot still drives Cancel. Without a source (the smart-filter editing dialogs) the dialog keeps its lightweight layout, no preview.
 
-The preview reuses the gallery's machinery: `src/ui/filter_preview_proxy.{hpp,cpp}` (the 640 px premultiplied-bilinear proxy, `render_filter_proxy`, and the latest-generation detached render worker) and `src/ui/filter_overlay_sync.{hpp,cpp}` (the overlay geometry/sync math). The invocation renders as a one-entry recipe with a 35 ms debounce; the single traced entry input rectangle drives the same draggable center crosshair, radius circle, tilt-shift grip bars, and iris controls as the gallery, including the deferred proxy-adoption-on-release rule. The overlay DRAWING stays solely in `zoomable_image_preview.cpp` (the tilt-shift grip bars are a patent design-around; never duplicate or alter that rendering).
+The preview reuses the gallery machinery: `src/ui/filter_preview_proxy.{hpp,cpp}` (the 640 px proxy, `render_filter_proxy`, the latest-generation worker) and `src/ui/filter_overlay_sync.{hpp,cpp}` (overlay geometry/sync math). The invocation renders as a one-entry recipe with a 35 ms debounce; the traced input rectangle drives the same center crosshair, radius circle, tilt-shift grip bars, and iris controls as the gallery. Overlay DRAWING stays solely in `zoomable_image_preview.cpp` (the tilt-shift grip bars are a patent design-around; never duplicate or alter that rendering).
 
-The dialog's automation contracts are `filterDialogPreview` (the `ZoomableImagePreview`; its `filterDialogRenderedFilterId` property mirrors the gallery's equivalent), and the `filterDialogZoomFit/100/Out/In/Label` zoom row. `filterPreviewCheck` continues to gate only the live canvas preview; the in-dialog proxy always renders. The proxy preview is display-only: Apply still renders the unscaled invocation at full resolution through the unchanged apply flow.
+Object names: `filterDialogPreview` (a `ZoomableImagePreview`; its `filterDialogRenderedFilterId` property mirrors the gallery's) and the `filterDialogZoomFit/100/Out/In/Label` zoom row. `filterPreviewCheck` gates only the live canvas preview; the in-dialog proxy always renders and is display-only. Apply still renders the unscaled invocation at full resolution.
 
 ## Spatial scaling and bounds
 
-Thumbnail and proxy rendering scales only parameters marked as pixel distances. Version-1 spatial keys are:
+Proxies scale only pixel-distance parameters. Version-1 spatial keys: `radius` of box_blur, gaussian_blur, unsharp_mask, high_pass, median, dust_and_scratches, surface_blur, lens_blur; `blur` of iris_blur, tilt_shift_blur; motion_blur `distance`; emboss `height`; glowing_edges `edge_width` and `smoothness`; wave `amplitude` and `wavelength`; clouds `scale`; pixelate `block_size`; color_halftone `cell_size`. Angles, percentages, samples, intensity, detail, seed, and colors never scale. Scaling returns a normalized copy; the original invocation is never mutated.
 
-- Box Blur, Gaussian Blur, Unsharp Mask, High Pass, Median, Dust & Scratches, Surface Blur, and Lens Blur radius, plus Iris Blur and Tilt-Shift Blur
-- Motion Blur distance
-- Emboss height
-- Glowing Edges edge width and smoothness
-- Wave amplitude and wavelength
-- Clouds scale
-- Pixel Mosaic block size
-- Color Halftone cell size
+Ranges, growth, and translation support ("supp"). Ranges are `min..max` with practical slider limits in parentheses; defaults are in the ID list above; filters not listed neither grow nor advertise fixed support:
 
-Angles, percentages, samples, intensity, detail, seed, and color values do not scale. Scaling returns a normalized copy and never mutates the original invocation.
+```text
+box_blur, gaussian_blur  grows by radius; supp = radius
+sharpen, edge_detect  supp 1 px
+motion_blur  angle -360..360 deg (-180..180), distance 1..999 px (1..64); grows by distance; supp distance+1
+             (one fixed premultiplied-alpha line kernel; the +1 covers bilinear sampling)
+radial_blur  amount 0..100, samples, center; growth notes below; supp none
+add_noise  amount 0.1..400 % (to 100), seed 0..999999999; bounds/alpha byte-identical; no growth/supp
+unsharp_mask  amount 1..500 %, radius 0.1..1000 px (to 12), threshold 0..255; no growth; supp ceil(3*radius)
+high_pass  radius 0.1..1000 px (to 12); bounds/alpha kept; supp 3*radius
+median  radius 1..500 px (full range); bounds kept; supp none
+dust_and_scratches  radius int 1..500 (full range, PS dialog max), threshold 0..255; bounds/alpha kept; supp none
+surface_blur  radius 1..100 px, 0.01 steps (to 25), threshold 2..255; grows <= effective radius; supp none
+lens_blur  radius 0..100 px (to 50), blades 3..8, curvature 0..100 %, rotation -180..180 deg; supp none
+iris_blur  blur 0..100 px (to 50), center 0..100 %, angle -180..180 deg, width/height 1..200 % of input
+           W/H, focus 0..100 % of ellipse radius; Lens Blur's growth; supp none
+tilt_shift_blur  blur 0..500 px (to 50), center/focus_half_width/transition_width %; grows <= ceil(blur); supp none
+plastic_wrap  highlight_strength 0..20, detail 1..15, smoothness 1..15; bounds/alpha byte-exact; supp none
+emboss  angle -360..360 deg (-180..180), height 1..100 px (1..24), amount 1..500 % (0..300)
+clouds  fills_entire_canvas; no margin, no supp, never grown by the registry (UI embed below)
+```
 
-Output growth and translation support are catalog metadata:
+Calibration notes:
 
-- Box Blur and Gaussian Blur grow by their radius and have translation support equal to that radius.
-- Motion Blur accepts a user-entered Angle from -360 through 360 degrees and Distance from 1 through 999 px. Its practical controls use -180 through 180 degrees and 1 through 64 px. Rendering uses one fixed, premultiplied-alpha line kernel, grows conservatively by the distance, and has translation support of distance plus one for bilinear sampling.
-- Radial Blur keeps the historical centered growth calculation for exact default compatibility. An edited center computes growth from the actual sampled corner sweep without a fixed pixel cap. Impossible dimensions fail through the registry's checked padding path instead of clipping valid output. Amount zero has no growth. As a native Smart Filter it maps only when the center is the default 50/50 (Photoshop's `RdlB` descriptor stores no center), the amount is 1 through 100, and samples land exactly on a quality tier (Draft 8, Good 16, Best 32); Photoshop's Zoom method is deliberately unsupported and keeps its imported stack preview-locked.
-- Add Noise applies deterministic position-hashed noise to RGB only: uniform, or a sum-of-four-uniforms gaussian approximation with no transcendental calls (cross-toolchain stable). Amount is a double percent from 0.1 through 400 with a practical slider through 100; the seed (0 through 999999999) feeds the hash, so re-renders reproduce the same noise, and the amount deliberately does not scale for thumbnails (like Analog Grain). Bounds and alpha stay byte-identical, so it neither grows nor advertises translation support.
-- Unsharp Mask accepts Amount 1 through 500 percent, fractional Radius 0.1 through 1000 px with a practical slider through 12 px, and Threshold 0 through 255. It does not grow, preserves alpha, and advertises translation support of `ceil(3 * radius)`. Photoshop scales the signed detail before subtracting Threshold from its magnitude; the radius-2.5 low-pass has its own measured byte kernel rather than Gaussian Blur's radius-2.5 kernel.
-- High Pass keeps the input bounds and alpha. Its linked slider spans the practical 0.1 through 12 px range, with a default of 10 px, while typed values, recipes, and native Smart Filter imports retain Photoshop's 0.1 through 1000 px range. Translation support is three times the radius.
-- Median keeps the input bounds. Its linked slider and spin box both span Photoshop's 1 through 500 px range, with a default of 1 px. Photoshop floors fractional radii for rendering without rewriting the stored value. Median advertises no finite translation support because transparent RGB extension chooses the nearest visible source across the full input; selected filtering must process the complete layer before restoring unselected pixels.
-- Dust & Scratches keeps the input bounds and alpha. Radius is an integer from 1 through 500, the same maximum Photoshop's dialog accepts, with a full-range slider, and Threshold is an integer from 0 through 255. It computes a square per-channel RGB median using Median's nearest-visible straight-RGB extension, then replaces the complete RGB triplet only when its maximum channel difference from the source is strictly greater than Threshold. It advertises no finite translation support because the transparent-RGB extension can choose a visible source anywhere in the input.
-- Surface Blur accepts a fractional radius from 1 through 100 px in 0.01 px steps, with a default of 5 px and a practical slider through 25 px. Its effective integer radius is `max(1, floor(radius + 0.5))`. Threshold is an integer from 2 through 255 with a default of 15. For each independently filtered channel, a square edge-clamped window assigns every sample `v` around center `c` the weight `max(0, 5 * threshold - 2 * abs(v - c))`; the weighted quotient is rounded to the nearest integer with ties to even. RGB uses Median's nearest-visible straight-RGB extension under transparent pixels, while alpha runs the same weighted formula directly. The result is alpha-trimmed after padding and can grow by at most the effective radius. It advertises no finite translation support because the straight-RGB extension can choose a visible source anywhere in the input.
-- Lens Blur accepts a fractional Radius from 0 through 100 px, with a default of 15 px and a practical slider through 50 px. Blades is 3 through 8, Blade Curvature is 0 through 100 percent, and Rotation is -180 through 180 degrees. One deterministic supersampled aperture kernel is applied to premultiplied RGBA. Curvature blends the selected polygon toward a circle. Radius 0 is an exact identity. Large radii use deterministic fixed-point downsample, aperture convolution, and upsample stages. The registry reserves a factor-aligned transparent margin large enough for the aperture and alpha-trims afterward; no translation support is advertised because the multiscale grid is anchored to the complete input rectangle.
-- Iris Blur accepts Blur from 0 through 100 px, with a default of 15 px and a practical slider through 50 px. Center is 0 through 100 percent, Angle is -180 through 180 degrees, Iris Width and Height are 1 through 200 percent of their respective input dimensions, and Focus is 0 through 100 percent of the ellipse radius. It computes one fixed round aperture blur once, then premultiplied-alpha blends between the original and blurred image through one deterministic smooth elliptical mask. The Focus interior stays sharp and pixels outside the ellipse receive the full fixed blur. Blur 0 is an exact identity. It uses Lens Blur's factor-aligned growth and advertises no translation support. It does not infer depth, detect or boost highlights, vary a kernel per pixel, or combine multiple blur patterns.
-- Plastic Wrap keeps the input bounds and alpha byte-exact. Highlight Strength is an integer from 0 through 20, while Detail and Smoothness are integers from 1 through 15. One fixed integer height-field formula smooths alpha-weighted luminance with an edge-clamped box, takes local gradients, and adds a pronounced constant-direction relief plus ridge highlights to the original RGB. Alpha weighting gives isolated artwork contour relief without changing its transparency. The settings are dimensionless and do not scale for thumbnails. Representative low-contrast and flat-color-on-transparency regressions pin visible treatment at the defaults. It conservatively advertises no finite translation support, so selected application renders with full-layer context.
-- Tilt-Shift Blur accepts a fractional maximum blur from 0 through 500 px, with a default of 15 px and a practical slider through 50 px. Center, focus half-width, and transition width are percentages; angle 0 means horizontal focus lines. Pixels inside the focus band stay sharp, a deterministic cubic transition increases the local radius, and pixels beyond the dashed boundaries use the requested maximum blur. Radius 0 is an exact identity. The result is alpha-trimmed after transparent padding and can grow by at most `ceil(blur)`. It advertises no finite translation support because its band geometry depends on the complete input rectangle.
-- Sharpen and Edge Detect have translation support of one pixel.
-- Clouds is the sole filter with `fills_entire_canvas` catalog metadata. It declares no output margin and no translation support; the registry never grows it. Instead the UI wrapper embeds the layer into a document-wide buffer before rendering (below), so the generative fill covers the whole canvas like Photoshop.
-- Other version-1 filters neither grow nor advertise fixed translation support.
+- Radial Blur: historical centered growth kept for exact default compatibility; an edited center grows from the actual sampled corner sweep, uncapped, failing through the registry's checked padding path rather than clipping. Amount 0: no growth. Native Smart Filter mapping requires the default 50/50 center (Photoshop's `RdlB` descriptor stores no center), amount 1..100, and samples exactly on a quality tier (Draft 8, Good 16, Best 32); Photoshop's Zoom method is deliberately unsupported and stays preview-locked.
+- Add Noise: deterministic position-hashed noise on RGB only, uniform or a sum-of-four-uniforms gaussian approximation with no transcendental calls (cross-toolchain stable). The seed feeds the hash so re-renders reproduce the same noise; amount deliberately does not scale for thumbnails (like Analog Grain).
+- Unsharp Mask: Photoshop scales the signed detail before subtracting Threshold from its magnitude; the radius-2.5 low-pass has its own measured byte kernel, not Gaussian Blur's.
+- Median: fractional radii floor for rendering without rewriting the stored value. Transparent pixels borrow straight RGB from the nearest visible source anywhere in the input (the shared nearest-visible extension; also Dust & Scratches, Surface Blur); hence these, the ellipse/band blurs, Plastic Wrap, and Add Noise advertise no finite support, and selected application renders with full-layer context.
+- Dust & Scratches: square per-channel RGB median over the extension; replaces the whole RGB triplet only when its maximum channel difference from the source is strictly greater than Threshold.
+- Surface Blur: effective integer radius `max(1, floor(radius + 0.5))`. Per channel over a square edge-clamped window, each sample `v` around center `c` weighs `max(0, 5 * threshold - 2 * abs(v - c))`; the weighted quotient rounds to nearest, ties to even. RGB uses the extension; alpha runs the same formula directly. Alpha-trimmed after padding.
+- Lens Blur: one deterministic supersampled aperture kernel on premultiplied RGBA; curvature blends the polygon toward a circle; radius 0 is an exact identity; large radii use deterministic fixed-point downsample/convolve/upsample stages. A factor-aligned transparent margin is reserved and alpha-trimmed; the multiscale grid anchors to the whole input rectangle.
+- Iris Blur: one fixed round aperture blur, premultiplied-blended with the original through one deterministic smooth elliptical mask; Focus interior sharp, outside the ellipse fully blurred; blur 0 exact identity. It does not infer depth, detect or boost highlights, vary a kernel per pixel, or combine multiple blur patterns.
+- Tilt-Shift Blur: angle 0 means horizontal focus lines; focus band sharp, deterministic cubic transition, full requested blur beyond the dashed boundaries; blur 0 exact identity; alpha-trimmed after padding.
+- Plastic Wrap: one fixed integer height-field formula (edge-clamped box smoothing of alpha-weighted luminance, local gradients, constant-direction relief plus ridge highlights added to the original RGB); alpha weighting gives isolated artwork contour relief. Dimensionless, no thumbnail scaling; regressions pin visible treatment at the defaults.
 
-When rendering expands an RGBA layer, the registry pads every side before executing the filter. A center expressed against the original image must therefore be remapped to the padded buffer. For each axis, the registry applies:
+When rendering expands an RGBA layer the registry pads every side first, so centers must be remapped to the padded buffer. Per axis:
 
 ```text
 padded_percent = 100 * (margin + (original_extent - 1) * percent / 100)
                  / (original_extent + 2 * margin - 1)
 ```
 
-This remap is selected by the `CenterXPercent` and `CenterYPercent` roles and preserves the same image-space point after padding. It applies to default 50.0 centers as well as edited centers. Never run a centered effect on a padded buffer with the unadjusted percentage, because an off-center value would shift with the new bounds.
+Selected by the center roles; applies to default 50.0 centers too. Never run a centered effect on a padded buffer with the unadjusted percentage.
 
-Tilt-Shift focus and transition widths are percentages of the shorter input extent. Padding multiplies both percentages by `original_shorter / padded_shorter`, preserving the same document-space band widths while the center roles preserve the band origin.
+Tilt-Shift focus and transition widths are percentages of the shorter input extent; padding multiplies both by `original_shorter / padded_shorter`. Iris Width/Height are percentages of input width/height; padding scales each by its own original/padded ratio. The center roles preserve the band and ellipse origins.
 
-Iris Width is a percentage of input width and Iris Height is a percentage of input height. Padding scales them independently by `original_width / padded_width` and `original_height / padded_height`, preserving the same document-space ellipse while the center roles preserve its origin.
+The UI wrapper decides expansion: a selected operation stays inside the layer bounds; with no selection an RGBA layer may grow and then trim transparent borders. Preview, Cancel, Apply, Undo, and Redo must restore both pixels and document-space bounds.
 
-The UI selection wrapper decides whether expansion is allowed. A selected operation stays inside the layer bounds. With no selection, an RGBA layer may grow and then trim transparent borders. Preview, Cancel, Apply, Undo, and Redo must restore both pixels and document-space bounds.
-
-Canvas-filling filters are the one exception to the selected-operation rule. Before rendering, the UI wrapper embeds the layer into a transparent buffer covering the union of the layer bounds and the canvas rectangle (the union, never a canvas crop, so content extending past the canvas is not lost). The filter then renders across that whole buffer; with a selection, pixels outside it are restored as usual, which means clouds can appear in selected regions that had no prior layer content. The embedded result is alpha-trimmed against the original bounds afterward, so a selected render grows the layer only to the union of the old content and the selection, and a fully transparent result returns to the original rectangle. The embed is skipped, keeping the historical content-rect render, when the layer has no alpha channel, when its effective lock flags include transparent pixels, or when the layer already covers the canvas (which keeps full-canvas layers byte-identical to the pre-embed output). Cancel restores the pristine pixels and bounds, never the embedded buffer.
-
-Clouds has no native Smart Filter mapping (`native_smart_filter_kind_for`), so it can never enter a Smart Filter stack. On a Smart Object target both the direct action and a gallery recipe containing Clouds reach the rasterize prompt and, once accepted, run through this same destructive canvas-filling path.
+Canvas-filling filters are the one exception: the UI wrapper first embeds the layer into a transparent buffer covering the union of layer bounds and canvas rectangle (never a canvas crop) and renders across the whole buffer; with a selection, outside pixels restore as usual, so clouds can appear in selected regions that had no layer content. The result is alpha-trimmed against the original bounds: a selected render grows the layer only to the union of old content and selection, and a fully transparent result returns to the original rectangle. The embed is skipped (historical content-rect render) for no-alpha layers, effective transparent-pixel locks, or layers already covering the canvas (byte-identical to pre-embed output). Cancel restores pristine pixels and bounds, never the embedded buffer. Clouds has no native Smart Filter mapping; on a Smart Object the direct action and a Clouds recipe both reach the rasterize prompt, then run this destructive path.
 
 ## Captured colors
 
-Foreground and background colors are copied into every invocation when it is created. Clouds reads those captured colors. Re-rendering a recipe must not depend on the toolbar swatches at that later time. Filters that do not use colors produce the same result regardless of the captured values.
+Foreground and background colors are copied into every invocation at creation. Clouds reads the captured colors; re-rendering a recipe must not depend on the toolbar swatches at that later time.
 
 ## Recipes
 
-`FilterRecipe` stores entries in execution order. Each entry contains an invocation, enabled state, opacity, and blend mode. Disabled entries are skipped. An unsupported invocation makes the whole persisted recipe unsupported, including when that entry is disabled, because enabling it later must not produce a substituted result.
+`FilterRecipe` stores entries in execution order: invocation, enabled state, opacity, blend mode. Disabled entries are skipped. An unsupported invocation makes the whole persisted recipe unsupported, even when disabled, because enabling it later must not produce a substituted result.
 
-Recipe opacity is a finite double from 0 through 1. An out-of-range or non-finite opacity makes the recipe unsupported. The default is enabled, opacity 1, Normal blend mode. Recipe execution is deterministic and starts from its supplied immutable source; callers must not build a preview cumulatively from an earlier preview.
+Opacity is a finite double in [0, 1]; out-of-range or non-finite opacity makes the recipe unsupported. Defaults: enabled, opacity 1, Normal blend mode. Execution is deterministic from the supplied immutable source; never build a preview cumulatively from an earlier preview.
 
-The applied-effects list displays the final effect at the top, opposite the stored execution order. Reading a reordered list therefore rebuilds the recipe from the bottom visual row to the top. Each dialog entry has a transient numeric identity so duplicate entries remain independent even when they share the same filter ID and parameters. This identity is never persisted.
+The applied-effects list displays the final effect at the top, opposite the stored execution order, so reading a reordered list rebuilds the recipe from the bottom visual row up. Each dialog entry has a transient numeric identity (never persisted) so duplicates stay independent.
 
-Selecting the first catalog filter creates the first recipe entry. Selecting another catalog filter replaces the active recipe entry's invocation while keeping its enabled state and blending. Duplicate inserts a separate copy immediately after the active entry in execution order, which places it immediately above the source entry in the visual list. The gallery exposes each entry's blend mode and opacity below the applied-effects list (the model always carried them; Saved Looks persist them and the Smart Filter mapping copies them into native entries); Reset returns the active entry's blending to Normal at 100% along with its parameters. Remove selects the nearest remaining visual row. Original clears the recipe. Enable, duplicate, remove, pointer drag reorder, Reset, and parameter edits affect only the applied stack; category, search, and Favorites changes do not. Effect rows are drag sources but not drop targets, forcing Qt to treat a pointer drop as an insertion between rows and emit the canonical row-move signal.
+Selecting a catalog filter creates the first entry or replaces the active entry's invocation, keeping its enabled state and blending. Duplicate inserts a copy right after the active entry in execution order. Per-entry blend mode and opacity are edited below the list; Saved Looks persist them and the Smart Filter mapping copies them into native entries. Reset returns the active entry to Normal at 100% and default parameters. Remove selects the nearest remaining visual row; Original clears the recipe. Only applied-stack operations mutate the recipe; category, search, and Favorites changes do not. Effect rows are drag sources, not drop targets, so a drop inserts between rows and emits the canonical row-move signal.
 
-Scaling a recipe returns a normalized copy and retains entry order, enable state, opacity, blend mode, and captured colors. Aggregate translation support is the checked sum of enabled, nonzero-opacity entry support. Unknown support from any executed entry makes the aggregate unknown. Zero-opacity entries are still validated as part of the persistence contract, but they do not execute, expand bounds, report progress, or affect aggregate support.
+Recipe scaling returns a normalized copy retaining order, enable state, blending, and captured colors. Aggregate translation support is the checked sum over enabled nonzero-opacity entries; any executed entry with unknown support makes the aggregate unknown. Zero-opacity entries are still validated for persistence but do not execute, expand bounds, report progress, or affect aggregate support.
 
-When a selection exists, the complete recipe runs against one immutable source and the wrapper restores pixels outside the selection once after the final entry. Restoring outside pixels after each entry changes spatial-filter results near the selection edge and is not allowed. A fully transparent expanded result returns to the input rectangle instead of growing empty bounds once per filter.
+With a selection, the complete recipe runs against one immutable source and the wrapper restores outside pixels once after the final entry; per-entry restoration would change spatial results near the selection edge and is not allowed. A fully transparent expanded result returns to the input rectangle instead of growing empty bounds per filter.
 
 ## Saved Looks
 
-User Looks live as independent files under `<settings directory>/looks/<uuid>.json`. The lowercase canonical UUID is the stable preset ID and filename stem. Save creates a fresh UUID, Rename keeps it, and Delete removes its one record. These library operations take effect immediately and are not rolled back when the gallery is cancelled.
+User Looks live at `<settings dir>/looks/<uuid>.json`; the lowercase canonical UUID is the stable preset ID and filename stem. Save creates a fresh UUID, Rename keeps it, Delete removes the record. These library operations apply immediately and are not rolled back by gallery Cancel.
 
-Each record uses this version-1 shape:
+Version-1 record shape:
 
 ```json
-{
-  "version": 1,
-  "id": "01234567-89ab-4cde-8123-456789abcdef",
-  "name": "My Look",
-  "recipe": {
-    "entries": [
-      {
-        "enabled": true,
-        "opacity": 1.0,
-        "blendMode": "normal",
-        "invocation": {
-          "filterId": "patchy.filters.soft_glow",
-          "schemaVersion": 1,
-          "parameters": {
-            "amount": {"type": "integer", "value": 75}
-          },
-          "foreground": {"red": 0, "green": 0, "blue": 0},
-          "background": {"red": 255, "green": 255, "blue": 255}
-        }
-      }
-    ]
-  }
-}
+{"version": 1, "id": "01234567-89ab-4cde-8123-456789abcdef", "name": "My Look",
+ "recipe": {"entries": [{"enabled": true, "opacity": 1.0, "blendMode": "normal",
+   "invocation": {"filterId": "patchy.filters.soft_glow", "schemaVersion": 1,
+     "parameters": {"amount": {"type": "integer", "value": 75}},
+     "foreground": {"red": 0, "green": 0, "blue": 0},
+     "background": {"red": 255, "green": 255, "blue": 255}}}]}}
 ```
 
-Parameter values carry an explicit `integer`, `double`, `boolean`, or `string` type. Blend modes use the stable full Photoshop descriptor string tokens, never enum ordinals or translated names. Entry array order is execution order. Colors are required even when the current filter does not use them, so later rendering never reads the toolbar swatches.
+Parameter values carry an explicit `integer`, `double`, `boolean`, or `string` type. Blend modes use the stable full Photoshop descriptor string tokens, never enum ordinals or translated names. Entry array order is execution order. Colors are required even when the filter does not use them (see Captured colors).
 
-Writes use `QSaveFile`, and in-memory state changes only after the atomic commit succeeds. Loading is strict and bounded to 1 MiB per file, 64 entries per recipe, and 64 parameters per entry. It rejects malformed JSON, unsupported record versions, filename/record UUID mismatches, invalid UTF-8, invalid value types, non-finite or out-of-range opacity, invalid colors, and unknown blend tokens. Unknown filter IDs and schema versions remain structurally valid records. They appear in the Saved Looks list disabled with an unsupported tooltip, and Patchy preserves them rather than substituting another filter. One malformed record is skipped without hiding, modifying, or deleting neighboring records.
+Writes use `QSaveFile`; memory state changes only after the atomic commit. Loading is strict and bounded: 1 MiB per file, 64 entries per recipe, 64 parameters per entry. Rejected: malformed JSON, unsupported record versions, filename/record UUID mismatch, invalid UTF-8, invalid value types, non-finite or out-of-range opacity, invalid colors, unknown blend tokens. Unknown filter IDs and schema versions remain structurally valid: they list disabled with an unsupported tooltip and are preserved, never substituted. A malformed record is skipped without touching neighbors.
 
 ## Regression coverage
 
-Keep separate regression coverage for:
-
-- the legacy wrapper output for every built-in ID;
-- named version-1 catalog defaults;
-- explicit non-default named parameters;
-- the exact ID, category, parameter, scaling, and bounds catalog;
-- missing and unknown parameters, unsupported IDs/schemas, and recipe ordering;
-- captured Clouds colors;
-- the canvas-filling Clouds contract: catalog flag, union embed and trim, selection rendering outside the old content rect, lock and no-alpha skips, gallery exact preview with proxy thumbnails, and Cancel/Undo/Redo bounds restoration;
-- progress completion and cancellation;
-- menu/action/hotkey contracts;
-- selection, expanding bounds, Cancel, and one-step Undo/Redo;
-- the auto adjustments: dual-path byte identity, the composite-versus-per-channel cast behavior, the degenerate-scan identity rule, and the Auto Color midtone snap;
-- the all-filter visual contact sheet.
+Keep separate coverage for: legacy wrapper output per built-in ID; version-1 defaults and explicit non-default parameters; the exact ID/category/parameter/scaling/bounds catalog; missing/unknown parameters, unsupported IDs/schemas, recipe ordering; captured Clouds colors and the whole canvas-filling contract; progress completion and cancellation; menu/action/hotkey contracts; selection, expanding bounds, Cancel, one-step Undo/Redo; the auto adjustments (dual-path byte identity, composite-versus-per-channel casts, degenerate-scan identity, Auto Color midtone snap); and the all-filter visual contact sheet.
 
 Never re-pin an output canary as part of a structural refactor. First capture the contact-sheet SHA-256 from a full pre-refactor suite run of the same tree, then establish that the refactored path reproduces the old focused outputs and that captured SHA. Do not compare against a SHA recorded in an older commit: the sheet legitimately changes whenever filters are added, so a hardcoded value goes stale.
