@@ -917,6 +917,8 @@ if(PATCHY_BUILD_APP)
       src/ui/theme_palette.cpp
       src/ui/theme_qss.hpp
       src/ui/theme_qss.cpp
+      src/ui/text_layout.hpp
+      src/ui/text_layout.cpp
       src/ui/tile_preview_window.hpp
       src/ui/tile_preview_window.cpp
       src/ui/app_credits.hpp

@@ -2,7 +2,32 @@
 
 The inline text editor's session machinery, commit/cancel semantics, and the Character panel. The Photoshop text layout model is the calibration section at the end of this document, Warp Text lives in [warp.md](warp.md), and offscreen font registration rules live in [testing.md](testing.md).
 
-Do NOT attempt to split the text code out of main_window.cpp as a pure file move: the text render pipeline is shared between too many members; it is really a "design a text_render module with its own header" job, not a file split (tried and backed out).
+Do NOT attempt to split the remaining text code out of main_window.cpp as a pure file move: the text render pipeline is shared between too many members; it is really a "design a module with its own header" job, not a file split (tried and backed out). The line-layout half has been done that way and lives in `src/ui/text_layout.{hpp,cpp}`; see the next section.
+
+## One layout authority (src/ui/text_layout.hpp)
+
+The renderer draws a text layer by walking a LINE PLAN (one `QTextLine` per visual line with the
+origin it is drawn at) rather than letting QTextDocument place the lines, because Photoshop's
+leading model moves baselines off Qt's natural spacing. `text_layout.hpp` owns that plan and is
+the single geometric authority: `photoshop_text_layout_plan` / `boxed_text_render_plan` produce
+it, and `TextLineGeometry` reads the same plan back for caret rects, selection rects and
+hit-testing. Build it with the same `boxed` / `photoshop_layout` flags the render pass got and
+its answers are guaranteed to agree with the drawn glyphs.
+
+Caret and selection geometry MUST go through `TextLineGeometry`, never through Qt's natural
+`blockBoundingRect` origins. Reading those was the old bug: the caret layout also never passed
+`photoshop_layout`, so on a PS-model layer the caret drifted roughly (leading - Qt line spacing)
+px per line off the text (`ui_psd_text_caret_follows_photoshop_leading` pins it on the fixed-
+leading probe: 40 px leading against Qt's ~29). `BoxTextLineRenderItem::block_position` exists
+only for this: `QTextLine::lineNumber()` is an index within its own block's layout, so the
+owning block cannot be recovered from the line alone. Caret lookup resolves the owning block
+FIRST, the way `QTextDocument::findBlock` does, because a block's last line ends before the
+paragraph separator and a document-wide scan answers the previous block for a position at the
+start of the next one.
+
+Every type in that header holds handles into the document's `QTextLayout`. They are valid only
+while that document is alive and has not been laid out again, and `build_text_render_document`
+does its final `setTextWidth` before any plan is built. Keep that order.
 
 ## Session lifecycle (provisional layer, commit, cancel)
 
@@ -76,4 +101,4 @@ Run format "patchy.text.runs" v3 adds double sizes, a leading column (number or 
 - **Rotated point-text anchoring**: committed placement pins the TEXT-SPACE anchor (justification fraction along the reading axis, first-line side on the stack axis), never a fixed document corner; the CS-era document-bounds fallback pins the fractionally corresponding point of the source ink box.
 - **Scaled BOX text**: runs and box dims (`patchy.text.box_width/height`, from `/BoxBounds`) are engine units, but a PSD-frame edit session works in DOCUMENT space; the render call's `layout_scale` folds the transform's vertical scale into glyph sizes WITHOUT scaling box dims, and commit stores frame dims divided back to raw units so runs + box + transform stay one coordinate system.
 - Committing a transformed point-text layer re-renders CRISP through the aligned transform even when the font is substituted (resampling would deliver the same glyphs blurry). The first re-edit after conversion settles placement by a few pixels; later cycles are identical.
-- Known gaps: LeadingType 1 (Japanese top-to-top), per-run BaselineShift, VerticalScale x auto leading under a folded transform; box-text RE-edits resample through the transform (crisp path is point-text only); during an edit session caret geometry uses Qt line spacing while the preview shows PS layout (committed result unaffected).
+- Known gaps: LeadingType 1 (Japanese top-to-top), per-run BaselineShift, VerticalScale x auto leading under a folded transform; box-text RE-edits resample through the transform (crisp path is point-text only). Mouse hit-testing still goes through `QTextEdit::cursorForPosition`, i.e. the editor's own zoom-scaled layout, so a click can disagree with the caret it produces; routing it through `TextLineGeometry::position_at` is the next step.

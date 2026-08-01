@@ -1910,10 +1910,146 @@ void ui_cli_append_text_rerenders_and_roundtrips() {
   CHECK(roundtrip_found);
 }
 
+void ui_psd_text_caret_follows_photoshop_leading() {
+  // photoshop-text-point-fixed-leading.psd: three "HHHH" lines whose baselines advance by the
+  // fixed leading 40, while Qt's natural spacing for Arial 24pt is about 29. Caret and
+  // selection geometry now come from the SAME line plan the glyphs are drawn from
+  // (TextLineGeometry, ui/text_layout.hpp). Before that, the caret layout read Qt's natural
+  // block origins and never set photoshop_layout at all, so the caret drifted about 11 px per
+  // line off the text: by line three it sat a full line above the glyphs.
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  const auto path = patchy::test::committed_psd_fixture_path("photoshop-text-point-fixed-leading.psd");
+  auto document = patchy::psd::DocumentIo::read_file(path);
+  patchy::LayerId layer_id = 0;
+  bool found = false;
+  std::function<void(const std::vector<patchy::Layer>&)> find_text_layer =
+      [&](const std::vector<patchy::Layer>& layers) {
+        for (const auto& layer : layers) {
+          if (!found) {
+            if (const auto it = layer.metadata().find(patchy::kLayerMetadataText);
+                it != layer.metadata().end() && it->second.find("HHHH") != std::string::npos) {
+              layer_id = layer.id();
+              found = true;
+            }
+          }
+          find_text_layer(layer.children());
+        }
+      };
+  find_text_layer(document.layers());
+  CHECK(found);
+  if (!found) {
+    return;
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Photoshop Caret Leading"));
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+
+  auto& live_document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* source = live_document.find_layer(layer_id);
+  CHECK(source != nullptr);
+  if (source == nullptr) {
+    return;
+  }
+  const auto bounds_now = source->bounds();
+  live_document.set_active_layer(layer_id);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const QPoint click_doc(bounds_now.x + bounds_now.width / 2, bounds_now.y + 12);
+  const auto hit_point = canvas->widget_position_for_document_point(click_doc);
+  accept_missing_psd_text_font_warning_if_present();
+  send_mouse(*canvas, QEvent::MouseButtonPress, hit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, hit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  process_events_for(250);
+
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+
+  // Gather everything while the session is live, then close it BEFORE asserting: a CHECK that
+  // throws with an inline editor still open aborts during unwind (see docs/testing.md).
+  const bool edits_probed_layer =
+      editor->property("patchy.editingLayerId").toULongLong() == static_cast<qulonglong>(layer_id);
+  const bool preview_paints_text = editor->property("patchy.previewPaintsText").toBool();
+  const auto editor_doc_y = editor->property("patchy.documentTextY").toInt();
+
+  std::vector<AlphaRowBand> bands;
+  if (auto* preview = preview_layer_for_editor(live_document, *editor); preview != nullptr) {
+    bands = alpha_row_bands(preview->pixels());
+    for (auto& band : bands) {
+      band.top += preview->bounds().y - editor_doc_y;
+      band.bottom += preview->bounds().y - editor_doc_y;
+    }
+  }
+
+  std::vector<int> block_positions;
+  for (auto block = editor->document()->begin(); block.isValid(); block = block.next()) {
+    if (!block.text().trimmed().isEmpty()) {
+      block_positions.push_back(block.position());
+    }
+  }
+  std::vector<QRect> carets;
+  for (const auto position : block_positions) {
+    auto cursor = editor->textCursor();
+    cursor.setPosition(position + 2);
+    editor->setTextCursor(cursor);
+    QApplication::processEvents();
+    carets.push_back(editor->property("patchy.previewCaretRect").toRect());
+  }
+  editor->selectAll();
+  QApplication::processEvents();
+  std::vector<QRect> selection;
+  for (const auto& value : editor->property("patchy.previewSelectionRects").toList()) {
+    selection.push_back(value.toRect());
+  }
+
+  save_widget_artifact("ui_psd_text_caret_follows_photoshop_leading", *canvas);
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  process_events_for(150);
+
+  CHECK(edits_probed_layer);
+  CHECK(preview_paints_text);
+  CHECK(block_positions.size() == 3);
+  CHECK(carets.size() == 3);
+  if (carets.size() != 3) {
+    return;
+  }
+  for (const auto& caret : carets) {
+    CHECK(!caret.isEmpty());
+  }
+  // The caret advances by the FIXED LEADING, not by Qt's natural line spacing (~29 px here).
+  CHECK(std::abs((carets[1].top() - carets[0].top()) - 40) <= 1);
+  CHECK(std::abs((carets[2].top() - carets[1].top()) - 40) <= 1);
+
+  // And each caret spans its own line's ink: an "H" band runs from cap height down to the
+  // baseline, which sits inside the caret's ascent-to-descent span.
+  CHECK(bands.size() == 3);
+  if (bands.size() == 3) {
+    for (std::size_t i = 0; i < 3; ++i) {
+      CHECK(carets[i].top() <= bands[i].top + 2);
+      CHECK(carets[i].bottom() >= bands[i].bottom - 2);
+    }
+  }
+
+  // Selection rows come from the same plan: three highlight rects advancing by the leading.
+  CHECK(selection.size() == 3);
+  if (selection.size() == 3) {
+    CHECK(std::abs((selection[1].top() - selection[0].top()) - 40) <= 1);
+    CHECK(std::abs((selection[2].top() - selection[1].top()) - 40) <= 1);
+  }
+}
+
 std::vector<patchy::test::TestCase> text_transform_commit_tests_part2() {
   return {
       {"ui_psd_centered_point_text_keeps_center_on_commit",
        ui_psd_centered_point_text_keeps_center_on_commit},
+      {"ui_psd_text_caret_follows_photoshop_leading", ui_psd_text_caret_follows_photoshop_leading},
       {"ui_psd_text_fixed_leading_commit_matches_photoshop_row_bands",
        ui_psd_text_fixed_leading_commit_matches_photoshop_row_bands},
       {"ui_psd_text_auto_leading_commit_matches_photoshop_row_bands",

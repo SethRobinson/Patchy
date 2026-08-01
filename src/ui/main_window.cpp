@@ -64,6 +64,7 @@
 #include "ui/image_sequence_dialog.hpp"
 #include "ui/sprite_sheet_dialog.hpp"
 #include "ui/start_panel.hpp"
+#include "ui/text_layout.hpp"
 #include "ui/tile_preview_window.hpp"
 #include "ui/warp_text_dialog.hpp"
 #include "ui/qt_geometry.hpp"
@@ -302,21 +303,6 @@ constexpr auto kLayerMetadataProvisionalTextMarker = "patchy.internal.provisiona
 constexpr auto kTransformedTextEditOverlayObjectName = "transformedTextEditOverlay";
 constexpr auto kTextFlowPoint = "point";
 constexpr auto kTextFlowBox = "box";
-constexpr int kTextDisplayFamilyFormatProperty = QTextFormat::UserProperty + 31;
-constexpr int kTextLeadingFormatProperty = QTextFormat::UserProperty + 32;
-// Photoshop-layout char properties (runs v3): auto-leading flag (leading = paragraph fraction x
-// size), tracking in Photoshop's 1/1000-em units, and the unrounded font size in the document's
-// current scale (QFont pixel sizes are ints; layout math needs the fractional value).
-constexpr int kTextAutoLeadingFormatProperty = QTextFormat::UserProperty + 33;
-constexpr int kTextTrackingFormatProperty = QTextFormat::UserProperty + 34;
-constexpr int kTextExactSizeFormatProperty = QTextFormat::UserProperty + 35;
-// Block property: paragraph auto-leading fraction (Photoshop default 1.2).
-constexpr int kTextBlockAutoLeadFractionProperty = QTextFormat::UserProperty + 36;
-// Character-panel glyph scales (runs v3): width x horizontal, height x vertical. The glyph
-// pixel size folds the vertical scale in; leading math stays FontSize-based, so the exact-size
-// property intentionally excludes it.
-constexpr int kTextHorizontalScaleFormatProperty = QTextFormat::UserProperty + 37;
-constexpr int kTextVerticalScaleFormatProperty = QTextFormat::UserProperty + 38;
 constexpr int kTextEditorCaretWidth = 3;
 constexpr int kMinimumTextBoxDocumentSize = 16;
 constexpr int kTextEditorPreviewDelayMs = 33;
@@ -338,6 +324,7 @@ int text_editor_caret_blink_phase_ms();
 QRect text_editor_viewport_caret_rect(const QTextEdit& editor);
 std::vector<QRect> text_editor_viewport_selection_rects(const QTextEdit& editor, int start, int end);
 double text_editor_metric_scale(const QTextEdit& editor);
+bool text_editor_uses_photoshop_layout(const QTextEdit& editor);
 
 // The document a text layer is rasterized from, plus the font/width the layout was built against.
 // Built by build_text_render_document -- the single construction shared by the rasterizer and the
@@ -1302,81 +1289,15 @@ QRectF scale_document_rect_to_viewport(const QRect& document_rect, double zoom, 
                 std::max<qreal>(1.0, static_cast<qreal>(document_rect.height()) * zoom));
 }
 
-QRect text_document_cursor_rect(const QTextDocument& document, int position) {
-  const auto maximum_position = std::max(0, document.characterCount() - 1);
-  position = std::clamp(position, 0, maximum_position);
-  const auto block = document.findBlock(position);
-  if (!block.isValid() || block.layout() == nullptr || document.documentLayout() == nullptr) {
-    return {};
-  }
-
-  const auto* text_layout = block.layout();
-  const auto block_origin = document.documentLayout()->blockBoundingRect(block).topLeft();
-  const auto relative_position = std::max(0, position - block.position());
-  for (int line_index = 0; line_index < text_layout->lineCount(); ++line_index) {
-    const auto line = text_layout->lineAt(line_index);
-    const auto line_start = line.textStart();
-    const auto line_end = line_start + line.textLength();
-    if (relative_position < line_start || (relative_position > line_end && line_index + 1 < text_layout->lineCount())) {
-      continue;
-    }
-    const auto x = line.cursorToX(std::clamp(relative_position, line_start, line_end));
-    const auto glyph_height =
-        std::max<qreal>(1.0, std::ceil(std::max<qreal>(1.0, line.ascent()) + std::max<qreal>(0.0, line.descent())));
-    const auto top_padding = std::max<qreal>(0.0, (line.height() - glyph_height) / 2.0);
-    return QRectF(block_origin.x() + x, block_origin.y() + line.y() + top_padding, 1.0, glyph_height).toAlignedRect();
-  }
-
-  const auto block_rect = document.documentLayout()->blockBoundingRect(block);
-  return QRectF(block_rect.left(), block_rect.top(), 1.0, std::max<qreal>(1.0, block_rect.height())).toAlignedRect();
-}
-
-std::vector<QRect> text_document_selection_rects(const QTextDocument& document, int start, int end) {
-  const auto maximum_position = std::max(0, document.characterCount() - 1);
-  start = std::clamp(start, 0, maximum_position);
-  end = std::clamp(end, 0, maximum_position);
-  if (start > end) {
-    std::swap(start, end);
-  }
-  if (start == end || document.documentLayout() == nullptr) {
-    return {};
-  }
-
-  std::vector<QRect> rects;
-  const auto* layout = document.documentLayout();
-  for (auto block = document.begin(); block.isValid(); block = block.next()) {
-    const auto* text_layout = block.layout();
-    if (text_layout == nullptr) {
-      continue;
-    }
-
-    const auto block_start = block.position();
-    const auto block_end = block_start + block.length();
-    const auto selected_start = std::max(start, block_start);
-    const auto selected_end = std::min(end, block_end);
-    if (selected_start >= selected_end) {
-      continue;
-    }
-
-    const auto block_origin = layout->blockBoundingRect(block).topLeft();
-    for (int line_index = 0; line_index < text_layout->lineCount(); ++line_index) {
-      const auto line = text_layout->lineAt(line_index);
-      const auto line_start = block_start + line.textStart();
-      const auto line_end = line_start + line.textLength();
-      const auto line_selected_start = std::max(selected_start, line_start);
-      const auto line_selected_end = std::min(selected_end, line_end);
-      if (line_selected_start >= line_selected_end) {
-        continue;
-      }
-
-      const auto start_x = line.cursorToX(line_selected_start - block_start);
-      const auto end_x = line.cursorToX(line_selected_end - block_start);
-      const QRectF rect(block_origin.x() + std::min(start_x, end_x), block_origin.y() + line.y(),
-                        std::max<qreal>(1.0, std::abs(end_x - start_x)), line.height());
-      rects.push_back(rect.toAlignedRect());
-    }
-  }
-  return rects;
+// Caret/selection geometry over the cached 1:1 layout, read through the SAME line plan the
+// rasterizer draws with -- the Photoshop leading model repositions baselines, so reading Qt's
+// natural block origins here (which is what this code used to do, and it never passed
+// photoshop_layout either) drifted the caret and the highlight off the glyphs on every
+// PS-model layer.  See ui/text_layout.hpp.
+TextLineGeometry text_editor_line_geometry(const QTextEdit& editor, const QTextDocument& layout_document) {
+  return TextLineGeometry::build(layout_document,
+                                 text_flow_is_box(editor.property("patchy.documentTextFlow").toString()),
+                                 text_editor_uses_photoshop_layout(editor));
 }
 
 void clear_text_editor_preview_overlays(QTextEdit& editor) {
@@ -1402,7 +1323,8 @@ int text_editor_caret_blink_phase_ms() {
 QRect text_editor_viewport_caret_rect(const QTextEdit& editor) {
   double zoom = 1.0;
   const auto layout_document = text_editor_document_space_layout(editor, zoom);
-  auto caret_document_rect = text_document_cursor_rect(*layout_document, editor.textCursor().position());
+  const auto caret_document_rect =
+      text_editor_line_geometry(editor, *layout_document).caret_rect(editor.textCursor().position()).toAlignedRect();
   QRect caret;
   if (!caret_document_rect.isEmpty()) {
     const QPointF scroll_offset(editor.horizontalScrollBar()->value(), editor.verticalScrollBar()->value());
@@ -1417,12 +1339,12 @@ QRect text_editor_viewport_caret_rect(const QTextEdit& editor) {
 std::vector<QRect> text_editor_viewport_selection_rects(const QTextEdit& editor, int start, int end) {
   double zoom = 1.0;
   const auto layout_document = text_editor_document_space_layout(editor, zoom);
-  const auto document_selection_rects = text_document_selection_rects(*layout_document, start, end);
+  const auto document_selection_rects = text_editor_line_geometry(editor, *layout_document).selection_rects(start, end);
   const QPointF scroll_offset(editor.horizontalScrollBar()->value(), editor.verticalScrollBar()->value());
   std::vector<QRect> rects;
   rects.reserve(document_selection_rects.size());
   for (const auto& rect : document_selection_rects) {
-    const auto aligned = scale_document_rect_to_viewport(rect, zoom, scroll_offset).toAlignedRect();
+    const auto aligned = scale_document_rect_to_viewport(rect.toAlignedRect(), zoom, scroll_offset).toAlignedRect();
     if (!aligned.isEmpty()) {
       rects.push_back(aligned);
     }
@@ -1439,14 +1361,15 @@ void update_text_editor_preview_caret(QTextEdit& editor, double zoom) {
 
   double layout_zoom = 1.0;
   const auto layout_document = text_editor_document_space_layout(editor, layout_zoom);
+  const auto geometry = text_editor_line_geometry(editor, *layout_document);
   const QPointF scroll_offset(editor.horizontalScrollBar()->value(), editor.verticalScrollBar()->value());
 
   QVariantList selection_rects;
   const auto cursor = editor.textCursor();
   if (cursor.hasSelection()) {
-    for (const auto& rect :
-         text_document_selection_rects(*layout_document, cursor.selectionStart(), cursor.selectionEnd())) {
-      const auto aligned = scale_document_rect_to_viewport(rect, layout_zoom, scroll_offset).toAlignedRect();
+    for (const auto& rect : geometry.selection_rects(cursor.selectionStart(), cursor.selectionEnd())) {
+      const auto aligned =
+          scale_document_rect_to_viewport(rect.toAlignedRect(), layout_zoom, scroll_offset).toAlignedRect();
       if (!aligned.isEmpty()) {
         selection_rects.push_back(aligned);
       }
@@ -1454,7 +1377,7 @@ void update_text_editor_preview_caret(QTextEdit& editor, double zoom) {
   }
   editor.setProperty(kTextEditorPreviewSelectionProperty, selection_rects);
 
-  const auto caret_document_rect = text_document_cursor_rect(*layout_document, editor.textCursor().position());
+  const auto caret_document_rect = geometry.caret_rect(editor.textCursor().position()).toAlignedRect();
   auto caret = caret_document_rect.isEmpty()
                    ? editor.cursorRect()
                    : scale_document_rect_to_viewport(caret_document_rect, layout_zoom, scroll_offset).toAlignedRect();
@@ -2680,272 +2603,6 @@ struct RenderedTextPixels {
   PixelBuffer pixels;
   QRectF local_rect;
 };
-
-struct BoxTextLineRenderItem {
-  QTextLine line;
-  QPointF block_origin;
-  QRectF clip_rect;
-};
-
-struct BoxTextRenderPlan {
-  QRectF local_rect;
-  std::vector<BoxTextLineRenderItem> lines;
-};
-
-std::vector<BoxTextLineRenderItem> boxed_text_line_render_items(const QTextDocument& document, QRectF gate_rect,
-                                                                qreal top_bleed, qreal bottom_bleed,
-                                                                qreal horizontal_bleed) {
-  gate_rect = gate_rect.normalized();
-  std::vector<BoxTextLineRenderItem> items;
-  if (!std::isfinite(gate_rect.left()) || !std::isfinite(gate_rect.top()) ||
-      !std::isfinite(gate_rect.right()) || !std::isfinite(gate_rect.bottom()) ||
-      gate_rect.width() <= 0.0 || gate_rect.height() <= 0.0) {
-    return items;
-  }
-
-  const auto* layout = document.documentLayout();
-  if (layout == nullptr) {
-    return items;
-  }
-
-  constexpr qreal kLineGateTolerance = 0.01;
-  for (auto block = document.begin(); block.isValid(); block = block.next()) {
-    auto* text_layout = block.layout();
-    if (text_layout == nullptr) {
-      continue;
-    }
-    const auto block_rect = layout->blockBoundingRect(block);
-    for (int i = 0; i < text_layout->lineCount(); ++i) {
-      const auto line = text_layout->lineAt(i);
-      if (!line.isValid()) {
-        continue;
-      }
-      const auto line_rect = line.rect().translated(block_rect.topLeft());
-      const auto line_top = line_rect.top();
-      const auto line_bottom = line_rect.bottom();
-      if (!std::isfinite(line_top) || !std::isfinite(line_bottom)) {
-        continue;
-      }
-      if (line_top >= gate_rect.bottom() - kLineGateTolerance ||
-          line_bottom <= gate_rect.top() - kLineGateTolerance) {
-        continue;
-      }
-      items.push_back(BoxTextLineRenderItem{
-          line,
-          block_rect.topLeft(),
-          QRectF(gate_rect.left() - horizontal_bleed,
-                 line_top - top_bleed,
-                 gate_rect.width() + horizontal_bleed * 2.0,
-                 std::max<qreal>(1.0, line_rect.height() + top_bleed + bottom_bleed))});
-    }
-  }
-  return items;
-}
-
-BoxTextRenderPlan boxed_text_render_plan(const QTextDocument& document, const QFont& font, QRectF frame_rect,
-                                         std::optional<QRectF> requested_local_rect) {
-  frame_rect = frame_rect.normalized();
-  QRectF gate_rect = frame_rect;
-  if (requested_local_rect.has_value()) {
-    gate_rect = gate_rect.united(requested_local_rect->normalized());
-  }
-
-  const QFontMetricsF metrics(font);
-  const auto top_bleed = 2.0;
-  const auto bottom_bleed =
-      std::max<qreal>(2.0, std::ceil(std::max<qreal>(metrics.descent(), metrics.leading())) + 2.0);
-  constexpr qreal kHorizontalBleed = 2.0;
-
-  BoxTextRenderPlan plan{gate_rect, boxed_text_line_render_items(document, gate_rect, top_bleed, bottom_bleed,
-                                                                 kHorizontalBleed)};
-  if (plan.lines.empty()) {
-    return plan;
-  }
-  for (const auto& item : plan.lines) {
-    plan.local_rect = plan.local_rect.united(item.clip_rect);
-  }
-  return plan;
-}
-
-// OS/2 sTypoAscender as a fraction of the em. Photoshop positions the first baseline of box
-// (paragraph) text at typoAscender x size below the box top (COM-calibrated against PS 2026:
-// Arial/Times/Verdana/Courier probes land within ~1% of typoAscender; Qt's ascent() is the
-// much larger usWinAscent and would sit the first line visibly too low).
-double typographic_ascent_fraction(const QFont& font) {
-  static QHash<QString, double> cache;
-  static QMutex cache_mutex;
-  const auto key = font.families().join(QLatin1Char('|')) + QLatin1Char('#') + font.styleName() +
-                   QLatin1Char('#') + QString::number(font.weight()) + (font.italic() ? QLatin1String("i") : QLatin1String("r"));
-  {
-    QMutexLocker lock(&cache_mutex);
-    if (const auto found = cache.constFind(key); found != cache.constEnd()) {
-      return found.value();
-    }
-  }
-  double fraction = 0.0;
-  const auto raw_font = QRawFont::fromFont(font);
-  if (raw_font.isValid()) {
-    const auto table = raw_font.fontTable("OS/2");
-    const auto upem = raw_font.unitsPerEm();
-    if (table.size() >= 70 && upem > 0.0) {
-      const auto* bytes = reinterpret_cast<const unsigned char*>(table.constData());
-      const auto ascender = static_cast<qint16>(static_cast<quint16>((bytes[68] << 8) | bytes[69]));
-      if (ascender > 0) {
-        fraction = static_cast<double>(ascender) / upem;
-      }
-    }
-  }
-  if (fraction <= 0.0 || fraction > 2.0) {
-    const QFontMetricsF metrics(font);
-    const auto pixel_size = font.pixelSize() > 0 ? static_cast<double>(font.pixelSize())
-                                                 : std::max(1.0, metrics.height());
-    fraction = std::clamp(metrics.ascent() / pixel_size, 0.5, 1.2);
-  }
-  QMutexLocker lock(&cache_mutex);
-  cache.insert(key, fraction);
-  return fraction;
-}
-
-// The fractional font size a Photoshop-layout char format contributes to leading math.
-double photoshop_char_exact_size(const QTextCharFormat& format) {
-  if (format.hasProperty(kTextExactSizeFormatProperty)) {
-    const auto exact = format.property(kTextExactSizeFormatProperty).toDouble();
-    if (std::isfinite(exact) && exact > 0.0) {
-      return exact;
-    }
-  }
-  const auto font = format.font();
-  if (font.pixelSize() > 0) {
-    return font.pixelSize();
-  }
-  if (font.pointSizeF() > 0.0) {
-    return font.pointSizeF();
-  }
-  return 12.0;
-}
-
-// Photoshop effective leading of one char format: the fixed value, or auto leading =
-// paragraph auto-leading fraction x font size.
-double photoshop_char_leading(const QTextCharFormat& format, double paragraph_fraction) {
-  const bool auto_leading = format.hasProperty(kTextAutoLeadingFormatProperty) &&
-                            format.property(kTextAutoLeadingFormatProperty).toBool();
-  if (!auto_leading && format.hasProperty(kTextLeadingFormatProperty)) {
-    const auto fixed = format.property(kTextLeadingFormatProperty).toDouble();
-    if (std::isfinite(fixed) && fixed > 0.0) {
-      return fixed;
-    }
-  }
-  return paragraph_fraction * photoshop_char_exact_size(format);
-}
-
-struct PhotoshopLineMetrics {
-  double leading{0.0};      // max effective leading among the line's chars
-  double first_baseline{0.0};  // box text: max typoAscender x size among the line's chars
-};
-
-// Char formats intersecting one visual line, folded into the line's leading metrics. An empty
-// line (blank paragraph) has no fragments and uses the block's char format.
-PhotoshopLineMetrics photoshop_line_metrics(const QTextBlock& block, const QTextLine& line,
-                                            double paragraph_fraction) {
-  PhotoshopLineMetrics metrics;
-  const auto line_start = block.position() + line.textStart();
-  const auto line_end = line_start + std::max(1, line.textLength());
-  bool found_format = false;
-  for (auto fragment_it = block.begin(); !fragment_it.atEnd(); ++fragment_it) {
-    const auto fragment = fragment_it.fragment();
-    if (!fragment.isValid() || fragment.length() <= 0) {
-      continue;
-    }
-    const auto fragment_start = fragment.position();
-    const auto fragment_end = fragment_start + fragment.length();
-    if (fragment_end <= line_start || fragment_start >= line_end) {
-      continue;
-    }
-    const auto format = fragment.charFormat();
-    metrics.leading = std::max(metrics.leading, photoshop_char_leading(format, paragraph_fraction));
-    metrics.first_baseline =
-        std::max(metrics.first_baseline, typographic_ascent_fraction(format.font()) * photoshop_char_exact_size(format));
-    found_format = true;
-  }
-  if (!found_format) {
-    const auto format = block.charFormat();
-    metrics.leading = photoshop_char_leading(format, paragraph_fraction);
-    metrics.first_baseline = typographic_ascent_fraction(format.font()) * photoshop_char_exact_size(format);
-  }
-  return metrics;
-}
-
-struct PhotoshopTextLayoutPlan {
-  std::vector<BoxTextLineRenderItem> lines;
-  QRectF ink_rect;  // union of the repositioned line rects (line-box based, pre-bleed)
-  bool valid{false};
-};
-
-// Lay the document's lines out with Photoshop's leading model: the first line keeps Qt's
-// natural position for point text (the anchor machinery aligns rasters by the first line) or
-// sits typoAscender below the box top for box text; every following baseline advances by the
-// *entered* line's max leading (auto = paragraph fraction x size) plus paragraph spacing.
-// Line x positions stay Qt's own (alignment against the layout width).
-PhotoshopTextLayoutPlan photoshop_text_layout_plan(const QTextDocument& document, bool boxed) {
-  PhotoshopTextLayoutPlan plan;
-  const auto* layout = document.documentLayout();
-  if (layout == nullptr) {
-    return plan;
-  }
-
-  bool first_line = true;
-  double baseline = 0.0;
-  double previous_space_after = 0.0;
-  for (auto block = document.begin(); block.isValid(); block = block.next()) {
-    auto* text_layout = block.layout();
-    if (text_layout == nullptr) {
-      continue;
-    }
-    const auto block_format = block.blockFormat();
-    const auto paragraph_fraction = [&block_format] {
-      if (block_format.hasProperty(kTextBlockAutoLeadFractionProperty)) {
-        const auto fraction = block_format.property(kTextBlockAutoLeadFractionProperty).toDouble();
-        if (std::isfinite(fraction) && fraction > 0.01 && fraction < 10.0) {
-          return fraction;
-        }
-      }
-      return 1.2;
-    }();
-    const auto block_rect = layout->blockBoundingRect(block);
-    for (int i = 0; i < text_layout->lineCount(); ++i) {
-      const auto line = text_layout->lineAt(i);
-      if (!line.isValid()) {
-        continue;
-      }
-      const auto metrics = photoshop_line_metrics(block, line, paragraph_fraction);
-      const auto natural_rect = line.rect().translated(block_rect.topLeft());
-      if (first_line) {
-        if (boxed) {
-          // Box text: first baseline = box top + paragraph space-before + typographic ascent.
-          baseline = std::max(0.0, block_format.topMargin()) + metrics.first_baseline;
-        } else {
-          // Point text: keep Qt's own first line so raster anchoring stays put.
-          baseline = natural_rect.top() + line.ascent();
-        }
-        first_line = false;
-      } else {
-        const auto space_before = i == 0 ? std::max(0.0, block_format.topMargin()) : 0.0;
-        baseline += std::max(0.01, metrics.leading) + space_before + previous_space_after;
-      }
-      previous_space_after =
-          i == text_layout->lineCount() - 1 ? std::max(0.0, block_format.bottomMargin()) : 0.0;
-
-      const auto target_top = baseline - line.ascent();
-      const auto offset_y = target_top - natural_rect.top();
-      const auto block_origin = block_rect.topLeft() + QPointF(0.0, offset_y);
-      plan.lines.push_back(BoxTextLineRenderItem{line, block_origin, QRectF()});
-      plan.ink_rect = plan.ink_rect.isNull() ? natural_rect.translated(0.0, offset_y)
-                                             : plan.ink_rect.united(natural_rect.translated(0.0, offset_y));
-    }
-  }
-  plan.valid = !plan.lines.empty();
-  return plan;
-}
 
 // Build the QTextDocument a text layer is rasterized from.  The caret/selection layout is built
 // through this same function (build_text_editor_document_space_layout), so the painted glyphs and
