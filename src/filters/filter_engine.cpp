@@ -1,6 +1,7 @@
 #include "filters/filter_engine.hpp"
 
 #include "core/adjustment_layer.hpp"
+#include "filters/auto_levels_math.hpp"
 #include "filters/filter_support.hpp"
 #include "filters/rgba_filter_staging.hpp"
 #include "filters/smart_filter_renderer.hpp"
@@ -1718,25 +1719,32 @@ void execute_builtin_filter(const FilterRegistry &registry,
     return;
   }
 
-  if (identifier == "patchy.filters.auto_contrast") {
+  if (identifier == "patchy.filters.auto_tone" ||
+      identifier == "patchy.filters.auto_color") {
     const auto amount = filter_value(invocation, "amount", 100);
-    std::array<int, 3> min_channel = {255, 255, 255};
-    std::array<int, 3> max_channel = {0, 0, 0};
     const auto total = pixels.height() * 3;
+    std::array<AutoLevelsHistogram, 3> histograms{};
     for (std::int32_t y = 0; y < pixels.height(); ++y) {
       report_filter_progress(progress, y, total,
                              FilterProgressStage::Filtering);
       for (std::int32_t x = 0; x < pixels.width(); ++x) {
         const auto *px = pixels.pixel(x, y);
         for (std::uint16_t channel = 0; channel < channels; ++channel) {
-          min_channel[static_cast<std::size_t>(channel)] =
-              std::min(min_channel[static_cast<std::size_t>(channel)],
-                       static_cast<int>(px[channel]));
-          max_channel[static_cast<std::size_t>(channel)] =
-              std::max(max_channel[static_cast<std::size_t>(channel)],
-                       static_cast<int>(px[channel]));
+          ++histograms[static_cast<std::size_t>(channel)][px[channel]];
         }
       }
+    }
+    const auto sample_count = static_cast<std::uint64_t>(pixels.width()) *
+                              static_cast<std::uint64_t>(pixels.height());
+    const auto snap_midtones = identifier == "patchy.filters.auto_color";
+    std::array<std::array<std::uint8_t, 256>, 3> luts;
+    for (std::size_t channel = 0; channel < 3; ++channel) {
+      const auto record =
+          snap_midtones
+              ? auto_color_channel_record(histograms[channel], sample_count)
+              : auto_levels_clip_scan(histograms[channel], sample_count);
+      luts[channel] = record.has_value() ? auto_levels_lut(*record)
+                                         : auto_levels_identity_lut();
     }
     for (std::int32_t y = 0; y < pixels.height(); ++y) {
       report_filter_progress(progress, pixels.height() + y, total,
@@ -1744,13 +1752,43 @@ void execute_builtin_filter(const FilterRegistry &registry,
       for (std::int32_t x = 0; x < pixels.width(); ++x) {
         auto *px = pixels.pixel(x, y);
         for (std::uint16_t channel = 0; channel < channels; ++channel) {
-          const auto index = static_cast<std::size_t>(channel);
-          const auto range = max_channel[index] - min_channel[index];
-          if (range > 0) {
-            px[channel] = filter_clamp_byte(
-                ((static_cast<int>(px[channel]) - min_channel[index]) * 255) /
-                range);
-          }
+          px[channel] =
+              luts[static_cast<std::size_t>(channel)][px[channel]];
+        }
+      }
+    }
+    blend_filter_with_original(pixels, original, amount, progress,
+                               pixels.height() * 2, total);
+    return;
+  }
+
+  if (identifier == "patchy.filters.auto_contrast") {
+    const auto amount = filter_value(invocation, "amount", 100);
+    const auto total = pixels.height() * 3;
+    AutoLevelsHistogram merged{};
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      report_filter_progress(progress, y, total,
+                             FilterProgressStage::Filtering);
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        const auto *px = pixels.pixel(x, y);
+        for (std::uint16_t channel = 0; channel < channels; ++channel) {
+          ++merged[px[channel]];
+        }
+      }
+    }
+    const auto sample_count = static_cast<std::uint64_t>(pixels.width()) *
+                              static_cast<std::uint64_t>(pixels.height()) *
+                              static_cast<std::uint64_t>(channels);
+    const auto record = auto_levels_clip_scan(merged, sample_count);
+    const auto lut = record.has_value() ? auto_levels_lut(*record)
+                                        : auto_levels_identity_lut();
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      report_filter_progress(progress, pixels.height() + y, total,
+                             FilterProgressStage::Filtering);
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        auto *px = pixels.pixel(x, y);
+        for (std::uint16_t channel = 0; channel < channels; ++channel) {
+          px[channel] = lut[px[channel]];
         }
       }
     }
@@ -2905,7 +2943,9 @@ FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
   } else if (identifier == "patchy.filters.grayscale" ||
              identifier == "patchy.filters.desaturate") {
     metadata = catalog_metadata(Category::Adjustment, true, {amount()});
-  } else if (identifier == "patchy.filters.auto_contrast") {
+  } else if (identifier == "patchy.filters.auto_tone" ||
+             identifier == "patchy.filters.auto_contrast" ||
+             identifier == "patchy.filters.auto_color") {
     metadata = catalog_metadata(Category::Adjustment, true, {amount()});
   } else if (identifier == "patchy.filters.soft_glow") {
     metadata = catalog_metadata(Category::PhotoLooks, false, {amount("Glow")});

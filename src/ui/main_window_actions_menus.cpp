@@ -936,9 +936,15 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   add_adjustment_action(tr("&Desaturate"), QStringLiteral("imageAdjustDesaturateAction"),
                         QStringLiteral("patchy.filters.desaturate"),
                         QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_U));
+  add_adjustment_action(tr("&Auto Tone"), QStringLiteral("imageAdjustAutoToneAction"),
+                        QStringLiteral("patchy.filters.auto_tone"),
+                        QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_L));
   add_adjustment_action(tr("Auto &Contrast"), QStringLiteral("imageAdjustAutoContrastAction"),
                         QStringLiteral("patchy.filters.auto_contrast"),
                         QKeySequence(Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_L));
+  add_adjustment_action(tr("Auto Colo&r"), QStringLiteral("imageAdjustAutoColorAction"),
+                        QStringLiteral("patchy.filters.auto_color"),
+                        QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_B));
   adjustments_menu->addSeparator();
   add_adjustment_action(tr("&Brightness/Contrast..."), QStringLiteral("imageAdjustBrightnessContrastAction"),
                         QStringLiteral("patchy.filters.brightness_contrast"));

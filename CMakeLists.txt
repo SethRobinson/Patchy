@@ -326,6 +326,8 @@ target_link_libraries(patchy_plugins PUBLIC patchy_core)
 patchy_configure_target(patchy_plugins)
 
 add_library(patchy_filters
+  src/filters/auto_levels_math.cpp
+  src/filters/auto_levels_math.hpp
   src/filters/builtin_filters.cpp
   src/filters/filter_engine.cpp
   src/filters/filter_registry.cpp

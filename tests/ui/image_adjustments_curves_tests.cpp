@@ -363,6 +363,81 @@ void ui_image_adjustments_menu_applies_active_layer_filters() {
   save_widget_artifact("ui_filter_clouds_foreground_background", *canvas);
 }
 
+void ui_image_adjustments_auto_trio_distinguishes_casts() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  // Warm-cast gradient: Auto Contrast must preserve the cast (composite
+  // stretch), Auto Tone and Auto Color must neutralize it (per-channel).
+  canvas->set_primary_color(QColor(80, 50, 40));
+  canvas->set_secondary_color(QColor(220, 190, 170));
+  require_action_by_text(window, QStringLiteral("Gradient"))->trigger();
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(20, 90)),
+       canvas->widget_position_for_document_point(QPoint(260, 90)));
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(20, 90)), QColor(80, 50, 40), 6));
+
+  auto* history = window.findChild<QListWidget*>(QStringLiteral("historyList"));
+  CHECK(history != nullptr);
+
+  // Composite stretch maps the merged clip points {40, 220} onto every
+  // channel: the dark end lands near (57, 14, 0), keeping red > green > blue.
+  accept_filter_dialog();
+  require_action(window, "imageAdjustAutoContrastAction")->trigger();
+  QApplication::processEvents();
+  const auto contrast_dark = canvas_pixel(*canvas, QPoint(20, 90));
+  CHECK(contrast_dark.red() > 40);
+  CHECK(contrast_dark.red() < 80);
+  CHECK(contrast_dark.green() > contrast_dark.blue());
+  CHECK(contrast_dark.red() > contrast_dark.green());
+  CHECK(contrast_dark.blue() < 6);
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(20, 90)), QColor(80, 50, 40), 6));
+
+  accept_filter_dialog();
+  require_action(window, "imageAdjustAutoToneAction")->trigger();
+  QApplication::processEvents();
+  const auto tone_dark = canvas_pixel(*canvas, QPoint(20, 90));
+  const auto tone_light = canvas_pixel(*canvas, QPoint(260, 90));
+  CHECK(tone_dark.red() < 12);
+  CHECK(tone_dark.green() < 12);
+  CHECK(tone_dark.blue() < 12);
+  CHECK(tone_light.red() > 242);
+  CHECK(tone_light.green() > 242);
+  CHECK(tone_light.blue() > 242);
+  CHECK(history->currentItem() != nullptr);
+  CHECK(history->currentItem()->text().contains(QStringLiteral("Auto Tone")));
+  save_widget_artifact("ui_image_adjustments_auto_tone", *canvas);
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(20, 90)), QColor(80, 50, 40), 6));
+
+  // Auto Color adds the midtone snap on top of the per-channel stretch. Every
+  // channel shares the same normalized profile here (the flat regions beside
+  // the drag skew all three means equally), so the snap gammas match and the
+  // midpoint must come out neutral. The exact 128 midtone target is pinned in
+  // the core suite, where the mean is constructed analytically.
+  accept_filter_dialog();
+  require_action(window, "imageAdjustAutoColorAction")->trigger();
+  QApplication::processEvents();
+  const auto color_dark = canvas_pixel(*canvas, QPoint(20, 90));
+  const auto color_light = canvas_pixel(*canvas, QPoint(260, 90));
+  const auto color_mid = canvas_pixel(*canvas, QPoint(140, 90));
+  CHECK(color_dark.red() < 12);
+  CHECK(color_dark.green() < 12);
+  CHECK(color_dark.blue() < 12);
+  CHECK(color_light.red() > 242);
+  CHECK(color_light.green() > 242);
+  CHECK(color_light.blue() > 242);
+  CHECK(std::abs(color_mid.red() - color_mid.green()) <= 8);
+  CHECK(std::abs(color_mid.green() - color_mid.blue()) <= 8);
+  CHECK(history->currentItem() != nullptr);
+  CHECK(history->currentItem()->text().contains(QStringLiteral("Auto Color")));
+  save_widget_artifact("ui_image_adjustments_auto_color", *canvas);
+}
+
 void ui_image_adjustments_respect_active_selection() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -2633,6 +2708,8 @@ std::vector<patchy::test::TestCase> image_adjustments_curves_tests() {
   return {
       {"ui_image_adjustments_menu_applies_active_layer_filters",
        ui_image_adjustments_menu_applies_active_layer_filters},
+      {"ui_image_adjustments_auto_trio_distinguishes_casts",
+       ui_image_adjustments_auto_trio_distinguishes_casts},
       {"ui_image_adjustments_respect_active_selection", ui_image_adjustments_respect_active_selection},
       {"ui_direct_pixel_previews_preserve_floating_layer_bounds",
        ui_direct_pixel_previews_preserve_floating_layer_bounds},

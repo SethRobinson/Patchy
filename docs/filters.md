@@ -12,14 +12,16 @@ These paths are intentionally separate. Their defaults are not equivalent for ev
 
 ## Stable identifiers and schemas
 
-The 39 built-in filter IDs are persisted compatibility identifiers. Never rename or reuse one:
+The 41 built-in filter IDs are persisted compatibility identifiers. Never rename or reuse one:
 
 ```text
 patchy.filters.invert
 patchy.filters.brightness_contrast
 patchy.filters.grayscale
 patchy.filters.desaturate
+patchy.filters.auto_tone
 patchy.filters.auto_contrast
+patchy.filters.auto_color
 patchy.filters.soft_glow
 patchy.filters.punchy_color
 patchy.filters.noir
@@ -64,7 +66,7 @@ Parameter keys are stable within a filter schema. The version-1 keys and default
 | --- | --- |
 | `invert` | `amount=100` |
 | `brightness_contrast` | `brightness=0`, `contrast=0` |
-| `grayscale`, `desaturate`, `auto_contrast` | `amount=100` |
+| `grayscale`, `desaturate`, `auto_tone`, `auto_contrast`, `auto_color` | `amount=100` |
 | `soft_glow`, `punchy_color`, `noir`, `cinematic_matte`, `vintage_fade`, `sepia` | `amount=100` |
 | `threshold` | `threshold=128` |
 | `posterize` | `levels=4` |
@@ -101,7 +103,7 @@ Values are normalized through the catalog before execution. Integer, double, boo
 
 ## Categories and UI contracts
 
-Seven catalog filters carry `FilterCategory::Adjustment` and surface under Image > Adjustments: Invert, Brightness/Contrast, Grayscale, Desaturate, Auto Contrast, Threshold, and Posterize. Grayscale currently has no direct action. The menu additionally holds the four dialog adjustments (Levels, Curves, Hue/Saturation, Color Balance), which are not catalog filters; see [ps-compat.md](ps-compat.md) for their engines.
+Nine catalog filters carry `FilterCategory::Adjustment` and surface under Image > Adjustments: Invert, Brightness/Contrast, Grayscale, Desaturate, Auto Tone, Auto Contrast, Auto Color, Threshold, and Posterize. Grayscale currently has no direct action. The menu additionally holds the four dialog adjustments (Levels, Curves, Hue/Saturation, Color Balance), which are not catalog filters; see [ps-compat.md](ps-compat.md) for their engines.
 
 The gallery exposes the other 32 effects in the fixed catalog and category order below. Display labels are translated, but order is never locale-sorted.
 
@@ -129,9 +131,21 @@ The catalog is also the type contract for generated editors. Integer and double 
 
 `FilterParameterPresentation` is not persisted and does not replace the parameter key or value. Current roles are `Angle`, `CenterXPercent`, `CenterYPercent`, `EffectRadiusPercent`, `WaveAmplitude`, `WaveWavelength`, `WavePhase`, `TiltFocusHalfWidthPercent`, `TiltTransitionWidthPercent`, `IrisWidthPercent`, and `IrisHeightPercent`. UI and rendering code must select specialized behavior by these roles, not by a parameter key, display label, unit, or filter ID. The render wrapper uses the center, Tilt-Shift width, and Iris dimension roles to preserve their image-space geometry when transparent padding is added.
 
-Only six catalog filter IDs are registered hotkey command IDs today: Invert, Desaturate, Auto Contrast, Brightness/Contrast, Threshold, and Posterize. Catalog-generated direct Filter-menu actions are not HotkeyRegistry commands. The separate Liquify workspace uses the persisted command ID `filter.liquify` with Ctrl+Shift+X. A catalog refactor must not silently add or remove commands.
+Only eight catalog filter IDs are registered hotkey command IDs today: Invert, Desaturate, Auto Tone, Auto Contrast, Auto Color, Brightness/Contrast, Threshold, and Posterize. Catalog-generated direct Filter-menu actions are not HotkeyRegistry commands. The separate Liquify workspace uses the persisted command ID `filter.liquify` with Ctrl+Shift+X. A catalog refactor must not silently add or remove commands.
 
 Human-readable catalog names are canonical English translation sources. UI code translates them in the existing `QObject` context, while submenu and action status text keep their existing `MainWindow` context.
+
+## Auto adjustments (Auto Tone, Auto Contrast, Auto Color)
+
+The three auto commands share one Qt-free kernel, `src/filters/auto_levels_math.{hpp,cpp}`, called byte-identically by both execution contracts:
+
+- The clip scan matches the Levels dialog Auto button: threshold `max(1, samples / 1000)` (a fixed 0.1% per end), an upward black scan, and a downward white scan bounded by `white > black + 1`. When either scan exhausts without exceeding the threshold the channel is left unchanged, so constant channels and 1x1 images are identity (matching Photoshop's observed handling of constant channels).
+- Application goes through a 256-entry LUT built from the kernel's own copy of the levels transfer. The per-channel transfer formula is deliberately per-consumer (see the `clamp_levels_record` note in `core/adjustment_layer.hpp`); this copy matches core `levels_channel` rounding, float round-trip included, so Auto Tone equals committing the Levels dialog's Auto scan on every channel.
+- **Auto Tone** (`patchy.filters.auto_tone`, Ctrl+Shift+L) clip-scans each RGB channel independently and stretches them separately, neutralizing color casts.
+- **Auto Contrast** (`patchy.filters.auto_contrast`, Ctrl+Alt+Shift+L) builds one merged R+G+B histogram (3 x width x height samples), takes a single black/white pair, and applies the same LUT to all three channels, so color casts survive. August 2026: this replaced the original per-channel min/max stretch, which was Auto Tone behavior under the wrong name and clipped nothing. The ID is unchanged; the algorithm change was deliberate and the affected test pins and artifacts were re-derived.
+- **Auto Color** (`patchy.filters.auto_color`, Ctrl+Shift+B) is the per-channel scan plus a neutral-midtone snap: the channel's whole-image mean, normalized into the stretched range, selects the integer `gamma_percent` in [10, 999] whose curve maps it closest to the 128 target, ties preferring the smaller gamma. Every result is therefore a state the Levels dialog can represent.
+- All three analyze the whole layer even when a selection is active; the apply wrapper restores unselected pixels afterward, like every destructive filter. Alpha is untouched; buffers must be UInt8 with at least three channels.
+- Photoshop calibration notes, including where Photoshop deliberately differs (its effective clip thresholds are larger on small images), live in [ps-compat.md](ps-compat.md).
 
 ## Filter Gallery
 
@@ -308,6 +322,7 @@ Keep separate regression coverage for:
 - progress completion and cancellation;
 - menu/action/hotkey contracts;
 - selection, expanding bounds, Cancel, and one-step Undo/Redo;
+- the auto adjustments: dual-path byte identity, the composite-versus-per-channel cast behavior, the degenerate-scan identity rule, and the Auto Color midtone snap;
 - the all-filter visual contact sheet.
 
 Never re-pin an output canary as part of a structural refactor. First capture the contact-sheet SHA-256 from a full pre-refactor suite run of the same tree, then establish that the refactored path reproduces the old focused outputs and that captured SHA. Do not compare against a SHA recorded in an older commit: the sheet legitimately changes whenever filters are added, so a hardcoded value goes stale.

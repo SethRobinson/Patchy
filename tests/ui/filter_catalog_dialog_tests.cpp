@@ -239,7 +239,11 @@ const std::vector<ExpectedFilterCatalogEntry>& expected_filter_catalog() {
        {{"amount", "filterAmount", 0, 100, 100, Unit::Percent}}},
       {"patchy.filters.desaturate", Category::Adjustment, true,
        {{"amount", "filterAmount", 0, 100, 100, Unit::Percent}}},
+      {"patchy.filters.auto_tone", Category::Adjustment, true,
+       {{"amount", "filterAmount", 0, 100, 100, Unit::Percent}}},
       {"patchy.filters.auto_contrast", Category::Adjustment, true,
+       {{"amount", "filterAmount", 0, 100, 100, Unit::Percent}}},
+      {"patchy.filters.auto_color", Category::Adjustment, true,
        {{"amount", "filterAmount", 0, 100, 100, Unit::Percent}}},
       {"patchy.filters.soft_glow", Category::PhotoLooks, false,
        {{"amount", "filterAmount", 0, 100, 100, Unit::Percent}}},
@@ -682,10 +686,12 @@ void ui_filter_catalog_and_menu_contracts_are_stable() {
     const char* id;
     const char* object_name;
   };
-  const std::array<ExpectedHotkeyAction, 6> existing_filter_hotkeys = {{
+  const std::array<ExpectedHotkeyAction, 8> existing_filter_hotkeys = {{
       {"patchy.filters.invert", "imageAdjustInvertAction"},
       {"patchy.filters.desaturate", "imageAdjustDesaturateAction"},
+      {"patchy.filters.auto_tone", "imageAdjustAutoToneAction"},
       {"patchy.filters.auto_contrast", "imageAdjustAutoContrastAction"},
+      {"patchy.filters.auto_color", "imageAdjustAutoColorAction"},
       {"patchy.filters.brightness_contrast", "imageAdjustBrightnessContrastAction"},
       {"patchy.filters.threshold", "imageAdjustThresholdAction"},
       {"patchy.filters.posterize", "imageAdjustPosterizeAction"},
@@ -704,6 +710,8 @@ void ui_filter_catalog_and_menu_contracts_are_stable() {
   }
   CHECK(window.findChild<QAction*>(QStringLiteral("filterAction_patchy_filters_threshold")) == nullptr);
   CHECK(window.findChild<QAction*>(QStringLiteral("filterAction_patchy_filters_posterize")) == nullptr);
+  CHECK(window.findChild<QAction*>(QStringLiteral("filterAction_patchy_filters_auto_tone")) == nullptr);
+  CHECK(window.findChild<QAction*>(QStringLiteral("filterAction_patchy_filters_auto_color")) == nullptr);
 }
 
 void ui_liquify_dialog_exposes_manual_tools_and_brush_controls() {

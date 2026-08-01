@@ -368,7 +368,9 @@ void filters_register_and_apply() {
   CHECK(registry.find("patchy.filters.contrast_plus") == nullptr);
   CHECK(registry.find("patchy.filters.grayscale") != nullptr);
   CHECK(registry.find("patchy.filters.desaturate") != nullptr);
+  CHECK(registry.find("patchy.filters.auto_tone") != nullptr);
   CHECK(registry.find("patchy.filters.auto_contrast") != nullptr);
+  CHECK(registry.find("patchy.filters.auto_color") != nullptr);
   CHECK(registry.find("patchy.filters.soft_glow") != nullptr);
   CHECK(registry.find("patchy.filters.punchy_color") != nullptr);
   CHECK(registry.find("patchy.filters.noir") != nullptr);
@@ -415,7 +417,9 @@ void filters_builtin_effects_apply_and_write_artifacts() {
       {"patchy.filters.brightness_contrast", "filter_brightness_contrast"},
       {"patchy.filters.grayscale", "filter_grayscale"},
       {"patchy.filters.desaturate", "filter_desaturate"},
+      {"patchy.filters.auto_tone", "filter_auto_tone"},
       {"patchy.filters.auto_contrast", "filter_auto_contrast"},
+      {"patchy.filters.auto_color", "filter_auto_color"},
       {"patchy.filters.soft_glow", "filter_soft_glow"},
       {"patchy.filters.punchy_color", "filter_punchy_color"},
       {"patchy.filters.noir", "filter_noir"},
@@ -478,16 +482,59 @@ void filters_builtin_effects_apply_and_write_artifacts() {
   CHECK(desaturated_px[0] == desaturated_px[1]);
   CHECK(desaturated_px[1] == desaturated_px[2]);
 
+  // Auto Contrast is composite: the fixture's merged histogram has 2304
+  // samples (0.1% threshold 2), trips at 0 (the R=0 column plus the G=0 row)
+  // and at 248 (the R maximum), so every channel maps through
+  // lround(float(v * 255 / 248.0)) and the fixture's blue cast survives:
+  // (0,0) (0,0,80) -> (0,0,82) and (31,23) (248,230,134) -> (255,236,138).
   auto auto_contrast = make_filter_document();
   registry.apply("patchy.filters.auto_contrast", auto_contrast.layers().front().pixels());
   const auto* low_px = auto_contrast.layers().front().pixels().pixel(0, 0);
   const auto* high_px = auto_contrast.layers().front().pixels().pixel(31, 23);
   CHECK(low_px[0] == 0);
   CHECK(low_px[1] == 0);
-  CHECK(low_px[2] == 0);
+  CHECK(low_px[2] == 82);
   CHECK(high_px[0] == 255);
-  CHECK(high_px[1] == 255);
-  CHECK(high_px[2] == 255);
+  CHECK(high_px[1] == 236);
+  CHECK(high_px[2] == 138);
+
+  // Auto Tone stretches each channel independently: R clips to {0,248},
+  // G to {0,230}, and B to {81,133} (the single-count 80 and 134 corners sit
+  // under the threshold of 1), so both fixture corners reach full black and
+  // full white.
+  auto auto_tone = make_filter_document();
+  registry.apply("patchy.filters.auto_tone", auto_tone.layers().front().pixels());
+  const auto* tone_low_px = auto_tone.layers().front().pixels().pixel(0, 0);
+  const auto* tone_high_px = auto_tone.layers().front().pixels().pixel(31, 23);
+  CHECK(tone_low_px[0] == 0);
+  CHECK(tone_low_px[1] == 0);
+  CHECK(tone_low_px[2] == 0);
+  CHECK(tone_high_px[0] == 255);
+  CHECK(tone_high_px[1] == 255);
+  CHECK(tone_high_px[2] == 255);
+
+  // Auto Color's neutral-midtone snap: 180 pixels of 40, 60 of 200, and 16 of
+  // 80 average exactly 80, one quarter into the stretched {40,200} range.
+  // The snap picks gamma 201, which lifts value 80 to the 128 target, while
+  // Auto Tone's plain stretch maps the same pixel to 64.
+  auto skewed_tone = patchy::PixelBuffer(16, 16, patchy::PixelFormat::rgb8());
+  for (std::int32_t y = 0; y < 16; ++y) {
+    for (std::int32_t x = 0; x < 16; ++x) {
+      const auto index = y * 16 + x;
+      const auto value = static_cast<std::uint8_t>(index < 180 ? 40 : index < 240 ? 200 : 80);
+      auto* px = skewed_tone.pixel(x, y);
+      px[0] = px[1] = px[2] = value;
+    }
+  }
+  auto skewed_color = skewed_tone;
+  registry.apply("patchy.filters.auto_tone", skewed_tone);
+  registry.apply("patchy.filters.auto_color", skewed_color);
+  CHECK(skewed_tone.pixel(0, 0)[0] == 0);
+  CHECK(skewed_color.pixel(0, 0)[0] == 0);
+  CHECK(skewed_tone.pixel(8, 12)[0] == 255);
+  CHECK(skewed_color.pixel(8, 12)[0] == 255);
+  CHECK(skewed_tone.pixel(10, 15)[0] == 64);
+  CHECK(skewed_color.pixel(10, 15)[0] == 128);
 
   auto noir = make_filter_document();
   registry.apply("patchy.filters.noir", noir.layers().front().pixels());
@@ -707,7 +754,9 @@ void filter_catalog_defines_stable_named_contracts() {
        {{"brightness", 0}, {"contrast", 0}}},
       {"patchy.filters.grayscale", Category::Adjustment, true, {{"amount", 100}}},
       {"patchy.filters.desaturate", Category::Adjustment, true, {{"amount", 100}}},
+      {"patchy.filters.auto_tone", Category::Adjustment, true, {{"amount", 100}}},
       {"patchy.filters.auto_contrast", Category::Adjustment, true, {{"amount", 100}}},
+      {"patchy.filters.auto_color", Category::Adjustment, true, {{"amount", 100}}},
       {"patchy.filters.soft_glow", Category::PhotoLooks, false, {{"amount", 100}}},
       {"patchy.filters.punchy_color", Category::PhotoLooks, false, {{"amount", 100}}},
       {"patchy.filters.noir", Category::PhotoLooks, false, {{"amount", 100}}},
@@ -1132,6 +1181,45 @@ void filter_catalog_defines_stable_named_contracts() {
       "patchy.filters.tilt_shift_blur/blur",
   };
   CHECK(spatial_parameters == expected_spatial);
+}
+
+void filter_auto_adjustments_keep_both_execution_paths_identical() {
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+
+  const char* identifiers[] = {"patchy.filters.auto_tone", "patchy.filters.auto_contrast",
+                               "patchy.filters.auto_color"};
+  for (const auto* identifier : identifiers) {
+    auto legacy_document = make_filter_document();
+    auto& legacy_pixels = legacy_document.layers().front().pixels();
+    registry.apply(identifier, legacy_pixels);
+
+    auto engine_document = make_filter_document();
+    auto& engine_pixels = engine_document.layers().front().pixels();
+    registry.apply(registry.default_invocation(identifier), engine_pixels);
+
+    for (std::int32_t y = 0; y < legacy_pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < legacy_pixels.width(); ++x) {
+        const auto* legacy_px = legacy_pixels.pixel(x, y);
+        const auto* engine_px = engine_pixels.pixel(x, y);
+        for (std::uint16_t channel = 0; channel < 3; ++channel) {
+          CHECK(legacy_px[channel] == engine_px[channel]);
+        }
+      }
+    }
+
+    // At amount 50 the blue corner (originally 134) must land strictly
+    // between the original and the full-amount result on all three filters.
+    auto blended_document = make_filter_document();
+    auto& blended_pixels = blended_document.layers().front().pixels();
+    auto invocation = registry.default_invocation(identifier);
+    invocation.parameters["amount"] = std::int64_t{50};
+    registry.apply(invocation, blended_pixels);
+    const auto* blended_px = blended_pixels.pixel(31, 23);
+    const auto* full_px = engine_pixels.pixel(31, 23);
+    CHECK(blended_px[2] > 134);
+    CHECK(blended_px[2] < full_px[2]);
+  }
 }
 
 void filter_invocations_normalize_scale_and_reject_bad_data() {
@@ -2297,6 +2385,8 @@ std::vector<patchy::test::TestCase> document_ops_filters_tests() {
       {"filters_register_and_apply", filters_register_and_apply},
       {"filters_builtin_effects_apply_and_write_artifacts", filters_builtin_effects_apply_and_write_artifacts},
       {"filter_catalog_defines_stable_named_contracts", filter_catalog_defines_stable_named_contracts},
+      {"filter_auto_adjustments_keep_both_execution_paths_identical",
+       filter_auto_adjustments_keep_both_execution_paths_identical},
       {"filter_invocations_normalize_scale_and_reject_bad_data",
        filter_invocations_normalize_scale_and_reject_bad_data},
       {"filter_centers_preserve_defaults_move_effects_and_survive_padding",

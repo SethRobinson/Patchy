@@ -1,4 +1,5 @@
 #include "filters/filter_engine.hpp"
+#include "filters/auto_levels_math.hpp"
 #include "filters/smart_filter_renderer.hpp"
 #include "filters/filter_registry.hpp"
 #include "filters/rgba_filter_staging.hpp"
@@ -289,33 +290,103 @@ void desaturate(PixelBuffer& pixels) {
   grayscale(pixels);
 }
 
-void auto_contrast(PixelBuffer& pixels) {
+void auto_tone(PixelBuffer& pixels) {
   require_uint8(pixels);
   if (pixels.format().channels < 3 || pixels.empty()) {
     return;
   }
 
-  std::array<int, 3> min_channel = {255, 255, 255};
-  std::array<int, 3> max_channel = {0, 0, 0};
+  std::array<AutoLevelsHistogram, 3> histograms{};
   for (std::int32_t y = 0; y < pixels.height(); ++y) {
     for (std::int32_t x = 0; x < pixels.width(); ++x) {
       const auto* px = pixels.pixel(x, y);
       for (std::uint16_t channel = 0; channel < 3; ++channel) {
-        min_channel[channel] = std::min(min_channel[channel], static_cast<int>(px[channel]));
-        max_channel[channel] = std::max(max_channel[channel], static_cast<int>(px[channel]));
+        ++histograms[channel][px[channel]];
       }
     }
+  }
+
+  const auto total_samples =
+      static_cast<std::uint64_t>(pixels.width()) * static_cast<std::uint64_t>(pixels.height());
+  std::array<std::array<std::uint8_t, 256>, 3> luts;
+  for (std::size_t channel = 0; channel < 3; ++channel) {
+    const auto record = auto_levels_clip_scan(histograms[channel], total_samples);
+    luts[channel] = record.has_value() ? auto_levels_lut(*record) : auto_levels_identity_lut();
   }
 
   for (std::int32_t y = 0; y < pixels.height(); ++y) {
     for (std::int32_t x = 0; x < pixels.width(); ++x) {
       auto* px = pixels.pixel(x, y);
       for (std::uint16_t channel = 0; channel < 3; ++channel) {
-        const auto range = max_channel[channel] - min_channel[channel];
-        if (range <= 0) {
-          continue;
-        }
-        px[channel] = clamp_byte(((static_cast<int>(px[channel]) - min_channel[channel]) * 255) / range);
+        px[channel] = luts[channel][px[channel]];
+      }
+    }
+  }
+}
+
+void auto_contrast(PixelBuffer& pixels) {
+  require_uint8(pixels);
+  if (pixels.format().channels < 3 || pixels.empty()) {
+    return;
+  }
+
+  // Composite semantics: one black/white point from the merged R+G+B
+  // histogram, the same mapping on every channel, so color casts survive.
+  // Per-channel stretching is Auto Tone's job.
+  AutoLevelsHistogram merged{};
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      const auto* px = pixels.pixel(x, y);
+      for (std::uint16_t channel = 0; channel < 3; ++channel) {
+        ++merged[px[channel]];
+      }
+    }
+  }
+
+  const auto total_samples =
+      static_cast<std::uint64_t>(pixels.width()) * static_cast<std::uint64_t>(pixels.height()) * 3;
+  const auto record = auto_levels_clip_scan(merged, total_samples);
+  const auto lut = record.has_value() ? auto_levels_lut(*record) : auto_levels_identity_lut();
+
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      auto* px = pixels.pixel(x, y);
+      for (std::uint16_t channel = 0; channel < 3; ++channel) {
+        px[channel] = lut[px[channel]];
+      }
+    }
+  }
+}
+
+void auto_color(PixelBuffer& pixels) {
+  require_uint8(pixels);
+  if (pixels.format().channels < 3 || pixels.empty()) {
+    return;
+  }
+
+  std::array<AutoLevelsHistogram, 3> histograms{};
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      const auto* px = pixels.pixel(x, y);
+      for (std::uint16_t channel = 0; channel < 3; ++channel) {
+        ++histograms[channel][px[channel]];
+      }
+    }
+  }
+
+  const auto total_samples =
+      static_cast<std::uint64_t>(pixels.width()) * static_cast<std::uint64_t>(pixels.height());
+  std::array<std::array<std::uint8_t, 256>, 3> luts;
+  for (std::size_t channel = 0; channel < 3; ++channel) {
+    const auto record = auto_color_channel_record(histograms[channel], total_samples);
+    luts[channel] = record.has_value() ? auto_levels_lut(*record) : auto_levels_identity_lut();
+  }
+
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      auto* px = pixels.pixel(x, y);
+      for (std::uint16_t channel = 0; channel < 3; ++channel) {
+        px[channel] = luts[channel][px[channel]];
       }
     }
   }
@@ -1001,7 +1072,9 @@ void register_builtin_filters(FilterRegistry& registry) {
   add("patchy.filters.brightness_contrast", "Brightness/Contrast", brightness_contrast);
   add("patchy.filters.grayscale", "Grayscale", grayscale);
   add("patchy.filters.desaturate", "Desaturate", desaturate);
+  add("patchy.filters.auto_tone", "Auto Tone", auto_tone);
   add("patchy.filters.auto_contrast", "Auto Contrast", auto_contrast);
+  add("patchy.filters.auto_color", "Auto Color", auto_color);
   add("patchy.filters.soft_glow", "Soft Glow", soft_glow);
   add("patchy.filters.punchy_color", "Punchy Color", punchy_color);
   add("patchy.filters.noir", "Noir", noir);

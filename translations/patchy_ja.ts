@@ -822,8 +822,18 @@
     </message>
     <message>
         <location line="+3"/>
+        <source>Auto Tone</source>
+        <translation>自動トーン補正</translation>
+    </message>
+    <message>
+        <location line="+1"/>
         <source>Auto Contrast</source>
         <translation>自動コントラスト</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Auto Color</source>
+        <translation>自動カラー補正</translation>
     </message>
     <message>
         <location line="+3"/>
@@ -8244,8 +8254,18 @@ Mixed selection</source>
     </message>
     <message>
         <location line="+3"/>
+        <source>&amp;Auto Tone</source>
+        <translation>自動トーン補正(&amp;A)</translation>
+    </message>
+    <message>
+        <location line="+3"/>
         <source>Auto &amp;Contrast</source>
         <translation>自動コントラスト(&amp;C)</translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>Auto Colo&amp;r</source>
+        <translation>自動カラー補正(&amp;R)</translation>
     </message>
     <message>
         <location line="+4"/>

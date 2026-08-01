@@ -287,7 +287,9 @@ void ui_main_window_renders_color_controls() {
   CHECK(!filter_action_texts.contains(QStringLiteral("Contrast +25%")));
   CHECK(!filter_action_texts.contains(QStringLiteral("Brightness")));
   CHECK(!filter_action_texts.contains(QStringLiteral("Contrast")));
+  CHECK(!filter_action_texts.contains(QStringLiteral("Auto Tone")));
   CHECK(!filter_action_texts.contains(QStringLiteral("Auto Contrast")));
+  CHECK(!filter_action_texts.contains(QStringLiteral("Auto Color")));
   CHECK(!filter_action_texts.contains(QStringLiteral("Desaturate")));
   for (auto* action : filter_menu->actions()) {
     CHECK(!action->isIconVisibleInMenu());
@@ -304,6 +306,9 @@ void ui_main_window_renders_color_controls() {
     }
   }
   CHECK(adjustment_action_texts.contains(QStringLiteral("Brightness/Contrast...")));
+  CHECK(adjustment_action_texts.contains(QStringLiteral("Auto Tone")));
+  CHECK(adjustment_action_texts.contains(QStringLiteral("Auto Contrast")));
+  CHECK(adjustment_action_texts.contains(QStringLiteral("Auto Color")));
   CHECK(!adjustment_action_texts.contains(QStringLiteral("Brightness...")));
   CHECK(!adjustment_action_texts.contains(QStringLiteral("Contrast...")));
   CHECK(window.findChild<QAction*>(QStringLiteral("imageAdjustBrightnessAction")) == nullptr);

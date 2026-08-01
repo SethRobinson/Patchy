@@ -261,6 +261,10 @@ everywhere a bundled script is resolved.
   (still 1): `addTextLayer`'s `size` is defined as document pixels (it previously
   committed at a canvas-zoom-dependent size), and setting `activeLayer` reveals the
   row in the Layers panel (ancestor folders expand, the row scrolls into view).
+  August 2026 additions (additive, still 1): the `patchy.filters.auto_tone` and
+  `patchy.filters.auto_color` command ids reach `app.runCommand`/`commandIds` and
+  `layer.applyFilter`, and `patchy.filters.auto_contrast` switched from per-channel
+  to composite stretch (see filters.md; the id is unchanged).
 - **`include()` resolution order**: relative to the including script, then the user
   scripts root, then the bundled scripts root; a result inside the bundled folder maps
   through the shadow-override store. `patchy.isMainScript()` is false during an included
