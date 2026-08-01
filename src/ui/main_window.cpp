@@ -5974,16 +5974,18 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
       if (editing_layer_uses_source_raster_preview && editing_layer_was_visible.value_or(true)) {
         editing_layer_uses_source_raster_preview = false;
       }
-      // Plain point text would otherwise render with the editor's own widget glyphs, which are
+      // Plain text would otherwise render with the editor's own widget glyphs, which are
       // rasterized differently from render_text_pixels (the committed layer's renderer):
       // entering/leaving edit then visibly shifts the text and changes its antialiasing.  Drive
       // the edit through the same live baked-preview path that effect text uses (the glyphs are
       // re-rasterized by render_text_pixels every keystroke), so the on-screen result comes from
       // the exact renderer the commit uses -- no shift, and the caret still lands on the glyphs.
-      // Transformed point text never reaches this block: a non-translation transform already
-      // counts as requiring a preview (layer_requires_text_editor_preview), so those sessions
-      // render live through the regular preview path from the start.
-      if (editing_layer_was_visible.value_or(true) && !boxed_text && !editing_layer_needs_preview) {
+      // Box text used to be excluded here and so kept the visible shift on entry
+      // (ui_text_edit_entry_leaves_the_pixels_alone covers both flows now).
+      // Transformed text never reaches this block: a non-translation transform already counts as
+      // requiring a preview (layer_requires_text_editor_preview), so those sessions render live
+      // through the regular preview path from the start.
+      if (editing_layer_was_visible.value_or(true) && !editing_layer_needs_preview) {
         editing_layer_needs_preview = true;
         editing_layer_force_baked_preview = true;
       }

@@ -59,6 +59,14 @@ widget", and it is true for the whole of any previewed session. `ui_expensive_te
 pins it by sampling the canvas for the text's own dark pixels at every point where it used to
 vanish.
 
+Re-editing an existing layer also must not MOVE its text. Every such session renders live through
+`render_text_pixels`, including plain unstyled text that needs no preview otherwise
+(`kTextEditorForceBakedPreviewProperty`), because the editor widget's own glyph rasterization
+differs from the committed layer's. Box text was excluded from that rule and so still shifted on
+entry until August 2026. `ui_text_edit_entry_leaves_the_pixels_alone` pins both flows: enter, do
+nothing, and the preview must be byte-identical to the committed pixels at the same origin, as
+must a re-commit.
+
 ## Session lifecycle (provisional layer, commit, cancel)
 
 - A Type-tool click inserts a provisional 1x1 text layer immediately (marker `patchy.internal.provisional_text`); `commit_text_editor` removes it first via the marker-checked `MainWindow::take_provisional_text_layer` (a stale id can never delete an unrelated layer), then snapshots and recreates the committed layer under the same id; cancel/empty-commit leaves history and modified state untouched.

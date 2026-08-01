@@ -1102,6 +1102,159 @@ void ui_text_edit_hides_editor_glyphs_and_shows_selection_over_style_preview() {
   QApplication::processEvents();
 }
 
+// Clicking into text you are not going to change must not move it. Entry re-renders the layer
+// live, so the preview it puts on screen has to be the SAME pixels at the SAME place as the
+// committed layer it replaced, and committing again with no keystrokes has to reproduce them.
+// `boxed` picks between a point-text click and a text-box drag, whose entry paths differ.
+void check_text_edit_entry_leaves_pixels_alone(bool boxed) {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  canvas->set_primary_color(QColor(20, 20, 20));
+
+  const QPoint text_document_point(80, 90);
+  const auto widget_point = canvas->widget_position_for_document_point(text_document_point);
+  if (boxed) {
+    drag(*canvas, widget_point, canvas->widget_position_for_document_point(QPoint(300, 170)));
+  } else {
+    send_mouse(*canvas, QEvent::MouseButtonPress, widget_point, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, widget_point, Qt::LeftButton, Qt::NoButton);
+  }
+  QApplication::processEvents();
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+  CHECK(editor->property("patchy.documentTextFlow").toString() ==
+        (boxed ? QStringLiteral("box") : QStringLiteral("point")));
+  editor->setPlainText(QStringLiteral("Handgloves"));
+  QApplication::processEvents();
+  process_events_for(120);
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  process_events_for(120);
+
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* committed = document.find_layer(document.active_layer_id().value_or(patchy::LayerId{}));
+  CHECK(committed != nullptr);
+  if (committed == nullptr) {
+    return;
+  }
+  const auto committed_bounds = committed->bounds();
+  const auto committed_pixels = committed->pixels();
+  const auto committed_id = committed->id();
+
+  // Re-enter on the glyphs.
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const QPoint reenter_document_point(committed_bounds.x + committed_bounds.width / 2,
+                                      committed_bounds.y + committed_bounds.height / 2);
+  const auto reenter_widget_point = canvas->widget_position_for_document_point(reenter_document_point);
+  send_mouse(*canvas, QEvent::MouseButtonPress, reenter_widget_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, reenter_widget_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  process_events_for(150);
+
+  auto* reentered = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(reentered != nullptr);
+  bool preview_matches_committed = false;
+  patchy::Rect preview_bounds{};
+  if (reentered != nullptr) {
+    CHECK(reentered->property("patchy.editingLayerId").toULongLong() ==
+          static_cast<qulonglong>(committed_id));
+    if (auto* preview = preview_layer_for_editor(document, *reentered); preview != nullptr) {
+      preview_bounds = preview->bounds();
+      preview_matches_committed = preview_bounds.x == committed_bounds.x &&
+                                  preview_bounds.y == committed_bounds.y &&
+                                  patchy::ui::pixel_buffers_equal(preview->pixels(), committed_pixels);
+      if (!preview_matches_committed) {
+        std::printf("  %s entry: committed %dx%d at (%d,%d), entry preview %dx%d at (%d,%d)\n",
+                    boxed ? "box" : "point", committed_bounds.width, committed_bounds.height,
+                    committed_bounds.x, committed_bounds.y, preview_bounds.width, preview_bounds.height,
+                    preview_bounds.x, preview_bounds.y);
+      }
+    }
+  }
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  process_events_for(120);
+
+  CHECK(preview_matches_committed);
+  auto* recommitted = document.find_layer(committed_id);
+  CHECK(recommitted != nullptr);
+  if (recommitted != nullptr) {
+    CHECK(recommitted->bounds().x == committed_bounds.x);
+    CHECK(recommitted->bounds().y == committed_bounds.y);
+    CHECK(patchy::ui::pixel_buffers_equal(recommitted->pixels(), committed_pixels));
+  }
+}
+
+void ui_text_edit_entry_leaves_the_pixels_alone() {
+  check_text_edit_entry_leaves_pixels_alone(false);
+  check_text_edit_entry_leaves_pixels_alone(true);
+}
+
+void ui_text_commit_is_zoom_independent() {
+  // The same text typed at the same place must commit the same pixels whatever the canvas zoom
+  // happened to be. The inline editor's font used to be set to an integer pixel size of
+  // round(size * zoom) and the committed runs derived by dividing that back out, so the zoom the
+  // user happened to be at leaked into the result.
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  struct Committed {
+    double zoom{1.0};
+    patchy::Rect bounds{};
+    patchy::PixelBuffer pixels;
+  };
+  std::vector<Committed> results;
+  for (const double zoom : {1.0, 0.5, 2.0}) {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto* canvas = require_canvas(window);
+    canvas->set_zoom(zoom);
+    QApplication::processEvents();
+    require_action_by_text(window, QStringLiteral("Type"))->trigger();
+    canvas->set_primary_color(QColor(20, 20, 20));
+
+    const QPoint text_document_point(80, 90);
+    const auto widget_point = canvas->widget_position_for_document_point(text_document_point);
+    send_mouse(*canvas, QEvent::MouseButtonPress, widget_point, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, widget_point, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+    CHECK(editor != nullptr);
+    if (editor == nullptr) {
+      return;
+    }
+    editor->setPlainText(QStringLiteral("Handgloves"));
+    QApplication::processEvents();
+    process_events_for(120);
+    require_action_by_text(window, QStringLiteral("Move"))->trigger();
+    QApplication::processEvents();
+    process_events_for(120);
+
+    auto& document = patchy::ui::MainWindowTestAccess::document(window);
+    auto* committed = document.find_layer(document.active_layer_id().value_or(patchy::LayerId{}));
+    CHECK(committed != nullptr);
+    if (committed == nullptr) {
+      return;
+    }
+    results.push_back(Committed{zoom, committed->bounds(), committed->pixels()});
+  }
+
+  CHECK(results.size() == 3);
+  for (std::size_t i = 1; i < results.size(); ++i) {
+    CHECK(results[i].bounds.x == results[0].bounds.x);
+    CHECK(results[i].bounds.y == results[0].bounds.y);
+    CHECK(results[i].bounds.width == results[0].bounds.width);
+    CHECK(results[i].bounds.height == results[0].bounds.height);
+    CHECK(patchy::ui::pixel_buffers_equal(results[i].pixels, results[0].pixels));
+  }
+}
+
 void ui_expensive_text_style_preview_never_blanks_while_typing() {
   patchy::Document document(420, 240, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(420, 240, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
@@ -1662,6 +1815,8 @@ std::vector<patchy::test::TestCase> text_editor_font_picker_tests() {
        ui_text_font_picker_open_while_editing_keeps_text_session},
       {"ui_text_edit_hides_editor_glyphs_and_shows_selection_over_style_preview",
        ui_text_edit_hides_editor_glyphs_and_shows_selection_over_style_preview},
+      {"ui_text_edit_entry_leaves_the_pixels_alone", ui_text_edit_entry_leaves_the_pixels_alone},
+      {"ui_text_commit_is_zoom_independent", ui_text_commit_is_zoom_independent},
       {"ui_expensive_text_style_preview_never_blanks_while_typing",
        ui_expensive_text_style_preview_never_blanks_while_typing},
       {"ui_text_editor_paste_uses_current_format_for_rich_emoji_clipboard",
