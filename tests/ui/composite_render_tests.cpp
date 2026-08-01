@@ -101,6 +101,11 @@ std::map<std::string, std::string> read_baseline(const std::filesystem::path& pa
   std::ifstream in(path);
   std::string line;
   while (std::getline(in, line)) {
+    // Tolerate a CRLF baseline read without text-mode translation (see the
+    // core corpus test: a '\r' glued to the name fails every lookup).
+    if (!line.empty() && line.back() == '\r') {
+      line.pop_back();
+    }
     const auto second_space = line.find(' ', line.find(' ') + 1);
     if (second_space == std::string::npos || second_space + 1 >= line.size()) {
       continue;

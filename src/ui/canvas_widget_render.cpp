@@ -20,6 +20,7 @@
 #include "core/layer_tree.hpp"
 #include "core/pixel_tools.hpp"
 #include "core/quick_select.hpp"
+#include "core/worker_budget.hpp"
 #include "ui/edit_conversions.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/qt_geometry.hpp"
@@ -54,6 +55,7 @@
 #include <QScrollBar>
 #include <QSet>
 #include <QTabletEvent>
+#include <QTimer>
 #include <QTimerEvent>
 #include <QTransform>
 #include <QWheelEvent>
@@ -972,6 +974,23 @@ QImage CanvasWidget::render_document_image_with_processing() {
     return render_document_image();
   }
 
+#if defined(Q_OS_WASM) && defined(__EMSCRIPTEN_PTHREADS__)
+  // paintEvent reaches here for the synchronous first paint of a pixel-huge
+  // document. wait_for_processing_operation waits in a nested event loop on
+  // wasm, which is not safe inside a paint, so render inline instead: the
+  // main-thread strip fan-out is clamped to the idle pthread pool
+  // (max_blocking_fanout_workers), so this blocks the tab but cannot wedge.
+  // The same inline path serves a dry pool, where launch_async itself would
+  // need a lazy Worker spawn this blocked path cannot rely on.
+  const auto idle_pool = patchy::idle_prespawned_pool_workers();
+  if (paintingActive() || idle_pool < 1) {
+    return qimage_from_document(*document_, true).convertToFormat(QImage::Format_RGBA8888);
+  }
+  // Keep the awaited compute's strip fan-out inside the pre-spawned pool:
+  // one worker for the compute, two of race margin (see worker_budget.hpp).
+  const patchy::BlockingFanoutBudgetScope fanout_budget(std::max(0, idle_pool - 3));
+#endif
+
   auto* document = document_;
   auto future = launch_async([document] {
     if (const auto delay = processing_render_test_delay_ms(); delay > 0) {
@@ -1075,6 +1094,20 @@ std::vector<RenderedDocumentPatch> CanvasWidget::render_document_patches_with_pr
                : qimage_patches_from_document_region_with_layer_bounds(*document_, document_region, true, layer_bounds);
   }
 
+#if defined(Q_OS_WASM) && defined(__EMSCRIPTEN_PTHREADS__)
+  // Same guards as render_document_image_with_processing: inline inside a
+  // paint (the wasm wait nests an event loop) and inline on a dry pool
+  // (launch_async would need a lazy Worker spawn); otherwise budget the
+  // awaited compute's fan-outs to the pre-spawned pool.
+  const auto idle_pool = patchy::idle_prespawned_pool_workers();
+  if (paintingActive() || idle_pool < 1) {
+    return layer_bounds.empty()
+               ? qimage_patches_from_document_region(*document_, document_region, true)
+               : qimage_patches_from_document_region_with_layer_bounds(*document_, document_region, true, layer_bounds);
+  }
+  const patchy::BlockingFanoutBudgetScope fanout_budget(std::max(0, idle_pool - 3));
+#endif
+
   auto* document = document_;
   auto region = document_region;
   auto bounds = layer_bounds;
@@ -1109,6 +1142,42 @@ bool CanvasWidget::wait_for_processing_operation(std::function<bool()> operation
   if (start_temporary_operation) {
     begin_processing_operation();
   }
+#if defined(Q_OS_WASM) && defined(__EMSCRIPTEN_PTHREADS__)
+  // The desktop loop below would pin the browser main thread outside the
+  // event loop (operation_ready blocks in future.wait_for, and the wasm tick
+  // deliberately never pumps). While it spins, Emscripten cannot finish a
+  // lazily spawned pthread: the new Worker's load handshake arrives on the
+  // main thread's JS event loop, which never runs. Any worker compute that
+  // fans out past the idle pre-spawned pool (the free-transform release
+  // renders a 7 Mpx layer with two 16-way fan-outs) then blocks forever on
+  // threads that never start, and the wait spins forever: the tab hard
+  // freezes. Waiting in a nested event loop instead (the same shape
+  // run_filter_compute_with_progress uses) suspends the main thread via
+  // Asyncify, so spawns complete and the processing overlay actually paints.
+  // Callers reachable from paintEvent must not get here (a nested exec inside
+  // a paint is not safe); they render inline when paintingActive().
+  if (!operation_ready()) {
+    QEventLoop wait_loop;
+    QTimer poll_timer;
+    // operation_ready blocks for up to 16 ms per call, so a 16 ms interval
+    // would put the main thread at ~100% duty and starve the very event-loop
+    // turns this wait exists to provide (worker 'loaded' handshakes and
+    // 'cleanupThread' pool returns are plain JS tasks). 100 ms keeps the tab
+    // responsive; the added completion latency is noise against renders that
+    // take this path at all.
+    poll_timer.setInterval(100);
+    QObject::connect(&poll_timer, &QTimer::timeout, &wait_loop, [&] {
+      if (allow_overlay) {
+        tick_processing_operation();
+      }
+      if (operation_ready()) {
+        wait_loop.quit();
+      }
+    });
+    poll_timer.start();
+    wait_loop.exec(QEventLoop::ExcludeUserInputEvents);
+  }
+#else
   while (!operation_ready()) {
     if (allow_overlay) {
       tick_processing_operation();
@@ -1116,6 +1185,7 @@ bool CanvasWidget::wait_for_processing_operation(std::function<bool()> operation
       QApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 16);
     }
   }
+#endif
   if (start_temporary_operation) {
     end_processing_operation();
   }

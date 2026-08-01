@@ -18,6 +18,7 @@
 #include "core/palette_presets.hpp"
 #include "core/pattern_presets.hpp"
 #include "core/pixel_tools.hpp"
+#include "core/worker_budget.hpp"
 #include "formats/palette_io.hpp"
 #include "filters/builtin_filters.hpp"
 #include "formats/aseprite_document_io.hpp"
@@ -490,12 +491,25 @@ void MainWindow::push_undo_snapshot(DocumentSession& target_session, QString lab
   const auto started = std::chrono::steady_clock::now();
   auto& active_session = target_session;
   const auto snapshot_revision = active_session.revision;
-  auto snapshot_future = launch_async([&active_session] {
+  const auto make_snapshot = [&active_session] {
     if (const auto delay = undo_snapshot_test_delay_ms(); delay > 0) {
       std::this_thread::sleep_for(std::chrono::milliseconds(delay));
     }
     return active_session.document;
-  });
+  };
+  std::future<Document> snapshot_future;
+#if defined(Q_OS_WASM) && defined(__EMSCRIPTEN_PTHREADS__)
+  // A dry pre-spawned pool would leave launch_async waiting on a lazy Worker
+  // spawn, which a blocked path cannot rely on (docs/wasm.md); copy inline.
+  if (patchy::idle_prespawned_pool_workers() < 1) {
+    std::promise<Document> inline_snapshot;
+    inline_snapshot.set_value(make_snapshot());
+    snapshot_future = inline_snapshot.get_future();
+  } else
+#endif
+  {
+    snapshot_future = launch_async(make_snapshot);
+  }
   if (active_session.canvas != nullptr) {
     active_session.canvas->wait_for_processing_operation([&snapshot_future] {
       return snapshot_future.wait_for(std::chrono::milliseconds(16)) == std::future_status::ready;
@@ -511,7 +525,7 @@ void MainWindow::push_undo_snapshot(DocumentSession& target_session, QString lab
                                                              : CanvasWidget::SelectionSnapshot{};
   record_history_push(
       active_session,
-      DocumentSession::HistoryState{snapshot_future.get(), snapshot_revision, std::move(snapshot_selection)},
+      DocumentSession::HistoryState{snapshot_future.get(), snapshot_revision, std::move(snapshot_selection), {}, 0},
       label);
   mark_session_modified(active_session);
   // The History panel and status bar mirror the ACTIVE session; an edit landing
@@ -551,7 +565,7 @@ void MainWindow::push_selection_history(DocumentSession& target_session, QString
   // but the change still joins the undo/redo history.
   record_history_push(
       active_session,
-      DocumentSession::HistoryState{active_session.document, active_session.revision, std::move(before)},
+      DocumentSession::HistoryState{active_session.document, active_session.revision, std::move(before), {}, 0},
       label);
   active_session.selection_move_coalescing = coalesce;
   // Panel/status mirror the active session only (see push_undo_snapshot).

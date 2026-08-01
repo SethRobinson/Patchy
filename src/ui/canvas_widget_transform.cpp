@@ -795,7 +795,24 @@ void CanvasWidget::refresh_transform_composited_preview_cache(bool processing_wa
   };
 
   std::pair<std::vector<RenderedDocumentPatch>, QRect> result;
-  if (processing_wait) {
+  bool run_inline = !processing_wait;
+#if defined(Q_OS_WASM) && defined(__EMSCRIPTEN_PTHREADS__)
+  // With no idle pre-spawned pool worker, launch_async itself would need a
+  // lazy Worker spawn, which cannot be relied on from a blocked path; run
+  // inline instead (main-thread fan-outs clamp to the pool and cannot wedge).
+  const auto idle_pool = patchy::idle_prespawned_pool_workers();
+  if (idle_pool < 1) {
+    run_inline = true;
+  }
+  // The compute's own fan-outs (resample, then the patch render) must fit the
+  // pool WITHOUT the workers the compute already consumed: finished pthreads
+  // only return to the pool when the main thread's JS event loop runs their
+  // 'cleanupThread' message, so back-to-back fan-outs cannot reuse each
+  // other's workers mid-wait. One for the compute, two race margin.
+  const patchy::BlockingFanoutBudgetScope fanout_budget(
+      processing_wait && !run_inline ? std::max(0, idle_pool - 3) : -1);
+#endif
+  if (!run_inline) {
     // Release-time restore after a proxy-latched drag: same worker + overlay
     // wait the move tool's release uses, so a long styled render shows the
     // processing spinner instead of silently freezing the UI.

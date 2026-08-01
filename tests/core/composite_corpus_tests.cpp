@@ -83,6 +83,12 @@ std::map<std::string, std::string> read_baseline(const std::filesystem::path& pa
   std::ifstream in(path);
   std::string line;
   while (std::getline(in, line)) {
+    // A baseline written by a Windows run is CRLF on disk; the wasm/musl and
+    // Linux runners read it without text-mode translation, and a '\r' glued
+    // to the file name fails every lookup.
+    if (!line.empty() && line.back() == '\r') {
+      line.pop_back();
+    }
     const auto space = line.find(' ');
     if (space == std::string::npos || space == 0 || space + 1 >= line.size()) {
       continue;

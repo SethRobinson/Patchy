@@ -317,6 +317,52 @@ then browse to `http://localhost:8973/patchy.html`.
   worker threads) instead of aborting a visitor's session. Workers get 4 MB
   stacks (`-sDEFAULT_PTHREAD_STACK_SIZE`); LibRaw decode and full compositor
   walks run there now.
+
+  "Lazy spawning yields there" holds only while the main thread is in (or can
+  reach) its event loop, which leads to the second wedge shape (2026-08-01,
+  reported as "rescaling a transform freezes the browser"): a WORKER-side
+  fan-out while the main thread blocks outside the event loop. Releasing a
+  proxy-latched free-transform drag on a 7 Mpx Screen-blend layer ran the
+  accurate re-render on a worker while the main thread spun in
+  `wait_for_processing_operation`'s `future.wait_for` loop
+  (`max_blocking_fanout_workers` deliberately does not clamp worker
+  threads). This wedges DETERMINISTICALLY, not just under pool pressure,
+  because of a second Emscripten fact: a finished pthread's worker only
+  returns to `PThread.unusedWorkers` when the main thread's JS event loop
+  runs that worker's `cleanupThread` message. Sync-proxied `pthread_create`s
+  are serviced during a main-thread futex wait (the assist in
+  `emscripten_futex_wait` drains the proxy queue), but plain
+  `worker.onmessage` tasks are not, so the compute's first fan-out (16
+  resample strips) permanently consumes its workers as far as the pool can
+  tell, and the second fan-out (16 patch-render strips) then always overruns
+  the pool (1+16+16 > 32) and falls into a lazy Worker allocation, whose
+  load handshake also needs the blocked event loop. Verified in the headless
+  harness: the release logs 15 lazy Worker allocations and the tab parks
+  forever. Three-part fix, all landed together:
+  - `wait_for_processing_operation` (canvas_widget_render.cpp) waits in a
+    nested QEventLoop woken by a poll QTimer on threaded wasm (the same shape
+    `run_filter_compute_with_progress` uses), so the main thread
+    Asyncify-suspends, pool returns and Worker load handshakes complete, and
+    the processing overlay actually paints. The poll interval is 100 ms, not
+    the ready-check's own 16 ms: `operation_ready` blocks up to 16 ms per
+    call, so a 16 ms interval put the main thread at ~100% duty and starved
+    the very event-loop turns the wait exists to provide.
+  - Worker-side fan-outs under an awaited compute are budgeted to the idle
+    pre-spawned pool (`BlockingFanoutBudgetScope`, core/worker_budget.
+    {hpp,cpp}): the main thread publishes `idle - 3` (one for the compute,
+    two race margin) before `launch_async`, and `max_blocking_fanout_workers`
+    clamps worker-thread callers to it, so the awaited compute never needs a
+    lazy spawn even mid-wait.
+  - Callers reachable from paintEvent, or running when the pool is dry
+    (launch_async itself would lazily spawn), compute inline on the main
+    thread instead (`render_document_image_with_processing`,
+    `render_document_patches_with_processing`, the transform release refresh,
+    `push_undo_snapshot`); a nested exec inside paintEvent is not safe, and
+    inline is wedge-free since main-thread fan-outs are pool-clamped.
+  The rule for new code: never block the wasm main thread outside an event
+  loop while a worker it waits on may itself create threads, and never assume
+  a blocking fan-out can reuse workers freed by an earlier fan-out in the
+  same blocked stretch.
 - **Compiled out or stubbed:** QtPrintSupport does not exist on wasm, so
   `print_dialog.cpp` is replaced by `print_dialog_wasm.cpp` stubs and the
   File menu hides Print/Page Setup (the portable placement/render half lives
