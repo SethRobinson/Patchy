@@ -5990,10 +5990,11 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
       const auto document_bounds = Rect::from_size(document().width(), document().height());
       editing_layer_expensive_preview =
           editing_layer_needs_preview && layer_style_preview_is_expensive(*layer, document_bounds);
-      if (!editing_layer_uses_source_raster_preview) {
-        layer->set_visible(false);
-        canvas_->document_changed_effect_bounds(to_qrect(layer_render_bounds(*layer)));
-      }
+      // The edited layer is NOT hidden here. It stays on screen showing its committed pixels
+      // until the live preview is actually ready to replace them (hide_text_editor_source_layer,
+      // called from update_text_editor_preview). Hiding it up front blanked the text for however
+      // long the first preview took, which on a styled layer is the whole
+      // kExpensiveTextEditorPreviewDelayMs debounce.
     }
   }
 
@@ -6058,10 +6059,11 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
   editor->setProperty("patchy.documentTextY", document_point.y());
   editor->setProperty(kTextEditorPreviewEnabledProperty, editing_layer_needs_preview);
   editor->setProperty(kTextEditorPreviewExpensiveProperty, editing_layer_expensive_preview);
+  // "The glyphs come from somewhere other than this widget" -- true from the first frame of any
+  // previewed session, because until the preview lands the committed layer is still showing.
+  // The editor therefore never paints its own glyphs over text that is already on screen.
   editor->setProperty(kTextEditorPreviewPaintProperty,
-                      editing_layer_uses_source_raster_preview ||
-                          (editing_layer_needs_preview &&
-                           (!editing_layer_expensive_preview || editing_layer_has_transformed_preview)));
+                      editing_layer_uses_source_raster_preview || editing_layer_needs_preview);
   editor->setProperty(kTextEditorPreviewGenerationProperty, 0);
   editor->setProperty(kTextEditorChangedProperty, false);
   editor->setProperty(kTextEditorSourceRasterPreviewProperty, editing_layer_uses_source_raster_preview);
@@ -8359,13 +8361,10 @@ void MainWindow::schedule_text_editor_preview(QTextEdit* editor) {
   editor->setProperty(kTextEditorPreviewGenerationProperty, generation);
   const auto expensive_preview = editor->property(kTextEditorPreviewExpensiveProperty).toBool();
   const auto transformed_preview = editor->property(kTextEditorTransformedOverlayProperty).toBool();
-  if (expensive_preview && !transformed_preview) {
-    editor->setProperty(kTextEditorPreviewPaintProperty, false);
-    update_text_editor_transform_overlay(editor);
-    clear_text_editor_preview_overlays(*editor);
-    remove_text_editor_preview(editor);
-    editor->viewport()->update();
-  }
+  // An expensive style (a wide glow, a big shadow) is re-rendered on a longer debounce, but the
+  // LAST good preview keeps drawing until the new one is ready. This used to tear the preview
+  // layer out and let the editor widget paint raw glyphs for the whole delay, so every keystroke
+  // on styled text flashed between two different rasterizations.
   editor->setProperty("patchy.textPreviewPending", true);
   QTimer::singleShot(expensive_preview && !transformed_preview ? kExpensiveTextEditorPreviewDelayMs
                                                                : kTextEditorPreviewDelayMs,
@@ -8420,6 +8419,8 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
        force_baked_preview);
   editor->setProperty(kTextEditorPreviewEnabledProperty, needs_text_preview);
   if (!needs_text_preview) {
+    // No preview: the editor widget itself draws the glyphs, so the committed layer has to go.
+    hide_text_editor_source_layer(editor);
     editor->setProperty(kTextEditorPreviewPaintProperty, false);
     update_text_editor_transform_overlay(editor);
     clear_text_editor_preview_overlays(*editor);
@@ -8431,6 +8432,7 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
   // Untrimmed: run offsets index the full document text (see commit_text_editor).
   const auto text = editor->toPlainText();
   if (text.trimmed().isEmpty()) {
+    hide_text_editor_source_layer(editor);
     editor->setProperty(kTextEditorPreviewPaintProperty, false);
     update_text_editor_transform_overlay(editor);
     clear_text_editor_preview_overlays(*editor);
@@ -8548,6 +8550,7 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
       layer->set_blend_mode(source->blend_mode());
       layer->layer_style() = source->layer_style();
       dirty = dirty.united(to_qrect(layer_render_bounds(*layer)));
+      dirty = dirty.united(hide_text_editor_source_layer(editor));
       canvas_->document_changed_effect_bounds(dirty);
       editor->setProperty(kTextEditorPreviewPaintProperty, true);
       update_text_editor_preview_caret(*editor, canvas_->zoom());
@@ -8574,11 +8577,31 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
   if (auto* layer = doc.find_layer(preview_id); layer != nullptr) {
     dirty = dirty.united(to_qrect(layer_render_bounds(*layer)));
   }
+  // The committed pixels stay on screen until exactly here: preview in, source out, one repaint.
+  dirty = dirty.united(hide_text_editor_source_layer(editor));
   canvas_->document_changed_effect_bounds(dirty);
   editor->setProperty(kTextEditorPreviewPaintProperty, true);
   update_text_editor_preview_caret(*editor, canvas_->zoom());
   update_text_editor_transform_overlay(editor);
   editor->viewport()->update();
+}
+
+// Takes the edited layer off screen, once, at the moment something else is ready to draw its
+// text. Returns the region it vacated so the caller can fold it into ONE repaint together with
+// whatever replaced it -- hiding and revealing in separate repaints is what a user sees as a
+// flash. Idempotent: an already-hidden layer returns an empty rect.
+QRect MainWindow::hide_text_editor_source_layer(QTextEdit* editor) {
+  if (canvas_ == nullptr || editor == nullptr || !editor->property("patchy.editingLayerId").isValid()) {
+    return {};
+  }
+  const auto layer_id = static_cast<LayerId>(editor->property("patchy.editingLayerId").toULongLong());
+  auto* layer = document().find_layer(layer_id);
+  if (layer == nullptr || !layer->visible()) {
+    return {};
+  }
+  const auto vacated = to_qrect(layer_render_bounds(*layer));
+  layer->set_visible(false);
+  return vacated;
 }
 
 void MainWindow::remove_text_editor_preview(QTextEdit* editor) {

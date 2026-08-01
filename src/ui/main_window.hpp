@@ -999,6 +999,9 @@ private:
   void schedule_text_editor_preview(QTextEdit* editor);
   void update_text_editor_preview(QTextEdit* editor);
   void remove_text_editor_preview(QTextEdit* editor);
+  // Hides the layer being edited, once, when its live preview is ready to take over. Returns
+  // the region it vacated so the caller folds it into the same repaint as the replacement.
+  QRect hide_text_editor_source_layer(QTextEdit* editor);
   std::optional<LayerId> take_provisional_text_layer(QTextEdit* editor);
   void update_text_editor_transform_overlay(QTextEdit* editor);
   void remove_text_editor_transform_overlay(QTextEdit* editor);

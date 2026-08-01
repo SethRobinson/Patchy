@@ -1102,7 +1102,7 @@ void ui_text_edit_hides_editor_glyphs_and_shows_selection_over_style_preview() {
   QApplication::processEvents();
 }
 
-void ui_expensive_text_style_preview_debounces_to_plain_live_text() {
+void ui_expensive_text_style_preview_never_blanks_while_typing() {
   patchy::Document document(420, 240, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(420, 240, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
   auto pixels = solid_pixels(170, 68, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
@@ -1139,7 +1139,17 @@ void ui_expensive_text_style_preview_debounces_to_plain_live_text() {
   auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
   CHECK(editor != nullptr);
   CHECK(editor->property("patchy.expensiveTextStylePreview").toBool());
-  CHECK(!editor->property("patchy.previewPaintsText").toBool());
+  // The editor never paints glyphs of its own: they come from the committed layer until the
+  // first preview lands, and from the preview after that.
+  CHECK(editor->property("patchy.previewPaintsText").toBool());
+
+  // "The text is on screen" sampled at every point where it used to vanish. The layer is dark
+  // (32,32,32) on white, so dark pixels in the canvas mean the text is drawn.
+  const auto text_is_on_canvas = [&] {
+    const auto image = canvas->grab().toImage();
+    return count_pixels_close(image, image.rect(), QColor(32, 32, 32), 48) > 20;
+  };
+  CHECK(text_is_on_canvas());
 
   QTextCursor cursor(editor->document());
   cursor.movePosition(QTextCursor::End);
@@ -1147,19 +1157,22 @@ void ui_expensive_text_style_preview_debounces_to_plain_live_text() {
   editor->setCursorWidth(0);
   editor->insertPlainText(QStringLiteral(" live"));
   QApplication::processEvents();
-  CHECK(!editor->property("patchy.previewPaintsText").toBool());
+  // Mid-debounce: the expensive re-render is queued, and the previous glyphs keep drawing while
+  // it runs. This used to rip the preview layer out for the whole kExpensiveTextEditorPreviewDelayMs.
+  CHECK(editor->property("patchy.previewPaintsText").toBool());
   CHECK(editor->property("patchy.textPreviewPending").toBool());
-  const auto live_editor_image = editor->viewport()->grab().toImage();
-  CHECK(count_pixels_close(live_editor_image, live_editor_image.rect(), QColor(32, 32, 32), 48) > 20);
+  CHECK(text_is_on_canvas());
 
   process_events_for(260);
   CHECK(editor->property("patchy.previewPaintsText").toBool());
   CHECK(editor->property("patchy.textPreviewLayerId").isValid());
+  CHECK(text_is_on_canvas());
 
   editor->insertPlainText(QStringLiteral(" now"));
   QApplication::processEvents();
-  CHECK(!editor->property("patchy.previewPaintsText").toBool());
-  CHECK(!editor->property("patchy.textPreviewLayerId").isValid());
+  CHECK(editor->property("patchy.previewPaintsText").toBool());
+  CHECK(editor->property("patchy.textPreviewLayerId").isValid());
+  CHECK(text_is_on_canvas());
   process_events_for(260);
   CHECK(editor->property("patchy.previewPaintsText").toBool());
   CHECK(editor->property("patchy.textPreviewLayerId").isValid());
@@ -1649,8 +1662,8 @@ std::vector<patchy::test::TestCase> text_editor_font_picker_tests() {
        ui_text_font_picker_open_while_editing_keeps_text_session},
       {"ui_text_edit_hides_editor_glyphs_and_shows_selection_over_style_preview",
        ui_text_edit_hides_editor_glyphs_and_shows_selection_over_style_preview},
-      {"ui_expensive_text_style_preview_debounces_to_plain_live_text",
-       ui_expensive_text_style_preview_debounces_to_plain_live_text},
+      {"ui_expensive_text_style_preview_never_blanks_while_typing",
+       ui_expensive_text_style_preview_never_blanks_while_typing},
       {"ui_text_editor_paste_uses_current_format_for_rich_emoji_clipboard",
        ui_text_editor_paste_uses_current_format_for_rich_emoji_clipboard},
       {"ui_text_tool_drag_creates_resizable_wrapped_text_box",

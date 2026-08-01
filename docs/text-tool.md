@@ -39,6 +39,26 @@ Every type in that header holds handles into the document's `QTextLayout`. They 
 while that document is alive and has not been laid out again, and `build_text_render_document`
 does its final `setTextWidth` before any plan is built. Keep that order.
 
+## The text on screen is never missing
+
+An edit session must never produce a frame with no glyphs in it. Two rules enforce that:
+
+- **The edited layer stays visible until its replacement is ready.** `add_text_at` does not hide
+  it; `hide_text_editor_source_layer` does, from inside `update_text_editor_preview`, at the
+  moment the preview pixels are in place, and it returns the vacated region so the hide and the
+  reveal land in ONE `document_changed_effect_bounds` call. Hiding up front blanked the text for
+  as long as the first preview took, which on a styled layer is the whole
+  `kExpensiveTextEditorPreviewDelayMs`.
+- **The debounce never removes the preview.** An expensive style re-renders on the longer delay,
+  but the last good preview keeps drawing until the new one replaces it. `schedule_text_editor_preview`
+  used to tear the preview layer out first and let the editor widget paint raw glyphs meanwhile,
+  so every keystroke flashed between two different rasterizations.
+
+`kTextEditorPreviewPaintProperty` therefore means "the glyphs come from somewhere other than this
+widget", and it is true for the whole of any previewed session. `ui_expensive_text_style_preview_never_blanks_while_typing`
+pins it by sampling the canvas for the text's own dark pixels at every point where it used to
+vanish.
+
 ## Session lifecycle (provisional layer, commit, cancel)
 
 - A Type-tool click inserts a provisional 1x1 text layer immediately (marker `patchy.internal.provisional_text`); `commit_text_editor` removes it first via the marker-checked `MainWindow::take_provisional_text_layer` (a stale id can never delete an unrelated layer), then snapshots and recreates the committed layer under the same id; cancel/empty-commit leaves history and modified state untouched.
