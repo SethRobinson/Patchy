@@ -25,6 +25,16 @@ FIRST, the way `QTextDocument::findBlock` does, because a block's last line ends
 paragraph separator and a document-wide scan answers the previous block for a position at the
 start of the next one.
 
+Mouse hit-testing goes through the same plan. `QTextEdit::cursorForPosition` must never resolve a
+click inside a text session: the widget hit-tests against its own internal layout, built at an
+integer pixel size of `round(size * zoom)` with Qt's natural line spacing, so the click and the
+caret it produced could answer different lines. `MainWindow::handle_text_editor_viewport_mouse_event`
+intercepts left press/drag/double-click on the editor viewport for the flat case and
+`TransformedTextEditOverlay::cursor_position_for_overlay_point` covers the transformed one; both
+end at `TextLineGeometry::position_at`. Everything else (right-click menu, middle click, release)
+still falls through to QTextEdit. `ui_psd_text_click_returns_to_the_caret_it_drew` pins the round
+trip: click exactly where the caret is drawn and the caret must come back to that position.
+
 Every type in that header holds handles into the document's `QTextLayout`. They are valid only
 while that document is alive and has not been laid out again, and `build_text_render_document`
 does its final `setTextWidth` before any plan is built. Keep that order.
@@ -101,4 +111,4 @@ Run format "patchy.text.runs" v3 adds double sizes, a leading column (number or 
 - **Rotated point-text anchoring**: committed placement pins the TEXT-SPACE anchor (justification fraction along the reading axis, first-line side on the stack axis), never a fixed document corner; the CS-era document-bounds fallback pins the fractionally corresponding point of the source ink box.
 - **Scaled BOX text**: runs and box dims (`patchy.text.box_width/height`, from `/BoxBounds`) are engine units, but a PSD-frame edit session works in DOCUMENT space; the render call's `layout_scale` folds the transform's vertical scale into glyph sizes WITHOUT scaling box dims, and commit stores frame dims divided back to raw units so runs + box + transform stay one coordinate system.
 - Committing a transformed point-text layer re-renders CRISP through the aligned transform even when the font is substituted (resampling would deliver the same glyphs blurry). The first re-edit after conversion settles placement by a few pixels; later cycles are identical.
-- Known gaps: LeadingType 1 (Japanese top-to-top), per-run BaselineShift, VerticalScale x auto leading under a folded transform; box-text RE-edits resample through the transform (crisp path is point-text only). Mouse hit-testing still goes through `QTextEdit::cursorForPosition`, i.e. the editor's own zoom-scaled layout, so a click can disagree with the caret it produces; routing it through `TextLineGeometry::position_at` is the next step.
+- Known gaps: LeadingType 1 (Japanese top-to-top), per-run BaselineShift, VerticalScale x auto leading under a folded transform; box-text RE-edits resample through the transform (crisp path is point-text only).

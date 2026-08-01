@@ -992,6 +992,9 @@ private:
   QWidget* text_editor_resize_handle_at(QPoint canvas_position) const;
   bool handle_text_editor_resize_event(QWidget* handle, QTextEdit* editor, QEvent* event);
   bool handle_text_editor_transform_overlay_event(QTextEdit* editor, QEvent* event);
+  // Resolves left-button clicks and drags inside a flat inline editor through the shared
+  // TextLineGeometry instead of QTextEdit's own (zoom-scaled, different) layout.
+  bool handle_text_editor_viewport_mouse_event(QTextEdit* editor, QEvent* event);
   void mark_text_editor_changed(QTextEdit* editor);
   void schedule_text_editor_preview(QTextEdit* editor);
   void update_text_editor_preview(QTextEdit* editor);

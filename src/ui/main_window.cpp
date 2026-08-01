@@ -1300,6 +1300,34 @@ TextLineGeometry text_editor_line_geometry(const QTextEdit& editor, const QTextD
                                  text_editor_uses_photoshop_layout(editor));
 }
 
+// Character position under a point given in the text's own document (1:1) space. Clicks resolve
+// through the same line plan the glyphs and the caret come from, so a click always lands on the
+// glyph it looks like it landed on. QTextEdit::cursorForPosition cannot: it hit-tests against
+// the editor widget's internal layout, which is laid out at an integer pixel size of
+// round(size * zoom) and so is a different layout from the one that drew the text.
+int text_editor_position_at_local_point(const QTextEdit& editor, QPointF local_point) {
+  double zoom = 1.0;
+  const auto* layout_document = text_editor_document_space_layout(editor, zoom);
+  if (layout_document == nullptr) {
+    return editor.textCursor().position();
+  }
+  return text_editor_line_geometry(editor, *layout_document).position_at(local_point);
+}
+
+// Same, for a point in the editor viewport's own pixels (the inverse of
+// scale_document_rect_to_viewport).
+int text_editor_position_at_viewport_point(const QTextEdit& editor, QPointF viewport_point) {
+  double zoom = 1.0;
+  const auto* layout_document = text_editor_document_space_layout(editor, zoom);
+  if (layout_document == nullptr || !(zoom > 0.0)) {
+    return editor.textCursor().position();
+  }
+  const QPointF scroll_offset(editor.horizontalScrollBar()->value(), editor.verticalScrollBar()->value());
+  return text_editor_line_geometry(editor, *layout_document)
+      .position_at(QPointF((viewport_point.x() + scroll_offset.x()) / zoom,
+                           (viewport_point.y() + scroll_offset.y()) / zoom));
+}
+
 void clear_text_editor_preview_overlays(QTextEdit& editor) {
   editor.setProperty(kTextEditorPreviewCaretProperty, QVariant());
   editor.setProperty(kTextEditorPreviewSelectionProperty, QVariant());
@@ -1671,7 +1699,8 @@ protected:
     }
 
     editor_->setFocus(Qt::MouseFocusReason);
-    auto cursor = editor_->cursorForPosition(editor_point->toPoint());
+    auto cursor = editor_->textCursor();
+    cursor.setPosition(text_editor_position_at_local_point(*editor_, *editor_point / zoom()));
     cursor.select(QTextCursor::WordUnderCursor);
     selection_anchor_ = cursor.selectionStart();
     editor_->setTextCursor(cursor);
@@ -1759,7 +1788,9 @@ private:
     if (!editor_point.has_value() || !editor_local_rect().adjusted(-4, -4, 4, 4).contains(editor_point->toPoint())) {
       return std::nullopt;
     }
-    return editor_->cursorForPosition(editor_point->toPoint()).position();
+    // map_canvas_point_to_editor hands back text-local coordinates scaled by the canvas zoom;
+    // the layout the glyphs came from is unscaled document space, so divide the zoom back out.
+    return text_editor_position_at_local_point(*editor_, *editor_point / zoom());
   }
 
   [[nodiscard]] QPolygonF map_editor_rect_to_canvas(QRectF rect) const {
@@ -4984,6 +5015,14 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
     return true;
   }
 
+  if (auto* viewport = qobject_cast<QWidget*>(watched);
+      viewport != nullptr && viewport->parentWidget() != nullptr &&
+      viewport->parentWidget()->objectName() == QStringLiteral("inlineTextEditor")) {
+    if (handle_text_editor_viewport_mouse_event(qobject_cast<QTextEdit*>(viewport->parentWidget()), event)) {
+      return true;
+    }
+  }
+
   if (auto* editor = qobject_cast<QTextEdit*>(watched);
       editor != nullptr && editor->objectName() == QStringLiteral("inlineTextEditor") &&
       event->type() == QEvent::Wheel) {
@@ -6172,16 +6211,16 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
   editor->viewport()->installEventFilter(this);
   resize_editor();
   if (editing_layer.has_value()) {
-    QPoint click_viewport_point;
+    QPointF click_viewport_point;
     if (initial_cursor_local_position.has_value()) {
-      click_viewport_point =
-          QPoint(static_cast<int>(std::round(initial_cursor_local_position->x() * canvas_->zoom())),
-                 static_cast<int>(std::round(initial_cursor_local_position->y() * canvas_->zoom())));
+      click_viewport_point = *initial_cursor_local_position * canvas_->zoom();
     } else {
       const auto click_widget_point = canvas_->widget_position_for_document_point(requested_document_point);
-      click_viewport_point = editor->viewport()->mapFrom(canvas_, click_widget_point);
+      click_viewport_point = QPointF(editor->viewport()->mapFrom(canvas_, click_widget_point));
     }
-    editor->setTextCursor(editor->cursorForPosition(click_viewport_point));
+    auto cursor = editor->textCursor();
+    cursor.setPosition(text_editor_position_at_viewport_point(*editor, click_viewport_point));
+    editor->setTextCursor(cursor);
   }
   update_text_editor_handles(editor);
   if (editor->property(kTextEditorPreviewEnabledProperty).toBool() &&
@@ -8152,6 +8191,58 @@ bool MainWindow::handle_text_editor_resize_event(QWidget* handle, QTextEdit* edi
       break;
   }
   return false;
+}
+
+// Left-button selection inside a flat (untransformed) inline editor. QTextEdit's own mouse
+// handling resolves a click against its internal layout, which is laid out at an integer pixel
+// size of round(size * zoom) and is therefore NOT the layout the glyphs were drawn from: the
+// click and the caret it produced could disagree, badly so on Photoshop-leading text where the
+// two layouts drift a line apart. Everything else (right-click menu, middle click, release)
+// falls through to QTextEdit untouched.
+bool MainWindow::handle_text_editor_viewport_mouse_event(QTextEdit* editor, QEvent* event) {
+  if (editor == nullptr || event == nullptr || editor->property(kTextEditorFinishedProperty).toBool()) {
+    return false;
+  }
+  // A transformed session routes its clicks through the overlay, which does its own mapping.
+  if (editor->property(kTextEditorTransformedOverlayProperty).toBool()) {
+    return false;
+  }
+  if (event->type() != QEvent::MouseButtonPress && event->type() != QEvent::MouseMove &&
+      event->type() != QEvent::MouseButtonDblClick) {
+    return false;
+  }
+
+  auto* mouse_event = static_cast<QMouseEvent*>(event);
+  if (event->type() == QEvent::MouseMove) {
+    if ((mouse_event->buttons() & Qt::LeftButton) == 0) {
+      return false;
+    }
+  } else if (mouse_event->button() != Qt::LeftButton) {
+    return false;
+  }
+
+  const auto position = text_editor_position_at_viewport_point(*editor, mouse_event->position());
+  auto cursor = editor->textCursor();
+  switch (event->type()) {
+    case QEvent::MouseButtonPress:
+      editor->setFocus(Qt::MouseFocusReason);
+      cursor.setPosition(position,
+                         (mouse_event->modifiers() & Qt::ShiftModifier) != 0 ? QTextCursor::KeepAnchor
+                                                                            : QTextCursor::MoveAnchor);
+      break;
+    case QEvent::MouseMove:
+      cursor.setPosition(position, QTextCursor::KeepAnchor);
+      break;
+    case QEvent::MouseButtonDblClick:
+      cursor.setPosition(position);
+      cursor.select(QTextCursor::WordUnderCursor);
+      break;
+    default:
+      return false;
+  }
+  editor->setTextCursor(cursor);
+  mouse_event->accept();
+  return true;
 }
 
 bool MainWindow::handle_text_editor_transform_overlay_event(QTextEdit* editor, QEvent* event) {
