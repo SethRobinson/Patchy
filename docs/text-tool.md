@@ -195,7 +195,7 @@ bottom, because pixels-only callers place the buffer at the frame corner.
 
 ## Character panel
 
-- Opened via options bar > Character... while the Text tool is active. It edits the LIVE editor session (leading auto/fixed, tracking, H/V glyph scales) per selection.
+- Opened via options bar > Character... while the Text tool is active. It edits the LIVE editor session (leading auto/fixed, tracking, H/V glyph scales, faux bold) per selection.
 - With no live session its controls gray out and a hint label (`textCharacterHint`) says to click in text; the state is kept live by `refresh_options_bar()` calling `sync_text_character_dialog_from_editor()` (every session boundary funnels through that refresh). Without that call the non-modal dialog kept stale enabled controls after a commit and edits silently no-oped (`ui_text_character_panel_disables_without_session` pins it).
 - Its dialog (`textCharacterDialog`) is exempted from the editor's focus-loss auto-commit via `is_text_option_widget`.
 - Setting fixed leading opts the layer into the Photoshop layout marker at commit (explicit leading does not render under Qt-natural layout; see the Photoshop text model section below).
@@ -213,7 +213,55 @@ Probe PSDs `photoshop-text-*.psd`. The rules apply when `kLayerMetadataTextLayou
 - **Tracking = FontSize x tracking/1000 px per inter-glyph gap** (not after the last glyph), as absolute letter spacing.
 - **VerticalScale/HorizontalScale scale glyphs only**; auto leading stays 1.2 x FontSize, unscaled.
 
-Run format "patchy.text.runs" v3 adds double sizes, a leading column (number or `auto`), tracking, and H/V glyph scales; paragraph v3 appends the auto-leading fraction. Patchy-authored text keeps v1/v2 and Qt-natural layout (the PS model is opt-in per layer, so Patchy PSDs reopen unchanged). Export writes `/AutoLeading false` for fixed leading (PS ignores it otherwise), non-zero `/Tracking`, non-1 `/HorizontalScale`/`/VerticalScale`.
+Run format "patchy.text.runs" v3 adds double sizes, a leading column (number or `auto`), tracking, and H/V glyph scales; v4 appends the faux-bold flag; paragraph v3 appends the auto-leading fraction. Every column is read by INDEX, so the version token only rises when a run actually needs the new column and existing files stay byte-identical. Patchy-authored text keeps v1/v2 and Qt-natural layout (the PS model is opt-in per layer, so Patchy PSDs reopen unchanged). Export writes `/AutoLeading false` for fixed leading (PS ignores it otherwise), non-zero `/Tracking`, non-1 `/HorizontalScale`/`/VerticalScale`.
+
+## Faux bold is not the bold face
+
+`/FauxBold` asks Photoshop to synthesize weight on the face the run already names. It is NOT
+"use the family's bold face", and folding it into the run's bold flag (which is what the reader
+used to do) swaps in a different typeface: on the Dungeon Scroll `Game_Screen.psd` headings,
+Georgia-Italic + faux bold measures 58px wide in Photoshop's own raster while Georgia **Bold**
+Italic renders 63. Photoshop's Character panel shows the same split, which is why clicking into
+such a layer used to come up Bold + Italic when Photoshop shows only Italic.
+
+- `PsdTextStyleRun::faux_bold` carries it, `bold`/`italic` keep meaning the real face, and runs
+  v4 serializes it in column 11. The Character panel's `textCharacterFauxBold` checkbox edits it
+  live per selection.
+- Rendering: `apply_faux_bold_to_document` strokes the glyph outlines with a pen
+  `kFauxBoldEmFraction` (0.03) of the em wide and adds the same amount to every advance, which is
+  what Photoshop does (its faux bold pushes the glyph out on both sides and pays for it in the
+  advance). Calibrated on Georgia-Italic at 12px against Photoshop's rasters: "Dungeon:" 58px and
+  "Fights Left:" 69px both land exactly anywhere in 0.025-0.030.
+- It is applied in `build_text_render_document`, not when the runs are parsed, so it follows
+  later colour and size edits and so the raster pass and the caret layout (which share that
+  function) see identical advances. Apply it BEFORE the final `setTextWidth`: the widened
+  advances have to be in place while the lines are laid out.
+- Export writes `/FauxBold` from `faux_bold` alone. The run's real weight already rides in the
+  font name `font_index_for_run` resolves (`Arial-BoldMT`, not Arial + FauxBold); writing both
+  made Photoshop embolden an already-bold face.
+- `/FauxItalic` is still conflated with `run.italic` (no synthetic-oblique renderer), so a real
+  italic face round-trips with `/FauxItalic true`. Known gap, same class of bug.
+
+## Glyph sizes fold only to whole pixels
+
+Qt rasterizes glyphs at whole pixel sizes only: `QFont::setPixelSize` takes an int, and a
+fractional `setPointSizeF` quantizes to the same whole pixel (measured -- 16.2px and 16px report
+an identical advance). So `render_text_pixels_with_local_rect` folds a transform's vertical scale
+into the glyph sizes only as far as the nearest whole pixel and leaves the remainder in
+`document_transform`, which the rasterizer applies exactly because these lines are drawn THROUGH
+the matrix rather than resampled after the fact. `dominant_text_run_size` picks the size that
+gets to land exactly (the largest run, vertical glyph scale included).
+
+Folding the whole scale silently rounded the text off Photoshop's size, and only for some layers:
+in the Dungeon Scroll repro, 18 x 0.9 = 16.2 became 16 (~1.2% narrow -- "Jumble"/"Submit word"
+lost 1-2px and shifted on edit) while 14.44444 x 0.9 = 13.0 was already whole and never moved
+("Quit"/"Pause"). It also brought the render into agreement with the caret, which lays out at the
+raw size and applies the full transform through the overlay.
+
+`ui_dungeon_scroll_psd_text_commit_keeps_placement_if_available` pins both fixes against
+Photoshop's rasters. What is left is a pixel of grid phase: Photoshop's anchors sit at fractional
+document positions (tx 267.35, ty 305.4) and both rasters land on the whole-pixel grid, so an
+edited layer can still settle 1px off in x or y.
 
 - **Text renders UNHINTED**: PS never runs TrueType hinting; every antialiased `/AntiAlias` mode maps to `QFont::PreferNoHinting` (`configure_text_font_smoothing`); mode 0/None keeps `NoAntialias` + full hinting. Full hinting fattens stems on small-print-era fonts and shifts advances into collisions.
 - **Imported type layers keep Photoshop's raster until edited** (`should_regenerate_imported_text_preview`, psd_text_write.cpp): a missing font never changes appearance on open. Rasters are kept even under big effects; regenerate only when the stored preview is visibly NOT any run's declared fill color (baked-in effect pixels would corrupt the live outer-effect contour) or when the type block is Patchy-authored. Editing a kept raster warns before substituting fonts; `--append-text` substitutes silently.

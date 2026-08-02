@@ -982,6 +982,7 @@ private:
   void apply_text_character_leading_to_active_editor();
   void apply_text_character_tracking_to_active_editor();
   void apply_text_character_glyph_scales_to_active_editor();
+  void apply_text_character_faux_bold_to_active_editor();
   // Re-renders a text layer with `warp` applied (identity = unwarped) and refreshes
   // the warp/transform/raster-status metadata. Returns false when the layer's text
   // cannot be rendered.
@@ -1258,6 +1259,7 @@ private:
   QSpinBox* text_character_tracking_spin_{nullptr};
   QSpinBox* text_character_h_scale_spin_{nullptr};
   QSpinBox* text_character_v_scale_spin_{nullptr};
+  QCheckBox* text_character_faux_bold_{nullptr};
   // Session apply/cancel for the inline text editor (Photoshop's options-bar
   // commit/cancel); visible only while an editor is open, managed by
   // refresh_options_bar(), never registered as per-tool option widgets.

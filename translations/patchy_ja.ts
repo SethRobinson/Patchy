@@ -7726,6 +7726,16 @@ Mixed selection</source>
         <translation>自動行送り</translation>
     </message>
     <message>
+        <location line="+5"/>
+        <source>Faux bold</source>
+        <translation>疑似ボールド</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>Thicken the current face synthetically instead of switching to the family&apos;s bold face</source>
+        <translation>ファミリーのボールド書体に切り替えず、現在の書体を擬似的に太らせます</translation>
+    </message>
+    <message>
         <location line="+11"/>
         <source>Leading:</source>
         <translation>行送り:</translation>

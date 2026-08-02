@@ -2082,6 +2082,7 @@ QString rich_text_runs_from_document(const QTextDocument& document, const TextTo
   lines << QStringLiteral("v1");
   bool includes_leading = false;
   bool photoshop_layout = false;
+  bool includes_faux_bold = false;
   const auto fallback_family = fallback.family.isEmpty() ? QApplication::font().family() : fallback.family;
   const auto fallback_size = std::max(1, fallback.size);
   const auto fallback_color_name = (fallback_color.isValid() ? fallback_color : QColor(Qt::black)).name(QColor::HexRgb);
@@ -2099,11 +2100,13 @@ QString rich_text_runs_from_document(const QTextDocument& document, const TextTo
     double tracking{0.0};
     double horizontal_scale{1.0};
     double vertical_scale{1.0};
+    bool faux_bold{false};
   };
   std::vector<SerializedRun> collected;
 
-  const auto append_run = [&collected, &includes_leading, &photoshop_layout, &fallback_family, fallback_size,
-                           &fallback_color_name](int start, int length, const QTextCharFormat& format) {
+  const auto append_run = [&collected, &includes_leading, &photoshop_layout, &includes_faux_bold, &fallback_family,
+                           fallback_size, &fallback_color_name](int start, int length,
+                                                                const QTextCharFormat& format) {
     if (length <= 0) {
       return;
     }
@@ -2164,7 +2167,11 @@ QString rich_text_runs_from_document(const QTextDocument& document, const TextTo
         run.tracking = tracking;
       }
     }
-    photoshop_layout = photoshop_layout || run.auto_leading || std::abs(run.tracking) > 0.0001 ||
+    run.faux_bold = format.hasProperty(kTextFauxBoldFormatProperty) &&
+                    format.property(kTextFauxBoldFormatProperty).toBool();
+    includes_faux_bold = includes_faux_bold || run.faux_bold;
+    photoshop_layout = photoshop_layout || run.auto_leading || run.faux_bold ||
+                       std::abs(run.tracking) > 0.0001 ||
                        std::abs(run.horizontal_scale - 1.0) > 0.0001 ||
                        std::abs(run.vertical_scale - 1.0) > 0.0001;
     collected.push_back(std::move(run));
@@ -2211,7 +2218,9 @@ QString rich_text_runs_from_document(const QTextDocument& document, const TextTo
   if (!found_run) {
     append_run(0, document.toPlainText().size(), fallback_format);
   }
-  if (photoshop_layout) {
+  if (includes_faux_bold) {
+    lines[0] = QStringLiteral("v4");
+  } else if (photoshop_layout) {
     lines[0] = QStringLiteral("v3");
   } else if (includes_leading) {
     lines[0] = QStringLiteral("v2");
@@ -2234,6 +2243,9 @@ QString rich_text_runs_from_document(const QTextDocument& document, const TextTo
       line += QStringLiteral("\t%1").arg(QString::number(run.tracking, 'g', 17));
       line += QStringLiteral("\t%1").arg(QString::number(run.horizontal_scale, 'g', 17));
       line += QStringLiteral("\t%1").arg(QString::number(run.vertical_scale, 'g', 17));
+      if (includes_faux_bold) {
+        line += QStringLiteral("\t%1").arg(run.faux_bold ? 1 : 0);
+      }
     } else if (includes_leading) {
       line += QStringLiteral("\t%1").arg(QString::number(run.leading, 'g', 17));
     }
@@ -2373,7 +2385,7 @@ void apply_patchy_text_runs_to_document(QTextDocument& document, const QString& 
   for (const auto& raw_line : lines) {
     const auto line = raw_line.trimmed();
     if (line.isEmpty() || line == QStringLiteral("v1") || line == QStringLiteral("v2") ||
-        line == QStringLiteral("v3")) {
+        line == QStringLiteral("v3") || line == QStringLiteral("v4")) {
       continue;
     }
     const auto fields = line.split(QLatin1Char('\t'));
@@ -2469,6 +2481,11 @@ void apply_patchy_text_runs_to_document(QTextDocument& document, const QString& 
         format.setFontLetterSpacingType(QFont::AbsoluteSpacing);
         format.setFontLetterSpacing(tracking / 1000.0 * scaled_exact_size * horizontal_glyph_scale);
       }
+    }
+    // v4 faux bold: a flag only. The stroke and the advance it adds are applied by
+    // apply_faux_bold_to_document at render time, so they track later colour/size edits.
+    if (fields.size() >= 12 && fields[11].toInt() != 0) {
+      format.setProperty(kTextFauxBoldFormatProperty, true);
     }
     QTextCursor cursor(&document);
     cursor.setPosition(start);
@@ -2666,6 +2683,67 @@ struct RenderedTextPixels {
   QRectF local_rect;
 };
 
+// Photoshop's faux bold, applied to every run that carries kTextFauxBoldFormatProperty: stroke
+// the glyph outlines with a pen kFauxBoldEmFraction of the em wide and widen each advance by the
+// same amount. That is what Photoshop does -- it thickens the run's OWN face rather than
+// switching to the family's real bold face, which is a different, wider typeface.
+//
+// Applied here rather than when the runs are parsed so it follows the format's current colour
+// and pixel size, and so both the raster pass and the caret layout (which share this function)
+// see the identical advances.
+void apply_faux_bold_to_document(QTextDocument& document) {
+  struct FauxBoldRange {
+    int start{0};
+    int length{0};
+    QTextCharFormat format;
+  };
+  // Collect first: merging a format re-splits the block's fragments, which invalidates the
+  // iterator mid-walk.
+  std::vector<FauxBoldRange> ranges;
+  for (auto block = document.begin(); block.isValid(); block = block.next()) {
+    for (auto fragment_it = block.begin(); !fragment_it.atEnd(); ++fragment_it) {
+      const auto fragment = fragment_it.fragment();
+      if (!fragment.isValid() || fragment.length() <= 0) {
+        continue;
+      }
+      const auto format = fragment.charFormat();
+      if (!format.hasProperty(kTextFauxBoldFormatProperty) ||
+          !format.property(kTextFauxBoldFormatProperty).toBool()) {
+        continue;
+      }
+      auto font = format.font();
+      const auto pixel_size = font.pixelSize() > 0 ? static_cast<double>(font.pixelSize())
+                                                   : std::max(1.0, font.pointSizeF());
+      const auto stroke = kFauxBoldEmFraction * pixel_size;
+      if (!(stroke > 0.0)) {
+        continue;
+      }
+      auto color = format.foreground().color();
+      if (!color.isValid()) {
+        color = QColor(Qt::black);
+      }
+      QPen pen(color, stroke);
+      pen.setJoinStyle(Qt::RoundJoin);
+      pen.setCapStyle(Qt::RoundCap);
+      // Photoshop's synthetic bold pushes the glyph out on BOTH sides and pays for it in the
+      // advance, so tracked text keeps its gaps instead of colliding.
+      const auto spacing =
+          font.letterSpacingType() == QFont::AbsoluteSpacing ? font.letterSpacing() : 0.0;
+      font.setLetterSpacing(QFont::AbsoluteSpacing, spacing + stroke);
+      QTextCharFormat overlay;
+      overlay.setFont(font);
+      overlay.setTextOutline(pen);
+      ranges.push_back(FauxBoldRange{fragment.position(), fragment.length(), std::move(overlay)});
+    }
+  }
+  for (const auto& range : ranges) {
+    QTextCursor cursor(&document);
+    cursor.setPosition(range.start);
+    cursor.setPosition(range.start + range.length, QTextCursor::KeepAnchor);
+    cursor.mergeCharFormat(range.format);
+  }
+}
+
 // Build the QTextDocument a text layer is rasterized from.  The caret/selection layout is built
 // through this same function (build_text_editor_document_space_layout), so the painted glyphs and
 // the caret geometry always come from one identical document -- any divergence in construction
@@ -2719,6 +2797,9 @@ TextRenderDocument build_text_render_document(const TextToolSettings& settings, 
     document.setPlainText(settings.text);
     apply_plain_text_format(document, result.font, color);
   }
+  // Faux bold before any layout: its stroke widens every advance, so the lines have to be laid
+  // out with it already in place.
+  apply_faux_bold_to_document(document);
   // NoWrap point text must size to the tight glyph idealWidth.  Passing an explicit textWidth makes
   // Qt report THAT width from document.size().width() (not the ideal width) whenever it exceeds the
   // content, which -- when max_width is a layer's already-scaled pixel bounds -- inflated the rendered
@@ -2738,6 +2819,34 @@ TextRenderDocument build_text_render_document(const TextToolSettings& settings, 
     document.setTextWidth(document.idealWidth());
   }
   return result;
+}
+
+// The largest glyph size any run asks for, in the runs' own (raw, unscaled) units and already
+// including that run's vertical glyph scale -- the value apply_patchy_text_runs_to_document
+// rounds to a whole pixel. Falls back to the layer-level size for text with no runs.
+double dominant_text_run_size(const TextToolSettings& settings, const QString& rich_text_runs) {
+  double dominant = 0.0;
+  for (const auto& raw_line : rich_text_runs.split(QLatin1Char('\n'))) {
+    const auto fields = raw_line.trimmed().split(QLatin1Char('\t'));
+    if (fields.size() < 7) {
+      continue;  // version header / malformed line
+    }
+    bool size_ok = false;
+    const auto size = fields[2].toDouble(&size_ok);
+    if (!size_ok || !std::isfinite(size) || size <= 0.0) {
+      continue;
+    }
+    double vertical_scale = 1.0;
+    if (fields.size() >= 11) {
+      bool scale_ok = false;
+      const auto value = fields[10].toDouble(&scale_ok);
+      if (scale_ok && std::isfinite(value) && value > 0.01 && value < 100.0) {
+        vertical_scale = value;
+      }
+    }
+    dominant = std::max(dominant, size * vertical_scale);
+  }
+  return dominant > 0.0 ? dominant : static_cast<double>(std::max(1, settings.size));
 }
 
 RenderedTextPixels render_text_pixels_with_local_rect(const TextToolSettings& settings, QColor color,
@@ -2760,9 +2869,23 @@ RenderedTextPixels render_text_pixels_with_local_rect(const TextToolSettings& se
     const auto vertical_scale = std::hypot(document_transform_in.m21(), document_transform_in.m22());
     if (std::isfinite(vertical_scale) && vertical_scale > 0.01 && std::abs(vertical_scale - 1.0) > 0.0001) {
       fold_scale = vertical_scale;
+      // Fold only as far as a WHOLE pixel size and leave the remainder in the matrix. QFont
+      // takes an integer pixel size and Qt quantizes a fractional point size to the same whole
+      // pixel, so folding the full scale silently rounds the glyphs off Photoshop's size:
+      // 18 x 0.9 = 16.2 became 16 (~1.2% narrow, which is the Dungeon Scroll buttons shifting a
+      // pixel or two on edit) while 14.44444 x 0.9 = 13.0 was already whole and never moved.
+      // The leftover ~1.0125 rides in document_transform, which the glyph rasterizer applies
+      // exactly -- these lines are drawn THROUGH the matrix, not resampled after the fact.
+      const auto exact_dominant_size =
+          dominant_text_run_size(settings, rich_text_runs) * fold_scale *
+          (std::isfinite(layout_scale_in) && layout_scale_in > 0.01 ? layout_scale_in : 1.0);
+      const auto whole_dominant_size = std::round(exact_dominant_size);
+      if (whole_dominant_size >= 1.0 && std::abs(exact_dominant_size - whole_dominant_size) > 0.0001) {
+        fold_scale *= whole_dominant_size / exact_dominant_size;
+      }
       document_transform =
-          QTransform(document_transform_in.m11() / vertical_scale, document_transform_in.m12() / vertical_scale,
-                     document_transform_in.m21() / vertical_scale, document_transform_in.m22() / vertical_scale,
+          QTransform(document_transform_in.m11() / fold_scale, document_transform_in.m12() / fold_scale,
+                     document_transform_in.m21() / fold_scale, document_transform_in.m22() / fold_scale,
                      document_transform_in.dx(), document_transform_in.dy());
     }
   }
@@ -7081,6 +7204,12 @@ void MainWindow::open_text_character_dialog() {
   text_character_auto_leading_->setObjectName(QStringLiteral("textCharacterAutoLeading"));
   layout->addRow(QString(), text_character_auto_leading_);
 
+  text_character_faux_bold_ = new QCheckBox(tr("Faux bold"), dialog);
+  text_character_faux_bold_->setObjectName(QStringLiteral("textCharacterFauxBold"));
+  text_character_faux_bold_->setToolTip(
+      tr("Thicken the current face synthetically instead of switching to the family's bold face"));
+  layout->addRow(QString(), text_character_faux_bold_);
+
   text_character_leading_spin_ = new QDoubleSpinBox(dialog);
   text_character_leading_spin_->setObjectName(QStringLiteral("textCharacterLeadingSpin"));
   text_character_leading_spin_->setDecimals(2);
@@ -7114,6 +7243,8 @@ void MainWindow::open_text_character_dialog() {
 
   connect(text_character_auto_leading_, &QCheckBox::toggled, this,
           [this](bool) { apply_text_character_leading_to_active_editor(); });
+  connect(text_character_faux_bold_, &QCheckBox::toggled, this,
+          [this](bool) { apply_text_character_faux_bold_to_active_editor(); });
   connect(text_character_leading_spin_, &QDoubleSpinBox::valueChanged, this,
           [this](double) { apply_text_character_leading_to_active_editor(); });
   connect(text_character_tracking_spin_, &QSpinBox::valueChanged, this,
@@ -7134,13 +7265,14 @@ void MainWindow::open_text_character_dialog() {
   text_character_tracking_spin_ = nullptr;
   text_character_h_scale_spin_ = nullptr;
   text_character_v_scale_spin_ = nullptr;
+  text_character_faux_bold_ = nullptr;
 }
 
 void MainWindow::sync_text_character_dialog_from_editor() {
   if (text_character_dialog_ == nullptr || text_character_auto_leading_ == nullptr ||
       text_character_leading_spin_ == nullptr || text_character_tracking_spin_ == nullptr ||
       text_character_h_scale_spin_ == nullptr || text_character_v_scale_spin_ == nullptr ||
-      text_character_hint_label_ == nullptr) {
+      text_character_faux_bold_ == nullptr || text_character_hint_label_ == nullptr) {
     return;
   }
   auto* editor =
@@ -7151,6 +7283,7 @@ void MainWindow::sync_text_character_dialog_from_editor() {
   text_character_tracking_spin_->setEnabled(session_open);
   text_character_h_scale_spin_->setEnabled(session_open);
   text_character_v_scale_spin_->setEnabled(session_open);
+  text_character_faux_bold_->setEnabled(session_open);
   if (!session_open) {
     text_character_leading_spin_->setEnabled(false);
     return;
@@ -7173,6 +7306,9 @@ void MainWindow::sync_text_character_dialog_from_editor() {
   QSignalBlocker block_tracking(text_character_tracking_spin_);
   QSignalBlocker block_h(text_character_h_scale_spin_);
   QSignalBlocker block_v(text_character_v_scale_spin_);
+  QSignalBlocker block_faux_bold(text_character_faux_bold_);
+  text_character_faux_bold_->setChecked(format.hasProperty(kTextFauxBoldFormatProperty) &&
+                                        format.property(kTextFauxBoldFormatProperty).toBool());
   text_character_auto_leading_->setChecked(auto_leading);
   text_character_leading_spin_->setEnabled(!auto_leading);
   const auto leading_pt = auto_leading || !has_fixed
@@ -7271,6 +7407,24 @@ void MainWindow::apply_text_character_glyph_scales_to_active_editor() {
       font.setLetterSpacing(QFont::AbsoluteSpacing, tracking / 1000.0 * exact * horizontal);
     }
     format.setFont(font);
+  });
+  mark_text_editor_changed(editor);
+  schedule_text_editor_preview(editor);
+}
+
+void MainWindow::apply_text_character_faux_bold_to_active_editor() {
+  if (canvas_ == nullptr || text_character_faux_bold_ == nullptr) {
+    return;
+  }
+  auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  if (editor == nullptr || editor->property(kTextEditorFinishedProperty).toBool()) {
+    return;
+  }
+  const bool faux_bold = text_character_faux_bold_->isChecked();
+  mutate_text_editor_character_formats(*editor, [faux_bold](QTextCharFormat& format) {
+    // The stroke itself is applied at render time (apply_faux_bold_to_document); the format only
+    // carries the flag, so the same run keeps working after a colour or size change.
+    format.setProperty(kTextFauxBoldFormatProperty, faux_bold);
   });
   mark_text_editor_changed(editor);
   schedule_text_editor_preview(editor);

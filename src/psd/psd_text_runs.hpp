@@ -22,8 +22,14 @@ struct PsdTextStyleRun {
   std::string family{"Arial"};
   double size{36.0};
   RgbColor color{0, 0, 0};
+  // The REAL face the run names (Georgia-Italic is italic, CenturyGothic-Bold is bold).
   bool bold{false};
   bool italic{false};
+  // Photoshop's /FauxBold: a synthetic emboldening of whatever face `bold`/`italic` select, NOT
+  // a request for the family's real bold face. Kept separate because the two render differently
+  // (Georgia Bold Italic is ~14% wider than faux-bolded Georgia Italic) and because Photoshop's
+  // own Character panel shows them as separate controls.
+  bool faux_bold{false};
   // Fixed leading in engine units (document pixels through the TySh transform). Unset when the
   // run uses Photoshop auto leading (auto_leading), which is paragraph AutoLeading fraction x size.
   std::optional<double> leading;

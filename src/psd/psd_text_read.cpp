@@ -1193,10 +1193,13 @@ std::optional<std::vector<PsdTextStyleRun>> extract_engine_text_runs(std::span<c
                           1.0, static_cast<double>(kMaxTextSizePixels));
     run.color = extract_engine_fill_color_from_text(dictionaries[index], cmyk)
                     .value_or(defaults.fill_color.value_or(fallback_color));
-    const auto faux_bold = engine_bool_after_key(dictionaries[index], "/FauxBold", defaults.faux_bold);
-    const auto faux_italic = engine_bool_after_key(dictionaries[index], "/FauxItalic", defaults.faux_italic);
-    run.bold = faux_bold;
-    run.italic = faux_italic;
+    // /FauxBold is a synthetic embolden of the named face, not "use the family's bold face".
+    // Folding it into run.bold picked the real Bold face, which is a different (wider, heavier)
+    // typeface: Georgia Bold Italic renders "Dungeon:" 63px wide against Photoshop's faux-bolded
+    // Georgia Italic at 58. It rides its own flag and is rendered as a stroke; see faux bold in
+    // docs/text-tool.md.
+    run.faux_bold = engine_bool_after_key(dictionaries[index], "/FauxBold", defaults.faux_bold);
+    run.italic = engine_bool_after_key(dictionaries[index], "/FauxItalic", defaults.faux_italic);
     run.auto_leading = engine_bool_after_key(dictionaries[index], "/AutoLeading", defaults.auto_leading);
     // Photoshop records a stale /Leading value even for auto-leading runs; only a fixed
     // (non-auto) run's leading participates in layout.
@@ -1319,15 +1322,22 @@ bool text_run_size_is_integral(const PsdTextStyleRun& run) {
 // v3: v2 with double size, leading may be the literal "auto" (auto leading: paragraph
 //     auto-leading fraction x size), + tracking (Photoshop 1/1000-em units), + the character
 //     panel's horizontal/vertical glyph scales (fractions, 1.0 = none).
+// v4: v3 + Photoshop's faux bold flag (synthetic embolden of the named face). Every column is
+//     read by index, so a v3 reader simply ignores it; the version token only ever rises when a
+//     run actually carries faux bold, which keeps existing files byte-identical.
 std::string serialize_patchy_text_runs(std::span<const PsdTextStyleRun> runs) {
   const bool include_leading = std::any_of(runs.begin(), runs.end(), [](const PsdTextStyleRun& run) {
     return run.leading.has_value() && std::isfinite(*run.leading) && *run.leading > 0.0;
   });
-  const bool photoshop_layout = std::any_of(runs.begin(), runs.end(), [](const PsdTextStyleRun& run) {
-    return run.auto_leading || std::abs(run.tracking) > 0.0001 || !text_run_size_is_integral(run) ||
-           std::abs(run.horizontal_scale - 1.0) > 0.0001 || std::abs(run.vertical_scale - 1.0) > 0.0001;
-  });
-  std::string serialized = photoshop_layout ? "v3" : (include_leading ? "v2" : "v1");
+  const bool include_faux_bold =
+      std::any_of(runs.begin(), runs.end(), [](const PsdTextStyleRun& run) { return run.faux_bold; });
+  const bool photoshop_layout = include_faux_bold ||
+      std::any_of(runs.begin(), runs.end(), [](const PsdTextStyleRun& run) {
+        return run.auto_leading || std::abs(run.tracking) > 0.0001 || !text_run_size_is_integral(run) ||
+               std::abs(run.horizontal_scale - 1.0) > 0.0001 || std::abs(run.vertical_scale - 1.0) > 0.0001;
+      });
+  std::string serialized =
+      include_faux_bold ? "v4" : (photoshop_layout ? "v3" : (include_leading ? "v2" : "v1"));
   for (const auto& run : runs) {
     serialized += '\n';
     serialized += std::to_string(run.start);
@@ -1362,6 +1372,10 @@ std::string serialize_patchy_text_runs(std::span<const PsdTextStyleRun> runs) {
       serialized += serialize_paragraph_metric(run.horizontal_scale);
       serialized += '\t';
       serialized += serialize_paragraph_metric(run.vertical_scale);
+      if (include_faux_bold) {
+        serialized += '\t';
+        serialized += run.faux_bold ? '1' : '0';
+      }
     } else if (include_leading) {
       serialized += '\t';
       serialized += serialize_paragraph_metric(run.leading.value_or(0.0));

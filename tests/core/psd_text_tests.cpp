@@ -468,13 +468,17 @@ void psd_writer_exports_patchy_rich_text_as_photoshop_type() {
     }
     found_stale_type = found_stale_type || block.payload == std::vector<std::uint8_t>{9, 9, 9};
     const std::string payload_text(block.payload.begin(), block.payload.end());
+    // A genuinely bold run rides in the FONT NAME the writer resolved, so /FauxBold stays
+    // false: it is Photoshop's synthetic embolden, and writing it alongside a bold face made
+    // Photoshop embolden an already-bold face.
     found_generated_type = payload_text.find("/StyleRun") != std::string::npos &&
                            payload_text.find("/ParagraphRun") != std::string::npos &&
                            payload_text.find("/DocumentResources") != std::string::npos &&
                            payload_text.find("/ShapeType 1") != std::string::npos &&
                            payload_text.find("/BoxBounds") != std::string::npos &&
                            payload_text.find("/Justification 2") != std::string::npos &&
-                           payload_text.find("/FauxBold true") != std::string::npos &&
+                           payload_text.find("/FauxBold true") == std::string::npos &&
+                           payload_text.find("/FauxBold false") != std::string::npos &&
                            payload_text.find("/FauxItalic true") != std::string::npos;
   }
   CHECK(found_generated_type);
@@ -962,6 +966,57 @@ void psd_text_engine_data_normalizes_photoshop_line_breaks_and_font_style() {
   CHECK(metadata.at(patchy::kLayerMetadataTextHtml).find("<br") != std::string::npos);
   CHECK(metadata.at(patchy::kLayerMetadataTextRuns).find("0\t13\t20\t1\t0\t#000000\tVerdana") !=
         std::string::npos);
+}
+
+void psd_text_faux_bold_stays_off_the_bold_face() {
+  // Photoshop's /FauxBold synthesizes weight on the run's OWN face; it is not a request for the
+  // family's bold face (the Dungeon Scroll headings: Georgia-Italic + faux bold, where resolving
+  // to Georgia Bold Italic rendered a visibly different, ~14% wider typeface). It must survive
+  // as its own runs-v4 column, leave bold/italic reporting the real face, and write back as
+  // /FauxBold true on a NON-bold font name.
+  const auto text_literal = engine_utf16be_literal("Dungeon:\r");
+  const auto font_literal = engine_utf16be_literal("Georgia-Italic");
+  const std::string engine_data =
+      "<< /EngineDict << /Editor << /Text " + text_literal +
+      " >> /StyleRun << /RunArray [ << /StyleSheet << /StyleSheetData << /Font 0 /FontSize 12 "
+      "/FauxBold true /FauxItalic false /FillColor << /Type 1 /Values [ 1.0 0.0 0.0 0.0 ] >> "
+      ">> >> >> ] /RunLengthArray [ 9 ] >> /ParagraphRun << /RunArray [ << /ParagraphSheet << "
+      "/Properties << /Justification 0 >> >> >> ] /RunLengthArray [ 9 ] >> /AntiAlias 2 "
+      "/UseFractionalGlyphWidths true /FontSet [ << /Name " +
+      font_literal + " /Script 0 /FontType 1 /Synthetic 2 >> ] >>";
+  const auto payload =
+      std::vector<std::uint8_t>(reinterpret_cast<const std::uint8_t*>(engine_data.data()),
+                                reinterpret_cast<const std::uint8_t*>(engine_data.data()) + engine_data.size());
+
+  auto read = patchy::psd::DocumentIo::read(single_text_layer_psd(payload));
+  CHECK(read.layers().size() == 1);
+  if (read.layers().empty()) {
+    return;
+  }
+  const auto& metadata = read.layers().front().metadata();
+  CHECK(metadata.at(patchy::kLayerMetadataTextFont) == "Georgia");
+  CHECK(metadata.at(patchy::kLayerMetadataTextBold) == "false");
+  CHECK(metadata.at(patchy::kLayerMetadataTextItalic) == "true");
+  const auto& runs = metadata.at(patchy::kLayerMetadataTextRuns);
+  CHECK(runs.rfind("v4", 0) == 0);
+  const auto run_start = runs.find('\n');
+  CHECK(run_start != std::string::npos);
+  if (run_start != std::string::npos) {
+    const auto line = runs.substr(run_start + 1);
+    // start len size bold italic color family leading tracking hscale vscale fauxbold
+    CHECK(std::count(line.begin(), line.end(), '\t') == 11);
+    CHECK(!line.empty() && line.back() == '1');
+    CHECK(line.find("\t0\t1\t") != std::string::npos);  // bold 0, italic 1
+  }
+
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(read);
+  const auto written = psd_layer_block_payload(psd_layer_extra_data(bytes, 0), "TySh");
+  CHECK(written.has_value());
+  if (written.has_value()) {
+    const std::string written_text(written->begin(), written->end());
+    CHECK(written_text.find("/FauxBold true") != std::string::npos);
+    CHECK(written_text.find("/FauxBold false") == std::string::npos);
+  }
 }
 
 void psd_text_engine_data_preserves_paragraph_layout_runs() {
@@ -1755,6 +1810,7 @@ std::vector<patchy::test::TestCase> psd_text_tests() {
        psd_text_layer_engine_data_renders_placeholder_text},
       {"psd_text_engine_data_normalizes_photoshop_line_breaks_and_font_style",
        psd_text_engine_data_normalizes_photoshop_line_breaks_and_font_style},
+      {"psd_text_faux_bold_stays_off_the_bold_face", psd_text_faux_bold_stays_off_the_bold_face},
       {"psd_text_engine_data_preserves_paragraph_layout_runs",
        psd_text_engine_data_preserves_paragraph_layout_runs},
       {"psd_text_engine_normal_style_sheet_supplies_missing_run_properties",

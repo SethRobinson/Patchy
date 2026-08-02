@@ -27,6 +27,8 @@ enum class TestFontRole {
   Verdana,
   ArialBlack,
   Candara,         // restaurant-menu fixture description face (Candara-BoldItalic)
+  Georgia,         // Dungeon Scroll fixture heading face (Georgia-Italic + faux bold)
+  BookmanOldStyle, // Dungeon Scroll fixture button face (BookmanOldStyle-Italic)
   JapaneseGothic,  // a Japanese-writing-system family (font picker preview tests)
   Wingdings,       // a symbol-writing-system family (font picker preview tests)
   TimesNewRoman,   // .af mixed-run text fixture face
@@ -110,6 +112,35 @@ inline QStringList test_font_candidates(TestFontRole role) {
           QStringLiteral("C:/Windows/Fonts/Candarab.ttf"),
           QStringLiteral("C:/Windows/Fonts/Candarai.ttf"),
           QStringLiteral("C:/Windows/Fonts/Candaraz.ttf"),
+      };
+#else
+      return {};  // no stock equivalent; tests take their substitution path
+#endif
+    case TestFontRole::Georgia:
+#if defined(Q_OS_WIN)
+      return {
+          QStringLiteral("C:/Windows/Fonts/georgia.ttf"),
+          QStringLiteral("C:/Windows/Fonts/georgiab.ttf"),
+          QStringLiteral("C:/Windows/Fonts/georgiai.ttf"),
+          QStringLiteral("C:/Windows/Fonts/georgiaz.ttf"),
+      };
+#elif defined(Q_OS_MACOS)
+      return {
+          QStringLiteral("/System/Library/Fonts/Supplemental/Georgia.ttf"),
+          QStringLiteral("/System/Library/Fonts/Supplemental/Georgia Bold.ttf"),
+          QStringLiteral("/System/Library/Fonts/Supplemental/Georgia Italic.ttf"),
+          QStringLiteral("/System/Library/Fonts/Supplemental/Georgia Bold Italic.ttf"),
+      };
+#else
+      return {};  // no stock equivalent; tests take their substitution path
+#endif
+    case TestFontRole::BookmanOldStyle:
+#if defined(Q_OS_WIN)
+      return {
+          QStringLiteral("C:/Windows/Fonts/BOOKOS.TTF"),
+          QStringLiteral("C:/Windows/Fonts/BOOKOSB.TTF"),
+          QStringLiteral("C:/Windows/Fonts/BOOKOSI.TTF"),
+          QStringLiteral("C:/Windows/Fonts/BOOKOSBI.TTF"),
       };
 #else
       return {};  // no stock equivalent; tests take their substitution path

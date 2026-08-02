@@ -268,7 +268,7 @@ std::vector<PsdTextStyleRun> parse_patchy_text_runs_metadata(std::string_view ru
       line.remove_suffix(1);
     }
     line_start = line_end == std::string_view::npos ? runs_text.size() : line_end + 1U;
-    if (line.empty() || line == "v1" || line == "v2" || line == "v3") {
+    if (line.empty() || line == "v1" || line == "v2" || line == "v3" || line == "v4") {
       continue;
     }
 
@@ -316,6 +316,9 @@ std::vector<PsdTextStyleRun> parse_patchy_text_runs_metadata(std::string_view ru
           scale.has_value() && std::isfinite(*scale) && *scale > 0.01 && *scale < 100.0) {
         run.vertical_scale = *scale;
       }
+    }
+    if (fields.size() >= 12U) {
+      run.faux_bold = parse_int_or(fields[11], fallback.faux_bold ? 1 : 0) != 0;
     }
     if (run.length <= 0 || run.start >= text_length) {
       continue;
@@ -426,7 +429,7 @@ std::vector<PsdTextParagraphRun> parse_patchy_paragraph_runs_metadata(std::strin
       line.remove_suffix(1);
     }
     line_start = line_end == std::string_view::npos ? runs_text.size() : line_end + 1U;
-    if (line.empty() || line == "v1" || line == "v2" || line == "v3") {
+    if (line.empty() || line == "v1" || line == "v2" || line == "v3" || line == "v4") {
       continue;
     }
     const auto fields = split_tab_fields(line);
@@ -1163,8 +1166,11 @@ std::string engine_style_sheet_data(const PsdTextStyleRun& run, int font_index) 
   const auto font_size = std::max(1.0, run.size);
   style += " /FontSize ";
   style += std::to_string(font_size);
+  // /FauxBold is the SYNTHETIC embolden, never "this run is bold": the run's real weight already
+  // rides in the font name font_index_for_run resolved (Georgia-Bold, not Georgia + FauxBold).
+  // Writing both made Photoshop embolden an already-bold face.
   style += " /FauxBold ";
-  style += run.bold ? "true" : "false";
+  style += run.faux_bold ? "true" : "false";
   style += " /FauxItalic ";
   style += run.italic ? "true" : "false";
   // A fixed-leading run must export /AutoLeading false or Photoshop ignores the value and

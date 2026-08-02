@@ -1104,6 +1104,214 @@ void ui_restaurant_menu_other_layers_commit_match_if_available() {
   }
 }
 
+// Dungeon Scroll's Game_Screen.psd, the reported repro: point text authored in a much older
+// Photoshop, every button under a 0.9 free-transform, headings on the identity transform.
+// Editing a layer used to move it, and the two named causes are pinned here:
+//   * 'Dungeon:' is Georgia-Italic with /FauxBold true. Faux bold synthesizes weight on the
+//     ITALIC face; resolving it to the family's real Bold Italic (which is what folding
+//     /FauxBold into the bold flag did) renders a 5px wider typeface and shifts the centered
+//     block 2px left. Photoshop's own Character panel likewise shows Italic + Faux Bold, never
+//     Bold + Italic, so the options bar must not come up bold either.
+//   * 'Jumble' / 'Submit word' render at engine 18 x 0.9 = 16.2px, 'Quit' / 'Pause' at
+//     14.44444 x 0.9 = 13.0px. Folding the whole transform scale into an integer QFont pixel
+//     size rounded the first group down to 16 and left the second alone -- exactly the reported
+//     "the lower buttons move, the upper ones barely do" asymmetry.
+// The remaining tolerance is a pixel of grid phase: Photoshop's anchors sit at fractional
+// document positions (tx 267.35, ty 305.4) and both rasters land on the whole-pixel grid.
+void ui_dungeon_scroll_psd_text_commit_keeps_placement_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("dungeon-scroll-game-screen.psd");
+  if (!std::filesystem::exists(path)) {
+    return;
+  }
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::Georgia);
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::BookmanOldStyle);
+
+  struct Probe {
+    const char* needle;
+    const char* artifact;
+    bool faux_bold;
+  };
+  const std::array<Probe, 5> probes{{
+      {"Dungeon", "ui_dungeon_scroll_heading_commit", true},
+      {"Jumble", "ui_dungeon_scroll_jumble_commit", false},
+      {"Submit word", "ui_dungeon_scroll_submit_commit", false},
+      {"Quit", "ui_dungeon_scroll_quit_commit", false},
+      {"Pause", "ui_dungeon_scroll_pause_commit", false},
+  }};
+  for (const auto& entry : probes) {
+    const auto probe = run_photoshop_text_commit_probe(path, entry.needle, 1.0, entry.artifact);
+    if (!probe.has_value()) {
+      continue;
+    }
+    std::printf("  %-12s photoshop ink (%d,%d %dx%d) -> patchy ink (%d,%d %dx%d)  d=(%+d,%+d) dsize=(%+d,%+d)\n",
+                entry.needle, probe->original_ink.x, probe->original_ink.y, probe->original_ink.width,
+                probe->original_ink.height, probe->committed_ink.x, probe->committed_ink.y,
+                probe->committed_ink.width, probe->committed_ink.height,
+                probe->committed_ink.x - probe->original_ink.x, probe->committed_ink.y - probe->original_ink.y,
+                probe->committed_ink.width - probe->original_ink.width,
+                probe->committed_ink.height - probe->original_ink.height);
+    std::fflush(stdout);
+    // Width is the sharp signal: the real Bold Italic face ran +5px on 'Dungeon:', and the
+    // rounded-down 16px size ran -1/-2px on the 16.2px buttons.
+    CHECK(std::abs(probe->committed_ink.width - probe->original_ink.width) <= 1);
+    CHECK(std::abs(probe->committed_ink.height - probe->original_ink.height) <= 1);
+    CHECK(std::abs(probe->committed_ink.x - probe->original_ink.x) <= 1);
+    CHECK(std::abs(probe->committed_ink.y - probe->original_ink.y) <= 1);
+  }
+
+  // Faux bold must NOT come back as the family's bold face: the layer's stored style stays
+  // Italic-only and the runs carry the flag on its own v4 column.
+  auto document = patchy::psd::DocumentIo::read_file(path);
+  bool checked_faux_bold = false;
+  std::function<void(const std::vector<patchy::Layer>&)> inspect =
+      [&](const std::vector<patchy::Layer>& layers) {
+        for (const auto& layer : layers) {
+          const auto text = layer.metadata().find(patchy::kLayerMetadataText);
+          if (text != layer.metadata().end() && text->second.find("Dungeon") != std::string::npos) {
+            const auto bold = layer.metadata().find(patchy::kLayerMetadataTextBold);
+            const auto italic = layer.metadata().find(patchy::kLayerMetadataTextItalic);
+            CHECK(bold == layer.metadata().end() || bold->second == "false");
+            CHECK(italic != layer.metadata().end() && italic->second == "true");
+            const auto runs = layer.metadata().find(patchy::kLayerMetadataTextRuns);
+            CHECK(runs != layer.metadata().end());
+            if (runs != layer.metadata().end()) {
+              CHECK(runs->second.rfind("v4", 0) == 0);
+              // start len size bold italic color family leading tracking hscale vscale fauxbold
+              const auto first_run = runs->second.find('\n');
+              CHECK(first_run != std::string::npos);
+              if (first_run != std::string::npos) {
+                const auto line = runs->second.substr(first_run + 1);
+                CHECK(std::count(line.begin(), line.end(), '\t') == 11);
+                CHECK(!line.empty() && line.back() == '1');
+              }
+            }
+            checked_faux_bold = true;
+          }
+          inspect(layer.children());
+        }
+      };
+  inspect(document.layers());
+  CHECK(checked_faux_bold);
+}
+
+// The reported UI symptom on the same file: clicking into 'Dungeon:' came up Bold + Italic,
+// while Photoshop shows Italic with Faux Bold ticked in the Character panel.
+void ui_dungeon_scroll_faux_bold_reads_as_faux_not_bold_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("dungeon-scroll-game-screen.psd");
+  if (!std::filesystem::exists(path)) {
+    return;
+  }
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::Georgia);
+
+  auto document = patchy::psd::DocumentIo::read_file(path);
+  patchy::LayerId layer_id = 0;
+  bool found = false;
+  std::function<void(const std::vector<patchy::Layer>&)> find_heading =
+      [&](const std::vector<patchy::Layer>& layers) {
+        for (const auto& layer : layers) {
+          if (!found) {
+            if (const auto it = layer.metadata().find(patchy::kLayerMetadataText);
+                it != layer.metadata().end() && it->second.find("Dungeon") != std::string::npos) {
+              layer_id = layer.id();
+              found = true;
+            }
+          }
+          find_heading(layer.children());
+        }
+      };
+  find_heading(document.layers());
+  CHECK(found);
+  if (!found) {
+    return;
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Dungeon Scroll"));
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+
+  auto& live_document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* layer = live_document.find_layer(layer_id);
+  CHECK(layer != nullptr);
+  if (layer == nullptr) {
+    return;
+  }
+  const auto bounds = layer->bounds();
+  live_document.set_active_layer(layer_id);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  accept_missing_psd_text_font_warning_if_present();
+  patchy::ui::MainWindowTestAccess::add_text_at(
+      window, QPoint(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2));
+  QApplication::processEvents();
+  process_events_for(250);
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+  CHECK(editor->property("patchy.editingLayerId").toULongLong() == static_cast<qulonglong>(layer_id));
+
+  auto* bold_button = window.findChild<QAbstractButton*>(QStringLiteral("textBoldButton"));
+  auto* italic_button = window.findChild<QAbstractButton*>(QStringLiteral("textItalicButton"));
+  CHECK(bold_button != nullptr && italic_button != nullptr);
+  if (bold_button != nullptr) {
+    CHECK(!bold_button->isChecked());
+  }
+  if (italic_button != nullptr) {
+    CHECK(italic_button->isChecked());
+  }
+
+  auto* character_button = window.findChild<QPushButton*>(QStringLiteral("textCharacterButton"));
+  CHECK(character_button != nullptr);
+  if (character_button == nullptr) {
+    require_action_by_text(window, QStringLiteral("Move"))->trigger();
+    return;
+  }
+  // The panel runs a nested non-modal loop; drive the check from a queued lambda.
+  bool checked_panel = false;
+  QTimer::singleShot(0, [&window, &checked_panel] {
+    auto* dialog = window.findChild<QDialog*>(QStringLiteral("textCharacterDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* faux_bold = dialog->findChild<QCheckBox*>(QStringLiteral("textCharacterFauxBold"));
+    CHECK(faux_bold != nullptr);
+    if (faux_bold != nullptr) {
+      CHECK(faux_bold->isEnabled());
+      CHECK(faux_bold->isChecked());
+      checked_panel = true;
+    }
+    dialog->reject();
+  });
+  character_button->click();
+  QApplication::processEvents();
+  CHECK(checked_panel);
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  process_events_for(150);
+
+  // Applying the session rewrites the layer from the editor's formats: faux bold has to come
+  // back out as the v4 column, or the next edit would silently drop it.
+  auto* committed = live_document.find_layer(layer_id);
+  CHECK(committed != nullptr);
+  if (committed == nullptr) {
+    return;
+  }
+  const auto committed_runs = committed->metadata().find(patchy::kLayerMetadataTextRuns);
+  CHECK(committed_runs != committed->metadata().end());
+  if (committed_runs != committed->metadata().end()) {
+    CHECK(committed_runs->second.rfind("v4", 0) == 0);
+    CHECK(committed_runs->second.back() == '1');
+  }
+  const auto committed_bold = committed->metadata().find(patchy::kLayerMetadataTextBold);
+  CHECK(committed_bold == committed->metadata().end() || committed_bold->second == "false");
+}
+
 void ui_restaurant_menu_box_text_edit_commit_keeps_leading_if_available() {
   // The CHICKEN card: BOX text with a tight fixed leading on the headline (4.2135 engine units
   // -- smaller than the em, lines overlap by design), an empty spacer line (size 6, leading
@@ -2576,6 +2784,10 @@ std::vector<patchy::test::TestCase> text_transform_commit_tests_part2() {
        ui_restaurant_menu_other_layers_commit_match_if_available},
       {"ui_restaurant_menu_box_text_edit_commit_keeps_leading_if_available",
        ui_restaurant_menu_box_text_edit_commit_keeps_leading_if_available},
+      {"ui_dungeon_scroll_psd_text_commit_keeps_placement_if_available",
+       ui_dungeon_scroll_psd_text_commit_keeps_placement_if_available},
+      {"ui_dungeon_scroll_faux_bold_reads_as_faux_not_bold_if_available",
+       ui_dungeon_scroll_faux_bold_reads_as_faux_not_bold_if_available},
       {"ui_psd_sheared_point_text_edit_lands_on_glyphs",
        ui_psd_sheared_point_text_edit_lands_on_glyphs},
       {"ui_duke_psd_text_runs_survive_reedit", ui_duke_psd_text_runs_survive_reedit},

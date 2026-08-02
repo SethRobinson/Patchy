@@ -53,6 +53,16 @@ inline constexpr int kTextBlockAutoLeadFractionProperty = QTextFormat::UserPrope
 // property intentionally excludes it.
 inline constexpr int kTextHorizontalScaleFormatProperty = QTextFormat::UserProperty + 37;
 inline constexpr int kTextVerticalScaleFormatProperty = QTextFormat::UserProperty + 38;
+// Photoshop's faux bold (runs v4): a synthetic embolden of the run's own face, never a request
+// for the family's real bold face. Carried as a flag and turned into a glyph-outline stroke by
+// apply_faux_bold_to_document at render time, so it follows later colour and size edits.
+inline constexpr int kTextFauxBoldFormatProperty = QTextFormat::UserProperty + 39;
+
+// Photoshop's faux bold widens each glyph by this fraction of the em, in both the stroke it
+// paints and the advance it adds. Calibrated against Photoshop's own rasters for Georgia-Italic
+// at 12px ("Dungeon:" 58px, "Fights Left:" 69px in the Dungeon Scroll probe); both land exactly
+// anywhere in 0.025-0.030, and the real Bold Italic face they used to resolve to is 5-6px wider.
+inline constexpr double kFauxBoldEmFraction = 0.03;
 
 // One visual line as the renderer draws it: the line, the origin it is drawn at, and the
 // rect it is clipped to. `block_position` is the owning block's document position, which
