@@ -57,6 +57,10 @@ inline constexpr int kTextVerticalScaleFormatProperty = QTextFormat::UserPropert
 // for the family's real bold face. Carried as a flag and turned into a glyph-outline stroke by
 // apply_faux_bold_to_document at render time, so it follows later colour and size edits.
 inline constexpr int kTextFauxBoldFormatProperty = QTextFormat::UserProperty + 39;
+// The face (OpenType subfamily) a run asks for, for the styles bold+italic cannot name ("Demi",
+// "Black", "Book"). Kept as its own property because QFont::styleName does not survive the
+// HTML round trip the editor documents go through. Runs v5.
+inline constexpr int kTextStyleNameFormatProperty = QTextFormat::UserProperty + 40;
 
 // Photoshop's faux bold widens each glyph by this fraction of the em, in both the stroke it
 // paints and the advance it adds. Calibrated against Photoshop's own rasters for Georgia-Italic

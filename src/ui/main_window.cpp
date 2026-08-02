@@ -709,8 +709,10 @@ bool try_register_missing_system_font_family(const QString& family) {
 #endif
 }
 
+// `style_name` is the face (OpenType subfamily) the run asks for -- "Demi", "Black", "Book" --
+// for the styles bold+italic cannot name. Empty falls back to the flags.
 QFont render_text_font_for_display_family(const QString& family, int pixel_size, bool bold, bool italic,
-                                          int anti_alias) {
+                                          int anti_alias, const QString& style_name = QString()) {
   QFont font;
   font.setFamilies(render_text_families_for_display_family(family));
   font.setPixelSize(std::max(1, pixel_size));
@@ -733,6 +735,20 @@ QFont render_text_font_for_display_family(const QString& family, int pixel_size,
     if (match.has_value()) {
       font.setFamilies(QStringList{match->family});
       font.setStyleName(match->style);
+    }
+  }
+  // An explicit face name wins over everything above: a family's styles are an arbitrary list
+  // ("Demi", "Book", "Condensed Black") and bold+italic can only name four of them. Only applied
+  // when the family really offers it, so a style carried over from another family (or from a
+  // machine where the font was installed) falls back to the flags instead of rendering nothing.
+  const auto requested_style = style_name.trimmed();
+  if (!requested_style.isEmpty()) {
+    const auto resolved_family = font.families().isEmpty() ? family : font.families().front();
+    for (const auto& available : QFontDatabase::styles(resolved_family)) {
+      if (available.compare(requested_style, Qt::CaseInsensitive) == 0) {
+        font.setStyleName(available);
+        break;
+      }
     }
   }
   configure_text_font_smoothing(font, anti_alias);
@@ -2186,6 +2202,7 @@ QString rich_text_runs_from_document(const QTextDocument& document, const TextTo
   bool includes_leading = false;
   bool photoshop_layout = false;
   bool includes_faux_bold = false;
+  bool includes_style = false;
   const auto fallback_family = fallback.family.isEmpty() ? QApplication::font().family() : fallback.family;
   const auto fallback_size = std::max(1, fallback.size);
   const auto fallback_color_name = (fallback_color.isValid() ? fallback_color : QColor(Qt::black)).name(QColor::HexRgb);
@@ -2204,12 +2221,13 @@ QString rich_text_runs_from_document(const QTextDocument& document, const TextTo
     double horizontal_scale{1.0};
     double vertical_scale{1.0};
     bool faux_bold{false};
+    QString style;
   };
   std::vector<SerializedRun> collected;
 
-  const auto append_run = [&collected, &includes_leading, &photoshop_layout, &includes_faux_bold, &fallback_family,
-                           fallback_size, &fallback_color_name](int start, int length,
-                                                                const QTextCharFormat& format) {
+  const auto append_run = [&collected, &includes_leading, &photoshop_layout, &includes_faux_bold, &includes_style,
+                           &fallback_family, fallback_size, &fallback_color_name](int start, int length,
+                                                                                  const QTextCharFormat& format) {
     if (length <= 0) {
       return;
     }
@@ -2273,7 +2291,9 @@ QString rich_text_runs_from_document(const QTextDocument& document, const TextTo
     run.faux_bold = format.hasProperty(kTextFauxBoldFormatProperty) &&
                     format.property(kTextFauxBoldFormatProperty).toBool();
     includes_faux_bold = includes_faux_bold || run.faux_bold;
-    photoshop_layout = photoshop_layout || run.auto_leading || run.faux_bold ||
+    run.style = format.property(kTextStyleNameFormatProperty).toString().trimmed();
+    includes_style = includes_style || !run.style.isEmpty();
+    photoshop_layout = photoshop_layout || run.auto_leading || run.faux_bold || !run.style.isEmpty() ||
                        std::abs(run.tracking) > 0.0001 ||
                        std::abs(run.horizontal_scale - 1.0) > 0.0001 ||
                        std::abs(run.vertical_scale - 1.0) > 0.0001;
@@ -2321,7 +2341,9 @@ QString rich_text_runs_from_document(const QTextDocument& document, const TextTo
   if (!found_run) {
     append_run(0, document.toPlainText().size(), fallback_format);
   }
-  if (includes_faux_bold) {
+  if (includes_style) {
+    lines[0] = QStringLiteral("v5");
+  } else if (includes_faux_bold) {
     lines[0] = QStringLiteral("v4");
   } else if (photoshop_layout) {
     lines[0] = QStringLiteral("v3");
@@ -2346,8 +2368,13 @@ QString rich_text_runs_from_document(const QTextDocument& document, const TextTo
       line += QStringLiteral("\t%1").arg(QString::number(run.tracking, 'g', 17));
       line += QStringLiteral("\t%1").arg(QString::number(run.horizontal_scale, 'g', 17));
       line += QStringLiteral("\t%1").arg(QString::number(run.vertical_scale, 'g', 17));
-      if (includes_faux_bold) {
+      // Column 11 is faux bold and column 12 the style name; the style column needs the faux
+      // one in front of it, so a styled run emits both.
+      if (includes_faux_bold || includes_style) {
         line += QStringLiteral("\t%1").arg(run.faux_bold ? 1 : 0);
+      }
+      if (includes_style) {
+        line += QStringLiteral("\t%1").arg(QString::fromLatin1(run.style.toUtf8().toPercentEncoding()));
       }
     } else if (includes_leading) {
       line += QStringLiteral("\t%1").arg(QString::number(run.leading, 'g', 17));
@@ -2531,9 +2558,11 @@ void apply_patchy_text_runs_to_document(QTextDocument& document, const QString& 
     } else {
       family = canonical_text_display_family(family);
     }
+    const auto style_name =
+        fields.size() >= 13 ? QString::fromUtf8(QByteArray::fromPercentEncoding(fields[12].toLatin1())) : QString();
     auto font = render_text_font_for_display_family(
         family, std::max(1, static_cast<int>(std::round(exact_document_size * vertical_glyph_scale * scale))),
-        fields[3].toInt() != 0, fields[4].toInt() != 0, anti_alias);
+        fields[3].toInt() != 0, fields[4].toInt() != 0, anti_alias, style_name);
     // Photoshop scales glyph width by H and height by V; Qt's pixel size scales both, so the
     // stretch carries the width-to-height ratio.
     if (std::abs(horizontal_glyph_scale - vertical_glyph_scale) > 0.0001) {
@@ -2549,6 +2578,9 @@ void apply_patchy_text_runs_to_document(QTextDocument& document, const QString& 
     QTextCharFormat format;
     format.setFont(font);
     set_text_display_family(format, family);
+    if (!style_name.trimmed().isEmpty()) {
+      format.setProperty(kTextStyleNameFormatProperty, style_name.trimmed());
+    }
     format.setForeground(QBrush(color));
     const auto scaled_exact_size = exact_document_size * std::max(0.0, scale);
     if (std::abs(exact_document_size - document_size) > 0.0001 ||

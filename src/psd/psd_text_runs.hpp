@@ -22,7 +22,14 @@ struct PsdTextStyleRun {
   std::string family{"Arial"};
   double size{36.0};
   RgbColor color{0, 0, 0};
-  // The REAL face the run names (Georgia-Italic is italic, CenturyGothic-Bold is bold).
+  // The face (OpenType subfamily) the run names: "Italic", "Demi", "Black", "Condensed Bold".
+  // Empty means Regular, or that the source only knew the bold/italic flags. Authoritative when
+  // set: a family's styles are an arbitrary list, and bold+italic can only name four of them,
+  // which is why weights like Demi used to have to be smuggled into `family`.
+  std::string style;
+  // The REAL face the run names (Georgia-Italic is italic, CenturyGothic-Bold is bold). Kept
+  // alongside `style` because every persisted run format carries them and because they are the
+  // only thing a family with no matching style name can fall back on.
   bool bold{false};
   bool italic{false};
   // Photoshop's /FauxBold: a synthetic emboldening of whatever face `bold`/`italic` select, NOT
@@ -67,6 +74,9 @@ std::string html_from_text_runs(std::string_view text, std::span<const PsdTextSt
 // whose wire family alone loses the face.
 struct ResolvedPhotoshopFont {
   std::string family{"Arial"};
+  // The face name the platform reported ("Italic", "Demi", "Black"), empty for Regular or when
+  // only the flags are known. See PsdTextStyleRun::style.
+  std::string style;
   bool bold{false};
   bool italic{false};
 };

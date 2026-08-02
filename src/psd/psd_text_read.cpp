@@ -921,6 +921,30 @@ std::optional<ResolvedPhotoshopFont> directwrite_resolved_photoshop_font(std::st
           })) {
         const auto weight = font->GetWeight();
         const bool italic = font->GetStyle() != DWRITE_FONT_STYLE_NORMAL;
+        // The face name as the font itself declares it, but ONLY when bold+italic cannot already
+        // say it. Recording "Italic" or "Bold" too would push almost every imported layer onto
+        // runs v5 for no gain and move the byte-stability canaries; the style column exists for
+        // the faces the flags cannot name (Demi, Book, Black, Condensed Light).
+        const auto declared_style = [&font]() -> std::string {
+          Microsoft::WRL::ComPtr<IDWriteLocalizedStrings> names;
+          if (FAILED(font->GetFaceNames(&names)) || !names) {
+            return {};
+          }
+          const auto face = directwrite_localized_string(names.Get());
+          if (!face.has_value()) {
+            return {};
+          }
+          auto value = utf8_from_wide(*face);
+          auto key = value;
+          std::transform(key.begin(), key.end(), key.begin(),
+                         [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+          static constexpr std::array<std::string_view, 8> kFlagExpressible{
+              "regular", "normal", "bold", "italic", "oblique", "bold italic", "italic bold", "bold oblique"};
+          if (std::find(kFlagExpressible.begin(), kFlagExpressible.end(), key) != kFlagExpressible.end()) {
+            return {};
+          }
+          return value;
+        }();
         // Black/Heavy faces (weight >= 800) keep their full face name: the renderer's
         // family+style matcher then finds the real face ("Arial Black" -> family "Arial",
         // style "Black") instead of flattening it to the Bold face (~15% narrower glyphs on
@@ -930,7 +954,7 @@ std::optional<ResolvedPhotoshopFont> directwrite_resolved_photoshop_font(std::st
           if (const auto full_name =
                   directwrite_font_info_string(font.Get(), DWRITE_INFORMATIONAL_STRING_FULL_NAME);
               full_name.has_value() && !full_name->empty() && *full_name != family) {
-            return ResolvedPhotoshopFont{*full_name, true, italic};
+            return ResolvedPhotoshopFont{*full_name, declared_style, true, italic};
           }
         }
         // Only Regular (400) and Bold (700) survive being flattened into a family plus a bold
@@ -956,10 +980,11 @@ std::optional<ResolvedPhotoshopFont> directwrite_resolved_photoshop_font(std::st
           std::transform(face_style_key.begin(), face_style_key.end(), face_style_key.begin(),
                          [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
           if (!face_style.empty() && face_style_key != "regular" && face_style_key != "normal") {
-            return ResolvedPhotoshopFont{family + ' ' + face_style, false, italic};
+            return ResolvedPhotoshopFont{family + ' ' + face_style, declared_style, false, italic};
           }
         }
-        return ResolvedPhotoshopFont{std::move(family), weight >= DWRITE_FONT_WEIGHT_SEMI_BOLD, italic};
+        return ResolvedPhotoshopFont{std::move(family), declared_style,
+                                     weight >= DWRITE_FONT_WEIGHT_SEMI_BOLD, italic};
       }
     }
   }
@@ -1037,7 +1062,7 @@ std::optional<ResolvedPhotoshopFont> registry_resolved_photoshop_font(std::strin
       return !target.empty() && font_names_match(family, target);
     });
     if (matches) {
-      return ResolvedPhotoshopFont{std::move(family), heuristic.bold, heuristic.italic};
+      return ResolvedPhotoshopFont{std::move(family), heuristic.style, heuristic.bold, heuristic.italic};
     }
   }
   return std::nullopt;
@@ -1229,6 +1254,7 @@ std::optional<std::vector<PsdTextStyleRun>> extract_engine_text_runs(std::span<c
     if (font >= 0 && static_cast<std::size_t>(font) < font_names.size()) {
       const auto resolved = resolve_photoshop_font_name(font_names[static_cast<std::size_t>(font)]);
       run.family = resolved.family;
+      run.style = resolved.style;
       run.bold = run.bold || resolved.bold;
       run.italic = run.italic || resolved.italic;
     }
@@ -1325,11 +1351,15 @@ bool text_run_size_is_integral(const PsdTextStyleRun& run) {
 // v4: v3 + Photoshop's faux bold flag (synthetic embolden of the named face). Every column is
 //     read by index, so a v3 reader simply ignores it; the version token only ever rises when a
 //     run actually carries faux bold, which keeps existing files byte-identical.
+// v5: v4 + the face/style name (percent-encoded), for the styles bold+italic cannot name.
+//     Written only when a run really carries one, for the same byte-stability reason.
 std::string serialize_patchy_text_runs(std::span<const PsdTextStyleRun> runs) {
   const bool include_leading = std::any_of(runs.begin(), runs.end(), [](const PsdTextStyleRun& run) {
     return run.leading.has_value() && std::isfinite(*run.leading) && *run.leading > 0.0;
   });
-  const bool include_faux_bold =
+  const bool include_style =
+      std::any_of(runs.begin(), runs.end(), [](const PsdTextStyleRun& run) { return !run.style.empty(); });
+  const bool include_faux_bold = include_style ||
       std::any_of(runs.begin(), runs.end(), [](const PsdTextStyleRun& run) { return run.faux_bold; });
   const bool photoshop_layout = include_faux_bold ||
       std::any_of(runs.begin(), runs.end(), [](const PsdTextStyleRun& run) {
@@ -1337,7 +1367,8 @@ std::string serialize_patchy_text_runs(std::span<const PsdTextStyleRun> runs) {
                std::abs(run.horizontal_scale - 1.0) > 0.0001 || std::abs(run.vertical_scale - 1.0) > 0.0001;
       });
   std::string serialized =
-      include_faux_bold ? "v4" : (photoshop_layout ? "v3" : (include_leading ? "v2" : "v1"));
+      include_style ? "v5"
+                    : (include_faux_bold ? "v4" : (photoshop_layout ? "v3" : (include_leading ? "v2" : "v1")));
   for (const auto& run : runs) {
     serialized += '\n';
     serialized += std::to_string(run.start);
@@ -1375,6 +1406,10 @@ std::string serialize_patchy_text_runs(std::span<const PsdTextStyleRun> runs) {
       if (include_faux_bold) {
         serialized += '\t';
         serialized += run.faux_bold ? '1' : '0';
+      }
+      if (include_style) {
+        serialized += '\t';
+        serialized += percent_encode(run.style);
       }
     } else if (include_leading) {
       serialized += '\t';

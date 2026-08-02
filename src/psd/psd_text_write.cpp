@@ -268,7 +268,7 @@ std::vector<PsdTextStyleRun> parse_patchy_text_runs_metadata(std::string_view ru
       line.remove_suffix(1);
     }
     line_start = line_end == std::string_view::npos ? runs_text.size() : line_end + 1U;
-    if (line.empty() || line == "v1" || line == "v2" || line == "v3" || line == "v4") {
+    if (line.empty() || line == "v1" || line == "v2" || line == "v3" || line == "v4" || line == "v5") {
       continue;
     }
 
@@ -319,6 +319,9 @@ std::vector<PsdTextStyleRun> parse_patchy_text_runs_metadata(std::string_view ru
     }
     if (fields.size() >= 12U) {
       run.faux_bold = parse_int_or(fields[11], fallback.faux_bold ? 1 : 0) != 0;
+    }
+    if (fields.size() >= 13U) {
+      run.style = percent_decode(fields[12]);
     }
     if (run.length <= 0 || run.start >= text_length) {
       continue;
@@ -429,7 +432,7 @@ std::vector<PsdTextParagraphRun> parse_patchy_paragraph_runs_metadata(std::strin
       line.remove_suffix(1);
     }
     line_start = line_end == std::string_view::npos ? runs_text.size() : line_end + 1U;
-    if (line.empty() || line == "v1" || line == "v2" || line == "v3" || line == "v4") {
+    if (line.empty() || line == "v1" || line == "v2" || line == "v3" || line == "v4" || line == "v5") {
       continue;
     }
     const auto fields = split_tab_fields(line);
