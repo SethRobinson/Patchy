@@ -174,6 +174,18 @@ where that font was installed, must not render nothing).
   canaries do not move. The picker derives those four from `bold`/`italic` instead.
 - The Bold/Italic buttons stay as the shortcut for the four they can name and track the picker in
   both directions (`sync_text_style_combo_from_flags`, `apply_text_style_to_active_editor`).
+- **B and I fall back to FAUX when the family has no such face.** Pressing I on Century Gothic
+  (Regular + Bold, no italic) used to leave the flag set with nothing to match, so Qt handed back
+  Regular and the button looked broken. `family_offers_face_axis` is asked ONE AXIS AT A TIME on
+  purpose: bold + italic on that family is the real Bold face plus a synthetic slant, which is
+  what Photoshop does with the same pair. `real_face_style_name` masks the flags the same way so
+  the picker shows Bold rather than hunting for a "Bold Italic" that does not exist.
+- **Never read the style list straight from `QFontDatabase::styles()`.** Qt's Windows database
+  fills a family's faces in lazily and can answer "Regular" alone until something asks for the
+  bold or italic face, so the picker's list visibly grew the first time the user pressed B.
+  `available_text_family_styles` pushes the four flag combinations through the matcher and folds
+  in the real faces they resolve to, ignoring any that came back as a different family; a family
+  with no italic still answers Regular, so the list is only completed, never invented.
 - `textStyleCombo` needs the `is_text_option_widget` exemption like every other option widget, or
   focusing it auto-commits the session.
 
@@ -281,22 +293,19 @@ run's OWN face and must not resolve to the family's real Italic, which is a diff
 It rides `PsdTextStyleRun::faux_italic` and runs v6 column 13, the Character panel edits it
 (`textCharacterFauxItalic`), and export writes `/FauxItalic` from that flag alone.
 
-Rendering it cannot go through QFont. Measured on Arial, `QFont::setStyle(QFont::StyleOblique)`
-resolves to the family's REAL Italic face (`QFontInfo::styleName()` returns "Italic", pixel-
-identical ink), so Qt has no way to say "slant the regular face". The renderer shears the drawn
-line instead, about that line's own baseline (`faux_italic_shear`, `kFauxItalicSlant` = tan 12
-degrees), which leaves advances alone the way Photoshop does and only grows the raster's right
-bleed by the lean.
+Rendering it cannot go through QFont: measured on Arial, `QFont::setStyle(QFont::StyleOblique)`
+resolves to the family's REAL Italic face (`QFontInfo::styleName()` returns "Italic", identical
+ink). The renderer shears the drawn line about its own baseline instead (`faux_italic_shear`,
+`kFauxItalicSlant` = tan 12 degrees), leaving advances alone as Photoshop does and growing only
+the raster's right bleed.
 
 - **The shear is per LINE, not per run.** `QTextLine::draw` draws a whole line, so
-  `line_is_entirely_faux_italic` gates it: a line whose runs disagree stays upright rather than
-  slanting runs that did not ask for it. Per-run fidelity would mean replacing the draw path with
-  `QTextLine::glyphRuns()` + `QPainter::drawGlyphRun`, which would have to reapply colour, the
-  faux-bold outline and selection per glyph run and would expose every pinned pixel baseline in
-  the suite. Known gap; faux italic is a layer-level choice in every file in the corpus.
-- `ui_faux_italic_shears_the_rendered_glyphs` pins it geometrically on "HH" (nothing but vertical
-  stems): upright ink starts at the same column top and bottom, sheared ink starts ~8px further
-  right at the top of a 64px cap.
+  `line_is_entirely_faux_italic` gates it and a line whose runs disagree stays upright. Per-run
+  would mean redrawing through `QTextLine::glyphRuns()` + `QPainter::drawGlyphRun`, reapplying
+  colour, the faux-bold outline and selection per run, and exposing every pinned pixel baseline in
+  the suite. Known gap; faux italic is layer-level in every file in the corpus.
+- `ui_faux_italic_shears_the_rendered_glyphs` pins it on "HH" (vertical stems only): upright ink
+  starts at the same column top and bottom, sheared ink ~8px further right at the top of a 64px cap.
 
 ## Glyph sizes fold only to whole pixels
 

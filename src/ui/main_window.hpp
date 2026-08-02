@@ -990,6 +990,7 @@ private:
   // ("Demi", "Bold Italic", empty for Regular).
   void refresh_text_style_combo(const QString& family, const QString& preferred);
   [[nodiscard]] QString current_text_style_name() const;
+  [[nodiscard]] QString current_text_family_for_editor(const QTextEdit& editor) const;
   void apply_text_style_to_active_editor();
   // Keeps the picker and the Bold/Italic buttons describing the same face without either
   // driving the other into a signal loop.
