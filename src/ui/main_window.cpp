@@ -2762,6 +2762,15 @@ void merge_text_char_format(QTextEdit& editor, const QTextCharFormat& format) {
     return;
   }
 
+  // No selection: Photoshop applies an options-bar change to the WHOLE type object. Qt's
+  // mergeCurrentCharFormat alone only sets the format the next typed character would get, so
+  // clicking Bold/Italic (or changing the family, size or colour) with a bare caret did nothing
+  // at all to the text already on the layer -- the run formats kept their own values and won at
+  // render time. Merge over the document with a scratch cursor so the caret and any pending
+  // typing format stay where the user left them.
+  auto whole = editor.textCursor();
+  whole.select(QTextCursor::Document);
+  whole.mergeCharFormat(format);
   editor.mergeCurrentCharFormat(format);
 }
 
