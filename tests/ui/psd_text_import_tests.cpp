@@ -2754,6 +2754,95 @@ void ui_picking_bold_in_style_combo_stays_flag_expressible() {
   }
 }
 
+// The Dungeon Scroll Quit button: a Bookman Old Style run on the real Italic face. Bookman
+// declares its whole line light (Regular 300, Bold 600 on the Windows database), so
+// QFontDatabase::bold() answers FALSE for its real Bold faces and a database-only flag reading
+// silently collapsed a "Bold Italic" pick to plain italic: the glyphs never changed. Picking
+// "Bold Italic" must land BOTH axes on the run whatever weights the family declares.
+void ui_bold_italic_pick_works_on_sub_bold_weight_family() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::BookmanOldStyle);
+  const auto family = QStringLiteral("Bookman Old Style");
+  if (!QFontDatabase::styles(family).contains(QStringLiteral("Bold Italic"))) {
+    return;  // no four-face Bookman family on this machine
+  }
+
+  patchy::Document document(320, 180, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(320, 180, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  auto pixels = solid_pixels(118, 36, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  fill_pixel_rect(pixels, QRect(0, 0, 96, 30), QColor(20, 20, 20, 255));
+  patchy::Layer text_layer(document.allocate_layer_id(), "Quit", std::move(pixels));
+  text_layer.set_bounds(patchy::Rect{40, 40, 118, 36});
+  text_layer.metadata()[patchy::kLayerMetadataText] = "Quit";
+  text_layer.metadata()[patchy::kLayerMetadataTextFlow] = "point";
+  text_layer.metadata()[patchy::kLayerMetadataTextFont] = family.toStdString();
+  text_layer.metadata()[patchy::kLayerMetadataTextSize] = "24";
+  text_layer.metadata()[patchy::kLayerMetadataTextColor] = "#202020";
+  text_layer.metadata()[patchy::kLayerMetadataTextItalic] = "true";
+  text_layer.metadata()[patchy::kLayerMetadataTextRuns] =
+      "v1\n0\t4\t24\t0\t1\t#202020\tBookman%20Old%20Style";
+  const auto layer_id = document.add_layer(std::move(text_layer)).id();
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Quit Bold Italic"));
+  auto* canvas = require_canvas(window);
+  QApplication::processEvents();
+  patchy::ui::MainWindowTestAccess::document(window).set_active_layer(layer_id);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto hit_point = canvas->widget_position_for_document_point(QPoint(60, 52));
+  send_mouse(*canvas, QEvent::MouseButtonPress, hit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, hit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  process_events_for(250);
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  auto* style_combo = window.findChild<QComboBox*>(QStringLiteral("textStyleCombo"));
+  CHECK(editor != nullptr);
+  CHECK(style_combo != nullptr);
+  if (editor == nullptr || style_combo == nullptr) {
+    return;
+  }
+  CHECK(style_combo->currentData().toString().compare(QStringLiteral("Italic"), Qt::CaseInsensitive) == 0);
+
+  editor->selectAll();
+  QApplication::processEvents();
+  const auto bold_italic_index = style_combo->findData(QStringLiteral("Bold Italic"));
+  CHECK(bold_italic_index > 0);
+  if (bold_italic_index <= 0) {
+    return;
+  }
+  style_combo->setCurrentIndex(bold_italic_index);
+  QApplication::processEvents();
+  process_events_for(250);
+
+  bool saw_fragment = false;
+  for (auto block = editor->document()->begin(); block.isValid(); block = block.next()) {
+    for (auto it = block.begin(); !it.atEnd(); ++it) {
+      const auto fragment = it.fragment();
+      if (!fragment.isValid() || fragment.length() <= 0) {
+        continue;
+      }
+      saw_fragment = true;
+      CHECK(fragment.charFormat().font().bold());
+      CHECK(fragment.charFormat().font().italic());
+    }
+  }
+  CHECK(saw_fragment);
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  process_events_for(150);
+  const auto* committed = patchy::ui::MainWindowTestAccess::document(window).find_layer(layer_id);
+  CHECK(committed != nullptr);
+  if (committed != nullptr) {
+    const auto runs = committed->metadata().find(patchy::kLayerMetadataTextRuns);
+    CHECK(runs != committed->metadata().end());
+    if (runs != committed->metadata().end()) {
+      CHECK(runs->second.find("\t1\t1\t#202020\tBookman%20Old%20Style") != std::string::npos);
+    }
+  }
+}
+
 // Faux italic slants the run's OWN face. Qt cannot express that through QFont at all
 // (setStyle(StyleOblique) resolves to the family's real Italic face), so the renderer shears the
 // drawn line about its baseline. The proof is geometric: the same glyphs, rasterized with the
@@ -3004,5 +3093,9 @@ std::vector<patchy::test::TestCase> psd_text_import_tests() {
       {"ui_faux_italic_shears_the_rendered_glyphs", ui_faux_italic_shears_the_rendered_glyphs},
       {"ui_bold_italic_fall_back_to_faux_when_the_family_lacks_the_face",
        ui_bold_italic_fall_back_to_faux_when_the_family_lacks_the_face},
+      // Last in the group: registers the Bookman family, and a new family registration moves the
+      // missing-font fallback other tests' pinned rasters depend on (see docs/testing.md).
+      {"ui_bold_italic_pick_works_on_sub_bold_weight_family",
+       ui_bold_italic_pick_works_on_sub_bold_weight_family},
   };
 }

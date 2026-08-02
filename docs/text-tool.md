@@ -33,8 +33,7 @@ sizes only at render time, so leaving `layout_scale` at its 1.0 default laid the
 selection out at the raw size while the glyphs were drawn scaled: on a 1.5x frame, selecting one
 character highlighted one and a half.
 `ui_psd_frame_text_highlight_matches_scaled_glyphs` pins it by comparing a select-all highlight
-against the rendered ink (with space-free text, since a trailing space is legitimately
-highlighted and has no ink of its own), and by clicking the middle of the INK and requiring the
+against the rendered ink (with space-free text), and by clicking the middle of the INK and requiring the
 cursor to land mid-text. The click probe has to be derived from the render: clicking the caret
 proves nothing, because the click and the caret share a layout and agree with each other even
 when that layout is wrong against the glyphs. A too-small layout maps a click near the end of
@@ -70,8 +69,7 @@ An edit session must never produce a frame with no glyphs in it. Two rules enfor
   it; `hide_text_editor_source_layer` does, from inside `update_text_editor_preview`, at the
   moment the preview pixels are in place, and it returns the vacated region so the hide and the
   reveal land in ONE `document_changed_effect_bounds` call. Hiding up front blanked the text for
-  as long as the first preview took, which on a styled layer is the whole
-  `kExpensiveTextEditorPreviewDelayMs`.
+  the whole first-preview delay.
 - **The debounce never removes the preview.** An expensive style re-renders on the longer delay,
   but the last good preview keeps drawing until the new one replaces it; tearing it out first
   made every keystroke flash between two different rasterizations.
@@ -146,9 +144,9 @@ Every boxed render path gates whole LINES against the frame, never raster rows: 
 straddling the frame bottom draws completely (its clip band extends below the frame by the
 font's descent bleed) and lines wholly past the frame stay hidden. The editor,
 Photoshop-layout, and metadata re-render paths (reopened documents, the Affinity post-open
-pass) all share this rule in `render_text_pixels_with_local_rect`; the metadata path
-historically skipped the line plan and cut the straddling line mid-glyph at the buffer edge
-(the tips.af regression, July 2026; Affinity and Photoshop both draw the straddler whole).
+pass) all share this rule in `render_text_pixels_with_local_rect`; the metadata path used to
+skip the line plan and cut the straddling line mid-glyph at the buffer edge (Affinity and
+Photoshop both draw the straddler whole).
 The metadata path keeps the buffer origin and width at the frame's and grows only the
 bottom, because pixels-only callers place the buffer at the frame corner.
 
@@ -158,18 +156,22 @@ A family's faces are an arbitrary list; bold and italic can only name four of th
 bar's style picker (`textStyleCombo`) is the ONLY face control, like Photoshop: there are no B/I
 buttons. `PsdTextStyleRun::style` / runs v5 column 12 persist a chosen face the flags cannot
 express, and `render_text_font_for_display_family` takes it as its last argument, applying
-`setStyleName` when the family really offers it and falling back to the flags otherwise (a style
-carried from a machine where that font was installed must not render nothing).
+`setStyleName` when the family really offers it and falling back to the flags otherwise (a
+stray style must not render nothing).
 
 - **A style is recorded only when the flags cannot express it.** The DirectWrite resolver and the
   picker both drop Regular/Bold/Italic/Bold Italic/Oblique variants
   (`text_style_is_flag_expressible` mirrors the reader's list), so ordinary imports and picks
   stay on runs v1-v4 and the byte-stability canaries do not move. The picker derives those four
   rows from `bold`/`italic` and previews each row in its own face (per-item `Qt::FontRole`).
+- **A face name's flags union the database's answer; the database never vetoes the name**
+  (`text_style_flags_for_style`): `QFontDatabase::bold` calls only weight >= 700 bold, and
+  Bookman Old Style declares Bold at 600, which collapsed a "Bold Italic" pick to plain italic.
+  The database still adds axes for localized face names.
 - **Ctrl+B / Ctrl+I toggle the face axis during a session** (`toggle_text_bold_face` /
   `toggle_text_italic_face`): the real face when `family_offers_face_axis` says the family ships
   one, FAUX bold/italic otherwise (Ctrl+I on Century Gothic, Regular + Bold and no italic,
-  applies the synthetic slant instead of doing nothing). The axis state folds the faux flag in,
+  applies the synthetic slant). The axis state folds the faux flag in,
   so a second press always turns the axis off (the old button path could never clear faux), and
   the toggle clears any recorded exotic style (Ctrl+B on a Black run selects the Bold face, as
   Photoshop does). `family_offers_face_axis` is asked ONE AXIS AT A TIME on purpose, and
@@ -185,8 +187,8 @@ carried from a machine where that font was installed must not render nothing).
   (Light, Semibold, Black), orders the four standard faces first like Photoshop, and caches per
   family with `fontDatabaseChanged` invalidation. A family that is not installed at all still
   offers the four standard faces so the toggles do not synthesize on top of a substituted face.
-- New text seeds from the picker's selection (`add_text_at`); pre-arming bold outside a session
-  is gone, matching Photoshop.
+- New text seeds from the picker's selection (`add_text_at`); there is no pre-armed bold
+  outside a session.
 - On export, `photoshop_font_name_for_run` resolves the recorded style (or the face split off a
   compound display family) to that face's PostScript name: "Arial" + "Black" writes `Arial-Black`
   instead of flattening onto `Arial-BoldMT`. Style-empty runs keep the weight-based lookup
@@ -218,9 +220,9 @@ to `mergeCurrentCharFormat`, which only formats the NEXT typed character.
   fail on Windows, `try_register_missing_system_font_family` loads every
   CurrentVersion\Fonts registry entry whose name starts with the requested
   family as an application font and retries: Qt's Windows database can miss
-  registered fonts entirely (this machine's Arial Narrow was in the registry
-  and on disk yet absent from the family list AND Arial's style list, so
-  imported text silently fell to Tahoma). Attempted families are cached per
+  registered fonts entirely (this machine's Arial Narrow was registered and on
+  disk yet absent from the database, so imported text silently fell to
+  Tahoma). Attempted families are cached per
   run; application fonts are never removed (removeApplicationFont can crash
   live font users).
 - On wasm, `available_text_family_match` additionally resolves common system

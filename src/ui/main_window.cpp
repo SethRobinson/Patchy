@@ -576,21 +576,26 @@ QStringList available_text_family_styles(const QString& family) {
   return ordered;
 }
 
-// Bold/italic as the font database records them for a REAL face of this family, with the
-// substring reading of the name as the fallback (localized face names, or a style carried from
-// a machine where the family was installed).
+// Bold/italic as the face name AND the font database describe them, unioned. The name is
+// authoritative when it names an axis: the database compares declared weights against
+// QFont::Bold (700), and families like Bookman Old Style declare their whole line light
+// (Regular 300, Bold 600 on the Windows database), so bold() answers FALSE for their real
+// Bold faces and a DB-only reading collapsed a "Bold Italic" pick to plain italic. The
+// database still ADDS axes the English substring cannot read (localized face names).
 TextStyleFlags text_style_flags_for_style(const QString& family, const QString& style) {
+  auto flags = text_style_flags_for_name(style);
   const auto requested = style.trimmed();
-  if (!requested.isEmpty()) {
+  if (!requested.isEmpty() && (!flags.bold || !flags.italic)) {
     const auto query_family = text_style_query_family(family);
     for (const auto& available : QFontDatabase::styles(query_family)) {
       if (available.compare(requested, Qt::CaseInsensitive) == 0) {
-        return TextStyleFlags{QFontDatabase::bold(query_family, available),
-                              QFontDatabase::italic(query_family, available)};
+        flags.bold = flags.bold || QFontDatabase::bold(query_family, available);
+        flags.italic = flags.italic || QFontDatabase::italic(query_family, available);
+        break;
       }
     }
   }
-  return text_style_flags_for_name(style);
+  return flags;
 }
 
 // Whether bold + italic can already say everything this face name says. Mirrors the PSD
