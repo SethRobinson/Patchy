@@ -25,6 +25,20 @@ FIRST, the way `QTextDocument::findBlock` does, because a block's last line ends
 paragraph separator and a document-wide scan answers the previous block for a position at the
 start of the next one.
 
+**The caret layout must be built with the same SCALES as the render pass**, not just the same
+document. `build_text_editor_document_space_layout` has to mirror `update_text_editor_preview`
+argument for argument: `metric_scale` AND the PSD-frame `layout_scale`
+(`text_editor_size_display_scale` when `photoshop_layout && usesPsdTextFrame`). A frame session
+keeps its runs in raw engine units and folds the frame transform's vertical scale into the glyph
+sizes only at render time, so leaving `layout_scale` at its 1.0 default laid the caret and
+selection out at the raw size while the glyphs were drawn scaled. The highlight was then wrong by
+exactly that factor: on a 1.5x frame, selecting one character highlighted one and a half.
+Committing rewrites the layer without the frame, which is why re-entering looked correct and made
+the bug read as "wrong until you exit and come back".
+`ui_psd_frame_text_highlight_matches_scaled_glyphs` pins it by comparing a select-all highlight
+against the rendered ink (with space-free text, since a trailing space is legitimately
+highlighted and has no ink of its own).
+
 Mouse hit-testing goes through the same plan. `QTextEdit::cursorForPosition` must never resolve a
 click inside a text session: the widget hit-tests against its own internal layout, built at an
 integer pixel size of `round(size * zoom)` with Qt's natural line spacing, so the click and the

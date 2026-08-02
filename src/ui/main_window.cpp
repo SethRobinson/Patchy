@@ -325,6 +325,7 @@ QRect text_editor_viewport_caret_rect(const QTextEdit& editor);
 std::vector<QRect> text_editor_viewport_selection_rects(const QTextEdit& editor, int start, int end);
 double text_editor_metric_scale(const QTextEdit& editor);
 bool text_editor_uses_photoshop_layout(const QTextEdit& editor);
+double text_editor_size_display_scale(const QTextEdit& editor);
 
 // The document a text layer is rasterized from, plus the font/width the layout was built against.
 // Built by build_text_render_document -- the single construction shared by the rasterizer and the
@@ -1244,10 +1245,21 @@ std::unique_ptr<QTextDocument> build_text_editor_document_space_layout(const QTe
                             text_flow_is_box(editor.property("patchy.documentTextFlow").toString()),
                             text_width,
                             text_height};
+  settings.photoshop_layout = text_editor_uses_photoshop_layout(editor);
   const auto rich_text_runs = rich_text_runs_from_document(*source_units, settings, color);
   const auto paragraph_runs = paragraph_runs_from_document(*source_units);
+  // The scales MUST mirror the render pass (update_text_editor_preview / commit_text_editor).
+  // A PSD-frame session keeps its runs in raw engine units and folds the transform's vertical
+  // scale into the glyph sizes only at render time; leaving layout_scale at its 1.0 default here
+  // laid the caret and selection out at the RAW size while the glyphs were drawn scaled, so the
+  // highlight came out wrong by exactly that factor. On the 100.32 pt entry_poster frame, one
+  // character's highlight covered a character and a half.
+  const auto frame_layout_scale =
+      settings.photoshop_layout && editor.property("patchy.usesPsdTextFrame").toBool()
+          ? text_editor_size_display_scale(editor)
+          : 1.0;
   auto built = build_text_render_document(settings, color, text_width, paragraph_runs, rich_text_runs,
-                                          text_editor_metric_scale(editor));
+                                          text_editor_metric_scale(editor), frame_layout_scale);
   return std::move(built.document);
 }
 

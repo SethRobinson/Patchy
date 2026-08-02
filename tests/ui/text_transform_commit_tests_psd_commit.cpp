@@ -2277,10 +2277,122 @@ void ui_transformed_text_click_returns_to_the_caret_it_drew() {
   }
 }
 
+void ui_psd_frame_text_highlight_matches_scaled_glyphs() {
+  // A PSD-frame session keeps its runs in raw engine units and folds the frame transform's
+  // vertical scale into the glyph sizes only at RENDER time. The caret/selection layout was built
+  // without that scale, so on a scaled frame the highlight came out wrong by exactly that factor:
+  // on Seth's 100.32 pt entry_poster frame, selecting one character highlighted one and a half.
+  // Committing rewrote the layer without the frame, which is why re-entering looked correct.
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  const auto path = patchy::test::committed_psd_fixture_path("photoshop-text-box-auto-leading.psd");
+  auto document = patchy::psd::DocumentIo::read_file(path);
+  patchy::LayerId layer_id = 0;
+  bool found = false;
+  std::function<void(const std::vector<patchy::Layer>&)> find_text_layer =
+      [&](const std::vector<patchy::Layer>& layers) {
+        for (const auto& layer : layers) {
+          if (!found && patchy::layer_is_text(layer) &&
+              layer.metadata().contains(patchy::kLayerMetadataPsdTextBoxBounds)) {
+            layer_id = layer.id();
+            found = true;
+          }
+          find_text_layer(layer.children());
+        }
+      };
+  find_text_layer(document.layers());
+  CHECK(found);
+  if (!found) {
+    return;
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Scaled PSD Frame Text"));
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+
+  auto& live_document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* source = live_document.find_layer(layer_id);
+  CHECK(source != nullptr);
+  if (source == nullptr) {
+    return;
+  }
+  // Scale the frame 1.5x, matching on BOTH transform keys so the session still takes the
+  // PSD-frame path (a patchy transform that diverges from the PSD one opts out of it).
+  const auto bounds_now = source->bounds();
+  QTransform scaled;
+  scaled.translate(bounds_now.x, bounds_now.y);
+  scaled.scale(1.5, 1.5);
+  const auto affine = patchy::serialize_layer_affine_transform(patchy::LayerAffineTransform{
+      scaled.m11(), scaled.m12(), scaled.m21(), scaled.m22(), scaled.dx(), scaled.dy()});
+  source->metadata()[patchy::kLayerMetadataTextTransform] = affine;
+  source->metadata()[patchy::kLayerMetadataPsdTextTransform] = affine;
+
+  live_document.set_active_layer(layer_id);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto hit_point = canvas->widget_position_for_document_point(
+      QPoint(bounds_now.x + bounds_now.width / 2, bounds_now.y + 12));
+  accept_missing_psd_text_font_warning_if_present();
+  send_mouse(*canvas, QEvent::MouseButtonPress, hit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, hit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  process_events_for(300);
+
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+  const bool uses_frame = editor->property("patchy.usesPsdTextFrame").toBool();
+  const auto display_scale = editor->property("patchy.textSizeDisplayScale").toDouble();
+  const auto editor_origin_x = editor->property("patchy.documentTextX").toInt();
+
+  // One space-free line, so selecting all of it highlights glyphs and nothing else: a trailing
+  // space legitimately gets highlighted despite having no ink, which would blur the comparison.
+  editor->setPlainText(QStringLiteral("HHHHHH"));
+  QApplication::processEvents();
+  process_events_for(300);
+  editor->selectAll();
+  QApplication::processEvents();
+  QRect highlight;
+  for (const auto& value : editor->property("patchy.previewSelectionRects").toList()) {
+    highlight = highlight.united(value.toRect());
+  }
+  // Where the glyphs actually are, straight off the rendered preview.
+  QRect ink;
+  if (auto* preview = preview_layer_for_editor(live_document, *editor); preview != nullptr) {
+    if (const auto alpha = alpha_pixel_bounds_in_rows(preview->pixels(), 0, preview->pixels().height());
+        alpha.has_value()) {
+      ink = alpha->translated(preview->bounds().x, preview->bounds().y);
+    }
+  }
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  process_events_for(150);
+
+  CHECK(uses_frame);
+  CHECK(std::abs(display_scale - 1.5) < 0.01);
+  CHECK(!highlight.isEmpty());
+  CHECK(!ink.isEmpty());
+  if (highlight.isEmpty() || ink.isEmpty()) {
+    return;
+  }
+  // Select-all highlights every glyph, so its span must match the rendered ink. Built without the
+  // frame scale the layout misses by a third, far outside this tolerance.
+  const auto highlight_left = editor_origin_x + highlight.left();
+  const auto highlight_right = editor_origin_x + highlight.right();
+  CHECK(std::abs(highlight_left - ink.left()) <= 6);
+  CHECK(std::abs(highlight_right - ink.right()) <= 6);
+}
+
 std::vector<patchy::test::TestCase> text_transform_commit_tests_part2() {
   return {
       {"ui_psd_centered_point_text_keeps_center_on_commit",
        ui_psd_centered_point_text_keeps_center_on_commit},
+      {"ui_psd_frame_text_highlight_matches_scaled_glyphs",
+       ui_psd_frame_text_highlight_matches_scaled_glyphs},
       {"ui_transformed_text_click_returns_to_the_caret_it_drew",
        ui_transformed_text_click_returns_to_the_caret_it_drew},
       {"ui_psd_text_caret_follows_photoshop_leading", ui_psd_text_caret_follows_photoshop_leading},
