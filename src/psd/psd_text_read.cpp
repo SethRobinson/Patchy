@@ -919,20 +919,47 @@ std::optional<ResolvedPhotoshopFont> directwrite_resolved_photoshop_font(std::st
       if (std::any_of(candidates.begin(), candidates.end(), [font_name](const std::string& candidate) {
             return font_names_match(candidate, font_name);
           })) {
+        const auto weight = font->GetWeight();
+        const bool italic = font->GetStyle() != DWRITE_FONT_STYLE_NORMAL;
         // Black/Heavy faces (weight >= 800) keep their full face name: the renderer's
         // family+style matcher then finds the real face ("Arial Black" -> family "Arial",
         // style "Black") instead of flattening it to the Bold face (~15% narrower glyphs on
         // the SNES box blurb). The bold flag stays set so an uninstalled face still falls
         // back to Bold exactly as before.
-        if (font->GetWeight() >= DWRITE_FONT_WEIGHT_EXTRA_BOLD) {
+        if (weight >= DWRITE_FONT_WEIGHT_EXTRA_BOLD) {
           if (const auto full_name =
                   directwrite_font_info_string(font.Get(), DWRITE_INFORMATIONAL_STRING_FULL_NAME);
               full_name.has_value() && !full_name->empty() && *full_name != family) {
-            return ResolvedPhotoshopFont{*full_name, true, font->GetStyle() != DWRITE_FONT_STYLE_NORMAL};
+            return ResolvedPhotoshopFont{*full_name, true, italic};
           }
         }
-        return ResolvedPhotoshopFont{std::move(family), font->GetWeight() >= DWRITE_FONT_WEIGHT_SEMI_BOLD,
-                                     font->GetStyle() != DWRITE_FONT_STYLE_NORMAL};
+        // Only Regular (400) and Bold (700) survive being flattened into a family plus a bold
+        // flag. Every weight between them loses its face that way: Demi/Semi (600) flattened
+        // onto the family's BOLD face, which renders visibly heavier and taller than Photoshop
+        // (ITC Lubalin Graph Demi measured 995x868 against Photoshop's own 982x826 on the
+        // entry_poster.psd body copy). Keep the real face, and do NOT also set the bold flag:
+        // the name already carries the weight, and Qt would synthesise bold on top of it.
+        //
+        // Use "family + face" rather than the FULL_NAME string: that is the name Qt gives such a
+        // face when it splits it into its own family ("ITC Lubalin Graph Demi"), whereas
+        // FULL_NAME can be the PostScript-style name ("LubalinGraphITCbyBT-Demi"), which matches
+        // nothing in the font database and falls through to a substitute.
+        if (weight != DWRITE_FONT_WEIGHT_NORMAL && weight != DWRITE_FONT_WEIGHT_BOLD) {
+          std::string face_style;
+          Microsoft::WRL::ComPtr<IDWriteLocalizedStrings> weight_face_names;
+          if (SUCCEEDED(font->GetFaceNames(&weight_face_names)) && weight_face_names) {
+            if (const auto face = directwrite_localized_string(weight_face_names.Get()); face.has_value()) {
+              face_style = utf8_from_wide(*face);
+            }
+          }
+          auto face_style_key = face_style;
+          std::transform(face_style_key.begin(), face_style_key.end(), face_style_key.begin(),
+                         [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+          if (!face_style.empty() && face_style_key != "regular" && face_style_key != "normal") {
+            return ResolvedPhotoshopFont{family + ' ' + face_style, false, italic};
+          }
+        }
+        return ResolvedPhotoshopFont{std::move(family), weight >= DWRITE_FONT_WEIGHT_SEMI_BOLD, italic};
       }
     }
   }

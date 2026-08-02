@@ -2518,11 +2518,11 @@ void ui_psd_frame_text_second_session_still_takes_clicks() {
       }
     }
     if (!ink.isEmpty()) {
-      const auto probe = canvas->widget_position_for_document_point(
-          QPoint(ink.center().x(), ink.top() + ink.height() / 2));
-      send_mouse(*canvas, QEvent::MouseButtonPress, probe, Qt::LeftButton, Qt::LeftButton);
-      send_mouse(*canvas, QEvent::MouseButtonRelease, probe, Qt::LeftButton, Qt::NoButton);
-      QApplication::processEvents();
+      // Routed the way the window system routes it, which is the whole point: the overlay sits
+      // over the text, and a Qt::NoFocus overlay hands focus to the canvas behind it, which the
+      // focus-loss auto-commit reads as a click-off.
+      click_widget_like_a_user(*canvas, canvas->widget_position_for_document_point(
+                                            QPoint(ink.center().x(), ink.top() + ink.height() / 2)));
       if (auto* still_open = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
           still_open != nullptr) {
         session_survived_click = true;

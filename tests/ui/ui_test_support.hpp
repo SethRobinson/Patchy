@@ -495,6 +495,14 @@ void send_tablet(QWidget& widget, QEvent::Type type, QPoint position, qreal pres
                  float x_tilt = 0.0F, float y_tilt = 0.0F, qreal rotation = 0.0,
                  float tangential_pressure = 0.0F, float z = 0.0F);
 
+// Clicks at a point the way the window system does: the press goes to the deepest child under
+// the point, and focus is handed out BEFORE the press to the first ancestor that accepts click
+// focus. Use this instead of send_mouse whenever the question is "would a real click reach the
+// right widget" - sending straight to a parent answers a different question and hides bugs where
+// an overlay swallows the click or redirects focus. See the implementation for the details.
+void click_widget_like_a_user(QWidget& widget, QPoint position,
+                              Qt::KeyboardModifiers modifiers = Qt::NoModifier);
+
 void drag(QWidget& widget, QPoint from, QPoint to, Qt::KeyboardModifiers modifiers = Qt::NoModifier,
           Qt::MouseButton button = Qt::LeftButton);
 

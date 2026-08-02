@@ -118,6 +118,29 @@ options-bar relayout that follow are enough to get a paint delivered inside it.
 
 Delete on a text layer deletes the OBJECT, never its pixels: pixel-clearing leaves an invisible layer whose metadata resurrects the text (`clear_active_layer` special-cases it; mixed selections clear pixels + delete text layers in one undo step).
 
+## The overlay must accept click focus
+
+`TransformedTextEditOverlay` covers the text it is editing, so it is what a click on transformed
+text actually hits, and it must take `Qt::ClickFocus`. With `Qt::NoFocus` Qt's focus-before-press
+walk (`giveFocusAccordingToFocusPolicy`) skipped straight past it to the CanvasWidget behind, and
+the editor's focus-loss auto-commit read that as clicking off: every click on transformed text
+ended the session instead of moving the caret, so the mouse could not select at all. It only
+showed up on the SECOND edit of an imported layer, because committing writes a patchy transform
+that moves the next session off the PSD-frame path (where clicks land on the QTextEdit, which
+takes focus itself) and onto the overlay. Focus landing on the overlay is already exempt from the
+auto-commit, via the `is_text_option_widget` objectName match, and `mousePressEvent` hands focus
+straight back to the editor.
+
+Do NOT reach for a focus proxy here. It reads as the tidier answer and it is a trap: clearing a
+proxy while the proxy holds focus makes Qt reassign the application focus widget, so the editor
+silently loses focus and the session commits out from under whoever was mid-call. `configure()`
+runs on every cursor move, selection change and preview refresh, so that fires constantly.
+
+Tests that ask "would a real click reach the right widget" must use
+`click_widget_like_a_user` (tests/ui/ui_test_support.cpp), which routes the press to the deepest
+child under the point and applies the focus policy walk first. `send_mouse` straight to the canvas
+answers a different question and hid this bug from several tests that looked like they covered it.
+
 ## Options bar while an editor is open
 
 - The options bar shows session apply/cancel buttons (`textApplyButton`/`textCancelButton`) while an editor is open; they must keep `Qt::NoFocus`, otherwise the editor's focus-loss auto-commit fires on mouse press and Cancel commits instead of canceling.
@@ -152,6 +175,23 @@ bottom, because pixels-only callers place the buffer at the frame corner.
 - On wasm, `available_text_family_match` additionally resolves common system
   families through the bundled metric-compatible alias table, and every text
   render appends a Noto Sans JP fallback family. See [fonts.md](fonts.md).
+- **Only Regular (400) and Bold (700) survive being flattened into a family plus
+  a bold flag.** The PSD reader's DirectWrite resolver keeps the real face for
+  every other weight (`psd_text_read.cpp`), because flattening loses it: Demi /
+  Semi (600) used to resolve to the family's BOLD face, which renders heavier
+  and taller than Photoshop did (ITC Lubalin Graph Demi measured 995x868
+  against Photoshop's own 982x826 on the entry_poster.psd body copy; with the
+  real face the width matches exactly). Two rules make that work:
+  - The kept name is `family + " " + faceName`, which is what Qt calls such a
+    face when it splits it into its own family ("ITC Lubalin Graph Demi"). The
+    DirectWrite FULL_NAME can be a PostScript-style name
+    ("LubalinGraphITCbyBT-Demi") that matches nothing in the font database and
+    falls through to a substitute.
+  - The bold flag is NOT set alongside it. The name already carries the weight,
+    and Qt would synthesise bold on top of the face, which is the same "heavier
+    and wider" bug by another route. Black/Heavy (>= 800) is the deliberate
+    exception: it keeps the flag as an uninstalled-face fallback, and its
+    calibration is pinned by the SNES box-blurb probe.
 
 ## Character panel
 

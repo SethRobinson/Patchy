@@ -71,6 +71,36 @@ void send_mouse(QWidget& widget, QEvent::Type type, QPoint position, Qt::MouseBu
   QApplication::processEvents();
 }
 
+void click_widget_like_a_user(QWidget& widget, QPoint position, Qt::KeyboardModifiers modifiers) {
+  // Two things the window system does that QApplication::sendEvent to a parent does NOT.
+  //
+  // 1. The press goes to the deepest CHILD under the point, in that child's coordinates. Sending
+  //    to the canvas skips any child sitting on top of it, so a test cannot tell whether a real
+  //    click would ever reach the widget that is supposed to handle it.
+  // 2. Focus is given BEFORE the press, by walking up from the clicked widget to the first
+  //    ancestor whose focusPolicy accepts click focus (Qt's giveFocusAccordingToFocusPolicy). A
+  //    Qt::NoFocus widget therefore hands focus to whatever focusable widget is behind it, which
+  //    is how a click on an overlay can trip a focus-loss handler belonging to something else.
+  //
+  // Text-editor click tests must use this: the inline editor is a child of the canvas with an
+  // overlay above it, and both effects decide which of the three gets the click.
+  auto* target = widget.childAt(position);
+  QWidget& receiver = target == nullptr ? widget : *target;
+  const QPoint local = target == nullptr ? position : target->mapFrom(&widget, position);
+
+  QWidget* focus_target = &receiver;
+  while (focus_target != nullptr && (focus_target->focusPolicy() & Qt::ClickFocus) != Qt::ClickFocus) {
+    focus_target = focus_target->parentWidget();
+  }
+  if (focus_target != nullptr) {
+    focus_target->setFocus(Qt::MouseFocusReason);
+    QApplication::processEvents();
+  }
+
+  send_mouse(receiver, QEvent::MouseButtonPress, local, Qt::LeftButton, Qt::LeftButton, modifiers);
+  send_mouse(receiver, QEvent::MouseButtonRelease, local, Qt::LeftButton, Qt::NoButton, modifiers);
+}
+
 const QPointingDevice& tablet_test_device(QPointingDevice::PointerType pointer_type, QInputDevice::Capabilities capabilities) {
   static QPointingDevice pen(QStringLiteral("Patchy test pen"), 1001, QInputDevice::DeviceType::Stylus,
                              QPointingDevice::PointerType::Pen,

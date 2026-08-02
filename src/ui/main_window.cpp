@@ -1461,7 +1461,18 @@ public:
     setAttribute(Qt::WA_TranslucentBackground, true);
     setAttribute(Qt::WA_NoSystemBackground, true);
     setMouseTracking(true);
-    setFocusPolicy(Qt::NoFocus);
+    // This overlay covers the text it is editing, so it is what a click on transformed text
+    // actually hits. It must ACCEPT click focus. With Qt::NoFocus, Qt's focus-before-press walk
+    // (giveFocusAccordingToFocusPolicy) skipped past it to the CanvasWidget behind, and the
+    // editor's focus-loss auto-commit read that as clicking off: every click on transformed text
+    // ended the session instead of moving the caret, so the mouse could not select at all.
+    // Focusing the overlay is already exempt from that auto-commit (is_text_option_widget matches
+    // its objectName), and mousePressEvent hands focus straight back to the editor.
+    //
+    // A focus PROXY looks like the tidier answer and is a trap: clearing a proxy while the proxy
+    // holds focus makes Qt reassign the application focus widget, which drops the editor's focus
+    // and commits the session out from under whoever was mid-call.
+    setFocusPolicy(Qt::ClickFocus);
     caret_blink_clock_.start();
     const auto flash_time = text_editor_caret_blink_phase_ms();
     caret_blink_timer_.setInterval(std::max(40, flash_time > 0 ? flash_time / 2 : 80));
