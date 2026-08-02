@@ -1885,16 +1885,24 @@ private:
   }
 
   void paint_caret(QPainter& painter) const {
-    if (!editor_->hasFocus() || !caret_visible()) {
-      return;
-    }
-
     auto caret = text_editor_viewport_caret_rect(*editor_);
     const auto caret_width = text_editor_caret_width(*editor_);
     if (caret.isEmpty() || caret_width <= 0) {
       return;
     }
     caret.setWidth(caret_width);
+    // Published in CANVAS coordinates whether or not this frame draws it (the caret blinks).
+    // It is where a user has to click to put the cursor back, which is the only place the
+    // transformed hit-test can be checked from outside.
+    QVariantList canvas_polygon;
+    for (const auto& point : map_editor_rect_to_canvas(QRectF(caret))) {
+      canvas_polygon.push_back(point);
+    }
+    const_cast<TransformedTextEditOverlay*>(this)->setProperty("patchy.transformedTextCaretPolygon",
+                                                               canvas_polygon);
+    if (!editor_->hasFocus() || !caret_visible()) {
+      return;
+    }
     painter.setPen(Qt::NoPen);
     painter.setBrush(editor_->palette().color(QPalette::Text));
     painter.drawPolygon(map_editor_rect_to_overlay(QRectF(caret)));
@@ -8011,8 +8019,23 @@ void MainWindow::relayout_text_editor(QTextEdit* editor, bool allow_point_auto_e
     }
     editor->setProperty("patchy.documentTextWidth", document_editor_width);
     editor->document()->setTextWidth(width);
-    const auto text_height =
-        std::max(32, static_cast<int>(std::ceil(editor->document()->size().height())) + 2);
+    // Height comes from the layout the GLYPHS use, not from the editor document's own. They are
+    // not the same under the Photoshop leading model: 40 px leading against Qt's natural ~29
+    // left the widget a third too short, and since the widget's rect is the hit area, the last
+    // line could not be clicked at all -- the click fell through to the canvas and committed the
+    // session instead.
+    auto text_height = std::max(32, static_cast<int>(std::ceil(editor->document()->size().height())) + 2);
+    {
+      double layout_zoom = 1.0;
+      if (const auto* layout_document = text_editor_document_space_layout(*editor, layout_zoom);
+          layout_document != nullptr) {
+        const auto layout_bounds = text_editor_line_geometry(*editor, *layout_document).bounding_rect();
+        if (layout_bounds.isValid() && layout_bounds.height() > 0.0) {
+          text_height = std::max(text_height,
+                                 static_cast<int>(std::ceil(layout_bounds.bottom() * zoom)) + 2);
+        }
+      }
+    }
     const auto minimum_height =
         std::max(32, static_cast<int>(std::ceil(static_cast<double>(document_text_size) * zoom * 1.45)));
     height = std::max(text_height, minimum_height);

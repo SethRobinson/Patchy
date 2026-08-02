@@ -303,6 +303,15 @@ TextLineGeometry TextLineGeometry::from_lines(const QTextDocument& document,
   return geometry;
 }
 
+QRectF TextLineGeometry::bounding_rect() const {
+  QRectF bounds;
+  for (const auto& entry : lines_) {
+    const auto rect = entry.line.rect().translated(entry.block_origin);
+    bounds = bounds.isNull() ? rect : bounds.united(rect);
+  }
+  return bounds;
+}
+
 QRectF TextLineGeometry::caret_rect(int position) const {
   if (lines_.empty()) {
     return {};

@@ -2142,10 +2142,147 @@ void ui_psd_text_click_returns_to_the_caret_it_drew() {
   }
 }
 
+void ui_transformed_text_click_returns_to_the_caret_it_drew() {
+  // Same round trip as the flat case, but through the transformed overlay: the canvas click is
+  // inverse-mapped by the text transform and then resolved against the shared line plan. It used
+  // to be handed to QTextEdit::cursorForPosition, so on a scaled or rotated layer the mouse could
+  // not reliably select the glyph it was pointing at.
+  //
+  // The FIXED-LEADING fixture is the one that discriminates: its 40 px leading is far from Qt's
+  // natural ~29 px, so the editor widget's internal layout answers a different line from the one
+  // the glyphs were drawn on. (The pre-transformed fixture uses auto leading, which lands close
+  // enough to Qt's own spacing that both layouts agree and nothing is proven.) The rotation is
+  // applied through the layer's transform metadata, which is what a Free Transform commits.
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  const auto path = patchy::test::committed_psd_fixture_path("photoshop-text-point-fixed-leading.psd");
+  auto document = patchy::psd::DocumentIo::read_file(path);
+  patchy::LayerId layer_id = 0;
+  bool found = false;
+  std::function<void(const std::vector<patchy::Layer>&)> find_text_layer =
+      [&](const std::vector<patchy::Layer>& layers) {
+        for (const auto& layer : layers) {
+          if (!found) {
+            if (const auto it = layer.metadata().find(patchy::kLayerMetadataText);
+                it != layer.metadata().end() && it->second.find("HHHH") != std::string::npos) {
+              layer_id = layer.id();
+              found = true;
+            }
+          }
+          find_text_layer(layer.children());
+        }
+      };
+  find_text_layer(document.layers());
+  CHECK(found);
+  if (!found) {
+    return;
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Transformed Caret Round Trip"));
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+
+  auto& live_document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* source = live_document.find_layer(layer_id);
+  CHECK(source != nullptr);
+  if (source == nullptr) {
+    return;
+  }
+  const auto bounds_now = source->bounds();
+  QTransform rotated;
+  rotated.translate(bounds_now.x, bounds_now.y);
+  rotated.rotate(20.0);
+  source->metadata()[patchy::kLayerMetadataTextTransform] = patchy::serialize_layer_affine_transform(
+      patchy::LayerAffineTransform{rotated.m11(), rotated.m12(), rotated.m21(), rotated.m22(),
+                                   rotated.dx(), rotated.dy()});
+  live_document.set_active_layer(layer_id);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto hit_point = canvas->widget_position_for_document_point(
+      QPoint(bounds_now.x + bounds_now.width / 2, bounds_now.y + 12));
+  accept_missing_psd_text_font_warning_if_present();
+  send_mouse(*canvas, QEvent::MouseButtonPress, hit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, hit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  process_events_for(250);
+
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+  const bool overlay_active = editor->property("patchy.transformedPreviewOverlayActive").toBool();
+  auto* overlay = canvas->findChild<QWidget*>(QStringLiteral("transformedTextEditOverlay"));
+
+  std::vector<int> block_positions;
+  for (auto block = editor->document()->begin(); block.isValid(); block = block.next()) {
+    if (!block.text().trimmed().isEmpty()) {
+      block_positions.push_back(block.position() + 2);
+    }
+  }
+
+  std::vector<int> requested;
+  std::vector<int> resolved;
+  bool session_survived = true;
+  for (const auto position : block_positions) {
+    // The session dies if a click misses the overlay: the canvas takes it and the focus-loss
+    // auto-commit fires. That is itself a failure of the transformed hit-test, so record it.
+    auto* live_editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+    auto* live_overlay = canvas->findChild<QWidget*>(QStringLiteral("transformedTextEditOverlay"));
+    if (live_editor == nullptr || live_overlay == nullptr) {
+      session_survived = false;
+      break;
+    }
+    auto cursor = live_editor->textCursor();
+    cursor.setPosition(position);
+    live_editor->setTextCursor(cursor);
+    QApplication::processEvents();
+    live_overlay->repaint();  // publishes patchy.transformedTextCaretPolygon for this cursor
+    const auto polygon = live_overlay->property("patchy.transformedTextCaretPolygon").toList();
+    if (polygon.size() != 4) {
+      continue;
+    }
+    QPointF centre;
+    for (const auto& value : polygon) {
+      centre += value.toPointF();
+    }
+    centre /= 4.0;
+    const auto probe = centre.toPoint();
+    send_mouse(*canvas, QEvent::MouseButtonPress, probe, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, probe, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    auto* after = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+    if (after == nullptr) {
+      session_survived = false;
+      break;
+    }
+    requested.push_back(position);
+    resolved.push_back(after->textCursor().position());
+  }
+
+  if (canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) != nullptr) {
+    require_action_by_text(window, QStringLiteral("Move"))->trigger();
+    QApplication::processEvents();
+    process_events_for(150);
+  }
+
+  CHECK(overlay_active);
+  CHECK(overlay != nullptr);
+  CHECK(session_survived);
+  CHECK(requested.size() == 3);
+  CHECK(resolved.size() == requested.size());
+  for (std::size_t i = 0; i < resolved.size() && i < requested.size(); ++i) {
+    CHECK(resolved[i] == requested[i]);
+  }
+}
+
 std::vector<patchy::test::TestCase> text_transform_commit_tests_part2() {
   return {
       {"ui_psd_centered_point_text_keeps_center_on_commit",
        ui_psd_centered_point_text_keeps_center_on_commit},
+      {"ui_transformed_text_click_returns_to_the_caret_it_drew",
+       ui_transformed_text_click_returns_to_the_caret_it_drew},
       {"ui_psd_text_caret_follows_photoshop_leading", ui_psd_text_caret_follows_photoshop_leading},
       {"ui_psd_text_click_returns_to_the_caret_it_drew", ui_psd_text_click_returns_to_the_caret_it_drew},
       {"ui_psd_text_fixed_leading_commit_matches_photoshop_row_bands",

@@ -136,6 +136,11 @@ public:
     return lines_.empty();
   }
 
+  // Union of the positioned line boxes, in document space. This is how tall the text actually
+  // is; QTextDocument::size() reports Qt's natural layout, which is shorter than the Photoshop
+  // one whenever leading exceeds the natural line spacing.
+  [[nodiscard]] QRectF bounding_rect() const;
+
   // Zero-width caret rect (height = ascent + descent, centred in the line box) for a
   // character position. Empty when the position cannot be placed.
   [[nodiscard]] QRectF caret_rect(int position) const;

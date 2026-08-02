@@ -35,6 +35,14 @@ end at `TextLineGeometry::position_at`. Everything else (right-click menu, middl
 still falls through to QTextEdit. `ui_psd_text_click_returns_to_the_caret_it_drew` pins the round
 trip: click exactly where the caret is drawn and the caret must come back to that position.
 
+The editor widget is SIZED from that layout too, not from `QTextDocument::size()`. The widget's
+rect is its hit area, so a widget shorter than the glyphs makes the lines past its bottom edge
+unclickable: the click falls through to the canvas and the focus-loss auto-commit ends the
+session. Under the Photoshop leading model that is routine (40 px leading against Qt's natural
+29 left the widget a third too short on the fixed-leading probe).
+`ui_transformed_text_click_returns_to_the_caret_it_drew` covers it, rotating the fixed-leading
+fixture so the click has to survive both the transform inverse and the leading divergence.
+
 Every type in that header holds handles into the document's `QTextLayout`. They are valid only
 while that document is alive and has not been laid out again, and `build_text_render_document`
 does its final `setTextWidth` before any plan is built. Keep that order.
