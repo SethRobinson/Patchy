@@ -434,8 +434,6 @@ void MainWindow::bind_action_translations(ActionBuildContext& ctx) {
       {quick_select_sample_all_layers_check_, "Sample All Layers"},
       {quick_select_enhance_edge_check_, "Enhance Edge"},
       {ctx.fill_shapes, "Fill"},
-      {text_bold_button_, "B"},
-      {text_italic_button_, "I"},
       {text_color_button_, "T"},
       {text_align_left_button_, "L"},
       {text_align_center_button_, "C"},

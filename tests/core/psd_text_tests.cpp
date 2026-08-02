@@ -1068,6 +1068,104 @@ void psd_text_faux_italic_stays_off_the_italic_face() {
   }
 }
 
+void psd_text_flag_expressible_face_never_bakes_into_the_family() {
+  // Bookman Old Style declares its whole family at weight 500, so the resolver's keep-the-real-
+  // face rule used to turn "BookmanOldStyle-Italic" into display family "Bookman Old Style
+  // Italic" - a name the font database cannot list faces for, which emptied the style picker.
+  // A face the bold/italic flags CAN express must come back as the plain family plus the flag,
+  // whatever weight the family declares.
+  const auto text_literal = engine_utf16be_literal("Jumble\r");
+  const auto font_literal = engine_utf16be_literal("BookmanOldStyle-Italic");
+  const std::string engine_data =
+      "<< /EngineDict << /Editor << /Text " + text_literal +
+      " >> /StyleRun << /RunArray [ << /StyleSheet << /StyleSheetData << /Font 0 /FontSize 16 "
+      "/FauxBold false /FauxItalic false /FillColor << /Type 1 /Values [ 1.0 0.0 0.0 0.0 ] >> "
+      ">> >> >> ] /RunLengthArray [ 7 ] >> /ParagraphRun << /RunArray [ << /ParagraphSheet << "
+      "/Properties << /Justification 0 >> >> >> ] /RunLengthArray [ 7 ] >> /AntiAlias 2 "
+      "/FontSet [ << /Name " +
+      font_literal + " /Script 0 /FontType 1 /Synthetic 0 >> ] >>";
+  const auto payload =
+      std::vector<std::uint8_t>(reinterpret_cast<const std::uint8_t*>(engine_data.data()),
+                                reinterpret_cast<const std::uint8_t*>(engine_data.data()) + engine_data.size());
+
+  auto read = patchy::psd::DocumentIo::read(single_text_layer_psd(payload));
+  CHECK(read.layers().size() == 1);
+  if (read.layers().empty()) {
+    return;
+  }
+  const auto& metadata = read.layers().front().metadata();
+  CHECK(metadata.at(patchy::kLayerMetadataTextFont) == "Bookman Old Style");
+  CHECK(metadata.at(patchy::kLayerMetadataTextBold) == "false");
+  CHECK(metadata.at(patchy::kLayerMetadataTextItalic) == "true");
+  const auto& runs = metadata.at(patchy::kLayerMetadataTextRuns);
+  CHECK(runs.find("\t0\t1\t#000000\tBookman%20Old%20Style") != std::string::npos);
+  CHECK(runs.find("Bookman%20Old%20Style%20Italic") == std::string::npos);
+
+  // The written FontSet must never carry the baked family-with-face name either: with the font
+  // installed the italic face's PostScript name comes back, and without it the plain family
+  // exports verbatim.
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(read);
+  const auto written = psd_layer_block_payload(psd_layer_extra_data(bytes, 0), "TySh");
+  CHECK(written.has_value());
+  if (written.has_value()) {
+    const auto baked_name = utf16be_test_bytes("Bookman Old Style Italic");
+    CHECK(std::search(written->begin(), written->end(), baked_name.begin(), baked_name.end()) == written->end());
+  }
+}
+
+void psd_text_recorded_style_resolves_the_exact_face() {
+  // The style column (runs v5) names the exact face; the writer must resolve THAT face's
+  // PostScript name instead of flattening it onto the family's Bold face. "Arial" with style
+  // "Black" is the canonical case: the bold flag rides along for uninstalled-face fallback, and
+  // flattening it wrote Arial-BoldMT (~15% narrower glyphs than Arial Black).
+  patchy::Document document(240, 120, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(240, 120, 255, 255, 255));
+  patchy::Layer rich_layer(document.allocate_layer_id(), "Text: XY", solid_rgba(180, 64, 0, 0, 0, 0));
+  auto& layer = document.add_layer(std::move(rich_layer));
+  layer.set_bounds(patchy::Rect{18, 22, 180, 64});
+  layer.metadata()[patchy::kLayerMetadataText] = "XY";
+  layer.metadata()[patchy::kLayerMetadataTextRuns] =
+      "v5\n0\t1\t32\t1\t0\t#202020\tArial\tauto\t0\t1\t1\t0\tBlack\n"
+      "1\t1\t32\t1\t0\t#202020\tArial\tauto\t0\t1\t1\t0\t";
+  layer.metadata()[patchy::kLayerMetadataTextFont] = "Arial";
+  layer.metadata()[patchy::kLayerMetadataTextSize] = "32";
+  layer.metadata()[patchy::kLayerMetadataTextColor] = "#202020";
+  layer.metadata()[patchy::kLayerMetadataTextBold] = "true";
+  layer.metadata()[patchy::kLayerMetadataTextItalic] = "false";
+  layer.metadata()[patchy::kLayerMetadataTextRasterStatus] = "patchy_raster";
+
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto text_payload = psd_layer_block_payload(psd_layer_extra_data(bytes, 1), "TySh");
+  CHECK(text_payload.has_value());
+  if (!text_payload.has_value()) {
+    return;
+  }
+#ifdef _WIN32
+  // DirectWrite's weight-stretch-style family model files Arial Black under family "Arial" as
+  // the weight-900 "Black" face; both stock faces resolve to their PostScript names.
+  const auto black_name = utf16be_test_bytes("Arial-Black");
+  const auto bold_name = utf16be_test_bytes("Arial-BoldMT");
+  CHECK(std::search(text_payload->begin(), text_payload->end(), black_name.begin(), black_name.end()) !=
+        text_payload->end());
+  CHECK(std::search(text_payload->begin(), text_payload->end(), bold_name.begin(), bold_name.end()) !=
+        text_payload->end());
+
+  // Closing the loop: Photoshop's name for the Black face reads back as its own display family
+  // ("Arial Black", the reader's >= 800 weight rule), not as a flattened Arial Bold.
+  const auto read = patchy::psd::DocumentIo::read(bytes);
+  CHECK(read.layers().size() == 2);
+  if (read.layers().size() == 2) {
+    const auto& round_tripped_runs = read.layers().back().metadata().at(patchy::kLayerMetadataTextRuns);
+    CHECK(round_tripped_runs.find("Arial%20Black") != std::string::npos);
+  }
+#else
+  // The non-Windows stub exports the display family verbatim; it must not invent a bold name.
+  const auto verbatim = utf16be_test_bytes("Arial");
+  CHECK(std::search(text_payload->begin(), text_payload->end(), verbatim.begin(), verbatim.end()) !=
+        text_payload->end());
+#endif
+}
+
 void psd_text_engine_data_preserves_paragraph_layout_runs() {
   const std::string first = "Speed Mode - Hold down TAB and the entire game will run faster.";
   const std::string second = "Saving your game - Find a Save Machine and use it.";
@@ -1861,6 +1959,9 @@ std::vector<patchy::test::TestCase> psd_text_tests() {
        psd_text_engine_data_normalizes_photoshop_line_breaks_and_font_style},
       {"psd_text_faux_bold_stays_off_the_bold_face", psd_text_faux_bold_stays_off_the_bold_face},
       {"psd_text_faux_italic_stays_off_the_italic_face", psd_text_faux_italic_stays_off_the_italic_face},
+      {"psd_text_flag_expressible_face_never_bakes_into_the_family",
+       psd_text_flag_expressible_face_never_bakes_into_the_family},
+      {"psd_text_recorded_style_resolves_the_exact_face", psd_text_recorded_style_resolves_the_exact_face},
       {"psd_text_engine_data_preserves_paragraph_layout_runs",
        psd_text_engine_data_preserves_paragraph_layout_runs},
       {"psd_text_engine_normal_style_sheet_supplies_missing_run_properties",

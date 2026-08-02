@@ -963,8 +963,11 @@ private:
   void sync_text_options_from_active_editor();
   void apply_text_family_to_active_editor();
   void apply_text_size_to_active_editor();
-  void apply_text_bold_to_active_editor();
-  void apply_text_italic_to_active_editor();
+  // Ctrl+B / Ctrl+I during a text session: select the family's real Bold/Italic face when it
+  // ships one, toggle the faux bold / faux italic character property when it does not
+  // (Photoshop's fallback). A second press always turns the axis off, faux included.
+  void toggle_text_bold_face();
+  void toggle_text_italic_face();
   void apply_text_color_to_active_editor();
   void apply_primary_color_to_active_text_editor(QColor color);
   void apply_text_smoothing_to_active_editor();
@@ -984,17 +987,16 @@ private:
   void apply_text_character_glyph_scales_to_active_editor();
   void apply_text_character_faux_bold_to_active_editor();
   void apply_text_character_faux_italic_to_active_editor();
-  // The options-bar font-style picker. `refresh_text_style_combo` rebuilds the list for a
-  // family, keeping `preferred` selected when that family offers it and falling back to the
-  // style the Bold/Italic buttons describe; `current_text_style_name` is the selected face
-  // ("Demi", "Bold Italic", empty for Regular).
-  void refresh_text_style_combo(const QString& family, const QString& preferred);
+  // The options-bar font-style picker, the only face control in the bar (like Photoshop).
+  // `refresh_text_style_combo` rebuilds the list for a family, keeping `preferred` selected
+  // when that family offers it and falling back to the face the caller's bold/italic flags
+  // describe; `current_text_style_name` is the selected face ("Demi", "Bold Italic", empty
+  // for Regular).
+  void refresh_text_style_combo(const QString& family, const QString& preferred,
+                                bool fallback_bold = false, bool fallback_italic = false);
   [[nodiscard]] QString current_text_style_name() const;
   [[nodiscard]] QString current_text_family_for_editor(const QTextEdit& editor) const;
   void apply_text_style_to_active_editor();
-  // Keeps the picker and the Bold/Italic buttons describing the same face without either
-  // driving the other into a signal loop.
-  void sync_text_style_combo_from_flags();
   // Re-renders a text layer with `warp` applied (identity = unwarped) and refreshes
   // the warp/transform/raster-status metadata. Returns false when the layer's text
   // cannot be rendered.
@@ -1253,8 +1255,6 @@ private:
   QFontComboBox* text_font_combo_{nullptr};
   QDoubleSpinBox* text_size_spin_{nullptr};
   QComboBox* text_style_combo_{nullptr};
-  QPushButton* text_bold_button_{nullptr};
-  QPushButton* text_italic_button_{nullptr};
   QComboBox* text_smoothing_combo_{nullptr};
   QPushButton* text_color_button_{nullptr};
   QPushButton* text_align_left_button_{nullptr};

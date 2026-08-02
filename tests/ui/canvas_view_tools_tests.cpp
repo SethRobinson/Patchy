@@ -1178,8 +1178,7 @@ void ui_options_bar_tracks_active_tool() {
   auto* move_show_transform_controls = window.findChild<QCheckBox*>(QStringLiteral("moveShowTransformControlsCheck"));
   auto* text_font = window.findChild<QFontComboBox*>(QStringLiteral("textFontCombo"));
   auto* text_size = window.findChild<QDoubleSpinBox*>(QStringLiteral("textSizeSpin"));
-  auto* text_bold = window.findChild<QPushButton*>(QStringLiteral("textBoldButton"));
-  auto* text_italic = window.findChild<QPushButton*>(QStringLiteral("textItalicButton"));
+  auto* text_style = window.findChild<QComboBox*>(QStringLiteral("textStyleCombo"));
   auto* text_smoothing = window.findChild<QComboBox*>(QStringLiteral("textSmoothingCombo"));
   auto* text_color = window.findChild<QPushButton*>(QStringLiteral("textColorButton"));
   auto* brush_size = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
@@ -1213,8 +1212,7 @@ void ui_options_bar_tracks_active_tool() {
   CHECK(text_size != nullptr);
   CHECK(text_size->buttonSymbols() == QAbstractSpinBox::NoButtons);
   CHECK(text_size->minimum() <= 0.01);
-  CHECK(text_bold != nullptr);
-  CHECK(text_italic != nullptr);
+  CHECK(text_style != nullptr);
   CHECK(text_smoothing != nullptr);
   CHECK(text_color != nullptr);
   CHECK(brush_size != nullptr);
@@ -1304,8 +1302,7 @@ void ui_options_bar_tracks_active_tool() {
   QApplication::processEvents();
   CHECK(text_font->isVisible());
   CHECK(text_size->isVisible());
-  CHECK(text_bold->isVisible());
-  CHECK(text_italic->isVisible());
+  CHECK(text_style->isVisible());
   CHECK(text_color->isVisible());
   CHECK(!move_auto_select->isVisible());
   CHECK(!brush_size->isVisible());
@@ -1315,7 +1312,6 @@ void ui_options_bar_tracks_active_tool() {
   text_size->setValue(0.01);
   CHECK(std::abs(text_size->value() - 0.01) < 0.001);
   text_size->setValue(text_points_for_pixels(36));
-  text_bold->setChecked(true);
   save_widget_artifact("ui_tool_options_text", window);
 
   require_action_by_text(window, QStringLiteral("Magic Wand"))->trigger();

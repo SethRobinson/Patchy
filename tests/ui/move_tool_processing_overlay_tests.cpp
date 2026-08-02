@@ -2131,12 +2131,15 @@ void ui_text_reedit_preserves_rich_text_spacing() {
   QApplication::processEvents();
 
   auto* text_size = window.findChild<QDoubleSpinBox*>(QStringLiteral("textSizeSpin"));
-  auto* text_bold = window.findChild<QPushButton*>(QStringLiteral("textBoldButton"));
+  auto* style_combo = window.findChild<QComboBox*>(QStringLiteral("textStyleCombo"));
   CHECK(text_size != nullptr);
-  CHECK(text_bold != nullptr);
+  CHECK(style_combo != nullptr);
   // Directly-constructed Document: core default 300 ppi, not the startup doc's 72.
   text_size->setValue(text_points_for_pixels(72, 300.0));
-  text_bold->setChecked(true);
+  // New text seeds from the style picker now that the bar has no B button.
+  const auto bold_row = style_combo->findData(QStringLiteral("Bold"));
+  CHECK(bold_row > 0);
+  style_combo->setCurrentIndex(bold_row);
 
   require_action_by_text(window, QStringLiteral("Type"))->trigger();
   drag(*canvas, canvas->widget_position_for_document_point(QPoint(80, 80)),

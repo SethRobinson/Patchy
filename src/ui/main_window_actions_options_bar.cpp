@@ -2114,10 +2114,10 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   text_font_combo_->setCurrentFont(font());
   text_font_combo_->setFixedWidth(210);
   add_option_widget(text_font_combo_, {CanvasTool::Text});
-  // Photoshop's style picker: the family's OWN face list. Bold and italic are two of the four
-  // styles this can name; Demi, Book, Black and Condensed Light are the ones they cannot, and a
-  // family with no italic simply does not offer one instead of a button that appears to do
-  // nothing. The B/I buttons stay as the shortcut for the four they can express and track this.
+  // Photoshop's style picker: the family's OWN face list, and the only face control in the bar
+  // (no B/I buttons, like Photoshop). A family with no italic simply does not offer one, and
+  // Ctrl+B / Ctrl+I toggle the real face during a session, falling back to faux when the family
+  // lacks that axis.
   text_style_combo_ = new QComboBox(toolbar);
   text_style_combo_->setObjectName(QStringLiteral("textStyleCombo"));
   text_style_combo_->setToolTip(tr("Font style"));
@@ -2138,24 +2138,6 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   text_size_spin_->setSuffix(tr(" pt"));
   configure_toolbar_spinbox(text_size_spin_, 74);
   add_option_widget(text_size_spin_, {CanvasTool::Text});
-  text_bold_button_ = new QPushButton(tr("B"), toolbar);
-  text_bold_button_->setObjectName(QStringLiteral("textBoldButton"));
-  text_bold_button_->setCheckable(true);
-  text_bold_button_->setToolTip(tr("Bold"));
-  text_bold_button_->setFixedSize(30, 26);
-  QFont bold_button_font = text_bold_button_->font();
-  bold_button_font.setBold(true);
-  text_bold_button_->setFont(bold_button_font);
-  add_option_widget(text_bold_button_, {CanvasTool::Text});
-  text_italic_button_ = new QPushButton(tr("I"), toolbar);
-  text_italic_button_->setObjectName(QStringLiteral("textItalicButton"));
-  text_italic_button_->setCheckable(true);
-  text_italic_button_->setToolTip(tr("Italic"));
-  text_italic_button_->setFixedSize(30, 26);
-  QFont italic_button_font = text_italic_button_->font();
-  italic_button_font.setItalic(true);
-  text_italic_button_->setFont(italic_button_font);
-  add_option_widget(text_italic_button_, {CanvasTool::Text});
   add_option_label(tr("Smoothing:"), {CanvasTool::Text});
   text_smoothing_combo_ = new QComboBox(toolbar);
   text_smoothing_combo_->setObjectName(QStringLiteral("textSmoothingCombo"));
@@ -2229,10 +2211,6 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     apply_text_size_to_active_editor();
     refresh_document_info();
   });
-  connect(text_bold_button_, &QPushButton::toggled, this,
-          [this](bool) { apply_text_bold_to_active_editor(); });
-  connect(text_italic_button_, &QPushButton::toggled, this,
-          [this](bool) { apply_text_italic_to_active_editor(); });
   connect(text_smoothing_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
           [this](int) {
             apply_text_smoothing_to_active_editor();

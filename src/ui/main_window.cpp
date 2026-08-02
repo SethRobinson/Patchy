@@ -466,6 +466,187 @@ std::optional<AvailableTextFamilyStyle> available_text_family_style_match(const 
   return best;
 }
 
+// Bold/italic as the style NAME describes them, so the flags every downstream reader still uses
+// keep agreeing with the face the picker selected.
+struct TextStyleFlags {
+  bool bold{false};
+  bool italic{false};
+};
+
+// English-substring fallback for style names the font database cannot vouch for (a face carried
+// over from another machine, or a family that is not installed here at all).
+TextStyleFlags text_style_flags_for_name(const QString& style) {
+  const auto key = style.trimmed().toCaseFolded();
+  TextStyleFlags flags;
+  flags.bold = key.contains(QStringLiteral("bold")) || key.contains(QStringLiteral("black")) ||
+               key.contains(QStringLiteral("heavy"));
+  flags.italic = key.contains(QStringLiteral("italic")) || key.contains(QStringLiteral("oblique"));
+  return flags;
+}
+
+// The family whose faces the font database should be asked about. A display family can be a
+// face-baked name: the PSD reader keeps "family + face" for faces the flags cannot express
+// ("ITC Lubalin Graph Demi"), and older imports left names like "Bookman Old Style Italic"
+// behind. The database only lists faces under the SPLIT base family; asked with the unsplit
+// name it answers nothing at all, which is what emptied the style picker down to a lone
+// Regular row and made Bold/Italic divert to faux.
+QString text_style_query_family(const QString& family) {
+  const auto resolved = canonical_text_display_family(family);
+  if (available_text_family_match(resolved).has_value()) {
+    return resolved;
+  }
+  if (const auto split = available_text_family_style_match(resolved); split.has_value()) {
+    return split->family;
+  }
+  return resolved;
+}
+
+QStringList available_text_family_styles(const QString& family) {
+  // Rebuilt on every caret move via the options-bar sync, so cache per family. User font drops
+  // and the registry fallback registration both fire fontDatabaseChanged, which resets it.
+  static QHash<QString, QStringList> cache;
+  static bool invalidation_connected = false;
+  if (!invalidation_connected && qGuiApp != nullptr) {
+    invalidation_connected = true;
+    QObject::connect(qGuiApp, &QGuiApplication::fontDatabaseChanged, qGuiApp, [] { cache.clear(); });
+  }
+  const auto resolved = canonical_text_display_family(family);
+  const auto cache_key = resolved.toCaseFolded();
+  if (const auto it = cache.constFind(cache_key); it != cache.constEnd()) {
+    return *it;
+  }
+  // A family that is not installed at all has no style list to report, and the substitute Qt
+  // picks honours the plain bold/italic flags perfectly well. Offer the four standard faces so
+  // the picker stays usable and Bold/Italic do NOT divert to faux -- synthesizing on top of a
+  // substituted face would be a second helping of the wrong thing.
+  if (!available_text_family_match(resolved).has_value() &&
+      !available_text_family_style_match(resolved).has_value()) {
+    const QStringList fallback{QStringLiteral("Regular"), QStringLiteral("Italic"),
+                               QStringLiteral("Bold"), QStringLiteral("Bold Italic")};
+    cache.insert(cache_key, fallback);
+    return fallback;
+  }
+  const auto query_family = text_style_query_family(resolved);
+  auto styles = QFontDatabase::styles(query_family);
+  // Qt's Windows database fills a family's faces in lazily. Push the four flag combinations
+  // through the matcher to force population, folding in the REAL faces they resolve to
+  // (QRawFont reports the matched face where QFontInfo may echo the requested one back); a
+  // family with no italic still answers Regular here, so the list is only completed, never
+  // invented.
+  for (const auto& flags : {std::pair{false, false}, std::pair{true, false}, std::pair{false, true},
+                            std::pair{true, true}}) {
+    QFont probe(query_family);
+    probe.setBold(flags.first);
+    probe.setItalic(flags.second);
+    const auto raw = QRawFont::fromFont(probe);
+    if (raw.familyName().compare(query_family, Qt::CaseInsensitive) != 0) {
+      continue;  // substituted; it says nothing about this family
+    }
+    const auto style = raw.styleName().trimmed();
+    if (!style.isEmpty() && !styles.contains(style, Qt::CaseInsensitive)) {
+      styles.append(style);
+    }
+  }
+  // The probes forced the family's population, so ask once more for the faces only the
+  // database knows about (Light, Semibold, Black and friends are beyond what four flag
+  // probes can name).
+  for (const auto& style : QFontDatabase::styles(query_family)) {
+    if (!styles.contains(style, Qt::CaseInsensitive)) {
+      styles.append(style);
+    }
+  }
+  // Photoshop's ordering: the four standard faces first, then the rest as the database lists
+  // them.
+  QStringList ordered;
+  for (const auto& canonical : {QStringLiteral("Regular"), QStringLiteral("Italic"),
+                                QStringLiteral("Bold"), QStringLiteral("Bold Italic")}) {
+    for (const auto& style : styles) {
+      if (style.compare(canonical, Qt::CaseInsensitive) == 0) {
+        ordered.append(style);
+        break;
+      }
+    }
+  }
+  for (const auto& style : styles) {
+    if (!ordered.contains(style, Qt::CaseInsensitive)) {
+      ordered.append(style);
+    }
+  }
+  cache.insert(cache_key, ordered);
+  return ordered;
+}
+
+// Bold/italic as the font database records them for a REAL face of this family, with the
+// substring reading of the name as the fallback (localized face names, or a style carried from
+// a machine where the family was installed).
+TextStyleFlags text_style_flags_for_style(const QString& family, const QString& style) {
+  const auto requested = style.trimmed();
+  if (!requested.isEmpty()) {
+    const auto query_family = text_style_query_family(family);
+    for (const auto& available : QFontDatabase::styles(query_family)) {
+      if (available.compare(requested, Qt::CaseInsensitive) == 0) {
+        return TextStyleFlags{QFontDatabase::bold(query_family, available),
+                              QFontDatabase::italic(query_family, available)};
+      }
+    }
+  }
+  return text_style_flags_for_name(style);
+}
+
+// Whether bold + italic can already say everything this face name says. Mirrors the PSD
+// reader's kFlagExpressible list: picks from this set live in the flags with NO recorded
+// style, so ordinary Bold/Italic text stays on runs v3/v4 and round-trips byte-stable.
+bool text_style_is_flag_expressible(const QString& style) {
+  const auto key = style.trimmed().toCaseFolded();
+  for (const auto& expressible :
+       {QStringLiteral("regular"), QStringLiteral("normal"), QStringLiteral("bold"),
+        QStringLiteral("italic"), QStringLiteral("oblique"), QStringLiteral("bold italic"),
+        QStringLiteral("italic bold"), QStringLiteral("bold oblique")}) {
+    if (key == expressible) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// The face name the bold/italic flags describe, used when a run records no explicit style.
+QString text_style_name_for_flags(bool bold, bool italic) {
+  if (bold && italic) {
+    return QStringLiteral("Bold Italic");
+  }
+  if (bold) {
+    return QStringLiteral("Bold");
+  }
+  if (italic) {
+    return QStringLiteral("Italic");
+  }
+  return {};
+}
+
+// Whether the family really ships a bold (or italic) face at all. Asked ONE AXIS AT A TIME on
+// purpose: Century Gothic has Bold and no Italic, so Ctrl+B must still take the real Bold face
+// while Ctrl+I falls back to the synthetic slant -- which is also what Photoshop does with that
+// pair. When the face is missing entirely the toggle has nothing to select (Qt hands back
+// Regular and it looks broken), so it applies the FAUX version instead.
+bool family_offers_face_axis(const QString& family, bool bold_axis) {
+  for (const auto& style : available_text_family_styles(family)) {
+    const auto flags = text_style_flags_for_style(family, style);
+    if (bold_axis ? flags.bold : flags.italic) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// The face the flags describe once the axes the family cannot supply are dropped: bold + italic
+// on Century Gothic (Bold, no Italic) really IS the "Bold" face plus a synthetic slant, so the
+// picker must show Bold rather than fall back to Regular hunting for a "Bold Italic" that does
+// not exist.
+QString real_face_style_name(const QString& family, bool bold, bool italic) {
+  return text_style_name_for_flags(bold && family_offers_face_axis(family, true),
+                                   italic && family_offers_face_axis(family, false));
+}
+
 // Whether `family` can draw ANY of the characters it is being asked for. A family that resolves
 // in the font database but covers none of them is missing in every way the user cares about: Qt
 // falls through to some other face for every glyph, so the layer silently renders in a different
@@ -5369,13 +5550,13 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
         key_event->accept();
         return true;
       }
-      if (key_event->matches(QKeySequence::Bold) && text_bold_button_ != nullptr) {
-        text_bold_button_->setChecked(!text_editor_reference_format(*editor).font().bold());
+      if (key_event->matches(QKeySequence::Bold)) {
+        toggle_text_bold_face();
         key_event->accept();
         return true;
       }
-      if (key_event->matches(QKeySequence::Italic) && text_italic_button_ != nullptr) {
-        text_italic_button_->setChecked(!text_editor_reference_format(*editor).font().italic());
+      if (key_event->matches(QKeySequence::Italic)) {
+        toggle_text_italic_face();
         key_event->accept();
         return true;
       }
@@ -6158,8 +6339,15 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
   std::optional<QPointF> initial_cursor_local_position;
   QString family = text_font_combo_ != nullptr ? text_font_combo_->currentFont().family() : font().family();
   int document_text_size = text_size_spin_ != nullptr ? text_points_to_pixels(text_size_spin_->value(), document()) : 48;
-  bool text_bold = text_bold_button_ != nullptr && text_bold_button_->isChecked();
-  bool text_italic = text_italic_button_ != nullptr && text_italic_button_->isChecked();
+  // New text starts on the face the style picker shows, the way Photoshop seeds new type from
+  // its toolbar state. The flags carry the four standard faces; an exotic pick (Black, Demi)
+  // additionally travels as the recorded style below.
+  const auto picker_style = current_text_style_name();
+  const auto picker_flags = text_style_flags_for_style(family, picker_style);
+  bool text_bold = picker_flags.bold;
+  bool text_italic = picker_flags.italic;
+  QString text_style =
+      !picker_style.isEmpty() && !text_style_is_flag_expressible(picker_style) ? picker_style : QString();
   int text_anti_alias = text_smoothing_combo_value(text_smoothing_combo_);
   QColor text_color = canvas_->primary_color();
   bool boxed_text = requested_text_box.isValid() && requested_text_box.width() >= kMinimumTextBoxDocumentSize &&
@@ -6211,6 +6399,8 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
       if (const auto found = layer->metadata().find(kLayerMetadataTextItalic); found != layer->metadata().end()) {
         text_italic = found->second == "true";
       }
+      // The layer's own runs carry its faces; the picker's leftover selection must not leak in.
+      text_style.clear();
       if (const auto found = layer->metadata().find(kLayerMetadataTextAntiAlias); found != layer->metadata().end()) {
         text_anti_alias = std::clamp(std::atoi(found->second.c_str()), 0, 16);
       }
@@ -6249,15 +6439,11 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
         text_size_spin_->setValue(text_pixels_to_points(
             std::max(1, static_cast<int>(std::lround(document_text_size * text_size_display_scale))), document()));
       }
-      if (text_bold_button_ != nullptr) {
-        text_bold_button_->setChecked(text_bold);
-      }
-      if (text_italic_button_ != nullptr) {
-        text_italic_button_->setChecked(text_italic);
-      }
       // The first run's face, so the picker opens on what the layer actually uses rather than
-      // on whatever the last session left behind.
-      refresh_text_style_combo(family, first_text_run_style_name(initial_rich_text_runs));
+      // on whatever the last session left behind; the layer's flags describe the face when no
+      // style is recorded.
+      refresh_text_style_combo(family, first_text_run_style_name(initial_rich_text_runs), text_bold,
+                               text_italic);
       set_text_smoothing_combo_value(text_smoothing_combo_, text_anti_alias);
       boxed_text = text_flow_is_box(
           layer->metadata().contains(kLayerMetadataTextFlow)
@@ -6459,7 +6645,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
   editor->setAcceptRichText(true);
   auto editor_font = render_text_font_for_display_family(
       family, std::max(8, static_cast<int>(std::round(document_text_size * canvas_->zoom()))), text_bold,
-      text_italic, text_anti_alias);
+      text_italic, text_anti_alias, text_style);
   editor->setFont(editor_font);
   editor->document()->setDocumentMargin(0);
   editor->document()->setDefaultFont(editor_font);
@@ -6548,7 +6734,10 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
     editor->setPlainText(initial_text.isEmpty() ? tr("Type") : initial_text);
     QTextCursor cursor(editor->document());
     cursor.select(QTextCursor::Document);
-    const auto format = text_editor_typing_format(editor_font, text_color);
+    auto format = text_editor_typing_format(editor_font, text_color);
+    if (!text_style.isEmpty()) {
+      format.setProperty(kTextStyleNameFormatProperty, text_style);
+    }
     cursor.mergeCharFormat(format);
     editor->setCurrentCharFormat(format);
     if (!initial_paragraph_runs.trimmed().isEmpty()) {
@@ -7686,98 +7875,6 @@ void MainWindow::apply_text_character_glyph_scales_to_active_editor() {
   schedule_text_editor_preview(editor);
 }
 
-namespace {
-
-// Bold/italic as the style NAME describes them, so the flags every downstream reader still uses
-// keep agreeing with the face the picker selected.
-struct TextStyleFlags {
-  bool bold{false};
-  bool italic{false};
-};
-
-TextStyleFlags text_style_flags_for_name(const QString& style) {
-  const auto key = style.trimmed().toCaseFolded();
-  TextStyleFlags flags;
-  flags.bold = key.contains(QStringLiteral("bold")) || key.contains(QStringLiteral("black")) ||
-               key.contains(QStringLiteral("heavy"));
-  flags.italic = key.contains(QStringLiteral("italic")) || key.contains(QStringLiteral("oblique"));
-  return flags;
-}
-
-// Qt's Windows font database fills a family's faces in lazily, so QFontDatabase::styles() can
-// come back with nothing but "Regular" until something has actually asked for the bold or italic
-// face -- the picker's list then grew under the user the first time they pressed B. Push the four
-// flag combinations through the matcher and fold in whatever REAL faces they resolve to. A family
-// with no italic still answers "Regular" here, so this only ever completes the list, never
-// invents a face that is not there.
-QStringList available_text_family_styles(const QString& family) {
-  const auto resolved = canonical_text_display_family(family);
-  // A family that is not installed at all has no style list to report, and the substitute Qt
-  // picks honours the plain bold/italic flags perfectly well. Offer the four standard faces so
-  // the picker stays usable and the Bold/Italic buttons do NOT divert to faux -- synthesizing on
-  // top of a substituted face would be a second helping of the wrong thing.
-  if (!available_text_family_match(resolved).has_value() &&
-      !available_text_family_style_match(resolved).has_value()) {
-    return {QStringLiteral("Regular"), QStringLiteral("Bold"), QStringLiteral("Italic"),
-            QStringLiteral("Bold Italic")};
-  }
-  auto styles = QFontDatabase::styles(resolved);
-  for (const auto& flags : {std::pair{false, false}, std::pair{true, false}, std::pair{false, true},
-                            std::pair{true, true}}) {
-    QFont probe(resolved);
-    probe.setBold(flags.first);
-    probe.setItalic(flags.second);
-    const QFontInfo info(probe);
-    if (info.family().compare(resolved, Qt::CaseInsensitive) != 0) {
-      continue;  // substituted; it says nothing about this family
-    }
-    const auto style = info.styleName().trimmed();
-    if (!style.isEmpty() && !styles.contains(style, Qt::CaseInsensitive)) {
-      styles.append(style);
-    }
-  }
-  return styles;
-}
-
-// The face name the Bold/Italic buttons describe, used when a family offers no recorded style.
-QString text_style_name_for_flags(bool bold, bool italic) {
-  if (bold && italic) {
-    return QStringLiteral("Bold Italic");
-  }
-  if (bold) {
-    return QStringLiteral("Bold");
-  }
-  if (italic) {
-    return QStringLiteral("Italic");
-  }
-  return {};
-}
-
-// Whether the family really ships a bold (or italic) face at all. Asked ONE AXIS AT A TIME on
-// purpose: Century Gothic has Bold and no Italic, so B must still take the real Bold face while I
-// falls back to the synthetic slant -- which is also what Photoshop does with that pair. When the
-// face is missing entirely the button has nothing to select (Qt hands back Regular and it looks
-// broken), so it applies the FAUX version instead.
-bool family_offers_face_axis(const QString& family, bool bold_axis) {
-  for (const auto& style : available_text_family_styles(family)) {
-    const auto flags = text_style_flags_for_name(style);
-    if (bold_axis ? flags.bold : flags.italic) {
-      return true;
-    }
-  }
-  return false;
-}
-
-// The face the Bold/Italic buttons describe once the axes the family cannot supply are dropped:
-// bold + italic on Century Gothic (Bold, no Italic) really IS the "Bold" face plus a synthetic
-// slant, so the picker must show Bold rather than fall back to Regular hunting for "Bold Italic".
-QString real_face_style_name(const QString& family, bool bold, bool italic) {
-  return text_style_name_for_flags(bold && family_offers_face_axis(family, true),
-                                   italic && family_offers_face_axis(family, false));
-}
-
-}  // namespace
-
 // The family the session is actually set in: the run under the caret first, the options-bar combo
 // otherwise. Both Bold and Italic need it to ask whether the real face exists.
 QString MainWindow::current_text_family_for_editor(const QTextEdit& editor) const {
@@ -7793,28 +7890,52 @@ QString MainWindow::current_text_style_name() const {
   return text_style_combo_->currentData().toString();
 }
 
-void MainWindow::refresh_text_style_combo(const QString& family, const QString& preferred) {
+void MainWindow::refresh_text_style_combo(const QString& family, const QString& preferred,
+                                          bool fallback_bold, bool fallback_italic) {
   if (text_style_combo_ == nullptr) {
     return;
   }
   QSignalBlocker blocker(text_style_combo_);
   text_style_combo_->clear();
+  // Each row previews its own face, the way Photoshop renders its style list.
+  const auto query_family = text_style_query_family(family);
+  const auto db_styles = QFontDatabase::styles(query_family);
+  const auto ui_point_size = text_style_combo_->font().pointSize();
+  const auto style_item_font = [&](const QString& style) {
+    QFont item_font(query_family);
+    if (ui_point_size > 0) {
+      item_font.setPointSize(ui_point_size);
+    }
+    const auto flags = text_style_flags_for_style(family, style);
+    item_font.setBold(flags.bold);
+    item_font.setItalic(flags.italic);
+    for (const auto& available : db_styles) {
+      if (available.compare(style, Qt::CaseInsensitive) == 0) {
+        item_font.setStyleName(available);
+        break;
+      }
+    }
+    return item_font;
+  };
   // Regular is the face every family has and the one nothing needs to record, so it is the
   // empty style everywhere below the UI; only the picker spells it out.
   text_style_combo_->addItem(tr("Regular"), QString());
+  text_style_combo_->setItemData(0, style_item_font(QStringLiteral("Regular")), Qt::FontRole);
   for (const auto& style : available_text_family_styles(family)) {
     const auto key = style.trimmed().toCaseFolded();
     if (key.isEmpty() || key == QStringLiteral("regular") || key == QStringLiteral("normal")) {
       continue;  // already the first row
     }
     text_style_combo_->addItem(style, style);
+    text_style_combo_->setItemData(text_style_combo_->count() - 1, style_item_font(style), Qt::FontRole);
   }
-  // Prefer the requested face, then the one the Bold/Italic buttons describe, then Regular.
+  // Prefer the requested face, then the one the caller's bold/italic flags describe, then the
+  // flags-equivalent of the requested face (a family switch keeps Bold when the new family has
+  // no face by the old family's spelling), then Regular.
+  const auto preferred_flags = text_style_flags_for_name(preferred);
   const QStringList candidates{preferred.trimmed(),
-                               real_face_style_name(family,
-                                                    text_bold_button_ != nullptr && text_bold_button_->isChecked(),
-                                                    text_italic_button_ != nullptr &&
-                                                        text_italic_button_->isChecked())};
+                               real_face_style_name(family, fallback_bold, fallback_italic),
+                               real_face_style_name(family, preferred_flags.bold, preferred_flags.italic)};
   for (const auto& candidate : candidates) {
     if (candidate.isEmpty()) {
       continue;
@@ -7829,51 +7950,33 @@ void MainWindow::refresh_text_style_combo(const QString& family, const QString& 
   text_style_combo_->setCurrentIndex(0);
 }
 
-void MainWindow::sync_text_style_combo_from_flags() {
-  if (text_style_combo_ == nullptr || text_font_combo_ == nullptr) {
-    return;
-  }
-  // The buttons were just toggled, so THEY are the newer truth: pass their face as the preferred
-  // one rather than whatever the picker was showing before (pressing B on an italic run used to
-  // leave the picker on "Italic").
-  const auto family = text_font_combo_->currentFont().family();
-  refresh_text_style_combo(family,
-                           real_face_style_name(family,
-                                                text_bold_button_ != nullptr && text_bold_button_->isChecked(),
-                                                text_italic_button_ != nullptr && text_italic_button_->isChecked()));
-}
-
 void MainWindow::apply_text_style_to_active_editor() {
   if (canvas_ == nullptr || text_style_combo_ == nullptr) {
     return;
   }
-  const auto style = current_text_style_name();
-  const auto flags = text_style_flags_for_name(style);
-  // The buttons stay the shortcut for the four faces they can name, so keep them describing
-  // whatever the picker selected (and let their own handlers stay out of the way).
-  if (text_bold_button_ != nullptr) {
-    QSignalBlocker blocker(text_bold_button_);
-    text_bold_button_->setChecked(flags.bold);
-  }
-  if (text_italic_button_ != nullptr) {
-    QSignalBlocker blocker(text_italic_button_);
-    text_italic_button_->setChecked(flags.italic);
-  }
   auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  const auto family_fallback =
+      text_font_combo_ != nullptr ? text_font_combo_->currentFont().family() : QString();
+  const auto family = editor != nullptr
+                          ? text_display_family_from_format(text_editor_reference_format(*editor),
+                                                            family_fallback)
+                          : family_fallback;
+  const auto style = current_text_style_name();
+  const auto flags = text_style_flags_for_style(family, style);
+  // A pick the flags can already express lives in the flags alone, matching the PSD reader:
+  // ordinary Bold/Italic text stays on runs v3/v4 and only a face like Black or Demi records
+  // the style name.
+  const bool record_style = !style.isEmpty() && !text_style_is_flag_expressible(style);
   if (editor == nullptr || editor->property(kTextEditorFinishedProperty).toBool()) {
     return;
   }
-  const auto family = text_display_family_from_format(text_editor_reference_format(*editor),
-                                                      text_font_combo_ != nullptr
-                                                          ? text_font_combo_->currentFont().family()
-                                                          : QString());
-  mutate_text_editor_character_formats(*editor, [&style, &family, flags](QTextCharFormat& format) {
+  mutate_text_editor_character_formats(*editor, [&style, &family, flags, record_style](QTextCharFormat& format) {
     auto font = format.font();
     font.setBold(flags.bold);
     font.setItalic(flags.italic);
     font.setStyleName(QString());
     if (!style.isEmpty()) {
-      for (const auto& available : QFontDatabase::styles(canonical_text_display_family(family))) {
+      for (const auto& available : QFontDatabase::styles(text_style_query_family(family))) {
         if (available.compare(style, Qt::CaseInsensitive) == 0) {
           font.setStyleName(available);
           break;
@@ -7881,10 +7984,10 @@ void MainWindow::apply_text_style_to_active_editor() {
       }
     }
     format.setFont(font);
-    if (style.isEmpty()) {
-      format.clearProperty(kTextStyleNameFormatProperty);
-    } else {
+    if (record_style) {
       format.setProperty(kTextStyleNameFormatProperty, style);
+    } else {
+      format.clearProperty(kTextStyleNameFormatProperty);
     }
   });
   mark_text_editor_changed(editor);
@@ -8568,19 +8671,12 @@ void MainWindow::sync_text_options_from_active_editor() {
                    text_size_spin_->maximum()));
   }
 
-  if (text_bold_button_ != nullptr) {
-    QSignalBlocker blocker(text_bold_button_);
-    text_bold_button_->setChecked(format_font.bold());
-  }
-  if (text_italic_button_ != nullptr) {
-    QSignalBlocker blocker(text_italic_button_);
-    text_italic_button_->setChecked(format_font.italic());
-  }
-  // After the buttons, so a run with no recorded face still lands on the style they describe.
+  // A run with no recorded face still lands on the style its bold/italic flags describe.
   refresh_text_style_combo(display_family.trimmed().isEmpty()
                                ? (text_font_combo_ != nullptr ? text_font_combo_->currentFont().family() : QString())
                                : display_family,
-                           format.property(kTextStyleNameFormatProperty).toString());
+                           format.property(kTextStyleNameFormatProperty).toString(), format_font.bold(),
+                           format_font.italic());
   set_text_smoothing_combo_value(text_smoothing_combo_,
                                  std::clamp(editor->property("patchy.documentTextAntiAlias").toInt(), 0, 16));
 
@@ -9526,61 +9622,78 @@ void MainWindow::apply_text_size_to_active_editor() {
   refresh_text_color_button();
 }
 
-void MainWindow::apply_text_bold_to_active_editor() {
+// Ctrl+B during a text session: the Bold FACE when the family ships one, Photoshop's faux bold
+// when it does not. The current state folds the faux flag in, so a second press always turns
+// the axis off (the old button path read only font().bold() and could never clear faux bold).
+// The toggle names one of the four flag faces, so any recorded exotic face gives way to it
+// (Ctrl+B on a Black run selects the Bold face, which is what Photoshop does).
+void MainWindow::toggle_text_bold_face() {
   if (canvas_ == nullptr) {
     return;
   }
   auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
-  if (editor == nullptr) {
+  if (editor == nullptr || editor->property(kTextEditorFinishedProperty).toBool()) {
     return;
   }
 
-  const auto bold = text_bold_button_ != nullptr && text_bold_button_->isChecked();
-  // A family whose style list has no bold face has nothing for the flag to select -- Qt would
-  // quietly hand back Regular and the button would look broken. Apply Photoshop's faux bold
-  // instead, which is what the user meant by pressing B.
-  const bool synthesize = bold && !family_offers_face_axis(current_text_family_for_editor(*editor), true);
+  const auto reference = text_editor_reference_format(*editor);
+  const bool active =
+      reference.font().bold() || reference.property(kTextFauxBoldFormatProperty).toBool();
+  const bool enable = !active;
+  const auto family = current_text_family_for_editor(*editor);
+  const bool real_face = enable && family_offers_face_axis(family, true);
   QTextCharFormat format;
-  format.setFontWeight(bold && !synthesize ? QFont::Bold : QFont::Normal);
-  format.setProperty(kTextFauxBoldFormatProperty, synthesize);
+  format.setFontWeight(real_face ? QFont::Bold : QFont::Normal);
+  format.setProperty(kTextFauxBoldFormatProperty, enable && !real_face);
+  format.setProperty(QTextFormat::FontStyleName, QString());
+  format.setProperty(kTextStyleNameFormatProperty, QString());
   merge_text_char_format(*editor, format);
   auto editor_font = editor->font();
-  editor_font.setBold(bold && !synthesize);
+  editor_font.setBold(real_face);
   editor->setFont(editor_font);
   editor->document()->setDefaultFont(editor_font);
 
   mark_text_editor_changed(editor);
   relayout_text_editor(editor, true);
   schedule_text_editor_preview(editor);
-  sync_text_style_combo_from_flags();
+  refresh_text_style_combo(family, QString(), real_face, reference.font().italic());
+  sync_text_character_dialog_from_editor();
   refresh_text_color_button();
 }
 
-void MainWindow::apply_text_italic_to_active_editor() {
+// Same fallback as Bold: no real italic face means faux italic, not a shortcut that does
+// nothing.
+void MainWindow::toggle_text_italic_face() {
   if (canvas_ == nullptr) {
     return;
   }
   auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
-  if (editor == nullptr) {
+  if (editor == nullptr || editor->property(kTextEditorFinishedProperty).toBool()) {
     return;
   }
 
-  const auto italic = text_italic_button_ != nullptr && text_italic_button_->isChecked();
-  // Same fallback as Bold: no real italic face means faux italic, not a button that does nothing.
-  const bool synthesize = italic && !family_offers_face_axis(current_text_family_for_editor(*editor), false);
+  const auto reference = text_editor_reference_format(*editor);
+  const bool active =
+      reference.font().italic() || reference.property(kTextFauxItalicFormatProperty).toBool();
+  const bool enable = !active;
+  const auto family = current_text_family_for_editor(*editor);
+  const bool real_face = enable && family_offers_face_axis(family, false);
   QTextCharFormat format;
-  format.setFontItalic(italic && !synthesize);
-  format.setProperty(kTextFauxItalicFormatProperty, synthesize);
+  format.setFontItalic(real_face);
+  format.setProperty(kTextFauxItalicFormatProperty, enable && !real_face);
+  format.setProperty(QTextFormat::FontStyleName, QString());
+  format.setProperty(kTextStyleNameFormatProperty, QString());
   merge_text_char_format(*editor, format);
   auto editor_font = editor->font();
-  editor_font.setItalic(italic && !synthesize);
+  editor_font.setItalic(real_face);
   editor->setFont(editor_font);
   editor->document()->setDefaultFont(editor_font);
 
   mark_text_editor_changed(editor);
   relayout_text_editor(editor, true);
   schedule_text_editor_preview(editor);
-  sync_text_style_combo_from_flags();
+  refresh_text_style_combo(family, QString(), reference.font().bold(), real_face);
+  sync_text_character_dialog_from_editor();
   refresh_text_color_button();
 }
 
@@ -9669,7 +9782,6 @@ bool MainWindow::is_text_option_widget(QWidget* widget) const {
     return false;
   };
   return owns(text_font_combo_) || owns(text_style_combo_) || owns(text_size_spin_) ||
-         owns(text_bold_button_) || owns(text_italic_button_) ||
          owns(text_smoothing_combo_) || owns(text_color_button_) || owns(text_align_left_button_) ||
          owns(text_align_center_button_) || owns(text_align_right_button_) || owns(text_apply_button_) ||
          owns(text_cancel_button_) || owns(text_character_button_) || owns(primary_color_button_) ||

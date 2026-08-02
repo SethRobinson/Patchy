@@ -9264,27 +9264,7 @@ Mixed selection</source>
         <translation>フォント:</translation>
     </message>
     <message>
-        <location line="+16"/>
-        <source>B</source>
-        <translation>B</translation>
-    </message>
-    <message>
-        <location line="+3"/>
-        <source>Bold</source>
-        <translation>太字</translation>
-    </message>
-    <message>
-        <location line="+6"/>
-        <source>I</source>
-        <translation>I</translation>
-    </message>
-    <message>
-        <location line="+3"/>
-        <source>Italic</source>
-        <translation>斜体</translation>
-    </message>
-    <message>
-        <location line="+6"/>
+        <location line="+30"/>
         <source>Smoothing:</source>
         <translation>スムージング:</translation>
     </message>

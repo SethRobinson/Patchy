@@ -15,10 +15,9 @@ hit-testing. Build it with the same `boxed` / `photoshop_layout` flags the rende
 its answers are guaranteed to agree with the drawn glyphs.
 
 Caret and selection geometry MUST go through `TextLineGeometry`, never through Qt's natural
-`blockBoundingRect` origins. Reading those was the old bug: the caret layout also never passed
-`photoshop_layout`, so on a PS-model layer the caret drifted roughly (leading - Qt line spacing)
-px per line off the text (`ui_psd_text_caret_follows_photoshop_leading` pins it on the fixed-
-leading probe: 40 px leading against Qt's ~29). `BoxTextLineRenderItem::block_position` exists
+`blockBoundingRect` origins: those drift roughly (leading - Qt line spacing) px per line on a
+PS-model layer (`ui_psd_text_caret_follows_photoshop_leading` pins it on the fixed-leading
+probe: 40 px leading against Qt's ~29). `BoxTextLineRenderItem::block_position` exists
 only for this: `QTextLine::lineNumber()` is an index within its own block's layout, so the
 owning block cannot be recovered from the line alone. Caret lookup resolves the owning block
 FIRST, the way `QTextDocument::findBlock` does, because a block's last line ends before the
@@ -31,10 +30,8 @@ argument for argument: `metric_scale` AND the PSD-frame `layout_scale`
 (`text_editor_size_display_scale` when `photoshop_layout && usesPsdTextFrame`). A frame session
 keeps its runs in raw engine units and folds the frame transform's vertical scale into the glyph
 sizes only at render time, so leaving `layout_scale` at its 1.0 default laid the caret and
-selection out at the raw size while the glyphs were drawn scaled. The highlight was then wrong by
-exactly that factor: on a 1.5x frame, selecting one character highlighted one and a half.
-Committing rewrites the layer without the frame, which is why re-entering looked correct and made
-the bug read as "wrong until you exit and come back".
+selection out at the raw size while the glyphs were drawn scaled: on a 1.5x frame, selecting one
+character highlighted one and a half.
 `ui_psd_frame_text_highlight_matches_scaled_glyphs` pins it by comparing a select-all highlight
 against the rendered ink (with space-free text, since a trailing space is legitimately
 highlighted and has no ink of its own), and by clicking the middle of the INK and requiring the
@@ -57,8 +54,7 @@ trip: click exactly where the caret is drawn and the caret must come back to tha
 The editor widget is SIZED from that layout too, not from `QTextDocument::size()`. The widget's
 rect is its hit area, so a widget shorter than the glyphs makes the lines past its bottom edge
 unclickable: the click falls through to the canvas and the focus-loss auto-commit ends the
-session. Under the Photoshop leading model that is routine (40 px leading against Qt's natural
-29 left the widget a third too short on the fixed-leading probe).
+session, which is routine under the Photoshop leading model.
 `ui_transformed_text_click_returns_to_the_caret_it_drew` covers it, rotating the fixed-leading
 fixture so the click has to survive both the transform inverse and the leading divergence.
 
@@ -77,9 +73,8 @@ An edit session must never produce a frame with no glyphs in it. Two rules enfor
   as long as the first preview took, which on a styled layer is the whole
   `kExpensiveTextEditorPreviewDelayMs`.
 - **The debounce never removes the preview.** An expensive style re-renders on the longer delay,
-  but the last good preview keeps drawing until the new one replaces it. `schedule_text_editor_preview`
-  used to tear the preview layer out first and let the editor widget paint raw glyphs meanwhile,
-  so every keystroke flashed between two different rasterizations.
+  but the last good preview keeps drawing until the new one replaces it; tearing it out first
+  made every keystroke flash between two different rasterizations.
 
 `kTextEditorPreviewPaintProperty` therefore means "the glyphs come from somewhere other than this
 widget", and it is true for the whole of any previewed session. `ui_expensive_text_style_preview_never_blanks_while_typing`
@@ -89,25 +84,22 @@ vanish.
 Re-editing an existing layer also must not MOVE its text. Every such session renders live through
 `render_text_pixels`, including plain unstyled text that needs no preview otherwise
 (`kTextEditorForceBakedPreviewProperty`), because the editor widget's own glyph rasterization
-differs from the committed layer's. Box text was excluded from that rule and so still shifted on
-entry until August 2026. `ui_text_edit_entry_leaves_the_pixels_alone` pins both flows: enter, do
+differs from the committed layer's. `ui_text_edit_entry_leaves_the_pixels_alone` pins both flows: enter, do
 nothing, and the preview must be byte-identical to the committed pixels at the same origin, as
 must a re-commit.
 
 **Every session previews, including the one that creates the text.** A new session renders over
 its provisional layer, and `restore_active_layer` is that provisional (not whatever was active
-before the click) so the preview insert does not steal the layer-panel selection. Without this
-the creating session was the odd one out: its glyphs, caret and highlight all came from the
-editor widget at the widget's own zoom-scaled metrics, so selecting text drew a different-sized
-highlight before the first commit than after it. One consequence for tests: on-screen glyphs are
+before the click) so the preview insert does not steal the layer-panel selection. Without this,
+selection highlights drew at widget metrics before the first commit and at render metrics after
+it. One consequence for tests: on-screen glyphs are
 now debounced, so a test that changes an option (alignment, size) and measures pixels has to let
 the preview land first.
 
 Ending a session must not flash either. `restore_text_editor_source_layer` puts the edited layer
 back BEFORE `remove_text_editor_preview` takes the preview away, in commit and in cancel: the
 layer still holds its committed pixels there, so the text carries straight through the handover.
-Removing the preview first left a window with neither on screen, and the widget teardown and
-options-bar relayout that follow are enough to get a paint delivered inside it.
+Removing the preview first left a frame with neither on screen.
 
 ## Session lifecycle (provisional layer, commit, cancel)
 
@@ -124,10 +116,10 @@ Delete on a text layer deletes the OBJECT, never its pixels: pixel-clearing leav
 text actually hits, and it must take `Qt::ClickFocus`. With `Qt::NoFocus` Qt's focus-before-press
 walk (`giveFocusAccordingToFocusPolicy`) skipped straight past it to the CanvasWidget behind, and
 the editor's focus-loss auto-commit read that as clicking off: every click on transformed text
-ended the session instead of moving the caret, so the mouse could not select at all. It only
-showed up on the SECOND edit of an imported layer, because committing writes a patchy transform
-that moves the next session off the PSD-frame path (where clicks land on the QTextEdit, which
-takes focus itself) and onto the overlay. Focus landing on the overlay is already exempt from the
+ended the session instead of moving the caret. The overlay path is only reached from the SECOND
+edit of an imported layer on (committing writes a patchy transform that moves the next session
+off the PSD-frame path, where the QTextEdit takes focus itself), which is what hid the bug.
+Focus landing on the overlay is already exempt from the
 auto-commit, via the `is_text_option_widget` objectName match, and `mousePressEvent` hands focus
 straight back to the editor.
 
@@ -146,7 +138,7 @@ answers a different question and hid this bug from several tests that looked lik
 - The options bar shows session apply/cancel buttons (`textApplyButton`/`textCancelButton`) while an editor is open; they must keep `Qt::NoFocus`, otherwise the editor's focus-loss auto-commit fires on mouse press and Cancel commits instead of canceling.
 - The font combo is a `FontPickerCombo` (src/ui/font_picker.*, a QFontComboBox whose overridden showPopup opens a searchable list + writing-system preview); its popup objectName `textFontPickerPopup` must stay matched by `is_text_option_widget` (a Qt::Popup is a window, so isAncestorOf-based ownership misses it and focusing the search box would auto-commit the session).
 - Any new UI that must coexist with an open text session needs the same `is_text_option_widget` exemption from the focus-loss auto-commit.
-- The inline editor claims the standard Bold and Italic shortcuts in `ShortcutOverride` before the app-level Ctrl+B Color Balance and Ctrl+I Invert actions can consume them. The key press toggles the same options-bar buttons so selection and typing-format behavior stay on one path.
+- The inline editor claims the standard Bold and Italic shortcuts in `ShortcutOverride` before the app-level Ctrl+B Color Balance and Ctrl+I Invert actions can consume them. The key press routes to `toggle_text_bold_face` / `toggle_text_italic_face` (see the style picker section below).
 
 ## Boxed-text render clipping
 
@@ -163,37 +155,49 @@ bottom, because pixels-only callers place the buffer at the frame corner.
 ## The style picker, and what bold + italic cannot say
 
 A family's faces are an arbitrary list; bold and italic can only name four of them. The options
-bar carries a style picker (`textStyleCombo`) populated from `QFontDatabase::styles(family)`, and
-`PsdTextStyleRun::style` / runs v5 column 12 persist the chosen face. `render_text_font_for_display_family`
-takes it as its last argument and applies `setStyleName` when the family really offers it,
-falling back to the flags otherwise (a style carried over from another family, or from a machine
-where that font was installed, must not render nothing).
+bar's style picker (`textStyleCombo`) is the ONLY face control, like Photoshop: there are no B/I
+buttons. `PsdTextStyleRun::style` / runs v5 column 12 persist a chosen face the flags cannot
+express, and `render_text_font_for_display_family` takes it as its last argument, applying
+`setStyleName` when the family really offers it and falling back to the flags otherwise (a style
+carried from a machine where that font was installed must not render nothing).
 
-- **A style is recorded only when the flags cannot express it.** The DirectWrite resolver drops
-  Regular/Bold/Italic/Bold Italic/Oblique, so ordinary imports stay on v3/v4 and the byte-stability
-  canaries do not move. The picker derives those four from `bold`/`italic` instead.
-- The Bold/Italic buttons stay as the shortcut for the four they can name and track the picker in
-  both directions (`sync_text_style_combo_from_flags`, `apply_text_style_to_active_editor`).
-- **B and I fall back to FAUX when the family has no such face.** Pressing I on Century Gothic
-  (Regular + Bold, no italic) used to leave the flag set with nothing to match, so Qt handed back
-  Regular and the button looked broken. `family_offers_face_axis` is asked ONE AXIS AT A TIME on
-  purpose: bold + italic on that family is the real Bold face plus a synthetic slant, which is
-  what Photoshop does with the same pair. `real_face_style_name` masks the flags the same way so
-  the picker shows Bold rather than hunting for a "Bold Italic" that does not exist.
-- **Never read the style list straight from `QFontDatabase::styles()`.** Qt's Windows database
-  fills a family's faces in lazily and can answer "Regular" alone until something asks for the
-  bold or italic face, so the picker's list visibly grew the first time the user pressed B.
-  `available_text_family_styles` pushes the four flag combinations through the matcher and folds
-  in the real faces they resolve to, ignoring any that came back as a different family; a family
-  with no italic still answers Regular, so the list is only completed, never invented.
-- `textStyleCombo` needs the `is_text_option_widget` exemption like every other option widget, or
-  focusing it auto-commits the session.
+- **A style is recorded only when the flags cannot express it.** The DirectWrite resolver and the
+  picker both drop Regular/Bold/Italic/Bold Italic/Oblique variants
+  (`text_style_is_flag_expressible` mirrors the reader's list), so ordinary imports and picks
+  stay on runs v1-v4 and the byte-stability canaries do not move. The picker derives those four
+  rows from `bold`/`italic` and previews each row in its own face (per-item `Qt::FontRole`).
+- **Ctrl+B / Ctrl+I toggle the face axis during a session** (`toggle_text_bold_face` /
+  `toggle_text_italic_face`): the real face when `family_offers_face_axis` says the family ships
+  one, FAUX bold/italic otherwise (Ctrl+I on Century Gothic, Regular + Bold and no italic,
+  applies the synthetic slant instead of doing nothing). The axis state folds the faux flag in,
+  so a second press always turns the axis off (the old button path could never clear faux), and
+  the toggle clears any recorded exotic style (Ctrl+B on a Black run selects the Bold face, as
+  Photoshop does). `family_offers_face_axis` is asked ONE AXIS AT A TIME on purpose, and
+  `real_face_style_name` masks the flags the same way, so bold + italic on Century Gothic shows
+  and renders the real Bold face plus a synthetic slant.
+- **Never ask `QFontDatabase::styles()` with an unresolved display family.** A face-baked name
+  ("ITC Lubalin Graph Demi", the "Bookman Old Style Italic" older imports recorded) lists its
+  faces only under the SPLIT base family; the unsplit name answers nothing, which emptied the
+  picker and diverted Ctrl+B/Ctrl+I to faux (the Game_Screen.psd regression).
+  `available_text_family_styles` resolves through `text_style_query_family`, probes the four
+  flag combinations with `QRawFont` (forcing Qt's lazy per-family population;
+  `QFontInfo::styleName` can echo the request back), re-queries for faces only the database knows
+  (Light, Semibold, Black), orders the four standard faces first like Photoshop, and caches per
+  family with `fontDatabaseChanged` invalidation. A family that is not installed at all still
+  offers the four standard faces so the toggles do not synthesize on top of a substituted face.
+- New text seeds from the picker's selection (`add_text_at`); pre-arming bold outside a session
+  is gone, matching Photoshop.
+- On export, `photoshop_font_name_for_run` resolves the recorded style (or the face split off a
+  compound display family) to that face's PostScript name: "Arial" + "Black" writes `Arial-Black`
+  instead of flattening onto `Arial-BoldMT`. Style-empty runs keep the weight-based lookup
+  byte-identical, and a split whose remainder names no real face exports verbatim like any
+  unknown family.
+- `textStyleCombo` needs the `is_text_option_widget` exemption or focusing it auto-commits the
+  session.
 
-**Options-bar changes with NO selection apply to the whole type object**, the way Photoshop does.
-`merge_text_char_format` used to fall through to `QTextEdit::mergeCurrentCharFormat`, which only
-sets the format the NEXT typed character gets, so clicking Bold, Italic, a family, a size or a
-colour with a bare caret left every existing run untouched and they won at render time (the
-reported "clicking italics does nothing" on the Dungeon Scroll buttons).
+**Options-bar changes with NO selection apply to the whole type object**, the way Photoshop does:
+`merge_text_char_format` selects the whole document for a bare caret instead of falling through
+to `mergeCurrentCharFormat`, which only formats the NEXT typed character.
 
 ## Font resolution
 
@@ -228,7 +232,12 @@ reported "clicking italics does nothing" on the Dungeon Scroll buttons).
   Semi (600) used to resolve to the family's BOLD face, which renders heavier
   and taller than Photoshop did (ITC Lubalin Graph Demi measured 995x868
   against Photoshop's own 982x826 on the entry_poster.psd body copy; with the
-  real face the width matches exactly). Two rules make that work:
+  real face the width matches exactly). The rule is gated on the face NAME, not
+  the raw weight: a face whose name the flags can already express is never
+  baked into the family, whatever weight it declares (Bookman Old Style ships
+  its whole family at weight 500, so "BookmanOldStyle-Italic" must resolve to
+  the plain family plus the italic flag, not to a "Bookman Old Style Italic"
+  family). Two further rules make the kept faces work:
   - The kept name is `family + " " + faceName`, which is what Qt calls such a
     face when it splits it into its own family ("ITC Lubalin Graph Demi"). The
     DirectWrite FULL_NAME can be a PostScript-style name

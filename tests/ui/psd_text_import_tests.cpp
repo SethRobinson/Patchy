@@ -2465,13 +2465,9 @@ void ui_text_options_apply_to_the_whole_layer_without_a_selection() {
     return;
   }
   CHECK(!editor->textCursor().hasSelection());
-  auto* italic_button = window.findChild<QAbstractButton*>(QStringLiteral("textItalicButton"));
-  CHECK(italic_button != nullptr);
-  if (italic_button == nullptr) {
-    return;
-  }
-  CHECK(italic_button->isChecked());
-  italic_button->click();
+  // The layer opens italic; Ctrl+I (the face toggle, now that the bar has no I button) with a
+  // bare caret must clear the whole type object.
+  QTest::keyClick(editor, Qt::Key_I, Qt::ControlModifier);
   QApplication::processEvents();
   process_events_for(250);
 
@@ -2599,6 +2595,165 @@ void ui_text_style_picker_selects_a_face_the_flags_cannot_name() {
   }
 }
 
+// The picker lists a family's REAL faces in Photoshop's order, and a face-baked display family
+// left behind by older imports (the shape "Bookman Old Style Italic" took: the whole family
+// declares weight 500, which used to trip the reader's keep-the-real-face rule) still resolves
+// through the family+face split. Asked with the unsplit name, the font database lists nothing at
+// all, which is what emptied the picker down to a lone Regular row and made Ctrl+B/Ctrl+I divert
+// to faux. Probed with "Arial Italic" so no new family registration can move later tests'
+// missing-font fallback metrics; the weight-500 Bookman resolution itself is pinned in the core
+// suite (psd_text_flag_expressible_face_never_bakes_into_the_family).
+void ui_text_style_combo_lists_real_faces_in_photoshop_order() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  const auto family = QStringLiteral("Arial");
+  const auto installed_styles = QFontDatabase::styles(family);
+  for (const auto& required : {QStringLiteral("Regular"), QStringLiteral("Italic"),
+                               QStringLiteral("Bold"), QStringLiteral("Bold Italic")}) {
+    if (!installed_styles.contains(required)) {
+      return;  // this machine lacks the four-face family the probe needs
+    }
+  }
+
+  patchy::Document document(320, 180, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(320, 180, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  auto pixels = solid_pixels(118, 36, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  fill_pixel_rect(pixels, QRect(0, 0, 96, 30), QColor(20, 20, 20, 255));
+  patchy::Layer text_layer(document.allocate_layer_id(), "Jumble", std::move(pixels));
+  text_layer.set_bounds(patchy::Rect{40, 40, 118, 36});
+  text_layer.metadata()[patchy::kLayerMetadataText] = "Jumble";
+  text_layer.metadata()[patchy::kLayerMetadataTextFlow] = "point";
+  text_layer.metadata()[patchy::kLayerMetadataTextFont] = "Arial Italic";
+  text_layer.metadata()[patchy::kLayerMetadataTextSize] = "24";
+  text_layer.metadata()[patchy::kLayerMetadataTextColor] = "#202020";
+  text_layer.metadata()[patchy::kLayerMetadataTextItalic] = "true";
+  text_layer.metadata()[patchy::kLayerMetadataTextRuns] =
+      "v1\n0\t6\t24\t0\t1\t#202020\tArial%20Italic";
+  const auto layer_id = document.add_layer(std::move(text_layer)).id();
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Faces In Order"));
+  auto* canvas = require_canvas(window);
+  QApplication::processEvents();
+  patchy::ui::MainWindowTestAccess::document(window).set_active_layer(layer_id);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto hit_point = canvas->widget_position_for_document_point(QPoint(60, 52));
+  send_mouse(*canvas, QEvent::MouseButtonPress, hit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, hit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  process_events_for(250);
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+
+  auto* style_combo = window.findChild<QComboBox*>(QStringLiteral("textStyleCombo"));
+  CHECK(style_combo != nullptr);
+  if (style_combo != nullptr) {
+    // Photoshop's order up front (an earlier test may have added extra Arial faces such as
+    // Black; they follow the canonical four), and no duplicate rows.
+    CHECK(style_combo->count() >= 4);
+    CHECK(style_combo->itemData(0).toString().isEmpty());
+    CHECK(style_combo->itemData(1).toString() == QStringLiteral("Italic"));
+    CHECK(style_combo->itemData(2).toString() == QStringLiteral("Bold"));
+    CHECK(style_combo->itemData(3).toString() == QStringLiteral("Bold Italic"));
+    QStringList seen;
+    for (int index = 0; index < style_combo->count(); ++index) {
+      const auto face = style_combo->itemData(index).toString();
+      CHECK(!seen.contains(face, Qt::CaseInsensitive));
+      seen.append(face);
+    }
+    // The run's italic flag lands the picker on the face it describes.
+    CHECK(style_combo->currentData().toString() == QStringLiteral("Italic"));
+  }
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  process_events_for(150);
+}
+
+// Picking "Bold" in the dropdown says the same thing the bold flag records, so the commit stays
+// on the flag columns with NO recorded style: ordinary bold text keeps round-tripping through
+// runs v1-v4 exactly as before the picker existed, and only a face the flags cannot express
+// (Black, Demi) escalates to v5.
+void ui_picking_bold_in_style_combo_stays_flag_expressible() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  const auto family = QStringLiteral("Arial");
+  if (!QFontDatabase::styles(family).contains(QStringLiteral("Bold"))) {
+    return;  // no real Bold face registered on this machine
+  }
+
+  patchy::Document document(320, 180, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(320, 180, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  auto pixels = solid_pixels(118, 36, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  fill_pixel_rect(pixels, QRect(0, 0, 96, 30), QColor(20, 20, 20, 255));
+  patchy::Layer text_layer(document.allocate_layer_id(), "Weight", std::move(pixels));
+  text_layer.set_bounds(patchy::Rect{40, 40, 118, 36});
+  text_layer.metadata()[patchy::kLayerMetadataText] = "Weight";
+  text_layer.metadata()[patchy::kLayerMetadataTextFlow] = "point";
+  text_layer.metadata()[patchy::kLayerMetadataTextFont] = family.toStdString();
+  text_layer.metadata()[patchy::kLayerMetadataTextSize] = "24";
+  text_layer.metadata()[patchy::kLayerMetadataTextColor] = "#202020";
+  text_layer.metadata()[patchy::kLayerMetadataTextRuns] = "v1\n0\t6\t24\t0\t0\t#202020\tArial";
+  const auto layer_id = document.add_layer(std::move(text_layer)).id();
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Flag Expressible"));
+  auto* canvas = require_canvas(window);
+  QApplication::processEvents();
+  patchy::ui::MainWindowTestAccess::document(window).set_active_layer(layer_id);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto hit_point = canvas->widget_position_for_document_point(QPoint(60, 52));
+  send_mouse(*canvas, QEvent::MouseButtonPress, hit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, hit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  process_events_for(250);
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  auto* style_combo = window.findChild<QComboBox*>(QStringLiteral("textStyleCombo"));
+  CHECK(editor != nullptr);
+  CHECK(style_combo != nullptr);
+  if (editor == nullptr || style_combo == nullptr) {
+    return;
+  }
+  const auto bold_index = style_combo->findData(QStringLiteral("Bold"));
+  CHECK(bold_index > 0);
+  if (bold_index <= 0) {
+    return;
+  }
+  style_combo->setCurrentIndex(bold_index);
+  QApplication::processEvents();
+  process_events_for(250);
+
+  bool saw_fragment = false;
+  for (auto block = editor->document()->begin(); block.isValid(); block = block.next()) {
+    for (auto it = block.begin(); !it.atEnd(); ++it) {
+      const auto fragment = it.fragment();
+      if (!fragment.isValid() || fragment.length() <= 0) {
+        continue;
+      }
+      saw_fragment = true;
+      CHECK(fragment.charFormat().font().bold());
+      CHECK(fragment.charFormat().property(patchy::ui::kTextStyleNameFormatProperty).toString().isEmpty());
+    }
+  }
+  CHECK(saw_fragment);
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  process_events_for(150);
+  const auto* committed = patchy::ui::MainWindowTestAccess::document(window).find_layer(layer_id);
+  CHECK(committed != nullptr);
+  if (committed != nullptr) {
+    const auto runs = committed->metadata().find(patchy::kLayerMetadataTextRuns);
+    CHECK(runs != committed->metadata().end());
+    if (runs != committed->metadata().end()) {
+      CHECK(runs->second.rfind("v5", 0) != 0);
+      CHECK(runs->second.find("\t1\t0\t#202020\tArial") != std::string::npos);
+    }
+  }
+}
+
 // Faux italic slants the run's OWN face. Qt cannot express that through QFont at all
 // (setStyle(StyleOblique) resolves to the family's real Italic face), so the renderer shears the
 // drawn line about its baseline. The proof is geometric: the same glyphs, rasterized with the
@@ -2700,10 +2855,11 @@ void ui_faux_italic_shears_the_rendered_glyphs() {
   CHECK(slanted.width - upright.width <= upright.width / 2);
 }
 
-// Bold and Italic have to mean something for every family. Century Gothic ships Regular and Bold
-// but NO italic, so pressing I has no real face to select: Qt would quietly hand back Regular and
-// the button would look broken (the reported "clicking italics does nothing" in another guise).
-// Pressing it applies Photoshop's FAUX italic instead, while B still selects the real Bold face.
+// Ctrl+B and Ctrl+I have to mean something for every family. Century Gothic ships Regular and
+// Bold but NO italic, so Ctrl+I has no real face to select: Qt would quietly hand back Regular
+// and the shortcut would look broken (the reported "clicking italics does nothing" in another
+// guise). It applies Photoshop's FAUX italic instead, while Ctrl+B still selects the real Bold
+// face, and a second Ctrl+I clears the synthetic slant again.
 void ui_bold_italic_fall_back_to_faux_when_the_family_lacks_the_face() {
   patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
   patchy::test::register_test_fonts(patchy::test::TestFontRole::CenturyGothic);
@@ -2764,36 +2920,27 @@ void ui_bold_italic_fall_back_to_faux_when_the_family_lacks_the_face() {
   };
 
   // Italic: no real face, so the flag stays off and faux italic goes on.
-  auto* italic_button = window.findChild<QAbstractButton*>(QStringLiteral("textItalicButton"));
-  CHECK(italic_button != nullptr);
-  if (italic_button != nullptr) {
-    italic_button->click();
-    QApplication::processEvents();
-    process_events_for(200);
-    CHECK(!first_format().font().italic());
-    CHECK(first_format().property(patchy::ui::kTextFauxItalicFormatProperty).toBool());
-  }
+  QTest::keyClick(editor, Qt::Key_I, Qt::ControlModifier);
+  QApplication::processEvents();
+  process_events_for(200);
+  CHECK(!first_format().font().italic());
+  CHECK(first_format().property(patchy::ui::kTextFauxItalicFormatProperty).toBool());
 
   // Bold: the family HAS this one, so it selects the real face and leaves faux bold alone -- even
-  // with italic already on, because the two axes are asked separately.
-  auto* bold_button = window.findChild<QAbstractButton*>(QStringLiteral("textBoldButton"));
-  CHECK(bold_button != nullptr);
-  if (bold_button != nullptr) {
-    bold_button->click();
-    QApplication::processEvents();
-    process_events_for(200);
-    CHECK(first_format().font().bold());
-    CHECK(!first_format().property(patchy::ui::kTextFauxBoldFormatProperty).toBool());
-    CHECK(style_combo == nullptr || style_combo->currentData().toString() == QStringLiteral("Bold"));
-  }
+  // with faux italic already on, because the two axes are asked separately.
+  QTest::keyClick(editor, Qt::Key_B, Qt::ControlModifier);
+  QApplication::processEvents();
+  process_events_for(200);
+  CHECK(first_format().font().bold());
+  CHECK(!first_format().property(patchy::ui::kTextFauxBoldFormatProperty).toBool());
+  CHECK(style_combo == nullptr || style_combo->currentData().toString() == QStringLiteral("Bold"));
 
-  // Turning italic back off clears the synthetic slant rather than leaving it stuck on.
-  if (italic_button != nullptr) {
-    italic_button->click();
-    QApplication::processEvents();
-    process_events_for(200);
-    CHECK(!first_format().property(patchy::ui::kTextFauxItalicFormatProperty).toBool());
-  }
+  // A second Ctrl+I clears the synthetic slant rather than leaving it stuck on (the old button
+  // path read only font().italic() and could never turn faux back off).
+  QTest::keyClick(editor, Qt::Key_I, Qt::ControlModifier);
+  QApplication::processEvents();
+  process_events_for(200);
+  CHECK(!first_format().property(patchy::ui::kTextFauxItalicFormatProperty).toBool());
   require_action_by_text(window, QStringLiteral("Move"))->trigger();
   QApplication::processEvents();
   process_events_for(150);
@@ -2850,6 +2997,10 @@ std::vector<patchy::test::TestCase> psd_text_import_tests() {
        ui_text_options_apply_to_the_whole_layer_without_a_selection},
       {"ui_text_style_picker_selects_a_face_the_flags_cannot_name",
        ui_text_style_picker_selects_a_face_the_flags_cannot_name},
+      {"ui_text_style_combo_lists_real_faces_in_photoshop_order",
+       ui_text_style_combo_lists_real_faces_in_photoshop_order},
+      {"ui_picking_bold_in_style_combo_stays_flag_expressible",
+       ui_picking_bold_in_style_combo_stays_flag_expressible},
       {"ui_faux_italic_shears_the_rendered_glyphs", ui_faux_italic_shears_the_rendered_glyphs},
       {"ui_bold_italic_fall_back_to_faux_when_the_family_lacks_the_face",
        ui_bold_italic_fall_back_to_faux_when_the_family_lacks_the_face},

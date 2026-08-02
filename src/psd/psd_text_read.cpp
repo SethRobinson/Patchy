@@ -968,20 +968,15 @@ std::optional<ResolvedPhotoshopFont> directwrite_resolved_photoshop_font(std::st
         // face when it splits it into its own family ("ITC Lubalin Graph Demi"), whereas
         // FULL_NAME can be the PostScript-style name ("LubalinGraphITCbyBT-Demi"), which matches
         // nothing in the font database and falls through to a substitute.
-        if (weight != DWRITE_FONT_WEIGHT_NORMAL && weight != DWRITE_FONT_WEIGHT_BOLD) {
-          std::string face_style;
-          Microsoft::WRL::ComPtr<IDWriteLocalizedStrings> weight_face_names;
-          if (SUCCEEDED(font->GetFaceNames(&weight_face_names)) && weight_face_names) {
-            if (const auto face = directwrite_localized_string(weight_face_names.Get()); face.has_value()) {
-              face_style = utf8_from_wide(*face);
-            }
-          }
-          auto face_style_key = face_style;
-          std::transform(face_style_key.begin(), face_style_key.end(), face_style_key.begin(),
-                         [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
-          if (!face_style.empty() && face_style_key != "regular" && face_style_key != "normal") {
-            return ResolvedPhotoshopFont{family + ' ' + face_style, declared_style, false, italic};
-          }
+        //
+        // Gate on declared_style, not on the raw face name: a face whose name the flags CAN
+        // express must never be baked into the family, whatever weight it declares. Bookman Old
+        // Style ships its whole family at weight 500, so "BookmanOldStyle-Italic" used to come
+        // back as family "Bookman Old Style Italic" - a name the font database cannot list
+        // faces for, which emptied the style picker and diverted Bold/Italic to faux.
+        if (weight != DWRITE_FONT_WEIGHT_NORMAL && weight != DWRITE_FONT_WEIGHT_BOLD &&
+            !declared_style.empty()) {
+          return ResolvedPhotoshopFont{family + ' ' + declared_style, declared_style, false, italic};
         }
         return ResolvedPhotoshopFont{std::move(family), declared_style,
                                      weight >= DWRITE_FONT_WEIGHT_SEMI_BOLD, italic};

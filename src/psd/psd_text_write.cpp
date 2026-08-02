@@ -1060,7 +1060,55 @@ std::optional<std::string> directwrite_font_info_string(IDWriteFont* font, DWRIT
 namespace {
 
 #ifdef _WIN32
-std::string photoshop_font_name_for_run(std::string_view family, bool bold, bool italic) {
+// The PostScript (or full) name of `font`, empty when the font carries neither.
+std::string directwrite_postscript_name(IDWriteFont* font) {
+  if (const auto postscript = directwrite_font_info_string(font, DWRITE_INFORMATIONAL_STRING_POSTSCRIPT_NAME);
+      postscript.has_value()) {
+    return *postscript;
+  }
+  if (const auto full_name = directwrite_font_info_string(font, DWRITE_INFORMATIONAL_STRING_FULL_NAME);
+      full_name.has_value()) {
+    return *full_name;
+  }
+  return {};
+}
+
+// The font in `font_family` whose face name equals `face` (ASCII case-insensitive), or null.
+Microsoft::WRL::ComPtr<IDWriteFont> directwrite_font_with_face_name(IDWriteFontFamily* font_family,
+                                                                    std::string_view face) {
+  const auto matches = [face](const std::string& candidate) {
+    if (candidate.size() != face.size()) {
+      return false;
+    }
+    for (std::size_t index = 0; index < face.size(); ++index) {
+      if (std::tolower(static_cast<unsigned char>(candidate[index])) !=
+          std::tolower(static_cast<unsigned char>(face[index]))) {
+        return false;
+      }
+    }
+    return true;
+  };
+  const auto font_count = font_family->GetFontCount();
+  for (UINT32 font_index = 0; font_index < font_count; ++font_index) {
+    Microsoft::WRL::ComPtr<IDWriteFont> font;
+    if (FAILED(font_family->GetFont(font_index, &font)) || !font) {
+      continue;
+    }
+    Microsoft::WRL::ComPtr<IDWriteLocalizedStrings> face_names;
+    if (FAILED(font->GetFaceNames(&face_names)) || !face_names) {
+      continue;
+    }
+    if (const auto localized = directwrite_localized_string(face_names.Get()); localized.has_value()) {
+      if (matches(utf8_from_wide(*localized))) {
+        return font;
+      }
+    }
+  }
+  return {};
+}
+
+std::string photoshop_font_name_for_run(std::string_view family, std::string_view style, bool bold,
+                                        bool italic) {
   const auto fallback = family.empty() ? std::string("Arial") : std::string(family);
   const auto wide_family = wide_from_utf8(fallback);
   if (wide_family.empty()) {
@@ -1077,16 +1125,60 @@ std::string photoshop_font_name_for_run(std::string_view family, bool bold, bool
     return fallback;
   }
 
+  Microsoft::WRL::ComPtr<IDWriteFontFamily> font_family;
+  std::string face_from_split;
   UINT32 family_index = 0;
   BOOL exists = FALSE;
-  if (FAILED(collection->FindFamilyName(wide_family.c_str(), &family_index, &exists)) || !exists) {
+  if (SUCCEEDED(collection->FindFamilyName(wide_family.c_str(), &family_index, &exists)) && exists) {
+    if (FAILED(collection->GetFontFamily(family_index, &font_family))) {
+      font_family.Reset();
+    }
+  } else {
+    // The display family may carry a face the flags cannot express ("ITC Lubalin Graph Demi",
+    // "Arial Black"): try the longest word-prefix that IS a DirectWrite family and keep the
+    // remainder as the face to look up, mirroring the read side's family+face split.
+    auto prefix = fallback;
+    while (font_family == nullptr) {
+      const auto space = prefix.find_last_of(' ');
+      if (space == std::string::npos || space == 0U) {
+        break;
+      }
+      prefix.resize(space);
+      const auto wide_prefix = wide_from_utf8(prefix);
+      if (wide_prefix.empty()) {
+        break;
+      }
+      if (SUCCEEDED(collection->FindFamilyName(wide_prefix.c_str(), &family_index, &exists)) && exists &&
+          SUCCEEDED(collection->GetFontFamily(family_index, &font_family)) && font_family) {
+        face_from_split = fallback.substr(prefix.size() + 1U);
+        break;
+      }
+      font_family.Reset();
+    }
+  }
+  if (font_family == nullptr) {
     return fallback;
   }
 
-  Microsoft::WRL::ComPtr<IDWriteFontFamily> font_family;
-  if (FAILED(collection->GetFontFamily(family_index, &font_family)) || !font_family) {
+  // The recorded style names the exact face; the face baked into a split display family is the
+  // next-best witness. Only when neither matches does the bold/italic weight request decide.
+  for (const auto& face : {std::string(style), face_from_split}) {
+    if (face.empty()) {
+      continue;
+    }
+    if (const auto font = directwrite_font_with_face_name(font_family.Get(), face); font) {
+      if (auto name = directwrite_postscript_name(font.Get()); !name.empty()) {
+        return name;
+      }
+    }
+  }
+  if (!face_from_split.empty()) {
+    // A split family whose remainder names no real face is not this family plus a face at all
+    // ("Century Schoolbook" with only "Century" installed): keep the name verbatim, exactly the
+    // way an unknown family always exported, instead of guessing a wrong PostScript name.
     return fallback;
   }
+
   Microsoft::WRL::ComPtr<IDWriteFont> font;
   if (FAILED(font_family->GetFirstMatchingFont(bold ? DWRITE_FONT_WEIGHT_BOLD : DWRITE_FONT_WEIGHT_NORMAL,
                                                DWRITE_FONT_STRETCH_NORMAL,
@@ -1095,25 +1187,21 @@ std::string photoshop_font_name_for_run(std::string_view family, bool bold, bool
       !font) {
     return fallback;
   }
-
-  if (const auto postscript = directwrite_font_info_string(font.Get(), DWRITE_INFORMATIONAL_STRING_POSTSCRIPT_NAME);
-      postscript.has_value()) {
-    return *postscript;
-  }
-  if (const auto full_name = directwrite_font_info_string(font.Get(), DWRITE_INFORMATIONAL_STRING_FULL_NAME);
-      full_name.has_value()) {
-    return *full_name;
+  if (auto name = directwrite_postscript_name(font.Get()); !name.empty()) {
+    return name;
   }
   return fallback;
 }
 #else
-std::string photoshop_font_name_for_run(std::string_view family, bool /*bold*/, bool /*italic*/) {
+std::string photoshop_font_name_for_run(std::string_view family, std::string_view /*style*/, bool /*bold*/,
+                                        bool /*italic*/) {
   return family.empty() ? std::string("Arial") : std::string(family);
 }
 #endif
 
-int font_index_for_run(std::vector<std::string>& fonts, std::string_view family, bool bold, bool italic) {
-  const auto photoshop_name = photoshop_font_name_for_run(family, bold, italic);
+int font_index_for_run(std::vector<std::string>& fonts, std::string_view family, std::string_view style,
+                       bool bold, bool italic) {
+  const auto photoshop_name = photoshop_font_name_for_run(family, style, bold, italic);
   for (std::size_t index = 0; index < fonts.size(); ++index) {
     if (fonts[index] == photoshop_name) {
       return static_cast<int>(index);
@@ -1284,7 +1372,7 @@ std::vector<std::uint8_t> engine_data_for_text(std::string_view text, std::span<
   std::vector<int> font_indices;
   font_indices.reserve(runs.size());
   for (const auto& run : runs) {
-    font_indices.push_back(font_index_for_run(fonts, run.family, run.bold, run.italic));
+    font_indices.push_back(font_index_for_run(fonts, run.family, run.style, run.bold, run.italic));
   }
   if (fonts.size() == 1U) {
     fonts.push_back("Arial");

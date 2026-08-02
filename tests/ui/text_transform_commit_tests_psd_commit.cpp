@@ -1255,14 +1255,12 @@ void ui_dungeon_scroll_faux_bold_reads_as_faux_not_bold_if_available() {
   }
   CHECK(editor->property("patchy.editingLayerId").toULongLong() == static_cast<qulonglong>(layer_id));
 
-  auto* bold_button = window.findChild<QAbstractButton*>(QStringLiteral("textBoldButton"));
-  auto* italic_button = window.findChild<QAbstractButton*>(QStringLiteral("textItalicButton"));
-  CHECK(bold_button != nullptr && italic_button != nullptr);
-  if (bold_button != nullptr) {
-    CHECK(!bold_button->isChecked());
-  }
-  if (italic_button != nullptr) {
-    CHECK(italic_button->isChecked());
+  // The imported run is the real Italic face with faux bold on top: the style picker shows the
+  // face, and the synthetic embolden lives in the Character panel checkbox below.
+  auto* style_combo = window.findChild<QComboBox*>(QStringLiteral("textStyleCombo"));
+  CHECK(style_combo != nullptr);
+  if (style_combo != nullptr) {
+    CHECK(style_combo->currentData().toString().compare(QStringLiteral("Italic"), Qt::CaseInsensitive) == 0);
   }
 
   auto* character_button = window.findChild<QPushButton*>(QStringLiteral("textCharacterButton"));
@@ -1889,14 +1887,12 @@ void ui_text_options_follow_active_rich_text_span() {
 
   auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
   auto* text_size = window.findChild<QDoubleSpinBox*>(QStringLiteral("textSizeSpin"));
-  auto* text_bold = window.findChild<QPushButton*>(QStringLiteral("textBoldButton"));
-  auto* text_italic = window.findChild<QPushButton*>(QStringLiteral("textItalicButton"));
+  auto* style_combo = window.findChild<QComboBox*>(QStringLiteral("textStyleCombo"));
   auto* text_color = window.findChild<QPushButton*>(QStringLiteral("textColorButton"));
   auto* foreground = window.findChild<QPushButton*>(QStringLiteral("foregroundColorButton"));
   CHECK(editor != nullptr);
   CHECK(text_size != nullptr);
-  CHECK(text_bold != nullptr);
-  CHECK(text_italic != nullptr);
+  CHECK(style_combo != nullptr);
   CHECK(text_color != nullptr);
   CHECK(foreground != nullptr);
 
@@ -1912,14 +1908,13 @@ void ui_text_options_follow_active_rich_text_span() {
   editor->setTextCursor(cursor);
   QApplication::processEvents();
   CHECK(std::abs(text_size->value() - text_points_for_pixels(24)) < 0.01);
-  CHECK(!text_bold->isChecked());
-  CHECK(!text_italic->isChecked());
+  CHECK(style_combo->currentData().toString().isEmpty());  // the picker shows Regular
 
   cursor.select(QTextCursor::Document);
   editor->setTextCursor(cursor);
   QApplication::processEvents();
-  CHECK(!text_bold->isChecked());
-  text_bold->click();
+  CHECK(style_combo->currentData().toString().isEmpty());
+  QTest::keyClick(editor, Qt::Key_B, Qt::ControlModifier);
   QApplication::processEvents();
 
   QTextCursor red_after_bold(editor->document());
@@ -1947,8 +1942,7 @@ void ui_text_options_follow_active_rich_text_span() {
   editor->setTextCursor(cursor);
   QApplication::processEvents();
   CHECK(std::abs(text_size->value() - text_points_for_pixels(72)) < 0.01);
-  CHECK(text_bold->isChecked());
-  CHECK(text_italic->isChecked());
+  CHECK(style_combo->currentData().toString().compare(QStringLiteral("Bold Italic"), Qt::CaseInsensitive) == 0);
   CHECK(editor->property("patchy.documentTextColor").value<QColor>() == QColor(32, 80, 240));
 
   text_color->click();

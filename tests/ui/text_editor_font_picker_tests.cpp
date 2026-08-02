@@ -237,15 +237,15 @@ void ui_text_tool_creates_visible_text_layer() {
   CHECK(editor->document()->textWidth() == editor->width());
   CHECK(!editor->styleSheet().contains(QStringLiteral("font-size:")));
   auto* text_size = window.findChild<QDoubleSpinBox*>(QStringLiteral("textSizeSpin"));
-  auto* text_bold = window.findChild<QPushButton*>(QStringLiteral("textBoldButton"));
-  auto* text_italic = window.findChild<QPushButton*>(QStringLiteral("textItalicButton"));
   auto* text_smoothing = window.findChild<QComboBox*>(QStringLiteral("textSmoothingCombo"));
   auto* text_color = window.findChild<QPushButton*>(QStringLiteral("textColorButton"));
   CHECK(text_size != nullptr);
-  CHECK(text_bold != nullptr);
-  CHECK(text_italic != nullptr);
   CHECK(text_smoothing != nullptr);
   CHECK(text_color != nullptr);
+  // The bar has no B/I buttons (Photoshop model): the style picker and Ctrl+B/Ctrl+I are the
+  // face controls.
+  CHECK(window.findChild<QPushButton*>(QStringLiteral("textBoldButton")) == nullptr);
+  CHECK(window.findChild<QPushButton*>(QStringLiteral("textItalicButton")) == nullptr);
   CHECK(text_smoothing->currentData().toInt() == 3);
   CHECK(editor->property("patchy.documentTextAntiAlias").toInt() == 3);
   CHECK(editor->property("patchy.documentTextColor").value<QColor>() == QColor(40, 220, 120));
@@ -268,8 +268,8 @@ void ui_text_tool_creates_visible_text_layer() {
   CHECK(editor->property("patchy.documentTextColor").value<QColor>() == QColor(20, 70, 240));
   text_size->setFocus();
   text_size->setValue(text_points_for_pixels(64));
-  text_bold->setChecked(true);
-  text_italic->setChecked(true);
+  QTest::keyClick(editor, Qt::Key_B, Qt::ControlModifier);
+  QTest::keyClick(editor, Qt::Key_I, Qt::ControlModifier);
   text_smoothing->setCurrentIndex(text_smoothing->findData(0));
   QApplication::processEvents();
   CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == editor);
@@ -359,7 +359,7 @@ void ui_text_tool_creates_visible_text_layer() {
   CHECK(reedit != nullptr);
   CHECK(reedit->toPlainText() == QStringLiteral("Patchy Type"));
   text_size->setValue(text_points_for_pixels(72));
-  text_bold->setChecked(false);
+  QTest::keyClick(reedit, Qt::Key_B, Qt::ControlModifier);
   QApplication::processEvents();
   CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == reedit);
   CHECK(reedit->property("patchy.documentTextSize").toInt() == 72);
@@ -393,13 +393,9 @@ void ui_text_editor_ctrl_b_and_ctrl_i_toggle_formatting() {
   patchy::ui::MainWindow window;
   show_window(window);
   auto* canvas = require_canvas(window);
-  auto* text_bold = window.findChild<QPushButton*>(QStringLiteral("textBoldButton"));
-  auto* text_italic = window.findChild<QPushButton*>(QStringLiteral("textItalicButton"));
-  CHECK(text_bold != nullptr);
-  CHECK(text_italic != nullptr);
+  auto* style_combo = window.findChild<QComboBox*>(QStringLiteral("textStyleCombo"));
+  CHECK(style_combo != nullptr);
 
-  text_bold->setChecked(false);
-  text_italic->setChecked(false);
   require_action_by_text(window, QStringLiteral("Type"))->trigger();
   const auto text_widget_point = canvas->widget_position_for_document_point(QPoint(100, 105));
   send_mouse(*canvas, QEvent::MouseButtonPress, text_widget_point, Qt::LeftButton, Qt::LeftButton);
@@ -417,8 +413,8 @@ void ui_text_editor_ctrl_b_and_ctrl_i_toggle_formatting() {
   const bool editor_stayed_open = editor != nullptr &&
                                   canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == editor;
   const auto format = editor_stayed_open ? editor->textCursor().charFormat() : QTextCharFormat{};
-  const bool bold_checked = text_bold->isChecked();
-  const bool italic_checked = text_italic->isChecked();
+  // The style picker tracks the shortcuts now that it is the only face control in the bar.
+  const auto picker_face = style_combo != nullptr ? style_combo->currentData().toString() : QString();
   if (editor != nullptr) {
     send_key(*editor, Qt::Key_Escape);
   }
@@ -426,10 +422,9 @@ void ui_text_editor_ctrl_b_and_ctrl_i_toggle_formatting() {
 
   CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
   CHECK(editor_stayed_open);
-  CHECK(bold_checked);
-  CHECK(italic_checked);
   CHECK(format.font().bold());
   CHECK(format.font().italic());
+  CHECK(picker_face.compare(QStringLiteral("Bold Italic"), Qt::CaseInsensitive) == 0);
 }
 
 void ui_text_tool_outside_click_commits_without_new_text_editor() {
