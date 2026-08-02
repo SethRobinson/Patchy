@@ -19,6 +19,7 @@
 #include <QEventLoop>
 #include <QRect>
 #include <QString>
+#include <QStringList>
 
 #include <chrono>
 #include <cstdint>
@@ -185,6 +186,14 @@ void set_text_smoothing_combo_value(QComboBox* combo, int value);
 // or cancelled; shared by the text-tool plumbing in main_window.cpp and
 // refresh_options_bar in main_window_tool_options.cpp.
 constexpr auto kTextEditorFinishedProperty = "patchy.textEditorFinished";
+
+// Font families a text layer names that cannot draw its own glyphs: absent from the font
+// database, or present with no coverage for the characters they are asked for (Patchy's bundled
+// Noto Naskh Arabic resolves but holds no Latin letters, so a Latin layer set in it used to come
+// up "font available" and then render entirely in the Latin fallback). Empty for a non-text or
+// empty layer. Defined in main_window.cpp beside the rest of the font resolution; the layer
+// panel uses it for the missing-font badge and the Type tool for its substitution warning.
+[[nodiscard]] QStringList missing_text_families_for_layer(const Layer& layer);
 
 
 // Layer-list row styling and edit-target highlighting, shared by the

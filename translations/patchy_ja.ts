@@ -3466,6 +3466,11 @@ Flow: %6
         <translation>テキストレイヤー</translation>
     </message>
     <message>
+        <location line="+0"/>
+        <source>Text layer. Missing font: %1. Another font is being substituted, so the text does not look as it was authored.</source>
+        <translation>テキストレイヤー。フォントが見つかりません: %1。別のフォントで代替しているため、作成時の見た目とは異なります。</translation>
+    </message>
+    <message>
         <location line="-3"/>
         <source>Folder layer</source>
         <translation>フォルダーレイヤー</translation>

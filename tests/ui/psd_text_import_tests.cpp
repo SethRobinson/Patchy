@@ -2322,6 +2322,101 @@ void ui_imported_psd_raster_preview_warns_before_missing_font_substitution() {
   QApplication::processEvents();
 }
 
+// A family that RESOLVES but cannot draw the layer's characters is missing in every way the
+// user cares about. The repro is Patchy's own bundled Noto Naskh Arabic (third_party/fonts):
+// the family is in the database, so the old installed-only check said "font available", and a
+// Latin type layer set in it then rendered entirely in the Latin fallback with no warning and no
+// mark in the layer panel (the NeoGeo label sheet: "Blazing Star" set in NotoNaskhArabic-Bold,
+// whose whole ASCII coverage is space, ! , . : and the digits).
+void ui_text_layer_font_without_glyph_coverage_counts_as_missing() {
+  const auto noto_path = QStringLiteral(PATCHY_SOURCE_DIR "/third_party/fonts/noto_naskh_arabic/NotoNaskhArabic-Bold.ttf");
+  if (!QFileInfo::exists(noto_path)) {
+    return;  // bundled tree not staged; nothing to assert against
+  }
+  CHECK(QFontDatabase::addApplicationFont(noto_path) >= 0);
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  const auto family = QStringLiteral("Noto Naskh Arabic");
+  CHECK(QFontDatabase::families().contains(family));
+  if (!QFontDatabase::families().contains(family)) {
+    return;
+  }
+
+  patchy::Document document(320, 180, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(320, 180, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  const auto add_text_layer = [&document](const char* name, const QString& font, const char* text, int top) {
+    auto pixels = solid_pixels(118, 36, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+    fill_pixel_rect(pixels, QRect(0, 0, 96, 30), QColor(20, 20, 20, 255));
+    patchy::Layer layer(document.allocate_layer_id(), name, std::move(pixels));
+    layer.set_bounds(patchy::Rect{86, top, 118, 36});
+    layer.metadata()[patchy::kLayerMetadataText] = text;
+    layer.metadata()[patchy::kLayerMetadataTextFlow] = "point";
+    layer.metadata()[patchy::kLayerMetadataTextFont] = font.toStdString();
+    layer.metadata()[patchy::kLayerMetadataTextSize] = "28";
+    layer.metadata()[patchy::kLayerMetadataTextColor] = "#202020";
+    layer.metadata()[patchy::kLayerMetadataTextRasterStatus] = "psd_raster_preview";
+    return document.add_layer(std::move(layer)).id();
+  };
+  // Same text, one in the coverage-less family and one in a family that really can draw it.
+  // Kept apart vertically: a Type click activates the TOPMOST text layer under it.
+  const auto naskh_id = add_text_layer("Latin in Naskh", family, "Blazing Star", 20);
+  add_text_layer("Latin in Arial", QStringLiteral("Arial"), "Blazing Star", 110);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Coverage"));
+  QApplication::processEvents();
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  if (layer_list == nullptr) {
+    return;
+  }
+  const auto thumbnail_for = [layer_list](const QString& name) -> QLabel* {
+    auto* item = require_layer_item(*layer_list, name);
+    auto* row = item == nullptr ? nullptr : layer_list->itemWidget(item);
+    return row == nullptr ? nullptr : row->findChild<QLabel*>(QStringLiteral("layerContentThumbnail"));
+  };
+  auto* naskh_thumbnail = thumbnail_for(QStringLiteral("Latin in Naskh"));
+  auto* arial_thumbnail = thumbnail_for(QStringLiteral("Latin in Arial"));
+  CHECK(naskh_thumbnail != nullptr && arial_thumbnail != nullptr);
+  if (naskh_thumbnail == nullptr || arial_thumbnail == nullptr) {
+    return;
+  }
+  // The panel names the font in the tooltip and marks the tile; the covered layer keeps the
+  // plain text-layer tooltip and an unmarked tile.
+  CHECK(naskh_thumbnail->toolTip().contains(family));
+  CHECK(naskh_thumbnail->toolTip().contains(QStringLiteral("Missing font")));
+  CHECK(arial_thumbnail->toolTip() == QStringLiteral("Text layer"));
+  CHECK(naskh_thumbnail->pixmap().toImage() != arial_thumbnail->pixmap().toImage());
+
+  // And the Type tool warns before substituting, which it could not do while the family looked
+  // available.
+  auto* canvas = require_canvas(window);
+  const auto hit_point = canvas->widget_position_for_document_point(QPoint(92, 26));
+  // Select the probed row the way a user would: setting the document's active layer directly is
+  // undone by the next layer-list refresh, which re-syncs it from the list's current item.
+  layer_list->setCurrentItem(require_layer_item(*layer_list, QStringLiteral("Latin in Naskh")));
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::document(window).active_layer_id() == naskh_id);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  QApplication::processEvents();
+  bool warned = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("missingPsdTextFontMessageBox")));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    CHECK(dialog->text().contains(family));
+    warned = true;
+    dialog->button(QMessageBox::Cancel)->click();
+  });
+  send_mouse(*canvas, QEvent::MouseButtonPress, hit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, hit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(warned);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> psd_text_import_tests() {
@@ -2367,5 +2462,7 @@ std::vector<patchy::test::TestCase> psd_text_import_tests() {
        ui_imported_psd_mirrored_point_text_uses_local_bounds},
       {"ui_imported_psd_raster_preview_warns_before_missing_font_substitution",
        ui_imported_psd_raster_preview_warns_before_missing_font_substitution},
+      {"ui_text_layer_font_without_glyph_coverage_counts_as_missing",
+       ui_text_layer_font_without_glyph_coverage_counts_as_missing},
   };
 }

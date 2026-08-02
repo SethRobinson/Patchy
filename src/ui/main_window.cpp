@@ -466,13 +466,105 @@ std::optional<AvailableTextFamilyStyle> available_text_family_style_match(const 
   return best;
 }
 
-void append_missing_text_family(QStringList& missing, const QString& family) {
+// Whether `family` can draw ANY of the characters it is being asked for. A family that resolves
+// in the font database but covers none of them is missing in every way the user cares about: Qt
+// falls through to some other face for every glyph, so the layer silently renders in a different
+// typeface. Patchy's own bundled Noto Naskh Arabic is the case that forced this -- the family
+// exists (it ships in third_party/fonts), but its cmap holds no Latin letters at all (space, ! ,
+// . : and the digits are the whole ASCII coverage), so a Latin type layer set in it came up
+// "font available" and then rendered entirely in the Latin fallback.
+//
+// Deliberately "any", not "all": a face missing one exotic glyph is a normal per-glyph fallback,
+// not a missing font, and crying wolf there would put a warning on half the corpus. Probed
+// without the run's bold/italic because coverage differences between styles of one family are
+// vanishingly rare and a false "available" is the quiet direction.
+// The writing system Qt matches a character through, so the probe below asks the font database
+// the same question the renderer will. Unmapped scripts fall back to Any, which is the quiet
+// answer (Han deliberately: a Japanese face claims Japanese, not SimplifiedChinese, and guessing
+// between them would invent missing fonts).
+QFontDatabase::WritingSystem writing_system_for_character(QChar character) {
+  switch (character.script()) {
+    case QChar::Script_Latin:
+      return QFontDatabase::Latin;
+    case QChar::Script_Greek:
+      return QFontDatabase::Greek;
+    case QChar::Script_Cyrillic:
+      return QFontDatabase::Cyrillic;
+    case QChar::Script_Arabic:
+      return QFontDatabase::Arabic;
+    case QChar::Script_Hebrew:
+      return QFontDatabase::Hebrew;
+    case QChar::Script_Thai:
+      return QFontDatabase::Thai;
+    case QChar::Script_Devanagari:
+      return QFontDatabase::Devanagari;
+    case QChar::Script_Hiragana:
+    case QChar::Script_Katakana:
+      return QFontDatabase::Japanese;
+    case QChar::Script_Hangul:
+      return QFontDatabase::Korean;
+    default:
+      return QFontDatabase::Any;
+  }
+}
+
+bool text_family_draws_any_of(const QString& family, const QString& demanded) {
+  const auto requested = family.trimmed();
+  if (requested.isEmpty() || demanded.isEmpty()) {
+    return true;
+  }
+  // The face Qt would hand this family for a given writing system. Asking QRawFont WITHOUT the
+  // writing system is useless here: it resolves through the default script, so a family that
+  // cannot draw Latin quietly comes back as the Latin fallback and reports full coverage. The
+  // family name of what comes back is the whole signal -- if Qt handed us a different family,
+  // that is exactly the silent substitution the user is being warned about.
+  auto expected = requested;
+  if (const auto match = available_text_family_match(requested); match.has_value()) {
+    expected = *match;
+  } else if (const auto style_match = available_text_family_style_match(requested); style_match.has_value()) {
+    expected = style_match->family;
+  }
+  QFont probe;
+  probe.setFamilies(QStringList{expected});
+  probe.setPixelSize(32);
+  QHash<int, QRawFont> faces;
+  bool tested_any = false;
+  for (const auto character : demanded) {
+    // Surrogates cannot be tested one half at a time, and whitespace/controls are drawn by
+    // nobody -- neither proves nor disproves coverage.
+    if (character.isSpace() || character.isSurrogate() || character.category() == QChar::Other_Control) {
+      continue;
+    }
+    const auto system = writing_system_for_character(character);
+    tested_any = true;
+    auto found = faces.find(static_cast<int>(system));
+    if (found == faces.end()) {
+      found = faces.insert(static_cast<int>(system), QRawFont::fromFont(probe, system));
+    }
+    const auto& face = *found;
+    if (!face.isValid()) {
+      return true;  // nothing to interrogate; stay quiet rather than guess
+    }
+    if (face.familyName().compare(expected, Qt::CaseInsensitive) != 0) {
+      continue;  // Qt already fell through to another family for this character
+    }
+    if (face.supportsCharacter(character)) {
+      return true;
+    }
+  }
+  return !tested_any;
+}
+
+// `demanded` is the text this family actually has to draw; pass it empty to check availability
+// alone.
+void append_missing_text_family(QStringList& missing, const QString& family, const QString& demanded) {
   const auto requested = family.trimmed();
   if (requested.isEmpty() || requested.compare(QStringLiteral("PSD Text"), Qt::CaseInsensitive) == 0) {
     return;
   }
-  if (available_text_family_match(requested).has_value() ||
-      available_text_family_style_match(requested).has_value()) {
+  const bool resolves = available_text_family_match(requested).has_value() ||
+                        available_text_family_style_match(requested).has_value();
+  if (resolves && text_family_draws_any_of(requested, demanded)) {
     return;
   }
 
@@ -486,21 +578,32 @@ void append_missing_text_family(QStringList& missing, const QString& family) {
   }
 }
 
-QStringList missing_text_families_for_psd_raster_preview(const QString& primary_family, const QString& runs_text) {
+// Families the layer names that cannot draw its glyphs -- absent from the font database, or
+// present with no coverage for the characters they are asked for. Each run is checked against
+// its OWN slice of the text, so a run whose face genuinely covers its characters never drags a
+// warning in from a sibling run.
+QStringList missing_text_families_for_psd_raster_preview(const QString& primary_family, const QString& runs_text,
+                                                          const QString& text) {
   QStringList missing;
-  append_missing_text_family(missing, primary_family);
+  append_missing_text_family(missing, primary_family, text);
 
   const auto lines = runs_text.split(QLatin1Char('\n'));
   for (const auto& raw_line : lines) {
     const auto line = raw_line.trimmed();
-    if (line.isEmpty() || line == QStringLiteral("v1")) {
+    if (line.isEmpty() || line.startsWith(QLatin1Char('v'))) {
       continue;
     }
     const auto fields = line.split(QLatin1Char('\t'));
     if (fields.size() < 7) {
       continue;
     }
-    append_missing_text_family(missing, QString::fromUtf8(QByteArray::fromPercentEncoding(fields[6].toLatin1())));
+    bool start_ok = false;
+    bool length_ok = false;
+    const auto start = std::clamp(fields[0].toInt(&start_ok), 0, static_cast<int>(text.size()));
+    const auto length = std::max(0, fields[1].toInt(&length_ok));
+    const auto demanded = start_ok && length_ok ? text.mid(start, length) : text;
+    append_missing_text_family(missing, QString::fromUtf8(QByteArray::fromPercentEncoding(fields[6].toLatin1())),
+                               demanded);
   }
   return missing;
 }
@@ -4548,6 +4651,23 @@ bool text_layer_name_is_auto(const Layer& layer) {
 
 }  // namespace
 
+QStringList missing_text_families_for_layer(const Layer& layer) {
+  if (!layer_is_text(layer)) {
+    return {};
+  }
+  const auto& metadata = layer.metadata();
+  const auto value = [&metadata](const char* key) {
+    const auto found = metadata.find(key);
+    return found == metadata.end() ? QString() : QString::fromStdString(found->second);
+  };
+  const auto text = value(kLayerMetadataText);
+  if (text.trimmed().isEmpty()) {
+    return {};
+  }
+  return missing_text_families_for_psd_raster_preview(value(kLayerMetadataTextFont),
+                                                      value(kLayerMetadataTextRuns), text);
+}
+
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   // Installed before the first statusBar() call so every showMessage goes through the
   // subclass that hosts the zoom percentage box (see ui/zoom_status_bar.hpp).
@@ -5815,12 +5935,9 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
       const auto font_value = layer->metadata().find(kLayerMetadataTextFont);
       const QString family =
           font_value == layer->metadata().end() ? QString() : QString::fromStdString(font_value->second);
-      const auto runs_value = layer->metadata().find(kLayerMetadataTextRuns);
-      const QString runs =
-          runs_value == layer->metadata().end() ? QString() : QString::fromStdString(runs_value->second);
       const bool font_substituted = family.trimmed().isEmpty() ||
                                     family.compare(QStringLiteral("PSD Text"), Qt::CaseInsensitive) == 0 ||
-                                    !missing_text_families_for_psd_raster_preview(family, runs).isEmpty();
+                                    !missing_text_families_for_layer(*layer).isEmpty();
       if (font_substituted) {
         return false;
       }
@@ -5978,7 +6095,8 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
       if (editing_layer_uses_source_raster_preview && !cli_automation_mode_) {
         // Automation (run_cli_export) substitutes silently: the whole point of its edit
         // sessions is forcing Patchy's own render, and a prompt would block unattended runs.
-        const auto missing_fonts = missing_text_families_for_psd_raster_preview(family, initial_rich_text_runs);
+        const auto missing_fonts =
+            missing_text_families_for_psd_raster_preview(family, initial_rich_text_runs, initial_text);
         if (!confirm_psd_raster_preview_font_substitution(this, missing_fonts)) {
           statusBar()->showMessage(tr("Canceled text edit"));
           return;

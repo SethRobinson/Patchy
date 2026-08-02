@@ -1028,6 +1028,35 @@ void draw_invert_adjustment_thumbnail_symbol(QPainter& painter, const QColor& ac
   painter.drawLine(square.topRight(), square.bottomLeft());
 }
 
+// Photoshop's missing-font marker on a type layer's thumbnail: a warning triangle in the corner
+// of the "T" tile. The layer still renders (something has to draw the glyphs), so the badge is
+// the only thing telling the user the typeface on screen is not the one the file asked for.
+// Drawn last, over the glyph, with a background-colored outline so it reads at 28px.
+void draw_missing_font_thumbnail_badge(QPainter& painter, int size, const QColor& background) {
+  constexpr qreal kBadge = 14.0;
+  // Inset by the frame stroke plus the outline's own half-width, so neither the badge nor its
+  // halo lands on the tile border.
+  const qreal left = size - kBadge - 2.0;
+  const qreal top = size - kBadge - 2.0;
+  const qreal centre = left + kBadge / 2.0;
+  QPainterPath triangle;
+  triangle.moveTo(centre, top);
+  triangle.lineTo(left + kBadge, top + kBadge);
+  triangle.lineTo(left, top + kBadge);
+  triangle.closeSubpath();
+  // The outline is the tile's own background, so the badge reads against the glyph it overlaps
+  // instead of merging with it.
+  painter.setPen(QPen(background, 2.0, Qt::SolidLine, Qt::FlatCap, Qt::RoundJoin));
+  painter.setBrush(theme().icon_warning);
+  painter.drawPath(triangle);
+  // The exclamation is punched in the background colour rather than drawn as text: a 5px glyph
+  // hints into mush, while two rects stay legible at any scale factor.
+  painter.setPen(Qt::NoPen);
+  painter.setBrush(background);
+  painter.drawRect(QRectF(centre - 1.0, top + 4.5, 2.0, 4.5));
+  painter.drawRect(QRectF(centre - 1.0, top + 10.0, 2.0, 2.0));
+}
+
 // Folder, text, and adjustment layers return early with a square glyph: those
 // are icons, not document previews, so the document rect does not apply.
 QPixmap layer_content_thumbnail(const Layer& layer, int document_width, int document_height) {
@@ -1150,6 +1179,9 @@ QPixmap layer_content_thumbnail(const Layer& layer, int document_width, int docu
     painter.drawText(baseline + QPoint(1, 1), glyph);
     painter.setPen(text_color);
     painter.drawText(baseline, glyph);
+    if (!missing_text_families_for_layer(layer).isEmpty()) {
+      draw_missing_font_thumbnail_badge(painter, kSize, background);
+    }
     return pixmap;
   }
   if (layer.kind() == LayerKind::Adjustment) {
@@ -1371,11 +1403,20 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                            : layer_content_thumbnail(layer, document_size.width(), document_size.height()));
   thumbnail->setProperty(kLayerContentThumbnailRevisionProperty,
                          QVariant::fromValue<qulonglong>(static_cast<qulonglong>(layer.content_revision())));
-  thumbnail->setToolTip(layer.kind() == LayerKind::Group
-                            ? QObject::tr("Folder layer")
-                            : layer.kind() == LayerKind::Adjustment
-                                ? QObject::tr("Adjustment Layer")
-                                : layer_is_text(layer) ? QObject::tr("Text layer") : QObject::tr("Layer thumbnail"));
+  const auto missing_text_families =
+      layer_is_text(layer) ? missing_text_families_for_layer(layer) : QStringList{};
+  thumbnail->setToolTip(
+      layer.kind() == LayerKind::Group
+          ? QObject::tr("Folder layer")
+          : layer.kind() == LayerKind::Adjustment
+              ? QObject::tr("Adjustment Layer")
+              : !missing_text_families.isEmpty()
+                    // The badge says "something is wrong"; the tooltip has to say what, because
+                    // the substituted face often looks like a plausible design choice.
+                    ? QObject::tr("Text layer. Missing font: %1. Another font is being "
+                                  "substituted, so the text does not look as it was authored.")
+                          .arg(missing_text_families.join(QStringLiteral(", ")))
+                    : layer_is_text(layer) ? QObject::tr("Text layer") : QObject::tr("Layer thumbnail"));
   thumbnail->setProperty("layerTargetActive", content_target_active);
   // Thumbnails stay enabled even when the layer is hidden: a disabled QLabel
   // repaints its pixmap through the style's grayscale disabled-icon filter,
