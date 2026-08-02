@@ -992,6 +992,9 @@ void ui_text_box_commit_renders_paragraph_alignment() {
   editor->setTextCursor(cursor);
   editor->setCursorWidth(0);
   QApplication::processEvents();
+  // The on-screen glyphs are the live baked preview now, which is debounced; let it land before
+  // measuring where the centered text sits.
+  process_events_for(120);
   save_widget_artifact("ui_text_alignment_center_editing", *canvas);
   const auto text_band = QRect(box_top_left + QPoint(0, 14),
                                QSize(box_bottom_right.x() - box_top_left.x(), 34));
@@ -1032,6 +1035,7 @@ void ui_text_box_commit_renders_paragraph_alignment() {
   editor->setTextCursor(cursor);
   editor->setCursorWidth(0);
   QApplication::processEvents();
+  process_events_for(120);  // the live baked preview is debounced; let it land
   save_widget_artifact("ui_text_alignment_right_editing", *canvas);
   const auto right_text_band = QRect(right_box_top_left + QPoint(0, 14),
                                      QSize(right_box_bottom_right.x() - right_box_top_left.x(), 34));

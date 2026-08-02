@@ -1002,6 +1002,9 @@ private:
   // Hides the layer being edited, once, when its live preview is ready to take over. Returns
   // the region it vacated so the caller folds it into the same repaint as the replacement.
   QRect hide_text_editor_source_layer(QTextEdit* editor);
+  // Puts the edited layer back before its preview is removed, so a session teardown never leaves
+  // a frame with neither on screen.
+  void restore_text_editor_source_layer(QTextEdit* editor, bool visible);
   std::optional<LayerId> take_provisional_text_layer(QTextEdit* editor);
   void update_text_editor_transform_overlay(QTextEdit* editor);
   void remove_text_editor_transform_overlay(QTextEdit* editor);

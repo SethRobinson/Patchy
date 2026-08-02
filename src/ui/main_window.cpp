@@ -6036,6 +6036,16 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
     refresh_layer_list();
     refresh_layer_controls();
     canvas_->document_changed_effect_bounds(QRect(document_point, QSize(1, 1)));
+    // A brand-new session previews through render_text_pixels as well, over the provisional
+    // layer. Without it the session that CREATES the text was the odd one out: its glyphs came
+    // from the editor widget and so did its caret and highlight, at the widget's own zoom-scaled
+    // metrics, while every re-edit used the shared layout. Selecting text therefore drew a
+    // different-sized highlight before the first commit than after it.
+    editing_layer_needs_preview = true;
+    editing_layer_force_baked_preview = true;
+    // The provisional layer is the one the user sees selected from the moment they click, so it
+    // is what the preview insert must restore as active -- not whatever was active before.
+    restore_active_layer = provisional_layer;
   }
 
   auto* editor = new InlineTextEdit(canvas_);
@@ -6316,6 +6326,8 @@ void MainWindow::cancel_text_editor(QTextEdit* editor, std::optional<LayerId> la
       editor->property("patchy.editingLayerWasVisible").isValid()
           ? editor->property("patchy.editingLayerWasVisible").toBool()
           : true;
+  // Reveal before removing, so the original pixels take over from the preview without a gap.
+  restore_text_editor_source_layer(editor, restore_existing_visibility);
   remove_text_editor_preview(editor);
   remove_text_editor_transform_overlay(editor);
   remove_text_editor_handles(editor);
@@ -6404,6 +6416,12 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
       refresh_layer_controls();
     }
   };
+  // Reveal the edited layer in the SAME step that takes the preview away. Its committed pixels
+  // are still intact here, so the text simply keeps showing until the new render replaces it a
+  // few statements below. Removing the preview on its own left a window with neither on screen,
+  // and the widget teardown and options-bar relayout that follow are enough to get a paint
+  // delivered inside it -- the flash you see when a session ends.
+  restore_text_editor_source_layer(editor, restore_existing_visibility);
   remove_text_editor_preview(editor);
   remove_text_editor_transform_overlay(editor);
   remove_text_editor_handles(editor);
@@ -8441,9 +8459,13 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
     return;
   }
   auto& doc = document();
+  // The preview sits over the layer being edited, or over the provisional layer a new session
+  // just inserted, so new text previews exactly like a re-edit.
   std::optional<LayerId> editing_layer_id;
   if (editor->property("patchy.editingLayerId").isValid()) {
     editing_layer_id = static_cast<LayerId>(editor->property("patchy.editingLayerId").toULongLong());
+  } else if (editor->property(kTextEditorProvisionalLayerProperty).isValid()) {
+    editing_layer_id = static_cast<LayerId>(editor->property(kTextEditorProvisionalLayerProperty).toULongLong());
   }
   auto* source = editing_layer_id.has_value() ? doc.find_layer(*editing_layer_id) : nullptr;
   const auto source_was_visible = !editor->property("patchy.editingLayerWasVisible").isValid() ||
@@ -8631,6 +8653,24 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
 // text. Returns the region it vacated so the caller can fold it into ONE repaint together with
 // whatever replaced it -- hiding and revealing in separate repaints is what a user sees as a
 // flash. Idempotent: an already-hidden layer returns an empty rect.
+// The counterpart of hide_text_editor_source_layer, for session teardown: puts the edited layer
+// back on screen before its preview goes away, so the text is continuously visible across the
+// handover. Its pixels are still the committed ones at that point, which is exactly what should
+// show if the commit turns out to be a no-op.
+void MainWindow::restore_text_editor_source_layer(QTextEdit* editor, bool visible) {
+  if (canvas_ == nullptr || editor == nullptr || !editor->property("patchy.editingLayerId").isValid() ||
+      !has_active_document()) {
+    return;
+  }
+  const auto layer_id = static_cast<LayerId>(editor->property("patchy.editingLayerId").toULongLong());
+  auto* layer = document().find_layer(layer_id);
+  if (layer == nullptr || layer->visible() == visible) {
+    return;
+  }
+  layer->set_visible(visible);
+  canvas_->document_changed_effect_bounds(to_qrect(layer_render_bounds(*layer)));
+}
+
 QRect MainWindow::hide_text_editor_source_layer(QTextEdit* editor) {
   if (canvas_ == nullptr || editor == nullptr || !editor->property("patchy.editingLayerId").isValid()) {
     return {};

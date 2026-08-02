@@ -1198,6 +1198,151 @@ void ui_text_edit_entry_leaves_the_pixels_alone() {
   check_text_edit_entry_leaves_pixels_alone(true);
 }
 
+// Drag-selecting with the mouse, and Shift+Arrow selecting with the keyboard, must both produce
+// a highlight that covers the glyphs it claims to cover. `reenter` runs the checks on a re-opened
+// session (the layer's stored metadata rebuilds the editor) rather than the session that created
+// the text; the two used to take different highlight paths and disagree on size.
+void check_text_selection_matches_glyphs(bool reenter) {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  canvas->set_primary_color(QColor(20, 20, 20));
+
+  const QPoint text_document_point(60, 80);
+  const auto widget_point = canvas->widget_position_for_document_point(text_document_point);
+  send_mouse(*canvas, QEvent::MouseButtonPress, widget_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, widget_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+  editor->setPlainText(QStringLiteral("Handgloves"));
+  QApplication::processEvents();
+  process_events_for(150);
+
+  if (reenter) {
+    require_action_by_text(window, QStringLiteral("Move"))->trigger();
+    QApplication::processEvents();
+    process_events_for(150);
+    auto& document = patchy::ui::MainWindowTestAccess::document(window);
+    auto* committed = document.find_layer(document.active_layer_id().value_or(patchy::LayerId{}));
+    CHECK(committed != nullptr);
+    if (committed == nullptr) {
+      return;
+    }
+    const auto bounds = committed->bounds();
+    require_action_by_text(window, QStringLiteral("Type"))->trigger();
+    const auto reenter_point = canvas->widget_position_for_document_point(
+        QPoint(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2));
+    send_mouse(*canvas, QEvent::MouseButtonPress, reenter_point, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, reenter_point, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    process_events_for(200);
+    editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+    CHECK(editor != nullptr);
+    if (editor == nullptr) {
+      return;
+    }
+  }
+
+  // Keyboard: select the first four characters and measure the highlight.
+  auto cursor = editor->textCursor();
+  cursor.setPosition(0);
+  editor->setTextCursor(cursor);
+  QApplication::processEvents();
+  for (int i = 0; i < 4; ++i) {
+    send_key(*editor, Qt::Key_Right, Qt::ShiftModifier);
+  }
+  QApplication::processEvents();
+  const auto keyboard_selection = editor->textCursor().selectedText();
+  QRect keyboard_rect;
+  for (const auto& value : editor->property("patchy.previewSelectionRects").toList()) {
+    keyboard_rect = keyboard_rect.united(value.toRect());
+  }
+  // The caret is one glyph tall, so it is the reference for how tall a highlight should be.
+  cursor = editor->textCursor();
+  cursor.setPosition(2);
+  editor->setTextCursor(cursor);
+  QApplication::processEvents();
+  const auto caret_rect = editor->property("patchy.previewCaretRect").toRect();
+
+  // Mouse: drag across the same span.
+  cursor.setPosition(0);
+  editor->setTextCursor(cursor);
+  QApplication::processEvents();
+  auto start_caret = editor->property("patchy.previewCaretRect").toRect();
+  if (start_caret.isEmpty()) {
+    start_caret = editor->cursorRect();
+  }
+  cursor.setPosition(4);
+  editor->setTextCursor(cursor);
+  QApplication::processEvents();
+  auto end_caret = editor->property("patchy.previewCaretRect").toRect();
+  if (end_caret.isEmpty()) {
+    end_caret = editor->cursorRect();
+  }
+  cursor.setPosition(0);
+  cursor.clearSelection();
+  editor->setTextCursor(cursor);
+  QApplication::processEvents();
+
+  const QPoint drag_from(start_caret.left(), (start_caret.top() + start_caret.bottom()) / 2);
+  const QPoint drag_to(end_caret.left(), (end_caret.top() + end_caret.bottom()) / 2);
+  send_mouse(*editor->viewport(), QEvent::MouseButtonPress, drag_from, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*editor->viewport(), QEvent::MouseMove, QPoint((drag_from.x() + drag_to.x()) / 2, drag_to.y()),
+             Qt::NoButton, Qt::LeftButton);
+  send_mouse(*editor->viewport(), QEvent::MouseMove, drag_to, Qt::NoButton, Qt::LeftButton);
+  send_mouse(*editor->viewport(), QEvent::MouseButtonRelease, drag_to, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  const auto mouse_selection = editor->textCursor().selectedText();
+
+  // Does the editor widget actually cover its own glyphs? Anything outside it is a press the
+  // canvas takes instead, which restarts or ends the session rather than selecting.
+  const QRect editor_widget_rect(editor->pos(), editor->size());
+  QRect glyph_widget_rect;
+  {
+    auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+    if (auto* preview = preview_layer_for_editor(doc, *editor); preview != nullptr) {
+      const auto bounds = preview->bounds();
+      glyph_widget_rect =
+          QRect(canvas->widget_position_for_document_point(QPoint(bounds.x, bounds.y)),
+                canvas->widget_position_for_document_point(
+                    QPoint(bounds.x + bounds.width, bounds.y + bounds.height)));
+    }
+  }
+
+  if (canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) != nullptr) {
+    require_action_by_text(window, QStringLiteral("Move"))->trigger();
+    QApplication::processEvents();
+    process_events_for(150);
+  }
+
+  // The editor widget's rect IS its hit area. Anything outside it is a press the canvas takes
+  // instead, which restarts or ends the session rather than selecting, so the widget has to
+  // cover the glyphs it is editing.
+  CHECK(!glyph_widget_rect.isEmpty());
+  CHECK(editor_widget_rect.adjusted(-2, -2, 2, 2).contains(glyph_widget_rect));
+
+  CHECK(keyboard_selection == QStringLiteral("Hand"));
+  CHECK(!caret_rect.isEmpty());
+  CHECK(!keyboard_rect.isEmpty());
+  // A four-character highlight is as tall as the caret, give or take rounding.
+  CHECK(std::abs(keyboard_rect.height() - caret_rect.height()) <= 3);
+  CHECK(std::abs(keyboard_rect.top() - caret_rect.top()) <= 3);
+  // Dragging the mouse across the same span selects the same span.
+  CHECK(mouse_selection == QStringLiteral("Hand"));
+}
+
+void ui_text_mouse_and_keyboard_selection_match_glyphs() {
+  check_text_selection_matches_glyphs(false);
+  check_text_selection_matches_glyphs(true);
+}
+
 void ui_text_commit_is_zoom_independent() {
   // The same text typed at the same place must commit the same pixels whatever the canvas zoom
   // happened to be. The inline editor's font used to be set to an integer pixel size of
@@ -1817,6 +1962,8 @@ std::vector<patchy::test::TestCase> text_editor_font_picker_tests() {
        ui_text_edit_hides_editor_glyphs_and_shows_selection_over_style_preview},
       {"ui_text_edit_entry_leaves_the_pixels_alone", ui_text_edit_entry_leaves_the_pixels_alone},
       {"ui_text_commit_is_zoom_independent", ui_text_commit_is_zoom_independent},
+      {"ui_text_mouse_and_keyboard_selection_match_glyphs",
+       ui_text_mouse_and_keyboard_selection_match_glyphs},
       {"ui_expensive_text_style_preview_never_blanks_while_typing",
        ui_expensive_text_style_preview_never_blanks_while_typing},
       {"ui_text_editor_paste_uses_current_format_for_rich_emoji_clipboard",

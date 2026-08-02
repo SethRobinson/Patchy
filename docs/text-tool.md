@@ -75,6 +75,21 @@ entry until August 2026. `ui_text_edit_entry_leaves_the_pixels_alone` pins both 
 nothing, and the preview must be byte-identical to the committed pixels at the same origin, as
 must a re-commit.
 
+**Every session previews, including the one that creates the text.** A new session renders over
+its provisional layer, and `restore_active_layer` is that provisional (not whatever was active
+before the click) so the preview insert does not steal the layer-panel selection. Without this
+the creating session was the odd one out: its glyphs, caret and highlight all came from the
+editor widget at the widget's own zoom-scaled metrics, so selecting text drew a different-sized
+highlight before the first commit than after it. One consequence for tests: on-screen glyphs are
+now debounced, so a test that changes an option (alignment, size) and measures pixels has to let
+the preview land first.
+
+Ending a session must not flash either. `restore_text_editor_source_layer` puts the edited layer
+back BEFORE `remove_text_editor_preview` takes the preview away, in commit and in cancel: the
+layer still holds its committed pixels there, so the text carries straight through the handover.
+Removing the preview first left a window with neither on screen, and the widget teardown and
+options-bar relayout that follow are enough to get a paint delivered inside it.
+
 ## Session lifecycle (provisional layer, commit, cancel)
 
 - A Type-tool click inserts a provisional 1x1 text layer immediately (marker `patchy.internal.provisional_text`); `commit_text_editor` removes it first via the marker-checked `MainWindow::take_provisional_text_layer` (a stale id can never delete an unrelated layer), then snapshots and recreates the committed layer under the same id; cancel/empty-commit leaves history and modified state untouched.
