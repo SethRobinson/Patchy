@@ -2965,6 +2965,22 @@ TextRenderDocument build_text_render_document(const TextToolSettings& settings, 
   return result;
 }
 
+// The face name of the first serialized run (runs v5 column 12), for the options-bar style
+// picker at session start. Empty when the runs predate v5 or the run uses Regular.
+QString first_text_run_style_name(const QString& rich_text_runs) {
+  for (const auto& raw_line : rich_text_runs.split(QLatin1Char('\n'))) {
+    const auto fields = raw_line.trimmed().split(QLatin1Char('\t'));
+    if (fields.size() < 13) {
+      continue;  // version header, or a run format without the style column
+    }
+    const auto style = QString::fromUtf8(QByteArray::fromPercentEncoding(fields[12].toLatin1())).trimmed();
+    if (!style.isEmpty()) {
+      return style;
+    }
+  }
+  return {};
+}
+
 // The largest glyph size any run asks for, in the runs' own (raw, unscaled) units and already
 // including that run's vertical glyph scale -- the value apply_patchy_text_runs_to_document
 // rounds to a whole pixel. Falls back to the layer-level size for text with no runs.
@@ -6157,6 +6173,9 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
       if (text_italic_button_ != nullptr) {
         text_italic_button_->setChecked(text_italic);
       }
+      // The first run's face, so the picker opens on what the layer actually uses rather than
+      // on whatever the last session left behind.
+      refresh_text_style_combo(family, first_text_run_style_name(initial_rich_text_runs));
       set_text_smoothing_combo_value(text_smoothing_combo_, text_anti_alias);
       boxed_text = text_flow_is_box(
           layer->metadata().contains(kLayerMetadataTextFlow)
@@ -7571,6 +7590,141 @@ void MainWindow::apply_text_character_glyph_scales_to_active_editor() {
   schedule_text_editor_preview(editor);
 }
 
+namespace {
+
+// Bold/italic as the style NAME describes them, so the flags every downstream reader still uses
+// keep agreeing with the face the picker selected.
+struct TextStyleFlags {
+  bool bold{false};
+  bool italic{false};
+};
+
+TextStyleFlags text_style_flags_for_name(const QString& style) {
+  const auto key = style.trimmed().toCaseFolded();
+  TextStyleFlags flags;
+  flags.bold = key.contains(QStringLiteral("bold")) || key.contains(QStringLiteral("black")) ||
+               key.contains(QStringLiteral("heavy"));
+  flags.italic = key.contains(QStringLiteral("italic")) || key.contains(QStringLiteral("oblique"));
+  return flags;
+}
+
+// The face name the Bold/Italic buttons describe, used when a family offers no recorded style.
+QString text_style_name_for_flags(bool bold, bool italic) {
+  if (bold && italic) {
+    return QStringLiteral("Bold Italic");
+  }
+  if (bold) {
+    return QStringLiteral("Bold");
+  }
+  if (italic) {
+    return QStringLiteral("Italic");
+  }
+  return {};
+}
+
+}  // namespace
+
+QString MainWindow::current_text_style_name() const {
+  if (text_style_combo_ == nullptr) {
+    return {};
+  }
+  return text_style_combo_->currentData().toString();
+}
+
+void MainWindow::refresh_text_style_combo(const QString& family, const QString& preferred) {
+  if (text_style_combo_ == nullptr) {
+    return;
+  }
+  QSignalBlocker blocker(text_style_combo_);
+  text_style_combo_->clear();
+  // Regular is the face every family has and the one nothing needs to record, so it is the
+  // empty style everywhere below the UI; only the picker spells it out.
+  text_style_combo_->addItem(tr("Regular"), QString());
+  const auto resolved_family = canonical_text_display_family(family);
+  for (const auto& style : QFontDatabase::styles(resolved_family)) {
+    const auto key = style.trimmed().toCaseFolded();
+    if (key.isEmpty() || key == QStringLiteral("regular") || key == QStringLiteral("normal")) {
+      continue;  // already the first row
+    }
+    text_style_combo_->addItem(style, style);
+  }
+  // Prefer the requested face, then the one the Bold/Italic buttons describe, then Regular.
+  const QStringList candidates{preferred.trimmed(),
+                               text_style_name_for_flags(text_bold_button_ != nullptr &&
+                                                             text_bold_button_->isChecked(),
+                                                         text_italic_button_ != nullptr &&
+                                                             text_italic_button_->isChecked())};
+  for (const auto& candidate : candidates) {
+    if (candidate.isEmpty()) {
+      continue;
+    }
+    for (int index = 0; index < text_style_combo_->count(); ++index) {
+      if (text_style_combo_->itemData(index).toString().compare(candidate, Qt::CaseInsensitive) == 0) {
+        text_style_combo_->setCurrentIndex(index);
+        return;
+      }
+    }
+  }
+  text_style_combo_->setCurrentIndex(0);
+}
+
+void MainWindow::sync_text_style_combo_from_flags() {
+  if (text_style_combo_ == nullptr || text_font_combo_ == nullptr) {
+    return;
+  }
+  refresh_text_style_combo(text_font_combo_->currentFont().family(), current_text_style_name());
+}
+
+void MainWindow::apply_text_style_to_active_editor() {
+  if (canvas_ == nullptr || text_style_combo_ == nullptr) {
+    return;
+  }
+  const auto style = current_text_style_name();
+  const auto flags = text_style_flags_for_name(style);
+  // The buttons stay the shortcut for the four faces they can name, so keep them describing
+  // whatever the picker selected (and let their own handlers stay out of the way).
+  if (text_bold_button_ != nullptr) {
+    QSignalBlocker blocker(text_bold_button_);
+    text_bold_button_->setChecked(flags.bold);
+  }
+  if (text_italic_button_ != nullptr) {
+    QSignalBlocker blocker(text_italic_button_);
+    text_italic_button_->setChecked(flags.italic);
+  }
+  auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  if (editor == nullptr || editor->property(kTextEditorFinishedProperty).toBool()) {
+    return;
+  }
+  const auto family = text_display_family_from_format(text_editor_reference_format(*editor),
+                                                      text_font_combo_ != nullptr
+                                                          ? text_font_combo_->currentFont().family()
+                                                          : QString());
+  mutate_text_editor_character_formats(*editor, [&style, &family, flags](QTextCharFormat& format) {
+    auto font = format.font();
+    font.setBold(flags.bold);
+    font.setItalic(flags.italic);
+    font.setStyleName(QString());
+    if (!style.isEmpty()) {
+      for (const auto& available : QFontDatabase::styles(canonical_text_display_family(family))) {
+        if (available.compare(style, Qt::CaseInsensitive) == 0) {
+          font.setStyleName(available);
+          break;
+        }
+      }
+    }
+    format.setFont(font);
+    if (style.isEmpty()) {
+      format.clearProperty(kTextStyleNameFormatProperty);
+    } else {
+      format.setProperty(kTextStyleNameFormatProperty, style);
+    }
+  });
+  mark_text_editor_changed(editor);
+  relayout_text_editor(editor, true);
+  schedule_text_editor_preview(editor);
+  refresh_text_color_button();
+}
+
 void MainWindow::apply_text_character_faux_bold_to_active_editor() {
   if (canvas_ == nullptr || text_character_faux_bold_ == nullptr) {
     return;
@@ -8237,6 +8391,11 @@ void MainWindow::sync_text_options_from_active_editor() {
     QSignalBlocker blocker(text_italic_button_);
     text_italic_button_->setChecked(format_font.italic());
   }
+  // After the buttons, so a run with no recorded face still lands on the style they describe.
+  refresh_text_style_combo(display_family.trimmed().isEmpty()
+                               ? (text_font_combo_ != nullptr ? text_font_combo_->currentFont().family() : QString())
+                               : display_family,
+                           format.property(kTextStyleNameFormatProperty).toString());
   set_text_smoothing_combo_value(text_smoothing_combo_,
                                  std::clamp(editor->property("patchy.documentTextAntiAlias").toInt(), 0, 16));
 
@@ -9203,6 +9362,7 @@ void MainWindow::apply_text_bold_to_active_editor() {
   mark_text_editor_changed(editor);
   relayout_text_editor(editor, true);
   schedule_text_editor_preview(editor);
+  sync_text_style_combo_from_flags();
   refresh_text_color_button();
 }
 
@@ -9227,6 +9387,7 @@ void MainWindow::apply_text_italic_to_active_editor() {
   mark_text_editor_changed(editor);
   relayout_text_editor(editor, true);
   schedule_text_editor_preview(editor);
+  sync_text_style_combo_from_flags();
   refresh_text_color_button();
 }
 
@@ -9314,7 +9475,8 @@ bool MainWindow::is_text_option_widget(QWidget* widget) const {
     }
     return false;
   };
-  return owns(text_font_combo_) || owns(text_size_spin_) || owns(text_bold_button_) || owns(text_italic_button_) ||
+  return owns(text_font_combo_) || owns(text_style_combo_) || owns(text_size_spin_) ||
+         owns(text_bold_button_) || owns(text_italic_button_) ||
          owns(text_smoothing_combo_) || owns(text_color_button_) || owns(text_align_left_button_) ||
          owns(text_align_center_button_) || owns(text_align_right_button_) || owns(text_apply_button_) ||
          owns(text_cancel_button_) || owns(text_character_button_) || owns(primary_color_button_) ||

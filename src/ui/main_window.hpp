@@ -983,6 +983,16 @@ private:
   void apply_text_character_tracking_to_active_editor();
   void apply_text_character_glyph_scales_to_active_editor();
   void apply_text_character_faux_bold_to_active_editor();
+  // The options-bar font-style picker. `refresh_text_style_combo` rebuilds the list for a
+  // family, keeping `preferred` selected when that family offers it and falling back to the
+  // style the Bold/Italic buttons describe; `current_text_style_name` is the selected face
+  // ("Demi", "Bold Italic", empty for Regular).
+  void refresh_text_style_combo(const QString& family, const QString& preferred);
+  [[nodiscard]] QString current_text_style_name() const;
+  void apply_text_style_to_active_editor();
+  // Keeps the picker and the Bold/Italic buttons describing the same face without either
+  // driving the other into a signal loop.
+  void sync_text_style_combo_from_flags();
   // Re-renders a text layer with `warp` applied (identity = unwarped) and refreshes
   // the warp/transform/raster-status metadata. Returns false when the layer's text
   // cannot be rendered.
@@ -1240,6 +1250,7 @@ private:
   QPushButton* gradient_edit_stops_button_{nullptr};
   QFontComboBox* text_font_combo_{nullptr};
   QDoubleSpinBox* text_size_spin_{nullptr};
+  QComboBox* text_style_combo_{nullptr};
   QPushButton* text_bold_button_{nullptr};
   QPushButton* text_italic_button_{nullptr};
   QComboBox* text_smoothing_combo_{nullptr};

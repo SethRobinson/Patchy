@@ -1,4 +1,5 @@
 #include "ui/canvas_widget.hpp"
+#include "ui/text_layout.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/contour_presets.hpp"
 #include "core/gradient_presets.hpp"
@@ -2500,6 +2501,99 @@ void ui_text_options_apply_to_the_whole_layer_without_a_selection() {
   }
 }
 
+// Bold and italic are two of the four faces those flags can name; a family's real style list is
+// arbitrary. The options-bar picker offers that list, and choosing a face the flags cannot say
+// has to survive the commit as the runs v5 style column instead of collapsing onto Bold.
+void ui_text_style_picker_selects_a_face_the_flags_cannot_name() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::ArialBlack);
+  // ariblk.ttf's typographic family is "Arial" with subfamily "Black", so the offscreen database
+  // exposes it as a STYLE of Arial -- exactly the case bold+italic cannot express.
+  const auto family = QStringLiteral("Arial");
+  const auto style = QStringLiteral("Black");
+  if (!QFontDatabase::styles(family).contains(style)) {
+    return;  // no such face on this machine; nothing to assert against
+  }
+
+  patchy::Document document(320, 180, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(320, 180, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  auto pixels = solid_pixels(118, 36, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  fill_pixel_rect(pixels, QRect(0, 0, 96, 30), QColor(20, 20, 20, 255));
+  patchy::Layer text_layer(document.allocate_layer_id(), "Styled", std::move(pixels));
+  text_layer.set_bounds(patchy::Rect{40, 40, 118, 36});
+  text_layer.metadata()[patchy::kLayerMetadataText] = "Weight";
+  text_layer.metadata()[patchy::kLayerMetadataTextFlow] = "point";
+  text_layer.metadata()[patchy::kLayerMetadataTextFont] = family.toStdString();
+  text_layer.metadata()[patchy::kLayerMetadataTextSize] = "24";
+  text_layer.metadata()[patchy::kLayerMetadataTextColor] = "#202020";
+  text_layer.metadata()[patchy::kLayerMetadataTextRuns] = "v1\n0\t6\t24\t0\t0\t#202020\tArial";
+  const auto layer_id = document.add_layer(std::move(text_layer)).id();
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Style Picker"));
+  auto* canvas = require_canvas(window);
+  QApplication::processEvents();
+
+  patchy::ui::MainWindowTestAccess::document(window).set_active_layer(layer_id);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto hit_point = canvas->widget_position_for_document_point(QPoint(60, 52));
+  send_mouse(*canvas, QEvent::MouseButtonPress, hit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, hit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  process_events_for(250);
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+
+  auto* style_combo = window.findChild<QComboBox*>(QStringLiteral("textStyleCombo"));
+  CHECK(style_combo != nullptr);
+  if (style_combo == nullptr) {
+    return;
+  }
+  // Regular is always first, and the family's own faces follow.
+  CHECK(style_combo->itemData(0).toString().isEmpty());
+  const auto black_index = style_combo->findData(style);
+  CHECK(black_index > 0);
+  if (black_index <= 0) {
+    return;
+  }
+  style_combo->setCurrentIndex(black_index);
+  QApplication::processEvents();
+  process_events_for(250);
+
+  bool saw_styled_fragment = false;
+  for (auto block = editor->document()->begin(); block.isValid(); block = block.next()) {
+    for (auto it = block.begin(); !it.atEnd(); ++it) {
+      const auto fragment = it.fragment();
+      if (!fragment.isValid() || fragment.length() <= 0) {
+        continue;
+      }
+      saw_styled_fragment = true;
+      CHECK(fragment.charFormat().property(patchy::ui::kTextStyleNameFormatProperty).toString() == style);
+      CHECK(fragment.charFormat().font().styleName() == style);
+    }
+  }
+  CHECK(saw_styled_fragment);
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  process_events_for(150);
+  const auto* committed = patchy::ui::MainWindowTestAccess::document(window).find_layer(layer_id);
+  CHECK(committed != nullptr);
+  if (committed == nullptr) {
+    return;
+  }
+  const auto runs = committed->metadata().find(patchy::kLayerMetadataTextRuns);
+  CHECK(runs != committed->metadata().end());
+  if (runs != committed->metadata().end()) {
+    CHECK(runs->second.rfind("v5", 0) == 0);
+    CHECK(runs->second.find("\tBlack") != std::string::npos);
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> psd_text_import_tests() {
@@ -2549,5 +2643,7 @@ std::vector<patchy::test::TestCase> psd_text_import_tests() {
        ui_text_layer_font_without_glyph_coverage_counts_as_missing},
       {"ui_text_options_apply_to_the_whole_layer_without_a_selection",
        ui_text_options_apply_to_the_whole_layer_without_a_selection},
+      {"ui_text_style_picker_selects_a_face_the_flags_cannot_name",
+       ui_text_style_picker_selects_a_face_the_flags_cannot_name},
   };
 }

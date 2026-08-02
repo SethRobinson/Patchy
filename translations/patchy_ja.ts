@@ -7736,6 +7736,16 @@ Mixed selection</source>
         <translation>疑似ボールド</translation>
     </message>
     <message>
+        <location line="+0"/>
+        <source>Font style</source>
+        <translation>フォントスタイル</translation>
+    </message>
+    <message>
+        <location line="+0"/>
+        <source>Regular</source>
+        <translation>レギュラー</translation>
+    </message>
+    <message>
         <location line="+2"/>
         <source>Thicken the current face synthetically instead of switching to the family&apos;s bold face</source>
         <translation>ファミリーのボールド書体に切り替えず、現在の書体を擬似的に太らせます</translation>

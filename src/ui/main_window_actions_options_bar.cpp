@@ -2114,6 +2114,16 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   text_font_combo_->setCurrentFont(font());
   text_font_combo_->setFixedWidth(210);
   add_option_widget(text_font_combo_, {CanvasTool::Text});
+  // Photoshop's style picker: the family's OWN face list. Bold and italic are two of the four
+  // styles this can name; Demi, Book, Black and Condensed Light are the ones they cannot, and a
+  // family with no italic simply does not offer one instead of a button that appears to do
+  // nothing. The B/I buttons stay as the shortcut for the four they can express and track this.
+  text_style_combo_ = new QComboBox(toolbar);
+  text_style_combo_->setObjectName(QStringLiteral("textStyleCombo"));
+  text_style_combo_->setToolTip(tr("Font style"));
+  text_style_combo_->setFixedWidth(132);
+  refresh_text_style_combo(text_font_combo_->currentFont().family(), QString());
+  add_option_widget(text_style_combo_, {CanvasTool::Text});
   add_option_label(tr("Size:"), {CanvasTool::Text});
   text_size_spin_ = new QDoubleSpinBox(toolbar);
   text_size_spin_->setObjectName(QStringLiteral("textSizeSpin"));
@@ -2206,8 +2216,14 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   text_character_button_->setFocusPolicy(Qt::NoFocus);
   add_option_widget(text_character_button_, {CanvasTool::Text});
   connect(text_character_button_, &QPushButton::clicked, this, [this] { open_text_character_dialog(); });
-  connect(text_font_combo_, &QFontComboBox::currentFontChanged, this,
-          [this](const QFont&) { apply_text_family_to_active_editor(); });
+  connect(text_font_combo_, &QFontComboBox::currentFontChanged, this, [this](const QFont& chosen) {
+    // Repopulate before applying: apply_text_family_to_active_editor renders with the style the
+    // combo is showing, and the outgoing family's style list may not contain it.
+    refresh_text_style_combo(chosen.family(), current_text_style_name());
+    apply_text_family_to_active_editor();
+  });
+  connect(text_style_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+          [this](int) { apply_text_style_to_active_editor(); });
   connect(text_size_spin_, &QDoubleSpinBox::valueChanged, this,
           [this](double) {
     apply_text_size_to_active_editor();
