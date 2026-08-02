@@ -2411,10 +2411,147 @@ void ui_psd_frame_text_highlight_matches_scaled_glyphs() {
   CHECK(std::abs(highlight_right - ink.right()) <= 6);
 }
 
+void ui_psd_frame_text_second_session_still_takes_clicks() {
+  // Seth's repro: click into a scaled PSD frame layer, click off without changing anything, then
+  // click back in. The FIRST session takes mouse clicks; the second must too. Committing rewrites
+  // the layer with a patchy transform, which opts the next session out of the PSD-frame path and
+  // into a different one, and a click the session does not claim falls through to the canvas
+  // where it reads as "clicking off" and commits.
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  const auto path = patchy::test::committed_psd_fixture_path("photoshop-text-box-auto-leading.psd");
+  auto document = patchy::psd::DocumentIo::read_file(path);
+  patchy::LayerId layer_id = 0;
+  bool found = false;
+  std::function<void(const std::vector<patchy::Layer>&)> find_text_layer =
+      [&](const std::vector<patchy::Layer>& layers) {
+        for (const auto& layer : layers) {
+          if (!found && patchy::layer_is_text(layer) &&
+              layer.metadata().contains(patchy::kLayerMetadataPsdTextBoxBounds)) {
+            layer_id = layer.id();
+            found = true;
+          }
+          find_text_layer(layer.children());
+        }
+      };
+  find_text_layer(document.layers());
+  CHECK(found);
+  if (!found) {
+    return;
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("PSD Frame Second Session"));
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+
+  auto& live_document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* source = live_document.find_layer(layer_id);
+  CHECK(source != nullptr);
+  if (source == nullptr) {
+    return;
+  }
+  const auto original_bounds = source->bounds();
+  QTransform scaled;
+  scaled.translate(original_bounds.x, original_bounds.y);
+  scaled.scale(1.5, 1.5);
+  const auto affine = patchy::serialize_layer_affine_transform(patchy::LayerAffineTransform{
+      scaled.m11(), scaled.m12(), scaled.m21(), scaled.m22(), scaled.dx(), scaled.dy()});
+  source->metadata()[patchy::kLayerMetadataTextTransform] = affine;
+  source->metadata()[patchy::kLayerMetadataPsdTextTransform] = affine;
+
+  // Session 1: enter and leave without changing anything.
+  live_document.set_active_layer(layer_id);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  accept_missing_psd_text_font_warning_if_present();
+  const auto first_hit = canvas->widget_position_for_document_point(
+      QPoint(original_bounds.x + original_bounds.width / 2, original_bounds.y + 12));
+  send_mouse(*canvas, QEvent::MouseButtonPress, first_hit, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, first_hit, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  process_events_for(300);
+  const bool first_session_opened =
+      canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) != nullptr;
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  process_events_for(200);
+
+  // Session 2: click back into the committed glyphs.
+  auto* committed = live_document.find_layer(layer_id);
+  CHECK(committed != nullptr);
+  if (committed == nullptr) {
+    return;
+  }
+  const auto committed_bounds = committed->bounds();
+  live_document.set_active_layer(layer_id);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  accept_missing_psd_text_font_warning_if_present();
+  const auto second_hit = canvas->widget_position_for_document_point(
+      QPoint(committed_bounds.x + committed_bounds.width / 2, committed_bounds.y + 12));
+  send_mouse(*canvas, QEvent::MouseButtonPress, second_hit, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, second_hit, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  process_events_for(300);
+
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  const bool second_session_opened = editor != nullptr;
+  // Committing swaps the session off the PSD-frame path and onto the transformed overlay, so the
+  // two sessions genuinely take different click routes. That is the point of the test.
+  const bool second_session_uses_overlay =
+      editor != nullptr && editor->property("patchy.transformedPreviewOverlayActive").toBool();
+  bool session_survived_click = false;
+  int clicked_position = -1;
+  int before_click_position = -1;
+  if (editor != nullptr) {
+    auto cursor = editor->textCursor();
+    cursor.setPosition(0);
+    editor->setTextCursor(cursor);
+    QApplication::processEvents();
+    before_click_position = editor->textCursor().position();
+    // Click on the glyphs, the way a user starts a selection.
+    QRect ink;
+    if (auto* preview = preview_layer_for_editor(live_document, *editor); preview != nullptr) {
+      if (const auto alpha = alpha_pixel_bounds_in_rows(preview->pixels(), 0, preview->pixels().height());
+          alpha.has_value()) {
+        ink = alpha->translated(preview->bounds().x, preview->bounds().y);
+      }
+    }
+    if (!ink.isEmpty()) {
+      const auto probe = canvas->widget_position_for_document_point(
+          QPoint(ink.center().x(), ink.top() + ink.height() / 2));
+      send_mouse(*canvas, QEvent::MouseButtonPress, probe, Qt::LeftButton, Qt::LeftButton);
+      send_mouse(*canvas, QEvent::MouseButtonRelease, probe, Qt::LeftButton, Qt::NoButton);
+      QApplication::processEvents();
+      if (auto* still_open = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+          still_open != nullptr) {
+        session_survived_click = true;
+        clicked_position = still_open->textCursor().position();
+      }
+    }
+  }
+
+  if (canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) != nullptr) {
+    require_action_by_text(window, QStringLiteral("Move"))->trigger();
+    QApplication::processEvents();
+    process_events_for(150);
+  }
+
+  CHECK(first_session_opened);
+  CHECK(second_session_opened);
+  CHECK(second_session_uses_overlay);
+  // The click must be claimed by the session, not fall through to the canvas as a "click off".
+  CHECK(session_survived_click);
+  // And it must move the caret to where it landed, not leave it where it was.
+  CHECK(clicked_position > before_click_position);
+}
+
 std::vector<patchy::test::TestCase> text_transform_commit_tests_part2() {
   return {
       {"ui_psd_centered_point_text_keeps_center_on_commit",
        ui_psd_centered_point_text_keeps_center_on_commit},
+      {"ui_psd_frame_text_second_session_still_takes_clicks",
+       ui_psd_frame_text_second_session_still_takes_clicks},
       {"ui_psd_frame_text_highlight_matches_scaled_glyphs",
        ui_psd_frame_text_highlight_matches_scaled_glyphs},
       {"ui_transformed_text_click_returns_to_the_caret_it_drew",
