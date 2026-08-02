@@ -2368,6 +2368,29 @@ void ui_psd_frame_text_highlight_matches_scaled_glyphs() {
     }
   }
 
+  // Click the MIDDLE OF THE GLYPHS, a point derived from the render rather than from the layout,
+  // and the cursor has to land mid-text. Clicking the caret instead would prove nothing: the
+  // click and the caret share a layout, so they agree even when that layout is wrong. Six equal
+  // glyphs put the ink centre exactly at position 3; a layout built a third too small maps the
+  // same point past the end of the text, which is why the mouse looked dead on this layer.
+  int clicked_position = -1;
+  if (!ink.isEmpty()) {
+    auto clear_cursor = editor->textCursor();
+    clear_cursor.setPosition(0);
+    editor->setTextCursor(clear_cursor);
+    QApplication::processEvents();
+    const auto caret_now = editor->property("patchy.previewCaretRect").toRect();
+    const QPoint probe(ink.center().x() - editor_origin_x,
+                       caret_now.isEmpty() ? 8 : (caret_now.top() + caret_now.bottom()) / 2);
+    send_mouse(*editor->viewport(), QEvent::MouseButtonPress, probe, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*editor->viewport(), QEvent::MouseButtonRelease, probe, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    if (auto* still_open = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+        still_open != nullptr) {
+      clicked_position = still_open->textCursor().position();
+    }
+  }
+
   require_action_by_text(window, QStringLiteral("Move"))->trigger();
   QApplication::processEvents();
   process_events_for(150);
@@ -2383,6 +2406,7 @@ void ui_psd_frame_text_highlight_matches_scaled_glyphs() {
   // frame scale the layout misses by a third, far outside this tolerance.
   const auto highlight_left = editor_origin_x + highlight.left();
   const auto highlight_right = editor_origin_x + highlight.right();
+  CHECK(clicked_position == 3);
   CHECK(std::abs(highlight_left - ink.left()) <= 6);
   CHECK(std::abs(highlight_right - ink.right()) <= 6);
 }

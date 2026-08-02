@@ -37,7 +37,12 @@ Committing rewrites the layer without the frame, which is why re-entering looked
 the bug read as "wrong until you exit and come back".
 `ui_psd_frame_text_highlight_matches_scaled_glyphs` pins it by comparing a select-all highlight
 against the rendered ink (with space-free text, since a trailing space is legitimately
-highlighted and has no ink of its own).
+highlighted and has no ink of its own), and by clicking the middle of the INK and requiring the
+cursor to land mid-text. The click probe has to be derived from the render: clicking the caret
+proves nothing, because the click and the caret share a layout and agree with each other even
+when that layout is wrong against the glyphs. A too-small layout maps a click near the end of
+the text past the end of the layout, where it clamps, which is what "the mouse does not select
+at all" looks like.
 
 Mouse hit-testing goes through the same plan. `QTextEdit::cursorForPosition` must never resolve a
 click inside a text session: the widget hit-tests against its own internal layout, built at an
