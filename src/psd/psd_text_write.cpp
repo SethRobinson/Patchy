@@ -268,7 +268,7 @@ std::vector<PsdTextStyleRun> parse_patchy_text_runs_metadata(std::string_view ru
       line.remove_suffix(1);
     }
     line_start = line_end == std::string_view::npos ? runs_text.size() : line_end + 1U;
-    if (line.empty() || line == "v1" || line == "v2" || line == "v3" || line == "v4" || line == "v5") {
+    if (line.empty() || line == "v1" || line == "v2" || line == "v3" || line == "v4" || line == "v5" || line == "v6") {
       continue;
     }
 
@@ -322,6 +322,9 @@ std::vector<PsdTextStyleRun> parse_patchy_text_runs_metadata(std::string_view ru
     }
     if (fields.size() >= 13U) {
       run.style = percent_decode(fields[12]);
+    }
+    if (fields.size() >= 14U) {
+      run.faux_italic = parse_int_or(fields[13], fallback.faux_italic ? 1 : 0) != 0;
     }
     if (run.length <= 0 || run.start >= text_length) {
       continue;
@@ -432,7 +435,7 @@ std::vector<PsdTextParagraphRun> parse_patchy_paragraph_runs_metadata(std::strin
       line.remove_suffix(1);
     }
     line_start = line_end == std::string_view::npos ? runs_text.size() : line_end + 1U;
-    if (line.empty() || line == "v1" || line == "v2" || line == "v3" || line == "v4" || line == "v5") {
+    if (line.empty() || line == "v1" || line == "v2" || line == "v3" || line == "v4" || line == "v5" || line == "v6") {
       continue;
     }
     const auto fields = split_tab_fields(line);
@@ -1174,8 +1177,10 @@ std::string engine_style_sheet_data(const PsdTextStyleRun& run, int font_index) 
   // Writing both made Photoshop embolden an already-bold face.
   style += " /FauxBold ";
   style += run.faux_bold ? "true" : "false";
+  // Same as /FauxBold: the run's real slant already rides in the font name font_index_for_run
+  // resolved (Georgia-Italic, not Georgia + FauxItalic), so this is the SYNTHETIC slant alone.
   style += " /FauxItalic ";
-  style += run.italic ? "true" : "false";
+  style += run.faux_italic ? "true" : "false";
   // A fixed-leading run must export /AutoLeading false or Photoshop ignores the value and
   // re-derives auto leading. Auto (and unspecified) runs keep the historical auto shape.
   const bool fixed_leading = !run.auto_leading && run.leading.has_value() && std::isfinite(*run.leading) &&

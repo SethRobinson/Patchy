@@ -1,5 +1,6 @@
 #include "ui/canvas_widget.hpp"
 #include "ui/text_layout.hpp"
+#include "core/layer_render_utils.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/contour_presets.hpp"
 #include "core/gradient_presets.hpp"
@@ -2357,10 +2358,14 @@ void ui_text_layer_font_without_glyph_coverage_counts_as_missing() {
     layer.metadata()[patchy::kLayerMetadataTextRasterStatus] = "psd_raster_preview";
     return document.add_layer(std::move(layer)).id();
   };
-  // Same text, one in the coverage-less family and one in a family that really can draw it.
+  // Same text, one in the coverage-less family and one in a family that really can draw it. The
+  // control family has to be whatever the suite actually registered -- Arial on Windows and
+  // macOS, Liberation Sans on Linux -- or the control is itself a missing font.
+  const auto control_family = patchy::test::visual_test_font().family();
+  CHECK(QFontDatabase::families().contains(control_family));
   // Kept apart vertically: a Type click activates the TOPMOST text layer under it.
   const auto naskh_id = add_text_layer("Latin in Naskh", family, "Blazing Star", 20);
-  add_text_layer("Latin in Arial", QStringLiteral("Arial"), "Blazing Star", 110);
+  add_text_layer("Latin in Control", control_family, "Blazing Star", 110);
 
   patchy::ui::MainWindow window;
   show_window(window);
@@ -2378,7 +2383,7 @@ void ui_text_layer_font_without_glyph_coverage_counts_as_missing() {
     return row == nullptr ? nullptr : row->findChild<QLabel*>(QStringLiteral("layerContentThumbnail"));
   };
   auto* naskh_thumbnail = thumbnail_for(QStringLiteral("Latin in Naskh"));
-  auto* arial_thumbnail = thumbnail_for(QStringLiteral("Latin in Arial"));
+  auto* arial_thumbnail = thumbnail_for(QStringLiteral("Latin in Control"));
   CHECK(naskh_thumbnail != nullptr && arial_thumbnail != nullptr);
   if (naskh_thumbnail == nullptr || arial_thumbnail == nullptr) {
     return;
@@ -2594,6 +2599,107 @@ void ui_text_style_picker_selects_a_face_the_flags_cannot_name() {
   }
 }
 
+// Faux italic slants the run's OWN face. Qt cannot express that through QFont at all
+// (setStyle(StyleOblique) resolves to the family's real Italic face), so the renderer shears the
+// drawn line about its baseline. The proof is geometric: the same glyphs, rasterized with the
+// runs v6 faux-italic column set, must lean -- ink near the top sits to the RIGHT of ink near the
+// baseline -- while the advances, and so the layer's left edge, stay put.
+void ui_faux_italic_shears_the_rendered_glyphs() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  patchy::Document document(360, 200, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(360, 200, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  // "HH" has nothing but vertical stems, so any lean is the shear and not a glyph shape.
+  const auto add_layer = [&document](const char* name, bool faux_italic, int top) {
+    patchy::Layer layer(document.allocate_layer_id(), name,
+                        solid_pixels(240, 80, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0)));
+    layer.set_bounds(patchy::Rect{40, top, 240, 80});
+    layer.metadata()[patchy::kLayerMetadataText] = "HH";
+    layer.metadata()[patchy::kLayerMetadataTextFlow] = "point";
+    layer.metadata()[patchy::kLayerMetadataTextFont] = "Arial";
+    layer.metadata()[patchy::kLayerMetadataTextSize] = "64";
+    layer.metadata()[patchy::kLayerMetadataTextColor] = "#000000";
+    // start len size bold italic color family leading tracking hscale vscale fauxbold style fauxitalic
+    layer.metadata()[patchy::kLayerMetadataTextRuns] =
+        std::string("v6\n0\t2\t64\t0\t0\t#000000\tArial\tauto\t0\t1\t1\t0\t\t") + (faux_italic ? "1" : "0");
+    return document.add_layer(std::move(layer)).id();
+  };
+  const auto upright_id = add_layer("Upright", false, 20);
+  const auto slanted_id = add_layer("Slanted", true, 110);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Faux Italic"));
+  QApplication::processEvents();
+  auto& live_document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* canvas = require_canvas(window);
+
+  // Leftmost inked column in the top and bottom fifths of the glyphs.
+  struct Lean {
+    int top_left{0};
+    int bottom_left{0};
+    int width{0};
+    bool valid{false};
+  };
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  if (layer_list == nullptr) {
+    return;
+  }
+  // An unchanged edit -> apply is what re-renders a layer through Patchy's own text engine.
+  const auto measure = [&](patchy::LayerId id, const QString& row_name, int click_y) {
+    layer_list->setCurrentItem(require_layer_item(*layer_list, row_name));
+    QApplication::processEvents();
+    CHECK(live_document.active_layer_id() == id);
+    require_action_by_text(window, QStringLiteral("Type"))->trigger();
+    const auto hit = canvas->widget_position_for_document_point(QPoint(60, click_y));
+    send_mouse(*canvas, QEvent::MouseButtonPress, hit, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, hit, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    process_events_for(250);
+    CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) != nullptr);
+    require_action_by_text(window, QStringLiteral("Move"))->trigger();
+    QApplication::processEvents();
+    process_events_for(200);
+    Lean lean;
+    const auto* layer = live_document.find_layer(id);
+    if (layer == nullptr) {
+      return lean;
+    }
+    const auto bounds = patchy::visible_alpha_local_bounds(layer->pixels());
+    if (!bounds.has_value() || bounds->height < 10) {
+      return lean;
+    }
+    const auto leftmost_in_rows = [&](int from, int to) {
+      const auto band = alpha_pixel_bounds_in_rows(layer->pixels(), from, to);
+      return band.has_value() ? band->left() : -1;
+    };
+    const auto band_height = std::max(1, bounds->height / 5);
+    lean.top_left = leftmost_in_rows(bounds->y, bounds->y + band_height);
+    lean.bottom_left = leftmost_in_rows(bounds->y + bounds->height - band_height, bounds->y + bounds->height);
+    lean.width = bounds->width;
+    lean.valid = lean.top_left >= 0 && lean.bottom_left >= 0;
+    return lean;
+  };
+
+  const auto upright = measure(upright_id, QStringLiteral("Upright"), 40);
+  const auto slanted = measure(slanted_id, QStringLiteral("Slanted"), 130);
+  CHECK(upright.valid && slanted.valid);
+  if (!upright.valid || !slanted.valid) {
+    return;
+  }
+  std::printf("  faux italic: upright top=%d bottom=%d w=%d | slanted top=%d bottom=%d w=%d\n", upright.top_left,
+              upright.bottom_left, upright.width, slanted.top_left, slanted.bottom_left, slanted.width);
+  std::fflush(stdout);
+  // Upright stems are plumb: the top and bottom of the ink start at the same column.
+  CHECK(std::abs(upright.top_left - upright.bottom_left) <= 2);
+  // Sheared stems lean right with height. At 64px, a cap is ~46px tall and tan(12 deg) puts the
+  // top ~9px right of the foot; allow for the band being a fifth of the glyph.
+  CHECK(slanted.top_left - slanted.bottom_left >= 4);
+  // The slant costs width but must not change the advances, so it stays within the lean.
+  CHECK(slanted.width > upright.width);
+  CHECK(slanted.width - upright.width <= upright.width / 2);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> psd_text_import_tests() {
@@ -2645,5 +2751,6 @@ std::vector<patchy::test::TestCase> psd_text_import_tests() {
        ui_text_options_apply_to_the_whole_layer_without_a_selection},
       {"ui_text_style_picker_selects_a_face_the_flags_cannot_name",
        ui_text_style_picker_selects_a_face_the_flags_cannot_name},
+      {"ui_faux_italic_shears_the_rendered_glyphs", ui_faux_italic_shears_the_rendered_glyphs},
   };
 }

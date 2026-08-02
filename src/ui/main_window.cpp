@@ -2203,6 +2203,7 @@ QString rich_text_runs_from_document(const QTextDocument& document, const TextTo
   bool photoshop_layout = false;
   bool includes_faux_bold = false;
   bool includes_style = false;
+  bool includes_faux_italic = false;
   const auto fallback_family = fallback.family.isEmpty() ? QApplication::font().family() : fallback.family;
   const auto fallback_size = std::max(1, fallback.size);
   const auto fallback_color_name = (fallback_color.isValid() ? fallback_color : QColor(Qt::black)).name(QColor::HexRgb);
@@ -2221,13 +2222,14 @@ QString rich_text_runs_from_document(const QTextDocument& document, const TextTo
     double horizontal_scale{1.0};
     double vertical_scale{1.0};
     bool faux_bold{false};
+    bool faux_italic{false};
     QString style;
   };
   std::vector<SerializedRun> collected;
 
   const auto append_run = [&collected, &includes_leading, &photoshop_layout, &includes_faux_bold, &includes_style,
-                           &fallback_family, fallback_size, &fallback_color_name](int start, int length,
-                                                                                  const QTextCharFormat& format) {
+                           &includes_faux_italic, &fallback_family, fallback_size,
+                           &fallback_color_name](int start, int length, const QTextCharFormat& format) {
     if (length <= 0) {
       return;
     }
@@ -2293,7 +2295,11 @@ QString rich_text_runs_from_document(const QTextDocument& document, const TextTo
     includes_faux_bold = includes_faux_bold || run.faux_bold;
     run.style = format.property(kTextStyleNameFormatProperty).toString().trimmed();
     includes_style = includes_style || !run.style.isEmpty();
-    photoshop_layout = photoshop_layout || run.auto_leading || run.faux_bold || !run.style.isEmpty() ||
+    run.faux_italic = format.hasProperty(kTextFauxItalicFormatProperty) &&
+                      format.property(kTextFauxItalicFormatProperty).toBool();
+    includes_faux_italic = includes_faux_italic || run.faux_italic;
+    photoshop_layout = photoshop_layout || run.auto_leading || run.faux_bold || run.faux_italic ||
+                       !run.style.isEmpty() ||
                        std::abs(run.tracking) > 0.0001 ||
                        std::abs(run.horizontal_scale - 1.0) > 0.0001 ||
                        std::abs(run.vertical_scale - 1.0) > 0.0001;
@@ -2341,7 +2347,9 @@ QString rich_text_runs_from_document(const QTextDocument& document, const TextTo
   if (!found_run) {
     append_run(0, document.toPlainText().size(), fallback_format);
   }
-  if (includes_style) {
+  if (includes_faux_italic) {
+    lines[0] = QStringLiteral("v6");
+  } else if (includes_style) {
     lines[0] = QStringLiteral("v5");
   } else if (includes_faux_bold) {
     lines[0] = QStringLiteral("v4");
@@ -2370,11 +2378,14 @@ QString rich_text_runs_from_document(const QTextDocument& document, const TextTo
       line += QStringLiteral("\t%1").arg(QString::number(run.vertical_scale, 'g', 17));
       // Column 11 is faux bold and column 12 the style name; the style column needs the faux
       // one in front of it, so a styled run emits both.
-      if (includes_faux_bold || includes_style) {
+      if (includes_faux_bold || includes_style || includes_faux_italic) {
         line += QStringLiteral("\t%1").arg(run.faux_bold ? 1 : 0);
       }
-      if (includes_style) {
+      if (includes_style || includes_faux_italic) {
         line += QStringLiteral("\t%1").arg(QString::fromLatin1(run.style.toUtf8().toPercentEncoding()));
+      }
+      if (includes_faux_italic) {
+        line += QStringLiteral("\t%1").arg(run.faux_italic ? 1 : 0);
       }
     } else if (includes_leading) {
       line += QStringLiteral("\t%1").arg(QString::number(run.leading, 'g', 17));
@@ -2622,6 +2633,9 @@ void apply_patchy_text_runs_to_document(QTextDocument& document, const QString& 
     if (fields.size() >= 12 && fields[11].toInt() != 0) {
       format.setProperty(kTextFauxBoldFormatProperty, true);
     }
+    if (fields.size() >= 14 && fields[13].toInt() != 0) {
+      format.setProperty(kTextFauxItalicFormatProperty, true);
+    }
     QTextCursor cursor(&document);
     cursor.setPosition(start);
     cursor.setPosition(std::min(plain_length, start + length), QTextCursor::KeepAnchor);
@@ -2835,6 +2849,51 @@ struct RenderedTextPixels {
 // Applied here rather than when the runs are parsed so it follows the format's current colour
 // and pixel size, and so both the raster pass and the caret layout (which share this function)
 // see the identical advances.
+// Whether EVERY inked fragment of a line asks for faux italic. Qt draws a line at a time, so the
+// shear is applied per line: a line whose runs disagree would need the glyph-run draw path (see
+// docs/text-tool.md) and is left upright rather than slanting runs that did not ask for it.
+bool line_is_entirely_faux_italic(const QTextBlock& block, const QTextLine& line) {
+  if (!block.isValid() || !line.isValid()) {
+    return false;
+  }
+  const auto line_start = block.position() + line.textStart();
+  const auto line_end = line_start + line.textLength();
+  bool saw_fragment = false;
+  for (auto it = block.begin(); !it.atEnd(); ++it) {
+    const auto fragment = it.fragment();
+    if (!fragment.isValid() || fragment.length() <= 0) {
+      continue;
+    }
+    if (fragment.position() + fragment.length() <= line_start || fragment.position() >= line_end) {
+      continue;
+    }
+    saw_fragment = true;
+    if (!fragment.charFormat().property(kTextFauxItalicFormatProperty).toBool()) {
+      return false;
+    }
+  }
+  return saw_fragment;
+}
+
+bool document_has_faux_italic(const QTextDocument& document) {
+  for (auto block = document.begin(); block.isValid(); block = block.next()) {
+    for (auto it = block.begin(); !it.atEnd(); ++it) {
+      const auto fragment = it.fragment();
+      if (fragment.isValid() && fragment.length() > 0 &&
+          fragment.charFormat().property(kTextFauxItalicFormatProperty).toBool()) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+// Slant about a baseline: a point ON the baseline stays put and everything above it moves right,
+// which is what a synthetic italic is. Advances are untouched, exactly as Photoshop leaves them.
+QTransform faux_italic_shear(double baseline_y) {
+  return QTransform(1.0, 0.0, -kFauxItalicSlant, 1.0, kFauxItalicSlant * baseline_y, 0.0);
+}
+
 void apply_faux_bold_to_document(QTextDocument& document) {
   struct FauxBoldRange {
     int start{0};
@@ -3132,6 +3191,17 @@ RenderedTextPixels render_text_pixels_with_local_rect(const TextToolSettings& se
     local_rect = QRectF(0.0, 0.0, static_cast<qreal>(std::max(1, text_width)),
                         static_cast<qreal>(std::max(kMinimumTextBoxDocumentSize, settings.box_height)));
   }
+  // Faux italic leans the glyph tops to the RIGHT of where the unsheared layout put them, so the
+  // buffer (and every line's clip band) has to grow by the lean or the tallest ascenders are cut
+  // off at the old right edge. Advances are unchanged, which is why only the bleed moves.
+  const bool faux_italic_render = document_has_faux_italic(document);
+  if (faux_italic_render) {
+    const auto lean = kFauxItalicSlant * QFontMetricsF(font).ascent() + 2.0;
+    local_rect.setRight(local_rect.right() + lean);
+    for (auto& item : line_render_items) {
+      item.clip_rect.setRight(item.clip_rect.right() + lean);
+    }
+  }
   // When a document transform is supplied the glyphs are rasterized *through* the affine (scale,
   // rotation, shear), so scaled-up text stays crisp instead of resampling an already-rendered bitmap.
   // The output image is sized to the transformed bounds and `local_rect` is returned in document space.
@@ -3164,10 +3234,22 @@ RenderedTextPixels render_text_pixels_with_local_rect(const TextToolSettings& se
     for (const auto& item : line_render_items) {
       painter.save();
       painter.setClipRect(item.clip_rect);
+      if (faux_italic_render &&
+          line_is_entirely_faux_italic(document.findBlock(item.block_position), item.line)) {
+        // Shear about this line's own baseline so the slant pivots on the text, not on the
+        // buffer origin. Applied to the painter rather than the font because Qt resolves
+        // StyleOblique to the family's real Italic face whenever it has one.
+        painter.setTransform(
+            faux_italic_shear(item.block_origin.y() + item.line.y() + item.line.ascent()), true);
+      }
       item.line.draw(&painter, item.block_origin);
       painter.restore();
     }
   } else {
+    if (faux_italic_render) {
+      const QFontMetricsF metrics(font);
+      painter.setTransform(faux_italic_shear(local_rect.top() + metrics.ascent()), true);
+    }
     document.drawContents(&painter, local_rect);
   }
   painter.end();
@@ -7388,6 +7470,12 @@ void MainWindow::open_text_character_dialog() {
       tr("Thicken the current face synthetically instead of switching to the family's bold face"));
   layout->addRow(QString(), text_character_faux_bold_);
 
+  text_character_faux_italic_ = new QCheckBox(tr("Faux italic"), dialog);
+  text_character_faux_italic_->setObjectName(QStringLiteral("textCharacterFauxItalic"));
+  text_character_faux_italic_->setToolTip(
+      tr("Slant the current face synthetically instead of switching to the family's italic face"));
+  layout->addRow(QString(), text_character_faux_italic_);
+
   text_character_leading_spin_ = new QDoubleSpinBox(dialog);
   text_character_leading_spin_->setObjectName(QStringLiteral("textCharacterLeadingSpin"));
   text_character_leading_spin_->setDecimals(2);
@@ -7423,6 +7511,8 @@ void MainWindow::open_text_character_dialog() {
           [this](bool) { apply_text_character_leading_to_active_editor(); });
   connect(text_character_faux_bold_, &QCheckBox::toggled, this,
           [this](bool) { apply_text_character_faux_bold_to_active_editor(); });
+  connect(text_character_faux_italic_, &QCheckBox::toggled, this,
+          [this](bool) { apply_text_character_faux_italic_to_active_editor(); });
   connect(text_character_leading_spin_, &QDoubleSpinBox::valueChanged, this,
           [this](double) { apply_text_character_leading_to_active_editor(); });
   connect(text_character_tracking_spin_, &QSpinBox::valueChanged, this,
@@ -7444,13 +7534,15 @@ void MainWindow::open_text_character_dialog() {
   text_character_h_scale_spin_ = nullptr;
   text_character_v_scale_spin_ = nullptr;
   text_character_faux_bold_ = nullptr;
+  text_character_faux_italic_ = nullptr;
 }
 
 void MainWindow::sync_text_character_dialog_from_editor() {
   if (text_character_dialog_ == nullptr || text_character_auto_leading_ == nullptr ||
       text_character_leading_spin_ == nullptr || text_character_tracking_spin_ == nullptr ||
       text_character_h_scale_spin_ == nullptr || text_character_v_scale_spin_ == nullptr ||
-      text_character_faux_bold_ == nullptr || text_character_hint_label_ == nullptr) {
+      text_character_faux_bold_ == nullptr || text_character_faux_italic_ == nullptr ||
+      text_character_hint_label_ == nullptr) {
     return;
   }
   auto* editor =
@@ -7462,6 +7554,7 @@ void MainWindow::sync_text_character_dialog_from_editor() {
   text_character_h_scale_spin_->setEnabled(session_open);
   text_character_v_scale_spin_->setEnabled(session_open);
   text_character_faux_bold_->setEnabled(session_open);
+  text_character_faux_italic_->setEnabled(session_open);
   if (!session_open) {
     text_character_leading_spin_->setEnabled(false);
     return;
@@ -7485,8 +7578,11 @@ void MainWindow::sync_text_character_dialog_from_editor() {
   QSignalBlocker block_h(text_character_h_scale_spin_);
   QSignalBlocker block_v(text_character_v_scale_spin_);
   QSignalBlocker block_faux_bold(text_character_faux_bold_);
+  QSignalBlocker block_faux_italic(text_character_faux_italic_);
   text_character_faux_bold_->setChecked(format.hasProperty(kTextFauxBoldFormatProperty) &&
                                         format.property(kTextFauxBoldFormatProperty).toBool());
+  text_character_faux_italic_->setChecked(format.hasProperty(kTextFauxItalicFormatProperty) &&
+                                          format.property(kTextFauxItalicFormatProperty).toBool());
   text_character_auto_leading_->setChecked(auto_leading);
   text_character_leading_spin_->setEnabled(!auto_leading);
   const auto leading_pt = auto_leading || !has_fixed
@@ -7738,6 +7834,23 @@ void MainWindow::apply_text_character_faux_bold_to_active_editor() {
     // The stroke itself is applied at render time (apply_faux_bold_to_document); the format only
     // carries the flag, so the same run keeps working after a colour or size change.
     format.setProperty(kTextFauxBoldFormatProperty, faux_bold);
+  });
+  mark_text_editor_changed(editor);
+  schedule_text_editor_preview(editor);
+}
+
+void MainWindow::apply_text_character_faux_italic_to_active_editor() {
+  if (canvas_ == nullptr || text_character_faux_italic_ == nullptr) {
+    return;
+  }
+  auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  if (editor == nullptr || editor->property(kTextEditorFinishedProperty).toBool()) {
+    return;
+  }
+  const bool faux_italic = text_character_faux_italic_->isChecked();
+  mutate_text_editor_character_formats(*editor, [faux_italic](QTextCharFormat& format) {
+    // A flag only; the shear happens at render time, so it follows later size and face edits.
+    format.setProperty(kTextFauxItalicFormatProperty, faux_italic);
   });
   mark_text_editor_changed(editor);
   schedule_text_editor_preview(editor);

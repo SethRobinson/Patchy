@@ -7751,6 +7751,16 @@ Mixed selection</source>
         <translation>ファミリーのボールド書体に切り替えず、現在の書体を擬似的に太らせます</translation>
     </message>
     <message>
+        <location line="+5"/>
+        <source>Faux italic</source>
+        <translation>疑似イタリック</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>Slant the current face synthetically instead of switching to the family&apos;s italic face</source>
+        <translation>ファミリーのイタリック書体に切り替えず、現在の書体を擬似的に傾けます</translation>
+    </message>
+    <message>
         <location line="+11"/>
         <source>Leading:</source>
         <translation>行送り:</translation>

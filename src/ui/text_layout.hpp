@@ -68,6 +68,16 @@ inline constexpr int kTextStyleNameFormatProperty = QTextFormat::UserProperty + 
 // anywhere in 0.025-0.030, and the real Bold Italic face they used to resolve to is 5-6px wider.
 inline constexpr double kFauxBoldEmFraction = 0.03;
 
+// Photoshop's faux italic (runs v6): a synthetic slant of the run's own face. Unlike faux bold
+// it cannot be expressed through QFont at all -- setStyle(QFont::StyleOblique) resolves to the
+// family's REAL Italic face when one exists (measured on Arial: same styleName, identical ink) --
+// so the renderer shears the drawn line instead.
+inline constexpr int kTextFauxItalicFormatProperty = QTextFormat::UserProperty + 41;
+
+// Horizontal offset per unit of height above the baseline, i.e. tan of the slant angle. 12
+// degrees, matching Photoshop's synthetic slant.
+inline constexpr double kFauxItalicSlant = 0.2126;
+
 // One visual line as the renderer draws it: the line, the origin it is drawn at, and the
 // rect it is clipped to. `block_position` is the owning block's document position, which
 // QTextLine alone cannot recover (its lineNumber() is an index within its own block's

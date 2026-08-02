@@ -37,6 +37,11 @@ struct PsdTextStyleRun {
   // (Georgia Bold Italic is ~14% wider than faux-bolded Georgia Italic) and because Photoshop's
   // own Character panel shows them as separate controls.
   bool faux_bold{false};
+  // Photoshop's /FauxItalic: a synthetic slant of the named face, NOT a request for the family's
+  // real italic face. Separate for the same reason as faux_bold, and because Qt cannot express it
+  // through QFont at all -- setStyle(StyleOblique) resolves to the real Italic face when one
+  // exists, so it is rendered as a shear.
+  bool faux_italic{false};
   // Fixed leading in engine units (document pixels through the TySh transform). Unset when the
   // run uses Photoshop auto leading (auto_leading), which is paragraph AutoLeading fraction x size.
   std::optional<double> leading;

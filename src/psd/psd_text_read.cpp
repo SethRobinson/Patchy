@@ -1224,7 +1224,9 @@ std::optional<std::vector<PsdTextStyleRun>> extract_engine_text_runs(std::span<c
     // Georgia Italic at 58. It rides its own flag and is rendered as a stroke; see faux bold in
     // docs/text-tool.md.
     run.faux_bold = engine_bool_after_key(dictionaries[index], "/FauxBold", defaults.faux_bold);
-    run.italic = engine_bool_after_key(dictionaries[index], "/FauxItalic", defaults.faux_italic);
+    // Same split for the slant: it thickens/slants the run's OWN face. Folding it into
+    // run.italic picked the family's real Italic face, a different typeface again.
+    run.faux_italic = engine_bool_after_key(dictionaries[index], "/FauxItalic", defaults.faux_italic);
     run.auto_leading = engine_bool_after_key(dictionaries[index], "/AutoLeading", defaults.auto_leading);
     // Photoshop records a stale /Leading value even for auto-leading runs; only a fixed
     // (non-auto) run's leading participates in layout.
@@ -1353,11 +1355,14 @@ bool text_run_size_is_integral(const PsdTextStyleRun& run) {
 //     run actually carries faux bold, which keeps existing files byte-identical.
 // v5: v4 + the face/style name (percent-encoded), for the styles bold+italic cannot name.
 //     Written only when a run really carries one, for the same byte-stability reason.
+// v6: v5 + Photoshop's faux italic flag (synthetic slant of the named face).
 std::string serialize_patchy_text_runs(std::span<const PsdTextStyleRun> runs) {
   const bool include_leading = std::any_of(runs.begin(), runs.end(), [](const PsdTextStyleRun& run) {
     return run.leading.has_value() && std::isfinite(*run.leading) && *run.leading > 0.0;
   });
-  const bool include_style =
+  const bool include_faux_italic =
+      std::any_of(runs.begin(), runs.end(), [](const PsdTextStyleRun& run) { return run.faux_italic; });
+  const bool include_style = include_faux_italic ||
       std::any_of(runs.begin(), runs.end(), [](const PsdTextStyleRun& run) { return !run.style.empty(); });
   const bool include_faux_bold = include_style ||
       std::any_of(runs.begin(), runs.end(), [](const PsdTextStyleRun& run) { return run.faux_bold; });
@@ -1367,8 +1372,11 @@ std::string serialize_patchy_text_runs(std::span<const PsdTextStyleRun> runs) {
                std::abs(run.horizontal_scale - 1.0) > 0.0001 || std::abs(run.vertical_scale - 1.0) > 0.0001;
       });
   std::string serialized =
-      include_style ? "v5"
-                    : (include_faux_bold ? "v4" : (photoshop_layout ? "v3" : (include_leading ? "v2" : "v1")));
+      include_faux_italic
+          ? "v6"
+          : (include_style ? "v5"
+                           : (include_faux_bold ? "v4"
+                                                : (photoshop_layout ? "v3" : (include_leading ? "v2" : "v1"))));
   for (const auto& run : runs) {
     serialized += '\n';
     serialized += std::to_string(run.start);
@@ -1410,6 +1418,10 @@ std::string serialize_patchy_text_runs(std::span<const PsdTextStyleRun> runs) {
       if (include_style) {
         serialized += '\t';
         serialized += percent_encode(run.style);
+      }
+      if (include_faux_italic) {
+        serialized += '\t';
+        serialized += run.faux_italic ? '1' : '0';
       }
     } else if (include_leading) {
       serialized += '\t';

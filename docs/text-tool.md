@@ -230,7 +230,7 @@ reported "clicking italics does nothing" on the Dungeon Scroll buttons).
 
 ## Character panel
 
-- Opened via options bar > Character... while the Text tool is active. It edits the LIVE editor session (leading auto/fixed, tracking, H/V glyph scales, faux bold) per selection.
+- Opened via options bar > Character... while the Text tool is active. It edits the LIVE editor session (leading auto/fixed, tracking, H/V glyph scales, faux bold, faux italic) per selection.
 - With no live session its controls gray out and a hint label (`textCharacterHint`) says to click in text; the state is kept live by `refresh_options_bar()` calling `sync_text_character_dialog_from_editor()` (every session boundary funnels through that refresh). Without that call the non-modal dialog kept stale enabled controls after a commit and edits silently no-oped (`ui_text_character_panel_disables_without_session` pins it).
 - Its dialog (`textCharacterDialog`) is exempted from the editor's focus-loss auto-commit via `is_text_option_widget`.
 - Setting fixed leading opts the layer into the Photoshop layout marker at commit (explicit leading does not render under Qt-natural layout; see the Photoshop text model section below).
@@ -248,7 +248,7 @@ Probe PSDs `photoshop-text-*.psd`. The rules apply when `kLayerMetadataTextLayou
 - **Tracking = FontSize x tracking/1000 px per inter-glyph gap** (not after the last glyph), as absolute letter spacing.
 - **VerticalScale/HorizontalScale scale glyphs only**; auto leading stays 1.2 x FontSize, unscaled.
 
-Run format "patchy.text.runs" v3 adds double sizes, a leading column (number or `auto`), tracking, and H/V glyph scales; v4 appends the faux-bold flag; paragraph v3 appends the auto-leading fraction. Every column is read by INDEX, so the version token only rises when a run actually needs the new column and existing files stay byte-identical. Patchy-authored text keeps v1/v2 and Qt-natural layout (the PS model is opt-in per layer, so Patchy PSDs reopen unchanged). Export writes `/AutoLeading false` for fixed leading (PS ignores it otherwise), non-zero `/Tracking`, non-1 `/HorizontalScale`/`/VerticalScale`.
+Run format "patchy.text.runs" v3 adds double sizes, a leading column (number or `auto`), tracking, and H/V glyph scales; v4 appends the faux-bold flag, v5 the face/style name, v6 the faux-italic flag; paragraph v3 appends the auto-leading fraction. Every column is read by INDEX, so the version token only rises when a run actually needs the new column and existing files stay byte-identical. Patchy-authored text keeps v1/v2 and Qt-natural layout (the PS model is opt-in per layer, so Patchy PSDs reopen unchanged). Export writes `/AutoLeading false` for fixed leading (PS ignores it otherwise), non-zero `/Tracking`, non-1 `/HorizontalScale`/`/VerticalScale`.
 
 ## Faux bold is not the bold face
 
@@ -274,11 +274,29 @@ such a layer used to come up Bold + Italic when Photoshop shows only Italic.
 - Export writes `/FauxBold` from `faux_bold` alone. The run's real weight already rides in the
   font name `font_index_for_run` resolves (`Arial-BoldMT`, not Arial + FauxBold); writing both
   made Photoshop embolden an already-bold face.
-- `/FauxItalic` is still conflated with `run.italic`, so a real italic face round-trips with
-  `/FauxItalic true`. Known gap, same class of bug. It needs a real shear to render: measured on
-  Arial, `QFont::setStyle(QFont::StyleOblique)` resolves to the family's REAL Italic face
-  (`QFontInfo::styleName()` comes back "Italic", identical ink), so Qt cannot express "slant the
-  regular face" through QFont at all.
+## Faux italic is a shear, not a font
+
+`/FauxItalic` splits from `run.italic` exactly as faux bold splits from `run.bold`: it slants the
+run's OWN face and must not resolve to the family's real Italic, which is a different typeface.
+It rides `PsdTextStyleRun::faux_italic` and runs v6 column 13, the Character panel edits it
+(`textCharacterFauxItalic`), and export writes `/FauxItalic` from that flag alone.
+
+Rendering it cannot go through QFont. Measured on Arial, `QFont::setStyle(QFont::StyleOblique)`
+resolves to the family's REAL Italic face (`QFontInfo::styleName()` returns "Italic", pixel-
+identical ink), so Qt has no way to say "slant the regular face". The renderer shears the drawn
+line instead, about that line's own baseline (`faux_italic_shear`, `kFauxItalicSlant` = tan 12
+degrees), which leaves advances alone the way Photoshop does and only grows the raster's right
+bleed by the lean.
+
+- **The shear is per LINE, not per run.** `QTextLine::draw` draws a whole line, so
+  `line_is_entirely_faux_italic` gates it: a line whose runs disagree stays upright rather than
+  slanting runs that did not ask for it. Per-run fidelity would mean replacing the draw path with
+  `QTextLine::glyphRuns()` + `QPainter::drawGlyphRun`, which would have to reapply colour, the
+  faux-bold outline and selection per glyph run and would expose every pinned pixel baseline in
+  the suite. Known gap; faux italic is a layer-level choice in every file in the corpus.
+- `ui_faux_italic_shears_the_rendered_glyphs` pins it geometrically on "HH" (nothing but vertical
+  stems): upright ink starts at the same column top and bottom, sheared ink starts ~8px further
+  right at the top of a 64px cap.
 
 ## Glyph sizes fold only to whole pixels
 
