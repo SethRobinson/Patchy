@@ -6220,12 +6220,17 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
     sync_text_alignment_buttons_from_editor();
     update_text_editor_preview_caret(*editor, canvas_ != nullptr ? canvas_->zoom() : 1.0);
     update_text_editor_transform_overlay(editor);
+    // Own the invalidation: the caret and highlight are painted from the shared layout, whose
+    // geometry Qt knows nothing about, so the damage region QWidgetTextControl computes from
+    // its OWN layout cannot be trusted to cover them.
+    editor->viewport()->update();
   });
   connect(editor, &QTextEdit::selectionChanged, editor, [this, editor = QPointer<QTextEdit>(editor)] {
     sync_text_options_from_active_editor();
     if (editor != nullptr) {
       update_text_editor_preview_caret(*editor, canvas_ != nullptr ? canvas_->zoom() : 1.0);
       update_text_editor_transform_overlay(editor);
+      editor->viewport()->update();
     }
   });
   editor->show();
