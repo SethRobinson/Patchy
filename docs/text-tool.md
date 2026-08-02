@@ -160,8 +160,43 @@ historically skipped the line plan and cut the straddling line mid-glyph at the 
 The metadata path keeps the buffer origin and width at the frame's and grows only the
 bottom, because pixels-only callers place the buffer at the frame corner.
 
+## The style picker, and what bold + italic cannot say
+
+A family's faces are an arbitrary list; bold and italic can only name four of them. The options
+bar carries a style picker (`textStyleCombo`) populated from `QFontDatabase::styles(family)`, and
+`PsdTextStyleRun::style` / runs v5 column 12 persist the chosen face. `render_text_font_for_display_family`
+takes it as its last argument and applies `setStyleName` when the family really offers it,
+falling back to the flags otherwise (a style carried over from another family, or from a machine
+where that font was installed, must not render nothing).
+
+- **A style is recorded only when the flags cannot express it.** The DirectWrite resolver drops
+  Regular/Bold/Italic/Bold Italic/Oblique, so ordinary imports stay on v3/v4 and the byte-stability
+  canaries do not move. The picker derives those four from `bold`/`italic` instead.
+- The Bold/Italic buttons stay as the shortcut for the four they can name and track the picker in
+  both directions (`sync_text_style_combo_from_flags`, `apply_text_style_to_active_editor`).
+- `textStyleCombo` needs the `is_text_option_widget` exemption like every other option widget, or
+  focusing it auto-commits the session.
+
+**Options-bar changes with NO selection apply to the whole type object**, the way Photoshop does.
+`merge_text_char_format` used to fall through to `QTextEdit::mergeCurrentCharFormat`, which only
+sets the format the NEXT typed character gets, so clicking Bold, Italic, a family, a size or a
+colour with a bare caret left every existing run untouched and they won at render time (the
+reported "clicking italics does nothing" on the Dungeon Scroll buttons).
+
 ## Font resolution
 
+- **A family that resolves but covers none of the layer's characters counts as MISSING.** Patchy
+  bundles Noto Naskh Arabic (third_party/fonts), so the family is in the database, but its cmap
+  holds no Latin letters at all: space, `!`, `,`, `.`, `:` and the digits are the whole ASCII
+  coverage. A Latin type layer set in it therefore reported "font available", skipped the
+  substitution warning, and rendered entirely in the Latin fallback. `text_family_draws_any_of`
+  probes per writing system with `QRawFont::fromFont(font, system)` and requires the face that
+  comes back to BE the requested family: asking without the writing system resolves through the
+  default script, so a family that cannot draw Latin quietly returns the Latin fallback and
+  reports full coverage. "Any", not "all" -- one exotic glyph missing is ordinary per-glyph
+  fallback, not a missing font. `missing_text_families_for_layer` (declared in
+  main_window_shared.hpp) is the shared entry point; the layer panel draws a warning triangle on
+  the "T" tile and names the font in the thumbnail tooltip.
 - `render_text_font_for_display_family` resolves a display name first as a
   family, then as family + style ("Arial Black" -> "Arial"/"Black"). If BOTH
   fail on Windows, `try_register_missing_system_font_family` loads every
@@ -239,8 +274,11 @@ such a layer used to come up Bold + Italic when Photoshop shows only Italic.
 - Export writes `/FauxBold` from `faux_bold` alone. The run's real weight already rides in the
   font name `font_index_for_run` resolves (`Arial-BoldMT`, not Arial + FauxBold); writing both
   made Photoshop embolden an already-bold face.
-- `/FauxItalic` is still conflated with `run.italic` (no synthetic-oblique renderer), so a real
-  italic face round-trips with `/FauxItalic true`. Known gap, same class of bug.
+- `/FauxItalic` is still conflated with `run.italic`, so a real italic face round-trips with
+  `/FauxItalic true`. Known gap, same class of bug. It needs a real shear to render: measured on
+  Arial, `QFont::setStyle(QFont::StyleOblique)` resolves to the family's REAL Italic face
+  (`QFontInfo::styleName()` comes back "Italic", identical ink), so Qt cannot express "slant the
+  regular face" through QFont at all.
 
 ## Glyph sizes fold only to whole pixels
 
