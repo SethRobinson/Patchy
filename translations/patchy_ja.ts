@@ -13785,6 +13785,14 @@ Clipped to the layer below</source>
         <translation>最近使用したファイル</translation>
     </message>
     <message>
+        <source>Filter recent files...</source>
+        <translation>最近使ったファイルを絞り込み...</translation>
+    </message>
+    <message>
+        <source>No matching recent files</source>
+        <translation>一致する最近使ったファイルはありません</translation>
+    </message>
+    <message>
         <source>You can also drop image files anywhere in the window</source>
         <translation>画像ファイルをウィンドウにドロップして開くこともできます</translation>
     </message>

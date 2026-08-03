@@ -13,9 +13,11 @@
 #include <QFontMetrics>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QLineEdit>
 #include <QListWidget>
 #include <QPainter>
 #include <QPushButton>
+#include <QShowEvent>
 #include <QStyledItemDelegate>
 #include <QStyleOptionViewItem>
 #include <QVBoxLayout>
@@ -75,6 +77,17 @@ class RecentFileDelegate final : public QStyledItemDelegate {
   void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override {
     painter->save();
     const QRect row = option.rect.adjusted(2, 2, -2, -2);
+    const auto path = index.data(kRecentPathRole).toString();
+    if (path.isEmpty()) {
+      // The no-match placeholder: one dimmed line, and no hover or selection
+      // chrome, because there is nothing here to click.
+      painter->setPen(theme().start_panel_muted_text);
+      painter->drawText(row.adjusted(10, 0, -10, 0), Qt::AlignLeft | Qt::AlignVCenter,
+                        index.data(Qt::DisplayRole).toString());
+      painter->restore();
+      return;
+    }
+
     const bool selected = (option.state & QStyle::State_Selected) != 0;
     const bool hovered = (option.state & QStyle::State_MouseOver) != 0;
     if (selected || hovered) {
@@ -85,7 +98,7 @@ class RecentFileDelegate final : public QStyledItemDelegate {
       painter->setRenderHint(QPainter::Antialiasing, false);
     }
 
-    const QFileInfo info(index.data(kRecentPathRole).toString());
+    const QFileInfo info(path);
     const QRect text_area = row.adjusted(10, 3, -10, -3);
     const auto name_font = offset_font(option.font, 0, true);
     painter->setFont(name_font);
@@ -168,9 +181,23 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
   column_layout->addLayout(buttons_row);
   column_layout->addSpacing(6);
 
+  // Section header: the label on the left, the name filter riding the empty space
+  // on the right so it lines up with the list's edge.
+  auto* recent_header = new QHBoxLayout();
+  recent_header->setSpacing(10);
   recent_label_ = new QLabel(tr("Recent Files"), column);
   recent_label_->setObjectName(QStringLiteral("startPanelRecentLabel"));
-  column_layout->addWidget(recent_label_);
+  recent_header->addWidget(recent_label_);
+  recent_header->addStretch(1);
+  recent_filter_edit_ = new QLineEdit(column);
+  recent_filter_edit_->setObjectName(QStringLiteral("startPanelRecentFilterEdit"));
+  recent_filter_edit_->setClearButtonEnabled(true);
+  recent_filter_edit_->setPlaceholderText(tr("Filter recent files..."));
+  recent_filter_edit_->setFixedHeight(24);
+  recent_filter_edit_->setMinimumWidth(140);
+  recent_filter_edit_->setMaximumWidth(230);
+  recent_header->addWidget(recent_filter_edit_, 1);
+  column_layout->addLayout(recent_header);
 
   recent_list_ = new RecentFileList(column);
   recent_list_->setObjectName(QStringLiteral("startPanelRecentList"));
@@ -278,18 +305,24 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
 
   connect(new_button, &QPushButton::clicked, this, &StartPanel::new_document_requested);
   connect(open_button, &QPushButton::clicked, this, &StartPanel::open_requested);
+  connect(recent_filter_edit_, &QLineEdit::textChanged, this, [this] { rebuild_recent_rows(); });
+  // Enter opens the top match, the way the Open Recent menu's filter row does.
+  connect(recent_filter_edit_, &QLineEdit::returnPressed, this, [this] { open_first_recent_match(); });
   connect(recent_list_, &QListWidget::itemClicked, this, [this](QListWidgetItem* item) {
-    if (item != nullptr) {
+    // An empty path is the no-match placeholder row, which opens nothing.
+    if (item != nullptr && !item->data(kRecentPathRole).toString().isEmpty()) {
       emit recent_file_requested(item->data(kRecentPathRole).toString());
     }
   });
   // customContextMenuRequested reports viewport coordinates for a scroll area, which
   // is what both itemAt and the viewport's mapToGlobal want.
   connect(recent_list_, &QListWidget::customContextMenuRequested, this, [this](const QPoint& position) {
-    if (auto* item = recent_list_->itemAt(position); item != nullptr) {
-      emit recent_file_context_menu_requested(item->data(kRecentPathRole).toString(),
-                                              recent_list_->viewport()->mapToGlobal(position));
+    auto* item = recent_list_->itemAt(position);
+    if (item == nullptr || item->data(kRecentPathRole).toString().isEmpty()) {
+      return;
     }
+    emit recent_file_context_menu_requested(item->data(kRecentPathRole).toString(),
+                                            recent_list_->viewport()->mapToGlobal(position));
   });
 
   set_themed_style(*this, QStringLiteral(R"(
@@ -359,28 +392,86 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
       border-radius: 5px;
       padding: 3px;
     }
+    QLineEdit#startPanelRecentFilterEdit {
+      background: @list_surface_bg;
+      border: 1px solid @list_surface_border;
+      border-radius: 5px;
+      color: @text_primary;
+      font-size: 11px;
+      padding: 0 8px;
+    }
+    QLineEdit#startPanelRecentFilterEdit:focus {
+      border-color: @accent_bright;
+    }
   )"));
   set_recent_files({});
 }
 
 void StartPanel::set_recent_files(const QStringList& paths) {
-  recent_list_->clear();
+  recent_paths_.clear();
   for (const auto& path : paths) {
-    if (recent_list_->count() >= kMaxRecentEntries) {
+    if (recent_paths_.size() >= kMaxRecentEntries) {
       break;
     }
     const QFileInfo info(path);
     if (!info.isFile()) {
       continue;  // Recent entries can outlive their files; dead rows would just error on click.
     }
-    auto* item = new QListWidgetItem(info.fileName(), recent_list_);
-    item->setData(kRecentPathRole, info.absoluteFilePath());
-    item->setToolTip(QDir::toNativeSeparators(info.absoluteFilePath()));
+    recent_paths_ << info.absoluteFilePath();
   }
-  const bool has_entries = recent_list_->count() > 0;
+  rebuild_recent_rows();
+}
+
+void StartPanel::rebuild_recent_rows() {
+  recent_list_->clear();
+  const auto tokens = recent_filter_edit_->text().simplified().split(QLatin1Char(' '), Qt::SkipEmptyParts);
+  for (const auto& path : recent_paths_) {
+    const auto native_path = QDir::toNativeSeparators(path);
+    // The Open Recent menu's matching rule: every token, anywhere in the whole
+    // path, case-insensitive, so a folder name narrows as well as a file name.
+    const bool matches = std::all_of(tokens.begin(), tokens.end(), [&native_path](const QString& token) {
+      return native_path.contains(token, Qt::CaseInsensitive);
+    });
+    if (!matches) {
+      continue;
+    }
+    auto* item = new QListWidgetItem(QFileInfo(path).fileName(), recent_list_);
+    item->setData(kRecentPathRole, path);
+    item->setToolTip(native_path);
+  }
+
+  const bool has_entries = !recent_paths_.isEmpty();
+  if (has_entries && recent_list_->count() == 0) {
+    // Keeps the box where it is while a filter hides every row, instead of
+    // collapsing the section under the edit the user is typing into. The empty
+    // path role is what marks this row as a placeholder everywhere else.
+    auto* item = new QListWidgetItem(tr("No matching recent files"), recent_list_);
+    item->setData(kRecentPathRole, QString());
+  }
   recent_label_->setVisible(has_entries);
+  recent_filter_edit_->setVisible(has_entries);
   recent_list_->setVisible(has_entries);
   recent_list_->updateGeometry();  // RecentFileList sizes itself from the new row count
+}
+
+void StartPanel::open_first_recent_match() {
+  for (int index = 0; index < recent_list_->count(); ++index) {
+    const auto path = recent_list_->item(index)->data(kRecentPathRole).toString();
+    if (!path.isEmpty()) {
+      emit recent_file_requested(path);
+      return;
+    }
+  }
+}
+
+void StartPanel::showEvent(QShowEvent* event) {
+  QWidget::showEvent(event);
+  // The panel comes back with a clean filter, focused, so the next file can be
+  // found by typing its name without clicking first.
+  recent_filter_edit_->clear();
+  if (!recent_paths_.isEmpty()) {
+    recent_filter_edit_->setFocus(Qt::OtherFocusReason);
+  }
 }
 
 void StartPanel::set_update_status(const QString& text) {

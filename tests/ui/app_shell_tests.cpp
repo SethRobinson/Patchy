@@ -2518,6 +2518,88 @@ void ui_start_panel_recent_files_scroll_and_context_menu() {
   CHECK(tabs->count() == 0);
 }
 
+void ui_start_panel_recent_filter_narrows_rows_and_opens_match() {
+  ensure_artifact_dir();
+  // kRecentPathRole in start_panel.cpp; an empty path marks the no-match placeholder.
+  constexpr int kRecentPathRole = Qt::UserRole + 1;
+  QStringList recent_files;
+  for (const auto* name : {"start_panel_filter_alpha", "start_panel_filter_beta", "start_panel_filter_gamma"}) {
+    const auto path =
+        QFileInfo(QStringLiteral("test-artifacts/%1.png").arg(QLatin1String(name))).absoluteFilePath();
+    QImage image(32, 24, QImage::Format_RGB32);
+    image.fill(QColor(70, 130, 180));
+    CHECK(image.save(path));
+    recent_files << path;
+  }
+
+  SettingsValueRestorer recent_files_restorer(QStringLiteral("recentFiles"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("recentFiles"), recent_files);
+    settings.sync();
+  }
+
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  auto* panel = window.findChild<QWidget*>(QStringLiteral("startPanel"));
+  auto* recent_list = window.findChild<QListWidget*>(QStringLiteral("startPanelRecentList"));
+  auto* filter_edit = window.findChild<QLineEdit*>(QStringLiteral("startPanelRecentFilterEdit"));
+  CHECK(tabs != nullptr);
+  CHECK(panel != nullptr);
+  CHECK(recent_list != nullptr);
+  CHECK(filter_edit != nullptr);
+  CHECK(filter_edit->isVisible());
+  CHECK(filter_edit->text().isEmpty());
+  CHECK(recent_list->count() == 3);
+  // The panel opens with the filter focused, so a name can be typed straight away.
+  CHECK(window.focusWidget() == filter_edit);
+
+  filter_edit->setText(QStringLiteral("beta"));
+  QApplication::processEvents();
+  CHECK(recent_list->count() == 1);
+  CHECK(recent_list->item(0)->text() == QStringLiteral("start_panel_filter_beta.png"));
+
+  // The whole path is matched, so a folder name narrows the same way a file name does.
+  filter_edit->setText(QStringLiteral("test-artifacts"));
+  QApplication::processEvents();
+  CHECK(recent_list->count() == 3);
+
+  // Nothing matching keeps the box in place with one dimmed placeholder row that
+  // opens no document when clicked.
+  filter_edit->setText(QStringLiteral("no-such-recent-file"));
+  QApplication::processEvents();
+  CHECK(recent_list->isVisible());
+  CHECK(recent_list->count() == 1);
+  CHECK(recent_list->item(0)->data(kRecentPathRole).toString().isEmpty());
+  save_widget_artifact("ui_start_panel_recent_filter", window);
+  const auto placeholder_center = recent_list->visualItemRect(recent_list->item(0)).center();
+  send_mouse(*recent_list->viewport(), QEvent::MouseButtonPress, placeholder_center, Qt::LeftButton,
+             Qt::LeftButton);
+  send_mouse(*recent_list->viewport(), QEvent::MouseButtonRelease, placeholder_center, Qt::LeftButton,
+             Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(tabs->count() == 0);
+  CHECK(panel->isVisible());
+
+  // Enter opens the top match without touching the mouse.
+  filter_edit->setText(QStringLiteral("gamma"));
+  QApplication::processEvents();
+  CHECK(recent_list->count() == 1);
+  send_key(*filter_edit, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(tabs->count() == 1);
+  CHECK(!panel->isVisible());
+  CHECK(tabs->tabText(0) == QStringLiteral("start_panel_filter_gamma.png"));
+
+  // The filter starts clean every time the panel comes back.
+  CHECK(QMetaObject::invokeMethod(tabs, "tabCloseRequested", Qt::DirectConnection, Q_ARG(int, 0)));
+  QApplication::processEvents();
+  CHECK(panel->isVisible());
+  CHECK(filter_edit->text().isEmpty());
+  CHECK(recent_list->count() == 3);
+}
+
 void ui_start_panel_shows_about_info_and_update_status() {
   patchy::ui::MainWindow window;
   show_window_empty(window);
@@ -3244,6 +3326,8 @@ std::vector<patchy::test::TestCase> app_shell_tests() {
       {"ui_startup_opens_empty_workspace_with_start_panel", ui_startup_opens_empty_workspace_with_start_panel},
       {"ui_start_panel_recent_files_open_on_click", ui_start_panel_recent_files_open_on_click},
       {"ui_start_panel_recent_files_scroll_and_context_menu", ui_start_panel_recent_files_scroll_and_context_menu},
+      {"ui_start_panel_recent_filter_narrows_rows_and_opens_match",
+       ui_start_panel_recent_filter_narrows_rows_and_opens_match},
       {"ui_start_panel_shows_about_info_and_update_status", ui_start_panel_shows_about_info_and_update_status},
       {"ui_main_window_renders_color_controls", ui_main_window_renders_color_controls},
       {"ui_tool_palette_overflow_hides_quick_mask_before_swatches",
