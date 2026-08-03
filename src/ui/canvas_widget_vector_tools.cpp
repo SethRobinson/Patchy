@@ -10,8 +10,10 @@
 #include "ui/canvas_widget.hpp"
 
 #include "core/document_path.hpp"
+#include "core/layer_render_utils.hpp"
 #include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
+#include "ui/qt_geometry.hpp"
 
 #include <QDateTime>
 #include <QKeyEvent>
@@ -595,10 +597,15 @@ void CanvasWidget::add_subpaths_to_vector_mask(std::vector<PathSubpath> subpaths
     subpath.shape_group = group;
     mask.path.subpaths.push_back(std::move(subpath));
   }
+  const auto old_effect_rect =
+      to_qrect(layer_bounds_with_effects(std::as_const(*layer), std::as_const(*layer).bounds()));
   layer->set_vector_mask(std::move(mask));
   mark_layer_vector_block_dirty(*layer);
   update_vector_mask_raster(*layer, Rect::from_size(document_->width(), document_->height()));
-  document_changed();
+  // Bounded: the mask only attenuates this layer, so a full-canvas
+  // recomposite per commit is wasted work.
+  document_changed_effect_bounds(old_effect_rect.united(
+      to_qrect(layer_bounds_with_effects(std::as_const(*layer), std::as_const(*layer).bounds()))));
   if (path_edited_callback_) {
     path_edited_callback_();
   }
@@ -617,12 +624,17 @@ void CanvasWidget::apply_path_edit(VectorPath path, const QString& label,
   }
   if (layer_edit_target_ == LayerEditTarget::VectorMask) {
     if (auto* layer = vector_mask_target_layer(); layer != nullptr) {
+      const auto old_effect_rect =
+          to_qrect(layer_bounds_with_effects(std::as_const(*layer), std::as_const(*layer).bounds()));
       auto mask = *layer->vector_mask();
       mask.path = std::move(path);
       layer->set_vector_mask(std::move(mask));
       mark_layer_vector_block_dirty(*layer);
       update_vector_mask_raster(*layer, Rect::from_size(document_->width(), document_->height()));
-      document_changed();
+      // Bounded: this runs on EVERY anchor-drag mouse move; the full-canvas
+      // recomposite it replaced was the drag's dominant cost.
+      document_changed_effect_bounds(old_effect_rect.united(
+          to_qrect(layer_bounds_with_effects(std::as_const(*layer), std::as_const(*layer).bounds()))));
       if (path_edited_callback_) {
         path_edited_callback_();
       }
@@ -640,6 +652,8 @@ void CanvasWidget::apply_path_edit(VectorPath path, const QString& label,
     return;
   }
   if (auto* layer = path_edit_target_layer(); layer != nullptr) {
+    const auto old_effect_rect =
+        to_qrect(layer_bounds_with_effects(std::as_const(*layer), std::as_const(*layer).bounds()));
     auto content = *layer->vector_shape();
     content.path = std::move(path);
     drop_origination_for_groups(content, touched_groups);
@@ -648,7 +662,11 @@ void CanvasWidget::apply_path_edit(VectorPath path, const QString& label,
     mark_layer_vector_block_dirty(*layer);
     update_vector_shape_raster(*layer, Rect::from_size(document_->width(), document_->height()),
                                &document_->metadata().patterns);
-    document_changed();
+    // Bounded: this runs on EVERY anchor-drag mouse move; the full-canvas
+    // recomposite it replaced was the drag's dominant cost (the re-bake can
+    // move the layer's bounds, hence the old/new union).
+    document_changed_effect_bounds(old_effect_rect.united(
+        to_qrect(layer_bounds_with_effects(std::as_const(*layer), std::as_const(*layer).bounds()))));
     if (path_edited_callback_) {
       path_edited_callback_();
     }

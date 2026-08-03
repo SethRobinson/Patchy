@@ -730,7 +730,9 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
                           ? move_base_display_image_for_zoom()
                           : (&image == &transform_base_cache_ && zoom_ < 1.0)
                                 ? transform_base_display_image_for_zoom()
-                                : image;
+                                : (&image == &warp_base_cache_ && zoom_ < 1.0)
+                                      ? warp_base_display_image_for_zoom()
+                                      : image;
       if (uses_deep_zoom_pixel_renderer(zoom_)) {
         draw_deep_zoom_image(painter, display_image, exposed_rect);
       } else if (pixel_aligned_view) {
@@ -838,7 +840,7 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
   };
   const bool draw_transform_overlay =
       transforming_layer_ && !transform_source_image_.isNull() && !transform_base_cache_.isNull();
-  const bool draw_warp_overlay = warping_layer_ && (!warp_preview_cache_.isNull() || !warp_base_cache_.isNull());
+  const bool draw_warp_overlay = warping_layer_ && (!warp_preview_patches_.empty() || !warp_base_cache_.isNull());
 
   painter.save();
   painter.setClipRect(target_rect);
@@ -852,10 +854,12 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
       draw_document_patch(patch, false);
     }
   } else if (draw_warp_overlay) {
-    if (!warp_preview_cache_.isNull()) {
-      draw_scaled_image(warp_preview_cache_);
-    } else {
-      draw_scaled_image(warp_base_cache_);
+    // Base (layer hidden) plus the warped layer's bounded patches: the
+    // full-document warp preview composite this replaced was the warp drag's
+    // dominant per-move cost.
+    draw_scaled_image(warp_base_cache_.isNull() ? render_cache_ : warp_base_cache_);
+    for (const auto& patch : warp_preview_patches_) {
+      draw_document_patch(patch, warp_base_cache_.isNull());
     }
   } else if (moving_layer_ && !moving_layers_.empty()) {
     const bool proxy_preview =
@@ -1537,6 +1541,40 @@ const QImage& CanvasWidget::transform_base_display_image_for_zoom() {
 
   const auto level = std::min<int>(target_level, static_cast<int>(transform_base_display_mip_cache_.size()));
   return level <= 0 ? transform_base_cache_ : transform_base_display_mip_cache_[level - 1];
+}
+
+// Same mip mirror for the warp base image (see move_base_display_image_for_zoom
+// for the phase rationale). A preview-scaled base is already at (or below)
+// display resolution and returns as-is.
+const QImage& CanvasWidget::warp_base_display_image_for_zoom() {
+  if (warp_base_cache_.isNull() || zoom_ >= 1.0 || warp_base_cache_scale_level_ > 0) {
+    return warp_base_cache_;
+  }
+
+  if (warp_base_display_mip_cache_.empty() || warp_base_display_mip_source_key_ != warp_base_cache_.cacheKey()) {
+    warp_base_display_mip_cache_.clear();
+    warp_base_display_mip_source_key_ = warp_base_cache_.cacheKey();
+  }
+
+  const auto target_level = display_mip_level_for_zoom(zoom_);
+  if (target_level <= 0) {
+    return warp_base_cache_;
+  }
+
+  while (static_cast<int>(warp_base_display_mip_cache_.size()) < target_level) {
+    const auto& previous =
+        warp_base_display_mip_cache_.empty() ? warp_base_cache_ : warp_base_display_mip_cache_.back();
+    const QSize next_size(std::max(1, (previous.width() + 1) / 2),
+                          std::max(1, (previous.height() + 1) / 2));
+    if (next_size == previous.size()) {
+      break;
+    }
+    warp_base_display_mip_cache_.push_back(
+        previous.scaled(next_size, Qt::IgnoreAspectRatio, Qt::SmoothTransformation).convertToFormat(previous.format()));
+  }
+
+  const auto level = std::min<int>(target_level, static_cast<int>(warp_base_display_mip_cache_.size()));
+  return level <= 0 ? warp_base_cache_ : warp_base_display_mip_cache_[level - 1];
 }
 
 QColor CanvasWidget::compose_document_pixel(std::int32_t x, std::int32_t y) const {

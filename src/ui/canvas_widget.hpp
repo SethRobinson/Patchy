@@ -960,6 +960,7 @@ private:
   [[nodiscard]] const QImage& display_image_for_zoom();
   [[nodiscard]] const QImage& curves_clipping_display_image_for_zoom();
   [[nodiscard]] const QImage& move_base_display_image_for_zoom();
+  [[nodiscard]] const QImage& warp_base_display_image_for_zoom();
   [[nodiscard]] QColor compose_document_pixel(std::int32_t x, std::int32_t y) const;
   void draw_checkerboard(QPainter& painter, const QRectF& rect, QRect exposed_rect) const;
   void draw_deep_zoom_image(QPainter& painter, const QImage& image, QRect exposed_rect) const;
@@ -1810,7 +1811,13 @@ private:
   double warp_style_value_{0.0};
   QImage warp_source_image_{};
   QImage warp_base_cache_{};
-  QImage warp_preview_cache_{};
+  // Level the warp base was composited at (preview-scaled document); 0 = full-res.
+  int warp_base_cache_scale_level_{0};
+  std::vector<QImage> warp_base_display_mip_cache_{};
+  qint64 warp_base_display_mip_source_key_{0};
+  // Bounded patches of the warped layer over its effect rect, drawn above the
+  // (layer-hidden) base cache.
+  std::vector<RenderedDocumentPatch> warp_preview_patches_{};
   // True when warp_content_to_document_ carries a composed free-transform stage
   // (the single-session toggle), so commit must bake even with an untouched mesh.
   bool warp_entry_changed_{false};

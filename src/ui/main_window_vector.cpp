@@ -7,6 +7,7 @@
 
 #include "core/blend_math.hpp"
 #include "core/document_path.hpp"
+#include "core/layer_render_utils.hpp"
 #include "core/layer_tree.hpp"
 #include "core/pattern_resource.hpp"
 #include "core/vector_live_shapes.hpp"
@@ -217,6 +218,8 @@ void MainWindow::create_or_extend_shape_layer(std::vector<PathSubpath> subpaths,
       if (auto* layer = doc.find_layer(*active);
           layer != nullptr && layer_is_vector_shape(*layer) && vector_lock_reason(*layer).empty()) {
         push_undo_snapshot(tr("Edit shape"));
+        const auto old_effect_rect =
+            to_qrect(layer_bounds_with_effects(std::as_const(*layer), std::as_const(*layer).bounds()));
         auto content = *layer->vector_shape();
         const auto group = content.path.next_shape_group();
         const auto op = combine_op_for_index(current_vector_combine_index_);
@@ -233,11 +236,17 @@ void MainWindow::create_or_extend_shape_layer(std::vector<PathSubpath> subpaths,
         layer->metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPatchy;
         mark_layer_vector_block_dirty(*layer);
         update_vector_shape_raster(*layer, canvas_rect, patterns);
-        refresh_layer_list();
+        // Extending a shape layer changes no row structure, and the commit
+        // only dirties the layer's own effect rect: a full layer-list rebuild
+        // plus full-canvas recomposite per combine drag dominated the shape
+        // workflow (synchronously so below the async-defer threshold and
+        // always on wasm).
+        refresh_layer_thumbnails();
         refresh_layer_controls();
         path_row_hidden_for_layer_.reset();  // a fresh drag re-shows the outline
         refresh_paths_panel();
-        canvas_->document_changed();
+        canvas_->document_changed_effect_bounds(old_effect_rect.united(
+            to_qrect(layer_bounds_with_effects(std::as_const(*layer), std::as_const(*layer).bounds()))));
         return;
       }
     }
@@ -277,7 +286,14 @@ void MainWindow::create_or_extend_shape_layer(std::vector<PathSubpath> subpaths,
   refresh_layer_controls();
   path_row_hidden_for_layer_.reset();
   refresh_paths_panel();  // the transient layer-path row auto-targets the new shape
-  canvas_->document_changed();
+  // Bounded: a new shape only dirties its own effect rect; the full-canvas
+  // recomposite per drag-out dominated shape workflows at small canvas sizes
+  // (synchronous below the async-defer threshold, always synchronous on wasm).
+  if (const auto* created = std::as_const(doc).find_layer(layer_id); created != nullptr) {
+    canvas_->document_changed_effect_bounds(to_qrect(layer_bounds_with_effects(*created, created->bounds())));
+  } else {
+    canvas_->document_changed();
+  }
   statusBar()->showMessage(tr("Created shape layer %1.").arg(QString::fromStdString(name)));
 }
 
@@ -545,11 +561,15 @@ void MainWindow::edit_active_shape_appearance() {
     }
     auto content = assemble_content(settings, *target->vector_shape());
     ensure_vector_fill_patterns(target_doc, content, pattern_library());
+    const auto old_effect_rect =
+        to_qrect(layer_bounds_with_effects(std::as_const(*target), std::as_const(*target).bounds()));
     target->set_vector_shape(std::move(content));
     target->metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPatchy;
     update_vector_shape_raster(*target, Rect::from_size(target_doc.width(), target_doc.height()),
                                &target_doc.metadata().patterns);
-    canvas_->document_changed();
+    // Bounded: the appearance preview applies per coalesced worker result.
+    canvas_->document_changed_effect_bounds(old_effect_rect.united(
+        to_qrect(layer_bounds_with_effects(std::as_const(*target), std::as_const(*target).bounds()))));
     refresh_layer_thumbnails();
   };
 
