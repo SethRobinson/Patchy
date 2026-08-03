@@ -114,6 +114,17 @@ bool uses_pixel_aligned_view(double zoom) noexcept;
 bool uses_deep_zoom_pixel_renderer(double zoom) noexcept;
 bool uses_smooth_display_scaling(double zoom, bool deep_pixel_renderer) noexcept;
 int display_mip_level_for_zoom(double zoom) noexcept;
+// Mip level for PREVIEW-ONLY display-resolution compositing (move drags): the
+// display mip level clamped to [0, 3].
+int preview_composite_level_for_zoom(double zoom) noexcept;
+// Expand a (non-negative) document rect outward so its edges land on the
+// 2^level mip-block grid. Patches aligned this way downscale to exactly the
+// same pixels the full-image mip chain produces for that area.
+QRect rect_aligned_to_mip_grid(QRect rect, int level) noexcept;
+// Map a grid-aligned, canvas-clipped full-res rect into the preview-scaled
+// document's coordinates (floor origin, ceil extent - the partial edge blocks
+// of a ceil-halved canvas stay covered).
+QRect preview_scaled_document_rect(QRect rect, int level) noexcept;
 
 // Selection crosshair / badge styling: a pure-black stroke (drawn antialiased so
 // the edges stay soft) over a white halo that extends ~1px on every side, so the

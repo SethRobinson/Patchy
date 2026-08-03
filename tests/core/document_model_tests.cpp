@@ -2,7 +2,9 @@
 #include "core/adjustment_layer.hpp"
 #include "core/blend_math.hpp"
 #include "core/document.hpp"
+#include "core/layer_render_utils.hpp"
 #include "core/layer_metadata.hpp"
+#include "render/compositor.hpp"
 #include "core/layer_tree.hpp"
 #include "core/gradient_presets.hpp"
 #include "filters/filter_engine.hpp"
@@ -458,6 +460,99 @@ void document_grid_guides_default_and_copy() {
   CHECK(copied.guides()[1].position_32 == 654);
 }
 
+void preview_scaled_document_shrinks_layers_and_styles() {
+  patchy::Document document(301, 203, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer background(301, 203, patchy::PixelFormat::rgba8());
+  background.clear(255);
+  document.add_pixel_layer("Background", std::move(background));
+
+  patchy::Layer folder(document.allocate_layer_id(), "Folder", patchy::LayerKind::Group);
+  patchy::PixelBuffer red(33, 21, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < red.height(); ++y) {
+    for (std::int32_t x = 0; x < red.width(); ++x) {
+      auto* px = red.pixel(x, y);
+      px[0] = 200;
+      px[1] = 30;
+      px[2] = 40;
+      px[3] = 255;
+    }
+  }
+  patchy::Layer child(document.allocate_layer_id(), "Styled Child", std::move(red));
+  const auto child_id = child.id();
+  child.set_bounds(patchy::Rect{-7, 13, 33, 21});
+  patchy::LayerDropShadow shadow;
+  shadow.enabled = true;
+  shadow.distance = 8.0F;
+  shadow.size = 12.0F;
+  child.layer_style().drop_shadows.push_back(shadow);
+  patchy::PixelBuffer mask_pixels(33, 21, patchy::PixelFormat::gray8());
+  mask_pixels.clear(255);
+  child.set_mask(patchy::LayerMask{patchy::Rect{-7, 13, 33, 21}, std::move(mask_pixels), 0, false});
+  folder.add_child(std::move(child));
+  document.add_layer(std::move(folder));
+
+  const auto scaled = patchy::build_preview_scaled_document(document, 2);
+  CHECK(scaled.width() == patchy::preview_scaled_dimension(301, 2));
+  CHECK(scaled.height() == patchy::preview_scaled_dimension(203, 2));
+  CHECK(scaled.width() == 76);
+  CHECK(scaled.height() == 51);
+
+  const auto* scaled_child = scaled.find_layer(child_id);
+  CHECK(scaled_child != nullptr);
+  // floor(-7/4) = -2, floor(13/4) = 3; buffer 33x21 ceil-halves twice to 9x6,
+  // and the scaled bounds must match the scaled buffer exactly.
+  CHECK(scaled_child->bounds().x == -2);
+  CHECK(scaled_child->bounds().y == 3);
+  CHECK(scaled_child->bounds().width == scaled_child->pixels().width());
+  CHECK(scaled_child->bounds().height == scaled_child->pixels().height());
+  CHECK(scaled_child->pixels().width() == 9);
+  CHECK(scaled_child->pixels().height() == 6);
+  // Solid content survives box averaging untouched.
+  const auto* scaled_px = scaled_child->pixels().pixel(4, 3);
+  CHECK(static_cast<int>(scaled_px[0]) == 200);
+  CHECK(static_cast<int>(scaled_px[3]) == 255);
+  CHECK(scaled_child->layer_style().drop_shadows.size() == 1U);
+  CHECK(scaled_child->layer_style().drop_shadows[0].distance == 2.0F);
+  CHECK(scaled_child->layer_style().drop_shadows[0].size == 3.0F);
+  CHECK(scaled_child->mask().has_value());
+  CHECK(scaled_child->mask()->bounds.x == -2);
+  CHECK(scaled_child->mask()->bounds.width == scaled_child->mask()->pixels.width());
+  CHECK(scaled_child->mask()->pixels.width() == 9);
+  CHECK(static_cast<int>(*scaled_child->mask()->pixels.pixel(4, 3)) == 255);
+}
+
+void preview_scaled_document_flatten_keeps_solid_regions() {
+  patchy::Document document(128, 96, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer background(128, 96, patchy::PixelFormat::rgba8());
+  background.clear(255);
+  document.add_pixel_layer("Background", std::move(background));
+  patchy::PixelBuffer red(64, 48, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < red.height(); ++y) {
+    for (std::int32_t x = 0; x < red.width(); ++x) {
+      auto* px = red.pixel(x, y);
+      px[0] = 210;
+      px[1] = 40;
+      px[2] = 50;
+      px[3] = 255;
+    }
+  }
+  patchy::Layer layer(document.allocate_layer_id(), "Solid", std::move(red));
+  layer.set_bounds(patchy::Rect{32, 16, 64, 48});
+  document.add_layer(std::move(layer));
+
+  const auto scaled = patchy::build_preview_scaled_document(document, 1);
+  CHECK(scaled.width() == 64);
+  CHECK(scaled.height() == 48);
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(scaled);
+  // Full-res red center (64, 40) sits at (32, 20) in the scaled composite;
+  // solid regions are exact under box averaging.
+  const auto* red_px = flattened.pixel(32, 20);
+  CHECK(static_cast<int>(red_px[0]) == 210);
+  CHECK(static_cast<int>(red_px[1]) == 40);
+  const auto* white_px = flattened.pixel(4, 4);
+  CHECK(static_cast<int>(white_px[0]) == 255);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> document_model_tests() {
@@ -485,5 +580,7 @@ std::vector<patchy::test::TestCase> document_model_tests() {
       {"layer_drop_roots_ignore_selected_descendants", layer_drop_roots_ignore_selected_descendants},
       {"document_print_settings_default_and_copy", document_print_settings_default_and_copy},
       {"document_grid_guides_default_and_copy", document_grid_guides_default_and_copy},
+      {"preview_scaled_document_shrinks_layers_and_styles", preview_scaled_document_shrinks_layers_and_styles},
+      {"preview_scaled_document_flatten_keeps_solid_regions", preview_scaled_document_flatten_keeps_solid_regions},
   };
 }

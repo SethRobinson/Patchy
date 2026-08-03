@@ -1954,6 +1954,57 @@ void ui_move_slow_live_frame_latches_proxy() {
   CHECK(color_close(canvas_pixel(canvas, QPoint(40, 60)), QColor(Qt::white), 20));
 }
 
+// At zoom <= 50% the live move preview composites from the preview-scaled
+// document (display-resolution compositing): the counter latches once per
+// drag, the preview shows the moved content, and the release renders full-res
+// with no trail.
+void ui_move_scaled_preview_composites_at_display_resolution() {
+  patchy::Document document(800, 600, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(800, 600, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  patchy::Layer layer(document.allocate_layer_id(), "Scaled Move",
+                      solid_pixels(120, 100, patchy::PixelFormat::rgba8(), QColor(210, 40, 40)));
+  const auto layer_id = layer.id();
+  layer.set_bounds(patchy::Rect{100, 80, 120, 100});
+  document.add_layer(std::move(layer));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(520, 380);
+  canvas.set_document(&document);
+  canvas.set_zoom(0.5);
+  canvas.set_tool(patchy::ui::CanvasTool::Move);
+  canvas.set_show_transform_controls(false);
+  canvas.set_auto_select_layer(false);
+  canvas.set_snap_enabled(false);
+  canvas.set_selected_layer_ids({layer_id});
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto before_stats = canvas.render_cache_diagnostics();
+  const auto start = canvas.widget_position_for_document_point(QPoint(160, 130));
+  send_mouse(canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, start + QPoint(30, 0), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  send_mouse(canvas, QEvent::MouseMove, start + QPoint(50, 0), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+
+  // (widget +50 at zoom 0.5 = +100 document px.)
+  const auto mid_drag_stats = canvas.render_cache_diagnostics();
+  CHECK(mid_drag_stats.move_scaled_previews == before_stats.move_scaled_previews + 1);
+  CHECK(mid_drag_stats.move_proxy_previews == before_stats.move_proxy_previews);
+  CHECK(mid_drag_stats.move_outline_previews == before_stats.move_outline_previews);
+  CHECK(color_close(canvas_pixel(canvas, QPoint(280, 130)), QColor(210, 40, 40), 45));
+  CHECK(color_close(canvas_pixel(canvas, QPoint(140, 130)), QColor(Qt::white), 30));
+
+  send_mouse(canvas, QEvent::MouseButtonRelease, start + QPoint(50, 0), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  const auto after_stats = canvas.render_cache_diagnostics();
+  CHECK(after_stats.move_scaled_previews == before_stats.move_scaled_previews + 1);
+  // Release is full-res accurate: moved content present, vacated area clean.
+  CHECK(color_close(canvas_pixel(canvas, QPoint(280, 130)), QColor(210, 40, 40), 45));
+  CHECK(color_close(canvas_pixel(canvas, QPoint(140, 130)), QColor(Qt::white), 15));
+  save_widget_artifact("ui_move_scaled_preview", canvas);
+}
+
 // Multi-rect region renders fan out across workers; every rect is the same
 // render_document_rect call either way, so the patch bytes must match the
 // PATCHY_RENDER_SINGLE_THREADED sequential loop exactly.
@@ -2619,6 +2670,8 @@ std::vector<patchy::test::TestCase> move_tool_processing_overlay_tests() {
       {"ui_move_styled_folder_live_preview_clears_shadow_trail",
        ui_move_styled_folder_live_preview_clears_shadow_trail},
       {"ui_move_slow_live_frame_latches_proxy", ui_move_slow_live_frame_latches_proxy},
+      {"ui_move_scaled_preview_composites_at_display_resolution",
+       ui_move_scaled_preview_composites_at_display_resolution},
       {"ui_parallel_region_patches_match_single_threaded", ui_parallel_region_patches_match_single_threaded},
       {"ui_layer_move_repaints_only_active_document_tab", ui_layer_move_repaints_only_active_document_tab},
       {"ui_arduboy_psd_render_path_if_available", ui_arduboy_psd_render_path_if_available},

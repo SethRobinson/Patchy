@@ -371,6 +371,36 @@ int display_mip_level_for_zoom(double zoom) noexcept {
   return level;
 }
 
+int preview_composite_level_for_zoom(double zoom) noexcept {
+  // The display mip level, clamped: previews composite at exactly the
+  // resolution the display path would downscale a full-res composite to, so
+  // scaled previews carry no extra upscaling blur - only the (preview-only)
+  // composite-order divergence of blending downscaled sources. The clamp
+  // bounds the scaled-document build cost at extreme zoom-out.
+  return std::min(display_mip_level_for_zoom(zoom), 3);
+}
+
+QRect rect_aligned_to_mip_grid(QRect rect, int level) noexcept {
+  const int block = 1 << level;
+  const int left = (rect.left() / block) * block;
+  const int top = (rect.top() / block) * block;
+  const int right = ((rect.right() / block) + 1) * block - 1;
+  const int bottom = ((rect.bottom() / block) + 1) * block - 1;
+  return QRect(QPoint(left, top), QPoint(right, bottom));
+}
+
+QRect preview_scaled_document_rect(QRect rect, int level) noexcept {
+  if (rect.isEmpty() || level <= 0) {
+    return rect;
+  }
+  const int scale = 1 << level;
+  const int x0 = rect.x() >> level;
+  const int y0 = rect.y() >> level;
+  const int x1 = (rect.x() + rect.width() + scale - 1) >> level;
+  const int y1 = (rect.y() + rect.height() + scale - 1) >> level;
+  return QRect(x0, y0, x1 - x0, y1 - y0);
+}
+
 void paint_selection_mode_badge(QPainter& painter, CanvasWidget::SelectionMode mode, QPointF center) {
   using SelectionMode = CanvasWidget::SelectionMode;
   if (mode == SelectionMode::Replace) {

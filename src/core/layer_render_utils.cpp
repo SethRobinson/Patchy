@@ -358,6 +358,181 @@ std::unordered_map<LayerId, AncestorGroupStyleInfo> collect_ancestor_group_style
   return info;
 }
 
+std::int32_t preview_scaled_dimension(std::int32_t value, int level) noexcept {
+  for (int i = 0; i < level && value > 1; ++i) {
+    value = (value + 1) / 2;
+  }
+  return value;
+}
+
+namespace {
+
+[[nodiscard]] PixelBuffer box_halve_pixel_buffer(const PixelBuffer& source) {
+  const auto width = source.width();
+  const auto height = source.height();
+  const auto out_width = std::max(1, (width + 1) / 2);
+  const auto out_height = std::max(1, (height + 1) / 2);
+  const auto channels = static_cast<int>(source.format().channels);
+  PixelBuffer output(out_width, out_height, source.format());
+  const bool has_alpha = channels == 4;
+  for (std::int32_t y = 0; y < out_height; ++y) {
+    const auto y0 = std::min(2 * y, height - 1);
+    const auto y1 = std::min(2 * y + 1, height - 1);
+    const auto row0 = source.row(y0);
+    const auto row1 = source.row(y1);
+    auto out_row = output.row(y);
+    for (std::int32_t x = 0; x < out_width; ++x) {
+      const auto x0 = std::min(2 * x, width - 1);
+      const auto x1 = std::min(2 * x + 1, width - 1);
+      const std::uint8_t* samples[4] = {row0.data() + static_cast<std::size_t>(x0) * channels,
+                                        row0.data() + static_cast<std::size_t>(x1) * channels,
+                                        row1.data() + static_cast<std::size_t>(x0) * channels,
+                                        row1.data() + static_cast<std::size_t>(x1) * channels};
+      auto* out = out_row.data() + static_cast<std::size_t>(x) * channels;
+      if (has_alpha) {
+        // Alpha-weighted color average: plain channel averaging bleeds the
+        // (often black) color of fully transparent texels into edges.
+        const int alpha_sum = samples[0][3] + samples[1][3] + samples[2][3] + samples[3][3];
+        for (int channel = 0; channel < 3; ++channel) {
+          if (alpha_sum > 0) {
+            int weighted = 0;
+            for (const auto* sample : samples) {
+              weighted += sample[channel] * sample[3];
+            }
+            out[channel] = static_cast<std::uint8_t>((weighted + alpha_sum / 2) / alpha_sum);
+          } else {
+            out[channel] = static_cast<std::uint8_t>(
+                (samples[0][channel] + samples[1][channel] + samples[2][channel] + samples[3][channel] + 2) / 4);
+          }
+        }
+        out[3] = static_cast<std::uint8_t>((alpha_sum + 2) / 4);
+      } else {
+        for (int channel = 0; channel < channels; ++channel) {
+          out[channel] = static_cast<std::uint8_t>(
+              (samples[0][channel] + samples[1][channel] + samples[2][channel] + samples[3][channel] + 2) / 4);
+        }
+      }
+    }
+  }
+  return output;
+}
+
+[[nodiscard]] std::int32_t preview_scaled_position(std::int32_t value, int level) noexcept {
+  // Floor division that stays a floor for negative coordinates (layers can
+  // hang off the canvas).
+  const auto scale = std::int32_t{1} << level;
+  return value >= 0 ? value / scale : -((-value + scale - 1) / scale);
+}
+
+[[nodiscard]] Rect preview_scaled_bounds_endpoints(Rect bounds, int level) noexcept {
+  if (bounds.empty()) {
+    return bounds;
+  }
+  const auto scale = std::int32_t{1} << level;
+  const auto x0 = preview_scaled_position(bounds.x, level);
+  const auto y0 = preview_scaled_position(bounds.y, level);
+  const auto x1 = preview_scaled_position(bounds.x + bounds.width + scale - 1, level);
+  const auto y1 = preview_scaled_position(bounds.y + bounds.height + scale - 1, level);
+  return Rect{x0, y0, std::max(1, x1 - x0), std::max(1, y1 - y0)};
+}
+
+void shrink_layer_for_preview(Layer& layer, int level) {
+  if (layer.kind() == LayerKind::Group) {
+    for (auto& child : layer.children()) {
+      shrink_layer_for_preview(child, level);
+    }
+    layer.set_bounds(preview_scaled_bounds_endpoints(layer.bounds(), level));
+  } else if (!layer.pixels().empty()) {
+    auto buffer = downscale_pixel_buffer_by_level(layer.pixels(), level);
+    const auto bounds = layer.bounds();
+    const Rect scaled_bounds{preview_scaled_position(bounds.x, level), preview_scaled_position(bounds.y, level),
+                             buffer.width(), buffer.height()};
+    layer.set_pixels(std::move(buffer));
+    layer.set_bounds(scaled_bounds);
+  } else {
+    layer.set_bounds(preview_scaled_bounds_endpoints(layer.bounds(), level));
+  }
+
+  if (layer.mask().has_value()) {
+    auto mask = *layer.mask();
+    if (!mask.pixels.empty()) {
+      mask.pixels = downscale_pixel_buffer_by_level(mask.pixels, level);
+      mask.bounds = Rect{preview_scaled_position(mask.bounds.x, level),
+                         preview_scaled_position(mask.bounds.y, level), mask.pixels.width(), mask.pixels.height()};
+    } else {
+      mask.bounds = preview_scaled_bounds_endpoints(mask.bounds, level);
+    }
+    layer.set_mask(std::move(mask));
+  }
+  if (const auto* vector_mask = layer.vector_mask(); vector_mask != nullptr) {
+    auto updated = *vector_mask;
+    if (!updated.cache.empty()) {
+      updated.cache = downscale_pixel_buffer_by_level(updated.cache, level);
+      updated.cache_bounds =
+          Rect{preview_scaled_position(updated.cache_bounds.x, level),
+               preview_scaled_position(updated.cache_bounds.y, level), updated.cache.width(), updated.cache.height()};
+    } else {
+      updated.cache_bounds = preview_scaled_bounds_endpoints(updated.cache_bounds, level);
+    }
+    updated.feather /= static_cast<double>(std::int32_t{1} << level);
+    layer.set_vector_mask(std::move(updated));
+  }
+
+  auto& style = layer.layer_style();
+  const auto scale = static_cast<float>(std::int32_t{1} << level);
+  for (auto& shadow : style.drop_shadows) {
+    shadow.distance /= scale;
+    shadow.size /= scale;
+  }
+  for (auto& shadow : style.inner_shadows) {
+    shadow.distance /= scale;
+    shadow.size /= scale;
+  }
+  for (auto& glow : style.outer_glows) {
+    glow.size /= scale;
+  }
+  for (auto& glow : style.inner_glows) {
+    glow.size /= scale;
+  }
+  for (auto& satin : style.satins) {
+    satin.distance /= scale;
+    satin.size /= scale;
+  }
+  for (auto& stroke : style.strokes) {
+    stroke.size /= scale;
+  }
+  for (auto& bevel : style.bevels) {
+    bevel.size /= scale;
+    bevel.soften /= scale;
+  }
+}
+
+}  // namespace
+
+PixelBuffer downscale_pixel_buffer_by_level(const PixelBuffer& source, int level) {
+  if (source.empty() || level <= 0) {
+    return source;
+  }
+  auto result = box_halve_pixel_buffer(source);
+  for (int i = 1; i < level; ++i) {
+    result = box_halve_pixel_buffer(result);
+  }
+  return result;
+}
+
+Document build_preview_scaled_document(const Document& document, int level) {
+  Document scaled(document);
+  if (level <= 0) {
+    return scaled;
+  }
+  scaled.resize_canvas(preview_scaled_dimension(document.width(), level),
+                       preview_scaled_dimension(document.height(), level));
+  for (auto& layer : scaled.layers()) {
+    shrink_layer_for_preview(layer, level);
+  }
+  return scaled;
+}
+
 bool layer_style_preview_is_expensive(const Layer& layer, Rect document_bounds) noexcept {
   const auto padding = layer_effect_padding(layer);
   if (padding <= 0 || document_bounds.empty()) {

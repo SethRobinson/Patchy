@@ -563,6 +563,9 @@ void CanvasWidget::document_changed_impl(QRegion document_region, bool includes_
     // canvas-owned buffer before another layer can become active and inherit it.
     clear_smart_filter_mask_edit_target();
   }
+  // Any document change invalidates the preview-scaled document; the next
+  // zoomed-out drag rebuilds it lazily.
+  clear_preview_scaled_document();
   cancel_async_render_cache_refresh();
   refresh_free_transform_preview_caches();
   if (mask_display_mode_ != MaskDisplayMode::None) {
@@ -746,6 +749,15 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
     const auto patch_target = widget_rect_for_document_rect(QRectF(patch.document_rect));
     const auto patch_exposed = patch_target.toAlignedRect().intersected(exposed_rect);
     if (patch_exposed.isEmpty()) {
+      return;
+    }
+
+    // Preview-scaled move patches: the image IS the mip for its full-res rect
+    // (composited from the scaled document, same source as the scaled base),
+    // so it draws directly - no checkerboard wipe (the base excludes the
+    // moving layers) and no re-downscale.
+    if (moving_layer_ && !moving_layers_.empty() && move_preview_patches_scale_level_ > 0) {
+      painter.drawImage(patch_target, patch.image, QRectF(patch.image.rect()));
       return;
     }
 
@@ -1319,6 +1331,22 @@ void CanvasWidget::ensure_move_base_cache() {
   }
 
   const QRect canvas_rect(0, 0, document_->width(), document_->height());
+  // Display-resolution compositing: when zoomed out, build the base from the
+  // preview-scaled document at the display mip level - the whole scaled base
+  // costs 4^level less than the full-res canvas.
+  if (const auto composite_level = preview_composite_level_for_zoom(zoom_); composite_level >= 1) {
+    if (auto* scaled_document = preview_scaled_document_for_level(composite_level)) {
+      const QRect scaled_canvas(0, 0, scaled_document->width(), scaled_document->height());
+      auto base = qimage_from_document_rect_with_hidden_layers_banded(*scaled_document, scaled_canvas, true, hidden)
+                      .convertToFormat(QImage::Format_RGBA8888);
+      if (!base.isNull()) {
+        move_base_cache_ = std::move(base);
+        move_base_cache_scale_level_ = composite_level;
+        return;
+      }
+    }
+  }
+  move_base_cache_scale_level_ = 0;
   // Recompositing the whole document (with the moving layers hidden) is very
   // slow on heavy PSDs and caused a multi-second hitch at the start of a drag.
   // Instead reuse the already-composited render cache and only re-render the
@@ -1365,6 +1393,7 @@ void CanvasWidget::ensure_move_base_cache() {
 
 void CanvasWidget::clear_move_base_cache() noexcept {
   move_base_cache_ = QImage();
+  move_base_cache_scale_level_ = 0;
   move_base_display_mip_cache_.clear();
   move_base_display_mip_source_key_ = 0;
 }
@@ -1441,7 +1470,9 @@ const QImage& CanvasWidget::curves_clipping_display_image_for_zoom() {
 // than the mips that were on screen before the drag, making the artwork under
 // the moving layer appear to shift inside every repainted dirty rect.
 const QImage& CanvasWidget::move_base_display_image_for_zoom() {
-  if (move_base_cache_.isNull() || zoom_ >= 1.0) {
+  // A preview-scaled base is already at (or below) display resolution; the
+  // painter's smooth transform bridges any remaining factor.
+  if (move_base_cache_.isNull() || zoom_ >= 1.0 || move_base_cache_scale_level_ > 0) {
     return move_base_cache_;
   }
 

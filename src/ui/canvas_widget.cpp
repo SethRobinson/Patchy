@@ -261,6 +261,7 @@ void CanvasWidget::set_document_internal(Document* document, bool preserve_frame
                                          bool normal_composite_unchanged) {
   cancel_pen_path();  // an in-flight path belongs to the outgoing document
   cancel_path_transform();
+  clear_preview_scaled_document();
   active_document_path_.reset();
   path_selected_anchors_.clear();
   clear_transient_read_interaction();

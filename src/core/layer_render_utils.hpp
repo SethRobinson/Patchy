@@ -50,6 +50,23 @@ struct AncestorGroupStyleInfo {
 // only each leaf's own style.
 [[nodiscard]] std::unordered_map<LayerId, AncestorGroupStyleInfo> collect_ancestor_group_style_info(
     const std::vector<Layer>& layers);
+
+// PREVIEW-ONLY display-resolution compositing support. `preview_scaled_dimension`
+// is `level` successive ceil-halvings (matching the display mip math);
+// `downscale_pixel_buffer_by_level` box-halves a gray8/rgb8/rgba8 buffer that
+// many times (alpha-weighted for rgba so transparent texels do not bleed dark
+// fringes); `build_preview_scaled_document` returns a copy of the document with
+// every raster surface downscaled by 2^level and coordinates plus style
+// falloffs (shadow/glow/stroke/satin/bevel sizes and distances, vector-mask
+// feather) scaled to match, layer ids and structure preserved. Blend math is
+// nonlinear, so compositing the scaled copy and upscaling is NOT
+// byte-comparable to downscaling a full-res composite: consumers must treat
+// the result as an interactive preview and re-render full-res on
+// commit/release. Pattern fills keep their full-res tiles (phase/scale drift
+// is part of the preview contract).
+[[nodiscard]] std::int32_t preview_scaled_dimension(std::int32_t value, int level) noexcept;
+[[nodiscard]] PixelBuffer downscale_pixel_buffer_by_level(const PixelBuffer& source, int level);
+[[nodiscard]] Document build_preview_scaled_document(const Document& document, int level);
 [[nodiscard]] bool layer_style_preview_is_expensive(const Layer& layer, Rect document_bounds) noexcept;
 // Vector-mask coverage sample (1.0 when absent/disabled; density folds in).
 // Both layer_mask_alpha_at overloads already multiply this in, so every mask

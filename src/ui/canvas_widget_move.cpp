@@ -324,9 +324,17 @@ bool CanvasWidget::ensure_move_proxy_image() {
   if (snapshot_rect.isEmpty()) {
     return false;
   }
+  // Display-resolution compositing: build the snapshot from the preview-scaled
+  // document when zoomed out. The scaled render is cheap enough that the
+  // last-resort area cap only applies to full-res snapshots.
+  const auto composite_level = preview_composite_level_for_zoom(zoom_);
+  Document* scaled_document = composite_level >= 1 ? preview_scaled_document_for_level(composite_level) : nullptr;
+  if (scaled_document != nullptr) {
+    snapshot_rect = rect_aligned_to_mip_grid(snapshot_rect, composite_level).intersected(canvas_rect);
+  }
   const auto snapshot_area =
       static_cast<std::int64_t>(snapshot_rect.width()) * static_cast<std::int64_t>(snapshot_rect.height());
-  if (snapshot_area > kMoveProxyLastResortSnapshotArea) {
+  if (scaled_document == nullptr && snapshot_area > kMoveProxyLastResortSnapshotArea) {
     return false;
   }
 
@@ -359,12 +367,18 @@ bool CanvasWidget::ensure_move_proxy_image() {
   // Banded: the snapshot is small but crosses the styled stack, and this
   // render is the other half of the latch hitch (preview-only, so the band
   // divergence class is acceptable).
-  auto snapshot = qimage_from_document_rect_with_hidden_layers_banded(*document_, snapshot_rect, true, hidden);
+  auto snapshot =
+      scaled_document != nullptr
+          ? qimage_from_document_rect_with_hidden_layers_banded(
+                *scaled_document, preview_scaled_document_rect(snapshot_rect, composite_level), true, hidden)
+          : qimage_from_document_rect_with_hidden_layers_banded(*document_, snapshot_rect, true, hidden);
   if (snapshot.isNull()) {
     return false;
   }
-  if (snapshot_area > kMoveProxyMaxPixels) {
-    const auto scale = std::sqrt(static_cast<double>(kMoveProxyMaxPixels) / static_cast<double>(snapshot_area));
+  const auto rendered_area =
+      static_cast<std::int64_t>(snapshot.width()) * static_cast<std::int64_t>(snapshot.height());
+  if (rendered_area > kMoveProxyMaxPixels) {
+    const auto scale = std::sqrt(static_cast<double>(kMoveProxyMaxPixels) / static_cast<double>(rendered_area));
     const QSize proxy_size(std::max(1, static_cast<int>(std::lround(snapshot.width() * scale))),
                            std::max(1, static_cast<int>(std::lround(snapshot.height() * scale))));
     snapshot = snapshot.scaled(proxy_size, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
@@ -392,6 +406,23 @@ void CanvasWidget::clear_move_proxy() noexcept {
   move_live_frame_slow_ = false;
   move_proxy_image_ = QImage();
   move_proxy_document_rect_ = QRect();
+}
+
+Document* CanvasWidget::preview_scaled_document_for_level(int level) {
+  if (document_ == nullptr || level < 1) {
+    return nullptr;
+  }
+  if (preview_scaled_document_.has_value() && preview_scaled_document_level_ == level) {
+    return &*preview_scaled_document_;
+  }
+  preview_scaled_document_.emplace(build_preview_scaled_document(std::as_const(*document_), level));
+  preview_scaled_document_level_ = level;
+  return &*preview_scaled_document_;
+}
+
+void CanvasWidget::clear_preview_scaled_document() noexcept {
+  preview_scaled_document_.reset();
+  preview_scaled_document_level_ = 0;
 }
 
 bool CanvasWidget::moving_layers_should_use_outline_preview(QPoint old_delta, QPoint new_delta) const {

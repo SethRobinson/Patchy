@@ -81,18 +81,6 @@ bool render_trace_enabled() noexcept {
   return enabled;
 }
 
-// Expand a (non-negative) document rect outward so its edges land on the
-// 2^level mip-block grid. Patches aligned this way downscale to exactly the
-// same pixels the full-image mip chain produces for that area.
-QRect rect_aligned_to_mip_grid(QRect rect, int level) {
-  const int block = 1 << level;
-  const int left = (rect.left() / block) * block;
-  const int top = (rect.top() / block) * block;
-  const int right = ((rect.right() / block) + 1) * block - 1;
-  const int bottom = ((rect.bottom() / block) + 1) * block - 1;
-  return QRect(QPoint(left, top), QPoint(right, bottom));
-}
-
 bool move_layer_has_expensive_style(const Layer& layer) {
   const auto& style = layer.layer_style();
   return style.effects_visible && !style.empty();
@@ -850,6 +838,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     }
     move_preview_patches_.clear();
     move_preview_patches_delta_.reset();
+    move_preview_patches_scale_level_ = 0;
     return;
   }
 
@@ -1384,6 +1373,11 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     }
     ensure_render_cache();
     ensure_move_base_cache();
+    // Display-resolution compositing: at zoom <= 50% the live patches render
+    // from the preview-scaled document at the display mip level.
+    const auto composite_level = preview_composite_level_for_zoom(zoom_);
+    Document* scaled_preview_document =
+        composite_level >= 1 ? preview_scaled_document_for_level(composite_level) : nullptr;
     const QRegion canvas_region(QRect(0, 0, document_->width(), document_->height()));
     auto previous_preview_region = QRegion();
     for (const auto& patch : move_preview_patches_) {
@@ -1403,13 +1397,15 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
                             : moving_layers_dirty_region(move_preview_delta_, move_preview_delta_)
                                   .intersected(canvas_region);
     // At mip-rendered zoom levels the preview patches must cover whole mip
-    // blocks so their downscale matches the surrounding display mips; see
+    // blocks so their downscale matches the surrounding display mips (and so
+    // scaled patch rects map exactly between the two documents); see
     // draw_document_patch in paintEvent.
-    if (const auto preview_mip_level = display_mip_level_for_zoom(zoom_);
-        preview_mip_level > 0 && !patch_region.isEmpty()) {
+    if (const auto align_level =
+            scaled_preview_document != nullptr ? composite_level : display_mip_level_for_zoom(zoom_);
+        align_level > 0 && !patch_region.isEmpty()) {
       QRegion aligned_region;
       for (const auto& rect : patch_region) {
-        aligned_region += rect_aligned_to_mip_grid(rect, preview_mip_level);
+        aligned_region += rect_aligned_to_mip_grid(rect, align_level);
       }
       patch_region = aligned_region.intersected(canvas_region);
     }
@@ -1422,12 +1418,50 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     }
     if (!patch_region.isEmpty()) {
       const auto patch_render_start = std::chrono::steady_clock::now();
-      move_preview_patches_ = qimage_patches_from_document_region_with_layer_bounds(
-          *document_, patch_region, true, moving_layer_bounds(move_preview_delta_));
-      for (auto& patch : move_preview_patches_) {
-        patch.image = patch.image.convertToFormat(QImage::Format_RGBA8888);
+      if (scaled_preview_document != nullptr) {
+        // Render from the scaled document (4^level less work) but keep the
+        // patch document_rects full-res for the update/paint math. Scaled
+        // patches are never reused for the release cache patch, so the commit
+        // stays full-res accurate.
+        QRegion scaled_region;
+        for (const auto& rect : patch_region) {
+          scaled_region += preview_scaled_document_rect(rect, composite_level);
+        }
+        const auto scaled_floor = [composite_level](std::int32_t value) {
+          const auto scale = std::int32_t{1} << composite_level;
+          return value >= 0 ? value / scale : -((-value + scale - 1) / scale);
+        };
+        auto scaled_bounds = moving_layer_bounds(move_preview_delta_);
+        for (auto& [layer_id, bounds] : scaled_bounds) {
+          const auto* scaled_layer = std::as_const(*scaled_preview_document).find_layer(layer_id);
+          if (scaled_layer != nullptr) {
+            bounds = Rect{scaled_floor(bounds.x), scaled_floor(bounds.y), scaled_layer->bounds().width,
+                          scaled_layer->bounds().height};
+          }
+        }
+        move_preview_patches_ = qimage_patches_from_document_region_with_layer_bounds(
+            *scaled_preview_document, scaled_region, true, scaled_bounds);
+        for (auto& patch : move_preview_patches_) {
+          patch.image = patch.image.convertToFormat(QImage::Format_RGBA8888);
+          patch.document_rect =
+              QRect(patch.document_rect.x() << composite_level, patch.document_rect.y() << composite_level,
+                    patch.document_rect.width() << composite_level, patch.document_rect.height() << composite_level)
+                  .intersected(QRect(0, 0, document_->width(), document_->height()));
+        }
+        if (move_preview_patches_scale_level_ == 0) {
+          ++render_cache_diagnostics_.move_scaled_previews;
+        }
+        move_preview_patches_scale_level_ = composite_level;
+        move_preview_patches_delta_.reset();
+      } else {
+        move_preview_patches_scale_level_ = 0;
+        move_preview_patches_ = qimage_patches_from_document_region_with_layer_bounds(
+            *document_, patch_region, true, moving_layer_bounds(move_preview_delta_));
+        for (auto& patch : move_preview_patches_) {
+          patch.image = patch.image.convertToFormat(QImage::Format_RGBA8888);
+        }
+        move_preview_patches_delta_ = move_preview_delta_;
       }
-      move_preview_patches_delta_ = move_preview_delta_;
       const auto patch_render_ms =
           std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - patch_render_start).count();
       if (patch_render_ms > move_live_frame_latch_ms()) {

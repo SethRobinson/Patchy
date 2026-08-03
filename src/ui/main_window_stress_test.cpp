@@ -365,6 +365,7 @@ CanvasWidget::RenderCacheDiagnostics diag_delta(const CanvasWidget::RenderCacheD
   delta.processing_overlay_frames =
       diag_field_delta(before.processing_overlay_frames, after.processing_overlay_frames);
   delta.move_proxy_previews = diag_field_delta(before.move_proxy_previews, after.move_proxy_previews);
+  delta.move_scaled_previews = diag_field_delta(before.move_scaled_previews, after.move_scaled_previews);
   delta.move_outline_previews = diag_field_delta(before.move_outline_previews, after.move_outline_previews);
   delta.transform_proxy_previews =
       diag_field_delta(before.transform_proxy_previews, after.transform_proxy_previews);
@@ -384,6 +385,7 @@ QJsonObject diag_to_json(const CanvasWidget::RenderCacheDiagnostics& diag) {
   object.insert(QStringLiteral("processing_overlays_shown"), diag.processing_overlays_shown);
   object.insert(QStringLiteral("processing_overlay_frames"), diag.processing_overlay_frames);
   object.insert(QStringLiteral("move_proxy_previews"), diag.move_proxy_previews);
+  object.insert(QStringLiteral("move_scaled_previews"), diag.move_scaled_previews);
   object.insert(QStringLiteral("move_outline_previews"), diag.move_outline_previews);
   object.insert(QStringLiteral("transform_proxy_previews"), diag.transform_proxy_previews);
   return object;

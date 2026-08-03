@@ -276,6 +276,10 @@ public:
     // kMoveOutlineDirtyAreaThreshold / kStyledMoveOutlineDirtyAreaThreshold
     // limits. At most once per drag.
     int move_proxy_previews{0};
+    // Times a move drag composited its previews from the preview-scaled
+    // document (display-resolution compositing at zoom <= 50%). At most once
+    // per drag.
+    int move_scaled_previews{0};
     // Times a move drag fell back to the dashed-outline preview: the work area
     // crossed the same limits but the proxy snapshot could not be built (or
     // would exceed kMoveProxyLastResortSnapshotArea). At most once per drag.
@@ -943,6 +947,11 @@ private:
   [[nodiscard]] bool ensure_move_proxy_image();
   [[nodiscard]] QRect move_proxy_dirty_rect(QPoint old_delta, QPoint new_delta) const;
   void clear_move_proxy() noexcept;
+  // PREVIEW-ONLY scaled document for display-resolution compositing: built
+  // lazily per level, kept across drags, dropped on any document change.
+  // Returns nullptr when level < 1 or the document is unavailable.
+  [[nodiscard]] Document* preview_scaled_document_for_level(int level);
+  void clear_preview_scaled_document() noexcept;
   [[nodiscard]] const QImage& display_image_for_zoom();
   [[nodiscard]] const QImage& curves_clipping_display_image_for_zoom();
   [[nodiscard]] const QImage& move_base_display_image_for_zoom();
@@ -1730,8 +1739,17 @@ private:
   QImage move_proxy_image_{};
   QRect move_proxy_document_rect_{};
   QImage move_base_cache_{};
+  // Level the base was composited at (preview-scaled document); 0 = full-res.
+  int move_base_cache_scale_level_{0};
+  // Level the live preview patches were composited at; their document_rects
+  // stay full-res, the images are 2^level smaller. Scaled patches are never
+  // reused for the release cache patch.
+  int move_preview_patches_scale_level_{0};
   std::vector<QImage> move_base_display_mip_cache_{};
   qint64 move_base_display_mip_source_key_{0};
+  // PREVIEW-ONLY scaled document cache (display-resolution compositing).
+  std::optional<Document> preview_scaled_document_{};
+  int preview_scaled_document_level_{0};
   std::optional<LayerId> transform_layer_id_;
   QRectF transform_original_rect_{};
   QRectF transform_current_rect_{};
