@@ -52,6 +52,83 @@ public:
     destination_alpha = alpha + destination_alpha * (1.0F - alpha);
   }
 
+  // Blended row: float-exact transcription of composite_color above (the
+  // general loop's only remaining work for a layer with no per-pixel gates
+  // beyond coverage), with the bounds-validated pixel() lookup hoisted to one
+  // per row. Same contract as the QImageCompositeTarget kernel: the mode
+  // dispatch goes through the real blend_rgb, the mix keeps
+  // composite_blended_rgb's exact expression tree (blend reads the CLAMPED
+  // destination alpha, the plane update reads the stored value), and the only
+  // deviation is skipping the division at an output alpha of exactly 1.0F,
+  // which IEEE division makes byte-neutral. This feeds the PSD writer's merged
+  // image, so psd_layered_writer_bytes_are_stable pins it directly. No integer
+  // math: the integer and float paths round differently by design.
+  void composite_blended_row(std::int32_t x, std::int32_t y, const std::uint8_t* source_row, const float* mask_row,
+                             std::int32_t width, std::uint16_t channels, float opacity, BlendMode mode) {
+    if (source_row == nullptr || width <= 0 || channels < 3) {
+      return;
+    }
+
+    auto local_x = x - origin_x_;
+    const auto local_y = y - origin_y_;
+    if (local_y < 0 || local_y >= destination_.height() || local_x >= destination_.width()) {
+      return;
+    }
+    if (local_x < 0) {
+      const auto skip = -local_x;
+      if (skip >= width) {
+        return;
+      }
+      source_row += static_cast<std::size_t>(skip) * channels;
+      if (mask_row != nullptr) {
+        mask_row += skip;
+      }
+      width -= skip;
+      local_x = 0;
+    }
+    width = std::min(width, destination_.width() - local_x);
+    if (width <= 0) {
+      return;
+    }
+
+    auto* dst = destination_.pixel(local_x, local_y);
+    auto index = static_cast<std::size_t>(local_y) * static_cast<std::size_t>(destination_.width()) +
+                 static_cast<std::size_t>(local_x);
+    for (std::int32_t offset = 0; offset < width; ++offset, dst += 3U, ++index) {
+      const auto* src = source_row + static_cast<std::size_t>(offset) * channels;
+      const auto source_alpha = channels >= 4 ? static_cast<float>(src[3]) / 255.0F : 1.0F;
+      auto alpha = mask_row != nullptr ? source_alpha * mask_row[offset] * opacity : source_alpha * opacity;
+      if (alpha <= 0.0F) {
+        continue;
+      }
+      alpha = clamp_unit(alpha);
+      auto& destination_alpha = alpha_[index];
+      const std::array<std::uint8_t, 3> src_rgb{src[0], src[1], src[2]};
+      const std::array<std::uint8_t, 3> dst_rgb{dst[0], dst[1], dst[2]};
+      const auto da = clamp_unit(destination_alpha);
+      const auto output_alpha = alpha + da * (1.0F - alpha);
+      if (output_alpha <= 0.0F) {
+        // Unreachable with alpha > 0; kept so the replica stays complete
+        // (composite_blended_rgb returns black here).
+        dst[0] = 0;
+        dst[1] = 0;
+        dst[2] = 0;
+      } else {
+        const auto blended = blend_rgb(src_rgb, dst_rgb, mode);
+        const bool unit_output = output_alpha == 1.0F;
+        for (std::size_t channel = 0; channel < 3U; ++channel) {
+          const auto source_value = static_cast<float>(src_rgb[channel]);
+          const auto destination_value = static_cast<float>(dst_rgb[channel]);
+          const auto blended_value = static_cast<float>(blended[channel]);
+          const auto numerator = source_value * alpha * (1.0F - da) + blended_value * alpha * da +
+                                 destination_value * da * (1.0F - alpha);
+          dst[channel] = clamp_byte(unit_output ? numerator : numerator / output_alpha);
+        }
+      }
+      destination_alpha = alpha + destination_alpha * (1.0F - alpha);
+    }
+  }
+
   void composite_special_fill_color(std::int32_t x, std::int32_t y, RgbColor color,
                                     float source_coverage, float fill_opacity, float layer_opacity,
                                     BlendMode mode) {

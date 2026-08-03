@@ -2916,6 +2916,107 @@ public:
     clip_alpha_[index] = std::max(clip_alpha_[index], clamp_unit(alpha));
   }
 
+  // Blended row: the general per-pixel loop's semantics for a layer with no
+  // per-pixel gates beyond coverage (no blend-if, satin, folded overlays,
+  // knockout, special fill, or backdrop pre-blend) hoisted to a row walk over
+  // this target's straight-RGB bytes and float alpha/clip planes. This is a
+  // float-exact transcription of the loop's record_clip_coverage +
+  // composite_color call pair - the tier-2 dispatch never calls
+  // record_clip_coverage itself, so the kernel must, or clip-run bases stop
+  // recording their matte. The mode dispatch goes through the real blend_rgb,
+  // the mix keeps composite_blended_rgb's exact expression tree, the blend
+  // reads the CLAMPED destination alpha while the plane updates read the
+  // stored value (matching composite_color), and the frozen branch replicates
+  // the clip-matte gate and max-alpha formula verbatim. The one deviation: a
+  // division by an output alpha of exactly 1.0F is skipped, which IEEE
+  // division makes byte-neutral. Do NOT substitute composite_source_row-style
+  // integer math here: the integer and float paths round differently by
+  // design, and this target deliberately has no tier-1 kernel so Normal-mode
+  // layers fall through to this float replica.
+  void composite_blended_row(std::int32_t x, std::int32_t y, const std::uint8_t* source_row, const float* mask_row,
+                             std::int32_t width, std::uint16_t channels, float opacity, BlendMode mode) {
+    if (source_row == nullptr || width <= 0 || channels < 3) {
+      return;
+    }
+
+    auto local_x = x - rect_.x;
+    const auto local_y = y - rect_.y;
+    if (local_y < 0 || local_y >= rect_.height || local_x >= rect_.width) {
+      return;
+    }
+    if (local_x < 0) {
+      const auto skip = -local_x;
+      if (skip >= width) {
+        return;
+      }
+      source_row += static_cast<std::size_t>(skip) * channels;
+      if (mask_row != nullptr) {
+        mask_row += skip;
+      }
+      width -= skip;
+      local_x = 0;
+    }
+    width = std::min(width, rect_.width - local_x);
+    if (width <= 0) {
+      return;
+    }
+
+    auto index = static_cast<std::size_t>(local_y) * static_cast<std::size_t>(rect_.width) +
+                 static_cast<std::size_t>(local_x);
+    const bool record = records_clip_coverage_ && !frozen_;
+    for (std::int32_t offset = 0; offset < width; ++offset, ++index) {
+      const auto* src = source_row + static_cast<std::size_t>(offset) * channels;
+      const auto source_alpha = channels >= 4 ? static_cast<float>(src[3]) / 255.0F : 1.0F;
+      auto alpha = mask_row != nullptr ? source_alpha * mask_row[offset] * opacity : source_alpha * opacity;
+      if (alpha <= 0.0F) {
+        continue;
+      }
+      if (record) {
+        clip_alpha_[index] = std::max(clip_alpha_[index], clamp_unit(alpha));
+      }
+      alpha = clamp_unit(alpha);
+      auto& destination_alpha = alpha_[index];
+      const auto clip_alpha = clip_alpha_[index];
+      if (frozen_ && clip_alpha <= 0.0F) {
+        continue;  // outside the clip mask
+      }
+      auto* dst = rgb_.data() + index * 3U;
+      const std::array<std::uint8_t, 3> src_rgb{src[0], src[1], src[2]};
+      const std::array<std::uint8_t, 3> dst_rgb{dst[0], dst[1], dst[2]};
+      const auto da = clamp_unit(frozen_ ? 1.0F : destination_alpha);
+      const auto output_alpha = alpha + da * (1.0F - alpha);
+      if (output_alpha <= 0.0F) {
+        // Unreachable with alpha > 0; kept so the replica stays complete
+        // (composite_blended_rgb returns black here).
+        dst[0] = 0;
+        dst[1] = 0;
+        dst[2] = 0;
+      } else {
+        const auto blended = blend_rgb(src_rgb, dst_rgb, mode);
+        const bool unit_output = output_alpha == 1.0F;
+        for (std::size_t channel = 0; channel < 3U; ++channel) {
+          const auto source_value = static_cast<float>(src_rgb[channel]);
+          const auto destination_value = static_cast<float>(dst_rgb[channel]);
+          const auto blended_value = static_cast<float>(blended[channel]);
+          const auto numerator = source_value * alpha * (1.0F - da) + blended_value * alpha * da +
+                                 destination_value * da * (1.0F - alpha);
+          dst[channel] = clamp_byte(unit_output ? numerator : numerator / output_alpha);
+        }
+      }
+      if (frozen_) {
+        // Clipped members paint at full color strength inside the original
+        // base matte, but can restore output coverage that the base's Blend If
+        // hid.
+        const auto normalized_destination_alpha =
+            clip_alpha > 0.0F ? std::min(destination_alpha, clip_alpha) / clip_alpha : 0.0F;
+        const auto clipped_output_alpha = clip_alpha * (alpha + normalized_destination_alpha * (1.0F - alpha));
+        destination_alpha = std::max(destination_alpha, clipped_output_alpha);
+      } else {
+        destination_alpha = alpha + destination_alpha * (1.0F - alpha);
+      }
+    }
+  }
+
   void adjust_color(std::int32_t x, std::int32_t y, const AdjustmentSettings& settings, float amount) {
     amount = clamp_unit(amount);
     x -= rect_.x;
@@ -3034,8 +3135,11 @@ private:
 // group, so the mask must attenuate each contribution in place rather than
 // clip a merged buffer. A nested masked group pushes onto the same adapter
 // (the chain multiplies), which also caps template-instantiation depth at one
-// wrapper per underlying target type. composite_source_row is deliberately not
-// forwarded so masked groups always take the per-pixel path.
+// wrapper per underlying target type. composite_source_row and
+// composite_blended_row are deliberately not forwarded so masked groups always
+// take the per-pixel path: fusing the group mask into a kernel's mask row
+// would change the float association order (the wrapper multiplies AFTER the
+// loop's (source_alpha * mask) * opacity product) and move pinned bytes.
 template <typename Base>
 class GroupMaskedTarget {
 public:
