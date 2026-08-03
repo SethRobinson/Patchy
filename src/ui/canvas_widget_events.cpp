@@ -1379,26 +1379,37 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       }
     }
     auto preview_region = moving_layers_dirty_region(QPoint(), move_preview_delta_).intersected(canvas_region);
+    // With the base cache in place the vacated (zero-delta) half of the region
+    // repaints straight from the base, so only the new-position half needs a
+    // recomposite each frame - roughly half the live-path cost. The full
+    // region still drives the repaint below (the first live frame must repaint
+    // the origin), and the base-less fallback keeps patching both halves
+    // because paint then draws over the unmodified render cache.
+    auto patch_region = move_base_cache_.isNull()
+                            ? preview_region
+                            : moving_layers_dirty_region(move_preview_delta_, move_preview_delta_)
+                                  .intersected(canvas_region);
     // At mip-rendered zoom levels the preview patches must cover whole mip
     // blocks so their downscale matches the surrounding display mips; see
     // draw_document_patch in paintEvent.
     if (const auto preview_mip_level = display_mip_level_for_zoom(zoom_);
-        preview_mip_level > 0 && !preview_region.isEmpty()) {
+        preview_mip_level > 0 && !patch_region.isEmpty()) {
       QRegion aligned_region;
-      for (const auto& rect : preview_region) {
+      for (const auto& rect : patch_region) {
         aligned_region += rect_aligned_to_mip_grid(rect, preview_mip_level);
       }
-      preview_region = aligned_region.intersected(canvas_region);
+      patch_region = aligned_region.intersected(canvas_region);
     }
-    auto update_region = previous_preview_region.united(preview_region).intersected(canvas_region);
+    auto update_region =
+        previous_preview_region.united(preview_region).united(patch_region).intersected(canvas_region);
     const auto outline_dirty = moving_layers_outline_dirty_rect(old_delta, move_preview_delta_);
     if (!outline_dirty.isEmpty()) {
       update_region += outline_dirty;
       update_region = update_region.intersected(canvas_region);
     }
-    if (!preview_region.isEmpty()) {
+    if (!patch_region.isEmpty()) {
       move_preview_patches_ = qimage_patches_from_document_region_with_layer_bounds(
-          *document_, preview_region, true, moving_layer_bounds(move_preview_delta_));
+          *document_, patch_region, true, moving_layer_bounds(move_preview_delta_));
       for (auto& patch : move_preview_patches_) {
         patch.image = patch.image.convertToFormat(QImage::Format_RGBA8888);
       }
@@ -1789,7 +1800,23 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
         attempted_precommit_patch = true;
         if (move_preview_patches_delta_.has_value() && *move_preview_patches_delta_ == move_preview_delta_ &&
             !move_preview_patches_.empty()) {
-          precommit_patches = std::move(move_preview_patches_);
+          // The reused live patches only cover the new-position half (the base
+          // cache carried the vacated area during the drag); render the
+          // vacated half fresh so the cache patch leaves no trail. Vacated
+          // rects go first: Source-mode patching lets the new-position
+          // patches rewrite the old/new overlap.
+          if (!move_base_cache_.isNull()) {
+            const auto vacated_region = moving_layers_dirty_region(QPoint(), QPoint()).intersected(patched_region);
+            precommit_patches = qimage_patches_from_document_region_with_layer_bounds(
+                *document_, vacated_region, true, moving_layer_bounds(move_preview_delta_));
+            for (auto& patch : precommit_patches) {
+              patch.image = patch.image.convertToFormat(QImage::Format_RGBA8888);
+            }
+          }
+          precommit_patches.insert(precommit_patches.end(),
+                                   std::make_move_iterator(move_preview_patches_.begin()),
+                                   std::make_move_iterator(move_preview_patches_.end()));
+          move_preview_patches_.clear();
           reused_preview_patch = true;
         } else {
           const auto final_bounds = moving_layer_bounds(move_preview_delta_);
