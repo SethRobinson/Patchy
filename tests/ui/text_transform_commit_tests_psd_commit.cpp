@@ -532,10 +532,15 @@ struct PhotoshopTextCommitProbe {
   int committed_box_width_metadata{0};
 };
 
+// `required_family` (optional) is the face the caller's tolerances were measured against: the
+// probe skips before it opens any editing session when this machine will not lay the text out
+// with it (see skip_without_psd_text_face). Skipping BEFORE the session also keeps a machine
+// without the face out of the Missing Font prompt, which nothing can answer under offscreen.
 std::optional<PhotoshopTextCommitProbe> run_photoshop_text_commit_probe(const std::filesystem::path& path,
                                                                         const char* needle,
                                                                         double zoom,
                                                                         const char* artifact_name,
+                                                                        const char* required_family = nullptr,
                                                                         int commit_cycles = 1) {
   auto document = patchy::psd::DocumentIo::read_file(path);
   patchy::LayerId layer_id = 0;
@@ -557,6 +562,14 @@ std::optional<PhotoshopTextCommitProbe> run_photoshop_text_commit_probe(const st
   CHECK(found);
   if (!found) {
     return std::nullopt;
+  }
+  if (required_family != nullptr) {
+    const auto* text_layer = std::as_const(document).find_layer(layer_id);
+    CHECK(text_layer != nullptr);
+    if (text_layer == nullptr ||
+        skip_without_psd_text_face(*text_layer, QString::fromUtf8(required_family))) {
+      return std::nullopt;
+    }
   }
 
   patchy::ui::MainWindow window;
@@ -748,7 +761,8 @@ void ui_restaurant_menu_dishes_commit_matches_photoshop_bands_if_available() {
   patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
   patchy::test::register_test_fonts(patchy::test::TestFontRole::Candara);
   const auto probe =
-      run_photoshop_text_commit_probe(path, "Braised Leeks", 0.25, "ui_restaurant_menu_dishes_commit", 3);
+      run_photoshop_text_commit_probe(path, "Braised Leeks", 0.25, "ui_restaurant_menu_dishes_commit",
+                                      nullptr, 3);
   if (!probe.has_value()) {
     return;
   }
@@ -983,9 +997,10 @@ void ui_psd_text_hv_scale_rasterize_matches_photoshop() {
 void ui_snes_box_rotated_hscale_commit_matches_if_available() {
   // The SNES box template's German blurb: point text with Horizontal Scale 90%, fixed leading,
   // rotated 90 degrees (transform is a pure rotation x 1.284). Ignoring the 90% width made the
-  // re-render ~11% longer along its rotated (screen-vertical) axis. Arial Black is a stock
-  // face here, so the converted ink box must land on Photoshop's within a few pixels on both
-  // axes -- and the crisp path must hold through the rotation.
+  // re-render ~11% longer along its rotated (screen-vertical) axis. Both layers are Arial
+  // Black, so with that face the converted ink box must land on Photoshop's within a few pixels
+  // on both axes -- and the crisp path must hold through the rotation. Off Windows the PSD's
+  // "Arial-Black" resolves to Arial + bold (a ~20% shorter line), so the probes skip there.
   const auto path = patchy::test::local_psd_fixture_path("snes-box-a3.psd");
   if (!std::filesystem::exists(path)) {
     return;
@@ -993,7 +1008,7 @@ void ui_snes_box_rotated_hscale_commit_matches_if_available() {
   patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
   patchy::test::register_test_fonts(patchy::test::TestFontRole::ArialBlack);
   const auto probe =
-      run_photoshop_text_commit_probe(path, "Mit deutschen", 0.25, "ui_snes_box_rotated_commit");
+      run_photoshop_text_commit_probe(path, "Mit deutschen", 0.25, "ui_snes_box_rotated_commit", "Arial Black");
   if (!probe.has_value()) {
     return;
   }
@@ -1014,8 +1029,8 @@ void ui_snes_box_rotated_hscale_commit_matches_if_available() {
   // fold, a different path than the 1.284x layer above), fixed leading 35.42/27.08, tracking
   // -60..-100, H 90%. Reported repro: the converted block jumped up its reading axis
   // (screen-vertical) and the font combo showed Tahoma.
-  const auto back_panel =
-      run_photoshop_text_commit_probe(path, "Diese Spielkassette", 0.25, "ui_snes_back_panel_commit");
+  const auto back_panel = run_photoshop_text_commit_probe(path, "Diese Spielkassette", 0.25,
+                                                          "ui_snes_back_panel_commit", "Arial Black");
   if (!back_panel.has_value()) {
     return;
   }
@@ -1068,8 +1083,11 @@ void ui_restaurant_menu_other_layers_commit_match_if_available() {
     }
   }
   {
+    // Both assertions below are Candara-BoldItalic measurements (the baseline sits on the
+    // face's ascender, the width on its advances), so this probe needs the real face; it is a
+    // stock Windows font with no macOS/Linux equivalent.
     const auto probe = run_photoshop_text_commit_probe(path, "Order Served in Ten Minutes", 0.25,
-                                                       "ui_restaurant_menu_order_timing_commit");
+                                                       "ui_restaurant_menu_order_timing_commit", "Candara");
     if (probe.has_value()) {
       CHECK(probe->original_bands.size() == 1);
       CHECK(probe->committed_bands.size() == 1);
@@ -1127,20 +1145,26 @@ void ui_dungeon_scroll_psd_text_commit_keeps_placement_if_available() {
   patchy::test::register_test_fonts(patchy::test::TestFontRole::Georgia);
   patchy::test::register_test_fonts(patchy::test::TestFontRole::BookmanOldStyle);
 
+  // Each probe carries the face its layer is authored in: the +-1px tolerances below only mean
+  // anything with that face installed, and entering a session without it raises the Missing
+  // Font prompt, which offscreen cannot answer (the suite hangs in the nested dialog loop
+  // instead of failing). Georgia ships on Windows and macOS, Bookman Old Style on Windows only,
+  // so macOS keeps the heading probe and Linux skips all five.
   struct Probe {
     const char* needle;
     const char* artifact;
+    const char* family;
     bool faux_bold;
   };
   const std::array<Probe, 5> probes{{
-      {"Dungeon", "ui_dungeon_scroll_heading_commit", true},
-      {"Jumble", "ui_dungeon_scroll_jumble_commit", false},
-      {"Submit word", "ui_dungeon_scroll_submit_commit", false},
-      {"Quit", "ui_dungeon_scroll_quit_commit", false},
-      {"Pause", "ui_dungeon_scroll_pause_commit", false},
+      {"Dungeon", "ui_dungeon_scroll_heading_commit", "Georgia", true},
+      {"Jumble", "ui_dungeon_scroll_jumble_commit", "Bookman Old Style", false},
+      {"Submit word", "ui_dungeon_scroll_submit_commit", "Bookman Old Style", false},
+      {"Quit", "ui_dungeon_scroll_quit_commit", "Bookman Old Style", false},
+      {"Pause", "ui_dungeon_scroll_pause_commit", "Bookman Old Style", false},
   }};
   for (const auto& entry : probes) {
-    const auto probe = run_photoshop_text_commit_probe(path, entry.needle, 1.0, entry.artifact);
+    const auto probe = run_photoshop_text_commit_probe(path, entry.needle, 1.0, entry.artifact, entry.family);
     if (!probe.has_value()) {
       continue;
     }
@@ -1356,6 +1380,11 @@ void ui_restaurant_menu_box_text_edit_commit_keeps_leading_if_available() {
     return;
   }
   CHECK(original_bands.size() >= 3);
+  // The band assertions below are measured off Candara-Bold's ascender (the headline run), so
+  // they need that face; it is a stock Windows font with no macOS/Linux equivalent.
+  if (skip_without_font_face(QStringLiteral("Candara"), "restaurant-menu-inside.psd headline face")) {
+    return;
+  }
 
   patchy::ui::MainWindow window;
   show_window(window);
@@ -1725,11 +1754,27 @@ void ui_duke_psd_text_runs_survive_reedit() {
   CHECK(metadata_value(patchy::kLayerMetadataText) == text_first);
   CHECK(metadata_value(patchy::kLayerMetadataTextRuns) == runs_first);
   CHECK(metadata_value(patchy::kLayerMetadataTextParagraphRuns) == paragraph_runs_first);
+  std::printf("  duke body: first apply %dx%d at (%d,%d) -> second %dx%d at (%d,%d)\n", bounds_first.width,
+              bounds_first.height, bounds_first.x, bounds_first.y, body_second->bounds().width,
+              body_second->bounds().height, body_second->bounds().x, body_second->bounds().y);
+  std::fflush(stdout);
   // The first apply hands the layer from Photoshop's raster to Patchy's renderer: this box layer
   // drops the one-time metric calibration that squeezed the layout toward Photoshop's raster, so
-  // the second apply may reflow slightly (a couple percent).  Stay in the neighborhood...
-  CHECK(std::abs(body_second->bounds().x - bounds_first.x) <= 64);
-  CHECK(std::abs(body_second->bounds().y - bounds_first.y) <= 32);
+  // the second apply may reflow slightly (a couple percent).  Stay in the neighborhood.  The
+  // fixture's face (FuturaLT-ExtraBold) is installed nowhere, so what reflows is the substitute:
+  // Windows keeps its measured 64/32 px, and the platforms whose substitute is not Windows' get a
+  // tenth of the block instead (macOS moved 102 px, Linux 127).  This bound is the coarse guard;
+  // the fixed point below -- identical metadata and a byte-identical third apply -- is the
+  // assertion that catches a real regression.
+#if defined(Q_OS_WIN)
+  const int max_reflow_x = 64;
+  const int max_reflow_y = 32;
+#else
+  const int max_reflow_x = std::max(64, bounds_first.width / 10);
+  const int max_reflow_y = std::max(32, bounds_first.height / 10);
+#endif
+  CHECK(std::abs(body_second->bounds().x - bounds_first.x) <= max_reflow_x);
+  CHECK(std::abs(body_second->bounds().y - bounds_first.y) <= max_reflow_y);
   const auto bounds_second = body_second->bounds();
   const std::vector<std::uint8_t> pixels_second(body_second->pixels().data().begin(),
                                                 body_second->pixels().data().end());

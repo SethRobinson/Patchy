@@ -656,6 +656,10 @@ std::optional<QRect> dark_bounds_in_editor_line_lower_half(patchy::ui::CanvasWid
 
 bool skip_without_arial_for_psd_text_preview();
 
+bool skip_without_font_face(const QString& family, const char* fixture_role);
+
+bool skip_without_psd_text_face(const patchy::Layer& layer, const QString& expected_family);
+
 QAction* require_legacy_plugin_action(QWidget& root, const QString& text);
 
 QListWidgetItem* find_layer_item(QListWidget& list, const QString& text);

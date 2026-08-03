@@ -2549,8 +2549,17 @@ void ui_font_picker_applies_a_pick_the_control_already_shows() {
     return;
   }
 
+  // Asking for a family the database lacks makes some platforms fill in their font-family
+  // aliases lazily (CoreText does, fontconfig does on first miss too), and that repopulation
+  // re-emits the combo's current row, whose handler writes the displayed family back into the
+  // control -- so the first set is swallowed there. Aliases fill in once, so the second set
+  // sticks; assert it did rather than testing a state the control is not in.
   picker->setCurrentFont(QFont(missing));
   QApplication::processEvents();
+  if (picker->currentFont().family() != missing) {
+    picker->setCurrentFont(QFont(missing));
+    QApplication::processEvents();
+  }
   const auto displayed = picker->currentText();
   CHECK(!displayed.isEmpty());
   CHECK(displayed != missing);                          // the list cannot show a family it lacks

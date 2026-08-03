@@ -842,20 +842,43 @@ void ui_text_font_picker_preview_shows_supported_scripts() {
   CHECK(list != nullptr);
   CHECK(preview != nullptr);
 
-  const auto select_family = [list](const QString& family) {
+  const auto row_for_family = [list](const QString& family) {
     auto* model = list->model();
     for (int row = 0; row < model->rowCount(); ++row) {
       if (model->index(row, 0).data(Qt::DisplayRole).toString() == family) {
-        // Keyboard/selection navigation drives the same preview update as mouse hover.
-        list->setCurrentIndex(model->index(row, 0));
-        QApplication::processEvents();
-        return true;
+        return model->index(row, 0);
       }
     }
-    return false;
+    return QModelIndex();
+  };
+  const auto select_family = [list, &row_for_family](const QString& family) {
+    const auto index = row_for_family(family);
+    if (!index.isValid()) {
+      return false;
+    }
+    // Keyboard/selection navigation drives the same preview update as mouse hover.
+    list->setCurrentIndex(index);
+    QApplication::processEvents();
+    return true;
   };
 
-  const auto& japanese_family = japanese_families.front();
+  // The picker lists what QFontComboBox's model holds, which drops private families -- and a
+  // stock macOS leads QFontDatabase::families(Japanese) with dot-prefixed system faces that are
+  // exactly those. Take the first Japanese family the picker actually offers, not the database's
+  // first, or the row is never found.
+  QString japanese_family;
+  for (const auto& family : japanese_families) {
+    if (row_for_family(family).isValid()) {
+      japanese_family = family;
+      break;
+    }
+  }
+  if (japanese_family.isEmpty()) {
+    std::cout << "[SKIP] no Japanese-capable font reaches the picker's list on this machine\n";
+    popup->close();
+    QApplication::processEvents();
+    return;
+  }
   CHECK(select_family(japanese_family));
   CHECK(preview->family() == japanese_family);
   bool has_japanese_line = false;

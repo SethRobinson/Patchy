@@ -959,6 +959,68 @@ bool skip_without_arial_for_psd_text_preview() {
   return true;
 }
 
+// A GDI-style name such as "Arial Black" reaches the font database on some platforms only as
+// family "Arial" with style "Black" (the OpenType typographic family/subfamily split), which is
+// exactly what MainWindow's text-style matcher resolves through. Mirror that rule so a test
+// asking "can this machine render <face>?" gets the same answer the renderer would.
+static bool font_face_is_available(const QString& family) {
+  const auto requested = family.trimmed();
+  if (requested.isEmpty()) {
+    return false;
+  }
+  const auto families = QFontDatabase::families();
+  if (families.contains(requested, Qt::CaseInsensitive)) {
+    return true;
+  }
+  for (const auto& candidate : families) {
+    if (candidate.isEmpty() || requested.size() <= candidate.size() ||
+        !requested.startsWith(candidate, Qt::CaseInsensitive)) {
+      continue;
+    }
+    const auto separator = requested.at(candidate.size());
+    if (separator != QLatin1Char(' ') && separator != QLatin1Char('-')) {
+      continue;
+    }
+    const auto style = requested.mid(candidate.size() + 1).trimmed();
+    if (!style.isEmpty() && QFontDatabase::styles(candidate).contains(style, Qt::CaseInsensitive)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// The imported-PSD text-geometry tests measure committed ink and band bounds against tolerances
+// taken from the fixture's REAL face on Windows, so a machine without that face is measuring a
+// substitute. Loosening the tolerance until the substitute fits would stop it catching the
+// Windows regression it exists for, and entering a text session without the face raises the
+// Missing Font prompt, which nothing can answer under offscreen. Skip honestly instead.
+bool skip_without_font_face(const QString& family, const char* fixture_role) {
+  register_test_fonts(TestFontRole::UiDefault);
+  if (font_face_is_available(family)) {
+    return false;
+  }
+  std::cout << "[SKIP] " << family.toStdString() << " is not installed (" << fixture_role << ")\n";
+  return true;
+}
+
+// The same question asked of an imported layer, which adds the second way a machine lands off
+// the Windows baseline: the PSD's PostScript font name resolving to a different family. Only
+// Windows reads that name through DirectWrite; elsewhere the suffix-stripping heuristic turns
+// "Arial-Black" into family Arial plus the bold flag, which renders ~20% narrower than Arial
+// Black even on a machine that HAS Arial Black.
+bool skip_without_psd_text_face(const patchy::Layer& layer, const QString& expected_family) {
+  const auto entry = layer.metadata().find(patchy::kLayerMetadataTextFont);
+  const auto resolved = entry == layer.metadata().end() ? QString()
+                                                        : QString::fromStdString(entry->second);
+  if (resolved.compare(expected_family, Qt::CaseInsensitive) != 0) {
+    std::cout << "[SKIP] the fixture's type resolves to \"" << resolved.toStdString()
+              << "\" here, not \"" << expected_family.toStdString()
+              << "\" (PSD PostScript names resolve through DirectWrite on Windows only)\n";
+    return true;
+  }
+  return skip_without_font_face(expected_family, "imported-PSD text fixture face");
+}
+
 QAction* require_legacy_plugin_action(QWidget& root, const QString& text) {
   for (auto* action : root.findChildren<QAction*>(QStringLiteral("legacyPluginAction"))) {
     if (action->text().contains(text, Qt::CaseInsensitive)) {

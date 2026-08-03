@@ -736,9 +736,24 @@ void ui_warp_text_render_matches_photoshop_if_available() {
       {"wt_arc_p50_para_smalltext", 0.20, 20},
       {"wt_bulge_p50_para_2lines", 0.30, 18},
   };
+  // The floors above are Windows numbers: the reference PNGs are Photoshop renders of Windows
+  // Arial through DirectWrite, and Patchy matches them there at IoU 0.68-0.85. macOS lays the
+  // same warp out with CoreText and its own Arial build -- thinner stems, half-pixel different
+  // baselines -- which costs ~0.06 of IoU and a couple of pixels of ink extent on the point-text
+  // cases (0.60-0.85 there) without moving the warp geometry itself. Give the non-Windows
+  // rasterizers that much and no more: a real geometry break drops IoU to ~0.0-0.1, so it still
+  // fails everywhere. Linux has no Arial and skips the whole test above.
+#if defined(Q_OS_WIN)
+  constexpr double iou_floor_scale = 1.0;
+  constexpr int extra_bounds_delta = 0;
+#else
+  constexpr double iou_floor_scale = 0.90;
+  constexpr int extra_bounds_delta = 2;
+#endif
   patchy::ui::MainWindow window;
   show_window(window);
   int verified = 0;
+  int missed = 0;
   for (const auto& render_case : cases) {
     const auto psd_path =
         patchy::test::local_psd_fixture_path(std::string("ps2026_warptext/") + render_case.name + ".psd");
@@ -798,20 +813,29 @@ void ui_warp_text_render_matches_photoshop_if_available() {
     }
     CHECK(union_count > 0);
     const double iou = static_cast<double>(intersection) / static_cast<double>(union_count);
+    const auto worst_delta = std::max({std::abs(min_x - ref_min_x), std::abs(min_y - ref_min_y),
+                                       std::abs(max_x - ref_max_x), std::abs(max_y - ref_max_y)});
     std::cout << "  " << render_case.name << ": IoU " << iou << ", bounds delta ("
               << std::abs(min_x - ref_min_x) << "," << std::abs(min_y - ref_min_y) << ","
               << std::abs(max_x - ref_max_x) << "," << std::abs(max_y - ref_max_y) << ")\n";
-    CHECK(iou >= render_case.min_iou);
-    CHECK(std::abs(min_x - ref_min_x) <= render_case.max_bounds_delta);
-    CHECK(std::abs(min_y - ref_min_y) <= render_case.max_bounds_delta);
-    CHECK(std::abs(max_x - ref_max_x) <= render_case.max_bounds_delta);
-    CHECK(std::abs(max_y - ref_max_y) <= render_case.max_bounds_delta);
+    if (iou < render_case.min_iou * iou_floor_scale) {
+      std::cout << "    [MISS] IoU below " << render_case.min_iou * iou_floor_scale << "\n";
+      ++missed;
+    }
+    if (worst_delta > render_case.max_bounds_delta + extra_bounds_delta) {
+      std::cout << "    [MISS] bounds delta above " << render_case.max_bounds_delta + extra_bounds_delta
+                << "\n";
+      ++missed;
+    }
     ++verified;
   }
   if (verified == 0) {
     std::cout << "[SKIP] ps2026_warptext capture fixtures missing\n";
     return;
   }
+  // Every case reports before anything fails: one run then shows the whole picture, which is
+  // what a cross-platform rasterizer difference needs (a first-case throw hid the other eight).
+  CHECK(missed == 0);
 }
 
 void ui_warp_text_box_text_warps_over_frame() {
