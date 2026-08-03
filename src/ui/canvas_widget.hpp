@@ -286,8 +286,13 @@ public:
     int move_outline_previews{0};
     // Times a free-transform drag latched onto the low-res proxy preview
     // because its transformed area crossed the kTransformProxyAreaThreshold /
-    // kStyledTransformProxyAreaThreshold limits. At most once per drag.
+    // kStyledTransformProxyAreaThreshold limits, or a live composited-preview
+    // frame ran over the live_preview_frame_latch_ms escape hatch. At most
+    // once per drag.
     int transform_proxy_previews{0};
+    // Times a transform session built its base cache from the preview-scaled
+    // document (display-resolution compositing at zoom <= 50%).
+    int transform_scaled_bases{0};
   };
 
   struct PenInputSettings {
@@ -1781,6 +1786,13 @@ private:
   // patch-compositing the full transformed area per mouse-move. Sticky for
   // the rest of the drag; the proxy image persists across drags in a session.
   bool transform_drag_uses_proxy_preview_{false};
+  // A live composited-preview refresh ran over the latch threshold; the next
+  // drag move latches the proxy. Persists across drags within the session
+  // (the layer stays expensive) and resets with the session state.
+  bool transform_live_frame_slow_{false};
+  // Level the transform base was composited at (preview-scaled document);
+  // 0 = full-res.
+  int transform_base_cache_scale_level_{0};
   QImage transform_proxy_image_{};
   double transform_proxy_layer_opacity_{1.0};
   bool warping_layer_{false};

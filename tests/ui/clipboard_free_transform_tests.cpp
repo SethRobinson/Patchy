@@ -1107,6 +1107,100 @@ void ui_free_transform_drag_small_doc_stays_live() {
   CHECK(!canvas->free_transform_active());
 }
 
+// The transform area gates cannot price the stack the drag crosses; a slow
+// live composited-preview frame must latch the proxy on the next move. The
+// zero env threshold makes any live frame count as slow, so the test is
+// deterministic on every machine.
+void ui_free_transform_slow_frame_latches_proxy() {
+  EnvironmentVariableRestorer restore_latch("PATCHY_MOVE_LIVE_LATCH_MS");
+  qputenv("PATCHY_MOVE_LIVE_LATCH_MS", QByteArray("0"));
+
+  patchy::Document document(360, 260, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(360, 260, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  auto pixels = solid_pixels(60, 40, patchy::PixelFormat::rgba8(), QColor(220, 40, 40, 255));
+  patchy::Layer layer(document.allocate_layer_id(), "Half Opacity Small", std::move(pixels));
+  layer.set_bounds(patchy::Rect{100, 80, 60, 40});
+  layer.set_opacity(0.5F);
+  document.add_layer(std::move(layer));
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Slow Frame Latch"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_show_transform_controls(true);
+  QApplication::processEvents();
+
+  const auto counter_before = canvas->render_cache_diagnostics().transform_proxy_previews;
+  const auto corner = canvas->widget_position_for_document_point(QPoint(160, 120));
+  send_mouse(*canvas, QEvent::MouseButtonPress, corner, Qt::LeftButton, Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+
+  // First move renders a live composited frame (marked slow by the zero
+  // threshold); the second move must latch the proxy despite the tiny area.
+  send_mouse(*canvas, QEvent::MouseMove, corner + QPoint(14, 10), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  send_mouse(*canvas, QEvent::MouseMove, corner + QPoint(24, 18), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(canvas->render_cache_diagnostics().transform_proxy_previews == counter_before + 1);
+  send_mouse(*canvas, QEvent::MouseMove, corner + QPoint(26, 20), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(canvas->render_cache_diagnostics().transform_proxy_previews == counter_before + 1);
+
+  send_mouse(*canvas, QEvent::MouseButtonRelease, corner + QPoint(26, 20), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  auto* cancel = window.findChild<QPushButton*>(QStringLiteral("freeTransformCancelButton"));
+  CHECK(cancel != nullptr);
+  cancel->click();
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+}
+
+// At zoom <= 50% the transform session builds its base cache from the
+// preview-scaled document; the drag and commit stay accurate.
+void ui_free_transform_scaled_base_zoomed_out() {
+  patchy::Document document(800, 600, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(800, 600, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  auto pixels = solid_pixels(200, 160, patchy::PixelFormat::rgba8(), QColor(210, 40, 40, 255));
+  patchy::Layer layer(document.allocate_layer_id(), "Scaled Base Layer", std::move(pixels));
+  layer.set_bounds(patchy::Rect{150, 120, 200, 160});
+  layer.set_opacity(0.5F);
+  document.add_layer(std::move(layer));
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Scaled Base"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(0.5);
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_show_transform_controls(true);
+  QApplication::processEvents();
+
+  const auto scaled_before = canvas->render_cache_diagnostics().transform_scaled_bases;
+  const auto corner = canvas->widget_position_for_document_point(QPoint(350, 280));
+  send_mouse(*canvas, QEvent::MouseButtonPress, corner, Qt::LeftButton, Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  CHECK(canvas->render_cache_diagnostics().transform_scaled_bases == scaled_before + 1);
+
+  send_mouse(*canvas, QEvent::MouseMove, corner + QPoint(30, 20), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  send_mouse(*canvas, QEvent::MouseButtonRelease, corner + QPoint(30, 20), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  auto* apply = window.findChild<QPushButton*>(QStringLiteral("freeTransformApplyButton"));
+  CHECK(apply != nullptr);
+  apply->click();
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+  // The enlarged layer covers document points past the original right edge;
+  // half-opacity red over white reads as pink.
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(380, 200)), QColor(232, 147, 147), 45));
+  save_widget_artifact("ui_free_transform_scaled_base", window);
+}
+
 void ui_edit_conversion_scanline_rewrites_are_byte_identical() {
   // Odd sizes plus alphas {0, 1, 127, 255} pin the scanline conversions to the
   // per-pixel QColor semantics they replaced, for both the 4-channel memcpy
@@ -1190,6 +1284,8 @@ std::vector<patchy::test::TestCase> clipboard_free_transform_tests() {
       {"ui_free_transform_drag_proxy_engages_above_threshold",
        ui_free_transform_drag_proxy_engages_above_threshold},
       {"ui_free_transform_drag_small_doc_stays_live", ui_free_transform_drag_small_doc_stays_live},
+      {"ui_free_transform_slow_frame_latches_proxy", ui_free_transform_slow_frame_latches_proxy},
+      {"ui_free_transform_scaled_base_zoomed_out", ui_free_transform_scaled_base_zoomed_out},
       {"ui_edit_conversion_scanline_rewrites_are_byte_identical",
        ui_edit_conversion_scanline_rewrites_are_byte_identical},
   };

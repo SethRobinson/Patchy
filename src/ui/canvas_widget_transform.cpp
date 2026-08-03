@@ -551,11 +551,13 @@ bool CanvasWidget::begin_free_transform() {
   transform_source_image_ = QImage();
   transform_source_local_rect_ = *local_transform_rect;
   transform_base_cache_ = QImage();
+  transform_base_cache_scale_level_ = 0;
   transform_base_display_mip_cache_.clear();
   transform_base_display_mip_source_key_ = 0;
   transform_preview_patches_.clear();
   transform_preview_patches_rect_ = QRect();
   transform_drag_uses_proxy_preview_ = false;
+  transform_live_frame_slow_ = false;
   transform_proxy_image_ = QImage();
   transform_proxy_layer_opacity_ = 1.0;
   transform_requires_composited_preview_ = layer_needs_composited_transform_preview(*layer);
@@ -578,12 +580,14 @@ void CanvasWidget::reset_free_transform_session_state() {
   transform_drag_start_scale_x_sign_ = 1.0;
   transform_drag_start_scale_y_sign_ = 1.0;
   transform_base_cache_ = QImage();
+  transform_base_cache_scale_level_ = 0;
   transform_base_display_mip_cache_.clear();
   transform_base_display_mip_source_key_ = 0;
   transform_source_image_ = QImage();
   transform_preview_patches_.clear();
   transform_preview_patches_rect_ = QRect();
   transform_drag_uses_proxy_preview_ = false;
+  transform_live_frame_slow_ = false;
   transform_proxy_image_ = QImage();
   transform_proxy_layer_opacity_ = 1.0;
   transform_requires_composited_preview_ = false;
@@ -723,6 +727,7 @@ bool CanvasWidget::prepare_free_transform_source() {
 // no revision-bumping visibility toggle is needed.
 void CanvasWidget::rebuild_transform_base_cache() {
   transform_base_cache_ = QImage();
+  transform_base_cache_scale_level_ = 0;
   transform_base_display_mip_cache_.clear();
   transform_base_display_mip_source_key_ = 0;
   if (document_ == nullptr || !transform_layer_id_.has_value()) {
@@ -735,6 +740,21 @@ void CanvasWidget::rebuild_transform_base_cache() {
 
   const QRect canvas_rect(0, 0, document_->width(), document_->height());
   const std::vector<LayerId> hidden{*transform_layer_id_};
+  // Display-resolution compositing: when zoomed out, build the base from the
+  // preview-scaled document (4^level less work than a full-res canvas).
+  if (const auto composite_level = preview_composite_level_for_zoom(zoom_); composite_level >= 1) {
+    if (auto* scaled_document = preview_scaled_document_for_level(composite_level)) {
+      const QRect scaled_canvas(0, 0, scaled_document->width(), scaled_document->height());
+      auto base = qimage_from_document_rect_with_hidden_layers_banded(*scaled_document, scaled_canvas, true, hidden)
+                      .convertToFormat(QImage::Format_RGBA8888);
+      if (!base.isNull()) {
+        transform_base_cache_ = std::move(base);
+        transform_base_cache_scale_level_ = composite_level;
+        ++render_cache_diagnostics_.transform_scaled_bases;
+        return;
+      }
+    }
+  }
   if (render_cache_dirty_ || render_cache_.isNull() || render_cache_.size() != canvas_rect.size()) {
     transform_base_cache_ = qimage_from_document_rect_with_hidden_layers(*document_, canvas_rect, true, hidden)
                                 .convertToFormat(QImage::Format_RGBA8888);
@@ -824,7 +844,15 @@ void CanvasWidget::refresh_transform_composited_preview_cache(bool processing_wa
       hide_processing_overlay();
     }
   } else {
+    const auto compute_start = std::chrono::steady_clock::now();
     result = compute();
+    const auto compute_ms =
+        std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - compute_start).count();
+    // Only live (no-wait) refreshes feed the escape hatch; the release-time
+    // accurate render is expected to be slow and must not poison the flag.
+    if (!processing_wait && compute_ms > live_preview_frame_latch_ms()) {
+      transform_live_frame_slow_ = true;
+    }
   }
   transform_preview_patches_ = std::move(result.first);
   transform_preview_patches_rect_ = result.second;
@@ -837,6 +865,12 @@ bool CanvasWidget::transform_drag_should_use_proxy_preview() const {
   const auto* layer = std::as_const(*document_).find_layer(*transform_layer_id_);
   if (layer == nullptr) {
     return false;
+  }
+  // Time escape hatch: the area gates below cannot price the stack the
+  // transform crosses; a measured slow composited-preview frame latches the
+  // proxy regardless of area (mirrors the move tool's hatch).
+  if (transform_live_frame_slow_) {
+    return true;
   }
 
   const auto transformed_rect =
@@ -2167,6 +2201,7 @@ bool CanvasWidget::switch_warp_to_free_transform() {
   transform_preview_patches_.clear();
   transform_preview_patches_rect_ = QRect();
   transform_drag_uses_proxy_preview_ = false;
+  transform_live_frame_slow_ = false;
   transform_proxy_image_ = QImage();
   transform_proxy_layer_opacity_ = 1.0;
   transform_requires_composited_preview_ = layer_needs_composited_transform_preview(*layer);

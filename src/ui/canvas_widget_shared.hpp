@@ -125,6 +125,12 @@ QRect rect_aligned_to_mip_grid(QRect rect, int level) noexcept;
 // document's coordinates (floor origin, ceil extent - the partial edge blocks
 // of a ceil-halved canvas stay covered).
 QRect preview_scaled_document_rect(QRect rect, int level) noexcept;
+// A live preview frame (move patches, transform composited preview) slower
+// than this latches the drag onto its proxy on the next move: the area gates
+// cannot price the stack a drag crosses. Env override PATCHY_MOVE_LIVE_LATCH_MS
+// (historic name; it governs move AND transform drags; 0 latches after any
+// live frame - the test hook).
+int live_preview_frame_latch_ms() noexcept;
 
 // Selection crosshair / badge styling: a pure-black stroke (drawn antialiased so
 // the edges stay soft) over a white halo that extends ~1px on every side, so the

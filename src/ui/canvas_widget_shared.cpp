@@ -401,6 +401,13 @@ QRect preview_scaled_document_rect(QRect rect, int level) noexcept {
   return QRect(x0, y0, x1 - x0, y1 - y0);
 }
 
+int live_preview_frame_latch_ms() noexcept {
+  constexpr int kLivePreviewFrameLatchMs = 100;
+  bool ok = false;
+  const auto value = qEnvironmentVariableIntValue("PATCHY_MOVE_LIVE_LATCH_MS", &ok);
+  return ok ? std::max(0, value) : kLivePreviewFrameLatchMs;
+}
+
 void paint_selection_mode_badge(QPainter& painter, CanvasWidget::SelectionMode mode, QPointF center) {
   using SelectionMode = CanvasWidget::SelectionMode;
   if (mode == SelectionMode::Replace) {

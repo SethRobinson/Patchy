@@ -369,6 +369,7 @@ CanvasWidget::RenderCacheDiagnostics diag_delta(const CanvasWidget::RenderCacheD
   delta.move_outline_previews = diag_field_delta(before.move_outline_previews, after.move_outline_previews);
   delta.transform_proxy_previews =
       diag_field_delta(before.transform_proxy_previews, after.transform_proxy_previews);
+  delta.transform_scaled_bases = diag_field_delta(before.transform_scaled_bases, after.transform_scaled_bases);
   return delta;
 }
 
@@ -388,6 +389,7 @@ QJsonObject diag_to_json(const CanvasWidget::RenderCacheDiagnostics& diag) {
   object.insert(QStringLiteral("move_scaled_previews"), diag.move_scaled_previews);
   object.insert(QStringLiteral("move_outline_previews"), diag.move_outline_previews);
   object.insert(QStringLiteral("transform_proxy_previews"), diag.transform_proxy_previews);
+  object.insert(QStringLiteral("transform_scaled_bases"), diag.transform_scaled_bases);
   return object;
 }
 

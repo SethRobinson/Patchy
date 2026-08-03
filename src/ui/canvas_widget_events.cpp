@@ -86,19 +86,6 @@ bool move_layer_has_expensive_style(const Layer& layer) {
   return style.effects_visible && !style.empty();
 }
 
-// A live move-preview frame slower than this latches the proxy on the NEXT
-// move. The area gate only prices the moving layers themselves; it cannot see
-// the cost of the stack the drag crosses (an unstyled full-canvas layer
-// dragged across a pile of styled smart objects recomposites all of them per
-// frame). Env override for tests: 0 latches after any live frame.
-constexpr int kMoveLiveFramePreviewLatchMs = 100;
-
-int move_live_frame_latch_ms() noexcept {
-  bool ok = false;
-  const auto value = qEnvironmentVariableIntValue("PATCHY_MOVE_LIVE_LATCH_MS", &ok);
-  return ok ? std::max(0, value) : kMoveLiveFramePreviewLatchMs;
-}
-
 bool tool_supports_off_canvas_brush_strokes(CanvasTool tool) noexcept {
   switch (tool) {
     case CanvasTool::Brush:
@@ -1464,7 +1451,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       }
       const auto patch_render_ms =
           std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - patch_render_start).count();
-      if (patch_render_ms > move_live_frame_latch_ms()) {
+      if (patch_render_ms > live_preview_frame_latch_ms()) {
         move_live_frame_slow_ = true;
       }
     } else {

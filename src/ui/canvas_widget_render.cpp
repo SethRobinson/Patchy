@@ -1506,7 +1506,9 @@ const QImage& CanvasWidget::move_base_display_image_for_zoom() {
 // preview repaint at zoom < 1 smooth-downscaled the full-resolution base,
 // which dominated transform-drag frames on large documents.
 const QImage& CanvasWidget::transform_base_display_image_for_zoom() {
-  if (transform_base_cache_.isNull() || zoom_ >= 1.0) {
+  // A preview-scaled base is already at (or below) display resolution; the
+  // painter's smooth transform bridges any remaining factor.
+  if (transform_base_cache_.isNull() || zoom_ >= 1.0 || transform_base_cache_scale_level_ > 0) {
     return transform_base_cache_;
   }
 
