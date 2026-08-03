@@ -47,6 +47,12 @@ public:
         background: @splash_bg;
         border: 1px solid @splash_border;
       }
+      QWidget#splashArtwork {
+        /* Transparent, not the global QWidget window_bg: the artwork paints its
+           own card inside a margin, so an opaque fill draws a window-colored
+           rectangle around it on the dialog surface. */
+        background: transparent;
+      }
       QLabel#splashTitle {
         color: @splash_title_text;
         font-size: 32px;
@@ -108,6 +114,7 @@ public:
     layout->setSpacing(28);
 
     auto* artwork = new SplashArtwork(this);
+    artwork->setObjectName(QStringLiteral("splashArtwork"));
     artwork->setFixedSize(210, 270);
     layout->addWidget(artwork);
 
@@ -143,21 +150,29 @@ public:
     credit->setTextFormat(Qt::PlainText);
     copy->addWidget(credit);
 
-    auto* contributors = new QLabel(
-        QObject::tr("Code contributions from %1").arg(code_contributors_link_html(QStringLiteral("@splash_link_text"))),
-        this);
+    // The link colors live inside the rich text, where QSS cannot reach, so they
+    // go through set_themed_label_text. Handing the token-bearing markup straight
+    // to QLabel leaves "color:@splash_link_text" in the HTML, which the rich-text
+    // parser cannot read: the links fall back to Qt's default blue, which is
+    // close to unreadable on the dark About surface.
+    auto* contributors = new QLabel(this);
     contributors->setObjectName(QStringLiteral("splashContributors"));
     contributors->setTextFormat(Qt::RichText);
+    set_themed_label_text(
+        *contributors,
+        QObject::tr("Code contributions from %1")
+            .arg(code_contributors_link_html(QStringLiteral("@splash_link_text"))));
     contributors->setTextInteractionFlags(Qt::TextBrowserInteraction);
     contributors->setOpenExternalLinks(true);
     copy->addWidget(contributors);
 
     auto add_home_link = [this, copy](const QString& text) {
-      auto* label = new QLabel(text, this);
+      auto* label = new QLabel(this);
       label->setObjectName(QStringLiteral("splashHome"));
       label->setTextFormat(Qt::RichText);
       label->setTextInteractionFlags(Qt::TextBrowserInteraction);
       label->setOpenExternalLinks(true);
+      set_themed_label_text(*label, text);
       copy->addWidget(label);
     };
     const auto github_link = QStringLiteral("<a style=\"color:@splash_link_text; text-decoration:none;\" "

@@ -2196,6 +2196,13 @@ void ui_about_dialog_shows_labeled_external_links() {
     CHECK(combined_text.contains(QStringLiteral("href=\"https://rtsoft.com\"")));
     CHECK(combined_text.contains(QStringLiteral(">rtsoft.com</a>")));
 
+    // A link color lives inside the rich text, where the stylesheet token check
+    // cannot see it. An unresolved one is not an error to Qt, just an unreadable
+    // color: the parser drops it and falls back to its own blue.
+    CHECK(!combined_text.contains(QLatin1Char('@')));
+    CHECK(combined_text.contains(
+        QStringLiteral("color:%1;").arg(patchy::ui::theme().splash_link_text.name(QColor::HexRgb))));
+
     // The version label shares the splashCredit object name with the credit
     // line below it; creation order puts the version first.
     const auto credit_labels = dialog->findChildren<QLabel*>(QStringLiteral("splashCredit"));
@@ -2211,6 +2218,7 @@ void ui_about_dialog_shows_labeled_external_links() {
     CHECK(contributors->text().startsWith(QStringLiteral("Code contributions from ")));
     CHECK(contributors->text().contains(QStringLiteral("href=\"https://github.com/mcapogna\"")));
     CHECK(contributors->text().contains(QStringLiteral(">Michael Capogna</a>")));
+    CHECK(!contributors->text().contains(QLatin1Char('@')));
 
     auto* settings_caption = dialog->findChild<QLabel*>(QStringLiteral("splashSettingsCaption"));
     CHECK(settings_caption != nullptr);
@@ -2679,9 +2687,11 @@ void ui_theme_adjacent_roles_stay_distinguishable() {
     QColor patchy::ui::ThemePalette::* second;
     int minimum_delta;
   };
-  const std::array<RolePair, 4> pairs{{
+  const std::array<RolePair, 5> pairs{{
       {"a dialog title bar floating over the canvas", &patchy::ui::ThemePalette::title_bar_bg,
        &patchy::ui::ThemePalette::canvas_backdrop, 24},
+      {"the About dialog's secondary button on its body", &patchy::ui::ThemePalette::splash_button_bg,
+       &patchy::ui::ThemePalette::splash_bg, 12},
       {"a dialog title bar against the dialog body it heads", &patchy::ui::ThemePalette::title_bar_bg,
        &patchy::ui::ThemePalette::window_bg, 12},
       {"the chrome bar against a docked panel", &patchy::ui::ThemePalette::title_bar_bg,
@@ -2729,7 +2739,9 @@ void ui_theme_text_roles_contrast_with_their_backgrounds() {
     QColor patchy::ui::ThemePalette::* text;
     QColor patchy::ui::ThemePalette::* background;
   };
-  const std::array<TextPair, 10> pairs{{
+  const std::array<TextPair, 11> pairs{{
+      {"the About dialog's body text", &patchy::ui::ThemePalette::splash_body_text,
+       &patchy::ui::ThemePalette::splash_bg},
       {"a highlighted menu item", &patchy::ui::ThemePalette::text_on_accent,
        &patchy::ui::ThemePalette::menu_item_selected_bg},
       {"a checked options-bar button", &patchy::ui::ThemePalette::text_on_accent,
@@ -3001,6 +3013,77 @@ void ui_light_scheme_color_picker_selected_tab_reads_as_selected() {
   }
 }
 
+// The About dialog is painted from a family of near-blacks that wear a cool
+// cast, and flip_for_light() reads that cast as chroma, so it clamped every one
+// of them to a mid tone instead of lifting them into Light's surface band. The
+// body, the secondary button and its hover all derived to within a couple of
+// points of #93a4be and the dialog rendered as one flat periwinkle slab. The
+// role table now says otherwise, but the other half of the bug was never in the
+// table: the artwork is a plain QWidget, so the application's QWidget rule filled
+// its slot with window_bg and drew a window-colored rectangle on the dialog
+// surface. Only the rendered dialog shows both, so grab the real one.
+void ui_light_scheme_about_dialog_reads_as_a_light_surface() {
+  ColorSchemeRestorer restore_active;
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Light);
+
+  bool inspected = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchySplashScreen"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* artwork = dialog->findChild<QWidget*>(QStringLiteral("splashArtwork"));
+    CHECK(artwork != nullptr);
+    const auto shot = dialog->grab().toImage();
+    CHECK(!shot.isNull());
+    if (artwork == nullptr || shot.isNull()) {
+      dialog->accept();
+      return;
+    }
+    save_widget_artifact("ui_light_scheme_about_dialog", *dialog);
+
+    // In the right margin below the button row: inside the 1px border, clear of
+    // every child.
+    const auto body = shot.pixelColor(shot.width() - 8, shot.height() - 8);
+    if (body.lightness() < 210) {
+      fprintf(stderr, "  light About dialog body %s, lightness %d, want >= 210\n",
+              qPrintable(body.name(QColor::HexRgb)), body.lightness());
+    }
+    CHECK(body.lightness() >= 210);
+
+    // A tint is allowed, a color is not. The failing body spread 43 between its
+    // channels; the surface it replaced spreads single digits.
+    const int spread = std::max({body.red(), body.green(), body.blue()}) -
+                       std::min({body.red(), body.green(), body.blue()});
+    if (spread > 16) {
+      fprintf(stderr, "  light About dialog body %s spreads %d across channels, want <= 16\n",
+              qPrintable(body.name(QColor::HexRgb)), spread);
+    }
+    CHECK(spread <= 16);
+
+    // The artwork paints its card inside a margin, so its corner is dialog
+    // surface and has to render as exactly that. Read it out of the dialog
+    // image: grabbing the widget itself now returns an uninitialized pixmap,
+    // which is the point of the rule under test.
+    const auto slot_point = artwork->mapTo(dialog, QPoint(2, 2));
+    const auto slot = shot.pixelColor(slot_point);
+    const int against_body = channel_delta(slot, body);
+    if (against_body > 4) {
+      fprintf(stderr, "  About dialog artwork slot %s vs dialog body %s, delta %d, want <= 4\n",
+              qPrintable(slot.name(QColor::HexRgb)), qPrintable(body.name(QColor::HexRgb)),
+              against_body);
+    }
+    CHECK(against_body <= 4);
+
+    inspected = true;
+    dialog->accept();
+  });
+
+  patchy::ui::show_about_splash();
+  CHECK(inspected);
+}
+
 // An unresolved @token makes Qt drop the entire declaration containing it,
 // silently. Nothing downstream would notice, so assert no token survives and no
 // raw hex was left behind in either scheme.
@@ -3141,6 +3224,8 @@ std::vector<patchy::test::TestCase> app_shell_tests() {
        ui_light_scheme_panel_scroll_bar_handle_reads_against_track},
       {"ui_light_scheme_color_picker_selected_tab_reads_as_selected",
        ui_light_scheme_color_picker_selected_tab_reads_as_selected},
+      {"ui_light_scheme_about_dialog_reads_as_a_light_surface",
+       ui_light_scheme_about_dialog_reads_as_a_light_surface},
       {"ui_theme_qss_resolves_every_token", ui_theme_qss_resolves_every_token},
       {"ui_status_bar_error_message_flashes_then_persists_until_replaced",
        ui_status_bar_error_message_flashes_then_persists_until_replaced},

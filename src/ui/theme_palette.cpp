@@ -530,6 +530,23 @@ const ThemePalette& light_palette() {
     light.picker_tab_hover_bg = rgb(0xe4e4e4);
     light.picker_tab_selected_bg = rgb(0xfafafa);
 
+    // The About dialog's surfaces are surfaces, and the cool cast they wear in
+    // Dark is a tint on a near-black, not a brand color. That cast still carries
+    // enough saturation to fail the neutral test in flip_for_light(), so instead
+    // of being lifted into Light's surface band all of them clamped into the
+    // chromatic mid band: the dialog body, its secondary button, and that
+    // button's hover all landed within a few points of #93a4be and the About
+    // screen rendered as one flat periwinkle slab. Keep the tint, drop the mid
+    // tone. The button family sits a step below the surface and deepens on
+    // hover, the direction a light scheme gains contrast, matching the neutral
+    // push buttons elsewhere. The other two roles in the family are corrected
+    // with their own kind below: splash_primary_bg with the selection fills,
+    // splash_border with the outlines.
+    light.splash_bg = rgb(0xf3f6fa);
+    light.splash_button_bg = rgb(0xe4e9f1);
+    light.splash_button_border = rgb(0xa9b4c3);
+    light.splash_button_hover_bg = rgb(0xd7dfea);
+
     // Selection backgrounds keep their saturation rather than washing out to a
     // pale tint. That is the convention in light themes, and it is what keeps the
     // white label on a highlighted menu item or a checked button readable: a
