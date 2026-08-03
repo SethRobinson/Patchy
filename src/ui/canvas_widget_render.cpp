@@ -1295,22 +1295,14 @@ void CanvasWidget::ensure_move_base_cache() {
     return;
   }
 
-  const auto hide_moving_layers = [this]() {
-    std::vector<std::pair<Layer*, bool>> restore;
-    restore.reserve(moving_layers_.size());
-    for (const auto& moving_layer : moving_layers_) {
-      if (auto* layer = document_->find_layer(moving_layer.id)) {
-        restore.emplace_back(layer, layer->visible());
-        layer->set_visible(false);
-      }
-    }
-    return restore;
-  };
-  const auto restore_layers = [](const std::vector<std::pair<Layer*, bool>>& restore) {
-    for (const auto& [layer, was_visible] : restore) {
-      layer->set_visible(was_visible);
-    }
-  };
+  // Hide via render overrides, not set_visible toggles: the toggles bumped
+  // every moving layer's revision each drag, cold-invalidating the style-mask
+  // and alpha-bounds caches (mirrors rebuild_transform_base_cache).
+  std::vector<LayerId> hidden;
+  hidden.reserve(moving_layers_.size());
+  for (const auto& moving_layer : moving_layers_) {
+    hidden.push_back(moving_layer.id);
+  }
 
   const QRect canvas_rect(0, 0, document_->width(), document_->height());
   // Recompositing the whole document (with the moving layers hidden) is very
@@ -1320,15 +1312,14 @@ void CanvasWidget::ensure_move_base_cache() {
   // moving layers only contribute within that region, so the rest of the cache
   // is already correct.
   if (render_cache_dirty_ || render_cache_.isNull() || render_cache_.size() != canvas_rect.size()) {
-    const auto restore = hide_moving_layers();
-    move_base_cache_ = render_document_image();
-    restore_layers(restore);
+    move_base_cache_ = qimage_from_document_rect_with_hidden_layers(*document_, canvas_rect, true, hidden)
+                           .convertToFormat(QImage::Format_RGBA8888);
     return;
   }
 
   QRegion old_region;
   for (const auto& moving_layer : moving_layers_) {
-    auto* layer = document_->find_layer(moving_layer.id);
+    const auto* layer = std::as_const(*document_).find_layer(moving_layer.id);
     if (layer == nullptr) {
       continue;
     }
@@ -1340,18 +1331,16 @@ void CanvasWidget::ensure_move_base_cache() {
 
   QImage base = render_cache_.convertToFormat(QImage::Format_ARGB32_Premultiplied);
   if (!old_region.isEmpty()) {
-    const auto restore = hide_moving_layers();
     QPainter painter(&base);
     painter.setCompositionMode(QPainter::CompositionMode_Source);
     for (const auto& rect : old_region) {
-      const auto cleared = qimage_from_document_rect(*document_, rect, true);
+      const auto cleared = qimage_from_document_rect_with_hidden_layers(*document_, rect, true, hidden);
       if (cleared.isNull()) {
         continue;
       }
       painter.drawImage(rect.topLeft(), cleared.convertToFormat(QImage::Format_ARGB32_Premultiplied));
     }
     painter.end();
-    restore_layers(restore);
   }
   move_base_cache_ = std::move(base);
 }
