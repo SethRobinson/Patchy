@@ -3062,6 +3062,27 @@ public:
 
   template <typename Target>
   void merge_into(Target& destination, BlendMode mode) const {
+    // Route through the destination's row kernel when it has one; Dissolve
+    // keeps the per-pixel walk (its coverage is a stochastic paint decision).
+    // With channels == 3 the kernel's source_alpha is exactly 1.0F and its
+    // per-pixel alpha collapses to (1.0F * alpha_[i]) * 1.0F == alpha_[i]
+    // (IEEE multiplication by one is exact), so the kernel runs the same
+    // composite_color arithmetic the loop below drives, row-hoisted.
+    if constexpr (requires(Target& target, std::int32_t x, std::int32_t y, const std::uint8_t* row,
+                           const float* mask_row, std::int32_t width, std::uint16_t channel_count, float opacity,
+                           BlendMode blend) {
+                    target.composite_blended_row(x, y, row, mask_row, width, channel_count, opacity, blend);
+                  }) {
+      if (mode != BlendMode::Dissolve) {
+        for (std::int32_t y = 0; y < rect_.height; ++y) {
+          const auto* rgb_row =
+              rgb_.data() + static_cast<std::size_t>(y) * static_cast<std::size_t>(rect_.width) * 3U;
+          const auto* alpha_row = alpha_.data() + static_cast<std::size_t>(y) * static_cast<std::size_t>(rect_.width);
+          destination.composite_blended_row(rect_.x, rect_.y + y, rgb_row, alpha_row, rect_.width, 3U, 1.0F, mode);
+        }
+        return;
+      }
+    }
     for (std::int32_t y = 0; y < rect_.height; ++y) {
       for (std::int32_t x = 0; x < rect_.width; ++x) {
         const auto index =
