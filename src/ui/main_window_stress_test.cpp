@@ -364,6 +364,7 @@ CanvasWidget::RenderCacheDiagnostics diag_delta(const CanvasWidget::RenderCacheD
       diag_field_delta(before.processing_overlays_shown, after.processing_overlays_shown);
   delta.processing_overlay_frames =
       diag_field_delta(before.processing_overlay_frames, after.processing_overlay_frames);
+  delta.move_proxy_previews = diag_field_delta(before.move_proxy_previews, after.move_proxy_previews);
   delta.move_outline_previews = diag_field_delta(before.move_outline_previews, after.move_outline_previews);
   delta.transform_proxy_previews =
       diag_field_delta(before.transform_proxy_previews, after.transform_proxy_previews);
@@ -382,6 +383,7 @@ QJsonObject diag_to_json(const CanvasWidget::RenderCacheDiagnostics& diag) {
   object.insert(QStringLiteral("move_preview_patch_reuses"), diag.move_preview_patch_reuses);
   object.insert(QStringLiteral("processing_overlays_shown"), diag.processing_overlays_shown);
   object.insert(QStringLiteral("processing_overlay_frames"), diag.processing_overlay_frames);
+  object.insert(QStringLiteral("move_proxy_previews"), diag.move_proxy_previews);
   object.insert(QStringLiteral("move_outline_previews"), diag.move_outline_previews);
   object.insert(QStringLiteral("transform_proxy_previews"), diag.transform_proxy_previews);
   return object;
@@ -2101,7 +2103,8 @@ void StressTestRunner::phase_move_matrix() {
 
   // 29: small layer (tight bounds, drop shadow only): far below even the
   // styled 1 Mpx threshold, so the drag must stay on the live pixel-preview
-  // path (expect move_outline_previews == 0 at every preset).
+  // path (expect move_proxy_previews == 0 and move_outline_previews == 0 at
+  // every preset).
   fps_step("29_move_small_live", "Move drag: sticky note (live preview)", "move", [&] {
     select_move_targets({sticky_note_id_});
     // The path must return exactly to its start: the note's text is a separate
@@ -2111,16 +2114,18 @@ void StressTestRunner::phase_move_matrix() {
 
   // 30: the styled CRT screen (~2.1 Mpx at standard, glow + inner shadow):
   // crosses the styled 1 Mpx threshold while staying under the unstyled 4 Mpx
-  // one, so the outline fallback that engages here is specifically the
-  // expensive-style path. (The styled title is far too small for this - its
+  // one, so the proxy latch that engages here is specifically the
+  // expensive-style path (expect move_proxy_previews == 1 at standard+, the
+  // outline last resort 0). (The styled title is far too small for this - its
   // dirty area is ~0.26 Mpx at standard.)
-  fps_step("30_move_styled_outline", "Move drag: styled CRT screen (styled outline)", "move", [&] {
+  fps_step("30_move_styled_outline", "Move drag: styled CRT screen (styled proxy preview)", "move", [&] {
     select_move_targets({screen_id_});
     drag_path({pt(0.38, 0.35), pt(0.40, 0.40), pt(0.38, 0.35)}, motion_steps(30));
   });
 
-  // 31: full-canvas unstyled layer: the 4 Mpx threshold engages the outline.
-  fps_step("31_move_large_outline", "Move drag: wall texture (16 Mpx outline)", "move", [&] {
+  // 31: full-canvas unstyled layer: the 4 Mpx threshold engages the proxy
+  // latch (expect move_proxy_previews == 1 at standard+, outline 0).
+  fps_step("31_move_large_outline", "Move drag: wall texture (16 Mpx proxy preview)", "move", [&] {
     select_move_targets({wall_texture_id_});
     drag_path({pt(0.5, 0.5), pt(0.52, 0.55), pt(0.5, 0.5)}, motion_steps(30));
   });

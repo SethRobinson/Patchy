@@ -816,6 +816,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     moving_layers_.clear();
     moving_layers_use_outline_preview_ = false;
     clear_move_base_cache();
+    clear_move_proxy();
     moving_layers_.reserve(layer_ids.size());
     // Selected groups were flattened to leaves above, so a style on the folder
     // itself is invisible to the per-leaf check: fold every styled ancestor's
@@ -1326,13 +1327,37 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       last_mouse_position_ = event->pos();
       return;
     }
-    if (!moving_layers_use_outline_preview_ &&
+    if (!moving_layers_use_outline_preview_ && !move_drag_uses_proxy_preview_ &&
         moving_layers_should_use_outline_preview(old_delta, move_preview_delta_)) {
-      moving_layers_use_outline_preview_ = true;
-      ++render_cache_diagnostics_.move_outline_previews;
       move_preview_patches_.clear();
       move_preview_patches_delta_.reset();
-      clear_move_base_cache();
+      // Heavy drags latch onto the translated-snapshot proxy for the rest of
+      // the drag: one base + snapshot render now, then every frame is a blit.
+      // The dashed outline stays as the last resort when no snapshot can be
+      // built. Both latches are sticky until release.
+      ensure_render_cache();
+      ensure_move_base_cache();
+      if (!move_base_cache_.isNull() && ensure_move_proxy_image()) {
+        move_drag_uses_proxy_preview_ = true;
+        ++render_cache_diagnostics_.move_proxy_previews;
+      } else {
+        moving_layers_use_outline_preview_ = true;
+        ++render_cache_diagnostics_.move_outline_previews;
+        clear_move_base_cache();
+        clear_move_proxy();
+      }
+    }
+    if (move_drag_uses_proxy_preview_) {
+      // Re-cleared every move so a mid-drag external refresh cannot leave a
+      // stale composited patch under the proxy blit.
+      move_preview_patches_.clear();
+      move_preview_patches_delta_.reset();
+      const auto dirty = move_proxy_dirty_rect(old_delta, move_preview_delta_);
+      if (!dirty.isEmpty()) {
+        update(widget_rect_for_document_rect(dirty));
+      }
+      last_mouse_position_ = event->pos();
+      return;
     }
     if (moving_layers_use_outline_preview_) {
       move_preview_patches_.clear();
@@ -1708,6 +1733,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     move_preview_patches_delta_.reset();
     moving_layers_use_outline_preview_ = false;
     clear_move_base_cache();
+    clear_move_proxy();
     reset_axis_constrained_stroke();
     update_move_hover_outline(event->pos(), event->modifiers());
     update();
@@ -1768,7 +1794,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
         } else {
           const auto final_bounds = moving_layer_bounds(move_preview_delta_);
           const auto force_processing_wait =
-              moving_layers_use_outline_preview_ ||
+              moving_layers_use_outline_preview_ || move_drag_uses_proxy_preview_ ||
               std::any_of(moving_layers_.begin(), moving_layers_.end(),
                           [](const MovingLayer& layer) { return layer.expensive_style; });
           precommit_patches =
@@ -1822,6 +1848,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     move_preview_patches_delta_.reset();
     moving_layers_use_outline_preview_ = false;
     clear_move_base_cache();
+    clear_move_proxy();
     reset_axis_constrained_stroke();
     update_move_transform_controls_dirty(std::nullopt);
     update_move_hover_outline(event->pos(), event->modifiers());

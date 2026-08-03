@@ -271,9 +271,14 @@ public:
     int move_preview_patch_reuses{0};
     int processing_overlays_shown{0};
     int processing_overlay_frames{0};
-    // Times a move drag fell back to the outline ("rectangle") preview because
-    // its per-step dirty area crossed the kMoveOutlineDirtyAreaThreshold /
-    // kStyledMoveOutlineDirtyAreaThreshold limits. At most once per drag.
+    // Times a move drag latched onto the translated-snapshot proxy preview
+    // because its summed per-layer work area crossed the
+    // kMoveOutlineDirtyAreaThreshold / kStyledMoveOutlineDirtyAreaThreshold
+    // limits. At most once per drag.
+    int move_proxy_previews{0};
+    // Times a move drag fell back to the dashed-outline preview: the work area
+    // crossed the same limits but the proxy snapshot could not be built (or
+    // would exceed kMoveProxyLastResortSnapshotArea). At most once per drag.
     int move_outline_previews{0};
     // Times a free-transform drag latched onto the low-res proxy preview
     // because its transformed area crossed the kTransformProxyAreaThreshold /
@@ -930,6 +935,14 @@ private:
   void refresh_curves_clipping_preview();
   void ensure_move_base_cache();
   void clear_move_base_cache() noexcept;
+  // Builds the once-per-drag snapshot of ONLY the moving subtree (intra-set
+  // blending, clip runs, and styled ancestor folders baked in), downscaled to
+  // kMoveProxyMaxPixels when needed. Returns false when no snapshot can back a
+  // proxy preview (empty/oversized/failed render) so the caller falls back to
+  // the dashed outline.
+  [[nodiscard]] bool ensure_move_proxy_image();
+  [[nodiscard]] QRect move_proxy_dirty_rect(QPoint old_delta, QPoint new_delta) const;
+  void clear_move_proxy() noexcept;
   [[nodiscard]] const QImage& display_image_for_zoom();
   [[nodiscard]] const QImage& curves_clipping_display_image_for_zoom();
   [[nodiscard]] const QImage& move_base_display_image_for_zoom();
@@ -1707,6 +1720,11 @@ private:
   std::vector<RenderedDocumentPatch> move_preview_patches_;
   std::optional<QPoint> move_preview_patches_delta_{};
   bool moving_layers_use_outline_preview_{false};
+  bool move_drag_uses_proxy_preview_{false};
+  // Snapshot of the moving subtree at delta zero (ARGB32_Premultiplied,
+  // possibly downscaled) and the canvas-clipped document rect it covers.
+  QImage move_proxy_image_{};
+  QRect move_proxy_document_rect_{};
   QImage move_base_cache_{};
   std::vector<QImage> move_base_display_mip_cache_{};
   qint64 move_base_display_mip_source_key_{0};

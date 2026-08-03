@@ -1643,7 +1643,7 @@ void ui_layer_style_cache_invalidates_after_pixel_mutation() {
   CHECK(color_close(updated.pixelColor(18, 15), QColor(40, 180, 80), 2));
 }
 
-void ui_move_expensive_styled_layer_uses_outline_until_release() {
+void ui_move_expensive_styled_layer_uses_proxy_until_release() {
   patchy::Document document(1500, 1300, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(1500, 1300, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
 
@@ -1683,24 +1683,30 @@ void ui_move_expensive_styled_layer_uses_outline_until_release() {
   send_mouse(canvas, QEvent::MouseMove, end, Qt::NoButton, Qt::LeftButton);
   QApplication::processEvents();
 
-  CHECK(color_close(canvas_pixel(canvas, old_only_point), QColor(20, 90, 235), 45));
-  CHECK(color_close(canvas_pixel(canvas, moved_only_point), QColor(Qt::white), 45));
+  // The proxy latch shows the actual content translating: the vacated area
+  // reads from the base cache (white) and the new position blits the snapshot.
+  const auto mid_drag_stats = canvas.render_cache_diagnostics();
+  CHECK(mid_drag_stats.move_proxy_previews == before_release_stats.move_proxy_previews + 1);
+  CHECK(mid_drag_stats.move_outline_previews == before_release_stats.move_outline_previews);
+  CHECK(color_close(canvas_pixel(canvas, old_only_point), QColor(Qt::white), 45));
+  CHECK(color_close(canvas_pixel(canvas, moved_only_point), QColor(20, 90, 235), 45));
 
   send_mouse(canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton);
   QApplication::processEvents();
   const auto after_release_stats = canvas.render_cache_diagnostics();
   CHECK(after_release_stats.full_refreshes == before_release_stats.full_refreshes);
   CHECK(after_release_stats.move_precommit_patches == before_release_stats.move_precommit_patches + 1);
+  CHECK(after_release_stats.move_preview_patch_reuses == before_release_stats.move_preview_patch_reuses);
   CHECK(color_close(canvas_pixel(canvas, moved_only_point), QColor(20, 90, 235), 45));
   CHECK(color_close(canvas_pixel(canvas, old_only_point), QColor(Qt::white), 45));
-  save_widget_artifact("ui_move_expensive_style_outline", canvas);
+  save_widget_artifact("ui_move_expensive_style_proxy", canvas);
 }
 
 // A style on the dragged FOLDER (not on any leaf) must count as expensive:
 // the folder's silhouette and exterior effects re-render for every preview
-// patch, so the styled outline threshold has to see it even though the move
+// patch, so the styled proxy threshold has to see it even though the move
 // machinery flattens the folder to its leaves.
-void ui_move_styled_folder_drag_uses_outline_preview() {
+void ui_move_styled_folder_drag_uses_proxy_preview() {
   patchy::Document document(1500, 1300, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(1500, 1300, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
 
@@ -1740,20 +1746,24 @@ void ui_move_styled_folder_drag_uses_outline_preview() {
   send_mouse(canvas, QEvent::MouseMove, end, Qt::NoButton, Qt::LeftButton);
   QApplication::processEvents();
 
+  // Latching proves the ancestor detection; the blit shows the moved content.
   const auto mid_drag_stats = canvas.render_cache_diagnostics();
-  CHECK(mid_drag_stats.move_outline_previews == before_stats.move_outline_previews + 1);
+  CHECK(mid_drag_stats.move_proxy_previews == before_stats.move_proxy_previews + 1);
+  CHECK(mid_drag_stats.move_outline_previews == before_stats.move_outline_previews);
+  CHECK(color_close(canvas_pixel(canvas, moved_only_point), QColor(20, 90, 235), 45));
+  CHECK(color_close(canvas_pixel(canvas, old_only_point), QColor(Qt::white), 45));
 
   send_mouse(canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton);
   QApplication::processEvents();
   CHECK(color_close(canvas_pixel(canvas, moved_only_point), QColor(20, 90, 235), 45));
   CHECK(color_close(canvas_pixel(canvas, old_only_point), QColor(Qt::white), 45));
-  save_widget_artifact("ui_move_styled_folder_outline", canvas);
+  save_widget_artifact("ui_move_styled_folder_proxy", canvas);
 }
 
 // Dragging a stack of overlapping layers costs one composite per layer per
-// preview patch, so the outline threshold sums the per-layer areas instead of
+// preview patch, so the proxy threshold sums the per-layer areas instead of
 // taking their (small) shared bounding box.
-void ui_move_overlapping_stack_drag_uses_outline_preview() {
+void ui_move_overlapping_stack_drag_uses_proxy_preview() {
   patchy::Document document(1300, 950, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(1300, 950, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
 
@@ -1787,13 +1797,16 @@ void ui_move_overlapping_stack_drag_uses_outline_preview() {
   QApplication::processEvents();
 
   const auto mid_drag_stats = canvas.render_cache_diagnostics();
-  CHECK(mid_drag_stats.move_outline_previews == before_stats.move_outline_previews + 1);
+  CHECK(mid_drag_stats.move_proxy_previews == before_stats.move_proxy_previews + 1);
+  CHECK(mid_drag_stats.move_outline_previews == before_stats.move_outline_previews);
+  CHECK(color_close(canvas_pixel(canvas, QPoint(1200, 400)), QColor(200, 60, 40), 45));
+  CHECK(color_close(canvas_pixel(canvas, QPoint(200, 400)), QColor(Qt::white), 45));
 
   send_mouse(canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton);
   QApplication::processEvents();
   CHECK(color_close(canvas_pixel(canvas, QPoint(1200, 400)), QColor(200, 60, 40), 45));
   CHECK(color_close(canvas_pixel(canvas, QPoint(200, 400)), QColor(Qt::white), 45));
-  save_widget_artifact("ui_move_overlapping_stack_outline", canvas);
+  save_widget_artifact("ui_move_overlapping_stack_proxy", canvas);
 }
 
 // A live (sub-threshold) drag of a styled folder must repaint the folder's
@@ -1862,6 +1875,7 @@ void ui_move_styled_folder_live_preview_clears_shadow_trail() {
 
   const auto mid_drag_stats = canvas.render_cache_diagnostics();
   CHECK(mid_drag_stats.move_outline_previews == 0);
+  CHECK(mid_drag_stats.move_proxy_previews == 0);
   CHECK(color_close(canvas_pixel(canvas, near_trail_point), QColor(Qt::white), 20));
   CHECK(color_close(canvas_pixel(canvas, far_trail_point), QColor(Qt::white), 20));
 
@@ -2487,11 +2501,11 @@ std::vector<patchy::test::TestCase> move_tool_processing_overlay_tests() {
        ui_processing_overlay_ticks_during_fill_tool_loop},
       {"ui_layer_style_cache_invalidates_after_pixel_mutation",
        ui_layer_style_cache_invalidates_after_pixel_mutation},
-      {"ui_move_expensive_styled_layer_uses_outline_until_release",
-       ui_move_expensive_styled_layer_uses_outline_until_release},
-      {"ui_move_styled_folder_drag_uses_outline_preview", ui_move_styled_folder_drag_uses_outline_preview},
-      {"ui_move_overlapping_stack_drag_uses_outline_preview",
-       ui_move_overlapping_stack_drag_uses_outline_preview},
+      {"ui_move_expensive_styled_layer_uses_proxy_until_release",
+       ui_move_expensive_styled_layer_uses_proxy_until_release},
+      {"ui_move_styled_folder_drag_uses_proxy_preview", ui_move_styled_folder_drag_uses_proxy_preview},
+      {"ui_move_overlapping_stack_drag_uses_proxy_preview",
+       ui_move_overlapping_stack_drag_uses_proxy_preview},
       {"ui_move_styled_folder_live_preview_clears_shadow_trail",
        ui_move_styled_folder_live_preview_clears_shadow_trail},
       {"ui_layer_move_repaints_only_active_document_tab", ui_layer_move_repaints_only_active_document_tab},

@@ -930,9 +930,12 @@ void ui_stress_test_smoke_preset_writes_report() {
     const auto step_object = step_value.toObject();
     if (step_object.value(QStringLiteral("category")).toString() == QStringLiteral("move")) {
       found_move_step = true;
-      // The outline-preview fallback counter must be reported per move step
-      // (engagement itself is not asserted: smoke areas sit under the
-      // thresholds by design).
+      // The proxy-latch and outline-fallback counters must be reported per
+      // move step (engagement itself is not asserted: smoke areas sit under
+      // the thresholds by design).
+      CHECK(step_object.value(QStringLiteral("diag"))
+                .toObject()
+                .contains(QStringLiteral("move_proxy_previews")));
       CHECK(step_object.value(QStringLiteral("diag"))
                 .toObject()
                 .contains(QStringLiteral("move_outline_previews")));

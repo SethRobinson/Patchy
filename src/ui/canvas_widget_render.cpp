@@ -846,14 +846,28 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
       draw_scaled_image(warp_base_cache_);
     }
   } else if (moving_layer_ && !moving_layers_.empty()) {
-    const bool base_excludes_layer = !moving_layers_use_outline_preview_ && !move_base_cache_.isNull();
+    const bool proxy_preview =
+        move_drag_uses_proxy_preview_ && !move_proxy_image_.isNull() && !move_base_cache_.isNull();
+    const bool base_excludes_layer =
+        (proxy_preview || !moving_layers_use_outline_preview_) && !move_base_cache_.isNull();
     if (base_excludes_layer) {
       draw_scaled_image(move_base_cache_);
     } else {
       draw_scaled_image(render_cache_);
     }
-    for (const auto& patch : move_preview_patches_) {
-      draw_document_patch(patch, !base_excludes_layer);
+    if (proxy_preview) {
+      // Translated snapshot of the moving subtree. Blend modes against the
+      // real backdrop and content clipped at the canvas edge are approximated
+      // until release, and at deep-zoom levels the plain blit skips the
+      // per-pixel renderer's grid (a heavy latch above 800% zoom is a corner
+      // case).
+      const auto proxy_target =
+          widget_rect_for_document_rect(QRectF(move_proxy_document_rect_.translated(move_preview_delta_)));
+      painter.drawImage(proxy_target, move_proxy_image_, QRectF(move_proxy_image_.rect()));
+    } else {
+      for (const auto& patch : move_preview_patches_) {
+        draw_document_patch(patch, !base_excludes_layer);
+      }
     }
   } else {
     draw_scaled_image(curves_clipping_mode_.has_value() && !curves_clipping_preview_image_.isNull()

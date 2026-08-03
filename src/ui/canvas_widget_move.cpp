@@ -76,6 +76,12 @@ namespace {
 
 constexpr std::int64_t kMoveOutlineDirtyAreaThreshold = 4'000'000;
 constexpr std::int64_t kStyledMoveOutlineDirtyAreaThreshold = 1'000'000;
+// The proxy snapshot is downscaled to at most this many pixels (mirrors
+// kTransformProxyMaxPixels) and refused outright above the last-resort cap,
+// where even the one-time snapshot render would hitch for seconds; such drags
+// keep the dashed-outline fallback.
+constexpr std::int64_t kMoveProxyMaxPixels = 4'000'000;
+constexpr std::int64_t kMoveProxyLastResortSnapshotArea = 80'000'000;
 
 }  // namespace
 
@@ -295,6 +301,93 @@ QRect CanvasWidget::moving_layers_outline_dirty_rect(QPoint old_delta, QPoint ne
     return dirty;
   }
   return dirty.adjusted(-2, -2, 2, 2).intersected(QRect(0, 0, document_->width(), document_->height()));
+}
+
+bool CanvasWidget::ensure_move_proxy_image() {
+  if (!move_proxy_image_.isNull()) {
+    return true;
+  }
+  if (document_ == nullptr || moving_layers_.empty()) {
+    return false;
+  }
+
+  const QRect canvas_rect(0, 0, document_->width(), document_->height());
+  QRect snapshot_rect;
+  for (const auto& moving_layer : moving_layers_) {
+    const auto* layer = std::as_const(*document_).find_layer(moving_layer.id);
+    if (layer == nullptr) {
+      continue;
+    }
+    snapshot_rect = snapshot_rect.united(moving_layer_effect_rect(*layer, moving_layer, QPoint()));
+  }
+  snapshot_rect = snapshot_rect.intersected(canvas_rect);
+  if (snapshot_rect.isEmpty()) {
+    return false;
+  }
+  const auto snapshot_area =
+      static_cast<std::int64_t>(snapshot_rect.width()) * static_cast<std::int64_t>(snapshot_rect.height());
+  if (snapshot_area > kMoveProxyLastResortSnapshotArea) {
+    return false;
+  }
+
+  // Hide every non-moving pixel-bearing leaf but keep groups and adjustment
+  // layers rendering: styled ancestor folders bake their effects around the
+  // moving silhouette, and adjustment layers (which act on whatever composite
+  // is below them, pass-through folders included) keep the snapshot's colors
+  // close to the final composite. Blends against the real backdrop and content
+  // clipped at the canvas edge stay approximate until release.
+  const auto is_moving = [this](LayerId id) {
+    return std::any_of(moving_layers_.begin(), moving_layers_.end(),
+                       [id](const MovingLayer& moving_layer) { return moving_layer.id == id; });
+  };
+  std::vector<LayerId> hidden;
+  const std::function<void(const Layer&)> collect_hidden = [&](const Layer& layer) {
+    if (layer.kind() == LayerKind::Group) {
+      for (const auto& child : layer.children()) {
+        collect_hidden(child);
+      }
+      return;
+    }
+    if (layer.kind() != LayerKind::Adjustment && !is_moving(layer.id())) {
+      hidden.push_back(layer.id());
+    }
+  };
+  for (const auto& layer : std::as_const(*document_).layers()) {
+    collect_hidden(layer);
+  }
+
+  auto snapshot = qimage_from_document_rect_with_hidden_layers(*document_, snapshot_rect, true, hidden);
+  if (snapshot.isNull()) {
+    return false;
+  }
+  if (snapshot_area > kMoveProxyMaxPixels) {
+    const auto scale = std::sqrt(static_cast<double>(kMoveProxyMaxPixels) / static_cast<double>(snapshot_area));
+    const QSize proxy_size(std::max(1, static_cast<int>(std::lround(snapshot.width() * scale))),
+                           std::max(1, static_cast<int>(std::lround(snapshot.height() * scale))));
+    snapshot = snapshot.scaled(proxy_size, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+  }
+  move_proxy_image_ = snapshot.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+  move_proxy_document_rect_ = snapshot_rect;
+  return !move_proxy_image_.isNull();
+}
+
+QRect CanvasWidget::move_proxy_dirty_rect(QPoint old_delta, QPoint new_delta) const {
+  if (document_ == nullptr || move_proxy_document_rect_.isEmpty()) {
+    return {};
+  }
+  auto dirty =
+      move_proxy_document_rect_.translated(old_delta).united(move_proxy_document_rect_.translated(new_delta));
+  const auto outline_dirty = moving_layers_outline_dirty_rect(old_delta, new_delta);
+  if (!outline_dirty.isEmpty()) {
+    dirty = dirty.united(outline_dirty);
+  }
+  return dirty.adjusted(-2, -2, 2, 2).intersected(QRect(0, 0, document_->width(), document_->height()));
+}
+
+void CanvasWidget::clear_move_proxy() noexcept {
+  move_drag_uses_proxy_preview_ = false;
+  move_proxy_image_ = QImage();
+  move_proxy_document_rect_ = QRect();
 }
 
 bool CanvasWidget::moving_layers_should_use_outline_preview(QPoint old_delta, QPoint new_delta) const {
