@@ -377,12 +377,17 @@ serialize_filter_effects_record_body(const SmartFilterEffectsRecord &record) {
         "PSD filter-effects record id does not match its raw body");
   }
 
-  std::vector<std::uint8_t> body;
-  body.reserve(raw.size() - record.original_placed_uuid.size() +
-               record.placed_uuid.size());
-  body.push_back(static_cast<std::uint8_t>(record.placed_uuid.size()));
-  body.insert(body.end(), record.placed_uuid.begin(), record.placed_uuid.end());
-  body.insert(body.end(), original_end, raw.end());
+  // Size the body exactly, then fill it by copy. Growing it with push_back and
+  // insert instead leaves GCC's optimizer unable to prove the vector's storage
+  // is heap-allocated across the inlined reallocation path, which it reports as
+  // a false-positive -Wfree-nonheap-object.
+  const auto tail_length = raw.size() - 1U - record.original_placed_uuid.size();
+  std::vector<std::uint8_t> body(1U + record.placed_uuid.size() + tail_length);
+  body[0] = static_cast<std::uint8_t>(record.placed_uuid.size());
+  const auto tail_begin =
+      std::copy(record.placed_uuid.begin(), record.placed_uuid.end(),
+                body.begin() + 1);
+  std::copy(original_end, raw.end(), tail_begin);
   return body;
 }
 

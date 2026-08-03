@@ -3106,7 +3106,14 @@ void apply_af_run_item(const af::AfClass& item, psd::PsdTextStyleRun& run, float
         max_y = first_corner ? py : std::max(max_y, py);
         first_corner = false;
       }
-      box = {min_x, min_y, max_x, max_y};
+      // Assign the four edges in place. box is already known to hold exactly
+      // four values, and assigning a braced list instead makes GCC's optimizer
+      // misjudge the temporary array it builds for the list, which it reports
+      // as a false-positive -Warray-bounds.
+      box[0] = min_x;
+      box[1] = min_y;
+      box[2] = max_x;
+      box[3] = max_y;
       effective_size *= scale;
       size_scale = scale;
       ascent *= scale_y;

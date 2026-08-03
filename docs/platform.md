@@ -42,6 +42,32 @@ After it snapshots the tree, use the corresponding remote checkout for clean
 `mac-dev` or `linux-dev` verification. Do not add `-Werror` or `/WX`; a new warning is
 fixed in source or isolated at the exact vendored source and diagnostic.
 
+### The flatpak build is a second Linux compiler
+
+A warning reported by the flatpak release build usually cannot be reproduced or
+verified by `remote-build.ps1 -Target linux`. The two use different compilers and
+different flags: `linux-release` on glados is the system `/usr/bin/c++` (GCC 13.3.0 on
+Ubuntu 24.04) with only `-O3 -DNDEBUG -std=c++20 -Wall -Wextra -Wpedantic`, while
+`packaging/linux/make-flatpak.sh` builds inside `org.kde.Sdk//6.8` with GCC 14.3.0 and
+flatpak-builder's hardening flags (`-Wp,-D_FORTIFY_SOURCE=3 -Wp,-D_GLIBCXX_ASSERTIONS
+-fstack-protector-strong -fstack-clash-protection -fcf-protection -fno-omit-frame-pointer`,
+then `-O3 -DNDEBUG` on top). Both the newer libstdc++ headers and `_GLIBCXX_ASSERTIONS`
+change inlining enough to produce optimizer diagnostics the plain preset never emits.
+The August 2026 `-Wfree-nonheap-object` and `-Warray-bounds=` false positives in
+`psd_filter_effects.cpp` and `af_document_io.cpp` were both invisible to the preset
+build and both reproduced under these flags.
+
+Checking a single translation unit is far cheaper than a full flatpak run. Take the
+object's `FLAGS` and `INCLUDES` from a previous flatpak build tree
+(`packaging/linux/.flatpak-builder/build/patchy-*/build.ninja`, which survives
+`--force-clean`) and compile it with the SDK compiler:
+
+    flatpak run --filesystem=home --command=g++ org.kde.Sdk//6.8 <INCLUDES> <FLAGS> \
+      -c ~/patchy/src/src/formats/af_document_io.cpp -o /dev/null
+
+Compiling a copy of the pre-fix file the same way confirms a fix actually removed the
+warning instead of merely being compiled by something that never reported it.
+
 ## Remote build machinery
 
 macOS (arm64, preset `mac-release`, Qt at `.deps/Qt/6.8.3/macos`) and Linux (preset `linux-release`, Qt at `.deps/Qt/6.8.3/gcc_64`) build remotely via `scripts\remote\remote-build.ps1 -Target mac|linux`, which snapshots the working tree (uncommitted changes included; it creates no commits or branches and does not touch the real index) to a bare repo on `seth@studiomac.local` / `glados@glados.local`, builds there, and runs both suites (core + offscreen UI) with output streamed back. One-time machine provisioning is `scripts/remote/setup-mac.sh` / `setup-linux.sh` (idempotent: venv tools + Qt via aqtinstall + apt deps).
