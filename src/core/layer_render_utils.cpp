@@ -331,6 +331,33 @@ bool group_style_renders(const Layer& layer) noexcept {
          !layer.layer_style().empty();
 }
 
+namespace {
+
+void collect_ancestor_group_style_info_recursive(const std::vector<Layer>& layers, int inherited_padding,
+                                                 bool inherited_styled,
+                                                 std::unordered_map<LayerId, AncestorGroupStyleInfo>& info) {
+  for (const auto& layer : layers) {
+    if (layer.kind() == LayerKind::Group) {
+      const auto styled = group_style_renders(layer);
+      const auto padding = inherited_padding + (styled ? layer_style_effect_padding(layer.layer_style()) : 0);
+      collect_ancestor_group_style_info_recursive(layer.children(), padding, inherited_styled || styled, info);
+      continue;
+    }
+    if (inherited_styled) {
+      info.emplace(layer.id(), AncestorGroupStyleInfo{inherited_padding, true});
+    }
+  }
+}
+
+}  // namespace
+
+std::unordered_map<LayerId, AncestorGroupStyleInfo> collect_ancestor_group_style_info(
+    const std::vector<Layer>& layers) {
+  std::unordered_map<LayerId, AncestorGroupStyleInfo> info;
+  collect_ancestor_group_style_info_recursive(layers, 0, false, info);
+  return info;
+}
+
 bool layer_style_preview_is_expensive(const Layer& layer, Rect document_bounds) noexcept {
   const auto padding = layer_effect_padding(layer);
   if (padding <= 0 || document_bounds.empty()) {

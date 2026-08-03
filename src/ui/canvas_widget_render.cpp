@@ -1332,8 +1332,7 @@ void CanvasWidget::ensure_move_base_cache() {
     if (layer == nullptr) {
       continue;
     }
-    const auto rect =
-        to_qrect(layer_bounds_with_effects(*layer, moving_layer.original_bounds)).intersected(canvas_rect);
+    const auto rect = moving_layer_effect_rect(*layer, moving_layer, QPoint()).intersected(canvas_rect);
     if (!rect.isEmpty()) {
       old_region += rect;
     }

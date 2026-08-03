@@ -885,7 +885,14 @@ private:
     LayerId id{};
     Rect original_bounds{};
     std::optional<Rect> original_opaque_bounds{};
+    // True when the layer's own style renders OR any ancestor group's style
+    // does: a styled ancestor re-renders its silhouette and exterior effects
+    // for every preview patch, so its children share the expensive path.
     bool expensive_style{false};
+    // Summed padding of every styled ancestor group (the compositor outsets
+    // per nesting level); the leaf's own style padding lives in
+    // layer_bounds_with_effects, not here.
+    int ancestor_effect_padding{0};
   };
 
   [[nodiscard]] QImage render_document_image() const;
@@ -1245,8 +1252,11 @@ private:
   void update_move_hover_outline(QPoint widget_position, Qt::KeyboardModifiers modifiers);
   void clear_move_hover_outline();
   [[nodiscard]] QRect moving_layer_outline_rect(const MovingLayer& moving_layer, QPoint delta) const;
+  // The document rect the layer dirties at `delta`: bounds shifted, padded by
+  // the layer's own effects and by its styled ancestors' summed padding.
+  [[nodiscard]] QRect moving_layer_effect_rect(const Layer& layer, const MovingLayer& moving_layer,
+                                               QPoint delta) const;
   [[nodiscard]] std::vector<std::pair<LayerId, Rect>> moving_layer_bounds(QPoint delta) const;
-  [[nodiscard]] QRect moving_layers_dirty_rect(QPoint old_delta, QPoint new_delta) const;
   [[nodiscard]] QRegion moving_layers_dirty_region(QPoint old_delta, QPoint new_delta) const;
   [[nodiscard]] QRect moving_layers_outline_dirty_rect(QPoint old_delta, QPoint new_delta) const;
   [[nodiscard]] bool moving_layers_should_use_outline_preview(QPoint old_delta, QPoint new_delta) const;

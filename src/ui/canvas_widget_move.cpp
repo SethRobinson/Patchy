@@ -240,8 +240,18 @@ std::vector<std::pair<LayerId, Rect>> CanvasWidget::moving_layer_bounds(QPoint d
   return bounds;
 }
 
-QRect CanvasWidget::moving_layers_dirty_rect(QPoint old_delta, QPoint new_delta) const {
-  return moving_layers_dirty_region(old_delta, new_delta).boundingRect();
+QRect CanvasWidget::moving_layer_effect_rect(const Layer& layer, const MovingLayer& moving_layer,
+                                             QPoint delta) const {
+  auto bounds = moving_layer.original_bounds;
+  bounds.x += delta.x();
+  bounds.y += delta.y();
+  auto with_effects = layer_bounds_with_effects(layer, bounds);
+  if (!with_effects.empty() && moving_layer.ancestor_effect_padding > 0) {
+    // A styled ancestor group's shadow/glow moves with the leaf; without this
+    // outset the preview and commit patches stop short of the effect spill.
+    with_effects = outset_rect(with_effects, moving_layer.ancestor_effect_padding);
+  }
+  return to_qrect(with_effects);
 }
 
 QRegion CanvasWidget::moving_layers_dirty_region(QPoint old_delta, QPoint new_delta) const {
@@ -254,14 +264,8 @@ QRegion CanvasWidget::moving_layers_dirty_region(QPoint old_delta, QPoint new_de
     if (layer == nullptr) {
       continue;
     }
-    auto old_bounds = moving_layer.original_bounds;
-    old_bounds.x += old_delta.x();
-    old_bounds.y += old_delta.y();
-    auto new_bounds = moving_layer.original_bounds;
-    new_bounds.x += new_delta.x();
-    new_bounds.y += new_delta.y();
-    const auto old_rect = to_qrect(layer_bounds_with_effects(*layer, old_bounds));
-    const auto new_rect = to_qrect(layer_bounds_with_effects(*layer, new_bounds));
+    const auto old_rect = moving_layer_effect_rect(*layer, moving_layer, old_delta);
+    const auto new_rect = moving_layer_effect_rect(*layer, moving_layer, new_delta);
     if (!old_rect.isEmpty()) {
       region += old_rect;
     }
@@ -297,12 +301,29 @@ bool CanvasWidget::moving_layers_should_use_outline_preview(QPoint old_delta, QP
   if (document_ == nullptr || moving_layers_.empty()) {
     return false;
   }
-  const auto dirty =
-      moving_layers_dirty_rect(old_delta, new_delta).intersected(QRect(0, 0, document_->width(), document_->height()));
-  if (dirty.isEmpty()) {
+  // Cost metric: SUM every moving layer's canvas-clipped effect rect instead of
+  // taking one bounding box. Every preview patch recomposites each moving layer
+  // it covers, so a dragged folder of stacked copies costs the per-layer sum
+  // while its bounding box stays small (a 21-copy poster stack measured ~0.3
+  // Mpx by box but ~6 Mpx of per-frame composite work). For disjoint layers the
+  // sum is at most the old bounding-box metric, and for a single layer the
+  // old/new average matches it, so the thresholds keep their calibration.
+  const QRect canvas_rect(0, 0, document_->width(), document_->height());
+  std::int64_t summed_area = 0;
+  for (const auto& moving_layer : moving_layers_) {
+    const auto* layer = document_->find_layer(moving_layer.id);
+    if (layer == nullptr) {
+      continue;
+    }
+    for (const auto delta : {old_delta, new_delta}) {
+      const auto rect = moving_layer_effect_rect(*layer, moving_layer, delta).intersected(canvas_rect);
+      summed_area += static_cast<std::int64_t>(rect.width()) * static_cast<std::int64_t>(rect.height());
+    }
+  }
+  const auto dirty_area = summed_area / 2;
+  if (dirty_area <= 0) {
     return false;
   }
-  const auto dirty_area = static_cast<std::int64_t>(dirty.width()) * static_cast<std::int64_t>(dirty.height());
   if (dirty_area >= kMoveOutlineDirtyAreaThreshold) {
     return true;
   }
@@ -332,13 +353,23 @@ QRegion CanvasWidget::move_active_layer_by(QPoint delta) {
                                                   : tr("Nudge layer"));
   }
   QRegion dirty;
+  // Same styled-ancestor blind spot as the drag path: a nudged child of a
+  // styled folder moves the folder's shadow/glow too, so pad its dirty rects.
+  const auto ancestor_style_info = collect_ancestor_group_style_info(std::as_const(*document_).layers());
+  const auto ancestor_padded = [&ancestor_style_info](LayerId id, Rect with_effects) {
+    if (const auto found = ancestor_style_info.find(id);
+        found != ancestor_style_info.end() && found->second.effect_padding > 0 && !with_effects.empty()) {
+      with_effects = outset_rect(with_effects, found->second.effect_padding);
+    }
+    return to_qrect(with_effects);
+  };
   for (const auto id : layer_ids) {
     auto* layer = document_->find_layer(id);
     if (layer == nullptr) {
       continue;
     }
     const auto old_bounds = layer->bounds();
-    dirty += to_qrect(layer_bounds_with_effects(*layer, old_bounds));
+    dirty += ancestor_padded(id, layer_bounds_with_effects(*layer, old_bounds));
     auto bounds = old_bounds;
     bounds.x += delta.x();
     bounds.y += delta.y();
@@ -354,7 +385,7 @@ QRegion CanvasWidget::move_active_layer_by(QPoint delta) {
     }
     layer = document_->find_layer(id);
     if (layer != nullptr) {
-      dirty += to_qrect(layer_bounds_with_effects(*layer, layer->bounds()));
+      dirty += ancestor_padded(id, layer_bounds_with_effects(*layer, layer->bounds()));
     }
   }
   if (rerender_smart_filters && rollback_document.has_value()) {

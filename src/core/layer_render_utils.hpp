@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <unordered_map>
 #include <vector>
 
 namespace patchy {
@@ -36,6 +37,19 @@ namespace patchy {
 // A group whose own layer style should render (kind Group, effects visible,
 // style non-empty). Style-less groups keep the historical composite paths.
 [[nodiscard]] bool group_style_renders(const Layer& layer) noexcept;
+struct AncestorGroupStyleInfo {
+  // Summed styled-ancestor padding: the compositor outsets by each styled
+  // group's own padding at every nesting level (layer_render_bounds_for_render),
+  // so nested styled groups add, unlike layer_effect_padding's max.
+  int effect_padding{0};
+  bool styled{false};
+};
+// Styled-ancestor info for every non-group layer that sits under at least one
+// group whose style renders; layers with no styled ancestor are absent. Used by
+// move/nudge dirty-region and preview-cost calculations, which otherwise see
+// only each leaf's own style.
+[[nodiscard]] std::unordered_map<LayerId, AncestorGroupStyleInfo> collect_ancestor_group_style_info(
+    const std::vector<Layer>& layers);
 [[nodiscard]] bool layer_style_preview_is_expensive(const Layer& layer, Rect document_bounds) noexcept;
 // Vector-mask coverage sample (1.0 when absent/disabled; density folds in).
 // Both layer_mask_alpha_at overloads already multiply this in, so every mask

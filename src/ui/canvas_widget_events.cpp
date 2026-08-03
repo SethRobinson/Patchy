@@ -817,11 +817,21 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     moving_layers_use_outline_preview_ = false;
     clear_move_base_cache();
     moving_layers_.reserve(layer_ids.size());
+    // Selected groups were flattened to leaves above, so a style on the folder
+    // itself is invisible to the per-leaf check: fold every styled ancestor's
+    // expense and padding back into each leaf's entry.
+    const auto ancestor_style_info = collect_ancestor_group_style_info(std::as_const(*document_).layers());
     for (const auto id : layer_ids) {
       auto* layer = document_->find_layer(id);
       if (layer != nullptr) {
-        moving_layers_.push_back(
-            MovingLayer{id, layer->bounds(), move_layer_outline_bounds(*layer), move_layer_has_expensive_style(*layer)});
+        auto expensive_style = move_layer_has_expensive_style(*layer);
+        int ancestor_effect_padding = 0;
+        if (const auto found = ancestor_style_info.find(id); found != ancestor_style_info.end()) {
+          expensive_style = expensive_style || found->second.styled;
+          ancestor_effect_padding = found->second.effect_padding;
+        }
+        moving_layers_.push_back(MovingLayer{id, layer->bounds(), move_layer_outline_bounds(*layer), expensive_style,
+                                             ancestor_effect_padding});
       }
     }
     move_preview_patches_.clear();

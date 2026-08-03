@@ -1696,6 +1696,185 @@ void ui_move_expensive_styled_layer_uses_outline_until_release() {
   save_widget_artifact("ui_move_expensive_style_outline", canvas);
 }
 
+// A style on the dragged FOLDER (not on any leaf) must count as expensive:
+// the folder's silhouette and exterior effects re-render for every preview
+// patch, so the styled outline threshold has to see it even though the move
+// machinery flattens the folder to its leaves.
+void ui_move_styled_folder_drag_uses_outline_preview() {
+  patchy::Document document(1500, 1300, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(1500, 1300, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+
+  patchy::Layer folder(document.allocate_layer_id(), "Styled Folder", patchy::LayerKind::Group);
+  const auto folder_id = folder.id();
+  patchy::LayerDropShadow shadow;
+  shadow.enabled = true;
+  shadow.opacity = 1.0F;
+  shadow.distance = 0.0F;
+  shadow.size = 8.0F;
+  folder.layer_style().drop_shadows.push_back(shadow);
+  patchy::Layer child(document.allocate_layer_id(), "Plain Child",
+                      solid_pixels(1000, 1000, patchy::PixelFormat::rgba8(), QColor(20, 90, 235)));
+  child.set_bounds(patchy::Rect{100, 100, 1000, 1000});
+  folder.add_child(std::move(child));
+  document.add_layer(std::move(folder));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(900, 720);
+  canvas.set_document(&document);
+  canvas.set_zoom(0.5);
+  canvas.set_tool(patchy::ui::CanvasTool::Move);
+  canvas.set_show_transform_controls(false);
+  canvas.set_auto_select_layer(false);
+  canvas.set_snap_enabled(false);
+  canvas.set_selected_layer_ids({folder_id});
+  canvas.show();
+  QApplication::processEvents();
+
+  const QPoint delta(300, 0);
+  const QPoint old_only_point(150, 500);
+  const QPoint moved_only_point(1250, 500);
+  const auto before_stats = canvas.render_cache_diagnostics();
+  const auto start = canvas.widget_position_for_document_point(QPoint(150, 150));
+  const auto end = canvas.widget_position_for_document_point(QPoint(150, 150) + delta);
+  send_mouse(canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, end, Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+
+  const auto mid_drag_stats = canvas.render_cache_diagnostics();
+  CHECK(mid_drag_stats.move_outline_previews == before_stats.move_outline_previews + 1);
+
+  send_mouse(canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(canvas, moved_only_point), QColor(20, 90, 235), 45));
+  CHECK(color_close(canvas_pixel(canvas, old_only_point), QColor(Qt::white), 45));
+  save_widget_artifact("ui_move_styled_folder_outline", canvas);
+}
+
+// Dragging a stack of overlapping layers costs one composite per layer per
+// preview patch, so the outline threshold sums the per-layer areas instead of
+// taking their (small) shared bounding box.
+void ui_move_overlapping_stack_drag_uses_outline_preview() {
+  patchy::Document document(1300, 950, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(1300, 950, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+
+  std::vector<patchy::LayerId> stack_ids;
+  for (int index = 0; index < 6; ++index) {
+    patchy::Layer layer(document.allocate_layer_id(), "Stack Layer",
+                        solid_pixels(900, 800, patchy::PixelFormat::rgba8(), QColor(200, 60, 40)));
+    layer.set_bounds(patchy::Rect{150, 80, 900, 800});
+    stack_ids.push_back(layer.id());
+    document.add_layer(std::move(layer));
+  }
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(900, 720);
+  canvas.set_document(&document);
+  canvas.set_zoom(0.5);
+  canvas.set_tool(patchy::ui::CanvasTool::Move);
+  canvas.set_show_transform_controls(false);
+  canvas.set_auto_select_layer(false);
+  canvas.set_snap_enabled(false);
+  canvas.set_selected_layer_ids(stack_ids);
+  canvas.show();
+  QApplication::processEvents();
+
+  const QPoint delta(220, 0);
+  const auto before_stats = canvas.render_cache_diagnostics();
+  const auto start = canvas.widget_position_for_document_point(QPoint(200, 200));
+  const auto end = canvas.widget_position_for_document_point(QPoint(200, 200) + delta);
+  send_mouse(canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, end, Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+
+  const auto mid_drag_stats = canvas.render_cache_diagnostics();
+  CHECK(mid_drag_stats.move_outline_previews == before_stats.move_outline_previews + 1);
+
+  send_mouse(canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(canvas, QPoint(1200, 400)), QColor(200, 60, 40), 45));
+  CHECK(color_close(canvas_pixel(canvas, QPoint(200, 400)), QColor(Qt::white), 45));
+  save_widget_artifact("ui_move_overlapping_stack_outline", canvas);
+}
+
+// A live (sub-threshold) drag of a styled folder must repaint the folder's
+// shadow spill around the vacated position: the preview/commit patch regions
+// pad each leaf by its styled ancestors' SUMMED padding (the outer group's
+// shadow blurs the inner group's already-shadowed silhouette, so the spill
+// reaches farther than either style alone).
+void ui_move_styled_folder_live_preview_clears_shadow_trail() {
+  patchy::Document document(220, 160, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(220, 160, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+
+  patchy::Layer outer(document.allocate_layer_id(), "Outer Styled Folder", patchy::LayerKind::Group);
+  const auto outer_id = outer.id();
+  patchy::LayerDropShadow outer_shadow;
+  outer_shadow.enabled = true;
+  outer_shadow.opacity = 1.0F;
+  outer_shadow.distance = 0.0F;
+  outer_shadow.spread = 0.8F;
+  outer_shadow.size = 12.0F;
+  outer.layer_style().drop_shadows.push_back(outer_shadow);
+
+  patchy::Layer inner(document.allocate_layer_id(), "Inner Styled Folder", patchy::LayerKind::Group);
+  patchy::LayerDropShadow inner_shadow;
+  inner_shadow.enabled = true;
+  inner_shadow.opacity = 1.0F;
+  inner_shadow.angle_degrees = 180.0F;  // hard offset straight to the +x side
+  inner_shadow.distance = 10.0F;
+  inner_shadow.spread = 0.8F;
+  inner_shadow.size = 2.0F;
+  inner.layer_style().drop_shadows.push_back(inner_shadow);
+
+  patchy::Layer child(document.allocate_layer_id(), "Shadowed Child",
+                      solid_pixels(24, 24, patchy::PixelFormat::rgba8(), QColor(230, 30, 30)));
+  child.set_bounds(patchy::Rect{60, 70, 24, 24});
+  inner.add_child(std::move(child));
+  outer.add_child(std::move(inner));
+  document.add_layer(std::move(outer));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(520, 380);
+  canvas.set_document(&document);
+  canvas.set_zoom(1.0);
+  canvas.set_tool(patchy::ui::CanvasTool::Move);
+  canvas.set_show_transform_controls(false);
+  canvas.set_auto_select_layer(false);
+  canvas.set_snap_enabled(false);
+  canvas.set_selected_layer_ids({outer_id});
+  canvas.show();
+  QApplication::processEvents();
+
+  // Old child right edge is x=84: the inner folder's hard offset shadow covers
+  // roughly x=70..96 there, well outside the child's own (style-less) bounds,
+  // so both probes start dark and turn stale if the patch region ignores the
+  // styled ancestors' padding.
+  const QPoint near_trail_point(92, 82);
+  const QPoint far_trail_point(95, 82);
+  CHECK(!color_close(canvas_pixel(canvas, near_trail_point), QColor(Qt::white), 40));
+  CHECK(!color_close(canvas_pixel(canvas, far_trail_point), QColor(Qt::white), 40));
+
+  const QPoint delta(80, 0);
+  const auto start = canvas.widget_position_for_document_point(QPoint(70, 80));
+  const auto end = canvas.widget_position_for_document_point(QPoint(70, 80) + delta);
+  send_mouse(canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, end, Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+
+  const auto mid_drag_stats = canvas.render_cache_diagnostics();
+  CHECK(mid_drag_stats.move_outline_previews == 0);
+  CHECK(color_close(canvas_pixel(canvas, near_trail_point), QColor(Qt::white), 20));
+  CHECK(color_close(canvas_pixel(canvas, far_trail_point), QColor(Qt::white), 20));
+
+  send_mouse(canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(canvas, near_trail_point), QColor(Qt::white), 20));
+  CHECK(color_close(canvas_pixel(canvas, far_trail_point), QColor(Qt::white), 20));
+  // The shadow travelled with the folder: probe the same offset from the new
+  // child right edge (x=164).
+  CHECK(!color_close(canvas_pixel(canvas, QPoint(172, 82)), QColor(Qt::white), 40));
+  save_widget_artifact("ui_move_styled_folder_shadow_trail", canvas);
+}
+
 void ui_layer_move_repaints_only_active_document_tab() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -2310,6 +2489,11 @@ std::vector<patchy::test::TestCase> move_tool_processing_overlay_tests() {
        ui_layer_style_cache_invalidates_after_pixel_mutation},
       {"ui_move_expensive_styled_layer_uses_outline_until_release",
        ui_move_expensive_styled_layer_uses_outline_until_release},
+      {"ui_move_styled_folder_drag_uses_outline_preview", ui_move_styled_folder_drag_uses_outline_preview},
+      {"ui_move_overlapping_stack_drag_uses_outline_preview",
+       ui_move_overlapping_stack_drag_uses_outline_preview},
+      {"ui_move_styled_folder_live_preview_clears_shadow_trail",
+       ui_move_styled_folder_live_preview_clears_shadow_trail},
       {"ui_layer_move_repaints_only_active_document_tab", ui_layer_move_repaints_only_active_document_tab},
       {"ui_arduboy_psd_render_path_if_available", ui_arduboy_psd_render_path_if_available},
       {"ui_duke_psd_text_edit_stays_responsive_if_available",
