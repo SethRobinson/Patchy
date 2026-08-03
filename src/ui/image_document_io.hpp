@@ -91,6 +91,14 @@ bool promote_flat_alpha_to_layer_mask(Document& document);
 [[nodiscard]] QImage qimage_from_document_rect_with_hidden_layers(
     const Document& document, QRect document_rect, bool preserve_alpha,
     const std::vector<LayerId>& hidden_layer_ids);
+// PREVIEW-ONLY: renders in horizontal bands across workers so a
+// small-but-expensive rect does not serialize under the 4 Mpx strip gate.
+// Bands window the style-mask blurs, so bytes can differ from the unbanded
+// render by ~1-2/255 near styled layers; never feed the result into a commit
+// or render-cache patch path.
+[[nodiscard]] QImage qimage_from_document_rect_with_hidden_layers_banded(
+    const Document& document, QRect document_rect, bool preserve_alpha,
+    const std::vector<LayerId>& hidden_layer_ids);
 [[nodiscard]] bool image_format_preserves_alpha(std::string_view extension) noexcept;
 void write_flat_image_file(const Document& document, const QString& path, const QString& extension,
                            const ImageSaveOptions& options = {});

@@ -1325,8 +1325,12 @@ void CanvasWidget::ensure_move_base_cache() {
   // small region the moving layers currently occupy with them hidden - the
   // moving layers only contribute within that region, so the rest of the cache
   // is already correct.
+  // The banded variant spreads these preview-only renders across workers: the
+  // hole rects sit far below the 4 Mpx strip gate but can cross an expensive
+  // styled stack, and this build is most of the latch hitch when a heavy drag
+  // switches to the proxy.
   if (render_cache_dirty_ || render_cache_.isNull() || render_cache_.size() != canvas_rect.size()) {
-    move_base_cache_ = qimage_from_document_rect_with_hidden_layers(*document_, canvas_rect, true, hidden)
+    move_base_cache_ = qimage_from_document_rect_with_hidden_layers_banded(*document_, canvas_rect, true, hidden)
                            .convertToFormat(QImage::Format_RGBA8888);
     return;
   }
@@ -1348,7 +1352,7 @@ void CanvasWidget::ensure_move_base_cache() {
     QPainter painter(&base);
     painter.setCompositionMode(QPainter::CompositionMode_Source);
     for (const auto& rect : old_region) {
-      const auto cleared = qimage_from_document_rect_with_hidden_layers(*document_, rect, true, hidden);
+      const auto cleared = qimage_from_document_rect_with_hidden_layers_banded(*document_, rect, true, hidden);
       if (cleared.isNull()) {
         continue;
       }

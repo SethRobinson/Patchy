@@ -98,6 +98,19 @@ bool move_layer_has_expensive_style(const Layer& layer) {
   return style.effects_visible && !style.empty();
 }
 
+// A live move-preview frame slower than this latches the proxy on the NEXT
+// move. The area gate only prices the moving layers themselves; it cannot see
+// the cost of the stack the drag crosses (an unstyled full-canvas layer
+// dragged across a pile of styled smart objects recomposites all of them per
+// frame). Env override for tests: 0 latches after any live frame.
+constexpr int kMoveLiveFramePreviewLatchMs = 100;
+
+int move_live_frame_latch_ms() noexcept {
+  bool ok = false;
+  const auto value = qEnvironmentVariableIntValue("PATCHY_MOVE_LIVE_LATCH_MS", &ok);
+  return ok ? std::max(0, value) : kMoveLiveFramePreviewLatchMs;
+}
+
 bool tool_supports_off_canvas_brush_strokes(CanvasTool tool) noexcept {
   switch (tool) {
     case CanvasTool::Brush:
@@ -1328,7 +1341,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       return;
     }
     if (!moving_layers_use_outline_preview_ && !move_drag_uses_proxy_preview_ &&
-        moving_layers_should_use_outline_preview(old_delta, move_preview_delta_)) {
+        (move_live_frame_slow_ || moving_layers_should_use_outline_preview(old_delta, move_preview_delta_))) {
       move_preview_patches_.clear();
       move_preview_patches_delta_.reset();
       // Heavy drags latch onto the translated-snapshot proxy for the rest of
@@ -1408,12 +1421,18 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       update_region = update_region.intersected(canvas_region);
     }
     if (!patch_region.isEmpty()) {
+      const auto patch_render_start = std::chrono::steady_clock::now();
       move_preview_patches_ = qimage_patches_from_document_region_with_layer_bounds(
           *document_, patch_region, true, moving_layer_bounds(move_preview_delta_));
       for (auto& patch : move_preview_patches_) {
         patch.image = patch.image.convertToFormat(QImage::Format_RGBA8888);
       }
       move_preview_patches_delta_ = move_preview_delta_;
+      const auto patch_render_ms =
+          std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - patch_render_start).count();
+      if (patch_render_ms > move_live_frame_latch_ms()) {
+        move_live_frame_slow_ = true;
+      }
     } else {
       move_preview_patches_.clear();
       move_preview_patches_delta_.reset();

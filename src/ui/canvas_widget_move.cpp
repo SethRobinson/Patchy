@@ -356,7 +356,10 @@ bool CanvasWidget::ensure_move_proxy_image() {
     collect_hidden(layer);
   }
 
-  auto snapshot = qimage_from_document_rect_with_hidden_layers(*document_, snapshot_rect, true, hidden);
+  // Banded: the snapshot is small but crosses the styled stack, and this
+  // render is the other half of the latch hitch (preview-only, so the band
+  // divergence class is acceptable).
+  auto snapshot = qimage_from_document_rect_with_hidden_layers_banded(*document_, snapshot_rect, true, hidden);
   if (snapshot.isNull()) {
     return false;
   }
@@ -386,6 +389,7 @@ QRect CanvasWidget::move_proxy_dirty_rect(QPoint old_delta, QPoint new_delta) co
 
 void CanvasWidget::clear_move_proxy() noexcept {
   move_drag_uses_proxy_preview_ = false;
+  move_live_frame_slow_ = false;
   move_proxy_image_ = QImage();
   move_proxy_document_rect_ = QRect();
 }

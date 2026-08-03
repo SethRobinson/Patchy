@@ -1257,6 +1257,38 @@ QImage render_document_rect(const Document& document, QRect document_rect, bool 
   return image;
 }
 
+// Renders each rect as its own render_document_rect call across a small
+// worker pool (result order preserved by index). The published zero budget
+// stops workers from nesting their own blocking fan-out, which the wasm
+// pthread pool cannot stack (native ignores the budget).
+std::vector<QImage> render_document_rects_parallel(const Document& document, const std::vector<QRect>& rects,
+                                                   bool preserve_alpha,
+                                                   const std::vector<render_detail::LayerBoundsOverride>* overrides,
+                                                   int worker_budget) {
+  std::vector<QImage> images(rects.size());
+  std::atomic<std::size_t> next_rect{0};
+  BlockingFanoutBudgetScope nested_budget(0);
+  const auto worker_count = std::min<std::size_t>(static_cast<std::size_t>(std::max(1, worker_budget)), rects.size());
+  std::vector<std::future<void>> jobs;
+  jobs.reserve(worker_count);
+  for (std::size_t worker = 0; worker < worker_count; ++worker) {
+    jobs.push_back(
+        std::async(std::launch::async, [&document, &rects, &images, &next_rect, preserve_alpha, overrides] {
+          while (true) {
+            const auto index = next_rect.fetch_add(1, std::memory_order_relaxed);
+            if (index >= rects.size()) {
+              return;
+            }
+            images[index] = render_document_rect(document, rects[index], preserve_alpha, overrides);
+          }
+        }));
+  }
+  for (auto& job : jobs) {
+    job.get();
+  }
+  return images;
+}
+
 std::vector<RenderedDocumentPatch> render_document_region(
     const Document& document, const QRegion& document_region, bool preserve_alpha,
     const std::vector<render_detail::LayerBoundsOverride>* overrides) {
@@ -1281,11 +1313,9 @@ std::vector<RenderedDocumentPatch> render_document_region(
   // workers. Bytes are identical to the sequential loop by construction: each
   // patch is the same render_document_rect call with the same arguments, and
   // order is preserved by index. Single-rect regions keep the plain call so a
-  // large rect still strip-splits inside render_document_rect; the published
-  // zero budget stops workers from nesting their own blocking fan-out, which
-  // the wasm pthread pool cannot stack (native ignores the budget, matching
-  // today's nested-strip behavior). Tracing/profiling stay sequential so
-  // per-render instrumentation remains readable.
+  // large rect still strip-splits inside render_document_rect.
+  // Tracing/profiling stay sequential so per-render instrumentation remains
+  // readable.
   const auto worker_budget = max_blocking_fanout_workers(
       std::clamp(static_cast<int>(rects.size()), 1,
                  std::max(1, static_cast<int>(std::thread::hardware_concurrency()))));
@@ -1293,27 +1323,7 @@ std::vector<RenderedDocumentPatch> render_document_region(
                         !qEnvironmentVariableIsSet("PATCHY_RENDER_SINGLE_THREADED") && !render_trace_enabled() &&
                         !render_profile_enabled();
   if (parallel) {
-    std::vector<QImage> images(rects.size());
-    std::atomic<std::size_t> next_rect{0};
-    BlockingFanoutBudgetScope nested_budget(0);
-    const auto worker_count = std::min<std::size_t>(static_cast<std::size_t>(worker_budget), rects.size());
-    std::vector<std::future<void>> jobs;
-    jobs.reserve(worker_count);
-    for (std::size_t worker = 0; worker < worker_count; ++worker) {
-      jobs.push_back(std::async(std::launch::async, [&document, &rects, &images, &next_rect, preserve_alpha,
-                                                     overrides] {
-        while (true) {
-          const auto index = next_rect.fetch_add(1, std::memory_order_relaxed);
-          if (index >= rects.size()) {
-            return;
-          }
-          images[index] = render_document_rect(document, rects[index], preserve_alpha, overrides);
-        }
-      }));
-    }
-    for (auto& job : jobs) {
-      job.get();
-    }
+    auto images = render_document_rects_parallel(document, rects, preserve_alpha, overrides, worker_budget);
     patches.reserve(rects.size());
     for (std::size_t index = 0; index < rects.size(); ++index) {
       if (!images[index].isNull()) {
@@ -1589,9 +1599,10 @@ std::vector<RenderedDocumentPatch> qimage_patches_from_document_region_with_laye
   return render_document_region(document, document_region, preserve_alpha, &overrides);
 }
 
-QImage qimage_from_document_rect_with_hidden_layers(const Document& document, QRect document_rect,
-                                                    bool preserve_alpha,
-                                                    const std::vector<LayerId>& hidden_layer_ids) {
+namespace {
+
+std::vector<render_detail::LayerBoundsOverride> hidden_layer_overrides(const Document& document,
+                                                                       const std::vector<LayerId>& hidden_layer_ids) {
   std::vector<render_detail::LayerBoundsOverride> overrides;
   overrides.reserve(hidden_layer_ids.size());
   for (const auto layer_id : hidden_layer_ids) {
@@ -1600,10 +1611,68 @@ QImage qimage_from_document_rect_with_hidden_layers(const Document& document, QR
       continue;
     }
     const auto bounds = layer->kind() == LayerKind::Adjustment ? layer->bounds() : layer_pixel_bounds(*layer);
-    overrides.push_back(
-        render_detail::LayerBoundsOverride{layer_id, bounds, nullptr, std::nullopt, false});
+    overrides.push_back(render_detail::LayerBoundsOverride{layer_id, bounds, nullptr, std::nullopt, false});
   }
+  return overrides;
+}
+
+}  // namespace
+
+QImage qimage_from_document_rect_with_hidden_layers(const Document& document, QRect document_rect,
+                                                    bool preserve_alpha,
+                                                    const std::vector<LayerId>& hidden_layer_ids) {
+  const auto overrides = hidden_layer_overrides(document, hidden_layer_ids);
   return render_document_rect(document, document_rect, preserve_alpha, &overrides);
+}
+
+QImage qimage_from_document_rect_with_hidden_layers_banded(const Document& document, QRect document_rect,
+                                                           bool preserve_alpha,
+                                                           const std::vector<LayerId>& hidden_layer_ids) {
+  const auto clipped = document_rect.intersected(QRect(0, 0, document.width(), document.height()));
+  if (clipped.isEmpty()) {
+    return {};
+  }
+  const auto overrides = hidden_layer_overrides(document, hidden_layer_ids);
+  // Preview-only banding: small-but-expensive rects (a move-proxy snapshot or
+  // base-cache hole over a styled stack) sit far below render_document_rect's
+  // 4 Mpx strip gate and would serialize, so split into horizontal bands
+  // rendered across workers. Style-mask float blurs are windowed per band, so
+  // the bytes may differ from the unbanded render by the documented ~1-2/255
+  // divergence class near styled layers - never feed the result into a commit
+  // or render-cache patch path.
+  const auto hardware_threads = std::max(1, static_cast<int>(std::thread::hardware_concurrency()));
+  const auto worker_budget =
+      max_blocking_fanout_workers(std::clamp(clipped.height() / 32, 1, std::min(hardware_threads, 16)));
+  if (worker_budget < 2 || qEnvironmentVariableIsSet("PATCHY_RENDER_SINGLE_THREADED") || render_trace_enabled() ||
+      render_profile_enabled()) {
+    return render_document_rect(document, clipped, preserve_alpha, &overrides);
+  }
+
+  std::vector<QRect> bands;
+  bands.reserve(static_cast<std::size_t>(worker_budget));
+  const auto rows_per_band = (clipped.height() + worker_budget - 1) / worker_budget;
+  for (int start = 0; start < clipped.height(); start += rows_per_band) {
+    const auto rows = std::min(rows_per_band, clipped.height() - start);
+    bands.push_back(QRect(clipped.x(), clipped.y() + start, clipped.width(), rows));
+  }
+  const auto images = render_document_rects_parallel(document, bands, preserve_alpha, &overrides, worker_budget);
+  for (const auto& image : images) {
+    if (image.isNull()) {
+      return render_document_rect(document, clipped, preserve_alpha, &overrides);
+    }
+  }
+
+  QImage stitched(clipped.width(), clipped.height(),
+                  preserve_alpha ? QImage::Format_RGBA8888 : QImage::Format_RGB888);
+  const auto row_bytes = static_cast<std::size_t>(clipped.width()) * (preserve_alpha ? 4U : 3U);
+  for (std::size_t band = 0; band < bands.size(); ++band) {
+    const auto& image = images[band];
+    for (int row = 0; row < image.height(); ++row) {
+      std::memcpy(stitched.scanLine(bands[band].y() - clipped.y() + row), image.constScanLine(row), row_bytes);
+    }
+  }
+  apply_document_resolution(stitched, document);
+  return stitched;
 }
 
 bool image_format_preserves_alpha(std::string_view extension) noexcept {

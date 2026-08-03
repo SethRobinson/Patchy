@@ -1721,6 +1721,10 @@ private:
   std::optional<QPoint> move_preview_patches_delta_{};
   bool moving_layers_use_outline_preview_{false};
   bool move_drag_uses_proxy_preview_{false};
+  // A live preview frame rendered slower than the latch threshold; the next
+  // move switches to the proxy (the area gate cannot price the stack the drag
+  // crosses). Reset with the proxy state.
+  bool move_live_frame_slow_{false};
   // Snapshot of the moving subtree at delta zero (ARGB32_Premultiplied,
   // possibly downscaled) and the canvas-clipped document rect it covers.
   QImage move_proxy_image_{};

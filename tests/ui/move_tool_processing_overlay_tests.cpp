@@ -1906,6 +1906,54 @@ void ui_move_styled_folder_live_preview_clears_shadow_trail() {
   save_widget_artifact("ui_move_styled_folder_shadow_trail", canvas);
 }
 
+// The area gate only prices the moving layers, so a cheap layer dragged
+// across an expensive stack stays live no matter how slow the frames are; the
+// time escape hatch latches the proxy after a slow live frame. The env
+// override (0) makes any live frame count as slow so the test is
+// deterministic on every machine.
+void ui_move_slow_live_frame_latches_proxy() {
+  EnvironmentVariableRestorer restore_latch("PATCHY_MOVE_LIVE_LATCH_MS");
+  qputenv("PATCHY_MOVE_LIVE_LATCH_MS", QByteArray("0"));
+
+  patchy::Document document(300, 200, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(300, 200, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  patchy::Layer layer(document.allocate_layer_id(), "Slow Frame Move",
+                      solid_pixels(40, 40, patchy::PixelFormat::rgba8(), QColor(220, 40, 40)));
+  const auto layer_id = layer.id();
+  layer.set_bounds(patchy::Rect{30, 40, 40, 40});
+  document.add_layer(std::move(layer));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(520, 380);
+  canvas.set_document(&document);
+  canvas.set_zoom(1.0);
+  canvas.set_tool(patchy::ui::CanvasTool::Move);
+  canvas.set_show_transform_controls(false);
+  canvas.set_auto_select_layer(false);
+  canvas.set_snap_enabled(false);
+  canvas.set_selected_layer_ids({layer_id});
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto before_stats = canvas.render_cache_diagnostics();
+  const auto start = canvas.widget_position_for_document_point(QPoint(50, 60));
+  send_mouse(canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  // First move renders a live frame (which the zero threshold marks slow);
+  // the second move must latch the proxy.
+  send_mouse(canvas, QEvent::MouseMove, start + QPoint(40, 0), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(canvas.render_cache_diagnostics().move_proxy_previews == before_stats.move_proxy_previews);
+  send_mouse(canvas, QEvent::MouseMove, start + QPoint(80, 0), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(canvas.render_cache_diagnostics().move_proxy_previews == before_stats.move_proxy_previews + 1);
+  CHECK(canvas.render_cache_diagnostics().move_outline_previews == before_stats.move_outline_previews);
+
+  send_mouse(canvas, QEvent::MouseButtonRelease, start + QPoint(80, 0), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(canvas, QPoint(120, 60)), QColor(220, 40, 40), 45));
+  CHECK(color_close(canvas_pixel(canvas, QPoint(40, 60)), QColor(Qt::white), 20));
+}
+
 // Multi-rect region renders fan out across workers; every rect is the same
 // render_document_rect call either way, so the patch bytes must match the
 // PATCHY_RENDER_SINGLE_THREADED sequential loop exactly.
@@ -2570,6 +2618,7 @@ std::vector<patchy::test::TestCase> move_tool_processing_overlay_tests() {
        ui_move_overlapping_stack_drag_uses_proxy_preview},
       {"ui_move_styled_folder_live_preview_clears_shadow_trail",
        ui_move_styled_folder_live_preview_clears_shadow_trail},
+      {"ui_move_slow_live_frame_latches_proxy", ui_move_slow_live_frame_latches_proxy},
       {"ui_parallel_region_patches_match_single_threaded", ui_parallel_region_patches_match_single_threaded},
       {"ui_layer_move_repaints_only_active_document_tab", ui_layer_move_repaints_only_active_document_tab},
       {"ui_arduboy_psd_render_path_if_available", ui_arduboy_psd_render_path_if_available},
