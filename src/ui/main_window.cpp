@@ -119,6 +119,7 @@
 #include <QFontComboBox>
 #include <QFontDatabase>
 #include <QFocusEvent>
+#include <QFontInfo>
 #include <QFontMetrics>
 #include <QFormLayout>
 #include <QFrame>
@@ -844,6 +845,34 @@ QStringList render_text_families_for_display_family(const QString& family) {
   }
 #endif
   return families;
+}
+
+// The family Qt actually draws `family` with when the family itself is missing: the face already
+// on the canvas and named in the options bar (Windows resolves an unknown family through its own
+// substitution chain, usually to Tahoma). An edit session has to move ONTO that face, because a
+// commit that stored the missing name back would re-render in the substitute and leave the layer
+// still flagged as missing its font -- adding one letter to such a layer brought the layer-panel
+// warning badge straight back. Returns `family` unchanged when it can draw `demanded` itself, and
+// when nothing installed can (the layer honestly still has a font problem).
+QString substituted_text_family(const QString& family, const QString& demanded) {
+  const auto cannot_draw = [&demanded](const QString& candidate) {
+    QStringList missing;
+    append_missing_text_family(missing, candidate, demanded);
+    return !missing.isEmpty();
+  };
+  if (!cannot_draw(family)) {
+    return family;
+  }
+  QFont probe;
+  probe.setFamilies(render_text_families_for_display_family(family));
+  const auto resolved = QFontInfo(probe).family().trimmed();
+  if (!resolved.isEmpty() && resolved.compare(family.trimmed(), Qt::CaseInsensitive) != 0 &&
+      !cannot_draw(resolved)) {
+    return resolved;
+  }
+  // Qt can echo the request back instead of naming its substitute; the UI font is always real.
+  const auto ui_family = canonical_text_display_family(QApplication::font().family());
+  return cannot_draw(ui_family) ? family : ui_family;
 }
 
 // A font registered with Windows can still be missing from Qt's database
@@ -2910,6 +2939,72 @@ void resolve_document_font_styles(QTextDocument& document) {
     format.setFont(patch.font);
     QTextCursor cursor(&document);
     cursor.setPosition(patch.position);
+    cursor.setPosition(patch.position + patch.length, QTextCursor::KeepAnchor);
+    cursor.mergeCharFormat(format);
+  }
+}
+
+// Move every run whose family cannot draw its own characters onto the face that is actually
+// drawing it (see substituted_text_family), so the runs the commit serializes name the font the
+// user is looking at. Blank paragraphs carry their family in the BLOCK char format, which holds no
+// fragment: rich_text_runs_from_document still emits a separator run from it, so a missed one
+// leaves the whole layer flagged. Patch-then-apply like resolve_document_font_styles -- mutating
+// while iterating invalidates the fragment iterators.
+void substitute_missing_document_font_families(QTextDocument& document) {
+  struct FamilyPatch {
+    int position{0};
+    int length{0};
+    bool block_format{false};
+    QString family;
+  };
+  std::vector<FamilyPatch> patches;
+  // One substitute per requested family, so a layer never splits one missing font across two faces.
+  QHash<QString, QString> substitutes;
+  const auto substitute_for = [&substitutes](const QString& family, const QString& demanded) {
+    QStringList missing;
+    append_missing_text_family(missing, family, demanded);
+    if (missing.isEmpty()) {
+      return QString();
+    }
+    const auto key = family.trimmed().toCaseFolded();
+    auto found = substitutes.constFind(key);
+    if (found == substitutes.constEnd()) {
+      found = substitutes.insert(key, substituted_text_family(family, demanded));
+    }
+    return found->compare(family.trimmed(), Qt::CaseInsensitive) == 0 ? QString() : *found;
+  };
+  for (auto block = document.begin(); block.isValid(); block = block.next()) {
+    bool block_has_fragment = false;
+    for (auto fragment_it = block.begin(); !fragment_it.atEnd(); ++fragment_it) {
+      const auto fragment = fragment_it.fragment();
+      if (!fragment.isValid() || fragment.length() <= 0) {
+        continue;
+      }
+      block_has_fragment = true;
+      const auto family = text_display_family_from_format(fragment.charFormat(), QString());
+      const auto substitute = substitute_for(family, fragment.text());
+      if (!substitute.isEmpty()) {
+        patches.push_back(FamilyPatch{fragment.position(), fragment.length(), false, substitute});
+      }
+    }
+    if (block_has_fragment) {
+      continue;
+    }
+    const auto family = text_display_family_from_format(block.charFormat(), QString());
+    if (const auto substitute = substitute_for(family, QString()); !substitute.isEmpty()) {
+      patches.push_back(FamilyPatch{block.position(), 0, true, substitute});
+    }
+  }
+  for (const auto& patch : patches) {
+    QTextCharFormat format;
+    format.setFontFamilies(render_text_families_for_display_family(patch.family));
+    set_text_display_family(format, patch.family);
+    QTextCursor cursor(&document);
+    cursor.setPosition(patch.position);
+    if (patch.block_format) {
+      cursor.mergeBlockCharFormat(format);
+      continue;
+    }
     cursor.setPosition(patch.position + patch.length, QTextCursor::KeepAnchor);
     cursor.mergeCharFormat(format);
   }
@@ -6436,6 +6531,11 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
           return;
         }
       }
+      // The substitution the warning promises actually happens here: the session works in the
+      // face that draws, so committing stores a font the layer really uses. The per-run families
+      // are substituted on the built document below; this is the base family the editor, the
+      // options bar and the commit all read.
+      family = substituted_text_family(family, initial_text);
       if (text_font_combo_ != nullptr) {
         QSignalBlocker blocker(text_font_combo_);
         text_font_combo_->setCurrentFont(text_font_combo_font_for_family(family));
@@ -6750,6 +6850,9 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
     }
     apply_text_smoothing_to_document(*editor->document(), text_anti_alias);
   }
+  // Whatever built the document above (runs, HTML or plain text), every run now names a family
+  // that can actually draw it, so what the session renders is what the commit records.
+  substitute_missing_document_font_families(*editor->document());
   if (editing_layer.has_value() && editing_layer_uses_line_aware_box_preview) {
     if (auto* layer = document().find_layer(*editing_layer); layer != nullptr) {
       if (const auto scale =

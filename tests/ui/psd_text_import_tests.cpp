@@ -2423,6 +2423,175 @@ void ui_text_layer_font_without_glyph_coverage_counts_as_missing() {
   CHECK(warned);
 }
 
+// Reported repro: click into an imported type layer whose font is missing, accept the
+// substitution warning, add a letter, click out. The text visibly re-renders in the substituted
+// face, but the badge stays -- accepting the warning used to open the session on the missing
+// family, so the commit stored that name back over a raster drawn in something else. Continuing
+// past the warning has to move the session ONTO the face that draws.
+void ui_editing_past_the_missing_font_warning_substitutes_the_font() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  const auto missing = QStringLiteral("PatchyDefinitelyMissingFont123456");
+  patchy::Document document(320, 180, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(320, 180, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  auto pixels = solid_pixels(118, 36, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  fill_pixel_rect(pixels, QRect(0, 0, 96, 30), QColor(20, 20, 20, 255));
+  patchy::Layer text_layer(document.allocate_layer_id(), "SCORE", std::move(pixels));
+  text_layer.set_bounds(patchy::Rect{40, 40, 118, 36});
+  text_layer.metadata()[patchy::kLayerMetadataText] = "SC\n\nORE";
+  text_layer.metadata()[patchy::kLayerMetadataTextFlow] = "point";
+  text_layer.metadata()[patchy::kLayerMetadataTextFont] = missing.toStdString();
+  text_layer.metadata()[patchy::kLayerMetadataTextSize] = "24";
+  text_layer.metadata()[patchy::kLayerMetadataTextColor] = "#202020";
+  // A blank line among the runs: its family lives in a BLOCK char format with no fragment, and a
+  // separator run is still serialized from it.
+  text_layer.metadata()[patchy::kLayerMetadataTextRuns] =
+      QStringLiteral("v1\n0\t2\t24\t0\t0\t#202020\t%1\n2\t1\t24\t0\t0\t#202020\t%1\n3\t1\t24\t0\t0\t#202020\t%1"
+                     "\n4\t3\t24\t0\t0\t#202020\t%1")
+          .arg(missing)
+          .toStdString();
+  text_layer.metadata()[patchy::kLayerMetadataTextRasterStatus] = "psd_raster_preview";
+  const auto layer_id = document.add_layer(std::move(text_layer)).id();
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Missing Font Substitution"));
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  if (layer_list == nullptr) {
+    return;
+  }
+  QApplication::processEvents();
+  const auto badge_tooltip = [layer_list] {
+    auto* item = require_layer_item(*layer_list, QStringLiteral("SCORE"));
+    auto* row = item == nullptr ? nullptr : layer_list->itemWidget(item);
+    auto* thumbnail = row == nullptr ? nullptr : row->findChild<QLabel*>(QStringLiteral("layerContentThumbnail"));
+    return thumbnail == nullptr ? QString() : thumbnail->toolTip();
+  };
+  CHECK(badge_tooltip().contains(QStringLiteral("Missing font")));
+
+  patchy::ui::MainWindowTestAccess::document(window).set_active_layer(layer_id);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  bool warned = false;
+  QTimer::singleShot(0, [&warned] {
+    auto* dialog = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("missingPsdTextFontMessageBox")));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    for (auto* button : dialog->findChildren<QPushButton*>()) {
+      auto label = button->text();
+      label.remove(QLatin1Char('&'));
+      if (label == QStringLiteral("Continue")) {
+        warned = true;
+        button->click();
+        return;
+      }
+    }
+  });
+  const auto hit_point = canvas->widget_position_for_document_point(QPoint(60, 52));
+  send_mouse(*canvas, QEvent::MouseButtonPress, hit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, hit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  process_events_for(250);
+  CHECK(warned);
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+  // Only a text edit: the font controls are never touched, exactly as reported.
+  auto cursor = editor->textCursor();
+  cursor.movePosition(QTextCursor::End);
+  editor->setTextCursor(cursor);
+  QTest::keyClicks(editor, QStringLiteral("S"));
+  QApplication::processEvents();
+  process_events_for(250);
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  process_events_for(250);
+
+  const auto* committed = patchy::ui::MainWindowTestAccess::document(window).find_layer(layer_id);
+  CHECK(committed != nullptr);
+  if (committed == nullptr) {
+    return;
+  }
+  const auto family = committed->metadata().find(patchy::kLayerMetadataTextFont);
+  CHECK(family != committed->metadata().end());
+  if (family != committed->metadata().end()) {
+    const auto stored = QString::fromStdString(family->second);
+    CHECK(stored != missing);
+    CHECK(QFontDatabase::families().contains(stored));
+  }
+  const auto runs = committed->metadata().find(patchy::kLayerMetadataTextRuns);
+  CHECK(runs != committed->metadata().end());
+  if (runs != committed->metadata().end()) {
+    CHECK(!QString::fromStdString(runs->second).contains(missing));
+  }
+  CHECK(!badge_tooltip().contains(QStringLiteral("Missing font")));
+}
+
+// A family the font database does not have cannot be a row, so a control set to one (a tool
+// setting saved on a machine that had the font, a face uninstalled since) parks on some OTHER
+// family while its current font still names the missing one. Picking the family the control is
+// ALREADY showing then committed through setCurrentIndex alone -- a no-op at an unchanged index --
+// so the pick was silently dropped and whatever the pick was meant to fix stayed broken.
+void ui_font_picker_applies_a_pick_the_control_already_shows() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  const auto missing = QStringLiteral("PatchyDefinitelyMissingFont123456");
+  patchy::ui::MainWindow window;
+  show_window(window);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  QApplication::processEvents();
+  auto* picker = window.findChild<patchy::ui::FontPickerCombo*>(QStringLiteral("textFontCombo"));
+  CHECK(picker != nullptr);
+  if (picker == nullptr) {
+    return;
+  }
+
+  picker->setCurrentFont(QFont(missing));
+  QApplication::processEvents();
+  const auto displayed = picker->currentText();
+  CHECK(!displayed.isEmpty());
+  CHECK(displayed != missing);                          // the list cannot show a family it lacks
+  CHECK(picker->currentFont().family() == missing);     // ... while the control still holds it
+
+  int font_changes = 0;
+  QObject::connect(picker, &QFontComboBox::currentFontChanged, picker,
+                   [&font_changes](const QFont&) { ++font_changes; });
+  picker->showPopup();
+  QApplication::processEvents();
+  QWidget* popup = nullptr;
+  for (auto* widget : QApplication::topLevelWidgets()) {
+    if (widget->objectName() == QString::fromLatin1(patchy::ui::kFontPickerPopupObjectName) && widget->isVisible()) {
+      popup = widget;
+    }
+  }
+  CHECK(popup != nullptr);
+  if (popup == nullptr) {
+    return;
+  }
+  auto* search = popup->findChild<QLineEdit*>(QStringLiteral("textFontPickerSearchEdit"));
+  auto* list = popup->findChild<QListView*>(QStringLiteral("textFontPickerList"));
+  CHECK(search != nullptr && list != nullptr);
+  if (search == nullptr || list == nullptr) {
+    return;
+  }
+  auto* model = list->model();
+  for (int row = 0; row < model->rowCount(); ++row) {
+    if (model->index(row, 0).data(Qt::DisplayRole).toString() == displayed) {
+      list->setCurrentIndex(model->index(row, 0));
+      break;
+    }
+  }
+  QTest::keyClick(search, Qt::Key_Return);
+  QApplication::processEvents();
+
+  // The pick is heard even though the row never moved, and exactly once.
+  CHECK(font_changes == 1);
+  CHECK(picker->currentFont().family() == displayed);
+}
+
 // Reported repro: click into an imported type layer, press the options-bar Italic button, and
 // nothing happens. Not an italic problem -- Qt's mergeCurrentCharFormat only sets the format the
 // NEXT typed character gets, so with a bare caret every options-bar control (family, size, bold,
@@ -3082,6 +3251,10 @@ std::vector<patchy::test::TestCase> psd_text_import_tests() {
        ui_imported_psd_raster_preview_warns_before_missing_font_substitution},
       {"ui_text_layer_font_without_glyph_coverage_counts_as_missing",
        ui_text_layer_font_without_glyph_coverage_counts_as_missing},
+      {"ui_editing_past_the_missing_font_warning_substitutes_the_font",
+       ui_editing_past_the_missing_font_warning_substitutes_the_font},
+      {"ui_font_picker_applies_a_pick_the_control_already_shows",
+       ui_font_picker_applies_a_pick_the_control_already_shows},
       {"ui_text_options_apply_to_the_whole_layer_without_a_selection",
        ui_text_options_apply_to_the_whole_layer_without_a_selection},
       {"ui_text_style_picker_selects_a_face_the_flags_cannot_name",

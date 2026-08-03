@@ -544,9 +544,21 @@ void FontPickerCombo::showPopup() {
     if (!proxy_index.isValid()) {
       return;
     }
-    const auto source_row = proxy->mapToSource(proxy_index).row();
+    const auto source_index = proxy->mapToSource(proxy_index);
+    const auto chosen = source_index.data(Qt::DisplayRole).toString();
     popup->close();
-    setCurrentIndex(source_row);  // fires currentFontChanged through the stock combo path
+    setCurrentIndex(source_index.row());  // fires currentFontChanged through the stock combo path
+    // ... unless the control was ALREADY parked on that row while its current font named a
+    // different family. A missing font cannot be a row (it is not in the database), so a type
+    // layer set in one leaves the closed control showing some other family with the missing name
+    // still in currentFont(); the user then picks the family in front of them, the index never
+    // moves, the stock path stays silent and the pick is lost -- the layer commits back into the
+    // font it was supposed to be replacing. Push the family through so every pick is heard.
+    if (!chosen.isEmpty() && currentFont().families().value(0) != chosen) {
+      auto font = currentFont();
+      font.setFamilies(QStringList{chosen});
+      setCurrentFont(font);
+    }
     setFocus(Qt::OtherFocusReason);  // land focus on a text-option widget, not a dying popup
   };
   connect(list, &QListView::clicked, popup, commit);
