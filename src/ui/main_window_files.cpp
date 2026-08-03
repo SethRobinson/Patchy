@@ -2421,10 +2421,24 @@ void MainWindow::show_recent_file_context_menu(QMenu* menu, const QPoint& positi
   }
 
   const bool is_folder = menu->property(kRecentFoldersMenuProperty).toBool();
-  const auto close_menus = [this, menu] {
-    if (menu != nullptr) {
-      menu->close();
+  show_recent_path_context_menu(menu, menu, path, is_folder, menu->mapToGlobal(position));
+}
+
+void MainWindow::show_start_panel_recent_context_menu(const QString& path, const QPoint& global_position) {
+  if (start_panel_ == nullptr || path.isEmpty()) {
+    return;
+  }
+  show_recent_path_context_menu(start_panel_, nullptr, path, /*is_folder=*/false, global_position);
+}
+
+void MainWindow::show_recent_path_context_menu(QWidget* parent, QMenu* source_menu, const QString& path,
+                                               bool is_folder, const QPoint& global_position) {
+  // Only a menu source needs dismissing; a start-panel row leaves nothing open.
+  const auto close_menus = [this, source_menu] {
+    if (source_menu == nullptr) {
+      return;
     }
+    source_menu->close();
     if (recent_files_menu_ != nullptr) {
       recent_files_menu_->close();
     }
@@ -2433,7 +2447,7 @@ void MainWindow::show_recent_file_context_menu(QMenu* menu, const QPoint& positi
     }
   };
 
-  QMenu context_menu(menu);
+  QMenu context_menu(parent);
   context_menu.setObjectName(QStringLiteral("recentFileContextMenu"));
 
   auto* copy_path_action = context_menu.addAction(is_folder ? tr("Copy Folder Path") : tr("Copy File Path"));
@@ -2453,7 +2467,7 @@ void MainWindow::show_recent_file_context_menu(QMenu* menu, const QPoint& positi
     close_menus();
   });
 
-  context_menu.exec(menu->mapToGlobal(position));
+  context_menu.exec(global_position);
 }
 
 void MainWindow::reveal_path_in_file_explorer(const QString& path, bool is_file) {

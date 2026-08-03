@@ -31,9 +31,37 @@ namespace patchy::ui {
 
 namespace {
 
-constexpr int kMaxRecentEntries = 8;
+// The real bound is kMaxRecentFiles in main_window_files.cpp, which is what trims
+// the persisted list; this only keeps a hand-edited settings file from building
+// thousands of rows. kVisibleRecentRows is what the box actually shows: the rest
+// are reached by scrolling, so the box never grows however long the list gets.
+constexpr int kMaxRecentEntries = 200;
+constexpr int kVisibleRecentRows = 8;
 constexpr int kRecentRowHeight = 40;
+constexpr int kRecentListChrome = 14;  // the list's own frame and padding
 constexpr int kRecentPathRole = Qt::UserRole + 1;
+
+// A list as tall as its rows, capped at kVisibleRecentRows; longer lists scroll.
+// setFixedHeight cannot express that: the application style sheet re-polishes the
+// widget and drops the minimum that call sets, which left QAbstractScrollArea's
+// default 192 px hint deciding the height and clipping every row past the fourth.
+// A real sizeHint survives the re-polish, and the Maximum policy lets a short
+// window shrink the box instead of pushing the panel footer off screen.
+class RecentFileList final : public QListWidget {
+ public:
+  explicit RecentFileList(QWidget* parent) : QListWidget(parent) {
+    setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
+  }
+
+  QSize sizeHint() const override {
+    return {QListWidget::sizeHint().width(),
+            std::clamp(count(), 1, kVisibleRecentRows) * kRecentRowHeight + kRecentListChrome};
+  }
+
+  QSize minimumSizeHint() const override {
+    return {QListWidget::minimumSizeHint().width(), kRecentRowHeight + kRecentListChrome};
+  }
+};
 
 // Two-line recent row: file name over its dimmed directory.
 class RecentFileDelegate final : public QStyledItemDelegate {
@@ -144,15 +172,21 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
   recent_label_->setObjectName(QStringLiteral("startPanelRecentLabel"));
   column_layout->addWidget(recent_label_);
 
-  recent_list_ = new QListWidget(column);
+  recent_list_ = new RecentFileList(column);
   recent_list_->setObjectName(QStringLiteral("startPanelRecentList"));
   recent_list_->setSelectionMode(QAbstractItemView::NoSelection);
   recent_list_->setFocusPolicy(Qt::NoFocus);
   recent_list_->setMouseTracking(true);
+  // The delegate elides both text lines to the row width, so only the vertical bar
+  // is ever wanted; per-pixel scrolling keeps the wheel smooth over a long list.
   recent_list_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-  recent_list_->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+  recent_list_->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+  recent_list_->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+  recent_list_->setUniformItemSizes(true);  // constant row height; skips a sizeHint per row
   recent_list_->setItemDelegate(new RecentFileDelegate(recent_list_));
-  recent_list_->setCursor(Qt::PointingHandCursor);
+  recent_list_->setContextMenuPolicy(Qt::CustomContextMenu);
+  // On the viewport, not the list: the scroll bar keeps a normal arrow cursor.
+  recent_list_->viewport()->setCursor(Qt::PointingHandCursor);
   column_layout->addWidget(recent_list_);
 
   auto* hint = new QLabel(tr("You can also drop image files anywhere in the window"), column);
@@ -249,6 +283,14 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
       emit recent_file_requested(item->data(kRecentPathRole).toString());
     }
   });
+  // customContextMenuRequested reports viewport coordinates for a scroll area, which
+  // is what both itemAt and the viewport's mapToGlobal want.
+  connect(recent_list_, &QListWidget::customContextMenuRequested, this, [this](const QPoint& position) {
+    if (auto* item = recent_list_->itemAt(position); item != nullptr) {
+      emit recent_file_context_menu_requested(item->data(kRecentPathRole).toString(),
+                                              recent_list_->viewport()->mapToGlobal(position));
+    }
+  });
 
   set_themed_style(*this, QStringLiteral(R"(
     QWidget#startPanel {
@@ -338,9 +380,7 @@ void StartPanel::set_recent_files(const QStringList& paths) {
   const bool has_entries = recent_list_->count() > 0;
   recent_label_->setVisible(has_entries);
   recent_list_->setVisible(has_entries);
-  // Rows + the list's own frame and padding; the scrollbars are off, so anything
-  // tighter clips the last row's directory line.
-  recent_list_->setFixedHeight(std::max(1, recent_list_->count()) * kRecentRowHeight + 14);
+  recent_list_->updateGeometry();  // RecentFileList sizes itself from the new row count
 }
 
 void StartPanel::set_update_status(const QString& text) {

@@ -33,6 +33,9 @@ class StartPanel final : public QWidget {
   void new_document_requested();
   void open_requested();
   void recent_file_requested(const QString& path);
+  // Right-click on a recent row; MainWindow builds the menu so it shares the
+  // Open Recent menu's actions, reveal helper, and status messages.
+  void recent_file_context_menu_requested(const QString& path, const QPoint& global_position);
 
  private:
   QLabel* recent_label_{nullptr};

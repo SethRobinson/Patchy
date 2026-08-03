@@ -2428,6 +2428,96 @@ void ui_start_panel_recent_files_open_on_click() {
   CHECK(info->text().contains(QStringLiteral("48 x 32 px")));
 }
 
+void ui_start_panel_recent_files_scroll_and_context_menu() {
+  ensure_artifact_dir();
+  constexpr int kSeededFiles = 14;  // more than the eight rows the box shows at once
+  QStringList recent_files;
+  for (int index = 0; index < kSeededFiles; ++index) {
+    const auto path =
+        QFileInfo(QStringLiteral("test-artifacts/start_panel_scroll_%1.png").arg(index, 2, 10, QLatin1Char('0')))
+            .absoluteFilePath();
+    QImage image(16, 16, QImage::Format_RGB32);
+    image.fill(QColor(40 + index * 8, 120, 200));
+    CHECK(image.save(path));
+    recent_files << path;
+  }
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("recentFiles"), recent_files);
+    settings.sync();
+  }
+
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  auto* recent_list = window.findChild<QListWidget*>(QStringLiteral("startPanelRecentList"));
+  CHECK(tabs != nullptr);
+  CHECK(recent_list != nullptr);
+  CHECK(recent_list->isVisible());
+
+  // A window with no room for eight rows shrinks the box and still scrolls, rather
+  // than pushing the panel footer off screen.
+  CHECK(recent_list->count() == kSeededFiles);
+  CHECK(recent_list->height() < 8 * 40 + 14);
+  CHECK(recent_list->height() >= 4 * 40);
+  CHECK(recent_list->verticalScrollBar()->maximum() > 0);
+
+  // Tall enough for the whole panel, so the box reaches its eight-row cap instead.
+  window.resize(1180, 1000);
+  QApplication::processEvents();
+
+  // Every remembered file is a row, but the box stops at eight and scrolls for
+  // the rest. Before this cap the list took QAbstractScrollArea's default hint
+  // and silently clipped everything past the fourth row.
+  CHECK(recent_list->count() == kSeededFiles);
+  CHECK(recent_list->sizeHint().height() == 8 * 40 + 14);
+  CHECK(recent_list->height() == 8 * 40 + 14);
+  CHECK(recent_list->verticalScrollBar()->maximum() > 0);
+  CHECK(recent_list->verticalScrollBar()->isVisible());
+  CHECK(recent_list->horizontalScrollBarPolicy() == Qt::ScrollBarAlwaysOff);
+  save_widget_artifact("ui_start_panel_recent_scroll", window);
+
+  recent_list->verticalScrollBar()->setValue(recent_list->verticalScrollBar()->maximum());
+  QApplication::processEvents();
+  CHECK(recent_list->visualItemRect(recent_list->item(kSeededFiles - 1)).intersects(recent_list->viewport()->rect()));
+
+  // Right-click a row: the start panel gets the same menu the Open Recent menu builds.
+  QApplication::clipboard()->clear();
+  bool saw_context_menu = false;
+  QTimer::singleShot(0, [&] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* menu = qobject_cast<QMenu*>(widget);
+      if (menu == nullptr || menu->objectName() != QStringLiteral("recentFileContextMenu")) {
+        continue;
+      }
+      auto* copy_action = find_menu_action_by_text(*menu, QStringLiteral("Copy File Path"));
+      auto* explorer_action = find_menu_action_by_text(*menu, QStringLiteral("Open in File Explorer"));
+      CHECK(copy_action != nullptr);
+      CHECK(explorer_action != nullptr);
+      CHECK(copy_action->objectName() == QStringLiteral("recentFileCopyPathAction"));
+      CHECK(explorer_action->objectName() == QStringLiteral("recentFileOpenInExplorerAction"));
+      copy_action->trigger();
+      menu->close();
+      saw_context_menu = true;
+      return;
+    }
+    CHECK(false);
+  });
+
+  auto* target_item = recent_list->item(kSeededFiles - 1);
+  const auto context_point = recent_list->visualItemRect(target_item).center();
+  QContextMenuEvent context_event(QContextMenuEvent::Mouse, context_point,
+                                  recent_list->viewport()->mapToGlobal(context_point));
+  QApplication::sendEvent(recent_list->viewport(), &context_event);
+  QApplication::processEvents();
+
+  CHECK(saw_context_menu);
+  CHECK(QApplication::clipboard()->text() == QDir::toNativeSeparators(recent_files.last()));
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("File path copied"));
+  // A right-click must never also open the row the way a left-click does.
+  CHECK(tabs->count() == 0);
+}
+
 void ui_start_panel_shows_about_info_and_update_status() {
   patchy::ui::MainWindow window;
   show_window_empty(window);
@@ -3153,6 +3243,7 @@ std::vector<patchy::test::TestCase> app_shell_tests() {
       {"ui_derived_font_sizes_scale_in_points_and_pixels", ui_derived_font_sizes_scale_in_points_and_pixels},
       {"ui_startup_opens_empty_workspace_with_start_panel", ui_startup_opens_empty_workspace_with_start_panel},
       {"ui_start_panel_recent_files_open_on_click", ui_start_panel_recent_files_open_on_click},
+      {"ui_start_panel_recent_files_scroll_and_context_menu", ui_start_panel_recent_files_scroll_and_context_menu},
       {"ui_start_panel_shows_about_info_and_update_status", ui_start_panel_shows_about_info_and_update_status},
       {"ui_main_window_renders_color_controls", ui_main_window_renders_color_controls},
       {"ui_tool_palette_overflow_hides_quick_mask_before_swatches",

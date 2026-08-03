@@ -5141,6 +5141,10 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   connect(start_panel_, &StartPanel::open_requested, this, [this] { open_document(); });
   connect(start_panel_, &StartPanel::recent_file_requested, this,
           [this](const QString& path) { open_recent_document(path); });
+  connect(start_panel_, &StartPanel::recent_file_context_menu_requested, this,
+          [this](const QString& path, const QPoint& global_position) {
+            show_start_panel_recent_context_menu(path, global_position);
+          });
   connect(QApplication::clipboard(), &QClipboard::dataChanged, this,
           [this] { clear_internal_clipboard_on_external_change(); });
   layer_opacity_apply_timer_ = new QTimer(this);

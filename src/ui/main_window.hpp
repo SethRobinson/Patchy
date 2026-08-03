@@ -1061,6 +1061,13 @@ private:
   void configure_recent_files_context_menu(QMenu* menu);
   void show_recent_file_context_menu(const QPoint& position);
   void show_recent_file_context_menu(QMenu* menu, const QPoint& position);
+  void show_start_panel_recent_context_menu(const QString& path, const QPoint& global_position);
+  // Shared body of the recent-entry context menu, so the Open Recent menus and the
+  // start panel's recent rows always offer the same actions. source_menu is the menu
+  // the entry came from, or nullptr for a start-panel row; a menu source is dismissed
+  // once the chosen action runs.
+  void show_recent_path_context_menu(QWidget* parent, QMenu* source_menu, const QString& path,
+                                     bool is_folder, const QPoint& global_position);
   void reveal_path_in_file_explorer(const QString& path, bool is_file);
   void open_recent_document(QString path);
   QAction* add_tool_action(QToolBar* palette, QActionGroup* group, QString label, CanvasTool tool,
