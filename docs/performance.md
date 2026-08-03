@@ -75,15 +75,9 @@ Three changes cut what an inline text session costs, none of which changes commi
 - **Commit repaints are bounded** to the committed layer's effect bounds. `commit_text_editor` ended
   with a bare `document_changed()`, a full recomposite per commit.
 
-Measured on the i9-12900KS reference machine, quick preset, PRE and POST runs alternated three
-times to cancel machine drift (means, ms): `12_boot_text` 599 to 433, `15_game_title_text` 485 to
-401, `16_sticky_notes` 814 to 733, `17_title_text` 228 to 178, `18_text_reedit` 139 to 87,
-`58_marquee_text` 5480 to 3144. Overall rating 1059 to 1122.
-
 Do not read a single stress run as a measurement here: individual text steps swing by 50% or more
-run to run on this machine, and the July `kStepBaselines` are stale enough that step 58 looked like
-a regression against them while actually being 43% faster than the code it replaced. Alternate the
-two builds.
+run to run, and stale `kStepBaselines` can make a genuinely faster build look like a regression.
+Alternate PRE and POST builds and compare means.
 
 ## Layer-panel rebuilds are three strictly-separated passes
 
