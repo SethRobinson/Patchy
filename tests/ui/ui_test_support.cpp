@@ -1004,10 +1004,12 @@ bool skip_without_font_face(const QString& family, const char* fixture_role) {
 }
 
 // The same question asked of an imported layer, which adds the second way a machine lands off
-// the Windows baseline: the PSD's PostScript font name resolving to a different family. Only
-// Windows reads that name through DirectWrite; elsewhere the suffix-stripping heuristic turns
-// "Arial-Black" into family Arial plus the bold flag, which renders ~20% narrower than Arial
-// Black even on a machine that HAS Arial Black.
+// the Windows baseline: the PSD's PostScript font name resolving to a different family. Windows
+// reads that name through DirectWrite; elsewhere it resolves against the font database (the
+// resolver installed by install_font_database_psd_font_resolver), so this fires only when the
+// face is not in the database at import time and the suffix heuristic flattened the name --
+// "Arial-Black" to family Arial plus the bold flag, which renders ~20% narrower than Arial
+// Black. The face must therefore be registered BEFORE the fixture is read.
 bool skip_without_psd_text_face(const patchy::Layer& layer, const QString& expected_family) {
   const auto entry = layer.metadata().find(patchy::kLayerMetadataTextFont);
   const auto resolved = entry == layer.metadata().end() ? QString()
@@ -1015,7 +1017,7 @@ bool skip_without_psd_text_face(const patchy::Layer& layer, const QString& expec
   if (resolved.compare(expected_family, Qt::CaseInsensitive) != 0) {
     std::cout << "[SKIP] the fixture's type resolves to \"" << resolved.toStdString()
               << "\" here, not \"" << expected_family.toStdString()
-              << "\" (PSD PostScript names resolve through DirectWrite on Windows only)\n";
+              << "\" (the face was not in the font database when the PSD was read)\n";
     return true;
   }
   return skip_without_font_face(expected_family, "imported-PSD text fixture face");

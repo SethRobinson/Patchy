@@ -21,6 +21,7 @@
 #include "psd/psd_document_io.hpp"
 #include "psd/psd_filter_effects.hpp"
 #include "psd/psd_smart_objects.hpp"
+#include "psd/psd_text_runs.hpp"
 #include "ui/action_icons.hpp"
 #include "ui/app_settings.hpp"
 #include "render/compositor.hpp"
@@ -59,6 +60,7 @@
 #include "ui/photo_pattern_presets.hpp"
 #include "ui/style_library.hpp"
 #include "ui/print_dialog.hpp"
+#include "ui/psd_font_resolver.hpp"
 #include "ui/smart_object_render.hpp"
 #include "ui/scanner_import.hpp"
 #include "ui/image_sequence_dialog.hpp"
@@ -614,6 +616,63 @@ bool text_style_is_flag_expressible(const QString& style) {
   }
   return false;
 }
+
+#ifndef Q_OS_WASM
+// DirectWrite's off-Windows stand-in for resolving a PSD PostScript font name, installed
+// into the PSD reader by install_font_database_psd_font_resolver. The humanized name is
+// looked up in the font database as a whole family (CoreText files heavy faces under
+// their own name, "Arial Black") or as a family + style split (a FreeType database files
+// the same face as family "Arial" with style "Black") -- the same two shapes the
+// renderer's matchers resolve. The output rules mirror the DirectWrite resolver so a
+// document imported off Windows carries the same family/style/flags a Windows import
+// would; nullopt hands the name to the suffix heuristic exactly as before.
+std::optional<psd::ResolvedPhotoshopFont> font_database_resolved_photoshop_font(
+    std::string_view font_name) {
+  const auto humanized =
+      QString::fromStdString(psd::humanized_postscript_font_name(font_name)).trimmed();
+  if (humanized.isEmpty()) {
+    return std::nullopt;
+  }
+  if (const auto family = available_text_family_match(humanized); family.has_value()) {
+    // The whole name is an installed family. The heuristic's flags still ride along so a
+    // machine WITHOUT the face reading the saved document falls back to Bold, exactly as
+    // a Windows import records (family "Arial Black" + bold). Where the face exists the
+    // flag is inert: Qt only synthesizes bold onto faces lighter than the request.
+    const auto heuristic = psd::heuristic_resolved_photoshop_font(font_name);
+    return psd::ResolvedPhotoshopFont{family->toStdString(), std::string(), heuristic.bold,
+                                      heuristic.italic};
+  }
+  const auto split = available_text_family_style_match(humanized);
+  if (!split.has_value()) {
+    return std::nullopt;
+  }
+  const auto name_flags = text_style_flags_for_name(split->style);
+  const bool italic = name_flags.italic || QFontDatabase::italic(split->family, split->style);
+  if (text_style_is_flag_expressible(split->style)) {
+    // A face the flags can express is never baked into the family (the Bookman rule in
+    // the DirectWrite resolver), so ordinary imports stay on runs v3/v4.
+    const bool bold = name_flags.bold || QFontDatabase::bold(split->family, split->style);
+    return psd::ResolvedPhotoshopFont{split->family.toStdString(), std::string(), bold, italic};
+  }
+  const auto weight = QFontDatabase::weight(split->family, split->style);
+  const auto compound = split->family + QLatin1Char(' ') + split->style;
+  if (weight >= QFont::ExtraBold) {
+    // Black/Heavy keeps its full display name plus the bold flag as the
+    // uninstalled-face fallback, mirroring the DirectWrite weight >= 800 branch.
+    return psd::ResolvedPhotoshopFont{compound.toStdString(), split->style.toStdString(), true,
+                                      italic};
+  }
+  if (weight >= 0 && weight != QFont::Normal && weight != QFont::Bold) {
+    // Only Regular and Bold survive flattening into family + flags; every other weight
+    // keeps its real face, and the bold flag stays OFF because the name already carries
+    // the weight (setting both would synthesize on top of the face).
+    return psd::ResolvedPhotoshopFont{compound.toStdString(), split->style.toStdString(), false,
+                                      italic};
+  }
+  return psd::ResolvedPhotoshopFont{split->family.toStdString(), split->style.toStdString(),
+                                    name_flags.bold || weight >= QFont::DemiBold, italic};
+}
+#endif
 
 // The face name the bold/italic flags describe, used when a run records no explicit style.
 QString text_style_name_for_flags(bool bold, bool italic) {
@@ -1316,12 +1375,67 @@ private:
 // scale_font_size lives in dialog_utils.hpp; every derived font size in the UI
 // goes through it so the point/pixel unit split is handled in one place.
 
+// Sets the stretch whose RENDERED advances scale by `ratio` of the unstretched face.
+// `naive_value` is the caller's historical round(ratio * 100) encoding, computed by the
+// caller so each site's arithmetic stays exactly what it always was. That value is correct
+// on DirectWrite/GDI and FreeType, whose advances scale linearly with the stored stretch,
+// but Qt's CoreText engine applies a synthesized stretch to advances TWICE -- once baked
+// into the CTFont matrix and once as an explicit multiply on the already-scaled advances
+// (qfontengine_coretext.mm, loadAdvancesForGlyphs, Qt 6.8) -- so stretch 90 rendered at 81%
+// and the SNES box blurb lost 10% of its line length against Photoshop's raster on macOS.
+// The sqrt encoding lands the requested ratio on that engine. Which one is right is decided
+// by MEASURING this font, not by platform or by a per-process probe: fonts with a native
+// width axis answer setStretch through real width matching (.AppleSystemUIFont measured
+// x0.39 at stretch 50, neither linear nor squared, and a per-process probe cached off it),
+// and a missing family's fallback engine ignores stretch entirely. On a linear engine the
+// naive candidate measures ~exact and always wins (ties keep it too), so Windows and Linux
+// pinned pixel output stays bit for bit; a Qt release that fixes CoreText flips macOS back
+// by itself, and the imported-PSD text tests pin the rendered result on every platform.
+void set_stretch_for_advance_ratio(QFont& font, double ratio, int naive_value) {
+  if (!std::isfinite(ratio) || ratio <= 0.0) {
+    font.setStretch(naive_value);
+    return;
+  }
+  const auto sqrt_value =
+      std::clamp(static_cast<int>(std::lround(std::sqrt(ratio) * 100.0)), 1, 400);
+  if (sqrt_value == naive_value) {
+    font.setStretch(naive_value);
+    return;
+  }
+  QFont unstretched = font;
+  unstretched.setStretch(100);
+  const auto reference = QFontMetricsF(unstretched).horizontalAdvance(QLatin1Char('H'));
+  if (!(reference > 0.0)) {
+    font.setStretch(naive_value);
+    return;
+  }
+  const auto target = reference * ratio;
+  const auto advance_error = [&font, target](int value) {
+    QFont probe = font;
+    probe.setStretch(value);
+    return std::abs(QFontMetricsF(probe).horizontalAdvance(QLatin1Char('H')) - target);
+  };
+  font.setStretch(advance_error(sqrt_value) < advance_error(naive_value) ? sqrt_value
+                                                                         : naive_value);
+}
+
 void scale_font_width(QFont& font, double scale) {
   if (scale <= 0.0 || !std::isfinite(scale) || std::abs(scale - 1.0) < 0.0001) {
     return;
   }
   const auto stretch = font.stretch() > 0 ? font.stretch() : 100;
-  font.setStretch(std::clamp(static_cast<int>(std::round(static_cast<double>(stretch) * scale)), 1, 400));
+  // The historical encoding, byte for byte, for the linear engines.
+  const auto naive =
+      std::clamp(static_cast<int>(std::round(static_cast<double>(stretch) * scale)), 1, 400);
+  // The current advance ratio is MEASURED rather than decoded from the stored value, so a
+  // sqrt-compensated stretch (see set_stretch_for_advance_ratio) rescales correctly too.
+  QFont unstretched = font;
+  unstretched.setStretch(100);
+  const auto reference = QFontMetricsF(unstretched).horizontalAdvance(QLatin1Char('H'));
+  const auto current = QFontMetricsF(font).horizontalAdvance(QLatin1Char('H'));
+  const auto current_ratio =
+      reference > 0.0 && current > 0.0 ? current / reference : stretch / 100.0;
+  set_stretch_for_advance_ratio(font, current_ratio * scale, naive);
 }
 
 void scale_document_font_sizes(QTextDocument& document, double scale) {
@@ -2792,8 +2906,9 @@ void apply_patchy_text_runs_to_document(QTextDocument& document, const QString& 
     // Photoshop scales glyph width by H and height by V; Qt's pixel size scales both, so the
     // stretch carries the width-to-height ratio.
     if (std::abs(horizontal_glyph_scale - vertical_glyph_scale) > 0.0001) {
-      font.setStretch(std::clamp(
-          static_cast<int>(std::lround(horizontal_glyph_scale / vertical_glyph_scale * 100.0)), 1, 400));
+      const auto ratio = horizontal_glyph_scale / vertical_glyph_scale;
+      set_stretch_for_advance_ratio(
+          font, ratio, std::clamp(static_cast<int>(std::lround(ratio * 100.0)), 1, 400));
     }
 
     QColor color(fields[5]);
@@ -5070,6 +5185,21 @@ bool text_layer_name_is_auto(const Layer& layer) {
 }
 
 }  // namespace
+
+// Public (ui/psd_font_resolver.hpp): points the PSD reader's PostScript font-name
+// resolution at the font database. On Windows the hook is installed but never
+// consulted (the reader keeps its pinned DirectWrite -> registry -> heuristic
+// chain); on wasm nothing is installed, because available_text_family_match
+// resolves common system families through the bundled alias table and a bare
+// PostScript name like "Helvetica" would bake the stand-in family into imported
+// metadata (aliases apply at render and edit time instead, see docs/fonts.md).
+void install_font_database_psd_font_resolver() {
+#ifndef Q_OS_WASM
+  psd::set_photoshop_font_resolver([](std::string_view font_name) {
+    return font_database_resolved_photoshop_font(font_name);
+  });
+#endif
+}
 
 QStringList missing_text_families_for_layer(const Layer& layer) {
   if (!layer_is_text(layer)) {
@@ -7973,8 +8103,10 @@ void MainWindow::apply_text_character_glyph_scales_to_active_editor() {
     if (font.pixelSize() > 0 || font.pointSizeF() <= 0.0) {
       font.setPixelSize(std::max(1, static_cast<int>(std::lround(exact * vertical))));
     }
-    font.setStretch(
-        std::clamp(static_cast<int>(std::lround(horizontal / vertical * 100.0)), 1, 400));
+    const auto stretch_ratio = horizontal / vertical;
+    set_stretch_for_advance_ratio(
+        font, stretch_ratio,
+        std::clamp(static_cast<int>(std::lround(stretch_ratio * 100.0)), 1, 400));
     const auto tracking = format.hasProperty(kTextTrackingFormatProperty)
                               ? format.property(kTextTrackingFormatProperty).toDouble()
                               : 0.0;

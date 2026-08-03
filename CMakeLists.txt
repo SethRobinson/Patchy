@@ -876,6 +876,7 @@ if(PATCHY_BUILD_APP)
       src/ui/preset_manager_scaffold.cpp
       src/ui/preset_tree_widget.hpp
       src/ui/preset_tree_widget.cpp
+      src/ui/psd_font_resolver.hpp
       src/ui/print_layout.cpp
       src/ui/qt_geometry.cpp
       src/ui/raw_develop_dialog.hpp

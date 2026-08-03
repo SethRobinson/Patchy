@@ -88,4 +88,22 @@ struct ResolvedPhotoshopFont {
 
 ResolvedPhotoshopFont heuristic_resolved_photoshop_font(std::string_view font_name);
 
+// The whole PostScript name humanized with NO suffix stripping ("Arial-Black" ->
+// "Arial Black", "LubalinGraphITCbyBT-Demi" -> "Lubalin Graph ITC by BT Demi"),
+// for matching against a font database that knows the face under a display name.
+std::string humanized_postscript_font_name(std::string_view font_name);
+
+// Off Windows the PSD reader consults this hook BEFORE falling back to
+// heuristic_resolved_photoshop_font, so a PostScript name resolves to the real
+// installed face ("Arial-Black" -> Arial Black) instead of flattening to family
+// + bold, ~20% narrower even on a machine that has the face. The Qt app installs
+// a font-database resolver at startup (install_font_database_psd_font_resolver,
+// src/ui/psd_font_resolver.hpp); the hook returns std::nullopt for names the
+// database cannot vouch for. On Windows the reader keeps its DirectWrite ->
+// registry -> heuristic chain and never consults the hook: those answers are
+// pinned by the imported-text tests. The resolver may be called from whatever
+// thread reads the document, so it must be thread-safe.
+using PhotoshopFontResolver = std::optional<ResolvedPhotoshopFont> (*)(std::string_view font_name);
+void set_photoshop_font_resolver(PhotoshopFontResolver resolver);
+
 }  // namespace patchy::psd

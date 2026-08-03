@@ -999,8 +999,9 @@ void ui_snes_box_rotated_hscale_commit_matches_if_available() {
   // rotated 90 degrees (transform is a pure rotation x 1.284). Ignoring the 90% width made the
   // re-render ~11% longer along its rotated (screen-vertical) axis. Both layers are Arial
   // Black, so with that face the converted ink box must land on Photoshop's within a few pixels
-  // on both axes -- and the crisp path must hold through the rotation. Off Windows the PSD's
-  // "Arial-Black" resolves to Arial + bold (a ~20% shorter line), so the probes skip there.
+  // on both axes -- and the crisp path must hold through the rotation. "Arial-Black" resolves
+  // through DirectWrite on Windows and the font database elsewhere, so the ArialBlack role must
+  // register BEFORE the read; the probes skip only where the face does not exist (stock Linux).
   const auto path = patchy::test::local_psd_fixture_path("snes-box-a3.psd");
   if (!std::filesystem::exists(path)) {
     return;

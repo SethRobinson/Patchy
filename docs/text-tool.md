@@ -2,7 +2,7 @@
 
 The inline text editor's session machinery, commit/cancel semantics, and the Character panel. The Photoshop layout model is the calibration section at the end; Warp Text lives in [warp.md](warp.md) and offscreen font registration in [testing.md](testing.md).
 
-Do NOT attempt to split the remaining text code out of main_window.cpp as a pure file move: the render pipeline is shared between too many members; it is a "design a module with its own header" job, not a file split (tried and backed out). The line-layout half already lives that way in `src/ui/text_layout.{hpp,cpp}` (next section).
+Do NOT attempt to split the remaining text code out of main_window.cpp as a pure file move: the render pipeline is shared between too many members; it is a "design a module with its own header" job, not a file split. The line-layout half already lives that way in `src/ui/text_layout.{hpp,cpp}` (next section).
 
 ## One layout authority (src/ui/text_layout.hpp)
 
@@ -34,9 +34,7 @@ highlights one and a half. `ui_psd_frame_text_highlight_matches_scaled_glyphs` p
 comparing a select-all highlight against the rendered ink (space-free text), and by clicking the
 middle of the INK and requiring the cursor to land mid-text. The click probe must be derived from
 the render: clicking the caret proves nothing, because click and caret share a layout and agree
-even when that layout is wrong against the glyphs. A too-small layout maps a click near the end of
-the text past the end of the layout, where it clamps, which is what "the mouse does not select at
-all" looks like.
+even when that layout is wrong against the glyphs.
 
 Mouse hit-testing goes through the same plan. `QTextEdit::cursorForPosition` must never resolve a
 click inside a text session: the widget hit-tests against its own internal layout, built at an
@@ -218,8 +216,10 @@ style must not render nothing).
   metric-compatible alias table, and every text render appends a Noto Sans JP fallback family. See
   [fonts.md](fonts.md).
 - **Only Regular (400) and Bold (700) survive being flattened into a family plus a bold flag.**
-  The PSD reader's DirectWrite resolver keeps the real face for every other weight
-  (`psd_text_read.cpp`): flattening Demi/Semi (600) onto the family's BOLD face renders heavier
+  The PSD reader keeps the real face for every other weight (`psd_text_read.cpp`): DirectWrite
+  on Windows, the font database elsewhere (`src/ui/psd_font_resolver.hpp`), the suffix
+  heuristic last (wasm stays heuristic-only so alias families never reach imported
+  metadata). Flattening Demi/Semi (600) onto the family's BOLD face renders heavier
   and taller than Photoshop (ITC Lubalin Graph Demi measured 995x868 against Photoshop's 982x826
   on the entry_poster.psd body copy; the real face matches the width exactly). Gated on
   the face NAME, not the raw weight: a face whose name the flags can already express is never
@@ -323,7 +323,7 @@ can still settle 1px off in x or y.
 
 - **Text renders UNHINTED**: PS never runs TrueType hinting; every antialiased `/AntiAlias` mode maps to `QFont::PreferNoHinting` (`configure_text_font_smoothing`); mode 0/None keeps `NoAntialias` + full hinting, which fattens stems on small-print-era fonts and shifts advances into collisions.
 - **Imported type layers keep Photoshop's raster until edited** (`should_regenerate_imported_text_preview`, psd_text_write.cpp): a missing font never changes appearance on open. Rasters are kept even under big effects; regenerate only when the stored preview is visibly NOT any run's declared fill color (baked-in effect pixels would corrupt the live outer-effect contour), or when the type block is Patchy-authored. Editing a kept raster warns before substituting fonts; `--append-text` substitutes silently. **Continuing past that warning really substitutes**: `substituted_text_family` (what `QFontInfo` resolves the missing family to, then the UI font, then the original when nothing installed can draw the text) moves the session's base family and `substitute_missing_document_font_families` every run, blank paragraphs' block char formats included. Otherwise the commit stores the missing name back over a raster drawn in the substitute and the layer stays badged.
-- **Black/Heavy faces (DirectWrite weight >= 800)** resolve to their FULL face name so the family+style matcher finds the real face (family+bold renders Bold, ~15% narrower); the bold flag stays set for fallback. Never feed such a name raw to the font combo: `QFont("Arial Black")` resolves to Tahoma; use `text_font_combo_font_for_family`.
+- **Black/Heavy faces (weight >= 800, DirectWrite or font database)** resolve to their FULL face name so the family+style matcher finds the real face (family+bold renders Bold, ~15% narrower); the bold flag stays set for fallback. Never feed such a name raw to the font combo: `QFont("Arial Black")` resolves to Tahoma; use `text_font_combo_font_for_family`.
 - **Rotated point-text anchoring**: committed placement pins the TEXT-SPACE anchor (justification fraction along the reading axis, first-line side on the stack axis), never a fixed document corner; the CS-era document-bounds fallback pins the corresponding fractional point of the source ink box.
 - **Scaled BOX text**: runs and box dims (`patchy.text.box_width/height`, from `/BoxBounds`) are engine units, but a PSD-frame edit session works in DOCUMENT space; the render call's `layout_scale` folds the transform's vertical scale into glyph sizes WITHOUT scaling box dims, and commit stores frame dims divided back to raw units so runs, box and transform stay one coordinate system.
 - Committing a transformed point-text layer re-renders CRISP through the aligned transform even when the font is substituted (resampling delivers the same glyphs blurry). The first re-edit after conversion settles placement by a few pixels; later cycles are identical.

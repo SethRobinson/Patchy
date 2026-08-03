@@ -11,6 +11,7 @@
 #include "ui/app_settings.hpp"
 #include "ui/background_workers.hpp"
 #include "ui/localization.hpp"
+#include "ui/psd_font_resolver.hpp"
 #include "ui/theme_manager.hpp"
 
 #include <QApplication>
@@ -173,6 +174,9 @@ int main(int argc, char* argv[]) {
     return patchy::test::ui::run_bundled_web_fonts_probe();
   }
   app.setFont(visual_test_font());
+  // The app installs this at startup, so the suite must too: imported-PSD text tests
+  // resolve PostScript font names against whatever fonts each test has registered.
+  patchy::ui::install_font_database_psd_font_resolver();
   ensure_artifact_dir();
   const auto test_settings_path = QDir::current().filePath(QStringLiteral("test-artifacts/settings"));
   CHECK(QDir().mkpath(test_settings_path));

@@ -3,6 +3,7 @@
 #include "ui/background_workers.hpp"
 #include "ui/localization.hpp"
 #include "ui/main_window.hpp"
+#include "ui/psd_font_resolver.hpp"
 #include "ui/stress_test.hpp"
 #include "ui/theme_manager.hpp"
 #include "ui/user_fonts.hpp"
@@ -336,6 +337,7 @@ int main(int argc, char* argv[]) {
   }
 #endif
   patchy::ui::user_fonts::restore_user_fonts_at_startup();
+  patchy::ui::install_font_database_psd_font_resolver();
   app.setFont(application_font());
   patchy::ui::LocalizationManager::instance().load_saved_language();
   patchy::ui::ThemeManager::instance().load_saved_preference();

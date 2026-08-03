@@ -26,6 +26,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <bit>
 #include <cmath>
 #include <cctype>
@@ -806,6 +807,12 @@ ResolvedPhotoshopFont heuristic_resolved_photoshop_font(std::string_view font_na
   return resolved;
 }
 
+// Public (psd_text_runs.hpp): the whole name humanized, nothing stripped, for
+// callers that match it against a font database instead of guessing suffixes.
+std::string humanized_postscript_font_name(std::string_view font_name) {
+  return humanized_postscript_family_name(std::string(font_name));
+}
+
 #ifdef _WIN32
 
 std::optional<std::wstring> directwrite_localized_string(IDWriteLocalizedStrings* strings) {
@@ -1069,6 +1076,18 @@ std::optional<ResolvedPhotoshopFont> registry_resolved_photoshop_font(std::strin
 
 namespace {
 
+// The app-installed font-database resolver (see psd_text_runs.hpp). Atomic only
+// because reads can run off the installing thread; it is set once at startup.
+std::atomic<PhotoshopFontResolver> installed_photoshop_font_resolver{nullptr};
+
+}  // namespace
+
+void set_photoshop_font_resolver(PhotoshopFontResolver resolver) {
+  installed_photoshop_font_resolver.store(resolver, std::memory_order_relaxed);
+}
+
+namespace {
+
 ResolvedPhotoshopFont resolve_photoshop_font_name(std::string_view font_name) {
 #ifdef _WIN32
   if (const auto resolved = directwrite_resolved_photoshop_font(font_name); resolved.has_value()) {
@@ -1076,6 +1095,16 @@ ResolvedPhotoshopFont resolve_photoshop_font_name(std::string_view font_name) {
   }
   if (const auto resolved = registry_resolved_photoshop_font(font_name); resolved.has_value()) {
     return *resolved;
+  }
+#else
+  // DirectWrite's stand-in: the app's font-database resolver finds the real face
+  // for names the suffix heuristic below can only flatten to family + flags.
+  // Deliberately not consulted on Windows, whose chain above is the pinned baseline.
+  if (const auto resolver = installed_photoshop_font_resolver.load(std::memory_order_relaxed);
+      resolver != nullptr) {
+    if (const auto resolved = resolver(font_name); resolved.has_value()) {
+      return *resolved;
+    }
   }
 #endif
   return heuristic_resolved_photoshop_font(font_name);
