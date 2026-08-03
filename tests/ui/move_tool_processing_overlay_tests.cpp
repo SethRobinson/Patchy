@@ -200,6 +200,23 @@ namespace {
 
 using namespace patchy::test::ui;
 
+struct ScopedSingleThreadedRender {
+  ScopedSingleThreadedRender() {
+#ifdef _WIN32
+    _putenv_s("PATCHY_RENDER_SINGLE_THREADED", "1");
+#else
+    setenv("PATCHY_RENDER_SINGLE_THREADED", "1", 1);
+#endif
+  }
+  ~ScopedSingleThreadedRender() {
+#ifdef _WIN32
+    _putenv_s("PATCHY_RENDER_SINGLE_THREADED", "");
+#else
+    unsetenv("PATCHY_RENDER_SINGLE_THREADED");
+#endif
+  }
+};
+
 void ui_move_preview_preserves_layer_order() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -1889,6 +1906,51 @@ void ui_move_styled_folder_live_preview_clears_shadow_trail() {
   save_widget_artifact("ui_move_styled_folder_shadow_trail", canvas);
 }
 
+// Multi-rect region renders fan out across workers; every rect is the same
+// render_document_rect call either way, so the patch bytes must match the
+// PATCHY_RENDER_SINGLE_THREADED sequential loop exactly.
+void ui_parallel_region_patches_match_single_threaded() {
+  patchy::Document document(1400, 1000, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(1400, 1000, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+
+  patchy::Layer styled(document.allocate_layer_id(), "Styled Region Layer",
+                       solid_pixels(600, 500, patchy::PixelFormat::rgba8(), QColor(30, 120, 220)));
+  styled.set_bounds(patchy::Rect{120, 90, 600, 500});
+  patchy::LayerDropShadow shadow;
+  shadow.enabled = true;
+  shadow.opacity = 1.0F;
+  shadow.distance = 6.0F;
+  shadow.size = 9.0F;
+  styled.layer_style().drop_shadows.push_back(shadow);
+  document.add_layer(std::move(styled));
+
+  patchy::Layer overlay_layer(document.allocate_layer_id(), "Multiply Region Layer",
+                              solid_pixels(700, 600, patchy::PixelFormat::rgba8(), QColor(240, 200, 60)));
+  overlay_layer.set_bounds(patchy::Rect{600, 350, 700, 600});
+  overlay_layer.set_blend_mode(patchy::BlendMode::Multiply);
+  document.add_layer(std::move(overlay_layer));
+
+  QRegion region;
+  region += QRect(0, 0, 700, 520);
+  region += QRect(680, 400, 700, 560);
+  region += QRect(200, 640, 420, 300);
+
+  const auto parallel_patches =
+      patchy::ui::qimage_patches_from_document_region_with_layer_bounds(document, region, true, {});
+  std::vector<patchy::ui::RenderedDocumentPatch> sequential_patches;
+  {
+    ScopedSingleThreadedRender single_threaded;
+    sequential_patches = patchy::ui::qimage_patches_from_document_region_with_layer_bounds(document, region, true, {});
+  }
+
+  CHECK(!parallel_patches.empty());
+  CHECK(parallel_patches.size() == sequential_patches.size());
+  for (std::size_t index = 0; index < parallel_patches.size() && index < sequential_patches.size(); ++index) {
+    CHECK(parallel_patches[index].document_rect == sequential_patches[index].document_rect);
+    CHECK(parallel_patches[index].image == sequential_patches[index].image);
+  }
+}
+
 void ui_layer_move_repaints_only_active_document_tab() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -2508,6 +2570,7 @@ std::vector<patchy::test::TestCase> move_tool_processing_overlay_tests() {
        ui_move_overlapping_stack_drag_uses_proxy_preview},
       {"ui_move_styled_folder_live_preview_clears_shadow_trail",
        ui_move_styled_folder_live_preview_clears_shadow_trail},
+      {"ui_parallel_region_patches_match_single_threaded", ui_parallel_region_patches_match_single_threaded},
       {"ui_layer_move_repaints_only_active_document_tab", ui_layer_move_repaints_only_active_document_tab},
       {"ui_arduboy_psd_render_path_if_available", ui_arduboy_psd_render_path_if_available},
       {"ui_duke_psd_text_edit_stays_responsive_if_available",

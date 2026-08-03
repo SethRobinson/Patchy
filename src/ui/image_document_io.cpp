@@ -28,6 +28,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <cmath>
@@ -1265,10 +1266,64 @@ std::vector<RenderedDocumentPatch> render_document_region(
   }
 
   const QRect canvas_rect(0, 0, document.width(), document.height());
+  std::vector<QRect> rects;
+  std::int64_t total_area = 0;
   for (const auto& rect : document_region.intersected(canvas_rect)) {
     if (rect.isEmpty()) {
       continue;
     }
+    rects.push_back(rect);
+    total_area += static_cast<std::int64_t>(rect.width()) * static_cast<std::int64_t>(rect.height());
+  }
+
+  // Multi-rect regions (move previews and release patches emit one or two
+  // rects per moved layer) fan the independent per-rect renders out across
+  // workers. Bytes are identical to the sequential loop by construction: each
+  // patch is the same render_document_rect call with the same arguments, and
+  // order is preserved by index. Single-rect regions keep the plain call so a
+  // large rect still strip-splits inside render_document_rect; the published
+  // zero budget stops workers from nesting their own blocking fan-out, which
+  // the wasm pthread pool cannot stack (native ignores the budget, matching
+  // today's nested-strip behavior). Tracing/profiling stay sequential so
+  // per-render instrumentation remains readable.
+  const auto worker_budget = max_blocking_fanout_workers(
+      std::clamp(static_cast<int>(rects.size()), 1,
+                 std::max(1, static_cast<int>(std::thread::hardware_concurrency()))));
+  const bool parallel = rects.size() >= 2U && worker_budget >= 2 && total_area >= 1'000'000 &&
+                        !qEnvironmentVariableIsSet("PATCHY_RENDER_SINGLE_THREADED") && !render_trace_enabled() &&
+                        !render_profile_enabled();
+  if (parallel) {
+    std::vector<QImage> images(rects.size());
+    std::atomic<std::size_t> next_rect{0};
+    BlockingFanoutBudgetScope nested_budget(0);
+    const auto worker_count = std::min<std::size_t>(static_cast<std::size_t>(worker_budget), rects.size());
+    std::vector<std::future<void>> jobs;
+    jobs.reserve(worker_count);
+    for (std::size_t worker = 0; worker < worker_count; ++worker) {
+      jobs.push_back(std::async(std::launch::async, [&document, &rects, &images, &next_rect, preserve_alpha,
+                                                     overrides] {
+        while (true) {
+          const auto index = next_rect.fetch_add(1, std::memory_order_relaxed);
+          if (index >= rects.size()) {
+            return;
+          }
+          images[index] = render_document_rect(document, rects[index], preserve_alpha, overrides);
+        }
+      }));
+    }
+    for (auto& job : jobs) {
+      job.get();
+    }
+    patches.reserve(rects.size());
+    for (std::size_t index = 0; index < rects.size(); ++index) {
+      if (!images[index].isNull()) {
+        patches.push_back(RenderedDocumentPatch{rects[index], std::move(images[index])});
+      }
+    }
+    return patches;
+  }
+
+  for (const auto& rect : rects) {
     auto image = render_document_rect(document, rect, preserve_alpha, overrides);
     if (image.isNull()) {
       continue;
