@@ -60,8 +60,9 @@ Takes the usual name-substring filter as the first argument; runs the
 emsdk-bundled node from `build\wasm-core`, so `test-artifacts/` lands there.
 `ctest` also works there (the preset pins `CMAKE_CROSSCOMPILING_EMULATOR`).
 
-Status: 736 pass, 0 fail with the 2.2 GB `local-test-fixtures/` corpus
-present; the three byte-stability canaries pass byte-identically. Expected
+Status: 747 pass, 0 fail with the 2.4 GB `local-test-fixtures/` corpus
+present (0.87, August 2026), matching the Windows release suite count; the
+three byte-stability canaries pass byte-identically. Expected
 `[SKIP]`s: one
 absent local fixture, two HEIC tests (node has no `VideoDecoder`), and
 `af_modern_embeds_are_center_anchored_if_available` (its fixture exceeds a

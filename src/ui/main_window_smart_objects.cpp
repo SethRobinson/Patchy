@@ -528,7 +528,8 @@ bool MainWindow::commit_smart_object_child_session(DocumentSession& child_sessio
                       DocumentSession::HistoryState{
                           parent->document, parent->revision,
                           parent->canvas != nullptr ? parent->canvas->capture_selection_snapshot()
-                                                    : CanvasWidget::SelectionSnapshot{}},
+                                                    : CanvasWidget::SelectionSnapshot{},
+                          {}, 0},
                       tr("Edit Smart Object Contents"));
   parent->document = std::move(updated_document);
   if (child_session.smart_object_link.has_value()) {
@@ -713,7 +714,8 @@ void MainWindow::refresh_external_smart_object_after_save(DocumentSession& child
                       DocumentSession::HistoryState{
                           parent->document, parent->revision,
                           parent->canvas != nullptr ? parent->canvas->capture_selection_snapshot()
-                                                    : CanvasWidget::SelectionSnapshot{}},
+                                                    : CanvasWidget::SelectionSnapshot{},
+                          {}, 0},
                       tr("Update Smart Object Content"));
   parent->document = std::move(updated_document);
   if (parent->canvas != nullptr) {

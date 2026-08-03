@@ -133,10 +133,14 @@ notarized (Robinson Technologies Corporation).
 
 | Platform                  | Package                     | Download                                                                                      |
 | ------------------------- | --------------------------- | --------------------------------------------------------------------------------------------- |
-| Windows 10/11 (64-bit)    | Installer                   | [PatchyWindowsInstaller.exe](https://rtsoft.com/files/PatchyWindowsInstaller.exe) (33 MB)     |
-| Windows 10/11 (64-bit)    | Portable ZIP (no installer) | [PatchyWindowsNoInstaller.zip](https://rtsoft.com/files/PatchyWindowsNoInstaller.zip) (33 MB) |
+| Windows 10/11 (64-bit)    | Installer                   | [PatchyWindowsInstaller.exe](https://rtsoft.com/files/PatchyWindowsInstaller.exe) (35 MB)     |
+| Windows 10/11 (64-bit)    | Portable ZIP (no installer) | [PatchyWindowsNoInstaller.zip](https://rtsoft.com/files/PatchyWindowsNoInstaller.zip) (35 MB) |
 | macOS 12+ (Apple Silicon) | DMG - drag to Applications  | [PatchyMacOS.dmg](https://rtsoft.com/files/PatchyMacOS.dmg) (44 MB)                           |
 | Linux                     | Flatpak bundle              | [PatchyLinux.flatpak](https://rtsoft.com/files/PatchyLinux.flatpak) (14 MB)                   |
+
+No install needed to try it: [rtsoft.com/patchy](https://www.rtsoft.com/patchy/) runs the same
+editor in your browser, compiled to WebAssembly. Everything runs locally and nothing you make
+is sent online.
 
 Linux one-line install (paste into a terminal; fetches the bundle and installs it,
 pulling the shared KDE runtime from Flathub automatically):
@@ -180,6 +184,19 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 
 ## What's New
 
+### 0.87 - August 3, 2026
+
+- Patchy runs in a web browser now, at [rtsoft.com/patchy](https://www.rtsoft.com/patchy/). It is the same editor compiled to WebAssembly with real threads: files open from your disk, save back as downloads, and drag straight onto the canvas, and nothing you make is ever sent online. The web build bundles 23 MB of open fonts including Japanese coverage, takes dropped font files and font zips that persist between visits, decodes HEIC photos through the browser, and remembers your settings
+- The Bold and Italic buttons in the text options bar are replaced by a Style picker that lists a font family's real faces and resolves them the way Photoshop does. Families that declare their Bold at a sub-Bold weight now pick Bold Italic correctly, and when a family has no such face, Patchy synthesizes a faux bold or faux italic from the face you are using instead of jumping to a different family
+- Missing fonts behave: a font with no glyph coverage for the text counts as missing and badges the layer, and editing past the warning substitutes a real font instead of redrawing to nothing. Options-bar changes made with no text selected now apply to the whole layer, like Photoshop
+- Text editing on transformed and scaled layers is accurate. Clicks land on the glyphs you can see rather than on an untransformed layout, the caret and selection read the renderer's own line plan, re-editing box text renders live instead of shifting as you enter it, and a commit repaints the text bounds instead of the whole document
+- The History panel is interactive. It lists the real states of the session, oldest first with the current one highlighted, one click jumps to any state in either direction, and a right-click action opens any past state as a new document
+- Large documents composite and transform much faster. A 7 megapixel reference PSD composites in 371 ms instead of 566, free-transform previews patch the regions that changed rather than recompositing the canvas (a stress step drops from 381 ms to 104 ms), heavy drags latch onto a low-resolution proxy and re-render accurately on release, and the Windows release build links with link-time optimization
+- Auto Tone and Auto Color join Image > Adjustments, and Auto Contrast now works on the composite the way Photoshop's does
+- Advanced Blending's per-channel restrictions render and can be edited, so a layer that blends through only some channels looks right instead of ignoring the setting
+- Zoom follows Photoshop's view rules with the same preset steps, and geometry operations like rotate and canvas resize recenter the view instead of leaving it scrolled off the image
+- Fixes: Clouds fills the whole canvas, Dust & Scratches reaches a 500 px radius, strokes no longer grow nubs along anti-aliased fringes on transformed text, the Layer Style dialog's Stroke page scrolls instead of stretching the dialog, undo and redo refresh the Paths panel, the start panel lists up to 200 recent files with a right-click menu, Open Recent gained a filter box, and the About screen has a light surface in Light mode
+
 ### 0.86 - July 29, 2026
 
 - Affinity import got much wider. Affinity 2's .afphoto, .afdesign, and .afpub documents open now, alongside the current .af format and most Affinity 1.x-era files. Parametric shapes import as real editable shapes down to the long tail (stars, triangles, smoothed polygons, diamonds, pies, crescents, hearts, arrows, cogs, clouds), together with compound-shape booleans, Designer symbols, artboards, and scene-graph transforms
@@ -191,11 +208,6 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 - Large documents feel much better in the Layers panel. On a 622-layer file, expanding a folder went from 2.1 seconds to 0.45, and closing the Layer Style dialog went from 8.2 seconds to 0.5
 - Shape strokes no longer grow spikes at sharp corners when anchor points land off the pixel lattice
 - PSD compatibility is measured instead of asserted. The top of this README now shows how Patchy scores against Photoshop 2026 on a mixed PSD corpus, with Photopea, GIMP, Affinity, PhotoDemon, and Krita run through the same tests
-
-### 0.85 - July 27, 2026
-
-- Layer styles blend the way Photoshop does now. A layer's blend mode applies to its own pixels alone unless Blend Interior Effects as Group is on, and exterior effects contribute against the backdrop instead of under the layer, so glows and shadows keep their weight along anti-aliased text. Color, Gradient, and Pattern Overlay fold into the layer color rather than painting over the composite, so an opaque overlay hides the fill beneath it and layer opacity is no longer applied twice
-- Damaged PSD files open instead of being refused: corrupt scanlines are recovered row by row, with an import notice saying how many came back, and legacy files that carry Photoshop's separate real user mask channel read correctly instead of arriving truncated
 
 [Older releases](RELEASE-HISTORY.md)
 

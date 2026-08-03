@@ -3,6 +3,11 @@
 Older Patchy release notes are collected here. The two most recent releases
 remain in [README.md](README.md#whats-new).
 
+## 0.85 - July 27, 2026
+
+- Layer styles blend the way Photoshop does now. A layer's blend mode applies to its own pixels alone unless Blend Interior Effects as Group is on, and exterior effects contribute against the backdrop instead of under the layer, so glows and shadows keep their weight along anti-aliased text. Color, Gradient, and Pattern Overlay fold into the layer color rather than painting over the composite, so an opaque overlay hides the fill beneath it and layer opacity is no longer applied twice
+- Damaged PSD files open instead of being refused: corrupt scanlines are recovered row by row, with an import notice saying how many came back, and legacy files that carry Photoshop's separate real user mask channel read correctly instead of arriving truncated
+
 ## 0.84 - July 26, 2026
 
 - Patchy has a Light color scheme now. File > Preferences picks Dark, Light, or the system light/dark setting, and the switch happens live: panels, dialogs, tabs, scroll bars, and the color picker all get real light colors instead of an inverted dark theme
