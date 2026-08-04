@@ -27,7 +27,6 @@
 #include <QStringList>
 #include <QTimer>
 
-#include <algorithm>
 #include <array>
 #include <cstdio>
 #include <functional>
@@ -71,20 +70,20 @@ void load_bundled_fonts() {
 // Apply the saved interface scale through Qt's QT_SCALE_FACTOR. This must run before the
 // QApplication is constructed because Qt only reads the variable at construction time. An
 // existing environment override (e.g. from tests/CI) is left untouched.
+//
+// This runs on wasm too. Qt's wasm screen reports a flat 96 logical DPI unless the page
+// passes qt.fontDpi to qtLoad (ours does not), so the browser's high-DPI factor is 1 and
+// one Patchy UI pixel is one CSS pixel; devicePixelRatio only raises the render
+// resolution. QT_SCALE_FACTOR is therefore the one global sizing lever there, and the
+// web build leans on it for its smaller default (kDefaultGuiScalePercent). Reading the
+// setting this early is safe in the browser because the localStorage backend is
+// synchronous and app_settings() passes the organization and application names
+// explicitly instead of reading them off QCoreApplication.
 void apply_gui_scale_factor() {
-#ifdef Q_OS_WASM
-  // The browser's devicePixelRatio drives scaling on wasm; QT_SCALE_FACTOR is
-  // the wrong mechanism there, and this is also the one QSettings read that
-  // would run before QApplication exists (worst case for an async-backed
-  // settings store).
-  return;
-#endif
   if (qEnvironmentVariableIsSet("QT_SCALE_FACTOR")) {
     return;
   }
-  constexpr std::array<int, 5> allowed_percents{100, 125, 150, 175, 200};
-  const int stored = patchy::ui::app_settings().value(QStringLiteral("preferences/guiScalePercent"), 100).toInt();
-  const int percent = std::clamp(stored, allowed_percents.front(), allowed_percents.back());
+  const int percent = patchy::ui::stored_gui_scale_percent();
   if (percent == 100) {
     return;
   }

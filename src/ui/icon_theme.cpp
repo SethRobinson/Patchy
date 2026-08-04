@@ -58,7 +58,7 @@ class ThemedIconEngine final : public QIconEngine {
   }
 
   // Overriding this matters: the base implementation drops `scale`, and Patchy
-  // supports a 100-200% interface scale, so every icon would go soft at 150%.
+  // supports a 67-200% interface scale, so every icon would go soft at 150%.
   QPixmap scaledPixmap(const QSize& size, QIcon::Mode mode, QIcon::State state,
                        qreal scale) override {
     Q_UNUSED(state);

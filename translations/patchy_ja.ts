@@ -9780,6 +9780,11 @@ RGB: -
         <translation>新しいインターフェースの拡大率を反映するには Patchy を再起動してください。</translation>
     </message>
     <message>
+        <location line="+0"/>
+        <source>Reload the page for the new interface scale to take effect.</source>
+        <translation>新しいインターフェースの拡大率を反映するにはページを再読み込みしてください。</translation>
+    </message>
+    <message>
         <location line="-552"/>
         <source>Update Available</source>
         <translation>更新があります</translation>

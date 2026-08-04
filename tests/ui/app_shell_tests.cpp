@@ -1556,6 +1556,53 @@ void ui_update_preference_persists_startup_check_setting() {
   CHECK(!settings.value(QStringLiteral("updates/checkOnStartup"), true).toBool());
 }
 
+struct GuiScaleDialogRun {
+  bool saw_dialog{false};
+  bool dismissed_message{false};
+  int entry_percent{0};
+};
+
+// Opens Preferences, records what the interface-scale combo shows on entry, optionally
+// selects `percent`, and accepts. A changed scale raises a modal restart/reload notice
+// that has to be dismissed before the dialog can finish closing.
+GuiScaleDialogRun drive_preferences_gui_scale(patchy::ui::MainWindow& window,
+                                              std::optional<int> percent) {
+  GuiScaleDialogRun run;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* combo = dialog->findChild<QComboBox*>(QStringLiteral("preferencesGuiScaleCombo"));
+    CHECK(combo != nullptr);
+    if (combo == nullptr) {
+      dialog->reject();
+      return;
+    }
+    run.entry_percent = combo->currentData().toInt();
+    run.saw_dialog = true;
+    if (percent.has_value()) {
+      const int index = combo->findData(*percent);
+      CHECK(index >= 0);
+      combo->setCurrentIndex(index);
+      QTimer::singleShot(0, [&] {
+        auto* message = qobject_cast<QMessageBox*>(
+            find_top_level_dialog(QStringLiteral("preferencesInterfaceScaleMessageBox")));
+        CHECK(message != nullptr);
+        if (message != nullptr) {
+          message->accept();
+          run.dismissed_message = true;
+        }
+      });
+    }
+    dialog->accept();
+  });
+  require_action(window, "filePreferencesAction")->trigger();
+  QApplication::processEvents();
+  return run;
+}
+
 void ui_gui_scale_preference_persists_setting() {
   SettingsValueRestorer restore_gui_scale(QStringLiteral("preferences/guiScalePercent"));
   {
@@ -1567,36 +1614,64 @@ void ui_gui_scale_preference_persists_setting() {
   patchy::ui::MainWindow window;
   show_window(window);
 
-  bool saw_dialog = false;
-  bool dismissed_message = false;
-  QTimer::singleShot(0, [&] {
-    auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
-    CHECK(dialog != nullptr);
-    auto* combo = dialog->findChild<QComboBox*>(QStringLiteral("preferencesGuiScaleCombo"));
-    CHECK(combo != nullptr);
-    const int index = combo->findData(150);
-    CHECK(index >= 0);
-    combo->setCurrentIndex(index);
-    saw_dialog = true;
-    // Accepting with a changed scale shows a modal restart-required message box; dismiss it.
-    QTimer::singleShot(0, [&] {
-      auto* message = qobject_cast<QMessageBox*>(
-          find_top_level_dialog(QStringLiteral("preferencesInterfaceScaleMessageBox")));
-      CHECK(message != nullptr);
-      if (message != nullptr) {
-        message->accept();
-        dismissed_message = true;
-      }
-    });
-    dialog->accept();
-  });
-  require_action(window, "filePreferencesAction")->trigger();
-  QApplication::processEvents();
-  CHECK(saw_dialog);
-  CHECK(dismissed_message);
+  const auto run = drive_preferences_gui_scale(window, 150);
+  CHECK(run.saw_dialog);
+  CHECK(run.dismissed_message);
+  CHECK(run.entry_percent == 100);
+  CHECK(patchy::ui::stored_gui_scale_percent() == 150);
+}
 
-  auto settings = patchy::ui::app_settings();
-  CHECK(settings.value(QStringLiteral("preferences/guiScalePercent"), 100).toInt() == 150);
+// The steps below 100% are what let a browser tab match the desktop build's apparent
+// size, so keep one of them exercised end to end through the combo.
+void ui_gui_scale_preference_persists_step_below_full_size() {
+  SettingsValueRestorer restore_gui_scale(QStringLiteral("preferences/guiScalePercent"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("preferences/guiScalePercent"), 100);
+    settings.sync();
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  const auto run = drive_preferences_gui_scale(window, 75);
+  CHECK(run.saw_dialog);
+  CHECK(run.dismissed_message);
+  CHECK(patchy::ui::stored_gui_scale_percent() == 75);
+}
+
+// A stored value that is not one of the offered steps (a hand-edited ini, a step a later
+// build dropped) must never reach QT_SCALE_FACTOR. The combo shows the platform default
+// instead, and accepting without touching it writes nothing and raises no notice.
+void ui_gui_scale_preference_falls_back_for_unknown_step() {
+  SettingsValueRestorer restore_gui_scale(QStringLiteral("preferences/guiScalePercent"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("preferences/guiScalePercent"), 110);
+    settings.sync();
+  }
+  CHECK(patchy::ui::stored_gui_scale_percent() == patchy::ui::kDefaultGuiScalePercent);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  const auto run = drive_preferences_gui_scale(window, std::nullopt);
+  CHECK(run.saw_dialog);
+  CHECK(!run.dismissed_message);
+  CHECK(run.entry_percent == patchy::ui::kDefaultGuiScalePercent);
+}
+
+void gui_scale_percent_normalizes_to_offered_steps() {
+  for (const int percent : patchy::ui::kGuiScalePercents) {
+    CHECK(patchy::ui::normalize_gui_scale_percent(percent) == percent);
+  }
+  // Anything off the list, in either direction, lands on the platform default.
+  for (const int percent : {-50, 0, 66, 110, 201, 400}) {
+    CHECK(patchy::ui::normalize_gui_scale_percent(percent) ==
+          patchy::ui::kDefaultGuiScalePercent);
+  }
+  // The desktop build must start at full size; only the web build shrinks by default.
+  CHECK(patchy::ui::kDefaultGuiScalePercent == 100);
 }
 
 // Drives the Preferences color-scheme combo and returns the dialog result, so the
@@ -3437,6 +3512,11 @@ std::vector<patchy::test::TestCase> app_shell_tests() {
        ui_update_preference_defaults_startup_check_setting_to_enabled},
       {"ui_update_preference_persists_startup_check_setting", ui_update_preference_persists_startup_check_setting},
       {"ui_gui_scale_preference_persists_setting", ui_gui_scale_preference_persists_setting},
+      {"ui_gui_scale_preference_persists_step_below_full_size",
+       ui_gui_scale_preference_persists_step_below_full_size},
+      {"ui_gui_scale_preference_falls_back_for_unknown_step",
+       ui_gui_scale_preference_falls_back_for_unknown_step},
+      {"gui_scale_percent_normalizes_to_offered_steps", gui_scale_percent_normalizes_to_offered_steps},
       {"ui_color_scheme_preference_persists_setting", ui_color_scheme_preference_persists_setting},
       {"ui_color_scheme_cancel_restores_entry_scheme", ui_color_scheme_cancel_restores_entry_scheme},
       {"ui_color_scheme_follow_system_tracks_style_hints",

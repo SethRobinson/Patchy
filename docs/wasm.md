@@ -1,8 +1,7 @@
 # WebAssembly (Emscripten) build
 
 Deep reference for the wasm builds. Read this before touching the `wasm-core`
-or `wasm-release` presets, the emsdk/Qt-kit provisioning, or anything under
-`scripts/wasm/`.
+or `wasm-release` presets, the emsdk/Qt-kit provisioning, or `scripts/wasm/`.
 
 ## What exists today
 
@@ -59,15 +58,13 @@ Takes the usual name-substring filter as the first argument; runs the
 emsdk-bundled node from `build\wasm-core`, so `test-artifacts/` lands there.
 `ctest` also works there (the preset pins `CMAKE_CROSSCOMPILING_EMULATOR`).
 
-Status (0.87, August 2026): full pass matching the Windows suite count
-with the 2.4 GB `local-test-fixtures/` corpus present; the three
-byte-stability canaries pass byte-identically. Expected `[SKIP]`s: one
-absent local fixture, two HEIC tests (node has no `VideoDecoder`), and
-`af_modern_embeds_are_center_anchored_if_available` (its fixture exceeds a
-32-bit address space; that wasm32 ceiling becomes an advertised cap in
-step 4). Zero wasm `#ifdef`s in the engine libraries; the one guard, in
-`tests/core/main.cpp`, skips the crash-stack reporter (no `execinfo.h`; node
-prints trap stacks itself).
+The suite passes at the Windows count with the 2.4 GB
+`local-test-fixtures/` corpus present, canaries byte-identical. Expected
+`[SKIP]`s: one absent local fixture, two HEIC tests (node has no
+`VideoDecoder`), and `af_modern_embeds_are_center_anchored_if_available`
+(its fixture exceeds a 32-bit address space, the wasm32 cap). The engine
+libraries carry no wasm `#ifdef`s; the one guard, in `tests/core/main.cpp`,
+skips the crash-stack reporter (no `execinfo.h`; node prints trap stacks).
 
 ## wasm-core preset decisions (all in CMakePresets.json)
 
@@ -120,9 +117,7 @@ kit (download.qt.io moved 6.11 desktop into per-arch folders with no base
 
 Kit facts: 6.10 suspends via `EM_ASYNC_JS` (no `-sASYNCIFY_IMPORTS`);
 Emscripten 3.1.58+ folds the pthread bootstrap into `patchy.js` (no
-`patchy.worker.js`). A nested-loop input regression (windows taking no
-input) looks like an embind listener registered as a Promise where a
-listener object belongs.
+`patchy.worker.js`).
 
 ### Build, serve, stop
 
@@ -155,7 +150,7 @@ A hidden tab never fires requestAnimationFrame, so Qt stops presenting and
 the tab looks frozen; nothing is wrong. Keep the tab foregrounded, or shim
 requestAnimationFrame onto setTimeout before qtloader runs (harness below).
 
-### Decisions and gates (step 2)
+### Decisions and gates
 
 - **HEIC uses the browser's HEVC decoder.** `src/formats/libheif` (app
   build only; `wasm-core` does not build it) statically links libheif
@@ -181,13 +176,12 @@ requestAnimationFrame onto setTimeout before qtloader runs (harness below).
   suspend is a few MB worst case.
 - **JSPI (Asyncify's successor) dead-ends on the stock aqt kit**; revisit
   only with a source-built Qt. With JS `-fexceptions` the first Qt idle
-  suspend sits under exception-handling invoke trampolines JSPI cannot
-  suspend across (permanent silent park); with `-fwasm-exceptions` Qt's
-  prebuilt static libraries (Emscripten-JS setjmp, `emscripten_longjmp`)
-  cannot link, and mixing modes is unsupported. A source-built kit (wasm EH
-  plus `-feature-wasm_jspi`) measured 42.2 MB against 65.6 MB and a far
-  faster link; needs Chrome 137+, still experimental on emsdk 4.0.7, and
-  would ship as a second artifact set.
+  suspend sits under invoke trampolines JSPI cannot suspend across
+  (permanent silent park); with `-fwasm-exceptions` Qt's prebuilt static
+  libraries cannot link, and mixing modes is unsupported. A source-built kit
+  (wasm EH plus `-feature-wasm_jspi`) measured 42.2 MB against 65.6 MB and a
+  far faster link; needs Chrome 137+, experimental on emsdk 4.0.7, and would
+  ship as a second artifact set.
 - **Codegen: compile `-msimd128`, link `-O3`, `-sMALLOC=mimalloc`**, all
   adopted from interleaved in-app stress A/B runs (harness below): SIMD wins
   5-16% on compute steps (canaries stay byte-identical), `-O3` beats `-Os`
@@ -221,10 +215,10 @@ requestAnimationFrame onto setTimeout before qtloader runs (harness below).
   [fonts.md](fonts.md)) merges into the staged fonts; `LINK_DEPENDS` on the
   fonts stamp makes a fonts-only change repack `patchy.data`. The 8.7 MB
   texture pack stays embedded (lazy fetch is a step-4 size lever).
-- **Memory:** `QT_WASM_INITIAL_MEMORY` is 512 MB with growth to a 4 GB cap.
-  Qt's target machinery owns `-sSTACK_SIZE`; do not add a second one.
+- **Memory:** `QT_WASM_INITIAL_MEMORY` is 512 MB, growth capped at 4 GB. Qt's
+  target machinery owns `-sSTACK_SIZE`; do not add a second one.
 
-### Web file access (step 3)
+### Web file access
 
 Real files never leave the browser sandbox; both directions stage through
 MEMFS so the path-based pipeline runs unchanged. Opens copy picked or
@@ -304,6 +298,12 @@ Other step-3 decisions:
 
 ### Browser UI fit
 
+- **One UI pixel is one CSS pixel.** Qt's wasm screen reports a flat 96
+  logical DPI unless the page passes `qt.fontDpi` to `qtLoad`, which our
+  shell does not, so `devicePixelRatio` only raises render resolution and
+  panel sizes are the desktop build's literals. Interface scale is the only
+  sizing lever; the web build defaults to 75%, applied on reload. See
+  [ui-conventions.md](ui-conventions.md).
 - **Wheel events arrive as pixel deltas.** The wasm plugin fills both
   `pixelDelta` and `angleDelta` with browser pixels (~120 per notch), never
   the desktop 120-per-notch angle convention. Any custom wheel handler that
@@ -357,7 +357,7 @@ Other step-3 decisions:
   `ui_script_canvas_window_suppresses_stop_panel`. Rule: never create a
   window while the app-modal busy panel can be up; dismiss it first.
 
-### Threads and blocking (step 4a)
+### Threads and blocking
 
 The kit is `wasm_multithread`: pthreads on a SharedArrayBuffer heap (hence
 the COOP/COEP serving rule). Threading seams in
@@ -520,6 +520,5 @@ works the same way (write the script into MEMFS from a `preRun` hook).
 
 Step 4 remainder: memory tuning (per-platform undo cap and byte budget,
 tile-cache eviction), texture lazy-fetch, the advertised document-size cap,
-and preset/library persistence across reloads (user fonts already persist
-via the poll-pattern IndexedDB glue in user_fonts_wasm.cpp; follow that
-shape, not IDBFS).
+and preset/library persistence across reloads (follow the poll-pattern
+IndexedDB glue user fonts already use in user_fonts_wasm.cpp, not IDBFS).

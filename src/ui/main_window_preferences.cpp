@@ -490,15 +490,12 @@ void MainWindow::show_preferences() {
 
   auto* gui_scale_combo = new QComboBox(application_group);
   gui_scale_combo->setObjectName(QStringLiteral("preferencesGuiScaleCombo"));
-  constexpr std::array<int, 5> gui_scale_percents{100, 125, 150, 175, 200};
-  for (const int percent : gui_scale_percents) {
+  for (const int percent : kGuiScalePercents) {
     gui_scale_combo->addItem(QStringLiteral("%1%").arg(percent), percent);
   }
-  const int current_gui_scale =
-      std::clamp(settings.value(QStringLiteral("preferences/guiScalePercent"), 100).toInt(),
-                 gui_scale_percents.front(), gui_scale_percents.back());
-  const int gui_scale_index = gui_scale_combo->findData(current_gui_scale);
-  gui_scale_combo->setCurrentIndex(gui_scale_index >= 0 ? gui_scale_index : 0);
+  // stored_gui_scale_percent() always returns one of the steps above, so this never misses.
+  const int entry_gui_scale = stored_gui_scale_percent();
+  gui_scale_combo->setCurrentIndex(gui_scale_combo->findData(entry_gui_scale));
   application_form->addRow(tr("Interface scale:"), gui_scale_combo);
 
 #ifndef Q_OS_WASM
@@ -1012,12 +1009,14 @@ void MainWindow::show_preferences() {
     settings.setValue(QStringLiteral("imports/showRawDevelopDialog"), raw_develop_check->isChecked());
     settings.setValue(QStringLiteral("imports/adoptIndexedPalette"), indexed_open_combo->currentData().toString());
     const int selected_gui_scale = gui_scale_combo->currentData().toInt();
-    const int previous_gui_scale =
-        settings.value(QStringLiteral("preferences/guiScalePercent"), 100).toInt();
-    if (selected_gui_scale != previous_gui_scale) {
-      settings.setValue(QStringLiteral("preferences/guiScalePercent"), selected_gui_scale);
+    if (selected_gui_scale != entry_gui_scale) {
+      set_stored_gui_scale_percent(selected_gui_scale);
       show_information_message(this, tr("Interface Scale"),
+#ifdef Q_OS_WASM
+                               tr("Reload the page for the new interface scale to take effect."),
+#else
                                tr("Restart Patchy for the new interface scale to take effect."),
+#endif
                                QStringLiteral("preferencesInterfaceScaleMessageBox"));
     }
     set_ruler_unit_preference(measurement_unit_from_settings_token(
