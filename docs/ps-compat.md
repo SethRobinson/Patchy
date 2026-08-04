@@ -65,7 +65,7 @@ Drive PS from PowerShell: `(New-Object -ComObject Photoshop.Application).DoJavaS
 - Brightness/Contrast legacy calibration, "Modern Brightness/Contrast", Curves 2.0, Auto adjustments, "Hue/Saturation master" and colorize/bands: [adjustments-calibration.md](adjustments-calibration.md).
 - "Native Smart Filters" (filterFX descriptors, FEid/FXid cache, per-filter render semantics): [smart-filters-native.md](smart-filters-native.md).
 - Per-effect render calibration (Blend If, Satin, Stroke bands and overprint knockout, shadow/glow pipeline, interior effects): [layer-effects-render.md](layer-effects-render.md).
-- Photoshop text model (type layers): [text-tool.md](text-tool.md).
+- Photoshop text model (type layers): [text-render-calibration.md](text-render-calibration.md).
 
 ## CMYK import color conversion (lcms2 vs Adobe ACE)
 

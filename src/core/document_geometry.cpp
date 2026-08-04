@@ -7,6 +7,7 @@
 
 #include "core/blend_math.hpp"
 #include "core/document_path.hpp"
+#include "core/layer_metadata.hpp"
 #include "core/pixel_tools_internal.hpp"
 #include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
@@ -16,6 +17,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <limits>
+#include <optional>
 #include <queue>
 #include <utility>
 #include <vector>
@@ -647,6 +649,53 @@ void transform_origination_or_drop(VectorShapeContent& content,
   }
 }
 
+// Text layers store their text-local -> document mapping in patchy.text.transform. Any
+// operation that remaps DOCUMENT space (image/canvas resize, crop, canvas rotate, layer
+// flip, seam offset) must compose its matrix onto that mapping, or the next metadata
+// re-render (an edit commit, --append-text, a PSD save) puts the text back where -- and
+// how big -- it was before the operation, which is exactly how the pinball poster's saved
+// TySh ended up pointing ~900 px away from its raster (August 2026). A layer without the
+// key implicitly maps text space via translate(bounds): that must be materialized under a
+// matrix with a linear part (scale/rotate/flip), while a pure translation already rides
+// in the bounds the operation moves, so absent keys stay absent there. The matrix uses
+// the same (a, b, c, d, tx, ty) layout as transform_vector_path. Call BEFORE mutating the
+// layer, so the implicit case reads pre-operation bounds.
+void compose_text_layer_transform(Layer& layer, const std::array<double, 6>& matrix) {
+  if (!layer_is_text(std::as_const(layer))) {
+    return;
+  }
+  const bool pure_translation =
+      matrix[0] == 1.0 && matrix[1] == 0.0 && matrix[2] == 0.0 && matrix[3] == 1.0;
+  const auto& metadata = std::as_const(layer).metadata();
+  std::optional<LayerAffineTransform> stored;
+  if (const auto found = metadata.find(kLayerMetadataTextTransform); found != metadata.end()) {
+    stored = parse_layer_affine_transform(found->second);
+  }
+  if (!stored.has_value()) {
+    if (pure_translation) {
+      return;
+    }
+    const auto bounds = std::as_const(layer).bounds();
+    stored = LayerAffineTransform{
+        1.0, 0.0, 0.0, 1.0, static_cast<double>(bounds.x), static_cast<double>(bounds.y)};
+  }
+  const LayerAffineTransform outer{matrix[0], matrix[1], matrix[2],
+                                   matrix[3], matrix[4], matrix[5]};
+  layer.metadata_without_content_bump()[kLayerMetadataTextTransform] =
+      serialize_layer_affine_transform(compose_layer_affine_transform(outer, *stored));
+}
+
+void compose_document_text_transforms(std::vector<Layer>& layers,
+                                      const std::array<double, 6>& matrix) {
+  for (auto& layer : layers) {
+    if (layer.kind() == LayerKind::Group) {
+      compose_document_text_transforms(layer.children(), matrix);
+      continue;
+    }
+    compose_text_layer_transform(layer, matrix);
+  }
+}
+
 }  // namespace
 
 void transform_layer_vector_data(Document& document, Layer& layer,
@@ -719,6 +768,7 @@ Rect flip_layer_horizontal(Document& document, LayerId layer_id) {
   }
   flip_layer_mask_horizontal(*layer, bounds);
   const double center_x = bounds.x + bounds.width / 2.0;
+  compose_text_layer_transform(*layer, {-1.0, 0.0, 0.0, 1.0, 2.0 * center_x, 0.0});
   transform_layer_vector_data(document, *layer, {-1.0, 0.0, 0.0, 1.0, 2.0 * center_x, 0.0},
                               Rect::from_size(document.width(), document.height()));
   return layer->bounds();
@@ -742,6 +792,7 @@ Rect flip_layer_vertical(Document& document, LayerId layer_id) {
   }
   flip_layer_mask_vertical(*layer, bounds);
   const double center_y = bounds.y + bounds.height / 2.0;
+  compose_text_layer_transform(*layer, {1.0, 0.0, 0.0, -1.0, 0.0, 2.0 * center_y});
   transform_layer_vector_data(document, *layer, {1.0, 0.0, 0.0, -1.0, 0.0, 2.0 * center_y},
                               Rect::from_size(document.width(), document.height()));
   return layer->bounds();
@@ -759,6 +810,10 @@ void resize_image_and_layers(Document& document, std::int32_t width, std::int32_
     return;
   }
 
+  const auto sx = static_cast<double>(width) / old_width;
+  const auto sy = static_cast<double>(height) / old_height;
+  // Before the raster loop: the implicit-transform case reads pre-resize bounds.
+  compose_document_text_transforms(document.layers(), {sx, 0.0, 0.0, sy, 0.0, 0.0});
   for (auto& layer : document.layers()) {
     resize_layer_image(layer, old_width, old_height, width, height);
   }
@@ -766,8 +821,6 @@ void resize_image_and_layers(Document& document, std::int32_t width, std::int32_
     resize_document_channel_image(channel, width, height);
   }
   document.resize_canvas(width, height);
-  const auto sx = static_cast<double>(width) / old_width;
-  const auto sy = static_cast<double>(height) / old_height;
   transform_document_vector_data(document, {sx, 0.0, 0.0, sy, 0.0, 0.0},
                                  Rect::from_size(width, height), (sx + sy) / 2.0);
 }
@@ -779,6 +832,9 @@ void resize_canvas_and_layers(Document& document, std::int32_t width, std::int32
   }
 
   const auto offset = canvas_resize_offset(anchor, document.width(), document.height(), width, height);
+  compose_document_text_transforms(
+      document.layers(),
+      {1.0, 0.0, 0.0, 1.0, static_cast<double>(offset.x), static_cast<double>(offset.y)});
   for (auto& channel : document.channels()) {
     resize_document_channel_canvas(channel, width, height, offset);
   }
@@ -798,6 +854,9 @@ bool crop_document(Document& document, Rect crop) {
     return false;
   }
 
+  compose_document_text_transforms(
+      document.layers(),
+      {1.0, 0.0, 0.0, 1.0, static_cast<double>(-crop.x), static_cast<double>(-crop.y)});
   for (auto& layer : document.layers()) {
     crop_layer_to_rect(layer, crop);
   }
@@ -815,6 +874,8 @@ bool crop_document(Document& document, Rect crop) {
 void rotate_document_clockwise(Document& document) {
   const auto old_width = document.width();
   const auto old_height = document.height();
+  compose_document_text_transforms(document.layers(),
+                                   {0.0, 1.0, -1.0, 0.0, static_cast<double>(old_height), 0.0});
   for (auto& layer : document.layers()) {
     rotate_layer_clockwise(layer, old_height);
   }
@@ -831,6 +892,8 @@ void rotate_document_clockwise(Document& document) {
 void rotate_document_counterclockwise(Document& document) {
   const auto old_width = document.width();
   const auto old_height = document.height();
+  compose_document_text_transforms(document.layers(),
+                                   {0.0, -1.0, 1.0, 0.0, 0.0, static_cast<double>(old_width)});
   for (auto& layer : document.layers()) {
     rotate_layer_counterclockwise(layer, old_width);
   }
@@ -954,6 +1017,10 @@ void wrap_offset_document(Document& document, std::int32_t dx, std::int32_t dy) 
   }
   const auto roll_dx = ((dx % width) + width) % width;
   const auto roll_dy = ((dy % height) + height) % height;
+  // Text layers translate whole (raw deltas, no wrap), so their transforms follow the
+  // same raw offset and the inverse offset restores them exactly.
+  compose_document_text_transforms(
+      document.layers(), {1.0, 0.0, 0.0, 1.0, static_cast<double>(dx), static_cast<double>(dy)});
   for (auto& layer : document.layers()) {
     wrap_offset_layer(layer, width, height, roll_dx, roll_dy, dx, dy);
   }

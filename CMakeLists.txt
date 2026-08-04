@@ -1330,6 +1330,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/text_transform_commit_tests.cpp
       tests/ui/text_transform_commit_tests_transform.cpp
       tests/ui/text_transform_commit_tests_psd_commit.cpp
+      tests/ui/text_transform_commit_tests_flip.cpp
       tests/ui/flat_image_format_tests.cpp
       tests/ui/smart_filter_tests.cpp
       tests/ui/smart_filter_tests_flows.cpp

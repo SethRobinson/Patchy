@@ -1246,7 +1246,7 @@ std::optional<std::vector<PsdTextStyleRun>> extract_engine_text_runs(std::span<c
     // Folding it into run.bold picked the real Bold face, which is a different (wider, heavier)
     // typeface: Georgia Bold Italic renders "Dungeon:" 63px wide against Photoshop's faux-bolded
     // Georgia Italic at 58. It rides its own flag and is rendered as a stroke; see faux bold in
-    // docs/text-tool.md.
+    // docs/text-render-calibration.md.
     run.faux_bold = engine_bool_after_key(dictionaries[index], "/FauxBold", defaults.faux_bold);
     // Same split for the slant: it thickens/slants the run's OWN face. Folding it into
     // run.italic picked the family's real Italic face, a different typeface again.

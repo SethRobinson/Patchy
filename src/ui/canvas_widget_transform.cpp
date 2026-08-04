@@ -1207,6 +1207,10 @@ void CanvasWidget::draw_free_transform(QPainter& painter) const {
                           transform_interpolation_ != TransformInterpolation::NearestNeighbor);
     painter.translate(rect.center());
     painter.rotate(transform_angle_);
+    // Apply the scale-sign flips like the proxy path above: without them, dragging a
+    // handle across the anchor showed unmirrored text/pixels for the whole drag and the
+    // mirror only appeared at commit.
+    painter.scale(transform_scale_x_sign_, transform_scale_y_sign_);
     const QRectF local_rect(-rect.width() / 2.0, -rect.height() / 2.0, rect.width(), rect.height());
     painter.drawImage(local_rect, transform_source_image_, QRectF(transform_source_image_.rect()));
     painter.restore();

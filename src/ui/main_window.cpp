@@ -3247,7 +3247,7 @@ struct RenderedTextPixels {
 // see the identical advances.
 // Whether EVERY inked fragment of a line asks for faux italic. Qt draws a line at a time, so the
 // shear is applied per line: a line whose runs disagree would need the glyph-run draw path (see
-// docs/text-tool.md) and is left upright rather than slanting runs that did not ask for it.
+// docs/text-render-calibration.md) and is left upright rather than slanting runs that did not ask for it.
 bool line_is_entirely_faux_italic(const QTextBlock& block, const QTextLine& line) {
   if (!block.isValid() || !line.isValid()) {
     return false;

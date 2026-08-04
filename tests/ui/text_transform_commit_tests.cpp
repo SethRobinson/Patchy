@@ -7,6 +7,9 @@
 //   text_transform_commit_tests_psd_commit.cpp  (part 2): PSD fixture text
 //     commit/rasterize parity with Photoshop, re-edit survival, CLI append-text,
 //     and rich-text span commits.
+//   text_transform_commit_tests_flip.cpp        (part 3): flipped (negative
+//     scale) transforms and the transform/raster consistency chain across
+//     re-edits, nudges, and PSD export.
 //
 // Registration ORDER is a load-bearing contract: earlier tests leak QSettings
 // state and produce artifacts later tests depend on. The concatenation below
@@ -20,10 +23,13 @@
 
 std::vector<patchy::test::TestCase> text_transform_commit_tests_part1();
 std::vector<patchy::test::TestCase> text_transform_commit_tests_part2();
+std::vector<patchy::test::TestCase> text_transform_commit_tests_part3();
 
 std::vector<patchy::test::TestCase> text_transform_commit_tests() {
   auto tests = text_transform_commit_tests_part1();
   auto part2 = text_transform_commit_tests_part2();
   tests.insert(tests.end(), part2.begin(), part2.end());
+  auto part3 = text_transform_commit_tests_part3();
+  tests.insert(tests.end(), part3.begin(), part3.end());
   return tests;
 }

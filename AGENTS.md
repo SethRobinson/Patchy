@@ -108,12 +108,12 @@ Read the linked document before working on the feature. The document, not this i
 - **File formats, PSB, Camera Raw, Affinity, HEIF/HEIC, and flat-image alpha:** [docs/file-formats.md](docs/file-formats.md).
 - **Document channels:** [docs/channels.md](docs/channels.md).
 - **Resolution and measurement units:** [docs/resolution-units.md](docs/resolution-units.md).
-- **PSD adjustment layers, clipping masks, layer styles, and Photoshop text:** [docs/ps-compat.md](docs/ps-compat.md), [docs/file-formats.md](docs/file-formats.md), [docs/adjustments-calibration.md](docs/adjustments-calibration.md), and the Photoshop text model in [docs/text-tool.md](docs/text-tool.md).
+- **PSD adjustment layers, clipping masks, layer styles, and Photoshop text:** [docs/ps-compat.md](docs/ps-compat.md), [docs/file-formats.md](docs/file-formats.md), [docs/adjustments-calibration.md](docs/adjustments-calibration.md), and the Photoshop text model in [docs/text-render-calibration.md](docs/text-render-calibration.md).
 - **Filter Gallery, recipes, Saved Looks, and visual filters:** [docs/filters.md](docs/filters.md), [docs/smart-objects.md](docs/smart-objects.md), and [docs/legal-constraints.md](docs/legal-constraints.md).
 - **Blend modes:** [docs/blend-modes.md](docs/blend-modes.md).
 - **Layer-style and pattern presets:** [docs/style-presets.md](docs/style-presets.md).
 - **Gradients and GRD:** [docs/gradients.md](docs/gradients.md).
-- **Text tool and Character panel:** [docs/text-tool.md](docs/text-tool.md).
+- **Text tool and Character panel:** [docs/text-tool.md](docs/text-tool.md), with the Photoshop layout/measurement calibration in [docs/text-render-calibration.md](docs/text-render-calibration.md).
 - **Bundled fonts, wasm font aliases, and user-added fonts:** [docs/fonts.md](docs/fonts.md).
 - **Selection tools:** [docs/selection-tools.md](docs/selection-tools.md) and [docs/legal-constraints.md](docs/legal-constraints.md).
 - **Shape tools, Merge Down, and tool icons:** [docs/tools.md](docs/tools.md).
