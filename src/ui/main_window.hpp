@@ -887,12 +887,16 @@ private:
   // tree by refresh_layer_thumbnails. The canvas extent is part of the key
   // because thumbnails preview a layer inside the document rect: growing the
   // canvas reshapes a small layer's thumbnail without touching its revision.
+  // Both tiles key on the layer's RENDER revision: thumbnails are
+  // document-positioned, and a pure move bumps only the render revision
+  // (translation-clean commits). Over-invalidation vs content_revision is
+  // fine; the tiles re-render from a 28 px sampling walk.
   struct LayerThumbnailCacheEntry {
-    std::uint64_t content_revision{0};
+    std::uint64_t content_render_revision{0};
     std::int32_t document_width{0};
     std::int32_t document_height{0};
     QPixmap content;
-    std::uint64_t mask_revision{0};
+    std::uint64_t mask_render_revision{0};
     QPixmap mask;
 
     // The extent is shared by both tiles, so it is retired once for both
@@ -1147,12 +1151,14 @@ private:
     QPixmap thumbnail;
   };
   std::unordered_map<patchy::DocumentPathId, PathThumbnailCacheEntry> path_thumbnail_cache_;
-  // The transient layer-path row's thumbnail, keyed on the layer's content
-  // revision (bumps on any layer change - over-invalidation is fine, the
-  // cache exists so layer-activation refreshes stay cheap).
+  // The transient layer-path row's thumbnail, keyed on the layer's RENDER
+  // revision (bumps on any layer change including pure moves - the outline
+  // draws in document space, and translation no longer bumps the content
+  // revision; over-invalidation is fine, the cache exists so layer-activation
+  // refreshes stay cheap).
   struct LayerPathThumbnailCacheEntry {
     LayerId layer{0};
-    std::uint64_t content_revision{0};
+    std::uint64_t render_revision{0};
     std::int32_t document_width{0};
     std::int32_t document_height{0};
     QPixmap thumbnail;

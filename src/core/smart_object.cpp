@@ -168,7 +168,8 @@ bool layer_smart_object_block_dirty(const Layer& layer) {
 
 void mark_layer_smart_object_block_dirty(Layer& layer) {
   if (layer_is_smart_object(layer) && !layer_smart_object_block_dirty(layer)) {
-    layer.metadata()[kLayerMetadataSmartObjectBlockDirty] = "1";
+    // Writer bookkeeping only; see mark_layer_vector_block_dirty.
+    layer.metadata_without_content_bump()[kLayerMetadataSmartObjectBlockDirty] = "1";
   }
 }
 

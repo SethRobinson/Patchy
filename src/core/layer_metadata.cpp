@@ -299,12 +299,12 @@ void translate_moved_layer_metadata(Layer& layer, std::int32_t dx, std::int32_t 
     return;
   }
 
+  // A pure translation must not bump content revisions: origin-relative
+  // content is unchanged, and the style-mask/thumbnail caches keyed on
+  // content_revision are designed to survive moves (set_bounds follows the
+  // same rule). Everything below goes through the render-only-bump mutators.
   if (layer_mask_linked(layer)) {
-    if (std::as_const(layer).mask().has_value()) {
-      auto& mask = layer.mask();
-      mask->bounds.x += dx;
-      mask->bounds.y += dy;
-    }
+    layer.translate_linked_mask(dx, dy);
 
     // The raw byte-translation of preserved vmsk/vsms payloads remains ONLY
     // for layers without a parsed model (locked/unparsed vector data); parsed
@@ -316,7 +316,7 @@ void translate_moved_layer_metadata(Layer& layer, std::int32_t dx, std::int32_t 
         std::any_of(std::as_const(layer).unknown_psd_blocks().begin(), std::as_const(layer).unknown_psd_blocks().end(),
                     [](const UnknownPsdBlock& block) { return is_photoshop_vector_mask_block(block.key); });
     if (has_vector_mask && !model_owns_vector_paths) {
-      for (auto& block : layer.unknown_psd_blocks()) {
+      for (auto& block : layer.unknown_psd_blocks_without_content_bump()) {
         if (is_photoshop_vector_mask_block(block.key)) {
           translate_vector_mask_payload(block.payload, dx, dy, document_width, document_height);
         }
@@ -327,7 +327,7 @@ void translate_moved_layer_metadata(Layer& layer, std::int32_t dx, std::int32_t 
   if (const auto* content = std::as_const(layer).vector_shape(); content != nullptr) {
     auto moved = *content;
     translate_vector_shape_content(moved, dx, dy);
-    layer.set_vector_shape(std::move(moved));
+    layer.set_vector_shape_translated(std::move(moved));
     mark_layer_vector_block_dirty(layer);
   }
   if (const auto* vector_mask = std::as_const(layer).vector_mask();
@@ -336,7 +336,7 @@ void translate_moved_layer_metadata(Layer& layer, std::int32_t dx, std::int32_t 
     translate_vector_path(moved.path, dx, dy);
     moved.cache_bounds.x += dx;
     moved.cache_bounds.y += dy;
-    layer.set_vector_mask(std::move(moved));
+    layer.set_vector_mask_translated(std::move(moved));
     mark_layer_vector_block_dirty(layer);
   }
 
@@ -349,7 +349,8 @@ void translate_moved_layer_metadata(Layer& layer, std::int32_t dx, std::int32_t 
           (*quad)[i] += dx;
           (*quad)[i + 1] += dy;
         }
-        layer.metadata()[kLayerMetadataSmartObjectTransform] = serialize_smart_object_transform(*quad);
+        layer.metadata_without_content_bump()[kLayerMetadataSmartObjectTransform] =
+            serialize_smart_object_transform(*quad);
         mark_layer_smart_object_block_dirty(layer);
       }
     }
@@ -358,7 +359,7 @@ void translate_moved_layer_metadata(Layer& layer, std::int32_t dx, std::int32_t 
   if (!layer_is_text(layer)) {
     return;
   }
-  auto& metadata = layer.metadata();
+  auto& metadata = layer.metadata_without_content_bump();
   auto found = metadata.find(kLayerMetadataTextTransform);
   if (found == metadata.end()) {
     return;

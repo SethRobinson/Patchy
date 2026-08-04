@@ -1402,7 +1402,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                            ? content_thumbnail(layer)
                            : layer_content_thumbnail(layer, document_size.width(), document_size.height()));
   thumbnail->setProperty(kLayerContentThumbnailRevisionProperty,
-                         QVariant::fromValue<qulonglong>(static_cast<qulonglong>(layer.content_revision())));
+                         QVariant::fromValue<qulonglong>(static_cast<qulonglong>(layer.render_revision())));
   const auto missing_text_families =
       layer_is_text(layer) ? missing_text_families_for_layer(layer) : QStringList{};
   thumbnail->setToolTip(
@@ -1467,7 +1467,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                                 ? mask_thumbnail(layer)
                                 : layer_mask_thumbnail(layer, document_size.width(), document_size.height()));
     mask_preview->setProperty(kLayerMaskThumbnailRevisionProperty,
-                              QVariant::fromValue<qulonglong>(static_cast<qulonglong>(layer.content_revision())));
+                              QVariant::fromValue<qulonglong>(static_cast<qulonglong>(layer.render_revision())));
     mask_preview->setToolTip(
         QObject::tr("Layer mask. Click to edit it with the paint tools, Alt-click to view it, Shift-click to "
                     "disable it."));
@@ -2880,10 +2880,12 @@ QPixmap MainWindow::cached_layer_content_thumbnail(const Layer& layer, int docum
                                                    int document_height) {
   auto& entry = layer_thumbnail_cache_[layer.id()];
   entry.retire_for_extent(document_width, document_height);
-  const auto revision = layer.content_revision();
-  if (entry.content.isNull() || entry.content_revision != revision) {
+  // Render revision, not content: thumbnails are document-positioned and a
+  // pure move bumps only the render revision.
+  const auto revision = layer.render_revision();
+  if (entry.content.isNull() || entry.content_render_revision != revision) {
     entry.content = layer_content_thumbnail(layer, document_width, document_height);
-    entry.content_revision = revision;
+    entry.content_render_revision = revision;
   }
   return entry.content;
 }
@@ -2895,10 +2897,12 @@ QPixmap MainWindow::cached_layer_mask_thumbnail(const Layer& layer, int document
   }
   auto& entry = layer_thumbnail_cache_[layer.id()];
   entry.retire_for_extent(document_width, document_height);
-  const auto revision = layer.content_revision();
-  if (entry.mask.isNull() || entry.mask_revision != revision) {
+  // Render revision: the mask tile maps mask.bounds through document space,
+  // and a linked mask translates without a content bump.
+  const auto revision = layer.render_revision();
+  if (entry.mask.isNull() || entry.mask_render_revision != revision) {
     entry.mask = layer_mask_thumbnail(layer, document_width, document_height);
-    entry.mask_revision = revision;
+    entry.mask_render_revision = revision;
   }
   return entry.mask;
 }
@@ -2931,7 +2935,7 @@ void MainWindow::refresh_layer_thumbnails() {
     if (layer == nullptr || row == nullptr) {
       continue;
     }
-    const auto revision = static_cast<qulonglong>(layer->content_revision());
+    const auto revision = static_cast<qulonglong>(layer->render_revision());
     if (auto* thumbnail = row->findChild<QLabel*>(QStringLiteral("layerContentThumbnail")); thumbnail != nullptr &&
         (layer->kind() == LayerKind::Pixel || layer_is_text(*layer))) {
       if (extent_changed || thumbnail->property(kLayerContentThumbnailRevisionProperty).toULongLong() != revision) {

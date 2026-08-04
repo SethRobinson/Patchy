@@ -602,6 +602,19 @@ public:
   // revision so revision-diffing repaint paths notice, without touching the
   // content revision that keys thumbnail/style-mask caches.
   void mark_render_changed() noexcept;
+  // Translation-only mutators: a pure move changes document-space positions
+  // but not origin-relative content, so these bump ONLY the render revision.
+  // The style-mask cache keys on content_revision with origin-relative domains
+  // precisely so entries survive moves; set_bounds already follows the same
+  // rule. Callers must guarantee the replacement differs only by translation.
+  void translate_linked_mask(std::int32_t dx, std::int32_t dy) noexcept;
+  void set_vector_shape_translated(VectorShapeContent content);
+  void set_vector_mask_translated(LayerVectorMask mask);
+  // Render-revision-only mutable access for translation and writer dirty-mark
+  // plumbing (kLayerMetadata*BlockDirty); pair with a real edit's bump when
+  // the change is more than positional/bookkeeping.
+  [[nodiscard]] std::map<std::string, std::string>& metadata_without_content_bump() noexcept;
+  [[nodiscard]] std::vector<UnknownPsdBlock>& unknown_psd_blocks_without_content_bump() noexcept;
 
 private:
   LayerId id_{0};

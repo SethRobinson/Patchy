@@ -269,10 +269,10 @@ void MainWindow::refresh_paths_panel() {
       if (layer_path != nullptr) {
         auto& cached = layer_path_thumbnail_cache_;
         if (cached.thumbnail.isNull() || cached.layer != layer->id() ||
-            cached.content_revision != layer->content_revision() ||
+            cached.render_revision != layer->render_revision() ||
             cached.document_width != doc.width() || cached.document_height != doc.height()) {
           cached.layer = layer->id();
-          cached.content_revision = layer->content_revision();
+          cached.render_revision = layer->render_revision();
           cached.document_width = doc.width();
           cached.document_height = doc.height();
           cached.thumbnail = path_outline_thumbnail(*layer_path, doc.width(), doc.height());

@@ -4,6 +4,8 @@
 #include "core/document.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/layer_tree.hpp"
+#include "core/smart_object.hpp"
+#include "core/vector_shape.hpp"
 #include "core/gradient_presets.hpp"
 #include "filters/filter_engine.hpp"
 #include "filters/filter_registry.hpp"
@@ -210,6 +212,55 @@ void layer_content_revision_ignores_translation_and_tracks_render_content() {
   layer.set_mask(std::move(mask));
   CHECK(layer.content_revision() > after_style_content_revision);
   CHECK(layer.pixel_revision() == after_pixels_pixel_revision);
+
+  // A pure translation (the Move commit's metadata pass) bumps ONLY the render
+  // revision: linked masks, vector paths, and smart-object/text transforms all
+  // move, but origin-relative content is unchanged, so content-keyed caches
+  // (style masks, baked styled images) stay warm across move commits.
+  patchy::Layer moved(11, "Moved", solid_rgba(4, 4, 90, 40, 10, 255));
+  moved.set_bounds(patchy::Rect{5, 6, 4, 4});
+  patchy::LayerMask moved_mask;
+  moved_mask.bounds = patchy::Rect{5, 6, 4, 4};
+  moved_mask.pixels = patchy::PixelBuffer(4, 4, patchy::PixelFormat::gray8());
+  moved_mask.pixels.clear(200);
+  moved.set_mask(std::move(moved_mask));
+  patchy::LayerVectorMask moved_vector_mask;
+  moved_vector_mask.cache_bounds = patchy::Rect{5, 6, 4, 4};
+  moved.set_vector_mask(std::move(moved_vector_mask));
+  moved.metadata()[patchy::kLayerMetadataSmartObject] = "test-uuid";
+  moved.metadata()[patchy::kLayerMetadataSmartObjectTransform] =
+      patchy::serialize_smart_object_transform({5.0, 6.0, 9.0, 6.0, 9.0, 10.0, 5.0, 10.0});
+  moved.metadata()[patchy::kLayerMetadataText] = "Hello";
+  moved.metadata()[patchy::kLayerMetadataTextTransform] =
+      patchy::serialize_layer_affine_transform(patchy::LayerAffineTransform{1.0, 0.0, 0.0, 1.0, 5.0, 6.0});
+
+  const auto content_before_translation = moved.content_revision();
+  const auto pixel_before_translation = moved.pixel_revision();
+  const auto render_before_translation = moved.render_revision();
+  moved.set_bounds(patchy::Rect{25, 16, 4, 4});
+  patchy::translate_moved_layer_metadata(moved, 20, 10, 100, 100);
+  CHECK(moved.content_revision() == content_before_translation);
+  CHECK(moved.pixel_revision() == pixel_before_translation);
+  CHECK(moved.render_revision() > render_before_translation);
+  CHECK(std::as_const(moved).mask()->bounds.x == 25);
+  CHECK(std::as_const(moved).mask()->bounds.y == 16);
+  CHECK(std::as_const(moved).vector_mask() != nullptr);
+  CHECK(std::as_const(moved).vector_mask()->cache_bounds.x == 25);
+  CHECK(std::as_const(moved).vector_mask()->cache_bounds.y == 16);
+  // The writer dirty marks still fire, and they must not bump content either.
+  CHECK(patchy::layer_vector_block_dirty(moved));
+  CHECK(patchy::layer_smart_object_block_dirty(moved));
+  CHECK(moved.content_revision() == content_before_translation);
+  const auto translated_quad = patchy::parse_smart_object_transform(
+      std::as_const(moved).metadata().at(patchy::kLayerMetadataSmartObjectTransform));
+  CHECK(translated_quad.has_value());
+  CHECK((*translated_quad)[0] == 25.0);
+  CHECK((*translated_quad)[1] == 16.0);
+  const auto translated_text = patchy::parse_layer_affine_transform(
+      std::as_const(moved).metadata().at(patchy::kLayerMetadataTextTransform));
+  CHECK(translated_text.has_value());
+  CHECK((*translated_text)[4] == 25.0);
+  CHECK((*translated_text)[5] == 16.0);
 }
 
 void layer_set_clipped_bumps_render_revision_only() {

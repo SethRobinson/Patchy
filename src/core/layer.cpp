@@ -640,4 +640,33 @@ void Layer::mark_render_changed() noexcept {
   render_revision_ = next_layer_revision();
 }
 
+void Layer::translate_linked_mask(std::int32_t dx, std::int32_t dy) noexcept {
+  if (!mask_.has_value()) {
+    return;
+  }
+  mask_->bounds.x += dx;
+  mask_->bounds.y += dy;
+  render_revision_ = next_layer_revision();
+}
+
+void Layer::set_vector_shape_translated(VectorShapeContent content) {
+  vector_shape_ = std::make_shared<const VectorShapeContent>(std::move(content));
+  render_revision_ = next_layer_revision();
+}
+
+void Layer::set_vector_mask_translated(LayerVectorMask mask) {
+  vector_mask_ = std::make_shared<const LayerVectorMask>(std::move(mask));
+  render_revision_ = next_layer_revision();
+}
+
+std::map<std::string, std::string>& Layer::metadata_without_content_bump() noexcept {
+  render_revision_ = next_layer_revision();
+  return metadata_;
+}
+
+std::vector<UnknownPsdBlock>& Layer::unknown_psd_blocks_without_content_bump() noexcept {
+  render_revision_ = next_layer_revision();
+  return unknown_psd_blocks_;
+}
+
 }  // namespace patchy

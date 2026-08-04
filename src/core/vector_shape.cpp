@@ -129,7 +129,10 @@ bool layer_vector_block_dirty(const Layer& layer) {
 }
 
 void mark_layer_vector_block_dirty(Layer& layer) {
-  layer.metadata()[kLayerMetadataVectorBlockDirty] = "1";
+  // Writer bookkeeping only: the mark must not cold-invalidate content-keyed
+  // caches (every call site follows an edit that already bumped what the edit
+  // changed; a pure translation deliberately bumps render only).
+  layer.metadata_without_content_bump()[kLayerMetadataVectorBlockDirty] = "1";
 }
 
 void strip_layer_vector_data(Layer& layer) {
