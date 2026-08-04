@@ -3,10 +3,10 @@
 #include "core/palette_presets.hpp"
 #include "formats/palette_io.hpp"
 #include "ui/app_settings.hpp"
+#include "ui/dialog_utils.hpp"
 
 #include <QApplication>
 #include <QComboBox>
-#include <QFileDialog>
 #include <QFileInfo>
 #include <QHBoxLayout>
 #include <QImage>
@@ -410,9 +410,10 @@ std::optional<LoadedPaletteFile> read_palette_file_quietly(const QString& path) 
 std::optional<LoadedPaletteFile> prompt_load_palette_file(QWidget* parent) {
   auto settings = app_settings();
   const auto last_dir = settings.value(QStringLiteral("palettes/lastDirectory")).toString();
-  const auto path = QFileDialog::getOpenFileName(
+  const auto path = get_open_file_name(
       parent, QObject::tr("Load Palette"), last_dir,
-      QObject::tr("Palette Files (*.pal *.gpl *.hex *.act *.aco *.ase *.bmp);;All Files (*)"));
+      QObject::tr("Palette Files (*.pal *.gpl *.hex *.act *.aco *.ase *.bmp);;All Files (*)"),
+      nullptr, QStringLiteral("paletteLoadFileDialog"));
   if (path.isEmpty()) {
     return std::nullopt;
   }
@@ -437,11 +438,14 @@ std::optional<QString> prompt_save_palette_file(QWidget* parent, const std::vect
   auto settings = app_settings();
   const auto last_dir = settings.value(QStringLiteral("palettes/lastDirectory")).toString();
   QString selected_filter;
-  auto path = QFileDialog::getSaveFileName(
-      parent, QObject::tr("Save Palette"), last_dir,
+  // The trailing slash keeps last_dir a directory through the shared dialog's
+  // QFileInfo-based initial-path handling (a bare directory path would be
+  // split into parent dir + suggested file name).
+  auto path = get_save_file_name(
+      parent, QObject::tr("Save Palette"), last_dir.isEmpty() ? QString() : last_dir + QLatin1Char('/'),
       QObject::tr("GIMP Palette (*.gpl);;Hex Colors (*.hex);;JASC Palette (*.pal);;Adobe Color Table (*.act);;"
                   "Adobe Color Swatches (*.aco);;PNG Swatch Strip (*.png)"),
-      &selected_filter);
+      &selected_filter, QStringLiteral("paletteSaveFileDialog"));
   if (path.isEmpty()) {
     return std::nullopt;
   }
@@ -478,6 +482,7 @@ std::optional<QString> prompt_save_palette_file(QWidget* parent, const std::vect
       patchy::palette_io::write_palette_file(std::filesystem::path(path.toStdU16String()), colors, *format,
                                              QFileInfo(path).completeBaseName().toStdString());
     }
+    offer_browser_download_for_saved_file(path);
     return QFileInfo(path).fileName();
   } catch (const std::exception& error) {
     QMessageBox::warning(parent, QObject::tr("Save Palette"),

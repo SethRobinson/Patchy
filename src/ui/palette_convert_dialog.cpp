@@ -9,7 +9,6 @@
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QFile>
-#include <QFileDialog>
 #include <QFileInfo>
 #include <QFormLayout>
 #include <QHBoxLayout>
@@ -555,9 +554,10 @@ std::optional<PaletteConvertSettings> request_palette_convert_settings(
   QObject::connect(source_combo, &QComboBox::activated, &dialog, [&, file_row](int row) {
     colors_spin->setEnabled(row == kSourceOptimized);
     if (row == file_row) {
-      const auto path = QFileDialog::getOpenFileName(
+      const auto path = get_open_file_name(
           &dialog, QObject::tr("Load Palette"), QString(),
-          QObject::tr("Palette Files (*.pal *.gpl *.hex *.act *.aco *.ase *.bmp);;All Files (*)"));
+          QObject::tr("Palette Files (*.pal *.gpl *.hex *.act *.aco *.ase *.bmp);;All Files (*)"),
+          nullptr, QStringLiteral("paletteConvertLoadFileDialog"));
       if (!path.isEmpty()) {
         try {
           auto data = palette_io::read_palette_bytes([&path] {

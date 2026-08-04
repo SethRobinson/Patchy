@@ -6,7 +6,6 @@
 #include "ui/style_library.hpp"
 
 #include <QDialog>
-#include <QFileDialog>
 #include <QFileInfo>
 #include <QFormLayout>
 #include <QLabel>
@@ -218,8 +217,9 @@ QString request_style_manager(QWidget* parent, StyleLibrary& library,
     }
   });
   QObject::connect(import_button, &QPushButton::clicked, &dialog, [&] {
-    const auto path = QFileDialog::getOpenFileName(&dialog, QObject::tr("Import Photoshop Styles"),
-                                                   {}, QObject::tr("Photoshop Styles (*.asl)"));
+    const auto path = get_open_file_name(&dialog, QObject::tr("Import Photoshop Styles"), {},
+                                         QObject::tr("Photoshop Styles (*.asl)"), nullptr,
+                                         QStringLiteral("styleManagerImportFileDialog"));
     if (path.isEmpty()) {
       return;
     }

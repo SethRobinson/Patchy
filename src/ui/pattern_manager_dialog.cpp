@@ -6,7 +6,7 @@
 #include "ui/preset_tree_widget.hpp"
 
 #include <QDialog>
-#include <QFileDialog>
+#include <QFileInfo>
 #include <QFormLayout>
 #include <QImage>
 #include <QImageReader>
@@ -475,7 +475,8 @@ QString request_pattern_manager(QWidget* parent, PatternLibrary& library,
                  QObject::tr("Photoshop Patterns"), QObject::tr("Images"),
                  QObject::tr("All Files (*.*)"));
     const auto paths =
-        QFileDialog::getOpenFileNames(&dialog, QObject::tr("Import Patterns"), {}, filter);
+        get_open_file_names(&dialog, QObject::tr("Import Patterns"), {}, filter, nullptr,
+                            QStringLiteral("patternManagerImportFileDialog"));
     if (paths.isEmpty()) {
       return;
     }

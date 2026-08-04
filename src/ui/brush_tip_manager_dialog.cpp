@@ -12,7 +12,6 @@
 
 #include <QDialog>
 #include <QDialogButtonBox>
-#include <QFileDialog>
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QInputDialog>
@@ -414,8 +413,9 @@ void request_brush_tip_manager(QWidget* parent, BrushTipLibrary& library, const 
     refresh_details();
   });
   QObject::connect(import_button, &QPushButton::clicked, &dialog, [&] {
-    const auto path = QFileDialog::getOpenFileName(&dialog, QObject::tr("Import Photoshop Brushes"), QString(),
-                                                   QObject::tr("Photoshop Brushes (*.abr)"));
+    const auto path = get_open_file_name(&dialog, QObject::tr("Import Photoshop Brushes"), QString(),
+                                         QObject::tr("Photoshop Brushes (*.abr)"), nullptr,
+                                         QStringLiteral("brushTipManagerImportFileDialog"));
     if (path.isEmpty()) {
       return;
     }

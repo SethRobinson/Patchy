@@ -9,7 +9,6 @@
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
-#include <QFileDialog>
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
@@ -529,8 +528,9 @@ std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const
       }
       file_palette->setChecked(true);
       update_palette_state();
-      const auto path = QFileDialog::getOpenFileName(&dialog, QObject::tr("Choose Palette"), palette_path->text(),
-                                                     QObject::tr("Palette Files (*.bmp *.pal);;All Files (*.*)"));
+      const auto path = get_open_file_name(&dialog, QObject::tr("Choose Palette"), palette_path->text(),
+                                           QObject::tr("Palette Files (*.bmp *.pal);;All Files (*.*)"), nullptr,
+                                           QStringLiteral("bmpChoosePaletteFileDialog"));
       if (!path.isEmpty()) {
         palette_path->setText(path);
       }

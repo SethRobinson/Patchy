@@ -121,7 +121,6 @@
 #include <QElapsedTimer>
 #include <QEvent>
 #include <QEventLoop>
-#include <QFileDialog>
 #include <QFile>
 #include <QFileInfo>
 #include <QFont>
@@ -864,8 +863,9 @@ void MainWindow::set_active_brush_tip(const QString& tip_id, bool announce,
 }
 
 void MainWindow::import_brush_tips_from_abr() {
-  const auto path = QFileDialog::getOpenFileName(this, tr("Import Photoshop Brushes"), QString(),
-                                                 tr("Photoshop Brushes (*.abr)"));
+  const auto path = get_open_file_name(this, tr("Import Photoshop Brushes"), QString(),
+                                       tr("Photoshop Brushes (*.abr)"), nullptr,
+                                       QStringLiteral("brushTipImportFileDialog"));
   if (path.isEmpty()) {
     return;
   }

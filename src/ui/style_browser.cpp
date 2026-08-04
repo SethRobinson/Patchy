@@ -1,8 +1,8 @@
 #include "ui/style_browser.hpp"
 
+#include "ui/dialog_utils.hpp"
 #include "ui/style_library.hpp"
 
-#include <QFileDialog>
 #include <QFileInfo>
 #include <QMenu>
 #include <QMessageBox>
@@ -123,13 +123,18 @@ void StyleBrowserWidget::export_selection() {
     return;
   }
   const auto suggested = export_suggested_name() + QStringLiteral(".asl");
-  const auto path = QFileDialog::getSaveFileName(this, tr("Export Styles"), suggested,
-                                                 tr("Photoshop Styles (*.asl)"));
+  auto path = get_save_file_name(this, tr("Export Styles"), suggested,
+                                 tr("Photoshop Styles (*.asl)"), nullptr,
+                                 QStringLiteral("styleBrowserExportFileDialog"));
   if (path.isEmpty()) {
     return;
   }
+  if (!path.endsWith(QStringLiteral(".asl"), Qt::CaseInsensitive)) {
+    path += QStringLiteral(".asl");
+  }
   const auto count = static_cast<int>(selected_storage_ids().size());
   if (export_selection_to(path)) {
+    offer_browser_download_for_saved_file(path);
     QMessageBox::information(this, tr("Export Styles"),
                              tr("Exported %n style(s) to \"%1\".", nullptr, count)
                                  .arg(QFileInfo(path).fileName()));

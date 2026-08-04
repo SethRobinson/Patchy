@@ -273,8 +273,12 @@ Other step-3 decisions:
   `/presets/<subdir>` in MEMFS and vanish on reload while the seeding stamps
   persist, so `stored_default_asset_version` (main_window_tool_options.cpp)
   treats every wasm session as unseeded. Defaults return each reload; user
-  presets last one session (persistence is a future candidate; the preset
-  managers' import/export buttons browse MEMFS only).
+  presets last one session (persistence is a future candidate). Preset and
+  palette import/export goes through the shared `get_open_file_name` /
+  `get_save_file_name` wrappers plus `offer_browser_download_for_saved_file`,
+  so it uses the browser picker and download path like every other file
+  dialog; only the scripting `getExistingDirectory` pickers still browse
+  MEMFS (a browser cannot pick a host directory).
 - **User-added fonts persist in IndexedDB** (DB `PatchyUserFonts`,
   `src/ui/user_fonts_wasm.cpp`): dropped fonts or zips register immediately,
   and a startup QTimer polls the page-side read to re-register them each
