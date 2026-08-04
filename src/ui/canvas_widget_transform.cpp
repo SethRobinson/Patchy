@@ -827,6 +827,17 @@ CanvasWidget::TransformTargetCollection CanvasWidget::collect_free_transform_tar
   return collection;
 }
 
+QRectF CanvasWidget::transform_targets_content_union(const std::vector<TransformTarget>& targets) {
+  QRectF union_rect;
+  for (const auto& target : targets) {
+    const QRectF content_rect(target.original_bounds.x + target.source_local_rect.x(),
+                              target.original_bounds.y + target.source_local_rect.y(),
+                              target.source_local_rect.width(), target.source_local_rect.height());
+    union_rect = union_rect.isNull() ? content_rect : union_rect.united(content_rect);
+  }
+  return union_rect;
+}
+
 bool CanvasWidget::begin_free_transform_multi(TransformTargetCollection collection) {
   if (collection.position_lock_refusal) {
     show_layer_position_locked_message();
@@ -838,13 +849,7 @@ bool CanvasWidget::begin_free_transform_multi(TransformTargetCollection collecti
     return false;
   }
 
-  QRectF union_rect;
-  for (const auto& target : collection.targets) {
-    const QRectF content_rect(target.original_bounds.x + target.source_local_rect.x(),
-                              target.original_bounds.y + target.source_local_rect.y(),
-                              target.source_local_rect.width(), target.source_local_rect.height());
-    union_rect = union_rect.isNull() ? content_rect : union_rect.united(content_rect);
-  }
+  const auto union_rect = transform_targets_content_union(collection.targets);
   if (union_rect.isEmpty()) {
     report_status_error(tr("Layer has no opaque pixels to transform"));
     return false;
@@ -982,19 +987,37 @@ std::optional<QRectF> CanvasWidget::move_transform_controls_rect() const {
   std::optional<LayerId> target_layer_id;
   if (selected_layer_ids_.empty()) {
     target_layer_id = document_->active_layer_id();
+    if (!target_layer_id.has_value()) {
+      return std::nullopt;
+    }
   } else if (selected_layer_ids_.size() == 1U) {
     target_layer_id = selected_layer_ids_.front();
-  } else {
+  }
+  if (target_layer_id.has_value()) {
+    const auto* layer = document_->find_layer(*target_layer_id);
+    if (layer == nullptr) {
+      return std::nullopt;
+    }
+    if (layer->kind() != LayerKind::Group) {
+      if (layer_effectively_locks_position(*layer)) {
+        return std::nullopt;
+      }
+      return transform_controls_rect_for_layer(*layer);
+    }
+  }
+
+  // A selected folder or a multi-layer selection frames the union of the
+  // flattened target set Free Transform would take (grabbing a handle starts
+  // that session), and hides when that session would refuse.
+  const auto collection = collect_free_transform_targets();
+  if (!collection.refusal.isEmpty() || collection.position_lock_refusal || collection.targets.empty()) {
     return std::nullopt;
   }
-  if (!target_layer_id.has_value()) {
+  const auto union_rect = transform_targets_content_union(collection.targets);
+  if (union_rect.isEmpty()) {
     return std::nullopt;
   }
-  const auto* layer = document_->find_layer(*target_layer_id);
-  if (layer == nullptr || layer_effectively_locks_position(*layer)) {
-    return std::nullopt;
-  }
-  return transform_controls_rect_for_layer(*layer);
+  return union_rect;
 }
 
 void CanvasWidget::set_move_transform_controls_layer(std::optional<LayerId> layer_id) {

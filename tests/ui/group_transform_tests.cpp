@@ -513,6 +513,90 @@ void ui_group_transform_selection_reemission_keeps_session() {
   CHECK(!canvas->free_transform_active());
 }
 
+// Show Transform Controls with the Move tool frames a selected folder or a
+// multi-layer selection (the flattened target union, matching the session a
+// handle grab starts) without needing Ctrl-T; grabbing a corner starts the
+// multi session, Esc cancels untouched, and a folder whose session would
+// refuse (position-locked member) shows no box.
+void ui_move_passive_transform_controls_frame_folder_and_multi_selection() {
+  patchy::Document document(200, 160, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(200, 160, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+
+  patchy::Layer folder(document.allocate_layer_id(), "Passive Folder", patchy::LayerKind::Group);
+  const auto folder_id = folder.id();
+  auto red = patchy::Layer(document.allocate_layer_id(), "Red Member",
+                           solid_pixels(20, 20, patchy::PixelFormat::rgba8(), QColor(230, 30, 30)));
+  const auto red_id = red.id();
+  red.set_bounds(patchy::Rect{40, 40, 20, 20});
+  folder.add_child(std::move(red));
+  auto blue = patchy::Layer(document.allocate_layer_id(), "Blue Member",
+                            solid_pixels(20, 20, patchy::PixelFormat::rgba8(), QColor(20, 90, 240)));
+  const auto blue_id = blue.id();
+  blue.set_bounds(patchy::Rect{100, 40, 20, 20});
+  folder.add_child(std::move(blue));
+  document.add_layer(std::move(folder));
+
+  patchy::Layer locked_folder(document.allocate_layer_id(), "Locked Folder", patchy::LayerKind::Group);
+  const auto locked_folder_id = locked_folder.id();
+  auto locked = patchy::Layer(document.allocate_layer_id(), "Locked Member",
+                              solid_pixels(20, 20, patchy::PixelFormat::rgba8(), QColor(40, 180, 90)));
+  locked.set_bounds(patchy::Rect{40, 100, 20, 20});
+  patchy::set_layer_lock_flags(locked, patchy::kLayerLockPosition);
+  locked_folder.add_child(std::move(locked));
+  document.add_layer(std::move(locked_folder));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Passive Group Controls"));
+  auto* canvas = require_canvas(window);
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+  const auto before = patchy::ui::qimage_from_document(doc, true);
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_show_transform_controls(true);
+  canvas->set_selected_layer_ids({folder_id});
+  QApplication::processEvents();
+
+  // Union of the members' content rects: (40,40)-(120,60), center (80,50).
+  const auto passive = canvas->transform_controls_state();
+  CHECK(passive.has_value());
+  CHECK(!passive->active);
+  CHECK(std::abs(passive->reference_position.x() - 80.0) < 0.51);
+  CHECK(std::abs(passive->reference_position.y() - 50.0) < 0.51);
+
+  const auto corner = canvas->widget_position_for_document_point(QPoint(120, 60));
+  send_mouse(*canvas, QEvent::MouseMove, corner, Qt::NoButton, Qt::NoButton);
+  CHECK(canvas->cursor().shape() == Qt::SizeFDiagCursor);
+
+  // Grabbing the corner starts the multi session without Ctrl-T.
+  send_mouse(*canvas, QEvent::MouseButtonPress, corner, Qt::LeftButton, Qt::LeftButton);
+  CHECK(canvas->free_transform_active());
+  CHECK(canvas->free_transform_is_multi_target());
+  send_mouse(*canvas, QEvent::MouseMove, corner + QPoint(10, 8), Qt::NoButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, corner + QPoint(10, 8), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+  CHECK(images_equal_rgba(before, patchy::ui::qimage_from_document(doc, true)));
+
+  // A multi-layer selection of the two members frames the same union.
+  canvas->set_selected_layer_ids({red_id, blue_id});
+  QApplication::processEvents();
+  const auto multi = canvas->transform_controls_state();
+  CHECK(multi.has_value());
+  CHECK(!multi->active);
+  CHECK(std::abs(multi->reference_position.x() - 80.0) < 0.51);
+  CHECK(std::abs(multi->reference_position.y() - 50.0) < 0.51);
+
+  // A folder whose session would refuse shows no box.
+  canvas->set_selected_layer_ids({locked_folder_id});
+  QApplication::processEvents();
+  CHECK(!canvas->transform_controls_state().has_value());
+}
+
 // The reported repro: the pinball PSD's folder must accept Ctrl-T, scale, and
 // restore byte-identically on one Undo.
 void ui_pinball_folder_free_transform_end_to_end() {
@@ -677,6 +761,8 @@ std::vector<patchy::test::TestCase> group_transform_tests() {
        ui_group_transform_session_disables_warp_and_esc_cancels},
       {"ui_group_transform_selection_reemission_keeps_session",
        ui_group_transform_selection_reemission_keeps_session},
+      {"ui_move_passive_transform_controls_frame_folder_and_multi_selection",
+       ui_move_passive_transform_controls_frame_folder_and_multi_selection},
       {"ui_pinball_folder_free_transform_end_to_end", ui_pinball_folder_free_transform_end_to_end},
       {"ui_select_all_free_transform_transforms_retronight_poster",
        ui_select_all_free_transform_transforms_retronight_poster},

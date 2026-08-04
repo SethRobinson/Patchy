@@ -1376,6 +1376,7 @@ private:
   [[nodiscard]] QPointF transform_reference_position(QRectF document_rect, double angle_degrees) const;
   bool prepare_free_transform_source();
   [[nodiscard]] TransformTargetCollection collect_free_transform_targets() const;
+  [[nodiscard]] static QRectF transform_targets_content_union(const std::vector<TransformTarget>& targets);
   bool begin_free_transform_multi(TransformTargetCollection collection);
   bool ensure_transform_multi_snapshot();
   void refresh_transform_multi_preview_cache(bool processing_wait);
