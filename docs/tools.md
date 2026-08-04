@@ -1,4 +1,4 @@
-# Shape tools, Merge Down, and tool icons
+# Shape tools, Free Transform modifiers, Merge Down, and tool icons
 
 Small tool/command behaviors that don't have their own doc. Selection tools live in [selection-tools.md](selection-tools.md); brushes in [brushes.md](brushes.md); the text tool in [text-tool.md](text-tool.md). The vector side of the shape tools (Shape/Path modes, pen, path editing, vector masks, Paths panel, shape library) lives in [vector-tools.md](vector-tools.md); this page covers the legacy Pixels-mode raster behavior, which must stay byte-identical.
 
@@ -10,6 +10,18 @@ Small tool/command behaviors that don't have their own doc. Selection tools live
 - ALL constraint math lives in `CanvasWidget::shape_drag_rect()` — it intentionally duplicates `marquee_selection_rect()` (selection-only concerns, separately pinned). Do not merge them.
 - The Fill command has its OWN persisted Opacity/Soft (`tools/fillOpacity`/`tools/fillSoftness`, default 100/0); tests laying down setup color call `use_solid_fill_settings(canvas)`.
 - Coverage: `ui_shape_fill_and_corner_radius_apply_to_new_documents` also pins the `current_*` mirror pattern from [ui-conventions.md](ui-conventions.md).
+
+## Free Transform modifiers
+
+Corner handles scale proportionally on their own and Shift releases the lock, matching Photoshop CC 2019 and later. The preference `input/shiftKeepsTransformAspect` (default `false`, Preferences > Application, `preferencesTransformShiftAspectCheck`) restores the older pairing, where a plain corner drag distorts and Shift holds the ratio. It is a persisted identifier and rides the pen-input load/save/apply trio in main_window_preferences.cpp, so `configure_canvas` and the Preferences accept loop both push it onto every canvas.
+
+- Both sessions decide through one predicate, `CanvasWidget::transform_drag_keeps_aspect(modifiers)` (canvas_widget_transform.cpp): `shift == shift_keeps_transform_aspect_`. The pixel session calls it from `update_free_transform_preview`, the path session from `handle_path_transform_move` (canvas_widget_vector_tools.cpp). The two resize algorithms differ deliberately (anchor plus ratio versus box-local dominant axis); the shared predicate is what stops their modifier semantics drifting apart. Never reintroduce an inline `Qt::ShiftModifier` test for a resize.
+- Edge handles (Top/Right/Bottom/Left) scale one axis in every mode. Only corners consult the predicate.
+- Shift on the rotate handle still snaps to 15 degrees in both sessions and both modes; it is a separate modifier test in the same functions.
+- The options-bar link button (`freeTransformLinkScaleButton`) mirrors the W% and H% spin boxes only. It does not reach handle drags.
+- The session start status line reports the active pairing, so both sentences are translated strings.
+- Shift on the shape and marquee tools remains a 1:1 square/circle constraint on a new shape (`shape_square_constrained_`, `selection_square_constrained_`); that is unrelated and unchanged.
+- Coverage: `ui_transform_shift_frees_aspect_ratio_by_default`, `ui_transform_shift_aspect_preference_restores_legacy`, `ui_transform_shift_aspect_preference_defaults_to_off`, `ui_transform_shift_aspect_preference_persists_and_reaches_canvas`. The path session's branch has no test yet.
 
 ## Merge Down
 

@@ -1927,6 +1927,68 @@ void ui_psd_import_warning_preference_persists_enabled_setting() {
   CHECK(settings.value(QStringLiteral("imports/showPsdWarningsAndInfo"), false).toBool());
 }
 
+void ui_transform_shift_aspect_preference_defaults_to_off() {
+  SettingsValueRestorer restore_shift_aspect(QStringLiteral("input/shiftKeepsTransformAspect"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("input/shiftKeepsTransformAspect"));
+    settings.sync();
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  CHECK(!canvas->shift_keeps_transform_aspect());
+
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+    CHECK(dialog != nullptr);
+    auto* check = dialog->findChild<QCheckBox*>(QStringLiteral("preferencesTransformShiftAspectCheck"));
+    CHECK(check != nullptr);
+    CHECK(check->text() == QStringLiteral("Hold Shift to keep the aspect ratio when transforming"));
+    CHECK(!check->isChecked());
+    saw_dialog = true;
+    dialog->accept();
+  });
+  require_action(window, "filePreferencesAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_dialog);
+}
+
+void ui_transform_shift_aspect_preference_persists_and_reaches_canvas() {
+  SettingsValueRestorer restore_shift_aspect(QStringLiteral("input/shiftKeepsTransformAspect"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("input/shiftKeepsTransformAspect"));
+    settings.sync();
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+    CHECK(dialog != nullptr);
+    auto* check = dialog->findChild<QCheckBox*>(QStringLiteral("preferencesTransformShiftAspectCheck"));
+    CHECK(check != nullptr);
+    CHECK(!check->isChecked());
+    check->setChecked(true);
+    saw_dialog = true;
+    dialog->accept();
+  });
+  require_action(window, "filePreferencesAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_dialog);
+
+  auto settings = patchy::ui::app_settings();
+  CHECK(settings.value(QStringLiteral("input/shiftKeepsTransformAspect"), false).toBool());
+  // Accepting the dialog pushes the new value onto every open canvas.
+  CHECK(canvas->shift_keeps_transform_aspect());
+}
+
 void ui_language_switch_updates_existing_window() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -3386,6 +3448,10 @@ std::vector<patchy::test::TestCase> app_shell_tests() {
        ui_psd_import_warning_preference_defaults_to_hidden},
       {"ui_psd_import_warning_preference_persists_enabled_setting",
        ui_psd_import_warning_preference_persists_enabled_setting},
+      {"ui_transform_shift_aspect_preference_defaults_to_off",
+       ui_transform_shift_aspect_preference_defaults_to_off},
+      {"ui_transform_shift_aspect_preference_persists_and_reaches_canvas",
+       ui_transform_shift_aspect_preference_persists_and_reaches_canvas},
       {"ui_language_switch_updates_existing_window", ui_language_switch_updates_existing_window},
       {"ui_language_preference_applies_at_startup", ui_language_preference_applies_at_startup},
       {"ui_language_missing_preference_uses_system_language", ui_language_missing_preference_uses_system_language},

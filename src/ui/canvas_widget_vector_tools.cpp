@@ -1606,11 +1606,11 @@ bool CanvasWidget::handle_path_transform_move(QMouseEvent* event, QPointF docume
       const bool moves_bottom = path_transform_drag_handle_ == TransformHandle::BottomLeft ||
                                 path_transform_drag_handle_ == TransformHandle::Bottom ||
                                 path_transform_drag_handle_ == TransformHandle::BottomRight;
-      if ((event->modifiers() & Qt::ShiftModifier) != 0 && (moves_left || moves_right) &&
+      if (transform_drag_keeps_aspect(event->modifiers()) && (moves_left || moves_right) &&
           (moves_top || moves_bottom) && std::abs(path_transform_drag_start_rect_.width()) > 1e-9 &&
           std::abs(path_transform_drag_start_rect_.height()) > 1e-9) {
-        // Corner + Shift: proportional. Derive the shared factor from the
-        // dominant axis of the local delta.
+        // Aspect-locked corner: derive the shared factor from the dominant axis
+        // of the local delta.
         const double from_x = (moves_left ? -local_delta.x() : local_delta.x()) /
                               std::abs(path_transform_drag_start_rect_.width());
         const double from_y = (moves_top ? -local_delta.y() : local_delta.y()) /

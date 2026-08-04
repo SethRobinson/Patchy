@@ -116,7 +116,7 @@ Read the linked document before working on the feature. The document, not this i
 - **Text tool and Character panel:** [docs/text-tool.md](docs/text-tool.md), with the Photoshop layout/measurement calibration in [docs/text-render-calibration.md](docs/text-render-calibration.md).
 - **Bundled fonts, wasm font aliases, and user-added fonts:** [docs/fonts.md](docs/fonts.md).
 - **Selection tools:** [docs/selection-tools.md](docs/selection-tools.md) and [docs/legal-constraints.md](docs/legal-constraints.md).
-- **Shape tools, Merge Down, and tool icons:** [docs/tools.md](docs/tools.md).
+- **Shape tools, Free Transform modifiers, Merge Down, and tool icons:** [docs/tools.md](docs/tools.md).
 - **Vector tools, shape layers, vector masks, and Paths:** [docs/vector-tools.md](docs/vector-tools.md) and [docs/legal-constraints.md](docs/legal-constraints.md).
 - **SVG import/export:** [docs/svg.md](docs/svg.md).
 - **Float windows and document activation:** [docs/float-windows.md](docs/float-windows.md).

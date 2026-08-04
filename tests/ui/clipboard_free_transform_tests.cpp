@@ -239,7 +239,8 @@ void ui_copy_paste_and_transform_pasted_layer_work() {
   const auto bottom_right =
       canvas->widget_position_for_document_point(QPoint(before_transform->x() + before_transform->width(),
                                                        before_transform->y() + before_transform->height()));
-  drag(*canvas, bottom_right, bottom_right + QPoint(180, 40), Qt::ShiftModifier);
+  // No Shift: a plain corner drag holds the aspect ratio by default.
+  drag(*canvas, bottom_right, bottom_right + QPoint(180, 40));
   QApplication::processEvents();
   CHECK(canvas->free_transform_active());
   send_key(*canvas, Qt::Key_Return);
@@ -326,6 +327,92 @@ void ui_external_clipboard_image_paste_overrides_internal_payload() {
   QApplication::clipboard()->clear();
 }
 
+// Paints an opaque 60x45 rect into the startup document and returns its bounds,
+// so a transform session starts from a known, deliberately non-square aspect.
+std::optional<QRect> fill_aspect_probe_rect(patchy::ui::MainWindow& window, patchy::ui::CanvasWidget& canvas) {
+  canvas.set_tool(patchy::ui::CanvasTool::Marquee);
+  drag(canvas, canvas.widget_position_for_document_point(QPoint(80, 70)),
+       canvas.widget_position_for_document_point(QPoint(140, 115)));
+  const auto rect = canvas.selected_document_rect();
+  canvas.set_primary_color(QColor(230, 60, 35));
+  require_action(window, "layerFillForegroundAction")->trigger();
+  require_action(window, "editDeselectAction")->trigger();
+  QApplication::processEvents();
+  return rect;
+}
+
+// Drags the bottom-right transform handle by the given document-space delta and
+// commits, returning the committed opaque bounds.
+std::optional<QRect> transform_bottom_right_by(patchy::ui::MainWindow& window, patchy::ui::CanvasWidget& canvas,
+                                               QRect from, QPoint delta, Qt::KeyboardModifiers modifiers) {
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas.free_transform_active());
+  drag(canvas, canvas.widget_position_for_document_point(from.bottomRight() + QPoint(1, 1)),
+       canvas.widget_position_for_document_point(from.bottomRight() + delta), modifiers);
+  QApplication::processEvents();
+  send_key(canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(!canvas.free_transform_active());
+  return canvas.active_layer_document_rect();
+}
+
+// Photoshop CC 2019 reversed this: a plain corner drag scales proportionally and
+// Shift is what releases the lock. The drag delta below is deliberately lopsided
+// (+90 wide, +4 tall) so the two modes cannot produce a similar rectangle.
+void ui_transform_shift_frees_aspect_ratio_by_default() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  CHECK(!canvas->shift_keeps_transform_aspect());
+
+  const auto filled_rect = fill_aspect_probe_rect(window, *canvas);
+  CHECK(filled_rect.has_value());
+  const auto source_ratio = static_cast<double>(filled_rect->width()) / filled_rect->height();
+
+  const auto locked = transform_bottom_right_by(window, *canvas, *filled_rect, QPoint(90, 4), Qt::NoModifier);
+  CHECK(locked.has_value());
+  CHECK(locked->width() > filled_rect->width() + 40);
+  const auto locked_ratio = static_cast<double>(locked->width()) / locked->height();
+  CHECK(std::abs(locked_ratio - source_ratio) < 0.2);
+
+  const auto freed = transform_bottom_right_by(window, *canvas, *locked, QPoint(90, 4), Qt::ShiftModifier);
+  CHECK(freed.has_value());
+  CHECK(freed->width() > locked->width() + 60);
+  CHECK(freed->height() < locked->height() + 20);
+  const auto freed_ratio = static_cast<double>(freed->width()) / freed->height();
+  CHECK(freed_ratio > locked_ratio + 0.5);
+}
+
+void ui_transform_shift_aspect_preference_restores_legacy() {
+  SettingsValueRestorer restore_preference(QStringLiteral("input/shiftKeepsTransformAspect"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("input/shiftKeepsTransformAspect"), true);
+    settings.sync();
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  CHECK(canvas->shift_keeps_transform_aspect());
+
+  const auto filled_rect = fill_aspect_probe_rect(window, *canvas);
+  CHECK(filled_rect.has_value());
+  const auto source_ratio = static_cast<double>(filled_rect->width()) / filled_rect->height();
+
+  // The pairing is inverted: the plain drag now distorts.
+  const auto freed = transform_bottom_right_by(window, *canvas, *filled_rect, QPoint(90, 4), Qt::NoModifier);
+  CHECK(freed.has_value());
+  const auto freed_ratio = static_cast<double>(freed->width()) / freed->height();
+  CHECK(freed_ratio > source_ratio + 0.5);
+
+  const auto locked = transform_bottom_right_by(window, *canvas, *freed, QPoint(90, 4), Qt::ShiftModifier);
+  CHECK(locked.has_value());
+  const auto locked_ratio = static_cast<double>(locked->width()) / locked->height();
+  CHECK(std::abs(locked_ratio - freed_ratio) < 0.2);
+}
+
 void ui_free_transform_uses_opaque_pixel_bounds() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -351,7 +438,7 @@ void ui_free_transform_uses_opaque_pixel_bounds() {
 
   const auto handle = canvas->widget_position_for_document_point(filled_rect->bottomRight() + QPoint(1, 1));
   const auto expanded = canvas->widget_position_for_document_point(filled_rect->bottomRight() + QPoint(75, 55));
-  drag(*canvas, handle, expanded, Qt::ShiftModifier);
+  drag(*canvas, handle, expanded);
   QApplication::processEvents();
   CHECK(canvas->free_transform_active());
   send_key(*canvas, Qt::Key_Return);
@@ -1265,6 +1352,10 @@ std::vector<patchy::test::TestCase> clipboard_free_transform_tests() {
       {"ui_external_clipboard_image_paste_overrides_internal_payload",
        ui_external_clipboard_image_paste_overrides_internal_payload},
       {"ui_free_transform_uses_opaque_pixel_bounds", ui_free_transform_uses_opaque_pixel_bounds},
+      {"ui_transform_shift_frees_aspect_ratio_by_default",
+       ui_transform_shift_frees_aspect_ratio_by_default},
+      {"ui_transform_shift_aspect_preference_restores_legacy",
+       ui_transform_shift_aspect_preference_restores_legacy},
       {"ui_free_transform_arrow_keys_nudge_bounding_box", ui_free_transform_arrow_keys_nudge_bounding_box},
       {"ui_transform_numeric_controls_apply_values", ui_transform_numeric_controls_apply_values},
       {"ui_free_transform_preview_follows_live_layer_style_changes",

@@ -6046,6 +6046,7 @@ Mixed selection</source>
         <source>Rendering preview...</source>
         <translation>プレビューをレンダリング中...</translation>
     </message>
+    <message><source>Drag handles to transform. Shift resizes freely.</source><translation>ハンドルをドラッグして変形します。Shift で縦横比を無視してサイズを変更します。</translation></message>
     <message>
         <source>Transform path: drag inside to move, handles to scale, outside to rotate. Enter commits, Esc cancels.</source>
         <translation>パスを変形: 内側をドラッグで移動、ハンドルで拡大縮小、外側で回転。Enter で確定、Esc でキャンセルします。</translation>
@@ -6919,6 +6920,8 @@ Mixed selection</source>
         <source>I&amp;mport</source>
         <translation>読み込み(&amp;M)</translation>
     </message>
+    <message><source>Hold Shift to keep the aspect ratio when transforming</source><translation>変形時に Shift で縦横比を保持する</translation></message>
+    <message><source>When off, corner handles keep the aspect ratio and Shift resizes freely, matching current Photoshop. When on, corner handles resize freely and Shift keeps the aspect ratio.</source><translation>オフの場合、コーナーハンドルは縦横比を保持し、Shift で自由にサイズを変更します（現行の Photoshop と同じ動作）。オンの場合、コーナーハンドルは自由にサイズを変更し、Shift で縦横比を保持します。</translation></message>
     <message>
         <location line="+3"/>
         <source>From &amp;Scanner or Camera...</source>

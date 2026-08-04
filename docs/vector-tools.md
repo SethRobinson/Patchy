@@ -160,7 +160,9 @@ apply_path_edit undo entry ("Transform path") routed to the active target
 work path), then re-rasterizes. Lives in canvas_widget_vector_tools.cpp
 (path_transform_*), separate from the pixel session; begin_path_transform
 is called ONLY from transform_active_layer_dialog, and the Pen falls
-through to the layer transform.
+through to the layer transform. Corner-handle aspect locking and the Shift
+modifier follow the same rules as the pixel session and share its predicate;
+see [tools.md](tools.md).
 
 ## Geometry operations
 

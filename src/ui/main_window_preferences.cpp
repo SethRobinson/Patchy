@@ -526,6 +526,14 @@ void MainWindow::show_preferences() {
          "(as-shot white balance, no adjustments)."));
   raw_develop_check->setChecked(settings.value(QStringLiteral("imports/showRawDevelopDialog"), true).toBool());
   application_form->addRow(raw_develop_check);
+  auto* transform_shift_aspect_check =
+      new QCheckBox(tr("Hold Shift to keep the aspect ratio when transforming"), application_group);
+  transform_shift_aspect_check->setObjectName(QStringLiteral("preferencesTransformShiftAspectCheck"));
+  transform_shift_aspect_check->setToolTip(
+      tr("When off, corner handles keep the aspect ratio and Shift resizes freely, matching "
+         "current Photoshop. When on, corner handles resize freely and Shift keeps the aspect ratio."));
+  transform_shift_aspect_check->setChecked(shift_keeps_transform_aspect_);
+  application_form->addRow(transform_shift_aspect_check);
   // Resets the "Do this for every indexed image" choice remembered by the
   // indexed-image adoption prompt.
   auto* indexed_open_combo = new QComboBox(application_group);
@@ -1028,6 +1036,7 @@ void MainWindow::show_preferences() {
     pen_input_settings_.tilt_shape = pen_tilt_shape_check->isChecked();
     pen_input_settings_.tilt_min_roundness_percent = pen_tilt_roundness_spin->value();
     wheel_zooms_ = pen_wheel_zoom_check->isChecked();
+    shift_keeps_transform_aspect_ = transform_shift_aspect_check->isChecked();
     view_rulers_visible_ = default_rulers_check->isChecked();
     view_grid_visible_ = default_grid_check->isChecked();
     view_guides_visible_ = default_guides_check->isChecked();
@@ -1240,12 +1249,16 @@ void MainWindow::apply_canvas_aid_settings(CanvasWidget* canvas) const {
   canvas->set_target_path_visible(view_target_path_visible_);
 }
 
+// The load/save/apply trio named for the pen carries the general canvas input
+// preferences too (wheel zoom, the transform aspect modifier); they share the
+// "input/" key namespace and the same per-canvas push.
 void MainWindow::apply_pen_input_settings(CanvasWidget* canvas) const {
   if (canvas == nullptr) {
     return;
   }
   canvas->set_pen_input_settings(pen_input_settings_);
   canvas->set_wheel_zooms(wheel_zooms_);
+  canvas->set_shift_keeps_transform_aspect(shift_keeps_transform_aspect_);
 }
 
 void MainWindow::handle_pen_button_action(PenButtonAction action) {
@@ -1318,6 +1331,8 @@ void MainWindow::load_pen_input_settings() {
   pen_input_settings_.tilt_min_roundness_percent =
       std::clamp(settings.value(QStringLiteral("input/pen/tiltMinRoundnessPercent"), 35).toInt(), 1, 100);
   wheel_zooms_ = settings.value(QStringLiteral("input/wheelZooms"), kWheelZoomsDefault).toBool();
+  shift_keeps_transform_aspect_ =
+      settings.value(QStringLiteral("input/shiftKeepsTransformAspect"), false).toBool();
   apply_pen_input_settings(canvas_);
 }
 
@@ -1339,6 +1354,7 @@ void MainWindow::save_pen_input_settings() const {
   settings.setValue(QStringLiteral("input/pen/tiltMinRoundnessPercent"),
                     pen_input_settings_.tilt_min_roundness_percent);
   settings.setValue(QStringLiteral("input/wheelZooms"), wheel_zooms_);
+  settings.setValue(QStringLiteral("input/shiftKeepsTransformAspect"), shift_keeps_transform_aspect_);
 }
 
 void MainWindow::load_view_settings() {

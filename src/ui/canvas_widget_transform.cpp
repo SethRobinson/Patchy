@@ -565,7 +565,9 @@ bool CanvasWidget::begin_free_transform() {
   update();
   notify_transform_controls_changed();
   if (status_callback_) {
-    status_callback_(tr("Drag handles to transform. Shift keeps aspect ratio."));
+    status_callback_(shift_keeps_transform_aspect_
+                         ? tr("Drag handles to transform. Shift keeps aspect ratio.")
+                         : tr("Drag handles to transform. Shift resizes freely."));
   }
   return true;
 }
@@ -1031,6 +1033,20 @@ CanvasAnchor CanvasWidget::transform_reference_point() const noexcept {
   return transform_reference_point_;
 }
 
+void CanvasWidget::set_shift_keeps_transform_aspect(bool enabled) noexcept {
+  shift_keeps_transform_aspect_ = enabled;
+}
+
+bool CanvasWidget::shift_keeps_transform_aspect() const noexcept {
+  return shift_keeps_transform_aspect_;
+}
+
+bool CanvasWidget::transform_drag_keeps_aspect(Qt::KeyboardModifiers modifiers) const noexcept {
+  // Shift always selects whichever mode the preference does not, so the two
+  // states stay reachable however the preference is set.
+  return ((modifiers & Qt::ShiftModifier) != 0) == shift_keeps_transform_aspect_;
+}
+
 std::optional<CanvasWidget::TransformControlsState> CanvasWidget::transform_controls_state() const {
   std::optional<QRectF> rect;
   QRectF original_rect;
@@ -1363,7 +1379,7 @@ void CanvasWidget::update_free_transform_preview(QPointF document_point, Qt::Key
                              transform_drag_handle_ == TransformHandle::TopRight ||
                              transform_drag_handle_ == TransformHandle::BottomRight ||
                              transform_drag_handle_ == TransformHandle::BottomLeft;
-  if (corner_handle && (modifiers & Qt::ShiftModifier) != 0 && transform_drag_start_rect_.height() > 0.0) {
+  if (corner_handle && transform_drag_keeps_aspect(modifiers) && transform_drag_start_rect_.height() > 0.0) {
     QPointF anchor;
     switch (transform_drag_handle_) {
       case TransformHandle::TopLeft:
@@ -2257,7 +2273,9 @@ bool CanvasWidget::switch_warp_to_free_transform() {
   update();
   notify_transform_controls_changed();
   if (status_callback_) {
-    status_callback_(tr("Drag handles to transform. Shift keeps aspect ratio."));
+    status_callback_(shift_keeps_transform_aspect_
+                         ? tr("Drag handles to transform. Shift keeps aspect ratio.")
+                         : tr("Drag handles to transform. Shift resizes freely."));
   }
   return true;
 }

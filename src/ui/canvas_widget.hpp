@@ -653,6 +653,16 @@ public:
   [[nodiscard]] TransformInterpolation transform_interpolation() const noexcept;
   void set_transform_reference_point(CanvasAnchor anchor) noexcept;
   [[nodiscard]] CanvasAnchor transform_reference_point() const noexcept;
+  // Which modifier state locks a corner-handle drag to the source aspect ratio.
+  // Off (the default) matches current Photoshop: corners scale proportionally and
+  // Shift releases the lock. On restores the older meaning, where a plain corner
+  // drag distorts and Shift holds the ratio.
+  void set_shift_keeps_transform_aspect(bool enabled) noexcept;
+  [[nodiscard]] bool shift_keeps_transform_aspect() const noexcept;
+  // True when a corner-handle drag under these modifiers must hold the source
+  // aspect ratio. Shared by the pixel and path transform sessions so the two can
+  // never disagree about what Shift means.
+  [[nodiscard]] bool transform_drag_keeps_aspect(Qt::KeyboardModifiers modifiers) const noexcept;
   [[nodiscard]] std::optional<TransformControlsState> transform_controls_state() const;
   bool set_transform_controls_state(QPointF reference_position, double scale_x_percent,
                                     double scale_y_percent, double rotation_degrees);
@@ -1834,6 +1844,9 @@ private:
   double transform_drag_start_scale_y_sign_{1.0};
   TransformInterpolation transform_interpolation_{TransformInterpolation::Bicubic};
   CanvasAnchor transform_reference_point_{CanvasAnchor::Center};
+  // Application preference, pushed in from MainWindow; not per-session state, so
+  // the session resets must leave it alone.
+  bool shift_keeps_transform_aspect_{false};
   QImage transform_base_cache_{};
   std::vector<QImage> transform_base_display_mip_cache_{};
   qint64 transform_base_display_mip_source_key_{0};
