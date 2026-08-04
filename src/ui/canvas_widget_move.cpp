@@ -425,6 +425,21 @@ void CanvasWidget::clear_preview_scaled_document() noexcept {
   preview_scaled_document_level_ = 0;
 }
 
+void CanvasWidget::retarget_preview_scaled_for_committed_move(const std::vector<LayerId>& committed_ids) {
+  if (!preview_scaled_document_.has_value() || preview_scaled_document_level_ < 1 || document_ == nullptr) {
+    return;
+  }
+  for (const auto id : committed_ids) {
+    const auto* real = std::as_const(*document_).find_layer(id);
+    auto* scaled = preview_scaled_document_->find_layer(id);
+    if (real == nullptr || scaled == nullptr) {
+      clear_preview_scaled_document();
+      return;
+    }
+    retarget_preview_scaled_layer_bounds(*scaled, *real, preview_scaled_document_level_);
+  }
+}
+
 bool CanvasWidget::moving_layers_should_use_outline_preview(QPoint old_delta, QPoint new_delta) const {
   if (document_ == nullptr || moving_layers_.empty()) {
     return false;

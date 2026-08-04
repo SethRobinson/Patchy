@@ -1908,6 +1908,11 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
         *document_ = std::move(committed_document);
       }
     }
+    std::vector<LayerId> committed_move_ids;
+    committed_move_ids.reserve(moving_layers_.size());
+    for (const auto& moving_layer : moving_layers_) {
+      committed_move_ids.push_back(moving_layer.id);
+    }
     moving_layer_ = false;
     move_drag_pending_ = false;
     moving_layers_.clear();
@@ -1926,6 +1931,10 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
           ++render_cache_diagnostics_.move_preview_patch_reuses;
         }
         used_precommit_patch = true;
+        // This route skips document_changed_impl, so the preview-scaled
+        // document survives; refit its copies of the moved layers or the next
+        // proxy snapshot renders them at their pre-commit positions.
+        retarget_preview_scaled_for_committed_move(committed_move_ids);
         notify_document_changed();
         if (zoom_ < 1.0) {
           update();

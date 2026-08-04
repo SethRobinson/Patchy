@@ -2005,6 +2005,69 @@ void ui_move_scaled_preview_composites_at_display_resolution() {
   save_widget_artifact("ui_move_scaled_preview", canvas);
 }
 
+// A committed move whose release patches the render cache keeps the
+// preview-scaled document alive. Its copies of the moved layers must be
+// refitted to the committed positions: the next drag's proxy snapshot renders
+// them WITHOUT bounds overrides, so stale positions made the moving content
+// vanish (the snapshot rect derives from the real document's new positions
+// while the stale copy still sat at the old ones).
+void ui_move_scaled_proxy_after_commit_shows_moved_content() {
+  EnvironmentVariableRestorer restore_latch("PATCHY_MOVE_LIVE_LATCH_MS");
+  qputenv("PATCHY_MOVE_LIVE_LATCH_MS", QByteArray("0"));
+
+  patchy::Document document(800, 600, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(800, 600, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  patchy::Layer layer(document.allocate_layer_id(), "Committed Proxy Move",
+                      solid_pixels(120, 100, patchy::PixelFormat::rgba8(), QColor(210, 40, 40)));
+  const auto layer_id = layer.id();
+  layer.set_bounds(patchy::Rect{100, 80, 120, 100});
+  document.add_layer(std::move(layer));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(520, 380);
+  canvas.set_document(&document);
+  canvas.set_zoom(0.5);
+  canvas.set_tool(patchy::ui::CanvasTool::Move);
+  canvas.set_show_transform_controls(false);
+  canvas.set_auto_select_layer(false);
+  canvas.set_snap_enabled(false);
+  canvas.set_selected_layer_ids({layer_id});
+  canvas.show();
+  QApplication::processEvents();
+
+  // Drag 1: the zero latch threshold marks the first live frame slow, the
+  // second move latches the proxy, and the release patches the cache
+  // (keeping the scaled document). Commit +100 document px: layer 200..320.
+  const auto start = canvas.widget_position_for_document_point(QPoint(160, 130));
+  send_mouse(canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, start + QPoint(30, 0), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  send_mouse(canvas, QEvent::MouseMove, start + QPoint(50, 0), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  send_mouse(canvas, QEvent::MouseButtonRelease, start + QPoint(50, 0), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(canvas, QPoint(260, 130)), QColor(210, 40, 40), 45));
+
+  // Drag 2 of the same layer, another +100 document px: the proxy frame must
+  // show the moving content at its dragged position (300..420 mid-drag).
+  const auto before_stats = canvas.render_cache_diagnostics();
+  const auto start2 = canvas.widget_position_for_document_point(QPoint(260, 130));
+  send_mouse(canvas, QEvent::MouseButtonPress, start2, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, start2 + QPoint(30, 0), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  send_mouse(canvas, QEvent::MouseMove, start2 + QPoint(50, 0), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(canvas.render_cache_diagnostics().move_proxy_previews == before_stats.move_proxy_previews + 1);
+  CHECK(color_close(canvas_pixel(canvas, QPoint(360, 130)), QColor(210, 40, 40), 45));
+  // Vacated origin repaints from the base, not a stale copy.
+  CHECK(color_close(canvas_pixel(canvas, QPoint(220, 130)), QColor(Qt::white), 30));
+
+  send_mouse(canvas, QEvent::MouseButtonRelease, start2 + QPoint(50, 0), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(canvas, QPoint(360, 130)), QColor(210, 40, 40), 45));
+  CHECK(color_close(canvas_pixel(canvas, QPoint(220, 130)), QColor(Qt::white), 15));
+}
+
 // Multi-rect region renders fan out across workers; every rect is the same
 // render_document_rect call either way, so the patch bytes must match the
 // PATCHY_RENDER_SINGLE_THREADED sequential loop exactly.
@@ -2672,6 +2735,8 @@ std::vector<patchy::test::TestCase> move_tool_processing_overlay_tests() {
       {"ui_move_slow_live_frame_latches_proxy", ui_move_slow_live_frame_latches_proxy},
       {"ui_move_scaled_preview_composites_at_display_resolution",
        ui_move_scaled_preview_composites_at_display_resolution},
+      {"ui_move_scaled_proxy_after_commit_shows_moved_content",
+       ui_move_scaled_proxy_after_commit_shows_moved_content},
       {"ui_parallel_region_patches_match_single_threaded", ui_parallel_region_patches_match_single_threaded},
       {"ui_layer_move_repaints_only_active_document_tab", ui_layer_move_repaints_only_active_document_tab},
       {"ui_arduboy_psd_render_path_if_available", ui_arduboy_psd_render_path_if_available},

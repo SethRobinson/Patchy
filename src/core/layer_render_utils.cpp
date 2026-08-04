@@ -533,6 +533,60 @@ Document build_preview_scaled_document(const Document& document, int level) {
   return scaled;
 }
 
+void retarget_preview_scaled_layer_bounds(Layer& scaled, const Layer& real, int level) {
+  if (level <= 0) {
+    return;
+  }
+  // Mirror of shrink_layer_for_preview's coordinate math, sourcing positions
+  // from the committed full-res layer. Recompute (not translate-by-scaled-
+  // delta): a delta that is not a multiple of 2^level floors differently, and
+  // only the recompute matches what a fresh build would produce.
+  const auto& const_scaled = std::as_const(scaled);
+  const auto real_bounds = real.bounds();
+  if (scaled.kind() == LayerKind::Group || const_scaled.pixels().empty()) {
+    scaled.set_bounds(preview_scaled_bounds_endpoints(real_bounds, level));
+  } else {
+    scaled.set_bounds(Rect{preview_scaled_position(real_bounds.x, level),
+                           preview_scaled_position(real_bounds.y, level), const_scaled.pixels().width(),
+                           const_scaled.pixels().height()});
+  }
+
+  if (const_scaled.mask().has_value() && real.mask().has_value()) {
+    auto mask = *const_scaled.mask();
+    const auto& real_mask = *real.mask();
+    if (!mask.pixels.empty()) {
+      mask.bounds = Rect{preview_scaled_position(real_mask.bounds.x, level),
+                         preview_scaled_position(real_mask.bounds.y, level), mask.pixels.width(),
+                         mask.pixels.height()};
+    } else {
+      mask.bounds = preview_scaled_bounds_endpoints(real_mask.bounds, level);
+    }
+    scaled.set_mask(std::move(mask));
+  }
+
+  if (const auto* real_shape = real.vector_shape();
+      real_shape != nullptr && const_scaled.vector_shape() != nullptr) {
+    scaled.set_vector_shape(*real_shape);
+  }
+  if (const auto* real_vector_mask = real.vector_mask(); real_vector_mask != nullptr) {
+    if (const auto* scaled_vector_mask = const_scaled.vector_mask(); scaled_vector_mask != nullptr) {
+      // Keep the downscaled cache buffer and the already-divided feather; take
+      // the translated path and recompute the cache position from full-res.
+      auto updated = *real_vector_mask;
+      updated.cache = scaled_vector_mask->cache;
+      updated.feather = scaled_vector_mask->feather;
+      if (!updated.cache.empty()) {
+        updated.cache_bounds = Rect{preview_scaled_position(real_vector_mask->cache_bounds.x, level),
+                                    preview_scaled_position(real_vector_mask->cache_bounds.y, level),
+                                    updated.cache.width(), updated.cache.height()};
+      } else {
+        updated.cache_bounds = preview_scaled_bounds_endpoints(real_vector_mask->cache_bounds, level);
+      }
+      scaled.set_vector_mask(std::move(updated));
+    }
+  }
+}
+
 bool layer_style_preview_is_expensive(const Layer& layer, Rect document_bounds) noexcept {
   const auto padding = layer_effect_padding(layer);
   if (padding <= 0 || document_bounds.empty()) {

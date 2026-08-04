@@ -957,6 +957,11 @@ private:
   // Returns nullptr when level < 1 or the document is unavailable.
   [[nodiscard]] Document* preview_scaled_document_for_level(int level);
   void clear_preview_scaled_document() noexcept;
+  // After a move commit whose release patched the render cache (keeping the
+  // scaled document alive), refit the scaled copies of the committed layers to
+  // their new positions; a later proxy snapshot renders them without bounds
+  // overrides, so stale positions showed old content.
+  void retarget_preview_scaled_for_committed_move(const std::vector<LayerId>& committed_ids);
   [[nodiscard]] const QImage& display_image_for_zoom();
   [[nodiscard]] const QImage& curves_clipping_display_image_for_zoom();
   [[nodiscard]] const QImage& move_base_display_image_for_zoom();

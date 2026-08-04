@@ -67,6 +67,15 @@ struct AncestorGroupStyleInfo {
 [[nodiscard]] std::int32_t preview_scaled_dimension(std::int32_t value, int level) noexcept;
 [[nodiscard]] PixelBuffer downscale_pixel_buffer_by_level(const PixelBuffer& source, int level);
 [[nodiscard]] Document build_preview_scaled_document(const Document& document, int level);
+// Recompute `scaled`'s position-bearing fields (bounds, raster-mask bounds,
+// vector shape/mask with the downscaled cache and feather kept) from the
+// translated full-res `real` layer, exactly as a fresh
+// `build_preview_scaled_document` of the committed document would produce
+// them. The downscaled buffers are position-independent (the box-downscale
+// halves each buffer, not a document-space grid), so a pure translation only
+// moves coordinates. Buffers are reused as-is; `real` must be the same layer
+// the scaled copy was built from, differing only by translation.
+void retarget_preview_scaled_layer_bounds(Layer& scaled, const Layer& real, int level);
 [[nodiscard]] bool layer_style_preview_is_expensive(const Layer& layer, Rect document_bounds) noexcept;
 // Vector-mask coverage sample (1.0 when absent/disabled; density folds in).
 // Both layer_mask_alpha_at overloads already multiply this in, so every mask
