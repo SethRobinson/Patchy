@@ -70,16 +70,19 @@ void load_bundled_fonts() {
 // Apply the saved interface scale through Qt's QT_SCALE_FACTOR. This must run before the
 // QApplication is constructed because Qt only reads the variable at construction time. An
 // existing environment override (e.g. from tests/CI) is left untouched.
-//
-// This runs on wasm too. Qt's wasm screen reports a flat 96 logical DPI unless the page
-// passes qt.fontDpi to qtLoad (ours does not), so the browser's high-DPI factor is 1 and
-// one Patchy UI pixel is one CSS pixel; devicePixelRatio only raises the render
-// resolution. QT_SCALE_FACTOR is therefore the one global sizing lever there, and the
-// web build leans on it for its smaller default (kDefaultGuiScalePercent). Reading the
-// setting this early is safe in the browser because the localStorage backend is
-// synchronous and app_settings() passes the organization and application names
-// explicitly instead of reading them off QCoreApplication.
 void apply_gui_scale_factor() {
+#ifdef Q_OS_WASM
+  // Never set QT_SCALE_FACTOR on wasm: the wasm platform plugin builds pointer events
+  // from the raw DOM offsetX/clientX values and never converts them through Qt's
+  // high-DPI factor, so any factor other than 1 renders correctly but lands every
+  // click offset by that factor (qwasmevent.cpp, Qt 6.10). The web build scales
+  // browser-side instead: the shell page (packaging/web/patchy.html.in) reads the same
+  // preferences/guiScalePercent value from localStorage and wraps the app in a
+  // CSS-transformed iframe, which keeps Qt at factor 1 with geometry and input in one
+  // consistent coordinate space. kDefaultGuiScalePercent still matters here so the
+  // Preferences combo shows the right entry; the shell duplicates that default.
+  return;
+#endif
   if (qEnvironmentVariableIsSet("QT_SCALE_FACTOR")) {
     return;
   }

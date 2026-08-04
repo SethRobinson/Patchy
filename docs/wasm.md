@@ -7,9 +7,9 @@ or `wasm-release` presets, the emsdk/Qt-kit provisioning, or `scripts/wasm/`.
 
 Two wasm configurations share the pinned Emscripten 4.0.7 toolchain:
 
-- **`wasm-core`** (step 1): the Qt-free engine libraries plus
+- **`wasm-core`**: the Qt-free engine libraries plus
   `patchy_core_tests`, run under node. No Qt (`PATCHY_BUILD_APP=OFF`).
-- **`wasm-release`** (steps 2-4a): the full app linked against Qt for
+- **`wasm-release`**: the full app linked against Qt for
   WebAssembly (6.10.3 `wasm_multithread`, static), running in a browser tab
   with Asyncify plus pthreads. File I/O goes through the browser, drag-in
   works, settings persist in localStorage (details below). Background work
@@ -28,8 +28,7 @@ pwsh -File scripts\wasm\setup-emsdk.ps1
 
 Idempotent. Clones emsdk into `.deps\emsdk` (gitignored), refreshes an
 existing clone with `git pull` (a stale checkout fails with "unknown
-version"), installs + activates Emscripten 4.0.7 (the version the Qt
-6.10/6.11 docs list as supported). `-EmsdkVersion` provisions another
+version"), installs + activates Emscripten 4.0.7 (the Qt-supported version). `-EmsdkVersion` provisions another
 release; versions coexist. Activation writes only emsdk's local config. The
 bundled node 22.16.0 runs the tests; the scripts glob
 `.deps\emsdk\node\*\bin\node.exe`, so keep exactly one node directory there.
@@ -80,13 +79,12 @@ skips the crash-stack reporter (no `execinfo.h`; node prints trap stacks).
 - `-sNODERAWFS=1`: fixtures read from the real filesystem via
   `PATCHY_SOURCE_DIR`, `test-artifacts/` written to disk; the .js becomes
   node-only.
-- Memory: `-sALLOW_MEMORY_GROWTH=1` up to `-sMAXIMUM_MEMORY=4GB`,
-  `-sINITIAL_MEMORY=256MB`, `-sSTACK_SIZE=8MB` (LibRaw's dcraw-derived
+- Memory: growth to 4 GB, 256 MB initial, 8 MB stack (LibRaw's dcraw-derived
   decoders carry large stack locals; the 64 KB default is far too small),
   1 MB worker stacks.
 - `-sENVIRONMENT=node,worker`, `-sEXIT_RUNTIME=1` (exit code from `main`;
   pool workers must not keep node alive), and `-Wno-pthreads-mem-growth`
-  (informational, does not apply; suppressed to stay zero-warning).
+  (informational; suppressed).
 - `--pre-js scripts/wasm/node-env-pre.js` forwards `process.env` into
   Emscripten's synthetic environ before `main`, so
   `PATCHY_RENDER_SINGLE_THREADED` and the other env escape hatches work
@@ -143,8 +141,8 @@ per port used:
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\wasm\free-server-port.ps1 -Port 8973
 ```
 
-It stops a node listener left on the port (waiting for the socket to clear)
-but leaves any non-node process alone.
+It stops a node listener left on the port and leaves any non-node process
+alone.
 
 A hidden tab never fires requestAnimationFrame, so Qt stops presenting and
 the tab looks frozen; nothing is wrong. Keep the tab foregrounded, or shim
@@ -214,7 +212,7 @@ requestAnimationFrame onto setTimeout before qtloader runs (harness below).
   `third_party/fonts-web` (~23 MB of OFL fonts, wasm only; see
   [fonts.md](fonts.md)) merges into the staged fonts; `LINK_DEPENDS` on the
   fonts stamp makes a fonts-only change repack `patchy.data`. The 8.7 MB
-  texture pack stays embedded (lazy fetch is a step-4 size lever).
+  texture pack stays embedded (lazy fetch is a future size lever).
 - **Memory:** `QT_WASM_INITIAL_MEMORY` is 512 MB, growth capped at 4 GB. Qt's
   target machinery owns `-sSTACK_SIZE`; do not add a second one.
 
@@ -275,7 +273,7 @@ Other step-3 decisions:
   `/presets/<subdir>` in MEMFS and vanish on reload while the seeding stamps
   persist, so `stored_default_asset_version` (main_window_tool_options.cpp)
   treats every wasm session as unseeded. Defaults return each reload; user
-  presets last one session (persistence is a step-4 candidate; the preset
+  presets last one session (persistence is a future candidate; the preset
   managers' import/export buttons browse MEMFS only).
 - **User-added fonts persist in IndexedDB** (DB `PatchyUserFonts`,
   `src/ui/user_fonts_wasm.cpp`): dropped fonts or zips register immediately,
@@ -298,12 +296,15 @@ Other step-3 decisions:
 
 ### Browser UI fit
 
-- **One UI pixel is one CSS pixel.** Qt's wasm screen reports a flat 96
-  logical DPI unless the page passes `qt.fontDpi` to `qtLoad`, which our
-  shell does not, so `devicePixelRatio` only raises render resolution and
-  panel sizes are the desktop build's literals. Interface scale is the only
-  sizing lever; the web build defaults to 75%, applied on reload. See
-  [ui-conventions.md](ui-conventions.md).
+- **Interface scale comes from the shell page, never QT_SCALE_FACTOR.** The
+  wasm plugin takes pointer events from raw `offsetX`/`clientX` without
+  applying Qt's high-DPI factor, so any factor but 1 renders scaled yet
+  offsets every click by that factor. The shell reads
+  `preferences/guiScalePercent` from localStorage (default 75%, synced
+  with `kDefaultGuiScalePercent`) and at any other value re-embeds itself
+  in a CSS-transformed iframe sized 10000/percent %, scaling
+  `devicePixelRatio` inside for a 1:1 device backing store. Qt stays at
+  factor 1; a change applies on reload.
 - **Wheel events arrive as pixel deltas.** The wasm plugin fills both
   `pixelDelta` and `angleDelta` with browser pixels (~120 per notch), never
   the desktop 120-per-notch angle convention. Any custom wheel handler that
@@ -518,7 +519,7 @@ works the same way (write the script into MEMFS from a `preRun` hook).
 
 ## Later steps (not built yet)
 
-Step 4 remainder: memory tuning (per-platform undo cap and byte budget,
+Remaining: memory tuning (per-platform undo cap and byte budget,
 tile-cache eviction), texture lazy-fetch, the advertised document-size cap,
 and preset/library persistence across reloads (follow the poll-pattern
 IndexedDB glue user fonts already use in user_fonts_wasm.cpp, not IDBFS).

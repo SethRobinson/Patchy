@@ -16,7 +16,9 @@ namespace patchy::ui {
 inline constexpr std::array<int, 8> kGuiScalePercents{67, 75, 90, 100, 125, 150, 175, 200};
 
 // The web build starts smaller than the desktop build: browser chrome already eats
-// vertical space and the panels read large in a tab.
+// vertical space and the panels read large in a tab. The web shell page
+// (packaging/web/patchy.html.in) applies the scale browser-side and duplicates this
+// default and the step list; keep them in sync when changing either.
 #ifdef Q_OS_WASM
 inline constexpr int kDefaultGuiScalePercent = 75;
 #else

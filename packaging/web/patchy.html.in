@@ -59,6 +59,84 @@
 
     <script type="text/javascript">
       const CACHE_TAG = '__PATCHY_CACHE_TAG__';
+
+      // ---- Interface scale (browser-side) ----
+      // The wasm platform plugin builds pointer events from raw DOM coordinates and
+      // never converts them through Qt's high-DPI factor, so QT_SCALE_FACTOR renders
+      // scaled but leaves every click offset. Scaling therefore happens here instead:
+      // at any scale other than 100% the page re-embeds itself in an iframe that is
+      // laid out larger and visually shrunk with a CSS transform. The browser maps
+      // real input through the transform into the iframe's own coordinate space, so
+      // inside the frame Qt runs at factor 1 with geometry, rendering, and input all
+      // in one consistent coordinate space. The embedded copy also scales
+      // devicePixelRatio so the canvas backing store lands 1:1 on device pixels.
+      //
+      // Keep the default and step list in sync with kDefaultGuiScalePercent and
+      // kGuiScalePercents in src/ui/app_settings.hpp. The stored value is written by
+      // the app through QSettings' localStorage backend; changing it in Preferences
+      // takes effect on the next page load.
+      const DEFAULT_SCALE_PERCENT = 75;
+      const SCALE_PERCENTS = [67, 75, 90, 100, 125, 150, 175, 200];
+      const SCALE_KEY_SUFFIX = 'preferences/guiScalePercent';
+
+      function storedScalePercent() {
+        try {
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            // Full key: qt-v0-Patchy-Patchy-preferences/guiScalePercent (see
+            // qsettings_wasm.cpp); match on the suffix so the org/app prefix can
+            // never drift out from under this page.
+            if (key && key.indexOf('qt-v0-') === 0 && key.endsWith(SCALE_KEY_SUFFIX)) {
+              const value = parseInt(localStorage.getItem(key), 10);
+              if (SCALE_PERCENTS.indexOf(value) >= 0)
+                return value;
+            }
+          }
+        } catch (e) { /* storage blocked: fall through to the default */ }
+        return DEFAULT_SCALE_PERCENT;
+      }
+
+      function embeddedScalePercent() {
+        const value = parseInt(new URLSearchParams(location.search).get('embedded'), 10);
+        return SCALE_PERCENTS.indexOf(value) >= 0 ? value : 0;
+      }
+
+      // Top-level page at a non-100% scale: replace the UI with the scaled iframe.
+      function embedScaledApp(percent) {
+        el('loader').style.display = 'none';
+        const params = new URLSearchParams(location.search);
+        params.set('embedded', String(percent));
+        const frame = document.createElement('iframe');
+        frame.id = 'scaled-app';
+        frame.title = 'Patchy';
+        frame.allow = 'fullscreen; clipboard-read; clipboard-write';
+        const inverse = 10000 / percent; // 75% -> 133.33% layout, scaled to fit
+        frame.style.cssText =
+          'position:fixed;left:0;top:0;border:0;display:block;' +
+          'width:' + inverse + '%;height:' + inverse + '%;' +
+          'transform:scale(' + percent / 100 + ');transform-origin:0 0;';
+        frame.src = location.pathname + '?' + params.toString();
+        frame.addEventListener('load', () => { try { frame.contentWindow.focus(); } catch (e) {} });
+        document.body.appendChild(frame);
+      }
+
+      // Embedded copy: report a devicePixelRatio scaled by the interface scale so the
+      // backing store resolution matches the device pixels the transform maps onto
+      // (12 logical px of text rasterizes into 12 * 0.75 * realDpr device px, crisp).
+      // Input is unaffected; this only changes render resolution.
+      function installScaledDevicePixelRatio(percent) {
+        try {
+          const desc = Object.getOwnPropertyDescriptor(window, 'devicePixelRatio') ||
+                       Object.getOwnPropertyDescriptor(Window.prototype, 'devicePixelRatio');
+          if (!desc || !desc.get)
+            return;
+          const realDpr = desc.get.bind(window);
+          Object.defineProperty(window, 'devicePixelRatio', {
+            configurable: true,
+            get: () => realDpr() * (percent / 100),
+          });
+        } catch (e) { /* rendering stays at the unscaled dpr; input is unaffected */ }
+      }
       // Uncompressed patchy.wasm size, baked in at staging time: the progress
       // total for encoded (br/gzip) responses, where the byte-counting reader
       // sees decompressed bytes but Content-Length carries the compressed
@@ -132,6 +210,16 @@
 
       async function init() {
         try {
+          const embedded = embeddedScalePercent();
+          if (embedded) {
+            installScaledDevicePixelRatio(embedded);
+          } else {
+            const percent = storedScalePercent();
+            if (percent !== 100) {
+              embedScaledApp(percent);
+              return; // The iframe copy of this page loads the app.
+            }
+          }
           // The multithreaded wasm build needs SharedArrayBuffer, which
           // browsers only enable on cross-origin isolated pages. The server
           // must send Cross-Origin-Opener-Policy: same-origin and
