@@ -685,6 +685,11 @@ public:
   void begin_preview_render();
   void end_preview_render();
   bool wait_for_processing_operation(std::function<bool()> operation_ready, bool allow_overlay = true);
+  // True while a blocking processing wait is running. Input that arrives then is
+  // wasm's re-entrant DOM delivery into the nested wait loop (docs/wasm.md); the
+  // canvas drops presses and parks releases, and MainWindow's canvas event filter
+  // must leave its click-swallow state untouched for such events.
+  [[nodiscard]] bool processing_render_wait_active() const noexcept { return processing_render_wait_active_; }
   void force_refresh();
   void document_changed();
   void document_changed_async_preview();

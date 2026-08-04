@@ -461,6 +461,72 @@ void ui_text_tool_outside_click_commits_without_new_text_editor() {
   save_widget_artifact("ui_text_outside_click_commit", window);
 }
 
+// Desktop simulation of the wasm click-off re-entrancy bug (same harness shape as
+// ui_move_commit_ignores_reentrant_input_during_processing_wait): the click-off press moves focus
+// to the canvas BEFORE delivery, the focus-loss handler arms swallow_next_canvas_left_press_ and
+// commits, and the commit's undo-snapshot wait pumps a nested loop that wasm delivers the mouseup
+// into synchronously. The release used to clear the swallow flag before the press that armed it
+// resumed delivery, so the resumed press began a text-rect drag and the parked-and-replayed
+// release opened a brand-new text session from a single click off. The press must run the real
+// window-system path (QTest on the window): focus moves before delivery and
+// QApplication::mouseButtons() reports the button down, which is what arms the flag; sendEvent to
+// the canvas skips both and exercises the other (press-first) commit guard instead.
+void ui_text_click_off_commit_ignores_reentrant_release_during_wait() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+
+  auto* type_action = require_action_by_text(window, QStringLiteral("Type"));
+  type_action->trigger();
+  const auto layer_count_before_click = layer_list->count();
+  const auto text_widget_point = canvas->widget_position_for_document_point(QPoint(90, 90));
+  send_mouse(*canvas, QEvent::MouseButtonPress, text_widget_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, text_widget_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  editor->setPlainText(QStringLiteral("Reentrant Commit"));
+  QApplication::processEvents();
+
+  EnvironmentVariableRestorer restore_overlay_delay("PATCHY_PROCESSING_OVERLAY_DELAY_MS");
+  EnvironmentVariableRestorer restore_undo_delay("PATCHY_UNDO_SNAPSHOT_TEST_DELAY_MS");
+  qputenv("PATCHY_PROCESSING_OVERLAY_DELAY_MS", QByteArray("0"));
+  qputenv("PATCHY_UNDO_SNAPSHOT_TEST_DELAY_MS", QByteArray("250"));
+
+  // Fires inside the commit's undo-snapshot wait (~60 ms into the 250 ms sleep; the wait pumps
+  // timers once the overlay shows, and overlay delay 0 shows it on the first tick), landing the
+  // release on the canvas exactly the way wasm delivers DOM input into a suspended nested loop.
+  const auto outside_widget_point = canvas->widget_position_for_document_point(QPoint(310, 220));
+  auto releases_injected_during_wait = std::make_shared<int>(0);
+  QTimer::singleShot(60, canvas, [canvas, outside_widget_point, releases_injected_during_wait] {
+    if (!canvas->processing_overlay_visible()) {
+      return;
+    }
+    ++*releases_injected_during_wait;
+    QMouseEvent release(QEvent::MouseButtonRelease, outside_widget_point,
+                        canvas->mapToGlobal(outside_widget_point), Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    QApplication::sendEvent(canvas, &release);
+  });
+
+  auto* window_handle = window.windowHandle();
+  CHECK(window_handle != nullptr);
+  const auto press_window_point = canvas->mapTo(&window, outside_widget_point);
+  QTest::mousePress(window_handle, Qt::LeftButton, Qt::NoModifier, press_window_point);
+  QApplication::processEvents();
+  CHECK(*releases_injected_during_wait == 1);
+  QTest::mouseRelease(window_handle, Qt::LeftButton, Qt::NoModifier, press_window_point);
+  qputenv("PATCHY_UNDO_SNAPSHOT_TEST_DELAY_MS", QByteArray("0"));
+  QApplication::processEvents();
+
+  // The click off committed the session and did NOT open a new one; that takes a second click.
+  CHECK(type_action->isChecked());
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+  CHECK(layer_list->count() == layer_count_before_click + 1);
+  CHECK(layer_list->item(0)->text() == QStringLiteral("Reentrant Commit"));
+}
+
 void ui_delete_key_action_removes_text_layer_object() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -1967,6 +2033,8 @@ std::vector<patchy::test::TestCase> text_editor_font_picker_tests() {
        ui_text_editor_ctrl_b_and_ctrl_i_toggle_formatting},
       {"ui_text_tool_outside_click_commits_without_new_text_editor",
        ui_text_tool_outside_click_commits_without_new_text_editor},
+      {"ui_text_click_off_commit_ignores_reentrant_release_during_wait",
+       ui_text_click_off_commit_ignores_reentrant_release_during_wait},
       {"ui_delete_key_action_removes_text_layer_object", ui_delete_key_action_removes_text_layer_object},
       {"ui_text_tool_click_creates_provisional_layer", ui_text_tool_click_creates_provisional_layer},
       {"ui_text_options_bar_accept_cancel_buttons", ui_text_options_bar_accept_cancel_buttons},

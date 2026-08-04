@@ -12,10 +12,10 @@ Two wasm configurations share the pinned Emscripten 4.0.7 toolchain:
   `patchy_core_tests`, run under node. No Qt (`PATCHY_BUILD_APP=OFF`).
 - **`wasm-release`** (steps 2-4a): the full app linked against Qt for
   WebAssembly (6.10.3 `wasm_multithread`, static), running in a browser tab
-  with Asyncify plus pthreads. File open/save/export go through the browser
-  (picker in, downloads out), desktop drag-in works, settings persist in
-  localStorage. Background work runs on real threads; the deployment cost is
-  cross-origin isolation (COOP/COEP headers, see deployment).
+  with Asyncify plus pthreads. File I/O goes through the browser, drag-in
+  works, settings persist in localStorage (details below). Background work
+  runs on real threads; the deployment cost is cross-origin isolation
+  (COOP/COEP headers, see deployment).
 
 Desktop builds are unaffected; the presets, the `if(EMSCRIPTEN)` CMake
 branches, the `Q_OS_WASM` gates in `src/ui`/`src/app`, and `scripts/wasm/`
@@ -47,8 +47,7 @@ cmd /s /c 'call .deps\emsdk\emsdk_env.bat >nul 2>&1 && call scripts\vs-env.bat -
 
 Build with the same wrapper and `--build --preset wasm-core`. Output:
 `build\wasm-core\patchy_core_tests.js` + `.wasm`. The zero-warning rule
-applies; vendored suppressions stay scoped to one file and one diagnostic
-(so far only miniz's `-Wno-#pragma-messages` in the root CMakeLists).
+applies; vendored suppressions stay scoped to one file and one diagnostic.
 
 ## Running the suite
 
@@ -60,10 +59,9 @@ Takes the usual name-substring filter as the first argument; runs the
 emsdk-bundled node from `build\wasm-core`, so `test-artifacts/` lands there.
 `ctest` also works there (the preset pins `CMAKE_CROSSCOMPILING_EMULATOR`).
 
-Status: 747 pass, 0 fail with the 2.4 GB `local-test-fixtures/` corpus
-present (0.87, August 2026), matching the Windows release suite count; the
-three byte-stability canaries pass byte-identically. Expected
-`[SKIP]`s: one
+Status (0.87, August 2026): full pass matching the Windows suite count
+with the 2.4 GB `local-test-fixtures/` corpus present; the three
+byte-stability canaries pass byte-identically. Expected `[SKIP]`s: one
 absent local fixture, two HEIC tests (node has no `VideoDecoder`), and
 `af_modern_embeds_are_center_anchored_if_available` (its fixture exceeds a
 32-bit address space; that wasm32 ceiling becomes an advertised cap in
@@ -120,13 +118,11 @@ Not 6.11 yet: released aqtinstall (3.3.0) cannot install a 6.11 desktop host
 kit (download.qt.io moved 6.11 desktop into per-arch folders with no base
 `Updates.xml`). Revisit when aqtinstall understands the layout.
 
-Kit history: the upgrade from 6.8.3 / emsdk 3.1.56 fixed nested-exec
-windows taking no input and non-modal dialogs opening invisibly behind
-their parent (QTBUG-145018/102827/131699). Regression symptom for
-nested-loop input: an embind listener
-registered as a Promise where a listener object belongs. 6.10 suspends via
-`EM_ASYNC_JS` (no `-sASYNCIFY_IMPORTS`); Emscripten 3.1.58+ folds the
-pthread bootstrap into `patchy.js` (no `patchy.worker.js`).
+Kit facts: 6.10 suspends via `EM_ASYNC_JS` (no `-sASYNCIFY_IMPORTS`);
+Emscripten 3.1.58+ folds the pthread bootstrap into `patchy.js` (no
+`patchy.worker.js`). A nested-loop input regression (windows taking no
+input) looks like an embind listener registered as a Promise where a
+listener object belongs.
 
 ### Build, serve, stop
 
@@ -263,8 +259,7 @@ Three platform findings constrain the shape; do not regress them:
   export whose C++ path can suspend: that entry runs outside Qt's
   suspend-resume control, and if the idle-suspended main loop already has a
   resume in flight, the nested suspend clobbers the single-slot Asyncify
-  state; the app parks forever with a clean console (the drop glue once did
-  this from its Promise.all callback and froze the deployed site). Page-side
+  state; the app parks forever with a clean console. Page-side
   JS writes plain state; C++ polls it from a QTimer, whose handler runs
   inside the resumed main loop, where nesting an exec is safe.
 
@@ -437,9 +432,14 @@ user input while `processing_render_wait_active_`; mouse releases are
 parked and replayed after the outermost wait unwinds (a dropped release
 would leave the owning gesture latched), and ShortcutOverride is accepted
 so app-level hotkeys cannot fire into a half-committed operation. Without
-this, the Move release re-entered its own commit: the drag kept following
-the mouse after release, patches and mutation used different deltas (the
-pinball poster corruption), and clicks pushed ghost undo snapshots.
+this, the Move release re-entered its own commit (the pinball poster
+corruption: mismatched deltas, ghost undo snapshots).
+MainWindow's canvas event filter obeys the same rule: it leaves
+`swallow_next_canvas_left_press_` untouched during a wait. The text
+click-off commit runs INSIDE the press delivery (focus walk -> focus-loss
+commit -> undo-snapshot wait), so the re-entrant release otherwise cleared
+the flag before its press resumed and one click off opened a new text
+session (`ui_text_click_off_commit_ignores_reentrant_release_during_wait`).
 
 **No `processEvents` pump runs mid-operation on wasm.** The browser gets no
 paint or input turn until the main thread suspends in an idle event loop; a
@@ -460,8 +460,7 @@ Single-threaded builds: `should_defer_full_refresh_to_async` /
 `should_defer_first_render_to_async` (canvas_widget_render.cpp) return false
 when `kBackgroundWorkRunsInline` (background_workers.hpp): deferring to an
 inline worker composed the frame inside paintEvent anyway.
-(`build\wasm-st-baseline` preserves a single-threaded build for
-comparisons.)
+`build\wasm-st-baseline` preserves a single-threaded build for comparisons.
 
 ## Release deployment (rtsoft.com/patchy)
 

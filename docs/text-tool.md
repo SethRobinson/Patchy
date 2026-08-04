@@ -97,6 +97,7 @@ the preview first leaves a frame with neither on screen.
 ## Session lifecycle (provisional layer, commit, cancel)
 
 - A Type-tool click inserts a provisional 1x1 text layer (marker `patchy.internal.provisional_text`); `commit_text_editor` removes it via the marker-checked `MainWindow::take_provisional_text_layer` (a stale id can never delete an unrelated layer), then snapshots and recreates the committed layer under the same id; cancel/empty-commit leaves history and modified state untouched.
+- Clicking off commits through the focus-loss handler, which arms `swallow_next_canvas_left_press_` so the press that caused the commit cannot start the next session; a release clears a stale flag. MainWindow's canvas event filter must leave that flag alone for input delivered during a blocking processing wait: on wasm the mouseup arrives re-entrantly inside the commit's own undo-snapshot wait, before the press resumes, and clearing the flag there opened a new text session from one click off (see the input-reentry rules in [wasm.md](wasm.md); pinned by `ui_text_click_off_commit_ignores_reentrant_release_during_wait`).
 - Mutating actions that take no focus (e.g. layer lock buttons) must call `finish_active_text_editor()` first, or they operate on a half-committed session.
 
 ## Delete semantics

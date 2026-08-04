@@ -5896,7 +5896,13 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
   }
 
   if (watched == canvas_ && canvas_ != nullptr) {
-    if (swallow_next_canvas_left_press_) {
+    // A mouse event arriving while the canvas sits in a blocking processing wait is wasm's
+    // re-entrant DOM delivery into the nested wait loop; the canvas's own guards drop the press
+    // and park the release. It must not touch the swallow flag: the click-off text commit runs
+    // INSIDE the press delivery (focus walk -> focus-loss commit -> undo-snapshot wait), so the
+    // release otherwise cleared the flag before the press that armed it resumed, and the resumed
+    // press plus the replayed release opened a brand-new text session from a single click off.
+    if (swallow_next_canvas_left_press_ && !canvas_->processing_render_wait_active()) {
       if (event->type() == QEvent::MouseButtonPress) {
         auto* mouse_event = static_cast<QMouseEvent*>(event);
         swallow_next_canvas_left_press_ = false;
