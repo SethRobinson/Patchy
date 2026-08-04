@@ -320,6 +320,7 @@ bool CanvasWidget::ensure_move_proxy_image() {
     }
     snapshot_rect = snapshot_rect.united(moving_layer_effect_rect(*layer, moving_layer, QPoint()));
   }
+  move_proxy_rect_canvas_clipped_ = !snapshot_rect.isEmpty() && !canvas_rect.contains(snapshot_rect);
   snapshot_rect = snapshot_rect.intersected(canvas_rect);
   if (snapshot_rect.isEmpty()) {
     return false;
@@ -410,6 +411,51 @@ void CanvasWidget::clear_move_proxy() noexcept {
   move_drag_uses_proxy_preview_ = false;
   move_proxy_image_ = QImage();
   move_proxy_document_rect_ = QRect();
+  move_proxy_rect_canvas_clipped_ = false;
+}
+
+void CanvasWidget::retain_move_preview_caches(const std::vector<LayerId>& committed_ids, QPoint committed_delta,
+                                              bool proxy_content_complete) {
+  // Per-drag latch state resets either way; only the images and their keys
+  // survive for the next drag of the same selection.
+  move_drag_uses_proxy_preview_ = false;
+  if (move_base_cache_.isNull()) {
+    clear_retained_move_caches();
+    return;
+  }
+  if (!proxy_content_complete) {
+    // The base excludes the moving set entirely, so it survives the commit
+    // unconditionally; a clipped (or never-built) snapshot re-renders fresh.
+    move_proxy_image_ = QImage();
+    move_proxy_document_rect_ = QRect();
+    move_proxy_rect_canvas_clipped_ = false;
+  } else if (!committed_delta.isNull()) {
+    // The snapshot content translates rigidly with the commit. The translated
+    // rect loses its mip-grid alignment, which only shifts the downsample
+    // phase of AA edges - the same approximation every mid-drag blit already
+    // has (deep-zoom >= 8x keeps its documented grid caveat).
+    move_proxy_document_rect_.translate(committed_delta);
+  }
+  retained_move_ids_ = committed_ids;
+  std::sort(retained_move_ids_.begin(), retained_move_ids_.end());
+  retained_move_composite_level_ = move_base_cache_scale_level_;
+}
+
+void CanvasWidget::clear_retained_move_caches() noexcept {
+  retained_move_ids_.clear();
+  retained_move_composite_level_ = -1;
+  clear_move_base_cache();
+  clear_move_proxy();
+}
+
+void CanvasWidget::invalidate_retained_move_caches() noexcept {
+  if (moving_layer_ || move_drag_pending_) {
+    // Clearing mid-drag would strand the in-flight proxy blit; flag it so the
+    // release skips retention instead.
+    move_external_change_during_drag_ = true;
+    return;
+  }
+  clear_retained_move_caches();
 }
 
 std::uint64_t CanvasWidget::move_live_latch_key() const {

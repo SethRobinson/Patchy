@@ -125,6 +125,6 @@ Read the linked document before working on the feature. The document, not this i
 - **JavaScript scripting and bundled scripts:** [docs/scripting.md](docs/scripting.md).
 - **Single-instance forwarding and CLI screenshots:** `src/app/main.cpp` and [docs/testing.md](docs/testing.md).
 - **README screenshots and contact sheets:** [docs/testing.md](docs/testing.md).
-- **Performance and the stress harness:** [docs/performance.md](docs/performance.md).
+- **Performance and the stress harness:** [docs/performance.md](docs/performance.md); the Move/Free Transform drag-preview machinery is in [docs/interactive-previews.md](docs/interactive-previews.md).
 - **Testy PSD benchmark:** [docs/testy.md](docs/testy.md).
 - **Refactor and cleanup work:** [docs/refactor-backlog.md](docs/refactor-backlog.md) and [docs/code-organization.md](docs/code-organization.md).

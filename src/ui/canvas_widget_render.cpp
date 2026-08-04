@@ -382,6 +382,11 @@ void CanvasWidget::notify_document_changed(DocumentChangeReason reason) {
 void CanvasWidget::document_changed() {
   cancel_async_render_cache_refresh();
   render_cache_dirty_ = true;
+  // This overload bypasses document_changed_impl, so drop the preview-scaled
+  // document and retained move caches here too or a zoomed-out drag previews
+  // stale content.
+  clear_preview_scaled_document();
+  invalidate_retained_move_caches();
   mask_display_image_ = QImage();
   mask_display_image_layer_ = 0;
   mask_display_image_channel_ = 0;
@@ -401,6 +406,9 @@ void CanvasWidget::document_changed_async_preview() {
     return;
   }
 
+  // Same bypass as document_changed(): see the invalidation note there.
+  clear_preview_scaled_document();
+  invalidate_retained_move_caches();
   refresh_free_transform_preview_caches();
   notify_document_changed();
   if (!isVisible()) {
@@ -423,6 +431,10 @@ void CanvasWidget::force_refresh() {
   }
 
   cancel_async_render_cache_refresh();
+  // Bypasses document_changed_impl: see the invalidation note in
+  // document_changed().
+  clear_preview_scaled_document();
+  invalidate_retained_move_caches();
   refresh_free_transform_preview_caches();
   render_cache_ = render_document_image_with_processing();
   quantize_image_for_palette_display(render_cache_);
@@ -464,6 +476,10 @@ void CanvasWidget::grayscale_target_changed(QRect document_rect, DocumentChangeR
 }
 
 void CanvasWidget::active_edit_target_changed_impl(QRegion document_region, DocumentChangeReason reason) {
+  // Mask/channel edit branches below return without document_changed_impl;
+  // invalidate the retained move caches up front (harmlessly repeated when
+  // the plain branch falls through to document_changed_impl).
+  invalidate_retained_move_caches();
   if (quick_mask_active_) {
     const auto canvas_rect = document_ != nullptr
                                  ? QRect(0, 0, document_->width(), document_->height())
@@ -564,8 +580,10 @@ void CanvasWidget::document_changed_impl(QRegion document_region, bool includes_
     clear_smart_filter_mask_edit_target();
   }
   // Any document change invalidates the preview-scaled document; the next
-  // zoomed-out drag rebuilds it lazily.
+  // zoomed-out drag rebuilds it lazily. The retained move base/proxy go the
+  // same way (deferred to the release when a drag is in flight).
   clear_preview_scaled_document();
+  invalidate_retained_move_caches();
   cancel_async_render_cache_refresh();
   refresh_free_transform_preview_caches();
   if (mask_display_mode_ != MaskDisplayMode::None) {

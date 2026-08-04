@@ -280,6 +280,10 @@ public:
     // document (display-resolution compositing at zoom <= 50%). At most once
     // per drag.
     int move_scaled_previews{0};
+    // Times a move press reused the base cache + proxy snapshot retained from
+    // the previous commit of the same selection (skipping both rebuilds). At
+    // most once per drag.
+    int move_preview_cache_reuses{0};
     // Times a move drag fell back to the dashed-outline preview: the work area
     // crossed the same limits but the proxy snapshot could not be built (or
     // would exceed kMoveProxyLastResortSnapshotArea). At most once per drag.
@@ -956,6 +960,18 @@ private:
   // persistent slow-frame latch (see move_live_frame_slow_).
   [[nodiscard]] std::uint64_t move_live_latch_key() const;
   void reset_move_live_latch() noexcept;
+  // Retention of the move base cache + proxy snapshot across consecutive
+  // drags of the SAME selection: the base excludes the moving set entirely
+  // (so its pure translation cannot invalidate it) and the proxy content
+  // translates rigidly with the commit. retain_move_preview_caches runs on
+  // the release routes that change nothing else (precommit-patch success or
+  // zero delta); every external document change funnels through
+  // invalidate_retained_move_caches, which defers to the release when a drag
+  // is active (mid-drag clears would strand the in-flight proxy blit).
+  void retain_move_preview_caches(const std::vector<LayerId>& committed_ids, QPoint committed_delta,
+                                  bool proxy_content_complete);
+  void clear_retained_move_caches() noexcept;
+  void invalidate_retained_move_caches() noexcept;
   // PREVIEW-ONLY scaled document for display-resolution compositing: built
   // lazily per level, kept across drags, dropped on any document change.
   // Returns nullptr when level < 1 or the document is unavailable.
@@ -1757,6 +1773,20 @@ private:
   // possibly downscaled) and the canvas-clipped document rect it covers.
   QImage move_proxy_image_{};
   QRect move_proxy_document_rect_{};
+  // Whether the snapshot's unclipped effect-rect union hung off the canvas at
+  // build: a clipped snapshot is missing content, so it must not be retained
+  // across a commit (a per-drag rebuild re-clips it fresh each time).
+  bool move_proxy_rect_canvas_clipped_{false};
+  // Sorted selection the retained base/proxy belong to (empty = nothing
+  // retained) and the composite level they were built at.
+  std::vector<LayerId> retained_move_ids_;
+  int retained_move_composite_level_{-1};
+  // An external document change arrived while a drag was in flight; the
+  // release must not retain (the base would go stale silently).
+  bool move_external_change_during_drag_{false};
+  // The press matched the retained selection; counted into
+  // move_preview_cache_reuses only when the press becomes a real drag.
+  bool move_press_reused_retained_caches_{false};
   QImage move_base_cache_{};
   // Level the base was composited at (preview-scaled document); 0 = full-res.
   int move_base_cache_scale_level_{0};

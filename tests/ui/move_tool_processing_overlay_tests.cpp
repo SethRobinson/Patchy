@@ -2139,6 +2139,104 @@ void ui_move_drag_with_dirty_render_cache_skips_sync_composite() {
   CHECK(color_close(canvas_pixel(canvas, QPoint(150, 500)), QColor(Qt::white), 45));
 }
 
+// Consecutive drags of the SAME selection reuse the retained base cache and
+// proxy snapshot from the previous commit (the proxy rect translated by the
+// committed delta): the second press skips both rebuilds and the proxy still
+// blits the content at its dragged position. A click that never becomes a
+// drag keeps the retention; an external document change or a different
+// selection drops it.
+void ui_move_repeat_drag_reuses_retained_caches() {
+  patchy::Document document(1500, 1300, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(1500, 1300, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+
+  patchy::Layer layer(document.allocate_layer_id(), "Retained Move",
+                      solid_pixels(1000, 1000, patchy::PixelFormat::rgba8(), QColor(20, 90, 235)));
+  const auto layer_id = layer.id();
+  layer.set_bounds(patchy::Rect{100, 100, 1000, 1000});
+  patchy::LayerStroke stroke;
+  stroke.enabled = true;
+  stroke.blend_mode = patchy::BlendMode::Normal;
+  stroke.color = patchy::RgbColor{40, 180, 80};
+  stroke.opacity = 1.0F;
+  stroke.size = 2.0F;
+  layer.layer_style().strokes.push_back(stroke);
+  document.add_layer(std::move(layer));
+  const auto background_id = std::as_const(document).layers().front().id();
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(900, 720);
+  canvas.set_document(&document);
+  canvas.set_zoom(0.5);
+  canvas.set_tool(patchy::ui::CanvasTool::Move);
+  canvas.set_show_transform_controls(false);
+  canvas.set_auto_select_layer(false);
+  canvas.set_snap_enabled(false);
+  canvas.set_selected_layer_ids({layer_id});
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto before = canvas.render_cache_diagnostics();
+  // Drag 1: the styled area gate latches the proxy on the first move; the
+  // release patches the cache and retains base+proxy. Layer moves to 400..1400.
+  auto start = canvas.widget_position_for_document_point(QPoint(150, 150));
+  send_mouse(canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, start + QPoint(150, 0), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  send_mouse(canvas, QEvent::MouseButtonRelease, start + QPoint(150, 0), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(canvas.render_cache_diagnostics().move_proxy_previews == before.move_proxy_previews + 1);
+  CHECK(canvas.render_cache_diagnostics().move_preview_cache_reuses == before.move_preview_cache_reuses);
+
+  // A click that never becomes a drag keeps the retained caches.
+  start = canvas.widget_position_for_document_point(QPoint(450, 150));
+  send_mouse(canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseButtonRelease, start, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  // Drag 2 of the same selection: the press reuses the retained caches and
+  // the proxy latches on the first move. Layer moves to 460..1460.
+  send_mouse(canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, start + QPoint(30, 0), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(canvas.render_cache_diagnostics().move_preview_cache_reuses == before.move_preview_cache_reuses + 1);
+  CHECK(canvas.render_cache_diagnostics().move_proxy_previews == before.move_proxy_previews + 2);
+  CHECK(color_close(canvas_pixel(canvas, QPoint(430, 150)), QColor(Qt::white), 45));
+  CHECK(color_close(canvas_pixel(canvas, QPoint(520, 150)), QColor(20, 90, 235), 45));
+  send_mouse(canvas, QEvent::MouseButtonRelease, start + QPoint(30, 0), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(canvas, QPoint(520, 150)), QColor(20, 90, 235), 45));
+  CHECK(color_close(canvas_pixel(canvas, QPoint(430, 150)), QColor(Qt::white), 45));
+
+  // An external document change drops the retention: the next press rebuilds.
+  canvas.document_changed();
+  QApplication::processEvents();
+  start = canvas.widget_position_for_document_point(QPoint(510, 150));
+  send_mouse(canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, start + QPoint(-30, 0), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(canvas.render_cache_diagnostics().move_preview_cache_reuses == before.move_preview_cache_reuses + 1);
+  send_mouse(canvas, QEvent::MouseButtonRelease, start + QPoint(-30, 0), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  // A different selection never reuses the retained caches.
+  canvas.set_selected_layer_ids({background_id});
+  start = canvas.widget_position_for_document_point(QPoint(50, 650));
+  send_mouse(canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, start + QPoint(20, 0), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(canvas.render_cache_diagnostics().move_preview_cache_reuses == before.move_preview_cache_reuses + 1);
+  send_mouse(canvas, QEvent::MouseButtonRelease, start, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  const auto settle_deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+  while (!canvas.render_settled() && std::chrono::steady_clock::now() < settle_deadline) {
+    QApplication::processEvents();
+  }
+  CHECK(canvas.render_settled());
+  // Layer ended at 400..1400 after the third drag.
+  CHECK(color_close(canvas_pixel(canvas, QPoint(450, 150)), QColor(20, 90, 235), 45));
+}
+
 // The slow-live-frame latch persists across drags of the same selection: a
 // re-drag latches the proxy on its FIRST move instead of re-paying a slow
 // live frame, while dragging a different layer re-prices from a live frame.
@@ -2880,6 +2978,7 @@ std::vector<patchy::test::TestCase> move_tool_processing_overlay_tests() {
        ui_move_scaled_proxy_after_commit_shows_moved_content},
       {"ui_move_drag_with_dirty_render_cache_skips_sync_composite",
        ui_move_drag_with_dirty_render_cache_skips_sync_composite},
+      {"ui_move_repeat_drag_reuses_retained_caches", ui_move_repeat_drag_reuses_retained_caches},
       {"ui_move_live_slow_latch_persists_across_drags",
        ui_move_live_slow_latch_persists_across_drags},
       {"ui_parallel_region_patches_match_single_threaded", ui_parallel_region_patches_match_single_threaded},

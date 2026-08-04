@@ -319,8 +319,7 @@ void CanvasWidget::set_document_internal(Document* document, bool preserve_frame
   move_preview_patches_.clear();
   move_preview_patches_delta_.reset();
   moving_layers_use_outline_preview_ = false;
-  clear_move_base_cache();
-  clear_move_proxy();
+  clear_retained_move_caches();
   reset_move_live_latch();
   document_ = document;
   set_move_transform_controls_layer(std::nullopt);
@@ -409,8 +408,7 @@ void CanvasWidget::set_tool(CanvasTool tool) {
     move_preview_patches_.clear();
     move_preview_patches_delta_.reset();
     moving_layers_use_outline_preview_ = false;
-    clear_move_base_cache();
-    clear_move_proxy();
+    clear_retained_move_caches();
     reset_move_live_latch();
     set_move_transform_controls_layer(std::nullopt);
     clear_move_hover_outline();
@@ -449,8 +447,7 @@ void CanvasWidget::set_edit_locked(bool locked) noexcept {
     move_preview_patches_.clear();
     move_preview_patches_delta_.reset();
     moving_layers_use_outline_preview_ = false;
-    clear_move_base_cache();
-    clear_move_proxy();
+    clear_retained_move_caches();
     reset_move_live_latch();
     dragging_text_rect_ = false;
     selecting_ = false;

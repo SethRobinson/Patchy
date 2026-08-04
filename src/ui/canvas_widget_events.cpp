@@ -803,8 +803,23 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     move_preview_delta_ = QPoint();
     moving_layers_.clear();
     moving_layers_use_outline_preview_ = false;
-    clear_move_base_cache();
-    clear_move_proxy();
+    move_external_change_during_drag_ = false;
+    // Reuse the retained base/proxy when this press re-drags exactly the
+    // retained selection at the composite level they were built at: the
+    // commit translated the proxy rect and the base never contained the
+    // moving set, so both are current.
+    auto sorted_press_ids = layer_ids;
+    std::sort(sorted_press_ids.begin(), sorted_press_ids.end());
+    if (!retained_move_ids_.empty() && sorted_press_ids == retained_move_ids_ &&
+        preview_composite_level_for_zoom(zoom_) == retained_move_composite_level_ && !move_base_cache_.isNull()) {
+      // Counted only when the press becomes a real drag (the caches build
+      // lazily at the first move, so a plain click skips nothing).
+      move_press_reused_retained_caches_ = true;
+      move_drag_uses_proxy_preview_ = false;
+    } else {
+      move_press_reused_retained_caches_ = false;
+      clear_retained_move_caches();
+    }
     moving_layers_.reserve(layer_ids.size());
     // Selected groups were flattened to leaves above, so a style on the folder
     // itself is invisible to the per-leaf check: fold every styled ancestor's
@@ -1313,6 +1328,10 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       old_transform_controls_rect = move_transform_controls_rect();
       move_drag_pending_ = false;
       moving_layer_ = true;
+      if (move_press_reused_retained_caches_) {
+        ++render_cache_diagnostics_.move_preview_cache_reuses;
+        move_press_reused_retained_caches_ = false;
+      }
       update_move_transform_controls_dirty(old_transform_controls_rect);
     }
     clear_move_hover_outline();
@@ -1343,8 +1362,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       } else {
         moving_layers_use_outline_preview_ = true;
         ++render_cache_diagnostics_.move_outline_previews;
-        clear_move_base_cache();
-        clear_move_proxy();
+        clear_retained_move_caches();
       }
     }
     if (move_drag_uses_proxy_preview_) {
@@ -1796,8 +1814,14 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     move_preview_patches_.clear();
     move_preview_patches_delta_.reset();
     moving_layers_use_outline_preview_ = false;
-    clear_move_base_cache();
-    clear_move_proxy();
+    // A click that never became a drag changed nothing: keep any retained
+    // base/proxy for the next drag (unless something external landed while
+    // the press was pending).
+    move_drag_uses_proxy_preview_ = false;
+    move_press_reused_retained_caches_ = false;
+    if (move_external_change_during_drag_) {
+      clear_retained_move_caches();
+    }
     reset_axis_constrained_stroke();
     update_move_hover_outline(event->pos(), event->modifiers());
     update();
@@ -1926,17 +1950,20 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     for (const auto& moving_layer : moving_layers_) {
       committed_move_ids.push_back(moving_layer.id);
     }
+    const bool proxy_content_complete = !move_proxy_image_.isNull() && !move_proxy_rect_canvas_clipped_;
     moving_layer_ = false;
     move_drag_pending_ = false;
     moving_layers_.clear();
     move_preview_patches_.clear();
     move_preview_patches_delta_.reset();
     moving_layers_use_outline_preview_ = false;
-    clear_move_base_cache();
-    clear_move_proxy();
     reset_axis_constrained_stroke();
     update_move_transform_controls_dirty(std::nullopt);
     update_move_hover_outline(event->pos(), event->modifiers());
+    // Base/proxy clears are deferred to the retention decision below: the
+    // precommit-patch and zero-delta routes keep them for the next drag of
+    // the same selection.
+    bool retain_move_caches = false;
     if (!dirty_region.isEmpty()) {
       if (!precommit_patches.empty() && patch_render_cache_patches(precommit_patches)) {
         ++render_cache_diagnostics_.move_precommit_patches;
@@ -1944,6 +1971,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
           ++render_cache_diagnostics_.move_preview_patch_reuses;
         }
         used_precommit_patch = true;
+        retain_move_caches = true;
         // This route skips document_changed_impl, so the preview-scaled
         // document survives; refit its copies of the moved layers or the next
         // proxy snapshot renders them at their pre-commit positions.
@@ -1962,7 +1990,14 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
         document_changed_effect_bounds(dirty_region);
       }
     } else {
+      // Zero-delta release: nothing changed, so the caches stay valid as-is.
+      retain_move_caches = true;
       update();
+    }
+    if (retain_move_caches && !move_external_change_during_drag_) {
+      retain_move_preview_caches(committed_move_ids, move_preview_delta_, proxy_content_complete);
+    } else {
+      clear_retained_move_caches();
     }
     if (move_operation_active) {
       end_processing_operation();
