@@ -1104,6 +1104,12 @@ void CanvasWidget::start_async_render_cache_refresh() {
               snapshot_size != QSize(widget->document_->width(), widget->document_->height())) {
             return;
           }
+          // Installing here is content-correct even mid-drag or mid-wait:
+          // every mutation path either bumps the generation or sets pending
+          // (the move precommit-patch commit), so an uncancelled, non-pending
+          // completion always matches the current document. The retained move
+          // base/proxy derive from that same content, so this must NOT call
+          // invalidate_retained_move_caches().
           widget->quantize_image_for_palette_display(*image);
           widget->render_cache_ = std::move(*image);
           widget->render_cache_dirty_ = false;
@@ -1238,6 +1244,23 @@ bool CanvasWidget::wait_for_processing_operation(std::function<bool()> operation
     end_processing_operation();
   }
   processing_render_wait_active_ = previous_wait_active;
+  if (!processing_render_wait_active_ && deferred_wait_release_.has_value()) {
+    // Replay the release parked by mouseReleaseEvent on the next main-loop
+    // turn, after the input handler that started this wait has fully
+    // unwound. A stray release with no live gesture no-ops in every branch,
+    // so replaying is always safe; if another wait is active by then, the
+    // guard simply parks it again.
+    QTimer::singleShot(0, this, [this] {
+      if (!deferred_wait_release_.has_value()) {
+        return;
+      }
+      const auto release = *deferred_wait_release_;
+      deferred_wait_release_.reset();
+      QMouseEvent replay(QEvent::MouseButtonRelease, release.position, release.position,
+                         release.global_position, release.button, release.buttons, release.modifiers);
+      QApplication::sendEvent(this, &replay);
+    });
+  }
   return start_temporary_operation;
 }
 
@@ -1270,6 +1293,12 @@ void CanvasWidget::refresh_render_cache_region(const QRegion& document_region) {
     ++render_cache_diagnostics_.dirty_region_batches;
     render_cache_diagnostics_.dirty_region_rects += static_cast<int>(patches.size());
     render_cache_diagnostics_.dirty_region_pixels += static_cast<std::uint64_t>(region_area(clipped));
+  } else if (!patches.empty()) {
+    // Unreachable by construction (the region is pre-clipped and the patches
+    // render at exactly those rects), but if validation ever rejects the set,
+    // leave the cache marked dirty so the next paint re-renders instead of
+    // showing a stale region as settled.
+    render_cache_dirty_ = true;
   }
 }
 
@@ -1286,33 +1315,33 @@ bool CanvasWidget::patch_render_cache_patches(const std::vector<RenderedDocument
     return false;
   }
 
+  // Validate every patch before painting any: a skipped patch used to leave
+  // its rect permanently stale while the cache was still marked clean.
+  // Failing closed hands the whole region to the caller's full-invalidation
+  // fallback instead.
+  const QRect canvas_rect(0, 0, document_->width(), document_->height());
+  for (const auto& patch : patches) {
+    const auto document_rect = patch.document_rect.intersected(canvas_rect);
+    if (patch.image.isNull() || document_rect.isEmpty() ||
+        patch.image.size() != patch.document_rect.size() || document_rect != patch.document_rect) {
+      return false;
+    }
+  }
+
   const auto palette_display = document_->palette_editing().has_value();
   QPainter painter(&render_cache_);
   painter.setCompositionMode(QPainter::CompositionMode_Source);
-  int patched = 0;
   for (const auto& patch : patches) {
-    if (patch.image.isNull()) {
-      continue;
-    }
-    const auto document_rect = patch.document_rect.intersected(QRect(0, 0, document_->width(), document_->height()));
-    if (document_rect.isEmpty() || patch.image.size() != patch.document_rect.size() ||
-        document_rect != patch.document_rect) {
-      continue;
-    }
     if (palette_display) {
       QImage quantized = patch.image;
       quantize_image_for_palette_display(quantized);
-      painter.drawImage(document_rect.topLeft(), quantized);
+      painter.drawImage(patch.document_rect.topLeft(), quantized);
     } else {
-      painter.drawImage(document_rect.topLeft(), patch.image);
+      painter.drawImage(patch.document_rect.topLeft(), patch.image);
     }
-    ++patched;
-  }
-  if (patched <= 0) {
-    return false;
   }
   render_cache_dirty_ = false;
-  render_cache_diagnostics_.partial_patches += patched;
+  render_cache_diagnostics_.partial_patches += static_cast<int>(patches.size());
   invalidate_display_mip_cache();
   refresh_curves_clipping_preview();
   return true;
@@ -2175,7 +2204,13 @@ void CanvasWidget::show_processing_overlay(QString message) {
     ++render_cache_diagnostics_.processing_overlays_shown;
   }
   update();
+#ifndef Q_OS_WASM
+  // Deliver the scheduled paint so the overlay is visible before the caller
+  // blocks. On wasm the overlay paints when the nested wait loop suspends,
+  // and a pump here would only dispatch Qt timers (the web-drop drain, the
+  // picker poll) into the middle of the blocked operation.
   QApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 16);
+#endif
 }
 
 void CanvasWidget::hide_processing_overlay() {

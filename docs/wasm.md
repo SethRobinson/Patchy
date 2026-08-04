@@ -122,8 +122,8 @@ kit (download.qt.io moved 6.11 desktop into per-arch folders with no base
 
 Kit history: the upgrade from 6.8.3 / emsdk 3.1.56 fixed nested-exec
 windows taking no input and non-modal dialogs opening invisibly behind
-their parent (QTBUG-145018/102827/131699), deleting a large workaround
-layer. Regression symptom for nested-loop input: an embind listener
+their parent (QTBUG-145018/102827/131699). Regression symptom for
+nested-loop input: an embind listener
 registered as a Promise where a listener object belongs. 6.10 suspends via
 `EM_ASYNC_JS` (no `-sASYNCIFY_IMPORTS`); Emscripten 3.1.58+ folds the
 pthread bootstrap into `patchy.js` (no `patchy.worker.js`).
@@ -299,6 +299,13 @@ Other step-3 decisions:
 - **One picker at a time:** a second Open while the chooser is up would nest
   a second Asyncify suspend and hang the runtime; the wait dialog is modal
   and `pick_open_file` carries a re-entrancy guard.
+- **DOM interactions must give focus back.** Creating or clicking a DOM
+  element (the picker's `<input>`, the download anchor) moves browser focus
+  off Qt's screen element, and Qt then receives no keydown at all: every
+  hotkey dies until the user clicks the canvas. Call
+  `restore_qt_dom_focus()` (dialog_utils_wasm) after any such interaction;
+  it refocuses Qt's window element only when focus was lost to the page
+  body, so it never steals a widget's keyboard.
 
 ### Browser UI fit
 
@@ -422,16 +429,29 @@ loop while a worker it waits on may itself create threads, and never assume
 a blocking fan-out can reuse workers freed by an earlier fan-out in the same
 blocked stretch.
 
+**User input re-enters nested waits; the canvas guards it.** The wasm
+plugin delivers DOM pointer and key input synchronously into a suspended
+nested loop, so `ExcludeUserInputEvents` is no defense there (it only
+defers queued window-system events). CanvasWidget's input handlers drop
+user input while `processing_render_wait_active_`; mouse releases are
+parked and replayed after the outermost wait unwinds (a dropped release
+would leave the owning gesture latched), and ShortcutOverride is accepted
+so app-level hotkeys cannot fire into a half-committed operation. Without
+this, the Move release re-entered its own commit: the drag kept following
+the mouse after release, patches and mutation used different deltas (the
+pinball poster corruption), and clicks pushed ghost undo snapshots.
+
 **No `processEvents` pump runs mid-operation on wasm.** The browser gets no
 paint or input turn until the main thread suspends in an idle event loop; a
 pump only dispatches Qt timers into the running operation, which once froze
-a tab past recovery on a slow script. Both pumps are compiled out under
+a tab past recovery on a slow script. Three pumps are compiled out under
 `Q_OS_WASM`: the script busy-indicator pump (`pump_progress_indicator`,
-script_engine.cpp) and the processing-overlay tick
-(canvas_widget_render.cpp). Long synchronous bursts show no progress until
-they yield; long filter work already runs on a worker. Companion guards:
-`call_script_callback` refuses reentry while script code is executing; the
-script canvas frame timer is single-shot, re-armed per frame.
+script_engine.cpp), the processing-overlay tick, and the overlay-show pump
+(`show_processing_overlay`), both canvas_widget_render.cpp. Long
+synchronous bursts show no progress until they yield; long filter work
+already runs on a worker. Companion guards: `call_script_callback` refuses
+reentry while script code is executing; the script canvas frame timer is
+single-shot, re-armed per frame.
 
 Slow live previews paint a "Rendering preview..." canvas badge on every
 platform (see [filters.md](filters.md)); it matters most on wasm.

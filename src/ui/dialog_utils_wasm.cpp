@@ -69,6 +69,45 @@ EM_JS(void, patchy_js_open_file_picker, (const char* accept, int generation), {
   input.click();
 });
 
+// Qt receives keyboard input only while one of its DOM elements owns focus.
+// The picker's <input>.click() and the download anchor's click() move browser
+// focus to the body, and nothing on the Qt side notices (Qt still believes
+// its window is active), so every keydown vanishes until the user clicks the
+// canvas. Refocus Qt, but only when focus was actually lost to the page
+// (body/html): while anything inside Qt's shadow tree has focus,
+// document.activeElement reports the shadow HOST, and any other element
+// means some widget legitimately owns the keyboard. Structure (verified
+// against the live 6.10 build): Qt attaches its shadow root to a
+// #qt-shadow-container div it creates inside the screen element, and
+// keyboard focus lives on the per-window .qt-window-focus-helper div; the
+// last one belongs to the topmost window.
+EM_JS(void, patchy_js_restore_qt_dom_focus, (), {
+  const host = document.getElementById("screen");
+  if (!host) {
+    return;
+  }
+  const active = document.activeElement;
+  if (active && active !== document.body && active !== document.documentElement) {
+    return;
+  }
+  let root = host.shadowRoot;
+  if (!root) {
+    for (const el of host.querySelectorAll("*")) {
+      if (el.shadowRoot) {
+        root = el.shadowRoot;
+        break;
+      }
+    }
+  }
+  if (!root) {
+    return;
+  }
+  const helpers = root.querySelectorAll("div.qt-window-focus-helper");
+  if (helpers.length > 0) {
+    helpers[helpers.length - 1].focus();
+  }
+});
+
 // Page-side drop target for files dragged in from the desktop. Reading the
 // dropped Files is pure JS writing into a plain JS queue; the C++ side drains
 // that queue from a QTimer (install_web_drop_target). The JS must never call a
@@ -265,6 +304,8 @@ QString pick_open_file(QWidget* parent, const QString& caption, const QString& f
   // Drop the state so a pick landing after a manual cancel is ignored (the
   // page-side handler also checks it before storing bytes).
   emscripten::val::global("window").set("__patchyPickState", emscripten::val::undefined());
+  // The <input>.click() moved DOM focus off Qt on pick and cancel alike.
+  restore_qt_dom_focus();
   return picked_path;
 }
 
@@ -400,6 +441,13 @@ void download_file_in_browser(const QString& path) {
   anchor.call<void>("click");
   body.call<void>("removeChild", anchor);
   emscripten::val::global("URL").call<void>("revokeObjectURL", url);
+  // The anchor click moved DOM focus off Qt; without this, hotkeys are dead
+  // after every save/export until the user clicks the canvas.
+  restore_qt_dom_focus();
+}
+
+void restore_qt_dom_focus() {
+  patchy_js_restore_qt_dom_focus();
 }
 
 }  // namespace patchy::ui::wasm_files

@@ -226,6 +226,14 @@ bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
 
 bool CanvasWidget::event(QEvent* event) {
   if (event->type() == QEvent::ShortcutOverride) {
+    if (processing_render_wait_active_) {
+      // A blocking processing wait is live and the canvas has focus (every
+      // drag press focuses it): accepting the override keeps app-level
+      // hotkeys (tool switches, undo) from firing into a half-committed
+      // operation. On wasm the nested wait loop can otherwise dispatch them.
+      event->accept();
+      return true;
+    }
     const auto* key_event = static_cast<QKeyEvent*>(event);
     if (key_event->modifiers() == Qt::NoModifier &&
         (key_event->key() == Qt::Key_Backspace || key_event->key() == Qt::Key_Delete)) {
@@ -257,6 +265,13 @@ bool CanvasWidget::event(QEvent* event) {
 }
 
 void CanvasWidget::wheelEvent(QWheelEvent* event) {
+  if (processing_render_wait_active_) {
+    // Re-entrant input during a processing wait (see mousePressEvent): a
+    // mid-commit zoom change would shift the widget rects the release is
+    // about to repaint.
+    event->accept();
+    return;
+  }
   const auto wheel_delta = !event->pixelDelta().isNull() ? event->pixelDelta() : event->angleDelta();
   const auto primary_delta = wheel_delta.y() != 0 ? wheel_delta.y() : wheel_delta.x();
   if (primary_delta == 0) {
@@ -314,6 +329,16 @@ void CanvasWidget::resizeEvent(QResizeEvent* event) {
 }
 
 void CanvasWidget::mousePressEvent(QMouseEvent* event) {
+  if (processing_render_wait_active_) {
+    // A blocking processing wait is live (undo snapshot or accurate-patch
+    // render mid-commit). Desktop defers user input for the duration, but
+    // wasm delivers DOM input synchronously into the nested wait loop
+    // (ExcludeUserInputEvents only defers queued window-system events), so
+    // re-entrant input must not reach gesture state: drop it. Releases are
+    // parked instead (see mouseReleaseEvent).
+    event->accept();
+    return;
+  }
   if (!handling_tablet_event_) {
     active_pen_input_sample_.reset();
   }
@@ -1121,6 +1146,13 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
 }
 
 void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
+  if (processing_render_wait_active_) {
+    // Re-entrant input during a processing wait (see mousePressEvent): a
+    // move delivered mid-commit would keep driving the drag and shift
+    // move_preview_delta_ under the release that is committing it.
+    event->accept();
+    return;
+  }
   if (!handling_tablet_event_) {
     active_pen_input_sample_.reset();
   }
@@ -1619,6 +1651,17 @@ void CanvasWidget::leaveEvent(QEvent* event) {
 }
 
 void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
+  if (processing_render_wait_active_) {
+    // Never drop a release (the gesture that owns the press would stay
+    // latched, e.g. painting_ mid-brush-stroke) and never re-post it (a
+    // re-posted clone wakes the wasm nested wait loop every turn and keeps
+    // it from suspending): park it for wait_for_processing_operation to
+    // replay after the outermost wait unwinds.
+    deferred_wait_release_ = DeferredWaitRelease{event->position(), event->globalPosition(),
+                                                event->button(), event->buttons(), event->modifiers()};
+    event->accept();
+    return;
+  }
   if (!handling_tablet_event_) {
     active_pen_input_sample_.reset();
   }
@@ -1835,17 +1878,28 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     const auto constrained_delta =
         axis_constrained_move_delta(document_position(event->pos()) - move_start_, event->modifiers());
     move_preview_delta_ = axis_constrained_move_delta(snapped_move_delta(constrained_delta), event->modifiers());
+    // The whole commit reads these captured copies, never the live members:
+    // the waits below can dispatch re-entrant input on wasm (the handler
+    // guards drop it, but the members must stay authoritative for exactly
+    // one delta between patch render, layer mutation, and retention).
+    const auto commit_delta = move_preview_delta_;
+    const auto committed_layers = moving_layers_;
+    std::vector<LayerId> committed_move_ids;
+    committed_move_ids.reserve(committed_layers.size());
+    for (const auto& moving_layer : committed_layers) {
+      committed_move_ids.push_back(moving_layer.id);
+    }
     QRegion dirty_region;
     QRegion patched_region;
     std::vector<RenderedDocumentPatch> precommit_patches;
     bool attempted_precommit_patch = false;
     bool used_precommit_patch = false;
     bool reused_preview_patch = false;
-    const auto move_layer_count = moving_layers_.size();
-    const auto move_operation_active = !move_preview_delta_.isNull();
+    const auto move_layer_count = committed_layers.size();
+    const auto move_operation_active = !commit_delta.isNull();
     const bool rerender_smart_filters =
         document_ != nullptr &&
-        std::any_of(moving_layers_.begin(), moving_layers_.end(),
+        std::any_of(committed_layers.begin(), committed_layers.end(),
                     [this](const MovingLayer& moving_layer) {
                       const auto* layer = document_->find_layer(moving_layer.id);
                       return layer != nullptr &&
@@ -1854,14 +1908,14 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     if (move_operation_active) {
       begin_processing_operation();
     }
-    if (!move_preview_delta_.isNull()) {
+    if (!commit_delta.isNull()) {
       const auto move_label =
-          moving_layers_.size() > 1U ? tr("Move layers") : tr("Move layer");
+          committed_layers.size() > 1U ? tr("Move layers") : tr("Move layer");
       std::optional<Document> rollback_document;
       if (rerender_smart_filters && document_ != nullptr) {
         rollback_document.emplace(*document_);
       }
-      dirty_region = moving_layers_dirty_region(QPoint(), move_preview_delta_);
+      dirty_region = moving_layers_dirty_region(committed_layers, QPoint(), commit_delta);
       patched_region = dirty_region;
       if (document_ != nullptr) {
         patched_region = patched_region.intersected(QRect(0, 0, document_->width(), document_->height()));
@@ -1875,7 +1929,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
           !render_cache_.isNull() &&
           render_cache_.size() == QSize(document_->width(), document_->height())) {
         attempted_precommit_patch = true;
-        if (move_preview_patches_delta_.has_value() && *move_preview_patches_delta_ == move_preview_delta_ &&
+        if (move_preview_patches_delta_.has_value() && *move_preview_patches_delta_ == commit_delta &&
             !move_preview_patches_.empty()) {
           // The reused live patches only cover the new-position half (the base
           // cache carried the vacated area during the drag); render the
@@ -1883,9 +1937,10 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
           // rects go first: Source-mode patching lets the new-position
           // patches rewrite the old/new overlap.
           if (!move_base_cache_.isNull()) {
-            const auto vacated_region = moving_layers_dirty_region(QPoint(), QPoint()).intersected(patched_region);
+            const auto vacated_region =
+                moving_layers_dirty_region(committed_layers, QPoint(), QPoint()).intersected(patched_region);
             precommit_patches = qimage_patches_from_document_region_with_layer_bounds(
-                *document_, vacated_region, true, moving_layer_bounds(move_preview_delta_));
+                *document_, vacated_region, true, moving_layer_bounds(committed_layers, commit_delta));
             for (auto& patch : precommit_patches) {
               patch.image = patch.image.convertToFormat(QImage::Format_RGBA8888);
             }
@@ -1896,10 +1951,10 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
           move_preview_patches_.clear();
           reused_preview_patch = true;
         } else {
-          const auto final_bounds = moving_layer_bounds(move_preview_delta_);
+          const auto final_bounds = moving_layer_bounds(committed_layers, commit_delta);
           const auto force_processing_wait =
               moving_layers_use_outline_preview_ || move_drag_uses_proxy_preview_ ||
-              std::any_of(moving_layers_.begin(), moving_layers_.end(),
+              std::any_of(committed_layers.begin(), committed_layers.end(),
                           [](const MovingLayer& layer) { return layer.expensive_style; });
           precommit_patches =
               render_document_patches_with_processing(patched_region, final_bounds, force_processing_wait);
@@ -1909,16 +1964,16 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
         }
       }
       bool smart_filter_rerender_failed = false;
-      for (const auto& moving_layer : moving_layers_) {
+      for (const auto& moving_layer : committed_layers) {
         auto* layer = document_->find_layer(moving_layer.id);
         if (layer == nullptr) {
           continue;
         }
         auto new_bounds = moving_layer.original_bounds;
-        new_bounds.x += move_preview_delta_.x();
-        new_bounds.y += move_preview_delta_.y();
+        new_bounds.x += commit_delta.x();
+        new_bounds.y += commit_delta.y();
         layer->set_bounds(new_bounds);
-        patchy::translate_moved_layer_metadata(*layer, move_preview_delta_.x(), move_preview_delta_.y(),
+        patchy::translate_moved_layer_metadata(*layer, commit_delta.x(), commit_delta.y(),
                                                document_->width(), document_->height());
         if (move_layer_requires_smart_filter_rerender(*layer)) {
           if (!smart_object_transform_render_callback_ ||
@@ -1944,11 +1999,6 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
         }
         *document_ = std::move(committed_document);
       }
-    }
-    std::vector<LayerId> committed_move_ids;
-    committed_move_ids.reserve(moving_layers_.size());
-    for (const auto& moving_layer : moving_layers_) {
-      committed_move_ids.push_back(moving_layer.id);
     }
     const bool proxy_content_complete = !move_proxy_image_.isNull() && !move_proxy_rect_canvas_clipped_;
     moving_layer_ = false;
@@ -1976,6 +2026,14 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
         // document survives; refit its copies of the moved layers or the next
         // proxy snapshot renders them at their pre-commit positions.
         retarget_preview_scaled_for_committed_move(committed_move_ids);
+        // It also skips the generation bump, so an async refresh snapshotted
+        // before this commit would install pre-move pixels over the patch.
+        // Pending makes its completion discard that frame and re-snapshot;
+        // cancelling instead would strand the stale mix that
+        // document_changed_async_preview relies on the refresh to replace.
+        if (async_render_cache_in_flight_) {
+          async_render_cache_pending_ = true;
+        }
         notify_document_changed();
         if (zoom_ < 1.0) {
           update();
@@ -1995,7 +2053,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
       update();
     }
     if (retain_move_caches && !move_external_change_during_drag_) {
-      retain_move_preview_caches(committed_move_ids, move_preview_delta_, proxy_content_complete);
+      retain_move_preview_caches(committed_move_ids, commit_delta, proxy_content_complete);
     } else {
       clear_retained_move_caches();
     }
@@ -2299,6 +2357,11 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
 }
 
 void CanvasWidget::mouseDoubleClickEvent(QMouseEvent* event) {
+  if (processing_render_wait_active_) {
+    // Re-entrant input during a processing wait (see mousePressEvent).
+    event->accept();
+    return;
+  }
   const auto document_point = document_position(event->pos());
   if (edit_locked_) {
     show_edit_locked_message();
@@ -2371,6 +2434,12 @@ void CanvasWidget::mouseDoubleClickEvent(QMouseEvent* event) {
 }
 
 void CanvasWidget::keyPressEvent(QKeyEvent* event) {
+  if (processing_render_wait_active_) {
+    // Re-entrant input during a processing wait (see mousePressEvent); this
+    // also keeps arrow-key nudges from nesting inside their own commit wait.
+    event->accept();
+    return;
+  }
   if (brush_adjust_dragging_ && event->key() == Qt::Key_Escape) {
     end_brush_adjust_drag(false);
     event->accept();

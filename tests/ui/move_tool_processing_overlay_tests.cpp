@@ -2239,6 +2239,145 @@ void ui_move_repeat_drag_reuses_retained_caches() {
   CHECK(color_close(canvas_pixel(canvas, QPoint(450, 150)), QColor(20, 90, 235), 45));
 }
 
+// Desktop simulation of the wasm move-commit re-entrancy bug: Qt's wasm
+// platform delivers DOM input synchronously into the nested wait loops the
+// release commit runs (undo snapshot + accurate patch render), which used to
+// keep driving the drag after release, commit with a different delta than
+// the cache patches were rendered for, and push ghost undo entries. The
+// canvas handlers now drop (releases: park-and-replay) input while
+// processing_render_wait_active_. This drives a commit with slowed waits and
+// injects input mid-wait from timers, exactly the way wasm delivers it.
+void ui_move_commit_ignores_reentrant_input_during_processing_wait() {
+  patchy::Document document(400, 300, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(400, 300, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  patchy::Layer layer(document.allocate_layer_id(), "Reentrant Move",
+                      solid_pixels(60, 60, patchy::PixelFormat::rgba8(), QColor(20, 90, 235)));
+  const auto layer_id = layer.id();
+  layer.set_bounds(patchy::Rect{40, 40, 60, 60});
+  document.add_layer(std::move(layer));
+  document.set_active_layer(layer_id);
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Reentrant Move"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(patchy::ui::CanvasTool::Move);
+  canvas->set_show_transform_controls(false);
+  canvas->set_auto_select_layer(false);
+  canvas->set_snap_enabled(false);
+  canvas->set_zoom(1.0);
+  canvas->set_selected_layer_ids({layer_id});
+  QApplication::processEvents();
+  canvas->force_refresh();
+  QApplication::processEvents();
+  const auto settle = [&] {
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+    while (!canvas->render_settled() && std::chrono::steady_clock::now() < deadline) {
+      QApplication::processEvents();
+    }
+    CHECK(canvas->render_settled());
+  };
+  settle();
+
+  EnvironmentVariableRestorer restore_delay("PATCHY_PROCESSING_OVERLAY_DELAY_MS");
+  EnvironmentVariableRestorer restore_min_pixels("PATCHY_PROCESSING_OVERLAY_MIN_PIXELS");
+  EnvironmentVariableRestorer restore_render_delay("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS");
+  EnvironmentVariableRestorer restore_undo_delay("PATCHY_UNDO_SNAPSHOT_TEST_DELAY_MS");
+  qputenv("PATCHY_PROCESSING_OVERLAY_DELAY_MS", QByteArray("0"));
+  qputenv("PATCHY_PROCESSING_OVERLAY_MIN_PIXELS", QByteArray("0"));
+  qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", QByteArray("250"));
+  qputenv("PATCHY_UNDO_SNAPSHOT_TEST_DELAY_MS", QByteArray("250"));
+
+  const auto undo_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  const auto start = canvas->widget_position_for_document_point(QPoint(70, 70));
+  send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, start + QPoint(40, 0), Qt::NoButton, Qt::LeftButton);
+
+  // The desktop wait loops pump timers once the overlay shows (delay 0 shows
+  // it on the first tick), so these fire inside the undo-snapshot wait
+  // (~60 ms into a 250 ms sleep) and the patch-render wait (~300 ms): a
+  // buttonless drift move plus a full press/move/release triplet, the shape
+  // that used to drift the commit and push a ghost undo entry.
+  int injections_during_wait = 0;
+  const auto inject = [&] {
+    if (!canvas->processing_overlay_visible()) {
+      return;
+    }
+    ++injections_during_wait;
+    const auto drift = start + QPoint(160, 40);
+    QMouseEvent drift_move(QEvent::MouseMove, drift, canvas->mapToGlobal(drift), Qt::NoButton, Qt::NoButton,
+                           Qt::NoModifier);
+    QApplication::sendEvent(canvas, &drift_move);
+    const auto ghost = start + QPoint(120, 80);
+    QMouseEvent ghost_press(QEvent::MouseButtonPress, ghost, canvas->mapToGlobal(ghost), Qt::LeftButton,
+                            Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(canvas, &ghost_press);
+    const auto ghost_end = ghost + QPoint(30, 30);
+    QMouseEvent ghost_move(QEvent::MouseMove, ghost_end, canvas->mapToGlobal(ghost_end), Qt::NoButton,
+                           Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(canvas, &ghost_move);
+    QMouseEvent ghost_release(QEvent::MouseButtonRelease, ghost_end, canvas->mapToGlobal(ghost_end), Qt::LeftButton,
+                              Qt::NoButton, Qt::NoModifier);
+    QApplication::sendEvent(canvas, &ghost_release);
+  };
+  QTimer::singleShot(60, canvas, inject);
+  QTimer::singleShot(300, canvas, inject);
+
+  // Release at a position past the last live move so the commit renders
+  // fresh patches (the second wait) instead of reusing the live ones.
+  send_mouse(*canvas, QEvent::MouseButtonRelease, start + QPoint(50, 0), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(injections_during_wait >= 1);
+
+  // The commit landed exactly at the release delta (+50, 0), unmoved by the
+  // injected input; exactly one undo state was pushed.
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+  const auto* moved = std::as_const(doc).find_layer(layer_id);
+  CHECK(moved != nullptr);
+  if (moved != nullptr) {
+    CHECK(moved->bounds().x == 90);
+    CHECK(moved->bounds().y == 40);
+  }
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before + 1);
+
+  // Speed the tail up before settling (the delays also slow the async
+  // refresh the release scheduled).
+  qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", QByteArray("0"));
+  qputenv("PATCHY_UNDO_SNAPSHOT_TEST_DELAY_MS", QByteArray("0"));
+  settle();
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before + 1);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(140, 70)), QColor(20, 90, 235), 8));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(45, 70)), QColor(Qt::white), 8));
+
+  // The committed pixels match a from-scratch composite (no stale or
+  // misaligned patch survived in the render cache).
+  const auto committed = render_widget_image(*canvas);
+  canvas->force_refresh();
+  settle();
+  const auto reference = render_widget_image(*canvas);
+  CHECK(images_equal_rgba(committed, reference));
+
+  // Undo restores the original position, and a subsequent normal drag still
+  // commits (the guard did not latch).
+  patchy::ui::MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  settle();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(45, 70)), QColor(20, 90, 235), 8));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(140, 70)), QColor(Qt::white), 8));
+  const auto redo_start = canvas->widget_position_for_document_point(QPoint(70, 70));
+  send_mouse(*canvas, QEvent::MouseButtonPress, redo_start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, redo_start + QPoint(20, 0), Qt::NoButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, redo_start + QPoint(20, 0), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  settle();
+  const auto* redragged = std::as_const(doc).find_layer(layer_id);
+  CHECK(redragged != nullptr);
+  if (redragged != nullptr) {
+    CHECK(redragged->bounds().x == 60);
+  }
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before + 1);
+}
+
 // Real-file regression for the pinball poster report: with the "ARCADE" and
 // "3D" folders selected (autoselect off), the SECOND drag used to stall
 // ~1.5 s paying a synchronous full-resolution composite inside its first
@@ -2330,6 +2469,15 @@ void ui_move_pinball_poster_second_folder_drag_has_no_sync_composite_if_availabl
   send_mouse(*canvas, QEvent::MouseButtonRelease, start + QPoint(40, 0), Qt::LeftButton, Qt::NoButton);
   QApplication::processEvents();
   settle();
+
+  // The committed canvas must match a from-scratch composite: a stale or
+  // misaligned release patch (the corruption half of the pinball report)
+  // shows up as a mismatch here.
+  const auto committed = render_widget_image(*canvas);
+  canvas->force_refresh();
+  settle();
+  const auto reference = render_widget_image(*canvas);
+  CHECK(images_equal_rgba(committed, reference));
 }
 
 // The slow-live-frame latch persists across drags of the same selection: a
@@ -3074,6 +3222,8 @@ std::vector<patchy::test::TestCase> move_tool_processing_overlay_tests() {
       {"ui_move_drag_with_dirty_render_cache_skips_sync_composite",
        ui_move_drag_with_dirty_render_cache_skips_sync_composite},
       {"ui_move_repeat_drag_reuses_retained_caches", ui_move_repeat_drag_reuses_retained_caches},
+      {"ui_move_commit_ignores_reentrant_input_during_processing_wait",
+       ui_move_commit_ignores_reentrant_input_during_processing_wait},
       {"ui_move_pinball_poster_second_folder_drag_has_no_sync_composite_if_available",
        ui_move_pinball_poster_second_folder_drag_has_no_sync_composite_if_available},
       {"ui_move_live_slow_latch_persists_across_drags",

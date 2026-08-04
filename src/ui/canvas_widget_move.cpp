@@ -235,9 +235,14 @@ QRect CanvasWidget::moving_layer_outline_rect(const MovingLayer& moving_layer, Q
 }
 
 std::vector<std::pair<LayerId, Rect>> CanvasWidget::moving_layer_bounds(QPoint delta) const {
+  return moving_layer_bounds(moving_layers_, delta);
+}
+
+std::vector<std::pair<LayerId, Rect>> CanvasWidget::moving_layer_bounds(
+    const std::vector<MovingLayer>& moving_layers, QPoint delta) const {
   std::vector<std::pair<LayerId, Rect>> bounds;
-  bounds.reserve(moving_layers_.size());
-  for (const auto& moving_layer : moving_layers_) {
+  bounds.reserve(moving_layers.size());
+  for (const auto& moving_layer : moving_layers) {
     auto moved = moving_layer.original_bounds;
     moved.x += delta.x();
     moved.y += delta.y();
@@ -261,11 +266,16 @@ QRect CanvasWidget::moving_layer_effect_rect(const Layer& layer, const MovingLay
 }
 
 QRegion CanvasWidget::moving_layers_dirty_region(QPoint old_delta, QPoint new_delta) const {
+  return moving_layers_dirty_region(moving_layers_, old_delta, new_delta);
+}
+
+QRegion CanvasWidget::moving_layers_dirty_region(const std::vector<MovingLayer>& moving_layers,
+                                                 QPoint old_delta, QPoint new_delta) const {
   QRegion region;
   if (document_ == nullptr) {
     return region;
   }
-  for (const auto& moving_layer : moving_layers_) {
+  for (const auto& moving_layer : moving_layers) {
     auto* layer = document_->find_layer(moving_layer.id);
     if (layer == nullptr) {
       continue;

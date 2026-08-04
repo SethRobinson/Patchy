@@ -42,4 +42,11 @@ void download_file_in_browser(const QString& path);
 // files too, one of the two paths must be gated off.)
 void install_web_drop_target(std::function<void(const QString& path)> open_dropped_path);
 
+// Gives DOM focus back to Qt's screen element. Any code that creates or
+// clicks a DOM element (the file picker's <input>, the download anchor) moves
+// browser focus off Qt, after which Qt receives no keydown at all - every
+// hotkey dies until the user clicks the canvas. Call after any such
+// interaction; harmless when Qt already has focus.
+void restore_qt_dom_focus();
+
 }  // namespace patchy::ui::wasm_files

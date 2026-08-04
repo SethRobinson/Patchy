@@ -1310,7 +1310,11 @@ private:
   [[nodiscard]] QRect moving_layer_effect_rect(const Layer& layer, const MovingLayer& moving_layer,
                                                QPoint delta) const;
   [[nodiscard]] std::vector<std::pair<LayerId, Rect>> moving_layer_bounds(QPoint delta) const;
+  [[nodiscard]] std::vector<std::pair<LayerId, Rect>> moving_layer_bounds(
+      const std::vector<MovingLayer>& moving_layers, QPoint delta) const;
   [[nodiscard]] QRegion moving_layers_dirty_region(QPoint old_delta, QPoint new_delta) const;
+  [[nodiscard]] QRegion moving_layers_dirty_region(const std::vector<MovingLayer>& moving_layers,
+                                                   QPoint old_delta, QPoint new_delta) const;
   [[nodiscard]] QRect moving_layers_outline_dirty_rect(QPoint old_delta, QPoint new_delta) const;
   [[nodiscard]] bool moving_layers_should_use_outline_preview(QPoint old_delta, QPoint new_delta) const;
   [[nodiscard]] QRegion move_active_layer_by(QPoint delta);
@@ -1709,6 +1713,18 @@ private:
   QBasicTimer processing_animation_timer_;
   bool processing_overlay_visible_{false};
   bool processing_render_wait_active_{false};
+  // A mouse release that arrived while processing_render_wait_active_ (wasm
+  // delivers DOM input synchronously into the nested wait loop). Parked here
+  // instead of dropped so the gesture that owns the press still ends;
+  // wait_for_processing_operation replays it once the outermost wait unwinds.
+  struct DeferredWaitRelease {
+    QPointF position;
+    QPointF global_position;
+    Qt::MouseButton button{Qt::NoButton};
+    Qt::MouseButtons buttons;
+    Qt::KeyboardModifiers modifiers;
+  };
+  std::optional<DeferredWaitRelease> deferred_wait_release_;
   int preview_renders_in_flight_{0};
   QElapsedTimer preview_render_started_{};
   int processing_operation_depth_{0};
