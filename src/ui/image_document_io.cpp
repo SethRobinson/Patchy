@@ -1599,6 +1599,18 @@ std::vector<RenderedDocumentPatch> qimage_patches_from_document_region_with_laye
   return render_document_region(document, document_region, preserve_alpha, &overrides);
 }
 
+std::vector<RenderedDocumentPatch> qimage_patches_from_document_region_with_layer_pixel_overrides(
+    const Document& document, const QRegion& document_region, bool preserve_alpha,
+    const std::vector<LayerPixelsOverrideSpec>& layer_overrides) {
+  std::vector<render_detail::LayerBoundsOverride> overrides;
+  overrides.reserve(layer_overrides.size());
+  for (const auto& layer_override : layer_overrides) {
+    overrides.push_back(render_detail::LayerBoundsOverride{layer_override.layer_id, layer_override.bounds,
+                                                           layer_override.pixels});
+  }
+  return render_document_region(document, document_region, preserve_alpha, &overrides);
+}
+
 namespace {
 
 std::vector<render_detail::LayerBoundsOverride> hidden_layer_overrides(const Document& document,

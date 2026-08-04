@@ -216,6 +216,7 @@ int main(int argc, char* argv[]) {
            move_tool_processing_overlay_tests,
            selection_marquee_lasso_tests,
            clipboard_free_transform_tests,
+           group_transform_tests,
            channels_panel_tests,
            camera_raw_heif_tests,
            layer_mask_tests,

@@ -2164,9 +2164,13 @@ void MainWindow::sync_transform_controls_from_canvas() {
   }
   const bool warp_active = canvas_ != nullptr && canvas_->warp_transform_active();
   const bool session_active = warp_active || (has_state && state->active);
+  // Warp works on one layer; a folder/multi-selection transform session cannot
+  // switch modes (same rule as refresh_options_bar's warp-toggle state).
+  const bool multi_target_transform = canvas_ != nullptr && canvas_->free_transform_is_multi_target();
   for (auto* button : {transform_warp_mode_button_, transform_apply_button_, transform_cancel_button_}) {
     if (button != nullptr) {
-      button->setEnabled(session_active);
+      button->setEnabled(session_active &&
+                         !(button == transform_warp_mode_button_ && multi_target_transform));
     }
   }
   if (!state.has_value()) {
@@ -2278,6 +2282,11 @@ void MainWindow::refresh_options_bar() {
     // setChecked never emits clicked, so no blocker is needed; this also restores
     // the visual state after a refused switch (text layer, undecodable source).
     transform_warp_mode_button_->setChecked(warp_session);
+    // Warp works on one layer; a folder/multi-selection transform session
+    // cannot switch modes, so gray the toggle instead of letting it refuse.
+    if (transform_session_active && canvas_ != nullptr && canvas_->free_transform_is_multi_target()) {
+      transform_warp_mode_button_->setEnabled(false);
+    }
   }
   // The text session's apply/cancel pair rides next to the text controls while an
   // inline editor is open.  The finished-property check matters: commit teardown

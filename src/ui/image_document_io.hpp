@@ -88,6 +88,17 @@ bool promote_flat_alpha_to_layer_mask(Document& document);
 [[nodiscard]] std::vector<RenderedDocumentPatch> qimage_patches_from_document_region_with_layer_pixels(
     const Document& document, const QRegion& document_region, bool preserve_alpha, LayerId layer_id,
     const PixelBuffer& layer_pixels, Rect layer_bounds);
+// N-layer variant of the pixel-substituting region render (multi-target Free
+// Transform preview). Same override semantics per entry: the mask, when
+// present, stays at its document position. Pixel pointers must outlive the call.
+struct LayerPixelsOverrideSpec {
+  LayerId layer_id{};
+  Rect bounds{};
+  const PixelBuffer* pixels{nullptr};
+};
+[[nodiscard]] std::vector<RenderedDocumentPatch> qimage_patches_from_document_region_with_layer_pixel_overrides(
+    const Document& document, const QRegion& document_region, bool preserve_alpha,
+    const std::vector<LayerPixelsOverrideSpec>& layer_overrides);
 [[nodiscard]] QImage qimage_from_document_rect_with_hidden_layers(
     const Document& document, QRect document_rect, bool preserve_alpha,
     const std::vector<LayerId>& hidden_layer_ids);

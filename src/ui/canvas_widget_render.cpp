@@ -857,7 +857,8 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
     }
   };
   const bool draw_transform_overlay =
-      transforming_layer_ && !transform_source_image_.isNull() && !transform_base_cache_.isNull();
+      transforming_layer_ && !transform_base_cache_.isNull() &&
+      (!transform_source_image_.isNull() || !transform_multi_snapshot_.isNull());
   const bool draw_warp_overlay = warping_layer_ && (!warp_preview_patches_.empty() || !warp_base_cache_.isNull());
 
   painter.save();

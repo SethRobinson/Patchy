@@ -486,6 +486,117 @@ TransformedImage resample_warped_rgba8(const QImage& source, const WarpSurfaceGr
   return TransformedImage{std::move(transformed), bounds};
 }
 
+TransformedMask resample_transformed_gray8(const PixelBuffer& source, std::uint8_t default_color,
+                                           const QTransform& source_to_document,
+                                           CanvasWidget::TransformInterpolation interpolation) {
+  const auto source_width = source.width();
+  const auto source_height = source.height();
+  const auto mapped = source_to_document.mapRect(QRectF(0.0, 0.0, source_width, source_height));
+  const auto left = static_cast<int>(std::floor(mapped.left()));
+  const auto top = static_cast<int>(std::floor(mapped.top()));
+  const auto right = static_cast<int>(std::ceil(mapped.right()));
+  const auto bottom = static_cast<int>(std::ceil(mapped.bottom()));
+  PixelBuffer transformed(std::max(1, right - left), std::max(1, bottom - top), PixelFormat::gray8());
+  transformed.clear(default_color);
+  const auto bounds = Rect{left, top, transformed.width(), transformed.height()};
+
+  bool invertible = false;
+  const auto document_to_source = source_to_document.inverted(&invertible);
+  if (!invertible || source.empty()) {
+    return TransformedMask{std::move(transformed), bounds};
+  }
+
+  const auto* source_bits = source.data().data();
+  const auto source_stride = source.stride_bytes();
+  const auto sample_gray = [source_bits, source_stride, source_width, source_height, default_color](int x,
+                                                                                                    int y) {
+    if (x < 0 || y < 0 || x >= source_width || y >= source_height) {
+      return static_cast<double>(default_color);
+    }
+    return static_cast<double>(
+        source_bits[static_cast<std::size_t>(y) * source_stride + static_cast<std::size_t>(x)]);
+  };
+
+  // Same parallel contract as resample_transformed_rgba8: every output pixel is
+  // a pure function of (source, inverse transform, x, y), so row strips are
+  // byte-identical to the sequential walk. The single detach up front matters:
+  // concurrent data() calls from workers would race on the copy-on-write bytes.
+  auto* transformed_bits = transformed.data().data();
+  const auto transformed_stride = transformed.stride_bytes();
+  const auto resample_rows = [&sample_gray, &document_to_source, interpolation, transformed_bits,
+                              transformed_stride, left, top, source_width, source_height, default_color,
+                              width = transformed.width()](int row_begin, int row_end) {
+    for (int y = row_begin; y < row_end; ++y) {
+      auto* row = transformed_bits + static_cast<std::size_t>(y) * transformed_stride;
+      for (int x = 0; x < width; ++x) {
+        const auto source_point = document_to_source.map(QPointF(static_cast<double>(left + x) + 0.5,
+                                                                 static_cast<double>(top + y) + 0.5));
+        double value = 0.0;
+        switch (interpolation) {
+          case CanvasWidget::TransformInterpolation::NearestNeighbor: {
+            if (source_point.x() < 0.0 || source_point.y() < 0.0 || source_point.x() >= source_width ||
+                source_point.y() >= source_height) {
+              value = static_cast<double>(default_color);
+            } else {
+              value = sample_gray(static_cast<int>(std::floor(source_point.x())),
+                                  static_cast<int>(std::floor(source_point.y())));
+            }
+            break;
+          }
+          case CanvasWidget::TransformInterpolation::Bilinear: {
+            const auto sx = source_point.x() - 0.5;
+            const auto sy = source_point.y() - 0.5;
+            const auto x0 = static_cast<int>(std::floor(sx));
+            const auto y0 = static_cast<int>(std::floor(sy));
+            const auto tx = sx - static_cast<double>(x0);
+            const auto ty = sy - static_cast<double>(y0);
+            value = sample_gray(x0, y0) * (1.0 - tx) * (1.0 - ty) +
+                    sample_gray(x0 + 1, y0) * tx * (1.0 - ty) +
+                    sample_gray(x0, y0 + 1) * (1.0 - tx) * ty + sample_gray(x0 + 1, y0 + 1) * tx * ty;
+            break;
+          }
+          case CanvasWidget::TransformInterpolation::Bicubic: {
+            const auto sx = source_point.x() - 0.5;
+            const auto sy = source_point.y() - 0.5;
+            const auto base_x = static_cast<int>(std::floor(sx));
+            const auto base_y = static_cast<int>(std::floor(sy));
+            for (int yy = -1; yy <= 2; ++yy) {
+              const auto wy = cubic_weight(sy - static_cast<double>(base_y + yy));
+              for (int xx = -1; xx <= 2; ++xx) {
+                const auto wx = cubic_weight(sx - static_cast<double>(base_x + xx));
+                value += sample_gray(base_x + xx, base_y + yy) * wx * wy;
+              }
+            }
+            break;
+          }
+        }
+        row[x] = clamp_sample_channel(value);
+      }
+    }
+  };
+
+  const auto area = static_cast<std::int64_t>(transformed.width()) * transformed.height();
+  const auto hardware_threads = static_cast<int>(std::thread::hardware_concurrency());
+  const auto workers = patchy::max_blocking_fanout_workers(
+      std::clamp(std::min(transformed.height() / 128, hardware_threads), 1, 16));
+  if (area >= 1'000'000 && workers >= 2 && !qEnvironmentVariableIsSet("PATCHY_RENDER_SINGLE_THREADED")) {
+    std::vector<std::future<void>> strips;
+    strips.reserve(static_cast<std::size_t>(workers));
+    const auto rows_per_strip = (transformed.height() + workers - 1) / workers;
+    for (int start = 0; start < transformed.height(); start += rows_per_strip) {
+      const auto end = std::min(start + rows_per_strip, transformed.height());
+      strips.push_back(std::async(std::launch::async, resample_rows, start, end));
+    }
+    for (auto& strip : strips) {
+      strip.get();
+    }
+  } else {
+    resample_rows(0, transformed.height());
+  }
+
+  return TransformedMask{std::move(transformed), bounds};
+}
+
 bool CanvasWidget::begin_free_transform() {
   if (layer_edit_target_ == LayerEditTarget::SmartFilterMask) {
     report_status_error(tr("This tool is unavailable while editing a Smart Filter mask"));
@@ -494,6 +605,12 @@ bool CanvasWidget::begin_free_transform() {
   if (warping_layer_) {
     // Single session: switching modes keeps the pending warp (Photoshop behavior).
     return switch_warp_to_free_transform();
+  }
+  // A selected folder or a multi-layer selection transforms as one flattened
+  // target set (Photoshop behavior). Exactly one non-group root keeps the
+  // single-layer path below byte-for-byte; its commit bytes are pinned.
+  if (auto collection = collect_free_transform_targets(); !collection.use_single_layer_path) {
+    return begin_free_transform_multi(std::move(collection));
   }
   Layer* layer = nullptr;
   if (document_ != nullptr && selected_layer_ids_.size() == 1U) {
@@ -572,6 +689,209 @@ bool CanvasWidget::begin_free_transform() {
   return true;
 }
 
+// Resolves the current panel selection to Free Transform targets. Exactly one
+// non-group root defers to the single-layer path; a folder or a multi-root
+// selection flattens to transformable leaves the way movable_layer_ids does,
+// except that a leaf the transform cannot take along (position lock, preview-
+// locked smart object, vector lock, unsupported Smart Filter stack) refuses the
+// WHOLE session instead of being skipped: scaling the rest of a folder around a
+// pinned member would tear the artwork apart.
+CanvasWidget::TransformTargetCollection CanvasWidget::collect_free_transform_targets() const {
+  TransformTargetCollection collection;
+  if (document_ == nullptr) {
+    collection.refusal = tr("Select an editable pixel layer to transform");
+    return collection;
+  }
+  std::vector<LayerId> roots;
+  if (!selected_layer_ids_.empty()) {
+    roots = root_drop_layer_ids(std::as_const(*document_).layers(), selected_layer_ids_);
+  } else if (const auto active = document_->active_layer_id(); active.has_value()) {
+    roots.push_back(*active);
+  }
+  if (roots.empty()) {
+    collection.refusal = tr("Select an editable pixel layer to transform");
+    return collection;
+  }
+  if (roots.size() == 1U) {
+    const auto* root = std::as_const(*document_).find_layer(roots.front());
+    if (root == nullptr || root->kind() != LayerKind::Group) {
+      collection.use_single_layer_path = true;
+      return collection;
+    }
+  }
+
+  const auto ancestor_style_info = collect_ancestor_group_style_info(std::as_const(*document_).layers());
+  const auto has_linked_raster_mask = [](const Layer& layer) {
+    return layer.mask().has_value() && !layer.mask()->pixels.empty() && layer_mask_linked(layer);
+  };
+  const auto add_mask_only = [&collection, &has_linked_raster_mask](const Layer& layer) {
+    if (has_linked_raster_mask(layer) || layer.vector_mask() != nullptr) {
+      collection.mask_only_ids.push_back(layer.id());
+    }
+  };
+
+  const std::function<bool(const Layer&, LayerLockFlags)> walk = [&](const Layer& layer,
+                                                                     LayerLockFlags ancestor_flags) -> bool {
+    const auto effective_flags = ancestor_flags | patchy::layer_lock_flags(layer);
+    if (layer.kind() == LayerKind::Group) {
+      add_mask_only(layer);
+      for (const auto& child : layer.children()) {
+        if (!walk(child, effective_flags)) {
+          return false;
+        }
+      }
+      return true;
+    }
+    if (layer.kind() == LayerKind::Adjustment) {
+      // No pixels of its own; its masks position the effect and ride along.
+      collection.mask_only_ids.push_back(layer.id());
+      return true;
+    }
+    if (!layer_has_movable_pixels(layer)) {
+      if (layer_is_smart_object(layer) && !smart_object_lock_reason(layer).empty()) {
+        collection.refusal =
+            tr("This smart object is preview-only and can't be transformed. Rasterize the layer first.");
+        return false;
+      }
+      if (const auto* stack = layer.smart_filter_stack();
+          stack != nullptr && stack->support == SmartFilterStackSupport::Unsupported) {
+        collection.refusal = tr("Select an editable pixel layer to transform");
+        return false;
+      }
+      // Empty or non-editable pixels: nothing to transform, but linked masks
+      // still ride along.
+      add_mask_only(layer);
+      return true;
+    }
+    if ((effective_flags & kLayerLockPosition) != kLayerLockNone) {
+      collection.position_lock_refusal = true;
+      return false;
+    }
+    if (layer_is_smart_object(layer) && !smart_object_lock_reason(layer).empty()) {
+      collection.refusal =
+          tr("This smart object is preview-only and can't be transformed. Rasterize the layer first.");
+      return false;
+    }
+    if (!vector_lock_reason(layer).empty()) {
+      collection.refusal = tr("This layer's vector data is preserved but can't be edited.");
+      return false;
+    }
+    const auto local_rect = move_layer_transform_local_rect(layer);
+    if (!local_rect.has_value() || local_rect->isEmpty()) {
+      add_mask_only(layer);
+      return true;
+    }
+    if (std::any_of(collection.targets.begin(), collection.targets.end(),
+                    [&layer](const TransformTarget& target) { return target.id == layer.id(); })) {
+      return true;
+    }
+    // Selected groups flatten to leaves, so a style on the folder itself is
+    // invisible to the per-leaf check: fold every styled ancestor's expense and
+    // padding back into each leaf's entry (the MovingLayer pattern).
+    auto expensive_style = layer.layer_style().effects_visible && !layer.layer_style().empty();
+    int ancestor_effect_padding = 0;
+    if (const auto found = ancestor_style_info.find(layer.id()); found != ancestor_style_info.end()) {
+      expensive_style = expensive_style || found->second.styled;
+      ancestor_effect_padding = found->second.effect_padding;
+    }
+    collection.targets.push_back(TransformTarget{layer.id(), layer.bounds(), *local_rect, QImage(),
+                                                 expensive_style, ancestor_effect_padding});
+    return true;
+  };
+
+  for (const auto root_id : roots) {
+    const auto* root = std::as_const(*document_).find_layer(root_id);
+    if (root == nullptr) {
+      continue;
+    }
+    if (!walk(*root, patchy::layer_ancestor_lock_flags(std::as_const(*document_).layers(), root_id))) {
+      return collection;
+    }
+  }
+  if (collection.targets.empty()) {
+    collection.refusal = tr("Select an editable pixel layer to transform");
+    return collection;
+  }
+  collection.root_ids = std::move(roots);
+  std::sort(collection.root_ids.begin(), collection.root_ids.end());
+  return collection;
+}
+
+bool CanvasWidget::begin_free_transform_multi(TransformTargetCollection collection) {
+  if (collection.position_lock_refusal) {
+    show_layer_position_locked_message();
+    return false;
+  }
+  if (!collection.refusal.isEmpty() || collection.targets.empty()) {
+    report_status_error(!collection.refusal.isEmpty() ? collection.refusal
+                                                      : tr("Select an editable pixel layer to transform"));
+    return false;
+  }
+
+  QRectF union_rect;
+  for (const auto& target : collection.targets) {
+    const QRectF content_rect(target.original_bounds.x + target.source_local_rect.x(),
+                              target.original_bounds.y + target.source_local_rect.y(),
+                              target.source_local_rect.width(), target.source_local_rect.height());
+    union_rect = union_rect.isNull() ? content_rect : union_rect.united(content_rect);
+  }
+  if (union_rect.isEmpty()) {
+    report_status_error(tr("Layer has no opaque pixels to transform"));
+    return false;
+  }
+
+  transforming_layer_ = true;
+  dragging_transform_ = false;
+  transform_layer_id_.reset();
+  transform_targets_ = std::move(collection.targets);
+  transform_mask_only_ids_ = std::move(collection.mask_only_ids);
+  transform_session_root_ids_ = std::move(collection.root_ids);
+  set_move_transform_controls_layer(std::nullopt);
+  transform_original_rect_ = union_rect;
+  transform_current_rect_ = transform_original_rect_;
+  transform_drag_start_rect_ = transform_current_rect_;
+  transform_drag_start_point_ = {};
+  transform_drag_handle_ = TransformHandle::None;
+  transform_angle_ = 0.0;
+  transform_start_angle_ = 0.0;
+  transform_scale_x_sign_ = 1.0;
+  transform_scale_y_sign_ = 1.0;
+  transform_drag_start_scale_x_sign_ = 1.0;
+  transform_drag_start_scale_y_sign_ = 1.0;
+  transform_source_image_ = QImage();
+  transform_source_local_rect_ = QRect();
+  transform_base_cache_ = QImage();
+  transform_base_cache_scale_level_ = 0;
+  transform_base_display_mip_cache_.clear();
+  transform_base_display_mip_source_key_ = 0;
+  transform_preview_patches_.clear();
+  transform_preview_patches_rect_ = QRect();
+  transform_drag_uses_proxy_preview_ = false;
+  transform_live_frame_slow_ = false;
+  transform_proxy_image_ = QImage();
+  transform_proxy_layer_opacity_ = 1.0;
+  transform_multi_snapshot_ = QImage();
+  transform_multi_snapshot_rect_ = QRect();
+  transform_multi_snapshot_scale_level_ = 0;
+  // The subtree snapshot bakes intra-set blending, masks, and styles, and every
+  // non-drag refresh renders accurate patches, so multi sessions always use the
+  // composited-preview machinery.
+  transform_requires_composited_preview_ = true;
+  setCursor(Qt::ArrowCursor);
+  update();
+  notify_transform_controls_changed();
+  if (status_callback_) {
+    status_callback_(shift_keeps_transform_aspect_
+                         ? tr("Drag handles to transform. Shift keeps aspect ratio.")
+                         : tr("Drag handles to transform. Shift resizes freely."));
+  }
+  return true;
+}
+
+bool CanvasWidget::free_transform_is_multi_target() const noexcept {
+  return transforming_layer_ && !transform_targets_.empty();
+}
+
 void CanvasWidget::reset_free_transform_session_state() {
   transforming_layer_ = false;
   dragging_transform_ = false;
@@ -594,6 +914,12 @@ void CanvasWidget::reset_free_transform_session_state() {
   transform_proxy_layer_opacity_ = 1.0;
   transform_requires_composited_preview_ = false;
   transform_source_local_rect_ = QRect();
+  transform_targets_.clear();
+  transform_mask_only_ids_.clear();
+  transform_session_root_ids_.clear();
+  transform_multi_snapshot_ = QImage();
+  transform_multi_snapshot_rect_ = QRect();
+  transform_multi_snapshot_scale_level_ = 0;
 }
 
 void CanvasWidget::clear_pending_warp() {
@@ -700,7 +1026,32 @@ void CanvasWidget::update_move_transform_controls_dirty(std::optional<QRectF> ol
 }
 
 bool CanvasWidget::prepare_free_transform_source() {
-  if (!transforming_layer_ || document_ == nullptr || !transform_layer_id_.has_value()) {
+  if (!transforming_layer_ || document_ == nullptr) {
+    return false;
+  }
+  if (!transform_targets_.empty()) {
+    if (!transform_targets_.front().source_image.isNull()) {
+      if (transform_preview_patches_.empty()) {
+        refresh_transform_multi_preview_cache(false);
+      }
+      return true;
+    }
+    for (auto& target : transform_targets_) {
+      const auto* layer = std::as_const(*document_).find_layer(target.id);
+      if (layer == nullptr || target.source_local_rect.isEmpty()) {
+        continue;
+      }
+      target.source_image = qimage_from_pixel_buffer(layer->pixels()).copy(target.source_local_rect);
+    }
+    if (transform_targets_.front().source_image.isNull()) {
+      return false;
+    }
+    rebuild_transform_base_cache();
+    ensure_transform_multi_snapshot();
+    refresh_transform_multi_preview_cache(false);
+    return true;
+  }
+  if (!transform_layer_id_.has_value()) {
     return false;
   }
   if (!transform_source_image_.isNull()) {
@@ -732,16 +1083,43 @@ void CanvasWidget::rebuild_transform_base_cache() {
   transform_base_cache_scale_level_ = 0;
   transform_base_display_mip_cache_.clear();
   transform_base_display_mip_source_key_ = 0;
-  if (document_ == nullptr || !transform_layer_id_.has_value()) {
+  if (document_ == nullptr) {
     return;
   }
-  const auto* layer = std::as_const(*document_).find_layer(*transform_layer_id_);
-  if (layer == nullptr) {
+  // Hidden set plus the region that content (with effects and styled-ancestor
+  // padding) occupies: one layer for the single session, every target leaf for
+  // the multi session. Preview-only; the commit path never reads this cache.
+  std::vector<LayerId> hidden;
+  QRect layers_effect_rect;
+  if (!transform_targets_.empty()) {
+    hidden.reserve(transform_targets_.size());
+    for (const auto& target : transform_targets_) {
+      const auto* target_layer = std::as_const(*document_).find_layer(target.id);
+      if (target_layer == nullptr) {
+        continue;
+      }
+      hidden.push_back(target.id);
+      auto with_effects = layer_bounds_with_effects(*target_layer, target_layer->bounds());
+      if (!with_effects.empty() && target.ancestor_effect_padding > 0) {
+        with_effects = outset_rect(with_effects, target.ancestor_effect_padding);
+      }
+      layers_effect_rect = layers_effect_rect.united(to_qrect(with_effects));
+    }
+    if (hidden.empty()) {
+      return;
+    }
+  } else if (transform_layer_id_.has_value()) {
+    const auto* layer = std::as_const(*document_).find_layer(*transform_layer_id_);
+    if (layer == nullptr) {
+      return;
+    }
+    hidden.push_back(*transform_layer_id_);
+    layers_effect_rect = to_qrect(layer_bounds_with_effects(*layer, layer->bounds()));
+  } else {
     return;
   }
 
   const QRect canvas_rect(0, 0, document_->width(), document_->height());
-  const std::vector<LayerId> hidden{*transform_layer_id_};
   // Display-resolution compositing: when zoomed out, build the base from the
   // preview-scaled document (4^level less work than a full-res canvas).
   if (const auto composite_level = preview_composite_level_for_zoom(zoom_); composite_level >= 1) {
@@ -763,7 +1141,7 @@ void CanvasWidget::rebuild_transform_base_cache() {
     return;
   }
 
-  const auto layer_rect = to_qrect(layer_bounds_with_effects(*layer, layer->bounds())).intersected(canvas_rect);
+  const auto layer_rect = layers_effect_rect.intersected(canvas_rect);
   QImage base = render_cache_.convertToFormat(QImage::Format_ARGB32_Premultiplied);
   if (!layer_rect.isEmpty()) {
     const auto cleared = qimage_from_document_rect_with_hidden_layers(*document_, layer_rect, true, hidden);
@@ -776,7 +1154,195 @@ void CanvasWidget::rebuild_transform_base_cache() {
   transform_base_cache_ = std::move(base);
 }
 
+// One composited snapshot of only the target subtree, for the multi-target
+// drag blit: ensure_move_proxy_image's structure (hide every non-target
+// pixel-bearing leaf, keep groups and adjustment layers rendering, so styled
+// ancestor folders bake their effects around the target silhouette and the
+// snapshot's colors stay close to the final composite). Blends against the
+// real backdrop and content clipped at the canvas edge stay approximate until
+// the release/numeric refresh renders accurate patches.
+bool CanvasWidget::ensure_transform_multi_snapshot() {
+  if (!transform_multi_snapshot_.isNull()) {
+    return true;
+  }
+  if (document_ == nullptr || transform_targets_.empty()) {
+    return false;
+  }
+
+  const QRect canvas_rect(0, 0, document_->width(), document_->height());
+  QRect snapshot_rect;
+  for (const auto& target : transform_targets_) {
+    const auto* layer = std::as_const(*document_).find_layer(target.id);
+    if (layer == nullptr) {
+      continue;
+    }
+    auto with_effects = layer_bounds_with_effects(*layer, layer->bounds());
+    if (!with_effects.empty() && target.ancestor_effect_padding > 0) {
+      with_effects = outset_rect(with_effects, target.ancestor_effect_padding);
+    }
+    snapshot_rect = snapshot_rect.united(to_qrect(with_effects));
+  }
+  snapshot_rect = snapshot_rect.intersected(canvas_rect);
+  if (snapshot_rect.isEmpty()) {
+    return false;
+  }
+  const auto composite_level = preview_composite_level_for_zoom(zoom_);
+  Document* scaled_document = composite_level >= 1 ? preview_scaled_document_for_level(composite_level) : nullptr;
+  if (scaled_document != nullptr) {
+    snapshot_rect = rect_aligned_to_mip_grid(snapshot_rect, composite_level).intersected(canvas_rect);
+  }
+
+  const auto is_target = [this](LayerId id) {
+    return std::any_of(transform_targets_.begin(), transform_targets_.end(),
+                       [id](const TransformTarget& target) { return target.id == id; });
+  };
+  std::vector<LayerId> hidden_leaves;
+  const std::function<void(const Layer&)> collect_hidden = [&](const Layer& layer) {
+    if (layer.kind() == LayerKind::Group) {
+      for (const auto& child : layer.children()) {
+        collect_hidden(child);
+      }
+      return;
+    }
+    if (layer.kind() != LayerKind::Adjustment && !is_target(layer.id())) {
+      hidden_leaves.push_back(layer.id());
+    }
+  };
+  for (const auto& layer : std::as_const(*document_).layers()) {
+    collect_hidden(layer);
+  }
+
+  // Banded: the snapshot is bounded but can cross the whole styled stack
+  // (preview-only, so the band divergence class is acceptable).
+  auto snapshot =
+      scaled_document != nullptr
+          ? qimage_from_document_rect_with_hidden_layers_banded(
+                *scaled_document, preview_scaled_document_rect(snapshot_rect, composite_level), true, hidden_leaves)
+          : qimage_from_document_rect_with_hidden_layers_banded(*document_, snapshot_rect, true, hidden_leaves);
+  if (snapshot.isNull()) {
+    return false;
+  }
+  const auto rendered_area =
+      static_cast<std::int64_t>(snapshot.width()) * static_cast<std::int64_t>(snapshot.height());
+  if (rendered_area > kTransformProxyMaxPixels) {
+    const auto scale = std::sqrt(static_cast<double>(kTransformProxyMaxPixels) / static_cast<double>(rendered_area));
+    const QSize snapshot_size(std::max(1, static_cast<int>(std::lround(snapshot.width() * scale))),
+                              std::max(1, static_cast<int>(std::lround(snapshot.height() * scale))));
+    snapshot = snapshot.scaled(snapshot_size, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+  }
+  transform_multi_snapshot_ = snapshot.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+  transform_multi_snapshot_rect_ = snapshot_rect;
+  transform_multi_snapshot_scale_level_ = scaled_document != nullptr ? composite_level : 0;
+  return !transform_multi_snapshot_.isNull();
+}
+
+// Multi-target twin of refresh_transform_composited_preview_cache: resamples
+// every target through the one shared session delta and renders the union of
+// their (ancestor-padded) effect rects with all the transformed pixels
+// substituted at once. Runs at release, numeric edits, nudges, interpolation
+// changes, and Layer Style live edits; drags blit the subtree snapshot instead.
+void CanvasWidget::refresh_transform_multi_preview_cache(bool processing_wait) {
+  transform_preview_patches_.clear();
+  transform_preview_patches_rect_ = QRect();
+  if (!transforming_layer_ || document_ == nullptr || transform_targets_.empty() ||
+      transform_targets_.front().source_image.isNull()) {
+    return;
+  }
+
+  const auto delta = free_transform_delta(transform_original_rect_, transform_current_rect_, transform_angle_,
+                                          transform_scale_x_sign_, transform_scale_y_sign_);
+  struct TargetJob {
+    const Layer* layer{nullptr};
+    LayerId id{};
+    QImage source;
+    QTransform source_to_document;
+    int ancestor_effect_padding{0};
+  };
+  std::vector<TargetJob> jobs;
+  jobs.reserve(transform_targets_.size());
+  for (const auto& target : transform_targets_) {
+    const auto* layer = std::as_const(*document_).find_layer(target.id);
+    if (layer == nullptr || target.source_image.isNull()) {
+      continue;
+    }
+    // QTransform composes left-to-right: translate the source into document
+    // space FIRST, then apply the shared delta.
+    jobs.push_back(TargetJob{
+        layer, target.id, target.source_image,
+        QTransform::fromTranslate(target.original_bounds.x + target.source_local_rect.x(),
+                                  target.original_bounds.y + target.source_local_rect.y()) *
+            delta,
+        target.ancestor_effect_padding});
+  }
+  if (jobs.empty()) {
+    return;
+  }
+
+  const auto compute = [document = document_, jobs = std::move(jobs), interpolation = transform_interpolation_]()
+      -> std::pair<std::vector<RenderedDocumentPatch>, QRect> {
+    const QRect canvas_rect(0, 0, document->width(), document->height());
+    std::vector<PixelBuffer> transformed_pixels;
+    transformed_pixels.reserve(jobs.size());  // stable addresses for the overrides
+    std::vector<LayerPixelsOverrideSpec> overrides;
+    overrides.reserve(jobs.size());
+    QRegion patch_region;
+    for (const auto& job : jobs) {
+      const auto transformed_result = resample_transformed_rgba8(job.source, job.source_to_document, interpolation);
+      if (transformed_result.image.isNull()) {
+        continue;
+      }
+      transformed_pixels.push_back(pixels_from_image_rgba(transformed_result.image));
+      overrides.push_back(LayerPixelsOverrideSpec{job.id, transformed_result.bounds, &transformed_pixels.back()});
+      auto with_effects = layer_bounds_with_effects(*job.layer, transformed_result.bounds);
+      if (!with_effects.empty() && job.ancestor_effect_padding > 0) {
+        with_effects = outset_rect(with_effects, job.ancestor_effect_padding);
+      }
+      const auto patch_rect = to_qrect(with_effects).intersected(canvas_rect);
+      if (!patch_rect.isEmpty()) {
+        patch_region += patch_rect;
+      }
+    }
+    if (patch_region.isEmpty() || overrides.empty()) {
+      return {};
+    }
+    auto patches =
+        qimage_patches_from_document_region_with_layer_pixel_overrides(*document, patch_region, true, overrides);
+    return {std::move(patches), patch_region.boundingRect()};
+  };
+
+  std::pair<std::vector<RenderedDocumentPatch>, QRect> result;
+  bool run_inline = !processing_wait;
+#if defined(Q_OS_WASM) && defined(__EMSCRIPTEN_PTHREADS__)
+  // Same pool contract as the single-layer refresh above: no idle pre-spawned
+  // worker means the blocked path cannot rely on a lazy spawn, and the
+  // compute's own fan-outs must fit the pool without the compute's worker.
+  const auto idle_pool = patchy::idle_prespawned_pool_workers();
+  if (idle_pool < 1) {
+    run_inline = true;
+  }
+  const patchy::BlockingFanoutBudgetScope fanout_budget(
+      processing_wait && !run_inline ? std::max(0, idle_pool - 3) : -1);
+#endif
+  if (!run_inline) {
+    auto future = launch_async(compute);
+    const auto overlay_shown = wait_for_processing_operation(
+        [&future] { return future.wait_for(std::chrono::milliseconds(16)) == std::future_status::ready; }, true);
+    result = future.get();
+    if (overlay_shown) {
+      hide_processing_overlay();
+    }
+  } else {
+    result = compute();
+  }
+  transform_preview_patches_ = std::move(result.first);
+  transform_preview_patches_rect_ = result.second;
+}
+
 void CanvasWidget::refresh_transform_composited_preview_cache(bool processing_wait) {
+  if (!transform_targets_.empty()) {
+    refresh_transform_multi_preview_cache(processing_wait);
+    return;
+  }
   transform_preview_patches_.clear();
   transform_preview_patches_rect_ = QRect();
   if (!transform_requires_composited_preview_ || !transforming_layer_ || document_ == nullptr ||
@@ -926,6 +1492,16 @@ void CanvasWidget::ensure_transform_proxy_image() {
 // three update_free_transform_preview branches route here, so numeric edits,
 // nudges, interpolation changes, and Layer Style live edits can never latch.
 void CanvasWidget::refresh_transform_preview_for_drag() {
+  if (!transform_targets_.empty()) {
+    // Multi-target drags always blit the subtree snapshot (the move-proxy
+    // contract). Setting the latch flag routes the shared release path through
+    // the accurate patch refresh (with the overlay wait) once the drag ends;
+    // the single-path proxy diagnostics counter is deliberately not bumped.
+    transform_drag_uses_proxy_preview_ = true;
+    transform_preview_patches_.clear();
+    transform_preview_patches_rect_ = QRect();
+    return;
+  }
   if (dragging_transform_ && transform_requires_composited_preview_) {
     if (!transform_drag_uses_proxy_preview_ && transform_drag_should_use_proxy_preview()) {
       transform_drag_uses_proxy_preview_ = true;
@@ -956,6 +1532,13 @@ QRect CanvasWidget::transform_preview_document_rect() const {
   if (!transform_preview_patches_rect_.isEmpty()) {
     rect = rect.united(transform_preview_patches_rect_);
   }
+  if (!transform_targets_.empty() && !transform_multi_snapshot_rect_.isEmpty()) {
+    // The multi drag blit covers the delta-mapped snapshot rect (effects spill
+    // included), which the rotated box alone does not.
+    const auto delta = free_transform_delta(transform_original_rect_, transform_current_rect_, transform_angle_,
+                                            transform_scale_x_sign_, transform_scale_y_sign_);
+    rect = rect.united(delta.mapRect(QRectF(transform_multi_snapshot_rect_)).toAlignedRect().adjusted(-1, -1, 1, 1));
+  }
   return rect;
 }
 
@@ -980,8 +1563,27 @@ void CanvasWidget::update_transform_preview_region(QRect previous_document_rect)
 }
 
 void CanvasWidget::refresh_free_transform_preview_caches() {
-  if (!transforming_layer_ || document_ == nullptr || !transform_layer_id_.has_value() ||
-      transform_source_image_.isNull()) {
+  if (!transforming_layer_ || document_ == nullptr) {
+    return;
+  }
+  if (!transform_targets_.empty()) {
+    if (transform_targets_.front().source_image.isNull()) {
+      return;  // session not prepared yet; nothing baked to refresh
+    }
+    // Live Layer Style edits can change any member: rebuild the base, drop and
+    // re-render the subtree snapshot, and re-render the accurate patches.
+    rebuild_transform_base_cache();
+    transform_multi_snapshot_ = QImage();
+    transform_multi_snapshot_rect_ = QRect();
+    transform_multi_snapshot_scale_level_ = 0;
+    ensure_transform_multi_snapshot();
+    refresh_transform_multi_preview_cache(false);
+    if (isVisible()) {
+      update();
+    }
+    return;
+  }
+  if (!transform_layer_id_.has_value() || transform_source_image_.isNull()) {
     return;
   }
   auto* layer = document_->find_layer(*transform_layer_id_);
@@ -1202,7 +1804,25 @@ void CanvasWidget::draw_free_transform(QPainter& painter) const {
     return;
   }
 
-  if (transform_drag_uses_proxy_preview_ && !transform_proxy_image_.isNull() && transform_preview_patches_.empty()) {
+  if (!transform_targets_.empty()) {
+    if (!transform_multi_snapshot_.isNull() && !transform_multi_snapshot_rect_.isEmpty() &&
+        transform_preview_patches_.empty()) {
+      // Multi-target drag preview: the one subtree snapshot mapped through the
+      // session delta (the move-proxy contract; blend modes against the real
+      // backdrop, canvas clipping, and effect geometry stay approximate until
+      // the release/numeric refresh renders the accurate patches).
+      painter.save();
+      painter.setRenderHint(QPainter::SmoothPixmapTransform,
+                            transform_interpolation_ != TransformInterpolation::NearestNeighbor);
+      const auto delta = free_transform_delta(transform_original_rect_, transform_current_rect_, transform_angle_,
+                                              transform_scale_x_sign_, transform_scale_y_sign_);
+      const QTransform document_to_widget(zoom_, 0.0, 0.0, zoom_, pan_.x(), pan_.y());
+      painter.setTransform(delta * document_to_widget, true);
+      painter.drawImage(QRectF(transform_multi_snapshot_rect_), transform_multi_snapshot_,
+                        QRectF(transform_multi_snapshot_.rect()));
+      painter.restore();
+    }
+  } else if (transform_drag_uses_proxy_preview_ && !transform_proxy_image_.isNull() && transform_preview_patches_.empty()) {
     // Latched heavy drag: the bounded proxy stands in for the composited
     // patches. Unlike the plain source blit below it applies the layer's
     // opacity and scale-sign flips, matching what the release-time patches
@@ -1450,6 +2070,11 @@ void CanvasWidget::update_free_transform_preview(QPointF document_point, Qt::Key
 }
 
 void CanvasWidget::commit_free_transform() {
+  if (transforming_layer_ && !transform_targets_.empty()) {
+    // Multi-target session; pending warp cannot coexist (warp refuses these).
+    commit_free_transform_multi();
+    return;
+  }
   if (!transforming_layer_ || document_ == nullptr || !transform_layer_id_.has_value() ||
       transform_source_image_.isNull()) {
     cancel_free_transform();
@@ -1579,6 +2204,183 @@ void CanvasWidget::commit_free_transform() {
   notify_transform_controls_changed();
 }
 
+// Multi-target commit: one shared affine delta applied per leaf with the same
+// per-type branches as the single-layer commit above, plus linked raster masks
+// (the folder's own mask, member masks, adjustment masks), which the
+// single-layer path deliberately leaves untouched for byte-stability. One undo
+// entry ("Free Transform") for the whole set; a required Smart Filter re-render
+// makes the commit transactional exactly like the single path.
+void CanvasWidget::commit_free_transform_multi() {
+  if (!transforming_layer_ || document_ == nullptr || transform_targets_.empty() ||
+      transform_targets_.front().source_image.isNull()) {
+    cancel_free_transform();
+    return;
+  }
+
+  const auto delta = free_transform_delta(transform_original_rect_, transform_current_rect_, transform_angle_,
+                                          transform_scale_x_sign_, transform_scale_y_sign_);
+  const std::array<double, 6> matrix{delta.m11(), delta.m12(), delta.m21(),
+                                     delta.m22(), delta.dx(),  delta.dy()};
+  const auto orientation_changed = transform_scale_x_sign_ < 0.0 || transform_scale_y_sign_ < 0.0;
+  const auto changed =
+      orientation_changed || std::abs(transform_angle_) > 0.01 ||
+      std::lround(transform_current_rect_.left()) != std::lround(transform_original_rect_.left()) ||
+      std::lround(transform_current_rect_.top()) != std::lround(transform_original_rect_.top()) ||
+      std::lround(transform_current_rect_.width()) != std::lround(transform_original_rect_.width()) ||
+      std::lround(transform_current_rect_.height()) != std::lround(transform_original_rect_.height());
+
+  const QRect canvas_rect(0, 0, document_->width(), document_->height());
+  QRect dirty_rect = transform_multi_snapshot_rect_.united(transform_preview_patches_rect_);
+  const auto accumulate_effect_rect = [&dirty_rect](const Layer& layer, Rect bounds, int ancestor_padding) {
+    auto with_effects = layer_bounds_with_effects(layer, bounds);
+    if (!with_effects.empty() && ancestor_padding > 0) {
+      with_effects = outset_rect(with_effects, ancestor_padding);
+    }
+    if (!with_effects.empty()) {
+      dirty_rect = dirty_rect.united(to_qrect(with_effects));
+    }
+  };
+  const auto transform_linked_raster_mask = [this, &delta, &dirty_rect](Layer& layer) {
+    const auto& stored_mask = std::as_const(layer).mask();
+    if (!stored_mask.has_value() || stored_mask->pixels.empty() || !layer_mask_linked(std::as_const(layer))) {
+      return;
+    }
+    const auto mask = *stored_mask;
+    dirty_rect = dirty_rect.united(to_qrect(mask.bounds));
+    // Left-to-right composition: mask-local -> document, then the delta.
+    auto resampled = resample_transformed_gray8(
+        mask.pixels, mask.default_color,
+        QTransform::fromTranslate(mask.bounds.x, mask.bounds.y) * delta, transform_interpolation_);
+    auto updated = mask;
+    updated.pixels = std::move(resampled.pixels);
+    updated.bounds = resampled.bounds;
+    dirty_rect = dirty_rect.united(to_qrect(updated.bounds));
+    layer.set_mask(std::move(updated));
+  };
+
+  bool transactional_smart_filter = false;
+  if (changed) {
+    for (const auto& target : transform_targets_) {
+      if (const auto* layer = std::as_const(*document_).find_layer(target.id);
+          layer != nullptr && move_layer_requires_smart_filter_rerender(*layer)) {
+        transactional_smart_filter = true;
+        break;
+      }
+    }
+  }
+  std::optional<Document> rollback_document;
+  if (transactional_smart_filter) {
+    rollback_document.emplace(*document_);
+  } else if (changed && before_edit_callback_) {
+    before_edit_callback_(tr("Free Transform"));
+  }
+
+  bool smart_filter_rerender_failed = false;
+  if (changed) {
+    for (const auto& target : transform_targets_) {
+      auto* layer = document_->find_layer(target.id);
+      if (layer == nullptr || target.source_image.isNull()) {
+        continue;
+      }
+      accumulate_effect_rect(*layer, std::as_const(*layer).bounds(), target.ancestor_effect_padding);
+
+      const auto text_layer = layer_is_text(std::as_const(*layer));
+      const auto old_bounds = std::as_const(*layer).bounds();
+      const auto original_text_transform =
+          text_layer ? stored_text_transform_for_layer(*layer).value_or(identity_text_transform_for_rect(
+                           QRectF(old_bounds.x, old_bounds.y, old_bounds.width, old_bounds.height)))
+                     : LayerAffineTransform{};
+
+      // Left-to-right composition: source-local -> document, then the delta.
+      const auto source_to_document =
+          QTransform::fromTranslate(target.original_bounds.x + target.source_local_rect.x(),
+                                    target.original_bounds.y + target.source_local_rect.y()) *
+          delta;
+      const auto transformed_result =
+          resample_transformed_rgba8(target.source_image, source_to_document, transform_interpolation_);
+      layer->set_pixels(pixels_from_image_rgba(transformed_result.image));
+      layer->set_bounds(transformed_result.bounds);
+      if (text_layer) {
+        layer->metadata()[kLayerMetadataTextTransform] = serialize_layer_affine_transform(
+            compose_layer_affine_transform(affine_from_qtransform(delta), original_text_transform));
+        layer->metadata()[kLayerMetadataTextRasterStatus] = "patchy_raster";
+        // Replace the resampled bitmap with glyphs re-rasterized through the
+        // composed transform, matching the single-layer commit.
+        if (text_layer_transform_render_callback_) {
+          text_layer_transform_render_callback_(target.id);
+        }
+      } else if (layer_is_vector_shape(std::as_const(*layer)) || layer->vector_mask() != nullptr) {
+        patchy::transform_layer_vector_data(*document_, *layer, matrix,
+                                            Rect::from_size(document_->width(), document_->height()));
+      } else if (layer_is_smart_object(std::as_const(*layer)) && smart_object_lock_reason(*layer).empty()) {
+        if (const auto placement = smart_object_placement_from_layer(*layer); placement.has_value()) {
+          auto updated = *placement;
+          for (std::size_t i = 0; i < 8U; i += 2U) {
+            const auto mapped = delta.map(QPointF(placement->transform[i], placement->transform[i + 1U]));
+            updated.transform[i] = mapped.x();
+            updated.transform[i + 1U] = mapped.y();
+          }
+          store_smart_object_placement(*layer, updated);
+          mark_layer_smart_object_block_dirty(*layer);
+          layer->metadata()[kLayerMetadataSmartObjectRasterStatus] = kSmartObjectRasterStatusPatchy;
+          if (smart_object_transform_render_callback_ && smart_object_transform_render_callback_(target.id)) {
+            // Bounds refreshed by the re-render.
+          } else if (transactional_smart_filter) {
+            smart_filter_rerender_failed = true;
+          }
+        } else if (transactional_smart_filter) {
+          smart_filter_rerender_failed = true;
+        }
+      }
+      transform_linked_raster_mask(*layer);
+      accumulate_effect_rect(*layer, std::as_const(*layer).bounds(), target.ancestor_effect_padding);
+      if (smart_filter_rerender_failed) {
+        break;
+      }
+    }
+
+    // Mask-only riders: groups' own masks, adjustment masks, and empty-pixel
+    // leaves whose linked masks still follow the set.
+    if (!smart_filter_rerender_failed) {
+      for (const auto mask_only_id : transform_mask_only_ids_) {
+        auto* layer = document_->find_layer(mask_only_id);
+        if (layer == nullptr) {
+          continue;
+        }
+        transform_linked_raster_mask(*layer);
+        if (layer->vector_mask() != nullptr) {
+          patchy::transform_layer_vector_data(*document_, *layer, matrix,
+                                              Rect::from_size(document_->width(), document_->height()));
+          accumulate_effect_rect(*layer, std::as_const(*layer).bounds(), 0);
+        }
+      }
+    }
+  }
+
+  if (smart_filter_rerender_failed && rollback_document.has_value()) {
+    *document_ = std::move(*rollback_document);
+  } else if (transactional_smart_filter && rollback_document.has_value()) {
+    // Same dance as the single-layer commit: the undo snapshot must capture the
+    // pre-edit document even though the mutation had to be attempted first.
+    auto committed_document = *document_;
+    *document_ = std::move(*rollback_document);
+    if (before_edit_callback_) {
+      before_edit_callback_(tr("Free Transform"));
+    }
+    *document_ = std::move(committed_document);
+  }
+
+  reset_free_transform_session_state();
+  update_tool_cursor();
+  document_changed(dirty_rect.isEmpty() ? canvas_rect : dirty_rect.intersected(canvas_rect));
+  if (smart_filter_rerender_failed) {
+    report_status_error(tr("Could not rebuild the Smart Filter preview and cache"));
+  } else if (status_callback_) {
+    status_callback_(changed ? tr("Transformed layers") : tr("Free Transform cancelled"));
+  }
+  notify_transform_controls_changed();
+}
+
 void CanvasWidget::commit_free_transform_with_pending_warp() {
   auto* layer = document_ != nullptr && transform_layer_id_.has_value()
                     ? document_->find_layer(*transform_layer_id_)
@@ -1648,6 +2450,12 @@ bool CanvasWidget::begin_warp_transform() {
   }
   if (warping_layer_) {
     return true;
+  }
+  if (free_transform_is_multi_target()) {
+    // Refused BEFORE any teardown so the pending multi-target transform stays
+    // alive (the same contract as the per-layer refusals below).
+    report_status_error(tr("Warp works on a single layer. Select one layer to warp."));
+    return false;
   }
   if (transforming_layer_ && transform_has_pending_warp_) {
     // Toggling back into the cage: resume the stashed warp session, composing

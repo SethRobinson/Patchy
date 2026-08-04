@@ -1320,6 +1320,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/selection_marquee_lasso_tests_marquee_geometry.cpp
       tests/ui/selection_marquee_lasso_tests_regions_lasso.cpp
       tests/ui/clipboard_free_transform_tests.cpp
+      tests/ui/group_transform_tests.cpp
       tests/ui/channels_panel_tests.cpp
       tests/ui/camera_raw_heif_tests.cpp
       tests/ui/layer_mask_tests.cpp

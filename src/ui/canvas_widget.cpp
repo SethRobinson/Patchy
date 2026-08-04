@@ -1099,9 +1099,16 @@ void CanvasWidget::set_text_layer_transform_render_callback(std::function<bool(L
 
 void CanvasWidget::set_selected_layer_ids(std::vector<LayerId> layer_ids) {
   const auto old_transform_controls_rect = move_transform_controls_rect();
-  const auto keeps_active_transform =
+  auto keeps_active_transform =
       transforming_layer_ && transform_layer_id_.has_value() && layer_ids.size() == 1U &&
       layer_ids.front() == *transform_layer_id_;
+  if (transforming_layer_ && !keeps_active_transform && !transform_session_root_ids_.empty()) {
+    // Multi-target session: an identical re-selection of the same roots (panel
+    // refreshes re-push the selection) keeps the session alive.
+    auto sorted_ids = layer_ids;
+    std::sort(sorted_ids.begin(), sorted_ids.end());
+    keeps_active_transform = sorted_ids == transform_session_root_ids_;
+  }
   if (transforming_layer_ && !keeps_active_transform) {
     finish_free_transform();
   }
@@ -1310,7 +1317,12 @@ void CanvasWidget::activate_layer(Layer& layer) {
     clear_smart_filter_mask_edit_target();
   }
   const auto old_transform_controls_rect = move_transform_controls_rect();
-  if (transforming_layer_ && (!transform_layer_id_.has_value() || *transform_layer_id_ != layer.id())) {
+  const auto keeps_multi_transform =
+      !transform_session_root_ids_.empty() &&
+      std::find(transform_session_root_ids_.begin(), transform_session_root_ids_.end(), layer.id()) !=
+          transform_session_root_ids_.end();
+  if (transforming_layer_ && !keeps_multi_transform &&
+      (!transform_layer_id_.has_value() || *transform_layer_id_ != layer.id())) {
     finish_free_transform();
   }
   if (move_transform_controls_layer_id_.has_value() && *move_transform_controls_layer_id_ != layer.id()) {

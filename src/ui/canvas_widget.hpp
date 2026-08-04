@@ -627,6 +627,9 @@ public:
   void finish_free_transform();
   void cancel_free_transform();
   [[nodiscard]] bool free_transform_active() const noexcept;
+  // True while the session transforms a flattened target set (a selected folder
+  // or a multi-selection) instead of one layer. Warp refuses such sessions.
+  [[nodiscard]] bool free_transform_is_multi_target() const noexcept;
   // Warp Transform: a 4x4 Bezier control cage over the layer (Photoshop's warp
   // tool). Smart objects commit non-destructively (warp metadata + regenerated
   // SoLd); plain pixel layers bake destructively; text layers are refused.
@@ -926,6 +929,32 @@ private:
     // per nesting level); the leaf's own style padding lives in
     // layer_bounds_with_effects, not here.
     int ancestor_effect_padding{0};
+  };
+
+  // One transformable leaf of a multi-target Free Transform session (a selected
+  // folder flattens to its leaves, like the Move tool's movable_layer_ids).
+  // expensive_style / ancestor_effect_padding mirror MovingLayer's fields.
+  struct TransformTarget {
+    LayerId id{};
+    Rect original_bounds{};
+    QRect source_local_rect{};
+    QImage source_image{};
+    bool expensive_style{false};
+    int ancestor_effect_padding{0};
+  };
+  struct TransformTargetCollection {
+    std::vector<TransformTarget> targets;
+    // Layers whose linked masks ride along without pixel content: groups with
+    // masks, adjustment leaves, empty-pixel leaves with linked masks.
+    std::vector<LayerId> mask_only_ids;
+    // Normalized panel roots (root_drop_layer_ids), sorted; the teardown
+    // comparisons keep the session alive for an identical re-selection.
+    std::vector<LayerId> root_ids;
+    QString refusal;  // non-empty => refuse the session (already translated)
+    // Refusal that must surface through show_layer_position_locked_message()
+    // instead of a plain status string, matching the single-layer guard.
+    bool position_lock_refusal{false};
+    bool use_single_layer_path{false};
   };
 
   [[nodiscard]] QImage render_document_image() const;
@@ -1346,6 +1375,11 @@ private:
   void notify_transform_controls_changed();
   [[nodiscard]] QPointF transform_reference_position(QRectF document_rect, double angle_degrees) const;
   bool prepare_free_transform_source();
+  [[nodiscard]] TransformTargetCollection collect_free_transform_targets() const;
+  bool begin_free_transform_multi(TransformTargetCollection collection);
+  bool ensure_transform_multi_snapshot();
+  void refresh_transform_multi_preview_cache(bool processing_wait);
+  void commit_free_transform_multi();
   void refresh_transform_composited_preview_cache(bool processing_wait = false);
   void refresh_transform_preview_for_drag();
   [[nodiscard]] bool transform_drag_should_use_proxy_preview() const;
@@ -1873,6 +1907,19 @@ private:
   int transform_base_cache_scale_level_{0};
   QImage transform_proxy_image_{};
   double transform_proxy_layer_opacity_{1.0};
+  // Multi-target Free Transform session (folder / multi-selection). Invariant
+  // while transforming_layer_: transform_layer_id_ has a value XOR
+  // transform_targets_ is non-empty; the single-layer path never reads these.
+  std::vector<TransformTarget> transform_targets_;
+  std::vector<LayerId> transform_mask_only_ids_;
+  std::vector<LayerId> transform_session_root_ids_;
+  // One composited snapshot of only the target subtree (non-target
+  // non-adjustment leaves hidden), blitted with the painter transform during
+  // drags; approximate like the move proxy, accurate patches at release and
+  // numeric edits. Rect is the identity doc-space rect the snapshot covers.
+  QImage transform_multi_snapshot_{};
+  QRect transform_multi_snapshot_rect_{};
+  int transform_multi_snapshot_scale_level_{0};
   bool warping_layer_{false};
   bool dragging_warp_handle_{false};
   int warp_drag_index_{-1};
@@ -1957,5 +2004,16 @@ TransformedImage resample_transformed_rgba8(const QImage& source, const QTransfo
 // cell order (deterministic simplification).
 TransformedImage resample_warped_rgba8(const QImage& source, const WarpSurfaceGrid& grid,
                                        CanvasWidget::TransformInterpolation interpolation);
+// Gray8 variant for linked layer masks (multi-target Free Transform commit):
+// samples outside the source read as `default_color`, never 0, so a transformed
+// mask blends toward its implicit surround instead of growing a fringe at the
+// new bounds edge.
+struct TransformedMask {
+  PixelBuffer pixels;
+  Rect bounds{};
+};
+TransformedMask resample_transformed_gray8(const PixelBuffer& source, std::uint8_t default_color,
+                                           const QTransform& source_to_document,
+                                           CanvasWidget::TransformInterpolation interpolation);
 
 }  // namespace patchy::ui

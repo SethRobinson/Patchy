@@ -6618,6 +6618,14 @@ Mixed selection</source>
         <translation>自由変形をキャンセルしました</translation>
     </message>
     <message>
+        <source>Transformed layers</source>
+        <translation>レイヤーを変形しました</translation>
+    </message>
+    <message>
+        <source>Warp works on a single layer. Select one layer to warp.</source>
+        <translation>ワープは単一のレイヤーでのみ使用できます。ワープするレイヤーを1つ選択してください。</translation>
+    </message>
+    <message>
         <location line="-9459"/>
         <location line="+5532"/>
         <source>New Guide</source>
