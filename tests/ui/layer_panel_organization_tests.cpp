@@ -1421,6 +1421,46 @@ void ui_layer_list_scrolls_with_wheel_and_drag_autoscroll() {
   send_layer_drag_leave(*layer_list);
 }
 
+void ui_layer_list_pixel_wheel_scrolls_in_row_steps() {
+  patchy::Document document(32, 32, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(32, 32, patchy::PixelFormat::rgba8(), QColor(245, 245, 245)));
+  for (int index = 0; index < 24; ++index) {
+    document.add_layer(patchy::Layer(document.allocate_layer_id(), "Pixel Scroll " + std::to_string(index + 1),
+                                     solid_pixels(6, 6, patchy::PixelFormat::rgba8(), QColor(20, 80, 180))));
+  }
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Layer Pixel Scroll"));
+  show_window(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* scroll = layer_list->verticalScrollBar();
+  CHECK(scroll != nullptr);
+  CHECK(scroll->maximum() > 5);
+  scroll->setValue(0);
+  QApplication::processEvents();
+
+  auto* top_item = layer_list->item(0);
+  CHECK(top_item != nullptr);
+  const auto row_height = layer_list->visualItemRect(top_item).height();
+  CHECK(row_height > 0);
+  auto* top_name = layer_list->itemWidget(top_item)->findChild<QLabel*>(QStringLiteral("layerRowName"));
+  CHECK(top_name != nullptr);
+
+  // One browser wheel notch arrives as a ~120 px pixelDelta on wasm; it must
+  // step a few rows, not jump the scrollbar's whole range.
+  send_pixel_wheel(*top_name, top_name->rect().center(), -120);
+  CHECK(scroll->value() == 120 / row_height);
+
+  // Sub-row trackpad deltas accumulate across events instead of being dropped.
+  const auto half_row = row_height / 2;
+  for (int repeat = 0; repeat < 6; ++repeat) {
+    send_pixel_wheel(*top_name, top_name->rect().center(), -half_row);
+  }
+  CHECK(scroll->value() == (120 + 6 * half_row) / row_height);
+}
+
 void ui_layer_list_edge_click_selects_without_scrolling() {
   patchy::Document document(32, 32, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background",
@@ -2675,6 +2715,7 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
        ui_layer_drag_shows_insertion_and_folder_drop_previews},
       {"ui_layer_list_scrolls_with_wheel_and_drag_autoscroll",
        ui_layer_list_scrolls_with_wheel_and_drag_autoscroll},
+      {"ui_layer_list_pixel_wheel_scrolls_in_row_steps", ui_layer_list_pixel_wheel_scrolls_in_row_steps},
       {"ui_layer_list_edge_click_selects_without_scrolling",
        ui_layer_list_edge_click_selects_without_scrolling},
       {"ui_layer_new_folder_button_groups_dropped_layers",

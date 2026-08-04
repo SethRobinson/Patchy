@@ -175,6 +175,13 @@ void send_wheel(QWidget& widget, QPoint position, int delta, Qt::KeyboardModifie
   QApplication::processEvents();
 }
 
+void send_pixel_wheel(QWidget& widget, QPoint position, int pixel_delta, Qt::KeyboardModifiers modifiers) {
+  QWheelEvent event(QPointF(position), QPointF(widget.mapToGlobal(position)), QPoint(0, pixel_delta),
+                    QPoint(0, pixel_delta), Qt::NoButton, modifiers, Qt::NoScrollPhase, false);
+  QApplication::sendEvent(&widget, &event);
+  QApplication::processEvents();
+}
+
 void send_layer_drag_enter(QListWidget& list, QPoint position, const std::vector<patchy::LayerId>& ids) {
   QMimeData mime_data;
   mime_data.setData(QString::fromLatin1(patchy::ui::kLayerDragMimeType), patchy::ui::layer_ids_to_mime_data(ids));

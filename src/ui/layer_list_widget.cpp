@@ -1499,7 +1499,24 @@ bool LayerListWidget::scroll_by_wheel_delta(int primary_delta, bool pixel_delta)
     return false;
   }
 
-  const auto wheel_units = pixel_delta ? primary_delta : primary_delta * scroll_bar->singleStep() / 120;
+  int wheel_units = 0;
+  if (pixel_delta && verticalScrollMode() != QAbstractItemView::ScrollPerPixel) {
+    // The vertical scrollbar counts rows, not pixels, so pixel deltas (wasm and
+    // trackpads deliver these) must go through the row height; applied raw, one
+    // browser wheel notch (~120 px) jumps ~120 rows. Carry the sub-row
+    // remainder so slow trackpad scrolls still accumulate into steps.
+    const auto row_height = wheel_scroll_row_height();
+    wheel_pixel_remainder_ += primary_delta;
+    wheel_units = wheel_pixel_remainder_ / row_height;
+    wheel_pixel_remainder_ -= wheel_units * row_height;
+    if (wheel_units == 0) {
+      return true;
+    }
+  } else if (pixel_delta) {
+    wheel_units = primary_delta;
+  } else {
+    wheel_units = primary_delta * scroll_bar->singleStep() / 120;
+  }
   if (wheel_units == 0) {
     return false;
   }
@@ -1508,6 +1525,20 @@ bool LayerListWidget::scroll_by_wheel_delta(int primary_delta, bool pixel_delta)
     update_drop_preview(last_drag_viewport_position_);
   }
   return true;
+}
+
+int LayerListWidget::wheel_scroll_row_height() const {
+  for (int row = 0; row < count(); ++row) {
+    const auto* row_item = item(row);
+    if (row_item == nullptr || row_item->isHidden()) {
+      continue;
+    }
+    const auto height = visualItemRect(row_item).height();
+    if (height > 0) {
+      return height;
+    }
+  }
+  return 44;  // base layer-row height (main_window_layer_panel.cpp) if no row is measurable
 }
 
 void LayerListWidget::set_layer_row_buttons_drag_active(bool active) {

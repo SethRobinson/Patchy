@@ -516,6 +516,11 @@ void send_key_release(QWidget& widget, int key, Qt::KeyboardModifiers modifiers 
 
 void send_wheel(QWidget& widget, QPoint position, int delta, Qt::KeyboardModifiers modifiers = Qt::NoModifier);
 
+// Wheel event carrying a pixelDelta alongside the angleDelta, as the wasm
+// platform plugin and desktop trackpads deliver.
+void send_pixel_wheel(QWidget& widget, QPoint position, int pixel_delta,
+                      Qt::KeyboardModifiers modifiers = Qt::NoModifier);
+
 void send_layer_drag_enter(QListWidget& list, QPoint position, const std::vector<patchy::LayerId>& ids);
 
 void send_layer_drag_move(QListWidget& list, QPoint position, const std::vector<patchy::LayerId>& ids);

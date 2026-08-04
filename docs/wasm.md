@@ -302,6 +302,12 @@ Other step-3 decisions:
 
 ### Browser UI fit
 
+- **Wheel events arrive as pixel deltas.** The wasm plugin fills both
+  `pixelDelta` and `angleDelta` with browser pixels (~120 per notch), never
+  the desktop 120-per-notch angle convention. Any custom wheel handler that
+  feeds a per-item scrollbar must convert pixels through the row height
+  (`LayerListWidget::scroll_by_wheel_delta`); applying the delta raw scrolls
+  ~120 rows per notch. Stock Qt widgets are unaffected.
 - **Start panel web note** (`startPanelWasmNote`, start_panel.cpp): runs
   locally, fonts can be dropped in, desktop download link.
 - **Float windows are disabled.** No window manager, no `startSystemMove`: a

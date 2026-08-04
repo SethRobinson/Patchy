@@ -144,6 +144,7 @@ private:
   [[nodiscard]] bool wheel_event_targets_list(QObject* watched, const QWheelEvent& event) const;
   [[nodiscard]] bool global_position_targets_list(QPoint global_position) const;
   bool scroll_by_wheel_delta(int primary_delta, bool pixel_delta);
+  [[nodiscard]] int wheel_scroll_row_height() const;
   bool handle_wheel_event(QWheelEvent* event);
   void set_layer_row_buttons_drag_active(bool active);
   void keep_drag_anchor_selected();
@@ -177,6 +178,7 @@ private:
   std::vector<LayerId> visibility_swept_ids_;
   QBasicTimer auto_scroll_timer_;
   int auto_scroll_direction_{0};
+  int wheel_pixel_remainder_{0};
   QPoint drag_start_position_{};
   QPoint last_drag_viewport_position_{};
   std::optional<LayerId> drag_anchor_layer_id_;
