@@ -19,8 +19,10 @@
 #include "ui/style_browser.hpp"
 #include "ui/style_library.hpp"
 #include "ui/style_manager_dialog.hpp"
+#include "local_psd_fixtures.hpp"
 #include "psd/asl_io.hpp"
 #include "psd/psd_binary.hpp"
+#include "psd/psd_document_io.hpp"
 #include "psd/psd_layer_effects.hpp"
 #include "core/style_presets.hpp"
 #include "ui/brush_tip_library.hpp"
@@ -2237,6 +2239,99 @@ void ui_move_repeat_drag_reuses_retained_caches() {
   CHECK(color_close(canvas_pixel(canvas, QPoint(450, 150)), QColor(20, 90, 235), 45));
 }
 
+// Real-file regression for the pinball poster report: with the "ARCADE" and
+// "3D" folders selected (autoselect off), the SECOND drag used to stall
+// ~1.5 s paying a synchronous full-resolution composite inside its first
+// mouse-move before the fast proxy path engaged. Drives the exact flow on
+// the real PSD when the local fixture is present.
+void ui_move_pinball_poster_second_folder_drag_has_no_sync_composite_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("pinball_retronight_poster_a3.psd");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] pinball poster fixture missing: " << path.string() << '\n';
+    return;
+  }
+  auto document = patchy::psd::DocumentIo::read_file(path);
+  patchy::LayerId arcade_id = 0;
+  patchy::LayerId three_d_id = 0;
+  // The folders are not necessarily top-level; match anywhere in the tree.
+  const std::function<void(const patchy::Layer&)> find_folders = [&](const patchy::Layer& layer) {
+    if (layer.kind() == patchy::LayerKind::Group) {
+      const auto name = QString::fromStdString(layer.name());
+      if (name.compare(QStringLiteral("ARCADE"), Qt::CaseInsensitive) == 0) {
+        arcade_id = layer.id();
+      } else if (name.compare(QStringLiteral("3D"), Qt::CaseInsensitive) == 0) {
+        three_d_id = layer.id();
+      }
+      for (const auto& child : layer.children()) {
+        find_folders(child);
+      }
+    }
+  };
+  for (const auto& layer : std::as_const(document).layers()) {
+    find_folders(layer);
+  }
+  CHECK(arcade_id != 0);
+  CHECK(three_d_id != 0);
+  if (arcade_id == 0 || three_d_id == 0) {
+    return;
+  }
+  const QPoint doc_center(document.width() / 2, document.height() / 2);
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Pinball Poster"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(patchy::ui::CanvasTool::Move);
+  canvas->set_show_transform_controls(false);
+  canvas->set_auto_select_layer(false);
+  canvas->set_snap_enabled(false);
+  canvas->set_zoom(0.25);
+  canvas->set_selected_layer_ids({arcade_id, three_d_id});
+  QApplication::processEvents();
+  const auto settle = [&] {
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+    while (!canvas->render_settled() && std::chrono::steady_clock::now() < deadline) {
+      QApplication::processEvents();
+    }
+    CHECK(canvas->render_settled());
+  };
+  settle();
+
+  // Drag 1 (the fast one right after open), then commit.
+  const auto before = canvas->render_cache_diagnostics();
+  const auto start = canvas->widget_position_for_document_point(doc_center);
+  send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, start + QPoint(40, 0), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  send_mouse(*canvas, QEvent::MouseButtonRelease, start + QPoint(40, 0), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  const auto after_first = canvas->render_cache_diagnostics();
+  const auto first_release_patched =
+      after_first.move_precommit_patches == before.move_precommit_patches + 1;
+
+  // Drag 2 of the same selection, delivered WITHOUT pumping events so nothing
+  // but the mouse handlers themselves can run: the old bug composited the
+  // full document synchronously right here.
+  {
+    QMouseEvent press(QEvent::MouseButtonPress, start, canvas->mapToGlobal(start), Qt::LeftButton, Qt::LeftButton,
+                      Qt::NoModifier);
+    QApplication::sendEvent(canvas, &press);
+    const auto target = start + QPoint(40, 0);
+    QMouseEvent move(QEvent::MouseMove, target, canvas->mapToGlobal(target), Qt::NoButton, Qt::LeftButton,
+                     Qt::NoModifier);
+    QApplication::sendEvent(canvas, &move);
+  }
+  const auto mid_second = canvas->render_cache_diagnostics();
+  CHECK(mid_second.full_refreshes == after_first.full_refreshes);
+  if (first_release_patched) {
+    // The patch-success release retains base+proxy, so the re-drag reused them.
+    CHECK(mid_second.move_preview_cache_reuses == after_first.move_preview_cache_reuses + 1);
+  }
+  send_mouse(*canvas, QEvent::MouseButtonRelease, start + QPoint(40, 0), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  settle();
+}
+
 // The slow-live-frame latch persists across drags of the same selection: a
 // re-drag latches the proxy on its FIRST move instead of re-paying a slow
 // live frame, while dragging a different layer re-prices from a live frame.
@@ -2979,6 +3074,8 @@ std::vector<patchy::test::TestCase> move_tool_processing_overlay_tests() {
       {"ui_move_drag_with_dirty_render_cache_skips_sync_composite",
        ui_move_drag_with_dirty_render_cache_skips_sync_composite},
       {"ui_move_repeat_drag_reuses_retained_caches", ui_move_repeat_drag_reuses_retained_caches},
+      {"ui_move_pinball_poster_second_folder_drag_has_no_sync_composite_if_available",
+       ui_move_pinball_poster_second_folder_drag_has_no_sync_composite_if_available},
       {"ui_move_live_slow_latch_persists_across_drags",
        ui_move_live_slow_latch_persists_across_drags},
       {"ui_parallel_region_patches_match_single_threaded", ui_parallel_region_patches_match_single_threaded},
