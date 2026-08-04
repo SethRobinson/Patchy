@@ -175,6 +175,68 @@ void psd_smart_object_sources_survive_resave_if_available() {
   CHECK(has_lnk2(resaved));
 }
 
+patchy::Layer* first_non_affine_locked_layer(std::vector<patchy::Layer>& layers) {
+  for (auto& layer : layers) {
+    if (layer.kind() == patchy::LayerKind::Group) {
+      if (auto* found = first_non_affine_locked_layer(layer.children()); found != nullptr) {
+        return found;
+      }
+      continue;
+    }
+    if (patchy::smart_object_lock_reason(layer) == "non_affine") {
+      return &layer;
+    }
+  }
+  return nullptr;
+}
+
+// A perspective-placed (preview-locked "non_affine") smart object's stored quads
+// survive an affine transform round-trip: Free Transform maps Trnf AND the
+// stashed nonAffineTransform per corner, store_smart_object_placement carries
+// both, and the SoLd regeneration writes the mapped non-affine quad directly
+// instead of the translation-only additive fallback.
+void psd_smart_object_non_affine_quad_maps_through_affine_transform_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("pinball_retronight_poster_a3.psd");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] retronight poster fixture missing: " << path.string() << '\n';
+    return;
+  }
+  auto document = patchy::psd::DocumentIo::read_file(path);
+  auto* locked = first_non_affine_locked_layer(document.layers());
+  CHECK(locked != nullptr);
+  const auto layer_name = locked->name();
+  const auto placement = patchy::smart_object_placement_from_layer(*locked);
+  CHECK(placement.has_value());
+  CHECK(placement->non_affine_transform.has_value());
+
+  // Scale 1.5x about (100, 200): the per-corner mapping Free Transform applies.
+  const auto map_x = [](double value) { return 100.0 + (value - 100.0) * 1.5; };
+  const auto map_y = [](double value) { return 200.0 + (value - 200.0) * 1.5; };
+  auto updated = *placement;
+  auto mapped_non_affine = *placement->non_affine_transform;
+  for (std::size_t i = 0; i < 8U; i += 2U) {
+    updated.transform[i] = map_x(updated.transform[i]);
+    updated.transform[i + 1U] = map_y(updated.transform[i + 1U]);
+    mapped_non_affine[i] = map_x(mapped_non_affine[i]);
+    mapped_non_affine[i + 1U] = map_y(mapped_non_affine[i + 1U]);
+  }
+  updated.non_affine_transform = mapped_non_affine;
+  patchy::store_smart_object_placement(*locked, updated);
+  patchy::mark_layer_smart_object_block_dirty(*locked);
+
+  auto reread = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  const auto* reread_layer = first_non_affine_locked_layer(reread.layers());
+  CHECK(reread_layer != nullptr);
+  CHECK(reread_layer->name() == layer_name);
+  const auto reread_placement = patchy::smart_object_placement_from_layer(*reread_layer);
+  CHECK(reread_placement.has_value());
+  CHECK(reread_placement->non_affine_transform.has_value());
+  for (std::size_t i = 0; i < 8U; ++i) {
+    CHECK(std::abs(reread_placement->transform[i] - updated.transform[i]) < 1e-6);
+    CHECK(std::abs((*reread_placement->non_affine_transform)[i] - mapped_non_affine[i]) < 1e-6);
+  }
+}
+
 bool bytes_contain_sequence(std::span<const std::uint8_t> haystack, std::string_view needle) {
   return std::search(haystack.begin(), haystack.end(), needle.begin(), needle.end()) != haystack.end();
 }
@@ -1626,6 +1688,8 @@ std::vector<patchy::test::TestCase> smart_objects_warp_tests() {
       {"psd_dangling_smart_object_blocks_are_stripped", psd_dangling_smart_object_blocks_are_stripped},
       {"psd_smart_object_sources_survive_resave_if_available",
        psd_smart_object_sources_survive_resave_if_available},
+      {"psd_smart_object_non_affine_quad_maps_through_affine_transform_if_available",
+       psd_smart_object_non_affine_quad_maps_through_affine_transform_if_available},
       {"psb_layered_round_trip_preserves_layers_and_blocks",
        psb_layered_round_trip_preserves_layers_and_blocks},
       {"psb_flat_round_trip_reads_composite", psb_flat_round_trip_reads_composite},

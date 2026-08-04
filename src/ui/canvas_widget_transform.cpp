@@ -714,7 +714,13 @@ CanvasWidget::TransformTargetCollection CanvasWidget::collect_free_transform_tar
   }
   if (roots.size() == 1U) {
     const auto* root = std::as_const(*document_).find_layer(roots.front());
-    if (root == nullptr || root->kind() != LayerKind::Group) {
+    // A movable preview-locked smart object (non-affine quad, unsupported
+    // warp, external, legacy) takes the multi path too: the single-layer path
+    // refuses it, but the multi commit maps its quads per corner exactly.
+    const auto movable_locked_smart_object = root != nullptr && layer_has_movable_pixels(*root) &&
+                                             layer_is_smart_object(*root) &&
+                                             !smart_object_lock_reason(*root).empty();
+    if (root == nullptr || (root->kind() != LayerKind::Group && !movable_locked_smart_object)) {
       collection.use_single_layer_path = true;
       return collection;
     }
@@ -767,7 +773,11 @@ CanvasWidget::TransformTargetCollection CanvasWidget::collect_free_transform_tar
       collection.position_lock_refusal = true;
       return false;
     }
-    if (layer_is_smart_object(layer) && !smart_object_lock_reason(layer).empty()) {
+    if (layer_is_smart_object(layer) && !smart_object_placement_from_layer(layer).has_value()) {
+      // Preview-locked-but-parsed smart objects (non-affine quads, unsupported
+      // warps, external, legacy) ARE transformable: their quads map per corner
+      // and the resampled pixels stand in for the re-render, like Photoshop.
+      // Without a parsed quad nothing can ride the transform, so refuse.
       collection.refusal =
           tr("This smart object is preview-only and can't be transformed. Rasterize the layer first.");
       return false;
@@ -2312,7 +2322,7 @@ void CanvasWidget::commit_free_transform_multi() {
       } else if (layer_is_vector_shape(std::as_const(*layer)) || layer->vector_mask() != nullptr) {
         patchy::transform_layer_vector_data(*document_, *layer, matrix,
                                             Rect::from_size(document_->width(), document_->height()));
-      } else if (layer_is_smart_object(std::as_const(*layer)) && smart_object_lock_reason(*layer).empty()) {
+      } else if (layer_is_smart_object(std::as_const(*layer))) {
         if (const auto placement = smart_object_placement_from_layer(*layer); placement.has_value()) {
           auto updated = *placement;
           for (std::size_t i = 0; i < 8U; i += 2U) {
@@ -2320,14 +2330,29 @@ void CanvasWidget::commit_free_transform_multi() {
             updated.transform[i] = mapped.x();
             updated.transform[i + 1U] = mapped.y();
           }
+          if (placement->non_affine_transform.has_value()) {
+            // Perspective placements map their real quad per corner too; the
+            // additive writer fallback is only exact for translations.
+            auto mapped_quad = *placement->non_affine_transform;
+            for (std::size_t i = 0; i < 8U; i += 2U) {
+              const auto mapped = delta.map(QPointF(mapped_quad[i], mapped_quad[i + 1U]));
+              mapped_quad[i] = mapped.x();
+              mapped_quad[i + 1U] = mapped.y();
+            }
+            updated.non_affine_transform = mapped_quad;
+          }
           store_smart_object_placement(*layer, updated);
           mark_layer_smart_object_block_dirty(*layer);
           layer->metadata()[kLayerMetadataSmartObjectRasterStatus] = kSmartObjectRasterStatusPatchy;
-          if (smart_object_transform_render_callback_ && smart_object_transform_render_callback_(target.id)) {
-            // Bounds refreshed by the re-render.
-          } else if (transactional_smart_filter) {
-            smart_filter_rerender_failed = true;
+          if (smart_object_lock_reason(*layer).empty()) {
+            if (smart_object_transform_render_callback_ && smart_object_transform_render_callback_(target.id)) {
+              // Bounds refreshed by the re-render.
+            } else if (transactional_smart_filter) {
+              smart_filter_rerender_failed = true;
+            }
           }
+          // Preview-locked layers keep the resampled pixels (no re-render
+          // exists); the mapped quads keep the SoLd geometry consistent.
         } else if (transactional_smart_filter) {
           smart_filter_rerender_failed = true;
         }

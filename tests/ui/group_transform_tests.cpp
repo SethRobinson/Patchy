@@ -347,10 +347,12 @@ void ui_group_transform_resamples_linked_masks() {
   CHECK(adjustment_layer->mask()->bounds.width == 160 && adjustment_layer->mask()->bounds.height == 40);
 }
 
-// A position-locked member or a preview-locked smart object member refuses the
-// whole folder session (scaling the rest of the folder around a pinned member
-// would tear the artwork apart); the document stays untouched.
-void ui_group_transform_refuses_locked_and_preview_locked_members() {
+// A position-locked member or an unparsed smart object member (no placement
+// quad to ride the transform) refuses the whole folder session; scaling the
+// rest of a folder around a pinned member would tear the artwork apart. A
+// preview-locked-but-PARSED smart object member (warp/non-affine/external)
+// does NOT refuse: its quads map per corner like Photoshop.
+void ui_group_transform_refuses_locked_and_unparsed_members() {
   patchy::Document document(200, 160, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background",
                            solid_pixels(200, 160, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
@@ -383,6 +385,18 @@ void ui_group_transform_refuses_locked_and_preview_locked_members() {
   so_folder.add_child(std::move(placed));
   document.add_layer(std::move(so_folder));
 
+  patchy::Layer unparsed_folder(document.allocate_layer_id(), "Unparsed Folder", patchy::LayerKind::Group);
+  const auto unparsed_folder_id = unparsed_folder.id();
+  auto unparsed = patchy::Layer(document.allocate_layer_id(), "Unparsed SO",
+                                solid_pixels(20, 20, patchy::PixelFormat::rgba8(), QColor(200, 160, 40)));
+  unparsed.set_bounds(patchy::Rect{100, 100, 20, 20});
+  patchy::SmartObjectPlacement unparsed_placement;
+  unparsed_placement.transform = {100.0, 100.0, 120.0, 100.0, 120.0, 120.0, 100.0, 120.0};
+  patchy::set_layer_smart_object_metadata(unparsed, unparsed_placement, "", "SoLd", "unparsed",
+                                          "photoshop");
+  unparsed_folder.add_child(std::move(unparsed));
+  document.add_layer(std::move(unparsed_folder));
+
   patchy::ui::MainWindow window;
   show_window(window);
   window.add_document_session(std::move(document), QStringLiteral("Group Transform Refusals"));
@@ -397,8 +411,18 @@ void ui_group_transform_refuses_locked_and_preview_locked_members() {
   QApplication::processEvents();
   CHECK(!canvas->free_transform_active());
 
+  select_layer_rows_by_id(*layer_list, {unparsed_folder_id});
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+
+  // The preview-locked-but-parsed member starts a session instead.
   select_layer_rows_by_id(*layer_list, {so_folder_id});
   require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  CHECK(canvas->free_transform_is_multi_target());
+  send_key(*canvas, Qt::Key_Escape);
   QApplication::processEvents();
   CHECK(!canvas->free_transform_active());
 
@@ -540,6 +564,103 @@ void ui_pinball_folder_free_transform_end_to_end() {
   CHECK(images_equal_rgba(before, patchy::ui::qimage_from_document(doc, true)));
 }
 
+patchy::Layer* find_locked_smart_object(std::vector<patchy::Layer>& layers, const std::string& reason) {
+  for (auto& layer : layers) {
+    if (layer.kind() == patchy::LayerKind::Group) {
+      if (auto* found = find_locked_smart_object(layer.children(), reason); found != nullptr) {
+        return found;
+      }
+      continue;
+    }
+    if (patchy::smart_object_lock_reason(layer) == reason) {
+      return &layer;
+    }
+  }
+  return nullptr;
+}
+
+// The reported repro: selecting EVERY row in the retronight poster (which
+// contains perspective-placed "non_affine" preview-locked smart objects) and
+// hitting Ctrl-T must transform everything together like Photoshop. The locked
+// smart objects' Trnf AND nonAffineTransform quads map per corner through the
+// shared delta, and one Undo restores the whole document byte-identically.
+void ui_select_all_free_transform_transforms_retronight_poster() {
+  const auto path = patchy::test::local_psd_fixture_path("pinball_retronight_poster_a3.psd");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] local pinball_retronight_poster_a3.psd fixture missing" << std::endl;
+    return;
+  }
+  auto document = patchy::psd::DocumentIo::read_file(path);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Retronight Select All"));
+  accept_missing_psd_text_font_warning_if_present();
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+
+  auto* grid = find_locked_smart_object(doc.layers(), "non_affine");
+  CHECK(grid != nullptr);
+  const auto grid_id = grid->id();
+  const auto placement_before = patchy::smart_object_placement_from_layer(*grid);
+  CHECK(placement_before.has_value());
+  CHECK(placement_before->non_affine_transform.has_value());
+  const auto before = patchy::ui::qimage_from_document(doc, true);
+
+  layer_list->selectAll();
+  QApplication::processEvents();
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  // The reported bug: this used to refuse with "Select a pixel layer to transform".
+  CHECK(canvas->free_transform_active());
+  CHECK(canvas->free_transform_is_multi_target());
+
+  const auto state = canvas->transform_controls_state();
+  CHECK(state.has_value());
+  const auto center = state->reference_position;
+  CHECK(canvas->set_transform_controls_state(center, 150.0, 150.0, 0.0));
+  QApplication::processEvents();
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+
+  // Both stored quads scaled 1.5x about the session box center.
+  const auto* grid_after = doc.find_layer(grid_id);
+  CHECK(grid_after != nullptr);
+  const auto placement_after = patchy::smart_object_placement_from_layer(*grid_after);
+  CHECK(placement_after.has_value());
+  CHECK(placement_after->non_affine_transform.has_value());
+  const auto expect_scaled = [&center](double before_value, double after_value, double center_value) {
+    CHECK(std::abs(after_value - (center_value + (before_value - center_value) * 1.5)) < 0.01);
+  };
+  for (std::size_t i = 0; i < 8U; i += 2U) {
+    expect_scaled(placement_before->transform[i], placement_after->transform[i], center.x());
+    expect_scaled(placement_before->transform[i + 1U], placement_after->transform[i + 1U], center.y());
+    expect_scaled((*placement_before->non_affine_transform)[i], (*placement_after->non_affine_transform)[i],
+                  center.x());
+    expect_scaled((*placement_before->non_affine_transform)[i + 1U],
+                  (*placement_after->non_affine_transform)[i + 1U], center.y());
+  }
+
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(images_equal_rgba(before, patchy::ui::qimage_from_document(doc, true)));
+
+  // A single selected preview-locked smart object routes to the multi path
+  // and transforms too (the single-layer path used to refuse it). The GRID
+  // row sits inside collapsed folders, so push the selection directly.
+  canvas->set_selected_layer_ids({grid_id});
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  CHECK(canvas->free_transform_is_multi_target());
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> group_transform_tests() {
@@ -550,12 +671,14 @@ std::vector<patchy::test::TestCase> group_transform_tests() {
       {"ui_multi_select_free_transform_transforms_selection_together",
        ui_multi_select_free_transform_transforms_selection_together},
       {"ui_group_transform_resamples_linked_masks", ui_group_transform_resamples_linked_masks},
-      {"ui_group_transform_refuses_locked_and_preview_locked_members",
-       ui_group_transform_refuses_locked_and_preview_locked_members},
+      {"ui_group_transform_refuses_locked_and_unparsed_members",
+       ui_group_transform_refuses_locked_and_unparsed_members},
       {"ui_group_transform_session_disables_warp_and_esc_cancels",
        ui_group_transform_session_disables_warp_and_esc_cancels},
       {"ui_group_transform_selection_reemission_keeps_session",
        ui_group_transform_selection_reemission_keeps_session},
       {"ui_pinball_folder_free_transform_end_to_end", ui_pinball_folder_free_transform_end_to_end},
+      {"ui_select_all_free_transform_transforms_retronight_poster",
+       ui_select_all_free_transform_transforms_retronight_poster},
   };
 }

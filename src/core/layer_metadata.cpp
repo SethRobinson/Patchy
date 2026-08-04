@@ -341,16 +341,21 @@ void translate_moved_layer_metadata(Layer& layer, std::int32_t dx, std::int32_t 
   }
 
   if (layer_is_smart_object(std::as_const(layer))) {
-    const auto& const_metadata = std::as_const(layer).metadata();
-    if (const auto transform_text = const_metadata.find(kLayerMetadataSmartObjectTransform);
-        transform_text != const_metadata.end()) {
+    // Both quads ride the move: the stored nonAffineTransform must stay in
+    // step with Trnf or the SoLd writer would emit a stale perspective quad.
+    for (const auto* transform_key :
+         {kLayerMetadataSmartObjectTransform, kLayerMetadataSmartObjectNonAffineTransform}) {
+      const auto& const_metadata = std::as_const(layer).metadata();
+      const auto transform_text = const_metadata.find(transform_key);
+      if (transform_text == const_metadata.end()) {
+        continue;
+      }
       if (auto quad = parse_smart_object_transform(transform_text->second); quad.has_value()) {
         for (std::size_t i = 0; i < quad->size(); i += 2) {
           (*quad)[i] += dx;
           (*quad)[i + 1] += dy;
         }
-        layer.metadata_without_content_bump()[kLayerMetadataSmartObjectTransform] =
-            serialize_smart_object_transform(*quad);
+        layer.metadata_without_content_bump()[transform_key] = serialize_smart_object_transform(*quad);
         mark_layer_smart_object_block_dirty(layer);
       }
     }

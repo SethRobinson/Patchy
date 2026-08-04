@@ -381,6 +381,10 @@ std::optional<SmartObjectPlacement> smart_object_placement_from_layer(const Laye
   SmartObjectPlacement placement;
   placement.uuid = std::string(*uuid);
   placement.transform = *transform;
+  if (const auto non_affine_text = metadata_value(layer, kLayerMetadataSmartObjectNonAffineTransform);
+      non_affine_text.has_value()) {
+    placement.non_affine_transform = parse_smart_object_transform(*non_affine_text);
+  }
   if (const auto size_text = metadata_value(layer, kLayerMetadataSmartObjectSize); size_text.has_value()) {
     const std::string copy(*size_text);
     const char* cursor = copy.c_str();
@@ -407,6 +411,12 @@ void store_smart_object_placement(Layer& layer, const SmartObjectPlacement& plac
   auto& metadata = layer.metadata();
   metadata[kLayerMetadataSmartObject] = placement.uuid;
   metadata[kLayerMetadataSmartObjectTransform] = serialize_smart_object_transform(placement.transform);
+  if (placement.non_affine_transform.has_value()) {
+    metadata[kLayerMetadataSmartObjectNonAffineTransform] =
+        serialize_smart_object_transform(*placement.non_affine_transform);
+  } else {
+    metadata.erase(kLayerMetadataSmartObjectNonAffineTransform);
+  }
   metadata[kLayerMetadataSmartObjectSize] = format_double(placement.width) + " " + format_double(placement.height);
   metadata[kLayerMetadataSmartObjectResolution] = format_double(placement.resolution);
   metadata[kLayerMetadataSmartObjectType] = std::to_string(placement.placed_type);

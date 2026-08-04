@@ -23,6 +23,10 @@ class Document;
 inline constexpr const char* kLayerMetadataSmartObject = "patchy.smart_object";  // = source uuid
 inline constexpr const char* kLayerMetadataSmartObjectPlaced = "patchy.smart_object.placed";
 inline constexpr const char* kLayerMetadataSmartObjectTransform = "patchy.smart_object.transform";
+// Perspective placements only: the SoLd nonAffineTransform quad when it differs
+// from Trnf. Transforms map it per corner exactly; absent for affine placements.
+inline constexpr const char* kLayerMetadataSmartObjectNonAffineTransform =
+    "patchy.smart_object.non_affine_transform";
 inline constexpr const char* kLayerMetadataSmartObjectSize = "patchy.smart_object.size";
 inline constexpr const char* kLayerMetadataSmartObjectResolution = "patchy.smart_object.resolution";
 inline constexpr const char* kLayerMetadataSmartObjectType = "patchy.smart_object.type";
@@ -124,6 +128,11 @@ void collect_referenced_smart_object_sources(const Layer& layer, const SmartObje
 struct SmartObjectPlacement {
   std::string uuid;
   std::array<double, 8> transform{};  // x,y of the 4 placed corners in document coords
+  // The SoLd nonAffineTransform quad when it differs from Trnf (perspective
+  // placements). Free Transform maps it per corner alongside Trnf; the SoLd
+  // writer patches it directly when present and falls back to the per-corner
+  // Trnf delta (exact only for translations) when absent.
+  std::optional<std::array<double, 8>> non_affine_transform;
   double width{0.0};                  // source size in pixels (SoLd 'Sz')
   double height{0.0};
   double resolution{72.0};  // dpi (SoLd 'Rslt')

@@ -1350,6 +1350,13 @@ std::optional<PlacedLayerInfo> parse_sold_block(std::span<const std::uint8_t> pa
       return std::nullopt;
     }
     info.placement.transform = *transform;
+    // A perspective placement's real quad: stash nonAffineTransform when it
+    // differs from Trnf so transforms can map it per corner exactly (the
+    // writer's additive fallback below is only exact for pure translations).
+    if (const auto non_affine = transform_from_list(descriptor_value(descriptor, "nonAffineTransform"));
+        non_affine.has_value() && transforms_differ(*transform, *non_affine)) {
+      info.placement.non_affine_transform = *non_affine;
+    }
     if (const auto* size = descriptor_object(descriptor, "Sz  "); size != nullptr) {
       info.placement.width = descriptor_number(*size, "Wdth", 0.0);
       info.placement.height = descriptor_number(*size, "Hght", 0.0);
@@ -1886,9 +1893,12 @@ std::optional<std::vector<std::uint8_t>> regenerate_placed_layer_payload(
           placed->string_value = std::string(placed_uuid);
         }
       }
-      // Trnf takes the new quad; nonAffineTransform moves by the SAME per-corner
-      // delta instead of being overwritten, so a translated non-affine placement
-      // keeps its perspective (for editable layers the two are equal either way).
+      // Trnf takes the new quad. nonAffineTransform takes the placement's
+      // mapped quad when the model carries one (Free Transform maps it per
+      // corner alongside Trnf, the only exact rule under scale/rotate);
+      // otherwise it moves by the SAME per-corner Trnf delta instead of being
+      // overwritten, so a translated non-affine placement keeps its perspective
+      // (for editable layers the two are equal either way).
       const auto original_transform = transform_from_list(descriptor_value(descriptor, "Trnf"));
       if (auto* value = const_cast<DescriptorValue*>(descriptor_value(descriptor, "Trnf"));
           value != nullptr && value->type == DescriptorValue::Type::List && value->list_value.size() == 8U) {
@@ -1898,9 +1908,15 @@ std::optional<std::vector<std::uint8_t>> regenerate_placed_layer_payload(
       }
       if (auto* non_affine = const_cast<DescriptorValue*>(descriptor_value(descriptor, "nonAffineTransform"));
           non_affine != nullptr && non_affine->type == DescriptorValue::Type::List &&
-          non_affine->list_value.size() == 8U && original_transform.has_value()) {
-        for (std::size_t i = 0; i < 8U; ++i) {
-          non_affine->list_value[i].double_value += placement.transform[i] - (*original_transform)[i];
+          non_affine->list_value.size() == 8U) {
+        if (placement.non_affine_transform.has_value()) {
+          for (std::size_t i = 0; i < 8U; ++i) {
+            non_affine->list_value[i].double_value = (*placement.non_affine_transform)[i];
+          }
+        } else if (original_transform.has_value()) {
+          for (std::size_t i = 0; i < 8U; ++i) {
+            non_affine->list_value[i].double_value += placement.transform[i] - (*original_transform)[i];
+          }
         }
       }
       if (auto* size = const_cast<DescriptorObject*>(descriptor_object(descriptor, "Sz  ")); size != nullptr) {
