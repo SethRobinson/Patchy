@@ -952,6 +952,10 @@ private:
   [[nodiscard]] bool ensure_move_proxy_image();
   [[nodiscard]] QRect move_proxy_dirty_rect(QPoint old_delta, QPoint new_delta) const;
   void clear_move_proxy() noexcept;
+  // Hash of the sorted moving-layer ids and the composite level; keys the
+  // persistent slow-frame latch (see move_live_frame_slow_).
+  [[nodiscard]] std::uint64_t move_live_latch_key() const;
+  void reset_move_live_latch() noexcept;
   // PREVIEW-ONLY scaled document for display-resolution compositing: built
   // lazily per level, kept across drags, dropped on any document change.
   // Returns nullptr when level < 1 or the document is unavailable.
@@ -1743,8 +1747,12 @@ private:
   bool move_drag_uses_proxy_preview_{false};
   // A live preview frame rendered slower than the latch threshold; the next
   // move switches to the proxy (the area gate cannot price the stack the drag
-  // crosses). Reset with the proxy state.
+  // crosses). Persists across drags of the same moving set at the same
+  // composite level (mirrors transform_live_frame_slow_): reset by
+  // reset_move_live_latch() on document/tool/lock changes and by the
+  // press-time key mismatch, NOT by clear_move_proxy().
   bool move_live_frame_slow_{false};
+  std::uint64_t move_live_latch_key_{0};
   // Snapshot of the moving subtree at delta zero (ARGB32_Premultiplied,
   // possibly downscaled) and the canvas-clipped document rect it covers.
   QImage move_proxy_image_{};

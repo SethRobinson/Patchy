@@ -321,6 +321,7 @@ void CanvasWidget::set_document_internal(Document* document, bool preserve_frame
   moving_layers_use_outline_preview_ = false;
   clear_move_base_cache();
   clear_move_proxy();
+  reset_move_live_latch();
   document_ = document;
   set_move_transform_controls_layer(std::nullopt);
   selected_guide_index_ = -1;
@@ -410,6 +411,7 @@ void CanvasWidget::set_tool(CanvasTool tool) {
     moving_layers_use_outline_preview_ = false;
     clear_move_base_cache();
     clear_move_proxy();
+    reset_move_live_latch();
     set_move_transform_controls_layer(std::nullopt);
     clear_move_hover_outline();
     mixer_brush_state_ = {};
@@ -449,6 +451,7 @@ void CanvasWidget::set_edit_locked(bool locked) noexcept {
     moving_layers_use_outline_preview_ = false;
     clear_move_base_cache();
     clear_move_proxy();
+    reset_move_live_latch();
     dragging_text_rect_ = false;
     selecting_ = false;
     lassoing_ = false;

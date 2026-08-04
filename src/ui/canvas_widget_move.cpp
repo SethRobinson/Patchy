@@ -402,10 +402,46 @@ QRect CanvasWidget::move_proxy_dirty_rect(QPoint old_delta, QPoint new_delta) co
 }
 
 void CanvasWidget::clear_move_proxy() noexcept {
+  // Per-drag proxy state only. move_live_frame_slow_ deliberately survives:
+  // it persists across drags of the same moving set (reset_move_live_latch and
+  // the press-time key check own its lifetime), mirroring the transform
+  // session latch, so a re-drag latches the proxy on its first frame instead
+  // of re-paying a slow live frame.
   move_drag_uses_proxy_preview_ = false;
-  move_live_frame_slow_ = false;
   move_proxy_image_ = QImage();
   move_proxy_document_rect_ = QRect();
+}
+
+std::uint64_t CanvasWidget::move_live_latch_key() const {
+  if (moving_layers_.empty()) {
+    return 0;
+  }
+  std::vector<LayerId> ids;
+  ids.reserve(moving_layers_.size());
+  for (const auto& moving_layer : moving_layers_) {
+    ids.push_back(moving_layer.id);
+  }
+  std::sort(ids.begin(), ids.end());
+  // FNV-1a over the sorted ids plus the composite level: the latch prices a
+  // (moving set, display resolution) pair, so changing either re-prices the
+  // drag from a live frame.
+  auto hash = std::uint64_t{1469598103934665603ULL};
+  const auto mix = [&hash](std::uint64_t value) {
+    for (int i = 0; i < 8; ++i) {
+      hash ^= (value >> (i * 8)) & 0xFFU;
+      hash *= 1099511628211ULL;
+    }
+  };
+  for (const auto id : ids) {
+    mix(static_cast<std::uint64_t>(id));
+  }
+  mix(static_cast<std::uint64_t>(preview_composite_level_for_zoom(zoom_)) + 1);
+  return hash;
+}
+
+void CanvasWidget::reset_move_live_latch() noexcept {
+  move_live_frame_slow_ = false;
+  move_live_latch_key_ = 0;
 }
 
 Document* CanvasWidget::preview_scaled_document_for_level(int level) {

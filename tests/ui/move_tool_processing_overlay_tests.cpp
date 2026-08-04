@@ -174,6 +174,7 @@
 #include <algorithm>
 #include <atomic>
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <cmath>
 #include <cstring>
@@ -2068,6 +2069,146 @@ void ui_move_scaled_proxy_after_commit_shows_moved_content() {
   CHECK(color_close(canvas_pixel(canvas, QPoint(220, 130)), QColor(Qt::white), 15));
 }
 
+// Starting a move drag with a dirty render cache must not synchronously
+// recomposite the whole document inside the mouse handler (that was a
+// multi-second stall on heavy PSDs whose commit invalidated the cache): the
+// proxy latch builds its base from the preview machinery instead, and the
+// full refresh runs after release.
+void ui_move_drag_with_dirty_render_cache_skips_sync_composite() {
+  patchy::Document document(1500, 1300, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(1500, 1300, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+
+  patchy::Layer layer(document.allocate_layer_id(), "Dirty Cache Move",
+                      solid_pixels(1000, 1000, patchy::PixelFormat::rgba8(), QColor(20, 90, 235)));
+  const auto layer_id = layer.id();
+  layer.set_bounds(patchy::Rect{100, 100, 1000, 1000});
+  patchy::LayerStroke stroke;
+  stroke.enabled = true;
+  stroke.blend_mode = patchy::BlendMode::Normal;
+  stroke.color = patchy::RgbColor{40, 180, 80};
+  stroke.opacity = 1.0F;
+  stroke.size = 2.0F;
+  layer.layer_style().strokes.push_back(stroke);
+  document.add_layer(std::move(layer));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(900, 720);
+  canvas.set_document(&document);
+  canvas.set_zoom(0.5);
+  canvas.set_tool(patchy::ui::CanvasTool::Move);
+  canvas.set_show_transform_controls(false);
+  canvas.set_auto_select_layer(false);
+  canvas.set_snap_enabled(false);
+  canvas.set_selected_layer_ids({layer_id});
+  canvas.show();
+  QApplication::processEvents();
+
+  // Dirty the cache the way a fallback move commit does, then drag WITHOUT
+  // pumping events (raw sendEvent, not the send_mouse helper): a paint would
+  // refresh this small document synchronously and mask the drag-path behavior
+  // (the old bug lived inside mouseMoveEvent itself).
+  canvas.document_changed();
+  const auto before_stats = canvas.render_cache_diagnostics();
+  const auto start = canvas.widget_position_for_document_point(QPoint(150, 150));
+  const auto end = canvas.widget_position_for_document_point(QPoint(450, 150));
+  {
+    QMouseEvent press(QEvent::MouseButtonPress, start, canvas.mapToGlobal(start), Qt::LeftButton, Qt::LeftButton,
+                      Qt::NoModifier);
+    QApplication::sendEvent(&canvas, &press);
+    QMouseEvent move(QEvent::MouseMove, end, canvas.mapToGlobal(end), Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(&canvas, &move);
+  }
+
+  // The styled area gate latches the proxy on the first move; no synchronous
+  // full recomposite may have run inside the drag.
+  const auto mid_drag_stats = canvas.render_cache_diagnostics();
+  CHECK(mid_drag_stats.full_refreshes == before_stats.full_refreshes);
+  CHECK(mid_drag_stats.move_proxy_previews == before_stats.move_proxy_previews + 1);
+  CHECK(mid_drag_stats.move_outline_previews == before_stats.move_outline_previews);
+
+  send_mouse(canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  const auto settle_deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+  while (!canvas.render_settled() && std::chrono::steady_clock::now() < settle_deadline) {
+    QApplication::processEvents();
+  }
+  CHECK(canvas.render_settled());
+  // The full refresh ran after release (paint-owned), and the commit landed.
+  CHECK(canvas.render_cache_diagnostics().full_refreshes > before_stats.full_refreshes);
+  CHECK(color_close(canvas_pixel(canvas, QPoint(1250, 500)), QColor(20, 90, 235), 45));
+  CHECK(color_close(canvas_pixel(canvas, QPoint(150, 500)), QColor(Qt::white), 45));
+}
+
+// The slow-live-frame latch persists across drags of the same selection: a
+// re-drag latches the proxy on its FIRST move instead of re-paying a slow
+// live frame, while dragging a different layer re-prices from a live frame.
+void ui_move_live_slow_latch_persists_across_drags() {
+  EnvironmentVariableRestorer restore_latch("PATCHY_MOVE_LIVE_LATCH_MS");
+  qputenv("PATCHY_MOVE_LIVE_LATCH_MS", QByteArray("0"));
+
+  patchy::Document document(300, 200, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(300, 200, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  patchy::Layer layer(document.allocate_layer_id(), "Persistent Latch Move",
+                      solid_pixels(40, 40, patchy::PixelFormat::rgba8(), QColor(220, 40, 40)));
+  const auto layer_id = layer.id();
+  layer.set_bounds(patchy::Rect{30, 40, 40, 40});
+  document.add_layer(std::move(layer));
+  patchy::Layer other(document.allocate_layer_id(), "Other Latch Move",
+                      solid_pixels(30, 30, patchy::PixelFormat::rgba8(), QColor(40, 60, 220)));
+  const auto other_id = other.id();
+  other.set_bounds(patchy::Rect{200, 140, 30, 30});
+  document.add_layer(std::move(other));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(520, 380);
+  canvas.set_document(&document);
+  canvas.set_zoom(1.0);
+  canvas.set_tool(patchy::ui::CanvasTool::Move);
+  canvas.set_show_transform_controls(false);
+  canvas.set_auto_select_layer(false);
+  canvas.set_snap_enabled(false);
+  canvas.set_selected_layer_ids({layer_id});
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto before_stats = canvas.render_cache_diagnostics();
+  // Drag 1: first move live (zero threshold marks it slow), second latches.
+  auto start = canvas.widget_position_for_document_point(QPoint(50, 60));
+  send_mouse(canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, start + QPoint(40, 0), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(canvas.render_cache_diagnostics().move_proxy_previews == before_stats.move_proxy_previews);
+  send_mouse(canvas, QEvent::MouseMove, start + QPoint(60, 0), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(canvas.render_cache_diagnostics().move_proxy_previews == before_stats.move_proxy_previews + 1);
+  send_mouse(canvas, QEvent::MouseButtonRelease, start + QPoint(60, 0), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  // Drag 2 of the same layer: the latch persisted, so the FIRST move already
+  // blits the proxy (no slow live frame).
+  start = canvas.widget_position_for_document_point(QPoint(110, 60));
+  send_mouse(canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, start + QPoint(40, 0), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(canvas.render_cache_diagnostics().move_proxy_previews == before_stats.move_proxy_previews + 2);
+  send_mouse(canvas, QEvent::MouseButtonRelease, start + QPoint(40, 0), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  // Drag 3 of a DIFFERENT layer: the key mismatch re-prices, so the first
+  // move renders live again and only the second latches.
+  canvas.set_selected_layer_ids({other_id});
+  start = canvas.widget_position_for_document_point(QPoint(215, 155));
+  send_mouse(canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, start + QPoint(-40, 0), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(canvas.render_cache_diagnostics().move_proxy_previews == before_stats.move_proxy_previews + 2);
+  send_mouse(canvas, QEvent::MouseMove, start + QPoint(-60, 0), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(canvas.render_cache_diagnostics().move_proxy_previews == before_stats.move_proxy_previews + 3);
+  send_mouse(canvas, QEvent::MouseButtonRelease, start + QPoint(-60, 0), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+}
+
 // Multi-rect region renders fan out across workers; every rect is the same
 // render_document_rect call either way, so the patch bytes must match the
 // PATCHY_RENDER_SINGLE_THREADED sequential loop exactly.
@@ -2737,6 +2878,10 @@ std::vector<patchy::test::TestCase> move_tool_processing_overlay_tests() {
        ui_move_scaled_preview_composites_at_display_resolution},
       {"ui_move_scaled_proxy_after_commit_shows_moved_content",
        ui_move_scaled_proxy_after_commit_shows_moved_content},
+      {"ui_move_drag_with_dirty_render_cache_skips_sync_composite",
+       ui_move_drag_with_dirty_render_cache_skips_sync_composite},
+      {"ui_move_live_slow_latch_persists_across_drags",
+       ui_move_live_slow_latch_persists_across_drags},
       {"ui_parallel_region_patches_match_single_threaded", ui_parallel_region_patches_match_single_threaded},
       {"ui_layer_move_repaints_only_active_document_tab", ui_layer_move_repaints_only_active_document_tab},
       {"ui_arduboy_psd_render_path_if_available", ui_arduboy_psd_render_path_if_available},

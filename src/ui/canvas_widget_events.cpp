@@ -823,6 +823,13 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
                                              ancestor_effect_padding});
       }
     }
+    // The slow-frame latch persists across drags of the same moving set at the
+    // same composite level; a different set or level re-prices from a live
+    // frame. (Must run after the moving_layers_ build: the key hashes it.)
+    if (const auto latch_key = move_live_latch_key(); latch_key != move_live_latch_key_) {
+      move_live_frame_slow_ = false;
+      move_live_latch_key_ = latch_key;
+    }
     move_preview_patches_.clear();
     move_preview_patches_delta_.reset();
     move_preview_patches_scale_level_ = 0;
@@ -1323,8 +1330,12 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       // Heavy drags latch onto the translated-snapshot proxy for the rest of
       // the drag: one base + snapshot render now, then every frame is a blit.
       // The dashed outline stays as the last resort when no snapshot can be
-      // built. Both latches are sticky until release.
-      ensure_render_cache();
+      // built. Both latches are sticky until release. Deliberately no
+      // ensure_render_cache() here: a dirty cache would synchronously
+      // recomposite the whole document inside the mouse handler, and the base
+      // build is self-sufficient (scaled document at zoom <= 50%, banded
+      // hidden-layer render in the full-res dirty case); the post-release
+      // async refresh owns full invalidations.
       ensure_move_base_cache();
       if (!move_base_cache_.isNull() && ensure_move_proxy_image()) {
         move_drag_uses_proxy_preview_ = true;
@@ -1358,7 +1369,9 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       last_mouse_position_ = event->pos();
       return;
     }
-    ensure_render_cache();
+    // No ensure_render_cache() (see the latch branch above): live frames draw
+    // base + patches, neither of which reads the render cache once the base
+    // exists, and the base-less fallback tolerates a stale cache under it.
     ensure_move_base_cache();
     // Display-resolution compositing: at zoom <= 50% the live patches render
     // from the preview-scaled document at the display mip level.
