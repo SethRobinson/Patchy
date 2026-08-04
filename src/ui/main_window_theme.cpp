@@ -362,6 +362,20 @@ QString photoshop_style_template() {
       background: @accent_pressed_bg;
       border-color: @accent_border_bright;
     }
+    /* Line-edit side widgets (the setClearButtonEnabled x, any addAction icon) are
+       QToolButtons, so the rule above applied a 26 px minimum to them:
+       QStyleSheetStyle turns min-width/min-height into a real minimum size, which
+       QLineEdit's own 18 px placement is then clamped up to (34x34 with the box
+       margins), hanging the x below the bottom of a filter field. The zeroes hand
+       the placement back to QLineEdit, and the flat chrome keeps the hover rule
+       from boxing the glyph. */
+    QLineEdit QToolButton {
+      background: transparent;
+      border: none;
+      min-width: 0;
+      min-height: 0;
+      padding: 0;
+    }
     QWidget#windowChromeControls {
       background: @title_bar_bg;
     }

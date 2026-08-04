@@ -2560,6 +2560,17 @@ void ui_start_panel_recent_filter_narrows_rows_and_opens_match() {
   CHECK(recent_list->count() == 1);
   CHECK(recent_list->item(0)->text() == QStringLiteral("start_panel_filter_beta.png"));
 
+  // The clear button sits centered inside the field. The application QToolButton
+  // rule's 26 px minimum used to be applied to it as a real minimum size, which
+  // pushed the x below the 24 px edit's bottom border.
+  // Qt names the clear action, not the button, so this finds it by type.
+  auto* clear_button = filter_edit->findChild<QToolButton*>();
+  CHECK(clear_button != nullptr);
+  CHECK(clear_button->isVisible());
+  CHECK(clear_button->height() <= filter_edit->height());
+  CHECK(clear_button->geometry().right() < filter_edit->width());
+  CHECK(std::abs(clear_button->geometry().center().y() - filter_edit->rect().center().y()) <= 1);
+
   // The whole path is matched, so a folder name narrows the same way a file name does.
   filter_edit->setText(QStringLiteral("test-artifacts"));
   QApplication::processEvents();
@@ -2572,6 +2583,9 @@ void ui_start_panel_recent_filter_narrows_rows_and_opens_match() {
   CHECK(recent_list->isVisible());
   CHECK(recent_list->count() == 1);
   CHECK(recent_list->item(0)->data(kRecentPathRole).toString().isEmpty());
+  // The clear button fades in on a property animation, so the artifact needs the
+  // event loop to run before it shows the x in its final place.
+  process_events_for(250);
   save_widget_artifact("ui_start_panel_recent_filter", window);
   const auto placeholder_center = recent_list->visualItemRect(recent_list->item(0)).center();
   send_mouse(*recent_list->viewport(), QEvent::MouseButtonPress, placeholder_center, Qt::LeftButton,
