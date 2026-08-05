@@ -8,6 +8,8 @@
 #include <QMessageBox>
 #include <QSizeGrip>
 
+#include <exception>
+
 class QAction;
 class QDialog;
 class QDoubleSpinBox;
@@ -85,6 +87,19 @@ void set_dialog_position_memory_id(QDialog& dialog, const QString& id);
 void remember_dialog_position(QDialog& dialog);
 int exec_dialog(QDialog& dialog);
 int run_non_modal_dialog(QDialog& dialog);
+// Leaves the innermost run_non_modal_dialog loop on this thread by exception.
+// Stores `error` for that loop's frame and quits the loop, so
+// run_non_modal_dialog rethrows it on its own frame once exec() returns (the
+// dialog's result() is never consulted on that path). Returns false, storing
+// nothing, when no run_non_modal_dialog loop is running on this thread.
+//
+// This is the only supported way to leave a running dialog loop with an
+// exception. Throwing straight out of a slot crosses Qt's event dispatcher,
+// which Qt does not support: MSVC happens to unwind through the dispatcher
+// frames, but macOS reaches std::terminate inside the CFRunLoop frames and
+// aborts. Catch at the slot boundary, pass std::current_exception() here, and
+// return from the slot.
+bool unwind_non_modal_dialog_loop(std::exception_ptr error);
 // macOS: anchors the dialog's native window as a child window of its parent
 // widget's window whenever it is visible, so it can never drop behind the parent
 // (macOS has no Win32-style owned-window z-order; clicking the main window would

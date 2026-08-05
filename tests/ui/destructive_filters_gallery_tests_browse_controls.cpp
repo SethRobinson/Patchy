@@ -1874,44 +1874,58 @@ void ui_filter_gallery_unwinding_call_disarms_in_flight_renders() {
 
   bool drove_dialog = false;
   QTimer::singleShot(0, [&] {
-    auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
-    CHECK(dialog != nullptr);
-    auto* search = dialog->findChild<QLineEdit*>(
-        QStringLiteral("filterGallerySearchEdit"));
-    auto* looks = dialog->findChild<QListWidget*>(
-        QStringLiteral("filterGalleryLooksList"));
-    CHECK(search != nullptr && looks != nullptr);
+    // Nothing here may throw across the event dispatcher: Qt does not support
+    // it (macOS terminates in the CFRunLoop frames; MSVC only happens to
+    // unwind). The catch hands both the deliberate probe throw and any failing
+    // CHECK to run_non_modal_dialog, which rethrows on its own frame; the
+    // catch around request_visual_filter_gallery below still tells them apart
+    // by message.
+    try {
+      auto* dialog =
+          find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
+      CHECK(dialog != nullptr);
+      auto* search = dialog->findChild<QLineEdit*>(
+          QStringLiteral("filterGallerySearchEdit"));
+      auto* looks = dialog->findChild<QListWidget*>(
+          QStringLiteral("filterGalleryLooksList"));
+      CHECK(search != nullptr && looks != nullptr);
 
-    // The thumbnail loop runs one job at a time and skips hidden rows, so
-    // hiding every other filter parks it on the probe row.
-    search->setText(QStringLiteral("Parked Unwind"));
-    QApplication::processEvents();
-    CHECK(visible_gallery_filter_ids(*looks) ==
-          QStringList{QStringLiteral("test.filters.parked_unwind_probe")});
-    CHECK(process_events_until(
-        [&] { return thumbnail_started->load(std::memory_order_acquire); },
-        10000));
+      // The thumbnail loop runs one job at a time and skips hidden rows, so
+      // hiding every other filter parks it on the probe row.
+      search->setText(QStringLiteral("Parked Unwind"));
+      QApplication::processEvents();
+      CHECK(visible_gallery_filter_ids(*looks) ==
+            QStringList{QStringLiteral("test.filters.parked_unwind_probe")});
+      CHECK(process_events_until(
+          [&] { return thumbnail_started->load(std::memory_order_acquire); },
+          10000));
 
-    // Selecting the row schedules the center render (35 ms debounce), which
-    // parks in the exact renderer. Selection reaches refresh_recipe_ui, which
-    // never calls schedule_thumbnails, so the parked thumbnail's generation
-    // stays current and its completion would still be accepted.
-    looks->setCurrentItem(require_gallery_filter_item(
-        *looks, QStringLiteral("test.filters.parked_unwind_probe")));
-    CHECK(process_events_until(
-        [&] { return exact_started->load(std::memory_order_acquire); }, 3000));
+      // Selecting the row schedules the center render (35 ms debounce), which
+      // parks in the exact renderer. Selection reaches refresh_recipe_ui,
+      // which never calls schedule_thumbnails, so the parked thumbnail's
+      // generation stays current and its completion would still be accepted.
+      looks->setCurrentItem(require_gallery_filter_item(
+          *looks, QStringLiteral("test.filters.parked_unwind_probe")));
+      CHECK(process_events_until(
+          [&] { return exact_started->load(std::memory_order_acquire); },
+          3000));
 
-    // The assertions after the unwind only mean anything if both renders are
-    // genuinely armed right here.
-    CHECK(!thumbnail_cancelled->load(std::memory_order_acquire));
-    CHECK(!exact_cancelled->load(std::memory_order_acquire));
-    CHECK(exact_previews->load(std::memory_order_acquire) == 0);
-    CHECK(dialog->isVisible());
+      // The assertions after the unwind only mean anything if both renders
+      // are genuinely armed right here.
+      CHECK(!thumbnail_cancelled->load(std::memory_order_acquire));
+      CHECK(!exact_cancelled->load(std::memory_order_acquire));
+      CHECK(exact_previews->load(std::memory_order_acquire) == 0);
+      CHECK(dialog->isVisible());
 
-    drove_dialog = true;
-    // Deliberately no dialog->reject(): the regression is the path where
-    // run_non_modal_dialog never returns.
-    throw std::runtime_error(kGalleryUnwindProbeMessage);
+      drove_dialog = true;
+      // Deliberately no dialog->reject(): the regression is the path where
+      // run_non_modal_dialog leaves by exception instead of by result.
+      throw std::runtime_error(kGalleryUnwindProbeMessage);
+    } catch (...) {
+      if (!patchy::ui::unwind_non_modal_dialog_loop(std::current_exception())) {
+        throw;  // No dialog loop is running; nothing can transport it.
+      }
+    }
   });
 
   bool unwound = false;

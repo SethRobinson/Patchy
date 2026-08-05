@@ -43,6 +43,7 @@
 #include <QTimer>
 #include <QPolygonF>
 #include <QPushButton>
+#include <QScopeGuard>
 #include <QScreen>
 #include <QScrollArea>
 #include <QSettings>
@@ -62,8 +63,10 @@
 
 #include <algorithm>
 #include <cmath>
+#include <exception>
 #include <limits>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 namespace patchy::ui {
@@ -1377,6 +1380,24 @@ void suppress_native_tab_bar_base(QTabWidget& tabs) {
 #endif
 }
 
+namespace {
+
+// One entry per live run_non_modal_dialog nested loop on this thread,
+// innermost last. unwind_non_modal_dialog_loop parks the exception here so the
+// rethrow happens on run_non_modal_dialog's own frame, with zero event
+// dispatcher frames in the unwind path.
+struct NonModalDialogLoopFrame {
+  QEventLoop* loop{nullptr};
+  std::exception_ptr pending;
+};
+
+std::vector<NonModalDialogLoopFrame*>& non_modal_dialog_loop_frames() {
+  thread_local std::vector<NonModalDialogLoopFrame*> frames;
+  return frames;
+}
+
+}  // namespace
+
 int run_non_modal_dialog(QDialog& dialog) {
   remember_dialog_position(dialog);
   keep_dialog_above_parent_window(dialog);
@@ -1395,11 +1416,38 @@ int run_non_modal_dialog(QDialog& dialog) {
   }
   QEventLoop loop;
   QObject::connect(&dialog, &QDialog::finished, &loop, &QEventLoop::quit);
+  NonModalDialogLoopFrame frame{&loop, nullptr};
+  non_modal_dialog_loop_frames().push_back(&frame);
+  // qScopeGuard, not a statement after exec(): the pop must also happen when
+  // the rethrow below unwinds this frame.
+  const auto pop_frame =
+      qScopeGuard([] { non_modal_dialog_loop_frames().pop_back(); });
   dialog.show();
   dialog.raise();
   dialog.activateWindow();
   loop.exec();
+  if (frame.pending != nullptr) {
+    // Deliberately no hide(): the caller's unwind owns the dialog, exactly as
+    // it would on a return path that then threw. Stack dialogs are destroyed
+    // by that unwind; the heap call sites are Qt-parented.
+    std::rethrow_exception(frame.pending);
+  }
   return dialog.result();
+}
+
+bool unwind_non_modal_dialog_loop(std::exception_ptr error) {
+  auto& frames = non_modal_dialog_loop_frames();
+  if (frames.empty()) {
+    return false;
+  }
+  auto* frame = frames.back();
+  // Keep the first pending error: it is the root cause, and the loop is
+  // already exiting.
+  if (frame->pending == nullptr) {
+    frame->pending = std::move(error);
+  }
+  frame->loop->quit();
+  return true;
 }
 
 namespace {
