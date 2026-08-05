@@ -1772,6 +1772,81 @@ void ui_layer_folder_alt_click_toggles_nested_folders() {
   save_widget_artifact("ui_layer_folder_alt_click_nested", window);
 }
 
+void ui_layer_folder_ctrl_alt_click_toggles_all_folders() {
+  patchy::Document document(32, 32, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(32, 32, patchy::PixelFormat::rgb8(), QColor(245, 245, 245)));
+  patchy::Layer first(document.allocate_layer_id(), "First Folder", patchy::LayerKind::Group);
+  patchy::Layer inner(document.allocate_layer_id(), "Inner Folder", patchy::LayerKind::Group);
+  inner.add_child(patchy::Layer(document.allocate_layer_id(), "Inner Child",
+                                solid_pixels(8, 8, patchy::PixelFormat::rgba8(), QColor(220, 40, 40))));
+  first.add_child(std::move(inner));
+  first.add_child(patchy::Layer(document.allocate_layer_id(), "First Leaf",
+                                solid_pixels(8, 8, patchy::PixelFormat::rgba8(), QColor(40, 80, 220))));
+  document.add_layer(std::move(first));
+  patchy::Layer second(document.allocate_layer_id(), "Second Folder", patchy::LayerKind::Group);
+  second.add_child(patchy::Layer(document.allocate_layer_id(), "Second Leaf",
+                                 solid_pixels(8, 8, patchy::PixelFormat::rgba8(), QColor(40, 180, 80))));
+  document.add_layer(std::move(second));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Ctrl Alt Click All Folders"));
+  QApplication::processEvents();
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto find_layer_item = [layer_list](const QString& text) -> QListWidgetItem* {
+    for (int row = 0; row < layer_list->count(); ++row) {
+      if (layer_list->item(row)->text() == text) {
+        return layer_list->item(row);
+      }
+    }
+    return nullptr;
+  };
+  // Rows are rebuilt on every toggle, so refetch the disclosure button per click.
+  auto click_disclosure = [layer_list](const QString& name, Qt::KeyboardModifiers modifiers) {
+    auto* item = require_layer_item(*layer_list, name);
+    auto* row_widget = layer_list->itemWidget(item);
+    CHECK(row_widget != nullptr);
+    auto* disclosure = row_widget->findChild<QToolButton*>(QStringLiteral("layerFolderDisclosureButton"));
+    CHECK(disclosure != nullptr);
+    const auto center = disclosure->rect().center();
+    send_mouse(*disclosure, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton, modifiers);
+    send_mouse(*disclosure, QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton, modifiers);
+    QApplication::processEvents();
+    QApplication::processEvents();
+  };
+
+  CHECK(layer_list->count() == 7);
+
+  // Ctrl+Alt+click collapses every folder in the document, the sibling
+  // folder included.
+  click_disclosure(QStringLiteral("First Folder"), Qt::ControlModifier | Qt::AltModifier);
+  CHECK(layer_list->count() == 3);
+  auto* second_item = require_layer_item(*layer_list, QStringLiteral("Second Folder"));
+  CHECK(!second_item->data(Qt::UserRole + 3).toBool());
+  CHECK(find_layer_item(QStringLiteral("Inner Folder")) == nullptr);
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("All folders collapsed"));
+
+  // Ctrl+Alt+click on the collapsed folder expands everything again.
+  click_disclosure(QStringLiteral("First Folder"), Qt::ControlModifier | Qt::AltModifier);
+  CHECK(layer_list->count() == 7);
+  auto* inner_item = require_layer_item(*layer_list, QStringLiteral("Inner Folder"));
+  CHECK(inner_item->data(Qt::UserRole + 3).toBool());
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("All folders expanded"));
+
+  // Mixed state: the clicked folder's toggled state wins. First Folder is
+  // expanded, so Ctrl+Alt still collapses all even though Second Folder
+  // already is.
+  click_disclosure(QStringLiteral("Second Folder"), Qt::NoModifier);
+  CHECK(layer_list->count() == 6);
+  click_disclosure(QStringLiteral("First Folder"), Qt::ControlModifier | Qt::AltModifier);
+  CHECK(layer_list->count() == 3);
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("All folders collapsed"));
+  save_widget_artifact("ui_layer_folder_ctrl_alt_click_all", window);
+}
+
 void ui_move_auto_select_reveals_layers_in_collapsed_folders() {
   patchy::Document document(48, 48, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Background",
@@ -2744,6 +2819,8 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
       {"ui_layer_row_selected_highlight_paints", ui_layer_row_selected_highlight_paints},
       {"ui_layer_folder_alt_click_toggles_nested_folders",
        ui_layer_folder_alt_click_toggles_nested_folders},
+      {"ui_layer_folder_ctrl_alt_click_toggles_all_folders",
+       ui_layer_folder_ctrl_alt_click_toggles_all_folders},
       {"ui_layer_eye_alt_click_isolates_and_restores", ui_layer_eye_alt_click_isolates_and_restores},
       {"ui_layer_eye_alt_click_folder_isolates_group", ui_layer_eye_alt_click_folder_isolates_group},
       {"ui_layer_eye_alt_click_reisolate_keeps_original_snapshot",

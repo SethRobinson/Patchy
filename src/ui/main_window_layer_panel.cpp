@@ -266,6 +266,11 @@ int layer_tree_indent_width(int depth) {
 
 constexpr const char* kLastClickModifiersProperty = "patchyLastClickModifiers";
 
+// What a disclosure-arrow click toggles: the folder alone, the folder and its
+// nested folders (Alt), or every folder in the document (Ctrl+Alt, Photoshop's
+// binding).
+enum class LayerFolderToggleScope { Single, Branch, All };
+
 // QToolButton::clicked carries no modifiers, and QApplication::keyboardModifiers()
 // can lag the event stream, so record the folded modifiers off the button's own
 // mouse events for the clicked handler to read.
@@ -1277,7 +1282,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                                const std::function<QPixmap(const Layer&)>& mask_thumbnail, int depth = 0,
                                bool ancestors_visible = true, bool group_expanded = true,
                                LayerLockFlags ancestor_lock_flags = kLayerLockNone,
-                               std::function<void(LayerId, bool)> toggle_group_expanded = {},
+                               std::function<void(LayerId, LayerFolderToggleScope)> toggle_group_expanded = {},
                                std::function<void(LayerId, bool)> set_mask_linked = {},
                                bool content_target_active = false, bool mask_target_active = false,
                                bool smart_filter_mask_target_active = false,
@@ -1368,11 +1373,14 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     disclosure->setToolButtonStyle(Qt::ToolButtonIconOnly);
     disclosure->setFixedSize(kLayerFolderDisclosureWidth, kLayerFolderDisclosureHeight);
     disclosure->setEnabled(!layer.children().empty());
-    disclosure->setToolTip(layer.children().empty()
-                               ? QObject::tr("Folder is empty")
-                               : group_expanded
-                                   ? QObject::tr("Collapse folder (Alt-click includes nested folders)")
-                                   : QObject::tr("Expand folder (Alt-click includes nested folders)"));
+    disclosure->setToolTip(
+        layer.children().empty()
+            ? QObject::tr("Folder is empty")
+            : group_expanded
+                ? QObject::tr(
+                      "Collapse folder (Alt-click includes nested folders, Ctrl+Alt-click all folders)")
+                : QObject::tr(
+                      "Expand folder (Alt-click includes nested folders, Ctrl+Alt-click all folders)"));
     disclosure->installEventFilter(new ClickModifierRecorder(disclosure));
     QObject::connect(disclosure, &QToolButton::clicked, row,
                      [parent, disclosure, id = layer.id(),
@@ -1381,9 +1389,12 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
           disclosure->property(kLastClickModifiersProperty).toInt());
       disclosure->setProperty(kLastClickModifiersProperty, {});
       if (toggle_group_expanded) {
-        const auto include_nested = (modifiers & Qt::AltModifier) != 0;
-        QTimer::singleShot(0, parent, [id, include_nested, toggle_group_expanded] {
-          toggle_group_expanded(id, include_nested);
+        const auto scope = (modifiers & Qt::ControlModifier) != 0 && (modifiers & Qt::AltModifier) != 0
+                               ? LayerFolderToggleScope::All
+                               : (modifiers & Qt::AltModifier) != 0 ? LayerFolderToggleScope::Branch
+                                                                    : LayerFolderToggleScope::Single;
+        QTimer::singleShot(0, parent, [id, scope, toggle_group_expanded] {
+          toggle_group_expanded(id, scope);
         });
       }
     });
@@ -2383,6 +2394,26 @@ void MainWindow::toggle_layer_folder_expanded(LayerId id, bool include_nested) {
                                : (was_collapsed ? tr("Folder expanded") : tr("Folder collapsed")));
 }
 
+void MainWindow::toggle_all_layer_folders_expanded(LayerId reference_id) {
+  const auto* layer = document().find_layer(reference_id);
+  if (layer == nullptr || layer->kind() != LayerKind::Group || layer->children().empty()) {
+    return;
+  }
+
+  // The clicked folder's toggled state becomes every folder's state, so the
+  // arrow the user clicked always behaves as its direction promised.
+  auto& collapsed_groups = session().collapsed_layer_groups;
+  const auto was_collapsed = collapsed_groups.contains(reference_id);
+  if (was_collapsed) {
+    collapsed_groups.clear();
+  } else {
+    collect_layer_group_ids(document().layers(), collapsed_groups);
+  }
+
+  refresh_layer_list();
+  statusBar()->showMessage(was_collapsed ? tr("All folders expanded") : tr("All folders collapsed"));
+}
+
 void MainWindow::reveal_layer_in_layer_list(LayerId id) {
   if (layer_list_ == nullptr) {
     return;
@@ -2742,8 +2773,13 @@ void MainWindow::refresh_layer_list() {
                                                                            document().height());
                                       },
                                       depth, ancestors_visible, group_expanded, ancestor_lock_flags,
-                                      [this](LayerId layer_id, bool include_nested) {
-                                        toggle_layer_folder_expanded(layer_id, include_nested);
+                                      [this](LayerId layer_id, LayerFolderToggleScope scope) {
+                                        if (scope == LayerFolderToggleScope::All) {
+                                          toggle_all_layer_folders_expanded(layer_id);
+                                        } else {
+                                          toggle_layer_folder_expanded(
+                                              layer_id, scope == LayerFolderToggleScope::Branch);
+                                        }
                                       },
                                       [this](LayerId layer_id, bool linked) {
         if (auto* layer = document().find_layer(layer_id); layer != nullptr && layer->mask().has_value()) {

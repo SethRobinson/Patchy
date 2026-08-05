@@ -3472,13 +3472,13 @@ Flow: %6
     </message>
     <message>
         <location line="+1"/>
-        <source>Collapse folder (Alt-click includes nested folders)</source>
-        <translation>フォルダーを折りたたむ（Altクリックで中のフォルダーもまとめて）</translation>
+        <source>Collapse folder (Alt-click includes nested folders, Ctrl+Alt-click all folders)</source>
+        <translation>フォルダーを折りたたむ（Altクリックで中のフォルダーもまとめて、Ctrl+Altクリックで全フォルダー）</translation>
     </message>
     <message>
         <location line="+0"/>
-        <source>Expand folder (Alt-click includes nested folders)</source>
-        <translation>フォルダーを展開（Altクリックで中のフォルダーもまとめて）</translation>
+        <source>Expand folder (Alt-click includes nested folders, Ctrl+Alt-click all folders)</source>
+        <translation>フォルダーを展開（Altクリックで中のフォルダーもまとめて、Ctrl+Altクリックで全フォルダー）</translation>
     </message>
     <message>
         <location line="+22"/>
@@ -10686,6 +10686,16 @@ To update, paste this into a terminal:
         <location line="+0"/>
         <source>Folder and nested folders collapsed</source>
         <translation>フォルダーと中のフォルダーを折りたたみました</translation>
+    </message>
+    <message>
+        <location line="+0"/>
+        <source>All folders expanded</source>
+        <translation>すべてのフォルダーを展開しました</translation>
+    </message>
+    <message>
+        <location line="+0"/>
+        <source>All folders collapsed</source>
+        <translation>すべてのフォルダーを折りたたみました</translation>
     </message>
     <message>
         <location line="+76"/>
