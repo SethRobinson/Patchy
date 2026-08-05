@@ -269,6 +269,10 @@ private:
     std::int64_t current_state_id{0};
     std::int64_t next_history_state_id{1};
     static constexpr std::size_t kMaxUndoStates = 40;
+    // The history byte budget never evicts a session below this many undo
+    // states, even when a single snapshot exceeds the whole budget: a floor of
+    // recent undo beats strict memory bounds for giant documents.
+    static constexpr std::size_t kMinUndoStatesUnderPressure = 3;
   };
 
   struct ClipboardPayload {
@@ -1105,6 +1109,12 @@ private:
   // and the label/id handoff from the live state to the stored snapshot.
   void record_history_push(DocumentSession& target_session, DocumentSession::HistoryState state,
                            QString action_label);
+  // Evicts the oldest undo states across ALL sessions until the COW-aware
+  // marginal history byte total fits history_memory_budget_bytes(). Pointer
+  // walks only (never touches pixel data); keeps at least
+  // kMinUndoStatesUnderPressure undo states per session. Redo stacks are
+  // counted but never evicted (every push already clears redo).
+  void enforce_history_memory_budget(const DocumentSession& push_target);
   // One data-only history rotation (no canvas or UI work, so jumps can loop it).
   // live_selection enters holding the live document's selection and exits
   // holding the restored state's selection.

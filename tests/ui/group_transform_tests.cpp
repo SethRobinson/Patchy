@@ -719,7 +719,7 @@ void ui_select_all_free_transform_transforms_retronight_poster() {
   const auto placement_after = patchy::smart_object_placement_from_layer(*grid_after);
   CHECK(placement_after.has_value());
   CHECK(placement_after->non_affine_transform.has_value());
-  const auto expect_scaled = [&center](double before_value, double after_value, double center_value) {
+  const auto expect_scaled = [](double before_value, double after_value, double center_value) {
     CHECK(std::abs(after_value - (center_value + (before_value - center_value) * 1.5)) < 0.01);
   };
   for (std::size_t i = 0; i < 8U; i += 2U) {

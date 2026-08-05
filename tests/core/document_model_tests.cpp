@@ -2,6 +2,7 @@
 #include "core/adjustment_layer.hpp"
 #include "core/blend_math.hpp"
 #include "core/document.hpp"
+#include "core/document_memory.hpp"
 #include "core/layer_render_utils.hpp"
 #include "core/layer_metadata.hpp"
 #include "render/compositor.hpp"
@@ -150,6 +151,58 @@ void document_snapshot_shares_pixels_when_only_moving_a_layer() {
   CHECK(shared_pixel_ptr(document, layer_id) != live_ptr);
   CHECK(shared_pixel_ptr(snapshot, layer_id) == live_ptr);
   CHECK(snapshot.find_layer(layer_id)->pixels().pixel(0, 0)[0] == 10);
+}
+
+// The history byte budget's accounting (core/document_memory.hpp): buffers
+// shared with the live document are free, storage shared between snapshots
+// counts once, empty buffers never count, and the const walk bumps nothing.
+void document_memory_accounting_is_cow_aware() {
+  patchy::Document document(64, 48, patchy::PixelFormat::rgba8());
+  const auto layer_id = document.add_pixel_layer("Paint", solid_rgba(64, 48, 10, 20, 30, 255)).id();
+  const auto masked_id = document.add_pixel_layer("Masked", solid_rgba(64, 48, 1, 2, 3, 255)).id();
+  patchy::LayerMask mask;
+  mask.bounds = patchy::Rect{0, 0, 64, 48};
+  mask.pixels = patchy::PixelBuffer(64, 48, patchy::PixelFormat::gray8());
+  document.find_layer(masked_id)->set_mask(std::move(mask));
+
+  // A fresh snapshot shares every buffer with the live document: zero marginal bytes.
+  patchy::Document snapshot = document;
+  patchy::PixelStorageSet live;
+  patchy::collect_pixel_storage(document, live);
+  patchy::PixelStorageSet seen;
+  CHECK(patchy::accumulate_unique_pixel_bytes(snapshot, live, seen) == 0);
+
+  // The accounting walk uses const access only, so revisions never move.
+  const auto pixel_revision_before = std::as_const(document).find_layer(layer_id)->pixel_revision();
+  const auto content_revision_before = std::as_const(document).find_layer(layer_id)->content_revision();
+  patchy::visit_pixel_buffers(document, [](const patchy::PixelBuffer&) {});
+  CHECK(std::as_const(document).find_layer(layer_id)->pixel_revision() == pixel_revision_before);
+  CHECK(std::as_const(document).find_layer(layer_id)->content_revision() == content_revision_before);
+
+  // Detaching one live layer leaves the snapshot holding exactly that layer's
+  // bytes as marginal cost; a second snapshot of the same storage adds nothing.
+  document.find_layer(layer_id)->pixels().pixel(0, 0)[0] = 99;
+  patchy::PixelStorageSet live_after;
+  patchy::collect_pixel_storage(document, live_after);
+  patchy::PixelStorageSet seen_after;
+  const auto expected = std::as_const(snapshot).find_layer(layer_id)->pixels().byte_size();
+  CHECK(expected == 64U * 48U * 4U);
+  CHECK(patchy::accumulate_unique_pixel_bytes(snapshot, live_after, seen_after) == expected);
+  patchy::Document second_snapshot = snapshot;
+  CHECK(patchy::accumulate_unique_pixel_bytes(second_snapshot, live_after, seen_after) == 0);
+
+  // Empty buffers all alias one sentinel storage; they are skipped, never
+  // counted (add_layer, not add_pixel_layer: the latter rejects buffers that
+  // do not match the document dimensions).
+  patchy::Document empty_document(8, 8, patchy::PixelFormat::rgba8());
+  empty_document.add_layer(
+      patchy::Layer(empty_document.allocate_layer_id(), "Empty A", patchy::PixelBuffer{}));
+  empty_document.add_layer(
+      patchy::Layer(empty_document.allocate_layer_id(), "Empty B", patchy::PixelBuffer{}));
+  patchy::PixelStorageSet no_exclusions;
+  patchy::PixelStorageSet empty_seen;
+  CHECK(patchy::accumulate_unique_pixel_bytes(empty_document, no_exclusions, empty_seen) == 0);
+  CHECK(empty_seen.empty());
 }
 
 void document_channels_validate_crud_revisions_and_cow() {
@@ -561,6 +614,7 @@ std::vector<patchy::test::TestCase> document_model_tests() {
       {"pixel_buffer_copy_shares_storage_until_mutated", pixel_buffer_copy_shares_storage_until_mutated},
       {"document_snapshot_shares_pixels_when_only_moving_a_layer",
        document_snapshot_shares_pixels_when_only_moving_a_layer},
+      {"document_memory_accounting_is_cow_aware", document_memory_accounting_is_cow_aware},
       {"document_channels_validate_crud_revisions_and_cow",
        document_channels_validate_crud_revisions_and_cow},
       {"document_channel_geometry_tracks_image_and_canvas_operations",

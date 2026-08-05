@@ -26,12 +26,12 @@ are the whole wasm surface.
 pwsh -File scripts\wasm\setup-emsdk.ps1
 ```
 
-Idempotent. Clones emsdk into `.deps\emsdk` (gitignored), refreshes an
-existing clone with `git pull` (a stale checkout fails with "unknown
-version"), installs + activates Emscripten 4.0.7 (the Qt-supported version). `-EmsdkVersion` provisions another
-release; versions coexist. Activation writes only emsdk's local config. The
-bundled node 22.16.0 runs the tests; the scripts glob
-`.deps\emsdk\node\*\bin\node.exe`, so keep exactly one node directory there.
+Idempotent: clones emsdk into `.deps\emsdk` (gitignored), `git pull`s an
+existing clone (a stale checkout fails with "unknown version"), installs +
+activates Emscripten 4.0.7, the Qt-supported version (`-EmsdkVersion`
+provisions others; versions coexist). The bundled node 22.16.0 runs the
+tests; the scripts glob `.deps\emsdk\node\*\bin\node.exe`, so keep exactly
+one node directory there.
 
 ## Configure and build (wasm-core)
 
@@ -134,14 +134,10 @@ COOP/COEP headers, so the threaded build works locally. The release wrappers
 `start-local-wasm-server.bat` (staged site) add port cleanup; see
 [release-process.md](release-process.md).
 
-When wasm work is finished, stop every local server you started, one call
-per port used:
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\wasm\free-server-port.ps1 -Port 8973
-```
-
-It stops a node listener on the port and leaves non-node processes alone.
+When wasm work is finished, stop every local server you started with
+`scripts\wasm\free-server-port.ps1 -Port <port>`, one call per port (repo
+rule; see AGENTS.md). It stops a node listener on the port and leaves
+non-node processes alone.
 
 A hidden tab never fires requestAnimationFrame, so Qt stops presenting and
 the tab looks frozen; nothing is wrong. Keep the tab foregrounded, or shim
@@ -166,11 +162,10 @@ requestAnimationFrame onto setTimeout before qtloader runs (harness below).
   sites (`QDialog::exec`, `run_non_modal_dialog`, pumps) work unmodified.
   Asyncify does not support wasm-native exceptions, so the app compiles with
   JS-based `-fexceptions`; `wasm-core` keeps `-fwasm-exceptions`.
-- **`-sASYNCIFY_STACK_SIZE=1048576` is load-bearing.** The default 4 KB
-  buffer holds the unwound stack per suspend; a dialog opened from another
-  dialog's nested exec overflows it, and in a non-assertion build overflow
-  is an undiagnosed `RuntimeError: unreachable` tab crash. 1 MiB per live
-  suspend is a few MB worst case.
+- **`-sASYNCIFY_STACK_SIZE=1048576` is load-bearing.** The 4 KB default
+  overflows when a dialog suspends from another dialog's nested exec; in a
+  non-assertion build that is an undiagnosed `RuntimeError: unreachable` tab
+  crash. 1 MiB per live suspend is a few MB worst case.
 - **JSPI (Asyncify's successor) dead-ends on the stock aqt kit**; revisit
   only with a source-built Qt (wasm EH plus `-feature-wasm_jspi`: measured
   42.2 MB against 65.6 MB with a far faster link; Chrome 137+, experimental
@@ -178,23 +173,26 @@ requestAnimationFrame onto setTimeout before qtloader runs (harness below).
   idle suspend parks forever under invoke trampolines JSPI cannot suspend
   across; with `-fwasm-exceptions` Qt's prebuilt static libraries cannot
   link, and mixing modes is unsupported.
-- **Codegen: compile `-msimd128`, link `-O3`, `-sMALLOC=mimalloc`**, all
-  adopted from interleaved in-app stress A/B runs (harness below): SIMD wins
-  5-16% on compute steps (canaries stay byte-identical), `-O3` beats `-Os`
-  at runtime (that earlier choice measured size only; user speed outranks
-  size here), and mimalloc fixes dlmalloc's single-lock contention under
+- **Codegen: compile `-msimd128`, link `-O3`, `-sMALLOC=mimalloc`**, adopted
+  from interleaved in-app stress A/B runs (harness below): SIMD wins 5-16%
+  on compute steps (canaries stay byte-identical), `-O3` beats `-Os` at
+  runtime, and mimalloc fixes dlmalloc's single-lock contention under
   pthreads (5-8% whole-run).
-- **QtQuick is excluded.** Qt's static-build finalizer would link the dead
-  QtQuick stack (Qt6::Qml is linked for QJSEngine only). Two guards, both
-  required: `QT_QML_MODULE_NO_IMPORT_SCAN TRUE` on the patchy target (stops
-  qmlimportscanner walking `.deps`) and
-  `qt_import_plugins(patchy EXCLUDE_BY_TYPE qmltooling)` (the qmldbg default
-  plugins pull the Quick scene graph back in). Together: -24% wasm size.
+- **QtQuick is excluded** (Qt6::Qml is linked for QJSEngine only):
+  `QT_QML_MODULE_NO_IMPORT_SCAN TRUE` plus
+  `qt_import_plugins(patchy EXCLUDE_BY_TYPE qmltooling)`, both required (the
+  qmldbg default plugins pull the Quick scene graph back in). Together: -24%
+  wasm size.
 - **PATCHY_* escape hatches work in the browser.** `--pre-js
   scripts/wasm/app-env-pre.js` copies `PATCHY_`-prefixed keys from the page
   URL query string into the environment before `main`;
   `?PATCHY_RENDER_SINGLE_THREADED=1` is the in-build control group for
-  threading comparisons.
+  threading comparisons. `PATCHY_WASM_INITIAL_MB`, `PATCHY_WASM_MAX_MB`, and
+  `PATCHY_WASM_POOL` are consumed by the shell page itself before the Module
+  exists (memory bullet below; the pool value lands in
+  `globalThis.patchyPthreadPoolSize`, which the baked pool formula prefers.
+  Perf-only: an undersized pool degrades blocking fan-outs to sequential, it
+  cannot deadlock).
 - **Compiled out or stubbed:** QtPrintSupport does not exist on wasm
   (`print_dialog_wasm.cpp` stubs; File menu hides Print/Page Setup; the
   portable half stays in `print_layout.cpp`). Single-instance QLocalServer
@@ -211,8 +209,25 @@ requestAnimationFrame onto setTimeout before qtloader runs (harness below).
   [fonts.md](fonts.md)) merges into the staged fonts; `LINK_DEPENDS` on the
   fonts stamp makes a fonts-only change repack `patchy.data`. The 8.7 MB
   texture pack stays embedded (lazy fetch is a future size lever).
-- **Memory:** `QT_WASM_INITIAL_MEMORY` is 512 MB, growth capped at 4 GB. Qt's
-  target machinery owns `-sSTACK_SIZE`; do not add a second one.
+- **Memory:** the shell page constructs the shared `WebAssembly.Memory` and
+  passes it to qtLoad as `wasmMemory` (`buildWasmMemory`, patchy.html.in).
+  `QT_WASM_INITIAL_MEMORY` (256 MB) is the FLOOR baked into the memory
+  import: a smaller page-supplied initial is a LinkError, so the page's
+  `BAKED_MIN_MB` must stay in sync (Qt's dev-loop patchy.html just uses the
+  floor). The page picks initial 512 MB desktop / 256 MB iOS and walks a
+  maximum ladder (4096/2048/1024 MB; iOS 1536/1024/768), catching the
+  RangeError WebKit throws when it cannot reserve a shared maximum up front;
+  iOS starts low because an oversized reservation can also succeed and get
+  the tab killed later, uncatchably. `-sMAXIMUM_MEMORY=4GB` stays as the
+  declared import ceiling. The chosen cap is published as
+  `globalThis.patchyWasmMemoryMaximumBytes`, read by `ui/memory_info.hpp`
+  for the About screen's live memory row (`emscripten_get_heap_max()` is
+  baked at link time; never trust it for this). Qt owns `-sSTACK_SIZE`; do
+  not add a second one. In-app relief, because wasm memory never shrinks:
+  history is
+  byte-budgeted (256 MB on wasm, `history_memory_budget_bytes`, floor 3
+  states/session) and the style caches shrink to 96/48 MB under `Q_OS_WASM`
+  (image_document_io.cpp).
 
 ### Web file access
 
@@ -387,12 +402,12 @@ Two Emscripten facts shape every rule here:
 
 Consequences (do not regress):
 
-- Pool size: the app sets `QT_WASM_PTHREAD_POOL_SIZE` to
-  `Math.min(navigator.hardwareConcurrency,16)+16`. The CMYK site and both
-  strip renderers cap at 16 workers. `PTHREAD_POOL_SIZE_STRICT` stays unset:
-  overflow lazily spawns (fine from worker threads) instead of aborting a
-  visitor's session. Worker stacks are 4 MB; LibRaw decode and full
-  compositor walks run there.
+- Pool size: `QT_WASM_PTHREAD_POOL_SIZE` pre-spawns
+  `min(hardwareConcurrency,16)+16` workers (page-overridable; see
+  `PATCHY_WASM_POOL` above). The CMYK site and both strip renderers cap at
+  16 workers. `PTHREAD_POOL_SIZE_STRICT` stays unset: overflow lazily spawns
+  (fine from worker threads) instead of aborting a visitor's session. Worker
+  stacks are 4 MB; LibRaw decode and full compositor walks run there.
 - Headroom alone is insufficient once busy workers shrink the idle pool
   below a blocking join's fan-out. `max_blocking_fanout_workers`
   (core/worker_budget.{hpp,cpp}) clamps every main-thread blocking fan-out
@@ -467,61 +482,46 @@ inline worker composed the frame inside paintEvent anyway.
 
 ## Release deployment (rtsoft.com/patchy)
 
-Batch-file details live in [release-process.md](release-process.md).
-`scripts\release\build-wasm.bat` builds `wasm-release` and stages the
-deployable files into `build\package\wasm-site`;
-`upload-wasm-to-rtsoft.bat` publishes to `rtsoft.com/patchy` over ssh/scp;
-local-server wrappers above.
+Batch-file details live in [release-process.md](release-process.md):
+`build-wasm.bat` stages `build\package\wasm-site`,
+`upload-wasm-to-rtsoft.bat` publishes to `rtsoft.com/patchy`; local-server
+wrappers above.
 
 **Cross-origin isolation is a hard serving requirement.** SharedArrayBuffer
 needs `Cross-Origin-Opener-Policy: same-origin` and
 `Cross-Origin-Embedder-Policy: require-corp`. Three layers: the staged
 `.htaccess` sets both (IfModule-guarded), `serve.mjs` sends them locally,
 and the shell page checks `window.crossOriginIsolated` before fetching the
-wasm and names the two headers in its error. IfModule would silently drop
-them on a host without `mod_headers`, so `upload-wasm-to-rtsoft.bat` curls
-the live site after every upload and fails loudly if either is missing.
-Every asset is same-origin, so no per-asset CORP headers are needed.
+wasm and names the two headers in its error; the post-upload curl check
+that catches a host silently dropping them is in
+[release-process.md](release-process.md). Every asset is same-origin, so no
+per-asset CORP headers are needed.
 
 The deployed page is a Patchy-branded shell from
 `packaging\web\patchy.html.in`, not Qt's generated `patchy.html` (the
-dev-loop page). Emscripten has no
-download-progress callback, so the page fetches `patchy.wasm` itself with a
-byte-counting stream reader and hands the bytes to `qtLoad` as `wasmBinary`;
-its `locateFile` override versions the `patchy.data` fetch. `build-wasm.bat`
-stamps a per-build cache tag into every asset reference (`?v=<tag>`); the
-staged `.htaccess` marks html `no-cache` and tagged assets cache-forever,
-all IfModule-guarded, so a redeploy shows on the next load. No special MIME
-is needed (with `wasmBinary` supplied, streaming instantiation is unused).
-
-Compressed serving: after staging, `build-wasm.bat` runs
-`scripts\wasm\precompress-site.mjs` (emsdk node, zlib built-ins), writing
-`.br` and `.gz` variants beside `patchy.wasm`, `patchy.js`, `patchy.data`,
-and `qtloader.js`; first-visit transfer drops from ~92 MB to ~29 MB.
-`.htaccess` serves them via `AddEncoding` plus `RemoveType` and
-IfModule-guarded rewrite rules keyed on Accept-Encoding and file existence
-(identity fallback without the modules). `serve.mjs` mirrors the negotiation
-locally. The progress bar counts decompressed bytes, so `build-wasm.bat`
-bakes the uncompressed wasm size into the page (`__PATCHY_WASM_SIZE__`) as
-the total; html stays identity-encoded. The post-upload curl only warns on
-missing `Content-Encoding` (identity still works).
+dev-loop page; staging, cache tags, and the compressed `.br`/`.gz` serving
+negotiation are in [release-process.md](release-process.md)). Emscripten
+has no download-progress callback, so the page fetches `patchy.wasm` itself
+with a byte-counting reader into one preallocated exact-size buffer,
+compiles it with `WebAssembly.compile`, and passes the module to `qtLoad`
+as `qt.module`, so the fetched bytes are collectable after compile
+(`wasmBinary` would be glue-retained for the session, ~66 MB). The page
+also constructs the memory (bullet above), appends a plain-language hint to
+the crash screen when the abort text looks like out-of-memory, and versions
+the `patchy.data` fetch via `locateFile`. No special MIME is needed (the
+page compiles from bytes; streaming instantiation is unused).
 
 ## Headless stress harness
 
-Serve the build dir plus a harness page that shims `requestAnimationFrame`
-onto `setTimeout` AND re-implements the global timers on a Web Worker
-(Chrome throttles a hidden tab's main-thread timers to ~1/s; worker messages
-are exempt), suppresses `<a download>` clicks, passes
-`arguments: ['--stress-test=quick', '--stress-report-dir', '/stressout']`
-to qtLoad, and polls the report from MEMFS via the exported `FS`. The first
-run of a new binary (or port) pays V8 tier-up and is discarded as warm-up;
-configs are compared in interleaved pairs on two ports, never sequentially
-(machine-load drift beats most effects). The unattended `--run-script` mode
-works the same way (write the script into MEMFS from a `preRun` hook).
+The wasm stress/A-B harness (hidden-tab timer shims, interleaved two-port
+comparisons, `--run-script` mode) is documented in
+[performance.md](performance.md).
 
 ## Later steps (not built yet)
 
-Remaining: memory tuning (per-platform undo cap and byte budget,
-tile-cache eviction), texture lazy-fetch, the advertised document-size cap,
+Remaining: texture lazy-fetch, the advertised document-size cap,
 and preset/library persistence across reloads (follow the poll-pattern
 IndexedDB glue user fonts already use in user_fonts_wasm.cpp, not IDBFS).
+History byte budget and wasm cache caps shipped (memory bullet above);
+tile-cache eviction is moot while `src/render/tile_cache.hpp` stays dead
+code.

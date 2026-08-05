@@ -3,6 +3,7 @@
 #include "ui/app_credits.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/build_info.hpp"
+#include "ui/memory_info.hpp"
 #include "ui/splash_artwork.hpp"
 #include "ui/update_checker.hpp"
 #include "ui/theme_qss.hpp"
@@ -21,6 +22,7 @@
 #include <QPointer>
 #include <QScreen>
 #include <QString>
+#include <QTimer>
 #include <QUrl>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -31,6 +33,33 @@
 
 namespace patchy::ui {
 namespace {
+
+QString format_memory_mb(qint64 mb) {
+  if (mb >= 1024) {
+    return QObject::tr("%1 GB").arg(static_cast<double>(mb) / 1024.0, 0, 'f', 1);
+  }
+  return QObject::tr("%1 MB").arg(mb);
+}
+
+// Returns false when no probe works on this platform (the caller hides the
+// row). On wasm the limit is the effective heap ceiling the shell page chose,
+// which is what Safari's tab budget applies to; see ui/memory_info.hpp.
+bool refresh_memory_label(QLabel& label) {
+  const auto current = current_process_memory_mb();
+  if (current >= 0) {
+    const auto limit = wasm_heap_limit_mb();
+    label.setText(limit >= 0 ? QObject::tr("Memory used: %1 (limit %2)")
+                                   .arg(format_memory_mb(current), format_memory_mb(limit))
+                             : QObject::tr("Memory used: %1").arg(format_memory_mb(current)));
+    return true;
+  }
+  const auto peak = peak_process_memory_mb();
+  if (peak >= 0) {
+    label.setText(QObject::tr("Memory used (peak): %1").arg(format_memory_mb(peak)));
+    return true;
+  }
+  return false;
+}
 
 // The modal Help > About dialog. Startup no longer shows a splash: the start
 // panel carries the branding and the startup update check lives in MainWindow.
@@ -63,6 +92,10 @@ public:
         font-size: 15px;
       }
       QLabel#splashCredit {
+        color: @splash_body_text;
+        font-size: 13px;
+      }
+      QLabel#splashMemory {
         color: @splash_body_text;
         font-size: 13px;
       }
@@ -219,6 +252,22 @@ public:
     settings_button_row->addStretch(1);
     copy->addLayout(settings_button_row);
 #endif
+
+    // Live memory readout, mainly for the wasm build where the heap ceiling is
+    // what decides whether Safari keeps the tab alive.
+    auto* memory = new QLabel(this);
+    memory->setObjectName(QStringLiteral("splashMemory"));
+    memory->setTextFormat(Qt::PlainText);
+    if (refresh_memory_label(*memory)) {
+      auto* memory_timer = new QTimer(this);
+      memory_timer->setInterval(1000);
+      connect(memory_timer, &QTimer::timeout, memory,
+              [memory] { refresh_memory_label(*memory); });
+      memory_timer->start();
+    } else {
+      memory->hide();
+    }
+    copy->addWidget(memory);
 
     copy->addStretch(1);
 

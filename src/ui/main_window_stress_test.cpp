@@ -40,6 +40,7 @@
 #include "ui/filter_workflows.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/layer_list_widget.hpp"
+#include "ui/memory_info.hpp"
 #include "ui/paths_panel.hpp"
 #include "ui/qt_geometry.hpp"
 #include "ui/selection_outline.hpp"
@@ -91,18 +92,7 @@
 #include <utility>
 #include <vector>
 
-#ifdef Q_OS_WIN
-#define NOMINMAX
-#define PSAPI_VERSION 2
-#include <windows.h>
-
-#include <psapi.h>
-#endif
-#ifdef Q_OS_LINUX
-#include <unistd.h>
-#endif
 #ifdef Q_OS_MACOS
-#include <sys/resource.h>
 #include <sys/sysctl.h>
 #endif
 
@@ -256,85 +246,6 @@ QString stress_cpu_name() {
   }
 #endif
   return QSysInfo::currentCpuArchitecture();
-}
-
-qint64 stress_total_ram_mb() {
-#ifdef Q_OS_WIN
-  MEMORYSTATUSEX status{};
-  status.dwLength = sizeof(status);
-  if (GlobalMemoryStatusEx(&status) != 0) {
-    return static_cast<qint64>(status.ullTotalPhys / (1024ULL * 1024ULL));
-  }
-#endif
-#ifdef Q_OS_LINUX
-  const auto pages = sysconf(_SC_PHYS_PAGES);
-  const auto page_size = sysconf(_SC_PAGE_SIZE);
-  if (pages > 0 && page_size > 0) {
-    return static_cast<qint64>((static_cast<long long>(pages) * page_size) / (1024LL * 1024LL));
-  }
-#endif
-#ifdef Q_OS_MACOS
-  std::uint64_t bytes = 0;
-  std::size_t size = sizeof(bytes);
-  if (sysctlbyname("hw.memsize", &bytes, &size, nullptr, 0) == 0) {
-    return static_cast<qint64>(bytes / (1024ULL * 1024ULL));
-  }
-#endif
-  return -1;
-}
-
-qint64 stress_peak_working_set_mb() {
-#ifdef Q_OS_WIN
-  PROCESS_MEMORY_COUNTERS counters{};
-  if (GetProcessMemoryInfo(GetCurrentProcess(), &counters, sizeof(counters)) != 0) {
-    return static_cast<qint64>(counters.PeakWorkingSetSize / (1024ULL * 1024ULL));
-  }
-#endif
-#ifdef Q_OS_LINUX
-  QFile status(QStringLiteral("/proc/self/status"));
-  if (status.open(QIODevice::ReadOnly | QIODevice::Text)) {
-    while (!status.atEnd()) {
-      const auto line = QString::fromUtf8(status.readLine());
-      if (line.startsWith(QStringLiteral("VmHWM:"))) {
-        const auto parts = line.split(QLatin1Char(' '), Qt::SkipEmptyParts);
-        if (parts.size() >= 2) {
-          return parts[1].toLongLong() / 1024;
-        }
-      }
-    }
-  }
-#endif
-#ifdef Q_OS_MACOS
-  rusage usage{};
-  if (getrusage(RUSAGE_SELF, &usage) == 0) {
-    return static_cast<qint64>(usage.ru_maxrss / (1024LL * 1024LL));
-  }
-#endif
-  return -1;
-}
-
-qint64 stress_current_working_set_mb() {
-#ifdef Q_OS_WIN
-  PROCESS_MEMORY_COUNTERS counters{};
-  if (GetProcessMemoryInfo(GetCurrentProcess(), &counters, sizeof(counters)) != 0) {
-    return static_cast<qint64>(counters.WorkingSetSize / (1024ULL * 1024ULL));
-  }
-#endif
-#ifdef Q_OS_LINUX
-  QFile status(QStringLiteral("/proc/self/status"));
-  if (status.open(QIODevice::ReadOnly | QIODevice::Text)) {
-    while (!status.atEnd()) {
-      const auto line = QString::fromUtf8(status.readLine());
-      if (line.startsWith(QStringLiteral("VmRSS:"))) {
-        const auto parts = line.split(QLatin1Char(' '), Qt::SkipEmptyParts);
-        if (parts.size() >= 2) {
-          return parts[1].toLongLong() / 1024;
-        }
-      }
-    }
-  }
-#endif
-  return -1;
 }
 
 // after-minus-before, tolerant of counter resets: creating/opening a document
@@ -2914,7 +2825,7 @@ StressReport StressTestRunner::run() {
   report_.os = QSysInfo::prettyProductName();
   report_.cpu_name = stress_cpu_name();
   report_.logical_cores = QThread::idealThreadCount();
-  report_.ram_mb = stress_total_ram_mb();
+  report_.ram_mb = total_physical_ram_mb();
   report_.offscreen = QGuiApplication::platformName() == QStringLiteral("offscreen");
   if (auto* screen = w.screen(); screen != nullptr) {
     report_.screen_size = screen->size();
@@ -2978,8 +2889,8 @@ StressReport StressTestRunner::run() {
 
   report_.total_ms = static_cast<double>(total.nsecsElapsed()) / 1'000'000.0;
   report_.final_layer_count = count_layers(doc().layers());
-  report_.peak_working_set_mb = stress_peak_working_set_mb();
-  report_.working_set_end_mb = stress_current_working_set_mb();
+  report_.peak_working_set_mb = peak_process_memory_mb();
+  report_.working_set_end_mb = current_process_memory_mb();
 
   // Rating: geometric mean of baseline/actual over rated, non-timed-out steps.
   double log_sum = 0.0;

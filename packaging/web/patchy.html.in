@@ -6,7 +6,11 @@
      every deploy gets a fresh tag, so browsers re-fetch changed assets while
      .htaccess lets tagged URLs cache forever. The page downloads patchy.wasm
      itself with a byte-counting reader (the Emscripten loader has no
-     download-progress callback) and passes the bytes to qtLoad as wasmBinary.
+     download-progress callback), compiles it with WebAssembly.compile, and
+     hands the module to qtLoad via qt.module, so the fetched bytes can be
+     garbage collected (passing wasmBinary instead would pin ~66 MB for the
+     session's lifetime). The page also constructs the WebAssembly.Memory
+     per device (see buildWasmMemory below and docs/wasm.md).
      When the server answers Brotli/gzip (the .htaccess rewrite to the
      precompressed variants), the reader counts decompressed bytes while
      Content-Length reports compressed ones, so the baked-in uncompressed size
@@ -142,6 +146,73 @@
       // sees decompressed bytes but Content-Length carries the compressed
       // count. Falls back to the indeterminate sweep if it were ever 0.
       const WASM_SIZE = Number('__PATCHY_WASM_SIZE__') || 0;
+
+      // ---- Wasm memory and threading (see docs/wasm.md) ----
+      // Tuning knobs for on-device experiments, all URL query params:
+      //   ?PATCHY_WASM_INITIAL_MB=<n>  initial heap MB (floor: BAKED_MIN_MB)
+      //   ?PATCHY_WASM_MAX_MB=<n>      heap ceiling MB (replaces the ladder)
+      //   ?PATCHY_WASM_POOL=<n>        pthread pool size
+      // The knobs survive the scale re-embed: embedScaledApp copies
+      // location.search into the iframe URL.
+
+      // patchy.js evaluates its pool-size formula on the main thread at load
+      // and prefers globalThis.patchyPthreadPoolSize when set (see
+      // QT_WASM_PTHREAD_POOL_SIZE in CMakeLists.txt). Perf-only knob: an
+      // undersized pool degrades blocking fan-outs to sequential execution,
+      // it does not deadlock (core/worker_budget clamps to the idle pool).
+      (() => {
+        const pool = parseInt(new URLSearchParams(location.search).get('PATCHY_WASM_POOL'), 10);
+        if (Number.isFinite(pool) && pool > 0)
+          globalThis.patchyPthreadPoolSize = pool;
+      })();
+
+      function isIosDevice() {
+        // iPadOS 13+ reports platform "MacIntel" but is the only "Mac" with
+        // multi-touch.
+        return /iPad|iPhone|iPod/.test(navigator.userAgent)
+            || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      }
+
+      // The heap floor baked into the wasm memory import by
+      // QT_WASM_INITIAL_MEMORY in CMakeLists.txt. Keep in sync: supplying a
+      // memory with a smaller initial fails instantiation with a LinkError.
+      const BAKED_MIN_MB = 256;
+
+      // Constructs the shared WebAssembly.Memory the app runs in, choosing
+      // initial size and ceiling per device. WebKit reserves a shared memory's
+      // maximum up front; on iOS an oversized reservation either throws a
+      // RangeError (caught here) or succeeds and gets the tab killed later by
+      // the OS memory watchdog (uncatchable), so iOS starts low instead of
+      // relying on the throw. Desktop tries the full 4 GB first, matching the
+      // pre-ladder behavior on Chrome. Returns null when every rung fails.
+      function buildWasmMemory() {
+        const params = new URLSearchParams(location.search);
+        const pagesPerMb = 16; // 64 KiB wasm pages
+        const iOS = isIosDevice();
+        const initialKnob = parseInt(params.get('PATCHY_WASM_INITIAL_MB'), 10);
+        const initialMb = Math.max(BAKED_MIN_MB,
+            (Number.isFinite(initialKnob) && initialKnob > 0) ? initialKnob : (iOS ? 256 : 512));
+        const maxKnob = parseInt(params.get('PATCHY_WASM_MAX_MB'), 10);
+        const ladder = (Number.isFinite(maxKnob) && maxKnob > 0)
+            ? [Math.max(maxKnob, initialMb)]
+            : (iOS ? [1536, 1024, 768] : [4096, 2048, 1024]).filter(mb => mb >= initialMb);
+        for (const maxMb of ladder) {
+          try {
+            const memory = new WebAssembly.Memory(
+                { initial: initialMb * pagesPerMb, maximum: maxMb * pagesPerMb, shared: true });
+            // Read by the app for the About screen's memory readout
+            // (Emscripten's own heap-max value is baked at link time and does
+            // not reflect the ceiling chosen here).
+            globalThis.patchyWasmMemoryMaximumBytes = maxMb * 1024 * 1024;
+            console.info('Patchy wasm memory: initial=' + initialMb + 'MB max=' + maxMb
+                + 'MB pool=' + (globalThis.patchyPthreadPoolSize || 'default'));
+            return memory;
+          } catch (e) {
+            console.warn('WebAssembly.Memory with a ' + maxMb + ' MB maximum was refused; stepping down.', e);
+          }
+        }
+        return null;
+      }
       const el = id => document.getElementById(id);
       const formatMb = bytes => (bytes / (1024 * 1024)).toFixed(1);
 
@@ -173,25 +244,29 @@
           ? WASM_SIZE
           : (Number(response.headers.get('Content-Length') || 0) || WASM_SIZE);
         if (!response.body)
-          return await response.arrayBuffer();
+          return new Uint8Array(await response.arrayBuffer());
+        // One exact-size allocation streamed into directly: a chunk list plus
+        // a final copy would hold two full copies (~130 MB) at its peak, and
+        // that transient becomes permanent heap growth for the tab.
         const reader = response.body.getReader();
-        const chunks = [];
+        let bytes = new Uint8Array(total > 0 ? total : 32 * 1024 * 1024);
         let received = 0;
         for (;;) {
           const { done, value } = await reader.read();
           if (done)
             break;
-          chunks.push(value);
+          if (received + value.length > bytes.length) {
+            // Unknown or stale total (a broken deploy; the cache tag should
+            // prevent it): grow by doubling.
+            const grown = new Uint8Array(Math.max(bytes.length * 2, received + value.length));
+            grown.set(bytes.subarray(0, received));
+            bytes = grown;
+          }
+          bytes.set(value, received);
           received += value.length;
           setProgress(received, total);
         }
-        const bytes = new Uint8Array(received);
-        let offset = 0;
-        for (const chunk of chunks) {
-          bytes.set(chunk, offset);
-          offset += chunk.length;
-        }
-        return bytes.buffer;
+        return received === bytes.length ? bytes : bytes.subarray(0, received);
       }
 
       function showApp() {
@@ -202,9 +277,18 @@
       function showExit(exitData) {
         el('screen').style.display = 'none';
         el('loader').style.display = 'flex';
-        const message = exitData.crashed
+        let message = exitData.crashed
           ? 'Patchy stopped unexpectedly' + (exitData.text ? ':\n' + exitData.text : '.')
           : 'Patchy exited' + (exitData.code !== undefined ? ' with code ' + exitData.code : '') + '.';
+        // A malloc failure against the heap ceiling aborts with an
+        // out-of-memory message that funnels here through qtloader's onAbort
+        // wrapper; translate it for people who are not reading the console.
+        if (exitData.crashed && /memor|enlarge|allocat|OOM|RangeError/i.test(exitData.text || '')) {
+          const capMb = Math.round((globalThis.patchyWasmMemoryMaximumBytes || 0) / (1024 * 1024));
+          message += '\nThe tab likely ran out of memory'
+            + (capMb ? ' (heap limit ' + capMb + ' MB)' : '')
+            + '. Smaller documents and fewer open images need less memory.';
+        }
         showError(message + '\nReload the page to start again.');
       }
 
@@ -232,15 +316,31 @@
               + 'Cross-Origin-Embedder-Policy: require-corp response headers.');
             return;
           }
+          // Reserve the memory before the download: if the device refuses
+          // every ladder rung there is no point fetching 66 MB first. Only
+          // this document (the iframe copy at non-100% scale) constructs a
+          // memory; the outer page returned above, so the address-space
+          // reservation is never doubled.
+          const wasmMemory = buildWasmMemory();
+          if (!wasmMemory) {
+            showError('Patchy cannot start: the browser refused to allocate its working memory.\n'
+              + 'This device may be low on memory. Close other tabs and reload to try again.');
+            return;
+          }
           setStatus('Contacting server...');
-          const wasmBinary = await fetchWasmWithProgress('patchy.wasm?v=' + CACHE_TAG);
+          const wasmBytes = await fetchWasmWithProgress('patchy.wasm?v=' + CACHE_TAG);
           el('loader').classList.remove('indeterminate');
           el('bar-fill').style.width = '100%';
           setStatus('Starting Patchy...');
+          // Compile here instead of passing wasmBinary: the compiled module is
+          // what qtLoad and the pthread workers need, and the fetched bytes
+          // become garbage collectable as soon as compile resolves.
+          const wasmModule = await WebAssembly.compile(wasmBytes);
           await qtLoad({
-            wasmBinary,
+            wasmMemory,
             locateFile: filename => filename + '?v=' + CACHE_TAG,
             qt: {
+              module: Promise.resolve(wasmModule),
               onLoaded: showApp,
               onExit: showExit,
               entryFunction: window.patchy_entry,

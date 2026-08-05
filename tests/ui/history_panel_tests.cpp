@@ -152,6 +152,76 @@ void ui_history_cap_eviction_keeps_rows_consistent() {
   CHECK(color_close(canvas_pixel(*canvas, QPoint(40, 40)), QColor(200, 30, 30), 6));
 }
 
+// The history byte budget reads PATCHY_HISTORY_BUDGET_TEST_MB on every call;
+// CHECK throws on failure, so the override must unset itself via RAII or a
+// failing test would poison every test after it.
+struct HistoryBudgetOverride {
+  explicit HistoryBudgetOverride(const char* mb) {
+    qputenv("PATCHY_HISTORY_BUDGET_TEST_MB", mb);
+  }
+  ~HistoryBudgetOverride() { qunsetenv("PATCHY_HISTORY_BUDGET_TEST_MB"); }
+};
+
+void ui_history_budget_evicts_oldest_but_keeps_floor() {
+  const HistoryBudgetOverride budget("0");
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* history = require_history_list(window);
+
+  const QColor colors[] = {QColor(200, 30, 30),  QColor(30, 160, 40),  QColor(30, 60, 220),
+                           QColor(240, 240, 30), QColor(140, 30, 200), QColor(30, 220, 220)};
+  for (const auto& color : colors) {
+    fill_with(window, *canvas, color);
+  }
+  // A zero budget evicts to the floor on every push; the panel mirrors the
+  // survivors (three snapshots plus the current state).
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == 3);
+  CHECK(history->count() == 4);
+  CHECK(history->currentRow() == 3);
+
+  // The floor states still undo: three steps back lands on fill #3's result.
+  MainWindowTestAccess::undo(window);
+  MainWindowTestAccess::undo(window);
+  MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == 0);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(40, 40)), colors[2], 6));
+}
+
+void ui_history_budget_is_global_across_sessions() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* first_canvas = require_canvas(window);
+  auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
+  CHECK(tabs != nullptr);
+
+  // Five states in the first tab under the default (roomy) budget.
+  for (int index = 0; index < 5; ++index) {
+    fill_with(window, *first_canvas, index % 2 == 0 ? QColor(200, 30, 30) : QColor(30, 60, 220));
+  }
+  CHECK(MainWindowTestAccess::undo_depth_for_canvas(window, first_canvas) == 5);
+
+  // Shrink the budget to zero and push one edit in a SECOND tab: global
+  // enforcement evicts the background tab down to the floor, never below.
+  const HistoryBudgetOverride budget("0");
+  MainWindowTestAccess::create_default_document(window);
+  QApplication::processEvents();
+  auto* second_canvas = require_canvas(window);
+  CHECK(second_canvas != first_canvas);
+  fill_with(window, *second_canvas, QColor(30, 160, 40));
+  CHECK(MainWindowTestAccess::undo_depth_for_canvas(window, first_canvas) == 3);
+  CHECK(MainWindowTestAccess::undo_depth_for_canvas(window, second_canvas) == 1);
+
+  // The evicted background tab still undoes cleanly.
+  tabs->setCurrentIndex(0);
+  QApplication::processEvents();
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == 3);
+  MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == 2);
+}
+
 void ui_history_keyboard_undo_redo_moves_highlight() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -275,6 +345,8 @@ std::vector<patchy::test::TestCase> history_panel_tests() {
       {"ui_history_new_edit_after_rollback_discards_future_rows",
        ui_history_new_edit_after_rollback_discards_future_rows},
       {"ui_history_cap_eviction_keeps_rows_consistent", ui_history_cap_eviction_keeps_rows_consistent},
+      {"ui_history_budget_evicts_oldest_but_keeps_floor", ui_history_budget_evicts_oldest_but_keeps_floor},
+      {"ui_history_budget_is_global_across_sessions", ui_history_budget_is_global_across_sessions},
       {"ui_history_keyboard_undo_redo_moves_highlight", ui_history_keyboard_undo_redo_moves_highlight},
       {"ui_history_panel_rebuilds_on_activation", ui_history_panel_rebuilds_on_activation},
       {"ui_history_new_document_from_state_creates_independent_session",

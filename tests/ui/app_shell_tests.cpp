@@ -2378,6 +2378,29 @@ void ui_about_dialog_shows_labeled_external_links() {
   CHECK(inspected);
 }
 
+void ui_about_dialog_shows_memory_row() {
+  bool inspected = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchySplashScreen"));
+    CHECK(dialog != nullptr);
+
+    // The row hides itself on platforms with no memory probe; where a probe
+    // exists the value is live, so only the prefix is stable.
+    auto* memory = dialog->findChild<QLabel*>(QStringLiteral("splashMemory"));
+    CHECK(memory != nullptr);
+    CHECK(memory->isHidden() || memory->text().startsWith(QStringLiteral("Memory used")));
+
+    // The memory row must not join the splashCredit pair the links test pins.
+    CHECK(dialog->findChildren<QLabel*>(QStringLiteral("splashCredit")).size() == 2);
+
+    inspected = true;
+    dialog->accept();
+  });
+
+  patchy::ui::show_about_splash();
+  CHECK(inspected);
+}
+
 void ui_frameless_window_edges_resize() {
   if (!patchy::ui::MainWindow::use_custom_window_chrome()) {
     // macOS/Linux use the native frame; the OS owns the resize borders and the Qt-level
@@ -3542,6 +3565,7 @@ std::vector<patchy::test::TestCase> app_shell_tests() {
        ui_language_catalog_covers_dialog_status_and_properties},
       {"ui_filter_gallery_action_retranslates", ui_filter_gallery_action_retranslates},
       {"ui_about_dialog_shows_labeled_external_links", ui_about_dialog_shows_labeled_external_links},
+      {"ui_about_dialog_shows_memory_row", ui_about_dialog_shows_memory_row},
       {"ui_frameless_window_edges_resize", ui_frameless_window_edges_resize},
       {"ui_right_edge_scrollbars_remain_draggable", ui_right_edge_scrollbars_remain_draggable},
       {"ui_svg_icon_resources_are_registered", ui_svg_icon_resources_are_registered},

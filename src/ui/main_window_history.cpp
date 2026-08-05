@@ -9,6 +9,7 @@
 #include "ui/main_window_shared.hpp"
 
 #include "core/blend_math.hpp"
+#include "core/document_memory.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/smart_object.hpp"
 #include "core/text_warp.hpp"
@@ -58,6 +59,7 @@
 #include "ui/layer_list_widget.hpp"
 #include "ui/localization.hpp"
 #include "ui/measurement_units.hpp"
+#include "ui/memory_info.hpp"
 #include "ui/palette_convert_dialog.hpp"
 #include "ui/palette_panel.hpp"
 #include "ui/pattern_library.hpp"
@@ -377,6 +379,70 @@ void MainWindow::record_history_push(DocumentSession& target_session,
   target_session.selection_move_coalescing = false;
   target_session.current_state_label = std::move(action_label);
   target_session.current_state_id = target_session.next_history_state_id++;
+  enforce_history_memory_budget(target_session);
+}
+
+void MainWindow::enforce_history_memory_budget(const DocumentSession& push_target) {
+  const std::size_t budget = history_memory_budget_bytes();
+  // A session's marginal history bytes: buffers still shared with its live
+  // document are free (evicting the state would release nothing), and buffers
+  // shared between several history states count once.
+  const auto session_history_bytes = [](const DocumentSession& target) {
+    PixelStorageSet live;
+    collect_pixel_storage(target.document, live);
+    PixelStorageSet seen;
+    std::size_t bytes = 0;
+    for (const auto& state : target.undo_stack) {
+      bytes += accumulate_unique_pixel_bytes(state.document, live, seen);
+    }
+    for (const auto& state : target.redo_stack) {
+      bytes += accumulate_unique_pixel_bytes(state.document, live, seen);
+    }
+    return bytes;
+  };
+  std::vector<std::pair<DocumentSession*, std::size_t>> totals;
+  totals.reserve(sessions_.size());
+  std::size_t total = 0;
+  for (const auto& session_ptr : sessions_) {
+    const auto bytes = session_history_bytes(*session_ptr);
+    totals.emplace_back(session_ptr.get(), bytes);
+    total += bytes;
+  }
+  if (total <= budget) {
+    return;
+  }
+  bool active_session_evicted = false;
+  while (total > budget) {
+    // Oldest state of the session retaining the most bytes goes first; > (not
+    // >=) keeps the earlier tab on ties. An eviction can free zero marginal
+    // bytes (storage still shared with newer states), but the loop terminates
+    // because the total state count strictly decreases.
+    auto largest = totals.end();
+    for (auto it = totals.begin(); it != totals.end(); ++it) {
+      if (it->first->undo_stack.size() <= DocumentSession::kMinUndoStatesUnderPressure) {
+        continue;
+      }
+      if (largest == totals.end() || it->second > largest->second) {
+        largest = it;
+      }
+    }
+    if (largest == totals.end()) {
+      break;
+    }
+    largest->first->undo_stack.erase(largest->first->undo_stack.begin());
+    if (largest->first == active_session()) {
+      active_session_evicted = true;
+    }
+    const auto recomputed = session_history_bytes(*largest->first);
+    total = total - largest->second + recomputed;
+    largest->second = recomputed;
+  }
+  // Push sites refresh the panel themselves when the push targets the ACTIVE
+  // session; eviction that reaches the active session from a background push
+  // must refresh it here, or the panel keeps rows whose states are gone.
+  if (active_session_evicted && &push_target != active_session()) {
+    refresh_history_panel();
+  }
 }
 
 void MainWindow::rotate_history_state(DocumentSession& target_session, bool backward,

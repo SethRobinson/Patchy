@@ -648,7 +648,13 @@ public:
     if (image.isNull()) {
       return;
     }
+#ifdef Q_OS_WASM
+    // Wasm linear memory never shrinks, so a desktop-sized cache permanently
+    // ratchets the heap toward Safari's tab limits (see docs/wasm.md).
+    constexpr std::size_t kMaxCacheBytes = 96U * 1024U * 1024U;
+#else
     constexpr std::size_t kMaxCacheBytes = 768U * 1024U * 1024U;
+#endif
     const auto image_bytes = static_cast<std::size_t>(image.sizeInBytes());
     if (image_bytes > kMaxCacheBytes) {
       return;
@@ -751,7 +757,12 @@ public:
 
   void store(const StyleMaskCacheKey& key, StyleMaskCacheValue value) {
     const auto bytes = value_bytes(value);
+#ifdef Q_OS_WASM
+    // Same heap-ratchet rationale as the styled-image cache above.
+    constexpr std::size_t kMaxBytes = 48U * 1024U * 1024U;
+#else
     constexpr std::size_t kMaxBytes = 256U * 1024U * 1024U;
+#endif
     if (bytes > kMaxBytes || value.entry == nullptr) {
       abandon(key);
       return;

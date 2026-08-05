@@ -99,6 +99,7 @@ add_library(patchy_core
   src/core/contour_presets.cpp
   src/core/document.cpp
   src/core/document_channel.cpp
+  src/core/document_memory.cpp
   src/core/environment.cpp
   src/core/document_geometry.cpp
   src/core/document_path.cpp
@@ -814,6 +815,8 @@ if(PATCHY_BUILD_APP)
       src/ui/liquify_dialog.hpp
       src/ui/liquify_dialog.cpp
       src/ui/localization.cpp
+      src/ui/memory_info.hpp
+      src/ui/memory_info.cpp
       src/ui/markdown_viewer_dialog.hpp
       src/ui/markdown_viewer_dialog.cpp
       src/ui/main_window.hpp
@@ -1040,18 +1043,27 @@ if(PATCHY_BUILD_APP)
       # old +8 pool and wedge the tab (2026-08-01), so main-thread blocking
       # fan-outs now also clamp themselves to the idle pool via
       # core/worker_budget.hpp; the +16 keeps them parallel under load.
-      # Emscripten evaluates the expression at page load. No
-      # PTHREAD_POOL_SIZE_STRICT: overflow lazily spawns (fine from worker
-      # threads, which do yield) instead of aborting.
+      # Emscripten evaluates the expression at page load, on the main thread
+      # only, so the globalThis override lets the shell page (or its
+      # ?PATCHY_WASM_POOL= knob) tune the pool per device without a relink;
+      # unset, the stock formula applies. No PTHREAD_POOL_SIZE_STRICT:
+      # overflow lazily spawns (fine from worker threads, which do yield)
+      # instead of aborting.
       # QT_QML_MODULE_NO_IMPORT_SCAN: Patchy ships no QML (Qt6::Qml is linked
       # for QJSEngine scripting only, which needs no QML plugins). Without the
       # opt-out, Qt's static-build finalizer runs qmlimportscanner with
       # -rootPath at the repository root, walks into the vendored Qt kits under
       # .deps, finds Qt's own internal QML files there, and statically links
       # the whole QtQuick/Controls/Dialogs stack into patchy.wasm as dead code.
+      # QT_WASM_INITIAL_MEMORY is the FLOOR baked into the wasm memory import
+      # (min pages): a page-supplied WebAssembly.Memory with a smaller initial
+      # is a LinkError. The deployed shell page (packaging/web/patchy.html.in)
+      # owns the effective initial per device (512 MB desktop, 256 MB iOS) and
+      # must keep its BAKED_MIN_MB in sync with this value; Qt's dev-loop
+      # patchy.html falls back to this floor plus heap growth.
       set_target_properties(patchy PROPERTIES
-        QT_WASM_INITIAL_MEMORY "512MB"
-        QT_WASM_PTHREAD_POOL_SIZE "Math.min(navigator.hardwareConcurrency,16)+16"
+        QT_WASM_INITIAL_MEMORY "256MB"
+        QT_WASM_PTHREAD_POOL_SIZE "(globalThis.patchyPthreadPoolSize||(Math.min(navigator.hardwareConcurrency,16)+16))"
         QT_QML_MODULE_NO_IMPORT_SCAN TRUE
       )
       # The qmltooling debug-service plugins are default static plugins of

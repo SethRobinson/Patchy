@@ -1907,6 +1907,31 @@
         <translation>Patchy の準備ができました。</translation>
     </message>
     <message>
+        <location filename="../src/ui/splash_dialog.cpp"/>
+        <source>%1 GB</source>
+        <translation>%1 GB</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/splash_dialog.cpp"/>
+        <source>%1 MB</source>
+        <translation>%1 MB</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/splash_dialog.cpp"/>
+        <source>Memory used: %1 (limit %2)</source>
+        <translation>メモリ使用量: %1（上限 %2）</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/splash_dialog.cpp"/>
+        <source>Memory used: %1</source>
+        <translation>メモリ使用量: %1</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/splash_dialog.cpp"/>
+        <source>Memory used (peak): %1</source>
+        <translation>メモリ使用量（ピーク）: %1</translation>
+    </message>
+    <message>
         <location line="-202"/>
         <source>Update available: Patchy %1.</source>
         <translation>更新があります: Patchy %1。</translation>
