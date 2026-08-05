@@ -2438,6 +2438,20 @@ void ui_dock_group_window_drags_by_blank_chrome() {
   QHoverEvent center_hover(QEvent::HoverMove, QPointF(150, 100), QPointF(), QPointF(149, 99));
   QApplication::sendEvent(&group, &center_hover);
   CHECK(group.cursor().shape() == Qt::ArrowCursor);
+  // Enter events carry the cursor onto the thin frame strip even when hover
+  // synthesis misses it, and entering a child clears the inherited shape.
+  QEnterEvent enter_edge(QPointF(297, 100), QPointF(297, 100), QPointF(group.mapToGlobal(QPoint(297, 100))));
+  QApplication::sendEvent(&group, &enter_edge);
+  CHECK(group.cursor().shape() == Qt::SizeHorCursor);
+  QEnterEvent enter_child(QPointF(10, 10), QPointF(10, 10), QPointF(tab_bar->mapToGlobal(QPoint(10, 10))));
+  QApplication::sendEvent(tab_bar, &enter_child);
+  CHECK(group.cursor().shape() == Qt::ArrowCursor);
+  QEnterEvent enter_bottom(QPointF(150, 197), QPointF(150, 197), QPointF(group.mapToGlobal(QPoint(150, 197))));
+  QApplication::sendEvent(&group, &enter_bottom);
+  CHECK(group.cursor().shape() == Qt::SizeVerCursor);
+  QEvent leave_event(QEvent::Leave);
+  QApplication::sendEvent(&group, &leave_event);
+  CHECK(group.cursor().shape() == Qt::ArrowCursor);
 
   // The blank stretch of the tab bar itself also drags the window.
   const QPoint bar_local(tab_bar->tabRect(1).right() + 40, 12);

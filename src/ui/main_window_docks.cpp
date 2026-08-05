@@ -821,7 +821,38 @@ bool MainWindow::handle_dock_group_window_event(QObject* watched, QEvent* event)
         }
         return false;
       }
+      case QEvent::MouseMove: {
+        // Mouse tracking is enabled on the group window, and a buttonless
+        // move over its frame strip is the return path from a child (Qt
+        // sends no Enter for child-to-parent crossings).
+        auto* mouse_event = static_cast<QMouseEvent*>(event);
+        if (mouse_event->buttons() != Qt::NoButton) {
+          return false;
+        }
+        const auto edges = group_window_resize_edges(widget, mouse_event->position().toPoint());
+        if (edges != Qt::Edges{}) {
+          widget->setCursor(group_window_resize_cursor(edges));
+        } else {
+          widget->unsetCursor();
+        }
+        return false;
+      }
+      case QEvent::Enter: {
+        // Enter is delivered without any hover attributes, and the group
+        // window's own exposed surface is only its few-pixel frame strip, so
+        // entering it IS being near an edge. Hover events alone miss it: by
+        // the time WA_Hover applies the cursor may already be over a child.
+        const auto position = static_cast<QEnterEvent*>(event)->position().toPoint();
+        const auto edges = group_window_resize_edges(widget, position);
+        if (edges != Qt::Edges{}) {
+          widget->setCursor(group_window_resize_cursor(edges));
+        } else {
+          widget->unsetCursor();
+        }
+        return false;
+      }
       case QEvent::HoverLeave:
+      case QEvent::Leave:
         widget->unsetCursor();
         return false;
       case QEvent::MouseButtonPress: {
@@ -841,6 +872,14 @@ bool MainWindow::handle_dock_group_window_event(QObject* watched, QEvent* event)
       default:
         return false;
     }
+  }
+
+  // Entering any child clears the frame cursor: children inherit the group
+  // window's cursor, so a lingering resize shape would cover the whole panel.
+  if (event->type() == QEvent::Enter && is_dock_group_window(widget->window()) &&
+      widget != widget->window()) {
+    widget->window()->unsetCursor();
+    return false;
   }
 
   // The tab bar swallows presses on its own blank stretch, so catch those at
