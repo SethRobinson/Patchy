@@ -6,8 +6,10 @@
 // saved, which stores the untouched JPEG plus mips instead of base tiles), so
 // their provenance is ours - see NOTICE-THIRD-PARTY.md. The tiny-v2-*.afphoto
 // fixtures were authored interactively in Affinity Photo 2.6.5 (the 2.x
-// generation of the same container). Adversarial cases are byte mutations of
-// the fixtures.
+// generation of the same container). tiny-v2-stale-dfsz.afphoto and
+// tiny-lazy-placed.af are deterministic byte-level derivations of those
+// (local-test-fixtures/af-spike/author_derived_fixtures.py). Adversarial
+// cases are byte mutations of the fixtures.
 
 #include "formats/af_document_io.hpp"
 
@@ -1375,6 +1377,146 @@ void af_reads_affinity2_shape_text_document() {
   CHECK(metadata.contains("patchy.af.pending_text_render"));
 }
 
+void af_page_rect_beats_stale_dfsz() {
+  // tiny-v2-stale-dfsz.afphoto derives from tiny-v2-raster.afphoto
+  // (author_derived_fixtures.py): DfSz is patched to 48x32 while the spread's
+  // SpMd -> PagR[0].PgIn.rctp page rect keeps 0,0,96,64 and there is no SprB.
+  // Affinity tracks canvas resizes in the page rect only (a wild resized
+  // document kept DfSz at its creation size 512x512 with rctp 1024x1024), so
+  // the canvas must come from rctp, not the stale DfSz.
+  const auto bytes = read_fixture("tiny-v2-stale-dfsz.afphoto");
+  std::vector<std::string> notices;
+  const auto document = patchy::af::DocumentIo::read(bytes, &notices);
+  CHECK(document.width() == 96);
+  CHECK(document.height() == 64);
+  CHECK(document.layers().size() == 3);  // white Background + two pixel layers
+  const std::uint8_t* red = document.layers()[1].pixels().pixel(8, 8);
+  CHECK(red[0] == 200);
+  CHECK(red[1] == 40);
+  CHECK(red[2] == 40);
+}
+
+void af_lazy_placed_image_decodes_original() {
+  // tiny-lazy-placed.af derives from tiny-embedded-jpeg.af
+  // (author_derived_fixtures.py): the DyBm's base-plane fields (TWi/THi/Idx/
+  // Sta 1..4) are removed entirely, which is the 3.x lazy save shape for
+  // untouched placed images - pixels exist ONLY as the Bckg original plus a
+  // mip pyramid (the esdreika wild file carries 33 such layers). The base is
+  // implicitly "every tile from the original": the importer must decode the
+  // embedded JPEG, not fail to an empty placeholder. Desc is blanked and IRFN
+  // added, so the layer must take the image resource's file name.
+  const auto bytes = read_fixture("tiny-lazy-placed.af");
+  std::vector<std::string> notices;
+  const auto document = patchy::af::DocumentIo::read(bytes, &notices);
+  CHECK(document.width() == 400);
+  CHECK(document.height() == 300);
+  CHECK(document.layers().size() == 1);
+  const auto& layer = document.layers().front();
+  CHECK(layer.name() == "placed_image.jpg");
+  CHECK(layer.pixels().width() == 400);
+  CHECK(layer.pixels().height() == 300);
+
+  // Same authored gradient as tiny-embedded-jpeg, within JPEG-lossy tolerance.
+  const auto close_to = [](int a, int b) { return a >= b - 8 && a <= b + 8; };
+  for (const auto& [x, y] : {std::pair<int, int>{200, 150}, {40, 40}, {360, 260}}) {
+    const std::uint8_t* p = layer.pixels().pixel(x, y);
+    CHECK(close_to(p[0], 255 * x / 400));
+    CHECK(close_to(p[1], 255 * y / 300));
+    CHECK(close_to(p[2], 64));
+    CHECK(p[3] == 255);
+  }
+  for (const auto& notice : notices) {
+    CHECK(notice.find("placeholder") == std::string::npos);
+    CHECK(notice.find("half resolution") == std::string::npos);
+  }
+
+  // Still a pristine placed image: the smart-object wrap applies.
+  CHECK(patchy::layer_is_smart_object(layer));
+  const auto* source =
+      document.metadata().smart_objects.find(patchy::smart_object_source_uuid(layer));
+  CHECK(source != nullptr);
+  CHECK(source->kind == patchy::SmartObjectSourceKind::Embedded);
+  CHECK(source->filetype == "JPEG");
+}
+
+void af_reads_esdreika_wild_file_if_available() {
+  // Wild regression file (local-only, skipped where absent): a long-lived
+  // Affinity Photo 2.x document (doc version 26, 44 incremental FAT
+  // revisions) resized from 512x512 to 1024x1024. Pins the canvas coming from
+  // the page rect (DfSz stays 512x512), the lazy placed-image DyBms decoding
+  // from their originals, and unnamed ImgN nodes taking their IRFN file name.
+  const auto path = patchy::test::local_format_fixture_path(
+      "af-spike/from_esdreika", "interior_textures_v3_1024k.afphoto");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] local wild fixture missing: " << path.string() << '\n';
+    return;
+  }
+  std::ifstream stream(path, std::ios::binary);
+  const std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(stream)),
+                                        std::istreambuf_iterator<char>());
+  std::vector<std::string> notices;
+  const auto document = patchy::af::DocumentIo::read(bytes, &notices);
+  CHECK(document.width() == 1024);
+  CHECK(document.height() == 1024);
+
+  std::size_t metal_grid_layers = 0;
+  std::size_t empty_pixel_layers = 0;
+  const patchy::Layer* fabric = nullptr;
+  const patchy::Layer* gravel_group = nullptr;
+  const patchy::Layer* maintex_group = nullptr;
+  const std::function<void(const std::vector<patchy::Layer>&)> walk =
+      [&](const std::vector<patchy::Layer>& layers) {
+        for (const auto& layer : layers) {
+          if (layer.kind() == patchy::LayerKind::Group) {
+            if (layer.name() == "Gravel") {
+              gravel_group = &layer;
+            }
+            if (layer.name() == "MainTex") {
+              maintex_group = &layer;
+            }
+            walk(layer.children());
+            continue;
+          }
+          if (layer.name() == "metal_grid.png") {
+            ++metal_grid_layers;
+          }
+          if (layer.name() == "fabric_leather_01_diff_4k") {
+            fabric = &layer;
+          }
+          if (layer.kind() == patchy::LayerKind::Pixel && layer.pixels().empty()) {
+            ++empty_pixel_layers;
+          }
+        }
+      };
+  walk(document.layers());
+
+  // The two unnamed metal_grid ImgN nodes take their IRFN file name.
+  CHECK(metal_grid_layers == 2);
+  // A lazy placed image (4096x4096 JPEG at 1/32 scale) decodes to real pixels.
+  CHECK(fabric != nullptr);
+  CHECK(fabric->pixels().width() > 100);
+  bool fabric_has_opaque = false;
+  for (std::int32_t y = 0; y < fabric->pixels().height() && !fabric_has_opaque; ++y) {
+    for (std::int32_t x = 0; x < fabric->pixels().width(); ++x) {
+      if (fabric->pixels().pixel(x, y)[3] > 200) {
+        fabric_has_opaque = true;
+        break;
+      }
+    }
+  }
+  CHECK(fabric_has_opaque);
+  // Every raster in the file decodes; nothing imports as an empty placeholder.
+  CHECK(empty_pixel_layers == 0);
+  // Affinity scopes group-member adjustments to the group: the "Gravel" group
+  // (which holds a -180 degree HSL shift) must import ISOLATED so the shift
+  // cannot leak over every layer below it, while adjustment-free groups keep
+  // pass-through.
+  CHECK(gravel_group != nullptr);
+  CHECK(gravel_group->blend_mode() == patchy::BlendMode::Normal);
+  CHECK(maintex_group != nullptr);
+  CHECK(maintex_group->blend_mode() == patchy::BlendMode::PassThrough);
+}
+
 void af_reads_old_generation_wild_files_if_available() {
   // Third-party wild samples (local-test-fixtures/af-spike/web_samples, never
   // committed; this test skips where they are absent) pin the old-generation
@@ -1762,6 +1904,9 @@ std::vector<patchy::test::TestCase> af_format_tests() {
       {"af_tier2_imports_cmyk_with_notice", af_tier2_imports_cmyk_with_notice},
       {"af_reads_affinity2_raster_document", af_reads_affinity2_raster_document},
       {"af_reads_affinity2_shape_text_document", af_reads_affinity2_shape_text_document},
+      {"af_page_rect_beats_stale_dfsz", af_page_rect_beats_stale_dfsz},
+      {"af_lazy_placed_image_decodes_original", af_lazy_placed_image_decodes_original},
+      {"af_reads_esdreika_wild_file_if_available", af_reads_esdreika_wild_file_if_available},
       {"af_reads_old_generation_wild_files_if_available",
        af_reads_old_generation_wild_files_if_available},
       {"af_modern_embeds_are_center_anchored_if_available",

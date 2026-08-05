@@ -1124,12 +1124,44 @@ struct DecodedBitmap {
     default: break;
   }
 
+  // Lazy placed-image DyBms (3.x saves of untouched placed images) store NO
+  // base-plane fields at all - no TWi/THi tile grid, no Idx blocks, no Sta
+  // codes on any channel - only the Bckg original plus a mip pyramid that
+  // starts several levels down. The base is implicitly "every tile code 5":
+  // size each plane's layout from the derived tile grid and fill it entirely
+  // from the decoded original (the esdreika wild file holds 33 of these,
+  // which previously imported as empty placeholders).
+  const bool base_planes_absent = [&] {
+    if (dybm.field(af::tag4("Bckg")) == nullptr) {
+      return false;
+    }
+    for (int channel = 1; channel <= channel_count; ++channel) {
+      const PlaneTags tags = base_plane_tags(channel);
+      if (dybm.field(tags.status) != nullptr || dybm.field(tags.tiles_w) != nullptr ||
+          dybm.field(tags.tiles_h) != nullptr || dybm.field(tags.index) != nullptr) {
+        return false;
+      }
+    }
+    return true;
+  }();
+
   // First pass without a code-5 source; when some plane needs the placed
   // original, build per-channel sources (original image, else mip fallback)
   // and decode those planes again.
   std::vector<ChannelPlane> planes(static_cast<std::size_t>(channel_count));
   bool needs_original = false;
-  for (int channel = 1; channel <= channel_count; ++channel) {
+  if (base_planes_absent) {
+    needs_original = true;
+    const std::size_t tiles_w =
+        (static_cast<std::size_t>(width) * sample_bytes + kTileSize - 1) / kTileSize;
+    const std::size_t tiles_h = (static_cast<std::size_t>(height) + kTileSize - 1) / kTileSize;
+    for (auto& plane : planes) {
+      plane.width_bytes = tiles_w * kTileSize;
+      plane.rows = tiles_h * kTileSize;
+      plane.bytes.assign(plane.width_bytes * plane.rows, 0);
+    }
+  }
+  for (int channel = 1; !base_planes_absent && channel <= channel_count; ++channel) {
     const PlaneStatus status = decode_channel_plane(
         bytes, container, dybm, base_plane_tags(channel), sample_bytes, is_float, width, height,
         nullptr, planes[static_cast<std::size_t>(channel - 1)]);
@@ -1206,14 +1238,19 @@ struct DecodedBitmap {
       set_reason("references a placed original image that could not be decoded");
       return std::nullopt;
     }
-    for (int channel = 1; channel <= channel_count; ++channel) {
-      const PlaneStatus status = decode_channel_plane(
-          bytes, container, dybm, base_plane_tags(channel), sample_bytes, is_float, width, height,
-          &sources[static_cast<std::size_t>(channel - 1)],
-          planes[static_cast<std::size_t>(channel - 1)]);
-      if (status != PlaneStatus::Ok) {
-        set_reason("has an invalid tile layout");
-        return std::nullopt;
+    if (base_planes_absent) {
+      // No Sta codes to walk: the whole base level comes from the source.
+      planes = std::move(sources);
+    } else {
+      for (int channel = 1; channel <= channel_count; ++channel) {
+        const PlaneStatus status = decode_channel_plane(
+            bytes, container, dybm, base_plane_tags(channel), sample_bytes, is_float, width,
+            height, &sources[static_cast<std::size_t>(channel - 1)],
+            planes[static_cast<std::size_t>(channel - 1)]);
+        if (status != PlaneStatus::Ok) {
+          set_reason("has an invalid tile layout");
+          return std::nullopt;
+        }
       }
     }
   }
@@ -1922,6 +1959,20 @@ void apply_layer_effects(LayerBuildContext& ctx, const af::AfClass& node, Layer&
     std::vector<Layer> child_layers;
     build_layers(ctx, *kids, child_layers);
     ctx.transform = saved;
+    // Affinity scopes a group-member adjustment to the group's own content
+    // (the esdreika wild file: a -180 degree HSL shift inside the "Gravel"
+    // group darkens only the gravel in Affinity's render); a pass-through
+    // Patchy group would leak it over everything below the group. Isolate the
+    // group (PS semantics scope adjustments to isolated groups) - only for
+    // the pass-through default, an explicit wire blend stays authoritative.
+    if (std::as_const(group).blend_mode() == BlendMode::PassThrough) {
+      for (const auto& child : child_layers) {
+        if (child.kind() == LayerKind::Adjustment && !child.clipped()) {
+          group.set_blend_mode(BlendMode::Normal);
+          break;
+        }
+      }
+    }
     for (auto& child : child_layers) {
       group.add_child(std::move(child));
     }
@@ -2554,14 +2605,19 @@ void apply_layer_effects(LayerBuildContext& ctx, const af::AfClass& node, Layer&
     return std::nullopt;
   }
 
-  Layer layer(ctx.document.allocate_layer_id(), display, LayerKind::Adjustment);
+  // Unnamed adjustment nodes: Affinity's Layers panel labels these by their
+  // adjustment kind, so a generic "Layer" would read as an empty layer here.
+  const std::string label = node.string_field(af::tag4("Desc")).empty()
+                                ? adjustment_display_name(settings.kind)
+                                : display;
+  Layer layer(ctx.document.allocate_layer_id(), label, LayerKind::Adjustment);
   configure_adjustment_layer(layer, settings);
-  apply_common(ctx, node, layer, display);
+  apply_common(ctx, node, layer, label);
 
   // The node's own bitmap (an M8/M16 plane) is the adjustment's mask; an
   // all-zero plane means "no mask painted".
   if (const af::AfClass* bitmap = node.child_class(af::tag4("Bitm"))) {
-    if (auto decoded = decode_bitmap(ctx.bytes, ctx.container, *bitmap, display, &ctx.notices,
+    if (auto decoded = decode_bitmap(ctx.bytes, ctx.container, *bitmap, label, &ctx.notices,
                                      nullptr);
         decoded && !decoded->mask.empty()) {
       bool any_nonzero = false;
@@ -2585,7 +2641,7 @@ void apply_layer_effects(LayerBuildContext& ctx, const af::AfClass& node, Layer&
     }
   }
   if (approximate) {
-    ctx.notices.push_back("Layer '" + display +
+    ctx.notices.push_back("Layer '" + label +
                           "': adjustment converted approximately (the engines' math differs)");
   }
   return layer;
@@ -4692,7 +4748,13 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
       throw std::runtime_error("Affinity document has an implausible number of layers");
     }
     const af::AfClass& node = *child;
-    const std::string name = node.string_field(af::tag4("Desc"));
+    std::string name = node.string_field(af::tag4("Desc"));
+    if (name.empty()) {
+      // Placed images with no user-given name: Affinity's Layers panel shows
+      // the image resource's file name (IRFN), so mirror that instead of the
+      // generic "Layer" (the esdreika wild file's metal_grid.png nodes).
+      name = node.string_field(af::tag4("IRFN"));
+    }
     const std::string display = name.empty() ? std::string("Layer") : name;
     const std::uint32_t tag = node.type_tag;
     const af::AfClass* bitmap_class = node.child_class(af::tag4("Bitm"));
@@ -5187,7 +5249,12 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
   // every artboard out side by side, so when SprB is missing the canvas is
   // the union of the artboard boxes; the whole build then shifts by the
   // spread origin. Affinity's own export of the tiny-artboards fixture pins
-  // the union-canvas shape.
+  // the union-canvas shape. Photo-persona spreads (2.x .afphoto and the
+  // scripted 3.x fixtures) store NO SprB at all; their page rect lives in
+  // SpMd -> PagR[0] (PgIn) -> rctp, which tracks canvas resizes while DfSz
+  // keeps the creation size (a wild resized document: DfSz 512x512, rctp
+  // 0,0,1024,1024, and Affinity shows 1024; every committed fixture's rctp
+  // equals its true canvas, including the artboard union).
   double origin_x = 0.0;
   double origin_y = 0.0;
   {
@@ -5200,6 +5267,18 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
       bounds.clear();
       if (any_artboard) {
         bounds.assign(computed.begin(), computed.end());
+      }
+    }
+    if (bounds.size() != 4) {
+      if (const af::AfClass* spread_metadata = spread.child_class(af::tag4("SpMd"))) {
+        if (const auto* pages = class_list(*spread_metadata, af::tag4("PagR"));
+            pages != nullptr && !pages->empty() && pages->front() != nullptr) {
+          auto page_rect = pages->front()->vec_field(af::tag4("rctp"));
+          if (page_rect.size() == 4 && page_rect[2] > page_rect[0] &&
+              page_rect[3] > page_rect[1]) {
+            bounds = std::move(page_rect);
+          }
+        }
       }
     }
     if (bounds.size() == 4) {

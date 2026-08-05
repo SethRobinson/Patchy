@@ -226,6 +226,9 @@ not part of any release package.
   fills, a curve shape, and short text) created by the Patchy team
   interactively in a licensed Affinity Photo 2.6.5 install; no third-party
   content. Used by the 2.x extension importer tests.
+- `test-fixtures/af/tiny-v2-stale-dfsz.afphoto` and `tiny-lazy-placed.af`:
+  deterministic byte-level derivations of the two fixtures above
+  (local-test-fixtures/af-spike/author_derived_fixtures.py); no new content.
 - `test-fixtures/aseprite/*.aseprite` and
   `aseprite-blend-modes-reference.png` (Aseprite's own flattened render of the
   blend-mode fixture): authored locally with Aseprite 1.3.17 via a batch script
