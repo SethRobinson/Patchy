@@ -5847,6 +5847,10 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
     return true;
   }
 
+  if (handle_dock_group_window_event(watched, event)) {
+    return true;
+  }
+
   if (auto* viewport = qobject_cast<QWidget*>(watched);
       viewport != nullptr && viewport->parentWidget() != nullptr &&
       viewport->parentWidget()->objectName() == QStringLiteral("inlineTextEditor")) {

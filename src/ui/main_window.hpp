@@ -351,6 +351,7 @@ private:
   bool restore_window_geometry();
   bool handle_right_dock_resize_event(QObject* watched, QEvent* event);
   bool handle_right_dock_title_drag_event(QObject* watched, QEvent* event);
+  bool handle_dock_group_window_event(QObject* watched, QEvent* event);
   void handle_right_dock_panel_toggled(QDockWidget* dock, bool expanded, int expanded_minimum_height);
   void refresh_collapsed_right_dock_heights();
   void install_right_dock_width_handle(QDockWidget* dock);
@@ -1548,6 +1549,10 @@ private:
   QPoint right_dock_title_drag_press_global_;
   QPoint right_dock_title_drag_offset_;
   bool right_dock_title_drag_started_{false};
+  // Blank-area drag of a floating dock tab-group window (see
+  // handle_dock_group_window_event).
+  QPointer<QWidget> dock_group_drag_window_;
+  QPoint dock_group_drag_offset_;
   // 0 until update_right_dock_minimum_width() measures the layers panel.
   int right_dock_minimum_width_{0};
   // -1 until the chrome around the layers panel is measured from a laid-out

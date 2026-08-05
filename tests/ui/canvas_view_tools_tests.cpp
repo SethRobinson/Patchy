@@ -2378,6 +2378,81 @@ void ui_tabbed_dock_title_drag_floats_single_dock() {
   CHECK(layers_dock->isFloating());
 }
 
+void ui_dock_group_window_drags_by_blank_chrome() {
+  // Qt's floating dock tab-group window has no grabbable chrome: the blank
+  // strip beside the tabs must move the window, edge presses must stay with
+  // Qt's resize handling, and edge hovers must show a resize cursor. The
+  // private Qt class cannot be constructed here, so the handler's test seam
+  // (the patchy.dockGroupWindow property) stands in for it.
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  QWidget group;
+  group.setProperty("patchy.dockGroupWindow", true);
+  auto* tab_bar = new QTabBar(&group);
+  tab_bar->addTab(QStringLiteral("Paths"));
+  tab_bar->addTab(QStringLiteral("Channels"));
+  tab_bar->setGeometry(0, 0, tab_bar->tabRect(1).right() + 80, 24);
+  group.resize(300, 200);
+  group.move(100, 100);
+  group.show();
+  QApplication::processEvents();
+
+  const auto send_group_mouse = [](QWidget& target, QEvent::Type type, QPoint local, QPoint global,
+                                   Qt::MouseButton button, Qt::MouseButtons buttons) {
+    QMouseEvent event(type, local, global, button, buttons, Qt::NoModifier);
+    QApplication::sendEvent(&target, &event);
+    QApplication::processEvents();
+  };
+
+  // Blank-area drag moves the window by the mouse delta. The platform may
+  // have repositioned the shown window, so compare relative to its actual
+  // position.
+  const auto position_before_drag = group.pos();
+  const QPoint press_local(150, 100);
+  auto press_global = group.mapToGlobal(press_local);
+  send_group_mouse(group, QEvent::MouseButtonPress, press_local, press_global, Qt::LeftButton,
+                   Qt::LeftButton);
+  send_group_mouse(group, QEvent::MouseMove, press_local, press_global + QPoint(40, 30), Qt::NoButton,
+                   Qt::LeftButton);
+  send_group_mouse(group, QEvent::MouseButtonRelease, press_local, press_global + QPoint(40, 30),
+                   Qt::LeftButton, Qt::NoButton);
+  CHECK(group.pos() == position_before_drag + QPoint(40, 30));
+
+  // Edge presses are left alone so Qt's own resize handling keeps working.
+  const auto position_before_edge_press = group.pos();
+  const QPoint edge_local(3, 100);
+  auto edge_global = group.mapToGlobal(edge_local);
+  send_group_mouse(group, QEvent::MouseButtonPress, edge_local, edge_global, Qt::LeftButton, Qt::LeftButton);
+  send_group_mouse(group, QEvent::MouseMove, edge_local, edge_global + QPoint(25, 0), Qt::NoButton,
+                   Qt::LeftButton);
+  send_group_mouse(group, QEvent::MouseButtonRelease, edge_local, edge_global + QPoint(25, 0), Qt::LeftButton,
+                   Qt::NoButton);
+  CHECK(group.pos() == position_before_edge_press);
+
+  // Edge hovers show the resize cursor; interior hovers restore the default.
+  QHoverEvent left_hover(QEvent::HoverMove, QPointF(3, 100), QPointF(), QPointF(3, 99));
+  QApplication::sendEvent(&group, &left_hover);
+  CHECK(group.cursor().shape() == Qt::SizeHorCursor);
+  QHoverEvent corner_hover(QEvent::HoverMove, QPointF(297, 197), QPointF(), QPointF(296, 196));
+  QApplication::sendEvent(&group, &corner_hover);
+  CHECK(group.cursor().shape() == Qt::SizeFDiagCursor);
+  QHoverEvent center_hover(QEvent::HoverMove, QPointF(150, 100), QPointF(), QPointF(149, 99));
+  QApplication::sendEvent(&group, &center_hover);
+  CHECK(group.cursor().shape() == Qt::ArrowCursor);
+
+  // The blank stretch of the tab bar itself also drags the window.
+  const QPoint bar_local(tab_bar->tabRect(1).right() + 40, 12);
+  CHECK(tab_bar->tabAt(bar_local) < 0);
+  auto bar_global = tab_bar->mapToGlobal(bar_local);
+  send_group_mouse(*tab_bar, QEvent::MouseButtonPress, bar_local, bar_global, Qt::LeftButton, Qt::LeftButton);
+  send_group_mouse(*tab_bar, QEvent::MouseMove, bar_local, bar_global + QPoint(-30, 20), Qt::NoButton,
+                   Qt::LeftButton);
+  send_group_mouse(*tab_bar, QEvent::MouseButtonRelease, bar_local, bar_global + QPoint(-30, 20),
+                   Qt::LeftButton, Qt::NoButton);
+  CHECK(group.pos() == position_before_edge_press + QPoint(-30, 20));
+}
+
 void ui_menu_disabled_items_render_grayed() {
   // The app stylesheet styles QMenu::item text, so without an explicit :disabled rule
   // disabled entries rendered in the same bright color as enabled ones and were only
@@ -2454,6 +2529,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_tabbed_right_dock_drags_out_by_tab", ui_tabbed_right_dock_drags_out_by_tab},
       {"ui_floating_right_dock_expands_and_collapses", ui_floating_right_dock_expands_and_collapses},
       {"ui_tabbed_dock_title_drag_floats_single_dock", ui_tabbed_dock_title_drag_floats_single_dock},
+      {"ui_dock_group_window_drags_by_blank_chrome", ui_dock_group_window_drags_by_blank_chrome},
       {"ui_menu_disabled_items_render_grayed", ui_menu_disabled_items_render_grayed},
   };
 }

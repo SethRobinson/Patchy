@@ -280,6 +280,53 @@ const std::array<QString, 7>& right_dock_stack_names() {
   return names;
 }
 
+// Qt's floating dock tab-group window. It has Q_OBJECT, so the class name is
+// reliable; the property is a seam for tests, which cannot construct the
+// private Qt type.
+bool is_dock_group_window(const QWidget* widget) {
+  if (widget == nullptr || !widget->isWindow()) {
+    return false;
+  }
+  return qstrcmp(widget->metaObject()->className(), "QDockWidgetGroupWindow") == 0 ||
+         widget->property("patchy.dockGroupWindow").toBool();
+}
+
+constexpr int kGroupWindowResizeMargin = 8;
+
+Qt::Edges group_window_resize_edges(const QWidget* window, QPoint position) {
+  Qt::Edges edges;
+  if (position.x() <= kGroupWindowResizeMargin) {
+    edges |= Qt::LeftEdge;
+  }
+  if (position.x() >= window->width() - kGroupWindowResizeMargin) {
+    edges |= Qt::RightEdge;
+  }
+  if (position.y() <= kGroupWindowResizeMargin) {
+    edges |= Qt::TopEdge;
+  }
+  if (position.y() >= window->height() - kGroupWindowResizeMargin) {
+    edges |= Qt::BottomEdge;
+  }
+  return edges;
+}
+
+Qt::CursorShape group_window_resize_cursor(Qt::Edges edges) {
+  const bool left = edges.testFlag(Qt::LeftEdge);
+  const bool right = edges.testFlag(Qt::RightEdge);
+  const bool top = edges.testFlag(Qt::TopEdge);
+  const bool bottom = edges.testFlag(Qt::BottomEdge);
+  if ((top && left) || (bottom && right)) {
+    return Qt::SizeFDiagCursor;
+  }
+  if ((top && right) || (bottom && left)) {
+    return Qt::SizeBDiagCursor;
+  }
+  if (left || right) {
+    return Qt::SizeHorCursor;
+  }
+  return Qt::SizeVerCursor;
+}
+
 void install_collapsible_dock_title(QDockWidget* dock,
                                     QWidget* content,
                                     const QString& object_prefix,
@@ -699,6 +746,102 @@ bool MainWindow::handle_right_dock_title_drag_event(QObject* watched, QEvent* ev
   right_dock_title_drag_started_ = false;
   mouse_event->accept();
   return true;
+}
+
+bool MainWindow::handle_dock_group_window_event(QObject* watched, QEvent* event) {
+  // Qt's floating dock tab-group window ships with no grabbable chrome of
+  // its own: presses on the blank strip beside the tabs do nothing, and its
+  // edge-resize handler moves the borders without ever showing a resize
+  // cursor. Give the blank areas window-drag behavior and the edges cursor
+  // feedback; presses on the edges stay with Qt's own resize handling.
+  if (dock_group_drag_window_ != nullptr) {
+    switch (event->type()) {
+      case QEvent::MouseMove: {
+        auto* mouse_event = static_cast<QMouseEvent*>(event);
+        if ((mouse_event->buttons() & Qt::LeftButton) == 0) {
+          dock_group_drag_window_ = nullptr;
+          return false;
+        }
+        dock_group_drag_window_->move(mouse_event->globalPosition().toPoint() - dock_group_drag_offset_);
+        mouse_event->accept();
+        return true;
+      }
+      case QEvent::MouseButtonRelease: {
+        auto* mouse_event = static_cast<QMouseEvent*>(event);
+        if (mouse_event->button() != Qt::LeftButton) {
+          return false;
+        }
+        dock_group_drag_window_ = nullptr;
+        mouse_event->accept();
+        return true;
+      }
+      default:
+        return false;
+    }
+  }
+
+  auto* widget = qobject_cast<QWidget*>(watched);
+  if (widget == nullptr) {
+    return false;
+  }
+
+  if (is_dock_group_window(widget)) {
+    switch (event->type()) {
+      case QEvent::Show:
+        // Hover events drive the edge cursor; the private Qt window does not
+        // enable them itself.
+        widget->setAttribute(Qt::WA_Hover, true);
+        widget->setMouseTracking(true);
+        return false;
+      case QEvent::HoverEnter:
+      case QEvent::HoverMove: {
+        const auto position = static_cast<QHoverEvent*>(event)->position().toPoint();
+        const auto edges = group_window_resize_edges(widget, position);
+        if (edges != Qt::Edges{}) {
+          widget->setCursor(group_window_resize_cursor(edges));
+        } else {
+          widget->unsetCursor();
+        }
+        return false;
+      }
+      case QEvent::HoverLeave:
+        widget->unsetCursor();
+        return false;
+      case QEvent::MouseButtonPress: {
+        auto* mouse_event = static_cast<QMouseEvent*>(event);
+        if (mouse_event->button() != Qt::LeftButton ||
+            group_window_resize_edges(widget, mouse_event->position().toPoint()) != Qt::Edges{}) {
+          return false;
+        }
+        dock_group_drag_window_ = widget;
+        // Anchor to the frame origin: move() positions the frame while mouse
+        // coordinates are client-relative, and the platform can pad a frame
+        // margin between the two.
+        dock_group_drag_offset_ = mouse_event->globalPosition().toPoint() - widget->pos();
+        mouse_event->accept();
+        return true;
+      }
+      default:
+        return false;
+    }
+  }
+
+  // The tab bar swallows presses on its own blank stretch, so catch those at
+  // the bar and start the same window drag.
+  if (auto* tab_bar = qobject_cast<QTabBar*>(widget);
+      tab_bar != nullptr && event->type() == QEvent::MouseButtonPress &&
+      is_dock_group_window(tab_bar->window())) {
+    auto* mouse_event = static_cast<QMouseEvent*>(event);
+    if (mouse_event->button() == Qt::LeftButton &&
+        tab_bar->tabAt(mouse_event->position().toPoint()) < 0) {
+      dock_group_drag_window_ = tab_bar->window();
+      dock_group_drag_offset_ =
+          mouse_event->globalPosition().toPoint() - tab_bar->window()->pos();
+      mouse_event->accept();
+      return true;
+    }
+  }
+  return false;
 }
 
 void MainWindow::create_docks() {
