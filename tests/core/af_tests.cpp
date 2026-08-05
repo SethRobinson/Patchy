@@ -1461,6 +1461,7 @@ void af_reads_esdreika_wild_file_if_available() {
 
   std::size_t metal_grid_layers = 0;
   std::size_t empty_pixel_layers = 0;
+  std::size_t clipped_adjustments = 0;
   const patchy::Layer* fabric = nullptr;
   const patchy::Layer* gravel_group = nullptr;
   const patchy::Layer* maintex_group = nullptr;
@@ -1476,6 +1477,9 @@ void af_reads_esdreika_wild_file_if_available() {
             }
             walk(layer.children());
             continue;
+          }
+          if (layer.kind() == patchy::LayerKind::Adjustment && layer.clipped()) {
+            ++clipped_adjustments;
           }
           if (layer.name() == "metal_grid.png") {
             ++metal_grid_layers;
@@ -1538,6 +1542,11 @@ void af_reads_esdreika_wild_file_if_available() {
   CHECK(gravel_group->blend_mode() == patchy::BlendMode::Normal);
   CHECK(maintex_group != nullptr);
   CHECK(maintex_group->blend_mode() == patchy::BlendMode::PassThrough);
+  // Adjustments attached through a layer's AdCh adjunct list (a metal texture
+  // carries Brightness/Contrast + HSL that way; two brown_leather nodes nest
+  // HSL as Chld children) import as CLIPPED adjustment layers, never as the
+  // owner's mask.
+  CHECK(clipped_adjustments >= 4);
 }
 
 void af_reads_old_generation_wild_files_if_available() {

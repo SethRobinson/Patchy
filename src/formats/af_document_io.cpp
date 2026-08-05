@@ -1900,6 +1900,15 @@ void apply_mask_children(LayerBuildContext& ctx, const af::AfClass& node, Layer&
     if (adjunct == nullptr) {
       continue;
     }
+    if (is_adjustment_or_filter(adjunct->type_tag)) {
+      // An adjustment/live-filter riding the AdCh list is clipped TO the
+      // owner, and its plane is the ADJUSTMENT's mask, never the owner's
+      // (esdreika attaches Brightness/Contrast + HSL to a metal texture this
+      // way; reading their all-opaque planes as owner masks dropped the
+      // adjustments and raised a bogus duplicate-mask notice).
+      // emit_adjunct_adjustments imports them after the owner layer.
+      continue;
+    }
     const af::AfClass* dybm = adjunct->child_class(af::tag4("Bitm"));
     if (dybm == nullptr) {
       // No raster plane: the adjunct may be a vector layer subtree (a Grup of
@@ -2730,6 +2739,35 @@ void apply_layer_effects(LayerBuildContext& ctx, const af::AfClass& node, Layer&
                           "': adjustment converted approximately (the engines' math differs)");
   }
   return layer;
+}
+
+// Adjustments can ride a layer's AdCh enclosure list instead of its child
+// list (Affinity nests an adjustment INSIDE a layer either way to clip it to
+// that layer; esdreika stores Brightness/Contrast + HSL on a metal texture as
+// adjuncts). Emit each as a clipped adjustment layer directly above the
+// owner; apply_mask_children skips these same nodes so their planes never
+// become the owner's mask.
+void emit_adjunct_adjustments(LayerBuildContext& ctx, const af::AfClass& node,
+                              std::vector<Layer>& out) {
+  const auto* adjuncts = class_list(node, af::tag4("AdCh"));
+  if (adjuncts == nullptr) {
+    return;
+  }
+  for (const auto& adjunct : *adjuncts) {
+    if (adjunct == nullptr || !is_adjustment_or_filter(adjunct->type_tag)) {
+      continue;
+    }
+    const std::string name = adjunct->string_field(af::tag4("Desc"));
+    if (auto layer = build_adjustment_layer(ctx, *adjunct,
+                                            name.empty() ? std::string("Layer") : name)) {
+      layer->set_clipped(true);
+      out.push_back(std::move(*layer));
+    } else {
+      ctx.notices.push_back("Layer '" + node.string_field(af::tag4("Desc")) +
+                            "': an attached Affinity adjustment or live filter is not supported "
+                            "and was skipped");
+    }
+  }
 }
 
 // Wrap a pristine placed image as an embedded Patchy smart object: the
@@ -5133,6 +5171,7 @@ void build_layers(LayerBuildContext& ctx, const std::vector<std::shared_ptr<af::
                        wrapped_smart_object ? 1 : 0);
         }
         out.push_back(std::move(layer));
+        emit_adjunct_adjustments(ctx, node, out);
         emit_clipped_children(&node);
         continue;
       }
