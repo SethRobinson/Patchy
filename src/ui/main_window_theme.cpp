@@ -564,13 +564,14 @@ QString photoshop_style_template() {
       border-bottom: 1px solid @panel_border_strong;
     }
     QWidget#historyDockTitle, QWidget#channelsDockTitle, QWidget#propertiesDockTitle, QWidget#infoDockTitle,
-    QWidget#layersDockTitle {
+    QWidget#layersDockTitle, QWidget#pathsDockTitle, QWidget#paletteDockTitle {
       background: @panel_title_bg;
       border-top: 1px solid @panel_title_bevel_top;
       border-bottom: 1px solid @panel_title_border_bottom;
     }
     QWidget#historyDockTitle QLabel, QWidget#channelsDockTitle QLabel, QWidget#propertiesDockTitle QLabel,
-    QWidget#infoDockTitle QLabel, QWidget#layersDockTitle QLabel {
+    QWidget#infoDockTitle QLabel, QWidget#layersDockTitle QLabel, QWidget#pathsDockTitle QLabel,
+    QWidget#paletteDockTitle QLabel {
       color: @text_bright;
       font-weight: 600;
     }
@@ -731,9 +732,12 @@ QString photoshop_style_template() {
       color: @info_text;
       line-height: 130%;
     }
-    QScrollArea#propertiesScrollArea {
+    QScrollArea#propertiesScrollArea, QScrollArea#paletteScrollArea {
       background: @panel_bg;
       border: 0;
+    }
+    QScrollArea#paletteScrollArea > QWidget > QWidget {
+      background: @panel_bg;
     }
     QWidget#propertiesPanel {
       background: @panel_bg;
@@ -747,7 +751,8 @@ QString photoshop_style_template() {
       color: @info_text;
       font-size: 11px;
     }
-    QWidget#layersPanel {
+    QWidget#layersPanel, QWidget#channelPanel, QWidget#pathsPanel, QWidget#infoPanel,
+    QWidget#palettePanel {
       background: @panel_bg;
     }
     QListWidget#layerList {
@@ -1012,13 +1017,22 @@ QString photoshop_style_template() {
        the panel track to near-white, and a mid-gray checkerboard laid over that
        turns a dialog's gutter into a dark stripe. The texture belongs to the
        pasteboard gutter; a panel bar reads from its handle. */
+    /* margin: 0 is load-bearing, not a no-op. QStyleSheetStyle only takes
+       ownership of the groove rect when the scroll bar's widget rule has box
+       properties; without one it asks the native style, which reserves room
+       for the arrow buttons this sheet removes. On a short bar (a squeezed
+       panel) that phantom reservation leaves the groove smaller than the
+       styled handle, the drag span goes negative, and every handle drag
+       snaps the value to the minimum. */
     QScrollBar:vertical {
       background: @panel_scrollbar_track;
       width: 16px;
+      margin: 0;
     }
     QScrollBar:horizontal {
       background: @panel_scrollbar_track;
       height: 16px;
+      margin: 0;
     }
     QScrollBar::handle:vertical, QScrollBar::handle:horizontal {
       background: @scrollbar_handle_bg;

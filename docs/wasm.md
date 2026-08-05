@@ -11,10 +11,10 @@ Two wasm configurations share the pinned Emscripten 4.0.7 toolchain:
   `patchy_core_tests`, run under node. No Qt (`PATCHY_BUILD_APP=OFF`).
 - **`wasm-release`**: the full app linked against Qt for
   WebAssembly (6.10.3 `wasm_multithread`, static), running in a browser tab
-  with Asyncify plus pthreads. File I/O goes through the browser, drag-in
-  works, settings persist in localStorage (details below). Background work
-  runs on real threads; the deployment cost is cross-origin isolation
-  (COOP/COEP headers, see deployment).
+  with Asyncify plus pthreads. File I/O, drag-in, and settings are
+  browser-backed (details below). Background work runs on real threads; the
+  deployment cost is cross-origin isolation (COOP/COEP headers, see
+  deployment).
 
 Desktop builds are unaffected; the presets, the `if(EMSCRIPTEN)` CMake
 branches, the `Q_OS_WASM` gates in `src/ui`/`src/app`, and `scripts/wasm/`
@@ -109,9 +109,9 @@ select other kits; kits coexist under `.deps\Qt\<version>\`, so rollback is
 a preset edit. Desktop presets stay on their vendored 6.8.3 kit. The preset
 chains Qt's toolchain file into emsdk's via `QT_CHAINLOAD_TOOLCHAIN_FILE`.
 
-Not 6.11 yet: released aqtinstall (3.3.0) cannot install a 6.11 desktop host
-kit (download.qt.io moved 6.11 desktop into per-arch folders with no base
-`Updates.xml`). Revisit when aqtinstall understands the layout.
+Not 6.11 yet: released aqtinstall (3.3.0) cannot install a 6.11 desktop
+host kit (per-arch folders, no base `Updates.xml`); revisit when aqtinstall
+understands the layout.
 
 Kit facts: 6.10 suspends via `EM_ASYNC_JS` (no `-sASYNCIFY_IMPORTS`);
 Emscripten 3.1.58+ folds the pthread bootstrap into `patchy.js` (no
@@ -128,7 +128,7 @@ locally:
 pwsh -File scripts\wasm\serve-app.ps1   # [port] [--open]; default port 8973
 ```
 
-then open `http://localhost:8973/patchy.html`. Its `serve.mjs` sends the
+then open `http://localhost:8973/patchy.html`. `serve.mjs` sends the
 COOP/COEP headers, so the threaded build works locally. The release wrappers
 `scripts\release\start-local-wasm-test-server.bat` (raw build dir) and
 `start-local-wasm-server.bat` (staged site) add port cleanup; see
@@ -141,8 +141,7 @@ per port used:
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\wasm\free-server-port.ps1 -Port 8973
 ```
 
-It stops a node listener left on the port and leaves any non-node process
-alone.
+It stops a node listener on the port and leaves non-node processes alone.
 
 A hidden tab never fires requestAnimationFrame, so Qt stops presenting and
 the tab looks frozen; nothing is wrong. Keep the tab foregrounded, or shim
@@ -173,13 +172,12 @@ requestAnimationFrame onto setTimeout before qtloader runs (harness below).
   is an undiagnosed `RuntimeError: unreachable` tab crash. 1 MiB per live
   suspend is a few MB worst case.
 - **JSPI (Asyncify's successor) dead-ends on the stock aqt kit**; revisit
-  only with a source-built Qt. With JS `-fexceptions` the first Qt idle
-  suspend sits under invoke trampolines JSPI cannot suspend across
-  (permanent silent park); with `-fwasm-exceptions` Qt's prebuilt static
-  libraries cannot link, and mixing modes is unsupported. A source-built kit
-  (wasm EH plus `-feature-wasm_jspi`) measured 42.2 MB against 65.6 MB and a
-  far faster link; needs Chrome 137+, experimental on emsdk 4.0.7, and would
-  ship as a second artifact set.
+  only with a source-built Qt (wasm EH plus `-feature-wasm_jspi`: measured
+  42.2 MB against 65.6 MB with a far faster link; Chrome 137+, experimental
+  on emsdk 4.0.7, a second artifact set). With JS `-fexceptions` the first
+  idle suspend parks forever under invoke trampolines JSPI cannot suspend
+  across; with `-fwasm-exceptions` Qt's prebuilt static libraries cannot
+  link, and mixing modes is unsupported.
 - **Codegen: compile `-msimd128`, link `-O3`, `-sMALLOC=mimalloc`**, all
   adopted from interleaved in-app stress A/B runs (harness below): SIMD wins
   5-16% on compute steps (canaries stay byte-identical), `-O3` beats `-Os`
@@ -275,10 +273,9 @@ Other step-3 decisions:
   treats every wasm session as unseeded. Defaults return each reload; user
   presets last one session (persistence is a future candidate). Preset and
   palette import/export goes through the shared `get_open_file_name` /
-  `get_save_file_name` wrappers plus `offer_browser_download_for_saved_file`,
-  so it uses the browser picker and download path like every other file
-  dialog; only the scripting `getExistingDirectory` pickers still browse
-  MEMFS (a browser cannot pick a host directory).
+  `get_save_file_name` wrappers plus `offer_browser_download_for_saved_file`;
+  only the scripting `getExistingDirectory` pickers still browse MEMFS (a
+  browser cannot pick a host directory).
 - **User-added fonts persist in IndexedDB** (DB `PatchyUserFonts`,
   `src/ui/user_fonts_wasm.cpp`): dropped fonts or zips register immediately,
   and a startup QTimer polls the page-side read to re-register them each
@@ -315,8 +312,6 @@ Other step-3 decisions:
   feeds a per-item scrollbar must convert pixels through the row height
   (`LayerListWidget::scroll_by_wheel_delta`); applying the delta raw scrolls
   ~120 rows per notch. Stock Qt widgets are unaffected.
-- **Start panel web note** (`startPanelWasmNote`, start_panel.cpp): runs
-  locally, fonts can be dropped in, desktop download link.
 - **Float windows are disabled.** No window manager, no `startSystemMove`: a
   floated document covered the canvas with no way back.
   `MainWindow::float_document_session` no-ops on wasm and is the single
@@ -334,8 +329,8 @@ Other step-3 decisions:
   zone, invisible.
 - **Modal dialogs are raised when they block.** The compositor inserts a
   modal directly above its transient parent (usually the bottom-most main
-  window), so a modal opened under a higher non-modal dialog appeared
-  underneath it, invisible and swallowing every click. `WasmDialogRaiser`
+  window), so a modal opened under a higher non-modal dialog sits beneath
+  it, invisible and swallowing every click. `WasmDialogRaiser`
   watches `QEvent::WindowBlocked` and raises + activates
   `QApplication::activeModalWidget()` one turn later, covering Qt's static
   dialogs too. `exec_dialog` installs the guard before its exec.
@@ -348,6 +343,11 @@ Other step-3 decisions:
   bar fixed. The clamp runs at placement time only. This is also why dialogs
   are shown through `exec_dialog`/`run_non_modal_dialog`, never a bare
   `QDialog::exec`.
+- **Right-dock panel toggles repaint the whole window.** The wasm backing
+  store keeps stale pixels where a dock relayout moved content, so
+  `MainWindow::handle_right_dock_panel_toggled` calls `update()` after the
+  deferred relayout; the dock width handle relies on Qt's implicit
+  press-grab (explicit `grabMouse` is unreliable here).
 - **A window shown under an application-modal window never gets its
   keyboard back.** Qt marks windows created while an app-modal window is
   visible as blocked, the key path drops events for blocked windows (the
@@ -393,21 +393,19 @@ Consequences (do not regress):
   overflow lazily spawns (fine from worker threads) instead of aborting a
   visitor's session. Worker stacks are 4 MB; LibRaw decode and full
   compositor walks run there.
-- Headroom alone is insufficient: a rotate-then-merge on a 60 MB PSD wedged
-  the deployed tab once busy preview/thumbnail/undo workers left the idle
-  pool smaller than the merge's 16-strip main-thread join.
-  `max_blocking_fanout_workers` (core/worker_budget.{hpp,cpp}) clamps every
-  main-thread blocking fan-out to the idle pre-spawned pool
-  (`PThread.unusedWorkers.length` minus a race margin of 2, via EM_ASM) and
-  falls back to the sequential path below two free. Strip count never
-  changes output bytes, so the canaries are unaffected.
+- Headroom alone is insufficient once busy workers shrink the idle pool
+  below a blocking join's fan-out. `max_blocking_fanout_workers`
+  (core/worker_budget.{hpp,cpp}) clamps every main-thread blocking fan-out
+  to the idle pre-spawned pool (`PThread.unusedWorkers.length` minus a race
+  margin of 2, via EM_ASM) and falls back to the sequential path below two
+  free. Strip count never changes output bytes, so the canaries are
+  unaffected.
 - Worker-side fan-outs under an awaited compute are budgeted too: before
   `launch_async` the main thread publishes `idle - 3` in a
   `BlockingFanoutBudgetScope` (core/worker_budget), so
   `max_blocking_fanout_workers` also clamps worker-thread callers and the
-  awaited compute never needs a lazy spawn mid-wait. Without it, the
-  free-transform release (resample fan-out, then patch-render fan-out, on a
-  worker) deterministically overran the pool and parked the tab.
+  awaited compute never needs a lazy spawn mid-wait (the free-transform
+  release's chained worker fan-outs otherwise park the tab).
 - Main-thread waits suspend in an event loop.
   `wait_for_processing_operation` (canvas_widget_render.cpp) waits in a
   nested QEventLoop woken by a 100 ms poll QTimer on threaded wasm, so
@@ -437,8 +435,8 @@ user input while `processing_render_wait_active_`; mouse releases are
 parked and replayed after the outermost wait unwinds (a dropped release
 would leave the owning gesture latched), and ShortcutOverride is accepted
 so app-level hotkeys cannot fire into a half-committed operation. Without
-this, the Move release re-entered its own commit (the pinball poster
-corruption: mismatched deltas, ghost undo snapshots).
+this, the Move release re-entered its own commit (mismatched deltas, ghost
+undo snapshots).
 MainWindow's canvas event filter obeys the same rule: it leaves
 `swallow_next_canvas_left_press_` untouched during a wait. The text
 click-off commit runs INSIDE the press delivery (focus walk -> focus-loss
@@ -486,8 +484,8 @@ the live site after every upload and fails loudly if either is missing.
 Every asset is same-origin, so no per-asset CORP headers are needed.
 
 The deployed page is a Patchy-branded shell from
-`packaging\web\patchy.html.in` (logo, version, favicon, real progress bar),
-not Qt's generated `patchy.html` (the dev-loop page). Emscripten has no
+`packaging\web\patchy.html.in`, not Qt's generated `patchy.html` (the
+dev-loop page). Emscripten has no
 download-progress callback, so the page fetches `patchy.wasm` itself with a
 byte-counting stream reader and hands the bytes to `qtLoad` as `wasmBinary`;
 its `locateFile` override versions the `patchy.data` fetch. `build-wasm.bat`

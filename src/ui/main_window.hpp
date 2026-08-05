@@ -350,6 +350,8 @@ private:
   void save_window_geometry() const;
   bool restore_window_geometry();
   bool handle_right_dock_resize_event(QObject* watched, QEvent* event);
+  void handle_right_dock_panel_toggled(QDockWidget* dock, bool expanded, int expanded_minimum_height);
+  void refresh_collapsed_right_dock_heights();
   void update_right_dock_resize_handle_geometry(QWidget* host);
   void set_right_dock_stack_width(int width);
   void update_right_dock_minimum_width();

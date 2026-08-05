@@ -16,6 +16,7 @@
 #include <QMouseEvent>
 #include <QPaintEvent>
 #include <QPainter>
+#include <QScrollArea>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -289,19 +290,31 @@ PalettePanel::PalettePanel(QWidget* parent) : QWidget(parent) {
   grid_->set_selection_changed_callback([this] { update_selection_readout(); });
   connect(grid_, &QWidget::customContextMenuRequested, this,
           [this](const QPoint& position) { show_grid_context_menu(position); });
-  layout->addWidget(grid_);
+  // The grid reports its full height as a hard minimum, so a large palette
+  // inside a plain layout would force the dock (and with it the window) to
+  // grow. The scroll well keeps the dock's minimum at a few swatch rows and
+  // scrolls the rest, like the color picker's palette grid.
+  grid_scroll_ = new QScrollArea(this);
+  grid_scroll_->setObjectName(QStringLiteral("paletteScrollArea"));
+  grid_scroll_->setWidgetResizable(true);
+  grid_scroll_->setFrameShape(QFrame::NoFrame);
+  grid_scroll_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+  grid_scroll_->setWidget(grid_);
+  grid_scroll_->setMinimumHeight(2 * (kSwatchSize + kSwatchGap) - kSwatchGap);
+  layout->addWidget(grid_scroll_, 1);
 
   empty_hint_ = new QLabel(tr("No palette. Pick a preset, load a palette file, or extract one from the image."), this);
   empty_hint_->setObjectName(QStringLiteral("paletteEmptyHint"));
   empty_hint_->setWordWrap(true);
-  layout->addWidget(empty_hint_);
+  // Stretch 1 like the scroll well: exactly one of the two is visible, and
+  // whichever it is absorbs the dock's slack.
+  layout->addWidget(empty_hint_, 1, Qt::AlignTop);
 
   convert_button_ = add_tool_button("paletteConvertButton", tr("Convert to Indexed (Palette)..."),
                                     tr("Constrain painting to this palette"));
   convert_button_->setAutoRaise(false);
   connect(convert_button_, &QToolButton::clicked, this, [this] { emit convert_requested(); });
   layout->addWidget(convert_button_);
-  layout->addStretch(1);
 
   set_palette({}, false);
 }
@@ -316,7 +329,7 @@ void PalettePanel::set_palette(const std::vector<RgbColor>& colors, bool mode_ac
     has_duplicate_colors_ = has_duplicate_colors_ || !unique.insert(palette_color_key(color)).second;
   }
   grid_->set_colors(colors);
-  grid_->setVisible(!colors.empty());
+  grid_scroll_->setVisible(!colors.empty());
   empty_hint_->setVisible(colors.empty());
   remove_button_->setEnabled(colors.size() > 1);
   // The Convert button belongs to documents that have a palette attached but are

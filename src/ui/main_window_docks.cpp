@@ -258,14 +258,25 @@ constexpr int kRightDockMinimumWidth = 280;
 // content widget W minus this.
 constexpr int kRightDockChromeWidth = 18;
 constexpr int kRightDockResizeHandleWidth = 7;
-constexpr int kHistoryDockExpandedMinimumHeight = 190;
+// Floors are deliberately low: an expanded dock's hard minimum feeds the
+// window's minimum height, so tall floors force the whole window to grow.
+// Preferred heights are demanded through a temporary minimum on expand and
+// released one event-loop hop later (handle_right_dock_panel_toggled), so
+// the dock gets its working height without pinning the window taller.
+constexpr int kHistoryDockExpandedMinimumHeight = 90;
+constexpr int kHistoryDockPreferredHeight = 190;
+constexpr int kPropertiesDockMaximumHeight = 230;
+constexpr int kPaletteDockPreferredHeight = 320;
 
-// The docks that share one width as the right panel stack.
-const std::array<QString, 6>& right_dock_stack_names() {
-  static const std::array<QString, 6> names{
-      QStringLiteral("layersDock"),  QStringLiteral("channelsDock"),
-      QStringLiteral("pathsDock"),   QStringLiteral("historyDock"),
-      QStringLiteral("propertiesDock"), QStringLiteral("infoDock")};
+// The docks that share one width as the right panel stack. Every dock in the
+// column must be listed: one left out keeps its own minimum width and renders
+// as a shorter strip whenever the pinned or measured width exceeds it.
+const std::array<QString, 7>& right_dock_stack_names() {
+  static const std::array<QString, 7> names{
+      QStringLiteral("layersDock"),     QStringLiteral("channelsDock"),
+      QStringLiteral("pathsDock"),      QStringLiteral("historyDock"),
+      QStringLiteral("propertiesDock"), QStringLiteral("infoDock"),
+      QStringLiteral("paletteDock")};
   return names;
 }
 
@@ -274,13 +285,11 @@ void install_collapsible_dock_title(QDockWidget* dock,
                                     const QString& object_prefix,
                                     int expanded_minimum_height = 0,
                                     int expanded_maximum_height = QWIDGETSIZE_MAX,
-                                    bool initially_expanded = true) {
+                                    bool initially_expanded = true,
+                                    int expanded_preferred_height = 0,
+                                    std::function<void(bool)> panel_toggled = {}) {
   dock->setMinimumWidth(kRightDockMinimumWidth);
   content->setMinimumWidth(kRightDockMinimumWidth - kRightDockChromeWidth);
-  if (expanded_minimum_height > 0) {
-    dock->setMinimumHeight(expanded_minimum_height);
-  }
-  dock->setMaximumHeight(expanded_maximum_height);
 
   auto* title = new QWidget(dock);
   title->setObjectName(object_prefix + QStringLiteral("DockTitle"));
@@ -309,17 +318,28 @@ void install_collapsible_dock_title(QDockWidget* dock,
   }
   layout->addWidget(label, 1);
 
-  const auto apply_expanded_state = [dock, content, toggle, expanded_minimum_height,
-                                     expanded_maximum_height](bool expanded) {
+  const auto expanded_boost_height = std::max(expanded_minimum_height, expanded_preferred_height);
+  const auto apply_expanded_state = [dock, content, toggle, expanded_boost_height,
+                                     expanded_maximum_height,
+                                     panel_toggled = std::move(panel_toggled)](bool expanded) {
     content->setVisible(expanded);
     toggle->setText(expanded ? QStringLiteral("v") : QStringLiteral(">"));
     toggle->setToolTip(expanded ? QObject::tr("Collapse panel") : QObject::tr("Expand panel"));
-    const auto collapsed_height = dock->titleBarWidget()->sizeHint().height() + 8;
-    if (expanded_minimum_height > 0) {
-      dock->setMinimumHeight(expanded ? expanded_minimum_height : collapsed_height);
-    }
+    // Collapsed docks pin min == max to the exact title-bar height: every
+    // collapsed panel renders as the same strip, and the dock area can
+    // neither stretch it nor leave a dead band under the header. Expanding
+    // demands the preferred height through a temporary minimum (the only
+    // request the dock area is guaranteed to honor);
+    // MainWindow::handle_right_dock_panel_toggled hands the slack back one
+    // event-loop hop later so the demand never lingers in the window's
+    // minimum size. A floor of 0 means the layout-derived natural minimum.
+    const auto collapsed_height = dock->titleBarWidget()->sizeHint().height();
+    dock->setMinimumHeight(expanded ? expanded_boost_height : collapsed_height);
     dock->setMaximumHeight(expanded ? expanded_maximum_height : collapsed_height);
     dock->updateGeometry();
+    if (panel_toggled) {
+      panel_toggled(expanded);
+    }
   };
 
   QObject::connect(toggle, &QToolButton::toggled, dock, apply_expanded_state);
@@ -421,6 +441,64 @@ void MainWindow::update_right_dock_minimum_width() {
   }
 }
 
+void MainWindow::refresh_collapsed_right_dock_heights() {
+  // The collapsed pins are computed from the title bar's sizeHint, which
+  // grows by the title borders once the application stylesheet is applied.
+  // Re-pin every still-collapsed dock so they all sit at the styled height;
+  // docks toggled later recompute from the styled title on their own.
+  for (auto* dock : findChildren<QDockWidget*>()) {
+    auto* title = dock->titleBarWidget();
+    auto* content = dock->widget();
+    if (title == nullptr || content == nullptr || content->isVisibleTo(dock)) {
+      continue;
+    }
+    const auto collapsed_height = title->sizeHint().height();
+    dock->setMinimumHeight(collapsed_height);
+    dock->setMaximumHeight(collapsed_height);
+    dock->updateGeometry();
+  }
+}
+
+void MainWindow::handle_right_dock_panel_toggled(QDockWidget* dock, bool expanded,
+                                                 int expanded_minimum_height) {
+  // Construction-time apply_expanded_state: the dock area is not laid out
+  // yet, and no dock that starts expanded boosts past its floor.
+  if (!isVisible()) {
+    return;
+  }
+  const auto height_before = height();
+  // One event-loop hop: the boosted minimum from apply_expanded_state has
+  // been granted once the posted layout pass ran (timers fire after it).
+  QTimer::singleShot(0, this, [this, dock, expanded, expanded_minimum_height, height_before] {
+    // Release the expand demand down to the real floor. The dock keeps the
+    // granted height, but the window's minimum no longer carries it, so a
+    // later clamp or user resize can redistribute the column freely. Skip
+    // the release when the panel was re-collapsed before this hop ran (the
+    // collapsed min == max pin must survive).
+    if (expanded && dock->widget() != nullptr && dock->widget()->isVisible()) {
+      dock->setMinimumHeight(expanded_minimum_height);
+    }
+    if (layout() != nullptr) {
+      // The release above only posts a layout request, but the clamp below
+      // resizes through the window's explicit minimum, which the layout owns
+      // and only rewrites during activation. Activate now so the clamp sees
+      // the released minimum instead of the expand demand.
+      layout()->activate();
+    }
+#ifdef Q_OS_WASM
+    // The wasm backing store is not repainted where the relayout moved the
+    // docks, leaving stale panel pixels until the next browser resize.
+    update();
+#endif
+    // Re-clamp only when this toggle grew the window: offscreen tests open
+    // windows larger than the platform screen, and an unconditional clamp
+    // would shrink them behind the tests' backs.
+    if (height() > height_before) {
+      clamp_window_to_available_screen();
+    }
+  });
+}
+
 bool MainWindow::handle_right_dock_resize_event(QObject* watched, QEvent* event) {
   auto* widget = qobject_cast<QWidget*>(watched);
   if (widget == nullptr) {
@@ -451,7 +529,8 @@ bool MainWindow::handle_right_dock_resize_event(QObject* watched, QEvent* event)
       right_dock_resizing_ = true;
       right_dock_resize_start_global_ = mouse_event->globalPosition().toPoint();
       right_dock_resize_start_width_ = dock->width();
-      widget->grabMouse();
+      // No explicit grabMouse: Qt's implicit press-grab already routes the
+      // moves and release here, and an explicit grab is unreliable on wasm.
       mouse_event->accept();
       return true;
     }
@@ -473,7 +552,6 @@ bool MainWindow::handle_right_dock_resize_event(QObject* watched, QEvent* event)
       const auto delta = right_dock_resize_start_global_.x() - mouse_event->globalPosition().toPoint().x();
       set_right_dock_stack_width(right_dock_resize_start_width_ + delta);
       right_dock_resizing_ = false;
-      widget->releaseMouse();
       mouse_event->accept();
       return true;
     }
@@ -486,10 +564,13 @@ bool MainWindow::handle_right_dock_resize_event(QObject* watched, QEvent* event)
 
 void MainWindow::create_docks() {
   setTabPosition(Qt::RightDockWidgetArea, QTabWidget::North);
+  // Docks dropped onto each other form tab groups, and Qt only wires up
+  // dragging a dock back OUT by its tab under GroupedDragging (which also
+  // drags a tabbed group as one unit by its shared title bar).
+  setDockOptions(dockOptions() | QMainWindow::GroupedDragging);
   auto* layers_dock = new QDockWidget(tr("Layers"), this);
   layers_dock->setObjectName(QStringLiteral("layersDock"));
   bind_widget_text(layers_dock, "Layers");
-  layers_dock->setMinimumHeight(300);
   auto* layers_panel = new QWidget(layers_dock);
   layers_panel->setObjectName(QStringLiteral("layersPanel"));
   layers_panel->setMinimumHeight(240);
@@ -961,7 +1042,10 @@ void MainWindow::create_docks() {
   }
 
   layers_dock->setWidget(layers_panel);
-  install_collapsible_dock_title(layers_dock, layers_panel, QStringLiteral("layers"), 300);
+  install_collapsible_dock_title(layers_dock, layers_panel, QStringLiteral("layers"), 300, QWIDGETSIZE_MAX,
+                                 true, 0, [this, layers_dock](bool expanded) {
+                                   handle_right_dock_panel_toggled(layers_dock, expanded, 300);
+                                 });
   layers_dock->setProperty("patchy.rightDockResizeHost", true);
   layers_dock->installEventFilter(this);
   auto* right_dock_resize_handle = new QWidget(layers_dock);
@@ -978,7 +1062,10 @@ void MainWindow::create_docks() {
   bind_widget_text(channel_dock_, "Channels");
   channel_panel_ = new ChannelPanel(channel_dock_);
   channel_dock_->setWidget(channel_panel_);
-  install_collapsible_dock_title(channel_dock_, channel_panel_, QStringLiteral("channels"), 190);
+  install_collapsible_dock_title(channel_dock_, channel_panel_, QStringLiteral("channels"), 190,
+                                 QWIDGETSIZE_MAX, true, 0, [this](bool expanded) {
+                                   handle_right_dock_panel_toggled(channel_dock_, expanded, 190);
+                                 });
   channel_dock_->setProperty("patchy.rightDockResizeHost", true);
   channel_dock_->installEventFilter(this);
   auto* channel_dock_resize_handle = new QWidget(channel_dock_);
@@ -1039,7 +1126,10 @@ void MainWindow::create_docks() {
   bind_widget_text(paths_dock_, "Paths");
   paths_panel_ = new PathsPanel(paths_dock_);
   paths_dock_->setWidget(paths_panel_);
-  install_collapsible_dock_title(paths_dock_, paths_panel_, QStringLiteral("paths"), 190);
+  install_collapsible_dock_title(paths_dock_, paths_panel_, QStringLiteral("paths"), 190, QWIDGETSIZE_MAX,
+                                 true, 0, [this](bool expanded) {
+                                   handle_right_dock_panel_toggled(paths_dock_, expanded, 190);
+                                 });
   paths_dock_->setProperty("patchy.rightDockResizeHost", true);
   paths_dock_->installEventFilter(this);
   auto* paths_dock_resize_handle = new QWidget(paths_dock_);
@@ -1124,7 +1214,11 @@ void MainWindow::create_docks() {
   register_document_widget(history_list_);
   history_dock->setWidget(history_list_);
   install_collapsible_dock_title(history_dock, history_list_, QStringLiteral("history"),
-                                 kHistoryDockExpandedMinimumHeight, QWIDGETSIZE_MAX, false);
+                                 kHistoryDockExpandedMinimumHeight, QWIDGETSIZE_MAX, false,
+                                 kHistoryDockPreferredHeight, [this, history_dock](bool expanded) {
+                                   handle_right_dock_panel_toggled(history_dock, expanded,
+                                                                   kHistoryDockExpandedMinimumHeight);
+                                 });
   addDockWidget(Qt::RightDockWidgetArea, history_dock);
 
   auto* properties_dock = new QDockWidget(tr("Properties"), this);
@@ -1165,13 +1259,18 @@ void MainWindow::create_docks() {
   properties_layout->addStretch(0);
   properties_scroll->setWidget(properties_panel);
   properties_dock->setWidget(properties_scroll);
-  install_collapsible_dock_title(properties_dock, properties_scroll, QStringLiteral("properties"), 0, 230, false);
+  install_collapsible_dock_title(properties_dock, properties_scroll, QStringLiteral("properties"), 0,
+                                 kPropertiesDockMaximumHeight, false, kPropertiesDockMaximumHeight,
+                                 [this, properties_dock](bool expanded) {
+                                   handle_right_dock_panel_toggled(properties_dock, expanded, 0);
+                                 });
   addDockWidget(Qt::RightDockWidgetArea, properties_dock);
 
   auto* info_dock = new QDockWidget(tr("Info"), this);
   info_dock->setObjectName(QStringLiteral("infoDock"));
   bind_widget_text(info_dock, "Info");
   auto* info_panel = new QWidget(info_dock);
+  info_panel->setObjectName(QStringLiteral("infoPanel"));
   auto* info_layout = new QVBoxLayout(info_panel);
   info_layout->setContentsMargins(8, 8, 8, 8);
   canvas_info_label_ = new QLabel(info_panel);
@@ -1182,14 +1281,20 @@ void MainWindow::create_docks() {
   info_layout->addWidget(canvas_info_label_);
   info_layout->addStretch(1);
   info_dock->setWidget(info_panel);
-  install_collapsible_dock_title(info_dock, info_panel, QStringLiteral("info"), 0, QWIDGETSIZE_MAX, false);
+  install_collapsible_dock_title(info_dock, info_panel, QStringLiteral("info"), 0, QWIDGETSIZE_MAX, false,
+                                 0, [this, info_dock](bool expanded) {
+                                   handle_right_dock_panel_toggled(info_dock, expanded, 0);
+                                 });
   addDockWidget(Qt::RightDockWidgetArea, info_dock);
 
   create_palette_dock();
   update_right_dock_minimum_width();
   // Re-measure once the first event-loop pass has shown and styled the docks:
-  // only then can the real dock chrome be read.
-  QTimer::singleShot(0, this, [this] { update_right_dock_minimum_width(); });
+  // only then can the real dock chrome and title heights be read.
+  QTimer::singleShot(0, this, [this] {
+    update_right_dock_minimum_width();
+    refresh_collapsed_right_dock_heights();
+  });
 }
 
 void MainWindow::create_palette_dock() {
@@ -1282,7 +1387,11 @@ void MainWindow::create_palette_dock() {
     statusBar()->showMessage(tr("Palette index %1 set to %2").arg(index).arg(color.name()));
   });
   palette_dock_->setWidget(palette_panel_);
-  install_collapsible_dock_title(palette_dock_, palette_panel_, QStringLiteral("palette"), 0, QWIDGETSIZE_MAX, false);
+  install_collapsible_dock_title(palette_dock_, palette_panel_, QStringLiteral("palette"), 0,
+                                 QWIDGETSIZE_MAX, false, kPaletteDockPreferredHeight,
+                                 [this](bool expanded) {
+                                   handle_right_dock_panel_toggled(palette_dock_, expanded, 0);
+                                 });
   addDockWidget(Qt::RightDockWidgetArea, palette_dock_);
 }
 

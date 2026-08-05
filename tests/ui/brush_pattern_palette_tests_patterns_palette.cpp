@@ -482,6 +482,40 @@ void ui_palette_panel_click_sets_foreground_and_chip_tracks_mode() {
   CHECK(document.indexed_palette()->colors.size() == 16);
 }
 
+void ui_palette_panel_scrolls_large_palette_in_place() {
+  // The swatch grid reports its full height as a hard minimum, so a 256-color
+  // palette (22 rows) must scroll inside the panel's scroll well instead of
+  // inflating the panel's own minimum height.
+  patchy::ui::PalettePanel panel;
+  std::vector<patchy::RgbColor> colors;
+  for (int index = 0; index < 256; ++index) {
+    colors.push_back(patchy::RgbColor{static_cast<std::uint8_t>(index),
+                                      static_cast<std::uint8_t>(255 - index),
+                                      static_cast<std::uint8_t>(index / 2)});
+  }
+  panel.set_palette(colors, true);
+  panel.resize(260, 300);
+  panel.show();
+  QApplication::processEvents();
+
+  auto* scroll = panel.findChild<QScrollArea*>(QStringLiteral("paletteScrollArea"));
+  auto* grid = panel.findChild<QWidget*>(QStringLiteral("paletteSwatchGrid"));
+  auto* empty_hint = panel.findChild<QLabel*>(QStringLiteral("paletteEmptyHint"));
+  CHECK(scroll != nullptr);
+  CHECK(grid != nullptr);
+  CHECK(empty_hint != nullptr);
+  CHECK(scroll->isVisibleTo(&panel));
+  CHECK(!empty_hint->isVisibleTo(&panel));
+  CHECK(panel.minimumSizeHint().height() <= 300);
+  CHECK(grid->height() > scroll->viewport()->height());
+  CHECK(scroll->verticalScrollBar()->maximum() > 0);
+
+  panel.set_palette({}, false);
+  QApplication::processEvents();
+  CHECK(!scroll->isVisibleTo(&panel));
+  CHECK(empty_hint->isVisibleTo(&panel));
+}
+
 void ui_convert_to_indexed_dialog_converts_and_undoes() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -2055,6 +2089,7 @@ std::vector<patchy::test::TestCase> brush_pattern_palette_tests_part1() {
        ui_brush_tip_softness_feathers_stroke_and_size_reaches_1024},
       {"ui_palette_panel_click_sets_foreground_and_chip_tracks_mode",
        ui_palette_panel_click_sets_foreground_and_chip_tracks_mode},
+      {"ui_palette_panel_scrolls_large_palette_in_place", ui_palette_panel_scrolls_large_palette_in_place},
       {"ui_convert_to_indexed_dialog_converts_and_undoes", ui_convert_to_indexed_dialog_converts_and_undoes},
       {"ui_convert_to_indexed_preview_zoom_and_pan", ui_convert_to_indexed_preview_zoom_and_pan},
       {"ui_convert_to_rgb_prompts_to_keep_palettized_look", ui_convert_to_rgb_prompts_to_keep_palettized_look},

@@ -141,6 +141,7 @@
 #include <QRadioButton>
 #include <QSpinBox>
 #include <QStringList>
+#include <QScrollArea>
 #include <QScrollBar>
 #include <QScreen>
 #include <QSettings>
@@ -1756,15 +1757,29 @@ void ui_right_docks_collapse_layers_show_metadata_and_info_updates() {
   CHECK(history_list->count() > 0);
   history_toggle->setChecked(true);
   QApplication::processEvents();
+  QApplication::processEvents();
   const auto history_row_height = history_list->sizeHintForRow(0);
   CHECK(history_row_height > 0);
   CHECK(history_toggle->text() == QStringLiteral("v"));
-  CHECK(history_dock->minimumHeight() >= 190);
+  // The expanded floor stays low so panel state cannot force the window
+  // taller; the 190px working height arrives through resizeDocks instead.
+  CHECK(history_dock->minimumHeight() >= 90);
+  CHECK(history_dock->minimumHeight() <= 120);
   CHECK(history_dock->height() >= 190);
   CHECK(history_list->viewport()->height() >= history_row_height * 3);
   save_widget_artifact("ui_history_expanded_default", *history_dock);
   history_toggle->setChecked(false);
   QApplication::processEvents();
+  QApplication::processEvents();
+  // Collapsed docks all pin min == max to the title-bar height: none may show
+  // a dead strip under its header (History used to sit 8px taller).
+  auto* info_dock = window.findChild<QDockWidget*>(QStringLiteral("infoDock"));
+  auto* palette_dock = window.findChild<QDockWidget*>(QStringLiteral("paletteDock"));
+  CHECK(info_dock != nullptr);
+  CHECK(palette_dock != nullptr);
+  CHECK(history_dock->height() == properties_dock->height());
+  CHECK(history_dock->height() == info_dock->height());
+  CHECK(history_dock->height() == palette_dock->height());
   CHECK(layers_dock->width() >= 260);
   const auto dock_width_before_resize = layers_dock->width();
   auto* dock_resize_handle = window.findChild<QWidget*>(QStringLiteral("rightDockResizeHandle"));
@@ -1776,6 +1791,8 @@ void ui_right_docks_collapse_layers_show_metadata_and_info_updates() {
   send_mouse(*dock_resize_handle, QEvent::MouseButtonRelease, dock_resize_point + QPoint(-90, 0), Qt::LeftButton,
              Qt::NoButton);
   CHECK(layers_dock->width() > dock_width_before_resize + 40);
+  // The whole stack, palette included, follows the pinned width.
+  CHECK(palette_dock->width() == layers_dock->width());
 
   auto* row_widget = layer_list->itemWidget(layer_list->item(0));
   CHECK(row_widget != nullptr);
@@ -2015,6 +2032,183 @@ void ui_collapsed_right_docks_keep_deep_layer_rows_readable() {
   save_widget_artifact("ui_collapsed_right_docks_deep_layer_rows", window);
 }
 
+void ui_right_dock_panels_expand_within_window_height() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+
+  // Worst-case palette: 256 colors is 22 swatch rows, which must scroll
+  // inside the panel instead of forcing the dock (and the window) taller.
+  patchy::DocumentPaletteEditing editing;
+  for (int index = 0; index < 256; ++index) {
+    editing.palette.colors.push_back(patchy::RgbColor{static_cast<std::uint8_t>(index),
+                                                      static_cast<std::uint8_t>(255 - index),
+                                                      static_cast<std::uint8_t>(index / 2)});
+  }
+  editing.palette_revision = 902;
+  document.palette_editing() = editing;
+  patchy::ui::MainWindowTestAccess::refresh_document_info(window);
+  QApplication::processEvents();
+
+  for (const auto* name : {"historyDockCollapseButton", "propertiesDockCollapseButton",
+                           "infoDockCollapseButton", "paletteDockCollapseButton"}) {
+    auto* toggle = window.findChild<QToolButton*>(QLatin1String(name));
+    CHECK(toggle != nullptr);
+    toggle->setChecked(true);
+    QApplication::processEvents();
+  }
+  QApplication::processEvents();
+  QApplication::processEvents();
+
+  // Expanding every panel must leave the window minimum bounded (the palette
+  // grid alone used to add ~440px of hard minimum, pushing past 1300): the
+  // all-expanded window still fits a 1080p work area, and each expand
+  // releases its height demand so nothing pins the minimum above the floors.
+  CHECK(window.height() <= 950);
+  CHECK(window.minimumSizeHint().height() <= 950);
+
+  auto* palette_scroll = window.findChild<QScrollArea*>(QStringLiteral("paletteScrollArea"));
+  CHECK(palette_scroll != nullptr);
+  CHECK(palette_scroll->verticalScrollBar()->maximum() > 0);
+
+  int docks_height = 0;
+  for (const auto* name : {"layersDock", "historyDock", "propertiesDock", "infoDock", "paletteDock"}) {
+    const auto* dock = window.findChild<QDockWidget*>(QLatin1String(name));
+    CHECK(dock != nullptr);
+    CHECK(dock->height() <= window.height());
+    docks_height += dock->height();
+  }
+  CHECK(docks_height <= window.height());
+}
+
+void ui_collapsed_right_docks_have_uniform_title_height() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  // History/Properties/Info/Palette all start collapsed: each renders as the
+  // bare title strip, pinned min == max, with no dead band under the header
+  // (History used to sit 8px taller than its neighbors) and at the shared
+  // stack width (Palette used to keep its own minimum and render as a
+  // shorter strip).
+  int first_height = -1;
+  int first_width = -1;
+  for (const auto* name : {"historyDock", "propertiesDock", "infoDock", "paletteDock"}) {
+    auto* dock = window.findChild<QDockWidget*>(QLatin1String(name));
+    CHECK(dock != nullptr);
+    CHECK(dock->titleBarWidget() != nullptr);
+    CHECK(dock->minimumHeight() == dock->maximumHeight());
+    CHECK(dock->height() <= dock->titleBarWidget()->sizeHint().height() + 4);
+    if (first_height < 0) {
+      first_height = dock->height();
+      first_width = dock->width();
+    }
+    CHECK(dock->height() == first_height);
+    CHECK(dock->width() == first_width);
+  }
+  save_widget_artifact("ui_collapsed_right_docks_uniform_titles", window);
+}
+
+void ui_short_panel_scroll_bar_drags_by_handle() {
+  // A squeezed panel's scrollbar is short. Without box properties on the
+  // scroll bar's QSS widget rule, the groove rect came from the native
+  // style, whose arrow-button reservation made the groove smaller than the
+  // styled handle; the drag span went negative and every handle drag
+  // snapped the value to the minimum.
+  patchy::ui::MainWindow window;
+  show_window(window);
+  require_action(window, "layerNewAction")->trigger();
+  QApplication::processEvents();
+  for (const auto* name : {"historyDockCollapseButton", "propertiesDockCollapseButton",
+                           "infoDockCollapseButton", "paletteDockCollapseButton"}) {
+    auto* toggle = window.findChild<QToolButton*>(QLatin1String(name));
+    CHECK(toggle != nullptr);
+    toggle->setChecked(true);
+    QApplication::processEvents();
+  }
+  QApplication::processEvents();
+  QApplication::processEvents();
+
+  auto* properties_scroll = window.findChild<QScrollArea*>(QStringLiteral("propertiesScrollArea"));
+  CHECK(properties_scroll != nullptr);
+  auto* vbar = properties_scroll->verticalScrollBar();
+  CHECK(vbar->isVisible());
+  CHECK(vbar->maximum() > vbar->minimum());
+  CHECK(vbar->height() < 120);
+
+  vbar->setValue((vbar->minimum() + vbar->maximum()) / 2);
+  QApplication::processEvents();
+  QStyleOptionSlider option;
+  option.initFrom(vbar);
+  option.orientation = vbar->orientation();
+  option.minimum = vbar->minimum();
+  option.maximum = vbar->maximum();
+  option.singleStep = vbar->singleStep();
+  option.pageStep = vbar->pageStep();
+  option.sliderPosition = vbar->sliderPosition();
+  option.sliderValue = vbar->value();
+  option.upsideDown = vbar->invertedAppearance();
+  const auto slider =
+      vbar->style()->subControlRect(QStyle::CC_ScrollBar, &option, QStyle::SC_ScrollBarSlider, vbar);
+  const auto groove =
+      vbar->style()->subControlRect(QStyle::CC_ScrollBar, &option, QStyle::SC_ScrollBarGroove, vbar);
+  CHECK(slider.isValid());
+  // The groove must fit the styled handle or the drag span is negative; the
+  // widget rule's margin: 0 is what makes QSS own the groove rect.
+  CHECK(groove.height() >= slider.height());
+
+  const auto before = vbar->value();
+  const auto start = slider.center();
+  send_mouse(*vbar, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*vbar, QEvent::MouseMove, start + QPoint(0, 10), Qt::NoButton, Qt::LeftButton);
+  send_mouse(*vbar, QEvent::MouseButtonRelease, start + QPoint(0, 10), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(vbar->value() > before);
+}
+
+void ui_tabbed_right_dock_drags_out_by_tab() {
+  // Docks dropped onto each other tabify; without GroupedDragging Qt ignores
+  // tab drags entirely, so a dock could be dragged INTO a tab group but
+  // never back out.
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* info_dock = window.findChild<QDockWidget*>(QStringLiteral("infoDock"));
+  auto* palette_dock = window.findChild<QDockWidget*>(QStringLiteral("paletteDock"));
+  auto* properties_dock = window.findChild<QDockWidget*>(QStringLiteral("propertiesDock"));
+  CHECK(info_dock != nullptr);
+  CHECK(palette_dock != nullptr);
+  CHECK(properties_dock != nullptr);
+  window.tabifyDockWidget(info_dock, palette_dock);
+  window.tabifyDockWidget(info_dock, properties_dock);
+  palette_dock->raise();
+  QApplication::processEvents();
+  CHECK(window.tabifiedDockWidgets(palette_dock).size() == 2);
+  CHECK((window.dockOptions() & QMainWindow::GroupedDragging) != 0);
+
+  QTabBar* palette_tab_bar = nullptr;
+  int palette_tab_index = -1;
+  for (auto* tab_bar : window.findChildren<QTabBar*>()) {
+    for (int index = 0; index < tab_bar->count(); ++index) {
+      if (tab_bar->tabText(index) == QStringLiteral("Palette")) {
+        palette_tab_bar = tab_bar;
+        palette_tab_index = index;
+        break;
+      }
+    }
+  }
+  CHECK(palette_tab_bar != nullptr);
+
+  const auto start = palette_tab_bar->tabRect(palette_tab_index).center();
+  send_mouse(*palette_tab_bar, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  for (int step = 1; step <= 8; ++step) {
+    send_mouse(*palette_tab_bar, QEvent::MouseMove, start + QPoint(-30 * step, 20 * step), Qt::NoButton,
+               Qt::LeftButton);
+    QApplication::processEvents();
+  }
+  send_mouse(*palette_tab_bar, QEvent::MouseButtonRelease, start + QPoint(-240, 160), Qt::LeftButton,
+             Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(window.tabifiedDockWidgets(palette_dock).empty());
+}
+
 void ui_menu_disabled_items_render_grayed() {
   // The app stylesheet styles QMenu::item text, so without an explicit :disabled rule
   // disabled entries rendered in the same bright color as enabled ones and were only
@@ -2082,6 +2276,11 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
        ui_layer_opacity_control_defers_slow_rendering_and_undoes_once},
       {"ui_collapsed_right_docks_keep_deep_layer_rows_readable",
        ui_collapsed_right_docks_keep_deep_layer_rows_readable},
+      {"ui_right_dock_panels_expand_within_window_height", ui_right_dock_panels_expand_within_window_height},
+      {"ui_collapsed_right_docks_have_uniform_title_height",
+       ui_collapsed_right_docks_have_uniform_title_height},
+      {"ui_short_panel_scroll_bar_drags_by_handle", ui_short_panel_scroll_bar_drags_by_handle},
+      {"ui_tabbed_right_dock_drags_out_by_tab", ui_tabbed_right_dock_drags_out_by_tab},
       {"ui_menu_disabled_items_render_grayed", ui_menu_disabled_items_render_grayed},
   };
 }

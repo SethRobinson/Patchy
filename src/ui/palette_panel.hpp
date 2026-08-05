@@ -10,6 +10,7 @@
 
 class QComboBox;
 class QLabel;
+class QScrollArea;
 class QToolButton;
 
 namespace patchy::ui {
@@ -77,6 +78,7 @@ private:
   void update_selection_readout();
 
   PaletteSwatchGrid* grid_{nullptr};
+  QScrollArea* grid_scroll_{nullptr};
   QComboBox* preset_combo_{nullptr};
   QLabel* count_label_{nullptr};
   QLabel* empty_hint_{nullptr};
