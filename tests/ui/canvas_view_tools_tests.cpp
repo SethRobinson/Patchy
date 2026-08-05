@@ -2209,6 +2209,46 @@ void ui_tabbed_right_dock_drags_out_by_tab() {
   CHECK(window.tabifiedDockWidgets(palette_dock).empty());
 }
 
+void ui_right_dock_contents_clear_width_handle() {
+  // The 7px width handle overlays every right dock's left edge (so the
+  // column divider is grabbable along its whole height); titles and panel
+  // contents must carry a left inset that keeps them clear of it instead of
+  // butting against the divider.
+  patchy::ui::MainWindow window;
+  show_window(window);
+  for (const auto* name : {"historyDockCollapseButton", "propertiesDockCollapseButton",
+                           "infoDockCollapseButton", "paletteDockCollapseButton"}) {
+    auto* toggle = window.findChild<QToolButton*>(QLatin1String(name));
+    CHECK(toggle != nullptr);
+    toggle->setChecked(true);
+    QApplication::processEvents();
+  }
+  QApplication::processEvents();
+  QApplication::processEvents();
+
+  const auto dock_left_inset = [&window](const char* dock_name, QWidget* content) {
+    auto* dock = window.findChild<QDockWidget*>(QLatin1String(dock_name));
+    CHECK(dock != nullptr);
+    CHECK(content != nullptr);
+    auto* handle =
+        dock->findChild<QWidget*>(QStringLiteral("rightDockResizeHandle"), Qt::FindDirectChildrenOnly);
+    CHECK(handle != nullptr);
+    CHECK(handle->width() >= 7);
+    return content->mapTo(&window, QPoint(0, 0)).x() - dock->mapTo(&window, QPoint(0, 0)).x();
+  };
+
+  CHECK(dock_left_inset("layersDock", window.findChild<QComboBox*>(QStringLiteral("layerBlendModeCombo"))) >= 13);
+  CHECK(dock_left_inset("historyDock", window.findChild<QListWidget*>(QStringLiteral("historyList"))) >= 7);
+  CHECK(dock_left_inset("propertiesDock", window.findChild<QLabel*>(QStringLiteral("documentInfoLabel"))) >= 13);
+  CHECK(dock_left_inset("infoDock", window.findChild<QLabel*>(QStringLiteral("canvasInfoLabel"))) >= 15);
+  CHECK(dock_left_inset("paletteDock", window.findChild<QComboBox*>(QStringLiteral("palettePresetCombo"))) >= 13);
+  CHECK(dock_left_inset("channelsDock", window.findChild<QListWidget*>(QStringLiteral("channelList"))) >= 13);
+  CHECK(dock_left_inset("pathsDock", window.findChild<QListWidget*>(QStringLiteral("pathsList"))) >= 13);
+  // The collapse toggle in the title bar clears the handle too.
+  CHECK(dock_left_inset("historyDock",
+                        window.findChild<QToolButton*>(QStringLiteral("historyDockCollapseButton"))) >= 14);
+}
+
 void ui_menu_disabled_items_render_grayed() {
   // The app stylesheet styles QMenu::item text, so without an explicit :disabled rule
   // disabled entries rendered in the same bright color as enabled ones and were only
@@ -2279,6 +2319,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_right_dock_panels_expand_within_window_height", ui_right_dock_panels_expand_within_window_height},
       {"ui_collapsed_right_docks_have_uniform_title_height",
        ui_collapsed_right_docks_have_uniform_title_height},
+      {"ui_right_dock_contents_clear_width_handle", ui_right_dock_contents_clear_width_handle},
       {"ui_short_panel_scroll_bar_drags_by_handle", ui_short_panel_scroll_bar_drags_by_handle},
       {"ui_tabbed_right_dock_drags_out_by_tab", ui_tabbed_right_dock_drags_out_by_tab},
       {"ui_menu_disabled_items_render_grayed", ui_menu_disabled_items_render_grayed},

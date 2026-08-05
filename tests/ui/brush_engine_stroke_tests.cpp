@@ -1928,6 +1928,12 @@ void ui_soft_brush_overlap_artifact_gallery() {
     patchy::ui::MainWindow window;
     window.add_document_session(std::move(document), QString::fromLatin1(artifact_name));
     show_window(window);
+    // This case samples the rendered widget, so the 760px document must stay
+    // fully visible at zoom 1 with headroom: the right dock stack's measured
+    // minimum can grow, and a document edge that slides under the canvas's
+    // overlay scroll bar samples bar pixels instead of the stroke.
+    window.resize(1280, 780);
+    QApplication::processEvents();
     auto* canvas = require_canvas(window);
 
     require_action_by_text(window, QStringLiteral("Brush"))->trigger();

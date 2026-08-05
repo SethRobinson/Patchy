@@ -294,6 +294,9 @@ void install_collapsible_dock_title(QDockWidget* dock,
   auto* title = new QWidget(dock);
   title->setObjectName(object_prefix + QStringLiteral("DockTitle"));
   title->setMinimumWidth(kRightDockMinimumWidth - kRightDockChromeWidth);
+  // The dock's width-drag handle overlays the leftmost strip of the dock,
+  // title bar included; this inset keeps the toggle and label clear of it.
+  title->setContentsMargins(kRightDockResizeHandleWidth, 0, 0, 0);
   auto* layout = new QHBoxLayout(title);
   layout->setContentsMargins(7, 3, 7, 3);
   layout->setSpacing(6);
@@ -349,6 +352,22 @@ void install_collapsible_dock_title(QDockWidget* dock,
 }
 
 }  // namespace
+
+void MainWindow::install_right_dock_width_handle(QDockWidget* dock) {
+  // Every dock in the right column hosts the 7px width handle at its left
+  // edge, so the column divider is grabbable along its entire height. The
+  // handle overlays the dock; title bars and panel contents carry a matching
+  // left inset to stay clear of it.
+  dock->setProperty("patchy.rightDockResizeHost", true);
+  dock->installEventFilter(this);
+  auto* handle = new QWidget(dock);
+  handle->setObjectName(QStringLiteral("rightDockResizeHandle"));
+  handle->setProperty("patchy.rightDockResizeHandle", true);
+  handle->setAttribute(Qt::WA_StyledBackground, true);
+  handle->setCursor(Qt::SplitHCursor);
+  handle->installEventFilter(this);
+  update_right_dock_resize_handle_geometry(dock);
+}
 
 void MainWindow::update_right_dock_resize_handle_geometry(QWidget* host) {
   if (host == nullptr) {
@@ -575,7 +594,9 @@ void MainWindow::create_docks() {
   layers_panel->setObjectName(QStringLiteral("layersPanel"));
   layers_panel->setMinimumHeight(240);
   auto* layers_layout = new QVBoxLayout(layers_panel);
-  layers_layout->setContentsMargins(6, 6, 6, 6);
+  // The extra left margin clears the width handle overlaying the dock's left
+  // edge; it lives in the layout so the measured minimum width includes it.
+  layers_layout->setContentsMargins(kRightDockResizeHandleWidth + 6, 6, 6, 6);
   layers_layout->setSpacing(6);
 
   auto* layer_list = new LayerListWidget(layers_panel);
@@ -1046,14 +1067,7 @@ void MainWindow::create_docks() {
                                  true, 0, [this, layers_dock](bool expanded) {
                                    handle_right_dock_panel_toggled(layers_dock, expanded, 300);
                                  });
-  layers_dock->setProperty("patchy.rightDockResizeHost", true);
-  layers_dock->installEventFilter(this);
-  auto* right_dock_resize_handle = new QWidget(layers_dock);
-  right_dock_resize_handle->setObjectName(QStringLiteral("rightDockResizeHandle"));
-  right_dock_resize_handle->setProperty("patchy.rightDockResizeHandle", true);
-  right_dock_resize_handle->setAttribute(Qt::WA_StyledBackground, true);
-  right_dock_resize_handle->setCursor(Qt::SplitHCursor);
-  right_dock_resize_handle->installEventFilter(this);
+  install_right_dock_width_handle(layers_dock);
   addDockWidget(Qt::RightDockWidgetArea, layers_dock);
   update_right_dock_resize_handle_geometry(layers_dock);
 
@@ -1061,19 +1075,13 @@ void MainWindow::create_docks() {
   channel_dock_->setObjectName(QStringLiteral("channelsDock"));
   bind_widget_text(channel_dock_, "Channels");
   channel_panel_ = new ChannelPanel(channel_dock_);
+  channel_panel_->setContentsMargins(kRightDockResizeHandleWidth, 0, 0, 0);
   channel_dock_->setWidget(channel_panel_);
   install_collapsible_dock_title(channel_dock_, channel_panel_, QStringLiteral("channels"), 190,
                                  QWIDGETSIZE_MAX, true, 0, [this](bool expanded) {
                                    handle_right_dock_panel_toggled(channel_dock_, expanded, 190);
                                  });
-  channel_dock_->setProperty("patchy.rightDockResizeHost", true);
-  channel_dock_->installEventFilter(this);
-  auto* channel_dock_resize_handle = new QWidget(channel_dock_);
-  channel_dock_resize_handle->setObjectName(QStringLiteral("rightDockResizeHandle"));
-  channel_dock_resize_handle->setProperty("patchy.rightDockResizeHandle", true);
-  channel_dock_resize_handle->setAttribute(Qt::WA_StyledBackground, true);
-  channel_dock_resize_handle->setCursor(Qt::SplitHCursor);
-  channel_dock_resize_handle->installEventFilter(this);
+  install_right_dock_width_handle(channel_dock_);
   addDockWidget(Qt::RightDockWidgetArea, channel_dock_);
   tabifyDockWidget(layers_dock, channel_dock_);
   layers_dock->raise();
@@ -1125,19 +1133,13 @@ void MainWindow::create_docks() {
   paths_dock_->setObjectName(QStringLiteral("pathsDock"));
   bind_widget_text(paths_dock_, "Paths");
   paths_panel_ = new PathsPanel(paths_dock_);
+  paths_panel_->setContentsMargins(kRightDockResizeHandleWidth, 0, 0, 0);
   paths_dock_->setWidget(paths_panel_);
   install_collapsible_dock_title(paths_dock_, paths_panel_, QStringLiteral("paths"), 190, QWIDGETSIZE_MAX,
                                  true, 0, [this](bool expanded) {
                                    handle_right_dock_panel_toggled(paths_dock_, expanded, 190);
                                  });
-  paths_dock_->setProperty("patchy.rightDockResizeHost", true);
-  paths_dock_->installEventFilter(this);
-  auto* paths_dock_resize_handle = new QWidget(paths_dock_);
-  paths_dock_resize_handle->setObjectName(QStringLiteral("rightDockResizeHandle"));
-  paths_dock_resize_handle->setProperty("patchy.rightDockResizeHandle", true);
-  paths_dock_resize_handle->setAttribute(Qt::WA_StyledBackground, true);
-  paths_dock_resize_handle->setCursor(Qt::SplitHCursor);
-  paths_dock_resize_handle->installEventFilter(this);
+  install_right_dock_width_handle(paths_dock_);
   addDockWidget(Qt::RightDockWidgetArea, paths_dock_);
   tabifyDockWidget(channel_dock_, paths_dock_);
   layers_dock->raise();
@@ -1212,14 +1214,24 @@ void MainWindow::create_docks() {
   // Disabled while no document is open or a preview dialog holds the edit lock,
   // matching the undo/redo actions.
   register_document_widget(history_list_);
-  history_dock->setWidget(history_list_);
-  install_collapsible_dock_title(history_dock, history_list_, QStringLiteral("history"),
+  // The wrapper keeps the width-handle inset outside the list frame, so the
+  // frame is not half-covered by the handle.
+  auto* history_panel = new QWidget(history_dock);
+  history_panel->setObjectName(QStringLiteral("historyPanel"));
+  auto* history_layout = new QVBoxLayout(history_panel);
+  history_layout->setContentsMargins(kRightDockResizeHandleWidth, 0, 0, 0);
+  history_layout->setSpacing(0);
+  history_layout->addWidget(history_list_);
+  history_dock->setWidget(history_panel);
+  install_collapsible_dock_title(history_dock, history_panel, QStringLiteral("history"),
                                  kHistoryDockExpandedMinimumHeight, QWIDGETSIZE_MAX, false,
                                  kHistoryDockPreferredHeight, [this, history_dock](bool expanded) {
                                    handle_right_dock_panel_toggled(history_dock, expanded,
                                                                    kHistoryDockExpandedMinimumHeight);
                                  });
+  install_right_dock_width_handle(history_dock);
   addDockWidget(Qt::RightDockWidgetArea, history_dock);
+  update_right_dock_resize_handle_geometry(history_dock);
 
   auto* properties_dock = new QDockWidget(tr("Properties"), this);
   properties_dock->setObjectName(QStringLiteral("propertiesDock"));
@@ -1232,7 +1244,7 @@ void MainWindow::create_docks() {
   auto* properties_panel = new QWidget(properties_dock);
   properties_panel->setObjectName(QStringLiteral("propertiesPanel"));
   auto* properties_layout = new QVBoxLayout(properties_panel);
-  properties_layout->setContentsMargins(6, 6, 6, 6);
+  properties_layout->setContentsMargins(kRightDockResizeHandleWidth + 6, 6, 6, 6);
   properties_layout->setSpacing(4);
   const auto add_properties_label = [properties_panel, properties_layout](const QString& object_name) {
     auto* label = new QLabel(properties_panel);
@@ -1264,7 +1276,9 @@ void MainWindow::create_docks() {
                                  [this, properties_dock](bool expanded) {
                                    handle_right_dock_panel_toggled(properties_dock, expanded, 0);
                                  });
+  install_right_dock_width_handle(properties_dock);
   addDockWidget(Qt::RightDockWidgetArea, properties_dock);
+  update_right_dock_resize_handle_geometry(properties_dock);
 
   auto* info_dock = new QDockWidget(tr("Info"), this);
   info_dock->setObjectName(QStringLiteral("infoDock"));
@@ -1272,7 +1286,7 @@ void MainWindow::create_docks() {
   auto* info_panel = new QWidget(info_dock);
   info_panel->setObjectName(QStringLiteral("infoPanel"));
   auto* info_layout = new QVBoxLayout(info_panel);
-  info_layout->setContentsMargins(8, 8, 8, 8);
+  info_layout->setContentsMargins(kRightDockResizeHandleWidth + 8, 8, 8, 8);
   canvas_info_label_ = new QLabel(info_panel);
   canvas_info_label_->setObjectName(QStringLiteral("canvasInfoLabel"));
   canvas_info_label_->setText(tr("X: -\nY: -\nRGB: -\nRect: -"));
@@ -1285,7 +1299,9 @@ void MainWindow::create_docks() {
                                  0, [this, info_dock](bool expanded) {
                                    handle_right_dock_panel_toggled(info_dock, expanded, 0);
                                  });
+  install_right_dock_width_handle(info_dock);
   addDockWidget(Qt::RightDockWidgetArea, info_dock);
+  update_right_dock_resize_handle_geometry(info_dock);
 
   create_palette_dock();
   update_right_dock_minimum_width();
@@ -1386,13 +1402,16 @@ void MainWindow::create_palette_dock() {
                               true, tr("Edit palette entry"));
     statusBar()->showMessage(tr("Palette index %1 set to %2").arg(index).arg(color.name()));
   });
+  palette_panel_->setContentsMargins(kRightDockResizeHandleWidth, 0, 0, 0);
   palette_dock_->setWidget(palette_panel_);
   install_collapsible_dock_title(palette_dock_, palette_panel_, QStringLiteral("palette"), 0,
                                  QWIDGETSIZE_MAX, false, kPaletteDockPreferredHeight,
                                  [this](bool expanded) {
                                    handle_right_dock_panel_toggled(palette_dock_, expanded, 0);
                                  });
+  install_right_dock_width_handle(palette_dock_);
   addDockWidget(Qt::RightDockWidgetArea, palette_dock_);
+  update_right_dock_resize_handle_geometry(palette_dock_);
 }
 
 }  // namespace patchy::ui
