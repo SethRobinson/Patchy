@@ -626,6 +626,81 @@ bool MainWindow::handle_right_dock_resize_event(QObject* watched, QEvent* event)
   return false;
 }
 
+bool MainWindow::handle_right_dock_title_drag_event(QObject* watched, QEvent* event) {
+  // Dragging the collapsible title of a TABBED dock detaches that dock alone,
+  // exactly like dragging its tab. Left to Qt, GroupedDragging floats the
+  // whole tab group instead, and the resulting QDockWidgetGroupWindow is
+  // broken with custom title bars: a second redundant header, a blank strip
+  // that cannot be dragged, and a jump that re-anchors the grab to the group
+  // title. Consuming the title press before QDockWidget sees it keeps that
+  // window from ever forming; untabbed docks keep Qt's native title drag,
+  // which behaves.
+  if (right_dock_title_drag_dock_ != nullptr) {
+    switch (event->type()) {
+      case QEvent::MouseMove: {
+        auto* mouse_event = static_cast<QMouseEvent*>(event);
+        if ((mouse_event->buttons() & Qt::LeftButton) == 0) {
+          right_dock_title_drag_dock_ = nullptr;
+          right_dock_title_drag_started_ = false;
+          return false;
+        }
+        const auto global = mouse_event->globalPosition().toPoint();
+        if (!right_dock_title_drag_started_ &&
+            (global - right_dock_title_drag_press_global_).manhattanLength() <
+                QApplication::startDragDistance()) {
+          mouse_event->accept();
+          return true;
+        }
+        if (!right_dock_title_drag_started_) {
+          right_dock_title_drag_started_ = true;
+          right_dock_title_drag_dock_->setFloating(true);
+        }
+        right_dock_title_drag_dock_->move(global - right_dock_title_drag_offset_);
+        mouse_event->accept();
+        return true;
+      }
+      case QEvent::MouseButtonRelease: {
+        auto* mouse_event = static_cast<QMouseEvent*>(event);
+        if (mouse_event->button() != Qt::LeftButton) {
+          return false;
+        }
+        const auto started = right_dock_title_drag_started_;
+        right_dock_title_drag_dock_ = nullptr;
+        right_dock_title_drag_started_ = false;
+        if (started) {
+          mouse_event->accept();
+          return true;
+        }
+        return false;
+      }
+      default:
+        return false;
+    }
+  }
+
+  if (event->type() != QEvent::MouseButtonPress) {
+    return false;
+  }
+  auto* dock = qobject_cast<QDockWidget*>(watched);
+  if (dock == nullptr || dock->isFloating() || dock->titleBarWidget() == nullptr ||
+      tabifiedDockWidgets(dock).isEmpty() ||
+      dock->findChild<QWidget*>(QStringLiteral("rightDockResizeHandle"), Qt::FindDirectChildrenOnly) ==
+          nullptr) {
+    return false;
+  }
+  auto* mouse_event = static_cast<QMouseEvent*>(event);
+  if (mouse_event->button() != Qt::LeftButton ||
+      !dock->titleBarWidget()->geometry().contains(mouse_event->position().toPoint())) {
+    return false;
+  }
+  right_dock_title_drag_dock_ = dock;
+  right_dock_title_drag_press_global_ = mouse_event->globalPosition().toPoint();
+  right_dock_title_drag_offset_ = mouse_event->position().toPoint();
+  right_dock_title_drag_started_ = false;
+  mouse_event->accept();
+  return true;
+}
+
 void MainWindow::create_docks() {
   setTabPosition(Qt::RightDockWidgetArea, QTabWidget::North);
   // Docks dropped onto each other form tab groups, and Qt only wires up

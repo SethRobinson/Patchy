@@ -2331,6 +2331,53 @@ void ui_floating_right_dock_expands_and_collapses() {
   CHECK(info_dock->height() <= info_dock->titleBarWidget()->sizeHint().height() + 4);
 }
 
+void ui_tabbed_dock_title_drag_floats_single_dock() {
+  // Dragging the collapsible title of a tabbed dock detaches that dock alone
+  // (like dragging its tab) with the grab point kept under the cursor.
+  // GroupedDragging would otherwise float the whole tab group, whose window
+  // is broken with custom title bars.
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* layers_dock = window.findChild<QDockWidget*>(QStringLiteral("layersDock"));
+  auto* channels_dock = window.findChild<QDockWidget*>(QStringLiteral("channelsDock"));
+  auto* paths_dock = window.findChild<QDockWidget*>(QStringLiteral("pathsDock"));
+  CHECK(layers_dock != nullptr);
+  CHECK(channels_dock != nullptr);
+  CHECK(paths_dock != nullptr);
+  CHECK(window.tabifiedDockWidgets(layers_dock).size() == 2);
+
+  auto* title = layers_dock->titleBarWidget();
+  const auto press_in_dock = QPoint(title->geometry().center().x(), title->geometry().center().y());
+  const auto press_global = layers_dock->mapToGlobal(press_in_dock);
+  send_mouse(*layers_dock, QEvent::MouseButtonPress, press_in_dock, Qt::LeftButton, Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(!layers_dock->isFloating());
+
+  const auto target_global = press_global + QPoint(-260, 120);
+  for (int step = 1; step <= 6; ++step) {
+    const auto t = static_cast<double>(step) / 6.0;
+    const QPoint global(press_global.x() + (target_global.x() - press_global.x()) * t,
+                        press_global.y() + (target_global.y() - press_global.y()) * t);
+    QMouseEvent move(QEvent::MouseMove, layers_dock->mapFromGlobal(global), global, Qt::NoButton,
+                     Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(layers_dock, &move);
+    QApplication::processEvents();
+  }
+  CHECK(layers_dock->isFloating());
+  // The single dock detached: the rest of the tab group stayed docked.
+  CHECK(!channels_dock->isFloating());
+  CHECK(!paths_dock->isFloating());
+  CHECK(window.tabifiedDockWidgets(layers_dock).isEmpty());
+  // No jump: the grab offset within the dock is preserved at the drop point.
+  CHECK((layers_dock->pos() - (target_global - press_in_dock)).manhattanLength() <= 2);
+
+  QMouseEvent release(QEvent::MouseButtonRelease, layers_dock->mapFromGlobal(target_global), target_global,
+                      Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+  QApplication::sendEvent(layers_dock, &release);
+  QApplication::processEvents();
+  CHECK(layers_dock->isFloating());
+}
+
 void ui_menu_disabled_items_render_grayed() {
   // The app stylesheet styles QMenu::item text, so without an explicit :disabled rule
   // disabled entries rendered in the same bright color as enabled ones and were only
@@ -2406,6 +2453,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_short_panel_scroll_bar_drags_by_handle", ui_short_panel_scroll_bar_drags_by_handle},
       {"ui_tabbed_right_dock_drags_out_by_tab", ui_tabbed_right_dock_drags_out_by_tab},
       {"ui_floating_right_dock_expands_and_collapses", ui_floating_right_dock_expands_and_collapses},
+      {"ui_tabbed_dock_title_drag_floats_single_dock", ui_tabbed_dock_title_drag_floats_single_dock},
       {"ui_menu_disabled_items_render_grayed", ui_menu_disabled_items_render_grayed},
   };
 }

@@ -350,6 +350,7 @@ private:
   void save_window_geometry() const;
   bool restore_window_geometry();
   bool handle_right_dock_resize_event(QObject* watched, QEvent* event);
+  bool handle_right_dock_title_drag_event(QObject* watched, QEvent* event);
   void handle_right_dock_panel_toggled(QDockWidget* dock, bool expanded, int expanded_minimum_height);
   void refresh_collapsed_right_dock_heights();
   void install_right_dock_width_handle(QDockWidget* dock);
@@ -1539,6 +1540,14 @@ private:
   bool right_dock_resizing_{false};
   QPoint right_dock_resize_start_global_;
   int right_dock_resize_start_width_{0};
+  // Title-drag detach for tabbed right docks (see
+  // handle_right_dock_title_drag_event): the dock being tracked, where the
+  // press landed, and its offset within the dock so the float keeps the grab
+  // point under the cursor.
+  QPointer<QDockWidget> right_dock_title_drag_dock_;
+  QPoint right_dock_title_drag_press_global_;
+  QPoint right_dock_title_drag_offset_;
+  bool right_dock_title_drag_started_{false};
   // 0 until update_right_dock_minimum_width() measures the layers panel.
   int right_dock_minimum_width_{0};
   // -1 until the chrome around the layers panel is measured from a laid-out
