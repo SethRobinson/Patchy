@@ -926,6 +926,58 @@ void ui_layer_context_menu_rasterizes_text_and_layer_styles() {
   }
 }
 
+void ui_layer_rasterize_recurses_into_selected_folders() {
+  patchy::Document document(140, 96, patchy::PixelFormat::rgba8());
+  patchy::Layer folder(document.allocate_layer_id(), "Folder", patchy::LayerKind::Group);
+  // Collapsed on purpose: children of a collapsed folder have no panel rows,
+  // so rasterize has to find them through the document tree.
+  folder.metadata()[patchy::kLayerMetadataGroupExpanded] = "false";
+
+  patchy::Layer first_text(document.allocate_layer_id(), "Text: One", patchy::LayerKind::Text);
+  const auto first_text_id = first_text.id();
+  first_text.set_bounds(patchy::Rect{24, 12, 96, 30});
+  first_text.metadata()[patchy::kLayerMetadataText] = "One";
+  first_text.metadata()[patchy::kLayerMetadataTextSize] = "24";
+  first_text.metadata()[patchy::kLayerMetadataTextColor] = "#000000";
+  folder.add_child(std::move(first_text));
+
+  patchy::Layer nested(document.allocate_layer_id(), "Nested", patchy::LayerKind::Group);
+  patchy::Layer second_text(document.allocate_layer_id(), "Text: Two", patchy::LayerKind::Text);
+  const auto second_text_id = second_text.id();
+  second_text.set_bounds(patchy::Rect{24, 50, 96, 30});
+  second_text.metadata()[patchy::kLayerMetadataText] = "Two";
+  second_text.metadata()[patchy::kLayerMetadataTextSize] = "24";
+  second_text.metadata()[patchy::kLayerMetadataTextColor] = "#000000";
+  nested.add_child(std::move(second_text));
+  folder.add_child(std::move(nested));
+  document.add_layer(std::move(folder));
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Rasterize Folder"));
+  show_window(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  CHECK(layer_list->count() == 1);
+  CHECK(require_action(window, "layerRasterizeAction")->isEnabled());
+
+  require_action(window, "layerRasterizeAction")->trigger();
+  QApplication::processEvents();
+
+  const auto& rasterized_document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto* first = rasterized_document.find_layer(first_text_id);
+  const auto* second = rasterized_document.find_layer(second_text_id);
+  CHECK(first != nullptr);
+  CHECK(second != nullptr);
+  CHECK(first->kind() == patchy::LayerKind::Pixel);
+  CHECK(second->kind() == patchy::LayerKind::Pixel);
+  CHECK(!patchy::layer_is_text(*first));
+  CHECK(!patchy::layer_is_text(*second));
+  CHECK(first->name() == "One");
+  CHECK(second->name() == "Two");
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Rasterized layers"));
+  CHECK(!require_action(window, "layerRasterizeAction")->isEnabled());
+}
+
 void ui_layer_context_menu_layer_style_actions_follow_selection_state() {
   patchy::Document document(160, 120, patchy::PixelFormat::rgba8());
   patchy::Layer styled_layer(document.allocate_layer_id(), "Styled Source",
@@ -1923,6 +1975,8 @@ std::vector<patchy::test::TestCase> layer_context_lifecycle_tests() {
        ui_layer_row_double_click_opens_folder_styles_and_edits_adjustments},
       {"ui_layer_context_menu_rasterizes_text_and_layer_styles",
        ui_layer_context_menu_rasterizes_text_and_layer_styles},
+      {"ui_layer_rasterize_recurses_into_selected_folders",
+       ui_layer_rasterize_recurses_into_selected_folders},
       {"ui_layer_context_menu_layer_style_actions_follow_selection_state",
        ui_layer_context_menu_layer_style_actions_follow_selection_state},
       {"ui_layer_style_copy_paste_delete_applies_to_selected_layers",

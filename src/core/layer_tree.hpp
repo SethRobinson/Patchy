@@ -34,6 +34,8 @@ struct ConstLayerSiblingLocation {
 };
 
 [[nodiscard]] std::size_t layer_descendant_count(const Layer& layer);
+// Pre-order ids of every descendant; the layer's own id is not appended.
+void collect_layer_descendant_ids(const Layer& layer, std::vector<LayerId>& ids);
 [[nodiscard]] std::size_t layer_tree_count(const std::vector<Layer>& layers);
 [[nodiscard]] std::optional<LayerId> default_non_group_layer_id(const std::vector<Layer>& layers);
 void collect_layer_group_ids(const std::vector<Layer>& layers, std::set<LayerId>& ids);

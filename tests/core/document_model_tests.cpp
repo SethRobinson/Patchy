@@ -446,6 +446,34 @@ void default_non_group_layer_id_allows_position_locked_pixels() {
   CHECK(patchy::default_non_group_layer_id(document.layers()).value() == adjustment_id);
 }
 
+void collect_layer_descendant_ids_walks_nested_groups_in_order() {
+  patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
+  patchy::Layer folder(document.allocate_layer_id(), "Folder", patchy::LayerKind::Group);
+  const auto folder_id = folder.id();
+  patchy::Layer first_child(document.allocate_layer_id(), "First", solid_rgb(2, 2, 10, 20, 30));
+  const auto first_child_id = first_child.id();
+  folder.add_child(std::move(first_child));
+  patchy::Layer nested(document.allocate_layer_id(), "Nested", patchy::LayerKind::Group);
+  const auto nested_id = nested.id();
+  patchy::Layer nested_child(document.allocate_layer_id(), "Nested Child", solid_rgb(2, 2, 40, 50, 60));
+  const auto nested_child_id = nested_child.id();
+  nested.add_child(std::move(nested_child));
+  folder.add_child(std::move(nested));
+  patchy::Layer last_child(document.allocate_layer_id(), "Last", solid_rgb(2, 2, 70, 80, 90));
+  const auto last_child_id = last_child.id();
+  folder.add_child(std::move(last_child));
+  document.add_layer(std::move(folder));
+
+  std::vector<patchy::LayerId> ids;
+  patchy::collect_layer_descendant_ids(*std::as_const(document).find_layer(folder_id), ids);
+  const std::vector<patchy::LayerId> expected{first_child_id, nested_id, nested_child_id, last_child_id};
+  CHECK(ids == expected);
+
+  ids.clear();
+  patchy::collect_layer_descendant_ids(*std::as_const(document).find_layer(first_child_id), ids);
+  CHECK(ids.empty());
+}
+
 void layer_drop_request_moves_multiple_layers_into_folder() {
   patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
   const auto background_id = document.add_pixel_layer("Background", solid_rgb(2, 2, 10, 20, 30)).id();
@@ -631,6 +659,8 @@ std::vector<patchy::test::TestCase> document_model_tests() {
       {"default_non_group_layer_id_allows_position_locked_pixels",
        default_non_group_layer_id_allows_position_locked_pixels},
       {"layer_drop_request_moves_multiple_layers_into_folder", layer_drop_request_moves_multiple_layers_into_folder},
+      {"collect_layer_descendant_ids_walks_nested_groups_in_order",
+       collect_layer_descendant_ids_walks_nested_groups_in_order},
       {"layer_drop_roots_ignore_selected_descendants", layer_drop_roots_ignore_selected_descendants},
       {"document_print_settings_default_and_copy", document_print_settings_default_and_copy},
       {"document_grid_guides_default_and_copy", document_grid_guides_default_and_copy},

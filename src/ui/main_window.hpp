@@ -842,6 +842,7 @@ private:
   void toggle_tile_seam_offset();
   [[nodiscard]] std::vector<LayerId> selected_layer_ids() const;
   [[nodiscard]] std::vector<LayerId> selected_or_active_layer_ids() const;
+  [[nodiscard]] std::vector<LayerId> rasterize_target_layer_ids(std::vector<LayerId> selected_ids) const;
   void set_active_layer_from_selection();
   void set_active_layer_opacity(int value);
   void apply_pending_layer_opacity();

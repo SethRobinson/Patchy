@@ -76,6 +76,13 @@ std::size_t layer_descendant_count(const Layer& layer) {
   return count;
 }
 
+void collect_layer_descendant_ids(const Layer& layer, std::vector<LayerId>& ids) {
+  for (const auto& child : layer.children()) {
+    ids.push_back(child.id());
+    collect_layer_descendant_ids(child, ids);
+  }
+}
+
 std::size_t layer_tree_count(const std::vector<Layer>& layers) {
   std::size_t count = layers.size();
   for (const auto& layer : layers) {

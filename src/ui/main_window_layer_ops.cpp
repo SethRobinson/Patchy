@@ -2181,14 +2181,19 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   // docs/performance.md) — a plain right-click was
   // invalidating the layer's thumbnail and style-mask cache entries.
   const auto* active_layer = active_id.has_value() ? std::as_const(document()).find_layer(*active_id) : nullptr;
-  const auto has_rasterizable_layer = std::any_of(ids.begin(), ids.end(), [this](LayerId id) {
-    const auto* layer = document().find_layer(id);
-    return layer != nullptr && !layer_id_locks_image_pixels(id) && layer_can_rasterize(*layer);
-  });
-  const auto has_rasterizable_layer_style = std::any_of(ids.begin(), ids.end(), [this](LayerId id) {
-    const auto* layer = document().find_layer(id);
-    return layer != nullptr && !layer_id_locks_image_pixels(id) && layer_can_rasterize_layer_style(*layer);
-  });
+  // Selected folders count through their contents, matching what the
+  // rasterize actions actually touch.
+  const auto rasterize_ids = rasterize_target_layer_ids(ids);
+  const auto has_rasterizable_layer =
+      std::any_of(rasterize_ids.begin(), rasterize_ids.end(), [this](LayerId id) {
+        const auto* layer = document().find_layer(id);
+        return layer != nullptr && !layer_id_locks_image_pixels(id) && layer_can_rasterize(*layer);
+      });
+  const auto has_rasterizable_layer_style =
+      std::any_of(rasterize_ids.begin(), rasterize_ids.end(), [this](LayerId id) {
+        const auto* layer = document().find_layer(id);
+        return layer != nullptr && !layer_id_locks_image_pixels(id) && layer_can_rasterize_layer_style(*layer);
+      });
 
   // The flat menu outgrew the screen (July 2026), so related actions live in
   // submenus now. Edit Layer Styles... deliberately stays the FIRST item, always.

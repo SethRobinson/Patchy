@@ -8566,9 +8566,37 @@ void MainWindow::render_pending_af_text_layers(Document& target) {
   process(process, target.layers());
 }
 
+std::vector<LayerId> MainWindow::rasterize_target_layer_ids(std::vector<LayerId> selected_ids) const {
+  // A selected folder stands for its contents: rasterizing a selection that
+  // includes folders reaches every layer inside them, collapsed or not, so the
+  // walk goes through the document tree rather than the panel's rows.
+  std::vector<LayerId> ids;
+  ids.reserve(selected_ids.size());
+  std::set<LayerId> seen;
+  const auto& doc = document();
+  for (const auto id : selected_ids) {
+    if (!seen.insert(id).second) {
+      continue;
+    }
+    ids.push_back(id);
+    const auto* layer = doc.find_layer(id);
+    if (layer == nullptr || layer->kind() != LayerKind::Group) {
+      continue;
+    }
+    std::vector<LayerId> descendants;
+    collect_layer_descendant_ids(*layer, descendants);
+    for (const auto descendant : descendants) {
+      if (seen.insert(descendant).second) {
+        ids.push_back(descendant);
+      }
+    }
+  }
+  return ids;
+}
+
 void MainWindow::rasterize_active_layers() {
   finish_active_text_editor();
-  const auto ids = selected_or_active_layer_ids();
+  const auto ids = rasterize_target_layer_ids(selected_or_active_layer_ids());
   if (ids.empty()) {
     return;
   }
@@ -8638,7 +8666,7 @@ void MainWindow::rasterize_active_layers() {
 
 void MainWindow::rasterize_active_layer_styles() {
   finish_active_text_editor();
-  const auto ids = selected_or_active_layer_ids();
+  const auto ids = rasterize_target_layer_ids(selected_or_active_layer_ids());
   if (ids.empty()) {
     return;
   }

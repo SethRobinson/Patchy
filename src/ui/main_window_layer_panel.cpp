@@ -3115,11 +3115,23 @@ void MainWindow::refresh_layer_controls() {
   }
   refresh_layer_style_action_states();
   const auto active_pixels_locked = layer_id_locks_image_pixels(layer->id());
+  // The rasterize actions act on the whole selection, folders expanded to
+  // their contents, so their enabled state weighs the same set of layers.
+  const auto rasterize_ids = rasterize_target_layer_ids(ids_for_lock_controls);
+  const auto can_rasterize_any = [this, &rasterize_ids](const auto& allows) {
+    return std::any_of(rasterize_ids.begin(), rasterize_ids.end(), [this, &allows](LayerId id) {
+      const auto* candidate = std::as_const(document()).find_layer(id);
+      return candidate != nullptr && !layer_id_locks_image_pixels(id) && allows(*candidate);
+    });
+  };
   if (layer_rasterize_action_ != nullptr) {
-    layer_rasterize_action_->setEnabled(edit_allowed && !active_pixels_locked && layer_can_rasterize(*layer));
+    layer_rasterize_action_->setEnabled(
+        edit_allowed && can_rasterize_any([](const Layer& candidate) { return layer_can_rasterize(candidate); }));
   }
   if (layer_rasterize_layer_style_action_ != nullptr) {
-    layer_rasterize_layer_style_action_->setEnabled(edit_allowed && !active_pixels_locked && layer_can_rasterize_layer_style(*layer));
+    layer_rasterize_layer_style_action_->setEnabled(
+        edit_allowed &&
+        can_rasterize_any([](const Layer& candidate) { return layer_can_rasterize_layer_style(candidate); }));
   }
   if (delete_layer_mask_action_ != nullptr) {
     delete_layer_mask_action_->setEnabled(edit_allowed && !active_pixels_locked && layer->mask().has_value());
