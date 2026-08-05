@@ -531,6 +531,14 @@ void MainWindow::show_preferences() {
          "current Photoshop. When on, corner handles resize freely and Shift keeps the aspect ratio."));
   transform_shift_aspect_check->setChecked(shift_keeps_transform_aspect_);
   application_form->addRow(transform_shift_aspect_check);
+  auto* zoom_thumbnails_check =
+      new QCheckBox(tr("Zoom layer thumbnails to the layer content"), application_group);
+  zoom_thumbnails_check->setObjectName(QStringLiteral("preferencesZoomLayerThumbnailsCheck"));
+  zoom_thumbnails_check->setToolTip(
+      tr("When enabled, layer thumbnails crop to the layer's visible pixels instead of "
+         "previewing the whole canvas, so small layers fill their thumbnail."));
+  zoom_thumbnails_check->setChecked(zoom_layer_thumbnails_to_content_);
+  application_form->addRow(zoom_thumbnails_check);
   // Resets the "Do this for every indexed image" choice remembered by the
   // indexed-image adoption prompt.
   auto* indexed_open_combo = new QComboBox(application_group);
@@ -1053,6 +1061,13 @@ void MainWindow::show_preferences() {
     pen_input_settings_.tilt_min_roundness_percent = pen_tilt_roundness_spin->value();
     wheel_zooms_ = pen_wheel_zoom_check->isChecked();
     shift_keeps_transform_aspect_ = transform_shift_aspect_check->isChecked();
+    if (zoom_layer_thumbnails_to_content_ != zoom_thumbnails_check->isChecked()) {
+      zoom_layer_thumbnails_to_content_ = zoom_thumbnails_check->isChecked();
+      // The mode is a shape input the revision-keyed cache does not track;
+      // drop the pixmaps and rebuild (the color-scheme precedent).
+      layer_thumbnail_cache_.clear();
+      refresh_layer_list();
+    }
     view_rulers_visible_ = default_rulers_check->isChecked();
     view_grid_visible_ = default_grid_check->isChecked();
     view_guides_visible_ = default_guides_check->isChecked();
@@ -1397,6 +1412,9 @@ void MainWindow::load_view_settings() {
       settings.value(QStringLiteral("view/gridColor"), view_grid_color_).value<QColor>();
   view_guide_color_ =
       settings.value(QStringLiteral("view/guideColor"), view_guide_color_).value<QColor>();
+  zoom_layer_thumbnails_to_content_ =
+      settings.value(QStringLiteral("view/zoomLayerThumbnailsToContent"), zoom_layer_thumbnails_to_content_)
+          .toBool();
   const bool migrate_legacy_guide_default =
       !settings.value(QStringLiteral("view/guideColorDefaultMigrated"), false).toBool();
   if (!view_grid_color_.isValid()) {
@@ -1461,6 +1479,7 @@ void MainWindow::save_view_settings() const {
   settings.setValue(QStringLiteral("view/gridStyle"), view_grid_style_);
   settings.setValue(QStringLiteral("view/gridColor"), view_grid_color_);
   settings.setValue(QStringLiteral("view/guideColor"), view_guide_color_);
+  settings.setValue(QStringLiteral("view/zoomLayerThumbnailsToContent"), zoom_layer_thumbnails_to_content_);
   settings.setValue(QStringLiteral("view/guideColorDefaultMigrated"), true);
 }
 

@@ -468,11 +468,38 @@ struct ThumbnailPreviewSpace {
 };
 
 ThumbnailPreviewSpace thumbnail_preview_space(int document_width, int document_height, Rect bounds,
-                                              QSize fallback_source) {
+                                              QSize fallback_source,
+                                              const std::optional<Rect>& crop = std::nullopt) {
   if (document_width > 0 && document_height > 0) {
+    if (crop.has_value() && !crop->empty()) {
+      // Zoomed mode (the zoom-thumbnails-to-content preference): the tile is
+      // the crop rect instead of the document, so the content fills the
+      // preview; the origin re-bases the sampling into the source buffer.
+      return {QSize(crop->width, crop->height), QPoint(bounds.x - crop->x, bounds.y - crop->y)};
+    }
     return {QSize(document_width, document_height), QPoint(bounds.x, bounds.y)};
   }
   return {fallback_source, QPoint(0, 0)};
+}
+
+// Document-space crop for the zoom-thumbnails-to-content preference: the
+// layer's visible-alpha extent (revision-cached in core, so painted canvas-
+// sized buffers zoom to their strokes), else its declared pixel bounds, else
+// its raster mask bounds (adjustment rows preview only a mask). Empty means
+// keep the document mapping.
+std::optional<Rect> layer_thumbnail_content_crop(const Layer& layer) {
+  const auto pixel_bounds = layer_pixel_bounds(layer);
+  if (const auto visible = layer_visible_alpha_bounds(layer, pixel_bounds);
+      visible.has_value() && !visible->empty()) {
+    return visible;
+  }
+  if (!pixel_bounds.empty()) {
+    return pixel_bounds;
+  }
+  if (layer.mask().has_value() && !layer.mask()->bounds.empty()) {
+    return layer.mask()->bounds;
+  }
+  return std::nullopt;
 }
 
 // A frame costs a row and a column on each side, so a hairline tile would be
@@ -498,7 +525,8 @@ void draw_thumbnail_disabled_cross(QPainter& painter, QSize tile) {
   painter.drawLine(QPoint(bottom_right.x(), top_left.y()), QPoint(top_left.x(), bottom_right.y()));
 }
 
-QPixmap layer_mask_thumbnail(const Layer& layer, int document_width, int document_height) {
+QPixmap layer_mask_thumbnail(const Layer& layer, int document_width, int document_height,
+                             const std::optional<Rect>& crop = std::nullopt) {
   constexpr int kSize = 28;
   const auto& mask = *layer.mask();
   const auto has_pixels = !mask.pixels.empty() && mask.pixels.format() == PixelFormat::gray8();
@@ -506,7 +534,8 @@ QPixmap layer_mask_thumbnail(const Layer& layer, int document_width, int documen
   // it, which is exactly what the fill plus the in-bounds guard below produce.
   const auto preview = thumbnail_preview_space(
       document_width, document_height, mask.bounds,
-      has_pixels ? QSize(mask.pixels.width(), mask.pixels.height()) : layer_preview_source_size(layer));
+      has_pixels ? QSize(mask.pixels.width(), mask.pixels.height()) : layer_preview_source_size(layer),
+      crop);
   const auto tile = thumbnail_tile_size(preview.space.width(), preview.space.height(), kSize);
   QImage image(tile.width(), tile.height(), QImage::Format_RGB888);
   image.fill(QColor(mask.default_color, mask.default_color, mask.default_color));
@@ -538,22 +567,23 @@ QPixmap layer_mask_thumbnail(const Layer& layer, int document_width, int documen
 
 // The vector-mask thumbnail shows the baked grayscale coverage cache (areas
 // outside cache_bounds are hidden, i.e. black), with the raster-mask border
-// and disabled-cross conventions. It is document-shaped because the coverage
-// cache is addressed in document space.
+// and disabled-cross conventions. It is document-shaped (or crop-shaped in
+// zoomed mode) because the coverage cache is addressed in document space.
 QPixmap layer_vector_mask_thumbnail(const LayerVectorMask& mask, int document_width,
-                                    int document_height) {
+                                    int document_height,
+                                    const std::optional<Rect>& crop = std::nullopt) {
   constexpr int kSize = 28;
-  const auto tile = thumbnail_tile_size(document_width, document_height, kSize);
+  const auto preview = thumbnail_preview_space(document_width, document_height, mask.cache_bounds,
+                                               QSize(document_width, document_height), crop);
+  const auto tile = thumbnail_tile_size(preview.space.width(), preview.space.height(), kSize);
   QImage image(tile.width(), tile.height(), QImage::Format_RGB888);
   image.fill(Qt::black);
   if (!mask.cache.empty() && mask.cache.format() == PixelFormat::gray8() && document_width > 0 &&
       document_height > 0) {
     for (int y = 0; y < tile.height(); ++y) {
-      const auto document_y = (static_cast<double>(y) / tile.height()) * document_height;
       for (int x = 0; x < tile.width(); ++x) {
-        const auto document_x = (static_cast<double>(x) / tile.width()) * document_width;
-        const auto local_x = static_cast<int>(document_x) - mask.cache_bounds.x;
-        const auto local_y = static_cast<int>(document_y) - mask.cache_bounds.y;
+        const auto local_x = preview.source_x(x, tile.width());
+        const auto local_y = preview.source_y(y, tile.height());
         std::uint8_t value = 0;
         if (local_x >= 0 && local_y >= 0 && local_x < mask.cache.width() &&
             local_y < mask.cache.height()) {
@@ -1064,8 +1094,10 @@ void draw_missing_font_thumbnail_badge(QPainter& painter, int size, const QColor
 }
 
 // Folder, text, and adjustment layers return early with a square glyph: those
-// are icons, not document previews, so the document rect does not apply.
-QPixmap layer_content_thumbnail(const Layer& layer, int document_width, int document_height) {
+// are icons, not document previews, so neither the document rect nor the
+// zoomed-mode crop applies.
+QPixmap layer_content_thumbnail(const Layer& layer, int document_width, int document_height,
+                                const std::optional<Rect>& crop = std::nullopt) {
   constexpr int kSize = 28;
   if (layer.kind() == LayerKind::Group) {
     QPixmap pixmap(kSize, kSize);
@@ -1236,11 +1268,12 @@ QPixmap layer_content_thumbnail(const Layer& layer, int document_width, int docu
     return pixmap;
   }
 
-  // The tile is the document, so checkerboard now means one of two honest
-  // things: the layer is transparent there, or the layer does not reach there.
+  // The tile is the document (or the content crop in zoomed mode), so
+  // checkerboard means one of two honest things: the layer is transparent
+  // there, or the layer does not reach there.
   const auto& pixels = layer.pixels();
   const auto preview = thumbnail_preview_space(document_width, document_height, layer_pixel_bounds(layer),
-                                               layer_preview_source_size(layer));
+                                               layer_preview_source_size(layer), crop);
   const auto tile = thumbnail_tile_size(preview.space.width(), preview.space.height(), kSize);
   QImage image(tile.width(), tile.height(), QImage::Format_RGB888);
   for (int y = 0; y < tile.height(); ++y) {
@@ -1298,7 +1331,11 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                                std::function<void(LayerId, std::size_t)> duplicate_smart_filter = {},
                                std::function<void(LayerId, std::size_t, int)> move_smart_filter = {},
                                std::function<void(LayerId, std::size_t)> delete_smart_filter = {},
-                               bool vector_mask_target_active = false, QSize document_size = {}) {
+                               bool vector_mask_target_active = false, QSize document_size = {},
+                               const std::function<std::optional<Rect>(const Layer&)>& content_crop = {}) {
+  // One crop per row: the content, mask, vector-mask, and Smart Filter mask
+  // previews share it so the row keeps a single tile shape.
+  const auto thumbnail_crop = content_crop ? content_crop(layer) : std::optional<Rect>{};
   auto* row = new QWidget(parent);
   row->setObjectName(QStringLiteral("layerRowWidget"));
   row->setAttribute(Qt::WA_StyledBackground, true);
@@ -1412,7 +1449,8 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   thumbnail->setAlignment(Qt::AlignCenter);
   thumbnail->setPixmap(content_thumbnail
                            ? content_thumbnail(layer)
-                           : layer_content_thumbnail(layer, document_size.width(), document_size.height()));
+                           : layer_content_thumbnail(layer, document_size.width(), document_size.height(),
+                                                     thumbnail_crop));
   thumbnail->setProperty(kLayerContentThumbnailRevisionProperty,
                          QVariant::fromValue<qulonglong>(static_cast<qulonglong>(layer.render_revision())));
   const auto missing_text_families =
@@ -1477,7 +1515,8 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     mask_preview->setAlignment(Qt::AlignCenter);
     mask_preview->setPixmap(mask_thumbnail
                                 ? mask_thumbnail(layer)
-                                : layer_mask_thumbnail(layer, document_size.width(), document_size.height()));
+                                : layer_mask_thumbnail(layer, document_size.width(), document_size.height(),
+                                                       thumbnail_crop));
     mask_preview->setProperty(kLayerMaskThumbnailRevisionProperty,
                               QVariant::fromValue<qulonglong>(static_cast<qulonglong>(layer.render_revision())));
     mask_preview->setToolTip(
@@ -1496,7 +1535,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     vector_mask_preview->setFixedSize(30, 30);
     vector_mask_preview->setAlignment(Qt::AlignCenter);
     vector_mask_preview->setPixmap(layer_vector_mask_thumbnail(
-        *layer.vector_mask(), document_size.width(), document_size.height()));
+        *layer.vector_mask(), document_size.width(), document_size.height(), thumbnail_crop));
     vector_mask_preview->setToolTip(
         QObject::tr("Vector mask. Click to edit its path with the pen and path tools, Ctrl-click to "
                     "load it as a selection, Alt-click to view it, Shift-click to disable it."));
@@ -1662,13 +1701,14 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
         button->installEventFilter(list_parent);
       }
     };
-    const auto mask_pixmap = [&layer, document_size](const SmartFilterMask& mask) {
+    const auto mask_pixmap = [&layer, document_size, &thumbnail_crop](const SmartFilterMask& mask) {
       constexpr int kSize = 22;
       const auto has_pixels = !mask.pixels.empty() && mask.pixels.format() == PixelFormat::gray8();
       const auto preview = thumbnail_preview_space(
           document_size.width(), document_size.height(), mask.bounds,
           has_pixels ? QSize(mask.pixels.width(), mask.pixels.height())
-                     : layer_preview_source_size(layer));
+                     : layer_preview_source_size(layer),
+          thumbnail_crop);
       const auto tile = thumbnail_tile_size(preview.space.width(), preview.space.height(), kSize);
       QImage image(tile.width(), tile.height(), QImage::Format_RGB888);
       image.fill(QColor(mask.default_color, mask.default_color, mask.default_color));
@@ -2888,7 +2928,10 @@ void MainWindow::refresh_layer_list() {
       },
                                       active.has_value() && *active == layer.id() &&
                                           edit_target == CanvasWidget::LayerEditTarget::VectorMask,
-                                      QSize(document().width(), document().height()));
+                                      QSize(document().width(), document().height()),
+                                      [this](const Layer& row_layer) {
+                                        return layer_thumbnail_crop(row_layer);
+                                      });
     widget_ms += phase_ms(widget_started);
     const auto set_widget_started = std::chrono::steady_clock::now();
     layer_list_->setItemWidget(item, row_widget);
@@ -2939,6 +2982,18 @@ void MainWindow::refresh_layer_list() {
   log_ui_profile("refresh_layer_list", phase_ms(started), detail.str());
 }
 
+std::optional<Rect> MainWindow::layer_thumbnail_crop(const Layer& layer) const {
+  // The alpha scan behind the crop is revision-cached in core
+  // (visible_alpha_local_bounds), so this stays cheap per rebuild. A crop
+  // change always rides a render-revision bump (pixels, bounds, or mask), so
+  // the pixmap cache below needs no extra key; the preference toggle clears
+  // that cache outright.
+  if (!zoom_layer_thumbnails_to_content_) {
+    return std::nullopt;
+  }
+  return layer_thumbnail_content_crop(layer);
+}
+
 QPixmap MainWindow::cached_layer_content_thumbnail(const Layer& layer, int document_width,
                                                    int document_height) {
   auto& entry = layer_thumbnail_cache_[layer.id()];
@@ -2947,7 +3002,8 @@ QPixmap MainWindow::cached_layer_content_thumbnail(const Layer& layer, int docum
   // pure move bumps only the render revision.
   const auto revision = layer.render_revision();
   if (entry.content.isNull() || entry.content_render_revision != revision) {
-    entry.content = layer_content_thumbnail(layer, document_width, document_height);
+    entry.content = layer_content_thumbnail(layer, document_width, document_height,
+                                            layer_thumbnail_crop(layer));
     entry.content_render_revision = revision;
   }
   return entry.content;
@@ -2964,7 +3020,8 @@ QPixmap MainWindow::cached_layer_mask_thumbnail(const Layer& layer, int document
   // and a linked mask translates without a content bump.
   const auto revision = layer.render_revision();
   if (entry.mask.isNull() || entry.mask_render_revision != revision) {
-    entry.mask = layer_mask_thumbnail(layer, document_width, document_height);
+    entry.mask = layer_mask_thumbnail(layer, document_width, document_height,
+                                      layer_thumbnail_crop(layer));
     entry.mask_render_revision = revision;
   }
   return entry.mask;

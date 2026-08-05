@@ -1208,6 +1208,119 @@ void ui_layer_thumbnails_preview_the_whole_document() {
         QSize(28, 28));
 }
 
+void ui_layer_thumbnails_zoom_to_content_preference() {
+  SettingsValueRestorer restore_zoom(QStringLiteral("view/zoomLayerThumbnailsToContent"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("view/zoomLayerThumbnailsToContent"), true);
+    settings.sync();
+  }
+
+  constexpr std::int32_t kWideWidth = 160;
+  constexpr std::int32_t kWideHeight = 40;
+  const QColor fill(210, 60, 40, 255);
+  const QColor badge_fill(40, 190, 90, 255);
+
+  patchy::Document document(kWideWidth, kWideHeight, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Banner",
+                           solid_pixels(kWideWidth, kWideHeight, patchy::PixelFormat::rgba8(), fill));
+  document.add_layer(patchy::Layer(document.allocate_layer_id(), "Assets", patchy::LayerKind::Group));
+
+  // The 40x30 badge parked on the right, with a full-coverage mask: in zoomed
+  // mode the row's tiles take the badge's own 4:3 shape, not the document's.
+  patchy::Layer badge(document.allocate_layer_id(), "Badge",
+                      solid_pixels(40, 30, patchy::PixelFormat::rgba8(), badge_fill));
+  badge.set_bounds(patchy::Rect{100, 5, 40, 30});
+  patchy::PixelBuffer badge_mask(40, 30, patchy::PixelFormat::gray8());
+  badge_mask.clear(255);
+  badge.set_mask(patchy::LayerMask{patchy::Rect{100, 5, 40, 30}, std::move(badge_mask), 255, false});
+  document.add_layer(std::move(badge));
+
+  // A canvas-sized buffer whose visible pixels are a 20x10 sticker: the crop
+  // must trim the transparent slack, not stop at the declared bounds.
+  patchy::PixelBuffer sticker_pixels(kWideWidth, kWideHeight, patchy::PixelFormat::rgba8());
+  for (int y = 12; y < 22; ++y) {
+    for (int x = 30; x < 50; ++x) {
+      auto* px = sticker_pixels.pixel(x, y);
+      px[0] = 40;
+      px[1] = 80;
+      px[2] = 220;
+      px[3] = 255;
+    }
+  }
+  document.add_layer(
+      patchy::Layer(document.allocate_layer_id(), "Sticker", std::move(sticker_pixels)));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Zoomed Thumbnails"));
+  QApplication::processEvents();
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto thumbnail_pixmap = [layer_list](const QString& layer_name, const QString& thumbnail_name) {
+    auto* row = layer_list->itemWidget(require_layer_item(*layer_list, layer_name));
+    CHECK(row != nullptr);
+    auto* label = row->findChild<QLabel*>(thumbnail_name);
+    CHECK(label != nullptr);
+    return label->pixmap(Qt::ReturnByValue);
+  };
+
+  // Badge: its own aspect (40x30 -> 28x21), nothing but its color inside the
+  // frame, and the mask tile shares the shape so the row stays consistent.
+  const auto badge_thumbnail =
+      thumbnail_pixmap(QStringLiteral("Badge"), QStringLiteral("layerContentThumbnail"));
+  CHECK(badge_thumbnail.size() == QSize(28, 21));
+  const auto badge_image = badge_thumbnail.toImage();
+  int badge_fill_pixels = 0;
+  for (int y = 1; y + 1 < badge_image.height(); ++y) {
+    for (int x = 1; x + 1 < badge_image.width(); ++x) {
+      if (badge_image.pixelColor(x, y) ==
+          QColor(badge_fill.red(), badge_fill.green(), badge_fill.blue())) {
+        ++badge_fill_pixels;
+      }
+    }
+  }
+  CHECK(badge_fill_pixels == (badge_image.width() - 2) * (badge_image.height() - 2));
+  CHECK(thumbnail_pixmap(QStringLiteral("Badge"), QStringLiteral("layerMaskThumbnail")).size() ==
+        QSize(28, 21));
+
+  // Sticker: alpha-trimmed to 20x10 (28x14 tile), not the 160x40 buffer.
+  CHECK(thumbnail_pixmap(QStringLiteral("Sticker"), QStringLiteral("layerContentThumbnail")).size() ==
+        QSize(28, 14));
+
+  // A canvas-sized opaque layer crops to itself, so its tile keeps the
+  // document's 4:1 shape; the folder glyph stays a square icon.
+  CHECK(thumbnail_pixmap(QStringLiteral("Banner"), QStringLiteral("layerContentThumbnail")).size() ==
+        QSize(28, 7));
+  CHECK(thumbnail_pixmap(QStringLiteral("Assets"), QStringLiteral("layerContentThumbnail")).size() ==
+        QSize(28, 28));
+  save_widget_artifact("ui_layer_thumbnail_zoom_to_content", window);
+
+  // Unchecking the preference reverts to document mapping without a restart:
+  // accepting the dialog clears the pixmap cache and rebuilds the rows.
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+    CHECK(dialog != nullptr);
+    auto* check = dialog->findChild<QCheckBox*>(QStringLiteral("preferencesZoomLayerThumbnailsCheck"));
+    CHECK(check != nullptr);
+    CHECK(check->isChecked());
+    check->setChecked(false);
+    saw_dialog = true;
+    dialog->accept();
+  });
+  require_action(window, "filePreferencesAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_dialog);
+  CHECK(thumbnail_pixmap(QStringLiteral("Badge"), QStringLiteral("layerContentThumbnail")).size() ==
+        QSize(28, 7));
+  CHECK(thumbnail_pixmap(QStringLiteral("Badge"), QStringLiteral("layerMaskThumbnail")).size() ==
+        QSize(28, 7));
+  auto settings = patchy::ui::app_settings();
+  CHECK(!settings.value(QStringLiteral("view/zoomLayerThumbnailsToContent"), true).toBool());
+}
+
 void ui_layer_drag_drops_child_above_parent_folder() {
   patchy::Document document(80, 60, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background",
@@ -2840,6 +2953,7 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
       {"ui_layer_folders_create_with_drag_drop_affordances", ui_layer_folders_create_with_drag_drop_affordances},
       {"ui_layer_panel_mixed_folder_visual_cleanup", ui_layer_panel_mixed_folder_visual_cleanup},
       {"ui_layer_thumbnails_preview_the_whole_document", ui_layer_thumbnails_preview_the_whole_document},
+      {"ui_layer_thumbnails_zoom_to_content_preference", ui_layer_thumbnails_zoom_to_content_preference},
       {"ui_layer_drag_drops_child_above_parent_folder", ui_layer_drag_drops_child_above_parent_folder},
       {"ui_layer_drag_multiselect_drops_children_above_parent_folder",
        ui_layer_drag_multiselect_drops_children_above_parent_folder},

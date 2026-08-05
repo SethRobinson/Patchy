@@ -931,6 +931,9 @@ private:
                                                        int document_height);
   [[nodiscard]] QPixmap cached_layer_mask_thumbnail(const Layer& layer, int document_width,
                                                     int document_height);
+  // Crop for the zoom-thumbnails-to-content preference; nullopt (document
+  // mapping) while the preference is off.
+  [[nodiscard]] std::optional<Rect> layer_thumbnail_crop(const Layer& layer) const;
   void refresh_layer_controls();
   void refresh_channel_panel();
   [[nodiscard]] QPixmap cached_channel_thumbnail(const DocumentChannel& channel);
@@ -1543,6 +1546,7 @@ private:
   CanvasWidget::PenInputSettings pen_input_settings_{};
   bool wheel_zooms_{kWheelZoomsDefault};
   bool shift_keeps_transform_aspect_{false};
+  bool zoom_layer_thumbnails_to_content_{false};
   std::vector<std::pair<QWidget*, std::vector<CanvasTool>>> option_actions_;
   std::vector<QWidget*> transform_option_actions_;
   std::vector<QWidget*> warp_option_actions_;

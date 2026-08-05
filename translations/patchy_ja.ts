@@ -6955,6 +6955,8 @@ Mixed selection</source>
     </message>
     <message><source>Hold Shift to keep the aspect ratio when transforming</source><translation>変形時に Shift で縦横比を保持する</translation></message>
     <message><source>When off, corner handles keep the aspect ratio and Shift resizes freely, matching current Photoshop. When on, corner handles resize freely and Shift keeps the aspect ratio.</source><translation>オフの場合、コーナーハンドルは縦横比を保持し、Shift で自由にサイズを変更します（現行の Photoshop と同じ動作）。オンの場合、コーナーハンドルは自由にサイズを変更し、Shift で縦横比を保持します。</translation></message>
+    <message><source>Zoom layer thumbnails to the layer content</source><translation>レイヤーサムネイルをレイヤー内容にズームする</translation></message>
+    <message><source>When enabled, layer thumbnails crop to the layer's visible pixels instead of previewing the whole canvas, so small layers fill their thumbnail.</source><translation>有効にすると、レイヤーサムネイルはキャンバス全体ではなくレイヤーの可視ピクセルに切り抜かれ、小さなレイヤーもサムネイルいっぱいに表示されます。</translation></message>
     <message>
         <location line="+3"/>
         <source>From &amp;Scanner or Camera...</source>
