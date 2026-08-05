@@ -3,6 +3,18 @@
 Older Patchy release notes are collected here. The two most recent releases
 remain in [README.md](README.md#whats-new).
 
+## 0.86 - July 29, 2026
+
+- Affinity import got much wider. Affinity 2's .afphoto, .afdesign, and .afpub documents open now, alongside the current .af format and most Affinity 1.x-era files. Parametric shapes import as real editable shapes down to the long tail (stars, triangles, smoothed polygons, diamonds, pies, crescents, hearts, arrows, cogs, clouds), together with compound-shape booleans, Designer symbols, artboards, and scene-graph transforms
+- Affinity fidelity work: vector masks arrive as native vector masks, stroke line style, alignment, dashes, and miter limit come through, crop containers become masked groups so a hidden crop stays hidden, Affinity-only blend modes render through their closest equivalent with a notice, and the Erase blend mode folds into an isolated group with an inverse-alpha mask, which is how PSD stores that construction natively
+- Layer styles work on groups. A folder can carry effects, they render through the same Photoshop-calibrated pipeline as layers, and the Layer Style dialog opens from a group row or its fx badge. The old warnings about group effects being unsupported are gone
+- The Dissolve blend mode is in, on layers, groups, adjustment layers, and effects, and it round-trips through PSD
+- Fill opacity is bit-exact against Photoshop for Vivid Light, Linear Light, and Hard Mix, the three modes that treat Fill specially
+- Brightness/Contrast now models Photoshop's modern algorithm alongside the legacy one, so files carrying modern settings render, edit, and save back correctly
+- Large documents feel much better in the Layers panel. On a 622-layer file, expanding a folder went from 2.1 seconds to 0.45, and closing the Layer Style dialog went from 8.2 seconds to 0.5
+- Shape strokes no longer grow spikes at sharp corners when anchor points land off the pixel lattice
+- PSD compatibility is measured instead of asserted. The top of this README now shows how Patchy scores against Photoshop 2026 on a mixed PSD corpus, with Photopea, GIMP, Affinity, PhotoDemon, and Krita run through the same tests
+
 ## 0.85 - July 27, 2026
 
 - Layer styles blend the way Photoshop does now. A layer's blend mode applies to its own pixels alone unless Blend Interior Effects as Group is on, and exterior effects contribute against the backdrop instead of under the layer, so glows and shadows keep their weight along anti-aliased text. Color, Gradient, and Pattern Overlay fold into the layer color rather than painting over the composite, so an opaque overlay hides the fill beneath it and layer opacity is no longer applied twice

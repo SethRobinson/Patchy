@@ -188,6 +188,18 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 
 ## What's New
 
+### 0.88 - August 6, 2026
+
+- Free Transform works on folders and multi-layer selections. Ctrl+T takes the whole selection as one target set with linked masks riding along, the Move tool frames the same union it would take, and preview-locked smart objects transform in a multi-target session instead of refusing. Corner drags scale proportionally by default, with a preference that restores the old pairing where a plain corner drag distorts and Shift keeps the aspect ratio
+- Floating and docked panels behave. Dragging a tabbed panel's title detaches that one panel, a floating panel gets a visible resizable frame you can drag by its chrome, re-docking snaps a collapsed panel's slot back to its strip instead of leaving a gap that grew with every cycle, dock dividers are visible, and every right dock has a width handle along its full height with panel contents inset clear of it
+- Layer thumbnails zoom to their content by default, and a preference turns that off. Double-clicking one fits the canvas view to that layer's pixels, with folders using their children's union, and Ctrl+Alt-clicking a folder arrow expands or collapses every folder the way Photoshop does
+- Painting on a smart object offers to rasterize it or open its contents instead of doing nothing, and Rasterize reaches the layers inside a selected folder
+- The web build applies the interface scale: the preference used to be saved and ignored there, steps now run from 67% to 200%, and the browser starts at 75%. The scaling happens in the shell page, so clicks land where you aimed them
+- More web work: the layer panel scrolls by rows instead of jumping the whole list on one wheel notch, input arriving during a processing wait no longer corrupts move drags or leaves ghost undos and dead hotkeys after a file picker, and preset import and export use the browser's own picker and download path. Memory is budgeted too, with a history byte budget that accounts for shared data, a heap size and ceiling chosen per device, and live memory use shown in About
+- Affinity import: adjustments attached to a layer arrive as clipped adjustment layers rather than being misread as masks, minified placed images are box-filtered instead of aliasing, opening a file with Image layers can ask whether to keep smart objects or convert them to pixel layers, and resized canvases, lazily decoded placed images, layer names, and group adjustment scope all match Affinity
+- Text layers keep their transform through Image Size, Canvas Size, Crop, Rotate Canvas, layer flips, and Shift Seams, and the free-transform drag preview applies flip signs
+- Fixes: the document tab bar's scroll arrows are no longer clipped, a committed Free Transform holds its frame until the refresh lands instead of flashing the old geometry, and a filter dialog that unwinds by exception disarms its in-flight preview renders
+
 ### 0.87 - August 4, 2026
 
 - Patchy runs in a web browser now, at [rtsoft.com/patchy](https://www.rtsoft.com/patchy/). It is the same editor compiled to WebAssembly with real threads: files open from your disk, save back as downloads, and drag straight onto the canvas, and nothing you make is ever sent online. The web build bundles 23 MB of open fonts including Japanese coverage, takes dropped font files and font zips that persist between visits, decodes HEIC photos through the browser, and remembers your settings
@@ -200,18 +212,6 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 - Advanced Blending's per-channel restrictions render and can be edited, so a layer that blends through only some channels looks right instead of ignoring the setting
 - Zoom follows Photoshop's view rules with the same preset steps, and geometry operations like rotate and canvas resize recenter the view instead of leaving it scrolled off the image
 - Fixes: Clouds fills the whole canvas, Dust & Scratches reaches a 500 px radius, strokes no longer grow nubs along anti-aliased fringes on transformed text, the Layer Style dialog's Stroke page scrolls instead of stretching the dialog, undo and redo refresh the Paths panel, the start panel lists up to 200 recent files with a right-click menu and a name filter beside the Recent Files label, Open Recent gained a filter box, PSD text layers that record a font by its PostScript name resolve it on macOS and Linux instead of falling back, and the About screen has a light surface in Light mode
-
-### 0.86 - July 29, 2026
-
-- Affinity import got much wider. Affinity 2's .afphoto, .afdesign, and .afpub documents open now, alongside the current .af format and most Affinity 1.x-era files. Parametric shapes import as real editable shapes down to the long tail (stars, triangles, smoothed polygons, diamonds, pies, crescents, hearts, arrows, cogs, clouds), together with compound-shape booleans, Designer symbols, artboards, and scene-graph transforms
-- Affinity fidelity work: vector masks arrive as native vector masks, stroke line style, alignment, dashes, and miter limit come through, crop containers become masked groups so a hidden crop stays hidden, Affinity-only blend modes render through their closest equivalent with a notice, and the Erase blend mode folds into an isolated group with an inverse-alpha mask, which is how PSD stores that construction natively
-- Layer styles work on groups. A folder can carry effects, they render through the same Photoshop-calibrated pipeline as layers, and the Layer Style dialog opens from a group row or its fx badge. The old warnings about group effects being unsupported are gone
-- The Dissolve blend mode is in, on layers, groups, adjustment layers, and effects, and it round-trips through PSD
-- Fill opacity is bit-exact against Photoshop for Vivid Light, Linear Light, and Hard Mix, the three modes that treat Fill specially
-- Brightness/Contrast now models Photoshop's modern algorithm alongside the legacy one, so files carrying modern settings render, edit, and save back correctly
-- Large documents feel much better in the Layers panel. On a 622-layer file, expanding a folder went from 2.1 seconds to 0.45, and closing the Layer Style dialog went from 8.2 seconds to 0.5
-- Shape strokes no longer grow spikes at sharp corners when anchor points land off the pixel lattice
-- PSD compatibility is measured instead of asserted. The top of this README now shows how Patchy scores against Photoshop 2026 on a mixed PSD corpus, with Photopea, GIMP, Affinity, PhotoDemon, and Krita run through the same tests
 
 [Older releases](RELEASE-HISTORY.md)
 
