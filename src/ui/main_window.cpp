@@ -6449,6 +6449,8 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
     }
     return refreshed;
   });
+  canvas->set_smart_object_paint_prompt_callback(
+      [this, canvas](LayerId id) { prompt_paint_on_smart_object(canvas, id); });
   canvas->set_text_layer_transform_render_callback([this, canvas](LayerId id) -> bool {
     auto* session = session_for_canvas(canvas);
     if (session == nullptr) {
@@ -8596,7 +8598,10 @@ std::vector<LayerId> MainWindow::rasterize_target_layer_ids(std::vector<LayerId>
 
 void MainWindow::rasterize_active_layers() {
   finish_active_text_editor();
-  const auto ids = rasterize_target_layer_ids(selected_or_active_layer_ids());
+  rasterize_layer_ids(rasterize_target_layer_ids(selected_or_active_layer_ids()));
+}
+
+void MainWindow::rasterize_layer_ids(const std::vector<LayerId>& ids) {
   if (ids.empty()) {
     return;
   }

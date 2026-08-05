@@ -418,6 +418,76 @@ void MainWindow::open_smart_object_contents() {
   statusBar()->showMessage(tr("Editing smart object contents. Save (Ctrl+S) applies them back to %1").arg(parent_title));
 }
 
+void MainWindow::prompt_paint_on_smart_object(CanvasWidget* canvas, LayerId layer_id) {
+  auto* owner_session = session_for_canvas(canvas);
+  if (owner_session == nullptr || owner_session != active_session()) {
+    return;
+  }
+  auto& doc = document();
+  const auto* layer = doc.find_layer(layer_id);
+  if (layer == nullptr || !layer_is_smart_object(*layer)) {
+    return;
+  }
+  if (cli_automation_mode_) {
+    // A prompt would block unattended runs; keep the old refusal there.
+    show_status_error(tr("Smart object contents can't be painted. Rasterize the layer to edit its pixels."));
+    return;
+  }
+
+  // Offer Edit Contents only when open_smart_object_contents() could succeed
+  // (same guards): editable embedded sources in a re-encodable format, or
+  // linked external files. A button that only yields an error is a dead end.
+  const auto lock_reason = smart_object_lock_reason(*layer);
+  const auto* source = doc.metadata().smart_objects.find(smart_object_source_uuid(*layer));
+  bool can_edit_contents = false;
+  if (lock_reason.empty()) {
+    if (source != nullptr && source->kind == SmartObjectSourceKind::Embedded && source->file_bytes != nullptr) {
+      const auto contents_format = classify_smart_object_contents(*source);
+      can_edit_contents = contents_format == SmartObjectContentsFormat::PsdDocument ||
+                          contents_format == SmartObjectContentsFormat::QtImage;
+    }
+  } else if (lock_reason == "external") {
+    can_edit_contents = source != nullptr && source->kind == SmartObjectSourceKind::ExternalFile;
+  }
+
+  QMessageBox box(this);
+  box.setObjectName(QStringLiteral("paintSmartObjectMessageBox"));
+  box.setIcon(QMessageBox::Question);
+  box.setWindowTitle(tr("Paint on Smart Object?"));
+  box.setText(
+      tr("\"%1\" is a smart object, so its pixels can't be painted directly.")
+          .arg(QString::fromStdString(layer->name())));
+  box.setInformativeText(
+      can_edit_contents
+          ? tr("Rasterize the layer to paint on its pixels, or open the smart object's contents in "
+               "their own tab and draw there.")
+          : tr("Rasterize the layer to paint on its pixels. This smart object's contents can't be "
+               "edited in Patchy."));
+  QPushButton* edit_button =
+      can_edit_contents ? box.addButton(tr("Edit Contents"), QMessageBox::AcceptRole) : nullptr;
+  auto* rasterize_button = box.addButton(tr("Rasterize"), QMessageBox::DestructiveRole);
+  auto* cancel_button = box.addButton(QMessageBox::Cancel);
+  box.setDefaultButton(edit_button != nullptr ? edit_button : cancel_button);
+  exec_dialog(box);
+  if (box.clickedButton() == nullptr || box.clickedButton() == cancel_button) {
+    return;
+  }
+  if (box.clickedButton() == rasterize_button) {
+    rasterize_layer_ids({layer_id});
+    const auto* rasterized = doc.find_layer(layer_id);
+    if (rasterized != nullptr && !layer_is_smart_object(*rasterized)) {
+      // The triggering press was consumed by the prompt, so nothing painted yet.
+      statusBar()->showMessage(tr("Rasterized layer. Paint again to draw on it."));
+    }
+    return;
+  }
+  if (doc.active_layer_id() != layer_id) {
+    doc.set_active_layer(layer_id);
+    refresh_layer_list();
+  }
+  open_smart_object_contents();
+}
+
 bool MainWindow::commit_smart_object_child_session(DocumentSession& child_session) {
   if (!child_session.smart_object_link.has_value()) {
     return false;

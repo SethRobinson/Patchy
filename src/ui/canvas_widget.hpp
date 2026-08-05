@@ -848,6 +848,10 @@ public:
   // true if it replaced the layer's pixels/bounds (so the resampled bitmap is overridden).
   void set_text_layer_transform_render_callback(std::function<bool(LayerId)> callback);
   void set_smart_object_transform_render_callback(std::function<bool(LayerId)> callback);
+  // A paint tool pressed on a smart-object layer: the host offers to rasterize the
+  // layer or open its contents. The triggering press is consumed either way (the
+  // modal prompt swallows the release, so the stroke never starts).
+  void set_smart_object_paint_prompt_callback(std::function<void(LayerId)> callback);
   void set_selected_layer_ids(std::vector<LayerId> layer_ids);
 
 protected:
@@ -2008,6 +2012,7 @@ private:
   std::function<void()> transform_controls_changed_callback_;
   std::function<bool(LayerId)> text_layer_transform_render_callback_;
   std::function<bool(LayerId)> smart_object_transform_render_callback_;
+  std::function<void(LayerId)> smart_object_paint_prompt_callback_;
 };
 
 // Resamples `source` through `source_to_document` into document space (straight-alpha

@@ -3017,7 +3017,16 @@ bool CanvasWidget::begin_edit(QString label) {
     return false;
   }
   if (layer_is_smart_object(*layer)) {
-    report_status_error(tr("Smart object contents can't be painted. Rasterize the layer to edit its pixels."));
+    const auto layer_id = layer->id();
+    if (smart_object_paint_prompt_callback_) {
+      // The host may rasterize the layer or open its contents; `layer` may
+      // dangle after this returns. The press is consumed either way: the modal
+      // prompt swallows the release, so starting a stroke here would leave
+      // painting_ armed with the button already up.
+      smart_object_paint_prompt_callback_(layer_id);
+    } else {
+      report_status_error(tr("Smart object contents can't be painted. Rasterize the layer to edit its pixels."));
+    }
     return false;
   }
   if (layer_is_vector_shape(*layer)) {

@@ -700,6 +700,7 @@ private:
   void delete_selected_layer_styles();
   void refresh_layer_style_action_states();
   void rasterize_active_layers();
+  void rasterize_layer_ids(const std::vector<LayerId>& ids);
   void rasterize_active_layer_styles();
   // Vector shape tools (main_window_vector.cpp): a released Shape/Path-mode
   // drag arrives here with edge-coordinate bounds (Line passes its endpoints).
@@ -789,6 +790,10 @@ private:
   bool paste_svg_from_clipboard();
   void export_smart_object_contents();
   void open_smart_object_contents();
+  // A paint tool pressed on smart-object pixels (CanvasWidget's paint-prompt
+  // callback): offer Edit Contents / Rasterize / Cancel. The press itself was
+  // consumed by the canvas, so Rasterize leaves the user to stroke again.
+  void prompt_paint_on_smart_object(CanvasWidget* canvas, LayerId layer_id);
   bool commit_smart_object_child_session(DocumentSession& child_session);
   void refresh_external_smart_object_after_save(DocumentSession& child_session);
   void update_smart_object_content();

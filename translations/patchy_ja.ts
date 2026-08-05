@@ -10618,6 +10618,34 @@ To update, paste this into a terminal:
         <translation>レイヤーをラスタライズしました</translation>
     </message>
     <message>
+        <source>Paint on Smart Object?</source>
+        <translation>スマートオブジェクトに描画しますか？</translation>
+    </message>
+    <message>
+        <source>&quot;%1&quot; is a smart object, so its pixels can&apos;t be painted directly.</source>
+        <translation>&quot;%1&quot; はスマートオブジェクトのため、ピクセルに直接描画できません。</translation>
+    </message>
+    <message>
+        <source>Rasterize the layer to paint on its pixels, or open the smart object&apos;s contents in their own tab and draw there.</source>
+        <translation>ピクセルに描画するにはレイヤーをラスタライズするか、スマートオブジェクトの内容を専用のタブで開いてそこに描画してください。</translation>
+    </message>
+    <message>
+        <source>Rasterize the layer to paint on its pixels. This smart object&apos;s contents can&apos;t be edited in Patchy.</source>
+        <translation>ピクセルに描画するにはレイヤーをラスタライズしてください。このスマートオブジェクトの内容は Patchy では編集できません。</translation>
+    </message>
+    <message>
+        <source>Edit Contents</source>
+        <translation>内容を編集</translation>
+    </message>
+    <message>
+        <source>Rasterized layer. Paint again to draw on it.</source>
+        <translation>レイヤーをラスタライズしました。もう一度描画してください。</translation>
+    </message>
+    <message>
+        <source>Smart object contents can&apos;t be painted. Rasterize the layer to edit its pixels.</source>
+        <translation>スマートオブジェクトの内容には描画できません。ピクセルを編集するにはレイヤーをラスタライズしてください。</translation>
+    </message>
+    <message>
         <location line="+36"/>
         <source>No layer styles to rasterize</source>
         <translation>ラスタライズするレイヤースタイルがありません</translation>

@@ -1094,6 +1094,10 @@ void CanvasWidget::set_smart_object_transform_render_callback(std::function<bool
   smart_object_transform_render_callback_ = std::move(callback);
 }
 
+void CanvasWidget::set_smart_object_paint_prompt_callback(std::function<void(LayerId)> callback) {
+  smart_object_paint_prompt_callback_ = std::move(callback);
+}
+
 void CanvasWidget::set_text_layer_transform_render_callback(std::function<bool(LayerId)> callback) {
   text_layer_transform_render_callback_ = std::move(callback);
 }

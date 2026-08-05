@@ -347,6 +347,206 @@ void ui_smart_object_to_normal_layer_action_rasterizes() {
   }
 }
 
+// Painting on a smart object pops the paint prompt (paintSmartObjectMessageBox)
+// instead of the old status-bar refusal. Rasterize demotes just the painted
+// layer in one undo step; the triggering press is consumed (the modal swallowed
+// its release), so the user strokes again on the now-plain layer.
+void ui_smart_object_paint_prompt_rasterize_choice() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto layer_id = open_smart_object_fixture(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  CHECK(canvas != nullptr);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_primary_color(QColor(230, 20, 20));
+  const auto undo_depth_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+
+  const QPoint stroke_document_point(48, 48);  // inside the placed content
+  const auto before_stroke = canvas_pixel(*canvas, stroke_document_point);
+  const auto stroke_widget_point = canvas->widget_position_for_document_point(stroke_document_point);
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* box =
+        qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("paintSmartObjectMessageBox")));
+    CHECK(box != nullptr);
+    if (box == nullptr) {
+      return;
+    }
+    saw_dialog = true;
+    for (auto* button : box->buttons()) {
+      if (box->buttonRole(button) == QMessageBox::DestructiveRole) {
+        button->click();
+        return;
+      }
+    }
+    CHECK(false);
+  });
+  send_mouse(*canvas, QEvent::MouseButtonPress, stroke_widget_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, stroke_widget_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(saw_dialog);
+
+  const auto* rasterized = document.find_layer(layer_id);
+  CHECK(rasterized != nullptr);
+  CHECK(!patchy::layer_is_smart_object(*rasterized));
+  CHECK(color_close(canvas_pixel(*canvas, stroke_document_point), before_stroke, 0));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth_before + 1);
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("Paint again")));
+
+  // A second stroke lands now that the layer is a plain pixel layer.
+  send_mouse(*canvas, QEvent::MouseButtonPress, stroke_widget_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, stroke_widget_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(!color_close(canvas_pixel(*canvas, stroke_document_point), before_stroke, 0));
+
+  // Undo the stroke, then the rasterize: the smart object comes back.
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  const auto* restored = document.find_layer(layer_id);
+  CHECK(restored != nullptr);
+  CHECK(patchy::layer_is_smart_object(*restored));
+}
+
+// The prompt's Edit Contents button opens the embedded source as a child tab,
+// exactly like the badge click, leaving the smart object and its pixels alone.
+void ui_smart_object_paint_prompt_edit_contents_choice() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto layer_id = open_smart_object_fixture(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  CHECK(canvas != nullptr);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_primary_color(QColor(230, 20, 20));
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(tabs != nullptr);
+  const auto tab_count_before = tabs->count();
+
+  const QPoint stroke_document_point(48, 48);
+  const auto before_stroke = canvas_pixel(*canvas, stroke_document_point);
+  const auto stroke_widget_point = canvas->widget_position_for_document_point(stroke_document_point);
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* box =
+        qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("paintSmartObjectMessageBox")));
+    CHECK(box != nullptr);
+    if (box == nullptr) {
+      return;
+    }
+    saw_dialog = true;
+    for (auto* button : box->buttons()) {
+      if (box->buttonRole(button) == QMessageBox::AcceptRole) {
+        button->click();
+        return;
+      }
+    }
+    CHECK(false);
+  });
+  send_mouse(*canvas, QEvent::MouseButtonPress, stroke_widget_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, stroke_widget_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(saw_dialog);
+
+  CHECK(tabs->count() == tab_count_before + 1);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_is_smart_object_child(window));
+  const auto* layer = document.find_layer(layer_id);
+  CHECK(layer != nullptr);
+  CHECK(patchy::layer_is_smart_object(*layer));
+  CHECK(color_close(canvas_pixel(*canvas, stroke_document_point), before_stroke, 0));
+}
+
+// Cancel (and Esc, which lands on the same button) leaves everything untouched.
+void ui_smart_object_paint_prompt_cancel_choice() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto layer_id = open_smart_object_fixture(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  CHECK(canvas != nullptr);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_primary_color(QColor(230, 20, 20));
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(tabs != nullptr);
+  const auto tab_count_before = tabs->count();
+  const auto undo_depth_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+
+  const QPoint stroke_document_point(48, 48);
+  const auto before_stroke = canvas_pixel(*canvas, stroke_document_point);
+  const auto stroke_widget_point = canvas->widget_position_for_document_point(stroke_document_point);
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* box =
+        qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("paintSmartObjectMessageBox")));
+    CHECK(box != nullptr);
+    if (box == nullptr) {
+      return;
+    }
+    saw_dialog = true;
+    auto* cancel = box->button(QMessageBox::Cancel);
+    CHECK(cancel != nullptr);
+    cancel->click();
+  });
+  send_mouse(*canvas, QEvent::MouseButtonPress, stroke_widget_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, stroke_widget_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(saw_dialog);
+
+  const auto* layer = document.find_layer(layer_id);
+  CHECK(layer != nullptr);
+  CHECK(patchy::layer_is_smart_object(*layer));
+  CHECK(color_close(canvas_pixel(*canvas, stroke_document_point), before_stroke, 0));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth_before);
+  CHECK(tabs->count() == tab_count_before);
+}
+
+// Preview-locked smart objects (warp, filters, ...) can't open their contents,
+// so the prompt omits Edit Contents and offers only Rasterize / Cancel.
+void ui_smart_object_paint_prompt_locked_omits_edit_contents() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto layer_id = open_smart_object_fixture(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* layer = document.find_layer(layer_id);
+  CHECK(layer != nullptr);
+  layer->metadata()[patchy::kLayerMetadataSmartObjectLock] = "warp";
+  auto* canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  CHECK(canvas != nullptr);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+
+  const QPoint stroke_document_point(48, 48);
+  const auto stroke_widget_point = canvas->widget_position_for_document_point(stroke_document_point);
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* box =
+        qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("paintSmartObjectMessageBox")));
+    CHECK(box != nullptr);
+    if (box == nullptr) {
+      return;
+    }
+    saw_dialog = true;
+    bool has_rasterize = false;
+    for (auto* button : box->buttons()) {
+      CHECK(box->buttonRole(button) != QMessageBox::AcceptRole);
+      has_rasterize = has_rasterize || box->buttonRole(button) == QMessageBox::DestructiveRole;
+    }
+    CHECK(has_rasterize);
+    auto* cancel = box->button(QMessageBox::Cancel);
+    CHECK(cancel != nullptr);
+    cancel->click();
+  });
+  send_mouse(*canvas, QEvent::MouseButtonPress, stroke_widget_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, stroke_widget_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(saw_dialog);
+
+  const auto* untouched = document.find_layer(layer_id);
+  CHECK(untouched != nullptr);
+  CHECK(patchy::layer_is_smart_object(*untouched));
+  CHECK(patchy::smart_object_lock_reason(*untouched) == "warp");
+}
+
 // Linked (external-file) smart objects get their own badge icon and tooltip so
 // they read differently from embedded ones in the panel.
 void ui_layer_smart_object_badge_shows_linked_variant() {
@@ -1395,6 +1595,11 @@ std::vector<patchy::test::TestCase> smart_object_tests() {
        ui_layer_fx_and_smart_badges_stay_visible_in_narrow_panel},
       {"ui_layer_smart_object_badge_button_opens_contents", ui_layer_smart_object_badge_button_opens_contents},
       {"ui_smart_object_to_normal_layer_action_rasterizes", ui_smart_object_to_normal_layer_action_rasterizes},
+      {"ui_smart_object_paint_prompt_rasterize_choice", ui_smart_object_paint_prompt_rasterize_choice},
+      {"ui_smart_object_paint_prompt_edit_contents_choice", ui_smart_object_paint_prompt_edit_contents_choice},
+      {"ui_smart_object_paint_prompt_cancel_choice", ui_smart_object_paint_prompt_cancel_choice},
+      {"ui_smart_object_paint_prompt_locked_omits_edit_contents",
+       ui_smart_object_paint_prompt_locked_omits_edit_contents},
       {"ui_layer_smart_object_badge_shows_linked_variant", ui_layer_smart_object_badge_shows_linked_variant},
       {"ui_smart_object_edit_contents_commit_rerenders_parent",
        ui_smart_object_edit_contents_commit_rerenders_parent},

@@ -244,7 +244,9 @@ void ui_smart_object_import_badges_protects_and_rasterizes() {
   }
   CHECK(badge_found);
 
-  // A brush stroke is refused with an explanation; the composite stays untouched.
+  // A brush stroke offers the paint prompt (Edit Contents / Rasterize / Cancel)
+  // instead of painting; cancelling leaves the composite untouched. The prompt's
+  // own flows are pinned in ui_smart_object_paint_prompt_*.
   // Use the ACTIVE document's canvas, not findChild's first hit (each tab owns one).
   auto* canvas = patchy::ui::MainWindowTestAccess::canvas(window);
   CHECK(canvas != nullptr);
@@ -253,10 +255,23 @@ void ui_smart_object_import_badges_protects_and_rasterizes() {
   const QPoint stroke_document_point(48, 48);  // inside the placed content
   const auto before_stroke = canvas_pixel(*canvas, stroke_document_point);
   const auto stroke_widget_point = canvas->widget_position_for_document_point(stroke_document_point);
+  bool saw_paint_prompt = false;
+  QTimer::singleShot(0, [&] {
+    auto* box =
+        qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("paintSmartObjectMessageBox")));
+    CHECK(box != nullptr);
+    if (box == nullptr) {
+      return;
+    }
+    saw_paint_prompt = true;
+    auto* cancel = box->button(QMessageBox::Cancel);
+    CHECK(cancel != nullptr);
+    cancel->click();
+  });
   send_mouse(*canvas, QEvent::MouseButtonPress, stroke_widget_point, Qt::LeftButton, Qt::LeftButton);
   send_mouse(*canvas, QEvent::MouseButtonRelease, stroke_widget_point, Qt::LeftButton, Qt::NoButton);
   QApplication::processEvents();
-  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("Rasterize")));
+  CHECK(saw_paint_prompt);
   CHECK(color_close(canvas_pixel(*canvas, stroke_document_point), before_stroke, 0));
 
   // Rasterize keeps the preview pixels but demotes the layer to a plain pixel layer.
