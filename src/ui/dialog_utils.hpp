@@ -107,10 +107,11 @@ bool unwind_non_modal_dialog_loop(std::exception_ptr error);
 // in dialog_utils_mac.mm; a no-op on other platforms, where the window system
 // already keeps owned/transient dialogs above their parent.
 void keep_dialog_above_parent_window(QDialog& dialog);
-// macOS: stops a document-mode QTabWidget's tab bar from painting the light native
-// window-tab-bar base across its width (the ::tab stylesheet rules still apply, but
-// the empty area next to the tabs turns bright white on the dark theme). No-op on
-// other platforms, whose base drawing is already invisible under the stylesheet.
+// Stops a QTabWidget's tab bar from painting the light native tab-bar base across
+// its width (the ::tab stylesheet rules still apply). On macOS the base turns the
+// whole empty area next to the tabs bright white on the dark theme; on Windows it
+// stays covered until the tabs overflow, when a 1px white base line shows through
+// the transparent scroll buttons at the bar's right edge.
 void suppress_native_tab_bar_base(QTabWidget& tabs);
 // When the box has Yes/No buttons, plain Y/N key presses activate them
 // (native-message-box style; Qt itself only wires Alt+mnemonic).

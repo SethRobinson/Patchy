@@ -955,6 +955,23 @@ QString photoshop_style_template() {
       color: @text_on_raised;
       border-bottom-color: @tab_selected_bg;
     }
+    /* The tab-overflow scroll arrows are QToolButtons whose geometry comes from
+       the style's scroll-button metric, not from a layout, so the global
+       QToolButton minimums shove the arrow glyph off-center and the right arrow
+       clips at the bar's edge. Give the box back to the metric, pinned to the
+       same width on every platform (macOS otherwise defaults narrower). The
+       scroller width is the whole two-button area, 16px per arrow. Padding must
+       stay 0 here: the Windows base style shrinks its themed arrow toward a dot
+       when the content rect tightens. macOS pads below instead, because its
+       base style scales the glyph edge-to-edge. */
+    QTabBar::scroller {
+      width: 32px;
+    }
+    QTabBar QToolButton {
+      min-width: 0;
+      min-height: 0;
+      padding: 0;
+    }
   )")
          // The canvas scroll bars are document-window chrome, so their track slaves
          // to the canvas backdrop (Photoshop's document window) rather than to the
@@ -1007,6 +1024,13 @@ QString photoshop_style_template() {
       left: 8px;
       padding: 0 3px;
       background: @window_bg;
+    }
+    /* QMacStyle scales the tab-scroller arrow to fill the button's content rect
+       edge-to-edge; this padding is what gives the glyph its margins (see the
+       QTabBar QToolButton comment above; Windows/Linux draw fixed-size arrows
+       and need padding 0 there). */
+    QTabBar QToolButton {
+      padding: 2px;
     }
   )")
 #endif

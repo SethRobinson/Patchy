@@ -984,6 +984,62 @@ void ui_debug_screenshot_saves_window_widget_and_region() {
                                       QStringLiteral("noSuchWidgetName")));
 }
 
+// The document tab bar's overflow scroll arrows are QToolButtons positioned by the
+// style's fixed scroll-button metric, not by a layout, so the global QToolButton
+// QSS minimums once inflated the assumed box and the right arrow's glyph drew
+// half off the bar's edge. Pin: each visible scroll arrow renders entirely inside
+// its button, with background showing on both sides of the glyph.
+void ui_document_tab_scroll_arrows_render_inside_the_bar() {
+  patchy::ui::MainWindow window;
+  for (int index = 0; index < 4; ++index) {
+    window.add_document_session(
+        patchy::Document(32, 24, patchy::PixelFormat::rgba8()),
+        QStringLiteral("fabric_leather_%1_diff_4k.jpg (embedded in interior_textures_v3_1024k.afphoto)")
+            .arg(index));
+  }
+  show_window(window);
+
+  auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
+  CHECK(tabs != nullptr);
+  auto* tab_bar = tabs->tabBar();
+  CHECK(tab_bar != nullptr);
+  QApplication::processEvents();
+
+  std::vector<QToolButton*> arrows;
+  for (auto* button : tab_bar->findChildren<QToolButton*>()) {
+    if (button->isVisible()) {
+      arrows.push_back(button);
+    }
+  }
+  // Four long titles overflow the 1180 px window, so both scrollers are shown.
+  CHECK(arrows.size() == 2);
+
+  save_widget_artifact("ui_document_tab_scroll_arrows_bar", *tab_bar);
+  const QImage bar = tab_bar->grab().toImage();
+  const qreal ratio = bar.devicePixelRatio();
+  for (QToolButton* button : arrows) {
+    const QRect cell_rect(qRound(button->x() * ratio), qRound(button->y() * ratio),
+                          qRound(button->width() * ratio), qRound(button->height() * ratio));
+    const QImage cell = bar.copy(cell_rect);
+    const QColor background = cell.pixelColor(0, 0);
+    QRect glyph;
+    for (int y = 0; y < cell.height(); ++y) {
+      for (int x = 0; x < cell.width(); ++x) {
+        const QColor pixel = cell.pixelColor(x, y);
+        const int distance = std::max({std::abs(pixel.red() - background.red()),
+                                       std::abs(pixel.green() - background.green()),
+                                       std::abs(pixel.blue() - background.blue())});
+        if (distance > 32) {
+          glyph |= QRect(x, y, 1, 1);
+        }
+      }
+    }
+    CHECK(!glyph.isEmpty());
+    CHECK(glyph.left() >= 1);
+    CHECK(glyph.right() <= cell.width() - 2);
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> misc_visuals_outline_stress_tests() {
@@ -1003,5 +1059,6 @@ std::vector<patchy::test::TestCase> misc_visuals_outline_stress_tests() {
        ui_marching_ants_deep_zoom_follows_feathered_display_region},
       {"ui_stress_test_smoke_preset_writes_report", ui_stress_test_smoke_preset_writes_report},
       {"ui_debug_screenshot_saves_window_widget_and_region", ui_debug_screenshot_saves_window_widget_and_region},
+      {"ui_document_tab_scroll_arrows_render_inside_the_bar", ui_document_tab_scroll_arrows_render_inside_the_bar},
   };
 }
