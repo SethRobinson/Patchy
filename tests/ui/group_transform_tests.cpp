@@ -28,7 +28,10 @@
 #include <QString>
 #include <QTransform>
 
+#include <QByteArray>
+
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <filesystem>
@@ -745,6 +748,90 @@ void ui_select_all_free_transform_transforms_retronight_poster() {
   CHECK(!canvas->free_transform_active());
 }
 
+// Committing a transform whose full refresh defers to the async recomposite
+// (>= 200 layers routes full invalidations there) used to flash the
+// pre-commit frame: the commit tore down the preview and the next paints drew
+// the stale render cache with the group at its OLD geometry until the worker
+// landed. The commit now keeps its final preview frame on screen (the commit
+// hold), so the very first post-commit paint already shows the new geometry.
+void ui_group_transform_commit_deferred_refresh_never_shows_old_geometry() {
+  patchy::Document document(220, 180, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(220, 180, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  // Push the layer count over the async-defer gate (kDeferFullRefreshMinLayers)
+  // with tiny corner fillers so composites stay cheap.
+  for (int i = 0; i < 205; ++i) {
+    auto filler = patchy::Layer(document.allocate_layer_id(), "Filler",
+                                solid_pixels(1, 1, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+    filler.set_bounds(patchy::Rect{0, 0, 1, 1});
+    document.add_layer(std::move(filler));
+  }
+  patchy::Layer folder(document.allocate_layer_id(), "Cover Folder", patchy::LayerKind::Group);
+  const auto folder_id = folder.id();
+  auto red = patchy::Layer(document.allocate_layer_id(), "Red Cover",
+                           solid_pixels(200, 140, patchy::PixelFormat::rgba8(), QColor(230, 30, 30)));
+  // More than half the canvas, so the commit's dirty rect routes to the full
+  // invalidation instead of the synchronous region patch.
+  red.set_bounds(patchy::Rect{10, 10, 200, 140});
+  folder.add_child(std::move(red));
+  document.add_layer(std::move(folder));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Deferred Commit Hold"));
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  const auto settle = [&] {
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+    while (!canvas->render_settled() && std::chrono::steady_clock::now() < deadline) {
+      QApplication::processEvents();
+    }
+    CHECK(canvas->render_settled());
+  };
+  QApplication::processEvents();
+  settle();
+
+  canvas->set_selected_layer_ids({folder_id});
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  CHECK(canvas->free_transform_is_multi_target());
+
+  // Numeric 50% about the center (110, 80): (10,10,200,140) -> (60,45,100,70).
+  const auto state = canvas->transform_controls_state();
+  CHECK(state.has_value());
+  CHECK(canvas->set_transform_controls_state(state->reference_position, 50.0, 50.0, 0.0));
+  QApplication::processEvents();
+
+  // Slow the deferred recomposite so the post-commit window is observable,
+  // then commit WITHOUT processing events: render_widget_image paints
+  // synchronously, and the async result can only install from the event loop.
+  EnvironmentVariableRestorer restore_render_delay("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS");
+  qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", QByteArray("250"));
+  send_key(*canvas, Qt::Key_Return);
+  CHECK(!canvas->free_transform_active());
+  CHECK(!canvas->render_settled());
+
+  const auto immediate = render_widget_image(*canvas);
+  const auto probe = [&](QPoint document_point) {
+    return immediate.pixelColor(canvas->widget_position_for_document_point(document_point));
+  };
+  // Outside the new bounds but inside the old ones: pre-fix these still showed
+  // the stale old-size red frame.
+  CHECK(color_close(probe(QPoint(30, 30)), QColor(Qt::white), 8));
+  CHECK(color_close(probe(QPoint(180, 130)), QColor(Qt::white), 8));
+  // Inside the new bounds: the held frame shows the scaled-down group.
+  CHECK(color_close(probe(QPoint(110, 80)), QColor(230, 30, 30), 8));
+  CHECK(color_close(probe(QPoint(70, 50)), QColor(230, 30, 30), 8));
+
+  // Let the accurate recomposite land and re-check the same pixels.
+  qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", QByteArray("0"));
+  settle();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(30, 30)), QColor(Qt::white), 8));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(180, 130)), QColor(Qt::white), 8));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(110, 80)), QColor(230, 30, 30), 8));
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> group_transform_tests() {
@@ -755,6 +842,8 @@ std::vector<patchy::test::TestCase> group_transform_tests() {
       {"ui_multi_select_free_transform_transforms_selection_together",
        ui_multi_select_free_transform_transforms_selection_together},
       {"ui_group_transform_resamples_linked_masks", ui_group_transform_resamples_linked_masks},
+      {"ui_group_transform_commit_deferred_refresh_never_shows_old_geometry",
+       ui_group_transform_commit_deferred_refresh_never_shows_old_geometry},
       {"ui_group_transform_refuses_locked_and_unparsed_members",
        ui_group_transform_refuses_locked_and_unparsed_members},
       {"ui_group_transform_session_disables_warp_and_esc_cancels",

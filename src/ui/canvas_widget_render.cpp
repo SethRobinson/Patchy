@@ -380,6 +380,7 @@ void CanvasWidget::notify_document_changed(DocumentChangeReason reason) {
 }
 
 void CanvasWidget::document_changed() {
+  clear_transform_commit_hold();
   cancel_async_render_cache_refresh();
   render_cache_dirty_ = true;
   // This overload bypasses document_changed_impl, so drop the preview-scaled
@@ -400,6 +401,7 @@ void CanvasWidget::document_changed() {
 }
 
 void CanvasWidget::document_changed_async_preview() {
+  clear_transform_commit_hold();
   if (document_ == nullptr || render_cache_.isNull() ||
       render_cache_.size() != QSize(document_->width(), document_->height())) {
     document_changed();
@@ -430,6 +432,7 @@ void CanvasWidget::force_refresh() {
     return;
   }
 
+  clear_transform_commit_hold();
   cancel_async_render_cache_refresh();
   // Bypasses document_changed_impl: see the invalidation note in
   // document_changed().
@@ -479,6 +482,7 @@ void CanvasWidget::active_edit_target_changed_impl(QRegion document_region, Docu
   // Mask/channel edit branches below return without document_changed_impl;
   // invalidate the retained move caches up front (harmlessly repeated when
   // the plain branch falls through to document_changed_impl).
+  clear_transform_commit_hold();
   invalidate_retained_move_caches();
   if (quick_mask_active_) {
     const auto canvas_rect = document_ != nullptr
@@ -574,6 +578,14 @@ void CanvasWidget::active_edit_target_changed_impl(QRegion document_region, Docu
 
 void CanvasWidget::document_changed_impl(QRegion document_region, bool includes_effect_bounds,
                                          DocumentChangeReason reason) {
+  // A freshly armed commit hold belongs to exactly this notification (the
+  // transform commit arms it right before its document_changed call); any
+  // other document change makes the held frame stale and drops it.
+  if (transform_commit_hold_fresh_) {
+    transform_commit_hold_fresh_ = false;
+  } else {
+    clear_transform_commit_hold();
+  }
   if (layer_edit_target_ == LayerEditTarget::SmartFilterMask && !editing_smart_filter_mask()) {
     // Layer deletion can occur without replacing the Document object. Drop the
     // canvas-owned buffer before another layer can become active and inherit it.
@@ -905,9 +917,28 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
       }
     }
   } else {
-    draw_scaled_image(curves_clipping_mode_.has_value() && !curves_clipping_preview_image_.isNull()
-                          ? curves_clipping_preview_image_
-                          : render_cache_);
+    // Committed Free Transform whose render-cache refresh has not landed yet:
+    // keep the commit-time preview frame on screen instead of the stale
+    // pre-commit cache (which flashed the layer at its old geometry). The
+    // processing-operation check covers the synchronous region-patch route,
+    // whose event pump can deliver paints while the cache flags still read
+    // clean. Transient by construction, so the raw smooth downscale at
+    // zoom < 1 (the hold has no mip chain) is acceptable; a mip-sized hold
+    // skips the deep-zoom per-pixel renderer, which expects full-res sources.
+    const bool commit_hold_engaged =
+        !transform_commit_hold_image_.isNull() &&
+        (render_cache_dirty_ || async_render_cache_in_flight_ || processing_operation_active()) &&
+        !(deep_pixel_renderer && transform_commit_hold_scale_level_ > 0);
+    if (commit_hold_engaged) {
+      draw_scaled_image(transform_commit_hold_image_);
+    } else {
+      if (!transform_commit_hold_image_.isNull() && render_settled()) {
+        clear_transform_commit_hold();
+      }
+      draw_scaled_image(curves_clipping_mode_.has_value() && !curves_clipping_preview_image_.isNull()
+                            ? curves_clipping_preview_image_
+                            : render_cache_);
+    }
   }
   if (!curves_clipping_mode_.has_value()) {
     draw_mask_display_overlay(painter, target_rect, pixel_aligned_view, pixel_aligned_target_rect);

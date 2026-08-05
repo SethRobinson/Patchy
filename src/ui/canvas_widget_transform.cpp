@@ -907,6 +907,90 @@ bool CanvasWidget::free_transform_is_multi_target() const noexcept {
   return transforming_layer_ && !transform_targets_.empty();
 }
 
+// The commit-time preview composition, rendered once in document space at the
+// base cache's scale level: the base (targets hidden) plus the accurate
+// preview patches when present, else the same approximate blit the live
+// preview drew (multi snapshot / latched proxy / plain source). Carries the
+// session's approximation contract into the one deferred-refresh window after
+// commit; the refresh that lands replaces it with the exact composite.
+QImage CanvasWidget::compose_transform_commit_hold_image() const {
+  if (!transforming_layer_ || document_ == nullptr || transform_base_cache_.isNull()) {
+    return {};
+  }
+  const bool multi = !transform_targets_.empty();
+  const bool have_patches = !transform_preview_patches_.empty();
+  const bool proxy = !multi && transform_drag_uses_proxy_preview_ && !transform_proxy_image_.isNull();
+  const bool have_blit = multi ? !transform_multi_snapshot_.isNull() && !transform_multi_snapshot_rect_.isEmpty()
+                               : proxy || !transform_source_image_.isNull();
+  if (!have_patches && !have_blit) {
+    // Nothing stands in for the targets; the base alone would show them
+    // missing, which is worse than the stale frame this hold replaces.
+    return {};
+  }
+
+  auto hold = transform_base_cache_.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+  if (hold.isNull()) {
+    return {};
+  }
+  QPainter painter(&hold);
+  // Document space -> hold pixels; the base may be a preview-scaled mip.
+  const auto scale = 1.0 / static_cast<double>(1 << transform_base_cache_scale_level_);
+  painter.scale(scale, scale);
+  const bool smooth = transform_interpolation_ != TransformInterpolation::NearestNeighbor;
+  if (have_patches) {
+    painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+    for (const auto& patch : transform_preview_patches_) {
+      if (!patch.image.isNull() && !patch.document_rect.isEmpty()) {
+        painter.drawImage(QRectF(patch.document_rect), patch.image, QRectF(patch.image.rect()));
+      }
+    }
+  } else if (multi) {
+    // draw_free_transform's snapshot blit, minus the document-to-widget map.
+    painter.setRenderHint(QPainter::SmoothPixmapTransform, smooth);
+    const auto delta = free_transform_delta(transform_original_rect_, transform_current_rect_, transform_angle_,
+                                            transform_scale_x_sign_, transform_scale_y_sign_);
+    painter.setTransform(delta, true);
+    painter.drawImage(QRectF(transform_multi_snapshot_rect_), transform_multi_snapshot_,
+                      QRectF(transform_multi_snapshot_.rect()));
+  } else {
+    // The single-layer proxy/source blit in document units.
+    painter.setRenderHint(QPainter::SmoothPixmapTransform, smooth);
+    const auto& source = proxy ? transform_proxy_image_ : transform_source_image_;
+    if (proxy) {
+      painter.setOpacity(transform_proxy_layer_opacity_);
+    }
+    const auto rect = transform_current_rect_;
+    painter.translate(rect.center());
+    painter.rotate(transform_angle_);
+    painter.scale(transform_scale_x_sign_, transform_scale_y_sign_);
+    const QRectF local_rect(-rect.width() / 2.0, -rect.height() / 2.0, rect.width(), rect.height());
+    painter.drawImage(local_rect, source, QRectF(source.rect()));
+  }
+  return hold;
+}
+
+void CanvasWidget::arm_transform_commit_hold() {
+  auto hold = compose_transform_commit_hold_image();
+  if (hold.isNull()) {
+    return;
+  }
+  transform_commit_hold_image_ = std::move(hold);
+  transform_commit_hold_scale_level_ = transform_base_cache_scale_level_;
+  transform_commit_hold_fresh_ = true;
+}
+
+void CanvasWidget::disarm_transform_commit_hold_if_settled() {
+  if (render_settled() && !processing_operation_active()) {
+    clear_transform_commit_hold();
+  }
+}
+
+void CanvasWidget::clear_transform_commit_hold() {
+  transform_commit_hold_image_ = QImage();
+  transform_commit_hold_scale_level_ = 0;
+  transform_commit_hold_fresh_ = false;
+}
+
 void CanvasWidget::reset_free_transform_session_state() {
   transforming_layer_ = false;
   dragging_transform_ = false;
@@ -2225,9 +2309,13 @@ void CanvasWidget::commit_free_transform() {
     *document_ = std::move(committed_document);
   }
 
+  if (changed && !smart_filter_rerender_failed) {
+    arm_transform_commit_hold();
+  }
   reset_free_transform_session_state();
   update_tool_cursor();
   document_changed(to_qrect(old_bounds).united(to_qrect(new_bounds)));
+  disarm_transform_commit_hold_if_settled();
   if (smart_filter_rerender_failed) {
     report_status_error(tr("Could not rebuild the Smart Filter preview and cache"));
   } else if (status_callback_) {
@@ -2418,9 +2506,13 @@ void CanvasWidget::commit_free_transform_multi() {
     *document_ = std::move(committed_document);
   }
 
+  if (changed && !smart_filter_rerender_failed) {
+    arm_transform_commit_hold();
+  }
   reset_free_transform_session_state();
   update_tool_cursor();
   document_changed(dirty_rect.isEmpty() ? canvas_rect : dirty_rect.intersected(canvas_rect));
+  disarm_transform_commit_hold_if_settled();
   if (smart_filter_rerender_failed) {
     report_status_error(tr("Could not rebuild the Smart Filter preview and cache"));
   } else if (status_callback_) {
@@ -2478,10 +2570,14 @@ void CanvasWidget::commit_free_transform_with_pending_warp() {
     }
     *document_ = std::move(committed_document);
   }
+  if (changed && !smart_filter_rerender_failed) {
+    arm_transform_commit_hold();
+  }
   reset_free_transform_session_state();
   clear_pending_warp();
   update_tool_cursor();
   document_changed(to_qrect(old_bounds).united(to_qrect(new_bounds)));
+  disarm_transform_commit_hold_if_settled();
   if (smart_filter_rerender_failed) {
     report_status_error(tr("Could not rebuild the Smart Filter preview and cache"));
   } else if (status_callback_) {

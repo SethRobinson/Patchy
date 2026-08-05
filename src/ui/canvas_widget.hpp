@@ -1399,6 +1399,16 @@ private:
   void update_free_transform_preview(QPointF document_point, Qt::KeyboardModifiers modifiers);
   void commit_free_transform();
   void commit_free_transform_with_pending_warp();
+  // Committed-transform hold frame: the commit paths compose the session's
+  // final preview (base + accurate patches, or the same approximate blit the
+  // live preview drew) into one canvas image and keep painting it while the
+  // render-cache refresh the commit triggered is still pending. Without it,
+  // paint fell back to the stale pre-commit cache and the layer flashed at
+  // its OLD geometry until the deferred recomposite landed.
+  [[nodiscard]] QImage compose_transform_commit_hold_image() const;
+  void arm_transform_commit_hold();
+  void disarm_transform_commit_hold_if_settled();
+  void clear_transform_commit_hold();
   // Quiet state teardown shared by cancel/commit and the warp mode switch: no
   // cursor/update/notify side effects.
   void reset_free_transform_session_state();
@@ -1921,6 +1931,15 @@ private:
   QImage transform_multi_snapshot_{};
   QRect transform_multi_snapshot_rect_{};
   int transform_multi_snapshot_scale_level_{0};
+  // Commit-time preview composition (see arm_transform_commit_hold): shown
+  // instead of the stale render cache while the commit's refresh is pending.
+  // Armed just before the commit's document_changed call (the fresh flag lets
+  // that one notification through); any other document change clears it, and
+  // paint drops it once the cache settles. May be mip-sized when the session
+  // base came from the preview-scaled document.
+  QImage transform_commit_hold_image_{};
+  int transform_commit_hold_scale_level_{0};
+  bool transform_commit_hold_fresh_{false};
   bool warping_layer_{false};
   bool dragging_warp_handle_{false};
   int warp_drag_index_{-1};
