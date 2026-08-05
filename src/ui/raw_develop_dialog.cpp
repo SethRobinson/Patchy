@@ -21,6 +21,7 @@
 #include <QLabel>
 #include <QLocale>
 #include <QPushButton>
+#include <QScopeGuard>
 #include <QScrollArea>
 #include <QSignalBlocker>
 #include <QSlider>
@@ -624,6 +625,17 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
   // --- Async develop machinery ---
   auto state = std::make_shared<RawPreviewState>();
   state->file_path = file_path;
+  // The callbacks assigned below capture this frame by reference, but the
+  // worker posts its completion to QCoreApplication, which outlives the dialog,
+  // so nothing auto-disconnects it. The close after exec_dialog only runs when
+  // that call returns normally; an exception unwinding past it would leave the
+  // state armed and the completion would later run against destroyed widgets.
+  // Placed at the creation site rather than after the assignments so a throw
+  // during setup is covered too; close_raw_develop is null-safe, idempotent,
+  // and touches nothing but the state, and it breaks the state/start
+  // shared_ptr cycle.
+  const auto close_preview =
+      qScopeGuard([state] { close_raw_develop(state); });
 
   QString fatal_error;
   std::optional<RawDevelopOutcome> outcome;

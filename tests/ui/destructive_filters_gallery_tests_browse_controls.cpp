@@ -26,6 +26,7 @@
 #include "ui/brush_tip_library.hpp"
 #include "ui/brush_tip_manager_dialog.hpp"
 #include "ui/brush_tip_picker.hpp"
+#include "ui/background_workers.hpp"
 #include "ui/blend_if_range_editor.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/default_brush_tips.hpp"
@@ -1763,6 +1764,196 @@ void ui_filter_gallery_heavy_thumbnail_queue_yields_to_event_loop() {
   CHECK(result.outcome == patchy::ui::VisualFilterGalleryOutcome::Cancelled);
 }
 
+// Distinct from any CHECK failure message, so the driver's own failures are
+// rethrown instead of being mistaken for the deliberate unwind.
+constexpr const char* kGalleryUnwindProbeMessage =
+    "gallery unwind probe: leave request_visual_filter_gallery by exception";
+// Far longer than any wait below, so a broken run reports a failed CHECK before
+// a self-released worker can post its completion.
+constexpr int kParkedRenderSpinLimit = 30000;
+
+// The gallery arms two detached render states whose completions capture the
+// request_visual_filter_gallery stack frame by reference and are posted to
+// QCoreApplication, which outlives the dialog. The disarm after
+// run_non_modal_dialog only runs when that call returns normally, so scope
+// guards are the only thing that can still close the states when an exception
+// unwinds the frame instead. Park one render of each kind, leave by throwing
+// rather than by reject(), and read the disarm back through each worker's
+// FilterProgress: that reports the state's generation, which the close bumps,
+// and it is the one observation that outlives the frame. Everything reachable
+// from the callbacks (preview, status, filter_items, the thumbnail timer) is
+// gone by then, so nothing in that frame can be asserted on directly.
+void ui_filter_gallery_unwinding_call_disarms_in_flight_renders() {
+  GallerySettingsRestorer gallery_settings;
+
+  // Heap-held so the parked workers keep reading valid memory long after the
+  // gallery frame, and this test's frame, are gone.
+  auto thumbnail_started = std::make_shared<std::atomic_bool>(false);
+  auto thumbnail_cancelled = std::make_shared<std::atomic_bool>(false);
+  auto release_thumbnail = std::make_shared<std::atomic_bool>(false);
+  auto exact_started = std::make_shared<std::atomic_bool>(false);
+  auto exact_cancelled = std::make_shared<std::atomic_bool>(false);
+  auto release_exact = std::make_shared<std::atomic_bool>(false);
+  auto exact_previews = std::make_shared<std::atomic_int>(0);
+
+  // A CHECK below throws with both workers parked, so release and join on every
+  // exit path; a completion landing in a later test's event loop is exactly the
+  // cross-test crash this test exists to prevent.
+  struct ParkedRenderRelease {
+    std::shared_ptr<std::atomic_bool> thumbnail;
+    std::shared_ptr<std::atomic_bool> exact;
+    ~ParkedRenderRelease() {
+      thumbnail->store(true, std::memory_order_release);
+      exact->store(true, std::memory_order_release);
+      patchy::ui::wait_for_tracked_background_workers();
+    }
+  } release_parked{release_thumbnail, release_exact};
+
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  // Plain-layer thumbnails never consult the exact renderer, so the catalog
+  // kernel is the thumbnail worker's park point. The source is 220x160: the
+  // center proxy caps at 640 and stays 220 wide, the thumbnail proxy caps at
+  // 180, so the width test parks the thumbnail side only.
+  patchy::FilterCatalogMetadata probe_catalog;
+  probe_catalog.category = patchy::FilterCategory::Render;
+  probe_catalog.execute =
+      [thumbnail_started, thumbnail_cancelled, release_thumbnail](
+          const patchy::FilterRegistry&, const patchy::FilterInvocation&,
+          patchy::PixelBuffer& pixels, const patchy::FilterProgress* progress) {
+        if (pixels.width() > 200) {
+          return;
+        }
+        thumbnail_started->store(true, std::memory_order_release);
+        for (int wait = 0; wait < kParkedRenderSpinLimit; ++wait) {
+          if (progress != nullptr && progress->update &&
+              !progress->update(0, 1, patchy::FilterProgressStage::Filtering)) {
+            thumbnail_cancelled->store(true, std::memory_order_release);
+            return;
+          }
+          if (release_thumbnail->load(std::memory_order_acquire)) {
+            return;
+          }
+          QThread::msleep(1);
+        }
+      };
+  registry.register_filter({"test.filters.parked_unwind_probe",
+                            "Parked Unwind Probe",
+                            [](patchy::PixelBuffer&) {},
+                            std::move(probe_catalog)});
+
+  const auto source = make_filter_stroke_source();
+  const patchy::Rect bounds{0, 0, source.width(), source.height()};
+  const auto exact_source = std::make_shared<const patchy::PixelBuffer>(source);
+  // Every center-proxy render runs through the caller's exact renderer, on the
+  // worker thread: the second park point.
+  patchy::ui::VisualFilterGalleryExactRecipeRenderer exact_renderer =
+      [exact_started, exact_cancelled, release_exact, exact_source, bounds](
+          const patchy::FilterRecipe&, const patchy::FilterProgress* progress)
+      -> std::optional<patchy::FilterRenderResult> {
+    exact_started->store(true, std::memory_order_release);
+    for (int wait = 0; wait < kParkedRenderSpinLimit; ++wait) {
+      if (progress != nullptr && progress->update &&
+          !progress->update(0, 1, patchy::FilterProgressStage::Filtering)) {
+        exact_cancelled->store(true, std::memory_order_release);
+        return std::nullopt;
+      }
+      if (release_exact->load(std::memory_order_acquire)) {
+        break;
+      }
+      QThread::msleep(1);
+    }
+    // Released without a cancel: answer for real, so the completion takes the
+    // full apply path, the one that faults on the unwound frame.
+    return patchy::FilterRenderResult{*exact_source, bounds};
+  };
+  patchy::ui::VisualFilterGalleryExactPreviewCallback exact_preview_ready =
+      [exact_previews](const patchy::ui::VisualFilterGalleryExactPreview&) {
+        exact_previews->fetch_add(1, std::memory_order_acq_rel);
+      };
+
+  bool drove_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
+    CHECK(dialog != nullptr);
+    auto* search = dialog->findChild<QLineEdit*>(
+        QStringLiteral("filterGallerySearchEdit"));
+    auto* looks = dialog->findChild<QListWidget*>(
+        QStringLiteral("filterGalleryLooksList"));
+    CHECK(search != nullptr && looks != nullptr);
+
+    // The thumbnail loop runs one job at a time and skips hidden rows, so
+    // hiding every other filter parks it on the probe row.
+    search->setText(QStringLiteral("Parked Unwind"));
+    QApplication::processEvents();
+    CHECK(visible_gallery_filter_ids(*looks) ==
+          QStringList{QStringLiteral("test.filters.parked_unwind_probe")});
+    CHECK(process_events_until(
+        [&] { return thumbnail_started->load(std::memory_order_acquire); },
+        10000));
+
+    // Selecting the row schedules the center render (35 ms debounce), which
+    // parks in the exact renderer. Selection reaches refresh_recipe_ui, which
+    // never calls schedule_thumbnails, so the parked thumbnail's generation
+    // stays current and its completion would still be accepted.
+    looks->setCurrentItem(require_gallery_filter_item(
+        *looks, QStringLiteral("test.filters.parked_unwind_probe")));
+    CHECK(process_events_until(
+        [&] { return exact_started->load(std::memory_order_acquire); }, 3000));
+
+    // The assertions after the unwind only mean anything if both renders are
+    // genuinely armed right here.
+    CHECK(!thumbnail_cancelled->load(std::memory_order_acquire));
+    CHECK(!exact_cancelled->load(std::memory_order_acquire));
+    CHECK(exact_previews->load(std::memory_order_acquire) == 0);
+    CHECK(dialog->isVisible());
+
+    drove_dialog = true;
+    // Deliberately no dialog->reject(): the regression is the path where
+    // run_non_modal_dialog never returns.
+    throw std::runtime_error(kGalleryUnwindProbeMessage);
+  });
+
+  bool unwound = false;
+  try {
+    (void)patchy::ui::request_visual_filter_gallery(
+        nullptr, source, bounds, QRegion(), registry, patchy::RgbColor{},
+        patchy::RgbColor{255, 255, 255}, {}, nullptr, exact_renderer,
+        exact_preview_ready);
+  } catch (const std::runtime_error& error) {
+    // Anything else is a failed CHECK from the driver; report it verbatim.
+    if (std::string_view(error.what()) != kGalleryUnwindProbeMessage) {
+      throw;
+    }
+    unwound = true;
+  }
+  CHECK(drove_dialog);
+  CHECK(unwound);
+  CHECK(!top_level_widget_exists(QStringLiteral("filterGalleryDialog")));
+
+  // The unwinding frame must have closed both render states. Without the scope
+  // guards neither generation moves and these time out while both workers are
+  // still parked, so a missing guard fails as a plain [FAIL] rather than
+  // depending on the crash below.
+  CHECK(process_events_until(
+      [&] { return exact_cancelled->load(std::memory_order_acquire); }, 3000));
+  CHECK(process_events_until(
+      [&] { return thumbnail_cancelled->load(std::memory_order_acquire); },
+      3000));
+
+  // Both completions are still queued on QCoreApplication; draining them here
+  // is what faulted before the guards existed.
+  release_exact->store(true, std::memory_order_release);
+  release_thumbnail->store(true, std::memory_order_release);
+  patchy::ui::wait_for_tracked_background_workers();
+  process_events_for(50);
+  // Documents the contract rather than discriminating: exact_preview_ready
+  // itself lived in the destroyed frame, so a stale completion reaching it is
+  // undefined, not merely counted.
+  CHECK(exact_previews->load(std::memory_order_acquire) == 0);
+  CHECK(!top_level_widget_exists(QStringLiteral("filterGalleryDialog")));
+}
+
 const QStringList& expected_smart_capable_gallery_ids() {
   static const QStringList ids = {
       QStringLiteral("patchy.filters.box_blur"),
@@ -2082,6 +2273,8 @@ std::vector<patchy::test::TestCase> destructive_filters_gallery_tests_part2() {
        ui_filter_gallery_tilt_shift_overlay_uses_grip_bars},
       {"ui_filter_gallery_heavy_thumbnail_queue_yields_to_event_loop",
        ui_filter_gallery_heavy_thumbnail_queue_yields_to_event_loop},
+      {"ui_filter_gallery_unwinding_call_disarms_in_flight_renders",
+       ui_filter_gallery_unwinding_call_disarms_in_flight_renders},
       {"ui_filter_gallery_smart_filter_badges_and_tooltips",
        ui_filter_gallery_smart_filter_badges_and_tooltips},
       {"ui_filter_gallery_smart_object_outcome_line_and_warning_marks",

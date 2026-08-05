@@ -36,6 +36,7 @@
 #include <QPointer>
 #include <QPolygonF>
 #include <QPushButton>
+#include <QScopeGuard>
 #include <QSignalBlocker>
 #include <QSlider>
 #include <QSpinBox>
@@ -163,6 +164,23 @@ struct GalleryThumbnailRenderState {
   bool in_flight{false};
   std::atomic<std::uint64_t> generation{0};
 };
+
+// Null-safe and idempotent, matching close_filter_proxy_preview. The thumbnail
+// completion is posted to QCoreApplication rather than to the dialog, so it
+// outlives the gallery frame while still dereferencing that frame's
+// filter_items map and this timer; closed and the generation bump are the only
+// things that stop it. Both the normal path and the unwind guard call this so
+// the two cannot drift apart.
+void close_gallery_thumbnail_renders(
+    const std::shared_ptr<GalleryThumbnailRenderState>& state, QTimer* timer) {
+  if (state != nullptr) {
+    state->closed = true;
+    state->generation.fetch_add(1, std::memory_order_acq_rel);
+  }
+  if (timer != nullptr) {
+    timer->stop();
+  }
+}
 
 constexpr QColor kSmartFilterBadgeFill{0x14, 0x73, 0xe6};
 constexpr QColor kSmartFilterBadgeBorder{0x9c, 0xcf, 0xff};
@@ -973,6 +991,16 @@ VisualFilterGalleryResult request_visual_filter_gallery(
   proxy_preview_state->start = make_filter_proxy_render_start(
       proxy_preview_state, proxy_registry, proxy, exact_source_bounds,
       exact_renderer);
+  // apply above captures this frame's locals by reference and fail holds a raw
+  // QLabel*, while the render completion is posted to QCoreApplication (see
+  // make_filter_proxy_render_start) and so survives an unwind. Every connect
+  // here uses &dialog as its context and is auto-disconnected; those two
+  // completions are the only things that are not, which is why the disarm
+  // cannot live solely on the normal path below. apply can itself throw, since
+  // it calls the caller's exact_preview_ready. close_filter_proxy_preview is
+  // idempotent and also breaks the state/start shared_ptr cycle.
+  const auto close_proxy_preview = qScopeGuard(
+      [proxy_preview_state] { close_filter_proxy_preview(proxy_preview_state); });
   auto* central_timer = new QTimer(&dialog);
   central_timer->setSingleShot(true);
   central_timer->setInterval(35);
@@ -1697,6 +1725,13 @@ VisualFilterGalleryResult request_visual_filter_gallery(
   thumbnail_timer->setInterval(1);
   auto thumbnail_render_state =
       std::make_shared<GalleryThumbnailRenderState>();
+  // Declared after the dialog, so unwinding runs it while thumbnail_timer (a
+  // child of that dialog) is still alive.
+  const auto close_thumbnail_renders =
+      qScopeGuard([thumbnail_render_state, thumbnail_timer] {
+        close_gallery_thumbnail_renders(thumbnail_render_state,
+                                        thumbnail_timer);
+      });
   QObject::connect(thumbnail_timer, &QTimer::timeout, &dialog, [&, proxy_registry] {
     if (thumbnail_render_state->in_flight) {
       thumbnail_timer->stop();
@@ -1835,11 +1870,12 @@ VisualFilterGalleryResult request_visual_filter_gallery(
   });
 
   const auto dialog_result = run_non_modal_dialog(dialog);
+  // Repeats what the guards above would do on an unwind; both closes are
+  // idempotent. save_dialog_state stays here deliberately: the guards only
+  // disarm, and persisting settings read from a frame that is failing for an
+  // unknown reason is not something to do on the exception path.
   close_filter_proxy_preview(proxy_preview_state);
-  thumbnail_render_state->closed = true;
-  thumbnail_render_state->generation.fetch_add(1,
-                                               std::memory_order_acq_rel);
-  thumbnail_timer->stop();
+  close_gallery_thumbnail_renders(thumbnail_render_state, thumbnail_timer);
   save_dialog_state();
   if (dialog_result != QDialog::Accepted) {
     return {};

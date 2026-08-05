@@ -37,6 +37,7 @@
 #include <QPolygonF>
 #include <QPushButton>
 #include <QRect>
+#include <QScopeGuard>
 #include <QSignalBlocker>
 #include <QSlider>
 #include <QSizePolicy>
@@ -529,6 +530,17 @@ std::optional<FilterInvocation> request_filter_settings(
 
   std::shared_ptr<FilterProxyPreviewState> proxy_state;
   std::function<void()> refresh_dialog_overlay;
+  // apply below captures this frame by reference while its render completion is
+  // posted to QCoreApplication, so an exception escaping run_non_modal_dialog's
+  // nested loop must not leave the state armed. Captured by reference because
+  // proxy_state is assigned inside the block below, and declared at function
+  // scope so the guard outlives that block; being the last declaration here
+  // also means it runs before refresh_dialog_overlay, which apply calls.
+  // close_filter_proxy_preview is null-safe and idempotent, so this is a no-op
+  // when the preview branch never ran and a repeat of the call below when it
+  // did.
+  const auto close_proxy_state =
+      qScopeGuard([&proxy_state] { close_filter_proxy_preview(proxy_state); });
   if (has_preview_source && proxy_preview != nullptr) {
     auto proxy_registry =
         std::make_shared<const FilterRegistry>(*preview_source->registry);
