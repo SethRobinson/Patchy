@@ -364,6 +364,11 @@ void LayerListWidget::set_item_double_click_callback(std::function<void(QListWid
   item_double_click_callback_ = std::move(callback);
 }
 
+void LayerListWidget::set_content_thumbnail_double_click_callback(
+    std::function<void(QListWidgetItem*)> callback) {
+  content_thumbnail_double_click_callback_ = std::move(callback);
+}
+
 void LayerListWidget::set_smart_filter_double_click_callback(
     std::function<void(QListWidgetItem*, std::size_t)> callback) {
   smart_filter_double_click_callback_ = std::move(callback);
@@ -1607,6 +1612,15 @@ bool LayerListWidget::handle_item_double_click(QListWidgetItem* item, QPoint vie
           return true;
         }
       }
+    }
+  }
+  // A double-click on the content thumbnail navigates to the layer instead of
+  // opening the row's editor.
+  if (content_thumbnail_double_click_callback_) {
+    if (const auto target = ctrl_click_target(item, viewport_pos);
+        target.has_value() && *target == LayerCtrlClickTarget::ContentThumbnail) {
+      content_thumbnail_double_click_callback_(item);
+      return true;
     }
   }
   item_double_click_callback_(item);

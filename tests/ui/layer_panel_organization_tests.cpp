@@ -1847,6 +1847,65 @@ void ui_layer_folder_ctrl_alt_click_toggles_all_folders() {
   save_widget_artifact("ui_layer_folder_ctrl_alt_click_all", window);
 }
 
+void ui_layer_thumbnail_double_click_zooms_canvas_to_layer() {
+  patchy::Document document(800, 600, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(800, 600, patchy::PixelFormat::rgb8(), QColor(245, 245, 245)));
+  patchy::Layer badge(document.allocate_layer_id(), "Badge",
+                      solid_pixels(40, 30, patchy::PixelFormat::rgba8(), QColor(220, 40, 40)));
+  badge.set_bounds(patchy::Rect{600, 100, 40, 30});
+  document.add_layer(std::move(badge));
+  patchy::Layer folder(document.allocate_layer_id(), "Assets", patchy::LayerKind::Group);
+  patchy::Layer first_child(document.allocate_layer_id(), "First",
+                            solid_pixels(40, 30, patchy::PixelFormat::rgba8(), QColor(40, 80, 220)));
+  first_child.set_bounds(patchy::Rect{100, 200, 40, 30});
+  folder.add_child(std::move(first_child));
+  patchy::Layer second_child(document.allocate_layer_id(), "Second",
+                             solid_pixels(40, 30, patchy::PixelFormat::rgba8(), QColor(40, 180, 80)));
+  second_child.set_bounds(patchy::Rect{300, 400, 40, 30});
+  folder.add_child(std::move(second_child));
+  document.add_layer(std::move(folder));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Thumbnail Zoom"));
+  QApplication::processEvents();
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  CHECK(canvas != nullptr);
+
+  auto double_click_thumbnail = [layer_list](const QString& name) {
+    // The press can rebuild the row, so refetch the label per event, the
+    // click_layer_row_thumbnail pattern.
+    click_layer_row_thumbnail(*layer_list, name, QStringLiteral("layerContentThumbnail"));
+    auto* item = require_layer_item(*layer_list, name);
+    auto* row = layer_list->itemWidget(item);
+    CHECK(row != nullptr);
+    auto* thumbnail = row->findChild<QLabel*>(QStringLiteral("layerContentThumbnail"));
+    CHECK(thumbnail != nullptr);
+    send_double_click(*thumbnail, thumbnail->rect().center());
+    QApplication::processEvents();
+  };
+
+  const auto zoom_before = canvas->zoom();
+  double_click_thumbnail(QStringLiteral("Badge"));
+  CHECK(canvas->zoom() > zoom_before);
+  // zoom_to_document_rect centers the rect: the layer's center lands at the
+  // canvas widget's center.
+  const auto badge_center = canvas->widget_position_for_document_point(QPoint(620, 115));
+  CHECK(std::abs(badge_center.x() - canvas->width() / 2) <= 2);
+  CHECK(std::abs(badge_center.y() - canvas->height() / 2) <= 2);
+
+  // A folder zooms to its children's union (center of (100,200)-(340,430)).
+  double_click_thumbnail(QStringLiteral("Assets"));
+  const auto union_center = canvas->widget_position_for_document_point(QPoint(220, 315));
+  CHECK(std::abs(union_center.x() - canvas->width() / 2) <= 2);
+  CHECK(std::abs(union_center.y() - canvas->height() / 2) <= 2);
+  save_widget_artifact("ui_layer_thumbnail_double_click_zoom", window);
+}
+
 void ui_move_auto_select_reveals_layers_in_collapsed_folders() {
   patchy::Document document(48, 48, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Background",
@@ -2821,6 +2880,8 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
        ui_layer_folder_alt_click_toggles_nested_folders},
       {"ui_layer_folder_ctrl_alt_click_toggles_all_folders",
        ui_layer_folder_ctrl_alt_click_toggles_all_folders},
+      {"ui_layer_thumbnail_double_click_zooms_canvas_to_layer",
+       ui_layer_thumbnail_double_click_zooms_canvas_to_layer},
       {"ui_layer_eye_alt_click_isolates_and_restores", ui_layer_eye_alt_click_isolates_and_restores},
       {"ui_layer_eye_alt_click_folder_isolates_group", ui_layer_eye_alt_click_folder_isolates_group},
       {"ui_layer_eye_alt_click_reisolate_keeps_original_snapshot",

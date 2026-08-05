@@ -1235,6 +1235,20 @@ void MainWindow::create_docks() {
     // Smart Objects menus), so double-click stays consistent for every layer.
     edit_active_layer_style();
   });
+  layer_list->set_content_thumbnail_double_click_callback([this](QListWidgetItem* item) {
+    const auto layer_id = static_cast<LayerId>(item->data(kLayerIdRole).toULongLong());
+    if (layer_id == 0) {
+      return;
+    }
+    // Adjustment thumbnails are glyphs with no canvas extent; keep them
+    // opening their settings like the rest of the row does.
+    const auto* layer = std::as_const(document()).find_layer(layer_id);
+    if (layer != nullptr && layer->kind() == LayerKind::Adjustment) {
+      edit_active_adjustment_layer();
+      return;
+    }
+    zoom_canvas_to_layer_content(layer_id);
+  });
   layer_list->set_smart_filter_double_click_callback(
       [this](QListWidgetItem* item, std::size_t execution_index) {
         const auto layer_id = static_cast<LayerId>(item->data(kLayerIdRole).toULongLong());

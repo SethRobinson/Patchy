@@ -816,6 +816,7 @@ private:
   void toggle_layer_folder_expanded(LayerId id, bool include_nested = false);
   void toggle_all_layer_folders_expanded(LayerId reference_id);
   void reveal_layer_in_layer_list(LayerId id);
+  void zoom_canvas_to_layer_content(LayerId id);
   void set_layer_visibility_from_item(QListWidgetItem* item);
   void set_layer_visibility(LayerId id, bool visible);
   void isolate_layer_visibility(LayerId id);

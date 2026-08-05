@@ -69,6 +69,9 @@ public:
   void set_thumbnail_click_callback(
       std::function<void(QListWidgetItem*, LayerCtrlClickTarget, Qt::KeyboardModifiers)> callback);
   void set_item_double_click_callback(std::function<void(QListWidgetItem*)> callback);
+  // Double-click on the content thumbnail specifically; the rest of the row
+  // keeps the plain item double-click behavior.
+  void set_content_thumbnail_double_click_callback(std::function<void(QListWidgetItem*)> callback);
   void set_smart_filter_double_click_callback(std::function<void(QListWidgetItem*, std::size_t)> callback);
   [[nodiscard]] bool drop_in_progress() const noexcept;
   // Blocks drag reordering while the layer name filter hides rows; a reorder
@@ -197,6 +200,7 @@ private:
   std::function<void(QListWidgetItem*, LayerCtrlClickTarget)> ctrl_click_callback_;
   std::function<void(QListWidgetItem*, LayerCtrlClickTarget, Qt::KeyboardModifiers)> thumbnail_click_callback_;
   std::function<void(QListWidgetItem*)> item_double_click_callback_;
+  std::function<void(QListWidgetItem*)> content_thumbnail_double_click_callback_;
   std::function<void(QListWidgetItem*, std::size_t)> smart_filter_double_click_callback_;
 };
 

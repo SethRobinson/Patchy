@@ -12,6 +12,7 @@
 #include "core/text_warp.hpp"
 #include "core/warp_mesh.hpp"
 #include "core/layer_render_utils.hpp"
+#include "ui/canvas_widget_shared.hpp"
 #include "core/layer_tree.hpp"
 #include "core/palette_presets.hpp"
 #include "core/pattern_presets.hpp"
@@ -2412,6 +2413,32 @@ void MainWindow::toggle_all_layer_folders_expanded(LayerId reference_id) {
 
   refresh_layer_list();
   statusBar()->showMessage(was_collapsed ? tr("All folders expanded") : tr("All folders collapsed"));
+}
+
+void MainWindow::zoom_canvas_to_layer_content(LayerId id) {
+  if (canvas_ == nullptr) {
+    return;
+  }
+  const auto* layer = std::as_const(document()).find_layer(id);
+  if (layer == nullptr || layer->kind() == LayerKind::Adjustment) {
+    return;
+  }
+  // The alpha-trimmed extent when one exists (pixel and text layers); groups,
+  // vector shapes, and smart objects take their render bounds, which already
+  // union a group's descendants.
+  auto bounds = move_layer_outline_bounds(*layer);
+  if (!bounds.has_value() || bounds->empty()) {
+    bounds = layer_render_bounds(*layer);
+  }
+  if (!bounds.has_value() || bounds->empty()) {
+    return;
+  }
+  auto rect = to_qrect(*bounds);
+  if (rect.width() <= 1 && rect.height() <= 1) {
+    // zoom_to_document_rect rejects point rects; give a 1px layer a frame.
+    rect.adjust(-16, -16, 16, 16);
+  }
+  canvas_->zoom_to_document_rect(rect);
 }
 
 void MainWindow::reveal_layer_in_layer_list(LayerId id) {
