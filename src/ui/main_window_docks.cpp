@@ -370,6 +370,22 @@ void MainWindow::install_right_dock_width_handle(QDockWidget* dock) {
   // hides until the dock returns to the stack.
   connect(dock, &QDockWidget::topLevelChanged, handle,
           [handle](bool floating) { handle->setVisible(!floating); });
+  connect(dock, &QDockWidget::topLevelChanged, this, [this, dock](bool floating) {
+    if (floating) {
+      return;
+    }
+    // Re-docking goes through Qt's drop-preview gap item, whose slot can be
+    // taller than a collapsed dock's pinned strip; the widget clamps to the
+    // pin but the slot keeps the extra as a gap under the header that grows
+    // with every float/re-dock cycle. Snap the slot back to the strip once
+    // the plug has settled.
+    QTimer::singleShot(0, this, [this, dock] {
+      if (dock->isFloating() || dock->widget() == nullptr || dock->widget()->isVisible()) {
+        return;
+      }
+      resizeDocks({dock}, {dock->minimumHeight()}, Qt::Vertical);
+    });
+  });
   update_right_dock_resize_handle_geometry(dock);
 }
 

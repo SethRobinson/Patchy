@@ -2322,8 +2322,13 @@ void ui_floating_right_dock_expands_and_collapses() {
 
   info_dock->setFloating(false);
   QApplication::processEvents();
+  QApplication::processEvents();
   CHECK(!info_dock->isFloating());
   CHECK(handle->isVisibleTo(info_dock));
+  // The re-dock slot snap keeps a collapsed dock at its strip height (a real
+  // mouse re-dock goes through Qt's drop-preview gap item, whose oversized
+  // slot otherwise leaves a growing gap under the header).
+  CHECK(info_dock->height() <= info_dock->titleBarWidget()->sizeHint().height() + 4);
 }
 
 void ui_menu_disabled_items_render_grayed() {
