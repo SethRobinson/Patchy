@@ -41,6 +41,7 @@ const ThemePalette& dark_palette() {
       .text_on_raised = rgb(0xffffff),
       .splitter_bg = rgb(0x1e2022),
       .splitter_hover_bg = rgb(0x4e6f95),
+      .dock_separator_bg = rgb(0x36383b),
 
       // The 34px chrome bar.
       .title_bar_bg = rgb(0x4f4f4f),
@@ -666,6 +667,7 @@ std::span<const ThemePaletteRole> theme_palette_roles() {
       PATCHY_THEME_ROLE(text_on_raised),
       PATCHY_THEME_ROLE(splitter_bg),
       PATCHY_THEME_ROLE(splitter_hover_bg),
+      PATCHY_THEME_ROLE(dock_separator_bg),
 
       PATCHY_THEME_ROLE(title_bar_bg),
       PATCHY_THEME_ROLE(title_bar_border),

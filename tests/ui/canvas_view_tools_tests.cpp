@@ -2249,6 +2249,83 @@ void ui_right_dock_contents_clear_width_handle() {
                         window.findChild<QToolButton*>(QStringLiteral("historyDockCollapseButton"))) >= 14);
 }
 
+void ui_right_dock_separator_drags_between_docks() {
+  // The horizontal QMainWindow separators between the right docks stay
+  // draggable: the boost/release expand scheme leaves expanded docks at low
+  // floors, so adjacent separators keep travel, and the separator band
+  // between two docks is never covered by another widget.
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* history_toggle = window.findChild<QToolButton*>(QStringLiteral("historyDockCollapseButton"));
+  CHECK(history_toggle != nullptr);
+  history_toggle->setChecked(true);
+  QApplication::processEvents();
+  QApplication::processEvents();
+
+  auto* layers_dock = window.findChild<QDockWidget*>(QStringLiteral("layersDock"));
+  auto* history_dock = window.findChild<QDockWidget*>(QStringLiteral("historyDock"));
+  CHECK(layers_dock != nullptr);
+  CHECK(history_dock != nullptr);
+  const auto layers_rect = QRect(layers_dock->mapTo(&window, QPoint(0, 0)), layers_dock->size());
+  const auto history_rect = QRect(history_dock->mapTo(&window, QPoint(0, 0)), history_dock->size());
+  const auto gap = history_rect.top() - layers_rect.bottom() - 1;
+  CHECK(gap >= 5);
+
+  const QPoint start(layers_rect.center().x(), (layers_rect.bottom() + history_rect.top()) / 2 + 1);
+  CHECK(window.childAt(start) == nullptr);
+  const auto layers_before = layers_dock->height();
+  send_mouse(window, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  for (int step = 1; step <= 4; ++step) {
+    send_mouse(window, QEvent::MouseMove, start + QPoint(0, -12 * step), Qt::NoButton, Qt::LeftButton);
+    QApplication::processEvents();
+  }
+  send_mouse(window, QEvent::MouseButtonRelease, start + QPoint(0, -48), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(layers_dock->height() < layers_before);
+}
+
+void ui_floating_right_dock_expands_and_collapses() {
+  // A dragged-out (floating) dock must expand to its full panel and collapse
+  // back to the bare title strip. The toggle handler nudges the floating
+  // window's size so its stale backing store repaints; offscreen can only
+  // pin the geometry and visibility side of that.
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* info_dock = window.findChild<QDockWidget*>(QStringLiteral("infoDock"));
+  auto* info_toggle = window.findChild<QToolButton*>(QStringLiteral("infoDockCollapseButton"));
+  CHECK(info_dock != nullptr);
+  CHECK(info_toggle != nullptr);
+  auto* handle =
+      info_dock->findChild<QWidget*>(QStringLiteral("rightDockResizeHandle"), Qt::FindDirectChildrenOnly);
+  CHECK(handle != nullptr);
+  CHECK(handle->isVisibleTo(info_dock));
+
+  info_dock->setFloating(true);
+  QApplication::processEvents();
+  CHECK(info_dock->isFloating());
+  // The column-width handle has no meaning on a floating dock.
+  CHECK(!handle->isVisibleTo(info_dock));
+
+  const auto collapsed_height = info_dock->height();
+  info_toggle->setChecked(true);
+  QApplication::processEvents();
+  QApplication::processEvents();
+  auto* info_label = window.findChild<QLabel*>(QStringLiteral("canvasInfoLabel"));
+  CHECK(info_label != nullptr);
+  CHECK(info_label->isVisibleTo(info_dock));
+  CHECK(info_dock->height() > collapsed_height + 40);
+
+  info_toggle->setChecked(false);
+  QApplication::processEvents();
+  QApplication::processEvents();
+  CHECK(info_dock->height() <= info_dock->titleBarWidget()->sizeHint().height() + 4);
+
+  info_dock->setFloating(false);
+  QApplication::processEvents();
+  CHECK(!info_dock->isFloating());
+  CHECK(handle->isVisibleTo(info_dock));
+}
+
 void ui_menu_disabled_items_render_grayed() {
   // The app stylesheet styles QMenu::item text, so without an explicit :disabled rule
   // disabled entries rendered in the same bright color as enabled ones and were only
@@ -2319,9 +2396,11 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_right_dock_panels_expand_within_window_height", ui_right_dock_panels_expand_within_window_height},
       {"ui_collapsed_right_docks_have_uniform_title_height",
        ui_collapsed_right_docks_have_uniform_title_height},
+      {"ui_right_dock_separator_drags_between_docks", ui_right_dock_separator_drags_between_docks},
       {"ui_right_dock_contents_clear_width_handle", ui_right_dock_contents_clear_width_handle},
       {"ui_short_panel_scroll_bar_drags_by_handle", ui_short_panel_scroll_bar_drags_by_handle},
       {"ui_tabbed_right_dock_drags_out_by_tab", ui_tabbed_right_dock_drags_out_by_tab},
+      {"ui_floating_right_dock_expands_and_collapses", ui_floating_right_dock_expands_and_collapses},
       {"ui_menu_disabled_items_render_grayed", ui_menu_disabled_items_render_grayed},
   };
 }

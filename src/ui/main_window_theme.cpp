@@ -262,10 +262,14 @@ QString photoshop_style_template() {
       font-size: 12px;
     }
     QMainWindow {
+      /* The main window's only exposed pixels are the dock-area separator
+         gaps (Qt paints ::separator itself only mid-drag), so this is what
+         makes the resting dividers between panels visible. */
+      background: @dock_separator_bg;
       border: 1px solid @window_border;
     }
     QMainWindow::separator {
-      background: @splitter_bg;
+      background: @dock_separator_bg;
       width: 7px;
       height: 7px;
     }
@@ -273,7 +277,7 @@ QString photoshop_style_template() {
       background: @splitter_hover_bg;
     }
     QWidget#rightDockResizeHandle {
-      background: @splitter_bg;
+      background: @dock_separator_bg;
     }
     QWidget#rightDockResizeHandle:hover {
       background: @splitter_hover_bg;

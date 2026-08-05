@@ -43,6 +43,11 @@ struct ThemePalette {
   QColor text_on_raised;
   QColor splitter_bg;
   QColor splitter_hover_bg;
+  // The dock-area dividers: the horizontal separators between the right-column
+  // panels and the vertical width-handle strips at their left edges. Unlike
+  // splitter_bg (darker than its surroundings), this sits lighter than the
+  // window surface so the grab lines are discoverable.
+  QColor dock_separator_bg;
 
   // The 34px chrome bar: the frameless window's menu bar, the window-button
   // strip beside it, and each dialog's own title bar all share this surface.

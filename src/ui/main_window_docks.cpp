@@ -366,6 +366,10 @@ void MainWindow::install_right_dock_width_handle(QDockWidget* dock) {
   handle->setAttribute(Qt::WA_StyledBackground, true);
   handle->setCursor(Qt::SplitHCursor);
   handle->installEventFilter(this);
+  // A floating dock is not part of the column, so the column-width handle
+  // hides until the dock returns to the stack.
+  connect(dock, &QDockWidget::topLevelChanged, handle,
+          [handle](bool floating) { handle->setVisible(!floating); });
   update_right_dock_resize_handle_geometry(dock);
 }
 
@@ -391,7 +395,9 @@ void MainWindow::set_right_dock_stack_width(int width) {
   right_dock_pinned_width_ = target_width;
   for (const auto& object_name : right_dock_stack_names()) {
     auto* dock = findChild<QDockWidget*>(object_name);
-    if (dock == nullptr) {
+    if (dock == nullptr || dock->isFloating()) {
+      // A floating dock keeps its own size; the column pin re-applies when
+      // it docks back (the fixed widths of the docked stack set the column).
       continue;
     }
     dock->setFixedWidth(target_width);
@@ -448,7 +454,7 @@ void MainWindow::update_right_dock_minimum_width() {
   }
   for (const auto& object_name : right_dock_stack_names()) {
     auto* dock = findChild<QDockWidget*>(object_name);
-    if (dock == nullptr) {
+    if (dock == nullptr || dock->isFloating()) {
       continue;
     }
     if (right_dock_pinned_width_ > 0) {
@@ -497,6 +503,29 @@ void MainWindow::handle_right_dock_panel_toggled(QDockWidget* dock, bool expande
     if (expanded && dock->widget() != nullptr && dock->widget()->isVisible()) {
       dock->setMinimumHeight(expanded_minimum_height);
     }
+    if (dock->isFloating()) {
+      // No column redistributes space for a floating dock, so an expand with
+      // a zero boost (Info) leaves the window at the collapsed strip size;
+      // grow it to fit the panel explicitly.
+      if (expanded && dock->widget() != nullptr && dock->widget()->isVisible()) {
+        const auto wanted = std::max(dock->sizeHint().height(), dock->minimumSizeHint().height());
+        if (dock->height() < wanted) {
+          dock->resize(dock->width(), wanted);
+        }
+      }
+      // A floating dock's backing store also keeps stale pixels over the
+      // area the toggle exposed, and the panel stays undrawn until a resize
+      // forces a repaint. Replicate one programmatically, the same remedy as
+      // resync_native_frame_geometry. The main-window clamp below is about
+      // the docked column and does not apply here.
+      const auto dock_size = dock->size();
+      if (dock_size.width() > 0 && dock_size.height() > 0) {
+        dock->resize(dock_size.width(), dock_size.height() + 1);
+        dock->resize(dock_size);
+      }
+      dock->update();
+      return;
+    }
     if (layout() != nullptr) {
       // The release above only posts a layout request, but the clamp below
       // resizes through the window's explicit minimum, which the layout owns
@@ -542,7 +571,7 @@ bool MainWindow::handle_right_dock_resize_event(QObject* watched, QEvent* event)
         return false;
       }
       auto* dock = qobject_cast<QDockWidget*>(widget->parentWidget());
-      if (dock == nullptr) {
+      if (dock == nullptr || dock->isFloating()) {
         return false;
       }
       right_dock_resizing_ = true;
