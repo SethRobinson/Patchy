@@ -2284,11 +2284,11 @@ void ui_right_dock_separator_drags_between_docks() {
   CHECK(layers_dock->height() < layers_before);
 }
 
-void ui_floating_right_dock_expands_and_collapses() {
-  // A dragged-out (floating) dock must expand to its full panel and collapse
-  // back to the bare title strip. The toggle handler nudges the floating
-  // window's size so its stale backing store repaints; offscreen can only
-  // pin the geometry and visibility side of that.
+void ui_floating_right_dock_auto_expands() {
+  // Floating panels are always expanded: a collapsed strip is pinned to
+  // min == max and Qt cannot plug that into a floating tab group, so pulling
+  // a panel out expands it, and the collapse toggle only shows while the
+  // panel sits in the main window's column.
   patchy::ui::MainWindow window;
   show_window(window);
   auto* info_dock = window.findChild<QDockWidget*>(QStringLiteral("infoDock"));
@@ -2299,36 +2299,34 @@ void ui_floating_right_dock_expands_and_collapses() {
       info_dock->findChild<QWidget*>(QStringLiteral("rightDockResizeHandle"), Qt::FindDirectChildrenOnly);
   CHECK(handle != nullptr);
   CHECK(handle->isVisibleTo(info_dock));
+  CHECK(!info_toggle->isChecked());
+  CHECK(info_toggle->isVisibleTo(info_dock));
+  const auto collapsed_height = info_dock->height();
 
   info_dock->setFloating(true);
   QApplication::processEvents();
+  QApplication::processEvents();
+  QApplication::processEvents();
   CHECK(info_dock->isFloating());
-  // The column-width handle has no meaning on a floating dock.
+  // Auto-expanded, toggle and column-width handle hidden while out.
+  CHECK(info_toggle->isChecked());
+  CHECK(!info_toggle->isVisibleTo(info_dock));
   CHECK(!handle->isVisibleTo(info_dock));
-
-  const auto collapsed_height = info_dock->height();
-  info_toggle->setChecked(true);
-  QApplication::processEvents();
-  QApplication::processEvents();
   auto* info_label = window.findChild<QLabel*>(QStringLiteral("canvasInfoLabel"));
   CHECK(info_label != nullptr);
   CHECK(info_label->isVisibleTo(info_dock));
   CHECK(info_dock->height() > collapsed_height + 40);
 
-  info_toggle->setChecked(false);
-  QApplication::processEvents();
-  QApplication::processEvents();
-  CHECK(info_dock->height() <= info_dock->titleBarWidget()->sizeHint().height() + 4);
-
   info_dock->setFloating(false);
+  QApplication::processEvents();
   QApplication::processEvents();
   QApplication::processEvents();
   CHECK(!info_dock->isFloating());
   CHECK(handle->isVisibleTo(info_dock));
-  // The re-dock slot snap keeps a collapsed dock at its strip height (a real
-  // mouse re-dock goes through Qt's drop-preview gap item, whose oversized
-  // slot otherwise leaves a growing gap under the header).
-  CHECK(info_dock->height() <= info_dock->titleBarWidget()->sizeHint().height() + 4);
+  CHECK(info_toggle->isVisibleTo(info_dock));
+  // The panel stays expanded after re-docking.
+  CHECK(info_toggle->isChecked());
+  CHECK(info_label->isVisibleTo(info_dock));
 }
 
 void ui_tabbed_dock_title_drag_floats_single_dock() {
@@ -2527,7 +2525,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_right_dock_contents_clear_width_handle", ui_right_dock_contents_clear_width_handle},
       {"ui_short_panel_scroll_bar_drags_by_handle", ui_short_panel_scroll_bar_drags_by_handle},
       {"ui_tabbed_right_dock_drags_out_by_tab", ui_tabbed_right_dock_drags_out_by_tab},
-      {"ui_floating_right_dock_expands_and_collapses", ui_floating_right_dock_expands_and_collapses},
+      {"ui_floating_right_dock_auto_expands", ui_floating_right_dock_auto_expands},
       {"ui_tabbed_dock_title_drag_floats_single_dock", ui_tabbed_dock_title_drag_floats_single_dock},
       {"ui_dock_group_window_drags_by_blank_chrome", ui_dock_group_window_drags_by_blank_chrome},
       {"ui_menu_disabled_items_render_grayed", ui_menu_disabled_items_render_grayed},

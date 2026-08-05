@@ -394,6 +394,23 @@ void install_collapsible_dock_title(QDockWidget* dock,
 
   QObject::connect(toggle, &QToolButton::toggled, dock, apply_expanded_state);
 
+  // Floating panels are always expanded: a collapsed strip is pinned to
+  // min == max, and Qt cannot plug that into a floating tab group (the
+  // group's layout has no room for the pin plus its tab bar, and the docked
+  // partner blinks away). Pulling a panel out expands it, and the collapse
+  // toggle only shows while the panel sits in the main window's column.
+  // Deferred a hop because window() still reports the old top-level while
+  // topLevelChanged is being emitted.
+  QObject::connect(dock, &QDockWidget::topLevelChanged, toggle, [dock, toggle](bool) {
+    QTimer::singleShot(0, toggle, [dock, toggle] {
+      const bool in_main_window_column = qobject_cast<QMainWindow*>(dock->window()) != nullptr;
+      toggle->setVisible(in_main_window_column);
+      if (!in_main_window_column && !toggle->isChecked()) {
+        toggle->setChecked(true);
+      }
+    });
+  });
+
   dock->setTitleBarWidget(title);
   apply_expanded_state(initially_expanded);
 }
