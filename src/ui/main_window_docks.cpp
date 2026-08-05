@@ -924,13 +924,23 @@ bool MainWindow::handle_dock_group_window_event(QObject* watched, QEvent* event)
         if (mouse_event->button() != Qt::LeftButton) {
           return false;
         }
+        const auto edges = group_window_resize_edges(widget, mouse_event->position().toPoint());
+        // On a single floating dock the dock IS the window, so interior
+        // presses here are title or content presses that propagated up; they
+        // must reach QDockWidget, whose title drag is the only path that
+        // tracks drop targets and re-docks. Claim only the frame strip.
+        // A group window's interior surface is genuinely blank chrome, so
+        // there interior presses move the window.
+        if (edges == Qt::Edges{} && qobject_cast<QDockWidget*>(widget) != nullptr) {
+          return false;
+        }
         // Edge presses resize (our handler owns the whole widened strip; Qt's
-        // QWidgetResizeHandler only covers its own few-pixel range), interior
-        // presses move. Anchor the move to the frame origin: move() positions
-        // the frame while mouse coordinates are client-relative, and the
-        // platform can pad a frame margin between the two.
+        // QWidgetResizeHandler only covers its own few-pixel range). Anchor
+        // the move to the frame origin: move() positions the frame while
+        // mouse coordinates are client-relative, and the platform can pad a
+        // frame margin between the two.
         dock_group_drag_window_ = widget;
-        dock_group_drag_edges_ = group_window_resize_edges(widget, mouse_event->position().toPoint());
+        dock_group_drag_edges_ = edges;
         dock_group_drag_press_global_ = mouse_event->globalPosition().toPoint();
         dock_group_drag_origin_rect_ = widget->geometry();
         dock_group_drag_offset_ = mouse_event->globalPosition().toPoint() - widget->pos();

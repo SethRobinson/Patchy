@@ -2341,6 +2341,12 @@ void ui_floating_right_dock_auto_expands() {
   CHECK(info_dock->geometry().width() == geometry_before_resize.width() + 20);
   CHECK(info_dock->geometry().x() == geometry_before_resize.x() - 20);
 
+  // NOTE: interior (title/content) presses on a floating dock must pass
+  // through to QDockWidget, whose title drag is the only path that tracks
+  // drop targets and re-docks; the chrome handler claims only the frame
+  // strip. Qt's drop-plug does not complete under synthetic events, so that
+  // contract is verified manually; the strip-resize checks above pin the
+  // handler's half.
   info_dock->setFloating(false);
   QApplication::processEvents();
   QApplication::processEvents();
