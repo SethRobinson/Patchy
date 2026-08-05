@@ -279,6 +279,40 @@ bool is_photoshop_document_extension(const QString& extension) {
   return extension == QStringLiteral("psd") || extension == QStringLiteral("psb");
 }
 
+bool is_affinity_document_extension(const QString& extension) {
+  return extension == QStringLiteral("af") || extension == QStringLiteral("afphoto") ||
+         extension == QStringLiteral("afdesign") || extension == QStringLiteral("afpub");
+}
+
+// Affinity "Image" layers (placed image files) import wrapped as embedded
+// smart objects; count them for the import-choice dialog.
+std::size_t count_smart_object_layers(const std::vector<Layer>& layers) {
+  std::size_t count = 0;
+  for (const auto& layer : layers) {
+    if (layer.kind() == LayerKind::Group) {
+      count += count_smart_object_layers(layer.children());
+    } else if (layer_is_smart_object(layer)) {
+      ++count;
+    }
+  }
+  return count;
+}
+
+void strip_smart_object_layers(Document& document, std::vector<Layer>& layers,
+                               std::vector<std::string>& source_uuids) {
+  for (auto& layer : layers) {
+    if (std::as_const(layer).kind() == LayerKind::Group) {
+      strip_smart_object_layers(document, layer.children(), source_uuids);
+      continue;
+    }
+    if (!layer_is_smart_object(std::as_const(layer))) {
+      continue;
+    }
+    source_uuids.push_back(smart_object_source_uuid(std::as_const(layer)));
+    strip_layer_smart_object_data(document, layer);
+  }
+}
+
 // Formats whose writers keep the document's layer structure: PSD/PSB and Aseprite save
 // the layer tree, and ICO/CUR are exempt because multi-size icons deliberately live as
 // one hidden "WxH" layer per size that their writers round-trip.
@@ -1179,6 +1213,72 @@ bool MainWindow::save_debug_screenshot(const QString& file_path, const QString& 
   return target->grab(grab_rect).save(file_path);
 }
 
+// Affinity "Image" layers (placed image files, Affinity's smart-object analog)
+// import as embedded smart objects carrying their full-resolution originals.
+// Offer converting them to plain pixel layers instead: the remembered
+// preference decides ("smart"/"pixel"), "ask" (the default) raises a
+// one-question dialog. Unattended runs never get here (callers gate on
+// cli_automation_mode_) and keep the smart-object default.
+void MainWindow::maybe_convert_af_image_layers(Document& target) {
+  const auto placed = count_smart_object_layers(std::as_const(target).layers());
+  if (placed == 0) {
+    return;
+  }
+  auto settings = app_settings();
+  const auto policy =
+      settings.value(QStringLiteral("imports/afImageLayers"), QStringLiteral("ask")).toString();
+  if (policy == QStringLiteral("smart")) {
+    return;
+  }
+  bool convert = policy == QStringLiteral("pixel");
+  if (!convert) {
+    QMessageBox box(this);
+    box.setObjectName(QStringLiteral("afImageLayersMessageBox"));
+    box.setIcon(QMessageBox::Question);
+    box.setWindowTitle(tr("Affinity Image Layers"));
+    box.setText(tr("This document places %n image file(s) as Affinity \"Image\" layers.", nullptr,
+                   static_cast<int>(placed)));
+    box.setInformativeText(
+        tr("Keep them as embedded smart objects? Each keeps its full-resolution original file for "
+           "re-editing and PSD export. Converting to regular pixel layers keeps only the pixels at "
+           "their placed size, which uses less memory but discards the originals."));
+    auto* keep_button = box.addButton(tr("Keep as Smart Objects"), QMessageBox::AcceptRole);
+    auto* convert_button = box.addButton(tr("Convert to Pixel Layers"), QMessageBox::DestructiveRole);
+    box.setDefaultButton(keep_button);
+    auto* remember = new QCheckBox(tr("Remember this choice"), &box);
+    box.setCheckBox(remember);
+    exec_dialog(box);
+    convert = box.clickedButton() == convert_button;
+    if (remember->isChecked()) {
+      settings.setValue(QStringLiteral("imports/afImageLayers"),
+                        convert ? QStringLiteral("pixel") : QStringLiteral("smart"));
+    }
+    if (!convert) {
+      return;
+    }
+  }
+  std::vector<std::string> source_uuids;
+  strip_smart_object_layers(target, target.layers(), source_uuids);
+  // The import authored one embedded source per placed image; with every
+  // wrapper gone the file bytes have no owner, so drop them (unlike Rasterize,
+  // which keeps orphans for Photoshop parity, nothing was ever saved here).
+  for (const auto& uuid : source_uuids) {
+    if (!uuid.empty()) {
+      (void)target.metadata().smart_objects.remove(uuid);
+    }
+  }
+  // remove() keeps the emptied link block; drop authored blocks with nothing
+  // left so the document reports no smart objects at all (preserved opaque or
+  // original-payload blocks from other sources stay).
+  auto& blocks = target.metadata().smart_objects.blocks;
+  blocks.erase(std::remove_if(blocks.begin(), blocks.end(),
+                              [](const SmartObjectLinkBlock& block) {
+                                return block.sources.empty() && !block.opaque &&
+                                       block.original_payload == nullptr;
+                              }),
+               blocks.end());
+}
+
 void MainWindow::open_document_path(QString path) {
   if (preview_dialog_edit_locked()) {
     show_preview_dialog_edit_lock_message();
@@ -1191,6 +1291,9 @@ void MainWindow::open_document_path(QString path) {
     }
     render_pending_svg_text_layers(loaded->document);
     render_pending_af_text_layers(loaded->document);
+    if (!cli_automation_mode_ && is_affinity_document_extension(loaded->extension)) {
+      maybe_convert_af_image_layers(loaded->document);
+    }
 
     add_document_session(std::move(loaded->document), loaded->file_name, path, tr("Open"));
     if (!cli_automation_mode_ && is_photoshop_document_extension(loaded->extension) &&
@@ -1280,6 +1383,10 @@ void MainWindow::reopen_document_session(DocumentSession& target_session) {
     }
     render_pending_svg_text_layers(loaded->document);
     render_pending_af_text_layers(loaded->document);
+    if (!cli_automation_mode_ &&
+        is_affinity_document_extension(QFileInfo(path).suffix().toLower())) {
+      maybe_convert_af_image_layers(loaded->document);
+    }
 
     // Replace the document in place: tab position, float window, and session
     // identity survive (smart-object child tabs reference session ids). An open

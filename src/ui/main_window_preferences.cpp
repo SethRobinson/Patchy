@@ -543,6 +543,22 @@ void MainWindow::show_preferences() {
   const auto indexed_open_index = indexed_open_combo->findData(indexed_open_policy);
   indexed_open_combo->setCurrentIndex(indexed_open_index >= 0 ? indexed_open_index : 0);
   application_form->addRow(tr("Opening indexed images:"), indexed_open_combo);
+  // The Affinity "Image" layer import choice (also settable from the dialog
+  // that appears while this is "Ask every time").
+  auto* af_image_layers_combo = new QComboBox(application_group);
+  af_image_layers_combo->setObjectName(QStringLiteral("preferencesAfImageLayersCombo"));
+  af_image_layers_combo->addItem(tr("Ask every time"), QStringLiteral("ask"));
+  af_image_layers_combo->addItem(tr("Keep as smart objects"), QStringLiteral("smart"));
+  af_image_layers_combo->addItem(tr("Convert to pixel layers"), QStringLiteral("pixel"));
+  af_image_layers_combo->setToolTip(
+      tr("Affinity documents place image files as \"Image\" layers. Smart objects keep each "
+         "placed file's full-resolution original for re-editing and PSD export; pixel layers "
+         "keep only the pixels at their placed size."));
+  const auto af_image_layers_policy =
+      settings.value(QStringLiteral("imports/afImageLayers"), QStringLiteral("ask")).toString();
+  const auto af_image_layers_index = af_image_layers_combo->findData(af_image_layers_policy);
+  af_image_layers_combo->setCurrentIndex(af_image_layers_index >= 0 ? af_image_layers_index : 0);
+  application_form->addRow(tr("Opening Affinity image layers:"), af_image_layers_combo);
   // Fonts dropped onto the window persist (desktop: the AppData user-fonts
   // directory; wasm: IndexedDB). This is the one way to empty that store;
   // already-registered fonts stay usable because application fonts are never
@@ -1008,6 +1024,7 @@ void MainWindow::show_preferences() {
     settings.setValue(QStringLiteral("imports/showPsdWarningsAndInfo"), psd_import_warnings_check->isChecked());
     settings.setValue(QStringLiteral("imports/showRawDevelopDialog"), raw_develop_check->isChecked());
     settings.setValue(QStringLiteral("imports/adoptIndexedPalette"), indexed_open_combo->currentData().toString());
+    settings.setValue(QStringLiteral("imports/afImageLayers"), af_image_layers_combo->currentData().toString());
     const int selected_gui_scale = gui_scale_combo->currentData().toInt();
     if (selected_gui_scale != entry_gui_scale) {
       set_stored_gui_scale_percent(selected_gui_scale);

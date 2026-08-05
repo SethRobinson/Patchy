@@ -13356,6 +13356,48 @@ Clipped to the layer below</source>
     <message><source>Presets</source><translation>プリセット</translation></message>
     <message><source>Choose a gradient preset</source><translation>グラデーションプリセットを選択</translation></message>
     <message><source>Gradient preset: %1</source><translation>グラデーションプリセット: %1</translation></message>
+    <message>
+        <source>Affinity Image Layers</source>
+        <translation>Affinity の画像レイヤー</translation>
+    </message>
+    <message numerus="yes">
+        <source>This document places %n image file(s) as Affinity &quot;Image&quot; layers.</source>
+        <translation>
+            <numerusform>このドキュメントは %n 個の画像ファイルを Affinity の「画像」レイヤーとして配置しています。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Keep them as embedded smart objects? Each keeps its full-resolution original file for re-editing and PSD export. Converting to regular pixel layers keeps only the pixels at their placed size, which uses less memory but discards the originals.</source>
+        <translation>埋め込みスマートオブジェクトとして保持しますか？各レイヤーは再編集や PSD 書き出しのためにフル解像度の元ファイルを保持します。通常のピクセルレイヤーに変換すると配置サイズのピクセルだけを保持し、メモリ使用量は減りますが元ファイルは破棄されます。</translation>
+    </message>
+    <message>
+        <source>Keep as Smart Objects</source>
+        <translation>スマートオブジェクトとして保持</translation>
+    </message>
+    <message>
+        <source>Convert to Pixel Layers</source>
+        <translation>ピクセルレイヤーに変換</translation>
+    </message>
+    <message>
+        <source>Remember this choice</source>
+        <translation>この選択を記憶する</translation>
+    </message>
+    <message>
+        <source>Keep as smart objects</source>
+        <translation>スマートオブジェクトとして保持</translation>
+    </message>
+    <message>
+        <source>Convert to pixel layers</source>
+        <translation>ピクセルレイヤーに変換</translation>
+    </message>
+    <message>
+        <source>Affinity documents place image files as &quot;Image&quot; layers. Smart objects keep each placed file&apos;s full-resolution original for re-editing and PSD export; pixel layers keep only the pixels at their placed size.</source>
+        <translation>Affinity のドキュメントは画像ファイルを「画像」レイヤーとして配置します。スマートオブジェクトは再編集や PSD 書き出しのために各ファイルのフル解像度の元データを保持し、ピクセルレイヤーは配置サイズのピクセルだけを保持します。</translation>
+    </message>
+    <message>
+        <source>Opening Affinity image layers:</source>
+        <translation>Affinity の画像レイヤーを開くとき:</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::PalettePanel</name>

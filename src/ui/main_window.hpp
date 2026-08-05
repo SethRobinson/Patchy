@@ -406,6 +406,9 @@ private:
   void refresh_palette_panel();
   void refresh_palette_mode_chip();
   void maybe_offer_indexed_palette_adoption();
+  // The Affinity "Image" layer import choice (keep embedded smart objects or
+  // convert to plain pixel layers); asks unless imports/afImageLayers decides.
+  void maybe_convert_af_image_layers(Document& target);
   void schedule_palette_compliance_check();
   void run_palette_compliance_check();
   void configure_canvas(CanvasWidget* canvas);

@@ -1654,6 +1654,64 @@ struct PlacedRaster {
   std::int32_t y{0};
 };
 
+// Halve `source` along one axis with a box filter: RGBA averages alpha-weighted
+// (transparent pixels contribute no color), gray masks average plainly. An odd
+// trailing row/column keeps its single pixel. Deterministic double math.
+[[nodiscard]] PixelBuffer box_halve_axis(const PixelBuffer& source, bool horizontal, bool gray) {
+  const std::int32_t out_w = horizontal ? (source.width() + 1) / 2 : source.width();
+  const std::int32_t out_h = horizontal ? source.height() : (source.height() + 1) / 2;
+  PixelBuffer out(out_w, out_h, gray ? PixelFormat::gray8() : PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < out_h; ++y) {
+    auto row = out.row(y);
+    for (std::int32_t x = 0; x < out_w; ++x) {
+      const std::int32_t x0 = horizontal ? x * 2 : x;
+      const std::int32_t y0 = horizontal ? y : y * 2;
+      const std::int32_t x1 = horizontal ? std::min(x0 + 1, source.width() - 1) : x0;
+      const std::int32_t y1 = horizontal ? y0 : std::min(y0 + 1, source.height() - 1);
+      const std::uint8_t* p0 = source.pixel(x0, y0);
+      const std::uint8_t* p1 = source.pixel(x1, y1);
+      if (gray) {
+        row[static_cast<std::size_t>(x)] = static_cast<std::uint8_t>(
+            std::lround((static_cast<double>(p0[0]) + static_cast<double>(p1[0])) / 2.0));
+        continue;
+      }
+      const double a0 = static_cast<double>(p0[3]);
+      const double a1 = static_cast<double>(p1[3]);
+      std::uint8_t* dst = row.data() + static_cast<std::size_t>(x) * 4U;
+      dst[3] = static_cast<std::uint8_t>(std::lround((a0 + a1) / 2.0));
+      if (a0 + a1 > 0.0) {
+        for (int channel = 0; channel < 3; ++channel) {
+          dst[channel] = static_cast<std::uint8_t>(std::lround(
+              (static_cast<double>(p0[channel]) * a0 + static_cast<double>(p1[channel]) * a1) /
+              (a0 + a1)));
+        }
+      } else {
+        dst[0] = dst[1] = dst[2] = 0;
+      }
+    }
+  }
+  return out;
+}
+
+[[nodiscard]] PixelBuffer box_reduce(const PixelBuffer& source, int halvings_x, int halvings_y,
+                                     bool gray) {
+  PixelBuffer reduced = box_halve_axis(source, halvings_x > 0, gray);
+  if (halvings_x > 0) {
+    --halvings_x;
+  } else {
+    --halvings_y;
+  }
+  while (halvings_x > 0) {
+    reduced = box_halve_axis(reduced, true, gray);
+    --halvings_x;
+  }
+  while (halvings_y > 0) {
+    reduced = box_halve_axis(reduced, false, gray);
+    --halvings_y;
+  }
+  return reduced;
+}
+
 // Rasterize `source` through the affine Xfrm [a, b, tx, c, d, ty]
 // (dest = [a b; c d] * src + [tx, ty]; the convention and the bilinear
 // premultiplied-accumulation edges are pinned against Affinity's own PNG
@@ -1711,6 +1769,33 @@ struct PlacedRaster {
   const double inv_c = -c / det;
   const double inv_d = a / det;
 
+  // Minification quality: bilinear alone reads a 2x2 neighborhood, so a
+  // strongly downscaled placement (esdreika places 4096px texture originals at
+  // 1/32 scale) shimmers with aliasing that Affinity's own mip-filtered render
+  // does not show. Box-reduce the source by powers of two per axis until the
+  // remaining scale is above one half, then bilinear as before. Alpha-weighted
+  // averaging keeps transparent padding from bleeding dark fringes in.
+  const double scale_x = std::hypot(a, c);
+  const double scale_y = std::hypot(b, d);
+  int halvings_x = 0;
+  int halvings_y = 0;
+  while (scale_x * static_cast<double>(1 << (halvings_x + 1)) <= 1.0 &&
+         (source.width() >> (halvings_x + 1)) >= 1) {
+    ++halvings_x;
+  }
+  while (scale_y * static_cast<double>(1 << (halvings_y + 1)) <= 1.0 &&
+         (source.height() >> (halvings_y + 1)) >= 1) {
+    ++halvings_y;
+  }
+  PixelBuffer reduced_storage;
+  const PixelBuffer* sampled = &source;
+  if (halvings_x > 0 || halvings_y > 0) {
+    reduced_storage = box_reduce(source, halvings_x, halvings_y, gray_mask);
+    sampled = &reduced_storage;
+  }
+  const double factor_x = static_cast<double>(1 << halvings_x);
+  const double factor_y = static_cast<double>(1 << halvings_y);
+
   PlacedRaster placed;
   placed.x = static_cast<std::int32_t>(origin_x);
   placed.y = static_cast<std::int32_t>(origin_y);
@@ -1720,8 +1805,8 @@ struct PlacedRaster {
     for (std::int32_t x = 0; x < out_w; ++x) {
       const double rel_x = origin_x + x + 0.5 - tx;
       const double rel_y = origin_y + y + 0.5 - ty;
-      const double sx = inv_a * rel_x + inv_b * rel_y - 0.5;
-      const double sy = inv_c * rel_x + inv_d * rel_y - 0.5;
+      const double sx = (inv_a * rel_x + inv_b * rel_y) / factor_x - 0.5;
+      const double sy = (inv_c * rel_x + inv_d * rel_y) / factor_y - 0.5;
       const double fx0 = std::floor(sx);
       const double fy0 = std::floor(sy);
       const auto x0 = static_cast<std::int32_t>(fx0);
@@ -1736,9 +1821,9 @@ struct PlacedRaster {
       if (gray_mask) {
         double accumulated = 0.0;
         for (const auto& [nx, ny, weight] : taps) {
-          const std::int32_t cx = std::clamp(nx, 0, source.width() - 1);
-          const std::int32_t cy = std::clamp(ny, 0, source.height() - 1);
-          accumulated += static_cast<double>(source.pixel(cx, cy)[0]) * weight;
+          const std::int32_t cx = std::clamp(nx, 0, sampled->width() - 1);
+          const std::int32_t cy = std::clamp(ny, 0, sampled->height() - 1);
+          accumulated += static_cast<double>(sampled->pixel(cx, cy)[0]) * weight;
         }
         row[static_cast<std::size_t>(x)] =
             static_cast<std::uint8_t>(std::lround(std::clamp(accumulated, 0.0, 255.0)));
@@ -1749,10 +1834,10 @@ struct PlacedRaster {
       double acc_b = 0.0;
       double acc_a = 0.0;
       for (const auto& [nx, ny, weight] : taps) {
-        if (nx < 0 || ny < 0 || nx >= source.width() || ny >= source.height()) {
+        if (nx < 0 || ny < 0 || nx >= sampled->width() || ny >= sampled->height()) {
           continue;  // outside the source: transparent
         }
-        const std::uint8_t* p = source.pixel(nx, ny);
+        const std::uint8_t* p = sampled->pixel(nx, ny);
         const double alpha_weight = static_cast<double>(p[3]) / 255.0 * weight;
         acc_r += static_cast<double>(p[0]) * alpha_weight;
         acc_g += static_cast<double>(p[1]) * alpha_weight;

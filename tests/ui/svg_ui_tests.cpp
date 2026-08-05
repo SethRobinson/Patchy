@@ -41,6 +41,7 @@ namespace {
 
 using patchy::test::ui::find_top_level_dialog;
 using patchy::test::ui::save_widget_artifact;
+using patchy::test::ui::SettingsValueRestorer;
 using patchy::test::ui::show_window;
 
 QString committed_svg_fixture(const char* name) {
@@ -420,8 +421,12 @@ void ui_af_rotated_text_renders_through_transform() {
 }
 
 // A pristine .af placed image imports as an embedded smart object; the UI can
-// re-render it from its source and reproduce the baked pixels.
+// re-render it from its source and reproduce the baked pixels. The remembered
+// "smart" preference suppresses the image-layer import dialog.
 void ui_af_placed_image_imports_as_smart_object() {
+  SettingsValueRestorer af_image_layers_setting(QStringLiteral("imports/afImageLayers"));
+  patchy::ui::app_settings().setValue(QStringLiteral("imports/afImageLayers"),
+                                      QStringLiteral("smart"));
   patchy::ui::MainWindow window;
   show_window(window);
   const auto path = QString::fromStdWString(
@@ -445,6 +450,74 @@ void ui_af_placed_image_imports_as_smart_object() {
   }
 }
 
+// The remembered "pixel" preference converts Affinity image layers on open:
+// no smart-object metadata, no embedded sources, pixels intact.
+void ui_af_image_layers_pixel_preference_converts_on_open() {
+  SettingsValueRestorer af_image_layers_setting(QStringLiteral("imports/afImageLayers"));
+  patchy::ui::app_settings().setValue(QStringLiteral("imports/afImageLayers"),
+                                      QStringLiteral("pixel"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto path = QString::fromStdWString(
+      patchy::test::committed_format_fixture_path("af", "tiny-embedded-jpeg.af").wstring());
+  patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+  QApplication::processEvents();
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto& layer = std::as_const(document).layers().back();
+  CHECK(!patchy::layer_is_smart_object(layer));
+  CHECK(document.metadata().smart_objects.empty());
+  CHECK(std::as_const(layer).pixels().width() == 400);
+  CHECK(std::as_const(layer).pixels().height() == 300);
+  const std::uint8_t* center = std::as_const(layer).pixels().pixel(200, 150);
+  CHECK(std::abs(static_cast<int>(center[0]) - 255 * 200 / 400) <= 8);
+  CHECK(std::abs(static_cast<int>(center[1]) - 255 * 150 / 300) <= 8);
+}
+
+// With the default "ask" policy, opening an .af with placed images raises the
+// image-layer choice dialog; its default button keeps the smart objects and an
+// unchecked "remember" leaves the policy on "ask".
+void ui_af_image_layers_ask_dialog_defaults_to_smart_objects() {
+  SettingsValueRestorer af_image_layers_setting(QStringLiteral("imports/afImageLayers"));
+  patchy::ui::app_settings().setValue(QStringLiteral("imports/afImageLayers"), QStringLiteral("ask"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  // Repeating dismisser (a one-shot fires during the open-progress phase and
+  // the suite hangs): accept the dialog through its default button.
+  bool saw_dialog = false;
+  int poll_attempts = 0;
+  QTimer poller;
+  QObject::connect(&poller, &QTimer::timeout, [&saw_dialog, &poll_attempts, &poller] {
+    if (++poll_attempts > 500) {
+      poller.stop();
+      return;
+    }
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* box = qobject_cast<QMessageBox*>(widget);
+      if (box != nullptr && box->objectName() == QStringLiteral("afImageLayersMessageBox") &&
+          box->isVisible()) {
+        saw_dialog = true;
+        box->defaultButton()->click();
+        poller.stop();
+        return;
+      }
+    }
+  });
+  poller.start(50);
+
+  const auto path = QString::fromStdWString(
+      patchy::test::committed_format_fixture_path("af", "tiny-embedded-jpeg.af").wstring());
+  patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+  QApplication::processEvents();
+  poller.stop();
+  CHECK(saw_dialog);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(patchy::layer_is_smart_object(std::as_const(document).layers().back()));
+  CHECK(patchy::ui::app_settings()
+            .value(QStringLiteral("imports/afImageLayers"), QStringLiteral("ask"))
+            .toString() == QStringLiteral("ask"));
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> svg_ui_tests() {
@@ -453,6 +526,10 @@ std::vector<patchy::test::TestCase> svg_ui_tests() {
       {"ui_af_mixed_text_runs_render", ui_af_mixed_text_runs_render},
       {"ui_af_rotated_text_renders_through_transform", ui_af_rotated_text_renders_through_transform},
       {"ui_af_placed_image_imports_as_smart_object", ui_af_placed_image_imports_as_smart_object},
+      {"ui_af_image_layers_pixel_preference_converts_on_open",
+       ui_af_image_layers_pixel_preference_converts_on_open},
+      {"ui_af_image_layers_ask_dialog_defaults_to_smart_objects",
+       ui_af_image_layers_ask_dialog_defaults_to_smart_objects},
       {"ui_svg_open_creates_editable_shape_layers", ui_svg_open_creates_editable_shape_layers},
       {"ui_svg_import_render_matches_qsvg", ui_svg_import_render_matches_qsvg},
       {"ui_svg_text_import_positions_baseline", ui_svg_text_import_positions_baseline},

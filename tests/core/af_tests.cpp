@@ -1505,6 +1505,29 @@ void af_reads_esdreika_wild_file_if_available() {
     }
   }
   CHECK(fabric_has_opaque);
+  // Minification is box-filtered: the 4096px leather original placed at 1/32
+  // scale must come out smooth like Affinity's own render, not point-sampled
+  // noise (aliasing pushed the mean neighbor delta well above 8).
+  {
+    const auto& pixels = fabric->pixels();
+    std::int64_t total = 0;
+    std::int64_t samples = 0;
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x + 1 < pixels.width(); ++x) {
+        const std::uint8_t* left = pixels.pixel(x, y);
+        const std::uint8_t* right = pixels.pixel(x + 1, y);
+        if (left[3] == 0 || right[3] == 0) {
+          continue;
+        }
+        for (int channel = 0; channel < 3; ++channel) {
+          total += std::abs(static_cast<int>(left[channel]) - right[channel]);
+          ++samples;
+        }
+      }
+    }
+    CHECK(samples > 0);
+    CHECK(total < samples * 6);
+  }
   // Every raster in the file decodes; nothing imports as an empty placeholder.
   CHECK(empty_pixel_layers == 0);
   // Affinity scopes group-member adjustments to the group: the "Gravel" group
