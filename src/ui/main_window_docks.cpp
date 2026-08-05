@@ -280,21 +280,30 @@ const std::array<QString, 7>& right_dock_stack_names() {
   return names;
 }
 
-// Qt's floating dock tab-group window. It has Q_OBJECT, so the class name is
-// reliable; the property is a seam for tests, which cannot construct the
-// private Qt type.
-bool is_dock_group_window(const QWidget* widget) {
+// The QDockWidgetGroupWindow class name is reliable (it has Q_OBJECT); the
+// patchy.dockGroupWindow property is a seam for tests, which cannot construct
+// the private Qt type.
+constexpr int kGroupWindowResizeMargin = 10;
+// Added as contents margins so the resize frame is a real, hittable strip;
+// Qt's own frame is only PM_DockWidgetFrameWidth thin.
+constexpr int kGroupWindowFrameMargin = 8;
+
+// A window that gets the hand-rolled floating chrome (widened resize frame,
+// edge cursors, blank-area drags): Qt's tab-group window, or one of the
+// right-column docks floating on its own.
+bool is_floating_chrome_window(const QWidget* widget) {
   if (widget == nullptr || !widget->isWindow()) {
     return false;
   }
-  return qstrcmp(widget->metaObject()->className(), "QDockWidgetGroupWindow") == 0 ||
-         widget->property("patchy.dockGroupWindow").toBool();
+  if (qstrcmp(widget->metaObject()->className(), "QDockWidgetGroupWindow") == 0 ||
+      widget->property("patchy.dockGroupWindow").toBool()) {
+    return true;
+  }
+  const auto* dock = qobject_cast<const QDockWidget*>(widget);
+  return dock != nullptr &&
+         dock->findChild<QWidget*>(QStringLiteral("rightDockResizeHandle"), Qt::FindDirectChildrenOnly) !=
+             nullptr;
 }
-
-constexpr int kGroupWindowResizeMargin = 10;
-// Added to the group window as contents margins so the resize frame is a
-// real, hittable strip; Qt's own frame is only PM_DockWidgetFrameWidth thin.
-constexpr int kGroupWindowFrameMargin = 8;
 
 Qt::Edges group_window_resize_edges(const QWidget* window, QPoint position) {
   Qt::Edges edges;
@@ -433,10 +442,24 @@ void MainWindow::install_right_dock_width_handle(QDockWidget* dock) {
   handle->setAttribute(Qt::WA_StyledBackground, true);
   handle->setCursor(Qt::SplitHCursor);
   handle->installEventFilter(this);
+  // Hover events drive the floating-frame edge cursors; harmless while
+  // docked.
+  dock->setAttribute(Qt::WA_Hover, true);
+  dock->setMouseTracking(true);
   // A floating dock is not part of the column, so the column-width handle
-  // hides until the dock returns to the stack.
-  connect(dock, &QDockWidget::topLevelChanged, handle,
-          [handle](bool floating) { handle->setVisible(!floating); });
+  // hides until the dock returns to the stack. Floating also widens the
+  // dock's frame into the same hittable, visibly-styled resize strip the tab
+  // group window gets (the floatingChrome property carries the styling).
+  connect(dock, &QDockWidget::topLevelChanged, handle, [dock, handle](bool floating) {
+    handle->setVisible(!floating);
+    dock->setContentsMargins(floating
+                                 ? QMargins(kGroupWindowFrameMargin, kGroupWindowFrameMargin,
+                                            kGroupWindowFrameMargin, kGroupWindowFrameMargin)
+                                 : QMargins());
+    dock->setProperty("floatingChrome", floating);
+    dock->style()->unpolish(dock);
+    dock->style()->polish(dock);
+  });
   connect(dock, &QDockWidget::topLevelChanged, this, [this, dock](bool floating) {
     if (floating) {
       return;
@@ -840,7 +863,7 @@ bool MainWindow::handle_dock_group_window_event(QObject* watched, QEvent* event)
     return false;
   }
 
-  if (is_dock_group_window(widget)) {
+  if (is_floating_chrome_window(widget)) {
     switch (event->type()) {
       case QEvent::Show:
         // Hover events drive the edge cursor; the private Qt window does not
@@ -921,7 +944,7 @@ bool MainWindow::handle_dock_group_window_event(QObject* watched, QEvent* event)
 
   // Entering any child clears the frame cursor: children inherit the group
   // window's cursor, so a lingering resize shape would cover the whole panel.
-  if (event->type() == QEvent::Enter && is_dock_group_window(widget->window()) &&
+  if (event->type() == QEvent::Enter && is_floating_chrome_window(widget->window()) &&
       widget != widget->window()) {
     widget->window()->unsetCursor();
     return false;
@@ -931,7 +954,7 @@ bool MainWindow::handle_dock_group_window_event(QObject* watched, QEvent* event)
   // the bar and start the same window drag.
   if (auto* tab_bar = qobject_cast<QTabBar*>(widget);
       tab_bar != nullptr && event->type() == QEvent::MouseButtonPress &&
-      is_dock_group_window(tab_bar->window())) {
+      is_floating_chrome_window(tab_bar->window())) {
     auto* mouse_event = static_cast<QMouseEvent*>(event);
     if (mouse_event->button() == Qt::LeftButton &&
         tab_bar->tabAt(mouse_event->position().toPoint()) < 0) {

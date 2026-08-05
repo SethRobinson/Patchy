@@ -2317,6 +2317,30 @@ void ui_floating_right_dock_auto_expands() {
   CHECK(info_label->isVisibleTo(info_dock));
   CHECK(info_dock->height() > collapsed_height + 40);
 
+  // The floating dock gets the same widened chrome as a tab-group window:
+  // real frame margins, edge cursors, and strip presses resizing it.
+  CHECK(info_dock->contentsMargins().left() >= 8);
+  CHECK(info_dock->property("floatingChrome").toBool());
+  const QPointF strip_point(3, info_dock->height() / 2);
+  QHoverEvent strip_hover(QEvent::HoverMove, strip_point, QPointF(), strip_point - QPointF(0, 1));
+  QApplication::sendEvent(info_dock, &strip_hover);
+  CHECK(info_dock->cursor().shape() == Qt::SizeHorCursor);
+  const auto geometry_before_resize = info_dock->geometry();
+  const auto strip_local = strip_point.toPoint();
+  const auto strip_global = info_dock->mapToGlobal(strip_local);
+  QMouseEvent strip_press(QEvent::MouseButtonPress, strip_local, strip_global, Qt::LeftButton, Qt::LeftButton,
+                          Qt::NoModifier);
+  QApplication::sendEvent(info_dock, &strip_press);
+  QMouseEvent strip_move(QEvent::MouseMove, strip_local, strip_global + QPoint(-20, 0), Qt::NoButton,
+                         Qt::LeftButton, Qt::NoModifier);
+  QApplication::sendEvent(info_dock, &strip_move);
+  QMouseEvent strip_release(QEvent::MouseButtonRelease, strip_local, strip_global + QPoint(-20, 0),
+                            Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+  QApplication::sendEvent(info_dock, &strip_release);
+  QApplication::processEvents();
+  CHECK(info_dock->geometry().width() == geometry_before_resize.width() + 20);
+  CHECK(info_dock->geometry().x() == geometry_before_resize.x() - 20);
+
   info_dock->setFloating(false);
   QApplication::processEvents();
   QApplication::processEvents();
@@ -2324,9 +2348,12 @@ void ui_floating_right_dock_auto_expands() {
   CHECK(!info_dock->isFloating());
   CHECK(handle->isVisibleTo(info_dock));
   CHECK(info_toggle->isVisibleTo(info_dock));
-  // The panel stays expanded after re-docking.
+  // The panel stays expanded after re-docking, and the floating chrome
+  // (frame margins, styling property) is fully removed.
   CHECK(info_toggle->isChecked());
   CHECK(info_label->isVisibleTo(info_dock));
+  CHECK(info_dock->contentsMargins().left() == 0);
+  CHECK(!info_dock->property("floatingChrome").toBool());
 }
 
 void ui_tabbed_dock_title_drag_floats_single_dock() {
