@@ -2378,8 +2378,8 @@ void ui_tabbed_dock_title_drag_floats_single_dock() {
 
 void ui_dock_group_window_drags_by_blank_chrome() {
   // Qt's floating dock tab-group window has no grabbable chrome: the blank
-  // strip beside the tabs must move the window, edge presses must stay with
-  // Qt's resize handling, and edge hovers must show a resize cursor. The
+  // strip beside the tabs must move the window, presses on the widened frame
+  // strip must resize it, and edge hovers must show a resize cursor. The
   // private Qt class cannot be constructed here, so the handler's test seam
   // (the patchy.dockGroupWindow property) stands in for it.
   patchy::ui::MainWindow window;
@@ -2417,36 +2417,45 @@ void ui_dock_group_window_drags_by_blank_chrome() {
                    Qt::LeftButton, Qt::NoButton);
   CHECK(group.pos() == position_before_drag + QPoint(40, 30));
 
-  // Edge presses are left alone so Qt's own resize handling keeps working.
-  const auto position_before_edge_press = group.pos();
+  // Edge presses resize by dragging the widened frame strip.
+  const auto geometry_before_resize = group.geometry();
   const QPoint edge_local(3, 100);
   auto edge_global = group.mapToGlobal(edge_local);
   send_group_mouse(group, QEvent::MouseButtonPress, edge_local, edge_global, Qt::LeftButton, Qt::LeftButton);
-  send_group_mouse(group, QEvent::MouseMove, edge_local, edge_global + QPoint(25, 0), Qt::NoButton,
+  send_group_mouse(group, QEvent::MouseMove, edge_local, edge_global + QPoint(-25, 0), Qt::NoButton,
                    Qt::LeftButton);
-  send_group_mouse(group, QEvent::MouseButtonRelease, edge_local, edge_global + QPoint(25, 0), Qt::LeftButton,
-                   Qt::NoButton);
-  CHECK(group.pos() == position_before_edge_press);
+  send_group_mouse(group, QEvent::MouseButtonRelease, edge_local, edge_global + QPoint(-25, 0),
+                   Qt::LeftButton, Qt::NoButton);
+  CHECK(group.geometry().x() == geometry_before_resize.x() - 25);
+  CHECK(group.geometry().width() == geometry_before_resize.width() + 25);
+  CHECK(group.geometry().height() == geometry_before_resize.height());
+  const auto position_before_edge_press = group.pos();
 
   // Edge hovers show the resize cursor; interior hovers restore the default.
-  QHoverEvent left_hover(QEvent::HoverMove, QPointF(3, 100), QPointF(), QPointF(3, 99));
+  // Probe points derive from the current size (the window was just resized).
+  const QPointF right_corner(group.width() - 3, group.height() - 3);
+  const QPointF center(group.width() / 2, group.height() / 2);
+  QHoverEvent left_hover(QEvent::HoverMove, QPointF(3, group.height() / 2), QPointF(),
+                         QPointF(3, group.height() / 2 - 1));
   QApplication::sendEvent(&group, &left_hover);
   CHECK(group.cursor().shape() == Qt::SizeHorCursor);
-  QHoverEvent corner_hover(QEvent::HoverMove, QPointF(297, 197), QPointF(), QPointF(296, 196));
+  QHoverEvent corner_hover(QEvent::HoverMove, right_corner, QPointF(), right_corner - QPointF(1, 1));
   QApplication::sendEvent(&group, &corner_hover);
   CHECK(group.cursor().shape() == Qt::SizeFDiagCursor);
-  QHoverEvent center_hover(QEvent::HoverMove, QPointF(150, 100), QPointF(), QPointF(149, 99));
+  QHoverEvent center_hover(QEvent::HoverMove, center, QPointF(), center - QPointF(1, 1));
   QApplication::sendEvent(&group, &center_hover);
   CHECK(group.cursor().shape() == Qt::ArrowCursor);
   // Enter events carry the cursor onto the thin frame strip even when hover
   // synthesis misses it, and entering a child clears the inherited shape.
-  QEnterEvent enter_edge(QPointF(297, 100), QPointF(297, 100), QPointF(group.mapToGlobal(QPoint(297, 100))));
+  const QPointF right_edge(group.width() - 3, group.height() / 2);
+  QEnterEvent enter_edge(right_edge, right_edge, QPointF(group.mapToGlobal(right_edge.toPoint())));
   QApplication::sendEvent(&group, &enter_edge);
   CHECK(group.cursor().shape() == Qt::SizeHorCursor);
   QEnterEvent enter_child(QPointF(10, 10), QPointF(10, 10), QPointF(tab_bar->mapToGlobal(QPoint(10, 10))));
   QApplication::sendEvent(tab_bar, &enter_child);
   CHECK(group.cursor().shape() == Qt::ArrowCursor);
-  QEnterEvent enter_bottom(QPointF(150, 197), QPointF(150, 197), QPointF(group.mapToGlobal(QPoint(150, 197))));
+  const QPointF bottom_edge(group.width() / 2, group.height() - 3);
+  QEnterEvent enter_bottom(bottom_edge, bottom_edge, QPointF(group.mapToGlobal(bottom_edge.toPoint())));
   QApplication::sendEvent(&group, &enter_bottom);
   CHECK(group.cursor().shape() == Qt::SizeVerCursor);
   QEvent leave_event(QEvent::Leave);

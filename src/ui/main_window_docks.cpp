@@ -291,7 +291,10 @@ bool is_dock_group_window(const QWidget* widget) {
          widget->property("patchy.dockGroupWindow").toBool();
 }
 
-constexpr int kGroupWindowResizeMargin = 8;
+constexpr int kGroupWindowResizeMargin = 10;
+// Added to the group window as contents margins so the resize frame is a
+// real, hittable strip; Qt's own frame is only PM_DockWidgetFrameWidth thin.
+constexpr int kGroupWindowFrameMargin = 8;
 
 Qt::Edges group_window_resize_edges(const QWidget* window, QPoint position) {
   Qt::Edges edges;
@@ -779,7 +782,42 @@ bool MainWindow::handle_dock_group_window_event(QObject* watched, QEvent* event)
           dock_group_drag_window_ = nullptr;
           return false;
         }
-        dock_group_drag_window_->move(mouse_event->globalPosition().toPoint() - dock_group_drag_offset_);
+        const auto global = mouse_event->globalPosition().toPoint();
+        if (dock_group_drag_edges_ == Qt::Edges{}) {
+          dock_group_drag_window_->move(global - dock_group_drag_offset_);
+        } else {
+          const auto delta = global - dock_group_drag_press_global_;
+          auto rect = dock_group_drag_origin_rect_;
+          if (dock_group_drag_edges_.testFlag(Qt::LeftEdge)) {
+            rect.setLeft(rect.left() + delta.x());
+          }
+          if (dock_group_drag_edges_.testFlag(Qt::RightEdge)) {
+            rect.setRight(rect.right() + delta.x());
+          }
+          if (dock_group_drag_edges_.testFlag(Qt::TopEdge)) {
+            rect.setTop(rect.top() + delta.y());
+          }
+          if (dock_group_drag_edges_.testFlag(Qt::BottomEdge)) {
+            rect.setBottom(rect.bottom() + delta.y());
+          }
+          const auto minimum =
+              dock_group_drag_window_->minimumSizeHint().expandedTo(dock_group_drag_window_->minimumSize());
+          if (rect.width() < minimum.width()) {
+            if (dock_group_drag_edges_.testFlag(Qt::LeftEdge)) {
+              rect.setLeft(rect.right() - minimum.width() + 1);
+            } else {
+              rect.setRight(rect.left() + minimum.width() - 1);
+            }
+          }
+          if (rect.height() < minimum.height()) {
+            if (dock_group_drag_edges_.testFlag(Qt::TopEdge)) {
+              rect.setTop(rect.bottom() - minimum.height() + 1);
+            } else {
+              rect.setBottom(rect.top() + minimum.height() - 1);
+            }
+          }
+          dock_group_drag_window_->setGeometry(rect);
+        }
         mouse_event->accept();
         return true;
       }
@@ -806,9 +844,12 @@ bool MainWindow::handle_dock_group_window_event(QObject* watched, QEvent* event)
     switch (event->type()) {
       case QEvent::Show:
         // Hover events drive the edge cursor; the private Qt window does not
-        // enable them itself.
+        // enable them itself. The contents margins widen Qt's few-pixel
+        // frame into a real, hittable resize strip.
         widget->setAttribute(Qt::WA_Hover, true);
         widget->setMouseTracking(true);
+        widget->setContentsMargins(kGroupWindowFrameMargin, kGroupWindowFrameMargin,
+                                   kGroupWindowFrameMargin, kGroupWindowFrameMargin);
         return false;
       case QEvent::HoverEnter:
       case QEvent::HoverMove: {
@@ -857,14 +898,18 @@ bool MainWindow::handle_dock_group_window_event(QObject* watched, QEvent* event)
         return false;
       case QEvent::MouseButtonPress: {
         auto* mouse_event = static_cast<QMouseEvent*>(event);
-        if (mouse_event->button() != Qt::LeftButton ||
-            group_window_resize_edges(widget, mouse_event->position().toPoint()) != Qt::Edges{}) {
+        if (mouse_event->button() != Qt::LeftButton) {
           return false;
         }
+        // Edge presses resize (our handler owns the whole widened strip; Qt's
+        // QWidgetResizeHandler only covers its own few-pixel range), interior
+        // presses move. Anchor the move to the frame origin: move() positions
+        // the frame while mouse coordinates are client-relative, and the
+        // platform can pad a frame margin between the two.
         dock_group_drag_window_ = widget;
-        // Anchor to the frame origin: move() positions the frame while mouse
-        // coordinates are client-relative, and the platform can pad a frame
-        // margin between the two.
+        dock_group_drag_edges_ = group_window_resize_edges(widget, mouse_event->position().toPoint());
+        dock_group_drag_press_global_ = mouse_event->globalPosition().toPoint();
+        dock_group_drag_origin_rect_ = widget->geometry();
         dock_group_drag_offset_ = mouse_event->globalPosition().toPoint() - widget->pos();
         mouse_event->accept();
         return true;
@@ -891,6 +936,7 @@ bool MainWindow::handle_dock_group_window_event(QObject* watched, QEvent* event)
     if (mouse_event->button() == Qt::LeftButton &&
         tab_bar->tabAt(mouse_event->position().toPoint()) < 0) {
       dock_group_drag_window_ = tab_bar->window();
+      dock_group_drag_edges_ = Qt::Edges{};
       dock_group_drag_offset_ =
           mouse_event->globalPosition().toPoint() - tab_bar->window()->pos();
       mouse_event->accept();

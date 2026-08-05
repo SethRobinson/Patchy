@@ -1549,10 +1549,13 @@ private:
   QPoint right_dock_title_drag_press_global_;
   QPoint right_dock_title_drag_offset_;
   bool right_dock_title_drag_started_{false};
-  // Blank-area drag of a floating dock tab-group window (see
-  // handle_dock_group_window_event).
+  // Blank-area move and frame-strip resize of a floating dock tab-group
+  // window (see handle_dock_group_window_event). Empty edges = moving.
   QPointer<QWidget> dock_group_drag_window_;
   QPoint dock_group_drag_offset_;
+  QPoint dock_group_drag_press_global_;
+  QRect dock_group_drag_origin_rect_;
+  Qt::Edges dock_group_drag_edges_;
   // 0 until update_right_dock_minimum_width() measures the layers panel.
   int right_dock_minimum_width_{0};
   // -1 until the chrome around the layers panel is measured from a laid-out

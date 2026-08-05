@@ -279,6 +279,13 @@ QString photoshop_style_template() {
     QWidget#rightDockResizeHandle {
       background: @dock_separator_bg;
     }
+    /* The floating dock tab-group window: its widened resize frame paints as
+       divider chrome, and the border keeps the window's boundary readable
+       over a same-value canvas backdrop. */
+    QDockWidgetGroupWindow {
+      background: @dock_separator_bg;
+      border: 1px solid @panel_border_strong;
+    }
     QWidget#rightDockResizeHandle:hover {
       background: @splitter_hover_bg;
     }
