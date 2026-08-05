@@ -1551,7 +1551,7 @@ private:
   CanvasWidget::PenInputSettings pen_input_settings_{};
   bool wheel_zooms_{kWheelZoomsDefault};
   bool shift_keeps_transform_aspect_{false};
-  bool zoom_layer_thumbnails_to_content_{false};
+  bool zoom_layer_thumbnails_to_content_{true};
   std::vector<std::pair<QWidget*, std::vector<CanvasTool>>> option_actions_;
   std::vector<QWidget*> transform_option_actions_;
   std::vector<QWidget*> warp_option_actions_;

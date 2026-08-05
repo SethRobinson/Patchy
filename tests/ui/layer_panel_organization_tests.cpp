@@ -1097,6 +1097,15 @@ void ui_layer_panel_mixed_folder_visual_cleanup() {
 }
 
 void ui_layer_thumbnails_preview_the_whole_document() {
+  // Document-mapped previews are the non-default mode now that zoomed
+  // thumbnails ship on, so pin the preference off for this test.
+  SettingsValueRestorer restore_zoom(QStringLiteral("view/zoomLayerThumbnailsToContent"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("view/zoomLayerThumbnailsToContent"), false);
+    settings.sync();
+  }
+
   // 4:1. A square tile would wrap this in checkerboard bars, which claim the
   // opaque layer has transparency it does not have.
   constexpr std::int32_t kWideWidth = 160;
