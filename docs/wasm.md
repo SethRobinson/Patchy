@@ -492,6 +492,28 @@ when `kBackgroundWorkRunsInline` (background_workers.hpp): deferring to an
 inline worker composed the frame inside paintEvent anyway.
 `build\wasm-st-baseline` preserves a single-threaded build for comparisons.
 
+## Known issue: Safari 26 kills the tab within minutes (August 2026)
+
+Measured on studiomac (macOS 26.3.1, Safari 26.x) with the memtest harness
+(see [performance.md](performance.md)): the app's WebContent process grows
+about 150 MB/s at IDLE with 400-1200% CPU and is killed by WebKit at roughly
+2.5 minutes (footprint plateaued at 16 GB, ps rss reached 24 GB). The wasm
+side is innocent: patchyMemStats stays flat (512 MB heap, ~100 MB used), and
+the `footprint` category breakdown puts the growth in "WebKit malloc" (2.7 GB
+dirty 6 seconds after load), not the JS GC heap or JIT-code regions. Chrome on
+the same machine with the same page holds flat at ~900 MB. The signature
+(concurrent compile threads burning CPU while allocating unboundedly, other
+browsers unaffected) matches public Safari/WebKit 26 reports against large
+wasm modules, e.g. onnxruntime issue 26827, where sampling showed
+JSC::Wasm::parseAndCompileOMG looping in allocateStackByGraphColoring.
+A launchctl-env JSC_useOMGJIT=false test did not change the behavior, but env
+propagation into WebContent XPC was unverified, so tier attribution is open.
+iOS Safari deaths ~2 s after load are consistent with the same compile-side
+growth against a phone's jetsam budget and would be knob-independent (the
+memory-ladder and pool URL knobs cannot dodge it). Leads: shrink/split the
+66 MB module or the pathological function(s) that blow up JSC's compiler, and
+file a WebKit bug (rtsoft.com/patchy is a clean public repro).
+
 ## Release deployment (rtsoft.com/patchy)
 
 Batch-file details live in [release-process.md](release-process.md):
