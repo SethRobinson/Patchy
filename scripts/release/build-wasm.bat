@@ -86,6 +86,14 @@ set "PATCHY_WEB_SITE_DIR=%SITE_DIR%"
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$html = Get-Content -Raw -LiteralPath $env:PATCHY_WEB_TEMPLATE; $html = $html.Replace('__PATCHY_VERSION__', $env:PATCHY_PACKAGE_VERSION).Replace('__PATCHY_CACHE_TAG__', $env:PATCHY_WEB_CACHE_TAG).Replace('__PATCHY_WASM_SIZE__', $env:PATCHY_WASM_SIZE); if ($html -match '__PATCHY_') { Write-Error 'patchy.html.in still contains an unreplaced __PATCHY_ placeholder.'; exit 1 }; Set-Content -LiteralPath (Join-Path $env:PATCHY_WEB_SITE_DIR 'patchy.html') -Value $html -NoNewline -Encoding UTF8; Set-Content -LiteralPath (Join-Path $env:PATCHY_WEB_SITE_DIR 'index.html') -Value $html -NoNewline -Encoding UTF8"
 if errorlevel 1 goto fail
 
+rem Stage the memory-diagnostics harness with the same cache tag, plus the
+rem soak script it fetches. Production uploads never ship these (their upload
+rem list is explicit); the beta upload does (upload-wasm-to-rtsoft-beta.bat).
+set "PATCHY_WEB_HARNESS=%REPO%\scripts\wasm\stress-harness.html"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$html = Get-Content -Raw -LiteralPath $env:PATCHY_WEB_HARNESS; $html = $html.Replace('__PATCHY_CACHE_TAG__', $env:PATCHY_WEB_CACHE_TAG); Set-Content -LiteralPath (Join-Path $env:PATCHY_WEB_SITE_DIR 'stress-harness.html') -Value $html -NoNewline -Encoding UTF8"
+if errorlevel 1 goto fail
+copy /Y "%REPO%\scripts\wasm\memsoak.js" "%SITE_DIR%\memsoak.js" >nul || goto fail
+
 echo Precompressing site assets...
 rem Brotli/gzip variants beside the identity files; the staged .htaccess
 rem rewrites to them for clients that accept the encoding. The emsdk-bundled

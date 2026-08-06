@@ -1,0 +1,369 @@
+<!doctype html>
+<!--
+  Headless/instrumented harness for the wasm app (docs/performance.md,
+  "Headless wasm stress harness"). Serves three jobs the branded patchy.html
+  cannot: keep timers running in a hidden tab (worker-backed setTimeout plus a
+  requestAnimationFrame shim), run unattended workloads (in-app stress test or
+  the memsoak script) with the report polled out of MEMFS, and instrument
+  memory (on-page HUD, POST /telemetry sampling for scripts/wasm/serve.py, and
+  a localStorage black box that survives a browser memory kill and reports the
+  death stage on the next load - the iOS jetsam attribution mechanism).
+
+  Never ship this page to the production site; the beta upload stages it
+  (scripts/release/upload-wasm-to-rtsoft-beta.bat).
+
+  Query parameters:
+    mode=idle|stress|soak   workload (default idle: boot the app, do nothing)
+    preset=quick|small|standard|huge   stress mode preset (default quick)
+    iterations= size= settle=          soak mode knobs (memsoak.js)
+    autostart=0             require a click to boot (also forced after 3
+                            consecutive unclean ends, so a killed tab that
+                            Safari auto-reloads cannot loop-hammer the device)
+    PATCHY_WASM_INITIAL_MB= PATCHY_WASM_MAX_MB= PATCHY_WASM_POOL=
+                            memory/pool knobs, same as patchy.html
+    PATCHY_MEM_LOG=1        app-side console log of each telemetry sample
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Patchy memory harness</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #1e1e1e; color: #ddd;
+                   font: 13px/1.4 -apple-system, "Segoe UI", sans-serif; }
+      #screen { width: 100%; height: 100%; margin: 0; }
+      #hud { position: fixed; top: 0; right: 0; z-index: 9999; background: rgba(0,0,0,.75);
+             color: #9f9; padding: 6px 10px; font: 14px/1.5 ui-monospace, Menlo, monospace;
+             white-space: pre; pointer-events: none; }
+      #banner { position: fixed; bottom: 0; left: 0; right: 0; z-index: 9999;
+                background: #8b1a1a; color: #fff; padding: 10px 14px;
+                font-size: 15px; white-space: pre-wrap; display: none; }
+      #gate { position: fixed; inset: 0; z-index: 9998; display: none;
+              align-items: center; justify-content: center; background: #1e1e1e; }
+      #gate button { font-size: 20px; padding: 14px 28px; }
+    </style>
+  </head>
+  <body>
+    <figure id="screen"></figure>
+    <div id="hud">boot</div>
+    <div id="banner"></div>
+    <div id="gate"><button id="start">Start Patchy harness</button></div>
+    <script>
+      'use strict';
+      // Staged through build-wasm.bat like patchy.html; served raw from the
+      // build directory the token is untouched and a per-load tag is used.
+      const RAW_TAG = '__PATCHY_CACHE_TAG__';
+      const CACHE_TAG = RAW_TAG.indexOf('__') === 0 ? String(Date.now()) : RAW_TAG;
+      const params = new URLSearchParams(location.search);
+      const MODE = params.get('mode') || 'idle';
+      const PRESET = params.get('preset') || 'quick';
+      const BOOT_MS = Date.now();
+      const RUN_ID = 'run-' + BOOT_MS.toString(36) + '-' + Math.floor(Math.random() * 1e6).toString(36);
+      window.__patchyEpoch = RUN_ID;
+
+      // ---- Background-tab timers: Chrome and Safari throttle a hidden tab's
+      // main-thread timers to ~1/s, which starves Qt's event loop and every
+      // sampler on this page. Worker messages are exempt, so all timers are
+      // re-implemented on a Blob worker; requestAnimationFrame (never fired
+      // for hidden tabs) rides the same shim. Installed before patchy.js
+      // loads so the Qt glue picks the shimmed functions up.
+      (function installBackgroundTimers() {
+        const workerSource =
+          "const timers = new Map();" +
+          "onmessage = (e) => { const m = e.data;" +
+          "  if (m.op === 'set') {" +
+          "    const fire = () => postMessage(m.id);" +
+          "    timers.set(m.id, m.repeat ? setInterval(fire, m.ms) : setTimeout(fire, m.ms));" +
+          "  } else { const t = timers.get(m.id); clearTimeout(t); clearInterval(t); timers.delete(m.id); } };";
+        let worker;
+        try {
+          worker = new Worker(URL.createObjectURL(new Blob([workerSource], { type: 'text/javascript' })));
+        } catch (e) {
+          console.warn('harness: timer worker unavailable, keeping native timers', e);
+          return;
+        }
+        const callbacks = new Map();
+        let nextId = 1;
+        worker.onmessage = (e) => {
+          const entry = callbacks.get(e.data);
+          if (!entry) return;
+          if (!entry.repeat) callbacks.delete(e.data);
+          entry.fn.apply(null, entry.args);
+        };
+        const set = (repeat) => function (fn, ms) {
+          if (typeof fn !== 'function') return 0; // string bodies unused here
+          const id = nextId++;
+          callbacks.set(id, { fn, args: Array.prototype.slice.call(arguments, 2), repeat });
+          worker.postMessage({ op: 'set', id, ms: Number(ms) || 0, repeat });
+          return id;
+        };
+        const clear = (id) => { callbacks.delete(id); worker.postMessage({ op: 'clear', id }); };
+        window.setTimeout = set(false);
+        window.setInterval = set(true);
+        window.clearTimeout = clear;
+        window.clearInterval = clear;
+        window.requestAnimationFrame = (cb) => window.setTimeout(() => cb(performance.now()), 16);
+        window.cancelAnimationFrame = (id) => window.clearTimeout(id);
+      })();
+
+      // Downloads are meaningless in an unattended run and Safari would stack
+      // save prompts; suppress programmatic <a download> clicks (the app's
+      // save path clicks an anchor it never attaches to the DOM).
+      (function suppressDownloads() {
+        const nativeClick = HTMLAnchorElement.prototype.click;
+        HTMLAnchorElement.prototype.click = function () {
+          if (this.hasAttribute('download')) {
+            console.info('harness: suppressed download ' + (this.getAttribute('download') || ''));
+            return;
+          }
+          return nativeClick.call(this);
+        };
+      })();
+
+      // ---- Black box: synchronously journaled to localStorage so a memory
+      // kill (uncatchable, no unload event guaranteed) still leaves the last
+      // stage plus heap numbers for the NEXT load to report.
+      const BLACKBOX_KEY = 'patchyMemtest.blackbox';
+      const DEATHS_KEY = 'patchyMemtest.deaths';
+      const blackbox = {
+        runId: RUN_ID, bootMs: BOOT_MS, stage: 'boot', t: 0, clean: false,
+        config: { mode: MODE, preset: PRESET, search: location.search, userAgent: navigator.userAgent },
+        heapBytes: 0, memStats: null, events: [],
+      };
+      let wasmMemory = null;
+      function recordStage(stage, extra) {
+        blackbox.stage = stage;
+        blackbox.t = Date.now() - BOOT_MS;
+        blackbox.heapBytes = wasmMemory ? wasmMemory.buffer.byteLength : 0;
+        blackbox.memStats = globalThis.patchyMemStats || null;
+        if (extra) Object.assign(blackbox, extra);
+        try {
+          // Newest run wins: a zombie harness tab left running in the
+          // background (the worker timers keep it lively) must not clobber
+          // the box of a newer run in another tab.
+          const stored = JSON.parse(localStorage.getItem(BLACKBOX_KEY) || 'null');
+          if (stored && stored.bootMs && stored.runId !== RUN_ID && stored.bootMs > BOOT_MS) return;
+          localStorage.setItem(BLACKBOX_KEY, JSON.stringify(blackbox));
+        } catch (e) { /* full/blocked */ }
+      }
+      function noteEvent(text) {
+        blackbox.events.push({ t: Date.now() - BOOT_MS, text });
+        recordStage(blackbox.stage);
+      }
+      // A deliberate navigation away is not a memory kill (which fires no
+      // event at all): mark it so the next load's banner only reports real
+      // deaths. pagehide fires on navigation/close but never on a jetsam or
+      // WebKit memory kill, which is exactly the split needed.
+      window.addEventListener('pagehide', () => {
+        if (!blackbox.clean) recordStage('navigated-away', { clean: true });
+      });
+      const previous = (() => {
+        try { return JSON.parse(localStorage.getItem(BLACKBOX_KEY) || 'null'); } catch (e) { return null; }
+      })();
+      let consecutiveDeaths = Number(localStorage.getItem(DEATHS_KEY) || 0);
+      if (previous && !previous.clean) {
+        consecutiveDeaths += 1;
+        const banner = document.getElementById('banner');
+        banner.style.display = 'block';
+        banner.textContent = 'Previous session died at stage "' + previous.stage + '" t+'
+          + Math.round(previous.t / 1000) + 's, heap '
+          + Math.round((previous.heapBytes || 0) / 1048576) + ' MB'
+          + (previous.memStats ? (', used ' + Math.round(previous.memStats.usedBytes / 1048576) + ' MB') : '')
+          + '  [' + (previous.config ? previous.config.search : '') + ']';
+      } else {
+        consecutiveDeaths = 0;
+      }
+      localStorage.setItem(DEATHS_KEY, String(consecutiveDeaths));
+
+      // ---- Telemetry: same-origin POSTs that scripts/wasm/serve.py appends
+      // to a JSONL file; silently inert on hosts without the endpoint (the
+      // Apache beta deploy), where the HUD and black box still work. The path
+      // avoids the word "telemetry", which content blockers kill on sight.
+      function postTelemetry(extra) {
+        const sample = {
+          runId: RUN_ID, t: Date.now() - BOOT_MS, stage: blackbox.stage,
+          heapBytes: wasmMemory ? wasmMemory.buffer.byteLength : 0,
+          memStats: globalThis.patchyMemStats || null,
+          visibilityState: document.visibilityState,
+          config: blackbox.config,
+        };
+        if (extra) Object.assign(sample, extra);
+        try {
+          fetch('/memtest-sample', { method: 'POST', body: JSON.stringify(sample),
+                                     headers: { 'Content-Type': 'application/json' } }).catch(() => {});
+        } catch (e) { /* no fetch, no telemetry */ }
+      }
+
+      const hud = document.getElementById('hud');
+      function refreshHud() {
+        const mb = (bytes) => (bytes / 1048576).toFixed(0);
+        const stats = globalThis.patchyMemStats;
+        hud.textContent = 'stage ' + blackbox.stage
+          + '  t+' + Math.round((Date.now() - BOOT_MS) / 1000) + 's\n'
+          + 'heap ' + (wasmMemory ? mb(wasmMemory.buffer.byteLength) : '?') + ' MB'
+          + ' / cap ' + mb(globalThis.patchyWasmMemoryMaximumBytes || 0) + ' MB'
+          + (stats ? ('\nused ' + mb(stats.usedBytes) + ' MB  peak ' + mb(stats.peakUsedBytes)
+                      + ' MB  history ' + mb(stats.historyBytes) + ' MB') : '');
+      }
+
+      // ---- The shell page's memory construction, replicated (same knobs and
+      // ladders as packaging/web/patchy.html.in; keep in sync). BAKED_MIN_MB
+      // mirrors QT_WASM_INITIAL_MEMORY: a smaller page-supplied initial is a
+      // LinkError.
+      const BAKED_MIN_MB = 256;
+      (() => {
+        const pool = parseInt(params.get('PATCHY_WASM_POOL'), 10);
+        if (Number.isFinite(pool) && pool > 0) globalThis.patchyPthreadPoolSize = pool;
+      })();
+      function isIosDevice() {
+        return /iPad|iPhone|iPod/.test(navigator.userAgent)
+            || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      }
+      function buildWasmMemory() {
+        const pagesPerMb = 16;
+        const iOS = isIosDevice();
+        const initialKnob = parseInt(params.get('PATCHY_WASM_INITIAL_MB'), 10);
+        const initialMb = Math.max(BAKED_MIN_MB,
+            (Number.isFinite(initialKnob) && initialKnob > 0) ? initialKnob : (iOS ? 256 : 512));
+        const maxKnob = parseInt(params.get('PATCHY_WASM_MAX_MB'), 10);
+        const ladder = (Number.isFinite(maxKnob) && maxKnob > 0)
+            ? [Math.max(maxKnob, initialMb)]
+            : (iOS ? [1536, 1024, 768] : [4096, 2048, 1024]).filter(mb => mb >= initialMb);
+        for (const maxMb of ladder) {
+          try {
+            const memory = new WebAssembly.Memory(
+                { initial: initialMb * pagesPerMb, maximum: maxMb * pagesPerMb, shared: true });
+            globalThis.patchyWasmMemoryMaximumBytes = maxMb * 1024 * 1024;
+            noteEvent('memory ok: initial=' + initialMb + 'MB max=' + maxMb + 'MB pool='
+                      + (globalThis.patchyPthreadPoolSize || 'default'));
+            return memory;
+          } catch (e) {
+            noteEvent('memory refused at ' + maxMb + ' MB: ' + e);
+          }
+        }
+        return null;
+      }
+
+      function loadScript(src) {
+        return new Promise((resolve, reject) => {
+          const tag = document.createElement('script');
+          tag.src = src + '?v=' + CACHE_TAG;
+          tag.onload = resolve;
+          tag.onerror = () => reject(new Error('failed to load ' + src));
+          document.head.appendChild(tag);
+        });
+      }
+
+      async function fetchWasm(url) {
+        recordStage('fetch-start');
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('HTTP ' + response.status + ' for ' + url);
+        const bytes = new Uint8Array(await response.arrayBuffer());
+        recordStage('fetch-end', {});
+        noteEvent('fetched ' + Math.round(bytes.length / 1048576) + ' MB wasm');
+        return bytes;
+      }
+
+      async function init() {
+        try {
+          recordStage('init');
+          if (!window.crossOriginIsolated) {
+            recordStage('failed-not-isolated', { clean: true });
+            hud.textContent = 'Not cross-origin isolated; COOP/COEP headers missing.';
+            return;
+          }
+          wasmMemory = buildWasmMemory();
+          if (!wasmMemory) {
+            recordStage('failed-memory-refused', { clean: true });
+            hud.textContent = 'Every WebAssembly.Memory ladder rung was refused.';
+            return;
+          }
+          recordStage('memory-constructed');
+
+          const config = {
+            wasmMemory,
+            locateFile: (filename) => filename + '?v=' + CACHE_TAG,
+            qt: {
+              onLoaded: () => { recordStage('loaded'); postTelemetry(); },
+              onExit: (exitData) => {
+                recordStage(exitData.crashed ? 'crashed' : 'exited', {
+                  clean: !exitData.crashed,
+                  exit: { code: exitData.code, text: exitData.text || '' },
+                });
+                postTelemetry({ exit: blackbox.exit });
+              },
+              entryFunction: window.patchy_entry,
+              containerElements: [document.getElementById('screen')],
+            },
+          };
+
+          if (MODE === 'stress') {
+            config.arguments = ['--stress-test=' + PRESET, '--stress-report-dir', '/stressout'];
+          } else if (MODE === 'soak') {
+            const soakSource = await (await fetch('memsoak.js?v=' + CACHE_TAG)).text();
+            config.preRun = [() => {
+              config.FS.writeFile('/memsoak.js', soakSource);
+            }];
+            config.arguments = ['--run-script', '/memsoak.js', '--script-output', '/memsoak-out.txt'];
+            for (const knob of ['iterations', 'size', 'filter']) {
+              if (params.get(knob)) config.arguments.push('--script-arg', knob + '=' + params.get(knob));
+            }
+            if (params.get('settle')) config.arguments.push('--script-arg', 'settleMs=' + params.get('settle'));
+          }
+
+          const wasmBytes = await fetchWasm('patchy.wasm?v=' + CACHE_TAG);
+          recordStage('compile-start');
+          const wasmModule = await WebAssembly.compile(wasmBytes);
+          recordStage('compile-end');
+          config.qt.module = Promise.resolve(wasmModule);
+          recordStage('qtload-start');
+          const instance = await qtLoad(config);
+
+          // Stress mode: surface the report the moment MEMFS has it (the run
+          // exits right afterwards; onExit files the terminal stage).
+          if (MODE === 'stress') {
+            const poll = window.setInterval(() => {
+              try {
+                const report = instance.FS.readFile('/stressout/stress-latest.json', { encoding: 'utf8' });
+                window.clearInterval(poll);
+                noteEvent('stress report written (' + report.length + ' bytes)');
+                postTelemetry({ stressReport: JSON.parse(report) });
+              } catch (e) { /* not written yet */ }
+            }, 5000);
+          }
+        } catch (e) {
+          console.error(e);
+          recordStage('failed-load', { clean: true, error: String(e && e.message || e) });
+          hud.textContent = 'Load failed: ' + (e && e.message ? e.message : e);
+        }
+      }
+
+      // Watermark + samplers: 2 s telemetry, 1 s HUD, 10 s black-box
+      // heartbeat (so a kill mid-run reports a recent t and heap size).
+      window.setInterval(postTelemetry, 2000);
+      window.setInterval(refreshHud, 1000);
+      window.setInterval(() => {
+        if (!blackbox.clean) recordStage('running+' + Math.round((Date.now() - BOOT_MS) / 1000) + 's');
+      }, 10000);
+
+      async function boot() {
+        await loadScript('patchy.js');
+        await loadScript('qtloader.js');
+        await init();
+      }
+      const needGate = params.get('autostart') === '0' || consecutiveDeaths >= 3;
+      if (needGate) {
+        const gate = document.getElementById('gate');
+        gate.style.display = 'flex';
+        document.getElementById('start').addEventListener('click', () => {
+          localStorage.setItem(DEATHS_KEY, '0');
+          gate.style.display = 'none';
+          boot();
+        });
+        recordStage('gated', { clean: true });
+      } else {
+        boot();
+      }
+    </script>
+  </body>
+</html>
