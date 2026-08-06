@@ -141,10 +141,12 @@ notarized (Robinson Technologies Corporation).
 | Windows 10/11 (64-bit)    | Portable ZIP (no installer) | [PatchyWindowsNoInstaller.zip](https://rtsoft.com/files/PatchyWindowsNoInstaller.zip) (35 MB) |
 | macOS 12+ (Apple Silicon) | DMG - drag to Applications  | [PatchyMacOS.dmg](https://rtsoft.com/files/PatchyMacOS.dmg) (44 MB)                           |
 | Linux                     | Flatpak bundle              | [PatchyLinux.flatpak](https://rtsoft.com/files/PatchyLinux.flatpak) (14 MB)                   |
+| Any modern browser        | Nothing to install          | [rtsoft.com/patchy](https://www.rtsoft.com/patchy/) (slower and less capable)                 |
 
-No install needed to try it: [rtsoft.com/patchy](https://www.rtsoft.com/patchy/) runs the same
-editor in your browser, compiled to WebAssembly. Everything runs locally and nothing you make
-is sent online.
+The browser version is the same editor compiled to WebAssembly, and everything runs locally:
+nothing you open or make is sent online. Use a desktop build if you can. The browser version is
+slower, it is capped at a browser tab's 4 GB of memory so large documents run out of room sooner,
+and it leaves out printing, scanner and camera import, and command-line automation.
 
 Linux one-line install (paste into a terminal; fetches the bundle and installs it,
 pulling the shared KDE runtime from Flathub automatically):
