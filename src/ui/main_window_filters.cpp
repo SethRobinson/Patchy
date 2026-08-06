@@ -14,6 +14,7 @@
 #include "core/palette.hpp"
 #include "core/palette_presets.hpp"
 #include "core/pixel_tools.hpp"
+#include "core/vector_shape.hpp"
 #include "formats/palette_io.hpp"
 #include "filters/builtin_filters.hpp"
 #include "filters/smart_filter_recipe_mapping.hpp"
@@ -2117,6 +2118,88 @@ void MainWindow::delete_smart_filter(LayerId layer_id,
   }
 }
 
+bool MainWindow::prompt_rasterize_procedural_layer(LayerId layer_id,
+                                                  const QString& operation_name,
+                                                  bool offer_convert_to_smart_object) {
+  auto& doc = document();
+  const auto* layer = std::as_const(doc).find_layer(layer_id);
+  if (layer == nullptr) {
+    return false;
+  }
+  const bool text = layer_is_text(*layer);
+  const bool shape = !text && layer_is_vector_shape(*layer);
+  if (!text && !shape) {
+    // Plain pixel layers proceed; smart objects keep their own routing.
+    return true;
+  }
+  if (layer_id_locks_image_pixels(layer_id)) {
+    show_status_error(tr("Layer pixels are locked."));
+    return false;
+  }
+  if (cli_automation_mode_) {
+    // A prompt would block unattended runs; keep the plug-in path's refusal.
+    show_status_error(
+        tr("Rasterize Text, Smart Object, and Shape layers before editing their pixels"));
+    return false;
+  }
+  // Commit any in-progress inline text editing before deciding the layer's fate.
+  finish_active_text_editor();
+  layer = std::as_const(doc).find_layer(layer_id);
+  if (layer == nullptr) {
+    return false;
+  }
+  const auto layer_name = QString::fromStdString(layer->name());
+
+  QMessageBox box(this);
+  box.setObjectName(QStringLiteral("rasterizeOrConvertMessageBox"));
+  box.setIcon(QMessageBox::Warning);
+  box.setWindowTitle(offer_convert_to_smart_object ? tr("Rasterize or Convert Layer?")
+                                                   : tr("Rasterize Layer?"));
+  box.setText(text ? tr("\"%1\" is a text layer: its pixels are re-created from the text, so "
+                        "changes made by %2 would be lost on the next text edit.")
+                         .arg(layer_name, operation_name)
+                   : tr("\"%1\" is a shape layer: its pixels are re-created from the shape, so "
+                        "changes made by %2 would be lost on the next shape edit.")
+                         .arg(layer_name, operation_name));
+  if (offer_convert_to_smart_object) {
+    box.setInformativeText(
+        text ? tr("Convert the layer to a smart object to keep the text editable, or rasterize "
+                  "it into plain pixels. Rasterized text can't be edited again.")
+             : tr("Convert the layer to a smart object to keep the shape editable, or rasterize "
+                  "it into plain pixels. A rasterized shape can't be edited as a vector again."));
+  } else {
+    box.setInformativeText(
+        text ? tr("Rasterize the layer into plain pixels to use %1. Rasterized text can't be "
+                  "edited again.")
+                   .arg(operation_name)
+             : tr("Rasterize the layer into plain pixels to use %1. A rasterized shape can't be "
+                  "edited as a vector again.")
+                   .arg(operation_name));
+  }
+  QPushButton* convert_button =
+      offer_convert_to_smart_object
+          ? box.addButton(tr("Convert To Smart Object"), QMessageBox::AcceptRole)
+          : nullptr;
+  auto* rasterize_button = box.addButton(tr("Rasterize"), QMessageBox::DestructiveRole);
+  auto* cancel_button = box.addButton(QMessageBox::Cancel);
+  box.setDefaultButton(convert_button != nullptr ? convert_button : cancel_button);
+  exec_dialog(box);
+  if (box.clickedButton() == nullptr || box.clickedButton() == cancel_button) {
+    statusBar()->showMessage(tr("Cancelled %1").arg(operation_name));
+    return false;
+  }
+  if (box.clickedButton() == rasterize_button) {
+    rasterize_layer_ids({layer_id});
+    const auto* rasterized = std::as_const(doc).find_layer(layer_id);
+    return rasterized != nullptr && !layer_pixels_are_procedural(*rasterized);
+  }
+  if (!convert_layers_to_smart_object({layer_id})) {
+    return false;
+  }
+  const auto* converted = std::as_const(doc).find_layer(layer_id);
+  return converted != nullptr && layer_is_smart_object(*converted);
+}
+
 void MainWindow::apply_filter(const QString& identifier) {
   if (canvas_ != nullptr && canvas_->quick_mask_active()) {
     show_status_error(
@@ -2146,6 +2229,23 @@ void MainWindow::apply_filter(const QString& identifier) {
   if (layer_id_locks_image_pixels(*active)) {
     show_status_error(tr("Layer pixels are locked."));
     return;
+  }
+  if (const auto* gate_filter = filters_.find(identifier.toStdString());
+      gate_filter != nullptr) {
+    // Text/shape layers must rasterize or become a smart object first. Convert
+    // is offered only when the follow-on path can succeed: the filter has a
+    // native Smart Filter mapping and the document fits the editable-mask cap.
+    const bool offer_convert =
+        native_smart_filter_kind_for(identifier.toStdString()).has_value() &&
+        smart_filter_mask_document_editing_supported(doc.width(), doc.height());
+    if (!prompt_rasterize_procedural_layer(*active, filter_display_name(*gate_filter),
+                                           offer_convert)) {
+      return;
+    }
+    layer = doc.find_layer(*active);
+    if (layer == nullptr) {
+      return;
+    }
   }
   bool rasterize_smart_object_for_filter = false;
   if (layer_is_smart_object(*layer)) {
@@ -2457,6 +2557,15 @@ void MainWindow::liquify_dialog() {
     show_status_error(tr("Layer pixels are locked."));
     return;
   }
+  // Liquify refuses smart objects, so only Rasterize is offered on text/shape.
+  if (!prompt_rasterize_procedural_layer(*active, tr("Liquify"), false)) {
+    return;
+  }
+  source_layer = read_only_doc.find_layer(*active);
+  if (!editable_rgb8_layer(source_layer)) {
+    show_status_error(tr("Select an editable RGB pixel layer"));
+    return;
+  }
 
   const auto original_pixels = source_layer->pixels();
   const auto bounds = source_layer->bounds();
@@ -2557,6 +2666,20 @@ void MainWindow::visual_filter_gallery_dialog() {
   // the user only opened and cancelled the gallery.
   const auto& source_document = std::as_const(target_session->document);
   const auto* source_layer = source_document.find_layer(*active);
+  if (!editable_rgb8_layer(source_layer)) {
+    show_status_error(tr("Select an editable RGB pixel layer"));
+    return;
+  }
+  // Text/shape layers must rasterize or become a smart object first; the
+  // gallery handles smart objects fully, so Convert is offered whenever the
+  // document fits the editable Smart Filter mask cap.
+  if (!prompt_rasterize_procedural_layer(
+          *active, tr("Filter Gallery"),
+          smart_filter_mask_document_editing_supported(source_document.width(),
+                                                       source_document.height()))) {
+    return;
+  }
+  source_layer = source_document.find_layer(*active);
   if (!editable_rgb8_layer(source_layer)) {
     show_status_error(tr("Select an editable RGB pixel layer"));
     return;

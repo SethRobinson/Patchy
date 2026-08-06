@@ -2267,6 +2267,323 @@ void ui_filter_gallery_saved_looks_persist_after_cancel_and_support_crud() {
   CHECK(final_reload.find_entry(future_id) != nullptr);
 }
 
+// -- Rasterize-or-convert gate for filters on text/shape layers ---------------
+// Text and shape layers regenerate their pixels from their source data, so a
+// destructive filter would silently vanish on the next text/shape edit. Every
+// destructive entry point routes through prompt_rasterize_procedural_layer
+// (rasterizeOrConvertMessageBox); Convert To Smart Object appears only when the
+// follow-on smart-filter path can succeed.
+
+// Creates and commits a real text layer through the inline editor (the Type
+// drag + commit pipeline), returning its id.
+patchy::LayerId make_committed_text_layer(patchy::ui::MainWindow& window) {
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(40, 40)),
+       canvas->widget_position_for_document_point(QPoint(240, 110)));
+  QApplication::processEvents();
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return {};
+  }
+  editor->setPlainText(QStringLiteral("Filter me"));
+  QApplication::processEvents();
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  const auto active =
+      std::as_const(patchy::ui::MainWindowTestAccess::document(window)).active_layer_id();
+  CHECK(active.has_value());
+  if (!active.has_value()) {
+    return {};
+  }
+  const auto* layer =
+      std::as_const(patchy::ui::MainWindowTestAccess::document(window)).find_layer(*active);
+  CHECK(layer != nullptr && patchy::layer_is_text(*layer));
+  return *active;
+}
+
+// Creates a shape layer with a Rectangle-tool drag, returning its id.
+patchy::LayerId make_shape_layer(patchy::ui::MainWindow& window) {
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+  if (auto* radius_spin = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
+      radius_spin != nullptr) {
+    radius_spin->setValue(0);
+  }
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(30, 30)),
+       canvas->widget_position_for_document_point(QPoint(140, 120)));
+  QApplication::processEvents();
+  const auto active =
+      std::as_const(patchy::ui::MainWindowTestAccess::document(window)).active_layer_id();
+  CHECK(active.has_value());
+  if (!active.has_value()) {
+    return {};
+  }
+  const auto* layer =
+      std::as_const(patchy::ui::MainWindowTestAccess::document(window)).find_layer(*active);
+  CHECK(layer != nullptr && patchy::layer_is_vector_shape(*layer));
+  return *active;
+}
+
+QPushButton* message_box_button_with_role(QMessageBox& box, QMessageBox::ButtonRole role) {
+  for (auto* button : box.buttons()) {
+    if (box.buttonRole(button) == role) {
+      return qobject_cast<QPushButton*>(button);
+    }
+  }
+  return nullptr;
+}
+
+// An adjustment-only filter (Invert) on a text layer offers Rasterize/Cancel
+// only (adjustments are hard-gated on smart objects, so Convert would be a dead
+// end). Rasterize strips the text data and the filter then applies; two undo
+// steps restore the editable text.
+void ui_filter_on_text_layer_prompts_and_rasterizes() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto layer_id = make_committed_text_layer(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto undo_depth_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+
+  bool saw_dialog = false;
+  bool saw_settings_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* box =
+        qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("rasterizeOrConvertMessageBox")));
+    CHECK(box != nullptr);
+    if (box == nullptr) {
+      return;
+    }
+    saw_dialog = true;
+    CHECK(message_box_button_with_role(*box, QMessageBox::AcceptRole) == nullptr);
+    auto* rasterize = message_box_button_with_role(*box, QMessageBox::DestructiveRole);
+    CHECK(rasterize != nullptr);
+    if (rasterize == nullptr) {
+      return;
+    }
+    // Invert's settings dialog opens right after the rasterize; accept the
+    // default amount so the filter commits.
+    QTimer::singleShot(0, [&] {
+      auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        return;
+      }
+      saw_settings_dialog = true;
+      dialog->accept();
+    });
+    rasterize->click();
+  });
+  require_action(window, "imageAdjustInvertAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_dialog);
+  CHECK(saw_settings_dialog);
+
+  const auto* rasterized = std::as_const(document).find_layer(layer_id);
+  CHECK(rasterized != nullptr);
+  CHECK(!patchy::layer_is_text(*rasterized));
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("Applied")));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) ==
+        undo_depth_before + 2U);
+
+  require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
+  require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
+  QApplication::processEvents();
+  const auto* restored = std::as_const(document).find_layer(layer_id);
+  CHECK(restored != nullptr);
+  CHECK(patchy::layer_is_text(*restored));
+}
+
+// A native-mapped filter (Gaussian Blur) offers Convert To Smart Object as the
+// default; converting keeps the text editable inside the smart object and opens
+// the editable Smart Filter dialog. Cancelling that dialog leaves a clean smart
+// object; one undo restores the text layer.
+void ui_filter_on_text_layer_convert_choice_opens_smart_filter_dialog() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto layer_id = make_committed_text_layer(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto undo_depth_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+
+  bool saw_prompt = false;
+  bool saw_filter_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* box =
+        qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("rasterizeOrConvertMessageBox")));
+    CHECK(box != nullptr);
+    if (box == nullptr) {
+      return;
+    }
+    saw_prompt = true;
+    auto* convert = message_box_button_with_role(*box, QMessageBox::AcceptRole);
+    CHECK(convert != nullptr);
+    CHECK(box->defaultButton() == convert);
+    if (convert == nullptr) {
+      return;
+    }
+    // The editable Smart Filter dialog opens right after the conversion; this
+    // queued dismissal fires inside its nested event loop.
+    QTimer::singleShot(0, [&] {
+      auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        return;
+      }
+      saw_filter_dialog = true;
+      dialog->reject();
+    });
+    convert->click();
+  });
+  require_action(window, "filterAction_patchy_filters_gaussian_blur")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_prompt);
+  CHECK(saw_filter_dialog);
+
+  const auto* converted = std::as_const(document).find_layer(layer_id);
+  CHECK(converted != nullptr);
+  CHECK(patchy::layer_is_smart_object(*converted));
+  CHECK(!patchy::layer_is_text(*converted));
+  CHECK(converted->smart_filter_stack() == nullptr);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) ==
+        undo_depth_before + 1U);
+
+  require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
+  QApplication::processEvents();
+  const auto* restored = std::as_const(document).find_layer(layer_id);
+  CHECK(restored != nullptr);
+  CHECK(patchy::layer_is_text(*restored));
+  CHECK(!patchy::layer_is_smart_object(*restored));
+}
+
+// Cancel leaves a shape layer untouched: still a vector shape, no undo entry,
+// and the cancellation reported in the status bar.
+void ui_filter_on_shape_layer_prompt_cancel_leaves_shape() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto layer_id = make_shape_layer(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto undo_depth_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* box =
+        qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("rasterizeOrConvertMessageBox")));
+    CHECK(box != nullptr);
+    if (box == nullptr) {
+      return;
+    }
+    saw_dialog = true;
+    auto* cancel = box->button(QMessageBox::Cancel);
+    CHECK(cancel != nullptr);
+    if (cancel != nullptr) {
+      cancel->click();
+    }
+  });
+  require_action(window, "filterAction_patchy_filters_gaussian_blur")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_dialog);
+
+  const auto* layer = std::as_const(document).find_layer(layer_id);
+  CHECK(layer != nullptr);
+  CHECK(patchy::layer_is_vector_shape(*layer));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth_before);
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("Cancelled")));
+}
+
+// The Filter Gallery gate: Rasterize converts the shape into plain pixels
+// before the gallery opens, and deliberately stays rasterized even when the
+// gallery is then cancelled (the prompt is its own undoable step, like
+// Photoshop). Undo restores the shape.
+void ui_filter_gallery_on_shape_layer_rasterize_choice() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto layer_id = make_shape_layer(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+
+  bool saw_prompt = false;
+  bool saw_gallery = false;
+  QTimer::singleShot(0, [&] {
+    auto* box =
+        qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("rasterizeOrConvertMessageBox")));
+    CHECK(box != nullptr);
+    if (box == nullptr) {
+      return;
+    }
+    saw_prompt = true;
+    auto* rasterize = message_box_button_with_role(*box, QMessageBox::DestructiveRole);
+    CHECK(rasterize != nullptr);
+    if (rasterize == nullptr) {
+      return;
+    }
+    QTimer::singleShot(0, [&] {
+      auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("filterGalleryDialog")));
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        return;
+      }
+      saw_gallery = true;
+      dialog->reject();
+    });
+    rasterize->click();
+  });
+  require_action(window, "filterGalleryAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_prompt);
+  CHECK(saw_gallery);
+
+  const auto* rasterized = std::as_const(document).find_layer(layer_id);
+  CHECK(rasterized != nullptr);
+  CHECK(!patchy::layer_is_vector_shape(*rasterized));
+  CHECK(rasterized->vector_shape() == nullptr);
+
+  require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
+  QApplication::processEvents();
+  const auto* restored = std::as_const(document).find_layer(layer_id);
+  CHECK(restored != nullptr);
+  CHECK(patchy::layer_is_vector_shape(*restored));
+}
+
+// Destructive adjustment dialogs (Levels) refuse smart objects, so the prompt
+// offers Rasterize only; Cancel leaves the text layer untouched.
+void ui_levels_on_text_layer_prompt_has_no_convert_choice() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto layer_id = make_committed_text_layer(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto undo_depth_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* box =
+        qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("rasterizeOrConvertMessageBox")));
+    CHECK(box != nullptr);
+    if (box == nullptr) {
+      return;
+    }
+    saw_dialog = true;
+    CHECK(message_box_button_with_role(*box, QMessageBox::AcceptRole) == nullptr);
+    CHECK(message_box_button_with_role(*box, QMessageBox::DestructiveRole) != nullptr);
+    auto* cancel = box->button(QMessageBox::Cancel);
+    CHECK(cancel != nullptr);
+    if (cancel != nullptr) {
+      cancel->click();
+    }
+  });
+  require_action(window, "imageAdjustLevelsAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_dialog);
+
+  const auto* layer = std::as_const(document).find_layer(layer_id);
+  CHECK(layer != nullptr);
+  CHECK(patchy::layer_is_text(*layer));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth_before);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> destructive_filters_gallery_tests_part1() {
@@ -2314,5 +2631,15 @@ std::vector<patchy::test::TestCase> destructive_filters_gallery_tests_part1() {
        ui_filter_gallery_stack_cancel_and_apply_are_one_transaction},
       {"ui_filter_gallery_saved_looks_persist_after_cancel_and_support_crud",
        ui_filter_gallery_saved_looks_persist_after_cancel_and_support_crud},
+      {"ui_filter_on_text_layer_prompts_and_rasterizes",
+       ui_filter_on_text_layer_prompts_and_rasterizes},
+      {"ui_filter_on_text_layer_convert_choice_opens_smart_filter_dialog",
+       ui_filter_on_text_layer_convert_choice_opens_smart_filter_dialog},
+      {"ui_filter_on_shape_layer_prompt_cancel_leaves_shape",
+       ui_filter_on_shape_layer_prompt_cancel_leaves_shape},
+      {"ui_filter_gallery_on_shape_layer_rasterize_choice",
+       ui_filter_gallery_on_shape_layer_rasterize_choice},
+      {"ui_levels_on_text_layer_prompt_has_no_convert_choice",
+       ui_levels_on_text_layer_prompt_has_no_convert_choice},
   };
 }

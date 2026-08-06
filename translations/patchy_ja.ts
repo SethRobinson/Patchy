@@ -10646,6 +10646,46 @@ To update, paste this into a terminal:
         <translation>スマートオブジェクトの内容には描画できません。ピクセルを編集するにはレイヤーをラスタライズしてください。</translation>
     </message>
     <message>
+        <source>Rasterize or Convert Layer?</source>
+        <translation>レイヤーをラスタライズまたは変換しますか？</translation>
+    </message>
+    <message>
+        <source>Rasterize Layer?</source>
+        <translation>レイヤーをラスタライズしますか？</translation>
+    </message>
+    <message>
+        <source>&quot;%1&quot; is a text layer: its pixels are re-created from the text, so changes made by %2 would be lost on the next text edit.</source>
+        <translation>&quot;%1&quot; はテキストレイヤーです。ピクセルはテキストから再生成されるため、%2 による変更は次にテキストを編集したときに失われます。</translation>
+    </message>
+    <message>
+        <source>&quot;%1&quot; is a shape layer: its pixels are re-created from the shape, so changes made by %2 would be lost on the next shape edit.</source>
+        <translation>&quot;%1&quot; はシェイプレイヤーです。ピクセルはシェイプから再生成されるため、%2 による変更は次にシェイプを編集したときに失われます。</translation>
+    </message>
+    <message>
+        <source>Convert the layer to a smart object to keep the text editable, or rasterize it into plain pixels. Rasterized text can&apos;t be edited again.</source>
+        <translation>テキストを編集可能なまま保つにはレイヤーをスマートオブジェクトに変換するか、通常のピクセルにラスタライズしてください。ラスタライズしたテキストは再編集できません。</translation>
+    </message>
+    <message>
+        <source>Convert the layer to a smart object to keep the shape editable, or rasterize it into plain pixels. A rasterized shape can&apos;t be edited as a vector again.</source>
+        <translation>シェイプを編集可能なまま保つにはレイヤーをスマートオブジェクトに変換するか、通常のピクセルにラスタライズしてください。ラスタライズしたシェイプはベクターとして再編集できません。</translation>
+    </message>
+    <message>
+        <source>Rasterize the layer into plain pixels to use %1. Rasterized text can&apos;t be edited again.</source>
+        <translation>%1 を使うにはレイヤーを通常のピクセルにラスタライズしてください。ラスタライズしたテキストは再編集できません。</translation>
+    </message>
+    <message>
+        <source>Rasterize the layer into plain pixels to use %1. A rasterized shape can&apos;t be edited as a vector again.</source>
+        <translation>%1 を使うにはレイヤーを通常のピクセルにラスタライズしてください。ラスタライズしたシェイプはベクターとして再編集できません。</translation>
+    </message>
+    <message>
+        <source>Convert To Smart Object</source>
+        <translation>スマートオブジェクトに変換</translation>
+    </message>
+    <message>
+        <source>Filter Gallery</source>
+        <translation>フィルターギャラリー</translation>
+    </message>
+    <message>
         <location line="+36"/>
         <source>No layer styles to rasterize</source>
         <translation>ラスタライズするレイヤースタイルがありません</translation>

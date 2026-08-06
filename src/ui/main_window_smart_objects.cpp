@@ -1325,10 +1325,14 @@ void MainWindow::convert_to_smart_object() {
   }
   finish_active_text_editor();
   auto& doc = document();
-  const auto selected_ids = root_drop_layer_ids(doc.layers(), selected_or_active_layer_ids());
+  convert_layers_to_smart_object(root_drop_layer_ids(doc.layers(), selected_or_active_layer_ids()));
+}
+
+bool MainWindow::convert_layers_to_smart_object(const std::vector<LayerId>& selected_ids) {
+  auto& doc = document();
   if (selected_ids.empty()) {
     show_status_error(tr("Select layers to convert to a smart object"));
-    return;
+    return false;
   }
   if (std::any_of(selected_ids.begin(), selected_ids.end(),
                   [&doc](LayerId id) {
@@ -1338,7 +1342,7 @@ void MainWindow::convert_to_smart_object() {
                   })) {
     show_status_error(
         tr("Smart Objects with Smart Filters cannot be wrapped in another Smart Object yet"));
-    return;
+    return false;
   }
   // Re-order the selection by tree walk (the layers vector is bottom-to-top) so the
   // child stacks correctly and the TOPMOST selected layer keeps its slot and name.
@@ -1358,7 +1362,7 @@ void MainWindow::convert_to_smart_object() {
   };
   scan(std::as_const(doc).layers());
   if (ids.empty()) {
-    return;
+    return false;
   }
   const auto top_id = ids.back();
   const auto top_name = std::as_const(doc).find_layer(top_id)->name();
@@ -1367,7 +1371,7 @@ void MainWindow::convert_to_smart_object() {
   // inside the child canvas so the preview matches the old composite).
   if (content.empty()) {
     show_status_error(tr("The selected layers have no pixels to convert"));
-    return;
+    return false;
   }
 
   push_undo_snapshot(tr("Convert to Smart Object"));
@@ -1425,7 +1429,7 @@ void MainWindow::convert_to_smart_object() {
     show_critical_message(this, tr("Convert failed"), QString::fromUtf8(error.what()),
                           QStringLiteral("convertSmartObjectFailedMessageBox"));
     undo();
-    return;
+    return false;
   }
   const auto preview = qimage_from_document(child, true).convertToFormat(QImage::Format_RGBA8888);
 
@@ -1451,7 +1455,7 @@ void MainWindow::convert_to_smart_object() {
   const auto target_location = find_layer_location(doc.layers(), top_id);
   if (!target_location.has_value()) {
     refresh_layer_list();
-    return;
+    return false;
   }
   Layer replacement(top_id, top_name, pixels_from_image_rgba(preview));
   replacement.set_bounds(content);
@@ -1473,6 +1477,7 @@ void MainWindow::convert_to_smart_object() {
   refresh_layer_controls();
   canvas_->document_changed();
   statusBar()->showMessage(tr("Converted to a smart object; click its badge to edit its contents"));
+  return true;
 }
 
 void MainWindow::new_smart_object_via_copy() {

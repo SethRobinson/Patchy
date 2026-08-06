@@ -263,6 +263,14 @@ void MainWindow::levels_dialog() {
     show_status_error(tr("Layer pixels are locked."));
     return;
   }
+  if (!prompt_rasterize_procedural_layer(*active, tr("Levels"), false)) {
+    return;
+  }
+  layer = doc.find_layer(*active);
+  if (!editable_rgb8_layer(layer)) {
+    show_status_error(tr("Select an editable RGB pixel layer"));
+    return;
+  }
   const auto active_id = *active;
   const auto bounds = layer->bounds();
   auto original_pixels =
@@ -400,6 +408,14 @@ void MainWindow::curves_dialog() {
   }
   if (layer_id_locks_image_pixels(*active)) {
     show_status_error(tr("Layer pixels are locked."));
+    return;
+  }
+  if (!prompt_rasterize_procedural_layer(*active, tr("Curves"), false)) {
+    return;
+  }
+  layer = doc.find_layer(*active);
+  if (!editable_rgb8_layer(layer)) {
+    show_status_error(tr("Select an editable RGB pixel layer"));
     return;
   }
   const auto active_id = *active;
@@ -542,6 +558,14 @@ void MainWindow::hue_saturation_dialog() {
         "Rasterize the Smart Object before applying destructive filters or adjustments"));
     return;
   }
+  if (!prompt_rasterize_procedural_layer(*active, tr("Hue/Saturation"), false)) {
+    return;
+  }
+  layer = doc.find_layer(*active);
+  if (!editable_rgb8_layer(layer)) {
+    show_status_error(tr("Select an editable RGB pixel layer"));
+    return;
+  }
   const auto active_id = *active;
   const auto bounds = layer->bounds();
   auto original_pixels =
@@ -627,6 +651,14 @@ void MainWindow::color_balance_dialog() {
   if (layer_is_smart_object(*layer)) {
     show_status_error(tr(
         "Rasterize the Smart Object before applying destructive filters or adjustments"));
+    return;
+  }
+  if (!prompt_rasterize_procedural_layer(*active, tr("Color Balance"), false)) {
+    return;
+  }
+  layer = doc.find_layer(*active);
+  if (!editable_rgb8_layer(layer)) {
+    show_status_error(tr("Select an editable RGB pixel layer"));
     return;
   }
   const auto active_id = *active;

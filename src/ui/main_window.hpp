@@ -586,6 +586,13 @@ private:
   // mutated; pixel-locked text layers are skipped. CLI automation only (run_cli_export).
   int cli_append_text_to_text_layers(const QString& suffix);
   void apply_filter(const QString& identifier);
+  // Text and shape layers re-render their pixels from their source data, so a
+  // destructive pixel edit would silently vanish on the next text/shape edit.
+  // Prompts to convert to a smart object (when offered) or rasterize first.
+  // Returns true when the layer is ready for the edit; callers must re-find the
+  // layer because it may have been rasterized or replaced by a smart object.
+  bool prompt_rasterize_procedural_layer(LayerId layer_id, const QString& operation_name,
+                                         bool offer_convert_to_smart_object);
   void liquify_dialog();
   void convert_for_smart_filters();
   void gaussian_smart_filter_dialog(
@@ -810,6 +817,10 @@ private:
   void replace_smart_object_contents();
   void replace_smart_object_contents_with_path(const QString& path);
   void convert_to_smart_object();
+  // The conversion core: wraps exactly these layers (a root-dropped selection)
+  // into one embedded smart object. Returns false when refused or the child
+  // write fails; every failure path reports its own error.
+  bool convert_layers_to_smart_object(const std::vector<LayerId>& selected_ids);
   void new_smart_object_via_copy();
   void place_embedded_file();
   void place_embedded_file_with_path(const QString& path);
