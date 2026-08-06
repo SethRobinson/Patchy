@@ -95,7 +95,7 @@ try {
   $keepSafari = if ($Mode -eq 'interactive') { ' --keep-safari' } else { '' }
   $runCmd = "python3 ~/$remoteBase/safari-memtest.py --url '$url' --driver $Driver " +
     "--duration-min $DurationMin --results-dir ~/$remoteResults " +
-    "--telemetry-glob `"`$HOME/$remoteResults/telemetry-*.jsonl`"$keepSafari"
+    "--telemetry-dir ~/$remoteResults$keepSafari"
   ssh $remoteHost $runCmd
   $runExit = $LASTEXITCODE
 

@@ -67,6 +67,13 @@ def footprint_mb(pid):
             value = float(match.group(1))
             unit = match.group(2).upper()
             return value / 1024.0 if unit == "KB" else value * 1024.0 if unit == "GB" else value
+    return None
+
+
+def rss_mb(pid):
+    # Second opinion beside footprint: ps rss is plain resident pages. The two
+    # diverge when compressed/IOSurface/reserved accounting inflates one of
+    # them, which is itself a diagnostic signal.
     result = run(["ps", "-xo", "rss=", "-p", str(pid)])
     if result is not None and result.returncode == 0 and result.stdout.strip().isdigit():
         return int(result.stdout.strip()) / 1024.0
@@ -156,8 +163,10 @@ def main():
     parser.add_argument("--duration-min", type=float, default=15.0)
     parser.add_argument("--sample-interval", type=float, default=5.0)
     parser.add_argument("--results-dir", required=True)
-    parser.add_argument("--telemetry-glob", default="",
-                        help="open mode: JSONL files serve.py writes (e.g. dir/telemetry-*.jsonl)")
+    parser.add_argument("--telemetry-dir", default="",
+                        help="open mode: directory whose telemetry-*.jsonl files serve.py "
+                             "writes (a directory, not a glob: a glob in the ssh command "
+                             "line dies on zsh's no-match abort before python ever runs)")
     parser.add_argument("--driver-port", type=int, default=4723)
     parser.add_argument("--keep-safari", action="store_true")
     args = parser.parse_args()
@@ -189,7 +198,7 @@ def main():
 
     csv_file = (results / "samples.csv").open("w", newline="", encoding="utf-8")
     writer = csv.writer(csv_file)
-    writer.writerow(["iso_ts", "elapsed_s", "role", "pid", "footprint_mb",
+    writer.writerow(["iso_ts", "elapsed_s", "role", "pid", "footprint_mb", "rss_mb",
                      "heap_mb", "used_mb", "peak_used_mb", "history_mb", "cap_mb", "stage"])
 
     started = time.monotonic()
@@ -233,8 +242,9 @@ def main():
                     page["cap"] = payload.get("cap")
                 except (urllib.error.URLError, OSError, KeyError, ValueError) as error:
                     note(f"webdriver poll failed at t+{elapsed}s: {error}")
-            elif args.telemetry_glob:
-                _, sample = newest_telemetry_line(args.telemetry_glob)
+            elif args.telemetry_dir:
+                _, sample = newest_telemetry_line(str(Path(args.telemetry_dir).expanduser()
+                                                      / "telemetry-*.jsonl"))
                 if sample:
                     stats = sample.get("memStats") or {}
                     page = {k: stats.get(k) for k in
@@ -249,7 +259,7 @@ def main():
                         last_telemetry_t = sample_wall
 
             mb = lambda key: round(page[key] / 1048576.0, 1) if page.get(key) else ""
-            writer.writerow([iso, elapsed, "page", "", "", mb("heapBytes"), mb("usedBytes"),
+            writer.writerow([iso, elapsed, "page", "", "", "", mb("heapBytes"), mb("usedBytes"),
                              mb("peakUsedBytes"), mb("historyBytes"), mb("cap"), stage])
 
             roles = [("safari", pgrep("Safari", exact=True)),
@@ -259,19 +269,29 @@ def main():
             for role, pids in roles:
                 for pid in sorted(pids):
                     value = footprint_mb(pid)
-                    if value is None:
+                    resident = rss_mb(pid)
+                    if value is None and resident is None:
                         continue
+                    gauge = value if value is not None else resident
                     if role == "webcontent":
                         live_webcontent.add(pid)
-                        if app_pid is None and value >= APP_TAB_THRESHOLD_MB:
+                        if app_pid is None and gauge >= APP_TAB_THRESHOLD_MB:
                             app_pid = pid
-                            note(f"app WebContent identified: pid {pid} at {value:.0f} MB")
+                            note(f"app WebContent identified: pid {pid} at {gauge:.0f} MB")
+                            # One raw dump so the parsed number can be audited
+                            # against footprint's own breakdown.
+                            raw = run(["footprint", str(pid)], timeout=20)
+                            if raw is not None:
+                                (results / "footprint-raw.txt").write_text(
+                                    raw.stdout or raw.stderr, encoding="utf-8")
                     tag = "webcontent-app" if pid == app_pid else role
-                    writer.writerow([iso, elapsed, tag, pid, round(value, 1),
+                    writer.writerow([iso, elapsed, tag, pid,
+                                     round(value, 1) if value is not None else "",
+                                     round(resident, 1) if resident is not None else "",
                                      "", "", "", "", "", ""])
                     key = f"peak_{tag}_footprint_mb"
-                    if value > summary["peaks_mb"].get(key, 0):
-                        summary["peaks_mb"][key] = round(value, 1)
+                    if gauge > summary["peaks_mb"].get(key, 0):
+                        summary["peaks_mb"][key] = round(gauge, 1)
             csv_file.flush()
 
             if app_pid is not None and app_pid not in live_webcontent \
