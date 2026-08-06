@@ -110,7 +110,11 @@ pathology. Infrastructure state: the `wasm-release-st` preset, `st/` staging,
 uploads, and the shell page's WebKit routing plus compatibility notice are
 all in place but AUTO-ROUTING IS DISABLED (`AUTO_ROUTE_WEBKIT_TO_ST=false`
 in patchy.html.in) until a configuration demonstrably survives;
-`?PATCHY_WASM_FORCE=st|mt` selects an artifact manually for testing. Open:
-the WebKit bug report (rtsoft.com/patchy?PATCHY_WASM_FORCE=mt stays a clean
-public repro), characterizing the old-toolchain second climb, and the iPhone
-run via the beta site.
+`?PATCHY_WASM_FORCE=st|mt` selects an artifact manually for testing.
+Stopgap shipped to production (August 2026): WebKit visitors on the threaded
+build get a once-per-browser-session "Safari warning" notice after load
+(save often, Chrome/Firefox/Edge recommended); the same notice element shows
+the persistent-dismissal compatibility text if ST routing is ever enabled.
+Open: the WebKit bug report (rtsoft.com/patchy?PATCHY_WASM_FORCE=mt stays a
+clean public repro), characterizing the old-toolchain second climb, and the
+iPhone run via the beta site.

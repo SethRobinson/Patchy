@@ -72,11 +72,8 @@
       <noscript>JavaScript is disabled. Please enable JavaScript to use Patchy.</noscript>
     </div>
     <div id="stnote">
-      <b>Running in Safari compatibility mode</b>
-      A bug in Safari's WebAssembly optimizer can crash this tab, so Patchy is
-      running in a slower single-threaded mode here. Heavy operations (large
-      filters, big documents) may briefly freeze the display. For full speed,
-      open Patchy in Chrome or Firefox on a desktop.
+      <b id="stnote-title"></b>
+      <span id="stnote-text"></span>
       <br><button id="stnote-ok">OK</button>
     </div>
 
@@ -215,11 +212,40 @@
           || (AUTO_ROUTE_WEBKIT_TO_ST && FORCED_ARTIFACT !== 'mt' && isWebKitBrowser());
       const ARTIFACT_PREFIX = USE_ST ? 'st/' : '';
 
+      // WebKit visitors get a notice after load. Two cases: the ST artifact
+      // (compatibility mode; dismissed once, remembered forever) and the
+      // stopgap warning while WebKit visitors still get the THREADED build
+      // (the Safari 26 compiler bug can kill the tab within minutes, so the
+      // warning returns each browser session rather than staying dismissed).
       function maybeShowSafariNotice() {
-        if (!USE_ST) return;
+        let title;
+        let text;
+        let store;
+        let key;
+        if (USE_ST) {
+          title = 'Running in Safari compatibility mode';
+          text = 'A bug in Safari\'s WebAssembly optimizer can crash this tab, so Patchy is'
+            + ' running in a slower single-threaded mode here. Heavy operations (large'
+            + ' filters, big documents) may briefly freeze the display. For full speed,'
+            + ' open Patchy in Chrome or Firefox on a desktop.';
+          store = localStorage;
+          key = 'patchySafariStNoticeDismissed';
+        } else if (isWebKitBrowser()) {
+          title = 'Safari warning';
+          text = 'A bug in Safari\'s WebAssembly optimizer can make this tab run out of'
+            + ' memory and close after a few minutes of use. Save your work often, and'
+            + ' until the fix ships, Chrome, Firefox, or Edge on a desktop computer is'
+            + ' recommended for Patchy.';
+          store = sessionStorage;
+          key = 'patchySafariMtWarningDismissed';
+        } else {
+          return;
+        }
         try {
-          if (localStorage.getItem('patchySafariStNoticeDismissed') === '1') return;
+          if (store.getItem(key) === '1') return;
         } catch (e) { /* private mode: just show it */ }
+        el('stnote-title').textContent = title;
+        el('stnote-text').textContent = text;
         const note = el('stnote');
         note.style.display = 'block';
         el('stnote-ok').addEventListener('click', () => {
@@ -227,7 +253,7 @@
           // Give the keyboard back to Qt: a focused page button would
           // otherwise swallow every hotkey until the canvas is clicked.
           el('stnote-ok').blur();
-          try { localStorage.setItem('patchySafariStNoticeDismissed', '1'); } catch (e) { /* ok */ }
+          try { store.setItem(key, '1'); } catch (e) { /* ok */ }
         });
       }
 
