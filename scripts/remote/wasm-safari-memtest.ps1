@@ -89,8 +89,9 @@ try {
 
   $page = if ($Mode -eq 'interactive') { 'patchy.html' } else { 'stress-harness.html' }
   # autostart=1: a driven run must boot even after a streak of kills tripped
-  # the harness page's anti-hammer gate.
-  $query = "PATCHY_MEM_LOG=1&autostart=1"
+  # the harness page's anti-hammer gate. The nonce parks the duplicate tab
+  # Safari's session restore revives from the previous run (see the harness).
+  $query = "PATCHY_MEM_LOG=1&autostart=1&nonce=$runId"
   if ($Mode -eq 'stress') { $query = "mode=stress&preset=$Preset&$query" }
   elseif ($Mode -eq 'soak') { $query = "mode=soak&$query" }
   elseif ($Mode -eq 'idle') { $query = "mode=idle&$query" }

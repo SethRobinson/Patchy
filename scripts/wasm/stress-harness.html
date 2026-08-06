@@ -373,8 +373,34 @@
       // studiomac orchestrator) must boot even right after a streak of kills,
       // while unattended devices (an iPhone Safari auto-reloading a killed
       // tab) still get the anti-hammer stop.
-      const needGate = params.get('autostart') === '0'
-          || (consecutiveDeaths >= 3 && params.get('autostart') !== '1');
+      // The nonce guards against Safari's session restore: a force-quit
+      // Safari restores the PREVIOUS run's harness tab beside the new one and
+      // two apps boot at once, doubling the compile load and corrupting the
+      // measurement (clearing Safari's saved state over ssh fails silently:
+      // the real files live in the TCC-protected container). A driven run
+      // passes a fresh &nonce=; the first load consumes it and a restored
+      // duplicate parks itself.
+      let duplicateParked = false;
+      const NONCE = params.get('nonce');
+      if (NONCE) {
+        try {
+          if (localStorage.getItem('patchyMemtest.nonce.' + NONCE)) {
+            duplicateParked = true;
+          } else {
+            localStorage.setItem('patchyMemtest.nonce.' + NONCE, String(BOOT_MS));
+            // Prune: nonce keys accumulate one per driven run.
+            const keys = [];
+            for (let i = 0; i < localStorage.length; i++) {
+              const key = localStorage.key(i);
+              if (key && key.indexOf('patchyMemtest.nonce.') === 0) keys.push(key);
+            }
+            keys.sort((a, b) => Number(localStorage.getItem(a)) - Number(localStorage.getItem(b)));
+            while (keys.length > 10) localStorage.removeItem(keys.shift());
+          }
+        } catch (e) { /* private mode: boot normally */ }
+      }
+      const needGate = duplicateParked || params.get('autostart') === '0'
+          || (consecutiveDeaths >= 3 && params.get('autostart') !== '1' && !NONCE);
       if (needGate) {
         const gate = document.getElementById('gate');
         gate.style.display = 'flex';
@@ -383,7 +409,10 @@
           gate.style.display = 'none';
           boot();
         });
-        recordStage('gated', { clean: true });
+        // A parked session-restore duplicate must not overwrite the live
+        // run's black box; recordStage's newest-run-wins check handles the
+        // ordering, and clean:true keeps it out of death counting either way.
+        recordStage(duplicateParked ? 'duplicate-parked' : 'gated', { clean: true });
       } else {
         boot();
       }
