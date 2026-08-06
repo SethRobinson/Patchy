@@ -43,7 +43,7 @@ The web build ships with the desktop releases because the site redeploy is its o
 
 There are no versioned wasm artifacts: the site serves stable names and a redeploy replaces them in place.
 
-`build-wasm.bat` also stages the memory-diagnostics harness (`stress-harness.html` from `scripts\wasm`, cache-tag substituted, plus `memsoak.js`) into the site directory. The production upload list deliberately excludes both; `upload-wasm-to-rtsoft-beta.bat` publishes the same staged site plus the harness to the staging copy at `rtsoft.com/patchy-beta` (same nopause convention and COOP/COEP checks) for Safari/iOS device testing. The diagnostics workflow lives in [performance.md](performance.md).
+`build-wasm.bat` also builds the `wasm-release-st` preset and stages that single-threaded artifact under `st/` in the site directory (four files plus their precompressed variants; the page serves it to Safari/WebKit visitors, see [wasm.md](wasm.md) and [wasm-memory.md](wasm-memory.md); the uncompressed st wasm size is baked in as `__PATCHY_WASM_SIZE_ST__`). Both upload scripts create the remote `st/` directory and push that set before the main one, keeping the html files last overall. `build-wasm.bat` additionally stages the memory-diagnostics harness (`stress-harness.html` from `scripts\wasm`, cache-tag substituted, plus `memsoak.js`). The production upload list deliberately excludes the harness; `upload-wasm-to-rtsoft-beta.bat` publishes the same staged site plus the harness to the staging copy at `rtsoft.com/patchy-beta` (same nopause convention and COOP/COEP checks) for Safari/iOS device testing. The diagnostics workflow lives in [performance.md](performance.md).
 
 ## Batch files live in scripts\release and call their siblings by full path
 

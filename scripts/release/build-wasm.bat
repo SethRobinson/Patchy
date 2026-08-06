@@ -16,6 +16,7 @@ set "CMAKE_EXE=C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE
 if not exist "%CMAKE_EXE%" set "CMAKE_EXE=cmake"
 
 set "BUILD_DIR=%REPO%\build\wasm-release"
+set "BUILD_DIR_ST=%REPO%\build\wasm-release-st"
 set "SITE_DIR=%REPO%\build\package\wasm-site"
 
 if not exist "%REPO%\.deps\emsdk\emsdk_env.bat" (
@@ -24,6 +25,11 @@ if not exist "%REPO%\.deps\emsdk\emsdk_env.bat" (
 )
 if not exist "%REPO%\.deps\Qt\6.10.3\wasm_multithread\lib\cmake\Qt6\qt.toolchain.cmake" (
   echo Qt for WebAssembly was not found. Run: pwsh -File scripts\wasm\setup-qt-wasm.ps1
+  goto fail
+)
+if not exist "%REPO%\.deps\Qt\6.10.3\wasm_singlethread\lib\cmake\Qt6\qt.toolchain.cmake" (
+  echo The single-threaded Qt wasm kit was not found ^(the Safari-served artifact needs it^).
+  echo Run: pwsh -File scripts\wasm\setup-qt-wasm.ps1 -WasmArch wasm_singlethread
   goto fail
 )
 if not exist "%REPO%\.deps\Qt\6.10.3\msvc2022_64\bin\qmake.exe" (
@@ -57,6 +63,15 @@ echo Building wasm-release preset...
 "%CMAKE_EXE%" --build --preset wasm-release
 if errorlevel 1 goto fail
 
+rem The single-threaded artifact, served to Safari/WebKit (its optimizing
+rem wasm compiler blows up on the threaded module; docs\wasm-memory.md).
+echo Configuring wasm-release-st build...
+"%CMAKE_EXE%" --preset wasm-release-st
+if errorlevel 1 goto fail
+echo Building wasm-release-st preset...
+"%CMAKE_EXE%" --build --preset wasm-release-st
+if errorlevel 1 goto fail
+
 echo Staging web site files...
 mkdir "%SITE_DIR%" || goto fail
 rem No separate pthread worker file: Emscripten 3.1.58+ folds the worker
@@ -68,6 +83,15 @@ for %%F in (patchy.js patchy.wasm patchy.data qtloader.js) do (
   )
   copy /Y "%BUILD_DIR%\%%F" "%SITE_DIR%\" >nul || goto fail
 )
+mkdir "%SITE_DIR%\st" || goto fail
+for %%F in (patchy.js patchy.wasm patchy.data qtloader.js) do (
+  if not exist "%BUILD_DIR_ST%\%%F" (
+    echo %%F was not created in build\wasm-release-st.
+    goto fail
+  )
+  copy /Y "%BUILD_DIR_ST%\%%F" "%SITE_DIR%\st\" >nul || goto fail
+)
+for %%S in ("%SITE_DIR%\st\patchy.wasm") do set "PATCHY_WASM_SIZE_ST=%%~zS"
 copy /Y "%REPO%\packaging\linux\icons\hicolor\256x256\apps\com.rtsoft.patchy.png" "%SITE_DIR%\patchy-logo.png" >nul || goto fail
 rem The browser-tab favicon is the app's own multi-size icon (16-256 px).
 copy /Y "%REPO%\src\app\patchy.ico" "%SITE_DIR%\favicon.ico" >nul || goto fail
@@ -83,7 +107,7 @@ rem Configure the shell template; it is staged as both patchy.html and an
 rem index.html copy so https://rtsoft.com/patchy/ serves the app directly.
 set "PATCHY_WEB_TEMPLATE=%REPO%\packaging\web\patchy.html.in"
 set "PATCHY_WEB_SITE_DIR=%SITE_DIR%"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$html = Get-Content -Raw -LiteralPath $env:PATCHY_WEB_TEMPLATE; $html = $html.Replace('__PATCHY_VERSION__', $env:PATCHY_PACKAGE_VERSION).Replace('__PATCHY_CACHE_TAG__', $env:PATCHY_WEB_CACHE_TAG).Replace('__PATCHY_WASM_SIZE__', $env:PATCHY_WASM_SIZE); if ($html -match '__PATCHY_') { Write-Error 'patchy.html.in still contains an unreplaced __PATCHY_ placeholder.'; exit 1 }; Set-Content -LiteralPath (Join-Path $env:PATCHY_WEB_SITE_DIR 'patchy.html') -Value $html -NoNewline -Encoding UTF8; Set-Content -LiteralPath (Join-Path $env:PATCHY_WEB_SITE_DIR 'index.html') -Value $html -NoNewline -Encoding UTF8"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$html = Get-Content -Raw -LiteralPath $env:PATCHY_WEB_TEMPLATE; $html = $html.Replace('__PATCHY_VERSION__', $env:PATCHY_PACKAGE_VERSION).Replace('__PATCHY_CACHE_TAG__', $env:PATCHY_WEB_CACHE_TAG).Replace('__PATCHY_WASM_SIZE_ST__', $env:PATCHY_WASM_SIZE_ST).Replace('__PATCHY_WASM_SIZE__', $env:PATCHY_WASM_SIZE); if ($html -match '__PATCHY_') { Write-Error 'patchy.html.in still contains an unreplaced __PATCHY_ placeholder.'; exit 1 }; Set-Content -LiteralPath (Join-Path $env:PATCHY_WEB_SITE_DIR 'patchy.html') -Value $html -NoNewline -Encoding UTF8; Set-Content -LiteralPath (Join-Path $env:PATCHY_WEB_SITE_DIR 'index.html') -Value $html -NoNewline -Encoding UTF8"
 if errorlevel 1 goto fail
 
 rem Stage the memory-diagnostics harness with the same cache tag, plus the
@@ -99,14 +123,16 @@ rem Brotli/gzip variants beside the identity files; the staged .htaccess
 rem rewrites to them for clients that accept the encoding. The emsdk-bundled
 rem node runs the compressor (no extra tool dependency); the scripts glob the
 rem single node directory the SDK keeps (see docs/wasm.md).
+rem Pick a node dir that actually contains bin\node.exe: newer emsdk node
+rem packages (24.x) put node.exe at the directory root, and a second version
+rem directory appears whenever an alternate emsdk release was provisioned, so
+rem a blind last-directory glob can land on a layout without bin\.
 set "NODE_EXE="
-for /d %%D in ("%REPO%\.deps\emsdk\node\*") do set "NODE_EXE=%%D\bin\node.exe"
-if not defined NODE_EXE (
-  echo The emsdk-bundled node was not found under .deps\emsdk\node.
-  goto fail
+for /d %%D in ("%REPO%\.deps\emsdk\node\*") do (
+  if exist "%%D\bin\node.exe" set "NODE_EXE=%%D\bin\node.exe"
 )
-if not exist "%NODE_EXE%" (
-  echo The emsdk-bundled node was not found: "%NODE_EXE%".
+if not defined NODE_EXE (
+  echo No node with a bin\node.exe layout was found under .deps\emsdk\node.
   goto fail
 )
 "%NODE_EXE%" "%REPO%\scripts\wasm\precompress-site.mjs" "%SITE_DIR%" || goto fail

@@ -133,6 +133,23 @@
         "CMAKE_C_FLAGS": "-fexceptions -pthread -msimd128",
         "CMAKE_CXX_FLAGS": "-fexceptions -pthread -msimd128"
       }
+    },
+    {
+      "name": "wasm-release-st",
+      "displayName": "WebAssembly app build (Qt for wasm, single-threaded; served to Safari, see docs/wasm-memory.md)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/wasm-release-st",
+      "toolchainFile": "${sourceDir}/.deps/Qt/6.10.3/wasm_singlethread/lib/cmake/Qt6/qt.toolchain.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "PATCHY_BUILD_APP": "ON",
+        "PATCHY_BUILD_TESTS": "OFF",
+        "PATCHY_WASM_SINGLETHREAD": "ON",
+        "QT_HOST_PATH": "${sourceDir}/.deps/Qt/6.10.3/msvc2022_64",
+        "QT_CHAINLOAD_TOOLCHAIN_FILE": "${sourceDir}/.deps/emsdk/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake",
+        "CMAKE_C_FLAGS": "-fexceptions -msimd128",
+        "CMAKE_CXX_FLAGS": "-fexceptions -msimd128"
+      }
     }
   ],
   "buildPresets": [
@@ -179,6 +196,10 @@
     {
       "name": "wasm-release",
       "configurePreset": "wasm-release"
+    },
+    {
+      "name": "wasm-release-st",
+      "configurePreset": "wasm-release-st"
     }
   ],
   "testPresets": [

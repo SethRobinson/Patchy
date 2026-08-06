@@ -9,8 +9,12 @@ import { join } from 'node:path';
 import { brotliCompressSync, gzipSync, constants } from 'node:zlib';
 
 // Only the large immutable assets. The html entry pages are tiny, marked
-// no-cache, and stay identity-encoded.
-const assets = ['patchy.wasm', 'patchy.js', 'patchy.data', 'qtloader.js'];
+// no-cache, and stay identity-encoded. The st/ set is the single-threaded
+// artifact served to Safari/WebKit (docs/wasm-memory.md).
+const assets = [
+  'patchy.wasm', 'patchy.js', 'patchy.data', 'qtloader.js',
+  'st/patchy.wasm', 'st/patchy.js', 'st/patchy.data', 'st/qtloader.js',
+];
 
 const siteDir = process.argv[2];
 if (!siteDir) {

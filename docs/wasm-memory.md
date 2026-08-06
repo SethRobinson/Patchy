@@ -90,7 +90,27 @@ decisive result: the SINGLE-THREADED baseline (build/wasm-st-baseline, old
 code vintage) survives a full 6-minute stress run (storm to 4.8 GB, then
 stable ~3.65 GB), so the pathology is specific to the shared-memory
 (threaded) module, matching the onnxruntime report where the non-threaded
-backend was fine. Practical path: build a current wasm_singlethread artifact
-and serve it to Safari (the contingency in wasm.md's threading section),
-confirm on the iPhone via the beta site, and file a WebKit bug
-(rtsoft.com/patchy is a clean public repro).
+backend was fine.
+
+Follow-up probes (August 2026, after duplicate-boot contamination was fixed
+in the harness): the single-threaded hypothesis DID NOT SURVIVE current code.
+The old ST baseline that passed a stress run was built in June from older
+code, Qt 6.8.3, and emsdk 3.1.56; a current-code `wasm-release-st` build
+(Qt 6.10.3, emsdk 4.0.7) dies under workload exactly like the threaded one,
+as do ST -O2 and a build with the August compositor row kernels compiled
+optnone on wasm (the kernels are exonerated). Rebuilding CURRENT code on the
+June toolchain pair (Qt 6.8.3 wasm_singlethread + emsdk 3.1.56; the pairs
+are ABI-locked, embind signatures changed) is the one configuration where
+Safari's compiler CONVERGES: the storm peaks ~10 GB, recedes to under 4 GB,
+and no kill fires in 8 minutes; but under the stress workload the process
+then climbs again past 55 GB (uncharacterized: tier-up of hot functions or
+another browser-side sink; the ST app starves page JS, so only the process
+sampler sees it), so the old toolchain delays rather than removes the
+pathology. Infrastructure state: the `wasm-release-st` preset, `st/` staging,
+uploads, and the shell page's WebKit routing plus compatibility notice are
+all in place but AUTO-ROUTING IS DISABLED (`AUTO_ROUTE_WEBKIT_TO_ST=false`
+in patchy.html.in) until a configuration demonstrably survives;
+`?PATCHY_WASM_FORCE=st|mt` selects an artifact manually for testing. Open:
+the WebKit bug report (rtsoft.com/patchy?PATCHY_WASM_FORCE=mt stays a clean
+public repro), characterizing the old-toolchain second climb, and the iPhone
+run via the beta site.

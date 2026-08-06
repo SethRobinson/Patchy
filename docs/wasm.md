@@ -1,11 +1,12 @@
 # WebAssembly (Emscripten) build
 
-Deep reference for the wasm builds. Read this before touching the `wasm-core`
-or `wasm-release` presets, the emsdk/Qt-kit provisioning, or `scripts/wasm/`.
+Deep reference for the wasm builds. Read this before touching the `wasm-core`,
+`wasm-release`, or `wasm-release-st` presets, the emsdk/Qt-kit provisioning,
+or `scripts/wasm/`.
 
 ## What exists today
 
-Two configurations share the pinned Emscripten 4.0.7 toolchain:
+Three configurations share the pinned Emscripten 4.0.7 toolchain:
 
 - **`wasm-core`**: the Qt-free engine libraries plus `patchy_core_tests`,
   run under node (`PATCHY_BUILD_APP=OFF`).
@@ -15,6 +16,17 @@ Two configurations share the pinned Emscripten 4.0.7 toolchain:
   browser-backed (details below). Background work runs on real threads; the
   deployment cost is cross-origin isolation (COOP/COEP headers, see
   deployment).
+- **`wasm-release-st`**: the same app against the 6.10.3 `wasm_singlethread`
+  kit (`PATCHY_WASM_SINGLETHREAD=ON`: no `-pthread`, no pool, no shared
+  memory; the threading seams take their inline branches). Built and staged
+  as `st/` beside the threaded artifact as the intended Safari/WebKit
+  fallback for the Safari 26 compiler kill, with a shell-page router and a
+  one-time compatibility notice, but AUTO-ROUTING IS CURRENTLY DISABLED:
+  measurements show current-code ST builds still die under workload, so the
+  router serves `st/` only via `?PATCHY_WASM_FORCE=st` until a surviving
+  configuration exists. The investigation lives in
+  [wasm-memory.md](wasm-memory.md). Provision the kit with
+  `pwsh -File scripts\wasm\setup-qt-wasm.ps1 -WasmArch wasm_singlethread`.
 
 Desktop builds are unaffected: the presets, the `if(EMSCRIPTEN)` CMake
 branches, the `Q_OS_WASM` gates, and `scripts/wasm/` are the whole wasm
@@ -29,9 +41,13 @@ pwsh -File scripts\wasm\setup-emsdk.ps1
 Idempotent: clones emsdk into `.deps\emsdk` (gitignored), `git pull`s an
 existing clone (a stale checkout fails with "unknown version"), installs +
 activates Emscripten 4.0.7, the Qt-supported version (`-EmsdkVersion`
-provisions others; versions coexist). The bundled node 22.16.0 runs the
-tests; the scripts glob `.deps\emsdk\node\*\bin\node.exe`, so keep exactly
-one node directory there.
+provisions others; versions coexist, and emsdk swaps `upstream/` in place on
+activate, so serialize builds across versions and reactivate 4.0.7 when
+done). The bundled node 22.16.0 runs the tests; the scripts glob
+`.deps\emsdk\node\*\bin\node.exe` and build-wasm.bat existence-checks for the
+`bin\node.exe` layout, so extra node version directories (newer emsdk node
+packages drop the `bin\` level) are tolerated as long as exactly one
+directory matches that layout.
 
 ## Configure and build (wasm-core)
 

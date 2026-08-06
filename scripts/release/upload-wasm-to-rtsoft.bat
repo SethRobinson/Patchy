@@ -11,7 +11,7 @@ rem cd to the repo root (this script lives in scripts\release) so the relative
 rem paths below resolve from any cwd.
 cd /d "%~dp0..\.."
 set "SITE_DIR=build\package\wasm-site"
-for %%F in (patchy.data patchy.wasm patchy.js qtloader.js patchy.data.br patchy.data.gz patchy.wasm.br patchy.wasm.gz patchy.js.br patchy.js.gz qtloader.js.br qtloader.js.gz patchy-logo.png favicon.ico NOTICE-THIRD-PARTY.md libheif-COPYING.txt .htaccess patchy.html index.html) do (
+for %%F in (patchy.data patchy.wasm patchy.js qtloader.js patchy.data.br patchy.data.gz patchy.wasm.br patchy.wasm.gz patchy.js.br patchy.js.gz qtloader.js.br qtloader.js.gz st\patchy.data st\patchy.wasm st\patchy.js st\qtloader.js st\patchy.data.br st\patchy.data.gz st\patchy.wasm.br st\patchy.wasm.gz st\patchy.js.br st\patchy.js.gz st\qtloader.js.br st\qtloader.js.gz patchy-logo.png favicon.ico NOTICE-THIRD-PARTY.md libheif-COPYING.txt .htaccess patchy.html index.html) do (
   if not exist "%SITE_DIR%\%%F" (
     echo %%F is missing from %SITE_DIR% - run scripts\release\build-wasm.bat first.
     if /i not "%~1"=="nopause" pause
@@ -19,7 +19,13 @@ for %%F in (patchy.data patchy.wasm patchy.js qtloader.js patchy.data.br patchy.
   )
 )
 echo Ensuring www/patchy exists on rtsoft.com...
-ssh rtsoft@rtsoft.com "mkdir -p www/patchy"
+ssh rtsoft@rtsoft.com "mkdir -p www/patchy/st"
+if errorlevel 1 goto fail
+rem The st/ set is the single-threaded artifact the page serves to
+rem Safari/WebKit (docs\wasm-memory.md). Uploaded before the main set so the
+rem html files stay last overall.
+echo Uploading the single-threaded artifact to rtsoft.com/patchy/st...
+scp "%SITE_DIR%\st\patchy.data" "%SITE_DIR%\st\patchy.wasm" "%SITE_DIR%\st\patchy.js" "%SITE_DIR%\st\qtloader.js" "%SITE_DIR%\st\patchy.data.br" "%SITE_DIR%\st\patchy.data.gz" "%SITE_DIR%\st\patchy.wasm.br" "%SITE_DIR%\st\patchy.wasm.gz" "%SITE_DIR%\st\patchy.js.br" "%SITE_DIR%\st\patchy.js.gz" "%SITE_DIR%\st\qtloader.js.br" "%SITE_DIR%\st\qtloader.js.gz" rtsoft@rtsoft.com:www/patchy/st/
 if errorlevel 1 goto fail
 echo Uploading the wasm site to rtsoft.com/patchy...
 scp "%SITE_DIR%\patchy.data" "%SITE_DIR%\patchy.wasm" "%SITE_DIR%\patchy.js" "%SITE_DIR%\qtloader.js" "%SITE_DIR%\patchy.data.br" "%SITE_DIR%\patchy.data.gz" "%SITE_DIR%\patchy.wasm.br" "%SITE_DIR%\patchy.wasm.gz" "%SITE_DIR%\patchy.js.br" "%SITE_DIR%\patchy.js.gz" "%SITE_DIR%\qtloader.js.br" "%SITE_DIR%\qtloader.js.gz" "%SITE_DIR%\patchy-logo.png" "%SITE_DIR%\favicon.ico" "%SITE_DIR%\NOTICE-THIRD-PARTY.md" "%SITE_DIR%\libheif-COPYING.txt" "%SITE_DIR%\.htaccess" "%SITE_DIR%\patchy.html" "%SITE_DIR%\index.html" rtsoft@rtsoft.com:www/patchy/

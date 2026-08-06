@@ -1033,6 +1033,13 @@ if(PATCHY_BUILD_APP)
     patchy_configure_target(patchy_ui)
 
     if(EMSCRIPTEN)
+      # The single-threaded app artifact (wasm-release-st preset): no
+      # -pthread, no pool, no shared memory. Served to Safari/WebKit, whose
+      # optimizing wasm compiler blows up on the threaded module; see
+      # docs/wasm-memory.md. The threading seams in src gate themselves on
+      # __EMSCRIPTEN_PTHREADS__, so no source changes ride on this option.
+      option(PATCHY_WASM_SINGLETHREAD
+             "Single-threaded wasm app build (the Safari-served artifact)" OFF)
       # qt_add_executable generates the wasm deployment sidecars (patchy.html,
       # qtloader.js) that a plain add_executable does not.
       qt_add_executable(patchy src/app/main.cpp)
@@ -1067,9 +1074,13 @@ if(PATCHY_BUILD_APP)
       # patchy.html falls back to this floor plus heap growth.
       set_target_properties(patchy PROPERTIES
         QT_WASM_INITIAL_MEMORY "256MB"
-        QT_WASM_PTHREAD_POOL_SIZE "(globalThis.patchyPthreadPoolSize||(Math.min(navigator.hardwareConcurrency,16)+16))"
         QT_QML_MODULE_NO_IMPORT_SCAN TRUE
       )
+      if(NOT PATCHY_WASM_SINGLETHREAD)
+        set_target_properties(patchy PROPERTIES
+          QT_WASM_PTHREAD_POOL_SIZE "(globalThis.patchyPthreadPoolSize||(Math.min(navigator.hardwareConcurrency,16)+16))"
+        )
+      endif()
       # The qmltooling debug-service plugins are default static plugins of
       # Qt6::Qml, and qmldbg_quickprofiler links the whole QtQuick scene graph
       # plus its shader resources into the binary. QML debug services are dead
@@ -1113,9 +1124,6 @@ if(PATCHY_BUILD_APP)
         ${PATCHY_WASM_LINK_OPT}
         -sMALLOC=mimalloc
         -fexceptions
-        -pthread
-        -Wno-pthreads-mem-growth
-        -sDEFAULT_PTHREAD_STACK_SIZE=4MB
         -sALLOW_MEMORY_GROWTH=1
         -sMAXIMUM_MEMORY=4GB
         "SHELL:--pre-js ${PROJECT_SOURCE_DIR}/scripts/wasm/app-env-pre.js"
@@ -1123,6 +1131,13 @@ if(PATCHY_BUILD_APP)
         "SHELL:--preload-file ${CMAKE_BINARY_DIR}/translations@/translations"
         "SHELL:--preload-file ${CMAKE_BINARY_DIR}/scripts@/scripts"
       )
+      if(NOT PATCHY_WASM_SINGLETHREAD)
+        target_link_options(patchy PRIVATE
+          -pthread
+          -Wno-pthreads-mem-growth
+          -sDEFAULT_PTHREAD_STACK_SIZE=4MB
+        )
+      endif()
       # A fonts-only change must repack patchy.data: patchy_copy_bundled_fonts
       # orders the staging before the build but does not make the link step
       # depend on it, so without this a changed font would not ship until the
