@@ -18,6 +18,7 @@
 #include "formats/format_registry.hpp"
 #include "local_psd_fixtures.hpp"
 #include "core/document.hpp"
+#include "core/layer_metadata.hpp"
 #include "core/smart_object.hpp"
 #include "core/vector_shape.hpp"
 #include "psd/psd_document_io.hpp"
@@ -131,6 +132,10 @@ void af_tier2_imports_group_hierarchy() {
   }
   CHECK(group != nullptr);
   CHECK(group->children().size() == 3);
+  // Affinity always opens its groups closed and the tree stores no disclosure
+  // state, so an imported group starts collapsed rather than on Patchy's
+  // expanded default.
+  CHECK(!patchy::layer_group_expanded(*group));
   // Children keep their names and real pixels.
   bool found_inner = false;
   for (const auto& child : group->children()) {
@@ -933,6 +938,9 @@ void af_imports_multi_artboard_document() {
   }
   CHECK(board_a != nullptr && board_a->kind() == patchy::LayerKind::Group);
   CHECK(board_b != nullptr && board_b->kind() == patchy::LayerKind::Group);
+  // Synthesized groups collapse with the rest of the import.
+  CHECK(!patchy::layer_group_expanded(*board_a));
+  CHECK(!patchy::layer_group_expanded(*board_b));
   // Each artboard group clips to its box via a rectangular mask.
   const auto rect_is = [](const patchy::Rect& rect, std::int32_t x, std::int32_t y,
                           std::int32_t w, std::int32_t h) {
@@ -1210,6 +1218,7 @@ void af_approximates_affinity_only_blend_modes() {
   CHECK(wrapper.blend_mode() == patchy::BlendMode::Normal);
   CHECK(std::abs(wrapper.opacity() - 1.0F) < 0.005F);
   CHECK(!wrapper.clipped());
+  CHECK(!patchy::layer_group_expanded(wrapper));  // the fold's machinery stays folded away
   CHECK(wrapper.children().size() == 7);  // base + the six blend rects
   CHECK(wrapper.children().front().name() == "base");
   CHECK(wrapper.children().back().name() == "cneg");

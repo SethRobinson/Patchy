@@ -5592,6 +5592,26 @@ namespace {
   return document;
 }
 
+// Affinity's Layers panel opens every document with its groups closed, and the
+// .af tree records no disclosure state to restore (a Grup node carries only
+// Visi/Edtb/MEtb/TrFV/deco, and the container holds no UI-state stream), so
+// Affinity is applying a fixed closed default rather than reloading anything.
+// Patchy's default for a group with no recorded state is expanded, so match the
+// file's appearance in Affinity by stamping every imported group closed. This
+// runs as a sweep over the finished tree so it also covers the groups the
+// importer synthesizes itself: artboards, Erase folds, and crop-to-shape
+// wrappers. The flag is native PSD (the folder's section-divider type), so it
+// survives a save.
+void collapse_imported_groups(std::vector<Layer>& layers) {
+  for (auto& layer : layers) {
+    if (layer.kind() != LayerKind::Group) {
+      continue;
+    }
+    set_layer_group_expanded(layer, false);
+    collapse_imported_groups(layer.children());
+  }
+}
+
 // Shared by the public read() and the embedded-document recursion (embedded
 // containers are complete .af containers stored in edc/<n> streams).
 // Resolve every pending Gaussian-blur layer effect (stamped by
@@ -5754,6 +5774,7 @@ void bake_pending_blur_effects(std::vector<Layer>& layers, std::vector<std::stri
         }
       }
       bake_pending_blur_effects(document.layers(), notices);
+      collapse_imported_groups(document.layers());
       return document;
     } catch (const std::exception& error) {
       // A structurally unusable tree (or an unforeseen shape) falls back to the
