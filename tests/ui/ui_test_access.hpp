@@ -50,6 +50,10 @@ public:
     window.request_warp_text_dialog();
   }
 
+  static void toggle_text_bold_face(MainWindow& window) {
+    window.toggle_text_bold_face();
+  }
+
   // Deterministic offscreen substitute for a Type-tool canvas click: the canvas
   // press/release pair funnels into exactly this call, but synthetic clicks sent
   // while another window (e.g. a non-modal dialog) is active lose the in-flight

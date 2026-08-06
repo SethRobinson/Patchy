@@ -854,6 +854,29 @@ QStringList missing_text_families_for_psd_raster_preview(const QString& primary_
   return missing;
 }
 
+// Faux bold rides column 11 of the v4+ patchy.text.runs blob (earlier versions have no faux
+// column and cannot carry the flag). Photoshop refuses to warp type that uses Faux Bold
+// anywhere in the layer, and Patchy mirrors that as an authoring rule, so this asks the
+// committed metadata, covering imported layers that never opened an editor.
+bool text_layer_uses_faux_bold(const Layer& layer) {
+  const auto found = layer.metadata().find(kLayerMetadataTextRuns);
+  if (found == layer.metadata().end()) {
+    return false;
+  }
+  const auto lines = QString::fromStdString(found->second).split(QLatin1Char('\n'));
+  for (const auto& raw_line : lines) {
+    const auto line = raw_line.trimmed();
+    if (line.isEmpty() || line.startsWith(QLatin1Char('v'))) {
+      continue;
+    }
+    const auto fields = line.split(QLatin1Char('\t'));
+    if (fields.size() >= 12 && fields[11].toInt() != 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
 bool confirm_psd_raster_preview_font_substitution(QWidget* parent, const QStringList& missing_fonts) {
   if (missing_fonts.isEmpty()) {
     return true;
@@ -4874,6 +4897,52 @@ std::optional<TransformedTextPixels> render_warped_text_pixels_for_layer(const L
   return TransformedTextPixels{std::move(pixels), warped.bounds};
 }
 
+bool layer_has_active_text_warp(const Layer& layer) {
+  const auto warp = text_warp_from_layer(layer);
+  return warp.has_value() && !text_warp_is_identity(*warp);
+}
+
+// The unwarped text-local -> document transform to EDIT a warped layer through. A warped
+// layer's raster is the warped ink, so none of the raster-derived anchors the plain text
+// session uses can place the caret; the stored transform is the authority for everything
+// except Move, which translates the bounds without touching text metadata. Re-render the
+// warp once from the stored state (stored box kept, so the probe reproduces the last
+// render instead of re-deriving geometry) and fold the bounds delta into the translation.
+// For an unmoved layer the delta is zero.
+QTransform warped_text_session_transform(const Layer& layer) {
+  auto base = patchy_text_transform_for_layer(layer).value_or(
+      QTransform::fromTranslate(layer.bounds().x, layer.bounds().y));
+  const auto warp = text_warp_from_layer(layer);
+  if (!warp.has_value() || text_warp_is_identity(*warp)) {
+    return base;
+  }
+  const auto inputs = text_render_inputs_from_layer(layer);
+  if (!inputs.has_value()) {
+    return base;
+  }
+  const auto probe = render_warped_text_pixels_for_layer(*inputs, *warp, base);
+  if (!probe.has_value()) {
+    return base;
+  }
+  const auto delta_x = static_cast<qreal>(layer.bounds().x - probe->bounds.x);
+  const auto delta_y = static_cast<qreal>(layer.bounds().y - probe->bounds.y);
+  if (delta_x != 0.0 || delta_y != 0.0) {
+    base *= QTransform::fromTranslate(delta_x, delta_y);
+  }
+  return base;
+}
+
+// True when the inline session edits a layer carrying an active Warp Text. A provisional
+// (new-text) layer can never be warped, so only the re-edit id is consulted.
+bool text_editor_layer_is_warped(const Document& doc, const QTextEdit& editor) {
+  if (!editor.property("patchy.editingLayerId").isValid()) {
+    return false;
+  }
+  const auto* layer =
+      doc.find_layer(static_cast<LayerId>(editor.property("patchy.editingLayerId").toULongLong()));
+  return layer != nullptr && layer_has_active_text_warp(*layer);
+}
+
 void clear_layer_text_metadata(Layer& layer) {
   static constexpr std::array<const char*, 24> kTextMetadataKeys = {
       kLayerMetadataText,
@@ -6580,6 +6649,8 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
   std::optional<QPointF> editing_layer_source_visible_anchor;
   std::optional<QSizeF> editing_layer_source_visible_size;
   std::optional<QRectF> editing_layer_render_local_rect;
+  bool editing_layer_is_warped_text = false;
+  std::optional<QTransform> editing_layer_warp_session_transform;
   QString initial_text;
   QString initial_html;
   QString initial_rich_text_runs;
@@ -6704,10 +6775,18 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
           layer->metadata().contains(kLayerMetadataTextFlow)
               ? QString::fromStdString(layer->metadata().at(kLayerMetadataTextFlow))
               : QString::fromLatin1(kTextFlowPoint));
-      const auto text_transform = patchy_text_transform_for_layer(*layer);
+      auto text_transform = patchy_text_transform_for_layer(*layer);
       const auto psd_frame = psd_text_frame_rect(*layer);
       const bool using_psd_frame = psd_frame.has_value() && boxed_text;
       editing_layer_uses_psd_text_frame = layer_should_edit_with_psd_text_frame(*layer, boxed_text) && using_psd_frame;
+      editing_layer_is_warped_text = layer_has_active_text_warp(*layer);
+      if (editing_layer_is_warped_text && !editing_layer_uses_psd_text_frame) {
+        // A warped layer's raster (and so every raster-derived anchor below) is the WARPED
+        // ink; the session edits the UNWARPED text, placed by the Move-corrected stored
+        // transform. The commit re-renders the warp through this same transform.
+        text_transform = warped_text_session_transform(*layer);
+        editing_layer_warp_session_transform = text_transform;
+      }
       editing_layer_has_transformed_preview =
           text_transform.has_value() && qtransform_has_non_translation_linear_part(*text_transform) &&
           !editing_layer_uses_psd_text_frame;
@@ -6723,7 +6802,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
         // every session also records the visible width, which the commit needs to keep the
         // justification point of centered/right text pinned across repeated edits.
         const bool can_use_psd_visual_origin =
-            !boxed_text && text_affine_transform.has_value() &&
+            !boxed_text && !editing_layer_is_warped_text && text_affine_transform.has_value() &&
             !affine_transform_has_non_translation_linear_part(*text_affine_transform);
         const auto psd_visible_rect =
             can_use_psd_visual_origin ? psd_point_text_source_visible_rect(*layer) : std::optional<QRectF>{};
@@ -6783,11 +6862,11 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
           editing_layer_render_local_rect = psd_box_text_editor_render_local_rect(*layer).value_or(frame_rect);
           if (rect_extends_beyond(*editing_layer_render_local_rect, frame_rect)) {
             editing_layer_uses_extended_box_preview = true;
-            if (!editing_layer_source_visible_anchor.has_value()) {
+            if (!editing_layer_source_visible_anchor.has_value() && !editing_layer_is_warped_text) {
               editing_layer_source_visible_anchor = layer_source_visible_anchor(*layer);
             }
           }
-        } else {
+        } else if (!editing_layer_is_warped_text) {
           const auto raster_status = layer->metadata().find(kLayerMetadataTextRasterStatus);
           const bool patchy_box_raster =
               raster_status != layer->metadata().end() && raster_status->second == "patchy_raster";
@@ -7003,7 +7082,9 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
   // Whatever built the document above (runs, HTML or plain text), every run now names a family
   // that can actually draw it, so what the session renders is what the commit records.
   substitute_missing_document_font_families(*editor->document());
-  if (editing_layer.has_value() && editing_layer_uses_line_aware_box_preview) {
+  if (editing_layer.has_value() && editing_layer_uses_line_aware_box_preview && !editing_layer_is_warped_text) {
+    // Warped layers skip the calibration: it band-matches a fresh unwarped render against
+    // the layer raster, which holds the WARPED ink.
     if (auto* layer = document().find_layer(*editing_layer); layer != nullptr) {
       if (const auto scale =
               calibrated_box_text_metric_scale_for_editor(*editor, *layer, canvas_->zoom(), text_color);
@@ -7012,7 +7093,13 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
       }
     }
   }
-  if (editing_layer_source_visible_anchor.has_value()) {
+  if (editing_layer_warp_session_transform.has_value()) {
+    // Warped layer: the entry-time session transform is the geometry authority for the whole
+    // session (the anchor and PSD-local-bounds paths below both read the warped raster).
+    set_text_editor_transform_override(*editor, affine_from_qtransform(*editing_layer_warp_session_transform));
+    document_point = QPoint(editor->property("patchy.documentTextX").toInt(),
+                            editor->property("patchy.documentTextY").toInt());
+  } else if (editing_layer_source_visible_anchor.has_value()) {
     update_text_editor_transform_from_source_anchor(*editor, canvas_->zoom(), text_color);
     document_point = QPoint(editor->property("patchy.documentTextX").toInt(),
                             editor->property("patchy.documentTextY").toInt());
@@ -7274,6 +7361,22 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
       refresh_layer_controls();
     }
   };
+  // Capture the regions this commit must repaint again AFTER the layer mutation below: the
+  // restore/remove pair refreshes them with the PRE-commit composite, and when the committed
+  // bounds land elsewhere (a warped layer's re-render, or any edit that shrinks the ink) the
+  // difference kept showing the old pixels until a manual F5.
+  QRect pre_commit_dirty;
+  if (layer_id.has_value()) {
+    if (const auto* layer = std::as_const(document()).find_layer(*layer_id); layer != nullptr) {
+      pre_commit_dirty = pre_commit_dirty.united(to_qrect(layer_render_bounds(*layer)));
+    }
+  }
+  if (editor->property("patchy.textPreviewLayerId").isValid()) {
+    const auto preview_id = static_cast<LayerId>(editor->property("patchy.textPreviewLayerId").toULongLong());
+    if (const auto* preview = std::as_const(document()).find_layer(preview_id); preview != nullptr) {
+      pre_commit_dirty = pre_commit_dirty.united(to_qrect(layer_render_bounds(*preview)));
+    }
+  }
   // Reveal the edited layer in the SAME step that takes the preview away. Its committed pixels
   // are still intact here, so the text simply keeps showing until the new render replaces it a
   // few statements below. Removing the preview on its own left a window with neither on screen,
@@ -7345,13 +7448,19 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
   }
   if (!boxed_text && !editor->property("patchy.usesPsdTextFrame").toBool()) {
     bool updated_transform = false;
+    bool warped_text_layer = false;
     if (layer_id.has_value()) {
       if (auto* layer = document().find_layer(*layer_id); layer != nullptr) {
-        updated_transform = update_text_editor_transform_from_psd_local_bounds(*editor, *layer, rendered.pixels,
-                                                                              boxed_text);
+        // Warped layers commit through the entry-set session transform; the raster-derived
+        // updates below would re-anchor the text at the warped ink and drift it every commit.
+        warped_text_layer = layer_has_active_text_warp(*layer);
+        if (!warped_text_layer) {
+          updated_transform = update_text_editor_transform_from_psd_local_bounds(*editor, *layer, rendered.pixels,
+                                                                                boxed_text);
+        }
       }
     }
-    if (!updated_transform) {
+    if (!updated_transform && !warped_text_layer) {
       update_text_editor_transform_from_source_anchor(*editor, rendered.pixels);
     }
     document_point = QPoint(editor->property("patchy.documentTextX").toInt(),
@@ -7390,7 +7499,11 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
         refreshed.bounds_top = 0.0;
         refreshed.bounds_right = 0.0;
         refreshed.bounds_bottom = 0.0;
-        if (text_transform.has_value() && qtransform_has_non_translation_linear_part(*text_transform)) {
+        if (text_transform.has_value() && (qtransform_has_non_translation_linear_part(*text_transform) ||
+                                           text_editor_transform_override(*editor).has_value())) {
+          // The session override IS the unwarped text-local -> document map (set at entry,
+          // Move-corrected). Reconstructing it from the floored document_point drifted the
+          // layer by the warped-vs-unwarped ink offset on every commit.
           committed_warp_transform = *text_transform;
         } else {
           committed_warp_transform =
@@ -7507,14 +7620,13 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
       }
       if (committed_warp_used.has_value()) {
         layer->metadata()[kLayerMetadataTextWarp] = serialize_text_warp(*committed_warp_used);
-        if (!layer->metadata().contains(kLayerMetadataTextTransform)) {
-          // The warp render mapped text-local space through this transform; keep the
-          // layer self-describing so later re-renders and the PSD writer agree.
-          layer->metadata()[kLayerMetadataTextTransform] = serialize_layer_affine_transform(
-              LayerAffineTransform{committed_warp_transform.m11(), committed_warp_transform.m12(),
-                                   committed_warp_transform.m21(), committed_warp_transform.m22(),
-                                   committed_warp_transform.dx(), committed_warp_transform.dy()});
-        }
+        // The warp render mapped text-local space through this transform; store exactly it
+        // (overriding the boxed branch's floored write above) so later re-renders and the
+        // next session entry's probe agree with the raster to the sub-pixel.
+        layer->metadata()[kLayerMetadataTextTransform] = serialize_layer_affine_transform(
+            LayerAffineTransform{committed_warp_transform.m11(), committed_warp_transform.m12(),
+                                 committed_warp_transform.m21(), committed_warp_transform.m22(),
+                                 committed_warp_transform.dx(), committed_warp_transform.dy()});
       }
     }
   } else {
@@ -7542,14 +7654,16 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
   }
   refresh_layer_list();
   refresh_layer_controls();
-  // Bounded, not a full recomposite: removing the preview and restoring the source layer already
-  // dirtied everything they touched, so the only new region is the committed layer's own effect
-  // bounds. A full document_changed() here cost a whole recomposite per commit.
+  // Bounded, not a full recomposite (a full document_changed() here cost a whole recomposite
+  // per commit). The rect must union the pre-commit regions captured above with the committed
+  // layer's own effect bounds: the restore/remove invalidations ran BEFORE the pixels changed,
+  // so on their own they leave the old render baked in wherever the new bounds do not cover.
   bool bounded_refresh = false;
   if (committed_layer_id.has_value()) {
     if (const auto* committed = std::as_const(document()).find_layer(*committed_layer_id);
         committed != nullptr) {
-      canvas_->document_changed_effect_bounds(to_qrect(layer_render_bounds(*committed)));
+      canvas_->document_changed_effect_bounds(
+          pre_commit_dirty.united(to_qrect(layer_render_bounds(*committed))));
       bounded_refresh = true;
     }
   }
@@ -8265,6 +8379,14 @@ void MainWindow::apply_text_character_faux_bold_to_active_editor() {
     return;
   }
   const bool faux_bold = text_character_faux_bold_->isChecked();
+  if (faux_bold && text_editor_layer_is_warped(document(), *editor)) {
+    // Photoshop parity, the reverse direction: enabling faux bold on warped type is refused
+    // (unchecking stays allowed so imported faux+warp layers can be fixed).
+    show_status_error(tr("Faux bold is not available on warped text. Remove the text warp first."));
+    QSignalBlocker blocker(text_character_faux_bold_);
+    text_character_faux_bold_->setChecked(false);
+    return;
+  }
   mutate_text_editor_character_formats(*editor, [faux_bold](QTextCharFormat& format) {
     // The stroke itself is applied at render time (apply_faux_bold_to_document); the format only
     // carries the flag, so the same run keeps working after a colour or size change.
@@ -8306,6 +8428,12 @@ void MainWindow::request_warp_text_dialog() {
   }
   if (layer_id_locks_image_pixels(layer->id())) {
     show_status_error(tr("Layer pixels are locked."));
+    return;
+  }
+  if (text_layer_uses_faux_bold(*layer)) {
+    // Photoshop parity: it refuses to warp type with Faux Bold anywhere in the layer, so
+    // Patchy must not author a PSD Photoshop itself would not create. Faux italic warps fine.
+    show_status_error(tr("Faux bold text cannot be warped. Turn off faux bold in the Character panel first."));
     return;
   }
   const auto layer_id = layer->id();
@@ -9555,7 +9683,10 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
   editor->setProperty(kTextEditorPreviewEnabledProperty, needs_text_preview);
   if (!needs_text_preview) {
     // No preview: the editor widget itself draws the glyphs, so the committed layer has to go.
-    hide_text_editor_source_layer(editor);
+    // The vacated region must repaint or the hidden layer's pixels stay baked in the render cache.
+    if (const auto vacated = hide_text_editor_source_layer(editor); !vacated.isEmpty()) {
+      canvas_->document_changed_effect_bounds(vacated);
+    }
     editor->setProperty(kTextEditorPreviewPaintProperty, false);
     update_text_editor_transform_overlay(editor);
     clear_text_editor_preview_overlays(*editor);
@@ -9567,7 +9698,10 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
   // Untrimmed: run offsets index the full document text (see commit_text_editor).
   const auto text = editor->toPlainText();
   if (text.trimmed().isEmpty()) {
-    hide_text_editor_source_layer(editor);
+    // As above: consume the vacated region, or an all-deleted session leaves a ghost on screen.
+    if (const auto vacated = hide_text_editor_source_layer(editor); !vacated.isEmpty()) {
+      canvas_->document_changed_effect_bounds(vacated);
+    }
     editor->setProperty(kTextEditorPreviewPaintProperty, false);
     update_text_editor_transform_overlay(editor);
     clear_text_editor_preview_overlays(*editor);
@@ -9622,7 +9756,10 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
     remove_text_editor_preview(editor);
     return;
   }
-  if (!boxed_text && !editor->property("patchy.usesPsdTextFrame").toBool()) {
+  if (!boxed_text && !editor->property("patchy.usesPsdTextFrame").toBool() &&
+      !(source != nullptr && layer_has_active_text_warp(*source))) {
+    // Warped layers keep the entry-set session transform: both updates below re-derive
+    // geometry from the layer raster, which holds the WARPED ink.
     bool updated_transform = false;
     if (source != nullptr) {
       updated_transform = update_text_editor_transform_from_psd_local_bounds(*editor, *source, rendered.pixels,
@@ -9933,6 +10070,12 @@ void MainWindow::toggle_text_bold_face() {
   const bool enable = !active;
   const auto family = current_text_family_for_editor(*editor);
   const bool real_face = enable && family_offers_face_axis(family, true);
+  if (enable && !real_face && text_editor_layer_is_warped(document(), *editor)) {
+    // Only the FAUX fallback is refused on warped text (Photoshop parity); a family that
+    // ships a real Bold face keeps toggling normally.
+    show_status_error(tr("Faux bold is not available on warped text. Remove the text warp first."));
+    return;
+  }
   QTextCharFormat format;
   format.setFontWeight(real_face ? QFont::Bold : QFont::Normal);
   format.setProperty(kTextFauxBoldFormatProperty, enable && !real_face);

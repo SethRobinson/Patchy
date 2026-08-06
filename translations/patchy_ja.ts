@@ -11195,6 +11195,14 @@ To update, paste this into a terminal:
         <translation>ワープするテキストレイヤーを選択してください。</translation>
     </message>
     <message>
+        <source>Faux bold text cannot be warped. Turn off faux bold in the Character panel first.</source>
+        <translation>疑似ボールドを含むテキストはワープできません。先に文字パネルで疑似ボールドをオフにしてください。</translation>
+    </message>
+    <message>
+        <source>Faux bold is not available on warped text. Remove the text warp first.</source>
+        <translation>ワープしたテキストでは疑似ボールドは使用できません。先にテキストワープを解除してください。</translation>
+    </message>
+    <message>
         <location line="+51"/>
         <source>Warp Text</source>
         <translation>ワープテキスト</translation>
