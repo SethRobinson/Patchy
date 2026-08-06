@@ -72,6 +72,25 @@ not change the behavior, but env propagation into WebContent XPC was
 unverified, so tier attribution is open. iOS Safari deaths ~2 s after load
 are consistent with the same compile-side growth against a phone's jetsam
 budget and would be knob-independent (the memory-ladder and pool URL knobs
-cannot dodge it). Leads: shrink/split the 66 MB module or the pathological
-function(s) that blow up JSC's compiler, and file a WebKit bug
+cannot dodge it).
+
+A/B results (same harness, idle vs `mode=stress`; sample(1) on the WebContent
+process put the CPU and allocations in JSC::B3::Air::Greedy::GreedyAllocator
+under parseAndCompileOMG, so the growth is Safari's optimizing wasm compiler,
+not the app): SIMD is not a factor (a no-SIMD -O3 build dies identically).
+The module has no megafunctions (43k functions, largest body 256 KB). Link
+-O2 (67 MB) and -O1 (145 MB) both survive IDLE runs (compile storm 140 s with
+a 6.8 GB peak and 35 s with a 2.4 GB peak, then footprint settles), but both
+still die under a real workload: tier-up is execution-driven, hot functions
+reach OMG, and the allocator blows up at every opt level
+(`PATCHY_WASM_LINK_OPT` is a cache variable for building such variants; the
+shipped preset stays -O3). WebKit scrubs JSC_* environment variables from
+WebContent, so Safari's compiler tiers cannot be disabled externally. The
+decisive result: the SINGLE-THREADED baseline (build/wasm-st-baseline, old
+code vintage) survives a full 6-minute stress run (storm to 4.8 GB, then
+stable ~3.65 GB), so the pathology is specific to the shared-memory
+(threaded) module, matching the onnxruntime report where the non-threaded
+backend was fine. Practical path: build a current wasm_singlethread artifact
+and serve it to Safari (the contingency in wasm.md's threading section),
+confirm on the iPhone via the beta site, and file a WebKit bug
 (rtsoft.com/patchy is a clean public repro).
