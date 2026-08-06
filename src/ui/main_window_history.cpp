@@ -409,6 +409,7 @@ void MainWindow::enforce_history_memory_budget(const DocumentSession& push_targe
     total += bytes;
   }
   if (total <= budget) {
+    last_history_retained_bytes_ = total;
     return;
   }
   bool active_session_evicted = false;
@@ -437,6 +438,7 @@ void MainWindow::enforce_history_memory_budget(const DocumentSession& push_targe
     total = total - largest->second + recomputed;
     largest->second = recomputed;
   }
+  last_history_retained_bytes_ = total;
   // Push sites refresh the panel themselves when the push targets the ACTIVE
   // session; eviction that reaches the active session from a background push
   // must refresh it here, or the panel keeps rows whose states are gone.

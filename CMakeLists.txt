@@ -960,6 +960,8 @@ if(PATCHY_BUILD_APP)
         src/ui/dialog_utils_wasm.cpp
         src/ui/user_fonts_wasm.hpp
         src/ui/user_fonts_wasm.cpp
+        src/ui/wasm_memory_telemetry.hpp
+        src/ui/wasm_memory_telemetry.cpp
       )
     else()
       target_sources(patchy_ui PRIVATE src/ui/print_dialog.cpp)

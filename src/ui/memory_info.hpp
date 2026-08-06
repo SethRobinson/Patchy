@@ -14,13 +14,20 @@ namespace patchy::ui {
 [[nodiscard]] qint64 total_physical_ram_mb();
 
 // Current process memory: Windows working set, Linux VmRSS, macOS task_info
-// resident size, wasm current linear-memory (heap) size. The wasm value is the
-// number the browser applies its tab memory limits to, and it never shrinks.
+// resident size, wasm the allocator's live claim on the heap (emmalloc-level
+// bytes under -sMALLOC=mimalloc; see memory_info.cpp).
 [[nodiscard]] qint64 current_process_memory_mb();
 
 // Peak process memory: Windows peak working set, Linux VmHWM, macOS getrusage
-// ru_maxrss. -1 on wasm (the current heap size IS the peak there).
+// ru_maxrss, wasm the running peak of the allocator claim (refreshed each
+// probe; the always-on telemetry samples at 1 Hz).
 [[nodiscard]] qint64 peak_process_memory_mb();
+
+// Size of the wasm linear-memory buffer (WebAssembly.Memory), the number the
+// browser's tab memory accounting sees. Grows when the allocator overruns it
+// and never shrinks, so it is the permanent high-water mark, not usage.
+// -1 off wasm.
+[[nodiscard]] qint64 wasm_heap_reserved_mb();
 
 // The effective wasm heap ceiling: the WebAssembly.Memory maximum chosen by
 // the shell page (published as globalThis.patchyWasmMemoryMaximumBytes),

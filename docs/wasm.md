@@ -222,8 +222,20 @@ requestAnimationFrame onto setTimeout before qtloader runs (harness below).
   declared import ceiling. The chosen cap is published as
   `globalThis.patchyWasmMemoryMaximumBytes`, read by `ui/memory_info.hpp`
   for the About screen's live memory row (`emscripten_get_heap_max()` is
-  baked at link time; never trust it for this). Qt owns `-sSTACK_SIZE`; do
-  not add a second one. In-app relief, because wasm memory never shrinks:
+  baked at link time; never trust it for this). The About row shows three
+  numbers: used (the allocator's live claim, `emmalloc_dynamic_heap_size()`
+  minus `emmalloc_free_dynamic_memory()`; -sMALLOC=mimalloc layers mimalloc on
+  emmalloc, and emmalloc's free-list bookkeeping is the coherent number where
+  mimalloc's own mi_process_info stats wrap negative in the emscripten build),
+  heap (`emscripten_get_heap_size()`, the linear-memory buffer browser tab
+  accounting sees, which only ratchets), and the cap.
+  `ui/wasm_memory_telemetry.cpp` (installed from the MainWindow constructor)
+  publishes the same picture to `globalThis.patchyMemStats` every second
+  (heapBytes, usedBytes, peakUsedBytes, limitBytes, historyBytes,
+  historyBudgetBytes, seq, timestampMs; seq and timestampMs detect staleness
+  during long synchronous compute) for page JS and the memory test harness;
+  `?PATCHY_MEM_LOG=1` also logs each sample to the console. Qt owns
+  `-sSTACK_SIZE`; do not add a second one. In-app relief, because wasm memory never shrinks:
   history is
   byte-budgeted (256 MB on wasm, `history_memory_budget_bytes`, floor 3
   states/session) and the style caches shrink to 96/48 MB under `Q_OS_WASM`

@@ -1918,8 +1918,8 @@
     </message>
     <message>
         <location filename="../src/ui/splash_dialog.cpp"/>
-        <source>Memory used: %1 (limit %2)</source>
-        <translation>メモリ使用量: %1（上限 %2）</translation>
+        <source>Memory used: %1 (heap %2, limit %3)</source>
+        <translation>メモリ使用量: %1（ヒープ %2、上限 %3）</translation>
     </message>
     <message>
         <location filename="../src/ui/splash_dialog.cpp"/>

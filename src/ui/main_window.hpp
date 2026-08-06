@@ -191,6 +191,12 @@ public:
   // scripts) in the markdown viewer; public so the Script Manager's Help
   // button shares the Help-menu instance.
   void open_scripting_guide();
+  // Marginal history bytes retained across all sessions, cached by the last
+  // enforce_history_memory_budget run (push-time; slightly stale by design).
+  // The wasm memory telemetry (ui/wasm_memory_telemetry.cpp) reads it at 1 Hz.
+  [[nodiscard]] std::size_t history_retained_bytes() const noexcept {
+    return last_history_retained_bytes_;
+  }
 
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
@@ -1625,6 +1631,8 @@ private:
   // CLI automation (run_cli_export): suppress interactive prompts on the open/edit/save
   // paths so an unattended run can never block on a dialog.
   bool cli_automation_mode_{false};
+  // Cache behind history_retained_bytes(); see enforce_history_memory_budget.
+  std::size_t last_history_retained_bytes_{0};
 };
 
 }  // namespace patchy::ui

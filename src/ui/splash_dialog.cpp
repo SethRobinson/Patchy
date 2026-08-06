@@ -42,15 +42,18 @@ QString format_memory_mb(qint64 mb) {
 }
 
 // Returns false when no probe works on this platform (the caller hides the
-// row). On wasm the limit is the effective heap ceiling the shell page chose,
-// which is what Safari's tab budget applies to; see ui/memory_info.hpp.
+// row). On wasm three numbers matter: allocator-committed bytes ("used"), the
+// linear-memory buffer ("heap", the high-water mark browser tab accounting
+// sees), and the heap ceiling the shell page chose ("limit"); see
+// ui/memory_info.hpp.
 bool refresh_memory_label(QLabel& label) {
   const auto current = current_process_memory_mb();
   if (current >= 0) {
-    const auto limit = wasm_heap_limit_mb();
-    label.setText(limit >= 0 ? QObject::tr("Memory used: %1 (limit %2)")
-                                   .arg(format_memory_mb(current), format_memory_mb(limit))
-                             : QObject::tr("Memory used: %1").arg(format_memory_mb(current)));
+    const auto heap = wasm_heap_reserved_mb();
+    label.setText(heap >= 0 ? QObject::tr("Memory used: %1 (heap %2, limit %3)")
+                                  .arg(format_memory_mb(current), format_memory_mb(heap),
+                                       format_memory_mb(wasm_heap_limit_mb()))
+                            : QObject::tr("Memory used: %1").arg(format_memory_mb(current)));
     return true;
   }
   const auto peak = peak_process_memory_mb();

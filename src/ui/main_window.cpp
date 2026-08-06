@@ -43,6 +43,7 @@
 #include "ui/dialog_utils.hpp"
 #ifdef Q_OS_WASM
 #include "ui/dialog_utils_wasm.hpp"
+#include "ui/wasm_memory_telemetry.hpp"
 #endif
 #include "ui/document_float_window.hpp"
 #include "ui/font_picker.hpp"
@@ -5311,6 +5312,9 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   // own on the window element, so if the native path ever starts delivering
   // dropped files too (a dropped file opening twice), gate one path off.
   wasm_files::install_web_drop_target([this](const QString& path) { handle_web_file_drop(path); });
+  // Always-on 1 Hz publisher of globalThis.patchyMemStats; the timer only
+  // fires once the event loop runs, so installing this early is safe.
+  install_wasm_memory_telemetry(*this);
 #endif
   document_tabs_->installEventFilter(this);
   suppress_native_tab_bar_base(*document_tabs_);

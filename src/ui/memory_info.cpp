@@ -22,10 +22,37 @@
 #endif
 #ifdef Q_OS_WASM
 #include <emscripten.h>
+#include <emscripten/emmalloc.h>
 #include <emscripten/heap.h>
+
+#include <atomic>
 #endif
 
 namespace patchy::ui {
+
+#ifdef Q_OS_WASM
+namespace {
+
+// Bytes the allocator currently claims from the linear memory. The build's
+// -sMALLOC=mimalloc layers mimalloc on emmalloc (its "OS" layer), and
+// emmalloc's free-list bookkeeping is the coherent live number; mimalloc's own
+// mi_process_info stats are unreliable here (stat tracking is compiled down in
+// the emscripten build and its committed counter wraps negative). Segment
+// granular: page-level frees inside a still-claimed mimalloc segment keep
+// counting until the segment purges back to emmalloc.
+qint64 wasm_allocator_used_mb() {
+  const auto dynamic = static_cast<std::uint64_t>(emmalloc_dynamic_heap_size());
+  const auto free_bytes = static_cast<std::uint64_t>(emmalloc_free_dynamic_memory());
+  const auto used = dynamic > free_bytes ? dynamic - free_bytes : 0;
+  return static_cast<qint64>(used / (1024ULL * 1024ULL));
+}
+
+// Running peak of the claim, refreshed on every probe (the always-on 1 Hz
+// telemetry keeps it current); wasm has no OS peak-RSS counter to ask.
+std::atomic<qint64> peak_wasm_used_mb{0};
+
+}  // namespace
+#endif
 
 qint64 total_physical_ram_mb() {
 #ifdef Q_OS_WIN
@@ -82,7 +109,14 @@ qint64 current_process_memory_mb() {
   }
 #endif
 #ifdef Q_OS_WASM
-  return static_cast<qint64>(emscripten_get_heap_size() / (1024ULL * 1024ULL));
+  // What the app has actually allocated, unlike emscripten_get_heap_size(),
+  // which is the linear-memory buffer and sits at the shell page's initial
+  // size until the allocator first overruns it (see wasm_heap_reserved_mb).
+  const auto used = wasm_allocator_used_mb();
+  if (used > peak_wasm_used_mb.load(std::memory_order_relaxed)) {
+    peak_wasm_used_mb.store(used, std::memory_order_relaxed);
+  }
+  return used;
 #endif
   return -1;
 }
@@ -114,7 +148,20 @@ qint64 peak_process_memory_mb() {
     return static_cast<qint64>(usage.ru_maxrss / (1024LL * 1024LL));
   }
 #endif
+#ifdef Q_OS_WASM
+  const auto current = wasm_allocator_used_mb();
+  const auto peak = peak_wasm_used_mb.load(std::memory_order_relaxed);
+  return current > peak ? current : peak;
+#endif
   return -1;
+}
+
+qint64 wasm_heap_reserved_mb() {
+#ifdef Q_OS_WASM
+  return static_cast<qint64>(emscripten_get_heap_size() / (1024ULL * 1024ULL));
+#else
+  return -1;
+#endif
 }
 
 qint64 wasm_heap_limit_mb() {
