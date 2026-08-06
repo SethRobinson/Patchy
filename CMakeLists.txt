@@ -962,9 +962,15 @@ if(PATCHY_BUILD_APP)
         src/ui/dialog_utils_wasm.cpp
         src/ui/user_fonts_wasm.hpp
         src/ui/user_fonts_wasm.cpp
+        src/ui/wasm_event_guard.hpp
+        src/ui/wasm_event_guard.cpp
         src/ui/wasm_memory_telemetry.hpp
         src/ui/wasm_memory_telemetry.cpp
       )
+      # wasm_event_guard.cpp pins QtCore's private qwasmsuspendresumecontrol
+      # header to defuse the sendPendingEvents re-entrancy crash (docs/wasm.md);
+      # drop this dependency when the upstream fix lands.
+      target_link_libraries(patchy_ui PRIVATE Qt6::CorePrivate)
     else()
       target_sources(patchy_ui PRIVATE src/ui/print_dialog.cpp)
       target_link_libraries(patchy_ui PUBLIC Qt6::PrintSupport)

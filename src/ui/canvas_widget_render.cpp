@@ -10,6 +10,9 @@
 #include "ui/canvas_widget.hpp"
 #include "ui/background_workers.hpp"
 #include "ui/canvas_widget_shared.hpp"
+#ifdef Q_OS_WASM
+#include "ui/dialog_utils_wasm.hpp"
+#endif
 
 #include "core/adjustment_layer.hpp"
 #include "core/blend_math.hpp"
@@ -369,6 +372,11 @@ void CanvasWidget::end_processing_operation() {
   }
   processing_operation_owns_overlay_ = false;
   processing_overlay_message_.clear();
+#ifdef Q_OS_WASM
+  // Same DOM focus heal as wait_for_processing_operation, for operations
+  // whose busy stints run without a nested wait (docs/wasm-input.md).
+  wasm_files::restore_qt_dom_focus();
+#endif
 }
 
 void CanvasWidget::notify_document_changed(DocumentChangeReason reason) {
@@ -1276,6 +1284,16 @@ bool CanvasWidget::wait_for_processing_operation(std::function<bool()> operation
     end_processing_operation();
   }
   processing_render_wait_active_ = previous_wait_active;
+#ifdef Q_OS_WASM
+  if (!processing_render_wait_active_) {
+    // Input that arrived while this wait's compute kept the main thread busy
+    // was only queued by the platform plugin, so its browser defaults ran
+    // un-prevented; a press default blurs Qt's DOM focus helper and every
+    // hotkey dies until DOM focus returns (docs/wasm-input.md). Heal when the
+    // outermost wait unwinds; no-op unless focus actually fell to the body.
+    wasm_files::restore_qt_dom_focus();
+  }
+#endif
   if (!processing_render_wait_active_ && deferred_wait_release_.has_value()) {
     // Replay the release parked by mouseReleaseEvent on the next main-loop
     // turn, after the input handler that started this wait has fully

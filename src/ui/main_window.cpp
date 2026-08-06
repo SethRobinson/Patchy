@@ -43,6 +43,7 @@
 #include "ui/dialog_utils.hpp"
 #ifdef Q_OS_WASM
 #include "ui/dialog_utils_wasm.hpp"
+#include "ui/wasm_event_guard.hpp"
 #include "ui/wasm_memory_telemetry.hpp"
 #endif
 #include "ui/document_float_window.hpp"
@@ -5316,6 +5317,10 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   // in with PATCHY_MEM_STATS/PATCHY_MEM_LOG; the timer only fires once the
   // event loop runs, so installing this early is safe.
   install_wasm_memory_telemetry(*this);
+  // Qt's pending-event queue crashes the tab when a nested event loop drains
+  // it under an outer sendPendingEvents batch; see wasm_event_guard.hpp. The
+  // suspend-resume control exists once QApplication is constructed.
+  install_wasm_pending_event_queue_guard();
 #endif
   document_tabs_->installEventFilter(this);
   suppress_native_tab_bar_base(*document_tabs_);
@@ -5802,6 +5807,17 @@ void MainWindow::reset_spacebar_canvas_pan() {
 }
 
 bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
+#ifdef Q_OS_WASM
+  // A press dispatched while the wasm main thread was busy is only queued by
+  // the platform plugin, so its preventDefault ran too late and the browser's
+  // mousedown default already blurred Qt's DOM focus helper - after which no
+  // keydown reaches Qt at all (docs/wasm-input.md). By the time this filter
+  // sees the press the theft has already happened, so heal here: the helper
+  // only re-focuses Qt when DOM focus actually fell to the page body.
+  if (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::TabletPress) {
+    wasm_files::restore_qt_dom_focus();
+  }
+#endif
   if (handle_spacebar_canvas_pan_event(watched, event)) {
     return true;
   }

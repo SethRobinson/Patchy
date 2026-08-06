@@ -147,8 +147,7 @@ pwsh -File scripts\wasm\serve-app.ps1   # [port] [--open]; default port 8973
 then open `http://localhost:8973/patchy.html`; `serve.mjs` sends the
 COOP/COEP headers the threaded build needs. The release wrappers
 `scripts\release\start-local-wasm-test-server.bat` (raw build dir) and
-`start-local-wasm-server.bat` (staged site) add port cleanup; see
-[release-process.md](release-process.md).
+`start-local-wasm-server.bat` (staged site) add port cleanup.
 
 When wasm work is finished, stop every local server you started with
 `scripts\wasm\free-server-port.ps1 -Port <port>`, one call per port (repo
@@ -186,21 +185,19 @@ requestAnimationFrame onto setTimeout before qtloader runs (harness below).
   a bare `QCoreApplication::exit`.** With Emscripten's default
   EXIT_RUNTIME=0 a bare exit unwinds the Asyncify-resumed exec stack, main
   returns, and the runtime silently stays alive with Qt already destroyed:
-  nothing re-enters the wasm, qtloader's onExit never fires, and the tab
-  parks with a clean console and frozen telemetry (the August 2026
-  `--run-script` soak "wedge"; the script had actually completed). On wasm
-  the helper calls `emscripten_force_exit`: worker threads stop,
+  qtloader's onExit never fires and the tab parks with a clean console. On
+  wasm the helper calls `emscripten_force_exit`: worker threads stop,
   Module.onExit delivers the exit code to the page as `qt.onExit`, and
   destructors/unflushed settings are skipped like a process exit. Used by
   every CLI completion (`--run-script`, `--export`, `--stress-test`,
   `--screenshot`); desktop keeps `QCoreApplication::exit`.
 - **JSPI (Asyncify's successor) dead-ends on the stock aqt kit**; revisit
   only with a source-built Qt (wasm EH plus `-feature-wasm_jspi`: measured
-  42.2 MB against 65.6 MB with a far faster link; Chrome 137+, experimental
-  on emsdk 4.0.7, a second artifact set). With JS `-fexceptions` the first
-  idle suspend parks forever under invoke trampolines JSPI cannot suspend
-  across; with `-fwasm-exceptions` Qt's prebuilt static libraries cannot
-  link, and mixing modes is unsupported.
+  42.2 MB vs 65.6 MB, far faster link; Chrome 137+, experimental on emsdk
+  4.0.7, a second artifact set). JS `-fexceptions` parks the first idle
+  suspend under invoke trampolines JSPI cannot suspend across;
+  `-fwasm-exceptions` cannot link Qt's prebuilt static libraries; mixing
+  modes is unsupported.
 - **Codegen: compile `-msimd128`, link `-O3`, `-sMALLOC=mimalloc`** (from
   interleaved in-app stress A/B runs): SIMD wins 5-16% on compute steps
   (canaries stay byte-identical), `-O3` beats `-Os` at runtime, and mimalloc
@@ -317,13 +314,11 @@ Other step-3 decisions:
 - **One picker at a time:** a second Open while the chooser is up would nest
   a second Asyncify suspend and hang the runtime; the wait dialog is modal
   and `pick_open_file` carries a re-entrancy guard.
-- **DOM interactions must give focus back.** Creating or clicking a DOM
-  element (the picker's `<input>`, the download anchor) moves browser focus
-  off Qt's screen element, and Qt then receives no keydown at all: every
-  hotkey dies until the user clicks the canvas. Call
-  `restore_qt_dom_focus()` (dialog_utils_wasm) after any such interaction;
-  it refocuses Qt's window element only when focus was lost to the page
-  body, so it never steals a widget's keyboard.
+- **Keyboard focus is fragile.** Qt receives keydown only while its
+  focus-helper element owns browser focus; DOM interactions and busy-stint
+  presses both steal it. Thieves, heals, and recovery rules:
+  [wasm-input.md](wasm-input.md). Call `restore_qt_dom_focus()` after any
+  code that creates or clicks a DOM element.
 
 ### Browser UI fit
 
@@ -457,22 +452,13 @@ loop while a worker it waits on may itself create threads, and never assume
 a blocking fan-out can reuse workers freed by an earlier fan-out in the same
 blocked stretch.
 
-**User input re-enters nested waits; the canvas guards it.** The wasm
-plugin delivers DOM pointer and key input synchronously into a suspended
-nested loop, so `ExcludeUserInputEvents` is no defense there (it only
-defers queued window-system events). CanvasWidget's input handlers drop
-user input while `processing_render_wait_active_`; mouse releases are
-parked and replayed after the outermost wait unwinds (a dropped release
-would leave the owning gesture latched), and ShortcutOverride is accepted
-so app-level hotkeys cannot fire into a half-committed operation. Without
-this, the Move release re-entered its own commit (mismatched deltas, ghost
-undo snapshots).
-MainWindow's canvas event filter obeys the same rule: it leaves
-`swallow_next_canvas_left_press_` untouched during a wait. The text
-click-off commit runs INSIDE the press delivery (focus walk -> focus-loss
-commit -> undo-snapshot wait), so the re-entrant release otherwise cleared
-the flag before its press resumed and one click off opened a new text
-session (`ui_text_click_off_commit_ignores_reentrant_release_during_wait`).
+**Input delivery, the canvas wait guards, stolen keyboard focus, and the
+Qt 6.10 pending-event queue crash (plus its `wasm_event_guard.cpp` shim)
+live in [wasm-input.md](wasm-input.md).** Read it before touching input,
+hotkeys, focus, or the waits: user input re-enters nested waits
+synchronously (`ExcludeUserInputEvents` is a no-op on wasm), and a handler
+that nests an event loop must never assume the pending-event queue still
+holds the events its caller counted.
 
 **No `processEvents` pump runs mid-operation on wasm.** The browser gets no
 paint or input turn until the main thread suspends in an idle event loop; a
@@ -534,9 +520,7 @@ comparisons, `--run-script` mode) is documented in
 
 ## Later steps (not built yet)
 
-Remaining: texture lazy-fetch, the advertised document-size cap,
-and preset/library persistence across reloads (follow the poll-pattern
-IndexedDB glue user fonts already use in user_fonts_wasm.cpp, not IDBFS).
-History byte budget and wasm cache caps shipped (see [wasm-memory.md](wasm-memory.md));
-tile-cache eviction is moot while `src/render/tile_cache.hpp` stays dead
-code.
+Remaining: texture lazy-fetch, the advertised document-size cap, and
+preset/library persistence across reloads (follow the poll-pattern
+IndexedDB glue in user_fonts_wasm.cpp, not IDBFS). Tile-cache eviction is
+moot while `src/render/tile_cache.hpp` stays dead code.
