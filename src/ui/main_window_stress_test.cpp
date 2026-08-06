@@ -34,6 +34,7 @@
 #include "ui/app_settings.hpp"
 #include "ui/blend_mode_ui.hpp"
 #include "ui/brush_tip_library.hpp"
+#include "ui/cli_exit.hpp"
 #include "ui/custom_shape_library.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/edit_conversions.hpp"
@@ -3085,7 +3086,7 @@ void MainWindow::start_cli_stress_test(StressTestOptions options) {
         set_session_saved(*stress_session);
       }
     }
-    QCoreApplication::exit(report.success ? 0 : 1);
+    exit_cli_application(report.success ? 0 : 1);
   });
 }
 

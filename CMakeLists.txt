@@ -733,6 +733,8 @@ if(PATCHY_BUILD_APP)
       src/ui/app_settings.cpp
       src/ui/background_workers.hpp
       src/ui/background_workers.cpp
+      src/ui/cli_exit.hpp
+      src/ui/cli_exit.cpp
       src/ui/gradient_library.cpp
       src/ui/gradient_manager_dialog.cpp
       src/ui/gradient_preset_popup.hpp

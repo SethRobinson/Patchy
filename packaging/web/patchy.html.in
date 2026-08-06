@@ -10,7 +10,7 @@
      hands the module to qtLoad via qt.module, so the fetched bytes can be
      garbage collected (passing wasmBinary instead would pin ~66 MB for the
      session's lifetime). The page also constructs the WebAssembly.Memory
-     per device (see buildWasmMemory below and docs/wasm.md).
+     per device (see buildWasmMemory below and docs/wasm-memory.md).
      When the server answers Brotli/gzip (the .htaccess rewrite to the
      precompressed variants), the reader counts decompressed bytes while
      Content-Length reports compressed ones, so the baked-in uncompressed size
@@ -147,7 +147,7 @@
       // count. Falls back to the indeterminate sweep if it were ever 0.
       const WASM_SIZE = Number('__PATCHY_WASM_SIZE__') || 0;
 
-      // ---- Wasm memory and threading (see docs/wasm.md) ----
+      // ---- Wasm memory and threading (docs/wasm-memory.md, docs/wasm.md) ----
       // Tuning knobs for on-device experiments, all URL query params:
       //   ?PATCHY_WASM_INITIAL_MB=<n>  initial heap MB (floor: BAKED_MIN_MB)
       //   ?PATCHY_WASM_MAX_MB=<n>      heap ceiling MB (replaces the ladder)

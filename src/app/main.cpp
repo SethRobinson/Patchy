@@ -1,6 +1,7 @@
 #include "ui/action_icons.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/background_workers.hpp"
+#include "ui/cli_exit.hpp"
 #include "ui/localization.hpp"
 #include "ui/main_window.hpp"
 #include "ui/psd_font_resolver.hpp"
@@ -612,7 +613,7 @@ int main(int argc, char* argv[]) {
     QTimer::singleShot(1500, &window, [&window, screenshot_path, screenshot_widget, screenshot_rect_text] {
       const bool saved = window.save_debug_screenshot(screenshot_path, screenshot_widget,
                                                       parse_screenshot_rect(screenshot_rect_text));
-      QCoreApplication::exit(saved ? 0 : 3);
+      patchy::ui::exit_cli_application(saved ? 0 : 3);
     });
   }
 

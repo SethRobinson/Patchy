@@ -30,6 +30,7 @@
 #include "psd/psd_smart_objects.hpp"
 #include "ui/action_icons.hpp"
 #include "ui/app_settings.hpp"
+#include "ui/cli_exit.hpp"
 #include "render/compositor.hpp"
 #include "ui/blend_mode_ui.hpp"
 #include "ui/brush_dynamics_popup.hpp"
@@ -334,7 +335,7 @@ void MainWindow::run_cli_script(const QString& script_path, const QString& outpu
           set_session_saved(*session);
         }
       }
-      QCoreApplication::exit(ok ? 0 : 4);
+      exit_cli_application(ok ? 0 : 4);
     });
   });
 }

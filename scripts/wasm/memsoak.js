@@ -40,7 +40,10 @@ if (options) {
     if (iteration < options.iterations) {
       setTimeout(runOne, options.settleMs);
     } else {
-      console.log("memsoak done");
+      // Trailing settle: hold the run open for one more settle window so the
+      // last iteration's post-close telemetry is sampled before the run ends
+      // (on wasm the app exits as soon as the run completes).
+      setTimeout(function () { console.log("memsoak done"); }, options.settleMs);
     }
   };
   setTimeout(runOne, 0);

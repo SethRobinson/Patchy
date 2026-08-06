@@ -110,6 +110,14 @@
         window.cancelAnimationFrame = (id) => window.clearTimeout(id);
       })();
 
+      // A completed CLI run exits via emscripten_force_exit (docs/wasm.md),
+      // whose ExitStatus unwinds the Asyncify stack and surfaces as an
+      // unhandled rejection after qt.onExit already reported the code;
+      // swallow it so a finished run leaves a clean console.
+      window.addEventListener('unhandledrejection', (event) => {
+        if (event.reason && event.reason.name === 'ExitStatus') event.preventDefault();
+      });
+
       // Downloads are meaningless in an unattended run and Safari would stack
       // save prompts; suppress programmatic <a download> clicks (the app's
       // save path clicks an anchor it never attaches to the DOM).

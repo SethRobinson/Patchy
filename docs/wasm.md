@@ -5,10 +5,10 @@ or `wasm-release` presets, the emsdk/Qt-kit provisioning, or `scripts/wasm/`.
 
 ## What exists today
 
-Two wasm configurations share the pinned Emscripten 4.0.7 toolchain:
+Two configurations share the pinned Emscripten 4.0.7 toolchain:
 
-- **`wasm-core`**: the Qt-free engine libraries plus
-  `patchy_core_tests`, run under node. No Qt (`PATCHY_BUILD_APP=OFF`).
+- **`wasm-core`**: the Qt-free engine libraries plus `patchy_core_tests`,
+  run under node (`PATCHY_BUILD_APP=OFF`).
 - **`wasm-release`**: the full app linked against Qt for
   WebAssembly (6.10.3 `wasm_multithread`, static), running in a browser tab
   with Asyncify plus pthreads. File I/O, drag-in, and settings are
@@ -16,9 +16,9 @@ Two wasm configurations share the pinned Emscripten 4.0.7 toolchain:
   deployment cost is cross-origin isolation (COOP/COEP headers, see
   deployment).
 
-Desktop builds are unaffected; the presets, the `if(EMSCRIPTEN)` CMake
-branches, the `Q_OS_WASM` gates in `src/ui`/`src/app`, and `scripts/wasm/`
-are the whole wasm surface.
+Desktop builds are unaffected: the presets, the `if(EMSCRIPTEN)` CMake
+branches, the `Q_OS_WASM` gates, and `scripts/wasm/` are the whole wasm
+surface.
 
 ## Toolchain setup
 
@@ -58,7 +58,7 @@ emsdk-bundled node from `build\wasm-core`, so `test-artifacts/` lands there.
 `ctest` also works there (the preset pins `CMAKE_CROSSCOMPILING_EMULATOR`).
 
 The suite passes at the Windows count with the 2.4 GB
-`local-test-fixtures/` corpus present, canaries byte-identical. Expected
+`local-test-fixtures/` corpus, canaries byte-identical. Expected
 `[SKIP]`s: one absent local fixture, two HEIC tests (node has no
 `VideoDecoder`), and `af_modern_embeds_are_center_anchored_if_available`
 (its fixture exceeds a 32-bit address space, the wasm32 cap). The engine
@@ -128,16 +128,15 @@ locally:
 pwsh -File scripts\wasm\serve-app.ps1   # [port] [--open]; default port 8973
 ```
 
-then open `http://localhost:8973/patchy.html`. `serve.mjs` sends the
-COOP/COEP headers, so the threaded build works locally. The release wrappers
+then open `http://localhost:8973/patchy.html`; `serve.mjs` sends the
+COOP/COEP headers the threaded build needs. The release wrappers
 `scripts\release\start-local-wasm-test-server.bat` (raw build dir) and
 `start-local-wasm-server.bat` (staged site) add port cleanup; see
 [release-process.md](release-process.md).
 
 When wasm work is finished, stop every local server you started with
 `scripts\wasm\free-server-port.ps1 -Port <port>`, one call per port (repo
-rule; see AGENTS.md). It stops a node listener on the port and leaves
-non-node processes alone.
+rule; see AGENTS.md). It only stops node listeners.
 
 A hidden tab never fires requestAnimationFrame, so Qt stops presenting and
 the tab looks frozen; nothing is wrong. Keep the tab foregrounded, or shim
@@ -165,7 +164,20 @@ requestAnimationFrame onto setTimeout before qtloader runs (harness below).
 - **`-sASYNCIFY_STACK_SIZE=1048576` is load-bearing.** The 4 KB default
   overflows when a dialog suspends from another dialog's nested exec; in a
   non-assertion build that is an undiagnosed `RuntimeError: unreachable` tab
-  crash. 1 MiB per live suspend is a few MB worst case.
+  crash. 1 MiB per live suspend is a few MB worst case. Qt owns
+  `-sSTACK_SIZE`; do not add a second one.
+- **CLI flows exit through `exit_cli_application` (ui/cli_exit.hpp), never
+  a bare `QCoreApplication::exit`.** With Emscripten's default
+  EXIT_RUNTIME=0 a bare exit unwinds the Asyncify-resumed exec stack, main
+  returns, and the runtime silently stays alive with Qt already destroyed:
+  nothing re-enters the wasm, qtloader's onExit never fires, and the tab
+  parks with a clean console and frozen telemetry (the August 2026
+  `--run-script` soak "wedge"; the script had actually completed). On wasm
+  the helper calls `emscripten_force_exit`: worker threads stop,
+  Module.onExit delivers the exit code to the page as `qt.onExit`, and
+  destructors/unflushed settings are skipped like a process exit. Used by
+  every CLI completion (`--run-script`, `--export`, `--stress-test`,
+  `--screenshot`); desktop keeps `QCoreApplication::exit`.
 - **JSPI (Asyncify's successor) dead-ends on the stock aqt kit**; revisit
   only with a source-built Qt (wasm EH plus `-feature-wasm_jspi`: measured
   42.2 MB against 65.6 MB with a far faster link; Chrome 137+, experimental
@@ -173,11 +185,10 @@ requestAnimationFrame onto setTimeout before qtloader runs (harness below).
   idle suspend parks forever under invoke trampolines JSPI cannot suspend
   across; with `-fwasm-exceptions` Qt's prebuilt static libraries cannot
   link, and mixing modes is unsupported.
-- **Codegen: compile `-msimd128`, link `-O3`, `-sMALLOC=mimalloc`**, adopted
-  from interleaved in-app stress A/B runs (harness below): SIMD wins 5-16%
-  on compute steps (canaries stay byte-identical), `-O3` beats `-Os` at
-  runtime, and mimalloc fixes dlmalloc's single-lock contention under
-  pthreads (5-8% whole-run).
+- **Codegen: compile `-msimd128`, link `-O3`, `-sMALLOC=mimalloc`** (from
+  interleaved in-app stress A/B runs): SIMD wins 5-16% on compute steps
+  (canaries stay byte-identical), `-O3` beats `-Os` at runtime, and mimalloc
+  fixes dlmalloc's single-lock contention under pthreads (5-8% whole-run).
 - **QtQuick is excluded** (Qt6::Qml is linked for QJSEngine only):
   `QT_QML_MODULE_NO_IMPORT_SCAN TRUE` plus
   `qt_import_plugins(patchy EXCLUDE_BY_TYPE qmltooling)`, both required (the
@@ -209,41 +220,13 @@ requestAnimationFrame onto setTimeout before qtloader runs (harness below).
   [fonts.md](fonts.md)) merges into the staged fonts; `LINK_DEPENDS` on the
   fonts stamp makes a fonts-only change repack `patchy.data`. The 8.7 MB
   texture pack stays embedded (lazy fetch is a future size lever).
-- **Memory:** the shell page constructs the shared `WebAssembly.Memory` and
-  passes it to qtLoad as `wasmMemory` (`buildWasmMemory`, patchy.html.in).
-  `QT_WASM_INITIAL_MEMORY` (256 MB) is the FLOOR baked into the memory
-  import: a smaller page-supplied initial is a LinkError, so the page's
-  `BAKED_MIN_MB` must stay in sync (Qt's dev-loop patchy.html just uses the
-  floor). The page picks initial 512 MB desktop / 256 MB iOS and walks a
-  maximum ladder (4096/2048/1024 MB; iOS 1536/1024/768), catching the
-  RangeError WebKit throws when it cannot reserve a shared maximum up front;
-  iOS starts low because an oversized reservation can also succeed and get
-  the tab killed later, uncatchably. `-sMAXIMUM_MEMORY=4GB` stays as the
-  declared import ceiling. The chosen cap is published as
-  `globalThis.patchyWasmMemoryMaximumBytes`, read by `ui/memory_info.hpp`
-  for the About screen's live memory row (`emscripten_get_heap_max()` is
-  baked at link time; never trust it for this). The About row shows three
-  numbers: used (the allocator's live claim, `emmalloc_dynamic_heap_size()`
-  minus `emmalloc_free_dynamic_memory()`; -sMALLOC=mimalloc layers mimalloc on
-  emmalloc, and emmalloc's free-list bookkeeping is the coherent number where
-  mimalloc's own mi_process_info stats wrap negative in the emscripten build),
-  heap (`emscripten_get_heap_size()`, the linear-memory buffer browser tab
-  accounting sees, which only ratchets), and the cap.
-  `ui/wasm_memory_telemetry.cpp` (installed from the MainWindow constructor)
-  can publish the same picture to `globalThis.patchyMemStats` every second
-  (heapBytes, usedBytes, peakUsedBytes, limitBytes, historyBytes,
-  historyBudgetBytes, seq, timestampMs; seq and timestampMs detect staleness
-  during long synchronous compute) for page JS and the memory test harness.
-  It is diagnostics OPT-IN and inert for release visitors: `?PATCHY_MEM_STATS=1`
-  enables the publisher, `?PATCHY_MEM_LOG=1` additionally logs each sample to
-  the console, and the harness page opts in automatically through
-  `globalThis.patchyExtraEnv` (folded into the app environment by
-  app-env-pre.js, explicit URL keys winning). Qt owns
-  `-sSTACK_SIZE`; do not add a second one. In-app relief, because wasm memory never shrinks:
-  history is
-  byte-budgeted (256 MB on wasm, `history_memory_budget_bytes`, floor 3
-  states/session) and the style caches shrink to 96/48 MB under `Q_OS_WASM`
-  (image_document_io.cpp).
+- **Memory:** the shell page constructs the shared `WebAssembly.Memory`
+  and passes it to qtLoad as `wasmMemory`; `QT_WASM_INITIAL_MEMORY`
+  (256 MB) is the FLOOR baked into the memory import, and the page's
+  `BAKED_MIN_MB` must stay in sync (a smaller page-supplied initial is a
+  LinkError). The ladders, the About readout, the opt-in `patchyMemStats`
+  publisher, the wasm history/cache budgets, and the Safari 26 tab-kill
+  investigation live in [wasm-memory.md](wasm-memory.md).
 
 ### Web file access
 
@@ -496,28 +479,6 @@ when `kBackgroundWorkRunsInline` (background_workers.hpp): deferring to an
 inline worker composed the frame inside paintEvent anyway.
 `build\wasm-st-baseline` preserves a single-threaded build for comparisons.
 
-## Known issue: Safari 26 kills the tab within minutes (August 2026)
-
-Measured on studiomac (macOS 26.3.1, Safari 26.x) with the memtest harness
-(see [performance.md](performance.md)): the app's WebContent process grows
-about 150 MB/s at IDLE with 400-1200% CPU and is killed by WebKit at roughly
-2.5 minutes (footprint plateaued at 16 GB, ps rss reached 24 GB). The wasm
-side is innocent: patchyMemStats stays flat (512 MB heap, ~100 MB used), and
-the `footprint` category breakdown puts the growth in "WebKit malloc" (2.7 GB
-dirty 6 seconds after load), not the JS GC heap or JIT-code regions. Chrome on
-the same machine with the same page holds flat at ~900 MB. The signature
-(concurrent compile threads burning CPU while allocating unboundedly, other
-browsers unaffected) matches public Safari/WebKit 26 reports against large
-wasm modules, e.g. onnxruntime issue 26827, where sampling showed
-JSC::Wasm::parseAndCompileOMG looping in allocateStackByGraphColoring.
-A launchctl-env JSC_useOMGJIT=false test did not change the behavior, but env
-propagation into WebContent XPC was unverified, so tier attribution is open.
-iOS Safari deaths ~2 s after load are consistent with the same compile-side
-growth against a phone's jetsam budget and would be knob-independent (the
-memory-ladder and pool URL knobs cannot dodge it). Leads: shrink/split the
-66 MB module or the pathological function(s) that blow up JSC's compiler, and
-file a WebKit bug (rtsoft.com/patchy is a clean public repro).
-
 ## Release deployment (rtsoft.com/patchy)
 
 Batch-file details live in [release-process.md](release-process.md):
@@ -560,6 +521,6 @@ comparisons, `--run-script` mode) is documented in
 Remaining: texture lazy-fetch, the advertised document-size cap,
 and preset/library persistence across reloads (follow the poll-pattern
 IndexedDB glue user fonts already use in user_fonts_wasm.cpp, not IDBFS).
-History byte budget and wasm cache caps shipped (memory bullet above);
+History byte budget and wasm cache caps shipped (see [wasm-memory.md](wasm-memory.md));
 tile-cache eviction is moot while `src/render/tile_cache.hpp` stays dead
 code.

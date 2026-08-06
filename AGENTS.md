@@ -78,7 +78,7 @@ Read these before acting in the named area:
 | QActions, dialogs, options bar, list rows, status messages, shared QSS/UI conventions, colors and the Dark/Light color scheme | [docs/ui-conventions.md](docs/ui-conventions.md) |
 | Tests, offscreen behavior, visual QA, app screenshots, suite failure diagnosis | [docs/testing.md](docs/testing.md) |
 | Platform-guarded code, macOS/Linux behavior, remote builds | [docs/platform.md](docs/platform.md) |
-| WebAssembly builds, the wasm-core preset, emsdk provisioning | [docs/wasm.md](docs/wasm.md) |
+| WebAssembly builds, the wasm-core preset, emsdk provisioning | [docs/wasm.md](docs/wasm.md); wasm memory/telemetry in [docs/wasm-memory.md](docs/wasm-memory.md) |
 | Patents, licensing, trademarks, bundled assets, or a feature adjacent to a legal boundary | [docs/legal-constraints.md](docs/legal-constraints.md), with the underlying research record in [docs/patent-research.md](docs/patent-research.md) |
 | PSD descriptors, layer styles, COM verification, write/corruption rules | [docs/ps-compat.md](docs/ps-compat.md) |
 | Adjustment/auto-adjustment calibration (Brightness/Contrast, Curves, Hue/Saturation) | [docs/adjustments-calibration.md](docs/adjustments-calibration.md) |

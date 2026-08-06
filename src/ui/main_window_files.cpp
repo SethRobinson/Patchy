@@ -38,6 +38,7 @@
 #include "ui/brush_tip_library.hpp"
 #include "ui/brush_tip_manager_dialog.hpp"
 #include "ui/brush_tip_picker.hpp"
+#include "ui/cli_exit.hpp"
 #include "ui/default_brush_tips.hpp"
 #include "ui/compatibility_report.hpp"
 #include "ui/image_document_io.hpp"
@@ -1165,7 +1166,7 @@ void MainWindow::run_cli_export(const QString& output_path, const QString& appen
   QTimer::singleShot(0, this, [this, output_path, append_text] {
     if (!has_active_document()) {
       fprintf(stderr, "Export failed: no document opened\n");
-      QCoreApplication::exit(2);
+      exit_cli_application(2);
       return;
     }
     if (!append_text.isEmpty()) {
@@ -1182,7 +1183,7 @@ void MainWindow::run_cli_export(const QString& output_path, const QString& appen
         set_session_saved(*export_session);
       }
     }
-    QCoreApplication::exit(saved ? 0 : 3);
+    exit_cli_application(saved ? 0 : 3);
   });
 }
 

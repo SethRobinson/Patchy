@@ -13,7 +13,7 @@ class MainWindow;
 // unless ?PATCHY_MEM_STATS=1 (or ?PATCHY_MEM_LOG=1, which also logs each
 // sample to the console), so release visitors never run it; the memtest
 // harness opts in automatically. Wasm builds only (the TU compiles under
-// EMSCRIPTEN); see docs/wasm.md.
+// EMSCRIPTEN); see docs/wasm-memory.md.
 void install_wasm_memory_telemetry(MainWindow& window);
 
 }  // namespace patchy::ui

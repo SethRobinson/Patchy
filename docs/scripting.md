@@ -322,7 +322,9 @@ newlines. The bundled `Utilities/batch-export.js` is the reference consumer.
 - Without one: a new instance runs unattended (`cli_automation_mode_`: prompts are
   suppressed, `app.alert` logs, `app.prompt` returns its default), opens any positional
   files first, writes the output file, and exits 0 on success or 4 on script error
-  (2 and 3 belong to `--export`).
+  (2 and 3 belong to `--export`). The exit goes through `exit_cli_application`
+  (ui/cli_exit.hpp): on wasm that shuts the Emscripten runtime down so the page's
+  qtloader receives the code via onExit; see docs/wasm.md.
 - A script that keeps timers or windows alive writes its output when the last one ends,
   so automation scripts should not open windows.
 

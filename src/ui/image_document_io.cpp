@@ -650,7 +650,7 @@ public:
     }
 #ifdef Q_OS_WASM
     // Wasm linear memory never shrinks, so a desktop-sized cache permanently
-    // ratchets the heap toward Safari's tab limits (see docs/wasm.md).
+    // ratchets the heap toward Safari's tab limits (see docs/wasm-memory.md).
     constexpr std::size_t kMaxCacheBytes = 96U * 1024U * 1024U;
 #else
     constexpr std::size_t kMaxCacheBytes = 768U * 1024U * 1024U;
