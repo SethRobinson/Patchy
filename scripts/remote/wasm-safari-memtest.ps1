@@ -58,8 +58,12 @@ try {
     # Identity files only: the .br/.gz variants halve the copy but serve.py
     # would then hand Safari brotli it may cache oddly; measurement runs favor
     # deterministic identity responses.
+    # index.html only exists in staged sites; a raw build dir (variant builds
+    # under build\wasm-<variant>) serves Qt's patchy.html alone. Push whatever
+    # of the optional page files exist; patchy.wasm was already verified.
     $siteFiles = @('patchy.wasm', 'patchy.js', 'patchy.data', 'qtloader.js',
-                   'patchy.html', 'index.html') | ForEach-Object { Join-Path $SiteDir $_ }
+                   'patchy.html', 'index.html') |
+      ForEach-Object { Join-Path $SiteDir $_ } | Where-Object { Test-Path $_ }
     $harness = Join-Path $SiteDir 'stress-harness.html'
     $soak = Join-Path $SiteDir 'memsoak.js'
     # Older stagings predate the harness: fall back to the repo copies, whose
@@ -84,7 +88,9 @@ try {
   }
 
   $page = if ($Mode -eq 'interactive') { 'patchy.html' } else { 'stress-harness.html' }
-  $query = "PATCHY_MEM_LOG=1"
+  # autostart=1: a driven run must boot even after a streak of kills tripped
+  # the harness page's anti-hammer gate.
+  $query = "PATCHY_MEM_LOG=1&autostart=1"
   if ($Mode -eq 'stress') { $query = "mode=stress&preset=$Preset&$query" }
   elseif ($Mode -eq 'soak') { $query = "mode=soak&$query" }
   elseif ($Mode -eq 'idle') { $query = "mode=idle&$query" }

@@ -210,6 +210,18 @@ def main():
             driver.navigate(args.url)
             note(f"webdriver session up, navigated to {args.url}")
         else:
+            # A force-killed Safari restores its previous session on the next
+            # launch, so the prior run's harness tab boots BESIDE the new URL
+            # and two wasm apps compile at once, contaminating every number.
+            # Clear the crash-recovery state first (test-box tradeoff: any
+            # restored-tabs state on this machine is lost).
+            run(["pkill", "-x", "Safari"])
+            time.sleep(1)
+            run(["rm", "-rf",
+                 str(Path.home() / "Library/Saved Application State/com.apple.Safari.savedState")])
+            last_session = Path.home() / "Library/Safari/LastSession.plist"
+            if last_session.exists():
+                run(["rm", "-f", str(last_session)])
             opened = run(["open", "-a", "Safari", args.url])
             if opened is None or opened.returncode != 0:
                 note("open -a Safari failed")

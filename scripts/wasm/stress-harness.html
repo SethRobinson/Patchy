@@ -279,21 +279,27 @@
       async function init() {
         try {
           recordStage('init');
-          if (!window.crossOriginIsolated) {
+          // ?st=1 targets a single-threaded build: no SharedArrayBuffer, so
+          // no isolation requirement, and the module's unshared memory import
+          // rejects a page-built shared memory; Emscripten creates its own.
+          const ST_MODE = params.get('st') === '1';
+          if (!ST_MODE && !window.crossOriginIsolated) {
             recordStage('failed-not-isolated', { clean: true });
             hud.textContent = 'Not cross-origin isolated; COOP/COEP headers missing.';
             return;
           }
-          wasmMemory = buildWasmMemory();
-          if (!wasmMemory) {
-            recordStage('failed-memory-refused', { clean: true });
-            hud.textContent = 'Every WebAssembly.Memory ladder rung was refused.';
-            return;
+          if (!ST_MODE) {
+            wasmMemory = buildWasmMemory();
+            if (!wasmMemory) {
+              recordStage('failed-memory-refused', { clean: true });
+              hud.textContent = 'Every WebAssembly.Memory ladder rung was refused.';
+              return;
+            }
+            recordStage('memory-constructed');
           }
-          recordStage('memory-constructed');
 
           const config = {
-            wasmMemory,
+            ...(wasmMemory ? { wasmMemory } : {}),
             locateFile: (filename) => filename + '?v=' + CACHE_TAG,
             qt: {
               onLoaded: () => { recordStage('loaded'); postTelemetry(); },
@@ -363,7 +369,12 @@
         await loadScript('qtloader.js');
         await init();
       }
-      const needGate = params.get('autostart') === '0' || consecutiveDeaths >= 3;
+      // autostart=1 overrides the consecutive-deaths gate: driven runs (the
+      // studiomac orchestrator) must boot even right after a streak of kills,
+      // while unattended devices (an iPhone Safari auto-reloading a killed
+      // tab) still get the anti-hammer stop.
+      const needGate = params.get('autostart') === '0'
+          || (consecutiveDeaths >= 3 && params.get('autostart') !== '1');
       if (needGate) {
         const gate = document.getElementById('gate');
         gate.style.display = 'flex';

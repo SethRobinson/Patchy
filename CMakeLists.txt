@@ -1103,10 +1103,14 @@ if(PATCHY_BUILD_APP)
       # non-assertion builds; the overflow presents as "RuntimeError:
       # unreachable" in maybeStopUnwind/doRewind plus memory-access-out-of-
       # bounds). 1 MiB is allocated per live suspend, a few MB worst case.
+      # Cache variable so the Safari-compiler A/B variant builds can override
+      # the link optimization level without editing this file (docs/wasm.md,
+      # Safari 26 known issue). The shipped wasm-release stays -O3.
+      set(PATCHY_WASM_LINK_OPT "-O3" CACHE STRING "Optimization flag for the wasm app link")
       target_link_options(patchy PRIVATE
         -sASYNCIFY
         -sASYNCIFY_STACK_SIZE=1048576
-        -O3
+        ${PATCHY_WASM_LINK_OPT}
         -sMALLOC=mimalloc
         -fexceptions
         -pthread
