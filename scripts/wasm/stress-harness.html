@@ -60,6 +60,10 @@
       const BOOT_MS = Date.now();
       const RUN_ID = 'run-' + BOOT_MS.toString(36) + '-' + Math.floor(Math.random() * 1e6).toString(36);
       window.__patchyEpoch = RUN_ID;
+      // The in-app memory publisher is opt-in (release visitors run without
+      // it); the harness always wants it. app-env-pre.js folds this into the
+      // app environment, with explicit URL keys still winning.
+      globalThis.patchyExtraEnv = { PATCHY_MEM_STATS: '1' };
 
       // ---- Background-tab timers: Chrome and Safari throttle a hidden tab's
       // main-thread timers to ~1/s, which starves Qt's event loop and every

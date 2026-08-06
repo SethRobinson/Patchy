@@ -49,9 +49,15 @@ void publish_memory_stats(const MainWindow& window, bool log_to_console, double 
 }  // namespace
 
 void install_wasm_memory_telemetry(MainWindow& window) {
-  // ?PATCHY_MEM_LOG=1 lands in the environment via scripts/wasm/app-env-pre.js
-  // before main; read once.
+  // Diagnostics opt-in only: release visitors must not carry a publisher
+  // timer or a memory readout on globalThis. ?PATCHY_MEM_STATS=1 enables the
+  // publisher, ?PATCHY_MEM_LOG=1 additionally logs each sample (and implies
+  // stats); both land in the environment via scripts/wasm/app-env-pre.js
+  // before main (the memtest harness always opts in via patchyExtraEnv).
   const bool log_to_console = qEnvironmentVariableIntValue("PATCHY_MEM_LOG") != 0;
+  if (!log_to_console && qEnvironmentVariableIntValue("PATCHY_MEM_STATS") == 0) {
+    return;
+  }
   auto* timer = new QTimer(&window);
   timer->setInterval(1000);
   QObject::connect(timer, &QTimer::timeout, &window,

@@ -19,8 +19,9 @@ namespace patchy::ui {
 [[nodiscard]] qint64 current_process_memory_mb();
 
 // Peak process memory: Windows peak working set, Linux VmHWM, macOS getrusage
-// ru_maxrss, wasm the running peak of the allocator claim (refreshed each
-// probe; the always-on telemetry samples at 1 Hz).
+// ru_maxrss, wasm the running peak of the allocator claim. The wasm peak is
+// best-effort: it only refreshes when something probes (the About dialog's
+// timer, the stress report, or the opt-in memtest telemetry).
 [[nodiscard]] qint64 peak_process_memory_mb();
 
 // Size of the wasm linear-memory buffer (WebAssembly.Memory), the number the

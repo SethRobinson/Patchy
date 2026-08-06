@@ -13,6 +13,18 @@ Module['preRun'].push(function () {
       !window.location || typeof URLSearchParams === 'undefined') {
     return;
   }
+  // Page-supplied baseline first (the memtest harness sets
+  // globalThis.patchyExtraEnv to turn diagnostics on without dirtying its
+  // URL); explicit URL query keys override it.
+  var extra = window.patchyExtraEnv;
+  if (extra && typeof extra === 'object') {
+    for (var key in extra) {
+      if (Object.prototype.hasOwnProperty.call(extra, key) &&
+          key.lastIndexOf('PATCHY_', 0) === 0) {
+        ENV[key] = String(extra[key]);
+      }
+    }
+  }
   var params = new URLSearchParams(window.location.search);
   params.forEach(function (value, key) {
     if (key.lastIndexOf('PATCHY_', 0) === 0) {

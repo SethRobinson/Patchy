@@ -5312,8 +5312,9 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   // own on the window element, so if the native path ever starts delivering
   // dropped files too (a dropped file opening twice), gate one path off.
   wasm_files::install_web_drop_target([this](const QString& path) { handle_web_file_drop(path); });
-  // Always-on 1 Hz publisher of globalThis.patchyMemStats; the timer only
-  // fires once the event loop runs, so installing this early is safe.
+  // 1 Hz publisher of globalThis.patchyMemStats, inert unless the page opts
+  // in with PATCHY_MEM_STATS/PATCHY_MEM_LOG; the timer only fires once the
+  // event loop runs, so installing this early is safe.
   install_wasm_memory_telemetry(*this);
 #endif
   document_tabs_->installEventFilter(this);
