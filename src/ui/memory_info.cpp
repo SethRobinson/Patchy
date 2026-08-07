@@ -22,8 +22,8 @@
 #endif
 #ifdef Q_OS_WASM
 #include <emscripten.h>
-#include <emscripten/emmalloc.h>
 #include <emscripten/heap.h>
+#include <malloc.h>
 
 #include <atomic>
 #endif
@@ -33,17 +33,13 @@ namespace patchy::ui {
 #ifdef Q_OS_WASM
 namespace {
 
-// Bytes the allocator currently claims from the linear memory. The build's
-// -sMALLOC=mimalloc layers mimalloc on emmalloc (its "OS" layer), and
-// emmalloc's free-list bookkeeping is the coherent live number; mimalloc's own
-// mi_process_info stats are unreliable here (stat tracking is compiled down in
-// the emscripten build and its committed counter wraps negative). Segment
-// granular: page-level frees inside a still-claimed mimalloc segment keep
-// counting until the segment purges back to emmalloc.
+// Bytes the selected allocator currently claims from linear memory. Emscripten
+// supplies mallinfo() for both the shipped dlmalloc and the optional mimalloc
+// benchmark build (where it reports the underlying emmalloc claim). Keeping
+// this on the generic interface also lets allocator A/B links resolve cleanly.
 qint64 wasm_allocator_used_mb() {
-  const auto dynamic = static_cast<std::uint64_t>(emmalloc_dynamic_heap_size());
-  const auto free_bytes = static_cast<std::uint64_t>(emmalloc_free_dynamic_memory());
-  const auto used = dynamic > free_bytes ? dynamic - free_bytes : 0;
+  const auto info = mallinfo();
+  const auto used = static_cast<std::uint64_t>(info.uordblks);
   return static_cast<qint64>(used / (1024ULL * 1024ULL));
 }
 

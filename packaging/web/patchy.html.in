@@ -2,10 +2,10 @@
 <!-- Patchy web shell template. scripts\release\build-wasm.bat substitutes
      __PATCHY_VERSION__, __PATCHY_CACHE_TAG__, __PATCHY_WASM_SIZE__, and
      __PATCHY_WASM_SIZE_ST__ and stages the result as both patchy.html and
-     index.html in build\package\wasm-site. WebKit visitors (desktop Safari
-     and every iOS browser) are served the single-threaded artifact from st/
-     because Safari's optimizing wasm compiler dies on the threaded module
-     (docs\wasm-memory.md); everyone else gets the threaded build. The ?v= query strings are the cache busters:
+     index.html in build\package\wasm-site. The single-threaded st/ artifact is
+     staged for manual Safari diagnostics, but automatic routing is disabled
+     because current ST builds also die under workload (docs\wasm-memory.md).
+     The ?v= query strings are the cache busters:
      every deploy gets a fresh tag, so browsers re-fetch changed assets while
      .htaccess lets tagged URLs cache forever. The page downloads patchy.wasm
      itself with a byte-counting reader (the Emscripten loader has no
@@ -193,9 +193,10 @@
       // Safari's optimizing wasm compiler allocates unboundedly while
       // compiling the THREADED module and WebKit kills the tab within minutes
       // (measured; see docs/wasm-memory.md). The single-threaded artifact in
-      // st/ compiles fine, so WebKit visitors get that one. Every iOS browser
-      // is WebKit regardless of its name, and desktop Safari is the only
-      // desktop browser whose vendor string is Apple's.
+      // st/ is retained for manual comparisons, but current ST builds do not
+      // survive a real workload either. Every iOS browser is WebKit regardless
+      // of its name, and desktop Safari is the only desktop browser whose
+      // vendor string is Apple's.
       // ?PATCHY_WASM_FORCE=st|mt overrides for testing (mt on Safari
       // reproduces the bug and retests future WebKit fixes).
       function isWebKitBrowser() {

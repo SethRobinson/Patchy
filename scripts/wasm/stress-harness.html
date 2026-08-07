@@ -1,10 +1,11 @@
 <!doctype html>
 <!--
   Headless/instrumented harness for the wasm app (docs/performance.md,
-  "Headless wasm stress harness"). Serves three jobs the branded patchy.html
+  "Headless wasm stress harness"). Serves four jobs the branded patchy.html
   cannot: keep timers running in a hidden tab (worker-backed setTimeout plus a
   requestAnimationFrame shim), run unattended workloads (in-app stress test or
-  the memsoak script) with the report polled out of MEMFS, and instrument
+  the memsoak script), open a staged browser File through the real drop path,
+  and instrument
   memory (on-page HUD, POST /telemetry sampling for scripts/wasm/serve.py, and
   a localStorage black box that survives a browser memory kill and reports the
   death stage on the next load - the iOS jetsam attribution mechanism).
@@ -13,9 +14,11 @@
   (scripts/release/upload-wasm-to-rtsoft-beta.bat).
 
   Query parameters:
-    mode=idle|stress|soak   workload (default idle: boot the app, do nothing)
+    mode=idle|stress|soak|open   workload (default idle: boot the app, do nothing)
     preset=quick|small|standard|huge   stress mode preset (default quick)
     iterations= size= settle=          soak mode knobs (memsoak.js)
+    file=<relative URL>     open mode fixture (default wasm-open-fixture.psd)
+    timeout=<milliseconds> open mode timeout (default 600000)
     autostart=0             require a click to boot (also forced after 3
                             consecutive unclean ends, so a killed tab that
                             Safari auto-reloads cannot loop-hammer the device)
@@ -57,13 +60,17 @@
       const params = new URLSearchParams(location.search);
       const MODE = params.get('mode') || 'idle';
       const PRESET = params.get('preset') || 'quick';
+      const OPEN_FILE = params.get('file') || 'wasm-open-fixture.psd';
       const BOOT_MS = Date.now();
       const RUN_ID = 'run-' + BOOT_MS.toString(36) + '-' + Math.floor(Math.random() * 1e6).toString(36);
       window.__patchyEpoch = RUN_ID;
       // The in-app memory publisher is opt-in (release visitors run without
       // it); the harness always wants it. app-env-pre.js folds this into the
       // app environment, with explicit URL keys still winning.
-      globalThis.patchyExtraEnv = { PATCHY_MEM_STATS: '1' };
+      globalThis.patchyExtraEnv = {
+        PATCHY_MEM_STATS: '1',
+        ...(MODE === 'open' ? { PATCHY_WASM_OPEN_PROBE: '1' } : {}),
+      };
 
       // ---- Background-tab timers: Chrome and Safari throttle a hidden tab's
       // main-thread timers to ~1/s, which starves Qt's event loop and every
@@ -276,6 +283,71 @@
         return bytes;
       }
 
+      function failOpenHarness(message, probe) {
+        const result = { passed: false, message, probe: probe || globalThis.patchyOpenProbe || null };
+        recordStage('open-failed', { clean: true, openResult: result });
+        const banner = document.getElementById('banner');
+        banner.style.display = 'block';
+        banner.textContent = 'Large-open regression failed: ' + message;
+        postTelemetry({ openResult: result });
+      }
+
+      async function startOpenWorkload(instance) {
+        try {
+          recordStage('open-fetch-start');
+          const response = await fetch(OPEN_FILE);
+          if (!response.ok) throw new Error('HTTP ' + response.status + ' for ' + OPEN_FILE);
+          const blob = await response.blob();
+          const pathname = new URL(OPEN_FILE, location.href).pathname;
+          const name = decodeURIComponent(pathname.slice(pathname.lastIndexOf('/') + 1))
+              || 'wasm-open-fixture.psd';
+          const file = new File([blob], name, { type: blob.type || 'application/octet-stream' });
+          recordStage('open-transfer-start', { openFixture: { name, bytes: file.size } });
+          if (typeof globalThis.__patchyQueueDroppedFiles !== 'function') {
+            throw new Error('browser drop staging hook was not installed');
+          }
+          await globalThis.__patchyQueueDroppedFiles([file]);
+          recordStage('open-queued');
+        } catch (error) {
+          failOpenHarness(String(error && error.message || error));
+          return;
+        }
+
+        const timeoutKnob = Number(params.get('timeout'));
+        const timeoutMs = Number.isFinite(timeoutKnob) && timeoutKnob > 0 ? timeoutKnob : 600000;
+        const deadline = Date.now() + timeoutMs;
+        const poll = window.setInterval(() => {
+          const probe = globalThis.patchyOpenProbe;
+          if (probe && probe.stage === 'opened') {
+            let transferExists = true;
+            try {
+              transferExists = instance.FS.analyzePath(probe.path).exists;
+            } catch (error) {
+              transferExists = false;
+            }
+            if (transferExists) {
+              // The C++ scope guard runs immediately after publishing opened;
+              // allow the next poll before declaring a cleanup regression.
+              return;
+            }
+            window.clearInterval(poll);
+            const result = { passed: true, probe, transferReleased: true };
+            recordStage('open-passed', { clean: true, openResult: result });
+            postTelemetry({ openResult: result });
+            return;
+          }
+          if (probe && (probe.stage === 'failed' || probe.stage === 'cancelled')) {
+            window.clearInterval(poll);
+            failOpenHarness(probe.error || ('app reported ' + probe.stage), probe);
+            return;
+          }
+          if (Date.now() >= deadline) {
+            window.clearInterval(poll);
+            failOpenHarness('timed out after ' + timeoutMs + ' ms', probe);
+          }
+        }, 500);
+      }
+
       async function init() {
         try {
           recordStage('init');
@@ -336,6 +408,10 @@
           config.qt.module = Promise.resolve(wasmModule);
           recordStage('qtload-start');
           const instance = await qtLoad(config);
+
+          if (MODE === 'open') {
+            startOpenWorkload(instance);
+          }
 
           // Stress mode: surface the report the moment MEMFS has it (the run
           // exits right afterwards; onExit files the terminal stage).

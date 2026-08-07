@@ -16,6 +16,7 @@
 #include <QLineEdit>
 #include <QPushButton>
 #include <QRegularExpression>
+#include <QScopeGuard>
 #include <QTimer>
 #include <QVBoxLayout>
 
@@ -23,6 +24,93 @@
 #include <string>
 #include <utility>
 #include <vector>
+
+// Installs the page-side transfer primitive shared by the picker, desktop
+// drops, and the large-open browser harness. Browser File streams are copied
+// directly into one exactly-sized MEMFS backing array. This avoids both the
+// full file.arrayBuffer() allocation and the second full QByteArray that the
+// old C++ materialization path placed in the 32-bit wasm heap.
+EM_JS(void, patchy_js_install_transfer_helpers, (), {
+  if (globalThis.__patchyStageBrowserFile) {
+    return;
+  }
+  let nextTransfer = 0;
+  const sanitizeName = (name) => Array.from(String(name || ""), (character) => {
+    const code = character.charCodeAt(0);
+    return code === 47 || code === 92 ? "_" : character;
+  }).join("").trim();
+  const releasePath = (path) => {
+    path = String(path || "");
+    const parts = path.split("/");
+    const id = Number(parts[2]);
+    if (parts.length !== 4 || parts[0] !== ""
+        || (parts[1] !== "opened" && parts[1] !== "dropped")
+        || !Number.isInteger(id) || id < 1 || String(id) !== parts[2] || !parts[3]) {
+      return;
+    }
+    try {
+      FS.unlink(path);
+    } catch (e) {
+      return;
+    }
+    const slash = path.lastIndexOf("/");
+    try {
+      FS.rmdir(path.slice(0, slash));
+    } catch (e) {
+      // A failed directory cleanup is harmless; the file storage is released.
+    }
+  };
+  globalThis.__patchyReleaseBrowserTransfer = releasePath;
+  globalThis.__patchyStageBrowserFile = async (file, root) => {
+    const name = sanitizeName(file && file.name);
+    if (!name || (root !== "/opened" && root !== "/dropped")) {
+      throw new Error("invalid browser file transfer");
+    }
+    const directory = root + "/" + (++nextTransfer);
+    const path = directory + "/" + name;
+    FS.mkdirTree(directory);
+    let stream = null;
+    try {
+      stream = FS.open(path, "w+");
+      const expectedSize = Number(file.size) || 0;
+      // Pre-sizing prevents MEMFS's geometric append growth from retaining up
+      // to 12.5% spare capacity for a large source file.
+      FS.truncate(path, expectedSize);
+      let position = 0;
+      if (file.stream) {
+        const reader = file.stream().getReader();
+        for (;;) {
+          const chunk = await reader.read();
+          if (chunk.done) {
+            break;
+          }
+          const bytes = chunk.value;
+          FS.write(stream, bytes, 0, bytes.byteLength, position);
+          position += bytes.byteLength;
+        }
+      } else {
+        // Compatibility fallback for engines without Blob.stream().
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        FS.write(stream, bytes, 0, bytes.byteLength, 0);
+        position = bytes.byteLength;
+      }
+      if (position !== expectedSize) {
+        throw new Error("browser file transfer size mismatch");
+      }
+      FS.close(stream);
+      stream = null;
+      return {name : name, path : path, size : expectedSize};
+    } catch (error) {
+      if (stream) {
+        try {
+          FS.close(stream);
+        } catch (e) {}
+      }
+      releasePath(path);
+      throw error;
+    }
+  };
+});
 
 // Opens the browser file chooser through our own <input type=file>. Everything
 // that happens between the click and the polled result is pure page-side JS
@@ -33,7 +121,7 @@
 // contrast, resume the suspended loop reliably, so the C++ side polls.
 EM_JS(void, patchy_js_open_file_picker, (const char* accept, int generation), {
   const acceptStr = UTF8ToString(accept);
-  const state = {generation : generation, done : false, cancelled : false, name : null, bytes : null, error : null};
+  const state = {generation : generation, done : false, cancelled : false, name : null, path : null, error : null};
   window.__patchyPickState = state;
   const input = document.createElement("input");
   input.type = "file";
@@ -47,12 +135,13 @@ EM_JS(void, patchy_js_open_file_picker, (const char* accept, int generation), {
       state.done = true;
       return;
     }
-    file.arrayBuffer().then((buf) => {
+    globalThis.__patchyStageBrowserFile(file, "/opened").then((entry) => {
       if (window.__patchyPickState !== state) {
+        globalThis.__patchyReleaseBrowserTransfer(entry.path);
         return;
       }
-      state.name = file.name;
-      state.bytes = new Uint8Array(buf);
+      state.name = entry.name;
+      state.path = entry.path;
       state.done = true;
     }, (err) => {
       state.error = String(err);
@@ -124,6 +213,18 @@ EM_JS(void, patchy_js_install_drop_target, (), {
     return;
   }
   window.__patchyDropQueue = [];
+  window.__patchyQueueDroppedFiles = async (files) => {
+    // Stage sequentially. A multi-file drop must not allocate every source's
+    // MEMFS backing store at once before C++ has a chance to consume one.
+    for (const file of Array.from(files || [])) {
+      try {
+        const entry = await globalThis.__patchyStageBrowserFile(file, "/dropped");
+        window.__patchyDropQueue.push(entry);
+      } catch (error) {
+        console.warn("Patchy file drop failed", error);
+      }
+    }
+  };
   const target = document.documentElement;
   const carriesFiles = (ev) =>
       ev.dataTransfer && Array.from(ev.dataTransfer.types || []).includes("Files");
@@ -143,11 +244,7 @@ EM_JS(void, patchy_js_install_drop_target, (), {
     if (files.length === 0) {
       return;
     }
-    const reads = files.map((file) => file.arrayBuffer().then(
-        (buf) => ({name : file.name, bytes : new Uint8Array(buf)})));
-    Promise.all(reads).then((entries) => {
-      window.__patchyDropQueue.push(...entries);
-    }, () => {});
+    window.__patchyQueueDroppedFiles(files);
   });
 });
 
@@ -219,35 +316,6 @@ QString sanitized_file_name(QString name) {
   return name;
 }
 
-// Copies one JS {name, bytes} transfer into MEMFS under `root` and returns
-// the new path ("" on any failure). The typed_memory_view target is written
-// before anything else can grow the wasm heap.
-QString materialize_transfer(const emscripten::val& entry, const char* root) {
-  const auto base_name = sanitized_file_name(QString::fromStdString(entry["name"].as<std::string>()));
-  if (base_name.isEmpty()) {
-    return {};
-  }
-  const auto js_bytes = entry["bytes"];
-  const auto length = js_bytes["length"].as<unsigned>();
-  QByteArray content(static_cast<qsizetype>(length), Qt::Uninitialized);
-  if (length > 0) {
-    auto heap_view = emscripten::val(emscripten::typed_memory_view(
-        static_cast<std::size_t>(length), reinterpret_cast<std::uint8_t*>(content.data())));
-    heap_view.call<void>("set", js_bytes);
-  }
-  const auto dir = next_transfer_directory(root);
-  if (!QDir().mkpath(dir)) {
-    return {};
-  }
-  const auto path = dir + QLatin1Char('/') + base_name;
-  QFile file(path);
-  if (!file.open(QIODevice::WriteOnly) || file.write(content) != content.size()) {
-    qWarning("wasm file transfer: could not materialize %s", path.toUtf8().constData());
-    return {};
-  }
-  return path;
-}
-
 std::function<void(const QString&)>& web_drop_handler() {
   static std::function<void(const QString&)> handler;
   return handler;
@@ -270,6 +338,7 @@ QString pick_open_file(QWidget* parent, const QString& caption, const QString& f
   static int generation = 0;
   ++generation;
   const auto accept = accept_attribute_for_filter(filter).toUtf8();
+  patchy_js_install_transfer_helpers();
   patchy_js_open_file_picker(accept.constData(), generation);
 
   // The modal is the universal escape hatch: a cancelled chooser fires no
@@ -294,8 +363,8 @@ QString pick_open_file(QWidget* parent, const QString& caption, const QString& f
     if (state.isUndefined() || state.isNull() || !state["done"].as<bool>()) {
       return;
     }
-    if (!state["cancelled"].as<bool>() && !state["bytes"].isNull()) {
-      picked_path = materialize_transfer(state, "/opened");
+    if (!state["cancelled"].as<bool>() && !state["path"].isNull()) {
+      picked_path = QString::fromStdString(state["path"].as<std::string>());
     }
     dialog.accept();
   });
@@ -391,13 +460,17 @@ void drain_web_drop_queue() {
   }
   if (QApplication::activeModalWidget() != nullptr) {
     // Desktop parity: a modal dialog blocks dropping files onto the window.
-    queue.set("length", 0);
+    while (queue["length"].as<unsigned>() > 0) {
+      const auto entry = queue.call<emscripten::val>("shift");
+      discard_temporary_transfer(QString::fromStdString(entry["path"].as<std::string>()));
+    }
     return;
   }
   while (queue["length"].as<unsigned>() > 0) {
     const auto entry = queue.call<emscripten::val>("shift");
-    const auto path = materialize_transfer(entry, "/dropped");
+    const auto path = QString::fromStdString(entry["path"].as<std::string>());
     if (!path.isEmpty()) {
+      const auto release = qScopeGuard([&path] { discard_temporary_transfer(path); });
       handler(path);
     }
   }
@@ -405,6 +478,7 @@ void drain_web_drop_queue() {
 
 void install_web_drop_target(std::function<void(const QString& path)> open_dropped_path) {
   web_drop_handler() = std::move(open_dropped_path);
+  patchy_js_install_transfer_helpers();
   patchy_js_install_drop_target();
   static QTimer* poll_timer = nullptr;
   if (poll_timer == nullptr) {
@@ -448,6 +522,32 @@ void download_file_in_browser(const QString& path) {
 
 void restore_qt_dom_focus() {
   patchy_js_restore_qt_dom_focus();
+}
+
+bool is_temporary_transfer_path(const QString& path) {
+  static const QRegularExpression pattern(
+      QStringLiteral("^/(?:opened|dropped)/[1-9][0-9]*/[^/]+$"));
+  return pattern.match(path).hasMatch();
+}
+
+void discard_temporary_transfer(const QString& path) {
+  if (!is_temporary_transfer_path(path)) {
+    return;
+  }
+  (void)QFile::remove(path);
+  (void)QDir().rmdir(QFileInfo(path).absolutePath());
+}
+
+void publish_open_probe(const QString& stage, const QString& path, const QString& error) {
+  if (!qEnvironmentVariableIsSet("PATCHY_WASM_OPEN_PROBE")) {
+    return;
+  }
+  auto probe = emscripten::val::object();
+  probe.set("stage", stage.toStdString());
+  probe.set("path", path.toStdString());
+  probe.set("error", error.toStdString());
+  probe.set("timestampMs", emscripten_get_now());
+  emscripten::val::global("globalThis").set("patchyOpenProbe", probe);
 }
 
 }  // namespace patchy::ui::wasm_files

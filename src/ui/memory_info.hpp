@@ -14,8 +14,8 @@ namespace patchy::ui {
 [[nodiscard]] qint64 total_physical_ram_mb();
 
 // Current process memory: Windows working set, Linux VmRSS, macOS task_info
-// resident size, wasm the allocator's live claim on the heap (emmalloc-level
-// bytes under -sMALLOC=mimalloc; see memory_info.cpp).
+// resident size, wasm the selected allocator's live claim on the heap (see
+// memory_info.cpp).
 [[nodiscard]] qint64 current_process_memory_mb();
 
 // Peak process memory: Windows peak working set, Linux VmHWM, macOS getrusage

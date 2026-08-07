@@ -49,6 +49,9 @@
 #include "ui/gradient_library.hpp"
 #include "ui/gradient_manager_dialog.hpp"
 #include "ui/dialog_utils.hpp"
+#ifdef Q_OS_WASM
+#include "ui/dialog_utils_wasm.hpp"
+#endif
 #include "ui/document_float_window.hpp"
 #include "ui/font_picker.hpp"
 #include "ui/hotkey_editor.hpp"
@@ -1285,9 +1288,23 @@ void MainWindow::open_document_path(QString path) {
     show_preview_dialog_edit_lock_message();
     return;
   }
+#ifdef Q_OS_WASM
+  const bool browser_transfer = wasm_files::is_temporary_transfer_path(path);
+  const auto release_browser_transfer = qScopeGuard([&path, browser_transfer] {
+    if (browser_transfer) {
+      wasm_files::discard_temporary_transfer(path);
+    }
+  });
+  wasm_files::publish_open_probe(QStringLiteral("opening"), path);
+#else
+  constexpr bool browser_transfer = false;
+#endif
   try {
     auto loaded = load_document_interactive(this, path);
     if (!loaded.has_value()) {
+#ifdef Q_OS_WASM
+      wasm_files::publish_open_probe(QStringLiteral("cancelled"), path);
+#endif
       return;
     }
     render_pending_svg_text_layers(loaded->document);
@@ -1296,10 +1313,17 @@ void MainWindow::open_document_path(QString path) {
       maybe_convert_af_image_layers(loaded->document);
     }
 
-    add_document_session(std::move(loaded->document), loaded->file_name, path, tr("Open"));
+    // A browser pick/drop is an import, not a writable host path. The loaded
+    // document owns all decoded data, so release its MEMFS source after this
+    // function and keep the session pathless. Save will correctly use Save As
+    // and download a new browser file; Reopen/Reveal will not point at a dead
+    // sandbox path.
+    const auto session_path = browser_transfer ? QString() : path;
+    const auto loaded_file_name = loaded->file_name;
+    add_document_session(std::move(loaded->document), loaded_file_name, session_path, tr("Open"));
     if (!cli_automation_mode_ && is_photoshop_document_extension(loaded->extension) &&
         app_settings().value(QStringLiteral("imports/showPsdWarningsAndInfo"), false).toBool()) {
-      show_compatibility_report(this, document(), loaded->file_name);
+      show_compatibility_report(this, document(), loaded_file_name);
     }
     canvas_->fit_to_view();
     refresh_layer_list();
@@ -1310,13 +1334,13 @@ void MainWindow::open_document_path(QString path) {
       maybe_offer_indexed_palette_adoption();
     }
     update_undo_redo_actions();
-    if (!cli_automation_mode_) {
+    if (!cli_automation_mode_ && !browser_transfer) {
       add_recent_file(path);
       remember_open_directory_for_path(path);
       add_recent_folder(QFileInfo(path).absolutePath());
     }
     if (loaded->import_notices.isEmpty()) {
-      statusBar()->showMessage(tr("Opened %1").arg(path));
+      statusBar()->showMessage(tr("Opened %1").arg(browser_transfer ? loaded_file_name : path));
     } else {
       // Import notes ride the status bar by default; the consolidated popup is
       // opt-in via the same preference that gates the PSD compatibility report
@@ -1326,7 +1350,7 @@ void MainWindow::open_document_path(QString path) {
         status_notes +=
             tr(" (+%n more import note(s))", nullptr, static_cast<int>(loaded->import_notices.size()) - 1);
       }
-      statusBar()->showMessage(tr("Opened %1. %2").arg(loaded->file_name, status_notes));
+      statusBar()->showMessage(tr("Opened %1. %2").arg(loaded_file_name, status_notes));
       if (!cli_automation_mode_ &&
           app_settings().value(QStringLiteral("imports/showPsdWarningsAndInfo"), false).toBool()) {
         QStringList bullets;
@@ -1336,11 +1360,17 @@ void MainWindow::open_document_path(QString path) {
         }
         show_information_message(this, tr("Import Notes"),
                                  tr("%1 opened with notes:\n\n%2")
-                                     .arg(loaded->file_name, bullets.join(QLatin1Char('\n'))),
+                                      .arg(loaded_file_name, bullets.join(QLatin1Char('\n'))),
                                  QStringLiteral("importNoticesMessageBox"));
       }
     }
+#ifdef Q_OS_WASM
+    wasm_files::publish_open_probe(QStringLiteral("opened"), path);
+#endif
   } catch (const std::exception& error) {
+#ifdef Q_OS_WASM
+    wasm_files::publish_open_probe(QStringLiteral("failed"), path, QString::fromUtf8(error.what()));
+#endif
     if (cli_automation_mode_) {
       fprintf(stderr, "Open failed: %s (%s)\n", error.what(), path.toUtf8().constData());
     } else {

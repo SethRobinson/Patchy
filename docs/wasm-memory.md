@@ -28,13 +28,20 @@ consumed by the page before the Module exists.
 The chosen cap is published as `globalThis.patchyWasmMemoryMaximumBytes`,
 read by `ui/memory_info.hpp` for the About screen's live memory row
 (`emscripten_get_heap_max()` is baked at link time; never trust it for
-this). The row shows three numbers: used (the allocator's live claim,
-`emmalloc_dynamic_heap_size()` minus `emmalloc_free_dynamic_memory()`;
-`-sMALLOC=mimalloc` layers mimalloc on emmalloc, and emmalloc's free-list
-bookkeeping is the coherent number where mimalloc's own mi_process_info
-stats wrap negative in the emscripten build), heap
+this). The row shows three numbers: used (the selected allocator's live claim
+from Emscripten's `mallinfo().uordblks`; dlmalloc reports its own allocations,
+and the optional mimalloc benchmark build reports its underlying emmalloc
+claim), heap
 (`emscripten_get_heap_size()`, the linear-memory buffer browser tab
 accounting sees, which only ratchets), and the cap.
+
+The shipped allocator is dlmalloc. Mimalloc's modest warm-stress throughput
+win is outweighed by retained-segment growth on a real 350 MB, 415-layer PSD:
+it reaches the wasm32 4 GB ceiling and throws `std::bad_alloc`, while the same
+threaded build with dlmalloc opens the document. The browser transfer path
+also streams into MEMFS without a full wasm `QByteArray` and releases the
+source after import, removing another source-sized heap allocation and a
+session-long JS file backing store.
 
 `ui/wasm_memory_telemetry.cpp` (installed from the MainWindow constructor)
 can publish the same picture to `globalThis.patchyMemStats` every second

@@ -1040,12 +1040,13 @@ if(PATCHY_BUILD_APP)
 
     if(EMSCRIPTEN)
       # The single-threaded app artifact (wasm-release-st preset): no
-      # -pthread, no pool, no shared memory. Served to Safari/WebKit, whose
-      # optimizing wasm compiler blows up on the threaded module; see
-      # docs/wasm-memory.md. The threading seams in src gate themselves on
-      # __EMSCRIPTEN_PTHREADS__, so no source changes ride on this option.
+      # -pthread, no pool, no shared memory. It remains a manually selected
+      # Safari/WebKit diagnostic artifact because current ST builds also die
+      # under workload; see docs/wasm-memory.md. The threading seams in src
+      # gate themselves on __EMSCRIPTEN_PTHREADS__, so no source changes ride
+      # on this option.
       option(PATCHY_WASM_SINGLETHREAD
-             "Single-threaded wasm app build (the Safari-served artifact)" OFF)
+             "Single-threaded wasm app build (the Safari diagnostic artifact)" OFF)
       # qt_add_executable generates the wasm deployment sidecars (patchy.html,
       # qtloader.js) that a plain add_executable does not.
       qt_add_executable(patchy src/app/main.cpp)
@@ -1124,11 +1125,22 @@ if(PATCHY_BUILD_APP)
       # the link optimization level without editing this file (docs/wasm.md,
       # Safari 26 known issue). The shipped wasm-release stays -O3.
       set(PATCHY_WASM_LINK_OPT "-O3" CACHE STRING "Optimization flag for the wasm app link")
+      # dlmalloc is the shipped allocator. The 2026-07-31 stress A/B found
+      # mimalloc 5-8% faster, but the exact 350 MB C2Kyoto PSD drives mimalloc's
+      # retained segments to the wasm32 4 GB ceiling and throws bad_alloc;
+      # dlmalloc opens it successfully. Keep mimalloc available for explicit
+      # benchmarks without making it the visitor default.
+      set(PATCHY_WASM_ALLOCATOR "dlmalloc" CACHE STRING "Emscripten allocator for the wasm app")
+      set_property(CACHE PATCHY_WASM_ALLOCATOR PROPERTY STRINGS dlmalloc mimalloc)
+      if(NOT PATCHY_WASM_ALLOCATOR STREQUAL "dlmalloc" AND
+         NOT PATCHY_WASM_ALLOCATOR STREQUAL "mimalloc")
+        message(FATAL_ERROR "PATCHY_WASM_ALLOCATOR must be dlmalloc or mimalloc")
+      endif()
       target_link_options(patchy PRIVATE
         -sASYNCIFY
         -sASYNCIFY_STACK_SIZE=1048576
         ${PATCHY_WASM_LINK_OPT}
-        -sMALLOC=mimalloc
+        "-sMALLOC=${PATCHY_WASM_ALLOCATOR}"
         -fexceptions
         -sALLOW_MEMORY_GROWTH=1
         -sMAXIMUM_MEMORY=4GB

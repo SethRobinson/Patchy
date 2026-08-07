@@ -164,8 +164,8 @@ void begin_restore() {
       const auto length = js_bytes["length"].as<unsigned>();
       QByteArray bytes(static_cast<qsizetype>(length), Qt::Uninitialized);
       if (length > 0) {
-        // The typed_memory_view target is written before anything else can
-        // grow the wasm heap (same rule as materialize_transfer).
+        // Write the typed_memory_view target before anything else can grow
+        // the wasm heap and invalidate it.
         auto heap_view = emscripten::val(emscripten::typed_memory_view(
             static_cast<std::size_t>(length), reinterpret_cast<std::uint8_t*>(bytes.data())));
         heap_view.call<void>("set", js_bytes);

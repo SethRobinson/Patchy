@@ -16,17 +16,12 @@ Three configurations share the pinned Emscripten 4.0.7 toolchain:
   browser-backed (details below). Background work runs on real threads; the
   deployment cost is cross-origin isolation (COOP/COEP headers, see
   deployment).
-- **`wasm-release-st`**: the same app against the 6.10.3 `wasm_singlethread`
-  kit (`PATCHY_WASM_SINGLETHREAD=ON`: no `-pthread`, no pool, no shared
-  memory; the threading seams take their inline branches). Built and staged
-  as `st/` beside the threaded artifact as the intended Safari/WebKit
-  fallback for the Safari 26 compiler kill, with a shell-page router and a
-  one-time compatibility notice, but AUTO-ROUTING IS CURRENTLY DISABLED:
-  measurements show current-code ST builds still die under workload, so the
-  router serves `st/` only via `?PATCHY_WASM_FORCE=st` until a surviving
-  configuration exists. The investigation lives in
-  [wasm-memory.md](wasm-memory.md). Provision the kit with
-  `pwsh -File scripts\wasm\setup-qt-wasm.ps1 -WasmArch wasm_singlethread`.
+- **`wasm-release-st`**: the same app with the 6.10.3 single-thread kit
+  (`PATCHY_WASM_SINGLETHREAD=ON`: no pthreads, pool, or shared memory). It is
+  staged as `st/` for Safari diagnostics, but current ST builds also die under
+  workload, so auto-routing is disabled and only
+  `?PATCHY_WASM_FORCE=st` selects it. See [wasm-memory.md](wasm-memory.md).
+  Provision with `setup-qt-wasm.ps1 -WasmArch wasm_singlethread`.
 
 Desktop builds are unaffected: the presets, the `if(EMSCRIPTEN)` CMake
 branches, the `Q_OS_WASM` gates, and `scripts/wasm/` are the whole wasm
@@ -191,17 +186,15 @@ requestAnimationFrame onto setTimeout before qtloader runs (harness below).
   destructors/unflushed settings are skipped like a process exit. Used by
   every CLI completion (`--run-script`, `--export`, `--stress-test`,
   `--screenshot`); desktop keeps `QCoreApplication::exit`.
-- **JSPI (Asyncify's successor) dead-ends on the stock aqt kit**; revisit
-  only with a source-built Qt (wasm EH plus `-feature-wasm_jspi`: measured
-  42.2 MB vs 65.6 MB, far faster link; Chrome 137+, experimental on emsdk
-  4.0.7, a second artifact set). JS `-fexceptions` parks the first idle
-  suspend under invoke trampolines JSPI cannot suspend across;
-  `-fwasm-exceptions` cannot link Qt's prebuilt static libraries; mixing
-  modes is unsupported.
-- **Codegen: compile `-msimd128`, link `-O3`, `-sMALLOC=mimalloc`** (from
-  interleaved in-app stress A/B runs): SIMD wins 5-16% on compute steps
-  (canaries stay byte-identical), `-O3` beats `-Os` at runtime, and mimalloc
-  fixes dlmalloc's single-lock contention under pthreads (5-8% whole-run).
+- **JSPI needs a source-built Qt** with wasm EH and `-feature-wasm_jspi`.
+  Stock Qt's JS-exception libraries cannot mix with it, so the shipped aqt
+  kit stays on Asyncify.
+- **Codegen: compile `-msimd128`, link `-O3`, `-sMALLOC=dlmalloc`.** SIMD wins
+  5-16% on compute steps (canaries stay byte-identical) and `-O3` beats `-Os`
+  at runtime. Mimalloc was 5-8% faster in a warm stress A/B, but the exact 350
+  MB C2Kyoto PSD drives it to wasm32's 4 GB ceiling and `std::bad_alloc`; the
+  threaded dlmalloc build opens it. `PATCHY_WASM_ALLOCATOR=mimalloc` remains a
+  benchmark option.
 - **QtQuick is excluded** (Qt6::Qml is linked for QJSEngine only):
   `QT_QML_MODULE_NO_IMPORT_SCAN TRUE` plus
   `qt_import_plugins(patchy EXCLUDE_BY_TYPE qmltooling)`, both required (the
@@ -223,8 +216,8 @@ requestAnimationFrame onto setTimeout before qtloader runs (harness below).
   off. Update check off (the site redeploy is the update mechanism; the
   GitHub fetch would fail CORS). Script sounds no-op. Scanner import off.
   Export Layers as Image Sequence hidden. Multi-file pickers degrade to one
-  pick. Recents work within a session (MEMFS paths) and self-prune after
-  reload. Script-editor plain Save downloads nothing (Save As does).
+  pick. Browser imports stay out of Recents because their source is released
+  after load. Script-editor plain Save downloads nothing (Save As does).
 - **Assets.** `--preload-file` mounts staged copies at `/fonts`,
   `/translations`, `/scripts` inside `patchy.data`; `applicationDirPath()`
   is `/`, so existing directory probes work unchanged. `qtbase_ja.qm` is
@@ -244,14 +237,22 @@ requestAnimationFrame onto setTimeout before qtloader runs (harness below).
 ### Web file access
 
 Real files never leave the browser sandbox; both directions stage through
-MEMFS so the path-based pipeline runs unchanged. Opens copy picked or
-dropped bytes to `/opened/<n>/<name>` (or `/dropped/<n>/<name>`) and hand
-the path to `open_document_path`; saves let the existing writers write
+MEMFS so the path-based pipeline runs unchanged. Opens stream picked or
+dropped bytes directly into an exactly-sized `/opened/<n>/<name>` (or
+`/dropped/<n>/<name>`) MEMFS file and hand the path to `open_document_path`;
+saves let the existing writers write
 `/saved/<n>/<name>`, then hand the bytes to the browser as a download. Glue:
 `src/ui/dialog_utils_wasm.{hpp,cpp}`; `dialog_utils.cpp`'s three pickers
 delegate there under `Q_OS_WASM`, and `offer_browser_download_for_saved_file`
 (no-op on desktop) runs after each successful write in every save/export
 path.
+
+The page uses `Blob.stream()` after exact MEMFS preallocation
+(`arrayBuffer()` is an old-engine fallback), so no full source-file
+`QByteArray` enters the wasm heap; multi-file drops stage sequentially. After
+load, `/opened` and `/dropped` sources are removed and sessions stay pathless,
+so Save uses Save As and Reopen/Reveal never target dead sandbox paths. The
+drop drain also removes rejected or modal-blocked inputs.
 
 Three platform findings constrain the shape; do not regress them:
 
@@ -515,7 +516,8 @@ page compiles from bytes; streaming instantiation is unused).
 ## Headless stress harness
 
 The wasm stress/A-B harness (hidden-tab timer shims, interleaved two-port
-comparisons, `--run-script` mode) is documented in
+comparisons, `--run-script` mode, and the browser-file large-open regression)
+is documented in
 [performance.md](performance.md).
 
 ## Later steps (not built yet)
