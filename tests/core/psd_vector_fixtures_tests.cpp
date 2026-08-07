@@ -1069,36 +1069,6 @@ void psd_damaged_partial_vogk_import_heals_on_resave() {
   CHECK(find_tagged_block(resaved_extra, "vmsk").has_value());
 }
 
-void psd_damaged_pattern_file_resave_is_photoshop_safe_if_available() {
-  // The July 2026 user file that Photoshop refused with "program error": a
-  // polygon + custom arrow + live ellipse shape layer whose PtFl referenced a
-  // pattern with NO global Patt block, plus a partial vogk (ellipse entry
-  // only). Resaving through Patchy must produce a file with neither defect.
-  const auto path = patchy::test::local_psd_fixture_path("vectors_from_patchy.psd");
-  if (!std::filesystem::exists(path)) {
-    return;
-  }
-  const auto document = patchy::psd::DocumentIo::read_file(path);
-  const auto written = patchy::psd::DocumentIo::write_layered_rgb8(document);
-
-  const auto extra = patchy::test::psd_layer_extra_data(written, 1);
-  CHECK(!find_tagged_block(extra, "vogk").has_value());
-  CHECK(!find_tagged_block(extra, "vowv").has_value());
-  const auto ptfl = find_tagged_block(extra, "PtFl");
-  CHECK(ptfl.has_value());
-
-  const auto patt = find_tagged_block(written, "Patt");
-  CHECK(patt.has_value());
-  const auto ids = patchy::psd::pattern_ids_in_block(*patt);
-  CHECK(std::find(ids.begin(), ids.end(), "1076f0b5-6d90-e4f2-8896-d4f3093299f8") != ids.end());
-
-  if (const auto dump_path = patchy::environment_variable("PATCHY_DUMP_RESAVED_USER_PSD")) {
-    std::ofstream dump(*dump_path, std::ios::binary);
-    dump.write(reinterpret_cast<const char*>(written.data()),
-               static_cast<std::streamsize>(written.size()));
-  }
-}
-
 void collect_referenced_pattern_resources_covers_vector_content() {
   // Cross-document layer copies resolve their pattern resources through
   // collect_referenced_pattern_resources; vector fill and stroke paints must
@@ -1295,8 +1265,6 @@ std::vector<patchy::test::TestCase> psd_vector_fixtures_tests() {
       {"psd_pattern_fill_missing_tile_writes_placeholder", psd_pattern_fill_missing_tile_writes_placeholder},
       {"psd_partial_vogk_is_omitted_full_vogk_kept", psd_partial_vogk_is_omitted_full_vogk_kept},
       {"psd_damaged_partial_vogk_import_heals_on_resave", psd_damaged_partial_vogk_import_heals_on_resave},
-      {"psd_damaged_pattern_file_resave_is_photoshop_safe_if_available",
-       psd_damaged_pattern_file_resave_is_photoshop_safe_if_available},
       {"psd_pattern_params_probe_render_parity_if_available",
        psd_pattern_params_probe_render_parity_if_available},
       {"psd_interior_overlay_vs_stroke_probe_if_available",

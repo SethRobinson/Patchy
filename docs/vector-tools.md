@@ -493,12 +493,6 @@ composites are headless-stale (see ps-compat.md); compare against the BMPs.
 - photoshop-shape.psb/photoshop-shape-psb.bmp: PSB variant of the solid
   shape.
 
-Untracked local fixture: `local-test-fixtures/psd/vectors_from_patchy.psd`,
-the July 2026 damaged user file (pattern fill with no Patt block AND a
-partial vogk; PS refused it).
-`psd_damaged_pattern_file_resave_is_photoshop_safe_if_available` pins that
-resaving through current Patchy removes both defects.
-
 ## Patents and trademarks (assessed July 2026)
 
 Claim-level record: docs/patent-research.md. docs/legal-constraints.md binds
