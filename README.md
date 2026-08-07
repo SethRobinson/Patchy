@@ -1,8 +1,6 @@
 # Patchy Image Editor
 
-### [Try Patchy in your browser, no install](https://www.rtsoft.com/patchy/)
-
-### [Download Patchy for Windows, macOS, and Linux](#download)
+### [Download Patchy for Windows, macOS, and Linux, or try in your browser](#download)
 
 Patchy is a free, open-source image editor for Windows, macOS, and Linux, built for accurate PSD and PSB editing and round trips with Adobe Photoshop. It supports editable text and vectors, masks, layer styles, Smart Objects and Smart Filters, legacy 8BF plug-ins, JavaScript scripting, and command-line automation.
 
@@ -117,14 +115,14 @@ Click a thumbnail for the full-size image.
 
 Patchy is tested against Adobe Photoshop 2026 on a mixed PSD corpus. In the completed August 7, 2026 Testy run, Patchy had the strongest non-Adobe render result, Photoshop reopened all 64 Patchy saves, and all 312 text objects remained editable.
 
-| Tested editor | Files opened | Perceptual render match | PSD saves rejected by Photoshop | Text still editable in resaved PSD |
-|---|---:|---:|---:|---:|
-| **Patchy `879a3a8`** | **64 / 64** | **98.83% (n=63)** | **0 / 64** | **312 / 312** |
-| Photopea, web build | 63 / 64 | 97.13% (n=62) | 0 / 64 | 306 / 312 |
-| Affinity 3.2.3.4646 | 61 / 64 | 88.30% (n=60) | 0 / 64 | 0 / 305 |
-| GIMP 3.2.4 | 62 / 64 | 88.11% (n=61) | 0 / 64 | 0 / 312 |
-| PhotoDemon 2026.01.0251 | 64 / 64 | 81.97% (n=63) | 0 / 64 | 0 / 312 |
-| Krita 5.3.2.1 | 56 / 64 | 81.17% (n=56) | 9 / 64 | 187 / 205 |
+| Tested editor           | Files opened | Perceptual render match | PSD saves rejected by Photoshop | Text still editable in resaved PSD |
+| ----------------------- | -----------: | ----------------------: | ------------------------------: | ---------------------------------: |
+| **Patchy `879a3a8`**    | **64 / 64**  | **98.83% (n=63)**       | **0 / 64**                      | **312 / 312**                      |
+| Photopea, web build     | 63 / 64      | 97.13% (n=62)           | 0 / 64                          | 306 / 312                          |
+| Affinity 3.2.3.4646     | 61 / 64      | 88.30% (n=60)           | 0 / 64                          | 0 / 305                            |
+| GIMP 3.2.4              | 62 / 64      | 88.11% (n=61)           | 0 / 64                          | 0 / 312                            |
+| PhotoDemon 2026.01.0251 | 64 / 64      | 81.97% (n=63)           | 0 / 64                          | 0 / 312                            |
+| Krita 5.3.2.1           | 56 / 64      | 81.17% (n=56)           | 9 / 64                          | 187 / 205                          |
 
 The text column counts original text objects that Photoshop still recognizes as editable text after reopening the editor's PSD save. It does not identify whether conversion happened during import or export.
 
