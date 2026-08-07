@@ -16,8 +16,8 @@ difference heatmaps, and resaved PSD files are not included.
 
 ## Browse the results
 
-- [Interactive HTML results table](results.html), with search, filters, sortable
-  columns, and focused rendering or preservation views
+- [Formatted per-file results](results.md), grouped into collapsible tables for
+  each editor so they render directly on GitHub
 - [Complete CSV data](results.csv), with one row for every file and editor
 
 Both files exclude local source paths, source hashes, layer names, application

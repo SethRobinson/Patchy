@@ -4,7 +4,7 @@ Patchy's Testy harness measures PSD interoperability against a licensed copy of 
 
 This page records completed run `20260807-153700`. The
 [image-free public export](../testy/published-runs/20260807-153700/) includes the
-aggregate tables, a searchable HTML results table, and one CSV row for every file
+aggregate tables, GitHub-formatted per-file results, and one CSV row for every file
 and editor. It excludes source documents, renders, heatmaps, resaved PSDs, local
 paths, hashes, and layer names.
 
