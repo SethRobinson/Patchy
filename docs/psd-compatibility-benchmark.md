@@ -2,10 +2,11 @@
 
 Patchy's Testy harness measures PSD interoperability against a licensed copy of Adobe Photoshop. It tests visual rendering and the editability of a PSD after another editor saves it. Those are separate questions: a file can look correct while text, effects, masks, or other native data have been flattened or changed.
 
-This page records completed run `20260807-132121`. The
-[image-free public export](../testy/published-runs/20260807-132121/) includes the
-aggregate tables and one CSV row for every file and editor. It excludes source
-documents, renders, heatmaps, resaved PSDs, local paths, hashes, and layer names.
+This page records completed run `20260807-153700`. The
+[image-free public export](../testy/published-runs/20260807-153700/) includes the
+aggregate tables, a searchable HTML results table, and one CSV row for every file
+and editor. It excludes source documents, renders, heatmaps, resaved PSDs, local
+paths, hashes, and layer names.
 
 ## Current snapshot
 
@@ -13,17 +14,17 @@ documents, renders, heatmaps, resaved PSDs, local paths, hashes, and layer names
 - Corpus size: 64 PSD files, 1,056,362,619 bytes
 - Completed: 64 files per editor
 - Reference: Adobe Photoshop 27.8.0
-- Patchy build: `ad15726`
+- Patchy build: `879a3a8`
 - Comparison mode: perceptual
 - Scan result: 45 files flagged, 19 passed at the 10% perceptual-difference threshold
 
 | Editor and tested build | Type | Opened | Rendered | Perceptual render match | PSD saves rejected by Photoshop | Editable text kept | Native objects kept | Photoshop round-trip render |
 |---|---|---:|---:|---:|---:|---:|---:|---:|
 | Photoshop 27.8.0 | Proprietary reference | 64 / 64 | 63 | 100.00% | 0 / 64 | 312 / 312 | 1,788 / 1,788 | 100.00% (n=63) |
-| **Patchy `ad15726`** | **Open source** | **64 / 64** | **63** | **98.83%** | **0 / 64** | **312 / 312** | **1,788 / 1,788** | **99.98% (n=63)** |
+| **Patchy `879a3a8`** | **Open source** | **64 / 64** | **63** | **98.83%** | **0 / 64** | **312 / 312** | **1,788 / 1,788** | **99.98% (n=63)** |
 | Photopea, web build in Chrome | Proprietary web app | 63 / 64 | 62 | 97.13% | 0 / 64 | 306 / 312 | 1,777 / 1,784 | 99.76% (n=62) |
 | Affinity 3.2.3.4646 | Proprietary | 61 / 64 | 60 | 88.30% | 0 / 64 | 0 / 305 | 1,039 / 1,752 | 88.02% (n=60) |
-| GIMP 3.2.4 | Open source | 62 / 64 | 61 | 88.11% | 0 / 64 | 0 / 312 | 611 / 1,736 | 85.46% (n=61) |
+| GIMP 3.2.4 | Open source | 62 / 64 | 61 | 88.11% | 0 / 64 | 0 / 312 | 611 / 1,736 | 85.45% (n=61) |
 | PhotoDemon 2026.01.0251, Testy CLI build | Open source | 64 / 64 | 63 | 81.97% | 0 / 64 | 0 / 312 | 678 / 1,788 | 80.81% (n=63) |
 | Krita 5.3.2.1, git `0619060` | Open source | 56 / 64 | 56 | 81.17% | 9 / 64 | 187 / 205 | 737 / 1,001 | 88.47% (n=47) |
 

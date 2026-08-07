@@ -1,4 +1,4 @@
-# Testy PSD compatibility run 20260807-132121
+# Testy PSD compatibility run 20260807-153700
 
 This is the image-free public export of the completed Testy run used for the
 compatibility figures in Patchy's README. Source documents, rendered images,
@@ -6,13 +6,22 @@ difference heatmaps, and resaved PSD files are not included.
 
 - Run date: August 7, 2026
 - Corpus: 64 PSD files, 1,056,362,619 bytes
-- Patchy build: `ad15726`
+- Patchy build: `879a3a8`
 - Photoshop reference: 27.8.0
 - Comparison mode: perceptual
 - Scan threshold: flag a file when any editor differs perceptually on more than
   10% of pixels or a test step fails
 - Scan result: 45 flagged, 19 passed
 - Source integrity check: passed
+
+## Browse the results
+
+- [Interactive HTML results table](results.html), with search, filters, sortable
+  columns, and focused rendering or preservation views
+- [Complete CSV data](results.csv), with one row for every file and editor
+
+Both files exclude local source paths, source hashes, layer names, application
+logs, and all image or document artifacts.
 
 ## Rendering and round trips
 
@@ -23,10 +32,10 @@ with the original Photoshop render.
 | Editor and build | Opened | Renders scored | Perceptual match | Byte match | Photoshop round-trip match | PSD saves rejected by Photoshop |
 |---|---:|---:|---:|---:|---:|---:|
 | Photoshop 27.8.0 | 64 / 64 | 63 | 100.00% | 100.00% | 100.00% (n=63) | 0 |
-| **Patchy `ad15726`** | **64 / 64** | **63** | **98.83%** | **96.45%** | **99.98% (n=63)** | **0** |
+| **Patchy `879a3a8`** | **64 / 64** | **63** | **98.83%** | **96.45%** | **99.98% (n=63)** | **0** |
 | Photopea, web build | 63 / 64 | 62 | 97.13% | 95.35% | 99.76% (n=62) | 0 |
 | Affinity 3.2.3.4646 | 61 / 64 | 60 | 88.30% | 87.28% | 88.02% (n=60) | 0 |
-| GIMP 3.2.4 | 62 / 64 | 61 | 88.11% | 81.37% | 85.46% (n=61) | 0 |
+| GIMP 3.2.4 | 62 / 64 | 61 | 88.11% | 81.37% | 85.45% (n=61) | 0 |
 | PhotoDemon 2026.01.0251 | 64 / 64 | 63 | 81.97% | 78.73% | 80.81% (n=63) | 0 |
 | Krita 5.3.2.1 | 56 / 64 | 56 | 81.17% | 77.46% | 88.47% (n=47) | 9 |
 
@@ -45,13 +54,6 @@ could not open a source or Photoshop could not inspect its save.
 | Affinity | 59.98% | 1,039 / 1,752 | 0 / 305 | 230 / 403 | 95 / 122 | 318 / 396 |
 | GIMP | 54.62% | 611 / 1,736 | 0 / 312 | 0 / 344 | 107 / 107 | 0 / 283 |
 | PhotoDemon | 52.93% | 678 / 1,788 | 0 / 312 | 0 / 280 | 44 / 102 | 0 / 213 |
-
-## Detailed data
-
-[results.csv](results.csv) contains one row for every file and editor. It includes
-render scores, Photoshop round-trip scores, retained native-object counts, mask and
-effect counts, and test state. It excludes local source paths, source hashes, layer
-names, application logs, and all image or document artifacts.
 
 See the [benchmark description and methodology](../../../docs/psd-compatibility-benchmark.md)
 for how Testy stages files, detects baked-composite use, scores renders, and checks

@@ -119,7 +119,7 @@ Patchy is tested against Adobe Photoshop 2026 on a mixed PSD corpus. In the comp
 
 | Tested editor | Files opened | Perceptual render match | PSD saves rejected by Photoshop | Text still editable in resaved PSD |
 |---|---:|---:|---:|---:|
-| **Patchy `ad15726`** | **64 / 64** | **98.83% (n=63)** | **0 / 64** | **312 / 312** |
+| **Patchy `879a3a8`** | **64 / 64** | **98.83% (n=63)** | **0 / 64** | **312 / 312** |
 | Photopea, web build | 63 / 64 | 97.13% (n=62) | 0 / 64 | 306 / 312 |
 | Affinity 3.2.3.4646 | 61 / 64 | 88.30% (n=60) | 0 / 64 | 0 / 305 |
 | GIMP 3.2.4 | 62 / 64 | 88.11% (n=61) | 0 / 64 | 0 / 312 |
