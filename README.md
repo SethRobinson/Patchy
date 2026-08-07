@@ -115,20 +115,20 @@ Click a thumbnail for the full-size image.
 
 ## PSD compatibility, measured
 
-Patchy is tested against Adobe Photoshop 2026 on a mixed PSD corpus. In the paused July 28, 2026 Testy snapshot, Patchy had the strongest open-source render result, Photoshop reopened all 260 Patchy saves, and 1,438 of 1,439 text objects remained editable.
+Patchy is tested against Adobe Photoshop 2026 on a mixed PSD corpus. In the completed August 7, 2026 Testy run, Patchy had the strongest non-Adobe render result, Photoshop reopened all 64 Patchy saves, and all 312 text objects remained editable.
 
-| Tested editor | Perceptual render match | PSD saves rejected by Photoshop | Text still editable in resaved PSD |
-|---|---:|---:|---:|
-| **Patchy `d5a5ed0`** | **99.57%** | **0 / 260** | **1,438 / 1,439** |
-| Photopea, web build | 99.77% | 1 / 259 | 1,417 / 1,439 |
-| GIMP 3.2.4 | 95.78% | 0 / 259 | 0 / 1,439 |
-| Affinity 3.2.3.4646 | 95.24% | 0 / 258 | 0 / 1,434 |
-| PhotoDemon 2026.01.0251 | 94.56% | 0 / 258 | 0 / 1,403 |
-| Krita 5.3.2.1 | 89.54% | 97 / 259 | 663 / 1,439 |
+| Tested editor | Files opened | Perceptual render match | PSD saves rejected by Photoshop | Text still editable in resaved PSD |
+|---|---:|---:|---:|---:|
+| **Patchy `ad15726`** | **64 / 64** | **98.83% (n=63)** | **0 / 64** | **312 / 312** |
+| Photopea, web build | 63 / 64 | 97.13% (n=62) | 0 / 64 | 306 / 312 |
+| Affinity 3.2.3.4646 | 61 / 64 | 88.30% (n=60) | 0 / 64 | 0 / 305 |
+| GIMP 3.2.4 | 62 / 64 | 88.11% (n=61) | 0 / 64 | 0 / 312 |
+| PhotoDemon 2026.01.0251 | 64 / 64 | 81.97% (n=63) | 0 / 64 | 0 / 312 |
+| Krita 5.3.2.1 | 56 / 64 | 81.17% (n=56) | 9 / 64 | 187 / 205 |
 
 The text column counts original text objects that Photoshop still recognizes as editable text after reopening the editor's PSD save. It does not identify whether conversion happened during import or export.
 
-These are corpus-specific results from an unfinished run, not universal product ratings. See the [full results and methodology](docs/psd-compatibility-benchmark.md), including tested versions, native PSD data preservation, Photoshop round-trip rendering, and known limitations.
+These are corpus-specific results, not universal product ratings. See the [full results and methodology](docs/psd-compatibility-benchmark.md), including the image-free per-file run data, tested versions, native PSD data preservation, Photoshop round-trip rendering, and known limitations.
 
 ## Download
 
