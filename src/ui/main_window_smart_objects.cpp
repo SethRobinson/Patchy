@@ -295,6 +295,54 @@ std::optional<SmartObjectWarp> rescaled_warp_for_replaced_contents(
 
 }  // namespace
 
+bool MainWindow::refuse_document_geometry_change() {
+  const auto& doc = std::as_const(document());
+  if (document_contains_smart_filters(doc)) {
+    show_status_error(
+        tr("Rasterize Smart Filters before changing document geometry"));
+    return true;
+  }
+  if (document_contains_unparsed_smart_objects(doc)) {
+    show_status_error(
+        tr("Rasterize Smart Objects before changing document geometry"));
+    return true;
+  }
+  return false;
+}
+
+void MainWindow::rerender_smart_object_previews() {
+  auto* current = active_session();
+  if (current == nullptr) {
+    return;
+  }
+  auto& target = current->document;
+  const auto interpolation = canvas_ != nullptr
+                                 ? canvas_->transform_interpolation()
+                                 : CanvasWidget::TransformInterpolation::Bicubic;
+  // Const walk on purpose: the non-const children() accessor bumps every visited
+  // layer's revisions (docs/performance.md), so a mutable traversal would invalidate
+  // every thumbnail and style-mask cache in the document. Only re-rendered layers are
+  // cast back, and their bumps are real edits. Preview-locked placements are skipped
+  // for the same reason Free Transform skips them: no re-render exists, and a LINKED
+  // source must only be re-read through Update Smart Object Content. Those keep the
+  // resampled preview the geometry operation already produced.
+  std::function<void(const std::vector<Layer>&)> refresh_layers =
+      [&](const std::vector<Layer>& layers) {
+        for (const auto& const_layer : layers) {
+          if (!const_layer.children().empty()) {
+            refresh_layers(const_layer.children());
+          }
+          if (!layer_is_smart_object(const_layer) ||
+              !smart_object_lock_reason(const_layer).empty()) {
+            continue;
+          }
+          refresh_smart_object_layer_preview(target, const_cast<Layer&>(const_layer),
+                                             interpolation);
+        }
+      };
+  refresh_layers(std::as_const(target).layers());
+}
+
 void MainWindow::export_smart_object_contents() {
   if (!has_active_document()) {
     return;

@@ -13211,6 +13211,10 @@ Clipped to the layer below</source>
         <translation>ドキュメントのジオメトリを変更する前にスマートオブジェクトをラスタライズしてください</translation>
     </message>
     <message>
+        <source>Rasterize Smart Filters before changing document geometry</source>
+        <translation>ドキュメントのジオメトリを変更する前にスマートフィルターをラスタライズしてください</translation>
+    </message>
+    <message>
         <source>Use Free Transform or rasterize Smart Objects before flipping</source>
         <translation>スマートオブジェクトを反転するには、自由変形を使用するかラスタライズしてください</translation>
     </message>

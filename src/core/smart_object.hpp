@@ -212,4 +212,13 @@ inline constexpr const char* kLayerMetadataSmartObjectWarp = "patchy.smart_objec
                                                                    double new_width, double new_height,
                                                                    double new_dpi);
 
+// Maps the placement's document-space quads (Trnf, and nonAffineTransform when the
+// perspective quad was stashed) through an affine in the (a, b, c, d, tx, ty) layout
+// transform_vector_path uses. Whole-document geometry -- image/canvas resize, crop,
+// canvas rotate -- remaps document space, so the placement has to ride along or the
+// preserved/regenerated SoLd keeps describing the pre-operation rectangle. The source
+// size, dpi, and content-space warp are unaffected: only where the content lands moves.
+[[nodiscard]] SmartObjectPlacement transformed_smart_object_placement(const SmartObjectPlacement& placement,
+                                                                      const std::array<double, 6>& matrix);
+
 }  // namespace patchy

@@ -175,6 +175,74 @@ void psd_smart_object_sources_survive_resave_if_available() {
   CHECK(has_lnk2(resaved));
 }
 
+void collect_smart_object_placements(
+    const std::vector<patchy::Layer>& layers,
+    std::vector<std::pair<std::string, patchy::SmartObjectPlacement>>& out) {
+  for (const auto& layer : layers) {
+    collect_smart_object_placements(layer.children(), out);
+    if (!patchy::layer_is_smart_object(layer)) {
+      continue;
+    }
+    if (const auto placement = patchy::smart_object_placement_from_layer(layer); placement.has_value()) {
+      out.emplace_back(layer.name(), *placement);
+    }
+  }
+}
+
+// The reported case: this document's embedded smart objects (one of them perspective
+// placed, so it carries a stashed nonAffineTransform) used to make Image Size refuse
+// outright. Photoshop resizes it, and the scaled quads have to survive the resave or
+// reopening puts the placed content back at its original rectangle.
+void psd_smart_object_document_resize_scales_placements_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("eon_spider_original.psd");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] eon_spider_original fixture missing: " << path.string() << '\n';
+    return;
+  }
+  auto document = patchy::psd::DocumentIo::read_file(path);
+  const auto old_width = document.width();
+  const auto old_height = document.height();
+  CHECK(old_width > 1 && old_height > 1);
+  std::vector<std::pair<std::string, patchy::SmartObjectPlacement>> before;
+  collect_smart_object_placements(std::as_const(document).layers(), before);
+  CHECK(!before.empty());
+
+  const auto new_width = old_width / 2;
+  const auto new_height = old_height / 2;
+  const double sx = static_cast<double>(new_width) / static_cast<double>(old_width);
+  const double sy = static_cast<double>(new_height) / static_cast<double>(old_height);
+  patchy::resize_image_and_layers(document, new_width, new_height);
+  CHECK(document.width() == new_width && document.height() == new_height);
+
+  std::vector<std::pair<std::string, patchy::SmartObjectPlacement>> after;
+  collect_smart_object_placements(std::as_const(document).layers(), after);
+  CHECK(after.size() == before.size());
+  for (std::size_t i = 0; i < after.size() && i < before.size(); ++i) {
+    CHECK(after[i].first == before[i].first);
+    for (std::size_t corner = 0; corner < 8U; corner += 2U) {
+      CHECK(std::abs(after[i].second.transform[corner] - before[i].second.transform[corner] * sx) < 1e-9);
+      CHECK(std::abs(after[i].second.transform[corner + 1U] -
+                     before[i].second.transform[corner + 1U] * sy) < 1e-9);
+    }
+    // The placed CONTENT is untouched; the layer stays non-destructive.
+    CHECK(after[i].second.uuid == before[i].second.uuid);
+    CHECK(after[i].second.width == before[i].second.width);
+    CHECK(after[i].second.height == before[i].second.height);
+    CHECK(after[i].second.non_affine_transform.has_value() ==
+          before[i].second.non_affine_transform.has_value());
+  }
+
+  const auto resaved = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  std::vector<std::pair<std::string, patchy::SmartObjectPlacement>> saved;
+  collect_smart_object_placements(std::as_const(resaved).layers(), saved);
+  CHECK(saved.size() == after.size());
+  for (std::size_t i = 0; i < saved.size() && i < after.size(); ++i) {
+    for (std::size_t corner = 0; corner < 8U; ++corner) {
+      CHECK(std::abs(saved[i].second.transform[corner] - after[i].second.transform[corner]) < 1e-6);
+    }
+  }
+}
+
 patchy::Layer* first_non_affine_locked_layer(std::vector<patchy::Layer>& layers) {
   for (auto& layer : layers) {
     if (layer.kind() == patchy::LayerKind::Group) {
@@ -514,6 +582,92 @@ void smart_object_rescaled_placement_matches_photoshop_replace_rule() {
   CHECK(std::abs(replaced.transform[1] - 85.5) < 1e-9);
   CHECK(std::abs(replaced.transform[4] - 120.0) < 1e-9);
   CHECK(std::abs(replaced.transform[5] - 115.5) < 1e-9);
+}
+
+void smart_object_placements_follow_document_geometry() {
+  // Photoshop keeps placed content non-destructive through Image Size, Canvas Size,
+  // Crop, and canvas Rotate rather than demanding a rasterize first. Trnf is in
+  // DOCUMENT coordinates, so a quad left behind by a document-space remap puts the
+  // content back at its pre-operation rectangle on the next re-render or save.
+  const auto make_document = [] {
+    patchy::Document document(100, 80, patchy::PixelFormat::rgba8());
+    patchy::Layer placed(document.allocate_layer_id(), "Placed",
+                         patchy::PixelBuffer(40, 30, patchy::PixelFormat::rgba8()));
+    placed.set_bounds(patchy::Rect{10, 20, 40, 30});
+    patchy::SmartObjectPlacement placement;
+    placement.uuid = "source-uuid";
+    placement.transform = {10.0, 20.0, 50.0, 20.0, 50.0, 50.0, 10.0, 50.0};
+    // A stashed perspective quad has to map per corner alongside Trnf.
+    placement.non_affine_transform = std::array<double, 8>{12.0, 20.0, 50.0, 22.0,
+                                                           48.0, 50.0, 10.0, 48.0};
+    placement.width = 40.0;
+    placement.height = 30.0;
+    placement.resolution = 72.0;
+    patchy::set_layer_smart_object_metadata(placed, placement, "placed-uuid", "SoLd", "",
+                                            patchy::kSmartObjectRasterStatusPhotoshop);
+    document.add_layer(std::move(placed));
+    return document;
+  };
+  const auto placement_of = [](const patchy::Document& document) {
+    return patchy::smart_object_placement_from_layer(document.layers().front())
+        .value_or(patchy::SmartObjectPlacement{});
+  };
+  const auto close_enough = [](const std::array<double, 8>& quad,
+                               const std::array<double, 8>& expected) {
+    for (std::size_t i = 0; i < quad.size(); ++i) {
+      if (std::abs(quad[i] - expected[i]) > 1e-9) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  {
+    auto document = make_document();
+    patchy::resize_image_and_layers(document, 200, 160);
+    const auto placement = placement_of(document);
+    CHECK(close_enough(placement.transform,
+                       {20.0, 40.0, 100.0, 40.0, 100.0, 100.0, 20.0, 100.0}));
+    CHECK(placement.non_affine_transform.has_value());
+    CHECK(close_enough(*placement.non_affine_transform,
+                       {24.0, 40.0, 100.0, 44.0, 96.0, 100.0, 20.0, 96.0}));
+    // The source size and density describe the CONTENT, which the document resize
+    // never touched; only where the content lands moved.
+    CHECK(placement.width == 40.0 && placement.height == 30.0);
+    CHECK(placement.resolution == 72.0);
+    const auto& layer = std::as_const(document).layers().front();
+    CHECK(patchy::layer_smart_object_block_dirty(layer));
+    const auto& metadata = layer.metadata();
+    const auto status = metadata.find(patchy::kLayerMetadataSmartObjectRasterStatus);
+    CHECK(status != metadata.end() &&
+          status->second == patchy::kSmartObjectRasterStatusPatchy);
+  }
+  {
+    auto document = make_document();
+    patchy::resize_canvas_and_layers(document, 120, 100, patchy::CanvasAnchor::Center);
+    CHECK(close_enough(placement_of(document).transform,
+                       {20.0, 30.0, 60.0, 30.0, 60.0, 60.0, 20.0, 60.0}));
+  }
+  {
+    auto document = make_document();
+    CHECK(patchy::crop_document(document, patchy::Rect{10, 20, 40, 30}));
+    CHECK(close_enough(placement_of(document).transform,
+                       {0.0, 0.0, 40.0, 0.0, 40.0, 30.0, 0.0, 30.0}));
+  }
+  {
+    // Clockwise maps (x, y) -> (H - y, x) with H the pre-rotation height.
+    auto document = make_document();
+    patchy::rotate_document_clockwise(document);
+    CHECK(close_enough(placement_of(document).transform,
+                       {60.0, 10.0, 60.0, 50.0, 30.0, 50.0, 30.0, 10.0}));
+  }
+  {
+    // Counterclockwise maps (x, y) -> (y, W - x) with W the pre-rotation width.
+    auto document = make_document();
+    patchy::rotate_document_counterclockwise(document);
+    CHECK(close_enough(placement_of(document).transform,
+                       {20.0, 90.0, 20.0, 50.0, 50.0, 50.0, 50.0, 90.0}));
+  }
 }
 
 void smart_object_store_remove_and_generated_uuid_shape() {
@@ -1688,6 +1842,8 @@ std::vector<patchy::test::TestCase> smart_objects_warp_tests() {
       {"psd_dangling_smart_object_blocks_are_stripped", psd_dangling_smart_object_blocks_are_stripped},
       {"psd_smart_object_sources_survive_resave_if_available",
        psd_smart_object_sources_survive_resave_if_available},
+      {"psd_smart_object_document_resize_scales_placements_if_available",
+       psd_smart_object_document_resize_scales_placements_if_available},
       {"psd_smart_object_non_affine_quad_maps_through_affine_transform_if_available",
        psd_smart_object_non_affine_quad_maps_through_affine_transform_if_available},
       {"psb_layered_round_trip_preserves_layers_and_blocks",
@@ -1701,6 +1857,8 @@ std::vector<patchy::test::TestCase> smart_objects_warp_tests() {
       {"psd_smart_object_move_regenerates_placed_blocks", psd_smart_object_move_regenerates_placed_blocks},
       {"smart_object_rescaled_placement_matches_photoshop_replace_rule",
        smart_object_rescaled_placement_matches_photoshop_replace_rule},
+      {"smart_object_placements_follow_document_geometry",
+       smart_object_placements_follow_document_geometry},
       {"smart_object_store_remove_and_generated_uuid_shape",
        smart_object_store_remove_and_generated_uuid_shape},
       {"psd_smart_object_committed_psb_contents_round_trip",

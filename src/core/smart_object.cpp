@@ -368,6 +368,24 @@ SmartObjectPlacement rescaled_smart_object_placement(const SmartObjectPlacement&
   return result;
 }
 
+SmartObjectPlacement transformed_smart_object_placement(const SmartObjectPlacement& placement,
+                                                        const std::array<double, 6>& matrix) {
+  const auto map_quad = [&matrix](std::array<double, 8>& quad) {
+    for (std::size_t i = 0; i < quad.size(); i += 2U) {
+      const double x = quad[i];
+      const double y = quad[i + 1U];
+      quad[i] = matrix[0] * x + matrix[2] * y + matrix[4];
+      quad[i + 1U] = matrix[1] * x + matrix[3] * y + matrix[5];
+    }
+  };
+  SmartObjectPlacement result = placement;
+  map_quad(result.transform);
+  if (result.non_affine_transform.has_value()) {
+    map_quad(*result.non_affine_transform);
+  }
+  return result;
+}
+
 std::optional<SmartObjectPlacement> smart_object_placement_from_layer(const Layer& layer) {
   const auto uuid = metadata_value(layer, kLayerMetadataSmartObject);
   const auto transform_text = metadata_value(layer, kLayerMetadataSmartObjectTransform);

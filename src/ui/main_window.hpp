@@ -503,6 +503,16 @@ private:
   void create_new_document();
   void resize_image_dialog();
   void resize_canvas_dialog();
+  // Shared gate for the whole-document geometry operations (Image Size, Canvas Size,
+  // Crop, Rotate). Smart-object placements ride a document-space remap, so those are
+  // allowed; native Smart Filter caches and unparsed placements still cannot follow.
+  // Shows the matching status error and returns true when the caller must abort.
+  [[nodiscard]] bool refuse_document_geometry_change();
+  // Re-renders every editable smart object from its immutable source after a geometry
+  // change that RESAMPLED the previews (Image Size). Photoshop's Image Size stays
+  // non-destructive; without this the layer would keep the bilinear-scaled preview even
+  // though the source is still full resolution. Callers own the undo snapshot.
+  void rerender_smart_object_previews();
   void open_document();
   void open_document_path(QString path);
   // SVG post-open pass: renders text layers the Qt-free reader marked

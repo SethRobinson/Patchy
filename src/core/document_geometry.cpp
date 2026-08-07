@@ -9,6 +9,7 @@
 #include "core/document_path.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/pixel_tools_internal.hpp"
+#include "core/smart_object.hpp"
 #include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
 
@@ -696,6 +697,38 @@ void compose_document_text_transforms(std::vector<Layer>& layers,
   }
 }
 
+// The placed-layer counterpart of compose_text_layer_transform: a smart object's SoLd
+// 'Trnf' quad is DOCUMENT space, so an operation that remaps document space has to map
+// it or the next re-render (a move, a transform) and the saved SoLd both put the placed
+// content back at its pre-operation rectangle. Photoshop maps placements the same way,
+// which is why Image Size on a smart object stays non-destructive there. The pixels the
+// caller resamples/rotates/crops remain the preview; marking the block dirty makes the
+// writer regenerate the SoLd patch-in-place from this quad. Layers whose SoLd never
+// parsed have no quad to map -- the UI refuses document geometry for those instead.
+void compose_smart_object_placement(Layer& layer, const std::array<double, 6>& matrix) {
+  if (!layer_is_smart_object(std::as_const(layer))) {
+    return;
+  }
+  const auto placement = smart_object_placement_from_layer(std::as_const(layer));
+  if (!placement.has_value()) {
+    return;
+  }
+  store_smart_object_placement(layer, transformed_smart_object_placement(*placement, matrix));
+  mark_layer_smart_object_block_dirty(layer);
+  layer.metadata()[kLayerMetadataSmartObjectRasterStatus] = kSmartObjectRasterStatusPatchy;
+}
+
+void compose_document_smart_object_placements(std::vector<Layer>& layers,
+                                              const std::array<double, 6>& matrix) {
+  for (auto& layer : layers) {
+    if (layer.kind() == LayerKind::Group) {
+      compose_document_smart_object_placements(layer.children(), matrix);
+      continue;
+    }
+    compose_smart_object_placement(layer, matrix);
+  }
+}
+
 }  // namespace
 
 void transform_layer_vector_data(Document& document, Layer& layer,
@@ -814,6 +847,7 @@ void resize_image_and_layers(Document& document, std::int32_t width, std::int32_
   const auto sy = static_cast<double>(height) / old_height;
   // Before the raster loop: the implicit-transform case reads pre-resize bounds.
   compose_document_text_transforms(document.layers(), {sx, 0.0, 0.0, sy, 0.0, 0.0});
+  compose_document_smart_object_placements(document.layers(), {sx, 0.0, 0.0, sy, 0.0, 0.0});
   for (auto& layer : document.layers()) {
     resize_layer_image(layer, old_width, old_height, width, height);
   }
@@ -833,6 +867,9 @@ void resize_canvas_and_layers(Document& document, std::int32_t width, std::int32
 
   const auto offset = canvas_resize_offset(anchor, document.width(), document.height(), width, height);
   compose_document_text_transforms(
+      document.layers(),
+      {1.0, 0.0, 0.0, 1.0, static_cast<double>(offset.x), static_cast<double>(offset.y)});
+  compose_document_smart_object_placements(
       document.layers(),
       {1.0, 0.0, 0.0, 1.0, static_cast<double>(offset.x), static_cast<double>(offset.y)});
   for (auto& channel : document.channels()) {
@@ -857,6 +894,9 @@ bool crop_document(Document& document, Rect crop) {
   compose_document_text_transforms(
       document.layers(),
       {1.0, 0.0, 0.0, 1.0, static_cast<double>(-crop.x), static_cast<double>(-crop.y)});
+  compose_document_smart_object_placements(
+      document.layers(),
+      {1.0, 0.0, 0.0, 1.0, static_cast<double>(-crop.x), static_cast<double>(-crop.y)});
   for (auto& layer : document.layers()) {
     crop_layer_to_rect(layer, crop);
   }
@@ -876,6 +916,8 @@ void rotate_document_clockwise(Document& document) {
   const auto old_height = document.height();
   compose_document_text_transforms(document.layers(),
                                    {0.0, 1.0, -1.0, 0.0, static_cast<double>(old_height), 0.0});
+  compose_document_smart_object_placements(
+      document.layers(), {0.0, 1.0, -1.0, 0.0, static_cast<double>(old_height), 0.0});
   for (auto& layer : document.layers()) {
     rotate_layer_clockwise(layer, old_height);
   }
@@ -894,6 +936,8 @@ void rotate_document_counterclockwise(Document& document) {
   const auto old_height = document.height();
   compose_document_text_transforms(document.layers(),
                                    {0.0, -1.0, 1.0, 0.0, 0.0, static_cast<double>(old_width)});
+  compose_document_smart_object_placements(
+      document.layers(), {0.0, -1.0, 1.0, 0.0, 0.0, static_cast<double>(old_width)});
   for (auto& layer : document.layers()) {
     rotate_layer_counterclockwise(layer, old_width);
   }
@@ -1021,6 +1065,12 @@ void wrap_offset_document(Document& document, std::int32_t dx, std::int32_t dy) 
   // same raw offset and the inverse offset restores them exactly.
   compose_document_text_transforms(
       document.layers(), {1.0, 0.0, 0.0, 1.0, static_cast<double>(dx), static_cast<double>(dy)});
+  // Smart-object placements deliberately do NOT compose here: a smart object is a
+  // LayerKind::Pixel layer, so wrap_offset_layer ROLLS its preview across the canvas
+  // edges instead of translating it whole, and a quad translated by the raw delta would
+  // stop describing those pixels. Seam offset therefore still refuses documents
+  // containing smart objects (main_window_layer_ops.cpp) until placed records take the
+  // translate_layer_and_mask path the comment above already claims for them.
   for (auto& layer : document.layers()) {
     wrap_offset_layer(layer, width, height, roll_dx, roll_dy, dx, dy);
   }

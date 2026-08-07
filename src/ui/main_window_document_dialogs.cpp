@@ -1134,16 +1134,17 @@ void MainWindow::resize_image_dialog() {
   if (!dimensions_changed && !resolution_changed) {
     return;
   }
-  if (dimensions_changed &&
-      document_contains_smart_objects(std::as_const(doc))) {
-    show_status_error(
-        tr("Rasterize Smart Objects before changing document geometry"));
+  if (dimensions_changed && refuse_document_geometry_change()) {
     return;
   }
 
   push_undo_snapshot(tr("Image size"));
   if (dimensions_changed) {
     resize_image_and_layers(doc, settings->width, settings->height);
+    // Image Size is the one geometry operation that resamples: the scaled placements
+    // re-render from their full-resolution sources so smart objects stay crisp, the
+    // way Photoshop's non-destructive Image Size leaves them.
+    rerender_smart_object_previews();
     canvas_->clear_selection();
     const auto previous_channel_target = canvas_->layer_edit_target();
     const auto previous_channel_id = canvas_->active_document_channel_id();
@@ -1177,9 +1178,7 @@ void MainWindow::resize_canvas_dialog() {
   if (settings->width == doc.width() && settings->height == doc.height()) {
     return;
   }
-  if (document_contains_smart_objects(std::as_const(doc))) {
-    show_status_error(
-        tr("Rasterize Smart Objects before changing document geometry"));
+  if (refuse_document_geometry_change()) {
     return;
   }
 

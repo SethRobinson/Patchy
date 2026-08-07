@@ -83,6 +83,31 @@ bool document_contains_smart_objects(const Document& document) {
 
 namespace {
 
+bool layer_tree_contains_unparsed_smart_object(const Layer& layer) {
+  if (layer_is_smart_object(layer) && !smart_object_placement_from_layer(layer).has_value()) {
+    return true;
+  }
+  return std::any_of(layer.children().begin(), layer.children().end(),
+                     layer_tree_contains_unparsed_smart_object);
+}
+
+}  // namespace
+
+bool document_contains_smart_filters(const Document& document) {
+  if (!document.metadata().smart_filter_effects.empty()) {
+    return true;
+  }
+  return std::any_of(document.layers().begin(), document.layers().end(),
+                     layer_tree_contains_smart_filters);
+}
+
+bool document_contains_unparsed_smart_objects(const Document& document) {
+  return std::any_of(document.layers().begin(), document.layers().end(),
+                     layer_tree_contains_unparsed_smart_object);
+}
+
+namespace {
+
 bool layer_tree_contains_vector_content(const Layer& layer) {
   if (layer.vector_shape() != nullptr || layer.vector_mask() != nullptr) {
     return true;

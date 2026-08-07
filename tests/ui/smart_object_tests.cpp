@@ -1366,6 +1366,107 @@ void ui_smart_object_via_copy_diverges_and_transform_rerenders() {
   CHECK(std::abs(static_cast<double>(transformed->bounds().width) - after_width) < 2.0);
 }
 
+void ui_smart_object_image_size_scales_placement_and_rerenders() {
+  // Photoshop resizes a document containing smart objects without asking for a
+  // rasterize first, so Patchy does too: the placement quad rides the resize and the
+  // preview comes back from the full-resolution source instead of staying the
+  // bilinear-scaled pixels the resize left behind.
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto layer_id = open_smart_object_fixture(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  CHECK(canvas != nullptr);
+  const auto before =
+      patchy::smart_object_placement_from_layer(*std::as_const(document).find_layer(layer_id));
+  CHECK(before.has_value());
+  const auto old_width = document.width();
+  const auto old_height = document.height();
+
+  accept_image_size_dialog(old_width * 2, old_height * 2);
+  require_action(window, "imageSizeAction")->trigger();
+  QApplication::processEvents();
+  CHECK(!window.statusBar()->currentMessage().contains(QStringLiteral("Rasterize")));
+  CHECK(document.width() == old_width * 2 && document.height() == old_height * 2);
+
+  const auto* resized = std::as_const(document).find_layer(layer_id);
+  CHECK(resized != nullptr);
+  const auto after = patchy::smart_object_placement_from_layer(*resized);
+  CHECK(after.has_value());
+  for (std::size_t i = 0; i < 8U; ++i) {
+    CHECK(std::abs(after->transform[i] - before->transform[i] * 2.0) < 1e-9);
+  }
+  // The CONTENT is untouched: only where it lands moved, so the source stays the same
+  // pixel size and density and the layer stays non-destructive.
+  CHECK(after->width == before->width && after->height == before->height);
+  CHECK(after->resolution == before->resolution);
+  CHECK(after->uuid == before->uuid);
+  CHECK(patchy::layer_smart_object_block_dirty(*resized));
+  const auto& metadata = std::as_const(*resized).metadata();
+  const auto raster_status = metadata.find(patchy::kLayerMetadataSmartObjectRasterStatus);
+  CHECK(raster_status != metadata.end() &&
+        raster_status->second == patchy::kSmartObjectRasterStatusPatchy);
+
+  // Byte-compare against a direct render of the embedded source through the scaled
+  // quad: that is what "re-rendered, not resampled" means.
+  const auto* source = std::as_const(document).metadata().smart_objects.find(after->uuid);
+  CHECK(source != nullptr);
+  const auto source_image = patchy::ui::decode_smart_object_source_image(*source);
+  CHECK(source_image.has_value());
+  const auto expected = patchy::ui::render_smart_object_pixels(*source_image, *after,
+                                                               canvas->transform_interpolation());
+  CHECK(expected.has_value());
+  const auto bounds = resized->bounds();
+  CHECK(bounds.x == expected->bounds.x && bounds.y == expected->bounds.y);
+  CHECK(bounds.width == expected->bounds.width && bounds.height == expected->bounds.height);
+  const auto& pixels = std::as_const(*resized).pixels();
+  bool pixels_match = pixels.format().channels == 4 && pixels.width() == expected->image.width() &&
+                      pixels.height() == expected->image.height();
+  for (std::int32_t y = 0; pixels_match && y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      const auto* actual = pixels.pixel(x, y);
+      const auto sample = expected->image.pixelColor(x, y);
+      if (actual[0] != sample.red() || actual[1] != sample.green() || actual[2] != sample.blue() ||
+          actual[3] != sample.alpha()) {
+        pixels_match = false;
+        break;
+      }
+    }
+  }
+  CHECK(pixels_match);
+
+  // Canvas Size is the same gate: the quad translates by the anchor offset.
+  const auto quad_before_canvas = after->transform;
+  accept_canvas_size_dialog(document.width() + 40, document.height() + 20);
+  require_action(window, "imageCanvasSizeAction")->trigger();
+  QApplication::processEvents();
+  CHECK(!window.statusBar()->currentMessage().contains(QStringLiteral("Rasterize")));
+  const auto shifted =
+      patchy::smart_object_placement_from_layer(*std::as_const(document).find_layer(layer_id));
+  CHECK(shifted.has_value());
+  for (std::size_t i = 0; i < 8U; i += 2U) {
+    CHECK(std::abs(shifted->transform[i] - (quad_before_canvas[i] + 20.0)) < 1e-9);
+    CHECK(std::abs(shifted->transform[i + 1U] - (quad_before_canvas[i + 1U] + 10.0)) < 1e-9);
+  }
+
+  // The regenerated SoLd has to carry the new quad, or a resave puts the placed
+  // content back where it was before the resize.
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(std::as_const(document));
+  const auto reread = patchy::psd::DocumentIo::read(bytes);
+  const patchy::Layer* reread_layer = nullptr;
+  for (const auto& candidate : std::as_const(reread).layers()) {
+    if (patchy::layer_is_smart_object(candidate)) {
+      reread_layer = &candidate;
+    }
+  }
+  CHECK(reread_layer != nullptr);
+  const auto saved = patchy::smart_object_placement_from_layer(*reread_layer);
+  CHECK(saved.has_value());
+  for (std::size_t i = 0; i < 8U; ++i) {
+    CHECK(std::abs(saved->transform[i] - shifted->transform[i]) < 1e-6);
+  }
+}
+
 void ui_smart_object_external_edit_from_disk_saves_and_refreshes_parent() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -1620,6 +1721,8 @@ std::vector<patchy::test::TestCase> smart_object_tests() {
       {"ui_smart_object_place_embedded_centers_and_fits", ui_smart_object_place_embedded_centers_and_fits},
       {"ui_smart_object_via_copy_diverges_and_transform_rerenders",
        ui_smart_object_via_copy_diverges_and_transform_rerenders},
+      {"ui_smart_object_image_size_scales_placement_and_rerenders",
+       ui_smart_object_image_size_scales_placement_and_rerenders},
       {"ui_smart_object_external_edit_from_disk_saves_and_refreshes_parent",
        ui_smart_object_external_edit_from_disk_saves_and_refreshes_parent},
       {"ui_smart_object_update_content_rereads_linked_file",

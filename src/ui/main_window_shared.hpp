@@ -54,6 +54,16 @@ struct BrushPreset;
 [[nodiscard]] bool layer_tree_contains_smart_filters(const Layer& layer);
 [[nodiscard]] bool layer_tree_contains_smart_object(const Layer& layer);
 [[nodiscard]] bool document_contains_smart_objects(const Document& document);
+// Whole-document geometry (Image Size, Canvas Size, Crop, Rotate) remaps document
+// space, and smart-object placement quads ride that remap (core/document_geometry.cpp).
+// These two shapes cannot follow, so the operations still refuse them. A native Smart
+// Filter stack keeps its FEid cache and shared filter mask in DOCUMENT space as
+// preserved blobs Patchy re-emits rather than re-canvases (an empty store is also
+// checked, so a cache whose stack failed to model still counts). A smart object whose
+// SoLd never parsed has no quad to map at all. Either one would leave the saved PSD
+// describing the pre-operation canvas.
+[[nodiscard]] bool document_contains_smart_filters(const Document& document);
+[[nodiscard]] bool document_contains_unparsed_smart_objects(const Document& document);
 // Any layer carrying a vector shape or vector mask (geometry-op guard until
 // the vector geometry integration lands).
 [[nodiscard]] bool document_contains_vector_content(const Document& document);
