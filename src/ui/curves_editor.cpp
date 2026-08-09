@@ -121,17 +121,16 @@ CurvesHistograms curves_histograms_from_pixels(const PixelBuffer* source,
   if (!external_alpha.empty() && external_alpha.size() != pixel_count) {
     return result;
   }
-  const auto total_pixels = static_cast<double>(width) * static_cast<double>(height);
-  const auto sample_step = std::max(1, static_cast<int>(std::ceil(std::sqrt(total_pixels / 262144.0))));
   const auto channels = source->format().channels;
-  // One box-averaged sample per step-by-step block. Averaging fills channel values
-  // absent from quantized sources, matching Photoshop's cache-pyramid histograms
-  // instead of drawing comb gaps. Block sums fit u32: step stays <= 586 even for
-  // 300k-square documents, so a sum is at most 586 * 586 * 255.
-  for (std::int32_t block_y = 0; block_y < height; block_y += sample_step) {
-    const auto block_bottom = std::min<std::int32_t>(height, block_y + sample_step);
-    for (std::int32_t block_x = 0; block_x < width; block_x += sample_step) {
-      const auto block_right = std::min<std::int32_t>(width, block_x + sample_step);
+  // One box-averaged sample per 2x2 block, the same light averaging as
+  // Photoshop's cache-level-2 histograms. Averaging fills channel values absent
+  // from quantized sources (no comb gaps); the kernel must stay small because a
+  // larger one collapses noisy channels into a few towering bins that crush the
+  // rest of the linear, max-normalized display.
+  for (std::int32_t block_y = 0; block_y < height; block_y += 2) {
+    const auto block_bottom = std::min<std::int32_t>(height, block_y + 2);
+    for (std::int32_t block_x = 0; block_x < width; block_x += 2) {
+      const auto block_right = std::min<std::int32_t>(width, block_x + 2);
       std::uint32_t sum_red = 0;
       std::uint32_t sum_green = 0;
       std::uint32_t sum_blue = 0;
@@ -162,7 +161,9 @@ CurvesHistograms curves_histograms_from_pixels(const PixelBuffer* source,
   }
   // Photoshop's composite histogram is the sum of the channel counts, not luma.
   for (std::size_t index = 0; index < result.rgb.size(); ++index) {
-    result.rgb[index] = result.red[index] + result.green[index] + result.blue[index];
+    const auto total = static_cast<std::uint64_t>(result.red[index]) + result.green[index] + result.blue[index];
+    result.rgb[index] =
+        static_cast<std::uint32_t>(std::min<std::uint64_t>(total, std::numeric_limits<std::uint32_t>::max()));
   }
   return result;
 }

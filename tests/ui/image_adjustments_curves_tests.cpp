@@ -727,13 +727,14 @@ void ui_levels_dialog_preserves_independent_channel_records() {
 }
 
 void ui_levels_histogram_is_linear_and_auto_uses_shared_sampler() {
-  // 200x100 = 20,000 pixels keeps sample_step at 1: 90% of pixels at gray 60
-  // and 10% at gray 180 give a composite histogram of 54,000 vs 6,000 counts.
+  // 90% of the 2x2 sample blocks sit at gray 60 and 10% at gray 180 (the
+  // bright pixels are block-aligned so averaging cannot mix the two), giving a
+  // composite histogram of 13,500 vs 1,500 counts.
   patchy::PixelBuffer pixels(200, 100, patchy::PixelFormat::rgb8());
   for (std::int32_t y = 0; y < 100; ++y) {
     for (std::int32_t x = 0; x < 200; ++x) {
       auto* pixel = pixels.pixel(x, y);
-      const auto value = static_cast<std::uint8_t>((y * 200 + x) % 10 == 0 ? 180 : 60);
+      const auto value = static_cast<std::uint8_t>(((x / 2) + (y / 2) * 100) % 10 == 0 ? 180 : 60);
       pixel[0] = value;
       pixel[1] = value;
       pixel[2] = value;
@@ -2018,9 +2019,8 @@ void ui_curves_transient_canvas_read_is_non_mutating() {
 }
 
 void ui_curves_histograms_box_average_fills_missing_codes() {
-  // 550x550 = 302,500 pixels gives sample_step = ceil(sqrt(302500 / 262144)) = 2,
-  // so sampling averages 2x2 blocks. A red checkerboard of 100/102 only ever
-  // shows code 100 under the old point decimation; box averaging lands on 101.
+  // Sampling averages 2x2 blocks. A red checkerboard of 100/102 only ever
+  // shows code 100 under point decimation; box averaging lands on 101.
   patchy::PixelBuffer quantized(550, 550, patchy::PixelFormat::rgb8());
   for (std::int32_t y = 0; y < 550; ++y) {
     for (std::int32_t x = 0; x < 550; ++x) {
@@ -2060,6 +2060,34 @@ void ui_curves_histograms_box_average_fills_missing_codes() {
   CHECK(sparse_histograms.red[33] == opaque_blocks);
   CHECK(std::accumulate(sparse_histograms.red.begin(), sparse_histograms.red.end(), std::uint64_t{0}) ==
         opaque_blocks);
+
+  // The kernel must stay light: a dark noisy channel keeps its spread instead
+  // of collapsing into a couple of towering bins. This texture cycles red over
+  // all sixteen dark codes block by block; a 10x10 kernel averages neighboring
+  // blocks together, collapsing it into bins 7-8 and crushing the display.
+  patchy::PixelBuffer noisy(512, 512, patchy::PixelFormat::rgb8());
+  for (std::int32_t y = 0; y < 512; ++y) {
+    for (std::int32_t x = 0; x < 512; ++x) {
+      auto* pixel = noisy.pixel(x, y);
+      pixel[0] = static_cast<std::uint8_t>(((x / 2) * 7 + (y / 2) * 13) % 16);
+      pixel[1] = 128;
+      pixel[2] = 128;
+    }
+  }
+  const auto noisy_histograms = patchy::ui::curves_histograms_from_pixels(&noisy);
+  const auto noisy_total =
+      std::accumulate(noisy_histograms.red.begin(), noisy_histograms.red.end(), std::uint64_t{0});
+  CHECK(noisy_total == 256U * 256U);
+  int populated_bins = 0;
+  std::uint32_t tallest_bin = 0;
+  for (const auto count : noisy_histograms.red) {
+    if (count > 0) {
+      ++populated_bins;
+    }
+    tallest_bin = std::max(tallest_bin, count);
+  }
+  CHECK(populated_bins == 16);
+  CHECK(tallest_bin * 2U < noisy_total);
 }
 
 void ui_curves_histogram_display_is_linear() {

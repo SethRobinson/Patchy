@@ -29,8 +29,8 @@ struct CurvesHistograms {
   std::array<std::uint32_t, 256> blue{};
 };
 
-// Builds all four display histograms in one bounded pass, binning one
-// box-averaged sample per block so quantized sources chart without comb gaps;
+// Builds all four display histograms in one pass, binning one box-averaged
+// sample per 2x2 block so quantized sources chart without comb gaps;
 // the composite is the sum of the channel counts, matching Photoshop. An
 // optional external alpha plane lets RGB compositor output keep transparent
 // pixels out without an RGBA copy; it must contain exactly one byte per source
