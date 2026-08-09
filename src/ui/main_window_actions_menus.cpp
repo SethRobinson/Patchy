@@ -945,6 +945,12 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   add_adjustment_action(tr("Auto Colo&r"), QStringLiteral("imageAdjustAutoColorAction"),
                         QStringLiteral("patchy.filters.auto_color"),
                         QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_B));
+  auto* auto_all_action = adjustments_menu->addAction(tr("A&uto All"));
+  auto_all_action->setObjectName(QStringLiteral("imageAdjustAutoAllAction"));
+  auto_all_action->setIcon(simple_icon(QStringLiteral("AA")));
+  register_hotkey(auto_all_action, "image.auto_all");
+  connect(auto_all_action, &QAction::triggered, this, [this] { auto_all_adjustments(); });
+  register_document_action(auto_all_action);
   adjustments_menu->addSeparator();
   add_adjustment_action(tr("&Brightness/Contrast..."), QStringLiteral("imageAdjustBrightnessContrastAction"),
                         QStringLiteral("patchy.filters.brightness_contrast"));

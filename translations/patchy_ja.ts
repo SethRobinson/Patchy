@@ -8341,6 +8341,14 @@ Mixed selection</source>
         <translation>自動カラー補正(&amp;R)</translation>
     </message>
     <message>
+        <source>A&amp;uto All</source>
+        <translation>すべて自動補正(&amp;U)</translation>
+    </message>
+    <message>
+        <source>Auto All</source>
+        <translation>すべて自動補正</translation>
+    </message>
+    <message>
         <location line="+4"/>
         <source>&amp;Brightness/Contrast...</source>
         <translation>明るさ/コントラスト(&amp;B)...</translation>

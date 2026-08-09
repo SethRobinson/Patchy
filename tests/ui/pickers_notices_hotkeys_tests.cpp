@@ -1073,6 +1073,7 @@ void ui_photoshop_shortcuts_are_registered() {
         QKeySequence(Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_L));
   CHECK(require_action(window, "imageAdjustAutoColorAction")->shortcut() ==
         QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_B));
+  CHECK(require_action(window, "imageAdjustAutoAllAction")->shortcut().isEmpty());
   CHECK(require_action(window, "imageAdjustBrightnessContrastAction")->shortcut().isEmpty());
   CHECK(window.findChild<QAction*>(QStringLiteral("imageAdjustBrightnessAction")) == nullptr);
   CHECK(window.findChild<QAction*>(QStringLiteral("imageAdjustContrastAction")) == nullptr);

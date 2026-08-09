@@ -309,6 +309,7 @@ void ui_main_window_renders_color_controls() {
   CHECK(adjustment_action_texts.contains(QStringLiteral("Auto Tone")));
   CHECK(adjustment_action_texts.contains(QStringLiteral("Auto Contrast")));
   CHECK(adjustment_action_texts.contains(QStringLiteral("Auto Color")));
+  CHECK(adjustment_action_texts.contains(QStringLiteral("Auto All")));
   CHECK(!adjustment_action_texts.contains(QStringLiteral("Brightness...")));
   CHECK(!adjustment_action_texts.contains(QStringLiteral("Contrast...")));
   CHECK(window.findChild<QAction*>(QStringLiteral("imageAdjustBrightnessAction")) == nullptr);

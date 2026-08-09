@@ -302,7 +302,6 @@ void ui_image_adjustments_menu_applies_active_layer_filters() {
   CHECK(canvas_pixel(*canvas, QPoint(20, 90)).red() > 40);
   CHECK(canvas_pixel(*canvas, QPoint(260, 90)).red() < 190);
 
-  accept_filter_dialog();
   require_action(window, "imageAdjustAutoContrastAction")->trigger();
   QApplication::processEvents();
   CHECK(canvas_pixel(*canvas, QPoint(20, 90)).red() < 12);
@@ -383,7 +382,6 @@ void ui_image_adjustments_auto_trio_distinguishes_casts() {
 
   // Composite stretch maps the merged clip points {40, 220} onto every
   // channel: the dark end lands near (57, 14, 0), keeping red > green > blue.
-  accept_filter_dialog();
   require_action(window, "imageAdjustAutoContrastAction")->trigger();
   QApplication::processEvents();
   const auto contrast_dark = canvas_pixel(*canvas, QPoint(20, 90));
@@ -396,7 +394,6 @@ void ui_image_adjustments_auto_trio_distinguishes_casts() {
   QApplication::processEvents();
   CHECK(color_close(canvas_pixel(*canvas, QPoint(20, 90)), QColor(80, 50, 40), 6));
 
-  accept_filter_dialog();
   require_action(window, "imageAdjustAutoToneAction")->trigger();
   QApplication::processEvents();
   const auto tone_dark = canvas_pixel(*canvas, QPoint(20, 90));
@@ -419,7 +416,6 @@ void ui_image_adjustments_auto_trio_distinguishes_casts() {
   // the drag skew all three means equally), so the snap gammas match and the
   // midpoint must come out neutral. The exact 128 midtone target is pinned in
   // the core suite, where the mean is constructed analytically.
-  accept_filter_dialog();
   require_action(window, "imageAdjustAutoColorAction")->trigger();
   QApplication::processEvents();
   const auto color_dark = canvas_pixel(*canvas, QPoint(20, 90));
@@ -436,6 +432,122 @@ void ui_image_adjustments_auto_trio_distinguishes_casts() {
   CHECK(history->currentItem() != nullptr);
   CHECK(history->currentItem()->text().contains(QStringLiteral("Auto Color")));
   save_widget_artifact("ui_image_adjustments_auto_color", *canvas);
+}
+
+void ui_auto_adjustments_apply_without_dialog() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  canvas->set_primary_color(QColor(80, 50, 40));
+  canvas->set_secondary_color(QColor(220, 190, 170));
+  require_action_by_text(window, QStringLiteral("Gradient"))->trigger();
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(20, 90)),
+       canvas->widget_position_for_document_point(QPoint(260, 90)));
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(20, 90)), QColor(80, 50, 40), 6));
+  const auto undo_depth_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+
+  // The autos apply immediately: no settings dialog may appear. A regression
+  // dialog is rejected so the test fails instead of hanging in its loop.
+  bool saw_settings_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
+    saw_settings_dialog = dialog != nullptr;
+    if (dialog != nullptr) {
+      dialog->reject();
+    }
+  });
+  require_action(window, "imageAdjustAutoToneAction")->trigger();
+  QApplication::processEvents();
+  CHECK(!saw_settings_dialog);
+  const auto tone_dark = canvas_pixel(*canvas, QPoint(20, 90));
+  CHECK(tone_dark.red() < 12);
+  CHECK(tone_dark.green() < 12);
+  CHECK(tone_dark.blue() < 12);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth_before + 1);
+  auto* history = window.findChild<QListWidget*>(QStringLiteral("historyList"));
+  CHECK(history != nullptr);
+  CHECK(history->currentItem() != nullptr);
+  CHECK(history->currentItem()->text().contains(QStringLiteral("Auto Tone")));
+}
+
+void ui_auto_all_applies_three_autos_as_one_undo_step() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  canvas->set_primary_color(QColor(80, 50, 40));
+  canvas->set_secondary_color(QColor(220, 190, 170));
+  require_action_by_text(window, QStringLiteral("Gradient"))->trigger();
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(20, 90)),
+       canvas->widget_position_for_document_point(QPoint(260, 90)));
+  QApplication::processEvents();
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(20, 90)), QColor(80, 50, 40), 6));
+
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto active_layer_id = document.active_layer_id();
+  CHECK(active_layer_id.has_value());
+  const auto* layer = std::as_const(document).find_layer(*active_layer_id);
+  CHECK(layer != nullptr);
+  const auto original_pixels = layer->pixels();
+  const auto undo_depth_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+
+  // Reference: the three autos applied back to back. With no selection the
+  // one-recipe Auto All pass must match this byte for byte. An auto that made
+  // no changes pushes no undo entry, so unwind by the measured depth delta.
+  require_action(window, "imageAdjustAutoToneAction")->trigger();
+  QApplication::processEvents();
+  require_action(window, "imageAdjustAutoContrastAction")->trigger();
+  QApplication::processEvents();
+  require_action(window, "imageAdjustAutoColorAction")->trigger();
+  QApplication::processEvents();
+  layer = std::as_const(document).find_layer(*active_layer_id);
+  CHECK(layer != nullptr);
+  const auto sequential_pixels = layer->pixels();
+  CHECK(!std::equal(sequential_pixels.data().begin(), sequential_pixels.data().end(),
+                    original_pixels.data().begin()));
+  const auto sequential_depth = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  CHECK(sequential_depth > undo_depth_before);
+  for (auto depth = sequential_depth; depth > undo_depth_before; --depth) {
+    require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+    QApplication::processEvents();
+  }
+  layer = std::as_const(document).find_layer(*active_layer_id);
+  CHECK(layer != nullptr);
+  CHECK(std::equal(layer->pixels().data().begin(), layer->pixels().data().end(),
+                   original_pixels.data().begin()));
+
+  // One command, one undo step, same bytes as the sequential applications.
+  require_action(window, "imageAdjustAutoAllAction")->trigger();
+  QApplication::processEvents();
+  layer = std::as_const(document).find_layer(*active_layer_id);
+  CHECK(layer != nullptr);
+  CHECK(layer->pixels().data().size() == sequential_pixels.data().size());
+  CHECK(std::equal(layer->pixels().data().begin(), layer->pixels().data().end(),
+                   sequential_pixels.data().begin()));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth_before + 1);
+  auto* history = window.findChild<QListWidget*>(QStringLiteral("historyList"));
+  CHECK(history != nullptr);
+  CHECK(history->currentItem() != nullptr);
+  CHECK(history->currentItem()->text().contains(QStringLiteral("Auto All")));
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  layer = std::as_const(document).find_layer(*active_layer_id);
+  CHECK(layer != nullptr);
+  CHECK(std::equal(layer->pixels().data().begin(), layer->pixels().data().end(),
+                   original_pixels.data().begin()));
+
+  // A constant layer leaves every auto at identity: Auto All reports the
+  // no-change status and pushes no undo entry.
+  canvas->set_primary_color(QColor(128, 128, 128));
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+  const auto undo_depth_after_fill = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  require_action(window, "imageAdjustAutoAllAction")->trigger();
+  QApplication::processEvents();
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("made no changes")));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth_after_fill);
 }
 
 void ui_image_adjustments_respect_active_selection() {
@@ -2783,6 +2895,9 @@ std::vector<patchy::test::TestCase> image_adjustments_curves_tests() {
        ui_image_adjustments_menu_applies_active_layer_filters},
       {"ui_image_adjustments_auto_trio_distinguishes_casts",
        ui_image_adjustments_auto_trio_distinguishes_casts},
+      {"ui_auto_adjustments_apply_without_dialog", ui_auto_adjustments_apply_without_dialog},
+      {"ui_auto_all_applies_three_autos_as_one_undo_step",
+       ui_auto_all_applies_three_autos_as_one_undo_step},
       {"ui_image_adjustments_respect_active_selection", ui_image_adjustments_respect_active_selection},
       {"ui_direct_pixel_previews_preserve_floating_layer_bounds",
        ui_direct_pixel_previews_preserve_floating_layer_bounds},

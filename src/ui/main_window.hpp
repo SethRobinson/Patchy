@@ -602,6 +602,9 @@ private:
   // mutated; pixel-locked text layers are skipped. CLI automation only (run_cli_export).
   int cli_append_text_to_text_layers(const QString& suffix);
   void apply_filter(const QString& identifier);
+  // Applies Auto Tone, Auto Contrast, and Auto Color as one recipe pass and a
+  // single undo step, with no settings dialog.
+  void auto_all_adjustments();
   // Text and shape layers re-render their pixels from their source data, so a
   // destructive pixel edit would silently vanish on the next text/shape edit.
   // Prompts to convert to a smart object (when offered) or rasterize first.

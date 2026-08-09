@@ -1069,6 +1069,15 @@ std::optional<SmartFilterStack> smart_filter_stack_with_recipe(
   return candidate;
 }
 
+// Image > Adjustments autos apply immediately at catalog defaults (amount 100,
+// byte-identical to the raw kernels via blend_filter_with_original's >= 100
+// short-circuit). The amount parameter stays in the catalog for recipes,
+// Saved Looks, and scripting.
+bool filter_applies_without_settings_dialog(const std::string& identifier) {
+  return identifier == "patchy.filters.auto_tone" ||
+         identifier == "patchy.filters.auto_contrast" ||
+         identifier == "patchy.filters.auto_color";
+}
 
 }  // namespace
 
@@ -2331,107 +2340,118 @@ void MainWindow::apply_filter(const QString& identifier) {
     };
     auto initial_invocation = filters_.default_invocation(identifier_text, to_rgb(foreground_color),
                                                           to_rgb(background_color));
-    auto preview_registry = std::make_shared<FilterRegistry>(filters_);
-    auto preview_state = std::make_shared<AsyncPixelPreviewState<FilterPreviewSettings>>();
-    preview_state->start =
-        [this, preview_state, active, original_pixels, last_preview_bounds, selection, bounds,
-         source_pixels, source_bounds, embedded_source,
-         preview_registry](const FilterPreviewSettings& settings) {
-          if (!settings.preview_enabled) {
-            preview_state->pending.reset();
-            ++preview_state->generation;
-            if (auto* preview_layer = document().find_layer(*active); preview_layer != nullptr) {
-              set_layer_pixels_preserving_origin(*preview_layer, *original_pixels, bounds);
-              if (canvas_ != nullptr) {
-                canvas_->document_changed(to_qrect(*last_preview_bounds).united(to_qrect(bounds)));
+    // The autos apply immediately at the catalog defaults; every other filter
+    // gathers its settings (and drives the canvas preview) through the dialog.
+    // The preview machinery must stay inside the dialog branch: the state's
+    // start callback holds a self shared_ptr cycle that only
+    // close_async_pixel_preview breaks.
+    std::optional<FilterInvocation> applied_settings;
+    if (filter_applies_without_settings_dialog(identifier_text)) {
+      applied_settings = std::move(initial_invocation);
+    } else {
+      auto preview_registry = std::make_shared<FilterRegistry>(filters_);
+      auto preview_state = std::make_shared<AsyncPixelPreviewState<FilterPreviewSettings>>();
+      preview_state->start =
+          [this, preview_state, active, original_pixels, last_preview_bounds, selection, bounds,
+           source_pixels, source_bounds, embedded_source,
+           preview_registry](const FilterPreviewSettings& settings) {
+            if (!settings.preview_enabled) {
+              preview_state->pending.reset();
+              ++preview_state->generation;
+              if (auto* preview_layer = document().find_layer(*active); preview_layer != nullptr) {
+                set_layer_pixels_preserving_origin(*preview_layer, *original_pixels, bounds);
+                if (canvas_ != nullptr) {
+                  canvas_->document_changed(to_qrect(*last_preview_bounds).united(to_qrect(bounds)));
+                }
+                *last_preview_bounds = bounds;
               }
-              *last_preview_bounds = bounds;
-            }
-            return;
-          }
-
-          preview_state->in_flight = true;
-          const auto generation = ++preview_state->generation;
-          auto result_bounds = std::make_shared<Rect>(source_bounds);
-          auto* app = QCoreApplication::instance();
-          auto window = QPointer<MainWindow>(this);
-          if (canvas_ != nullptr) {
-            canvas_->begin_preview_render();
-          }
-          run_tracked_background_worker([app, window, preview_state, generation, result_bounds, last_preview_bounds,
-                       selection, bounds, source_pixels, source_bounds, embedded_source, settings,
-                       preview_registry, active] {
-            auto result = std::make_shared<PixelBuffer>();
-            auto error = std::make_shared<QString>();
-            try {
-              *result = build_filter_preview_pixels(*source_pixels, selection, source_bounds, *preview_registry,
-                                                    settings, nullptr, &*result_bounds);
-              if (embedded_source) {
-                *result_bounds = trim_transparent_border(*result, *result_bounds, bounds);
-              }
-            } catch (const std::exception& caught) {
-              *error = QString::fromUtf8(caught.what());
-            }
-            if (app == nullptr) {
               return;
             }
-            QMetaObject::invokeMethod(
-                app,
-                [window, preview_state, generation, active, result_bounds, last_preview_bounds, result,
-                 error]() mutable {
-                  preview_state->in_flight = false;
-                  if (window != nullptr && window->canvas_ != nullptr) {
-                    window->canvas_->end_preview_render();
-                  }
-                  const auto has_pending = preview_state->pending.has_value();
-                  if (!preview_state->closed && !has_pending && generation == preview_state->generation &&
-                      window != nullptr) {
-                    if (error->isEmpty()) {
-                      if (auto* layer = window->document().find_layer(*active); layer != nullptr) {
-                        set_layer_pixels_with_bounds(*layer, std::move(*result), *result_bounds);
-                        if (window->canvas_ != nullptr) {
-                          window->canvas_->document_changed(
-                              to_qrect(*last_preview_bounds).united(to_qrect(*result_bounds)));
-                        }
-                        *last_preview_bounds = *result_bounds;
-                      }
-                    } else {
-                      window->show_status_error(
-                          window->tr("Filter preview failed: %1").arg(*error));
-                    }
-                  }
-                  if (!preview_state->closed && preview_state->pending.has_value() && preview_state->start) {
-                    auto next = *preview_state->pending;
-                    preview_state->pending.reset();
-                    preview_state->start(next);
-                  }
-                },
-                Qt::QueuedConnection);
-          });
-        };
-    const auto preview_changed = [preview_state](FilterPreviewSettings settings) {
-      enqueue_async_pixel_preview(preview_state, std::move(settings), !settings.preview_enabled);
-    };
 
-    auto preview_edit_lock = lock_preview_dialog_edits();
-    const FilterDialogPreviewSource dialog_preview_source{
-        source_pixels.get(), source_bounds, selection, &filters_};
-    const auto settings =
-        request_filter_settings(this, dialog_spec, preview_changed,
-                                std::move(initial_invocation),
-                                &dialog_preview_source);
-    close_async_pixel_preview(preview_state);
-    layer = doc.find_layer(*active);
-    if (layer == nullptr) {
-      return;
-    }
-    set_layer_pixels_preserving_origin(*layer, *original_pixels, bounds);
-    canvas_->document_changed(to_qrect(*last_preview_bounds).united(to_qrect(bounds)));
-    *last_preview_bounds = bounds;
-    preview_edit_lock.release();
-    if (!settings.has_value()) {
-      statusBar()->showMessage(tr("Cancelled %1").arg(display_name));
-      return;
+            preview_state->in_flight = true;
+            const auto generation = ++preview_state->generation;
+            auto result_bounds = std::make_shared<Rect>(source_bounds);
+            auto* app = QCoreApplication::instance();
+            auto window = QPointer<MainWindow>(this);
+            if (canvas_ != nullptr) {
+              canvas_->begin_preview_render();
+            }
+            run_tracked_background_worker([app, window, preview_state, generation, result_bounds, last_preview_bounds,
+                         selection, bounds, source_pixels, source_bounds, embedded_source, settings,
+                         preview_registry, active] {
+              auto result = std::make_shared<PixelBuffer>();
+              auto error = std::make_shared<QString>();
+              try {
+                *result = build_filter_preview_pixels(*source_pixels, selection, source_bounds, *preview_registry,
+                                                      settings, nullptr, &*result_bounds);
+                if (embedded_source) {
+                  *result_bounds = trim_transparent_border(*result, *result_bounds, bounds);
+                }
+              } catch (const std::exception& caught) {
+                *error = QString::fromUtf8(caught.what());
+              }
+              if (app == nullptr) {
+                return;
+              }
+              QMetaObject::invokeMethod(
+                  app,
+                  [window, preview_state, generation, active, result_bounds, last_preview_bounds, result,
+                   error]() mutable {
+                    preview_state->in_flight = false;
+                    if (window != nullptr && window->canvas_ != nullptr) {
+                      window->canvas_->end_preview_render();
+                    }
+                    const auto has_pending = preview_state->pending.has_value();
+                    if (!preview_state->closed && !has_pending && generation == preview_state->generation &&
+                        window != nullptr) {
+                      if (error->isEmpty()) {
+                        if (auto* layer = window->document().find_layer(*active); layer != nullptr) {
+                          set_layer_pixels_with_bounds(*layer, std::move(*result), *result_bounds);
+                          if (window->canvas_ != nullptr) {
+                            window->canvas_->document_changed(
+                                to_qrect(*last_preview_bounds).united(to_qrect(*result_bounds)));
+                          }
+                          *last_preview_bounds = *result_bounds;
+                        }
+                      } else {
+                        window->show_status_error(
+                            window->tr("Filter preview failed: %1").arg(*error));
+                      }
+                    }
+                    if (!preview_state->closed && preview_state->pending.has_value() && preview_state->start) {
+                      auto next = *preview_state->pending;
+                      preview_state->pending.reset();
+                      preview_state->start(next);
+                    }
+                  },
+                  Qt::QueuedConnection);
+            });
+          };
+      const auto preview_changed = [preview_state](FilterPreviewSettings settings) {
+        enqueue_async_pixel_preview(preview_state, std::move(settings), !settings.preview_enabled);
+      };
+
+      auto preview_edit_lock = lock_preview_dialog_edits();
+      const FilterDialogPreviewSource dialog_preview_source{
+          source_pixels.get(), source_bounds, selection, &filters_};
+      auto settings =
+          request_filter_settings(this, dialog_spec, preview_changed,
+                                  std::move(initial_invocation),
+                                  &dialog_preview_source);
+      close_async_pixel_preview(preview_state);
+      layer = doc.find_layer(*active);
+      if (layer == nullptr) {
+        return;
+      }
+      set_layer_pixels_preserving_origin(*layer, *original_pixels, bounds);
+      canvas_->document_changed(to_qrect(*last_preview_bounds).united(to_qrect(bounds)));
+      *last_preview_bounds = bounds;
+      preview_edit_lock.release();
+      if (!settings.has_value()) {
+        statusBar()->showMessage(tr("Cancelled %1").arg(display_name));
+        return;
+      }
+      applied_settings = std::move(settings);
     }
 
     if (canvas_ != nullptr) {
@@ -2463,7 +2483,7 @@ void MainWindow::apply_filter(const QString& identifier) {
           },
           [&](FilterProgress& filter_progress) {
             final_pixels = build_filter_preview_pixels(*source_pixels, selection, source_bounds, filters_,
-                                                       FilterPreviewSettings{true, *settings},
+                                                       FilterPreviewSettings{true, *applied_settings},
                                                        &filter_progress, &final_bounds);
             if (embedded_source) {
               final_bounds = trim_transparent_border(final_pixels, final_bounds, bounds);
@@ -2512,6 +2532,118 @@ void MainWindow::apply_filter(const QString& identifier) {
     show_critical_message(this, tr("Filter failed"), QString::fromUtf8(error.what()),
                           QStringLiteral("filterFailedMessageBox"));
   }
+}
+
+void MainWindow::auto_all_adjustments() {
+  if (canvas_ != nullptr && canvas_->quick_mask_active()) {
+    show_status_error(
+        tr("Filters are unavailable in Quick Mask mode"));
+    return;
+  }
+  if (canvas_ != nullptr &&
+      (canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::DocumentChannel ||
+       canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::ComponentRed ||
+       canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::ComponentGreen ||
+       canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::ComponentBlue)) {
+    show_status_error(tr("Filters are unavailable while viewing a document channel"));
+    return;
+  }
+  auto& doc = document();
+  const auto active = doc.active_layer_id();
+  if (!active.has_value()) {
+    return;
+  }
+  auto* layer = doc.find_layer(*active);
+  if (!editable_rgb8_layer(layer)) {
+    show_status_error(tr("Select an editable RGB pixel layer"));
+    return;
+  }
+  if (layer_id_locks_image_pixels(*active)) {
+    show_status_error(tr("Layer pixels are locked."));
+    return;
+  }
+  const auto display_name = tr("Auto All");
+  if (!prompt_rasterize_procedural_layer(*active, display_name, false)) {
+    return;
+  }
+  layer = doc.find_layer(*active);
+  if (!editable_rgb8_layer(layer)) {
+    show_status_error(tr("Select an editable RGB pixel layer"));
+    return;
+  }
+  if (layer_is_smart_object(*layer)) {
+    show_status_error(tr(
+        "Rasterize the Smart Object before applying destructive filters or adjustments"));
+    return;
+  }
+  const auto active_id = *active;
+  const auto bounds = layer->bounds();
+  auto original_pixels =
+      std::make_shared<const PixelBuffer>(std::as_const(*layer).pixels());
+  const auto selection = canvas_->selected_document_region();
+
+  const auto to_rgb = [](const QColor& color) {
+    return RgbColor{static_cast<std::uint8_t>(color.red()), static_cast<std::uint8_t>(color.green()),
+                    static_cast<std::uint8_t>(color.blue())};
+  };
+  const auto foreground = to_rgb(canvas_->primary_color());
+  const auto background = to_rgb(canvas_->secondary_color());
+  // One three-entry recipe pass: whole-layer analysis chains across the
+  // entries and outside-selection pixels restore once at the end, matching a
+  // gallery recipe of the three autos.
+  FilterRecipe recipe;
+  for (const auto* id : {"patchy.filters.auto_tone", "patchy.filters.auto_contrast",
+                         "patchy.filters.auto_color"}) {
+    FilterRecipeEntry entry;
+    entry.invocation = filters_.default_invocation(id, foreground, background);
+    recipe.entries.push_back(std::move(entry));
+  }
+
+  if (canvas_ != nullptr) {
+    canvas_->begin_processing_operation();
+  }
+  const auto finish_processing = qScopeGuard([this] {
+    if (canvas_ != nullptr) {
+      canvas_->end_processing_operation();
+    }
+  });
+  QProgressDialog progress(tr("Applying %1...").arg(display_name), tr("Cancel"), 0, 100, this);
+  progress.setObjectName(QStringLiteral("adjustmentProgressDialog"));
+  progress.setWindowModality(Qt::WindowModal);
+  progress.setMinimumDuration(kFilterProgressMinimumDurationMs);
+  remember_dialog_position(progress);
+  progress.setValue(0);
+  PixelBuffer final_pixels;
+  try {
+    run_filter_compute_with_progress(
+        progress,
+        [display_name](const QString& detail) { return tr("Applying %1...\n%2").arg(display_name, detail); },
+        [this] {
+          if (canvas_ != nullptr) {
+            canvas_->tick_processing_operation();
+          }
+        },
+        [&](FilterProgress& filter_progress) {
+          final_pixels = build_filter_preview_pixels(*original_pixels, selection, bounds, filters_, recipe,
+                                                     &filter_progress, nullptr);
+        });
+    progress.setValue(100);
+  } catch (const FilterCancelled&) {
+    statusBar()->showMessage(tr("Cancelled %1").arg(display_name));
+    return;
+  }
+  if (pixel_buffers_equal(final_pixels, *original_pixels)) {
+    statusBar()->showMessage(tr("%1 made no changes").arg(display_name));
+    return;
+  }
+  push_undo_snapshot(display_name);
+  layer = doc.find_layer(active_id);
+  if (layer == nullptr) {
+    return;
+  }
+  set_layer_pixels_preserving_origin(*layer, std::move(final_pixels), bounds);
+  canvas_->document_changed(to_qrect(bounds));
+  statusBar()->showMessage(tr("Applied %1").arg(display_name));
 }
 
 void MainWindow::liquify_dialog() {

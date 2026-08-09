@@ -264,7 +264,10 @@ everywhere a bundled script is resolved.
   August 2026 additions (additive, still 1): the `patchy.filters.auto_tone` and
   `patchy.filters.auto_color` command ids reach `app.runCommand`/`commandIds` and
   `layer.applyFilter`, and `patchy.filters.auto_contrast` switched from per-channel
-  to composite stretch (see filters.md; the id is unchanged).
+  to composite stretch (see filters.md; the id is unchanged). Later in August 2026:
+  `image.auto_all` (Auto All) joined the registered command ids, and the three auto
+  command ids now apply immediately with no settings dialog (behavioral; explicit
+  `layer.applyFilter` invocations with an `amount` are unaffected).
 - **`include()` resolution order**: relative to the including script, then the user
   scripts root, then the bundled scripts root; a result inside the bundled folder maps
   through the shadow-override store. `patchy.isMainScript()` is false during an included
