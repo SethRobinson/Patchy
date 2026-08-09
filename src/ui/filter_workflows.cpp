@@ -1109,18 +1109,29 @@ void apply_hue_saturation_to_pixels(PixelBuffer& pixels, Rect bounds, const QReg
                                     HueSaturationSettings settings, const FilterProgress* progress) {
   // Route through the core math so the destructive filter matches an adjustment
   // layer with identical settings exactly, in master mode as well as colorize.
-  // to_hue_saturation_adjustment already clamps every slider.
+  // to_hue_saturation_adjustment already clamps every slider. No LUT is
+  // possible (the transfer depends on the full RGB triple), but the per-pixel
+  // function is pure, so the strip fan-out is byte-identical to the
+  // sequential walk.
   AdjustmentSettings adjustment;
   adjustment.kind = AdjustmentKind::HueSaturation;
   adjustment.hue_saturation = to_hue_saturation_adjustment(settings);
-  for_each_selected_pixel(pixels, bounds, selection, progress, [&](std::int32_t x, std::int32_t y) {
-    auto* px = pixels.pixel(x, y);
-    const auto adjusted = apply_adjustment_to_color(RgbColor{px[0], px[1], px[2]}, adjustment);
-    px[0] = adjusted.red;
-    px[1] = adjusted.green;
-    px[2] = adjusted.blue;
-    // alpha (px[3]) is left untouched
-  });
+  const auto pixel_bytes = bytes_per_pixel(pixels.format());
+
+  const auto apply_span = [&](std::int32_t y, std::int32_t x_begin, std::int32_t x_end) {
+    auto* px = pixels.row(y).data() + static_cast<std::size_t>(x_begin) * pixel_bytes;
+    for (std::int32_t x = x_begin; x < x_end; ++x, px += pixel_bytes) {
+      const auto adjusted = apply_adjustment_to_color(RgbColor{px[0], px[1], px[2]}, adjustment);
+      px[0] = adjusted.red;
+      px[1] = adjusted.green;
+      px[2] = adjusted.blue;
+      // alpha (px[3]) is left untouched
+    }
+  };
+  if (apply_row_spans_in_parallel(pixels, selection, progress, apply_span)) {
+    return;
+  }
+  for_each_selected_row_span(pixels, bounds, selection, progress, apply_span);
 }
 
 void apply_color_balance_to_pixels(PixelBuffer& pixels, Rect bounds, const QRegion& selection,

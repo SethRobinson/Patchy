@@ -2343,6 +2343,48 @@ void ui_levels_parallel_path_matches_sequential() {
   CHECK(std::equal(parallel.data().begin(), parallel.data().end(), sequential.data().begin()));
 }
 
+void ui_hue_saturation_parallel_path_matches_sequential() {
+  // Over 1 Mpx so the strip fan-out gate engages when no progress sink is
+  // given; a non-null progress forces the sequential span walk, so the two
+  // runs cover both paths and must agree byte for byte. No LUT exists for
+  // hue/saturation, so this pins the pure-per-pixel fan-out directly.
+  patchy::PixelBuffer original(1400, 800, patchy::PixelFormat::rgba8());
+  std::uint64_t state = 0x9e3779b97f4a7c15ull;
+  for (auto& byte : original.data()) {
+    state = state * 6364136223846793005ull + 1442695040888963407ull;
+    byte = static_cast<std::uint8_t>(state >> 56);
+  }
+
+  patchy::ui::HueSaturationSettings master;
+  master.hue_shift = 40;
+  master.saturation_delta = 25;
+  master.lightness_delta = -10;
+
+  patchy::ui::HueSaturationSettings colorize;
+  colorize.colorize = true;
+  colorize.colorize_hue = 200;
+  colorize.colorize_saturation = 50;
+
+  for (const auto& settings : {master, colorize}) {
+    auto parallel = original;
+    patchy::ui::apply_hue_saturation_to_pixels(parallel, patchy::Rect::from_size(1400, 800), QRegion(), settings);
+
+    auto sequential = original;
+    int updates = 0;
+    patchy::FilterProgress progress;
+    progress.update = [&updates](int, int, patchy::FilterProgressStage) {
+      ++updates;
+      return true;
+    };
+    patchy::ui::apply_hue_saturation_to_pixels(sequential, patchy::Rect::from_size(1400, 800), QRegion(), settings,
+                                               &progress);
+
+    CHECK(updates > 0);
+    CHECK(parallel.data().size() == sequential.data().size());
+    CHECK(std::equal(parallel.data().begin(), parallel.data().end(), sequential.data().begin()));
+  }
+}
+
 void ui_curves_acv_load_save_updates_editor_and_preview() {
   ensure_artifact_dir();
   const auto input_path =
@@ -2940,6 +2982,8 @@ std::vector<patchy::test::TestCase> image_adjustments_curves_tests() {
       {"ui_levels_destructive_transfer_is_lround_on_double",
        ui_levels_destructive_transfer_is_lround_on_double},
       {"ui_levels_parallel_path_matches_sequential", ui_levels_parallel_path_matches_sequential},
+      {"ui_hue_saturation_parallel_path_matches_sequential",
+       ui_hue_saturation_parallel_path_matches_sequential},
       {"ui_curves_acv_load_save_updates_editor_and_preview",
        ui_curves_acv_load_save_updates_editor_and_preview},
       {"ui_curves_dialog_preview_toggle_and_cancel_restore_pixels",
