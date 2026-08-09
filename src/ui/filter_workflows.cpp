@@ -1,6 +1,7 @@
 #include "ui/filter_workflows.hpp"
 
 #include "core/rect_utils.hpp"
+#include "core/worker_budget.hpp"
 #include "formats/acv_curves_io.hpp"
 #include "ui/blend_mode_ui.hpp"
 #include "ui/coalesced_preview_emitter.hpp"
@@ -54,9 +55,11 @@
 #include <cstdint>
 #include <filesystem>
 #include <functional>
+#include <future>
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -92,6 +95,29 @@ std::uint8_t map_levels_value(std::uint8_t value, LevelsRecord record) {
       std::clamp((static_cast<double>(value) - static_cast<double>(record.black_input)) / input_range, 0.0, 1.0);
   const auto output = static_cast<double>(record.black_output) + std::pow(normalized, inverse_gamma) * output_range;
   return static_cast<std::uint8_t>(std::clamp(std::lround(output), 0L, 255L));
+}
+
+struct LevelsLuts {
+  std::array<std::uint8_t, 256> red;
+  std::array<std::uint8_t, 256> green;
+  std::array<std::uint8_t, 256> blue;
+};
+
+// Composed master-then-channel transfer evaluated through map_levels_value for
+// every input byte, so the LUT path stays bit-identical to the per-pixel
+// double math it replaced. Never build these from core's build_adjustment_lut:
+// the 1/255 rounding difference above is a behavior contract.
+LevelsLuts build_levels_luts(const LevelsSettings& settings) {
+  const auto master = levels_master_record(settings);
+  LevelsLuts luts;
+  for (int value = 0; value < 256; ++value) {
+    const auto index = static_cast<std::size_t>(value);
+    const auto mapped = map_levels_value(static_cast<std::uint8_t>(value), master);
+    luts.red[index] = map_levels_value(mapped, settings.red);
+    luts.green[index] = map_levels_value(mapped, settings.green);
+    luts.blue[index] = map_levels_value(mapped, settings.blue);
+  }
+  return luts;
 }
 
 }  // namespace
@@ -796,6 +822,97 @@ void for_each_selected_pixel(PixelBuffer& pixels, Rect bounds, const QRegion& se
   report_filter_progress(progress, total_rows, total_rows);
 }
 
+// Row-span twin of for_each_selected_pixel: one callback per contiguous row
+// span, identical progress cadence and cancellation points. row_fn signature:
+// void(std::int32_t y, std::int32_t x_begin, std::int32_t x_end).
+template <typename RowFn>
+void for_each_selected_row_span(PixelBuffer& pixels, Rect bounds, const QRegion& selection,
+                                const FilterProgress* progress, RowFn&& row_fn) {
+  if (selection.isEmpty()) {
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      report_filter_row_progress(progress, y, pixels.height());
+      row_fn(y, 0, pixels.width());
+    }
+    finish_filter_row_progress(progress, pixels.height());
+    return;
+  }
+
+  const auto selected = layer_selection_region(selection, bounds);
+  int total_rows = 0;
+  for (const auto& rect : selected) {
+    const auto local_left = std::max(0, rect.x() - bounds.x);
+    const auto local_top = std::max(0, rect.y() - bounds.y);
+    const auto local_right = std::min<std::int32_t>(pixels.width(), rect.x() + rect.width() - bounds.x);
+    const auto local_bottom = std::min<std::int32_t>(pixels.height(), rect.y() + rect.height() - bounds.y);
+    if (local_left < local_right && local_top < local_bottom) {
+      total_rows += local_bottom - local_top;
+    }
+  }
+  int completed_rows = 0;
+  for (const auto& rect : selected) {
+    const auto local_left = std::max(0, rect.x() - bounds.x);
+    const auto local_top = std::max(0, rect.y() - bounds.y);
+    const auto local_right = std::min<std::int32_t>(pixels.width(), rect.x() + rect.width() - bounds.x);
+    const auto local_bottom = std::min<std::int32_t>(pixels.height(), rect.y() + rect.height() - bounds.y);
+    for (std::int32_t y = local_top; y < local_bottom; ++y) {
+      report_filter_progress(progress, completed_rows, total_rows);
+      row_fn(y, local_left, local_right);
+      ++completed_rows;
+    }
+  }
+  report_filter_progress(progress, total_rows, total_rows);
+}
+
+// Full-buffer strip fan-out for pure per-pixel span kernels. Engages only when
+// there is no selection and no progress sink (preview requests): progress
+// callbacks and FilterCancelled must never cross threads, and the selection
+// walk's rect order is pinned by tests. Returns false when the caller must run
+// the sequential span walk instead.
+template <typename SpanFn>
+bool apply_row_spans_in_parallel(PixelBuffer& pixels, const QRegion& selection, const FilterProgress* progress,
+                                 const SpanFn& span_fn) {
+#if defined(Q_OS_WASM)
+  // Preview computes already run on a pooled worker thread; a nested fan-out
+  // there can stall on a dry pthread pool (see core/worker_budget.hpp).
+  Q_UNUSED(pixels);
+  Q_UNUSED(selection);
+  Q_UNUSED(progress);
+  Q_UNUSED(span_fn);
+  return false;
+#else
+  if (progress != nullptr || !selection.isEmpty()) {
+    return false;
+  }
+  const auto area = static_cast<std::int64_t>(pixels.width()) * pixels.height();
+  const auto hardware_threads = static_cast<int>(std::thread::hardware_concurrency());
+  const auto workers = patchy::max_blocking_fanout_workers(
+      std::clamp(std::min(pixels.height() / 128, hardware_threads), 1, 16));
+  if (area < 1'000'000 || workers < 2 || qEnvironmentVariableIsSet("PATCHY_RENDER_SINGLE_THREADED")) {
+    return false;
+  }
+  // Detach the copy-on-write storage on this thread before the fan-out: the
+  // preview buffer shares bytes with the dialog's snapshot until the first
+  // mutation, and concurrent detaches race.
+  (void)pixels.data();
+  std::vector<std::future<void>> strips;
+  strips.reserve(static_cast<std::size_t>(workers));
+  const auto width = pixels.width();
+  const auto rows_per_strip = (pixels.height() + workers - 1) / workers;
+  for (std::int32_t start = 0; start < pixels.height(); start += rows_per_strip) {
+    const auto end = std::min<std::int32_t>(start + rows_per_strip, pixels.height());
+    strips.push_back(std::async(std::launch::async, [&span_fn, width, start, end] {
+      for (std::int32_t y = start; y < end; ++y) {
+        span_fn(y, 0, width);
+      }
+    }));
+  }
+  for (auto& strip : strips) {
+    strip.get();
+  }
+  return true;
+#endif
+}
+
 void restore_pixels_outside_selection(PixelBuffer& pixels, const PixelBuffer& original, const QRegion& selection,
                                       Rect bounds) {
   if (selection.isEmpty() || pixels.format() != original.format() || pixels.width() != original.width() ||
@@ -958,17 +1075,22 @@ bool editable_rgb8_layer(const Layer* layer) {
 void apply_levels_to_pixels(PixelBuffer& pixels, Rect bounds, const QRegion& selection, LevelsSettings settings,
                             const FilterProgress* progress) {
   settings = clamp_levels_settings(settings);
-  const auto master = levels_master_record(settings);
+  const auto luts = build_levels_luts(settings);
+  const auto pixel_bytes = bytes_per_pixel(pixels.format());
 
-  for_each_selected_pixel(pixels, bounds, selection, progress, [&](std::int32_t x, std::int32_t y) {
-    auto* px = pixels.pixel(x, y);
-    px[0] = map_levels_value(px[0], master);
-    px[1] = map_levels_value(px[1], master);
-    px[2] = map_levels_value(px[2], master);
-    px[0] = map_levels_value(px[0], settings.red);
-    px[1] = map_levels_value(px[1], settings.green);
-    px[2] = map_levels_value(px[2], settings.blue);
-  });
+  const auto apply_span = [&](std::int32_t y, std::int32_t x_begin, std::int32_t x_end) {
+    auto* px = pixels.row(y).data() + static_cast<std::size_t>(x_begin) * pixel_bytes;
+    for (std::int32_t x = x_begin; x < x_end; ++x, px += pixel_bytes) {
+      px[0] = luts.red[px[0]];
+      px[1] = luts.green[px[1]];
+      px[2] = luts.blue[px[2]];
+      // alpha (px[3]) is left untouched
+    }
+  };
+  if (apply_row_spans_in_parallel(pixels, selection, progress, apply_span)) {
+    return;
+  }
+  for_each_selected_row_span(pixels, bounds, selection, progress, apply_span);
 }
 
 void apply_curves_to_pixels(PixelBuffer& pixels, Rect bounds, const QRegion& selection, CurvesSettings settings,

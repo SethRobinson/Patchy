@@ -2158,6 +2158,79 @@ void ui_curves_destructive_and_adjustment_luts_match() {
   }
 }
 
+void ui_levels_destructive_transfer_is_lround_on_double() {
+  patchy::PixelBuffer ramp(256, 1, patchy::PixelFormat::rgba8());
+  for (int value = 0; value < 256; ++value) {
+    auto* pixel = ramp.pixel(value, 0);
+    pixel[0] = static_cast<std::uint8_t>(value);
+    pixel[1] = static_cast<std::uint8_t>(value);
+    pixel[2] = static_cast<std::uint8_t>(value);
+    pixel[3] = static_cast<std::uint8_t>((value * 53) & 0xff);
+  }
+  const auto original = ramp;
+
+  patchy::ui::LevelsSettings settings;
+  settings.black_input = 0;
+  settings.white_input = 45;
+  settings.gamma_percent = 121;
+  patchy::ui::apply_levels_to_pixels(ramp, patchy::Rect::from_size(256, 1), QRegion(), settings);
+
+  for (int value = 0; value < 256; ++value) {
+    // The destructive/preview transfer lrounds the double, deliberately NOT
+    // core's float rounding (levels_channel / build_adjustment_lut); the two
+    // differ by 1/255 on real inputs. Reference computed inline with the
+    // documented formula.
+    const auto gamma = 121.0 / 100.0;
+    const auto normalized = std::clamp(static_cast<double>(value) / 45.0, 0.0, 1.0);
+    const auto expected =
+        static_cast<std::uint8_t>(std::clamp(std::lround(std::pow(normalized, 1.0 / gamma) * 255.0), 0L, 255L));
+    const auto* pixel = ramp.pixel(value, 0);
+    CHECK(pixel[0] == expected);
+    CHECK(pixel[1] == expected);
+    CHECK(pixel[2] == expected);
+    CHECK(pixel[3] == original.pixel(value, 0)[3]);
+  }
+  // Canary against a future "dedupe" into core's LUT builders: core's float
+  // path gives 35 for input 4 under this record; the dialog transfer gives 34.
+  CHECK(ramp.pixel(4, 0)[0] == 34);
+}
+
+void ui_levels_parallel_path_matches_sequential() {
+  // Over 1 Mpx so the strip fan-out gate engages when no progress sink is
+  // given; a non-null progress forces the sequential span walk, so the two
+  // runs cover both paths and must agree byte for byte.
+  patchy::PixelBuffer original(1400, 800, patchy::PixelFormat::rgba8());
+  std::uint64_t state = 0x9e3779b97f4a7c15ull;
+  for (auto& byte : original.data()) {
+    state = state * 6364136223846793005ull + 1442695040888963407ull;
+    byte = static_cast<std::uint8_t>(state >> 56);
+  }
+
+  patchy::ui::LevelsSettings settings;
+  settings.black_input = 10;
+  settings.white_input = 240;
+  settings.gamma_percent = 82;
+  settings.red = {5, 250, 118, 2, 253};
+  settings.green = {0, 255, 104, 0, 255};
+  settings.blue = {12, 200, 95, 10, 245};
+
+  auto parallel = original;
+  patchy::ui::apply_levels_to_pixels(parallel, patchy::Rect::from_size(1400, 800), QRegion(), settings);
+
+  auto sequential = original;
+  int updates = 0;
+  patchy::FilterProgress progress;
+  progress.update = [&updates](int, int, patchy::FilterProgressStage) {
+    ++updates;
+    return true;
+  };
+  patchy::ui::apply_levels_to_pixels(sequential, patchy::Rect::from_size(1400, 800), QRegion(), settings, &progress);
+
+  CHECK(updates > 0);
+  CHECK(parallel.data().size() == sequential.data().size());
+  CHECK(std::equal(parallel.data().begin(), parallel.data().end(), sequential.data().begin()));
+}
+
 void ui_curves_acv_load_save_updates_editor_and_preview() {
   ensure_artifact_dir();
   const auto input_path =
@@ -2749,6 +2822,9 @@ std::vector<patchy::test::TestCase> image_adjustments_curves_tests() {
        ui_curves_preset_thumbnails_apply_all_channels_and_track_custom},
       {"ui_curves_destructive_and_adjustment_luts_match",
        ui_curves_destructive_and_adjustment_luts_match},
+      {"ui_levels_destructive_transfer_is_lround_on_double",
+       ui_levels_destructive_transfer_is_lround_on_double},
+      {"ui_levels_parallel_path_matches_sequential", ui_levels_parallel_path_matches_sequential},
       {"ui_curves_acv_load_save_updates_editor_and_preview",
        ui_curves_acv_load_save_updates_editor_and_preview},
       {"ui_curves_dialog_preview_toggle_and_cancel_restore_pixels",
