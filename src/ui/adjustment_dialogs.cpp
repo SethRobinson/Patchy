@@ -113,49 +113,31 @@ std::array<int, 256> default_levels_histogram() {
   return histogram;
 }
 
-int levels_histogram_value(const std::uint8_t* px, LevelsChannel channel) {
-  switch (channel) {
-    case LevelsChannel::Red:
-      return px[0];
-    case LevelsChannel::Green:
-      return px[1];
-    case LevelsChannel::Blue:
-      return px[2];
-    case LevelsChannel::Rgb:
-      return std::clamp((54 * static_cast<int>(px[0]) + 183 * static_cast<int>(px[1]) +
-                         19 * static_cast<int>(px[2])) /
-                            256,
-                        0, 255);
-  }
-  return 0;
-}
-
-std::array<int, 256> levels_histogram_from_pixels(const PixelBuffer* source,
-                                                  LevelsChannel channel = LevelsChannel::Rgb) {
-  if (source == nullptr || source->empty() || source->format().bit_depth != BitDepth::UInt8 ||
-      source->format().channels < 3) {
+std::array<int, 256> levels_display_histogram(const CurvesHistograms& histograms, LevelsChannel channel) {
+  // The composite is the sum of the channel counts, so an all-zero composite
+  // means no usable samples anywhere and the decorative fallback applies.
+  if (std::all_of(histograms.rgb.begin(), histograms.rgb.end(),
+                  [](std::uint32_t count) { return count == 0; })) {
     return default_levels_histogram();
   }
-
-  std::array<int, 256> histogram{};
-  const auto width = std::max<std::int32_t>(0, source->width());
-  const auto height = std::max<std::int32_t>(0, source->height());
-  const auto total_pixels = static_cast<double>(width) * static_cast<double>(height);
-  const auto sample_step = std::max(1, static_cast<int>(std::sqrt(total_pixels / 262144.0)));
-  const auto channels = source->format().channels;
-  int samples = 0;
-  for (std::int32_t y = 0; y < height; y += sample_step) {
-    for (std::int32_t x = 0; x < width; x += sample_step) {
-      const auto* px = source->pixel(x, y);
-      if (channels >= 4 && px[3] == 0) {
-        continue;
-      }
-      const auto value = levels_histogram_value(px, channel);
-      ++histogram[static_cast<std::size_t>(value)];
-      ++samples;
+  const auto& source = [&]() -> const std::array<std::uint32_t, 256>& {
+    switch (channel) {
+      case LevelsChannel::Red:
+        return histograms.red;
+      case LevelsChannel::Green:
+        return histograms.green;
+      case LevelsChannel::Blue:
+        return histograms.blue;
+      case LevelsChannel::Rgb:
+        break;
     }
+    return histograms.rgb;
+  }();
+  std::array<int, 256> histogram{};
+  for (std::size_t index = 0; index < histogram.size(); ++index) {
+    histogram[index] = static_cast<int>(source[index]);
   }
-  return samples > 0 ? histogram : default_levels_histogram();
+  return histogram;
 }
 
 class LevelsGammaSpinBox final : public QSpinBox {
@@ -230,7 +212,6 @@ protected:
     painter.drawRect(graph.adjusted(0, 0, -1, -1));
 
     const auto maximum = std::max(1, *std::max_element(histogram_.begin(), histogram_.end()));
-    const auto log_max = std::log(static_cast<double>(maximum) + 1.0);
     painter.setPen(Qt::NoPen);
     painter.setBrush(QColor(218, 218, 218));
     for (int x = 0; x < graph.width(); ++x) {
@@ -240,7 +221,7 @@ protected:
       for (int bin = first_bin; bin < last_bin; ++bin) {
         count = std::max(count, histogram_[static_cast<std::size_t>(bin)]);
       }
-      const auto scaled = log_max <= 0.0 ? 0.0 : std::log(static_cast<double>(count) + 1.0) / log_max;
+      const auto scaled = static_cast<double>(count) / static_cast<double>(maximum);
       const auto bar_height = std::clamp(static_cast<int>(std::round(scaled * (graph.height() - 8))), 1,
                                          std::max(1, graph.height() - 4));
       painter.fillRect(QRect(graph.left() + x, graph.bottom() - bar_height, 1, bar_height), QColor(218, 218, 218));
@@ -562,8 +543,9 @@ std::optional<LevelsSettings> request_levels_settings(
     QWidget* parent, std::function<void(bool, const LevelsSettings&)> preview_changed, LevelsSettings initial,
     const PixelBuffer* histogram_source) {
   initial = clamp_levels_settings(initial);
-  auto histogram_for_channel = [histogram_source](LevelsChannel channel) {
-    return levels_histogram_from_pixels(histogram_source, channel);
+  const auto sampled_histograms = curves_histograms_from_pixels(histogram_source);
+  auto histogram_for_channel = [&sampled_histograms](LevelsChannel channel) {
+    return levels_display_histogram(sampled_histograms, channel);
   };
 
   QDialog dialog(parent);

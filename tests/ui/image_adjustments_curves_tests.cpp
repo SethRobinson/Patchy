@@ -51,6 +51,7 @@
 #include "ui/layer_style_dialog.hpp"
 #include "ui/localization.hpp"
 #include "ui/main_window.hpp"
+#include "ui/theme_palette.hpp"
 #include "ui/print_dialog.hpp"
 #include "ui/selection_outline.hpp"
 #include "ui/sprite_sheet_dialog.hpp"
@@ -723,6 +724,55 @@ void ui_levels_dialog_preserves_independent_channel_records() {
   CHECK(result->red.black_output == 255);
   CHECK(result->green.black_input == 0);
   CHECK(result->green.black_output == 0);
+}
+
+void ui_levels_histogram_is_linear_and_auto_uses_shared_sampler() {
+  // 200x100 = 20,000 pixels keeps sample_step at 1: 90% of pixels at gray 60
+  // and 10% at gray 180 give a composite histogram of 54,000 vs 6,000 counts.
+  patchy::PixelBuffer pixels(200, 100, patchy::PixelFormat::rgb8());
+  for (std::int32_t y = 0; y < 100; ++y) {
+    for (std::int32_t x = 0; x < 200; ++x) {
+      auto* pixel = pixels.pixel(x, y);
+      const auto value = static_cast<std::uint8_t>((y * 200 + x) % 10 == 0 ? 180 : 60);
+      pixel[0] = value;
+      pixel[1] = value;
+      pixel[2] = value;
+    }
+  }
+
+  bool inspected = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyLevelsDialog"));
+    CHECK(dialog != nullptr);
+    auto* graph = dialog->findChild<QWidget*>(QStringLiteral("levelsInputGraph"));
+    auto* black_input = dialog->findChild<QSpinBox*>(QStringLiteral("levelsBlackInputSpin"));
+    auto* white_input = dialog->findChild<QSpinBox*>(QStringLiteral("levelsWhiteInputSpin"));
+    auto* auto_button = dialog->findChild<QPushButton*>(QStringLiteral("levelsAutoButton"));
+    CHECK(graph != nullptr);
+    CHECK(black_input != nullptr);
+    CHECK(white_input != nullptr);
+    CHECK(auto_button != nullptr);
+
+    // Mirrors LevelsInputGraph::graph_rect(); at the 272px minimum width the
+    // inner rect is exactly 256 columns, one per bin.
+    const auto image = graph->grab().toImage();
+    const auto graph_rect = QRect(0, 0, graph->width(), graph->height()).adjusted(8, 8, -8, -28);
+    CHECK(graph_rect.width() >= 256);
+    const auto column = graph_rect.left() + (180 * graph_rect.width()) / 256;
+    // The 10%-count bin draws ~8px tall under linear scaling; the old log
+    // scaling drew it at ~80% of the graph and would fill the upper probe.
+    CHECK(color_close(image.pixelColor(column, graph_rect.bottom() - 2), QColor(218, 218, 218), 8));
+    CHECK(color_close(image.pixelColor(column, graph_rect.bottom() - 30), QColor(55, 55, 55), 8));
+
+    auto_button->click();
+    CHECK(black_input->value() == 60);
+    CHECK(white_input->value() == 180);
+    inspected = true;
+    dialog->reject();
+  });
+  const auto result = patchy::ui::request_levels_settings(nullptr, {}, {}, &pixels);
+  CHECK(!result.has_value());
+  CHECK(inspected);
 }
 
 void ui_hue_saturation_dialog_adjusts_selected_pixels() {
@@ -1762,6 +1812,9 @@ void ui_curves_editor_points_channels_keyboard_auto_and_reset() {
   CHECK(external_alpha_histograms.red[40] == 1U);
   CHECK(external_alpha_histograms.green[80] == 1U);
   CHECK(external_alpha_histograms.blue[120] == 1U);
+  CHECK(external_alpha_histograms.rgb[40] == 1U);
+  CHECK(external_alpha_histograms.rgb[80] == 1U);
+  CHECK(external_alpha_histograms.rgb[120] == 1U);
   const std::array<std::uint8_t, 1> mismatched_alpha{255};
   const auto mismatched_histograms =
       patchy::ui::curves_histograms_from_pixels(&rgb_source, std::span<const std::uint8_t>(mismatched_alpha));
@@ -1962,6 +2015,156 @@ void ui_curves_transient_canvas_read_is_non_mutating() {
   CHECK(phases[0] == patchy::ui::CanvasReadPhase::Press);
   CHECK(phases[1] == patchy::ui::CanvasReadPhase::Cancel);
   CHECK(!canvas.has_transient_read_interaction());
+}
+
+void ui_curves_histograms_box_average_fills_missing_codes() {
+  // 550x550 = 302,500 pixels gives sample_step = ceil(sqrt(302500 / 262144)) = 2,
+  // so sampling averages 2x2 blocks. A red checkerboard of 100/102 only ever
+  // shows code 100 under the old point decimation; box averaging lands on 101.
+  patchy::PixelBuffer quantized(550, 550, patchy::PixelFormat::rgb8());
+  for (std::int32_t y = 0; y < 550; ++y) {
+    for (std::int32_t x = 0; x < 550; ++x) {
+      auto* pixel = quantized.pixel(x, y);
+      pixel[0] = ((x + y) % 2 == 0) ? 100 : 102;
+      pixel[1] = 60;
+      pixel[2] = 200;
+    }
+  }
+  const auto histograms = patchy::ui::curves_histograms_from_pixels(&quantized);
+  const std::uint32_t blocks = 275U * 275U;
+  CHECK(histograms.red[101] == blocks);
+  CHECK(histograms.red[100] == 0U);
+  CHECK(histograms.red[102] == 0U);
+  CHECK(histograms.green[60] == blocks);
+  CHECK(histograms.blue[200] == blocks);
+  CHECK(histograms.rgb[101] == blocks);
+  CHECK(histograms.rgb[60] == blocks);
+  CHECK(histograms.rgb[200] == blocks);
+
+  // Transparent pixels stay out of the averages: blocks mixing one opaque
+  // red-33 pixel with three transparent red-7 pixels must bin at 33, and the
+  // fully transparent left half must contribute nothing at all.
+  patchy::PixelBuffer sparse(1024, 512, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < 512; ++y) {
+    for (std::int32_t x = 0; x < 1024; ++x) {
+      auto* pixel = sparse.pixel(x, y);
+      const bool opaque = x >= 512 && (x % 2 == 0) && (y % 2 == 0);
+      pixel[0] = opaque ? 33 : 7;
+      pixel[1] = 120;
+      pixel[2] = 220;
+      pixel[3] = opaque ? 255 : 0;
+    }
+  }
+  const auto sparse_histograms = patchy::ui::curves_histograms_from_pixels(&sparse);
+  const std::uint32_t opaque_blocks = 256U * 256U;
+  CHECK(sparse_histograms.red[33] == opaque_blocks);
+  CHECK(std::accumulate(sparse_histograms.red.begin(), sparse_histograms.red.end(), std::uint64_t{0}) ==
+        opaque_blocks);
+}
+
+void ui_curves_histogram_display_is_linear() {
+  patchy::ui::CurvesEditorWidget editor;
+  editor.resize(460, 520);
+  patchy::ui::CurvesHistograms histograms;
+  for (int bin = 39; bin <= 41; ++bin) {
+    histograms.rgb[static_cast<std::size_t>(bin)] = 1000;
+  }
+  for (int bin = 199; bin <= 201; ++bin) {
+    histograms.rgb[static_cast<std::size_t>(bin)] = 100;
+  }
+  editor.set_histograms(histograms);
+  editor.show();
+  QApplication::processEvents();
+
+  auto* graph = editor.findChild<QWidget*>(QStringLiteral("curvesGraph"));
+  CHECK(graph != nullptr);
+  const auto image = graph->grab().toImage();
+
+  // Mirrors CurvesGraphWidget::graph_rect() and its column-to-bin mapping.
+  const auto available = QRect(0, 0, graph->width(), graph->height()).adjusted(31, 10, -10, -28);
+  const auto side = std::max(1, std::min(available.width(), available.height()));
+  CHECK(side >= 256);
+  const QRect graph_rect(available.left() + (available.width() - side) / 2,
+                         available.top() + (available.height() - side) / 2, side, side);
+  const auto column_for_bin = [&](int bin) {
+    for (int x = 0; x < side; ++x) {
+      const auto first_bin = std::clamp((x * 256) / side, 0, 255);
+      const auto last_bin = std::clamp(((x + 1) * 256) / side, first_bin + 1, 256);
+      if (first_bin == bin && last_bin == bin + 1) {
+        return graph_rect.left() + x;
+      }
+    }
+    return -1;
+  };
+  const auto row_at = [&](double fraction) {
+    return graph_rect.bottom() - static_cast<int>(std::lround(fraction * (side - 1)));
+  };
+
+  const auto tall_column = column_for_bin(40);
+  const auto short_column = column_for_bin(200);
+  const auto empty_column = column_for_bin(220);
+  CHECK(tall_column > 0);
+  CHECK(short_column > 0);
+  CHECK(empty_column > 0);
+
+  // The max bin fills its column to the top and the short bin rises above the
+  // baseline in both scalings.
+  CHECK(!color_close(image.pixelColor(tall_column, row_at(0.90)),
+                     image.pixelColor(empty_column, row_at(0.90)), 6));
+  CHECK(!color_close(image.pixelColor(short_column, row_at(0.05)),
+                     image.pixelColor(empty_column, row_at(0.05)), 6));
+  // Linear display: a bin at 10% of the max stays well under 40% of the graph
+  // height. The old log scaling drew it at log(101)/log(1001) = 67% and fails.
+  CHECK(color_close(image.pixelColor(short_column, row_at(0.40)),
+                    image.pixelColor(empty_column, row_at(0.40)), 6));
+}
+
+double widget_fill_share(QWidget& widget, const QColor& target) {
+  const auto image = widget.grab().toImage();
+  if (image.width() <= 0 || image.height() <= 0) {
+    return 0.0;
+  }
+  int matches = 0;
+  for (int y = 0; y < image.height(); ++y) {
+    for (int x = 0; x < image.width(); ++x) {
+      if (color_close(image.pixelColor(x, y), target, 8)) {
+        ++matches;
+      }
+    }
+  }
+  return static_cast<double>(matches) / (static_cast<double>(image.width()) * image.height());
+}
+
+void ui_curves_canvas_tool_buttons_show_checked_state() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_primary_color(QColor(120, 90, 60));
+  use_solid_fill_settings(canvas);
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+
+  bool inspected = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyCurvesDialog"));
+    CHECK(dialog != nullptr);
+    auto* black = dialog->findChild<QPushButton*>(QStringLiteral("curvesBlackPointButton"));
+    auto* white = dialog->findChild<QPushButton*>(QStringLiteral("curvesWhitePointButton"));
+    CHECK(black != nullptr && black->isEnabled());
+    CHECK(white != nullptr && white->isEnabled());
+    black->click();
+    CHECK(black->isChecked());
+    CHECK(!white->isChecked());
+    // Arming a picker must be visible: the checked button repaints with the
+    // accent fill while the unchecked sibling keeps the plain button skin.
+    CHECK(widget_fill_share(*black, patchy::ui::theme().accent_checked_bg) > 0.25);
+    CHECK(widget_fill_share(*white, patchy::ui::theme().accent_checked_bg) < 0.05);
+    inspected = true;
+    dialog->reject();
+  });
+  require_action(window, "layerNewCurvesAdjustmentAction")->trigger();
+  QApplication::processEvents();
+  CHECK(inspected);
 }
 
 void ui_curves_canvas_tools_before_and_clipping_hooks() {
@@ -2879,6 +3082,7 @@ void ui_curves_clipped_adjustment_reedit_disables_auto() {
 
   bool dialog_opened = false;
   bool auto_disabled = false;
+  bool picker_disabled_style_visible = false;
   QTimer::singleShot(0, [&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyCurvesDialog"));
     CHECK(dialog != nullptr);
@@ -2886,6 +3090,11 @@ void ui_curves_clipped_adjustment_reedit_disables_auto() {
     CHECK(auto_button != nullptr);
     dialog_opened = true;
     auto_disabled = !auto_button->isEnabled();
+    auto* target_button = dialog->findChild<QPushButton*>(QStringLiteral("curvesTargetedAdjustmentButton"));
+    CHECK(target_button != nullptr);
+    CHECK(!target_button->isEnabled());
+    picker_disabled_style_visible =
+        widget_fill_share(*target_button, patchy::ui::theme().field_bg_disabled) > 0.25;
     dialog->reject();
   });
   require_action(window, "layerEditAdjustmentAction")->trigger();
@@ -2893,6 +3102,7 @@ void ui_curves_clipped_adjustment_reedit_disables_auto() {
 
   CHECK(dialog_opened);
   CHECK(auto_disabled);
+  CHECK(picker_disabled_style_visible);
   const auto* restored_layer = std::as_const(document).find_layer(adjustment_id);
   CHECK(restored_layer != nullptr);
   CHECK(restored_layer->clipped());
@@ -2947,6 +3157,8 @@ std::vector<patchy::test::TestCase> image_adjustments_curves_tests() {
        ui_levels_dialog_adjusts_selected_color_channel_on_transparent_layer},
       {"ui_levels_dialog_preserves_independent_channel_records",
        ui_levels_dialog_preserves_independent_channel_records},
+      {"ui_levels_histogram_is_linear_and_auto_uses_shared_sampler",
+       ui_levels_histogram_is_linear_and_auto_uses_shared_sampler},
       {"ui_hue_saturation_dialog_adjusts_selected_pixels", ui_hue_saturation_dialog_adjusts_selected_pixels},
       {"ui_hue_saturation_creates_masked_adjustment_layer", ui_hue_saturation_creates_masked_adjustment_layer},
       {"ui_hue_saturation_colorize_toggle_switches_ranges_and_creates_layer",
@@ -2971,6 +3183,11 @@ std::vector<patchy::test::TestCase> image_adjustments_curves_tests() {
        ui_curves_editor_points_channels_keyboard_auto_and_reset},
       {"ui_curves_transient_canvas_read_is_non_mutating",
        ui_curves_transient_canvas_read_is_non_mutating},
+      {"ui_curves_histograms_box_average_fills_missing_codes",
+       ui_curves_histograms_box_average_fills_missing_codes},
+      {"ui_curves_histogram_display_is_linear", ui_curves_histogram_display_is_linear},
+      {"ui_curves_canvas_tool_buttons_show_checked_state",
+       ui_curves_canvas_tool_buttons_show_checked_state},
       {"ui_curves_canvas_tools_before_and_clipping_hooks",
        ui_curves_canvas_tools_before_and_clipping_hooks},
       {"ui_curves_canvas_sampler_reads_below_preview_and_escape_closes",

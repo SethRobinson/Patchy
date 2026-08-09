@@ -124,24 +124,45 @@ CurvesHistograms curves_histograms_from_pixels(const PixelBuffer* source,
   const auto total_pixels = static_cast<double>(width) * static_cast<double>(height);
   const auto sample_step = std::max(1, static_cast<int>(std::ceil(std::sqrt(total_pixels / 262144.0))));
   const auto channels = source->format().channels;
-  for (std::int32_t y = 0; y < height; y += sample_step) {
-    for (std::int32_t x = 0; x < width; x += sample_step) {
-      const auto* pixel = source->pixel(x, y);
-      const auto pixel_index =
-          static_cast<std::size_t>(y) * static_cast<std::size_t>(width) + static_cast<std::size_t>(x);
-      if ((!external_alpha.empty() && external_alpha[pixel_index] == 0) ||
-          (external_alpha.empty() && channels >= 4 && pixel[3] == 0)) {
+  // One box-averaged sample per step-by-step block. Averaging fills channel values
+  // absent from quantized sources, matching Photoshop's cache-pyramid histograms
+  // instead of drawing comb gaps. Block sums fit u32: step stays <= 586 even for
+  // 300k-square documents, so a sum is at most 586 * 586 * 255.
+  for (std::int32_t block_y = 0; block_y < height; block_y += sample_step) {
+    const auto block_bottom = std::min<std::int32_t>(height, block_y + sample_step);
+    for (std::int32_t block_x = 0; block_x < width; block_x += sample_step) {
+      const auto block_right = std::min<std::int32_t>(width, block_x + sample_step);
+      std::uint32_t sum_red = 0;
+      std::uint32_t sum_green = 0;
+      std::uint32_t sum_blue = 0;
+      std::uint32_t opaque = 0;
+      for (std::int32_t y = block_y; y < block_bottom; ++y) {
+        for (std::int32_t x = block_x; x < block_right; ++x) {
+          const auto* pixel = source->pixel(x, y);
+          const auto pixel_index =
+              static_cast<std::size_t>(y) * static_cast<std::size_t>(width) + static_cast<std::size_t>(x);
+          if ((!external_alpha.empty() && external_alpha[pixel_index] == 0) ||
+              (external_alpha.empty() && channels >= 4 && pixel[3] == 0)) {
+            continue;
+          }
+          sum_red += pixel[0];
+          sum_green += pixel[1];
+          sum_blue += pixel[2];
+          ++opaque;
+        }
+      }
+      if (opaque == 0) {
         continue;
       }
-      ++result.red[static_cast<std::size_t>(pixel[0])];
-      ++result.green[static_cast<std::size_t>(pixel[1])];
-      ++result.blue[static_cast<std::size_t>(pixel[2])];
-      const auto luminance = std::clamp((54 * static_cast<int>(pixel[0]) + 183 * static_cast<int>(pixel[1]) +
-                                         19 * static_cast<int>(pixel[2])) /
-                                            256,
-                                        0, 255);
-      ++result.rgb[static_cast<std::size_t>(luminance)];
+      const auto half = opaque / 2;
+      ++result.red[static_cast<std::size_t>((sum_red + half) / opaque)];
+      ++result.green[static_cast<std::size_t>((sum_green + half) / opaque)];
+      ++result.blue[static_cast<std::size_t>((sum_blue + half) / opaque)];
     }
+  }
+  // Photoshop's composite histogram is the sum of the channel counts, not luma.
+  for (std::size_t index = 0; index < result.rgb.size(); ++index) {
+    result.rgb[index] = result.red[index] + result.green[index] + result.blue[index];
   }
   return result;
 }
@@ -397,7 +418,6 @@ private:
     if (maximum == 0) {
       return;
     }
-    const auto log_maximum = std::log(static_cast<double>(maximum) + 1.0);
     QPainterPath shape;
     shape.moveTo(graph.left(), graph.bottom());
     for (int x = 0; x < graph.width(); ++x) {
@@ -407,7 +427,7 @@ private:
       for (int bin = first_bin; bin < last_bin; ++bin) {
         count = std::max(count, histogram[static_cast<std::size_t>(bin)]);
       }
-      const auto scaled = std::log(static_cast<double>(count) + 1.0) / log_maximum;
+      const auto scaled = static_cast<double>(count) / static_cast<double>(maximum);
       const auto y = static_cast<double>(graph.bottom()) - scaled * static_cast<double>(graph.height() - 1);
       shape.lineTo(graph.left() + x, y);
     }

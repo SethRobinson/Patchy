@@ -875,6 +875,16 @@ QString photoshop_style_template() {
       background: @button_hover_bg;
       border-color: @button_hover_border_strong;
     }
+    QPushButton:checked {
+      background: @accent_checked_bg;
+      border-color: @accent_checked_border;
+      color: @text_on_accent;
+    }
+    QPushButton:disabled {
+      background: @field_bg_disabled;
+      color: @field_text_disabled;
+      border-color: @field_border_disabled;
+    }
     QPushButton[compactSymbolButton="true"] {
       padding: 0;
       min-width: 22px;

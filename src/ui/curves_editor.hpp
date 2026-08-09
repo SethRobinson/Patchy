@@ -29,11 +29,14 @@ struct CurvesHistograms {
   std::array<std::uint32_t, 256> blue{};
 };
 
-// Builds all four display histograms in one bounded pass. An optional external
-// alpha plane lets RGB compositor output keep transparent pixels out without an
-// RGBA copy; it must contain exactly one byte per source pixel. Invalid, empty,
-// or unsupported sources return empty histograms rather than decorative data
-// that could be mistaken for the image's actual tonal distribution.
+// Builds all four display histograms in one bounded pass, binning one
+// box-averaged sample per block so quantized sources chart without comb gaps;
+// the composite is the sum of the channel counts, matching Photoshop. An
+// optional external alpha plane lets RGB compositor output keep transparent
+// pixels out without an RGBA copy; it must contain exactly one byte per source
+// pixel. Invalid, empty, or unsupported sources return empty histograms rather
+// than decorative data that could be mistaken for the image's actual tonal
+// distribution.
 [[nodiscard]] CurvesHistograms curves_histograms_from_pixels(
     const PixelBuffer* source, std::span<const std::uint8_t> external_alpha = {});
 
