@@ -1475,7 +1475,9 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   patch_transparent_check_ = new CheckGlyphBox(tr("Transparent"), toolbar);
   patch_transparent_check_->setObjectName(QStringLiteral("patchTransparentCheck"));
   patch_transparent_check_->setChecked(canvas_defaults->patch_tool_transparent());
-  patch_transparent_check_->setToolTip(tr("Blend only the source texture instead of replacing the region"));
+  patch_transparent_check_->setToolTip(
+      tr("Keep the region and add only the sampled texture instead of replacing it; clearest when the "
+         "source has distinct marks over a plain background"));
   add_option_widget(patch_transparent_check_, {CanvasTool::PatchTool});
   connect(patch_transparent_check_, &QCheckBox::toggled, this, [this](bool checked) {
     if (canvas_ != nullptr) {

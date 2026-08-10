@@ -13295,7 +13295,7 @@ Clipped to the layer below</source>
     <message><source>Destination</source><translation>複製先</translation></message>
     <message><source>Source heals the dragged-from region; Destination copies it onto the drop point</source><translation>ソースはドラッグ元の領域を修復し、複製先はドラッグ先に複製します</translation></message>
     <message><source>Transparent</source><translation>透明</translation></message>
-    <message><source>Blend only the source texture instead of replacing the region</source><translation>領域を置き換えずにソースのテクスチャのみを合成します</translation></message>
+    <message><source>Keep the region and add only the sampled texture instead of replacing it; clearest when the source has distinct marks over a plain background</source><translation>領域を置き換えず、サンプルしたテクスチャのみを重ねます。無地の背景にはっきりした模様があるソースで最も効果的です</translation></message>
     <message><source>Patch: draw around the area to fix, then drag the selection to a clean source area</source><translation>パッチ: 修復したい部分を囲んでから、選択範囲をきれいなサンプル元へドラッグしてください</translation></message>
     <message><source>Fill Tools</source><translation>塗りつぶしツール</translation></message>
     <message><source>Pattern:</source><translation>パターン:</translation></message>

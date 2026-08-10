@@ -517,6 +517,16 @@ void ui_spot_healing_and_patch_texture_gallery() {
   drag_patch_region(canvas, QPoint(96, 100), QPoint(200, 110));
   QApplication::processEvents();
   save_widget_artifact("ui_patch_destination_gallery_after", canvas);
+
+  // Transparent over the same texture: near-invisible by design (same-texture
+  // detail transfer), and above all with NO printed selection outline.
+  canvas.set_patch_tool_mode(patchy::ui::CanvasWidget::PatchToolMode::Source);
+  canvas.set_patch_tool_transparent(true);
+  draw_patch_outline(canvas, QPoint(110, 40), QPoint(150, 80));
+  drag_patch_region(canvas, QPoint(130, 60), QPoint(40, 60));
+  QApplication::processEvents();
+  save_widget_artifact("ui_patch_transparent_gallery_after", canvas);
+  canvas.set_patch_tool_transparent(false);
 }
 
 void ui_patch_options_sync_canvas_and_persist() {

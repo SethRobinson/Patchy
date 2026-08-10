@@ -250,50 +250,9 @@ void CanvasWidget::commit_patch_tool_drag() {
     return snapshot.constScanLine(clamped_y) + static_cast<std::size_t>(clamped_x) * 4U;
   };
 
-  // The healing membrane (Source and Destination modes): destination-minus-
-  // source offsets on the ring of uncovered cells around the region are
-  // interpolated harmonically across the interior, so the dragged texture's
-  // tone bends smoothly into the destination everywhere - no per-pixel ring
-  // matching, no bands. Solved over the destination bounds padded by one so a
-  // Dirichlet ring exists wherever the canvas allows.
   const auto solve_bounds = destination_bounds.adjusted(-1, -1, 1, 1).intersected(canvas_rect);
   const auto solve_width = solve_bounds.width();
   const auto solve_height = solve_bounds.height();
-  std::vector<std::uint8_t> interior;
-  std::vector<std::int16_t> membrane;
-  if (!transparent) {
-    const auto cells = static_cast<std::size_t>(solve_width) * static_cast<std::size_t>(solve_height);
-    interior.resize(cells);
-    membrane.resize(cells * 3U);
-    for (int y = 0; y < solve_height; ++y) {
-      for (int x = 0; x < solve_width; ++x) {
-        const auto index = static_cast<std::size_t>(y) * static_cast<std::size_t>(solve_width) +
-                           static_cast<std::size_t>(x);
-        const auto doc_x = solve_bounds.left() + x;
-        const auto doc_y = solve_bounds.top() + y;
-        const auto mask_x = doc_x - mask_offset.x() - bounds.left();
-        const auto mask_y = doc_y - mask_offset.y() - bounds.top();
-        const auto coverage =
-            mask_x >= 0 && mask_y >= 0 && mask_x < bounds.width() && mask_y < bounds.height()
-                ? mask[static_cast<std::size_t>(mask_y) * static_cast<std::size_t>(bounds.width()) +
-                       static_cast<std::size_t>(mask_x)]
-                : std::uint8_t{0};
-        interior[index] = coverage != 0U ? 1U : 0U;
-        if (coverage != 0U) {
-          continue;
-        }
-        const auto* destination = snapshot_pixel(doc_x, doc_y);
-        const auto* source = snapshot_pixel(doc_x + source_offset.x(), doc_y + source_offset.y());
-        for (int channel = 0; channel < 3; ++channel) {
-          membrane[index * 3U + static_cast<std::size_t>(channel)] = static_cast<std::int16_t>(
-              static_cast<int>(destination[channel]) - static_cast<int>(source[channel]));
-        }
-      }
-    }
-    tick_processing_operation();
-    patchy::solve_heal_membrane(interior.data(), solve_width, solve_height, membrane.data());
-    tick_processing_operation();
-  }
 
   // Transparent option: a true high-pass of the dragged source (source minus
   // its separable box-blurred local mean) laid over the untouched
@@ -374,6 +333,54 @@ void CanvasWidget::commit_patch_tool_drag() {
     tick_processing_operation();
   }
 
+  // The healing membrane, for every path: offsets on the ring of uncovered
+  // cells around the region are interpolated harmonically across the
+  // interior. Source/Destination modes use destination-minus-source (the
+  // dragged texture's tone bends smoothly into the destination); Transparent
+  // uses the negated boundary detail, which cancels the high-pass residual at
+  // the selection edge so the overlay fades in seamlessly instead of printing
+  // the outline. Solved over the destination bounds padded by one so a
+  // Dirichlet ring exists wherever the canvas allows.
+  const auto cells = static_cast<std::size_t>(solve_width) * static_cast<std::size_t>(solve_height);
+  std::vector<std::uint8_t> interior(cells);
+  std::vector<std::int16_t> membrane(cells * 3U);
+  for (int y = 0; y < solve_height; ++y) {
+    for (int x = 0; x < solve_width; ++x) {
+      const auto index = static_cast<std::size_t>(y) * static_cast<std::size_t>(solve_width) +
+                         static_cast<std::size_t>(x);
+      const auto doc_x = solve_bounds.left() + x;
+      const auto doc_y = solve_bounds.top() + y;
+      const auto mask_x = doc_x - mask_offset.x() - bounds.left();
+      const auto mask_y = doc_y - mask_offset.y() - bounds.top();
+      const auto coverage =
+          mask_x >= 0 && mask_y >= 0 && mask_x < bounds.width() && mask_y < bounds.height()
+              ? mask[static_cast<std::size_t>(mask_y) * static_cast<std::size_t>(bounds.width()) +
+                     static_cast<std::size_t>(mask_x)]
+              : std::uint8_t{0};
+      interior[index] = coverage != 0U ? 1U : 0U;
+      if (coverage != 0U) {
+        continue;
+      }
+      const auto* source = snapshot_pixel(doc_x + source_offset.x(), doc_y + source_offset.y());
+      if (transparent) {
+        for (int channel = 0; channel < 3; ++channel) {
+          membrane[index * 3U + static_cast<std::size_t>(channel)] = static_cast<std::int16_t>(
+              static_cast<int>(transparent_low_pass[index * 3U + static_cast<std::size_t>(channel)]) -
+              static_cast<int>(source[channel]));
+        }
+      } else {
+        const auto* destination = snapshot_pixel(doc_x, doc_y);
+        for (int channel = 0; channel < 3; ++channel) {
+          membrane[index * 3U + static_cast<std::size_t>(channel)] = static_cast<std::int16_t>(
+              static_cast<int>(destination[channel]) - static_cast<int>(source[channel]));
+        }
+      }
+    }
+  }
+  tick_processing_operation();
+  patchy::solve_heal_membrane(interior.data(), solve_width, solve_height, membrane.data());
+  tick_processing_operation();
+
   // For each destination pixel p: coverage from the mask (at p in Source mode,
   // at p - delta in Destination mode) and source pixel s at the user-dragged
   // offset. Pure per-pixel function writing disjoint rows, so the strip
@@ -420,9 +427,10 @@ void CanvasWidget::commit_patch_tool_drag() {
         const auto* source_pixel =
             snapshot.constScanLine(source_point.y()) + static_cast<std::size_t>(source_point.x()) * 4U;
         if (transparent) {
-          // Texture-only transfer: add the source's high-pass detail (source
-          // minus its box-blurred local mean) onto the destination pixel;
-          // tone and alpha stay the destination's.
+          // Texture-only transfer: the source's high-pass detail (source
+          // minus its box-blurred local mean) over the destination pixel,
+          // with the membrane fading the detail's edge residual to zero at
+          // the boundary; tone and alpha stay the destination's.
           const auto solve_index =
               static_cast<std::size_t>(document_point.y() - solve_bounds.top()) *
                   static_cast<std::size_t>(solve_width) +
@@ -432,7 +440,8 @@ void CanvasWidget::commit_patch_tool_drag() {
           for (std::size_t channel = 0; channel < 3; ++channel) {
             const auto detail =
                 static_cast<int>(source_pixel[channel]) -
-                static_cast<int>(transparent_low_pass[solve_index * 3U + channel]);
+                static_cast<int>(transparent_low_pass[solve_index * 3U + channel]) +
+                static_cast<int>(membrane[solve_index * 3U + channel]);
             healed[channel] =
                 clamp_byte(static_cast<float>(static_cast<int>(destination_pixel[channel]) + detail));
           }
