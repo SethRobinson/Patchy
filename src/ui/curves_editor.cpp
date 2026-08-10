@@ -428,7 +428,10 @@ private:
       for (int bin = first_bin; bin < last_bin; ++bin) {
         count = std::max(count, histogram[static_cast<std::size_t>(bin)]);
       }
-      const auto scaled = static_cast<double>(count) / static_cast<double>(maximum);
+      // Square-root of the max-normalized count: Photoshop's Curves/Levels
+      // dialogs compress bin heights this way (the Histogram panel is linear),
+      // keeping the distribution readable when one spike dominates.
+      const auto scaled = std::sqrt(static_cast<double>(count) / static_cast<double>(maximum));
       const auto y = static_cast<double>(graph.bottom()) - scaled * static_cast<double>(graph.height() - 1);
       shape.lineTo(graph.left() + x, y);
     }

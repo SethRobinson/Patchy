@@ -726,7 +726,7 @@ void ui_levels_dialog_preserves_independent_channel_records() {
   CHECK(result->green.black_output == 0);
 }
 
-void ui_levels_histogram_is_linear_and_auto_uses_shared_sampler() {
+void ui_levels_histogram_sqrt_heights_and_auto_shared_sampler() {
   // 90% of the 2x2 sample blocks sit at gray 60 and 10% at gray 180 (the
   // bright pixels are block-aligned so averaging cannot mix the two), giving a
   // composite histogram of 13,500 vs 1,500 counts.
@@ -760,9 +760,11 @@ void ui_levels_histogram_is_linear_and_auto_uses_shared_sampler() {
     const auto graph_rect = QRect(0, 0, graph->width(), graph->height()).adjusted(8, 8, -8, -28);
     CHECK(graph_rect.width() >= 256);
     const auto column = graph_rect.left() + (180 * graph_rect.width()) / 256;
-    // The 10%-count bin draws ~8px tall under linear scaling; the old log
-    // scaling drew it at ~80% of the graph and would fill the upper probe.
+    // The 1/9th-count bin draws sqrt(1/9) = 33% of the 72px bar scale = 24px.
+    // The 12px probe must be inside the bar (linear drew only 8px) and the
+    // 30px probe outside it (log drew ~57px).
     CHECK(color_close(image.pixelColor(column, graph_rect.bottom() - 2), QColor(218, 218, 218), 8));
+    CHECK(color_close(image.pixelColor(column, graph_rect.bottom() - 12), QColor(218, 218, 218), 8));
     CHECK(color_close(image.pixelColor(column, graph_rect.bottom() - 30), QColor(55, 55, 55), 8));
 
     auto_button->click();
@@ -2090,7 +2092,7 @@ void ui_curves_histograms_box_average_fills_missing_codes() {
   CHECK(tallest_bin * 2U < noisy_total);
 }
 
-void ui_curves_histogram_display_is_linear() {
+void ui_curves_histogram_display_uses_sqrt_heights() {
   patchy::ui::CurvesEditorWidget editor;
   editor.resize(460, 520);
   patchy::ui::CurvesHistograms histograms;
@@ -2136,13 +2138,17 @@ void ui_curves_histogram_display_is_linear() {
   CHECK(empty_column > 0);
 
   // The max bin fills its column to the top and the short bin rises above the
-  // baseline in both scalings.
+  // baseline under any scaling.
   CHECK(!color_close(image.pixelColor(tall_column, row_at(0.90)),
                      image.pixelColor(empty_column, row_at(0.90)), 6));
   CHECK(!color_close(image.pixelColor(short_column, row_at(0.05)),
                      image.pixelColor(empty_column, row_at(0.05)), 6));
-  // Linear display: a bin at 10% of the max stays well under 40% of the graph
-  // height. The old log scaling drew it at log(101)/log(1001) = 67% and fails.
+  // Square-root display, matching Photoshop's dialogs: a bin at 10% of the max
+  // draws at sqrt(0.1) = 32% of the graph. It must cover the 22% probe (linear
+  // scaling topped out at 10%) but stay under the 40% probe (log scaling drew
+  // log(101)/log(1001) = 67%).
+  CHECK(!color_close(image.pixelColor(short_column, row_at(0.22)),
+                     image.pixelColor(empty_column, row_at(0.22)), 6));
   CHECK(color_close(image.pixelColor(short_column, row_at(0.40)),
                     image.pixelColor(empty_column, row_at(0.40)), 6));
 }
@@ -3185,8 +3191,8 @@ std::vector<patchy::test::TestCase> image_adjustments_curves_tests() {
        ui_levels_dialog_adjusts_selected_color_channel_on_transparent_layer},
       {"ui_levels_dialog_preserves_independent_channel_records",
        ui_levels_dialog_preserves_independent_channel_records},
-      {"ui_levels_histogram_is_linear_and_auto_uses_shared_sampler",
-       ui_levels_histogram_is_linear_and_auto_uses_shared_sampler},
+      {"ui_levels_histogram_sqrt_heights_and_auto_shared_sampler",
+       ui_levels_histogram_sqrt_heights_and_auto_shared_sampler},
       {"ui_hue_saturation_dialog_adjusts_selected_pixels", ui_hue_saturation_dialog_adjusts_selected_pixels},
       {"ui_hue_saturation_creates_masked_adjustment_layer", ui_hue_saturation_creates_masked_adjustment_layer},
       {"ui_hue_saturation_colorize_toggle_switches_ranges_and_creates_layer",
@@ -3213,7 +3219,7 @@ std::vector<patchy::test::TestCase> image_adjustments_curves_tests() {
        ui_curves_transient_canvas_read_is_non_mutating},
       {"ui_curves_histograms_box_average_fills_missing_codes",
        ui_curves_histograms_box_average_fills_missing_codes},
-      {"ui_curves_histogram_display_is_linear", ui_curves_histogram_display_is_linear},
+      {"ui_curves_histogram_display_uses_sqrt_heights", ui_curves_histogram_display_uses_sqrt_heights},
       {"ui_curves_canvas_tool_buttons_show_checked_state",
        ui_curves_canvas_tool_buttons_show_checked_state},
       {"ui_curves_canvas_tools_before_and_clipping_hooks",

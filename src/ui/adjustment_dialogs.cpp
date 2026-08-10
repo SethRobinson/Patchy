@@ -221,7 +221,8 @@ protected:
       for (int bin = first_bin; bin < last_bin; ++bin) {
         count = std::max(count, histogram_[static_cast<std::size_t>(bin)]);
       }
-      const auto scaled = static_cast<double>(count) / static_cast<double>(maximum);
+      // Square-root height like the Curves graph: matches Photoshop's dialogs.
+      const auto scaled = std::sqrt(static_cast<double>(count) / static_cast<double>(maximum));
       const auto bar_height = std::clamp(static_cast<int>(std::round(scaled * (graph.height() - 8))), 1,
                                          std::max(1, graph.height() - 4));
       painter.fillRect(QRect(graph.left() + x, graph.bottom() - bar_height, 1, bar_height), QColor(218, 218, 218));
