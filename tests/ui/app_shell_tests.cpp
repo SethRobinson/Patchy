@@ -325,6 +325,31 @@ void ui_main_window_renders_color_controls() {
   CHECK(require_action(window, "layerNewThresholdAdjustmentAction") != nullptr);
   CHECK(require_action(window, "layerNewBrightnessContrastAdjustmentAction") != nullptr);
   CHECK(window.findChild<QToolButton*>(QStringLiteral("layerNewAdjustmentButton")) != nullptr);
+  // The Layer menu stays short enough for a small browser viewport (wasm) by
+  // grouping the new-layer, mask, and arrange sets into submenus; the direct
+  // row bound keeps it from silently regrowing.
+  auto* layer_menu = window.findChild<QMenu*>(QStringLiteral("layerMenu"));
+  CHECK(layer_menu != nullptr);
+  CHECK(layer_menu->actions().size() <= 23);
+  auto* layer_new_menu = window.findChild<QMenu*>(QStringLiteral("layerNewMenu"));
+  CHECK(layer_new_menu != nullptr);
+  CHECK(layer_new_menu->actions().contains(require_action(window, "layerNewAction")));
+  CHECK(layer_new_menu->actions().contains(require_action(window, "layerNewFolderAction")));
+  CHECK(layer_new_menu->actions().contains(require_action(window, "layerViaCopyAction")));
+  CHECK(layer_new_menu->actions().contains(require_action(window, "layerViaCutAction")));
+  auto* layer_mask_menu = window.findChild<QMenu*>(QStringLiteral("layerMaskMenu"));
+  CHECK(layer_mask_menu != nullptr);
+  for (const char* mask_action_name :
+       {"layerAddMaskAction", "layerEditMaskAction", "layerMaskOverlayAction", "layerViewMaskAction",
+        "layerLinkMaskAction", "layerDisableMaskAction", "layerInvertMaskAction", "layerApplyMaskAction",
+        "layerDeleteMaskAction"}) {
+    CHECK(layer_mask_menu->actions().contains(require_action(window, mask_action_name)));
+  }
+  auto* layer_arrange_menu = window.findChild<QMenu*>(QStringLiteral("layerArrangeMenu"));
+  CHECK(layer_arrange_menu != nullptr);
+  CHECK(layer_arrange_menu->actions().contains(require_action_by_text(window, QStringLiteral("Move Layer Up"))));
+  CHECK(layer_arrange_menu->actions().contains(
+      require_action_by_text(window, QStringLiteral("Flip Layer Horizontal"))));
   CHECK(window.findChild<QSpinBox*>(QStringLiteral("selectionFeatherSpin")) != nullptr);
   for (auto* button : window.findChildren<QPushButton*>()) {
     CHECK(button->text() != QStringLiteral("Select and Mask..."));

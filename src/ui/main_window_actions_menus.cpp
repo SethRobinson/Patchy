@@ -279,6 +279,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   auto* view_menu = menuBar()->addMenu(tr("&View"));
   auto* window_menu = menuBar()->addMenu(tr("&Window"));
   auto* help_menu = menuBar()->addMenu(tr("&Help"));
+  layer_menu->setObjectName(QStringLiteral("layerMenu"));
   filter_menu->setObjectName(QStringLiteral("filterMenu"));
   bind_action_text(file_menu->menuAction(), "&File");
   bind_action_text(edit_menu->menuAction(), "&Edit");
@@ -291,7 +292,6 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   bind_action_text(view_menu->menuAction(), "&View");
   bind_action_text(window_menu->menuAction(), "&Window");
   bind_action_text(help_menu->menuAction(), "&Help");
-  filter_menu->setObjectName(QStringLiteral("filterMenu"));
 
   auto* new_action = file_menu->addAction(tr("&New"));
   auto* open_action = file_menu->addAction(tr("&Open..."));
@@ -611,25 +611,37 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   select_menu->addSeparator();
   select_menu->addAction(stroke_selection_action);
 
-  auto* add_layer_action = layer_menu->addAction(tr("&New Layer"));
-  auto* add_folder_action = layer_menu->addAction(tr("New &Folder"));
+  // The Layer menu groups the new-layer, mask, and arrange sets into submenus
+  // so the whole menu fits a short browser viewport in the wasm build;
+  // ui_main_window_renders_color_controls bounds its direct row count. The
+  // Layer Mask submenu mirrors the layer context menu's order and separators.
+  auto* layer_new_menu = layer_menu->addMenu(tr("&New"));
+  layer_new_menu->setObjectName(QStringLiteral("layerNewMenu"));
+  auto* add_layer_action = layer_new_menu->addAction(tr("&New Layer"));
+  auto* add_folder_action = layer_new_menu->addAction(tr("New &Folder"));
+  layer_new_menu->addSeparator();
+  auto* layer_via_copy_action = layer_new_menu->addAction(tr("Layer Via &Copy"));
+  auto* layer_via_cut_action = layer_new_menu->addAction(tr("Layer Via Cu&t"));
   auto* new_adjustment_layer_menu = layer_menu->addMenu(tr("New &Adjustment Layer"));
   new_adjustment_layer_menu->setObjectName(QStringLiteral("layerNewAdjustmentMenu"));
   populate_new_adjustment_layer_menu(new_adjustment_layer_menu, QStringLiteral("layerNew"));
   auto* new_fill_layer_menu = layer_menu->addMenu(tr("New F&ill Layer"));
   new_fill_layer_menu->setObjectName(QStringLiteral("layerNewFillMenu"));
   populate_new_fill_layer_menu(new_fill_layer_menu, QStringLiteral("layerNew"));
-  auto* layer_via_copy_action = layer_menu->addAction(tr("Layer Via &Copy"));
-  auto* layer_via_cut_action = layer_menu->addAction(tr("Layer Via Cu&t"));
-  auto* add_mask_action = layer_menu->addAction(tr("Add Layer &Mask"));
-  edit_layer_mask_action_ = layer_menu->addAction(tr("&Edit Layer Mask"));
-  mask_overlay_action_ = layer_menu->addAction(tr("Show Mask &Overlay"));
-  view_layer_mask_action_ = layer_menu->addAction(tr("View Layer Mask"));
-  delete_layer_mask_action_ = layer_menu->addAction(tr("&Delete Layer Mask"));
-  link_layer_mask_action_ = layer_menu->addAction(tr("Link Layer &Mask"));
-  disable_layer_mask_action_ = layer_menu->addAction(tr("&Disable Layer Mask"));
-  invert_layer_mask_action_ = layer_menu->addAction(tr("&Invert Layer Mask"));
-  apply_layer_mask_action_ = layer_menu->addAction(tr("&Apply Layer Mask"));
+  layer_menu->addSeparator();
+  auto* layer_mask_menu = layer_menu->addMenu(tr("Layer Mask"));
+  layer_mask_menu->setObjectName(QStringLiteral("layerMaskMenu"));
+  auto* add_mask_action = layer_mask_menu->addAction(tr("Add Layer &Mask"));
+  edit_layer_mask_action_ = layer_mask_menu->addAction(tr("&Edit Layer Mask"));
+  mask_overlay_action_ = layer_mask_menu->addAction(tr("Show Mask &Overlay"));
+  view_layer_mask_action_ = layer_mask_menu->addAction(tr("View Layer Mask"));
+  layer_mask_menu->addSeparator();
+  link_layer_mask_action_ = layer_mask_menu->addAction(tr("Link Layer &Mask"));
+  disable_layer_mask_action_ = layer_mask_menu->addAction(tr("&Disable Layer Mask"));
+  invert_layer_mask_action_ = layer_mask_menu->addAction(tr("&Invert Layer Mask"));
+  layer_mask_menu->addSeparator();
+  apply_layer_mask_action_ = layer_mask_menu->addAction(tr("&Apply Layer Mask"));
+  delete_layer_mask_action_ = layer_mask_menu->addAction(tr("&Delete Layer Mask"));
   layer_clipping_mask_action_ = layer_menu->addAction(tr("Create Clipping Mask"));
   auto* vector_mask_menu = layer_menu->addMenu(tr("&Vector Mask"));
   vector_mask_menu->setObjectName(QStringLiteral("layerVectorMaskMenu"));
@@ -678,11 +690,13 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   auto* fill_background_action = layer_menu->addAction(tr("Fill With &Background Color"));
   auto* clear_layer_action = layer_menu->addAction(tr("&Clear Layer / Selection"));
   layer_menu->addSeparator();
-  auto* flip_h_action = layer_menu->addAction(tr("Flip Layer &Horizontal"));
-  auto* flip_v_action = layer_menu->addAction(tr("Flip Layer &Vertical"));
-  layer_menu->addSeparator();
-  auto* layer_up_action = layer_menu->addAction(tr("Move Layer &Up"));
-  auto* layer_down_action = layer_menu->addAction(tr("Move Layer &Down"));
+  auto* layer_arrange_menu = layer_menu->addMenu(tr("Arran&ge"));
+  layer_arrange_menu->setObjectName(QStringLiteral("layerArrangeMenu"));
+  auto* layer_up_action = layer_arrange_menu->addAction(tr("Move Layer &Up"));
+  auto* layer_down_action = layer_arrange_menu->addAction(tr("Move Layer &Down"));
+  layer_arrange_menu->addSeparator();
+  auto* flip_h_action = layer_arrange_menu->addAction(tr("Flip Layer &Horizontal"));
+  auto* flip_v_action = layer_arrange_menu->addAction(tr("Flip Layer &Vertical"));
   add_layer_action->setObjectName(QStringLiteral("layerNewAction"));
   add_folder_action->setObjectName(QStringLiteral("layerNewFolderAction"));
   layer_via_copy_action->setObjectName(QStringLiteral("layerViaCopyAction"));
@@ -853,8 +867,10 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   connect(flip_v_action, &QAction::triggered, this, [this] { flip_active_layer_vertical(); });
   connect(layer_up_action, &QAction::triggered, this, [this] { move_active_layer(1); });
   connect(layer_down_action, &QAction::triggered, this, [this] { move_active_layer(-1); });
-  for (auto* action : {add_layer_action, add_folder_action, new_adjustment_layer_menu->menuAction(),
-                       new_fill_layer_menu->menuAction(), vector_mask_menu->menuAction(),
+  for (auto* action : {add_layer_action, add_folder_action, layer_new_menu->menuAction(),
+                       new_adjustment_layer_menu->menuAction(), new_fill_layer_menu->menuAction(),
+                       layer_mask_menu->menuAction(), vector_mask_menu->menuAction(),
+                       layer_arrange_menu->menuAction(),
                        layer_via_copy_action, layer_via_cut_action, add_mask_action, layer_clipping_mask_action_,
                        duplicate_layer_action, merge_visible_action, merge_down_action, rename_layer_action,
                        delete_layer_action, fill_layer_action, fill_background_action, clear_layer_action,
@@ -1522,9 +1538,13 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   ctx.define_brush_tip_action = define_brush_tip_action;
   ctx.add_layer_action = add_layer_action;
   ctx.add_folder_action = add_folder_action;
+  ctx.layer_new_menu = layer_new_menu;
   ctx.new_adjustment_layer_menu = new_adjustment_layer_menu;
   ctx.new_fill_layer_menu = new_fill_layer_menu;
+  ctx.layer_mask_menu = layer_mask_menu;
   ctx.vector_mask_menu = vector_mask_menu;
+  ctx.layer_smart_objects_menu = layer_smart_objects_menu;
+  ctx.layer_arrange_menu = layer_arrange_menu;
   ctx.layer_via_copy_action = layer_via_copy_action;
   ctx.layer_via_cut_action = layer_via_cut_action;
   ctx.add_mask_action = add_mask_action;

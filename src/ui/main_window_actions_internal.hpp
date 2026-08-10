@@ -62,9 +62,13 @@ struct ActionBuildContext {
   QAction* define_brush_tip_action{nullptr};
   QAction* add_layer_action{nullptr};
   QAction* add_folder_action{nullptr};
+  QMenu* layer_new_menu{nullptr};
   QMenu* new_adjustment_layer_menu{nullptr};
   QMenu* new_fill_layer_menu{nullptr};
+  QMenu* layer_mask_menu{nullptr};
   QMenu* vector_mask_menu{nullptr};
+  QMenu* layer_smart_objects_menu{nullptr};
+  QMenu* layer_arrange_menu{nullptr};
   QAction* layer_via_copy_action{nullptr};
   QAction* layer_via_cut_action{nullptr};
   QAction* add_mask_action{nullptr};

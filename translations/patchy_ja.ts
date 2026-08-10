@@ -11368,6 +11368,10 @@ To update, paste this into a terminal:
         <translation>レイヤーマスク</translation>
     </message>
     <message>
+        <source>Arran&amp;ge</source>
+        <translation>配置(&amp;G)</translation>
+    </message>
+    <message>
         <location line="+324"/>
         <location line="+82"/>
         <source>This channel is read-only</source>
