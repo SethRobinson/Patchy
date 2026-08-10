@@ -240,7 +240,7 @@ void CanvasWidget::commit_patch_tool_drag() {
   // membrane below needs no radius at all).
   const auto equivalent_diameter = std::clamp(
       static_cast<int>(std::lround(2.0 * std::sqrt(static_cast<double>(mask_area) / kPi))), 4, kMaxBrushSize);
-  const auto tone_radius = std::max(1, (equivalent_diameter * 4 + 15) / 16);
+  const auto tone_radius = std::max(2, (equivalent_diameter * 4 + 15) / 16);
 
   const auto source_offset = mode == PatchToolMode::Destination ? -delta : delta;
   const auto mask_offset = destination_offset;
@@ -295,6 +295,85 @@ void CanvasWidget::commit_patch_tool_drag() {
     tick_processing_operation();
   }
 
+  // Transparent option: a true high-pass of the dragged source (source minus
+  // its separable box-blurred local mean) laid over the untouched
+  // destination. The earlier sparse 8-sample ring wildly misestimated the
+  // local mean on textured content, turning the detail term into clamped
+  // noise.
+  std::vector<std::uint8_t> transparent_low_pass;
+  if (transparent) {
+    const auto cells = static_cast<std::size_t>(solve_width) * static_cast<std::size_t>(solve_height);
+    std::vector<std::uint8_t> source_patch(cells * 3U);
+    for (int y = 0; y < solve_height; ++y) {
+      for (int x = 0; x < solve_width; ++x) {
+        const auto* source = snapshot_pixel(solve_bounds.left() + x + source_offset.x(),
+                                            solve_bounds.top() + y + source_offset.y());
+        const auto index = (static_cast<std::size_t>(y) * static_cast<std::size_t>(solve_width) +
+                            static_cast<std::size_t>(x)) *
+                           3U;
+        source_patch[index] = source[0];
+        source_patch[index + 1U] = source[1];
+        source_patch[index + 2U] = source[2];
+      }
+    }
+    const auto blur_radius = tone_radius;
+    // Horizontal then vertical mean via per-line prefix sums with clamped
+    // windows; integer division keeps it deterministic.
+    std::vector<std::uint8_t> horizontal(cells * 3U);
+    std::vector<std::int32_t> prefix((static_cast<std::size_t>(std::max(solve_width, solve_height)) + 1U) * 3U);
+    for (int y = 0; y < solve_height; ++y) {
+      const auto row_base = static_cast<std::size_t>(y) * static_cast<std::size_t>(solve_width);
+      prefix[0] = prefix[1] = prefix[2] = 0;
+      for (int x = 0; x < solve_width; ++x) {
+        for (int channel = 0; channel < 3; ++channel) {
+          prefix[(static_cast<std::size_t>(x) + 1U) * 3U + static_cast<std::size_t>(channel)] =
+              prefix[static_cast<std::size_t>(x) * 3U + static_cast<std::size_t>(channel)] +
+              source_patch[(row_base + static_cast<std::size_t>(x)) * 3U + static_cast<std::size_t>(channel)];
+        }
+      }
+      for (int x = 0; x < solve_width; ++x) {
+        const auto x0 = std::max(0, x - blur_radius);
+        const auto x1 = std::min(solve_width - 1, x + blur_radius);
+        const auto count = x1 - x0 + 1;
+        for (int channel = 0; channel < 3; ++channel) {
+          const auto sum = prefix[(static_cast<std::size_t>(x1) + 1U) * 3U + static_cast<std::size_t>(channel)] -
+                           prefix[static_cast<std::size_t>(x0) * 3U + static_cast<std::size_t>(channel)];
+          horizontal[(row_base + static_cast<std::size_t>(x)) * 3U + static_cast<std::size_t>(channel)] =
+              static_cast<std::uint8_t>(sum / count);
+        }
+      }
+    }
+    transparent_low_pass.resize(cells * 3U);
+    for (int x = 0; x < solve_width; ++x) {
+      prefix[0] = prefix[1] = prefix[2] = 0;
+      for (int y = 0; y < solve_height; ++y) {
+        const auto index = (static_cast<std::size_t>(y) * static_cast<std::size_t>(solve_width) +
+                            static_cast<std::size_t>(x)) *
+                           3U;
+        for (int channel = 0; channel < 3; ++channel) {
+          prefix[(static_cast<std::size_t>(y) + 1U) * 3U + static_cast<std::size_t>(channel)] =
+              prefix[static_cast<std::size_t>(y) * 3U + static_cast<std::size_t>(channel)] +
+              horizontal[index + static_cast<std::size_t>(channel)];
+        }
+      }
+      for (int y = 0; y < solve_height; ++y) {
+        const auto y0 = std::max(0, y - blur_radius);
+        const auto y1 = std::min(solve_height - 1, y + blur_radius);
+        const auto count = y1 - y0 + 1;
+        const auto index = (static_cast<std::size_t>(y) * static_cast<std::size_t>(solve_width) +
+                            static_cast<std::size_t>(x)) *
+                           3U;
+        for (int channel = 0; channel < 3; ++channel) {
+          const auto sum = prefix[(static_cast<std::size_t>(y1) + 1U) * 3U + static_cast<std::size_t>(channel)] -
+                           prefix[static_cast<std::size_t>(y0) * 3U + static_cast<std::size_t>(channel)];
+          transparent_low_pass[index + static_cast<std::size_t>(channel)] =
+              static_cast<std::uint8_t>(sum / count);
+        }
+      }
+    }
+    tick_processing_operation();
+  }
+
   // For each destination pixel p: coverage from the mask (at p in Source mode,
   // at p - delta in Destination mode) and source pixel s at the user-dragged
   // offset. Pure per-pixel function writing disjoint rows, so the strip
@@ -341,15 +420,21 @@ void CanvasWidget::commit_patch_tool_drag() {
         const auto* source_pixel =
             snapshot.constScanLine(source_point.y()) + static_cast<std::size_t>(source_point.x()) * 4U;
         if (transparent) {
-          // Texture-only transfer: add the source's detail (source minus its
-          // own ring tone) onto the destination pixel; tone and alpha stay the
-          // destination's.
-          const auto source_tone = healing_ring_tone(snapshot, source_point, tone_radius);
+          // Texture-only transfer: add the source's high-pass detail (source
+          // minus its box-blurred local mean) onto the destination pixel;
+          // tone and alpha stay the destination's.
+          const auto solve_index =
+              static_cast<std::size_t>(document_point.y() - solve_bounds.top()) *
+                  static_cast<std::size_t>(solve_width) +
+              static_cast<std::size_t>(document_point.x() - solve_bounds.left());
           const auto* destination_pixel = snapshot.constScanLine(document_point.y()) +
                                           static_cast<std::size_t>(document_point.x()) * 4U;
           for (std::size_t channel = 0; channel < 3; ++channel) {
-            healed[channel] = clamp_byte(static_cast<double>(destination_pixel[channel]) +
-                                         static_cast<double>(source_pixel[channel]) - source_tone[channel]);
+            const auto detail =
+                static_cast<int>(source_pixel[channel]) -
+                static_cast<int>(transparent_low_pass[solve_index * 3U + channel]);
+            healed[channel] =
+                clamp_byte(static_cast<float>(static_cast<int>(destination_pixel[channel]) + detail));
           }
           healed[3] = destination_pixel[3];
         } else {

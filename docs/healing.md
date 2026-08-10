@@ -5,7 +5,7 @@ The healing family shares one legal envelope: every tool is user-directed or foo
 Two blend engines exist:
 
 - **The healing membrane** (`core/heal_membrane.{hpp,cpp}`, `solve_heal_membrane`): destination-minus-source offsets on the ring of cells just outside the region are interpolated harmonically across the interior (relaxation on the OFFSET field with Dirichlet boundary conditions - the expired patent's teaching, NOT Poisson compositing of gradients), and the healed pixel is source texture plus the smooth offset. The solver is integer 16.16 fixed-point SOR on a coarse-to-fine cascade with fixed sweep counts and lexicographic order, so it is byte-deterministic across toolchains. Spot Healing and the Patch tool's Source/Destination modes use it; it needs no radius knob.
-- **The ring tone match** (`canvas_widget_shared.cpp`: `healing_ring_tone`, `healing_sample`): the original per-dab frequency separation. The Healing Brush uses it live per stroke segment (its Diffusion 1-7 option maps to the ring radius), and the Patch tool's Transparent option uses the ring for its detail extraction at a fixed default strength.
+- **The ring tone match** (`canvas_widget_shared.cpp`: `healing_ring_tone`, `healing_sample`): the original per-dab frequency separation, used live per stroke segment by the Healing Brush (its Diffusion 1-7 option maps to the ring radius). The Patch tool's Transparent option instead extracts detail with a real separable box-blur local mean.
 
 ## Sample All Layers
 
@@ -31,7 +31,7 @@ The commit in `commit_patch_tool_drag()` runs once on release, with the drag off
 
 - **Source** (default): the dragged-from region takes the dragged-to texture plus the membrane solved over the region (boundary offsets = destination minus source on the ring of uncovered cells, padded one cell). The selection stays put.
 - **Destination**: the region is copied onto the drop point through the same membrane with roles swapped, and the selection follows the copy as its own history step after the pixel step.
-- **Transparent** (both modes): texture-only transfer - destination pixel plus the source's difference from its own ring tone at a fixed default radius; destination alpha is kept.
+- **Transparent** (both modes): texture-only transfer - destination pixel plus the source's high-pass detail (source minus its separable box-blurred local mean at the region-derived radius); destination alpha is kept. The blur is a real local mean: the earlier sparse 8-sample ring misestimated busy texture and turned the detail term into clamped noise.
 
 Writes follow the clone conventions: selection coverage from the drag mask, transparent-pixel lock, palette snap, layer expansion, out-of-canvas sources skipped (Dirichlet offsets use clamped snapshot reads so the solve is defined everywhere). Areas at or above 262,144 pixels fan out the blend over row strips (`std::async` plus `max_blocking_fanout_workers`, `PATCHY_RENDER_SINGLE_THREADED` honored); the membrane solves once up front and every healed pixel is a pure function of the snapshot, the mask, the offset, and the solved membrane, so the fan-out is byte-identical to the sequential walk. Settings: `tools/patchMode` (0 Source, 1 Destination), `tools/patchTransparent`. Coverage: `ui_patch_tool_*`, `ui_patch_options_sync_canvas_and_persist`, and the texture gallery in tests/ui/brush_engine_stroke_tests_healing_patch.cpp.
 

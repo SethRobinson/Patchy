@@ -304,12 +304,20 @@ void ui_patch_tool_transparent_blends_texture_only() {
   draw_patch_outline(canvas, QPoint(6, 6), QPoint(15, 15));
   drag_patch_region(canvas, QPoint(10, 10), QPoint(42, 10));
 
-  // Transparent transfers only the source's detail over the destination: the
-  // dot adds its +50 offset onto the base, flat source areas change nothing.
+  // Transparent transfers only the source's high-pass detail over the
+  // destination: the dot adds (almost all of) its +50 offset onto the base -
+  // the box-blurred local mean absorbs a sliver - and flat source areas stay
+  // within a couple of levels of the untouched base.
   const auto* textured = layer.pixels().pixel(10, 10);
-  CHECK(textured[0] == 90 && textured[1] == 130 && textured[2] == 170 && textured[3] == 255);
-  const auto* flat = layer.pixels().pixel(11, 10);
-  CHECK(flat[0] == 40 && flat[1] == 80 && flat[2] == 120 && flat[3] == 255);
+  CHECK(std::abs(static_cast<int>(textured[0]) - 90) <= 3);
+  CHECK(std::abs(static_cast<int>(textured[1]) - 130) <= 3);
+  CHECK(std::abs(static_cast<int>(textured[2]) - 170) <= 3);
+  CHECK(textured[3] == 255);
+  const auto* flat = layer.pixels().pixel(12, 12);
+  CHECK(std::abs(static_cast<int>(flat[0]) - 40) <= 3);
+  CHECK(std::abs(static_cast<int>(flat[1]) - 80) <= 3);
+  CHECK(std::abs(static_cast<int>(flat[2]) - 120) <= 3);
+  CHECK(flat[3] == 255);
 }
 
 void ui_patch_tool_click_inside_is_noop_and_escape_cancels() {
@@ -348,6 +356,47 @@ void ui_patch_tool_click_inside_is_noop_and_escape_cancels() {
   CHECK(layer.pixels().pixel(10, 10)[0] == 220);
   const auto* drop_area = layer.pixels().pixel(42, 10);
   CHECK(drop_area[0] == 40 && drop_area[1] == 80 && drop_area[2] == 120 && drop_area[3] == 255);
+}
+
+// Destination mode dropped onto strongly contrasting content: the membrane
+// must shift the copied texture to the drop area's tone (uniform boundary
+// offsets solve to a constant), never emit unbounded per-pixel values.
+void ui_patch_tool_destination_onto_contrast_adapts_tone() {
+  patchy::Document document(128, 64, patchy::PixelFormat::rgba8());
+  auto pixels = solid_pixels(128, 64, patchy::PixelFormat::rgba8(), QColor(230, 150, 60, 255));
+  for (std::int32_t y = 0; y < 64; ++y) {
+    for (std::int32_t x = 64; x < 128; ++x) {
+      auto* px = pixels.pixel(x, y);
+      px[0] = 20;
+      px[1] = 40;
+      px[2] = 90;
+    }
+  }
+  auto& layer = document.add_pixel_layer("Contrast", std::move(pixels));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(300, 160);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::PatchTool);
+  canvas.set_patch_tool_mode(patchy::ui::CanvasWidget::PatchToolMode::Destination);
+  canvas.show();
+  canvas.set_zoom(2.0);
+  QApplication::processEvents();
+
+  draw_patch_outline(canvas, QPoint(8, 8), QPoint(28, 28));
+  drag_patch_region(canvas, QPoint(18, 18), QPoint(90, 40));
+  save_widget_artifact("ui_patch_destination_contrast_after", canvas);
+
+  // The copy carries the orange region's (flat) texture with a constant
+  // boundary offset onto the blue side, so interior drop pixels must land on
+  // the blue base tone.
+  for (const auto point : {QPoint(88, 38), QPoint(90, 40), QPoint(93, 42)}) {
+    const auto* healed = layer.pixels().pixel(point.x(), point.y());
+    CHECK(std::abs(static_cast<int>(healed[0]) - 20) <= 3);
+    CHECK(std::abs(static_cast<int>(healed[1]) - 40) <= 3);
+    CHECK(std::abs(static_cast<int>(healed[2]) - 90) <= 3);
+    CHECK(healed[3] == 255);
+  }
 }
 
 // A perfectly closed outline (release exactly on the press point) must commit
@@ -459,6 +508,15 @@ void ui_spot_healing_and_patch_texture_gallery() {
   drag_patch_region(canvas, QPoint(64, 116), QPoint(180, 116));
   QApplication::processEvents();
   save_widget_artifact("ui_patch_tool_gallery_after", canvas);
+
+  // Destination mode over the same textured gradient: copy a clean piece onto
+  // a brighter area, then chain a second drop from the moved selection.
+  canvas.set_patch_tool_mode(patchy::ui::CanvasWidget::PatchToolMode::Destination);
+  draw_patch_outline(canvas, QPoint(150, 30), QPoint(184, 62));
+  drag_patch_region(canvas, QPoint(166, 46), QPoint(96, 100));
+  drag_patch_region(canvas, QPoint(96, 100), QPoint(200, 110));
+  QApplication::processEvents();
+  save_widget_artifact("ui_patch_destination_gallery_after", canvas);
 }
 
 void ui_patch_options_sync_canvas_and_persist() {
@@ -508,6 +566,8 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part2() {
       {"ui_patch_tool_transparent_blends_texture_only", ui_patch_tool_transparent_blends_texture_only},
       {"ui_patch_tool_click_inside_is_noop_and_escape_cancels",
        ui_patch_tool_click_inside_is_noop_and_escape_cancels},
+      {"ui_patch_tool_destination_onto_contrast_adapts_tone",
+       ui_patch_tool_destination_onto_contrast_adapts_tone},
       {"ui_patch_and_lasso_closed_loop_outline_still_selects",
        ui_patch_and_lasso_closed_loop_outline_still_selects},
       {"ui_spot_healing_and_patch_texture_gallery", ui_spot_healing_and_patch_texture_gallery},
