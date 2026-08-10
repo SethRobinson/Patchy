@@ -3536,6 +3536,18 @@ void MainWindow::refresh_document_info() {
       if (canvas_->patch_tool_transparent()) {
         lines << tr("Transparent");
       }
+    } else if (current_tool_ == CanvasTool::Crop) {
+      if (canvas_->crop_ratio_width() > 0.0 && canvas_->crop_ratio_height() > 0.0) {
+        lines << tr("Ratio: %1 : %2").arg(canvas_->crop_ratio_width()).arg(canvas_->crop_ratio_height());
+      } else {
+        lines << tr("Ratio: unconstrained");
+      }
+      if (const auto crop_rect = canvas_->crop_session_rect(); crop_rect.has_value()) {
+        lines << tr("Crop: %1 x %2 px").arg(crop_rect->width()).arg(crop_rect->height());
+        if (canvas_->crop_session_angle() != 0.0) {
+          lines << tr("Angle: %1°").arg(canvas_->crop_session_angle(), 0, 'f', 1);
+        }
+      }
     } else if (current_tool_ == CanvasTool::Dodge || current_tool_ == CanvasTool::Burn ||
                current_tool_ == CanvasTool::Sponge || current_tool_ == CanvasTool::BlurBrush ||
                current_tool_ == CanvasTool::SharpenBrush) {

@@ -189,6 +189,19 @@ void resize_canvas_and_layers(Document& document, std::int32_t width, std::int32
                               CanvasAnchor anchor = CanvasAnchor::TopLeft,
                               EditColor extension_color = EditColor{255, 255, 255, 255});
 [[nodiscard]] bool crop_document(Document& document, Rect crop);
+// Crop that may extend beyond the canvas: content outside `crop` is discarded,
+// the canvas becomes crop.width x crop.height, area outside the old canvas is
+// transparent, and a pixel layer literally named "Background" is rebuilt
+// canvas-sized with extension_color under its content (the canvas-resize fill
+// rules). Returns false when the rect is degenerate.
+[[nodiscard]] bool crop_document(Document& document, Rect crop, EditColor extension_color);
+// Rotated crop: the box is `crop` rotated by angle_degrees about its center in
+// document space, and committing straightens it (result pixel q samples the
+// document at center + R(angle) * (q - result_center), bilinear for 8-bit).
+// Text transforms, smart-object placements, and vector data ride the same
+// affine. Angles under 0.01 degrees take the exact unrotated path.
+[[nodiscard]] bool crop_document(Document& document, Rect crop, double angle_degrees,
+                                 EditColor extension_color);
 void rotate_document_clockwise(Document& document);
 void rotate_document_counterclockwise(Document& document);
 // Shifts the whole document by (dx, dy) with wraparound at the canvas edges (the seamless

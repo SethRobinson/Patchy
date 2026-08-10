@@ -756,6 +756,7 @@ if(PATCHY_BUILD_APP)
       src/ui/canvas_widget_shared.hpp
       src/ui/canvas_widget_shared.cpp
       src/ui/canvas_widget_brush.cpp
+      src/ui/canvas_widget_crop.cpp
       src/ui/canvas_widget_cursors.cpp
       src/ui/canvas_widget_draw_tools.cpp
       src/ui/canvas_widget_events.cpp
@@ -1376,6 +1377,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/selection_marquee_lasso_tests.cpp
       tests/ui/selection_marquee_lasso_tests_marquee_geometry.cpp
       tests/ui/selection_marquee_lasso_tests_regions_lasso.cpp
+      tests/ui/crop_tool_tests.cpp
       tests/ui/clipboard_free_transform_tests.cpp
       tests/ui/group_transform_tests.cpp
       tests/ui/channels_panel_tests.cpp

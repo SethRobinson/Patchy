@@ -481,6 +481,12 @@ void MainWindow::sync_tool_option_controls_from_canvas() {
     patch_mode_combo_->setCurrentIndex(
         std::max(0, patch_mode_combo_->findData(static_cast<int>(canvas_->patch_tool_mode()))));
   }
+  if (crop_ratio_w_spin_ != nullptr && crop_ratio_h_spin_ != nullptr) {
+    const QSignalBlocker w_blocker(crop_ratio_w_spin_);
+    const QSignalBlocker h_blocker(crop_ratio_h_spin_);
+    crop_ratio_w_spin_->setValue(canvas_->crop_ratio_width());
+    crop_ratio_h_spin_->setValue(canvas_->crop_ratio_height());
+  }
   set_checked(wand_contiguous_check_, canvas_->wand_contiguous());
   set_checked(wand_sample_all_layers_check_, canvas_->wand_sample_all_layers());
   set_checked(quick_select_sample_all_layers_check_, canvas_->quick_select_sample_all_layers());

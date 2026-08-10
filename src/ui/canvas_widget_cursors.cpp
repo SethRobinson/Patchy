@@ -320,6 +320,21 @@ void CanvasWidget::update_tool_cursor() {
     setCursor(Qt::CrossCursor);
     return;
   }
+  if (tool_ == CanvasTool::Crop) {
+    if (crop_session_active_) {
+      // Session hover feedback: resize cursors over the handles, move inside,
+      // and the rotate hint everywhere off the box (the straighten gesture).
+      const auto handle = crop_handle_at(last_mouse_position_);
+      if (handle == TransformHandle::None) {
+        setCursor(crop_rotate_cursor());
+      } else {
+        set_transform_cursor_for_handle(handle);
+      }
+      return;
+    }
+    setCursor(Qt::CrossCursor);
+    return;
+  }
   if (tool_ == CanvasTool::PathSelect || tool_ == CanvasTool::DirectSelect) {
     setCursor(Qt::ArrowCursor);
     return;

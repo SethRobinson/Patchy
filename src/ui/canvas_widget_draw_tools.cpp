@@ -713,6 +713,13 @@ void CanvasWidget::draw_drag_size_readout(QPainter& painter) const {
   } else if (selecting_ && (tool_ == CanvasTool::Marquee || tool_ == CanvasTool::EllipticalMarquee)) {
     rect = marquee_selection_rect(selection_start_, selection_current_);
     corner = selection_current_;
+  } else if (crop_dragging_out_) {
+    rect = crop_drag_rect(crop_anchor_document_, crop_current_document_);
+    corner = crop_current_document_;
+  } else if (tool_ == CanvasTool::Crop && crop_session_active_ && crop_drag_handle_ != TransformHandle::None &&
+             crop_drag_handle_ != TransformHandle::Move) {
+    rect = crop_rect_;
+    corner = QPoint(crop_rect_.x() + crop_rect_.width(), crop_rect_.y() + crop_rect_.height());
   } else {
     return;
   }

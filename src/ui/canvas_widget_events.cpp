@@ -498,6 +498,14 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     return;
   }
 
+  if (tool_ == CanvasTool::Crop && crop_session_active_ && event->button() == Qt::LeftButton) {
+    // Handles adjust, the interior moves, and a press off the rect starts a
+    // replacement drag-out (a mere click keeps the pending rect alive).
+    handle_crop_session_press(event);
+    event->accept();
+    return;
+  }
+
   if (tool_ == CanvasTool::Pen && event->button() == Qt::LeftButton) {
     if (handle_pen_press(event, document_position_f(event->position()))) {
       event->accept();
@@ -541,6 +549,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       case CanvasTool::Pen:
       case CanvasTool::PathSelect:
       case CanvasTool::DirectSelect:
+      case CanvasTool::Crop:
         return true;
       default:
         return false;
@@ -588,7 +597,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
        effective_tool == CanvasTool::PatchTool || effective_tool == CanvasTool::PatternStamp ||
        effective_tool == CanvasTool::Smudge || effective_tool == CanvasTool::MixerBrush ||
        is_local_adjustment_tool(effective_tool) ||
-       effective_tool == CanvasTool::Text)) {
+       effective_tool == CanvasTool::Text || effective_tool == CanvasTool::Crop)) {
     report_status_error(tr("This tool is unavailable while viewing a document channel"));
     event->accept();
     return;
@@ -604,6 +613,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
                                          tool_ == CanvasTool::MagneticLasso ||
                                          tool_ == CanvasTool::QuickSelect ||
                                          tool_ == CanvasTool::PatchTool ||
+                                         tool_ == CanvasTool::Crop ||
                                          tool_ == CanvasTool::Zoom ||
                                          (event->button() == Qt::LeftButton &&
                                           tool_supports_off_canvas_brush_strokes(effective_tool));
@@ -916,6 +926,12 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     selection_operation_ = SelectionMode::Replace;
     setCursor(Qt::SizeAllCursor);
     update();
+    return;
+  }
+
+  if (tool_ == CanvasTool::Crop) {
+    begin_crop_drag_out(event, document_point);
+    event->accept();
     return;
   }
 
@@ -1334,6 +1350,41 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
   if (transforming_layer_) {
     clear_move_hover_outline();
     set_transform_cursor_for_handle(transform_handle_at(event->pos()));
+    last_mouse_position_ = event->pos();
+    return;
+  }
+
+  if (tool_ == CanvasTool::Crop && crop_dragging_out_) {
+    clear_move_hover_outline();
+    update_crop_drag_out(document_position(event->pos()));
+    last_mouse_position_ = event->pos();
+    return;
+  }
+
+  if (tool_ == CanvasTool::Crop && crop_rotating_ && (event->buttons() & Qt::LeftButton) != 0) {
+    clear_move_hover_outline();
+    update_crop_rotate_drag(document_position_f(event->position()), event->modifiers());
+    last_mouse_position_ = event->pos();
+    return;
+  }
+
+  if (tool_ == CanvasTool::Crop && crop_drag_handle_ != TransformHandle::None &&
+      (event->buttons() & Qt::LeftButton) != 0) {
+    clear_move_hover_outline();
+    update_crop_adjust_drag(document_position_f(event->position()), event->modifiers());
+    last_mouse_position_ = event->pos();
+    return;
+  }
+
+  if (tool_ == CanvasTool::Crop && crop_session_active_) {
+    clear_move_hover_outline();
+    const auto crop_handle = crop_handle_at(event->pos());
+    if (crop_handle == TransformHandle::None) {
+      // Off the box a drag rotates it; hint that with the rotate cursor.
+      setCursor(crop_rotate_cursor());
+    } else {
+      set_transform_cursor_for_handle(crop_handle);
+    }
     last_mouse_position_ = event->pos();
     return;
   }
@@ -1834,6 +1885,13 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     update_tool_cursor();
     update();
     notify_transform_controls_changed();
+    return;
+  }
+
+  if (tool_ == CanvasTool::Crop &&
+      (crop_dragging_out_ || crop_rotating_ || crop_drag_handle_ != TransformHandle::None) &&
+      event->button() == Qt::LeftButton) {
+    finish_crop_mouse_release(event);
     return;
   }
 
@@ -2662,6 +2720,16 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
     return;
   }
 
+  // Shift toggled mid-crop-drag-out arrives as a key event, not a mouse move;
+  // update the square constraint so a stationary cursor still snaps.
+  if (crop_dragging_out_ && !spacebar_repositioning_drag_rect_ && event->key() == Qt::Key_Shift &&
+      !event->isAutoRepeat()) {
+    crop_square_constrained_ = true;
+    update();
+    event->accept();
+    return;
+  }
+
   // Shift/Alt toggled mid-shape-drag arrives as a key event, not a mouse move; update
   // the square/from-center constraints so a stationary cursor still snaps.
   if (drawing_shape_ && !spacebar_repositioning_drag_rect_ &&
@@ -2737,6 +2805,48 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
     }
   }
 
+  if (tool_ == CanvasTool::Crop && (crop_session_active_ || crop_dragging_out_)) {
+    if (event->key() == Qt::Key_Escape) {
+      cancel_crop_session();
+      event->accept();
+      return;
+    }
+    if (crop_session_active_ &&
+        (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter)) {
+      commit_crop_session();
+      event->accept();
+      return;
+    }
+    // Arrow keys nudge the pending crop rect (Shift = 10px); the move is
+    // pending inside the session, so auto-repeat spams no undo steps.
+    if (crop_session_active_ &&
+        (event->modifiers() == Qt::NoModifier || event->modifiers() == Qt::ShiftModifier)) {
+      const auto step = event->modifiers() == Qt::ShiftModifier ? 10 : 1;
+      QPoint delta;
+      switch (event->key()) {
+        case Qt::Key_Left:
+          delta = QPoint(-step, 0);
+          break;
+        case Qt::Key_Right:
+          delta = QPoint(step, 0);
+          break;
+        case Qt::Key_Up:
+          delta = QPoint(0, -step);
+          break;
+        case Qt::Key_Down:
+          delta = QPoint(0, step);
+          break;
+        default:
+          break;
+      }
+      if (!delta.isNull()) {
+        nudge_crop_rect(delta);
+        event->accept();
+        return;
+      }
+    }
+  }
+
   if (dragging_text_rect_ && event->key() == Qt::Key_Escape) {
     dragging_text_rect_ = false;
     text_rect_current_ = text_rect_start_;
@@ -2765,7 +2875,7 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
       spacebar_reposition_start_selection_start_ = selection_start_;
       spacebar_reposition_start_selection_current_ = selection_current_;
       setCursor(Qt::SizeAllCursor);
-    } else if (drawing_shape_) {
+    } else if (drawing_shape_ || crop_dragging_out_) {
       spacebar_repositioning_drag_rect_ = true;
       spacebar_reposition_last_document_position_ = document_position(last_mouse_position_);
       setCursor(Qt::SizeAllCursor);
@@ -2872,6 +2982,13 @@ void CanvasWidget::keyReleaseEvent(QKeyEvent* event) {
     event->accept();
     return;
   }
+  if (crop_dragging_out_ && !spacebar_repositioning_drag_rect_ && event->key() == Qt::Key_Shift &&
+      !event->isAutoRepeat()) {
+    crop_square_constrained_ = false;
+    update();
+    event->accept();
+    return;
+  }
   if (drawing_shape_ && !spacebar_repositioning_drag_rect_ &&
       (event->key() == Qt::Key_Shift || event->key() == Qt::Key_Alt) && !event->isAutoRepeat()) {
     if (event->key() == Qt::Key_Shift) {
@@ -2967,6 +3084,11 @@ void CanvasWidget::focusOutEvent(QFocusEvent* event) {
   spacebar_repositioning_drag_rect_ = false;
   spacebar_panning_ = false;
   dragging_text_rect_ = false;
+  // In-flight crop drags end on focus loss; the established session survives
+  // (like the transform box).
+  crop_dragging_out_ = false;
+  crop_rotating_ = false;
+  crop_drag_handle_ = TransformHandle::None;
   if (was_drawing_smart_filter_mask_shape) {
     // Shape pixels are applied only on release. Losing focus before that point
     // cancels the visual drag and its untouched pre-edit snapshot.

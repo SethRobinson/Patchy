@@ -211,6 +211,7 @@
 #include <cctype>
 #include <cstddef>
 #include <cstdint>
+#include <numeric>
 #include <cmath>
 #include <cstdlib>
 #include <exception>
@@ -962,6 +963,135 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   });
   add_option_separator({CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso,
                         CanvasTool::MagneticLasso, CanvasTool::MagicWand});
+
+  add_option_label(tr("Ratio:"), {CanvasTool::Crop});
+  crop_ratio_preset_combo_ = new QComboBox(toolbar);
+  crop_ratio_preset_combo_->setObjectName(QStringLiteral("cropRatioPresetCombo"));
+  crop_ratio_preset_combo_->setMinimumWidth(118);
+  // Index 0 "None" and the last index "Custom" are fixed anchors: the preset
+  // handler and sync_crop_ratio_preset_combo key on them. "Original Ratio"
+  // (index 1) reads the active document at selection time.
+  crop_ratio_preset_combo_->addItem(tr("None"));
+  crop_ratio_preset_combo_->addItem(tr("Original Ratio"));
+  crop_ratio_preset_combo_->addItem(tr("1 : 1 (Square)"), QSizeF(1.0, 1.0));
+  crop_ratio_preset_combo_->addItem(QStringLiteral("4 : 5 (8 : 10)"), QSizeF(4.0, 5.0));
+  crop_ratio_preset_combo_->addItem(QStringLiteral("5 : 7"), QSizeF(5.0, 7.0));
+  crop_ratio_preset_combo_->addItem(QStringLiteral("2 : 3 (4 : 6)"), QSizeF(2.0, 3.0));
+  crop_ratio_preset_combo_->addItem(QStringLiteral("16 : 9"), QSizeF(16.0, 9.0));
+  crop_ratio_preset_combo_->addItem(tr("Custom"));
+  QPointer<QComboBox> crop_preset_combo(crop_ratio_preset_combo_);
+  register_retranslation([crop_preset_combo] {
+    if (crop_preset_combo == nullptr || crop_preset_combo->count() < 8) {
+      return;
+    }
+    QSignalBlocker blocker(crop_preset_combo);
+    crop_preset_combo->setItemText(0, QObject::tr("None"));
+    crop_preset_combo->setItemText(1, QObject::tr("Original Ratio"));
+    crop_preset_combo->setItemText(2, QObject::tr("1 : 1 (Square)"));
+    crop_preset_combo->setItemText(crop_preset_combo->count() - 1, QObject::tr("Custom"));
+  });
+  crop_ratio_preset_combo_->setToolTip(tr("Aspect ratio preset for the crop box"));
+  bind_tooltip(crop_ratio_preset_combo_, "Aspect ratio preset for the crop box");
+  add_option_widget(crop_ratio_preset_combo_, {CanvasTool::Crop});
+  crop_ratio_w_spin_ = new QDoubleSpinBox(toolbar);
+  crop_ratio_w_spin_->setObjectName(QStringLiteral("cropRatioWidthSpin"));
+  crop_ratio_w_spin_->setRange(0.0, 10000.0);
+  crop_ratio_w_spin_->setDecimals(2);
+  crop_ratio_w_spin_->setValue(0.0);
+  crop_ratio_w_spin_->setToolTip(tr("Aspect ratio width (0 = unconstrained)"));
+  bind_tooltip(crop_ratio_w_spin_, "Aspect ratio width (0 = unconstrained)");
+  configure_toolbar_spinbox(crop_ratio_w_spin_, 64);
+  add_option_widget(crop_ratio_w_spin_, {CanvasTool::Crop});
+  add_option_label(QStringLiteral(":"), {CanvasTool::Crop});
+  crop_ratio_h_spin_ = new QDoubleSpinBox(toolbar);
+  crop_ratio_h_spin_->setObjectName(QStringLiteral("cropRatioHeightSpin"));
+  crop_ratio_h_spin_->setRange(0.0, 10000.0);
+  crop_ratio_h_spin_->setDecimals(2);
+  crop_ratio_h_spin_->setValue(0.0);
+  crop_ratio_h_spin_->setToolTip(tr("Aspect ratio height (0 = unconstrained)"));
+  bind_tooltip(crop_ratio_h_spin_, "Aspect ratio height (0 = unconstrained)");
+  configure_toolbar_spinbox(crop_ratio_h_spin_, 64);
+  add_option_widget(crop_ratio_h_spin_, {CanvasTool::Crop});
+  crop_ratio_clear_button_ = new QPushButton(tr("Clear"), toolbar);
+  crop_ratio_clear_button_->setObjectName(QStringLiteral("cropRatioClearButton"));
+  bind_widget_text(crop_ratio_clear_button_, "Clear");
+  crop_ratio_clear_button_->setToolTip(tr("Clear the aspect ratio constraint"));
+  bind_tooltip(crop_ratio_clear_button_, "Clear the aspect ratio constraint");
+  add_option_widget(crop_ratio_clear_button_, {CanvasTool::Crop});
+  crop_apply_button_ = new QPushButton(toolbar);
+  crop_apply_button_->setObjectName(QStringLiteral("cropApplyButton"));
+  crop_apply_button_->setIcon(simple_icon(QStringLiteral("ok"), QColor(160, 220, 165)));
+  crop_apply_button_->setToolTip(tr("Apply crop (Enter)"));
+  bind_tooltip(crop_apply_button_, "Apply crop (Enter)");
+  crop_apply_button_->setFixedWidth(30);
+  crop_apply_button_->setIconSize(QSize(20, 20));
+  crop_apply_button_->setProperty("optionsSessionButton", true);
+  add_option_widget(crop_apply_button_, {CanvasTool::Crop});
+  crop_cancel_button_ = new QPushButton(toolbar);
+  crop_cancel_button_->setObjectName(QStringLiteral("cropCancelButton"));
+  crop_cancel_button_->setIcon(simple_icon(QStringLiteral("clear"), QColor(255, 150, 150)));
+  crop_cancel_button_->setToolTip(tr("Cancel crop (Esc)"));
+  bind_tooltip(crop_cancel_button_, "Cancel crop (Esc)");
+  crop_cancel_button_->setFixedWidth(30);
+  crop_cancel_button_->setIconSize(QSize(20, 20));
+  crop_cancel_button_->setProperty("optionsSessionButton", true);
+  add_option_widget(crop_cancel_button_, {CanvasTool::Crop});
+  const auto apply_crop_ratio = [this] {
+    if (crop_ratio_w_spin_ == nullptr || crop_ratio_h_spin_ == nullptr) {
+      return;
+    }
+    current_crop_ratio_w_ = crop_ratio_w_spin_->value();
+    current_crop_ratio_h_ = crop_ratio_h_spin_->value();
+    if (canvas_ != nullptr) {
+      canvas_->set_crop_ratio(current_crop_ratio_w_, current_crop_ratio_h_);
+    }
+    sync_crop_ratio_preset_combo();
+    schedule_save_tool_settings();
+  };
+  connect(crop_ratio_w_spin_, &QDoubleSpinBox::valueChanged, this,
+          [apply_crop_ratio](double) { apply_crop_ratio(); });
+  connect(crop_ratio_h_spin_, &QDoubleSpinBox::valueChanged, this,
+          [apply_crop_ratio](double) { apply_crop_ratio(); });
+  connect(crop_ratio_preset_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
+    if (crop_ratio_preset_combo_ == nullptr || crop_ratio_w_spin_ == nullptr ||
+        crop_ratio_h_spin_ == nullptr || index < 0) {
+      return;
+    }
+    if (index == crop_ratio_preset_combo_->count() - 1) {
+      return;  // Custom: whatever the fields hold stays.
+    }
+    auto ratio = QSizeF(0.0, 0.0);
+    if (index == 1) {
+      if (!has_active_document() || document().width() <= 0 || document().height() <= 0) {
+        return;
+      }
+      const auto divisor = std::gcd(document().width(), document().height());
+      ratio = QSizeF(static_cast<double>(document().width() / divisor),
+                     static_cast<double>(document().height() / divisor));
+    } else if (index > 1) {
+      ratio = crop_ratio_preset_combo_->itemData(index).toSizeF();
+    }
+    crop_ratio_w_spin_->setValue(ratio.width());
+    crop_ratio_h_spin_->setValue(ratio.height());
+  });
+  connect(crop_ratio_clear_button_, &QPushButton::clicked, this, [this] {
+    if (crop_ratio_w_spin_ != nullptr) {
+      crop_ratio_w_spin_->setValue(0.0);
+    }
+    if (crop_ratio_h_spin_ != nullptr) {
+      crop_ratio_h_spin_->setValue(0.0);
+    }
+  });
+  connect(crop_apply_button_, &QPushButton::clicked, this, [this] {
+    if (canvas_ != nullptr) {
+      canvas_->commit_crop_session();
+    }
+  });
+  connect(crop_cancel_button_, &QPushButton::clicked, this, [this] {
+    if (canvas_ != nullptr) {
+      canvas_->cancel_crop_session();
+    }
+  });
 
   add_option_label(tr("Preset:"),
                    {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,

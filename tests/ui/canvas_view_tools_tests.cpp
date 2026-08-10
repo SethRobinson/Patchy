@@ -1009,6 +1009,7 @@ void ui_tool_palette_icons_render_sheet() {
       {"toolMagneticLassoAction", "Magnetic Lasso"},
       {"toolMagicWandAction", "Magic Wand"},
       {"toolQuickSelectAction", "Quick Select"},
+      {"toolCropAction", "Crop"},
       {"toolBrushAction", "Brush"},
       {"toolCloneAction", "Clone"},
       {"toolPatternStampAction", "Pattern Stamp"},

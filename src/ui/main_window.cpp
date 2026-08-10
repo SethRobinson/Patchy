@@ -6410,6 +6410,19 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
   canvas->set_text_requested_callback([this](QPoint point, QRect requested_text_box) {
     add_text_at(point, requested_text_box);
   });
+  canvas->set_crop_commit_requested_callback([this, canvas](QRect rect, double angle_degrees) {
+    if (canvas != canvas_) {
+      return;
+    }
+    commit_crop_rect(rect, angle_degrees);
+  });
+  canvas->set_crop_session_changed_callback([this, canvas] {
+    if (canvas != canvas_) {
+      return;
+    }
+    refresh_options_bar();
+    refresh_document_info();
+  });
   canvas->set_vector_tool_mode(current_vector_tool_mode_);
   canvas->set_vector_shape_drawn_callback(
       [this, canvas](patchy::LiveShapeKind kind, QRectF bounds, QPointF line_start, QPointF line_end) {

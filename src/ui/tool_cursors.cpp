@@ -1,12 +1,15 @@
 #include "ui/tool_cursors.hpp"
 
+#include <array>
 #include <cmath>
+#include <numbers>
 
 #include <QColor>
 #include <QPainter>
 #include <QPen>
 #include <QPixmap>
 #include <QPointF>
+#include <QPolygonF>
 
 namespace patchy::ui {
 namespace {
@@ -51,11 +54,61 @@ QCursor build_eyedropper_cursor() {
   return QCursor(pixmap, static_cast<int>(std::round(tip.x())), static_cast<int>(std::round(tip.y())));
 }
 
+// The classic rotate horseshoe: a 120-degree arc over the top with a solid
+// triangular head at each end pointing down-and-outward. Same two-pass
+// halo/ink treatment as the other tool cursors so it reads over any artwork;
+// hotspot at the center.
+QCursor build_crop_rotate_cursor() {
+  constexpr int kSize = 32;
+  QPixmap pixmap(kSize, kSize);
+  pixmap.fill(Qt::transparent);
+  QPainter painter(&pixmap);
+  painter.setRenderHint(QPainter::Antialiasing);
+
+  const QPointF center(16.0, 17.5);
+  constexpr double kRadius = 8.5;
+  const QRectF arc_rect(center.x() - kRadius, center.y() - kRadius, 2.0 * kRadius, 2.0 * kRadius);
+  struct Head {
+    QPointF end;
+    QPointF direction;  // outward tangent the solid head points along
+  };
+  const auto head_for = [&](double degrees, double direction_x) {
+    const auto radians = degrees * std::numbers::pi / 180.0;
+    return Head{center + QPointF(kRadius * std::cos(radians), -kRadius * std::sin(radians)),
+                QPointF(direction_x, 0.866)};
+  };
+  const std::array<Head, 2> heads = {head_for(30.0, 0.5), head_for(150.0, -0.5)};
+
+  const auto pass = [&](const QColor& color, double arc_width, double head_rim) {
+    painter.setPen(QPen(color, arc_width, Qt::SolidLine, Qt::FlatCap));
+    painter.setBrush(Qt::NoBrush);
+    painter.drawArc(arc_rect, 30 * 16, 120 * 16);
+    painter.setPen(QPen(color, head_rim, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    painter.setBrush(color);
+    for (const auto& head : heads) {
+      const QPointF normal(-head.direction.y(), head.direction.x());
+      painter.drawPolygon(QPolygonF(
+          {head.end + head.direction * 4.8, head.end + normal * 2.7, head.end - normal * 2.7}));
+    }
+  };
+  pass(QColor(20, 23, 28), 4.0, 2.8);       // dark halo
+  pass(QColor(245, 248, 252), 2.0, 0.8);    // light core
+  painter.end();
+
+  return QCursor(pixmap, 16, 16);
+}
+
 }  // namespace
 
 QCursor eyedropper_cursor() {
   // Built once and reused: update_tool_cursor() runs on every mouse move.
   static const QCursor cursor = build_eyedropper_cursor();
+  return cursor;
+}
+
+QCursor crop_rotate_cursor() {
+  // Built once and reused: crop hover re-applies it on every mouse move.
+  static const QCursor cursor = build_crop_rotate_cursor();
   return cursor;
 }
 

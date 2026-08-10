@@ -18,6 +18,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <limits>
+#include <numbers>
 #include <optional>
 #include <queue>
 #include <utility>
@@ -399,6 +400,227 @@ void resize_layer_to_canvas(Layer& layer, std::int32_t width, std::int32_t heigh
   shift_layer_mask_to_canvas(layer, offset, width, height);
   layer.set_pixels(std::move(resized));
   layer.set_bounds(Rect{0, 0, width, height});
+}
+
+// Rotated crop mapping: the crop box is `crop` rotated by the angle about its
+// center in document space. Result pixel q samples the document at
+// p = center + R(theta) * (q - result_center); `forward` is the document ->
+// result affine ({a,b,c,d,tx,ty} like transform_vector_path) used for text
+// transforms, smart-object placements, vector data, and bounds.
+struct RotatedCropMap {
+  double cos_theta{1.0};
+  double sin_theta{0.0};
+  double document_center_x{0.0};
+  double document_center_y{0.0};
+  double result_center_x{0.0};
+  double result_center_y{0.0};
+  std::array<double, 6> forward{1.0, 0.0, 0.0, 1.0, 0.0, 0.0};
+};
+
+[[nodiscard]] RotatedCropMap rotated_crop_map(Rect crop, double angle_degrees) {
+  RotatedCropMap map;
+  const auto radians = angle_degrees * (std::numbers::pi / 180.0);
+  map.cos_theta = std::cos(radians);
+  map.sin_theta = std::sin(radians);
+  map.document_center_x = static_cast<double>(crop.x) + static_cast<double>(crop.width) / 2.0;
+  map.document_center_y = static_cast<double>(crop.y) + static_cast<double>(crop.height) / 2.0;
+  map.result_center_x = static_cast<double>(crop.width) / 2.0;
+  map.result_center_y = static_cast<double>(crop.height) / 2.0;
+  map.forward = {map.cos_theta,
+                 -map.sin_theta,
+                 map.sin_theta,
+                 map.cos_theta,
+                 map.result_center_x - map.cos_theta * map.document_center_x -
+                     map.sin_theta * map.document_center_y,
+                 map.result_center_y + map.sin_theta * map.document_center_x -
+                     map.cos_theta * map.document_center_y};
+  return map;
+}
+
+// Integer bounding box of `bounds` mapped through the forward affine.
+[[nodiscard]] Rect rotated_crop_bounds(Rect bounds, const RotatedCropMap& map) {
+  const auto& m = map.forward;
+  const std::array<std::pair<double, double>, 4> corners = {
+      std::pair<double, double>{static_cast<double>(bounds.x), static_cast<double>(bounds.y)},
+      {static_cast<double>(bounds.x + bounds.width), static_cast<double>(bounds.y)},
+      {static_cast<double>(bounds.x), static_cast<double>(bounds.y + bounds.height)},
+      {static_cast<double>(bounds.x + bounds.width), static_cast<double>(bounds.y + bounds.height)}};
+  double min_x = 0.0;
+  double min_y = 0.0;
+  double max_x = 0.0;
+  double max_y = 0.0;
+  bool first = true;
+  for (const auto& [x, y] : corners) {
+    const auto mapped_x = m[0] * x + m[2] * y + m[4];
+    const auto mapped_y = m[1] * x + m[3] * y + m[5];
+    min_x = first ? mapped_x : std::min(min_x, mapped_x);
+    min_y = first ? mapped_y : std::min(min_y, mapped_y);
+    max_x = first ? mapped_x : std::max(max_x, mapped_x);
+    max_y = first ? mapped_y : std::max(max_y, mapped_y);
+    first = false;
+  }
+  const auto left = static_cast<std::int32_t>(std::floor(min_x));
+  const auto top = static_cast<std::int32_t>(std::floor(min_y));
+  const auto right = static_cast<std::int32_t>(std::ceil(max_x));
+  const auto bottom = static_cast<std::int32_t>(std::ceil(max_y));
+  return Rect{left, top, std::max(0, right - left), std::max(0, bottom - top)};
+}
+
+// Samples `source` (document-space `source_bounds`) into `destination`
+// (result-space `destination_bounds`) through the inverse crop mapping.
+// Bilinear with clamped edges for 8-bit (the scale_pixels_resampled
+// conventions), nearest for other depths; destination pixels whose source
+// point falls outside the buffer keep their pre-filled value. A 3->4 channel
+// promotion writes opaque alpha, like copy_resized_layer_pixel.
+void sample_rotated_crop_pixels(const PixelBuffer& source, Rect source_bounds, PixelBuffer& destination,
+                                Rect destination_bounds, const RotatedCropMap& map) {
+  if (source.empty() || destination.empty()) {
+    return;
+  }
+  const auto bilinear = source.format().bit_depth == BitDepth::UInt8 &&
+                        destination.format().bit_depth == BitDepth::UInt8;
+  const auto source_channels = source.format().channels;
+  const auto destination_channels = destination.format().channels;
+  const auto shared_channels = std::min(source_channels, destination_channels);
+  const auto pixel_bytes = bytes_per_pixel(source.format());
+  for (std::int32_t y = 0; y < destination.height(); ++y) {
+    for (std::int32_t x = 0; x < destination.width(); ++x) {
+      const auto qx = static_cast<double>(destination_bounds.x + x) + 0.5 - map.result_center_x;
+      const auto qy = static_cast<double>(destination_bounds.y + y) + 0.5 - map.result_center_y;
+      const auto document_x = map.document_center_x + map.cos_theta * qx - map.sin_theta * qy;
+      const auto document_y = map.document_center_y + map.sin_theta * qx + map.cos_theta * qy;
+      const auto local_x = document_x - static_cast<double>(source_bounds.x);
+      const auto local_y = document_y - static_cast<double>(source_bounds.y);
+      if (local_x < 0.0 || local_y < 0.0 || local_x >= static_cast<double>(source.width()) ||
+          local_y >= static_cast<double>(source.height())) {
+        continue;
+      }
+      auto* dst = destination.pixel(x, y);
+      if (!bilinear) {
+        const auto sx = std::clamp(static_cast<std::int32_t>(local_x), 0, source.width() - 1);
+        const auto sy = std::clamp(static_cast<std::int32_t>(local_y), 0, source.height() - 1);
+        const auto* src = source.pixel(sx, sy);
+        std::copy(src, src + pixel_bytes, dst);
+        continue;
+      }
+      const auto sample_x = local_x - 0.5;
+      const auto sample_y = local_y - 0.5;
+      const auto x0 = std::clamp(static_cast<std::int32_t>(std::floor(sample_x)), 0, source.width() - 1);
+      const auto x1 = std::clamp(x0 + 1, 0, source.width() - 1);
+      const auto tx = std::clamp(sample_x - static_cast<double>(x0), 0.0, 1.0);
+      const auto y0 = std::clamp(static_cast<std::int32_t>(std::floor(sample_y)), 0, source.height() - 1);
+      const auto y1 = std::clamp(y0 + 1, 0, source.height() - 1);
+      const auto ty = std::clamp(sample_y - static_cast<double>(y0), 0.0, 1.0);
+      const auto* top_left = source.pixel(x0, y0);
+      const auto* top_right = source.pixel(x1, y0);
+      const auto* bottom_left = source.pixel(x0, y1);
+      const auto* bottom_right = source.pixel(x1, y1);
+      for (std::uint16_t channel = 0; channel < shared_channels; ++channel) {
+        const auto top =
+            static_cast<double>(top_left[channel]) * (1.0 - tx) + static_cast<double>(top_right[channel]) * tx;
+        const auto bottom =
+            static_cast<double>(bottom_left[channel]) * (1.0 - tx) + static_cast<double>(bottom_right[channel]) * tx;
+        dst[channel] = clamp_byte(static_cast<float>(top * (1.0 - ty) + bottom * ty));
+      }
+      if (destination_channels >= 4 && source_channels < 4) {
+        dst[3] = 255;
+      }
+    }
+  }
+}
+
+void crop_layer_mask_rotated(Layer& layer, Rect crop, const RotatedCropMap& map) {
+  auto& mask = layer.mask();
+  if (!mask.has_value()) {
+    return;
+  }
+  const auto result_canvas = Rect::from_size(crop.width, crop.height);
+  const auto destination_bounds = intersect_rect(rotated_crop_bounds(mask->bounds, map), result_canvas);
+  if (destination_bounds.empty() || mask->pixels.empty()) {
+    mask->bounds = {};
+    mask->pixels = PixelBuffer(0, 0, PixelFormat::gray8());
+    return;
+  }
+  PixelBuffer rotated(destination_bounds.width, destination_bounds.height, PixelFormat::gray8());
+  rotated.clear(mask->default_color);
+  sample_rotated_crop_pixels(mask->pixels, mask->bounds, rotated, destination_bounds, map);
+  mask->pixels = std::move(rotated);
+  mask->bounds = destination_bounds;
+}
+
+void crop_layer_to_rect_rotated(Layer& layer, Rect crop, const RotatedCropMap& map, EditColor extension_color) {
+  if (layer.kind() == LayerKind::Group) {
+    for (auto& child : layer.children()) {
+      crop_layer_to_rect_rotated(child, crop, map, extension_color);
+    }
+    return;
+  }
+  crop_layer_mask_rotated(layer, crop, map);
+  const auto result_canvas = Rect::from_size(crop.width, crop.height);
+  if (layer.kind() != LayerKind::Pixel) {
+    if (!layer.bounds().empty()) {
+      const auto moved = intersect_rect(rotated_crop_bounds(layer.bounds(), map), result_canvas);
+      layer.set_bounds(moved.empty() ? Rect{} : moved);
+    }
+    return;
+  }
+
+  const auto old_bounds = layer.bounds();
+  const auto& source = std::as_const(layer).pixels();
+  if (layer.name() == "Background" && source.format().bit_depth == BitDepth::UInt8 &&
+      source.format().channels >= 3) {
+    // Canvas-sized rebuild with the canvas-resize fill rules under the exposed
+    // corners, mirroring the expanding path.
+    PixelBuffer rotated(crop.width, crop.height, canvas_resized_format_for_layer(layer, source, extension_color));
+    fill_resized_layer_background(rotated, layer, extension_color);
+    sample_rotated_crop_pixels(source, old_bounds, rotated, result_canvas, map);
+    layer.set_pixels(std::move(rotated));
+    layer.set_bounds(Rect{0, 0, crop.width, crop.height});
+    return;
+  }
+
+  const auto destination_bounds = intersect_rect(rotated_crop_bounds(old_bounds, map), result_canvas);
+  if (destination_bounds.empty() || source.empty()) {
+    PixelBuffer empty(0, 0, source.format());
+    layer.set_pixels(std::move(empty));
+    layer.set_bounds({});
+    return;
+  }
+  // Rotation exposes area inside the bounding box, so opaque 8-bit formats
+  // gain an alpha channel (the transparent-extension format rule).
+  PixelBuffer rotated(destination_bounds.width, destination_bounds.height,
+                      canvas_resized_format_for_layer(layer, source, EditColor{0, 0, 0, 0}));
+  rotated.clear(0);
+  sample_rotated_crop_pixels(source, old_bounds, rotated, destination_bounds, map);
+  layer.set_pixels(std::move(rotated));
+  layer.set_bounds(destination_bounds);
+}
+
+void crop_document_channel_rotated(DocumentChannel& channel, Rect crop, const RotatedCropMap& map) {
+  const auto& source = std::as_const(channel).pixels();
+  PixelBuffer rotated(crop.width, crop.height, PixelFormat::gray8());
+  rotated.clear(channel.kind() == DocumentChannelKind::Spot ? 255 : 0);
+  sample_rotated_crop_pixels(source, Rect{0, 0, source.width(), source.height()}, rotated,
+                             Rect::from_size(crop.width, crop.height), map);
+  channel.set_pixels(std::move(rotated));
+}
+
+// Crop that may extend past the canvas: content outside `crop` is discarded and
+// buffers stay tight, except a pixel layer literally named "Background", which
+// is rebuilt canvas-sized through resize_layer_to_canvas so the canvas-resize
+// fill rules put extension_color under the exposed area.
+void crop_layer_to_rect_expanding(Layer& layer, Rect crop, EditColor extension_color) {
+  if (layer.kind() == LayerKind::Group) {
+    for (auto& child : layer.children()) {
+      crop_layer_to_rect_expanding(child, crop, extension_color);
+    }
+    return;
+  }
+  if (layer.kind() == LayerKind::Pixel && layer.name() == "Background") {
+    resize_layer_to_canvas(layer, crop.width, crop.height, CanvasResizeOffset{-crop.x, -crop.y}, extension_color);
+    return;
+  }
+  crop_layer_to_rect(layer, crop);
 }
 
 [[nodiscard]] std::int32_t scaled_dimension_edge(std::int32_t edge, std::int32_t old_extent,
@@ -886,11 +1108,41 @@ void resize_canvas_and_layers(Document& document, std::int32_t width, std::int32
 }
 
 bool crop_document(Document& document, Rect crop) {
-  crop = intersect_rect(crop, canvas_rect(document));
+  return crop_document(document, intersect_rect(crop, canvas_rect(document)), EditColor{255, 255, 255, 255});
+}
+
+bool crop_document(Document& document, Rect crop, double angle_degrees, EditColor extension_color) {
+  // Sub-threshold angles take the exact translation path (no resampling), the
+  // same tolerance Free Transform uses for "did the angle change".
+  if (std::abs(angle_degrees) < 0.01) {
+    return crop_document(document, crop, extension_color);
+  }
   if (crop.empty()) {
     return false;
   }
 
+  const auto map = rotated_crop_map(crop, angle_degrees);
+  compose_document_text_transforms(document.layers(), map.forward);
+  compose_document_smart_object_placements(document.layers(), map.forward);
+  for (auto& layer : document.layers()) {
+    crop_layer_to_rect_rotated(layer, crop, map, extension_color);
+  }
+  for (auto& channel : document.channels()) {
+    crop_document_channel_rotated(channel, crop, map);
+  }
+  document.resize_canvas(crop.width, crop.height);
+  transform_document_vector_data(document, map.forward, Rect::from_size(crop.width, crop.height));
+  return true;
+}
+
+bool crop_document(Document& document, Rect crop, EditColor extension_color) {
+  if (crop.empty()) {
+    return false;
+  }
+
+  const auto canvas = canvas_rect(document);
+  const auto contained = crop.x >= 0 && crop.y >= 0 && crop.x + crop.width <= canvas.width &&
+                         crop.y + crop.height <= canvas.height;
   compose_document_text_transforms(
       document.layers(),
       {1.0, 0.0, 0.0, 1.0, static_cast<double>(-crop.x), static_cast<double>(-crop.y)});
@@ -898,10 +1150,20 @@ bool crop_document(Document& document, Rect crop) {
       document.layers(),
       {1.0, 0.0, 0.0, 1.0, static_cast<double>(-crop.x), static_cast<double>(-crop.y)});
   for (auto& layer : document.layers()) {
-    crop_layer_to_rect(layer, crop);
+    if (contained) {
+      crop_layer_to_rect(layer, crop);
+    } else {
+      crop_layer_to_rect_expanding(layer, crop, extension_color);
+    }
   }
   for (auto& channel : document.channels()) {
-    crop_document_channel(channel, crop);
+    if (contained) {
+      crop_document_channel(channel, crop);
+    } else {
+      // crop_document_channel indexes the source unclamped, so out-of-canvas
+      // rects go through the offset blit that zero/spot-fills the new area.
+      resize_document_channel_canvas(channel, crop.width, crop.height, CanvasResizeOffset{-crop.x, -crop.y});
+    }
   }
   document.resize_canvas(crop.width, crop.height);
   transform_document_vector_data(document,

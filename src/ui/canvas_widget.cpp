@@ -374,6 +374,7 @@ void CanvasWidget::set_document_internal(Document* document, bool preserve_frame
   cancel_quick_select_stroke();
   cancel_spot_heal_stroke();
   cancel_patch_tool_drag();
+  cancel_crop_session();
   reset_axis_constrained_stroke();
   last_stroke_end_document_.reset();
   if (brush_adjust_dragging_) {
@@ -403,6 +404,9 @@ void CanvasWidget::set_tool(CanvasTool tool) {
     cancel_magnetic_lasso();
     cancel_spot_heal_stroke();
     cancel_patch_tool_drag();
+    // A pending crop cancels on tool switch (never commits): an accidental
+    // switch must not resize the document.
+    cancel_crop_session();
     commit_path_transform();  // tool switches commit, like the pen session
     finish_free_transform();
     finish_warp_transform();
@@ -461,6 +465,7 @@ void CanvasWidget::set_edit_locked(bool locked) noexcept {
     cancel_quick_select_stroke();
     cancel_spot_heal_stroke();
     cancel_patch_tool_drag();
+    cancel_crop_session();
     moving_selection_ = false;
     drawing_shape_ = false;
     dragging_guide_ = false;

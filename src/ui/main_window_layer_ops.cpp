@@ -3031,6 +3031,42 @@ void MainWindow::crop_to_selection() {
   statusBar()->showMessage(tr("Cropped to selection"));
 }
 
+void MainWindow::commit_crop_rect(QRect rect, double angle_degrees) {
+  if (rect.isEmpty()) {
+    return;
+  }
+  // A refusal leaves the crop session alive so the user can still adjust or Esc.
+  if (refuse_document_geometry_change()) {
+    return;
+  }
+
+  push_undo_snapshot(tr("Crop"));
+  auto& doc = document();
+  // The rect may extend past the canvas; the expansion fills with the
+  // background color under a "Background" layer, transparent elsewhere. A
+  // rotated box straightens on commit.
+  if (!patchy::crop_document(doc, to_core_rect(rect), angle_degrees,
+                             edit_color(canvas_->secondary_color()))) {
+    return;
+  }
+  canvas_->cancel_crop_session();
+  canvas_->clear_selection();
+  const auto previous_channel_target = canvas_->layer_edit_target();
+  const auto previous_channel_id = canvas_->active_document_channel_id();
+  const auto previous_channel_display = canvas_->mask_display_mode();
+  canvas_->set_document(&doc);
+  restore_channel_target_after_document_reset(previous_channel_target, previous_channel_id,
+                                              previous_channel_display);
+  // The old pan is meaningless for the resized document and can leave it
+  // mostly off screen, so recenter at the current zoom.
+  canvas_->center_document_in_view();
+  refresh_layer_list();
+  refresh_layer_controls();
+  refresh_document_info();
+  refresh_options_bar();
+  statusBar()->showMessage(tr("Cropped"));
+}
+
 void MainWindow::rotate_canvas_clockwise() {
   auto& doc = document();
   if (refuse_document_geometry_change()) {

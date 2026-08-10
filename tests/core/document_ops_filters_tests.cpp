@@ -204,6 +204,162 @@ void document_canvas_resize_honors_anchor_and_extension_color() {
   CHECK(sticker_layer->pixels().pixel(2, 2)[3] == 255);
 }
 
+void crop_document_expanding_rect_grows_canvas() {
+  patchy::Document document(4, 4, patchy::PixelFormat::rgb8());
+  const auto background_id = document.add_pixel_layer("Background", solid_rgb(4, 4, 200, 100, 50)).id();
+  patchy::Layer sticker(document.allocate_layer_id(), "Sticker", solid_rgba(2, 2, 220, 10, 90, 255));
+  const auto sticker_id = sticker.id();
+  sticker.set_bounds(patchy::Rect{2, 2, 2, 2});
+  document.add_layer(std::move(sticker));
+
+  // Degenerate rects refuse before touching anything.
+  CHECK(!patchy::crop_document(document, patchy::Rect{0, 0, 0, 5}, patchy::EditColor{0, 0, 0, 255}));
+
+  // Rect {1,1,5,5} keeps 3x3 of the old canvas and adds 2px of new area on
+  // both axes past the right/bottom edges.
+  CHECK(patchy::crop_document(document, patchy::Rect{1, 1, 5, 5}, patchy::EditColor{12, 34, 56, 255}));
+  CHECK(document.width() == 5);
+  CHECK(document.height() == 5);
+
+  const auto* background = document.find_layer(background_id);
+  CHECK(background != nullptr);
+  // An opaque extension color keeps the Background rgb8, rebuilt canvas-sized
+  // with the fill under the exposed area (the canvas-resize fill rules).
+  CHECK(background->pixels().format().channels == 3);
+  CHECK(background->pixels().width() == 5);
+  CHECK(background->pixels().height() == 5);
+  CHECK(background->pixels().pixel(0, 0)[0] == 200);
+  CHECK(background->pixels().pixel(4, 4)[0] == 12);
+  CHECK(background->pixels().pixel(4, 4)[1] == 34);
+  CHECK(background->pixels().pixel(4, 4)[2] == 56);
+
+  const auto* sticker_layer = document.find_layer(sticker_id);
+  CHECK(sticker_layer != nullptr);
+  // Ordinary layers keep tight buffers: content translated by (-1,-1), the new
+  // canvas area stays implicit transparency outside the bounds.
+  CHECK(sticker_layer->bounds().x == 1);
+  CHECK(sticker_layer->bounds().y == 1);
+  CHECK(sticker_layer->bounds().width == 2);
+  CHECK(sticker_layer->bounds().height == 2);
+  CHECK(sticker_layer->pixels().width() == 2);
+  CHECK(sticker_layer->pixels().pixel(0, 0)[3] == 255);
+}
+
+void crop_document_expanding_rect_with_translucent_fill_promotes_background() {
+  patchy::Document document(3, 3, patchy::PixelFormat::rgb8());
+  const auto background_id = document.add_pixel_layer("Background", solid_rgb(3, 3, 10, 20, 30)).id();
+  CHECK(patchy::crop_document(document, patchy::Rect{0, 0, 4, 4}, patchy::EditColor{0, 0, 0, 0}));
+  const auto* background = document.find_layer(background_id);
+  CHECK(background != nullptr);
+  CHECK(background->pixels().format().channels == 4);
+  CHECK(background->pixels().pixel(0, 0)[0] == 10);
+  CHECK(background->pixels().pixel(0, 0)[3] == 255);
+  CHECK(background->pixels().pixel(3, 3)[3] == 0);
+}
+
+void crop_document_mixed_crop_and_expand_shifts_masks_and_channels() {
+  patchy::Document document(4, 4, patchy::PixelFormat::rgb8());
+  auto& paint_layer = document.add_pixel_layer("Paint", solid_rgb(4, 4, 100, 110, 120));
+  const auto paint_id = paint_layer.id();
+  patchy::PixelBuffer mask_pixels(2, 2, patchy::PixelFormat::gray8());
+  mask_pixels.clear(200);
+  paint_layer.set_mask(patchy::LayerMask{patchy::Rect{1, 1, 2, 2}, std::move(mask_pixels), 0, false});
+
+  patchy::PixelBuffer alpha(4, 4, patchy::PixelFormat::gray8());
+  alpha.clear(7);
+  document.add_channel(patchy::DocumentChannel(document.allocate_channel_id(), "Alpha",
+                                               patchy::DocumentChannelKind::Alpha, std::move(alpha)));
+  patchy::PixelBuffer spot(4, 4, patchy::PixelFormat::gray8());
+  spot.clear(9);
+  document.add_channel(patchy::DocumentChannel(document.allocate_channel_id(), "Spot",
+                                               patchy::DocumentChannelKind::Spot, std::move(spot)));
+
+  // Negative x plus width past the right edge: old content shifts +2 in x.
+  CHECK(patchy::crop_document(document, patchy::Rect{-2, 0, 8, 4}, patchy::EditColor{255, 255, 255, 255}));
+  CHECK(document.width() == 8);
+  CHECK(document.height() == 4);
+
+  const auto* paint = document.find_layer(paint_id);
+  CHECK(paint != nullptr);
+  CHECK(paint->bounds().x == 2);
+  CHECK(paint->bounds().y == 0);
+  CHECK(paint->bounds().width == 4);
+  CHECK(paint->mask().has_value());
+  CHECK(paint->mask()->bounds.x == 3);
+  CHECK(paint->mask()->bounds.y == 1);
+  CHECK(paint->mask()->bounds.width == 2);
+  CHECK(*std::as_const(paint->mask()->pixels).pixel(0, 0) == 200);
+
+  // Channels rebuild at the new canvas: alpha new area fills 0, spot 255.
+  CHECK(std::as_const(document).channels()[0].pixels().width() == 8);
+  CHECK(*std::as_const(document.channels()[0]).pixels().pixel(0, 0) == 0);
+  CHECK(*std::as_const(document.channels()[0]).pixels().pixel(2, 0) == 7);
+  CHECK(*std::as_const(document.channels()[1]).pixels().pixel(0, 0) == 255);
+  CHECK(*std::as_const(document.channels()[1]).pixels().pixel(2, 0) == 9);
+}
+
+void crop_document_rotated_rect_straightens_content() {
+  // Exact 90-degree spin: bilinear samples land on pixel centers, so the
+  // rotated crop is an exact pixel permutation (counterclockwise contents).
+  patchy::Document document(5, 5, patchy::PixelFormat::rgb8());
+  auto marked = solid_rgb(5, 5, 10, 20, 30);
+  auto* marker = marked.pixel(3, 1);
+  marker[0] = 200;
+  marker[1] = 90;
+  marker[2] = 40;
+  const auto background_id = document.add_pixel_layer("Background", std::move(marked)).id();
+  CHECK(patchy::crop_document(document, patchy::Rect{0, 0, 5, 5}, 90.0, patchy::EditColor{1, 2, 3, 255}));
+  CHECK(document.width() == 5);
+  CHECK(document.height() == 5);
+  const auto* background = document.find_layer(background_id);
+  CHECK(background != nullptr);
+  CHECK(background->pixels().pixel(1, 1)[0] == 200);
+  CHECK(background->pixels().pixel(1, 1)[1] == 90);
+  CHECK(background->pixels().pixel(0, 0)[0] == 10);
+
+  // A 45-degree spin rotates the square's corners out of the source: the
+  // Background shows the extension fill there, an ordinary opaque layer gains
+  // alpha and goes transparent, and both keep their content at the center.
+  patchy::Document tilted(4, 4, patchy::PixelFormat::rgb8());
+  const auto tilted_background_id = tilted.add_pixel_layer("Background", solid_rgb(4, 4, 100, 110, 120)).id();
+  patchy::Layer sticker(tilted.allocate_layer_id(), "Sticker", solid_rgb(4, 4, 5, 6, 7));
+  const auto sticker_id = sticker.id();
+  sticker.set_bounds(patchy::Rect{0, 0, 4, 4});
+  tilted.add_layer(std::move(sticker));
+  CHECK(patchy::crop_document(tilted, patchy::Rect{0, 0, 4, 4}, 45.0, patchy::EditColor{1, 2, 3, 255}));
+  const auto* tilted_background = tilted.find_layer(tilted_background_id);
+  CHECK(tilted_background != nullptr);
+  CHECK(tilted_background->pixels().pixel(0, 0)[0] == 1);
+  CHECK(tilted_background->pixels().pixel(0, 0)[1] == 2);
+  CHECK(tilted_background->pixels().pixel(2, 2)[0] == 100);
+  const auto* sticker_layer = tilted.find_layer(sticker_id);
+  CHECK(sticker_layer != nullptr);
+  CHECK(sticker_layer->pixels().format().channels == 4);
+  CHECK(sticker_layer->pixels().pixel(0, 0)[3] == 0);
+  CHECK(sticker_layer->pixels().pixel(2, 2)[3] == 255);
+  CHECK(sticker_layer->pixels().pixel(2, 2)[0] == 5);
+}
+
+void crop_document_contained_rect_matches_two_arg_overload() {
+  const auto build = [] {
+    auto document = make_tool_document();
+    const auto layer_id = active_tool_layer(document);
+    auto options = tool_options(255, 0, 180);
+    CHECK(!patchy::fill_rect(document, layer_id, patchy::Rect{12, 8, 6, 5}, options).empty());
+    return document;
+  };
+  auto legacy = build();
+  auto expanded = build();
+  CHECK(patchy::crop_document(legacy, patchy::Rect{8, 6, 32, 20}));
+  CHECK(patchy::crop_document(expanded, patchy::Rect{8, 6, 32, 20}, patchy::EditColor{1, 2, 3, 255}));
+  CHECK(legacy.width() == expanded.width());
+  CHECK(legacy.height() == expanded.height());
+  const auto legacy_pixels = std::as_const(*legacy.find_layer(active_tool_layer(legacy))).pixels().data();
+  const auto expanded_pixels = std::as_const(*expanded.find_layer(active_tool_layer(expanded))).pixels().data();
+  CHECK(legacy_pixels.size() == expanded_pixels.size());
+  CHECK(std::equal(legacy_pixels.begin(), legacy_pixels.end(), expanded_pixels.begin()));
+}
+
 void document_image_resize_scales_layers_and_writes_artifact() {
   patchy::Document document(64, 48, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Background", solid_rgb(64, 48, 255, 255, 255));
@@ -2372,6 +2528,14 @@ std::vector<patchy::test::TestCase> document_ops_filters_tests() {
       {"document_canvas_resize_expands_layers_for_editing", document_canvas_resize_expands_layers_for_editing},
       {"document_canvas_resize_honors_anchor_and_extension_color",
        document_canvas_resize_honors_anchor_and_extension_color},
+      {"crop_document_expanding_rect_grows_canvas", crop_document_expanding_rect_grows_canvas},
+      {"crop_document_expanding_rect_with_translucent_fill_promotes_background",
+       crop_document_expanding_rect_with_translucent_fill_promotes_background},
+      {"crop_document_mixed_crop_and_expand_shifts_masks_and_channels",
+       crop_document_mixed_crop_and_expand_shifts_masks_and_channels},
+      {"crop_document_rotated_rect_straightens_content", crop_document_rotated_rect_straightens_content},
+      {"crop_document_contained_rect_matches_two_arg_overload",
+       crop_document_contained_rect_matches_two_arg_overload},
       {"document_image_resize_scales_layers_and_writes_artifact",
        document_image_resize_scales_layers_and_writes_artifact},
       {"document_rotate_clockwise_changes_canvas_and_writes_artifact",

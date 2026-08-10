@@ -326,6 +326,8 @@ const char* tool_action_source(CanvasTool tool) {
       return "Spot Healing";
     case CanvasTool::PatchTool:
       return "Patch";
+    case CanvasTool::Crop:
+      return "Crop";
   }
   return "Tool";
 }
@@ -402,6 +404,8 @@ QString tool_hotkey_id(CanvasTool tool) {
       return QStringLiteral("tools.spot_healing");
     case CanvasTool::PatchTool:
       return QStringLiteral("tools.patch");
+    case CanvasTool::Crop:
+      return QStringLiteral("tools.crop");
   }
   return QStringLiteral("tools.unknown");
 }
@@ -572,6 +576,9 @@ QIcon tool_icon(CanvasTool tool) {
     case CanvasTool::PatchTool:
       name = "tool-patch";
       break;
+    case CanvasTool::Crop:
+      name = "tool-crop";
+      break;
   }
   return themed_svg_icon(QLatin1String(name));
 }
@@ -666,6 +673,7 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
   wand_tool_button->setObjectName(QStringLiteral("wandToolButton"));
   configure_tool_flyout(tool_palette, wand_menu, wand_tool_button, magic_wand_action,
                         {magic_wand_action, quick_select_action});
+  add_tool_action(tool_palette, tool_group, tr("Crop"), CanvasTool::Crop, QKeySequence(Qt::Key_C));
   tool_palette->addSeparator();
 
   add_tool_action(tool_palette, tool_group, tr("Brush"), CanvasTool::Brush, QKeySequence(Qt::Key_B))->setChecked(true);

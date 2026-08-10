@@ -222,6 +222,7 @@
 #include <cstdint>
 #include <cmath>
 #include <cstdlib>
+#include <numeric>
 #include <exception>
 #include <functional>
 #include <future>
@@ -1723,6 +1724,11 @@ void MainWindow::load_tool_settings() {
   canvas_->set_clone_aligned(settings.value(QStringLiteral("tools/cloneAligned"), canvas_->clone_aligned()).toBool());
   canvas_->set_retouch_sample_all_layers(
       settings.value(QStringLiteral("tools/retouchSampleAllLayers"), canvas_->retouch_sample_all_layers()).toBool());
+  current_crop_ratio_w_ =
+      std::clamp(settings.value(QStringLiteral("tools/cropRatioWidth"), 0.0).toDouble(), 0.0, 10000.0);
+  current_crop_ratio_h_ =
+      std::clamp(settings.value(QStringLiteral("tools/cropRatioHeight"), 0.0).toDouble(), 0.0, 10000.0);
+  canvas_->set_crop_ratio(current_crop_ratio_w_, current_crop_ratio_h_);
   // Patch mode and Transparent are deliberately session-only: every startup
   // begins at Source with Transparent off, because a persisted Destination or
   // Transparent reads as "the tool is broken" a session later. The retired
@@ -1987,6 +1993,8 @@ void MainWindow::save_tool_settings() const {
   settings.setValue(QStringLiteral("tools/transformInterpolation"), static_cast<int>(canvas_->transform_interpolation()));
   settings.setValue(QStringLiteral("tools/cloneAligned"), canvas_->clone_aligned());
   settings.setValue(QStringLiteral("tools/retouchSampleAllLayers"), canvas_->retouch_sample_all_layers());
+  settings.setValue(QStringLiteral("tools/cropRatioWidth"), canvas_->crop_ratio_width());
+  settings.setValue(QStringLiteral("tools/cropRatioHeight"), canvas_->crop_ratio_height());
   settings.setValue(QStringLiteral("tools/patternStampPatternId"), current_pattern_stamp_pattern_id_);
   settings.setValue(QStringLiteral("tools/patternStampAligned"), current_pattern_stamp_aligned_);
   settings.setValue(QStringLiteral("tools/healingDiffusion"), current_healing_diffusion_);
@@ -2220,6 +2228,37 @@ void MainWindow::sync_transform_controls_from_canvas() {
   }
 }
 
+void MainWindow::sync_crop_ratio_preset_combo() {
+  if (crop_ratio_preset_combo_ == nullptr || canvas_ == nullptr ||
+      crop_ratio_preset_combo_->count() < 3) {
+    return;
+  }
+  const auto ratio_w = canvas_->crop_ratio_width();
+  const auto ratio_h = canvas_->crop_ratio_height();
+  const QSignalBlocker blocker(crop_ratio_preset_combo_);
+  const auto custom_index = crop_ratio_preset_combo_->count() - 1;
+  if (ratio_w <= 0.0 || ratio_h <= 0.0) {
+    crop_ratio_preset_combo_->setCurrentIndex(0);
+    return;
+  }
+  if (has_active_document() && document().width() > 0 && document().height() > 0) {
+    const auto divisor = std::gcd(document().width(), document().height());
+    if (ratio_w == static_cast<double>(document().width() / divisor) &&
+        ratio_h == static_cast<double>(document().height() / divisor)) {
+      crop_ratio_preset_combo_->setCurrentIndex(1);
+      return;
+    }
+  }
+  for (int index = 2; index < custom_index; ++index) {
+    const auto preset = crop_ratio_preset_combo_->itemData(index).toSizeF();
+    if (ratio_w == preset.width() && ratio_h == preset.height()) {
+      crop_ratio_preset_combo_->setCurrentIndex(index);
+      return;
+    }
+  }
+  crop_ratio_preset_combo_->setCurrentIndex(custom_index);
+}
+
 void MainWindow::register_option_action(QWidget* widget, std::initializer_list<CanvasTool> tools) {
   if (widget == nullptr) {
     return;
@@ -2348,6 +2387,19 @@ void MainWindow::refresh_options_bar() {
   if (retouch_sample_all_layers_check_ != nullptr && canvas_ != nullptr) {
     QSignalBlocker blocker(retouch_sample_all_layers_check_);
     retouch_sample_all_layers_check_->setChecked(canvas_->retouch_sample_all_layers());
+  }
+  if (crop_ratio_w_spin_ != nullptr && crop_ratio_h_spin_ != nullptr && canvas_ != nullptr) {
+    const QSignalBlocker w_blocker(crop_ratio_w_spin_);
+    const QSignalBlocker h_blocker(crop_ratio_h_spin_);
+    crop_ratio_w_spin_->setValue(canvas_->crop_ratio_width());
+    crop_ratio_h_spin_->setValue(canvas_->crop_ratio_height());
+  }
+  sync_crop_ratio_preset_combo();
+  const auto crop_session_active = canvas_ != nullptr && canvas_->crop_session_active();
+  for (auto* button : {crop_apply_button_, crop_cancel_button_}) {
+    if (button != nullptr) {
+      button->setEnabled(edit_allowed && crop_session_active);
+    }
   }
   if (patch_mode_combo_ != nullptr && canvas_ != nullptr) {
     const QSignalBlocker blocker(patch_mode_combo_);

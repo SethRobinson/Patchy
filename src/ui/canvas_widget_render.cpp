@@ -1000,6 +1000,7 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
   draw_pen_overlay(painter);
   draw_path_edit_overlay(painter);
   draw_shape_preview(painter, exposed_rect);
+  draw_crop_overlay(painter);
   draw_drag_size_readout(painter);
   draw_text_rect_preview(painter);
   if ((tool_ == CanvasTool::Clone || tool_ == CanvasTool::Healing) && clone_source_set_) {

@@ -83,6 +83,7 @@
     <file alias="tool-healing.svg">icons/tool-healing.svg</file>
     <file alias="tool-spot-healing.svg">icons/tool-spot-healing.svg</file>
     <file alias="tool-patch.svg">icons/tool-patch.svg</file>
+    <file alias="tool-crop.svg">icons/tool-crop.svg</file>
     <file alias="tool-smudge.svg">icons/tool-smudge.svg</file>
     <file alias="tool-mixer-brush.svg">icons/tool-mixer-brush.svg</file>
     <file alias="tool-dodge.svg">icons/tool-dodge.svg</file>

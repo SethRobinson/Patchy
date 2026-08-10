@@ -215,6 +215,7 @@ int main(int argc, char* argv[]) {
            layer_panel_organization_tests,
            move_tool_processing_overlay_tests,
            selection_marquee_lasso_tests,
+           crop_tool_tests,
            clipboard_free_transform_tests,
            group_transform_tests,
            channels_panel_tests,

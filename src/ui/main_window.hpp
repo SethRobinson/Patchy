@@ -874,6 +874,9 @@ private:
   void flip_active_layer_horizontal();
   void flip_active_layer_vertical();
   void crop_to_selection();
+  // Commit of the Crop tool's pending rect; may expand the canvas, and a
+  // nonzero box angle straightens the rotated box.
+  void commit_crop_rect(QRect rect, double angle_degrees);
   void rotate_canvas_clockwise();
   void rotate_canvas_counterclockwise();
   void toggle_tile_seam_offset();
@@ -1181,6 +1184,9 @@ private:
   // Re-reads the options-bar controls create_actions initialized from the startup
   // defaults donor; runs after the deferred load_tool_settings.
   void sync_tool_option_controls_from_canvas();
+  // Derives the crop ratio preset combo's row from the canvas ratio values
+  // (None / a preset / Original Ratio / Custom) without firing its handler.
+  void sync_crop_ratio_preset_combo();
   std::vector<std::unique_ptr<DocumentSession>> sessions_;
   std::int64_t next_session_id_{1};
   // The ACTIVE document's canvas, the single source of truth for "current document"
@@ -1291,6 +1297,14 @@ private:
   QPushButton* transform_cancel_button_{nullptr};
   QComboBox* warp_style_combo_{nullptr};
   QDoubleSpinBox* warp_bend_spin_{nullptr};
+  // Crop tool options: ratio preset combo + ratio pair + clear, and the
+  // session apply/cancel pair (enabled only while a crop rect is pending).
+  QComboBox* crop_ratio_preset_combo_{nullptr};
+  QDoubleSpinBox* crop_ratio_w_spin_{nullptr};
+  QDoubleSpinBox* crop_ratio_h_spin_{nullptr};
+  QPushButton* crop_ratio_clear_button_{nullptr};
+  QPushButton* crop_apply_button_{nullptr};
+  QPushButton* crop_cancel_button_{nullptr};
   QCheckBox* clone_aligned_check_{nullptr};
   QCheckBox* retouch_sample_all_layers_check_{nullptr};
   QComboBox* patch_mode_combo_{nullptr};
@@ -1517,6 +1531,8 @@ private:
   int current_marquee_corner_radius_{0};
   int current_selection_feather_radius_{0};
   bool current_selection_antialias_{true};
+  double current_crop_ratio_w_{0.0};
+  double current_crop_ratio_h_{0.0};
   bool current_fill_shapes_{false};
   int current_shape_corner_radius_{0};
   CanvasWidget::MarqueeStyle current_shape_style_{CanvasWidget::MarqueeStyle::Normal};

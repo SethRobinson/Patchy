@@ -619,6 +619,8 @@ QString tool_name(CanvasTool tool) {
       return QObject::tr("Spot Healing");
     case CanvasTool::PatchTool:
       return QObject::tr("Patch");
+    case CanvasTool::Crop:
+      return QObject::tr("Crop");
   }
   return QObject::tr("Tool");
 }

@@ -978,7 +978,9 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   rotate_ccw_action->setIcon(simple_icon(QStringLiteral("rotate")));
   register_hotkey(image_size_action, "image.size", QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_I));
   register_hotkey(canvas_size_action, "image.canvas_size", QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_C));
-  register_hotkey(crop_action, "image.crop_to_selection", QKeySequence(Qt::Key_C));
+  // Plain C now belongs to the Crop tool (tools.crop); the menu command keeps
+  // its persisted id but ships without a default, like Photoshop's Image menu.
+  register_hotkey(crop_action, "image.crop_to_selection");
   register_hotkey(rotate_cw_action, "image.rotate_cw", QKeySequence(Qt::CTRL | Qt::Key_BracketRight));
   register_hotkey(rotate_ccw_action, "image.rotate_ccw", QKeySequence(Qt::CTRL | Qt::Key_BracketLeft));
   auto* shift_seams_action = image_menu->addAction(tr("Shift &Seams to Center"));

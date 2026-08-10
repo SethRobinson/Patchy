@@ -96,7 +96,9 @@ enum class CanvasTool {
   CustomShape,
   // August 2026 healing group (append-only: values ride persisted settings).
   SpotHealing,
-  PatchTool
+  PatchTool,
+  // August 2026 Crop tool (append-only: values ride persisted settings).
+  Crop
 };
 
 // Which tool produced a committed vector path; MainWindow picks the layer
@@ -686,6 +688,21 @@ public:
   [[nodiscard]] std::optional<TransformControlsState> transform_controls_state() const;
   bool set_transform_controls_state(QPointF reference_position, double scale_x_percent,
                                     double scale_y_percent, double rotation_degrees);
+  // Crop tool session (canvas_widget_crop.cpp): drag out a rect, adjust it via
+  // handles, drag outside it to rotate the box, Enter/Apply commits through the
+  // crop-commit callback, Esc cancels. The rect lives in document space and may
+  // extend past the canvas; the commit handler expands the document.
+  [[nodiscard]] bool crop_session_active() const noexcept;
+  [[nodiscard]] std::optional<QRect> crop_session_rect() const noexcept;
+  // Box rotation in degrees about the rect center (0 until rotated).
+  [[nodiscard]] double crop_session_angle() const noexcept;
+  void commit_crop_session();
+  void cancel_crop_session();
+  // Aspect constraint for new drag-outs and corner-handle drags. Both values
+  // must be > 0 to constrain; changing it never retro-resizes a pending rect.
+  void set_crop_ratio(double width, double height) noexcept;
+  [[nodiscard]] double crop_ratio_width() const noexcept;
+  [[nodiscard]] double crop_ratio_height() const noexcept;
   [[nodiscard]] std::optional<QRect> active_layer_document_rect() const noexcept;
   [[nodiscard]] RenderCacheDiagnostics render_cache_diagnostics() const noexcept;
   // True when the displayed frame reflects the current document: no recomposite
@@ -847,6 +864,12 @@ public:
   void set_pen_button_action_callback(std::function<void(PenButtonAction)> callback);
   void set_text_requested_callback(std::function<void(QPoint, QRect)> callback);
   void set_active_layer_changed_callback(std::function<void(LayerId)> callback);
+  // Commit of a pending crop rect + box angle (document geometry lives on
+  // MainWindow).
+  void set_crop_commit_requested_callback(std::function<void(QRect, double)> callback);
+  // Fired when a crop session is established, cancelled, or committed so the
+  // options bar and info panel can resync.
+  void set_crop_session_changed_callback(std::function<void()> callback);
   void set_status_callback(std::function<void(QString)> callback);
   // Blocking refusals (the tool action did NOT happen) report through this
   // callback so the host can present them as errors; unset, they fall back to
@@ -1329,6 +1352,20 @@ private:
   void cancel_spot_heal_stroke();
   void stamp_spot_heal_segment(QPoint from, QPoint to);
   void draw_spot_heal_stroke_overlay(QPainter& painter) const;
+  // Crop tool session (canvas_widget_crop.cpp). crop_drag_rect is the third
+  // deliberately-unmerged twin of marquee_selection_rect/shape_drag_rect.
+  [[nodiscard]] QRect crop_drag_rect(QPoint anchor, QPoint current) const;
+  [[nodiscard]] TransformHandle crop_handle_at(QPoint widget_point) const;
+  void begin_crop_drag_out(QMouseEvent* event, QPoint document_point);
+  void handle_crop_session_press(QMouseEvent* event);
+  void update_crop_drag_out(QPoint document_point);
+  void update_crop_adjust_drag(QPointF document_point, Qt::KeyboardModifiers modifiers);
+  void update_crop_rotate_drag(QPointF document_point, Qt::KeyboardModifiers modifiers);
+  void finish_crop_mouse_release(QMouseEvent* event);
+  void nudge_crop_rect(QPoint delta);
+  void notify_crop_session_changed();
+  void reset_crop_session_state();
+  void draw_crop_overlay(QPainter& painter) const;
   // Patch tool drag lifecycle (canvas_widget_patch_tool.cpp). The drag shows
   // only a raw translated copy of the frozen snapshot; the heal is computed
   // ONCE in commit_patch_tool_drag() on release, with the user-dragged offset
@@ -1756,6 +1793,26 @@ private:
   QPolygonF spot_heal_stroke_points_;
   QPoint spot_heal_last_document_point_;
   QImage spot_heal_source_cache_;
+  // Crop tool session state (canvas_widget_crop.cpp). All rects/points are in
+  // document space; crop_rect_ may extend past the canvas (commit expands).
+  bool crop_session_active_{false};
+  bool crop_dragging_out_{false};
+  bool crop_rotating_{false};
+  TransformHandle crop_drag_handle_{TransformHandle::None};
+  QPoint crop_anchor_document_;
+  QPoint crop_current_document_;
+  QPoint crop_press_widget_point_;
+  QRect crop_rect_;
+  QRect crop_drag_start_rect_;
+  QPointF crop_drag_start_point_;
+  double crop_angle_{0.0};
+  double crop_rotate_start_angle_{0.0};
+  double crop_rotate_start_vector_degrees_{0.0};
+  bool crop_square_constrained_{false};
+  double crop_ratio_w_{0.0};
+  double crop_ratio_h_{0.0};
+  std::function<void(QRect, double)> crop_commit_requested_callback_;
+  std::function<void()> crop_session_changed_callback_;
   // Patch tool state (canvas_widget_patch_tool.cpp). The drag latches a frozen
   // snapshot, the selection's soft mask, and the doc-space outline path; the
   // preview blits the snapshot translated by the cumulative delta.

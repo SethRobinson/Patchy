@@ -287,6 +287,7 @@ void MainWindow::add_document_session(Document document, QString title, QString 
     session->canvas->set_magnetic_lasso_frequency(canvas_->magnetic_lasso_frequency());
     session->canvas->set_clone_aligned(canvas_->clone_aligned());
     session->canvas->set_retouch_sample_all_layers(canvas_->retouch_sample_all_layers());
+    session->canvas->set_crop_ratio(canvas_->crop_ratio_width(), canvas_->crop_ratio_height());
     session->canvas->set_patch_tool_mode(canvas_->patch_tool_mode());
     session->canvas->set_patch_tool_transparent(canvas_->patch_tool_transparent());
     session->canvas->set_healing_diffusion(current_healing_diffusion_);
@@ -315,6 +316,7 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   if (retouch_sample_all_layers_check_ != nullptr) {
     session->canvas->set_retouch_sample_all_layers(retouch_sample_all_layers_check_->isChecked());
   }
+  session->canvas->set_crop_ratio(current_crop_ratio_w_, current_crop_ratio_h_);
   if (patch_mode_combo_ != nullptr) {
     session->canvas->set_patch_tool_mode(
         static_cast<CanvasWidget::PatchToolMode>(patch_mode_combo_->currentData().toInt()));

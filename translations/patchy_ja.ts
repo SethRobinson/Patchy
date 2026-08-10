@@ -6705,6 +6705,8 @@ Mixed selection</source>
     <message><source>Sponge</source><translation>スポンジ</translation></message>
     <message><source>Blur brush</source><translation>ぼかしブラシ</translation></message>
     <message><source>Sharpen brush</source><translation>シャープブラシ</translation></message>
+    <message><source>Crop cancelled</source><translation>切り抜きをキャンセルしました</translation></message>
+    <message><source>Drag the handles or edges to adjust. Enter crops, Esc cancels.</source><translation>ハンドルや辺をドラッグして調整します。Enter で切り抜き、Esc でキャンセルします。</translation></message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -13297,6 +13299,20 @@ Clipped to the layer below</source>
     <message><source>Transparent</source><translation>透明</translation></message>
     <message><source>Keep the region and add only the sampled texture instead of replacing it; clearest when the source has distinct marks over a plain background</source><translation>領域を置き換えず、サンプルしたテクスチャのみを重ねます。無地の背景にはっきりした模様があるソースで最も効果的です</translation></message>
     <message><source>Patch: draw around the area to fix, then drag the selection to a clean source area</source><translation>パッチ: 修復したい部分を囲んでから、選択範囲をきれいなサンプル元へドラッグしてください</translation></message>
+    <message><source>Ratio:</source><translation>比率:</translation></message>
+    <message><source>Aspect ratio width (0 = unconstrained)</source><translation>縦横比の幅 (0 で制約なし)</translation></message>
+    <message><source>Aspect ratio height (0 = unconstrained)</source><translation>縦横比の高さ (0 で制約なし)</translation></message>
+    <message><source>Clear the aspect ratio constraint</source><translation>縦横比の制約を解除します</translation></message>
+    <message><source>Apply crop (Enter)</source><translation>切り抜きを適用 (Enter)</translation></message>
+    <message><source>Cancel crop (Esc)</source><translation>切り抜きをキャンセル (Esc)</translation></message>
+    <message><source>Cropped</source><translation>切り抜きました</translation></message>
+    <message><source>Ratio: %1 : %2</source><translation>比率: %1 : %2</translation></message>
+    <message><source>Ratio: unconstrained</source><translation>比率: 制約なし</translation></message>
+    <message><source>Crop: %1 x %2 px</source><translation>切り抜き: %1 x %2 px</translation></message>
+    <message><source>Angle: %1°</source><translation>角度: %1°</translation></message>
+    <message><source>Original Ratio</source><translation>元の比率</translation></message>
+    <message><source>1 : 1 (Square)</source><translation>1 : 1 (正方形)</translation></message>
+    <message><source>Aspect ratio preset for the crop box</source><translation>切り抜きボックスの縦横比プリセット</translation></message>
     <message><source>Fill Tools</source><translation>塗りつぶしツール</translation></message>
     <message><source>Pattern:</source><translation>パターン:</translation></message>
     <message><source>Manage...</source><translation>管理...</translation></message>
@@ -14152,6 +14168,7 @@ Clipped to the layer below</source>
     <message><source>Custom Shape</source><translation>カスタムシェイプ</translation></message>
     <message><source>Spot Healing</source><translation>スポット修復</translation></message>
     <message><source>Patch</source><translation>パッチ</translation></message>
+    <message><source>Crop</source><translation>切り抜き</translation></message>
     <message><source>Destination</source><translation>複製先</translation></message>
     <message><source>Liquify</source><translation>ゆがみ</translation></message>
     <message><source>Warp</source><translation>ワープ</translation></message>
