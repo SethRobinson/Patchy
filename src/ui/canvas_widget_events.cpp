@@ -2248,8 +2248,14 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
 
   if (lassoing_) {
     lassoing_ = false;
-    const auto widget_delta = event->pos() - selection_press_widget_position_;
-    const bool was_click = widget_delta.manhattanLength() < QApplication::startDragDistance();
+    // A click is a gesture whose WHOLE traced path stayed tiny, not one that
+    // merely released near the press point: a carefully closed loop ends where
+    // it began, and comparing only press vs release turned it into a deselect.
+    const auto path_bounds = lasso_points_.boundingRect();
+    // boundingRect of N identical points is 1x1; the traced span is size - 1.
+    const auto widget_extent =
+        static_cast<double>(std::max(path_bounds.width(), path_bounds.height()) - 1) * zoom_;
+    const bool was_click = widget_extent < static_cast<double>(QApplication::startDragDistance());
     if (was_click) {
       // A plain click (no drag) deselects in Replace mode; add/subtract are no-ops.
       restore_selection_before_edit();

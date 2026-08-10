@@ -350,6 +350,53 @@ void ui_patch_tool_click_inside_is_noop_and_escape_cancels() {
   CHECK(drop_area[0] == 40 && drop_area[1] == 80 && drop_area[2] == 120 && drop_area[3] == 255);
 }
 
+// A perfectly closed outline (release exactly on the press point) must commit
+// the selection, not read as a click-to-deselect: the click test measures the
+// whole traced path's extent, not press-vs-release distance. Covers the Patch
+// outline and the plain Lasso, which share the gesture.
+void ui_patch_and_lasso_closed_loop_outline_still_selects() {
+  patchy::Document document(64, 24, patchy::PixelFormat::rgba8());
+  auto pixels = solid_pixels(64, 24, patchy::PixelFormat::rgba8(), QColor(40, 80, 120, 255));
+  document.add_pixel_layer("Loop", std::move(pixels));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(256, 96);
+  canvas.set_document(&document);
+  canvas.show();
+  canvas.set_zoom(4.0);
+  QApplication::processEvents();
+
+  const auto to_widget = [&canvas](QPoint point) {
+    return canvas.widget_position_for_document_point(point);
+  };
+  const auto draw_closed_loop = [&](QPoint top_left, QPoint bottom_right) {
+    send_mouse(canvas, QEvent::MouseButtonPress, to_widget(top_left), Qt::LeftButton, Qt::LeftButton);
+    send_mouse(canvas, QEvent::MouseMove, to_widget(QPoint(bottom_right.x(), top_left.y())), Qt::NoButton,
+               Qt::LeftButton);
+    send_mouse(canvas, QEvent::MouseMove, to_widget(bottom_right), Qt::NoButton, Qt::LeftButton);
+    send_mouse(canvas, QEvent::MouseMove, to_widget(QPoint(top_left.x(), bottom_right.y())), Qt::NoButton,
+               Qt::LeftButton);
+    // Close the loop exactly on the press point before releasing there.
+    send_mouse(canvas, QEvent::MouseMove, to_widget(top_left), Qt::NoButton, Qt::LeftButton);
+    send_mouse(canvas, QEvent::MouseButtonRelease, to_widget(top_left), Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+  };
+
+  canvas.set_tool(patchy::ui::CanvasTool::PatchTool);
+  draw_closed_loop(QPoint(6, 6), QPoint(15, 15));
+  CHECK(canvas.selected_document_region().contains(QPoint(10, 10)));
+
+  canvas.set_tool(patchy::ui::CanvasTool::Lasso);
+  draw_closed_loop(QPoint(30, 6), QPoint(44, 16));
+  CHECK(canvas.selected_document_region().contains(QPoint(37, 11)));
+
+  // A plain click must still deselect (Replace mode), path-extent test or not.
+  send_mouse(canvas, QEvent::MouseButtonPress, to_widget(QPoint(50, 10)), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseButtonRelease, to_widget(QPoint(50, 10)), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(!canvas.selected_document_rect().has_value());
+}
+
 // Renders before/after artifacts of both heals on a textured gradient - the
 // fixture class where the pre-membrane math showed starburst streaks and tone
 // rings. Inspect ui_spot_healing_gallery_* / ui_patch_tool_gallery_* when
@@ -461,6 +508,8 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part2() {
       {"ui_patch_tool_transparent_blends_texture_only", ui_patch_tool_transparent_blends_texture_only},
       {"ui_patch_tool_click_inside_is_noop_and_escape_cancels",
        ui_patch_tool_click_inside_is_noop_and_escape_cancels},
+      {"ui_patch_and_lasso_closed_loop_outline_still_selects",
+       ui_patch_and_lasso_closed_loop_outline_still_selects},
       {"ui_spot_healing_and_patch_texture_gallery", ui_spot_healing_and_patch_texture_gallery},
       {"ui_patch_options_sync_canvas_and_persist", ui_patch_options_sync_canvas_and_persist},
   };
