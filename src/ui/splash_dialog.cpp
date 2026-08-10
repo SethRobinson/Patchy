@@ -3,13 +3,13 @@
 #include "ui/app_credits.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/build_info.hpp"
+#include "ui/dialog_utils.hpp"
 #include "ui/memory_info.hpp"
 #include "ui/splash_artwork.hpp"
 #include "ui/update_checker.hpp"
 #include "ui/theme_qss.hpp"
 #include "ui/window_effects.hpp"
 
-#include <QApplication>
 #include <QDesktopServices>
 #include <QDialog>
 #include <QDir>
@@ -17,15 +17,17 @@
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QMouseEvent>
 #include <QObject>
+#include <QPoint>
 #include <QPushButton>
 #include <QPointer>
-#include <QScreen>
 #include <QString>
 #include <QTimer>
 #include <QUrl>
 #include <QVBoxLayout>
 #include <QWidget>
+#include <QWindow>
 
 #ifndef PATCHY_VERSION
 #define PATCHY_VERSION "0.0.0"
@@ -309,38 +311,56 @@ public:
     }
   }
 
+protected:
+  // Frameless, so there is no title bar to grab; dragging any non-interactive
+  // area moves the dialog instead. Only presses that no child widget consumed
+  // reach these handlers, so the links and buttons keep working.
+  void mousePressEvent(QMouseEvent* event) override {
+    if (event->button() == Qt::LeftButton) {
+      drag_position_ = event->globalPosition().toPoint() - frameGeometry().topLeft();
+      dragging_ = true;
+      if (auto* handle = windowHandle(); handle != nullptr && handle->startSystemMove()) {
+        dragging_ = false;
+      }
+      event->accept();
+      return;
+    }
+    QDialog::mousePressEvent(event);
+  }
+
+  void mouseMoveEvent(QMouseEvent* event) override {
+    if (dragging_ && (event->buttons() & Qt::LeftButton) != 0) {
+      move(event->globalPosition().toPoint() - drag_position_);
+      event->accept();
+      return;
+    }
+    QDialog::mouseMoveEvent(event);
+  }
+
+  void mouseReleaseEvent(QMouseEvent* event) override {
+    dragging_ = false;
+    QDialog::mouseReleaseEvent(event);
+  }
+
 private:
   QLabel* status_{nullptr};
+  bool dragging_{false};
+  QPoint drag_position_;
 };
-
-void center_on_screen(QWidget* widget, QWidget* parent) {
-  if (widget == nullptr) {
-    return;
-  }
-
-  QRect area;
-  if (parent != nullptr && parent->window() != nullptr) {
-    area = parent->window()->frameGeometry();
-  } else if (auto* screen = QApplication::primaryScreen(); screen != nullptr) {
-    area = screen->availableGeometry();
-  }
-
-  if (!area.isEmpty()) {
-    widget->move(area.center() - widget->rect().center());
-  }
-}
 
 }  // namespace
 
 void show_about_splash(QWidget* parent) {
   PatchySplashDialog splash(parent);
-  center_on_screen(&splash, parent);
 #ifndef Q_OS_WASM
   // The web build always runs the latest deployed site, so there is no update
   // to check for; the status label keeps its "Patchy is ready." text.
   splash.begin_update_check();
 #endif
-  splash.exec();
+  // exec_dialog centers the dialog on its owner clamped to the screen (a raw
+  // parent-centered move could push the Close button below a low main window)
+  // and remembers a position the user dragged it to.
+  exec_dialog(splash);
 }
 
 }  // namespace patchy::ui
