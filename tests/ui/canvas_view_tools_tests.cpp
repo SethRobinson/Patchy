@@ -497,6 +497,45 @@ void ui_image_resize_recenters_view_and_zoom_double_click_shows_document() {
   CHECK(std::abs(after_zoom.y() - widget_center.y()) <= 2);
 }
 
+void ui_size_dialogs_open_with_width_focused_and_selected() {
+  patchy::ui::MainWindow window;  // default document: 1024x768
+  show_window(window);
+
+  // Both size dialogs pre-set focus and selection on the Width spin before
+  // exec() so a new width can be typed immediately (Photoshop behavior). The
+  // wasm build must repair that focus after create-time window activation
+  // (WasmDialogInitialFocusGuard, dialog_utils.cpp); this pins the intended
+  // state where Qt gets it right natively.
+  const auto check_dialog = [](const QString& dialog_name, const QString& spin_name) {
+    QTimer::singleShot(0, [dialog_name, spin_name] {
+      for (auto* widget : QApplication::topLevelWidgets()) {
+        if (widget->objectName() != dialog_name) {
+          continue;
+        }
+        auto* dialog = qobject_cast<QDialog*>(widget);
+        auto* width = dialog->findChild<QAbstractSpinBox*>(spin_name);
+        CHECK(width != nullptr);
+        auto* focus = dialog->focusWidget();
+        CHECK(focus != nullptr && (focus == width || width->isAncestorOf(focus)));
+        auto* edit = width->findChild<QLineEdit*>();
+        CHECK(edit != nullptr);
+        CHECK(!edit->text().isEmpty());
+        CHECK(edit->selectedText() == edit->text());
+        dialog->grab().save(QStringLiteral("test-artifacts/%1_initial_focus.png").arg(dialog_name));
+        dialog->reject();
+        return;
+      }
+      CHECK(false);
+    });
+  };
+  check_dialog(QStringLiteral("patchyImageSizeDialog"), QStringLiteral("imageSizeWidthSpin"));
+  require_action(window, "imageSizeAction")->trigger();
+  QApplication::processEvents();
+  check_dialog(QStringLiteral("patchyCanvasSizeDialog"), QStringLiteral("canvasSizeWidthSpin"));
+  require_action(window, "imageCanvasSizeAction")->trigger();
+  QApplication::processEvents();
+}
+
 void ui_zoom_preset_recovers_parked_view() {
   patchy::Document document(200, 150, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Paint", solid_pixels(200, 150, patchy::PixelFormat::rgba8(), QColor(90, 120, 200)));
@@ -2563,6 +2602,8 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
        ui_zoom_tool_double_click_keeps_view_centered_at_actual_pixels},
       {"ui_image_resize_recenters_view_and_zoom_double_click_shows_document",
        ui_image_resize_recenters_view_and_zoom_double_click_shows_document},
+      {"ui_size_dialogs_open_with_width_focused_and_selected",
+       ui_size_dialogs_open_with_width_focused_and_selected},
       {"ui_zoom_preset_recovers_parked_view", ui_zoom_preset_recovers_parked_view},
       {"ui_canvas_focus_in_restores_tool_cursor", ui_canvas_focus_in_restores_tool_cursor},
       {"ui_max_brush_uses_overlay_cursor", ui_max_brush_uses_overlay_cursor},

@@ -5321,6 +5321,9 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   // it under an outer sendPendingEvents batch; see wasm_event_guard.hpp. The
   // suspend-resume control exists once QApplication is constructed.
   install_wasm_pending_event_queue_guard();
+  // The wasm-only dialogs that call QDialog::exec directly (the save-name
+  // prompt in dialog_utils_wasm.cpp) also need the app-wide dialog guards.
+  ensure_wasm_dialog_guards();
 #endif
   document_tabs_->installEventFilter(this);
   suppress_native_tab_bar_base(*document_tabs_);

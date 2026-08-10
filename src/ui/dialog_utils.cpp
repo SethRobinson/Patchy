@@ -27,6 +27,7 @@
 #include <QFormLayout>
 #include <QFrame>
 #include <QGuiApplication>
+#include <QHash>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QKeyEvent>
@@ -1224,19 +1225,13 @@ void remember_dialog_position(QDialog& dialog) {
   dialog.setProperty(kDialogPositionMemoryInstalledProperty, true);
 }
 
-#ifdef Q_OS_WASM
-namespace {
-void ensure_wasm_modal_burial_guard();
-}  // namespace
-#endif
-
 int exec_dialog(QDialog& dialog) {
   remember_dialog_position(dialog);
 #ifdef Q_OS_WASM
-  // The guard watches app-wide events; make sure it exists before the first
-  // modal ever shows (run_non_modal_dialog installs it too, but a modal can
+  // The guards watch app-wide events; make sure they exist before the first
+  // modal ever shows (run_non_modal_dialog installs them too, but a modal can
   // come first, e.g. New Document straight from the start panel).
-  ensure_wasm_modal_burial_guard();
+  ensure_wasm_dialog_guards();
 #endif
   return dialog.exec();
 }
@@ -1354,9 +1349,73 @@ class WasmDialogRaiser : public QObject {
   bool modal_raise_pending_{false};
 };
 
-void ensure_wasm_modal_burial_guard() { WasmDialogRaiser::instance(); }
+// Repairs the initial focus of dialogs whose creator set a focus widget
+// before exec()/show() (Image Size, Canvas Size, New Document, the wasm save
+// prompt). The wasm window stack activates a freshly inserted window at
+// platform-window creation (QWasmWindowTreeNode::onSubtreeChanged), which
+// QWidget::setVisible reaches through create() BEFORE show_helper() marks the
+// widget tree visible, and wasm delivers window-system events synchronously.
+// QApplicationPrivate::setActiveWindow therefore runs while the pre-set focus
+// widget still reports isVisible() == false, rejects it, and falls back to
+// focusNextPrevChild_helper - whose isVisibleTo() check passes for the
+// not-yet-shown siblings - so focus lands one widget PAST the intended one
+// (Image Size opened with Height focused instead of Width). Desktop platforms
+// activate after the show and never see the not-yet-visible state. A hidden
+// dialog receiving WindowActivate happens only in that create-time activation:
+// remember its focus widget there (the events run before setActiveWindow's
+// focus fallback) and re-assert it on the dialog's Show event, which arrives
+// later in the same setVisible pass - after the tree is marked visible,
+// before the first paint.
+class WasmDialogInitialFocusGuard : public QObject {
+ public:
+  static WasmDialogInitialFocusGuard& instance() {
+    static auto* guard = new WasmDialogInitialFocusGuard(qApp);
+    return *guard;
+  }
+
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    const auto type = event->type();
+    if (type != QEvent::WindowActivate && type != QEvent::Show && type != QEvent::Hide) {
+      return false;
+    }
+    auto* dialog = qobject_cast<QDialog*>(watched);
+    if (dialog == nullptr) {
+      return false;
+    }
+    if (type == QEvent::WindowActivate) {
+      if (!dialog->isVisible()) {
+        if (auto* intended = dialog->focusWidget(); intended != nullptr) {
+          pending_.insert(dialog, intended);
+        }
+      }
+      return false;
+    }
+    // Show restores the recorded widget (the caller's pre-show selection
+    // survives the stomp untouched; verified against the wasm build). Hide
+    // only clears a stale entry: a dialog activated-while-hidden always sees
+    // its Show in the same setVisible pass, so a Hide can only arrive after
+    // the repair ran.
+    const QPointer<QWidget> intended = pending_.take(dialog);
+    if (type == QEvent::Show && intended != nullptr && dialog->focusWidget() != intended) {
+      intended->setFocus(Qt::OtherFocusReason);
+    }
+    return false;
+  }
+
+ private:
+  explicit WasmDialogInitialFocusGuard(QObject* parent) : QObject(parent) {
+    qApp->installEventFilter(this);
+  }
+
+  QHash<QDialog*, QPointer<QWidget>> pending_;
+};
 
 }  // namespace
+
+void ensure_wasm_dialog_guards() {
+  WasmDialogRaiser::instance();
+  WasmDialogInitialFocusGuard::instance();
+}
 
 void keep_dialog_above_parent_window(QDialog& dialog) {
   WasmDialogRaiser::instance().watch(dialog);
@@ -1396,6 +1455,9 @@ std::vector<NonModalDialogLoopFrame*>& non_modal_dialog_loop_frames() {
 
 int run_non_modal_dialog(QDialog& dialog) {
   remember_dialog_position(dialog);
+#ifdef Q_OS_WASM
+  ensure_wasm_dialog_guards();
+#endif
   keep_dialog_above_parent_window(dialog);
   dialog.setModal(false);
   dialog.setWindowModality(Qt::NonModal);

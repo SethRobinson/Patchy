@@ -87,6 +87,14 @@ void set_dialog_position_memory_id(QDialog& dialog, const QString& id);
 void remember_dialog_position(QDialog& dialog);
 int exec_dialog(QDialog& dialog);
 int run_non_modal_dialog(QDialog& dialog);
+#ifdef Q_OS_WASM
+// Installs the app-wide wasm dialog guards: the modal burial raise and the
+// initial-focus repair (see dialog_utils.cpp). exec_dialog and
+// run_non_modal_dialog ensure them before showing anything; the MainWindow
+// constructor ensures them for the wasm-only dialogs that call QDialog::exec
+// directly (dialog_utils_wasm.cpp). Idempotent.
+void ensure_wasm_dialog_guards();
+#endif
 // Leaves the innermost run_non_modal_dialog loop on this thread by exception.
 // Stores `error` for that loop's frame and quits the loop, so
 // run_non_modal_dialog rethrows it on its own frame once exec() returns (the

@@ -1,8 +1,8 @@
 # WebAssembly input, keyboard focus, and the pending-event queue
 
-How browser input reaches Qt in the wasm build, the two failure modes that
-follow from it (stolen keyboard focus, the pending-event queue crash), and
-the guards Patchy installs. Companion to [wasm.md](wasm.md); read this
+How browser input reaches Qt in the wasm build, the failure modes that
+follow from it (stolen keyboard focus, misplaced dialog initial focus, the
+pending-event queue crash), and the guards Patchy installs. Companion to [wasm.md](wasm.md); read this
 before touching input handling, hotkeys, focus, or the processing waits in
 the wasm build. Verified against Qt 6.10.3
 (`qtbase/src/corelib/platform/wasm/qwasmsuspendresumecontrol.cpp`,
@@ -59,6 +59,32 @@ widget's keyboard):
 - `CanvasWidget::wait_for_processing_operation` when the outermost wait
   unwinds, and `end_processing_operation` at depth zero: covers Tab-key
   navigation theft and presses swallowed by the wait guards.
+
+## Dialog initial focus: create-time activation lands one widget past
+
+The wasm window stack activates a freshly inserted top window at
+platform-window creation (`QWasmWindowTreeNode::onSubtreeChanged` calls
+`requestActivateWindow()`). `QWidget::setVisible` reaches that through
+`create()` BEFORE `show_helper()` sets `WA_WState_Visible`, and window-system
+events are synchronous on wasm (`qwasmcompositor.cpp`), so
+`QApplicationPrivate::setActiveWindow` runs while every widget in the dialog
+still reports `isVisible() == false`. Its focus pass then rejects a focus
+widget that was set before exec()/show() (plain `isVisible()` check) and
+falls back to `focusNextPrevChild_helper`, whose `isVisibleTo()` check passes
+for the not-yet-shown siblings: focus lands one widget PAST the intended one.
+Image Size opened with Height focused instead of Width, the Width spin still
+showing its `selectAll()` highlight because it never actually held focus.
+Desktop platforms activate after the show and never see this state.
+
+Guard: `WasmDialogInitialFocusGuard` (dialog_utils.cpp), installed app-wide
+by `ensure_wasm_dialog_guards()` from `exec_dialog`, `run_non_modal_dialog`,
+and the MainWindow constructor (the last covers dialog_utils_wasm.cpp's
+direct `QDialog::exec` save prompt). A hidden dialog receiving
+`WindowActivate` is the create-time activation's signature; the guard records
+`focusWidget()` there (the activation events precede the focus pass) and
+re-asserts it on the dialog's Show event, which arrives later in the same
+setVisible pass: tree marked visible, first paint not yet done. Dialogs keep
+pre-setting focus + selection before exec()/show(), unchanged.
 
 ## The pending-event queue crash and its guard
 
