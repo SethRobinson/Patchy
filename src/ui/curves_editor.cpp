@@ -74,7 +74,8 @@ QColor channel_color(CurvesChannel channel, bool active) {
 
 QColor histogram_color(CurvesChannel channel) {
   auto color = channel_color(channel, true);
-  color.setAlpha(channel == CurvesChannel::Rgb ? 78 : 64);
+  // Opaque enough that a one-column clipping spike reads clearly, like PS.
+  color.setAlpha(150);
   return color;
 }
 
@@ -419,27 +420,32 @@ private:
     if (maximum == 0) {
       return;
     }
-    QPainterPath shape;
-    shape.moveTo(graph.left(), graph.bottom());
-    for (int x = 0; x < graph.width(); ++x) {
-      const auto first_bin = std::clamp((x * 256) / std::max(1, graph.width()), 0, 255);
-      const auto last_bin = std::clamp(((x + 1) * 256) / std::max(1, graph.width()), first_bin + 1, 256);
+    // Crisp unantialiased columns inset one pixel from the frame: a clipping
+    // spike in an endpoint bin is only one or two columns wide, and it must
+    // not soften into invisibility or vanish under the border stroke.
+    painter.setRenderHint(QPainter::Antialiasing, false);
+    const auto plot = graph.adjusted(1, 0, -1, 0);
+    const auto width = std::max(1, plot.width());
+    const auto color = histogram_color(active_channel_);
+    for (int x = 0; x < width; ++x) {
+      const auto first_bin = std::clamp((x * 256) / width, 0, 255);
+      const auto last_bin = std::clamp(((x + 1) * 256) / width, first_bin + 1, 256);
       std::uint32_t count = 0;
       for (int bin = first_bin; bin < last_bin; ++bin) {
         count = std::max(count, histogram[static_cast<std::size_t>(bin)]);
+      }
+      if (count == 0) {
+        continue;
       }
       // Square-root of the max-normalized count: Photoshop's Curves/Levels
       // dialogs compress bin heights this way (the Histogram panel is linear),
       // keeping the distribution readable when one spike dominates.
       const auto scaled = std::sqrt(static_cast<double>(count) / static_cast<double>(maximum));
-      const auto y = static_cast<double>(graph.bottom()) - scaled * static_cast<double>(graph.height() - 1);
-      shape.lineTo(graph.left() + x, y);
+      const auto bar_height =
+          std::max(1, static_cast<int>(std::lround(scaled * static_cast<double>(graph.height() - 1))));
+      painter.fillRect(QRect(plot.left() + x, graph.bottom() - bar_height + 1, 1, bar_height), color);
     }
-    shape.lineTo(graph.right(), graph.bottom());
-    shape.closeSubpath();
-    painter.setPen(Qt::NoPen);
-    painter.setBrush(histogram_color(active_channel_));
-    painter.drawPath(shape);
+    painter.setRenderHint(QPainter::Antialiasing, true);
   }
 
   void draw_grid(QPainter& painter, const QRect& graph) const {

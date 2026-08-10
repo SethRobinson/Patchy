@@ -2096,6 +2096,8 @@ void ui_curves_histogram_display_uses_sqrt_heights() {
   patchy::ui::CurvesEditorWidget editor;
   editor.resize(460, 520);
   patchy::ui::CurvesHistograms histograms;
+  histograms.rgb[0] = 1000;
+  histograms.rgb[255] = 1000;
   for (int bin = 39; bin <= 41; ++bin) {
     histograms.rgb[static_cast<std::size_t>(bin)] = 1000;
   }
@@ -2110,18 +2112,21 @@ void ui_curves_histogram_display_uses_sqrt_heights() {
   CHECK(graph != nullptr);
   const auto image = graph->grab().toImage();
 
-  // Mirrors CurvesGraphWidget::graph_rect() and its column-to-bin mapping.
+  // Mirrors CurvesGraphWidget::graph_rect() and draw_histogram's inset
+  // column-to-bin mapping.
   const auto available = QRect(0, 0, graph->width(), graph->height()).adjusted(31, 10, -10, -28);
   const auto side = std::max(1, std::min(available.width(), available.height()));
-  CHECK(side >= 256);
+  CHECK(side >= 258);
   const QRect graph_rect(available.left() + (available.width() - side) / 2,
                          available.top() + (available.height() - side) / 2, side, side);
+  const auto plot_left = graph_rect.left() + 1;
+  const auto plot_width = side - 2;
   const auto column_for_bin = [&](int bin) {
-    for (int x = 0; x < side; ++x) {
-      const auto first_bin = std::clamp((x * 256) / side, 0, 255);
-      const auto last_bin = std::clamp(((x + 1) * 256) / side, first_bin + 1, 256);
+    for (int x = 0; x < plot_width; ++x) {
+      const auto first_bin = std::clamp((x * 256) / plot_width, 0, 255);
+      const auto last_bin = std::clamp(((x + 1) * 256) / plot_width, first_bin + 1, 256);
       if (first_bin == bin && last_bin == bin + 1) {
-        return graph_rect.left() + x;
+        return plot_left + x;
       }
     }
     return -1;
@@ -2129,6 +2134,14 @@ void ui_curves_histogram_display_uses_sqrt_heights() {
   const auto row_at = [&](double fraction) {
     return graph_rect.bottom() - static_cast<int>(std::lround(fraction * (side - 1)));
   };
+
+  // Clipping spikes in the endpoint bins draw as full-height columns just
+  // inside the frame instead of hiding under the border stroke.
+  const auto spike_row = row_at(0.90);
+  CHECK(!color_close(image.pixelColor(plot_left, spike_row),
+                     image.pixelColor(column_for_bin(220), spike_row), 6));
+  CHECK(!color_close(image.pixelColor(plot_left + plot_width - 1, spike_row),
+                     image.pixelColor(column_for_bin(220), spike_row), 6));
 
   const auto tall_column = column_for_bin(40);
   const auto short_column = column_for_bin(200);
