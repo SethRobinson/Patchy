@@ -188,6 +188,15 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 
 ## What's New
 
+### 0.89 - August 10, 2026
+
+- Spot Healing (Shift+J) removes blemishes with a single drag and no source pick, and the new Patch tool draws a selection you drag to heal, with Source, Destination, and Transparent modes. Both heal with the classic boundary membrane, and Clone, Healing, Spot Healing, and Patch share one Sample All Layers option
+- A Photoshop-style Crop tool (C): drag out a box, resize or move it, rotate it to straighten, pick a ratio preset, and press Enter to commit. The crop can also expand the canvas
+- Auto Tone, Auto Contrast, and Auto Color apply immediately at their defaults, and the new Auto All runs all three as one undo step
+- Curves and Levels histograms match Photoshop's sampling and display, their eyedroppers show when they are armed, and destructive Levels and Hue/Saturation apply much faster
+- The Layer menu is organized into New, Layer Mask, and Arrange submenus
+- Fixes: Image Size, Canvas Size, Crop, and Rotate keep smart-object placements instead of refusing the document, the About dialog stays on screen and can be dragged
+
 ### 0.88 - August 6, 2026
 
 - Free Transform works on folders and multi-layer selections. Ctrl+T takes the whole selection as one target set with linked masks riding along, the Move tool frames the same union it would take, and preview-locked smart objects transform in a multi-target session instead of refusing. Corner drags scale proportionally by default, with a preference that restores the old pairing where a plain corner drag distorts and Shift keeps the aspect ratio
@@ -199,19 +208,6 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 - Affinity import: adjustments attached to a layer arrive as clipped adjustment layers rather than being misread as masks, minified placed images are box-filtered instead of aliasing, opening a file with Image layers can ask whether to keep smart objects or convert them to pixel layers, and resized canvases, lazily decoded placed images, layer names, collapsed groups, and group adjustment scope all match Affinity
 - Text layers keep their transform through Image Size, Canvas Size, Crop, Rotate Canvas, layer flips, and Shift Seams, warped text layers can be edited again without breaking their warp, and the free-transform drag preview applies flip signs
 - Fixes: the document tab bar's scroll arrows are no longer clipped, a committed Free Transform holds its frame until the refresh lands instead of flashing the old geometry, and a filter dialog that unwinds by exception disarms its in-flight preview renders
-
-### 0.87 - August 4, 2026
-
-- Patchy runs in a web browser now, at [rtsoft.com/patchy](https://www.rtsoft.com/patchy/). It is the same editor compiled to WebAssembly with real threads: files open from your disk, save back as downloads, and drag straight onto the canvas, and nothing you make is ever sent online. The web build bundles 23 MB of open fonts including Japanese coverage, takes dropped font files and font zips that persist between visits, decodes HEIC photos through the browser, and remembers your settings
-- The Bold and Italic buttons in the text options bar are replaced by a Style picker that lists a font family's real faces and resolves them the way Photoshop does. Families that declare their Bold at a sub-Bold weight now pick Bold Italic correctly, and when a family has no such face, Patchy synthesizes a faux bold or faux italic from the face you are using instead of jumping to a different family
-- Missing fonts behave: a font with no glyph coverage for the text counts as missing and badges the layer, and editing past the warning substitutes a real font instead of redrawing to nothing. Options-bar changes made with no text selected now apply to the whole layer, like Photoshop
-- Text editing on transformed and scaled layers is accurate. Clicks land on the glyphs you can see rather than on an untransformed layout, the caret and selection read the renderer's own line plan, re-editing box text renders live instead of shifting as you enter it, and a commit repaints the text bounds instead of the whole document
-- The History panel is interactive. It lists the real states of the session, oldest first with the current one highlighted, one click jumps to any state in either direction, and a right-click action opens any past state as a new document
-- Large documents composite and transform much faster. A 7 megapixel reference PSD composites in 371 ms instead of 566, Move and Free Transform previews patch the regions that changed rather than recompositing the canvas (a stress step drops from 381 ms to 104 ms), heavy drags latch onto a low-resolution proxy and re-render accurately on release, previews composite at display resolution while you are zoomed out, dragging the same selection again reuses the snapshots the last drag built, and the Windows release build links with link-time optimization
-- Auto Tone and Auto Color join Image > Adjustments, and Auto Contrast now works on the composite the way Photoshop's does
-- Advanced Blending's per-channel restrictions render and can be edited, so a layer that blends through only some channels looks right instead of ignoring the setting
-- Zoom follows Photoshop's view rules with the same preset steps, and geometry operations like rotate and canvas resize recenter the view instead of leaving it scrolled off the image
-- Fixes: Clouds fills the whole canvas, Dust & Scratches reaches a 500 px radius, strokes no longer grow nubs along anti-aliased fringes on transformed text, the Layer Style dialog's Stroke page scrolls instead of stretching the dialog, undo and redo refresh the Paths panel, the start panel lists up to 200 recent files with a right-click menu and a name filter beside the Recent Files label, Open Recent gained a filter box, PSD text layers that record a font by its PostScript name resolve it on macOS and Linux instead of falling back, and the About screen has a light surface in Light mode
 
 [Older releases](RELEASE-HISTORY.md)
 
