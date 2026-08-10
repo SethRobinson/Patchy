@@ -286,6 +286,9 @@ void MainWindow::add_document_session(Document document, QString title, QString 
     session->canvas->set_magnetic_lasso_edge_contrast(canvas_->magnetic_lasso_edge_contrast());
     session->canvas->set_magnetic_lasso_frequency(canvas_->magnetic_lasso_frequency());
     session->canvas->set_clone_aligned(canvas_->clone_aligned());
+    session->canvas->set_retouch_sample_all_layers(canvas_->retouch_sample_all_layers());
+    session->canvas->set_patch_tool_mode(canvas_->patch_tool_mode());
+    session->canvas->set_patch_tool_transparent(canvas_->patch_tool_transparent());
     session->canvas->set_healing_diffusion(current_healing_diffusion_);
     session->canvas->set_local_adjustment_strength(current_local_adjustment_strength_);
     session->canvas->set_local_tone_range(current_local_tone_range_);
@@ -308,6 +311,16 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   }
   if (clone_aligned_check_ != nullptr) {
     session->canvas->set_clone_aligned(clone_aligned_check_->isChecked());
+  }
+  if (retouch_sample_all_layers_check_ != nullptr) {
+    session->canvas->set_retouch_sample_all_layers(retouch_sample_all_layers_check_->isChecked());
+  }
+  if (patch_mode_combo_ != nullptr) {
+    session->canvas->set_patch_tool_mode(
+        static_cast<CanvasWidget::PatchToolMode>(patch_mode_combo_->currentData().toInt()));
+  }
+  if (patch_transparent_check_ != nullptr) {
+    session->canvas->set_patch_tool_transparent(patch_transparent_check_->isChecked());
   }
   session->canvas->set_healing_diffusion(current_healing_diffusion_);
   session->canvas->set_local_adjustment_strength(current_local_adjustment_strength_);

@@ -924,6 +924,12 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
         draw_document_patch(patch, !base_excludes_layer);
       }
     }
+  } else if (patch_tool_dragging_ && !patch_tool_source_image_.isNull()) {
+    // Patch drag: the untouched composite plus a raw translated blit of the
+    // frozen snapshot (Photoshop also previews unhealed pixels; the heal is
+    // one-shot at release).
+    draw_scaled_image(render_cache_);
+    draw_patch_tool_drag_preview(painter);
   } else {
     // Committed Free Transform whose render-cache refresh has not landed yet:
     // keep the commit-time preview frame on screen instead of the stale
@@ -988,7 +994,9 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
     painter.drawRect(border_rect);
   }
   draw_selection_overlay(painter);
+  draw_patch_tool_drag_outline(painter);
   draw_quick_select_stroke_overlay(painter);
+  draw_spot_heal_stroke_overlay(painter);
   draw_pen_overlay(painter);
   draw_path_edit_overlay(painter);
   draw_shape_preview(painter, exposed_rect);

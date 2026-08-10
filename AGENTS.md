@@ -104,6 +104,7 @@ Read the linked document before working on the feature. The document, not this i
 - **Liquify:** [docs/liquify.md](docs/liquify.md) and [docs/legal-constraints.md](docs/legal-constraints.md).
 - **Warp:** [docs/warp.md](docs/warp.md).
 - **Brush tips, dynamics, Flow/Airbrush, Mixer, Pattern Stamp, and ABR:** [docs/brushes.md](docs/brushes.md) and [docs/legal-constraints.md](docs/legal-constraints.md).
+- **Healing Brush, Spot Healing, Patch tool, and retouch Sample All Layers:** [docs/healing.md](docs/healing.md) and [docs/legal-constraints.md](docs/legal-constraints.md).
 - **Palette mode:** [docs/palette-mode.md](docs/palette-mode.md).
 - **File formats, PSB, Camera Raw, Affinity, HEIF/HEIC, and flat-image alpha:** [docs/file-formats.md](docs/file-formats.md).
 - **Document channels:** [docs/channels.md](docs/channels.md).

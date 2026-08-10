@@ -792,21 +792,22 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   auto* selection_new = add_option_action(
       simple_icon(QStringLiteral("N")), tr("New Selection"),
       {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagneticLasso,
-       CanvasTool::MagicWand, CanvasTool::QuickSelect});
+       CanvasTool::MagicWand, CanvasTool::QuickSelect, CanvasTool::PatchTool});
   selection_new->setObjectName(QStringLiteral("selectionNewModeAction"));
   auto* selection_add = add_option_action(
       simple_icon(QStringLiteral("+")), tr("Add to Selection"),
       {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagneticLasso,
-       CanvasTool::MagicWand, CanvasTool::QuickSelect});
+       CanvasTool::MagicWand, CanvasTool::QuickSelect, CanvasTool::PatchTool});
   selection_add->setObjectName(QStringLiteral("selectionAddModeAction"));
   auto* selection_subtract = add_option_action(
       simple_icon(QStringLiteral("-")), tr("Subtract from Selection"),
       {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagneticLasso,
-       CanvasTool::MagicWand, CanvasTool::QuickSelect});
+       CanvasTool::MagicWand, CanvasTool::QuickSelect, CanvasTool::PatchTool});
   selection_subtract->setObjectName(QStringLiteral("selectionSubtractModeAction"));
   auto* selection_intersect = add_option_action(simple_icon(QStringLiteral("Ix")), tr("Intersect Selection"),
                                                 {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso,
-                                                 CanvasTool::MagneticLasso, CanvasTool::MagicWand});
+                                                 CanvasTool::MagneticLasso, CanvasTool::MagicWand,
+                                                 CanvasTool::PatchTool});
   selection_intersect->setObjectName(QStringLiteral("selectionIntersectModeAction"));
   selection_new_mode_action_ = selection_new;
   selection_add_mode_action_ = selection_add;
@@ -986,7 +987,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   // refresh_vector_tool_options_visibility hides them in the vector modes.
   vector_pixel_only_option_widgets_.push_back(add_option_label(
       tr("Size:"),
-      {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
+      {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::SpotHealing, CanvasTool::Smudge,
        CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
        CanvasTool::BlurBrush, CanvasTool::SharpenBrush,
        CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse}));
@@ -996,7 +997,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   brush_size->setValue(canvas_defaults->brush_size());
   configure_toolbar_spinbox(brush_size, 58);
   add_option_widget(brush_size,
-                    {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
+                    {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::SpotHealing, CanvasTool::Smudge,
                      CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
                      CanvasTool::BlurBrush, CanvasTool::SharpenBrush,
                      CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
@@ -1007,7 +1008,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   brush_size_slider->setFixedWidth(150);
   brush_size_slider->setToolTip(tr("Brush size — press [ or ], or Alt+Right-drag on the canvas"));
   add_option_widget(brush_size_slider,
-                    {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
+                    {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::SpotHealing, CanvasTool::Smudge,
                      CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
                      CanvasTool::BlurBrush, CanvasTool::SharpenBrush,
                      CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
@@ -1035,7 +1036,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
                      CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
   vector_pixel_only_option_widgets_.push_back(add_option_label(
       tr("Soft:"),
-      {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
+      {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::SpotHealing, CanvasTool::Smudge,
        CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
        CanvasTool::BlurBrush, CanvasTool::SharpenBrush,
        CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse}));
@@ -1046,7 +1047,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   brush_softness->setSuffix(QStringLiteral("%"));
   configure_toolbar_spinbox(brush_softness, 52);
   add_option_widget(brush_softness,
-                    {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
+                    {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::SpotHealing, CanvasTool::Smudge,
                      CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
                      CanvasTool::BlurBrush, CanvasTool::SharpenBrush,
                      CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
@@ -1057,7 +1058,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   brush_softness_slider->setFixedWidth(110);
   brush_softness_slider->setToolTip(tr("Brush edge softness — Alt+Right-drag up or down on the canvas"));
   add_option_widget(brush_softness_slider,
-                    {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
+                    {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::SpotHealing, CanvasTool::Smudge,
                      CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
                      CanvasTool::BlurBrush, CanvasTool::SharpenBrush,
                      CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
@@ -1422,18 +1423,78 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     }
   });
 
-  add_option_label(tr("Diffusion:"), {CanvasTool::Healing});
+  add_option_label(tr("Diffusion:"),
+                   {CanvasTool::Healing, CanvasTool::SpotHealing, CanvasTool::PatchTool});
   auto* healing_diffusion = new QSpinBox(toolbar);
   healing_diffusion->setObjectName(QStringLiteral("healingDiffusionSpin"));
   healing_diffusion->setRange(1, 7);
   healing_diffusion->setValue(current_healing_diffusion_);
   healing_diffusion->setToolTip(tr("Lower values preserve fine texture; higher values adapt more quickly"));
   configure_toolbar_spinbox(healing_diffusion, 42);
-  add_option_widget(healing_diffusion, {CanvasTool::Healing});
+  add_option_widget(healing_diffusion,
+                    {CanvasTool::Healing, CanvasTool::SpotHealing, CanvasTool::PatchTool});
   connect(healing_diffusion, &QSpinBox::valueChanged, this, [this](int value) {
     current_healing_diffusion_ = value;
     if (canvas_ != nullptr) {
       canvas_->set_healing_diffusion(value);
+      save_tool_settings();
+    }
+  });
+
+  add_option_label(tr("Patch:"), {CanvasTool::PatchTool});
+  patch_mode_combo_ = new QComboBox(toolbar);
+  patch_mode_combo_->setObjectName(QStringLiteral("patchModeCombo"));
+  patch_mode_combo_->addItem(tr("Source"), static_cast<int>(CanvasWidget::PatchToolMode::Source));
+  patch_mode_combo_->addItem(tr("Destination"), static_cast<int>(CanvasWidget::PatchToolMode::Destination));
+  patch_mode_combo_->setCurrentIndex(std::max(
+      0, patch_mode_combo_->findData(static_cast<int>(canvas_defaults->patch_tool_mode()))));
+  patch_mode_combo_->setFixedWidth(104);
+  patch_mode_combo_->setToolTip(
+      tr("Source heals the dragged-from region; Destination copies it onto the drop point"));
+  {
+    QPointer<QComboBox> patch_mode_combo(patch_mode_combo_);
+    register_retranslation([patch_mode_combo] {
+      if (patch_mode_combo == nullptr || patch_mode_combo->count() < 2) {
+        return;
+      }
+      QSignalBlocker blocker(patch_mode_combo);
+      patch_mode_combo->setItemText(0, QObject::tr("Source"));
+      patch_mode_combo->setItemText(1, QObject::tr("Destination"));
+    });
+  }
+  add_option_widget(patch_mode_combo_, {CanvasTool::PatchTool});
+  connect(patch_mode_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
+    if (index < 0 || patch_mode_combo_ == nullptr) {
+      return;
+    }
+    if (canvas_ != nullptr) {
+      canvas_->set_patch_tool_mode(
+          static_cast<CanvasWidget::PatchToolMode>(patch_mode_combo_->itemData(index).toInt()));
+      save_tool_settings();
+    }
+  });
+
+  patch_transparent_check_ = new CheckGlyphBox(tr("Transparent"), toolbar);
+  patch_transparent_check_->setObjectName(QStringLiteral("patchTransparentCheck"));
+  patch_transparent_check_->setChecked(canvas_defaults->patch_tool_transparent());
+  patch_transparent_check_->setToolTip(tr("Blend only the source texture instead of replacing the region"));
+  add_option_widget(patch_transparent_check_, {CanvasTool::PatchTool});
+  connect(patch_transparent_check_, &QCheckBox::toggled, this, [this](bool checked) {
+    if (canvas_ != nullptr) {
+      canvas_->set_patch_tool_transparent(checked);
+      save_tool_settings();
+    }
+  });
+
+  retouch_sample_all_layers_check_ = new CheckGlyphBox(tr("Sample All Layers"), toolbar);
+  retouch_sample_all_layers_check_->setObjectName(QStringLiteral("retouchSampleAllLayersCheck"));
+  retouch_sample_all_layers_check_->setChecked(canvas_defaults->retouch_sample_all_layers());
+  retouch_sample_all_layers_check_->setToolTip(tr("Sample the merged document instead of the active layer"));
+  add_option_widget(retouch_sample_all_layers_check_,
+                    {CanvasTool::Clone, CanvasTool::Healing, CanvasTool::SpotHealing, CanvasTool::PatchTool});
+  connect(retouch_sample_all_layers_check_, &QCheckBox::toggled, this, [this](bool checked) {
+    if (canvas_ != nullptr) {
+      canvas_->set_retouch_sample_all_layers(checked);
       save_tool_settings();
     }
   });

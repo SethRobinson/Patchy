@@ -615,6 +615,10 @@ QString tool_name(CanvasTool tool) {
       return QObject::tr("Pan");
     case CanvasTool::Zoom:
       return QObject::tr("Zoom");
+    case CanvasTool::SpotHealing:
+      return QObject::tr("Spot Healing");
+    case CanvasTool::PatchTool:
+      return QObject::tr("Patch");
   }
   return QObject::tr("Tool");
 }

@@ -81,11 +81,9 @@ Patent design review (July 15, 2026): the implementation deliberately reads the 
 
 `ui_mixer_brush_uses_compact_controls_and_round_trips_raster_pixels` pins the options bar, the one-sample color transition, and exact layered PSD reopen; `mixer_brush_color_uses_one_stroke_start_sample_and_distance_decay` pins the core color model. Palette mode uses the common brush writer and snaps each result to the document palette; Wet Edges is omitted there because a tonal edge cannot survive the hard palette constraint.
 
-## Classic Healing Brush
+## Healing family
 
-The Healing Brush is an explicit-source pixel tool: Alt-click picks a document-composite source, Aligned shares Clone's across-stroke offset, and Diffusion 1-7 sets the radius separating source detail from local tone. Each output sample adds the source center's difference from its alpha-weighted eight-sample source ring to the matching destination ring tone. The stroke shares Clone's size, opacity, softness, selection, transparent-pixel lock, palette snap, undo, and source-snapshot behavior.
-
-The implementation performs no automatic source selection, patch search, patch synthesis, reshuffling, or gradient-domain solve. Adobe's classic healing patent US 6587592 expired in 2021; the still-active PatchMatch and gradient-domain gates recorded in `docs/legal-constraints.md` remain out of scope. Healing writes only ordinary layer pixels; PSD/PSB round-trips need no private metadata.
+The Healing Brush, Spot Healing, the Patch tool, and the shared retouch Sample All Layers option live in [healing.md](healing.md), together with their binding legal envelope (classic user-directed frequency separation only; the shared `healing_sample` math is promoted to `canvas_widget_shared.cpp`).
 
 ## Local adjustment brushes
 

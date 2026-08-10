@@ -152,32 +152,6 @@ void visit_pixel_line(QPoint from, QPoint to, Callback&& callback) {
   }
 }
 
-float brush_coverage(double distance_squared, int radius, int softness) {
-  if (radius <= 0) {
-    return distance_squared <= 0.0 ? 1.0F : 0.0F;
-  }
-
-  const auto radius_squared = static_cast<double>(radius) * static_cast<double>(radius);
-  if (distance_squared > radius_squared) {
-    return 0.0F;
-  }
-
-  softness = std::clamp(softness, 0, 100);
-  if (softness <= 0) {
-    return 1.0F;
-  }
-
-  const auto edge_width = std::max(1.0, static_cast<double>(radius) * static_cast<double>(softness) / 100.0);
-  const auto inner_radius = std::max(0.0, static_cast<double>(radius) - edge_width);
-  const auto distance = std::sqrt(distance_squared);
-  if (distance <= inner_radius) {
-    return 1.0F;
-  }
-  const auto t = std::clamp((distance - inner_radius) / edge_width, 0.0, 1.0);
-  const auto smooth = t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
-  return static_cast<float>(1.0 - smooth);
-}
-
 float brush_shape_coverage(double distance_x, double distance_y, int radius, int softness, int roundness_percent,
                            double angle_degrees) {
   roundness_percent = std::clamp(roundness_percent, 1, 100);
@@ -196,86 +170,6 @@ float brush_shape_coverage(double distance_x, double distance_y, int radius, int
       (major_axis * major_axis) / (major_radius * major_radius) +
       (minor_axis * minor_axis) / (minor_radius * minor_radius);
   return brush_coverage(normalized_distance_squared * major_radius * major_radius, radius, softness);
-}
-
-std::array<double, 3> healing_ring_tone(const QImage& snapshot, QPoint center, int radius) {
-  constexpr std::array<std::array<int, 2>, 8> kDirections{{
-      {{-1, -1}}, {{0, -1}}, {{1, -1}}, {{-1, 0}},
-      {{1, 0}},   {{-1, 1}}, {{0, 1}},  {{1, 1}},
-  }};
-  std::array<double, 3> sum{};
-  double alpha_weight = 0.0;
-  for (const auto& direction : kDirections) {
-    const auto x = std::clamp(center.x() + direction[0] * radius, 0, snapshot.width() - 1);
-    const auto y = std::clamp(center.y() + direction[1] * radius, 0, snapshot.height() - 1);
-    const auto* pixel = snapshot.constScanLine(y) + static_cast<std::size_t>(x) * 4U;
-    const auto alpha = static_cast<double>(pixel[3]) / 255.0;
-    alpha_weight += alpha;
-    for (std::size_t channel = 0; channel < sum.size(); ++channel) {
-      sum[channel] += static_cast<double>(pixel[channel]) * alpha;
-    }
-  }
-  if (alpha_weight > std::numeric_limits<double>::epsilon()) {
-    for (auto& channel : sum) {
-      channel /= alpha_weight;
-    }
-    return sum;
-  }
-
-  const auto x = std::clamp(center.x(), 0, snapshot.width() - 1);
-  const auto y = std::clamp(center.y(), 0, snapshot.height() - 1);
-  const auto* pixel = snapshot.constScanLine(y) + static_cast<std::size_t>(x) * 4U;
-  return {static_cast<double>(pixel[0]), static_cast<double>(pixel[1]), static_cast<double>(pixel[2])};
-}
-
-std::array<std::uint8_t, 4> healing_sample(const QImage& snapshot, QPoint source, QPoint destination,
-                                           int tone_radius) {
-  const auto source_tone = healing_ring_tone(snapshot, source, tone_radius);
-  const auto destination_tone = healing_ring_tone(snapshot, destination, tone_radius);
-  const auto* source_pixel = snapshot.constScanLine(source.y()) + static_cast<std::size_t>(source.x()) * 4U;
-  std::array<std::uint8_t, 4> result{};
-  for (std::size_t channel = 0; channel < 3; ++channel) {
-    // Classic frequency-separation healing: carry sampled detail into the
-    // destination's local tone. This is deliberately a fixed local operation,
-    // not patch search, synthesis, or a gradient-domain optimization.
-    result[channel] = clamp_byte(destination_tone[channel] + static_cast<double>(source_pixel[channel]) -
-                                 source_tone[channel]);
-  }
-  result[3] = source_pixel[3];
-  return result;
-}
-
-void blend_straight_rgba(std::uint8_t* dst, const std::uint8_t* src, float amount) {
-  amount = std::clamp(amount, 0.0F, 1.0F);
-  if (amount <= 0.0F) {
-    return;
-  }
-  if (amount >= 0.999F) {
-    dst[0] = src[0];
-    dst[1] = src[1];
-    dst[2] = src[2];
-    dst[3] = src[3];
-    return;
-  }
-
-  const auto source_alpha = static_cast<float>(src[3]) / 255.0F;
-  const auto destination_alpha = static_cast<float>(dst[3]) / 255.0F;
-  const auto out_alpha = source_alpha * amount + destination_alpha * (1.0F - amount);
-  if (out_alpha <= 0.0F) {
-    dst[0] = src[0];
-    dst[1] = src[1];
-    dst[2] = src[2];
-    dst[3] = 0;
-    return;
-  }
-
-  for (int channel = 0; channel < 3; ++channel) {
-    const auto source_premultiplied = static_cast<float>(src[channel]) * source_alpha;
-    const auto destination_premultiplied = static_cast<float>(dst[channel]) * destination_alpha;
-    dst[channel] =
-        clamp_byte((source_premultiplied * amount + destination_premultiplied * (1.0F - amount)) / out_alpha);
-  }
-  dst[3] = clamp_byte(out_alpha * 255.0F);
 }
 
 }  // namespace

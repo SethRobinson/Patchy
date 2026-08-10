@@ -263,6 +263,7 @@ bool CanvasWidget::apply_selection_cursor_for_mode(SelectionMode mode) {
     case CanvasTool::EllipticalMarquee:
     case CanvasTool::Lasso:
     case CanvasTool::MagneticLasso:
+    case CanvasTool::PatchTool:
       // Same drawn crosshair in every mode (only the badge differs), so toggling
       // Shift/Alt never makes the crosshair jump or change weight.
       setCursor(selection_tool_cursor(mode));
@@ -384,6 +385,7 @@ void CanvasWidget::update_tool_cursor() {
   if (tool_ == CanvasTool::Brush || tool_ == CanvasTool::MixerBrush ||
       tool_ == CanvasTool::PatternStamp ||
       tool_ == CanvasTool::Clone || tool_ == CanvasTool::Healing ||
+      tool_ == CanvasTool::SpotHealing ||
       tool_ == CanvasTool::Smudge || tool_ == CanvasTool::Dodge || tool_ == CanvasTool::Burn ||
       tool_ == CanvasTool::Sponge || tool_ == CanvasTool::BlurBrush ||
       tool_ == CanvasTool::SharpenBrush || tool_ == CanvasTool::Eraser) {

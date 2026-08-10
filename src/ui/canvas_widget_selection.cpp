@@ -208,6 +208,8 @@ int CanvasWidget::selection_tool_index(CanvasTool tool) noexcept {
       return 4;
     case CanvasTool::QuickSelect:
       return 5;
+    case CanvasTool::PatchTool:
+      return 6;
     default:
       return -1;
   }

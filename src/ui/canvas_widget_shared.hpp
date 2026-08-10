@@ -18,6 +18,7 @@
 #include <QRect>
 #include <QRegion>
 
+#include <array>
 #include <cstdint>
 #include <chrono>
 #include <cstdio>
@@ -87,6 +88,36 @@ int feather_mask_padding(int feather_radius);
 // selection TU and the magic-wand / quick-select engines still in
 // canvas_widget.cpp.
 QImage feather_blur_mask(QImage mask, int feather_radius);
+
+// Document-sized RGBA8888 render of one layer alone, folding the layer mask
+// and layer opacity into alpha. The active-layer branch of every
+// "Sample All Layers" option: shared by the magic-wand / quick-select engines
+// and the retouch tools' source snapshots (Clone, Healing, Spot Healing,
+// Patch).
+QImage active_layer_sample_image(const Layer& layer, QSize document_size);
+
+// Procedural round-brush coverage falloff (smoothstep edge over the softness
+// band); shared by the brush TU's stamp shapes and the spot-healing footprint
+// stamper.
+float brush_coverage(double distance_squared, int radius, int softness);
+
+// Alpha-weighted average of 8 ring samples at `radius` around `center` over an
+// RGBA8888 snapshot (center-pixel fallback when the ring is fully
+// transparent); the low-frequency "tone" term of the healing math. Shared by
+// the brush TU (Healing Brush) and the spot-healing / patch commit loops.
+std::array<double, 3> healing_ring_tone(const QImage& snapshot, QPoint center, int radius);
+
+// Classic frequency-separation healing sample: destination ring tone plus the
+// source pixel's difference from its own ring tone (see the constraint comment
+// at the definition). Shared by the brush TU (Healing Brush) and the
+// spot-healing / patch commit loops.
+std::array<std::uint8_t, 4> healing_sample(const QImage& snapshot, QPoint source, QPoint destination,
+                                           int tone_radius);
+
+// Straight-alpha RGBA mix of `src` over `dst` by `amount`; the write primitive
+// of the clone/heal family. Shared by the brush TU and the spot-healing /
+// patch commit loops.
+void blend_straight_rgba(std::uint8_t* dst, const std::uint8_t* src, float amount);
 
 // Baseline EditOptions for the pixel-editing paths: bakes the brush settings,
 // palette snap, and the active selection into the options. Shared by the brush

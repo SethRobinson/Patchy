@@ -93,6 +93,7 @@ bool tool_supports_off_canvas_brush_strokes(CanvasTool tool) noexcept {
     case CanvasTool::PatternStamp:
     case CanvasTool::Clone:
     case CanvasTool::Healing:
+    case CanvasTool::SpotHealing:
     case CanvasTool::Smudge:
     case CanvasTool::Dodge:
     case CanvasTool::Burn:
@@ -115,6 +116,7 @@ bool tool_supports_shift_click_stroke_connect(CanvasTool tool) noexcept {
     case CanvasTool::PatternStamp:
     case CanvasTool::Clone:
     case CanvasTool::Healing:
+    case CanvasTool::SpotHealing:
     case CanvasTool::Smudge:
     case CanvasTool::Dodge:
     case CanvasTool::Burn:
@@ -526,6 +528,8 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       case CanvasTool::Clone:
       case CanvasTool::PatternStamp:
       case CanvasTool::Healing:
+      case CanvasTool::SpotHealing:
+      case CanvasTool::PatchTool:
       case CanvasTool::Smudge:
       case CanvasTool::MixerBrush:
       case CanvasTool::Dodge:
@@ -580,7 +584,8 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
                                    layer_edit_target_ == LayerEditTarget::ComponentBlue;
   if (event->button() == Qt::LeftButton && channel_view_active &&
       (effective_tool == CanvasTool::Move || effective_tool == CanvasTool::Clone ||
-       effective_tool == CanvasTool::Healing || effective_tool == CanvasTool::PatternStamp ||
+       effective_tool == CanvasTool::Healing || effective_tool == CanvasTool::SpotHealing ||
+       effective_tool == CanvasTool::PatchTool || effective_tool == CanvasTool::PatternStamp ||
        effective_tool == CanvasTool::Smudge || effective_tool == CanvasTool::MixerBrush ||
        is_local_adjustment_tool(effective_tool) ||
        effective_tool == CanvasTool::Text)) {
@@ -598,6 +603,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
                                          tool_ == CanvasTool::Lasso ||
                                          tool_ == CanvasTool::MagneticLasso ||
                                          tool_ == CanvasTool::QuickSelect ||
+                                         tool_ == CanvasTool::PatchTool ||
                                          tool_ == CanvasTool::Zoom ||
                                          (event->button() == Qt::LeftButton &&
                                           tool_supports_off_canvas_brush_strokes(effective_tool));
@@ -646,7 +652,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       return;
     }
     if (begin_edit(healing ? tr("Healing brush") : tr("Clone stamp"))) {
-      clone_source_cache_ = render_document_image_with_processing();
+      clone_source_cache_ = retouch_source_snapshot();
       if (!clone_aligned_ || !clone_aligned_offset_set_) {
         clone_source_offset_ = clone_source_point_ - document_point;
         clone_aligned_offset_set_ = clone_aligned_;
@@ -662,6 +668,25 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
         active_edit_target_changed_impl(QRegion(dirty), DocumentChangeReason::BrushStrokePreview);
       }
     }
+    return;
+  }
+
+  if (effective_tool == CanvasTool::SpotHealing) {
+    if (editing_grayscale_target()) {
+      report_status_error(tr("Spot healing is unavailable while editing a grayscale channel"));
+      return;
+    }
+    if (!can_begin_pixel_edit(/*report=*/true)) {
+      return;
+    }
+    spot_heal_source_cache_ = retouch_source_snapshot();
+    if (spot_heal_source_cache_.isNull()) {
+      return;
+    }
+    begin_axis_constrained_stroke(QPointF(document_point));
+    begin_spot_heal_stroke(document_point, connect_from);
+    emit_info_for_widget_position(event->pos());
+    update();
     return;
   }
 
@@ -927,7 +952,28 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     return;
   }
 
-  if (tool_ == CanvasTool::Lasso) {
+  if (tool_ == CanvasTool::PatchTool && event->button() == Qt::LeftButton) {
+    if (editing_grayscale_target()) {
+      report_status_error(tr("Patch is unavailable while editing a grayscale channel"));
+      return;
+    }
+    // A press inside the existing selection starts the heal drag; Shift/Alt
+    // (a non-Replace combine mode) forces outline drawing instead, Photoshop
+    // style. Everything else falls through to the shared lasso outline press.
+    if (selection_operation(event->modifiers()) == SelectionMode::Replace && !selection_.isEmpty() &&
+        selection_.contains(document_point)) {
+      if (!can_begin_pixel_edit(/*report=*/true)) {
+        return;
+      }
+      if (begin_patch_tool_drag(document_point)) {
+        emit_info_for_widget_position(event->pos());
+        update();
+      }
+      return;
+    }
+  }
+
+  if (tool_ == CanvasTool::Lasso || tool_ == CanvasTool::PatchTool) {
     lassoing_ = true;
     selection_edges_visible_ = true;
     selection_press_widget_position_ = event->pos();
@@ -1573,6 +1619,15 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     clear_move_hover_outline();
     extend_quick_select_stroke(document_point);
     emit_info_for_widget_position(event->pos());
+  } else if (spot_healing_stroke_active_) {
+    clear_move_hover_outline();
+    const auto constrained_point = axis_constrained_stroke_point(document_point, event->modifiers());
+    extend_spot_heal_stroke(constrained_point);
+    emit_info_for_widget_position(event->pos());
+  } else if (patch_tool_dragging_) {
+    clear_move_hover_outline();
+    update_patch_tool_drag(document_point);
+    emit_info_for_widget_position(event->pos());
   } else if (zooming_ && document_ != nullptr) {
     clear_move_hover_outline();
     zoom_current_ = clamped_document_point(*document_, document_point);
@@ -1603,6 +1658,11 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       }
       if (can_move_selection_at(document_point, event->modifiers())) {
         // Signal that grabbing here drags the selection outline.
+        setCursor(Qt::SizeAllCursor);
+      } else if (tool_ == CanvasTool::PatchTool &&
+                 selection_operation(event->modifiers()) == SelectionMode::Replace &&
+                 !selection_.isEmpty() && selection_.contains(document_point)) {
+        // Signal that grabbing here drags the patch region to its source.
         setCursor(Qt::SizeAllCursor);
       } else {
         update_tool_cursor();
@@ -2167,6 +2227,25 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     return;
   }
 
+  if (spot_healing_stroke_active_) {
+    const auto document_point = document_position(event->pos());
+    const auto constrained_point = axis_constrained_stroke_point(document_point, event->modifiers());
+    extend_spot_heal_stroke(constrained_point);
+    last_stroke_end_document_ = QPointF(constrained_point);
+    reset_axis_constrained_stroke();
+    finish_spot_heal_stroke();
+    emit_info_for_widget_position(event->pos());
+    update();
+    return;
+  }
+
+  if (patch_tool_dragging_) {
+    release_patch_tool_drag(document_position(event->pos()));
+    emit_info_for_widget_position(event->pos());
+    update();
+    return;
+  }
+
   if (lassoing_) {
     lassoing_ = false;
     const auto widget_delta = event->pos() - selection_press_widget_position_;
@@ -2210,7 +2289,8 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
         restore_selection_before_edit();
       }
     }
-    record_selection_history(tr("Lasso"), selection_snapshot_before_edit());
+    record_selection_history(tool_ == CanvasTool::PatchTool ? tr("Patch Selection") : tr("Lasso"),
+                             selection_snapshot_before_edit());
     selection_before_edit_ = QRegion();
     selection_display_region_before_edit_ = QRegion();
     selection_mask_before_edit_bounds_ = {};
@@ -2442,6 +2522,25 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
   }
   if (brush_adjust_dragging_ && event->key() == Qt::Key_Escape) {
     end_brush_adjust_drag(false);
+    event->accept();
+    return;
+  }
+
+  if (spot_healing_stroke_active_ && event->key() == Qt::Key_Escape) {
+    // Discards the accumulated footprint before anything was written: no
+    // pixels change and no history entry exists yet (begin_edit runs at
+    // release).
+    cancel_spot_heal_stroke();
+    reset_axis_constrained_stroke();
+    update();
+    event->accept();
+    return;
+  }
+
+  if (patch_tool_dragging_ && event->key() == Qt::Key_Escape) {
+    // Same contract as the spot-heal cancel: nothing was written yet.
+    cancel_patch_tool_drag();
+    update();
     event->accept();
     return;
   }
@@ -3040,6 +3139,51 @@ bool CanvasWidget::begin_edit(QString label) {
   return true;
 }
 
+bool CanvasWidget::can_begin_pixel_edit(bool report) {
+  if (active_layer_locks_image_pixels()) {
+    if (report) {
+      show_layer_pixels_locked_message();
+    }
+    return false;
+  }
+  auto* layer = active_pixel_layer();
+  // Const access only: a rejected precheck must not bump layer revisions
+  // (same rule as begin_edit above).
+  if (layer == nullptr || std::as_const(*layer).pixels().format().bit_depth != BitDepth::UInt8 ||
+      std::as_const(*layer).pixels().format().channels < 3) {
+    if (report) {
+      report_status_error(tr("Select an editable 8-bit pixel layer first"));
+    }
+    return false;
+  }
+  if (layer_is_text(*layer)) {
+    if (report) {
+      report_status_error(tr("Select a normal pixel layer before painting on text"));
+    }
+    return false;
+  }
+  if (layer_is_smart_object(*layer)) {
+    if (report) {
+      const auto layer_id = layer->id();
+      if (smart_object_paint_prompt_callback_) {
+        // Same contract as begin_edit: the host may rasterize the layer, so
+        // `layer` may dangle after this returns and the press is consumed.
+        smart_object_paint_prompt_callback_(layer_id);
+      } else {
+        report_status_error(tr("Smart object contents can't be painted. Rasterize the layer to edit its pixels."));
+      }
+    }
+    return false;
+  }
+  if (layer_is_vector_shape(*layer)) {
+    if (report) {
+      report_status_error(tr("Shape layers can't be painted. Rasterize the layer to edit its pixels."));
+    }
+    return false;
+  }
+  return true;
+}
+
 CanvasTool CanvasWidget::effective_tool_for_input() const noexcept {
   if (active_pen_input_sample_.has_value() && pen_input_settings_.enabled && pen_input_settings_.use_eraser_tip &&
       active_pen_input_sample_->pointer_type == PenInputSample::PointerType::Eraser) {
@@ -3049,6 +3193,7 @@ CanvasTool CanvasWidget::effective_tool_for_input() const noexcept {
       case CanvasTool::PatternStamp:
       case CanvasTool::Clone:
       case CanvasTool::Healing:
+      case CanvasTool::SpotHealing:
       case CanvasTool::Smudge:
       case CanvasTool::Dodge:
       case CanvasTool::Burn:

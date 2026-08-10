@@ -4,6 +4,7 @@
 
 #include "ui/canvas_widget_shared.hpp"
 
+#include "core/blend_math.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/layer_render_utils.hpp"
 #include "core/smart_filter.hpp"
@@ -18,7 +19,10 @@
 #include <QRegion>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <cstdint>
+#include <limits>
 #include <vector>
 
 namespace patchy::ui {
@@ -143,6 +147,150 @@ std::uint8_t blend_mask_value(std::uint8_t current, std::uint8_t value, float co
       std::clamp(static_cast<int>(std::lround(static_cast<float>(value) * coverage +
                                               static_cast<float>(current) * (1.0F - coverage))),
                  0, 255));
+}
+
+float brush_coverage(double distance_squared, int radius, int softness) {
+  if (radius <= 0) {
+    return distance_squared <= 0.0 ? 1.0F : 0.0F;
+  }
+
+  const auto radius_squared = static_cast<double>(radius) * static_cast<double>(radius);
+  if (distance_squared > radius_squared) {
+    return 0.0F;
+  }
+
+  softness = std::clamp(softness, 0, 100);
+  if (softness <= 0) {
+    return 1.0F;
+  }
+
+  const auto edge_width = std::max(1.0, static_cast<double>(radius) * static_cast<double>(softness) / 100.0);
+  const auto inner_radius = std::max(0.0, static_cast<double>(radius) - edge_width);
+  const auto distance = std::sqrt(distance_squared);
+  if (distance <= inner_radius) {
+    return 1.0F;
+  }
+  const auto t = std::clamp((distance - inner_radius) / edge_width, 0.0, 1.0);
+  const auto smooth = t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
+  return static_cast<float>(1.0 - smooth);
+}
+
+std::array<double, 3> healing_ring_tone(const QImage& snapshot, QPoint center, int radius) {
+  constexpr std::array<std::array<int, 2>, 8> kDirections{{
+      {{-1, -1}}, {{0, -1}}, {{1, -1}}, {{-1, 0}},
+      {{1, 0}},   {{-1, 1}}, {{0, 1}},  {{1, 1}},
+  }};
+  std::array<double, 3> sum{};
+  double alpha_weight = 0.0;
+  for (const auto& direction : kDirections) {
+    const auto x = std::clamp(center.x() + direction[0] * radius, 0, snapshot.width() - 1);
+    const auto y = std::clamp(center.y() + direction[1] * radius, 0, snapshot.height() - 1);
+    const auto* pixel = snapshot.constScanLine(y) + static_cast<std::size_t>(x) * 4U;
+    const auto alpha = static_cast<double>(pixel[3]) / 255.0;
+    alpha_weight += alpha;
+    for (std::size_t channel = 0; channel < sum.size(); ++channel) {
+      sum[channel] += static_cast<double>(pixel[channel]) * alpha;
+    }
+  }
+  if (alpha_weight > std::numeric_limits<double>::epsilon()) {
+    for (auto& channel : sum) {
+      channel /= alpha_weight;
+    }
+    return sum;
+  }
+
+  const auto x = std::clamp(center.x(), 0, snapshot.width() - 1);
+  const auto y = std::clamp(center.y(), 0, snapshot.height() - 1);
+  const auto* pixel = snapshot.constScanLine(y) + static_cast<std::size_t>(x) * 4U;
+  return {static_cast<double>(pixel[0]), static_cast<double>(pixel[1]), static_cast<double>(pixel[2])};
+}
+
+std::array<std::uint8_t, 4> healing_sample(const QImage& snapshot, QPoint source, QPoint destination,
+                                           int tone_radius) {
+  const auto source_tone = healing_ring_tone(snapshot, source, tone_radius);
+  const auto destination_tone = healing_ring_tone(snapshot, destination, tone_radius);
+  const auto* source_pixel = snapshot.constScanLine(source.y()) + static_cast<std::size_t>(source.x()) * 4U;
+  std::array<std::uint8_t, 4> result{};
+  for (std::size_t channel = 0; channel < 3; ++channel) {
+    // Classic frequency-separation healing: carry sampled detail into the
+    // destination's local tone. This is deliberately a fixed local operation,
+    // not patch search, synthesis, or a gradient-domain optimization.
+    result[channel] = clamp_byte(destination_tone[channel] + static_cast<double>(source_pixel[channel]) -
+                                 source_tone[channel]);
+  }
+  result[3] = source_pixel[3];
+  return result;
+}
+
+void blend_straight_rgba(std::uint8_t* dst, const std::uint8_t* src, float amount) {
+  amount = std::clamp(amount, 0.0F, 1.0F);
+  if (amount <= 0.0F) {
+    return;
+  }
+  if (amount >= 0.999F) {
+    dst[0] = src[0];
+    dst[1] = src[1];
+    dst[2] = src[2];
+    dst[3] = src[3];
+    return;
+  }
+
+  const auto source_alpha = static_cast<float>(src[3]) / 255.0F;
+  const auto destination_alpha = static_cast<float>(dst[3]) / 255.0F;
+  const auto out_alpha = source_alpha * amount + destination_alpha * (1.0F - amount);
+  if (out_alpha <= 0.0F) {
+    dst[0] = src[0];
+    dst[1] = src[1];
+    dst[2] = src[2];
+    dst[3] = 0;
+    return;
+  }
+
+  for (int channel = 0; channel < 3; ++channel) {
+    const auto source_premultiplied = static_cast<float>(src[channel]) * source_alpha;
+    const auto destination_premultiplied = static_cast<float>(dst[channel]) * destination_alpha;
+    dst[channel] =
+        clamp_byte((source_premultiplied * amount + destination_premultiplied * (1.0F - amount)) / out_alpha);
+  }
+  dst[3] = clamp_byte(out_alpha * 255.0F);
+}
+
+QImage active_layer_sample_image(const Layer& layer, QSize document_size) {
+  QImage image(document_size, QImage::Format_RGBA8888);
+  image.fill(Qt::transparent);
+  if (document_size.isEmpty() || !layer.visible() || layer.opacity() <= 0.0F) {
+    return image;
+  }
+
+  const auto& pixels = layer.pixels();
+  if (pixels.empty() || pixels.format().bit_depth != BitDepth::UInt8 || pixels.format().channels < 3) {
+    return image;
+  }
+
+  const auto bounds = layer_pixel_bounds(layer);
+  const QRect canvas_rect(QPoint(), document_size);
+  const auto draw_rect = to_qrect(bounds).intersected(canvas_rect);
+  if (draw_rect.isEmpty()) {
+    return image;
+  }
+
+  const auto channels = pixels.format().channels;
+  for (int y = draw_rect.top(); y <= draw_rect.bottom(); ++y) {
+    auto* output = image.scanLine(y) + static_cast<std::size_t>(draw_rect.left()) * 4U;
+    for (int x = draw_rect.left(); x <= draw_rect.right(); ++x) {
+      const auto* src = pixels.pixel(x - bounds.x, y - bounds.y);
+      const auto source_alpha = channels >= 4 ? static_cast<float>(src[3]) / 255.0F : 1.0F;
+      const auto alpha = source_alpha * layer_mask_alpha_at(layer, x, y) * layer.opacity();
+      if (alpha > 0.0F) {
+        output[0] = src[0];
+        output[1] = src[1];
+        output[2] = src[2];
+        output[3] = clamp_byte(alpha * 255.0F);
+      }
+      output += 4;
+    }
+  }
+  return image;
 }
 
 EditOptions edit_options(QColor primary, QColor secondary, int brush_size, int brush_opacity, int brush_softness,
@@ -468,6 +616,7 @@ bool tool_supports_brush_adjust_drag(CanvasTool tool) noexcept {
     case CanvasTool::PatternStamp:
     case CanvasTool::Clone:
     case CanvasTool::Healing:
+    case CanvasTool::SpotHealing:
     case CanvasTool::Smudge:
     case CanvasTool::Dodge:
     case CanvasTool::Burn:

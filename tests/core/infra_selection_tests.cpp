@@ -49,6 +49,7 @@
 #include "core/style_presets.hpp"
 #include "core/pixel_tools.hpp"
 #include "core/quick_select.hpp"
+#include "core/spot_heal.hpp"
 #include "render/compositor.hpp"
 #include "render/layer_compositor.hpp"
 #include "render/tile_cache.hpp"
@@ -830,6 +831,127 @@ void magnetic_lasso_node_budget_falls_back_to_straight_line() {
   }
 }
 
+std::vector<std::uint8_t> spot_heal_disc_mask(std::int32_t width, std::int32_t height,
+                                              std::int32_t center_x, std::int32_t center_y,
+                                              std::int32_t radius) {
+  std::vector<std::uint8_t> mask(static_cast<std::size_t>(width) * static_cast<std::size_t>(height));
+  for (std::int32_t y = 0; y < height; ++y) {
+    for (std::int32_t x = 0; x < width; ++x) {
+      const auto dx = x - center_x;
+      const auto dy = y - center_y;
+      if (dx * dx + dy * dy <= radius * radius) {
+        mask[static_cast<std::size_t>(y) * width + x] = 255U;
+      }
+    }
+  }
+  return mask;
+}
+
+void check_spot_heal_field_is_outside_and_in_canvas(const std::vector<std::uint8_t>& mask,
+                                                    const patchy::SpotHealSourceField& field,
+                                                    std::int32_t canvas_width, std::int32_t canvas_height) {
+  const auto& bounds = field.bounds;
+  const auto covered = [&](std::int32_t doc_x, std::int32_t doc_y) {
+    if (!bounds.contains(doc_x, doc_y)) {
+      return false;
+    }
+    return mask[static_cast<std::size_t>(doc_y - bounds.y) * bounds.width + (doc_x - bounds.x)] != 0U;
+  };
+  for (std::int32_t y = 0; y < bounds.height; ++y) {
+    for (std::int32_t x = 0; x < bounds.width; ++x) {
+      const auto index = static_cast<std::size_t>(y) * bounds.width + x;
+      if (mask[index] == 0U) {
+        continue;
+      }
+      CHECK(field.source_x[index] >= 0 && field.source_x[index] < canvas_width);
+      CHECK(field.source_y[index] >= 0 && field.source_y[index] < canvas_height);
+      CHECK(field.rim_x[index] >= 0 && field.rim_x[index] < canvas_width);
+      CHECK(field.rim_y[index] >= 0 && field.rim_y[index] < canvas_height);
+      CHECK(!covered(field.source_x[index], field.source_y[index]));
+      CHECK(!covered(field.rim_x[index], field.rim_y[index]));
+    }
+  }
+}
+
+void spot_heal_mirror_sources_are_deterministic_and_outside() {
+  constexpr std::int32_t canvas = 128;
+  const patchy::Rect bounds{10, 10, 64, 64};
+
+  // Disc footprint: every source/rim lands outside the mask, inside the canvas.
+  const auto disc = spot_heal_disc_mask(bounds.width, bounds.height, 32, 32, 12);
+  const auto disc_field = patchy::spot_heal_mirror_sources(disc.data(), bounds, canvas, canvas);
+  CHECK(!disc_field.empty());
+  check_spot_heal_field_is_outside_and_in_canvas(disc, disc_field, canvas, canvas);
+
+  // Hand-computed pin for a pixel one step inside the disc's left rim: local
+  // (21, 32) has nearest outside (20, 31) (distance-squared 2, the forward
+  // scan wins the tie against (20, 33)), v = (-1, -1), margin push
+  // llround(2v/|v|) = (-1, -1), so the mirror source is p + 2v + push =
+  // (18, 29) and the rim point is q + push = (19, 30).
+  const auto pinned = static_cast<std::size_t>(32) * bounds.width + 21;
+  CHECK(disc_field.source_x[pinned] == bounds.x + 18);
+  CHECK(disc_field.source_y[pinned] == bounds.y + 29);
+  CHECK(disc_field.rim_x[pinned] == bounds.x + 19);
+  CHECK(disc_field.rim_y[pinned] == bounds.y + 30);
+
+  // Same input twice must produce byte-identical fields (fixed scan order,
+  // integer distances, strict-less-than ties).
+  const auto rerun = patchy::spot_heal_mirror_sources(disc.data(), bounds, canvas, canvas);
+  CHECK(rerun.source_x == disc_field.source_x);
+  CHECK(rerun.source_y == disc_field.source_y);
+  CHECK(rerun.rim_x == disc_field.rim_x);
+  CHECK(rerun.rim_y == disc_field.rim_y);
+
+  // Elongated capsule: thin footprints must mirror across their short axis.
+  std::vector<std::uint8_t> capsule(static_cast<std::size_t>(bounds.width) * bounds.height);
+  for (std::int32_t y = 28; y <= 36; ++y) {
+    for (std::int32_t x = 8; x <= 56; ++x) {
+      capsule[static_cast<std::size_t>(y) * bounds.width + x] = 255U;
+    }
+  }
+  const auto capsule_field = patchy::spot_heal_mirror_sources(capsule.data(), bounds, canvas, canvas);
+  check_spot_heal_field_is_outside_and_in_canvas(capsule, capsule_field, canvas, canvas);
+  // A mid-capsule pixel's nearest boundary is vertical, so its source stays in
+  // its own column and lands just past the capsule's top or bottom edge.
+  const auto mid = static_cast<std::size_t>(32) * bounds.width + 32;
+  CHECK(capsule_field.source_x[mid] == bounds.x + 32);
+  CHECK(std::abs(capsule_field.source_y[mid] - (bounds.y + 32)) <= 12);
+
+  // Concave C-shape (ring with a gap): the straight mirror can land in the
+  // opposite lobe; the step-onward fallback must still end uncovered.
+  std::vector<std::uint8_t> concave(static_cast<std::size_t>(bounds.width) * bounds.height);
+  for (std::int32_t y = 0; y < bounds.height; ++y) {
+    for (std::int32_t x = 0; x < bounds.width; ++x) {
+      const auto dx = x - 32;
+      const auto dy = y - 32;
+      const auto distance_squared = dx * dx + dy * dy;
+      const bool in_ring = distance_squared <= 20 * 20 && distance_squared >= 12 * 12;
+      const bool in_gap = x > 32 && std::abs(dy) < 5;
+      if (in_ring && !in_gap) {
+        concave[static_cast<std::size_t>(y) * bounds.width + x] = 255U;
+      }
+    }
+  }
+  const auto concave_field = patchy::spot_heal_mirror_sources(concave.data(), bounds, canvas, canvas);
+  check_spot_heal_field_is_outside_and_in_canvas(concave, concave_field, canvas, canvas);
+
+  // A footprint covering its entire bounds has nothing to sample: empty field.
+  const std::vector<std::uint8_t> full(static_cast<std::size_t>(bounds.width) * bounds.height, 255U);
+  CHECK(patchy::spot_heal_mirror_sources(full.data(), bounds, canvas, canvas).empty());
+}
+
+void spot_heal_mirror_sources_clamp_at_canvas_edge() {
+  constexpr std::int32_t canvas = 64;
+  // Footprint touching the canvas corner: bounds start at (0, 0), the disc
+  // spills over the top-left edges. Off-canvas must never act as a source, so
+  // edge pixels mirror in from the interior side.
+  const patchy::Rect bounds{0, 0, 40, 40};
+  const auto disc = spot_heal_disc_mask(bounds.width, bounds.height, 4, 4, 10);
+  const auto field = patchy::spot_heal_mirror_sources(disc.data(), bounds, canvas, canvas);
+  CHECK(!field.empty());
+  check_spot_heal_field_is_outside_and_in_canvas(disc, field, canvas, canvas);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> infra_selection_tests() {
@@ -855,5 +977,8 @@ std::vector<patchy::test::TestCase> infra_selection_tests() {
        magnetic_lasso_prefers_opaque_side_of_alpha_edge},
       {"magnetic_lasso_node_budget_falls_back_to_straight_line",
        magnetic_lasso_node_budget_falls_back_to_straight_line},
+      {"spot_heal_mirror_sources_are_deterministic_and_outside",
+       spot_heal_mirror_sources_are_deterministic_and_outside},
+      {"spot_heal_mirror_sources_clamp_at_canvas_edge", spot_heal_mirror_sources_clamp_at_canvas_edge},
   };
 }

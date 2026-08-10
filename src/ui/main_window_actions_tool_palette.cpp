@@ -322,6 +322,10 @@ const char* tool_action_source(CanvasTool tool) {
       return "Polygon";
     case CanvasTool::CustomShape:
       return "Custom Shape";
+    case CanvasTool::SpotHealing:
+      return "Spot Healing";
+    case CanvasTool::PatchTool:
+      return "Patch";
   }
   return "Tool";
 }
@@ -394,6 +398,10 @@ QString tool_hotkey_id(CanvasTool tool) {
       return QStringLiteral("tools.polygon");
     case CanvasTool::CustomShape:
       return QStringLiteral("tools.custom_shape");
+    case CanvasTool::SpotHealing:
+      return QStringLiteral("tools.spot_healing");
+    case CanvasTool::PatchTool:
+      return QStringLiteral("tools.patch");
   }
   return QStringLiteral("tools.unknown");
 }
@@ -558,6 +566,12 @@ QIcon tool_icon(CanvasTool tool) {
     case CanvasTool::CustomShape:
       name = "tool-custom-shape";
       break;
+    case CanvasTool::SpotHealing:
+      name = "tool-spot-healing";
+      break;
+    case CanvasTool::PatchTool:
+      name = "tool-patch";
+      break;
   }
   return themed_svg_icon(QLatin1String(name));
 }
@@ -679,8 +693,19 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
   stamp_tool_button->setObjectName(QStringLiteral("stampToolButton"));
   configure_tool_flyout(tool_palette, stamp_menu, stamp_tool_button, clone_action,
                         {clone_action, pattern_stamp_action});
-  add_tool_action(tool_palette, tool_group, tr("Healing Brush"), CanvasTool::Healing,
-                  QKeySequence(Qt::Key_J));
+  auto* healing_menu = new QMenu(tr("Healing Tools"), tool_palette);
+  healing_menu->setObjectName(QStringLiteral("healingToolMenu"));
+  bind_widget_text(healing_menu, "Healing Tools");
+  auto* healing_action = create_flyout_tool_action(healing_menu, tr("Healing Brush"), CanvasTool::Healing,
+                                                   QKeySequence(Qt::Key_J));
+  auto* spot_healing_action = create_flyout_tool_action(healing_menu, tr("Spot Healing"), CanvasTool::SpotHealing,
+                                                        QKeySequence(Qt::SHIFT | Qt::Key_J));
+  auto* patch_action =
+      create_flyout_tool_action(healing_menu, tr("Patch"), CanvasTool::PatchTool, QKeySequence());
+  auto* healing_tool_button = new QToolButton(tool_palette);
+  healing_tool_button->setObjectName(QStringLiteral("healingToolButton"));
+  configure_tool_flyout(tool_palette, healing_menu, healing_tool_button, healing_action,
+                        {healing_action, spot_healing_action, patch_action});
 
   auto* detail_menu = new QMenu(tr("Detail Tools"), tool_palette);
   detail_menu->setObjectName(QStringLiteral("detailToolMenu"));

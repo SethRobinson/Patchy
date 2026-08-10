@@ -6940,6 +6940,12 @@ Mixed selection</source>
         <source>Other</source>
         <translation>その他</translation>
     </message>
+    <message><source>Spot healing</source><translation>スポット修復</translation></message>
+    <message><source>Patch</source><translation>パッチ</translation></message>
+    <message><source>Patch Selection</source><translation>パッチの選択範囲</translation></message>
+    <message><source>Spot healing is unavailable while editing a grayscale channel</source><translation>グレースケールチャンネルの編集中はスポット修復を使用できません</translation></message>
+    <message><source>Patch is unavailable while editing a grayscale channel</source><translation>グレースケールチャンネルの編集中はパッチツールを使用できません</translation></message>
+    <message><source>Spot healing needs unpainted pixels around the stroke to sample</source><translation>スポット修復にはストローク周囲にサンプルできる未ペイントのピクセルが必要です</translation></message>
 </context>
 <context>
     <name>patchy::ui::MainWindow</name>
@@ -13279,6 +13285,16 @@ Clipped to the layer below</source>
     <message><source>Reduce the adjustment on colors that are already strongly saturated</source><translation>すでに彩度が高い色への補正を弱めます</translation></message>
     <message><source>Pattern Stamp</source><translation>パターンスタンプ</translation></message>
     <message><source>Stamp Tools</source><translation>スタンプツール</translation></message>
+    <message><source>Healing Tools</source><translation>修復ツール</translation></message>
+    <message><source>Spot Healing</source><translation>スポット修復</translation></message>
+    <message><source>Patch</source><translation>パッチ</translation></message>
+    <message><source>Patch:</source><translation>パッチ:</translation></message>
+    <message><source>Source</source><translation>ソース</translation></message>
+    <message><source>Destination</source><translation>複製先</translation></message>
+    <message><source>Source heals the dragged-from region; Destination copies it onto the drop point</source><translation>ソースはドラッグ元の領域を修復し、複製先はドラッグ先に複製します</translation></message>
+    <message><source>Transparent</source><translation>透明</translation></message>
+    <message><source>Blend only the source texture instead of replacing the region</source><translation>領域を置き換えずにソースのテクスチャのみを合成します</translation></message>
+    <message><source>Diffusion: %1</source><translation>拡散: %1</translation></message>
     <message><source>Fill Tools</source><translation>塗りつぶしツール</translation></message>
     <message><source>Pattern:</source><translation>パターン:</translation></message>
     <message><source>Manage...</source><translation>管理...</translation></message>
@@ -14132,6 +14148,9 @@ Clipped to the layer below</source>
     <message><source>Direct Select</source><translation>ダイレクト選択</translation></message>
     <message><source>Polygon</source><translation>多角形</translation></message>
     <message><source>Custom Shape</source><translation>カスタムシェイプ</translation></message>
+    <message><source>Spot Healing</source><translation>スポット修復</translation></message>
+    <message><source>Patch</source><translation>パッチ</translation></message>
+    <message><source>Destination</source><translation>複製先</translation></message>
     <message><source>Liquify</source><translation>ゆがみ</translation></message>
     <message><source>Warp</source><translation>ワープ</translation></message>
     <message><source>Reconstruct</source><translation>再構築</translation></message>

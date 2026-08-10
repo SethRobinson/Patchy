@@ -372,6 +372,8 @@ void CanvasWidget::set_document_internal(Document* document, bool preserve_frame
   smudge_state_ = {};
   mixer_brush_state_ = {};
   cancel_quick_select_stroke();
+  cancel_spot_heal_stroke();
+  cancel_patch_tool_drag();
   reset_axis_constrained_stroke();
   last_stroke_end_document_.reset();
   if (brush_adjust_dragging_) {
@@ -399,6 +401,8 @@ void CanvasWidget::set_tool(CanvasTool tool) {
     pen_temp_direct_select_ = false;
     pen_session_drag_anchor_ = -1;
     cancel_magnetic_lasso();
+    cancel_spot_heal_stroke();
+    cancel_patch_tool_drag();
     commit_path_transform();  // tool switches commit, like the pen session
     finish_free_transform();
     finish_warp_transform();
@@ -455,6 +459,8 @@ void CanvasWidget::set_edit_locked(bool locked) noexcept {
     lassoing_ = false;
     cancel_magnetic_lasso();
     cancel_quick_select_stroke();
+    cancel_spot_heal_stroke();
+    cancel_patch_tool_drag();
     moving_selection_ = false;
     drawing_shape_ = false;
     dragging_guide_ = false;
@@ -728,6 +734,28 @@ void CanvasWidget::set_healing_diffusion(int diffusion) noexcept {
 
 int CanvasWidget::healing_diffusion() const noexcept {
   return healing_diffusion_;
+}
+
+void CanvasWidget::set_retouch_sample_all_layers(bool enabled) noexcept {
+  retouch_sample_all_layers_ = enabled;
+}
+
+bool CanvasWidget::retouch_sample_all_layers() const noexcept {
+  return retouch_sample_all_layers_;
+}
+
+QImage CanvasWidget::retouch_source_snapshot() {
+  if (document_ == nullptr) {
+    return QImage();
+  }
+  if (retouch_sample_all_layers_) {
+    return render_document_image_with_processing();
+  }
+  const auto* layer = active_pixel_layer();
+  if (layer == nullptr) {
+    return QImage();
+  }
+  return active_layer_sample_image(*layer, QSize(document_->width(), document_->height()));
 }
 
 void CanvasWidget::set_local_adjustment_strength(int strength) noexcept {

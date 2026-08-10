@@ -1292,6 +1292,9 @@ private:
   QComboBox* warp_style_combo_{nullptr};
   QDoubleSpinBox* warp_bend_spin_{nullptr};
   QCheckBox* clone_aligned_check_{nullptr};
+  QCheckBox* retouch_sample_all_layers_check_{nullptr};
+  QComboBox* patch_mode_combo_{nullptr};
+  QCheckBox* patch_transparent_check_{nullptr};
   QComboBox* pattern_stamp_pattern_combo_{nullptr};
   QCheckBox* pattern_stamp_aligned_check_{nullptr};
   QSpinBox* local_adjustment_strength_spin_{nullptr};
@@ -1506,7 +1509,8 @@ private:
   std::array<CanvasWidget::SelectionMode, CanvasWidget::kSelectionToolCount> selection_modes_{
       CanvasWidget::SelectionMode::Replace, CanvasWidget::SelectionMode::Replace,
       CanvasWidget::SelectionMode::Replace, CanvasWidget::SelectionMode::Replace,
-      CanvasWidget::SelectionMode::Replace, CanvasWidget::SelectionMode::Replace};
+      CanvasWidget::SelectionMode::Replace, CanvasWidget::SelectionMode::Replace,
+      CanvasWidget::SelectionMode::Replace};
   CanvasWidget::MarqueeStyle current_marquee_style_{CanvasWidget::MarqueeStyle::Normal};
   int current_marquee_width_{1024};
   int current_marquee_height_{768};

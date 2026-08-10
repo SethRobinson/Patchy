@@ -79,48 +79,6 @@
 
 namespace patchy::ui {
 
-namespace {
-
-QImage active_layer_wand_sample_image(const Layer& layer, QSize document_size) {
-  QImage image(document_size, QImage::Format_RGBA8888);
-  image.fill(Qt::transparent);
-  if (document_size.isEmpty() || !layer.visible() || layer.opacity() <= 0.0F) {
-    return image;
-  }
-
-  const auto& pixels = layer.pixels();
-  if (pixels.empty() || pixels.format().bit_depth != BitDepth::UInt8 || pixels.format().channels < 3) {
-    return image;
-  }
-
-  const auto bounds = layer_pixel_bounds(layer);
-  const QRect canvas_rect(QPoint(), document_size);
-  const auto draw_rect = to_qrect(bounds).intersected(canvas_rect);
-  if (draw_rect.isEmpty()) {
-    return image;
-  }
-
-  const auto channels = pixels.format().channels;
-  for (int y = draw_rect.top(); y <= draw_rect.bottom(); ++y) {
-    auto* output = image.scanLine(y) + static_cast<std::size_t>(draw_rect.left()) * 4U;
-    for (int x = draw_rect.left(); x <= draw_rect.right(); ++x) {
-      const auto* src = pixels.pixel(x - bounds.x, y - bounds.y);
-      const auto source_alpha = channels >= 4 ? static_cast<float>(src[3]) / 255.0F : 1.0F;
-      const auto alpha = source_alpha * layer_mask_alpha_at(layer, x, y) * layer.opacity();
-      if (alpha > 0.0F) {
-        output[0] = src[0];
-        output[1] = src[1];
-        output[2] = src[2];
-        output[3] = clamp_byte(alpha * 255.0F);
-      }
-      output += 4;
-    }
-  }
-  return image;
-}
-
-}  // namespace
-
 void CanvasWidget::set_wand_tolerance(int tolerance) {
   wand_tolerance_ = std::clamp(tolerance, 0, 255);
 }
@@ -191,7 +149,7 @@ void CanvasWidget::magic_wand_select(QPoint start) {
       report_status_error(tr("Select a pixel layer before using Magic Wand"));
       return;
     }
-    source_image = active_layer_wand_sample_image(*layer, QSize(document_->width(), document_->height()));
+    source_image = active_layer_sample_image(*layer, QSize(document_->width(), document_->height()));
   }
 
   if (source_image.isNull() || source_image.format() != QImage::Format_RGBA8888) {
@@ -426,7 +384,7 @@ void CanvasWidget::finish_quick_select_stroke() {
       update();
       return;
     }
-    source_image = active_layer_wand_sample_image(*layer, QSize(document_->width(), document_->height()));
+    source_image = active_layer_sample_image(*layer, QSize(document_->width(), document_->height()));
   }
   if (source_image.isNull() || source_image.format() != QImage::Format_RGBA8888) {
     drop_stroke_state();

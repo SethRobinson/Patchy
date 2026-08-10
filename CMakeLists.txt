@@ -120,6 +120,7 @@ add_library(patchy_core
   src/core/rect_utils.cpp
   src/core/smart_filter_effects.cpp
   src/core/smart_object.cpp
+  src/core/spot_heal.cpp
   src/core/style_contour.cpp
   src/core/style_presets.cpp
   src/core/text_warp.cpp
@@ -759,10 +760,12 @@ if(PATCHY_BUILD_APP)
       src/ui/canvas_widget_events.cpp
       src/ui/canvas_widget_guides.cpp
       src/ui/canvas_widget_move.cpp
+      src/ui/canvas_widget_patch_tool.cpp
       src/ui/canvas_widget_pen.cpp
       src/ui/canvas_widget_render.cpp
       src/ui/canvas_widget_selection.cpp
       src/ui/canvas_widget_selection_engines.cpp
+      src/ui/canvas_widget_spot_healing.cpp
       src/ui/canvas_widget_transform.cpp
       src/ui/canvas_widget_vector_tools.cpp
       src/ui/canvas_widget_view.cpp
@@ -1379,6 +1382,8 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/layer_mask_tests.cpp
       tests/ui/pen_tablet_input_tests.cpp
       tests/ui/brush_engine_stroke_tests.cpp
+      tests/ui/brush_engine_stroke_tests_healing_patch.cpp
+      tests/ui/brush_engine_stroke_tests_strokes.cpp
       tests/ui/text_editor_font_picker_tests.cpp
       tests/ui/psd_text_import_tests.cpp
       tests/ui/text_transform_commit_tests.cpp

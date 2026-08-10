@@ -930,11 +930,25 @@ void ui_stamp_and_gradient_flyouts_swap_tools() {
   CHECK(canvas->tool() == patchy::ui::CanvasTool::Fill);
   CHECK(gradient_button->defaultAction() == require_action(window, "toolFillAction"));
 
+  auto* healing_button = window.findChild<QToolButton*>(QStringLiteral("healingToolButton"));
+  CHECK(healing_button != nullptr);
+  CHECK(healing_button->menu() != nullptr);
+  CHECK(healing_button->menu()->actions().size() == 3);
+  CHECK(healing_button->defaultAction() == require_action(window, "toolHealingBrushAction"));
+  require_action(window, "toolSpotHealingAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::SpotHealing);
+  CHECK(healing_button->defaultAction() == require_action(window, "toolSpotHealingAction"));
+  require_action(window, "toolPatchAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::PatchTool);
+  CHECK(healing_button->defaultAction() == require_action(window, "toolPatchAction"));
+
   // Every flyout button carries the QSS corner-marker property, including the
   // smudge/dodge buttons that historically lacked the indicator.
   for (const auto* name : {"marqueeToolButton", "lassoToolButton", "wandToolButton", "gradientToolButton",
-                           "stampToolButton", "detailToolButton", "toneToolButton", "shapeToolButton",
-                           "pathSelectToolButton"}) {
+                           "stampToolButton", "healingToolButton", "detailToolButton", "toneToolButton",
+                           "shapeToolButton", "pathSelectToolButton"}) {
     auto* button = window.findChild<QToolButton*>(QString::fromLatin1(name));
     CHECK(button != nullptr);
     CHECK(button->property("toolFlyout").toBool());
@@ -999,6 +1013,8 @@ void ui_tool_palette_icons_render_sheet() {
       {"toolCloneAction", "Clone"},
       {"toolPatternStampAction", "Pattern Stamp"},
       {"toolHealingBrushAction", "Healing Brush"},
+      {"toolSpotHealingAction", "Spot Healing"},
+      {"toolPatchAction", "Patch"},
       {"toolSmudgeAction", "Smudge"},
       {"toolMixerBrushAction", "Mixer Brush"},
       {"toolDodgeAction", "Dodge"},

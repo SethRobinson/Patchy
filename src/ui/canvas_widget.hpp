@@ -93,7 +93,10 @@ enum class CanvasTool {
   PathSelect,
   DirectSelect,
   Polygon,
-  CustomShape
+  CustomShape,
+  // August 2026 healing group (append-only: values ride persisted settings).
+  SpotHealing,
+  PatchTool
 };
 
 // Which tool produced a committed vector path; MainWindow picks the layer
@@ -197,6 +200,14 @@ public:
     FixedSize
   };
 
+  // Patch tool drag semantics (Photoshop parity). Source: the dragged-FROM
+  // region is healed with the dragged-TO pixels. Destination: a copy of the
+  // region is dragged to a new spot and healed in there.
+  enum class PatchToolMode {
+    Source,
+    Destination
+  };
+
   // Full selection state, captured so selection edits (marquee/lasso/wand drags,
   // Select All, Deselect, Invert, ...) can participate in the undo/redo history.
   struct SelectionSnapshot {
@@ -213,7 +224,7 @@ public:
 
   // Tools whose combine mode (New/Add/Subtract/Intersect) is tracked separately,
   // so switching between e.g. Lasso and Marquee preserves each tool's own mode.
-  static constexpr std::size_t kSelectionToolCount = 6;
+  static constexpr std::size_t kSelectionToolCount = 7;
   [[nodiscard]] static int selection_tool_index(CanvasTool tool) noexcept;
 
   enum class LayerEditTarget {
@@ -460,6 +471,12 @@ public:
   [[nodiscard]] bool pattern_stamp_aligned() const noexcept;
   void set_healing_diffusion(int diffusion) noexcept;
   [[nodiscard]] int healing_diffusion() const noexcept;
+  void set_retouch_sample_all_layers(bool enabled) noexcept;
+  [[nodiscard]] bool retouch_sample_all_layers() const noexcept;
+  void set_patch_tool_mode(PatchToolMode mode) noexcept;
+  [[nodiscard]] PatchToolMode patch_tool_mode() const noexcept;
+  void set_patch_tool_transparent(bool enabled) noexcept;
+  [[nodiscard]] bool patch_tool_transparent() const noexcept;
   void set_local_adjustment_strength(int strength) noexcept;
   [[nodiscard]] int local_adjustment_strength() const noexcept;
   void set_local_tone_range(LocalToneRange range) noexcept;
@@ -964,6 +981,11 @@ private:
   [[nodiscard]] QImage render_document_image() const;
   void ensure_render_cache();
   [[nodiscard]] QImage render_document_image_with_processing();
+  // Stroke-start source snapshot for the retouch tools (Clone, Healing, Spot
+  // Healing, Patch): the merged document when Sample All Layers is on, the
+  // active pixel layer alone otherwise (null QImage when no pixel layer is
+  // active). Captured once per gesture, never per move.
+  [[nodiscard]] QImage retouch_source_snapshot();
   void set_document_internal(Document* document, bool preserve_frame_for_same_size,
                              bool normal_composite_unchanged = false);
   void start_async_render_cache_refresh();
@@ -1130,6 +1152,11 @@ private:
   [[nodiscard]] QRect widget_rect_for_document_rect(QRect document_rect) const;
   [[nodiscard]] QRectF widget_rect_for_document_rect(QRectF document_rect) const;
   bool begin_edit(QString label);
+  // Read-only press-time precheck of begin_edit's pixel-layer branch (8-bit
+  // pixel layer, pixel lock, text/smart-object/shape refusals) WITHOUT the
+  // history push, for gestures that defer begin_edit to release (Spot Healing,
+  // Patch). Reports the same status errors / rasterize prompt when `report`.
+  bool can_begin_pixel_edit(bool report);
   [[nodiscard]] CanvasTool effective_tool_for_input() const noexcept;
   void clear_brush_stroke_tracking() noexcept;
   void begin_axis_constrained_stroke(QPointF document_point) noexcept;
@@ -1287,6 +1314,34 @@ private:
   void cancel_quick_select_stroke();
   void stamp_quick_select_segment(QPoint from, QPoint to);
   void draw_quick_select_stroke_overlay(QPainter& painter) const;
+  // Spot Healing stroke lifecycle (canvas_widget_spot_healing.cpp). The drag
+  // only accumulates the soft brush footprint (mask + overlay polyline); the
+  // heal is computed ONCE in finish_spot_heal_stroke() after the gesture ends,
+  // from fixed mirror geometry (core/spot_heal.hpp) plus the classic healing
+  // tone match. No patch search, synthesis, gradient-domain solve, or
+  // content-driven source selection may be added here - see
+  // docs/legal-constraints.md (PatchMatch family US 8285055/8340463/8355592,
+  // gradient-domain US 9058699, live-classification US 8050498).
+  void begin_spot_heal_stroke(QPoint document_point, std::optional<QPointF> connect_from);
+  void extend_spot_heal_stroke(QPoint document_point);
+  void finish_spot_heal_stroke();
+  void cancel_spot_heal_stroke();
+  void stamp_spot_heal_segment(QPoint from, QPoint to);
+  void draw_spot_heal_stroke_overlay(QPainter& painter) const;
+  // Patch tool drag lifecycle (canvas_widget_patch_tool.cpp). The drag shows
+  // only a raw translated copy of the frozen snapshot; the heal is computed
+  // ONCE in commit_patch_tool_drag() on release, with the user-dragged offset
+  // as the only source choice. No patch search, synthesis, gradient-domain
+  // solve, or live per-move classification may be added here - see
+  // docs/legal-constraints.md (PatchMatch family US 8285055/8340463/8355592,
+  // gradient-domain US 9058699, live-classification US 8050498).
+  [[nodiscard]] bool begin_patch_tool_drag(QPoint document_point);
+  void update_patch_tool_drag(QPoint document_point);
+  void release_patch_tool_drag(QPoint document_point);
+  void cancel_patch_tool_drag();
+  void commit_patch_tool_drag();
+  void draw_patch_tool_drag_preview(QPainter& painter) const;
+  void draw_patch_tool_drag_outline(QPainter& painter) const;
   [[nodiscard]] QCursor quick_select_cursor(SelectionMode mode) const;
   [[nodiscard]] QRegion marquee_selection_region(QPoint anchor, QPoint current) const;
   [[nodiscard]] QRect marquee_selection_rect(QPoint anchor, QPoint current) const;
@@ -1638,7 +1693,7 @@ private:
   // entry. Indexed by selection_tool_index().
   std::array<SelectionMode, kSelectionToolCount> selection_modes_per_tool_{
       SelectionMode::Replace, SelectionMode::Replace, SelectionMode::Replace, SelectionMode::Replace,
-      SelectionMode::Replace, SelectionMode::Replace};
+      SelectionMode::Replace, SelectionMode::Replace, SelectionMode::Replace};
   // Set when a marquee drag begins with Alt held and no existing selection: the
   // press point is the center and the rectangle grows symmetrically.
   bool marquee_from_center_{false};
@@ -1689,6 +1744,28 @@ private:
   QRect quick_select_seed_bounds_;
   QPolygonF quick_select_stroke_points_;
   QPoint quick_select_last_document_point_;
+  // Spot Healing stroke state (canvas_widget_spot_healing.cpp): doc-sized
+  // Grayscale8 soft footprint accumulated during the drag, healed once on
+  // release from the press-time source snapshot.
+  bool spot_healing_stroke_active_{false};
+  QImage spot_heal_footprint_;
+  QRect spot_heal_footprint_bounds_;
+  QPolygonF spot_heal_stroke_points_;
+  QPoint spot_heal_last_document_point_;
+  QImage spot_heal_source_cache_;
+  // Patch tool state (canvas_widget_patch_tool.cpp). The drag latches a frozen
+  // snapshot, the selection's soft mask, and the doc-space outline path; the
+  // preview blits the snapshot translated by the cumulative delta.
+  PatchToolMode patch_tool_mode_{PatchToolMode::Source};
+  bool patch_tool_transparent_{false};
+  bool patch_tool_dragging_{false};
+  QPoint patch_tool_drag_origin_;
+  QPoint patch_tool_drag_delta_;
+  QImage patch_tool_source_image_;
+  QImage patch_tool_drag_mask_;
+  QRect patch_tool_drag_mask_bounds_;
+  QPainterPath patch_tool_outline_path_;
+  QImage patch_tool_drag_proxy_image_;
   bool moving_selection_{false};
   bool zooming_{false};
   QPoint zoom_start_{};
@@ -1814,6 +1891,10 @@ private:
   bool pattern_stamp_aligned_{true};
   std::optional<QPoint> pattern_stamp_origin_;
   int healing_diffusion_{5};
+  // Shared by Clone, Healing, Spot Healing, and Patch: checked samples the
+  // merged document (the historical behavior), unchecked samples the active
+  // layer alone.
+  bool retouch_sample_all_layers_{true};
   int local_adjustment_strength_{50};
   LocalToneRange local_tone_range_{LocalToneRange::Midtones};
   bool local_protect_tones_{true};

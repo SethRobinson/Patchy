@@ -1721,6 +1721,15 @@ void MainWindow::load_tool_settings() {
       break;
   }
   canvas_->set_clone_aligned(settings.value(QStringLiteral("tools/cloneAligned"), canvas_->clone_aligned()).toBool());
+  canvas_->set_retouch_sample_all_layers(
+      settings.value(QStringLiteral("tools/retouchSampleAllLayers"), canvas_->retouch_sample_all_layers()).toBool());
+  canvas_->set_patch_tool_mode(
+      settings.value(QStringLiteral("tools/patchMode"), static_cast<int>(canvas_->patch_tool_mode())).toInt() ==
+              static_cast<int>(CanvasWidget::PatchToolMode::Destination)
+          ? CanvasWidget::PatchToolMode::Destination
+          : CanvasWidget::PatchToolMode::Source);
+  canvas_->set_patch_tool_transparent(
+      settings.value(QStringLiteral("tools/patchTransparent"), canvas_->patch_tool_transparent()).toBool());
   current_pattern_stamp_pattern_id_ =
       settings.value(QStringLiteral("tools/patternStampPatternId")).toString();
   const auto& patterns = pattern_library().entries();
@@ -1980,6 +1989,9 @@ void MainWindow::save_tool_settings() const {
   settings.setValue(QStringLiteral("tools/showTransformControls"), canvas_->show_transform_controls());
   settings.setValue(QStringLiteral("tools/transformInterpolation"), static_cast<int>(canvas_->transform_interpolation()));
   settings.setValue(QStringLiteral("tools/cloneAligned"), canvas_->clone_aligned());
+  settings.setValue(QStringLiteral("tools/retouchSampleAllLayers"), canvas_->retouch_sample_all_layers());
+  settings.setValue(QStringLiteral("tools/patchMode"), static_cast<int>(canvas_->patch_tool_mode()));
+  settings.setValue(QStringLiteral("tools/patchTransparent"), canvas_->patch_tool_transparent());
   settings.setValue(QStringLiteral("tools/patternStampPatternId"), current_pattern_stamp_pattern_id_);
   settings.setValue(QStringLiteral("tools/patternStampAligned"), current_pattern_stamp_aligned_);
   settings.setValue(QStringLiteral("tools/healingDiffusion"), current_healing_diffusion_);
@@ -2338,6 +2350,19 @@ void MainWindow::refresh_options_bar() {
     QSignalBlocker blocker(clone_aligned_check_);
     clone_aligned_check_->setChecked(canvas_->clone_aligned());
   }
+  if (retouch_sample_all_layers_check_ != nullptr && canvas_ != nullptr) {
+    QSignalBlocker blocker(retouch_sample_all_layers_check_);
+    retouch_sample_all_layers_check_->setChecked(canvas_->retouch_sample_all_layers());
+  }
+  if (patch_mode_combo_ != nullptr && canvas_ != nullptr) {
+    const QSignalBlocker blocker(patch_mode_combo_);
+    patch_mode_combo_->setCurrentIndex(
+        std::max(0, patch_mode_combo_->findData(static_cast<int>(canvas_->patch_tool_mode()))));
+  }
+  if (patch_transparent_check_ != nullptr && canvas_ != nullptr) {
+    QSignalBlocker blocker(patch_transparent_check_);
+    patch_transparent_check_->setChecked(canvas_->patch_tool_transparent());
+  }
   if (pattern_stamp_pattern_combo_ != nullptr) {
     const QSignalBlocker blocker(pattern_stamp_pattern_combo_);
     pattern_stamp_pattern_combo_->setCurrentIndex(
@@ -2442,7 +2467,7 @@ void MainWindow::apply_selection_modes_to_canvas(CanvasWidget* canvas) {
   }
   const std::array<CanvasTool, CanvasWidget::kSelectionToolCount> tools{
       CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagneticLasso,
-      CanvasTool::MagicWand, CanvasTool::QuickSelect};
+      CanvasTool::MagicWand, CanvasTool::QuickSelect, CanvasTool::PatchTool};
   for (const auto tool : tools) {
     if (const auto index = CanvasWidget::selection_tool_index(tool); index >= 0) {
       canvas->set_selection_mode_for_tool(tool, selection_modes_[static_cast<std::size_t>(index)]);
