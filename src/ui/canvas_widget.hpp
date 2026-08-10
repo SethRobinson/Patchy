@@ -1317,11 +1317,12 @@ private:
   // Spot Healing stroke lifecycle (canvas_widget_spot_healing.cpp). The drag
   // only accumulates the soft brush footprint (mask + overlay polyline); the
   // heal is computed ONCE in finish_spot_heal_stroke() after the gesture ends,
-  // from fixed mirror geometry (core/spot_heal.hpp) plus the classic healing
-  // tone match. No patch search, synthesis, gradient-domain solve, or
-  // content-driven source selection may be added here - see
-  // docs/legal-constraints.md (PatchMatch family US 8285055/8340463/8355592,
-  // gradient-domain US 9058699, live-classification US 8050498).
+  // from one coherent rigid source mapping (core/spot_heal.hpp, footprint
+  // shape only) plus the classic healing membrane of the expired US 6587592
+  // (core/heal_membrane.hpp). No patch search, synthesis, content-driven
+  // source selection, or gradient-domain compositing of source gradients may
+  // be added here - see docs/legal-constraints.md (PatchMatch family
+  // US 8285055/8340463/8355592, US 9058699, live-classification US 8050498).
   void begin_spot_heal_stroke(QPoint document_point, std::optional<QPointF> connect_from);
   void extend_spot_heal_stroke(QPoint document_point);
   void finish_spot_heal_stroke();
@@ -1331,10 +1332,12 @@ private:
   // Patch tool drag lifecycle (canvas_widget_patch_tool.cpp). The drag shows
   // only a raw translated copy of the frozen snapshot; the heal is computed
   // ONCE in commit_patch_tool_drag() on release, with the user-dragged offset
-  // as the only source choice. No patch search, synthesis, gradient-domain
-  // solve, or live per-move classification may be added here - see
+  // as the only source choice, through the classic healing membrane of the
+  // expired US 6587592 (core/heal_membrane.hpp). No patch search, synthesis,
+  // content-driven source selection, gradient-domain compositing of source
+  // gradients, or live per-move classification may be added here - see
   // docs/legal-constraints.md (PatchMatch family US 8285055/8340463/8355592,
-  // gradient-domain US 9058699, live-classification US 8050498).
+  // US 9058699, live-classification US 8050498).
   [[nodiscard]] bool begin_patch_tool_drag(QPoint document_point);
   void update_patch_tool_drag(QPoint document_point);
   void release_patch_tool_drag(QPoint document_point);

@@ -3,19 +3,21 @@
 // region and commit a heal on release. The tool is strictly user-directed:
 // the dragged offset is the ONLY source choice, the drag preview is a raw
 // translated copy of a frozen snapshot, and all healing runs ONCE on release
-// using the classic frequency-separation math (healing_sample /
-// patch_ring_tone_outside_mask below). No patch search, no
-// synthesis-by-example, no reshuffling, no gradient-domain/Poisson solve, and
-// no live per-move classification may be added: those families are claimed by
-// Adobe's active PatchMatch patents (US 8285055, US 8340463, US 8355592, into
-// 2031), gradient-domain compositing (US 9058699, to 2029), and live
-// classify-and-display (US 8050498, to Nov 3, 2029). Classic user-directed
-// healing (US 6587592) expired in 2021. See docs/legal-constraints.md.
+// using the classic healing membrane of the expired US 6587592
+// (core/heal_membrane.hpp): boundary tone differences interpolated across the
+// interior, plus the dragged source texture. No patch search, no
+// synthesis-by-example, no reshuffling, no content-driven source selection,
+// no gradient-domain compositing of source gradients, and no live per-move
+// classification may be added: those families are claimed by Adobe's active
+// PatchMatch patents (US 8285055, US 8340463, US 8355592, into 2031),
+// US 9058699 (to 2029), and US 8050498 (to Nov 3, 2029). See
+// docs/legal-constraints.md and the dated record in docs/patent-research.md.
 
 #include "ui/canvas_widget.hpp"
 #include "ui/canvas_widget_shared.hpp"
 
 #include "core/blend_math.hpp"
+#include "core/heal_membrane.hpp"
 #include "core/pixel_tools.hpp"
 #include "core/worker_budget.hpp"
 #include "ui/edit_conversions.hpp"
@@ -43,54 +45,6 @@ namespace {
 // strips; the per-pixel cost (16 snapshot reads through the ring tones) is
 // lower than the transform resampler's, so the gate sits below its 1 Mpx.
 constexpr std::int64_t kPatchToolParallelArea = 262'144;
-
-// Destination-side ring tone for Source mode: the 8-sample alpha-weighted ring
-// of healing_ring_tone, with each sample additionally weighted by how far
-// OUTSIDE the patch mask it falls, so the blemish being repaired cannot
-// contribute its own tone back into the repair. Pixels deep inside the mask
-// retry at doubled radii (a fixed ladder) until the ring reaches past the
-// boundary, so the interior takes its tone from the content just outside -
-// the fixed-math stand-in for Photoshop's boundary matching. The weights come
-// from the user's own selection mask (fixed geometry, no content inspection).
-// This is deliberately a fixed local operation, not a boundary membrane,
-// gradient-domain solve, or patch search - see the constraint comment at the
-// top of this file.
-std::array<double, 3> patch_ring_tone_outside_mask(const QImage& snapshot, QPoint center, int radius,
-                                                   const std::vector<std::uint8_t>& mask, QRect mask_bounds) {
-  constexpr std::array<std::array<int, 2>, 8> kDirections{{
-      {{-1, -1}}, {{0, -1}}, {{1, -1}}, {{-1, 0}},
-      {{1, 0}},   {{-1, 1}}, {{0, 1}},  {{1, 1}},
-  }};
-  const auto mask_alpha_at = [&](int x, int y) -> std::uint8_t {
-    if (!mask_bounds.contains(x, y)) {
-      return 0U;
-    }
-    return mask[static_cast<std::size_t>(y - mask_bounds.top()) * static_cast<std::size_t>(mask_bounds.width()) +
-                static_cast<std::size_t>(x - mask_bounds.left())];
-  };
-  for (auto ring_radius = radius; ring_radius <= kMaxBrushSize; ring_radius *= 2) {
-    std::array<double, 3> sum{};
-    double weight_total = 0.0;
-    for (const auto& direction : kDirections) {
-      const auto x = std::clamp(center.x() + direction[0] * ring_radius, 0, snapshot.width() - 1);
-      const auto y = std::clamp(center.y() + direction[1] * ring_radius, 0, snapshot.height() - 1);
-      const auto* pixel = snapshot.constScanLine(y) + static_cast<std::size_t>(x) * 4U;
-      const auto weight = (static_cast<double>(pixel[3]) / 255.0) *
-                          (static_cast<double>(255U - mask_alpha_at(x, y)) / 255.0);
-      weight_total += weight;
-      for (std::size_t channel = 0; channel < sum.size(); ++channel) {
-        sum[channel] += static_cast<double>(pixel[channel]) * weight;
-      }
-    }
-    if (weight_total > 1e-3) {
-      for (auto& channel : sum) {
-        channel /= weight_total;
-      }
-      return sum;
-    }
-  }
-  return healing_ring_tone(snapshot, center, radius);
-}
 
 }  // namespace
 
@@ -281,21 +235,70 @@ void CanvasWidget::commit_patch_tool_drag() {
   const auto channels = pixels.format().channels;
   const auto* palette_snap = palette_snap_for_edits();
 
-  // Tone radius: the patch region's area-equivalent disc diameter through the
-  // Healing Brush's Diffusion formula, so the 1-7 knob keeps its meaning. Thin
-  // selections adapt across their short dimension; the cap matches
-  // kMaxBrushSize.
+  // Transparent mode's detail-extraction radius: the region's area-equivalent
+  // disc diameter through the classic formula at its default strength (the
+  // membrane below needs no radius at all).
   const auto equivalent_diameter = std::clamp(
       static_cast<int>(std::lround(2.0 * std::sqrt(static_cast<double>(mask_area) / kPi))), 4, kMaxBrushSize);
-  const auto tone_radius =
-      std::max(1, (equivalent_diameter * (9 - std::clamp(healing_diffusion_, 1, 7)) + 15) / 16);
+  const auto tone_radius = std::max(1, (equivalent_diameter * 4 + 15) / 16);
+
+  const auto source_offset = mode == PatchToolMode::Destination ? -delta : delta;
+  const auto mask_offset = destination_offset;
+  const auto snapshot_pixel = [&](std::int32_t x, std::int32_t y) {
+    const auto clamped_x = std::clamp(x, 0, canvas_rect.width() - 1);
+    const auto clamped_y = std::clamp(y, 0, canvas_rect.height() - 1);
+    return snapshot.constScanLine(clamped_y) + static_cast<std::size_t>(clamped_x) * 4U;
+  };
+
+  // The healing membrane (Source and Destination modes): destination-minus-
+  // source offsets on the ring of uncovered cells around the region are
+  // interpolated harmonically across the interior, so the dragged texture's
+  // tone bends smoothly into the destination everywhere - no per-pixel ring
+  // matching, no bands. Solved over the destination bounds padded by one so a
+  // Dirichlet ring exists wherever the canvas allows.
+  const auto solve_bounds = destination_bounds.adjusted(-1, -1, 1, 1).intersected(canvas_rect);
+  const auto solve_width = solve_bounds.width();
+  const auto solve_height = solve_bounds.height();
+  std::vector<std::uint8_t> interior;
+  std::vector<std::int16_t> membrane;
+  if (!transparent) {
+    const auto cells = static_cast<std::size_t>(solve_width) * static_cast<std::size_t>(solve_height);
+    interior.resize(cells);
+    membrane.resize(cells * 3U);
+    for (int y = 0; y < solve_height; ++y) {
+      for (int x = 0; x < solve_width; ++x) {
+        const auto index = static_cast<std::size_t>(y) * static_cast<std::size_t>(solve_width) +
+                           static_cast<std::size_t>(x);
+        const auto doc_x = solve_bounds.left() + x;
+        const auto doc_y = solve_bounds.top() + y;
+        const auto mask_x = doc_x - mask_offset.x() - bounds.left();
+        const auto mask_y = doc_y - mask_offset.y() - bounds.top();
+        const auto coverage =
+            mask_x >= 0 && mask_y >= 0 && mask_x < bounds.width() && mask_y < bounds.height()
+                ? mask[static_cast<std::size_t>(mask_y) * static_cast<std::size_t>(bounds.width()) +
+                       static_cast<std::size_t>(mask_x)]
+                : std::uint8_t{0};
+        interior[index] = coverage != 0U ? 1U : 0U;
+        if (coverage != 0U) {
+          continue;
+        }
+        const auto* destination = snapshot_pixel(doc_x, doc_y);
+        const auto* source = snapshot_pixel(doc_x + source_offset.x(), doc_y + source_offset.y());
+        for (int channel = 0; channel < 3; ++channel) {
+          membrane[index * 3U + static_cast<std::size_t>(channel)] = static_cast<std::int16_t>(
+              static_cast<int>(destination[channel]) - static_cast<int>(source[channel]));
+        }
+      }
+    }
+    tick_processing_operation();
+    patchy::solve_heal_membrane(interior.data(), solve_width, solve_height, membrane.data());
+    tick_processing_operation();
+  }
 
   // For each destination pixel p: coverage from the mask (at p in Source mode,
   // at p - delta in Destination mode) and source pixel s at the user-dragged
   // offset. Pure per-pixel function writing disjoint rows, so the strip
   // fan-out below is byte-identical to the sequential walk.
-  const auto source_offset = mode == PatchToolMode::Destination ? -delta : delta;
-  const auto mask_offset = destination_offset;
   const auto heal_rows = [&](int row_begin, int row_end, bool allow_ticks) {
     for (int y = row_begin; y < row_end; ++y) {
       if (allow_ticks) {
@@ -349,21 +352,18 @@ void CanvasWidget::commit_patch_tool_drag() {
                                          static_cast<double>(source_pixel[channel]) - source_tone[channel]);
           }
           healed[3] = destination_pixel[3];
-        } else if (mode == PatchToolMode::Source) {
-          // The dragged-from region is the blemish: its tone must come from
-          // the ring OUTSIDE the mask, or the defect would tone-match itself.
-          const auto source_tone = healing_ring_tone(snapshot, source_point, tone_radius);
-          const auto destination_tone =
-              patch_ring_tone_outside_mask(snapshot, document_point, tone_radius, mask, bounds);
+        } else {
+          // Source and Destination modes share the membrane: the dragged
+          // texture plus the interpolated boundary tone difference.
+          const auto solve_index =
+              static_cast<std::size_t>(document_point.y() - solve_bounds.top()) *
+                  static_cast<std::size_t>(solve_width) +
+              static_cast<std::size_t>(document_point.x() - solve_bounds.left());
           for (std::size_t channel = 0; channel < 3; ++channel) {
-            healed[channel] = clamp_byte(destination_tone[channel] +
-                                         static_cast<double>(source_pixel[channel]) - source_tone[channel]);
+            healed[channel] = clamp_byte(static_cast<float>(source_pixel[channel]) +
+                                         static_cast<float>(membrane[solve_index * 3U + channel]));
           }
           healed[3] = source_pixel[3];
-        } else {
-          // Destination mode drops the copy onto legitimate content, so the
-          // classic unmasked destination ring is correct as-is.
-          healed = healing_sample(snapshot, source_point, document_point, tone_radius);
         }
 
         if (channels >= 4 && !lock_transparent_pixels) {

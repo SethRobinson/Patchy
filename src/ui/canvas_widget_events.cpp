@@ -2291,6 +2291,13 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     }
     record_selection_history(tool_ == CanvasTool::PatchTool ? tr("Patch Selection") : tr("Lasso"),
                              selection_snapshot_before_edit());
+    if (tool_ == CanvasTool::PatchTool && !selection_.isEmpty() && status_callback_) {
+      // The patch workflow's second step is not discoverable on its own; say
+      // what to do with the freshly drawn region.
+      status_callback_(patch_tool_mode_ == PatchToolMode::Destination
+                           ? tr("Drag the selection to where the copy should go")
+                           : tr("Drag the selection to a clean area to sample from"));
+    }
     selection_before_edit_ = QRegion();
     selection_display_region_before_edit_ = QRegion();
     selection_mask_before_edit_bounds_ = {};

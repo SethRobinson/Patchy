@@ -1423,16 +1423,14 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     }
   });
 
-  add_option_label(tr("Diffusion:"),
-                   {CanvasTool::Healing, CanvasTool::SpotHealing, CanvasTool::PatchTool});
+  add_option_label(tr("Diffusion:"), {CanvasTool::Healing});
   auto* healing_diffusion = new QSpinBox(toolbar);
   healing_diffusion->setObjectName(QStringLiteral("healingDiffusionSpin"));
   healing_diffusion->setRange(1, 7);
   healing_diffusion->setValue(current_healing_diffusion_);
   healing_diffusion->setToolTip(tr("Lower values preserve fine texture; higher values adapt more quickly"));
   configure_toolbar_spinbox(healing_diffusion, 42);
-  add_option_widget(healing_diffusion,
-                    {CanvasTool::Healing, CanvasTool::SpotHealing, CanvasTool::PatchTool});
+  add_option_widget(healing_diffusion, {CanvasTool::Healing});
   connect(healing_diffusion, &QSpinBox::valueChanged, this, [this](int value) {
     current_healing_diffusion_ = value;
     if (canvas_ != nullptr) {

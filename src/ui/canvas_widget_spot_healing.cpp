@@ -1,22 +1,23 @@
 // CanvasWidget's Spot Healing stroke engine. The drag only accumulates a soft
 // brush footprint (Grayscale8 mask + the overlay polyline); the heal runs ONCE
-// in finish_spot_heal_stroke() after the gesture ends: fixed mirror geometry
-// from core/spot_heal.hpp picks each covered pixel's source just outside the
-// footprint boundary, and the classic frequency-separation tone match
-// (healing_sample) carries that texture into the rim tone. The source choice
-// depends only on the footprint's shape, never on pixel content. Do not add
-// patch search, synthesis-by-example, reshuffling, gradient-domain solves, or
-// content-driven source selection: those families are claimed by Adobe's
-// active PatchMatch patents (US 8285055, US 8340463, US 8355592, into 2031)
-// and gradient-domain compositing (US 9058699, to 2029); live classify-and-
-// display during brush input is claimed by US 8050498 (to Nov 3, 2029), so
-// the drag shows only the raw footprint overlay. Classic user-directed
-// healing (US 6587592) expired in 2021. See docs/legal-constraints.md.
+// in finish_spot_heal_stroke() after the gesture ends: one coherent rigid
+// source mapping from core/spot_heal.hpp (chosen from the footprint's SHAPE
+// alone, never from pixel content) supplies the texture, and the classic
+// healing membrane of the expired US 6587592 (core/heal_membrane.hpp)
+// interpolates the boundary tone differences across the interior. Do not add
+// patch search, synthesis-by-example, reshuffling, content-driven source
+// selection, or gradient-domain compositing of source gradients: those
+// families are claimed by Adobe's active PatchMatch patents (US 8285055,
+// US 8340463, US 8355592, into 2031) and US 9058699 (to 2029); live
+// classify-and-display during brush input is claimed by US 8050498 (to
+// Nov 3, 2029), so the drag shows only the raw footprint overlay. See
+// docs/legal-constraints.md and the dated record in docs/patent-research.md.
 
 #include "ui/canvas_widget.hpp"
 #include "ui/canvas_widget_shared.hpp"
 
 #include "core/blend_math.hpp"
+#include "core/heal_membrane.hpp"
 #include "core/pixel_tools.hpp"
 #include "core/spot_heal.hpp"
 #include "ui/edit_conversions.hpp"
@@ -156,11 +157,9 @@ void CanvasWidget::finish_spot_heal_stroke() {
                 static_cast<std::size_t>(width));
   }
 
-  begin_processing_operation();
-  const auto field =
-      spot_heal_mirror_sources(mask.data(), to_core_rect(bounds), document_->width(), document_->height());
-  if (field.empty()) {
-    end_processing_operation();
+  const auto source_map =
+      spot_heal_source_map(mask.data(), to_core_rect(bounds), document_->width(), document_->height());
+  if (!source_map.valid) {
     drop_stroke_state();
     report_status_error(tr("Spot healing needs unpainted pixels around the stroke to sample"));
     update();
@@ -168,18 +167,17 @@ void CanvasWidget::finish_spot_heal_stroke() {
   }
 
   if (!begin_edit(tr("Spot healing"))) {
-    end_processing_operation();
     drop_stroke_state();
     update();
     return;
   }
   auto* layer = active_pixel_layer();
   if (layer == nullptr) {
-    end_processing_operation();
     drop_stroke_state();
     return;
   }
 
+  begin_processing_operation();
   const auto* palette_snap = palette_snap_for_edits();
   const auto lock_transparent_pixels = active_layer_locks_transparent_pixels();
   if (!lock_transparent_pixels) {
@@ -189,8 +187,43 @@ void CanvasWidget::finish_spot_heal_stroke() {
   const auto layer_bounds = layer->bounds();
   const auto layer_rect = to_qrect(layer_bounds);
   const auto channels = pixels.format().channels;
-  const auto tone_radius =
-      std::max(1, (std::max(1, brush_size_) * (9 - std::clamp(healing_diffusion_, 1, 7)) + 15) / 16);
+
+  const auto canvas_width = document_->width();
+  const auto canvas_height = document_->height();
+  const auto snapshot_pixel = [&](std::int32_t x, std::int32_t y) {
+    const auto clamped_x = std::clamp(x, 0, canvas_width - 1);
+    const auto clamped_y = std::clamp(y, 0, canvas_height - 1);
+    return source_snapshot.constScanLine(clamped_y) + static_cast<std::size_t>(clamped_x) * 4U;
+  };
+
+  // The healing membrane: boundary cells (footprint coverage 0) carry the
+  // destination-minus-source offsets; the solve interpolates them across the
+  // interior, so the pasted texture's tone bends smoothly into everything
+  // around the stroke instead of ring-matching per pixel.
+  const auto cells = static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
+  std::vector<std::uint8_t> interior(cells);
+  std::vector<std::int16_t> offsets(cells * 3U);
+  for (int y = 0; y < height; ++y) {
+    for (int x = 0; x < width; ++x) {
+      const auto index = static_cast<std::size_t>(y) * static_cast<std::size_t>(width) +
+                         static_cast<std::size_t>(x);
+      interior[index] = mask[index] != 0U ? 1U : 0U;
+      if (mask[index] != 0U) {
+        continue;
+      }
+      const auto doc_x = bounds.left() + x;
+      const auto doc_y = bounds.top() + y;
+      const auto [sx, sy] = source_map.map(doc_x, doc_y);
+      const auto* destination = snapshot_pixel(doc_x, doc_y);
+      const auto* source = snapshot_pixel(sx, sy);
+      for (int channel = 0; channel < 3; ++channel) {
+        offsets[index * 3U + static_cast<std::size_t>(channel)] = static_cast<std::int16_t>(
+            static_cast<int>(destination[channel]) - static_cast<int>(source[channel]));
+      }
+    }
+  }
+  tick_processing_operation();
+  patchy::solve_heal_membrane(interior.data(), width, height, offsets.data());
 
   QRect dirty;
   for (int y = 0; y < height; ++y) {
@@ -225,12 +258,15 @@ void CanvasWidget::finish_spot_heal_stroke() {
       if (lock_transparent_pixels && channels >= 4 && dst[3] == 0) {
         continue;
       }
-      // Texture from the mirror source, tone matched AT THE RIM POINT rather
-      // than at the pixel itself: the pixel sits inside the defect, so its own
-      // ring tone would preserve the blemish it is meant to remove.
-      const QPoint source(field.source_x[index], field.source_y[index]);
-      const QPoint rim(field.rim_x[index], field.rim_y[index]);
-      const auto healed = healing_sample(source_snapshot, source, rim, tone_radius);
+      const auto [sx, sy] = source_map.map(document_point.x(), document_point.y());
+      const auto* source = snapshot_pixel(sx, sy);
+      std::array<std::uint8_t, 4> healed{};
+      for (int channel = 0; channel < 3; ++channel) {
+        healed[static_cast<std::size_t>(channel)] = clamp_byte(
+            static_cast<float>(source[channel]) +
+            static_cast<float>(offsets[index * 3U + static_cast<std::size_t>(channel)]));
+      }
+      healed[3] = source[3];
       if (channels >= 4 && !lock_transparent_pixels) {
         blend_straight_rgba(dst, healed.data(), coverage);
       } else {

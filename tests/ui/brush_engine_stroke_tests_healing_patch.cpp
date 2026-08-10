@@ -19,6 +19,8 @@
 #include <QComboBox>
 #include <QPoint>
 
+#include <algorithm>
+#include <cmath>
 #include <vector>
 
 namespace {
@@ -348,6 +350,70 @@ void ui_patch_tool_click_inside_is_noop_and_escape_cancels() {
   CHECK(drop_area[0] == 40 && drop_area[1] == 80 && drop_area[2] == 120 && drop_area[3] == 255);
 }
 
+// Renders before/after artifacts of both heals on a textured gradient - the
+// fixture class where the pre-membrane math showed starburst streaks and tone
+// rings. Inspect ui_spot_healing_gallery_* / ui_patch_tool_gallery_* when
+// touching the healing algorithms.
+void ui_spot_healing_and_patch_texture_gallery() {
+  constexpr std::int32_t width = 256;
+  constexpr std::int32_t height = 160;
+  patchy::Document document(width, height, patchy::PixelFormat::rgba8());
+  auto pixels = solid_pixels(width, height, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 255));
+  for (std::int32_t y = 0; y < height; ++y) {
+    for (std::int32_t x = 0; x < width; ++x) {
+      // Smooth diagonal skin-tone gradient plus a fine deterministic weave.
+      const auto ramp = static_cast<double>(x) / width * 60.0 + static_cast<double>(y) / height * 40.0;
+      const auto weave = 6.0 * std::sin(x * 0.7) * std::sin(y * 0.55);
+      auto* px = pixels.pixel(x, y);
+      px[0] = static_cast<std::uint8_t>(std::clamp(185.0 + ramp * 0.5 + weave, 0.0, 255.0));
+      px[1] = static_cast<std::uint8_t>(std::clamp(135.0 + ramp * 0.4 + weave, 0.0, 255.0));
+      px[2] = static_cast<std::uint8_t>(std::clamp(110.0 + ramp * 0.3 + weave, 0.0, 255.0));
+    }
+  }
+  // Two dark blemishes: one for the spot heal, one inside the patch region.
+  const auto stamp_blemish = [&pixels](QPoint center, int radius) {
+    for (std::int32_t y = center.y() - radius; y <= center.y() + radius; ++y) {
+      for (std::int32_t x = center.x() - radius; x <= center.x() + radius; ++x) {
+        const auto dx = x - center.x();
+        const auto dy = y - center.y();
+        if (dx * dx + dy * dy > radius * radius || x < 0 || y < 0 || x >= width || y >= height) {
+          continue;
+        }
+        auto* px = pixels.pixel(x, y);
+        px[0] = static_cast<std::uint8_t>(px[0] * 2 / 5 + 20);
+        px[1] = static_cast<std::uint8_t>(px[1] * 2 / 5 + 10);
+        px[2] = static_cast<std::uint8_t>(px[2] * 2 / 5 + 10);
+      }
+    }
+  };
+  stamp_blemish(QPoint(64, 60), 11);
+  stamp_blemish(QPoint(64, 116), 9);
+  document.add_pixel_layer("Texture", std::move(pixels));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(width + 72, height + 72);
+  canvas.set_document(&document);
+  canvas.show();
+  canvas.set_zoom(1.0);
+  QApplication::processEvents();
+  save_widget_artifact("ui_healing_gallery_before", canvas);
+
+  canvas.set_tool(patchy::ui::CanvasTool::SpotHealing);
+  canvas.set_brush_size(30);
+  canvas.set_brush_softness(35);
+  const auto spot = canvas.widget_position_for_document_point(QPoint(64, 60));
+  send_mouse(canvas, QEvent::MouseButtonPress, spot, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseButtonRelease, spot, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  save_widget_artifact("ui_spot_healing_gallery_after", canvas);
+
+  canvas.set_tool(patchy::ui::CanvasTool::PatchTool);
+  draw_patch_outline(canvas, QPoint(48, 100), QPoint(82, 132));
+  drag_patch_region(canvas, QPoint(64, 116), QPoint(180, 116));
+  QApplication::processEvents();
+  save_widget_artifact("ui_patch_tool_gallery_after", canvas);
+}
+
 void ui_patch_options_sync_canvas_and_persist() {
   SettingsValueRestorer mode_restorer(QStringLiteral("tools/patchMode"));
   SettingsValueRestorer transparent_restorer(QStringLiteral("tools/patchTransparent"));
@@ -395,6 +461,7 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part2() {
       {"ui_patch_tool_transparent_blends_texture_only", ui_patch_tool_transparent_blends_texture_only},
       {"ui_patch_tool_click_inside_is_noop_and_escape_cancels",
        ui_patch_tool_click_inside_is_noop_and_escape_cancels},
+      {"ui_spot_healing_and_patch_texture_gallery", ui_spot_healing_and_patch_texture_gallery},
       {"ui_patch_options_sync_canvas_and_persist", ui_patch_options_sync_canvas_and_persist},
   };
 }

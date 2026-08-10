@@ -103,6 +103,7 @@ add_library(patchy_core
   src/core/environment.cpp
   src/core/document_geometry.cpp
   src/core/document_path.cpp
+  src/core/heal_membrane.cpp
   src/core/layer.cpp
   src/core/layer_metadata.cpp
   src/core/layer_render_utils.cpp

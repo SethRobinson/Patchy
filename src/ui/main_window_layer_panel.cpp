@@ -3528,12 +3528,10 @@ void MainWindow::refresh_document_info() {
     } else if (current_tool_ == CanvasTool::SpotHealing) {
       lines << tr("Size: %1 px").arg(canvas_->brush_size())
             << tr("Softness: %1%").arg(canvas_->brush_softness())
-            << tr("Diffusion: %1").arg(canvas_->healing_diffusion())
             << (canvas_->retouch_sample_all_layers() ? tr("sample all layers") : tr("active layer"));
     } else if (current_tool_ == CanvasTool::PatchTool) {
       lines << (canvas_->patch_tool_mode() == CanvasWidget::PatchToolMode::Destination ? tr("Destination")
                                                                                        : tr("Source"))
-            << tr("Diffusion: %1").arg(canvas_->healing_diffusion())
             << (canvas_->retouch_sample_all_layers() ? tr("sample all layers") : tr("active layer"));
       if (canvas_->patch_tool_transparent()) {
         lines << tr("Transparent");

@@ -6946,6 +6946,8 @@ Mixed selection</source>
     <message><source>Spot healing is unavailable while editing a grayscale channel</source><translation>グレースケールチャンネルの編集中はスポット修復を使用できません</translation></message>
     <message><source>Patch is unavailable while editing a grayscale channel</source><translation>グレースケールチャンネルの編集中はパッチツールを使用できません</translation></message>
     <message><source>Spot healing needs unpainted pixels around the stroke to sample</source><translation>スポット修復にはストローク周囲にサンプルできる未ペイントのピクセルが必要です</translation></message>
+    <message><source>Drag the selection to a clean area to sample from</source><translation>選択範囲をサンプル元のきれいな領域へドラッグしてください</translation></message>
+    <message><source>Drag the selection to where the copy should go</source><translation>選択範囲を複製先の位置へドラッグしてください</translation></message>
 </context>
 <context>
     <name>patchy::ui::MainWindow</name>
@@ -13294,7 +13296,7 @@ Clipped to the layer below</source>
     <message><source>Source heals the dragged-from region; Destination copies it onto the drop point</source><translation>ソースはドラッグ元の領域を修復し、複製先はドラッグ先に複製します</translation></message>
     <message><source>Transparent</source><translation>透明</translation></message>
     <message><source>Blend only the source texture instead of replacing the region</source><translation>領域を置き換えずにソースのテクスチャのみを合成します</translation></message>
-    <message><source>Diffusion: %1</source><translation>拡散: %1</translation></message>
+    <message><source>Patch: draw around the area to fix, then drag the selection to a clean source area</source><translation>パッチ: 修復したい部分を囲んでから、選択範囲をきれいなサンプル元へドラッグしてください</translation></message>
     <message><source>Fill Tools</source><translation>塗りつぶしツール</translation></message>
     <message><source>Pattern:</source><translation>パターン:</translation></message>
     <message><source>Manage...</source><translation>管理...</translation></message>

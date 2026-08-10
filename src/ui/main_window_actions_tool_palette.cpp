@@ -812,7 +812,13 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
     }
     refresh_options_bar();
     refresh_document_info();
-    statusBar()->showMessage(tool_name(selected));
+    if (selected == CanvasTool::PatchTool) {
+      // The two-step workflow is not discoverable from the tool name alone.
+      statusBar()->showMessage(
+          tr("Patch: draw around the area to fix, then drag the selection to a clean source area"));
+    } else {
+      statusBar()->showMessage(tool_name(selected));
+    }
   });
   ctx.type_menu->addAction(type_tool_action_);
 
