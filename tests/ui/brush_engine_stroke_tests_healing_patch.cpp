@@ -533,10 +533,18 @@ void ui_patch_options_sync_canvas_and_persist() {
   SettingsValueRestorer mode_restorer(QStringLiteral("tools/patchMode"));
   SettingsValueRestorer transparent_restorer(QStringLiteral("tools/patchTransparent"));
   SettingsValueRestorer sample_restorer(QStringLiteral("tools/retouchSampleAllLayers"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("tools/patchMode"));
+    settings.remove(QStringLiteral("tools/patchTransparent"));
+  }
   patchy::ui::MainWindow window;
   show_window(window);
   auto* canvas = require_canvas(window);
   CHECK(canvas->retouch_sample_all_layers());
+  // Startup defaults are deliberate: Source mode, Transparent off.
+  CHECK(canvas->patch_tool_mode() == patchy::ui::CanvasWidget::PatchToolMode::Source);
+  CHECK(!canvas->patch_tool_transparent());
 
   auto* mode_combo = window.findChild<QComboBox*>(QStringLiteral("patchModeCombo"));
   CHECK(mode_combo != nullptr);
@@ -553,11 +561,13 @@ void ui_patch_options_sync_canvas_and_persist() {
   sample_check->setChecked(false);
   CHECK(!canvas->retouch_sample_all_layers());
 
+  // Sample All Layers persists; Patch mode and Transparent are session-only,
+  // so the retired keys must stay unwritten (every startup begins at Source
+  // with Transparent off).
   auto settings = patchy::ui::app_settings();
-  CHECK(settings.value(QStringLiteral("tools/patchMode")).toInt() ==
-        static_cast<int>(patchy::ui::CanvasWidget::PatchToolMode::Destination));
-  CHECK(settings.value(QStringLiteral("tools/patchTransparent")).toBool());
   CHECK(!settings.value(QStringLiteral("tools/retouchSampleAllLayers")).toBool());
+  CHECK(!settings.contains(QStringLiteral("tools/patchMode")));
+  CHECK(!settings.contains(QStringLiteral("tools/patchTransparent")));
 }
 
 }  // namespace

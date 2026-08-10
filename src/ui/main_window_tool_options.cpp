@@ -1723,13 +1723,10 @@ void MainWindow::load_tool_settings() {
   canvas_->set_clone_aligned(settings.value(QStringLiteral("tools/cloneAligned"), canvas_->clone_aligned()).toBool());
   canvas_->set_retouch_sample_all_layers(
       settings.value(QStringLiteral("tools/retouchSampleAllLayers"), canvas_->retouch_sample_all_layers()).toBool());
-  canvas_->set_patch_tool_mode(
-      settings.value(QStringLiteral("tools/patchMode"), static_cast<int>(canvas_->patch_tool_mode())).toInt() ==
-              static_cast<int>(CanvasWidget::PatchToolMode::Destination)
-          ? CanvasWidget::PatchToolMode::Destination
-          : CanvasWidget::PatchToolMode::Source);
-  canvas_->set_patch_tool_transparent(
-      settings.value(QStringLiteral("tools/patchTransparent"), canvas_->patch_tool_transparent()).toBool());
+  // Patch mode and Transparent are deliberately session-only: every startup
+  // begins at Source with Transparent off, because a persisted Destination or
+  // Transparent reads as "the tool is broken" a session later. The retired
+  // keys tools/patchMode and tools/patchTransparent must never be reused.
   current_pattern_stamp_pattern_id_ =
       settings.value(QStringLiteral("tools/patternStampPatternId")).toString();
   const auto& patterns = pattern_library().entries();
@@ -1990,8 +1987,6 @@ void MainWindow::save_tool_settings() const {
   settings.setValue(QStringLiteral("tools/transformInterpolation"), static_cast<int>(canvas_->transform_interpolation()));
   settings.setValue(QStringLiteral("tools/cloneAligned"), canvas_->clone_aligned());
   settings.setValue(QStringLiteral("tools/retouchSampleAllLayers"), canvas_->retouch_sample_all_layers());
-  settings.setValue(QStringLiteral("tools/patchMode"), static_cast<int>(canvas_->patch_tool_mode()));
-  settings.setValue(QStringLiteral("tools/patchTransparent"), canvas_->patch_tool_transparent());
   settings.setValue(QStringLiteral("tools/patternStampPatternId"), current_pattern_stamp_pattern_id_);
   settings.setValue(QStringLiteral("tools/patternStampAligned"), current_pattern_stamp_aligned_);
   settings.setValue(QStringLiteral("tools/healingDiffusion"), current_healing_diffusion_);
