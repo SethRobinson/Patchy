@@ -191,6 +191,19 @@ QPoint clamped_document_point(const Document& document, QPoint point);
 // dispatch_tablet_as_mouse in the pen TU.
 bool tool_supports_brush_adjust_drag(CanvasTool tool) noexcept;
 
+// Paint/retouch tools that show the round Size/Soft footprint cursor; past the
+// ~155px display cap they switch to a crosshair plus the canvas-overlay outline
+// (OS/browser cursor pixmaps cannot grow unbounded). Shared by
+// update_tool_cursor in the cursors TU and the hover-outline gates in the brush
+// TU. Quick Select joins the overlay through its own size/cursor path.
+bool tool_uses_brush_footprint_cursor(CanvasTool tool) noexcept;
+
+// Tools whose strokes stamp the active bitmap brush tip; only their cursor and
+// overlay outline trace the tip shape. Every other footprint tool strokes
+// procedurally, so its outline stays the procedural circle even while a tip is
+// selected. Shared by the cursors and brush TUs.
+bool tool_paints_with_brush_tip(CanvasTool tool) noexcept;
+
 // PATCHY_ZOOM_TRACE=1 prints paint/zoom phase timings over 2 ms to stderr (the
 // PATCHY_REV_TRACE pattern): run the real app with it set to attribute slow
 // zoom/pan/paint steps to a phase instead of guessing.

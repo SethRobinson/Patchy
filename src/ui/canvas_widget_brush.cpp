@@ -520,7 +520,7 @@ int CanvasWidget::active_outline_brush_size() const noexcept {
 }
 
 QSize CanvasWidget::brush_outline_display_size() const {
-  if (brush_tip_ != nullptr && tool_ != CanvasTool::QuickSelect) {
+  if (brush_tip_ != nullptr && tool_paints_with_brush_tip(tool_)) {
     const auto scaled = scaled_brush_tip_for(brush_size_, brush_softness_);
     if (scaled != nullptr && !scaled->empty()) {
       return QSize(std::max(3, static_cast<int>(std::round(scaled->width * zoom_))),
@@ -533,9 +533,7 @@ QSize CanvasWidget::brush_outline_display_size() const {
 }
 
 bool CanvasWidget::brush_outline_uses_overlay() const {
-  if (tool_ != CanvasTool::Brush && tool_ != CanvasTool::MixerBrush &&
-      tool_ != CanvasTool::PatternStamp &&
-      tool_ != CanvasTool::Eraser && tool_ != CanvasTool::QuickSelect) {
+  if (tool_ != CanvasTool::QuickSelect && !tool_uses_brush_footprint_cursor(tool_)) {
     return false;
   }
   if (active_outline_brush_size() <= 1) {
@@ -554,9 +552,7 @@ QRect CanvasWidget::brush_hover_outline_rect() const {
 }
 
 void CanvasWidget::track_brush_hover_position(QPoint widget_position) {
-  if (tool_ != CanvasTool::Brush && tool_ != CanvasTool::MixerBrush &&
-      tool_ != CanvasTool::PatternStamp &&
-      tool_ != CanvasTool::Eraser && tool_ != CanvasTool::QuickSelect) {
+  if (tool_ != CanvasTool::QuickSelect && !tool_uses_brush_footprint_cursor(tool_)) {
     brush_hover_position_valid_ = false;
     return;
   }
@@ -591,7 +587,7 @@ void CanvasWidget::draw_brush_hover_outline(QPainter& painter) const {
   }
   painter.save();
   const QPoint center = brush_hover_widget_position_;
-  if (brush_tip_ != nullptr && tool_ != CanvasTool::QuickSelect) {
+  if (brush_tip_ != nullptr && tool_paints_with_brush_tip(tool_)) {
     const auto display = brush_outline_display_size();
     const auto key = QStringLiteral("%1:%2x%3:%4:%5")
                          .arg(reinterpret_cast<quintptr>(brush_tip_.get()))

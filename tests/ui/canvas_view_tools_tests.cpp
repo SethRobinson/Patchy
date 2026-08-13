@@ -613,6 +613,24 @@ void ui_max_brush_uses_overlay_cursor() {
 
   CHECK(canvas.cursor().shape() == Qt::CrossCursor);
   CHECK(canvas.cursor().pixmap().isNull());
+
+  // Every retouch tool with the round footprint cursor switches to the overlay
+  // crosshair at large sizes too (browsers reject the giant pixmap cursor in
+  // the wasm build) and returns to a pixmap cursor when small.
+  const patchy::ui::CanvasTool footprint_tools[] = {
+      patchy::ui::CanvasTool::Clone,        patchy::ui::CanvasTool::Healing,
+      patchy::ui::CanvasTool::SpotHealing,  patchy::ui::CanvasTool::Smudge,
+      patchy::ui::CanvasTool::Dodge,        patchy::ui::CanvasTool::Burn,
+      patchy::ui::CanvasTool::Sponge,       patchy::ui::CanvasTool::BlurBrush,
+      patchy::ui::CanvasTool::SharpenBrush};
+  for (const auto tool : footprint_tools) {
+    canvas.set_tool(tool);
+    canvas.set_brush_size(patchy::ui::kMaxBrushSize);
+    CHECK(canvas.cursor().shape() == Qt::CrossCursor);
+    CHECK(canvas.cursor().pixmap().isNull());
+    canvas.set_brush_size(48);
+    CHECK(canvas.cursor().shape() == Qt::BitmapCursor);
+  }
 }
 
 void ui_canvas_pan_keeps_document_partly_visible() {

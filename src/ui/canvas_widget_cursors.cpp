@@ -389,21 +389,12 @@ void CanvasWidget::update_tool_cursor() {
     }
     return;
   }
-  if ((tool_ == CanvasTool::Brush || tool_ == CanvasTool::MixerBrush ||
-       tool_ == CanvasTool::PatternStamp ||
-       tool_ == CanvasTool::Eraser) &&
-      brush_tip_ != nullptr) {
+  if (tool_paints_with_brush_tip(tool_) && brush_tip_ != nullptr) {
     if (apply_brush_tip_cursor()) {
       return;
     }
   }
-  if (tool_ == CanvasTool::Brush || tool_ == CanvasTool::MixerBrush ||
-      tool_ == CanvasTool::PatternStamp ||
-      tool_ == CanvasTool::Clone || tool_ == CanvasTool::Healing ||
-      tool_ == CanvasTool::SpotHealing ||
-      tool_ == CanvasTool::Smudge || tool_ == CanvasTool::Dodge || tool_ == CanvasTool::Burn ||
-      tool_ == CanvasTool::Sponge || tool_ == CanvasTool::BlurBrush ||
-      tool_ == CanvasTool::SharpenBrush || tool_ == CanvasTool::Eraser) {
+  if (tool_uses_brush_footprint_cursor(tool_)) {
     const auto use_cached_brush_cursor = [&](bool one_pixel, int diameter, int extent) {
       if (brush_cursor_cache_.has_value() && brush_cursor_cache_->tool == tool_ &&
           brush_cursor_cache_->brush_size == brush_size_ &&

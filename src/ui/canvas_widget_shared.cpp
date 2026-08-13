@@ -633,4 +633,37 @@ bool tool_supports_brush_adjust_drag(CanvasTool tool) noexcept {
   }
 }
 
+bool tool_uses_brush_footprint_cursor(CanvasTool tool) noexcept {
+  switch (tool) {
+    case CanvasTool::Brush:
+    case CanvasTool::MixerBrush:
+    case CanvasTool::PatternStamp:
+    case CanvasTool::Clone:
+    case CanvasTool::Healing:
+    case CanvasTool::SpotHealing:
+    case CanvasTool::Smudge:
+    case CanvasTool::Dodge:
+    case CanvasTool::Burn:
+    case CanvasTool::Sponge:
+    case CanvasTool::BlurBrush:
+    case CanvasTool::SharpenBrush:
+    case CanvasTool::Eraser:
+      return true;
+    default:
+      return false;
+  }
+}
+
+bool tool_paints_with_brush_tip(CanvasTool tool) noexcept {
+  switch (tool) {
+    case CanvasTool::Brush:
+    case CanvasTool::MixerBrush:
+    case CanvasTool::PatternStamp:
+    case CanvasTool::Eraser:
+      return true;
+    default:
+      return false;
+  }
+}
+
 }  // namespace patchy::ui

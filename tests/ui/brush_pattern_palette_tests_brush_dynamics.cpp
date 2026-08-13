@@ -1209,6 +1209,58 @@ void ui_brush_outline_overlay_tracks_large_brushes() {
   clear_brush_tip_test_state();
 }
 
+void ui_clone_outline_overlay_tracks_large_brushes() {
+  clear_brush_tip_test_state();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Clone"))->trigger();
+
+  // Large Clone footprint: the same crosshair + canvas-overlay outline as the
+  // Brush (the unbounded pixmap cursor was rejected by browsers on wasm).
+  canvas->set_brush_size(400);
+  CHECK(canvas->cursor().shape() == Qt::CrossCursor);
+
+  const QPoint hover(canvas->width() / 2, canvas->height() / 2);
+  const auto display_radius = static_cast<int>(std::round(400.0 * canvas->zoom() / 2.0));
+  CHECK(display_radius > 100);
+  const auto count_dark_ring_pixels = [&]() {
+    send_mouse(*canvas, QEvent::MouseMove, hover, Qt::NoButton, Qt::NoButton);
+    QApplication::processEvents();
+    const auto image = canvas->grab().toImage().convertToFormat(QImage::Format_RGB32);
+    int dark_ring_pixels = 0;
+    for (int angle_step = 0; angle_step < 360; angle_step += 5) {
+      const auto radians = angle_step * 3.14159265358979323846 / 180.0;
+      for (int probe = -3; probe <= 3; ++probe) {
+        const QPoint point(
+            hover.x() + static_cast<int>(std::round((display_radius + probe) * std::cos(radians))),
+            hover.y() + static_cast<int>(std::round((display_radius + probe) * std::sin(radians))));
+        if (image.rect().contains(point) && QColor(image.pixel(point)).lightness() < 200) {
+          ++dark_ring_pixels;
+          break;
+        }
+      }
+    }
+    return dark_ring_pixels;
+  };
+  CHECK(count_dark_ring_pixels() > 20);
+  save_widget_artifact("ui_clone_outline_overlay_large", *canvas);
+
+  // A selected bitmap tip must not change Clone's outline: its strokes stay
+  // procedural, so the overlay keeps the circle instead of tracing the bar tip.
+  auto& library = window.brush_tip_library();
+  const auto tip_id = library.add_tip(QStringLiteral("Bar"), make_bar_tip_image(), 0.25);
+  CHECK(!tip_id.isEmpty());
+  window.set_active_brush_tip(tip_id, false);
+  CHECK(canvas->cursor().shape() == Qt::CrossCursor);
+  CHECK(count_dark_ring_pixels() > 20);
+
+  // Shrinking returns to the pixmap cursor, exactly like the Brush.
+  canvas->set_brush_size(48);
+  CHECK(canvas->cursor().shape() != Qt::CrossCursor);
+  clear_brush_tip_test_state();
+}
+
 void ui_default_brush_tips_seed_once_and_render_sheet() {
   clear_brush_tip_test_state();
   {
@@ -1469,6 +1521,7 @@ std::vector<patchy::test::TestCase> brush_pattern_palette_tests_part2() {
   return {
       {"ui_brush_tip_soft_stamps_accumulate_without_seams", ui_brush_tip_soft_stamps_accumulate_without_seams},
       {"ui_brush_outline_overlay_tracks_large_brushes", ui_brush_outline_overlay_tracks_large_brushes},
+      {"ui_clone_outline_overlay_tracks_large_brushes", ui_clone_outline_overlay_tracks_large_brushes},
       {"ui_brush_tip_cursor_shows_tip_shape", ui_brush_tip_cursor_shows_tip_shape},
       {"ui_brush_tip_picker_popup_offers_define_from_selection",
        ui_brush_tip_picker_popup_offers_define_from_selection},
