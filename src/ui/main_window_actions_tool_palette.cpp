@@ -444,7 +444,8 @@ private:
 // pointer leaves it, which makes the palette's second column nearly
 // unreachable. Swallowing Leave while the extension button is checked turns
 // the expansion into a real toggle; collapse happens through the extension
-// button or the palette-item connects in build_tool_palette().
+// button, or automatically once every item fits again (see
+// ToolPaletteExpansionReservation).
 class ToolPaletteExpansionLock final : public QObject {
 public:
   ToolPaletteExpansionLock(QToolButton* extension, QObject* parent)
@@ -460,6 +461,106 @@ protected:
 
 private:
   QPointer<QToolButton> extension_;
+};
+
+constexpr int kToolPaletteCollapsedMinWidth = 43;
+
+// Qt expands the overflow columns by giving the bar a geometry wider than its
+// toolbar-area slot, overlaying the canvas. While the extension button stays
+// checked, this controller copies the measured expanded width into the bar's
+// minimum width so the main-window layout reserves the columns and the canvas
+// shrinks instead of sitting underneath them. Each pass releases the minimum
+// first (a standing minimum would stop Qt from dropping back to fewer columns
+// when the window grows), measures the width Qt actually applied, and re-pins
+// it; identical measurements converge to a no-op. Once the whole palette fits
+// its slot again the expansion has nothing left to reveal, so the controller
+// clicks the extension closed instead of holding a stale empty column.
+class ToolPaletteExpansionReservation final : public QObject {
+public:
+  ToolPaletteExpansionReservation(QToolBar* palette, QToolButton* extension)
+      : QObject(palette), palette_(palette), extension_(extension) {
+    palette->installEventFilter(this);
+    connect(extension, &QToolButton::toggled, this, [this](bool checked) {
+      if (checked) {
+        schedule_reservation();
+        return;
+      }
+      if (palette_ == nullptr) {
+        return;
+      }
+      palette_->setMinimumWidth(kToolPaletteCollapsedMinWidth);
+      // One turn later (after Qt's own collapse handling), force a toolbar
+      // layout pass: when the collapsed geometry matches the expanded one (a
+      // tall window whose expansion had nothing left to reveal), Qt skips
+      // setGeometry and would leave the extension button visible.
+      QTimer::singleShot(0, this, [this] {
+        if (palette_ == nullptr || extension_ == nullptr || extension_->isChecked()) {
+          return;
+        }
+        if (auto* bar_layout = palette_->layout(); bar_layout != nullptr) {
+          bar_layout->invalidate();
+          bar_layout->activate();
+        }
+      });
+    });
+  }
+
+protected:
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (event->type() == QEvent::Resize && !applying_ && extension_ != nullptr && extension_->isChecked()) {
+      schedule_reservation();
+    }
+    return QObject::eventFilter(watched, event);
+  }
+
+private:
+  void schedule_reservation() {
+    if (scheduled_) {
+      return;
+    }
+    scheduled_ = true;
+    // Deferred one event-loop turn so a single pass covers a burst of layout
+    // activity (the toggle itself, animation frames, a window resize).
+    QTimer::singleShot(0, this, [this] {
+      scheduled_ = false;
+      apply_reservation();
+    });
+  }
+
+  void apply_reservation() {
+    if (palette_ == nullptr || extension_ == nullptr || !extension_->isChecked()) {
+      return;
+    }
+    applying_ = true;
+    palette_->setMinimumWidth(kToolPaletteCollapsedMinWidth);
+    if (auto* window_layout = palette_->window()->layout(); window_layout != nullptr) {
+      // setMinimumWidth short-circuits when the value is unchanged, so force
+      // the relayout that snaps any in-flight expansion animation and lets Qt
+      // settle on the geometry it really wants before it is measured.
+      window_layout->invalidate();
+      window_layout->activate();
+    }
+    const bool fits_collapsed = palette_->sizeHint().height() <= palette_->height();
+    const int expanded_width = palette_->width();
+    if (!fits_collapsed && expanded_width > kToolPaletteCollapsedMinWidth) {
+      palette_->setMinimumWidth(expanded_width);
+    }
+    applying_ = false;
+    if (fits_collapsed) {
+      // The window grew tall enough that nothing overflows. Qt never unchecks
+      // the extension on its own, so close the expansion formally.
+      QTimer::singleShot(0, extension_, [extension = extension_] {
+        if (extension != nullptr && extension->isChecked()) {
+          extension->click();
+        }
+      });
+    }
+  }
+
+  QPointer<QToolBar> palette_;
+  QPointer<QToolButton> extension_;
+  bool scheduled_{false};
+  bool applying_{false};
 };
 
 // Tool icons are hand-authored SVGs in src/ui/icons/tool-*.svg (32x32 viewBox,
@@ -595,10 +696,12 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
   tool_palette->setToolButtonStyle(Qt::ToolButtonIconOnly);
   tool_palette->setIconSize(QSize(20, 20));
   // Minimum, not fixed: the overflow extension button reveals hidden items by
-  // temporarily widening the bar into extra columns, and a max width clamps
-  // that geometry into a clipped sliver. QSS caps the children narrower, so
-  // the collapsed width stays exactly 43.
-  tool_palette->setMinimumWidth(43);
+  // widening the bar into extra columns, and a max width clamps that geometry
+  // into a clipped sliver. While expanded, ToolPaletteExpansionReservation
+  // raises this minimum to the measured expanded width so the layout reserves
+  // the columns. QSS caps the children narrower, so the collapsed width stays
+  // exactly 43.
+  tool_palette->setMinimumWidth(kToolPaletteCollapsedMinWidth);
   addToolBar(Qt::LeftToolBarArea, tool_palette);
 
   auto* tool_group = new QActionGroup(this);
@@ -870,27 +973,17 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
   register_document_action(default_colors_action);
   register_document_action(swap_colors_action);
 
-  // The overflow expansion behaves as a toggle: the Leave filter keeps it open
-  // while the pointer wanders, and picking any palette item closes it like a
-  // flyout. The collapse is deferred because it hides the clicked button while
-  // that button is still delivering its release.
+  // The overflow expansion behaves as a sticky toggle: the Leave filter keeps
+  // it open while the pointer wanders, and the reservation controller widens
+  // the bar's minimum so the layout reserves the extra columns instead of
+  // letting them overlay the canvas. Picking a tool leaves the expansion open
+  // (an auto-collapse there ate the first click of the Zoom button's
+  // double-click); it closes on an extension re-click or once the window grows
+  // tall enough that nothing overflows.
   if (auto* extension_button = tool_palette->findChild<QToolButton*>(QStringLiteral("qt_toolbar_ext_button"));
       extension_button != nullptr) {
     tool_palette->installEventFilter(new ToolPaletteExpansionLock(extension_button, tool_palette));
-    const auto collapse_palette_expansion = [extension_button] {
-      if (!extension_button->isChecked()) {
-        return;
-      }
-      QTimer::singleShot(0, extension_button, [extension_button] {
-        if (extension_button->isChecked()) {
-          extension_button->click();
-        }
-      });
-    };
-    connect(tool_group, &QActionGroup::triggered, extension_button, collapse_palette_expansion);
-    connect(tool_palette, &QToolBar::actionTriggered, extension_button, collapse_palette_expansion);
-    connect(primary_color_button_, &QPushButton::clicked, extension_button, collapse_palette_expansion);
-    connect(secondary_color_button_, &QPushButton::clicked, extension_button, collapse_palette_expansion);
+    new ToolPaletteExpansionReservation(tool_palette, extension_button);
   }
 
   // Export the cross-phase locals bind_action_translations() still needs.

@@ -380,6 +380,7 @@ struct ToolPaletteOverflowSetup {
   QPushButton* background{nullptr};
   QToolButton* quick_mask{nullptr};
   QToolButton* extension{nullptr};
+  int fits_height{0};
 };
 
 // Looks up the tool palette widgets, verifies everything fits at a tall
@@ -403,6 +404,7 @@ ToolPaletteOverflowSetup shrink_window_until_tool_palette_overflows(patchy::ui::
   // height 1:1 and the fitting window height can be derived from the hint.
   const int chrome_height = window.height() - setup.palette->height();
   const int fits_height = setup.palette->sizeHint().height() + chrome_height;
+  setup.fits_height = fits_height;
 
   window.resize(window.width(), fits_height + 24);
   QApplication::processEvents();
@@ -449,6 +451,10 @@ void ui_tool_palette_extension_button_expands_palette() {
   CHECK(setup.foreground->isVisible());
   CHECK(setup.background->isVisible());
   CHECK(setup.quick_mask->isVisible());
+  // The reservation controller widens the palette's slot so the expansion
+  // never overlays the canvas.
+  CHECK(process_events_until(
+      [&] { return !window.centralWidget()->geometry().intersects(setup.palette->geometry()); }));
   save_widget_artifact("ui_tool_palette_overflow_expanded", window);
 
   // Stock Qt collapses the expansion half a second after the pointer leaves
@@ -465,7 +471,71 @@ void ui_tool_palette_extension_button_expands_palette() {
   CHECK(setup.foreground->isVisible());
 }
 
-void ui_tool_palette_expanded_collapses_after_tool_pick() {
+void ui_tool_palette_expansion_sticky_after_tool_pick() {
+  patchy::ui::MainWindow window;
+  window.setAnimated(false);
+  show_window(window);
+  const auto setup = shrink_window_until_tool_palette_overflows(window);
+
+  setup.extension->click();
+  CHECK(process_events_until([&] { return setup.palette->width() > 45; }));
+  CHECK(process_events_until(
+      [&] { return !window.centralWidget()->geometry().intersects(setup.palette->geometry()); }));
+
+  // Picking a palette item keeps the expansion open: an auto-collapse here ate
+  // the first click of the Zoom button's double-click, and the reserved-width
+  // layout means the open expansion costs the canvas nothing it was not
+  // already paying.
+  auto* eraser_button = qobject_cast<QAbstractButton*>(
+      setup.palette->widgetForAction(require_action(window, "toolEraserAction")));
+  CHECK(eraser_button != nullptr);
+  eraser_button->click();
+  process_events_for(60);
+  CHECK(setup.palette->width() > 45);
+  CHECK(setup.quick_mask->isVisible());
+  CHECK(require_action(window, "toolEraserAction")->isChecked());
+  CHECK(!window.centralWidget()->geometry().intersects(setup.palette->geometry()));
+
+  // The extension button stays the explicit way to close the expansion, and
+  // closing releases the reserved width.
+  setup.extension->click();
+  CHECK(process_events_until([&] { return setup.palette->width() <= 45; }));
+  CHECK(setup.palette->minimumWidth() == 43);
+  CHECK(!setup.quick_mask->isVisible());
+  CHECK(setup.foreground->isVisible());
+}
+
+// Regression: with collapse-on-pick, the first click of a double-click on the
+// expanded Zoom button closed the expansion, the button moved out from under
+// the pointer, and the second click fell through to whatever was underneath.
+void ui_tool_palette_expanded_zoom_double_click_sets_actual_pixels() {
+  patchy::ui::MainWindow window;
+  window.setAnimated(false);
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom_centered(2.0);
+  CHECK(canvas->zoom() == 2.0);
+  const auto setup = shrink_window_until_tool_palette_overflows(window);
+
+  setup.extension->click();
+  CHECK(process_events_until([&] { return setup.palette->width() > 45; }));
+
+  auto* zoom_button = window.findChild<QToolButton*>(QStringLiteral("zoomToolButton"));
+  CHECK(zoom_button != nullptr);
+  CHECK(zoom_button->isVisible());
+  const QPoint center(zoom_button->width() / 2, zoom_button->height() / 2);
+  click_widget_like_a_user(*zoom_button, center);
+  // Give any (formerly fatal) deferred collapse a chance to run between the
+  // two clicks, the way the double-click interval does for a real user.
+  process_events_for(60);
+  CHECK(setup.palette->width() > 45);
+  CHECK(zoom_button->isVisible());
+  send_double_click(*zoom_button, center);
+  CHECK(canvas->zoom() == 1.0);
+  CHECK(setup.palette->width() > 45);
+}
+
+void ui_tool_palette_expansion_collapses_when_window_fits_again() {
   patchy::ui::MainWindow window;
   window.setAnimated(false);
   show_window(window);
@@ -474,15 +544,13 @@ void ui_tool_palette_expanded_collapses_after_tool_pick() {
   setup.extension->click();
   CHECK(process_events_until([&] { return setup.palette->width() > 45; }));
 
-  // Picking a palette item is a completed choice: the expansion closes on its
-  // own like a flyout instead of lingering over the canvas.
-  auto* eraser_button = qobject_cast<QAbstractButton*>(
-      setup.palette->widgetForAction(require_action(window, "toolEraserAction")));
-  CHECK(eraser_button != nullptr);
-  eraser_button->click();
+  // Growing the window until everything fits leaves the expansion nothing to
+  // reveal; the reservation controller closes it and releases the minimum.
+  window.resize(window.width(), setup.fits_height + 24);
   CHECK(process_events_until([&] { return setup.palette->width() <= 45; }));
-  CHECK(!setup.quick_mask->isVisible());
-  CHECK(setup.foreground->isVisible());
+  CHECK(process_events_until([&] { return !setup.extension->isVisible(); }));
+  CHECK(setup.palette->minimumWidth() == 43);
+  CHECK(setup.quick_mask->isVisible());
 }
 
 // Dissolve's dither threshold is a pure function of the document coordinate,
@@ -3533,7 +3601,11 @@ std::vector<patchy::test::TestCase> app_shell_tests() {
       {"ui_tool_palette_overflow_hides_quick_mask_before_swatches",
        ui_tool_palette_overflow_hides_quick_mask_before_swatches},
       {"ui_tool_palette_extension_button_expands_palette", ui_tool_palette_extension_button_expands_palette},
-      {"ui_tool_palette_expanded_collapses_after_tool_pick", ui_tool_palette_expanded_collapses_after_tool_pick},
+      {"ui_tool_palette_expansion_sticky_after_tool_pick", ui_tool_palette_expansion_sticky_after_tool_pick},
+      {"ui_tool_palette_expanded_zoom_double_click_sets_actual_pixels",
+       ui_tool_palette_expanded_zoom_double_click_sets_actual_pixels},
+      {"ui_tool_palette_expansion_collapses_when_window_fits_again",
+       ui_tool_palette_expansion_collapses_when_window_fits_again},
       {"ui_dissolve_clipped_render_matches_full_render", ui_dissolve_clipped_render_matches_full_render},
       {"ui_window_force_refresh_action_rebuilds_cache", ui_window_force_refresh_action_rebuilds_cache},
       {"ui_canvas_ignores_opaque_psd_flat_cache_for_first_paint_transparency",
