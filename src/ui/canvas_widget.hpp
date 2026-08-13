@@ -439,6 +439,8 @@ public:
   [[nodiscard]] int mixer_mix() const noexcept;
   void set_mixer_flow(int flow) noexcept;
   [[nodiscard]] int mixer_flow() const noexcept;
+  void set_mixer_sample_all_layers(bool sample_all_layers) noexcept;
+  [[nodiscard]] bool mixer_sample_all_layers() const noexcept;
   // Bitmap brush tip for Brush, Mixer Brush, Pattern Stamp, and Eraser;
   // null tip = procedural round/soft brush.
   // The id is an opaque library key kept here so the options bar and settings stay in sync.
@@ -1234,7 +1236,8 @@ private:
   void observe_wet_edge_coverage(std::int32_t x, std::int32_t y, float coverage,
                                  EditColor primary);
   [[nodiscard]] QRect finalize_pending_wet_edges(QRect dirty);
-  void begin_mixer_brush_stroke(QPoint document_point);
+  void begin_mixer_brush_stroke();
+  [[nodiscard]] EditColor sample_mixer_pickup(double x, double y, int brush_size) const;
   [[nodiscard]] EffectiveBrushInput effective_brush_input() const noexcept;
   [[nodiscard]] EditOptions current_brush_edit_options(const EffectiveBrushInput& brush) const;
   [[nodiscard]] QRect draw_brush_segment(QPointF from, QPointF to, bool erase,
@@ -1694,7 +1697,11 @@ private:
   int mixer_load_{50};
   int mixer_mix_{50};
   int mixer_flow_{100};
+  bool mixer_sample_all_layers_{false};
   patchy::MixerBrushState mixer_brush_state_{};
+  // Merged-document snapshot captured at mixer stroke start while Sample All
+  // Layers is on; null when off. See begin_mixer_brush_stroke().
+  QImage mixer_composite_snapshot_;
   std::shared_ptr<const patchy::BrushTip> brush_tip_;
   QString brush_tip_id_;
   patchy::BrushTipMipChain brush_tip_mips_;

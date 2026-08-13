@@ -835,8 +835,29 @@ void tool_write_paths_digest_baseline() {
     CHECK(!patchy::smudge_brush_segment(document, layer_id, 20, 20, 48, 20, options).empty());
     digests.emplace_back("smudge_segment", layer_pixels_digest(document, layer_id));
   }
+  {  // Mixer dab colors through the bitmap-tip provider path.
+    auto document = make_tool_document();
+    const auto layer_id = active_tool_layer(document);
+    CHECK(!patchy::fill_rect(document, layer_id, patchy::Rect{0, 0, 24, 48}, tool_options(20, 40, 230)).empty());
+    const auto tip = make_bar_brush_tip();
+    const auto mips = patchy::build_brush_tip_mips(tip);
+    const auto scaled = patchy::make_scaled_brush_tip(mips, 9);
+    auto options = tool_options(220, 30, 20);
+    options.brush_size = 9;
+    options.brush_tip = &scaled;
+    options.brush_tip_spacing = 0.5;
+    patchy::MixerBrushState mixer;
+    patchy::begin_mixer_brush_stroke(mixer);
+    options.dab_primary_provider = [&mixer](double x, double y, const patchy::EditColor& loaded) {
+      return patchy::mixer_brush_dab_color(mixer, x, y, 9, loaded,
+                                           patchy::EditColor{20, 40, 230, 255}, 60, 40, 70);
+    };
+    patchy::BrushTipStrokeState state;
+    CHECK(!patchy::paint_brush_segment(document, layer_id, 12.0, 24.0, 52.0, 24.0, options, false, state).empty());
+    digests.emplace_back("mixer_dab_segment", layer_pixels_digest(document, layer_id));
+  }
 
-  static constexpr std::array<std::pair<const char*, std::uint64_t>, 14> kExpected = {{
+  static constexpr std::array<std::pair<const char*, std::uint64_t>, 15> kExpected = {{
       {"procedural_dab_hard", 0x1f41304572a13fd8ULL},
       {"procedural_segment_soft", 0x7312aa1cfea0b16aULL},
       {"bitmap_tip_segment", 0xfb394573f9c5c112ULL},
@@ -851,6 +872,7 @@ void tool_write_paths_digest_baseline() {
       {"clear_rect_selection", 0x440d479ec3f19a9dULL},
       {"line_hard", 0x0e5f22f86e99266dULL},
       {"smudge_segment", 0xcc409264f89c224aULL},
+      {"mixer_dab_segment", 0x041a3aec246efad4ULL},
   }};
 
   CHECK(digests.size() == kExpected.size());

@@ -250,6 +250,14 @@ int CanvasWidget::mixer_flow() const noexcept {
   return mixer_flow_;
 }
 
+void CanvasWidget::set_mixer_sample_all_layers(bool sample_all_layers) noexcept {
+  mixer_sample_all_layers_ = sample_all_layers;
+}
+
+bool CanvasWidget::mixer_sample_all_layers() const noexcept {
+  return mixer_sample_all_layers_;
+}
+
 void CanvasWidget::set_brush_tip(std::shared_ptr<const patchy::BrushTip> tip, const QString& tip_id) {
   if (tip != nullptr && tip->empty()) {
     tip = nullptr;
@@ -797,6 +805,7 @@ void CanvasWidget::clear_brush_stroke_tracking() noexcept {
   brush_stroke_last_stamp_position_.reset();
   brush_stroke_distance_since_last_stamp_ = 0.0;
   mixer_brush_state_ = {};
+  mixer_composite_snapshot_ = QImage();
   brush_tip_stroke_state_ = {};
   stroke_dynamics_seed_ = brush_dynamics_test_seed_.has_value()
                               ? *brush_dynamics_test_seed_
@@ -1449,24 +1458,70 @@ QRect CanvasWidget::finalize_pending_wet_edges(QRect dirty) {
   return dirty;
 }
 
-void CanvasWidget::begin_mixer_brush_stroke(QPoint document_point) {
-  auto sampled = edit_color(primary_color_);
-  if (document_ != nullptr && document_->active_layer_id().has_value()) {
-    const auto& const_document = std::as_const(*document_);
-    const auto* layer = const_document.find_layer(*document_->active_layer_id());
-    if (layer != nullptr && layer->kind() == LayerKind::Pixel &&
-        layer->bounds().contains(document_point.x(), document_point.y())) {
-      const auto& pixels = layer->pixels();
-      if (!pixels.empty() && pixels.format().bit_depth == BitDepth::UInt8 &&
-          pixels.format().channels >= 3) {
-        const auto* pixel = pixels.pixel(document_point.x() - layer->bounds().x,
-                                         document_point.y() - layer->bounds().y);
-        sampled = {pixel[0], pixel[1], pixel[2],
-                   pixels.format().channels >= 4 ? pixel[3] : std::uint8_t{255}};
+void CanvasWidget::begin_mixer_brush_stroke() {
+  patchy::begin_mixer_brush_stroke(mixer_brush_state_);
+  // Sample All Layers: one merged-document snapshot per stroke, captured at
+  // stroke start like the retouch tools' retouch_source_snapshot(). The pickup
+  // feed then reads this snapshot instead of the active-layer snapshot; still
+  // exactly one canvas-only source per stroke.
+  mixer_composite_snapshot_ = QImage();
+  if (mixer_sample_all_layers_ && document_ != nullptr) {
+    mixer_composite_snapshot_ = render_document_image_with_processing();
+  }
+}
+
+// Straight-alpha average of the STROKE-START SNAPSHOT of the active layer under
+// the brush footprint (fixed 9x9 disc grid, alpha-weighted, off-layer taps
+// transparent, Background off-bounds extends white). Feeds the mixer's single
+// running pickup average (constraint block in core/pixel_tools.hpp). Reading
+// the snapshot rather than the live layer keeps the feed canvas-only AND
+// convergent: a live read would re-ingest the stroke's own fresh deposit, and
+// without Photoshop's paint-amount reservoir (legally excluded) that feedback
+// loop would sustain a smear forever instead of letting it fade out.
+patchy::EditColor CanvasWidget::sample_mixer_pickup(double x, double y, int brush_size) const {
+  const auto radius = std::max(0.5, static_cast<double>(std::max(1, brush_size)) / 2.0);
+  constexpr int kGrid = 9;
+  double sum_pr = 0.0;
+  double sum_pg = 0.0;
+  double sum_pb = 0.0;
+  double sum_alpha = 0.0;
+  int taps = 0;
+  for (int gy = 0; gy < kGrid; ++gy) {
+    for (int gx = 0; gx < kGrid; ++gx) {
+      const auto offset_x = (static_cast<double>(gx) / (kGrid - 1) - 0.5) * 2.0;
+      const auto offset_y = (static_cast<double>(gy) / (kGrid - 1) - 0.5) * 2.0;
+      if (offset_x * offset_x + offset_y * offset_y > 1.0) {
+        continue;
       }
+      ++taps;
+      const auto sample_x = static_cast<std::int32_t>(std::lround(x + offset_x * radius));
+      const auto sample_y = static_cast<std::int32_t>(std::lround(y + offset_y * radius));
+      std::array<std::uint8_t, 4> pixel{0, 0, 0, 0};
+      if (!mixer_composite_snapshot_.isNull()) {
+        if (sample_x >= 0 && sample_y >= 0 && sample_x < mixer_composite_snapshot_.width() &&
+            sample_y < mixer_composite_snapshot_.height()) {
+          const auto* source = mixer_composite_snapshot_.constScanLine(sample_y) +
+                               static_cast<std::size_t>(sample_x) * 4U;
+          pixel = {source[0], source[1], source[2], source[3]};
+        }
+      } else {
+        pixel = brush_stroke_original_pixel(sample_x, sample_y);
+      }
+      const auto alpha = static_cast<double>(pixel[3]) / 255.0;
+      sum_pr += static_cast<double>(pixel[0]) * alpha;
+      sum_pg += static_cast<double>(pixel[1]) * alpha;
+      sum_pb += static_cast<double>(pixel[2]) * alpha;
+      sum_alpha += alpha;
     }
   }
-  patchy::begin_mixer_brush_stroke(mixer_brush_state_, sampled);
+  if (taps == 0 || sum_alpha <= 0.0) {
+    return {0, 0, 0, 0};
+  }
+  const auto to_byte = [](double value) {
+    return static_cast<std::uint8_t>(std::clamp(std::lround(value), 0L, 255L));
+  };
+  return {to_byte(sum_pr / sum_alpha), to_byte(sum_pg / sum_alpha), to_byte(sum_pb / sum_alpha),
+          to_byte(sum_alpha * 255.0 / taps)};
 }
 
 void CanvasWidget::install_brush_stroke_compositor(EditOptions& options, bool erase) {
@@ -1491,8 +1546,9 @@ void CanvasWidget::install_brush_stroke_compositor(EditOptions& options, bool er
     const auto brush_size = options.brush_size;
     options.dab_primary_provider =
         [this, brush_size](double x, double y, const EditColor& loaded_color) {
+          const auto picked = sample_mixer_pickup(x, y, brush_size);
           return patchy::mixer_brush_dab_color(mixer_brush_state_, x, y, brush_size, loaded_color,
-                                               mixer_wet_, mixer_load_, mixer_mix_);
+                                               picked, mixer_wet_, mixer_load_, mixer_mix_);
         };
   }
 

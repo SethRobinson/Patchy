@@ -763,55 +763,80 @@ void tool_brush_texture_and_dual_brush_render_deterministically() {
 
 }
 
-void mixer_brush_color_uses_one_stroke_start_sample_and_distance_decay() {
+void mixer_brush_pickup_average_follows_canvas_and_dries_only_at_wet_zero() {
+  // Since the 2026-08-14 claim review the mixer runs limited continuous pickup:
+  // ONE running canvas-only average, transient foreground lerp, linear mixing
+  // (docs/patent-research.md, docs/brushes.md). This test pins that model.
   patchy::MixerBrushState state;
   const patchy::EditColor sampled_blue{0, 30, 240, 255};
+  const patchy::EditColor canvas_white{255, 255, 255, 255};
   const patchy::EditColor loaded_red{240, 20, 0, 255};
-  patchy::begin_mixer_brush_stroke(state, sampled_blue);
+  patchy::begin_mixer_brush_stroke(state);
 
+  // First dab seeds the average from the canvas alone; wet100/mix100 deposits
+  // the picked color with no foreground contribution.
   const auto first = patchy::mixer_brush_dab_color(state, 10.0, 10.0, 20, loaded_red,
-                                                    100, 100, 100);
+                                                    sampled_blue, 100, 100, 100);
   CHECK(first.r == sampled_blue.r);
   CHECK(first.g == sampled_blue.g);
   CHECK(first.b == sampled_blue.b);
   CHECK(first.a == 255);
 
-  const auto later = patchy::mixer_brush_dab_color(state, 130.0, 10.0, 20, loaded_red,
-                                                    100, 100, 100);
-  CHECK(later.r > first.r);
-  CHECK(later.b < first.b);
-  CHECK(later.a < first.a);
-  CHECK(state.initial_sample.r == sampled_blue.r);
-  CHECK(state.initial_sample.g == sampled_blue.g);
-  CHECK(state.initial_sample.b == sampled_blue.b);
+  // The store follows the canvas: far-apart dabs over white pull the running
+  // average (and the deposit) toward white. The foreground never enters it.
+  auto later = first;
+  for (int i = 1; i <= 12; ++i) {
+    later = patchy::mixer_brush_dab_color(state, 10.0 + 40.0 * i, 10.0, 20, loaded_red,
+                                          canvas_white, 100, 100, 100);
+  }
+  CHECK(later.r > 200);
+  CHECK(later.g > 200);
+  CHECK(later.b > 200);
+  CHECK(later.a == 255);
 
+  // Wet 0 is a dry brush: pure foreground, Mix has no effect (Photoshop greys
+  // it out), and the canvas sample is ignored.
   patchy::MixerBrushState dry_state;
-  patchy::begin_mixer_brush_stroke(dry_state, sampled_blue);
+  patchy::begin_mixer_brush_stroke(dry_state);
   const auto dry = patchy::mixer_brush_dab_color(dry_state, 10.0, 10.0, 20, loaded_red,
-                                                 0, 100, 100);
+                                                 sampled_blue, 0, 100, 100);
   CHECK(dry.r == loaded_red.r);
   CHECK(dry.g == loaded_red.g);
   CHECK(dry.b == loaded_red.b);
   CHECK(dry.a == loaded_red.a);
 
+  // Mix 0 deposits pure foreground color even while wet.
+  patchy::MixerBrushState mix0_state;
+  patchy::begin_mixer_brush_stroke(mix0_state);
+  const auto mix0 = patchy::mixer_brush_dab_color(mix0_state, 10.0, 10.0, 20, loaded_red,
+                                                  sampled_blue, 50, 50, 0);
+  CHECK(mix0.r == loaded_red.r);
+  CHECK(mix0.b == loaded_red.b);
+
+  // Dry-out is Wet-0-only and linear: at Load 1 and diameter 20 the reserve is
+  // gone by distance 137; with any wetness the pickup feed sustains the stroke.
   patchy::MixerBrushState low_load_state;
-  patchy::begin_mixer_brush_stroke(low_load_state, sampled_blue);
+  patchy::begin_mixer_brush_stroke(low_load_state);
   (void)patchy::mixer_brush_dab_color(low_load_state, 0.0, 0.0, 20, loaded_red,
-                                      0, 1, 0);
+                                      sampled_blue, 0, 1, 0);
   const auto low_load = patchy::mixer_brush_dab_color(low_load_state, 40.0, 0.0, 20,
-                                                       loaded_red, 0, 1, 0);
+                                                       loaded_red, sampled_blue, 0, 1, 0);
   patchy::MixerBrushState full_load_state;
-  patchy::begin_mixer_brush_stroke(full_load_state, sampled_blue);
+  patchy::begin_mixer_brush_stroke(full_load_state);
   (void)patchy::mixer_brush_dab_color(full_load_state, 0.0, 0.0, 20, loaded_red,
-                                      0, 100, 0);
+                                      sampled_blue, 0, 100, 0);
   const auto full_load = patchy::mixer_brush_dab_color(full_load_state, 40.0, 0.0, 20,
-                                                        loaded_red, 0, 100, 0);
+                                                        loaded_red, sampled_blue, 0, 100, 0);
   CHECK(low_load.a < full_load.a);
   CHECK(full_load.a == loaded_red.a);
 
   // The same per-dab source rides the bitmap-tip path used by imported ABR tips.
+  // The provider reads the live layer like the canvas does, so the stroke picks
+  // up the blue fill it starts on and trends toward the transparent right half.
   auto document = make_tool_document();
   const auto layer_id = active_tool_layer(document);
+  CHECK(!patchy::fill_rect(document, layer_id, patchy::Rect{0, 0, 26, 48},
+                           tool_options(sampled_blue.r, sampled_blue.g, sampled_blue.b)).empty());
   const auto tip = make_solid_scaled_tip(9);
   auto options = tool_options(loaded_red.r, loaded_red.g, loaded_red.b);
   options.primary = loaded_red;
@@ -819,10 +844,18 @@ void mixer_brush_color_uses_one_stroke_start_sample_and_distance_decay() {
   options.brush_tip = &tip;
   options.brush_tip_spacing = 0.5;
   patchy::MixerBrushState tip_state;
-  patchy::begin_mixer_brush_stroke(tip_state, sampled_blue);
-  options.dab_primary_provider = [&tip_state](double x, double y,
-                                              const patchy::EditColor& loaded_color) {
-    return patchy::mixer_brush_dab_color(tip_state, x, y, 9, loaded_color, 100, 100, 75);
+  patchy::begin_mixer_brush_stroke(tip_state);
+  options.dab_primary_provider = [&tip_state, &document, layer_id](
+                                     double x, double y, const patchy::EditColor& loaded_color) {
+    const auto* layer = document.find_layer(layer_id);
+    patchy::EditColor sample{0, 0, 0, 0};
+    const auto sx = static_cast<std::int32_t>(x);
+    const auto sy = static_cast<std::int32_t>(y);
+    if (layer != nullptr && layer->bounds().contains(sx, sy)) {
+      const auto* pixel = layer->pixels().pixel(sx - layer->bounds().x, sy - layer->bounds().y);
+      sample = {pixel[0], pixel[1], pixel[2], pixel[3]};
+    }
+    return patchy::mixer_brush_dab_color(tip_state, x, y, 9, loaded_color, sample, 100, 100, 75);
   };
   patchy::BrushTipStrokeState stroke_state;
   CHECK(!patchy::paint_brush_segment(document, layer_id, 10.0, 24.0, 42.0, 24.0,
@@ -830,6 +863,8 @@ void mixer_brush_color_uses_one_stroke_start_sample_and_distance_decay() {
   CHECK(tip_state.distance > 20.0);
   const auto* start_pixel = document.find_layer(layer_id)->pixels().pixel(10, 24);
   const auto* end_pixel = document.find_layer(layer_id)->pixels().pixel(42, 24);
+  // Start stays dominated by the picked-up blue; the far end, fed by
+  // transparent canvas, keeps more of the foreground red share than the start.
   CHECK(start_pixel[2] > start_pixel[0]);
   CHECK(end_pixel[0] > start_pixel[0]);
   CHECK(end_pixel[2] < start_pixel[2]);
@@ -1663,8 +1698,8 @@ std::vector<patchy::test::TestCase> brush_engine_tests() {
       {"tool_brush_tip_inactive_dynamics_change_nothing", tool_brush_tip_inactive_dynamics_change_nothing},
       {"tool_brush_texture_and_dual_brush_render_deterministically",
        tool_brush_texture_and_dual_brush_render_deterministically},
-      {"mixer_brush_color_uses_one_stroke_start_sample_and_distance_decay",
-       mixer_brush_color_uses_one_stroke_start_sample_and_distance_decay},
+      {"mixer_brush_pickup_average_follows_canvas_and_dries_only_at_wet_zero",
+       mixer_brush_pickup_average_follows_canvas_and_dries_only_at_wet_zero},
       {"tool_brush_color_dynamics_varies_selected_colors_only",
        tool_brush_color_dynamics_varies_selected_colors_only},
       {"tool_brush_effect_pixels_round_trip_exactly_through_psd",

@@ -1130,7 +1130,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       smudge_state_ = {};
       mixer_brush_state_ = {};
       if (effective_tool == CanvasTool::MixerBrush) {
-        begin_mixer_brush_stroke(document_point);
+        begin_mixer_brush_stroke();
       }
       const auto stroke_brush_size = effective_brush_input().size;
       begin_axis_constrained_stroke(stroke_brush_size == 1 ? QPointF(document_point) : document_point_f);

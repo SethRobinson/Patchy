@@ -1685,6 +1685,9 @@ void MainWindow::load_tool_settings() {
   canvas_->set_mixer_load(current_mixer_load_);
   canvas_->set_mixer_mix(current_mixer_mix_);
   canvas_->set_mixer_flow(current_mixer_flow_);
+  canvas_->set_mixer_sample_all_layers(
+      settings.value(QStringLiteral("tools/mixerSampleAllLayers"), canvas_->mixer_sample_all_layers())
+          .toBool());
   canvas_->set_wand_tolerance(settings.value(QStringLiteral("tools/wandTolerance"), canvas_->wand_tolerance()).toInt());
   canvas_->set_wand_contiguous(settings.value(QStringLiteral("tools/wandContiguous"), canvas_->wand_contiguous()).toBool());
   canvas_->set_wand_sample_all_layers(
@@ -1980,6 +1983,7 @@ void MainWindow::save_tool_settings() const {
   settings.setValue(QStringLiteral("tools/mixerLoad"), current_mixer_load_);
   settings.setValue(QStringLiteral("tools/mixerMix"), current_mixer_mix_);
   settings.setValue(QStringLiteral("tools/mixerFlow"), current_mixer_flow_);
+  settings.setValue(QStringLiteral("tools/mixerSampleAllLayers"), canvas_->mixer_sample_all_layers());
   settings.setValue(QStringLiteral("tools/wandTolerance"), canvas_->wand_tolerance());
   settings.setValue(QStringLiteral("tools/wandContiguous"), canvas_->wand_contiguous());
   settings.setValue(QStringLiteral("tools/wandSampleAllLayers"), canvas_->wand_sample_all_layers());
@@ -2387,6 +2391,10 @@ void MainWindow::refresh_options_bar() {
   if (retouch_sample_all_layers_check_ != nullptr && canvas_ != nullptr) {
     QSignalBlocker blocker(retouch_sample_all_layers_check_);
     retouch_sample_all_layers_check_->setChecked(canvas_->retouch_sample_all_layers());
+  }
+  if (mixer_sample_all_layers_check_ != nullptr && canvas_ != nullptr) {
+    QSignalBlocker blocker(mixer_sample_all_layers_check_);
+    mixer_sample_all_layers_check_->setChecked(canvas_->mixer_sample_all_layers());
   }
   if (crop_ratio_w_spin_ != nullptr && crop_ratio_h_spin_ != nullptr && canvas_ != nullptr) {
     const QSignalBlocker w_blocker(crop_ratio_w_spin_);

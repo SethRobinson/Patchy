@@ -506,6 +506,15 @@ void click_widget_like_a_user(QWidget& widget, QPoint position,
 void drag(QWidget& widget, QPoint from, QPoint to, Qt::KeyboardModifiers modifiers = Qt::NoModifier,
           Qt::MouseButton button = Qt::LeftButton);
 
+// Press at document_path.front(), move through steps_per_segment interpolated
+// positions per segment, release at document_path.back(). Document coordinates,
+// mapped through the canvas view (the multi-point stroke shape the stress
+// harness proved out; canvas must be sized so every point maps inside it).
+void drag_document_path(patchy::ui::CanvasWidget& canvas, const std::vector<QPoint>& document_path,
+                        int steps_per_segment, Qt::KeyboardModifiers modifiers = Qt::NoModifier);
+
+void save_image_artifact(const std::string& name, const QImage& image);
+
 void send_double_click(QWidget& widget, QPoint position, Qt::KeyboardModifiers modifiers = Qt::NoModifier);
 
 void send_key(QWidget& widget, int key, Qt::KeyboardModifiers modifiers = Qt::NoModifier);

@@ -1307,6 +1307,7 @@ private:
   QPushButton* crop_cancel_button_{nullptr};
   QCheckBox* clone_aligned_check_{nullptr};
   QCheckBox* retouch_sample_all_layers_check_{nullptr};
+  QCheckBox* mixer_sample_all_layers_check_{nullptr};
   QComboBox* patch_mode_combo_{nullptr};
   QCheckBox* patch_transparent_check_{nullptr};
   QComboBox* pattern_stamp_pattern_combo_{nullptr};

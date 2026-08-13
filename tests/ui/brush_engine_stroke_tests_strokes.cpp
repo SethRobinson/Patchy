@@ -2431,6 +2431,8 @@ void ui_mixer_brush_uses_compact_controls_and_round_trips_raster_pixels() {
   CHECK(!window.findChild<QSpinBox*>(QStringLiteral("brushOpacitySpin"))->isVisible());
   CHECK(!window.findChild<QComboBox*>(QStringLiteral("brushPresetCombo"))->isVisible());
   CHECK(!window.findChild<QToolButton*>(QStringLiteral("brushDynamicsButton"))->isVisible());
+  auto* sample_all = window.findChild<QCheckBox*>(QStringLiteral("mixerSampleAllLayersCheck"));
+  CHECK(sample_all != nullptr && sample_all->isVisible() && !sample_all->isChecked());
   QTest::mouseClick(wet, Qt::LeftButton, Qt::NoModifier,
                     QPoint(wet->width() - 7, wet->height() / 2));
   QApplication::processEvents();
@@ -2443,7 +2445,13 @@ void ui_mixer_brush_uses_compact_controls_and_round_trips_raster_pixels() {
   CHECK(wet_popup != nullptr);
   CHECK(wet_popup->findChild<QSlider*>(QStringLiteral("mixerWetPopupSlider")) != nullptr);
   wet_popup->close();
+  // Wet 0 is a dry brush, so Mix greys out (Photoshop parity).
+  wet->setValue(0);
+  QApplication::processEvents();
+  CHECK(!mix->isEnabled());
   wet->setValue(100);
+  QApplication::processEvents();
+  CHECK(mix->isEnabled());
   load->setValue(100);
   mix->setValue(75);
   flow->setValue(100);
@@ -2493,6 +2501,123 @@ void ui_mixer_brush_uses_compact_controls_and_round_trips_raster_pixels() {
   CHECK(history != nullptr && history->currentItem() != nullptr);
   CHECK(history->currentItem()->text().contains(QStringLiteral("Mixer Brush")));
   save_widget_artifact("ui_mixer_brush", window);
+}
+
+void ui_mixer_sample_all_layers_switches_stroke_start_sample() {
+  patchy::Document document(64, 24, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer(
+      "Base", solid_pixels(64, 24, patchy::PixelFormat::rgba8(), QColor(20, 40, 230, 255)));
+  auto& edit_layer = document.add_pixel_layer(
+      "Edit", solid_pixels(64, 24, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0)));
+  document.set_active_layer(edit_layer.id());
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(256, 96);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::MixerBrush);
+  canvas.set_primary_color(QColor(230, 20, 20));
+  canvas.set_brush_size(10);
+  canvas.set_brush_softness(0);
+  canvas.set_mixer_wet(100);
+  canvas.set_mixer_load(50);
+  canvas.set_mixer_mix(100);
+  canvas.set_mixer_flow(100);
+  canvas.show();
+  QApplication::processEvents();
+  // Photoshop-parity default: off.
+  CHECK(!canvas.mixer_sample_all_layers());
+
+  // Off: at Mix 100 the deposit is pure pickup, and the transparent active
+  // layer offers nothing to pick up, so the stroke lays (almost) no paint.
+  drag_document_path(canvas, {QPoint(12, 8), QPoint(52, 8)}, 20);
+  CHECK(edit_layer.pixels().pixel(32, 8)[3] < 30);
+
+  // On: the merged composite (the blue Base layer) feeds the pickup, so the
+  // same stroke paints blue onto the active layer.
+  canvas.set_mixer_sample_all_layers(true);
+  drag_document_path(canvas, {QPoint(12, 16), QPoint(52, 16)}, 20);
+  const auto* painted = edit_layer.pixels().pixel(32, 16);
+  CHECK(painted[3] > 200);
+  CHECK(painted[2] > 150);
+  CHECK(painted[2] > painted[0]);
+}
+
+// Mirrors the Photoshop capture matrix in local-test-fixtures/mixer-calibration:
+// same scene (white 500x260, blue square x 150-330), same three strokes per cell
+// (full crossing y=70, exit-only y=130, straddle start y=190), one row per
+// settings cell. The saved sheet is the Patchy half of the side-by-side
+// comparison against the machine-local Photoshop captures.
+void ui_mixer_calibration_contact_sheet() {
+  struct Cell {
+    const char* label;
+    int wet;
+    int load;
+    int mix;
+    int flow;
+  };
+  const std::array<Cell, 8> cells = {{
+      {"wet 0 load 50 mix 50", 0, 50, 50, 100},
+      {"wet 10 load 50 mix 50", 10, 50, 50, 100},
+      {"wet 25 load 50 mix 50", 25, 50, 50, 100},
+      {"wet 50 load 50 mix 50", 50, 50, 50, 100},
+      {"wet 75 load 50 mix 50", 75, 50, 50, 100},
+      {"wet 100 load 50 mix 50", 100, 50, 50, 100},
+      {"wet 50 load 50 mix 100", 50, 50, 100, 100},
+      {"wet 0 load 1 mix 50", 0, 1, 50, 100},
+  }};
+
+  constexpr int kCellWidth = 500;
+  constexpr int kCellHeight = 260;
+  QImage sheet(kCellWidth, kCellHeight * static_cast<int>(cells.size()), QImage::Format_RGB888);
+  sheet.fill(Qt::white);
+  QPainter painter(&sheet);
+
+  for (std::size_t index = 0; index < cells.size(); ++index) {
+    const auto& cell = cells[index];
+    patchy::Document document(kCellWidth, kCellHeight, patchy::PixelFormat::rgb8());
+    auto& layer = document.add_pixel_layer(
+        "Scene", solid_pixels(kCellWidth, kCellHeight, patchy::PixelFormat::rgb8(), Qt::white));
+    for (int y = 20; y < 240; ++y) {
+      for (int x = 150; x < 330; ++x) {
+        auto* px = layer.pixels().pixel(x, y);
+        px[0] = 0;
+        px[1] = 0;
+        px[2] = 255;
+      }
+    }
+    document.set_active_layer(layer.id());
+
+    patchy::ui::CanvasWidget canvas;
+    canvas.resize(kCellWidth, kCellHeight);
+    canvas.set_document(&document);
+    canvas.set_tool(patchy::ui::CanvasTool::MixerBrush);
+    canvas.set_primary_color(QColor(230, 20, 20));
+    canvas.set_brush_size(30);
+    canvas.set_brush_softness(0);
+    canvas.set_mixer_wet(cell.wet);
+    canvas.set_mixer_load(cell.load);
+    canvas.set_mixer_mix(cell.mix);
+    canvas.set_mixer_flow(cell.flow);
+    canvas.show();
+    QApplication::processEvents();
+
+    drag_document_path(canvas, {QPoint(30, 70), QPoint(470, 70)}, 110);
+    drag_document_path(canvas, {QPoint(240, 130), QPoint(470, 130)}, 58);
+    drag_document_path(canvas, {QPoint(330, 190), QPoint(470, 190)}, 35);
+
+    const auto image = patchy::ui::qimage_from_document(document, false);
+    painter.drawImage(0, static_cast<int>(index) * kCellHeight, image);
+    painter.setPen(Qt::black);
+    painter.drawText(QPoint(8, static_cast<int>(index) * kCellHeight + 14),
+                     QString::fromLatin1(cell.label));
+  }
+  painter.end();
+  save_image_artifact("ui_mixer_calibration_contact_sheet", sheet);
+
+  // Relational floor so the sheet cannot silently go blank: the wet-0 cell's
+  // crossing stroke must paint foreground red near its start.
+  const auto wet0_start = sheet.pixelColor(60, 70);
+  CHECK(wet0_start.red() > 180 && wet0_start.blue() < 100);
 }
 
 void ui_copy_ignores_hidden_active_layer() {
@@ -2958,6 +3083,9 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part1() {
        ui_wet_edges_uses_one_continuous_stroke_boundary},
       {"ui_mixer_brush_uses_compact_controls_and_round_trips_raster_pixels",
        ui_mixer_brush_uses_compact_controls_and_round_trips_raster_pixels},
+      {"ui_mixer_sample_all_layers_switches_stroke_start_sample",
+       ui_mixer_sample_all_layers_switches_stroke_start_sample},
+      {"ui_mixer_calibration_contact_sheet", ui_mixer_calibration_contact_sheet},
       {"ui_copy_ignores_hidden_active_layer", ui_copy_ignores_hidden_active_layer},
       {"ui_copy_selected_layers_copies_composited_selection", ui_copy_selected_layers_copies_composited_selection},
       {"ui_eraser_on_background_reveals_transparency_and_size_cursor",

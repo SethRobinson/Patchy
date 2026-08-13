@@ -3512,6 +3512,9 @@ void MainWindow::refresh_document_info() {
                      .arg(canvas_->mixer_load())
                      .arg(canvas_->mixer_mix())
                      .arg(canvas_->mixer_flow());
+        if (canvas_->mixer_sample_all_layers()) {
+          lines << tr("Sample All Layers");
+        }
       } else {
         lines << tr("Opacity: %1%").arg(canvas_->brush_opacity());
       }

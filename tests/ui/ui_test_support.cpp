@@ -141,6 +141,37 @@ void drag(QWidget& widget, QPoint from, QPoint to, Qt::KeyboardModifiers modifie
   send_mouse(widget, QEvent::MouseButtonRelease, to, button, Qt::NoButton, modifiers);
 }
 
+void drag_document_path(patchy::ui::CanvasWidget& canvas, const std::vector<QPoint>& document_path,
+                        int steps_per_segment, Qt::KeyboardModifiers modifiers) {
+  if (document_path.size() < 2 || steps_per_segment < 1) {
+    return;
+  }
+  const auto widget_point = [&canvas](QPoint document_point) {
+    return canvas.widget_position_for_document_point(document_point);
+  };
+  send_mouse(canvas, QEvent::MouseButtonPress, widget_point(document_path.front()), Qt::LeftButton,
+             Qt::LeftButton, modifiers);
+  for (std::size_t segment = 0; segment + 1 < document_path.size(); ++segment) {
+    const auto from = document_path[segment];
+    const auto to = document_path[segment + 1];
+    for (int i = 1; i <= steps_per_segment; ++i) {
+      const auto t = static_cast<double>(i) / steps_per_segment;
+      const QPoint point(from.x() + static_cast<int>(std::lround((to.x() - from.x()) * t)),
+                         from.y() + static_cast<int>(std::lround((to.y() - from.y()) * t)));
+      send_mouse(canvas, QEvent::MouseMove, widget_point(point), Qt::NoButton, Qt::LeftButton, modifiers);
+    }
+  }
+  send_mouse(canvas, QEvent::MouseButtonRelease, widget_point(document_path.back()), Qt::LeftButton,
+             Qt::NoButton, modifiers);
+}
+
+void save_image_artifact(const std::string& name, const QImage& image) {
+  ensure_artifact_dir();
+  const auto path = QString::fromStdString((std::filesystem::path("test-artifacts") / (name + ".png")).string());
+  CHECK(!image.isNull());
+  CHECK(image.save(path));
+}
+
 void send_double_click(QWidget& widget, QPoint position, Qt::KeyboardModifiers modifiers) {
   QMouseEvent event(QEvent::MouseButtonDblClick, position, widget.mapToGlobal(position), Qt::LeftButton,
                     Qt::LeftButton, modifiers);

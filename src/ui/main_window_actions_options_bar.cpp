@@ -1268,13 +1268,14 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     });
     return spin;
   };
-  add_mixer_percentage("Wet:", "mixerWetSpin", 0, current_mixer_wet_,
-                       [](MainWindow& window, int value) {
-                         window.current_mixer_wet_ = value;
-                         if (window.canvas_ != nullptr) {
-                           window.canvas_->set_mixer_wet(value);
-                         }
-                       });
+  auto* mixer_wet_spin =
+      add_mixer_percentage("Wet:", "mixerWetSpin", 0, current_mixer_wet_,
+                           [](MainWindow& window, int value) {
+                             window.current_mixer_wet_ = value;
+                             if (window.canvas_ != nullptr) {
+                               window.canvas_->set_mixer_wet(value);
+                             }
+                           });
   add_mixer_percentage("Load:", "mixerLoadSpin", 1, current_mixer_load_,
                        [](MainWindow& window, int value) {
                          window.current_mixer_load_ = value;
@@ -1282,13 +1283,31 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
                            window.canvas_->set_mixer_load(value);
                          }
                        });
-  add_mixer_percentage("Mix:", "mixerMixSpin", 0, current_mixer_mix_,
-                       [](MainWindow& window, int value) {
-                         window.current_mixer_mix_ = value;
-                         if (window.canvas_ != nullptr) {
-                           window.canvas_->set_mixer_mix(value);
-                         }
-                       });
+  auto* mixer_mix_spin =
+      add_mixer_percentage("Mix:", "mixerMixSpin", 0, current_mixer_mix_,
+                           [](MainWindow& window, int value) {
+                             window.current_mixer_mix_ = value;
+                             if (window.canvas_ != nullptr) {
+                               window.canvas_->set_mixer_mix(value);
+                             }
+                           });
+  // Wet 0 is a dry brush with no pickup, so Mix has nothing to blend;
+  // Photoshop greys the control out the same way.
+  mixer_mix_spin->setEnabled(current_mixer_wet_ > 0);
+  connect(mixer_wet_spin, &QSpinBox::valueChanged, mixer_mix_spin,
+          [mixer_mix_spin](int wet) { mixer_mix_spin->setEnabled(wet > 0); });
+
+  mixer_sample_all_layers_check_ = new CheckGlyphBox(tr("Sample All Layers"), toolbar);
+  mixer_sample_all_layers_check_->setObjectName(QStringLiteral("mixerSampleAllLayersCheck"));
+  mixer_sample_all_layers_check_->setChecked(canvas_defaults->mixer_sample_all_layers());
+  mixer_sample_all_layers_check_->setToolTip(tr("Sample the merged document instead of the active layer"));
+  add_option_widget(mixer_sample_all_layers_check_, {CanvasTool::MixerBrush});
+  connect(mixer_sample_all_layers_check_, &QCheckBox::toggled, this, [this](bool checked) {
+    if (canvas_ != nullptr) {
+      canvas_->set_mixer_sample_all_layers(checked);
+      save_tool_settings();
+    }
+  });
   add_mixer_percentage("Flow:", "mixerFlowSpin", 1, current_mixer_flow_,
                        [](MainWindow& window, int value) {
                          window.current_mixer_flow_ = value;

@@ -334,6 +334,9 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   session->canvas->set_mixer_load(current_mixer_load_);
   session->canvas->set_mixer_mix(current_mixer_mix_);
   session->canvas->set_mixer_flow(current_mixer_flow_);
+  if (mixer_sample_all_layers_check_ != nullptr) {
+    session->canvas->set_mixer_sample_all_layers(mixer_sample_all_layers_check_->isChecked());
+  }
   apply_pattern_stamp_settings_to_canvas(session->canvas);
   apply_selection_modes_to_canvas(session->canvas);
   session->canvas->set_tool(current_tool_);
@@ -503,6 +506,9 @@ void MainWindow::activate_document_canvas(CanvasWidget* canvas) {
   canvas_->set_mixer_load(current_mixer_load_);
   canvas_->set_mixer_mix(current_mixer_mix_);
   canvas_->set_mixer_flow(current_mixer_flow_);
+  if (mixer_sample_all_layers_check_ != nullptr) {
+    canvas_->set_mixer_sample_all_layers(mixer_sample_all_layers_check_->isChecked());
+  }
   apply_pattern_stamp_settings_to_canvas(canvas_);
   if (canvas_changed) {
     apply_active_brush_settings_to_canvas();

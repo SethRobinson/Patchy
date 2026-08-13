@@ -107,22 +107,35 @@ struct SmudgeState {
   std::vector<std::uint8_t> sample_rgba;
 };
 
-// Mixer Brush design-around state: one RGBA canvas sample is captured at mouse-down and never
-// refreshed during the stroke. There is no per-bristle reservoir/pickup texture, fill channel,
-// drying model, or evolving paint store. See docs/brushes.md.
+// Mixer Brush design boundary (claim review 2026-08-14, docs/patent-research.md): the pickup
+// store is ONE running premultiplied-RGBA average fed only by per-dab canvas samples. It is
+// never seeded from or blended with the foreground/deposit color (US 7768525 claim-14 rule,
+// binding until 2028-03-07); the foreground enters only the transient per-dab deposit
+// interpolation in mixer_brush_dab_color. No per-pixel/per-bristle brush state or spatial
+// pickup texture, no paint-amount/fill channel (US 8749572), no erodible tip state
+// (US 10217253), linear color mixing only (US 10924633 B1), and no region-sweep loading mode
+// or multi-cell brush model (US 8654143). See docs/brushes.md.
 struct MixerBrushState {
   bool initialized{false};
-  EditColor initial_sample{};
+  bool has_pickup{false};
+  // Running pickup average, premultiplied RGBA in 0..255 doubles. Canvas-derived only.
+  double pickup_r{0.0};
+  double pickup_g{0.0};
+  double pickup_b{0.0};
+  double pickup_a{0.0};
   bool has_last_dab{false};
   double last_dab_x{0.0};
   double last_dab_y{0.0};
   double distance{0.0};
 };
 
-void begin_mixer_brush_stroke(MixerBrushState& state, EditColor initial_sample) noexcept;
+void begin_mixer_brush_stroke(MixerBrushState& state) noexcept;
+// canvas_sample is the straight-alpha average of the CURRENT canvas under the brush footprint
+// at (x, y); the caller supplies it so this stays pure and testable.
 [[nodiscard]] EditColor mixer_brush_dab_color(MixerBrushState& state, double x, double y,
-                                              int brush_size, EditColor loaded_color, int wet,
-                                              int load, int mix) noexcept;
+                                              int brush_size, EditColor loaded_color,
+                                              EditColor canvas_sample, int wet, int load,
+                                              int mix) noexcept;
 
 enum class CanvasAnchor {
   TopLeft,

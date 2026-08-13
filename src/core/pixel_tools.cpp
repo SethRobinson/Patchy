@@ -879,19 +879,63 @@ void visit_pixel_line(std::int32_t x0, std::int32_t y0, std::int32_t x1, std::in
 
 }  // namespace
 
-void begin_mixer_brush_stroke(MixerBrushState& state, EditColor initial_sample) noexcept {
+namespace {
+
+// Mixer response constants calibrated against Photoshop 2026 COM captures
+// (local-test-fixtures/mixer-calibration, 2026-08-14; method and fitted values
+// recorded in docs/brushes.md). Distances are in brush diameters.
+//
+// Pickup persistence: the running average approaches the canvas color with
+// length constant L = D * (kMixerPickupBase + kMixerPickupWetScale * wet).
+constexpr double kMixerPickupBase = 0.15;
+constexpr double kMixerPickupWetScale = 2.35;
+// Dry-out (Wet 0 only): deposit alpha ramps linearly to zero over
+// D * (kMixerDryBase + kMixerDryLoadScale * load); Load >= 99.5% never dries.
+constexpr double kMixerDryBase = 6.6;
+constexpr double kMixerDryLoadScale = 24.0;
+// Deposit ratio r = share of the picked-up color in the deposit, modeled as
+// interp(wet anchors) * interp(mix anchors) / r(0.5, 0.5), clamped to [0, 1].
+// Anchor values are the measured Photoshop steady-state ratios.
+constexpr std::array<std::pair<double, double>, 5> kMixerWetRatioAnchors = {{
+    {0.10, 0.34}, {0.25, 0.41}, {0.50, 0.47}, {0.75, 0.54}, {1.00, 0.60}}};
+constexpr std::array<std::pair<double, double>, 5> kMixerMixRatioAnchors = {{
+    {0.00, 0.00}, {0.25, 0.35}, {0.50, 0.47}, {0.75, 0.69}, {1.00, 0.97}}};
+constexpr double kMixerRatioCenter = 0.47;
+
+template <std::size_t N>
+[[nodiscard]] double interpolate_anchors(const std::array<std::pair<double, double>, N>& anchors,
+                                         double value) noexcept {
+  if (value <= anchors.front().first) {
+    return anchors.front().second;
+  }
+  for (std::size_t i = 1; i < anchors.size(); ++i) {
+    if (value <= anchors[i].first) {
+      const auto [x0, y0] = anchors[i - 1];
+      const auto [x1, y1] = anchors[i];
+      const auto t = (value - x0) / (x1 - x0);
+      return y0 + (y1 - y0) * t;
+    }
+  }
+  return anchors.back().second;
+}
+
+}  // namespace
+
+void begin_mixer_brush_stroke(MixerBrushState& state) noexcept {
   state = {};
   state.initialized = true;
-  state.initial_sample = initial_sample;
 }
 
 EditColor mixer_brush_dab_color(MixerBrushState& state, double x, double y, int brush_size,
-                                EditColor loaded_color, int wet, int load, int mix) noexcept {
+                                EditColor loaded_color, EditColor canvas_sample, int wet,
+                                int load, int mix) noexcept {
   if (!state.initialized) {
-    begin_mixer_brush_stroke(state, loaded_color);
+    begin_mixer_brush_stroke(state);
   }
+  double dab_distance = 0.0;
   if (state.has_last_dab) {
-    state.distance += std::hypot(x - state.last_dab_x, y - state.last_dab_y);
+    dab_distance = std::hypot(x - state.last_dab_x, y - state.last_dab_y);
+    state.distance += dab_distance;
   }
   state.last_dab_x = x;
   state.last_dab_y = y;
@@ -902,28 +946,71 @@ EditColor mixer_brush_dab_color(MixerBrushState& state, double x, double y, int 
   const auto mix_fraction = static_cast<double>(std::clamp(mix, 0, 100)) / 100.0;
   const auto diameter = static_cast<double>(std::max(1, brush_size));
 
-  // One mouse-down sample fades along the stroke. It is deliberately never refreshed from the
-  // canvas: this is a direct weighted RGBA interpolation, not dynamic paint pickup, a bristle
-  // reservoir, a fill-channel simulation, or a 3D RGB curve (see docs/brushes.md).
-  const auto pickup_length = diameter * (0.5 + wet_fraction * 6.0);
-  const auto pickup_decay = wet_fraction <= 0.0 ? 0.0 : std::exp(-state.distance / pickup_length);
-  const auto load_length = diameter * (0.25 + load_fraction * 6.0);
-  const auto load_decay = load_fraction >= 0.995
-                              ? 1.0
-                              : std::exp(-state.distance / load_length);
-  const auto sample_alpha = static_cast<double>(state.initial_sample.a) / 255.0;
-  const auto sample_weight = wet_fraction * mix_fraction * sample_alpha;
-  const auto canvas_influence = std::clamp(sample_weight * pickup_decay, 0.0, 1.0);
-  const auto alpha_factor = std::clamp(canvas_influence + (1.0 - sample_weight) * load_decay,
-                                       0.0, 1.0);
-  const auto mix_channel = [canvas_influence](std::uint8_t loaded, std::uint8_t sampled) {
-    return clamp_byte(static_cast<float>(static_cast<double>(loaded) * (1.0 - canvas_influence) +
-                                         static_cast<double>(sampled) * canvas_influence));
+  // Limited pickup inside the reviewed boundary (docs/patent-research.md,
+  // 2026-08-14): ONE running premultiplied-RGBA average, fed only by canvas
+  // samples, approached with a distance-parameterized linear blend. It is never
+  // seeded from or contaminated by the foreground; the foreground joins only in
+  // the transient deposit interpolation below and the result is never written
+  // back into the store. All mixing is linear (no curvature parameter).
+  const auto sample_alpha = static_cast<double>(canvas_sample.a) / 255.0;
+  const auto sample_pr = static_cast<double>(canvas_sample.r) * sample_alpha;
+  const auto sample_pg = static_cast<double>(canvas_sample.g) * sample_alpha;
+  const auto sample_pb = static_cast<double>(canvas_sample.b) * sample_alpha;
+  const auto sample_pa = 255.0 * sample_alpha;
+  if (!state.has_pickup) {
+    state.pickup_r = sample_pr;
+    state.pickup_g = sample_pg;
+    state.pickup_b = sample_pb;
+    state.pickup_a = sample_pa;
+    state.has_pickup = true;
+  } else {
+    const auto pickup_length = diameter * (kMixerPickupBase + kMixerPickupWetScale * wet_fraction);
+    const auto blend = 1.0 - std::exp(-dab_distance / std::max(pickup_length, 1e-6));
+    state.pickup_r += (sample_pr - state.pickup_r) * blend;
+    state.pickup_g += (sample_pg - state.pickup_g) * blend;
+    state.pickup_b += (sample_pb - state.pickup_b) * blend;
+    state.pickup_a += (sample_pa - state.pickup_a) * blend;
+  }
+
+  // Deposit ratio: measured Photoshop steady-state anchors, separable product
+  // model. Wet 0 is a hard dry brush (Photoshop greys Mix out there).
+  const auto ratio = wet_fraction <= 0.0
+                         ? 0.0
+                         : std::clamp(interpolate_anchors(kMixerWetRatioAnchors, wet_fraction) *
+                                          interpolate_anchors(kMixerMixRatioAnchors, mix_fraction) /
+                                          kMixerRatioCenter,
+                                      0.0, 1.0);
+
+  // Transient deposit blend in premultiplied space; never stored.
+  const auto loaded_alpha = static_cast<double>(loaded_color.a);
+  auto deposit_pr = static_cast<double>(loaded_color.r) * (loaded_alpha / 255.0);
+  auto deposit_pg = static_cast<double>(loaded_color.g) * (loaded_alpha / 255.0);
+  auto deposit_pb = static_cast<double>(loaded_color.b) * (loaded_alpha / 255.0);
+  auto deposit_pa = loaded_alpha;
+  deposit_pr += (state.pickup_r - deposit_pr) * ratio;
+  deposit_pg += (state.pickup_g - deposit_pg) * ratio;
+  deposit_pb += (state.pickup_b - deposit_pb) * ratio;
+  deposit_pa += (state.pickup_a - deposit_pa) * ratio;
+
+  // Dry-out applies only to the dry brush: with any wetness the pickup feed
+  // sustains the stroke indefinitely (observed Photoshop behavior).
+  if (wet_fraction <= 0.0 && load_fraction < 0.995) {
+    const auto dry_length = diameter * (kMixerDryBase + kMixerDryLoadScale * load_fraction);
+    const auto reserve = std::clamp(1.0 - state.distance / dry_length, 0.0, 1.0);
+    deposit_pr *= reserve;
+    deposit_pg *= reserve;
+    deposit_pb *= reserve;
+    deposit_pa *= reserve;
+  }
+
+  if (deposit_pa <= 0.5) {
+    return {loaded_color.r, loaded_color.g, loaded_color.b, 0};
+  }
+  const auto unpremultiply = [deposit_pa](double premultiplied) {
+    return clamp_byte(static_cast<float>(premultiplied * 255.0 / deposit_pa));
   };
-  return {mix_channel(loaded_color.r, state.initial_sample.r),
-          mix_channel(loaded_color.g, state.initial_sample.g),
-          mix_channel(loaded_color.b, state.initial_sample.b),
-          clamp_byte(static_cast<float>(static_cast<double>(loaded_color.a) * alpha_factor))};
+  return {unpremultiply(deposit_pr), unpremultiply(deposit_pg), unpremultiply(deposit_pb),
+          clamp_byte(static_cast<float>(deposit_pa))};
 }
 
 [[nodiscard]] PixelFormat canvas_resized_format_for_layer(const Layer& layer, const PixelBuffer& source,
