@@ -189,6 +189,10 @@ int main(int argc, char* argv[]) {
     settings.remove(QStringLiteral("imports"));
     settings.remove(QStringLiteral("window"));
     settings.remove(QStringLiteral("filters/gallery"));
+    // Hotkey tests customize-then-restore this group; a run killed in between
+    // would otherwise leave the overrides in the shared store permanently and
+    // fail every later default-shortcut assertion.
+    settings.remove(QStringLiteral("hotkeys"));
     settings.remove(QStringLiteral("preferences/language"));
     settings.remove(QStringLiteral("preferences/colorScheme"));
     settings.setValue(QStringLiteral("updates/checkOnStartup"), false);
