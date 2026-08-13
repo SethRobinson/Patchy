@@ -2590,6 +2590,12 @@ void MainWindow::sync_brush_controls_from_canvas() {
   sync_mixer_spin("mixerLoadSpin", current_mixer_load_);
   sync_mixer_spin("mixerMixSpin", current_mixer_mix_);
   sync_mixer_spin("mixerFlowSpin", current_mixer_flow_);
+  // Blocked setValue skips the live wet->mix-enable and combo-derive
+  // connections; re-derive both here.
+  if (auto* mixer_mix = findChild<QSpinBox*>(QStringLiteral("mixerMixSpin")); mixer_mix != nullptr) {
+    mixer_mix->setEnabled(current_mixer_wet_ > 0);
+  }
+  sync_mixer_combination_combo();
   if (auto* brush_softness = findChild<QSpinBox*>(QStringLiteral("brushSoftnessSpin")); brush_softness != nullptr) {
     QSignalBlocker blocker(brush_softness);
     brush_softness->setValue(canvas_->brush_softness());

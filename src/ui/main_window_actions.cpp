@@ -574,6 +574,7 @@ void MainWindow::retranslate_ui() {
   refresh_language_actions();
   retranslate_blend_combo();
   retranslate_brush_preset_combo();
+  retranslate_mixer_combination_combo();
   if (text_size_spin_ != nullptr) {
     text_size_spin_->setSuffix(tr(" pt"));
   }

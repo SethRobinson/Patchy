@@ -406,7 +406,78 @@ protected:
   }
 };
 
+// Photoshop's Useful Mixer Brush Combinations as Wet/Load/Mix triples.
+// mix < 0 leaves the Mix spin untouched (the dry rows, where Photoshop greys
+// Mix out). Names are generic descriptive English words, tr()'d for display.
+// Values follow Adobe's documented combination pattern and await one manual
+// in-Photoshop verification pass (the dropdown is not reachable over COM); see
+// local-test-fixtures/mixer-calibration/notes.md.
+struct MixerCombination {
+  const char* name;
+  int wet;
+  int load;
+  int mix;
+};
+
+const std::array<MixerCombination, 12>& mixer_useful_combinations() {
+  static constexpr std::array<MixerCombination, 12> kCombinations = {{
+      {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Dry"), 0, 50, -1},
+      {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Dry, Light Load"), 0, 5, -1},
+      {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Dry, Heavy Load"), 0, 100, -1},
+      {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Moist"), 10, 50, 50},
+      {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Moist, Light Mix"), 10, 50, 0},
+      {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Moist, Heavy Mix"), 10, 50, 100},
+      {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Wet"), 50, 50, 50},
+      {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Wet, Light Mix"), 50, 50, 0},
+      {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Wet, Heavy Mix"), 50, 50, 100},
+      {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Very Wet"), 100, 50, 50},
+      {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Very Wet, Light Mix"), 100, 50, 0},
+      {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Very Wet, Heavy Mix"), 100, 50, 100},
+  }};
+  return kCombinations;
+}
+
 }  // namespace
+
+void MainWindow::retranslate_mixer_combination_combo() {
+  if (mixer_combination_combo_ == nullptr) {
+    return;
+  }
+  const QSignalBlocker blocker(mixer_combination_combo_);
+  mixer_combination_combo_->setItemText(0, tr("Custom"));
+  const auto& combinations = mixer_useful_combinations();
+  for (std::size_t i = 0; i < combinations.size(); ++i) {
+    mixer_combination_combo_->setItemText(static_cast<int>(i) + 1, tr(combinations[i].name));
+  }
+}
+
+void MainWindow::sync_mixer_combination_combo() {
+  if (mixer_combination_combo_ == nullptr) {
+    return;
+  }
+  const auto* wet_spin = findChild<QSpinBox*>(QStringLiteral("mixerWetSpin"));
+  const auto* load_spin = findChild<QSpinBox*>(QStringLiteral("mixerLoadSpin"));
+  const auto* mix_spin = findChild<QSpinBox*>(QStringLiteral("mixerMixSpin"));
+  if (wet_spin == nullptr || load_spin == nullptr || mix_spin == nullptr) {
+    return;
+  }
+  int selection = 0;  // Custom
+  const auto& combinations = mixer_useful_combinations();
+  for (std::size_t i = 0; i < combinations.size(); ++i) {
+    const auto& combination = combinations[i];
+    if (combination.wet != wet_spin->value() || combination.load != load_spin->value()) {
+      continue;
+    }
+    // Dry rows ignore Mix entirely (the control is disabled at Wet 0).
+    if (combination.mix >= 0 && combination.mix != mix_spin->value()) {
+      continue;
+    }
+    selection = static_cast<int>(i) + 1;
+    break;
+  }
+  const QSignalBlocker blocker(mixer_combination_combo_);
+  mixer_combination_combo_->setCurrentIndex(selection);
+}
 
 void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   // The startup-defaults donor canvas resolved by create_actions() (see the
@@ -1249,6 +1320,21 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     }
   });
 
+  // Photoshop's "Useful Mixer Brush Combinations" dropdown: each entry is just
+  // a Wet/Load/Mix triple. Values follow Adobe's documented combinations
+  // (structural pattern: Wet tiers 0/10/50/100, Load 50 with Dry Light/Heavy
+  // variants, Mix 0/50/100); the dropdown itself is not scriptable via COM, so
+  // these await one manual in-UI verification pass (see
+  // local-test-fixtures/mixer-calibration/notes.md). Selection is derived from
+  // the current spin values and never persisted separately.
+  mixer_combination_combo_ = new QComboBox(toolbar);
+  mixer_combination_combo_->setObjectName(QStringLiteral("mixerCombinationCombo"));
+  mixer_combination_combo_->addItem(tr("Custom"));
+  for (const auto& combination : mixer_useful_combinations()) {
+    mixer_combination_combo_->addItem(tr(combination.name));
+  }
+  add_option_widget(mixer_combination_combo_, {CanvasTool::MixerBrush});
+
   const auto add_mixer_percentage = [this, toolbar, add_option_label, add_option_widget](
                                         const char* label_source, const char* object_name,
                                         int minimum, int value, auto setter) {
@@ -1276,13 +1362,14 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
                                window.canvas_->set_mixer_wet(value);
                              }
                            });
-  add_mixer_percentage("Load:", "mixerLoadSpin", 1, current_mixer_load_,
-                       [](MainWindow& window, int value) {
-                         window.current_mixer_load_ = value;
-                         if (window.canvas_ != nullptr) {
-                           window.canvas_->set_mixer_load(value);
-                         }
-                       });
+  auto* mixer_load_spin =
+      add_mixer_percentage("Load:", "mixerLoadSpin", 1, current_mixer_load_,
+                           [](MainWindow& window, int value) {
+                             window.current_mixer_load_ = value;
+                             if (window.canvas_ != nullptr) {
+                               window.canvas_->set_mixer_load(value);
+                             }
+                           });
   auto* mixer_mix_spin =
       add_mixer_percentage("Mix:", "mixerMixSpin", 0, current_mixer_mix_,
                            [](MainWindow& window, int value) {
@@ -1296,6 +1383,33 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   mixer_mix_spin->setEnabled(current_mixer_wet_ > 0);
   connect(mixer_wet_spin, &QSpinBox::valueChanged, mixer_mix_spin,
           [mixer_mix_spin](int wet) { mixer_mix_spin->setEnabled(wet > 0); });
+
+  const auto apply_mixer_combination = [this, mixer_wet_spin, mixer_load_spin, mixer_mix_spin](
+                                           int combo_index) {
+    if (combo_index <= 0) {
+      return;  // Custom
+    }
+    const auto& combinations = mixer_useful_combinations();
+    const auto table_index = static_cast<std::size_t>(combo_index - 1);
+    if (table_index >= combinations.size()) {
+      return;
+    }
+    const auto& combination = combinations[table_index];
+    mixer_wet_spin->setValue(combination.wet);
+    mixer_load_spin->setValue(combination.load);
+    if (combination.mix >= 0) {
+      mixer_mix_spin->setValue(combination.mix);
+    }
+  };
+  // currentIndexChanged (not activated) so programmatic selection also applies;
+  // sync_mixer_combination_combo() sets the index under a QSignalBlocker, so
+  // derive-and-set never loops back through this handler.
+  connect(mixer_combination_combo_, &QComboBox::currentIndexChanged, this, apply_mixer_combination);
+  const auto resync_combination = [this] { sync_mixer_combination_combo(); };
+  connect(mixer_wet_spin, &QSpinBox::valueChanged, this, resync_combination);
+  connect(mixer_load_spin, &QSpinBox::valueChanged, this, resync_combination);
+  connect(mixer_mix_spin, &QSpinBox::valueChanged, this, resync_combination);
+  sync_mixer_combination_combo();
 
   mixer_sample_all_layers_check_ = new CheckGlyphBox(tr("Sample All Layers"), toolbar);
   mixer_sample_all_layers_check_->setObjectName(QStringLiteral("mixerSampleAllLayersCheck"));

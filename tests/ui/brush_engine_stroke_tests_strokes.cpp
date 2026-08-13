@@ -2503,6 +2503,47 @@ void ui_mixer_brush_uses_compact_controls_and_round_trips_raster_pixels() {
   save_widget_artifact("ui_mixer_brush", window);
 }
 
+void ui_mixer_useful_combination_presets_set_wet_load_mix() {
+  SettingsValueRestorer restore_wet(QStringLiteral("tools/mixerWet"));
+  SettingsValueRestorer restore_load(QStringLiteral("tools/mixerLoad"));
+  SettingsValueRestorer restore_mix(QStringLiteral("tools/mixerMix"));
+  SettingsValueRestorer restore_flow(QStringLiteral("tools/mixerFlow"));
+  SettingsValueRestorer restore_sample_all(QStringLiteral("tools/mixerSampleAllLayers"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Mixer Brush"))->trigger();
+  QApplication::processEvents();
+
+  auto* combo = window.findChild<QComboBox*>(QStringLiteral("mixerCombinationCombo"));
+  auto* wet = window.findChild<QSpinBox*>(QStringLiteral("mixerWetSpin"));
+  auto* load = window.findChild<QSpinBox*>(QStringLiteral("mixerLoadSpin"));
+  auto* mix = window.findChild<QSpinBox*>(QStringLiteral("mixerMixSpin"));
+  CHECK(combo != nullptr && combo->isVisible());
+  CHECK(wet != nullptr && load != nullptr && mix != nullptr);
+
+  combo->setCurrentIndex(combo->findText(QStringLiteral("Wet")));
+  QApplication::processEvents();
+  CHECK(wet->value() == 50 && load->value() == 50 && mix->value() == 50);
+  CHECK(canvas->mixer_wet() == 50 && canvas->mixer_mix() == 50);
+
+  combo->setCurrentIndex(combo->findText(QStringLiteral("Moist, Heavy Mix")));
+  QApplication::processEvents();
+  CHECK(wet->value() == 10 && load->value() == 50 && mix->value() == 100);
+
+  // A manual edit that matches no preset derives back to Custom.
+  wet->setValue(37);
+  QApplication::processEvents();
+  CHECK(combo->currentText() == QStringLiteral("Custom"));
+
+  // Dry rows ignore Mix (the control is disabled at Wet 0) and still match.
+  combo->setCurrentIndex(combo->findText(QStringLiteral("Dry")));
+  QApplication::processEvents();
+  CHECK(wet->value() == 0 && load->value() == 50);
+  CHECK(!mix->isEnabled());
+  CHECK(combo->currentText() == QStringLiteral("Dry"));
+}
+
 void ui_mixer_sample_all_layers_switches_stroke_start_sample() {
   patchy::Document document(64, 24, patchy::PixelFormat::rgba8());
   document.add_pixel_layer(
@@ -3085,6 +3126,8 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part1() {
        ui_mixer_brush_uses_compact_controls_and_round_trips_raster_pixels},
       {"ui_mixer_sample_all_layers_switches_stroke_start_sample",
        ui_mixer_sample_all_layers_switches_stroke_start_sample},
+      {"ui_mixer_useful_combination_presets_set_wet_load_mix",
+       ui_mixer_useful_combination_presets_set_wet_load_mix},
       {"ui_mixer_calibration_contact_sheet", ui_mixer_calibration_contact_sheet},
       {"ui_copy_ignores_hidden_active_layer", ui_copy_ignores_hidden_active_layer},
       {"ui_copy_selected_layers_copies_composited_selection", ui_copy_selected_layers_copies_composited_selection},

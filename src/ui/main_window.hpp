@@ -1093,6 +1093,8 @@ private:
   void retranslate_bound_children();
   void retranslate_blend_combo();
   void retranslate_brush_preset_combo();
+  void retranslate_mixer_combination_combo();
+  void sync_mixer_combination_combo();
   void refresh_language_actions();
   void refresh_options_bar();
   void register_document_action(QAction* action);
@@ -1309,6 +1311,7 @@ private:
   QCheckBox* retouch_sample_all_layers_check_{nullptr};
   QCheckBox* mixer_sample_all_layers_check_{nullptr};
   QComboBox* patch_mode_combo_{nullptr};
+  QComboBox* mixer_combination_combo_{nullptr};
   QCheckBox* patch_transparent_check_{nullptr};
   QComboBox* pattern_stamp_pattern_combo_{nullptr};
   QCheckBox* pattern_stamp_aligned_check_{nullptr};
