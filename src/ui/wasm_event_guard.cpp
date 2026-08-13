@@ -33,6 +33,30 @@ EM_JS(void, patchy_js_install_pending_event_queue_guard, (int noop_index), {
   };
 });
 
+// Chrome focuses its menu button on a bare Alt tap (Firefox opens its menu
+// bar); browser focus leaves Qt's DOM and every hotkey dies until the app is
+// clicked again. Qt cannot prevent this: its page-side handlers only queue
+// the event, and the C++ handler's preventDefault runs after the queue
+// drains, when the browser default has already fired (docs/wasm-input.md).
+// Capture phase on window runs synchronously at the top of DOM dispatch, in
+// time even for events queued behind a busy main-thread stint. preventDefault
+// only, never stopPropagation: Qt needs the bare Alt press/release for live
+// cursor swaps, the temporary eyedropper, and gesture modifiers. Alt+key
+// combos report the other key in ev.key and stay untouched here.
+EM_JS(void, patchy_js_install_alt_key_default_guard, (), {
+  if (window.__patchyAltKeyGuard) {
+    return;
+  }
+  window.__patchyAltKeyGuard = true;
+  const preventAltDefault = (ev) => {
+    if (ev.key === "Alt") {
+      ev.preventDefault();
+    }
+  };
+  window.addEventListener("keydown", preventAltDefault, true);
+  window.addEventListener("keyup", preventAltDefault, true);
+});
+
 namespace patchy::ui {
 
 void install_wasm_pending_event_queue_guard() {
@@ -42,6 +66,10 @@ void install_wasm_pending_event_queue_guard() {
   }
   static const auto noop_index = control->registerEventHandler([](emscripten::val) {});
   patchy_js_install_pending_event_queue_guard(static_cast<int>(noop_index));
+}
+
+void install_wasm_alt_key_guard() {
+  patchy_js_install_alt_key_default_guard();
 }
 
 }  // namespace patchy::ui

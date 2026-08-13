@@ -5321,6 +5321,9 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   // it under an outer sendPendingEvents batch; see wasm_event_guard.hpp. The
   // suspend-resume control exists once QApplication is constructed.
   install_wasm_pending_event_queue_guard();
+  // A bare Alt tap otherwise moves browser focus to Chrome's menu button and
+  // hotkeys die until the app is clicked; see wasm_event_guard.hpp.
+  install_wasm_alt_key_guard();
   // The wasm-only dialogs that call QDialog::exec directly (the save-name
   // prompt in dialog_utils_wasm.cpp) also need the app-wide dialog guards.
   ensure_wasm_dialog_guards();

@@ -30,12 +30,23 @@ the wasm build. Verified against Qt 6.10.3
 
 Qt receives keydown only while one of its DOM elements owns browser focus
 (the per-window contenteditable `.qt-window-focus-helper` div; keydown
-listeners sit on the window's client-area div). Two thieves:
+listeners sit on the window's client-area div). Three thieves:
 
 - **Patchy-side DOM interactions.** Creating or clicking a DOM element (the
   picker's `<input>`, the download anchor) moves browser focus off Qt.
   Call `restore_qt_dom_focus()` (dialog_utils_wasm) after any such
   interaction.
+- **The bare-Alt browser default.** Tapping Alt alone makes Chrome focus its
+  menu ("customize and control") button and Firefox open its menu bar;
+  browser focus leaves Qt's DOM and hotkeys die until the app is clicked.
+  Qt's preventDefault is structurally too late for this (queued dispatch,
+  above), so `install_wasm_alt_key_guard()` (wasm_event_guard.cpp, installed
+  in the MainWindow constructor) registers a synchronous capture-phase
+  `keydown`/`keyup` listener on `window` that calls `preventDefault()` when
+  `ev.key === "Alt"`. It never calls `stopPropagation()`: Qt must keep
+  seeing bare Alt press/release (live cursor swaps, temporary eyedropper,
+  gesture modifiers). Alt+key combos report the other key in `ev.key` and
+  are untouched.
 - **Un-prevented press defaults.** A mouse/pen press dispatched during a
   busy stint (heavy composite, undo Document copy, layer-thumbnail refresh)
   is queued un-prevented, and Chrome's mousedown default blurs the focused
