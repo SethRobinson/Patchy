@@ -406,12 +406,12 @@ protected:
   }
 };
 
-// Photoshop's Useful Mixer Brush Combinations as Wet/Load/Mix triples.
-// mix < 0 leaves the Mix spin untouched (the dry rows, where Photoshop greys
-// Mix out). Names are generic descriptive English words, tr()'d for display.
-// Values follow Adobe's documented combination pattern and await one manual
-// in-Photoshop verification pass (the dropdown is not reachable over COM); see
-// local-test-fixtures/mixer-calibration/notes.md.
+// Photoshop's Useful Mixer Brush Combinations as Wet/Load/Mix triples,
+// VERIFIED against Photoshop 2026 on 2026-08-14 by selecting each preset in
+// the real UI and reading currentToolOptions back over COM
+// (local-test-fixtures/mixer-calibration/preset-readings.txt). Photoshop sets
+// Mix to 0 on the dry rows even though the control is greyed there. Names are
+// generic descriptive English words, tr()'d for display.
 struct MixerCombination {
   const char* name;
   int wet;
@@ -421,12 +421,12 @@ struct MixerCombination {
 
 const std::array<MixerCombination, 12>& mixer_useful_combinations() {
   static constexpr std::array<MixerCombination, 12> kCombinations = {{
-      {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Dry"), 0, 50, -1},
-      {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Dry, Light Load"), 0, 5, -1},
-      {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Dry, Heavy Load"), 0, 100, -1},
-      {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Moist"), 10, 50, 50},
-      {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Moist, Light Mix"), 10, 50, 0},
-      {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Moist, Heavy Mix"), 10, 50, 100},
+      {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Dry"), 0, 50, 0},
+      {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Dry, Light Load"), 0, 5, 0},
+      {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Dry, Heavy Load"), 0, 100, 0},
+      {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Moist"), 10, 5, 50},
+      {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Moist, Light Mix"), 10, 5, 0},
+      {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Moist, Heavy Mix"), 10, 5, 100},
       {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Wet"), 50, 50, 50},
       {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Wet, Light Mix"), 50, 50, 0},
       {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Wet, Heavy Mix"), 50, 50, 100},
@@ -435,6 +435,22 @@ const std::array<MixerCombination, 12>& mixer_useful_combinations() {
       {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Very Wet, Heavy Mix"), 100, 50, 100},
   }};
   return kCombinations;
+}
+
+}  // namespace
+
+namespace {
+
+// The closed combo is deliberately compact (the Options bar must keep the
+// mixer row on one line), so the popup list needs its own width or every
+// entry truncates to "Dry...oad".
+void widen_combo_popup_to_items(QComboBox* combo) {
+  const QFontMetrics metrics(combo->font());
+  int width = 0;
+  for (int i = 0; i < combo->count(); ++i) {
+    width = std::max(width, metrics.horizontalAdvance(combo->itemText(i)));
+  }
+  combo->view()->setMinimumWidth(width + 36);
 }
 
 }  // namespace
@@ -449,6 +465,7 @@ void MainWindow::retranslate_mixer_combination_combo() {
   for (std::size_t i = 0; i < combinations.size(); ++i) {
     mixer_combination_combo_->setItemText(static_cast<int>(i) + 1, tr(combinations[i].name));
   }
+  widen_combo_popup_to_items(mixer_combination_combo_);
 }
 
 void MainWindow::sync_mixer_combination_combo() {
@@ -468,7 +485,6 @@ void MainWindow::sync_mixer_combination_combo() {
     if (combination.wet != wet_spin->value() || combination.load != load_spin->value()) {
       continue;
     }
-    // Dry rows ignore Mix entirely (the control is disabled at Wet 0).
     if (combination.mix >= 0 && combination.mix != mix_spin->value()) {
       continue;
     }
@@ -1427,6 +1443,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   // tool switch (ui_brush_tip_picker_keeps_options_bar_height).
   mixer_combination_combo_->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
   mixer_combination_combo_->setMinimumContentsLength(7);
+  widen_combo_popup_to_items(mixer_combination_combo_);
   mixer_combination_combo_->setToolTip(tr("Useful mixer brush combinations"));
   add_option_widget(mixer_combination_combo_, {CanvasTool::MixerBrush});
 

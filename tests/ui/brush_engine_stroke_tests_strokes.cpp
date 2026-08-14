@@ -2521,6 +2521,10 @@ void ui_mixer_useful_combination_presets_set_wet_load_mix() {
   auto* mix = window.findChild<QSpinBox*>(QStringLiteral("mixerMixSpin"));
   CHECK(combo != nullptr && combo->isVisible());
   CHECK(wet != nullptr && load != nullptr && mix != nullptr);
+  // The closed combo is compact, so the popup list must carry its own width;
+  // without it every preset renders truncated ("Dry...oad").
+  const auto longest = combo->fontMetrics().horizontalAdvance(QStringLiteral("Very Wet, Heavy Mix"));
+  CHECK(combo->view()->minimumWidth() >= longest);
 
   combo->setCurrentIndex(combo->findText(QStringLiteral("Wet")));
   QApplication::processEvents();
@@ -2529,17 +2533,18 @@ void ui_mixer_useful_combination_presets_set_wet_load_mix() {
 
   combo->setCurrentIndex(combo->findText(QStringLiteral("Moist, Heavy Mix")));
   QApplication::processEvents();
-  CHECK(wet->value() == 10 && load->value() == 50 && mix->value() == 100);
+  CHECK(wet->value() == 10 && load->value() == 5 && mix->value() == 100);
 
   // A manual edit that matches no preset derives back to Custom.
   wet->setValue(37);
   QApplication::processEvents();
   CHECK(combo->currentText() == QStringLiteral("Custom"));
 
-  // Dry rows ignore Mix (the control is disabled at Wet 0) and still match.
+  // Dry rows set Mix to 0 like Photoshop even though the control is disabled
+  // at Wet 0, and the selection still derives back to the preset.
   combo->setCurrentIndex(combo->findText(QStringLiteral("Dry")));
   QApplication::processEvents();
-  CHECK(wet->value() == 0 && load->value() == 50);
+  CHECK(wet->value() == 0 && load->value() == 50 && mix->value() == 0);
   CHECK(!mix->isEnabled());
   CHECK(combo->currentText() == QStringLiteral("Dry"));
 }
