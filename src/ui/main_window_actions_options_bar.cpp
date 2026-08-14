@@ -1185,7 +1185,9 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
                     CanvasTool::Eraser});
   brush_preset_combo_ = new QComboBox(toolbar);
   brush_preset_combo_->setObjectName(QStringLiteral("brushPresetCombo"));
-  brush_preset_combo_->setMinimumWidth(132);
+  // 112 (was 132): reclaims room for the labeled Smoothing controls on the
+  // one-line Brush row (ui_brush_tip_picker_keeps_options_bar_height).
+  brush_preset_combo_->setMinimumWidth(112);
   for (const auto& preset : builtin_brush_presets()) {
     brush_preset_combo_->addItem(brush_preset_display_name(preset), preset.id);
   }
@@ -1225,7 +1227,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   // 130 (was 150): the Brush row must keep one Options-bar line at ordinary
   // window widths now that it also carries the Smoothing spin and gear
   // (ui_brush_tip_picker_keeps_options_bar_height).
-  brush_size_slider->setFixedWidth(130);
+  brush_size_slider->setFixedWidth(124);
   brush_size_slider->setToolTip(tr("Brush size — press [ or ], or Alt+Right-drag on the canvas"));
   add_option_widget(brush_size_slider,
                     {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::SpotHealing, CanvasTool::Smudge,
@@ -1249,7 +1251,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   brush_opacity_slider->setObjectName(QStringLiteral("brushOpacitySlider"));
   brush_opacity_slider->setRange(1, 100);
   brush_opacity_slider->setValue(canvas_defaults->brush_opacity());
-  brush_opacity_slider->setFixedWidth(110);  // was 120; see the size-slider note
+  brush_opacity_slider->setFixedWidth(100);  // was 120; see the size-slider note
 
   brush_opacity_slider->setToolTip(tr("Brush opacity — press number keys (5 = 50%, 0 = 100%)"));
   add_option_widget(brush_opacity_slider,
@@ -1276,7 +1278,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   brush_softness_slider->setObjectName(QStringLiteral("brushSoftnessSlider"));
   brush_softness_slider->setRange(0, 100);
   brush_softness_slider->setValue(canvas_defaults->brush_softness());
-  brush_softness_slider->setFixedWidth(110);
+  brush_softness_slider->setFixedWidth(96);  // was 110; see the size-slider note
   brush_softness_slider->setToolTip(tr("Brush edge softness — Alt+Right-drag up or down on the canvas"));
   add_option_widget(brush_softness_slider,
                     {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::SpotHealing, CanvasTool::Smudge,
@@ -1344,9 +1346,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   // gear button whose menu holds the four Photoshop smoothing toggles.
   const std::initializer_list<CanvasTool> smoothing_tools = {
       CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::Eraser};
-  // Deliberately no text label (Photoshop shows none either); the tooltip and
-  // the adjacent gear identify the control, and the Options bar must keep the
-  // Brush row inside one line at ordinary window widths.
+  // Created here, APPENDED to the bar after the mixer cluster below so every
+  // row reads Photoshop-style (..., Flow, Sample All Layers, Smooth).
   auto* brush_smoothing = new QSpinBox(toolbar);
   brush_smoothing->setObjectName(QStringLiteral("brushSmoothingSpin"));
   brush_smoothing->setRange(0, 100);
@@ -1355,7 +1356,6 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   brush_smoothing->setToolTip(tr("Stroke smoothing - 0% paints the raw pointer path"));
   bind_tooltip(brush_smoothing, "Stroke smoothing - 0% paints the raw pointer path");
   configure_toolbar_spinbox(brush_smoothing, 48);
-  add_option_widget(brush_smoothing, smoothing_tools);
   connect(brush_smoothing, &QSpinBox::valueChanged, this, [this](int value) {
     current_brush_smoothing_ = value;
     if (canvas_ != nullptr) {
@@ -1423,15 +1423,10 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
         }
       });
   brush_smoothing_options_button_->setMenu(smoothing_menu);
-  add_option_widget(brush_smoothing_options_button_, smoothing_tools);
 
-  // Photoshop's "Useful Mixer Brush Combinations" dropdown: each entry is just
-  // a Wet/Load/Mix triple. Values follow Adobe's documented combinations
-  // (structural pattern: Wet tiers 0/10/50/100, Load 50 with Dry Light/Heavy
-  // variants, Mix 0/50/100); the dropdown itself is not scriptable via COM, so
-  // these await one manual in-UI verification pass (see
-  // local-test-fixtures/mixer-calibration/notes.md). Selection is derived from
-  // the current spin values and never persisted separately.
+  // Photoshop's "Useful Mixer Brush Combinations" dropdown: each entry is one
+  // Wet/Load/Mix triple from the verified kCombinations table above. Selection
+  // is derived from the current spin values and never persisted separately.
   mixer_combination_combo_ = new QComboBox(toolbar);
   mixer_combination_combo_->setObjectName(QStringLiteral("mixerCombinationCombo"));
   mixer_combination_combo_->addItem(tr("Custom"));
@@ -1523,6 +1518,14 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   connect(mixer_mix_spin, &QSpinBox::valueChanged, this, resync_combination);
   sync_mixer_combination_combo();
 
+  add_mixer_percentage("Flow:", "mixerFlowSpin", 1, current_mixer_flow_,
+                       [](MainWindow& window, int value) {
+                         window.current_mixer_flow_ = value;
+                         if (window.canvas_ != nullptr) {
+                           window.canvas_->set_mixer_flow(value);
+                         }
+                       });
+
   mixer_sample_all_layers_check_ = new CheckGlyphBox(tr("Sample All Layers"), toolbar);
   mixer_sample_all_layers_check_->setObjectName(QStringLiteral("mixerSampleAllLayersCheck"));
   mixer_sample_all_layers_check_->setChecked(canvas_defaults->mixer_sample_all_layers());
@@ -1534,13 +1537,13 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       save_tool_settings();
     }
   });
-  add_mixer_percentage("Flow:", "mixerFlowSpin", 1, current_mixer_flow_,
-                       [](MainWindow& window, int value) {
-                         window.current_mixer_flow_ = value;
-                         if (window.canvas_ != nullptr) {
-                           window.canvas_->set_mixer_flow(value);
-                         }
-                       });
+
+  // Smoothing lands after the mixer cluster so every row that shows it reads
+  // Photoshop-style: ..., Flow, (Sample All Layers,) Smooth, gear.
+  auto* brush_smoothing_label = add_option_label(tr("Smooth:"), smoothing_tools);
+  bind_widget_text(brush_smoothing_label, "Smooth:");
+  add_option_widget(brush_smoothing, smoothing_tools);
+  add_option_widget(brush_smoothing_options_button_, smoothing_tools);
 
   connect(brush_softness, &QSpinBox::valueChanged, brush_softness_slider, &QSlider::setValue);
   connect(brush_softness_slider, &QSlider::valueChanged, brush_softness, &QSpinBox::setValue);
