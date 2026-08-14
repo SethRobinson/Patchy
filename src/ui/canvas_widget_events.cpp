@@ -1137,6 +1137,11 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       painting_ = true;
       last_document_position_ = document_point;
       last_document_position_f_ = document_point_f;
+      // Axis constraint first (Shift-locked strokes stay locked), then the
+      // stabilizer, then the always-on midpoint smoother. The press dab lands
+      // at the raw press point: begin() snaps output = raw.
+      begin_stroke_stabilizer(stroke_brush_size == 1 ? QPointF(document_point) : document_point_f,
+                              effective_tool);
       if (effective_tool != CanvasTool::Smudge) {
         if (stroke_brush_size == 1) {
           reset_brush_smoothing();
@@ -1415,12 +1420,19 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       last_document_position_ = constrained_point;
       last_document_position_f_ = QPointF(constrained_point);
     } else if (effective_brush_input().size == 1) {
-      const auto constrained_point = axis_constrained_stroke_point(document_point, event->modifiers());
+      auto constrained_point = axis_constrained_stroke_point(document_point, event->modifiers());
+      if (stroke_stabilizer_.active() && tool_uses_stroke_stabilizer(effective_tool)) {
+        const auto smoothed = stabilized_stroke_point(QPointF(constrained_point), effective_tool);
+        constrained_point = QPoint(static_cast<int>(std::lround(smoothed.x())),
+                                   static_cast<int>(std::lround(smoothed.y())));
+      }
       dirty = draw_brush_segment(last_document_position_, constrained_point, effective_tool == CanvasTool::Eraser);
       last_document_position_ = constrained_point;
       last_document_position_f_ = QPointF(constrained_point);
     } else {
-      const auto constrained_point = axis_constrained_stroke_point(document_point_f, event->modifiers());
+      const auto constrained_point =
+          stabilized_stroke_point(axis_constrained_stroke_point(document_point_f, event->modifiers()),
+                                  effective_tool);
       dirty = advance_smoothed_brush_stroke(constrained_point, effective_tool == CanvasTool::Eraser);
       last_document_position_ = QPoint(static_cast<int>(std::lround(constrained_point.x())),
                                        static_cast<int>(std::lround(constrained_point.y())));
@@ -1914,12 +1926,25 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
                effective_tool == CanvasTool::PatternStamp ||
                effective_tool == CanvasTool::Eraser) {
       if (effective_brush_input().size == 1) {
-        const auto constrained_point = axis_constrained_stroke_point(document_point, event->modifiers());
+        auto constrained_point = axis_constrained_stroke_point(document_point, event->modifiers());
+        if (stroke_stabilizer_.active() && tool_uses_stroke_stabilizer(effective_tool)) {
+          // Catch-up on Stroke End releases at the raw point; otherwise the
+          // stroke ends wherever the leash left the output.
+          const auto final_point =
+              stroke_stabilizer_.finish(constrained_point.x(), constrained_point.y());
+          constrained_point = QPoint(static_cast<int>(std::lround(final_point.x)),
+                                     static_cast<int>(std::lround(final_point.y)));
+        }
         dirty = draw_brush_segment(last_document_position_, constrained_point, effective_tool == CanvasTool::Eraser);
         last_document_position_ = constrained_point;
         last_document_position_f_ = QPointF(constrained_point);
       } else {
-        const auto constrained_point = axis_constrained_stroke_point(document_point_f, event->modifiers());
+        auto constrained_point = axis_constrained_stroke_point(document_point_f, event->modifiers());
+        if (stroke_stabilizer_.active() && tool_uses_stroke_stabilizer(effective_tool)) {
+          const auto final_point =
+              stroke_stabilizer_.finish(constrained_point.x(), constrained_point.y());
+          constrained_point = QPointF(final_point.x, final_point.y);
+        }
         dirty = finish_smoothed_brush_stroke(constrained_point, effective_tool == CanvasTool::Eraser);
         last_document_position_ = QPoint(static_cast<int>(std::lround(constrained_point.x())),
                                          static_cast<int>(std::lround(constrained_point.y())));
@@ -3140,6 +3165,38 @@ void CanvasWidget::timerEvent(QTimerEvent* event) {
       if (!dirty.isEmpty()) {
         active_edit_target_changed_impl(QRegion(dirty),
                                         DocumentChangeReason::BrushStrokePreview);
+      }
+    }
+    event->accept();
+    return;
+  }
+  if (event->timerId() == stabilizer_timer_.timerId()) {
+    const auto effective_tool = effective_tool_for_input();
+    if (!painting_ || !stroke_stabilizer_.active() || !tool_uses_stroke_stabilizer(effective_tool)) {
+      stabilizer_timer_.stop();
+    } else if (const auto ticked = stroke_stabilizer_.tick(kStrokeStabilizerTickSeconds);
+               ticked.has_value()) {
+      // Stationary catch-up: the held pointer keeps painting toward the cursor
+      // through the same segment path a mouse move uses. The tick feeds the
+      // core stabilizer a fixed dt; no wall clock is read.
+      const QPointF point(ticked->x, ticked->y);
+      const auto erase = effective_tool == CanvasTool::Eraser;
+      QRect dirty;
+      if (effective_brush_input().size == 1) {
+        const QPoint rounded(static_cast<int>(std::lround(point.x())),
+                             static_cast<int>(std::lround(point.y())));
+        dirty = draw_brush_segment(last_document_position_, rounded, erase);
+        last_document_position_ = rounded;
+        last_document_position_f_ = QPointF(rounded);
+      } else {
+        dirty = advance_smoothed_brush_stroke(point, erase);
+        last_document_position_ = QPoint(static_cast<int>(std::lround(point.x())),
+                                         static_cast<int>(std::lround(point.y())));
+        last_document_position_f_ = point;
+      }
+      invalidate_stroke_leash_overlay();
+      if (!dirty.isEmpty()) {
+        active_edit_target_changed_impl(QRegion(dirty), DocumentChangeReason::BrushStrokePreview);
       }
     }
     event->accept();

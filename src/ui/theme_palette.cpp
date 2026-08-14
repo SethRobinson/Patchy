@@ -227,6 +227,7 @@ const ThemePalette& dark_palette() {
       .canvas_hud_border = rgb(0x4e5660),
       .canvas_hud_text = rgb(0xeef2f7),
       .canvas_hud_spinner = rgb(0xeef4fa),
+      .brush_leash = rgb(0xb48aff),
 
       // Scroll bars.
       .canvas_scrollbar_track = rgb(0x262626),
@@ -482,6 +483,9 @@ const ThemePalette& light_palette() {
     // The document edge has to stay visible against that mid gray rather than
     // becoming the near-white a flip would produce.
     light.canvas_document_border = rgb(0x6e747c);
+    // The smoothing leash is drawn over artwork, not chrome: keep the violet
+    // family but deepen it so it reads on light documents.
+    light.brush_leash = rgb(0x7a4fd0);
 
     // The chrome bar sits between the pasteboard and the window surface, and has
     // to read as distinct from both: darker than the dialog body it heads, and
@@ -829,6 +833,7 @@ std::span<const ThemePaletteRole> theme_palette_roles() {
       PATCHY_THEME_ROLE(canvas_hud_border),
       PATCHY_THEME_ROLE(canvas_hud_text),
       PATCHY_THEME_ROLE(canvas_hud_spinner),
+      PATCHY_THEME_ROLE(brush_leash),
 
       PATCHY_THEME_ROLE(canvas_scrollbar_track),
       PATCHY_THEME_ROLE(panel_scrollbar_track),

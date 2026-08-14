@@ -1688,6 +1688,24 @@ void MainWindow::load_tool_settings() {
   canvas_->set_mixer_sample_all_layers(
       settings.value(QStringLiteral("tools/mixerSampleAllLayers"), canvas_->mixer_sample_all_layers())
           .toBool());
+  current_brush_smoothing_ = std::clamp(
+      settings.value(QStringLiteral("tools/brushSmoothing"), current_brush_smoothing_).toInt(), 0, 100);
+  current_brush_smoothing_pulled_string_ =
+      settings.value(QStringLiteral("tools/brushSmoothingPulledString"), current_brush_smoothing_pulled_string_)
+          .toBool();
+  current_brush_smoothing_catch_up_ =
+      settings.value(QStringLiteral("tools/brushSmoothingCatchUp"), current_brush_smoothing_catch_up_).toBool();
+  current_brush_smoothing_catch_up_end_ =
+      settings.value(QStringLiteral("tools/brushSmoothingCatchUpEnd"), current_brush_smoothing_catch_up_end_)
+          .toBool();
+  current_brush_smoothing_zoom_adjust_ =
+      settings.value(QStringLiteral("tools/brushSmoothingZoomAdjust"), current_brush_smoothing_zoom_adjust_)
+          .toBool();
+  canvas_->set_brush_smoothing(current_brush_smoothing_);
+  canvas_->set_brush_smoothing_pulled_string(current_brush_smoothing_pulled_string_);
+  canvas_->set_brush_smoothing_catch_up(current_brush_smoothing_catch_up_);
+  canvas_->set_brush_smoothing_catch_up_end(current_brush_smoothing_catch_up_end_);
+  canvas_->set_brush_smoothing_zoom_adjust(current_brush_smoothing_zoom_adjust_);
   canvas_->set_wand_tolerance(settings.value(QStringLiteral("tools/wandTolerance"), canvas_->wand_tolerance()).toInt());
   canvas_->set_wand_contiguous(settings.value(QStringLiteral("tools/wandContiguous"), canvas_->wand_contiguous()).toBool());
   canvas_->set_wand_sample_all_layers(
@@ -1984,6 +2002,11 @@ void MainWindow::save_tool_settings() const {
   settings.setValue(QStringLiteral("tools/mixerMix"), current_mixer_mix_);
   settings.setValue(QStringLiteral("tools/mixerFlow"), current_mixer_flow_);
   settings.setValue(QStringLiteral("tools/mixerSampleAllLayers"), canvas_->mixer_sample_all_layers());
+  settings.setValue(QStringLiteral("tools/brushSmoothing"), current_brush_smoothing_);
+  settings.setValue(QStringLiteral("tools/brushSmoothingPulledString"), current_brush_smoothing_pulled_string_);
+  settings.setValue(QStringLiteral("tools/brushSmoothingCatchUp"), current_brush_smoothing_catch_up_);
+  settings.setValue(QStringLiteral("tools/brushSmoothingCatchUpEnd"), current_brush_smoothing_catch_up_end_);
+  settings.setValue(QStringLiteral("tools/brushSmoothingZoomAdjust"), current_brush_smoothing_zoom_adjust_);
   settings.setValue(QStringLiteral("tools/wandTolerance"), canvas_->wand_tolerance());
   settings.setValue(QStringLiteral("tools/wandContiguous"), canvas_->wand_contiguous());
   settings.setValue(QStringLiteral("tools/wandSampleAllLayers"), canvas_->wand_sample_all_layers());
@@ -2605,6 +2628,21 @@ void MainWindow::sync_brush_controls_from_canvas() {
     QSignalBlocker blocker(brush_softness_slider);
     brush_softness_slider->setValue(canvas_->brush_softness());
   }
+  if (auto* brush_smoothing = findChild<QSpinBox*>(QStringLiteral("brushSmoothingSpin"));
+      brush_smoothing != nullptr) {
+    QSignalBlocker blocker(brush_smoothing);
+    brush_smoothing->setValue(canvas_->brush_smoothing());
+  }
+  const auto sync_smoothing_action = [](QAction* action, bool checked) {
+    if (action != nullptr) {
+      QSignalBlocker blocker(action);
+      action->setChecked(checked);
+    }
+  };
+  sync_smoothing_action(brush_smoothing_pulled_string_action_, canvas_->brush_smoothing_pulled_string());
+  sync_smoothing_action(brush_smoothing_catch_up_action_, canvas_->brush_smoothing_catch_up());
+  sync_smoothing_action(brush_smoothing_catch_up_end_action_, canvas_->brush_smoothing_catch_up_end());
+  sync_smoothing_action(brush_smoothing_zoom_adjust_action_, canvas_->brush_smoothing_zoom_adjust());
 }
 
 }  // namespace patchy::ui

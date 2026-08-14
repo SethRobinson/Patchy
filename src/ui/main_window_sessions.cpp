@@ -337,6 +337,11 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   if (mixer_sample_all_layers_check_ != nullptr) {
     session->canvas->set_mixer_sample_all_layers(mixer_sample_all_layers_check_->isChecked());
   }
+  session->canvas->set_brush_smoothing(current_brush_smoothing_);
+  session->canvas->set_brush_smoothing_pulled_string(current_brush_smoothing_pulled_string_);
+  session->canvas->set_brush_smoothing_catch_up(current_brush_smoothing_catch_up_);
+  session->canvas->set_brush_smoothing_catch_up_end(current_brush_smoothing_catch_up_end_);
+  session->canvas->set_brush_smoothing_zoom_adjust(current_brush_smoothing_zoom_adjust_);
   apply_pattern_stamp_settings_to_canvas(session->canvas);
   apply_selection_modes_to_canvas(session->canvas);
   session->canvas->set_tool(current_tool_);
@@ -509,6 +514,11 @@ void MainWindow::activate_document_canvas(CanvasWidget* canvas) {
   if (mixer_sample_all_layers_check_ != nullptr) {
     canvas_->set_mixer_sample_all_layers(mixer_sample_all_layers_check_->isChecked());
   }
+  canvas_->set_brush_smoothing(current_brush_smoothing_);
+  canvas_->set_brush_smoothing_pulled_string(current_brush_smoothing_pulled_string_);
+  canvas_->set_brush_smoothing_catch_up(current_brush_smoothing_catch_up_);
+  canvas_->set_brush_smoothing_catch_up_end(current_brush_smoothing_catch_up_end_);
+  canvas_->set_brush_smoothing_zoom_adjust(current_brush_smoothing_zoom_adjust_);
   apply_pattern_stamp_settings_to_canvas(canvas_);
   if (canvas_changed) {
     apply_active_brush_settings_to_canvas();

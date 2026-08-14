@@ -1312,6 +1312,12 @@ private:
   QCheckBox* mixer_sample_all_layers_check_{nullptr};
   QComboBox* patch_mode_combo_{nullptr};
   QComboBox* mixer_combination_combo_{nullptr};
+  // The Smoothing gear button and its four checkable menu actions.
+  QToolButton* brush_smoothing_options_button_{nullptr};
+  QAction* brush_smoothing_pulled_string_action_{nullptr};
+  QAction* brush_smoothing_catch_up_action_{nullptr};
+  QAction* brush_smoothing_catch_up_end_action_{nullptr};
+  QAction* brush_smoothing_zoom_adjust_action_{nullptr};
   QCheckBox* patch_transparent_check_{nullptr};
   QComboBox* pattern_stamp_pattern_combo_{nullptr};
   QCheckBox* pattern_stamp_aligned_check_{nullptr};
@@ -1522,6 +1528,13 @@ private:
   int current_mixer_load_{50};
   int current_mixer_mix_{50};
   int current_mixer_flow_{100};
+  // Stroke Smoothing mirrors (Brush/Mixer/Eraser); persisted under the
+  // tools/brushSmoothing* keys and pushed to every session's canvas.
+  int current_brush_smoothing_{0};
+  bool current_brush_smoothing_pulled_string_{false};
+  bool current_brush_smoothing_catch_up_{true};
+  bool current_brush_smoothing_catch_up_end_{true};
+  bool current_brush_smoothing_zoom_adjust_{true};
   // Combine mode per selection tool (indexed by CanvasWidget::selection_tool_index),
   // persisted across documents; each selection tool keeps its own mode.
   std::array<CanvasWidget::SelectionMode, CanvasWidget::kSelectionToolCount> selection_modes_{

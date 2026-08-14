@@ -3054,6 +3054,161 @@ void ui_spacebar_pan_works_while_child_dialog_focused() {
   CHECK(QApplication::overrideCursor() == nullptr);
 }
 
+void ui_brush_smoothing_options_bar_round_trips_settings() {
+  SettingsValueRestorer restore_smoothing(QStringLiteral("tools/brushSmoothing"));
+  SettingsValueRestorer restore_pulled(QStringLiteral("tools/brushSmoothingPulledString"));
+  SettingsValueRestorer restore_catch_up(QStringLiteral("tools/brushSmoothingCatchUp"));
+  SettingsValueRestorer restore_catch_up_end(QStringLiteral("tools/brushSmoothingCatchUpEnd"));
+  SettingsValueRestorer restore_zoom_adjust(QStringLiteral("tools/brushSmoothingZoomAdjust"));
+  {
+    auto settings = patchy::ui::app_settings();
+    for (const auto* key :
+         {"tools/brushSmoothing", "tools/brushSmoothingPulledString", "tools/brushSmoothingCatchUp",
+          "tools/brushSmoothingCatchUpEnd", "tools/brushSmoothingZoomAdjust"}) {
+      settings.remove(QString::fromLatin1(key));
+    }
+    settings.sync();
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+  auto* smoothing_spin = window.findChild<QSpinBox*>(QStringLiteral("brushSmoothingSpin"));
+  auto* gear = window.findChild<QToolButton*>(QStringLiteral("brushSmoothingOptionsButton"));
+  CHECK(smoothing_spin != nullptr);
+  CHECK(gear != nullptr);
+  if (smoothing_spin == nullptr || gear == nullptr) {
+    return;
+  }
+  CHECK(smoothing_spin->isVisible());
+  CHECK(gear->isVisible());
+  CHECK(smoothing_spin->value() == 0);
+  CHECK(canvas->brush_smoothing() == 0);
+
+  smoothing_spin->setValue(40);
+  QApplication::processEvents();
+  CHECK(canvas->brush_smoothing() == 40);
+
+  CHECK(gear->menu() != nullptr);
+  QAction* pulled_string = nullptr;
+  QAction* catch_up = nullptr;
+  QAction* catch_up_end = nullptr;
+  QAction* zoom_adjust = nullptr;
+  for (auto* action : gear->menu()->actions()) {
+    if (action->text() == QStringLiteral("Pulled String Mode")) {
+      pulled_string = action;
+    } else if (action->text() == QStringLiteral("Stroke Catch-up")) {
+      catch_up = action;
+    } else if (action->text() == QStringLiteral("Catch-up on Stroke End")) {
+      catch_up_end = action;
+    } else if (action->text() == QStringLiteral("Adjust for Zoom")) {
+      zoom_adjust = action;
+    }
+  }
+  CHECK(pulled_string != nullptr);
+  CHECK(catch_up != nullptr);
+  CHECK(catch_up_end != nullptr);
+  CHECK(zoom_adjust != nullptr);
+  if (pulled_string == nullptr || catch_up == nullptr || catch_up_end == nullptr ||
+      zoom_adjust == nullptr) {
+    return;
+  }
+  // Photoshop-parity defaults: pulled string off, both catch-ups on, zoom adjust on.
+  CHECK(!pulled_string->isChecked());
+  CHECK(catch_up->isChecked());
+  CHECK(catch_up_end->isChecked());
+  CHECK(zoom_adjust->isChecked());
+  CHECK(!canvas->brush_smoothing_pulled_string());
+  CHECK(canvas->brush_smoothing_catch_up());
+  CHECK(canvas->brush_smoothing_catch_up_end());
+  CHECK(canvas->brush_smoothing_zoom_adjust());
+
+  pulled_string->setChecked(true);
+  QApplication::processEvents();
+  CHECK(canvas->brush_smoothing_pulled_string());
+
+  // The controls follow the Mixer Brush and Eraser tools too, and hide for Smudge.
+  require_action_by_text(window, QStringLiteral("Mixer Brush"))->trigger();
+  QApplication::processEvents();
+  CHECK(smoothing_spin->isVisible());
+  CHECK(gear->isVisible());
+  require_action_by_text(window, QStringLiteral("Eraser"))->trigger();
+  QApplication::processEvents();
+  CHECK(smoothing_spin->isVisible());
+  CHECK(gear->isVisible());
+  require_action_by_text(window, QStringLiteral("Smudge"))->trigger();
+  QApplication::processEvents();
+  CHECK(!smoothing_spin->isVisible());
+  CHECK(!gear->isVisible());
+}
+
+void ui_brush_smoothing_pulled_string_short_drag_paints_only_press_dab() {
+  patchy::Document document(200, 120, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Paint",
+                           solid_pixels(200, 120, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(400, 260);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  canvas.set_zoom(1.0);
+  canvas.set_primary_color(Qt::black);
+  canvas.set_brush_size(8);
+  canvas.set_brush_opacity(100);
+  canvas.set_brush_softness(0);
+  canvas.set_brush_smoothing(60);
+  canvas.set_brush_smoothing_pulled_string(true);
+  canvas.set_brush_smoothing_catch_up_end(false);
+  canvas.show();
+  QApplication::processEvents();
+
+  const QPoint press_doc(60, 60);
+  const QPoint release_doc(90, 60);  // 30 px of drag, well inside the 60 px leash
+  drag_document_path(canvas, {press_doc, release_doc}, 6);
+  QApplication::processEvents();
+
+  // The press dab lands at the press point; the slack drag never paints and
+  // without Catch-up on Stroke End the release point stays untouched.
+  CHECK(canvas_pixel(canvas, press_doc).red() < 40);
+  CHECK(color_close(canvas_pixel(canvas, release_doc), QColor(Qt::white), 8));
+  CHECK(color_close(canvas_pixel(canvas, QPoint(75, 60)), QColor(Qt::white), 8));
+}
+
+void ui_brush_smoothing_catch_up_on_end_completes_stroke() {
+  patchy::Document document(200, 120, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Paint",
+                           solid_pixels(200, 120, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(400, 260);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  canvas.set_zoom(1.0);
+  canvas.set_primary_color(Qt::black);
+  canvas.set_brush_size(8);
+  canvas.set_brush_opacity(100);
+  canvas.set_brush_softness(0);
+  canvas.set_brush_smoothing(60);
+  canvas.set_brush_smoothing_pulled_string(true);
+  canvas.set_brush_smoothing_catch_up_end(true);
+  canvas.show();
+  QApplication::processEvents();
+
+  const QPoint press_doc(60, 60);
+  const QPoint release_doc(90, 60);
+  drag_document_path(canvas, {press_doc, release_doc}, 6);
+  QApplication::processEvents();
+
+  // Catch-up on Stroke End releases at the raw pointer: the closing segment
+  // carries the paint from the press point all the way to the release point.
+  CHECK(canvas_pixel(canvas, press_doc).red() < 40);
+  CHECK(canvas_pixel(canvas, QPoint(75, 60)).red() < 40);
+  CHECK(canvas_pixel(canvas, release_doc).red() < 40);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part1() {
@@ -3129,6 +3284,12 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part1() {
       {"ui_mixer_useful_combination_presets_set_wet_load_mix",
        ui_mixer_useful_combination_presets_set_wet_load_mix},
       {"ui_mixer_calibration_contact_sheet", ui_mixer_calibration_contact_sheet},
+      {"ui_brush_smoothing_options_bar_round_trips_settings",
+       ui_brush_smoothing_options_bar_round_trips_settings},
+      {"ui_brush_smoothing_pulled_string_short_drag_paints_only_press_dab",
+       ui_brush_smoothing_pulled_string_short_drag_paints_only_press_dab},
+      {"ui_brush_smoothing_catch_up_on_end_completes_stroke",
+       ui_brush_smoothing_catch_up_on_end_completes_stroke},
       {"ui_copy_ignores_hidden_active_layer", ui_copy_ignores_hidden_active_layer},
       {"ui_copy_selected_layers_copies_composited_selection", ui_copy_selected_layers_copies_composited_selection},
       {"ui_eraser_on_background_reveals_transparency_and_size_cursor",

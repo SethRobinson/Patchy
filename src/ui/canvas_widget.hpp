@@ -4,6 +4,7 @@
 #include "core/magnetic_lasso.hpp"
 #include "core/pattern_resource.hpp"
 #include "core/pixel_tools.hpp"
+#include "core/stroke_stabilizer.hpp"
 #include "core/warp_mesh.hpp"
 #include "ui/curves_clipping_preview.hpp"
 #include "ui/image_document_io.hpp"
@@ -441,6 +442,19 @@ public:
   [[nodiscard]] int mixer_flow() const noexcept;
   void set_mixer_sample_all_layers(bool sample_all_layers) noexcept;
   [[nodiscard]] bool mixer_sample_all_layers() const noexcept;
+  // Photoshop-style stroke Smoothing for Brush, Mixer Brush, and Eraser
+  // strokes: the percent (0-100) becomes the stabilizer leash radius through
+  // stroke_stabilizer_leash_radius(); 0 is exact pass-through.
+  void set_brush_smoothing(int percent) noexcept;
+  [[nodiscard]] int brush_smoothing() const noexcept;
+  void set_brush_smoothing_pulled_string(bool enabled) noexcept;
+  [[nodiscard]] bool brush_smoothing_pulled_string() const noexcept;
+  void set_brush_smoothing_catch_up(bool enabled) noexcept;
+  [[nodiscard]] bool brush_smoothing_catch_up() const noexcept;
+  void set_brush_smoothing_catch_up_end(bool enabled) noexcept;
+  [[nodiscard]] bool brush_smoothing_catch_up_end() const noexcept;
+  void set_brush_smoothing_zoom_adjust(bool enabled) noexcept;
+  [[nodiscard]] bool brush_smoothing_zoom_adjust() const noexcept;
   // Bitmap brush tip for Brush, Mixer Brush, Pattern Stamp, and Eraser;
   // null tip = procedural round/soft brush.
   // The id is an opaque library key kept here so the options bar and settings stay in sync.
@@ -1194,6 +1208,16 @@ private:
                                                    Qt::KeyboardModifiers modifiers) noexcept;
   void begin_brush_smoothing(QPointF document_point) noexcept;
   void reset_brush_smoothing() noexcept;
+  // Stroke Smoothing (the taut-leash stabilizer). It applies between the axis
+  // constraint and the always-on midpoint smoother, for Brush/Mixer/Eraser
+  // strokes only; smoothing 0 never consults it (exact pass-through).
+  [[nodiscard]] static bool tool_uses_stroke_stabilizer(CanvasTool tool) noexcept;
+  [[nodiscard]] double stroke_stabilizer_leash_radius() const noexcept;
+  void begin_stroke_stabilizer(QPointF document_point, CanvasTool effective_tool);
+  [[nodiscard]] QPointF stabilized_stroke_point(QPointF constrained_point, CanvasTool effective_tool);
+  [[nodiscard]] QRect stroke_leash_overlay_rect() const;
+  void invalidate_stroke_leash_overlay();
+  void draw_stroke_leash_overlay(QPainter& painter) const;
   [[nodiscard]] QRect advance_smoothed_brush_stroke(QPointF document_point, bool erase);
   [[nodiscard]] QRect finish_smoothed_brush_stroke(QPointF document_point, bool erase);
   [[nodiscard]] QRect draw_smoothed_brush_curve(QPointF start, QPointF control, QPointF end, bool erase,
@@ -1698,6 +1722,21 @@ private:
   int mixer_mix_{50};
   int mixer_flow_{100};
   bool mixer_sample_all_layers_{false};
+  // Stroke Smoothing settings (Brush/Mixer/Eraser; see the setters above), the
+  // per-stroke stabilizer, and its catch-up timer + on-canvas leash overlay.
+  int brush_smoothing_{0};
+  bool brush_smoothing_pulled_string_{false};
+  bool brush_smoothing_catch_up_{true};
+  bool brush_smoothing_catch_up_end_{true};
+  bool brush_smoothing_zoom_adjust_{true};
+  patchy::StrokeStabilizer stroke_stabilizer_;
+  QBasicTimer stabilizer_timer_;
+  QRect stroke_leash_overlay_rect_{};
+  // The stationary catch-up cadence: the timer fires every 16 ms and each tick
+  // advances the core stabilizer by this fixed dt (no clock reads in core, so
+  // strokes stay deterministic; keep the two constants in step).
+  static constexpr int kStrokeStabilizerTimerIntervalMs = 16;
+  static constexpr double kStrokeStabilizerTickSeconds = 0.016;
   patchy::MixerBrushState mixer_brush_state_{};
   // Merged-document snapshot captured at mixer stroke start while Sample All
   // Layers is on; null when off. See begin_mixer_brush_stroke().

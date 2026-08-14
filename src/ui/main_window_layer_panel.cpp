@@ -3519,6 +3519,11 @@ void MainWindow::refresh_document_info() {
         lines << tr("Opacity: %1%").arg(canvas_->brush_opacity());
       }
       lines << tr("Softness: %1%").arg(canvas_->brush_softness());
+      if ((current_tool_ == CanvasTool::Brush || current_tool_ == CanvasTool::MixerBrush ||
+           current_tool_ == CanvasTool::Eraser) &&
+          canvas_->brush_smoothing() > 0) {
+        lines << tr("Smoothing: %1%").arg(canvas_->brush_smoothing());
+      }
       if (current_tool_ == CanvasTool::Brush || current_tool_ == CanvasTool::PatternStamp) {
         lines << tr("Flow: %1%").arg(canvas_->brush_flow());
         if (current_tool_ == CanvasTool::Brush) {

@@ -255,6 +255,10 @@ struct ThemePalette {
   QColor canvas_hud_border;
   QColor canvas_hud_text;
   QColor canvas_hud_spinner;
+  // The stroke-smoothing leash overlay: the line from the stabilized stroke
+  // output to the raw pointer plus the leash-radius circle, drawn while a
+  // smoothed Brush/Mixer/Eraser stroke is active (a violet, like Photoshop's).
+  QColor brush_leash;
 
   // Scroll bars. The canvas track slaves to the canvas backdrop rather than the
   // window surface: it is document-window chrome sitting against the pasteboard,

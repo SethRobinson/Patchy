@@ -1206,7 +1206,10 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   brush_size_slider->setObjectName(QStringLiteral("brushSizeSlider"));
   brush_size_slider->setRange(1, kMaxBrushSize);
   brush_size_slider->setValue(canvas_defaults->brush_size());
-  brush_size_slider->setFixedWidth(150);
+  // 130 (was 150): the Brush row must keep one Options-bar line at ordinary
+  // window widths now that it also carries the Smoothing spin and gear
+  // (ui_brush_tip_picker_keeps_options_bar_height).
+  brush_size_slider->setFixedWidth(130);
   brush_size_slider->setToolTip(tr("Brush size — press [ or ], or Alt+Right-drag on the canvas"));
   add_option_widget(brush_size_slider,
                     {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::SpotHealing, CanvasTool::Smudge,
@@ -1230,7 +1233,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   brush_opacity_slider->setObjectName(QStringLiteral("brushOpacitySlider"));
   brush_opacity_slider->setRange(1, 100);
   brush_opacity_slider->setValue(canvas_defaults->brush_opacity());
-  brush_opacity_slider->setFixedWidth(120);
+  brush_opacity_slider->setFixedWidth(110);  // was 120; see the size-slider note
+
   brush_opacity_slider->setToolTip(tr("Brush opacity — press number keys (5 = 50%, 0 = 100%)"));
   add_option_widget(brush_opacity_slider,
                     {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
@@ -1320,6 +1324,91 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     }
   });
 
+  // Stroke Smoothing (Brush, Mixer Brush, Eraser): the percent spin plus a
+  // gear button whose menu holds the four Photoshop smoothing toggles.
+  const std::initializer_list<CanvasTool> smoothing_tools = {
+      CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::Eraser};
+  // Deliberately no text label (Photoshop shows none either); the tooltip and
+  // the adjacent gear identify the control, and the Options bar must keep the
+  // Brush row inside one line at ordinary window widths.
+  auto* brush_smoothing = new QSpinBox(toolbar);
+  brush_smoothing->setObjectName(QStringLiteral("brushSmoothingSpin"));
+  brush_smoothing->setRange(0, 100);
+  brush_smoothing->setValue(current_brush_smoothing_);
+  brush_smoothing->setSuffix(QStringLiteral("%"));
+  brush_smoothing->setToolTip(tr("Stroke smoothing - 0% paints the raw pointer path"));
+  bind_tooltip(brush_smoothing, "Stroke smoothing - 0% paints the raw pointer path");
+  configure_toolbar_spinbox(brush_smoothing, 48);
+  add_option_widget(brush_smoothing, smoothing_tools);
+  connect(brush_smoothing, &QSpinBox::valueChanged, this, [this](int value) {
+    current_brush_smoothing_ = value;
+    if (canvas_ != nullptr) {
+      canvas_->set_brush_smoothing(value);
+      schedule_save_tool_settings();
+      refresh_document_info();
+    }
+  });
+  brush_smoothing_options_button_ = new QToolButton(toolbar);
+  brush_smoothing_options_button_->setObjectName(QStringLiteral("brushSmoothingOptionsButton"));
+  // No gear glyph exists in the icon set; the compact "..." text follows the
+  // other small options-bar buttons. Its height comes from the
+  // QToolButton#brushSmoothingOptionsButton rule in main_window_theme.cpp (the
+  // brushDynamicsButton pattern); the global QToolButton QSS min-height would
+  // otherwise grow the Options bar row
+  // (ui_brush_tip_picker_keeps_options_bar_height).
+  brush_smoothing_options_button_->setText(QStringLiteral("..."));
+  brush_smoothing_options_button_->setToolTip(tr("Smoothing options"));
+  bind_tooltip(brush_smoothing_options_button_, "Smoothing options");
+  brush_smoothing_options_button_->setPopupMode(QToolButton::InstantPopup);
+  auto* smoothing_menu = new QMenu(brush_smoothing_options_button_);
+  const auto add_smoothing_option = [this, smoothing_menu](const char* source, bool checked,
+                                                           auto setter) {
+    auto* action = smoothing_menu->addAction(tr(source));
+    bind_action_text(action, source);
+    action->setCheckable(true);
+    action->setChecked(checked);
+    connect(action, &QAction::toggled, this, [this, setter](bool on) {
+      setter(*this, on);
+      schedule_save_tool_settings();
+      refresh_document_info();
+    });
+    return action;
+  };
+  brush_smoothing_pulled_string_action_ = add_smoothing_option(
+      "Pulled String Mode", current_brush_smoothing_pulled_string_,
+      [](MainWindow& window, bool on) {
+        window.current_brush_smoothing_pulled_string_ = on;
+        if (window.canvas_ != nullptr) {
+          window.canvas_->set_brush_smoothing_pulled_string(on);
+        }
+      });
+  brush_smoothing_catch_up_action_ = add_smoothing_option(
+      "Stroke Catch-up", current_brush_smoothing_catch_up_,
+      [](MainWindow& window, bool on) {
+        window.current_brush_smoothing_catch_up_ = on;
+        if (window.canvas_ != nullptr) {
+          window.canvas_->set_brush_smoothing_catch_up(on);
+        }
+      });
+  brush_smoothing_catch_up_end_action_ = add_smoothing_option(
+      "Catch-up on Stroke End", current_brush_smoothing_catch_up_end_,
+      [](MainWindow& window, bool on) {
+        window.current_brush_smoothing_catch_up_end_ = on;
+        if (window.canvas_ != nullptr) {
+          window.canvas_->set_brush_smoothing_catch_up_end(on);
+        }
+      });
+  brush_smoothing_zoom_adjust_action_ = add_smoothing_option(
+      "Adjust for Zoom", current_brush_smoothing_zoom_adjust_,
+      [](MainWindow& window, bool on) {
+        window.current_brush_smoothing_zoom_adjust_ = on;
+        if (window.canvas_ != nullptr) {
+          window.canvas_->set_brush_smoothing_zoom_adjust(on);
+        }
+      });
+  brush_smoothing_options_button_->setMenu(smoothing_menu);
+  add_option_widget(brush_smoothing_options_button_, smoothing_tools);
+
   // Photoshop's "Useful Mixer Brush Combinations" dropdown: each entry is just
   // a Wet/Load/Mix triple. Values follow Adobe's documented combinations
   // (structural pattern: Wet tiers 0/10/50/100, Load 50 with Dry Light/Heavy
@@ -1333,6 +1422,12 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   for (const auto& combination : mixer_useful_combinations()) {
     mixer_combination_combo_->addItem(tr(combination.name));
   }
+  // Compact closed width (the popup still shows full names): the Options bar
+  // must hold the whole mixer row in one line or the bar height changes on
+  // tool switch (ui_brush_tip_picker_keeps_options_bar_height).
+  mixer_combination_combo_->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+  mixer_combination_combo_->setMinimumContentsLength(7);
+  mixer_combination_combo_->setToolTip(tr("Useful mixer brush combinations"));
   add_option_widget(mixer_combination_combo_, {CanvasTool::MixerBrush});
 
   const auto add_mixer_percentage = [this, toolbar, add_option_label, add_option_widget](

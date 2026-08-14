@@ -363,6 +363,14 @@ QString photoshop_style_template() {
       min-height: 20px;
       max-height: 20px;
     }
+    QToolButton#brushSmoothingOptionsButton {
+      padding: 2px 1px;
+      min-height: 20px;
+      max-height: 20px;
+    }
+    QToolButton#brushSmoothingOptionsButton::menu-indicator {
+      width: 0;
+    }
     QToolButton#brushDynamicsButton[dynamicsActive="true"] {
       border-color: @accent_border_bright;
     }

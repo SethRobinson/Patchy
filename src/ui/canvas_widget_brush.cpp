@@ -22,6 +22,7 @@
 #include "ui/image_document_io.hpp"
 #include "ui/qt_geometry.hpp"
 #include "ui/smart_object_render.hpp"
+#include "ui/theme_palette.hpp"
 #include "ui/tool_cursors.hpp"
 
 #include <QApplication>
@@ -256,6 +257,46 @@ void CanvasWidget::set_mixer_sample_all_layers(bool sample_all_layers) noexcept 
 
 bool CanvasWidget::mixer_sample_all_layers() const noexcept {
   return mixer_sample_all_layers_;
+}
+
+void CanvasWidget::set_brush_smoothing(int percent) noexcept {
+  brush_smoothing_ = std::clamp(percent, 0, 100);
+}
+
+int CanvasWidget::brush_smoothing() const noexcept {
+  return brush_smoothing_;
+}
+
+void CanvasWidget::set_brush_smoothing_pulled_string(bool enabled) noexcept {
+  brush_smoothing_pulled_string_ = enabled;
+}
+
+bool CanvasWidget::brush_smoothing_pulled_string() const noexcept {
+  return brush_smoothing_pulled_string_;
+}
+
+void CanvasWidget::set_brush_smoothing_catch_up(bool enabled) noexcept {
+  brush_smoothing_catch_up_ = enabled;
+}
+
+bool CanvasWidget::brush_smoothing_catch_up() const noexcept {
+  return brush_smoothing_catch_up_;
+}
+
+void CanvasWidget::set_brush_smoothing_catch_up_end(bool enabled) noexcept {
+  brush_smoothing_catch_up_end_ = enabled;
+}
+
+bool CanvasWidget::brush_smoothing_catch_up_end() const noexcept {
+  return brush_smoothing_catch_up_end_;
+}
+
+void CanvasWidget::set_brush_smoothing_zoom_adjust(bool enabled) noexcept {
+  brush_smoothing_zoom_adjust_ = enabled;
+}
+
+bool CanvasWidget::brush_smoothing_zoom_adjust() const noexcept {
+  return brush_smoothing_zoom_adjust_;
 }
 
 void CanvasWidget::set_brush_tip(std::shared_ptr<const patchy::BrushTip> tip, const QString& tip_id) {
@@ -795,6 +836,14 @@ void CanvasWidget::draw_brush_adjust_readout(QPainter& painter, QPointF center, 
 
 void CanvasWidget::clear_brush_stroke_tracking() noexcept {
   airbrush_timer_.stop();
+  // The stabilizer catch-up timer stops everywhere the airbrush timer stops:
+  // release, focus loss, tool change, document/target change, and escape all
+  // funnel through here. Erase any leash overlay left on screen with it.
+  stabilizer_timer_.stop();
+  if (!stroke_leash_overlay_rect_.isEmpty()) {
+    update(stroke_leash_overlay_rect_);
+    stroke_leash_overlay_rect_ = QRect();
+  }
   brush_stroke_pixels_.clear();
   brush_stroke_alpha_caps_.clear();
   brush_stroke_accumulated_alpha_.clear();
@@ -871,6 +920,98 @@ void CanvasWidget::reset_brush_smoothing() noexcept {
   brush_smoothing_had_movement_ = false;
   brush_smoothing_last_input_position_ = {};
   brush_smoothing_last_rendered_position_ = {};
+}
+
+bool CanvasWidget::tool_uses_stroke_stabilizer(CanvasTool tool) noexcept {
+  // Photoshop scopes Smoothing to the Brush, Mixer Brush, and Eraser tools (a
+  // pen's eraser end resolves to Eraser through effective_tool_for_input()).
+  // Smudge, Pattern Stamp, shapes, and mask/selection tools stay unsmoothed.
+  return tool == CanvasTool::Brush || tool == CanvasTool::MixerBrush || tool == CanvasTool::Eraser;
+}
+
+double CanvasWidget::stroke_stabilizer_leash_radius() const noexcept {
+  // The one place the Smoothing percent becomes a leash radius: 0..100% maps
+  // to 0..100 px. With Adjust for Zoom ON that is DOCUMENT pixels (Photoshop's
+  // zoom compensation: constant precision relative to the image at any zoom);
+  // OFF it is SCREEN pixels, so divide by the view zoom for document units.
+  const auto radius = static_cast<double>(brush_smoothing_);
+  if (brush_smoothing_zoom_adjust_) {
+    return radius;
+  }
+  return radius / std::max(zoom_, 0.0001);
+}
+
+void CanvasWidget::begin_stroke_stabilizer(QPointF document_point, CanvasTool effective_tool) {
+  patchy::StrokeStabilizerConfig config;
+  config.leash_radius =
+      tool_uses_stroke_stabilizer(effective_tool) ? stroke_stabilizer_leash_radius() : 0.0;
+  config.pulled_string = brush_smoothing_pulled_string_;
+  config.catch_up = brush_smoothing_catch_up_;
+  config.catch_up_on_end = brush_smoothing_catch_up_end_;
+  stroke_stabilizer_.begin(document_point.x(), document_point.y(), config);
+  stroke_leash_overlay_rect_ = QRect();
+  if (stroke_stabilizer_.active()) {
+    invalidate_stroke_leash_overlay();
+    if (brush_smoothing_catch_up_) {
+      stabilizer_timer_.start(kStrokeStabilizerTimerIntervalMs, this);
+    }
+  }
+}
+
+QPointF CanvasWidget::stabilized_stroke_point(QPointF constrained_point, CanvasTool effective_tool) {
+  // Smoothing 0 (or a non-smoothed tool) never consults the stabilizer, so no
+  // conversion can perturb the historical stroke path.
+  if (!stroke_stabilizer_.active() || !tool_uses_stroke_stabilizer(effective_tool)) {
+    return constrained_point;
+  }
+  const auto smoothed = stroke_stabilizer_.move(constrained_point.x(), constrained_point.y());
+  invalidate_stroke_leash_overlay();
+  return QPointF(smoothed.x, smoothed.y);
+}
+
+QRect CanvasWidget::stroke_leash_overlay_rect() const {
+  if (!painting_ || !stroke_stabilizer_.active() || brush_smoothing_ <= 0) {
+    return {};
+  }
+  const auto raw = stroke_stabilizer_.raw();
+  const auto output = stroke_stabilizer_.output();
+  const auto raw_widget = widget_position_f(QPointF(raw.x, raw.y));
+  const auto output_widget = widget_position_f(QPointF(output.x, output.y));
+  const auto radius = stroke_stabilizer_leash_radius() * zoom_;
+  auto bounds = QRectF(raw_widget, output_widget).normalized();
+  bounds = bounds.united(
+      QRectF(raw_widget.x() - radius, raw_widget.y() - radius, radius * 2.0, radius * 2.0));
+  return bounds.toAlignedRect().adjusted(-3, -3, 3, 3);
+}
+
+// Old-union-new, the brush-outline gotcha: repainting only the new rect would
+// strand the previous leash line and circle whenever they shrink or move.
+void CanvasWidget::invalidate_stroke_leash_overlay() {
+  const auto current = stroke_leash_overlay_rect();
+  const auto region = stroke_leash_overlay_rect_.united(current);
+  stroke_leash_overlay_rect_ = current;
+  if (!region.isEmpty()) {
+    update(region);
+  }
+}
+
+void CanvasWidget::draw_stroke_leash_overlay(QPainter& painter) const {
+  if (!painting_ || !stroke_stabilizer_.active() || brush_smoothing_ <= 0 ||
+      !tool_uses_stroke_stabilizer(effective_tool_for_input())) {
+    return;
+  }
+  const auto raw = stroke_stabilizer_.raw();
+  const auto output = stroke_stabilizer_.output();
+  const auto raw_widget = widget_position_f(QPointF(raw.x, raw.y));
+  const auto output_widget = widget_position_f(QPointF(output.x, output.y));
+  const auto radius = stroke_stabilizer_leash_radius() * zoom_;
+  painter.save();
+  painter.setRenderHint(QPainter::Antialiasing, true);
+  painter.setBrush(Qt::NoBrush);
+  painter.setPen(QPen(theme().brush_leash, 1.0));
+  painter.drawLine(output_widget, raw_widget);
+  painter.drawEllipse(raw_widget, radius, radius);
+  painter.restore();
 }
 
 QRect CanvasWidget::advance_smoothed_brush_stroke(QPointF document_point, bool erase) {

@@ -1024,6 +1024,7 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
   draw_zoom_preview(painter);
   draw_rulers(painter);
   draw_brush_hover_outline(painter);
+  draw_stroke_leash_overlay(painter);
   draw_brush_adjust_overlay(painter);
   draw_processing_overlay(painter);
   if (vertical_scroll_bar_ != nullptr && vertical_scroll_bar_->isVisible() &&

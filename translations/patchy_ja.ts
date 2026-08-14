@@ -6977,6 +6977,13 @@ Mixed selection</source>
     <message><source>Very Wet</source><translation>ベリーウェット</translation></message>
     <message><source>Very Wet, Light Mix</source><translation>ベリーウェット（ミックス弱）</translation></message>
     <message><source>Very Wet, Heavy Mix</source><translation>ベリーウェット（ミックス強）</translation></message>
+    <message><source>Stroke smoothing - 0% paints the raw pointer path</source><translation>ストロークの滑らかさ - 0% はポインターの軌跡をそのまま描画します</translation></message>
+    <message><source>Smoothing options</source><translation>スムージングオプション</translation></message>
+    <message><source>Pulled String Mode</source><translation>プルストリングモード</translation></message>
+    <message><source>Stroke Catch-up</source><translation>ストロークキャッチアップ</translation></message>
+    <message><source>Catch-up on Stroke End</source><translation>ストローク終了時にキャッチアップ</translation></message>
+    <message><source>Adjust for Zoom</source><translation>ズームに応じて調整</translation></message>
+    <message><source>Smoothing: %1%</source><translation>スムージング: %1%</translation></message>
     <message><source>Zoom layer thumbnails to the layer content</source><translation>レイヤーサムネイルをレイヤー内容にズームする</translation></message>
     <message><source>When enabled, layer thumbnails crop to the layer's visible pixels instead of previewing the whole canvas, so small layers fill their thumbnail.</source><translation>有効にすると、レイヤーサムネイルはキャンバス全体ではなくレイヤーの可視ピクセルに切り抜かれ、小さなレイヤーもサムネイルいっぱいに表示されます。</translation></message>
     <message>

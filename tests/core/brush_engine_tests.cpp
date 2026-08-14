@@ -49,6 +49,7 @@
 #include "core/style_presets.hpp"
 #include "core/pixel_tools.hpp"
 #include "core/quick_select.hpp"
+#include "core/stroke_stabilizer.hpp"
 #include "render/compositor.hpp"
 #include "render/layer_compositor.hpp"
 #include "render/tile_cache.hpp"
@@ -1672,6 +1673,85 @@ void tool_brush_tip_erases_and_respects_gates() {
   CHECK(gated_pixels.pixel(24, 24)[3] == 255);
 }
 
+void stroke_stabilizer_pass_through_and_leash_geometry() {
+  // Radius 0: exact pass-through, bit-identical doubles.
+  patchy::StrokeStabilizer pass_through;
+  patchy::StrokeStabilizerConfig config;
+  pass_through.begin(3.25, 7.75, config);
+  CHECK(!pass_through.active());
+  const double raw_x = 12.123456789012345;
+  const double raw_y = -4.987654321098765;
+  const auto passed = pass_through.move(raw_x, raw_y);
+  CHECK(std::bit_cast<std::uint64_t>(passed.x) == std::bit_cast<std::uint64_t>(raw_x));
+  CHECK(std::bit_cast<std::uint64_t>(passed.y) == std::bit_cast<std::uint64_t>(raw_y));
+  CHECK(!pass_through.tick(0.016).has_value());
+
+  // Taut leash: the output sits exactly leash_radius behind raw along the segment.
+  config.leash_radius = 10.0;
+  patchy::StrokeStabilizer stabilizer;
+  stabilizer.begin(0.0, 0.0, config);
+  CHECK(stabilizer.active());
+  const auto taut = stabilizer.move(30.0, 40.0);  // 50 px along direction (3,4)/5
+  CHECK(std::abs(taut.x - 24.0) <= 1e-12);
+  CHECK(std::abs(taut.y - 32.0) <= 1e-12);
+  CHECK(std::abs(std::hypot(30.0 - taut.x, 40.0 - taut.y) - config.leash_radius) <= 1e-12);
+
+  // Slack movement inside the radius leaves the output unchanged, in both modes.
+  const auto slack = stabilizer.move(27.0, 36.0);  // 5 px from the output
+  CHECK(slack.x == taut.x);
+  CHECK(slack.y == taut.y);
+  auto pulled_config = config;
+  pulled_config.pulled_string = true;
+  patchy::StrokeStabilizer pulled;
+  pulled.begin(0.0, 0.0, pulled_config);
+  const auto pulled_slack = pulled.move(3.0, 4.0);
+  CHECK(pulled_slack.x == 0.0);
+  CHECK(pulled_slack.y == 0.0);
+
+  // tick with fixed dt converges monotonically toward raw and is deterministic
+  // across two identical runs.
+  std::array<patchy::StrokeStabilizer, 2> runs;
+  for (auto& run : runs) {
+    run.begin(0.0, 0.0, config);
+    (void)run.move(40.0, 0.0);
+  }
+  auto previous_distance = std::abs(40.0 - runs[0].output().x);
+  for (int step = 0; step < 12; ++step) {
+    const auto first = runs[0].tick(0.016);
+    const auto second = runs[1].tick(0.016);
+    CHECK(first.has_value());
+    CHECK(second.has_value());
+    if (!first.has_value() || !second.has_value()) {
+      break;
+    }
+    CHECK(std::bit_cast<std::uint64_t>(first->x) == std::bit_cast<std::uint64_t>(second->x));
+    CHECK(std::bit_cast<std::uint64_t>(first->y) == std::bit_cast<std::uint64_t>(second->y));
+    const auto distance = std::hypot(40.0 - first->x, first->y);
+    CHECK(distance < previous_distance);
+    previous_distance = distance;
+  }
+
+  // Pulled-string mode suppresses the stationary catch-up entirely.
+  (void)pulled.move(30.0, 40.0);
+  CHECK(!pulled.tick(0.016).has_value());
+
+  // finish returns the raw release point iff catch_up_on_end.
+  patchy::StrokeStabilizer releases_at_raw;
+  releases_at_raw.begin(0.0, 0.0, config);  // catch_up_on_end defaults on
+  (void)releases_at_raw.move(30.0, 40.0);
+  const auto released = releases_at_raw.finish(31.0, 41.0);
+  CHECK(released.x == 31.0);
+  CHECK(released.y == 41.0);
+  auto hold_config = config;
+  hold_config.catch_up_on_end = false;
+  patchy::StrokeStabilizer holds_back;
+  holds_back.begin(0.0, 0.0, hold_config);
+  const auto held_output = holds_back.move(30.0, 40.0);
+  const auto held = holds_back.finish(31.0, 41.0);
+  CHECK(held.x == held_output.x);
+  CHECK(held.y == held_output.y);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> brush_engine_tests() {
@@ -1700,6 +1780,8 @@ std::vector<patchy::test::TestCase> brush_engine_tests() {
        tool_brush_texture_and_dual_brush_render_deterministically},
       {"mixer_brush_pickup_average_follows_canvas_and_dries_only_at_wet_zero",
        mixer_brush_pickup_average_follows_canvas_and_dries_only_at_wet_zero},
+      {"stroke_stabilizer_pass_through_and_leash_geometry",
+       stroke_stabilizer_pass_through_and_leash_geometry},
       {"tool_brush_color_dynamics_varies_selected_colors_only",
        tool_brush_color_dynamics_varies_selected_colors_only},
       {"tool_brush_effect_pixels_round_trip_exactly_through_psd",
