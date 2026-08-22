@@ -1,4 +1,7 @@
+#include "core/layer_metadata.hpp"
+#include "core/smart_object.hpp"
 #include "formats/pdf_content.hpp"
+#include "formats/pdf_document_io.hpp"
 #include "formats/pdf_file.hpp"
 #include "formats/pdf_fonts.hpp"
 #include "formats/pdf_filters.hpp"
@@ -1072,6 +1075,364 @@ void pdf_local_brochure_interprets_to_shapes_and_text_if_available() {
   CHECK(saw_non_black);
 }
 
+patchy::pdf::VectorReadResult read_vectors(const std::vector<std::uint8_t>& bytes, int page = 0,
+                                           double pixels_per_point = 1.0) {
+  patchy::pdf::VectorReadOptions options;
+  options.page = page;
+  options.pixels_per_point = pixels_per_point;
+  return patchy::pdf::read_page_as_vectors(bytes, options);
+}
+
+void pdf_vector_import_builds_shape_layers() {
+  const std::string content =
+      "1 0 0 rg 10 20 30 40 re f\n"
+      "0 0 1 RG 3 w 5 5 m 60 70 l S\n";
+  const auto bytes = build_pdf({
+      "<</Type/Catalog/Pages 2 0 R>>",
+      "<</Type/Pages/Kids[3 0 R]/Count 1>>",
+      "<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 100]/Contents 4 0 R>>",
+      "<</Length " + std::to_string(content.size()) + ">>\nstream\n" + content + "\nendstream",
+  });
+
+  const auto result = read_vectors(bytes);
+  CHECK(result.shape_layers == 2);
+  CHECK(result.text_layers == 0);
+  CHECK(result.document.width() == 200);
+  CHECK(result.document.height() == 100);
+  CHECK(result.document.layers().size() == 2);
+  if (result.document.layers().size() != 2) {
+    return;
+  }
+
+  // Both are real vector shape layers, not baked pixels.
+  const auto& filled = result.document.layers()[0];
+  CHECK(patchy::layer_is_vector_shape(filled));
+  CHECK(filled.vector_shape() != nullptr);
+  if (filled.vector_shape() != nullptr) {
+    CHECK(filled.vector_shape()->fill.kind == patchy::VectorFillKind::Solid);
+    CHECK(filled.vector_shape()->fill.color.red == 255);
+    CHECK(!filled.vector_shape()->stroke.enabled);
+  }
+  // The raster cache is baked so the layer composites without a re-render.
+  CHECK(!filled.pixels().empty());
+
+  const auto& stroked = result.document.layers()[1];
+  CHECK(stroked.vector_shape() != nullptr);
+  if (stroked.vector_shape() != nullptr) {
+    CHECK(stroked.vector_shape()->stroke.enabled);
+    CHECK(std::abs(stroked.vector_shape()->stroke.width - 3.0) < 1e-9);
+    CHECK(stroked.vector_shape()->stroke.content.color.blue == 255);
+    CHECK(stroked.vector_shape()->stroke.alignment == patchy::VectorStrokeAlignment::Center);
+  }
+
+  // The page's resolution rides on the document, so it prints at its authored size.
+  CHECK(std::abs(result.document.print_settings().horizontal_ppi - 72.0) < 1e-9);
+
+  // Doubling the scale doubles the canvas and the resolution together.
+  const auto scaled = read_vectors(bytes, 0, 2.0);
+  CHECK(scaled.document.width() == 400);
+  CHECK(std::abs(scaled.document.print_settings().horizontal_ppi - 144.0) < 1e-9);
+}
+
+void pdf_vector_import_applies_nonzero_holes() {
+  // A square with a reverse-wound square inside it: nonzero makes the inner one a
+  // hole, and core expresses that as a Subtract shape group.
+  const std::string content =
+      "0 g 0 0 100 100 re 20 80 m 80 80 l 80 20 l 20 20 l h f\n";
+  const auto bytes = build_pdf({
+      "<</Type/Catalog/Pages 2 0 R>>",
+      "<</Type/Pages/Kids[3 0 R]/Count 1>>",
+      "<</Type/Page/Parent 2 0 R/MediaBox[0 0 100 100]/Contents 4 0 R>>",
+      "<</Length " + std::to_string(content.size()) + ">>\nstream\n" + content + "\nendstream",
+  });
+  const auto result = read_vectors(bytes);
+  CHECK(result.document.layers().size() == 1);
+  if (result.document.layers().empty()) {
+    return;
+  }
+  const auto* shape = result.document.layers()[0].vector_shape();
+  CHECK(shape != nullptr);
+  if (shape == nullptr) {
+    return;
+  }
+  CHECK(shape->path.subpaths.size() == 2);
+  if (shape->path.subpaths.size() == 2) {
+    // Separate groups, and the contained one subtracts.
+    CHECK(shape->path.subpaths[0].shape_group != shape->path.subpaths[1].shape_group);
+    CHECK(shape->path.subpaths[1].op == patchy::PathCombineOp::Subtract);
+  }
+
+  // The same geometry with f* keeps one group, which is core's even-odd rule.
+  const std::string even_odd_content =
+      "0 g 0 0 100 100 re 20 80 m 80 80 l 80 20 l 20 20 l h f*\n";
+  const auto even_odd = read_vectors(build_pdf({
+      "<</Type/Catalog/Pages 2 0 R>>",
+      "<</Type/Pages/Kids[3 0 R]/Count 1>>",
+      "<</Type/Page/Parent 2 0 R/MediaBox[0 0 100 100]/Contents 4 0 R>>",
+      "<</Length " + std::to_string(even_odd_content.size()) + ">>\nstream\n" + even_odd_content + "\nendstream",
+  }));
+  const auto* even_odd_shape = even_odd.document.layers()[0].vector_shape();
+  CHECK(even_odd_shape != nullptr);
+  if (even_odd_shape != nullptr && even_odd_shape->path.subpaths.size() == 2) {
+    CHECK(even_odd_shape->path.subpaths[0].shape_group == even_odd_shape->path.subpaths[1].shape_group);
+  }
+}
+
+void pdf_vector_import_builds_editable_text_layers() {
+  const std::string content = "BT /F1 18 Tf 1 0 0 1 20 60 Tm 0 0 1 rg (Hello PDF) Tj ET\n";
+  const auto bytes = build_pdf({
+      "<</Type/Catalog/Pages 2 0 R>>",
+      "<</Type/Pages/Kids[3 0 R]/Count 1>>",
+      "<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 100]/Contents 4 0 R"
+      "/Resources<</Font<</F1 5 0 R>>>>>>",
+      "<</Length " + std::to_string(content.size()) + ">>\nstream\n" + content + "\nendstream",
+      "<</Type/Font/Subtype/TrueType/BaseFont/ABCDEF+SegoeUI-Bold/Encoding/WinAnsiEncoding"
+      "/FirstChar 32/LastChar 122/Widths[500]>>",
+  });
+
+  const auto result = read_vectors(bytes);
+  CHECK(result.text_layers == 1);
+  CHECK(result.document.layers().size() == 1);
+  if (result.document.layers().empty()) {
+    return;
+  }
+
+  const auto& layer = result.document.layers()[0];
+  // A real, editable text layer: the predicate the whole text pipeline keys off.
+  CHECK(patchy::layer_is_text(layer));
+  const auto& metadata = layer.metadata();
+  CHECK(metadata.at(patchy::kLayerMetadataText) == "Hello PDF");
+  // The layer is named after its own words, not "Layer 1".
+  CHECK(layer.name() == "Hello PDF");
+  // Subset tag stripped, style split, bold detected from the name.
+  CHECK(metadata.at(patchy::kLayerMetadataTextFont) == "SegoeUI");
+  CHECK(metadata.at(patchy::kLayerMetadataTextBold) == "1");
+  CHECK(metadata.at(patchy::kLayerMetadataTextColor) == "#0000ff");
+  CHECK(metadata.at(patchy::kLayerMetadataTextSize) == "18");
+  // Style runs carry the fractional size and the family the missing-font warning reads.
+  CHECK(metadata.contains(patchy::kLayerMetadataTextRuns));
+  // The Qt side is told to finish the job, and given the matrix and target width.
+  CHECK(metadata.at(patchy::kLayerMetadataPdfPendingText) == "1");
+  CHECK(metadata.contains(patchy::kLayerMetadataPdfTextXfrm));
+  CHECK(metadata.contains(patchy::kLayerMetadataPdfTextIntendedWidth));
+  // The matrix must place the baseline 40 pixels down a 100-point page (100 - 60).
+  const auto transform = metadata.at(patchy::kLayerMetadataPdfTextXfrm);
+  CHECK(transform.find("20 ") != std::string::npos);
+  CHECK(transform.find(" 40") != std::string::npos);
+}
+
+void pdf_vector_import_places_images_as_smart_objects() {
+  const std::string samples({'\xFF', '\x00', '\x00', '\x00', '\xFF', '\x00', '\x00', '\x00', '\xFF', '\xFF',
+                             '\xFF', '\xFF'});
+  // A rotated placement, which is exactly what a plain pixel layer would lose.
+  const std::string content = "q 0 40 -40 0 60 20 cm /Im0 Do Q\n";
+  const auto bytes = build_pdf({
+      "<</Type/Catalog/Pages 2 0 R>>",
+      "<</Type/Pages/Kids[3 0 R]/Count 1>>",
+      "<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 100]/Contents 4 0 R"
+      "/Resources<</XObject<</Im0 5 0 R>>>>>>",
+      "<</Length " + std::to_string(content.size()) + ">>\nstream\n" + content + "\nendstream",
+      "<</Type/XObject/Subtype/Image/Width 2/Height 2/ColorSpace/DeviceRGB"
+      "/BitsPerComponent 8/Length 12>>\nstream\n" + samples + "\nendstream",
+  });
+
+  const auto result = read_vectors(bytes);
+  CHECK(result.image_layers == 1);
+  CHECK(result.document.layers().size() == 1);
+  if (result.document.layers().empty()) {
+    return;
+  }
+
+  const auto& layer = result.document.layers()[0];
+  CHECK(patchy::layer_is_smart_object(layer));
+  CHECK(layer.metadata().at(patchy::kLayerMetadataPdfPendingImage) == "1");
+
+  const auto placement = patchy::smart_object_placement_from_layer(layer);
+  CHECK(placement.has_value());
+  if (placement.has_value()) {
+    CHECK(std::abs(placement->width - 2.0) < 1e-9);
+    CHECK(std::abs(placement->height - 2.0) < 1e-9);
+    // A rotated quad: the four corners are NOT an axis-aligned rectangle, which is
+    // the whole reason images go in as smart objects.
+    const bool axis_aligned = std::abs(placement->transform[0] - placement->transform[6]) < 1e-6 &&
+                              std::abs(placement->transform[1] - placement->transform[3]) < 1e-6;
+    CHECK(!axis_aligned);
+  }
+
+  // The bytes really are in the store, as a decodable PNG.
+  const auto uuid = patchy::smart_object_source_uuid(layer);
+  CHECK(!uuid.empty());
+  const auto* source = result.document.metadata().smart_objects.find(uuid);
+  CHECK(source != nullptr);
+  if (source != nullptr && source->file_bytes != nullptr) {
+    CHECK(source->filetype == "png ");
+    const auto& png = *source->file_bytes;
+    CHECK(png.size() > 8);
+    // The PNG signature, so this is a real file and not a raw sample dump.
+    CHECK(png[0] == 0x89 && png[1] == 'P' && png[2] == 'N' && png[3] == 'G');
+  }
+}
+
+void pdf_vector_import_keeps_jpeg_bytes_untranscoded() {
+  // A DCTDecode image must reach the smart object as the file's own JPEG bytes.
+  const std::string jpeg({'\xFF', '\xD8', '\xFF', '\xE0', '\x00', '\x10', 'J', 'F', 'I', 'F', '\x00', '\xFF',
+                          '\xD9'});
+  const std::string content = "q 40 0 0 20 10 30 cm /Im0 Do Q\n";
+  const auto bytes = build_pdf({
+      "<</Type/Catalog/Pages 2 0 R>>",
+      "<</Type/Pages/Kids[3 0 R]/Count 1>>",
+      "<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 100]/Contents 4 0 R"
+      "/Resources<</XObject<</Im0 5 0 R>>>>>>",
+      "<</Length " + std::to_string(content.size()) + ">>\nstream\n" + content + "\nendstream",
+      "<</Type/XObject/Subtype/Image/Width 8/Height 8/ColorSpace/DeviceRGB/Filter/DCTDecode"
+      "/BitsPerComponent 8/Length " + std::to_string(jpeg.size()) + ">>\nstream\n" + jpeg + "\nendstream",
+  });
+
+  const auto result = read_vectors(bytes);
+  CHECK(result.image_layers == 1);
+  if (result.document.layers().empty()) {
+    return;
+  }
+  const auto uuid = patchy::smart_object_source_uuid(result.document.layers()[0]);
+  const auto* source = result.document.metadata().smart_objects.find(uuid);
+  CHECK(source != nullptr);
+  if (source != nullptr && source->file_bytes != nullptr) {
+    CHECK(source->filetype == "JPEG");
+    // Byte-for-byte the PDF's own stream: nothing was decoded and re-encoded. The
+    // comparison casts because char is signed here, so '\xFF' would otherwise never
+    // equal the stored 255.
+    const auto& stored = *source->file_bytes;
+    CHECK(stored.size() == jpeg.size());
+    CHECK(std::equal(stored.begin(), stored.end(), jpeg.begin(),
+                     [](std::uint8_t left, char right) { return left == static_cast<std::uint8_t>(right); }));
+  }
+}
+
+void pdf_vector_import_reports_what_it_cannot_model() {
+  // A shading pattern fill: imported as a flat colour, and said so.
+  const std::string content = "/Pattern cs /P0 scn 0 0 100 100 re f\n";
+  const auto bytes = build_pdf({
+      "<</Type/Catalog/Pages 2 0 R>>",
+      "<</Type/Pages/Kids[3 0 R]/Count 1>>",
+      "<</Type/Page/Parent 2 0 R/MediaBox[0 0 100 100]/Contents 4 0 R"
+      "/Resources<</Pattern<</P0 5 0 R>>>>>>",
+      "<</Length " + std::to_string(content.size()) + ">>\nstream\n" + content + "\nendstream",
+      "<</PatternType 2/Shading<</ShadingType 2/ColorSpace/DeviceRGB>>>>",
+  });
+  const auto result = read_vectors(bytes);
+  CHECK(result.has_unmodelled_content);
+  CHECK(!result.notices.empty());
+  bool mentioned = false;
+  for (const auto& text : result.notices) {
+    if (text.find("gradient") != std::string::npos) {
+      mentioned = true;
+    }
+  }
+  CHECK(mentioned);
+}
+
+void pdf_vector_import_refuses_what_it_must() {
+  // An empty page has nothing to make editable, and saying so lets the caller offer
+  // the rasterizing importer instead of producing a blank document.
+  bool threw = false;
+  try {
+    (void)read_vectors(build_pdf({
+        "<</Type/Catalog/Pages 2 0 R>>",
+        "<</Type/Pages/Kids[3 0 R]/Count 1>>",
+        "<</Type/Page/Parent 2 0 R/MediaBox[0 0 100 100]>>",
+    }));
+  } catch (const std::exception&) {
+    threw = true;
+  }
+  CHECK(threw);
+
+  // An out-of-range page index.
+  threw = false;
+  try {
+    (void)read_vectors(two_page_pdf(), 9);
+  } catch (const std::exception&) {
+    threw = true;
+  }
+  CHECK(threw);
+
+  // Not a PDF at all.
+  threw = false;
+  try {
+    (void)read_vectors(bytes_of("this is not a pdf"));
+  } catch (const std::exception&) {
+    threw = true;
+  }
+  CHECK(threw);
+
+  CHECK(patchy::pdf::sniff(as_bytes("%PDF-1.7\n")));
+  CHECK(!patchy::pdf::sniff(as_bytes("GIF89a")));
+  CHECK(patchy::pdf::page_count(two_page_pdf()) == 2);
+}
+
+void pdf_local_brochure_imports_as_editable_layers_if_available() {
+  const auto path = patchy::test::local_format_fixture_path("pdf", "HoloVCS_C2_A4_Brochure.pdf");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] local pdf fixture missing: " << path.string() << '\n';
+    return;
+  }
+  std::ifstream stream(path, std::ios::binary);
+  CHECK(stream.good());
+  const std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(stream)),
+                                        std::istreambuf_iterator<char>());
+
+  // 150 ppi, a realistic import setting.
+  const auto result = read_vectors(bytes, 0, 150.0 / 72.0);
+
+  // A4 at 150 ppi is about 1240 x 1754 pixels.
+  CHECK(std::abs(result.document.width() - 1240) <= 2);
+  CHECK(std::abs(result.document.height() - 1754) <= 2);
+  CHECK(std::abs(result.document.print_settings().horizontal_ppi - 150.0) < 0.01);
+
+  CHECK(result.shape_layers > 400);
+  CHECK(result.text_layers >= 40);
+  CHECK(result.image_layers == 2);
+
+  // Every layer is a real editable object of the right kind, and the text ones say
+  // what they say.
+  int vector_shapes = 0;
+  int text_layers = 0;
+  int smart_objects = 0;
+  bool saw_headline = false;
+  for (const auto& layer : result.document.layers()) {
+    if (patchy::layer_is_text(layer)) {
+      ++text_layers;
+      const auto& text = layer.metadata().at(patchy::kLayerMetadataText);
+      if (text.find("HoloVCS") != std::string::npos) {
+        saw_headline = true;
+      }
+      // Each carries a resolvable family and the pending-render marker.
+      CHECK(!layer.metadata().at(patchy::kLayerMetadataTextFont).empty());
+      CHECK(layer.metadata().contains(patchy::kLayerMetadataPdfPendingText));
+    } else if (patchy::layer_is_smart_object(layer)) {
+      ++smart_objects;
+    } else if (patchy::layer_is_vector_shape(layer)) {
+      ++vector_shapes;
+      CHECK(layer.vector_shape() != nullptr);
+    }
+  }
+  CHECK(saw_headline);
+  CHECK(vector_shapes == result.shape_layers);
+  CHECK(text_layers == result.text_layers);
+  CHECK(smart_objects == result.image_layers);
+
+  // Both images made it into the store with real bytes.
+  for (const auto& layer : result.document.layers()) {
+    if (!patchy::layer_is_smart_object(layer)) {
+      continue;
+    }
+    const auto* source = result.document.metadata().smart_objects.find(patchy::smart_object_source_uuid(layer));
+    CHECK(source != nullptr);
+    if (source != nullptr) {
+      CHECK(source->file_bytes != nullptr && !source->file_bytes->empty());
+    }
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> pdf_tests() {
@@ -1101,5 +1462,13 @@ std::vector<patchy::test::TestCase> pdf_tests() {
       {"pdf_interpreter_reads_images_and_ext_gstate", pdf_interpreter_reads_images_and_ext_gstate},
       {"pdf_interpreter_survives_damaged_content", pdf_interpreter_survives_damaged_content},
       {"pdf_local_brochure_interprets_to_shapes_and_text_if_available", pdf_local_brochure_interprets_to_shapes_and_text_if_available},
+      {"pdf_vector_import_builds_shape_layers", pdf_vector_import_builds_shape_layers},
+      {"pdf_vector_import_applies_nonzero_holes", pdf_vector_import_applies_nonzero_holes},
+      {"pdf_vector_import_builds_editable_text_layers", pdf_vector_import_builds_editable_text_layers},
+      {"pdf_vector_import_places_images_as_smart_objects", pdf_vector_import_places_images_as_smart_objects},
+      {"pdf_vector_import_keeps_jpeg_bytes_untranscoded", pdf_vector_import_keeps_jpeg_bytes_untranscoded},
+      {"pdf_vector_import_reports_what_it_cannot_model", pdf_vector_import_reports_what_it_cannot_model},
+      {"pdf_vector_import_refuses_what_it_must", pdf_vector_import_refuses_what_it_must},
+      {"pdf_local_brochure_imports_as_editable_layers_if_available", pdf_local_brochure_imports_as_editable_layers_if_available},
   };
 }

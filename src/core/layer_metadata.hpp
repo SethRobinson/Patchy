@@ -71,6 +71,22 @@ inline constexpr const char* kLayerMetadataAfTextAlign = "patchy.af.text_align";
 // the standard patchy.text.transform. Frame/box text never carries this.
 inline constexpr const char* kLayerMetadataAfTextXfrm = "patchy.af.text_xfrm";
 
+// PDF vector import handoff (same pattern as SVG and .af). The Qt-free reader emits
+// the story under the standard patchy.text.* keys plus these markers, and
+// MainWindow::render_pending_pdf_text_layers renders post-open and drops them.
+// xfrm is the run's full text-rendering matrix ("a b c d e f", the PDF/QTransform
+// six-number order), which PDF needs because a Tm may rotate or shear a run.
+// intended_width is the advance width the PDF laid the run out at, in document
+// pixels: the render pass compares it against the substituted font's measured width
+// and sets tracking so the run keeps its authored extent.
+inline constexpr const char* kLayerMetadataPdfPendingText = "patchy.pdf.pending_text_render";
+inline constexpr const char* kLayerMetadataPdfTextXfrm = "patchy.pdf.text_xfrm";
+inline constexpr const char* kLayerMetadataPdfTextIntendedWidth = "patchy.pdf.text_intended_width";
+// A placed image awaiting the Qt-side smart-object render: the reader has already
+// put the bytes in the document's SmartObjectStore and written the placement quad,
+// so this only marks the layer for MainWindow::render_pending_pdf_images.
+inline constexpr const char* kLayerMetadataPdfPendingImage = "patchy.pdf.pending_image_render";
+
 using LayerAffineTransform = std::array<double, 6>;
 
 [[nodiscard]] bool layer_locks_transparent_pixels(const Layer& layer);

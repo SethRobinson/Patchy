@@ -432,7 +432,9 @@ add_library(patchy_formats
   src/formats/palette_io.cpp
   src/formats/pcx_document_io.cpp
   src/formats/pdf_content.cpp
+  src/formats/pdf_document_io.cpp
   src/formats/pdf_file.cpp
+  src/formats/pdf_png_writer.cpp
   src/formats/pdf_filters.cpp
   src/formats/pdf_fonts.cpp
   src/formats/pdf_syntax.cpp
@@ -443,6 +445,7 @@ add_library(patchy_formats
   src/formats/svg_document_write.cpp
   src/formats/svg_xml.cpp
   src/formats/tga_document_io.cpp
+  src/formats/vector_fill_rule.cpp
   src/formats/stb/stb_image_impl.c
   src/formats/zstd/zstddeclib.c
 )
