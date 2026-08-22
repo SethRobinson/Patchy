@@ -163,6 +163,7 @@ int main(int argc, char** argv) {
            vector_raster_tests,
            psd_vector_fixtures_tests,
            svg_tests,
+           pdf_tests,
            af_format_tests,
            composite_corpus_tests,
        }) {

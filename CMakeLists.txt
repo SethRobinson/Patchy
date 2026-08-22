@@ -431,6 +431,9 @@ add_library(patchy_formats
   src/formats/ilbm_document_io.cpp
   src/formats/palette_io.cpp
   src/formats/pcx_document_io.cpp
+  src/formats/pdf_file.cpp
+  src/formats/pdf_filters.cpp
+  src/formats/pdf_syntax.cpp
   src/formats/raw_document_io.cpp
   src/formats/raw_tone.cpp
   src/formats/raw_white_balance.cpp
@@ -1361,6 +1364,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/smart_filter_pixels_tests.cpp
     tests/core/smart_objects_warp_tests.cpp
     tests/core/stroke_mask_effects_tests.cpp
+    tests/core/pdf_tests.cpp
     tests/core/svg_tests.cpp
     tests/core/vector_raster_tests.cpp
     tests/core/vector_shape_tests.cpp
