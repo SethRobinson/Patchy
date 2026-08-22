@@ -1,4 +1,5 @@
 #include "formats/pdf_file.hpp"
+#include "formats/pdf_fonts.hpp"
 #include "formats/pdf_filters.hpp"
 #include "formats/pdf_syntax.hpp"
 
@@ -421,6 +422,229 @@ void pdf_local_real_documents_parse_if_available() {
   }
 }
 
+void pdf_font_names_split_subset_tags_and_styles() {
+  // A subset tag is exactly six uppercase letters and a '+'.
+  const auto subset = patchy::pdf::parse_base_font_name("AAAAAA+SegoeUI-Bold");
+  CHECK(subset.family == "SegoeUI");
+  CHECK(subset.style == "Bold");
+  CHECK(subset.bold);
+  CHECK(!subset.italic);
+
+  // Six letters but no '+', so nothing is stripped.
+  CHECK(patchy::pdf::parse_base_font_name("ABCDEFGlyphic").family == "ABCDEFGlyphic");
+  // Lowercase in the tag position is not a subset tag either.
+  CHECK(patchy::pdf::parse_base_font_name("aaaaaa+Times").family == "aaaaaa+Times");
+
+  const auto both = patchy::pdf::parse_base_font_name("BCDEFG+TimesNewRomanPS-BoldItalicMT");
+  CHECK(both.family == "TimesNewRomanPS");
+  CHECK(both.bold);
+  CHECK(both.italic);
+
+  // The comma form, and a name with no separator at all.
+  CHECK(patchy::pdf::parse_base_font_name("Arial,BoldItalic").bold);
+  CHECK(patchy::pdf::parse_base_font_name("Arial,BoldItalic").italic);
+  CHECK(patchy::pdf::parse_base_font_name("ArialBold").bold);
+
+  const auto plain = patchy::pdf::parse_base_font_name("Helvetica");
+  CHECK(plain.family == "Helvetica");
+  CHECK(!plain.bold);
+  CHECK(!plain.italic);
+  // Oblique counts as italic; Black and Heavy count as bold.
+  CHECK(patchy::pdf::parse_base_font_name("Helvetica-Oblique").italic);
+  CHECK(patchy::pdf::parse_base_font_name("Futura-Black").bold);
+}
+
+void pdf_glyph_names_map_to_unicode() {
+  CHECK(patchy::pdf::unicode_for_glyph_name("A") == U'A');
+  CHECK(patchy::pdf::unicode_for_glyph_name("space") == U' ');
+  CHECK(patchy::pdf::unicode_for_glyph_name("bullet") == 0x2022);
+  CHECK(patchy::pdf::unicode_for_glyph_name("emdash") == 0x2014);
+  CHECK(patchy::pdf::unicode_for_glyph_name("quoteright") == 0x2019);
+  CHECK(patchy::pdf::unicode_for_glyph_name("fi") == 0xFB01);
+  // Composed accented names rather than a table entry each.
+  CHECK(patchy::pdf::unicode_for_glyph_name("eacute") == 0x00E9);
+  CHECK(patchy::pdf::unicode_for_glyph_name("Adieresis") == 0x00C4);
+  CHECK(patchy::pdf::unicode_for_glyph_name("ntilde") == 0x00F1);
+  CHECK(patchy::pdf::unicode_for_glyph_name("scaron") == 0x0161);
+  // The algorithmic forms.
+  CHECK(patchy::pdf::unicode_for_glyph_name("uni20AC") == 0x20AC);
+  CHECK(patchy::pdf::unicode_for_glyph_name("u1F600") == 0x1F600);
+  // A variant suffix falls back to the base name.
+  CHECK(patchy::pdf::unicode_for_glyph_name("one.oldstyle") == U'1');
+  // Names that carry no Unicode meaning must say so rather than guess.
+  CHECK(patchy::pdf::unicode_for_glyph_name("g42") == 0);
+  CHECK(patchy::pdf::unicode_for_glyph_name("") == 0);
+}
+
+void pdf_to_unicode_cmap_reads_chars_and_ranges() {
+  const std::string cmap =
+      "/CIDInit /ProcSet findresource begin\n"
+      "1 begincodespacerange <0000> <FFFF> endcodespacerange\n"
+      "2 beginbfchar\n<0003> <0020>\n<0024> <0041>\n endbfchar\n"
+      "2 beginbfrange\n<0030> <0039> <0030>\n<0041> <0043> [<0058> <0059> <005A>]\n endbfrange\n"
+      "endcmap\n";
+  const auto mapping = patchy::pdf::parse_to_unicode_cmap(as_bytes(cmap));
+
+  CHECK(mapping.at(0x0003) == U' ');
+  CHECK(mapping.at(0x0024) == U'A');
+  // A bfrange with a scalar destination increments.
+  CHECK(mapping.at(0x0030) == U'0');
+  CHECK(mapping.at(0x0039) == U'9');
+  // A bfrange with an array destination takes one entry per code.
+  CHECK(mapping.at(0x0041) == U'X');
+  CHECK(mapping.at(0x0043) == U'Z');
+  // The codespacerange numbers must not leak in as entries.
+  CHECK(!mapping.contains(1));
+  CHECK(!mapping.contains(2));
+}
+
+void pdf_simple_font_encodings_decode_text() {
+  // WinAnsi with a /Differences override, /Widths, and no /ToUnicode: the path a
+  // standard-14 font takes.
+  auto file = patchy::pdf::File::open(
+      build_pdf({
+          "<</Type/Catalog/Pages 2 0 R>>",
+          "<</Type/Pages/Kids[3 0 R]/Count 1>>",
+          "<</Type/Page/Parent 2 0 R/MediaBox[0 0 100 100]/Resources<</Font<</F1 4 0 R>>>>>>",
+          "<</Type/Font/Subtype/Type1/BaseFont/Helvetica/FirstChar 65/LastChar 67"
+          "/Widths[600 700 800]/Encoding<</BaseEncoding/WinAnsiEncoding/Differences[67 /bullet]>>>>",
+      }),
+      nullptr);
+  CHECK(file.has_value());
+  if (!file.has_value()) {
+    return;
+  }
+  const auto& page = file->pages().front();
+  const auto& font_dict = file->get(file->get(page.resources, "Font"), "F1");
+  const auto font = patchy::pdf::load_font(*file, font_dict);
+
+  CHECK(font.kind == patchy::pdf::FontKind::Type1);
+  CHECK(font.family == "Helvetica");
+  CHECK(!font.two_byte);
+  CHECK(font.has_widths);
+
+  const auto glyphs = font.decode("ABC");
+  CHECK(glyphs.size() == 3);
+  CHECK(glyphs[0].unicode == U'A');
+  CHECK(glyphs[1].unicode == U'B');
+  // /Differences remapped code 67 from 'C' to a bullet.
+  CHECK(glyphs[2].unicode == 0x2022);
+  CHECK(std::abs(glyphs[0].width - 0.6) < 1e-9);
+  CHECK(std::abs(glyphs[2].width - 0.8) < 1e-9);
+  CHECK(std::abs(font.string_width("ABC") - 2.1) < 1e-9);
+
+  // The WinAnsi high block, which is CP1252 and not Latin-1.
+  const std::string high_bytes(1, static_cast<char>(0x93));
+  CHECK(font.decode(high_bytes)[0].unicode == 0x201C);  // left double quote
+  const std::string euro(1, static_cast<char>(0x80));
+  CHECK(font.decode(euro)[0].unicode == 0x20AC);
+  // Above 0x9F WinAnsi is plain Latin-1.
+  const std::string latin(1, static_cast<char>(0xE9));
+  CHECK(font.decode(latin)[0].unicode == 0x00E9);
+
+  // Only the single-byte code 32 takes word spacing.
+  CHECK(font.decode(" ")[0].is_word_space);
+  CHECK(!font.decode("A")[0].is_word_space);
+}
+
+void pdf_composite_font_reads_two_byte_codes_and_w_widths() {
+  auto file = patchy::pdf::File::open(
+      build_pdf({
+          "<</Type/Catalog/Pages 2 0 R>>",
+          "<</Type/Pages/Kids[3 0 R]/Count 1>>",
+          "<</Type/Page/Parent 2 0 R/MediaBox[0 0 100 100]/Resources<</Font<</F1 4 0 R>>>>>>",
+          "<</Type/Font/Subtype/Type0/BaseFont/ABCDEF+NotoSansJP/Encoding/Identity-H"
+          "/DescendantFonts[5 0 R]>>",
+          "<</Type/Font/Subtype/CIDFontType2/BaseFont/ABCDEF+NotoSansJP/DW 1000"
+          "/W[1 [500 600] 10 12 750]>>",
+      }),
+      nullptr);
+  CHECK(file.has_value());
+  if (!file.has_value()) {
+    return;
+  }
+  const auto& page = file->pages().front();
+  const auto font = patchy::pdf::load_font(*file, file->get(file->get(page.resources, "Font"), "F1"));
+
+  CHECK(font.kind == patchy::pdf::FontKind::Type0);
+  CHECK(font.two_byte);
+  CHECK(font.family == "NotoSansJP");
+  CHECK(font.has_widths);
+
+  // Identity-H: each pair of bytes is one code, big-endian.
+  const std::string codes{0x00, 0x01, 0x00, 0x0B};
+  const auto glyphs = font.decode(codes);
+  CHECK(glyphs.size() == 2);
+  CHECK(glyphs[0].code == 1);
+  CHECK(glyphs[1].code == 11);
+  // /W's "c [w w]" form covers codes 1 and 2; its "cFirst cLast w" form covers 10-12.
+  CHECK(std::abs(glyphs[0].width - 0.5) < 1e-9);
+  CHECK(std::abs(glyphs[1].width - 0.75) < 1e-9);
+  // An unlisted code falls back to /DW, not to the simple-font default.
+  const std::string unlisted{0x01, 0x00};
+  CHECK(std::abs(font.decode(unlisted)[0].width - 1.0) < 1e-9);
+  // Two-byte codes never take word spacing, even when a byte happens to be 32.
+  CHECK(!glyphs[0].is_word_space);
+}
+
+void pdf_local_real_document_fonts_decode_if_available() {
+  const auto path = patchy::test::local_format_fixture_path("pdf", "HoloVCS_C2_A4_Brochure.pdf");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] local pdf fixture missing: " << path.string() << '\n';
+    return;
+  }
+  std::ifstream stream(path, std::ios::binary);
+  CHECK(stream.good());
+  const std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(stream)),
+                                        std::istreambuf_iterator<char>());
+  auto file = patchy::pdf::File::open(bytes, nullptr);
+  CHECK(file.has_value());
+  if (!file.has_value() || file->pages().empty()) {
+    return;
+  }
+
+  const auto& fonts = file->get(file->pages().front().resources, "Font");
+  const auto* dict = fonts.dictionary();
+  CHECK(dict != nullptr);
+  if (dict == nullptr) {
+    return;
+  }
+
+  // The document names six fonts: Helvetica plus four embedded TrueType subsets
+  // and one more standard face.
+  CHECK(dict->size() >= 5);
+  bool saw_subset = false;
+  for (const auto& [name, value] : *dict) {
+    const auto font = patchy::pdf::load_font(*file, file->resolve(value));
+    CHECK(!font.family.empty());
+    // Every subset tag must be stripped: "AAAAAA+Consolas" -> "Consolas".
+    CHECK(font.family.find('+') == std::string::npos);
+    if (font.base_font.find('+') == std::string::npos) {
+      continue;
+    }
+    saw_subset = true;
+    // The subsets carry /ToUnicode, which is what makes their text recoverable.
+    CHECK(!font.to_unicode.empty());
+    CHECK(font.has_widths);
+    // Real text from the page: this string appears in the brochure verbatim.
+    const auto glyphs = font.decode("HoloVCS");
+    CHECK(glyphs.size() == 7);
+  }
+  CHECK(saw_subset);
+
+  // Decode a real text run and confirm it comes back as the authored words. The
+  // brochure writes them as plain literal strings under WinAnsi-compatible subsets.
+  const auto& consolas_or_segoe = file->resolve(dict->begin()->second);
+  const auto font = patchy::pdf::load_font(*file, consolas_or_segoe);
+  std::string decoded;
+  for (const auto& glyph : font.decode("HoloVCS")) {
+    if (glyph.unicode != 0xFFFD && glyph.unicode < 0x80) {
+      decoded.push_back(static_cast<char>(glyph.unicode));
+    }
+  }
+  CHECK(decoded == "HoloVCS");
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> pdf_tests() {
@@ -433,6 +657,12 @@ std::vector<patchy::test::TestCase> pdf_tests() {
       {"pdf_file_rebuilds_a_damaged_cross_reference_table", pdf_file_rebuilds_a_damaged_cross_reference_table},
       {"pdf_file_recovers_a_wrong_stream_length", pdf_file_recovers_a_wrong_stream_length},
       {"pdf_file_resolves_object_streams", pdf_file_resolves_object_streams},
+      {"pdf_font_names_split_subset_tags_and_styles", pdf_font_names_split_subset_tags_and_styles},
+      {"pdf_glyph_names_map_to_unicode", pdf_glyph_names_map_to_unicode},
+      {"pdf_to_unicode_cmap_reads_chars_and_ranges", pdf_to_unicode_cmap_reads_chars_and_ranges},
+      {"pdf_simple_font_encodings_decode_text", pdf_simple_font_encodings_decode_text},
+      {"pdf_composite_font_reads_two_byte_codes_and_w_widths", pdf_composite_font_reads_two_byte_codes_and_w_widths},
       {"pdf_local_real_documents_parse_if_available", pdf_local_real_documents_parse_if_available},
+      {"pdf_local_real_document_fonts_decode_if_available", pdf_local_real_document_fonts_decode_if_available},
   };
 }

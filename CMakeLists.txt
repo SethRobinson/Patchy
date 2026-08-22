@@ -433,6 +433,7 @@ add_library(patchy_formats
   src/formats/pcx_document_io.cpp
   src/formats/pdf_file.cpp
   src/formats/pdf_filters.cpp
+  src/formats/pdf_fonts.cpp
   src/formats/pdf_syntax.cpp
   src/formats/raw_document_io.cpp
   src/formats/raw_tone.cpp
