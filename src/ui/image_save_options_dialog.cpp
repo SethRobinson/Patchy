@@ -56,6 +56,10 @@ bool is_cur_extension(const QString& extension) {
   return normalized_save_extension(extension) == QStringLiteral("cur");
 }
 
+bool is_pdf_extension(const QString& extension) {
+  return normalized_save_extension(extension) == QStringLiteral("pdf");
+}
+
 constexpr std::array<int, 7> kIcoSizeChoices = {16, 24, 32, 48, 64, 128, 256};
 
 QString ico_resample_key(IcoResample resample) {
@@ -196,7 +200,7 @@ void persist_export_scale(int scale) {
 
 bool image_save_options_apply_to_extension(const QString& extension) {
   return is_jpeg_extension(extension) || is_bmp_extension(extension) || is_ico_extension(extension) ||
-         is_cur_extension(extension);
+         is_cur_extension(extension) || is_pdf_extension(extension);
 }
 
 ImageSaveOptions load_image_save_option_defaults() {
@@ -235,6 +239,7 @@ ImageSaveOptions load_image_save_option_defaults() {
   options.ico_resample = ico_resample_from_key(
       settings.value(QStringLiteral("saveOptions/icoResample"), ico_resample_key(options.ico_resample)).toString(),
       options.ico_resample);
+  options.pdf_lossless = settings.value(QStringLiteral("saveOptions/pdfLossless"), options.pdf_lossless).toBool();
   return options;
 }
 
@@ -255,6 +260,7 @@ void save_image_save_option_defaults(const ImageSaveOptions& options) {
     settings.setValue(QStringLiteral("saveOptions/icoSizes"), tokens.join(QLatin1Char(',')));
   }
   settings.setValue(QStringLiteral("saveOptions/icoResample"), ico_resample_key(options.ico_resample));
+  settings.setValue(QStringLiteral("saveOptions/pdfLossless"), options.pdf_lossless);
 }
 
 std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const QString& extension,
@@ -549,6 +555,39 @@ std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const
       options.bmp_palette_mode = bmp::BmpPaletteMode::Exact;
     }
     options.bmp_palette_path = palette_path->text().trimmed();
+    if (scale_combo != nullptr) {
+      options.export_scale = scale_combo->currentData().toInt();
+      persist_export_scale(options.export_scale);
+    }
+    return options;
+  }
+
+  if (is_pdf_extension(extension)) {
+    QDialog dialog(parent);
+    dialog.setObjectName(QStringLiteral("pdfSaveOptionsDialog"));
+    auto* content = create_options_dialog_chrome(dialog, QObject::tr("PDF Options"));
+    auto* scale_combo = for_export ? add_export_scale_row(content, dialog) : nullptr;
+
+    auto* lossless = new QCheckBox(QObject::tr("Lossless image data (larger file)"), &dialog);
+    lossless->setObjectName(QStringLiteral("pdfLosslessCheck"));
+    lossless->setChecked(options.pdf_lossless);
+    // Qt's PDF engine offers no quality setting on its lossy path, so this really is one
+    // choice: pixel-exact Flate, or Qt's fixed JPEG quality-94 encode.
+    lossless->setToolTip(QObject::tr("Unchecked, the page is compressed as JPEG at Qt's fixed quality."));
+    content->addWidget(lossless);
+
+    auto* page_note = new QLabel(
+        QObject::tr("The page is sized from the document's resolution, so it prints at the image's own size."),
+        &dialog);
+    page_note->setObjectName(QStringLiteral("pdfPageSizeNote"));
+    page_note->setWordWrap(true);
+    content->addWidget(page_note);
+    add_dialog_buttons(content, dialog);
+
+    if (exec_dialog(dialog) != QDialog::Accepted) {
+      return std::nullopt;
+    }
+    options.pdf_lossless = lossless->isChecked();
     if (scale_combo != nullptr) {
       options.export_scale = scale_combo->currentData().toInt();
       persist_export_scale(options.export_scale);

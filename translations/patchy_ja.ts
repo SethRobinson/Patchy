@@ -14351,6 +14351,38 @@ Clipped to the layer below</source>
     <message><source>Lightning Bolt</source><translation>稲妻</translation></message>
     <message><source>Vector mask. Click to edit its path with the pen and path tools, Ctrl-click to load it as a selection, Alt-click to view it, Shift-click to disable it.</source><translation>ベクトルマスク。クリックでペン/パスツールでのパス編集、Ctrl クリックで選択範囲として読み込み、Alt クリックで表示、Shift クリックで無効化します。</translation></message>
 
+    <message><source>PDF Document</source><translation>PDF ドキュメント</translation></message>
+    <message><source>PDF Options</source><translation>PDF オプション</translation></message>
+    <message><source>Lossless image data (larger file)</source><translation>可逆圧縮の画像データ (ファイルサイズ大)</translation></message>
+    <message><source>Unchecked, the page is compressed as JPEG at Qt&apos;s fixed quality.</source><translation>オフの場合、ページは Qt 固定品質の JPEG で圧縮されます。</translation></message>
+    <message><source>The page is sized from the document&apos;s resolution, so it prints at the image&apos;s own size.</source><translation>ページサイズはドキュメントの解像度から決まるため、画像本来のサイズで印刷されます。</translation></message>
+    <message><source>Open PDF</source><translation>PDF を開く</translation></message>
+    <message><source>Import PDF - %1</source><translation>PDF を読み込み - %1</translation></message>
+    <message><source>Password for %1:</source><translation>%1 のパスワード:</translation></message>
+    <message><source>%1 is password protected.</source><translation>%1 はパスワードで保護されています。</translation></message>
+    <message><source>%1 could not be found.</source><translation>%1 が見つかりませんでした。</translation></message>
+    <message><source>%1 is not a readable PDF file.</source><translation>%1 は読み取り可能な PDF ファイルではありません。</translation></message>
+    <message><source>%1 uses a security scheme Patchy cannot open.</source><translation>%1 は Patchy が開けないセキュリティ方式を使用しています。</translation></message>
+    <message><source>%1 is still loading.</source><translation>%1 はまだ読み込み中です。</translation></message>
+    <message><source>%1 could not be opened.</source><translation>%1 を開けませんでした。</translation></message>
+    <message><source>%1 has no pages Patchy could render.</source><translation>%1 には Patchy が描画できるページがありません。</translation></message>
+    <message><source>%1 could not be turned into a document.</source><translation>%1 をドキュメントに変換できませんでした。</translation></message>
+    <message><source>Page %1</source><translation>ページ %1</translation></message>
+    <message><source>Page %1 of %2 could not be rendered.</source><translation>%2 のページ %1 を描画できませんでした。</translation></message>
+    <message><source>PDF content was rasterized at %1 ppi; text and vectors are pixels now.</source><translation>PDF の内容を %1 ppi でラスタライズしました。テキストとベクトルはピクセルになります。</translation></message>
+    <message><source>%1 pages imported as layers; only the first starts visible.</source><translation>%1 ページをレイヤーとして読み込みました。最初のページのみ表示されます。</translation></message>
+    <message><source>Only page 1 of %1 was imported.</source><translation>%1 ページ中、1 ページ目のみを読み込みました。</translation></message>
+    <message><source>Annotations were not drawn.</source><translation>注釈は描画されませんでした。</translation></message>
+    <message><source>Pages were trimmed to their content.</source><translation>ページを内容に合わせてトリミングしました。</translation></message>
+    <message><source>A page was too large to render at %1 ppi and was scaled down.</source><translation>%1 ppi で描画するには大きすぎるページがあったため、縮小しました。</translation></message>
+    <message><source>Select All Pages</source><translation>すべてのページを選択</translation></message>
+    <message><source> ppi</source><translation> ppi</translation></message>
+    <message><source>Include annotations</source><translation>注釈を含める</translation></message>
+    <message><source>Anti-alias</source><translation>アンチエイリアス</translation></message>
+    <message><source>Trim to content</source><translation>内容に合わせてトリミング</translation></message>
+    <message><source>Import</source><translation>読み込み</translation></message>
+    <message><source>Select at least one page.</source><translation>ページを 1 つ以上選択してください。</translation></message>
+    <message><source>%1 page(s), first page %2 x %3 px</source><translation>%1 ページ、最初のページ %2 x %3 px</translation></message>
 </context>
 <context>
     <name>FilterGalleryControls</name>

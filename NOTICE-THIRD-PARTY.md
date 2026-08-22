@@ -15,6 +15,13 @@ installation used for the release build:
 - Qt PrintSupport
 - Qt SVG
 - Qt ImageFormats
+- Qt PDF (optional; present when the build's Qt carries the add-on)
+
+Qt PDF bundles a snapshot of PDFium, which is distributed under a BSD 3-Clause
+license together with Apache License 2.0 components. Patchy uses it only to
+render PDF pages to images when opening a `.pdf` file; PDF writing goes through
+Qt GUI's own QPdfWriter and needs no part of it. The full component list and
+license text ship in `licenses/qt/qtpdf-<version>.spdx`.
 
 The package also includes the Qt plugins needed by the current app:
 

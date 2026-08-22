@@ -72,7 +72,7 @@ mkdir -p "$(dirname "$SRC")"
 QT_DIR="$SRC/.deps/Qt/$QT_VER/gcc_64"
 if [ ! -d "$QT_DIR" ]; then
   echo "== Installing Qt $QT_VER into $SRC/.deps/Qt (downloads ~1 GB) =="
-  "$HOME/.local/bin/aqt" install-qt linux desktop "$QT_VER" linux_gcc_64 -m qtimageformats -O "$SRC/.deps/Qt"
+  "$HOME/.local/bin/aqt" install-qt linux desktop "$QT_VER" linux_gcc_64 -m qtimageformats qtpdf -O "$SRC/.deps/Qt"
 fi
 
 echo "== Versions =="

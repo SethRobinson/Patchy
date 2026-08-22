@@ -275,7 +275,7 @@ set "QT_SBOM_DIR=%QT_PREFIX%\sbom"
 set "QT_LICENSE_DIR=%STAGE_DIR%\licenses\qt"
 if not exist "%QT_LICENSE_DIR%" mkdir "%QT_LICENSE_DIR%" || exit /b 1
 
-for %%M in (qtbase qtimageformats qtsvg) do (
+for %%M in (qtbase qtimageformats qtsvg qtpdf) do (
   set "QT_SBOM_FILE=%QT_SBOM_DIR%\%%M-%QT_VERSION%.spdx"
   if not exist "!QT_SBOM_FILE!" (
     echo Required Qt license SBOM was not found: "!QT_SBOM_FILE!".

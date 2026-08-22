@@ -14,6 +14,8 @@
 #include "core/palette_presets.hpp"
 #include "ui/palette_panel.hpp"
 #include "ui/pattern_library.hpp"
+#include "ui/pdf_export.hpp"
+#include "ui/pdf_import.hpp"
 #include "ui/pattern_manager_dialog.hpp"
 #include "ui/photo_pattern_presets.hpp"
 #include "ui/style_browser.hpp"
@@ -138,6 +140,9 @@
 #include <QPixmap>
 #include <QPointingDevice>
 #include <QProgressDialog>
+#if defined(PATCHY_HAVE_QT_PDF)
+#include <QPdfDocument>
+#endif
 #include <QPushButton>
 #include <QStackedWidget>
 #include <QRadioButton>
@@ -926,6 +931,246 @@ void ui_print_layout_and_pdf_output_work() {
   CHECK(patchy::ui::default_print_pdf_filename(QStringLiteral("Untitled-2")) == QStringLiteral("Untitled-2.pdf"));
   CHECK(patchy::ui::default_print_pdf_filename(QString()) == QObject::tr("Untitled") + QStringLiteral(".pdf"));
 }
+
+#if defined(PATCHY_HAVE_QT_PDF)
+// A two-page PDF built byte by byte, the way the other adversarial format fixtures are
+// synthesized in-test: no binary fixture to maintain and no external generator. Page 1 is
+// 144 x 72 pt of red, page 2 is 72 x 144 pt of blue, so the layer canvas has to come out
+// 144 x 144 (the per-axis maximum) with the second page top-left aligned.
+QByteArray two_page_pdf_bytes() {
+  const QByteArray objects[6] = {
+      QByteArrayLiteral("<</Type/Catalog/Pages 2 0 R>>"),
+      QByteArrayLiteral("<</Type/Pages/Kids[3 0 R 5 0 R]/Count 2>>"),
+      QByteArrayLiteral("<</Type/Page/Parent 2 0 R/MediaBox[0 0 144 72]/Contents 4 0 R>>"),
+      QByteArrayLiteral("<</Length 24>>\nstream\n1 0 0 rg 0 0 144 72 re f\nendstream"),
+      QByteArrayLiteral("<</Type/Page/Parent 2 0 R/MediaBox[0 0 72 144]/Contents 6 0 R>>"),
+      QByteArrayLiteral("<</Length 24>>\nstream\n0 0 1 rg 0 0 72 144 re f\nendstream"),
+  };
+  QByteArray pdf = QByteArrayLiteral("%PDF-1.4\n");
+  std::array<int, 6> offsets{};
+  for (int index = 0; index < 6; ++index) {
+    offsets[static_cast<std::size_t>(index)] = static_cast<int>(pdf.size());
+    pdf += QByteArray::number(index + 1) + " 0 obj\n" + objects[index] + "\nendobj\n";
+  }
+  const int xref_offset = static_cast<int>(pdf.size());
+  pdf += "xref\n0 7\n0000000000 65535 f \n";
+  for (const int offset : offsets) {
+    pdf += QStringLiteral("%1 00000 n \n").arg(offset, 10, 10, QLatin1Char('0')).toLatin1();
+  }
+  pdf += "trailer\n<</Size 7/Root 1 0 R>>\nstartxref\n" + QByteArray::number(xref_offset) + "\n%%EOF\n";
+  return pdf;
+}
+
+void ui_pdf_export_page_size_and_round_trip() {
+  ensure_artifact_dir();
+  // 600 x 300 px at 300 ppi is exactly 2 x 1 inches, i.e. a 144 x 72 pt page.
+  patchy::Document document(600, 300, patchy::PixelFormat::rgba8());
+  document.print_settings().horizontal_ppi = 300.0;
+  document.print_settings().vertical_ppi = 300.0;
+  document.add_pixel_layer("Page",
+                           solid_pixels(600, 300, patchy::PixelFormat::rgba8(), QColor(200, 20, 30)));
+
+  const auto lossless_path = QStringLiteral("test-artifacts/ui_pdf_export_lossless.pdf");
+  const auto lossy_path = QStringLiteral("test-artifacts/ui_pdf_export_lossy.pdf");
+  QFile::remove(lossless_path);
+  QFile::remove(lossy_path);
+  patchy::ui::write_pdf_document_file(document, lossless_path, patchy::ui::PdfExportOptions{true});
+  patchy::ui::write_pdf_document_file(document, lossy_path, patchy::ui::PdfExportOptions{false});
+  CHECK(QFileInfo(lossless_path).isFile());
+  CHECK(QFileInfo(lossy_path).isFile());
+  // The whole point of the lossless option: Qt's PDF engine re-encodes images as JPEG
+  // quality 94 unless the painter sets QPainter::LosslessImageRendering. Assert the
+  // filter that actually lands in the file rather than comparing sizes, which flips
+  // sign with the content (Flate beats JPEG on flat color, loses on a photograph).
+  const auto read_all = [](const QString& file_path) {
+    QFile file(file_path);
+    return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray();
+  };
+  const QByteArray lossless_bytes = read_all(lossless_path);
+  const QByteArray lossy_bytes = read_all(lossy_path);
+  CHECK(lossless_bytes.contains("/FlateDecode"));
+  CHECK(!lossless_bytes.contains("/DCTDecode"));
+  CHECK(lossy_bytes.contains("/DCTDecode"));
+
+  // Verified with a decoder that is not the writer: Qt PDF (PDFium) reads it back.
+  QPdfDocument reader;
+  CHECK(reader.load(lossless_path) == QPdfDocument::Error::None);
+  CHECK(reader.pageCount() == 1);
+  const QSizeF page_points = reader.pagePointSize(0);
+  CHECK(std::abs(page_points.width() - 144.0) < 0.5);
+  CHECK(std::abs(page_points.height() - 72.0) < 0.5);
+  const QImage rendered = reader.render(0, QSize(600, 300));
+  CHECK(!rendered.isNull());
+  CHECK(rendered.size() == QSize(600, 300));
+  CHECK(color_close(rendered.pixelColor(300, 150), QColor(200, 20, 30), 1));
+  CHECK(color_close(rendered.pixelColor(5, 5), QColor(200, 20, 30), 1));
+}
+
+void ui_pdf_export_writes_transparency_as_soft_mask() {
+  ensure_artifact_dir();
+  // Three alpha levels (clear margin, half-transparent band, opaque square) so Qt has to
+  // write a real 8-bit /SMask image; a two-level alpha would collapse into a 1-bit
+  // /ImageMask stencil instead and never exercise the soft-mask path.
+  patchy::Document document(200, 200, patchy::PixelFormat::rgba8());
+  document.print_settings().horizontal_ppi = 200.0;
+  document.print_settings().vertical_ppi = 200.0;
+  auto pixels = solid_pixels(200, 200, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  const auto paint_block = [&pixels](std::int32_t top, std::int32_t bottom, QColor color, std::uint8_t alpha) {
+    for (std::int32_t y = top; y < bottom; ++y) {
+      auto row = pixels.row(y);
+      for (std::int32_t x = 40; x < 160; ++x) {
+        row[static_cast<std::size_t>(x) * 4 + 0] = static_cast<std::uint8_t>(color.red());
+        row[static_cast<std::size_t>(x) * 4 + 1] = static_cast<std::uint8_t>(color.green());
+        row[static_cast<std::size_t>(x) * 4 + 2] = static_cast<std::uint8_t>(color.blue());
+        row[static_cast<std::size_t>(x) * 4 + 3] = alpha;
+      }
+    }
+  };
+  paint_block(40, 100, QColor(20, 190, 60), 255);
+  paint_block(100, 160, QColor(30, 60, 200), 128);
+  document.add_pixel_layer("Blocks", std::move(pixels));
+
+  const auto path = QStringLiteral("test-artifacts/ui_pdf_export_alpha.pdf");
+  QFile::remove(path);
+  patchy::ui::write_pdf_document_file(document, path, patchy::ui::PdfExportOptions{true});
+
+  // Structural check, independent of how any viewer paints the page behind the image:
+  // the image XObject must carry a soft mask, or the transparency was silently dropped.
+  QFile file(path);
+  CHECK(file.open(QIODevice::ReadOnly));
+  const QByteArray bytes = file.readAll();
+  CHECK(bytes.contains("/SMask ") || bytes.contains("/ImageMask true"));
+  CHECK(bytes.contains("/DeviceGray"));
+
+  QPdfDocument reader;
+  CHECK(reader.load(path) == QPdfDocument::Error::None);
+  const QImage rendered = reader.render(0, QSize(200, 200));
+  CHECK(!rendered.isNull());
+  // PDFium renders onto a transparent page, so all three alpha levels survive the round
+  // trip and the colors underneath stay unblended.
+  CHECK(color_close(rendered.pixelColor(100, 70), QColor(20, 190, 60), 2));
+  CHECK(rendered.pixelColor(100, 70).alpha() == 255);
+  CHECK(std::abs(rendered.pixelColor(100, 130).alpha() - 128) <= 2);
+  CHECK(rendered.pixelColor(10, 10).alpha() == 0);
+}
+
+void ui_pdf_import_builds_one_layer_per_page() {
+  ensure_artifact_dir();
+  const auto path = QStringLiteral("test-artifacts/ui_pdf_import_two_pages.pdf");
+  QFile::remove(path);
+  {
+    QFile file(path);
+    CHECK(file.open(QIODevice::WriteOnly));
+    file.write(two_page_pdf_bytes());
+  }
+  CHECK(patchy::ui::pdf_import_is_available());
+  CHECK(patchy::ui::is_pdf_extension(QStringLiteral("PDF")));
+  const auto bytes = two_page_pdf_bytes();
+  CHECK(patchy::ui::bytes_look_like_pdf(
+      std::span(reinterpret_cast<const std::uint8_t*>(bytes.constData()), static_cast<std::size_t>(bytes.size()))));
+
+  patchy::ui::PdfImportOptions options;
+  options.pages = {0, 1};
+  options.resolution_ppi = 72;
+  QString error;
+  auto result = patchy::ui::load_pdf_document(path, options, QString(), &error);
+  CHECK(result.has_value());
+  if (!result.has_value()) {
+    return;
+  }
+  const auto& document = result->document;
+  // Canvas is the per-axis maximum across pages; page 2 is narrower and taller.
+  CHECK(document.width() == 144);
+  CHECK(document.height() == 144);
+  CHECK(document.layers().size() == 2);
+  CHECK(document.layers()[0].name() == "Page 1");
+  CHECK(document.layers()[1].name() == "Page 2");
+  // Only the first page starts visible, matching the image-sequence import.
+  CHECK(document.layers()[0].visible());
+  CHECK(!document.layers()[1].visible());
+  // The import resolution becomes the document's, so Image Size and print agree with it.
+  CHECK(std::abs(document.print_settings().horizontal_ppi - 72.0) < 0.01);
+  CHECK(std::abs(document.print_settings().vertical_ppi - 72.0) < 0.01);
+  CHECK(!result->notices.empty());
+  CHECK(result->notices.front().find("rasterized") != std::string::npos);
+
+  // A single-page selection still works and names the layer after the real page number.
+  patchy::ui::PdfImportOptions second_only;
+  second_only.pages = {1};
+  second_only.resolution_ppi = 72;
+  auto single = patchy::ui::load_pdf_document(path, second_only, QString(), &error);
+  CHECK(single.has_value());
+  if (single.has_value()) {
+    CHECK(single->document.layers().size() == 1);
+    CHECK(single->document.layers()[0].name() == "Page 2");
+    CHECK(single->document.width() == 72);
+    CHECK(single->document.height() == 144);
+  }
+
+}
+
+// Repeatedly runs `step` on a short timer while open_document_path blocks in the import
+// dialog's exec() loop; `step` returns true when its work is done. Same shape as the raw
+// develop dialog's driver in camera_raw_heif_tests.cpp.
+void drive_modal_dialog(const std::shared_ptr<std::function<bool()>>& step, int attempts = 2400) {
+  QTimer::singleShot(25, [step, attempts] {
+    if (step == nullptr || !static_cast<bool>(*step)) {
+      return;
+    }
+    if ((*step)()) {
+      return;
+    }
+    if (attempts > 0) {
+      drive_modal_dialog(step, attempts - 1);
+    }
+  });
+}
+
+void ui_pdf_import_dialog_opens_selected_pages() {
+  const auto path = QStringLiteral("test-artifacts/ui_pdf_import_dialog.pdf");
+  QFile::remove(path);
+  {
+    QFile file(path);
+    CHECK(file.open(QIODevice::WriteOnly));
+    file.write(two_page_pdf_bytes());
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  // The Open command routes a .pdf through the page picker, so the dialog has to be
+  // driven from a timer while open_document_path blocks in its exec() loop.
+  auto clicked = std::make_shared<bool>(false);
+  auto step = std::make_shared<std::function<bool()>>();
+  *step = [clicked] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("pdfImportDialog"));
+    if (dialog == nullptr) {
+      return false;
+    }
+    auto* pages = dialog->findChild<QListWidget*>(QStringLiteral("pdfImportPagesList"));
+    auto* resolution = dialog->findChild<QSpinBox*>(QStringLiteral("pdfImportResolutionSpin"));
+    auto* import_button = dialog->findChild<QPushButton*>(QStringLiteral("pdfImportButton"));
+    if (pages == nullptr || resolution == nullptr || import_button == nullptr) {
+      return false;
+    }
+    CHECK(pages->count() == 2);
+    resolution->setValue(72);
+    pages->selectAll();
+    CHECK(import_button->isEnabled());
+    import_button->click();
+    *clicked = true;
+    return true;
+  };
+  drive_modal_dialog(step);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+  CHECK(*clicked);
+
+  auto& opened = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(opened.width() == 144);
+  CHECK(opened.height() == 144);
+  CHECK(opened.layers().size() == 2);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_path(window) == path);
+}
+#endif  // PATCHY_HAVE_QT_PDF
 
 void ui_print_dialog_exposes_printer_and_visible_checkboxes() {
   patchy::ui::MainWindow window;
@@ -1834,6 +2079,12 @@ std::vector<patchy::test::TestCase> import_print_resolution_tests() {
       {"ui_qimage_multiply_uses_empty_backdrop_as_transparent",
        ui_qimage_multiply_uses_empty_backdrop_as_transparent},
       {"ui_print_layout_and_pdf_output_work", ui_print_layout_and_pdf_output_work},
+#if defined(PATCHY_HAVE_QT_PDF)
+      {"ui_pdf_export_page_size_and_round_trip", ui_pdf_export_page_size_and_round_trip},
+      {"ui_pdf_export_writes_transparency_as_soft_mask", ui_pdf_export_writes_transparency_as_soft_mask},
+      {"ui_pdf_import_builds_one_layer_per_page", ui_pdf_import_builds_one_layer_per_page},
+      {"ui_pdf_import_dialog_opens_selected_pages", ui_pdf_import_dialog_opens_selected_pages},
+#endif
       {"ui_print_dialog_exposes_printer_and_visible_checkboxes",
        ui_print_dialog_exposes_printer_and_visible_checkboxes},
       {"ui_image_size_dialog_unit_and_resolution_links_work",

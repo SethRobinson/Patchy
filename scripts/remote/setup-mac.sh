@@ -29,7 +29,7 @@ mkdir -p "$(dirname "$SRC")"
 QT_DIR="$SRC/.deps/Qt/$QT_VER/macos"
 if [ ! -d "$QT_DIR" ]; then
   echo "== Installing Qt $QT_VER into $SRC/.deps/Qt (downloads ~1 GB) =="
-  "$TOOLS/bin/aqt" install-qt mac desktop "$QT_VER" -m qtimageformats -O "$SRC/.deps/Qt"
+  "$TOOLS/bin/aqt" install-qt mac desktop "$QT_VER" -m qtimageformats qtpdf -O "$SRC/.deps/Qt"
 fi
 
 echo "== Versions =="

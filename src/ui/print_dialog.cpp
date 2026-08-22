@@ -6,6 +6,7 @@
 
 #include <QCheckBox>
 #include <QComboBox>
+#include <QCoreApplication>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDoubleSpinBox>
@@ -134,6 +135,12 @@ bool paint_printer_page(QPrinter& printer, const Document& document, const Print
   QPainter painter(&printer);
   if (!painter.isActive()) {
     return false;
+  }
+  // Qt's PDF engine re-encodes the composite as JPEG quality 94 unless the painter asks
+  // for lossless rendering. A file the user saved deserves the exact pixels; a real
+  // printer job is rasterized by the driver anyway, so the hint is scoped to PDF output.
+  if (printer.outputFormat() == QPrinter::PdfFormat) {
+    painter.setRenderHint(QPainter::LosslessImageRendering, true);
   }
 
   const auto layout = valid_page_layout(printer.pageLayout());
@@ -480,7 +487,11 @@ bool run_print_dialog(QWidget* parent, const Document& document, const QString& 
     sync_settings();
     auto path = get_save_file_name(&dialog, QObject::tr("Save Print PDF"),
                                    default_documents_path(default_print_pdf_filename(document_title)),
-                                   QObject::tr("PDF Document (*.pdf)"), nullptr,
+                                   // Same display name the format table gives .pdf, so the
+                                   // two save dialogs cannot drift apart in translation.
+                                   QStringLiteral("%1 (*.pdf)").arg(
+                                       QCoreApplication::translate("QObject", "PDF Document")),
+                                   nullptr,
                                    QStringLiteral("savePrintPdfFileDialog"));
     if (path.isEmpty()) {
       return;

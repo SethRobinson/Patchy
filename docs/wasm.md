@@ -212,7 +212,11 @@ requestAnimationFrame onto setTimeout before qtloader runs (harness below).
   cannot deadlock).
 - **Compiled out or stubbed:** QtPrintSupport does not exist on wasm
   (`print_dialog_wasm.cpp` stubs; File menu hides Print/Page Setup; the
-  portable half stays in `print_layout.cpp`). Single-instance QLocalServer
+  portable half stays in `print_layout.cpp`). Qt publishes no wasm qtpdf
+  either, so `pdf_import_stub.cpp` builds instead of `pdf_import.cpp` and
+  `file_format_entries()` drops `.pdf` from the open filter; PDF EXPORT still
+  works, because `pdf_export.cpp` only needs QtGui's QPdfWriter.
+  Single-instance QLocalServer
   off. Update check off (the site redeploy is the update mechanism; the
   GitHub fetch would fail CORS). Script sounds no-op. Scanner import off.
   Export Layers as Image Sequence hidden. Multi-file pickers degrade to one

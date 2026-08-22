@@ -239,8 +239,9 @@ powershell -ExecutionPolicy Bypass -File scripts/run-tests.ps1
 ### macOS and Linux
 
 Install Qt 6.8.3 into `.deps/Qt` (for example `pip install aqtinstall && aqt install-qt
-mac desktop 6.8.3 -m qtimageformats -O .deps/Qt`, or `linux desktop 6.8.3 linux_gcc_64`
-on Linux), then build the matching preset:
+mac desktop 6.8.3 -m qtimageformats qtpdf -O .deps/Qt`, or `linux desktop 6.8.3
+linux_gcc_64` on Linux), then build the matching preset. The `qtpdf` module is optional:
+without it Patchy still exports PDF, it just cannot open one.
 
 ```sh
 cmake --preset mac-release      # or linux-release

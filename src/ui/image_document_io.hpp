@@ -37,6 +37,9 @@ struct ImageSaveOptions {
   IcoResample ico_resample{IcoResample::Auto};
   int cur_hotspot_x{0};
   int cur_hotspot_y{0};
+  // PDF: lossless keeps the composite pixel-exact (Flate); unchecked hands the page to
+  // Qt's fixed JPEG quality-94 encode. See PdfExportOptions in ui/pdf_export.hpp.
+  bool pdf_lossless{true};
   // Nearest-neighbor output scale, offered by the EXPORT flow only (never Save/Save As —
   // rescaling a save would silently mutate the file the session points at). Deliberately
   // not part of the persisted option defaults; the export dialog persists its own combo.
@@ -111,6 +114,11 @@ struct LayerPixelsOverrideSpec {
     const Document& document, QRect document_rect, bool preserve_alpha,
     const std::vector<LayerId>& hidden_layer_ids);
 [[nodiscard]] bool image_format_preserves_alpha(std::string_view extension) noexcept;
+// The flattened image every flat-file writer starts from. With preserve_alpha, a single
+// masked layer exports non-destructively: the original colors are kept and the mask
+// becomes the alpha channel, because compositing would erase the colors wherever the
+// mask is transparent. Shared by write_flat_image_file and the PDF writer.
+[[nodiscard]] QImage flat_export_qimage(const Document& document, bool preserve_alpha);
 void write_flat_image_file(const Document& document, const QString& path, const QString& extension,
                            const ImageSaveOptions& options = {});
 // Installs the Qt-backed PNG codec used for the PNG-compressed entries inside .ico/.cur

@@ -478,6 +478,18 @@ if(PATCHY_BUILD_APP)
     set(PATCHY_QT_COMPONENTS Widgets Svg PrintSupport Network Qml LinguistTools Test)
   endif()
   find_package(Qt6 QUIET COMPONENTS ${PATCHY_QT_COMPONENTS})
+  # Qt PDF is optional: a stock Qt install does not carry it and Qt publishes no
+  # WebAssembly build of it at all. Absent, patchy_ui compiles src/ui/pdf_import_stub.cpp
+  # and Patchy still EXPORTS PDF (QPdfWriter is QtGui), it just cannot open one.
+  #
+  # This is find_package(Qt6Pdf), NOT find_package(Qt6 COMPONENTS Pdf), and it must never
+  # be folded into PATCHY_QT_COMPONENTS: either of those forms overwrites Qt6_FOUND with
+  # the result of the Pdf lookup, so a machine without the add-on would silently skip the
+  # whole app target ("Qt 6 Widgets was not found"). Verified by configuring with
+  # -DCMAKE_DISABLE_FIND_PACKAGE_Qt6Pdf=ON.
+  if(NOT EMSCRIPTEN)
+    find_package(Qt6Pdf QUIET)
+  endif()
   if(Qt6_FOUND)
     if(APPLE AND TARGET WrapOpenGL::WrapOpenGL)
       # Qt 6.8's FindWrapOpenGL.cmake links the long-dead AGL framework: the OS still
@@ -603,6 +615,12 @@ if(PATCHY_BUILD_APP)
         list(APPEND PATCHY_QT_TLS_PLUGIN_FILES
           "${PATCHY_QT_PLUGIN_DIR}/tls/${plugin}$<$<CONFIG:Debug>:d>.dll")
       endforeach()
+      # Qt PDF is optional (see the find_package above), so its DLL joins the copy list
+      # only when the module is actually present; the variable stays empty otherwise.
+      set(PATCHY_QT_PDF_RUNTIME_FILE)
+      if(TARGET Qt6::Pdf)
+        set(PATCHY_QT_PDF_RUNTIME_FILE "$<TARGET_FILE:Qt6::Pdf>")
+      endif()
       set(PATCHY_QT_RUNTIME_STAMP "${CMAKE_BINARY_DIR}/CMakeFiles/patchy_qt_runtime.stamp")
       add_custom_command(
         OUTPUT "${PATCHY_QT_RUNTIME_STAMP}"
@@ -615,6 +633,7 @@ if(PATCHY_BUILD_APP)
                 $<TARGET_FILE:Qt6::Network>
                 $<TARGET_FILE:Qt6::Qml>
                 $<TARGET_FILE:Qt6::Test>
+                ${PATCHY_QT_PDF_RUNTIME_FILE}
                 "${CMAKE_BINARY_DIR}"
         COMMAND ${CMAKE_COMMAND} -E make_directory
                 "${CMAKE_BINARY_DIR}/platforms"
@@ -647,6 +666,7 @@ if(PATCHY_BUILD_APP)
           $<TARGET_FILE:Qt6::Network>
           $<TARGET_FILE:Qt6::Qml>
           $<TARGET_FILE:Qt6::Test>
+          ${PATCHY_QT_PDF_RUNTIME_FILE}
           "${PATCHY_QT_PLUGIN_DIR}/platforms/qwindows$<$<CONFIG:Debug>:d>.dll"
           "${PATCHY_QT_PLUGIN_DIR}/platforms/qoffscreen$<$<CONFIG:Debug>:d>.dll"
           "${PATCHY_QT_PLUGIN_DIR}/iconengines/qsvgicon$<$<CONFIG:Debug>:d>.dll"
@@ -879,6 +899,9 @@ if(PATCHY_BUILD_APP)
       src/ui/pattern_library.cpp
       src/ui/pattern_manager_dialog.hpp
       src/ui/pattern_manager_dialog.cpp
+      src/ui/pdf_export.hpp
+      src/ui/pdf_export.cpp
+      src/ui/pdf_import.hpp
       src/ui/photo_pattern_presets.hpp
       src/ui/photo_pattern_presets.cpp
       src/ui/preset_library.hpp
@@ -980,6 +1003,16 @@ if(PATCHY_BUILD_APP)
     else()
       target_sources(patchy_ui PRIVATE src/ui/print_dialog.cpp)
       target_link_libraries(patchy_ui PUBLIC Qt6::PrintSupport)
+    endif()
+    # Same swap for the optional Qt PDF add-on: the real importer where the module exists,
+    # the stub (which reports PDF opening as unavailable) everywhere else. PDF EXPORT is
+    # not gated at all; pdf_export.cpp sits in the unconditional source list above.
+    if(TARGET Qt6::Pdf)
+      target_sources(patchy_ui PRIVATE src/ui/pdf_import.cpp)
+      target_link_libraries(patchy_ui PRIVATE Qt6::Pdf)
+      target_compile_definitions(patchy_ui PUBLIC PATCHY_HAVE_QT_PDF=1)
+    else()
+      target_sources(patchy_ui PRIVATE src/ui/pdf_import_stub.cpp)
     endif()
     target_link_libraries(patchy_ui PUBLIC
       Qt6::Widgets
@@ -1421,6 +1454,11 @@ if(PATCHY_BUILD_TESTS)
     # Qt6::Test provides QTest::keyClick for tests that must go through real event
     # dispatch (QShortcutMap contention) instead of QApplication::sendEvent.
     target_link_libraries(patchy_ui_visual_tests PRIVATE patchy_ui Qt6::Test)
+    # QPdfDocument is the independent decoder the PDF export tests verify against, and
+    # patchy_ui links Qt PDF privately, so the tests ask for the headers themselves.
+    if(TARGET Qt6::Pdf)
+      target_link_libraries(patchy_ui_visual_tests PRIVATE Qt6::Pdf)
+    endif()
     patchy_configure_target(patchy_ui_visual_tests)
     target_compile_options(patchy_ui_visual_tests PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/bigobj>)
     target_compile_definitions(patchy_ui_visual_tests PRIVATE PATCHY_SOURCE_DIR="${PROJECT_SOURCE_DIR}")

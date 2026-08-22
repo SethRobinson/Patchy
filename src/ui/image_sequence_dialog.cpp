@@ -112,31 +112,22 @@ QStringList expand_numbered_sequence(const QString& path) {
   return sorted_sequence_paths(std::move(run));
 }
 
-std::optional<Document> document_from_image_sequence(const QStringList& paths, QString* error) {
-  if (paths.isEmpty()) {
+std::optional<Document> document_from_frames(std::vector<QImage> frames, const QStringList& layer_names) {
+  if (frames.empty()) {
     return std::nullopt;
   }
-  std::vector<QImage> frames;
-  frames.reserve(static_cast<std::size_t>(paths.size()));
   int canvas_width = 0;
   int canvas_height = 0;
-  for (const auto& path : paths) {
-    QImageReader reader(path);
-    reader.setAutoTransform(true);
-    auto frame = reader.read().convertToFormat(QImage::Format_RGBA8888);
-    if (frame.isNull()) {
-      if (error != nullptr) {
-        *error = QObject::tr("%1: %2").arg(QFileInfo(path).fileName(), reader.errorString());
-      }
-      return std::nullopt;
-    }
+  for (const auto& frame : frames) {
     canvas_width = std::max(canvas_width, frame.width());
     canvas_height = std::max(canvas_height, frame.height());
-    frames.push_back(std::move(frame));
   }
   Document document(canvas_width, canvas_height, PixelFormat::rgba8());
   for (std::size_t index = 0; index < frames.size(); ++index) {
     auto frame = std::move(frames[index]);
+    if (frame.format() != QImage::Format_RGBA8888) {
+      frame = frame.convertToFormat(QImage::Format_RGBA8888);
+    }
     if (frame.size() != QSize(canvas_width, canvas_height)) {
       // Smaller frames top-left align on the shared canvas (registration stays at the
       // (0,0) origin, matching Photoshop's Load Files into Stack).
@@ -147,13 +138,38 @@ std::optional<Document> document_from_image_sequence(const QStringList& paths, Q
       painter.end();
       frame = std::move(padded);
     }
-    Layer layer(document.allocate_layer_id(),
-                QFileInfo(paths[static_cast<int>(index)]).completeBaseName().toStdString(),
-                pixels_from_image_rgba(frame));
+    const auto name = index < static_cast<std::size_t>(layer_names.size())
+                          ? layer_names[static_cast<int>(index)].toStdString()
+                          : std::string();
+    Layer layer(document.allocate_layer_id(), name, pixels_from_image_rgba(frame));
     layer.set_visible(index == 0);
     document.add_layer(std::move(layer));
   }
   return document;
+}
+
+std::optional<Document> document_from_image_sequence(const QStringList& paths, QString* error) {
+  if (paths.isEmpty()) {
+    return std::nullopt;
+  }
+  std::vector<QImage> frames;
+  frames.reserve(static_cast<std::size_t>(paths.size()));
+  QStringList layer_names;
+  layer_names.reserve(paths.size());
+  for (const auto& path : paths) {
+    QImageReader reader(path);
+    reader.setAutoTransform(true);
+    auto frame = reader.read().convertToFormat(QImage::Format_RGBA8888);
+    if (frame.isNull()) {
+      if (error != nullptr) {
+        *error = QObject::tr("%1: %2").arg(QFileInfo(path).fileName(), reader.errorString());
+      }
+      return std::nullopt;
+    }
+    frames.push_back(std::move(frame));
+    layer_names.push_back(QFileInfo(path).completeBaseName());
+  }
+  return document_from_frames(std::move(frames), layer_names);
 }
 
 ImageSequenceNaming naming_from_save_base_name(const QString& base_name) {

@@ -17,6 +17,7 @@
 #include "core/rect_utils.hpp"
 #include "render/layer_compositor.hpp"
 #include "support/string_utils.hpp"
+#include "ui/pdf_export.hpp"
 
 #include <QBuffer>
 #include <QByteArray>
@@ -1851,6 +1852,22 @@ void install_ico_png_codec() {
       });
 }
 
+QImage flat_export_qimage(const Document& document, bool preserve_alpha) {
+  // A single masked layer is exported non-destructively to alpha-capable formats: keep the
+  // original colors and write the mask into the alpha channel (compositing would erase the
+  // colors wherever the mask is transparent).
+  if (std::optional<PixelBuffer> masked = preserve_alpha ? document_alpha_rgba8(document) : std::nullopt;
+      masked.has_value()) {
+    QImage image(masked->width(), masked->height(), QImage::Format_RGBA8888);
+    for (std::int32_t y = 0; y < masked->height(); ++y) {
+      const auto src_row = masked->row(y);
+      std::copy(src_row.begin(), src_row.end(), image.scanLine(y));
+    }
+    return image;
+  }
+  return qimage_from_document(document, preserve_alpha);
+}
+
 void write_flat_image_file(const Document& document, const QString& path, const QString& extension,
                            const ImageSaveOptions& options) {
   if (options.export_scale > 1) {
@@ -1899,6 +1916,10 @@ void write_flat_image_file(const Document& document, const QString& path, const 
     ico::DocumentIo::write_file(document, path.toStdString(), ico_options);
     return;
   }
+  if (lower == "pdf") {
+    write_pdf_document_file(document, path, PdfExportOptions{options.pdf_lossless});
+    return;
+  }
   if (is_bmp_extension(extension_bytes)) {
     bmp::DocumentIo::write_file(document, path.toStdString(),
                                 bmp::WriteOptions{options.bmp_encoding, options.bmp_palette_mode, true,
@@ -1920,21 +1941,7 @@ void write_flat_image_file(const Document& document, const QString& path, const 
   if (is_jpeg_extension(extension_bytes)) {
     writer.setQuality(std::clamp(options.jpeg_quality, 0, 100));
   }
-  const auto preserve_alpha = image_format_preserves_alpha(extension_bytes);
-  QImage image;
-  // A single masked layer is exported non-destructively to alpha-capable formats: keep the
-  // original colors and write the mask into the alpha channel (compositing would erase the
-  // colors wherever the mask is transparent).
-  if (std::optional<PixelBuffer> masked = preserve_alpha ? document_alpha_rgba8(document) : std::nullopt;
-      masked.has_value()) {
-    image = QImage(masked->width(), masked->height(), QImage::Format_RGBA8888);
-    for (std::int32_t y = 0; y < masked->height(); ++y) {
-      const auto src_row = masked->row(y);
-      std::copy(src_row.begin(), src_row.end(), image.scanLine(y));
-    }
-  } else {
-    image = qimage_from_document(document, preserve_alpha);
-  }
+  const QImage image = flat_export_qimage(document, image_format_preserves_alpha(extension_bytes));
   if (!writer.write(image)) {
     throw std::runtime_error(writer.errorString().toStdString());
   }

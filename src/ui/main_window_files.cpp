@@ -64,6 +64,7 @@
 #include "ui/palette_convert_dialog.hpp"
 #include "ui/palette_panel.hpp"
 #include "ui/pattern_library.hpp"
+#include "ui/pdf_import.hpp"
 #include "ui/photo_pattern_presets.hpp"
 #include "ui/style_library.hpp"
 #include "ui/print_dialog.hpp"
@@ -328,9 +329,18 @@ bool save_extension_preserves_layers(const QString& extension) {
 
 // True when the session's file came from a format Patchy can only read (camera raw):
 // Save can never write back to such a path, so it must become Save As.
+//
+// PDF is listed explicitly rather than falling out of the registry, for two reasons. The
+// registry has no PDF row at all (the writer is Qt-side, in write_flat_image_file), and
+// more importantly a PDF import is a RASTERIZATION at a chosen resolution: saving over the
+// source would replace a multi-page vector document with one flat re-render. Save As and
+// Export to .pdf still work; only Save-in-place is redirected.
 bool is_read_only_source_extension(const QString& extension) {
   if (extension.isEmpty()) {
     return false;
+  }
+  if (is_pdf_extension(extension)) {
+    return true;
   }
   const auto* handler = builtin_format_registry().find_by_extension(extension.toStdString());
   return handler != nullptr && !handler->can_write();
@@ -465,6 +475,15 @@ const QList<FileFormatEntry>& file_format_entries() {
        true,
        true},
     };
+    // PDF writes everywhere (QPdfWriter is QtGui) but only reads where the optional Qt PDF
+    // add-on is present, so the open half of the row is conditional. The writer lives on the
+    // Qt side in write_flat_image_file, which is why the format registry carries no PDF row
+    // at all; see is_read_only_source_extension for what that means for Save.
+    list.push_back({QT_TRANSLATE_NOOP("QObject", "PDF Document"),
+                    pdf_import_is_available() ? QStringList{QStringLiteral("pdf")} : QStringList{},
+                    {QStringLiteral("pdf")},
+                    true,
+                    true});
     // Camera raws open through the develop pipeline and are never written: empty
     // save_extensions marks the entry read-only, so Save As/Export skip it. The extension
     // list lives with the raw reader so the registry and the dialogs cannot drift apart.
@@ -759,7 +778,24 @@ OpenDocumentResult load_document_from_path(QString path) {
     opened = document_from_qimage(image, info.completeBaseName().toStdString());
     apply_imported_image_density(opened, read_all_file_bytes(path), image);
   };
-  if (is_photoshop_document_extension(extension)) {
+  // PDF before the registry, like PSD: the reader is Qt PDF, which cannot live in the
+  // Qt-free format registry. This is the non-interactive path (CLI opens, tests, Reopen),
+  // so it renders page 1 at the remembered resolution and says so; the Open command goes
+  // through the page picker in load_document_interactive first.
+  if (is_pdf_extension(extension)) {
+    PdfImportOptions pdf_options;
+    pdf_options.resolution_ppi =
+        app_settings().value(QStringLiteral("imports/pdfResolution"), pdf_options.resolution_ppi).toInt();
+    QString pdf_error;
+    auto pdf_result = load_pdf_document(path, pdf_options, QString(), &pdf_error);
+    if (!pdf_result.has_value()) {
+      throw std::runtime_error(pdf_error.toStdString());
+    }
+    for (const auto& notice : pdf_result->notices) {
+      import_notices.push_back(QString::fromStdString(notice));
+    }
+    opened = std::move(pdf_result->document);
+  } else if (is_photoshop_document_extension(extension)) {
     std::vector<std::string> psd_notices;
     psd::ReadOptions psd_options{true, false, true};
     psd_options.notices = &psd_notices;
@@ -975,6 +1011,27 @@ std::optional<OpenDocumentResult> load_document_interactive(QWidget* parent, con
       return std::nullopt;
     }
     OpenDocumentResult loaded{std::move(outcome->document), info.fileName(), extension, {}};
+    if (const auto default_layer_id = default_non_group_layer_id(loaded.document.layers());
+        default_layer_id.has_value()) {
+      loaded.document.set_active_layer(*default_layer_id);
+    }
+    return loaded;
+  }
+  // PDFs get their page picker before the worker load, the same way raws get the develop
+  // dialog: the pages and the rasterization resolution have to be chosen before anything
+  // is rendered. There is no preference to skip it, because there is no sane default page
+  // set for a multi-page file.
+  if (is_pdf_extension(extension) && pdf_import_is_available()) {
+    auto outcome = run_pdf_import_dialog(parent, path);
+    if (!outcome.has_value()) {
+      return std::nullopt;
+    }
+    QStringList notices;
+    notices.reserve(static_cast<qsizetype>(outcome->notices.size()));
+    for (const auto& notice : outcome->notices) {
+      notices.push_back(QString::fromStdString(notice));
+    }
+    OpenDocumentResult loaded{std::move(outcome->document), info.fileName(), extension, std::move(notices)};
     if (const auto default_layer_id = default_non_group_layer_id(loaded.document.layers());
         default_layer_id.has_value()) {
       loaded.document.set_active_layer(*default_layer_id);
