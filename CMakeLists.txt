@@ -431,6 +431,7 @@ add_library(patchy_formats
   src/formats/ilbm_document_io.cpp
   src/formats/palette_io.cpp
   src/formats/pcx_document_io.cpp
+  src/formats/pdf_content.cpp
   src/formats/pdf_file.cpp
   src/formats/pdf_filters.cpp
   src/formats/pdf_fonts.cpp

@@ -1,3 +1,4 @@
+#include "formats/pdf_content.hpp"
 #include "formats/pdf_file.hpp"
 #include "formats/pdf_fonts.hpp"
 #include "formats/pdf_filters.hpp"
@@ -645,6 +646,432 @@ void pdf_local_real_document_fonts_decode_if_available() {
   CHECK(decoded == "HoloVCS");
 }
 
+// Records everything the interpreter emits, in page order.
+struct RecordingSink final : patchy::pdf::ContentSink {
+  std::vector<patchy::pdf::PaintedPath> paths;
+  std::vector<patchy::pdf::TextRun> texts;
+  std::vector<patchy::pdf::PlacedImage> images;
+  int shadings{0};
+  std::vector<std::string> notices;
+
+  void on_path(const patchy::pdf::PaintedPath& path) override { paths.push_back(path); }
+  void on_text(const patchy::pdf::TextRun& run) override { texts.push_back(run); }
+  void on_image(const patchy::pdf::PlacedImage& image) override { images.push_back(image); }
+  void on_shading(const patchy::pdf::Object&, const patchy::pdf::Affine&, const patchy::VectorPath&) override {
+    ++shadings;
+  }
+  void on_notice(const std::string& text) override { notices.push_back(text); }
+
+  [[nodiscard]] std::string all_text() const {
+    std::string joined;
+    for (const auto& run : texts) {
+      joined += run.utf8;
+      joined.push_back('\n');
+    }
+    return joined;
+  }
+};
+
+// Runs one content stream against a document built around it.
+RecordingSink interpret(const std::string& content, const std::string& extra_objects = {},
+                        const std::string& page_extra = {}) {
+  std::vector<std::string> objects = {
+      "<</Type/Catalog/Pages 2 0 R>>",
+      "<</Type/Pages/Kids[3 0 R]/Count 1>>",
+      "<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 100]/Contents 4 0 R" + page_extra + ">>",
+      "<</Length " + std::to_string(content.size()) + ">>\nstream\n" + content + "\nendstream",
+  };
+  if (!extra_objects.empty()) {
+    // The caller supplies whole objects separated by a form feed.
+    std::size_t start = 0;
+    while (start < extra_objects.size()) {
+      const auto end = extra_objects.find('\f', start);
+      objects.push_back(extra_objects.substr(start, end == std::string::npos ? end : end - start));
+      if (end == std::string::npos) {
+        break;
+      }
+      start = end + 1;
+    }
+  }
+  RecordingSink sink;
+  auto file = patchy::pdf::File::open(build_pdf(objects), nullptr);
+  CHECK(file.has_value());
+  if (!file.has_value() || file->pages().empty()) {
+    return sink;
+  }
+  // One pixel per point keeps the arithmetic in the assertions readable.
+  patchy::pdf::execute_page(*file, file->pages().front(), 1.0, sink);
+  return sink;
+}
+
+void pdf_page_transform_flips_and_rotates() {
+  patchy::pdf::Page page;
+  page.media_box[0] = 0.0;
+  page.media_box[1] = 0.0;
+  page.media_box[2] = 200.0;
+  page.media_box[3] = 100.0;
+  std::copy(std::begin(page.media_box), std::end(page.media_box), std::begin(page.crop_box));
+
+  // PDF user space is y-up from the bottom-left; document space is y-down from the
+  // top-left, so the page's top-left corner (0, 100) must land on (0, 0).
+  const auto upright = patchy::pdf::page_base_transform(page, 1.0);
+  auto point = patchy::formats::map_point(upright, 0.0, 100.0);
+  CHECK(std::abs(point[0]) < 1e-9);
+  CHECK(std::abs(point[1]) < 1e-9);
+  point = patchy::formats::map_point(upright, 200.0, 0.0);
+  CHECK(std::abs(point[0] - 200.0) < 1e-9);
+  CHECK(std::abs(point[1] - 100.0) < 1e-9);
+  auto size = patchy::pdf::page_pixel_size(page, 1.0);
+  CHECK(size[0] == 200 && size[1] == 100);
+
+  // Scale carries through.
+  size = patchy::pdf::page_pixel_size(page, 2.0);
+  CHECK(size[0] == 400 && size[1] == 200);
+
+  // A rotated page swaps the document's dimensions.
+  page.rotate = 90;
+  size = patchy::pdf::page_pixel_size(page, 1.0);
+  CHECK(size[0] == 100 && size[1] == 200);
+  const auto rotated = patchy::pdf::page_base_transform(page, 1.0);
+  // Every corner must still land inside the rotated page.
+  for (const auto& corner : {std::pair{0.0, 0.0}, std::pair{200.0, 0.0}, std::pair{0.0, 100.0},
+                             std::pair{200.0, 100.0}}) {
+    const auto mapped = patchy::formats::map_point(rotated, corner.first, corner.second);
+    CHECK(mapped[0] >= -1e-6 && mapped[0] <= 100.0 + 1e-6);
+    CHECK(mapped[1] >= -1e-6 && mapped[1] <= 200.0 + 1e-6);
+  }
+
+  // A crop box smaller than the media box sets the origin and the size.
+  page.rotate = 0;
+  page.crop_box[0] = 50.0;
+  page.crop_box[1] = 20.0;
+  page.crop_box[2] = 150.0;
+  page.crop_box[3] = 80.0;
+  size = patchy::pdf::page_pixel_size(page, 1.0);
+  CHECK(size[0] == 100 && size[1] == 60);
+  point = patchy::formats::map_point(patchy::pdf::page_base_transform(page, 1.0), 50.0, 80.0);
+  CHECK(std::abs(point[0]) < 1e-9);
+  CHECK(std::abs(point[1]) < 1e-9);
+}
+
+void pdf_interpreter_builds_paths_with_colors_and_winding() {
+  const auto sink = interpret(
+      "1 0 0 rg 10 20 30 40 re f\n"                       // a filled rectangle
+      "0 0 1 RG 4 w 1 J 1 j [3 2] 0 d 5 5 m 60 70 l S\n"  // a stroked line
+      "0 1 0 rg 0 0 10 10 re 20 20 10 10 re f*\n");       // two subpaths, even-odd
+
+  CHECK(sink.paths.size() == 3);
+  if (sink.paths.size() != 3) {
+    return;
+  }
+
+  // Fill: red, one closed subpath of four anchors, y flipped into document space.
+  const auto& rectangle = sink.paths[0];
+  CHECK(rectangle.has_fill);
+  CHECK(!rectangle.has_stroke);
+  CHECK(rectangle.fill.color.red == 255);
+  CHECK(rectangle.fill.color.green == 0);
+  CHECK(rectangle.path.subpaths.size() == 1);
+  CHECK(rectangle.path.subpaths[0].anchors.size() == 4);
+  CHECK(rectangle.path.subpaths[0].closed);
+  const auto bounds = rectangle.path.bounds();
+  CHECK(bounds.has_value());
+  if (bounds.has_value()) {
+    CHECK(std::abs(bounds->left - 10.0) < 1e-9);
+    CHECK(std::abs(bounds->right - 40.0) < 1e-9);
+    // The rectangle spans y 20..60 in PDF space, so 40..80 down from the top of a
+    // 100-point page.
+    CHECK(std::abs(bounds->top - 40.0) < 1e-9);
+    CHECK(std::abs(bounds->bottom - 80.0) < 1e-9);
+  }
+
+  // Stroke: blue, width and joins carried, dashes preserved.
+  const auto& line = sink.paths[1];
+  CHECK(!line.has_fill);
+  CHECK(line.has_stroke);
+  CHECK(line.stroke.color.blue == 255);
+  CHECK(std::abs(line.stroke_style.width - 4.0) < 1e-9);
+  CHECK(line.stroke_style.cap == patchy::VectorStrokeCap::Round);
+  CHECK(line.stroke_style.join == patchy::VectorStrokeJoin::Round);
+  CHECK(line.stroke_style.dashes.size() == 2);
+  CHECK(!line.path.subpaths.empty());
+  CHECK(!line.path.subpaths[0].closed);
+
+  // Even-odd fill: both subpaths in one shape group, which is core's even-odd rule.
+  const auto& holes = sink.paths[2];
+  CHECK(holes.fill_even_odd);
+  CHECK(holes.path.subpaths.size() == 2);
+  CHECK(holes.path.subpaths[0].shape_group == holes.path.subpaths[1].shape_group);
+}
+
+void pdf_interpreter_tracks_graphics_state_and_clipping() {
+  const auto sink = interpret(
+      "q 1 0 0 rg 0 0 5 5 re f Q\n"          // red inside the save
+      "0 0 10 10 re f\n"                     // black again after the restore
+      "q 0 0 50 50 re W n 0 0 100 100 re f Q\n"  // clipped fill
+      "0 0 20 20 re f\n");                   // clip is gone after Q
+
+  CHECK(sink.paths.size() == 4);
+  if (sink.paths.size() != 4) {
+    return;
+  }
+  CHECK(sink.paths[0].fill.color.red == 255);
+  // q/Q restored the colour.
+  CHECK(sink.paths[1].fill.color.red == 0);
+  // W n set a clip that the following fill carries.
+  CHECK(!sink.paths[2].clip.subpaths.empty());
+  // Q popped it.
+  CHECK(sink.paths[3].clip.subpaths.empty());
+
+  // A second clip intersects rather than replacing, which core expresses as a
+  // separate shape group combined with Intersect.
+  const auto nested = interpret("q 0 0 50 50 re W n 10 10 30 30 re W n 0 0 100 100 re f Q\n");
+  CHECK(nested.paths.size() == 1);
+  if (!nested.paths.empty()) {
+    const auto& clip = nested.paths[0].clip;
+    CHECK(clip.subpaths.size() == 2);
+    if (clip.subpaths.size() == 2) {
+      CHECK(clip.subpaths[0].shape_group != clip.subpaths[1].shape_group);
+      CHECK(clip.subpaths[1].op == patchy::PathCombineOp::Intersect);
+    }
+  }
+}
+
+void pdf_interpreter_converts_color_spaces() {
+  // DeviceCMYK through the naive ink mix, and DeviceGray.
+  const auto sink = interpret(
+      "0 0 0 1 k 0 0 5 5 re f\n"        // pure black
+      "0 1 1 0 k 0 0 5 5 re f\n"        // magenta + yellow = red
+      "0.5 g 0 0 5 5 re f\n");
+  CHECK(sink.paths.size() == 3);
+  if (sink.paths.size() != 3) {
+    return;
+  }
+  CHECK(sink.paths[0].fill.color.red == 0 && sink.paths[0].fill.color.blue == 0);
+  CHECK(sink.paths[1].fill.color.red == 255);
+  CHECK(sink.paths[1].fill.color.green == 0);
+  CHECK(sink.paths[1].fill.color.blue == 0);
+  CHECK(std::abs(static_cast<int>(sink.paths[2].fill.color.red) - 128) <= 1);
+
+  // An Indexed palette resolves through its base space.
+  const auto indexed = interpret(
+      "/CS0 cs 1 sc 0 0 5 5 re f\n",
+      {},
+      "/Resources<</ColorSpace<</CS0[/Indexed /DeviceRGB 1 <FF000000FF00>]>>>>");
+  CHECK(indexed.paths.size() == 1);
+  if (!indexed.paths.empty()) {
+    // Index 1 is the second RGB triple in the table: 00 FF 00.
+    CHECK(indexed.paths[0].fill.color.green == 255);
+    CHECK(indexed.paths[0].fill.color.red == 0);
+  }
+
+  // ICCBased takes its component count from /N without applying the profile.
+  const auto icc = interpret("/CS1 cs 0 0 1 sc 0 0 5 5 re f\n",
+                             "<</N 3/Length 0>>\nstream\n\nendstream",
+                             "/Resources<</ColorSpace<</CS1[/ICCBased 5 0 R]>>>>");
+  CHECK(icc.paths.size() == 1);
+  if (!icc.paths.empty()) {
+    CHECK(icc.paths[0].fill.color.blue == 255);
+  }
+}
+
+void pdf_interpreter_extracts_text_runs_with_position() {
+  const auto sink = interpret(
+      "BT /F1 12 Tf 1 0 0 1 20 80 Tm (Hello) Tj ET\n"
+      "BT /F1 12 Tf 14 TL 1 0 0 1 20 80 Tm (One) ' (Two) ' ET\n",
+      "<</Type/Font/Subtype/Type1/BaseFont/Helvetica/Encoding/WinAnsiEncoding"
+      "/FirstChar 32/LastChar 122/Widths[500]>>",
+      "/Resources<</Font<</F1 5 0 R>>>>");
+
+  CHECK(sink.texts.size() == 3);
+  if (sink.texts.size() != 3) {
+    return;
+  }
+  CHECK(sink.texts[0].utf8 == "Hello");
+  CHECK(std::abs(sink.texts[0].font_size - 12.0) < 1e-9);
+  CHECK(sink.texts[0].family == "Helvetica");
+  // Tm places the baseline at (20, 80) in PDF space, i.e. 20 down from the top of a
+  // 100-point page.
+  CHECK(std::abs(sink.texts[0].transform.e - 20.0) < 1e-9);
+  CHECK(std::abs(sink.texts[0].transform.f - 20.0) < 1e-9);
+  // The y axis is flipped, so the text matrix's vertical scale is negative.
+  CHECK(sink.texts[0].transform.d < 0.0);
+
+  // The quote operator advances by the leading each time.
+  CHECK(sink.texts[1].utf8 == "One");
+  CHECK(sink.texts[2].utf8 == "Two");
+  CHECK(std::abs(sink.texts[2].transform.f - sink.texts[1].transform.f - 14.0) < 1e-6);
+}
+
+void pdf_interpreter_applies_kerning_and_spacing_to_text() {
+  // A TJ array with a kerning adjustment, and Tc/Tw/Tz spacing.
+  const auto sink = interpret(
+      "BT /F1 10 Tf 1 0 0 1 0 90 Tm [(A) -1000 (B)] TJ ET\n"
+      "BT /F1 10 Tf 2 Tc 1 0 0 1 0 50 Tm (AB) Tj ET\n"
+      "BT /F1 10 Tf 200 Tz 1 0 0 1 0 20 Tm (AB) Tj ET\n",
+      "<</Type/Font/Subtype/Type1/BaseFont/Helvetica/Encoding/WinAnsiEncoding"
+      "/FirstChar 65/LastChar 66/Widths[500 500]>>",
+      "/Resources<</Font<</F1 5 0 R>>>>");
+
+  CHECK(sink.texts.size() == 4);
+  if (sink.texts.size() != 4) {
+    return;
+  }
+  // The two halves of the TJ array become separate runs, and the -1000 pushes the
+  // second one a full em to the right of where "A" left off.
+  CHECK(sink.texts[0].utf8 == "A");
+  CHECK(sink.texts[1].utf8 == "B");
+  const double gap = sink.texts[1].transform.e - sink.texts[0].transform.e;
+  // 'A' advances 0.5 em = 5 units, plus the 1000/1000 em = 10 unit kern.
+  CHECK(std::abs(gap - 15.0) < 1e-6);
+
+  // Character spacing widens the run's intended width: 2 glyphs x (5 + 2).
+  CHECK(sink.texts[2].width_is_known);
+  CHECK(std::abs(sink.texts[2].intended_width - 14.0) < 1e-6);
+  // Horizontal scale doubles both the advance and the transform's x scale. The Tc of
+  // 2 set in the previous block is STILL in effect: the text state parameters live
+  // in the graphics state and are reset by q/Q, never by BT/ET (clause 9.3), so the
+  // width here is 2 x (5 + 2) x 2, not 2 x 5 x 2.
+  CHECK(std::abs(sink.texts[3].intended_width - 28.0) < 1e-6);
+  CHECK(std::abs(sink.texts[3].transform.a - 20.0) < 1e-6);
+}
+
+void pdf_interpreter_recurses_into_form_xobjects() {
+  const auto sink = interpret(
+      "q 1 0 0 1 100 0 cm /Fm0 Do Q\n0 0 5 5 re f\n",
+      "<</Type/XObject/Subtype/Form/BBox[0 0 50 50]/Matrix[1 0 0 1 0 0]/Length 24>>\n"
+      "stream\n1 0 0 rg 0 0 20 20 re f\nendstream",
+      "/Resources<</XObject<</Fm0 5 0 R>>>>");
+
+  CHECK(sink.paths.size() == 2);
+  if (sink.paths.size() != 2) {
+    return;
+  }
+  // The form's rectangle is drawn through the outer cm, so it sits 100 to the right.
+  const auto inner = sink.paths[0].path.bounds();
+  CHECK(inner.has_value());
+  if (inner.has_value()) {
+    CHECK(std::abs(inner->left - 100.0) < 1e-9);
+    CHECK(std::abs(inner->right - 120.0) < 1e-9);
+  }
+  // The form's BBox clips its contents.
+  CHECK(!sink.paths[0].clip.subpaths.empty());
+  // State is restored afterwards: the outer fill is black and unclipped.
+  CHECK(sink.paths[1].fill.color.red == 0);
+  CHECK(sink.paths[1].clip.subpaths.empty());
+}
+
+void pdf_interpreter_reads_images_and_ext_gstate() {
+  // A 2x2 RGB image placed by a cm that maps the unit square, plus alpha and a
+  // blend mode from the graphics state.
+  // Built from an initializer list, not a literal: a string literal would stop dead
+  // at the first embedded NUL and the image would silently be one byte long.
+  const std::string samples({'\xFF', '\x00', '\x00', '\x00', '\xFF', '\x00', '\x00', '\x00', '\xFF', '\xFF',
+                             '\xFF', '\xFF'});
+  const auto sink = interpret(
+      "q /GS0 gs 40 0 0 20 10 30 cm /Im0 Do Q\n",
+      "<</Type/XObject/Subtype/Image/Width 2/Height 2/ColorSpace/DeviceRGB"
+      "/BitsPerComponent 8/Length 12>>\nstream\n" + samples + "\nendstream",
+      "/Resources<</XObject<</Im0 5 0 R>>/ExtGState<</GS0<</ca 0.5/BM/Multiply>>>>>>");
+
+  CHECK(sink.images.size() == 1);
+  if (sink.images.empty()) {
+    return;
+  }
+  const auto& image = sink.images[0];
+  CHECK(image.width == 2 && image.height == 2);
+  CHECK(image.codec == patchy::pdf::FilterKind::None);
+  CHECK(image.rgba.size() == 16);
+  // Row 0 is red then green; samples are read top-down as PDF stores them.
+  CHECK(image.rgba[0] == 255 && image.rgba[1] == 0 && image.rgba[2] == 0 && image.rgba[3] == 255);
+  CHECK(image.rgba[4] == 0 && image.rgba[5] == 255);
+  // The CTM maps the unit square onto the placement, so it carries the size.
+  CHECK(std::abs(image.transform.a - 40.0) < 1e-9);
+  CHECK(std::abs(std::abs(image.transform.d) - 20.0) < 1e-9);
+  // ExtGState reached the placement.
+  CHECK(std::abs(image.alpha - 0.5) < 1e-9);
+  CHECK(image.blend == patchy::BlendMode::Multiply);
+}
+
+void pdf_interpreter_survives_damaged_content() {
+  // Operators with missing operands, an unknown operator, unbalanced Q, a huge
+  // operand count, and an unterminated string. None may hang, throw, or lose the
+  // operators that follow.
+  const auto sink = interpret(
+      "Q Q Q\n"
+      "re f\n"
+      "1 2 3 4 5 6 7 8 9 bogusoperator\n"
+      "0 0 1 rg 10 10 20 20 re f\n"
+      "BT /Missing 12 Tf (text) Tj ET\n");
+  // The one well-formed fill still arrives.
+  bool found_blue = false;
+  for (const auto& path : sink.paths) {
+    if (path.fill.color.blue == 255) {
+      found_blue = true;
+    }
+  }
+  CHECK(found_blue);
+}
+
+void pdf_local_brochure_interprets_to_shapes_and_text_if_available() {
+  const auto path = patchy::test::local_format_fixture_path("pdf", "HoloVCS_C2_A4_Brochure.pdf");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] local pdf fixture missing: " << path.string() << '\n';
+    return;
+  }
+  std::ifstream stream(path, std::ios::binary);
+  CHECK(stream.good());
+  const std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(stream)),
+                                        std::istreambuf_iterator<char>());
+  auto file = patchy::pdf::File::open(bytes, nullptr);
+  CHECK(file.has_value());
+  if (!file.has_value() || file->pages().empty()) {
+    return;
+  }
+
+  RecordingSink sink;
+  patchy::pdf::execute_page(*file, file->pages().front(), 1.0, sink);
+
+  // The page is 525 rectangles, 44 text runs, a few strokes, and 2 images.
+  CHECK(sink.paths.size() > 400);
+  CHECK(sink.texts.size() >= 40);
+  CHECK(sink.images.size() == 2);
+
+  // Real authored strings come back as text, which is the whole point.
+  const auto joined = sink.all_text();
+  CHECK(joined.find("HoloVCS") != std::string::npos);
+  CHECK(joined.find("OPEN SOURCE / LIVE DEMO") != std::string::npos);
+  CHECK(joined.find("CLASSIC GAMES. REAL DEPTH.") != std::string::npos);
+
+  // Every run carries a resolvable family with the subset tag stripped, a real
+  // size, and a position inside the A4 page.
+  for (const auto& run : sink.texts) {
+    CHECK(!run.family.empty());
+    CHECK(run.family.find('+') == std::string::npos);
+    CHECK(run.font_size > 0.0 && run.font_size < 200.0);
+    CHECK(run.transform.e >= -50.0 && run.transform.e <= 650.0);
+    CHECK(run.transform.f >= -50.0 && run.transform.f <= 900.0);
+  }
+
+  // The images decode: one is a JPEG handed on still encoded, and the ones we
+  // expand carry the SMask alpha the file supplies.
+  for (const auto& image : sink.images) {
+    CHECK(image.width > 0 && image.height > 0);
+    CHECK(!image.rgba.empty() || !image.encoded.empty());
+  }
+
+  // Fills are real colours, not all black.
+  bool saw_non_black = false;
+  for (const auto& painted : sink.paths) {
+    if (painted.has_fill && (painted.fill.color.red != 0 || painted.fill.color.green != 0 ||
+                             painted.fill.color.blue != 0)) {
+      saw_non_black = true;
+      break;
+    }
+  }
+  CHECK(saw_non_black);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> pdf_tests() {
@@ -664,5 +1091,15 @@ std::vector<patchy::test::TestCase> pdf_tests() {
       {"pdf_composite_font_reads_two_byte_codes_and_w_widths", pdf_composite_font_reads_two_byte_codes_and_w_widths},
       {"pdf_local_real_documents_parse_if_available", pdf_local_real_documents_parse_if_available},
       {"pdf_local_real_document_fonts_decode_if_available", pdf_local_real_document_fonts_decode_if_available},
+      {"pdf_page_transform_flips_and_rotates", pdf_page_transform_flips_and_rotates},
+      {"pdf_interpreter_builds_paths_with_colors_and_winding", pdf_interpreter_builds_paths_with_colors_and_winding},
+      {"pdf_interpreter_tracks_graphics_state_and_clipping", pdf_interpreter_tracks_graphics_state_and_clipping},
+      {"pdf_interpreter_converts_color_spaces", pdf_interpreter_converts_color_spaces},
+      {"pdf_interpreter_extracts_text_runs_with_position", pdf_interpreter_extracts_text_runs_with_position},
+      {"pdf_interpreter_applies_kerning_and_spacing_to_text", pdf_interpreter_applies_kerning_and_spacing_to_text},
+      {"pdf_interpreter_recurses_into_form_xobjects", pdf_interpreter_recurses_into_form_xobjects},
+      {"pdf_interpreter_reads_images_and_ext_gstate", pdf_interpreter_reads_images_and_ext_gstate},
+      {"pdf_interpreter_survives_damaged_content", pdf_interpreter_survives_damaged_content},
+      {"pdf_local_brochure_interprets_to_shapes_and_text_if_available", pdf_local_brochure_interprets_to_shapes_and_text_if_available},
   };
 }

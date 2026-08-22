@@ -126,6 +126,9 @@ public:
   [[nodiscard]] std::size_t position() const noexcept { return position_; }
   void seek(std::size_t position) noexcept { position_ = std::min(position, bytes_.size()); }
   [[nodiscard]] bool at_end() const noexcept { return position_ >= bytes_.size(); }
+  // Everything from the cursor on. Inline images need it: their data has no
+  // declared length, so the end has to be found by scanning the raw bytes.
+  [[nodiscard]] std::span<const std::uint8_t> remaining() const noexcept { return bytes_.subspan(position_); }
 
   void skip_whitespace_and_comments() noexcept;
 

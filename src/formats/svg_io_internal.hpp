@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/layer.hpp"
+#include "formats/affine.hpp"
 
 #include <array>
 #include <cmath>
@@ -15,38 +16,13 @@
 
 namespace patchy::svg::detail {
 
-struct Affine {
-  double a{1.0};
-  double b{0.0};
-  double c{0.0};
-  double d{1.0};
-  double e{0.0};
-  double f{0.0};
-};
-
-inline Affine multiply(const Affine& outer, const Affine& inner) noexcept {
-  return {outer.a * inner.a + outer.c * inner.b,
-          outer.b * inner.a + outer.d * inner.b,
-          outer.a * inner.c + outer.c * inner.d,
-          outer.b * inner.c + outer.d * inner.d,
-          outer.a * inner.e + outer.c * inner.f + outer.e,
-          outer.b * inner.e + outer.d * inner.f + outer.f};
-}
-
-inline std::array<double, 2> map_point(const Affine& matrix, double x, double y) noexcept {
-  return {matrix.a * x + matrix.c * y + matrix.e,
-          matrix.b * x + matrix.d * y + matrix.f};
-}
-
-inline double determinant(const Affine& matrix) noexcept {
-  return matrix.a * matrix.d - matrix.b * matrix.c;
-}
-
-inline bool positive_axis_scale_translate(const Affine& matrix) noexcept {
-  constexpr double epsilon = 1e-10;
-  return matrix.a > 0.0 && matrix.d > 0.0 && std::abs(matrix.b) < epsilon &&
-         std::abs(matrix.c) < epsilon;
-}
+// The affine type and its helpers moved to formats/affine.hpp when the PDF reader
+// needed the same six numbers; SVG keeps these names so its call sites read the same.
+using patchy::formats::Affine;
+using patchy::formats::determinant;
+using patchy::formats::map_point;
+using patchy::formats::multiply;
+using patchy::formats::positive_axis_scale_translate;
 
 // Locale-independent number I/O. Deliberately classic-locale iostreams, not
 // <charconv>: Apple's libc++ marks the floating-point from_chars/to_chars
