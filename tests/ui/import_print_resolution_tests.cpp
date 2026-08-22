@@ -947,6 +947,7 @@ void ui_print_dialog_exposes_printer_and_visible_checkboxes() {
       auto* dialog = qobject_cast<QDialog*>(widget);
       auto* printer = dialog->findChild<QComboBox*>(QStringLiteral("printPrinterCombo"));
       auto* print_button = dialog->findChild<QPushButton*>(QStringLiteral("printDialogPrintButton"));
+      auto* copies = dialog->findChild<QSpinBox*>(QStringLiteral("printCopiesSpin"));
       auto* scale_to_fit = dialog->findChild<QCheckBox*>(QStringLiteral("printScaleToFitCheck"));
       auto* scale = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("printScalePercentSpin"));
       auto* resolution = dialog->findChild<QLabel*>(QStringLiteral("printResolutionValueLabel"));
@@ -957,6 +958,7 @@ void ui_print_dialog_exposes_printer_and_visible_checkboxes() {
       auto* crop_marks = dialog->findChild<QCheckBox*>(QStringLiteral("printCropMarksCheck"));
       CHECK(printer != nullptr);
       CHECK(print_button != nullptr);
+      CHECK(copies != nullptr);
       CHECK(scale_to_fit != nullptr);
       CHECK(scale != nullptr);
       CHECK(resolution != nullptr);
@@ -968,6 +970,15 @@ void ui_print_dialog_exposes_printer_and_visible_checkboxes() {
       CHECK(printer->count() >= 1);
       CHECK(!printer->currentText().isEmpty());
       CHECK(print_button->isEnabled() == printer->isEnabled());
+      // Copies opens at one and never goes below it, matching Photoshop's Print dialog.
+      CHECK(copies->value() == 1);
+      CHECK(copies->minimum() == 1);
+      CHECK(copies->maximum() >= 99);
+      copies->setValue(0);
+      CHECK(copies->value() == 1);
+      copies->setValue(12);
+      CHECK(copies->value() == 12);
+      copies->setValue(1);
       // The 1024x768 document pinned to 300 ppi fits Letter at actual size, so the
       // dialog opens at 100% (Photoshop's default) with fit-to-media unchecked and
       // the derived print resolution equal to the document resolution.

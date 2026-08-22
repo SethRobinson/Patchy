@@ -116,7 +116,15 @@ void populate_printer_combo(QComboBox* printer_combo) {
   printer_combo->setCurrentIndex(default_index);
 }
 
-bool paint_printer_page(QPrinter& printer, const Document& document, const PrintSettings& settings) {
+bool paint_printer_page(QPrinter& printer, const Document& document, const PrintSettings& settings,
+                        int copies = 1) {
+  const auto requested_copies = std::max(1, copies);
+  // Drivers that can duplicate a job themselves take the count and get one painted page.
+  // The rest need the page painted once per copy inside a single job.
+  const bool driver_duplicates = printer.supportsMultipleCopies();
+  if (driver_duplicates) {
+    printer.setCopyCount(requested_copies);
+  }
   // Full-page mode puts the painter's device origin at the physical page corner. Without
   // it the origin sits at the printable-area corner, and mapping the full-page window
   // onto fullRectPixels shifts the output down-right by the margins (off-center prints
@@ -131,11 +139,20 @@ bool paint_printer_page(QPrinter& printer, const Document& document, const Print
   const auto layout = valid_page_layout(printer.pageLayout());
   const auto full_points = layout.fullRect(QPageLayout::Point).toAlignedRect();
   const auto full_pixels = layout.fullRectPixels(std::max(1, printer.resolution()));
-  if (!full_points.isEmpty() && !full_pixels.isEmpty()) {
-    painter.setWindow(full_points);
-    painter.setViewport(full_pixels);
+  const auto painted_pages = driver_duplicates ? 1 : requested_copies;
+  for (int page = 0; page < painted_pages; ++page) {
+    if (page > 0 && !printer.newPage()) {
+      painter.end();
+      return false;
+    }
+    // newPage() resets the painter state on some platforms, so re-establish the
+    // full-page mapping for every page rather than once before the loop.
+    if (!full_points.isEmpty() && !full_pixels.isEmpty()) {
+      painter.setWindow(full_points);
+      painter.setViewport(full_pixels);
+    }
+    render_print_page(painter, document, settings, layout);
   }
-  render_print_page(painter, document, settings, layout);
   return painter.end();
 }
 
@@ -287,6 +304,12 @@ bool run_print_dialog(QWidget* parent, const Document& document, const QString& 
   printer_combo->setObjectName(QStringLiteral("printPrinterCombo"));
   populate_printer_combo(printer_combo);
   printer_form->addRow(QObject::tr("Printer"), printer_combo);
+  auto* copies_spin = new QSpinBox(output_group);
+  copies_spin->setObjectName(QStringLiteral("printCopiesSpin"));
+  copies_spin->setRange(1, 999);
+  copies_spin->setValue(1);
+  configure_dialog_spinbox(copies_spin, 82);
+  printer_form->addRow(QObject::tr("Copies"), copies_spin);
   output_layout->addLayout(printer_form);
   auto* page_setup = new QPushButton(QObject::tr("Page Setup..."), output_group);
   page_setup->setObjectName(QStringLiteral("printPageSetupButton"));
@@ -487,7 +510,7 @@ bool run_print_dialog(QWidget* parent, const Document& document, const QString& 
       if (!printer->isValid()) {
         throw std::runtime_error("Selected printer is not available");
       }
-      if (!paint_printer_page(*printer, document, settings)) {
+      if (!paint_printer_page(*printer, document, settings, copies_spin->value())) {
         throw std::runtime_error("Selected printer did not accept the page");
       }
       current_layout = printer->pageLayout();

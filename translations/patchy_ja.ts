@@ -5599,6 +5599,7 @@ Mixed selection</source>
     <message><source>Run the JavaScript file. With a running instance this forwards the request and exits; otherwise a new unattended instance opens the given files, runs the script, and exits (0 = ok, 4 = script error).</source><translation>JavaScript ファイルを実行します。実行中のインスタンスがあればリクエストを転送して終了し、なければ新しい無人インスタンスが指定ファイルを開いてスクリプトを実行し終了します (0 = 成功、4 = スクリプトエラー)。</translation></message>
     <message><source>With --run-script: write console output, errors, and a final [done]/[failed] line to this file when the script completes.</source><translation>--run-script と併用: スクリプト完了時にコンソール出力・エラー・最終行 [done]/[failed] をこのファイルに書き込みます。</translation></message>
     <message><source>With --run-script: pass key=value to the script as patchy.args.key (repeatable).</source><translation>--run-script と併用: key=value を patchy.args.key としてスクリプトに渡します (複数指定可)。</translation></message>
+    <message><source>Copies</source><translation>部数</translation></message>
 </context>
 <context>
     <name>ScannerImport</name>
