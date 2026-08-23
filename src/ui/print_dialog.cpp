@@ -187,6 +187,24 @@ bool paint_printer_page(QPrinter& printer, const Document& document, const Print
 // Microsoft's per-call opt-out is PrintDlg with a print hook installed, which keeps
 // the classic dialog and its driver Preferences button. See docs/platform.md.
 
+// Qt 6 assumes every printer has a DEVMODE: QPageSetupDialog::exec and
+// QWin32PrintEngine::begin dereference it with no null check. When CreateDC fails,
+// QWin32PrintEnginePrivate::initialize calls release(), which sets devMode to null,
+// and the next dialog crashes the app instead of reporting an error. A broken
+// Microsoft Print to PDF does exactly this: its CreateDC fails with
+// ERROR_PATH_NOT_FOUND while the spooler still hands out a DEVMODE, so testing the
+// device context is the only reliable check. See docs/platform.md.
+bool windows_printer_device_is_usable(const QString& printer_name) {
+  const auto name = printer_name.toStdWString();
+  // The same call the engine makes; a null DEVMODE just means driver defaults.
+  HDC context = CreateDCW(nullptr, name.c_str(), nullptr, nullptr);
+  if (context == nullptr) {
+    return false;
+  }
+  DeleteDC(context);
+  return true;
+}
+
 struct GlobalMemory {
   HGLOBAL handle{nullptr};
   GlobalMemory() = default;
@@ -352,6 +370,31 @@ std::optional<int> run_classic_windows_print_dialog(QPrinter& printer, QWidget* 
 }
 #endif  // Q_OS_WIN
 
+// True when the printer can be handed to Qt safely. Only Windows has a failure mode
+// here (see windows_printer_has_dev_mode); elsewhere the drivers Qt talks to always
+// describe themselves.
+bool ensure_printer_driver_usable(const QString& printer_name, QWidget* parent) {
+#ifdef Q_OS_WIN
+  auto name = printer_name;
+  if (name.isEmpty()) {
+    name = QPrinterInfo::defaultPrinter().printerName();
+  }
+  if (name.isEmpty() || windows_printer_device_is_usable(name)) {
+    return true;
+  }
+  show_critical_message(parent, QObject::tr("Printer unavailable"),
+                        QObject::tr("Windows cannot read the settings for \"%1\". The printer driver "
+                                    "may need to be repaired or reinstalled.")
+                            .arg(name),
+                        QStringLiteral("printerUnavailableMessageBox"));
+  return false;
+#else
+  (void)printer_name;
+  (void)parent;
+  return true;
+#endif
+}
+
 class PrintPreviewPane final : public QWidget {
 public:
   explicit PrintPreviewPane(QWidget* parent = nullptr) : QWidget(parent) {
@@ -449,6 +492,9 @@ void run_page_setup_dialog(QWidget* parent, QPageLayout* page_layout) {
   QPrinter printer(QPrinter::HighResolution);
   configure_printer(printer, page_layout != nullptr ? *page_layout : default_print_page_layout(),
                     QObject::tr("Patchy Print"));
+  if (!ensure_printer_driver_usable(printer.printerName(), parent)) {
+    return;
+  }
   QPageSetupDialog dialog(&printer, parent);
   dialog.setObjectName(QStringLiteral("pageSetupDialog"));
   if (exec_dialog(dialog) == QDialog::Accepted && page_layout != nullptr) {
@@ -685,6 +731,9 @@ bool run_print_dialog(QWidget* parent, const Document& document, const QString& 
 
   QObject::connect(page_setup, &QPushButton::clicked, &dialog, [&] {
     const auto printer_name = selected_printer_name(printer_combo);
+    if (!ensure_printer_driver_usable(printer_name, &dialog)) {
+      return;
+    }
     auto printer = create_selected_printer(printer_name);
     configure_selected_printer(*printer, printer_name, current_layout, display_title);
     QPageSetupDialog setup_dialog(printer.get(), &dialog);
@@ -702,6 +751,9 @@ bool run_print_dialog(QWidget* parent, const Document& document, const QString& 
     // the UI tests only check the button and never click it.
     sync_settings();
     const auto printer_name = selected_printer_name(printer_combo);
+    if (!ensure_printer_driver_usable(printer_name, &dialog)) {
+      return;
+    }
 #ifdef Q_OS_WIN
     // Declared before the printer: its engine points into this block until it dies.
     GlobalMemory dev_mode;
@@ -772,6 +824,9 @@ bool run_print_dialog(QWidget* parent, const Document& document, const QString& 
   QObject::connect(print_button, &QPushButton::clicked, &dialog, [&] {
     sync_settings();
     const auto printer_name = selected_printer_name(printer_combo);
+    if (!ensure_printer_driver_usable(printer_name, &dialog)) {
+      return;
+    }
     auto printer = create_selected_printer(printer_name);
     configure_selected_printer(*printer, printer_name, current_layout, display_title);
     send_print_job(*printer, copies_spin->value());

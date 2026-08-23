@@ -4228,6 +4228,16 @@ Open in Generative Upscale...</source>
         <translation>システムの印刷ダイアログを開けませんでした (エラー %1)。</translation>
     </message>
     <message>
+        <location line="-33"/>
+        <source>Printer unavailable</source>
+        <translation>プリンターを使用できません</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Windows cannot read the settings for &quot;%1&quot;. The printer driver may need to be repaired or reinstalled.</source>
+        <translation>Windows は "%1" の設定を読み取れません。プリンタードライバーの修復または再インストールが必要な可能性があります。</translation>
+    </message>
+    <message>
         <location filename="../src/ui/main_window.cpp" line="-11406"/>
         <source>Image pixels locked</source>
         <translation>画像ピクセルをロック</translation>
