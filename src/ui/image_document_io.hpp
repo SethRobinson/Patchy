@@ -40,6 +40,9 @@ struct ImageSaveOptions {
   // PDF: lossless keeps the composite pixel-exact (Flate); unchecked hands the page to
   // Qt's fixed JPEG quality-94 encode. See PdfExportOptions in ui/pdf_export.hpp.
   bool pdf_lossless{true};
+  // PDF: keep layers as editable objects (paths, real text, images) instead of one
+  // flattened image. See PdfExportOptions::editable_layers.
+  bool pdf_editable_layers{false};
   // Nearest-neighbor output scale, offered by the EXPORT flow only (never Save/Save As —
   // rescaling a save would silently mutate the file the session points at). Deliberately
   // not part of the persisted option defaults; the export dialog persists its own combo.
@@ -119,8 +122,10 @@ struct LayerPixelsOverrideSpec {
 // becomes the alpha channel, because compositing would erase the colors wherever the
 // mask is transparent. Shared by write_flat_image_file and the PDF writer.
 [[nodiscard]] QImage flat_export_qimage(const Document& document, bool preserve_alpha);
+// `notices` (optional) receives the structural losses of a writer that keeps layers
+// (today: editable PDF), one line each, for the save/export status message.
 void write_flat_image_file(const Document& document, const QString& path, const QString& extension,
-                           const ImageSaveOptions& options = {});
+                           const ImageSaveOptions& options = {}, std::vector<std::string>* notices = nullptr);
 // Installs the Qt-backed PNG codec used for the PNG-compressed entries inside .ico/.cur
 // files (the formats library is Qt-free). Idempotent; called from the MainWindow
 // constructor so every app and test path has it.

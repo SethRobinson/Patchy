@@ -447,6 +447,7 @@ add_library(patchy_formats
   src/formats/svg_document_write.cpp
   src/formats/svg_xml.cpp
   src/formats/tga_document_io.cpp
+  src/formats/vector_export_plan.cpp
   src/formats/vector_fill_rule.cpp
   src/formats/stb/stb_image_impl.c
   src/formats/zstd/zstddeclib.c
@@ -911,6 +912,8 @@ if(PATCHY_BUILD_APP)
       src/ui/pattern_manager_dialog.cpp
       src/ui/pdf_export.hpp
       src/ui/pdf_export.cpp
+      src/ui/pdf_export_editable.cpp
+      src/ui/text_layer_painter.hpp
       src/ui/pdf_import.hpp
       src/ui/photo_pattern_presets.hpp
       src/ui/photo_pattern_presets.cpp

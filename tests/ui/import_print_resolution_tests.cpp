@@ -4,6 +4,8 @@
 #include "core/gradient_presets.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/pattern_presets.hpp"
+#include "core/vector_live_shapes.hpp"
+#include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
 #include "core/smart_filter.hpp"
 #include "core/smart_filter_effects.hpp"
@@ -47,6 +49,7 @@
 #include "formats/bmp_document_io.hpp"
 #include "formats/aseprite_document_io.hpp"
 #include "formats/ico_document_io.hpp"
+#include "formats/pdf_document_io.hpp"
 #include "formats/tga_document_io.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/image_save_options_dialog.hpp"
@@ -1053,6 +1056,384 @@ void ui_pdf_export_writes_transparency_as_soft_mask() {
   CHECK(rendered.pixelColor(100, 70).alpha() == 255);
   CHECK(std::abs(rendered.pixelColor(100, 130).alpha() - 128) <= 2);
   CHECK(rendered.pixelColor(10, 10).alpha() == 0);
+}
+
+// --- editable PDF export ---------------------------------------------------------
+
+namespace {
+
+QByteArray read_file_bytes(const QString& path) {
+  QFile file(path);
+  return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray();
+}
+
+// PDFium renders onto a transparent page; Patchy's composite over white is the
+// reference, so both sides are flattened onto white before comparing.
+QImage over_white(const QImage& image) {
+  QImage result(image.size(), QImage::Format_RGB32);
+  result.fill(Qt::white);
+  QPainter painter(&result);
+  painter.drawImage(0, 0, image);
+  painter.end();
+  return result;
+}
+
+double mean_rgb_delta_over_white(const QImage& a, const QImage& b) {
+  const QImage flat_a = over_white(a);
+  const QImage flat_b = over_white(b);
+  CHECK(flat_a.size() == flat_b.size());
+  double total = 0.0;
+  for (int y = 0; y < flat_a.height(); ++y) {
+    for (int x = 0; x < flat_a.width(); ++x) {
+      const auto ca = flat_a.pixelColor(x, y);
+      const auto cb = flat_b.pixelColor(x, y);
+      total += std::abs(ca.red() - cb.red()) + std::abs(ca.green() - cb.green()) + std::abs(ca.blue() - cb.blue());
+    }
+  }
+  return total / (static_cast<double>(flat_a.width()) * flat_a.height() * 3.0);
+}
+
+patchy::Layer solid_rect_shape_layer(patchy::Document& document, const char* name, int left, int top, int right,
+                                     int bottom, patchy::RgbColor fill, double stroke_width) {
+  patchy::LiveShapeParams params;
+  params.kind = patchy::LiveShapeKind::Rectangle;
+  params.left = left;
+  params.top = top;
+  params.right = right;
+  params.bottom = bottom;
+  params.index = 0;
+  patchy::populate_live_shape_box_corners(params);
+  patchy::VectorShapeContent content;
+  content.path.subpaths = patchy::generate_live_shape_subpaths(params);
+  content.origination = {params};
+  content.fill.kind = patchy::VectorFillKind::Solid;
+  content.fill.color = fill;
+  if (stroke_width > 0.0) {
+    content.stroke.enabled = true;
+    content.stroke.width = stroke_width;
+    content.stroke.content.kind = patchy::VectorFillKind::Solid;
+    content.stroke.content.color = {20, 20, 20};
+  }
+  patchy::Layer layer(document.allocate_layer_id(), name, patchy::LayerKind::Pixel);
+  layer.metadata()[patchy::kLayerMetadataVectorShape] = "1";
+  patchy::mark_layer_vector_block_dirty(layer);
+  layer.set_vector_shape(std::move(content));
+  patchy::update_vector_shape_raster(layer, patchy::Rect::from_size(document.width(), document.height()),
+                                     &document.metadata().patterns);
+  return layer;
+}
+
+}  // namespace
+
+// The editable mode's promise: a shape layer comes back as a path, a text layer as real
+// text with an embedded font, a pixel layer as an image, and the page still looks like
+// the canvas. Verified through two decoders that are not the writer: Patchy's own Qt-free
+// reader for the structure, PDFium for the pixels.
+void ui_pdf_export_editable_keeps_layers_and_matches_composite() {
+  ensure_artifact_dir();
+  patchy::Document built(300, 200, patchy::PixelFormat::rgba8());
+  built.print_settings().horizontal_ppi = 72.0;  // one point per pixel: the reimport is 1:1
+  built.print_settings().vertical_ppi = 72.0;
+  auto photo = solid_pixels(300, 200, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  fill_pixel_rect(photo, QRect(20, 100, 120, 80), QColor(60, 120, 200));
+  built.add_pixel_layer("Photo", std::move(photo));
+  built.add_layer(solid_rect_shape_layer(built, "Hero Rect", 160, 30, 280, 120, {220, 40, 40}, 4.0));
+  patchy::Layer text_layer(built.allocate_layer_id(), "Title",
+                           solid_pixels(1, 1, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0)));
+  const auto text_id = text_layer.id();
+  text_layer.set_bounds(patchy::Rect{20, 20, 1, 1});
+  text_layer.metadata()[patchy::kLayerMetadataText] = "Patchy PDF";
+  text_layer.metadata()[patchy::kLayerMetadataTextSize] = "28";
+  text_layer.metadata()[patchy::kLayerMetadataTextColor] = "#101010";
+  built.add_layer(std::move(text_layer));
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(built), QStringLiteral("Editable PDF"));
+  show_window(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* text = document.find_layer(text_id);
+  CHECK(text != nullptr);
+  if (text == nullptr) {
+    return;
+  }
+  // Give the text layer its real render (what a committed layer holds).
+  CHECK(patchy::ui::MainWindowTestAccess::apply_text_warp(window, *text, patchy::TextWarp{}));
+  CHECK(!text->pixels().empty());
+
+  const auto path = QStringLiteral("test-artifacts/ui_pdf_export_editable.pdf");
+  QFile::remove(path);
+  std::vector<std::string> notices;
+  patchy::ui::write_pdf_document_file(std::as_const(document), path, patchy::ui::PdfExportOptions{true, true},
+                                      &notices);
+  CHECK(QFileInfo(path).isFile());
+  for (const auto& notice : notices) {
+    std::printf("[pdf] unexpected notice: %s\n", notice.c_str());
+  }
+  CHECK(notices.empty());  // nothing here needed flattening
+
+  const QByteArray bytes = read_file_bytes(path);
+  CHECK(bytes.contains("/Font"));
+  CHECK(bytes.contains("/FontFile"));  // the face travels with the file
+  CHECK(bytes.contains("/Image"));
+  CHECK(bytes.contains("/FlateDecode"));
+  CHECK(!bytes.contains("/DCTDecode"));
+
+  // Structure: Patchy's own reader (formats/pdf_document_io, a different code path from
+  // the Qt writer) sees the pieces, not one picture.
+  patchy::pdf::VectorReadOptions read_options;
+  read_options.pixels_per_point = 1.0;
+  const auto read = patchy::pdf::read_page_as_vectors(
+      std::span<const std::uint8_t>(reinterpret_cast<const std::uint8_t*>(bytes.constData()),
+                                    static_cast<std::size_t>(bytes.size())),
+      read_options);
+  CHECK(read.document.width() == 300);
+  CHECK(read.document.height() == 200);
+  CHECK(read.shape_layers >= 1);
+  CHECK(read.text_layers >= 1);
+  CHECK(read.image_layers >= 1);
+  bool saw_red_shape = false;
+  std::string text_seen;
+  const std::function<void(const std::vector<patchy::Layer>&)> visit = [&](const std::vector<patchy::Layer>& layers) {
+    for (const auto& layer : layers) {
+      if (const auto* shape = layer.vector_shape();
+          shape != nullptr && shape->fill.kind == patchy::VectorFillKind::Solid && shape->fill.color.red == 220 &&
+          shape->fill.color.green == 40) {
+        saw_red_shape = true;
+      }
+      if (const auto found = layer.metadata().find(patchy::kLayerMetadataText); found != layer.metadata().end()) {
+        text_seen += found->second;
+      }
+      visit(layer.children());
+    }
+  };
+  visit(std::as_const(read.document).layers());
+  CHECK(saw_red_shape);
+  CHECK(text_seen.find("Patchy") != std::string::npos);
+
+  // Pixels: PDFium's rendering of the page against Patchy's composite.
+  QPdfDocument reader;
+  CHECK(reader.load(path) == QPdfDocument::Error::None);
+  const QImage rendered = reader.render(0, QSize(300, 200));
+  CHECK(!rendered.isNull());
+  const QImage composite = patchy::ui::qimage_from_document(std::as_const(document), true);
+  const double delta = mean_rgb_delta_over_white(rendered, composite);
+  if (delta >= 6.0) {
+    std::fprintf(stderr, "[pdf] editable export mean delta %f\n", delta);
+    rendered.save(QStringLiteral("test-artifacts/ui_pdf_export_editable_pdfium.png"));
+    composite.save(QStringLiteral("test-artifacts/ui_pdf_export_editable_composite.png"));
+  }
+  CHECK(delta < 6.0);
+  // Spot checks on the three objects: photo, shape interior, and a text-free margin.
+  CHECK(color_close(rendered.pixelColor(80, 140), QColor(60, 120, 200), 2));
+  CHECK(color_close(rendered.pixelColor(220, 75), QColor(220, 40, 40), 2));
+  CHECK(rendered.pixelColor(290, 190).alpha() == 0);
+}
+
+// The features that ride Qt's PDF engine rather than an image: a gradient fill, an
+// inside-aligned stroke (double width under a self clip), a group clipped by a vector
+// mask, and constant layer opacity. No notices, and PDFium agrees with the canvas.
+void ui_pdf_export_editable_gradients_clips_and_opacity_render_like_canvas() {
+  ensure_artifact_dir();
+  patchy::Document document(240, 160, patchy::PixelFormat::rgba8());
+  document.print_settings().horizontal_ppi = 72.0;
+  document.print_settings().vertical_ppi = 72.0;
+  document.add_pixel_layer("Paper", solid_pixels(240, 160, patchy::PixelFormat::rgba8(), QColor(250, 250, 245)));
+
+  // A left-to-right red -> blue gradient inside an ellipse with an inside stroke.
+  {
+    patchy::LiveShapeParams params;
+    params.kind = patchy::LiveShapeKind::Ellipse;
+    params.left = 20;
+    params.top = 20;
+    params.right = 120;
+    params.bottom = 100;
+    params.index = 0;
+    patchy::populate_live_shape_box_corners(params);
+    patchy::VectorShapeContent content;
+    content.path.subpaths = patchy::generate_live_shape_subpaths(params);
+    content.origination = {params};
+    content.fill.kind = patchy::VectorFillKind::Gradient;
+    content.fill.gradient.type = patchy::LayerStyleGradientType::Linear;
+    content.fill.gradient.angle_degrees = 0.0F;
+    content.fill.gradient.interpolation = patchy::GradientInterpolationMethod::Linear;
+    content.fill.gradient.color_stops = {{0.0F, {220, 30, 30}}, {1.0F, {30, 30, 220}}};
+    content.fill.gradient.alpha_stops = {{0.0F, 1.0F}, {1.0F, 1.0F}};
+    content.stroke.enabled = true;
+    content.stroke.width = 6.0;
+    content.stroke.alignment = patchy::VectorStrokeAlignment::Inside;
+    content.stroke.content.kind = patchy::VectorFillKind::Solid;
+    content.stroke.content.color = {20, 120, 20};
+    patchy::Layer layer(document.allocate_layer_id(), "Gradient Ellipse", patchy::LayerKind::Pixel);
+    layer.metadata()[patchy::kLayerMetadataVectorShape] = "1";
+    patchy::mark_layer_vector_block_dirty(layer);
+    layer.set_vector_shape(std::move(content));
+    patchy::update_vector_shape_raster(layer, patchy::Rect::from_size(document.width(), document.height()),
+                                       &document.metadata().patterns);
+    document.add_layer(std::move(layer));
+  }
+
+  // A group whose vector mask (a square) clips a larger shape child.
+  {
+    patchy::Layer group(document.allocate_layer_id(), "Clipped Group", patchy::LayerKind::Group);
+    group.add_child(solid_rect_shape_layer(document, "Wide", 130, 20, 230, 100, {240, 180, 20}, 0.0));
+    patchy::LiveShapeParams mask_params;
+    mask_params.kind = patchy::LiveShapeKind::Rectangle;
+    mask_params.left = 150;
+    mask_params.top = 40;
+    mask_params.right = 210;
+    mask_params.bottom = 80;
+    mask_params.index = 0;
+    patchy::populate_live_shape_box_corners(mask_params);
+    patchy::LayerVectorMask mask;
+    mask.path.subpaths = patchy::generate_live_shape_subpaths(mask_params);
+    group.set_vector_mask(std::move(mask));
+    // The compositor reads the mask's baked coverage cache, never the path.
+    patchy::update_vector_mask_raster(group, patchy::Rect::from_size(document.width(), document.height()));
+    document.add_layer(std::move(group));
+  }
+
+  // A half-transparent shape over the paper.
+  {
+    auto layer = solid_rect_shape_layer(document, "Ghost", 20, 110, 220, 150, {0, 0, 0}, 0.0);
+    layer.set_opacity(0.5F);
+    document.add_layer(std::move(layer));
+  }
+
+  const auto path = QStringLiteral("test-artifacts/ui_pdf_export_editable_paint.pdf");
+  QFile::remove(path);
+  std::vector<std::string> notices;
+  patchy::ui::write_pdf_document_file(document, path, patchy::ui::PdfExportOptions{true, true}, &notices);
+  for (const auto& notice : notices) {
+    std::printf("[pdf] unexpected notice: %s\n", notice.c_str());
+  }
+  CHECK(notices.empty());
+  const QByteArray bytes = read_file_bytes(path);
+  CHECK(bytes.contains("/Shading"));  // the gradient is a real shading, not a picture
+
+  QPdfDocument reader;
+  CHECK(reader.load(path) == QPdfDocument::Error::None);
+  const QImage rendered = reader.render(0, QSize(240, 160));
+  CHECK(!rendered.isNull());
+  const QImage composite = patchy::ui::qimage_from_document(document, true);
+  const double delta = mean_rgb_delta_over_white(rendered, composite);
+  if (delta >= 6.0) {
+    std::fprintf(stderr, "[pdf] editable paint export mean delta %f\n", delta);
+    rendered.save(QStringLiteral("test-artifacts/ui_pdf_export_editable_paint_pdfium.png"));
+    composite.save(QStringLiteral("test-artifacts/ui_pdf_export_editable_paint_composite.png"));
+  }
+  CHECK(delta < 6.0);
+  // Gradient ends inside the ellipse, inside stroke at the rim, mask clip, and opacity.
+  CHECK(rendered.pixelColor(34, 60).red() > rendered.pixelColor(106, 60).red());
+  CHECK(rendered.pixelColor(106, 60).blue() > rendered.pixelColor(34, 60).blue());
+  CHECK(color_close(rendered.pixelColor(70, 22), QColor(20, 120, 20), 6));  // the inside stroke band
+  CHECK(color_close(rendered.pixelColor(180, 60), QColor(240, 180, 20), 2));  // inside the mask
+  CHECK(color_close(rendered.pixelColor(140, 30), QColor(250, 250, 245), 2));  // clipped away
+  CHECK(color_close(over_white(rendered).pixelColor(120, 130), QColor(125, 125, 122), 3));
+}
+
+// Qt's PDF engine writes no blend modes, so a Multiply layer is a barrier: everything
+// below it merges into one image (reported), hidden layers vanish, and the page still
+// composites exactly like the canvas.
+void ui_pdf_export_editable_flattens_blend_modes_with_notice() {
+  ensure_artifact_dir();
+  patchy::Document document(100, 100, patchy::PixelFormat::rgba8());
+  document.print_settings().horizontal_ppi = 72.0;
+  document.print_settings().vertical_ppi = 72.0;
+  document.add_pixel_layer("Base", solid_pixels(100, 100, patchy::PixelFormat::rgba8(), QColor(200, 200, 200)));
+  auto hidden_pixels = solid_pixels(100, 100, patchy::PixelFormat::rgba8(), QColor(255, 0, 0));
+  patchy::Layer hidden(document.allocate_layer_id(), "Hidden", std::move(hidden_pixels));
+  hidden.set_visible(false);
+  document.add_layer(std::move(hidden));
+  auto multiply_pixels = solid_pixels(100, 100, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  fill_pixel_rect(multiply_pixels, QRect(20, 20, 60, 60), QColor(128, 128, 128));
+  patchy::Layer multiply(document.allocate_layer_id(), "Darken", std::move(multiply_pixels));
+  multiply.set_blend_mode(patchy::BlendMode::Multiply);
+  document.add_layer(std::move(multiply));
+  document.add_layer(solid_rect_shape_layer(document, "Badge", 70, 70, 95, 95, {10, 200, 30}, 0.0));
+
+  const auto path = QStringLiteral("test-artifacts/ui_pdf_export_editable_blend.pdf");
+  QFile::remove(path);
+  std::vector<std::string> notices;
+  patchy::ui::write_pdf_document_file(document, path, patchy::ui::PdfExportOptions{true, true}, &notices);
+  bool merged_notice = false;
+  for (const auto& notice : notices) {
+    merged_notice = merged_notice || (notice.find("Merged") != std::string::npos &&
+                                      notice.find("Darken") != std::string::npos);
+    CHECK(notice.find("Hidden") == std::string::npos);  // hidden layers are not "lost", they were never drawn
+  }
+  CHECK(merged_notice);
+
+  const QByteArray bytes = read_file_bytes(path);
+  CHECK(bytes.contains("/Image"));
+  CHECK(!bytes.contains("/FontFile"));  // no text on this page, so no embedded face
+
+  QPdfDocument reader;
+  CHECK(reader.load(path) == QPdfDocument::Error::None);
+  const QImage rendered = reader.render(0, QSize(100, 100));
+  CHECK(!rendered.isNull());
+  // 200 x 128 / 255 = 100: the multiply result survives inside the merged chunk.
+  CHECK(color_close(rendered.pixelColor(50, 50), QColor(100, 100, 100), 2));
+  CHECK(color_close(rendered.pixelColor(5, 5), QColor(200, 200, 200), 2));
+  // The shape above the barrier stays a real path drawn on top.
+  CHECK(color_close(rendered.pixelColor(82, 82), QColor(10, 200, 30), 2));
+  // The flat mode is untouched by the option: no notices, still one picture.
+  std::vector<std::string> flat_notices;
+  patchy::ui::write_pdf_document_file(document, QStringLiteral("test-artifacts/ui_pdf_export_flat_check.pdf"),
+                                      patchy::ui::PdfExportOptions{true, false}, &flat_notices);
+  CHECK(flat_notices.empty());
+}
+
+// The option's dialog: the fidelity warning is visible exactly while "keep layers" is on,
+// the export Scale combo (pixel-only) grays out with it, and the choice persists.
+void ui_pdf_options_dialog_editable_warning_follows_checkbox() {
+  patchy::ui::ImageSaveOptions defaults;
+  defaults.pdf_editable_layers = false;
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&saw_dialog] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("pdfSaveOptionsDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* editable = dialog->findChild<QCheckBox*>(QStringLiteral("pdfEditableLayersCheck"));
+    auto* warning = dialog->findChild<QLabel*>(QStringLiteral("pdfEditableLayersWarning"));
+    auto* scale = dialog->findChild<QComboBox*>(QStringLiteral("exportScaleCombo"));
+    CHECK(editable != nullptr);
+    CHECK(warning != nullptr);
+    CHECK(scale != nullptr);
+    if (editable == nullptr || warning == nullptr || scale == nullptr) {
+      dialog->reject();
+      return;
+    }
+    CHECK(!editable->isChecked());
+    CHECK(!warning->isVisible());
+    CHECK(scale->isEnabled());
+    editable->setChecked(true);
+    CHECK(warning->isVisible());
+    CHECK(warning->text().contains(QStringLiteral("may not look")));
+    CHECK(!scale->isEnabled());
+    editable->setChecked(false);
+    CHECK(!warning->isVisible());
+    CHECK(scale->isEnabled());
+    editable->setChecked(true);
+    scale->setCurrentIndex(std::max(0, scale->findData(4)));
+    saw_dialog = true;
+    dialog->accept();
+  });
+  const auto chosen =
+      patchy::ui::prompt_image_save_options(nullptr, QStringLiteral("pdf"), defaults, /*for_export*/ true);
+  CHECK(saw_dialog);
+  CHECK(chosen.has_value());
+  if (!chosen.has_value()) {
+    return;
+  }
+  CHECK(chosen->pdf_editable_layers);
+  CHECK(chosen->export_scale == 1);  // vectors scale with the page; the pixel scale is ignored
+  patchy::ui::save_image_save_option_defaults(*chosen);
+  CHECK(patchy::ui::load_image_save_option_defaults().pdf_editable_layers);
+  auto restored = *chosen;
+  restored.pdf_editable_layers = false;
+  patchy::ui::save_image_save_option_defaults(restored);
 }
 
 void ui_pdf_import_builds_one_layer_per_page() {
@@ -2262,6 +2643,14 @@ std::vector<patchy::test::TestCase> import_print_resolution_tests() {
 #if defined(PATCHY_HAVE_QT_PDF)
       {"ui_pdf_export_page_size_and_round_trip", ui_pdf_export_page_size_and_round_trip},
       {"ui_pdf_export_writes_transparency_as_soft_mask", ui_pdf_export_writes_transparency_as_soft_mask},
+      {"ui_pdf_export_editable_keeps_layers_and_matches_composite",
+       ui_pdf_export_editable_keeps_layers_and_matches_composite},
+      {"ui_pdf_export_editable_gradients_clips_and_opacity_render_like_canvas",
+       ui_pdf_export_editable_gradients_clips_and_opacity_render_like_canvas},
+      {"ui_pdf_export_editable_flattens_blend_modes_with_notice",
+       ui_pdf_export_editable_flattens_blend_modes_with_notice},
+      {"ui_pdf_options_dialog_editable_warning_follows_checkbox",
+       ui_pdf_options_dialog_editable_warning_follows_checkbox},
       {"ui_pdf_import_builds_one_layer_per_page", ui_pdf_import_builds_one_layer_per_page},
       {"ui_pdf_import_dialog_opens_selected_pages", ui_pdf_import_dialog_opens_selected_pages},
       {"ui_pdf_import_editable_mode_builds_vector_and_text_layers",

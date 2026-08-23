@@ -1097,6 +1097,19 @@ std::optional<OpenDocumentResult> load_document_interactive(QWidget* parent, con
 #endif
 }
 
+// The status-message tail for a layer-keeping writer's notices: the first note verbatim,
+// the rest counted.
+QString export_notes_suffix_for(const std::vector<std::string>& notices) {
+  if (notices.empty()) {
+    return QString();
+  }
+  QString suffix = QStringLiteral(" ") + QString::fromStdString(notices.front());
+  if (notices.size() > 1) {
+    suffix += QObject::tr(" (+%n more export note(s))", nullptr, static_cast<int>(notices.size()) - 1);
+  }
+  return suffix;
+}
+
 }  // namespace
 
 void MainWindow::open_document() {
@@ -1972,11 +1985,18 @@ bool MainWindow::confirm_flatten_layers_for_save(const QString& extension) {
   // A linked smart-object child writes the linked file itself (the file on disk is the
   // document), so its flat save is a real save; everything else saves a flattened copy
   // and keeps the layered document open with its unsaved changes (Photoshop's
-  // save-a-copy semantics). SVG gets its own wording: shape layers stay real
-  // vectors there and only the rest bakes.
+  // save-a-copy semantics). SVG and PDF get their own wording: shape layers stay real
+  // vectors there (PDF only with its "Keep layers as editable objects" option, which the
+  // PDF Options dialog offers right after this) and only the rest bakes.
   const auto message =
       extension == QStringLiteral("svg")
           ? tr("SVG keeps shape layers as vectors, but masks, layer styles, text, and adjustments are "
+               "baked into images, so Patchy will save a copy. The open document will keep its layers "
+               "and unsaved changes. To keep everything editable, save as a Photoshop document (.psd) "
+               "instead.")
+      : is_pdf_extension(extension) && !linked_external_child
+          ? tr("PDF can keep shape layers as paths and text as text (the \"Keep layers as editable "
+               "objects\" option in PDF Options), but blend modes, adjustments, and layer styles are "
                "baked into images, so Patchy will save a copy. The open document will keep its layers "
                "and unsaved changes. To keep everything editable, save as a Photoshop document (.psd) "
                "instead.")
@@ -2048,15 +2068,12 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
       // shape layers stay SVG vectors, the writer reports what it baked.
       std::vector<std::string> svg_notices;
       svg::DocumentIo::write_file(document(), path.toStdString(), &svg_notices);
-      if (!svg_notices.empty()) {
-        export_notes_suffix = QStringLiteral(" ") + QString::fromStdString(svg_notices.front());
-        if (svg_notices.size() > 1) {
-          export_notes_suffix +=
-              tr(" (+%n more export note(s))", nullptr, static_cast<int>(svg_notices.size()) - 1);
-        }
-      }
+      export_notes_suffix = export_notes_suffix_for(svg_notices);
     } else {
-      write_flat_image_file(document(), path, extension, effective_image_options);
+      // Editable PDF keeps layers and reports what it baked, like the SVG writer.
+      std::vector<std::string> writer_notices;
+      write_flat_image_file(document(), path, extension, effective_image_options, &writer_notices);
+      export_notes_suffix = export_notes_suffix_for(writer_notices);
     }
     offer_browser_download_for_saved_file(path);
     const bool saved_flattened_copy =
@@ -2156,15 +2173,11 @@ void MainWindow::export_flat_image() {
       // as real vectors even from the "flat" export flow.
       std::vector<std::string> svg_notices;
       svg::DocumentIo::write_file(document(), path.toStdString(), &svg_notices);
-      if (!svg_notices.empty()) {
-        export_notes_suffix = QStringLiteral(" ") + QString::fromStdString(svg_notices.front());
-        if (svg_notices.size() > 1) {
-          export_notes_suffix +=
-              tr(" (+%n more export note(s))", nullptr, static_cast<int>(svg_notices.size()) - 1);
-        }
-      }
+      export_notes_suffix = export_notes_suffix_for(svg_notices);
     } else {
-      write_flat_image_file(document(), path, extension, effective_image_options);
+      std::vector<std::string> writer_notices;
+      write_flat_image_file(document(), path, extension, effective_image_options, &writer_notices);
+      export_notes_suffix = export_notes_suffix_for(writer_notices);
     }
     offer_browser_download_for_saved_file(path);
     if (!is_photoshop_document_extension(extension) && image_save_options_apply_to_extension(extension)) {

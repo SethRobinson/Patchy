@@ -53,6 +53,13 @@ session, routine under the Photoshop leading model.
 `ui_transformed_text_click_returns_to_the_caret_it_drew` covers it, rotating the fixed-leading
 fixture so the click has to survive both the transform inverse and the leading divergence.
 
+`render_text_pixels_with_local_rect` is split into `build_text_render_plan` (layout, line
+plan, local rect, the post-fold residual transform) and `draw_text_render_plan(plan, QPainter&)`.
+The raster path draws the plan into a QImage; `draw_text_layer_to_painter`
+(`ui/text_layer_painter.hpp`, the editable PDF export) draws the same plan through the
+layer's canonical text transform onto any painter, which is how PDF gets real embedded-font
+text that lands exactly on the layer's raster. Keep the two consumers on one plan.
+
 Every type in that header holds handles into the document's `QTextLayout`. They are valid only
 while that document is alive and has not been laid out again, and `build_text_render_document`
 does its final `setTextWidth` before any plan is built. Keep that order.

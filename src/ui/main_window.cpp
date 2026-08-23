@@ -68,6 +68,7 @@
 #include "ui/image_sequence_dialog.hpp"
 #include "ui/sprite_sheet_dialog.hpp"
 #include "ui/start_panel.hpp"
+#include "ui/text_layer_painter.hpp"
 #include "ui/text_layout.hpp"
 #include "ui/tile_preview_window.hpp"
 #include "ui/warp_text_dialog.hpp"
@@ -3489,14 +3490,23 @@ double dominant_text_run_size(const TextToolSettings& settings, const QString& r
   return dominant > 0.0 ? dominant : static_cast<double>(std::max(1, settings.size));
 }
 
-RenderedTextPixels render_text_pixels_with_local_rect(const TextToolSettings& settings, QColor color,
-                                                      std::int32_t max_width,
-                                                      const QString& paragraph_runs = QString(),
-                                                      const QString& rich_text_runs = QString(),
-                                                      std::optional<QRectF> requested_local_rect = std::nullopt,
-                                                      double metric_scale = 1.0,
-                                                      const QTransform& document_transform_in = QTransform(),
-                                                      double layout_scale_in = 1.0) {
+// Everything the rasterizer decides BEFORE it touches a paint device: the laid-out
+// document, the line plan, the local rect, and the residual document transform. The
+// QImage render and the editable-PDF text export both draw the same plan, so the PDF's
+// real text lands exactly where the layer's raster does.
+struct TextRenderPlan {
+  TextRenderDocument built;
+  QRectF local_rect;
+  std::vector<BoxTextLineRenderItem> line_render_items;
+  QTransform document_transform;  // post-fold residual (identity when none was supplied)
+  bool has_document_transform{false};
+  bool faux_italic_render{false};
+};
+
+TextRenderPlan build_text_render_plan(const TextToolSettings& settings, QColor color, std::int32_t max_width,
+                                      const QString& paragraph_runs, const QString& rich_text_runs,
+                                      std::optional<QRectF> requested_local_rect, double metric_scale,
+                                      const QTransform& document_transform_in, double layout_scale_in) {
   // Photoshop-layout text rendered through a scaling transform folds the transform's vertical
   // scale into the glyph sizes (fractional engine sizes round to whole pixels AFTER scaling,
   // not before) and renders through the residual matrix. The returned rect is post-transform
@@ -3531,11 +3541,12 @@ RenderedTextPixels render_text_pixels_with_local_rect(const TextToolSettings& se
   }
   const double layout_scale =
       fold_scale * (std::isfinite(layout_scale_in) && layout_scale_in > 0.01 ? layout_scale_in : 1.0);
-  auto built = build_text_render_document(settings, color, max_width, paragraph_runs, rich_text_runs,
-                                          metric_scale, layout_scale, fold_scale);
-  auto& document = *built.document;
-  const auto& font = built.font;
-  const auto text_width = built.text_width;
+  TextRenderPlan result;
+  result.built = build_text_render_document(settings, color, max_width, paragraph_runs, rich_text_runs,
+                                            metric_scale, layout_scale, fold_scale);
+  auto& document = *result.built.document;
+  const auto& font = result.built.font;
+  const auto text_width = result.built.text_width;
 
   const auto size = document.size();
   QRectF local_rect;
@@ -3623,10 +3634,66 @@ RenderedTextPixels render_text_pixels_with_local_rect(const TextToolSettings& se
       item.clip_rect.setRight(item.clip_rect.right() + lean);
     }
   }
+  result.local_rect = local_rect;
+  result.line_render_items = std::move(line_render_items);
+  result.document_transform = document_transform;
+  result.has_document_transform = !document_transform.isIdentity();
+  result.faux_italic_render = faux_italic_render;
+  return result;
+}
+
+// Draws a plan through `painter`, whose transform must already map the plan's DOCUMENT
+// space onto the device; the plan's own residual transform is applied here.
+void draw_text_render_plan(const TextRenderPlan& plan, QPainter& painter) {
+  auto& document = *plan.built.document;
+  const auto& font = plan.built.font;
+  if (plan.has_document_transform) {
+    painter.setTransform(plan.document_transform, true);
+  }
+  if (!plan.line_render_items.empty()) {
+    for (const auto& item : plan.line_render_items) {
+      painter.save();
+      painter.setClipRect(item.clip_rect);
+      if (plan.faux_italic_render &&
+          line_is_entirely_faux_italic(document.findBlock(item.block_position), item.line)) {
+        // Shear about this line's own baseline so the slant pivots on the text, not on the
+        // buffer origin. Applied to the painter rather than the font because Qt resolves
+        // StyleOblique to the family's real Italic face whenever it has one.
+        painter.setTransform(
+            faux_italic_shear(item.block_origin.y() + item.line.y() + item.line.ascent()), true);
+      }
+      item.line.draw(&painter, item.block_origin);
+      painter.restore();
+    }
+  } else {
+    if (plan.faux_italic_render) {
+      const QFontMetricsF metrics(font);
+      painter.setTransform(faux_italic_shear(plan.local_rect.top() + metrics.ascent()), true);
+    }
+    document.drawContents(&painter, plan.local_rect);
+  }
+}
+
+RenderedTextPixels render_text_pixels_with_local_rect(const TextToolSettings& settings, QColor color,
+                                                      std::int32_t max_width,
+                                                      const QString& paragraph_runs = QString(),
+                                                      const QString& rich_text_runs = QString(),
+                                                      std::optional<QRectF> requested_local_rect = std::nullopt,
+                                                      double metric_scale = 1.0,
+                                                      const QTransform& document_transform_in = QTransform(),
+                                                      double layout_scale_in = 1.0) {
+  const auto plan = build_text_render_plan(settings, color, max_width, paragraph_runs, rich_text_runs,
+                                           requested_local_rect, metric_scale, document_transform_in,
+                                           layout_scale_in);
+  if (plan.built.document == nullptr) {
+    return RenderedTextPixels{PixelBuffer{}, QRectF()};
+  }
+  const auto& local_rect = plan.local_rect;
+  const auto& document_transform = plan.document_transform;
   // When a document transform is supplied the glyphs are rasterized *through* the affine (scale,
   // rotation, shear), so scaled-up text stays crisp instead of resampling an already-rendered bitmap.
   // The output image is sized to the transformed bounds and `local_rect` is returned in document space.
-  const bool has_document_transform = !document_transform.isIdentity();
+  const bool has_document_transform = plan.has_document_transform;
   const auto target_rect = has_document_transform ? document_transform.mapRect(local_rect) : local_rect;
   const auto image_left = static_cast<int>(std::floor(target_rect.left()));
   const auto image_top = static_cast<int>(std::floor(target_rect.top()));
@@ -3648,31 +3715,7 @@ RenderedTextPixels render_text_pixels_with_local_rect(const TextToolSettings& se
   painter.setRenderHint(QPainter::TextAntialiasing, settings.anti_alias > 0);
   painter.setRenderHint(QPainter::SmoothPixmapTransform, settings.anti_alias > 0);
   painter.translate(-static_cast<qreal>(image_left), -static_cast<qreal>(image_top));
-  if (has_document_transform) {
-    painter.setTransform(document_transform, true);
-  }
-  if (!line_render_items.empty()) {
-    for (const auto& item : line_render_items) {
-      painter.save();
-      painter.setClipRect(item.clip_rect);
-      if (faux_italic_render &&
-          line_is_entirely_faux_italic(document.findBlock(item.block_position), item.line)) {
-        // Shear about this line's own baseline so the slant pivots on the text, not on the
-        // buffer origin. Applied to the painter rather than the font because Qt resolves
-        // StyleOblique to the family's real Italic face whenever it has one.
-        painter.setTransform(
-            faux_italic_shear(item.block_origin.y() + item.line.y() + item.line.ascent()), true);
-      }
-      item.line.draw(&painter, item.block_origin);
-      painter.restore();
-    }
-  } else {
-    if (faux_italic_render) {
-      const QFontMetricsF metrics(font);
-      painter.setTransform(faux_italic_shear(local_rect.top() + metrics.ascent()), true);
-    }
-    document.drawContents(&painter, local_rect);
-  }
+  draw_text_render_plan(plan, painter);
   painter.end();
   if (settings.anti_alias <= 0) {
     for (int y = 0; y < image.height(); ++y) {
@@ -4747,6 +4790,49 @@ std::optional<TransformedTextPixels> render_text_layer_pixels_through_transform(
   return TransformedTextPixels{rendered.pixels,
                                Rect{origin_x, origin_y, rendered.pixels.width(), rendered.pixels.height()}};
 }
+
+}  // namespace
+
+bool draw_text_layer_to_painter(const Layer& layer, QPainter& painter) {
+  if (!layer_is_text(layer)) {
+    return false;
+  }
+  // A raster Patchy did not produce (a PSD's own type preview kept because the font was
+  // missing, or a placeholder) is what the user sees; redrawing it with a substitute face
+  // would change the look, so the caller embeds those pixels instead.
+  if (const auto status = layer.metadata().find(kLayerMetadataTextRasterStatus);
+      status != layer.metadata().end() && status->second != "patchy_raster") {
+    return false;
+  }
+  // Warped text is a resampled surface, not a glyph plan.
+  if (const auto found = layer.metadata().find(kLayerMetadataTextWarp); found != layer.metadata().end()) {
+    if (const auto warp = parse_text_warp(found->second); warp.has_value() && !text_warp_is_identity(*warp)) {
+      return false;
+    }
+  }
+  const auto inputs = text_render_inputs_from_layer(layer);
+  if (!inputs.has_value()) {
+    return false;
+  }
+  // The canonical text-local -> document transform is the authority the layer's raster was
+  // derived from (refresh_text_layer_raster adopts a bounds translation when none is stored).
+  QTransform transform = QTransform::fromTranslate(layer.bounds().x, layer.bounds().y);
+  if (const auto canonical = patchy_text_transform_for_layer(layer); canonical.has_value()) {
+    transform = *canonical;
+  }
+  const auto plan = build_text_render_plan(inputs->settings, inputs->color, inputs->max_width,
+                                           inputs->paragraph_runs, inputs->rich_text_runs, std::nullopt, 1.0,
+                                           transform, 1.0);
+  if (plan.built.document == nullptr) {
+    return false;
+  }
+  painter.save();
+  draw_text_render_plan(plan, painter);
+  painter.restore();
+  return true;
+}
+
+namespace {
 
 // First-line baseline y in the text render's local space (layout top = 0): the PSD
 // writer anchors a warped point-text transform here, matching Photoshop's own

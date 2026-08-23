@@ -26,16 +26,13 @@ constexpr double kMaxPagePoints = 14400.0;
 
 }  // namespace
 
-void write_pdf_document_file(const Document& document, const QString& path, const PdfExportOptions& options) {
-  const QImage image = flat_export_qimage(document, true);
-  if (image.isNull()) {
-    throw std::runtime_error("The document could not be rendered for PDF export.");
-  }
+namespace pdf_detail {
 
+void configure_document_page(QPdfWriter& writer, const Document& document) {
   const double horizontal_ppi = print_detail::document_horizontal_ppi(document);
   const double vertical_ppi = print_detail::document_vertical_ppi(document);
-  double page_width_points = image.width() / horizontal_ppi * kPointsPerInch;
-  double page_height_points = image.height() / vertical_ppi * kPointsPerInch;
+  double page_width_points = document.width() / horizontal_ppi * kPointsPerInch;
+  double page_height_points = document.height() / vertical_ppi * kPointsPerInch;
   if (const double longest = std::max(page_width_points, page_height_points); longest > kMaxPagePoints) {
     const double fit = kMaxPagePoints / longest;
     page_width_points *= fit;
@@ -45,14 +42,29 @@ void write_pdf_document_file(const Document& document, const QString& path, cons
   // change the document's physical size. Exact sizes only.
   const QPageSize page_size(QSizeF(std::max(page_width_points, 1.0), std::max(page_height_points, 1.0)),
                             QPageSize::Point, QString(), QPageSize::ExactMatch);
-
-  QPdfWriter writer(path);
   writer.setCreator(QStringLiteral("Patchy"));
   writer.setPageSize(page_size);
   writer.setPageMargins(QMarginsF(0.0, 0.0, 0.0, 0.0));
   // The device resolution only sets the painter's logical grid; keeping it at the
   // document's own PPI makes that grid one unit per document pixel.
   writer.setResolution(std::clamp(static_cast<int>(std::lround(horizontal_ppi)), 72, 2400));
+}
+
+}  // namespace pdf_detail
+
+void write_pdf_document_file(const Document& document, const QString& path, const PdfExportOptions& options,
+                             std::vector<std::string>* notices) {
+  if (options.editable_layers) {
+    pdf_detail::write_editable_pdf_document_file(document, path, options, notices);
+    return;
+  }
+  const QImage image = flat_export_qimage(document, true);
+  if (image.isNull()) {
+    throw std::runtime_error("The document could not be rendered for PDF export.");
+  }
+
+  QPdfWriter writer(path);
+  pdf_detail::configure_document_page(writer, document);
 
   QPainter painter;
   if (!painter.begin(&writer)) {

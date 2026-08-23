@@ -22,6 +22,12 @@ All Qt-free, in src/formats/ (patchy_formats):
   Hard caps: 250k nodes, depth 512, 8 MB entity expansion.
 - `svg_document_io.hpp` - public API (`svg::DocumentIo::read/write/write_file`,
   `svg_extensions()` = {.svg, .svgz}, `sniff`).
+- `vector_export_plan.{hpp,cpp}` - the target-independent export policy shared
+  with editable PDF export (docs/pdf.md): combine classification, the common
+  shape/group representability checks, the sibling-unit walk with the barrier
+  rule (parameterized by which blend modes the target expresses), gradient
+  geometry + stop sampling, and the alpha-bounds crop. The SVG writer adds only
+  its own rules (inside-stroke vs vector-mask clip slot, disabled raster masks).
 - `svg_document_read.cpp` + `svg_document_write.cpp` share
   `svg_io_internal.hpp` (Affine helpers, number I/O, and the BlendMode <->
   CSS mix-blend-mode map; the enum switch is append-only). Number I/O is

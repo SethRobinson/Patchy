@@ -7735,14 +7735,12 @@ Mixed selection</source>
         <translation>SVG はシェイプレイヤーをベクターのまま保存しますが、マスク、レイヤースタイル、テキスト、調整レイヤーは画像として書き出されるため、Patchy はコピーを保存します。開いているドキュメントのレイヤーと未保存の変更はそのまま残ります。すべてを編集可能なまま残すには、Photoshop ドキュメント (.psd) として保存してください。</translation>
     </message>
     <message>
+        <source>PDF can keep shape layers as paths and text as text (the &quot;Keep layers as editable objects&quot; option in PDF Options), but blend modes, adjustments, and layer styles are baked into images, so Patchy will save a copy. The open document will keep its layers and unsaved changes. To keep everything editable, save as a Photoshop document (.psd) instead.</source>
+        <translation>PDF はシェイプレイヤーをパスとして、テキストをテキストとして保持できますが (PDF オプションの「レイヤーを編集可能なオブジェクトとして保持」)、描画モード、調整レイヤー、レイヤースタイルは画像として書き出されるため、Patchy はコピーを保存します。開いているドキュメントのレイヤーと未保存の変更はそのまま残ります。すべてを編集可能なまま残すには、Photoshop ドキュメント (.psd) として保存してください。</translation>
+    </message>
+    <message>
         <source>Saved SVG copy %1.</source>
         <translation>SVG のコピー %1 を保存しました。</translation>
-    </message>
-    <message numerus="yes">
-        <source> (+%n more export note(s))</source>
-        <translation>
-            <numerusform> (ほか %n 件のエクスポートノート)</numerusform>
-        </translation>
     </message>
     <message>
         <source>Define Custom Shape from SVG File</source>
@@ -14354,6 +14352,15 @@ Clipped to the layer below</source>
     <message><source>PDF Document</source><translation>PDF ドキュメント</translation></message>
     <message><source>PDF Options</source><translation>PDF オプション</translation></message>
     <message><source>Lossless image data (larger file)</source><translation>可逆圧縮の画像データ (ファイルサイズ大)</translation></message>
+    <message><source>Keep layers as editable objects (paths, text, images)</source><translation>レイヤーを編集可能なオブジェクトとして保持 (パス、テキスト、画像)</translation></message>
+    <message><source>Unchecked, the whole document is written as one flattened image.</source><translation>オフの場合、ドキュメント全体が 1 枚の統合画像として書き出されます。</translation></message>
+    <message><source>The PDF may not look exactly like the canvas: blend modes, adjustment layers, group opacity, layer styles, and pixel masks have no editable PDF form here and are flattened into images where needed.</source><translation>PDF はキャンバスと完全には同じ見た目にならない場合があります。描画モード、調整レイヤー、グループの不透明度、レイヤースタイル、ピクセルマスクは編集可能な PDF 形式にできないため、必要に応じて画像に統合されます。</translation></message>
+    <message numerus="yes">
+        <source> (+%n more export note(s))</source>
+        <translation>
+            <numerusform> (ほか %n 件のエクスポートノート)</numerusform>
+        </translation>
+    </message>
     <message><source>Unchecked, the page is compressed as JPEG at Qt&apos;s fixed quality.</source><translation>オフの場合、ページは Qt 固定品質の JPEG で圧縮されます。</translation></message>
     <message><source>The page is sized from the document&apos;s resolution, so it prints at the image&apos;s own size.</source><translation>ページサイズはドキュメントの解像度から決まるため、画像本来のサイズで印刷されます。</translation></message>
     <message><source>Open PDF</source><translation>PDF を開く</translation></message>

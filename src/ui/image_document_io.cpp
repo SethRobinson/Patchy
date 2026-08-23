@@ -1869,15 +1869,22 @@ QImage flat_export_qimage(const Document& document, bool preserve_alpha) {
 }
 
 void write_flat_image_file(const Document& document, const QString& path, const QString& extension,
-                           const ImageSaveOptions& options) {
+                           const ImageSaveOptions& options, std::vector<std::string>* notices) {
+  const auto extension_bytes = extension.toStdString();
+  const auto lower = lower_extension(extension_bytes);
+  if (lower == "pdf" && options.pdf_editable_layers) {
+    // The layered writer needs the real document (scaled_flat_document would flatten it
+    // first); vectors and text scale by the page, so the export scale does not apply.
+    write_pdf_document_file(document, path, PdfExportOptions{options.pdf_lossless, true}, notices);
+    return;
+  }
   if (options.export_scale > 1) {
     auto unscaled_options = options;
     unscaled_options.export_scale = 1;
-    write_flat_image_file(scaled_flat_document(document, options.export_scale), path, extension, unscaled_options);
+    write_flat_image_file(scaled_flat_document(document, options.export_scale), path, extension, unscaled_options,
+                          notices);
     return;
   }
-  const auto extension_bytes = extension.toStdString();
-  const auto lower = lower_extension(extension_bytes);
   // HEIF is decode-only everywhere. Without this guard a hand-typed .heic in Save As
   // would reach QImageWriter, whose platform plugins (qmacheif on macOS, kimg_heif +
   // x265 on the Flatpak runtime) can silently HEVC-encode on some platforms but not
@@ -1917,7 +1924,7 @@ void write_flat_image_file(const Document& document, const QString& path, const 
     return;
   }
   if (lower == "pdf") {
-    write_pdf_document_file(document, path, PdfExportOptions{options.pdf_lossless});
+    write_pdf_document_file(document, path, PdfExportOptions{options.pdf_lossless, false}, notices);
     return;
   }
   if (is_bmp_extension(extension_bytes)) {
