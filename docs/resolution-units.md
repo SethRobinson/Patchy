@@ -57,7 +57,9 @@ its size when the resolution changes.
 Print dialog (src/ui/print_dialog.cpp): print resolution is READ-ONLY, derived as document
 PPI / scale (Photoshop semantics); editing resolution belongs to Image Size. Default scale
 is 100% (actual size) unless that overflows the printable area, then "Scale to fit media"
-pre-checks.
+pre-checks. "Print Using System Dialog..." hands off to the OS print dialog (Chrome-style),
+prints on accept with Patchy's position, scale, and crop-mark settings, and adopts the
+printer, paper, orientation, and copies chosen there; cancelling returns to Patchy's dialog.
 
 ## Rulers and the units preference
 

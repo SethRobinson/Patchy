@@ -1762,8 +1762,13 @@ void ui_print_dialog_exposes_printer_and_visible_checkboxes() {
       auto* image_size = dialog->findChild<QLabel*>(QStringLiteral("printImageSizeLabel"));
       auto* center = dialog->findChild<QCheckBox*>(QStringLiteral("printCenterCheck"));
       auto* crop_marks = dialog->findChild<QCheckBox*>(QStringLiteral("printCropMarksCheck"));
+      auto* system_dialog = dialog->findChild<QPushButton*>(QStringLiteral("printSystemDialogButton"));
       CHECK(printer != nullptr);
       CHECK(print_button != nullptr);
+      // Present and gated like Print; never clicked here, it would park a nested
+      // modal loop inside this driver lambda.
+      CHECK(system_dialog != nullptr);
+      CHECK(system_dialog->isEnabled() == printer->isEnabled());
       CHECK(copies != nullptr);
       CHECK(scale_to_fit != nullptr);
       CHECK(scale != nullptr);

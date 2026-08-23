@@ -20,6 +20,7 @@
 #include <QMessageBox>
 #include <QPainter>
 #include <QPageSetupDialog>
+#include <QPrintDialog>
 #include <QPrinter>
 #include <QPrinterInfo>
 #include <QPushButton>
@@ -321,6 +322,10 @@ bool run_print_dialog(QWidget* parent, const Document& document, const QString& 
   auto* page_setup = new QPushButton(QObject::tr("Page Setup..."), output_group);
   page_setup->setObjectName(QStringLiteral("printPageSetupButton"));
   output_layout->addWidget(page_setup);
+  auto* system_dialog = new QPushButton(QObject::tr("Print Using System Dialog..."), output_group);
+  system_dialog->setObjectName(QStringLiteral("printSystemDialogButton"));
+  system_dialog->setEnabled(printer_combo->isEnabled());
+  output_layout->addWidget(system_dialog);
   side_layout->addWidget(output_group);
 
   auto* settings_group = new QGroupBox(QObject::tr("Position and Size"), side);
@@ -471,6 +476,25 @@ bool run_print_dialog(QWidget* parent, const Document& document, const QString& 
   QObject::connect(y, &QDoubleSpinBox::valueChanged, &dialog, sync_settings);
   QObject::connect(crop_marks, &QCheckBox::toggled, &dialog, sync_settings);
 
+  const auto send_print_job = [&](QPrinter& printer, int copies) {
+    try {
+      if (!printer.isValid()) {
+        throw std::runtime_error("Selected printer is not available");
+      }
+      if (!paint_printer_page(printer, document, settings, copies)) {
+        throw std::runtime_error("Selected printer did not accept the page");
+      }
+      current_layout = printer.pageLayout();
+      if (page_layout != nullptr) {
+        *page_layout = current_layout;
+      }
+      dialog.accept();
+    } catch (const std::exception& error) {
+      show_critical_message(&dialog, QObject::tr("Print failed"), QString::fromUtf8(error.what()),
+                            QStringLiteral("printFailedMessageBox"));
+    }
+  };
+
   QObject::connect(page_setup, &QPushButton::clicked, &dialog, [&] {
     const auto printer_name = selected_printer_name(printer_combo);
     auto printer = create_selected_printer(printer_name);
@@ -481,6 +505,38 @@ bool run_print_dialog(QWidget* parent, const Document& document, const QString& 
       current_layout = printer->pageLayout();
       sync_settings();
     }
+  });
+  QObject::connect(system_dialog, &QPushButton::clicked, &dialog, [&] {
+    // Chrome-style hand-off: the OS dialog owns printer, paper, orientation, and copies
+    // (and driver-only features such as duplex or trays); accepting it prints at once
+    // with Patchy's position, scale, and crop-mark settings, cancelling returns here.
+    sync_settings();
+    const auto printer_name = selected_printer_name(printer_combo);
+    auto printer = create_selected_printer(printer_name);
+    configure_selected_printer(*printer, printer_name, current_layout, display_title);
+    if (printer->supportsMultipleCopies()) {
+      printer->setCopyCount(copies_spin->value());
+    }
+    // Unlike QFileDialog, Qt 6's QPrintDialog has no DontUseNativeDialog option: on
+    // Windows and macOS it is always the platform dialog, so the UI tests only check
+    // the button and never click it.
+    QPrintDialog system_print(printer.get(), &dialog);
+    system_print.setObjectName(QStringLiteral("printSystemPrintDialog"));
+    // Patchy always emits a single page, so a page range makes no sense.
+    system_print.setOption(QAbstractPrintDialog::PrintPageRange, false);
+    if (exec_dialog(system_print) != QDialog::Accepted) {
+      return;
+    }
+    current_layout = valid_page_layout(printer->pageLayout());
+    copies_spin->setValue(std::max(1, printer->copyCount()));
+    const auto combo_index = printer_combo->findData(printer->printerName());
+    if (combo_index >= 0) {
+      printer_combo->setCurrentIndex(combo_index);
+    }
+    sync_settings();
+    // Copies are not double-counted: paint_printer_page either hands the count to a
+    // driver that duplicates jobs itself or repaints the page N times in one job.
+    send_print_job(*printer, copies_spin->value());
   });
   QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
   QObject::connect(pdf_button, &QPushButton::clicked, &dialog, [&] {
@@ -517,22 +573,7 @@ bool run_print_dialog(QWidget* parent, const Document& document, const QString& 
     const auto printer_name = selected_printer_name(printer_combo);
     auto printer = create_selected_printer(printer_name);
     configure_selected_printer(*printer, printer_name, current_layout, display_title);
-    try {
-      if (!printer->isValid()) {
-        throw std::runtime_error("Selected printer is not available");
-      }
-      if (!paint_printer_page(*printer, document, settings, copies_spin->value())) {
-        throw std::runtime_error("Selected printer did not accept the page");
-      }
-      current_layout = printer->pageLayout();
-      if (page_layout != nullptr) {
-        *page_layout = current_layout;
-      }
-      dialog.accept();
-    } catch (const std::exception& error) {
-      show_critical_message(&dialog, QObject::tr("Print failed"), QString::fromUtf8(error.what()),
-                            QStringLiteral("printFailedMessageBox"));
-    }
+    send_print_job(*printer, copies_spin->value());
   });
 
   return exec_dialog(dialog) == QDialog::Accepted;

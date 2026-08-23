@@ -4127,7 +4127,12 @@ Open in Generative Upscale...</source>
         <translation>ページ設定...</translation>
     </message>
     <message>
-        <location line="+5"/>
+        <location line="+3"/>
+        <source>Print Using System Dialog...</source>
+        <translation>システムの印刷ダイアログを使用...</translation>
+    </message>
+    <message>
+        <location line="+6"/>
         <source>Position and Size</source>
         <translation>位置とサイズ</translation>
     </message>
