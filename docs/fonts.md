@@ -39,6 +39,30 @@ Licensing rules for bundled fonts (binding):
 - Every family needs a `NOTICE-THIRD-PARTY.md` entry with its source and
   fetch date. Fetch static instances, not variable fonts.
 
+## Application fonts cannot be embedded in a PDF
+
+Qt embeds a font in a PDF only when the font engine's `QFontEngine::FaceId` carries a file
+name. On Windows an APPLICATION font (anything registered with
+`QFontDatabase::addApplicationFont`) has none, so `QPdfEngine` silently falls back to
+drawing every glyph as a filled path: the page still looks right, but the PDF holds no
+text at all for that family, and re-importing it (in Patchy, Affinity, anywhere) yields
+shape layers instead of text.
+
+The rule that follows: **never register a font file for a family the system already
+installs.** `application_font()` (src/app/main.cpp) used to register
+`C:/Windows/Fonts/{arial,segoeui,calibri}*.ttf` unconditionally just to pick a UI font,
+which quietly turned every Arial / Segoe UI / Calibri text layer into outlines on editable
+PDF export while unregistered families (Consolas, Tahoma, ...) exported as real text.
+It now takes the first installed candidate family and registers nothing;
+`src/ui/ui_font.{hpp,cpp}` owns that decision and
+`ui_font_bootstrap_never_registers_installed_families` pins it. Only a Windows install
+carrying none of the three registers files, where having a UI font at all wins.
+
+Bundled fonts (`load_bundled_fonts`) and user-added fonts are application fonts by
+nature - they are not installed - so text in those families still exports to PDF as
+outlines. That is a Qt limitation with no workaround short of writing the font
+programme into the file ourselves; see [pdf.md](pdf.md).
+
 ## Wasm family aliases and UI font
 
 `patchy::ui::user_fonts::kWasmFamilyAliases` (src/ui/user_fonts.hpp) maps

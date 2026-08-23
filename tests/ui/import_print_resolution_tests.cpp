@@ -19,6 +19,7 @@
 #include "ui/pattern_library.hpp"
 #include "ui/pdf_export.hpp"
 #include "ui/pdf_import.hpp"
+#include "ui/ui_font.hpp"
 #include "ui/pattern_manager_dialog.hpp"
 #include "ui/photo_pattern_presets.hpp"
 #include "ui/style_browser.hpp"
@@ -1389,6 +1390,37 @@ void ui_pdf_export_editable_flattens_blend_modes_with_notice() {
   CHECK(flat_notices.empty());
 }
 
+// Registering a system font FILE as an application font makes Qt unable to embed that
+// family in a PDF: QPdfEngine draws every glyph as a filled path instead, so editable
+// PDF export loses its text (August 2026 - Segoe UI text from a PDF import came back out
+// as shape layers). The UI-font bootstrap must therefore register nothing when the family
+// is already installed.
+void ui_font_bootstrap_never_registers_installed_families() {
+  const QStringList with_arial = {QStringLiteral("Arial"), QStringLiteral("Consolas"), QStringLiteral("Tahoma")};
+  CHECK(patchy::ui::installed_ui_font_family(with_arial) == QStringLiteral("Arial"));
+  CHECK(patchy::ui::ui_font_files_to_register(with_arial).isEmpty());
+
+  // Case-insensitive, and the preference order falls through to the next family.
+  const QStringList with_segoe = {QStringLiteral("segoe ui"), QStringLiteral("Consolas")};
+  CHECK(patchy::ui::installed_ui_font_family(with_segoe) == QStringLiteral("Segoe UI"));
+  CHECK(patchy::ui::ui_font_files_to_register(with_segoe).isEmpty());
+  const QStringList with_calibri = {QStringLiteral("Calibri")};
+  CHECK(patchy::ui::installed_ui_font_family(with_calibri) == QStringLiteral("Calibri"));
+  CHECK(patchy::ui::ui_font_files_to_register(with_calibri).isEmpty());
+
+  // Only a Windows install with none of them falls back to registering files, where a UI
+  // font at all beats PDF-embeddable text.
+  const QStringList without = {QStringLiteral("Consolas"), QStringLiteral("Tahoma")};
+  CHECK(patchy::ui::installed_ui_font_family(without).isEmpty());
+  const auto files = patchy::ui::ui_font_files_to_register(without);
+  CHECK(!files.isEmpty());
+  CHECK(files.front().endsWith(QStringLiteral("arial.ttf")));
+
+  // The real font database this suite runs against must not need any of them either:
+  // the fixture fonts the harness registers are exactly the ones tests use.
+  CHECK(patchy::ui::windows_ui_font_candidates().size() == 3);
+}
+
 // The PDF Options dialog after the flatten-or-keep choice: the fidelity warning is
 // visible exactly when layers are kept, and the export Scale combo (pixel-only) grays out
 // with it; the choice itself is never persisted as a save default.
@@ -1526,12 +1558,12 @@ void ui_pdf_save_follows_layer_policy() {
                                       static_cast<std::size_t>(bytes.size())),
         read_options);
   };
-  patchy::ui::ImageSaveOptions options;
-
+  // No options object: the save consults the preference, the way a scripted or
+  // already-confirmed save does.
   settings.setValue(QStringLiteral("saveOptions/pdfLayerPolicy"), QStringLiteral("editable"));
   const auto editable_path = QStringLiteral("test-artifacts/ui_pdf_policy_editable.pdf");
   QFile::remove(editable_path);
-  CHECK(patchy::ui::MainWindowTestAccess::save_document_to_path(window, editable_path, options));
+  CHECK(patchy::ui::MainWindowTestAccess::save_document_to_path(window, editable_path));
   CHECK(QFileInfo::exists(editable_path));
   const auto editable = read_back(editable_path);
   CHECK(editable.shape_layers >= 1);
@@ -1541,7 +1573,7 @@ void ui_pdf_save_follows_layer_policy() {
   settings.setValue(QStringLiteral("saveOptions/pdfLayerPolicy"), QStringLiteral("flatten"));
   const auto flat_path = QStringLiteral("test-artifacts/ui_pdf_policy_flat.pdf");
   QFile::remove(flat_path);
-  CHECK(patchy::ui::MainWindowTestAccess::save_document_to_path(window, flat_path, options));
+  CHECK(patchy::ui::MainWindowTestAccess::save_document_to_path(window, flat_path));
   CHECK(QFileInfo::exists(flat_path));
   const auto flat = read_back(flat_path);
   CHECK(flat.shape_layers == 0);
@@ -1773,6 +1805,9 @@ void ui_pdf_import_editable_mode_builds_vector_and_text_layers() {
   const double baseline_document_y = 200.0 - 60.0 * 2.0;  // flipped, then scaled
   CHECK(text.bounds().y < static_cast<std::int32_t>(baseline_document_y));
 }
+
+
+
 
 // The whole feature end to end on a real document: the untracked brochure fixture
 // imports editable, and the composite is saved as a visual-QA artifact.
@@ -2772,6 +2807,8 @@ std::vector<patchy::test::TestCase> import_print_resolution_tests() {
        ui_pdf_export_editable_gradients_clips_and_opacity_render_like_canvas},
       {"ui_pdf_export_editable_flattens_blend_modes_with_notice",
        ui_pdf_export_editable_flattens_blend_modes_with_notice},
+      {"ui_font_bootstrap_never_registers_installed_families",
+       ui_font_bootstrap_never_registers_installed_families},
       {"ui_pdf_options_dialog_shows_editable_warning", ui_pdf_options_dialog_shows_editable_warning},
       {"ui_pdf_layer_choice_dialog_and_preference", ui_pdf_layer_choice_dialog_and_preference},
       {"ui_pdf_save_follows_layer_policy", ui_pdf_save_follows_layer_policy},

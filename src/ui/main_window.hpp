@@ -558,7 +558,9 @@ private:
   // PDF's replacement for that prompt on a layered document: flatten to one image or
   // keep layers as editable objects (true), answered by the saveOptions/pdfLayerPolicy
   // preference when set, else by a dialog. nullopt = cancelled.
-  std::optional<bool> resolve_pdf_layer_choice(bool for_export);
+  // allow_prompt false (scripted/CLI/already-confirmed saves) answers from the
+  // preference alone and never shows the question.
+  std::optional<bool> resolve_pdf_layer_choice(bool for_export, bool allow_prompt);
   void export_flat_image();
   void page_setup();
   void print_document();

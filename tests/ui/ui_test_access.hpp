@@ -59,7 +59,7 @@ public:
   // while another window (e.g. a non-modal dialog) is active lose the in-flight
   // drag state to a focus bounce the offscreen platform invents.
   static std::optional<bool> resolve_pdf_layer_choice(MainWindow& window, bool for_export) {
-    return window.resolve_pdf_layer_choice(for_export);
+    return window.resolve_pdf_layer_choice(for_export, /*allow_prompt*/ true);
   }
   static void add_text_at(MainWindow& window, QPoint document_point) {
     window.add_text_at(document_point, QRect());
@@ -167,6 +167,10 @@ public:
     return window.cli_append_text_to_text_layers(suffix);
   }
 
+  // No options: the save resolves format options itself (for PDF, the layer preference).
+  static bool save_document_to_path(MainWindow& window, QString path) {
+    return window.save_document_to_path(std::move(path));
+  }
   static bool save_document_to_path(MainWindow& window, QString path, ImageSaveOptions options) {
     return window.save_document_to_path(std::move(path), std::move(options));
   }

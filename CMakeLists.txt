@@ -911,6 +911,8 @@ if(PATCHY_BUILD_APP)
       src/ui/pattern_library.cpp
       src/ui/pattern_manager_dialog.hpp
       src/ui/pattern_manager_dialog.cpp
+      src/ui/ui_font.hpp
+      src/ui/ui_font.cpp
       src/ui/pdf_export.hpp
       src/ui/pdf_export.cpp
       src/ui/pdf_export_editable.cpp

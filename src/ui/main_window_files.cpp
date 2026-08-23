@@ -1971,7 +1971,7 @@ bool MainWindow::save_document_as() {
   std::optional<bool> pdf_editable_layers;
   if (discards_layers) {
     if (is_pdf_extension(extension) && !linked_external_child) {
-      pdf_editable_layers = resolve_pdf_layer_choice(/*for_export*/ false);
+      pdf_editable_layers = resolve_pdf_layer_choice(/*for_export*/ false, /*allow_prompt*/ true);
       if (!pdf_editable_layers.has_value()) {
         return false;
       }
@@ -2024,7 +2024,7 @@ bool MainWindow::confirm_flatten_layers_for_save(const QString& extension) {
 // (saveOptions/pdfLayerPolicy: "ask" / "flatten" / "editable", also in Preferences)
 // answers without a dialog; the dialog's "Remember this choice" sets it. Returns the
 // choice (true = keep layers editable) or nullopt for Cancel.
-std::optional<bool> MainWindow::resolve_pdf_layer_choice(bool for_export) {
+std::optional<bool> MainWindow::resolve_pdf_layer_choice(bool for_export, bool allow_prompt) {
   auto settings = app_settings();
   const auto policy = settings.value(QStringLiteral("saveOptions/pdfLayerPolicy"), QStringLiteral("ask")).toString();
   if (policy == QStringLiteral("flatten")) {
@@ -2032,6 +2032,11 @@ std::optional<bool> MainWindow::resolve_pdf_layer_choice(bool for_export) {
   }
   if (policy == QStringLiteral("editable")) {
     return true;
+  }
+  if (!allow_prompt) {
+    // A scripted, CLI, or already-confirmed save cannot ask; "ask" means flat, which is
+    // the mode that always reproduces the canvas.
+    return false;
   }
   QMessageBox box(this);
   box.setObjectName(QStringLiteral("pdfLayersMessageBox"));
@@ -2075,18 +2080,27 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
                                flat_save_discards_layers(std::as_const(document()));
   // CLI automation saves are explicit about their target format, so flattening needs no
   // confirmation there (and an unattended run must never block on the prompt).
+  const bool linked_external_child =
+      session().smart_object_link.has_value() && session().smart_object_link->external;
+  // A layered PDF asks its own flatten-or-editable question instead of the generic
+  // flatten confirmation, and never both.
+  const bool pdf_layer_choice_applies = discards_layers && is_pdf_extension(extension) && !linked_external_child;
   std::optional<bool> pdf_editable_layers;
-  if (discards_layers && !flatten_confirmed && !cli_automation_mode_) {
-    const bool linked_external_child =
-        session().smart_object_link.has_value() && session().smart_object_link->external;
-    if (is_pdf_extension(extension) && !linked_external_child) {
-      pdf_editable_layers = resolve_pdf_layer_choice(/*for_export*/ false);
+  if (pdf_layer_choice_applies) {
+    if (!image_options.has_value()) {
+      // Nobody has resolved the choice yet (Save As and Export resolve it before calling
+      // and hand the answer over in `image_options`): ask when this save may prompt,
+      // otherwise take the preference. Scripted, CLI, and already-confirmed saves never
+      // prompt.
+      pdf_editable_layers = resolve_pdf_layer_choice(
+          /*for_export*/ false, /*allow_prompt*/ !flatten_confirmed && !cli_automation_mode_);
       if (!pdf_editable_layers.has_value()) {
         return false;
       }
-    } else if (!confirm_flatten_layers_for_save(extension)) {
-      return false;
     }
+  } else if (discards_layers && !flatten_confirmed && !cli_automation_mode_ &&
+             !confirm_flatten_layers_for_save(extension)) {
+    return false;
   }
   if (!cli_automation_mode_ && !is_photoshop_document_extension(extension) &&
       !std::as_const(document()).channels().empty()) {
@@ -2227,7 +2241,7 @@ void MainWindow::export_flat_image() {
       auto defaults = image_save_defaults_for_document();
       if (is_pdf_extension(extension) && flat_save_discards_layers(std::as_const(document()))) {
         // Flatten or keep layers editable: the remembered policy or the question.
-        const auto pdf_editable_layers = resolve_pdf_layer_choice(/*for_export*/ true);
+        const auto pdf_editable_layers = resolve_pdf_layer_choice(/*for_export*/ true, /*allow_prompt*/ true);
         if (!pdf_editable_layers.has_value()) {
           return;
         }

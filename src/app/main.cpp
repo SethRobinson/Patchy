@@ -1,5 +1,6 @@
 #include "ui/action_icons.hpp"
 #include "ui/app_settings.hpp"
+#include "ui/ui_font.hpp"
 #include "ui/background_workers.hpp"
 #include "ui/cli_exit.hpp"
 #include "ui/localization.hpp"
@@ -250,35 +251,25 @@ class PatchyApplication : public QApplication {
 
 QFont application_font() {
 #ifdef Q_OS_WIN
-  const QStringList font_files = {
-      QStringLiteral("C:/Windows/Fonts/arial.ttf"),
-      QStringLiteral("C:/Windows/Fonts/arialbd.ttf"),
-      QStringLiteral("C:/Windows/Fonts/ariali.ttf"),
-      QStringLiteral("C:/Windows/Fonts/arialbi.ttf"),
-      QStringLiteral("C:/Windows/Fonts/segoeui.ttf"),
-      QStringLiteral("C:/Windows/Fonts/segoeuib.ttf"),
-      QStringLiteral("C:/Windows/Fonts/segoeuii.ttf"),
-      QStringLiteral("C:/Windows/Fonts/segoeuiz.ttf"),
-      QStringLiteral("C:/Windows/Fonts/calibri.ttf"),
-      QStringLiteral("C:/Windows/Fonts/calibrib.ttf"),
-      QStringLiteral("C:/Windows/Fonts/calibrii.ttf"),
-      QStringLiteral("C:/Windows/Fonts/calibriz.ttf"),
-  };
-  QString preferred_family;
-  for (const auto& path : font_files) {
-    if (!QFileInfo::exists(path)) {
-      continue;
-    }
-    const auto font_id = QFontDatabase::addApplicationFont(path);
-    const auto families = QFontDatabase::applicationFontFamilies(font_id);
-    if (families.contains(QStringLiteral("Arial"))) {
-      preferred_family = QStringLiteral("Arial");
-    } else if (preferred_family.isEmpty() && !families.isEmpty()) {
-      preferred_family = families.front();
+  // Prefer an installed family and register nothing: an application font cannot be
+  // embedded in a PDF, so registering a system font FILE turns every text layer in that
+  // family into glyph outlines on export (patchy::ui::ui_font.hpp, docs/fonts.md).
+  const auto installed = QFontDatabase::families();
+  auto family = patchy::ui::installed_ui_font_family(installed);
+  if (family.isEmpty()) {
+    for (const auto& path : patchy::ui::ui_font_files_to_register(installed)) {
+      if (!QFileInfo::exists(path)) {
+        continue;
+      }
+      const auto font_id = QFontDatabase::addApplicationFont(path);
+      if (const auto families = QFontDatabase::applicationFontFamilies(font_id);
+          family.isEmpty() && !families.isEmpty()) {
+        family = families.front();
+      }
     }
   }
-  if (!preferred_family.isEmpty()) {
-    QFont font(preferred_family);
+  if (!family.isEmpty()) {
+    QFont font(family);
     font.setPointSize(9);
     return font;
   }
