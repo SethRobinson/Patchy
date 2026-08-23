@@ -4,6 +4,7 @@
 #include "core/layer_tree.hpp"
 #include "core/smart_object.hpp"
 #include "core/vector_raster.hpp"
+#include "formats/gradient_placement.hpp"
 #include "formats/pdf_content.hpp"
 #include "formats/pdf_png_writer.hpp"
 #include "formats/vector_fill_rule.hpp"
@@ -87,6 +88,63 @@ VectorFill fill_from_paint(const Paint& paint) {
   return fill;
 }
 
+// An evaluated shading becomes a real gradient fill: stops from the sampled ramp
+// (collinear samples pruned so a plain two-colour ramp imports as two stops) and
+// geometry through the shared placement kernel against the CANVAS box, because PDF
+// pattern space is page-anchored (align_with_layer stays false).
+VectorFill gradient_fill_from_shading(const ResolvedShading& shading, Rect canvas) {
+  VectorFill fill;
+  fill.kind = VectorFillKind::Gradient;
+  auto& gradient = fill.gradient;
+  gradient.name = "PDF Gradient";
+  gradient.form = GradientDefinitionForm::Solid;
+  // Linear interpolation between stops: smoothness 0 turns the Classic
+  // catmull-rom ease off in the fill renderer, matching how the ramp was sampled.
+  gradient.smoothness = 0;
+  gradient.interpolation = GradientInterpolationMethod::Linear;
+  gradient.type = shading.radial ? LayerStyleGradientType::Radial : LayerStyleGradientType::Linear;
+  gradient.align_with_layer = false;
+
+  gradient.color_stops.clear();
+  gradient.alpha_stops = {GradientAlphaStop{0.0F, 1.0F, 0.5F}, GradientAlphaStop{1.0F, 1.0F, 0.5F}};
+  for (std::size_t index = 0; index < shading.stops.size(); ++index) {
+    const auto& [location, color] = shading.stops[index];
+    if (index > 0 && index + 1 < shading.stops.size()) {
+      // Drop a sample that sits on the line between its neighbours; the renderer
+      // interpolates linearly, so nothing changes but the stop count.
+      const auto& [previous_location, previous_color] = shading.stops[index - 1];
+      const auto& [next_location, next_color] = shading.stops[index + 1];
+      const double spread = next_location - previous_location;
+      const double fraction = spread > 1e-9 ? (location - previous_location) / spread : 0.5;
+      const auto lerp = [fraction](std::uint8_t from, std::uint8_t to) {
+        return from + fraction * (to - from);
+      };
+      const bool collinear = std::abs(lerp(previous_color.red, next_color.red) - color.red) <= 1.0 &&
+                             std::abs(lerp(previous_color.green, next_color.green) - color.green) <= 1.0 &&
+                             std::abs(lerp(previous_color.blue, next_color.blue) - color.blue) <= 1.0;
+      if (collinear) {
+        continue;
+      }
+    }
+    gradient.color_stops.push_back({static_cast<float>(location), color, 0.5F});
+  }
+  if (gradient.color_stops.size() < 2) {
+    const RgbColor only = gradient.color_stops.empty() ? RgbColor{0, 0, 0} : gradient.color_stops.front().color;
+    gradient.color_stops = {GradientColorStop{0.0F, only, 0.5F}, GradientColorStop{1.0F, only, 0.5F}};
+  }
+
+  const formats::GradientReferenceBox box{static_cast<double>(canvas.x), static_cast<double>(canvas.y),
+                                          static_cast<double>(canvas.width), static_cast<double>(canvas.height)};
+  if (shading.radial) {
+    // The outer circle carries the ramp's end; a distinct inner circle is a focal
+    // form Patchy's radial cannot express and collapses to the plain circle.
+    formats::place_radial_gradient(gradient, box, shading.x1, shading.y1, std::max(shading.r1, shading.r0));
+  } else {
+    formats::place_linear_gradient(gradient, box, shading.x0, shading.y0, shading.x1, shading.y1);
+  }
+  return fill;
+}
+
 // Builds the document and receives everything the interpreter emits, in page order,
 // which is also bottom-to-top layer order.
 class LayerSink final : public ContentSink {
@@ -106,11 +164,12 @@ public:
     if (options_.discard_offscreen && !intersects_canvas(painted.path)) {
       return;
     }
-    if (painted.fill.kind == Paint::Kind::Shading || painted.fill.kind == Paint::Kind::Tiling) {
+    if (painted.fill.kind == Paint::Kind::Tiling ||
+        (painted.fill.kind == Paint::Kind::Shading && painted.fill.shading == nullptr)) {
       unmodelled_ = true;
-      notice(painted.fill.kind == Paint::Kind::Shading
-                 ? "A PDF gradient fill was imported as a flat colour."
-                 : "A PDF pattern fill was imported as a flat colour.");
+      notice(painted.fill.kind == Paint::Kind::Tiling
+                 ? "A PDF pattern fill was imported as a flat colour."
+                 : "A PDF gradient mesh was imported as a flat colour.");
     }
 
     VectorShapeContent content;
@@ -124,7 +183,9 @@ public:
     }
 
     if (fill_visible) {
-      content.fill = fill_from_paint(painted.fill);
+      content.fill = painted.fill.kind == Paint::Kind::Shading && painted.fill.shading != nullptr
+                         ? gradient_fill_from_shading(*painted.fill.shading, canvas_)
+                         : fill_from_paint(painted.fill);
     } else {
       content.fill.kind = VectorFillKind::None;
     }
@@ -279,9 +340,43 @@ public:
     document_.add_layer(std::move(layer));
   }
 
-  void on_shading(const Object&, const Affine&, const VectorPath&) override {
-    unmodelled_ = true;
-    notice("A PDF gradient mesh or shading was not imported.");
+  void on_shading(std::shared_ptr<const ResolvedShading> shading, const VectorPath& clip) override {
+    if (shading == nullptr) {
+      unmodelled_ = true;
+      notice("A PDF gradient mesh was not imported.");
+      return;
+    }
+    // `sh` paints the shading across the clip region (the whole page when nothing
+    // clips), so the layer's own path IS that region and no separate mask is needed.
+    VectorShapeContent content;
+    if (!clip.subpaths.empty()) {
+      content.path = clip;
+    } else {
+      PathSubpath page;
+      for (const auto& corner :
+           {std::pair{0.0, 0.0}, std::pair{static_cast<double>(canvas_.width), 0.0},
+            std::pair{static_cast<double>(canvas_.width), static_cast<double>(canvas_.height)},
+            std::pair{0.0, static_cast<double>(canvas_.height)}}) {
+        PathAnchor anchor;
+        anchor.anchor_x = corner.first;
+        anchor.anchor_y = corner.second;
+        anchor.in_x = corner.first;
+        anchor.in_y = corner.second;
+        anchor.out_x = corner.first;
+        anchor.out_y = corner.second;
+        page.anchors.push_back(anchor);
+      }
+      page.closed = true;
+      content.path.subpaths.push_back(std::move(page));
+    }
+    content.fill = gradient_fill_from_shading(*shading, canvas_);
+
+    Layer layer(document_.allocate_layer_id(), numbered_name("Shape", ++shape_count_), LayerKind::Pixel);
+    layer.metadata()[kLayerMetadataVectorShape] = "1";
+    mark_layer_vector_block_dirty(layer);
+    layer.set_vector_shape(std::move(content));
+    update_vector_shape_raster(layer, canvas_, &document_.metadata().patterns);
+    document_.add_layer(std::move(layer));
   }
 
   void on_notice(const std::string& text) override { notice(text); }

@@ -1,6 +1,7 @@
 #include "core/layer_metadata.hpp"
 #include "core/smart_object.hpp"
 #include "formats/pdf_content.hpp"
+#include "formats/pdf_function.hpp"
 #include "formats/pdf_document_io.hpp"
 #include "formats/pdf_file.hpp"
 #include "formats/pdf_fonts.hpp"
@@ -660,7 +661,7 @@ struct RecordingSink final : patchy::pdf::ContentSink {
   void on_path(const patchy::pdf::PaintedPath& path) override { paths.push_back(path); }
   void on_text(const patchy::pdf::TextRun& run) override { texts.push_back(run); }
   void on_image(const patchy::pdf::PlacedImage& image) override { images.push_back(image); }
-  void on_shading(const patchy::pdf::Object&, const patchy::pdf::Affine&, const patchy::VectorPath&) override {
+  void on_shading(std::shared_ptr<const patchy::pdf::ResolvedShading>, const patchy::VectorPath&) override {
     ++shadings;
   }
   void on_notice(const std::string& text) override { notices.push_back(text); }
@@ -1308,6 +1309,187 @@ void pdf_vector_import_keeps_jpeg_bytes_untranscoded() {
   }
 }
 
+void pdf_functions_evaluate_all_four_types() {
+  // The functions live as objects in a small document so indirect /Length and
+  // stream decoding run the same path real files use.
+  const std::string calculator = "{ 2 copy lt { exch } if pop 0.5 mul }";
+  std::vector<std::uint8_t> sampled_data = {0, 128, 255};  // a 3-sample ramp
+  const std::string sampled_body(reinterpret_cast<const char*>(sampled_data.data()), sampled_data.size());
+  auto file = patchy::pdf::File::open(
+      build_pdf({
+          "<</Type/Catalog/Pages 2 0 R>>",
+          "<</Type/Pages/Kids[3 0 R]/Count 1>>",
+          "<</Type/Page/Parent 2 0 R/MediaBox[0 0 10 10]>>",
+          // Type 2: 0.2 -> 0.8 linearly.
+          "<</FunctionType 2/Domain[0 1]/C0[0.2]/C1[0.8]/N 1>>",
+          // Type 3: two type-2 halves, the second reversed by /Encode.
+          "<</FunctionType 3/Domain[0 1]/Functions[4 0 R 4 0 R]/Bounds[0.5]/Encode[0 1 1 0]>>",
+          // Type 0: 3 samples 0, 128, 255 over one input.
+          "<</FunctionType 0/Domain[0 1]/Range[0 1]/Size[3]/BitsPerSample 8/Length 3>>\nstream\n" +
+              sampled_body + "\nendstream",
+          // Type 4: max(a, b) * 0.5 via copy/lt/if.
+          "<</FunctionType 4/Domain[0 1 0 1]/Range[0 1]/Length " + std::to_string(calculator.size()) +
+              ">>\nstream\n" + calculator + "\nendstream",
+      }),
+      nullptr);
+  CHECK(file.has_value());
+  if (!file.has_value()) {
+    return;
+  }
+
+  const auto object_at = [&](std::uint32_t number) { return file->object(patchy::pdf::Reference{number, 0}); };
+  std::vector<double> outputs;
+
+  const auto exponential = patchy::pdf::load_function(*file, object_at(4));
+  CHECK(exponential != nullptr);
+  if (exponential != nullptr) {
+    const double half[1] = {0.5};
+    exponential->evaluate(half, outputs);
+    CHECK(outputs.size() == 1);
+    CHECK(std::abs(outputs[0] - 0.5) < 1e-9);
+    // Inputs clamp to /Domain before evaluation.
+    const double outside[1] = {5.0};
+    exponential->evaluate(outside, outputs);
+    CHECK(std::abs(outputs[0] - 0.8) < 1e-9);
+  }
+
+  const auto stitching = patchy::pdf::load_function(*file, object_at(5));
+  CHECK(stitching != nullptr);
+  if (stitching != nullptr) {
+    // First half runs forward (0.25 -> sub-t 0.5 -> 0.5), second half reversed.
+    const double quarter[1] = {0.25};
+    stitching->evaluate(quarter, outputs);
+    CHECK(std::abs(outputs[0] - 0.5) < 1e-9);
+    const double late[1] = {1.0};
+    stitching->evaluate(late, outputs);
+    CHECK(std::abs(outputs[0] - 0.2) < 1e-9);  // encode reversed: t=1 -> sub-t 0 -> C0
+  }
+
+  const auto sampled = patchy::pdf::load_function(*file, object_at(6));
+  CHECK(sampled != nullptr);
+  if (sampled != nullptr) {
+    const double half[1] = {0.5};
+    sampled->evaluate(half, outputs);
+    CHECK(std::abs(outputs[0] - 128.0 / 255.0) < 1e-6);
+    // Between samples the value interpolates linearly.
+    const double quarter[1] = {0.25};
+    sampled->evaluate(quarter, outputs);
+    CHECK(std::abs(outputs[0] - 0.5 * 128.0 / 255.0) < 1e-6);
+  }
+
+  const auto calculated = patchy::pdf::load_function(*file, object_at(7));
+  CHECK(calculated != nullptr);
+  if (calculated != nullptr) {
+    const double pair[2] = {0.3, 0.8};
+    calculated->evaluate(pair, outputs);
+    CHECK(outputs.size() == 1);
+    CHECK(std::abs(outputs[0] - 0.4) < 1e-9);  // max(0.3, 0.8) * 0.5
+    const double swapped[2] = {0.8, 0.3};
+    calculated->evaluate(swapped, outputs);
+    CHECK(std::abs(outputs[0] - 0.4) < 1e-9);
+  }
+}
+
+void pdf_vector_import_converts_shadings_to_gradient_fills() {
+  // An axial red-to-blue shading pattern filling a rectangle, plus a `sh` paint
+  // inside a clip.
+  const std::string content =
+      "/Pattern cs /P0 scn 10 10 80 30 re f\n"
+      "q 20 50 60 40 re W n /Sh0 sh Q\n";
+  const auto bytes = build_pdf({
+      "<</Type/Catalog/Pages 2 0 R>>",
+      "<</Type/Pages/Kids[3 0 R]/Count 1>>",
+      "<</Type/Page/Parent 2 0 R/MediaBox[0 0 100 100]/Contents 4 0 R"
+      "/Resources<</Pattern<</P0 5 0 R>>/Shading<</Sh0 7 0 R>>>>>>",
+      "<</Length " + std::to_string(content.size()) + ">>\nstream\n" + content + "\nendstream",
+      "<</PatternType 2/Matrix[1 0 0 1 0 0]/Shading 7 0 R>>",
+      "<</FunctionType 2/Domain[0 1]/C0[1 0 0]/C1[0 0 1]/N 1>>",
+      "<</ShadingType 2/ColorSpace/DeviceRGB/Coords[10 0 90 0]/Function 6 0 R/Extend[true true]>>",
+  });
+
+  const auto result = read_vectors(bytes);
+  CHECK(!result.has_unmodelled_content);
+  CHECK(result.document.layers().size() == 2);
+  if (result.document.layers().size() != 2) {
+    return;
+  }
+
+  const auto* filled = result.document.layers()[0].vector_shape();
+  CHECK(filled != nullptr);
+  if (filled != nullptr) {
+    CHECK(filled->fill.kind == patchy::VectorFillKind::Gradient);
+    const auto& gradient = filled->fill.gradient;
+    CHECK(gradient.type == patchy::LayerStyleGradientType::Linear);
+    // A linear two-colour ramp prunes back to its two endpoint stops.
+    CHECK(gradient.color_stops.size() == 2);
+    if (gradient.color_stops.size() == 2) {
+      CHECK(gradient.color_stops.front().color.red == 255);
+      CHECK(gradient.color_stops.front().color.blue == 0);
+      CHECK(gradient.color_stops.back().color.blue == 255);
+    }
+    // The ramp runs left to right: a horizontal gradient is angle 0.
+    CHECK(std::abs(gradient.angle_degrees) < 1e-3);
+    CHECK(!gradient.align_with_layer);
+    CHECK(gradient.smoothness == 0);
+  }
+
+  // The `sh` layer covers exactly its clip region with the same gradient.
+  const auto* painted = result.document.layers()[1].vector_shape();
+  CHECK(painted != nullptr);
+  if (painted != nullptr) {
+    CHECK(painted->fill.kind == patchy::VectorFillKind::Gradient);
+    const auto bounds = painted->path.bounds();
+    CHECK(bounds.has_value());
+    if (bounds.has_value()) {
+      CHECK(std::abs(bounds->left - 20.0) < 1e-6);
+      CHECK(std::abs(bounds->right - 80.0) < 1e-6);
+      // y 50..90 in PDF space is 10..50 down from the top of a 100-point page.
+      CHECK(std::abs(bounds->top - 10.0) < 1e-6);
+      CHECK(std::abs(bounds->bottom - 50.0) < 1e-6);
+    }
+  }
+}
+
+void pdf_vector_import_resolves_separation_tints() {
+  // A Separation "Spot" over DeviceRGB whose tint transform makes orange.
+  const std::string content = "/CS0 cs 1 sc 0 0 50 50 re f\n0.5 sc 0 50 50 50 re f\n";
+  const auto bytes = build_pdf({
+      "<</Type/Catalog/Pages 2 0 R>>",
+      "<</Type/Pages/Kids[3 0 R]/Count 1>>",
+      "<</Type/Page/Parent 2 0 R/MediaBox[0 0 100 100]/Contents 4 0 R"
+      "/Resources<</ColorSpace<</CS0[/Separation /Spot /DeviceRGB 5 0 R]>>>>>>",
+      "<</Length " + std::to_string(content.size()) + ">>\nstream\n" + content + "\nendstream",
+      // Tint 0 = white paper, tint 1 = full orange.
+      "<</FunctionType 2/Domain[0 1]/C0[1 1 1]/C1[1 0.5 0]/N 1>>",
+  });
+
+  const auto result = read_vectors(bytes);
+  CHECK(result.document.layers().size() == 2);
+  if (result.document.layers().size() != 2) {
+    return;
+  }
+  const auto* full = result.document.layers()[0].vector_shape();
+  CHECK(full != nullptr);
+  if (full != nullptr) {
+    // Full tint is the real spot colour, not a grey approximation.
+    CHECK(full->fill.color.red == 255);
+    CHECK(std::abs(static_cast<int>(full->fill.color.green) - 128) <= 1);
+    CHECK(full->fill.color.blue == 0);
+  }
+  const auto* half = result.document.layers()[1].vector_shape();
+  CHECK(half != nullptr);
+  if (half != nullptr) {
+    // Half tint interpolates toward paper white.
+    CHECK(half->fill.color.red == 255);
+    CHECK(std::abs(static_cast<int>(half->fill.color.green) - 191) <= 1);
+    CHECK(std::abs(static_cast<int>(half->fill.color.blue) - 128) <= 1);
+  }
+  // No grey-approximation notice: the tint transform did its job.
+  for (const auto& text : result.notices) {
+    CHECK(text.find("shade of grey") == std::string::npos);
+  }
+}
+
 void pdf_vector_import_reports_what_it_cannot_model() {
   // A shading pattern fill: imported as a flat colour, and said so.
   const std::string content = "/Pattern cs /P0 scn 0 0 100 100 re f\n";
@@ -1467,6 +1649,9 @@ std::vector<patchy::test::TestCase> pdf_tests() {
       {"pdf_vector_import_builds_editable_text_layers", pdf_vector_import_builds_editable_text_layers},
       {"pdf_vector_import_places_images_as_smart_objects", pdf_vector_import_places_images_as_smart_objects},
       {"pdf_vector_import_keeps_jpeg_bytes_untranscoded", pdf_vector_import_keeps_jpeg_bytes_untranscoded},
+      {"pdf_functions_evaluate_all_four_types", pdf_functions_evaluate_all_four_types},
+      {"pdf_vector_import_converts_shadings_to_gradient_fills", pdf_vector_import_converts_shadings_to_gradient_fills},
+      {"pdf_vector_import_resolves_separation_tints", pdf_vector_import_resolves_separation_tints},
       {"pdf_vector_import_reports_what_it_cannot_model", pdf_vector_import_reports_what_it_cannot_model},
       {"pdf_vector_import_refuses_what_it_must", pdf_vector_import_refuses_what_it_must},
       {"pdf_local_brochure_imports_as_editable_layers_if_available", pdf_local_brochure_imports_as_editable_layers_if_available},

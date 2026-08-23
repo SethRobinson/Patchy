@@ -1,5 +1,7 @@
 #include "formats/pdf_content.hpp"
 
+#include "formats/pdf_function.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <map>
@@ -28,6 +30,9 @@ struct ColorSpace {
   int high_value{0};
   // Pattern: the space patterns paint through, when the pattern is uncoloured.
   Object pattern_dict;
+  // Separation/DeviceN: the tint transform into `base` (reused as the alternate
+  // space). Null when the function could not be loaded; the grey fallback applies.
+  std::shared_ptr<PdfFunction> tint;
 };
 
 RgbColor to_rgb_color(double red, double green, double blue) {
@@ -379,10 +384,18 @@ private:
         const auto* name_array = names.array();
         space.components = name_array != nullptr ? static_cast<int>(name_array->size()) : 1;
       }
-      // The tint transform is a PDF function; without evaluating it the honest
-      // approximation is "more ink is darker", which is right for the spot colours
-      // these spaces almost always carry.
-      notice("A PDF spot or separation colour was approximated as a shade of grey.");
+      // [/Separation name alternateSpace tintTransform]: the function turns a tint
+      // into alternate-space components, which is the colour the file really means.
+      if (array->size() >= 4) {
+        space.base = std::make_shared<ColorSpace>(resolve_color_space((*array)[2], resources, depth + 1));
+        space.tint = load_function(file_, (*array)[3]);
+      }
+      if (space.tint == nullptr || space.base == nullptr || space.base->kind == SpaceKind::Unknown) {
+        space.tint = nullptr;
+        // Without the transform the honest approximation is "more ink is darker",
+        // right for the spot colours these spaces almost always carry.
+        notice("A PDF spot or separation colour was approximated as a shade of grey.");
+      }
       return space;
     }
     if (family == "Pattern") {
@@ -425,6 +438,11 @@ private:
         return to_rgb_color(lightness, lightness, lightness);
       }
       case SpaceKind::Separation: {
+        if (space.tint != nullptr && space.base != nullptr) {
+          std::vector<double> alternate;
+          space.tint->evaluate(values, alternate);
+          return color_from_components(*space.base, alternate);
+        }
         // Tint 0 is no ink (white), tint 1 is full ink (black).
         const double tint = values.empty() ? 0.0 : *std::max_element(values.begin(), values.end());
         const double level = 1.0 - std::clamp(tint, 0.0, 1.0);
@@ -1169,6 +1187,23 @@ private:
         const auto pattern_type = file_.get(pattern, "PatternType").integer(0);
         paint.kind = pattern_type == 2 ? Paint::Kind::Shading : Paint::Kind::Tiling;
         paint.source = pattern;
+        paint.shading.reset();
+        if (pattern_type == 2) {
+          // Pattern space is the page's DEFAULT user space, not the CTM in force
+          // when the pattern is used (clause 8.7.3.1), so the geometry maps through
+          // the base transform and the pattern's own /Matrix.
+          Affine to_device = options_.base_transform;
+          if (auto matrix = file_.numbers(pattern.get("Matrix")); matrix.size() >= 6) {
+            to_device = multiply(to_device,
+                                 Affine{matrix[0], matrix[1], matrix[2], matrix[3], matrix[4], matrix[5]});
+          }
+          paint.shading = resolve_shading(file_.get(pattern, "Shading"), resources, to_device);
+          if (paint.shading != nullptr && !paint.shading->stops.empty()) {
+            // The ramp midpoint is the flat fallback wherever a gradient cannot go
+            // (a stroke, an unmodelled consumer).
+            paint.color = paint.shading->stops[paint.shading->stops.size() / 2].second;
+          }
+        }
         // An uncoloured tiling pattern paints in the components that precede the
         // name; a shading pattern carries its own colours.
         if (pattern_type != 2 && operands.size() > 1 && space.base != nullptr) {
@@ -1187,6 +1222,7 @@ private:
       }
       paint.kind = Paint::Kind::Solid;
       paint.color = color_from_components(space, values);
+      paint.shading.reset();
       return;
     }
 
@@ -1295,7 +1331,9 @@ private:
       if (!operands.empty() && operands.back().is_name()) {
         const auto& shading = file_.get(file_.get(resources, "Shading"), operands.back().name());
         if (!shading.is_null()) {
-          sink_.on_shading(shading, state_.ctm, state_.has_clip ? state_.clip : VectorPath{});
+          // Unlike a shading PATTERN, `sh` paints in the current user space.
+          sink_.on_shading(resolve_shading(shading, resources, state_.ctm),
+                           state_.has_clip ? state_.clip : VectorPath{});
           ++primitives_;
         }
       }
@@ -1303,11 +1341,77 @@ private:
     }
   }
 
+  // Evaluates an axial (type 2) or radial (type 3) shading into document space.
+  // Mesh and function-based shadings (1, 4-7) return null; the caller reports.
+  std::shared_ptr<const ResolvedShading> resolve_shading(const Object& shading_object, const Object& resources,
+                                                         const Affine& to_device) {
+    const auto& shading = file_.resolve(shading_object);
+    const auto type = file_.get(shading, "ShadingType").integer(0);
+    if (type != 2 && type != 3) {
+      return nullptr;
+    }
+    const auto coords = file_.numbers(shading.get("Coords"));
+    if ((type == 2 && coords.size() < 4) || (type == 3 && coords.size() < 6)) {
+      return nullptr;
+    }
+    auto functions = FunctionSet::load(file_, file_.get(shading, "Function"));
+    if (!functions.valid()) {
+      return nullptr;
+    }
+    const auto space = resolve_color_space(file_.get(shading, "ColorSpace"), resources);
+    if (space.kind == SpaceKind::Unknown || space.kind == SpaceKind::Pattern) {
+      return nullptr;
+    }
+
+    auto resolved = std::make_shared<ResolvedShading>();
+    resolved->radial = type == 3;
+    if (type == 2) {
+      const auto start = map_point(to_device, coords[0], coords[1]);
+      const auto end = map_point(to_device, coords[2], coords[3]);
+      resolved->x0 = start[0];
+      resolved->y0 = start[1];
+      resolved->x1 = end[0];
+      resolved->y1 = end[1];
+    } else {
+      const auto start = map_point(to_device, coords[0], coords[1]);
+      const auto end = map_point(to_device, coords[3], coords[4]);
+      const double radius_scale = formats::average_scale(to_device);
+      resolved->x0 = start[0];
+      resolved->y0 = start[1];
+      resolved->r0 = coords[2] * radius_scale;
+      resolved->x1 = end[0];
+      resolved->y1 = end[1];
+      resolved->r1 = coords[5] * radius_scale;
+    }
+
+    auto domain = file_.numbers(shading.get("Domain"));
+    if (domain.size() < 2) {
+      domain = {0.0, 1.0};
+    }
+    // Sixteen segments approximate any of the function types well; the PSD gradient
+    // model interpolates linearly between stops, matching how the samples are taken.
+    constexpr int kSampleCount = 17;
+    for (int sample = 0; sample < kSampleCount; ++sample) {
+      const double fraction = static_cast<double>(sample) / (kSampleCount - 1);
+      const double t = domain[0] + fraction * (domain[1] - domain[0]);
+      const auto components = functions.evaluate(t);
+      resolved->stops.emplace_back(fraction, color_from_components(space, components));
+    }
+
+    const auto& extend = file_.get(shading, "Extend");
+    if (const auto* array = extend.array(); array != nullptr && array->size() >= 2) {
+      resolved->extend_start = file_.resolve((*array)[0]).boolean(false);
+      resolved->extend_end = file_.resolve((*array)[1]).boolean(false);
+    }
+    return resolved;
+  }
+
   void set_color(bool is_fill, RgbColor color) {
     auto& paint = is_fill ? state_.fill : state_.stroke;
     paint.kind = Paint::Kind::Solid;
     paint.color = color;
     paint.source = Object();
+    paint.shading.reset();
   }
 
   const File& file_;

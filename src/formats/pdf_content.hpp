@@ -24,14 +24,30 @@ namespace patchy::pdf {
 
 using formats::Affine;
 
+// An axial or radial shading, already evaluated: geometry in DOCUMENT space and
+// the colour ramp sampled from the shading's function through its colour space.
+struct ResolvedShading {
+  bool radial{false};
+  double x0{0.0};
+  double y0{0.0};
+  double r0{0.0};
+  double x1{0.0};
+  double y1{0.0};
+  double r1{0.0};
+  // location 0..1, already sorted.
+  std::vector<std::pair<double, RgbColor>> stops;
+  bool extend_start{false};
+  bool extend_end{false};
+};
+
 // A resolved paint. PDF colour spaces are collapsed to sRGB here because every
 // consumer downstream is sRGB; the conversion notes live beside the code.
 struct Paint {
   enum class Kind {
     None,      // the colour space said "do not paint"
     Solid,
-    Shading,   // a shading pattern the sink must approximate or rasterize
-    Tiling,    // a tiling pattern, likewise
+    Shading,   // a shading pattern; `shading` carries the evaluated ramp when modelled
+    Tiling,    // a tiling pattern the sink must approximate or rasterize
     Unknown,   // an unmodelled space; the sink should fall back to raster
   };
   Kind kind{Kind::Solid};
@@ -41,6 +57,9 @@ struct Paint {
   // Set when kind is Shading or Tiling: the pattern or shading dictionary, so the
   // sink can inspect it without the interpreter modelling every shading type.
   Object source;
+  // Present for axial/radial shading patterns the interpreter could evaluate; the
+  // colour member holds the ramp's midpoint as the flat fallback either way.
+  std::shared_ptr<const ResolvedShading> shading;
 };
 
 struct StrokeStyle {
@@ -122,8 +141,9 @@ public:
   virtual void on_path(const PaintedPath& path) = 0;
   virtual void on_text(const TextRun& run) = 0;
   virtual void on_image(const PlacedImage& image) = 0;
-  // A shading painted directly by `sh`, covering the current clip.
-  virtual void on_shading(const Object& shading, const Affine& transform, const VectorPath& clip) = 0;
+  // A shading painted directly by `sh`, covering the current clip (empty = the whole
+  // page). `shading` is null when the type could not be evaluated.
+  virtual void on_shading(std::shared_ptr<const ResolvedShading> shading, const VectorPath& clip) = 0;
   // Reports something the interpreter could not model, once per distinct reason.
   virtual void on_notice(const std::string& text) = 0;
 };

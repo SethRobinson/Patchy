@@ -437,6 +437,7 @@ add_library(patchy_formats
   src/formats/pdf_png_writer.cpp
   src/formats/pdf_filters.cpp
   src/formats/pdf_fonts.cpp
+  src/formats/pdf_function.cpp
   src/formats/pdf_syntax.cpp
   src/formats/raw_document_io.cpp
   src/formats/raw_tone.cpp

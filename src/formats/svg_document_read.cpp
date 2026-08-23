@@ -7,6 +7,7 @@
 #include "core/vector_raster.hpp"
 #include "formats/miniz/miniz.h"
 #include "formats/svg_io_internal.hpp"
+#include "formats/gradient_placement.hpp"
 #include "formats/vector_fill_rule.hpp"
 #include "formats/svg_xml.hpp"
 
@@ -1223,20 +1224,9 @@ struct Importer {
       const double y2 = coordinate(attribute("y2", ""), bounds_top, bounds_height, bounds_top);
       const auto p1 = detail::map_point(gradient_transform, x1, y1);
       const auto p2 = detail::map_point(gradient_transform, x2, y2);
-      const double dx = p2[0] - p1[0];
-      const double dy = p2[1] - p1[1];
-      // Screen y grows downward; Photoshop angles are counter-clockwise.
-      gradient.angle_degrees = static_cast<float>(std::atan2(-dy, dx) * 180.0 / std::numbers::pi);
-      const double center_x = (p1[0] + p2[0]) / 2.0;
-      const double center_y = (p1[1] + p2[1]) / 2.0;
-      gradient.offset_x_percent = static_cast<float>((center_x - (ref_x + ref_w / 2.0)) / ref_w * 100.0);
-      gradient.offset_y_percent = static_cast<float>((center_y - (ref_y + ref_h / 2.0)) / ref_h * 100.0);
-      const double radians = gradient.angle_degrees * std::numbers::pi / 180.0;
-      const double abs_cos = std::abs(std::cos(radians));
-      const double abs_sin = std::abs(std::sin(radians));
-      const double span = std::min(abs_cos > kEpsilon ? ref_w / abs_cos : std::numeric_limits<double>::infinity(),
-                                   abs_sin > kEpsilon ? ref_h / abs_sin : std::numeric_limits<double>::infinity());
-      gradient.scale = static_cast<float>(std::clamp(std::hypot(dx, dy) / std::max(1.0, span), 0.01, 10.0));
+      // The geometry math moved to formats/gradient_placement.hpp when the PDF
+      // reader needed the identical mapping for axial shadings.
+      formats::place_linear_gradient(gradient, {ref_x, ref_y, ref_w, ref_h}, p1[0], p1[1], p2[0], p2[1]);
     } else {
       const double cx = coordinate(attribute("cx", ""), bounds_left, bounds_width, bounds_left + bounds_width / 2.0);
       const double cy = coordinate(attribute("cy", ""), bounds_top, bounds_height, bounds_top + bounds_height / 2.0);
@@ -1256,9 +1246,7 @@ struct Importer {
                        : (user_space ? v : v * std::max(bounds_width, bounds_height));
       }();
       const auto center = detail::map_point(gradient_transform, cx, cy);
-      gradient.offset_x_percent = static_cast<float>((center[0] - (ref_x + ref_w / 2.0)) / ref_w * 100.0);
-      gradient.offset_y_percent = static_cast<float>((center[1] - (ref_y + ref_h / 2.0)) / ref_h * 100.0);
-      gradient.scale = static_cast<float>(std::clamp(r / std::max(1.0, std::max(ref_w, ref_h) / 2.0), 0.01, 10.0));
+      formats::place_radial_gradient(gradient, {ref_x, ref_y, ref_w, ref_h}, center[0], center[1], r);
       if (attribute("fx", "") != "" || attribute("fy", "") != "") {
         notice("SVG radial-gradient focal points are not supported; the center was used");
       }
