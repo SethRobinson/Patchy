@@ -182,8 +182,22 @@ CubicSegment generate_bezier(const std::vector<Vec>& run, const std::vector<doub
   }
   const auto segment_length = length(last - first);
   const auto fallback = segment_length / 3.0;
+  // A run with one or two interior samples under-determines the two handle
+  // lengths: the least squares can satisfy the samples with handles hundreds
+  // of pixels long (the curve then spikes between samples, invisible to the
+  // sample-only error). Cap handles at the run's own polyline length and
+  // reject handles that cross when projected onto the chord (paper.js's
+  // order check); the error-driven split takes over from the fallback.
+  double polyline_length = 0.0;
+  for (std::size_t i = 1; i < run.size(); ++i) {
+    polyline_length += length(run[i] - run[i - 1]);
+  }
+  const auto max_handle = std::max(polyline_length, segment_length);
+  const auto chord = last - first;
+  const bool crossed = dot(tangent_start * alpha_left, chord) - dot(tangent_end * alpha_right, chord) >
+                       segment_length * segment_length;
   if (alpha_left <= 1e-6 || alpha_right <= 1e-6 || !std::isfinite(alpha_left) ||
-      !std::isfinite(alpha_right)) {
+      !std::isfinite(alpha_right) || alpha_left > max_handle || alpha_right > max_handle || crossed) {
     alpha_left = fallback;
     alpha_right = fallback;
   }
@@ -191,7 +205,9 @@ CubicSegment generate_bezier(const std::vector<Vec>& run, const std::vector<doub
 }
 
 // Max squared deviation of the run from the segment; the split index reports
-// where (first index wins ties).
+// where (first index wins ties). Besides the samples themselves, the curve
+// is checked halfway between neighboring samples against the polyline's
+// midpoint, so a bulge between two samples cannot pass as a fit.
 double max_fit_error(const std::vector<Vec>& run, const std::vector<double>& u,
                      const CubicSegment& segment, std::size_t& split_index) {
   double max_error = 0.0;
@@ -202,6 +218,19 @@ double max_fit_error(const std::vector<Vec>& run, const std::vector<double>& u,
     if (error > max_error) {
       max_error = error;
       split_index = i;
+    }
+  }
+  if (run.size() < 3) {
+    return max_error;
+  }
+  for (std::size_t i = 0; i + 1 < run.size(); ++i) {
+    const auto midpoint = (run[i] + run[i + 1]) * 0.5;
+    const auto offset = evaluate_cubic(segment, (u[i] + u[i + 1]) * 0.5) - midpoint;
+    const auto error = dot(offset, offset);
+    if (error > max_error) {
+      max_error = error;
+      // Split at the nearer interior sample (never an endpoint).
+      split_index = std::clamp<std::size_t>(i + 1, 1, run.size() - 2);
     }
   }
   return max_error;
@@ -298,25 +327,38 @@ double loop_signed_area(const std::vector<FitPoint>& points) {
 }
 
 PathSubpath fit_closed_loop(const std::vector<FitPoint>& points, double tolerance) {
+  PathFitOptions options;
+  options.tolerance = tolerance;
+  return fit_closed_loop(points, options);
+}
+
+PathSubpath fit_closed_loop(const std::vector<FitPoint>& points, const PathFitOptions& options) {
   PathSubpath subpath;
   subpath.closed = true;
   if (points.size() < 3) {
     return subpath;
   }
-  const auto safe_tolerance = std::max(0.1, tolerance);
+  const auto safe_tolerance = std::max(0.1, options.tolerance);
 
   // Significant vertices, then corner classification: a kept vertex whose
-  // direction change exceeds 60 degrees breaks the curve there.
+  // direction change exceeds the corner angle breaks the curve there.
   const auto kept = douglas_peucker_loop(points, safe_tolerance);
   std::vector<std::size_t> corners;
-  constexpr double kCornerCosine = 0.5;  // cos(60 deg)
+  const double corner_cosine =
+      std::cos(std::clamp(options.corner_angle_degrees, 1.0, 179.0) * 3.14159265358979323846 / 180.0);
+  // Significant-vertex neighbors of each kept vertex, for the smoothed
+  // tangent estimate (index into `points`).
+  std::vector<std::size_t> kept_previous(points.size(), 0);
+  std::vector<std::size_t> kept_next(points.size(), 0);
   for (std::size_t k = 0; k < kept.size(); ++k) {
     const auto previous = kept[(k + kept.size() - 1) % kept.size()];
     const auto current = kept[k];
     const auto next = kept[(k + 1) % kept.size()];
+    kept_previous[current] = previous;
+    kept_next[current] = next;
     const auto incoming = normalized(point_vec(points[current]) - point_vec(points[previous]));
     const auto outgoing = normalized(point_vec(points[next]) - point_vec(points[current]));
-    if (dot(incoming, outgoing) < kCornerCosine) {
+    if (dot(incoming, outgoing) < corner_cosine) {
       corners.push_back(current);
     }
   }
@@ -361,6 +403,9 @@ PathSubpath fit_closed_loop(const std::vector<FitPoint>& points, double toleranc
       const auto end_next = (end + 1) % count;
       tangent_start = normalized(point_vec(points[start_next]) - point_vec(points[start_prev]));
       tangent_end = normalized(point_vec(points[end_prev]) - point_vec(points[end_next]));
+    } else if (options.smooth_corner_tangents) {
+      tangent_start = normalized(point_vec(points[kept_next[start]]) - point_vec(points[start]));
+      tangent_end = normalized(point_vec(points[kept_previous[end]]) - point_vec(points[end]));
     } else {
       tangent_start = normalized(run[1] - run[0]);
       tangent_end = normalized(run[run.size() - 2] - run[run.size() - 1]);
@@ -399,6 +444,29 @@ PathSubpath fit_closed_loop(const std::vector<FitPoint>& points, double toleranc
       split.out_y = segments[s + 1].c1.y;
       split.smooth = true;
       subpath.anchors.push_back(split);
+    }
+  }
+
+  if (options.snap_curves_to_lines) {
+    // A cubic whose control points never leave the tolerance band around its
+    // chord is a line in disguise; collapse its handles so the segment
+    // exports and edits as a straight one.
+    auto& anchors = subpath.anchors;
+    for (std::size_t i = 0; i < anchors.size(); ++i) {
+      auto& a = anchors[i];
+      auto& b = anchors[(i + 1) % anchors.size()];
+      const Vec p0{a.anchor_x, a.anchor_y};
+      const Vec p3{b.anchor_x, b.anchor_y};
+      const Vec c1{a.out_x, a.out_y};
+      const Vec c2{b.in_x, b.in_y};
+      if (chord_distance(c1, p0, p3) <= safe_tolerance && chord_distance(c2, p0, p3) <= safe_tolerance) {
+        a.out_x = a.anchor_x;
+        a.out_y = a.anchor_y;
+        b.in_x = b.anchor_x;
+        b.in_y = b.anchor_y;
+        a.smooth = false;
+        b.smooth = false;
+      }
     }
   }
   return subpath;

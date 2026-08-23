@@ -104,12 +104,14 @@ add_library(patchy_core
   src/core/document_geometry.cpp
   src/core/document_path.cpp
   src/core/heal_membrane.cpp
+  src/core/image_trace.cpp
   src/core/layer.cpp
   src/core/layer_metadata.cpp
   src/core/layer_render_utils.cpp
   src/core/layer_tree.cpp
   src/core/liquify.cpp
   src/core/magnetic_lasso.cpp
+  src/core/mask_outline.cpp
   src/core/palette.cpp
   src/core/palette_presets.cpp
   src/core/path_fit.cpp
@@ -849,6 +851,8 @@ if(PATCHY_BUILD_APP)
       src/ui/hotkey_registry.hpp
       src/ui/hotkey_registry.cpp
       src/ui/image_document_io.cpp
+      src/ui/image_trace_dialog.hpp
+      src/ui/image_trace_dialog.cpp
       src/ui/image_save_options_dialog.cpp
       src/ui/layer_style_dialog.cpp
       src/ui/layer_list_widget.cpp
@@ -1360,6 +1364,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/unicode_path_tests.cpp
     tests/core/font_zip_tests.cpp
     tests/core/gradients_interior_effects_tests.cpp
+    tests/core/image_trace_tests.cpp
     tests/core/infra_selection_tests.cpp
     tests/core/layer_metadata_tests.cpp
     tests/core/palette_tests.cpp
@@ -1459,6 +1464,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/float_window_tests.cpp
       tests/ui/vector_shape_tool_tests.cpp
       tests/ui/svg_ui_tests.cpp
+      tests/ui/image_trace_ui_tests.cpp
       tests/ui/scripting_tests.cpp
       tests/ui/unicode_path_tests.cpp
       tests/ui/history_panel_tests.cpp

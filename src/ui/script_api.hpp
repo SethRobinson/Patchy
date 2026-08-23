@@ -78,6 +78,9 @@ public:
   Q_INVOKABLE void applyFilter(const QString& filterId, const QJSValue& params = QJSValue());
   Q_INVOKABLE QJSValue getPixels();
   Q_INVOKABLE void setPixels(const QJSValue& imageData);
+  // Trace Image to Shapes: returns the new group layer (inserted above this
+  // layer, which is hidden), or null when nothing traced.
+  Q_INVOKABLE QJSValue traceToShapes(const QJSValue& options = QJSValue());
 
   [[nodiscard]] LayerId layer_id() const noexcept { return layer_id_; }
   [[nodiscard]] std::int64_t session_id() const noexcept { return session_id_; }

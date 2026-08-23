@@ -14,6 +14,8 @@
 #include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
 #include "formats/svg_document_io.hpp"
+#include "ui/app_settings.hpp"
+#include "ui/image_trace_dialog.hpp"
 #include "ui/background_workers.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/custom_shape_library.hpp"
@@ -1753,6 +1755,127 @@ QBrush MainWindow::vector_fill_preview_brush(const patchy::VectorFill& paint) co
     }
   }
   return QBrush(Qt::NoBrush);
+}
+
+namespace {
+
+// QSettings keys for the last-used trace options (persisted identifiers).
+constexpr const char* kTraceSettingsPrefix = "imageTrace/";
+
+ImageTraceOptions image_trace_options_from_settings() {
+  auto settings = app_settings();
+  const auto key = [](const char* name) { return QLatin1String(kTraceSettingsPrefix) + QLatin1String(name); };
+  ImageTraceOptions options;
+  options.mode = static_cast<ImageTraceOptions::Mode>(
+      std::clamp(settings.value(key("mode"), static_cast<int>(options.mode)).toInt(), 0, 2));
+  options.colors = settings.value(key("colors"), options.colors).toInt();
+  options.threshold = settings.value(key("threshold"), options.threshold).toInt();
+  options.paths = settings.value(key("paths"), options.paths).toInt();
+  options.corners = settings.value(key("corners"), options.corners).toInt();
+  options.noise = settings.value(key("noise"), options.noise).toInt();
+  options.method = static_cast<ImageTraceOptions::Method>(
+      std::clamp(settings.value(key("method"), static_cast<int>(options.method)).toInt(), 0, 1));
+  options.snap_curves_to_lines = settings.value(key("snapCurvesToLines"), options.snap_curves_to_lines).toBool();
+  options.ignore_white = settings.value(key("ignoreWhite"), options.ignore_white).toBool();
+  return options;
+}
+
+void save_image_trace_options(const ImageTraceOptions& options) {
+  auto settings = app_settings();
+  const auto key = [](const char* name) { return QLatin1String(kTraceSettingsPrefix) + QLatin1String(name); };
+  settings.setValue(key("mode"), static_cast<int>(options.mode));
+  settings.setValue(key("colors"), options.colors);
+  settings.setValue(key("threshold"), options.threshold);
+  settings.setValue(key("paths"), options.paths);
+  settings.setValue(key("corners"), options.corners);
+  settings.setValue(key("noise"), options.noise);
+  settings.setValue(key("method"), static_cast<int>(options.method));
+  settings.setValue(key("snapCurvesToLines"), options.snap_curves_to_lines);
+  settings.setValue(key("ignoreWhite"), options.ignore_white);
+}
+
+}  // namespace
+
+void MainWindow::trace_image_to_shapes() {
+  if (canvas_ == nullptr || !has_active_document()) {
+    return;
+  }
+  if (canvas_->quick_mask_active()) {
+    show_status_error(tr("Tracing is unavailable in Quick Mask mode"));
+    return;
+  }
+  auto& doc = document();
+  const auto active = doc.active_layer_id();
+  if (!active.has_value()) {
+    show_status_error(tr("Select a pixel layer to trace"));
+    return;
+  }
+  auto* layer = doc.find_layer(*active);
+  if (layer == nullptr || layer->kind() != LayerKind::Pixel) {
+    show_status_error(tr("Select a pixel layer to trace"));
+    return;
+  }
+  if (layer_pixels_are_procedural(*layer)) {
+    // Text, shape, and Smart Object layers trace their rendered pixels; the
+    // shared prompt rasterizes first (the destructive-edit contract).
+    if (!prompt_rasterize_procedural_layer(*active, tr("Trace Image to Shapes"), false)) {
+      return;
+    }
+    layer = doc.find_layer(*active);
+    if (layer == nullptr) {
+      return;
+    }
+  }
+  const auto& source_pixels = std::as_const(*layer).pixels();
+  if (source_pixels.empty() || source_pixels.format().bit_depth != BitDepth::UInt8) {
+    show_status_error(tr("The layer has no 8-bit pixels to trace"));
+    return;
+  }
+  auto pixels = std::make_shared<const PixelBuffer>(source_pixels);
+  const auto chosen = request_image_trace(this, pixels, image_trace_options_from_settings());
+  if (!chosen.has_value()) {
+    return;
+  }
+  save_image_trace_options(chosen->options);
+  if (chosen->result == nullptr || chosen->result->layers.empty()) {
+    show_status_error(tr("Nothing to trace with these settings"));
+    return;
+  }
+  if (const auto group = insert_image_trace_layers(*active, *chosen->result); group.has_value()) {
+    statusBar()->showMessage(tr("Traced the layer into %n shape layer(s).", nullptr,
+                                static_cast<int>(chosen->result->layers.size())));
+  }
+}
+
+std::optional<LayerId> MainWindow::insert_image_trace_layers(LayerId source_id, const ImageTraceResult& result) {
+  if (canvas_ == nullptr || !has_active_document() || result.layers.empty()) {
+    return std::nullopt;
+  }
+  auto& doc = document();
+  auto* source = doc.find_layer(source_id);
+  if (source == nullptr) {
+    return std::nullopt;
+  }
+  const auto source_bounds = std::as_const(*source).bounds();
+
+  push_undo_snapshot(tr("Trace image to shapes"));
+  source = doc.find_layer(source_id);
+  if (source == nullptr) {
+    return std::nullopt;
+  }
+  auto group = build_image_trace_group(doc, result, source_bounds.x, source_bounds.y,
+                                       tr("Traced %1").arg(QString::fromStdString(source->name())).toStdString());
+  const auto group_id = group.id();
+  source->set_visible(false);  // before the insert: it may reallocate the siblings
+  insert_layer_after_anchor(doc, std::move(group), source_id);
+  doc.set_active_layer(group_id);
+  refresh_layer_list();
+  refresh_layer_controls();
+  refresh_document_info();
+  path_row_hidden_for_layer_.reset();
+  refresh_paths_panel();
+  canvas_->document_changed();
+  return group_id;
 }
 
 }  // namespace patchy::ui

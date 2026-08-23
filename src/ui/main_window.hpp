@@ -68,6 +68,7 @@ class QToolButton;
 class QTimer;
 
 namespace patchy {
+struct ImageTraceResult;
 struct LiveShapeParams;
 struct PathSubpath;
 struct VectorFill;
@@ -813,6 +814,14 @@ private:
   void stroke_active_path();
   void make_selection_from_path();
   void make_work_path_from_selection();
+  // Trace Image to Shapes: the active pixel layer through the image-trace
+  // dialog into a group of shape layers above it (the source is hidden).
+  void trace_image_to_shapes();
+  // Builds the group of shape layers for an already computed trace of
+  // `source_id` (one undo entry); returns the group id or nullopt when the
+  // result is empty or the source vanished. Shared by the menu command and
+  // the scripting API.
+  std::optional<LayerId> insert_image_trace_layers(LayerId source_id, const patchy::ImageTraceResult& result);
   // Custom shapes (main_window_vector.cpp).
   [[nodiscard]] CustomShapeLibrary& custom_shape_library();
   void refresh_custom_shape_combo();

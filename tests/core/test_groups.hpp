@@ -36,6 +36,7 @@ std::vector<patchy::test::TestCase> font_zip_tests();
 std::vector<patchy::test::TestCase> infra_selection_tests();
 std::vector<patchy::test::TestCase> vector_shape_tests();
 std::vector<patchy::test::TestCase> vector_raster_tests();
+std::vector<patchy::test::TestCase> image_trace_tests();
 std::vector<patchy::test::TestCase> psd_vector_fixtures_tests();
 std::vector<patchy::test::TestCase> svg_tests();
 std::vector<patchy::test::TestCase> pdf_tests();

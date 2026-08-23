@@ -271,7 +271,10 @@ everywhere a bundled script is resolved.
   (additive, still 1): the `patchy.io` probes `fileExists`/`fileSize`/`makeDir`/
   `deleteFile`, added so a script can verify its own output (the AGENTS.md rule:
   missing test capabilities become scripting API); pinned by
-  `ui_script_io_round_trips_unicode_path`.
+  `ui_script_io_round_trips_unicode_path`. 2026-08-23 (additive, still 1):
+  `layer.traceToShapes(options)` runs Trace Image to Shapes (docs/image-trace.md) on a
+  pixel layer and returns the new group layer (null when nothing traced); the
+  `layer.trace_image_to_shapes` command id reaches `app.runCommand` (it opens the dialog).
 - **`include()` resolution order**: relative to the including script, then the user
   scripts root, then the bundled scripts root; a result inside the bundled folder maps
   through the shadow-override store. `patchy.isMainScript()` is false during an included

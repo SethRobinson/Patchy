@@ -13643,6 +13643,21 @@ Clipped to the layer below</source>
         <source>Opening Affinity image layers:</source>
         <translation>Affinity の画像レイヤーを開くとき:</translation>
     </message>
+    <message><source>Trace Image to Shapes...</source><translation>画像をシェイプにトレース...</translation></message>
+    <message><source>Convert the pixel layer into editable shape layers, one per color</source><translation>ピクセルレイヤーを色ごとの編集可能なシェイプレイヤーに変換します</translation></message>
+    <message><source>Tracing is unavailable in Quick Mask mode</source><translation>クイックマスクモードではトレースできません</translation></message>
+    <message><source>Select a pixel layer to trace</source><translation>トレースするピクセルレイヤーを選択してください</translation></message>
+    <message><source>Trace Image to Shapes</source><translation>画像をシェイプにトレース</translation></message>
+    <message><source>The layer has no 8-bit pixels to trace</source><translation>このレイヤーにはトレースできる 8 ビットのピクセルがありません</translation></message>
+    <message><source>Nothing to trace with these settings</source><translation>この設定ではトレースするものがありません</translation></message>
+    <message numerus="yes">
+        <source>Traced the layer into %n shape layer(s).</source>
+        <translation>
+            <numerusform>レイヤーを %n 個のシェイプレイヤーにトレースしました。</numerusform>
+        </translation>
+    </message>
+    <message><source>Trace image to shapes</source><translation>画像をシェイプにトレース</translation></message>
+    <message><source>Traced %1</source><translation>トレース済み %1</translation></message>
 </context>
 <context>
     <name>patchy::ui::PalettePanel</name>
@@ -14460,6 +14475,52 @@ Clipped to the layer below</source>
     <message><source>Editable import brings in one page; page %1 was imported.</source><translation>編集可能な読み込みは 1 ページのみ対応です。ページ %1 を読み込みました。</translation></message>
     <message><source>Some artwork could not be kept editable; reimport with &quot;Flattened image per page&quot; for an exact copy.</source><translation>一部のアートワークは編集可能な形式で保持できませんでした。正確な複製には「ページごとに統合された画像」で再読み込みしてください。</translation></message>
     <message><source>Editable import was not possible (%1); the page was flattened instead.</source><translation>編集可能な読み込みができなかったため (%1)、ページを統合して読み込みました。</translation></message>
+    <message><source>Trace Image to Shapes</source><translation>画像をシェイプにトレース</translation></message>
+    <message><source>Black and White</source><translation>白黒</translation></message>
+    <message><source>Grays:</source><translation>グレー数:</translation></message>
+    <message><source>Threshold:</source><translation>しきい値:</translation></message>
+    <message><source>Paths:</source><translation>パス:</translation></message>
+    <message><source>Noise:</source><translation>ノイズ:</translation></message>
+    <message><source>Method:</source><translation>方式:</translation></message>
+    <message>
+        <source>Mode:</source>
+        <comment>image trace</comment>
+        <translation>モード:</translation>
+    </message>
+    <message><source>Abutting (cutout shapes)</source><translation>隣接 (切り抜きシェイプ)</translation></message>
+    <message><source>Overlapping (stacked shapes)</source><translation>重なり (積み重ねシェイプ)</translation></message>
+    <message><source>Snap curves to lines</source><translation>曲線を直線にスナップ</translation></message>
+    <message><source>Ignore white</source><translation>ホワイトを無視</translation></message>
+    <message><source>Tracing...</source><translation>トレース中...</translation></message>
+    <message><source>Nothing to trace with these settings.</source><translation>この設定ではトレースするものがありません。</translation></message>
+    <message numerus="yes">
+        <source>%n shape layer(s)</source>
+        <translation>
+            <numerusform>%n 個のシェイプレイヤー</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n anchor(s)</source>
+        <translation>
+            <numerusform>%n 個のアンカー</numerusform>
+        </translation>
+    </message>
+    <message><source>Pixels darker than this luminance become black</source><translation>この輝度より暗いピクセルは黒になります</translation></message>
+    <message><source>Higher values follow the pixels more tightly and use more anchors</source><translation>値が大きいほどピクセルに忠実になり、アンカーが増えます</translation></message>
+    <message><source>Higher values keep more bends as sharp corners</source><translation>値が大きいほど多くの曲がりを鋭い角として保持します</translation></message>
+    <message><source>Regions smaller than this many pixels merge into their neighbors</source><translation>このピクセル数より小さい領域は隣接する領域に統合されます</translation></message>
+    <message><source>Abutting shapes share exact edges. Overlapping shapes are painted without holes and stacked, which hides hairline gaps.</source><translation>隣接シェイプは同じ境界線を共有します。重なりシェイプは穴なしで描画して積み重ねるため、細い隙間が隠れます。</translation></message>
+    <message><source>Replace nearly straight curves with straight segments</source><translation>ほぼ直線の曲線を直線セグメントに置き換えます</translation></message>
+    <message><source>Leave white areas transparent instead of tracing them</source><translation>白い領域をトレースせず透明のままにします</translation></message>
+    <message><source>Black and White Logo</source><translation>白黒ロゴ</translation></message>
+    <message><source>Sketched Art</source><translation>スケッチアート</translation></message>
+    <message><source>Silhouettes</source><translation>シルエット</translation></message>
+    <message><source>3 Colors</source><translation>3 色</translation></message>
+    <message><source>6 Colors</source><translation>6 色</translation></message>
+    <message><source>16 Colors</source><translation>16 色</translation></message>
+    <message><source>Shades of Gray</source><translation>グレーの濃淡</translation></message>
+    <message><source>Low Fidelity Photo</source><translation>低精度の写真</translation></message>
+    <message><source>High Fidelity Photo</source><translation>高精度の写真</translation></message>
 </context>
 <context>
     <name>FilterGalleryControls</name>
@@ -14554,6 +14615,11 @@ Clipped to the layer below</source>
     <message><source>selectRect needs a positive size.</source><translation>selectRect には正のサイズが必要です。</translation></message>
     <message><source>selectEllipse needs a positive size.</source><translation>selectEllipse には正のサイズが必要です。</translation></message>
     <message><source>Script Window</source><translation>スクリプトウィンドウ</translation></message>
+    <message><source>traceToShapes: mode must be color, grayscale, or blackAndWhite.</source><translation>traceToShapes: mode は color、grayscale、blackAndWhite のいずれかである必要があります。</translation></message>
+    <message><source>traceToShapes: method must be abutting or overlapping.</source><translation>traceToShapes: method は abutting または overlapping である必要があります。</translation></message>
+    <message><source>traceToShapes: unknown option %1</source><translation>traceToShapes: 不明なオプション %1</translation></message>
+    <message><source>traceToShapes needs a pixel layer with 8-bit pixels.</source><translation>traceToShapes には 8 ビットのピクセルを持つピクセルレイヤーが必要です。</translation></message>
+    <message><source>Traced %1</source><translation>トレース済み %1</translation></message>
 </context>
 <context>
     <name>patchy::ui::ScriptEditorDialog</name>

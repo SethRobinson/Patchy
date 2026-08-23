@@ -510,7 +510,9 @@ Excluded pending their own review (do NOT build without a new patent
 check):
 
 - Curvature Pen tool (2018+) and any auto-fitting curve-through-points UX.
-- Content-aware/image tracing to vectors, edge-magnetic vector snapping.
+- Edge-magnetic vector snapping. (Image tracing itself was cleared with
+  boundaries on 2026-08-23: docs/image-trace.md and the "Vector tracing"
+  bullet in docs/legal-constraints.md.)
 - Snap-to-pixel "align edges" automatic pixel-grid fitting of vector renders
   (plain user-invoked grid/guide snapping of anchors is fine).
 - On-canvas live-shape gizmo widgets (in-canvas radius handles etc.);

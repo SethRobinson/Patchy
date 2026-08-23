@@ -148,6 +148,7 @@ Field types: `number`, `slider`, `checkbox`, `choice`, `text`, `color`, `folder`
 | `layer.fillRect(x, y, w, h, color)` | Overwrites one rectangle. A transparent color like `"#00000000"` clears. |
 | `layer.applyFilter(id, params)` | Runs a filter, e.g. `layer.applyFilter("patchy.filters.gaussian_blur", { radius: 8 })`. |
 | `layer.getPixels()` / `layer.setPixels(imageData)` | Raw RGBA8 pixel access. `getPixels` returns `{x, y, width, height, data}` with an `ArrayBuffer` of `width * height * 4` bytes; `setPixels` replaces the layer's pixels with such a block. |
+| `layer.traceToShapes(options)` | Trace Image to Shapes: turns the pixel layer into a group of solid shape layers, one per color, and returns the group (the source layer is hidden). Options: `mode` (`"color"`, `"grayscale"`, `"blackAndWhite"`), `colors`, `threshold`, `paths`, `corners`, `noise`, `method` (`"abutting"` or `"overlapping"`), `snapCurvesToLines`, `ignoreWhite`. Example: `layer.traceToShapes({ mode: "blackAndWhite", ignoreWhite: true })`. |
 
 Colors everywhere are CSS-style strings: `"#rrggbb"`, `"#aarrggbb"`, or named colors like `"red"`.
 

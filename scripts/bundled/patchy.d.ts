@@ -110,6 +110,36 @@ interface PatchyLayer {
    * pixels snap to the document palette (like every tool write).
    */
   setPixels(imageData: PatchyImageData): void;
+  /**
+   * Trace Image to Shapes: quantizes this pixel layer to a few colors and
+   * fits every color region into shape layers (one solid-fill shape layer per
+   * color, named "#RRGGBB"). The shape layers land in a new group inserted
+   * above this layer, this layer is hidden, and the group is returned (null
+   * when nothing traced, e.g. a fully transparent layer). Options mirror the
+   * Layer > New > Trace Image to Shapes dialog; omitted fields use its defaults.
+   */
+  traceToShapes(options?: PatchyTraceOptions): PatchyLayer | null;
+}
+
+interface PatchyTraceOptions {
+  /** "color" (default), "grayscale", or "blackAndWhite". */
+  mode?: "color" | "grayscale" | "blackAndWhite";
+  /** Palette size for color/grayscale, 2..64 (default 16). */
+  colors?: number;
+  /** Black-and-white luminance threshold, 1..255 (default 128). */
+  threshold?: number;
+  /** Curve fit fidelity 0..100 (default 50): higher follows the pixels more tightly. */
+  paths?: number;
+  /** Corner sharpness 0..100 (default 75): higher keeps more bends as corners. */
+  corners?: number;
+  /** Regions smaller than this many pixels merge into their neighbors, 1..100 (default 25). */
+  noise?: number;
+  /** "abutting" (exact cutouts, default) or "overlapping" (stacked, no holes). */
+  method?: "abutting" | "overlapping";
+  /** Replace nearly straight curves with straight segments (default false). */
+  snapCurvesToLines?: boolean;
+  /** Leave white regions untraced (default false). */
+  ignoreWhite?: boolean;
 }
 
 interface PatchySelection {

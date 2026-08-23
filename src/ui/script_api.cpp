@@ -7,6 +7,8 @@
 
 #include "ui/script_api.hpp"
 
+#include "core/image_trace.hpp"
+
 #include "core/layer_metadata.hpp"
 #include "formats/document_flatten.hpp"
 #include "core/layer_render_utils.hpp"
@@ -22,6 +24,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QJSEngine>
+#include <QJSValueIterator>
 #include <QRegion>
 #include <QTextStream>
 
@@ -490,6 +493,96 @@ void ScriptLayerObject::fillRect(int x, int y, int width, int height, const QStr
 
 void ScriptLayerObject::applyFilter(const QString& filterId, const QJSValue& params) {
   host_.apply_filter_to_layer(session_id_, layer_id_, filterId, params);
+}
+
+QJSValue ScriptLayerObject::traceToShapes(const QJSValue& options) {
+  ImageTraceOptions trace_options;
+  if (options.isObject()) {
+    QJSValueIterator it(options);
+    while (it.hasNext()) {
+      it.next();
+      const auto key = it.name();
+      const auto value = it.value();
+      if (key == QLatin1String("mode")) {
+        const auto mode = value.toString();
+        if (mode == QLatin1String("color")) {
+          trace_options.mode = ImageTraceOptions::Mode::Color;
+        } else if (mode == QLatin1String("grayscale")) {
+          trace_options.mode = ImageTraceOptions::Mode::Grayscale;
+        } else if (mode == QLatin1String("blackAndWhite")) {
+          trace_options.mode = ImageTraceOptions::Mode::BlackAndWhite;
+        } else {
+          host_.throw_js_error(ScriptEngineHost::tr("traceToShapes: mode must be color, grayscale, or blackAndWhite."));
+          return QJSValue();
+        }
+      } else if (key == QLatin1String("method")) {
+        const auto method = value.toString();
+        if (method == QLatin1String("abutting")) {
+          trace_options.method = ImageTraceOptions::Method::Abutting;
+        } else if (method == QLatin1String("overlapping")) {
+          trace_options.method = ImageTraceOptions::Method::Overlapping;
+        } else {
+          host_.throw_js_error(ScriptEngineHost::tr("traceToShapes: method must be abutting or overlapping."));
+          return QJSValue();
+        }
+      } else if (key == QLatin1String("colors")) {
+        trace_options.colors = value.toInt();
+      } else if (key == QLatin1String("threshold")) {
+        trace_options.threshold = value.toInt();
+      } else if (key == QLatin1String("paths")) {
+        trace_options.paths = value.toInt();
+      } else if (key == QLatin1String("corners")) {
+        trace_options.corners = value.toInt();
+      } else if (key == QLatin1String("noise")) {
+        trace_options.noise = value.toInt();
+      } else if (key == QLatin1String("snapCurvesToLines")) {
+        trace_options.snap_curves_to_lines = value.toBool();
+      } else if (key == QLatin1String("ignoreWhite")) {
+        trace_options.ignore_white = value.toBool();
+      } else {
+        host_.throw_js_error(ScriptEngineHost::tr("traceToShapes: unknown option %1").arg(key));
+        return QJSValue();
+      }
+    }
+  }
+  const auto* layer = read_layer();
+  if (layer == nullptr) {
+    return QJSValue();
+  }
+  if (layer->kind() != LayerKind::Pixel || layer->pixels().empty() ||
+      layer->pixels().format().bit_depth != BitDepth::UInt8) {
+    host_.throw_js_error(ScriptEngineHost::tr("traceToShapes needs a pixel layer with 8-bit pixels."));
+    return QJSValue();
+  }
+  const auto result = trace_image(layer->pixels(), trace_options);
+  if (result.layers.empty()) {
+    return QJSValue(QJSValue::NullValue);
+  }
+  auto* document = host_.session_document(session_id_);
+  if (document == nullptr) {
+    host_.throw_js_error(ScriptEngineHost::tr("The document is no longer open."));
+    return QJSValue();
+  }
+  std::size_t index = 0;
+  if (find_parent_vector(std::as_const(*document), layer_id_, &index) == nullptr) {
+    host_.throw_js_error(ScriptEngineHost::tr("The layer no longer exists."));
+    return QJSValue();
+  }
+  if (!host_.prepare_mutation(session_id_)) {
+    return QJSValue();
+  }
+  auto* parent = find_parent_vector_mutable(*document, layer_id_, &index);
+  auto& source = (*parent)[index];
+  const auto bounds = std::as_const(source).bounds();
+  auto group = build_image_trace_group(
+      *document, result, bounds.x, bounds.y,
+      ScriptEngineHost::tr("Traced %1").arg(QString::fromStdString(source.name())).toStdString());
+  const auto group_id = group.id();
+  source.set_visible(false);
+  parent->insert(parent->begin() + static_cast<std::ptrdiff_t>(index) + 1, std::move(group));
+  document->set_active_layer(group_id);
+  host_.note_structure_changed(session_id_);
+  return make_layer_value(host_, session_id_, group_id);
 }
 
 QJSValue ScriptLayerObject::getPixels() {
