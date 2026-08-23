@@ -4218,11 +4218,17 @@ Open in Generative Upscale...</source>
     </message>
     <message>
         <location line="+23"/>
+        <location line="-352"/>
         <source>Print failed</source>
         <translation>印刷に失敗</translation>
     </message>
     <message>
-        <location filename="../src/ui/main_window.cpp" line="-11757"/>
+        <location line="+1"/>
+        <source>The system print dialog could not be opened (error %1).</source>
+        <translation>システムの印刷ダイアログを開けませんでした (エラー %1)。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/main_window.cpp" line="-11406"/>
         <source>Image pixels locked</source>
         <translation>画像ピクセルをロック</translation>
     </message>

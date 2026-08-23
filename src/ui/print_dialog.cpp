@@ -36,6 +36,21 @@
 #include <memory>
 #include <optional>
 #include <stdexcept>
+#include <string>
+#include <utility>
+
+#ifdef Q_OS_WIN
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#include <commdlg.h>
+#include <winspool.h>
+// Qt's Win32 print engine is exported but only declared in a private header. Its
+// setGlobalDevMode is the one way to hand a DEVMODE chosen in a Win32 print dialog
+// back to a QPrinter; Qt's own QPrintDialog goes through the same call.
+#include <QtPrintSupport/private/qprintengine_win_p.h>
+#endif
 
 namespace patchy::ui {
 
@@ -163,6 +178,179 @@ bool paint_printer_page(QPrinter& printer, const Document& document, const Print
   }
   return painter.end();
 }
+
+#ifdef Q_OS_WIN
+// Windows 11 22H2+ replaces the classic PrintDlgEx dialog with a "unified" one that
+// tells every Win32 caller "This app doesn't support print preview" and, for some
+// drivers, fails its DEVMODE-to-print-ticket conversion (0x80070002 with Microsoft
+// Print to PDF). QPrintDialog always calls PrintDlgEx, so it cannot avoid that.
+// Microsoft's per-call opt-out is PrintDlg with a print hook installed, which keeps
+// the classic dialog and its driver Preferences button. See docs/platform.md.
+
+struct GlobalMemory {
+  HGLOBAL handle{nullptr};
+  GlobalMemory() = default;
+  GlobalMemory(const GlobalMemory&) = delete;
+  GlobalMemory& operator=(const GlobalMemory&) = delete;
+  ~GlobalMemory() {
+    if (handle != nullptr) {
+      GlobalFree(handle);
+    }
+  }
+  HGLOBAL release() noexcept { return std::exchange(handle, nullptr); }
+};
+
+UINT_PTR CALLBACK classic_print_dialog_hook(HWND /*window*/, UINT /*message*/, WPARAM /*wparam*/,
+                                            LPARAM /*lparam*/) {
+  return 0;
+}
+
+// DEVNAMES naming the printer the dialog should open on. PrintDlg reads the device
+// string to pick the printer and rewrites the block when the user chooses another.
+HGLOBAL create_dev_names(const QString& printer_name) {
+  const std::wstring driver = L"winspool";
+  const auto device = printer_name.toStdWString();
+  const auto header_chars = sizeof(DEVNAMES) / sizeof(wchar_t);
+  const auto chars = header_chars + driver.size() + 1 + device.size() + 1 + 1;
+  HGLOBAL handle = GlobalAlloc(GHND, chars * sizeof(wchar_t));
+  if (handle == nullptr) {
+    return nullptr;
+  }
+  auto* names = static_cast<DEVNAMES*>(GlobalLock(handle));
+  auto* text = reinterpret_cast<wchar_t*>(names);
+  auto offset = header_chars;
+  names->wDriverOffset = static_cast<WORD>(offset);
+  std::copy(driver.begin(), driver.end(), text + offset);
+  offset += driver.size() + 1;
+  names->wDeviceOffset = static_cast<WORD>(offset);
+  std::copy(device.begin(), device.end(), text + offset);
+  offset += device.size() + 1;
+  names->wOutputOffset = static_cast<WORD>(offset);  // empty: the spooler picks the port
+  names->wDefault = 0;
+  GlobalUnlock(handle);
+  return handle;
+}
+
+// The driver's default DEVMODE with Patchy's page layout and copy count applied, so
+// the dialog opens showing the paper, orientation, and copies already chosen. The
+// same fields Qt's engine writes when a QPrinter is configured.
+HGLOBAL create_dev_mode(const QPrinter& printer, const QString& printer_name, int copies) {
+  auto name = printer_name.toStdWString();
+  HANDLE printer_handle = nullptr;
+  if (!OpenPrinterW(name.data(), &printer_handle, nullptr)) {
+    return nullptr;
+  }
+  const LONG size = DocumentPropertiesW(nullptr, printer_handle, name.data(), nullptr, nullptr, 0);
+  HGLOBAL handle = size > 0 ? GlobalAlloc(GHND, static_cast<SIZE_T>(size)) : nullptr;
+  bool ok = false;
+  if (handle != nullptr) {
+    auto* mode = static_cast<DEVMODEW*>(GlobalLock(handle));
+    mode->dmSize = sizeof(DEVMODEW);
+    mode->dmSpecVersion = DM_SPECVERSION;
+    ok = DocumentPropertiesW(nullptr, printer_handle, name.data(), mode, nullptr, DM_OUT_BUFFER) == IDOK;
+    if (ok) {
+      const auto layout = printer.pageLayout();
+      mode->dmFields |= DM_ORIENTATION;
+      mode->dmOrientation =
+          layout.orientation() == QPageLayout::Landscape ? DMORIENT_LANDSCAPE : DMORIENT_PORTRAIT;
+      const auto page_size = layout.pageSize();
+      const int windows_id = page_size.windowsId();
+      if (windows_id > 0 && windows_id != DMPAPER_USER) {
+        mode->dmFields |= DM_PAPERSIZE;
+        mode->dmFields &= ~static_cast<DWORD>(DM_PAPERWIDTH | DM_PAPERLENGTH);
+        mode->dmPaperSize = static_cast<short>(windows_id);
+        mode->dmPaperWidth = 0;
+        mode->dmPaperLength = 0;
+      } else {
+        // Sizes without a Windows id travel as a custom paper in tenths of a millimetre.
+        const auto millimetres = page_size.size(QPageSize::Millimeter);
+        mode->dmFields |= DM_PAPERSIZE | DM_PAPERWIDTH | DM_PAPERLENGTH;
+        mode->dmPaperSize = DMPAPER_USER;
+        mode->dmPaperWidth = static_cast<short>(std::lround(millimetres.width() * 10.0));
+        mode->dmPaperLength = static_cast<short>(std::lround(millimetres.height() * 10.0));
+      }
+      mode->dmFields |= DM_COPIES;
+      mode->dmCopies = static_cast<short>(std::clamp(copies, 1, 999));
+      mode->dmFields |= DM_COLOR;
+      mode->dmColor = DMCOLOR_COLOR;
+    }
+    GlobalUnlock(handle);
+  }
+  ClosePrinter(printer_handle);
+  if (!ok && handle != nullptr) {
+    GlobalFree(handle);
+    handle = nullptr;
+  }
+  return handle;
+}
+
+// Shows the classic Win32 Print dialog for the printer's current settings. Returns the
+// copy count the user chose, or nullopt when they cancelled (or the dialog failed, which
+// is reported). On accept the printer adopts the dialog's printer and DEVMODE, including
+// driver-only settings such as duplex or tray; dev_mode then owns that block and must
+// outlive the printer, whose engine keeps pointing into it.
+std::optional<int> run_classic_windows_print_dialog(QPrinter& printer, QWidget* owner, int copies,
+                                                    GlobalMemory& dev_mode) {
+  const auto printer_name = printer.printerName();
+  GlobalMemory initial_names;
+  initial_names.handle = create_dev_names(printer_name);
+  GlobalMemory initial_mode;
+  initial_mode.handle = create_dev_mode(printer, printer_name, copies);
+
+  PRINTDLGW request{};
+  request.lStructSize = sizeof(request);
+  request.hwndOwner = owner != nullptr ? reinterpret_cast<HWND>(owner->window()->winId()) : nullptr;
+  request.hDevMode = initial_mode.release();
+  request.hDevNames = initial_names.release();
+  // PD_ENABLEPRINTHOOK is what keeps the classic dialog; the hook itself does nothing.
+  // Patchy prints one page, so page ranges and selection are disabled, and "Print to
+  // file" is hidden because Save PDF... covers that need properly. Without
+  // PD_USEDEVMODECOPIESANDCOLLATE the Copies control is always live and the count
+  // comes back in nCopies; paint_printer_page then hands it to the driver or repaints.
+  request.Flags = PD_ENABLEPRINTHOOK | PD_RETURNDC | PD_NOPAGENUMS | PD_NOSELECTION | PD_HIDEPRINTTOFILE;
+  request.lpfnPrintHook = classic_print_dialog_hook;
+  request.nMinPage = 1;
+  request.nMaxPage = 1;
+  request.nFromPage = 1;
+  request.nToPage = 1;
+  request.nCopies = static_cast<WORD>(std::clamp(copies, 1, 999));
+
+  const bool accepted = PrintDlgW(&request) != FALSE;
+  // PrintDlg may reallocate both blocks; the handles it returns are the live ones.
+  GlobalMemory names;
+  names.handle = request.hDevNames;
+  dev_mode.handle = request.hDevMode;
+  if (request.hDC != nullptr) {
+    DeleteDC(request.hDC);
+  }
+  if (!accepted) {
+    const auto error = CommDlgExtendedError();
+    if (error != 0) {
+      show_critical_message(owner, QObject::tr("Print failed"),
+                            QObject::tr("The system print dialog could not be opened (error %1).")
+                                .arg(static_cast<qulonglong>(error)),
+                            QStringLiteral("printFailedMessageBox"));
+    }
+    return std::nullopt;
+  }
+
+  auto* engine = static_cast<QWin32PrintEngine*>(printer.printEngine());
+  engine->setGlobalDevMode(names.handle, dev_mode.handle);
+
+  // Old Windows versions swapped nCopies and dmCopies; Microsoft's advice is to take
+  // whichever is larger.
+  int chosen = request.nCopies;
+  if (dev_mode.handle != nullptr) {
+    if (auto* mode = static_cast<DEVMODEW*>(GlobalLock(dev_mode.handle))) {
+      if ((mode->dmFields & DM_COPIES) != 0) {
+        chosen = std::max<int>(chosen, mode->dmCopies);
+      }
+      GlobalUnlock(dev_mode.handle);
+    }
+  }
+  return std::max(1, chosen);
+}
+#endif  // Q_OS_WIN
 
 class PrintPreviewPane final : public QWidget {
 public:
@@ -510,16 +698,27 @@ bool run_print_dialog(QWidget* parent, const Document& document, const QString& 
     // Chrome-style hand-off: the OS dialog owns printer, paper, orientation, and copies
     // (and driver-only features such as duplex or trays); accepting it prints at once
     // with Patchy's position, scale, and crop-mark settings, cancelling returns here.
+    // The dialog is always the platform's own (Qt 6 has no widget fallback for it), so
+    // the UI tests only check the button and never click it.
     sync_settings();
     const auto printer_name = selected_printer_name(printer_combo);
+#ifdef Q_OS_WIN
+    // Declared before the printer: its engine points into this block until it dies.
+    GlobalMemory dev_mode;
+#endif
     auto printer = create_selected_printer(printer_name);
     configure_selected_printer(*printer, printer_name, current_layout, display_title);
-    if (printer->supportsMultipleCopies()) {
-      printer->setCopyCount(copies_spin->value());
+    int copies = copies_spin->value();
+#ifdef Q_OS_WIN
+    const auto chosen_copies = run_classic_windows_print_dialog(*printer, &dialog, copies, dev_mode);
+    if (!chosen_copies.has_value()) {
+      return;
     }
-    // Unlike QFileDialog, Qt 6's QPrintDialog has no DontUseNativeDialog option: on
-    // Windows and macOS it is always the platform dialog, so the UI tests only check
-    // the button and never click it.
+    copies = *chosen_copies;
+#else
+    if (printer->supportsMultipleCopies()) {
+      printer->setCopyCount(copies);
+    }
     QPrintDialog system_print(printer.get(), &dialog);
     system_print.setObjectName(QStringLiteral("printSystemPrintDialog"));
     // Patchy always emits a single page, so a page range makes no sense.
@@ -527,8 +726,10 @@ bool run_print_dialog(QWidget* parent, const Document& document, const QString& 
     if (exec_dialog(system_print) != QDialog::Accepted) {
       return;
     }
+    copies = std::max(1, printer->copyCount());
+#endif
     current_layout = valid_page_layout(printer->pageLayout());
-    copies_spin->setValue(std::max(1, printer->copyCount()));
+    copies_spin->setValue(copies);
     const auto combo_index = printer_combo->findData(printer->printerName());
     if (combo_index >= 0) {
       printer_combo->setCurrentIndex(combo_index);

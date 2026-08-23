@@ -1016,6 +1016,11 @@ if(PATCHY_BUILD_APP)
     else()
       target_sources(patchy_ui PRIVATE src/ui/print_dialog.cpp)
       target_link_libraries(patchy_ui PUBLIC Qt6::PrintSupport)
+      if(WIN32)
+        # print_dialog.cpp hands the classic PrintDlg result to the exported
+        # QWin32PrintEngine, declared only in a private header (docs/platform.md).
+        target_link_libraries(patchy_ui PRIVATE Qt6::PrintSupportPrivate)
+      endif()
     endif()
     # Same swap for the optional Qt PDF add-on: the real importer where the module exists,
     # the stub (which reports PDF opening as unavailable) everywhere else. PDF EXPORT is
