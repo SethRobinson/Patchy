@@ -45,6 +45,10 @@ struct ImageSaveOptions {
   // sets it from the saveOptions/pdfLayerPolicy preference or the flatten-or-keep question.
   // See PdfExportOptions::editable_layers.
   bool pdf_editable_layers{false};
+  // PDF, editable layers only: text whose font is not installed is embedded as the layer's
+  // pixels instead of drawn as real text in a substitute face. Persists as
+  // saveOptions/pdfMissingFontsAsImages. See PdfExportOptions::missing_fonts_as_images.
+  bool pdf_missing_fonts_as_images{false};
   // Nearest-neighbor output scale, offered by the EXPORT flow only (never Save/Save As —
   // rescaling a save would silently mutate the file the session points at). Deliberately
   // not part of the persisted option defaults; the export dialog persists its own combo.

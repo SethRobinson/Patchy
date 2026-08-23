@@ -94,6 +94,7 @@ struct Writer {
   const Document& document;
   std::vector<std::string>* notices{};
   QPainter& painter;
+  const PdfExportOptions& options;
 
   void notice(std::string value) {
     if (notices != nullptr && std::find(notices->begin(), notices->end(), value) == notices->end()) {
@@ -294,11 +295,13 @@ struct Writer {
     painter.restore();
   }
 
-  bool emit_text_layer(const Layer& layer) {
+  // Draws the layer as real text. `note` receives why it could not be (the caller names it
+  // in the flatten notice) or, after a draw in a substitute face, the substitution to report.
+  bool emit_text_layer(const Layer& layer, std::string& note) {
     painter.save();
     painter.setOpacity(layer.opacity());
     apply_vector_mask(layer);
-    const bool drawn = draw_text_layer_to_painter(layer, painter);
+    const bool drawn = draw_text_layer_to_painter(layer, painter, options.missing_fonts_as_images, &note);
     painter.restore();
     return drawn;
   }
@@ -425,10 +428,15 @@ struct Writer {
         continue;
       }
       if (layer_is_text(base)) {
-        if (text_representable(base) && emit_text_layer(base)) {
+        std::string note;
+        if (text_representable(base) && emit_text_layer(base, note)) {
+          if (!note.empty()) {
+            notice("'" + base.name() + "' " + note);
+          }
           continue;
         }
-        emit_raster_unit(std::span<const Layer>(&base, 1), "text features PDF export cannot keep as text");
+        emit_raster_unit(std::span<const Layer>(&base, 1),
+                         note.empty() ? std::string("text features PDF export cannot keep as text") : note);
         continue;
       }
       // Pixel, smart-object, and everything else: an image is their natural PDF form.
@@ -462,7 +470,7 @@ void write_editable_pdf_document_file(const Document& document, const QString& p
   // physical size, including the 14400 pt cap shrink.
   painter.setWindow(QRect(0, 0, document.width(), document.height()));
 
-  Writer layer_writer{document, notices, painter};
+  Writer layer_writer{document, notices, painter, options};
   layer_writer.run();
   painter.end();
 

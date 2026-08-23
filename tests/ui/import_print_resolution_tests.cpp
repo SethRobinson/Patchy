@@ -1236,6 +1236,200 @@ void ui_pdf_export_editable_keeps_layers_and_matches_composite() {
   CHECK(rendered.pixelColor(290, 190).alpha() == 0);
 }
 
+namespace {
+
+// The bounding box of the dark ink inside `region` of an image flattened over white
+// (nullopt when the region holds no ink).
+std::optional<QRect> dark_ink_bounds(const QImage& image, QRect region) {
+  const QImage flat = over_white(image);
+  region = region.intersected(flat.rect());
+  int left = region.right() + 1;
+  int top = region.bottom() + 1;
+  int right = region.left() - 1;
+  int bottom = region.top() - 1;
+  for (int y = region.top(); y <= region.bottom(); ++y) {
+    for (int x = region.left(); x <= region.right(); ++x) {
+      const auto color = flat.pixelColor(x, y);
+      if (color.red() + color.green() + color.blue() < 384) {
+        left = std::min(left, x);
+        right = std::max(right, x);
+        top = std::min(top, y);
+        bottom = std::max(bottom, y);
+      }
+    }
+  }
+  if (right < left || bottom < top) {
+    return std::nullopt;
+  }
+  return QRect(QPoint(left, top), QPoint(right, bottom));
+}
+
+}  // namespace
+
+// An untouched Photoshop type layer (raster status "psd_raster_preview", transform anchored
+// at the baseline) exports as real text placed on its raster's ink, and a layer whose font is
+// not installed is drawn in the substitute face with a notice naming the font, unless the
+// missing-fonts-as-images option asks for its pixels instead.
+void ui_pdf_export_editable_keeps_psd_preview_text_and_substitutes_missing_fonts() {
+  ensure_artifact_dir();
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  const auto installed_family = patchy::test::visual_test_font().family();
+  if (installed_family.isEmpty() || !QFontDatabase::families().contains(installed_family)) {
+    std::printf("[skip] no registered UI-default family for the PSD preview text export test\n");
+    return;
+  }
+
+  patchy::Document built(320, 200, patchy::PixelFormat::rgba8());
+  built.print_settings().horizontal_ppi = 72.0;
+  built.print_settings().vertical_ppi = 72.0;
+  built.add_pixel_layer("Paper", solid_pixels(320, 200, patchy::PixelFormat::rgba8(), QColor(255, 255, 255)));
+  const auto add_text_layer = [&built](const char* name, const char* text, const QString& family, int top) {
+    patchy::Layer layer(built.allocate_layer_id(), name,
+                        solid_pixels(1, 1, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0)));
+    layer.set_bounds(patchy::Rect{24, top, 1, 1});
+    layer.metadata()[patchy::kLayerMetadataText] = text;
+    layer.metadata()[patchy::kLayerMetadataTextFlow] = "point";
+    layer.metadata()[patchy::kLayerMetadataTextFont] = family.toStdString();
+    layer.metadata()[patchy::kLayerMetadataTextSize] = "28";
+    layer.metadata()[patchy::kLayerMetadataTextColor] = "#101010";
+    layer.metadata()[patchy::kLayerMetadataTextLayoutMode] = patchy::kTextLayoutModePhotoshop;
+    const auto id = layer.id();
+    built.add_layer(std::move(layer));
+    return id;
+  };
+  const auto title_id = add_text_layer("Title", "Poster Title", installed_family, 30);
+  const auto missing_id = add_text_layer("Missing", "Missing", QStringLiteral("PatchyDefinitelyMissingFont123456"), 110);
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(built), QStringLiteral("PSD preview text PDF"));
+  show_window(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  // Give both layers a real raster (Patchy's render stands in for Photoshop's: the missing
+  // family renders in the same fallback face the PDF will draw), then make them look like
+  // untouched imports: preview status and a PSD transform anchored one ascent BELOW the
+  // layout top, which is where Photoshop puts the first baseline. Drawing through that
+  // transform as-is would land the text an ascent low.
+  for (const auto id : {title_id, missing_id}) {
+    auto* layer = document.find_layer(id);
+    CHECK(layer != nullptr);
+    if (layer == nullptr) {
+      return;
+    }
+    CHECK(patchy::ui::MainWindowTestAccess::apply_text_warp(window, *layer, patchy::TextWarp{}));
+    CHECK(!layer->pixels().empty());
+    const auto baseline_anchored = patchy::serialize_layer_affine_transform(
+        {1.0, 0.0, 0.0, 1.0, static_cast<double>(layer->bounds().x), static_cast<double>(layer->bounds().y) + 24.0});
+    layer->metadata()[patchy::kLayerMetadataTextTransform] = baseline_anchored;
+    layer->metadata()[patchy::kLayerMetadataPsdTextTransform] = baseline_anchored;
+    layer->metadata()[patchy::kLayerMetadataTextRasterStatus] = "psd_raster_preview";
+  }
+  const auto* title = std::as_const(document).find_layer(title_id);
+  const auto* missing = std::as_const(document).find_layer(missing_id);
+  CHECK(title != nullptr && missing != nullptr);
+  if (title == nullptr || missing == nullptr) {
+    return;
+  }
+  const QRect title_region(title->bounds().x - 4, title->bounds().y - 4, title->bounds().width + 8,
+                           title->bounds().height + 8);
+  const QRect missing_region(missing->bounds().x - 4, missing->bounds().y - 4, missing->bounds().width + 8,
+                             missing->bounds().height + 8);
+  const QImage composite = patchy::ui::qimage_from_document(std::as_const(document), true);
+  const auto composite_title_ink = dark_ink_bounds(composite, title_region);
+  const auto composite_missing_ink = dark_ink_bounds(composite, missing_region);
+  CHECK(composite_title_ink.has_value() && composite_missing_ink.has_value());
+  if (!composite_title_ink.has_value() || !composite_missing_ink.has_value()) {
+    return;
+  }
+
+  const auto rects_close = [](const QRect& a, const QRect& b, int tolerance) {
+    return std::abs(a.left() - b.left()) <= tolerance && std::abs(a.top() - b.top()) <= tolerance &&
+           std::abs(a.right() - b.right()) <= tolerance && std::abs(a.bottom() - b.bottom()) <= tolerance;
+  };
+  const auto export_and_check = [&](bool missing_fonts_as_images, const char* suffix) {
+    const auto path = QStringLiteral("test-artifacts/ui_pdf_export_editable_psd_preview_%1.pdf").arg(QLatin1String(suffix));
+    QFile::remove(path);
+    std::vector<std::string> notices;
+    patchy::ui::write_pdf_document_file(std::as_const(document), path,
+                                        patchy::ui::PdfExportOptions{true, true, missing_fonts_as_images}, &notices);
+    CHECK(QFileInfo(path).isFile());
+    for (const auto& notice : notices) {
+      std::printf("[pdf] %s notice: %s\n", suffix, notice.c_str());
+    }
+    // Exactly one notice either way, about the missing family, never about the title.
+    CHECK(notices.size() == 1);
+    bool names_missing_font = false;
+    for (const auto& notice : notices) {
+      CHECK(notice.find("Title") == std::string::npos);
+      names_missing_font = names_missing_font || (notice.find("'Missing'") != std::string::npos &&
+                                                  notice.find("PatchyDefinitelyMissingFont123456") != std::string::npos &&
+                                                  notice.find("not installed") != std::string::npos);
+      if (missing_fonts_as_images) {
+        CHECK(notice.find("flattened to an image") != std::string::npos);
+      } else {
+        CHECK(notice.find("substitute font") != std::string::npos);
+      }
+    }
+    CHECK(names_missing_font);
+
+    const QByteArray bytes = read_file_bytes(path);
+    CHECK(bytes.contains("/FontFile"));
+    patchy::pdf::VectorReadOptions read_options;
+    read_options.pixels_per_point = 1.0;
+    const auto read = patchy::pdf::read_page_as_vectors(
+        std::span<const std::uint8_t>(reinterpret_cast<const std::uint8_t*>(bytes.constData()),
+                                      static_cast<std::size_t>(bytes.size())),
+        read_options);
+    std::vector<std::string> texts;
+    const std::function<void(const std::vector<patchy::Layer>&)> visit = [&](const std::vector<patchy::Layer>& layers) {
+      for (const auto& layer : layers) {
+        if (const auto found = layer.metadata().find(patchy::kLayerMetadataText); found != layer.metadata().end()) {
+          texts.push_back(found->second);
+        }
+        visit(layer.children());
+      }
+    };
+    visit(std::as_const(read.document).layers());
+    for (const auto& text : texts) {
+      std::printf("[pdf] %s text read back: '%s'\n", suffix, text.c_str());
+    }
+    CHECK(read.text_layers == (missing_fonts_as_images ? 1 : 2));
+    CHECK(std::find(texts.begin(), texts.end(), "Poster Title") != texts.end());
+    CHECK((std::find(texts.begin(), texts.end(), "Missing") != texts.end()) == !missing_fonts_as_images);
+    CHECK(read.image_layers >= (missing_fonts_as_images ? 2 : 1));
+
+    QPdfDocument reader;
+    CHECK(reader.load(path) == QPdfDocument::Error::None);
+    const QImage rendered = reader.render(0, QSize(320, 200));
+    CHECK(!rendered.isNull());
+    const double delta = mean_rgb_delta_over_white(rendered, composite);
+    if (delta >= 6.0) {
+      std::fprintf(stderr, "[pdf] psd preview export (%s) mean delta %f\n", suffix, delta);
+      rendered.save(QStringLiteral("test-artifacts/ui_pdf_export_editable_psd_preview_%1_pdfium.png").arg(QLatin1String(suffix)));
+      composite.save(QStringLiteral("test-artifacts/ui_pdf_export_editable_psd_preview_%1_composite.png").arg(QLatin1String(suffix)));
+    }
+    CHECK(delta < 6.0);
+    // Placement, directly: the real text's ink box sits on the raster's ink box. A draw
+    // through the baseline-anchored transform would put it ~24 px lower.
+    const auto rendered_title_ink = dark_ink_bounds(rendered, title_region);
+    const auto rendered_missing_ink = dark_ink_bounds(rendered, missing_region);
+    CHECK(rendered_title_ink.has_value() && rendered_missing_ink.has_value());
+    if (rendered_title_ink.has_value()) {
+      if (!rects_close(*rendered_title_ink, *composite_title_ink, 2)) {
+        std::fprintf(stderr, "[pdf] title ink %d,%d-%d,%d vs composite %d,%d-%d,%d\n", rendered_title_ink->left(),
+                     rendered_title_ink->top(), rendered_title_ink->right(), rendered_title_ink->bottom(),
+                     composite_title_ink->left(), composite_title_ink->top(), composite_title_ink->right(),
+                     composite_title_ink->bottom());
+      }
+      CHECK(rects_close(*rendered_title_ink, *composite_title_ink, 2));
+    }
+    if (rendered_missing_ink.has_value()) {
+      CHECK(rects_close(*rendered_missing_ink, *composite_missing_ink, 2));
+    }
+  };
+  export_and_check(false, "substitute");
+  export_and_check(true, "images");
+}
+
 // The features that ride Qt's PDF engine rather than an image: a gradient fill, an
 // inside-aligned stroke (double width under a self clip), a group clipped by a vector
 // mask, and constant layer opacity. No notices, and PDFium agrees with the canvas.
@@ -1448,6 +1642,14 @@ void ui_pdf_options_dialog_shows_editable_warning() {
       CHECK(warning->text().contains(QStringLiteral("may not look")));
       CHECK(scale->isEnabled() == !keep_layers);
       scale->setCurrentIndex(std::max(0, scale->findData(4)));
+      // Missing-font handling only matters while text is kept as text.
+      auto* missing_fonts = dialog->findChild<QCheckBox*>(QStringLiteral("pdfMissingFontsAsImagesCheck"));
+      CHECK(missing_fonts != nullptr);
+      if (missing_fonts != nullptr) {
+        CHECK(missing_fonts->isVisible() == keep_layers);
+        CHECK(!missing_fonts->isChecked());
+        missing_fonts->setChecked(true);
+      }
       saw_dialog = true;
       dialog->accept();
     });
@@ -1461,8 +1663,31 @@ void ui_pdf_options_dialog_shows_editable_warning() {
     CHECK(chosen->pdf_editable_layers == keep_layers);
     // Vectors scale with the page; the pixel scale only applies to the flattened image.
     CHECK(chosen->export_scale == (keep_layers ? 1 : 4));
+    // The hidden checkbox of a flattened save changes nothing.
+    CHECK(chosen->pdf_missing_fonts_as_images == keep_layers);
   }
   patchy::ui::app_settings().setValue(QStringLiteral("saveOptions/exportScale"), 1);  // leave no 4x behind
+
+  // The choice persists with the other save-option defaults under its own key.
+  {
+    auto settings = patchy::ui::app_settings();
+    const auto previous = settings.value(QStringLiteral("saveOptions/pdfMissingFontsAsImages"));
+    const auto current = patchy::ui::load_image_save_option_defaults();
+    auto to_save = current;
+    to_save.pdf_missing_fonts_as_images = true;
+    patchy::ui::save_image_save_option_defaults(to_save);
+    CHECK(settings.value(QStringLiteral("saveOptions/pdfMissingFontsAsImages")).toBool());
+    CHECK(patchy::ui::load_image_save_option_defaults().pdf_missing_fonts_as_images);
+    to_save.pdf_missing_fonts_as_images = false;
+    patchy::ui::save_image_save_option_defaults(to_save);
+    CHECK(!patchy::ui::load_image_save_option_defaults().pdf_missing_fonts_as_images);
+    patchy::ui::save_image_save_option_defaults(current);
+    if (previous.isValid()) {
+      settings.setValue(QStringLiteral("saveOptions/pdfMissingFontsAsImages"), previous);
+    } else {
+      settings.remove(QStringLiteral("saveOptions/pdfMissingFontsAsImages"));
+    }
+  }
 }
 
 // The flatten-or-keep question and its preference: "ask" raises the three-way dialog
@@ -2803,6 +3028,8 @@ std::vector<patchy::test::TestCase> import_print_resolution_tests() {
       {"ui_pdf_export_writes_transparency_as_soft_mask", ui_pdf_export_writes_transparency_as_soft_mask},
       {"ui_pdf_export_editable_keeps_layers_and_matches_composite",
        ui_pdf_export_editable_keeps_layers_and_matches_composite},
+      {"ui_pdf_export_editable_keeps_psd_preview_text_and_substitutes_missing_fonts",
+       ui_pdf_export_editable_keeps_psd_preview_text_and_substitutes_missing_fonts},
       {"ui_pdf_export_editable_gradients_clips_and_opacity_render_like_canvas",
        ui_pdf_export_editable_gradients_clips_and_opacity_render_like_canvas},
       {"ui_pdf_export_editable_flattens_blend_modes_with_notice",

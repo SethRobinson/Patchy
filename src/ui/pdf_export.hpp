@@ -28,6 +28,10 @@ struct PdfExportOptions {
   // layers, group opacity, raster masks on vectors, layer styles) flattens into an
   // image chunk with a notice, so the page can look different from the canvas.
   bool editable_layers{false};
+  // Editable mode only: a text layer whose font is not installed is embedded as its pixels
+  // instead of being drawn as real text in a substitute face (the default keeps it text,
+  // with a notice naming the missing font). Persists as saveOptions/pdfMissingFontsAsImages.
+  bool missing_fonts_as_images{false};
 };
 
 // Writes a one-page PDF of the document. Flat mode holds the flattened composite

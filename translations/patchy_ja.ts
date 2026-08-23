@@ -14423,6 +14423,8 @@ Clipped to the layer below</source>
         </translation>
     </message>
     <message><source>Unchecked, the page is compressed as JPEG at Qt&apos;s fixed quality.</source><translation>オフの場合、ページは Qt 固定品質の JPEG で圧縮されます。</translation></message>
+    <message><source>When a font is missing, export that text as an image instead of substituting a font</source><translation>フォントが見つからないテキストは、代替フォントにせず画像として書き出す</translation></message>
+    <message><source>Unchecked, text in a font that is not installed is written as editable text in a substitute font, so it can look different from the canvas. Checked, that text is written as an image of the layer&apos;s pixels instead.</source><translation>オフの場合、インストールされていないフォントのテキストは代替フォントの編集可能なテキストとして書き出されるため、キャンバスと見た目が異なることがあります。オンの場合、そのテキストはレイヤーのピクセルの画像として書き出されます。</translation></message>
     <message><source>The page is sized from the document&apos;s resolution, so it prints at the image&apos;s own size.</source><translation>ページサイズはドキュメントの解像度から決まるため、画像本来のサイズで印刷されます。</translation></message>
     <message><source>Open PDF</source><translation>PDF を開く</translation></message>
     <message><source>Import PDF - %1</source><translation>PDF を読み込み - %1</translation></message>

@@ -1876,7 +1876,9 @@ void write_flat_image_file(const Document& document, const QString& path, const 
   if (lower == "pdf" && options.pdf_editable_layers) {
     // The layered writer needs the real document (scaled_flat_document would flatten it
     // first); vectors and text scale by the page, so the export scale does not apply.
-    write_pdf_document_file(document, path, PdfExportOptions{options.pdf_lossless, true}, notices);
+    write_pdf_document_file(document, path,
+                            PdfExportOptions{options.pdf_lossless, true, options.pdf_missing_fonts_as_images},
+                            notices);
     return;
   }
   if (options.export_scale > 1) {

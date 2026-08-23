@@ -4791,44 +4791,182 @@ std::optional<TransformedTextPixels> render_text_layer_pixels_through_transform(
                                Rect{origin_x, origin_y, rendered.pixels.width(), rendered.pixels.height()}};
 }
 
+// An imported type layer whose transform is still the PSD's own: Photoshop's raster kept as
+// the preview (`psd_raster_preview`), or a preview regenerated at import, which keeps the
+// baseline-anchored transform too. An editor commit clears the PSD keys
+// (store_patchy_text_metadata -> clear_layer_psd_text_source), so a PSD transform the Patchy
+// transform still equals means the layer was never re-anchored to a layout top.
+bool layer_is_imported_text_preview(const Layer& layer) {
+  if (const auto status = layer.metadata().find(kLayerMetadataTextRasterStatus);
+      status != layer.metadata().end() && status->second == "psd_raster_preview") {
+    return true;
+  }
+  return layer.metadata().contains(kLayerMetadataPsdTextTransform) &&
+         !layer_patchy_text_transform_overrides_psd_source(layer);
+}
+
+// The text-local -> document transform that draws an imported preview's re-layout where its
+// raster sits. A PSD transform anchors point text at the FIRST BASELINE (docs/
+// text-render-calibration.md), while the render plan's local space has the layout top at 0,
+// so drawing through it directly lands the text ~one ascent low. Box text is simple: the
+// PSD box's top-left in text space IS the plan's local origin (the editor opens a PSD-frame
+// session at that corner and commits there). Point text is placed the way a commit places
+// it: the re-rendered ink pinned to the source raster's ink (the justification fraction
+// along the reading axis, the top on the stack axis; anchored_text_transform_for_pixels),
+// and a scaled/rotated layer through the free-transform alignment helpers.
+std::optional<QTransform> imported_preview_text_plan_transform(const Layer& layer,
+                                                               const LayerTextRenderInputs& inputs) {
+  const auto canonical = canonical_text_affine_transform_for_layer(layer);
+  if (!canonical.has_value()) {
+    return std::nullopt;
+  }
+  const bool has_linear_part = affine_transform_has_non_translation_linear_part(*canonical);
+  if (inputs.settings.boxed) {
+    if (const auto box = psd_text_metadata_local_rect(layer, kLayerMetadataPsdTextBoxBounds); box.has_value()) {
+      return qtransform_from_affine(affine_with_local_translation(*canonical, box->topLeft()));
+    }
+    if (has_linear_part) {
+      return std::nullopt;
+    }
+  }
+  const auto rendered = render_text_pixels_with_local_rect(inputs.settings, inputs.color, inputs.max_width,
+                                                           inputs.paragraph_runs, inputs.rich_text_runs);
+  if (rendered.pixels.empty()) {
+    return std::nullopt;
+  }
+  const auto factor = layer_anchor_alignment_factor(layer);
+  if (has_linear_part) {
+    auto aligned = psd_point_text_local_bounds_transform_for_pixels(layer, rendered.pixels, false, factor);
+    if (!aligned.has_value()) {
+      aligned = psd_point_text_document_bounds_transform_for_pixels(layer, rendered.pixels, false, factor);
+    }
+    if (!aligned.has_value()) {
+      return std::nullopt;
+    }
+    return qtransform_from_affine(*aligned);
+  }
+  const auto ink = visible_alpha_local_bounds(rendered.pixels);
+  const auto source = psd_point_text_source_visible_rect(layer);
+  if (!ink.has_value() || !source.has_value()) {
+    return std::nullopt;
+  }
+  // Pixel (0,0) of the identity render is local point local_rect.topLeft().
+  const double ink_left = rendered.local_rect.left() + static_cast<double>(ink->x);
+  const double ink_top = rendered.local_rect.top() + static_cast<double>(ink->y);
+  const double tx = source->left() + factor * (source->width() - static_cast<double>(ink->width)) - ink_left;
+  const double ty = source->top() - ink_top;
+  if (!std::isfinite(tx) || !std::isfinite(ty)) {
+    return std::nullopt;
+  }
+  return QTransform::fromTranslate(tx, ty);
+}
+
+std::string quoted_font_list(const QStringList& families) {
+  std::string names;
+  for (const auto& family : families) {
+    if (!names.empty()) {
+      names += ", ";
+    }
+    names += "\"" + family.toStdString() + "\"";
+  }
+  return names;
+}
+
 }  // namespace
 
-bool draw_text_layer_to_painter(const Layer& layer, QPainter& painter) {
+bool draw_text_layer_to_painter(const Layer& layer, QPainter& painter, bool missing_fonts_as_images,
+                                std::string* note) {
+  const auto refuse = [note](std::string reason) {
+    if (note != nullptr) {
+      *note = std::move(reason);
+    }
+    return false;
+  };
+  if (note != nullptr) {
+    note->clear();
+  }
   if (!layer_is_text(layer)) {
     return false;
   }
-  // A raster Patchy did not produce (a PSD's own type preview kept because the font was
-  // missing, or a placeholder) is what the user sees; redrawing it with a substitute face
-  // would change the look, so the caller embeds those pixels instead.
+  // A placeholder raster has no type preview at all; embedding it is the only honest form.
   if (const auto status = layer.metadata().find(kLayerMetadataTextRasterStatus);
-      status != layer.metadata().end() && status->second != "patchy_raster") {
-    return false;
+      status != layer.metadata().end() && status->second == "placeholder") {
+    return refuse("no type preview");
   }
   // Warped text is a resampled surface, not a glyph plan.
   if (const auto found = layer.metadata().find(kLayerMetadataTextWarp); found != layer.metadata().end()) {
     if (const auto warp = parse_text_warp(found->second); warp.has_value() && !text_warp_is_identity(*warp)) {
-      return false;
+      return refuse("warped text");
     }
   }
   const auto inputs = text_render_inputs_from_layer(layer);
   if (!inputs.has_value()) {
     return false;
   }
+  // Fonts the layer names that cannot draw its text. Drawing substitutes Qt's fallback face
+  // (what an edit would do); the caller may prefer the layer's pixels instead. An imported
+  // preview with no font name at all ("PSD Text") draws in the UI font, which is just as
+  // much a substitution (the free-transform re-render refuses it the same way).
+  const bool imported_preview = layer_is_imported_text_preview(layer);
+  auto missing = missing_text_families_for_layer(layer);
+  if (const auto font = layer.metadata().find(kLayerMetadataTextFont);
+      imported_preview &&
+      (font == layer.metadata().end() || QString::fromStdString(font->second).trimmed().isEmpty() ||
+       QString::fromStdString(font->second).compare(QStringLiteral("PSD Text"), Qt::CaseInsensitive) == 0)) {
+    missing.push_front(QStringLiteral("unknown"));
+  }
+  const auto font_problem = missing.size() == 1 ? "font " + quoted_font_list(missing) + " is not installed"
+                                                : "fonts " + quoted_font_list(missing) + " are not installed";
+  if (!missing.isEmpty() && missing_fonts_as_images) {
+    return refuse(font_problem);
+  }
   // The canonical text-local -> document transform is the authority the layer's raster was
   // derived from (refresh_text_layer_raster adopts a bounds translation when none is stored).
   QTransform transform = QTransform::fromTranslate(layer.bounds().x, layer.bounds().y);
-  if (const auto canonical = patchy_text_transform_for_layer(layer); canonical.has_value()) {
+  if (imported_preview) {
+    const auto placed = imported_preview_text_plan_transform(layer, *inputs);
+    if (!placed.has_value()) {
+      return refuse("the imported type preview could not be placed");
+    }
+    transform = *placed;
+  } else if (const auto canonical = patchy_text_transform_for_layer(layer); canonical.has_value()) {
     transform = *canonical;
   }
+  // Imported box text wraps where Photoshop wrapped it: the same advance calibration the
+  // editor applies when it opens such a layer (Qt's advances for the face can run a few
+  // percent wide, pushing a word onto a line Photoshop's raster does not have).
+  double metric_scale = 1.0;
+  if (imported_preview && inputs->settings.boxed) {
+    // Candidates are compared against the source raster's line bands, so render them at
+    // the raster's scale: the transform's vertical scale on the runs (layout_scale) with
+    // the box already in document units, the PSD-frame editor session's arrangement.
+    const auto vertical_scale = std::hypot(transform.m21(), transform.m22());
+    auto calibration_settings = inputs->settings;
+    double layout_scale = 1.0;
+    if (std::isfinite(vertical_scale) && vertical_scale > 0.01 && std::abs(vertical_scale - 1.0) > 0.0001) {
+      layout_scale = vertical_scale;
+      calibration_settings.box_width = std::max(
+          kMinimumTextBoxDocumentSize, static_cast<int>(std::lround(inputs->settings.box_width * vertical_scale)));
+      calibration_settings.box_height = std::max(
+          kMinimumTextBoxDocumentSize, static_cast<int>(std::lround(inputs->settings.box_height * vertical_scale)));
+    }
+    metric_scale = calibrated_box_text_metric_scale(layer, calibration_settings, inputs->color, inputs->max_width,
+                                                    inputs->paragraph_runs, inputs->rich_text_runs, std::nullopt,
+                                                    layout_scale)
+                       .value_or(1.0);
+  }
   const auto plan = build_text_render_plan(inputs->settings, inputs->color, inputs->max_width,
-                                           inputs->paragraph_runs, inputs->rich_text_runs, std::nullopt, 1.0,
-                                           transform, 1.0);
+                                           inputs->paragraph_runs, inputs->rich_text_runs, std::nullopt,
+                                           metric_scale, transform, 1.0);
   if (plan.built.document == nullptr) {
     return false;
   }
   painter.save();
   draw_text_render_plan(plan, painter);
   painter.restore();
+  if (note != nullptr && !missing.isEmpty()) {
+    *note = "text uses a substitute font: " + font_problem;
+  }
   return true;
 }
 

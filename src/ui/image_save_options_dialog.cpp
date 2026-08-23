@@ -241,6 +241,9 @@ ImageSaveOptions load_image_save_option_defaults() {
       settings.value(QStringLiteral("saveOptions/icoResample"), ico_resample_key(options.ico_resample)).toString(),
       options.ico_resample);
   options.pdf_lossless = settings.value(QStringLiteral("saveOptions/pdfLossless"), options.pdf_lossless).toBool();
+  options.pdf_missing_fonts_as_images =
+      settings.value(QStringLiteral("saveOptions/pdfMissingFontsAsImages"), options.pdf_missing_fonts_as_images)
+          .toBool();
   return options;
 }
 
@@ -262,6 +265,7 @@ void save_image_save_option_defaults(const ImageSaveOptions& options) {
   }
   settings.setValue(QStringLiteral("saveOptions/icoResample"), ico_resample_key(options.ico_resample));
   settings.setValue(QStringLiteral("saveOptions/pdfLossless"), options.pdf_lossless);
+  settings.setValue(QStringLiteral("saveOptions/pdfMissingFontsAsImages"), options.pdf_missing_fonts_as_images);
 }
 
 std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const QString& extension,
@@ -594,6 +598,19 @@ std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const
                                     "color: @warning_banner_text; padding: 7px 9px; }"));
     content->addWidget(editable_warning);
 
+    // Editable layers draw text whose font is missing in a substitute face so it stays
+    // editable; this asks for the layer's pixels instead, which look right but are an image.
+    auto* missing_fonts_as_images = new QCheckBox(
+        QObject::tr("When a font is missing, export that text as an image instead of substituting a font"),
+        &dialog);
+    missing_fonts_as_images->setObjectName(QStringLiteral("pdfMissingFontsAsImagesCheck"));
+    missing_fonts_as_images->setChecked(options.pdf_missing_fonts_as_images);
+    missing_fonts_as_images->setToolTip(
+        QObject::tr("Unchecked, text in a font that is not installed is written as editable text in a "
+                    "substitute font, so it can look different from the canvas. Checked, that text is "
+                    "written as an image of the layer's pixels instead."));
+    content->addWidget(missing_fonts_as_images);
+
     auto* page_note = new QLabel(
         QObject::tr("The page is sized from the document's resolution, so it prints at the image's own size."),
         &dialog);
@@ -604,6 +621,7 @@ std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const
 
     const bool keep_layers = options.pdf_editable_layers;
     editable_warning->setVisible(keep_layers);
+    missing_fonts_as_images->setVisible(keep_layers);
     if (scale_combo != nullptr) {
       // Vectors and text scale with the page; the nearest-neighbor pixel scale only
       // applies to the flattened image.
@@ -614,6 +632,9 @@ std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const
       return std::nullopt;
     }
     options.pdf_lossless = lossless->isChecked();
+    if (keep_layers) {
+      options.pdf_missing_fonts_as_images = missing_fonts_as_images->isChecked();
+    }
     if (scale_combo != nullptr) {
       options.export_scale = options.pdf_editable_layers ? 1 : scale_combo->currentData().toInt();
       if (!options.pdf_editable_layers) {
