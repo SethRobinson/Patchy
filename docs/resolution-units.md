@@ -60,7 +60,7 @@ is 100% (actual size) unless that overflows the printable area, then "Scale to f
 pre-checks. "Print Using System Dialog..." hands off to the OS print dialog (Chrome-style),
 prints on accept with Patchy's position, scale, and crop-mark settings, and adopts the
 printer, paper, orientation, and copies chosen there; cancelling returns to Patchy's dialog.
-On Windows it is the classic dialog (see [platform.md](platform.md)), which has no preview;
+The OS dialog shows no preview for Win32 apps on Windows 11 (see [platform.md](platform.md));
 Patchy's own dialog keeps the preview pane.
 
 ## Rulers and the units preference
