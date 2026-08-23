@@ -1,4 +1,5 @@
 #include "ui/canvas_widget.hpp"
+#include "ui/qt_paths.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/contour_presets.hpp"
 #include "core/gradient_presets.hpp"
@@ -2650,7 +2651,7 @@ void ui_curves_acv_load_save_updates_editor_and_preview() {
   expected.red = {{0, 20}, {80, 45}, {160, 225}, {255, 230}};
   expected.green = {{0, 4}, {96, 120}, {220, 238}, {255, 250}};
   expected.blue = {{0, 250}, {112, 160}, {255, 5}};
-  patchy::acv::write_file(std::filesystem::path(input_path.toStdU16String()), expected);
+  patchy::acv::write_file(patchy::ui::to_filesystem_path(input_path), expected);
 
   QWidget parent;
   parent.show();
@@ -2714,7 +2715,7 @@ void ui_curves_acv_load_save_updates_editor_and_preview() {
   CHECK(preview_enabled);
   CHECK(preview_curves == expected);
   CHECK(QFileInfo::exists(output_path));
-  CHECK(patchy::acv::read_file(std::filesystem::path(output_path.toStdU16String())) == expected);
+  CHECK(patchy::acv::read_file(patchy::ui::to_filesystem_path(output_path)) == expected);
 }
 
 void ui_curves_dialog_preview_toggle_and_cancel_restore_pixels() {

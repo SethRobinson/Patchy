@@ -1,4 +1,5 @@
 #include "ui/canvas_widget.hpp"
+#include "ui/qt_paths.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/contour_presets.hpp"
 #include "core/gradient_presets.hpp"
@@ -770,7 +771,7 @@ void ui_psd_import_notice_reports_only_unsupported_blend_if() {
     layer.set_blend_if_payload(payload, true);
     document.add_layer(std::move(layer));
     const auto path = temp.filePath(name + QStringLiteral(".psd"));
-    patchy::psd::DocumentIo::write_layered_rgb8_file(document, path.toStdString());
+    patchy::psd::DocumentIo::write_layered_rgb8_file(document, patchy::ui::to_filesystem_path(path));
     return path;
   };
 
@@ -847,7 +848,7 @@ void ui_psd_import_notice_reports_unrendered_layer_effects() {
   QTemporaryDir temp;
   CHECK(temp.isValid());
   const auto path = temp.filePath(QStringLiteral("unrendered-effects.psd"));
-  patchy::psd::DocumentIo::write_layered_rgb8_file(document, path.toStdString());
+  patchy::psd::DocumentIo::write_layered_rgb8_file(document, patchy::ui::to_filesystem_path(path));
 
   patchy::ui::MainWindow window;
   show_window(window);

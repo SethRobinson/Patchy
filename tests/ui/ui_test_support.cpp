@@ -1,5 +1,6 @@
 #include "ui_test_support.hpp"
 
+#include "ui/qt_paths.hpp"
 #include "ui_test_access.hpp"
 
 #include <QDir>
@@ -566,7 +567,7 @@ QString write_psd_import_warning_fixture(const QString& file_name) {
   auto& layer = document.add_pixel_layer(
       "Unknown PSD Block", solid_pixels(8, 6, patchy::PixelFormat::rgba8(), QColor(40, 90, 220, 255)));
   layer.unknown_psd_blocks().push_back(patchy::UnknownPsdBlock{"zzzz", {1, 2, 3, 4}});
-  patchy::psd::DocumentIo::write_layered_rgb8_file(document, std::filesystem::path(path.toStdString()));
+  patchy::psd::DocumentIo::write_layered_rgb8_file(document, patchy::ui::to_filesystem_path(path));
   return path;
 }
 

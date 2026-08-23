@@ -4,6 +4,7 @@
 #include "formats/palette_io.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/qt_paths.hpp"
 
 #include <QApplication>
 #include <QComboBox>
@@ -407,10 +408,7 @@ std::optional<LoadedPaletteFile> read_palette_file_quietly(const QString& path) 
     return std::nullopt;
   }
   try {
-    // toStdU16String -> fs::path converts UTF-16 to the native encoding on every
-    // platform (toStdWString would be UTF-32 on POSIX and take the
-    // locale-dependent wchar_t path).
-    auto data = patchy::palette_io::read_palette_file(std::filesystem::path(path.toStdU16String()));
+    auto data = patchy::palette_io::read_palette_file(to_filesystem_path(path));
     if (data.colors.empty()) {
       return std::nullopt;
     }
@@ -432,7 +430,7 @@ std::optional<LoadedPaletteFile> prompt_load_palette_file(QWidget* parent) {
   }
   settings.setValue(QStringLiteral("palettes/lastDirectory"), QFileInfo(path).absolutePath());
   try {
-    auto data = patchy::palette_io::read_palette_file(std::filesystem::path(path.toStdU16String()));
+    auto data = patchy::palette_io::read_palette_file(to_filesystem_path(path));
     if (data.colors.empty()) {
       throw std::runtime_error("The palette file contains no colors");
     }
@@ -492,7 +490,7 @@ std::optional<QString> prompt_save_palette_file(QWidget* parent, const std::vect
       if (!format.has_value()) {
         throw std::runtime_error("Unsupported palette file extension");
       }
-      patchy::palette_io::write_palette_file(std::filesystem::path(path.toStdU16String()), colors, *format,
+      patchy::palette_io::write_palette_file(to_filesystem_path(path), colors, *format,
                                              QFileInfo(path).completeBaseName().toStdString());
     }
     offer_browser_download_for_saved_file(path);

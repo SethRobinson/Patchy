@@ -1,4 +1,5 @@
 #include "ui/canvas_widget.hpp"
+#include "ui/qt_paths.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/contour_presets.hpp"
 #include "core/gradient_presets.hpp"
@@ -1596,7 +1597,7 @@ void ui_smart_object_stale_linked_file_noticed_on_open() {
       QFileInfo(QDir(QStringLiteral("test-artifacts")).filePath(QStringLiteral("so-stale-parent.psd")))
           .absoluteFilePath();
   patchy::psd::DocumentIo::write_layered_rgb8_file(
-      patchy::ui::MainWindowTestAccess::document(window), std::filesystem::path(parent_path.toStdString()));
+      patchy::ui::MainWindowTestAccess::document(window), patchy::ui::to_filesystem_path(parent_path));
   QImage bigger(64, 48, QImage::Format_RGBA8888);
   bigger.fill(QColor(20, 200, 40, 255));
   CHECK(bigger.save(linked_path));

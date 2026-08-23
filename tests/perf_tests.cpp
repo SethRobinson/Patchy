@@ -1,6 +1,7 @@
 #include "core/layer_render_utils.hpp"
 #include "core/rect_utils.hpp"
 #include "psd/psd_document_io.hpp"
+#include "ui/qt_paths.hpp"
 #include "test_harness.hpp"
 #include "local_psd_fixtures.hpp"
 #include "ui/image_document_io.hpp"
@@ -170,7 +171,7 @@ patchy::ui::CanvasWidget* active_canvas(patchy::ui::MainWindow& window) {
 std::filesystem::path perf_psd_path() {
   const auto env_path = qgetenv("PATCHY_PERF_PSD");
   if (!env_path.isEmpty()) {
-    return std::filesystem::path(env_path.toStdString());
+    return patchy::ui::to_filesystem_path(env_path);
   }
   return patchy::test::local_psd_fixture_path("Template.psd");
 }

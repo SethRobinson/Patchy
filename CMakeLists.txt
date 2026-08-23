@@ -1357,6 +1357,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/document_ops_filters_tests.cpp
     tests/core/flat_formats_bmp_tests.cpp
     tests/core/flat_formats_misc_tests.cpp
+    tests/core/unicode_path_tests.cpp
     tests/core/font_zip_tests.cpp
     tests/core/gradients_interior_effects_tests.cpp
     tests/core/infra_selection_tests.cpp
@@ -1459,6 +1460,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/vector_shape_tool_tests.cpp
       tests/ui/svg_ui_tests.cpp
       tests/ui/scripting_tests.cpp
+      tests/ui/unicode_path_tests.cpp
       tests/ui/history_panel_tests.cpp
       tests/ui/composite_render_tests.cpp
       tests/ui/readme_screenshot_tests.cpp

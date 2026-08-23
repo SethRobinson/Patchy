@@ -6,6 +6,7 @@
 
 #include "ui/main_window.hpp"
 #include "ui/main_window_shared.hpp"
+#include "ui/qt_paths.hpp"
 
 #include "core/blend_math.hpp"
 #include "core/layer_metadata.hpp"
@@ -306,7 +307,7 @@ void MainWindow::load_bundled_legacy_plugins() {
 
 bool MainWindow::register_legacy_plugin_path(const QString& path, QStringList* report) {
   LegacyPhotoshopAdapter adapter;
-  const auto probe = adapter.probe(path.toStdString());
+  const auto probe = adapter.probe(to_filesystem_path(path));
   const auto file_name = QFileInfo(path).fileName();
   if (report != nullptr) {
     *report << tr("%1: %2 (%3, %4)")
@@ -324,7 +325,7 @@ bool MainWindow::register_legacy_plugin_path(const QString& path, QStringList* r
                                                                         : PATCHY_PLUGIN_FILTER;
   descriptor.identifier = identifier;
   descriptor.display_name = QFileInfo(path).completeBaseName().toStdString();
-  descriptor.path = path.toStdString();
+  descriptor.path = to_filesystem_path(path);
   try {
     if (plugin_host_.find(identifier) == nullptr) {
       plugin_host_.register_plugin(std::move(descriptor));

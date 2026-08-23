@@ -267,7 +267,11 @@ everywhere a bundled script is resolved.
   to composite stretch (see filters.md; the id is unchanged). Later in August 2026:
   `image.auto_all` (Auto All) joined the registered command ids, and the three auto
   command ids now apply immediately with no settings dialog (behavioral; explicit
-  `layer.applyFilter` invocations with an `amount` are unaffected).
+  `layer.applyFilter` invocations with an `amount` are unaffected). Also August 2026
+  (additive, still 1): the `patchy.io` probes `fileExists`/`fileSize`/`makeDir`/
+  `deleteFile`, added so a script can verify its own output (the AGENTS.md rule:
+  missing test capabilities become scripting API); pinned by
+  `ui_script_io_round_trips_unicode_path`.
 - **`include()` resolution order**: relative to the including script, then the user
   scripts root, then the bundled scripts root; a result inside the bundled folder maps
   through the shadow-override store. `patchy.isMainScript()` is false during an included
@@ -354,8 +358,9 @@ one line always works as pasted and the dialog never shows the PowerShell flavor
 
 Scripts run with the application's privileges, like Photoshop or Affinity scripts: the
 sandbox is "only run scripts you trust", not a permission system. The engine exposes no
-file, network, or process API beyond the documented `patchy.io` text-file helpers and
-document save/export paths, and v1 binds no network access at all. The single-instance
+file, network, or process API beyond the documented `patchy.io` helpers (text files,
+folder listing, single-file existence/size/delete, makeDir) and document save/export
+paths, and v1 binds no network access at all. The single-instance
 pipe is per-user, so `--run-script` adds no cross-user surface.
 
 ## Legal posture
@@ -371,8 +376,10 @@ pipe is per-user, so `--run-script` adds no cross-user surface.
   single undo entry, stale-wrapper errors, pixel roundtrip + palette snap, timers,
   watchdog (via `PATCHY_SCRIPT_TIMEOUT_MS`), console/error line numbers, the CLI output
   file, the editor dialog, the canvas window, the Scripts menu scan, the `@cli`
-  directive + example-command builder + C:\ dialog (clipboard included), and the
-  scripting-guide viewer (both Help entry points, single shared instance).
+  directive + example-command builder + C:\ dialog (clipboard included), the
+  scripting-guide viewer (both Help entry points, single shared instance), and the
+  `patchy.io` probes plus `saveAs`/`open` on a Unicode path
+  (`ui_script_io_round_trips_unicode_path`).
 - The engine works offscreen; `ScriptEngineHost::message_backlog()` is the easiest
   assertion surface (fresh per MainWindow).
 - Manual smoke: the bundled scripts all run from File > Scripts; `game-of-life.js`
@@ -402,6 +409,7 @@ order:
    editor REPL mode.
 
 Anti-goals from the same research: never freeze or fork the API surface (ExtendScript/UXP
-split), no undocumented escape hatches as the real API (batchPlay), scripts stay plain
-user-editable files (Affinity v3.2 shipped AI-generated-only scripting and the community
+split), no undocumented escape hatches as the real API (batchPlay; test-driven additions
+go through the documented API too, per the AGENTS.md scripting-for-testability rule),
+scripts stay plain user-editable files (Affinity v3.2 shipped AI-generated-only scripting and the community
 immediately built its own script manager).

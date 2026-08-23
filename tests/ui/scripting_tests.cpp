@@ -19,6 +19,7 @@
 #include "test_harness.hpp"
 #include "ui/ui_test_access.hpp"
 #include "ui_test_support.hpp"
+#include "unicode_path_names.hpp"
 
 #include <QAction>
 #include <QApplication>
@@ -27,6 +28,7 @@
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
+#include <QFileInfo>
 #include <QDockWidget>
 #include <QElapsedTimer>
 #include <QEventLoop>
@@ -1732,6 +1734,54 @@ void ui_script_active_layer_setter_reveals_row() {
   CHECK(active_document.active_layer_id() == nested_layer->id());
 }
 
+void ui_script_io_round_trips_unicode_path() {
+  // The patchy.io probes plus saveAs/open on a Unicode, special-character path. The
+  // directory comes in through --script-arg style args; the file name is built in the
+  // script with JS escapes so the test is independent of the arg parser.
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.set_cli_automation_mode(true);
+  patchy::test::ui::ensure_artifact_dir();
+  const auto dir = QFileInfo(QStringLiteral("test-artifacts")).absoluteFilePath() + QLatin1Char('/') +
+                   QString::fromUtf8(reinterpret_cast<const char*>(patchy::test::kUnicodeDirName.data()),
+                                     static_cast<qsizetype>(patchy::test::kUnicodeDirName.size())) +
+                   QStringLiteral("/script-io");
+  QDir(dir).removeRecursively();
+  CHECK(!QDir(dir).exists());
+
+  auto& host = window.script_engine_host();
+  patchy::ui::ScriptEngineHost::RunOptions options;
+  options.name = QStringLiteral("unicode-io");
+  options.args = QStringList{QStringLiteral("dir=") + dir};
+  const auto source = QStringLiteral(R"JS(
+    var dir = patchy.args.dir;
+    var name = 'せす café 🎨 #1 50% %20 &and \'q\' [x] ! ; = @ (v2).psd';
+    var sub = dir + '/サブ sub';
+    console.log('mkdir=' + patchy.io.makeDir(sub));
+    var p = sub + '/' + name;
+    console.log('before=' + patchy.io.fileExists(p) + ',' + patchy.io.fileSize(p) + ',' + patchy.io.deleteFile(p));
+    console.log('saved=' + app.activeDocument.saveAs(p));
+    console.log('after=' + patchy.io.fileExists(p) + ',' + (patchy.io.fileSize(p) > 0));
+    console.log('listed=' + patchy.io.listFiles(sub, '*.psd').join('|'));
+    var reopened = app.open(p);
+    console.log('path_ok=' + (reopened.path.slice(-name.length) === name));
+    console.log('deleted=' + patchy.io.deleteFile(p) + ',' + patchy.io.fileExists(p) + ',' + patchy.io.fileSize(p));
+    console.log('dir_delete=' + patchy.io.deleteFile(sub));
+  )JS");
+  (void)host.run_source(source, std::move(options));
+  wait_for_run_end(host);
+  CHECK(!host.last_run_had_error());
+  CHECK(backlog_contains(window, QStringLiteral("mkdir=true")));
+  CHECK(backlog_contains(window, QStringLiteral("before=false,-1,false")));
+  CHECK(backlog_contains(window, QStringLiteral("saved=true")));
+  CHECK(backlog_contains(window, QStringLiteral("after=true,true")));
+  CHECK(backlog_contains(window, QStringLiteral("listed=せす café")));
+  CHECK(backlog_contains(window, QStringLiteral("path_ok=true")));
+  CHECK(backlog_contains(window, QStringLiteral("deleted=true,false,-1")));
+  CHECK(backlog_contains(window, QStringLiteral("dir_delete=false")));
+  CHECK(QDir(dir + QStringLiteral("/サブ sub")).exists());
+}
+
 std::vector<patchy::test::TestCase> scripting_tests() {
   return {
       {"ui_script_mutations_ride_single_undo_entry", ui_script_mutations_ride_single_undo_entry},
@@ -1785,5 +1835,6 @@ std::vector<patchy::test::TestCase> scripting_tests() {
       {"ui_script_scripting_guide_opens_from_help", ui_script_scripting_guide_opens_from_help},
       {"ui_script_ui_staging_apis", ui_script_ui_staging_apis},
       {"ui_script_active_layer_setter_reveals_row", ui_script_active_layer_setter_reveals_row},
+      {"ui_script_io_round_trips_unicode_path", ui_script_io_round_trips_unicode_path},
   };
 }

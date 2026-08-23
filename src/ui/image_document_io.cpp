@@ -1,4 +1,5 @@
 #include "ui/image_document_io.hpp"
+#include "ui/qt_paths.hpp"
 
 #include "core/blend_math.hpp"
 #include "core/layer_metadata.hpp"
@@ -1893,19 +1894,19 @@ void write_flat_image_file(const Document& document, const QString& path, const 
     throw std::runtime_error("HEIC/HEIF images are read-only in Patchy; save as PNG or PSD instead.");
   }
   if (lower == "tga") {
-    tga::DocumentIo::write_file(document, path.toStdString());
+    tga::DocumentIo::write_file(document, to_filesystem_path(path));
     return;
   }
   if (lower == "gif") {
-    gif::write_file(document, path.toStdString());
+    gif::write_file(document, to_filesystem_path(path));
     return;
   }
   if (lower == "pcx") {
-    pcx::DocumentIo::write_file(document, path.toStdString());
+    pcx::DocumentIo::write_file(document, to_filesystem_path(path));
     return;
   }
   if (lower == "lbm" || lower == "iff" || lower == "bbm") {
-    ilbm::DocumentIo::write_file(document, path.toStdString());
+    ilbm::DocumentIo::write_file(document, to_filesystem_path(path));
     return;
   }
   if (lower == "ico" || lower == "cur") {
@@ -1920,7 +1921,7 @@ void write_flat_image_file(const Document& document, const QString& path, const 
     ico_options.as_cursor = lower == "cur";
     ico_options.hotspot_x = options.cur_hotspot_x;
     ico_options.hotspot_y = options.cur_hotspot_y;
-    ico::DocumentIo::write_file(document, path.toStdString(), ico_options);
+    ico::DocumentIo::write_file(document, to_filesystem_path(path), ico_options);
     return;
   }
   if (lower == "pdf") {
@@ -1928,9 +1929,9 @@ void write_flat_image_file(const Document& document, const QString& path, const 
     return;
   }
   if (is_bmp_extension(extension_bytes)) {
-    bmp::DocumentIo::write_file(document, path.toStdString(),
+    bmp::DocumentIo::write_file(document, to_filesystem_path(path),
                                 bmp::WriteOptions{options.bmp_encoding, options.bmp_palette_mode, true,
-                                                  options.bmp_palette_path.toStdString()});
+                                                  to_filesystem_path(options.bmp_palette_path)});
     return;
   }
   // Palette-mode documents export PNG as indexed PNG-8 with the document palette

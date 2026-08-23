@@ -330,6 +330,14 @@ interface PatchyIo {
    * default all files), sorted. Throws when the folder does not exist.
    */
   listFiles(dir: string, pattern?: string): string[];
+  /** True when path is an existing file (folders do not count). Never throws. */
+  fileExists(path: string): boolean;
+  /** Size in bytes, or -1 when path is not an existing file. Never throws. */
+  fileSize(path: string): number;
+  /** Creates the folder and any missing parents; true when it exists afterwards. */
+  makeDir(path: string): boolean;
+  /** Removes one file (never a folder); true when it was removed. */
+  deleteFile(path: string): boolean;
 }
 
 interface PatchyNamespace {

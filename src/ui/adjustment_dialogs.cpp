@@ -11,6 +11,7 @@
 #include "ui/curves_editor.hpp"
 #include "ui/curves_presets.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/qt_paths.hpp"
 #include "ui/filter_workflows_internal.hpp"
 
 #include <QAbstractItemView>
@@ -1134,7 +1135,7 @@ std::optional<CurvesSettings> request_curves_settings(
     }
     try {
       eyedropper_samples = {};
-      dialog_settings = acv::read_file(std::filesystem::path(path.toStdU16String()));
+      dialog_settings = acv::read_file(to_filesystem_path(path));
       editor->set_adjustment(dialog_settings);
       sync_curves_preset_selection();
       flush_preview();
@@ -1157,7 +1158,7 @@ std::optional<CurvesSettings> request_curves_settings(
       path += QStringLiteral(".acv");
     }
     try {
-      acv::write_file(std::filesystem::path(path.toStdU16String()), dialog_settings);
+      acv::write_file(to_filesystem_path(path), dialog_settings);
       offer_browser_download_for_saved_file(path);
     } catch (const std::exception&) {
       show_critical_message(&dialog, QObject::tr("Save Curves Preset"),

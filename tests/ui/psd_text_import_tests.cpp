@@ -1,4 +1,5 @@
 #include "ui/canvas_widget.hpp"
+#include "ui/qt_paths.hpp"
 #include "ui/text_layout.hpp"
 #include "core/layer_render_utils.hpp"
 #include "core/adjustment_layer.hpp"
@@ -315,7 +316,7 @@ void ui_imported_psd_text_uses_photoshop_frame_after_commit() {
   CHECK(saved);
   CHECK(QFileInfo::exists(saved_path));
 
-  auto reopened_document = patchy::psd::DocumentIo::read_file(std::filesystem::path(saved_path.toStdString()));
+  auto reopened_document = patchy::psd::DocumentIo::read_file(patchy::ui::to_filesystem_path(saved_path));
   patchy::ui::MainWindow reopened_window;
   show_window(reopened_window);
   reopened_window.add_document_session(std::move(reopened_document), QStringLiteral("Reopened Imported PSD Text"),

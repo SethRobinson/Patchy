@@ -964,6 +964,26 @@ QStringList ScriptIoObject::listFiles(const QString& dir, const QString& pattern
                              QDir::Name | QDir::IgnoreCase);
 }
 
+bool ScriptIoObject::fileExists(const QString& path) { return QFileInfo(path).isFile(); }
+
+double ScriptIoObject::fileSize(const QString& path) {
+  const QFileInfo info(path);
+  if (!info.isFile()) {
+    return -1;
+  }
+  return static_cast<double>(info.size());
+}
+
+bool ScriptIoObject::makeDir(const QString& path) { return !path.isEmpty() && QDir().mkpath(path); }
+
+bool ScriptIoObject::deleteFile(const QString& path) {
+  const QFileInfo info(path);
+  if (!info.isFile()) {
+    return false;
+  }
+  return QFile::remove(info.filePath());
+}
+
 // ---------------------------------------------------------------------------
 // ScriptUiObject
 

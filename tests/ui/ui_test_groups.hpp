@@ -43,6 +43,7 @@ std::vector<patchy::test::TestCase> float_window_tests();
 std::vector<patchy::test::TestCase> vector_shape_tool_tests();
 std::vector<patchy::test::TestCase> svg_ui_tests();
 std::vector<patchy::test::TestCase> scripting_tests();
+std::vector<patchy::test::TestCase> unicode_path_tests();
 std::vector<patchy::test::TestCase> history_panel_tests();
 std::vector<patchy::test::TestCase> composite_render_tests();
 std::vector<patchy::test::TestCase> readme_screenshot_tests();

@@ -1,6 +1,7 @@
 #include "plugins/legacy_photoshop_adapter.hpp"
 
 #include "support/string_utils.hpp"
+#include "support/path_utils.hpp"
 
 #include <array>
 #include <cstdint>
@@ -14,7 +15,7 @@ namespace patchy {
 namespace {
 
 std::string lower_extension(const std::filesystem::path& path) {
-  return normalized_extension(path.extension().string());
+  return normalized_extension(path_to_utf8(path.extension()));
 }
 
 std::uint16_t read_u16(std::span<const std::uint8_t> bytes, std::size_t offset) {

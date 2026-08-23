@@ -71,6 +71,8 @@ A document opened from a flat format that has grown structure a flat save would 
 
 `formats/document_flatten.{hpp,cpp}`: `flatten_document_rgba8` (mask-aware: a document-alpha layer exports non-destructively), `indexed_flatten_for_palette_mode` (document palette in file order, exact-then-LUT, appended transparent slot: PNG-8 semantics), `indexed_flatten_quantized` (median-cut fallback for RGB docs; GIF + ILBM share it).
 
+The UI hands `QString` paths to the Qt-free readers and writers through `to_filesystem_path` (`ui/qt_paths.hpp`; see the path rule in `AGENTS.md`), and `formats/format_file_io.cpp` `rename_first_layer_to_stem` names the imported layer in UTF-8 through `path_to_utf8`.
+
 Everything except PSD/Aseprite flat-exports through `write_flat_image_file`, which applies `ImageSaveOptions::export_scale` (nearest-neighbor 1-8x, EXPORT flow only; the combo persists its own `saveOptions/exportScale` key so Save/Save As defaults can never pick up a stale scale; `scaled_flat_document` keeps the doc-alpha mask structure and palette metadata).
 
 ## PSD adjustment layers and clipping masks

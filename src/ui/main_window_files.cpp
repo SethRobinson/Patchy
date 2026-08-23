@@ -6,6 +6,7 @@
 
 #include "ui/main_window.hpp"
 #include "ui/main_window_shared.hpp"
+#include "ui/qt_paths.hpp"
 
 #include "core/blend_math.hpp"
 #include "core/layer_metadata.hpp"
@@ -799,7 +800,7 @@ OpenDocumentResult load_document_from_path(QString path) {
     std::vector<std::string> psd_notices;
     psd::ReadOptions psd_options{true, false, true};
     psd_options.notices = &psd_notices;
-    opened = psd::DocumentIo::read_file(path.toStdString(), psd_options);
+    opened = psd::DocumentIo::read_file(to_filesystem_path(path), psd_options);
     for (const auto& notice : psd_notices) {
       import_notices.push_back(QString::fromStdString(notice));
     }
@@ -2139,16 +2140,16 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
 
     QString export_notes_suffix;
     if (is_photoshop_document_extension(extension)) {
-      psd::DocumentIo::write_layered_rgb8_file(document(), path.toStdString(),
+      psd::DocumentIo::write_layered_rgb8_file(document(), to_filesystem_path(path),
                                                psd::WriteOptions{extension == QStringLiteral("psb")});
     } else if (extension == QStringLiteral("aseprite") || extension == QStringLiteral("ase")) {
       // Layered save: the Aseprite writer keeps the layer tree instead of flattening.
-      aseprite::DocumentIo::write_file(document(), path.toStdString());
+      aseprite::DocumentIo::write_file(document(), to_filesystem_path(path));
     } else if (extension == QStringLiteral("svg")) {
       // Structure-preserving vector write (never write_flat_image_file):
       // shape layers stay SVG vectors, the writer reports what it baked.
       std::vector<std::string> svg_notices;
-      svg::DocumentIo::write_file(document(), path.toStdString(), &svg_notices);
+      svg::DocumentIo::write_file(document(), to_filesystem_path(path), &svg_notices);
       export_notes_suffix = export_notes_suffix_for(svg_notices);
     } else {
       // Editable PDF keeps layers and reports what it baked, like the SVG writer.
@@ -2258,12 +2259,12 @@ void MainWindow::export_flat_image() {
     const auto effective_image_options = image_options.value_or(image_save_defaults_for_document());
     QString export_notes_suffix;
     if (is_photoshop_document_extension(extension)) {
-      psd::DocumentIo::write_flat_rgb8_file(document(), path.toStdString());
+      psd::DocumentIo::write_flat_rgb8_file(document(), to_filesystem_path(path));
     } else if (svg_export) {
       // The same structure-preserving writer as Save As: shape layers export
       // as real vectors even from the "flat" export flow.
       std::vector<std::string> svg_notices;
-      svg::DocumentIo::write_file(document(), path.toStdString(), &svg_notices);
+      svg::DocumentIo::write_file(document(), to_filesystem_path(path), &svg_notices);
       export_notes_suffix = export_notes_suffix_for(svg_notices);
     } else {
       std::vector<std::string> writer_notices;

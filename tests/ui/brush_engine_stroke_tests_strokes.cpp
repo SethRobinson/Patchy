@@ -1,4 +1,5 @@
 #include "ui/canvas_widget.hpp"
+#include "ui/qt_paths.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/contour_presets.hpp"
 #include "core/gradient_presets.hpp"
@@ -2219,7 +2220,7 @@ void ui_healing_brush_transfers_detail_and_preserves_destination_tone() {
 
   QTemporaryDir temp;
   CHECK(temp.isValid());
-  const auto path = std::filesystem::path(temp.path().toStdString()) / "healed.psd";
+  const auto path = patchy::ui::to_filesystem_path(temp.path()) / "healed.psd";
   patchy::psd::DocumentIo::write_layered_rgb8_file(document, path);
   const auto reread = patchy::psd::DocumentIo::read_file(path);
   CHECK(reread.layers().size() == 1);

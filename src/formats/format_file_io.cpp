@@ -1,6 +1,7 @@
 #include "formats/format_file_io.hpp"
 
 #include "core/document.hpp"
+#include "support/path_utils.hpp"
 
 #include <fstream>
 #include <iterator>
@@ -18,7 +19,7 @@ std::vector<std::uint8_t> read_file_bytes(const std::filesystem::path& path, std
 }
 
 void rename_first_layer_to_stem(Document& document, const std::filesystem::path& path) {
-  const auto stem = path.stem().string();
+  const auto stem = path_to_utf8(path.stem());
   if (!stem.empty() && !document.layers().empty()) {
     document.layers().front().set_name(stem);
   }

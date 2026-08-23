@@ -12,6 +12,7 @@
 #include <QPoint>
 #include <QRect>
 #include <QString>
+#include <QStringList>
 
 #include <cstddef>
 #include <utility>
@@ -177,6 +178,10 @@ public:
 
   static QString active_session_path(MainWindow& window) {
     return window.session().path;
+  }
+
+  static bool register_legacy_plugin_path(MainWindow& window, const QString& path, QStringList* report) {
+    return window.register_legacy_plugin_path(path, report);
   }
 
   static bool close_document_tab(MainWindow& window, int index) {

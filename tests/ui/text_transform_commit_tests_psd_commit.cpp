@@ -1,4 +1,5 @@
 #include "ui/canvas_widget.hpp"
+#include "ui/qt_paths.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/contour_presets.hpp"
 #include "core/gradient_presets.hpp"
@@ -2140,7 +2141,7 @@ void ui_cli_append_text_rerenders_and_roundtrips() {
 
   // Round trip: the appended text must survive a PSD save + reopen (fresh runtime ids, so
   // find the text layer by walking).
-  const auto reread = patchy::psd::DocumentIo::read_file(psd_path.toStdString());
+  const auto reread = patchy::psd::DocumentIo::read_file(patchy::ui::to_filesystem_path(psd_path));
   bool roundtrip_found = false;
   std::function<void(const std::vector<patchy::Layer>&)> check_roundtrip =
       [&](const std::vector<patchy::Layer>& layers) {

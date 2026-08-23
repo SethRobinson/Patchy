@@ -242,6 +242,7 @@ int main(int argc, char* argv[]) {
            vector_shape_tool_tests,
            svg_ui_tests,
            scripting_tests,
+           unicode_path_tests,
            history_panel_tests,
            composite_render_tests,
            readme_screenshot_tests,

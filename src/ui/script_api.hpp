@@ -206,6 +206,15 @@ public:
   // Names of the files in `dir` matching `pattern` ("*.png"; default all
   // files), sorted case-insensitively. Names only, not full paths.
   Q_INVOKABLE QStringList listFiles(const QString& dir, const QString& pattern = QString());
+  // File probes so a script can verify its own output (and tests can drive the
+  // real build through --run-script). None of them throw.
+  Q_INVOKABLE bool fileExists(const QString& path);
+  // Size in bytes, or -1 when `path` is not an existing file.
+  Q_INVOKABLE double fileSize(const QString& path);
+  // Creates the folder and any missing parents; true when it exists afterwards.
+  Q_INVOKABLE bool makeDir(const QString& path);
+  // Removes one file (never a folder); true when it was removed.
+  Q_INVOKABLE bool deleteFile(const QString& path);
 
 private:
   ScriptEngineHost& host_;
