@@ -539,7 +539,21 @@ private:
     return fonts_.emplace(resource_name, std::move(font)).first->second;
   }
 
-  void show_text(std::string_view bytes, const Object& resources) {
+  // A run being gathered from one Tj, or from the fragments of one TJ array: PDF
+  // kerns by splitting a word into strings with numbers between them, and a word is
+  // still one object to the user, so the fragments accumulate into one run whose
+  // intended width includes the kerning shifts.
+  struct PendingRun {
+    bool started{false};
+    std::string utf8;
+    double advance{0.0};  // text-space units (font size x Th), like TextRun::intended_width
+    bool recovered_any{false};
+    bool width_is_known{true};
+    Affine render_matrix{};
+    const Font* font{nullptr};
+  };
+
+  void accumulate_text(std::string_view bytes, const Object& resources, PendingRun& pending) {
     if (state_.text.font_resource.empty()) {
       return;
     }
@@ -548,33 +562,49 @@ private:
     if (glyphs.empty()) {
       return;
     }
-
-    // Clause 9.4.4: the rendering matrix is [size*Th 0 0 size 0 rise] x Tm x CTM.
-    const Affine parameters{state_.text.font_size * state_.text.horizontal_scale,
-                            0.0,
-                            0.0,
-                            state_.text.font_size,
-                            0.0,
-                            state_.text.rise};
-    const auto render_matrix = multiply(state_.ctm, multiply(text_matrix_, parameters));
-
-    std::string utf8;
+    if (!pending.started) {
+      // Clause 9.4.4: the rendering matrix is [size*Th 0 0 size 0 rise] x Tm x CTM.
+      const Affine parameters{state_.text.font_size * state_.text.horizontal_scale,
+                              0.0,
+                              0.0,
+                              state_.text.font_size,
+                              0.0,
+                              state_.text.rise};
+      pending.render_matrix = multiply(state_.ctm, multiply(text_matrix_, parameters));
+      pending.font = &font;
+      pending.width_is_known = font.has_widths;
+      pending.started = true;
+    }
     double advance = 0.0;
-    bool recovered_any = false;
     for (const auto& glyph : glyphs) {
       if (glyph.unicode != 0xFFFD) {
-        append_utf8(utf8, glyph.unicode);
-        recovered_any = true;
+        // A ToUnicode entry can name a control character for the space glyph (Qt's
+        // subset writer picks the lowest code point sharing the glyph); nothing in a
+        // run ever draws a tab or a line break, so they read as spaces.
+        const bool control = glyph.unicode == 0x09 || glyph.unicode == 0x0A || glyph.unicode == 0x0D;
+        append_utf8(pending.utf8, control ? U' ' : glyph.unicode);
+        pending.recovered_any = true;
       }
       advance += glyph.width * state_.text.font_size + state_.text.character_spacing +
                  (glyph.is_word_space ? state_.text.word_spacing : 0.0);
     }
     advance *= state_.text.horizontal_scale;
+    pending.advance += advance;
+    pending.width_is_known = pending.width_is_known && font.has_widths;
+    // The text position advances even for invisible text, which is how scanned
+    // pages carry their OCR layer.
+    text_matrix_ = multiply(text_matrix_, Affine{1.0, 0.0, 0.0, 1.0, advance, 0.0});
+  }
 
-    if (state_.text.render_mode != 3 && state_.text.render_mode != 7 && recovered_any) {
+  void emit_pending(PendingRun& pending) {
+    if (!pending.started) {
+      return;
+    }
+    const auto& font = *pending.font;
+    if (state_.text.render_mode != 3 && state_.text.render_mode != 7 && pending.recovered_any) {
       TextRun run;
-      run.utf8 = std::move(utf8);
-      run.transform = render_matrix;
+      run.utf8 = std::move(pending.utf8);
+      run.transform = pending.render_matrix;
       run.font_size = state_.text.font_size;
       run.family = font.family;
       run.style = font.style;
@@ -587,21 +617,24 @@ private:
       run.word_spacing = state_.text.word_spacing;
       run.horizontal_scale = state_.text.horizontal_scale;
       run.rise = state_.text.rise;
-      run.intended_width = advance;
-      run.width_is_known = font.has_widths;
+      run.intended_width = pending.advance;
+      run.width_is_known = pending.width_is_known;
       run.blend = state_.blend;
       if (state_.has_clip) {
         run.clip = state_.clip;
       }
       sink_.on_text(run);
       ++primitives_;
-    } else if (!recovered_any && state_.text.render_mode != 3) {
+    } else if (!pending.recovered_any && state_.text.render_mode != 3) {
       notice("Some PDF text used a font with no Unicode mapping and could not be recovered as text.");
     }
+    pending = PendingRun{};
+  }
 
-    // The text position advances even for invisible text, which is how scanned
-    // pages carry their OCR layer.
-    text_matrix_ = multiply(text_matrix_, Affine{1.0, 0.0, 0.0, 1.0, advance, 0.0});
+  void show_text(std::string_view bytes, const Object& resources) {
+    PendingRun pending;
+    accumulate_text(bytes, resources, pending);
+    emit_pending(pending);
   }
 
   static void append_utf8(std::string& out, char32_t code_point) {
@@ -622,14 +655,21 @@ private:
     }
   }
 
+  // One TJ array is one run: its strings concatenate and the kerning numbers between
+  // them widen or narrow the run's intended width (the editable layer cannot kern per
+  // glyph; the width correction keeps the word the right length). A jump of a full em
+  // or more is positioning, not kerning (columns, tab stops, faked word gaps), so the
+  // run ends there and the next fragment starts its own.
   void show_text_array(const Object& array_object, const Object& resources) {
     const auto* array = array_object.array();
     if (array == nullptr) {
       return;
     }
+    constexpr double kRunBreakThousandths = 1000.0;
+    PendingRun pending;
     for (const auto& entry : *array) {
       if (entry.is_string()) {
-        show_text(entry.string(), resources);
+        accumulate_text(entry.string(), resources, pending);
         continue;
       }
       if (!entry.is_number()) {
@@ -637,9 +677,16 @@ private:
       }
       // A number moves the pen back by that many thousandths of an em (clause
       // 9.4.3), which is how kerning is expressed inside a single run.
-      const double shift = -entry.number(0.0) / 1000.0 * state_.text.font_size * state_.text.horizontal_scale;
+      const double thousandths = entry.number(0.0);
+      const double shift = -thousandths / 1000.0 * state_.text.font_size * state_.text.horizontal_scale;
+      if (std::abs(thousandths) >= kRunBreakThousandths) {
+        emit_pending(pending);
+      } else if (pending.started) {
+        pending.advance += shift;
+      }
       text_matrix_ = multiply(text_matrix_, Affine{1.0, 0.0, 0.0, 1.0, shift, 0.0});
     }
+    emit_pending(pending);
   }
 
   // --- XObjects and images -------------------------------------------------

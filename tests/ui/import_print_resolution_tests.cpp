@@ -1208,7 +1208,13 @@ void ui_pdf_export_editable_keeps_layers_and_matches_composite() {
   };
   visit(std::as_const(read.document).layers());
   CHECK(saw_red_shape);
-  CHECK(text_seen.find("Patchy") != std::string::npos);
+  // One run per line of text, not one object per letter: Qt's per-glyph Tj output is
+  // folded back into a single TJ by formats/pdf_text_merge.
+  CHECK(read.text_layers == 1);
+  if (text_seen != "Patchy PDF") {
+    std::printf("[pdf] text read back: '%s'\n", text_seen.c_str());
+  }
+  CHECK(text_seen == "Patchy PDF");
 
   // Pixels: PDFium's rendering of the page against Patchy's composite.
   QPdfDocument reader;

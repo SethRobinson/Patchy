@@ -4,12 +4,14 @@
 #include "core/pattern_resource.hpp"
 #include "core/vector_shape.hpp"
 #include "formats/document_flatten.hpp"
+#include "formats/pdf_text_merge.hpp"
 #include "formats/vector_export_plan.hpp"
 #include "ui/edit_conversions.hpp"
 #include "ui/text_layer_painter.hpp"
 
 #include <QBrush>
 #include <QColor>
+#include <QFile>
 #include <QImage>
 #include <QLinearGradient>
 #include <QList>
@@ -463,6 +465,25 @@ void write_editable_pdf_document_file(const Document& document, const QString& p
   Writer layer_writer{document, notices, painter};
   layer_writer.run();
   painter.end();
+
+  // Qt wrote every glyph as its own Tj; fold each line of text back into one TJ run so
+  // importers see words, not letters (formats/pdf_text_merge.hpp). A file that does not
+  // match the pass's expectations is left as Qt wrote it.
+  QFile file(path);
+  if (!file.open(QIODevice::ReadOnly)) {
+    return;
+  }
+  const QByteArray written = file.readAll();
+  file.close();
+  std::vector<std::uint8_t> bytes(written.begin(), written.end());
+  if (!pdf::merge_glyph_runs_in_qt_pdf(bytes)) {
+    return;
+  }
+  if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+    throw std::runtime_error("The PDF file could not be rewritten after export.");
+  }
+  file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<qint64>(bytes.size()));
+  file.close();
 }
 
 }  // namespace patchy::ui::pdf_detail

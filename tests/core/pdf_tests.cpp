@@ -8,6 +8,7 @@
 #include "formats/pdf_fonts.hpp"
 #include "formats/pdf_filters.hpp"
 #include "formats/pdf_syntax.hpp"
+#include "formats/pdf_text_merge.hpp"
 
 #include "local_psd_fixtures.hpp"
 #include "pdf_encrypted_fixture.hpp"
@@ -914,22 +915,31 @@ void pdf_interpreter_applies_kerning_and_spacing_to_text() {
   const auto sink = interpret(
       "BT /F1 10 Tf 1 0 0 1 0 90 Tm [(A) -1000 (B)] TJ ET\n"
       "BT /F1 10 Tf 2 Tc 1 0 0 1 0 50 Tm (AB) Tj ET\n"
-      "BT /F1 10 Tf 200 Tz 1 0 0 1 0 20 Tm (AB) Tj ET\n",
+      "BT /F1 10 Tf 200 Tz 1 0 0 1 0 20 Tm (AB) Tj ET\n"
+      "BT /F1 10 Tf 0 Tc 100 Tz 1 0 0 1 0 5 Tm [(A) -50 (B) 120 (A)] TJ (B) Tj ET\n",
       "<</Type/Font/Subtype/Type1/BaseFont/Helvetica/Encoding/WinAnsiEncoding"
       "/FirstChar 65/LastChar 66/Widths[500 500]>>",
       "/Resources<</Font<</F1 5 0 R>>>>");
 
-  CHECK(sink.texts.size() == 4);
-  if (sink.texts.size() != 4) {
+  CHECK(sink.texts.size() == 6);
+  if (sink.texts.size() != 6) {
     return;
   }
-  // The two halves of the TJ array become separate runs, and the -1000 pushes the
-  // second one a full em to the right of where "A" left off.
+  // A full-em jump inside the TJ array is positioning, not kerning: the two halves
+  // become separate runs, and the -1000 pushes the second one a full em to the right
+  // of where "A" left off.
   CHECK(sink.texts[0].utf8 == "A");
   CHECK(sink.texts[1].utf8 == "B");
   const double gap = sink.texts[1].transform.e - sink.texts[0].transform.e;
   // 'A' advances 0.5 em = 5 units, plus the 1000/1000 em = 10 unit kern.
   CHECK(std::abs(gap - 15.0) < 1e-6);
+  // Ordinary kerning keeps the word together: one run "ABA" whose intended width
+  // folds the shifts in (5 + 0.5 + 5 - 1.2 + 5), and the following Tj starts where the
+  // array left the pen.
+  CHECK(sink.texts[4].utf8 == "ABA");
+  CHECK(std::abs(sink.texts[4].intended_width - 14.3) < 1e-6);
+  CHECK(sink.texts[5].utf8 == "B");
+  CHECK(std::abs(sink.texts[5].transform.e - sink.texts[4].transform.e - 14.3) < 1e-6);
 
   // Character spacing widens the run's intended width: 2 glyphs x (5 + 2).
   CHECK(sink.texts[2].width_is_known);
@@ -1222,6 +1232,96 @@ void pdf_vector_import_builds_editable_text_layers() {
   const auto transform = metadata.at(patchy::kLayerMetadataPdfTextXfrm);
   CHECK(transform.find("20 ") != std::string::npos);
   CHECK(transform.find(" 40") != std::string::npos);
+}
+
+// The export post-pass: Qt's one-Tj-per-glyph text, laid out the way QPdfWriter
+// writes it (Flate content with an indirect /Length, a Type0 font with /W widths,
+// a classic xref table), folds into one TJ run per baseline whose kerning numbers
+// reproduce Qt's positions exactly, with the xref shifted to match.
+void pdf_text_merge_folds_qt_glyph_runs_into_tj() {
+  // Glyph 1 is 500 wide, 3 is 700, 4 (the space glyph) is 250: at size 10 that is 5,
+  // 7 and 2.5 units. Qt placed the first line's glyphs at x = 0, 5, 12.5: the gap
+  // after the space is 5 units wider than its advance (tracking), so the TJ must
+  // carry -500 there. The second line sits on another baseline and stays its own
+  // run; the lone glyph after a colour change stays a Tj. The ToUnicode map sends
+  // the space glyph to U+0009 the way Qt's subset writer does.
+  const std::string content =
+      "q\nBT\n/F7 10 Tf 1 0 0 -1 0 0 Tm\n0 -8 Td <0001> Tj\n5 0 Td <0004> Tj\n7.5 0 Td <0003> Tj\n"
+      "-12.5 -12 Td <0003> Tj\n7 0 Td <0001> Tj\n0 0 1 rg\n20 0 Td <0002> Tj\nET\nQ\n";
+  const auto compressed = zlib_compress(content);
+  const std::string to_unicode =
+      "/CIDInit /ProcSet findresource begin\n12 dict begin\nbegincmap\n/CMapName /Adobe-Identity-UCS def\n"
+      "1 begincodespacerange\n<0000> <FFFF>\nendcodespacerange\n3 beginbfrange\n<0001> <0001> <0061>\n"
+      "<0002> <0003> [<0062> <0063> ]\n<0004> <0004> <0009>\nendbfrange\nendcmap\n"
+      "CMapName currentdict /CMap defineresource pop\nend end\n";
+  const auto bytes = build_pdf({
+      "<</Type/Catalog/Pages 2 0 R>>",
+      "<</Type/Pages/Kids[3 0 R]/Count 1>>",
+      "<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 100]/Contents 4 0 R"
+      "/Resources<</Font<</F7 6 0 R>>>>>>",
+      "<< /Length 5 0 R /Filter /FlateDecode >>\nstream\n" + as_text(compressed) + "\nendstream",
+      std::to_string(compressed.size()),
+      "<</Type/Font/Subtype/Type0/BaseFont/QSAAAA+Test/Encoding/Identity-H/DescendantFonts[7 0 R]"
+      "/ToUnicode 8 0 R>>",
+      "<</Type/Font/Subtype/CIDFontType2/BaseFont/Test/CIDSystemInfo<</Registry(Adobe)/Ordering(Identity)"
+      "/Supplement 0>>/CIDToGIDMap/Identity/W [0 [750 500 600 700 250]]>>",
+      "<</Length " + std::to_string(to_unicode.size()) + ">>\nstream\n" + to_unicode + "\nendstream",
+  });
+
+  auto merged = bytes;
+  CHECK(patchy::pdf::merge_glyph_runs_in_qt_pdf(merged));
+  CHECK(merged != bytes);
+
+  // The rewritten file opens through the real offset path (no xref rebuild notice).
+  std::vector<std::string> notices;
+  auto file = patchy::pdf::File::open(merged, &notices);
+  CHECK(file.has_value());
+  CHECK(notices.empty());
+  if (!file.has_value()) {
+    return;
+  }
+  CHECK(file->pages().size() == 1);
+  const auto& contents = file->get(file->pages().front().dict, "Contents");
+  const auto decoded = file->stream_data(contents);
+  CHECK(decoded.error.empty());
+  const auto text = as_text(decoded.data);
+  CHECK(text.find("0 -8 Td [<00010004> -500 <0003>] TJ") != text.npos);
+  // Zero kerns concatenate into one string; the Td is relative to the previous RUN's
+  // start (the line matrix stays there after a TJ), not to Qt's last glyph.
+  CHECK(text.find("0 -12 Td [<00030001>] TJ") != text.npos);
+  CHECK(text.find("27 0 Td <0002> Tj") != text.npos);
+  CHECK(text.find("0 0 1 rg") != text.npos);
+  CHECK(text.find("q\nBT\n/F7 10 Tf 1 0 0 -1 0 0 Tm\n") == 0);
+  // The new stream replaced Qt's old bytes entirely: /Length covers the data and
+  // "endstream" follows it directly, with no stale tail in between.
+  {
+    const auto merged_text = as_text(merged);
+    const auto header_at = merged_text.find("<< /Length ");
+    CHECK(header_at != std::string::npos);
+    const std::size_t declared = static_cast<std::size_t>(std::atoi(merged_text.c_str() + header_at + 11));
+    const auto stream_at = merged_text.find("stream\n", header_at) + 7;
+    CHECK(merged_text.compare(stream_at + declared, 10, "\nendstream") == 0);
+  }
+
+  // The importer sees three words instead of six letters, and the space glyph reads
+  // as a space: the pass rewrote the U+0009 destination to U+0020 in place (same
+  // length, so no offset moved).
+  const auto result = read_vectors(merged);
+  CHECK(result.text_layers == 3);
+  if (result.document.layers().size() == 3) {
+    CHECK(result.document.layers()[0].metadata().at(patchy::kLayerMetadataText) == "a c");
+    CHECK(result.document.layers()[1].metadata().at(patchy::kLayerMetadataText) == "ca");
+    CHECK(result.document.layers()[2].metadata().at(patchy::kLayerMetadataText) == "b");
+  }
+  CHECK(as_text(merged).find("<0004> <0004> <0009>") == std::string::npos);
+  CHECK(as_text(merged).find("<0004> <0004> <0020>") != std::string::npos);
+  const auto before = read_vectors(bytes);
+  CHECK(before.text_layers == 6);
+
+  // A second pass finds nothing left to fold and leaves the bytes alone.
+  auto again = merged;
+  CHECK(!patchy::pdf::merge_glyph_runs_in_qt_pdf(again));
+  CHECK(again == merged);
 }
 
 void pdf_vector_import_places_images_as_smart_objects() {
@@ -1838,6 +1938,7 @@ std::vector<patchy::test::TestCase> pdf_tests() {
       {"pdf_vector_import_builds_shape_layers", pdf_vector_import_builds_shape_layers},
       {"pdf_vector_import_applies_nonzero_holes", pdf_vector_import_applies_nonzero_holes},
       {"pdf_vector_import_builds_editable_text_layers", pdf_vector_import_builds_editable_text_layers},
+      {"pdf_text_merge_folds_qt_glyph_runs_into_tj", pdf_text_merge_folds_qt_glyph_runs_into_tj},
       {"pdf_vector_import_places_images_as_smart_objects", pdf_vector_import_places_images_as_smart_objects},
       {"pdf_vector_import_keeps_jpeg_bytes_untranscoded", pdf_vector_import_keeps_jpeg_bytes_untranscoded},
       {"pdf_crypto_primitives_match_known_answers", pdf_crypto_primitives_match_known_answers},

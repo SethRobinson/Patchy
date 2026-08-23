@@ -440,6 +440,7 @@ add_library(patchy_formats
   src/formats/pdf_fonts.cpp
   src/formats/pdf_function.cpp
   src/formats/pdf_syntax.cpp
+  src/formats/pdf_text_merge.cpp
   src/formats/raw_document_io.cpp
   src/formats/raw_tone.cpp
   src/formats/raw_white_balance.cpp
