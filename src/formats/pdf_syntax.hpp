@@ -43,6 +43,12 @@ struct RawStream {
   Dictionary dict;
   std::size_t data_offset{0};
   std::size_t data_length{0};
+  // The indirect object this stream belongs to, stamped by the file layer when the
+  // object is parsed; decryption derives per-object keys from it. Zero = unstamped
+  // (a stream parsed outside the object table, e.g. the xref stream, which the spec
+  // says is never encrypted).
+  std::uint32_t owner_number{0};
+  std::uint16_t owner_generation{0};
 };
 
 class Object {
@@ -102,6 +108,40 @@ public:
   // when this is not a dictionary or stream. Use pdf_file.hpp's resolving lookups
   // when the value may be an indirect reference, which it usually may.
   [[nodiscard]] const Object& get(std::string_view key) const noexcept;
+
+  // Mutable access for the file layer's post-parse stamping; null when not a stream.
+  [[nodiscard]] RawStream* mutable_stream() noexcept {
+    auto* value = std::get_if<std::shared_ptr<RawStream>>(&value_);
+    return value != nullptr ? value->get() : nullptr;
+  }
+
+  // Applies `fn` to every string in this object tree, in place (decryption).
+  // Freshly parsed objects never share containers, so the walk visits each once.
+  template <typename Fn>
+  void transform_strings(const Fn& fn) {
+    if (auto* value = std::get_if<String>(&value_); value != nullptr) {
+      fn(value->value);
+      return;
+    }
+    if (auto* array = std::get_if<std::shared_ptr<Array>>(&value_); array != nullptr && *array != nullptr) {
+      for (auto& item : **array) {
+        item.transform_strings(fn);
+      }
+      return;
+    }
+    Dictionary* dict = nullptr;
+    if (auto* value = std::get_if<std::shared_ptr<Dictionary>>(&value_); value != nullptr && *value != nullptr) {
+      dict = value->get();
+    } else if (auto* stream = std::get_if<std::shared_ptr<RawStream>>(&value_);
+               stream != nullptr && *stream != nullptr) {
+      dict = &(*stream)->dict;
+    }
+    if (dict != nullptr) {
+      for (auto& [key, item] : *dict) {
+        item.transform_strings(fn);
+      }
+    }
+  }
 
 private:
   std::variant<Null, bool, std::int64_t, double, Name, String, std::shared_ptr<Array>, std::shared_ptr<Dictionary>,

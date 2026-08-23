@@ -1,5 +1,6 @@
 #pragma once
 
+#include "formats/pdf_crypt.hpp"
 #include "formats/pdf_filters.hpp"
 #include "formats/pdf_syntax.hpp"
 
@@ -37,16 +38,21 @@ class File {
 public:
   // Takes ownership of the file bytes; every Object refers into them. Returns
   // nullopt only when the data is not a PDF at all. Recoverable damage is reported
-  // through `notices` and the file still opens.
-  [[nodiscard]] static std::optional<File> open(std::vector<std::uint8_t> bytes, std::vector<std::string>* notices);
+  // through `notices` and the file still opens. For an encrypted file the password
+  // is tried as the user and then the owner password; decryption_ok() reports
+  // whether it worked (an empty password IS a valid user password for the common
+  // owner-locked files every viewer opens without prompting).
+  [[nodiscard]] static std::optional<File> open(std::vector<std::uint8_t> bytes, std::vector<std::string>* notices,
+                                               std::string_view password = {});
 
   [[nodiscard]] const Object& trailer() const noexcept { return trailer_; }
   [[nodiscard]] const Object& catalog() const;
   [[nodiscard]] const std::vector<Page>& pages() const noexcept { return pages_; }
-  // True when the file declared /Encrypt. Decryption is not implemented yet, so
-  // strings and streams from such a file are still ciphertext; the importer refuses
-  // rather than emitting garbage.
+  // True when the file declared /Encrypt.
   [[nodiscard]] bool is_encrypted() const noexcept { return encrypted_; }
+  // False when the file is encrypted and the password did not unlock it (or the
+  // security handler is unsupported); content read in that state is ciphertext.
+  [[nodiscard]] bool decryption_ok() const noexcept { return !encrypted_ || decryptor_.has_value(); }
   [[nodiscard]] const std::string& version() const noexcept { return version_; }
 
   // Follows an indirect reference (and a chain of them) to a direct object.
@@ -68,7 +74,8 @@ public:
     std::string error;
   };
   [[nodiscard]] StreamData stream_data(const Object& stream_object) const;
-  // The still-encoded bytes, with only decryption applied.
+  // The stream's stored bytes exactly as they sit in the file: still filtered, and
+  // for an encrypted file still ciphertext (stream_data handles both).
   [[nodiscard]] std::span<const std::uint8_t> raw_stream_bytes(const Object& stream_object) const;
 
   // Resolves the /Filter and /DecodeParms pair (either may be a single item or an
@@ -81,6 +88,7 @@ public:
 private:
   File() = default;
 
+  void setup_decryption(std::string_view password, std::vector<std::string>* notices);
   void parse_xref_chain(std::vector<std::string>* notices);
   bool parse_xref_section(std::size_t offset, std::vector<std::size_t>& visited, std::vector<std::string>* notices);
   bool parse_xref_table(Lexer& lexer);
@@ -94,6 +102,9 @@ private:
   std::string version_;
   Object trailer_;
   bool encrypted_{false};
+  bool encrypt_metadata_{true};
+  std::optional<Decryptor> decryptor_;
+  std::uint32_t encrypt_object_number_{0};
 
   // Where each object lives: either at a byte offset, or inside an object stream.
   struct Location {

@@ -432,6 +432,7 @@ add_library(patchy_formats
   src/formats/palette_io.cpp
   src/formats/pcx_document_io.cpp
   src/formats/pdf_content.cpp
+  src/formats/pdf_crypt.cpp
   src/formats/pdf_document_io.cpp
   src/formats/pdf_file.cpp
   src/formats/pdf_png_writer.cpp

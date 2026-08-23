@@ -1491,7 +1491,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   connect(mixer_wet_spin, &QSpinBox::valueChanged, mixer_mix_spin,
           [mixer_mix_spin](int wet) { mixer_mix_spin->setEnabled(wet > 0); });
 
-  const auto apply_mixer_combination = [this, mixer_wet_spin, mixer_load_spin, mixer_mix_spin](
+  const auto apply_mixer_combination = [mixer_wet_spin, mixer_load_spin, mixer_mix_spin](
                                            int combo_index) {
     if (combo_index <= 0) {
       return;  // Custom

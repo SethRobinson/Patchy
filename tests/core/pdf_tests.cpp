@@ -1,6 +1,7 @@
 #include "core/layer_metadata.hpp"
 #include "core/smart_object.hpp"
 #include "formats/pdf_content.hpp"
+#include "formats/pdf_crypt.hpp"
 #include "formats/pdf_function.hpp"
 #include "formats/pdf_document_io.hpp"
 #include "formats/pdf_file.hpp"
@@ -9,6 +10,7 @@
 #include "formats/pdf_syntax.hpp"
 
 #include "local_psd_fixtures.hpp"
+#include "pdf_encrypted_fixture.hpp"
 #include "test_harness.hpp"
 
 #include "formats/miniz/miniz.h"
@@ -1309,6 +1311,195 @@ void pdf_vector_import_keeps_jpeg_bytes_untranscoded() {
   }
 }
 
+std::string to_hex(std::span<const std::uint8_t> bytes) {
+  static constexpr char kDigits[] = "0123456789abcdef";
+  std::string text;
+  for (const auto byte : bytes) {
+    text.push_back(kDigits[(byte >> 4) & 0xF]);
+    text.push_back(kDigits[byte & 0xF]);
+  }
+  return text;
+}
+
+void pdf_crypto_primitives_match_known_answers() {
+  // Standard NIST/RFC test vectors, so a toolchain difference in the primitives is
+  // caught here rather than surfacing as a decryption failure.
+  CHECK(to_hex(patchy::pdf::md5(as_bytes("abc"))) == "900150983cd24fb0d6963f7d28e17f72");
+  CHECK(to_hex(patchy::pdf::md5(as_bytes(""))) == "d41d8cd98f00b204e9800998ecf8427e");
+  CHECK(to_hex(patchy::pdf::sha256(as_bytes("abc"))) ==
+        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+  CHECK(to_hex(patchy::pdf::sha384(as_bytes("abc"))) ==
+        "cb00753f45a35e8bb5a03d699ac65007272c32ab0eded1631a8b605a43ff5bed"
+        "8086072ba1e7cc2358baeca134c825a7");
+  CHECK(to_hex(patchy::pdf::sha512(as_bytes("abc"))) ==
+        "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a"
+        "2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f");
+
+  // RC4 vector from the historical test set: key "Key", plaintext "Plaintext".
+  const std::string rc4_key = "Key";
+  const auto rc4_out = patchy::pdf::rc4(
+      std::span(reinterpret_cast<const std::uint8_t*>(rc4_key.data()), rc4_key.size()), as_bytes("Plaintext"));
+  CHECK(to_hex(rc4_out) == "bbf316e8d940af0ad3");
+
+  // AES-128-CBC round trip through the decryptor: FIPS-197 key with a known IV.
+  const std::vector<std::uint8_t> aes_key = {0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6,
+                                             0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c};
+  // Ciphertext of one all-zero block under that key with an all-zero IV, then the
+  // decrypt must return the zero block (verified against a reference implementation).
+  const std::vector<std::uint8_t> iv_and_cipher = {
+      // IV (16 zero bytes)
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+      // AES-128(zero block) under the FIPS key
+      0x7d, 0xf7, 0x6b, 0x0c, 0x1a, 0xb8, 0x99, 0xb3, 0x3e, 0x42, 0xf0, 0x47, 0xb9, 0x1b, 0x54, 0x6f};
+  const auto decrypted = patchy::pdf::aes_cbc_decrypt(aes_key, iv_and_cipher, true, false);
+  CHECK(decrypted.size() == 16);
+  bool all_zero = decrypted.size() == 16;
+  for (const auto byte : decrypted) {
+    all_zero = all_zero && byte == 0;
+  }
+  CHECK(all_zero);
+  // The same all-zero plaintext is not valid PKCS#7, so the padding path must
+  // reject it instead of handing corrupted bytes to the content interpreter.
+  CHECK(patchy::pdf::aes_cbc_decrypt(aes_key, iv_and_cipher).empty());
+}
+
+void pdf_decrypts_an_rc4_encrypted_document() {
+  const auto bytes = encrypted_rc4_pdf_bytes();
+
+  // Opened with the empty user password (the default), the file unlocks and its
+  // content decrypts to real operators.
+  auto file = patchy::pdf::File::open(bytes, nullptr, "");
+  CHECK(file.has_value());
+  if (!file.has_value()) {
+    return;
+  }
+  CHECK(file->is_encrypted());
+  CHECK(file->decryption_ok());
+  CHECK(file->pages().size() == 1);
+  if (file->pages().empty()) {
+    return;
+  }
+  const auto content = file->stream_data(file->get(file->pages().front().dict, "Contents"));
+  CHECK(content.error.empty());
+  CHECK(as_text(content.data) == "0 0 1 rg 10 10 80 80 re f");
+
+  // The editable importer builds the blue rectangle from the decrypted stream.
+  patchy::pdf::VectorReadOptions options;
+  const auto result = patchy::pdf::read_page_as_vectors(bytes, options);
+  CHECK(result.document.layers().size() == 1);
+  if (!result.document.layers().empty()) {
+    const auto* shape = result.document.layers()[0].vector_shape();
+    CHECK(shape != nullptr);
+    if (shape != nullptr) {
+      CHECK(shape->fill.color.blue == 255);
+    }
+  }
+}
+
+void verify_aes_encrypted_document(const std::vector<std::uint8_t>& bytes, std::string_view label) {
+  auto locked = patchy::pdf::File::open(bytes, nullptr, "wrong-password");
+  CHECK(locked.has_value());
+  if (locked.has_value()) {
+    CHECK(locked->is_encrypted());
+    CHECK(!locked->decryption_ok());
+  }
+
+  const auto verify_password = [&](std::string_view password) {
+    auto file = patchy::pdf::File::open(bytes, nullptr, password);
+    CHECK(file.has_value());
+    if (!file.has_value()) {
+      return;
+    }
+    CHECK(file->is_encrypted());
+    CHECK(file->decryption_ok());
+    const std::string expected_catalog_label = std::string(label) + "-catalog";
+    CHECK(file->get(file->catalog(), "FixtureLabel").string() == expected_catalog_label);
+    CHECK(file->pages().size() == 1);
+    if (file->pages().empty()) {
+      return;
+    }
+    const auto& content_object = file->get(file->pages().front().dict, "Contents");
+    CHECK(file->get(content_object, "FixtureLabel").string() == label);
+    const auto content = file->stream_data(content_object);
+    CHECK(content.error.empty());
+    CHECK(as_text(content.data) == "0 0 1 rg 10 10 80 80 re f");
+  };
+
+  // Both password paths have distinct derivations in the standard security
+  // handler, and real owner-locked PDFs commonly rely on the second one.
+  verify_password("aes-user");
+  verify_password("aes-owner");
+
+  // A bad startxref forces full-file recovery. Recovery reads the catalog before
+  // the encryption dictionary, so reopening its encrypted string proves cached
+  // objects are reparsed once decryption is ready.
+  auto rebuilt_bytes = bytes;
+  auto rebuilt_text = std::string_view(reinterpret_cast<const char*>(rebuilt_bytes.data()), rebuilt_bytes.size());
+  const auto marker = rebuilt_text.rfind("startxref\n");
+  CHECK(marker != std::string_view::npos);
+  if (marker != std::string_view::npos) {
+    std::size_t digit = marker + std::string_view("startxref\n").size();
+    while (digit < rebuilt_bytes.size() && rebuilt_bytes[digit] >= '0' && rebuilt_bytes[digit] <= '9') {
+      rebuilt_bytes[digit++] = '9';
+    }
+    auto rebuilt = patchy::pdf::File::open(std::move(rebuilt_bytes), nullptr, "aes-user");
+    CHECK(rebuilt.has_value());
+    if (rebuilt.has_value()) {
+      CHECK(rebuilt->decryption_ok());
+      const std::string expected_catalog_label = std::string(label) + "-catalog";
+      CHECK(rebuilt->get(rebuilt->catalog(), "FixtureLabel").string() == expected_catalog_label);
+    }
+  }
+
+  patchy::pdf::VectorReadOptions options;
+  options.password = "aes-user";
+  const auto result = patchy::pdf::read_page_as_vectors(bytes, options);
+  CHECK(result.document.layers().size() == 1);
+  if (!result.document.layers().empty()) {
+    const auto* shape = result.document.layers()[0].vector_shape();
+    CHECK(shape != nullptr);
+    if (shape != nullptr) {
+      CHECK(shape->fill.color.blue == 255);
+    }
+  }
+
+  options.password = "wrong-password";
+  bool rejected_wrong_password = false;
+  try {
+    (void)patchy::pdf::read_page_as_vectors(bytes, options);
+  } catch (const std::runtime_error& error) {
+    rejected_wrong_password = std::string_view(error.what()) == "This PDF is password protected.";
+  }
+  CHECK(rejected_wrong_password);
+}
+
+void pdf_decrypts_an_aesv2_encrypted_document() {
+  verify_aes_encrypted_document(encrypted_aesv2_pdf_bytes(), "aesv2");
+}
+
+void pdf_decrypts_an_aes256_encrypted_document() {
+  verify_aes_encrypted_document(encrypted_aes256_pdf_bytes(), "aes256");
+}
+
+void pdf_rejects_an_unknown_crypt_filter() {
+  auto bytes = encrypted_aesv2_pdf_bytes();
+  auto text = std::string_view(reinterpret_cast<const char*>(bytes.data()), bytes.size());
+  const auto method = text.find("AESV2");
+  CHECK(method != std::string_view::npos);
+  if (method == std::string_view::npos) {
+    return;
+  }
+  constexpr std::string_view kUnknown = "Bogus2";
+  for (std::size_t index = 0; index < kUnknown.size(); ++index) {
+    bytes[method + index] = static_cast<std::uint8_t>(kUnknown[index]);
+  }
+  auto file = patchy::pdf::File::open(std::move(bytes), nullptr, "aes-user");
+  CHECK(file.has_value());
+  if (file.has_value()) {
+    CHECK(!file->decryption_ok());
+  }
+}
+
 void pdf_functions_evaluate_all_four_types() {
   // The functions live as objects in a small document so indirect /Length and
   // stream decoding run the same path real files use.
@@ -1649,6 +1840,11 @@ std::vector<patchy::test::TestCase> pdf_tests() {
       {"pdf_vector_import_builds_editable_text_layers", pdf_vector_import_builds_editable_text_layers},
       {"pdf_vector_import_places_images_as_smart_objects", pdf_vector_import_places_images_as_smart_objects},
       {"pdf_vector_import_keeps_jpeg_bytes_untranscoded", pdf_vector_import_keeps_jpeg_bytes_untranscoded},
+      {"pdf_crypto_primitives_match_known_answers", pdf_crypto_primitives_match_known_answers},
+      {"pdf_decrypts_an_rc4_encrypted_document", pdf_decrypts_an_rc4_encrypted_document},
+      {"pdf_decrypts_an_aesv2_encrypted_document", pdf_decrypts_an_aesv2_encrypted_document},
+      {"pdf_decrypts_an_aes256_encrypted_document", pdf_decrypts_an_aes256_encrypted_document},
+      {"pdf_rejects_an_unknown_crypt_filter", pdf_rejects_an_unknown_crypt_filter},
       {"pdf_functions_evaluate_all_four_types", pdf_functions_evaluate_all_four_types},
       {"pdf_vector_import_converts_shadings_to_gradient_fills", pdf_vector_import_converts_shadings_to_gradient_fills},
       {"pdf_vector_import_resolves_separation_tints", pdf_vector_import_resolves_separation_tints},

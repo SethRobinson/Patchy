@@ -14360,6 +14360,7 @@ Clipped to the layer below</source>
     <message><source>Import PDF - %1</source><translation>PDF を読み込み - %1</translation></message>
     <message><source>Password for %1:</source><translation>%1 のパスワード:</translation></message>
     <message><source>%1 is password protected.</source><translation>%1 はパスワードで保護されています。</translation></message>
+    <message><source>This PDF is password protected.</source><translation>この PDF はパスワードで保護されています。</translation></message>
     <message><source>%1 could not be found.</source><translation>%1 が見つかりませんでした。</translation></message>
     <message><source>%1 is not a readable PDF file.</source><translation>%1 は読み取り可能な PDF ファイルではありません。</translation></message>
     <message><source>%1 uses a security scheme Patchy cannot open.</source><translation>%1 は Patchy が開けないセキュリティ方式を使用しています。</translation></message>

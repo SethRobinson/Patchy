@@ -488,13 +488,13 @@ std::array<int, 2> page_size_in_pixels(std::span<const std::uint8_t> bytes, int 
 
 VectorReadResult read_page_as_vectors(std::span<const std::uint8_t> bytes, const VectorReadOptions& options) {
   std::vector<std::string> open_notices;
-  auto file = File::open({bytes.begin(), bytes.end()}, &open_notices);
+  auto file = File::open({bytes.begin(), bytes.end()}, &open_notices, options.password);
   if (!file.has_value()) {
     throw std::runtime_error("This file is not a readable PDF.");
   }
-  if (file->is_encrypted()) {
+  if (!file->decryption_ok()) {
     // Emitting ciphertext as if it were artwork would be worse than refusing.
-    throw std::runtime_error("This PDF is encrypted; Patchy cannot import it as editable artwork yet.");
+    throw std::runtime_error("This PDF is password protected.");
   }
   if (file->pages().empty()) {
     throw std::runtime_error("This PDF has no pages.");

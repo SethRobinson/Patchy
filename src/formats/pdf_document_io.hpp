@@ -36,6 +36,9 @@ struct VectorReadOptions {
   // artwork off-canvas, and importing it as hundreds of invisible layers helps
   // nobody.
   bool discard_offscreen{true};
+  // Tried as the user and then the owner password. Empty works for the common
+  // owner-locked files every viewer opens without prompting.
+  std::string password;
 };
 
 struct VectorReadResult {

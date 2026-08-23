@@ -141,11 +141,17 @@ QString error_message(QPdfDocument::Error error, const QString& file_name) {
 
 // Opens the document, asking for a password (up to three tries) when it is encrypted.
 // A null parent means the non-interactive path: a wrong or missing password just fails.
-QPdfDocument::Error open_pdf(QPdfDocument& document, const QString& path, const QString& password, QWidget* parent) {
+// The password that worked lands in *accepted_password so the editable importer can
+// derive its own keys from the same secret.
+QPdfDocument::Error open_pdf(QPdfDocument& document, const QString& path, const QString& password, QWidget* parent,
+                             QString* accepted_password = nullptr) {
   if (!password.isEmpty()) {
     document.setPassword(password);
   }
   auto error = document.load(path);
+  if (error == QPdfDocument::Error::None && accepted_password != nullptr) {
+    *accepted_password = password;
+  }
   if (error != QPdfDocument::Error::IncorrectPassword || parent == nullptr) {
     return error;
   }
@@ -159,6 +165,9 @@ QPdfDocument::Error open_pdf(QPdfDocument& document, const QString& path, const 
     }
     document.setPassword(entered);
     error = document.load(path);
+    if (error == QPdfDocument::Error::None && accepted_password != nullptr) {
+      *accepted_password = entered;
+    }
   }
   return error;
 }
@@ -261,7 +270,9 @@ std::optional<PdfImportResult> load_pdf_document(const QString& path, const PdfI
 std::optional<PdfImportResult> run_pdf_import_dialog(QWidget* parent, const QString& path) {
   const auto file_name = QFileInfo(path).fileName();
   QPdfDocument pdf;
-  if (const auto status = open_pdf(pdf, path, QString(), parent); status != QPdfDocument::Error::None) {
+  QString accepted_password;
+  if (const auto status = open_pdf(pdf, path, QString(), parent, &accepted_password);
+      status != QPdfDocument::Error::None) {
     QMessageBox box(QMessageBox::Warning, QObject::tr("Open PDF"), error_message(status, file_name), QMessageBox::Ok,
                     parent);
     box.setObjectName(QStringLiteral("pdfOpenFailedMessageBox"));
@@ -430,6 +441,7 @@ std::optional<PdfImportResult> run_pdf_import_dialog(QWidget* parent, const QStr
       pdf::VectorReadOptions vector_options;
       vector_options.page = options.pages.empty() ? 0 : options.pages.front();
       vector_options.pixels_per_point = options.resolution_ppi / 72.0;
+      vector_options.password = accepted_password.toStdString();
       try {
         auto vectors = pdf::read_page_as_vectors(
             std::span(reinterpret_cast<const std::uint8_t*>(bytes.constData()),
@@ -452,6 +464,9 @@ std::optional<PdfImportResult> run_pdf_import_dialog(QWidget* parent, const QStr
         return result;
       } catch (const std::exception& exception) {
         editable_failure = QString::fromUtf8(exception.what());
+        if (editable_failure == QStringLiteral("This PDF is password protected.")) {
+          editable_failure = QObject::tr("This PDF is password protected.");
+        }
       }
     } else {
       editable_failure = file.errorString();

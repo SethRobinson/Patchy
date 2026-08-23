@@ -15,8 +15,6 @@ namespace {
 using formats::map_point;
 using formats::multiply;
 
-constexpr double kPointsPerInch = 72.0;
-
 // --- Colour spaces -------------------------------------------------------------
 
 enum class SpaceKind { Gray, Rgb, Cmyk, Indexed, Separation, Lab, Pattern, Unknown };
@@ -1146,19 +1144,19 @@ private:
     // Colour
     if (op == "g" || op == "G") {
       auto& space = op == "g" ? state_.fill_space : state_.stroke_space;
-      space = ColorSpace{SpaceKind::Gray, 1, nullptr, {}, 0, {}};
+      space = ColorSpace{SpaceKind::Gray, 1, nullptr, {}, 0, {}, nullptr};
       set_color(op == "g", to_rgb_color(operand(operands, 0), operand(operands, 0), operand(operands, 0)));
       return;
     }
     if (op == "rg" || op == "RG") {
       auto& space = op == "rg" ? state_.fill_space : state_.stroke_space;
-      space = ColorSpace{SpaceKind::Rgb, 3, nullptr, {}, 0, {}};
+      space = ColorSpace{SpaceKind::Rgb, 3, nullptr, {}, 0, {}, nullptr};
       set_color(op == "rg", to_rgb_color(operand(operands, 2), operand(operands, 1), operand(operands, 0)));
       return;
     }
     if (op == "k" || op == "K") {
       auto& space = op == "k" ? state_.fill_space : state_.stroke_space;
-      space = ColorSpace{SpaceKind::Cmyk, 4, nullptr, {}, 0, {}};
+      space = ColorSpace{SpaceKind::Cmyk, 4, nullptr, {}, 0, {}, nullptr};
       set_color(op == "k",
                 cmyk_to_rgb(operand(operands, 3), operand(operands, 2), operand(operands, 1), operand(operands, 0)));
       return;

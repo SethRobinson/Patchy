@@ -51,7 +51,8 @@ void normalize_box(const std::vector<double>& values, double (&box)[4]) {
 
 }  // namespace
 
-std::optional<File> File::open(std::vector<std::uint8_t> bytes, std::vector<std::string>* notices) {
+std::optional<File> File::open(std::vector<std::uint8_t> bytes, std::vector<std::string>* notices,
+                               std::string_view password) {
   const auto window = text_at(bytes, 0, kHeaderSearchWindow + 8);
   const auto header = window.find("%PDF-");
   if (header == std::string_view::npos) {
@@ -75,8 +76,7 @@ std::optional<File> File::open(std::vector<std::uint8_t> bytes, std::vector<std:
     file.reconstruct_by_scanning(notices);
   }
 
-  const auto& encrypt = file.get(file.trailer_, "Encrypt");
-  file.encrypted_ = !encrypt.is_null();
+  file.setup_decryption(password, notices);
 
   file.collect_pages(notices);
   if (file.pages_.empty() && !file.scanned_) {
@@ -88,6 +88,84 @@ std::optional<File> File::open(std::vector<std::uint8_t> bytes, std::vector<std:
     file.collect_pages(notices);
   }
   return file;
+}
+
+void File::setup_decryption(std::string_view password, std::vector<std::string>* notices) {
+  const auto& reference = trailer_.get("Encrypt");
+  const auto& encrypt = resolve(reference);
+  encrypted_ = !encrypt.is_null();
+  if (!encrypted_) {
+    return;
+  }
+  if (const auto indirect = reference.reference(); indirect.has_value()) {
+    // The Encrypt dictionary's own strings (/O, /U, ...) are never encrypted, so
+    // the string-decryption walk must skip this object.
+    encrypt_object_number_ = indirect->number;
+  }
+
+  if (get(encrypt, "Filter").name() != "Standard") {
+    if (notices != nullptr) {
+      notices->push_back("This PDF uses a custom security handler Patchy cannot open.");
+    }
+    return;
+  }
+
+  Decryptor::Inputs inputs;
+  inputs.v = static_cast<int>(get(encrypt, "V").integer(0));
+  inputs.revision = static_cast<int>(get(encrypt, "R").integer(0));
+  inputs.length_bits = static_cast<int>(get(encrypt, "Length").integer(40));
+  inputs.owner_hash = std::string(get(encrypt, "O").string());
+  inputs.user_hash = std::string(get(encrypt, "U").string());
+  inputs.owner_key = std::string(get(encrypt, "OE").string());
+  inputs.user_key = std::string(get(encrypt, "UE").string());
+  inputs.permissions = get(encrypt, "P").integer(0);
+  inputs.encrypt_metadata = get(encrypt, "EncryptMetadata").boolean(true);
+  encrypt_metadata_ = inputs.encrypt_metadata;
+  if (const auto* id_array = get(trailer_, "ID").array(); id_array != nullptr && !id_array->empty()) {
+    inputs.first_file_id = std::string(resolve((*id_array)[0]).string());
+  }
+  // V4/V5 route streams and strings through named crypt filters.
+  if (inputs.v >= 4) {
+    const auto& filters = get(encrypt, "CF");
+    const auto method_of = [&](std::string_view name) -> std::string {
+      if (name == "Identity" || name.empty()) {
+        return "Identity";
+      }
+      const auto& filter = get(filters, name);
+      const auto method = get(filter, "CFM").name();
+      return method.empty() ? std::string("None") : std::string(method);
+    };
+    const auto stream_filter = get(encrypt, "StmF").name("Identity");
+    const auto string_filter = get(encrypt, "StrF").name("Identity");
+    inputs.stream_method = method_of(stream_filter);
+    inputs.string_method = method_of(string_filter);
+    if (inputs.v == 4) {
+      const auto aesv2_length = [&](std::string_view filter_name, const std::string& method) -> int {
+        if (method != "AESV2") {
+          return 0;
+        }
+        const auto bytes = get(get(filters, filter_name), "Length").integer(16);
+        return bytes > 0 && bytes <= 16 ? static_cast<int>(bytes * 8) : 0;
+      };
+      const int stream_length = aesv2_length(stream_filter, inputs.stream_method);
+      const int string_length = aesv2_length(string_filter, inputs.string_method);
+      if (stream_length != 0) {
+        inputs.length_bits = stream_length;
+      } else if (string_length != 0) {
+        inputs.length_bits = string_length;
+      }
+    }
+  }
+
+  decryptor_ = Decryptor::create(inputs, password);
+  if (!decryptor_.has_value() && notices != nullptr) {
+    notices->push_back("This PDF is password protected and the password did not unlock it.");
+  }
+  // Xref recovery may have parsed indirect objects before the encryption
+  // dictionary was available. Reparse them now so every string sees the final
+  // decryption state and every stream carries its actual object generation.
+  cache_.clear();
+  loaded_object_streams_.clear();
 }
 
 void File::parse_xref_chain(std::vector<std::string>* notices) {
@@ -504,6 +582,7 @@ const Object& File::object(Reference reference) const {
     return slot->second;
   }
   const auto header = token->object.reference();
+  const std::uint16_t generation = header.has_value() ? header->generation : 0;
   if (header.has_value() && header->number != reference.number) {
     // The offset points at the wrong object: the xref is stale. One full rescan is
     // allowed, then the lookup is retried against the rebuilt table.
@@ -515,6 +594,19 @@ const Object& File::object(Reference reference) const {
     return slot->second;
   }
   slot->second = lexer.next_object();
+  if (auto* stream = slot->second.mutable_stream(); stream != nullptr) {
+    stream->owner_number = reference.number;
+    stream->owner_generation = generation;
+  }
+  if (decryptor_.has_value() && reference.number != encrypt_object_number_ &&
+      !decryptor_->strings_are_identity()) {
+    // Objects inside object streams are NOT walked here: their strings were
+    // decrypted with the container stream (load_object_stream fills the cache
+    // directly), and decrypting twice would corrupt them.
+    slot->second.transform_strings([this, &reference, generation](std::string& text) {
+      text = decryptor_->decrypt_string(reference.number, generation, text);
+    });
+  }
   return slot->second;
 }
 
@@ -611,7 +703,21 @@ File::StreamData File::stream_data(const Object& stream_object) const {
   if (raw.empty()) {
     return result;
   }
-  auto decoded = apply_filter_chain(raw, filter_chain(stream_object));
+  const auto* stream = stream_object.stream();
+  std::vector<std::uint8_t> plaintext;
+  bool decrypted = false;
+  if (decryptor_.has_value() && stream != nullptr && stream->owner_number != 0) {
+    // Unstamped streams (the xref stream, inline images) are never encrypted; a
+    // plaintext /Metadata stream is exempted by the /EncryptMetadata flag.
+    const auto type = get(stream_object, "Type").name();
+    const bool exempt = type == "XRef" || (!encrypt_metadata_ && type == "Metadata");
+    if (!exempt) {
+      plaintext = decryptor_->decrypt_stream(stream->owner_number, stream->owner_generation, raw);
+      decrypted = true;
+    }
+  }
+  auto decoded = apply_filter_chain(decrypted ? std::span<const std::uint8_t>(plaintext) : raw,
+                                    filter_chain(stream_object));
   result.data = std::move(decoded.data);
   result.image_codec = decoded.image_codec;
   result.error = std::move(decoded.error);
