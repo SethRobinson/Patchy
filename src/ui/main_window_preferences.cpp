@@ -567,6 +567,23 @@ void MainWindow::show_preferences() {
   const auto af_image_layers_index = af_image_layers_combo->findData(af_image_layers_policy);
   af_image_layers_combo->setCurrentIndex(af_image_layers_index >= 0 ? af_image_layers_index : 0);
   application_form->addRow(tr("Opening Affinity image layers:"), af_image_layers_combo);
+  // How a layered document is written to PDF (also settable from the question that
+  // appears while this is "Ask every time").
+  auto* pdf_layers_combo = new QComboBox(application_group);
+  pdf_layers_combo->setObjectName(QStringLiteral("preferencesPdfLayersCombo"));
+  pdf_layers_combo->addItem(tr("Ask every time"), QStringLiteral("ask"));
+  pdf_layers_combo->addItem(tr("Flatten to one image"), QStringLiteral("flatten"));
+  pdf_layers_combo->addItem(tr("Keep layers as editable objects"), QStringLiteral("editable"));
+  pdf_layers_combo->setToolTip(
+      tr("Editable objects keep shape layers as paths, text as real text, and pixel layers as images, "
+         "so the PDF opens as separate pieces; blend modes, adjustments, layer styles, and pixel masks "
+         "are flattened into images where needed, so the page may not look exactly like the canvas. "
+         "One flattened image always looks exactly like the canvas."));
+  const auto pdf_layers_policy =
+      settings.value(QStringLiteral("saveOptions/pdfLayerPolicy"), QStringLiteral("ask")).toString();
+  const auto pdf_layers_index = pdf_layers_combo->findData(pdf_layers_policy);
+  pdf_layers_combo->setCurrentIndex(pdf_layers_index >= 0 ? pdf_layers_index : 0);
+  application_form->addRow(tr("Saving layered documents as PDF:"), pdf_layers_combo);
   // Fonts dropped onto the window persist (desktop: the AppData user-fonts
   // directory; wasm: IndexedDB). This is the one way to empty that store;
   // already-registered fonts stay usable because application fonts are never
@@ -1033,6 +1050,7 @@ void MainWindow::show_preferences() {
     settings.setValue(QStringLiteral("imports/showRawDevelopDialog"), raw_develop_check->isChecked());
     settings.setValue(QStringLiteral("imports/adoptIndexedPalette"), indexed_open_combo->currentData().toString());
     settings.setValue(QStringLiteral("imports/afImageLayers"), af_image_layers_combo->currentData().toString());
+    settings.setValue(QStringLiteral("saveOptions/pdfLayerPolicy"), pdf_layers_combo->currentData().toString());
     const int selected_gui_scale = gui_scale_combo->currentData().toInt();
     if (selected_gui_scale != entry_gui_scale) {
       set_stored_gui_scale_percent(selected_gui_scale);

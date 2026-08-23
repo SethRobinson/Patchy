@@ -58,6 +58,9 @@ public:
   // press/release pair funnels into exactly this call, but synthetic clicks sent
   // while another window (e.g. a non-modal dialog) is active lose the in-flight
   // drag state to a focus bounce the offscreen platform invents.
+  static std::optional<bool> resolve_pdf_layer_choice(MainWindow& window, bool for_export) {
+    return window.resolve_pdf_layer_choice(for_export);
+  }
   static void add_text_at(MainWindow& window, QPoint document_point) {
     window.add_text_at(document_point, QRect());
   }

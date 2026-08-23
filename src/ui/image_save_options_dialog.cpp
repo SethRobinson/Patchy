@@ -241,8 +241,6 @@ ImageSaveOptions load_image_save_option_defaults() {
       settings.value(QStringLiteral("saveOptions/icoResample"), ico_resample_key(options.ico_resample)).toString(),
       options.ico_resample);
   options.pdf_lossless = settings.value(QStringLiteral("saveOptions/pdfLossless"), options.pdf_lossless).toBool();
-  options.pdf_editable_layers =
-      settings.value(QStringLiteral("saveOptions/pdfEditableLayers"), options.pdf_editable_layers).toBool();
   return options;
 }
 
@@ -264,7 +262,6 @@ void save_image_save_option_defaults(const ImageSaveOptions& options) {
   }
   settings.setValue(QStringLiteral("saveOptions/icoResample"), ico_resample_key(options.ico_resample));
   settings.setValue(QStringLiteral("saveOptions/pdfLossless"), options.pdf_lossless);
-  settings.setValue(QStringLiteral("saveOptions/pdfEditableLayers"), options.pdf_editable_layers);
 }
 
 std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const QString& extension,
@@ -580,19 +577,13 @@ std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const
     lossless->setToolTip(QObject::tr("Unchecked, the page is compressed as JPEG at Qt's fixed quality."));
     content->addWidget(lossless);
 
-    // Editable layers: shape layers as paths, text as real text, pixels as images, so the
-    // PDF re-imports (here or in other editors) as pieces instead of one picture. The
-    // price is fidelity, which the banner below says out loud while the option is on.
-    auto* editable = new QCheckBox(QObject::tr("Keep layers as editable objects (paths, text, images)"), &dialog);
-    editable->setObjectName(QStringLiteral("pdfEditableLayersCheck"));
-    editable->setChecked(options.pdf_editable_layers);
-    editable->setToolTip(QObject::tr("Unchecked, the whole document is written as one flattened image."));
-    content->addWidget(editable);
-
+    // Editable layers (decided before this dialog by MainWindow::resolve_pdf_layer_choice:
+    // the flatten-or-keep question or the remembered policy) trade fidelity for
+    // structure, which the banner says out loud while the choice is on.
     auto* editable_warning = new QLabel(
-        QObject::tr("The PDF may not look exactly like the canvas: blend modes, adjustment layers, group "
-                    "opacity, layer styles, and pixel masks have no editable PDF form here and are flattened "
-                    "into images where needed."),
+        QObject::tr("Layers are kept as editable objects (paths, text, images). The PDF may not look exactly "
+                    "like the canvas: blend modes, adjustment layers, group opacity, layer styles, and pixel "
+                    "masks have no editable PDF form here and are flattened into images where needed."),
         &dialog);
     editable_warning->setObjectName(QStringLiteral("pdfEditableLayersWarning"));
     editable_warning->setWordWrap(true);
@@ -611,23 +602,18 @@ std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const
     content->addWidget(page_note);
     add_dialog_buttons(content, dialog);
 
-    const auto sync_editable_state = [editable, editable_warning, scale_combo] {
-      const bool keep_layers = editable->isChecked();
-      editable_warning->setVisible(keep_layers);
-      if (scale_combo != nullptr) {
-        // Vectors and text scale with the page; the nearest-neighbor pixel scale only
-        // applies to the flattened image.
-        scale_combo->setEnabled(!keep_layers);
-      }
-    };
-    QObject::connect(editable, &QCheckBox::toggled, &dialog, sync_editable_state);
-    sync_editable_state();
+    const bool keep_layers = options.pdf_editable_layers;
+    editable_warning->setVisible(keep_layers);
+    if (scale_combo != nullptr) {
+      // Vectors and text scale with the page; the nearest-neighbor pixel scale only
+      // applies to the flattened image.
+      scale_combo->setEnabled(!keep_layers);
+    }
 
     if (exec_dialog(dialog) != QDialog::Accepted) {
       return std::nullopt;
     }
     options.pdf_lossless = lossless->isChecked();
-    options.pdf_editable_layers = editable->isChecked();
     if (scale_combo != nullptr) {
       options.export_scale = options.pdf_editable_layers ? 1 : scale_combo->currentData().toInt();
       if (!options.pdf_editable_layers) {

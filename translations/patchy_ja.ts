@@ -7746,8 +7746,56 @@ Mixed selection</source>
         <translation>SVG はシェイプレイヤーをベクターのまま保存しますが、マスク、レイヤースタイル、テキスト、調整レイヤーは画像として書き出されるため、Patchy はコピーを保存します。開いているドキュメントのレイヤーと未保存の変更はそのまま残ります。すべてを編集可能なまま残すには、Photoshop ドキュメント (.psd) として保存してください。</translation>
     </message>
     <message>
-        <source>PDF can keep shape layers as paths and text as text (the &quot;Keep layers as editable objects&quot; option in PDF Options), but blend modes, adjustments, and layer styles are baked into images, so Patchy will save a copy. The open document will keep its layers and unsaved changes. To keep everything editable, save as a Photoshop document (.psd) instead.</source>
-        <translation>PDF はシェイプレイヤーをパスとして、テキストをテキストとして保持できますが (PDF オプションの「レイヤーを編集可能なオブジェクトとして保持」)、描画モード、調整レイヤー、レイヤースタイルは画像として書き出されるため、Patchy はコピーを保存します。開いているドキュメントのレイヤーと未保存の変更はそのまま残ります。すべてを編集可能なまま残すには、Photoshop ドキュメント (.psd) として保存してください。</translation>
+        <source>Export PDF Layers</source>
+        <translation>PDF レイヤーのエクスポート</translation>
+    </message>
+    <message>
+        <source>Save PDF Layers</source>
+        <translation>PDF レイヤーの保存</translation>
+    </message>
+    <message>
+        <source>How should this document&apos;s layers be written to the PDF?</source>
+        <translation>このドキュメントのレイヤーを PDF にどのように書き出しますか?</translation>
+    </message>
+    <message>
+        <source>Keep layers editable: shape layers become paths, text stays real text, and pixel layers become images, so the PDF opens as separate pieces in Patchy and other editors. Blend modes, adjustment layers, group opacity, layer styles, and pixel masks are flattened into images where needed, so the page may not look exactly like the canvas.
+
+Flatten to one image: the page looks exactly like the canvas.
+
+Either way Patchy writes a copy; the open document keeps its layers and unsaved changes. Preferences &gt; Saving layered documents as PDF sets a default that skips this question.</source>
+        <translation>レイヤーを編集可能なまま保持: シェイプレイヤーはパスに、テキストは本物のテキストのまま、ピクセルレイヤーは画像になるため、PDF は Patchy や他のエディタで個別のオブジェクトとして開けます。描画モード、調整レイヤー、グループの不透明度、レイヤースタイル、ピクセルマスクは必要に応じて画像に統合されるため、ページはキャンバスと完全には同じ見た目にならない場合があります。
+
+1 枚の画像に統合: ページはキャンバスと完全に同じ見た目になります。
+
+どちらの場合も Patchy はコピーを書き出し、開いているドキュメントのレイヤーと未保存の変更はそのまま残ります。環境設定の「レイヤー付きドキュメントを PDF に保存」で既定を設定すると、この質問は表示されなくなります。</translation>
+    </message>
+    <message>
+        <source>Keep Layers Editable</source>
+        <translation>レイヤーを編集可能なまま保持</translation>
+    </message>
+    <message>
+        <source>Flatten to One Image</source>
+        <translation>1 枚の画像に統合</translation>
+    </message>
+    <message>
+        <source>Saving layered documents as PDF:</source>
+        <translation>レイヤー付きドキュメントを PDF に保存:</translation>
+    </message>
+    <message>
+        <source>Flatten to one image</source>
+        <translation>1 枚の画像に統合</translation>
+    </message>
+    <message>
+        <source>Keep layers as editable objects</source>
+        <translation>レイヤーを編集可能なオブジェクトとして保持</translation>
+    </message>
+    <message>
+        <source>Editable objects keep shape layers as paths, text as real text, and pixel layers as images, so the PDF opens as separate pieces; blend modes, adjustments, layer styles, and pixel masks are flattened into images where needed, so the page may not look exactly like the canvas. One flattened image always looks exactly like the canvas.</source>
+        <translation>編集可能なオブジェクトでは、シェイプレイヤーはパス、テキストは本物のテキスト、ピクセルレイヤーは画像として保持されるため、PDF は個別のオブジェクトとして開けます。描画モード、調整レイヤー、レイヤースタイル、ピクセルマスクは必要に応じて画像に統合されるため、ページはキャンバスと完全には同じ見た目にならない場合があります。1 枚の統合画像は常にキャンバスと完全に同じ見た目になります。</translation>
+    </message>
+    <message>
+        <source>Saved PDF copy with editable layers %1.</source>
+        <translation>編集可能なレイヤー付きの PDF のコピー %1 を保存しました。</translation>
     </message>
     <message>
         <source>Saved SVG copy %1.</source>
@@ -14363,9 +14411,7 @@ Clipped to the layer below</source>
     <message><source>PDF Document</source><translation>PDF ドキュメント</translation></message>
     <message><source>PDF Options</source><translation>PDF オプション</translation></message>
     <message><source>Lossless image data (larger file)</source><translation>可逆圧縮の画像データ (ファイルサイズ大)</translation></message>
-    <message><source>Keep layers as editable objects (paths, text, images)</source><translation>レイヤーを編集可能なオブジェクトとして保持 (パス、テキスト、画像)</translation></message>
-    <message><source>Unchecked, the whole document is written as one flattened image.</source><translation>オフの場合、ドキュメント全体が 1 枚の統合画像として書き出されます。</translation></message>
-    <message><source>The PDF may not look exactly like the canvas: blend modes, adjustment layers, group opacity, layer styles, and pixel masks have no editable PDF form here and are flattened into images where needed.</source><translation>PDF はキャンバスと完全には同じ見た目にならない場合があります。描画モード、調整レイヤー、グループの不透明度、レイヤースタイル、ピクセルマスクは編集可能な PDF 形式にできないため、必要に応じて画像に統合されます。</translation></message>
+    <message><source>Layers are kept as editable objects (paths, text, images). The PDF may not look exactly like the canvas: blend modes, adjustment layers, group opacity, layer styles, and pixel masks have no editable PDF form here and are flattened into images where needed.</source><translation>レイヤーは編集可能なオブジェクト (パス、テキスト、画像) として保持されます。PDF はキャンバスと完全には同じ見た目にならない場合があります。描画モード、調整レイヤー、グループの不透明度、レイヤースタイル、ピクセルマスクは編集可能な PDF 形式にできないため、必要に応じて画像に統合されます。</translation></message>
     <message numerus="yes">
         <source> (+%n more export note(s))</source>
         <translation>

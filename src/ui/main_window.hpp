@@ -555,6 +555,10 @@ private:
   // extension picks the wording: SVG keeps vector shapes and only bakes the
   // rest, so its copy-save warning must not claim everything flattens.
   bool confirm_flatten_layers_for_save(const QString& extension = {});
+  // PDF's replacement for that prompt on a layered document: flatten to one image or
+  // keep layers as editable objects (true), answered by the saveOptions/pdfLayerPolicy
+  // preference when set, else by a dialog. nullopt = cancelled.
+  std::optional<bool> resolve_pdf_layer_choice(bool for_export);
   void export_flat_image();
   void page_setup();
   void print_document();

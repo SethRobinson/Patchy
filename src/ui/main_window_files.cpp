@@ -1966,12 +1966,24 @@ bool MainWindow::save_document_as() {
   path = path_with_default_extension(path, selected_filter);
   const auto extension = extension_for_path(path);
   const bool discards_layers = layered_document && !save_extension_preserves_layers(extension);
-  if (discards_layers && !confirm_flatten_layers_for_save(extension)) {
-    return false;
+  const bool linked_external_child =
+      session().smart_object_link.has_value() && session().smart_object_link->external;
+  std::optional<bool> pdf_editable_layers;
+  if (discards_layers) {
+    if (is_pdf_extension(extension) && !linked_external_child) {
+      pdf_editable_layers = resolve_pdf_layer_choice(/*for_export*/ false);
+      if (!pdf_editable_layers.has_value()) {
+        return false;
+      }
+    } else if (!confirm_flatten_layers_for_save(extension)) {
+      return false;
+    }
   }
   std::optional<ImageSaveOptions> image_options;
   if (!is_photoshop_document_extension(extension) && image_save_options_apply_to_extension(extension)) {
-    image_options = prompt_image_save_options(this, extension, image_save_defaults_for_document());
+    auto defaults = image_save_defaults_for_document();
+    defaults.pdf_editable_layers = pdf_editable_layers.value_or(false);
+    image_options = prompt_image_save_options(this, extension, defaults);
     if (!image_options.has_value()) {
       return false;
     }
@@ -1985,18 +1997,12 @@ bool MainWindow::confirm_flatten_layers_for_save(const QString& extension) {
   // A linked smart-object child writes the linked file itself (the file on disk is the
   // document), so its flat save is a real save; everything else saves a flattened copy
   // and keeps the layered document open with its unsaved changes (Photoshop's
-  // save-a-copy semantics). SVG and PDF get their own wording: shape layers stay real
-  // vectors there (PDF only with its "Keep layers as editable objects" option, which the
-  // PDF Options dialog offers right after this) and only the rest bakes.
+  // save-a-copy semantics). SVG gets its own wording: shape layers stay real
+  // vectors there and only the rest bakes. PDF (not linked) never comes here: it
+  // asks flatten-or-editable through resolve_pdf_layer_choice instead.
   const auto message =
       extension == QStringLiteral("svg")
           ? tr("SVG keeps shape layers as vectors, but masks, layer styles, text, and adjustments are "
-               "baked into images, so Patchy will save a copy. The open document will keep its layers "
-               "and unsaved changes. To keep everything editable, save as a Photoshop document (.psd) "
-               "instead.")
-      : is_pdf_extension(extension) && !linked_external_child
-          ? tr("PDF can keep shape layers as paths and text as text (the \"Keep layers as editable "
-               "objects\" option in PDF Options), but blend modes, adjustments, and layer styles are "
                "baked into images, so Patchy will save a copy. The open document will keep its layers "
                "and unsaved changes. To keep everything editable, save as a Photoshop document (.psd) "
                "instead.")
@@ -2012,6 +2018,55 @@ bool MainWindow::confirm_flatten_layers_for_save(const QString& extension) {
   return answer == QMessageBox::Save;
 }
 
+// A layered document going to PDF has two honest forms (one flattened image, or layers
+// kept as paths/text/images that may not composite exactly like the canvas), so instead
+// of the flatten confirmation the user picks one here. The remembered policy
+// (saveOptions/pdfLayerPolicy: "ask" / "flatten" / "editable", also in Preferences)
+// answers without a dialog; the dialog's "Remember this choice" sets it. Returns the
+// choice (true = keep layers editable) or nullopt for Cancel.
+std::optional<bool> MainWindow::resolve_pdf_layer_choice(bool for_export) {
+  auto settings = app_settings();
+  const auto policy = settings.value(QStringLiteral("saveOptions/pdfLayerPolicy"), QStringLiteral("ask")).toString();
+  if (policy == QStringLiteral("flatten")) {
+    return false;
+  }
+  if (policy == QStringLiteral("editable")) {
+    return true;
+  }
+  QMessageBox box(this);
+  box.setObjectName(QStringLiteral("pdfLayersMessageBox"));
+  box.setIcon(QMessageBox::Question);
+  box.setWindowTitle(for_export ? tr("Export PDF Layers") : tr("Save PDF Layers"));
+  box.setText(tr("How should this document's layers be written to the PDF?"));
+  box.setInformativeText(
+      tr("Keep layers editable: shape layers become paths, text stays real text, and pixel layers "
+         "become images, so the PDF opens as separate pieces in Patchy and other editors. Blend modes, "
+         "adjustment layers, group opacity, layer styles, and pixel masks are flattened into images "
+         "where needed, so the page may not look exactly like the canvas.\n\n"
+         "Flatten to one image: the page looks exactly like the canvas.\n\n"
+         "Either way Patchy writes a copy; the open document keeps its layers and unsaved changes. "
+         "Preferences > Saving layered documents as PDF sets a default that skips this question."));
+  auto* editable_button = box.addButton(tr("Keep Layers Editable"), QMessageBox::AcceptRole);
+  auto* flatten_button = box.addButton(tr("Flatten to One Image"), QMessageBox::AcceptRole);
+  box.addButton(QMessageBox::Cancel);
+  box.setDefaultButton(flatten_button);
+  box.setEscapeButton(QMessageBox::Cancel);
+  auto* remember = new QCheckBox(tr("Remember this choice"), &box);
+  remember->setObjectName(QStringLiteral("pdfLayersRememberCheck"));
+  box.setCheckBox(remember);
+  exec_dialog(box);
+  const auto* clicked = box.clickedButton();
+  if (clicked != editable_button && clicked != flatten_button) {
+    return std::nullopt;
+  }
+  const bool editable = clicked == editable_button;
+  if (remember->isChecked()) {
+    settings.setValue(QStringLiteral("saveOptions/pdfLayerPolicy"),
+                      editable ? QStringLiteral("editable") : QStringLiteral("flatten"));
+  }
+  return editable;
+}
+
 bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOptions> image_options,
                                        bool flatten_confirmed) {
   finish_active_text_editor();
@@ -2020,9 +2075,18 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
                                flat_save_discards_layers(std::as_const(document()));
   // CLI automation saves are explicit about their target format, so flattening needs no
   // confirmation there (and an unattended run must never block on the prompt).
-  if (discards_layers && !flatten_confirmed && !cli_automation_mode_ &&
-      !confirm_flatten_layers_for_save(extension)) {
-    return false;
+  std::optional<bool> pdf_editable_layers;
+  if (discards_layers && !flatten_confirmed && !cli_automation_mode_) {
+    const bool linked_external_child =
+        session().smart_object_link.has_value() && session().smart_object_link->external;
+    if (is_pdf_extension(extension) && !linked_external_child) {
+      pdf_editable_layers = resolve_pdf_layer_choice(/*for_export*/ false);
+      if (!pdf_editable_layers.has_value()) {
+        return false;
+      }
+    } else if (!confirm_flatten_layers_for_save(extension)) {
+      return false;
+    }
   }
   if (!cli_automation_mode_ && !is_photoshop_document_extension(extension) &&
       !std::as_const(document()).channels().empty()) {
@@ -2054,6 +2118,9 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
           active_session.image_save_options_extension == extension) {
         effective_image_options = *active_session.image_save_options;
       }
+    }
+    if (pdf_editable_layers.has_value()) {
+      effective_image_options.pdf_editable_layers = *pdf_editable_layers;
     }
 
     QString export_notes_suffix;
@@ -2093,7 +2160,9 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
         add_recent_file(path);
       }
       statusBar()->showMessage((extension == QStringLiteral("svg") ? tr("Saved SVG copy %1.")
-                                                                   : tr("Saved flattened copy %1"))
+                                : is_pdf_extension(extension) && effective_image_options.pdf_editable_layers
+                                    ? tr("Saved PDF copy with editable layers %1.")
+                                    : tr("Saved flattened copy %1"))
                                    .arg(path) +
                                export_notes_suffix);
       return true;
@@ -2155,11 +2224,19 @@ void MainWindow::export_flat_image() {
     const bool svg_export = extension == QStringLiteral("svg");
     std::optional<ImageSaveOptions> image_options;
     if (!is_photoshop_document_extension(extension) && !svg_export) {
+      auto defaults = image_save_defaults_for_document();
+      if (is_pdf_extension(extension) && flat_save_discards_layers(std::as_const(document()))) {
+        // Flatten or keep layers editable: the remembered policy or the question.
+        const auto pdf_editable_layers = resolve_pdf_layer_choice(/*for_export*/ true);
+        if (!pdf_editable_layers.has_value()) {
+          return;
+        }
+        defaults.pdf_editable_layers = *pdf_editable_layers;
+      }
       // for_export adds the nearest-neighbor Scale combo to every raster format's options
       // (a scale-only dialog for formats with no other options). SVG has no
       // raster options: vectors scale client-side.
-      image_options = prompt_image_save_options(this, extension, image_save_defaults_for_document(),
-                                                /*for_export*/ true);
+      image_options = prompt_image_save_options(this, extension, defaults, /*for_export*/ true);
       if (!image_options.has_value()) {
         return;
       }

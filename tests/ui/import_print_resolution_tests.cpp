@@ -1383,57 +1383,169 @@ void ui_pdf_export_editable_flattens_blend_modes_with_notice() {
   CHECK(flat_notices.empty());
 }
 
-// The option's dialog: the fidelity warning is visible exactly while "keep layers" is on,
-// the export Scale combo (pixel-only) grays out with it, and the choice persists.
-void ui_pdf_options_dialog_editable_warning_follows_checkbox() {
-  patchy::ui::ImageSaveOptions defaults;
-  defaults.pdf_editable_layers = false;
-  bool saw_dialog = false;
-  QTimer::singleShot(0, [&saw_dialog] {
-    auto* dialog = find_top_level_dialog(QStringLiteral("pdfSaveOptionsDialog"));
-    CHECK(dialog != nullptr);
-    if (dialog == nullptr) {
-      return;
+// The PDF Options dialog after the flatten-or-keep choice: the fidelity warning is
+// visible exactly when layers are kept, and the export Scale combo (pixel-only) grays out
+// with it; the choice itself is never persisted as a save default.
+void ui_pdf_options_dialog_shows_editable_warning() {
+  for (const bool keep_layers : {true, false}) {
+    patchy::ui::ImageSaveOptions defaults;
+    defaults.pdf_editable_layers = keep_layers;
+    bool saw_dialog = false;
+    QTimer::singleShot(0, [&saw_dialog, keep_layers] {
+      auto* dialog = find_top_level_dialog(QStringLiteral("pdfSaveOptionsDialog"));
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        return;
+      }
+      auto* warning = dialog->findChild<QLabel*>(QStringLiteral("pdfEditableLayersWarning"));
+      auto* scale = dialog->findChild<QComboBox*>(QStringLiteral("exportScaleCombo"));
+      CHECK(warning != nullptr);
+      CHECK(scale != nullptr);
+      if (warning == nullptr || scale == nullptr) {
+        dialog->reject();
+        return;
+      }
+      CHECK(dialog->findChild<QCheckBox*>(QStringLiteral("pdfEditableLayersCheck")) == nullptr);
+      CHECK(warning->isVisible() == keep_layers);
+      CHECK(warning->text().contains(QStringLiteral("may not look")));
+      CHECK(scale->isEnabled() == !keep_layers);
+      scale->setCurrentIndex(std::max(0, scale->findData(4)));
+      saw_dialog = true;
+      dialog->accept();
+    });
+    const auto chosen =
+        patchy::ui::prompt_image_save_options(nullptr, QStringLiteral("pdf"), defaults, /*for_export*/ true);
+    CHECK(saw_dialog);
+    CHECK(chosen.has_value());
+    if (!chosen.has_value()) {
+      continue;
     }
-    auto* editable = dialog->findChild<QCheckBox*>(QStringLiteral("pdfEditableLayersCheck"));
-    auto* warning = dialog->findChild<QLabel*>(QStringLiteral("pdfEditableLayersWarning"));
-    auto* scale = dialog->findChild<QComboBox*>(QStringLiteral("exportScaleCombo"));
-    CHECK(editable != nullptr);
-    CHECK(warning != nullptr);
-    CHECK(scale != nullptr);
-    if (editable == nullptr || warning == nullptr || scale == nullptr) {
-      dialog->reject();
-      return;
-    }
-    CHECK(!editable->isChecked());
-    CHECK(!warning->isVisible());
-    CHECK(scale->isEnabled());
-    editable->setChecked(true);
-    CHECK(warning->isVisible());
-    CHECK(warning->text().contains(QStringLiteral("may not look")));
-    CHECK(!scale->isEnabled());
-    editable->setChecked(false);
-    CHECK(!warning->isVisible());
-    CHECK(scale->isEnabled());
-    editable->setChecked(true);
-    scale->setCurrentIndex(std::max(0, scale->findData(4)));
-    saw_dialog = true;
-    dialog->accept();
-  });
-  const auto chosen =
-      patchy::ui::prompt_image_save_options(nullptr, QStringLiteral("pdf"), defaults, /*for_export*/ true);
-  CHECK(saw_dialog);
-  CHECK(chosen.has_value());
-  if (!chosen.has_value()) {
-    return;
+    CHECK(chosen->pdf_editable_layers == keep_layers);
+    // Vectors scale with the page; the pixel scale only applies to the flattened image.
+    CHECK(chosen->export_scale == (keep_layers ? 1 : 4));
   }
-  CHECK(chosen->pdf_editable_layers);
-  CHECK(chosen->export_scale == 1);  // vectors scale with the page; the pixel scale is ignored
-  patchy::ui::save_image_save_option_defaults(*chosen);
-  CHECK(patchy::ui::load_image_save_option_defaults().pdf_editable_layers);
-  auto restored = *chosen;
-  restored.pdf_editable_layers = false;
-  patchy::ui::save_image_save_option_defaults(restored);
+  patchy::ui::app_settings().setValue(QStringLiteral("saveOptions/exportScale"), 1);  // leave no 4x behind
+}
+
+// The flatten-or-keep question and its preference: "ask" raises the three-way dialog
+// (Remember writes the policy), a set policy answers silently, Cancel answers nothing.
+void ui_pdf_layer_choice_dialog_and_preference() {
+  auto settings = patchy::ui::app_settings();
+  const auto previous = settings.value(QStringLiteral("saveOptions/pdfLayerPolicy"));
+  settings.setValue(QStringLiteral("saveOptions/pdfLayerPolicy"), QStringLiteral("ask"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  const auto drive = [](const char* button_text, bool remember) {
+    QTimer::singleShot(0, [button_text, remember] {
+      auto* box = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("pdfLayersMessageBox")));
+      CHECK(box != nullptr);
+      if (box == nullptr) {
+        return;
+      }
+      CHECK(box->informativeText().contains(QStringLiteral("may not look exactly like the canvas")));
+      if (auto* check = box->checkBox()) {
+        check->setChecked(remember);
+      }
+      if (button_text == nullptr) {
+        box->reject();
+        return;
+      }
+      for (auto* button : box->buttons()) {
+        if (button->text().contains(QString::fromUtf8(button_text))) {
+          button->click();
+          return;
+        }
+      }
+      CHECK(false);  // button not found
+    });
+  };
+
+  drive(nullptr, false);
+  auto choice = patchy::ui::MainWindowTestAccess::resolve_pdf_layer_choice(window, false);
+  CHECK(!choice.has_value());
+  CHECK(settings.value(QStringLiteral("saveOptions/pdfLayerPolicy")).toString() == QStringLiteral("ask"));
+
+  drive("Flatten", false);
+  choice = patchy::ui::MainWindowTestAccess::resolve_pdf_layer_choice(window, true);
+  CHECK(choice.has_value() && !*choice);
+  CHECK(settings.value(QStringLiteral("saveOptions/pdfLayerPolicy")).toString() == QStringLiteral("ask"));
+
+  drive("Keep", true);
+  choice = patchy::ui::MainWindowTestAccess::resolve_pdf_layer_choice(window, false);
+  CHECK(choice.has_value() && *choice);
+  CHECK(settings.value(QStringLiteral("saveOptions/pdfLayerPolicy")).toString() == QStringLiteral("editable"));
+
+  // A remembered policy answers without any dialog (a stray box would fail the lookup below).
+  bool stray_dialog = false;
+  QTimer::singleShot(0, [&stray_dialog] {
+    stray_dialog = find_top_level_dialog(QStringLiteral("pdfLayersMessageBox")) != nullptr;
+  });
+  choice = patchy::ui::MainWindowTestAccess::resolve_pdf_layer_choice(window, false);
+  QApplication::processEvents();
+  CHECK(choice.has_value() && *choice);
+  CHECK(!stray_dialog);
+  settings.setValue(QStringLiteral("saveOptions/pdfLayerPolicy"), QStringLiteral("flatten"));
+  choice = patchy::ui::MainWindowTestAccess::resolve_pdf_layer_choice(window, true);
+  CHECK(choice.has_value() && !*choice);
+
+  if (previous.isValid()) {
+    settings.setValue(QStringLiteral("saveOptions/pdfLayerPolicy"), previous);
+  } else {
+    settings.remove(QStringLiteral("saveOptions/pdfLayerPolicy"));
+  }
+}
+
+// End to end through save_document_to_path: a layered document saved to .pdf follows the
+// policy. "editable" writes the shape as a path; "flatten" writes one picture.
+void ui_pdf_save_follows_layer_policy() {
+  ensure_artifact_dir();
+  auto settings = patchy::ui::app_settings();
+  const auto previous = settings.value(QStringLiteral("saveOptions/pdfLayerPolicy"));
+  patchy::Document built(120, 80, patchy::PixelFormat::rgba8());
+  built.print_settings().horizontal_ppi = 72.0;
+  built.print_settings().vertical_ppi = 72.0;
+  built.add_pixel_layer("Paper", solid_pixels(120, 80, patchy::PixelFormat::rgba8(), QColor(240, 240, 240)));
+  built.add_layer(solid_rect_shape_layer(built, "Badge", 10, 10, 60, 50, {200, 30, 30}, 0.0));
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(built), QStringLiteral("PDF Policy"));
+  show_window(window);
+
+  const auto read_back = [](const QString& path) {
+    const QByteArray bytes = read_file_bytes(path);
+    patchy::pdf::VectorReadOptions read_options;
+    read_options.pixels_per_point = 1.0;
+    return patchy::pdf::read_page_as_vectors(
+        std::span<const std::uint8_t>(reinterpret_cast<const std::uint8_t*>(bytes.constData()),
+                                      static_cast<std::size_t>(bytes.size())),
+        read_options);
+  };
+  patchy::ui::ImageSaveOptions options;
+
+  settings.setValue(QStringLiteral("saveOptions/pdfLayerPolicy"), QStringLiteral("editable"));
+  const auto editable_path = QStringLiteral("test-artifacts/ui_pdf_policy_editable.pdf");
+  QFile::remove(editable_path);
+  CHECK(patchy::ui::MainWindowTestAccess::save_document_to_path(window, editable_path, options));
+  CHECK(QFileInfo::exists(editable_path));
+  const auto editable = read_back(editable_path);
+  CHECK(editable.shape_layers >= 1);
+  CHECK(editable.image_layers >= 1);
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("copy")));
+
+  settings.setValue(QStringLiteral("saveOptions/pdfLayerPolicy"), QStringLiteral("flatten"));
+  const auto flat_path = QStringLiteral("test-artifacts/ui_pdf_policy_flat.pdf");
+  QFile::remove(flat_path);
+  CHECK(patchy::ui::MainWindowTestAccess::save_document_to_path(window, flat_path, options));
+  CHECK(QFileInfo::exists(flat_path));
+  const auto flat = read_back(flat_path);
+  CHECK(flat.shape_layers == 0);
+  CHECK(flat.image_layers == 1);
+
+  if (previous.isValid()) {
+    settings.setValue(QStringLiteral("saveOptions/pdfLayerPolicy"), previous);
+  } else {
+    settings.remove(QStringLiteral("saveOptions/pdfLayerPolicy"));
+  }
 }
 
 void ui_pdf_import_builds_one_layer_per_page() {
@@ -2654,8 +2766,9 @@ std::vector<patchy::test::TestCase> import_print_resolution_tests() {
        ui_pdf_export_editable_gradients_clips_and_opacity_render_like_canvas},
       {"ui_pdf_export_editable_flattens_blend_modes_with_notice",
        ui_pdf_export_editable_flattens_blend_modes_with_notice},
-      {"ui_pdf_options_dialog_editable_warning_follows_checkbox",
-       ui_pdf_options_dialog_editable_warning_follows_checkbox},
+      {"ui_pdf_options_dialog_shows_editable_warning", ui_pdf_options_dialog_shows_editable_warning},
+      {"ui_pdf_layer_choice_dialog_and_preference", ui_pdf_layer_choice_dialog_and_preference},
+      {"ui_pdf_save_follows_layer_policy", ui_pdf_save_follows_layer_policy},
       {"ui_pdf_import_builds_one_layer_per_page", ui_pdf_import_builds_one_layer_per_page},
       {"ui_pdf_import_dialog_opens_selected_pages", ui_pdf_import_dialog_opens_selected_pages},
       {"ui_pdf_import_editable_mode_builds_vector_and_text_layers",

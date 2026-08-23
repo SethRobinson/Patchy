@@ -41,7 +41,9 @@ struct ImageSaveOptions {
   // Qt's fixed JPEG quality-94 encode. See PdfExportOptions in ui/pdf_export.hpp.
   bool pdf_lossless{true};
   // PDF: keep layers as editable objects (paths, real text, images) instead of one
-  // flattened image. See PdfExportOptions::editable_layers.
+  // flattened image. Per save, never a persisted default: MainWindow::resolve_pdf_layer_choice
+  // sets it from the saveOptions/pdfLayerPolicy preference or the flatten-or-keep question.
+  // See PdfExportOptions::editable_layers.
   bool pdf_editable_layers{false};
   // Nearest-neighbor output scale, offered by the EXPORT flow only (never Save/Save As —
   // rescaling a save would silently mutate the file the session points at). Deliberately
