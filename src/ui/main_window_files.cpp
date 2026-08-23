@@ -1366,6 +1366,8 @@ void MainWindow::open_document_path(QString path) {
     }
     render_pending_svg_text_layers(loaded->document);
     render_pending_af_text_layers(loaded->document);
+    render_pending_pdf_text_layers(loaded->document);
+    render_pending_pdf_image_layers(loaded->document);
     if (!cli_automation_mode_ && is_affinity_document_extension(loaded->extension)) {
       maybe_convert_af_image_layers(loaded->document);
     }
@@ -1471,6 +1473,8 @@ void MainWindow::reopen_document_session(DocumentSession& target_session) {
     }
     render_pending_svg_text_layers(loaded->document);
     render_pending_af_text_layers(loaded->document);
+    render_pending_pdf_text_layers(loaded->document);
+    render_pending_pdf_image_layers(loaded->document);
     if (!cli_automation_mode_ &&
         is_affinity_document_extension(QFileInfo(path).suffix().toLower())) {
       maybe_convert_af_image_layers(loaded->document);

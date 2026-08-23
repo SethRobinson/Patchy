@@ -4,8 +4,12 @@
 #include "ui/dialog_utils.hpp"
 #include "ui/image_sequence_dialog.hpp"
 
+#include "formats/pdf_document_io.hpp"
+
 #include <QAbstractItemView>
 #include <QCheckBox>
+#include <QComboBox>
+#include <QFile>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QFileInfo>
@@ -313,6 +317,17 @@ std::optional<PdfImportResult> run_pdf_import_dialog(QWidget* parent, const QStr
   auto* form = new QFormLayout();
   form->setHorizontalSpacing(10);
   form->setVerticalSpacing(8);
+  // Editable is the default: shapes stay shapes and text stays text, which is what
+  // an image editor's import is FOR. Flatten remains for scanned pages and for
+  // content the vector reader cannot model (it also serves as the automatic
+  // fallback when editable import fails).
+  auto* mode = new QComboBox(&dialog);
+  mode->setObjectName(QStringLiteral("pdfImportModeCombo"));
+  mode->addItem(QObject::tr("Editable shapes and text"), QStringLiteral("editable"));
+  mode->addItem(QObject::tr("Flattened image per page"), QStringLiteral("flatten"));
+  const auto stored_mode = settings.value(settings_key("Mode"), QStringLiteral("editable")).toString();
+  mode->setCurrentIndex(std::max(0, mode->findData(stored_mode)));
+  form->addRow(new QLabel(QObject::tr("Import as:"), &dialog), mode);
   auto* resolution = new QSpinBox(&dialog);
   resolution->setObjectName(QStringLiteral("pdfImportResolutionSpin"));
   resolution->setRange(kMinResolutionPpi, kMaxResolutionPpi);
@@ -378,6 +393,16 @@ std::optional<PdfImportResult> run_pdf_import_dialog(QWidget* parent, const QStr
   };
   QObject::connect(pages_list, &QListWidget::itemSelectionChanged, &dialog, sync_size_label);
   QObject::connect(resolution, &QSpinBox::valueChanged, &dialog, sync_size_label);
+  // The render toggles only shape the raster path; graying them out in editable
+  // mode says so without a second dialog layout.
+  const auto sync_mode_controls = [mode, annotations, anti_alias, trim] {
+    const bool flatten = mode->currentData().toString() == QStringLiteral("flatten");
+    annotations->setEnabled(flatten);
+    anti_alias->setEnabled(flatten);
+    trim->setEnabled(flatten);
+  };
+  QObject::connect(mode, &QComboBox::currentIndexChanged, &dialog, sync_mode_controls);
+  sync_mode_controls();
   sync_size_label();
 
   remember_dialog_position(dialog);
@@ -390,10 +415,48 @@ std::optional<PdfImportResult> run_pdf_import_dialog(QWidget* parent, const QStr
   options.annotations = annotations->isChecked();
   options.anti_alias = anti_alias->isChecked();
   options.trim_to_bounding_box = trim->isChecked();
+  const bool editable = mode->currentData().toString() == QStringLiteral("editable");
+  settings.setValue(settings_key("Mode"), mode->currentData().toString());
   settings.setValue(settings_key("Resolution"), options.resolution_ppi);
   settings.setValue(settings_key("Annotations"), options.annotations);
   settings.setValue(settings_key("AntiAlias"), options.anti_alias);
   settings.setValue(settings_key("TrimToContent"), options.trim_to_bounding_box);
+
+  QString editable_failure;
+  if (editable) {
+    QFile file(path);
+    if (file.open(QIODevice::ReadOnly)) {
+      const QByteArray bytes = file.readAll();
+      pdf::VectorReadOptions vector_options;
+      vector_options.page = options.pages.empty() ? 0 : options.pages.front();
+      vector_options.pixels_per_point = options.resolution_ppi / 72.0;
+      try {
+        auto vectors = pdf::read_page_as_vectors(
+            std::span(reinterpret_cast<const std::uint8_t*>(bytes.constData()),
+                      static_cast<std::size_t>(bytes.size())),
+            vector_options);
+        PdfImportResult result{std::move(vectors.document), std::move(vectors.notices)};
+        // The editable importer builds one page per document; saying which page and
+        // why the others were left keeps a multi-select honest.
+        if (options.pages.size() > 1) {
+          result.notices.push_back(QObject::tr("Editable import brings in one page; page %1 was imported.")
+                                       .arg(vector_options.page + 1)
+                                       .toStdString());
+        }
+        if (vectors.has_unmodelled_content) {
+          result.notices.push_back(
+              QObject::tr("Some artwork could not be kept editable; reimport with \"Flattened image per "
+                          "page\" for an exact copy.")
+                  .toStdString());
+        }
+        return result;
+      } catch (const std::exception& exception) {
+        editable_failure = QString::fromUtf8(exception.what());
+      }
+    } else {
+      editable_failure = file.errorString();
+    }
+  }
 
   QString error;
   auto result = render_pages(pdf, options, file_name, &error);
@@ -402,6 +465,14 @@ std::optional<PdfImportResult> run_pdf_import_dialog(QWidget* parent, const QStr
     box.setObjectName(QStringLiteral("pdfOpenFailedMessageBox"));
     exec_dialog(box);
     return std::nullopt;
+  }
+  if (!editable_failure.isEmpty()) {
+    // The user asked for editable and got a flattened page instead: that swap must
+    // never be silent.
+    result->notices.insert(result->notices.begin(),
+                           QObject::tr("Editable import was not possible (%1); the page was flattened instead.")
+                               .arg(editable_failure)
+                               .toStdString());
   }
   return result;
 }

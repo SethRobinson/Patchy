@@ -22,7 +22,7 @@ The sibling of the sprite-sheet pair: File > Import > Image Sequence to Layers i
 
 ## PDF pages
 
-Opening a `.pdf` raises the Import PDF page picker (`pdfImportDialog`, `src/ui/pdf_import.{hpp,cpp}`) before anything renders, the way camera raw raises the develop dialog: the interception sits in `load_document_interactive`. Selected pages become layers through the same `document_from_frames` helper the image-sequence import uses, so the canvas, top-left registration, and first-layer-only visibility rules are shared. Layers are named "Page N" after the real page number, and the chosen resolution becomes the document's PPI. Rendering and export details live in [file-formats.md](file-formats.md).
+Opening a `.pdf` raises the Import PDF page picker (`pdfImportDialog`, `src/ui/pdf_import.{hpp,cpp}`) before anything renders, the way camera raw raises the develop dialog: the interception sits in `load_document_interactive`. Selected pages become layers through the same `document_from_frames` helper the image-sequence import uses, so the canvas, top-left registration, and first-layer-only visibility rules are shared. Layers are named "Page N" after the real page number, and the chosen resolution becomes the document's PPI. The dialog defaults to editable import (shapes, text layers, smart-object images, one page per document) with "Flattened image per page" as the raster fallback; the reader architecture, approximation rules, and export details live in [file-formats.md](file-formats.md).
 
 ## Seamless tiling: preview window, in-canvas mode, seam shifting
 

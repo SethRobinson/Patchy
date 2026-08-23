@@ -8736,6 +8736,126 @@ void MainWindow::render_pending_af_text_layers(Document& target) {
   process(process, target.layers());
 }
 
+void MainWindow::render_pending_pdf_text_layers(Document& target) {
+  const auto process = [&](auto&& self, std::vector<Layer>& layers) -> void {
+    for (auto& layer : layers) {
+      if (!layer.children().empty()) {
+        self(self, layer.children());
+      }
+      auto& metadata = layer.metadata();
+      if (!metadata.contains(kLayerMetadataPdfPendingText)) {
+        continue;
+      }
+      const auto transform = [&]() -> std::optional<LayerAffineTransform> {
+        const auto found = metadata.find(kLayerMetadataPdfTextXfrm);
+        if (found == metadata.end()) {
+          return std::nullopt;
+        }
+        const QStringList parts = QString::fromStdString(found->second).split(' ');
+        if (parts.size() != 6) {
+          return std::nullopt;
+        }
+        LayerAffineTransform values{};
+        for (int i = 0; i < 6; ++i) {
+          values[static_cast<std::size_t>(i)] = parts[i].toDouble();
+        }
+        return values;
+      }();
+      const double intended_width = [&] {
+        const auto found = metadata.find(kLayerMetadataPdfTextIntendedWidth);
+        return found == metadata.end() ? 0.0 : QString::fromStdString(found->second).toDouble();
+      }();
+      metadata.erase(kLayerMetadataPdfPendingText);
+      metadata.erase(kLayerMetadataPdfTextXfrm);
+      metadata.erase(kLayerMetadataPdfTextIntendedWidth);
+
+      const auto inputs = text_render_inputs_from_layer(layer);
+      if (!transform.has_value() || !inputs.has_value()) {
+        continue;  // stays an empty but editable text layer
+      }
+      const double layout_size = std::max(1, inputs->settings.size);
+
+      // The reader's matrix maps GLYPH space (em square = 1 unit, baseline at the
+      // origin, y up) to document pixels; the wire order is a b c d e f with
+      // x' = a x + c y + e. Patchy renders point text in a local y-down space at
+      // the metadata pixel size with the baseline `ascent` below the top, so the
+      // bridge maps local -> glyph space: divide by the pixel size, flip y, and
+      // lift the baseline. Any scale difference (a 39 pt run imported at 150 ppi
+      // renders 81 px tall) lives in the reader's matrix, and the transform render
+      // path draws glyphs crisply at the final scale.
+      QFont metrics_font(inputs->settings.family);
+      metrics_font.setPixelSize(static_cast<int>(layout_size));
+      metrics_font.setBold(inputs->settings.bold);
+      metrics_font.setItalic(inputs->settings.italic);
+      const QFontMetricsF metrics(metrics_font);
+
+      // A substituted font's advances differ from the embedded original's, so the
+      // run would come out the wrong length. The PDF recorded the intended width;
+      // measure what this font produces and absorb the difference into the
+      // transform's x scale, clamped so a wildly wrong substitute cannot smear the
+      // glyphs into unreadability.
+      double width_correction = 1.0;
+      const auto& t = *transform;
+      if (intended_width > 0.0) {
+        const double measured_local = metrics.horizontalAdvance(inputs->settings.text);
+        const double glyph_units_per_local = 1.0 / layout_size;
+        const double measured_document = measured_local * glyph_units_per_local * std::hypot(t[0], t[1]);
+        if (measured_document > 1e-6) {
+          width_correction = std::clamp(intended_width / measured_document, 0.7, 1.4);
+        }
+      }
+
+      const QTransform local_to_glyph(width_correction / layout_size, 0.0, 0.0, -1.0 / layout_size, 0.0,
+                                      metrics.ascent() / layout_size);
+      const QTransform glyph_to_document(t[0], t[1], t[2], t[3], t[4], t[5]);
+      const QTransform combined = local_to_glyph * glyph_to_document;
+      if (auto rendered = render_text_layer_pixels_through_transform(layer, combined)) {
+        layer.set_pixels(std::move(rendered->pixels));
+        layer.set_bounds(rendered->bounds);
+        metadata[kLayerMetadataTextTransform] = serialize_layer_affine_transform(
+            {combined.m11(), combined.m12(), combined.m21(), combined.m22(), combined.dx(), combined.dy()});
+        metadata[kLayerMetadataTextRasterStatus] = "patchy_raster";
+      }
+    }
+  };
+  process(process, target.layers());
+}
+
+void MainWindow::render_pending_pdf_image_layers(Document& target) {
+  const auto process = [&](auto&& self, std::vector<Layer>& layers) -> void {
+    for (auto& layer : layers) {
+      if (!layer.children().empty()) {
+        self(self, layer.children());
+      }
+      auto& metadata = layer.metadata();
+      if (!metadata.contains(kLayerMetadataPdfPendingImage)) {
+        continue;
+      }
+      metadata.erase(kLayerMetadataPdfPendingImage);
+      const auto placement = smart_object_placement_from_layer(layer);
+      if (!placement.has_value()) {
+        continue;
+      }
+      const auto* source = target.metadata().smart_objects.find(placement->uuid);
+      if (source == nullptr) {
+        continue;
+      }
+      const auto image = decode_smart_object_source_image(*source);
+      if (!image.has_value()) {
+        continue;
+      }
+      auto rendered = render_smart_object_pixels(*image, *placement, CanvasWidget::TransformInterpolation::Bicubic);
+      if (!rendered.has_value()) {
+        continue;
+      }
+      layer.set_pixels(pixels_from_image_rgba(rendered->image));
+      layer.set_bounds(rendered->bounds);
+      metadata[kLayerMetadataSmartObjectRasterStatus] = kSmartObjectRasterStatusPatchy;
+    }
+  };
+  process(process, target.layers());
+}
+
 std::vector<LayerId> MainWindow::rasterize_target_layer_ids(std::vector<LayerId> selected_ids) const {
   // A selected folder stands for its contents: rasterizing a selection that
   // includes folders reaches every layer inside them, collapsed or not, so the

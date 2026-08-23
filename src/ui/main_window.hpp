@@ -521,6 +521,12 @@ private:
   // main_window.cpp (it needs the text render machinery there).
   void render_pending_svg_text_layers(Document& target);
   void render_pending_af_text_layers(Document& target);
+  // PDF post-open passes (same pattern): text layers render through the full text
+  // matrix the reader stored (a PDF Tm may rotate or shear a run) with an x-scale
+  // correction so a substituted font keeps the authored run width; image layers
+  // resample their smart-object source through the placement quad.
+  void render_pending_pdf_text_layers(Document& target);
+  void render_pending_pdf_image_layers(Document& target);
   // Reloads the session's file from disk in place (tab position, float window,
   // and session identity survive; undo history and unsaved changes do not).
   void reopen_document_session(DocumentSession& target_session);

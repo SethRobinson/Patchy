@@ -4,6 +4,7 @@
 #include "core/gradient_presets.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/pattern_presets.hpp"
+#include "core/vector_shape.hpp"
 #include "core/smart_filter.hpp"
 #include "core/smart_filter_effects.hpp"
 #include "core/smart_object.hpp"
@@ -1148,11 +1149,15 @@ void ui_pdf_import_dialog_opens_selected_pages() {
     }
     auto* pages = dialog->findChild<QListWidget*>(QStringLiteral("pdfImportPagesList"));
     auto* resolution = dialog->findChild<QSpinBox*>(QStringLiteral("pdfImportResolutionSpin"));
+    auto* mode = dialog->findChild<QComboBox*>(QStringLiteral("pdfImportModeCombo"));
     auto* import_button = dialog->findChild<QPushButton*>(QStringLiteral("pdfImportButton"));
-    if (pages == nullptr || resolution == nullptr || import_button == nullptr) {
+    if (pages == nullptr || resolution == nullptr || mode == nullptr || import_button == nullptr) {
       return false;
     }
     CHECK(pages->count() == 2);
+    // This test pins the FLATTEN path (layer-per-page raster); the mode persists in
+    // settings and editable is the default, so it is selected explicitly.
+    mode->setCurrentIndex(std::max(0, mode->findData(QStringLiteral("flatten"))));
     resolution->setValue(72);
     pages->selectAll();
     CHECK(import_button->isEnabled());
@@ -1169,6 +1174,181 @@ void ui_pdf_import_dialog_opens_selected_pages() {
   CHECK(opened.height() == 144);
   CHECK(opened.layers().size() == 2);
   CHECK(patchy::ui::MainWindowTestAccess::active_session_path(window) == path);
+}
+
+// A one-page PDF with a filled rectangle and a text run, xref offsets computed.
+QByteArray editable_pdf_bytes() {
+  const std::string content =
+      "0 0 1 rg 10 20 100 50 re f "
+      "BT /F1 18 Tf 1 0 0 1 20 60 Tm 1 0 0 rg (Hello PDF) Tj ET";
+  const std::vector<std::string> objects = {
+      "<</Type/Catalog/Pages 2 0 R>>",
+      "<</Type/Pages/Kids[3 0 R]/Count 1>>",
+      "<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 100]/Contents 4 0 R"
+      "/Resources<</Font<</F1 5 0 R>>>>>>",
+      "<</Length " + std::to_string(content.size()) + ">>\nstream\n" + content + "\nendstream",
+      "<</Type/Font/Subtype/Type1/BaseFont/Helvetica/Encoding/WinAnsiEncoding"
+      "/FirstChar 32/LastChar 122/Widths[500]>>",
+  };
+  std::string pdf = "%PDF-1.7\n";
+  std::vector<std::size_t> offsets;
+  for (std::size_t index = 0; index < objects.size(); ++index) {
+    offsets.push_back(pdf.size());
+    pdf += std::to_string(index + 1) + " 0 obj\n" + objects[index] + "\nendobj\n";
+  }
+  const std::size_t xref_offset = pdf.size();
+  pdf += "xref\n0 " + std::to_string(objects.size() + 1) + "\n0000000000 65535 f \n";
+  for (const auto offset : offsets) {
+    pdf += QStringLiteral("%1 00000 n \n").arg(offset, 10, 10, QLatin1Char('0')).toStdString();
+  }
+  pdf += "trailer\n<</Size " + std::to_string(objects.size() + 1) +
+         "/Root 1 0 R>>\nstartxref\n" + std::to_string(xref_offset) + "\n%%EOF\n";
+  return QByteArray::fromStdString(pdf);
+}
+
+void ui_pdf_import_editable_mode_builds_vector_and_text_layers() {
+  const auto path = QStringLiteral("test-artifacts/ui_pdf_import_editable.pdf");
+  QFile::remove(path);
+  {
+    QFile file(path);
+    CHECK(file.open(QIODevice::WriteOnly));
+    file.write(editable_pdf_bytes());
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  auto clicked = std::make_shared<bool>(false);
+  auto step = std::make_shared<std::function<bool()>>();
+  *step = [clicked] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("pdfImportDialog"));
+    if (dialog == nullptr) {
+      return false;
+    }
+    auto* resolution = dialog->findChild<QSpinBox*>(QStringLiteral("pdfImportResolutionSpin"));
+    auto* mode = dialog->findChild<QComboBox*>(QStringLiteral("pdfImportModeCombo"));
+    auto* annotations = dialog->findChild<QCheckBox*>(QStringLiteral("pdfImportAnnotationsCheck"));
+    auto* import_button = dialog->findChild<QPushButton*>(QStringLiteral("pdfImportButton"));
+    if (resolution == nullptr || mode == nullptr || annotations == nullptr || import_button == nullptr) {
+      return false;
+    }
+    mode->setCurrentIndex(std::max(0, mode->findData(QStringLiteral("editable"))));
+    // The raster-only toggles gray out in editable mode.
+    CHECK(!annotations->isEnabled());
+    resolution->setValue(144);
+    import_button->click();
+    *clicked = true;
+    return true;
+  };
+  drive_modal_dialog(step);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+  CHECK(*clicked);
+
+  auto& opened = patchy::ui::MainWindowTestAccess::document(window);
+  // 200 x 100 points at 144 ppi doubles the canvas, and the resolution rides along.
+  CHECK(opened.width() == 400);
+  CHECK(opened.height() == 200);
+  CHECK(std::abs(opened.print_settings().horizontal_ppi - 144.0) < 0.01);
+  CHECK(opened.layers().size() == 2);
+  if (opened.layers().size() != 2) {
+    return;
+  }
+
+  const auto& shape = opened.layers()[0];
+  CHECK(patchy::layer_is_vector_shape(shape));
+  CHECK(shape.vector_shape() != nullptr);
+  if (shape.vector_shape() != nullptr) {
+    CHECK(shape.vector_shape()->fill.color.blue == 255);
+  }
+
+  // The text layer arrived rendered: the post-open pass rasterized it through the
+  // reader's matrix and stamped the standard transformed-text metadata.
+  const auto& text = opened.layers()[1];
+  CHECK(patchy::layer_is_text(text));
+  CHECK(text.metadata().at(patchy::kLayerMetadataText) == "Hello PDF");
+  CHECK(!text.metadata().contains(patchy::kLayerMetadataPdfPendingText));
+  CHECK(text.metadata().contains(patchy::kLayerMetadataTextTransform));
+  CHECK(!text.pixels().empty());
+  // 18 pt at 144 ppi renders 36 px tall, so the glyph block must be at least that
+  // wide for a nine-character run, and its top must sit above the baseline row.
+  CHECK(text.bounds().width > 36);
+  const double baseline_document_y = 200.0 - 60.0 * 2.0;  // flipped, then scaled
+  CHECK(text.bounds().y < static_cast<std::int32_t>(baseline_document_y));
+}
+
+// The whole feature end to end on a real document: the untracked brochure fixture
+// imports editable, and the composite is saved as a visual-QA artifact.
+void ui_pdf_local_brochure_editable_import_composites_if_available() {
+  const auto fixture =
+      QString::fromStdString(patchy::test::local_format_fixture_path("pdf", "HoloVCS_C2_A4_Brochure.pdf").string());
+  if (!QFileInfo::exists(fixture)) {
+    std::printf("[SKIP] ui_pdf_local_brochure_editable_import_composites_if_available (no local fixture)\n");
+    return;
+  }
+  ensure_artifact_dir();
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  auto clicked = std::make_shared<bool>(false);
+  auto step = std::make_shared<std::function<bool()>>();
+  *step = [clicked] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("pdfImportDialog"));
+    if (dialog == nullptr) {
+      return false;
+    }
+    auto* resolution = dialog->findChild<QSpinBox*>(QStringLiteral("pdfImportResolutionSpin"));
+    auto* mode = dialog->findChild<QComboBox*>(QStringLiteral("pdfImportModeCombo"));
+    auto* import_button = dialog->findChild<QPushButton*>(QStringLiteral("pdfImportButton"));
+    if (resolution == nullptr || mode == nullptr || import_button == nullptr) {
+      return false;
+    }
+    mode->setCurrentIndex(std::max(0, mode->findData(QStringLiteral("editable"))));
+    resolution->setValue(96);
+    import_button->click();
+    *clicked = true;
+    return true;
+  };
+  drive_modal_dialog(step);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, fixture);
+  CHECK(*clicked);
+
+  auto& opened = patchy::ui::MainWindowTestAccess::document(window);
+  // A4 at 96 ppi.
+  CHECK(std::abs(opened.width() - 794) <= 2);
+  CHECK(std::abs(opened.height() - 1123) <= 2);
+  CHECK(opened.layers().size() > 400);
+
+  int rendered_text = 0;
+  int pending_text = 0;
+  int smart_objects_with_pixels = 0;
+  for (const auto& layer : opened.layers()) {
+    if (patchy::layer_is_text(layer)) {
+      if (layer.metadata().contains(patchy::kLayerMetadataPdfPendingText)) {
+        ++pending_text;
+      } else if (!layer.pixels().empty()) {
+        ++rendered_text;
+      }
+    } else if (patchy::layer_is_smart_object(layer) && !layer.pixels().empty()) {
+      ++smart_objects_with_pixels;
+    }
+  }
+  // Every text layer got rasterized by the post-open pass, and both images decoded.
+  CHECK(pending_text == 0);
+  CHECK(rendered_text >= 40);
+  CHECK(smart_objects_with_pixels == 2);
+
+  const auto composite = patchy::ui::qimage_from_document(opened, false);
+  CHECK(!composite.isNull());
+  CHECK(composite.save(QStringLiteral("test-artifacts/ui_pdf_brochure_editable.png")));
+  // Not blank: the page background is warm off-white with dark panels and text.
+  int dark_pixels = 0;
+  for (int y = 0; y < composite.height(); y += 7) {
+    for (int x = 0; x < composite.width(); x += 7) {
+      if (qGray(composite.pixel(x, y)) < 96) {
+        ++dark_pixels;
+      }
+    }
+  }
+  CHECK(dark_pixels > 200);
 }
 #endif  // PATCHY_HAVE_QT_PDF
 
@@ -2084,6 +2264,10 @@ std::vector<patchy::test::TestCase> import_print_resolution_tests() {
       {"ui_pdf_export_writes_transparency_as_soft_mask", ui_pdf_export_writes_transparency_as_soft_mask},
       {"ui_pdf_import_builds_one_layer_per_page", ui_pdf_import_builds_one_layer_per_page},
       {"ui_pdf_import_dialog_opens_selected_pages", ui_pdf_import_dialog_opens_selected_pages},
+      {"ui_pdf_import_editable_mode_builds_vector_and_text_layers",
+       ui_pdf_import_editable_mode_builds_vector_and_text_layers},
+      {"ui_pdf_local_brochure_editable_import_composites_if_available",
+       ui_pdf_local_brochure_editable_import_composites_if_available},
 #endif
       {"ui_print_dialog_exposes_printer_and_visible_checkboxes",
        ui_print_dialog_exposes_printer_and_visible_checkboxes},

@@ -890,6 +890,8 @@ bool MainWindow::paste_svg_from_clipboard() {
   }
   render_pending_svg_text_layers(imported);
   render_pending_af_text_layers(imported);
+  render_pending_pdf_text_layers(imported);
+  render_pending_pdf_image_layers(imported);
   QStringList image_notices;
   decode_pending_svg_images(imported.layers(), image_notices);
   if (imported.layers().empty()) {

@@ -14383,6 +14383,12 @@ Clipped to the layer below</source>
     <message><source>Import</source><translation>読み込み</translation></message>
     <message><source>Select at least one page.</source><translation>ページを 1 つ以上選択してください。</translation></message>
     <message><source>%1 page(s), first page %2 x %3 px</source><translation>%1 ページ、最初のページ %2 x %3 px</translation></message>
+    <message><source>Import as:</source><translation>読み込み形式:</translation></message>
+    <message><source>Editable shapes and text</source><translation>編集可能なシェイプとテキスト</translation></message>
+    <message><source>Flattened image per page</source><translation>ページごとに統合された画像</translation></message>
+    <message><source>Editable import brings in one page; page %1 was imported.</source><translation>編集可能な読み込みは 1 ページのみ対応です。ページ %1 を読み込みました。</translation></message>
+    <message><source>Some artwork could not be kept editable; reimport with &quot;Flattened image per page&quot; for an exact copy.</source><translation>一部のアートワークは編集可能な形式で保持できませんでした。正確な複製には「ページごとに統合された画像」で再読み込みしてください。</translation></message>
+    <message><source>Editable import was not possible (%1); the page was flattened instead.</source><translation>編集可能な読み込みができなかったため (%1)、ページを統合して読み込みました。</translation></message>
 </context>
 <context>
     <name>FilterGalleryControls</name>
