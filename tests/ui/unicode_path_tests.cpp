@@ -412,6 +412,32 @@ void ui_unicode_legacy_plugin_probe_from_unicode_dir() {
 #endif
 }
 
+// The Divide Scanned Photos folder save is a file-writing entry point, so it
+// gets the standard Unicode-path coverage: numbered names derived from a
+// Unicode base name, then one output reopened through the session loader.
+void ui_unicode_divide_photos_folder_save() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto dir = unicode_dir(QStringLiteral("divide-photos"));
+  std::vector<patchy::PixelBuffer> photos;
+  for (int i = 0; i < 2; ++i) {
+    patchy::PixelBuffer photo(12 + i * 4, 8, patchy::PixelFormat::rgba8());
+    photo.clear(200);
+    photos.push_back(std::move(photo));
+  }
+  patchy::DocumentPrintSettings print_settings;
+  const auto base = q(kUnicodePathStems[0]);
+  const auto chosen = dir + QLatin1Char('/') + base + QStringLiteral("_001.png");
+  CHECK(patchy::ui::MainWindowTestAccess::save_divided_photos_to_folder(window, photos, print_settings,
+                                                                        chosen, QStringLiteral("png")));
+  check_dir_holds_only(dir, {base + QStringLiteral("_001.png"), base + QStringLiteral("_002.png")});
+  patchy::ui::MainWindowTestAccess::open_document_path(window,
+                                                       dir + QLatin1Char('/') + base + QStringLiteral("_002.png"));
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::document(window).width() == 16);
+  CHECK(patchy::ui::MainWindowTestAccess::document(window).height() == 8);
+}
+
 std::vector<patchy::test::TestCase> unicode_path_tests() {
   return {
       {"ui_unicode_write_flat_image_file_every_extension", ui_unicode_write_flat_image_file_every_extension},
@@ -421,5 +447,6 @@ std::vector<patchy::test::TestCase> unicode_path_tests() {
       {"ui_unicode_export_flat_image_dialog", ui_unicode_export_flat_image_dialog},
       {"ui_unicode_recent_files_persist_through_settings", ui_unicode_recent_files_persist_through_settings},
       {"ui_unicode_legacy_plugin_probe_from_unicode_dir", ui_unicode_legacy_plugin_probe_from_unicode_dir},
+      {"ui_unicode_divide_photos_folder_save", ui_unicode_divide_photos_folder_save},
   };
 }

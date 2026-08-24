@@ -538,6 +538,20 @@ private:
   // The scan is a throwaway (never added as a document session), like a copier.
   void photocopy_from_scanner();
   void finish_photocopy_scan(ScannerAcquireResult result, bool delete_after);
+  // File > Import > Scan and Divide Photos: scan, detect the photos on the
+  // platen, and open (or save) each one separately. The scan itself is a
+  // throwaway, never a session (the photocopy precedent).
+  void import_and_divide_from_scanner();
+  void finish_divide_scanner_import(ScannerAcquireResult result, bool delete_after);
+  // Image > Divide Scanned Photos: the same flow on the current document's
+  // flattened composite (the phone-photo case). Never modifies the source.
+  void divide_current_document_photos();
+  void run_divide_photos_flow(std::shared_ptr<const PixelBuffer> source,
+                              DocumentPrintSettings print_settings);
+  bool save_divided_photos_to_folder(const std::vector<PixelBuffer>& photos,
+                                     const DocumentPrintSettings& print_settings,
+                                     const QString& chosen_path, const QString& extension,
+                                     const ImageSaveOptions& image_options);
   void import_sprite_sheet();
   void export_sprite_sheet();
   void import_image_sequence();

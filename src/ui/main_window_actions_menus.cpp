@@ -329,6 +329,10 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   photocopy_action->setObjectName(QStringLiteral("fileImportPhotocopyAction"));
   register_hotkey(photocopy_action, "file.import_photocopy");
   connect(photocopy_action, &QAction::triggered, this, [this] { photocopy_from_scanner(); });
+  auto* divide_scan_action = import_menu->addAction(tr("Scan and &Divide Photos..."));
+  divide_scan_action->setObjectName(QStringLiteral("fileImportDivideScannedAction"));
+  register_hotkey(divide_scan_action, "file.import_divide_photos");
+  connect(divide_scan_action, &QAction::triggered, this, [this] { import_and_divide_from_scanner(); });
 #endif
   auto* import_sprite_sheet_action = import_menu->addAction(tr("Sprite Sheet to &Layers..."));
   import_sprite_sheet_action->setObjectName(QStringLiteral("fileImportSpriteSheetAction"));
@@ -1105,8 +1109,17 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   connect(rotate_cw_action, &QAction::triggered, this, [this] { rotate_canvas_clockwise(); });
   connect(rotate_ccw_action, &QAction::triggered, this, [this] { rotate_canvas_counterclockwise(); });
   connect(shift_seams_action, &QAction::triggered, this, [this] { toggle_tile_seam_offset(); });
+  auto* divide_photos_action = image_menu->addAction(tr("Divide Scanned P&hotos..."));
+  divide_photos_action->setObjectName(QStringLiteral("imageDivideScannedPhotosAction"));
+  divide_photos_action->setStatusTip(
+      tr("Detect the photos in this image and open or save each one as its own image"));
+  bind_translated_status_tip(
+      divide_photos_action,
+      "Detect the photos in this image and open or save each one as its own image");
+  register_hotkey(divide_photos_action, "image.divide_photos");
+  connect(divide_photos_action, &QAction::triggered, this, [this] { divide_current_document_photos(); });
   for (auto* action : {adjustments_menu->menuAction(), image_size_action, canvas_size_action, crop_action,
-                       rotate_cw_action, rotate_ccw_action, shift_seams_action}) {
+                       rotate_cw_action, rotate_ccw_action, shift_seams_action, divide_photos_action}) {
     register_document_action(action);
   }
 

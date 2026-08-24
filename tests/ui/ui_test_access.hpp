@@ -108,6 +108,20 @@ public:
     window.photocopy_from_scanner();
   }
 
+  static void import_and_divide_from_scanner(MainWindow& window) {
+    window.import_and_divide_from_scanner();
+  }
+
+  static void divide_current_document_photos(MainWindow& window) {
+    window.divide_current_document_photos();
+  }
+
+  static bool save_divided_photos_to_folder(MainWindow& window, const std::vector<PixelBuffer>& photos,
+                                            const DocumentPrintSettings& print_settings,
+                                            const QString& chosen_path, const QString& extension) {
+    return window.save_divided_photos_to_folder(photos, print_settings, chosen_path, extension, {});
+  }
+
   static void set_ruler_unit_preference(MainWindow& window, MeasurementUnit unit) {
     window.set_ruler_unit_preference(unit);
   }

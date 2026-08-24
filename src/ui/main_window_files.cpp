@@ -71,6 +71,8 @@
 #include "ui/print_dialog.hpp"
 #include "ui/smart_object_render.hpp"
 #include "ui/scanner_import.hpp"
+#include "core/photo_divide.hpp"
+#include "ui/divide_photos_dialog.hpp"
 #include "ui/image_sequence_dialog.hpp"
 #include "ui/sprite_sheet_dialog.hpp"
 #include "ui/tile_preview_window.hpp"
@@ -1735,6 +1737,270 @@ void MainWindow::finish_photocopy_scan(ScannerAcquireResult result, bool delete_
   }
   if (run_photocopy_dialog(this, *scanned)) {
     statusBar()->showMessage(tr("Photocopy sent to printer"));
+  }
+}
+
+void MainWindow::import_and_divide_from_scanner() {
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  // Same PATCHY_FAKE_SCANNER_FILE bypass as import_from_scanner, so offscreen tests can
+  // drive the divide dialog without hardware.
+  const auto fake_path = qEnvironmentVariable("PATCHY_FAKE_SCANNER_FILE");
+  if (!fake_path.isEmpty()) {
+    finish_divide_scanner_import({ScannerAcquireStatus::Acquired, fake_path, {}}, false);
+    return;
+  }
+
+#ifdef Q_OS_WIN
+  if (scanner_import_active_) {
+    return;
+  }
+  scanner_import_active_ = true;
+  const auto reentry_guard = qScopeGuard([this] { scanner_import_active_ = false; });
+  finish_divide_scanner_import(acquire_image_from_scanner(this), true);
+#elif defined(Q_OS_MACOS)
+  if (scanner_import_active_) {
+    return;
+  }
+  scanner_import_active_ = true;
+  const QPointer<MainWindow> window(this);
+  acquire_image_from_scanner_async(this, [window](ScannerAcquireResult result) {
+    if (window == nullptr) {
+      if (result.status == ScannerAcquireStatus::Acquired) {
+        QFile::remove(result.file_path);
+      }
+      return;
+    }
+    window->scanner_import_active_ = false;
+    window->finish_divide_scanner_import(std::move(result), true);
+  });
+#endif
+}
+
+void MainWindow::finish_divide_scanner_import(ScannerAcquireResult result, bool delete_after) {
+  const auto remove_temporary_scan = qScopeGuard([&result, delete_after] {
+    if (delete_after && !result.file_path.isEmpty()) {
+      QFile::remove(result.file_path);
+    }
+  });
+  switch (result.status) {
+    case ScannerAcquireStatus::Cancelled:
+      return;
+    case ScannerAcquireStatus::NoDevice:
+#ifdef Q_OS_WIN
+      show_information_message(
+          this, tr("Divide Scanned Photos"),
+          tr("No scanner or camera was found. Connect a WIA-compatible device and try again."),
+          QStringLiteral("scannerNoDeviceMessageBox"));
+#else
+      show_information_message(
+          this, tr("Divide Scanned Photos"),
+          tr("No scanner was found. Connect a scanner recognized by macOS and try again."),
+          QStringLiteral("scannerNoDeviceMessageBox"));
+#endif
+      return;
+    case ScannerAcquireStatus::Failed:
+      show_critical_message(this, tr("Divide Scanned Photos"), result.error,
+                            QStringLiteral("scannerFailedMessageBox"));
+      return;
+    case ScannerAcquireStatus::Acquired:
+      break;
+  }
+
+  // Like the photocopy, the scan itself never becomes a session; only the
+  // divided photos do. The try covers only the load.
+  std::optional<Document> scanned;
+  try {
+    auto loaded = load_document_from_path(result.file_path);
+    apply_scanned_document_ppi(loaded.document, result);
+    scanned.emplace(std::move(loaded.document));
+  } catch (const std::exception& error) {
+    show_critical_message(this, tr("Divide Scanned Photos"), QString::fromUtf8(error.what()),
+                          QStringLiteral("openFailedMessageBox"));
+    return;
+  }
+  const auto image = qimage_from_document_rect(
+      *scanned, QRect(0, 0, scanned->width(), scanned->height()), /*preserve_alpha*/ true);
+  auto pixels = std::make_shared<const PixelBuffer>(pixels_from_image_rgba(image));
+  run_divide_photos_flow(std::move(pixels), scanned->print_settings());
+}
+
+void MainWindow::divide_current_document_photos() {
+  if (!has_active_document()) {
+    show_status_error(tr("No document"));
+    return;
+  }
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  finish_active_text_editor();
+  // The flattened composite, alpha preserved: detection composites alpha over
+  // white itself, and extraction keeps transparency. The source document is
+  // never modified (no undo entry).
+  const auto image = qimage_from_document_rect(
+      document(), QRect(0, 0, document().width(), document().height()), /*preserve_alpha*/ true);
+  auto pixels = std::make_shared<const PixelBuffer>(pixels_from_image_rgba(image));
+  run_divide_photos_flow(std::move(pixels), document().print_settings());
+}
+
+void MainWindow::run_divide_photos_flow(std::shared_ptr<const PixelBuffer> source,
+                                        DocumentPrintSettings print_settings) {
+  if (source == nullptr || source->empty()) {
+    return;
+  }
+  int sensitivity = 50;
+  bool straighten = true;
+  bool perspective = false;
+  bool save_to_folder = false;
+  {
+    auto settings = app_settings();
+    sensitivity = settings.value(QStringLiteral("dividePhotos/sensitivity"), 50).toInt();
+    straighten = settings.value(QStringLiteral("dividePhotos/straighten"), true).toBool();
+    perspective = settings.value(QStringLiteral("dividePhotos/fixPerspective"), false).toBool();
+    save_to_folder = settings.value(QStringLiteral("dividePhotos/output"), 0).toInt() == 1;
+  }
+  const auto result = request_divide_photos(this, source, print_settings.horizontal_ppi,
+                                            sensitivity, straighten, perspective, save_to_folder);
+  if (!result.has_value()) {
+    return;
+  }
+  {
+    auto settings = app_settings();
+    settings.setValue(QStringLiteral("dividePhotos/sensitivity"), result->sensitivity);
+    settings.setValue(QStringLiteral("dividePhotos/straighten"),
+                      result->mode != PhotoExtractMode::Cut);
+    settings.setValue(QStringLiteral("dividePhotos/fixPerspective"),
+                      result->mode == PhotoExtractMode::Perspective);
+    settings.setValue(QStringLiteral("dividePhotos/output"), result->save_to_folder ? 1 : 0);
+  }
+  if (result->regions.empty()) {
+    show_status_error(tr("No photos were found"));
+    return;
+  }
+
+  QProgressDialog progress(tr("Dividing photos..."), tr("Cancel"), 0, 100, this);
+  progress.setObjectName(QStringLiteral("dividePhotosProgressDialog"));
+  progress.setWindowModality(Qt::WindowModal);
+  progress.setMinimumDuration(kFilterProgressMinimumDurationMs);
+  remember_dialog_position(progress);
+  progress.setValue(0);
+  std::vector<PixelBuffer> photos;
+  // Captured by value: the compute may run on a worker under wasm and must not
+  // read UI state (main_window_shared.hpp's rule).
+  const auto regions = result->regions;
+  const auto mode = result->mode;
+  try {
+    run_filter_compute_with_progress(
+        progress, [](const QString& detail) { return tr("Dividing photos...\n%1").arg(detail); },
+        {}, [&photos, regions, mode, source](FilterProgress& filter_progress) {
+          for (std::size_t i = 0; i < regions.size(); ++i) {
+            if (filter_progress.update &&
+                !filter_progress.update(static_cast<int>(i), static_cast<int>(regions.size()),
+                                        FilterProgressStage::Filtering)) {
+              throw FilterCancelled();
+            }
+            auto photo = extract_photo_region(*source, regions[i], mode);
+            if (!photo.empty()) {
+              photos.push_back(std::move(photo));
+            }
+          }
+        });
+    progress.setValue(100);
+  } catch (const FilterCancelled&) {
+    statusBar()->showMessage(tr("Cancelled Divide Scanned Photos"));
+    return;
+  }
+  if (photos.empty()) {
+    show_status_error(tr("No photos were found"));
+    return;
+  }
+
+  if (result->save_to_folder) {
+    QString selected_filter;
+    auto path = get_save_file_name(
+        this, tr("Save Divided Photos"),
+        file_dialog_initial_path(QString(), tr("photo") + QStringLiteral("_001.png")),
+        export_image_filter(), &selected_filter, QStringLiteral("dividePhotosSaveFileDialog"));
+    if (path.isEmpty()) {
+      return;
+    }
+    path = path_with_default_extension(path, selected_filter);
+    const auto extension = extension_for_path(path);
+    const auto image_options = prompt_image_save_options(this, extension, image_save_defaults_for_document(),
+                                                         /*for_export*/ true);
+    if (!image_options.has_value()) {
+      return;
+    }
+    save_divided_photos_to_folder(photos, print_settings, path, extension, *image_options);
+    return;
+  }
+
+  int photo_number = 1;
+  for (auto& photo : photos) {
+    Document photo_document(photo.width(), photo.height(), photo.format());
+    photo_document.print_settings() = print_settings;
+    photo_document.add_pixel_layer(tr("Background").toStdString(), std::move(photo));
+    // Untitled + modified, like scanner import: each photo exists nowhere else yet.
+    add_document_session(std::move(photo_document), tr("Photo %1").arg(photo_number), QString(),
+                         tr("Divide scanned photos"));
+    canvas_->fit_to_view();
+    mark_session_modified(session());
+    ++photo_number;
+  }
+  refresh_layer_list();
+  refresh_layer_controls();
+  update_undo_redo_actions();
+  statusBar()->showMessage(tr("Divided into %n photo(s)", nullptr, static_cast<int>(photos.size())));
+}
+
+bool MainWindow::save_divided_photos_to_folder(const std::vector<PixelBuffer>& photos,
+                                               const DocumentPrintSettings& print_settings,
+                                               const QString& chosen_path, const QString& extension,
+                                               const ImageSaveOptions& image_options) {
+  try {
+    const QFileInfo chosen(chosen_path);
+    const auto naming = naming_from_save_base_name(chosen.completeBaseName());
+    // Numbered mode ignores the layer names; only the count matters.
+    const std::vector<QString> names(photos.size());
+    const auto file_names = image_sequence_file_names(names, naming, extension);
+    const auto directory = chosen.dir();
+    // The save dialog confirmed overwriting only the exact name typed there; the rest
+    // of the set needs its own check (the image-sequence export rule).
+    int existing = 0;
+    for (const auto& name : file_names) {
+      const auto target = directory.filePath(name);
+      if (target != chosen_path && QFileInfo::exists(target)) {
+        ++existing;
+      }
+    }
+    if (existing > 0) {
+      const auto answer = show_warning_message(
+          this, tr("Save Divided Photos"),
+          tr("%1 of %2 files already exist in this folder. Overwrite them?").arg(existing).arg(file_names.size()),
+          QMessageBox::Yes | QMessageBox::No, QMessageBox::No,
+          QStringLiteral("dividePhotosOverwriteMessageBox"));
+      if (answer != QMessageBox::Yes) {
+        return false;
+      }
+    }
+    for (std::size_t i = 0; i < photos.size(); ++i) {
+      Document photo_document(photos[i].width(), photos[i].height(), photos[i].format());
+      photo_document.print_settings() = print_settings;
+      photo_document.add_pixel_layer(tr("Background").toStdString(), photos[i]);
+      write_flat_image_file(photo_document, directory.filePath(file_names[static_cast<int>(i)]),
+                            extension, image_options);
+    }
+    remember_save_directory_for_path(chosen_path);
+    statusBar()->showMessage(
+        tr("Saved %1 photos to %2").arg(file_names.size()).arg(directory.absolutePath()));
+    return true;
+  } catch (const std::exception& error) {
+    show_critical_message(this, tr("Save failed"), QString::fromUtf8(error.what()),
+                          QStringLiteral("exportFailedMessageBox"));
+    return false;
   }
 }
 

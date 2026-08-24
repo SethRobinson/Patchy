@@ -1,4 +1,4 @@
-# Import menu: scanner, sprite sheets, image sequences; seamless tiling
+# Import menu: scanner, photocopy, divide photos, sprite sheets, image sequences; seamless tiling
 
 The File > Import features plus the seamless-tiling tooling (preview window, in-canvas tiling mode, seam shifting). File-format readers live in [file-formats.md](file-formats.md); the platform-specific scanner backends are also inventoried in [platform.md](platform.md).
 
@@ -20,6 +20,17 @@ File > Import > Photocopy runs the same native acquisition as scanner import, th
 - Whatever falls outside the printable area is shaded red in the preview pane (`PhotocopyPreviewPane` fits page plus overflow into the widget, so cut-off parts hang visibly off the paper) with a warning label (containment-based, so dragging a small scan off the edge warns too); it prints clipped, never scaled down.
 - The only options are the printer (remembered in the `photocopy/printerName` settings key) and the copy count, sent through the shared `paint_printer_page`. Size labels follow the ruler-unit preference (metric rulers read cm/mm, everything else inches).
 - `ui_photocopy_dialog_previews_clipping_at_actual_size` drives the dialog through `PATCHY_FAKE_SCANNER_FILE` and pins the clip warning, auto-rotation, top-right anchoring, preview dragging, and the no-session rule.
+
+## Divide Scanned Photos
+
+Two entry points share one flow: File > Import > Scan and Divide Photos (Windows/macOS, same native acquisition as scanner import; the scan is a throwaway like the photocopy, never a session) and Image > Divide Scanned Photos (runs on the current document's flattened composite, the phone-photo-of-prints case; the source document is never modified and gets no undo entry). Detection and extraction are the Qt-free `src/core/photo_divide.{hpp,cpp}` (its header carries the constraint comment; the binding boundary is "Scanned-photo division" in [legal-constraints.md](legal-constraints.md)); the editable preview is `src/ui/divide_photos_dialog.{hpp,cpp}`; the MainWindow flow lives in main_window_files.cpp.
+
+- Detection (border-seeded flood fill against a median/MAD border background model, close/open morphology, union-find components, convex hulls, min-area rects, optional per-side quad fit) runs on a downscaled analysis copy (max edge 1024) once at open and, debounced, on sensitivity changes. The minimum photo edge is half an inch when the source PPI is known, else 1.5% of the longer edge, floored at 24 px. Photos need a gap of roughly 3 mm on the platen; closer photos merge into one region (fixable by hand in the dialog).
+- Region editing: drag inside moves, the eight handles resize; in perspective mode corner handles move individual quad corners; Alt+corner drag rotates in straighten mode; dragging empty background (or Add Region) adds a region; Delete removes. Regions the user added or edited become user-owned: re-detection replaces auto regions (a deleted auto region comes back) but keeps user-owned ones and drops fresh detections overlapping them (bounding-box IoU above 0.5).
+- Checkboxes: Straighten (min-area-rect rotation, default on) and Fix Perspective (edge-fit quad, homography rectify, aspect recovered with the Zhang closed form then snapped to 1:1, 5:4, 4:3, 7:5, 3:2, or 16:9 within 3%; checking it forces and disables Straighten). Both off cuts plain axis-aligned bounding boxes. Detected angles under 0.3 degrees snap to 0 and extraction of axis-aligned integer quads is an exact byte copy.
+- Output radio: open each photo as an untitled modified document (tab "Photo N", reading order rows top to bottom then left to right), or save numbered files to a folder through the image-sequence naming and single aggregate overwrite prompt (hidden on wasm, the one-download-per-file rule). Photos inherit the source PPI; the scanner path applies device DPI via the shared `apply_scanned_document_ppi`.
+- Settings keys (permanent): `dividePhotos/sensitivity`, `dividePhotos/straighten`, `dividePhotos/fixPerspective`, `dividePhotos/output`.
+- Pinned by the `photo_divide_*` core tests (detection geometry, determinism, rectification RMS, aspect recovery) and the `ui_divide_*` / `ui_scan_and_divide_opens_document_per_photo` / `ui_unicode_divide_photos_folder_save` UI tests, all driven offscreen through `PATCHY_FAKE_SCANNER_FILE`.
 
 ## Sprite sheets
 

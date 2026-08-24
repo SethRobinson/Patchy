@@ -13757,6 +13757,23 @@ Clipped to the layer below</source>
     <message><source>&amp;Photocopy (Scanner to Printer)...</source><translation>コピー(スキャナーからプリンターへ)(&amp;P)...</translation></message>
     <message><source>Photocopy</source><translation>コピー</translation></message>
     <message><source>Photocopy sent to printer</source><translation>コピーをプリンターに送信しました</translation></message>
+    <message><source>Scan and &amp;Divide Photos...</source><translation>スキャンして写真を分割(&amp;D)...</translation></message>
+    <message><source>Divide Scanned P&amp;hotos...</source><translation>スキャンした写真を分割(&amp;H)...</translation></message>
+    <message><source>Detect the photos in this image and open or save each one as its own image</source><translation>この画像内の写真を検出し、それぞれを個別の画像として開くか保存します</translation></message>
+    <message><source>Divide Scanned Photos</source><translation>スキャンした写真を分割</translation></message>
+    <message><source>No photos were found</source><translation>写真が見つかりませんでした</translation></message>
+    <message><source>Dividing photos...</source><translation>写真を分割しています...</translation></message>
+    <message><source>Dividing photos...
+%1</source><translation>写真を分割しています...
+%1</translation></message>
+    <message><source>Cancelled Divide Scanned Photos</source><translation>写真の分割をキャンセルしました</translation></message>
+    <message><source>Save Divided Photos</source><translation>分割した写真を保存</translation></message>
+    <message><source>photo</source><translation>写真</translation></message>
+    <message><source>Saved %1 photos to %2</source><translation>%2 に %1 枚の写真を保存しました</translation></message>
+    <message><source>Photo %1</source><translation>写真 %1</translation></message>
+    <message><source>Background</source><translation>背景</translation></message>
+    <message><source>Divide scanned photos</source><translation>スキャンした写真を分割</translation></message>
+    <message numerus="yes"><source>Divided into %n photo(s)</source><translation><numerusform>%n 枚の写真に分割しました</numerusform></translation></message>
 </context>
 <context>
     <name>patchy::ui::PalettePanel</name>
@@ -14634,6 +14651,18 @@ Clipped to the layer below</source>
     <message><source>Replace the preset "%1"?</source><translation>プリセット「%1」を置き換えますか?</translation></message>
     <message><source>Delete Trace Preset</source><translation>トレースプリセットを削除</translation></message>
     <message><source>Delete the preset "%1"?</source><translation>プリセット「%1」を削除しますか?</translation></message>
+    <message><source>Divide Scanned Photos</source><translation>スキャンした写真を分割</translation></message>
+    <message><source>Detection</source><translation>検出</translation></message>
+    <message><source>Sensitivity</source><translation>感度</translation></message>
+    <message><source>Photos found: %1</source><translation>検出された写真: %1</translation></message>
+    <message><source>Straighten photos</source><translation>写真の傾きを補正</translation></message>
+    <message><source>Fix perspective</source><translation>遠近を補正</translation></message>
+    <message><source>Regions</source><translation>領域</translation></message>
+    <message><source>Add Region</source><translation>領域を追加</translation></message>
+    <message><source>Drag on the image to add a photo by hand; drag corners to adjust.</source><translation>画像上をドラッグすると写真を手動で追加できます。角をドラッグすると調整できます。</translation></message>
+    <message><source>Open each photo as a new image</source><translation>各写真を新しい画像として開く</translation></message>
+    <message><source>Save photos to a folder...</source><translation>写真をフォルダーに保存...</translation></message>
+    <message><source>Divide Photos</source><translation>写真を分割</translation></message>
 </context>
 <context>
     <name>FilterGalleryControls</name>

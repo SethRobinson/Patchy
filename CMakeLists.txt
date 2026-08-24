@@ -119,6 +119,7 @@ add_library(patchy_core
   src/core/shape_combine.cpp
   src/core/pattern_presets.cpp
   src/core/pattern_resource.cpp
+  src/core/photo_divide.cpp
   src/core/pixel_buffer.cpp
   src/core/pixel_tools.cpp
   src/core/quick_select.cpp
@@ -959,6 +960,8 @@ if(PATCHY_BUILD_APP)
       src/ui/start_panel.cpp
       src/ui/smart_object_render.hpp
       src/ui/smart_object_render.cpp
+      src/ui/divide_photos_dialog.hpp
+      src/ui/divide_photos_dialog.cpp
       src/ui/image_sequence_dialog.hpp
       src/ui/image_sequence_dialog.cpp
       src/ui/sprite_sheet_dialog.hpp
@@ -1373,6 +1376,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/palette_tests.cpp
     tests/core/pat_asl_abr_tests.cpp
     tests/core/pattern_styles_fixtures_tests.cpp
+    tests/core/photo_divide_tests.cpp
     tests/core/pixel_tools_tests.cpp
     tests/core/psd_core_io_tests.cpp
     tests/core/psd_structure_tests.cpp
@@ -1461,6 +1465,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/smart_object_tests.cpp
       tests/ui/warp_tests.cpp
       tests/ui/import_print_resolution_tests.cpp
+      tests/ui/divide_photos_tests.cpp
       tests/ui/image_adjustments_curves_tests.cpp
       tests/ui/selection_engines_tests.cpp
       tests/ui/misc_visuals_outline_stress_tests.cpp
