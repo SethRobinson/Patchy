@@ -1535,10 +1535,19 @@ void MainWindow::reopen_document_session(DocumentSession& target_session) {
 
 namespace {
 
-// Some drivers report absurd scan resolutions; clamp so physical sizes stay sane
-// (Image Size for imports, the actual-size placement for photocopies).
-void clamp_scanned_document_ppi(Document& document) {
+// The device-reported scan DPI, when the backend supplied one, overrides the file's own
+// density: drivers routinely write 72 or nothing into scanned JPEGs, which would print
+// a 300 DPI scan at four times its real size. Absurd values (from either source) are
+// clamped so physical sizes stay sane (Image Size for imports, the actual-size
+// placement for photocopies).
+void apply_scanned_document_ppi(Document& document, const ScannerAcquireResult& result) {
   auto& print_settings = document.print_settings();
+  if (result.horizontal_dpi >= 10 && result.horizontal_dpi <= 4800) {
+    print_settings.horizontal_ppi = result.horizontal_dpi;
+  }
+  if (result.vertical_dpi >= 10 && result.vertical_dpi <= 4800) {
+    print_settings.vertical_ppi = result.vertical_dpi;
+  }
   if (print_settings.horizontal_ppi < 10 || print_settings.horizontal_ppi > 4800) {
     print_settings.horizontal_ppi = 300;
   }
@@ -1624,7 +1633,7 @@ void MainWindow::finish_scanner_import(ScannerAcquireResult result, bool delete_
     // format, and QImageReader's fallback probes plugins by content when the extension
     // path fails.
     auto loaded = load_document_from_path(acquired_path);
-    clamp_scanned_document_ppi(loaded.document);
+    apply_scanned_document_ppi(loaded.document, result);
     // Untitled + modified: the scan exists nowhere else, so Save must prompt Save As and
     // closing must warn about unsaved changes.
     add_document_session(std::move(loaded.document), tr("Scanned Image"), QString(),
@@ -1717,7 +1726,7 @@ void MainWindow::finish_photocopy_scan(ScannerAcquireResult result, bool delete_
   std::optional<Document> scanned;
   try {
     auto loaded = load_document_from_path(result.file_path);
-    clamp_scanned_document_ppi(loaded.document);
+    apply_scanned_document_ppi(loaded.document, result);
     scanned.emplace(std::move(loaded.document));
   } catch (const std::exception& error) {
     show_critical_message(this, tr("Photocopy"), QString::fromUtf8(error.what()),

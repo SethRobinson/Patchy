@@ -440,7 +440,35 @@ void ui_photocopy_dialog_previews_clipping_at_actual_size() {
     CHECK(paper_parts.size() == 2);
     CHECK(paper_parts[0].toDouble() >= paper_parts[1].split(QLatin1Char(' ')).first().toDouble());
     CHECK(warning->isVisible());
+    // Anchored to the paper's top-right corner (the platen registration corner): the
+    // overflow of a too-wide scan hangs off the LEFT edge, so the offset is negative in
+    // x and zero in y.
+    const auto anchored = preview->property("scanOffsetInches").toPointF();
+    CHECK(anchored.x() < -0.5);
+    CHECK(std::abs(anchored.y()) < 0.01);
     save_widget_artifact("ui_photocopy_dialog_clipped", *dialog);
+    // Dragging inside the crop rect (away from its resize handles) slides the scan
+    // across the paper so the user picks which part prints.
+    const auto crop_view_before = preview->property("cropRectView").toRect();
+    CHECK(!crop_view_before.isEmpty());
+    const QPoint move_grip(crop_view_before.center().x() + crop_view_before.width() / 4,
+                           crop_view_before.center().y());
+    drag(*preview, move_grip, move_grip + QPoint(40, 20));
+    const auto dragged = preview->property("scanOffsetInches").toPointF();
+    CHECK(dragged.x() > anchored.x() + 0.1);
+    CHECK(dragged.y() > anchored.y());
+    // Dragging a corner handle resizes the crop: only that part prints (still at
+    // actual size), e.g. just the driver's license on the platen.
+    const auto crop_before = preview->property("cropRectPixels").toRect();
+    CHECK(crop_before == QRect(0, 0, 6000, 1200));
+    const auto crop_view = preview->property("cropRectView").toRect();
+    CHECK(!crop_view.isEmpty());
+    drag(*preview, crop_view.bottomRight(), crop_view.bottomRight() - QPoint(40, 10));
+    const auto crop_after = preview->property("cropRectPixels").toRect();
+    CHECK(crop_after.width() < crop_before.width());
+    CHECK(crop_after.height() < crop_before.height());
+    CHECK(crop_after.topLeft() == QPoint(0, 0));
+    save_widget_artifact("ui_photocopy_dialog_cropped", *dialog);
     saw_clipped_dialog = true;
     dialog->reject();
   });
@@ -459,15 +487,21 @@ void ui_photocopy_dialog_previews_clipping_at_actual_size() {
     auto* scan_size = dialog->findChild<QLabel*>(QStringLiteral("photocopyScanSizeLabel"));
     auto* paper_size = dialog->findChild<QLabel*>(QStringLiteral("photocopyPaperSizeLabel"));
     auto* warning = dialog->findChild<QLabel*>(QStringLiteral("photocopyClipWarningLabel"));
+    auto* preview = dialog->findChild<QWidget*>(QStringLiteral("photocopyPreviewPane"));
     CHECK(scan_size != nullptr);
     CHECK(paper_size != nullptr);
     CHECK(warning != nullptr);
+    CHECK(preview != nullptr);
     CHECK(scan_size->text().contains(QStringLiteral("1.00")));
     CHECK(scan_size->text().contains(QStringLiteral("0.80")));
     const auto paper_parts = paper_size->text().split(QStringLiteral(" x "));
     CHECK(paper_parts.size() == 2);
     CHECK(paper_parts[0].toDouble() <= paper_parts[1].split(QLatin1Char(' ')).first().toDouble());
     CHECK(!warning->isVisible());
+    // A small scan anchors top-right too: positive x offset (paper is wider), zero y.
+    const auto anchored = preview->property("scanOffsetInches").toPointF();
+    CHECK(anchored.x() > 0.5);
+    CHECK(std::abs(anchored.y()) < 0.01);
     saw_fitting_dialog = true;
     dialog->reject();
   });

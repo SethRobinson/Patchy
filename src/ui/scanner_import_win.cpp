@@ -21,6 +21,60 @@ QString hresult_text(HRESULT hr) {
   return QStringLiteral("0x%1").arg(static_cast<qulonglong>(static_cast<ULONG>(hr)), 8, 16, QLatin1Char('0'));
 }
 
+// Reads WIA_IPS_XRES/WIA_IPS_YRES from one WIA item. The scanned file's own density is
+// unreliable (drivers write 72 or nothing into JPEGs), so the item properties, which
+// hold the values the dialog just scanned with, are the trustworthy DPI source.
+bool read_item_resolution(IUnknown* item, double* x_dpi, double* y_dpi) {
+  IWiaPropertyStorage* storage = nullptr;
+  if (FAILED(item->QueryInterface(IID_IWiaPropertyStorage, reinterpret_cast<void**>(&storage))) ||
+      storage == nullptr) {
+    return false;
+  }
+  PROPSPEC specs[2];
+  specs[0].ulKind = PRSPEC_PROPID;
+  specs[0].propid = WIA_IPS_XRES;
+  specs[1].ulKind = PRSPEC_PROPID;
+  specs[1].propid = WIA_IPS_YRES;
+  PROPVARIANT values[2];
+  PropVariantInit(&values[0]);
+  PropVariantInit(&values[1]);
+  const HRESULT hr = storage->ReadMultiple(2, specs, values);
+  const bool ok = hr == S_OK && values[0].vt == VT_I4 && values[1].vt == VT_I4 && values[0].lVal > 0 &&
+                  values[1].lVal > 0;
+  if (ok) {
+    *x_dpi = static_cast<double>(values[0].lVal);
+    *y_dpi = static_cast<double>(values[1].lVal);
+  }
+  PropVariantClear(&values[0]);
+  PropVariantClear(&values[1]);
+  storage->Release();
+  return ok;
+}
+
+// GetImageDlg returns the device root; the resolution lives on the transfer item (the
+// flatbed or feeder child). The root is tried first, then the first child exposing the
+// properties; with both a flatbed and a feeder this can only pick one, which is right
+// whenever they share the dialog's resolution setting.
+void read_scan_resolution(IWiaItem2* root, double* x_dpi, double* y_dpi) {
+  if (root == nullptr || read_item_resolution(root, x_dpi, y_dpi)) {
+    return;
+  }
+  IEnumWiaItem2* children = nullptr;
+  if (FAILED(root->EnumChildItems(nullptr, &children)) || children == nullptr) {
+    return;
+  }
+  IWiaItem2* child = nullptr;
+  ULONG fetched = 0;
+  while (children->Next(1, &child, &fetched) == S_OK && fetched == 1) {
+    const bool ok = read_item_resolution(child, x_dpi, y_dpi);
+    child->Release();
+    if (ok) {
+      break;
+    }
+  }
+  children->Release();
+}
+
 }  // namespace
 
 ScannerAcquireResult acquire_image_from_scanner(QWidget* parent) {
@@ -57,13 +111,11 @@ ScannerAcquireResult acquire_image_from_scanner(QWidget* parent) {
 
   SysFreeString(folder_bstr);
   SysFreeString(file_bstr);
-  if (item_root != nullptr) {
-    item_root->Release();
-  }
 
   if (hr == S_OK && file_count > 0 && file_paths != nullptr) {
     result.status = ScannerAcquireStatus::Acquired;
     result.file_path = QString::fromWCharArray(file_paths[0]);
+    read_scan_resolution(item_root, &result.horizontal_dpi, &result.vertical_dpi);
   } else if (hr == S_FALSE) {
     result.status = ScannerAcquireStatus::Cancelled;
   } else if (hr == WIA_S_NO_DEVICE_AVAILABLE) {
@@ -82,6 +134,9 @@ ScannerAcquireResult acquire_image_from_scanner(QWidget* parent) {
       SysFreeString(file_paths[i]);
     }
     CoTaskMemFree(file_paths);
+  }
+  if (item_root != nullptr) {
+    item_root->Release();
   }
 
   manager->Release();

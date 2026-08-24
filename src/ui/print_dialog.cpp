@@ -20,7 +20,9 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMessageBox>
+#include <QMouseEvent>
 #include <QPainter>
+#include <QResizeEvent>
 #include <QPainterPath>
 #include <QPageSetupDialog>
 #include <QPrintDialog>
@@ -35,10 +37,13 @@
 #include <QWidget>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <stdexcept>
+#include <utility>
 
 #ifdef Q_OS_WIN
 #ifndef NOMINMAX
@@ -320,6 +325,20 @@ QString photocopy_formatted_size(QSizeF inches) {
       .arg(measurement_unit_suffix(display));
 }
 
+// Photocopies anchor the scan's top-right corner to the paper's top-right corner: that
+// mirrors the platen's document registration corner, so the part the user pushed the
+// original against on the glass is the part that prints. Dragging the preview moves it
+// from there.
+PrintSettings anchored_photocopy_settings(const Document& document, PrintSettings settings,
+                                          const QPageLayout& layout) {
+  settings.center = false;
+  const auto scan_inches = calculate_print_placement(document, settings, layout).print_size_inches;
+  const auto printable = valid_page_layout(layout).paintRect(QPageLayout::Point);
+  settings.offset_x_inches = printable.width() / kPhotocopyPointsPerInch - scan_inches.width();
+  settings.offset_y_inches = 0.0;
+  return settings;
+}
+
 double photocopy_clipped_area_points(const Document& document, const PrintSettings& settings,
                                      const QPageLayout& layout) {
   const auto target = calculate_print_placement(document, settings, layout).target_rect_points;
@@ -337,18 +356,23 @@ QPageLayout photocopy_page_layout(const Document& document, const PrintSettings&
   portrait.setOrientation(QPageLayout::Portrait);
   auto landscape = layout;
   landscape.setOrientation(QPageLayout::Landscape);
-  // Auto-rotate like a copier: the orientation that loses the least of the scan wins,
-  // portrait on a tie (half a point squared absorbs placement rounding).
-  const auto portrait_loss = photocopy_clipped_area_points(document, settings, portrait);
-  const auto landscape_loss = photocopy_clipped_area_points(document, settings, landscape);
+  // Auto-rotate like a copier: with the scan anchored the way it will actually print,
+  // the orientation that loses the least of it wins, portrait on a tie (half a point
+  // squared absorbs placement rounding).
+  const auto portrait_loss =
+      photocopy_clipped_area_points(document, anchored_photocopy_settings(document, settings, portrait), portrait);
+  const auto landscape_loss = photocopy_clipped_area_points(
+      document, anchored_photocopy_settings(document, settings, landscape), landscape);
   return landscape_loss + 0.5 < portrait_loss ? landscape : portrait;
 }
 
 bool photocopy_scan_is_clipped(const Document& document, const PrintSettings& settings,
                                const QPageLayout& layout) {
+  // Containment, not size: a scan smaller than the paper still clips once it is dragged
+  // partly off the printable area.
   const auto target = calculate_print_placement(document, settings, layout).target_rect_points;
   const auto printable = layout.paintRect(QPageLayout::Point);
-  return target.width() > printable.width() + 0.5 || target.height() > printable.height() + 0.5;
+  return !printable.adjusted(-0.5, -0.5, 0.5, 0.5).contains(target);
 }
 
 class PhotocopyPreviewPane final : public QWidget {
@@ -357,6 +381,8 @@ public:
     setObjectName(QStringLiteral("photocopyPreviewPane"));
     setMinimumSize(280, 320);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    setCursor(Qt::OpenHandCursor);
+    setMouseTracking(true);
     // Rendered once up front: the scan never changes while the dialog is open, and
     // compositing it per repaint would touch every scan pixel on each paint.
     scan_ = qimage_from_document_rect(document, QRect(0, 0, document.width(), document.height()), false);
@@ -366,59 +392,307 @@ public:
     }
   }
 
-  void set_state(const Document* document, const PrintSettings* settings, const QPageLayout* page_layout) noexcept {
+  // The pane owns the crop and move interactions, so it mutates the dialog's settings
+  // (selection_bounds is the crop, the offsets are the crop's position on the printable
+  // area) and reports through the callback so the dialog refreshes labels and warning.
+  void set_state(const Document* document, PrintSettings* settings, const QPageLayout* page_layout) noexcept {
     document_ = document;
     settings_ = settings;
     page_layout_ = page_layout;
+    refresh_view_properties();
     update();
   }
 
+  void set_placement_changed_callback(std::function<void()> callback) {
+    placement_changed_ = std::move(callback);
+  }
+
 protected:
+  struct ViewMetrics {
+    double scale{0.0};  // device pixels per point; 0 = no usable view
+    QPointF origin;     // device position of bounds.topLeft
+    QRectF bounds;      // point-space rect fitted into the widget
+  };
+
+  [[nodiscard]] bool has_state() const noexcept {
+    return document_ != nullptr && settings_ != nullptr && page_layout_ != nullptr;
+  }
+
+  // The crop in scan pixels; an empty selection means the whole scan.
+  [[nodiscard]] QRect effective_crop() const {
+    const QRect full(0, 0, document_->width(), document_->height());
+    const auto crop = settings_->selection_bounds.normalized().intersected(full);
+    return crop.isEmpty() ? full : crop;
+  }
+
+  // The crop's rect on the paper, in points (exactly what will print).
+  [[nodiscard]] QRectF crop_rect_points() const {
+    return calculate_print_placement(*document_, *settings_, valid_page_layout(*page_layout_)).target_rect_points;
+  }
+
+  // The whole scan's rect in points, positioned so the crop sits at its paper position.
+  [[nodiscard]] QRectF scan_rect_points() const {
+    const auto crop = effective_crop();
+    const auto crop_points = crop_rect_points();
+    const auto x_ppi = document_horizontal_ppi(*document_);
+    const auto y_ppi = document_vertical_ppi(*document_);
+    const QPointF origin(crop_points.left() - crop.left() / x_ppi * kPhotocopyPointsPerInch,
+                         crop_points.top() - crop.top() / y_ppi * kPhotocopyPointsPerInch);
+    return QRectF(origin, QSizeF(document_->width() / x_ppi * kPhotocopyPointsPerInch,
+                                 document_->height() / y_ppi * kPhotocopyPointsPerInch));
+  }
+
+  // Computed from state rather than cached at paint time so interaction math works
+  // even before the first paint.
+  [[nodiscard]] ViewMetrics view_metrics() const {
+    ViewMetrics metrics;
+    if (!has_state()) {
+      return metrics;
+    }
+    const auto layout = valid_page_layout(*page_layout_);
+    // Fit the page AND the whole scan into the widget, so cut-off and cropped-away
+    // areas stay visible instead of vanishing outside the preview.
+    const auto bounds = QRectF(layout.fullRect(QPageLayout::Point)).united(scan_rect_points());
+    const auto available = rect().adjusted(16, 16, -16, -16);
+    if (bounds.isEmpty() || available.isEmpty()) {
+      return metrics;
+    }
+    metrics.scale = std::min(static_cast<double>(available.width()) / bounds.width(),
+                             static_cast<double>(available.height()) / bounds.height());
+    metrics.origin = QPointF(available.x() + (available.width() - bounds.width() * metrics.scale) / 2.0,
+                             available.y() + (available.height() - bounds.height() * metrics.scale) / 2.0);
+    metrics.bounds = bounds;
+    return metrics;
+  }
+
+  [[nodiscard]] QPointF to_device(QPointF points, const ViewMetrics& metrics) const {
+    return metrics.origin + (points - metrics.bounds.topLeft()) * metrics.scale;
+  }
+
+  [[nodiscard]] QRectF crop_rect_device(const ViewMetrics& metrics) const {
+    const auto crop_points = crop_rect_points();
+    return QRectF(to_device(crop_points.topLeft(), metrics), to_device(crop_points.bottomRight(), metrics));
+  }
+
+  // Corner handles first (TL TR BL BR), then edge midpoints (top bottom left right);
+  // resize_crop_to keys off this order.
+  [[nodiscard]] std::array<QRectF, 8> handle_rects(const ViewMetrics& metrics) const {
+    const auto crop = crop_rect_device(metrics);
+    constexpr double kHalf = 4.0;
+    const auto at = [](QPointF center) {
+      return QRectF(center.x() - kHalf, center.y() - kHalf, 2 * kHalf, 2 * kHalf);
+    };
+    return {at(crop.topLeft()),
+            at(crop.topRight()),
+            at(crop.bottomLeft()),
+            at(crop.bottomRight()),
+            at(QPointF(crop.center().x(), crop.top())),
+            at(QPointF(crop.center().x(), crop.bottom())),
+            at(QPointF(crop.left(), crop.center().y())),
+            at(QPointF(crop.right(), crop.center().y()))};
+  }
+
+  [[nodiscard]] int handle_at(QPointF device_pos) const {
+    const auto metrics = view_metrics();
+    if (metrics.scale <= 0.0) {
+      return -1;
+    }
+    const auto handles = handle_rects(metrics);
+    for (int i = 0; i < static_cast<int>(handles.size()); ++i) {
+      if (handles[static_cast<std::size_t>(i)].adjusted(-2, -2, 2, 2).contains(device_pos)) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  void notify_placement_changed() {
+    refresh_view_properties();
+    if (placement_changed_) {
+      placement_changed_();
+    }
+    update();
+  }
+
+  // Exposed for the UI tests: the crop's on-screen rect.
+  void refresh_view_properties() {
+    if (!has_state()) {
+      return;
+    }
+    const auto metrics = view_metrics();
+    if (metrics.scale > 0.0) {
+      setProperty("cropRectView", crop_rect_device(metrics).toRect());
+    }
+  }
+
+  // Dragging a handle resizes the crop. The scan stays put on screen, so the offsets
+  // (which position the crop's origin on the paper) follow the crop's top-left corner.
+  void resize_crop_to(QPointF device_pos) {
+    const auto metrics = view_metrics();
+    if (metrics.scale <= 0.0) {
+      return;
+    }
+    const auto x_ppi = document_horizontal_ppi(*document_);
+    const auto y_ppi = document_vertical_ppi(*document_);
+    const auto scan = scan_rect_points();
+    const auto points = metrics.bounds.topLeft() + (device_pos - metrics.origin) / metrics.scale;
+    const QPointF px((points.x() - scan.left()) / kPhotocopyPointsPerInch * x_ppi,
+                     (points.y() - scan.top()) / kPhotocopyPointsPerInch * y_ppi);
+    const auto old_crop = effective_crop();
+    auto crop = old_crop;
+    // A quarter inch minimum keeps the handles apart and grabbable.
+    const auto min_w = std::max(1, qRound(x_ppi / 4.0));
+    const auto min_h = std::max(1, qRound(y_ppi / 4.0));
+    const bool left = active_handle_ == 0 || active_handle_ == 2 || active_handle_ == 6;
+    const bool right = active_handle_ == 1 || active_handle_ == 3 || active_handle_ == 7;
+    const bool top = active_handle_ == 0 || active_handle_ == 1 || active_handle_ == 4;
+    const bool bottom = active_handle_ == 2 || active_handle_ == 3 || active_handle_ == 5;
+    if (left) {
+      crop.setLeft(std::clamp(qRound(px.x()), 0, crop.right() + 1 - min_w));
+    }
+    if (right) {
+      crop.setRight(std::clamp(qRound(px.x()) - 1, crop.left() + min_w - 1, document_->width() - 1));
+    }
+    if (top) {
+      crop.setTop(std::clamp(qRound(px.y()), 0, crop.bottom() + 1 - min_h));
+    }
+    if (bottom) {
+      crop.setBottom(std::clamp(qRound(px.y()) - 1, crop.top() + min_h - 1, document_->height() - 1));
+    }
+    if (crop == old_crop) {
+      return;
+    }
+    settings_->selection_bounds = crop;
+    settings_->offset_x_inches += (crop.left() - old_crop.left()) / x_ppi;
+    settings_->offset_y_inches += (crop.top() - old_crop.top()) / y_ppi;
+    notify_placement_changed();
+  }
+
+  // Dragging anywhere else slides the crop (scan and all) across the paper, clamped so
+  // at least half an inch of the crop always stays on the printable area.
+  void move_crop_by_device_delta(QPointF delta) {
+    const auto metrics = view_metrics();
+    if (metrics.scale <= 0.0) {
+      return;
+    }
+    const auto layout = valid_page_layout(*page_layout_);
+    const auto crop_inches = calculate_print_placement(*document_, *settings_, layout).print_size_inches;
+    const auto printable = layout.paintRect(QPageLayout::Point);
+    const auto printable_w = printable.width() / kPhotocopyPointsPerInch;
+    const auto printable_h = printable.height() / kPhotocopyPointsPerInch;
+    const auto keep_w = std::min(0.5, crop_inches.width());
+    const auto keep_h = std::min(0.5, crop_inches.height());
+    const auto dx_inches = delta.x() / metrics.scale / kPhotocopyPointsPerInch;
+    const auto dy_inches = delta.y() / metrics.scale / kPhotocopyPointsPerInch;
+    settings_->offset_x_inches =
+        std::clamp(settings_->offset_x_inches + dx_inches, keep_w - crop_inches.width(), printable_w - keep_w);
+    settings_->offset_y_inches =
+        std::clamp(settings_->offset_y_inches + dy_inches, keep_h - crop_inches.height(), printable_h - keep_h);
+    notify_placement_changed();
+  }
+
+  [[nodiscard]] Qt::CursorShape cursor_for_handle(int handle) const {
+    switch (handle) {
+      case 0:
+      case 3:
+        return Qt::SizeFDiagCursor;
+      case 1:
+      case 2:
+        return Qt::SizeBDiagCursor;
+      case 4:
+      case 5:
+        return Qt::SizeVerCursor;
+      case 6:
+      case 7:
+        return Qt::SizeHorCursor;
+      default:
+        return dragging_ ? Qt::ClosedHandCursor : Qt::OpenHandCursor;
+    }
+  }
+
+  void mousePressEvent(QMouseEvent* event) override {
+    if (event->button() != Qt::LeftButton || !has_state()) {
+      return;
+    }
+    active_handle_ = handle_at(event->position());
+    dragging_ = active_handle_ < 0;
+    last_drag_pos_ = event->position();
+    setCursor(cursor_for_handle(active_handle_));
+  }
+
+  void mouseMoveEvent(QMouseEvent* event) override {
+    if (!has_state()) {
+      return;
+    }
+    if (active_handle_ >= 0) {
+      resize_crop_to(event->position());
+      return;
+    }
+    if (dragging_) {
+      const auto delta = event->position() - last_drag_pos_;
+      last_drag_pos_ = event->position();
+      move_crop_by_device_delta(delta);
+      return;
+    }
+    setCursor(cursor_for_handle(handle_at(event->position())));
+  }
+
+  void mouseReleaseEvent(QMouseEvent* event) override {
+    if (event->button() == Qt::LeftButton) {
+      dragging_ = false;
+      active_handle_ = -1;
+      setCursor(cursor_for_handle(handle_at(event->position())));
+    }
+  }
+
+  void resizeEvent(QResizeEvent* event) override {
+    QWidget::resizeEvent(event);
+    refresh_view_properties();
+  }
+
   void paintEvent(QPaintEvent* /*event*/) override {
     QPainter painter(this);
     painter.fillRect(rect(), QColor(36, 36, 36));
-    if (document_ == nullptr || settings_ == nullptr || page_layout_ == nullptr) {
+    if (!has_state()) {
+      return;
+    }
+    const auto metrics = view_metrics();
+    if (metrics.scale <= 0.0) {
       return;
     }
     const auto layout = valid_page_layout(*page_layout_);
     const auto page = QRectF(layout.fullRect(QPageLayout::Point));
     const auto printable = layout.paintRect(QPageLayout::Point);
-    const auto target = calculate_print_placement(*document_, *settings_, layout).target_rect_points;
-    // Fit the page AND any overflow into the widget, so cut-off scan areas are shown
-    // hanging off the paper instead of vanishing outside the preview.
-    const auto bounds = page.united(target);
-    const auto available = rect().adjusted(16, 16, -16, -16);
-    if (bounds.isEmpty() || available.isEmpty()) {
-      return;
-    }
-    const auto scale = std::min(static_cast<double>(available.width()) / bounds.width(),
-                                static_cast<double>(available.height()) / bounds.height());
+    const auto crop_points = crop_rect_points();
+    const auto scan = scan_rect_points();
 
     painter.save();
-    painter.translate(available.x() + (available.width() - bounds.width() * scale) / 2.0,
-                      available.y() + (available.height() - bounds.height() * scale) / 2.0);
-    painter.scale(scale, scale);
-    painter.translate(-bounds.topLeft());
+    painter.translate(metrics.origin);
+    painter.scale(metrics.scale, metrics.scale);
+    painter.translate(-metrics.bounds.topLeft());
 
     painter.fillRect(page, Qt::white);
     if (!scan_.isNull()) {
       painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
-      painter.drawImage(target, scan_, QRectF(scan_.rect()));
+      painter.drawImage(scan, scan_, QRectF(scan_.rect()));
     }
-    // Everything of the scan outside the printable area is what the printer cuts off;
-    // shade it so the loss is visible before paper is spent.
-    QPainterPath lost;
-    lost.addRect(target);
+    // Cropped-away scan areas are dimmed (they never print); crop areas outside the
+    // printable area are shaded red (they would print but get cut off).
+    QPainterPath crop_path;
+    crop_path.addRect(crop_points);
+    QPainterPath outside_crop;
+    outside_crop.addRect(scan);
+    outside_crop = outside_crop.subtracted(crop_path);
+    if (!outside_crop.isEmpty()) {
+      painter.fillPath(outside_crop, QColor(15, 15, 15, 150));
+    }
     QPainterPath kept;
-    kept.addRect(target.intersected(printable));
-    lost = lost.subtracted(kept);
+    kept.addRect(crop_points.intersected(printable));
+    const auto lost = crop_path.subtracted(kept);
     if (!lost.isEmpty()) {
+      // Fill only: stroking the subtracted path draws spurious edges along the shared
+      // boundary with the kept region.
       painter.fillPath(lost, QColor(190, 40, 35, 120));
-      QPen lost_pen(QColor(190, 40, 35), 0.0);
-      lost_pen.setCosmetic(true);
-      painter.setPen(lost_pen);
-      painter.setBrush(Qt::NoBrush);
-      painter.drawPath(lost);
     }
     QPen printable_pen(QColor(205, 205, 205), 0.0, Qt::DashLine);
     printable_pen.setCosmetic(true);
@@ -430,13 +704,31 @@ protected:
     painter.setPen(page_pen);
     painter.drawRect(page);
     painter.restore();
+
+    // Crop chrome in device space so line weight and handles stay constant. A black
+    // and white pair reads over arbitrary scan content, like other selection UI.
+    const auto crop_device = crop_rect_device(metrics);
+    painter.setPen(QPen(QColor(255, 255, 255), 1.0));
+    painter.setBrush(Qt::NoBrush);
+    painter.drawRect(crop_device);
+    painter.setPen(QPen(QColor(0, 0, 0), 1.0, Qt::DashLine));
+    painter.drawRect(crop_device);
+    for (const auto& handle : handle_rects(metrics)) {
+      painter.setPen(QPen(QColor(0, 0, 0), 1.0));
+      painter.setBrush(QColor(255, 255, 255));
+      painter.drawRect(handle);
+    }
   }
 
 private:
   QImage scan_;
   const Document* document_{nullptr};
-  const PrintSettings* settings_{nullptr};
+  PrintSettings* settings_{nullptr};
   const QPageLayout* page_layout_{nullptr};
+  std::function<void()> placement_changed_;
+  bool dragging_{false};
+  int active_handle_{-1};
+  QPointF last_drag_pos_;
 };
 
 }  // namespace
@@ -787,9 +1079,12 @@ bool run_print_dialog(QWidget* parent, const Document& document, const QString& 
 }
 
 bool run_photocopy_dialog(QWidget* parent, const Document& document) {
-  // The whole point of the photocopy flow: actual size, centered, never scaled.
+  // The whole point of the photocopy flow: actual size, never scaled. The selection is
+  // the crop rect the preview edits; it starts as the whole scan.
   PrintSettings settings;
   settings.scale_mode = PrintScaleMode::ActualSize;
+  settings.area_mode = PrintAreaMode::Selection;
+  settings.selection_bounds = QRect(0, 0, std::max(0, document.width()), std::max(0, document.height()));
 
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("photocopyDialog"));
@@ -839,12 +1134,16 @@ bool run_photocopy_dialog(QWidget* parent, const Document& document) {
   auto* scan_size = new QLabel(size_group);
   scan_size->setObjectName(QStringLiteral("photocopyScanSizeLabel"));
   size_form->addRow(QObject::tr("Scan"), scan_size);
+  auto* print_size = new QLabel(size_group);
+  print_size->setObjectName(QStringLiteral("photocopyPrintSizeLabel"));
+  size_form->addRow(QObject::tr("Print"), print_size);
   auto* paper_size = new QLabel(size_group);
   paper_size->setObjectName(QStringLiteral("photocopyPaperSizeLabel"));
   size_form->addRow(QObject::tr("Paper"), paper_size);
   size_layout->addLayout(size_form);
-  auto* clip_warning = new QLabel(
-      QObject::tr("The scan is larger than the printable area. The shaded parts will be cut off."), size_group);
+  auto* clip_warning = new QLabel(QObject::tr("The shaded parts fall outside the printable area and will be "
+                                              "cut off. Drag the preview to choose which part prints."),
+                                  size_group);
   clip_warning->setObjectName(QStringLiteral("photocopyClipWarningLabel"));
   clip_warning->setWordWrap(true);
   size_layout->addWidget(clip_warning);
@@ -860,21 +1159,35 @@ bool run_photocopy_dialog(QWidget* parent, const Document& document) {
   side_layout->addWidget(buttons);
 
   QPageLayout current_layout = default_print_page_layout();
+  const auto refresh_placement = [&] {
+    clip_warning->setVisible(photocopy_scan_is_clipped(document, settings, current_layout));
+    print_size->setText(photocopy_formatted_size(
+        calculate_print_placement(document, settings, current_layout).print_size_inches));
+    // Exposed for the UI tests: the crop's paper offset and its bounds in scan pixels.
+    preview->setProperty("scanOffsetInches", QPointF(settings.offset_x_inches, settings.offset_y_inches));
+    preview->setProperty("cropRectPixels", settings.selection_bounds);
+    preview->update();
+  };
   const auto sync = [&] {
     // The paper comes from the selected printer's own defaults (orientation is then
-    // auto-chosen); photocopy deliberately has no page setup to fiddle with.
+    // auto-chosen); photocopy deliberately has no page setup to fiddle with. Switching
+    // printers keeps the crop but re-anchors it to the top-right corner.
     const auto printer = create_selected_printer(selected_printer_name(printer_combo));
     current_layout = photocopy_page_layout(document, settings, printer->pageLayout());
+    settings = anchored_photocopy_settings(document, settings, current_layout);
+    auto full_scan = settings;
+    full_scan.area_mode = PrintAreaMode::Document;
     scan_size->setText(photocopy_formatted_size(
-        calculate_print_placement(document, settings, current_layout).print_size_inches));
+        calculate_print_placement(document, full_scan, current_layout).print_size_inches));
     const auto page_points = current_layout.fullRect(QPageLayout::Point);
     paper_size->setText(photocopy_formatted_size(QSizeF(page_points.width() / kPhotocopyPointsPerInch,
                                                         page_points.height() / kPhotocopyPointsPerInch)));
-    clip_warning->setVisible(photocopy_scan_is_clipped(document, settings, current_layout));
     preview->set_state(&document, &settings, &current_layout);
+    refresh_placement();
   };
   sync();
   QObject::connect(printer_combo, &QComboBox::currentIndexChanged, &dialog, sync);
+  preview->set_placement_changed_callback(refresh_placement);
 
   QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
   QObject::connect(print_button, &QPushButton::clicked, &dialog, [&] {

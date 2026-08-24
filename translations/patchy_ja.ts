@@ -5620,7 +5620,7 @@ Mixed selection</source>
     <message><source>The copy is printed at actual size and is never scaled.</source><translation>コピーは原寸で印刷され、拡大縮小されません。</translation></message>
     <message><source>Scan</source><translation>スキャン</translation></message>
     <message><source>Paper</source><translation>用紙</translation></message>
-    <message><source>The scan is larger than the printable area. The shaded parts will be cut off.</source><translation>スキャンが印刷可能範囲より大きいため、網掛けの部分は切り落とされます。</translation></message>
+    <message><source>The shaded parts fall outside the printable area and will be cut off. Drag the preview to choose which part prints.</source><translation>網掛けの部分は印刷可能範囲の外にあるため切り落とされます。プレビューをドラッグして印刷する部分を選べます。</translation></message>
 </context>
 <context>
     <name>ScannerImport</name>

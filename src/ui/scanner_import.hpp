@@ -21,6 +21,11 @@ struct ScannerAcquireResult {
   ScannerAcquireStatus status{ScannerAcquireStatus::Failed};
   QString file_path;
   QString error;
+  // The DPI the device reported for this scan (0 = unknown). More trustworthy than the
+  // scanned file's own density metadata, which drivers routinely write as 72 or omit
+  // entirely; actual-size printing depends on the real value.
+  double horizontal_dpi{0.0};
+  double vertical_dpi{0.0};
 };
 
 #ifdef Q_OS_WIN
