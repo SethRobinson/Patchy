@@ -8,6 +8,7 @@
 #include "ui/script_api.hpp"
 
 #include "core/image_trace.hpp"
+#include "core/layer_tree.hpp"
 #include "core/vector_shape.hpp"
 #include "core/vector_raster.hpp"
 #include "core/shape_combine.hpp"
@@ -381,6 +382,36 @@ void ScriptLayerObject::remove() {
   }
   document->remove_layer(layer_id_);
   host_.note_structure_changed(session_id_);
+}
+
+QJSValue ScriptLayerObject::ungroup() {
+  auto* document = host_.session_document(session_id_);
+  const auto* view = document != nullptr ? std::as_const(*document).find_layer(layer_id_) : nullptr;
+  if (view == nullptr) {
+    host_.throw_js_error(ScriptEngineHost::tr("The layer no longer exists."));
+    return QJSValue();
+  }
+  if (view->kind() != LayerKind::Group) {
+    host_.throw_js_error(ScriptEngineHost::tr("ungroup needs a group layer."));
+    return QJSValue();
+  }
+  if (!host_.prepare_mutation(session_id_)) {
+    return QJSValue();
+  }
+  const auto released = ungroup_layer(document->layers(), layer_id_);
+  if (!released.has_value()) {
+    host_.throw_js_error(ScriptEngineHost::tr("ungroup needs a group layer."));
+    return QJSValue();
+  }
+  if (!released->empty()) {
+    document->set_active_layer(released->front());
+  }
+  host_.note_structure_changed(session_id_);
+  auto array = host_.engine()->newArray(static_cast<uint>(released->size()));
+  for (std::size_t i = 0; i < released->size(); ++i) {
+    array.setProperty(static_cast<quint32>(i), make_layer_value(host_, session_id_, (*released)[i]));
+  }
+  return array;
 }
 
 void ScriptLayerObject::fill(const QString& color) {

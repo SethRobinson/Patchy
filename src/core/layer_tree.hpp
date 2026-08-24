@@ -60,5 +60,10 @@ void collect_initially_collapsed_layer_groups(const std::vector<Layer>& layers, 
 [[nodiscard]] std::vector<std::pair<LayerId, LayerId>> layer_tree_signature(const std::vector<Layer>& layers,
                                                                             LayerId parent_id = 0);
 bool move_layers_for_drop(std::vector<Layer>& layers, const LayerDropRequest& request);
+// Ungroup: replaces the group with its children at the group's position (storage
+// order kept, so composite order is unchanged). Returns the released ids top to
+// bottom; nullopt when `group_id` is missing or not a group. The group's own
+// opacity, blend mode, masks, and style are dropped with it (Photoshop's rule).
+[[nodiscard]] std::optional<std::vector<LayerId>> ungroup_layer(std::vector<Layer>& layers, LayerId group_id);
 
 }  // namespace patchy

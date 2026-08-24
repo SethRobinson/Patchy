@@ -480,6 +480,17 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   connect(cut_action, &QAction::triggered, this, [this] { cut_selection(); });
   connect(copy_action, &QAction::triggered, this, [this] { copy_selection(); });
   connect(copy_merged_action, &QAction::triggered, this, [this] { copy_merged(); });
+  auto* copy_svg_action = new QAction(tr("Copy as SVG"), this);
+  copy_svg_action->setObjectName(QStringLiteral("editCopySvgAction"));
+  copy_svg_action->setProperty("patchy.channelViewBlocked", true);
+  copy_svg_action->setStatusTip(tr("Copy the selected layers to the clipboard as SVG"));
+  bind_action_text(copy_svg_action, "Copy as SVG");
+  bind_translated_status_tip(copy_svg_action, "Copy the selected layers to the clipboard as SVG");
+  apply_bound_translation(copy_svg_action);
+  edit_menu->insertAction(paste_action, copy_svg_action);
+  register_hotkey(copy_svg_action, "edit.copy_svg");
+  connect(copy_svg_action, &QAction::triggered, this, [this] { copy_as_svg(); });
+  register_document_action(copy_svg_action);
   connect(paste_action, &QAction::triggered, this, [this] { paste_clipboard(); });
   connect(transform_action, &QAction::triggered, this, [this] { transform_active_layer_dialog(); });
   connect(warp_transform_action, &QAction::triggered, this, [this] { warp_transform_active_layer(); });
@@ -619,6 +630,16 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   layer_new_menu->setObjectName(QStringLiteral("layerNewMenu"));
   auto* add_layer_action = layer_new_menu->addAction(tr("&New Layer"));
   auto* add_folder_action = layer_new_menu->addAction(tr("New &Folder"));
+  auto* ungroup_action = layer_new_menu->addAction(tr("Ungroup Layers"));
+  ungroup_action->setObjectName(QStringLiteral("layerUngroupAction"));
+  ungroup_action->setProperty("patchy.channelViewBlocked", true);
+  ungroup_action->setStatusTip(tr("Release the selected folder's layers into their parent"));
+  bind_action_text(ungroup_action, "Ungroup Layers");
+  bind_translated_status_tip(ungroup_action, "Release the selected folder's layers into their parent");
+  apply_bound_translation(ungroup_action);
+  register_hotkey(ungroup_action, "layer.ungroup", QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_G));
+  connect(ungroup_action, &QAction::triggered, this, [this] { ungroup_selected_layers(); });
+  register_document_action(ungroup_action);
   layer_new_menu->addSeparator();
   auto* layer_via_copy_action = layer_new_menu->addAction(tr("Layer Via &Copy"));
   auto* layer_via_cut_action = layer_new_menu->addAction(tr("Layer Via Cu&t"));
@@ -849,7 +870,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   register_hotkey(clear_layer_action, "layer.clear",
                   platform_hotkeys({QKeySequence(Qt::Key_Delete)},
                                    {QKeySequence(Qt::Key_Backspace), QKeySequence(Qt::Key_Delete)}));
-  register_hotkey(add_folder_action, "layer.new_folder");
+  register_hotkey(add_folder_action, "layer.new_folder", QKeySequence(Qt::CTRL | Qt::Key_G));
   register_hotkey(add_mask_action, "layer.add_mask");
   register_hotkey(delete_layer_mask_action_, "layer.delete_mask");
   register_hotkey(invert_layer_mask_action_, "layer.invert_mask");

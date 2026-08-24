@@ -168,6 +168,13 @@ emit native `<rect>`/`<ellipse>`/`<line>` (round-trips back to live).
   and pastes editable shape layers (one "Paste shape" undo entry, names kept
   unless colliding, shapes re-baked against the target canvas). Parse
   failures fall through to the raster rendition most apps also provide.
+- Edit > Copy as SVG (`edit.copy_svg`, `editCopySvgAction`, no default key)
+  writes the selected layers through the same structure-preserving writer
+  into a sub-document at the canvas size (PPI, pattern and smart-object
+  stores copied) and puts the bytes on the clipboard as image/svg+xml plus
+  text (the Illustrator/Figma/Inkscape convention); the internal layer
+  clipboard is dropped so Paste reads it back in place. Notices ride the
+  status message. Test: `ui_svg_copy_as_svg_round_trips_shape_layer`.
 - File > Place Embedded accepts svg: it becomes an embedded smart object
   (classified ReadOnly, rendered through the qsvg plugin like other
   Qt-decodable sources).

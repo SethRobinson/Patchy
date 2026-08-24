@@ -3,6 +3,7 @@
 #include "core/layer_metadata.hpp"
 
 #include <algorithm>
+#include <iterator>
 #include <array>
 #include <functional>
 #include <set>
@@ -308,6 +309,30 @@ bool move_layers_for_drop(std::vector<Layer>& layers, const LayerDropRequest& re
       request.position == LayerDropPosition::BelowItem ? target_location->index : target_location->index + 1U;
   insert_layers_bottom_to_top(*target_location->siblings, insert_index, moved_top_to_bottom);
   return true;
+}
+
+std::optional<std::vector<LayerId>> ungroup_layer(std::vector<Layer>& layers, LayerId group_id) {
+  const auto location = find_layer_location(layers, group_id);
+  if (!location.has_value() || location->siblings == nullptr) {
+    return std::nullopt;
+  }
+  auto& siblings = *location->siblings;
+  auto& group = siblings[location->index];
+  if (group.kind() != LayerKind::Group) {
+    return std::nullopt;
+  }
+  std::vector<Layer> children = std::move(group.children());
+  group.children().clear();
+  std::vector<LayerId> released;
+  released.reserve(children.size());
+  for (auto it = children.rbegin(); it != children.rend(); ++it) {
+    released.push_back(it->id());
+  }
+  const auto index = static_cast<std::ptrdiff_t>(location->index);
+  siblings.erase(siblings.begin() + index);
+  siblings.insert(siblings.begin() + index, std::make_move_iterator(children.begin()),
+                  std::make_move_iterator(children.end()));
+  return released;
 }
 
 }  // namespace patchy

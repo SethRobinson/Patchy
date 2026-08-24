@@ -142,3 +142,23 @@ shape", "Intersect shapes", "Exclude overlapping shapes"). Script:
 Tests: `tests/core/vector_shape_tests.cpp` (fitter, simplify),
 `tests/core/vector_raster_tests.cpp` (combine truth table, refusals),
 `tests/ui/vector_commands_tests.cpp`.
+
+## Ungroup Layers
+
+`Layer > New > Ungroup Layers` (id `layer.ungroup`, default Ctrl+Shift+G;
+`layerUngroupAction`; also in the Layers panel context menu when the active
+layer is a folder) releases every selected folder's layers into its parent
+at the folder's position, composite order unchanged (`ungroup_layer`,
+`src/core/layer_tree`). New Folder gained Photoshop's Ctrl+G at the same
+time, so the pair matches muscle memory. Photoshop's rule applies: the
+folder's own opacity, blend mode, masks, and style are dropped, and the
+status line says so when one was set. Lock All on the folder refuses. One
+"Ungroup layers" undo entry; the topmost released layer becomes active; the
+folder leaves the session's collapsed set. Script: `layer.ungroup()` returns
+the released layers top to bottom.
+
+## Copy as SVG
+
+See [svg.md](svg.md) (UI behavior): `Edit > Copy as SVG` puts the selected
+layers on the clipboard as image/svg+xml and text; Paste reads it back in
+place.

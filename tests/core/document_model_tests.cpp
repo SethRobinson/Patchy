@@ -634,6 +634,40 @@ void preview_scaled_document_flatten_keeps_solid_regions() {
   CHECK(static_cast<int>(white_px[0]) == 255);
 }
 
+// Ungroup keeps the composite order: [A, G{B, H{C}}, D] -> [A, B, H{C}, D],
+// released ids top to bottom; a non-group refuses.
+void ungroup_layer_releases_children_in_place_and_order() {
+  patchy::Document document(8, 8, patchy::PixelFormat::rgba8());
+  patchy::Layer a(document.allocate_layer_id(), "A", patchy::PixelBuffer());
+  patchy::Layer b(document.allocate_layer_id(), "B", patchy::PixelBuffer());
+  patchy::Layer c(document.allocate_layer_id(), "C", patchy::PixelBuffer());
+  patchy::Layer d(document.allocate_layer_id(), "D", patchy::PixelBuffer());
+  patchy::Layer inner(document.allocate_layer_id(), "H", patchy::LayerKind::Group);
+  patchy::Layer group(document.allocate_layer_id(), "G", patchy::LayerKind::Group);
+  const auto a_id = a.id();
+  const auto b_id = b.id();
+  const auto d_id = d.id();
+  const auto inner_id = inner.id();
+  const auto group_id = group.id();
+  inner.add_child(std::move(c));
+  group.add_child(std::move(b));
+  group.add_child(std::move(inner));
+  document.add_layer(std::move(a));
+  document.add_layer(std::move(group));
+  document.add_layer(std::move(d));
+
+  CHECK(!patchy::ungroup_layer(document.layers(), a_id).has_value());
+  CHECK(!patchy::ungroup_layer(document.layers(), 99999).has_value());
+  const auto released = patchy::ungroup_layer(document.layers(), group_id);
+  CHECK(released.has_value());
+  CHECK((*released == std::vector<patchy::LayerId>{inner_id, b_id}));
+  const auto& layers = document.layers();
+  CHECK(layers.size() == 4);
+  CHECK(layers[0].id() == a_id && layers[1].id() == b_id && layers[2].id() == inner_id && layers[3].id() == d_id);
+  CHECK(layers[2].kind() == patchy::LayerKind::Group && layers[2].children().size() == 1);
+  CHECK(document.find_layer(group_id) == nullptr);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> document_model_tests() {
@@ -666,5 +700,6 @@ std::vector<patchy::test::TestCase> document_model_tests() {
       {"document_grid_guides_default_and_copy", document_grid_guides_default_and_copy},
       {"preview_scaled_document_shrinks_layers_and_styles", preview_scaled_document_shrinks_layers_and_styles},
       {"preview_scaled_document_flatten_keeps_solid_regions", preview_scaled_document_flatten_keeps_solid_regions},
+      {"ungroup_layer_releases_children_in_place_and_order", ungroup_layer_releases_children_in_place_and_order},
   };
 }

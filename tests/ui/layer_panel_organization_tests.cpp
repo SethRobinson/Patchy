@@ -1,4 +1,7 @@
 #include "ui/canvas_widget.hpp"
+
+#include <QKeySequence>
+#include "ui/ui_test_access.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/contour_presets.hpp"
 #include "core/gradient_presets.hpp"
@@ -280,6 +283,63 @@ void ui_new_layer_defaults_and_multiselect_layers_work() {
   QApplication::processEvents();
   CHECK(layer_list->count() == 3);
   save_widget_artifact("ui_multiselect_duplicate_delete", window);
+}
+
+void ui_ungroup_layers_releases_children_in_order_and_undoes() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  require_action(window, "layerNewAction")->trigger();
+  QApplication::processEvents();
+  require_action(window, "layerNewAction")->trigger();
+  QApplication::processEvents();
+  QStringList before;
+  for (int row = 0; row < layer_list->count(); ++row) {
+    before << layer_list->item(row)->text();
+  }
+  CHECK(before.size() >= 3);
+
+  layer_list->clearSelection();
+  layer_list->item(0)->setSelected(true);
+  layer_list->item(1)->setSelected(true);
+  require_action(window, "layerNewFolderAction")->trigger();
+  QApplication::processEvents();
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto folder_id = document.active_layer_id();
+  CHECK(folder_id.has_value());
+  CHECK(std::as_const(document).find_layer(*folder_id)->kind() == patchy::LayerKind::Group);
+  const auto undo_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+
+  auto* ungroup = require_hotkey_action(window, QStringLiteral("layer.ungroup"));
+  CHECK(ungroup != nullptr);
+  CHECK(ungroup->shortcut() == QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_G));
+  CHECK(require_hotkey_action(window, QStringLiteral("layer.new_folder"))->shortcut() ==
+        QKeySequence(Qt::CTRL | Qt::Key_G));
+  ungroup->trigger();
+  QApplication::processEvents();
+  QStringList after;
+  for (int row = 0; row < layer_list->count(); ++row) {
+    after << layer_list->item(row)->text();
+  }
+  CHECK(after == before);
+  CHECK(std::as_const(document).find_layer(*folder_id) == nullptr);
+  const auto active = document.active_layer_id();
+  CHECK(active.has_value());
+  CHECK(QString::fromStdString(std::as_const(document).find_layer(*active)->name()) == before.front());
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before + 1);
+  CHECK(window.statusBar()->currentMessage().startsWith(QStringLiteral("Ungrouped 1 folder")));
+
+  patchy::ui::MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  CHECK(std::as_const(document).find_layer(*folder_id) != nullptr);
+
+  // Nothing grouped: a plain layer refuses.
+  layer_list->clearSelection();
+  document.set_active_layer(*active);
+  require_action(window, "layerUngroupAction")->trigger();
+  QApplication::processEvents();
+  CHECK(window.statusBar()->currentMessage().startsWith(QStringLiteral("Select a folder to ungroup")));
 }
 
 void ui_merge_down_repeatedly_collapses_to_one_layer() {
@@ -2942,6 +3002,8 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
       {"ui_tab_switch_layers_follow_the_canvas_after_tab_reorder",
        ui_tab_switch_layers_follow_the_canvas_after_tab_reorder},
       {"ui_new_layer_defaults_and_multiselect_layers_work", ui_new_layer_defaults_and_multiselect_layers_work},
+      {"ui_ungroup_layers_releases_children_in_order_and_undoes",
+       ui_ungroup_layers_releases_children_in_order_and_undoes},
       {"ui_merge_down_repeatedly_collapses_to_one_layer", ui_merge_down_repeatedly_collapses_to_one_layer},
       {"ui_merge_down_preserves_transparent_pixels", ui_merge_down_preserves_transparent_pixels},
       {"ui_merge_down_rasterizes_text_target", ui_merge_down_rasterizes_text_target},

@@ -73,6 +73,8 @@ public:
   Q_INVOKABLE void moveTo(int x, int y);
   Q_INVOKABLE QJSValue duplicate();
   Q_INVOKABLE void remove();
+  // Ungroup this group layer; returns the released layers top to bottom.
+  Q_INVOKABLE QJSValue ungroup();
   Q_INVOKABLE void fill(const QString& color);
   Q_INVOKABLE void fillRect(int x, int y, int width, int height, const QString& color);
   Q_INVOKABLE void applyFilter(const QString& filterId, const QJSValue& params = QJSValue());

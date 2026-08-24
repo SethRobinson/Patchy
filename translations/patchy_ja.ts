@@ -13725,6 +13725,18 @@ Clipped to the layer below</source>
     <message><source>Intersect shapes</source><translation>シェイプを交差</translation></message>
     <message><source>Exclude overlapping shapes</source><translation>重なり合うシェイプを除外</translation></message>
     <message numerus="yes"><source>Combined %n shape layer(s)</source><translation><numerusform>%n 個のシェイプレイヤーを結合しました</numerusform></translation></message>
+    <message><source>Ungroup Layers</source><translation>レイヤーのグループ解除</translation></message>
+    <message><source>Release the selected folder's layers into their parent</source><translation>選択したフォルダーのレイヤーを親階層に戻します</translation></message>
+    <message><source>Copy as SVG</source><translation>SVGとしてコピー</translation></message>
+    <message><source>Copy the selected layers to the clipboard as SVG</source><translation>選択したレイヤーをSVGとしてクリップボードにコピーします</translation></message>
+    <message><source>Select a layer to copy as SVG</source><translation>SVGとしてコピーするレイヤーを選択してください</translation></message>
+    <message><source>Could not build SVG: %1</source><translation>SVGを作成できませんでした: %1</translation></message>
+    <message numerus="yes"><source>Copied %n layer(s) as SVG</source><translation><numerusform>%n 個のレイヤーをSVGとしてコピーしました</numerusform></translation></message>
+    <message><source>Select a folder to ungroup</source><translation>グループ解除するフォルダーを選択してください</translation></message>
+    <message><source>Layer is locked.</source><translation>レイヤーはロックされています。</translation></message>
+    <message><source>Ungroup layers</source><translation>レイヤーのグループ解除</translation></message>
+    <message><source>Ungrouped the folder; its opacity, blend mode, or mask was discarded</source><translation>フォルダーのグループを解除しました。フォルダーの不透明度、描画モード、マスクは破棄されました</translation></message>
+    <message numerus="yes"><source>Ungrouped %n folder(s)</source><translation><numerusform>%n 個のフォルダーのグループを解除しました</numerusform></translation></message>
 </context>
 <context>
     <name>patchy::ui::PalettePanel</name>
@@ -14710,6 +14722,7 @@ Clipped to the layer below</source>
     <message><source>combineShapes: the shape layers are locked.</source><translation>combineShapes: シェイプレイヤーがロックされています。</translation></message>
     <message><source>combineShapes: fill layers without a path cannot be combined.</source><translation>combineShapes: パスのない塗りつぶしレイヤーは結合できません。</translation></message>
     <message><source>combineShapes: the shape layers must share one folder.</source><translation>combineShapes: シェイプレイヤーは同じフォルダーにある必要があります。</translation></message>
+    <message><source>ungroup needs a group layer.</source><translation>ungroup にはグループレイヤーが必要です。</translation></message>
 </context>
 <context>
     <name>patchy::ui::ScriptEditorDialog</name>

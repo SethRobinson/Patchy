@@ -338,6 +338,36 @@ void ui_script_combine_shapes_returns_base_layer() {
   CHECK(color_close(canvas_pixel(*canvas, QPoint(350, 280)), Qt::black, 8));
 }
 
+void ui_script_ungroup_returns_children() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  require_action(window, "layerNewAction")->trigger();
+  QApplication::processEvents();
+  layer_list->clearSelection();
+  layer_list->item(0)->setSelected(true);
+  layer_list->item(1)->setSelected(true);
+  require_action(window, "layerNewFolderAction")->trigger();
+  QApplication::processEvents();
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto layers_before = document.layers().size();
+  run_script_and_wait(window, QStringLiteral(R"JS(
+    var doc = app.activeDocument;
+    var released = doc.activeLayer.ungroup();
+    console.log('ungroup:' + released.length + ':' + doc.layers.length + ':' + (doc.activeLayer.name === released[0].name));
+    try {
+      doc.activeLayer.ungroup();
+      console.log('no-throw');
+    } catch (error) {
+      console.log('threw:' + error.message);
+    }
+  )JS"),
+                      "ungroup-test");
+  CHECK(backlog_contains(window, QStringLiteral("ungroup:2:%1:true").arg(layers_before + 1)));
+  CHECK(backlog_contains(window, QStringLiteral("threw:")));
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> vector_commands_tests() {
@@ -348,5 +378,6 @@ std::vector<patchy::test::TestCase> vector_commands_tests() {
       {"ui_combine_shapes_subtracts_front_and_undoes", ui_combine_shapes_subtracts_front_and_undoes},
       {"ui_script_simplify_path_reports_anchor_counts", ui_script_simplify_path_reports_anchor_counts},
       {"ui_script_combine_shapes_returns_base_layer", ui_script_combine_shapes_returns_base_layer},
+      {"ui_script_ungroup_returns_children", ui_script_ungroup_returns_children},
   };
 }

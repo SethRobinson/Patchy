@@ -83,6 +83,8 @@ interface PatchyLayer {
   /** Inserts the copy directly above this layer; returns it. */
   duplicate(): PatchyLayer;
   remove(): void;
+  /** Ungroups this folder into its parent; returns the released layers top to bottom. */
+  ungroup(): PatchyLayer[];
   /** Fills the selection (or the whole canvas on an empty layer) with a color. */
   fill(color: string): void;
   /**

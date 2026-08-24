@@ -275,11 +275,10 @@ everywhere a bundled script is resolved.
   `layer.traceToShapes(options)` runs Trace Image to Shapes (docs/image-trace.md) on a
   pixel layer and returns the new group layer (null when nothing traced); the
   `layer.trace_image_to_shapes` command id reaches `app.runCommand` (it opens the dialog).
-  2026-08-24 (behavioral, still 1): `layer.traceToShapes` traces only inside the document
-  selection when one exists, like the dialog. Also 2026-08-24 (additive, still 1):
-  `layer.simplifyPath(options)` and `doc.combineShapes(layers, op)` (docs/vector-commands.md);
-  the command ids `path.simplify` and `layer.combine_unite/subtract/intersect/exclude` reach
-  `app.runCommand`.
+  2026-08-24 (still 1): `layer.traceToShapes` honors the document selection (behavioral);
+  additive `layer.simplifyPath(options)`, `doc.combineShapes(layers, op)`, `layer.ungroup()`,
+  and the command ids `path.simplify`, `layer.combine_*`, `layer.ungroup`, `edit.copy_svg`
+  (docs/vector-commands.md).
 - **`include()` resolution order**: relative to the including script, then the user
   scripts root, then the bundled scripts root; a result inside the bundled folder maps
   through the shadow-override store. `patchy.isMainScript()` is false during an included

@@ -24,6 +24,7 @@
 #include <QFileInfo>
 #include <QImage>
 #include <QMessageBox>
+#include <QMimeData>
 #include <QPainter>
 #include <QPushButton>
 #include <QSvgRenderer>
@@ -277,6 +278,42 @@ void ui_svg_paste_creates_shape_layers() {
   CHECK(patchy::layer_is_vector_shape(*pasted));
   CHECK(!pasted->vector_shape()->origination.empty());
   CHECK(pasted->vector_shape()->fill.color.green == 0xAA);
+  QApplication::clipboard()->clear();
+}
+
+void ui_svg_copy_as_svg_round_trips_shape_layer() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  QApplication::clipboard()->setText(QStringLiteral(
+      "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"1024\" height=\"768\">"
+      "<rect id=\"CopyRect\" x=\"40\" y=\"30\" width=\"120\" height=\"80\" fill=\"#3366cc\"/>"
+      "</svg>"));
+  patchy::ui::MainWindowTestAccess::paste_clipboard(window);
+  QApplication::processEvents();
+  const auto* pasted = find_layer_named(document.layers(), QStringLiteral("CopyRect"));
+  CHECK(pasted != nullptr && patchy::layer_is_vector_shape(*pasted));
+  const auto pasted_bounds = pasted->bounds();
+  CHECK(document.active_layer_id() == pasted->id());
+
+  // Copy as SVG puts image/svg+xml plus the text form on the clipboard.
+  patchy::test::ui::require_action(window, "editCopySvgAction")->trigger();
+  QApplication::processEvents();
+  const auto* mime = QApplication::clipboard()->mimeData();
+  CHECK(mime != nullptr && mime->hasFormat(QStringLiteral("image/svg+xml")));
+  CHECK(mime != nullptr && mime->text().contains(QStringLiteral("<rect")) &&
+        mime->text().contains(QStringLiteral("CopyRect")));
+  CHECK(window.statusBar()->currentMessage().startsWith(QStringLiteral("Copied 1 layer")));
+
+  // Deleting the layer and pasting brings it back in place, still a shape.
+  patchy::test::ui::require_action(window, "layerDeleteAction")->trigger();
+  QApplication::processEvents();
+  CHECK(find_layer_named(document.layers(), QStringLiteral("CopyRect")) == nullptr);
+  patchy::ui::MainWindowTestAccess::paste_clipboard(window);
+  QApplication::processEvents();
+  const auto* repasted = find_layer_named(document.layers(), QStringLiteral("CopyRect"));
+  CHECK(repasted != nullptr && patchy::layer_is_vector_shape(*repasted));
+  CHECK(repasted != nullptr && repasted->bounds().x == pasted_bounds.x && repasted->bounds().y == pasted_bounds.y);
   QApplication::clipboard()->clear();
 }
 
@@ -536,6 +573,7 @@ std::vector<patchy::test::TestCase> svg_ui_tests() {
       {"ui_svg_data_uri_image_round_trip", ui_svg_data_uri_image_round_trip},
       {"ui_svg_save_is_copy_and_reopens_editable", ui_svg_save_is_copy_and_reopens_editable},
       {"ui_svg_paste_creates_shape_layers", ui_svg_paste_creates_shape_layers},
+      {"ui_svg_copy_as_svg_round_trips_shape_layer", ui_svg_copy_as_svg_round_trips_shape_layer},
       {"ui_svg_define_custom_shape_from_file", ui_svg_define_custom_shape_from_file},
       {"ui_svg_place_creates_smart_object", ui_svg_place_creates_smart_object},
   };

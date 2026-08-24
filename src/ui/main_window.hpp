@@ -57,6 +57,7 @@ class QKeyEvent;
 class QLabel;
 class QLineEdit;
 class QMenu;
+class QMimeData;
 class QPushButton;
 class QShowEvent;
 class QSlider;
@@ -600,6 +601,13 @@ private:
   void paste_clipboard();
   void clear_system_clipboard();
   void set_system_clipboard_image(const QImage& image);
+  // Puts arbitrary mime data (Copy as SVG) on the system clipboard and drops
+  // the internal layer clipboard so Paste reads the system data.
+  void set_system_clipboard_mime(QMimeData* mime);
+  // Edit > Copy as SVG: the selected layers as image/svg+xml plus text.
+  void copy_as_svg();
+  // Layer > New > Ungroup Layers (docs/vector-commands.md).
+  void ungroup_selected_layers();
   void clear_internal_clipboard_on_external_change();
   void transform_active_layer_dialog();
   void warp_transform_active_layer();

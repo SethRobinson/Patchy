@@ -636,6 +636,119 @@ void MainWindow::set_system_clipboard_image(const QImage& image) {
   }
 }
 
+void MainWindow::set_system_clipboard_mime(QMimeData* mime) {
+  if (auto* clipboard = QApplication::clipboard(); clipboard != nullptr) {
+    const QSignalBlocker blocker(clipboard);
+    clipboard->setMimeData(mime);
+  } else {
+    delete mime;
+  }
+  // Paste prefers the internal layer clipboard; drop it so the SVG wins.
+  clipboard_.reset();
+  patchy_system_clipboard_signature_.reset();
+}
+
+void MainWindow::copy_as_svg() {
+  if (canvas_ == nullptr || !has_active_document()) {
+    return;
+  }
+  canvas_->finish_free_transform();
+  auto& doc = document();
+  const auto ids = root_drop_layer_ids(doc.layers(), selected_or_active_layer_ids());
+  if (ids.empty()) {
+    show_status_error(tr("Select a layer to copy as SVG"));
+    return;
+  }
+  // A sub-document at the canvas size (same PPI, pattern and smart-object
+  // stores) so the SVG keeps document coordinates and a later Paste lands in
+  // place. The writer rasterizes whatever SVG cannot express and says so.
+  Document svg_document(doc.width(), doc.height(), doc.format());
+  svg_document.print_settings() = doc.print_settings();
+  svg_document.metadata().patterns = doc.metadata().patterns;
+  svg_document.metadata().smart_objects = doc.metadata().smart_objects;
+  svg_document.metadata().smart_filter_effects = doc.metadata().smart_filter_effects;
+  const auto layers = find_layers_top_to_bottom(doc.layers(), ids);
+  for (auto it = layers.rbegin(); it != layers.rend(); ++it) {
+    svg_document.add_layer(**it);
+  }
+  std::vector<std::string> notices;
+  std::vector<std::uint8_t> bytes;
+  try {
+    bytes = svg::DocumentIo::write(svg_document, &notices);
+  } catch (const std::exception& error) {
+    show_status_error(tr("Could not build SVG: %1").arg(QString::fromUtf8(error.what())));
+    return;
+  }
+  const QByteArray svg_bytes(reinterpret_cast<const char*>(bytes.data()), static_cast<qsizetype>(bytes.size()));
+  auto* mime = new QMimeData();
+  mime->setData(QStringLiteral("image/svg+xml"), svg_bytes);
+  mime->setText(QString::fromUtf8(svg_bytes));  // Figma, Inkscape, and browsers read the text form
+  set_system_clipboard_mime(mime);
+  auto message = tr("Copied %n layer(s) as SVG", nullptr, static_cast<int>(layers.size()));
+  if (!notices.empty()) {
+    message += QStringLiteral(" (") + QString::fromStdString(notices.front()) + QStringLiteral(")");
+  }
+  statusBar()->showMessage(message);
+}
+
+void MainWindow::ungroup_selected_layers() {
+  if (canvas_ == nullptr || !has_active_document()) {
+    return;
+  }
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  canvas_->finish_free_transform();
+  auto& doc = document();
+  const auto ids = root_drop_layer_ids(doc.layers(), selected_or_active_layer_ids());
+  std::vector<LayerId> groups;
+  for (const auto id : ids) {
+    const auto* layer = std::as_const(doc).find_layer(id);
+    if (layer != nullptr && layer->kind() == LayerKind::Group) {
+      groups.push_back(id);
+    }
+  }
+  if (groups.empty()) {
+    show_status_error(tr("Select a folder to ungroup"));
+    return;
+  }
+  for (const auto id : groups) {
+    if (layer_is_effectively_locked(doc.layers(), id)) {
+      show_status_error(tr("Layer is locked."));
+      return;
+    }
+  }
+  push_undo_snapshot(tr("Ungroup layers"));
+  bool dropped_attributes = false;
+  std::optional<LayerId> first_released;
+  for (const auto id : groups) {
+    if (const auto* group = std::as_const(doc).find_layer(id); group != nullptr) {
+      // Photoshop drops the folder's own attributes; say so afterwards.
+      dropped_attributes = dropped_attributes || group->opacity() < 1.0F ||
+                           group->blend_mode() != BlendMode::PassThrough || group->mask().has_value() ||
+                           group->vector_mask() != nullptr || group->clipped();
+    }
+    const auto released = ungroup_layer(doc.layers(), id);
+    if (released.has_value() && !released->empty() && !first_released.has_value()) {
+      first_released = released->front();
+    }
+    session().collapsed_layer_groups.erase(id);
+  }
+  if (first_released.has_value()) {
+    doc.set_active_layer(*first_released);
+  }
+  refresh_layer_list();
+  refresh_layer_controls();
+  refresh_document_info();
+  canvas_->document_changed();
+  if (dropped_attributes) {
+    statusBar()->showMessage(tr("Ungrouped the folder; its opacity, blend mode, or mask was discarded"));
+  } else {
+    statusBar()->showMessage(tr("Ungrouped %n folder(s)", nullptr, static_cast<int>(groups.size())));
+  }
+}
+
 void MainWindow::clear_internal_clipboard_on_external_change() {
   const auto current_signature = clipboard_image_signature(QApplication::clipboard()->image());
   if (patchy_system_clipboard_signature_.has_value() && current_signature == *patchy_system_clipboard_signature_) {
@@ -2256,6 +2369,11 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   auto* duplicate_action = menu.addAction(simple_icon(QStringLiteral("dup")), tr("Duplicate Layer"));
   auto* rename_action = menu.addAction(simple_icon(QStringLiteral("RN")), tr("Rename Layer..."));
   auto* delete_action = menu.addAction(simple_icon(QStringLiteral("trash")), tr("Delete Layer"));
+  QAction* ungroup_action = nullptr;
+  if (active_layer != nullptr && active_layer->kind() == LayerKind::Group) {
+    ungroup_action = menu.addAction(simple_icon(QStringLiteral("dir"), QColor(245, 205, 105)),
+                                    tr("Ungroup Layers"));
+  }
   menu.addSeparator();
   auto* merge_down_action =
       menu.addAction(simple_icon(QStringLiteral("merge"), QColor(160, 220, 255)), tr("Merge Down"));
@@ -2472,6 +2590,8 @@ void MainWindow::show_layer_context_menu(QPoint position) {
     rename_active_layer();
   } else if (chosen == delete_action) {
     delete_active_layer();
+  } else if (chosen == ungroup_action && ungroup_action != nullptr) {
+    ungroup_selected_layers();
   } else if (chosen == merge_down_action) {
     merge_down();
   } else if (chosen == merge_visible_action) {

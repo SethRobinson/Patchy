@@ -145,6 +145,7 @@ Field types: `number`, `slider`, `checkbox`, `choice`, `text`, `color`, `folder`
 | `layer.bounds` | The content bounding box. |
 | `layer.isGroup` / `layer.children` / `layer.isText` / `layer.text` | Group and text access. Setting `text` re-renders the layer. |
 | `layer.duplicate()` / `layer.remove()` | Copy above itself, or delete. |
+| `layer.ungroup()` | Releases a folder's layers into its parent (top to bottom) and removes the folder. |
 | `layer.fill(color)` | Fills the selection (or everything on an empty layer). |
 | `layer.fillRect(x, y, w, h, color)` | Overwrites one rectangle. A transparent color like `"#00000000"` clears. |
 | `layer.applyFilter(id, params)` | Runs a filter, e.g. `layer.applyFilter("patchy.filters.gaussian_blur", { radius: 8 })`. |
