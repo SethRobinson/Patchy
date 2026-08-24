@@ -8,6 +8,16 @@ The File > Import features plus the seamless-tiling tooling (preview window, in-
 - `PATCHY_FAKE_SCANNER_FILE=<path>` bypasses native scanner acquisition for offscreen scanner-import tests.
 - The macOS AppKit sheet MUST complete asynchronously after returning to the native run loop: a nested `QEventLoop` makes every sheet control ignore mouse input.
 
+## Photocopy (scanner to printer)
+
+File > Import > Photocopy runs the same native acquisition as scanner import, then prints the scan through `run_photocopy_dialog` (print_dialog.cpp; wasm stubs it) without ever creating a document session: the scan is a throwaway, like the machine it is named after. The contract is exact physical size, so there is deliberately NO scale control anywhere in the flow:
+
+- Placement is always `PrintScaleMode::ActualSize`, centered, per-axis scan PPI (clamped to [10, 4800] else 300 by the shared `clamp_scanned_document_ppi`, main_window_files.cpp).
+- Paper comes from the selected printer's own default page layout with margins clamped to the driver's minimum (`photocopy_page_layout`); there is no page-setup step. Orientation auto-rotates like a copier: the orientation losing the least scan area wins, portrait on ties.
+- Whatever falls outside the printable area is shaded red in the preview pane (`PhotocopyPreviewPane` fits page plus overflow into the widget, so cut-off parts hang visibly off the paper) with a warning label; it prints clipped, never scaled down.
+- The only options are the printer (remembered in the `photocopy/printerName` settings key) and the copy count, sent through the shared `paint_printer_page`. Size labels follow the ruler-unit preference (metric rulers read cm/mm, everything else inches).
+- `ui_photocopy_dialog_previews_clipping_at_actual_size` drives the dialog through `PATCHY_FAKE_SCANNER_FILE` and pins the clip warning, auto-rotation, and the no-session rule.
+
 ## Sprite sheets
 
 Import/export are the testable Qt-free pair `compose_sprite_sheet`/`slice_sprite_sheet`.

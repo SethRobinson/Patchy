@@ -104,6 +104,10 @@ public:
     window.import_from_scanner();
   }
 
+  static void photocopy_from_scanner(MainWindow& window) {
+    window.photocopy_from_scanner();
+  }
+
   static void set_ruler_unit_preference(MainWindow& window, MeasurementUnit unit) {
     window.set_ruler_unit_preference(unit);
   }

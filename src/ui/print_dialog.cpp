@@ -1,7 +1,9 @@
 #include "ui/print_dialog.hpp"
 
+#include "ui/app_settings.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/image_document_io.hpp"
+#include "ui/measurement_units.hpp"
 #include "ui/print_internal.hpp"
 
 #include <QCheckBox>
@@ -19,6 +21,7 @@
 #include <QLabel>
 #include <QMessageBox>
 #include <QPainter>
+#include <QPainterPath>
 #include <QPageSetupDialog>
 #include <QPrintDialog>
 #include <QPrinter>
@@ -294,6 +297,147 @@ QString formatted_size(QSizeF inches, const QComboBox* units) {
       .arg(inches.height() * factor, 0, 'f', 2)
       .arg(suffix);
 }
+
+// --- Photocopy --------------------------------------------------------------
+// File > Import > Photocopy prints a fresh scan at actual size, centered, never
+// scaled. These helpers pick the paper orientation and preview what gets cut off.
+
+constexpr double kPhotocopyPointsPerInch = 72.0;
+
+QString photocopy_formatted_size(QSizeF inches) {
+  // Sizes follow the ruler-unit preference the way the document info line does:
+  // metric rulers read cm/mm, everything else reads inches.
+  const auto unit = measurement_unit_from_settings_token(
+      app_settings().value(QStringLiteral("view/rulerUnits"), QStringLiteral("px")).toString(),
+      MeasurementUnit::Pixels);
+  const auto display = (unit == MeasurementUnit::Centimeters || unit == MeasurementUnit::Millimeters)
+                           ? unit
+                           : MeasurementUnit::Inches;
+  const auto factor = measurement_units_per_inch(display);
+  return QObject::tr("%1 x %2 %3")
+      .arg(inches.width() * factor, 0, 'f', 2)
+      .arg(inches.height() * factor, 0, 'f', 2)
+      .arg(measurement_unit_suffix(display));
+}
+
+double photocopy_clipped_area_points(const Document& document, const PrintSettings& settings,
+                                     const QPageLayout& layout) {
+  const auto target = calculate_print_placement(document, settings, layout).target_rect_points;
+  const auto kept = target.intersected(layout.paintRect(QPageLayout::Point));
+  return target.width() * target.height() - kept.width() * kept.height();
+}
+
+QPageLayout photocopy_page_layout(const Document& document, const PrintSettings& settings,
+                                  QPageLayout layout) {
+  layout = valid_page_layout(layout);
+  // Hardware-minimum margins are the honest printable edge for a copy: driver default
+  // margins waste paper, and FullPageMode would preview pixels the device cannot reach.
+  layout.setMargins(layout.minimumMargins());
+  auto portrait = layout;
+  portrait.setOrientation(QPageLayout::Portrait);
+  auto landscape = layout;
+  landscape.setOrientation(QPageLayout::Landscape);
+  // Auto-rotate like a copier: the orientation that loses the least of the scan wins,
+  // portrait on a tie (half a point squared absorbs placement rounding).
+  const auto portrait_loss = photocopy_clipped_area_points(document, settings, portrait);
+  const auto landscape_loss = photocopy_clipped_area_points(document, settings, landscape);
+  return landscape_loss + 0.5 < portrait_loss ? landscape : portrait;
+}
+
+bool photocopy_scan_is_clipped(const Document& document, const PrintSettings& settings,
+                               const QPageLayout& layout) {
+  const auto target = calculate_print_placement(document, settings, layout).target_rect_points;
+  const auto printable = layout.paintRect(QPageLayout::Point);
+  return target.width() > printable.width() + 0.5 || target.height() > printable.height() + 0.5;
+}
+
+class PhotocopyPreviewPane final : public QWidget {
+public:
+  explicit PhotocopyPreviewPane(const Document& document, QWidget* parent = nullptr) : QWidget(parent) {
+    setObjectName(QStringLiteral("photocopyPreviewPane"));
+    setMinimumSize(280, 320);
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    // Rendered once up front: the scan never changes while the dialog is open, and
+    // compositing it per repaint would touch every scan pixel on each paint.
+    scan_ = qimage_from_document_rect(document, QRect(0, 0, document.width(), document.height()), false);
+    constexpr int kMaxPreviewEdge = 2048;
+    if (std::max(scan_.width(), scan_.height()) > kMaxPreviewEdge) {
+      scan_ = scan_.scaled(kMaxPreviewEdge, kMaxPreviewEdge, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    }
+  }
+
+  void set_state(const Document* document, const PrintSettings* settings, const QPageLayout* page_layout) noexcept {
+    document_ = document;
+    settings_ = settings;
+    page_layout_ = page_layout;
+    update();
+  }
+
+protected:
+  void paintEvent(QPaintEvent* /*event*/) override {
+    QPainter painter(this);
+    painter.fillRect(rect(), QColor(36, 36, 36));
+    if (document_ == nullptr || settings_ == nullptr || page_layout_ == nullptr) {
+      return;
+    }
+    const auto layout = valid_page_layout(*page_layout_);
+    const auto page = QRectF(layout.fullRect(QPageLayout::Point));
+    const auto printable = layout.paintRect(QPageLayout::Point);
+    const auto target = calculate_print_placement(*document_, *settings_, layout).target_rect_points;
+    // Fit the page AND any overflow into the widget, so cut-off scan areas are shown
+    // hanging off the paper instead of vanishing outside the preview.
+    const auto bounds = page.united(target);
+    const auto available = rect().adjusted(16, 16, -16, -16);
+    if (bounds.isEmpty() || available.isEmpty()) {
+      return;
+    }
+    const auto scale = std::min(static_cast<double>(available.width()) / bounds.width(),
+                                static_cast<double>(available.height()) / bounds.height());
+
+    painter.save();
+    painter.translate(available.x() + (available.width() - bounds.width() * scale) / 2.0,
+                      available.y() + (available.height() - bounds.height() * scale) / 2.0);
+    painter.scale(scale, scale);
+    painter.translate(-bounds.topLeft());
+
+    painter.fillRect(page, Qt::white);
+    if (!scan_.isNull()) {
+      painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+      painter.drawImage(target, scan_, QRectF(scan_.rect()));
+    }
+    // Everything of the scan outside the printable area is what the printer cuts off;
+    // shade it so the loss is visible before paper is spent.
+    QPainterPath lost;
+    lost.addRect(target);
+    QPainterPath kept;
+    kept.addRect(target.intersected(printable));
+    lost = lost.subtracted(kept);
+    if (!lost.isEmpty()) {
+      painter.fillPath(lost, QColor(190, 40, 35, 120));
+      QPen lost_pen(QColor(190, 40, 35), 0.0);
+      lost_pen.setCosmetic(true);
+      painter.setPen(lost_pen);
+      painter.setBrush(Qt::NoBrush);
+      painter.drawPath(lost);
+    }
+    QPen printable_pen(QColor(205, 205, 205), 0.0, Qt::DashLine);
+    printable_pen.setCosmetic(true);
+    painter.setPen(printable_pen);
+    painter.setBrush(Qt::NoBrush);
+    painter.drawRect(printable);
+    QPen page_pen(QColor(18, 18, 18), 0.0);
+    page_pen.setCosmetic(true);
+    painter.setPen(page_pen);
+    painter.drawRect(page);
+    painter.restore();
+  }
+
+private:
+  QImage scan_;
+  const Document* document_{nullptr};
+  const PrintSettings* settings_{nullptr};
+  const QPageLayout* page_layout_{nullptr};
+};
 
 }  // namespace
 
@@ -637,6 +781,125 @@ bool run_print_dialog(QWidget* parent, const Document& document, const QString& 
     auto printer = create_selected_printer(printer_name);
     configure_selected_printer(*printer, printer_name, current_layout, display_title);
     send_print_job(*printer, copies_spin->value());
+  });
+
+  return exec_dialog(dialog) == QDialog::Accepted;
+}
+
+bool run_photocopy_dialog(QWidget* parent, const Document& document) {
+  // The whole point of the photocopy flow: actual size, centered, never scaled.
+  PrintSettings settings;
+  settings.scale_mode = PrintScaleMode::ActualSize;
+
+  QDialog dialog(parent);
+  dialog.setObjectName(QStringLiteral("photocopyDialog"));
+  dialog.setWindowTitle(QObject::tr("Photocopy"));
+  dialog.resize(720, 480);
+
+  auto* root = new QHBoxLayout(&dialog);
+  root->setContentsMargins(12, 12, 12, 12);
+  root->setSpacing(14);
+
+  auto* preview = new PhotocopyPreviewPane(document, &dialog);
+  root->addWidget(preview, 1);
+
+  auto* side = new QWidget(&dialog);
+  auto* side_layout = new QVBoxLayout(side);
+  side_layout->setContentsMargins(0, 0, 0, 0);
+  side_layout->setSpacing(10);
+  root->addWidget(side, 0);
+
+  auto* output_group = new QGroupBox(QObject::tr("Output"), side);
+  auto* output_form = new QFormLayout(output_group);
+  auto* printer_combo = new QComboBox(output_group);
+  printer_combo->setObjectName(QStringLiteral("photocopyPrinterCombo"));
+  populate_printer_combo(printer_combo);
+  if (printer_combo->isEnabled()) {
+    const auto remembered = app_settings().value(QStringLiteral("photocopy/printerName")).toString();
+    if (const auto index = printer_combo->findData(remembered); index >= 0) {
+      printer_combo->setCurrentIndex(index);
+    }
+  }
+  output_form->addRow(QObject::tr("Printer"), printer_combo);
+  auto* copies_spin = new QSpinBox(output_group);
+  copies_spin->setObjectName(QStringLiteral("photocopyCopiesSpin"));
+  copies_spin->setRange(1, 999);
+  copies_spin->setValue(1);
+  configure_dialog_spinbox(copies_spin, 82);
+  output_form->addRow(QObject::tr("Copies"), copies_spin);
+  side_layout->addWidget(output_group);
+
+  auto* size_group = new QGroupBox(QObject::tr("Size"), side);
+  auto* size_layout = new QVBoxLayout(size_group);
+  auto* note = new QLabel(QObject::tr("The copy is printed at actual size and is never scaled."), size_group);
+  note->setObjectName(QStringLiteral("photocopyActualSizeNote"));
+  note->setWordWrap(true);
+  size_layout->addWidget(note);
+  auto* size_form = new QFormLayout();
+  auto* scan_size = new QLabel(size_group);
+  scan_size->setObjectName(QStringLiteral("photocopyScanSizeLabel"));
+  size_form->addRow(QObject::tr("Scan"), scan_size);
+  auto* paper_size = new QLabel(size_group);
+  paper_size->setObjectName(QStringLiteral("photocopyPaperSizeLabel"));
+  size_form->addRow(QObject::tr("Paper"), paper_size);
+  size_layout->addLayout(size_form);
+  auto* clip_warning = new QLabel(
+      QObject::tr("The scan is larger than the printable area. The shaded parts will be cut off."), size_group);
+  clip_warning->setObjectName(QStringLiteral("photocopyClipWarningLabel"));
+  clip_warning->setWordWrap(true);
+  size_layout->addWidget(clip_warning);
+  side_layout->addWidget(size_group);
+  side_layout->addStretch(1);
+
+  auto* buttons = new QDialogButtonBox(&dialog);
+  auto* print_button = buttons->addButton(QObject::tr("Print"), QDialogButtonBox::AcceptRole);
+  print_button->setObjectName(QStringLiteral("photocopyPrintButton"));
+  print_button->setEnabled(printer_combo->isEnabled());
+  print_button->setDefault(true);
+  buttons->addButton(QDialogButtonBox::Cancel);
+  side_layout->addWidget(buttons);
+
+  QPageLayout current_layout = default_print_page_layout();
+  const auto sync = [&] {
+    // The paper comes from the selected printer's own defaults (orientation is then
+    // auto-chosen); photocopy deliberately has no page setup to fiddle with.
+    const auto printer = create_selected_printer(selected_printer_name(printer_combo));
+    current_layout = photocopy_page_layout(document, settings, printer->pageLayout());
+    scan_size->setText(photocopy_formatted_size(
+        calculate_print_placement(document, settings, current_layout).print_size_inches));
+    const auto page_points = current_layout.fullRect(QPageLayout::Point);
+    paper_size->setText(photocopy_formatted_size(QSizeF(page_points.width() / kPhotocopyPointsPerInch,
+                                                        page_points.height() / kPhotocopyPointsPerInch)));
+    clip_warning->setVisible(photocopy_scan_is_clipped(document, settings, current_layout));
+    preview->set_state(&document, &settings, &current_layout);
+  };
+  sync();
+  QObject::connect(printer_combo, &QComboBox::currentIndexChanged, &dialog, sync);
+
+  QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+  QObject::connect(print_button, &QPushButton::clicked, &dialog, [&] {
+    const auto printer_name = selected_printer_name(printer_combo);
+    if (!ensure_printer_driver_usable(printer_name, &dialog)) {
+      return;
+    }
+    auto printer = create_selected_printer(printer_name);
+    configure_selected_printer(*printer, printer_name, current_layout, QObject::tr("Patchy Photocopy"));
+    try {
+      if (!printer->isValid()) {
+        throw std::runtime_error("Selected printer is not available");
+      }
+      if (!paint_printer_page(*printer, document, settings, copies_spin->value())) {
+        throw std::runtime_error("Selected printer did not accept the page");
+      }
+      if (!printer_name.isEmpty()) {
+        auto stored = app_settings();
+        stored.setValue(QStringLiteral("photocopy/printerName"), printer_name);
+      }
+      dialog.accept();
+    } catch (const std::exception& error) {
+      show_critical_message(&dialog, QObject::tr("Print failed"), QString::fromUtf8(error.what()),
+                            QStringLiteral("printFailedMessageBox"));
+    }
   });
 
   return exec_dialog(dialog) == QDialog::Accepted;

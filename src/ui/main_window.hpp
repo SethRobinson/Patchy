@@ -534,6 +534,10 @@ private:
   void reopen_document_session(DocumentSession& target_session);
   void import_from_scanner();
   void finish_scanner_import(ScannerAcquireResult result, bool delete_after);
+  // File > Import > Photocopy: scan, then print at actual size via run_photocopy_dialog.
+  // The scan is a throwaway (never added as a document session), like a copier.
+  void photocopy_from_scanner();
+  void finish_photocopy_scan(ScannerAcquireResult result, bool delete_after);
   void import_sprite_sheet();
   void export_sprite_sheet();
   void import_image_sequence();

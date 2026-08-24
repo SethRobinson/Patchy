@@ -305,6 +305,7 @@ void ui_file_import_menu_actions_registered() {
   auto* import_menu = window.findChild<QMenu*>(QStringLiteral("fileImportMenu"));
   CHECK(import_menu != nullptr);
   auto* scanner_action = window.findChild<QAction*>(QStringLiteral("fileImportScannerAction"));
+  auto* photocopy_action = window.findChild<QAction*>(QStringLiteral("fileImportPhotocopyAction"));
 #if defined(Q_OS_WIN) || defined(Q_OS_MACOS)
   // Native scanner acquisition exists on Windows and macOS and keeps one persisted id.
   CHECK(scanner_action != nullptr);
@@ -312,14 +313,25 @@ void ui_file_import_menu_actions_registered() {
   const auto* scanner_command = window.hotkey_registry().find_command(QStringLiteral("file.import_scanner"));
   CHECK(scanner_command != nullptr);
   CHECK(scanner_command->action == scanner_action);
+  // Photocopy rides the same native acquisition, so it exists exactly where the
+  // scanner import does and keeps its own persisted id.
+  CHECK(photocopy_action != nullptr);
+  CHECK(import_menu->actions().contains(photocopy_action));
+  const auto* photocopy_command = window.hotkey_registry().find_command(QStringLiteral("file.import_photocopy"));
+  CHECK(photocopy_command != nullptr);
+  CHECK(photocopy_command->action == photocopy_action);
 #ifdef Q_OS_MACOS
   CHECK(scanner_action->text() == QStringLiteral("From &Scanner..."));
+  CHECK(photocopy_action->text() == QStringLiteral("&Photocopy (Scanner to Printer)..."));
 #else
   CHECK(scanner_action->text() == QStringLiteral("From &Scanner or Camera..."));
+  CHECK(photocopy_action->text() == QStringLiteral("&Photocopy (Scanner or Camera to Printer)..."));
 #endif
 #else
   CHECK(scanner_action == nullptr);
   CHECK(window.hotkey_registry().find_command(QStringLiteral("file.import_scanner")) == nullptr);
+  CHECK(photocopy_action == nullptr);
+  CHECK(window.hotkey_registry().find_command(QStringLiteral("file.import_photocopy")) == nullptr);
 #endif
 }
 
@@ -358,6 +370,111 @@ void ui_scanner_import_creates_untitled_document() {
   CHECK(patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
   // Fake fixtures are retained; only files returned by native acquisition are temporary.
   CHECK(QFileInfo::exists(scan_path));
+}
+
+void ui_photocopy_dialog_previews_clipping_at_actual_size() {
+  std::filesystem::create_directories("test-artifacts");
+  // Pin the ruler unit: the photocopy size labels follow it (inches for px).
+  SettingsValueRestorer unit_restorer(QStringLiteral("view/rulerUnits"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("view/rulerUnits"), QStringLiteral("px"));
+  }
+  const auto write_fake_scan = [](const QString& name, int width, int height) {
+    const auto path = QFileInfo(QStringLiteral("test-artifacts/") + name).absoluteFilePath();
+    QImage scan(width, height, QImage::Format_RGB888);
+    scan.fill(QColor(120, 160, 200));
+    // 11811 dots/m = 300 ppi, so pixel sizes below read directly as inches.
+    scan.setDotsPerMeterX(11811);
+    scan.setDotsPerMeterY(11811);
+    CHECK(scan.save(path));
+    return path;
+  };
+  const auto env_guard = qScopeGuard([] { qunsetenv("PATCHY_FAKE_SCANNER_FILE"); });
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
+  CHECK(tabs != nullptr);
+  const auto tab_count_before = tabs->count();
+
+  // A 6000x1200 px scan at 300 ppi is 20 x 4 inches: too wide for any sheet paper in
+  // either orientation, but landscape always loses less of it, so the dialog must
+  // auto-rotate the paper AND warn about the cut-off parts regardless of which printer
+  // and paper size this machine defaults to.
+  qputenv("PATCHY_FAKE_SCANNER_FILE", write_fake_scan(QStringLiteral("ui_fake_photocopy_large.png"), 6000, 1200).toUtf8());
+  bool saw_clipped_dialog = false;
+  QTimer::singleShot(0, [&saw_clipped_dialog] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("photocopyDialog"));
+    CHECK(dialog != nullptr);
+    auto* printer = dialog->findChild<QComboBox*>(QStringLiteral("photocopyPrinterCombo"));
+    auto* copies = dialog->findChild<QSpinBox*>(QStringLiteral("photocopyCopiesSpin"));
+    auto* print_button = dialog->findChild<QPushButton*>(QStringLiteral("photocopyPrintButton"));
+    auto* scan_size = dialog->findChild<QLabel*>(QStringLiteral("photocopyScanSizeLabel"));
+    auto* paper_size = dialog->findChild<QLabel*>(QStringLiteral("photocopyPaperSizeLabel"));
+    auto* warning = dialog->findChild<QLabel*>(QStringLiteral("photocopyClipWarningLabel"));
+    auto* preview = dialog->findChild<QWidget*>(QStringLiteral("photocopyPreviewPane"));
+    CHECK(printer != nullptr);
+    CHECK(copies != nullptr);
+    CHECK(print_button != nullptr);
+    CHECK(scan_size != nullptr);
+    CHECK(paper_size != nullptr);
+    CHECK(warning != nullptr);
+    CHECK(preview != nullptr);
+    CHECK(printer->count() >= 1);
+    // Print is gated on a usable printer, exactly like the print dialog.
+    CHECK(print_button->isEnabled() == printer->isEnabled());
+    // Copies is the one adjustable output option; there is deliberately no scale control
+    // anywhere in the dialog (the copy must match the original's physical size).
+    CHECK(copies->value() == 1);
+    CHECK(copies->minimum() == 1);
+    CHECK(copies->maximum() >= 99);
+    copies->setValue(3);
+    CHECK(copies->value() == 3);
+    CHECK(dialog->findChild<QDoubleSpinBox*>(QStringLiteral("printScalePercentSpin")) == nullptr);
+    // Actual size: the label reports the scan's true physical size.
+    CHECK(scan_size->text().contains(QStringLiteral("20.00")));
+    CHECK(scan_size->text().contains(QStringLiteral("4.00")));
+    // The 20-inch-wide scan forces landscape paper regardless of the installed paper size.
+    const auto paper_parts = paper_size->text().split(QStringLiteral(" x "));
+    CHECK(paper_parts.size() == 2);
+    CHECK(paper_parts[0].toDouble() >= paper_parts[1].split(QLatin1Char(' ')).first().toDouble());
+    CHECK(warning->isVisible());
+    save_widget_artifact("ui_photocopy_dialog_clipped", *dialog);
+    saw_clipped_dialog = true;
+    dialog->reject();
+  });
+  patchy::ui::MainWindowTestAccess::photocopy_from_scanner(window);
+  QApplication::processEvents();
+  CHECK(saw_clipped_dialog);
+  // A photocopy is a throwaway: cancelling (or printing) never creates a document session.
+  CHECK(tabs->count() == tab_count_before);
+
+  // A 1 x 0.8 inch scan fits every paper: no warning, portrait stays.
+  qputenv("PATCHY_FAKE_SCANNER_FILE", write_fake_scan(QStringLiteral("ui_fake_photocopy_small.png"), 300, 240).toUtf8());
+  bool saw_fitting_dialog = false;
+  QTimer::singleShot(0, [&saw_fitting_dialog] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("photocopyDialog"));
+    CHECK(dialog != nullptr);
+    auto* scan_size = dialog->findChild<QLabel*>(QStringLiteral("photocopyScanSizeLabel"));
+    auto* paper_size = dialog->findChild<QLabel*>(QStringLiteral("photocopyPaperSizeLabel"));
+    auto* warning = dialog->findChild<QLabel*>(QStringLiteral("photocopyClipWarningLabel"));
+    CHECK(scan_size != nullptr);
+    CHECK(paper_size != nullptr);
+    CHECK(warning != nullptr);
+    CHECK(scan_size->text().contains(QStringLiteral("1.00")));
+    CHECK(scan_size->text().contains(QStringLiteral("0.80")));
+    const auto paper_parts = paper_size->text().split(QStringLiteral(" x "));
+    CHECK(paper_parts.size() == 2);
+    CHECK(paper_parts[0].toDouble() <= paper_parts[1].split(QLatin1Char(' ')).first().toDouble());
+    CHECK(!warning->isVisible());
+    saw_fitting_dialog = true;
+    dialog->reject();
+  });
+  patchy::ui::MainWindowTestAccess::photocopy_from_scanner(window);
+  QApplication::processEvents();
+  CHECK(saw_fitting_dialog);
+  CHECK(tabs->count() == tab_count_before);
 }
 
 void ui_aseprite_open_adopts_palette_and_builds_layer_tree() {
@@ -3006,6 +3123,8 @@ std::vector<patchy::test::TestCase> import_print_resolution_tests() {
       {"ui_layer_context_menu_keeps_edit_styles_on_top", ui_layer_context_menu_keeps_edit_styles_on_top},
       {"ui_file_import_menu_actions_registered", ui_file_import_menu_actions_registered},
       {"ui_scanner_import_creates_untitled_document", ui_scanner_import_creates_untitled_document},
+      {"ui_photocopy_dialog_previews_clipping_at_actual_size",
+       ui_photocopy_dialog_previews_clipping_at_actual_size},
       {"ui_aseprite_open_adopts_palette_and_builds_layer_tree", ui_aseprite_open_adopts_palette_and_builds_layer_tree},
       {"ui_export_scale_writes_nearest_neighbor_pixels", ui_export_scale_writes_nearest_neighbor_pixels},
       {"ui_png8_export_scaled_stays_indexed", ui_png8_export_scaled_stays_indexed},

@@ -321,6 +321,14 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   import_scanner_action->setObjectName(QStringLiteral("fileImportScannerAction"));
   register_hotkey(import_scanner_action, "file.import_scanner");
   connect(import_scanner_action, &QAction::triggered, this, [this] { import_from_scanner(); });
+#ifdef Q_OS_MACOS
+  auto* photocopy_action = import_menu->addAction(tr("&Photocopy (Scanner to Printer)..."));
+#else
+  auto* photocopy_action = import_menu->addAction(tr("&Photocopy (Scanner or Camera to Printer)..."));
+#endif
+  photocopy_action->setObjectName(QStringLiteral("fileImportPhotocopyAction"));
+  register_hotkey(photocopy_action, "file.import_photocopy");
+  connect(photocopy_action, &QAction::triggered, this, [this] { photocopy_from_scanner(); });
 #endif
   auto* import_sprite_sheet_action = import_menu->addAction(tr("Sprite Sheet to &Layers..."));
   import_sprite_sheet_action->setObjectName(QStringLiteral("fileImportSpriteSheetAction"));

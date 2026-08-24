@@ -5615,6 +5615,12 @@ Mixed selection</source>
     <message><source>With --run-script: write console output, errors, and a final [done]/[failed] line to this file when the script completes.</source><translation>--run-script と併用: スクリプト完了時にコンソール出力・エラー・最終行 [done]/[failed] をこのファイルに書き込みます。</translation></message>
     <message><source>With --run-script: pass key=value to the script as patchy.args.key (repeatable).</source><translation>--run-script と併用: key=value を patchy.args.key としてスクリプトに渡します (複数指定可)。</translation></message>
     <message><source>Copies</source><translation>部数</translation></message>
+    <message><source>Photocopy</source><translation>コピー</translation></message>
+    <message><source>Patchy Photocopy</source><translation>Patchy コピー</translation></message>
+    <message><source>The copy is printed at actual size and is never scaled.</source><translation>コピーは原寸で印刷され、拡大縮小されません。</translation></message>
+    <message><source>Scan</source><translation>スキャン</translation></message>
+    <message><source>Paper</source><translation>用紙</translation></message>
+    <message><source>The scan is larger than the printable area. The shaded parts will be cut off.</source><translation>スキャンが印刷可能範囲より大きいため、網掛けの部分は切り落とされます。</translation></message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13747,6 +13753,10 @@ Clipped to the layer below</source>
     <message><source>Ungroup layers</source><translation>レイヤーのグループ解除</translation></message>
     <message><source>Ungrouped the folder; its opacity, blend mode, or mask was discarded</source><translation>フォルダーのグループを解除しました。フォルダーの不透明度、描画モード、マスクは破棄されました</translation></message>
     <message numerus="yes"><source>Ungrouped %n folder(s)</source><translation><numerusform>%n 個のフォルダーのグループを解除しました</numerusform></translation></message>
+    <message><source>&amp;Photocopy (Scanner or Camera to Printer)...</source><translation>コピー(スキャナーまたはカメラからプリンターへ)(&amp;P)...</translation></message>
+    <message><source>&amp;Photocopy (Scanner to Printer)...</source><translation>コピー(スキャナーからプリンターへ)(&amp;P)...</translation></message>
+    <message><source>Photocopy</source><translation>コピー</translation></message>
+    <message><source>Photocopy sent to printer</source><translation>コピーをプリンターに送信しました</translation></message>
 </context>
 <context>
     <name>patchy::ui::PalettePanel</name>

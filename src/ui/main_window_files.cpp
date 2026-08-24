@@ -1533,6 +1533,22 @@ void MainWindow::reopen_document_session(DocumentSession& target_session) {
   }
 }
 
+namespace {
+
+// Some drivers report absurd scan resolutions; clamp so physical sizes stay sane
+// (Image Size for imports, the actual-size placement for photocopies).
+void clamp_scanned_document_ppi(Document& document) {
+  auto& print_settings = document.print_settings();
+  if (print_settings.horizontal_ppi < 10 || print_settings.horizontal_ppi > 4800) {
+    print_settings.horizontal_ppi = 300;
+  }
+  if (print_settings.vertical_ppi < 10 || print_settings.vertical_ppi > 4800) {
+    print_settings.vertical_ppi = 300;
+  }
+}
+
+}  // namespace
+
 void MainWindow::import_from_scanner() {
   if (preview_dialog_edit_locked()) {
     show_preview_dialog_edit_lock_message();
@@ -1608,14 +1624,7 @@ void MainWindow::finish_scanner_import(ScannerAcquireResult result, bool delete_
     // format, and QImageReader's fallback probes plugins by content when the extension
     // path fails.
     auto loaded = load_document_from_path(acquired_path);
-    auto& print_settings = loaded.document.print_settings();
-    // Some drivers report absurd resolutions; clamp so Image Size stays sane.
-    if (print_settings.horizontal_ppi < 10 || print_settings.horizontal_ppi > 4800) {
-      print_settings.horizontal_ppi = 300;
-    }
-    if (print_settings.vertical_ppi < 10 || print_settings.vertical_ppi > 4800) {
-      print_settings.vertical_ppi = 300;
-    }
+    clamp_scanned_document_ppi(loaded.document);
     // Untitled + modified: the scan exists nowhere else, so Save must prompt Save As and
     // closing must warn about unsaved changes.
     add_document_session(std::move(loaded.document), tr("Scanned Image"), QString(),
@@ -1629,6 +1638,94 @@ void MainWindow::finish_scanner_import(ScannerAcquireResult result, bool delete_
   } catch (const std::exception& error) {
     show_critical_message(this, tr("Import failed"), QString::fromUtf8(error.what()),
                           QStringLiteral("openFailedMessageBox"));
+  }
+}
+
+void MainWindow::photocopy_from_scanner() {
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  // Same PATCHY_FAKE_SCANNER_FILE bypass as import_from_scanner, so offscreen tests can
+  // drive the photocopy dialog without hardware.
+  const auto fake_path = qEnvironmentVariable("PATCHY_FAKE_SCANNER_FILE");
+  if (!fake_path.isEmpty()) {
+    finish_photocopy_scan({ScannerAcquireStatus::Acquired, fake_path, {}}, false);
+    return;
+  }
+
+#ifdef Q_OS_WIN
+  if (scanner_import_active_) {
+    return;
+  }
+  scanner_import_active_ = true;
+  const auto reentry_guard = qScopeGuard([this] { scanner_import_active_ = false; });
+  finish_photocopy_scan(acquire_image_from_scanner(this), true);
+#elif defined(Q_OS_MACOS)
+  if (scanner_import_active_) {
+    return;
+  }
+  scanner_import_active_ = true;
+  const QPointer<MainWindow> window(this);
+  acquire_image_from_scanner_async(this, [window](ScannerAcquireResult result) {
+    if (window == nullptr) {
+      if (result.status == ScannerAcquireStatus::Acquired) {
+        QFile::remove(result.file_path);
+      }
+      return;
+    }
+    window->scanner_import_active_ = false;
+    window->finish_photocopy_scan(std::move(result), true);
+  });
+#endif
+}
+
+void MainWindow::finish_photocopy_scan(ScannerAcquireResult result, bool delete_after) {
+  const auto remove_temporary_scan = qScopeGuard([&result, delete_after] {
+    if (delete_after && !result.file_path.isEmpty()) {
+      QFile::remove(result.file_path);
+    }
+  });
+  switch (result.status) {
+    case ScannerAcquireStatus::Cancelled:
+      return;
+    case ScannerAcquireStatus::NoDevice:
+#ifdef Q_OS_WIN
+      show_information_message(
+          this, tr("Photocopy"),
+          tr("No scanner or camera was found. Connect a WIA-compatible device and try again."),
+          QStringLiteral("scannerNoDeviceMessageBox"));
+#else
+      show_information_message(
+          this, tr("Photocopy"),
+          tr("No scanner was found. Connect a scanner recognized by macOS and try again."),
+          QStringLiteral("scannerNoDeviceMessageBox"));
+#endif
+      return;
+    case ScannerAcquireStatus::Failed:
+      show_critical_message(this, tr("Photocopy"), result.error,
+                            QStringLiteral("scannerFailedMessageBox"));
+      return;
+    case ScannerAcquireStatus::Acquired:
+      break;
+  }
+
+  // The scan is loaded only to print it, never added as a document session: a
+  // photocopy leaves nothing behind, like the machine it is named after. The try
+  // covers only the load; the dialog handles its own printing errors, and wrapping
+  // it would swallow test-harness unwinds into a modal error box.
+  std::optional<Document> scanned;
+  try {
+    auto loaded = load_document_from_path(result.file_path);
+    clamp_scanned_document_ppi(loaded.document);
+    scanned.emplace(std::move(loaded.document));
+  } catch (const std::exception& error) {
+    show_critical_message(this, tr("Photocopy"), QString::fromUtf8(error.what()),
+                          QStringLiteral("openFailedMessageBox"));
+    return;
+  }
+  if (run_photocopy_dialog(this, *scanned)) {
+    statusBar()->showMessage(tr("Photocopy sent to printer"));
   }
 }
 

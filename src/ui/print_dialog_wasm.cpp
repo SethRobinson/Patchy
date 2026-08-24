@@ -18,4 +18,8 @@ bool write_print_pdf(const QString& /*path*/, const Document& /*document*/, cons
   return false;
 }
 
+bool run_photocopy_dialog(QWidget* /*parent*/, const Document& /*document*/) {
+  return false;
+}
+
 }  // namespace patchy::ui

@@ -61,5 +61,10 @@ void render_print_page(QPainter& painter, const Document& document, const PrintS
 void run_page_setup_dialog(QWidget* parent, QPageLayout* page_layout);
 [[nodiscard]] bool run_print_dialog(QWidget* parent, const Document& document, const QString& document_title,
                                     std::optional<QRect> selection_bounds, QPageLayout* page_layout);
+// The print half of File > Import > Photocopy: the freshly scanned document prints at
+// actual size, centered, never scaled (matching the original's physical size is the
+// feature's contract), with a preview shading whatever the printable area cuts off.
+// Returns true when a print job was sent.
+[[nodiscard]] bool run_photocopy_dialog(QWidget* parent, const Document& document);
 
 }  // namespace patchy::ui
