@@ -620,8 +620,18 @@ QString photoshop_style_template() {
       background: @field_bg_large;
       color: @text_primary;
       border: 1px solid @field_border;
-      selection-background-color: @list_selection_bg;
       min-height: 20px;
+    }
+    QListWidget, QTreeWidget, QComboBox {
+      selection-background-color: @list_selection_bg;
+    }
+    /* Text selection inside entry fields uses the accent, not the muted list-row
+       highlight: the gray list_selection_bg is nearly invisible behind selected
+       text in a spin box. QDoubleSpinBox is listed explicitly because it is not
+       a QSpinBox subclass and would otherwise fall back to the Qt default. */
+    QSpinBox, QDoubleSpinBox, QLineEdit, QTextEdit {
+      selection-background-color: @accent;
+      selection-color: @text_on_accent;
     }
     QComboBox:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled, QLineEdit:disabled,
     QTextEdit:disabled {
