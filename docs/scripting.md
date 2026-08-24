@@ -278,7 +278,10 @@ everywhere a bundled script is resolved.
   2026-08-24 (still 1): `layer.traceToShapes` honors the document selection (behavioral);
   additive `layer.simplifyPath(options)`, `doc.combineShapes(layers, op)`, `layer.ungroup()`,
   and the command ids `path.simplify`, `layer.combine_*`, `layer.ungroup`, `edit.copy_svg`
-  (docs/vector-commands.md).
+  (docs/vector-commands.md). 2026-08-25 (additive, still 1): `layer.traceToShapes`
+  accepts `smoothing` (0..10 px pre-quantization denoise) and `maxAnchors` (anchor
+  budget, 0 = unlimited), and `colors` extends to 2..256 (values above 64 previously
+  clamped to 64; docs/image-trace.md).
 - **`include()` resolution order**: relative to the including script, then the user
   scripts root, then the bundled scripts root; a result inside the bundled folder maps
   through the shadow-override store. `patchy.isMainScript()` is false during an included

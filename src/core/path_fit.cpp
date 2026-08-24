@@ -256,7 +256,8 @@ double refine_parameter(const CubicSegment& segment, Vec point, double u) {
 
 // Recursive Schneider fit of run into segments (appended in order).
 void fit_cubic_run(const std::vector<Vec>& run, Vec tangent_start, Vec tangent_end,
-                   double error_squared, std::vector<CubicSegment>& segments, int depth) {
+                   double error_squared, std::vector<CubicSegment>& segments, int depth,
+                   int refine_iterations) {
   if (run.size() == 2) {
     // A straight corner-to-corner segment keeps collapsed handles (the clean
     // corner-knot form); only tangents that leave the chord need handles.
@@ -283,7 +284,7 @@ void fit_cubic_run(const std::vector<Vec>& run, Vec tangent_start, Vec tangent_e
   // acceptance threshold for sub-pixel tolerances, so keep the gate at
   // least a few times the threshold).
   if (max_error <= std::max(error_squared * error_squared, error_squared * 4.0)) {
-    for (int iteration = 0; iteration < 4; ++iteration) {
+    for (int iteration = 0; iteration < refine_iterations; ++iteration) {
       for (std::size_t i = 0; i < run.size(); ++i) {
         u[i] = refine_parameter(segment, run[i], u[i]);
       }
@@ -310,8 +311,9 @@ void fit_cubic_run(const std::vector<Vec>& run, Vec tangent_start, Vec tangent_e
   }
   const std::vector<Vec> left(run.begin(), run.begin() + static_cast<std::ptrdiff_t>(split_index) + 1);
   const std::vector<Vec> right(run.begin() + static_cast<std::ptrdiff_t>(split_index), run.end());
-  fit_cubic_run(left, tangent_start, center_tangent, error_squared, segments, depth + 1);
-  fit_cubic_run(right, center_tangent * -1.0, tangent_end, error_squared, segments, depth + 1);
+  fit_cubic_run(left, tangent_start, center_tangent, error_squared, segments, depth + 1, refine_iterations);
+  fit_cubic_run(right, center_tangent * -1.0, tangent_end, error_squared, segments, depth + 1,
+                refine_iterations);
 }
 
 }  // namespace
@@ -416,7 +418,8 @@ PathSubpath fit_closed_loop(const std::vector<FitPoint>& points, const PathFitOp
     if (length(tangent_end) <= 1e-12) {
       tangent_end = {-1.0, 0.0};
     }
-    fit_cubic_run(run, tangent_start, tangent_end, error_squared, runs[c].segments, 0);
+    fit_cubic_run(run, tangent_start, tangent_end, error_squared, runs[c].segments, 0,
+                  std::max(1, options.refine_iterations));
   }
 
   // Assemble anchors: each run contributes its start anchor plus the interior
@@ -541,7 +544,8 @@ PathSubpath fit_open_polyline(const std::vector<FitPoint>& points, const PathFit
     if (length(tangent_end) <= 1e-12) {
       tangent_end = {-1.0, 0.0};
     }
-    fit_cubic_run(run, tangent_start, tangent_end, error_squared, runs[r], 0);
+    fit_cubic_run(run, tangent_start, tangent_end, error_squared, runs[r], 0,
+                  std::max(1, options.refine_iterations));
   }
 
   // Assemble: the first anchor keeps a collapsed in handle and the last a

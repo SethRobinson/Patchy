@@ -143,7 +143,7 @@ interface PatchySimplifyOptions {
 interface PatchyTraceOptions {
   /** "color" (default), "grayscale", or "blackAndWhite". */
   mode?: "color" | "grayscale" | "blackAndWhite";
-  /** Palette size for color/grayscale, 2..64 (default 16). */
+  /** Palette size for color/grayscale, 2..256 (default 16). */
   colors?: number;
   /** Black-and-white luminance threshold, 1..255 (default 128). */
   threshold?: number;
@@ -153,6 +153,10 @@ interface PatchyTraceOptions {
   corners?: number;
   /** Regions smaller than this many pixels merge into their neighbors, 1..100 (default 25). */
   noise?: number;
+  /** Denoise blur before colors are chosen, 0..10 px (default 0 = off). */
+  smoothing?: number;
+  /** Anchor budget: curve fitting loosens until the result fits; 0 = unlimited (default). */
+  maxAnchors?: number;
   /** "abutting" (exact cutouts, default) or "overlapping" (stacked, no holes). */
   method?: "abutting" | "overlapping";
   /** Replace nearly straight curves with straight segments (default false). */

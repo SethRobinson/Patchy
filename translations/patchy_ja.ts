@@ -14597,6 +14597,10 @@ Clipped to the layer below</source>
     <message><source>Threshold:</source><translation>しきい値:</translation></message>
     <message><source>Paths:</source><translation>パス:</translation></message>
     <message><source>Noise:</source><translation>ノイズ:</translation></message>
+    <message><source>Smoothing:</source><translation>スムージング:</translation></message>
+    <message><source>Max anchors:</source><translation>最大アンカー数:</translation></message>
+    <message><source>Blurs away grain and compression noise before colors are chosen</source><translation>色を決める前に画像を軽くぼかし、ざらつきや圧縮ノイズを取り除きます</translation></message>
+    <message><source>Limits the total anchor count by loosening the curve fit until the result fits; Off keeps every anchor</source><translation>収まるまでカーブのフィットを緩めてアンカーの総数を制限します。オフの場合はすべて保持します</translation></message>
     <message><source>Method:</source><translation>方式:</translation></message>
     <message>
         <source>Mode:</source>
@@ -14637,13 +14641,14 @@ Clipped to the layer below</source>
     <message><source>Shades of Gray</source><translation>グレーの濃淡</translation></message>
     <message><source>Low Fidelity Photo</source><translation>低精度の写真</translation></message>
     <message><source>High Fidelity Photo</source><translation>高精度の写真</translation></message>
+    <message><source>Photo (Maximum)</source><translation>最高精度の写真</translation></message>
     <message><source>Add Anchor Point</source><translation>アンカーポイントを追加</translation></message>
     <message><source>Delete Anchor Point</source><translation>アンカーポイントを削除</translation></message>
     <message><source>Convert Point</source><translation>ポイントを切り替え</translation></message>
     <message><source>Save the current settings as a preset</source><translation>現在の設定をプリセットとして保存</translation></message>
     <message><source>Delete the selected user preset</source><translation>選択したユーザープリセットを削除</translation></message>
     <message><source>Tracing inside the selection</source><translation>選択範囲内をトレースします</translation></message>
-    <message><source>Large result: editing will be slower and exported SVG files will be large. Lower Paths or raise Noise to simplify.</source><translation>結果が大きすぎます: 編集が遅くなり、書き出すSVGファイルも大きくなります。「パス」を下げるか「ノイズ」を上げて単純化してください。</translation></message>
+    <message><source>Large result: editing will be slower and exported SVG files will be large. Lower Paths, raise Noise, or set Max anchors to simplify.</source><translation>結果が大きすぎます: 編集が遅くなり、書き出すSVGファイルも大きくなります。「パス」を下げるか「ノイズ」を上げるか「最大アンカー数」を設定して単純化してください。</translation></message>
     <message><source>Save Trace Preset</source><translation>トレースプリセットを保存</translation></message>
     <message><source>Preset name:</source><translation>プリセット名:</translation></message>
     <message><source>Enter a name for the preset.</source><translation>プリセットの名前を入力してください。</translation></message>

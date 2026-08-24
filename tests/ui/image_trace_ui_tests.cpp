@@ -275,6 +275,8 @@ void ui_image_trace_user_presets_round_trip() {
   first.options.paths = 70;
   first.options.corners = 40;
   first.options.noise = 12;
+  first.options.smoothing = 3;
+  first.options.max_anchors = 2500;
   first.options.method = patchy::ImageTraceOptions::Method::Overlapping;
   first.options.snap_curves_to_lines = true;
   first.options.ignore_white = true;
@@ -293,6 +295,14 @@ void ui_image_trace_user_presets_round_trip() {
       QByteArray("[{\"name\":\"Good\",\"colors\":9}, 7, {\"colors\":3}, {\"name\":\"good\",\"colors\":2}]"));
   CHECK(partial.size() == 1);
   CHECK(partial[0].name == QStringLiteral("Good") && partial[0].options.colors == 9);
+  // Presets saved before the smoothing/budget options load with the defaults,
+  // and hand-edited out-of-range values clamp.
+  CHECK(partial[0].options.smoothing == 0 && partial[0].options.max_anchors == 0);
+  const auto clamped = patchy::ui::deserialize_image_trace_user_presets(
+      QByteArray("[{\"name\":\"Wild\",\"smoothing\":99,\"maxAnchors\":-5}]"));
+  CHECK(clamped.size() == 1);
+  CHECK(clamped[0].options.smoothing == patchy::ImageTraceOptions::kMaxSmoothing);
+  CHECK(clamped[0].options.max_anchors == 0);
   CHECK(patchy::ui::deserialize_image_trace_user_presets(QByteArray("not json")).empty());
 
   auto settings = patchy::ui::app_settings();
@@ -601,7 +611,8 @@ void ui_script_trace_to_shapes_returns_group() {
   (void)host.run_source(QStringLiteral(R"JS(
     var doc = app.activeDocument;
     var layer = doc.activeLayer;
-    var group = layer.traceToShapes({mode: 'color', colors: 4, noise: 4, method: 'overlapping'});
+    var group = layer.traceToShapes({mode: 'color', colors: 4, noise: 4, method: 'overlapping',
+                                     smoothing: 0, maxAnchors: 0});
     console.log('group:' + group.isGroup + ':' + group.children.length + ':' + layer.visible);
     var names = [];
     for (var i = 0; i < group.children.length; ++i) { names.push(group.children[i].name); }
@@ -649,6 +660,150 @@ void ui_script_trace_to_shapes_returns_group() {
   }
 }
 
+void ui_image_trace_dialog_offers_smoothing_and_anchor_budget() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  paint_trace_source(window);
+
+  bool drove = false;
+  const std::function<void(int)> drive_dialog = [&](int attempts) {
+    QTimer::singleShot(0, [&, attempts] {
+      auto* dialog = find_top_level_dialog(QStringLiteral("imageTraceDialog"));
+      if (dialog == nullptr) {
+        if (attempts > 0) {
+          drive_dialog(attempts - 1);
+        }
+        return;
+      }
+      drove = true;
+      auto* colors = dialog->findChild<QSpinBox*>(QStringLiteral("imageTraceColorsSpin"));
+      auto* smoothing = dialog->findChild<QSpinBox*>(QStringLiteral("imageTraceSmoothingSpin"));
+      auto* smoothing_slider = dialog->findChild<QSlider*>(QStringLiteral("imageTraceSmoothingSlider"));
+      auto* max_anchors = dialog->findChild<QSpinBox*>(QStringLiteral("imageTraceMaxAnchorsSpin"));
+      auto* max_anchors_slider = dialog->findChild<QSlider*>(QStringLiteral("imageTraceMaxAnchorsSlider"));
+      auto* mode = dialog->findChild<QComboBox*>(QStringLiteral("imageTraceModeCombo"));
+      auto* preset = dialog->findChild<QComboBox*>(QStringLiteral("imageTracePresetCombo"));
+      CHECK(colors != nullptr && smoothing != nullptr && smoothing_slider != nullptr && max_anchors != nullptr &&
+            max_anchors_slider != nullptr && mode != nullptr && preset != nullptr);
+      // The color range follows the raised core cap.
+      CHECK(colors->maximum() == 256);
+      CHECK(colors->maximum() == patchy::ImageTraceOptions::kMaxColors);
+      CHECK(smoothing->minimum() == 0 && smoothing->maximum() == patchy::ImageTraceOptions::kMaxSmoothing);
+      CHECK(smoothing->suffix() == QStringLiteral(" px"));
+      CHECK(max_anchors->minimum() == 0 && max_anchors->maximum() == 20000);
+      CHECK(!max_anchors->specialValueText().isEmpty());  // 0 renders as Off
+      // Two-way slider/spin mirroring for both new rows.
+      smoothing->setValue(3);
+      CHECK(smoothing_slider->value() == 3);
+      smoothing_slider->setValue(5);
+      CHECK(smoothing->value() == 5);
+      max_anchors->setValue(4000);
+      CHECK(max_anchors_slider->value() == 4000);
+      // Hand-edited settings show as the Custom preset.
+      CHECK(preset->currentIndex() == 0);
+      // Both rows stay enabled in every mode.
+      for (const int mode_value : {0, 1, 2}) {
+        mode->setCurrentIndex(mode->findData(mode_value));
+        CHECK(smoothing->parentWidget()->isEnabled());
+        CHECK(max_anchors->parentWidget()->isEnabled());
+      }
+      // The Photo (Maximum) preset writes the full palette and light denoise.
+      const auto photo_maximum = preset->findText(QStringLiteral("Photo (Maximum)"));
+      CHECK(photo_maximum > 0);
+      preset->setCurrentIndex(photo_maximum);
+      emit preset->activated(photo_maximum);
+      CHECK(colors->value() == 256);
+      CHECK(smoothing->value() == 2);
+      CHECK(max_anchors->value() == 0);
+      save_widget_artifact("ui_image_trace_dialog_budget", *dialog);
+      auto* buttons = dialog->findChild<QDialogButtonBox*>(QStringLiteral("imageTraceButtons"));
+      CHECK(buttons != nullptr);
+      buttons->button(QDialogButtonBox::Cancel)->click();
+    });
+  };
+  drive_dialog(5);
+  auto* action = window.findChild<QAction*>(QStringLiteral("layerTraceImageAction"));
+  CHECK(action != nullptr);
+  action->trigger();
+  QApplication::processEvents();
+  CHECK(drove);
+}
+
+void ui_image_trace_new_options_persist_in_settings() {
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("imageTrace/smoothing"));
+    settings.remove(QStringLiteral("imageTrace/maxAnchors"));
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto source_id = paint_trace_source(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+
+  bool drove = false;
+  const std::function<void(int)> drive_dialog = [&](int attempts) {
+    QTimer::singleShot(0, [&, attempts] {
+      auto* dialog = find_top_level_dialog(QStringLiteral("imageTraceDialog"));
+      if (dialog == nullptr) {
+        if (attempts > 0) {
+          drive_dialog(attempts - 1);
+        }
+        return;
+      }
+      drove = true;
+      auto* info = dialog->findChild<QLabel*>(QStringLiteral("imageTracePreviewInfo"));
+      auto* smoothing = dialog->findChild<QSpinBox*>(QStringLiteral("imageTraceSmoothingSpin"));
+      auto* max_anchors = dialog->findChild<QSpinBox*>(QStringLiteral("imageTraceMaxAnchorsSpin"));
+      CHECK(info != nullptr && smoothing != nullptr && max_anchors != nullptr);
+      smoothing->setValue(2);
+      max_anchors->setValue(5000);
+      (void)process_events_until([&] { return info->text().contains(QStringLiteral("shape layer")); }, 15000);
+      auto* buttons = dialog->findChild<QDialogButtonBox*>(QStringLiteral("imageTraceButtons"));
+      CHECK(buttons != nullptr);
+      buttons->button(QDialogButtonBox::Ok)->click();
+    });
+  };
+  drive_dialog(5);
+  auto* action = window.findChild<QAction*>(QStringLiteral("layerTraceImageAction"));
+  CHECK(action != nullptr);
+  action->trigger();
+  QApplication::processEvents();
+  CHECK(drove);
+  // The exact key spellings are persisted identifiers.
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("imageTrace/smoothing")).toInt() == 2);
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("imageTrace/maxAnchors")).toInt() == 5000);
+
+  // Reopening seeds the dialog from the saved values.
+  document.set_active_layer(source_id);
+  bool restored = false;
+  const std::function<void(int)> reopen = [&](int attempts) {
+    QTimer::singleShot(0, [&, attempts] {
+      auto* dialog = find_top_level_dialog(QStringLiteral("imageTraceDialog"));
+      if (dialog == nullptr) {
+        if (attempts > 0) {
+          reopen(attempts - 1);
+        }
+        return;
+      }
+      auto* smoothing = dialog->findChild<QSpinBox*>(QStringLiteral("imageTraceSmoothingSpin"));
+      auto* max_anchors = dialog->findChild<QSpinBox*>(QStringLiteral("imageTraceMaxAnchorsSpin"));
+      restored = smoothing != nullptr && smoothing->value() == 2 && max_anchors != nullptr &&
+                 max_anchors->value() == 5000;
+      auto* buttons = dialog->findChild<QDialogButtonBox*>(QStringLiteral("imageTraceButtons"));
+      if (buttons != nullptr) {
+        buttons->button(QDialogButtonBox::Cancel)->click();
+      }
+    });
+  };
+  reopen(5);
+  action->trigger();
+  QApplication::processEvents();
+  CHECK(restored);
+  auto settings = patchy::ui::app_settings();
+  settings.remove(QStringLiteral("imageTrace/smoothing"));
+  settings.remove(QStringLiteral("imageTrace/maxAnchors"));
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> image_trace_ui_tests() {
@@ -659,6 +814,9 @@ std::vector<patchy::test::TestCase> image_trace_ui_tests() {
       {"ui_image_trace_user_presets_round_trip", ui_image_trace_user_presets_round_trip},
       {"ui_trace_image_dialog_saves_and_deletes_user_preset",
        ui_trace_image_dialog_saves_and_deletes_user_preset},
+      {"ui_image_trace_dialog_offers_smoothing_and_anchor_budget",
+       ui_image_trace_dialog_offers_smoothing_and_anchor_budget},
+      {"ui_image_trace_new_options_persist_in_settings", ui_image_trace_new_options_persist_in_settings},
       {"ui_layer_context_menu_offers_trace_image_to_shapes",
        ui_layer_context_menu_offers_trace_image_to_shapes},
       {"ui_pixels_limited_to_selection_zeroes_alpha_outside",

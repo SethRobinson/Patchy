@@ -3,6 +3,7 @@
 #include "core/layer.hpp"
 
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <span>
 #include <unordered_set>
@@ -88,6 +89,22 @@ struct PaletteColorCount {
 // <= target_size, sorted by color key.
 [[nodiscard]] std::vector<RgbColor> median_cut_palette(const std::vector<PaletteColorCount>& colors,
                                                        std::size_t target_size);
+
+// Perceptually weighted squared RGB distance (integer): 2*dr^2 + 4*dg^2 + 3*db^2,
+// the classic luminance weighting. Maximum 585,225 (fits uint32). Image tracing
+// uses this metric for palette refinement, exact assignment, and speckle merging.
+[[nodiscard]] std::uint32_t weighted_color_distance(RgbColor a, RgbColor b) noexcept;
+
+// Fixed-iteration integer Lloyd (k-means) refinement of `seed` against the
+// unique-color population under weighted_color_distance, all integer with fixed
+// tie-breaks (nearest center by strict <, lowest index wins; empty clusters keep
+// their previous center; early stop only when an iteration changes nothing).
+// The input must be sorted by color key (collect_color_counts' contract). The
+// result is sorted by color key and deduplicated, so it may be smaller than the
+// seed. A cancelled call returns the seed unrefined.
+[[nodiscard]] std::vector<RgbColor> refine_palette_weighted(const std::vector<PaletteColorCount>& colors,
+                                                            std::vector<RgbColor> seed, int max_iterations,
+                                                            const std::function<bool()>& cancelled = {});
 
 // The unique visible colors when they fit within cap, otherwise nullopt.
 [[nodiscard]] std::optional<Palette> exact_palette_from_pixels(const PixelBuffer& pixels, std::size_t cap,

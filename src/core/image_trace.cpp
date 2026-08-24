@@ -5,14 +5,18 @@
 #include "core/palette.hpp"
 #include "core/path_fit.hpp"
 #include "core/vector_raster.hpp"
+#include "core/worker_budget.hpp"
 
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <future>
 #include <iterator>
 #include <limits>
+#include <thread>
+#include <unordered_map>
 #include <utility>
 
 namespace patchy {
@@ -110,6 +114,141 @@ struct LabelMap {
   }
 };
 
+// Runs body(begin, end) over chunk ranges of [0, count), in parallel when the
+// hardware and the wasm fan-out budget allow it, sequentially otherwise
+// (single-threaded wasm: hardware_concurrency() == 1 runs inline, the
+// psd_channel_data rule). Deterministic by construction: workers write only
+// disjoint, position-indexed slots, so the joined result never depends on
+// scheduling. `max_workers` <= 0 means auto; 1 forces the sequential path.
+void parallel_chunks(std::size_t count, std::size_t min_per_worker, int max_workers,
+                     const std::function<void(std::size_t, std::size_t)>& body) {
+  if (count == 0) {
+    return;
+  }
+  int wanted = static_cast<int>(std::min<std::size_t>(
+      std::max<std::size_t>(1, count / std::max<std::size_t>(1, min_per_worker)),
+      std::clamp<unsigned>(std::thread::hardware_concurrency(), 1U, 8U)));
+  if (max_workers > 0) {
+    wanted = std::min(wanted, max_workers);
+  }
+  const int workers = max_blocking_fanout_workers(wanted);
+  if (workers < 2) {
+    body(0, count);
+    return;
+  }
+  std::vector<std::future<void>> futures;
+  futures.reserve(static_cast<std::size_t>(workers));
+  const auto chunk = (count + static_cast<std::size_t>(workers) - 1) / static_cast<std::size_t>(workers);
+  for (int w = 0; w < workers; ++w) {
+    const auto begin = static_cast<std::size_t>(w) * chunk;
+    if (begin >= count) {
+      break;
+    }
+    const auto end = std::min(count, begin + chunk);
+    futures.push_back(std::async(std::launch::async, [&body, begin, end] { body(begin, end); }));
+  }
+  for (auto& future : futures) {
+    future.wait();
+  }
+}
+
+// --- pre-quantization smoothing ------------------------------------------------
+//
+// Smoothing blurs grain and compression noise away before colors are chosen,
+// so region boundaries between similar colors settle into clean curves
+// instead of following JPEG mosquito noise. Alpha-weighted box blur, run
+// twice per axis (a triangle-ish kernel), all integer with rounded divisions
+// (the cross-toolchain rule). The alpha channel itself is copied through
+// unblurred: which pixels are traced must not change, and weighting by the
+// original alpha keeps background color from bleeding across the transparency
+// edge.
+void box_blur_axis_alpha_weighted(PixelBuffer& buffer, int radius, bool horizontal) {
+  const auto width = buffer.width();
+  const auto height = buffer.height();
+  const auto outer = horizontal ? height : width;
+  const auto inner = horizontal ? width : height;
+  if (inner <= 1) {
+    return;
+  }
+  std::vector<std::array<std::uint8_t, 3>> line(static_cast<std::size_t>(inner));
+  for (std::int32_t o = 0; o < outer; ++o) {
+    const auto pixel_at = [&](std::int32_t i) {
+      return horizontal ? buffer.pixel(i, o) : buffer.pixel(o, i);
+    };
+    // Sliding window of alpha-weighted channel sums over [i - radius, i + radius],
+    // clamped to the line (the window shrinks at the edges).
+    std::int64_t sum_a = 0;
+    std::int64_t sum_ra = 0;
+    std::int64_t sum_ga = 0;
+    std::int64_t sum_ba = 0;
+    const auto add = [&](std::int32_t i, std::int64_t sign) {
+      const auto* px = pixel_at(i);
+      const std::int64_t a = px[3];
+      sum_a += sign * a;
+      sum_ra += sign * a * px[0];
+      sum_ga += sign * a * px[1];
+      sum_ba += sign * a * px[2];
+    };
+    const auto initial = std::min<std::int32_t>(radius, inner - 1);
+    for (std::int32_t i = 0; i <= initial; ++i) {
+      add(i, 1);
+    }
+    for (std::int32_t i = 0; i < inner; ++i) {
+      const auto* src = pixel_at(i);
+      auto& out = line[static_cast<std::size_t>(i)];
+      if (sum_a > 0) {
+        out = {static_cast<std::uint8_t>((sum_ra + sum_a / 2) / sum_a),
+               static_cast<std::uint8_t>((sum_ga + sum_a / 2) / sum_a),
+               static_cast<std::uint8_t>((sum_ba + sum_a / 2) / sum_a)};
+      } else {
+        out = {src[0], src[1], src[2]};  // a fully transparent window keeps its own color
+      }
+      const auto leaving = i - radius;
+      if (leaving >= 0) {
+        add(leaving, -1);
+      }
+      const auto entering = i + radius + 1;
+      if (entering < inner) {
+        add(entering, 1);
+      }
+    }
+    for (std::int32_t i = 0; i < inner; ++i) {
+      auto* px = pixel_at(i);
+      const auto& out = line[static_cast<std::size_t>(i)];
+      px[0] = out[0];
+      px[1] = out[1];
+      px[2] = out[2];
+    }
+  }
+}
+
+// Materializes an RGBA8 working copy (read_pixel semantics) and blurs its RGB.
+[[nodiscard]] PixelBuffer smooth_pixels_for_trace(const PixelBuffer& pixels, int radius,
+                                                  const std::function<bool()>& is_cancelled) {
+  PixelBuffer smoothed(pixels.width(), pixels.height(), PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      const auto px = read_pixel(pixels, x, y);
+      auto* dst = smoothed.pixel(x, y);
+      dst[0] = px.r;
+      dst[1] = px.g;
+      dst[2] = px.b;
+      dst[3] = px.a;
+    }
+  }
+  for (int pass = 0; pass < 2; ++pass) {
+    if (is_cancelled()) {
+      return smoothed;
+    }
+    box_blur_axis_alpha_weighted(smoothed, radius, true);
+    if (is_cancelled()) {
+      return smoothed;
+    }
+    box_blur_axis_alpha_weighted(smoothed, radius, false);
+  }
+  return smoothed;
+}
+
 std::vector<PaletteColorCount> histogram_counts(const std::array<std::uint64_t, 256>& histogram) {
   std::vector<PaletteColorCount> counts;
   for (int value = 0; value < 256; ++value) {
@@ -122,9 +261,146 @@ std::vector<PaletteColorCount> histogram_counts(const std::array<std::uint64_t, 
   return counts;
 }
 
+// Exact optimal scalar quantization of a 256-bin histogram into `target`
+// levels (dynamic programming over cluster boundaries, the Bruce 1965 /
+// Lloyd-Max lineage): minimizes the population-weighted squared error, which
+// median cut only approximates. All integer with fixed tie-breaks (the
+// smallest split index wins), so results are toolchain-deterministic.
+std::vector<std::uint8_t> optimal_gray_levels(const std::array<std::uint64_t, 256>& histogram, int target) {
+  std::vector<int> values;
+  values.reserve(256);
+  for (int value = 0; value < 256; ++value) {
+    if (histogram[static_cast<std::size_t>(value)] != 0) {
+      values.push_back(value);
+    }
+  }
+  std::vector<std::uint8_t> levels;
+  if (values.empty() || target <= 0) {
+    return levels;
+  }
+  const auto m = values.size();
+  if (m <= static_cast<std::size_t>(target)) {
+    for (const auto value : values) {
+      levels.push_back(static_cast<std::uint8_t>(value));
+    }
+    return levels;
+  }
+  // Scale populations down until Sum(v * count)^2 fits in 64 bits; halving
+  // keeps every present value at count >= 1 so no level disappears.
+  std::vector<std::uint64_t> counts(m);
+  std::uint64_t total = 0;
+  for (std::size_t i = 0; i < m; ++i) {
+    counts[i] = histogram[static_cast<std::size_t>(values[i])];
+    total += counts[i];
+  }
+  while (total > (std::uint64_t{1} << 23U)) {
+    total = 0;
+    for (auto& count : counts) {
+      count = std::max<std::uint64_t>(1, count >> 1U);
+      total += count;
+    }
+  }
+  // Prefix sums over the present values; cost(i..j) is the exact SSE of one
+  // cluster, with a single fixed rounding in the mean term.
+  std::vector<std::uint64_t> prefix_w(m + 1, 0);
+  std::vector<std::uint64_t> prefix_s1(m + 1, 0);
+  std::vector<std::uint64_t> prefix_s2(m + 1, 0);
+  for (std::size_t i = 0; i < m; ++i) {
+    const auto v = static_cast<std::uint64_t>(values[i]);
+    prefix_w[i + 1] = prefix_w[i] + counts[i];
+    prefix_s1[i + 1] = prefix_s1[i] + v * counts[i];
+    prefix_s2[i + 1] = prefix_s2[i] + v * v * counts[i];
+  }
+  const auto cost = [&](std::size_t first, std::size_t last) -> std::uint64_t {  // inclusive range
+    const auto w = prefix_w[last + 1] - prefix_w[first];
+    const auto s1 = prefix_s1[last + 1] - prefix_s1[first];
+    const auto s2 = prefix_s2[last + 1] - prefix_s2[first];
+    return s2 - (s1 * s1 + w / 2) / w;
+  };
+  const auto k_max = static_cast<std::size_t>(target);
+  constexpr std::uint64_t kUnset = std::numeric_limits<std::uint64_t>::max();
+  std::vector<std::uint64_t> previous(m, 0);
+  std::vector<std::uint64_t> current(m, 0);
+  // choice[k][j]: first value index of the last cluster in the best k-way
+  // split of values[0..j].
+  std::vector<std::vector<std::uint16_t>> choice(k_max, std::vector<std::uint16_t>(m, 0));
+  for (std::size_t j = 0; j < m; ++j) {
+    previous[j] = cost(0, j);
+  }
+  for (std::size_t k = 1; k < k_max; ++k) {
+    for (std::size_t j = 0; j < m; ++j) {
+      if (j < k) {
+        current[j] = 0;  // never read: j+1 values always fit k+1 clusters
+        choice[k][j] = static_cast<std::uint16_t>(j);
+        continue;
+      }
+      std::uint64_t best = kUnset;
+      std::size_t best_split = k;
+      for (std::size_t split = k; split <= j; ++split) {
+        const auto candidate = previous[split - 1] + cost(split, j);
+        if (candidate < best) {
+          best = candidate;
+          best_split = split;
+        }
+      }
+      current[j] = best;
+      choice[k][j] = static_cast<std::uint16_t>(best_split);
+    }
+    std::swap(previous, current);
+  }
+  // Backtrack the cluster boundaries and emit each cluster's rounded mean.
+  std::vector<std::pair<std::size_t, std::size_t>> clusters;
+  std::size_t end = m - 1;
+  for (std::size_t k = k_max; k-- > 1;) {
+    const auto first = static_cast<std::size_t>(choice[k][end]);
+    clusters.emplace_back(first, end);
+    end = first - 1;
+  }
+  clusters.emplace_back(0, end);
+  std::reverse(clusters.begin(), clusters.end());
+  for (const auto& [first, last] : clusters) {
+    const auto w = prefix_w[last + 1] - prefix_w[first];
+    const auto s1 = prefix_s1[last + 1] - prefix_s1[first];
+    const auto level = static_cast<std::uint8_t>((s1 + w / 2) / w);
+    if (levels.empty() || levels.back() != level) {
+      levels.push_back(level);
+    }
+  }
+  return levels;
+}
+
 // --- quantization -----------------------------------------------------------
 
-LabelMap build_label_map(const PixelBuffer& pixels, const ImageTraceOptions& options) {
+// Exact nearest palette index per unique color under weighted_color_distance;
+// the lowest palette index wins ties (strict <). Parallel over chunks of the
+// color-key-sorted unique colors into disjoint pre-sized slots, so the result
+// is deterministic regardless of scheduling.
+std::vector<std::int32_t> assign_colors_exact(const std::vector<PaletteColorCount>& counts,
+                                              const std::vector<RgbColor>& palette,
+                                              const std::function<bool()>& is_cancelled, int max_workers) {
+  std::vector<std::int32_t> nearest(counts.size(), 0);
+  parallel_chunks(counts.size(), 4096, max_workers, [&](std::size_t begin, std::size_t end) {
+    for (std::size_t i = begin; i < end; ++i) {
+      if ((i - begin) % 4096 == 0 && is_cancelled()) {
+        return;
+      }
+      std::uint32_t best_distance = std::numeric_limits<std::uint32_t>::max();
+      std::int32_t best = 0;
+      for (std::size_t c = 0; c < palette.size(); ++c) {
+        const auto distance = weighted_color_distance(counts[i].color, palette[c]);
+        if (distance < best_distance) {
+          best_distance = distance;
+          best = static_cast<std::int32_t>(c);
+        }
+      }
+      nearest[i] = best;
+    }
+  });
+  return nearest;
+}
+
+LabelMap build_label_map(const PixelBuffer& pixels, const ImageTraceOptions& options,
+                         const std::function<bool()>& is_cancelled, int max_workers) {
   LabelMap map;
   map.width = pixels.width();
   map.height = pixels.height();
@@ -163,7 +439,12 @@ LabelMap build_label_map(const PixelBuffer& pixels, const ImageTraceOptions& opt
           ++histogram[gray];
         }
       }
-      map.palette = median_cut_palette(histogram_counts(histogram), static_cast<std::size_t>(color_count));
+      // Exact optimal 1D quantization (strictly better than median cut for
+      // grayscale: the histogram is small enough to solve outright).
+      map.palette.clear();
+      for (const auto level : optimal_gray_levels(histogram, color_count)) {
+        map.palette.push_back(RgbColor{level, level, level});
+      }
       if (map.palette.empty()) {
         break;
       }
@@ -206,19 +487,41 @@ LabelMap build_label_map(const PixelBuffer& pixels, const ImageTraceOptions& opt
         }
         counts = histogram_counts(histogram);
       }
+      // Median cut seeds the palette; fixed-iteration integer Lloyd refinement
+      // in the weighted color space reallocates entries to where the image's
+      // tones actually live (the difference between banded and smooth photo
+      // traces). When every unique color already fits the palette, median cut
+      // returns them exactly and refinement is skipped: its 6-bit cell fold
+      // could otherwise nudge exact colors that share a cell. Assignment is
+      // then EXACT per unique color: the 5-5-5 lookup table's +-4 per-channel
+      // bucket error misplaces whole color slabs once palette entries sit
+      // closer together than the buckets.
       map.palette = median_cut_palette(counts, static_cast<std::size_t>(color_count));
-      if (map.palette.empty()) {
+      if (counts.size() > static_cast<std::size_t>(color_count)) {
+        map.palette = refine_palette_weighted(counts, std::move(map.palette), 8, is_cancelled);
+      }
+      if (map.palette.empty() || is_cancelled()) {
         break;
       }
-      PaletteLut lut;
-      lut.build(map.palette);
+      const auto nearest = assign_colors_exact(counts, map.palette, is_cancelled, max_workers);
+      if (is_cancelled()) {
+        break;
+      }
+      std::unordered_map<std::uint32_t, std::int32_t> index_by_key;
+      index_by_key.reserve(counts.size());
+      for (std::size_t i = 0; i < counts.size(); ++i) {
+        index_by_key.emplace(palette_color_key(counts[i].color), nearest[i]);
+      }
       for (std::int32_t y = 0; y < map.height; ++y) {
         for (std::int32_t x = 0; x < map.width; ++x) {
           const auto px = read_pixel(pixels, x, y);
           if (px.a < kAlphaThreshold) {
             continue;
           }
-          map.labels[map.index(x, y)] = static_cast<std::int32_t>(lut.index_for(px.r, px.g, px.b));
+          const auto found = index_by_key.find(palette_color_key(RgbColor{px.r, px.g, px.b}));
+          if (found != index_by_key.end()) {
+            map.labels[map.index(x, y)] = found->second;
+          }
         }
       }
       break;
@@ -241,6 +544,77 @@ LabelMap build_label_map(const PixelBuffer& pixels, const ImageTraceOptions& opt
     }
   }
   return map;
+}
+
+// One 3x3 label majority pass (runs with smoothing, after quantization and
+// Ignore White, before speckle removal): de-rags the ragged interfaces that
+// survive the blur where two similar palette colors trade single pixels along
+// a boundary. Double-buffered so the result is order-independent; untraced
+// pixels neither vote nor change (coverage never bleeds across transparency).
+// Ties keep the center's current label when it is among the best (prevents
+// checkerboard churn), otherwise the lowest palette color key wins. Plain
+// 9-sample counting, deliberately no sliding or merged histograms.
+void smooth_label_boundaries(LabelMap& map, const std::function<bool()>& is_cancelled) {
+  const auto width = map.width;
+  const auto height = map.height;
+  if (width <= 2 || height <= 2) {
+    return;
+  }
+  std::vector<std::int32_t> smoothed(map.labels.size(), kUntraced);
+  for (std::int32_t y = 0; y < height; ++y) {
+    if (y % 64 == 0 && is_cancelled()) {
+      return;
+    }
+    for (std::int32_t x = 0; x < width; ++x) {
+      const auto center = map.labels[map.index(x, y)];
+      if (center == kUntraced) {
+        continue;
+      }
+      std::array<std::int32_t, 9> labels{};
+      std::array<int, 9> votes{};
+      int distinct = 0;
+      for (std::int32_t ny = std::max(0, y - 1); ny <= std::min(height - 1, y + 1); ++ny) {
+        for (std::int32_t nx = std::max(0, x - 1); nx <= std::min(width - 1, x + 1); ++nx) {
+          const auto label = map.labels[map.index(nx, ny)];
+          if (label == kUntraced) {
+            continue;
+          }
+          int slot = 0;
+          while (slot < distinct && labels[static_cast<std::size_t>(slot)] != label) {
+            ++slot;
+          }
+          if (slot == distinct) {
+            labels[static_cast<std::size_t>(distinct)] = label;
+            votes[static_cast<std::size_t>(distinct)] = 0;
+            ++distinct;
+          }
+          ++votes[static_cast<std::size_t>(slot)];
+        }
+      }
+      int best_votes = 0;
+      std::int32_t best = center;
+      bool center_is_best = false;
+      for (int slot = 0; slot < distinct; ++slot) {
+        const auto label = labels[static_cast<std::size_t>(slot)];
+        const auto count = votes[static_cast<std::size_t>(slot)];
+        if (count > best_votes) {
+          best_votes = count;
+          best = label;
+          center_is_best = label == center;
+        } else if (count == best_votes) {
+          if (label == center) {
+            center_is_best = true;
+          } else if (!center_is_best &&
+                     palette_color_key(map.palette[static_cast<std::size_t>(label)]) <
+                         palette_color_key(map.palette[static_cast<std::size_t>(best)])) {
+            best = label;
+          }
+        }
+      }
+      smoothed[map.index(x, y)] = center_is_best ? center : best;
+    }
+  }
+  map.labels = std::move(smoothed);
 }
 
 // --- connected components -----------------------------------------------------
@@ -300,10 +674,17 @@ ComponentMap label_components(const LabelMap& map) {
   return result;
 }
 
-// Merges every component smaller than `minimum_area` into the neighboring
-// label it shares the longest border with (untraced counts as a neighbor, so
-// dust inside transparency disappears). Repeats until stable or the pass cap.
-void remove_speckles(LabelMap& map, std::int64_t minimum_area) {
+// Merges every component smaller than `minimum_area` into a neighbor.
+// Mostly-transparent surroundings win first (untraced takes components whose
+// border is at least half untraced, so dust inside transparency disappears);
+// otherwise the component merges into the labeled neighbor with the CLOSEST
+// palette color among those sharing a substantial border (at least a quarter
+// of the longest labeled border, which prunes 1 px touches). Ties fall to the
+// longer border, then the lower label index. Color-aware merging dissolves
+// photo speckles into the region they visually belong to instead of whichever
+// neighbor happens to wrap them furthest. Repeats until stable or the pass
+// cap.
+void remove_speckles(LabelMap& map, std::int64_t minimum_area, const std::function<bool()>& is_cancelled) {
   if (minimum_area <= 1) {
     return;
   }
@@ -311,6 +692,9 @@ void remove_speckles(LabelMap& map, std::int64_t minimum_area) {
   const auto width = map.width;
   const auto height = map.height;
   for (int pass = 0; pass < kMaxPasses; ++pass) {
+    if (is_cancelled()) {
+      return;
+    }
     auto components = label_components(map);
     std::vector<std::int32_t> small_index(components.components.size(), -1);
     std::int32_t small_count = 0;
@@ -374,14 +758,40 @@ void remove_speckles(LabelMap& map, std::int64_t minimum_area) {
         replacement[static_cast<std::size_t>(small)] = components.components[i].label;
         continue;
       }
-      const Neighbor* best = &list.front();
+      std::int64_t total_border = 0;
+      std::int64_t untraced_border = 0;
+      std::int64_t max_labeled_border = 0;
       for (const auto& entry : list) {
-        if (entry.border > best->border) {
-          best = &entry;
+        total_border += entry.border;
+        if (entry.label == kUntraced) {
+          untraced_border += entry.border;
+        } else {
+          max_labeled_border = std::max(max_labeled_border, entry.border);
         }
       }
-      replacement[static_cast<std::size_t>(small)] = best->label;
-      changed = changed || best->label != components.components[i].label;
+      std::int32_t chosen = kUntraced;
+      if (untraced_border * 2 < total_border && max_labeled_border > 0) {
+        const auto own_color = map.palette[static_cast<std::size_t>(components.components[i].label)];
+        const Neighbor* best = nullptr;
+        std::uint32_t best_distance = 0;
+        for (const auto& entry : list) {
+          if (entry.label == kUntraced || entry.border * 4 < max_labeled_border) {
+            continue;
+          }
+          const auto distance =
+              weighted_color_distance(own_color, map.palette[static_cast<std::size_t>(entry.label)]);
+          if (best == nullptr || distance < best_distance ||
+              (distance == best_distance &&
+               (entry.border > best->border ||
+                (entry.border == best->border && entry.label < best->label)))) {
+            best = &entry;
+            best_distance = distance;
+          }
+        }
+        chosen = best->label;
+      }
+      replacement[static_cast<std::size_t>(small)] = chosen;
+      changed = changed || chosen != components.components[i].label;
     }
     if (!changed) {
       return;
@@ -687,25 +1097,44 @@ double image_trace_corner_angle(int corners) noexcept {
 }
 
 ImageTraceResult trace_image(const PixelBuffer& pixels, const ImageTraceOptions& options,
-                             const std::function<bool()>& cancelled) {
+                             const std::function<bool()>& cancelled, int max_workers) {
   ImageTraceResult result;
   if (!pixels.empty() && pixels.format().bit_depth != BitDepth::UInt8) {
     if (pixels.format().channels < 1 || pixels.format().channels > 4) {
       return result;
     }
-    return trace_image(convert_deep_to_rgba8(pixels), options, cancelled);
+    return trace_image(convert_deep_to_rgba8(pixels), options, cancelled, max_workers);
   }
   if (!format_supported(pixels)) {
     return result;
   }
   const auto is_cancelled = [&cancelled]() { return cancelled && cancelled(); };
 
-  auto map = build_label_map(pixels, options);
+  // Smoothing 0 takes the untouched pre-existing flow: no working copy, no
+  // new code path, byte-for-byte the same result.
+  const int smoothing = std::clamp(options.smoothing, 0, ImageTraceOptions::kMaxSmoothing);
+  const PixelBuffer* source = &pixels;
+  PixelBuffer smoothed;
+  if (smoothing > 0) {
+    smoothed = smooth_pixels_for_trace(pixels, smoothing, is_cancelled);
+    if (is_cancelled()) {
+      return result;
+    }
+    source = &smoothed;
+  }
+
+  auto map = build_label_map(*source, options, is_cancelled, max_workers);
   result.palette_size = map.palette.size();
   if (map.palette.empty() || is_cancelled()) {
     return result;
   }
-  remove_speckles(map, std::clamp(options.noise, 1, 100));
+  if (smoothing > 0) {
+    smooth_label_boundaries(map, is_cancelled);
+    if (is_cancelled()) {
+      return result;
+    }
+  }
+  remove_speckles(map, std::clamp(options.noise, 1, 100), is_cancelled);
   if (is_cancelled()) {
     return result;
   }
@@ -715,15 +1144,28 @@ ImageTraceResult trace_image(const PixelBuffer& pixels, const ImageTraceOptions&
   }
 
   const bool overlapping = options.method == ImageTraceOptions::Method::Overlapping;
-  std::vector<TracedLoop> loops;
   const auto bounds = label_bounds(map);
-  for (std::int32_t label = 0; label < static_cast<std::int32_t>(map.palette.size()); ++label) {
-    if (is_cancelled()) {
-      return {};
+  // Per-label contour extraction is independent per label; parallel workers
+  // fill disjoint slots that concatenate in ascending label order, so the
+  // loop order is identical to the sequential walk.
+  std::vector<std::vector<TracedLoop>> per_label(map.palette.size());
+  parallel_chunks(map.palette.size(), 1, max_workers, [&](std::size_t begin, std::size_t end) {
+    for (std::size_t label = begin; label < end; ++label) {
+      if (is_cancelled()) {
+        return;
+      }
+      per_label[label] =
+          trace_label(map, components, static_cast<std::int32_t>(label), bounds[label]);
     }
-    auto traced = trace_label(map, components, label, bounds[static_cast<std::size_t>(label)]);
+  });
+  if (is_cancelled()) {
+    return {};
+  }
+  std::vector<TracedLoop> loops;
+  for (auto& traced : per_label) {
     loops.insert(loops.end(), std::make_move_iterator(traced.begin()), std::make_move_iterator(traced.end()));
   }
+  per_label.clear();
   Nesting nesting;
   if (overlapping) {
     nesting = compute_nesting(map, components, loops);
@@ -734,56 +1176,305 @@ ImageTraceResult trace_image(const PixelBuffer& pixels, const ImageTraceOptions&
     return {};
   }
 
-  // One layer per (depth, label); loops stay in trace order (row-major per
-  // label), which puts every hole after its outer loop and every island after
-  // the hole it sits in, the order the sequential combine needs.
-  struct LayerKey {
-    int depth;
-    std::int32_t label;
-  };
-  std::vector<std::pair<LayerKey, std::size_t>> layer_index;
-  const auto layer_for = [&](int depth, std::int32_t label) -> ImageTraceLayer& {
-    for (const auto& [existing, index] : layer_index) {
-      if (existing.depth == depth && existing.label == label) {
-        return result.layers[index];
-      }
-    }
-    ImageTraceLayer layer;
-    layer.color = map.palette[static_cast<std::size_t>(label)];
-    layer.depth = depth;
-    result.layers.push_back(std::move(layer));
-    layer_index.emplace_back(LayerKey{depth, label}, result.layers.size() - 1);
-    return result.layers.back();
-  };
-  std::vector<bool> area_counted(components.components.size(), false);
-
   PathFitOptions fit;
   fit.tolerance = image_trace_fit_tolerance(options.paths);
   fit.corner_angle_degrees = image_trace_corner_angle(options.corners);
   fit.smooth_corner_tangents = true;
   fit.snap_curves_to_lines = options.snap_curves_to_lines;
+  // Near-miss runs (circles) converge under a few more reparametrization
+  // iterations instead of splitting; the default 4 stays with Make Work Path.
+  fit.refine_iterations = 8;
   // Stair steps up to three tolerances long settle (1 px risers always do),
   // so a tight Paths setting stays pixel-faithful while the default smooths.
   const double stair_edge = std::clamp(3.0 * fit.tolerance, 1.5, 6.0);
-  std::size_t since_cancel_check = 0;
-  for (const auto& loop : loops) {
-    if (loop.component < 0) {
-      continue;  // a painted-over hole (Overlapping)
+
+  // Everything to fit, in deterministic trace order. `area_component` is the
+  // component whose area the job's layer counts on first touch (-1 when the
+  // layer's area is pre-summed).
+  struct FitJob {
+    std::vector<FitPoint> points;
+    bool hole{false};
+    std::size_t layer_slot{0};
+    std::int32_t area_component{-1};
+  };
+  std::vector<FitJob> jobs;
+  std::vector<bool> area_counted(components.components.size(), false);
+
+  if (!overlapping) {
+    // Abutting: one layer per label in first-touch order (all depth 0).
+    std::unordered_map<std::int32_t, std::size_t> layer_by_label;
+    for (auto& loop : loops) {
+      if (loop.component < 0) {
+        continue;
+      }
+      const auto& component = components.components[static_cast<std::size_t>(loop.component)];
+      auto found = layer_by_label.find(component.label);
+      if (found == layer_by_label.end()) {
+        ImageTraceLayer layer;
+        layer.color = map.palette[static_cast<std::size_t>(component.label)];
+        layer.depth = 0;
+        result.layers.push_back(std::move(layer));
+        found = layer_by_label.emplace(component.label, result.layers.size() - 1).first;
+      }
+      FitJob job;
+      job.points = std::move(loop.points);
+      job.hole = loop.hole;
+      job.layer_slot = found->second;
+      job.area_component = loop.component;
+      jobs.push_back(std::move(job));
     }
-    if (++since_cancel_check % 64 == 0 && is_cancelled()) {
+  } else {
+    // Overlapping: one layer per (depth, label), painted back to front in the
+    // final ordering (ascending depth, then descending area, then palette
+    // key). Each layer's mask is its own pixels grown a few pixels into
+    // STRICTLY LATER painted neighbors, so every shape tucks slightly under
+    // the shapes above it: the hairline seams where two independently fitted
+    // edges meet (and where antialiased coverage of abutting edges lets the
+    // backdrop bleed through) land on solid color instead. The dilation never
+    // extends into earlier-painted or untraced pixels, so visible geometry
+    // and the silhouette against transparency are unchanged. Holes whose
+    // interior is later-painted are dropped (the children stack on top, the
+    // existing Overlapping convention); holes over earlier-painted or
+    // untraced content stay Subtract.
+    struct LayerDef {
+      int depth{0};
+      std::int32_t label{0};
+      std::int64_t area{0};
+    };
+    std::vector<LayerDef> defs;
+    std::unordered_map<std::uint64_t, std::size_t> def_index;
+    const auto def_key = [](int depth, std::int32_t label) {
+      return (static_cast<std::uint64_t>(static_cast<std::uint32_t>(depth)) << 32U) |
+             static_cast<std::uint64_t>(static_cast<std::uint32_t>(label));
+    };
+    for (std::size_t c = 0; c < components.components.size(); ++c) {
+      const auto& component = components.components[c];
+      const auto depth = nesting.depth[c];
+      const auto key = def_key(depth, component.label);
+      auto found = def_index.find(key);
+      if (found == def_index.end()) {
+        defs.push_back(LayerDef{depth, component.label, 0});
+        found = def_index.emplace(key, defs.size() - 1).first;
+      }
+      defs[found->second].area += component.area;
+    }
+    std::sort(defs.begin(), defs.end(), [&](const LayerDef& a, const LayerDef& b) {
+      if (a.depth != b.depth) {
+        return a.depth < b.depth;
+      }
+      if (a.area != b.area) {
+        return a.area > b.area;
+      }
+      return palette_color_key(map.palette[static_cast<std::size_t>(a.label)]) <
+             palette_color_key(map.palette[static_cast<std::size_t>(b.label)]);
+    });
+    // def_index positions predate the sort; rebuild it against the sorted order.
+    std::vector<std::int32_t> component_order(components.components.size(), 0);
+    def_index.clear();
+    for (std::size_t i = 0; i < defs.size(); ++i) {
+      def_index.emplace(def_key(defs[i].depth, defs[i].label), i);
+    }
+    for (std::size_t c = 0; c < components.components.size(); ++c) {
+      component_order[c] = static_cast<std::int32_t>(
+          def_index.at(def_key(nesting.depth[c], components.components[c].label)));
+    }
+    // Per-pixel paint order (-1 untraced).
+    std::vector<std::int32_t> order_map(map.labels.size(), -1);
+    for (std::size_t p = 0; p < map.labels.size(); ++p) {
+      const auto id = components.ids[p];
+      if (id >= 0) {
+        order_map[p] = component_order[static_cast<std::size_t>(id)];
+      }
+    }
+    const int underlap =
+        std::clamp(static_cast<int>(std::ceil(fit.tolerance)) + 1, 2, 4);
+    result.layers.reserve(defs.size());
+    for (const auto& def : defs) {
+      ImageTraceLayer layer;
+      layer.color = map.palette[static_cast<std::size_t>(def.label)];
+      layer.depth = def.depth;
+      layer.area = def.area;
+      result.layers.push_back(std::move(layer));
+    }
+    std::vector<std::vector<FitJob>> per_layer(defs.size());
+    parallel_chunks(defs.size(), 1, max_workers, [&](std::size_t begin, std::size_t end) {
+      for (std::size_t layer_i = begin; layer_i < end; ++layer_i) {
+        if (is_cancelled()) {
+          return;
+        }
+        const auto order = static_cast<std::int32_t>(layer_i);
+        const auto& source_bounds = bounds[static_cast<std::size_t>(defs[layer_i].label)];
+        if (source_bounds.max_x < 0) {
+          continue;
+        }
+        const auto min_x = std::max(0, source_bounds.min_x - underlap);
+        const auto min_y = std::max(0, source_bounds.min_y - underlap);
+        const auto max_x = std::min(map.width - 1, source_bounds.max_x + underlap);
+        const auto max_y = std::min(map.height - 1, source_bounds.max_y + underlap);
+        const auto local_width = max_x - min_x + 1;
+        const auto local_height = max_y - min_y + 1;
+        const auto stride = static_cast<std::size_t>(local_width) + 2;
+        std::vector<std::uint8_t> mask(stride * (static_cast<std::size_t>(local_height) + 2), std::uint8_t{0});
+        const auto mask_at = [&](std::int32_t x, std::int32_t y) -> std::uint8_t& {
+          return mask[static_cast<std::size_t>(y + 1) * stride + static_cast<std::size_t>(x + 1)];
+        };
+        for (std::int32_t y = 0; y < local_height; ++y) {
+          for (std::int32_t x = 0; x < local_width; ++x) {
+            if (order_map[map.index(x + min_x, y + min_y)] == order) {
+              mask_at(x, y) = 1;
+            }
+          }
+        }
+        // Grow into strictly later-painted pixels, one 8-connected ring per
+        // pass, double-buffered so the result is scan-order independent.
+        auto grown = mask;
+        for (int pass = 0; pass < underlap; ++pass) {
+          for (std::int32_t y = 0; y < local_height; ++y) {
+            for (std::int32_t x = 0; x < local_width; ++x) {
+              if (mask_at(x, y) != 0) {
+                continue;
+              }
+              if (order_map[map.index(x + min_x, y + min_y)] <= order) {
+                continue;  // untraced, earlier-painted, or own order elsewhere
+              }
+              bool touches = false;
+              for (std::int32_t dy = -1; dy <= 1 && !touches; ++dy) {
+                for (std::int32_t dx = -1; dx <= 1; ++dx) {
+                  if (mask_at(x + dx, y + dy) != 0) {
+                    touches = true;
+                    break;
+                  }
+                }
+              }
+              if (touches) {
+                grown[static_cast<std::size_t>(y + 1) * stride + static_cast<std::size_t>(x + 1)] = 1;
+              }
+            }
+          }
+          mask = grown;
+        }
+        auto& layer_jobs = per_layer[layer_i];
+        for (auto& traced : trace_mask_outlines(mask.data(), local_width, local_height, stride)) {
+          const bool hole = loop_signed_area(traced.points) < 0.0;
+          if (hole) {
+            const auto seed_x = static_cast<std::int32_t>(traced.points.front().x) + min_x;
+            const auto seed_y = static_cast<std::int32_t>(traced.points.front().y) + min_y;
+            if (order_map[map.index(seed_x, seed_y)] > order) {
+              continue;  // later-painted content stacks on top of the solid shape
+            }
+          }
+          FitJob job;
+          job.points = std::move(traced.points);
+          for (auto& point : job.points) {
+            point.x += min_x;
+            point.y += min_y;
+          }
+          job.hole = hole;
+          job.layer_slot = layer_i;
+          layer_jobs.push_back(std::move(job));
+        }
+      }
+    });
+    if (is_cancelled()) {
       return {};
     }
-    const auto& component = components.components[static_cast<std::size_t>(loop.component)];
-    auto& layer = layer_for(nesting.depth[static_cast<std::size_t>(loop.component)], component.label);
-    if (!area_counted[static_cast<std::size_t>(loop.component)]) {
-      area_counted[static_cast<std::size_t>(loop.component)] = true;
-      layer.area += component.area;
+    for (auto& layer_jobs : per_layer) {
+      jobs.insert(jobs.end(), std::make_move_iterator(layer_jobs.begin()),
+                  std::make_move_iterator(layer_jobs.end()));
     }
-    auto subpath = fit_closed_loop(settle_staircase(loop.points, stair_edge), fit);
+  }
+  loops.clear();
+
+  // Fit stage: each job settles and fits independently into its own slot
+  // (parallel-safe and order-identical to the sequential walk). With an
+  // anchor budget the settled polyline is kept as the canonical refit source:
+  // every escalation pass refits from the pixel contour, never from a
+  // flattening of an earlier fit, so the geometry cannot drift.
+  const int budget = std::max(0, options.max_anchors);
+  struct LoopFit {
+    std::vector<FitPoint> settled;
+    PathSubpath best;
+  };
+  std::vector<LoopFit> fits(jobs.size());
+  parallel_chunks(jobs.size(), 16, max_workers, [&](std::size_t begin, std::size_t end) {
+    for (std::size_t i = begin; i < end; ++i) {
+      if ((i - begin) % 64 == 0 && is_cancelled()) {
+        return;
+      }
+      auto settled = settle_staircase(jobs[i].points, stair_edge);
+      fits[i].best = fit_closed_loop(settled, fit);
+      if (budget > 0) {
+        fits[i].settled = std::move(settled);
+      }
+    }
+  });
+  if (is_cancelled()) {
+    return {};
+  }
+
+  // Anchor budget: escalate ONE global tolerance (x1.5 per pass, capped) and
+  // refit every loop from its settled polyline until the total fits, keeping
+  // each loop's smaller fit only (Simplify Path's never-worse rule). The
+  // parameters stay global for the whole layer (the legal boundary) and the
+  // fitter stays the per-run Schneider fit.
+  if (budget > 0) {
+    const auto total_anchors = [&] {
+      std::size_t total = 0;
+      for (const auto& fitted : fits) {
+        if (subpath_is_visible(fitted.best)) {
+          total += fitted.best.anchors.size();
+        }
+      }
+      return total;
+    };
+    auto total = total_anchors();
+    double tolerance = fit.tolerance;
+    for (int pass = 0; pass < 12 && total > static_cast<std::size_t>(budget); ++pass) {
+      const auto next = std::min(tolerance * 1.5, 16.0);
+      if (next == tolerance) {
+        break;  // the cap was reached on the previous pass
+      }
+      tolerance = next;
+      PathFitOptions coarse = fit;
+      coarse.tolerance = tolerance;
+      parallel_chunks(jobs.size(), 16, max_workers, [&](std::size_t begin, std::size_t end) {
+        for (std::size_t i = begin; i < end; ++i) {
+          if ((i - begin) % 64 == 0 && is_cancelled()) {
+            return;
+          }
+          auto& fitted = fits[i];
+          if (fitted.settled.empty() || fitted.best.anchors.size() <= 4) {
+            continue;  // minimal loops cannot shrink further
+          }
+          auto candidate = fit_closed_loop(fitted.settled, coarse);
+          if (subpath_is_visible(candidate) && candidate.anchors.size() < fitted.best.anchors.size()) {
+            fitted.best = std::move(candidate);
+          }
+        }
+      });
+      if (is_cancelled()) {
+        return {};
+      }
+      total = total_anchors();
+    }
+  }
+
+  // Assemble stage (serial, in trace order): jobs stay in trace order
+  // (row-major per label or per painted layer), which puts every hole after
+  // its outer loop and every island after the hole it sits in, the order the
+  // sequential combine needs.
+  for (std::size_t i = 0; i < jobs.size(); ++i) {
+    const auto& job = jobs[i];
+    auto& layer = result.layers[job.layer_slot];
+    if (job.area_component >= 0 && !area_counted[static_cast<std::size_t>(job.area_component)]) {
+      area_counted[static_cast<std::size_t>(job.area_component)] = true;
+      layer.area += components.components[static_cast<std::size_t>(job.area_component)].area;
+    }
+    auto& subpath = fits[i].best;
     if (!subpath_is_visible(subpath)) {
       continue;
     }
-    subpath.op = loop.hole ? PathCombineOp::Subtract : PathCombineOp::Add;
+    subpath.op = job.hole ? PathCombineOp::Subtract : PathCombineOp::Add;
     subpath.shape_group = layer.path.next_shape_group();
     result.anchor_count += subpath.anchors.size();
     layer.path.subpaths.push_back(std::move(subpath));

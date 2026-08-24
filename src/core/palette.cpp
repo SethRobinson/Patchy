@@ -385,6 +385,111 @@ std::vector<RgbColor> median_cut_palette(const std::vector<PaletteColorCount>& c
   return palette;
 }
 
+std::uint32_t weighted_color_distance(RgbColor a, RgbColor b) noexcept {
+  const std::int32_t dr = static_cast<std::int32_t>(a.red) - static_cast<std::int32_t>(b.red);
+  const std::int32_t dg = static_cast<std::int32_t>(a.green) - static_cast<std::int32_t>(b.green);
+  const std::int32_t db = static_cast<std::int32_t>(a.blue) - static_cast<std::int32_t>(b.blue);
+  return static_cast<std::uint32_t>(2 * dr * dr + 4 * dg * dg + 3 * db * db);
+}
+
+std::vector<RgbColor> refine_palette_weighted(const std::vector<PaletteColorCount>& colors,
+                                              std::vector<RgbColor> seed, int max_iterations,
+                                              const std::function<bool()>& cancelled) {
+  if (colors.empty() || seed.size() < 2 || max_iterations <= 0) {
+    return seed;
+  }
+  // Fold the (color-key-sorted) unique colors into 6-bit-per-channel cells.
+  // The key is monotone under >>2, so cells emerge already sorted from one
+  // linear scan. Each cell carries full-precision channel sums, so cluster
+  // centroids stay exact integer divisions.
+  struct Cell {
+    std::uint32_t key{0};  // (r >> 2) << 12 | (g >> 2) << 6 | (b >> 2)
+    RgbColor centroid{};   // rounded, for distance evaluation
+    std::uint64_t count{0};
+    std::uint64_t sum_red{0};
+    std::uint64_t sum_green{0};
+    std::uint64_t sum_blue{0};
+  };
+  std::vector<Cell> cells;
+  cells.reserve(colors.size());
+  for (const auto& entry : colors) {
+    const auto key = (static_cast<std::uint32_t>(entry.color.red >> 2U) << 12U) |
+                     (static_cast<std::uint32_t>(entry.color.green >> 2U) << 6U) |
+                     static_cast<std::uint32_t>(entry.color.blue >> 2U);
+    if (cells.empty() || cells.back().key != key) {
+      cells.push_back(Cell{key, RgbColor{}, 0, 0, 0, 0});
+    }
+    auto& cell = cells.back();
+    cell.count += entry.count;
+    cell.sum_red += static_cast<std::uint64_t>(entry.color.red) * entry.count;
+    cell.sum_green += static_cast<std::uint64_t>(entry.color.green) * entry.count;
+    cell.sum_blue += static_cast<std::uint64_t>(entry.color.blue) * entry.count;
+  }
+  for (auto& cell : cells) {
+    const auto half = cell.count / 2U;
+    cell.centroid = RgbColor{static_cast<std::uint8_t>((cell.sum_red + half) / cell.count),
+                             static_cast<std::uint8_t>((cell.sum_green + half) / cell.count),
+                             static_cast<std::uint8_t>((cell.sum_blue + half) / cell.count)};
+  }
+
+  auto centers = std::move(seed);
+  std::vector<std::size_t> assignment(cells.size(), 0);
+  for (int iteration = 0; iteration < max_iterations; ++iteration) {
+    if (cancelled && cancelled()) {
+      break;
+    }
+    // Assign: nearest center under the weighted metric, lowest index on ties.
+    bool changed = false;
+    for (std::size_t i = 0; i < cells.size(); ++i) {
+      std::uint32_t best_distance = std::numeric_limits<std::uint32_t>::max();
+      std::size_t best = 0;
+      for (std::size_t c = 0; c < centers.size(); ++c) {
+        const auto distance = weighted_color_distance(cells[i].centroid, centers[c]);
+        if (distance < best_distance) {
+          best_distance = distance;
+          best = c;
+        }
+      }
+      if (assignment[i] != best) {
+        assignment[i] = best;
+        changed = true;
+      }
+    }
+    if (!changed && iteration > 0) {
+      break;
+    }
+    // Update: exact integer means per cluster; the plain weighted mean is the
+    // optimum for a per-channel weighted metric. Empty clusters keep their
+    // previous center.
+    std::vector<std::array<std::uint64_t, 4>> sums(centers.size(), {0, 0, 0, 0});
+    for (std::size_t i = 0; i < cells.size(); ++i) {
+      auto& sum = sums[assignment[i]];
+      sum[0] += cells[i].sum_red;
+      sum[1] += cells[i].sum_green;
+      sum[2] += cells[i].sum_blue;
+      sum[3] += cells[i].count;
+    }
+    for (std::size_t c = 0; c < centers.size(); ++c) {
+      if (sums[c][3] == 0) {
+        continue;
+      }
+      const auto half = sums[c][3] / 2U;
+      centers[c] = RgbColor{static_cast<std::uint8_t>((sums[c][0] + half) / sums[c][3]),
+                            static_cast<std::uint8_t>((sums[c][1] + half) / sums[c][3]),
+                            static_cast<std::uint8_t>((sums[c][2] + half) / sums[c][3])};
+    }
+  }
+
+  std::sort(centers.begin(), centers.end(),
+            [](RgbColor lhs, RgbColor rhs) { return palette_color_key(lhs) < palette_color_key(rhs); });
+  centers.erase(std::unique(centers.begin(), centers.end(),
+                            [](RgbColor lhs, RgbColor rhs) {
+                              return palette_color_key(lhs) == palette_color_key(rhs);
+                            }),
+                centers.end());
+  return centers;
+}
+
 std::optional<Palette> exact_palette_from_pixels(const PixelBuffer& pixels, std::size_t cap,
                                                  std::uint8_t alpha_threshold) {
   const auto counts = collect_color_counts(pixels, alpha_threshold);

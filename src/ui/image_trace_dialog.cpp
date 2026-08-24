@@ -51,6 +51,9 @@ constexpr double kMinPreviewZoom = 0.0625;
 constexpr int kPreviewDebounceMs = 150;
 constexpr std::size_t kLargeTraceAnchors = 20000;
 constexpr std::size_t kLargeTraceLayers = 2000;
+// The anchor-budget spin tops out exactly where the large-result warning
+// begins: a budget above the warning line is as good as no budget.
+constexpr int kMaxAnchorsSpinLimit = static_cast<int>(kLargeTraceAnchors);
 constexpr const char* kUserPresetsSettingsKey = "imageTrace/userPresets";
 // Preset combo item data (Qt::UserRole = kind, Qt::UserRole + 1 = index).
 constexpr int kPresetKindCustom = 0;
@@ -61,7 +64,7 @@ using Mode = ImageTraceOptions::Mode;
 using Method = ImageTraceOptions::Method;
 
 ImageTraceOptions make_preset(Mode mode, int colors, int threshold, int paths, int corners, int noise,
-                              Method method, bool ignore_white) {
+                              Method method, bool ignore_white, int smoothing = 0, int max_anchors = 0) {
   ImageTraceOptions options;
   options.mode = mode;
   options.colors = colors;
@@ -69,6 +72,8 @@ ImageTraceOptions make_preset(Mode mode, int colors, int threshold, int paths, i
   options.paths = paths;
   options.corners = corners;
   options.noise = noise;
+  options.smoothing = smoothing;
+  options.max_anchors = max_anchors;
   options.method = method;
   options.snap_curves_to_lines = false;
   options.ignore_white = ignore_white;
@@ -377,6 +382,7 @@ const std::vector<ImageTracePreset>& image_trace_presets() {
       {"Shades of Gray", make_preset(Mode::Grayscale, 16, 128, 50, 75, 25, Method::Abutting, false)},
       {"Low Fidelity Photo", make_preset(Mode::Color, 16, 128, 40, 60, 25, Method::Overlapping, false)},
       {"High Fidelity Photo", make_preset(Mode::Color, 64, 128, 80, 50, 4, Method::Overlapping, false)},
+      {"Photo (Maximum)", make_preset(Mode::Color, 256, 128, 80, 50, 4, Method::Overlapping, false, 2)},
   };
   return presets;
 }
@@ -396,6 +402,8 @@ QByteArray serialize_image_trace_user_presets(const std::vector<ImageTraceUserPr
     object.insert(QStringLiteral("paths"), preset.options.paths);
     object.insert(QStringLiteral("corners"), preset.options.corners);
     object.insert(QStringLiteral("noise"), preset.options.noise);
+    object.insert(QStringLiteral("smoothing"), preset.options.smoothing);
+    object.insert(QStringLiteral("maxAnchors"), preset.options.max_anchors);
     object.insert(QStringLiteral("method"), static_cast<int>(preset.options.method));
     object.insert(QStringLiteral("snapCurvesToLines"), preset.options.snap_curves_to_lines);
     object.insert(QStringLiteral("ignoreWhite"), preset.options.ignore_white);
@@ -438,6 +446,8 @@ std::vector<ImageTraceUserPreset> deserialize_image_trace_user_presets(const QBy
     options.paths = read_int("paths", options.paths, 0, 100);
     options.corners = read_int("corners", options.corners, 0, 100);
     options.noise = read_int("noise", options.noise, 1, 100);
+    options.smoothing = read_int("smoothing", options.smoothing, 0, ImageTraceOptions::kMaxSmoothing);
+    options.max_anchors = read_int("maxAnchors", options.max_anchors, 0, kMaxAnchorsSpinLimit);
     options.method = static_cast<Method>(read_int("method", static_cast<int>(options.method), 0, 1));
     options.snap_curves_to_lines =
         object.value(QStringLiteral("snapCurvesToLines")).toBool(options.snap_curves_to_lines);
@@ -566,6 +576,21 @@ std::optional<ImageTraceDialogResult> request_image_trace(QWidget* parent, std::
   noise_spin->parentWidget()->setToolTip(
       QObject::tr("Regions smaller than this many pixels merge into their neighbors"));
 
+  auto* smoothing_spin = add_dialog_slider_spin_row(
+      form, &dialog, QObject::tr("Smoothing:"), QStringLiteral("imageTraceSmoothingSlider"),
+      QStringLiteral("imageTraceSmoothingSpin"), 0, ImageTraceOptions::kMaxSmoothing, initial.smoothing,
+      QStringLiteral(" px"));
+  smoothing_spin->parentWidget()->setToolTip(
+      QObject::tr("Blurs away grain and compression noise before colors are chosen"));
+
+  auto* max_anchors_spin = add_dialog_slider_spin_row(
+      form, &dialog, QObject::tr("Max anchors:"), QStringLiteral("imageTraceMaxAnchorsSlider"),
+      QStringLiteral("imageTraceMaxAnchorsSpin"), 0, kMaxAnchorsSpinLimit, initial.max_anchors);
+  max_anchors_spin->setSpecialValueText(QObject::tr("Off"));
+  max_anchors_spin->parentWidget()->setToolTip(
+      QObject::tr("Limits the total anchor count by loosening the curve fit until the result fits; "
+                  "Off keeps every anchor"));
+
   auto* method_combo = new QComboBox(&dialog);
   method_combo->setObjectName(QStringLiteral("imageTraceMethodCombo"));
   method_combo->addItem(QObject::tr("Abutting (cutout shapes)"), static_cast<int>(Method::Abutting));
@@ -632,8 +657,8 @@ std::optional<ImageTraceDialogResult> request_image_trace(QWidget* parent, std::
   info_row->addWidget(zoom_label);
   preview_column->addLayout(info_row);
   auto* size_warning = new QLabel(
-      QObject::tr("Large result: editing will be slower and exported SVG files will be large. Lower Paths or "
-                  "raise Noise to simplify."),
+      QObject::tr("Large result: editing will be slower and exported SVG files will be large. Lower Paths, "
+                  "raise Noise, or set Max anchors to simplify."),
       &dialog);
   size_warning->setObjectName(QStringLiteral("imageTraceSizeWarningLabel"));
   size_warning->setWordWrap(true);
@@ -661,6 +686,8 @@ std::optional<ImageTraceDialogResult> request_image_trace(QWidget* parent, std::
     options.paths = paths_spin->value();
     options.corners = corners_spin->value();
     options.noise = noise_spin->value();
+    options.smoothing = smoothing_spin->value();
+    options.max_anchors = max_anchors_spin->value();
     options.method = static_cast<Method>(method_combo->currentData().toInt());
     options.snap_curves_to_lines = snap_check->isChecked();
     options.ignore_white = ignore_white_check->isChecked();
@@ -681,6 +708,8 @@ std::optional<ImageTraceDialogResult> request_image_trace(QWidget* parent, std::
     paths_spin->setValue(std::clamp(options.paths, 0, 100));
     corners_spin->setValue(std::clamp(options.corners, 0, 100));
     noise_spin->setValue(std::clamp(options.noise, 1, 100));
+    smoothing_spin->setValue(std::clamp(options.smoothing, 0, ImageTraceOptions::kMaxSmoothing));
+    max_anchors_spin->setValue(std::clamp(options.max_anchors, 0, kMaxAnchorsSpinLimit));
     method_combo->setCurrentIndex(std::max(0, method_combo->findData(static_cast<int>(options.method))));
     snap_check->setChecked(options.snap_curves_to_lines);
     ignore_white_check->setChecked(options.ignore_white);
@@ -796,7 +825,8 @@ std::optional<ImageTraceDialogResult> request_image_trace(QWidget* parent, std::
   };
   QObject::connect(mode_combo, &QComboBox::currentIndexChanged, &dialog, [&](int) { on_control_changed(); });
   QObject::connect(method_combo, &QComboBox::currentIndexChanged, &dialog, [&](int) { on_control_changed(); });
-  for (auto* spin : {colors_spin, threshold_spin, paths_spin, corners_spin, noise_spin}) {
+  for (auto* spin : {colors_spin, threshold_spin, paths_spin, corners_spin, noise_spin, smoothing_spin,
+                     max_anchors_spin}) {
     QObject::connect(spin, &QSpinBox::valueChanged, &dialog, [&](int) { on_control_changed(); });
   }
   for (auto* check : {snap_check, ignore_white_check}) {

@@ -570,6 +570,10 @@ QJSValue ScriptLayerObject::traceToShapes(const QJSValue& options) {
         trace_options.corners = value.toInt();
       } else if (key == QLatin1String("noise")) {
         trace_options.noise = value.toInt();
+      } else if (key == QLatin1String("smoothing")) {
+        trace_options.smoothing = value.toInt();
+      } else if (key == QLatin1String("maxAnchors")) {
+        trace_options.max_anchors = value.toInt();
       } else if (key == QLatin1String("snapCurvesToLines")) {
         trace_options.snap_curves_to_lines = value.toBool();
       } else if (key == QLatin1String("ignoreWhite")) {

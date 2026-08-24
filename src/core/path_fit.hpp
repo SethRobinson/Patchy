@@ -35,6 +35,11 @@ struct PathFitOptions {
   // After fitting, collapse any cubic whose control points stay within
   // `tolerance` of its chord into a straight segment.
   bool snap_curves_to_lines{false};
+  // Newton-Raphson reparametrization attempts before a near-miss run splits
+  // (Schneider's iterationError loop). 4 keeps the historical output of Make
+  // Work Path and Simplify Path; image tracing uses 8 so near-circular runs
+  // converge instead of splitting.
+  int refine_iterations{4};
 };
 
 // Fits one implicitly-closed polyline loop (the first point is NOT repeated

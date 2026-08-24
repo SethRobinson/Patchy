@@ -15,10 +15,15 @@
 // and nesting depth), ready to become shape layers.
 //
 // The pipeline is built from published, long-expired techniques: median-cut
-// quantization (Heckbert 1982), connected-component speckle removal, the
-// selection-outline boundary walk, Douglas-Peucker (1973) and Schneider
+// quantization (Heckbert 1982) refined by fixed-iteration integer Lloyd
+// k-means (Lloyd 1957/1982), exact optimal scalar quantization for grayscale
+// (Bruce 1965 / Lloyd-Max), box-blur pre-smoothing and 3x3 label majority
+// filtering (classic image processing), connected-component speckle removal,
+// the selection-outline boundary walk, Douglas-Peucker (1973) and Schneider
 // (1990) fitting in core/path_fit. Every stage is integer or deterministic
-// double math with fixed tie-breaks (the cross-toolchain rule).
+// double math with fixed tie-breaks (the cross-toolchain rule), including the
+// parallel stages: workers only fill disjoint position-indexed slots, so the
+// output is bit-identical to a sequential run.
 //
 // Legal boundary (docs/legal-constraints.md, "Vector tracing"): tracing runs
 // ONCE on explicit request into static shape layers. Never attach a live
@@ -31,8 +36,11 @@ struct ImageTraceOptions {
   enum class Mode : std::uint8_t { Color, Grayscale, BlackAndWhite };
   // Abutting: every color region is an exact cutout, holes stay holes.
   // Overlapping: a region that encloses other regions is painted without
-  // those holes and the enclosed regions stack on top of it, which hides the
-  // hairline gaps between abutting anti-aliased edges.
+  // those holes and the enclosed regions stack on top of it, and every shape
+  // additionally grows a few pixels UNDER its later-painted neighbors
+  // (never into earlier-painted or untraced pixels, so visible geometry and
+  // the silhouette are unchanged), which hides the hairline gaps between
+  // abutting anti-aliased edges.
   enum class Method : std::uint8_t { Abutting, Overlapping };
 
   Mode mode{Mode::Color};
@@ -41,12 +49,15 @@ struct ImageTraceOptions {
   int paths{50};            // 0..100, curve fit fidelity (see image_trace_fit_tolerance)
   int corners{75};          // 0..100, corner sharpness (see image_trace_corner_angle)
   int noise{25};            // regions smaller than this many pixels are merged away, 1..100
+  int smoothing{0};         // denoise blur before quantization, 0..kMaxSmoothing px (0 = off)
+  int max_anchors{0};       // anchor budget: refit at coarser tolerance until met (0 = unlimited)
   Method method{Method::Abutting};
   bool snap_curves_to_lines{false};
   bool ignore_white{false};  // white regions become untraced (transparent)
 
   static constexpr int kMinColors = 2;
-  static constexpr int kMaxColors = 64;
+  static constexpr int kMaxColors = 256;
+  static constexpr int kMaxSmoothing = 10;
 
   friend bool operator==(const ImageTraceOptions&, const ImageTraceOptions&) = default;
 };
@@ -77,10 +88,13 @@ struct ImageTraceResult {
 // Traces an RGB, RGBA, or gray buffer. Pixels with alpha below 128 are
 // untraced. 16-bit and float buffers convert to 8-bit first (value/257 with
 // rounding; floats clamp to 0..1, linear). `cancelled` (optional) is polled
-// between stages and regions; a cancelled trace returns an empty result.
-// Buffers with other channel counts also return an empty result.
+// between stages and regions, including from worker threads, so the
+// predicate must be thread-safe (an atomic read, like the dialog's); a
+// cancelled trace returns an empty result. Buffers with other channel counts
+// also return an empty result. `max_workers` caps the parallel fan-out
+// (0 = automatic, 1 = forced sequential; the output is identical either way).
 [[nodiscard]] ImageTraceResult trace_image(const PixelBuffer& pixels, const ImageTraceOptions& options,
-                                           const std::function<bool()>& cancelled = {});
+                                           const std::function<bool()>& cancelled = {}, int max_workers = 0);
 
 // Paints the traced layers back to front as solid fills into a straight-alpha
 // RGBA8 buffer of the given size (the dialog preview and the coverage tests).

@@ -23,8 +23,9 @@ struct ImageTraceDialogResult {
 };
 
 // Modal "Trace Image to Shapes" dialog: preset, mode, color count or
-// threshold, path fidelity, corner sharpness, noise, method, and the two
-// toggles, beside a zoomable preview of the traced result. Every control
+// threshold, path fidelity, corner sharpness, noise, smoothing, anchor
+// budget, method, and the two toggles, beside a zoomable preview of the
+// traced result. Every control
 // change re-traces on a background worker (latest-wins, debounced); OK waits
 // for the current settings' trace and returns it. nullopt on Cancel.
 //

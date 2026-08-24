@@ -395,6 +395,19 @@ void image_trace_is_deterministic_and_cancellable() {
   }
   const auto cancelled = patchy::trace_image(pixels, options, [] { return true; });
   CHECK(cancelled.layers.empty());
+  // Smoothing and an anchor budget stay deterministic and cancellable too.
+  options.smoothing = 2;
+  options.max_anchors = 400;
+  const auto smoothed_a = patchy::trace_image(pixels, options);
+  const auto smoothed_b = patchy::trace_image(pixels, options);
+  CHECK(smoothed_a.layers.size() == smoothed_b.layers.size());
+  for (std::size_t i = 0; i < smoothed_a.layers.size(); ++i) {
+    CHECK(patchy::serialize_vector_path(smoothed_a.layers[i].path) ==
+          patchy::serialize_vector_path(smoothed_b.layers[i].path));
+  }
+  CHECK(patchy::trace_image(pixels, options, [] { return true; }).layers.empty());
+  options.smoothing = 0;
+  options.max_anchors = 0;
   // Parameter mappings keep their documented endpoints.
   CHECK(std::abs(patchy::image_trace_fit_tolerance(0) - 4.0) < 1e-9);
   CHECK(std::abs(patchy::image_trace_fit_tolerance(50) - 1.0) < 1e-9);
@@ -448,6 +461,230 @@ void image_trace_converts_16_bit_and_float_buffers() {
   check_halves(deep32);
 }
 
+void image_trace_exact_assignment_beats_lut_on_close_palette() {
+  // Two reds four levels apart share one 5-5-5 lookup bucket; the exact
+  // per-unique-color assignment keeps them separate where the old bucketed
+  // lookup collapsed one into the other.
+  const RgbColor red_a{100, 0, 0};
+  const RgbColor red_b{103, 0, 0};
+  auto pixels = solid_image(40, 40, red_a);
+  fill_rect(pixels, 20, 0, 20, 40, red_b);
+  auto options = color_options();
+  options.colors = 2;
+  const auto result = patchy::trace_image(pixels, options);
+  CHECK(result.palette_size == 2);
+  CHECK(result.layers.size() == 2);
+  const auto* a = layer_with_color(result, red_a);
+  const auto* b = layer_with_color(result, red_b);
+  CHECK(a != nullptr);
+  CHECK(b != nullptr);
+  CHECK(a->area == 20 * 40);
+  CHECK(b->area == 20 * 40);
+}
+
+void image_trace_grayscale_places_optimal_levels() {
+  // Two tight gray pairs and one lone value: the exact 1D quantizer puts each
+  // level on its cluster's population mean.
+  auto pixels = solid_image(80, 20, RgbColor{10, 10, 10});
+  fill_rect(pixels, 20, 0, 20, 20, RgbColor{12, 12, 12});
+  fill_rect(pixels, 40, 0, 20, 20, RgbColor{100, 100, 100});
+  fill_rect(pixels, 60, 0, 20, 20, RgbColor{240, 240, 240});
+  ImageTraceOptions options;
+  options.mode = ImageTraceOptions::Mode::Grayscale;
+  options.colors = 3;
+  options.noise = 1;
+  const auto result = patchy::trace_image(pixels, options);
+  CHECK(result.palette_size == 3);
+  CHECK(layer_with_color(result, RgbColor{11, 11, 11}) != nullptr);
+  CHECK(layer_with_color(result, RgbColor{100, 100, 100}) != nullptr);
+  CHECK(layer_with_color(result, RgbColor{240, 240, 240}) != nullptr);
+}
+
+void image_trace_supports_256_colors() {
+  // 300 unique colors; a 256-color trace must use more than the old 64 cap
+  // and stay deterministic. An absurd request clamps instead of failing.
+  PixelBuffer pixels(300, 8, PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < 8; ++y) {
+    for (std::int32_t x = 0; x < 300; ++x) {
+      auto* px = pixels.pixel(x, y);
+      px[0] = static_cast<std::uint8_t>(x % 256);
+      px[1] = static_cast<std::uint8_t>(x < 256 ? 60 : 180);
+      px[2] = 90;
+      px[3] = 255;
+    }
+  }
+  auto options = color_options();
+  options.colors = 256;
+  options.noise = 1;
+  const auto result = patchy::trace_image(pixels, options);
+  CHECK(result.palette_size > 64);
+  CHECK(result.palette_size <= 256);
+  options.colors = 9999;
+  const auto clamped = patchy::trace_image(pixels, options);
+  CHECK(clamped.palette_size <= 256);
+  const auto again = patchy::trace_image(pixels, options);
+  CHECK(clamped.layers.size() == again.layers.size());
+  for (std::size_t i = 0; i < clamped.layers.size(); ++i) {
+    CHECK(patchy::serialize_vector_path(clamped.layers[i].path) ==
+          patchy::serialize_vector_path(again.layers[i].path));
+  }
+}
+
+void image_trace_smoothing_cleans_noise_and_preserves_alpha() {
+  // A noisy interface between two fields, plus a transparent hole. Smoothing
+  // must simplify the traced interface while never changing which pixels are
+  // traced (the alpha cut stays crisp).
+  auto pixels = solid_image(64, 64, RgbColor{200, 30, 30});
+  fill_rect(pixels, 32, 0, 32, 64, kBlue);
+  for (std::int32_t y = 0; y < 64; ++y) {
+    for (std::int32_t offset = -2; offset <= 2; ++offset) {
+      if ((y * 7 + offset) % 3 == 0) {
+        const auto x = 32 + offset;
+        auto* px = pixels.pixel(x, y);
+        const bool flip = ((y + offset) % 2) == 0;
+        const auto color = flip ? kBlue : RgbColor{200, 30, 30};
+        px[0] = color.red;
+        px[1] = color.green;
+        px[2] = color.blue;
+      }
+    }
+  }
+  fill_rect(pixels, 8, 8, 10, 10, kBlack, 0);  // transparent hole
+  auto options = color_options();
+  options.colors = 2;
+  options.noise = 1;
+  const auto raw = patchy::trace_image(pixels, options);
+  options.smoothing = 3;
+  const auto smoothed = patchy::trace_image(pixels, options);
+  CHECK(smoothed.palette_size == 2);
+  CHECK(smoothed.anchor_count < raw.anchor_count);
+  // The transparent hole stays untraced with identical bounds.
+  const auto rendered = patchy::render_image_trace(smoothed, pixels.width(), pixels.height());
+  CHECK(rendered.pixel(12, 12)[3] == 0);
+  CHECK(rendered.pixel(7, 12)[3] == 255);
+  CHECK(rendered.pixel(12, 7)[3] == 255);
+  CHECK(rendered.pixel(18, 12)[3] == 255);
+}
+
+void image_trace_speckle_merge_prefers_similar_color() {
+  // A dark-red speck inside the blue field but touching the red field: its
+  // blue border is longer, but the merge now follows color similarity, so the
+  // speck joins the reds. The old longest-border rule handed it to blue.
+  const RgbColor red{220, 30, 30};
+  const RgbColor speck{180, 40, 40};
+  auto pixels = solid_image(40, 40, kBlue);
+  fill_rect(pixels, 20, 0, 20, 40, red);
+  fill_rect(pixels, 17, 10, 3, 3, speck);
+  auto options = color_options();
+  options.colors = 3;
+  options.noise = 10;
+  const auto result = patchy::trace_image(pixels, options);
+  CHECK(result.layers.size() == 2);
+  const auto* reds = layer_with_color(result, red);
+  const auto* blues = layer_with_color(result, kBlue);
+  CHECK(reds != nullptr);
+  CHECK(blues != nullptr);
+  CHECK(reds->area == 20 * 40 + 9);
+  CHECK(blues->area == 20 * 40 - 9);
+  // Dust surrounded by transparency still vanishes entirely.
+  auto dusty = solid_image(30, 30, kBlack, 0);
+  fill_rect(dusty, 14, 14, 2, 2, kRed);
+  const auto vanished = patchy::trace_image(dusty, options);
+  CHECK(vanished.layers.empty());
+}
+
+void image_trace_max_anchors_budget_escalates_globally() {
+  auto pixels = solid_image(160, 120, kWhite);
+  fill_disc(pixels, 50.0, 60.0, 38.0, kRed);
+  fill_disc(pixels, 110.0, 60.0, 38.0, kBlue);
+  fill_rect(pixels, 40, 100, 80, 12, kBlack);
+  fill_disc(pixels, 50.0, 60.0, 10.0, kWhite);
+  auto options = color_options();
+  const auto unbudgeted = patchy::trace_image(pixels, options);
+  CHECK(unbudgeted.anchor_count > 0);
+  // A budget at or above the unbudgeted total is a no-op: identical paths.
+  options.max_anchors = static_cast<int>(unbudgeted.anchor_count);
+  const auto satisfied = patchy::trace_image(pixels, options);
+  CHECK(satisfied.layers.size() == unbudgeted.layers.size());
+  for (std::size_t i = 0; i < satisfied.layers.size(); ++i) {
+    CHECK(patchy::serialize_vector_path(satisfied.layers[i].path) ==
+          patchy::serialize_vector_path(unbudgeted.layers[i].path));
+  }
+  // A tight budget escalates the global tolerance and sheds anchors while
+  // keeping every color layer.
+  options.max_anchors = 20;
+  const auto tight = patchy::trace_image(pixels, options);
+  CHECK(tight.anchor_count < unbudgeted.anchor_count);
+  CHECK(tight.layers.size() == unbudgeted.layers.size());
+  const auto tight_again = patchy::trace_image(pixels, options);
+  CHECK(tight.anchor_count == tight_again.anchor_count);
+}
+
+void image_trace_parallel_output_matches_serial() {
+  auto pixels = solid_image(160, 120, kWhite);
+  fill_disc(pixels, 50.0, 60.0, 38.0, kRed);
+  fill_disc(pixels, 110.0, 60.0, 38.0, kBlue);
+  fill_rect(pixels, 40, 100, 80, 12, kBlack);
+  auto options = color_options(ImageTraceOptions::Method::Overlapping);
+  options.smoothing = 2;
+  const auto serial = patchy::trace_image(pixels, options, {}, 1);
+  const auto parallel = patchy::trace_image(pixels, options, {}, 8);
+  CHECK(serial.layers.size() == parallel.layers.size());
+  CHECK(serial.anchor_count == parallel.anchor_count);
+  for (std::size_t i = 0; i < serial.layers.size(); ++i) {
+    CHECK(serial.layers[i].color == parallel.layers[i].color);
+    CHECK(patchy::serialize_vector_path(serial.layers[i].path) ==
+          patchy::serialize_vector_path(parallel.layers[i].path));
+  }
+  const auto cancelled = patchy::trace_image(pixels, options, [] { return true; }, 8);
+  CHECK(cancelled.layers.empty());
+}
+
+void image_trace_overlapping_underlap_keeps_silhouette() {
+  // A blue disc on a black disc on transparency. Overlapping tucks the black
+  // shape under the blue one to cover hairline seams, but must never grow the
+  // silhouette into the transparent surroundings.
+  auto pixels = solid_image(80, 80, kWhite, 0);
+  fill_disc(pixels, 40.0, 40.0, 30.0, kBlack);
+  fill_disc(pixels, 40.0, 40.0, 12.0, kBlue);
+  const auto result = patchy::trace_image(pixels, color_options(ImageTraceOptions::Method::Overlapping));
+  CHECK(result.layers.size() == 2);
+  CHECK(result.layers[0].color == kBlack);
+  CHECK(result.layers[1].color == kBlue);
+  // The black shape is solid (its hole is stacked over by the blue disc).
+  CHECK(count_ops(result.layers[0].path, PathCombineOp::Subtract) == 0);
+  const auto rendered = patchy::render_image_trace(result, pixels.width(), pixels.height());
+  CHECK(rendered.pixel(40, 40)[3] == 255);
+  CHECK(std::abs(rendered.pixel(40, 40)[2] - kBlue.blue) <= 8);
+  // Transparent corners and the area just outside the disc stay empty.
+  CHECK(rendered.pixel(4, 4)[3] == 0);
+  CHECK(rendered.pixel(40, 5)[3] == 0);
+  CHECK(rendered.pixel(75, 40)[3] == 0);
+}
+
+void path_fit_refine_iterations_shrink_noisy_circles() {
+  // A wobbly circle: more reparametrization attempts converge runs that the
+  // historical four iterations split, so anchors never increase.
+  std::vector<patchy::FitPoint> circle;
+  for (int i = 0; i < 96; ++i) {
+    const double angle = i * (2.0 * 3.14159265358979323846 / 96.0);
+    const double wobble = ((i * 7) % 5) * 0.08;
+    circle.push_back({40.0 + (20.0 + wobble) * std::cos(angle), 40.0 + (20.0 + wobble) * std::sin(angle)});
+  }
+  patchy::PathFitOptions four;
+  four.tolerance = 0.5;
+  patchy::PathFitOptions eight = four;
+  eight.refine_iterations = 8;
+  const auto historical = patchy::fit_closed_loop(circle, four);
+  const auto refined = patchy::fit_closed_loop(circle, eight);
+  CHECK(!historical.anchors.empty());
+  CHECK(!refined.anchors.empty());
+  CHECK(refined.anchors.size() <= historical.anchors.size());
+  // The default option count matches the historical literal.
+  patchy::PathFitOptions defaults;
+  CHECK(defaults.refine_iterations == 4);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> image_trace_tests() {
@@ -465,5 +702,16 @@ std::vector<patchy::test::TestCase> image_trace_tests() {
        image_trace_rasterized_result_matches_source_coverage},
       {"image_trace_is_deterministic_and_cancellable", image_trace_is_deterministic_and_cancellable},
       {"image_trace_converts_16_bit_and_float_buffers", image_trace_converts_16_bit_and_float_buffers},
+      {"image_trace_exact_assignment_beats_lut_on_close_palette",
+       image_trace_exact_assignment_beats_lut_on_close_palette},
+      {"image_trace_grayscale_places_optimal_levels", image_trace_grayscale_places_optimal_levels},
+      {"image_trace_supports_256_colors", image_trace_supports_256_colors},
+      {"image_trace_smoothing_cleans_noise_and_preserves_alpha",
+       image_trace_smoothing_cleans_noise_and_preserves_alpha},
+      {"image_trace_speckle_merge_prefers_similar_color", image_trace_speckle_merge_prefers_similar_color},
+      {"image_trace_max_anchors_budget_escalates_globally", image_trace_max_anchors_budget_escalates_globally},
+      {"image_trace_parallel_output_matches_serial", image_trace_parallel_output_matches_serial},
+      {"image_trace_overlapping_underlap_keeps_silhouette", image_trace_overlapping_underlap_keeps_silhouette},
+      {"path_fit_refine_iterations_shrink_noisy_circles", path_fit_refine_iterations_shrink_noisy_circles},
   };
 }

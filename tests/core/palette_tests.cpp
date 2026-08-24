@@ -294,6 +294,62 @@ void palette_quantize_uses_exact_colors_then_median_cut() {
   }
 }
 
+void palette_lloyd_refinement_reduces_weighted_error() {
+  // Two tight clusters plus a broad ramp: median cut splits by range and
+  // population, so its centers sit off the cluster means; the Lloyd
+  // refinement must strictly reduce the total weighted squared error.
+  std::vector<patchy::PaletteColorCount> counts;
+  for (int v = 0; v < 8; ++v) {
+    counts.push_back({patchy::RgbColor{static_cast<std::uint8_t>(10 + v), 20, 30}, 500});
+    counts.push_back({patchy::RgbColor{static_cast<std::uint8_t>(200 + v), 210, 40}, 500});
+  }
+  for (int v = 0; v < 64; ++v) {
+    counts.push_back({patchy::RgbColor{static_cast<std::uint8_t>(60 + v), static_cast<std::uint8_t>(80 + v),
+                                       static_cast<std::uint8_t>(100 + v)},
+                      20});
+  }
+  std::sort(counts.begin(), counts.end(), [](const auto& lhs, const auto& rhs) {
+    return patchy::palette_color_key(lhs.color) < patchy::palette_color_key(rhs.color);
+  });
+  const auto seed = patchy::median_cut_palette(counts, 4);
+  const auto refined = patchy::refine_palette_weighted(counts, seed, 8);
+  CHECK(!refined.empty());
+  CHECK(refined.size() <= seed.size());
+  const auto total_error = [&](const std::vector<patchy::RgbColor>& palette) {
+    std::uint64_t total = 0;
+    for (const auto& entry : counts) {
+      std::uint32_t best = std::numeric_limits<std::uint32_t>::max();
+      for (const auto& color : palette) {
+        best = std::min(best, patchy::weighted_color_distance(entry.color, color));
+      }
+      total += static_cast<std::uint64_t>(best) * entry.count;
+    }
+    return total;
+  };
+  CHECK(total_error(refined) <= total_error(seed));
+  // Sorted by color key, deduplicated, and identical across calls.
+  for (std::size_t i = 1; i < refined.size(); ++i) {
+    CHECK(patchy::palette_color_key(refined[i - 1]) < patchy::palette_color_key(refined[i]));
+  }
+  const auto again = patchy::refine_palette_weighted(counts, seed, 8);
+  CHECK(refined.size() == again.size());
+  for (std::size_t i = 0; i < refined.size(); ++i) {
+    CHECK(patchy::palette_color_key(refined[i]) == patchy::palette_color_key(again[i]));
+  }
+  // When the population fits the seed exactly, refinement returns it unchanged.
+  std::vector<patchy::PaletteColorCount> exact = {{patchy::RgbColor{10, 20, 30}, 5},
+                                                  {patchy::RgbColor{200, 210, 40}, 5}};
+  const auto kept = patchy::refine_palette_weighted(exact, {patchy::RgbColor{10, 20, 30},
+                                                           patchy::RgbColor{200, 210, 40}},
+                                                    8);
+  CHECK(kept.size() == 2);
+  CHECK(patchy::palette_color_key(kept[0]) == patchy::palette_color_key(patchy::RgbColor{10, 20, 30}));
+  CHECK(patchy::palette_color_key(kept[1]) == patchy::palette_color_key(patchy::RgbColor{200, 210, 40}));
+  // A cancelled refinement returns the seed.
+  const auto cancelled = patchy::refine_palette_weighted(counts, seed, 8, [] { return true; });
+  CHECK(cancelled.size() == seed.size());
+}
+
 void palette_apply_dither_outputs_only_palette_colors_and_is_deterministic() {
   const auto* gameboy = patchy::find_builtin_palette_preset("gameboy");
   CHECK(gameboy != nullptr);
@@ -752,6 +808,7 @@ std::vector<patchy::test::TestCase> palette_tests() {
       {"palette_document_remap_skips_smart_object_preview_cache",
        palette_document_remap_skips_smart_object_preview_cache},
       {"palette_quantize_uses_exact_colors_then_median_cut", palette_quantize_uses_exact_colors_then_median_cut},
+      {"palette_lloyd_refinement_reduces_weighted_error", palette_lloyd_refinement_reduces_weighted_error},
       {"palette_apply_dither_outputs_only_palette_colors_and_is_deterministic",
        palette_apply_dither_outputs_only_palette_colors_and_is_deterministic},
       {"palette_io_round_trips_all_writer_formats", palette_io_round_trips_all_writer_formats},
