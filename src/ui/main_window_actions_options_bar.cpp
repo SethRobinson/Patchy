@@ -2340,6 +2340,31 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   });
   update_vector_swatch_icons();
 
+  // Photoshop's Pen "Auto Add/Delete": on, a click on the target path edits
+  // its anchors (add on a segment, delete on a point); off, every click draws.
+  auto* pen_auto_add_delete = new CheckGlyphBox(tr("Auto Add/Delete"), toolbar);
+  pen_auto_add_delete->setObjectName(QStringLiteral("penAutoAddDeleteCheck"));
+  pen_auto_add_delete->setChecked(current_pen_auto_add_delete_);
+  pen_auto_add_delete->setToolTip(
+      tr("Clicking a segment of the path adds a point and clicking a point deletes it"));
+  add_option_widget(pen_auto_add_delete, {CanvasTool::Pen});
+  connect(pen_auto_add_delete, &QCheckBox::toggled, this, [this](bool checked) {
+    current_pen_auto_add_delete_ = checked;
+    if (canvas_ != nullptr) {
+      canvas_->set_pen_auto_add_delete(checked);
+    }
+    schedule_save_tool_settings();
+  });
+
+  // One-line gesture hint so the path tools' bar is never empty (the
+  // appearance controls hide without an editable shape layer).
+  path_tool_hint_label_ = qobject_cast<QLabel*>(add_option_label(
+      QString(), {CanvasTool::Pen, CanvasTool::PathSelect, CanvasTool::DirectSelect,
+                  CanvasTool::AddAnchor, CanvasTool::DeleteAnchor, CanvasTool::ConvertPoint}));
+  path_tool_hint_label_->setObjectName(QStringLiteral("pathToolHintLabel"));
+  register_retranslation([this] { refresh_path_tool_hint_label(); });
+  refresh_path_tool_hint_label();
+
   vector_vector_mode_option_widgets_.push_back(
       add_option_label(tr("Sides:"), {CanvasTool::Polygon}));
   auto* polygon_sides = new QSpinBox(toolbar);

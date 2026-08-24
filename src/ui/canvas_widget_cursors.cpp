@@ -242,16 +242,33 @@ QCursor magic_wand_cursor(CanvasWidget::SelectionMode mode) {
 
 }  // namespace
 
-void CanvasWidget::apply_pen_cursor(QPointF widget_point, Qt::KeyboardModifiers modifiers) {
+CanvasWidget::PenHoverAction CanvasWidget::apply_pen_cursor(QPointF widget_point,
+                                                            Qt::KeyboardModifiers modifiers) {
   // Ctrl = temporary Direct Select: the arrow advertises the mode, and the
   // badge classification is skipped mid-gesture so drags never flicker it.
   if ((modifiers & Qt::ControlModifier) != 0 || pen_temp_direct_select_ ||
       pen_session_drag_anchor_ >= 0) {
     setCursor(Qt::ArrowCursor);
-    return;
+    return PenHoverAction::Draw;
   }
   const auto hit = pen_hover_hit(widget_point, document_position_f(widget_point), modifiers);
+  // The anchor tools advertise their one edit everywhere (a miss just does
+  // nothing), so their badge never flickers with the hit test.
+  switch (tool_) {
+    case CanvasTool::AddAnchor:
+      setCursor(pen_tool_cursor(PenHoverAction::Add));
+      return hit.action;
+    case CanvasTool::DeleteAnchor:
+      setCursor(pen_tool_cursor(PenHoverAction::Delete));
+      return hit.action;
+    case CanvasTool::ConvertPoint:
+      setCursor(pen_tool_cursor(PenHoverAction::Convert));
+      return hit.action;
+    default:
+      break;
+  }
   setCursor(pen_tool_cursor(hit.action));
+  return hit.action;
 }
 
 bool CanvasWidget::apply_selection_cursor_for_mode(SelectionMode mode) {
@@ -310,7 +327,7 @@ void CanvasWidget::update_tool_cursor() {
     setCursor(Qt::SizeAllCursor);
     return;
   }
-  if (tool_ == CanvasTool::Pen) {
+  if (pen_family_tool_active()) {
     const auto modifiers =
         pen_cursor_modifier_override_.value_or(QApplication::keyboardModifiers());
     apply_pen_cursor(QPointF(last_mouse_position_), modifiers);

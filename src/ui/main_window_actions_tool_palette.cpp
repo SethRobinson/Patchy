@@ -328,6 +328,12 @@ const char* tool_action_source(CanvasTool tool) {
       return "Patch";
     case CanvasTool::Crop:
       return "Crop";
+    case CanvasTool::AddAnchor:
+      return "Add Anchor";
+    case CanvasTool::DeleteAnchor:
+      return "Delete Anchor";
+    case CanvasTool::ConvertPoint:
+      return "Convert Point";
   }
   return "Tool";
 }
@@ -406,8 +412,64 @@ QString tool_hotkey_id(CanvasTool tool) {
       return QStringLiteral("tools.patch");
     case CanvasTool::Crop:
       return QStringLiteral("tools.crop");
+    case CanvasTool::AddAnchor:
+      return QStringLiteral("tools.add_anchor");
+    case CanvasTool::DeleteAnchor:
+      return QStringLiteral("tools.delete_anchor");
+    case CanvasTool::ConvertPoint:
+      return QStringLiteral("tools.convert_point");
   }
   return QStringLiteral("tools.unknown");
+}
+
+// Second tooltip line for the tools whose gestures are not obvious from the
+// name; the hotkey registry composes "Name (Key)" above it and translates
+// the source at compose time (kActionTooltipDetailProperty). nullptr keeps
+// the plain "Name (Key)" tooltip.
+const char* tool_tooltip_detail_source(CanvasTool tool) {
+  switch (tool) {
+    case CanvasTool::Pen:
+      return "Click to place points, drag for curves. On a path: click a segment to add a "
+             "point, click a point to delete it, Alt+click converts it, Ctrl moves points.";
+    case CanvasTool::PathSelect:
+      return "Select and move whole shapes. Ctrl+T transforms the path.";
+    case CanvasTool::DirectSelect:
+      return "Select and drag points and handles. Delete removes the selected points.";
+    case CanvasTool::AddAnchor:
+      return "Click a path segment to insert a point.";
+    case CanvasTool::DeleteAnchor:
+      return "Click a point to remove it.";
+    case CanvasTool::ConvertPoint:
+      return "Click a point to switch it between corner and smooth.";
+    default:
+      return nullptr;
+  }
+}
+
+// Status-bar sentence shown when the tool is picked; nullptr shows the tool
+// name. Reserved for tools whose workflow the name alone does not explain.
+const char* tool_activation_hint_source(CanvasTool tool) {
+  switch (tool) {
+    case CanvasTool::Pen:
+      return "Pen: click to add points, drag for curves. On a path, click a segment to add a "
+             "point, click a point to delete it, Alt+click converts it, Ctrl+drag moves it.";
+    case CanvasTool::PathSelect:
+      return "Path Select: click a shape to select it, drag to move it. Ctrl+T transforms the "
+             "path, Delete removes the selected points.";
+    case CanvasTool::DirectSelect:
+      return "Direct Select: click or marquee points, drag points or handles. Shift adds, "
+             "arrows nudge, Delete removes, Ctrl+T transforms the selected points.";
+    case CanvasTool::AddAnchor:
+      return "Add Anchor Point: click a path segment to insert a point.";
+    case CanvasTool::DeleteAnchor:
+      return "Delete Anchor Point: click a point to remove it.";
+    case CanvasTool::ConvertPoint:
+      return "Convert Point: click a point to switch it between corner and smooth.";
+    case CanvasTool::PatchTool:
+      return "Patch: draw around the area to fix, then drag the selection to a clean source area";
+    default:
+      return nullptr;
+  }
 }
 
 QString tool_action_object_name(CanvasTool tool) {
@@ -680,6 +742,15 @@ QIcon tool_icon(CanvasTool tool) {
     case CanvasTool::Crop:
       name = "tool-crop";
       break;
+    case CanvasTool::AddAnchor:
+      name = "tool-add-anchor";
+      break;
+    case CanvasTool::DeleteAnchor:
+      name = "tool-delete-anchor";
+      break;
+    case CanvasTool::ConvertPoint:
+      name = "tool-convert-point";
+      break;
   }
   return themed_svg_icon(QLatin1String(name));
 }
@@ -717,6 +788,9 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
         action->setCheckable(true);
         action->setData(static_cast<int>(tool));
         action->setObjectName(tool_action_object_name(tool));
+        if (const auto* detail = tool_tooltip_detail_source(tool); detail != nullptr) {
+          action->setProperty(kActionTooltipDetailProperty, QString::fromLatin1(detail));
+        }
         register_hotkey(action, tool_hotkey_id(tool), shortcut, QStringLiteral("tools"));
         tool_group->addAction(action);
         menu->addAction(action);
@@ -849,7 +923,23 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
                         {dodge_action, burn_action, sponge_action});
   tool_palette->addSeparator();
 
-  add_tool_action(tool_palette, tool_group, tr("Pen"), CanvasTool::Pen, QKeySequence(Qt::Key_P));
+  // The Pen Tools flyout: the Pen (default, and what P re-selects) plus the
+  // dedicated Add/Delete/Convert anchor tools Photoshop users look for.
+  auto* pen_menu = new QMenu(tr("Pen Tools"), tool_palette);
+  pen_menu->setObjectName(QStringLiteral("penToolMenu"));
+  bind_widget_text(pen_menu, "Pen Tools");
+  auto* pen_action =
+      create_flyout_tool_action(pen_menu, tr("Pen"), CanvasTool::Pen, QKeySequence(Qt::Key_P));
+  auto* add_anchor_action =
+      create_flyout_tool_action(pen_menu, tr("Add Anchor"), CanvasTool::AddAnchor, QKeySequence());
+  auto* delete_anchor_action = create_flyout_tool_action(pen_menu, tr("Delete Anchor"),
+                                                         CanvasTool::DeleteAnchor, QKeySequence());
+  auto* convert_point_action = create_flyout_tool_action(pen_menu, tr("Convert Point"),
+                                                         CanvasTool::ConvertPoint, QKeySequence());
+  auto* pen_button = new QToolButton(tool_palette);
+  pen_button->setObjectName(QStringLiteral("penToolButton"));
+  configure_tool_flyout(tool_palette, pen_menu, pen_button, pen_action,
+                        {pen_action, add_anchor_action, delete_anchor_action, convert_point_action});
   // The Path Tools flyout sits directly after the Pen: drawing and adjusting
   // paths alternate constantly, so the two slots stay adjacent.
   auto* path_select_menu = new QMenu(tr("Path Tools"), tool_palette);
@@ -923,10 +1013,9 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
     }
     refresh_options_bar();
     refresh_document_info();
-    if (selected == CanvasTool::PatchTool) {
-      // The two-step workflow is not discoverable from the tool name alone.
-      statusBar()->showMessage(
-          tr("Patch: draw around the area to fix, then drag the selection to a clean source area"));
+    // Tools whose gestures the name does not explain get a one-line hint.
+    if (const auto* hint = tool_activation_hint_source(selected); hint != nullptr) {
+      statusBar()->showMessage(tr(hint));
     } else {
       statusBar()->showMessage(tool_name(selected));
     }
@@ -1000,6 +1089,9 @@ QAction* MainWindow::add_tool_action(QToolBar* palette, QActionGroup* group, QSt
   action->setCheckable(true);
   action->setData(static_cast<int>(tool));
   action->setObjectName(tool_action_object_name(tool));
+  if (const auto* detail = tool_tooltip_detail_source(tool); detail != nullptr) {
+    action->setProperty(kActionTooltipDetailProperty, QString::fromLatin1(detail));
+  }
   register_hotkey(action, tool_hotkey_id(tool), shortcut, QStringLiteral("tools"));
   group->addAction(action);
   register_document_action(action);

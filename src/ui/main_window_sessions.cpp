@@ -355,6 +355,7 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   session->canvas->set_shape_style(current_shape_style_);
   session->canvas->set_shape_fixed_size(current_shape_width_, current_shape_height_);
   session->canvas->set_vector_tool_mode(current_vector_tool_mode_);
+  session->canvas->set_pen_auto_add_delete(current_pen_auto_add_delete_);
   if (auto* sides = findChild<QSpinBox*>(QStringLiteral("polygonSidesSpin")); sides != nullptr) {
     session->canvas->set_polygon_sides(sides->value());
   }
@@ -466,8 +467,11 @@ void MainWindow::activate_document_canvas(CanvasWidget* canvas) {
     path_thumbnail_cache_.clear();
     layer_path_thumbnail_cache_ = {};
     // Same restart rule: a dismissed Paths-panel layer row must not stay
-    // hidden because the incoming document reuses the layer id.
+    // hidden because the incoming document reuses the layer id, and the
+    // layer-change memory must not mistake the switch for a layer change.
     path_row_hidden_for_layer_.reset();
+    paths_panel_layer_recorded_ = false;
+    paths_panel_last_active_layer_.reset();
   }
   if (canvas == nullptr || session_for_canvas(canvas) == nullptr) {
     canvas_ = nullptr;

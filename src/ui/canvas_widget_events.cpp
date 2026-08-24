@@ -177,7 +177,7 @@ bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
     auto* key_event = static_cast<QKeyEvent*>(event);
     if (!key_event->isAutoRepeat() &&
         (key_event->key() == Qt::Key_Shift || key_event->key() == Qt::Key_Alt ||
-         (key_event->key() == Qt::Key_Control && tool_ == CanvasTool::Pen))) {
+         (key_event->key() == Qt::Key_Control && pen_family_tool_active()))) {
       // The event reports the modifier state before this key, so fold the
       // pressed/released key into the modifiers we evaluate.
       const auto bit = key_event->key() == Qt::Key_Shift   ? Qt::ShiftModifier
@@ -195,7 +195,7 @@ bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
             apply_zoom_cursor((modifiers & Qt::AltModifier) != 0);
           }
         }
-      } else if (tool_ == CanvasTool::Pen) {
+      } else if (pen_family_tool_active()) {
         // Alt (convert badge) and Ctrl (temporary Direct Select arrow) both
         // change the pen cursor with a stationary pointer; refresh it from the
         // folded modifiers, skipping mid-gesture states so drags never flicker.
@@ -245,8 +245,7 @@ bool CanvasWidget::event(QEvent* event) {
       // Backspace on macOS and Delete everywhere) so keyPressEvent receives a plain key
       // event instead of QShortcutMap consuming it first.
       if (magnetic_lasso_active() || pen_session_active_ ||
-          ((tool_ == CanvasTool::PathSelect || tool_ == CanvasTool::DirectSelect) &&
-           !path_selected_anchors_.empty()) ||
+          (path_edit_tool_active() && !path_selected_anchors_.empty()) ||
           (!guides_locked_ && has_selected_guides())) {
         event->accept();
         return true;
@@ -429,6 +428,14 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
 
   if (spacebar_panning_ || tool_ == CanvasTool::Pan || (event->buttons() & Qt::MiddleButton) != 0 ||
       (event->buttons() & Qt::RightButton) != 0) {
+    // A right press under a path tool may become the path context menu: the
+    // release decides (no drag = menu, a drag = the pan that starts here).
+    path_context_press_pos_.reset();
+    if (event->button() == Qt::RightButton && path_edit_tool_active() && document_ != nullptr &&
+        !spacebar_panning_ && !handling_tablet_event_ && !pen_session_active_ &&
+        !path_transform_active_ && (event->modifiers() & Qt::AltModifier) == 0) {
+      path_context_press_pos_ = event->pos();
+    }
     panning_ = true;
     setCursor(Qt::ClosedHandCursor);
     return;
@@ -506,7 +513,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     return;
   }
 
-  if (tool_ == CanvasTool::Pen && event->button() == Qt::LeftButton) {
+  if (pen_family_tool_active() && event->button() == Qt::LeftButton) {
     if (handle_pen_press(event, document_position_f(event->position()))) {
       event->accept();
       return;
@@ -547,6 +554,9 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       case CanvasTool::SharpenBrush:
       case CanvasTool::Text:
       case CanvasTool::Pen:
+      case CanvasTool::AddAnchor:
+      case CanvasTool::DeleteAnchor:
+      case CanvasTool::ConvertPoint:
       case CanvasTool::PathSelect:
       case CanvasTool::DirectSelect:
       case CanvasTool::Crop:
@@ -1312,13 +1322,14 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     return;
   }
 
-  if (tool_ == CanvasTool::Pen) {
+  if (pen_family_tool_active()) {
     handle_pen_move(event, document_position_f(event->position()));
     last_mouse_position_ = event->pos();
     if ((event->buttons() & Qt::LeftButton) == 0) {
       // Hover: refresh the context badge (add/delete/convert/close) from the
-      // event's authoritative position and modifiers.
-      apply_pen_cursor(event->position(), event->modifiers());
+      // event's authoritative position and modifiers, and say what a click
+      // would do.
+      update_path_hover_hint(apply_pen_cursor(event->position(), event->modifiers()));
     }
     event->accept();
     return;
@@ -1327,6 +1338,9 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
   if (tool_ == CanvasTool::PathSelect || tool_ == CanvasTool::DirectSelect) {
     handle_path_edit_move(event, document_position_f(event->position()));
     last_mouse_position_ = event->pos();
+    if ((event->buttons() & Qt::LeftButton) == 0 && !path_transform_active_) {
+      update_path_select_hover_hint(path_hover_target_at(event->position()));
+    }
     event->accept();
     return;
   }
@@ -1823,6 +1837,13 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
   if (panning_) {
     panning_ = false;
     update_tool_cursor();
+    const auto context_press = path_context_press_pos_;
+    path_context_press_pos_.reset();
+    if (event->button() == Qt::RightButton && context_press.has_value() &&
+        (event->pos() - *context_press).manhattanLength() < QApplication::startDragDistance()) {
+      show_path_context_menu(event->position(), event->globalPosition().toPoint());
+      event->accept();
+    }
     return;
   }
 
@@ -1848,7 +1869,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     return;
   }
 
-  if (tool_ == CanvasTool::Pen) {
+  if (pen_family_tool_active()) {
     if (handle_pen_release(event)) {
       event->accept();
       return;

@@ -3,6 +3,7 @@
 #include "ui/app_settings.hpp"
 
 #include <QAction>
+#include <QCoreApplication>
 #include <QObject>
 #include <QStringList>
 #include <algorithm>
@@ -69,7 +70,14 @@ void refresh_action_tooltip(QAction* action) {
   }
   const auto label = clean_action_text(action);
   const auto shortcut = action_shortcut_text(action);
-  action->setToolTip(shortcut.isEmpty() ? label : QObject::tr("%1 (%2)").arg(label, shortcut));
+  auto tooltip = shortcut.isEmpty() ? label : QObject::tr("%1 (%2)").arg(label, shortcut);
+  const auto detail_source = action->property(kActionTooltipDetailProperty).toString();
+  if (!detail_source.isEmpty()) {
+    const auto detail_bytes = detail_source.toUtf8();
+    tooltip += QLatin1Char('\n') +
+               QCoreApplication::translate("patchy::ui::MainWindow", detail_bytes.constData());
+  }
+  action->setToolTip(tooltip);
 }
 
 HotkeyResolution resolve_hotkey_assignments(const std::vector<HotkeyCommand>& commands,

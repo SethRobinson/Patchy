@@ -44,6 +44,7 @@
 #include <QFormLayout>
 #include <QIcon>
 #include <QLineEdit>
+#include <QLabel>
 #include <QMenu>
 #include <QPainter>
 #include <QPixmap>
@@ -397,7 +398,40 @@ VectorShapeContent MainWindow::current_shape_appearance_content() const {
   return content;
 }
 
+namespace {
+
+// Short (one options-bar row) gesture reminders per path tool.
+const char* path_tool_hint_source(CanvasTool tool) {
+  switch (tool) {
+    case CanvasTool::Pen:
+      return "Click a segment to add a point or a point to delete it";
+    case CanvasTool::PathSelect:
+      return "Click a shape to select it, drag to move it. Ctrl+T transforms.";
+    case CanvasTool::DirectSelect:
+      return "Click or drag points and handles. Delete removes selected points.";
+    case CanvasTool::AddAnchor:
+      return "Click a path segment to add a point";
+    case CanvasTool::DeleteAnchor:
+      return "Click a point on the path to delete it";
+    case CanvasTool::ConvertPoint:
+      return "Click a point to switch it between corner and smooth";
+    default:
+      return nullptr;
+  }
+}
+
+}  // namespace
+
+void MainWindow::refresh_path_tool_hint_label() {
+  if (path_tool_hint_label_ == nullptr) {
+    return;
+  }
+  const auto* source = path_tool_hint_source(current_tool_);
+  path_tool_hint_label_->setText(source != nullptr ? tr(source) : QString());
+}
+
 void MainWindow::refresh_vector_tool_options_visibility() {
+  refresh_path_tool_hint_label();
   const bool shape_tool = current_tool_ == CanvasTool::Line ||
                           current_tool_ == CanvasTool::Rectangle ||
                           current_tool_ == CanvasTool::Ellipse ||
@@ -1866,10 +1900,14 @@ std::optional<LayerId> MainWindow::insert_image_trace_layers(LayerId source_id, 
   auto group = build_image_trace_group(doc, result, source_bounds.x, source_bounds.y,
                                        tr("Traced %1").arg(QString::fromStdString(source->name())).toStdString());
   const auto group_id = group.id();
+  // The frontmost traced shape becomes active (not the group): the pen and
+  // path tools edit the active layer's path, so the trace is editable at once.
+  const auto active_id = group.children().empty() ? group_id : group.children().back().id();
   source->set_visible(false);  // before the insert: it may reallocate the siblings
   insert_layer_after_anchor(doc, std::move(group), source_id);
-  doc.set_active_layer(group_id);
+  doc.set_active_layer(active_id);
   refresh_layer_list();
+  reveal_layer_in_layer_list(active_id);
   refresh_layer_controls();
   refresh_document_info();
   path_row_hidden_for_layer_.reset();

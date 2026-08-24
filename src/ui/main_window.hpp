@@ -754,6 +754,7 @@ private:
   void add_subpaths_to_work_path(std::vector<patchy::PathSubpath> subpaths);
   [[nodiscard]] patchy::VectorShapeContent current_shape_appearance_content() const;
   void refresh_vector_tool_options_visibility();
+  void refresh_path_tool_hint_label();
   void update_vector_swatch_icons();
   // Options-bar paint pickers (main_window_vector.cpp): the swatch buttons pop
   // a None/Solid/Gradient/Pattern menu editing the mirrors above; with an
@@ -1272,6 +1273,11 @@ private:
   // active, so the outline stays hidden until the layer changes or the user
   // re-selects the row (Photoshop's target-path dismissal behavior).
   std::optional<LayerId> path_row_hidden_for_layer_;
+  // The active layer at the last Paths-panel refresh: a change of layer to
+  // one with its own path drops a stale work/saved-path target. Recorded
+  // (not cleared) on the first refresh after a document switch.
+  bool paths_panel_layer_recorded_{false};
+  std::optional<LayerId> paths_panel_last_active_layer_;
   QAction* path_new_action_{nullptr};
   QAction* path_fill_action_{nullptr};
   QAction* path_stroke_action_{nullptr};
@@ -1387,6 +1393,7 @@ private:
   QPushButton* text_character_button_{nullptr};
   QPointer<QDialog> text_character_dialog_;
   QLabel* text_character_hint_label_{nullptr};
+  QLabel* path_tool_hint_label_{nullptr};
   QCheckBox* text_character_auto_leading_{nullptr};
   QDoubleSpinBox* text_character_leading_spin_{nullptr};
   QSpinBox* text_character_tracking_spin_{nullptr};
@@ -1577,6 +1584,7 @@ private:
   int current_shape_width_{1024};
   int current_shape_height_{768};
   VectorToolMode current_vector_tool_mode_{VectorToolMode::Shape};
+  bool current_pen_auto_add_delete_{true};
   // Full paint mirrors (None/Solid/Gradient/Pattern) for the options-bar
   // fill/stroke pickers; VectorFill's defaults are solid black, matching the
   // historical QColor mirrors. Sticky like Photoshop: selecting a shape layer

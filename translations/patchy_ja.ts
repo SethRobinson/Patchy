@@ -6723,6 +6723,22 @@ Mixed selection</source>
     <message><source>Sharpen brush</source><translation>シャープブラシ</translation></message>
     <message><source>Crop cancelled</source><translation>切り抜きをキャンセルしました</translation></message>
     <message><source>Drag the handles or edges to adjust. Enter crops, Esc cancels.</source><translation>ハンドルや辺をドラッグして調整します。Enter で切り抜き、Esc でキャンセルします。</translation></message>
+    <message><source>Click to add a point here</source><translation>クリックでここにポイントを追加</translation></message>
+    <message><source>Click to delete this point. Alt+click converts it between corner and smooth.</source><translation>クリックでこのポイントを削除。Alt+クリックでコーナーとスムーズを切り替えます。</translation></message>
+    <message><source>Click to delete this point</source><translation>クリックでこのポイントを削除</translation></message>
+    <message><source>Click to convert this point between corner and smooth</source><translation>クリックでこのポイントのコーナーとスムーズを切り替え</translation></message>
+    <message><source>Click to close the path</source><translation>クリックでパスを閉じる</translation></message>
+    <message><source>Click to select the shape, drag to move it. Ctrl+T transforms it.</source><translation>クリックでシェイプを選択、ドラッグで移動。Ctrl+Tで変形します。</translation></message>
+    <message><source>Drag to move the point. Shift+click adds it to the selection; Delete removes the selected points.</source><translation>ドラッグでポイントを移動。Shift+クリックで選択に追加、Deleteで選択したポイントを削除します。</translation></message>
+    <message><source>Drag the handle to reshape the curve</source><translation>ハンドルをドラッグして曲線を変形</translation></message>
+    <message><source>Drag to move the segment; click to select its points</source><translation>ドラッグでセグメントを移動、クリックで両端のポイントを選択</translation></message>
+    <message><source>Add Anchor Point</source><translation>アンカーポイントを追加</translation></message>
+    <message><source>Delete Anchor Point</source><translation>アンカーポイントを削除</translation></message>
+    <message><source>Convert Point</source><translation>ポイントを切り替え</translation></message>
+    <message><source>Delete Selected Points</source><translation>選択したポイントを削除</translation></message>
+    <message><source>Deselect Points</source><translation>ポイントの選択を解除</translation></message>
+    <message><source>Free Transform Points</source><translation>ポイントを自由変形</translation></message>
+    <message><source>Free Transform Path</source><translation>パスを自由変形</translation></message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -13658,6 +13674,30 @@ Clipped to the layer below</source>
     </message>
     <message><source>Trace image to shapes</source><translation>画像をシェイプにトレース</translation></message>
     <message><source>Traced %1</source><translation>トレース済み %1</translation></message>
+    <message><source>Add Anchor</source><translation>アンカー追加</translation></message>
+    <message><source>Delete Anchor</source><translation>アンカー削除</translation></message>
+    <message><source>Convert Point</source><translation>ポイント切り替え</translation></message>
+    <message><source>Pen Tools</source><translation>ペンツール</translation></message>
+    <message><source>Click to place points, drag for curves. On a path: click a segment to add a point, click a point to delete it, Alt+click converts it, Ctrl moves points.</source><translation>クリックでポイントを置き、ドラッグで曲線を描きます。パス上では: セグメントをクリックでポイント追加、ポイントをクリックで削除、Alt+クリックで切り替え、Ctrlでポイントを移動。</translation></message>
+    <message><source>Select and move whole shapes. Ctrl+T transforms the path.</source><translation>シェイプ全体を選択して移動します。Ctrl+Tでパスを変形。</translation></message>
+    <message><source>Select and drag points and handles. Delete removes the selected points.</source><translation>ポイントとハンドルを選択してドラッグします。Deleteで選択したポイントを削除。</translation></message>
+    <message><source>Click a path segment to insert a point.</source><translation>パスのセグメントをクリックしてポイントを挿入します。</translation></message>
+    <message><source>Click a point to remove it.</source><translation>ポイントをクリックして削除します。</translation></message>
+    <message><source>Click a point to switch it between corner and smooth.</source><translation>ポイントをクリックしてコーナーとスムーズを切り替えます。</translation></message>
+    <message><source>Pen: click to add points, drag for curves. On a path, click a segment to add a point, click a point to delete it, Alt+click converts it, Ctrl+drag moves it.</source><translation>ペン: クリックでポイント追加、ドラッグで曲線。パス上ではセグメントをクリックでポイント追加、ポイントをクリックで削除、Alt+クリックで切り替え、Ctrl+ドラッグで移動。</translation></message>
+    <message><source>Path Select: click a shape to select it, drag to move it. Ctrl+T transforms the path, Delete removes the selected points.</source><translation>パス選択: シェイプをクリックで選択、ドラッグで移動。Ctrl+Tでパスを変形、Deleteで選択したポイントを削除。</translation></message>
+    <message><source>Direct Select: click or marquee points, drag points or handles. Shift adds, arrows nudge, Delete removes, Ctrl+T transforms the selected points.</source><translation>ダイレクト選択: ポイントをクリックまたは囲んで選択し、ポイントやハンドルをドラッグ。Shiftで追加、矢印キーで微調整、Deleteで削除、Ctrl+Tで選択したポイントを変形。</translation></message>
+    <message><source>Add Anchor Point: click a path segment to insert a point.</source><translation>アンカーポイントを追加: パスのセグメントをクリックしてポイントを挿入します。</translation></message>
+    <message><source>Delete Anchor Point: click a point to remove it.</source><translation>アンカーポイントを削除: ポイントをクリックして削除します。</translation></message>
+    <message><source>Convert Point: click a point to switch it between corner and smooth.</source><translation>ポイントを切り替え: ポイントをクリックしてコーナーとスムーズを切り替えます。</translation></message>
+    <message><source>Auto Add/Delete</source><translation>自動追加/削除</translation></message>
+    <message><source>Clicking a segment of the path adds a point and clicking a point deletes it</source><translation>パスのセグメントをクリックするとポイントを追加、ポイントをクリックすると削除します</translation></message>
+    <message><source>Click a segment to add a point or a point to delete it</source><translation>セグメントをクリックでポイント追加、ポイントをクリックで削除</translation></message>
+    <message><source>Click a shape to select it, drag to move it. Ctrl+T transforms.</source><translation>シェイプをクリックで選択、ドラッグで移動。Ctrl+Tで変形。</translation></message>
+    <message><source>Click or drag points and handles. Delete removes selected points.</source><translation>ポイントやハンドルをクリックまたはドラッグ。Deleteで選択したポイントを削除。</translation></message>
+    <message><source>Click a path segment to add a point</source><translation>パスのセグメントをクリックしてポイントを追加</translation></message>
+    <message><source>Click a point on the path to delete it</source><translation>パス上のポイントをクリックして削除</translation></message>
+    <message><source>Click a point to switch it between corner and smooth</source><translation>ポイントをクリックしてコーナーとスムーズを切り替え</translation></message>
 </context>
 <context>
     <name>patchy::ui::PalettePanel</name>
@@ -14521,6 +14561,9 @@ Clipped to the layer below</source>
     <message><source>Shades of Gray</source><translation>グレーの濃淡</translation></message>
     <message><source>Low Fidelity Photo</source><translation>低精度の写真</translation></message>
     <message><source>High Fidelity Photo</source><translation>高精度の写真</translation></message>
+    <message><source>Add Anchor Point</source><translation>アンカーポイントを追加</translation></message>
+    <message><source>Delete Anchor Point</source><translation>アンカーポイントを削除</translation></message>
+    <message><source>Convert Point</source><translation>ポイントを切り替え</translation></message>
 </context>
 <context>
     <name>FilterGalleryControls</name>

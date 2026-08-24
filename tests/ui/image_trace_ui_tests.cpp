@@ -171,7 +171,10 @@ void ui_trace_image_to_shapes_creates_group_and_undoes() {
   const auto* source = document.find_layer(source_id);
   CHECK(source != nullptr);
   CHECK(!source->visible());
-  CHECK(document.active_layer_id() == group->id());
+  // The frontmost traced shape is active (not the group), so the pen and
+  // path tools can edit the trace at once.
+  CHECK(!group->children().empty());
+  CHECK(document.active_layer_id() == group->children().back().id());
   // The blue ring keeps its hole (an Abutting Subtract group).
   const auto* blue = find_layer_named(group->children(), QStringLiteral("#1E28DC"));
   bool has_hole = false;

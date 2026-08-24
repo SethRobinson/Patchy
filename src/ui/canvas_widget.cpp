@@ -401,6 +401,9 @@ void CanvasWidget::set_tool(CanvasTool tool) {
     }
     pen_temp_direct_select_ = false;
     pen_session_drag_anchor_ = -1;
+    path_hover_hint_action_ = PenHoverAction::Draw;
+    path_hover_hint_target_ = PathHoverTarget::None;
+    path_context_press_pos_.reset();
     cancel_magnetic_lasso();
     cancel_spot_heal_stroke();
     cancel_patch_tool_drag();

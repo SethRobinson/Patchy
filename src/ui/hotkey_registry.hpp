@@ -14,6 +14,11 @@ namespace patchy::ui {
 // Shared display helpers for action labels and shortcut-suffixed tooltips.
 [[nodiscard]] QString clean_action_text(const QAction* action);
 [[nodiscard]] QString action_shortcut_text(const QAction* action);
+// Dynamic QAction property holding an untranslated second tooltip line
+// ("Name (Key)" above it); refresh_action_tooltip translates it in the
+// MainWindow context at compose time so rebinding and language switches
+// keep both lines current. Set it before register_hotkey.
+inline constexpr const char* kActionTooltipDetailProperty = "patchy.tooltipDetail";
 void refresh_action_tooltip(QAction* action);
 
 // Per-platform DEFAULT shortcuts for a register_hotkey call site (macOS conventions

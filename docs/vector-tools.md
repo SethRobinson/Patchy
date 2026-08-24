@@ -46,11 +46,13 @@ construction overlay draws in canvas_widget_vector_tools.cpp
 (canvas_widget_pen.cpp is TABLET input, not this tool).
 
 A badge crosshair cursor advertises the click action (insert/delete/convert/
-close); one classifier (`pen_hover_hit`) drives cursor and click editor so
-they never disagree. Holding Ctrl acts as Direct Select: with no session it
-latches the gesture onto the path-edit handlers (one "Edit path" undo
-entry); mid-session it drags an in-progress anchor without adding one. Ctrl
-clicks never insert, delete, close, or extend.
+close); one classifier (`pen_hover_hit_raw`, narrowed per tool and by the
+Auto Add/Delete option) drives cursor, click editor, and right-click menu so
+they never disagree; details in [vector-commands.md](vector-commands.md).
+Holding Ctrl acts as Direct Select: with no session it latches the gesture
+onto the path-edit handlers (one "Edit path" undo entry); mid-session it
+drags an in-progress anchor without adding one. Ctrl clicks never insert,
+delete, close, or extend; Delete removes a Ctrl-selected anchor.
 
 ## Polygon, Custom Shape, and line arrowheads
 
@@ -123,7 +125,9 @@ persisted; a path-transform session always draws its box). Canvas-side
 edits refresh rows and thumbnails live. The context menu's Clipping Path
 entry designates ONE saved path as the document clipping path (resource
 2999; name underlines; exclusive). Work-path draws and layer activation
-auto-select/target their rows. Dismissal (empty click, or Escape after
+auto-select/target their rows; activating a layer with its own path drops
+a stale work/saved-path target (vector-commands.md). Dismissal (empty
+click, or Escape after
 clearing the anchor selection) sticks per layer until the layer changes,
 the row is re-clicked, or a new drag commits; a path tool still draws its
 edit-target fallback afterward.
@@ -278,10 +282,6 @@ resources); model: src/core/vector_shape.hpp.
   pinned numerically against PS's live-ellipse knots and a
   rule-distinguishing donut render. Corner knots store all three pairs equal
   when no handles.
-- Capture gotcha: ExtendScript's PathPointInfo.leftDirection lands in the
-  file's OUT slot and rightDirection in the IN slot (reversed from the DOM
-  docs); DOM-authored probe curves carry visually swapped handles, harmless
-  for render parity.
 
 ### Render semantics (pinned by fixture BMPs)
 

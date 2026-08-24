@@ -307,6 +307,23 @@ void MainWindow::refresh_paths_panel() {
       doc.active_layer_id() != path_row_hidden_for_layer_) {
     path_row_hidden_for_layer_.reset();
   }
+  // Activating a layer that has its own path (shape or vector mask) retargets
+  // the path tools to it, Photoshop's behavior: a work or saved-path row
+  // targeted earlier would otherwise keep outranking the new layer in
+  // path_edit_target_path and its outline would offer no edits. An explicit
+  // row click within one layer still sticks (no layer change).
+  const auto active_layer = doc.active_layer_id();
+  const bool layer_changed =
+      paths_panel_layer_recorded_ && active_layer != paths_panel_last_active_layer_;
+  paths_panel_layer_recorded_ = true;
+  paths_panel_last_active_layer_ = active_layer;
+  if (layer_changed && active_document_path_id_.has_value() && !rows.empty() &&
+      rows.front().kind == PathsPanel::RowKind::LayerPath) {
+    active_document_path_id_.reset();
+    if (canvas_ != nullptr) {
+      canvas_->set_active_document_path(std::nullopt);
+    }
+  }
   std::optional<PathsPanel::Row> selected;
   if (active_document_path_id_.has_value()) {
     for (const auto& row : rows) {

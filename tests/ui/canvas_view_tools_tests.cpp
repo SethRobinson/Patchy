@@ -1001,11 +1001,21 @@ void ui_stamp_and_gradient_flyouts_swap_tools() {
   CHECK(canvas->tool() == patchy::ui::CanvasTool::PatchTool);
   CHECK(healing_button->defaultAction() == require_action(window, "toolPatchAction"));
 
+  auto* pen_button = window.findChild<QToolButton*>(QStringLiteral("penToolButton"));
+  CHECK(pen_button != nullptr);
+  CHECK(pen_button->menu() != nullptr);
+  CHECK(pen_button->menu()->actions().size() == 4);
+  CHECK(pen_button->defaultAction() == require_action(window, "toolPenAction"));
+  require_action(window, "toolConvertPointAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::ConvertPoint);
+  CHECK(pen_button->defaultAction() == require_action(window, "toolConvertPointAction"));
+
   // Every flyout button carries the QSS corner-marker property, including the
   // smudge/dodge buttons that historically lacked the indicator.
   for (const auto* name : {"marqueeToolButton", "lassoToolButton", "wandToolButton", "gradientToolButton",
                            "stampToolButton", "healingToolButton", "detailToolButton", "toneToolButton",
-                           "shapeToolButton", "pathSelectToolButton"}) {
+                           "shapeToolButton", "pathSelectToolButton", "penToolButton"}) {
     auto* button = window.findChild<QToolButton*>(QString::fromLatin1(name));
     CHECK(button != nullptr);
     CHECK(button->property("toolFlyout").toBool());
@@ -1087,6 +1097,9 @@ void ui_tool_palette_icons_render_sheet() {
       {"toolRectAction", "Rect"},
       {"toolEllipseAction", "Ellipse"},
       {"toolPenAction", "Pen"},
+      {"toolAddAnchorAction", "Add Anchor"},
+      {"toolDeleteAnchorAction", "Delete Anchor"},
+      {"toolConvertPointAction", "Convert Point"},
       {"toolPathSelectAction", "Path Select"},
       {"toolDirectSelectAction", "Direct Select"},
       {"toolPolygonAction", "Polygon"},

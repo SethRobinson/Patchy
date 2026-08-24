@@ -6654,6 +6654,7 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
     refresh_document_info();
   });
   canvas->set_vector_tool_mode(current_vector_tool_mode_);
+  canvas->set_pen_auto_add_delete(current_pen_auto_add_delete_);
   canvas->set_vector_shape_drawn_callback(
       [this, canvas](patchy::LiveShapeKind kind, QRectF bounds, QPointF line_start, QPointF line_end) {
         if (canvas != canvas_) {

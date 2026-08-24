@@ -17,6 +17,7 @@
 
 #include <QDateTime>
 #include <QKeyEvent>
+#include <QMenu>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
@@ -221,7 +222,7 @@ bool CanvasWidget::pen_click_closes_path(QPointF document_point) const {
 }
 
 bool CanvasWidget::handle_pen_press(QMouseEvent* event, QPointF document_point) {
-  if (tool_ != CanvasTool::Pen || event->button() != Qt::LeftButton) {
+  if (!pen_family_tool_active() || event->button() != Qt::LeftButton) {
     return false;
   }
   if (edit_locked_) {
@@ -249,7 +250,15 @@ bool CanvasWidget::handle_pen_press(QMouseEvent* event, QPointF document_point) 
   if (pen_modifies_existing_path(event, document_point)) {
     return true;
   }
+  if (tool_ != CanvasTool::Pen) {
+    return true;  // the anchor tools never draw: a miss does nothing (Photoshop)
+  }
   const bool starting_session = !pen_session_active_;
+  if (starting_session) {
+    // A leftover Ctrl selection must not keep Delete/Backspace targeting
+    // committed anchors while the session owns those keys.
+    clear_path_edit_selection();
+  }
   const auto snapped = snapped_document_point_f(document_point);
   PathAnchor anchor;
   anchor.anchor_x = snapped.x();
@@ -306,7 +315,7 @@ int CanvasWidget::pen_session_anchor_at(QPointF widget_point) const {
 }
 
 bool CanvasWidget::handle_pen_move(QMouseEvent* event, QPointF document_point) {
-  if (tool_ != CanvasTool::Pen) {
+  if (!pen_family_tool_active()) {
     return false;
   }
   pen_hover_document_ = document_point;
@@ -358,7 +367,7 @@ bool CanvasWidget::handle_pen_move(QMouseEvent* event, QPointF document_point) {
 }
 
 bool CanvasWidget::handle_pen_release(QMouseEvent* event) {
-  if (tool_ != CanvasTool::Pen || event->button() != Qt::LeftButton) {
+  if (!pen_family_tool_active() || event->button() != Qt::LeftButton) {
     return false;
   }
   if (pen_temp_direct_select_) {
@@ -472,11 +481,66 @@ void CanvasWidget::draw_pen_overlay(QPainter& painter) {
 
 bool CanvasWidget::path_edit_tool_active() const noexcept {
   return tool_ == CanvasTool::PathSelect || tool_ == CanvasTool::DirectSelect ||
-         tool_ == CanvasTool::Pen;
+         pen_family_tool_active();
+}
+
+bool CanvasWidget::pen_family_tool_active() const noexcept {
+  return tool_ == CanvasTool::Pen || tool_ == CanvasTool::AddAnchor ||
+         tool_ == CanvasTool::DeleteAnchor || tool_ == CanvasTool::ConvertPoint;
 }
 
 CanvasTool CanvasWidget::path_edit_tool() const noexcept {
-  return tool_ == CanvasTool::Pen && pen_temp_direct_select_ ? CanvasTool::DirectSelect : tool_;
+  return pen_family_tool_active() && pen_temp_direct_select_ ? CanvasTool::DirectSelect : tool_;
+}
+
+void CanvasWidget::set_pen_auto_add_delete(bool enabled) {
+  if (pen_auto_add_delete_ == enabled) {
+    return;
+  }
+  pen_auto_add_delete_ = enabled;
+  update_tool_cursor();
+}
+
+bool CanvasWidget::pen_auto_add_delete() const noexcept {
+  return pen_auto_add_delete_;
+}
+
+CanvasWidget::PenEditMode CanvasWidget::pen_edit_mode() const noexcept {
+  switch (tool_) {
+    case CanvasTool::AddAnchor:
+      return PenEditMode::AddOnly;
+    case CanvasTool::DeleteAnchor:
+      return PenEditMode::DeleteOnly;
+    case CanvasTool::ConvertPoint:
+      return PenEditMode::ConvertOnly;
+    default:
+      return pen_auto_add_delete_ ? PenEditMode::Auto : PenEditMode::DrawOnly;
+  }
+}
+
+CanvasWidget::PenHoverHit CanvasWidget::filter_pen_hit(PenHoverHit hit, PenEditMode mode) noexcept {
+  if (hit.action == PenHoverAction::Draw || hit.action == PenHoverAction::Close) {
+    return hit;
+  }
+  switch (mode) {
+    case PenEditMode::Auto:
+      return hit;
+    case PenEditMode::DrawOnly:
+      hit.action = PenHoverAction::Draw;
+      return hit;
+    case PenEditMode::AddOnly:
+      if (hit.action != PenHoverAction::Add) {
+        hit.action = PenHoverAction::Draw;
+      }
+      return hit;
+    case PenEditMode::DeleteOnly:
+      hit.action = hit.anchor.first >= 0 ? PenHoverAction::Delete : PenHoverAction::Draw;
+      return hit;
+    case PenEditMode::ConvertOnly:
+      hit.action = hit.anchor.first >= 0 ? PenHoverAction::Convert : PenHoverAction::Draw;
+      return hit;
+  }
+  return hit;
 }
 
 Layer* CanvasWidget::path_edit_target_layer() const {
@@ -1062,7 +1126,13 @@ bool CanvasWidget::handle_path_edit_key(QKeyEvent* event) {
   if (path_transform_active_) {
     return handle_path_transform_key(event);
   }
-  if (path_selected_anchors_.empty() || tool_ == CanvasTool::Pen) {
+  // The Pen family only owns the selection keys once a Ctrl+click selected
+  // anchors (Delete/Backspace remove them, Escape clears); arrows stay off
+  // so hotkeys keep them.
+  const bool selection_key = event->key() == Qt::Key_Delete ||
+                             event->key() == Qt::Key_Backspace ||
+                             event->key() == Qt::Key_Escape;
+  if (path_selected_anchors_.empty() || (pen_family_tool_active() && !selection_key)) {
     // Photoshop's second-stage Escape: with no anchors selected (and no pen
     // session - handle_pen_key already consumed that), Esc dismisses the
     // targeted path display via the Paths panel. Sessions whose own Escape
@@ -1136,6 +1206,13 @@ bool CanvasWidget::handle_path_edit_key(QKeyEvent* event) {
 
 CanvasWidget::PenHoverHit CanvasWidget::pen_hover_hit(QPointF widget_point, QPointF document_point,
                                                       Qt::KeyboardModifiers modifiers) const {
+  return filter_pen_hit(pen_hover_hit_raw(widget_point, document_point, modifiers),
+                        pen_edit_mode());
+}
+
+CanvasWidget::PenHoverHit CanvasWidget::pen_hover_hit_raw(QPointF widget_point,
+                                                          QPointF document_point,
+                                                          Qt::KeyboardModifiers modifiers) const {
   PenHoverHit hit;
   if (pen_click_closes_path(document_point)) {
     hit.action = PenHoverAction::Close;
@@ -1159,7 +1236,11 @@ CanvasWidget::PenHoverHit CanvasWidget::pen_hover_hit(QPointF widget_point, QPoi
 }
 
 bool CanvasWidget::pen_modifies_existing_path(QMouseEvent* event, QPointF document_point) {
-  const auto hit = pen_hover_hit(QPointF(event->position()), document_point, event->modifiers());
+  return apply_pen_hover_edit(
+      pen_hover_hit(QPointF(event->position()), document_point, event->modifiers()));
+}
+
+bool CanvasWidget::apply_pen_hover_edit(const PenHoverHit& hit) {
   const auto* path = path_edit_target_path();
   if (path == nullptr) {
     return false;
@@ -1232,6 +1313,142 @@ bool CanvasWidget::pen_modifies_existing_path(QMouseEvent* event, QPointF docume
 
 bool CanvasWidget::path_edit_has_selection() const noexcept {
   return !path_selected_anchors_.empty();
+}
+
+void CanvasWidget::update_path_hover_hint(PenHoverAction action) {
+  const auto previous = path_hover_hint_action_;
+  path_hover_hint_action_ = action;
+  if (action == previous || action == PenHoverAction::Draw || !status_callback_) {
+    return;
+  }
+  switch (action) {
+    case PenHoverAction::Add:
+      status_callback_(tr("Click to add a point here"));
+      return;
+    case PenHoverAction::Delete:
+      status_callback_(tool_ == CanvasTool::Pen
+                           ? tr("Click to delete this point. Alt+click converts it between "
+                                "corner and smooth.")
+                           : tr("Click to delete this point"));
+      return;
+    case PenHoverAction::Convert:
+      status_callback_(tr("Click to convert this point between corner and smooth"));
+      return;
+    case PenHoverAction::Close:
+      status_callback_(tr("Click to close the path"));
+      return;
+    case PenHoverAction::Draw:
+      return;
+  }
+}
+
+CanvasWidget::PathHoverTarget CanvasWidget::path_hover_target_at(QPointF widget_point) const {
+  if (path_edit_target_path() == nullptr) {
+    return PathHoverTarget::None;
+  }
+  std::pair<int, int> handle_anchor{-1, -1};
+  if (path_edit_tool() == CanvasTool::DirectSelect &&
+      path_handle_at(widget_point, handle_anchor) != 0) {
+    return PathHoverTarget::Handle;
+  }
+  if (path_anchor_at(widget_point).first >= 0) {
+    return PathHoverTarget::Anchor;
+  }
+  std::pair<int, int> segment{-1, -1};
+  double segment_t = 0.0;
+  if (path_segment_at(widget_point, segment, segment_t)) {
+    return PathHoverTarget::Segment;
+  }
+  return PathHoverTarget::None;
+}
+
+void CanvasWidget::update_path_select_hover_hint(PathHoverTarget target) {
+  const auto previous = path_hover_hint_target_;
+  path_hover_hint_target_ = target;
+  if (target == previous || target == PathHoverTarget::None || !status_callback_) {
+    return;
+  }
+  if (path_edit_tool() == CanvasTool::PathSelect) {
+    status_callback_(tr("Click to select the shape, drag to move it. Ctrl+T transforms it."));
+    return;
+  }
+  switch (target) {
+    case PathHoverTarget::Anchor:
+      status_callback_(tr("Drag to move the point. Shift+click adds it to the selection; "
+                          "Delete removes the selected points."));
+      return;
+    case PathHoverTarget::Handle:
+      status_callback_(tr("Drag the handle to reshape the curve"));
+      return;
+    case PathHoverTarget::Segment:
+      status_callback_(tr("Drag to move the segment; click to select its points"));
+      return;
+    case PathHoverTarget::None:
+      return;
+  }
+}
+
+bool CanvasWidget::show_path_context_menu(QPointF widget_point, QPoint global_position) {
+  if (!path_edit_tool_active() || document_ == nullptr || pen_session_active_ ||
+      path_transform_active_) {
+    return false;
+  }
+  const auto* path = path_edit_target_path();
+  if (path == nullptr) {
+    return false;
+  }
+  // Unfiltered on purpose: the menu names the edits explicitly, so it offers
+  // them under every path tool and with Auto Add/Delete off (Photoshop's menu).
+  const auto hit =
+      pen_hover_hit_raw(widget_point, document_position_f(widget_point), Qt::NoModifier);
+  const bool over_anchor = hit.anchor.first >= 0;
+  const bool over_segment = !over_anchor && hit.segment.first >= 0;
+  prune_path_edit_selection(*path);
+  const bool has_selection = !path_selected_anchors_.empty();
+
+  QMenu menu(this);
+  menu.setObjectName(QStringLiteral("canvasPathContextMenu"));
+  const auto add_edit_action = [this, &menu, hit](const QString& text, const char* object_name,
+                                                  bool enabled, PenHoverAction action) {
+    auto* menu_action = menu.addAction(text);
+    menu_action->setObjectName(QLatin1String(object_name));
+    menu_action->setEnabled(enabled);
+    connect(menu_action, &QAction::triggered, this, [this, hit, action] {
+      auto edit = hit;
+      edit.action = action;
+      apply_pen_hover_edit(edit);
+    });
+  };
+  add_edit_action(tr("Add Anchor Point"), "pathMenuAddAnchorAction", over_segment,
+                  PenHoverAction::Add);
+  add_edit_action(tr("Delete Anchor Point"), "pathMenuDeleteAnchorAction", over_anchor,
+                  PenHoverAction::Delete);
+  add_edit_action(tr("Convert Point"), "pathMenuConvertPointAction", over_anchor,
+                  PenHoverAction::Convert);
+  menu.addSeparator();
+  auto* delete_selected_action = menu.addAction(tr("Delete Selected Points"));
+  delete_selected_action->setObjectName(QStringLiteral("pathMenuDeleteSelectedAction"));
+  delete_selected_action->setEnabled(has_selection);
+  connect(delete_selected_action, &QAction::triggered, this,
+          [this] { delete_selected_path_anchors(); });
+  auto* deselect_action = menu.addAction(tr("Deselect Points"));
+  deselect_action->setObjectName(QStringLiteral("pathMenuDeselectAction"));
+  deselect_action->setEnabled(has_selection);
+  connect(deselect_action, &QAction::triggered, this, [this] { clear_path_edit_selection(); });
+  menu.addSeparator();
+  // begin_path_transform is Path Select / Direct Select only (the Pen family
+  // falls through to the layer transform, like Photoshop).
+  const bool select_tool = tool_ == CanvasTool::PathSelect || tool_ == CanvasTool::DirectSelect;
+  const bool transform_points = tool_ == CanvasTool::DirectSelect && has_selection;
+  auto* transform_action =
+      menu.addAction(transform_points ? tr("Free Transform Points") : tr("Free Transform Path"));
+  transform_action->setObjectName(QStringLiteral("pathMenuFreeTransformAction"));
+  transform_action->setEnabled(select_tool && !path->subpaths.empty());
+  connect(transform_action, &QAction::triggered, this, [this] { begin_path_transform(); });
+  menu.exec(global_position);
+  update_tool_cursor();
+  update();
+  return true;
 }
 
 std::vector<int> CanvasWidget::path_edit_selected_groups() const {

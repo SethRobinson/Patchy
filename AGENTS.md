@@ -123,6 +123,7 @@ Read the linked document before working on the feature. The document, not this i
 - **Selection tools:** [docs/selection-tools.md](docs/selection-tools.md) and [docs/legal-constraints.md](docs/legal-constraints.md).
 - **Shape tools, Free Transform modifiers, Merge Down, and tool icons:** [docs/tools.md](docs/tools.md).
 - **Vector tools, shape layers, vector masks, and Paths:** [docs/vector-tools.md](docs/vector-tools.md) and [docs/legal-constraints.md](docs/legal-constraints.md).
+- **Point-editing UI (anchor tools, hints, path context menu) and vector commands:** [docs/vector-commands.md](docs/vector-commands.md).
 - **SVG import/export:** [docs/svg.md](docs/svg.md).
 - **Trace Image to Shapes (raster to vector):** [docs/image-trace.md](docs/image-trace.md) and the "Vector tracing" boundary in [docs/legal-constraints.md](docs/legal-constraints.md).
 - **Float windows and document activation:** [docs/float-windows.md](docs/float-windows.md).

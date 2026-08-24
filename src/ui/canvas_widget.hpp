@@ -99,7 +99,12 @@ enum class CanvasTool {
   SpotHealing,
   PatchTool,
   // August 2026 Crop tool (append-only: values ride persisted settings).
-  Crop
+  Crop,
+  // August 2026 anchor tools (append-only: values ride persisted settings).
+  // They share the Pen's handlers with a fixed edit action each.
+  AddAnchor,
+  DeleteAnchor,
+  ConvertPoint
 };
 
 // Which tool produced a committed vector path; MainWindow picks the layer
@@ -607,6 +612,17 @@ public:
   [[nodiscard]] bool pen_session_active() const noexcept;
   void commit_pen_path(bool closed);
   void cancel_pen_path();
+  // Photoshop's Pen "Auto Add/Delete": off, the Pen only draws (a click on the
+  // target path starts a new subpath instead of editing it). The dedicated
+  // Add/Delete/Convert anchor tools ignore it.
+  void set_pen_auto_add_delete(bool enabled);
+  [[nodiscard]] bool pen_auto_add_delete() const noexcept;
+  // Right-click menu of the path tools: add/delete/convert the hovered point,
+  // delete or deselect the selected points, free-transform the path. Public
+  // so tests can open it without the right-button release gesture.
+  // Returns false when nothing was shown (no target path, a Pen session, a
+  // path transform, or a non-path tool).
+  bool show_path_context_menu(QPointF widget_point, QPoint global_position);
   // Path editing (PathSelect / DirectSelect / Pen add-delete) on the active
   // shape layer's path or the work path.
   [[nodiscard]] bool path_edit_has_selection() const noexcept;
@@ -1304,7 +1320,27 @@ private:
   };
   [[nodiscard]] PenHoverHit pen_hover_hit(QPointF widget_point, QPointF document_point,
                                           Qt::KeyboardModifiers modifiers) const;
-  void apply_pen_cursor(QPointF widget_point, Qt::KeyboardModifiers modifiers);
+  // The unfiltered classification (what the point under the cursor IS);
+  // pen_hover_hit narrows it by tool and the Auto Add/Delete option.
+  [[nodiscard]] PenHoverHit pen_hover_hit_raw(QPointF widget_point, QPointF document_point,
+                                              Qt::KeyboardModifiers modifiers) const;
+  enum class PenEditMode { Auto, DrawOnly, AddOnly, DeleteOnly, ConvertOnly };
+  [[nodiscard]] PenEditMode pen_edit_mode() const noexcept;
+  [[nodiscard]] static PenHoverHit filter_pen_hit(PenHoverHit hit, PenEditMode mode) noexcept;
+  // Applies the hit's Add/Delete/Convert edit to the target path; false for
+  // Draw and Close. Shared by the pen click, the anchor tools, and the menu.
+  bool apply_pen_hover_edit(const PenHoverHit& hit);
+  // The Pen plus the Add/Delete/Convert anchor tools, which share its handlers.
+  [[nodiscard]] bool pen_family_tool_active() const noexcept;
+  // Returns the badge it applied (Draw while the arrow shows).
+  PenHoverAction apply_pen_cursor(QPointF widget_point, Qt::KeyboardModifiers modifiers);
+  // Status-bar hover hints. They emit only on the transition INTO an
+  // actionable state (never back to plain hovering), so confirmations that
+  // other code shows are not overwritten by mouse motion.
+  void update_path_hover_hint(PenHoverAction action);
+  enum class PathHoverTarget { None, Anchor, Handle, Segment };
+  [[nodiscard]] PathHoverTarget path_hover_target_at(QPointF widget_point) const;
+  void update_path_select_hover_hint(PathHoverTarget target);
   bool handle_pen_ctrl_press(QMouseEvent* event, QPointF document_point);
   [[nodiscard]] int pen_session_anchor_at(QPointF widget_point) const;
   // Path editing (canvas_widget_vector_tools.cpp).
@@ -1655,6 +1691,12 @@ private:
   // Ctrl held at press latches the gesture onto the path-edit handlers with
   // DirectSelect semantics (press -> release; releasing Ctrl mid-drag keeps it).
   bool pen_temp_direct_select_{false};
+  bool pen_auto_add_delete_{true};
+  PenHoverAction path_hover_hint_action_{PenHoverAction::Draw};
+  PathHoverTarget path_hover_hint_target_{PathHoverTarget::None};
+  // Right-button press position under a path tool; a release without a drag
+  // opens the path context menu (a drag stays the universal pan).
+  std::optional<QPoint> path_context_press_pos_;
   // Ctrl-drag of an in-progress session anchor: index into pen_anchors_, -1 idle.
   int pen_session_drag_anchor_{-1};
   QPointF pen_session_drag_last_document_{};

@@ -41,6 +41,7 @@ std::vector<patchy::test::TestCase> selection_engines_tests();
 std::vector<patchy::test::TestCase> misc_visuals_outline_stress_tests();
 std::vector<patchy::test::TestCase> float_window_tests();
 std::vector<patchy::test::TestCase> vector_shape_tool_tests();
+std::vector<patchy::test::TestCase> vector_point_editing_tests();
 std::vector<patchy::test::TestCase> svg_ui_tests();
 std::vector<patchy::test::TestCase> image_trace_ui_tests();
 std::vector<patchy::test::TestCase> scripting_tests();

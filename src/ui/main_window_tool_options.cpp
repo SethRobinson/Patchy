@@ -1806,6 +1806,14 @@ void MainWindow::load_tool_settings() {
                               : vector_mode_name == QStringLiteral("pixels") ? VectorToolMode::Pixels
                                                                              : VectorToolMode::Shape;
   canvas_->set_vector_tool_mode(current_vector_tool_mode_);
+  current_pen_auto_add_delete_ =
+      settings.value(QStringLiteral("tools/penAutoAddDelete"), true).toBool();
+  canvas_->set_pen_auto_add_delete(current_pen_auto_add_delete_);
+  if (auto* pen_auto_add_delete = findChild<QCheckBox*>(QStringLiteral("penAutoAddDeleteCheck"));
+      pen_auto_add_delete != nullptr) {
+    QSignalBlocker blocker(pen_auto_add_delete);
+    pen_auto_add_delete->setChecked(current_pen_auto_add_delete_);
+  }
   if (vector_mode_combo_ != nullptr) {
     QSignalBlocker blocker(vector_mode_combo_);
     vector_mode_combo_->setCurrentIndex(current_vector_tool_mode_ == VectorToolMode::Path     ? 1
@@ -2049,6 +2057,7 @@ void MainWindow::save_tool_settings() const {
                     current_vector_tool_mode_ == VectorToolMode::Path     ? QStringLiteral("path")
                     : current_vector_tool_mode_ == VectorToolMode::Pixels ? QStringLiteral("pixels")
                                                                           : QStringLiteral("shape"));
+  settings.setValue(QStringLiteral("tools/penAutoAddDelete"), current_pen_auto_add_delete_);
   const auto save_vector_paint = [&settings](const patchy::VectorFill& paint,
                                              const QString& gradient_id, const char* color_key,
                                              const char* kind_key, const char* pattern_key,

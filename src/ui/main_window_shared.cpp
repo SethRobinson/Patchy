@@ -621,6 +621,12 @@ QString tool_name(CanvasTool tool) {
       return QObject::tr("Patch");
     case CanvasTool::Crop:
       return QObject::tr("Crop");
+    case CanvasTool::AddAnchor:
+      return QObject::tr("Add Anchor Point");
+    case CanvasTool::DeleteAnchor:
+      return QObject::tr("Delete Anchor Point");
+    case CanvasTool::ConvertPoint:
+      return QObject::tr("Convert Point");
   }
   return QObject::tr("Tool");
 }
