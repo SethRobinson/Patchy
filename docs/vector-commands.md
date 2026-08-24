@@ -91,7 +91,11 @@ path, a targeted work/saved-path row is dropped so
 layer selection). The memory resets on a document switch so reused layer
 ids never look like a change. Explicit row clicks within one layer still
 stick. Trace Image to Shapes activates the frontmost traced shape for the
-same reason (a group has no path).
+same reason (a group has no path). The same refresh repaints the canvas on a
+layer change: a pure activation composites nothing, and the overlay (drawn
+from the active layer) otherwise stayed stale until an unrelated edit (Seth,
+August 2026: anchors appeared only after toggling Stroke;
+`ui_layer_row_click_shows_anchors_for_shape_layer` counts paint events).
 
 ## Simplify Path
 

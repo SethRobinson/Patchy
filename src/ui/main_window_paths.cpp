@@ -324,6 +324,12 @@ void MainWindow::refresh_paths_panel() {
       canvas_->set_active_document_path(std::nullopt);
     }
   }
+  // The path overlay keys off the active layer, which nothing else repaints
+  // for (a pure activation composites nothing): with a path tool active the
+  // new layer's anchors must appear at once, not on the next unrelated edit.
+  if (layer_changed && canvas_ != nullptr) {
+    canvas_->update();
+  }
   std::optional<PathsPanel::Row> selected;
   if (active_document_path_id_.has_value()) {
     for (const auto& row : rows) {

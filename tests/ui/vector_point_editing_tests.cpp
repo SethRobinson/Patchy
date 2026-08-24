@@ -11,6 +11,7 @@
 #include <QAction>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QEvent>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QListWidget>
@@ -78,6 +79,41 @@ const patchy::PathAnchor& anchor_at(patchy::Document& document, patchy::LayerId 
   CHECK(layer != nullptr);
   return layer->vector_shape()->path.subpaths[0].anchors[index];
 }
+
+// True when a pixel near the document point reads as the path-overlay accent
+// (116, 192, 255) in a canvas grab.
+bool accent_overlay_near(patchy::ui::CanvasWidget& canvas, QPoint document_point) {
+  const auto image = canvas.grab().toImage();
+  const auto center = canvas.widget_position_for_document_point(document_point);
+  for (int dy = -3; dy <= 3; ++dy) {
+    for (int dx = -3; dx <= 3; ++dx) {
+      const QPoint probe(center.x() + dx, center.y() + dy);
+      if (!image.rect().contains(probe)) {
+        continue;
+      }
+      const auto color = image.pixelColor(probe);
+      if (color.blue() >= 200 && color.blue() - color.red() >= 60 && color.green() > color.red()) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+// Counts paint events: grab() repaints on its own, so a stale on-screen frame
+// (the bug: no repaint after a layer activation) needs a direct witness.
+class PaintCounter final : public QObject {
+public:
+  int paints{0};
+
+protected:
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (event->type() == QEvent::Paint) {
+      ++paints;
+    }
+    return QObject::eventFilter(watched, event);
+  }
+};
 
 // Runs `act` on the canvas path menu once it opens; menu.exec blocks until
 // the callback closes it.
@@ -570,6 +606,54 @@ void ui_shape_layer_activation_drops_stale_path_target() {
   CHECK(paths_list->currentRow() == 0);
 }
 
+// Seth's report (August 2026): with the Pen active, clicking a shape layer's
+// row in the Layers panel showed no anchors until an appearance edit forced a
+// repaint. The overlay must follow layer activation immediately.
+void ui_layer_row_click_shows_anchors_for_shape_layer() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto first_id = make_rect_shape_layer(window, *canvas);  // (100,100)-(300,220)
+  canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+  shape_drag(*canvas, QPoint(400, 100), QPoint(600, 220));
+  const auto second_id = document.active_layer_id();
+  CHECK(second_id.has_value() && *second_id != first_id);
+
+  require_action(window, "toolPenAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->path_edit_target_path() ==
+        &std::as_const(document).find_layer(*second_id)->vector_shape()->path);
+  CHECK(accent_overlay_near(*canvas, QPoint(400, 100)));
+  CHECK(!accent_overlay_near(*canvas, QPoint(100, 100)));
+
+  // Click the first rectangle's row like a user; the canvas must repaint on
+  // its own (grab() below would otherwise mask a stale frame).
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* item = require_layer_item(*layer_list, QStringLiteral("Rectangle 1"));
+  const auto center = layer_list->visualItemRect(item).center();
+  QApplication::processEvents();
+  PaintCounter paints;
+  canvas->installEventFilter(&paints);
+  send_mouse(*layer_list->viewport(), QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*layer_list->viewport(), QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  QApplication::processEvents();
+  canvas->removeEventFilter(&paints);
+  CHECK(paints.paints >= 1);
+  CHECK(document.active_layer_id() == first_id);
+  CHECK(canvas->path_edit_target_path() ==
+        &std::as_const(document).find_layer(first_id)->vector_shape()->path);
+  CHECK(!canvas->active_document_path().has_value());
+  CHECK(accent_overlay_near(*canvas, QPoint(100, 100)));
+  CHECK(!accent_overlay_near(*canvas, QPoint(400, 100)));
+  // The badge follows too: the first rectangle's corner offers Delete.
+  const auto plain = hover(*canvas, QPoint(700, 500)).pixmap().toImage();
+  CHECK(hover(*canvas, QPoint(100, 100)).pixmap().toImage() != plain);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> vector_point_editing_tests() {
@@ -587,5 +671,6 @@ std::vector<patchy::test::TestCase> vector_point_editing_tests() {
        ui_anchor_tools_share_pen_flyout_and_edit_points},
       {"ui_shape_layer_activation_drops_stale_path_target",
        ui_shape_layer_activation_drops_stale_path_target},
+      {"ui_layer_row_click_shows_anchors_for_shape_layer", ui_layer_row_click_shows_anchors_for_shape_layer},
   };
 }
