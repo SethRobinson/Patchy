@@ -3,6 +3,18 @@
 Older Patchy release notes are collected here. The two most recent releases
 remain in [README.md](README.md#whats-new).
 
+## 0.88 - August 6, 2026
+
+- Free Transform works on folders and multi-layer selections. Ctrl+T takes the whole selection as one target set with linked masks riding along, the Move tool frames the same union it would take, and preview-locked smart objects transform in a multi-target session instead of refusing. Corner drags scale proportionally by default, with a preference that restores the old pairing where a plain corner drag distorts and Shift keeps the aspect ratio
+- Floating and docked panels behave. Dragging a tabbed panel's title detaches that one panel, a floating panel gets a visible resizable frame you can drag by its chrome, re-docking snaps a collapsed panel's slot back to its strip instead of leaving a gap that grew with every cycle, dock dividers are visible, and every right dock has a width handle along its full height with panel contents inset clear of it
+- Layer thumbnails zoom to their content by default, and a preference turns that off. Double-clicking one fits the canvas view to that layer's pixels, with folders using their children's union, and Ctrl+Alt-clicking a folder arrow expands or collapses every folder the way Photoshop does
+- Painting on a smart object offers to rasterize it or open its contents instead of doing nothing, filters and destructive adjustments on a text or shape layer ask to rasterize or convert it first instead of silently losing their result on the next edit, and Rasterize reaches the layers inside a selected folder
+- The web build applies the interface scale: the preference used to be saved and ignored there, steps now run from 67% to 200%, and the browser starts at 75%. The scaling happens in the shell page, so clicks land where you aimed them
+- More web work: the layer panel scrolls by rows instead of jumping the whole list on one wheel notch, input arriving during a processing wait no longer corrupts move drags or leaves ghost undos and dead hotkeys after a file picker, and preset import and export use the browser's own picker and download path. Memory is budgeted too, with a history byte budget that accounts for shared data, a heap size and ceiling chosen per device, and live memory use shown in About
+- Affinity import: adjustments attached to a layer arrive as clipped adjustment layers rather than being misread as masks, minified placed images are box-filtered instead of aliasing, opening a file with Image layers can ask whether to keep smart objects or convert them to pixel layers, and resized canvases, lazily decoded placed images, layer names, collapsed groups, and group adjustment scope all match Affinity
+- Text layers keep their transform through Image Size, Canvas Size, Crop, Rotate Canvas, layer flips, and Shift Seams, warped text layers can be edited again without breaking their warp, and the free-transform drag preview applies flip signs
+- Fixes: the document tab bar's scroll arrows are no longer clipped, a committed Free Transform holds its frame until the refresh lands instead of flashing the old geometry, and a filter dialog that unwinds by exception disarms its in-flight preview renders
+
 ## 0.87 - August 4, 2026
 
 - Patchy runs in a web browser now, at [rtsoft.com/patchy](https://www.rtsoft.com/patchy/). It is the same editor compiled to WebAssembly with real threads: files open from your disk, save back as downloads, and drag straight onto the canvas, and nothing you make is ever sent online. The web build bundles 23 MB of open fonts including Japanese coverage, takes dropped font files and font zips that persist between visits, decodes HEIC photos through the browser, and remembers your settings

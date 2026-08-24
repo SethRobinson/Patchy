@@ -189,6 +189,18 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 
 ## What's New
 
+### 0.90 - August 24, 2026
+
+- PDF is now a first-class format. Opening a PDF imports its pages as editable shape, text, and image layers by default, with a flat-image option, reads password-protected files, and converts shadings to gradient fills and spot colors through their tints. Saving as PDF works everywhere, with a choice of flattened pages or editable layers that keep paths, text, and images as real objects, and imported Photoshop text layers export as real selectable PDF text, substituting missing fonts unless you ask for images
+- Trace Image to Shapes converts a raster image, or just the selected area, into editable shape layers, with sliders to tune the result, saveable presets, and a size warning before heavy traces
+- Path point editing is discoverable: dedicated anchor tools with hints, a right-click path menu, and Auto Add/Delete on the Pen, plus Simplify Path and Combine Shapes commands for existing shape layers, and Direct Select drags a whole selection by any of its segments
+- The Mixer Brush has calibrated continuous pickup, Sample All Layers, and a Useful Combinations dropdown with Photoshop-verified presets, and its options bar follows Photoshop's order
+- Photoshop-style stroke Smoothing steadies the Brush, Mixer Brush, and Eraser
+- The Print dialog adds a Copies field and a Print Using System Dialog button, and printing no longer crashes on a printer whose device context fails
+- Ungroup Layers and Copy as SVG join the menus
+- Web build: the Clone tool's brush outline no longer vanishes at large sizes, a bare Alt tap no longer steals browser focus, dialogs open with keyboard focus on the intended widget, and the expanded tool palette stays open
+- Fixes: files with Unicode names save and reopen correctly instead of being mangled by the ANSI code page, Ctrl+H also hides path anchors, handles, and outlines, path anchors appear as soon as the active layer changes, and entry fields use the accent color for text selection
+
 ### 0.89 - August 10, 2026
 
 - Spot Healing (Shift+J) removes blemishes with a single drag and no source pick, and the new Patch tool draws a selection you drag to heal, with Source, Destination, and Transparent modes. Both heal with the classic boundary membrane, and Clone, Healing, Spot Healing, and Patch share one Sample All Layers option
@@ -197,18 +209,6 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 - Curves and Levels histograms match Photoshop's sampling and display, their eyedroppers show when they are armed, and destructive Levels and Hue/Saturation apply much faster
 - The Layer menu is organized into New, Layer Mask, and Arrange submenus
 - Fixes: Image Size, Canvas Size, Crop, and Rotate keep smart-object placements instead of refusing the document, the About dialog stays on screen and can be dragged
-
-### 0.88 - August 6, 2026
-
-- Free Transform works on folders and multi-layer selections. Ctrl+T takes the whole selection as one target set with linked masks riding along, the Move tool frames the same union it would take, and preview-locked smart objects transform in a multi-target session instead of refusing. Corner drags scale proportionally by default, with a preference that restores the old pairing where a plain corner drag distorts and Shift keeps the aspect ratio
-- Floating and docked panels behave. Dragging a tabbed panel's title detaches that one panel, a floating panel gets a visible resizable frame you can drag by its chrome, re-docking snaps a collapsed panel's slot back to its strip instead of leaving a gap that grew with every cycle, dock dividers are visible, and every right dock has a width handle along its full height with panel contents inset clear of it
-- Layer thumbnails zoom to their content by default, and a preference turns that off. Double-clicking one fits the canvas view to that layer's pixels, with folders using their children's union, and Ctrl+Alt-clicking a folder arrow expands or collapses every folder the way Photoshop does
-- Painting on a smart object offers to rasterize it or open its contents instead of doing nothing, filters and destructive adjustments on a text or shape layer ask to rasterize or convert it first instead of silently losing their result on the next edit, and Rasterize reaches the layers inside a selected folder
-- The web build applies the interface scale: the preference used to be saved and ignored there, steps now run from 67% to 200%, and the browser starts at 75%. The scaling happens in the shell page, so clicks land where you aimed them
-- More web work: the layer panel scrolls by rows instead of jumping the whole list on one wheel notch, input arriving during a processing wait no longer corrupts move drags or leaves ghost undos and dead hotkeys after a file picker, and preset import and export use the browser's own picker and download path. Memory is budgeted too, with a history byte budget that accounts for shared data, a heap size and ceiling chosen per device, and live memory use shown in About
-- Affinity import: adjustments attached to a layer arrive as clipped adjustment layers rather than being misread as masks, minified placed images are box-filtered instead of aliasing, opening a file with Image layers can ask whether to keep smart objects or convert them to pixel layers, and resized canvases, lazily decoded placed images, layer names, collapsed groups, and group adjustment scope all match Affinity
-- Text layers keep their transform through Image Size, Canvas Size, Crop, Rotate Canvas, layer flips, and Shift Seams, warped text layers can be edited again without breaking their warp, and the free-transform drag preview applies flip signs
-- Fixes: the document tab bar's scroll arrows are no longer clipped, a committed Free Transform holds its frame until the refresh lands instead of flashing the old geometry, and a filter dialog that unwinds by exception disarms its in-flight preview renders
 
 [Older releases](RELEASE-HISTORY.md)
 
