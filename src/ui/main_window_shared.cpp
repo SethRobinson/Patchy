@@ -439,6 +439,36 @@ PixelBuffer selection_mask_pixels(const CanvasWidget& canvas, QRect selection_re
   return mask_pixels;
 }
 
+PixelBuffer pixels_limited_to_selection(const CanvasWidget& canvas, const PixelBuffer& pixels, Rect bounds) {
+  if (pixels.empty() || pixels.format().bit_depth != BitDepth::UInt8) {
+    return pixels;
+  }
+  const auto coverage = selection_mask_pixels(canvas, QRect(bounds.x, bounds.y, pixels.width(), pixels.height()));
+  PixelBuffer out(pixels.width(), pixels.height(), PixelFormat::rgba8());
+  const auto channels = pixels.format().channels;
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      const auto* src = pixels.pixel(x, y);
+      auto* dst = out.pixel(x, y);
+      if (channels <= 2) {
+        dst[0] = src[0];
+        dst[1] = src[0];
+        dst[2] = src[0];
+        dst[3] = channels == 2 ? src[1] : std::uint8_t{255};
+      } else {
+        dst[0] = src[0];
+        dst[1] = src[1];
+        dst[2] = src[2];
+        dst[3] = channels >= 4 ? src[3] : std::uint8_t{255};
+      }
+      if (*coverage.pixel(x, y) < 128) {
+        dst[3] = 0;  // the tracer's alpha cut: outside the selection is untraced
+      }
+    }
+  }
+  return out;
+}
+
 int proportional_brush_step(int size, int direction, bool coarse) {
   const double f = coarse ? 0.30 : 0.10;
   const int min_step = coarse ? 2 : 1;

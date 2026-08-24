@@ -549,12 +549,13 @@ QJSValue ScriptLayerObject::traceToShapes(const QJSValue& options) {
   if (layer == nullptr) {
     return QJSValue();
   }
-  if (layer->kind() != LayerKind::Pixel || layer->pixels().empty() ||
-      layer->pixels().format().bit_depth != BitDepth::UInt8) {
-    host_.throw_js_error(ScriptEngineHost::tr("traceToShapes needs a pixel layer with 8-bit pixels."));
+  if (layer->kind() != LayerKind::Pixel || layer->pixels().empty()) {
+    host_.throw_js_error(ScriptEngineHost::tr("traceToShapes needs a pixel layer."));
     return QJSValue();
   }
-  const auto result = trace_image(layer->pixels(), trace_options);
+  // The document selection limits the traced area, exactly like the dialog.
+  const auto result = trace_image(
+      host_.pixels_limited_to_selection(session_id_, layer->pixels(), layer->bounds()), trace_options);
   if (result.layers.empty()) {
     return QJSValue(QJSValue::NullValue);
   }

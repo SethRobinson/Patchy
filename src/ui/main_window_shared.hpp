@@ -120,6 +120,13 @@ void run_filter_compute_with_progress(QProgressDialog& progress,
 // selection_rect (document coordinates); 255 = fully selected.
 [[nodiscard]] PixelBuffer selection_mask_pixels(const CanvasWidget& canvas, QRect selection_rect);
 
+// An RGBA8 copy of `pixels` (an 8-bit gray/RGB/RGBA layer buffer positioned
+// at `bounds`) with alpha 0 wherever the canvas selection covers the pixel
+// below 50%. Features that limit their input to the selection (Trace Image
+// to Shapes) trace this copy; deep buffers return unchanged.
+[[nodiscard]] PixelBuffer pixels_limited_to_selection(const CanvasWidget& canvas, const PixelBuffer& pixels,
+                                                      Rect bounds);
+
 // Drop the verbatim PSD effect blocks ('lfx2'/'lrFX'/'plFX') a layer carried in
 // from import. Must be called whenever code replaces layer_style(), or the next
 // PSD save would resurrect the imported effects over the new ones.

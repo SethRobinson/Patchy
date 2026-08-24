@@ -8,6 +8,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <functional>
 #include <vector>
 
@@ -400,9 +401,51 @@ void image_trace_is_deterministic_and_cancellable() {
   CHECK(std::abs(patchy::image_trace_fit_tolerance(100) - 0.25) < 1e-9);
   CHECK(std::abs(patchy::image_trace_corner_angle(0) - 120.0) < 1e-9);
   CHECK(std::abs(patchy::image_trace_corner_angle(100) - 30.0) < 1e-9);
-  // Unsupported formats and transparent images trace to nothing.
-  CHECK(patchy::trace_image(PixelBuffer(8, 8, PixelFormat::rgb16()), options).layers.empty());
+  // Unsupported channel counts and transparent images trace to nothing.
+  CHECK(patchy::trace_image(PixelBuffer(8, 8, PixelFormat{patchy::ColorMode::RGB, patchy::BitDepth::UInt8, 5}),
+                            options)
+            .layers.empty());
   CHECK(patchy::trace_image(solid_image(8, 8, kRed, 0), options).layers.empty());
+}
+
+// 16-bit and float buffers convert to 8-bit (value/257 rounded; floats
+// clamped) and trace like their 8-bit equivalents.
+void image_trace_converts_16_bit_and_float_buffers() {
+  ImageTraceOptions options;
+  options.mode = ImageTraceOptions::Mode::Color;
+  options.colors = 4;
+  options.noise = 1;
+  const auto check_halves = [&](const PixelBuffer& deep) {
+    const auto traced = patchy::trace_image(deep, options);
+    CHECK(traced.layers.size() == 2);
+    bool saw_red = false;
+    bool saw_blue = false;
+    for (const auto& layer : traced.layers) {
+      saw_red = saw_red || (layer.color.red == 255 && layer.color.green == 0 && layer.color.blue == 0);
+      saw_blue = saw_blue || (layer.color.red == 0 && layer.color.green == 0 && layer.color.blue == 255);
+    }
+    CHECK(saw_red);
+    CHECK(saw_blue);
+  };
+
+  PixelBuffer deep16(16, 16, PixelFormat::rgb16());
+  for (std::int32_t y = 0; y < 16; ++y) {
+    for (std::int32_t x = 0; x < 16; ++x) {
+      const std::uint16_t values[3] = {static_cast<std::uint16_t>(x < 8 ? 65535 : 0), 0,
+                                       static_cast<std::uint16_t>(x < 8 ? 0 : 65535)};
+      std::memcpy(deep16.pixel(x, y), values, sizeof(values));
+    }
+  }
+  check_halves(deep16);
+
+  PixelBuffer deep32(16, 16, PixelFormat::rgbf32());
+  for (std::int32_t y = 0; y < 16; ++y) {
+    for (std::int32_t x = 0; x < 16; ++x) {
+      const float values[3] = {x < 8 ? 1.5F : -0.5F, 0.0F, x < 8 ? 0.0F : 1.0F};  // clamps
+      std::memcpy(deep32.pixel(x, y), values, sizeof(values));
+    }
+  }
+  check_halves(deep32);
 }
 
 }  // namespace
@@ -421,5 +464,6 @@ std::vector<patchy::test::TestCase> image_trace_tests() {
       {"image_trace_rasterized_result_matches_source_coverage",
        image_trace_rasterized_result_matches_source_coverage},
       {"image_trace_is_deterministic_and_cancellable", image_trace_is_deterministic_and_cancellable},
+      {"image_trace_converts_16_bit_and_float_buffers", image_trace_converts_16_bit_and_float_buffers},
   };
 }

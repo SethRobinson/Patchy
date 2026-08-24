@@ -5,7 +5,9 @@
 
 #include "core/document.hpp"
 #include "core/vector_shape.hpp"
+#include "ui/app_settings.hpp"
 #include "ui/canvas_widget.hpp"
+#include "ui/image_trace_dialog.hpp"
 #include "ui/main_window.hpp"
 #include "ui/main_window_shared.hpp"
 #include "ui/script_engine.hpp"
@@ -22,13 +24,22 @@
 #include <QDialogButtonBox>
 #include <QElapsedTimer>
 #include <QEventLoop>
+#include <QKeySequence>
 #include <QLabel>
+#include <QLineEdit>
+#include <QListWidget>
+#include <QMenu>
+#include <QMessageBox>
 #include <QPushButton>
+#include <QSlider>
 #include <QSpinBox>
+#include <QStringList>
 #include <QTimer>
+#include <QToolButton>
 #include <QWidget>
 
 #include <cstdint>
+#include <cstdio>
 #include <functional>
 #include <string>
 #include <utility>
@@ -38,9 +49,45 @@ namespace {
 
 using patchy::test::ui::find_top_level_dialog;
 using patchy::test::ui::process_events_until;
+using patchy::test::ui::require_action;
 using patchy::test::ui::require_canvas;
+using patchy::test::ui::require_hotkey_action;
 using patchy::test::ui::save_widget_artifact;
 using patchy::test::ui::show_window;
+using patchy::test::ui::solid_pixels;
+
+constexpr const char* kUserPresetsKey = "imageTrace/userPresets";
+
+// Selects the document-space rectangle (hard edged) on the active canvas.
+void select_document_rect(patchy::ui::CanvasWidget& canvas, int width, int height, QRect rect) {
+  patchy::PixelBuffer selection(width, height, patchy::PixelFormat::gray8());
+  selection.clear(0U);
+  for (int y = rect.top(); y <= rect.bottom(); ++y) {
+    for (int x = rect.left(); x <= rect.right(); ++x) {
+      selection.pixel(x, y)[0] = 255U;
+    }
+  }
+  canvas.replace_selection_from_grayscale(selection, QStringLiteral("Selection"));
+  QApplication::processEvents();
+  CHECK(canvas.has_selection());
+}
+
+// Runs `act` on the top-level dialog named `object_name` once it opens
+// (armed right before the call that opens it: zero-delay timers fire in the
+// FIRST nested loop that runs). A miss is recorded in `failures` instead of
+// thrown: a throw across a modal exec loop aborts the suite, and the record
+// is checked once the outer dialog has closed.
+template <typename Act>
+void when_dialog_opens(QStringList& failures, const char* object_name, Act act) {
+  QTimer::singleShot(0, [&failures, object_name, act] {
+    auto* dialog = find_top_level_dialog(QLatin1String(object_name));
+    if (dialog == nullptr) {
+      failures << QStringLiteral("dialog not found: %1").arg(QLatin1String(object_name));
+      return;
+    }
+    act(*dialog);
+  });
+}
 
 constexpr int kCanvasWidth = 1024;
 constexpr int kCanvasHeight = 768;
@@ -138,15 +185,35 @@ void ui_trace_image_to_shapes_creates_group_and_undoes() {
       auto* preview = dialog->findChild<QWidget*>(QStringLiteral("imageTracePreview"));
       CHECK(mode != nullptr && colors != nullptr && noise != nullptr && method != nullptr && preset != nullptr &&
             info != nullptr && preview != nullptr);
+      auto* spinner = dialog->findChild<QWidget*>(QStringLiteral("imageTraceBusySpinner"));
+      auto* warning = dialog->findChild<QLabel*>(QStringLiteral("imageTraceSizeWarningLabel"));
+      auto* selection_note = dialog->findChild<QLabel*>(QStringLiteral("imageTraceSelectionNoteLabel"));
+      auto* colors_slider = dialog->findChild<QSlider*>(QStringLiteral("imageTraceColorsSlider"));
+      CHECK(spinner != nullptr && warning != nullptr && selection_note != nullptr && colors_slider != nullptr);
+      CHECK(!selection_note->isVisible());  // no selection in this test
       mode->setCurrentIndex(mode->findData(0));  // Color
+      colors->setValue(4);
+      // The slider mirrors the spin box both ways.
+      CHECK(colors_slider->value() == 4);
+      colors_slider->setValue(6);
+      CHECK(colors->value() == 6);
       colors->setValue(4);
       noise->setValue(4);
       method->setCurrentIndex(method->findData(0));  // Abutting
       // Hand-edited settings show as the Custom preset.
       CHECK(preset->currentIndex() == 0);
-      // The debounced preview lands with the layer/anchor summary.
+      // The debounced preview lands with the layer/anchor summary; the busy
+      // spinner shows while the worker runs and hides with the result.
+      bool saw_busy = spinner->isVisible();
       saw_preview = process_events_until(
-          [info] { return info->text().contains(QStringLiteral("shape layer")); }, 15000);
+          [&] {
+            saw_busy = saw_busy || spinner->isVisible();
+            return info->text().contains(QStringLiteral("shape layer"));
+          },
+          15000);
+      CHECK(saw_busy);
+      CHECK(!spinner->isVisible());
+      CHECK(!warning->isVisible());  // three shapes, a few dozen anchors
       save_widget_artifact("ui_image_trace_dialog", *dialog);
       auto* buttons = dialog->findChild<QDialogButtonBox*>(QStringLiteral("imageTraceButtons"));
       CHECK(buttons != nullptr);
@@ -191,6 +258,337 @@ void ui_trace_image_to_shapes_creates_group_and_undoes() {
   const auto* restored_source = restored.find_layer(source_id);
   CHECK(restored_source != nullptr);
   CHECK(restored_source->visible());
+}
+
+void ui_image_trace_large_result_thresholds() {
+  CHECK(!patchy::ui::image_trace_result_is_large(1999, 19999));
+  CHECK(patchy::ui::image_trace_result_is_large(2000, 0));
+  CHECK(patchy::ui::image_trace_result_is_large(0, 20000));
+  CHECK(!patchy::ui::image_trace_result_is_large(0, 0));
+}
+
+void ui_image_trace_user_presets_round_trip() {
+  patchy::ui::ImageTraceUserPreset first;
+  first.name = QStringLiteral("Poster");
+  first.options.mode = patchy::ImageTraceOptions::Mode::Grayscale;
+  first.options.colors = 5;
+  first.options.paths = 70;
+  first.options.corners = 40;
+  first.options.noise = 12;
+  first.options.method = patchy::ImageTraceOptions::Method::Overlapping;
+  first.options.snap_curves_to_lines = true;
+  first.options.ignore_white = true;
+  patchy::ui::ImageTraceUserPreset second;
+  second.name = QStringLiteral("Ink");
+  second.options.mode = patchy::ImageTraceOptions::Mode::BlackAndWhite;
+  second.options.threshold = 90;
+  const auto json = patchy::ui::serialize_image_trace_user_presets({first, second});
+  const auto restored = patchy::ui::deserialize_image_trace_user_presets(json);
+  CHECK(restored.size() == 2);
+  CHECK(restored[0].name == first.name && restored[0].options == first.options);
+  CHECK(restored[1].name == second.name && restored[1].options == second.options);
+
+  // Malformed elements are skipped one at a time; the neighbors survive.
+  const auto partial = patchy::ui::deserialize_image_trace_user_presets(
+      QByteArray("[{\"name\":\"Good\",\"colors\":9}, 7, {\"colors\":3}, {\"name\":\"good\",\"colors\":2}]"));
+  CHECK(partial.size() == 1);
+  CHECK(partial[0].name == QStringLiteral("Good") && partial[0].options.colors == 9);
+  CHECK(patchy::ui::deserialize_image_trace_user_presets(QByteArray("not json")).empty());
+
+  auto settings = patchy::ui::app_settings();
+  settings.remove(QLatin1String(kUserPresetsKey));
+  patchy::ui::save_image_trace_user_presets({first});
+  CHECK(patchy::ui::app_settings().contains(QLatin1String(kUserPresetsKey)));
+  const auto loaded = patchy::ui::load_image_trace_user_presets();
+  CHECK(loaded.size() == 1 && loaded[0].name == first.name && loaded[0].options == first.options);
+  patchy::ui::save_image_trace_user_presets({});
+  CHECK(!patchy::ui::app_settings().contains(QLatin1String(kUserPresetsKey)));
+}
+
+void ui_trace_image_dialog_saves_and_deletes_user_preset() {
+  patchy::ui::app_settings().remove(QLatin1String(kUserPresetsKey));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  paint_trace_source(window);
+
+  bool drove = false;
+  QStringList failures;
+  const auto expect = [&failures](bool condition, const char* what) {
+    if (!condition) {
+      failures << QLatin1String(what);
+    }
+  };
+  const std::function<void(int)> drive_dialog = [&](int attempts) {
+    QTimer::singleShot(0, [&, attempts] {
+      auto* dialog = find_top_level_dialog(QStringLiteral("imageTraceDialog"));
+      if (dialog == nullptr) {
+        if (attempts > 0) {
+          drive_dialog(attempts - 1);
+        }
+        return;
+      }
+      drove = true;
+      auto* colors = dialog->findChild<QSpinBox*>(QStringLiteral("imageTraceColorsSpin"));
+      auto* noise = dialog->findChild<QSpinBox*>(QStringLiteral("imageTraceNoiseSpin"));
+      auto* preset = dialog->findChild<QComboBox*>(QStringLiteral("imageTracePresetCombo"));
+      auto* save = dialog->findChild<QToolButton*>(QStringLiteral("imageTraceSavePresetButton"));
+      auto* remove = dialog->findChild<QToolButton*>(QStringLiteral("imageTraceDeletePresetButton"));
+      auto* buttons = dialog->findChild<QDialogButtonBox*>(QStringLiteral("imageTraceButtons"));
+      if (colors == nullptr || noise == nullptr || preset == nullptr || save == nullptr || remove == nullptr ||
+          buttons == nullptr) {
+        failures << QStringLiteral("dialog controls missing");
+        dialog->reject();
+        return;
+      }
+      colors->setValue(4);
+      noise->setValue(4);
+      expect(preset->currentIndex() == 0, "hand-edited settings show Custom");
+      expect(!remove->isEnabled(), "Delete disabled for Custom");
+
+      // Save... prompts for a name; the new row is selected and deletable.
+      when_dialog_opens(failures, "imageTraceSavePresetNameDialog", [&expect](QDialog& prompt) {
+        auto* edit = prompt.findChild<QLineEdit*>();
+        expect(edit != nullptr, "name prompt has a line edit");
+        if (edit != nullptr) {
+          edit->setText(QStringLiteral("Test Preset"));
+        }
+        prompt.accept();
+      });
+      save->click();
+      QApplication::processEvents();
+      expect(preset->currentText() == QStringLiteral("Test Preset"), "saved preset selected");
+      expect(remove->isEnabled(), "Delete enabled for the user preset");
+      expect(patchy::ui::app_settings().value(QLatin1String(kUserPresetsKey)).toByteArray().contains("Test Preset"),
+             "preset persisted");
+
+      // Editing drops back to Custom; re-picking the row restores the values.
+      noise->setValue(5);
+      expect(preset->currentIndex() == 0, "edit returns to Custom");
+      expect(!remove->isEnabled(), "Delete disabled again");
+      const auto row = preset->findText(QStringLiteral("Test Preset"));
+      expect(row > 0, "user preset row exists");
+      if (row > 0) {
+        preset->setCurrentIndex(row);
+        emit preset->activated(row);
+        QApplication::processEvents();
+      }
+      expect(noise->value() == 4, "re-picking restores noise");
+      expect(remove->isEnabled(), "Delete enabled after re-pick");
+
+      // A built-in name is refused (the message box opens after the prompt
+      // closes, so its finder is armed from inside the prompt's callback).
+      when_dialog_opens(failures, "imageTraceSavePresetNameDialog", [&failures](QDialog& prompt) {
+        if (auto* edit = prompt.findChild<QLineEdit*>(); edit != nullptr) {
+          edit->setText(QStringLiteral("3 Colors"));
+        }
+        when_dialog_opens(failures, "imageTracePresetNameMessageBox", [](QDialog& box) { box.reject(); });
+        prompt.accept();
+      });
+      save->click();
+      QApplication::processEvents();
+      expect(patchy::ui::load_image_trace_user_presets().size() == 1, "built-in name refused");
+
+      // Delete asks, then removes the row and the setting.
+      when_dialog_opens(failures, "imageTraceDeletePresetMessageBox", [&expect](QDialog& box) {
+        auto* message = qobject_cast<QMessageBox*>(&box);
+        expect(message != nullptr, "delete confirmation is a message box");
+        if (message != nullptr) {
+          message->button(QMessageBox::Yes)->click();
+        } else {
+          box.reject();
+        }
+      });
+      remove->click();
+      QApplication::processEvents();
+      expect(preset->findText(QStringLiteral("Test Preset")) < 0, "deleted row gone");
+      expect(preset->currentIndex() == 0, "Custom after delete");
+      expect(!patchy::ui::app_settings().contains(QLatin1String(kUserPresetsKey)), "setting removed");
+      buttons->button(QDialogButtonBox::Cancel)->click();
+    });
+  };
+  drive_dialog(5);
+  require_action(window, "layerTraceImageAction")->trigger();
+  QApplication::processEvents();
+  CHECK(drove);
+  for (const auto& failure : failures) {
+    std::fprintf(stderr, "  preset dialog: %s\n", qPrintable(failure));
+  }
+  CHECK(failures.isEmpty());
+  patchy::ui::app_settings().remove(QLatin1String(kUserPresetsKey));
+}
+
+void ui_layer_context_menu_offers_trace_image_to_shapes() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  paint_trace_source(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr && layer_list->count() > 0);
+
+  bool saw_menu = false;
+  QStringList action_names;
+  int poll_attempts = 0;
+  QTimer poller;
+  QObject::connect(&poller, &QTimer::timeout, [&] {
+    if (++poll_attempts > 500) {
+      poller.stop();
+      return;
+    }
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* menu = qobject_cast<QMenu*>(widget);
+      if (menu != nullptr && menu->objectName() == QStringLiteral("layerContextMenu") && menu->isVisible()) {
+        saw_menu = true;
+        for (auto* action : menu->actions()) {
+          action_names << action->objectName();
+        }
+        menu->close();
+        poller.stop();
+        return;
+      }
+    }
+  });
+  poller.start(10);
+  QMetaObject::invokeMethod(
+      &window,
+      [&window, layer_list] {
+        patchy::ui::MainWindowTestAccess::show_layer_context_menu(
+            window, layer_list->visualItemRect(layer_list->item(0)).center());
+      },
+      Qt::QueuedConnection);
+  QApplication::processEvents();
+  for (int i = 0; i < 200 && !saw_menu && poll_attempts <= 500; ++i) {
+    QApplication::processEvents(QEventLoop::AllEvents, 20);
+  }
+  poller.stop();
+  CHECK(saw_menu);
+  const auto trace_index = action_names.indexOf(QStringLiteral("layerTraceImageAction"));
+  const auto rasterize_index = action_names.indexOf(QStringLiteral("layerRasterizeAction"));
+  CHECK(trace_index >= 0);
+  CHECK(rasterize_index >= 0 && trace_index > rasterize_index);
+
+  // The command also has a default shortcut now.
+  auto* action = require_hotkey_action(window, QStringLiteral("layer.trace_image_to_shapes"));
+  CHECK(action != nullptr);
+  CHECK(action->shortcut() == QKeySequence(Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_T));
+}
+
+void ui_pixels_limited_to_selection_zeroes_alpha_outside() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::Document built(100, 80, patchy::PixelFormat::rgba8());
+  built.add_pixel_layer("Layer", solid_pixels(100, 80, patchy::PixelFormat::rgba8(), QColor(10, 20, 30, 255)));
+  window.add_document_session(std::move(built), QStringLiteral("Limited"));
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto active = document.active_layer_id();
+  CHECK(active.has_value());
+  const auto* layer = std::as_const(document).find_layer(*active);
+  CHECK(layer != nullptr);
+
+  // Hard rectangle plus a half-covered band: coverage below 50% is outside.
+  patchy::PixelBuffer selection(100, 80, patchy::PixelFormat::gray8());
+  selection.clear(0U);
+  for (int y = 10; y <= 40; ++y) {
+    for (int x = 10; x <= 40; ++x) {
+      selection.pixel(x, y)[0] = 255U;
+    }
+    for (int x = 50; x <= 60; ++x) {
+      selection.pixel(x, y)[0] = 100U;
+    }
+  }
+  canvas->replace_selection_from_grayscale(selection, QStringLiteral("Selection"));
+  QApplication::processEvents();
+  CHECK(canvas->has_selection());
+
+  const auto limited = patchy::ui::pixels_limited_to_selection(*canvas, layer->pixels(), layer->bounds());
+  CHECK(limited.width() == 100 && limited.height() == 80);
+  CHECK(limited.format().channels == 4);
+  CHECK(limited.pixel(20, 20)[3] == 255 && limited.pixel(20, 20)[0] == 10);
+  CHECK(limited.pixel(5, 5)[3] == 0);
+  CHECK(limited.pixel(55, 20)[3] == 0);
+  CHECK(limited.pixel(70, 70)[3] == 0);
+}
+
+void ui_trace_image_to_shapes_limits_to_selection() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto source_id = paint_trace_source(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto source_name = QString::fromStdString(document.find_layer(source_id)->name());
+  // The selection holds the red square and some white; the blue ring is outside.
+  select_document_rect(*require_canvas(window), kCanvasWidth, kCanvasHeight, QRect(50, 50, 300, 300));
+
+  bool saw_note = false;
+  const std::function<void(int)> drive_dialog = [&](int attempts) {
+    QTimer::singleShot(0, [&, attempts] {
+      auto* dialog = find_top_level_dialog(QStringLiteral("imageTraceDialog"));
+      if (dialog == nullptr) {
+        if (attempts > 0) {
+          drive_dialog(attempts - 1);
+        }
+        return;
+      }
+      auto* mode = dialog->findChild<QComboBox*>(QStringLiteral("imageTraceModeCombo"));
+      auto* colors = dialog->findChild<QSpinBox*>(QStringLiteral("imageTraceColorsSpin"));
+      auto* noise = dialog->findChild<QSpinBox*>(QStringLiteral("imageTraceNoiseSpin"));
+      auto* method = dialog->findChild<QComboBox*>(QStringLiteral("imageTraceMethodCombo"));
+      auto* info = dialog->findChild<QLabel*>(QStringLiteral("imageTracePreviewInfo"));
+      auto* note = dialog->findChild<QLabel*>(QStringLiteral("imageTraceSelectionNoteLabel"));
+      CHECK(mode != nullptr && colors != nullptr && noise != nullptr && method != nullptr && info != nullptr &&
+            note != nullptr);
+      saw_note = note->isVisible();
+      mode->setCurrentIndex(mode->findData(0));
+      colors->setValue(4);
+      noise->setValue(4);
+      method->setCurrentIndex(method->findData(0));
+      CHECK(process_events_until([info] { return info->text().contains(QStringLiteral("shape layer")); }, 15000));
+      auto* buttons = dialog->findChild<QDialogButtonBox*>(QStringLiteral("imageTraceButtons"));
+      CHECK(buttons != nullptr);
+      buttons->button(QDialogButtonBox::Ok)->click();
+    });
+  };
+  drive_dialog(5);
+  require_action(window, "layerTraceImageAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_note);
+
+  const auto* group = find_layer_named(document.layers(), QStringLiteral("Traced %1").arg(source_name));
+  CHECK(group != nullptr);
+  CHECK(group_holds_shape_layers(*group, 2));
+  CHECK(find_layer_named(group->children(), QStringLiteral("#DC1E1E")) != nullptr);
+  CHECK(find_layer_named(group->children(), QStringLiteral("#FFFFFF")) != nullptr);
+  CHECK(find_layer_named(group->children(), QStringLiteral("#1E28DC")) == nullptr);
+}
+
+void ui_script_trace_to_shapes_uses_selection() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  paint_trace_source(window);
+  select_document_rect(*require_canvas(window), kCanvasWidth, kCanvasHeight, QRect(50, 50, 300, 300));
+  auto& host = window.script_engine_host();
+  patchy::ui::ScriptEngineHost::RunOptions options;
+  options.name = QStringLiteral("trace-selection-test");
+  (void)host.run_source(QStringLiteral(R"JS(
+    var group = app.activeDocument.activeLayer.traceToShapes({mode: 'color', colors: 4, noise: 4});
+    var names = [];
+    for (var i = 0; i < group.children.length; ++i) { names.push(group.children[i].name); }
+    console.log('names:' + names.sort().join(','));
+  )JS"),
+                         std::move(options));
+  QElapsedTimer timer;
+  timer.start();
+  while (host.run_active() && timer.elapsed() < 30000) {
+    QApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 20);
+  }
+  QApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 20);
+  CHECK(!host.run_active());
+  CHECK(!host.last_run_had_error());
+  bool saw_names = false;
+  for (const auto& line : host.message_backlog()) {
+    saw_names = saw_names || line.contains(QStringLiteral("names:#DC1E1E,#FFFFFF"));
+    CHECK(!line.contains(QStringLiteral("#1E28DC")));
+  }
+  CHECK(saw_names);
 }
 
 void ui_script_trace_to_shapes_returns_group() {
@@ -257,5 +655,15 @@ std::vector<patchy::test::TestCase> image_trace_ui_tests() {
   return {
       {"ui_trace_image_to_shapes_creates_group_and_undoes", ui_trace_image_to_shapes_creates_group_and_undoes},
       {"ui_script_trace_to_shapes_returns_group", ui_script_trace_to_shapes_returns_group},
+      {"ui_image_trace_large_result_thresholds", ui_image_trace_large_result_thresholds},
+      {"ui_image_trace_user_presets_round_trip", ui_image_trace_user_presets_round_trip},
+      {"ui_trace_image_dialog_saves_and_deletes_user_preset",
+       ui_trace_image_dialog_saves_and_deletes_user_preset},
+      {"ui_layer_context_menu_offers_trace_image_to_shapes",
+       ui_layer_context_menu_offers_trace_image_to_shapes},
+      {"ui_pixels_limited_to_selection_zeroes_alpha_outside",
+       ui_pixels_limited_to_selection_zeroes_alpha_outside},
+      {"ui_trace_image_to_shapes_limits_to_selection", ui_trace_image_to_shapes_limits_to_selection},
+      {"ui_script_trace_to_shapes_uses_selection", ui_script_trace_to_shapes_uses_selection},
   };
 }

@@ -9,8 +9,9 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
-#include <iterator>
 #include <cstdio>
+#include <cstring>
+#include <iterator>
 #include <limits>
 #include <utility>
 
@@ -55,6 +56,47 @@ struct SourcePixel {
 [[nodiscard]] bool format_supported(const PixelBuffer& pixels) noexcept {
   return !pixels.empty() && pixels.format().bit_depth == BitDepth::UInt8 && pixels.format().channels >= 1 &&
          pixels.format().channels <= 4;
+}
+
+// 16-bit and float buffers convert to 8-bit before tracing: value/257 with
+// rounding for UInt16 (the PSD importer's rule), clamp 0..1 then round for
+// Float32 (in-memory floats carry no encoding; linear is the documented
+// assumption). Channel meaning follows read_pixel.
+[[nodiscard]] PixelBuffer convert_deep_to_rgba8(const PixelBuffer& pixels) {
+  PixelBuffer out(pixels.width(), pixels.height(), PixelFormat::rgba8());
+  const auto channels = pixels.format().channels;
+  const auto depth = pixels.format().bit_depth;
+  const auto channel_bytes = bytes_per_channel(depth);
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      const auto* src = pixels.pixel(x, y);
+      const auto read = [&](std::size_t channel) -> std::uint8_t {
+        const auto* bytes = src + channel * channel_bytes;
+        if (depth == BitDepth::UInt16) {
+          std::uint16_t value = 0;
+          std::memcpy(&value, bytes, sizeof(value));
+          return static_cast<std::uint8_t>((static_cast<std::uint32_t>(value) + 128U) / 257U);
+        }
+        float value = 0.0F;
+        std::memcpy(&value, bytes, sizeof(value));
+        return static_cast<std::uint8_t>(std::lround(std::clamp(value, 0.0F, 1.0F) * 255.0F));
+      };
+      auto* dst = out.pixel(x, y);
+      if (channels <= 2) {
+        const auto gray = read(0);
+        dst[0] = gray;
+        dst[1] = gray;
+        dst[2] = gray;
+        dst[3] = channels == 2 ? read(1) : std::uint8_t{255};
+      } else {
+        dst[0] = read(0);
+        dst[1] = read(1);
+        dst[2] = read(2);
+        dst[3] = channels >= 4 ? read(3) : std::uint8_t{255};
+      }
+    }
+  }
+  return out;
 }
 
 struct LabelMap {
@@ -647,6 +689,12 @@ double image_trace_corner_angle(int corners) noexcept {
 ImageTraceResult trace_image(const PixelBuffer& pixels, const ImageTraceOptions& options,
                              const std::function<bool()>& cancelled) {
   ImageTraceResult result;
+  if (!pixels.empty() && pixels.format().bit_depth != BitDepth::UInt8) {
+    if (pixels.format().channels < 1 || pixels.format().channels > 4) {
+      return result;
+    }
+    return trace_image(convert_deep_to_rgba8(pixels), options, cancelled);
+  }
   if (!format_supported(pixels)) {
     return result;
   }

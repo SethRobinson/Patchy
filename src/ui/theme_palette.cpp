@@ -227,6 +227,7 @@ const ThemePalette& dark_palette() {
       .canvas_hud_border = rgb(0x4e5660),
       .canvas_hud_text = rgb(0xeef2f7),
       .canvas_hud_spinner = rgb(0xeef4fa),
+      .dialog_busy_spinner = rgb(0x6fb1e8),
       .brush_leash = rgb(0xb48aff),
 
       // Scroll bars.
@@ -833,6 +834,7 @@ std::span<const ThemePaletteRole> theme_palette_roles() {
       PATCHY_THEME_ROLE(canvas_hud_border),
       PATCHY_THEME_ROLE(canvas_hud_text),
       PATCHY_THEME_ROLE(canvas_hud_spinner),
+      PATCHY_THEME_ROLE(dialog_busy_spinner),
       PATCHY_THEME_ROLE(brush_leash),
 
       PATCHY_THEME_ROLE(canvas_scrollbar_track),

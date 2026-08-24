@@ -1861,12 +1861,19 @@ void MainWindow::trace_image_to_shapes() {
     }
   }
   const auto& source_pixels = std::as_const(*layer).pixels();
-  if (source_pixels.empty() || source_pixels.format().bit_depth != BitDepth::UInt8) {
-    show_status_error(tr("The layer has no 8-bit pixels to trace"));
+  if (source_pixels.empty()) {
+    show_status_error(tr("The layer has no pixels to trace"));
     return;
   }
-  auto pixels = std::make_shared<const PixelBuffer>(source_pixels);
-  const auto chosen = request_image_trace(this, pixels, image_trace_options_from_settings());
+  // An active selection limits the traced area: pixels outside it become
+  // untraced on the input copy, a per-pixel predicate like alpha < 128. The
+  // parameters stay global (docs/legal-constraints.md, "Vector tracing").
+  const bool inside_selection = canvas_->has_selection();
+  auto pixels = std::make_shared<const PixelBuffer>(
+      inside_selection ? pixels_limited_to_selection(*canvas_, source_pixels, std::as_const(*layer).bounds())
+                       : source_pixels);
+  const auto chosen =
+      request_image_trace(this, pixels, image_trace_options_from_settings(), inside_selection);
   if (!chosen.has_value()) {
     return;
   }

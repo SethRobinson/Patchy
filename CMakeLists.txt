@@ -852,6 +852,7 @@ if(PATCHY_BUILD_APP)
       src/ui/hotkey_registry.cpp
       src/ui/image_document_io.cpp
       src/ui/image_trace_dialog.hpp
+      src/ui/activity_spinner.cpp
       src/ui/image_trace_dialog.cpp
       src/ui/image_save_options_dialog.cpp
       src/ui/layer_style_dialog.cpp

@@ -1,5 +1,7 @@
 #include "ui/image_trace_dialog.hpp"
 
+#include "ui/activity_spinner.hpp"
+#include "ui/app_settings.hpp"
 #include "ui/background_workers.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/theme_palette.hpp"
@@ -13,7 +15,12 @@
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QImage>
+#include <QInputDialog>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QLabel>
+#include <QMessageBox>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPushButton>
@@ -42,6 +49,13 @@ namespace {
 constexpr double kMaxPreviewZoom = 16.0;
 constexpr double kMinPreviewZoom = 0.0625;
 constexpr int kPreviewDebounceMs = 150;
+constexpr std::size_t kLargeTraceAnchors = 20000;
+constexpr std::size_t kLargeTraceLayers = 2000;
+constexpr const char* kUserPresetsSettingsKey = "imageTrace/userPresets";
+// Preset combo item data (Qt::UserRole = kind, Qt::UserRole + 1 = index).
+constexpr int kPresetKindCustom = 0;
+constexpr int kPresetKindBuiltin = 1;
+constexpr int kPresetKindUser = 2;
 
 using Mode = ImageTraceOptions::Mode;
 using Method = ImageTraceOptions::Method;
@@ -82,7 +96,7 @@ public:
     setObjectName(QStringLiteral("imageTracePreview"));
     setMinimumSize(420, 320);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    setCursor(Qt::OpenHandCursor);
+    refresh_cursor();
     setToolTip(QObject::tr("Drag to pan. The mouse wheel zooms."));
     pan_center_ = QPointF(document_size_.width() / 2.0, document_size_.height() / 2.0);
   }
@@ -98,6 +112,18 @@ public:
   [[nodiscard]] bool has_rendered() const noexcept { return !rendered_.isNull(); }
   [[nodiscard]] double zoom() const { return fit_mode_ ? fit_zoom() : zoom_; }
   [[nodiscard]] bool fit_mode() const noexcept { return fit_mode_; }
+
+  // The arrow-plus-hourglass cursor while a trace runs; panning still works.
+  void set_busy(bool busy) {
+    if (busy_ == busy) {
+      return;
+    }
+    busy_ = busy;
+    refresh_cursor();
+  }
+  void refresh_cursor() {
+    setCursor(busy_ ? Qt::BusyCursor : panning_ ? Qt::ClosedHandCursor : Qt::OpenHandCursor);
+  }
 
   void zoom_to_fit() {
     fit_mode_ = true;
@@ -192,7 +218,7 @@ protected:
       panning_ = true;
       pan_press_position_ = event->position();
       pan_press_center_ = pan_center_;
-      setCursor(Qt::ClosedHandCursor);
+      refresh_cursor();
       event->accept();
       return;
     }
@@ -216,7 +242,7 @@ protected:
   void mouseReleaseEvent(QMouseEvent* event) override {
     if (event->button() == Qt::LeftButton && panning_) {
       panning_ = false;
-      setCursor(Qt::OpenHandCursor);
+      refresh_cursor();
       event->accept();
       return;
     }
@@ -288,6 +314,7 @@ private:
   double zoom_{1.0};
   bool fit_mode_{true};
   bool panning_{false};
+  bool busy_{false};
 };
 
 // One in-flight trace at a time with a one-deep latest-wins queue (the async
@@ -354,8 +381,88 @@ const std::vector<ImageTracePreset>& image_trace_presets() {
   return presets;
 }
 
+bool image_trace_result_is_large(std::size_t layers, std::size_t anchors) noexcept {
+  return layers >= kLargeTraceLayers || anchors >= kLargeTraceAnchors;
+}
+
+QByteArray serialize_image_trace_user_presets(const std::vector<ImageTraceUserPreset>& presets) {
+  QJsonArray array;
+  for (const auto& preset : presets) {
+    QJsonObject object;
+    object.insert(QStringLiteral("name"), preset.name);
+    object.insert(QStringLiteral("mode"), static_cast<int>(preset.options.mode));
+    object.insert(QStringLiteral("colors"), preset.options.colors);
+    object.insert(QStringLiteral("threshold"), preset.options.threshold);
+    object.insert(QStringLiteral("paths"), preset.options.paths);
+    object.insert(QStringLiteral("corners"), preset.options.corners);
+    object.insert(QStringLiteral("noise"), preset.options.noise);
+    object.insert(QStringLiteral("method"), static_cast<int>(preset.options.method));
+    object.insert(QStringLiteral("snapCurvesToLines"), preset.options.snap_curves_to_lines);
+    object.insert(QStringLiteral("ignoreWhite"), preset.options.ignore_white);
+    array.push_back(object);
+  }
+  return QJsonDocument(array).toJson(QJsonDocument::Compact);
+}
+
+std::vector<ImageTraceUserPreset> deserialize_image_trace_user_presets(const QByteArray& json) {
+  std::vector<ImageTraceUserPreset> presets;
+  QJsonParseError error;
+  const auto document = QJsonDocument::fromJson(json, &error);
+  if (error.error != QJsonParseError::NoError || !document.isArray()) {
+    return presets;
+  }
+  for (const auto& value : document.array()) {
+    if (!value.isObject()) {
+      continue;
+    }
+    const auto object = value.toObject();
+    const auto name = object.value(QStringLiteral("name")).toString().trimmed();
+    if (name.isEmpty()) {
+      continue;
+    }
+    const bool duplicate = std::any_of(presets.begin(), presets.end(), [&name](const ImageTraceUserPreset& preset) {
+      return preset.name.compare(name, Qt::CaseInsensitive) == 0;
+    });
+    if (duplicate) {
+      continue;
+    }
+    ImageTraceOptions options;
+    const auto read_int = [&object](const char* key, int fallback, int low, int high) {
+      const auto entry = object.value(QLatin1String(key));
+      return entry.isDouble() ? std::clamp(entry.toInt(), low, high) : fallback;
+    };
+    options.mode = static_cast<Mode>(read_int("mode", static_cast<int>(options.mode), 0, 2));
+    options.colors =
+        read_int("colors", options.colors, ImageTraceOptions::kMinColors, ImageTraceOptions::kMaxColors);
+    options.threshold = read_int("threshold", options.threshold, 1, 255);
+    options.paths = read_int("paths", options.paths, 0, 100);
+    options.corners = read_int("corners", options.corners, 0, 100);
+    options.noise = read_int("noise", options.noise, 1, 100);
+    options.method = static_cast<Method>(read_int("method", static_cast<int>(options.method), 0, 1));
+    options.snap_curves_to_lines =
+        object.value(QStringLiteral("snapCurvesToLines")).toBool(options.snap_curves_to_lines);
+    options.ignore_white = object.value(QStringLiteral("ignoreWhite")).toBool(options.ignore_white);
+    presets.push_back(ImageTraceUserPreset{name, options});
+  }
+  return presets;
+}
+
+std::vector<ImageTraceUserPreset> load_image_trace_user_presets() {
+  auto settings = app_settings();
+  return deserialize_image_trace_user_presets(settings.value(QLatin1String(kUserPresetsSettingsKey)).toByteArray());
+}
+
+void save_image_trace_user_presets(const std::vector<ImageTraceUserPreset>& presets) {
+  auto settings = app_settings();
+  if (presets.empty()) {
+    settings.remove(QLatin1String(kUserPresetsSettingsKey));
+    return;
+  }
+  settings.setValue(QLatin1String(kUserPresetsSettingsKey), serialize_image_trace_user_presets(presets));
+}
+
 std::optional<ImageTraceDialogResult> request_image_trace(QWidget* parent, std::shared_ptr<const PixelBuffer> pixels,
-                                                          const ImageTraceOptions& initial) {
+                                                          const ImageTraceOptions& initial, bool inside_selection) {
   if (pixels == nullptr || pixels->empty()) {
     return std::nullopt;
   }
@@ -371,12 +478,54 @@ std::optional<ImageTraceDialogResult> request_image_trace(QWidget* parent, std::
 
   auto* preset_combo = new QComboBox(&dialog);
   preset_combo->setObjectName(QStringLiteral("imageTracePresetCombo"));
-  preset_combo->addItem(QObject::tr("Custom"));
+  auto* save_preset = new QToolButton(&dialog);
+  save_preset->setObjectName(QStringLiteral("imageTraceSavePresetButton"));
+  save_preset->setText(QObject::tr("Save..."));
+  save_preset->setToolTip(QObject::tr("Save the current settings as a preset"));
+  save_preset->setAutoRaise(true);
+  auto* delete_preset = new QToolButton(&dialog);
+  delete_preset->setObjectName(QStringLiteral("imageTraceDeletePresetButton"));
+  delete_preset->setText(QObject::tr("Delete"));
+  delete_preset->setToolTip(QObject::tr("Delete the selected user preset"));
+  delete_preset->setAutoRaise(true);
+  delete_preset->setEnabled(false);
+  auto* preset_row = new QWidget(&dialog);
+  auto* preset_layout = new QHBoxLayout(preset_row);
+  preset_layout->setContentsMargins(0, 0, 0, 0);
+  preset_layout->setSpacing(4);
+  preset_layout->addWidget(preset_combo, 1);
+  preset_layout->addWidget(save_preset);
+  preset_layout->addWidget(delete_preset);
+  form->addRow(QObject::tr("Preset:"), preset_row);
   const auto& presets = image_trace_presets();
-  for (const auto& preset : presets) {
-    preset_combo->addItem(QObject::tr(preset.english_name));
-  }
-  form->addRow(QObject::tr("Preset:"), preset_combo);
+  auto user_presets = load_image_trace_user_presets();
+  // Rows: Custom, the built-ins, a separator, then the user presets.
+  const auto rebuild_preset_combo = [&] {
+    const QSignalBlocker block(preset_combo);
+    preset_combo->clear();
+    preset_combo->addItem(QObject::tr("Custom"), kPresetKindCustom);
+    for (std::size_t i = 0; i < presets.size(); ++i) {
+      preset_combo->addItem(QObject::tr(presets[i].english_name), kPresetKindBuiltin);
+      preset_combo->setItemData(preset_combo->count() - 1, static_cast<int>(i), Qt::UserRole + 1);
+    }
+    if (!user_presets.empty()) {
+      preset_combo->insertSeparator(preset_combo->count());
+      for (std::size_t i = 0; i < user_presets.size(); ++i) {
+        preset_combo->addItem(user_presets[i].name, kPresetKindUser);
+        preset_combo->setItemData(preset_combo->count() - 1, static_cast<int>(i), Qt::UserRole + 1);
+      }
+    }
+  };
+  const auto preset_row_for = [&](int kind, int index) {
+    for (int row = 0; row < preset_combo->count(); ++row) {
+      if (preset_combo->itemData(row, Qt::UserRole).toInt() == kind &&
+          (kind == kPresetKindCustom || preset_combo->itemData(row, Qt::UserRole + 1).toInt() == index)) {
+        return row;
+      }
+    }
+    return 0;
+  };
+  rebuild_preset_combo();
 
   auto* mode_combo = new QComboBox(&dialog);
   mode_combo->setObjectName(QStringLiteral("imageTraceModeCombo"));
@@ -385,39 +534,37 @@ std::optional<ImageTraceDialogResult> request_image_trace(QWidget* parent, std::
   mode_combo->addItem(QObject::tr("Black and White"), static_cast<int>(Mode::BlackAndWhite));
   form->addRow(QObject::tr("Mode:", "image trace"), mode_combo);
 
-  auto* colors_spin = new QSpinBox(&dialog);
-  colors_spin->setObjectName(QStringLiteral("imageTraceColorsSpin"));
-  colors_spin->setRange(ImageTraceOptions::kMinColors, ImageTraceOptions::kMaxColors);
-  auto* colors_label = new QLabel(QObject::tr("Colors:"), &dialog);
-  form->addRow(colors_label, colors_spin);
+  // Slider + spin rows (the nudge-and-look controls); the spin boxes keep
+  // their object names and the row widgets carry the tooltips.
+  auto* colors_spin = add_dialog_slider_spin_row(
+      form, &dialog, QObject::tr("Colors:"), QStringLiteral("imageTraceColorsSlider"),
+      QStringLiteral("imageTraceColorsSpin"), ImageTraceOptions::kMinColors, ImageTraceOptions::kMaxColors,
+      initial.colors);
+  auto* colors_label = qobject_cast<QLabel*>(form->labelForField(colors_spin->parentWidget()));
 
-  auto* threshold_spin = new QSpinBox(&dialog);
-  threshold_spin->setObjectName(QStringLiteral("imageTraceThresholdSpin"));
-  threshold_spin->setRange(1, 255);
-  threshold_spin->setToolTip(QObject::tr("Pixels darker than this luminance become black"));
-  auto* threshold_label = new QLabel(QObject::tr("Threshold:"), &dialog);
-  form->addRow(threshold_label, threshold_spin);
+  auto* threshold_spin = add_dialog_slider_spin_row(
+      form, &dialog, QObject::tr("Threshold:"), QStringLiteral("imageTraceThresholdSlider"),
+      QStringLiteral("imageTraceThresholdSpin"), 1, 255, initial.threshold);
+  threshold_spin->parentWidget()->setToolTip(QObject::tr("Pixels darker than this luminance become black"));
 
-  auto* paths_spin = new QSpinBox(&dialog);
-  paths_spin->setObjectName(QStringLiteral("imageTracePathsSpin"));
-  paths_spin->setRange(0, 100);
-  paths_spin->setSuffix(QStringLiteral("%"));
-  paths_spin->setToolTip(QObject::tr("Higher values follow the pixels more tightly and use more anchors"));
-  form->addRow(QObject::tr("Paths:"), paths_spin);
+  auto* paths_spin = add_dialog_slider_spin_row(form, &dialog, QObject::tr("Paths:"),
+                                                QStringLiteral("imageTracePathsSlider"),
+                                                QStringLiteral("imageTracePathsSpin"), 0, 100, initial.paths,
+                                                QStringLiteral("%"));
+  paths_spin->parentWidget()->setToolTip(
+      QObject::tr("Higher values follow the pixels more tightly and use more anchors"));
 
-  auto* corners_spin = new QSpinBox(&dialog);
-  corners_spin->setObjectName(QStringLiteral("imageTraceCornersSpin"));
-  corners_spin->setRange(0, 100);
-  corners_spin->setSuffix(QStringLiteral("%"));
-  corners_spin->setToolTip(QObject::tr("Higher values keep more bends as sharp corners"));
-  form->addRow(QObject::tr("Corners:"), corners_spin);
+  auto* corners_spin = add_dialog_slider_spin_row(
+      form, &dialog, QObject::tr("Corners:"), QStringLiteral("imageTraceCornersSlider"),
+      QStringLiteral("imageTraceCornersSpin"), 0, 100, initial.corners, QStringLiteral("%"));
+  corners_spin->parentWidget()->setToolTip(QObject::tr("Higher values keep more bends as sharp corners"));
 
-  auto* noise_spin = new QSpinBox(&dialog);
-  noise_spin->setObjectName(QStringLiteral("imageTraceNoiseSpin"));
-  noise_spin->setRange(1, 100);
-  noise_spin->setSuffix(QStringLiteral(" px"));
-  noise_spin->setToolTip(QObject::tr("Regions smaller than this many pixels merge into their neighbors"));
-  form->addRow(QObject::tr("Noise:"), noise_spin);
+  auto* noise_spin = add_dialog_slider_spin_row(form, &dialog, QObject::tr("Noise:"),
+                                                QStringLiteral("imageTraceNoiseSlider"),
+                                                QStringLiteral("imageTraceNoiseSpin"), 1, 100, initial.noise,
+                                                QStringLiteral(" px"));
+  noise_spin->parentWidget()->setToolTip(
+      QObject::tr("Regions smaller than this many pixels merge into their neighbors"));
 
   auto* method_combo = new QComboBox(&dialog);
   method_combo->setObjectName(QStringLiteral("imageTraceMethodCombo"));
@@ -437,6 +584,10 @@ std::optional<ImageTraceDialogResult> request_image_trace(QWidget* parent, std::
   ignore_white_check->setObjectName(QStringLiteral("imageTraceIgnoreWhiteCheck"));
   ignore_white_check->setToolTip(QObject::tr("Leave white areas transparent instead of tracing them"));
   controls->addWidget(ignore_white_check);
+  auto* selection_note = new QLabel(QObject::tr("Tracing inside the selection"), &dialog);
+  selection_note->setObjectName(QStringLiteral("imageTraceSelectionNoteLabel"));
+  selection_note->setVisible(inside_selection);
+  controls->addWidget(selection_note);
   controls->addStretch(1);
 
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
@@ -449,6 +600,9 @@ std::optional<ImageTraceDialogResult> request_image_trace(QWidget* parent, std::
   preview_column->addWidget(preview, 1);
   auto* info_row = new QHBoxLayout();
   info_row->setSpacing(4);
+  auto* busy = new ActivitySpinner(&dialog);
+  busy->setObjectName(QStringLiteral("imageTraceBusySpinner"));
+  info_row->addWidget(busy);
   auto* preview_info = new QLabel(&dialog);
   preview_info->setObjectName(QStringLiteral("imageTracePreviewInfo"));
   info_row->addWidget(preview_info, 1);
@@ -477,6 +631,14 @@ std::optional<ImageTraceDialogResult> request_image_trace(QWidget* parent, std::
   info_row->addWidget(zoom_in);
   info_row->addWidget(zoom_label);
   preview_column->addLayout(info_row);
+  auto* size_warning = new QLabel(
+      QObject::tr("Large result: editing will be slower and exported SVG files will be large. Lower Paths or "
+                  "raise Noise to simplify."),
+      &dialog);
+  size_warning->setObjectName(QStringLiteral("imageTraceSizeWarningLabel"));
+  size_warning->setWordWrap(true);
+  size_warning->hide();
+  preview_column->addWidget(size_warning);
   layout->addLayout(preview_column, 1);
 
   preview->set_zoom_changed_callback([preview, zoom_label] {
@@ -508,8 +670,8 @@ std::optional<ImageTraceDialogResult> request_image_trace(QWidget* parent, std::
     const auto mode = static_cast<Mode>(mode_combo->currentData().toInt());
     const bool black_and_white = mode == Mode::BlackAndWhite;
     colors_label->setText(mode == Mode::Grayscale ? QObject::tr("Grays:") : QObject::tr("Colors:"));
-    colors_spin->setEnabled(!black_and_white);
-    threshold_spin->setEnabled(black_and_white);
+    colors_spin->parentWidget()->setEnabled(!black_and_white);
+    threshold_spin->parentWidget()->setEnabled(black_and_white);
   };
   const auto write_options = [&](const ImageTraceOptions& options) {
     syncing_widgets = true;
@@ -525,22 +687,23 @@ std::optional<ImageTraceDialogResult> request_image_trace(QWidget* parent, std::
     refresh_mode_rows();
     syncing_widgets = false;
   };
-  const auto options_equal = [](const ImageTraceOptions& a, const ImageTraceOptions& b) {
-    return a.mode == b.mode && a.colors == b.colors && a.threshold == b.threshold && a.paths == b.paths &&
-           a.corners == b.corners && a.noise == b.noise && a.method == b.method &&
-           a.snap_curves_to_lines == b.snap_curves_to_lines && a.ignore_white == b.ignore_white;
-  };
+  // Built-ins win ties with user presets; Delete applies to user rows only.
   const auto select_matching_preset = [&] {
     const auto current = read_options();
     int row = 0;
-    for (std::size_t i = 0; i < presets.size(); ++i) {
-      if (options_equal(presets[i].options, current)) {
-        row = static_cast<int>(i) + 1;
-        break;
+    for (std::size_t i = 0; i < presets.size() && row == 0; ++i) {
+      if (presets[i].options == current) {
+        row = preset_row_for(kPresetKindBuiltin, static_cast<int>(i));
+      }
+    }
+    for (std::size_t i = 0; i < user_presets.size() && row == 0; ++i) {
+      if (user_presets[i].options == current) {
+        row = preset_row_for(kPresetKindUser, static_cast<int>(i));
       }
     }
     const QSignalBlocker block(preset_combo);
     preset_combo->setCurrentIndex(row);
+    delete_preset->setEnabled(preset_combo->itemData(row, Qt::UserRole).toInt() == kPresetKindUser);
   };
 
   // --- async preview ---
@@ -550,6 +713,13 @@ std::optional<ImageTraceDialogResult> request_image_trace(QWidget* parent, std::
   std::uint64_t latest_generation = 0;
   bool accepting = false;
   auto* ok_button = buttons->button(QDialogButtonBox::Ok);
+  const auto set_tracing_busy = [&](bool on) {
+    busy->set_active(on);
+    preview->set_busy(on);
+    if (on) {
+      preview_info->setText(QObject::tr("Tracing..."));
+    }
+  };
   const auto describe = [&](const ImageTraceResult& result) {
     const auto shapes = static_cast<int>(result.layers.size());
     const auto anchors = static_cast<int>(result.anchor_count);
@@ -563,7 +733,9 @@ std::optional<ImageTraceDialogResult> request_image_trace(QWidget* parent, std::
     latest_result = completion.result;
     latest_generation = completion.generation;
     preview->set_rendered(std::move(completion.rendered));
+    set_tracing_busy(false);
     preview_info->setText(describe(*latest_result));
+    size_warning->setVisible(image_trace_result_is_large(latest_result->layers.size(), latest_result->anchor_count));
     if (accepting) {
       dialog.accept();
     }
@@ -611,7 +783,7 @@ std::optional<ImageTraceDialogResult> request_image_trace(QWidget* parent, std::
   debounce->setSingleShot(true);
   debounce->setInterval(kPreviewDebounceMs);
   QObject::connect(debounce, &QTimer::timeout, &dialog, [&] {
-    preview_info->setText(QObject::tr("Tracing..."));
+    set_tracing_busy(true);
     enqueue_trace(state, read_options());
   });
   const auto on_control_changed = [&] {
@@ -631,11 +803,96 @@ std::optional<ImageTraceDialogResult> request_image_trace(QWidget* parent, std::
     QObject::connect(check, &QCheckBox::toggled, &dialog, [&](bool) { on_control_changed(); });
   }
   QObject::connect(preset_combo, &QComboBox::activated, &dialog, [&](int row) {
-    if (row <= 0 || row > static_cast<int>(presets.size())) {
+    const auto kind = preset_combo->itemData(row, Qt::UserRole).toInt();
+    const auto index = static_cast<std::size_t>(preset_combo->itemData(row, Qt::UserRole + 1).toInt());
+    if (kind == kPresetKindBuiltin && index < presets.size()) {
+      write_options(presets[index].options);
+    } else if (kind == kPresetKindUser && index < user_presets.size()) {
+      write_options(user_presets[index].options);
+    } else {
       return;
     }
-    write_options(presets[static_cast<std::size_t>(row - 1)].options);
+    delete_preset->setEnabled(kind == kPresetKindUser);
     debounce->start();
+  });
+  const auto is_builtin_name = [&](const QString& name) {
+    for (const auto& preset : presets) {
+      if (name.compare(QObject::tr(preset.english_name), Qt::CaseInsensitive) == 0 ||
+          name.compare(QLatin1String(preset.english_name), Qt::CaseInsensitive) == 0) {
+        return true;
+      }
+    }
+    return name.compare(QObject::tr("Custom"), Qt::CaseInsensitive) == 0;
+  };
+  QObject::connect(save_preset, &QToolButton::clicked, &dialog, [&] {
+    QString initial_name;
+    if (const auto row = preset_combo->currentIndex();
+        preset_combo->itemData(row, Qt::UserRole).toInt() == kPresetKindUser) {
+      initial_name = preset_combo->itemText(row);
+    }
+    QInputDialog input(&dialog);
+    input.setObjectName(QStringLiteral("imageTraceSavePresetNameDialog"));
+    input.setWindowTitle(QObject::tr("Save Trace Preset"));
+    input.setLabelText(QObject::tr("Preset name:"));
+    input.setInputMode(QInputDialog::TextInput);
+    input.setTextValue(initial_name);
+    input.setOkButtonText(QObject::tr("Save"));
+    input.resize(420, input.sizeHint().height());
+    if (exec_dialog(input) != QDialog::Accepted) {
+      return;
+    }
+    const auto name = input.textValue().trimmed();
+    if (name.isEmpty()) {
+      (void)show_warning_message(&dialog, QObject::tr("Save Trace Preset"), QObject::tr("Enter a name for the preset."),
+                           QMessageBox::Ok, QMessageBox::Ok, QStringLiteral("imageTracePresetNameMessageBox"));
+      return;
+    }
+    if (is_builtin_name(name)) {
+      (void)show_warning_message(&dialog, QObject::tr("Save Trace Preset"),
+                           QObject::tr("\"%1\" is a built-in preset. Choose another name.").arg(name),
+                           QMessageBox::Ok, QMessageBox::Ok, QStringLiteral("imageTracePresetNameMessageBox"));
+      return;
+    }
+    const auto options = read_options();
+    auto existing = std::find_if(user_presets.begin(), user_presets.end(), [&name](const ImageTraceUserPreset& p) {
+      return p.name.compare(name, Qt::CaseInsensitive) == 0;
+    });
+    if (existing != user_presets.end()) {
+      const auto answer = show_warning_message(
+          &dialog, QObject::tr("Save Trace Preset"), QObject::tr("Replace the preset \"%1\"?").arg(name),
+          QMessageBox::Yes | QMessageBox::No, QMessageBox::No, QStringLiteral("imageTraceReplacePresetMessageBox"));
+      if (answer != QMessageBox::Yes) {
+        return;
+      }
+      existing->name = name;
+      existing->options = options;
+    } else {
+      user_presets.push_back(ImageTraceUserPreset{name, options});
+    }
+    save_image_trace_user_presets(user_presets);
+    rebuild_preset_combo();
+    select_matching_preset();
+  });
+  QObject::connect(delete_preset, &QToolButton::clicked, &dialog, [&] {
+    const auto row = preset_combo->currentIndex();
+    if (preset_combo->itemData(row, Qt::UserRole).toInt() != kPresetKindUser) {
+      return;
+    }
+    const auto index = static_cast<std::size_t>(preset_combo->itemData(row, Qt::UserRole + 1).toInt());
+    if (index >= user_presets.size()) {
+      return;
+    }
+    const auto answer = show_warning_message(
+        &dialog, QObject::tr("Delete Trace Preset"),
+        QObject::tr("Delete the preset \"%1\"?").arg(user_presets[index].name), QMessageBox::Yes | QMessageBox::No,
+        QMessageBox::No, QStringLiteral("imageTraceDeletePresetMessageBox"));
+    if (answer != QMessageBox::Yes) {
+      return;
+    }
+    user_presets.erase(user_presets.begin() + static_cast<std::ptrdiff_t>(index));
+    save_image_trace_user_presets(user_presets);
+    rebuild_preset_combo();
+    select_matching_preset();
   });
   QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, [&] {
     const auto current_generation = state->generation.load(std::memory_order_acquire);
@@ -646,7 +903,7 @@ std::optional<ImageTraceDialogResult> request_image_trace(QWidget* parent, std::
     // A trace of the current settings is still pending: finish it first.
     accepting = true;
     ok_button->setEnabled(false);
-    preview_info->setText(QObject::tr("Tracing..."));
+    set_tracing_busy(true);
     if (debounce->isActive()) {
       debounce->stop();
       enqueue_trace(state, read_options());
@@ -657,7 +914,7 @@ std::optional<ImageTraceDialogResult> request_image_trace(QWidget* parent, std::
   write_options(initial);
   select_matching_preset();
   append_themed_style(dialog, dialog_spinbox_button_style());
-  preview_info->setText(QObject::tr("Tracing..."));
+  set_tracing_busy(true);
   enqueue_trace(state, read_options());
 
   const auto code = exec_dialog(dialog);

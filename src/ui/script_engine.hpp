@@ -177,6 +177,10 @@ public:
   void select_region(std::int64_t session_id, const QRegion& region);
   [[nodiscard]] QRegion selection_region(std::int64_t session_id) const;
   [[nodiscard]] bool has_selection(std::int64_t session_id) const;
+  // `pixels` (a layer buffer positioned at `bounds`) with alpha 0 outside the
+  // session's selection; unchanged without a selection.
+  [[nodiscard]] PixelBuffer pixels_limited_to_selection(std::int64_t session_id, const PixelBuffer& pixels,
+                                                        Rect bounds) const;
 
   // Text layers, driven through the real inline-editor pipeline (the
   // cli_append_text_to_text_layers technique) so rasters render normally.

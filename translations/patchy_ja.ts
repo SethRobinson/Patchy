@@ -13664,7 +13664,6 @@ Clipped to the layer below</source>
     <message><source>Tracing is unavailable in Quick Mask mode</source><translation>クイックマスクモードではトレースできません</translation></message>
     <message><source>Select a pixel layer to trace</source><translation>トレースするピクセルレイヤーを選択してください</translation></message>
     <message><source>Trace Image to Shapes</source><translation>画像をシェイプにトレース</translation></message>
-    <message><source>The layer has no 8-bit pixels to trace</source><translation>このレイヤーにはトレースできる 8 ビットのピクセルがありません</translation></message>
     <message><source>Nothing to trace with these settings</source><translation>この設定ではトレースするものがありません</translation></message>
     <message numerus="yes">
         <source>Traced the layer into %n shape layer(s).</source>
@@ -13698,6 +13697,7 @@ Clipped to the layer below</source>
     <message><source>Click a path segment to add a point</source><translation>パスのセグメントをクリックしてポイントを追加</translation></message>
     <message><source>Click a point on the path to delete it</source><translation>パス上のポイントをクリックして削除</translation></message>
     <message><source>Click a point to switch it between corner and smooth</source><translation>ポイントをクリックしてコーナーとスムーズを切り替え</translation></message>
+    <message><source>The layer has no pixels to trace</source><translation>このレイヤーにはトレースできるピクセルがありません</translation></message>
 </context>
 <context>
     <name>patchy::ui::PalettePanel</name>
@@ -14564,6 +14564,17 @@ Clipped to the layer below</source>
     <message><source>Add Anchor Point</source><translation>アンカーポイントを追加</translation></message>
     <message><source>Delete Anchor Point</source><translation>アンカーポイントを削除</translation></message>
     <message><source>Convert Point</source><translation>ポイントを切り替え</translation></message>
+    <message><source>Save the current settings as a preset</source><translation>現在の設定をプリセットとして保存</translation></message>
+    <message><source>Delete the selected user preset</source><translation>選択したユーザープリセットを削除</translation></message>
+    <message><source>Tracing inside the selection</source><translation>選択範囲内をトレースします</translation></message>
+    <message><source>Large result: editing will be slower and exported SVG files will be large. Lower Paths or raise Noise to simplify.</source><translation>結果が大きすぎます: 編集が遅くなり、書き出すSVGファイルも大きくなります。「パス」を下げるか「ノイズ」を上げて単純化してください。</translation></message>
+    <message><source>Save Trace Preset</source><translation>トレースプリセットを保存</translation></message>
+    <message><source>Preset name:</source><translation>プリセット名:</translation></message>
+    <message><source>Enter a name for the preset.</source><translation>プリセットの名前を入力してください。</translation></message>
+    <message><source>"%1" is a built-in preset. Choose another name.</source><translation>「%1」は組み込みのプリセットです。別の名前を選んでください。</translation></message>
+    <message><source>Replace the preset "%1"?</source><translation>プリセット「%1」を置き換えますか?</translation></message>
+    <message><source>Delete Trace Preset</source><translation>トレースプリセットを削除</translation></message>
+    <message><source>Delete the preset "%1"?</source><translation>プリセット「%1」を削除しますか?</translation></message>
 </context>
 <context>
     <name>FilterGalleryControls</name>
@@ -14661,8 +14672,8 @@ Clipped to the layer below</source>
     <message><source>traceToShapes: mode must be color, grayscale, or blackAndWhite.</source><translation>traceToShapes: mode は color、grayscale、blackAndWhite のいずれかである必要があります。</translation></message>
     <message><source>traceToShapes: method must be abutting or overlapping.</source><translation>traceToShapes: method は abutting または overlapping である必要があります。</translation></message>
     <message><source>traceToShapes: unknown option %1</source><translation>traceToShapes: 不明なオプション %1</translation></message>
-    <message><source>traceToShapes needs a pixel layer with 8-bit pixels.</source><translation>traceToShapes には 8 ビットのピクセルを持つピクセルレイヤーが必要です。</translation></message>
     <message><source>Traced %1</source><translation>トレース済み %1</translation></message>
+    <message><source>traceToShapes needs a pixel layer.</source><translation>traceToShapes にはピクセルレイヤーが必要です。</translation></message>
 </context>
 <context>
     <name>patchy::ui::ScriptEditorDialog</name>

@@ -626,6 +626,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   // Inside the New submenu (it makes layers from the current one, like Layer
   // Via Copy) so the Layer menu keeps its wasm-viewport row bound.
   auto* trace_image_action = layer_new_menu->addAction(tr("Trace Image to Shapes..."));
+  layer_trace_image_action_ = trace_image_action;  // the Layers panel context menu reuses it
   trace_image_action->setObjectName(QStringLiteral("layerTraceImageAction"));
   trace_image_action->setProperty("patchy.channelViewBlocked", true);
   trace_image_action->setIcon(simple_icon(QStringLiteral("TR"), QColor(170, 230, 190)));
@@ -635,7 +636,8 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
                              "Convert the pixel layer into editable shape layers, one per color");
   apply_bound_translation(trace_image_action);
   refresh_action_tooltip(trace_image_action);
-  register_hotkey(trace_image_action, "layer.trace_image_to_shapes");
+  register_hotkey(trace_image_action, "layer.trace_image_to_shapes",
+                  QKeySequence(Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_T));
   connect(trace_image_action, &QAction::triggered, this, [this] { trace_image_to_shapes(); });
   register_document_action(trace_image_action);
   auto* new_adjustment_layer_menu = layer_menu->addMenu(tr("New &Adjustment Layer"));

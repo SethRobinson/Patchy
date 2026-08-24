@@ -255,6 +255,8 @@ struct ThemePalette {
   QColor canvas_hud_border;
   QColor canvas_hud_text;
   QColor canvas_hud_spinner;
+  // Busy spinner in dialogs (Script Manager run status, Trace Image).
+  QColor dialog_busy_spinner;
   // The stroke-smoothing leash overlay: the line from the stabilized stroke
   // output to the raw pointer plus the leash-radius circle, drawn while a
   // smoothed Brush/Mixer/Eraser stroke is active (a violet, like Photoshop's).

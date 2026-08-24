@@ -1432,6 +1432,7 @@ private:
   QAction* layer_paste_style_action_{nullptr};
   QAction* layer_delete_style_action_{nullptr};
   QAction* layer_rasterize_action_{nullptr};
+  QAction* layer_trace_image_action_{nullptr};
   QAction* layer_rasterize_layer_style_action_{nullptr};
   QAction* layer_clipping_mask_action_{nullptr};
   QAction* layer_convert_smart_object_action_{nullptr};

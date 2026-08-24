@@ -2268,6 +2268,9 @@ void MainWindow::show_layer_context_menu(QPoint position) {
     layer_rasterize_layer_style_action_->setEnabled(has_rasterizable_layer_style);
     menu.addAction(layer_rasterize_layer_style_action_);
   }
+  if (layer_trace_image_action_ != nullptr) {
+    menu.addAction(layer_trace_image_action_);  // its own guards report non-pixel layers
+  }
   {
     const bool is_smart_object = active_layer != nullptr && layer_is_smart_object(*active_layer);
     const auto* source = is_smart_object
@@ -2450,7 +2453,7 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   if (chosen == layer_blending_options_action_ || chosen == layer_copy_style_action_ ||
       chosen == layer_paste_style_action_ || chosen == layer_delete_style_action_ ||
       chosen == layer_rasterize_action_ || chosen == layer_rasterize_layer_style_action_ ||
-      chosen == layer_clipping_mask_action_) {
+      chosen == layer_trace_image_action_ || chosen == layer_clipping_mask_action_) {
     return;
   }
   if (chosen == edit_adjustment_action) {

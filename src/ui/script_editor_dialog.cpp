@@ -201,31 +201,6 @@ private:
   ScriptCodeEditor* editor_;
 };
 
-// Small rotating-arc activity indicator, visible while a run is active; the
-// dialog's status timer drives advance() (non-Q_OBJECT).
-class RunSpinner : public QWidget {
-public:
-  explicit RunSpinner(QWidget* parent = nullptr) : QWidget(parent) { setFixedSize(16, 16); }
-
-  void advance() {
-    angle_ = (angle_ + 30) % 360;
-    update();
-  }
-
-protected:
-  void paintEvent(QPaintEvent*) override {
-    QPainter painter(this);
-    painter.setRenderHint(QPainter::Antialiasing);
-    QPen pen(QColor(0x6f, 0xb1, 0xe8), 2.0);
-    pen.setCapStyle(Qt::RoundCap);
-    painter.setPen(pen);
-    painter.drawArc(QRectF(2.5, 2.5, 11.0, 11.0), -angle_ * 16, 130 * 16);
-  }
-
-private:
-  int angle_{0};
-};
-
 // The hover card shown beside a script row: big icon, display name, author,
 // wrapped description, and a filename/badges footer. A Qt::ToolTip window
 // painted by hand to match the delegate (non-Q_OBJECT).
@@ -457,7 +432,7 @@ ScriptEditorDialog::ScriptEditorDialog(MainWindow& window, ScriptEngineHost& hos
   auto* toolbar = new QHBoxLayout();
   run_button_ = new QPushButton(tr("Run"), this);
   run_button_->setObjectName(QStringLiteral("scriptEditorRunButton"));
-  auto* spinner = new RunSpinner(this);
+  auto* spinner = new ActivitySpinner(this);
   run_spinner_ = spinner;
   status_label_ = new QLabel(tr("Ready"), this);
   status_label_->setObjectName(QStringLiteral("scriptEditorStatusLabel"));
@@ -472,10 +447,7 @@ ScriptEditorDialog::ScriptEditorDialog(MainWindow& window, ScriptEngineHost& hos
   stop_button_->setToolTip(tr("Stop the running script"));
   status_timer_ = new QTimer(this);
   status_timer_->setInterval(100);
-  connect(status_timer_, &QTimer::timeout, this, [this, spinner] {
-    spinner->advance();
-    update_status_text();
-  });
+  connect(status_timer_, &QTimer::timeout, this, [this] { update_status_text(); });
   auto* new_button = new QPushButton(tr("New"), this);
   new_button->setObjectName(QStringLiteral("scriptEditorNewButton"));
   auto* save_button = new QPushButton(tr("Save"), this);
@@ -1189,7 +1161,7 @@ void ScriptEditorDialog::update_run_state() {
   } else if (!running && status_timer_->isActive()) {
     status_timer_->stop();
   }
-  run_spinner_->setVisible(running);
+  run_spinner_->set_active(running);
   update_status_text();
 }
 

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "ui/activity_spinner.hpp"
+
 #include <QDialog>
 #include <QElapsedTimer>
 #include <QPlainTextEdit>
@@ -108,7 +110,7 @@ private:
   QPushButton* stop_button_{nullptr};
   QPushButton* cli_button_{nullptr};
   QLabel* status_label_{nullptr};
-  QWidget* run_spinner_{nullptr};  // RunSpinner (cpp-local type)
+  ActivitySpinner* run_spinner_{nullptr};
   QTimer* status_timer_{nullptr};
   QElapsedTimer run_elapsed_;
   QLabel* file_label_{nullptr};

@@ -4,6 +4,7 @@
 // (script_api.cpp) and script canvas windows call. ScriptEngineHost is a friend
 // of MainWindow; every wrapper reaches MainWindow through here.
 
+#include "ui/main_window_shared.hpp"
 #include "ui/script_engine.hpp"
 
 #include "core/layer_metadata.hpp"
@@ -1163,6 +1164,15 @@ QRegion ScriptEngineHost::selection_region(std::int64_t session_id) const {
 bool ScriptEngineHost::has_selection(std::int64_t session_id) const {
   auto* canvas = session_canvas(session_id);
   return canvas != nullptr && canvas->has_selection();
+}
+
+PixelBuffer ScriptEngineHost::pixels_limited_to_selection(std::int64_t session_id, const PixelBuffer& pixels,
+                                                          Rect bounds) const {
+  auto* canvas = session_canvas(session_id);
+  if (canvas == nullptr || !canvas->has_selection()) {
+    return pixels;
+  }
+  return patchy::ui::pixels_limited_to_selection(*canvas, pixels, bounds);
 }
 
 // ---------------------------------------------------------------------------

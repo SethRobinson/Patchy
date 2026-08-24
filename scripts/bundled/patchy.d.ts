@@ -117,6 +117,7 @@ interface PatchyLayer {
    * above this layer, this layer is hidden, and the group is returned (null
    * when nothing traced, e.g. a fully transparent layer). Options mirror the
    * Layer > New > Trace Image to Shapes dialog; omitted fields use its defaults.
+   * With a document selection only the selected area is traced.
    */
   traceToShapes(options?: PatchyTraceOptions): PatchyLayer | null;
 }

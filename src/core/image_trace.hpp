@@ -47,6 +47,8 @@ struct ImageTraceOptions {
 
   static constexpr int kMinColors = 2;
   static constexpr int kMaxColors = 64;
+
+  friend bool operator==(const ImageTraceOptions&, const ImageTraceOptions&) = default;
 };
 
 // One traced color: a compound path whose outer contours are Add groups and
@@ -72,10 +74,11 @@ struct ImageTraceResult {
 // corners 0..100 -> corner angle threshold in degrees, 120 at 0 to 30 at 100.
 [[nodiscard]] double image_trace_corner_angle(int corners) noexcept;
 
-// Traces an 8-bit RGB, RGBA, or gray buffer. Pixels with alpha below 128 are
-// untraced. `cancelled` (optional) is polled between stages and regions; a
-// cancelled trace returns an empty result. Other pixel formats also return an
-// empty result.
+// Traces an RGB, RGBA, or gray buffer. Pixels with alpha below 128 are
+// untraced. 16-bit and float buffers convert to 8-bit first (value/257 with
+// rounding; floats clamp to 0..1, linear). `cancelled` (optional) is polled
+// between stages and regions; a cancelled trace returns an empty result.
+// Buffers with other channel counts also return an empty result.
 [[nodiscard]] ImageTraceResult trace_image(const PixelBuffer& pixels, const ImageTraceOptions& options,
                                            const std::function<bool()>& cancelled = {});
 

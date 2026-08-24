@@ -275,6 +275,8 @@ everywhere a bundled script is resolved.
   `layer.traceToShapes(options)` runs Trace Image to Shapes (docs/image-trace.md) on a
   pixel layer and returns the new group layer (null when nothing traced); the
   `layer.trace_image_to_shapes` command id reaches `app.runCommand` (it opens the dialog).
+  2026-08-24 (behavioral, still 1): `layer.traceToShapes` traces only inside the document
+  selection when one exists, like the dialog.
 - **`include()` resolution order**: relative to the including script, then the user
   scripts root, then the bundled scripts root; a result inside the bundled folder maps
   through the shadow-override store. `patchy.isMainScript()` is false during an included
@@ -414,5 +416,5 @@ order:
 Anti-goals from the same research: never freeze or fork the API surface (ExtendScript/UXP
 split), no undocumented escape hatches as the real API (batchPlay; test-driven additions
 go through the documented API too, per the AGENTS.md scripting-for-testability rule),
-scripts stay plain user-editable files (Affinity v3.2 shipped AI-generated-only scripting and the community
-immediately built its own script manager).
+scripts stay plain user-editable files (Affinity v3.2 shipped AI-only scripting; the
+community built its own script manager).
