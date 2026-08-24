@@ -68,6 +68,14 @@ selection.
   (main_window_vector.cpp, `refresh_path_tool_hint_label`); keep the texts
   under about 70 characters so the flow layout never wraps.
 
+## Moving a selection
+
+Direct Select (or the Pen's Ctrl latch) drags every selected anchor when the
+press lands on a selected anchor OR on a segment whose two ends are already
+selected (a marquee, then a drag on any of its lines); Shift on a segment
+adds it, an unselected segment replaces the selection with its two ends.
+Pinned by `ui_direct_select_drags_marquee_selection_by_segment`.
+
 ## Path context menu
 
 Right-click under a path tool: the press records `path_context_press_pos_`

@@ -654,6 +654,68 @@ void ui_layer_row_click_shows_anchors_for_shape_layer() {
   CHECK(hover(*canvas, QPoint(100, 100)).pixmap().toImage() != plain);
 }
 
+// A marquee selection moves as one group when any of its segments is dragged
+// (Direct Select, and the Pen's Ctrl latch); an unselected segment replaces it.
+void ui_direct_select_drags_marquee_selection_by_segment() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto layer_id = make_rect_shape_layer(window, *canvas);  // corners (100,100)..(300,220)
+  const auto corner_xy = [&](std::size_t index) {
+    const auto& anchor = anchor_at(document, layer_id, index);
+    return QPointF(anchor.anchor_x, anchor.anchor_y);
+  };
+
+  canvas->set_tool(patchy::ui::CanvasTool::DirectSelect);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(60, 60)),
+       canvas->widget_position_for_document_point(QPoint(340, 260)));  // marquee around all four
+  QApplication::processEvents();
+  CHECK(canvas->path_edit_has_selection());
+  const auto before_0 = corner_xy(0);
+  const auto before_2 = corner_xy(2);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(200, 100)),
+       canvas->widget_position_for_document_point(QPoint(220, 130)));  // top edge segment
+  QApplication::processEvents();
+  CHECK(std::abs(corner_xy(0).x() - before_0.x() - 20.0) < 1.0);
+  CHECK(std::abs(corner_xy(0).y() - before_0.y() - 30.0) < 1.0);
+  CHECK(std::abs(corner_xy(2).x() - before_2.x() - 20.0) < 1.0);
+  CHECK(std::abs(corner_xy(2).y() - before_2.y() - 30.0) < 1.0);
+
+  // A segment outside the selection replaces it: only its two ends move.
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(!canvas->path_edit_has_selection());
+  const auto tl = corner_xy(0);
+  const auto br = corner_xy(2);
+  const QPoint top_mid(static_cast<int>((corner_xy(0).x() + corner_xy(1).x()) / 2.0),
+                       static_cast<int>(corner_xy(0).y()));
+  drag(*canvas, canvas->widget_position_for_document_point(top_mid),
+       canvas->widget_position_for_document_point(top_mid + QPoint(0, -10)));
+  QApplication::processEvents();
+  CHECK(std::abs(corner_xy(0).y() - (tl.y() - 10.0)) < 1.0);
+  CHECK(std::abs(corner_xy(2).y() - br.y()) < 1.0);
+
+  // The Pen's Ctrl latch behaves the same: Ctrl+marquee, then Ctrl+drag a segment.
+  canvas->set_tool(patchy::ui::CanvasTool::Pen);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(60, 40)),
+       canvas->widget_position_for_document_point(QPoint(340, 260)), Qt::ControlModifier);
+  QApplication::processEvents();
+  CHECK(canvas->path_edit_has_selection());
+  CHECK(!canvas->pen_session_active());
+  const auto pen_before_3 = corner_xy(3);
+  const auto pen_before_2 = corner_xy(2);
+  const QPoint left_mid(static_cast<int>(corner_xy(0).x()),
+                        static_cast<int>((corner_xy(0).y() + corner_xy(3).y()) / 2.0));
+  drag(*canvas, canvas->widget_position_for_document_point(left_mid),
+       canvas->widget_position_for_document_point(left_mid + QPoint(15, 0)), Qt::ControlModifier);
+  QApplication::processEvents();
+  CHECK(std::abs(corner_xy(3).x() - pen_before_3.x() - 15.0) < 1.0);
+  CHECK(std::abs(corner_xy(2).x() - pen_before_2.x() - 15.0) < 1.0);  // the far side moved too
+  CHECK(!canvas->pen_session_active());
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> vector_point_editing_tests() {
@@ -672,5 +734,7 @@ std::vector<patchy::test::TestCase> vector_point_editing_tests() {
       {"ui_shape_layer_activation_drops_stale_path_target",
        ui_shape_layer_activation_drops_stale_path_target},
       {"ui_layer_row_click_shows_anchors_for_shape_layer", ui_layer_row_click_shows_anchors_for_shape_layer},
+      {"ui_direct_select_drags_marquee_selection_by_segment",
+       ui_direct_select_drags_marquee_selection_by_segment},
   };
 }

@@ -926,8 +926,17 @@ bool CanvasWidget::handle_path_edit_press(QMouseEvent* event, QPointF document_p
         }
       }
     } else {
-      path_selected_anchors_ = {{segment.first, segment.second},
-                                {segment.first, (segment.second + 1) % anchor_count}};
+      // A segment whose ends are already selected drags the whole selection
+      // (a marquee followed by a drag on any of its lines); Shift adds the
+      // segment to it; otherwise the segment becomes the selection.
+      const std::pair<int, int> start{segment.first, segment.second};
+      const std::pair<int, int> end{segment.first, (segment.second + 1) % anchor_count};
+      if ((event->modifiers() & Qt::ShiftModifier) != 0) {
+        path_selected_anchors_.insert(start);
+        path_selected_anchors_.insert(end);
+      } else if (!path_selected_anchors_.contains(start) || !path_selected_anchors_.contains(end)) {
+        path_selected_anchors_ = {start, end};
+      }
     }
     path_drag_mode_ = PathEditDrag::Anchors;
     path_drag_anchor_ = segment;
@@ -1377,7 +1386,7 @@ void CanvasWidget::update_path_select_hover_hint(PathHoverTarget target) {
       status_callback_(tr("Drag the handle to reshape the curve"));
       return;
     case PathHoverTarget::Segment:
-      status_callback_(tr("Drag to move the segment; click to select its points"));
+      status_callback_(tr("Drag to move the segment, or the whole selection when its points are selected"));
       return;
     case PathHoverTarget::None:
       return;

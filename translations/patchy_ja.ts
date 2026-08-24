@@ -6731,7 +6731,7 @@ Mixed selection</source>
     <message><source>Click to select the shape, drag to move it. Ctrl+T transforms it.</source><translation>クリックでシェイプを選択、ドラッグで移動。Ctrl+Tで変形します。</translation></message>
     <message><source>Drag to move the point. Shift+click adds it to the selection; Delete removes the selected points.</source><translation>ドラッグでポイントを移動。Shift+クリックで選択に追加、Deleteで選択したポイントを削除します。</translation></message>
     <message><source>Drag the handle to reshape the curve</source><translation>ハンドルをドラッグして曲線を変形</translation></message>
-    <message><source>Drag to move the segment; click to select its points</source><translation>ドラッグでセグメントを移動、クリックで両端のポイントを選択</translation></message>
+    <message><source>Drag to move the segment, or the whole selection when its points are selected</source><translation>ドラッグでセグメントを移動、両端のポイントが選択済みなら選択範囲全体を移動</translation></message>
     <message><source>Add Anchor Point</source><translation>アンカーポイントを追加</translation></message>
     <message><source>Delete Anchor Point</source><translation>アンカーポイントを削除</translation></message>
     <message><source>Convert Point</source><translation>ポイントを切り替え</translation></message>
