@@ -19,6 +19,7 @@
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QMarginsF>
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QPainter>
@@ -351,7 +352,14 @@ QPageLayout photocopy_page_layout(const Document& document, const PrintSettings&
   layout = valid_page_layout(layout);
   // Hardware-minimum margins are the honest printable edge for a copy: driver default
   // margins waste paper, and FullPageMode would preview pixels the device cannot reach.
-  layout.setMargins(layout.minimumMargins());
+  // Borderless-capable drivers (photo printers such as the Epson SC-PX1V) report
+  // NEGATIVE minimums for their overspray; clamp at zero so the printable rect never
+  // leaves the paper and the anchor corner stays a real paper corner.
+  const auto minimums = layout.minimumMargins();
+  layout.setMargins(QMarginsF(std::max(0.0, static_cast<double>(minimums.left())),
+                              std::max(0.0, static_cast<double>(minimums.top())),
+                              std::max(0.0, static_cast<double>(minimums.right())),
+                              std::max(0.0, static_cast<double>(minimums.bottom()))));
   auto portrait = layout;
   portrait.setOrientation(QPageLayout::Portrait);
   auto landscape = layout;
@@ -399,6 +407,7 @@ public:
     document_ = document;
     settings_ = settings;
     page_layout_ = page_layout;
+    frozen_view_.reset();
     refresh_view_properties();
     update();
   }
@@ -443,8 +452,13 @@ protected:
   }
 
   // Computed from state rather than cached at paint time so interaction math works
-  // even before the first paint.
+  // even before the first paint. While a drag or resize is active the metrics captured
+  // at the press are returned instead: the fit-to-content refit would otherwise move
+  // the page underneath the pointer and make the drag feel reversed.
   [[nodiscard]] ViewMetrics view_metrics() const {
+    if (frozen_view_.has_value()) {
+      return *frozen_view_;
+    }
     ViewMetrics metrics;
     if (!has_state()) {
       return metrics;
@@ -614,6 +628,11 @@ protected:
     if (event->button() != Qt::LeftButton || !has_state()) {
       return;
     }
+    // Freeze the view for the whole interaction (see view_metrics).
+    const auto metrics = view_metrics();
+    if (metrics.scale > 0.0) {
+      frozen_view_ = metrics;
+    }
     active_handle_ = handle_at(event->position());
     dragging_ = active_handle_ < 0;
     last_drag_pos_ = event->position();
@@ -641,6 +660,10 @@ protected:
     if (event->button() == Qt::LeftButton) {
       dragging_ = false;
       active_handle_ = -1;
+      // Unfreeze and refit once, now that the interaction is over.
+      frozen_view_.reset();
+      refresh_view_properties();
+      update();
       setCursor(cursor_for_handle(handle_at(event->position())));
     }
   }
@@ -726,6 +749,7 @@ private:
   PrintSettings* settings_{nullptr};
   const QPageLayout* page_layout_{nullptr};
   std::function<void()> placement_changed_;
+  std::optional<ViewMetrics> frozen_view_;
   bool dragging_{false};
   int active_handle_{-1};
   QPointF last_drag_pos_;

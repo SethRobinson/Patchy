@@ -448,12 +448,22 @@ void ui_photocopy_dialog_previews_clipping_at_actual_size() {
     CHECK(std::abs(anchored.y()) < 0.01);
     save_widget_artifact("ui_photocopy_dialog_clipped", *dialog);
     // Dragging inside the crop rect (away from its resize handles) slides the scan
-    // across the paper so the user picks which part prints.
+    // across the paper so the user picks which part prints. Mid-drag the view
+    // transform is frozen, so the crop follows the pointer 1:1 on screen; the
+    // fit-to-content refit used to swallow the motion and make the page slide the
+    // other way instead.
     const auto crop_view_before = preview->property("cropRectView").toRect();
     CHECK(!crop_view_before.isEmpty());
     const QPoint move_grip(crop_view_before.center().x() + crop_view_before.width() / 4,
                            crop_view_before.center().y());
-    drag(*preview, move_grip, move_grip + QPoint(40, 20));
+    send_mouse(*preview, QEvent::MouseButtonPress, move_grip, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    send_mouse(*preview, QEvent::MouseMove, move_grip + QPoint(40, 20), Qt::NoButton, Qt::LeftButton,
+               Qt::NoModifier);
+    const auto mid_drag_view = preview->property("cropRectView").toRect();
+    CHECK(std::abs(mid_drag_view.center().x() - crop_view_before.center().x() - 40) <= 2);
+    CHECK(std::abs(mid_drag_view.center().y() - crop_view_before.center().y() - 20) <= 2);
+    send_mouse(*preview, QEvent::MouseButtonRelease, move_grip + QPoint(40, 20), Qt::LeftButton, Qt::NoButton,
+               Qt::NoModifier);
     const auto dragged = preview->property("scanOffsetInches").toPointF();
     CHECK(dragged.x() > anchored.x() + 0.1);
     CHECK(dragged.y() > anchored.y());
