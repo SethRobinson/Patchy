@@ -1512,6 +1512,9 @@ void CanvasWidget::draw_path_edit_overlay(QPainter& painter) {
   if (!target_path_visible_) {
     return;  // View > Show > Target Path is off
   }
+  if (!selection_edges_visible_) {
+    return;  // Ctrl+H (Photoshop's Extras toggle) hides the points and outline too
+  }
   // The outline draws with ANY tool while a Paths-panel row is targeted
   // (Photoshop's target-path display); anchors, handles, and the marquee are
   // editing surfaces and stay path-tool-only.

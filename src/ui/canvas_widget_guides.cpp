@@ -133,7 +133,18 @@ bool CanvasWidget::selection_edges_visible() const noexcept {
 void CanvasWidget::toggle_selection_edges_visible() {
   set_selection_edges_visible(!selection_edges_visible_);
   if (status_callback_) {
-    status_callback_(selection_edges_visible_ ? tr("Showing selection edges") : tr("Hiding selection edges"));
+    // The same toggle hides the path overlay (draw_path_edit_overlay), so
+    // name it when a path is on screen.
+    const auto* path = path_edit_target_path();
+    const bool path_shown = target_path_visible_ && !pen_session_active_ &&
+                            (path_edit_tool_active() || panel_path_targeted_) && path != nullptr &&
+                            !path->subpaths.empty();
+    if (path_shown) {
+      status_callback_(selection_edges_visible_ ? tr("Showing selection edges and path points")
+                                                : tr("Hiding selection edges and path points"));
+    } else {
+      status_callback_(selection_edges_visible_ ? tr("Showing selection edges") : tr("Hiding selection edges"));
+    }
   }
 }
 

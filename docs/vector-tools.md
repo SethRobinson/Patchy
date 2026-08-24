@@ -1,13 +1,12 @@
 # Vector tools: pen paths, shape layers, vector masks, Paths panel
 
 Feature reference for Patchy's vector workflows: tool/UI behavior contracts,
-PSD vector-data encodings, fixtures, and the patent record. Every encoding
-fact below was pinned by observation of Photoshop 27.8 via COM scripting
-(July 2026), never taken from Adobe's specification text. PSD read/write
-round-trips per the dirty-or-verbatim rule with COM-verified Photoshop
-acceptance. Probe and fixture scripts (including the `psd_dump.py` structure
-dumper) live in `local-test-fixtures/vector-probe/` (untracked). Binding
-constraints: docs/legal-constraints.md.
+PSD vector-data encodings, fixtures, and the patent record. Encoding facts
+were pinned by observing Photoshop 27.8 via COM (July 2026; method rules at
+the end). PSD read/write round-trips per the dirty-or-verbatim rule with
+COM-verified Photoshop acceptance. Probe and fixture scripts (including the
+`psd_dump.py` structure dumper) live in `local-test-fixtures/vector-probe/`
+(untracked). Binding constraints: docs/legal-constraints.md.
 
 ## Shape tools (Line / Rectangle / Ellipse)
 
@@ -60,11 +59,11 @@ Polygon drags center-out with Sides and a Star inset percent (0 = plain);
 Custom Shape stamps a library shape into the drag rect (Shift keeps it
 square). Both are vector-only: the mode combo greys out Pixels for them
 (and the Pen) and shows the effective mode (Path), leaving the setting
-untouched. They write plain paths: PS's polygon/custom origination
-descriptors were not probed, so no origination is invented and PS opens
-them as regular path shapes. The Line tool gains arrow start/end checkboxes
-(head width 5x, length 10x the weight, PS's proportions) encoded through
-the probed keyOriginLine arrow keys. The CustomShapeLibrary (JSON sidecars
+untouched. They write plain paths (PS's polygon/custom origination
+descriptors were not probed), which PS opens as regular path shapes. The
+Line tool gains arrow start/end checkboxes (head width 5x, length 10x the
+weight, PS's proportions) encoded through the probed keyOriginLine arrow
+keys. The CustomShapeLibrary (JSON sidecars
 under settings/shapes, unit-box paths, v1 text codec) ships 17 builtins:
 ids shape.builtin.* are append-only, geometry is code-authoritative
 (restore_default_shapes rewrites drifted builtin sidecars, keeping user
@@ -121,16 +120,18 @@ normalize to ascending id order after upserts.
 While any row is selected its outline draws with EVERY tool;
 anchors/handles stay path-tool-only. View > Show Target Path (Ctrl+Shift+H,
 view.target_path) hides the overlay without touching targeting (not
-persisted; a path-transform session always draws its box). Canvas-side
-edits refresh rows and thumbnails live. The context menu's Clipping Path
-entry designates ONE saved path as the document clipping path (resource
-2999; name underlines; exclusive). Work-path draws and layer activation
+persisted; a path-transform session always draws its box). Ctrl+H
+(view.selection_edges, PS's Extras toggle) hides it with the selection
+edges; a new selection re-shows both
+(ui_ctrl_h_hides_path_points_with_selection_edges). Canvas-side edits
+refresh rows and thumbnails live. The context menu's Clipping Path entry
+designates ONE saved path as the document clipping path (resource 2999;
+name underlines; exclusive). Work-path draws and layer activation
 auto-select/target their rows; activating a layer with its own path drops
 a stale work/saved-path target (vector-commands.md). Dismissal (empty
-click, or Escape after
-clearing the anchor selection) sticks per layer until the layer changes,
-the row is re-clicked, or a new drag commits; a path tool still draws its
-edit-target fallback afterward.
+click, or Escape after clearing the anchor selection) sticks per layer
+until the layer changes, the row is re-clicked, or a new drag commits; a
+path tool still draws its edit-target fallback afterward.
 
 Footer commands (row commands need a selected row; the panel refreshes on
 selectionChanged AND currentItemChanged;
@@ -163,10 +164,9 @@ apply_path_edit undo entry ("Transform path") routed to the active target
 (panel path, vector mask, shape layer with live annotations dropped, or
 work path), then re-rasterizes. Lives in canvas_widget_vector_tools.cpp
 (path_transform_*), separate from the pixel session; begin_path_transform
-is called ONLY from transform_active_layer_dialog, and the Pen falls
-through to the layer transform. Corner-handle aspect locking and the Shift
-modifier follow the same rules as the pixel session and share its predicate;
-see [tools.md](tools.md).
+is called ONLY from transform_active_layer_dialog. Corner-handle aspect
+locking and the Shift modifier follow the same rules as the pixel session
+and share its predicate; see [tools.md](tools.md).
 
 ## Geometry operations
 
@@ -378,8 +378,8 @@ handles, corner orders) are recorded in src/core/vector_live_shapes.hpp.
 
 - GdFl with UNEVENLY spaced stops: PS parametrizes its smoothness spline
   non-uniformly by stop location; Patchy's uniform per-segment catmull
-  differs by a few /255 there (gradient fixture: mean 1.2, max 8). No closed
-  form identified; revisit only if it shows visually.
+  differs by a few /255 there (gradient fixture: mean 1.2, max 8); no
+  closed form found.
 - Stroke dashes: boundaries land where each renderer's arc-length
   integration puts them; a handful of dash-edge pixels flip (mean ~0.3 on
   the strokes fixture).

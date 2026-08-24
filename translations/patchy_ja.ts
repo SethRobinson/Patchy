@@ -6181,6 +6181,16 @@ Mixed selection</source>
         <translation>選択範囲の境界を非表示にしています</translation>
     </message>
     <message>
+        <location line="-3"/>
+        <source>Showing selection edges and path points</source>
+        <translation>選択範囲の境界とパスのポイントを表示しています</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Hiding selection edges and path points</source>
+        <translation>選択範囲の境界とパスのポイントを非表示にしています</translation>
+    </message>
+    <message>
         <location line="+190"/>
         <source>Expanded selection by %1 px</source>
         <translation>選択範囲を %1 px 拡張しました</translation>

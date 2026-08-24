@@ -654,6 +654,36 @@ void ui_layer_row_click_shows_anchors_for_shape_layer() {
   CHECK(hover(*canvas, QPoint(100, 100)).pixmap().toImage() != plain);
 }
 
+// Ctrl+H (Show Selection Edges, Photoshop's Extras toggle) hides the path
+// anchors and outline together with the marching ants and leaves the target
+// alone; a second press shows them again.
+void ui_ctrl_h_hides_path_points_with_selection_edges() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  make_rect_shape_layer(window, *canvas);
+  canvas->set_tool(patchy::ui::CanvasTool::DirectSelect);
+  QApplication::processEvents();
+  CHECK(canvas->selection_edges_visible());
+  CHECK(canvas->path_edit_target_path() != nullptr);
+  CHECK(accent_overlay_near(*canvas, QPoint(100, 100)));  // corner anchor
+  CHECK(accent_overlay_near(*canvas, QPoint(200, 100)));  // top edge outline
+
+  send_key(*canvas, Qt::Key_H, Qt::ControlModifier);
+  QApplication::processEvents();
+  CHECK(!canvas->selection_edges_visible());
+  CHECK(canvas->path_edit_target_path() != nullptr);
+  CHECK(!accent_overlay_near(*canvas, QPoint(100, 100)));
+  CHECK(!accent_overlay_near(*canvas, QPoint(200, 100)));
+
+  send_key(*canvas, Qt::Key_H, Qt::ControlModifier);
+  QApplication::processEvents();
+  CHECK(canvas->selection_edges_visible());
+  CHECK(accent_overlay_near(*canvas, QPoint(100, 100)));
+  CHECK(accent_overlay_near(*canvas, QPoint(200, 100)));
+}
+
 // A marquee selection moves as one group when any of its segments is dragged
 // (Direct Select, and the Pen's Ctrl latch); an unselected segment replaces it.
 void ui_direct_select_drags_marquee_selection_by_segment() {
@@ -734,6 +764,8 @@ std::vector<patchy::test::TestCase> vector_point_editing_tests() {
       {"ui_shape_layer_activation_drops_stale_path_target",
        ui_shape_layer_activation_drops_stale_path_target},
       {"ui_layer_row_click_shows_anchors_for_shape_layer", ui_layer_row_click_shows_anchors_for_shape_layer},
+      {"ui_ctrl_h_hides_path_points_with_selection_edges",
+       ui_ctrl_h_hides_path_points_with_selection_edges},
       {"ui_direct_select_drags_marquee_selection_by_segment",
        ui_direct_select_drags_marquee_selection_by_segment},
   };

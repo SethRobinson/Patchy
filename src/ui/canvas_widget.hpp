@@ -809,6 +809,10 @@ public:
   [[nodiscard]] QRect invert_smart_filter_mask(QString history_label);
   void finish_smart_filter_mask_edit();
   void cancel_smart_filter_mask_edit();
+  // View > Show Selection Edges (Ctrl+H), Photoshop's Extras toggle: false
+  // hides the marching ants AND the path overlay (anchors, handles, outline;
+  // a live pen session and a path-transform box still draw). Any selection
+  // change resets it to true.
   void set_selection_edges_visible(bool visible) noexcept;
   [[nodiscard]] bool selection_edges_visible() const noexcept;
   void toggle_selection_edges_visible();
