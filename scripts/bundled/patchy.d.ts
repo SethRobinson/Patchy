@@ -120,6 +120,22 @@ interface PatchyLayer {
    * With a document selection only the selected area is traced.
    */
   traceToShapes(options?: PatchyTraceOptions): PatchyLayer | null;
+  /**
+   * Simplify Path: refits this shape layer's path (or its vector mask) with
+   * fewer anchors within the tolerance, like Layer > Shape > Simplify Path.
+   * Returns {anchorsBefore, anchorsAfter}. Changed shapes lose their live
+   * rectangle/ellipse parameters, like any direct path edit.
+   */
+  simplifyPath(options?: PatchySimplifyOptions): { anchorsBefore: number; anchorsAfter: number };
+}
+
+interface PatchySimplifyOptions {
+  /** Maximum deviation in document pixels (default 1). */
+  tolerance?: number;
+  /** Bends sharper than this many degrees stay corners (default 60). */
+  cornerAngle?: number;
+  /** Collapse near-straight curves into straight segments (default false). */
+  snapCurvesToLines?: boolean;
 }
 
 interface PatchyTraceOptions {
@@ -184,6 +200,12 @@ interface PatchyDocument {
   }): PatchyLayer;
   /** First layer (depth-first) with this exact name, or undefined. */
   findLayer(name: string): PatchyLayer | undefined;
+  /**
+   * Combine Shapes: merges the shape layers (siblings of one folder) into the
+   * bottom-most one and returns it; the others are removed. op: "unite",
+   * "subtract" (front shapes cut from the base), "intersect", or "exclude".
+   */
+  combineShapes(layers: PatchyLayer[], op: "unite" | "subtract" | "intersect" | "exclude"): PatchyLayer;
   flatten(): void;
   resizeImage(width: number, height: number): void;
   resizeCanvas(width: number, height: number): void;

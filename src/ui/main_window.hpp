@@ -755,6 +755,10 @@ private:
   [[nodiscard]] patchy::VectorShapeContent current_shape_appearance_content() const;
   void refresh_vector_tool_options_visibility();
   void refresh_path_tool_hint_label();
+  // Layer > Shape commands (docs/vector-commands.md).
+  void simplify_target_path();
+  void combine_selected_shape_layers(patchy::PathCombineOp op);
+  void refresh_combine_shapes_action_states();
   void update_vector_swatch_icons();
   // Options-bar paint pickers (main_window_vector.cpp): the swatch buttons pop
   // a None/Solid/Gradient/Pattern menu editing the mirrors above; with an
@@ -1279,6 +1283,10 @@ private:
   bool paths_panel_layer_recorded_{false};
   std::optional<LayerId> paths_panel_last_active_layer_;
   QAction* path_new_action_{nullptr};
+  QAction* path_simplify_action_{nullptr};
+  // Unite / Subtract Front / Intersect / Exclude, enabled with a combinable
+  // multi-selection (refresh_combine_shapes_action_states).
+  std::array<QAction*, 4> layer_combine_actions_{};
   QAction* path_fill_action_{nullptr};
   QAction* path_stroke_action_{nullptr};
   QAction* path_make_selection_action_{nullptr};

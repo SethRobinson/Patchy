@@ -472,4 +472,136 @@ PathSubpath fit_closed_loop(const std::vector<FitPoint>& points, const PathFitOp
   return subpath;
 }
 
+PathSubpath fit_open_polyline(const std::vector<FitPoint>& points, const PathFitOptions& options) {
+  PathSubpath subpath;
+  subpath.closed = false;
+  if (points.size() < 2) {
+    return subpath;
+  }
+  const auto safe_tolerance = std::max(0.1, options.tolerance);
+  const auto count = points.size();
+
+  // Significant vertices of the open arc (both endpoints kept), then corner
+  // classification of the interior kept vertices.
+  std::vector<bool> keep(count, false);
+  keep[0] = true;
+  keep[count - 1] = true;
+  douglas_peucker_arc(points, 0, count - 1, safe_tolerance, keep);
+  std::vector<std::size_t> kept;
+  for (std::size_t index = 0; index < count; ++index) {
+    if (keep[index]) {
+      kept.push_back(index);
+    }
+  }
+  const double corner_cosine =
+      std::cos(std::clamp(options.corner_angle_degrees, 1.0, 179.0) * 3.14159265358979323846 / 180.0);
+  std::vector<std::size_t> kept_previous(count, 0);
+  std::vector<std::size_t> kept_next(count, count - 1);
+  std::vector<std::size_t> boundaries{0};
+  for (std::size_t k = 0; k < kept.size(); ++k) {
+    const auto current = kept[k];
+    if (k > 0) {
+      kept_previous[current] = kept[k - 1];
+    }
+    if (k + 1 < kept.size()) {
+      kept_next[current] = kept[k + 1];
+    }
+    if (k == 0 || k + 1 == kept.size()) {
+      continue;
+    }
+    const auto incoming = normalized(point_vec(points[current]) - point_vec(points[kept[k - 1]]));
+    const auto outgoing = normalized(point_vec(points[kept[k + 1]]) - point_vec(points[current]));
+    if (dot(incoming, outgoing) < corner_cosine) {
+      boundaries.push_back(current);
+    }
+  }
+  boundaries.push_back(count - 1);
+
+  const auto error_squared = safe_tolerance * safe_tolerance;
+  std::vector<std::vector<CubicSegment>> runs(boundaries.size() - 1);
+  for (std::size_t r = 0; r + 1 < boundaries.size(); ++r) {
+    const auto start = boundaries[r];
+    const auto end = boundaries[r + 1];
+    std::vector<Vec> run;
+    for (std::size_t index = start; index <= end; ++index) {
+      run.push_back(point_vec(points[index]));
+    }
+    Vec tangent_start;
+    Vec tangent_end;
+    if (options.smooth_corner_tangents) {
+      tangent_start = normalized(point_vec(points[kept_next[start]]) - point_vec(points[start]));
+      tangent_end = normalized(point_vec(points[kept_previous[end]]) - point_vec(points[end]));
+    } else {
+      tangent_start = normalized(run[1] - run[0]);
+      tangent_end = normalized(run[run.size() - 2] - run[run.size() - 1]);
+    }
+    if (length(tangent_start) <= 1e-12) {
+      tangent_start = {1.0, 0.0};
+    }
+    if (length(tangent_end) <= 1e-12) {
+      tangent_end = {-1.0, 0.0};
+    }
+    fit_cubic_run(run, tangent_start, tangent_end, error_squared, runs[r], 0);
+  }
+
+  // Assemble: the first anchor keeps a collapsed in handle and the last a
+  // collapsed out handle; run seams are corners, interior splits smooth.
+  for (std::size_t r = 0; r < runs.size(); ++r) {
+    const auto& segments = runs[r];
+    if (r == 0) {
+      PathAnchor first;
+      first.anchor_x = segments.front().p0.x;
+      first.anchor_y = segments.front().p0.y;
+      first.in_x = first.anchor_x;
+      first.in_y = first.anchor_y;
+      first.out_x = segments.front().c1.x;
+      first.out_y = segments.front().c1.y;
+      first.smooth = false;
+      subpath.anchors.push_back(first);
+    }
+    for (std::size_t s = 0; s < segments.size(); ++s) {
+      PathAnchor anchor;
+      anchor.anchor_x = segments[s].p3.x;
+      anchor.anchor_y = segments[s].p3.y;
+      anchor.in_x = segments[s].c2.x;
+      anchor.in_y = segments[s].c2.y;
+      if (s + 1 < segments.size()) {
+        anchor.out_x = segments[s + 1].c1.x;
+        anchor.out_y = segments[s + 1].c1.y;
+        anchor.smooth = true;
+      } else if (r + 1 < runs.size()) {
+        anchor.out_x = runs[r + 1].front().c1.x;
+        anchor.out_y = runs[r + 1].front().c1.y;
+        anchor.smooth = false;
+      } else {
+        anchor.out_x = anchor.anchor_x;
+        anchor.out_y = anchor.anchor_y;
+        anchor.smooth = false;
+      }
+      subpath.anchors.push_back(anchor);
+    }
+  }
+
+  if (options.snap_curves_to_lines) {
+    auto& anchors = subpath.anchors;
+    for (std::size_t i = 0; i + 1 < anchors.size(); ++i) {
+      auto& a = anchors[i];
+      auto& b = anchors[i + 1];
+      const Vec p0{a.anchor_x, a.anchor_y};
+      const Vec p3{b.anchor_x, b.anchor_y};
+      const Vec c1{a.out_x, a.out_y};
+      const Vec c2{b.in_x, b.in_y};
+      if (chord_distance(c1, p0, p3) <= safe_tolerance && chord_distance(c2, p0, p3) <= safe_tolerance) {
+        a.out_x = a.anchor_x;
+        a.out_y = a.anchor_y;
+        b.in_x = b.anchor_x;
+        b.in_y = b.anchor_y;
+        a.smooth = false;
+        b.smooth = false;
+      }
+    }
+  }
+  return subpath;
+}
+
 }  // namespace patchy

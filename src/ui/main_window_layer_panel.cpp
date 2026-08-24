@@ -3120,6 +3120,7 @@ void MainWindow::refresh_layer_controls() {
       layer_blending_options_action_->setEnabled(false);
     }
     refresh_layer_style_action_states();
+    refresh_combine_shapes_action_states();
     if (layer_rasterize_action_ != nullptr) {
       layer_rasterize_action_->setEnabled(false);
     }
@@ -3234,6 +3235,7 @@ void MainWindow::refresh_layer_controls() {
     layer_blending_options_action_->setEnabled(edit_allowed);
   }
   refresh_layer_style_action_states();
+  refresh_combine_shapes_action_states();
   const auto active_pixels_locked = layer_id_locks_image_pixels(layer->id());
   // The rasterize actions act on the whole selection, folders expanded to
   // their contents, so their enabled state weighs the same set of layers.

@@ -44,6 +44,12 @@ struct PathFitOptions {
 // The Make Work Path form: `tolerance` with every other option at its default.
 [[nodiscard]] PathSubpath fit_closed_loop(const std::vector<FitPoint>& points, double tolerance);
 
+// Fits an OPEN polyline (both endpoints kept exactly) into an open subpath:
+// the same Douglas-Peucker / corner / per-run Schneider stages without the
+// wrap-around. Fewer than 2 points return an empty subpath. Simplify Path
+// uses it for open subpaths.
+[[nodiscard]] PathSubpath fit_open_polyline(const std::vector<FitPoint>& points, const PathFitOptions& options);
+
 // Signed area of the implicitly-closed loop (shoelace). Positive means
 // clockwise winding in y-down screen coordinates - the convention traced
 // outer boundaries use; holes come back counterclockwise (negative).

@@ -2,6 +2,7 @@
 #include "core/document_path.hpp"
 #include "core/layer.hpp"
 #include "core/path_fit.hpp"
+#include "core/path_simplify.hpp"
 #include "core/pixel_tools.hpp"
 #include "core/vector_live_shapes.hpp"
 #include "core/vector_raster.hpp"
@@ -502,6 +503,167 @@ void path_fit_staircase_smooths_diagonal() {
   CHECK(fitted.anchors.size() <= 8);  // the 40 stair vertices must not survive
 }
 
+// A 64-gon approximating a circle: closed, corner anchors with collapsed
+// handles (the shape an over-anchored trace produces).
+patchy::PathSubpath polygon_circle_subpath(double cx, double cy, double radius, int sides, int group,
+                                           patchy::PathCombineOp op) {
+  patchy::PathSubpath subpath;
+  subpath.closed = true;
+  subpath.op = op;
+  subpath.shape_group = group;
+  for (int i = 0; i < sides; ++i) {
+    const double angle = 2.0 * 3.14159265358979323846 * static_cast<double>(i) / sides;
+    patchy::PathAnchor anchor;
+    anchor.anchor_x = cx + radius * std::cos(angle);
+    anchor.anchor_y = cy + radius * std::sin(angle);
+    anchor.in_x = anchor.anchor_x;
+    anchor.in_y = anchor.anchor_y;
+    anchor.out_x = anchor.anchor_x;
+    anchor.out_y = anchor.anchor_y;
+    subpath.anchors.push_back(anchor);
+  }
+  return subpath;
+}
+
+double coverage_at(const patchy::CoverageBuffer& buffer, std::int32_t x, std::int32_t y) {
+  if (buffer.bounds.empty() || !buffer.bounds.contains(x, y)) {
+    return 0.0;
+  }
+  return *buffer.pixels.pixel(x - buffer.bounds.x, y - buffer.bounds.y);
+}
+
+void path_fit_open_polyline_keeps_endpoints_within_tolerance() {
+  // A quarter circle, radius 50 about the origin, sampled every 2.25 degrees.
+  std::vector<patchy::FitPoint> points;
+  for (int i = 0; i <= 40; ++i) {
+    const double angle = 0.5 * 3.14159265358979323846 * static_cast<double>(i) / 40.0;
+    points.push_back(patchy::FitPoint{50.0 * std::cos(angle), 50.0 * std::sin(angle)});
+  }
+  patchy::PathFitOptions options;
+  options.tolerance = 0.5;
+  const auto fitted = patchy::fit_open_polyline(points, options);
+  CHECK(!fitted.closed);
+  CHECK(fitted.anchors.size() >= 2);
+  CHECK(fitted.anchors.size() <= 6);
+  CHECK(std::abs(fitted.anchors.front().anchor_x - 50.0) < 1e-9);
+  CHECK(std::abs(fitted.anchors.front().anchor_y - 0.0) < 1e-9);
+  CHECK(std::abs(fitted.anchors.back().anchor_x - 0.0) < 1e-9);
+  CHECK(std::abs(fitted.anchors.back().anchor_y - 50.0) < 1e-9);
+  // Endpoint handles collapse on the side with no neighbor.
+  CHECK(fitted.anchors.front().in_x == fitted.anchors.front().anchor_x);
+  CHECK(fitted.anchors.back().out_y == fitted.anchors.back().anchor_y);
+  // The curve stays on the circle within the tolerance (sampled per segment).
+  for (std::size_t i = 0; i + 1 < fitted.anchors.size(); ++i) {
+    const auto& a = fitted.anchors[i];
+    const auto& b = fitted.anchors[i + 1];
+    for (int step = 0; step <= 16; ++step) {
+      const double t = step / 16.0;
+      const double u = 1.0 - t;
+      const double x = u * u * u * a.anchor_x + 3 * u * u * t * a.out_x + 3 * u * t * t * b.in_x +
+                       t * t * t * b.anchor_x;
+      const double y = u * u * u * a.anchor_y + 3 * u * u * t * a.out_y + 3 * u * t * t * b.in_y +
+                       t * t * t * b.anchor_y;
+      CHECK(std::abs(std::hypot(x, y) - 50.0) < 0.75);
+    }
+  }
+  // Degenerate input.
+  CHECK(patchy::fit_open_polyline({patchy::FitPoint{1.0, 1.0}}, options).anchors.empty());
+}
+
+void path_simplify_reduces_dense_circle_anchors() {
+  patchy::VectorPath dense;
+  dense.subpaths = {polygon_circle_subpath(50.0, 50.0, 40.0, 64, 0, patchy::PathCombineOp::Add)};
+  patchy::PathSimplifyOptions options;
+  options.tolerance = 1.0;
+  const auto simplified = patchy::simplify_vector_path(dense, options);
+  CHECK(simplified.anchors_before == 64);
+  CHECK(simplified.anchors_after == simplified.path.subpaths[0].anchors.size());
+  CHECK(simplified.anchors_after <= 8);
+  CHECK(simplified.changed_groups == std::vector<int>{0});
+  for (const auto& anchor : simplified.path.subpaths[0].anchors) {
+    CHECK(anchor.smooth);
+  }
+  // The refit covers the same pixels: the deviation lives in a band up to the
+  // tolerance wide along the 250 px perimeter, so the mean delta over the
+  // 100x100 canvas stays small and the total coverage within two percent.
+  patchy::VectorRasterOptions raster;
+  raster.clip = patchy::Rect{0, 0, 100, 100};
+  const auto before = patchy::rasterize_vector_path(dense, raster);
+  const auto after = patchy::rasterize_vector_path(simplified.path, raster);
+  double delta_sum = 0.0;
+  double before_sum = 0.0;
+  double after_sum = 0.0;
+  for (std::int32_t y = 0; y < 100; ++y) {
+    for (std::int32_t x = 0; x < 100; ++x) {
+      const auto a = coverage_at(before, x, y);
+      const auto b = coverage_at(after, x, y);
+      delta_sum += std::abs(a - b);
+      before_sum += a;
+      after_sum += b;
+    }
+  }
+  CHECK(delta_sum / (100.0 * 100.0) < 8.0);
+  CHECK(std::abs(after_sum - before_sum) < 0.02 * before_sum);
+}
+
+void path_simplify_preserves_ops_groups_open_flag_and_never_grows() {
+  patchy::VectorPath path;
+  path.subpaths.push_back(polygon_circle_subpath(50.0, 50.0, 40.0, 64, 0, patchy::PathCombineOp::Add));
+  path.subpaths.push_back(polygon_circle_subpath(50.0, 50.0, 20.0, 64, 1, patchy::PathCombineOp::Subtract));
+  patchy::PathSubpath wave;
+  wave.closed = false;
+  wave.op = patchy::PathCombineOp::Add;
+  wave.shape_group = 2;
+  for (int i = 0; i <= 40; ++i) {
+    patchy::PathAnchor anchor;
+    anchor.anchor_x = 10.0 + 2.0 * i;
+    anchor.anchor_y = 90.0 + 5.0 * std::sin(i * 0.3);
+    anchor.in_x = anchor.anchor_x;
+    anchor.in_y = anchor.anchor_y;
+    anchor.out_x = anchor.anchor_x;
+    anchor.out_y = anchor.anchor_y;
+    wave.anchors.push_back(anchor);
+  }
+  path.subpaths.push_back(wave);
+  path.fill_rule_value = 7;
+  path.initial_fill_value = 3;
+  patchy::PathSimplifyOptions options;
+  options.tolerance = 1.0;
+  const auto simplified = patchy::simplify_vector_path(path, options);
+  CHECK(simplified.path.subpaths.size() == 3);
+  CHECK(simplified.path.fill_rule_value == 7 && simplified.path.initial_fill_value == 3);
+  for (std::size_t i = 0; i < 3; ++i) {
+    CHECK(simplified.path.subpaths[i].op == path.subpaths[i].op);
+    CHECK(simplified.path.subpaths[i].shape_group == path.subpaths[i].shape_group);
+    CHECK(simplified.path.subpaths[i].closed == path.subpaths[i].closed);
+    CHECK(simplified.path.subpaths[i].anchors.size() <= path.subpaths[i].anchors.size());
+  }
+  CHECK(simplified.path.subpaths[2].anchors.size() < 41);
+  CHECK(simplified.changed_groups.size() == 3);
+  CHECK(simplified.anchors_after < simplified.anchors_before);
+
+  // A plain rectangle cannot get smaller: it comes back untouched.
+  patchy::VectorPath rect;
+  patchy::PathSubpath square;
+  square.closed = true;
+  for (const auto& [x, y] : {std::pair{10.0, 10.0}, std::pair{60.0, 10.0}, std::pair{60.0, 60.0},
+                             std::pair{10.0, 60.0}}) {
+    patchy::PathAnchor anchor;
+    anchor.anchor_x = x;
+    anchor.anchor_y = y;
+    anchor.in_x = x;
+    anchor.in_y = y;
+    anchor.out_x = x;
+    anchor.out_y = y;
+    square.anchors.push_back(anchor);
+  }
+  rect.subpaths = {square};
+  const auto untouched = patchy::simplify_vector_path(rect, options);
+  CHECK(untouched.path == rect);
+  CHECK(untouched.changed_groups.empty());
+  CHECK(untouched.anchors_before == 4 && untouched.anchors_after == 4);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> vector_shape_tests() {
@@ -521,5 +683,10 @@ std::vector<patchy::test::TestCase> vector_shape_tests() {
       {"path_fit_circle_is_smooth_and_within_tolerance",
        path_fit_circle_is_smooth_and_within_tolerance},
       {"path_fit_staircase_smooths_diagonal", path_fit_staircase_smooths_diagonal},
+      {"path_fit_open_polyline_keeps_endpoints_within_tolerance",
+       path_fit_open_polyline_keeps_endpoints_within_tolerance},
+      {"path_simplify_reduces_dense_circle_anchors", path_simplify_reduces_dense_circle_anchors},
+      {"path_simplify_preserves_ops_groups_open_flag_and_never_grows",
+       path_simplify_preserves_ops_groups_open_flag_and_never_grows},
   };
 }

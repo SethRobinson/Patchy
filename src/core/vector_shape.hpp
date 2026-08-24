@@ -256,6 +256,9 @@ inline constexpr const char* kVectorRasterStatusPatchy = "patchy_raster";
 [[nodiscard]] std::string vector_lock_reason(const Layer& layer);
 [[nodiscard]] bool layer_vector_block_dirty(const Layer& layer);
 void mark_layer_vector_block_dirty(Layer& layer);
+// A direct geometry edit invalidates the live-shape annotation of the touched
+// shape groups (Photoshop's keyShapeInvalidated rule); the path itself stays.
+void drop_live_shape_origination(VectorShapeContent& content, const std::vector<int>& groups);
 // The rasterize / merge-target semantic: drops the vector fields, every
 // patchy.vector.* key, and the preserved PSD vector blocks so the layer
 // becomes a plain pixel layer everywhere, resave included (the

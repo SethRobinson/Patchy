@@ -13698,6 +13698,33 @@ Clipped to the layer below</source>
     <message><source>Click a point on the path to delete it</source><translation>パス上のポイントをクリックして削除</translation></message>
     <message><source>Click a point to switch it between corner and smooth</source><translation>ポイントをクリックしてコーナーとスムーズを切り替え</translation></message>
     <message><source>The layer has no pixels to trace</source><translation>このレイヤーにはトレースできるピクセルがありません</translation></message>
+    <message><source>Simplify Path...</source><translation>パスを単純化...</translation></message>
+    <message><source>Refit the targeted path with fewer points</source><translation>対象のパスをより少ないポイントで引き直します</translation></message>
+    <message><source>Unite Shapes</source><translation>シェイプを結合</translation></message>
+    <message><source>Subtract Front Shape</source><translation>前面シェイプを削除</translation></message>
+    <message><source>Intersect Shapes</source><translation>シェイプを交差</translation></message>
+    <message><source>Exclude Overlapping Shapes</source><translation>重なり合うシェイプを除外</translation></message>
+    <message><source>Select a path or shape layer to simplify</source><translation>単純化するパスまたはシェイプレイヤーを選択してください</translation></message>
+    <message><source>Simplify Path</source><translation>パスを単純化</translation></message>
+    <message><source>Larger values remove more points</source><translation>値が大きいほど多くのポイントを取り除きます</translation></message>
+    <message><source>Bends sharper than this angle stay corners</source><translation>この角度より鋭い曲がりはコーナーのまま残ります</translation></message>
+    <message><source> deg</source><translation> 度</translation></message>
+    <message><source>Corners:</source><translation>コーナー:</translation></message>
+    <message><source>Snap curves to lines</source><translation>曲線を直線にスナップ</translation></message>
+    <message><source>Anchors: %1 -&gt; %2</source><translation>アンカーポイント: %1 -> %2</translation></message>
+    <message><source>Cancelled simplifying the path</source><translation>パスの単純化をキャンセルしました</translation></message>
+    <message><source>Simplify path</source><translation>パスを単純化</translation></message>
+    <message><source>Simplified the path: %1 -&gt; %2 anchors</source><translation>パスを単純化しました: アンカーポイント %1 -> %2</translation></message>
+    <message><source>Select two or more shape layers to combine</source><translation>結合するシェイプレイヤーを2つ以上選択してください</translation></message>
+    <message><source>Only editable shape layers can be combined</source><translation>結合できるのは編集可能なシェイプレイヤーだけです</translation></message>
+    <message><source>Shape layers are locked</source><translation>シェイプレイヤーがロックされています</translation></message>
+    <message><source>Fill layers without a path cannot be combined</source><translation>パスのない塗りつぶしレイヤーは結合できません</translation></message>
+    <message><source>Shape layers must be in the same folder to combine</source><translation>結合するシェイプレイヤーは同じフォルダーにある必要があります</translation></message>
+    <message><source>Unite shapes</source><translation>シェイプを結合</translation></message>
+    <message><source>Subtract front shape</source><translation>前面シェイプを削除</translation></message>
+    <message><source>Intersect shapes</source><translation>シェイプを交差</translation></message>
+    <message><source>Exclude overlapping shapes</source><translation>重なり合うシェイプを除外</translation></message>
+    <message numerus="yes"><source>Combined %n shape layer(s)</source><translation><numerusform>%n 個のシェイプレイヤーを結合しました</numerusform></translation></message>
 </context>
 <context>
     <name>patchy::ui::PalettePanel</name>
@@ -14674,6 +14701,15 @@ Clipped to the layer below</source>
     <message><source>traceToShapes: unknown option %1</source><translation>traceToShapes: 不明なオプション %1</translation></message>
     <message><source>Traced %1</source><translation>トレース済み %1</translation></message>
     <message><source>traceToShapes needs a pixel layer.</source><translation>traceToShapes にはピクセルレイヤーが必要です。</translation></message>
+    <message><source>simplifyPath: unknown option %1</source><translation>simplifyPath: 不明なオプション %1</translation></message>
+    <message><source>simplifyPath needs a shape layer or a layer with a vector mask.</source><translation>simplifyPath にはシェイプレイヤーまたはベクトルマスクを持つレイヤーが必要です。</translation></message>
+    <message><source>combineShapes: unknown op %1 (unite, subtract, intersect, exclude)</source><translation>combineShapes: 不明な演算 %1 (unite、subtract、intersect、exclude)</translation></message>
+    <message><source>combineShapes needs an array of layers of this document.</source><translation>combineShapes にはこのドキュメントのレイヤーの配列が必要です。</translation></message>
+    <message><source>combineShapes needs two or more shape layers.</source><translation>combineShapes には2つ以上のシェイプレイヤーが必要です。</translation></message>
+    <message><source>combineShapes: only editable shape layers can be combined.</source><translation>combineShapes: 結合できるのは編集可能なシェイプレイヤーだけです。</translation></message>
+    <message><source>combineShapes: the shape layers are locked.</source><translation>combineShapes: シェイプレイヤーがロックされています。</translation></message>
+    <message><source>combineShapes: fill layers without a path cannot be combined.</source><translation>combineShapes: パスのない塗りつぶしレイヤーは結合できません。</translation></message>
+    <message><source>combineShapes: the shape layers must share one folder.</source><translation>combineShapes: シェイプレイヤーは同じフォルダーにある必要があります。</translation></message>
 </context>
 <context>
     <name>patchy::ui::ScriptEditorDialog</name>

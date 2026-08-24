@@ -1058,6 +1058,9 @@ void MainWindow::set_active_layer_from_selection() {
   if (canvas_ != nullptr) {
     canvas_->set_selected_layer_ids(selected_layer_ids());
   }
+  // A pure multi-selection change (same active layer) still decides whether
+  // Combine Shapes applies.
+  refresh_combine_shapes_action_states();
   if (layer_list_->currentItem() == nullptr) {
     return;
   }

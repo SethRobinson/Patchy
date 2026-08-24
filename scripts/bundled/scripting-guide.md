@@ -127,6 +127,7 @@ Field types: `number`, `slider`, `checkbox`, `choice`, `text`, `color`, `folder`
 | `doc.addLayer(name)` | New empty pixel layer on top, made active. |
 | `doc.addTextLayer(text, options)` | Text layer through the real text engine. Options: `font`, `size`, `x`, `y`, `color`, `bold`, `italic`. `size` is the text height in document pixels. |
 | `doc.findLayer(name)` | First layer with that exact name, or `undefined`. |
+| `doc.combineShapes(layers, op)` | Combine Shapes: merges sibling shape layers into the bottom-most one and returns it. `op` is `"unite"`, `"subtract"` (front shapes cut from the base), `"intersect"`, or `"exclude"`. |
 | `doc.selection` | The selection object (below). |
 | `doc.flatten()` | Flattens the document. |
 | `doc.resizeImage(w, h)` / `doc.resizeCanvas(w, h)` / `doc.crop(x, y, w, h)` | Geometry operations. |
@@ -149,6 +150,7 @@ Field types: `number`, `slider`, `checkbox`, `choice`, `text`, `color`, `folder`
 | `layer.applyFilter(id, params)` | Runs a filter, e.g. `layer.applyFilter("patchy.filters.gaussian_blur", { radius: 8 })`. |
 | `layer.getPixels()` / `layer.setPixels(imageData)` | Raw RGBA8 pixel access. `getPixels` returns `{x, y, width, height, data}` with an `ArrayBuffer` of `width * height * 4` bytes; `setPixels` replaces the layer's pixels with such a block. |
 | `layer.traceToShapes(options)` | Trace Image to Shapes: turns the pixel layer into a group of solid shape layers, one per color, and returns the group (the source layer is hidden). Options: `mode` (`"color"`, `"grayscale"`, `"blackAndWhite"`), `colors`, `threshold`, `paths`, `corners`, `noise`, `method` (`"abutting"` or `"overlapping"`), `snapCurvesToLines`, `ignoreWhite`. With a selection active only the selected area is traced. Example: `layer.traceToShapes({ mode: "blackAndWhite", ignoreWhite: true })`. |
+| `layer.simplifyPath(options)` | Simplify Path: refits a shape layer's path (or its vector mask) with fewer points. Options: `tolerance` (px, default 1), `cornerAngle` (degrees, default 60), `snapCurvesToLines`. Returns `{anchorsBefore, anchorsAfter}`. |
 
 Colors everywhere are CSS-style strings: `"#rrggbb"`, `"#aarrggbb"`, or named colors like `"red"`.
 

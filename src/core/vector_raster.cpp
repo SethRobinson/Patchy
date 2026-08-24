@@ -773,6 +773,14 @@ void append_run_outline(const StrokeRun& run, double h, VectorStrokeCap cap, Vec
 
 }  // namespace
 
+std::vector<std::array<double, 2>> flatten_subpath_polyline(const PathSubpath& subpath) {
+  std::vector<std::array<double, 2>> points;
+  for (const auto& point : subpath_polyline(subpath)) {
+    points.push_back({point.x, point.y});
+  }
+  return points;
+}
+
 CoverageBuffer rasterize_vector_path(const VectorPath& path, const VectorRasterOptions& options) {
   if (options.clip.empty()) {
     return CoverageBuffer{};

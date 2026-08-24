@@ -5,6 +5,8 @@
 // main_window_actions.cpp, refined by refresh_vector_tool_options_visibility).
 #include "ui/main_window.hpp"
 
+#include "core/path_simplify.hpp"
+#include "core/shape_combine.hpp"
 #include "core/blend_math.hpp"
 #include "core/document_path.hpp"
 #include "core/layer_render_utils.hpp"
@@ -50,6 +52,7 @@
 #include <QPixmap>
 #include <QPointer>
 #include <QSignalBlocker>
+#include <QSpinBox>
 #include <QStandardItemModel>
 #include <QStatusBar>
 #include <QTimer>
@@ -1921,6 +1924,247 @@ std::optional<LayerId> MainWindow::insert_image_trace_layers(LayerId source_id, 
   refresh_paths_panel();
   canvas_->document_changed();
   return group_id;
+}
+
+
+namespace {
+
+constexpr const char* kSimplifyToleranceKey = "paths/simplifyTolerance";
+constexpr const char* kSimplifyCornerKey = "paths/simplifyCornerAngle";
+constexpr const char* kSimplifySnapKey = "paths/simplifySnapCurvesToLines";
+
+}  // namespace
+
+void MainWindow::simplify_target_path() {
+  if (canvas_ == nullptr || !has_active_document()) {
+    return;
+  }
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  const auto* target = canvas_->path_edit_target_path();
+  if (target == nullptr || target->subpaths.empty()) {
+    show_status_error(tr("Select a path or shape layer to simplify"));
+    return;
+  }
+  auto& doc = document();
+  Document* const doc_identity = &doc;
+  const VectorPath original = *target;
+  // Snapshot the owner for cancel, in path_edit_target_path's precedence: the
+  // vector-mask target, a targeted Paths-panel row, the active shape layer,
+  // else the work path. Whole objects, so a saved path keeps its verbatim PSD
+  // record bytes and dirty flag on cancel.
+  std::optional<LayerId> snapshot_layer_id;
+  std::optional<Layer> snapshot_layer;
+  std::optional<DocumentPathId> snapshot_path_id;
+  std::optional<DocumentPath> snapshot_path;
+  const auto active_layer_id = doc.active_layer_id();
+  const auto* active =
+      active_layer_id.has_value() ? std::as_const(doc).find_layer(*active_layer_id) : nullptr;
+  const auto panel_path = canvas_->active_document_path();
+  if (canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::VectorMask && active != nullptr &&
+      active->vector_mask() != nullptr) {
+    snapshot_layer_id = active_layer_id;
+    snapshot_layer = *active;
+  } else if (panel_path.has_value() && std::as_const(doc).find_path(*panel_path) != nullptr) {
+    snapshot_path_id = panel_path;
+    snapshot_path = *std::as_const(doc).find_path(*panel_path);
+  } else if (active != nullptr && layer_is_vector_shape(*active) && vector_lock_reason(*active).empty()) {
+    snapshot_layer_id = active_layer_id;
+    snapshot_layer = *active;
+  } else if (const auto* work = doc.work_path(); work != nullptr) {
+    snapshot_path_id = work->id();
+    snapshot_path = *work;
+  } else {
+    show_status_error(tr("Select a path or shape layer to simplify"));
+    return;
+  }
+  const auto restore = [this, doc_identity, snapshot_layer_id, snapshot_layer, snapshot_path_id,
+                        snapshot_path] {
+    // Non-modal: the document may have closed or switched meanwhile.
+    if (!has_active_document() || &document() != doc_identity) {
+      return false;
+    }
+    auto& current = document();
+    if (snapshot_layer.has_value()) {
+      auto* layer = current.find_layer(*snapshot_layer_id);
+      if (layer == nullptr) {
+        return false;
+      }
+      *layer = *snapshot_layer;
+    }
+    if (snapshot_path.has_value()) {
+      auto* path = current.find_path(*snapshot_path_id);
+      if (path == nullptr) {
+        return false;
+      }
+      *path = *snapshot_path;
+    }
+    if (canvas_ != nullptr) {
+      canvas_->document_changed();
+    }
+    refresh_layer_thumbnails();
+    refresh_paths_panel();
+    return true;
+  };
+
+  auto settings = app_settings();
+  QDialog dialog(this);
+  dialog.setObjectName(QStringLiteral("simplifyPathDialog"));
+  dialog.setWindowTitle(tr("Simplify Path"));
+  auto* layout = new QVBoxLayout(&dialog);
+  auto* form = new QFormLayout();
+  auto* tolerance = new QDoubleSpinBox(&dialog);
+  tolerance->setObjectName(QStringLiteral("simplifyPathToleranceSpin"));
+  tolerance->setRange(0.1, 20.0);
+  tolerance->setDecimals(1);
+  tolerance->setSingleStep(0.5);
+  tolerance->setSuffix(QStringLiteral(" px"));
+  tolerance->setValue(std::clamp(settings.value(QLatin1String(kSimplifyToleranceKey), 1.0).toDouble(), 0.1, 20.0));
+  tolerance->setToolTip(tr("Larger values remove more points"));
+  form->addRow(tr("Tolerance:"), tolerance);
+  auto* corners = new QSpinBox(&dialog);
+  corners->setObjectName(QStringLiteral("simplifyPathCornerSpin"));
+  corners->setRange(10, 170);
+  corners->setSuffix(tr(" deg"));
+  corners->setValue(std::clamp(settings.value(QLatin1String(kSimplifyCornerKey), 60).toInt(), 10, 170));
+  corners->setToolTip(tr("Bends sharper than this angle stay corners"));
+  form->addRow(tr("Corners:"), corners);
+  auto* snap = new QCheckBox(tr("Snap curves to lines"), &dialog);
+  snap->setObjectName(QStringLiteral("simplifyPathSnapLinesCheck"));
+  snap->setChecked(settings.value(QLatin1String(kSimplifySnapKey), false).toBool());
+  form->addRow(QString(), snap);
+  layout->addLayout(form);
+  auto* readout = new QLabel(&dialog);
+  readout->setObjectName(QStringLiteral("simplifyPathAnchorsLabel"));
+  layout->addWidget(readout);
+  auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+  connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+  connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+  layout->addWidget(buttons);
+  append_themed_style(dialog, dialog_spinbox_button_style());
+
+  // Live preview: the vector model applies to the real target, undo stays
+  // un-armed (the snapshot above restores), one entry lands on accept.
+  auto preview_lock = lock_preview_dialog_edits();
+  canvas_->clear_path_edit_selection();
+  const auto current_options = [&] {
+    PathSimplifyOptions options;
+    options.tolerance = tolerance->value();
+    options.corner_angle_degrees = corners->value();
+    options.snap_curves_to_lines = snap->isChecked();
+    return options;
+  };
+  const auto apply_preview = [&] {
+    const auto result = simplify_vector_path(original, current_options());
+    canvas_->replace_path_edit_target(result.path, result.changed_groups);
+    readout->setText(tr("Anchors: %1 -> %2")
+                         .arg(static_cast<qulonglong>(result.anchors_before))
+                         .arg(static_cast<qulonglong>(result.anchors_after)));
+    refresh_paths_panel();
+    refresh_layer_thumbnails();
+  };
+  connect(tolerance, &QDoubleSpinBox::valueChanged, &dialog, [&](double) { apply_preview(); });
+  connect(corners, &QSpinBox::valueChanged, &dialog, [&](int) { apply_preview(); });
+  connect(snap, &QCheckBox::toggled, &dialog, [&](bool) { apply_preview(); });
+  apply_preview();
+  const auto code = run_non_modal_dialog(dialog);
+  const auto final_options = current_options();
+  if (!restore()) {
+    return;
+  }
+  if (code != QDialog::Accepted) {
+    statusBar()->showMessage(tr("Cancelled simplifying the path"));
+    return;
+  }
+  settings.setValue(QLatin1String(kSimplifyToleranceKey), final_options.tolerance);
+  settings.setValue(QLatin1String(kSimplifyCornerKey), static_cast<int>(final_options.corner_angle_degrees));
+  settings.setValue(QLatin1String(kSimplifySnapKey), final_options.snap_curves_to_lines);
+  push_undo_snapshot(tr("Simplify path"));
+  const auto result = simplify_vector_path(original, final_options);
+  canvas_->replace_path_edit_target(result.path, result.changed_groups);
+  refresh_paths_panel();
+  refresh_layer_thumbnails();
+  refresh_layer_controls();
+  statusBar()->showMessage(tr("Simplified the path: %1 -> %2 anchors")
+                               .arg(static_cast<qulonglong>(result.anchors_before))
+                               .arg(static_cast<qulonglong>(result.anchors_after)));
+}
+
+void MainWindow::refresh_combine_shapes_action_states() {
+  const bool enabled =
+      has_active_document() && !preview_dialog_edit_locked() &&
+      combine_shape_candidates(std::as_const(document()).layers(), selected_or_active_layer_ids()).refusal ==
+          ShapeCombineRefusal::None;
+  for (auto* action : layer_combine_actions_) {
+    if (action != nullptr) {
+      action->setEnabled(enabled);
+    }
+  }
+}
+
+void MainWindow::combine_selected_shape_layers(PathCombineOp op) {
+  if (canvas_ == nullptr || !has_active_document()) {
+    return;
+  }
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  canvas_->finish_free_transform();
+  auto& doc = document();
+  const auto candidates = combine_shape_candidates(std::as_const(doc).layers(), selected_or_active_layer_ids());
+  switch (candidates.refusal) {
+    case ShapeCombineRefusal::NeedTwoLayers:
+      show_status_error(tr("Select two or more shape layers to combine"));
+      return;
+    case ShapeCombineRefusal::NotShapeLayer:
+      show_status_error(tr("Only editable shape layers can be combined"));
+      return;
+    case ShapeCombineRefusal::Locked:
+      show_status_error(tr("Shape layers are locked"));
+      return;
+    case ShapeCombineRefusal::EmptyPath:
+      show_status_error(tr("Fill layers without a path cannot be combined"));
+      return;
+    case ShapeCombineRefusal::DifferentParents:
+      show_status_error(tr("Shape layers must be in the same folder to combine"));
+      return;
+    case ShapeCombineRefusal::None:
+      break;
+  }
+  QString label;
+  switch (op) {
+    case PathCombineOp::Add:
+      label = tr("Unite shapes");
+      break;
+    case PathCombineOp::Subtract:
+      label = tr("Subtract front shape");
+      break;
+    case PathCombineOp::Intersect:
+      label = tr("Intersect shapes");
+      break;
+    case PathCombineOp::Xor:
+      label = tr("Exclude overlapping shapes");
+      break;
+  }
+  push_undo_snapshot(label);
+  const auto result = combine_shape_layers(document(), candidates.bottom_to_top, op);
+  if (!result.has_value()) {
+    show_status_error(tr("Only editable shape layers can be combined"));
+    return;
+  }
+  document().set_active_layer(result->layer_id);
+  canvas_->clear_path_edit_selection();
+  refresh_layer_list();
+  refresh_layer_controls();
+  refresh_document_info();
+  path_row_hidden_for_layer_.reset();
+  refresh_paths_panel();
+  canvas_->document_changed();
+  statusBar()->showMessage(
+      tr("Combined %n shape layer(s)", nullptr, static_cast<int>(candidates.bottom_to_top.size())));
 }
 
 }  // namespace patchy::ui

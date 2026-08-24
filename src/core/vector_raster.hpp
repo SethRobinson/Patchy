@@ -3,8 +3,10 @@
 #include "core/pattern_resource.hpp"
 #include "core/vector_shape.hpp"
 
+#include <array>
 #include <cstdint>
 #include <optional>
+#include <vector>
 
 // Deterministic scanline rasterizer for vector paths (fills; the stroker
 // builds on it). Inputs are quantized once to 24.8 fixed point, and every
@@ -36,6 +38,11 @@ struct VectorRasterOptions {
 // tight bounds. Returns an empty buffer when nothing is covered.
 [[nodiscard]] CoverageBuffer rasterize_vector_path(const VectorPath& path,
                                                    const VectorRasterOptions& options);
+
+// The document-space polyline the fill and stroke rasterizers work from
+// (adaptive cubic flattening on the 1/256 lattice, anchors included; a
+// closed subpath omits the repeated closing point). Simplify Path refits it.
+[[nodiscard]] std::vector<std::array<double, 2>> flatten_subpath_polyline(const PathSubpath& subpath);
 
 // Vector-mask coverage: the path's coverage with the mask's inverted flag
 // applied (inverted masks cover clip minus path).

@@ -115,6 +115,8 @@ add_library(patchy_core
   src/core/palette.cpp
   src/core/palette_presets.cpp
   src/core/path_fit.cpp
+  src/core/path_simplify.cpp
+  src/core/shape_combine.cpp
   src/core/pattern_presets.cpp
   src/core/pattern_resource.cpp
   src/core/pixel_buffer.cpp
@@ -1465,6 +1467,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/float_window_tests.cpp
       tests/ui/vector_shape_tool_tests.cpp
       tests/ui/vector_point_editing_tests.cpp
+      tests/ui/vector_commands_tests.cpp
       tests/ui/svg_ui_tests.cpp
       tests/ui/image_trace_ui_tests.cpp
       tests/ui/scripting_tests.cpp

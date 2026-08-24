@@ -241,6 +241,7 @@ int main(int argc, char* argv[]) {
            float_window_tests,
            vector_shape_tool_tests,
            vector_point_editing_tests,
+           vector_commands_tests,
            svg_ui_tests,
            image_trace_ui_tests,
            scripting_tests,

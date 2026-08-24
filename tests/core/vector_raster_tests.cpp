@@ -3,6 +3,8 @@
 #include "core/layer_render_utils.hpp"
 #include "core/pattern_resource.hpp"
 #include "core/vector_live_shapes.hpp"
+#include "core/layer_metadata.hpp"
+#include "core/shape_combine.hpp"
 #include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
 #include "render/compositor.hpp"
@@ -948,6 +950,107 @@ void update_vector_shape_raster_bakes_pixels() {
   CHECK(patchy::layer_has_enabled_vector_mask(layer) == false);
 }
 
+patchy::Layer make_shape_layer(patchy::Document& document, const char* name, patchy::PathSubpath subpath,
+                               patchy::RgbColor color) {
+  patchy::Layer layer(document.allocate_layer_id(), name, patchy::PixelBuffer());
+  layer.metadata()[patchy::kLayerMetadataVectorShape] = "1";
+  patchy::VectorShapeContent content;
+  content.path.subpaths = {std::move(subpath)};
+  content.fill.kind = patchy::VectorFillKind::Solid;
+  content.fill.color = color;
+  layer.set_vector_shape(std::move(content));
+  patchy::update_vector_shape_raster(layer, Rect::from_size(document.width(), document.height()), nullptr);
+  return layer;
+}
+
+void combine_shape_layers_truth_table() {
+  struct Expectation {
+    PathCombineOp op;
+    std::uint8_t only_a;
+    std::uint8_t overlap;
+    std::uint8_t only_b;
+  };
+  const Expectation table[] = {
+      {PathCombineOp::Add, 255, 255, 255},
+      {PathCombineOp::Subtract, 255, 0, 0},
+      {PathCombineOp::Intersect, 0, 255, 0},
+      {PathCombineOp::Xor, 255, 0, 255},
+  };
+  for (const auto& expected : table) {
+    patchy::Document document(64, 64, patchy::PixelFormat::rgba8());
+    auto a = make_shape_layer(document, "A", rect_subpath(8, 8, 40, 40, PathCombineOp::Add, 0),
+                              patchy::RgbColor{200, 30, 30});
+    auto b = make_shape_layer(document, "B", rect_subpath(24, 24, 56, 56, PathCombineOp::Add, 0),
+                              patchy::RgbColor{30, 30, 200});
+    const auto a_id = a.id();
+    const auto b_id = b.id();
+    document.add_layer(std::move(a));
+    document.add_layer(std::move(b));  // on top
+
+    const auto candidates = patchy::combine_shape_candidates(document.layers(), {b_id, a_id});
+    CHECK(candidates.refusal == patchy::ShapeCombineRefusal::None);
+    CHECK((candidates.bottom_to_top == std::vector<patchy::LayerId>{a_id, b_id}));
+    const auto result = patchy::combine_shape_layers(document, candidates.bottom_to_top, expected.op);
+    CHECK(result.has_value());
+    CHECK(result->layer_id == a_id && result->removed_layers == 1);
+    CHECK(document.layers().size() == 1);
+    const auto* merged = std::as_const(document).find_layer(a_id);
+    CHECK(merged != nullptr && merged->name() == "A");
+    CHECK(merged->vector_shape()->fill.color.red == 200);
+    const auto& subpaths = merged->vector_shape()->path.subpaths;
+    CHECK(subpaths.size() == 2);
+    CHECK(subpaths[0].op == PathCombineOp::Add && subpaths[0].shape_group == 0);
+    CHECK(subpaths[1].op == expected.op && subpaths[1].shape_group == 1);
+    const auto coverage = rasterize(merged->vector_shape()->path, Rect{0, 0, 64, 64});
+    CHECK(coverage_pixel(coverage, 12, 12) == expected.only_a);
+    CHECK(coverage_pixel(coverage, 32, 32) == expected.overlap);
+    CHECK(coverage_pixel(coverage, 50, 50) == expected.only_b);
+    // The bake followed the merge: the layer's pixels cover the same area.
+    const auto bounds = merged->bounds();
+    CHECK(bounds.contains(12, 12) == (expected.only_a == 255) || expected.only_a == 0);
+  }
+}
+
+void combine_shape_candidates_refuses_mixed_parents_locks_and_fill_layers() {
+  patchy::Document document(64, 64, patchy::PixelFormat::rgba8());
+  auto a = make_shape_layer(document, "A", rect_subpath(8, 8, 40, 40, PathCombineOp::Add, 0),
+                            patchy::RgbColor{200, 30, 30});
+  auto b = make_shape_layer(document, "B", rect_subpath(24, 24, 56, 56, PathCombineOp::Add, 0),
+                            patchy::RgbColor{30, 30, 200});
+  auto nested = make_shape_layer(document, "Nested", rect_subpath(4, 4, 12, 12, PathCombineOp::Add, 0),
+                                 patchy::RgbColor{30, 200, 30});
+  patchy::Layer fill(document.allocate_layer_id(), "Fill", patchy::PixelBuffer());
+  fill.metadata()[patchy::kLayerMetadataVectorShape] = "1";
+  patchy::VectorShapeContent whole_canvas;
+  whole_canvas.fill.kind = patchy::VectorFillKind::Solid;
+  fill.set_vector_shape(std::move(whole_canvas));
+  patchy::Layer pixel(document.allocate_layer_id(), "Pixel", patchy::PixelBuffer());
+  patchy::Layer group(document.allocate_layer_id(), "Group", patchy::LayerKind::Group);
+  const auto a_id = a.id();
+  const auto b_id = b.id();
+  const auto nested_id = nested.id();
+  const auto fill_id = fill.id();
+  const auto pixel_id = pixel.id();
+  group.add_child(std::move(nested));
+  document.add_layer(std::move(a));
+  document.add_layer(std::move(b));
+  document.add_layer(std::move(fill));
+  document.add_layer(std::move(pixel));
+  document.add_layer(std::move(group));
+
+  using patchy::ShapeCombineRefusal;
+  CHECK(patchy::combine_shape_candidates(document.layers(), {a_id}).refusal == ShapeCombineRefusal::NeedTwoLayers);
+  CHECK(patchy::combine_shape_candidates(document.layers(), {a_id, pixel_id}).refusal ==
+        ShapeCombineRefusal::NotShapeLayer);
+  CHECK(patchy::combine_shape_candidates(document.layers(), {a_id, fill_id}).refusal ==
+        ShapeCombineRefusal::EmptyPath);
+  CHECK(patchy::combine_shape_candidates(document.layers(), {a_id, nested_id}).refusal ==
+        ShapeCombineRefusal::DifferentParents);
+  CHECK(patchy::combine_shape_candidates(document.layers(), {b_id, a_id}).refusal == ShapeCombineRefusal::None);
+  patchy::set_layer_locks_all(*document.find_layer(b_id), true);
+  CHECK(patchy::combine_shape_candidates(document.layers(), {b_id, a_id}).refusal == ShapeCombineRefusal::Locked);
+}
+
 void document_paths_add_find_and_work_semantics() {
   patchy::Document document(16, 16, patchy::PixelFormat::rgb8());
   const auto id = document.allocate_path_id();
@@ -1002,6 +1105,9 @@ std::vector<patchy::test::TestCase> vector_raster_tests() {
       {"vector_mask_composites_in_flatten", vector_mask_composites_in_flatten},
       {"vector_mask_multiplies_with_raster_mask", vector_mask_multiplies_with_raster_mask},
       {"update_vector_shape_raster_bakes_pixels", update_vector_shape_raster_bakes_pixels},
+      {"combine_shape_layers_truth_table", combine_shape_layers_truth_table},
+      {"combine_shape_candidates_refuses_mixed_parents_locks_and_fill_layers",
+       combine_shape_candidates_refuses_mixed_parents_locks_and_fill_layers},
       {"document_paths_add_find_and_work_semantics", document_paths_add_find_and_work_semantics},
   };
 }

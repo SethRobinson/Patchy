@@ -659,6 +659,10 @@ public:
   // The path the pen/path tools currently edit (panel > vector mask > shape
   // layer > work path); null when nothing is targetable.
   [[nodiscard]] const patchy::VectorPath* path_edit_target_path() const;
+  // Replaces the targeted path (same target rules) and re-rasterizes WITHOUT
+  // arming an undo entry: preview dialogs apply through this and own the
+  // snapshot. `touched_groups` lose their live-shape annotations.
+  void replace_path_edit_target(patchy::VectorPath path, const std::vector<int>& touched_groups);
   // Path free-transform session (Ctrl+T with a path tool active): a box over
   // the targeted path - or the Direct Select anchor subset - that moves,
   // scales, and rotates it, committed as ONE apply_path_edit undo entry.

@@ -97,7 +97,7 @@ PathsPanel::PathsPanel(QWidget* parent) : QWidget(parent) {
 void PathsPanel::set_actions(QAction* new_path, QAction* fill_path, QAction* stroke_path,
                              QAction* make_selection, QAction* from_selection,
                              QAction* duplicate_path, QAction* clipping_path,
-                             QAction* delete_path) {
+                             QAction* delete_path, QAction* simplify_path) {
   new_path_action_ = new_path;
   fill_path_action_ = fill_path;
   stroke_path_action_ = stroke_path;
@@ -106,6 +106,7 @@ void PathsPanel::set_actions(QAction* new_path, QAction* fill_path, QAction* str
   duplicate_path_action_ = duplicate_path;
   clipping_path_action_ = clipping_path;
   delete_path_action_ = delete_path;
+  simplify_path_action_ = simplify_path;
   const auto bind = [this](const QString& button_name, QAction* action) {
     auto* button = findChild<QToolButton*>(button_name);
     if (button != nullptr && action != nullptr) {
@@ -319,7 +320,7 @@ void PathsPanel::show_context_menu(const QPoint& position) {
   QMenu menu(this);
   for (auto* action : {new_path_action_, duplicate_path_action_, fill_path_action_,
                        stroke_path_action_, make_selection_action_, from_selection_action_,
-                       clipping_path_action_, delete_path_action_}) {
+                       simplify_path_action_, clipping_path_action_, delete_path_action_}) {
     if (action != nullptr) {
       menu.addAction(action);
     }

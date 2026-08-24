@@ -695,6 +695,50 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   layer_smart_objects_menu->addAction(layer_smart_object_via_copy_action_);
   layer_smart_objects_menu->addSeparator();
   layer_smart_objects_menu->addAction(layer_smart_object_to_normal_action_);
+  // Commands on existing shapes (docs/vector-commands.md). A submenu keeps the
+  // Layer menu inside its wasm-viewport row bound.
+  auto* layer_shape_menu = layer_menu->addMenu(tr("Shape"));
+  layer_shape_menu->setObjectName(QStringLiteral("layerShapeMenu"));
+  bind_widget_text(layer_shape_menu, "Shape");
+  path_simplify_action_ = layer_shape_menu->addAction(tr("Simplify Path..."));
+  path_simplify_action_->setObjectName(QStringLiteral("pathSimplifyAction"));
+  path_simplify_action_->setProperty("patchy.channelViewBlocked", true);
+  path_simplify_action_->setStatusTip(tr("Refit the targeted path with fewer points"));
+  bind_action_text(path_simplify_action_, "Simplify Path...");
+  bind_translated_status_tip(path_simplify_action_, "Refit the targeted path with fewer points");
+  apply_bound_translation(path_simplify_action_);
+  register_hotkey(path_simplify_action_, "path.simplify");
+  connect(path_simplify_action_, &QAction::triggered, this, [this] { simplify_target_path(); });
+  register_document_action(path_simplify_action_);
+  layer_shape_menu->addSeparator();
+  struct CombineEntry {
+    const char* text;
+    const char* object_name;
+    const char* hotkey_id;
+    patchy::PathCombineOp op;
+  };
+  const CombineEntry combine_entries[] = {
+      {"Unite Shapes", "layerCombineUniteAction", "layer.combine_unite", patchy::PathCombineOp::Add},
+      {"Subtract Front Shape", "layerCombineSubtractAction", "layer.combine_subtract",
+       patchy::PathCombineOp::Subtract},
+      {"Intersect Shapes", "layerCombineIntersectAction", "layer.combine_intersect",
+       patchy::PathCombineOp::Intersect},
+      {"Exclude Overlapping Shapes", "layerCombineExcludeAction", "layer.combine_exclude",
+       patchy::PathCombineOp::Xor},
+  };
+  for (std::size_t i = 0; i < 4; ++i) {
+    const auto& entry = combine_entries[i];
+    auto* action = layer_shape_menu->addAction(tr(entry.text));
+    action->setObjectName(QLatin1String(entry.object_name));
+    action->setProperty("patchy.channelViewBlocked", true);
+    bind_action_text(action, entry.text);
+    register_hotkey(action, QLatin1String(entry.hotkey_id));
+    const auto op = entry.op;
+    connect(action, &QAction::triggered, this, [this, op] { combine_selected_shape_layers(op); });
+    register_document_action(action);
+    action->setEnabled(false);
+    layer_combine_actions_[i] = action;
+  }
   layer_menu->addSeparator();
   auto* duplicate_layer_action = layer_menu->addAction(tr("&Duplicate Layer"));
   auto* merge_visible_action = layer_menu->addAction(tr("Merge &Visible to New Layer"));
@@ -703,7 +747,8 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   merge_down_action->setObjectName(QStringLiteral("layerMergeDownAction"));
   auto* rename_layer_action = layer_menu->addAction(tr("&Rename Layer..."));
   auto* delete_layer_action = layer_menu->addAction(tr("&Delete Layer"));
-  layer_menu->addSeparator();
+  // (No separator before the fill group: the Layer menu's 23-row bound paid
+  // for the Shape submenu with it.)
   auto* fill_layer_action = layer_menu->addAction(tr("&Fill Layer / Selection"));
   auto* fill_background_action = layer_menu->addAction(tr("Fill With &Background Color"));
   auto* clear_layer_action = layer_menu->addAction(tr("&Clear Layer / Selection"));

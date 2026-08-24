@@ -276,7 +276,10 @@ everywhere a bundled script is resolved.
   pixel layer and returns the new group layer (null when nothing traced); the
   `layer.trace_image_to_shapes` command id reaches `app.runCommand` (it opens the dialog).
   2026-08-24 (behavioral, still 1): `layer.traceToShapes` traces only inside the document
-  selection when one exists, like the dialog.
+  selection when one exists, like the dialog. Also 2026-08-24 (additive, still 1):
+  `layer.simplifyPath(options)` and `doc.combineShapes(layers, op)` (docs/vector-commands.md);
+  the command ids `path.simplify` and `layer.combine_unite/subtract/intersect/exclude` reach
+  `app.runCommand`.
 - **`include()` resolution order**: relative to the including script, then the user
   scripts root, then the bundled scripts root; a result inside the bundled folder maps
   through the shadow-override store. `patchy.isMainScript()` is false during an included
@@ -397,16 +400,14 @@ pipe is per-user, so `--run-script` adds no cross-user surface.
 
 ## Future work (ranked by community research, July 2026)
 
-A sweep of the Photoshop/Affinity/Krita/Aseprite/GIMP scripting communities ranked what
-artists actually use scripting for; everything above this section plus the bundled script
-set already covers the top of that list. Deliberately NOT built yet, in rough demand
-order:
+Ranked by a sweep of the Photoshop/Affinity/Krita/Aseprite/GIMP scripting communities;
+everything above plus the bundled scripts covers the top of that list. Not built yet, in
+demand order:
 
 1. Events/hooks (document changed, before/after save/command) - on-save auto-export is
    the killer use. Needs a reentrancy design against the one-run-at-a-time rule.
-2. Per-script keyboard shortcuts (Krita ships "Ten Scripts" purely for this). Would key
-   HotkeyRegistry ids off the script's relative path; ids persist, so pick a stable
-   scheme before shipping.
+2. Per-script keyboard shortcuts (Krita's "Ten Scripts"). Would key HotkeyRegistry ids off
+   the script's relative path; ids persist, so pick a stable scheme before shipping.
 3. Persistent per-script storage (Aseprite `plugin.preferences`).
 4. Tool-stroke API (draw as-if-by-hand with the real brush engine).
 5. Macro-record-to-script (Photoshop's ScriptListener is how non-programmers start).

@@ -1594,7 +1594,8 @@ void MainWindow::create_docks() {
   path_delete_action_->setIcon(simple_icon(QStringLiteral("trash")));
   paths_panel_->set_actions(path_new_action_, path_fill_action_, path_stroke_action_,
                             path_make_selection_action_, path_from_selection_action_,
-                            path_duplicate_action_, path_clipping_action_, path_delete_action_);
+                            path_duplicate_action_, path_clipping_action_, path_delete_action_,
+                            path_simplify_action_);
   paths_panel_->set_target_callback([this](PathsPanel::RowKind kind, DocumentPathId id) {
     handle_paths_panel_target(static_cast<int>(kind), id);
   });

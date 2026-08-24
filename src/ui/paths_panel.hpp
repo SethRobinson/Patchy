@@ -53,7 +53,7 @@ public:
   void set_document_available(bool available);
   void set_actions(QAction* new_path, QAction* fill_path, QAction* stroke_path,
                    QAction* make_selection, QAction* from_selection, QAction* duplicate_path,
-                   QAction* clipping_path, QAction* delete_path);
+                   QAction* clipping_path, QAction* delete_path, QAction* simplify_path);
   void set_target_callback(TargetCallback callback);
   void set_deselect_callback(DeselectCallback callback);
   void set_rename_callback(RenameCallback callback);
@@ -93,6 +93,7 @@ private:
   QAction* duplicate_path_action_{nullptr};
   QAction* clipping_path_action_{nullptr};
   QAction* delete_path_action_{nullptr};
+  QAction* simplify_path_action_{nullptr};
   TargetCallback target_callback_;
   DeselectCallback deselect_callback_;
   RenameCallback rename_callback_;

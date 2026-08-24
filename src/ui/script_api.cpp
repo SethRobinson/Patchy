@@ -8,6 +8,10 @@
 #include "ui/script_api.hpp"
 
 #include "core/image_trace.hpp"
+#include "core/vector_shape.hpp"
+#include "core/vector_raster.hpp"
+#include "core/shape_combine.hpp"
+#include "core/path_simplify.hpp"
 
 #include "core/layer_metadata.hpp"
 #include "formats/document_flatten.hpp"
@@ -586,6 +590,68 @@ QJSValue ScriptLayerObject::traceToShapes(const QJSValue& options) {
   return make_layer_value(host_, session_id_, group_id);
 }
 
+QJSValue ScriptLayerObject::simplifyPath(const QJSValue& options) {
+  PathSimplifyOptions simplify;
+  if (options.isObject()) {
+    QJSValueIterator it(options);
+    while (it.hasNext()) {
+      it.next();
+      const auto key = it.name();
+      const auto value = it.value();
+      if (key == QLatin1String("tolerance")) {
+        simplify.tolerance = std::clamp(value.toNumber(), 0.1, 100.0);
+      } else if (key == QLatin1String("cornerAngle")) {
+        simplify.corner_angle_degrees = std::clamp(value.toNumber(), 1.0, 179.0);
+      } else if (key == QLatin1String("snapCurvesToLines")) {
+        simplify.snap_curves_to_lines = value.toBool();
+      } else {
+        host_.throw_js_error(ScriptEngineHost::tr("simplifyPath: unknown option %1").arg(key));
+        return QJSValue();
+      }
+    }
+  }
+  const auto* view = read_layer();
+  if (view == nullptr) {
+    return QJSValue();
+  }
+  const bool shape = layer_is_vector_shape(*view) && vector_lock_reason(*view).empty() &&
+                     view->vector_shape() != nullptr;
+  const bool mask = !shape && view->vector_mask() != nullptr;
+  if (!shape && !mask) {
+    host_.throw_js_error(ScriptEngineHost::tr("simplifyPath needs a shape layer or a layer with a vector mask."));
+    return QJSValue();
+  }
+  auto* document = host_.session_document(session_id_);
+  auto* layer = write_layer();
+  if (document == nullptr || layer == nullptr) {
+    return QJSValue();
+  }
+  const auto canvas = Rect::from_size(document->width(), document->height());
+  PathSimplifyResult result;
+  if (shape) {
+    auto content = *std::as_const(*layer).vector_shape();
+    result = simplify_vector_path(content.path, simplify);
+    content.path = result.path;
+    drop_live_shape_origination(content, result.changed_groups);
+    layer->set_vector_shape(std::move(content));
+    layer->metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPatchy;
+    mark_layer_vector_block_dirty(*layer);
+    update_vector_shape_raster(*layer, canvas, &document->metadata().patterns);
+  } else {
+    auto vector_mask = *std::as_const(*layer).vector_mask();
+    result = simplify_vector_path(vector_mask.path, simplify);
+    vector_mask.path = result.path;
+    layer->set_vector_mask(std::move(vector_mask));
+    mark_layer_vector_block_dirty(*layer);
+    update_vector_mask_raster(*layer, canvas);
+  }
+  host_.note_pixels_changed(session_id_, QRect());
+  auto value = host_.engine()->newObject();
+  value.setProperty(QStringLiteral("anchorsBefore"), static_cast<int>(result.anchors_before));
+  value.setProperty(QStringLiteral("anchorsAfter"), static_cast<int>(result.anchors_after));
+  return value;
+}
+
 QJSValue ScriptLayerObject::getPixels() {
   const auto* layer = read_layer();
   if (layer == nullptr) {
@@ -793,6 +859,76 @@ void ScriptDocumentObject::set_active_layer(const QJSValue& layer) {
   // so a script's selection is visible exactly like a user's click would be.
   host_.reveal_layer_row(session_id_, wrapper->layer_id());
   host_.note_structure_changed(session_id_);
+}
+
+QJSValue ScriptDocumentObject::combineShapes(const QJSValue& layers, const QString& op) {
+  auto* document = host_.session_document(session_id_);
+  if (document == nullptr) {
+    host_.throw_js_error(ScriptEngineHost::tr("The document is no longer open."));
+    return QJSValue();
+  }
+  PathCombineOp combine = PathCombineOp::Add;
+  if (op == QLatin1String("unite")) {
+    combine = PathCombineOp::Add;
+  } else if (op == QLatin1String("subtract")) {
+    combine = PathCombineOp::Subtract;
+  } else if (op == QLatin1String("intersect")) {
+    combine = PathCombineOp::Intersect;
+  } else if (op == QLatin1String("exclude")) {
+    combine = PathCombineOp::Xor;
+  } else {
+    host_.throw_js_error(
+        ScriptEngineHost::tr("combineShapes: unknown op %1 (unite, subtract, intersect, exclude)").arg(op));
+    return QJSValue();
+  }
+  std::vector<LayerId> ids;
+  bool valid = layers.isArray();
+  const auto length = valid ? layers.property(QStringLiteral("length")).toInt() : 0;
+  for (int i = 0; valid && i < length; ++i) {
+    const auto* wrapper = qobject_cast<ScriptLayerObject*>(layers.property(static_cast<quint32>(i)).toQObject());
+    if (wrapper == nullptr || wrapper->session_id() != session_id_ ||
+        std::as_const(*document).find_layer(wrapper->layer_id()) == nullptr) {
+      valid = false;
+      break;
+    }
+    ids.push_back(wrapper->layer_id());
+  }
+  if (!valid) {
+    host_.throw_js_error(ScriptEngineHost::tr("combineShapes needs an array of layers of this document."));
+    return QJSValue();
+  }
+  const auto candidates = combine_shape_candidates(std::as_const(*document).layers(), ids);
+  switch (candidates.refusal) {
+    case ShapeCombineRefusal::NeedTwoLayers:
+      host_.throw_js_error(ScriptEngineHost::tr("combineShapes needs two or more shape layers."));
+      return QJSValue();
+    case ShapeCombineRefusal::NotShapeLayer:
+      host_.throw_js_error(ScriptEngineHost::tr("combineShapes: only editable shape layers can be combined."));
+      return QJSValue();
+    case ShapeCombineRefusal::Locked:
+      host_.throw_js_error(ScriptEngineHost::tr("combineShapes: the shape layers are locked."));
+      return QJSValue();
+    case ShapeCombineRefusal::EmptyPath:
+      host_.throw_js_error(ScriptEngineHost::tr("combineShapes: fill layers without a path cannot be combined."));
+      return QJSValue();
+    case ShapeCombineRefusal::DifferentParents:
+      host_.throw_js_error(ScriptEngineHost::tr("combineShapes: the shape layers must share one folder."));
+      return QJSValue();
+    case ShapeCombineRefusal::None:
+      break;
+  }
+  auto* mutable_document = write_document();
+  if (mutable_document == nullptr) {
+    return QJSValue();
+  }
+  const auto result = combine_shape_layers(*mutable_document, candidates.bottom_to_top, combine);
+  if (!result.has_value()) {
+    host_.throw_js_error(ScriptEngineHost::tr("combineShapes: only editable shape layers can be combined."));
+    return QJSValue();
+  }
+  mutable_document->set_active_layer(result->layer_id);
+  host_.note_structure_changed(session_id_);
+  return make_layer_value(host_, session_id_, result->layer_id);
 }
 
 QJSValue ScriptDocumentObject::selection() const {

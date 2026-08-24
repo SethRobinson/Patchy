@@ -92,3 +92,53 @@ layer selection). The memory resets on a document switch so reused layer
 ids never look like a change. Explicit row clicks within one layer still
 stick. Trace Image to Shapes activates the frontmost traced shape for the
 same reason (a group has no path).
+
+## Simplify Path
+
+`Layer > Shape > Simplify Path...` (id `path.simplify`, `pathSimplifyAction`,
+also in the Paths panel context menu) refits the path the pen and path tools
+target (`path_edit_target_path`: vector mask, targeted Paths-panel row, active
+shape layer, else the work path). Core: `simplify_vector_path`
+(`src/core/path_simplify`) flattens each subpath with
+`flatten_subpath_polyline` (the rasterizer's own lattice polyline) and refits
+it through `fit_closed_loop` / `fit_open_polyline` (`core/path_fit`, the
+per-run Schneider fit with Douglas-Peucker corners; no global smoothness
+solve, the legal boundary). A subpath keeps its anchors when the refit is
+empty or not smaller ("never worse"); ops, groups, the closed flag, and the
+path-level fill fields survive; changed groups drop their live-shape
+parameters (keyShapeInvalidated). The dialog (`simplifyPathDialog`:
+`simplifyPathToleranceSpin` 0.1..20 px, `simplifyPathCornerSpin` 10..170
+degrees, `simplifyPathSnapLinesCheck`, readout `simplifyPathAnchorsLabel`
+"Anchors: N -> M"; settings `paths/simplifyTolerance`,
+`paths/simplifyCornerAngle`, `paths/simplifySnapCurvesToLines`) previews live
+through `CanvasWidget::replace_path_edit_target`, the un-armed half of
+`apply_path_edit`, under the preview edit lock; cancel restores the snapshot
+of the OWNING object (whole `Layer` or `DocumentPath`, so a saved path keeps
+its verbatim PSD bytes), accept restores then re-applies after one
+"Simplify path" undo entry. The dialog is non-modal; the commit re-validates
+the document identity and the target's existence first. Script:
+`layer.simplifyPath({tolerance, cornerAngle, snapCurvesToLines})`.
+
+## Combine Shapes
+
+`Layer > Shape > Unite Shapes / Subtract Front Shape / Intersect Shapes /
+Exclude Overlapping Shapes` (ids `layer.combine_unite`,
+`layer.combine_subtract`, `layer.combine_intersect`, `layer.combine_exclude`)
+merge the Layers-panel selection (`combine_shape_candidates`,
+`src/core/shape_combine`): two or more editable shape layers with paths, all
+siblings of one parent; folders expand to nothing (root ids only). Enable
+state follows the selection (`refresh_combine_shapes_action_states`, also on
+pure multi-selection changes). Semantics are the renderer's sequential
+combine: the BOTTOM-most layer is the base and keeps its id, name,
+appearance, styles, masks, origination, and its groups' own ops; every group
+of each front layer is appended in stacking order with the chosen op (Add /
+Subtract / Intersect / Xor), groups renumbered from `next_shape_group()`.
+Front styles, masks, and origination vanish with the layers. A compound
+front (a donut) therefore combines group by group, which is also
+Photoshop's per-component model; the Path Select Combine box retunes ops
+afterwards. One undo entry per command ("Unite shapes", "Subtract front
+shape", "Intersect shapes", "Exclude overlapping shapes"). Script:
+`doc.combineShapes([layers], "unite" | "subtract" | "intersect" | "exclude")`.
+Tests: `tests/core/vector_shape_tests.cpp` (fitter, simplify),
+`tests/core/vector_raster_tests.cpp` (combine truth table, refusals),
+`tests/ui/vector_commands_tests.cpp`.

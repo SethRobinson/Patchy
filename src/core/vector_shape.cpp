@@ -128,6 +128,15 @@ bool layer_vector_block_dirty(const Layer& layer) {
   return layer.metadata().contains(kLayerMetadataVectorBlockDirty);
 }
 
+void drop_live_shape_origination(VectorShapeContent& content, const std::vector<int>& groups) {
+  if (groups.empty()) {
+    return;
+  }
+  std::erase_if(content.origination, [&groups](const LiveShapeParams& params) {
+    return std::find(groups.begin(), groups.end(), params.index) != groups.end();
+  });
+}
+
 void mark_layer_vector_block_dirty(Layer& layer) {
   // Writer bookkeeping only: the mark must not cold-invalidate content-keyed
   // caches (every call site follows an edit that already bumped what the edit

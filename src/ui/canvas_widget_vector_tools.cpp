@@ -68,17 +68,6 @@ PathAnchor split_segment_anchor(PathAnchor& a, PathAnchor& b, double t) {
   return inserted;
 }
 
-// A direct edit invalidates the live-shape annotation of the touched groups
-// (Photoshop's keyShapeInvalidated rule); the path stays.
-void drop_origination_for_groups(VectorShapeContent& content, const std::vector<int>& groups) {
-  if (groups.empty()) {
-    return;
-  }
-  std::erase_if(content.origination, [&groups](const LiveShapeParams& params) {
-    return std::find(groups.begin(), groups.end(), params.index) != groups.end();
-  });
-}
-
 }  // namespace
 
 void CanvasWidget::set_vector_path_committed_callback(
@@ -686,6 +675,13 @@ void CanvasWidget::apply_path_edit(VectorPath path, const QString& label,
     }
     path_edit_undo_armed_ = true;
   }
+  replace_path_edit_target(std::move(path), touched_groups);
+}
+
+void CanvasWidget::replace_path_edit_target(VectorPath path, const std::vector<int>& touched_groups) {
+  if (document_ == nullptr) {
+    return;
+  }
   if (layer_edit_target_ == LayerEditTarget::VectorMask) {
     if (auto* layer = vector_mask_target_layer(); layer != nullptr) {
       const auto old_effect_rect =
@@ -720,7 +716,7 @@ void CanvasWidget::apply_path_edit(VectorPath path, const QString& label,
         to_qrect(layer_bounds_with_effects(std::as_const(*layer), std::as_const(*layer).bounds()));
     auto content = *layer->vector_shape();
     content.path = std::move(path);
-    drop_origination_for_groups(content, touched_groups);
+    drop_live_shape_origination(content, touched_groups);
     layer->set_vector_shape(std::move(content));
     layer->metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPatchy;
     mark_layer_vector_block_dirty(*layer);

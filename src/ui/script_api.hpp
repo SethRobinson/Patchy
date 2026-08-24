@@ -81,6 +81,10 @@ public:
   // Trace Image to Shapes: returns the new group layer (inserted above this
   // layer, which is hidden), or null when nothing traced.
   Q_INVOKABLE QJSValue traceToShapes(const QJSValue& options = QJSValue());
+  // Simplify Path on this shape layer's path (or its vector mask); options
+  // {tolerance, cornerAngle, snapCurvesToLines}; returns {anchorsBefore,
+  // anchorsAfter}. Unknown option names throw.
+  Q_INVOKABLE QJSValue simplifyPath(const QJSValue& options = QJSValue());
 
   [[nodiscard]] LayerId layer_id() const noexcept { return layer_id_; }
   [[nodiscard]] std::int64_t session_id() const noexcept { return session_id_; }
@@ -143,6 +147,9 @@ public:
   Q_INVOKABLE QJSValue addLayer(const QString& name);
   Q_INVOKABLE QJSValue addTextLayer(const QString& text, const QJSValue& options = QJSValue());
   Q_INVOKABLE QJSValue findLayer(const QString& name);
+  // Combine Shapes: merges the shape layers (siblings) into the bottom-most
+  // one with op "unite" | "subtract" | "intersect" | "exclude"; returns it.
+  Q_INVOKABLE QJSValue combineShapes(const QJSValue& layers, const QString& op);
   Q_INVOKABLE void flatten();
   Q_INVOKABLE void resizeImage(int width, int height);
   Q_INVOKABLE void resizeCanvas(int width, int height);
