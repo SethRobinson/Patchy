@@ -346,6 +346,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   place_embedded_action->setObjectName(QStringLiteral("filePlaceEmbeddedAction"));
   register_hotkey(place_embedded_action, "file.place_embedded");
   connect(place_embedded_action, &QAction::triggered, this, [this] { place_embedded_file(); });
+  register_document_action(place_embedded_action);
   auto* save_action = file_menu->addAction(tr("&Save"));
   auto* save_as_action = file_menu->addAction(tr("Save &As..."));
   auto* export_flat_action = file_menu->addAction(tr("Export &Flat Image..."));

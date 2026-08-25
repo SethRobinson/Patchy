@@ -2626,6 +2626,7 @@ void ui_startup_opens_empty_workspace_with_start_panel() {
   CHECK(require_action(window, "fileNewAction")->isEnabled());
   CHECK(require_action(window, "fileOpenAction")->isEnabled());
   CHECK(!require_action(window, "fileSaveAction")->isEnabled());
+  CHECK(!require_action(window, "filePlaceEmbeddedAction")->isEnabled());
   save_widget_artifact("ui_start_panel", window);
 
   // The New Document button runs the regular dialog flow and the panel hides.
