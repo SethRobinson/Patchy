@@ -35,8 +35,8 @@ Click a thumbnail for the full-size image.
       <br><sub>Palette mode constrains painting and editing to a document color set</sub>
     </td>
     <td align="center" valign="top" width="33%">
-      <a href="docs/images/screenshots/hue_saturation.png"><img src="docs/images/screenshots/hue_saturation.png" width="270" alt="Hue and Saturation adjustment dialog editing a colorful photograph"></a>
-      <br><sub>Live color adjustments, including targeted Hue/Saturation ranges</sub>
+      <a href="docs/images/screenshots/image_trace.png"><img src="docs/images/screenshots/image_trace.png" width="270" alt="Trace Image to Shapes dialog converting a stylized sunset landscape into editable vector shape layers, with anchor points marked on the traced preview"></a>
+      <br><sub>Trace Image to Shapes turns any image into editable vector shape layers, with Illustrator-style presets and a live traced preview</sub>
     </td>
   </tr>
   <tr>

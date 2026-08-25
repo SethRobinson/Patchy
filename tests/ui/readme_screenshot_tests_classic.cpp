@@ -49,6 +49,7 @@
 #include "formats/tga_document_io.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/image_save_options_dialog.hpp"
+#include "ui/image_trace_dialog.hpp"
 #include "ui/layer_list_widget.hpp"
 #include "ui/layer_style_dialog.hpp"
 #include "ui/localization.hpp"
@@ -982,54 +983,63 @@ void shot_readme_palette_mode() {
   QApplication::processEvents();
 }
 
-// Hue/Saturation with live preview: the fire layer of the game art shifted to
-// electric blue while the dialog floats over the canvas.
-void shot_readme_hue_saturation() {
-  const auto path = patchy::test::local_psd_fixture_path("ipad_main_v04.psd");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] ipad_main_v04 fixture missing: " << path.string() << '\n';
-    return;
+// Trace Image to Shapes: a stylized sunset landscape traced with the 16 Colors
+// flat-art preset, the preview marking the traced paths' own anchor points.
+void shot_readme_image_trace() {
+  const auto path = patchy::test::committed_format_fixture_path("readme", "stylized_sunset_cc0.png");
+  QImage art(QString::fromStdString(path.string()));
+  CHECK(!art.isNull());
+  art = art.scaled(1240, 820, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+  art = art.copy((art.width() - 1240) / 2, (art.height() - 820) / 2, 1240, 820);
+  const auto source = std::make_shared<const patchy::PixelBuffer>(patchy::ui::pixels_from_image_rgba(art));
+
+  // Show anchors is a view preference the dialog reads once at construction;
+  // seed it on so the first rendered preview already carries the marks.
+  SettingsValueRestorer show_anchors_restorer(QStringLiteral("imageTrace/showAnchors"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("imageTrace/showAnchors"), true);
+    settings.sync();
   }
-  patchy::ui::MainWindow window;
-  show_readme_shot_window(window);
-  window.add_document_session(patchy::psd::DocumentIo::read_file(path), QStringLiteral("ipad_main_v04.psd"));
-  QApplication::processEvents();
-  close_untitled_start_tab(window);
 
-  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
-  CHECK(layer_list != nullptr);
-  expand_layer_folder_row(*layer_list, QStringLiteral("Fire"));
-  auto* fire_item = require_layer_item(*layer_list, QStringLiteral("fire_04"));
-  layer_list->clearSelection();
-  layer_list->setCurrentItem(fire_item);
-  fire_item->setSelected(true);
-  QApplication::processEvents();
+  // Passing a built-in preset's exact options makes the combo name the preset
+  // (select_matching_preset) and keeps the un-debounced initial trace the only
+  // trace the scene has to wait for.
+  const auto& presets = patchy::ui::image_trace_presets();
+  const auto preset =
+      std::find_if(presets.begin(), presets.end(), [](const patchy::ui::ImageTracePreset& entry) {
+        return std::string_view(entry.english_name) == "16 Colors";
+      });
+  CHECK(preset != presets.end());
 
+  patchy::ui::MainWindow theme_host;
+  show_readme_shot_window(theme_host);
   bool captured = false;
   QTimer::singleShot(0, [&] {
-    auto* dialog = find_top_level_dialog(QStringLiteral("patchyHueSaturationDialog"));
+    auto* dialog = find_top_level_dialog(QStringLiteral("imageTraceDialog"));
     CHECK(dialog != nullptr);
-    auto* hue = dialog->findChild<QSpinBox*>(QStringLiteral("hueSaturationHueSpin"));
-    auto* preview = dialog->findChild<QCheckBox*>(QStringLiteral("hueSaturationPreviewCheck"));
-    CHECK(hue != nullptr);
-    CHECK(preview != nullptr);
-    CHECK(preview->isChecked());
-    hue->setValue(150);
-    process_events_for(400);  // let the coalesced live preview land on the canvas
-
-    const QPoint dialog_offset(170, 320);
-    dialog->move(window.geometry().topLeft() + dialog_offset);
-    QApplication::processEvents();
-    reset_readme_status_bar(window);
-    auto base = window.grab().toImage();
-    draw_readme_overlay(base, dialog->grab().toImage(), dialog_offset);
-    save_readme_shot("shot_readme_hue_saturation", base);
+    dialog->resize(1180, 760);
+    auto* info = dialog->findChild<QLabel*>(QStringLiteral("imageTracePreviewInfo"));
+    auto* spinner = dialog->findChild<QWidget*>(QStringLiteral("imageTraceBusySpinner"));
+    auto* preset_combo = dialog->findChild<QComboBox*>(QStringLiteral("imageTracePresetCombo"));
+    auto* anchors_check = dialog->findChild<QCheckBox*>(QStringLiteral("imageTraceShowAnchorsCheck"));
+    auto* warning = dialog->findChild<QLabel*>(QStringLiteral("imageTraceSizeWarningLabel"));
+    CHECK(info != nullptr && spinner != nullptr && preset_combo != nullptr && anchors_check != nullptr &&
+          warning != nullptr);
+    CHECK(anchors_check->isChecked());
+    CHECK(preset_combo->currentText() == QStringLiteral("16 Colors"));
+    CHECK(process_events_until(
+        [&] { return !spinner->isVisible() && info->text().contains(QStringLiteral("shape layer")); }, 15000));
+    CHECK(!warning->isVisible());
+    dialog->repaint();
+    process_events_for(100);
+    save_readme_shot("shot_readme_image_trace", dialog->grab().toImage());
     captured = true;
     dialog->reject();
   });
-  require_action(window, "imageAdjustHueSaturationAction")->trigger();
-  QApplication::processEvents();
+  const auto result = patchy::ui::request_image_trace(&theme_host, source, preset->options);
   CHECK(captured);
+  CHECK(!result.has_value());
 }
 
 // One rich-text run line per character so a single layer carries per-letter
@@ -2567,7 +2577,7 @@ std::vector<patchy::test::TestCase> readme_screenshot_tests_part1() {
       {"shot_readme_brush_tips", shot_readme_brush_tips},
       {"shot_readme_brush_dynamics", shot_readme_brush_dynamics},
       {"shot_readme_palette_mode", shot_readme_palette_mode},
-      {"shot_readme_hue_saturation", shot_readme_hue_saturation},
+      {"shot_readme_image_trace", shot_readme_image_trace},
       {"shot_readme_warp_text", shot_readme_warp_text},
       {"shot_readme_tile_preview", shot_readme_tile_preview},
       {"shot_readme_smart_objects", shot_readme_smart_objects},

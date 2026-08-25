@@ -64,7 +64,10 @@ Offscreen does not clear `QApplication::keyboardModifiers()` after synthetic key
   `patchy_ui_visual_tests` run offscreen and their artifacts are copied out. New scenes should
   be authored as scripts in the first pipeline; the remaining test scenes migrate over time and
   stay in the suite as regression smoke tests either way (the driver skips copying a test
-  artifact whose scene has a script-driven owner).
+  artifact whose scene has a script-driven owner). Scenes that picture a modal dialog the
+  scripting surface cannot open stay here permanently: `shot_readme_image_trace` captures the
+  Trace Image to Shapes dialog, which `layer.traceToShapes` bypasses and `app.runCommand`
+  would block a script on.
 
 Both pipelines round the corners of the window they captured, because DWM rounds Patchy's
 frameless windows in the compositor and a `QWidget::grab()` is therefore square. The offscreen

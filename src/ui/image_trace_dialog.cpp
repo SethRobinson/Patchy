@@ -544,8 +544,10 @@ std::optional<ImageTraceDialogResult> request_image_trace(QWidget* parent, std::
   }
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("imageTraceDialog"));
-  dialog.setWindowTitle(QObject::tr("Trace Image to Shapes"));
-  auto* layout = new QHBoxLayout(&dialog);
+  auto* content =
+      install_dark_dialog_chrome(dialog, new QVBoxLayout(&dialog), QObject::tr("Trace Image to Shapes"));
+  auto* layout = new QHBoxLayout();
+  content->addLayout(layout, 1);
 
   auto* controls = new QVBoxLayout();
   auto* form = new QFormLayout();
@@ -741,6 +743,8 @@ std::optional<ImageTraceDialogResult> request_image_trace(QWidget* parent, std::
   info_row->addWidget(zoom_out);
   info_row->addWidget(zoom_in);
   info_row->addWidget(zoom_label);
+  // Frameless chrome has no native resize border; the corner grip is the resize handle.
+  info_row->addWidget(new VisibleSizeGrip(&dialog), 0, Qt::AlignBottom);
   preview_column->addLayout(info_row);
   auto* size_warning = new QLabel(
       QObject::tr("Large result: editing will be slower and exported SVG files will be large. Lower Paths, "

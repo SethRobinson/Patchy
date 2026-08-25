@@ -8,9 +8,9 @@
 - `src/core/palette.{hpp,cpp}`: besides the shared median cut and `PaletteLut` (whose behavior is pinned by the GIF and palette-mode byte canaries and never changes for existing callers), the additive `weighted_color_distance` and `refine_palette_weighted` (integer Lloyd) used only by tracing.
 - `src/core/mask_outline.{hpp,cpp}`: `trace_mask_outlines`, the pixel-edge boundary walker promoted from the selection outline code (the UI wrapper in `selection_outline.cpp` converts its loops to Qt types without changing a coordinate; the outline stress tests guard that).
 - `src/core/path_fit.{hpp,cpp}`: `PathFitOptions` and the options overload of `fit_closed_loop` (corner angle, significant-vertex tangents, snap curves to lines). The two-argument overload keeps Make Work Path's historical output.
-- `src/ui/image_trace_dialog.{hpp,cpp}`: the modal dialog (`imageTraceDialog`) with its zoomable preview (`imageTracePreview`), the preset table (`image_trace_presets`), and the latest-wins background tracer.
+- `src/ui/image_trace_dialog.{hpp,cpp}`: the modal dialog (`imageTraceDialog`; dark dialog chrome via `install_dark_dialog_chrome`, resized by a `VisibleSizeGrip` in the zoom row) with its zoomable preview (`imageTracePreview`), the preset table (`image_trace_presets`), and the latest-wins background tracer.
 - `src/ui/main_window_vector.cpp`: `MainWindow::trace_image_to_shapes` (guards, settings, dialog) and `insert_image_trace_layers` (undo entry, group insert, source hidden, the frontmost traced shape activated so the pen and path tools edit the trace at once; the script still returns the group). `src/ui/script_api.cpp`: `ScriptLayerObject::traceToShapes`.
-- Tests: `tests/core/image_trace_tests.cpp` (pipeline, fitter options, mask outline), `tests/ui/image_trace_ui_tests.cpp` (dialog flow with undo, scripting).
+- Tests: `tests/core/image_trace_tests.cpp` (pipeline, fitter options, mask outline), `tests/ui/image_trace_ui_tests.cpp` (dialog flow with undo, scripting). The README screenshot scene `shot_readme_image_trace` (`tests/ui/readme_screenshot_tests_classic.cpp`) traces `test-fixtures/readme/stylized_sunset_cc0.png` with the 16 Colors preset and Show anchors on.
 
 ## Pipeline
 

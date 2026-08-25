@@ -214,6 +214,16 @@ not part of any release package.
   (SHA-256 `72F141E0F46C71E646349B56B28812C17653AF045739C89F73C0D02B44021DA4`).
   It is used only to regenerate the README SVG-import screenshot and by the
   SVG import tests.
+- `test-fixtures/readme/stylized_sunset_cc0.png`: a raster rendering of
+  "Stylized Sunset Illustration," a human-made vector landscape published
+  under the Creative Commons CC0 1.0 Universal Public Domain Dedication
+  (uploader OpenClipart, sourced from Pixabay). The source SVG was downloaded
+  on 2026-08-25 from https://freesvg.org/stylized-sunset-illustration
+  (SHA-256 `E3A7B2F6F58374CD04D936110DD349AB1B691F92CA9F4FC7BDB7D985B87E7B64`)
+  and rasterized unmodified at its native 1920x1200 with Patchy's own SVG
+  import (`patchy.exe <svg> --export <png>`); the committed PNG's SHA-256 is
+  `770AB5D6CAA07150F3FE075C3E5F14EC78FF95B44FAD87BDA91C7FA7C9348BD8`.
+  It is used only to regenerate the README Trace Image to Shapes screenshot.
 - `test-fixtures/ico/cpython-py.ico`: the CPython `py.ico` application icon
   from https://github.com/python/cpython (`PC/icons/py.ico`), included under the
   Python Software Foundation License 2.0 as a real-world multi-size icon sample.
