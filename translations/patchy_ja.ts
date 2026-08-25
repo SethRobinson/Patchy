@@ -13836,6 +13836,11 @@ Clipped to the layer below</source>
     <message><source>Background</source><translation>背景</translation></message>
     <message><source>Divide scanned photos</source><translation>スキャンした写真を分割</translation></message>
     <message numerus="yes"><source>Divided into %n photo(s)</source><translation><numerusform>%n 枚の写真に分割しました</numerusform></translation></message>
+    <message><source>No layers selected</source><translation>レイヤーが選択されていません</translation></message>
+    <message><source>Selected layers already end with that time</source><translation>選択したレイヤーの名前は既にその時間で終わっています</translation></message>
+    <message><source>No frame times on the selected layers</source><translation>選択したレイヤーにフレーム時間はありません</translation></message>
+    <message><source>Set frame time</source><translation>フレーム時間を設定</translation></message>
+    <message><source>Remove frame time</source><translation>フレーム時間を削除</translation></message>
 </context>
 <context>
     <name>patchy::ui::PalettePanel</name>
@@ -14128,6 +14133,26 @@ Clipped to the layer below</source>
     <message>
         <source>Frame %1/%2</source>
         <translation>フレーム %1/%2</translation>
+    </message>
+    <message>
+        <source>Selected layers:</source>
+        <translation>選択中のレイヤー:</translation>
+    </message>
+    <message>
+        <source>Set Time</source>
+        <translation>時間を設定</translation>
+    </message>
+    <message>
+        <source>Remove</source>
+        <translation>削除</translation>
+    </message>
+    <message>
+        <source>Renames the selected layers to end with this frame time, like &quot;blink 0.25s&quot;.</source>
+        <translation>選択したレイヤーの名前を「blink 0.25s」のようにこのフレーム時間で終わるよう変更します。</translation>
+    </message>
+    <message>
+        <source>Removes the trailing frame time from the selected layers&apos; names.</source>
+        <translation>選択したレイヤー名の末尾のフレーム時間を取り除きます。</translation>
     </message>
 </context>
 <context>

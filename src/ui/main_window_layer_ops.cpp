@@ -31,6 +31,7 @@
 #include "formats/palette_io.hpp"
 #include "filters/builtin_filters.hpp"
 #include "formats/aseprite_document_io.hpp"
+#include "formats/gif_document_io.hpp"
 #include "formats/svg_document_io.hpp"
 #include "formats/bmp_document_io.hpp"
 #include "formats/heif_document_io.hpp"
@@ -1805,6 +1806,51 @@ void MainWindow::rename_active_layer() {
 
   push_undo_snapshot(tr("Rename layer"));
   layer->set_name(new_name->trimmed().toStdString());
+  refresh_layer_list();
+  refresh_layer_controls();
+}
+
+void MainWindow::set_selected_layers_frame_time(std::optional<std::uint16_t> delay_cs) {
+  if (!has_active_document()) {
+    show_status_error(tr("No document"));
+    return;
+  }
+  auto& doc = document();
+  const auto ids = selected_or_active_layer_ids();
+  if (ids.empty()) {
+    show_status_error(tr("No layers selected"));
+    return;
+  }
+  std::vector<std::pair<LayerId, std::string>> renames;
+  for (const auto id : ids) {
+    const auto* layer = std::as_const(doc).find_layer(id);
+    if (layer == nullptr) {
+      continue;
+    }
+    std::string next{gif::strip_layer_name_delay_token(layer->name())};
+    if (delay_cs.has_value()) {
+      if (!next.empty()) {
+        next += ' ';
+      }
+      next += gif::format_delay_seconds_token(*delay_cs);
+    } else if (next.empty()) {
+      continue;  // a name that is nothing but a token keeps it; empty layer names help nobody
+    }
+    if (next != layer->name()) {
+      renames.emplace_back(id, std::move(next));
+    }
+  }
+  if (renames.empty()) {
+    show_status_error(delay_cs.has_value() ? tr("Selected layers already end with that time")
+                                           : tr("No frame times on the selected layers"));
+    return;
+  }
+  push_undo_snapshot(delay_cs.has_value() ? tr("Set frame time") : tr("Remove frame time"));
+  for (auto& [id, name] : renames) {
+    if (auto* layer = doc.find_layer(id); layer != nullptr) {
+      layer->set_name(std::move(name));
+    }
+  }
   refresh_layer_list();
   refresh_layer_controls();
 }

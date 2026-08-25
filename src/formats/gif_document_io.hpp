@@ -54,6 +54,11 @@ void write_animation_file(std::int32_t width, std::int32_t height, std::span<con
 // 10 -> "0.1s", 4 -> "0.04s", 100 -> "1s", 0 -> "0s" (trailing zeros trimmed).
 [[nodiscard]] std::string format_delay_seconds_token(std::uint16_t delay_cs);
 
+// "blink 0.25s" -> "blink" (the token and the whitespace before it drop; trailing
+// whitespace trims too). Names without a valid trailing delay token return unchanged, and
+// a name that is nothing but a token strips to empty; callers keep such names themselves.
+[[nodiscard]] std::string_view strip_layer_name_delay_token(std::string_view layer_name);
+
 // Document-level writer: palette-mode documents use the document palette in file order plus
 // one transparent slot via the editing alpha threshold (the indexed PNG-8 semantics); RGB
 // documents quantize (exact colors when they fit, else deterministic median cut), reserving

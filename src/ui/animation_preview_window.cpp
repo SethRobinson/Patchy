@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
 
 namespace patchy::ui {
 
@@ -23,9 +24,13 @@ constexpr int kMinimumFrameDelayMs = 10;
 
 }  // namespace
 
-AnimationPreviewWindow::AnimationPreviewWindow(std::function<Document*()> document_provider,
-                                               std::function<void(bool)> visuals_changed, QWidget* parent)
-    : QDialog(parent), provider_(std::move(document_provider)), visuals_changed_(std::move(visuals_changed)) {
+AnimationPreviewWindow::AnimationPreviewWindow(
+    std::function<Document*()> document_provider, std::function<void(bool)> visuals_changed,
+    std::function<void(std::optional<std::uint16_t>)> apply_selection_frame_time, QWidget* parent)
+    : QDialog(parent),
+      provider_(std::move(document_provider)),
+      visuals_changed_(std::move(visuals_changed)),
+      apply_selection_frame_time_(std::move(apply_selection_frame_time)) {
   setObjectName(QStringLiteral("animationPreviewWindow"));
   setWindowFlag(Qt::Tool, true);
   auto* root = new QVBoxLayout(this);
@@ -59,6 +64,30 @@ AnimationPreviewWindow::AnimationPreviewWindow(std::function<Document*()> docume
   delay_row->addStretch(1);
   content->addLayout(delay_row);
 
+  auto* selection_row = new QHBoxLayout();
+  selection_row->setSpacing(8);
+  selection_row->addWidget(new QLabel(tr("Selected layers:"), this));
+  selection_time_spin_ = new QDoubleSpinBox(this);
+  selection_time_spin_->setObjectName(QStringLiteral("animationSelectionTimeSpin"));
+  selection_time_spin_->setSuffix(tr(" s"));
+  selection_time_spin_->setRange(0.0, 655.35);  // the GIF u16 centisecond wire range
+  selection_time_spin_->setDecimals(2);
+  selection_time_spin_->setSingleStep(0.05);
+  selection_time_spin_->setValue(delay_spin_->value());
+  configure_dialog_spinbox(selection_time_spin_, 96);
+  selection_row->addWidget(selection_time_spin_);
+  auto* set_time_button = new QPushButton(tr("Set Time"), this);
+  set_time_button->setObjectName(QStringLiteral("animationSetFrameTimeButton"));
+  set_time_button->setToolTip(
+      tr("Renames the selected layers to end with this frame time, like \"blink 0.25s\"."));
+  selection_row->addWidget(set_time_button);
+  auto* remove_time_button = new QPushButton(tr("Remove"), this);
+  remove_time_button->setObjectName(QStringLiteral("animationRemoveFrameTimeButton"));
+  remove_time_button->setToolTip(tr("Removes the trailing frame time from the selected layers' names."));
+  selection_row->addWidget(remove_time_button);
+  selection_row->addStretch(1);
+  content->addLayout(selection_row);
+
   auto* hint = new QLabel(
       tr("Plays the visible top-level layers as frames, top layer first, exactly like the animated GIF "
          "export. A layer name ending in a time, like \"blink 0.25s\", sets that frame's delay."),
@@ -69,6 +98,21 @@ AnimationPreviewWindow::AnimationPreviewWindow(std::function<Document*()> docume
   append_themed_style(*this, dialog_spinbox_button_style());
 
   connect(play_button_, &QPushButton::clicked, this, [this] { toggle_playback(); });
+  // Both name edits stop playback first: the caller pushes an undo snapshot, and one taken
+  // mid-play would capture a preview frame's visibility.
+  connect(set_time_button, &QPushButton::clicked, this, [this] {
+    stop_playback(true);
+    if (apply_selection_frame_time_ != nullptr) {
+      apply_selection_frame_time_(static_cast<std::uint16_t>(
+          std::clamp<long long>(std::llround(selection_time_spin_->value() * 100.0), 0, 0xffff)));
+    }
+  });
+  connect(remove_time_button, &QPushButton::clicked, this, [this] {
+    stop_playback(true);
+    if (apply_selection_frame_time_ != nullptr) {
+      apply_selection_frame_time_(std::nullopt);
+    }
+  });
   // The spin edits the shared default delay (the animated GIF export dialog reads the
   // same key); the next frame advance picks a change up immediately.
   connect(delay_spin_, &QDoubleSpinBox::valueChanged, this, [](double value) {
@@ -79,7 +123,7 @@ AnimationPreviewWindow::AnimationPreviewWindow(std::function<Document*()> docume
   timer_.setSingleShot(true);
   connect(&timer_, &QTimer::timeout, this, [this] { advance_frame(); });
 
-  resize(320, 180);
+  resize(360, 200);
 }
 
 void AnimationPreviewWindow::toggle_playback() {

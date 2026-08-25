@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -33,9 +34,14 @@ public:
   // and on every advance; playback aborts without restoring if it stops matching the
   // document playback started on. visuals_changed repaints after visibility mutations:
   // final_refresh false is the per-frame path (canvas plus a cheap panel eye sync), true
-  // runs once after stop (full panel refresh).
+  // runs once after stop (full panel refresh). apply_selection_frame_time stamps (a value)
+  // or strips (nullopt) the trailing frame-time name token on the layers-panel selection;
+  // the window stops playback first so the caller's undo snapshot never captures a preview
+  // frame's visibility.
   AnimationPreviewWindow(std::function<Document*()> document_provider,
-                         std::function<void(bool final_refresh)> visuals_changed, QWidget* parent);
+                         std::function<void(bool final_refresh)> visuals_changed,
+                         std::function<void(std::optional<std::uint16_t> delay_cs)> apply_selection_frame_time,
+                         QWidget* parent);
 
   [[nodiscard]] bool playing() const noexcept { return playback_document_ != nullptr; }
   void toggle_playback();
@@ -65,9 +71,11 @@ private:
 
   std::function<Document*()> provider_;
   std::function<void(bool final_refresh)> visuals_changed_;
+  std::function<void(std::optional<std::uint16_t> delay_cs)> apply_selection_frame_time_;
   QTimer timer_;
   QPushButton* play_button_{nullptr};
   QDoubleSpinBox* delay_spin_{nullptr};
+  QDoubleSpinBox* selection_time_spin_{nullptr};
   QLabel* status_label_{nullptr};
 
   // Playback state; playback_document_ doubles as the playing flag.

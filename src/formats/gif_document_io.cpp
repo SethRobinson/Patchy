@@ -326,6 +326,23 @@ std::optional<std::uint16_t> parse_layer_name_delay_cs(std::string_view layer_na
   return static_cast<std::uint16_t>(std::min<std::uint64_t>(centiseconds, 0xffff));
 }
 
+std::string_view strip_layer_name_delay_token(std::string_view layer_name) {
+  if (!parse_layer_name_delay_cs(layer_name).has_value()) {
+    return layer_name;
+  }
+  const auto trim_trailing_whitespace = [](std::string_view& text) {
+    while (!text.empty() && (text.back() == ' ' || text.back() == '\t')) {
+      text.remove_suffix(1);
+    }
+  };
+  auto result = layer_name;
+  trim_trailing_whitespace(result);
+  const auto separator = result.find_last_of(" \t");
+  result = separator == std::string_view::npos ? std::string_view{} : result.substr(0, separator);
+  trim_trailing_whitespace(result);
+  return result;
+}
+
 std::string format_delay_seconds_token(std::uint16_t delay_cs) {
   const auto whole = std::to_string(delay_cs / 100);
   const auto remainder = delay_cs % 100;

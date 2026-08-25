@@ -2533,6 +2533,7 @@ void MainWindow::toggle_animation_preview_window() {
             sync_layer_row_visibility_indicators();
           }
         },
+        [this](std::optional<std::uint16_t> delay_cs) { set_selected_layers_frame_time(delay_cs); },
         this);
     window->setAttribute(Qt::WA_DeleteOnClose);
     animation_preview_window_ = window;

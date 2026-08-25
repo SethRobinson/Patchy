@@ -17,6 +17,7 @@
 #include <QPushButton>
 #include <QToolButton>
 
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -131,6 +132,95 @@ void ui_animation_preview_plays_visible_layers_and_restores() {
   CHECK(panel_guard == nullptr);
 }
 
+// Layer names bottom to top.
+std::vector<std::string> top_level_names(patchy::ui::MainWindow& window) {
+  std::vector<std::string> names;
+  const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  for (const auto& layer : document.layers()) {
+    names.push_back(layer.name());
+  }
+  return names;
+}
+
+void ui_animation_preview_sets_and_removes_frame_time_names() {
+  patchy::ui::MainWindow window;
+  window.add_document_session(animation_test_document(), QStringLiteral("Animation"));
+  show_window(window);
+
+  auto* animation_button = window.findChild<QPushButton*>(QStringLiteral("layerAnimationButton"));
+  CHECK(animation_button != nullptr);
+  animation_button->click();
+  QApplication::processEvents();
+  auto* panel = window.findChild<patchy::ui::AnimationPreviewWindow*>(QStringLiteral("animationPreviewWindow"));
+  CHECK(panel != nullptr);
+  auto* time_spin = panel->findChild<QDoubleSpinBox*>(QStringLiteral("animationSelectionTimeSpin"));
+  auto* set_button = panel->findChild<QPushButton*>(QStringLiteral("animationSetFrameTimeButton"));
+  auto* remove_button = panel->findChild<QPushButton*>(QStringLiteral("animationRemoveFrameTimeButton"));
+  CHECK(time_spin != nullptr);
+  CHECK(set_button != nullptr);
+  CHECK(remove_button != nullptr);
+  save_widget_artifact("ui_animation_preview_frame_time_controls", *panel);
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  CHECK(layer_list->count() == 4);
+  // Rows are top-first: row 0 is "Top", row 1 is "blink 0.25s".
+  const auto select_top_two = [layer_list] {
+    layer_list->clearSelection();
+    layer_list->item(0)->setSelected(true);
+    layer_list->item(1)->setSelected(true);
+  };
+
+  // Set replaces an existing token and appends to token-free names, as one undo step.
+  const auto depth_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  select_top_two();
+  time_spin->setValue(0.5);
+  set_button->click();
+  CHECK(top_level_names(window) ==
+        (std::vector<std::string>{"Base", "Hidden", "blink 0.5s", "Top 0.5s"}));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth_before + 1);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+
+  // Setting the same time again changes nothing and pushes no undo entry.
+  select_top_two();
+  set_button->click();
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth_before + 1);
+
+  // Remove strips the tokens; a second remove has nothing left to strip.
+  select_top_two();
+  remove_button->click();
+  CHECK(top_level_names(window) == (std::vector<std::string>{"Base", "Hidden", "blink", "Top"}));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth_before + 2);
+  select_top_two();
+  remove_button->click();
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth_before + 2);
+
+  // Both steps undo cleanly back to the original names.
+  patchy::ui::MainWindowTestAccess::undo(window);
+  CHECK(top_level_names(window) ==
+        (std::vector<std::string>{"Base", "Hidden", "blink 0.5s", "Top 0.5s"}));
+  patchy::ui::MainWindowTestAccess::undo(window);
+  CHECK(top_level_names(window) == (std::vector<std::string>{"Base", "Hidden", "blink 0.25s", "Top"}));
+
+  // Stamping mid-play stops playback first, so the undo snapshot and the rename see the
+  // restored visibility, not a preview frame's.
+  auto* play_button = panel->findChild<QPushButton*>(QStringLiteral("animationPlayButton"));
+  CHECK(play_button != nullptr);
+  play_button->click();
+  CHECK(panel->playing());
+  CHECK(top_level_visibility(window) == (std::vector<bool>{false, false, false, true}));
+  select_top_two();
+  time_spin->setValue(0.25);
+  set_button->click();
+  CHECK(!panel->playing());
+  CHECK(top_level_visibility(window) == (std::vector<bool>{true, false, true, true}));
+  CHECK(top_level_names(window) ==
+        (std::vector<std::string>{"Base", "Hidden", "blink 0.25s", "Top 0.25s"}));
+
+  panel->close();
+  QApplication::processEvents();
+}
+
 void ui_animation_preview_stops_on_tab_switch_and_close() {
   patchy::ui::MainWindow window;
   window.add_document_session(animation_test_document(), QStringLiteral("Animation A"));
@@ -201,6 +291,8 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests_animation_par
   return {
       {"ui_animation_preview_plays_visible_layers_and_restores",
        ui_animation_preview_plays_visible_layers_and_restores},
+      {"ui_animation_preview_sets_and_removes_frame_time_names",
+       ui_animation_preview_sets_and_removes_frame_time_names},
       {"ui_animation_preview_stops_on_tab_switch_and_close",
        ui_animation_preview_stops_on_tab_switch_and_close},
   };

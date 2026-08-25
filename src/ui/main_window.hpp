@@ -773,6 +773,10 @@ private:
   void duplicate_active_layer();
   void duplicate_layers(std::vector<LayerId> ids);
   void rename_active_layer();
+  // Animation Preview's name-token edits: stamps (a value) or strips (nullopt) the
+  // trailing frame-time token on the selected (else active) layers' names, as one
+  // undoable rename batch.
+  void set_selected_layers_frame_time(std::optional<std::uint16_t> delay_cs);
   void edit_active_layer_style();
   void copy_active_layer_style();
   void paste_layer_style_to_selected_layers();

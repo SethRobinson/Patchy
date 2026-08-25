@@ -873,6 +873,19 @@ void gif_layer_name_delay_token_round_trips() {
     const auto token = "layer " + format_delay_seconds_token(static_cast<std::uint16_t>(cs));
     CHECK(parse_layer_name_delay_cs(token) == static_cast<std::uint16_t>(cs));
   }
+
+  // Stripping removes exactly the trailing token plus surrounding whitespace; names
+  // without a valid token pass through untouched.
+  using patchy::gif::strip_layer_name_delay_token;
+  CHECK(strip_layer_name_delay_token("blink 0.25s") == "blink");
+  CHECK(strip_layer_name_delay_token("Frame 1 0.1s") == "Frame 1");
+  CHECK(strip_layer_name_delay_token("stuff 0.4s  ") == "stuff");
+  CHECK(strip_layer_name_delay_token("gap  \t 2s") == "gap");
+  CHECK(strip_layer_name_delay_token("0.25s") == "");  // a token-only name strips to empty
+  CHECK(strip_layer_name_delay_token("blink") == "blink");
+  CHECK(strip_layer_name_delay_token("12 s") == "12 s");
+  CHECK(strip_layer_name_delay_token("0.25S") == "0.25S");
+  CHECK(strip_layer_name_delay_token("") == "");
 }
 
 void aseprite_imports_layers_groups_and_palette() {
