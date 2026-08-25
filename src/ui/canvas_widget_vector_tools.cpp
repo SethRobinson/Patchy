@@ -1413,15 +1413,17 @@ void CanvasWidget::update_path_hover_hint(PenHoverAction action) {
   if (action == previous || action == PenHoverAction::Draw || !status_callback_) {
     return;
   }
+  // Ctrl latches Direct Select for the whole Pen family, so every hint names
+  // the Ctrl-drag move gesture alongside the click edit.
   switch (action) {
     case PenHoverAction::Add:
-      status_callback_(tr("Click to add a point here"));
+      status_callback_(tr("Click to add a point here. Ctrl-drag moves the segment."));
       return;
     case PenHoverAction::Delete:
       status_callback_(tool_ == CanvasTool::Pen
-                           ? tr("Click to delete this point. Alt+click converts it between "
-                                "corner and smooth.")
-                           : tr("Click to delete this point"));
+                           ? tr("Click to delete this point. Ctrl-drag moves it. Alt+click "
+                                "converts it between corner and smooth.")
+                           : tr("Click to delete this point. Ctrl-drag moves it."));
       return;
     case PenHoverAction::Convert:
       status_callback_(tr("Click to convert this point between corner and smooth"));

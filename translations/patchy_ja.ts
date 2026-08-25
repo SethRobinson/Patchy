@@ -6739,9 +6739,9 @@ Mixed selection</source>
     <message><source>Sharpen brush</source><translation>シャープブラシ</translation></message>
     <message><source>Crop cancelled</source><translation>切り抜きをキャンセルしました</translation></message>
     <message><source>Drag the handles or edges to adjust. Enter crops, Esc cancels.</source><translation>ハンドルや辺をドラッグして調整します。Enter で切り抜き、Esc でキャンセルします。</translation></message>
-    <message><source>Click to add a point here</source><translation>クリックでここにポイントを追加</translation></message>
-    <message><source>Click to delete this point. Alt+click converts it between corner and smooth.</source><translation>クリックでこのポイントを削除。Alt+クリックでコーナーとスムーズを切り替えます。</translation></message>
-    <message><source>Click to delete this point</source><translation>クリックでこのポイントを削除</translation></message>
+    <message><source>Click to add a point here. Ctrl-drag moves the segment.</source><translation>クリックでここにポイントを追加。Ctrl+ドラッグでセグメントを移動。</translation></message>
+    <message><source>Click to delete this point. Ctrl-drag moves it. Alt+click converts it between corner and smooth.</source><translation>クリックでこのポイントを削除。Ctrl+ドラッグで移動。Alt+クリックでコーナーとスムーズを切り替えます。</translation></message>
+    <message><source>Click to delete this point. Ctrl-drag moves it.</source><translation>クリックでこのポイントを削除。Ctrl+ドラッグで移動。</translation></message>
     <message><source>Click to convert this point between corner and smooth</source><translation>クリックでこのポイントのコーナーとスムーズを切り替え</translation></message>
     <message><source>Click to close the path</source><translation>クリックでパスを閉じる</translation></message>
     <message><source>Click to select the shape, drag to move it. Ctrl+T transforms it.</source><translation>クリックでシェイプを選択、ドラッグで移動。Ctrl+Tで変形します。</translation></message>

@@ -205,10 +205,11 @@ void ui_pen_hover_over_path_shows_edit_hints() {
   CHECK(window.statusBar()->currentMessage() == QStringLiteral("marker"));
 
   hover(*canvas, QPoint(200, 100));  // top-edge segment
-  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Click to add a point here"));
+  CHECK(window.statusBar()->currentMessage() ==
+        QStringLiteral("Click to add a point here. Ctrl-drag moves the segment."));
   hover(*canvas, QPoint(100, 100));  // anchor
   CHECK(window.statusBar()->currentMessage().startsWith(
-      QStringLiteral("Click to delete this point. Alt+click converts it")));
+      QStringLiteral("Click to delete this point. Ctrl-drag moves it. Alt+click converts it")));
   hover(*canvas, QPoint(100, 100), Qt::AltModifier);
   CHECK(window.statusBar()->currentMessage() ==
         QStringLiteral("Click to convert this point between corner and smooth"));
@@ -219,7 +220,8 @@ void ui_pen_hover_over_path_shows_edit_hints() {
   CHECK(window.statusBar()->currentMessage() == QStringLiteral("confirmation"));
   // ...and re-entering advertises the action again.
   hover(*canvas, QPoint(200, 100));
-  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Click to add a point here"));
+  CHECK(window.statusBar()->currentMessage() ==
+        QStringLiteral("Click to add a point here. Ctrl-drag moves the segment."));
 
   // Direct Select hovers describe the drag targets.
   require_action(window, "toolDirectSelectAction")->trigger();
