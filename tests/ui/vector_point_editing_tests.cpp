@@ -911,6 +911,78 @@ void ui_path_overlay_shows_all_selected_shape_layers() {
   CHECK(accent_overlay_near(*canvas, QPoint(340, 60)));
 }
 
+// With several shape layers selected in the Layers panel, Direct Select
+// marquees, drags, nudges, and deletes span all of them in one undo entry,
+// and the status chip totals the cross-layer count.
+void ui_direct_select_edits_points_across_selected_layers() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto first_id = make_rect_shape_layer(window, *canvas);  // (100,100)-(300,220)
+  canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+  shape_drag(*canvas, QPoint(340, 60), QPoint(420, 160));  // "Rectangle 2", stays active
+  const auto second_id = *document.active_layer_id();
+  CHECK(second_id != first_id);
+
+  require_action(window, "toolDirectSelectAction")->trigger();
+  QApplication::processEvents();
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  require_layer_item(*layer_list, QStringLiteral("Rectangle 1"))->setSelected(true);
+  require_layer_item(*layer_list, QStringLiteral("Rectangle 2"))->setSelected(true);
+  QApplication::processEvents();
+
+  // Marquee around both rectangles selects all eight corners.
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(40, 40)),
+       canvas->widget_position_for_document_point(QPoint(440, 280)));
+  QApplication::processEvents();
+  CHECK(canvas->path_edit_selected_anchor_count() == 8);
+  auto* chip = window.findChild<QLabel*>(QStringLiteral("pathPointCountChip"));
+  CHECK(chip != nullptr);
+  CHECK(chip->text() == QStringLiteral("8 points selected"));
+
+  // Dragging one corner moves the selection on BOTH layers, as one undo entry.
+  const auto undo_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(340, 60)),
+       canvas->widget_position_for_document_point(QPoint(360, 70)));
+  QApplication::processEvents();
+  CHECK(std::abs(anchor_at(document, second_id, 0).anchor_x - 360.0) < 1.0);
+  CHECK(std::abs(anchor_at(document, second_id, 0).anchor_y - 70.0) < 1.0);
+  CHECK(std::abs(anchor_at(document, first_id, 0).anchor_x - 120.0) < 1.0);
+  CHECK(std::abs(anchor_at(document, first_id, 0).anchor_y - 110.0) < 1.0);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before + 1);
+
+  patchy::ui::MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  CHECK(std::abs(anchor_at(document, first_id, 0).anchor_x - 100.0) < 0.5);
+  CHECK(std::abs(anchor_at(document, second_id, 0).anchor_x - 340.0) < 0.5);
+
+  // The undo's history restore rebuilds the layer list (active row only), so
+  // re-select both rows before the next cross-layer gesture.
+  require_layer_item(*layer_list, QStringLiteral("Rectangle 1"))->setSelected(true);
+  require_layer_item(*layer_list, QStringLiteral("Rectangle 2"))->setSelected(true);
+  QApplication::processEvents();
+
+  // Delete removes the selected points from both layers in one entry.
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(40, 40)),
+       canvas->widget_position_for_document_point(QPoint(440, 280)));
+  QApplication::processEvents();
+  CHECK(canvas->path_edit_selected_anchor_count() == 8);
+  const auto delete_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  send_key(*canvas, Qt::Key_Delete);
+  QApplication::processEvents();
+  CHECK(std::as_const(document).find_layer(first_id)->vector_shape()->path.subpaths.empty());
+  CHECK(std::as_const(document).find_layer(second_id)->vector_shape()->path.subpaths.empty());
+  CHECK(canvas->path_edit_selected_anchor_count() == 0);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == delete_before + 1);
+  patchy::ui::MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  CHECK(anchor_count(document, first_id) == 4);
+  CHECK(anchor_count(document, second_id) == 4);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> vector_point_editing_tests() {
@@ -940,5 +1012,7 @@ std::vector<patchy::test::TestCase> vector_point_editing_tests() {
        ui_direct_select_status_chip_shows_selected_count},
       {"ui_path_overlay_shows_all_selected_shape_layers",
        ui_path_overlay_shows_all_selected_shape_layers},
+      {"ui_direct_select_edits_points_across_selected_layers",
+       ui_direct_select_edits_points_across_selected_layers},
   };
 }

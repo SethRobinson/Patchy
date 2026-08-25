@@ -32,6 +32,7 @@
 #include <array>
 #include <cstdint>
 #include <chrono>
+#include <map>
 #include <set>
 #include <functional>
 #include <limits>
@@ -1374,6 +1375,18 @@ private:
   [[nodiscard]] int path_handle_at(QPointF widget_point, std::pair<int, int>& anchor) const;
   [[nodiscard]] bool path_segment_at(QPointF widget_point, std::pair<int, int>& segment,
                                      double& segment_t) const;
+  // Cross-layer Direct Select: hit tests against an arbitrary path, the
+  // eligibility filter for other panel-selected shape layers, and the shared
+  // shape-layer write (re-bake + dirty flags + bounded repaint).
+  [[nodiscard]] std::pair<int, int> anchor_hit_in(const patchy::VectorPath& path,
+                                                  QPointF widget_point) const;
+  [[nodiscard]] bool segment_hit_in(const patchy::VectorPath& path, QPointF widget_point,
+                                    std::pair<int, int>& segment, double& segment_t) const;
+  [[nodiscard]] const patchy::Layer* extra_edit_shape_layer(LayerId id) const;
+  void write_shape_layer_path(patchy::Layer& layer, patchy::VectorPath path,
+                              const std::vector<int>& touched_groups);
+  void arm_path_edit_undo(const QString& label);
+  void prune_extra_path_selection();
   bool handle_path_edit_press(QMouseEvent* event, QPointF document_point);
   bool handle_path_edit_move(QMouseEvent* event, QPointF document_point);
   // Applies the anchor/handle drag at document_point under the given modifier
@@ -1728,6 +1741,9 @@ private:
   // Path-edit session state (selection keys are (subpath, anchor) indices).
   enum class PathEditDrag { None, Anchors, HandleIn, HandleOut, Marquee };
   std::set<std::pair<int, int>> path_selected_anchors_;
+  // Selected anchors on OTHER panel-selected shape layers (never the primary
+  // target); drags, nudges, deletes, and the count span both structures.
+  std::map<LayerId, std::set<std::pair<int, int>>> extra_selected_anchors_;
   PathEditDrag path_drag_mode_{PathEditDrag::None};
   std::pair<int, int> path_drag_anchor_{-1, -1};
   QPointF path_drag_last_document_{};

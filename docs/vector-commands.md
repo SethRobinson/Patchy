@@ -96,6 +96,19 @@ meaning; only move/key state during the drag drives the constraint. Handle
 drags and the Pen's in-session Ctrl anchor drag stay unconstrained. The
 status-bar chip shows the selected-point count (see Hints above).
 
+Cross-layer Direct Select: with several shape layers selected in the Layers
+panel, clicks, marquees, drags, nudges, Delete, and Escape span all of them.
+Point keys on non-target layers live in `extra_selected_anchors_` (a per-layer
+map beside `path_selected_anchors_`); eligibility per layer is the
+`combine_shape_candidates` lock triple via `extra_edit_shape_layer`. Writes go
+through `write_shape_layer_path` (the shared shape re-bake tail split out of
+`replace_path_edit_target`), armed by `arm_path_edit_undo` so N layers coalesce
+into the one document-wide undo snapshot per gesture. The count chip totals
+both structures. Deliberately primary-target-only: bezier handle editing, the
+Combine op box, and Free Transform Points (`path_transform_subset_` snapshots
+one path). Panel deselection of a layer drops its point selection
+(`set_panel_selected_layer_ids`); document swaps clear both structures.
+
 ## Path context menu
 
 Right-click under a path tool: the press records `path_context_press_pos_`

@@ -245,7 +245,7 @@ bool CanvasWidget::event(QEvent* event) {
       // Backspace on macOS and Delete everywhere) so keyPressEvent receives a plain key
       // event instead of QShortcutMap consuming it first.
       if (magnetic_lasso_active() || pen_session_active_ ||
-          (path_edit_tool_active() && !path_selected_anchors_.empty()) ||
+          (path_edit_tool_active() && path_edit_has_selection()) ||
           (!guides_locked_ && has_selected_guides())) {
         event->accept();
         return true;
