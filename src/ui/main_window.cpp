@@ -11,6 +11,7 @@
 #include "core/palette_presets.hpp"
 #include "core/pattern_presets.hpp"
 #include "core/pixel_tools.hpp"
+#include "core/shape_combine.hpp"
 #include "formats/palette_io.hpp"
 #include "filters/builtin_filters.hpp"
 #include "formats/aseprite_document_io.hpp"
@@ -5668,6 +5669,13 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   });
   statusBar()->addPermanentWidget(palette_mode_chip_);
   palette_mode_chip_->hide();
+  // Selected-point count for the per-point path tools; permanent so it
+  // survives showMessage (the hover hints share the same status bar).
+  path_point_count_chip_ = new QLabel(statusBar());
+  path_point_count_chip_->setObjectName(QStringLiteral("pathPointCountChip"));
+  statusBar()->addPermanentWidget(path_point_count_chip_);
+  path_point_count_chip_->hide();
+  register_retranslation([this] { refresh_path_point_count_chip(); });
   palette_compliance_timer_ = new QTimer(this);
   palette_compliance_timer_->setSingleShot(true);
   palette_compliance_timer_->setInterval(400);
@@ -6694,7 +6702,7 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
     if (canvas != canvas_) {
       return;
     }
-    refresh_path_tool_hint_label();
+    refresh_path_point_count_chip();
   });
   canvas->set_shape_preview_appearance_callback(
       [this]() -> std::optional<CanvasWidget::ShapePreviewAppearance> {
@@ -9326,6 +9334,34 @@ void MainWindow::merge_down() {
     }
   } else {
     merge_list = normalized;  // already sorted bottom-to-top
+  }
+
+  // Photoshop's Merge Shapes: when the whole merge list is editable
+  // same-parent shape layers, merge as vectors instead of rasterizing. The
+  // bottom layer stays the base (id, name, appearance, styles); every front
+  // group is appended with Add, so the result composes like Unite Shapes.
+  if (const auto shape_candidates = combine_shape_candidates(std::as_const(doc).layers(), merge_list);
+      shape_candidates.refusal == ShapeCombineRefusal::None) {
+    push_undo_snapshot(tr("Merge shapes"));
+    const auto result = combine_shape_layers(doc, shape_candidates.bottom_to_top, PathCombineOp::Add);
+    if (!result.has_value()) {
+      show_status_error(tr("Only editable shape layers can be combined"));
+      return;
+    }
+    doc.set_active_layer(result->layer_id);
+    if (canvas_ != nullptr) {
+      canvas_->clear_path_edit_selection();
+    }
+    refresh_layer_list();
+    refresh_layer_controls();
+    refresh_document_info();
+    path_row_hidden_for_layer_.reset();
+    refresh_paths_panel();
+    if (canvas_ != nullptr) {
+      canvas_->document_changed();
+    }
+    statusBar()->showMessage(tr("Merged shapes down"));
+    return;
   }
 
   // Render the visible items into a scratch document. Hidden items contribute nothing and are simply

@@ -62,17 +62,17 @@ selection.
   segment) emit through the status callback only on the transition INTO an
   actionable state and never on the way back, so confirmations shown by
   other code survive mouse motion. `set_tool` resets the memory.
-- Options bar: `pathToolHintLabel` (registered for the six path tools, not
-  part of the appearance widgets that hide without a shape layer) shows a
-  short reminder per tool from `path_tool_hint_source`
-  (main_window_vector.cpp, `refresh_path_tool_hint_label`); keep the texts
-  under about 70 characters so the flow layout never wraps. With two or more
-  anchors selected under any per-point tool (Direct Select and the Pen
-  family's Ctrl latch, not Path Select) the label appends "(%n points
-  selected)" after the reminder, refreshed through
+- Every path-tool hint lives in the status bar (Seth, August 2026: the old
+  options-bar gesture label duplicated the status hints and was removed).
+  The activation and hover hints name the Ctrl-drag select/move gesture.
+- Point count: `pathPointCountChip` (a permanent status-bar QLabel next to
+  the mask/palette chips, so it survives `showMessage`) shows "%n points
+  selected" once two or more anchors are selected under a per-point tool
+  (Direct Select and the Pen family's Ctrl latch, not Path Select).
+  Refreshed by `refresh_path_point_count_chip` (main_window_vector.cpp) from
   `set_path_selection_changed_callback` (fired from every mutation of
-  `path_selected_anchors_`: clicks, marquees, deletes, prunes, deselects).
-  The Pen hint also names the Ctrl-drag select/move gesture.
+  `path_selected_anchors_`: clicks, marquees, deletes, prunes, deselects)
+  and from every options-bar refresh (tool switches).
 
 ## Moving a selection
 
@@ -94,7 +94,7 @@ stationary cursor replays the drag at the last raw pointer position from
 keyPressEvent/keyReleaseEvent. Shift at press keeps its additive-selection
 meaning; only move/key state during the drag drives the constraint. Handle
 drags and the Pen's in-session Ctrl anchor drag stay unconstrained. The
-options-bar hint label appends the selected-point count (see Hints above).
+status-bar chip shows the selected-point count (see Hints above).
 
 ## Path context menu
 

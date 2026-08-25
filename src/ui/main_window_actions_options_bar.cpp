@@ -2356,15 +2356,6 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     schedule_save_tool_settings();
   });
 
-  // One-line gesture hint so the path tools' bar is never empty (the
-  // appearance controls hide without an editable shape layer).
-  path_tool_hint_label_ = qobject_cast<QLabel*>(add_option_label(
-      QString(), {CanvasTool::Pen, CanvasTool::PathSelect, CanvasTool::DirectSelect,
-                  CanvasTool::AddAnchor, CanvasTool::DeleteAnchor, CanvasTool::ConvertPoint}));
-  path_tool_hint_label_->setObjectName(QStringLiteral("pathToolHintLabel"));
-  register_retranslation([this] { refresh_path_tool_hint_label(); });
-  refresh_path_tool_hint_label();
-
   vector_vector_mode_option_widgets_.push_back(
       add_option_label(tr("Sides:"), {CanvasTool::Polygon}));
   auto* polygon_sides = new QSpinBox(toolbar);

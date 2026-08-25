@@ -401,51 +401,31 @@ VectorShapeContent MainWindow::current_shape_appearance_content() const {
   return content;
 }
 
-namespace {
-
-// Short (one options-bar row) gesture reminders per path tool.
-const char* path_tool_hint_source(CanvasTool tool) {
-  switch (tool) {
-    case CanvasTool::Pen:
-      return "Click a segment to add, a point to delete. Ctrl-drag selects/moves points.";
-    case CanvasTool::PathSelect:
-      return "Click a shape to select it, drag to move it. Ctrl+T transforms.";
-    case CanvasTool::DirectSelect:
-      return "Click or drag points and handles. Delete removes selected points.";
-    case CanvasTool::AddAnchor:
-      return "Click a path segment to add a point";
-    case CanvasTool::DeleteAnchor:
-      return "Click a point on the path to delete it";
-    case CanvasTool::ConvertPoint:
-      return "Click a point to switch it between corner and smooth";
-    default:
-      return nullptr;
-  }
-}
-
-}  // namespace
-
-void MainWindow::refresh_path_tool_hint_label() {
-  if (path_tool_hint_label_ == nullptr) {
+void MainWindow::refresh_path_point_count_chip() {
+  if (path_point_count_chip_ == nullptr) {
     return;
   }
-  const auto* source = path_tool_hint_source(current_tool_);
-  auto text = source != nullptr ? tr(source) : QString();
-  // A multi-point selection appends its count to the gesture reminder. Every
-  // per-point path tool shows it (Direct Select, and the Pen family whose
-  // Ctrl latch selects the same way); Path Select selects whole shapes, where
-  // an anchor count would be noise.
-  if (source != nullptr && current_tool_ != CanvasTool::PathSelect && canvas_ != nullptr) {
-    if (const auto count = canvas_->path_edit_selected_anchor_count(); count >= 2) {
-      text += QChar(' ');
-      text += tr("(%n points selected)", nullptr, count);
-    }
+  // Every per-point path tool shows the multi-point selection count (Direct
+  // Select, and the Pen family whose Ctrl latch selects the same way); Path
+  // Select selects whole shapes, where an anchor count would be noise.
+  const bool per_point_tool = current_tool_ == CanvasTool::Pen ||
+                              current_tool_ == CanvasTool::DirectSelect ||
+                              current_tool_ == CanvasTool::AddAnchor ||
+                              current_tool_ == CanvasTool::DeleteAnchor ||
+                              current_tool_ == CanvasTool::ConvertPoint;
+  const auto count = per_point_tool && canvas_ != nullptr
+                         ? canvas_->path_edit_selected_anchor_count()
+                         : 0;
+  if (count >= 2) {
+    path_point_count_chip_->setText(tr("%n points selected", nullptr, count));
+    path_point_count_chip_->show();
+  } else {
+    path_point_count_chip_->hide();
   }
-  path_tool_hint_label_->setText(text);
 }
 
 void MainWindow::refresh_vector_tool_options_visibility() {
-  refresh_path_tool_hint_label();
+  refresh_path_point_count_chip();
   const bool shape_tool = current_tool_ == CanvasTool::Line ||
                           current_tool_ == CanvasTool::Rectangle ||
                           current_tool_ == CanvasTool::Ellipse ||

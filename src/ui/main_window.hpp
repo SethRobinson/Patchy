@@ -780,7 +780,7 @@ private:
   void add_subpaths_to_work_path(std::vector<patchy::PathSubpath> subpaths);
   [[nodiscard]] patchy::VectorShapeContent current_shape_appearance_content() const;
   void refresh_vector_tool_options_visibility();
-  void refresh_path_tool_hint_label();
+  void refresh_path_point_count_chip();
   // Layer > Shape commands (docs/vector-commands.md).
   void simplify_target_path();
   void combine_selected_shape_layers(patchy::PathCombineOp op);
@@ -1427,7 +1427,7 @@ private:
   QPushButton* text_character_button_{nullptr};
   QPointer<QDialog> text_character_dialog_;
   QLabel* text_character_hint_label_{nullptr};
-  QLabel* path_tool_hint_label_{nullptr};
+  QLabel* path_point_count_chip_{nullptr};
   QCheckBox* text_character_auto_leading_{nullptr};
   QDoubleSpinBox* text_character_leading_spin_{nullptr};
   QSpinBox* text_character_tracking_spin_{nullptr};

@@ -261,6 +261,56 @@ void ui_combine_shapes_subtracts_front_and_undoes() {
   CHECK(color_close(canvas_pixel(*canvas, QPoint(250, 190)), Qt::black, 8));
 }
 
+// Ctrl+E on shape layers merges as vectors (Photoshop's Merge Shapes): the
+// bottom layer keeps its identity and the front's groups are appended with
+// Add. A shape-onto-raster merge still rasterizes.
+void ui_merge_down_keeps_shape_layers_vector() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto base_id = make_rect_shape_layer(window, *canvas, QPoint(100, 100), QPoint(300, 220));
+  const auto front_id = make_rect_shape_layer(window, *canvas, QPoint(200, 160), QPoint(400, 300));
+  const auto layers_before = document.layers().size();
+
+  // The front layer is active: Merge Down folds it into the base below.
+  CHECK(document.active_layer_id() == front_id);
+  const auto undo_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  require_action(window, "layerMergeDownAction")->trigger();
+  QApplication::processEvents();
+  CHECK(document.layers().size() == layers_before - 1);
+  CHECK(std::as_const(document).find_layer(front_id) == nullptr);
+  const auto* base = std::as_const(document).find_layer(base_id);
+  CHECK(base != nullptr && base->name() == "Rectangle 1");
+  CHECK(document.active_layer_id() == base_id);
+  CHECK(base->vector_shape() != nullptr);  // still a vector shape layer
+  const auto& subpaths = base->vector_shape()->path.subpaths;
+  CHECK(subpaths.size() == 2);
+  CHECK(subpaths[0].op == patchy::PathCombineOp::Add);
+  CHECK(subpaths[1].op == patchy::PathCombineOp::Add);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(150, 130)), Qt::black, 8));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(350, 280)), Qt::black, 8));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before + 1);
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Merged shapes down"));
+
+  patchy::ui::MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  CHECK(document.layers().size() == layers_before);
+  CHECK(std::as_const(document).find_layer(front_id) != nullptr);
+
+  // A shape merging onto the raster Background still rasterizes.
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  layer_list->clearSelection();
+  require_layer_item(*layer_list, QStringLiteral("Rectangle 1"))->setSelected(true);
+  QApplication::processEvents();
+  require_action(window, "layerMergeDownAction")->trigger();
+  QApplication::processEvents();
+  CHECK(std::as_const(document).find_layer(base_id) == nullptr ||
+        std::as_const(document).find_layer(base_id)->vector_shape() == nullptr);
+}
+
 void run_script_and_wait(patchy::ui::MainWindow& window, const QString& source, const char* name) {
   auto& host = window.script_engine_host();
   patchy::ui::ScriptEngineHost::RunOptions options;
@@ -376,6 +426,7 @@ std::vector<patchy::test::TestCase> vector_commands_tests() {
        ui_simplify_path_dialog_previews_commits_and_undoes},
       {"ui_simplify_path_cancel_restores_original", ui_simplify_path_cancel_restores_original},
       {"ui_combine_shapes_subtracts_front_and_undoes", ui_combine_shapes_subtracts_front_and_undoes},
+      {"ui_merge_down_keeps_shape_layers_vector", ui_merge_down_keeps_shape_layers_vector},
       {"ui_script_simplify_path_reports_anchor_counts", ui_script_simplify_path_reports_anchor_counts},
       {"ui_script_combine_shapes_returns_base_layer", ui_script_combine_shapes_returns_base_layer},
       {"ui_script_ungroup_returns_children", ui_script_ungroup_returns_children},

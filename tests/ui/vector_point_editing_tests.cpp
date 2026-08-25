@@ -1,5 +1,5 @@
 // Point-editing discoverability and targeting: tool activation and hover
-// hints, the path tools' options-bar hint label, the Pen's Auto Add/Delete
+// hints, the status-bar point-count chip, the Pen's Auto Add/Delete
 // option, Delete with a Ctrl-selected anchor under the Pen, the right-click
 // path menu, the dedicated anchor tools in the Pen flyout, and the Paths
 // panel retargeting when a layer with its own path becomes active.
@@ -239,40 +239,28 @@ void ui_pen_hover_over_path_shows_edit_hints() {
       QStringLiteral("Click to select the shape, drag to move it")));
 }
 
-void ui_path_tools_options_bar_shows_hint_label() {
+void ui_path_tools_options_bar_shows_tool_options() {
   VectorSettingsGuard settings_guard;
   patchy::ui::MainWindow window;
   show_window(window);
 
-  // Only the raster Background exists: the appearance controls hide, but the
-  // bar still explains the tool.
+  // Only the raster Background exists: the appearance controls hide. The old
+  // per-tool gesture label is gone (hints live in the status bar now).
   require_action(window, "toolDirectSelectAction")->trigger();
   QApplication::processEvents();
-  auto* label = window.findChild<QLabel*>(QStringLiteral("pathToolHintLabel"));
-  CHECK(label != nullptr);
-  CHECK(label->isVisible());
-  CHECK(label->text().startsWith(QStringLiteral("Click or drag points and handles")));
+  CHECK(window.findChild<QLabel*>(QStringLiteral("pathToolHintLabel")) == nullptr);
   auto* fill_swatch = window.findChild<QToolButton*>(QStringLiteral("vectorFillSwatchButton"));
   CHECK(fill_swatch != nullptr);
   CHECK(!fill_swatch->isVisible());
 
-  require_action(window, "toolAddAnchorAction")->trigger();
-  QApplication::processEvents();
-  CHECK(label->isVisible());
-  CHECK(label->text() == QStringLiteral("Click a path segment to add a point"));
-
   require_action(window, "toolPenAction")->trigger();
   QApplication::processEvents();
-  CHECK(label->isVisible());
-  CHECK(label->text() ==
-        QStringLiteral("Click a segment to add, a point to delete. Ctrl-drag selects/moves points."));
   auto* auto_add_delete = window.findChild<QCheckBox*>(QStringLiteral("penAutoAddDeleteCheck"));
   CHECK(auto_add_delete != nullptr);
   CHECK(auto_add_delete->isVisible());
 
   require_action(window, "toolBrushAction")->trigger();
   QApplication::processEvents();
-  CHECK(!label->isVisible());
   CHECK(!auto_add_delete->isVisible());
 }
 
@@ -844,10 +832,10 @@ void ui_direct_select_shift_toggle_mid_drag_reapplies_without_motion() {
   CHECK(std::abs(anchor_at(document, layer_id, 2).anchor_y - 220.0) < 1.0);
 }
 
-// The options-bar hint label appends a selected-point count to the gesture
-// reminder once two or more anchors are selected (Direct Select and the Pen's
-// Ctrl latch), and drops it on deselect or a single-point selection.
-void ui_direct_select_hint_label_shows_selected_count() {
+// The status-bar chip shows the selected-point count once two or more anchors
+// are selected (Direct Select and the Pen's Ctrl latch), and hides on deselect
+// or a single-point selection.
+void ui_direct_select_status_chip_shows_selected_count() {
   VectorSettingsGuard settings_guard;
   patchy::ui::MainWindow window;
   show_window(window);
@@ -859,39 +847,43 @@ void ui_direct_select_hint_label_shows_selected_count() {
 
   require_action(window, "toolDirectSelectAction")->trigger();
   QApplication::processEvents();
-  auto* label = window.findChild<QLabel*>(QStringLiteral("pathToolHintLabel"));
-  CHECK(label != nullptr);
-  CHECK(label->text().startsWith(QStringLiteral("Click or drag points and handles")));
-  CHECK(!label->text().contains(QStringLiteral("selected)")));
+  auto* chip = window.findChild<QLabel*>(QStringLiteral("pathPointCountChip"));
+  CHECK(chip != nullptr);
+  CHECK(!chip->isVisible());
 
   drag(*canvas, widget_point(QPoint(60, 60)), widget_point(QPoint(340, 260)));  // marquee all four
   QApplication::processEvents();
   CHECK(canvas->path_edit_selected_anchor_count() == 4);
-  CHECK(label->text().startsWith(QStringLiteral("Click or drag points and handles")));
-  CHECK(label->text().endsWith(QStringLiteral("(4 points selected)")));
+  CHECK(chip->isVisible());
+  CHECK(chip->text() == QStringLiteral("4 points selected"));
 
   send_key(*canvas, Qt::Key_Escape);
   QApplication::processEvents();
   CHECK(!canvas->path_edit_has_selection());
-  CHECK(!label->text().contains(QStringLiteral("selected)")));
+  CHECK(!chip->isVisible());
 
-  // A single-point selection keeps the plain gesture reminder.
+  // A single-point selection keeps the chip hidden.
   const auto corner = widget_point(QPoint(100, 100));
   drag(*canvas, corner, corner);
   QApplication::processEvents();
   CHECK(canvas->path_edit_selected_anchor_count() == 1);
-  CHECK(!label->text().contains(QStringLiteral("selected)")));
+  CHECK(!chip->isVisible());
 
-  // The Pen's Ctrl-latch marquee shows the same count after its own hint.
+  // The Pen's Ctrl-latch marquee shows the same count.
   send_key(*canvas, Qt::Key_Escape);
   require_action(window, "toolPenAction")->trigger();
   QApplication::processEvents();
-  CHECK(label->text().startsWith(QStringLiteral("Click a segment to add")));
+  CHECK(!chip->isVisible());
   drag(*canvas, widget_point(QPoint(60, 60)), widget_point(QPoint(340, 260)), Qt::ControlModifier);
   QApplication::processEvents();
   CHECK(canvas->path_edit_selected_anchor_count() == 4);
-  CHECK(label->text().startsWith(QStringLiteral("Click a segment to add")));
-  CHECK(label->text().endsWith(QStringLiteral("(4 points selected)")));
+  CHECK(chip->isVisible());
+  CHECK(chip->text() == QStringLiteral("4 points selected"));
+
+  // Path Select's whole-shape selection never shows an anchor count.
+  require_action(window, "toolPathSelectAction")->trigger();
+  QApplication::processEvents();
+  CHECK(!chip->isVisible());
 }
 
 }  // namespace
@@ -901,7 +893,7 @@ std::vector<patchy::test::TestCase> vector_point_editing_tests() {
       {"ui_path_tools_show_activation_hints_and_tooltips",
        ui_path_tools_show_activation_hints_and_tooltips},
       {"ui_pen_hover_over_path_shows_edit_hints", ui_pen_hover_over_path_shows_edit_hints},
-      {"ui_path_tools_options_bar_shows_hint_label", ui_path_tools_options_bar_shows_hint_label},
+      {"ui_path_tools_options_bar_shows_tool_options", ui_path_tools_options_bar_shows_tool_options},
       {"ui_pen_auto_add_delete_off_starts_new_path_over_segment",
        ui_pen_auto_add_delete_off_starts_new_path_over_segment},
       {"ui_pen_deletes_ctrl_selected_anchors_with_delete_key",
@@ -919,7 +911,7 @@ std::vector<patchy::test::TestCase> vector_point_editing_tests() {
       {"ui_direct_select_shift_drag_constrains_axis", ui_direct_select_shift_drag_constrains_axis},
       {"ui_direct_select_shift_toggle_mid_drag_reapplies_without_motion",
        ui_direct_select_shift_toggle_mid_drag_reapplies_without_motion},
-      {"ui_direct_select_hint_label_shows_selected_count",
-       ui_direct_select_hint_label_shows_selected_count},
+      {"ui_direct_select_status_chip_shows_selected_count",
+       ui_direct_select_status_chip_shows_selected_count},
   };
 }
