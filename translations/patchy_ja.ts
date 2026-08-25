@@ -305,6 +305,18 @@
         <translation>Microsoft Store を開く</translation>
     </message>
     <message>
+        <source>Only the desktop version of Patchy can import PDF files. All versions, including this one, can export PDF.</source>
+        <translation>PDF ファイルの読み込みはデスクトップ版の Patchy のみ対応しています。PDF の書き出しはこの Web 版を含むすべてのバージョンで可能です。</translation>
+    </message>
+    <message>
+        <source>Get the Desktop Version</source>
+        <translation>デスクトップ版を入手</translation>
+    </message>
+    <message>
+        <source>This build of Patchy cannot open PDF files.</source>
+        <translation>このビルドの Patchy では PDF ファイルを開けません。</translation>
+    </message>
+    <message>
         <source>Develop Raw - %1</source>
         <translation>Raw 現像 - %1</translation>
     </message>

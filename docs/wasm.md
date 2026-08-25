@@ -215,7 +215,10 @@ requestAnimationFrame onto setTimeout before qtloader runs (harness below).
   portable half stays in `print_layout.cpp`). Qt publishes no wasm qtpdf
   either, so `pdf_import_stub.cpp` builds instead of `pdf_import.cpp` and
   `file_format_entries()` drops `.pdf` from the open filter; PDF EXPORT still
-  works, because `pdf_export.cpp` only needs QtGui's QPdfWriter.
+  works, because `pdf_export.cpp` only needs QtGui's QPdfWriter. A picked or
+  dropped `.pdf` still enters the open pipeline and gets the stub's
+  marker-tagged error, which the open-failed box turns into a "Get the
+  Desktop Version" download button (see [pdf.md](pdf.md)).
   Single-instance QLocalServer
   off. Update check off (the site redeploy is the update mechanism; the
   GitHub fetch would fail CORS). Script sounds no-op. Scanner import off.

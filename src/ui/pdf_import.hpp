@@ -47,6 +47,11 @@ struct PdfImportResult {
 // True when this build linked Qt PDF, i.e. when opening a .pdf can work at all.
 [[nodiscard]] bool pdf_import_is_available();
 
+// Marker prefix on the wasm stub's open error, heif-marker style: the open-failed box
+// strips it from the display text and adds a "Get the Desktop Version" download button
+// (the desktop build reads and writes PDFs; the web build can only write them).
+inline constexpr std::string_view kPdfDesktopOnlyMarker = "[pdf-desktop-only]";
+
 // Inline so the stub build gets them too: recognizing a .pdf must work even where the
 // module is missing, so the open path can explain itself instead of failing obscurely.
 [[nodiscard]] inline bool is_pdf_extension(const QString& extension) {

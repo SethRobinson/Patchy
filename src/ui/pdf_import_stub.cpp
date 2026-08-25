@@ -16,7 +16,18 @@ bool pdf_import_is_available() {
 std::optional<PdfImportResult> load_pdf_document(const QString&, const PdfImportOptions&, const QString&,
                                                  QString* error) {
   if (error != nullptr) {
+#ifdef Q_OS_WASM
+    // The marker makes show_open_failed_message_box add a download button; a web
+    // visitor has a real fix (the desktop build), so point straight at it.
+    *error = QString::fromUtf8(kPdfDesktopOnlyMarker.data(),
+                               static_cast<qsizetype>(kPdfDesktopOnlyMarker.size())) +
+             QLatin1Char(' ') +
+             QObject::tr("Only the desktop version of Patchy can import PDF files. "
+                         "All versions, including this one, can export PDF.");
+#else
+    // A desktop Qt installed without the optional Qt PDF add-on.
     *error = QObject::tr("This build of Patchy cannot open PDF files.");
+#endif
   }
   return std::nullopt;
 }

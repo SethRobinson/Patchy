@@ -653,6 +653,12 @@ bool is_supported_open_path(const QString& path) {
   if (is_photoshop_document_extension(extension) || is_supported_image_extension(extension)) {
     return true;
   }
+  // A .pdf is recognized even where the import module is missing (wasm, a desktop Qt
+  // without the add-on): the open path then explains that this build cannot read PDFs,
+  // and on wasm where to get one that can, instead of a generic unsupported-drop status.
+  if (is_pdf_extension(extension)) {
+    return true;
+  }
   return !QImageReader::imageFormat(path).isEmpty();
 }
 
@@ -930,6 +936,22 @@ OpenDocumentResult load_document_from_path(QString path) {
 void show_open_failed_message_box(QWidget* parent, const QString& error_text) {
   QString display_text = error_text;
   QString store_product_id;
+  // The wasm PDF stub's error: strip the marker and add a download button, Store-button
+  // style, because the fix (the desktop build) is a link away.
+  const auto pdf_desktop_only_marker = QString::fromUtf8(
+      kPdfDesktopOnlyMarker.data(), static_cast<qsizetype>(kPdfDesktopOnlyMarker.size()));
+  if (error_text.startsWith(pdf_desktop_only_marker)) {
+    QMessageBox dialog(QMessageBox::Critical, QObject::tr("Open failed"),
+                       error_text.mid(pdf_desktop_only_marker.size()).trimmed(), QMessageBox::Ok, parent);
+    dialog.setObjectName(QStringLiteral("openFailedMessageBox"));
+    auto* download_button = dialog.addButton(QObject::tr("Get the Desktop Version"), QMessageBox::ActionRole);
+    dialog.setDefaultButton(download_button);
+    exec_dialog(dialog);
+    if (dialog.clickedButton() == download_button) {
+      QDesktopServices::openUrl(QUrl(QStringLiteral("https://github.com/SethRobinson/Patchy#download")));
+    }
+    return;
+  }
   const auto browser_hevc_marker =
       QString::fromUtf8(heif::kBrowserHevcUnavailableMarker.data(),
                         static_cast<qsizetype>(heif::kBrowserHevcUnavailableMarker.size()));
