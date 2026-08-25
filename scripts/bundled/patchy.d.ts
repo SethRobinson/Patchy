@@ -163,6 +163,13 @@ interface PatchyTraceOptions {
   snapCurvesToLines?: boolean;
   /** Leave white regions untraced (default false). */
   ignoreWhite?: boolean;
+  /**
+   * With a document selection: pick the traced colors from every pixel of the
+   * layer (default true), so a selection traces with the same colors as the
+   * whole layer. false chooses colors only from the selected pixels. Ignored
+   * without a selection.
+   */
+  paletteFromLayer?: boolean;
 }
 
 interface PatchySelection {

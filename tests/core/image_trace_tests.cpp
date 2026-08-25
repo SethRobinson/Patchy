@@ -461,6 +461,151 @@ void image_trace_converts_16_bit_and_float_buffers() {
   check_halves(deep32);
 }
 
+// A selection-masked copy (alpha 0 outside the "selection") traced with the
+// whole image as palette_source picks the whole image's colors, where the old
+// selection-scoped palette gave near-identical grain shades their own entries
+// and shattered flat areas into speckle.
+void image_trace_palette_source_uses_whole_image_colors() {
+  const RgbColor shade{224, 30, 30};  // 4 off kRed: quantization grain
+  auto full = solid_image(96, 64, kRed);
+  fill_rect(full, 48, 0, 24, 64, kBlue);
+  fill_rect(full, 72, 0, 24, 64, kWhite);
+  // A 1 px checkerboard of kRed/shade inside the red field: the "selection".
+  for (std::int32_t y = 8; y < 40; ++y) {
+    for (std::int32_t x = 8; x < 40; ++x) {
+      if ((x + y) % 2 == 0) {
+        auto* px = full.pixel(x, y);
+        px[0] = shade.red;
+        px[1] = shade.green;
+        px[2] = shade.blue;
+      }
+    }
+  }
+  auto masked = full;
+  for (std::int32_t y = 0; y < 64; ++y) {
+    for (std::int32_t x = 0; x < 96; ++x) {
+      if (x < 8 || x >= 40 || y < 8 || y >= 40) {
+        masked.pixel(x, y)[3] = 0;
+      }
+    }
+  }
+  auto options = color_options();
+  options.colors = 3;
+
+  const auto whole = patchy::trace_image(full, options);
+  CHECK(whole.palette_size == 3);
+  CHECK(whole.layers.size() == 3);  // 4 unique colors cluster; the grain merges into red
+  const auto in_whole = [&](RgbColor color) { return layer_with_color(whole, color) != nullptr; };
+
+  const auto with_source = patchy::trace_image(masked, options, {}, 0, &full);
+  CHECK(with_source.layers.size() == 1);  // the checkerboard collapses into one flat region
+  for (const auto& layer : with_source.layers) {
+    CHECK(in_whole(layer.color));
+  }
+
+  const auto without_source = patchy::trace_image(masked, options);
+  bool has_foreign_color = false;
+  for (const auto& layer : without_source.layers) {
+    has_foreign_color = has_foreign_color || !in_whole(layer.color);
+  }
+  CHECK(has_foreign_color);  // the old behavior promoted the grain shade to a palette entry
+  CHECK(without_source.anchor_count > with_source.anchor_count * 20);
+}
+
+// nullptr, the traced buffer itself, and an identical copy as palette_source
+// are all byte-for-byte no-ops, with and without smoothing.
+void image_trace_palette_source_null_and_self_are_no_ops() {
+  auto pixels = solid_image(48, 32, kRed);
+  fill_rect(pixels, 24, 0, 24, 32, kBlue);
+  fill_disc(pixels, 24.0, 16.0, 8.0, kWhite);
+  const auto same_result = [](const ImageTraceResult& a, const ImageTraceResult& b) {
+    CHECK(a.palette_size == b.palette_size);
+    CHECK(a.anchor_count == b.anchor_count);
+    CHECK(a.layers.size() == b.layers.size());
+    for (std::size_t i = 0; i < a.layers.size() && i < b.layers.size(); ++i) {
+      CHECK(a.layers[i].color == b.layers[i].color);
+      CHECK(a.layers[i].area == b.layers[i].area);
+      CHECK(a.layers[i].depth == b.layers[i].depth);
+      CHECK(patchy::serialize_vector_path(a.layers[i].path) == patchy::serialize_vector_path(b.layers[i].path));
+    }
+  };
+  const auto copy = pixels;
+  for (const auto mode : {ImageTraceOptions::Mode::Color, ImageTraceOptions::Mode::Grayscale}) {
+    for (const int smoothing : {0, 2}) {
+      auto options = color_options();
+      options.mode = mode;
+      options.colors = 4;
+      options.smoothing = smoothing;
+      const auto baseline = patchy::trace_image(pixels, options);
+      same_result(baseline, patchy::trace_image(pixels, options, {}, 0, &pixels));
+      same_result(baseline, patchy::trace_image(pixels, options, {}, 0, &copy));
+    }
+  }
+}
+
+void image_trace_palette_source_grayscale_histogram_from_source() {
+  // Bands of gray 0, 100, 250; two levels place at 50 and 250. A selection
+  // over the right two bands re-solved alone would place a level at 100; the
+  // whole-image histogram keeps the whole trace's levels.
+  auto full = solid_image(60, 30, kBlack);
+  fill_rect(full, 20, 0, 20, 30, RgbColor{100, 100, 100});
+  fill_rect(full, 40, 0, 20, 30, RgbColor{250, 250, 250});
+  auto masked = full;
+  fill_rect(masked, 0, 0, 20, 30, kBlack, 0);
+  ImageTraceOptions options;
+  options.mode = ImageTraceOptions::Mode::Grayscale;
+  options.colors = 2;
+  options.noise = 1;
+  const auto whole = patchy::trace_image(full, options);
+  const auto in_whole = [&](RgbColor color) { return layer_with_color(whole, color) != nullptr; };
+  const auto with_source = patchy::trace_image(masked, options, {}, 0, &full);
+  CHECK(!with_source.layers.empty());
+  for (const auto& layer : with_source.layers) {
+    CHECK(in_whole(layer.color));
+  }
+  const auto without_source = patchy::trace_image(masked, options);
+  bool has_foreign_gray = false;
+  for (const auto& layer : without_source.layers) {
+    has_foreign_gray = has_foreign_gray || !in_whole(layer.color);
+  }
+  CHECK(has_foreign_gray);
+}
+
+void image_trace_palette_source_converts_deep_buffers() {
+  // A 16-bit palette source normalizes through the same value/257 conversion,
+  // so it traces identically to its pre-converted 8-bit equivalent.
+  PixelBuffer full8(16, 16, PixelFormat::rgba8());
+  PixelBuffer deep16(16, 16, PixelFormat::rgb16());
+  for (std::int32_t y = 0; y < 16; ++y) {
+    for (std::int32_t x = 0; x < 16; ++x) {
+      auto* px = full8.pixel(x, y);
+      px[0] = x < 8 ? 255 : 0;
+      px[1] = 0;
+      px[2] = x < 8 ? 0 : 255;
+      px[3] = 255;
+      const std::uint16_t values[3] = {static_cast<std::uint16_t>(x < 8 ? 65535 : 0), 0,
+                                       static_cast<std::uint16_t>(x < 8 ? 0 : 65535)};
+      std::memcpy(deep16.pixel(x, y), values, sizeof(values));
+    }
+  }
+  auto masked = full8;
+  for (std::int32_t y = 0; y < 16; ++y) {
+    for (std::int32_t x = 8; x < 16; ++x) {
+      masked.pixel(x, y)[3] = 0;
+    }
+  }
+  auto options = color_options();
+  options.colors = 2;
+  const auto via_deep = patchy::trace_image(masked, options, {}, 0, &deep16);
+  const auto via_eight = patchy::trace_image(masked, options, {}, 0, &full8);
+  CHECK(via_deep.layers.size() == via_eight.layers.size());
+  for (std::size_t i = 0; i < via_deep.layers.size() && i < via_eight.layers.size(); ++i) {
+    CHECK(via_deep.layers[i].color == via_eight.layers[i].color);
+    CHECK(patchy::serialize_vector_path(via_deep.layers[i].path) ==
+          patchy::serialize_vector_path(via_eight.layers[i].path));
+  }
+}
+
 void image_trace_exact_assignment_beats_lut_on_close_palette() {
   // Two reds four levels apart share one 5-5-5 lookup bucket; the exact
   // per-unique-color assignment keeps them separate where the old bucketed
@@ -702,6 +847,11 @@ std::vector<patchy::test::TestCase> image_trace_tests() {
        image_trace_rasterized_result_matches_source_coverage},
       {"image_trace_is_deterministic_and_cancellable", image_trace_is_deterministic_and_cancellable},
       {"image_trace_converts_16_bit_and_float_buffers", image_trace_converts_16_bit_and_float_buffers},
+      {"image_trace_palette_source_uses_whole_image_colors", image_trace_palette_source_uses_whole_image_colors},
+      {"image_trace_palette_source_null_and_self_are_no_ops", image_trace_palette_source_null_and_self_are_no_ops},
+      {"image_trace_palette_source_grayscale_histogram_from_source",
+       image_trace_palette_source_grayscale_histogram_from_source},
+      {"image_trace_palette_source_converts_deep_buffers", image_trace_palette_source_converts_deep_buffers},
       {"image_trace_exact_assignment_beats_lut_on_close_palette",
        image_trace_exact_assignment_beats_lut_on_close_palette},
       {"image_trace_grayscale_places_optimal_levels", image_trace_grayscale_places_optimal_levels},

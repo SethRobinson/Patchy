@@ -55,6 +55,9 @@ constexpr std::size_t kLargeTraceLayers = 2000;
 // begins: a budget above the warning line is as good as no budget.
 constexpr int kMaxAnchorsSpinLimit = static_cast<int>(kLargeTraceAnchors);
 constexpr const char* kUserPresetsSettingsKey = "imageTrace/userPresets";
+// A view preference, not a trace option: outside ImageTraceOptions, presets,
+// and the imageTrace/* option spellings. Persisted identifier, never rename.
+constexpr const char* kShowAnchorsSettingsKey = "imageTrace/showAnchors";
 // Preset combo item data (Qt::UserRole = kind, Qt::UserRole + 1 = index).
 constexpr int kPresetKindCustom = 0;
 constexpr int kPresetKindBuiltin = 1;
@@ -111,6 +114,22 @@ public:
   void set_rendered(QImage image) {
     rendered_ = std::move(image);
     publish_zoom_state();
+    update();
+  }
+
+  // The traced paths' own anchor points (image-pixel space), marked when
+  // "Show anchors" is on. Toggling only repaints; it never re-traces.
+  void set_anchors(QVector<QPointF> anchors) {
+    anchors_ = std::move(anchors);
+    if (show_anchors_) {
+      update();
+    }
+  }
+  void set_show_anchors(bool show) {
+    if (show_anchors_ == show) {
+      return;
+    }
+    show_anchors_ = show;
     update();
   }
 
@@ -207,6 +226,27 @@ protected:
       painter.setRenderHint(QPainter::SmoothPixmapTransform, z < 1.0);
       painter.drawImage(image_rect, rendered_);
       painter.setRenderHint(QPainter::SmoothPixmapTransform, false);
+    }
+    if (show_anchors_ && !anchors_.isEmpty()) {
+      // Anchor marks on the traced result (never the source): the canvas
+      // path overlay's fixed accent-on-dark pair, which reads over arbitrary
+      // artwork (the marching-ants family exemption, docs/ui-conventions.md).
+      // Cosmetic pens keep the marks screen-sized; two drawPoints calls stay
+      // O(1) painter calls for tens of thousands of anchors.
+      painter.save();
+      painter.setClipRect(image_rect);
+      painter.translate(top_left);
+      painter.scale(z, z);
+      const auto point_count = static_cast<int>(anchors_.size());
+      QPen halo(QColor(30, 34, 40), 5.0);
+      halo.setCosmetic(true);
+      painter.setPen(halo);
+      painter.drawPoints(anchors_.constData(), point_count);
+      QPen mark(QColor(116, 192, 255), 3.0);
+      mark.setCosmetic(true);
+      painter.setPen(mark);
+      painter.drawPoints(anchors_.constData(), point_count);
+      painter.restore();
     }
     painter.setPen(theme().canvas_document_border);
     painter.drawRect(image_rect.adjusted(-1.0, -1.0, 0.0, 0.0));
@@ -312,6 +352,8 @@ private:
 
   QSize document_size_;
   QImage rendered_;
+  QVector<QPointF> anchors_;
+  bool show_anchors_{false};
   std::function<void()> zoom_changed_;
   QPointF pan_center_;
   QPointF pan_press_position_;
@@ -329,14 +371,22 @@ struct TracePreviewState {
   struct Work {
     std::uint64_t generation{0};
     ImageTraceOptions options;
+    // Selection traces: palette from the whole layer (palette_pixels) when
+    // set. Carried per work item so latest-wins re-traces keep the state the
+    // controls had when the work was queued.
+    bool palette_from_layer{true};
   };
   struct Completion {
     std::uint64_t generation{0};
     std::shared_ptr<const ImageTraceResult> result;
     QImage rendered;
+    QVector<QPointF> anchors;
   };
 
   std::shared_ptr<const PixelBuffer> pixels;
+  // The unmasked layer when tracing inside a selection (else null): the
+  // optional palette source handed to trace_image.
+  std::shared_ptr<const PixelBuffer> palette_pixels;
   bool closed{false};
   bool in_flight{false};
   std::atomic<std::uint64_t> generation{0};
@@ -345,12 +395,13 @@ struct TracePreviewState {
   std::function<void(Completion)> apply;
 };
 
-void enqueue_trace(const std::shared_ptr<TracePreviewState>& state, const ImageTraceOptions& options) {
+void enqueue_trace(const std::shared_ptr<TracePreviewState>& state, const ImageTraceOptions& options,
+                   bool palette_from_layer) {
   if (state == nullptr || state->closed || !state->start) {
     return;
   }
   const auto generation = state->generation.fetch_add(1, std::memory_order_acq_rel) + 1;
-  TracePreviewState::Work work{generation, options};
+  TracePreviewState::Work work{generation, options, palette_from_layer};
   if (state->in_flight) {
     state->pending = work;
     return;
@@ -472,9 +523,14 @@ void save_image_trace_user_presets(const std::vector<ImageTraceUserPreset>& pres
 }
 
 std::optional<ImageTraceDialogResult> request_image_trace(QWidget* parent, std::shared_ptr<const PixelBuffer> pixels,
-                                                          const ImageTraceOptions& initial, bool inside_selection) {
+                                                          const ImageTraceOptions& initial, bool inside_selection,
+                                                          std::shared_ptr<const PixelBuffer> whole_layer_pixels,
+                                                          bool initial_palette_from_layer) {
   if (pixels == nullptr || pixels->empty()) {
     return std::nullopt;
+  }
+  if (!inside_selection) {
+    whole_layer_pixels = nullptr;
   }
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("imageTraceDialog"));
@@ -609,10 +665,22 @@ std::optional<ImageTraceDialogResult> request_image_trace(QWidget* parent, std::
   ignore_white_check->setObjectName(QStringLiteral("imageTraceIgnoreWhiteCheck"));
   ignore_white_check->setToolTip(QObject::tr("Leave white areas transparent instead of tracing them"));
   controls->addWidget(ignore_white_check);
+  auto* show_anchors_check = new QCheckBox(QObject::tr("Show anchors"), &dialog);
+  show_anchors_check->setObjectName(QStringLiteral("imageTraceShowAnchorsCheck"));
+  show_anchors_check->setToolTip(QObject::tr("Mark the anchor points of the traced paths on the preview"));
+  controls->addWidget(show_anchors_check);
   auto* selection_note = new QLabel(QObject::tr("Tracing inside the selection"), &dialog);
   selection_note->setObjectName(QStringLiteral("imageTraceSelectionNoteLabel"));
   selection_note->setVisible(inside_selection);
   controls->addWidget(selection_note);
+  auto* palette_check = new QCheckBox(QObject::tr("Pick colors from the whole layer"), &dialog);
+  palette_check->setObjectName(QStringLiteral("imageTracePaletteFromLayerCheck"));
+  palette_check->setToolTip(
+      QObject::tr("Choose the traced colors from every pixel of the layer, so the selection traces with the same "
+                  "colors as the whole layer. Turn off to choose colors only from the selected pixels."));
+  palette_check->setChecked(initial_palette_from_layer);
+  palette_check->setVisible(inside_selection && whole_layer_pixels != nullptr);
+  controls->addWidget(palette_check);
   controls->addStretch(1);
 
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
@@ -735,9 +803,23 @@ std::optional<ImageTraceDialogResult> request_image_trace(QWidget* parent, std::
     delete_preset->setEnabled(preset_combo->itemData(row, Qt::UserRole).toInt() == kPresetKindUser);
   };
 
+  // Show anchors is a view preference: restored from settings, persisted on
+  // toggle, and only ever repaints (the trace itself is untouched).
+  {
+    auto settings = app_settings();
+    show_anchors_check->setChecked(settings.value(QLatin1String(kShowAnchorsSettingsKey), false).toBool());
+  }
+  preview->set_show_anchors(show_anchors_check->isChecked());
+  QObject::connect(show_anchors_check, &QCheckBox::toggled, &dialog, [preview](bool checked) {
+    preview->set_show_anchors(checked);
+    auto settings = app_settings();
+    settings.setValue(QLatin1String(kShowAnchorsSettingsKey), checked);
+  });
+
   // --- async preview ---
   auto state = std::make_shared<TracePreviewState>();
   state->pixels = pixels;
+  state->palette_pixels = whole_layer_pixels;
   std::shared_ptr<const ImageTraceResult> latest_result;
   std::uint64_t latest_generation = 0;
   bool accepting = false;
@@ -762,6 +844,7 @@ std::optional<ImageTraceDialogResult> request_image_trace(QWidget* parent, std::
     latest_result = completion.result;
     latest_generation = completion.generation;
     preview->set_rendered(std::move(completion.rendered));
+    preview->set_anchors(std::move(completion.anchors));
     set_tracing_busy(false);
     preview_info->setText(describe(*latest_result));
     size_warning->setVisible(image_trace_result_is_large(latest_result->layers.size(), latest_result->anchor_count));
@@ -778,10 +861,21 @@ std::optional<ImageTraceDialogResult> request_image_trace(QWidget* parent, std::
       const auto stale = [state, generation = work.generation] {
         return state->generation.load(std::memory_order_acquire) != generation;
       };
-      auto traced = std::make_shared<ImageTraceResult>(trace_image(*state->pixels, work.options, stale));
+      const PixelBuffer* palette_source =
+          (work.palette_from_layer && state->palette_pixels != nullptr) ? state->palette_pixels.get() : nullptr;
+      auto traced =
+          std::make_shared<ImageTraceResult>(trace_image(*state->pixels, work.options, stale, 0, palette_source));
       if (!stale()) {
         completion.rendered =
             qimage_from_rgba8(render_image_trace(*traced, state->pixels->width(), state->pixels->height()));
+        completion.anchors.reserve(static_cast<qsizetype>(traced->anchor_count));
+        for (const auto& layer : traced->layers) {
+          for (const auto& subpath : layer.path.subpaths) {
+            for (const auto& anchor : subpath.anchors) {
+              completion.anchors.push_back(QPointF(anchor.anchor_x, anchor.anchor_y));
+            }
+          }
+        }
       }
       completion.result = std::move(traced);
       if (app == nullptr) {
@@ -813,8 +907,11 @@ std::optional<ImageTraceDialogResult> request_image_trace(QWidget* parent, std::
   debounce->setInterval(kPreviewDebounceMs);
   QObject::connect(debounce, &QTimer::timeout, &dialog, [&] {
     set_tracing_busy(true);
-    enqueue_trace(state, read_options());
+    enqueue_trace(state, read_options(), palette_check->isChecked());
   });
+  // A palette-scope change re-traces (it changes the result) but never
+  // touches preset matching: the flag is not an ImageTraceOptions member.
+  QObject::connect(palette_check, &QCheckBox::toggled, &dialog, [&](bool) { debounce->start(); });
   const auto on_control_changed = [&] {
     if (syncing_widgets) {
       return;
@@ -936,7 +1033,7 @@ std::optional<ImageTraceDialogResult> request_image_trace(QWidget* parent, std::
     set_tracing_busy(true);
     if (debounce->isActive()) {
       debounce->stop();
-      enqueue_trace(state, read_options());
+      enqueue_trace(state, read_options(), palette_check->isChecked());
     }
   });
   QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
@@ -945,7 +1042,7 @@ std::optional<ImageTraceDialogResult> request_image_trace(QWidget* parent, std::
   select_matching_preset();
   append_themed_style(dialog, dialog_spinbox_button_style());
   set_tracing_busy(true);
-  enqueue_trace(state, read_options());
+  enqueue_trace(state, read_options(), palette_check->isChecked());
 
   const auto code = exec_dialog(dialog);
   close_trace_preview(state);
@@ -955,6 +1052,7 @@ std::optional<ImageTraceDialogResult> request_image_trace(QWidget* parent, std::
   ImageTraceDialogResult result;
   result.options = read_options();
   result.result = latest_result;
+  result.palette_from_layer = palette_check->isChecked();
   return result;
 }
 

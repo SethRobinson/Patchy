@@ -532,6 +532,7 @@ void ScriptLayerObject::applyFilter(const QString& filterId, const QJSValue& par
 
 QJSValue ScriptLayerObject::traceToShapes(const QJSValue& options) {
   ImageTraceOptions trace_options;
+  bool palette_from_layer = true;
   if (options.isObject()) {
     QJSValueIterator it(options);
     while (it.hasNext()) {
@@ -578,6 +579,8 @@ QJSValue ScriptLayerObject::traceToShapes(const QJSValue& options) {
         trace_options.snap_curves_to_lines = value.toBool();
       } else if (key == QLatin1String("ignoreWhite")) {
         trace_options.ignore_white = value.toBool();
+      } else if (key == QLatin1String("paletteFromLayer")) {
+        palette_from_layer = value.toBool();
       } else {
         host_.throw_js_error(ScriptEngineHost::tr("traceToShapes: unknown option %1").arg(key));
         return QJSValue();
@@ -592,9 +595,14 @@ QJSValue ScriptLayerObject::traceToShapes(const QJSValue& options) {
     host_.throw_js_error(ScriptEngineHost::tr("traceToShapes needs a pixel layer."));
     return QJSValue();
   }
-  // The document selection limits the traced area, exactly like the dialog.
-  const auto result = trace_image(
-      host_.pixels_limited_to_selection(session_id_, layer->pixels(), layer->bounds()), trace_options);
+  // The document selection limits the traced area, exactly like the dialog;
+  // by default the palette still comes from the whole layer (paletteFromLayer:
+  // false restores selection-scoped colors). The masked buffer is a named
+  // local so the palette-source pointer never outlives it.
+  const bool selection_active = host_.has_selection(session_id_);
+  const auto masked = host_.pixels_limited_to_selection(session_id_, layer->pixels(), layer->bounds());
+  const auto result = trace_image(masked, trace_options, {}, 0,
+                                  selection_active && palette_from_layer ? &layer->pixels() : nullptr);
   if (result.layers.empty()) {
     return QJSValue(QJSValue::NullValue);
   }

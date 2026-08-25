@@ -93,8 +93,19 @@ struct ImageTraceResult {
 // cancelled trace returns an empty result. Buffers with other channel counts
 // also return an empty result. `max_workers` caps the parallel fan-out
 // (0 = automatic, 1 = forced sequential; the output is identical either way).
+//
+// `palette_source` (optional) supplies the pixels the quantization palette is
+// computed from (the Color counts and the Grayscale histogram) while `pixels`
+// still decides which pixels are traced. It goes through the same 8-bit
+// normalization and pre-quantization smoothing, so tracing a selection-masked
+// copy with the whole layer as palette_source picks bit-identical colors to a
+// whole-layer trace. Its dimensions need not match `pixels` (counts only, no
+// per-pixel correspondence). nullptr, an empty buffer, an unsupported channel
+// count, or `palette_source == &pixels` keeps the single-buffer behavior
+// byte-for-byte; Black and White mode ignores it (fixed palette).
 [[nodiscard]] ImageTraceResult trace_image(const PixelBuffer& pixels, const ImageTraceOptions& options,
-                                           const std::function<bool()>& cancelled = {}, int max_workers = 0);
+                                           const std::function<bool()>& cancelled = {}, int max_workers = 0,
+                                           const PixelBuffer* palette_source = nullptr);
 
 // Paints the traced layers back to front as solid fills into a straight-alpha
 // RGBA8 buffer of the given size (the dialog preview and the coverage tests).

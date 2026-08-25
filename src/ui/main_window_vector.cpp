@@ -1826,6 +1826,21 @@ void save_image_trace_options(const ImageTraceOptions& options) {
   settings.setValue(key("ignoreWhite"), options.ignore_white);
 }
 
+// "Pick colors from the whole layer" for selection traces. Deliberately
+// outside ImageTraceOptions (it is a scope switch, not a preset option);
+// persisted identifier, never rename.
+constexpr const char* kTracePaletteFromLayerKey = "imageTrace/paletteFromLayer";
+
+bool image_trace_palette_from_layer_from_settings() {
+  auto settings = app_settings();
+  return settings.value(QLatin1String(kTracePaletteFromLayerKey), true).toBool();
+}
+
+void save_image_trace_palette_from_layer(bool palette_from_layer) {
+  auto settings = app_settings();
+  settings.setValue(QLatin1String(kTracePaletteFromLayerKey), palette_from_layer);
+}
+
 }  // namespace
 
 void MainWindow::trace_image_to_shapes() {
@@ -1866,16 +1881,25 @@ void MainWindow::trace_image_to_shapes() {
   // An active selection limits the traced area: pixels outside it become
   // untraced on the input copy, a per-pixel predicate like alpha < 128. The
   // parameters stay global (docs/legal-constraints.md, "Vector tracing").
+  // The unmasked layer rides along as the dialog's optional palette source,
+  // so the traced colors can match a whole-layer trace.
   const bool inside_selection = canvas_->has_selection();
   auto pixels = std::make_shared<const PixelBuffer>(
       inside_selection ? pixels_limited_to_selection(*canvas_, source_pixels, std::as_const(*layer).bounds())
                        : source_pixels);
-  const auto chosen =
-      request_image_trace(this, pixels, image_trace_options_from_settings(), inside_selection);
+  std::shared_ptr<const PixelBuffer> whole_layer_pixels;
+  if (inside_selection) {
+    whole_layer_pixels = std::make_shared<const PixelBuffer>(source_pixels);
+  }
+  const auto chosen = request_image_trace(this, pixels, image_trace_options_from_settings(), inside_selection,
+                                          whole_layer_pixels, image_trace_palette_from_layer_from_settings());
   if (!chosen.has_value()) {
     return;
   }
   save_image_trace_options(chosen->options);
+  if (inside_selection) {
+    save_image_trace_palette_from_layer(chosen->palette_from_layer);
+  }
   if (chosen->result == nullptr || chosen->result->layers.empty()) {
     show_status_error(tr("Nothing to trace with these settings"));
     return;

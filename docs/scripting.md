@@ -281,7 +281,11 @@ everywhere a bundled script is resolved.
   (docs/vector-commands.md). 2026-08-25 (additive, still 1): `layer.traceToShapes`
   accepts `smoothing` (0..10 px pre-quantization denoise) and `maxAnchors` (anchor
   budget, 0 = unlimited), and `colors` extends to 2..256 (values above 64 previously
-  clamped to 64; docs/image-trace.md).
+  clamped to 64; docs/image-trace.md). Also 2026-08-25 (behavioral plus additive,
+  still 1): with a document selection `layer.traceToShapes` picks its palette from
+  the whole layer, matching a whole-layer trace's colors (previously the palette
+  adapted to the selected pixels and shattered flat areas into speckle);
+  `paletteFromLayer: false` restores selection-scoped colors (docs/image-trace.md).
 - **`include()` resolution order**: relative to the including script, then the user
   scripts root, then the bundled scripts root; a result inside the bundled folder maps
   through the shadow-override store. `patchy.isMainScript()` is false during an included

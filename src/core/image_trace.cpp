@@ -399,8 +399,13 @@ std::vector<std::int32_t> assign_colors_exact(const std::vector<PaletteColorCoun
   return nearest;
 }
 
+// `palette_source` (already normalized and smoothed like `pixels`, or null)
+// feeds the Grayscale histogram and the Color palette counts, so the palette
+// can come from the whole layer while `pixels` is a selection-masked copy.
+// Label assignment always reads `pixels`.
 LabelMap build_label_map(const PixelBuffer& pixels, const ImageTraceOptions& options,
-                         const std::function<bool()>& is_cancelled, int max_workers) {
+                         const std::function<bool()>& is_cancelled, int max_workers,
+                         const PixelBuffer* palette_source) {
   LabelMap map;
   map.width = pixels.width();
   map.height = pixels.height();
@@ -427,6 +432,7 @@ LabelMap build_label_map(const PixelBuffer& pixels, const ImageTraceOptions& opt
     case ImageTraceOptions::Mode::Grayscale: {
       std::array<std::uint64_t, 256> histogram{};
       std::vector<std::uint8_t> grays(count, 0);
+      const bool histogram_from_source = palette_source != nullptr;
       for (std::int32_t y = 0; y < map.height; ++y) {
         for (std::int32_t x = 0; x < map.width; ++x) {
           const auto px = read_pixel(pixels, x, y);
@@ -436,7 +442,19 @@ LabelMap build_label_map(const PixelBuffer& pixels, const ImageTraceOptions& opt
           const auto gray = luminance(px.r, px.g, px.b);
           grays[map.index(x, y)] = gray;
           map.labels[map.index(x, y)] = 0;  // marks "visible"; resolved below
-          ++histogram[gray];
+          if (!histogram_from_source) {
+            ++histogram[gray];
+          }
+        }
+      }
+      if (histogram_from_source) {
+        for (std::int32_t y = 0; y < palette_source->height(); ++y) {
+          for (std::int32_t x = 0; x < palette_source->width(); ++x) {
+            const auto px = read_pixel(*palette_source, x, y);
+            if (px.a >= kAlphaThreshold) {
+              ++histogram[luminance(px.r, px.g, px.b)];
+            }
+          }
         }
       }
       // Exact optimal 1D quantization (strictly better than median cut for
@@ -496,9 +514,32 @@ LabelMap build_label_map(const PixelBuffer& pixels, const ImageTraceOptions& opt
       // then EXACT per unique color: the 5-5-5 lookup table's +-4 per-channel
       // bucket error misplaces whole color slabs once palette entries sit
       // closer together than the buckets.
-      map.palette = median_cut_palette(counts, static_cast<std::size_t>(color_count));
-      if (counts.size() > static_cast<std::size_t>(color_count)) {
-        map.palette = refine_palette_weighted(counts, std::move(map.palette), 8, is_cancelled);
+      // The palette optionally comes from `palette_source` (the whole layer
+      // when tracing a selection). `counts` stays collected from the traced
+      // buffer: exact assignment must cover ITS unique colors, which under
+      // smoothing need not exist in the palette source's blur.
+      std::vector<PaletteColorCount> palette_counts_storage;
+      const auto* palette_counts = &counts;
+      if (palette_source != nullptr) {
+        if (palette_source->format().channels >= 3) {
+          palette_counts_storage = collect_color_counts(*palette_source, kAlphaThreshold);
+        } else {
+          std::array<std::uint64_t, 256> histogram{};
+          for (std::int32_t y = 0; y < palette_source->height(); ++y) {
+            for (std::int32_t x = 0; x < palette_source->width(); ++x) {
+              const auto px = read_pixel(*palette_source, x, y);
+              if (px.a >= kAlphaThreshold) {
+                ++histogram[px.r];
+              }
+            }
+          }
+          palette_counts_storage = histogram_counts(histogram);
+        }
+        palette_counts = &palette_counts_storage;
+      }
+      map.palette = median_cut_palette(*palette_counts, static_cast<std::size_t>(color_count));
+      if (palette_counts->size() > static_cast<std::size_t>(color_count)) {
+        map.palette = refine_palette_weighted(*palette_counts, std::move(map.palette), 8, is_cancelled);
       }
       if (map.palette.empty() || is_cancelled()) {
         break;
@@ -1097,33 +1138,65 @@ double image_trace_corner_angle(int corners) noexcept {
 }
 
 ImageTraceResult trace_image(const PixelBuffer& pixels, const ImageTraceOptions& options,
-                             const std::function<bool()>& cancelled, int max_workers) {
+                             const std::function<bool()>& cancelled, int max_workers,
+                             const PixelBuffer* palette_source) {
   ImageTraceResult result;
+  // A degenerate palette source (the traced buffer itself, empty, or an
+  // unsupported channel count) and Black and White mode (fixed palette) take
+  // the single-buffer flow byte-for-byte.
+  if (palette_source == &pixels || options.mode == ImageTraceOptions::Mode::BlackAndWhite ||
+      (palette_source != nullptr && (palette_source->empty() || palette_source->format().channels < 1 ||
+                                     palette_source->format().channels > 4))) {
+    palette_source = nullptr;
+  }
   if (!pixels.empty() && pixels.format().bit_depth != BitDepth::UInt8) {
     if (pixels.format().channels < 1 || pixels.format().channels > 4) {
       return result;
     }
-    return trace_image(convert_deep_to_rgba8(pixels), options, cancelled, max_workers);
+    PixelBuffer palette_converted;
+    if (palette_source != nullptr && palette_source->format().bit_depth != BitDepth::UInt8) {
+      palette_converted = convert_deep_to_rgba8(*palette_source);
+      palette_source = &palette_converted;
+    }
+    return trace_image(convert_deep_to_rgba8(pixels), options, cancelled, max_workers, palette_source);
   }
   if (!format_supported(pixels)) {
     return result;
   }
   const auto is_cancelled = [&cancelled]() { return cancelled && cancelled(); };
 
+  // Mixed depths: 8-bit traced pixels with a deep palette source.
+  PixelBuffer palette_deep_converted;
+  if (palette_source != nullptr && palette_source->format().bit_depth != BitDepth::UInt8) {
+    palette_deep_converted = convert_deep_to_rgba8(*palette_source);
+    palette_source = &palette_deep_converted;
+  }
+
   // Smoothing 0 takes the untouched pre-existing flow: no working copy, no
   // new code path, byte-for-byte the same result.
   const int smoothing = std::clamp(options.smoothing, 0, ImageTraceOptions::kMaxSmoothing);
   const PixelBuffer* source = &pixels;
   PixelBuffer smoothed;
+  PixelBuffer palette_smoothed;
   if (smoothing > 0) {
     smoothed = smooth_pixels_for_trace(pixels, smoothing, is_cancelled);
     if (is_cancelled()) {
       return result;
     }
     source = &smoothed;
+    if (palette_source != nullptr) {
+      // Blurred independently: the masked copy's alpha-weighted blur
+      // diverges from the whole layer's near the selection edge, and the
+      // palette must match a whole-layer trace exactly.
+      palette_smoothed = smooth_pixels_for_trace(*palette_source, smoothing, is_cancelled);
+      if (is_cancelled()) {
+        return result;
+      }
+      palette_source = &palette_smoothed;
+    }
   }
 
-  auto map = build_label_map(*source, options, is_cancelled, max_workers);
+  auto map = build_label_map(*source, options, is_cancelled, max_workers, palette_source);
   result.palette_size = map.palette.size();
   if (map.palette.empty() || is_cancelled()) {
     return result;

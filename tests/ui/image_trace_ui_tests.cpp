@@ -132,6 +132,49 @@ patchy::LayerId paint_trace_source(patchy::ui::MainWindow& window) {
   return *active;
 }
 
+// Red field with a 2 px checkerboard of a near-red shade (224 vs 220) inside
+// the band, plus white and blue fields: four unique colors, so a 3-color
+// whole-layer palette merges the shade into red, while a palette scoped to a
+// band-sized selection keeps {red, shade} exactly and splits the grain.
+constexpr QRect kGrainBand(100, 100, 64, 64);
+
+patchy::LayerId paint_grain_trace_source(patchy::ui::MainWindow& window) {
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto active = document.active_layer_id();
+  CHECK(active.has_value());
+  auto* layer = document.find_layer(*active);
+  CHECK(layer != nullptr);
+  patchy::PixelBuffer pixels(kCanvasWidth, kCanvasHeight, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < kCanvasHeight; ++y) {
+    for (std::int32_t x = 0; x < kCanvasWidth; ++x) {
+      auto* px = pixels.pixel(x, y);
+      std::uint8_t r = 220;
+      std::uint8_t g = 30;
+      std::uint8_t b = 30;
+      if (x >= 700) {
+        r = 30;
+        g = 40;
+        b = 220;
+      } else if (x >= 400) {
+        r = 255;
+        g = 255;
+        b = 255;
+      } else if (kGrainBand.contains(x, y) && ((x / 2) + (y / 2)) % 2 == 0) {
+        r = 224;
+      }
+      px[0] = r;
+      px[1] = g;
+      px[2] = b;
+      px[3] = 255;
+    }
+  }
+  patchy::ui::set_layer_pixels_with_bounds(*layer, std::move(pixels),
+                                           patchy::Rect::from_size(kCanvasWidth, kCanvasHeight));
+  require_canvas(window)->document_changed();
+  QApplication::processEvents();
+  return *active;
+}
+
 const patchy::Layer* find_layer_named(const std::vector<patchy::Layer>& layers, const QString& name) {
   for (const auto& layer : layers) {
     if (QString::fromStdString(layer.name()) == name) {
@@ -191,6 +234,8 @@ void ui_trace_image_to_shapes_creates_group_and_undoes() {
       auto* colors_slider = dialog->findChild<QSlider*>(QStringLiteral("imageTraceColorsSlider"));
       CHECK(spinner != nullptr && warning != nullptr && selection_note != nullptr && colors_slider != nullptr);
       CHECK(!selection_note->isVisible());  // no selection in this test
+      auto* palette_scope = dialog->findChild<QCheckBox*>(QStringLiteral("imageTracePaletteFromLayerCheck"));
+      CHECK(palette_scope != nullptr && !palette_scope->isVisible());  // selection traces only
       mode->setCurrentIndex(mode->findData(0));  // Color
       colors->setValue(4);
       // The slider mirrors the spin box both ways.
@@ -547,6 +592,8 @@ void ui_trace_image_to_shapes_limits_to_selection() {
       CHECK(mode != nullptr && colors != nullptr && noise != nullptr && method != nullptr && info != nullptr &&
             note != nullptr);
       saw_note = note->isVisible();
+      auto* palette_scope = dialog->findChild<QCheckBox*>(QStringLiteral("imageTracePaletteFromLayerCheck"));
+      CHECK(palette_scope != nullptr && palette_scope->isVisible());
       mode->setCurrentIndex(mode->findData(0));
       colors->setValue(4);
       noise->setValue(4);
@@ -804,6 +851,248 @@ void ui_image_trace_new_options_persist_in_settings() {
   settings.remove(QStringLiteral("imageTrace/maxAnchors"));
 }
 
+void ui_trace_image_palette_checkbox_traces_layer_colors() {
+  patchy::ui::app_settings().remove(QStringLiteral("imageTrace/paletteFromLayer"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto source_id = paint_grain_trace_source(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto source_name = QString::fromStdString(document.find_layer(source_id)->name());
+  select_document_rect(*require_canvas(window), kCanvasWidth, kCanvasHeight, kGrainBand);
+
+  // Round one: the checkbox defaults to checked (whole-layer colors); uncheck
+  // it, wait for the re-trace, and accept the selection-scoped result.
+  bool drove = false;
+  QStringList failures;
+  const auto expect = [&failures](bool condition, const char* what) {
+    if (!condition) {
+      failures << QLatin1String(what);
+    }
+  };
+  const std::function<void(int)> drive_dialog = [&](int attempts) {
+    QTimer::singleShot(0, [&, attempts] {
+      auto* dialog = find_top_level_dialog(QStringLiteral("imageTraceDialog"));
+      if (dialog == nullptr) {
+        if (attempts > 0) {
+          drive_dialog(attempts - 1);
+        }
+        return;
+      }
+      drove = true;
+      auto* mode = dialog->findChild<QComboBox*>(QStringLiteral("imageTraceModeCombo"));
+      auto* colors = dialog->findChild<QSpinBox*>(QStringLiteral("imageTraceColorsSpin"));
+      auto* noise = dialog->findChild<QSpinBox*>(QStringLiteral("imageTraceNoiseSpin"));
+      auto* method = dialog->findChild<QComboBox*>(QStringLiteral("imageTraceMethodCombo"));
+      auto* info = dialog->findChild<QLabel*>(QStringLiteral("imageTracePreviewInfo"));
+      auto* palette_scope = dialog->findChild<QCheckBox*>(QStringLiteral("imageTracePaletteFromLayerCheck"));
+      auto* buttons = dialog->findChild<QDialogButtonBox*>(QStringLiteral("imageTraceButtons"));
+      if (mode == nullptr || colors == nullptr || noise == nullptr || method == nullptr || info == nullptr ||
+          palette_scope == nullptr || buttons == nullptr) {
+        failures << QStringLiteral("dialog controls missing");
+        dialog->reject();
+        return;
+      }
+      expect(palette_scope->isVisible(), "palette checkbox visible with a selection");
+      expect(palette_scope->isChecked(), "palette checkbox defaults to whole-layer colors");
+      mode->setCurrentIndex(mode->findData(0));
+      colors->setValue(3);
+      noise->setValue(1);
+      method->setCurrentIndex(method->findData(0));
+      // Whole-layer colors: the grain merges into one flat red layer.
+      expect(process_events_until([info] { return info->text().startsWith(QStringLiteral("1 shape layer")); }, 15000),
+             "whole-layer colors merge the grain into one layer");
+      palette_scope->setChecked(false);
+      // A scope change re-traces: the grain shade now gets its own palette
+      // entry and becomes a second layer.
+      expect(process_events_until([info] { return info->text().startsWith(QStringLiteral("2 shape layer")); }, 15000),
+             "unchecking re-traced with selection-scoped colors");
+      buttons->button(QDialogButtonBox::Ok)->click();
+    });
+  };
+  drive_dialog(5);
+  require_action(window, "layerTraceImageAction")->trigger();
+  QApplication::processEvents();
+  CHECK(drove);
+  for (const auto& failure : failures) {
+    std::fprintf(stderr, "  palette checkbox: %s\n", failure.toUtf8().constData());
+  }
+  CHECK(failures.isEmpty());
+  {
+    // Selection-scoped colors: the shade is promoted to its own layer.
+    const auto* group = find_layer_named(document.layers(), QStringLiteral("Traced %1").arg(source_name));
+    CHECK(group != nullptr);
+    CHECK(group->children().size() == 2);
+    CHECK(find_layer_named(group->children(), QStringLiteral("#DC1E1E")) != nullptr);
+    CHECK(find_layer_named(group->children(), QStringLiteral("#E01E1E")) != nullptr);
+    CHECK(!patchy::ui::app_settings().value(QStringLiteral("imageTrace/paletteFromLayer"), true).toBool());
+  }
+  patchy::ui::MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  patchy::ui::MainWindowTestAccess::document(window).set_active_layer(source_id);
+  select_document_rect(*require_canvas(window), kCanvasWidth, kCanvasHeight, kGrainBand);
+
+  // Round two: the unchecked state was persisted; re-check it and accept the
+  // whole-layer result, where the grain merges into one flat red layer.
+  bool restored_unchecked = false;
+  bool drove_again = false;
+  const std::function<void(int)> reopen = [&](int attempts) {
+    QTimer::singleShot(0, [&, attempts] {
+      auto* dialog = find_top_level_dialog(QStringLiteral("imageTraceDialog"));
+      if (dialog == nullptr) {
+        if (attempts > 0) {
+          reopen(attempts - 1);
+        }
+        return;
+      }
+      drove_again = true;
+      auto* info = dialog->findChild<QLabel*>(QStringLiteral("imageTracePreviewInfo"));
+      auto* palette_scope = dialog->findChild<QCheckBox*>(QStringLiteral("imageTracePaletteFromLayerCheck"));
+      auto* buttons = dialog->findChild<QDialogButtonBox*>(QStringLiteral("imageTraceButtons"));
+      if (info == nullptr || palette_scope == nullptr || buttons == nullptr) {
+        failures << QStringLiteral("dialog controls missing on reopen");
+        dialog->reject();
+        return;
+      }
+      restored_unchecked = !palette_scope->isChecked();
+      expect(process_events_until([info] { return info->text().startsWith(QStringLiteral("2 shape layer")); }, 15000),
+             "selection-scoped preview traced on reopen");
+      palette_scope->setChecked(true);
+      expect(process_events_until([info] { return info->text().startsWith(QStringLiteral("1 shape layer")); }, 15000),
+             "re-checking re-traced with whole-layer colors");
+      buttons->button(QDialogButtonBox::Ok)->click();
+    });
+  };
+  reopen(5);
+  require_action(window, "layerTraceImageAction")->trigger();
+  QApplication::processEvents();
+  CHECK(drove_again);
+  CHECK(restored_unchecked);
+  for (const auto& failure : failures) {
+    std::fprintf(stderr, "  palette checkbox: %s\n", failure.toUtf8().constData());
+  }
+  CHECK(failures.isEmpty());
+  auto& retraced = patchy::ui::MainWindowTestAccess::document(window);
+  const auto* group = find_layer_named(retraced.layers(), QStringLiteral("Traced %1").arg(source_name));
+  CHECK(group != nullptr);
+  CHECK(group->children().size() == 1);
+  CHECK(find_layer_named(group->children(), QStringLiteral("#DC1E1E")) != nullptr);
+  CHECK(find_layer_named(group->children(), QStringLiteral("#E01E1E")) == nullptr);
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("imageTrace/paletteFromLayer"), false).toBool());
+  patchy::ui::app_settings().remove(QStringLiteral("imageTrace/paletteFromLayer"));
+}
+
+void ui_image_trace_show_anchors_overlays_without_retrace() {
+  patchy::ui::app_settings().remove(QStringLiteral("imageTrace/showAnchors"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  paint_trace_source(window);
+
+  bool drove = false;
+  QStringList failures;
+  const auto expect = [&failures](bool condition, const char* what) {
+    if (!condition) {
+      failures << QLatin1String(what);
+    }
+  };
+  const std::function<void(int)> drive_dialog = [&](int attempts) {
+    QTimer::singleShot(0, [&, attempts] {
+      auto* dialog = find_top_level_dialog(QStringLiteral("imageTraceDialog"));
+      if (dialog == nullptr) {
+        if (attempts > 0) {
+          drive_dialog(attempts - 1);
+        }
+        return;
+      }
+      drove = true;
+      auto* info = dialog->findChild<QLabel*>(QStringLiteral("imageTracePreviewInfo"));
+      auto* preview = dialog->findChild<QWidget*>(QStringLiteral("imageTracePreview"));
+      auto* spinner = dialog->findChild<QWidget*>(QStringLiteral("imageTraceBusySpinner"));
+      auto* show_anchors = dialog->findChild<QCheckBox*>(QStringLiteral("imageTraceShowAnchorsCheck"));
+      auto* buttons = dialog->findChild<QDialogButtonBox*>(QStringLiteral("imageTraceButtons"));
+      if (info == nullptr || preview == nullptr || spinner == nullptr || show_anchors == nullptr ||
+          buttons == nullptr) {
+        failures << QStringLiteral("dialog controls missing");
+        dialog->reject();
+        return;
+      }
+      expect(show_anchors->isVisible(), "Show anchors visible");
+      expect(!show_anchors->isChecked(), "Show anchors defaults off");
+      expect(process_events_until([info] { return info->text().contains(QStringLiteral("shape layer")); }, 15000),
+             "preview traced");
+      const auto before = preview->grab().toImage();
+      const auto text_before = info->text();
+      show_anchors->setChecked(true);
+      // Past the 150 ms debounce window: a view toggle must never re-trace.
+      (void)process_events_until([] { return false; }, 400);
+      expect(preview->grab().toImage() != before, "anchor marks repaint the preview");
+      expect(info->text() == text_before, "no re-trace on toggle (summary unchanged)");
+      expect(!spinner->isVisible(), "no re-trace on toggle (spinner idle)");
+      expect(patchy::ui::app_settings().value(QStringLiteral("imageTrace/showAnchors"), false).toBool(),
+             "toggle persists the view preference");
+      show_anchors->setChecked(false);
+      QApplication::processEvents();
+      expect(preview->grab().toImage() == before, "unchecking removes the marks");
+      show_anchors->setChecked(true);
+      save_widget_artifact("ui_image_trace_show_anchors", *dialog);
+      buttons->button(QDialogButtonBox::Cancel)->click();
+    });
+  };
+  drive_dialog(5);
+  require_action(window, "layerTraceImageAction")->trigger();
+  QApplication::processEvents();
+  CHECK(drove);
+  for (const auto& failure : failures) {
+    std::fprintf(stderr, "  show anchors: %s\n", failure.toUtf8().constData());
+  }
+  CHECK(failures.isEmpty());
+  // Cancel keeps the persisted view preference; the next dialog restores it.
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("imageTrace/showAnchors"), false).toBool());
+  patchy::ui::app_settings().remove(QStringLiteral("imageTrace/showAnchors"));
+}
+
+void ui_script_trace_to_shapes_palette_from_layer_option() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  paint_grain_trace_source(window);
+  select_document_rect(*require_canvas(window), kCanvasWidth, kCanvasHeight, kGrainBand);
+  auto& host = window.script_engine_host();
+  patchy::ui::ScriptEngineHost::RunOptions options;
+  options.name = QStringLiteral("trace-palette-scope-test");
+  (void)host.run_source(QStringLiteral(R"JS(
+    var layer = app.activeDocument.activeLayer;
+    var whole = layer.traceToShapes({mode: 'color', colors: 3, noise: 1});
+    var names = [];
+    for (var i = 0; i < whole.children.length; ++i) { names.push(whole.children[i].name); }
+    console.log('whole:' + names.sort().join(','));
+    var scoped = layer.traceToShapes({mode: 'color', colors: 3, noise: 1, paletteFromLayer: false});
+    names = [];
+    for (var i = 0; i < scoped.children.length; ++i) { names.push(scoped.children[i].name); }
+    console.log('scoped:' + names.sort().join(','));
+  )JS"),
+                         std::move(options));
+  QElapsedTimer timer;
+  timer.start();
+  while (host.run_active() && timer.elapsed() < 30000) {
+    QApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 20);
+  }
+  QApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 20);
+  CHECK(!host.run_active());
+  CHECK(!host.last_run_had_error());
+  bool saw_whole = false;
+  bool saw_scoped = false;
+  for (const auto& line : host.message_backlog()) {
+    // Whole-layer colors (the default): the grain merges into one red layer.
+    saw_whole =
+        saw_whole || (line.contains(QStringLiteral("whole:#DC1E1E")) && !line.contains(QStringLiteral("whole:#DC1E1E,")));
+    // paletteFromLayer: false restores selection-scoped colors: the shade
+    // gets its own entry.
+    saw_scoped =
+        saw_scoped || (line.contains(QStringLiteral("scoped:")) && line.contains(QStringLiteral("#E01E1E")));
+  }
+  CHECK(saw_whole);
+  CHECK(saw_scoped);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> image_trace_ui_tests() {
@@ -823,5 +1112,9 @@ std::vector<patchy::test::TestCase> image_trace_ui_tests() {
        ui_pixels_limited_to_selection_zeroes_alpha_outside},
       {"ui_trace_image_to_shapes_limits_to_selection", ui_trace_image_to_shapes_limits_to_selection},
       {"ui_script_trace_to_shapes_uses_selection", ui_script_trace_to_shapes_uses_selection},
+      {"ui_trace_image_palette_checkbox_traces_layer_colors", ui_trace_image_palette_checkbox_traces_layer_colors},
+      {"ui_image_trace_show_anchors_overlays_without_retrace",
+       ui_image_trace_show_anchors_overlays_without_retrace},
+      {"ui_script_trace_to_shapes_palette_from_layer_option", ui_script_trace_to_shapes_palette_from_layer_option},
   };
 }
