@@ -1135,6 +1135,32 @@ QString export_notes_suffix_for(const std::vector<std::string>& notices) {
   return suffix;
 }
 
+// Divide-photos save-format combo rows: the flat-image export formats, minus
+// SVG (the layered writer, not write_flat_image_file) and the icon/cursor
+// formats (their sizes make no sense for a photo batch).
+std::vector<DividePhotosFormatChoice> divide_photos_format_choices() {
+  std::vector<DividePhotosFormatChoice> choices;
+  for (const auto& entry : file_format_entries()) {
+    if (!entry.in_export_dialog || entry.save_extensions.isEmpty()) {
+      continue;
+    }
+    const QString& extension = entry.save_extensions.front();
+    if (extension == QStringLiteral("svg") || extension == QStringLiteral("ico") ||
+        extension == QStringLiteral("cur")) {
+      continue;
+    }
+    choices.push_back({QCoreApplication::translate("QObject", entry.display_name), extension});
+  }
+  return choices;
+}
+
+// prefix + zero-padded index + "." + extension; pads to 3 digits and grows
+// naturally past 999 (the image_sequence_file_names formatting).
+QString divide_photo_file_name(const QString& prefix, int index, const QString& extension) {
+  return prefix + QStringLiteral("%1").arg(index, 3, 10, QLatin1Char('0')) + QLatin1Char('.') +
+         extension;
+}
+
 }  // namespace
 
 void MainWindow::open_document() {
@@ -1873,30 +1899,53 @@ void MainWindow::run_divide_photos_flow(std::shared_ptr<const PixelBuffer> sourc
   if (source == nullptr || source->empty()) {
     return;
   }
-  int sensitivity = 50;
-  bool straighten = true;
-  bool perspective = false;
-  bool save_to_folder = false;
+  DividePhotosSettings dialog_settings;
   {
     auto settings = app_settings();
-    sensitivity = settings.value(QStringLiteral("dividePhotos/sensitivity"), 50).toInt();
-    straighten = settings.value(QStringLiteral("dividePhotos/straighten"), true).toBool();
-    perspective = settings.value(QStringLiteral("dividePhotos/fixPerspective"), false).toBool();
-    save_to_folder = settings.value(QStringLiteral("dividePhotos/output"), 0).toInt() == 1;
+    dialog_settings.sensitivity =
+        std::clamp(settings.value(QStringLiteral("dividePhotos/sensitivity"), 50).toInt(), 0, 100);
+    const bool straighten = settings.value(QStringLiteral("dividePhotos/straighten"), true).toBool();
+    const bool perspective =
+        settings.value(QStringLiteral("dividePhotos/fixPerspective"), false).toBool();
+    dialog_settings.mode = perspective ? PhotoExtractMode::Perspective
+                           : straighten ? PhotoExtractMode::Straighten
+                                        : PhotoExtractMode::Cut;
+    dialog_settings.up_direction = static_cast<PhotoUpDirection>(
+        std::clamp(settings.value(QStringLiteral("dividePhotos/upDirection"), 0).toInt(), 0, 3));
+    dialog_settings.output = static_cast<DividePhotosOutput>(
+        std::clamp(settings.value(QStringLiteral("dividePhotos/output"), 0).toInt(), 0, 2));
+    dialog_settings.folder = settings.value(QStringLiteral("dividePhotos/folder")).toString();
+    dialog_settings.prefix =
+        settings.value(QStringLiteral("dividePhotos/prefix"), QStringLiteral("photo_")).toString();
+    dialog_settings.format =
+        settings.value(QStringLiteral("dividePhotos/format"), QStringLiteral("png")).toString();
+    dialog_settings.existing_files = static_cast<DividePhotosExistingFiles>(
+        std::clamp(settings.value(QStringLiteral("dividePhotos/existingFiles"), 0).toInt(), 0, 1));
+  }
+  if (dialog_settings.folder.isEmpty()) {
+    dialog_settings.folder = last_save_directory();
   }
   const auto result = request_divide_photos(this, source, print_settings.horizontal_ppi,
-                                            sensitivity, straighten, perspective, save_to_folder);
+                                            dialog_settings, divide_photos_format_choices());
   if (!result.has_value()) {
     return;
   }
+  const DividePhotosSettings& chosen = result->settings;
   {
     auto settings = app_settings();
-    settings.setValue(QStringLiteral("dividePhotos/sensitivity"), result->sensitivity);
+    settings.setValue(QStringLiteral("dividePhotos/sensitivity"), chosen.sensitivity);
     settings.setValue(QStringLiteral("dividePhotos/straighten"),
-                      result->mode != PhotoExtractMode::Cut);
+                      chosen.mode != PhotoExtractMode::Cut);
     settings.setValue(QStringLiteral("dividePhotos/fixPerspective"),
-                      result->mode == PhotoExtractMode::Perspective);
-    settings.setValue(QStringLiteral("dividePhotos/output"), result->save_to_folder ? 1 : 0);
+                      chosen.mode == PhotoExtractMode::Perspective);
+    settings.setValue(QStringLiteral("dividePhotos/upDirection"),
+                      static_cast<int>(chosen.up_direction));
+    settings.setValue(QStringLiteral("dividePhotos/output"), static_cast<int>(chosen.output));
+    settings.setValue(QStringLiteral("dividePhotos/folder"), chosen.folder);
+    settings.setValue(QStringLiteral("dividePhotos/prefix"), chosen.prefix);
+    settings.setValue(QStringLiteral("dividePhotos/format"), chosen.format);
+    settings.setValue(QStringLiteral("dividePhotos/existingFiles"),
+                      static_cast<int>(chosen.existing_files));
   }
   if (result->regions.empty()) {
     show_status_error(tr("No photos were found"));
@@ -1913,11 +1962,12 @@ void MainWindow::run_divide_photos_flow(std::shared_ptr<const PixelBuffer> sourc
   // Captured by value: the compute may run on a worker under wasm and must not
   // read UI state (main_window_shared.hpp's rule).
   const auto regions = result->regions;
-  const auto mode = result->mode;
+  const auto mode = chosen.mode;
+  const int rotate_turns = up_direction_cw_turns(chosen.up_direction);
   try {
     run_filter_compute_with_progress(
         progress, [](const QString& detail) { return tr("Dividing photos...\n%1").arg(detail); },
-        {}, [&photos, regions, mode, source](FilterProgress& filter_progress) {
+        {}, [&photos, regions, mode, rotate_turns, source](FilterProgress& filter_progress) {
           for (std::size_t i = 0; i < regions.size(); ++i) {
             if (filter_progress.update &&
                 !filter_progress.update(static_cast<int>(i), static_cast<int>(regions.size()),
@@ -1925,6 +1975,9 @@ void MainWindow::run_divide_photos_flow(std::shared_ptr<const PixelBuffer> sourc
               throw FilterCancelled();
             }
             auto photo = extract_photo_region(*source, regions[i], mode);
+            if (!photo.empty() && rotate_turns != 0) {
+              photo = rotated_quarter_turns(photo, rotate_turns);
+            }
             if (!photo.empty()) {
               photos.push_back(std::move(photo));
             }
@@ -1940,23 +1993,41 @@ void MainWindow::run_divide_photos_flow(std::shared_ptr<const PixelBuffer> sourc
     return;
   }
 
-  if (result->save_to_folder) {
-    QString selected_filter;
-    auto path = get_save_file_name(
-        this, tr("Save Divided Photos"),
-        file_dialog_initial_path(QString(), tr("photo") + QStringLiteral("_001.png")),
-        export_image_filter(), &selected_filter, QStringLiteral("dividePhotosSaveFileDialog"));
-    if (path.isEmpty()) {
+  if (chosen.output != DividePhotosOutput::OpenDocuments) {
+    const auto saved = save_divided_photos_to_folder(photos, print_settings, chosen.folder,
+                                                     chosen.prefix, chosen.format,
+                                                     chosen.existing_files);
+    if (!saved.has_value()) {
       return;
     }
-    path = path_with_default_extension(path, selected_filter);
-    const auto extension = extension_for_path(path);
-    const auto image_options = prompt_image_save_options(this, extension, image_save_defaults_for_document(),
-                                                         /*for_export*/ true);
-    if (!image_options.has_value()) {
-      return;
+    const int count = static_cast<int>(saved->size());
+    const QString native_folder = QDir::toNativeSeparators(chosen.folder);
+    if (chosen.output == DividePhotosOutput::SaveAndOpen) {
+      for (std::size_t i = 0; i < photos.size(); ++i) {
+        Document photo_document(photos[i].width(), photos[i].height(), photos[i].format());
+        photo_document.print_settings() = print_settings;
+        photo_document.add_pixel_layer(tr("Background").toStdString(), std::move(photos[i]));
+        const QString path = saved->at(static_cast<qsizetype>(i));
+        // Deliberately not marked modified: the session mirrors the file just
+        // written, so closing never prompts to save and the tab carries the
+        // real file name.
+        add_document_session(std::move(photo_document), QFileInfo(path).fileName(), path,
+                             tr("Divide scanned photos"));
+        canvas_->fit_to_view();
+      }
+      refresh_layer_list();
+      refresh_layer_controls();
+      update_undo_redo_actions();
+      statusBar()->showMessage(
+          tr("Saved %n photo(s) to %1 and opened them", nullptr, count).arg(native_folder));
+    } else {
+      // A status-bar line alone is easy to miss after a batch export; confirm
+      // visibly (there is no toast surface).
+      statusBar()->showMessage(tr("Saved %n photo(s) to %1", nullptr, count).arg(native_folder));
+      show_information_message(this, tr("Divide Scanned Photos"),
+                               tr("Saved %n photo(s) to %1", nullptr, count).arg(native_folder),
+                               QStringLiteral("dividePhotosSavedMessageBox"));
     }
-    save_divided_photos_to_folder(photos, print_settings, path, extension, *image_options);
     return;
   }
 
@@ -1978,51 +2049,97 @@ void MainWindow::run_divide_photos_flow(std::shared_ptr<const PixelBuffer> sourc
   statusBar()->showMessage(tr("Divided into %n photo(s)", nullptr, static_cast<int>(photos.size())));
 }
 
-bool MainWindow::save_divided_photos_to_folder(const std::vector<PixelBuffer>& photos,
-                                               const DocumentPrintSettings& print_settings,
-                                               const QString& chosen_path, const QString& extension,
-                                               const ImageSaveOptions& image_options) {
+std::optional<QStringList> MainWindow::save_divided_photos_to_folder(
+    const std::vector<PixelBuffer>& photos, const DocumentPrintSettings& print_settings,
+    const QString& folder, const QString& prefix, const QString& extension,
+    DividePhotosExistingFiles existing_files) {
+  if (photos.empty() || folder.trimmed().isEmpty()) {
+    return std::nullopt;
+  }
   try {
-    const QFileInfo chosen(chosen_path);
-    const auto naming = naming_from_save_base_name(chosen.completeBaseName());
-    // Numbered mode ignores the layer names; only the count matters.
-    const std::vector<QString> names(photos.size());
-    const auto file_names = image_sequence_file_names(names, naming, extension);
-    const auto directory = chosen.dir();
-    // The save dialog confirmed overwriting only the exact name typed there; the rest
-    // of the set needs its own check (the image-sequence export rule).
-    int existing = 0;
-    for (const auto& name : file_names) {
-      const auto target = directory.filePath(name);
-      if (target != chosen_path && QFileInfo::exists(target)) {
-        ++existing;
+    // The dialog already created the folder; direct callers (tests) may not have.
+    QDir().mkpath(folder);
+    const QDir directory(folder);
+    QStringList targets;
+    targets.reserve(static_cast<qsizetype>(photos.size()));
+    if (existing_files == DividePhotosExistingFiles::AddNumbering) {
+      // Never overwrite: each file takes the next free index, so a batch lands
+      // after whatever the folder already holds (001-003 there -> 004, 005...).
+      int index = 1;
+      for (std::size_t i = 0; i < photos.size(); ++i) {
+        while (
+            QFileInfo::exists(directory.filePath(divide_photo_file_name(prefix, index, extension)))) {
+          ++index;
+        }
+        targets.push_back(directory.filePath(divide_photo_file_name(prefix, index, extension)));
+        ++index;
+      }
+    } else {
+      QString first_conflict;
+      for (std::size_t i = 0; i < photos.size(); ++i) {
+        const auto name = divide_photo_file_name(prefix, static_cast<int>(i) + 1, extension);
+        const auto target = directory.filePath(name);
+        if (first_conflict.isEmpty() && QFileInfo::exists(target)) {
+          first_conflict = name;
+        }
+        targets.push_back(target);
+      }
+      // One confirmation for the whole batch, before anything is written; the
+      // first colliding name stands in for the rest.
+      if (!first_conflict.isEmpty()) {
+        const auto answer = show_warning_message(
+            this, tr("Divide Scanned Photos"),
+            tr("%1 already exists. Overwrite existing photos?").arg(first_conflict),
+            QMessageBox::Yes | QMessageBox::No, QMessageBox::No,
+            QStringLiteral("dividePhotosOverwriteMessageBox"));
+        if (answer != QMessageBox::Yes) {
+          return std::nullopt;
+        }
       }
     }
-    if (existing > 0) {
-      const auto answer = show_warning_message(
-          this, tr("Save Divided Photos"),
-          tr("%1 of %2 files already exist in this folder. Overwrite them?").arg(existing).arg(file_names.size()),
-          QMessageBox::Yes | QMessageBox::No, QMessageBox::No,
-          QStringLiteral("dividePhotosOverwriteMessageBox"));
-      if (answer != QMessageBox::Yes) {
-        return false;
-      }
-    }
-    for (std::size_t i = 0; i < photos.size(); ++i) {
-      Document photo_document(photos[i].width(), photos[i].height(), photos[i].format());
-      photo_document.print_settings() = print_settings;
-      photo_document.add_pixel_layer(tr("Background").toStdString(), photos[i]);
-      write_flat_image_file(photo_document, directory.filePath(file_names[static_cast<int>(i)]),
-                            extension, image_options);
-    }
-    remember_save_directory_for_path(chosen_path);
-    statusBar()->showMessage(
-        tr("Saved %1 photos to %2").arg(file_names.size()).arg(directory.absolutePath()));
-    return true;
+
+    // Per-format remembered defaults, applied silently; the export scale is
+    // pinned to 1x so the shared saveOptions/exportScale can never rescale a
+    // photo batch.
+    auto image_options = load_image_save_option_defaults();
+    image_options.export_scale = 1;
+
+    QProgressDialog progress(tr("Saving photos..."), tr("Cancel"), 0, 100, this);
+    progress.setObjectName(QStringLiteral("dividePhotosSaveProgressDialog"));
+    progress.setWindowModality(Qt::WindowModal);
+    progress.setMinimumDuration(kFilterProgressMinimumDurationMs);
+    remember_dialog_position(progress);
+    progress.setValue(0);
+    // Captured by value where UI state would otherwise be read (the wasm
+    // worker rule); the save modes are desktop-only but the rule holds.
+    const std::string background_name = tr("Background").toStdString();
+    run_filter_compute_with_progress(
+        progress, [](const QString& detail) { return tr("Saving photos...\n%1").arg(detail); }, {},
+        [&photos, &targets, &extension, &image_options, &print_settings,
+         &background_name](FilterProgress& filter_progress) {
+          for (std::size_t i = 0; i < photos.size(); ++i) {
+            if (filter_progress.update &&
+                !filter_progress.update(static_cast<int>(i), static_cast<int>(photos.size()),
+                                        FilterProgressStage::Filtering)) {
+              throw FilterCancelled();
+            }
+            Document photo_document(photos[i].width(), photos[i].height(), photos[i].format());
+            photo_document.print_settings() = print_settings;
+            photo_document.add_pixel_layer(background_name, photos[i]);
+            write_flat_image_file(photo_document, targets.at(static_cast<qsizetype>(i)), extension,
+                                  image_options);
+          }
+        });
+    progress.setValue(100);
+    remember_save_directory_for_path(targets.front());
+    return targets;
+  } catch (const FilterCancelled&) {
+    statusBar()->showMessage(tr("Cancelled Divide Scanned Photos"));
+    return std::nullopt;
   } catch (const std::exception& error) {
     show_critical_message(this, tr("Save failed"), QString::fromUtf8(error.what()),
                           QStringLiteral("exportFailedMessageBox"));
-    return false;
+    return std::nullopt;
   }
 }
 

@@ -13776,9 +13776,13 @@ Clipped to the layer below</source>
 %1</source><translation>写真を分割しています...
 %1</translation></message>
     <message><source>Cancelled Divide Scanned Photos</source><translation>写真の分割をキャンセルしました</translation></message>
-    <message><source>Save Divided Photos</source><translation>分割した写真を保存</translation></message>
-    <message><source>photo</source><translation>写真</translation></message>
-    <message><source>Saved %1 photos to %2</source><translation>%2 に %1 枚の写真を保存しました</translation></message>
+    <message><source>Saving photos...</source><translation>写真を保存しています...</translation></message>
+    <message><source>Saving photos...
+%1</source><translation>写真を保存しています...
+%1</translation></message>
+    <message><source>%1 already exists. Overwrite existing photos?</source><translation>%1 は既に存在します。既存の写真を上書きしますか?</translation></message>
+    <message numerus="yes"><source>Saved %n photo(s) to %1</source><translation><numerusform>%1 に %n 枚の写真を保存しました</numerusform></translation></message>
+    <message numerus="yes"><source>Saved %n photo(s) to %1 and opened them</source><translation><numerusform>%1 に %n 枚の写真を保存して開きました</numerusform></translation></message>
     <message><source>Photo %1</source><translation>写真 %1</translation></message>
     <message><source>Background</source><translation>背景</translation></message>
     <message><source>Divide scanned photos</source><translation>スキャンした写真を分割</translation></message>
@@ -14681,7 +14685,22 @@ Clipped to the layer below</source>
     <message><source>Add Region</source><translation>領域を追加</translation></message>
     <message><source>Drag on the image to add a photo by hand; drag corners to adjust.</source><translation>画像上をドラッグすると写真を手動で追加できます。角をドラッグすると調整できます。</translation></message>
     <message><source>Open each photo as a new image</source><translation>各写真を新しい画像として開く</translation></message>
-    <message><source>Save photos to a folder...</source><translation>写真をフォルダーに保存...</translation></message>
+    <message><source>Save photos to a folder</source><translation>写真をフォルダーに保存</translation></message>
+    <message><source>Save to a folder and open</source><translation>フォルダーに保存して開く</translation></message>
+    <message><source>Top edge of the photos points:</source><translation>写真の上端が向いている方向:</translation></message>
+    <message><source>Top edge points up (no rotation)</source><translation>上端が上向き (回転なし)</translation></message>
+    <message><source>Top edge points right</source><translation>上端が右向き</translation></message>
+    <message><source>Top edge points down</source><translation>上端が下向き</translation></message>
+    <message><source>Top edge points left</source><translation>上端が左向き</translation></message>
+    <message><source>Prefix</source><translation>接頭辞</translation></message>
+    <message><source>Format</source><translation>形式</translation></message>
+    <message><source>If files exist</source><translation>同名ファイルがある場合</translation></message>
+    <message><source>Add</source><translation>追加</translation></message>
+    <message><source>Overwrite</source><translation>上書き</translation></message>
+    <message><source>Add continues numbering after the files already in the folder; Overwrite starts at 001 and asks before replacing anything.</source><translation>「追加」はフォルダー内の既存ファイルの続きから番号を付けます。「上書き」は 001 から番号を付け、置き換える前に確認します。</translation></message>
+    <message><source>Choose Folder...</source><translation>フォルダーを選択...</translation></message>
+    <message><source>Choose Folder</source><translation>フォルダーを選択</translation></message>
+    <message><source>The folder &quot;%1&quot; could not be created.</source><translation>フォルダー「%1」を作成できませんでした。</translation></message>
     <message><source>Divide Photos</source><translation>写真を分割</translation></message>
 </context>
 <context>

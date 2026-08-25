@@ -3,6 +3,7 @@
 
 #include "test_harness.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
@@ -447,6 +448,219 @@ void photo_divide_aspect_snaps_to_print_ratios() {
   CHECK(std::abs(patchy::snap_aspect_to_print_ratios(1.5) - 1.5) < 1e-12);
 }
 
+// A near-rectangular quad (flatbed scan) is a degenerate input for the Zhang
+// closed form: sub-pixel corner noise once produced finite garbage aspects
+// (a 2:3 print resampled to 621 x 2342). The recovery must either take the
+// affine branch or be rejected by the trust window, so output dimensions stay
+// at the quad's own side lengths.
+void photo_divide_perspective_output_resists_near_affine_corner_noise() {
+  const std::array<double, 8> base = {600.0, 400.0, 1800.0, 400.0,
+                                      1800.0, 1200.0, 600.0, 1200.0};
+  // +-2 px: the per-side edge fits run at analysis scale (factor 4 here), so
+  // sub-pixel fit noise is a couple of source pixels. This seed makes the
+  // unguarded closed form return a finite garbage aspect (0.60 for the 1.5
+  // rectangle) on one of the quads, which is the regression being pinned.
+  std::uint64_t state = 0x0123456789ABCDEFULL;
+  for (int attempt = 0; attempt < 12; ++attempt) {
+    std::array<double, 8> quad = base;
+    for (auto& value : quad) {
+      value += static_cast<double>(splitmix64_next(state) % 1001ULL) / 1000.0 * 4.0 - 2.0;
+    }
+    PhotoRegion region;
+    region.quad = quad;
+    region.perspective_corners = quad;
+    region.perspective_quad = true;
+    const auto geometry =
+        patchy::photo_output_geometry(region, PhotoExtractMode::Perspective, 3000.0, 2000.0);
+    CHECK(std::abs(geometry.width - 1200) <= 36);   // within 3%
+    CHECK(std::abs(geometry.height - 800) <= 24);
+    const auto aspect = patchy::rectified_aspect_ratio(quad, 3000.0, 2000.0);
+    if (aspect.has_value()) {
+      CHECK(std::abs(*aspect - 1.5) < 0.05);
+    }
+  }
+}
+
+// Nine photos on a dark noisy platen with shadow rings hugging every edge:
+// the case where tight tolerances once welded neighbors (the fill could not
+// clear the gaps, and the old /256 close radius bridged the whole 3 mm gap).
+void photo_divide_high_sensitivity_survives_noise_and_shadow_rings() {
+  constexpr std::int32_t kWidth = 2048;   // analysis factor 2: the large-image
+  constexpr std::int32_t kHeight = 1536;  // close radius actually engages
+  constexpr std::uint8_t kPlatenGray = 52;
+  constexpr std::int32_t kGap = 28;
+  constexpr std::int32_t kPhotoWidth = 620;
+  constexpr std::int32_t kPhotoHeight = 440;
+  constexpr std::int32_t kMarginX = (kWidth - 3 * kPhotoWidth - 2 * kGap) / 2;
+  constexpr std::int32_t kMarginY = (kHeight - 3 * kPhotoHeight - 2 * kGap) / 2;
+  PixelBuffer image = background_image(kWidth, kHeight, kPlatenGray);
+
+  // Base sensor noise in [-6, 6], plus impulse spikes on ~4% of the 2x2
+  // analysis blocks so the spikes survive the box-average downscale.
+  std::uint64_t state = 0xFEEDFACE12345678ULL;
+  for (std::int32_t y = 0; y < kHeight; ++y) {
+    for (std::int32_t x = 0; x < kWidth; ++x) {
+      auto* px = image.pixel(x, y);
+      const auto offset = static_cast<std::int32_t>(splitmix64_next(state) % 13ULL) - 6;
+      const auto value =
+          static_cast<std::uint8_t>(std::clamp(kPlatenGray + offset, 0, 255));
+      px[0] = value;
+      px[1] = value;
+      px[2] = value;
+    }
+  }
+  std::uint64_t spike_state = 0x0BADF00DCAFE4321ULL;
+  for (std::int32_t by = 0; by < kHeight / 2; ++by) {
+    for (std::int32_t bx = 0; bx < kWidth / 2; ++bx) {
+      if (splitmix64_next(spike_state) % 25ULL != 0) {
+        continue;
+      }
+      const auto magnitude =
+          static_cast<std::int32_t>(18 + splitmix64_next(spike_state) % 11ULL);
+      const std::int32_t spike = (splitmix64_next(spike_state) % 2ULL == 0) ? magnitude : -magnitude;
+      for (std::int32_t dy = 0; dy < 2; ++dy) {
+        for (std::int32_t dx = 0; dx < 2; ++dx) {
+          auto* px = image.pixel(bx * 2 + dx, by * 2 + dy);
+          const auto value = static_cast<std::uint8_t>(std::clamp(px[0] + spike, 0, 255));
+          px[0] = value;
+          px[1] = value;
+          px[2] = value;
+        }
+      }
+    }
+  }
+
+  std::array<Rect, 9> photos{};
+  for (std::int32_t row = 0; row < 3; ++row) {
+    for (std::int32_t column = 0; column < 3; ++column) {
+      photos[static_cast<std::size_t>(row * 3 + column)] =
+          Rect{kMarginX + column * (kPhotoWidth + kGap), kMarginY + row * (kPhotoHeight + kGap),
+               kPhotoWidth, kPhotoHeight};
+    }
+  }
+  // Shadow rings first (fixed integer gradient darkening up to 40 levels over
+  // 12 px outside each photo), then the photos over them.
+  constexpr std::int32_t kRing = 12;
+  for (const Rect& rect : photos) {
+    for (std::int32_t y = rect.y - kRing; y < rect.y + rect.height + kRing; ++y) {
+      for (std::int32_t x = rect.x - kRing; x < rect.x + rect.width + kRing; ++x) {
+        const std::int32_t dx =
+            std::max({rect.x - x, x - (rect.x + rect.width - 1), static_cast<std::int32_t>(0)});
+        const std::int32_t dy =
+            std::max({rect.y - y, y - (rect.y + rect.height - 1), static_cast<std::int32_t>(0)});
+        const std::int32_t distance = std::max(dx, dy);
+        if (distance <= 0 || distance > kRing) {
+          continue;
+        }
+        auto* px = image.pixel(x, y);
+        const std::int32_t drop = (40 * (kRing - distance)) / kRing;
+        for (int channel = 0; channel < 3; ++channel) {
+          px[channel] = static_cast<std::uint8_t>(std::max(0, px[channel] - drop));
+        }
+      }
+    }
+  }
+  for (const Rect& rect : photos) {
+    fill_axis_rect(image, rect, 150, 165, 180);
+  }
+
+  for (const int sensitivity : {100, 60}) {
+    PhotoDetectOptions options;
+    options.sensitivity = sensitivity;
+    const auto result = patchy::detect_photo_regions(image, options);
+    CHECK(result.regions.size() == 9);
+    if (result.regions.size() != 9) {
+      continue;
+    }
+    for (std::size_t i = 0; i < 9; ++i) {
+      const Rect& drawn = photos[i];
+      const Rect& found = result.regions[i].bounding_box;
+      CHECK(found.x <= drawn.x && found.y <= drawn.y);
+      CHECK(found.x + found.width >= drawn.x + drawn.width);
+      CHECK(found.y + found.height >= drawn.y + drawn.height);
+      CHECK(std::abs(found.x - drawn.x) <= 20);
+      CHECK(std::abs(found.y - drawn.y) <= 20);
+      CHECK(std::abs(found.x + found.width - (drawn.x + drawn.width)) <= 20);
+      CHECK(std::abs(found.y + found.height - (drawn.y + drawn.height)) <= 20);
+    }
+    const auto again = patchy::detect_photo_regions(image, options);
+    CHECK(again.regions.size() == result.regions.size());
+    for (std::size_t i = 0; i < result.regions.size(); ++i) {
+      CHECK(regions_equal(result.regions[i], again.regions[i]));
+    }
+  }
+}
+
+// --- rotation -----------------------------------------------------------------
+
+void photo_divide_rotated_quarter_turns_permutes_bytes_exactly() {
+  PixelBuffer source(3, 2, PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < 2; ++y) {
+    for (std::int32_t x = 0; x < 3; ++x) {
+      auto* px = source.pixel(x, y);
+      for (int channel = 0; channel < 4; ++channel) {
+        px[channel] = static_cast<std::uint8_t>((y * 3 + x) * 4 + channel + 1);
+      }
+    }
+  }
+  const PixelBuffer clockwise = patchy::rotated_quarter_turns(source, 1);
+  CHECK(clockwise.width() == 2);
+  CHECK(clockwise.height() == 3);
+  const PixelBuffer half = patchy::rotated_quarter_turns(source, 2);
+  CHECK(half.width() == 3);
+  CHECK(half.height() == 2);
+  const PixelBuffer counter = patchy::rotated_quarter_turns(source, 3);
+  CHECK(counter.width() == 2);
+  CHECK(counter.height() == 3);
+  for (std::int32_t y = 0; y < 2; ++y) {
+    for (std::int32_t x = 0; x < 3; ++x) {
+      CHECK(std::memcmp(clockwise.pixel(2 - 1 - y, x), source.pixel(x, y), 4) == 0);
+      CHECK(std::memcmp(half.pixel(3 - 1 - x, 2 - 1 - y), source.pixel(x, y), 4) == 0);
+      CHECK(std::memcmp(counter.pixel(y, 3 - 1 - x), source.pixel(x, y), 4) == 0);
+    }
+  }
+  // The source top-left corner lands on the top-right corner of a clockwise turn.
+  CHECK(std::memcmp(clockwise.pixel(1, 0), source.pixel(0, 0), 4) == 0);
+
+  // Turn count normalization, including negatives, against the canonical turns.
+  const auto same_bytes = [](const PixelBuffer& a, const PixelBuffer& b) {
+    return a.width() == b.width() && a.height() == b.height() &&
+           a.byte_size() == b.byte_size() &&
+           std::memcmp(a.data().data(), b.data().data(), a.byte_size()) == 0;
+  };
+  CHECK(same_bytes(patchy::rotated_quarter_turns(source, 0), source));
+  CHECK(same_bytes(patchy::rotated_quarter_turns(source, 4), source));
+  CHECK(same_bytes(patchy::rotated_quarter_turns(source, -1), counter));
+  CHECK(same_bytes(patchy::rotated_quarter_turns(source, 6), half));
+
+  // Four successive single turns reproduce the original bytes.
+  PixelBuffer cycled = source;
+  for (int i = 0; i < 4; ++i) {
+    cycled = patchy::rotated_quarter_turns(cycled, 1);
+  }
+  CHECK(same_bytes(cycled, source));
+
+  // Whole pixels move for every bit depth (not per-channel bytes).
+  PixelBuffer deep(3, 2, PixelFormat::rgb16());
+  for (std::int32_t y = 0; y < 2; ++y) {
+    for (std::int32_t x = 0; x < 3; ++x) {
+      auto* px = deep.pixel(x, y);
+      for (int channel = 0; channel < 3; ++channel) {
+        const auto value = static_cast<std::uint16_t>(0x0100U * (y * 3 + x + 1) + channel);
+        std::memcpy(px + static_cast<std::size_t>(channel) * 2, &value, 2);
+      }
+    }
+  }
+  const PixelBuffer deep_turned = patchy::rotated_quarter_turns(deep, 1);
+  CHECK(deep_turned.width() == 2);
+  CHECK(deep_turned.height() == 3);
+  for (std::int32_t y = 0; y < 2; ++y) {
+    for (std::int32_t x = 0; x < 3; ++x) {
+      CHECK(std::memcmp(deep_turned.pixel(2 - 1 - y, x), deep.pixel(x, y), 6) == 0);
+    }
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> photo_divide_tests() {
@@ -475,5 +689,11 @@ std::vector<patchy::test::TestCase> photo_divide_tests() {
       {"photo_divide_rectified_aspect_recovers_known_ratio",
        photo_divide_rectified_aspect_recovers_known_ratio},
       {"photo_divide_aspect_snaps_to_print_ratios", photo_divide_aspect_snaps_to_print_ratios},
+      {"photo_divide_perspective_output_resists_near_affine_corner_noise",
+       photo_divide_perspective_output_resists_near_affine_corner_noise},
+      {"photo_divide_high_sensitivity_survives_noise_and_shadow_rings",
+       photo_divide_high_sensitivity_survives_noise_and_shadow_rings},
+      {"photo_divide_rotated_quarter_turns_permutes_bytes_exactly",
+       photo_divide_rotated_quarter_turns_permutes_bytes_exactly},
   };
 }

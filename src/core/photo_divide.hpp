@@ -14,14 +14,15 @@
 // (min-area-rect rotation) or perspective-rectified (edge-fit quad, homography,
 // aspect recovery).
 //
-// The pipeline is built from published, long-expired techniques: border-seeded
-// flood fill segmentation against a median/MAD background model, binary
-// morphology (Serra 1982), two-pass union-find component labeling (Rosenfeld
-// & Pfaltz 1966), monotone-chain convex hulls (Andrew 1979), minimum-area
-// enclosing rectangles by rotating calipers (Freeman & Shapira 1975; Toussaint
-// 1983), rect-to-quad homographies (core/warp_mesh), and aspect recovery of a
-// projected rectangle (Zhang & He, MSR-TR-2003-39). Every stage is integer or
-// deterministic-double math with fixed tie-breaks (the cross-toolchain rule).
+// The pipeline is built from published, long-expired techniques: 3x3 median
+// smoothing (Tukey 1977), border-seeded flood fill segmentation against a
+// median/MAD background model, binary morphology (Serra 1982), two-pass
+// union-find component labeling (Rosenfeld & Pfaltz 1966), monotone-chain
+// convex hulls (Andrew 1979), minimum-area enclosing rectangles by rotating
+// calipers (Freeman & Shapira 1975; Toussaint 1983), rect-to-quad homographies
+// (core/warp_mesh), and aspect recovery of a projected rectangle (Zhang & He,
+// MSR-TR-2003-39). Every stage is integer or deterministic-double math with
+// fixed tie-breaks (the cross-toolchain rule).
 //
 // Legal boundary (docs/legal-constraints.md, "Scanned-photo division"):
 // detection runs once per explicit request or dialog parameter change on a
@@ -78,8 +79,9 @@ struct PhotoOutputGeometry {
 // Output size and sampled quad for a region under a mode. Cut uses the integer
 // bounding box. Straighten uses the quad's own side lengths. Perspective
 // recovers the true aspect ratio (Zhang closed form, principal point at the
-// source center; near-affine quads fall back to mean side lengths) and snaps
-// it to common print ratios within 3%.
+// source center) and snaps it to common print ratios within 3%; the recovery
+// is trusted only within a fixed factor of the quad's measured side ratio,
+// and near-affine or distrusted quads fall back to mean side lengths.
 [[nodiscard]] PhotoOutputGeometry photo_output_geometry(const PhotoRegion& region,
                                                         PhotoExtractMode mode, double source_width,
                                                         double source_height);
@@ -100,5 +102,13 @@ struct PhotoOutputGeometry {
 // path (the crop_document convention). Result format matches the source.
 [[nodiscard]] PixelBuffer extract_photo_region(const PixelBuffer& source, const PhotoRegion& region,
                                                PhotoExtractMode mode);
+
+// Lossless quarter-turn rotation: a pure index permutation, no resampling.
+// clockwise_turns is taken modulo 4 (negative turns rotate counterclockwise);
+// 0 returns an unchanged copy. Works for every format and bit depth by moving
+// whole pixels. Caller mapping for the scan up-direction control: rotate by
+// (4 - direction) % 4 clockwise turns where the photos' top edge points
+// Up = 0, Right = 1, Down = 2, Left = 3.
+[[nodiscard]] PixelBuffer rotated_quarter_turns(const PixelBuffer& source, int clockwise_turns);
 
 }  // namespace patchy

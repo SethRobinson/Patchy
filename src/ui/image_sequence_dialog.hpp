@@ -40,6 +40,11 @@ namespace patchy::ui {
 // that fails to load aborts with its name in *error.
 [[nodiscard]] std::optional<Document> document_from_image_sequence(const QStringList& paths, QString* error);
 
+// Windows is the strictest filesystem: strips its illegal characters plus control
+// codes, and the trailing dots/spaces it rejects. Shared with the divide-photos
+// prefix field.
+[[nodiscard]] QString sanitized_file_name(const QString& name);
+
 struct ImageSequenceNaming {
   bool use_layer_names{false};
   QString prefix;

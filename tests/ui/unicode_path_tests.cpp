@@ -413,8 +413,9 @@ void ui_unicode_legacy_plugin_probe_from_unicode_dir() {
 }
 
 // The Divide Scanned Photos folder save is a file-writing entry point, so it
-// gets the standard Unicode-path coverage: numbered names derived from a
-// Unicode base name, then one output reopened through the session loader.
+// gets the standard Unicode-path coverage: a Unicode folder AND a Unicode
+// filename prefix (both cross the Qt path boundary), then one output reopened
+// through the session loader.
 void ui_unicode_divide_photos_folder_save() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -426,13 +427,15 @@ void ui_unicode_divide_photos_folder_save() {
     photos.push_back(std::move(photo));
   }
   patchy::DocumentPrintSettings print_settings;
-  const auto base = q(kUnicodePathStems[0]);
-  const auto chosen = dir + QLatin1Char('/') + base + QStringLiteral("_001.png");
-  CHECK(patchy::ui::MainWindowTestAccess::save_divided_photos_to_folder(window, photos, print_settings,
-                                                                        chosen, QStringLiteral("png")));
-  check_dir_holds_only(dir, {base + QStringLiteral("_001.png"), base + QStringLiteral("_002.png")});
+  const auto prefix = q(kUnicodePathStems[0]) + QStringLiteral("_");
+  const auto saved = patchy::ui::MainWindowTestAccess::save_divided_photos_to_folder(
+      window, photos, print_settings, dir, prefix, QStringLiteral("png"),
+      patchy::ui::DividePhotosExistingFiles::AddNumbering);
+  CHECK(saved.has_value());
+  CHECK(saved->size() == 2);
+  check_dir_holds_only(dir, {prefix + QStringLiteral("001.png"), prefix + QStringLiteral("002.png")});
   patchy::ui::MainWindowTestAccess::open_document_path(window,
-                                                       dir + QLatin1Char('/') + base + QStringLiteral("_002.png"));
+                                                       dir + QLatin1Char('/') + prefix + QStringLiteral("002.png"));
   QApplication::processEvents();
   CHECK(patchy::ui::MainWindowTestAccess::document(window).width() == 16);
   CHECK(patchy::ui::MainWindowTestAccess::document(window).height() == 8);

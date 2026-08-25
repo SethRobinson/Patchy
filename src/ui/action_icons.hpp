@@ -29,6 +29,9 @@ QIcon simple_icon(QString text, QColor ThemePalette::* accent_role);
 QIcon patchy_app_icon();
 QIcon window_chrome_icon(QString role);
 QIcon canvas_anchor_icon(CanvasAnchor anchor);
+// Straight arrow for the divide-photos "top edge points" picker; direction is
+// 0 = up, 1 = right, 2 = down, 3 = left (the PhotoUpDirection enum values).
+QIcon up_direction_arrow_icon(int direction);
 
 // A one-off procedural mark: a glyph outside the shared icon vocabulary, drawn by
 // the caller against an `authored_size` square area with the ink handed to it.

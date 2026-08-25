@@ -6,6 +6,7 @@
 // patchy::ui::MainWindowTestAccess must not change.
 
 #include "ui/custom_shape_library.hpp"
+#include "ui/divide_photos_dialog.hpp"
 #include "ui/document_float_window.hpp"
 #include "ui/main_window.hpp"
 
@@ -15,6 +16,7 @@
 #include <QStringList>
 
 #include <cstddef>
+#include <optional>
 #include <utility>
 
 namespace patchy::ui {
@@ -116,10 +118,12 @@ public:
     window.divide_current_document_photos();
   }
 
-  static bool save_divided_photos_to_folder(MainWindow& window, const std::vector<PixelBuffer>& photos,
-                                            const DocumentPrintSettings& print_settings,
-                                            const QString& chosen_path, const QString& extension) {
-    return window.save_divided_photos_to_folder(photos, print_settings, chosen_path, extension, {});
+  static std::optional<QStringList> save_divided_photos_to_folder(
+      MainWindow& window, const std::vector<PixelBuffer>& photos,
+      const DocumentPrintSettings& print_settings, const QString& folder, const QString& prefix,
+      const QString& extension, DividePhotosExistingFiles existing_files) {
+    return window.save_divided_photos_to_folder(photos, print_settings, folder, prefix, extension,
+                                                existing_files);
   }
 
   static void set_ruler_unit_preference(MainWindow& window, MeasurementUnit unit) {

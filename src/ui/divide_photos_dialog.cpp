@@ -1,10 +1,16 @@
 #include "ui/divide_photos_dialog.hpp"
 
+#include "ui/action_icons.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/image_sequence_dialog.hpp"
 
+#include <QButtonGroup>
 #include <QCheckBox>
+#include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QDir>
+#include <QFileDialog>
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QGuiApplication>
@@ -12,6 +18,7 @@
 #include <QImage>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QLineEdit>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
@@ -22,6 +29,7 @@
 #include <QSlider>
 #include <QSpinBox>
 #include <QTimer>
+#include <QToolButton>
 #include <QVBoxLayout>
 #include <QVariantList>
 
@@ -665,16 +673,17 @@ private:
 
 std::optional<DividePhotosDialogResult> request_divide_photos(
     QWidget* parent, std::shared_ptr<const PixelBuffer> source, double source_ppi,
-    int initial_sensitivity, bool initial_straighten, bool initial_perspective,
-    bool initial_save_to_folder) {
+    const DividePhotosSettings& initial, const std::vector<DividePhotosFormatChoice>& formats) {
   if (source == nullptr || source->empty()) {
     return std::nullopt;
   }
+  const bool initial_perspective = initial.mode == PhotoExtractMode::Perspective;
+  const bool initial_straighten = initial.mode != PhotoExtractMode::Cut;
 
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("dividePhotosDialog"));
   dialog.setWindowTitle(QObject::tr("Divide Scanned Photos"));
-  dialog.resize(860, 560);
+  dialog.resize(880, 640);
 
   auto* root = new QHBoxLayout(&dialog);
   root->setContentsMargins(12, 12, 12, 12);
@@ -696,7 +705,7 @@ std::optional<DividePhotosDialogResult> request_divide_photos(
   auto* sensitivity_spin = add_dialog_slider_spin_row(
       detection_form, detection_group, QObject::tr("Sensitivity"),
       QStringLiteral("dividePhotosSensitivitySlider"), QStringLiteral("dividePhotosSensitivitySpin"),
-      0, 100, std::clamp(initial_sensitivity, 0, 100));
+      0, 100, std::clamp(initial.sensitivity, 0, 100), QStringLiteral("%"));
   auto* count_label = new QLabel(detection_group);
   count_label->setObjectName(QStringLiteral("dividePhotosCountLabel"));
   detection_form->addRow(QString(), count_label);
@@ -712,6 +721,39 @@ std::optional<DividePhotosDialogResult> request_divide_photos(
   perspective_check->setObjectName(QStringLiteral("dividePhotosPerspectiveCheck"));
   perspective_check->setChecked(initial_perspective);
   adjust_layout->addWidget(perspective_check);
+  auto* direction_label = new QLabel(QObject::tr("Top edge of the photos points:"), adjust_group);
+  direction_label->setObjectName(QStringLiteral("dividePhotosUpDirectionLabel"));
+  direction_label->setWordWrap(true);
+  adjust_layout->addWidget(direction_label);
+  auto* direction_group = new QButtonGroup(adjust_group);
+  direction_group->setObjectName(QStringLiteral("dividePhotosUpDirectionGroup"));
+  direction_group->setExclusive(true);
+  auto* direction_buttons = new QHBoxLayout();
+  direction_buttons->setSpacing(4);
+  const std::array<QString, 4> direction_tooltips = {
+      QObject::tr("Top edge points up (no rotation)"), QObject::tr("Top edge points right"),
+      QObject::tr("Top edge points down"), QObject::tr("Top edge points left")};
+  const std::array<QString, 4> direction_names = {
+      QStringLiteral("dividePhotosUpDirectionUpButton"),
+      QStringLiteral("dividePhotosUpDirectionRightButton"),
+      QStringLiteral("dividePhotosUpDirectionDownButton"),
+      QStringLiteral("dividePhotosUpDirectionLeftButton")};
+  for (int direction = 0; direction < 4; ++direction) {
+    auto* button = new QToolButton(adjust_group);
+    button->setObjectName(direction_names[static_cast<std::size_t>(direction)]);
+    button->setCheckable(true);
+    button->setIcon(up_direction_arrow_icon(direction));
+    button->setIconSize(QSize(18, 18));
+    button->setToolTip(direction_tooltips[static_cast<std::size_t>(direction)]);
+    direction_group->addButton(button, direction);
+    direction_buttons->addWidget(button);
+  }
+  direction_buttons->addStretch(1);
+  adjust_layout->addLayout(direction_buttons);
+  {
+    const int initial_direction = std::clamp(static_cast<int>(initial.up_direction), 0, 3);
+    direction_group->button(initial_direction)->setChecked(true);
+  }
   side_layout->addWidget(adjust_group);
 
   auto* regions_group = new QGroupBox(QObject::tr("Regions"), side);
@@ -735,16 +777,101 @@ std::optional<DividePhotosDialogResult> request_divide_photos(
   auto* output_layout = new QVBoxLayout(output_group);
   auto* open_radio = new QRadioButton(QObject::tr("Open each photo as a new image"), output_group);
   open_radio->setObjectName(QStringLiteral("dividePhotosOpenDocumentsRadio"));
-  auto* folder_radio = new QRadioButton(QObject::tr("Save photos to a folder..."), output_group);
+  auto* folder_radio = new QRadioButton(QObject::tr("Save photos to a folder"), output_group);
   folder_radio->setObjectName(QStringLiteral("dividePhotosSaveFolderRadio"));
+  auto* both_radio = new QRadioButton(QObject::tr("Save to a folder and open"), output_group);
+  both_radio->setObjectName(QStringLiteral("dividePhotosSaveAndOpenRadio"));
   output_layout->addWidget(open_radio);
   output_layout->addWidget(folder_radio);
-  folder_radio->setChecked(initial_save_to_folder);
-  open_radio->setChecked(!initial_save_to_folder);
+  output_layout->addWidget(both_radio);
+  folder_radio->setChecked(initial.output == DividePhotosOutput::SaveToFolder);
+  both_radio->setChecked(initial.output == DividePhotosOutput::SaveAndOpen);
+  open_radio->setChecked(initial.output == DividePhotosOutput::OpenDocuments);
+
+  auto* save_form = new QFormLayout();
+  save_form->setContentsMargins(0, 4, 0, 0);
+  auto* folder_label = new QLabel(QObject::tr("Folder"), output_group);
+  auto* folder_row = new QWidget(output_group);
+  auto* folder_row_layout = new QHBoxLayout(folder_row);
+  folder_row_layout->setContentsMargins(0, 0, 0, 0);
+  folder_row_layout->setSpacing(4);
+  auto* folder_edit = new QLineEdit(folder_row);
+  folder_edit->setObjectName(QStringLiteral("dividePhotosFolderEdit"));
+  folder_edit->setText(QDir::toNativeSeparators(initial.folder));
+  auto* browse_button = new QPushButton(QStringLiteral("..."), folder_row);
+  browse_button->setObjectName(QStringLiteral("dividePhotosFolderBrowseButton"));
+  browse_button->setToolTip(QObject::tr("Choose Folder..."));
+  configure_compact_symbol_button(browse_button);
+  folder_row_layout->addWidget(folder_edit, 1);
+  folder_row_layout->addWidget(browse_button, 0);
+  save_form->addRow(folder_label, folder_row);
+  auto* prefix_label = new QLabel(QObject::tr("Prefix"), output_group);
+  auto* prefix_edit = new QLineEdit(output_group);
+  prefix_edit->setObjectName(QStringLiteral("dividePhotosPrefixEdit"));
+  prefix_edit->setText(initial.prefix);
+  save_form->addRow(prefix_label, prefix_edit);
+  auto* format_label = new QLabel(QObject::tr("Format"), output_group);
+  auto* format_combo = new QComboBox(output_group);
+  format_combo->setObjectName(QStringLiteral("dividePhotosFormatCombo"));
+  for (const auto& choice : formats) {
+    format_combo->addItem(choice.display_name, choice.extension);
+  }
+  {
+    int format_index = format_combo->findData(initial.format);
+    if (format_index < 0) {
+      format_index = format_combo->findData(QStringLiteral("png"));
+    }
+    format_combo->setCurrentIndex(std::max(0, format_index));
+  }
+  save_form->addRow(format_label, format_combo);
+  auto* existing_label = new QLabel(QObject::tr("If files exist"), output_group);
+  auto* existing_combo = new QComboBox(output_group);
+  existing_combo->setObjectName(QStringLiteral("dividePhotosExistingCombo"));
+  existing_combo->addItem(QObject::tr("Add"),
+                          static_cast<int>(DividePhotosExistingFiles::AddNumbering));
+  existing_combo->addItem(QObject::tr("Overwrite"),
+                          static_cast<int>(DividePhotosExistingFiles::Overwrite));
+  existing_combo->setToolTip(
+      QObject::tr("Add continues numbering after the files already in the folder; Overwrite "
+                  "starts at 001 and asks before replacing anything."));
+  existing_combo->setCurrentIndex(
+      initial.existing_files == DividePhotosExistingFiles::Overwrite ? 1 : 0);
+  save_form->addRow(existing_label, existing_combo);
+  output_layout->addLayout(save_form);
+
+  const auto save_selected = [folder_radio, both_radio] {
+    return folder_radio->isChecked() || both_radio->isChecked();
+  };
+  const auto refresh_output_controls = [=] {
+    const bool enabled = save_selected();
+    for (QWidget* widget :
+         {static_cast<QWidget*>(folder_label), static_cast<QWidget*>(folder_edit),
+          static_cast<QWidget*>(browse_button), static_cast<QWidget*>(prefix_label),
+          static_cast<QWidget*>(prefix_edit), static_cast<QWidget*>(format_label),
+          static_cast<QWidget*>(format_combo), static_cast<QWidget*>(existing_label),
+          static_cast<QWidget*>(existing_combo)}) {
+      widget->setEnabled(enabled);
+    }
+  };
+  QObject::connect(browse_button, &QPushButton::clicked, &dialog, [&dialog, folder_edit] {
+    const auto chosen = QFileDialog::getExistingDirectory(&dialog, QObject::tr("Choose Folder"),
+                                                          folder_edit->text());
+    if (!chosen.isEmpty()) {
+      folder_edit->setText(QDir::toNativeSeparators(chosen));
+    }
+  });
 #ifdef Q_OS_WASM
   // One browser download per photo would be refused as download spam (the
   // image-sequence export precedent); the browser build opens documents only.
   folder_radio->setVisible(false);
+  both_radio->setVisible(false);
+  for (QWidget* widget :
+       {static_cast<QWidget*>(folder_label), static_cast<QWidget*>(folder_row),
+        static_cast<QWidget*>(prefix_label), static_cast<QWidget*>(prefix_edit),
+        static_cast<QWidget*>(format_label), static_cast<QWidget*>(format_combo),
+        static_cast<QWidget*>(existing_label), static_cast<QWidget*>(existing_combo)}) {
+    widget->setVisible(false);
+  }
   open_radio->setChecked(true);
 #endif
   side_layout->addWidget(output_group);
@@ -757,7 +884,21 @@ std::optional<DividePhotosDialogResult> request_divide_photos(
   // the QObject translation context.
   buttons->button(QDialogButtonBox::Ok)->setText(QObject::tr("Divide Photos"));
   side_layout->addWidget(buttons);
-  QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+  // Validating accept: in a save mode the folder must exist (or be creatable)
+  // before the dialog closes; on failure it stays open for a correction.
+  QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, [&dialog, folder_edit, save_selected] {
+    if (save_selected()) {
+      const QString folder = folder_edit->text().trimmed();
+      if (folder.isEmpty() || !QDir().mkpath(folder)) {
+        show_warning_message(&dialog, QObject::tr("Divide Scanned Photos"),
+                             QObject::tr("The folder \"%1\" could not be created.").arg(folder),
+                             QMessageBox::Ok, QMessageBox::Ok,
+                             QStringLiteral("dividePhotosFolderCreateFailedMessageBox"));
+        return;
+      }
+    }
+    dialog.accept();
+  });
   QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
 
   const auto current_mode = [&]() {
@@ -769,9 +910,19 @@ std::optional<DividePhotosDialogResult> request_divide_photos(
 
   const auto refresh_controls = [&] {
     count_label->setText(QObject::tr("Photos found: %1").arg(regions.size()));
-    buttons->button(QDialogButtonBox::Ok)->setEnabled(!regions.empty());
+    const bool folder_ok = !save_selected() || !folder_edit->text().trimmed().isEmpty();
+    buttons->button(QDialogButtonBox::Ok)->setEnabled(!regions.empty() && folder_ok);
     remove_button->setEnabled(preview->selected_region() >= 0);
   };
+  for (auto* radio : {open_radio, folder_radio, both_radio}) {
+    QObject::connect(radio, &QRadioButton::toggled, &dialog, [&](bool) {
+      refresh_output_controls();
+      refresh_controls();
+    });
+  }
+  QObject::connect(folder_edit, &QLineEdit::textChanged, &dialog,
+                   [&](const QString&) { refresh_controls(); });
+  refresh_output_controls();
 
   const auto detect_now = [&] {
     QGuiApplication::setOverrideCursor(Qt::WaitCursor);
@@ -838,10 +989,26 @@ std::optional<DividePhotosDialogResult> request_divide_photos(
   DividePhotosDialogResult result;
   result.regions = std::move(regions);
   order_photo_regions_reading_order(result.regions);
-  result.mode = current_mode();
-  result.sensitivity = sensitivity_spin->value();
-  // On wasm the folder radio is hidden and force-unchecked above.
-  result.save_to_folder = folder_radio->isChecked();
+  result.settings.sensitivity = sensitivity_spin->value();
+  result.settings.mode = current_mode();
+  result.settings.up_direction =
+      static_cast<PhotoUpDirection>(std::clamp(direction_group->checkedId(), 0, 3));
+  // On wasm the save radios are hidden and force-unchecked above.
+  result.settings.output = DividePhotosOutput::OpenDocuments;
+  if (folder_radio->isChecked()) {
+    result.settings.output = DividePhotosOutput::SaveToFolder;
+  } else if (both_radio->isChecked()) {
+    result.settings.output = DividePhotosOutput::SaveAndOpen;
+  }
+  result.settings.folder = folder_edit->text().trimmed();
+  const QString prefix = sanitized_file_name(prefix_edit->text());
+  result.settings.prefix = prefix.isEmpty() ? QStringLiteral("photo_") : prefix;
+  QString format = format_combo->currentData().toString();
+  result.settings.format = format.isEmpty() ? QStringLiteral("png") : std::move(format);
+  result.settings.existing_files =
+      existing_combo->currentData().toInt() == static_cast<int>(DividePhotosExistingFiles::Overwrite)
+          ? DividePhotosExistingFiles::Overwrite
+          : DividePhotosExistingFiles::AddNumbering;
   return result;
 }
 

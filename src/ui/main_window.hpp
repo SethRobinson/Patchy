@@ -92,6 +92,7 @@ using ThresholdSettings = ThresholdAdjustment;
 using BrightnessContrastSettings = BrightnessContrastAdjustment;
 struct ScannerAcquireResult;
 struct UpdateInfo;
+enum class DividePhotosExistingFiles : int;
 // create_actions() build-phase context (main_window_actions_internal.hpp).
 struct ActionBuildContext;
 class BrushDynamicsButton;
@@ -548,10 +549,16 @@ private:
   void divide_current_document_photos();
   void run_divide_photos_flow(std::shared_ptr<const PixelBuffer> source,
                               DocumentPrintSettings print_settings);
-  bool save_divided_photos_to_folder(const std::vector<PixelBuffer>& photos,
-                                     const DocumentPrintSettings& print_settings,
-                                     const QString& chosen_path, const QString& extension,
-                                     const ImageSaveOptions& image_options);
+  // Writes the photos as numbered files (prefix + zero-padded index + "." +
+  // extension) into folder. Add mode skips to the next free index per file;
+  // Overwrite mode numbers from 001 and asks once (naming the first colliding
+  // file) before writing anything. Saves use per-format defaults with the
+  // export scale forced to 1x; a progress dialog covers the loop. Returns the
+  // written absolute paths in order, nullopt on decline, cancel, or failure.
+  std::optional<QStringList> save_divided_photos_to_folder(
+      const std::vector<PixelBuffer>& photos, const DocumentPrintSettings& print_settings,
+      const QString& folder, const QString& prefix, const QString& extension,
+      DividePhotosExistingFiles existing_files);
   void import_sprite_sheet();
   void export_sprite_sheet();
   void import_image_sequence();

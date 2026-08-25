@@ -26,6 +26,12 @@ constexpr double kMergeContainmentThreshold = 0.80;
 constexpr double kMinFillRatio = 0.25;         // component area over its min-rect area
 constexpr double kWholeImageCoverage = 0.98;   // regions covering the whole source are dropped
 constexpr std::int32_t kMaxOutputEdge = 30000;
+// The Zhang aspect recovery is trusted only within this factor of the quad's
+// measured side ratio. A projected rectangle's side ratio deviates from the
+// true aspect by roughly 1/cos(tilt) at worst, so 1.5 admits genuine tilts
+// past 45 degrees, while noise-driven near-affine solutions (which can land
+// anywhere in the clamp range) are rejected in favor of the measured ratio.
+constexpr double kAspectRecoveryTrustFactor = 1.5;
 
 struct Point64 {
   std::int64_t x{0};
@@ -132,6 +138,44 @@ struct AnalysisImage {
   return analysis;
 }
 
+// 3x3 per-channel median (Tukey 1977), replicate-clamped at the borders.
+// Removes the impulse noise and thin shadow slivers that dam the border fill
+// inside the gaps between photos at tight tolerances, while leaving straight
+// edges in place (the majority side of an edge wins, so only the literal
+// corner pixels of an axis-aligned rectangle flip). Exact integer selection.
+void median_filter_analysis(AnalysisImage& analysis) {
+  const std::int32_t width = analysis.width;
+  const std::int32_t height = analysis.height;
+  if (width < 3 || height < 3) {
+    return;
+  }
+  const std::vector<std::uint8_t> source = analysis.rgb;
+  for (std::int32_t y = 0; y < height; ++y) {
+    for (std::int32_t x = 0; x < width; ++x) {
+      std::array<std::array<std::uint8_t, 9>, 3> window{};
+      std::size_t count = 0;
+      for (std::int32_t dy = -1; dy <= 1; ++dy) {
+        const std::int32_t sy = std::clamp(y + dy, 0, height - 1);
+        for (std::int32_t dx = -1; dx <= 1; ++dx) {
+          const std::int32_t sx = std::clamp(x + dx, 0, width - 1);
+          const auto* pixel =
+              source.data() + (static_cast<std::size_t>(sy) * width + sx) * 3;
+          for (int channel = 0; channel < 3; ++channel) {
+            window[static_cast<std::size_t>(channel)][count] = pixel[channel];
+          }
+          ++count;
+        }
+      }
+      auto* out = analysis.rgb.data() + (static_cast<std::size_t>(y) * width + x) * 3;
+      for (int channel = 0; channel < 3; ++channel) {
+        auto& values = window[static_cast<std::size_t>(channel)];
+        std::nth_element(values.begin(), values.begin() + 4, values.end());
+        out[channel] = values[4];
+      }
+    }
+  }
+}
+
 // --- background model ---------------------------------------------------------
 
 struct BackgroundModel {
@@ -214,8 +258,11 @@ struct BackgroundModel {
 }
 
 // Foreground mask: 1 everywhere except the border-connected background
-// component within tolerance (4-connected scanline-free BFS; the visit set is
-// order-independent, so traversal order cannot change the result).
+// component within tolerance (scanline-free BFS; the visit set is
+// order-independent, so traversal order cannot change the result). The
+// background fill is 8-connected while foreground labeling stays 4-connected
+// (the classical complementary-adjacency pairing), so a single out-of-band
+// pixel cannot dam a narrow gap corridor between photos.
 [[nodiscard]] std::vector<std::uint8_t> foreground_mask(const AnalysisImage& analysis,
                                                         const BackgroundModel& model,
                                                         std::int32_t tolerance) {
@@ -245,10 +292,18 @@ struct BackgroundModel {
     stack.pop_back();
     const std::int32_t x = index % width;
     const std::int32_t y = index / width;
-    const std::array<std::int32_t, 4> neighbors = {x > 0 ? index - 1 : -1,
-                                                   x + 1 < width ? index + 1 : -1,
-                                                   y > 0 ? index - width : -1,
-                                                   y + 1 < height ? index + width : -1};
+    const bool left = x > 0;
+    const bool right = x + 1 < width;
+    const bool up = y > 0;
+    const bool down = y + 1 < height;
+    const std::array<std::int32_t, 8> neighbors = {left ? index - 1 : -1,
+                                                   right ? index + 1 : -1,
+                                                   up ? index - width : -1,
+                                                   down ? index + width : -1,
+                                                   left && up ? index - width - 1 : -1,
+                                                   right && up ? index - width + 1 : -1,
+                                                   left && down ? index + width - 1 : -1,
+                                                   right && down ? index + width + 1 : -1};
     for (const std::int32_t neighbor : neighbors) {
       if (neighbor < 0) {
         continue;
@@ -310,9 +365,17 @@ void binary_box_pass(std::vector<std::uint8_t>& mask, std::int32_t width, std::i
   }
 }
 
-void close_then_open(std::vector<std::uint8_t>& mask, std::int32_t width, std::int32_t height) {
-  const std::int32_t close_radius = std::max<std::int32_t>(1, std::max(width, height) / 256);
+// Opening first (radius 1) removes leftover specks and 1 px halo slivers so
+// the close cannot weld photos through them; the close then repairs real cuts
+// inside photos. The close radius max(w,h)/512 bridges about 4 px at the 1024
+// analysis edge, half the documented 3 mm platen-gap floor (~9 analysis px);
+// the previous /256 radius bridged the whole gap, so any shadow residue that
+// narrowed the cleared channel welded neighboring photos.
+void open_close_open(std::vector<std::uint8_t>& mask, std::int32_t width, std::int32_t height) {
+  const std::int32_t close_radius = std::max<std::int32_t>(1, std::max(width, height) / 512);
   const std::int32_t open_radius = std::max<std::int32_t>(1, close_radius / 2);
+  binary_box_pass(mask, width, height, 1, false);
+  binary_box_pass(mask, width, height, 1, true);
   binary_box_pass(mask, width, height, close_radius, true);
   binary_box_pass(mask, width, height, close_radius, false);
   binary_box_pass(mask, width, height, open_radius, false);
@@ -1018,7 +1081,8 @@ PhotoDetectResult detect_photo_regions(const PixelBuffer& source, const PhotoDet
       !supported_analysis_format(source.format())) {
     return result;
   }
-  const AnalysisImage analysis = build_analysis_image(source);
+  AnalysisImage analysis = build_analysis_image(source);
+  median_filter_analysis(analysis);
   result.analysis_width = analysis.width;
   result.analysis_height = analysis.height;
   if (poll_cancelled(cancelled)) {
@@ -1030,7 +1094,7 @@ PhotoDetectResult detect_photo_regions(const PixelBuffer& source, const PhotoDet
   if (poll_cancelled(cancelled)) {
     return PhotoDetectResult{};
   }
-  close_then_open(mask, analysis.width, analysis.height);
+  open_close_open(mask, analysis.width, analysis.height);
   if (poll_cancelled(cancelled)) {
     return PhotoDetectResult{};
   }
@@ -1132,7 +1196,11 @@ std::optional<double> rectified_aspect_ratio(const std::array<double, 8>& quad,
   const double k3 = dot3(m14, m2) / k3_denominator;
   const Vec3 n2 = {k2 * m2[0] - m1[0], k2 * m2[1] - m1[1], k2 * m2[2] - m1[2]};
   const Vec3 n3 = {k3 * m3[0] - m1[0], k3 * m3[1] - m1[1], k3 * m3[2] - m1[2]};
-  constexpr double kAffineEpsilon = 1e-6;
+  // Near-affine quads must take the affine branch: a flatbed scan's corner
+  // noise puts |n[2]| well under 1e-3 (0.5 px on an 800 px side is ~6e-4),
+  // where the projective focal estimate divides noise by noise and returns
+  // finite garbage, while genuine handheld perspective yields 0.05..0.3.
+  constexpr double kAffineEpsilon = 1e-2;
   double ratio_squared = 0.0;
   if (std::abs(n2[2]) < kAffineEpsilon && std::abs(n3[2]) < kAffineEpsilon) {
     const double denominator = n3[0] * n3[0] + n3[1] * n3[1];
@@ -1208,9 +1276,15 @@ PhotoOutputGeometry photo_output_geometry(const PhotoRegion& region, PhotoExtrac
   double out_width = width_length;
   double out_height = height_length;
   if (mode == PhotoExtractMode::Perspective && height_length > 0.0) {
+    const double measured = width_length / height_length;
     const auto recovered = rectified_aspect_ratio(quad, source_width, source_height);
-    const double aspect =
-        snap_aspect_to_print_ratios(recovered.value_or(width_length / height_length));
+    // Trust the closed form only near the measured side ratio; a distrusted
+    // recovery (degenerate near-affine geometry) falls back to the measured
+    // ratio instead of resampling the photo to a garbage aspect.
+    const bool trusted = recovered.has_value() && measured > 0.0 &&
+                         *recovered <= measured * kAspectRecoveryTrustFactor &&
+                         *recovered >= measured / kAspectRecoveryTrustFactor;
+    const double aspect = snap_aspect_to_print_ratios(trusted ? *recovered : measured);
     if (aspect > 0.0 && std::isfinite(aspect)) {
       // Keep the larger measured extent so the output never drops resolution.
       out_height = std::max(height_length, width_length / aspect);
@@ -1254,6 +1328,42 @@ PixelBuffer extract_photo_region(const PixelBuffer& source, const PhotoRegion& r
     case BitDepth::Float32:
       sample_quad<float>(source, *homography, out);
       break;
+  }
+  return out;
+}
+
+PixelBuffer rotated_quarter_turns(const PixelBuffer& source, int clockwise_turns) {
+  const int turns = ((clockwise_turns % 4) + 4) % 4;
+  if (source.empty() || turns == 0) {
+    return source;
+  }
+  const std::int32_t width = source.width();
+  const std::int32_t height = source.height();
+  const bool swaps_axes = (turns % 2) == 1;
+  PixelBuffer out(swaps_axes ? height : width, swaps_axes ? width : height, source.format());
+  // Whole pixels move (bytes_per_pixel, not per-channel bytes), so every bit
+  // depth survives byte for byte.
+  const std::size_t pixel_bytes = bytes_per_pixel(source.format());
+  for (std::int32_t y = 0; y < height; ++y) {
+    for (std::int32_t x = 0; x < width; ++x) {
+      std::int32_t out_x = 0;
+      std::int32_t out_y = 0;
+      switch (turns) {
+        case 1:
+          out_x = height - 1 - y;
+          out_y = x;
+          break;
+        case 2:
+          out_x = width - 1 - x;
+          out_y = height - 1 - y;
+          break;
+        default:
+          out_x = y;
+          out_y = width - 1 - x;
+          break;
+      }
+      std::memcpy(out.pixel(out_x, out_y), source.pixel(x, y), pixel_bytes);
+    }
   }
   return out;
 }

@@ -559,4 +559,41 @@ QIcon canvas_anchor_icon(CanvasAnchor anchor) {
                            std::move(glyph));
 }
 
+QIcon up_direction_arrow_icon(int direction) {
+  // Same wing construction as canvas_anchor_icon, but a full-length arrow on
+  // ordinary dialog chrome, so the standard icon ink applies.
+  auto glyph = [direction](QPainter& painter, const QColor& ink) {
+    painter.setPen(QPen(ink, 2.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    painter.setBrush(ink);
+    const QPointF center(11.0, 11.0);
+    QPointF target(11.0, 4.2);
+    switch (direction) {
+      case 1:
+        target = QPointF(17.8, 11.0);
+        break;
+      case 2:
+        target = QPointF(11.0, 17.8);
+        break;
+      case 3:
+        target = QPointF(4.2, 11.0);
+        break;
+      default:
+        break;
+    }
+    const QPointF tail(2.0 * center.x() - target.x(), 2.0 * center.y() - target.y());
+    painter.drawLine(tail, target);
+    const auto angle = std::atan2(target.y() - center.y(), target.x() - center.x());
+    constexpr double kArrowSize = 4.5;
+    constexpr double kArrowAngle = 0.72;
+    const QPointF wing_a(target.x() - std::cos(angle - kArrowAngle) * kArrowSize,
+                         target.y() - std::sin(angle - kArrowAngle) * kArrowSize);
+    const QPointF wing_b(target.x() - std::cos(angle + kArrowAngle) * kArrowSize,
+                         target.y() - std::sin(angle + kArrowAngle) * kArrowSize);
+    painter.drawLine(target, wing_a);
+    painter.drawLine(target, wing_b);
+  };
+  return themed_glyph_icon(QStringLiteral("up-direction-%1").arg(direction), 22.0,
+                           &ThemePalette::icon_ink, std::move(glyph));
+}
+
 }  // namespace patchy::ui

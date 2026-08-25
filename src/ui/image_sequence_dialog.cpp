@@ -50,8 +50,8 @@ int trailing_digit_count(const QString& text) {
   return text.size() - index;
 }
 
-// Windows is the strictest filesystem: strip its illegal characters plus control
-// codes, and the trailing dots/spaces it rejects.
+}  // namespace
+
 QString sanitized_file_name(const QString& name) {
   static const QString illegal = QStringLiteral("\\/:*?\"<>|");
   QString cleaned;
@@ -64,8 +64,6 @@ QString sanitized_file_name(const QString& name) {
   }
   return cleaned.trimmed();
 }
-
-}  // namespace
 
 QStringList sorted_sequence_paths(QStringList paths) {
   QCollator collator;
