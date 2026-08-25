@@ -429,6 +429,15 @@ void MainWindow::refresh_path_tool_hint_label() {
   if (path_tool_hint_label_ == nullptr) {
     return;
   }
+  // Direct Select swaps the gesture reminder for a selected-point count once a
+  // multi-point selection exists (Path Select selects whole shapes, where an
+  // anchor count would be noise).
+  if (current_tool_ == CanvasTool::DirectSelect && canvas_ != nullptr) {
+    if (const auto count = canvas_->path_edit_selected_anchor_count(); count >= 2) {
+      path_tool_hint_label_->setText(tr("%n points selected", nullptr, count));
+      return;
+    }
+  }
   const auto* source = path_tool_hint_source(current_tool_);
   path_tool_hint_label_->setText(source != nullptr ? tr(source) : QString());
 }

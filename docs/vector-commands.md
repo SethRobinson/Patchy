@@ -66,7 +66,11 @@ selection.
   part of the appearance widgets that hide without a shape layer) shows a
   short reminder per tool from `path_tool_hint_source`
   (main_window_vector.cpp, `refresh_path_tool_hint_label`); keep the texts
-  under about 70 characters so the flow layout never wraps.
+  under about 70 characters so the flow layout never wraps. Under Direct
+  Select with two or more anchors selected the same label shows "%n points
+  selected" instead, refreshed through
+  `set_path_selection_changed_callback` (fired from every mutation of
+  `path_selected_anchors_`: clicks, marquees, deletes, prunes, deselects).
 
 ## Moving a selection
 
@@ -75,6 +79,19 @@ press lands on a selected anchor OR on a segment whose two ends are already
 selected (a marquee, then a drag on any of its lines); Shift on a segment
 adds it, an unselected segment replaces the selection with its two ends.
 Pinned by `ui_direct_select_drags_marquee_selection_by_segment`.
+
+Shift held during the drag constrains movement to the nearest horizontal,
+vertical, or 45-degree axis (Photoshop's vertex constraint,
+`constrain_drag_to_axes`): the constraint is re-evaluated every move against
+the total delta from the press point, never latched, and the points follow
+the mouse's projection onto the snapped axis. Anchor drags therefore track a
+total-delta ledger (`path_drag_applied_delta_`) while still applying
+per-move increments through `apply_path_edit` (`update_path_edit_drag`,
+split out of `handle_path_edit_move`). Pressing or releasing Shift with a
+stationary cursor replays the drag at the last raw pointer position from
+keyPressEvent/keyReleaseEvent. Shift at press keeps its additive-selection
+meaning; only move/key state during the drag drives the constraint. Handle
+drags and the Pen's in-session Ctrl anchor drag stay unconstrained.
 
 ## Path context menu
 

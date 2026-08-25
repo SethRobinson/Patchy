@@ -626,6 +626,7 @@ public:
   // Path editing (PathSelect / DirectSelect / Pen add-delete) on the active
   // shape layer's path or the work path.
   [[nodiscard]] bool path_edit_has_selection() const noexcept;
+  [[nodiscard]] int path_edit_selected_anchor_count() const noexcept;
   [[nodiscard]] std::vector<int> path_edit_selected_groups() const;
   void set_selected_subpaths_combine_op(patchy::PathCombineOp op);
   void clear_path_edit_selection();
@@ -656,6 +657,10 @@ public:
   // transforms, vector-mask appends) so the Paths panel rows and thumbnails
   // never go stale; the panel's revision-keyed caches keep the refresh cheap.
   void set_path_edited_callback(std::function<void()> callback);
+  // Invoked whenever the set of selected anchors changes (clicks, marquees,
+  // deletes, prunes); MainWindow refreshes the options-bar selected-point
+  // count from it.
+  void set_path_selection_changed_callback(std::function<void()> callback);
   // The path the pen/path tools currently edit (panel > vector mask > shape
   // layer > work path); null when nothing is targetable.
   [[nodiscard]] const patchy::VectorPath* path_edit_target_path() const;
@@ -1367,6 +1372,14 @@ private:
                                      double& segment_t) const;
   bool handle_path_edit_press(QMouseEvent* event, QPointF document_point);
   bool handle_path_edit_move(QMouseEvent* event, QPointF document_point);
+  // Applies the anchor/handle drag at document_point under the given modifier
+  // state; split out of handle_path_edit_move so Shift press/release mid-drag
+  // can replay it at the last raw pointer position.
+  bool update_path_edit_drag(QPointF document_point, Qt::KeyboardModifiers modifiers);
+  // Photoshop's vertex constraint: snaps the total drag delta onto the nearest
+  // horizontal, vertical, or 45-degree axis (re-evaluated per call, no latch).
+  [[nodiscard]] static QPointF constrain_drag_to_axes(QPointF total_delta) noexcept;
+  void notify_path_selection_changed();
   bool handle_path_edit_release(QMouseEvent* event);
   bool handle_path_edit_key(QKeyEvent* event);
   bool pen_modifies_existing_path(QMouseEvent* event, QPointF document_point);
@@ -1714,6 +1727,11 @@ private:
   PathEditDrag path_drag_mode_{PathEditDrag::None};
   std::pair<int, int> path_drag_anchor_{-1, -1};
   QPointF path_drag_last_document_{};
+  // Anchor-drag Shift constraint: raw press origin, last raw pointer position
+  // (replayed on Shift key transitions), and the total delta already applied.
+  QPointF path_drag_origin_document_{};
+  QPointF path_drag_raw_document_{};
+  QPointF path_drag_applied_delta_{};
   QPointF path_marquee_start_{};
   QPointF path_marquee_current_{};
   bool path_edit_undo_armed_{false};
@@ -1725,6 +1743,7 @@ private:
   std::function<void()> path_display_dismiss_callback_;
   std::function<void()> path_load_selection_callback_;
   std::function<void()> path_edited_callback_;
+  std::function<void()> path_selection_changed_callback_;
   // Path free-transform session state. The affine maps the original rect onto
   // the (possibly negative-extent, i.e. flipped) current rect, then rotates
   // about the current center.

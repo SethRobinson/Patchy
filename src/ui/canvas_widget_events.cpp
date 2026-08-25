@@ -2791,6 +2791,16 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
     return;
   }
 
+  // Shift pressed mid-anchor-drag arrives as a key event, not a mouse move;
+  // replay the drag at the last raw pointer position so a stationary cursor
+  // still snaps onto the constrained axis.
+  if (path_drag_mode_ == PathEditDrag::Anchors && event->key() == Qt::Key_Shift &&
+      !event->isAutoRepeat()) {
+    update_path_edit_drag(path_drag_raw_document_, event->modifiers() | Qt::ShiftModifier);
+    event->accept();
+    return;
+  }
+
   if (warping_layer_) {
     if (event->key() == Qt::Key_Escape) {
       cancel_warp_transform();
@@ -3043,6 +3053,14 @@ void CanvasWidget::keyReleaseEvent(QKeyEvent* event) {
       shape_from_center_ = false;
     }
     update();
+    event->accept();
+    return;
+  }
+  // Shift released mid-anchor-drag: snap the selection back to the raw mouse
+  // position without waiting for the next mouse move.
+  if (path_drag_mode_ == PathEditDrag::Anchors && event->key() == Qt::Key_Shift &&
+      !event->isAutoRepeat()) {
+    update_path_edit_drag(path_drag_raw_document_, event->modifiers() & ~Qt::ShiftModifier);
     event->accept();
     return;
   }

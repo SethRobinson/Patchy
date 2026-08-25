@@ -6690,6 +6690,12 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
     }
     refresh_paths_panel();
   });
+  canvas->set_path_selection_changed_callback([this, canvas] {
+    if (canvas != canvas_) {
+      return;
+    }
+    refresh_path_tool_hint_label();
+  });
   canvas->set_shape_preview_appearance_callback(
       [this]() -> std::optional<CanvasWidget::ShapePreviewAppearance> {
         // Pulled at draw time from the application-wide options-bar state, so

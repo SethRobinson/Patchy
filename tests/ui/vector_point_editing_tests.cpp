@@ -746,6 +746,138 @@ void ui_direct_select_drags_marquee_selection_by_segment() {
   CHECK(!canvas->pen_session_active());
 }
 
+// Shift during an anchor drag constrains movement to the nearest horizontal,
+// vertical, or 45-degree axis, re-evaluated per move against the total delta
+// from the press point (Photoshop's vertex constraint, never latched).
+void ui_direct_select_shift_drag_constrains_axis() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto layer_id = make_rect_shape_layer(window, *canvas);
+  const auto widget_point = [&](QPoint document_point) {
+    return canvas->widget_position_for_document_point(document_point);
+  };
+
+  canvas->set_tool(patchy::ui::CanvasTool::DirectSelect);
+  // Press without Shift (plain replace-select), then move with Shift held: a
+  // mostly-horizontal delta snaps onto the horizontal axis (dy exactly 0).
+  send_mouse(*canvas, QEvent::MouseButtonPress, widget_point(QPoint(100, 100)), Qt::LeftButton,
+             Qt::LeftButton, Qt::NoModifier);
+  send_mouse(*canvas, QEvent::MouseMove, widget_point(QPoint(140, 110)), Qt::NoButton,
+             Qt::LeftButton, Qt::ShiftModifier);
+  CHECK(std::abs(anchor_at(document, layer_id, 0).anchor_x - 140.0) < 1.0);
+  CHECK(std::abs(anchor_at(document, layer_id, 0).anchor_y - 100.0) < 1.0);
+  // The constraint re-evaluates against the TOTAL delta: a near-diagonal total
+  // of (30,26) snaps to 45 degrees, projecting onto (28,28).
+  send_mouse(*canvas, QEvent::MouseMove, widget_point(QPoint(130, 126)), Qt::NoButton,
+             Qt::LeftButton, Qt::ShiftModifier);
+  CHECK(std::abs(anchor_at(document, layer_id, 0).anchor_x - 128.0) < 1.0);
+  CHECK(std::abs(anchor_at(document, layer_id, 0).anchor_y - 128.0) < 1.0);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, widget_point(QPoint(130, 126)), Qt::LeftButton,
+             Qt::NoButton, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(std::abs(anchor_at(document, layer_id, 0).anchor_x - 128.0) < 1.0);
+  CHECK(std::abs(anchor_at(document, layer_id, 0).anchor_y - 128.0) < 1.0);
+
+  // Without Shift the drag stays raw.
+  drag(*canvas, widget_point(QPoint(128, 128)), widget_point(QPoint(150, 143)));
+  QApplication::processEvents();
+  CHECK(std::abs(anchor_at(document, layer_id, 0).anchor_x - 150.0) < 1.0);
+  CHECK(std::abs(anchor_at(document, layer_id, 0).anchor_y - 143.0) < 1.0);
+}
+
+// Pressing or releasing Shift mid-drag re-applies the constraint immediately,
+// with no mouse motion, and the whole drag stays one undo entry. A marquee
+// multi-selection moves as one constrained group.
+void ui_direct_select_shift_toggle_mid_drag_reapplies_without_motion() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto layer_id = make_rect_shape_layer(window, *canvas);
+  const auto widget_point = [&](QPoint document_point) {
+    return canvas->widget_position_for_document_point(document_point);
+  };
+
+  canvas->set_tool(patchy::ui::CanvasTool::DirectSelect);
+  send_mouse(*canvas, QEvent::MouseButtonPress, widget_point(QPoint(100, 100)), Qt::LeftButton,
+             Qt::LeftButton, Qt::NoModifier);
+  send_mouse(*canvas, QEvent::MouseMove, widget_point(QPoint(140, 110)), Qt::NoButton,
+             Qt::LeftButton, Qt::NoModifier);
+  CHECK(std::abs(anchor_at(document, layer_id, 0).anchor_y - 110.0) < 1.0);
+  send_key_press(*canvas, Qt::Key_Shift, Qt::ShiftModifier);  // snaps without motion
+  CHECK(std::abs(anchor_at(document, layer_id, 0).anchor_x - 140.0) < 1.0);
+  CHECK(std::abs(anchor_at(document, layer_id, 0).anchor_y - 100.0) < 1.0);
+  send_key_release(*canvas, Qt::Key_Shift);  // back to the raw pointer position
+  CHECK(std::abs(anchor_at(document, layer_id, 0).anchor_x - 140.0) < 1.0);
+  CHECK(std::abs(anchor_at(document, layer_id, 0).anchor_y - 110.0) < 1.0);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, widget_point(QPoint(140, 110)), Qt::LeftButton,
+             Qt::NoButton, Qt::NoModifier);
+  QApplication::processEvents();
+
+  // The toggles coalesced into the drag's single history entry.
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(std::abs(anchor_at(document, layer_id, 0).anchor_x - 100.0) < 0.5);
+  CHECK(std::abs(anchor_at(document, layer_id, 0).anchor_y - 100.0) < 0.5);
+
+  // A marquee selection moves as one group under the constraint.
+  drag(*canvas, widget_point(QPoint(60, 60)), widget_point(QPoint(340, 260)));
+  QApplication::processEvents();
+  CHECK(canvas->path_edit_has_selection());
+  const auto far_corner_before = anchor_at(document, layer_id, 2).anchor_x;
+  send_mouse(*canvas, QEvent::MouseButtonPress, widget_point(QPoint(100, 100)), Qt::LeftButton,
+             Qt::LeftButton, Qt::NoModifier);
+  send_mouse(*canvas, QEvent::MouseMove, widget_point(QPoint(140, 110)), Qt::NoButton,
+             Qt::LeftButton, Qt::ShiftModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, widget_point(QPoint(140, 110)), Qt::LeftButton,
+             Qt::NoButton, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(std::abs(anchor_at(document, layer_id, 0).anchor_y - 100.0) < 1.0);
+  CHECK(std::abs(anchor_at(document, layer_id, 2).anchor_x - far_corner_before - 40.0) < 1.0);
+  CHECK(std::abs(anchor_at(document, layer_id, 2).anchor_y - 220.0) < 1.0);
+}
+
+// The options-bar hint label swaps to a selected-point count once Direct
+// Select has two or more anchors selected, and back to the gesture reminder
+// on deselect or a single-point selection.
+void ui_direct_select_hint_label_shows_selected_count() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  make_rect_shape_layer(window, *canvas);
+  const auto widget_point = [&](QPoint document_point) {
+    return canvas->widget_position_for_document_point(document_point);
+  };
+
+  require_action(window, "toolDirectSelectAction")->trigger();
+  QApplication::processEvents();
+  auto* label = window.findChild<QLabel*>(QStringLiteral("pathToolHintLabel"));
+  CHECK(label != nullptr);
+  CHECK(label->text().startsWith(QStringLiteral("Click or drag points and handles")));
+
+  drag(*canvas, widget_point(QPoint(60, 60)), widget_point(QPoint(340, 260)));  // marquee all four
+  QApplication::processEvents();
+  CHECK(canvas->path_edit_selected_anchor_count() == 4);
+  CHECK(label->text() == QStringLiteral("4 points selected"));
+
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(!canvas->path_edit_has_selection());
+  CHECK(label->text().startsWith(QStringLiteral("Click or drag points and handles")));
+
+  // A single-point selection keeps the gesture reminder.
+  const auto corner = widget_point(QPoint(100, 100));
+  drag(*canvas, corner, corner);
+  QApplication::processEvents();
+  CHECK(canvas->path_edit_selected_anchor_count() == 1);
+  CHECK(label->text().startsWith(QStringLiteral("Click or drag points and handles")));
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> vector_point_editing_tests() {
@@ -768,5 +900,10 @@ std::vector<patchy::test::TestCase> vector_point_editing_tests() {
        ui_ctrl_h_hides_path_points_with_selection_edges},
       {"ui_direct_select_drags_marquee_selection_by_segment",
        ui_direct_select_drags_marquee_selection_by_segment},
+      {"ui_direct_select_shift_drag_constrains_axis", ui_direct_select_shift_drag_constrains_axis},
+      {"ui_direct_select_shift_toggle_mid_drag_reapplies_without_motion",
+       ui_direct_select_shift_toggle_mid_drag_reapplies_without_motion},
+      {"ui_direct_select_hint_label_shows_selected_count",
+       ui_direct_select_hint_label_shows_selected_count},
   };
 }

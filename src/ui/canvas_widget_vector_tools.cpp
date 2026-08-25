@@ -596,6 +596,16 @@ void CanvasWidget::set_path_edited_callback(std::function<void()> callback) {
   path_edited_callback_ = std::move(callback);
 }
 
+void CanvasWidget::set_path_selection_changed_callback(std::function<void()> callback) {
+  path_selection_changed_callback_ = std::move(callback);
+}
+
+void CanvasWidget::notify_path_selection_changed() {
+  if (path_selection_changed_callback_) {
+    path_selection_changed_callback_();
+  }
+}
+
 const VectorPath* CanvasWidget::path_edit_target_path() const {
   if (layer_edit_target_ == LayerEditTarget::VectorMask) {
     if (const auto* layer = vector_mask_target_layer(); layer != nullptr) {
@@ -863,6 +873,10 @@ bool CanvasWidget::handle_path_edit_press(QMouseEvent* event, QPointF document_p
   path_edit_undo_armed_ = false;
   path_edit_changed_ = false;
   path_drag_last_document_ = document_point;
+  path_drag_origin_document_ = document_point;
+  path_drag_raw_document_ = document_point;
+  path_drag_applied_delta_ = QPointF(0.0, 0.0);
+  const auto selection_before = path_selected_anchors_;
 
   const auto widget_point = QPointF(event->position());
   if (edit_tool == CanvasTool::DirectSelect) {
@@ -905,6 +919,9 @@ bool CanvasWidget::handle_path_edit_press(QMouseEvent* event, QPointF document_p
     }
     path_drag_mode_ = PathEditDrag::Anchors;
     path_drag_anchor_ = anchor;
+    if (path_selected_anchors_ != selection_before) {
+      notify_path_selection_changed();
+    }
     update();
     return true;
   }
@@ -940,6 +957,9 @@ bool CanvasWidget::handle_path_edit_press(QMouseEvent* event, QPointF document_p
     }
     path_drag_mode_ = PathEditDrag::Anchors;
     path_drag_anchor_ = segment;
+    if (path_selected_anchors_ != selection_before) {
+      notify_path_selection_changed();
+    }
     update();
     return true;
   }
@@ -949,6 +969,9 @@ bool CanvasWidget::handle_path_edit_press(QMouseEvent* event, QPointF document_p
   path_marquee_current_ = document_point;
   if ((event->modifiers() & Qt::ShiftModifier) == 0) {
     path_selected_anchors_.clear();
+  }
+  if (path_selected_anchors_ != selection_before) {
+    notify_path_selection_changed();
   }
   update();
   return true;
@@ -970,14 +993,66 @@ bool CanvasWidget::handle_path_edit_move(QMouseEvent* event, QPointF document_po
     update();
     return true;
   }
+  path_drag_raw_document_ = document_point;
+  return update_path_edit_drag(document_point, event->modifiers());
+}
+
+QPointF CanvasWidget::constrain_drag_to_axes(QPointF total_delta) noexcept {
+  if (total_delta.isNull()) {
+    return total_delta;
+  }
+  // Photoshop-style: snap the drag direction to the nearest 45-degree axis,
+  // re-evaluated per call against the TOTAL delta from the press point (never
+  // latched), then project the delta onto that axis so the points follow the
+  // mouse's projection along it. The exact 0.0/1.0 components matter: a
+  // horizontal drag must produce a dy of exactly 0.0 so the no-op early-out
+  // in update_path_edit_drag stays honest.
+  constexpr double kSnap = std::numbers::pi / 4.0;
+  const auto angle = std::atan2(total_delta.y(), total_delta.x());
+  // lround(angle / kSnap) is in [-4, 4]; -4 & 7 == 4 folds -pi onto +pi.
+  const auto octant = static_cast<int>(std::lround(angle / kSnap)) & 7;
+  constexpr double kDiag = std::numbers::sqrt2 / 2.0;
+  constexpr std::array<std::pair<double, double>, 8> kDirections{{{1.0, 0.0},
+                                                                 {kDiag, kDiag},
+                                                                 {0.0, 1.0},
+                                                                 {-kDiag, kDiag},
+                                                                 {-1.0, 0.0},
+                                                                 {-kDiag, -kDiag},
+                                                                 {0.0, -1.0},
+                                                                 {kDiag, -kDiag}}};
+  const QPointF direction(kDirections[static_cast<std::size_t>(octant)].first,
+                          kDirections[static_cast<std::size_t>(octant)].second);
+  const auto t = total_delta.x() * direction.x() + total_delta.y() * direction.y();
+  return QPointF(direction.x() * t, direction.y() * t);
+}
+
+bool CanvasWidget::update_path_edit_drag(QPointF document_point, Qt::KeyboardModifiers modifiers) {
+  const auto edit_tool = path_edit_tool();
   const auto* path = path_edit_target_path();
   if (path == nullptr) {
     return true;
   }
-  const auto dx = document_point.x() - path_drag_last_document_.x();
-  const auto dy = document_point.y() - path_drag_last_document_.y();
-  if (dx == 0.0 && dy == 0.0) {
-    return true;
+  double dx = 0.0;
+  double dy = 0.0;
+  if (path_drag_mode_ == PathEditDrag::Anchors) {
+    // Anchor drags track the total delta from the press so Shift can constrain
+    // (and un-constrain) against it; each frame still applies an increment.
+    const auto raw_total = document_point - path_drag_origin_document_;
+    const auto effective_total = (modifiers & Qt::ShiftModifier) != 0
+                                     ? constrain_drag_to_axes(raw_total)
+                                     : raw_total;
+    dx = effective_total.x() - path_drag_applied_delta_.x();
+    dy = effective_total.y() - path_drag_applied_delta_.y();
+    if (dx == 0.0 && dy == 0.0) {
+      return true;
+    }
+    path_drag_applied_delta_ = effective_total;
+  } else {
+    dx = document_point.x() - path_drag_last_document_.x();
+    dy = document_point.y() - path_drag_last_document_.y();
+    if (dx == 0.0 && dy == 0.0) {
+      return true;
+    }
   }
   path_drag_last_document_ = document_point;
   prune_path_edit_selection(*path);
@@ -1053,6 +1128,7 @@ bool CanvasWidget::handle_path_edit_release(QMouseEvent* event) {
   if (path_drag_mode_ == PathEditDrag::Marquee) {
     const auto* path = path_edit_target_path();
     if (path != nullptr) {
+      const auto selection_before = path_selected_anchors_;
       const auto rect = QRectF(path_marquee_start_, path_marquee_current_).normalized();
       std::set<int> groups_in_box;
       for (int s = 0; s < static_cast<int>(path->subpaths.size()); ++s) {
@@ -1080,6 +1156,9 @@ bool CanvasWidget::handle_path_edit_release(QMouseEvent* event) {
           }
         }
       }
+      if (path_selected_anchors_ != selection_before) {
+        notify_path_selection_changed();
+      }
     }
   }
   path_drag_mode_ = PathEditDrag::None;
@@ -1088,12 +1167,15 @@ bool CanvasWidget::handle_path_edit_release(QMouseEvent* event) {
 }
 
 void CanvasWidget::prune_path_edit_selection(const VectorPath& path) {
-  std::erase_if(path_selected_anchors_, [&path](const std::pair<int, int>& key) {
+  const auto erased = std::erase_if(path_selected_anchors_, [&path](const std::pair<int, int>& key) {
     return key.first < 0 || key.first >= static_cast<int>(path.subpaths.size()) ||
            key.second < 0 ||
            key.second >= static_cast<int>(
                path.subpaths[static_cast<std::size_t>(key.first)].anchors.size());
   });
+  if (erased > 0) {
+    notify_path_selection_changed();
+  }
 }
 
 void CanvasWidget::delete_selected_path_anchors() {
@@ -1119,6 +1201,7 @@ void CanvasWidget::delete_selected_path_anchors() {
   std::erase_if(working.subpaths,
                 [](const PathSubpath& subpath) { return subpath.anchors.size() < 2; });
   path_selected_anchors_.clear();
+  notify_path_selection_changed();
   path_edit_undo_armed_ = false;
   apply_path_edit(std::move(working), tr("Delete anchors"), touched_groups);
   path_edit_undo_armed_ = false;
@@ -1320,6 +1403,10 @@ bool CanvasWidget::path_edit_has_selection() const noexcept {
   return !path_selected_anchors_.empty();
 }
 
+int CanvasWidget::path_edit_selected_anchor_count() const noexcept {
+  return static_cast<int>(path_selected_anchors_.size());
+}
+
 void CanvasWidget::update_path_hover_hint(PenHoverAction action) {
   const auto previous = path_hover_hint_action_;
   path_hover_hint_action_ = action;
@@ -1500,6 +1587,7 @@ void CanvasWidget::set_selected_subpaths_combine_op(PathCombineOp op) {
 void CanvasWidget::clear_path_edit_selection() {
   if (!path_selected_anchors_.empty()) {
     path_selected_anchors_.clear();
+    notify_path_selection_changed();
     update();
   }
 }
