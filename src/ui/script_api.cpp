@@ -573,6 +573,8 @@ QJSValue ScriptLayerObject::traceToShapes(const QJSValue& options) {
         trace_options.noise = value.toInt();
       } else if (key == QLatin1String("smoothing")) {
         trace_options.smoothing = value.toInt();
+      } else if (key == QLatin1String("mergeColors")) {
+        trace_options.merge_colors = value.toInt();
       } else if (key == QLatin1String("maxAnchors")) {
         trace_options.max_anchors = value.toInt();
       } else if (key == QLatin1String("snapCurvesToLines")) {

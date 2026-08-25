@@ -1802,6 +1802,7 @@ ImageTraceOptions image_trace_options_from_settings() {
   options.corners = settings.value(key("corners"), options.corners).toInt();
   options.noise = settings.value(key("noise"), options.noise).toInt();
   options.smoothing = settings.value(key("smoothing"), options.smoothing).toInt();
+  options.merge_colors = settings.value(key("mergeColors"), options.merge_colors).toInt();
   options.max_anchors = settings.value(key("maxAnchors"), options.max_anchors).toInt();
   options.method = static_cast<ImageTraceOptions::Method>(
       std::clamp(settings.value(key("method"), static_cast<int>(options.method)).toInt(), 0, 1));
@@ -1820,6 +1821,7 @@ void save_image_trace_options(const ImageTraceOptions& options) {
   settings.setValue(key("corners"), options.corners);
   settings.setValue(key("noise"), options.noise);
   settings.setValue(key("smoothing"), options.smoothing);
+  settings.setValue(key("mergeColors"), options.merge_colors);
   settings.setValue(key("maxAnchors"), options.max_anchors);
   settings.setValue(key("method"), static_cast<int>(options.method));
   settings.setValue(key("snapCurvesToLines"), options.snap_curves_to_lines);

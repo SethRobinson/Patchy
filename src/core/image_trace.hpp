@@ -50,6 +50,7 @@ struct ImageTraceOptions {
   int corners{75};          // 0..100, corner sharpness (see image_trace_corner_angle)
   int noise{25};            // regions smaller than this many pixels are merged away, 1..100
   int smoothing{0};         // denoise blur before quantization, 0..kMaxSmoothing px (0 = off)
+  int merge_colors{0};      // merge palette entries within this per-channel difference, 0..100 (0 = off)
   int max_anchors{0};       // anchor budget: refit at coarser tolerance until met (0 = unlimited)
   Method method{Method::Abutting};
   bool snap_curves_to_lines{false};
@@ -84,6 +85,12 @@ struct ImageTraceResult {
 [[nodiscard]] double image_trace_fit_tolerance(int paths) noexcept;
 // corners 0..100 -> corner angle threshold in degrees, 120 at 0 to 30 at 100.
 [[nodiscard]] double image_trace_corner_angle(int corners) noexcept;
+// merge_colors 0..100 -> weighted_color_distance threshold: palette entries a
+// uniform per-channel difference of merge_colors apart (or closer) merge into
+// their population-weighted mean, so asking for more colors than the image
+// distinctly has degrades to fewer clean layers instead of near-duplicate
+// entries that shatter grain into speckle. 0 merges nothing.
+[[nodiscard]] std::uint32_t image_trace_merge_distance(int merge_colors) noexcept;
 
 // Traces an RGB, RGBA, or gray buffer. Pixels with alpha below 128 are
 // untraced. 16-bit and float buffers convert to 8-bit first (value/257 with

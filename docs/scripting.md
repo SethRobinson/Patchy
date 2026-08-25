@@ -285,7 +285,9 @@ everywhere a bundled script is resolved.
   still 1): with a document selection `layer.traceToShapes` picks its palette from
   the whole layer, matching a whole-layer trace's colors (previously the palette
   adapted to the selected pixels and shattered flat areas into speckle);
-  `paletteFromLayer: false` restores selection-scoped colors (docs/image-trace.md).
+  `paletteFromLayer: false` restores selection-scoped colors, and the additive
+  `mergeColors` option (0..100, default 0) merges near-duplicate palette entries
+  (docs/image-trace.md).
 - **`include()` resolution order**: relative to the including script, then the user
   scripts root, then the bundled scripts root; a result inside the bundled folder maps
   through the shadow-override store. `patchy.isMainScript()` is false during an included

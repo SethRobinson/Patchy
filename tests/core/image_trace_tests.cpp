@@ -606,6 +606,53 @@ void image_trace_palette_source_converts_deep_buffers() {
   }
 }
 
+void image_trace_merge_colors_merges_near_duplicates() {
+  // Two reds 4 apart (weighted distance 2 * 4^2 = 32) beside a far blue.
+  // Merge colors 2 (threshold 9 * 2^2 = 36) collapses the reds into their
+  // population-weighted mean; 1 (threshold 9) keeps them; 0 changes nothing.
+  const RgbColor red_a{100, 0, 0};
+  const RgbColor red_b{104, 0, 0};
+  auto pixels = solid_image(60, 40, red_a);
+  fill_rect(pixels, 30, 0, 10, 40, red_b);
+  fill_rect(pixels, 40, 0, 20, 40, kBlue);
+  auto options = color_options();
+  options.colors = 3;
+  for (const int keep_merge : {0, 1}) {
+    options.merge_colors = keep_merge;
+    const auto kept = patchy::trace_image(pixels, options);
+    CHECK(kept.layers.size() == 3);
+    CHECK(layer_with_color(kept, red_a) != nullptr);
+    CHECK(layer_with_color(kept, red_b) != nullptr);
+  }
+  options.merge_colors = 2;
+  const auto merged = patchy::trace_image(pixels, options);
+  CHECK(merged.layers.size() == 2);
+  // (1200 * 100 + 400 * 104) / 1600 = 101.
+  const auto* red = layer_with_color(merged, RgbColor{101, 0, 0});
+  CHECK(red != nullptr);
+  CHECK(red->area == 40 * 40);
+  CHECK(layer_with_color(merged, kBlue) != nullptr);
+
+  // Grayscale merges levels the same way (means stay gray).
+  auto grays = solid_image(60, 20, RgbColor{100, 100, 100});
+  fill_rect(grays, 30, 0, 10, 20, RgbColor{104, 104, 104});
+  fill_rect(grays, 40, 0, 20, 20, RgbColor{200, 200, 200});
+  ImageTraceOptions gray_options;
+  gray_options.mode = ImageTraceOptions::Mode::Grayscale;
+  gray_options.colors = 3;
+  gray_options.noise = 1;
+  gray_options.merge_colors = 4;
+  const auto merged_grays = patchy::trace_image(grays, gray_options);
+  CHECK(merged_grays.layers.size() == 2);
+  CHECK(layer_with_color(merged_grays, RgbColor{101, 101, 101}) != nullptr);
+  CHECK(layer_with_color(merged_grays, RgbColor{200, 200, 200}) != nullptr);
+
+  // The documented mapping endpoints.
+  CHECK(patchy::image_trace_merge_distance(0) == 0);
+  CHECK(patchy::image_trace_merge_distance(10) == 900);
+  CHECK(patchy::image_trace_merge_distance(100) == 90000);
+}
+
 void image_trace_exact_assignment_beats_lut_on_close_palette() {
   // Two reds four levels apart share one 5-5-5 lookup bucket; the exact
   // per-unique-color assignment keeps them separate where the old bucketed
@@ -852,6 +899,7 @@ std::vector<patchy::test::TestCase> image_trace_tests() {
       {"image_trace_palette_source_grayscale_histogram_from_source",
        image_trace_palette_source_grayscale_histogram_from_source},
       {"image_trace_palette_source_converts_deep_buffers", image_trace_palette_source_converts_deep_buffers},
+      {"image_trace_merge_colors_merges_near_duplicates", image_trace_merge_colors_merges_near_duplicates},
       {"image_trace_exact_assignment_beats_lut_on_close_palette",
        image_trace_exact_assignment_beats_lut_on_close_palette},
       {"image_trace_grayscale_places_optimal_levels", image_trace_grayscale_places_optimal_levels},

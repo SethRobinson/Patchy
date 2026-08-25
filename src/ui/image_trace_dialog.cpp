@@ -67,7 +67,8 @@ using Mode = ImageTraceOptions::Mode;
 using Method = ImageTraceOptions::Method;
 
 ImageTraceOptions make_preset(Mode mode, int colors, int threshold, int paths, int corners, int noise,
-                              Method method, bool ignore_white, int smoothing = 0, int max_anchors = 0) {
+                              Method method, bool ignore_white, int smoothing = 0, int max_anchors = 0,
+                              int merge_colors = 0) {
   ImageTraceOptions options;
   options.mode = mode;
   options.colors = colors;
@@ -76,6 +77,7 @@ ImageTraceOptions make_preset(Mode mode, int colors, int threshold, int paths, i
   options.corners = corners;
   options.noise = noise;
   options.smoothing = smoothing;
+  options.merge_colors = merge_colors;
   options.max_anchors = max_anchors;
   options.method = method;
   options.snap_curves_to_lines = false;
@@ -427,10 +429,16 @@ const std::vector<ImageTracePreset>& image_trace_presets() {
       {"Black and White Logo", make_preset(Mode::BlackAndWhite, 16, 128, 50, 75, 25, Method::Abutting, true)},
       {"Sketched Art", make_preset(Mode::BlackAndWhite, 16, 200, 60, 85, 10, Method::Abutting, true)},
       {"Silhouettes", make_preset(Mode::BlackAndWhite, 16, 80, 40, 60, 40, Method::Abutting, true)},
-      {"3 Colors", make_preset(Mode::Color, 3, 128, 50, 75, 25, Method::Abutting, false)},
-      {"6 Colors", make_preset(Mode::Color, 6, 128, 50, 75, 25, Method::Abutting, false)},
-      {"16 Colors", make_preset(Mode::Color, 16, 128, 50, 75, 25, Method::Abutting, false)},
-      {"Shades of Gray", make_preset(Mode::Grayscale, 16, 128, 50, 75, 25, Method::Abutting, false)},
+      // The flat-art presets merge near-duplicate palette entries (15 = a
+      // uniform per-channel difference of 15): a narrow-gamut image asked for
+      // more colors than it distinctly has degrades to fewer clean layers
+      // instead of grain speckle. Distinct flat colors sit far apart, so the
+      // merge is a no-op on real flat art. The photo presets keep 0: their
+      // close entries are deliberate gradient steps.
+      {"3 Colors", make_preset(Mode::Color, 3, 128, 50, 75, 25, Method::Abutting, false, 0, 0, 15)},
+      {"6 Colors", make_preset(Mode::Color, 6, 128, 50, 75, 25, Method::Abutting, false, 0, 0, 15)},
+      {"16 Colors", make_preset(Mode::Color, 16, 128, 50, 75, 25, Method::Abutting, false, 0, 0, 15)},
+      {"Shades of Gray", make_preset(Mode::Grayscale, 16, 128, 50, 75, 25, Method::Abutting, false, 0, 0, 15)},
       {"Low Fidelity Photo", make_preset(Mode::Color, 16, 128, 40, 60, 25, Method::Overlapping, false)},
       {"High Fidelity Photo", make_preset(Mode::Color, 64, 128, 80, 50, 4, Method::Overlapping, false)},
       {"Photo (Maximum)", make_preset(Mode::Color, 256, 128, 80, 50, 4, Method::Overlapping, false, 2)},
@@ -454,6 +462,7 @@ QByteArray serialize_image_trace_user_presets(const std::vector<ImageTraceUserPr
     object.insert(QStringLiteral("corners"), preset.options.corners);
     object.insert(QStringLiteral("noise"), preset.options.noise);
     object.insert(QStringLiteral("smoothing"), preset.options.smoothing);
+    object.insert(QStringLiteral("mergeColors"), preset.options.merge_colors);
     object.insert(QStringLiteral("maxAnchors"), preset.options.max_anchors);
     object.insert(QStringLiteral("method"), static_cast<int>(preset.options.method));
     object.insert(QStringLiteral("snapCurvesToLines"), preset.options.snap_curves_to_lines);
@@ -498,6 +507,7 @@ std::vector<ImageTraceUserPreset> deserialize_image_trace_user_presets(const QBy
     options.corners = read_int("corners", options.corners, 0, 100);
     options.noise = read_int("noise", options.noise, 1, 100);
     options.smoothing = read_int("smoothing", options.smoothing, 0, ImageTraceOptions::kMaxSmoothing);
+    options.merge_colors = read_int("mergeColors", options.merge_colors, 0, 100);
     options.max_anchors = read_int("maxAnchors", options.max_anchors, 0, kMaxAnchorsSpinLimit);
     options.method = static_cast<Method>(read_int("method", static_cast<int>(options.method), 0, 1));
     options.snap_curves_to_lines =
@@ -639,6 +649,14 @@ std::optional<ImageTraceDialogResult> request_image_trace(QWidget* parent, std::
   smoothing_spin->parentWidget()->setToolTip(
       QObject::tr("Blurs away grain and compression noise before colors are chosen"));
 
+  auto* merge_colors_spin = add_dialog_slider_spin_row(
+      form, &dialog, QObject::tr("Merge colors:"), QStringLiteral("imageTraceMergeColorsSlider"),
+      QStringLiteral("imageTraceMergeColorsSpin"), 0, 100, initial.merge_colors);
+  merge_colors_spin->setSpecialValueText(QObject::tr("Off"));
+  merge_colors_spin->parentWidget()->setToolTip(
+      QObject::tr("Merges traced colors that are nearly identical, so flat areas stay clean; higher values merge "
+                  "colors that are further apart"));
+
   auto* max_anchors_spin = add_dialog_slider_spin_row(
       form, &dialog, QObject::tr("Max anchors:"), QStringLiteral("imageTraceMaxAnchorsSlider"),
       QStringLiteral("imageTraceMaxAnchorsSpin"), 0, kMaxAnchorsSpinLimit, initial.max_anchors);
@@ -755,6 +773,7 @@ std::optional<ImageTraceDialogResult> request_image_trace(QWidget* parent, std::
     options.corners = corners_spin->value();
     options.noise = noise_spin->value();
     options.smoothing = smoothing_spin->value();
+    options.merge_colors = merge_colors_spin->value();
     options.max_anchors = max_anchors_spin->value();
     options.method = static_cast<Method>(method_combo->currentData().toInt());
     options.snap_curves_to_lines = snap_check->isChecked();
@@ -766,6 +785,7 @@ std::optional<ImageTraceDialogResult> request_image_trace(QWidget* parent, std::
     const bool black_and_white = mode == Mode::BlackAndWhite;
     colors_label->setText(mode == Mode::Grayscale ? QObject::tr("Grays:") : QObject::tr("Colors:"));
     colors_spin->parentWidget()->setEnabled(!black_and_white);
+    merge_colors_spin->parentWidget()->setEnabled(!black_and_white);
     threshold_spin->parentWidget()->setEnabled(black_and_white);
   };
   const auto write_options = [&](const ImageTraceOptions& options) {
@@ -777,6 +797,7 @@ std::optional<ImageTraceDialogResult> request_image_trace(QWidget* parent, std::
     corners_spin->setValue(std::clamp(options.corners, 0, 100));
     noise_spin->setValue(std::clamp(options.noise, 1, 100));
     smoothing_spin->setValue(std::clamp(options.smoothing, 0, ImageTraceOptions::kMaxSmoothing));
+    merge_colors_spin->setValue(std::clamp(options.merge_colors, 0, 100));
     max_anchors_spin->setValue(std::clamp(options.max_anchors, 0, kMaxAnchorsSpinLimit));
     method_combo->setCurrentIndex(std::max(0, method_combo->findData(static_cast<int>(options.method))));
     snap_check->setChecked(options.snap_curves_to_lines);
@@ -923,7 +944,7 @@ std::optional<ImageTraceDialogResult> request_image_trace(QWidget* parent, std::
   QObject::connect(mode_combo, &QComboBox::currentIndexChanged, &dialog, [&](int) { on_control_changed(); });
   QObject::connect(method_combo, &QComboBox::currentIndexChanged, &dialog, [&](int) { on_control_changed(); });
   for (auto* spin : {colors_spin, threshold_spin, paths_spin, corners_spin, noise_spin, smoothing_spin,
-                     max_anchors_spin}) {
+                     merge_colors_spin, max_anchors_spin}) {
     QObject::connect(spin, &QSpinBox::valueChanged, &dialog, [&](int) { on_control_changed(); });
   }
   for (auto* check : {snap_check, ignore_white_check}) {

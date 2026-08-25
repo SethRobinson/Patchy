@@ -14648,6 +14648,8 @@ Clipped to the layer below</source>
     <message><source>Show anchors</source><translation>アンカーを表示</translation></message>
     <message><source>Mark the anchor points of the traced paths on the preview</source><translation>トレースしたパスのアンカーポイントをプレビュー上に表示します</translation></message>
     <message><source>Pick colors from the whole layer</source><translation>レイヤー全体からカラーを選ぶ</translation></message>
+    <message><source>Merge colors:</source><translation>カラーを結合:</translation></message>
+    <message><source>Merges traced colors that are nearly identical, so flat areas stay clean; higher values merge colors that are further apart</source><translation>ほぼ同じカラーを結合して平坦な領域をきれいに保ちます。値を上げるとより離れたカラーも結合されます</translation></message>
     <message><source>Choose the traced colors from every pixel of the layer, so the selection traces with the same colors as the whole layer. Turn off to choose colors only from the selected pixels.</source><translation>レイヤー全体のピクセルからトレースするカラーを選ぶため、選択範囲もレイヤー全体と同じカラーでトレースされます。オフにすると選択範囲内のピクセルだけからカラーを選びます。</translation></message>
     <message><source>Large result: editing will be slower and exported SVG files will be large. Lower Paths, raise Noise, or set Max anchors to simplify.</source><translation>結果が大きすぎます: 編集が遅くなり、書き出すSVGファイルも大きくなります。「パス」を下げるか「ノイズ」を上げるか「最大アンカー数」を設定して単純化してください。</translation></message>
     <message><source>Save Trace Preset</source><translation>トレースプリセットを保存</translation></message>

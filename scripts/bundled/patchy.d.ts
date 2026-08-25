@@ -157,6 +157,12 @@ interface PatchyTraceOptions {
   smoothing?: number;
   /** Anchor budget: curve fitting loosens until the result fits; 0 = unlimited (default). */
   maxAnchors?: number;
+  /**
+   * Merge traced colors within this per-channel difference into one (0..100,
+   * default 0 = off). Keeps flat areas clean when the image has fewer
+   * distinct colors than requested.
+   */
+  mergeColors?: number;
   /** "abutting" (exact cutouts, default) or "overlapping" (stacked, no holes). */
   method?: "abutting" | "overlapping";
   /** Replace nearly straight curves with straight segments (default false). */

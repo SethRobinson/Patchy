@@ -399,6 +399,52 @@ std::vector<std::int32_t> assign_colors_exact(const std::vector<PaletteColorCoun
   return nearest;
 }
 
+// Greedy agglomerative merge of near-duplicate palette entries (Merge
+// colors): while the closest pair sits within `max_distance`
+// (weighted_color_distance), it collapses into its population-weighted mean.
+// Deterministic: closest pair first, the lowest index pair wins ties, and the
+// merged entry keeps the lower index. Near-duplicate entries add no visible
+// color, only grain speckle, so asking for more colors than the image
+// distinctly has degrades to fewer clean layers.
+void merge_similar_palette(std::vector<RgbColor>& palette, std::vector<std::uint64_t>& populations,
+                           std::uint32_t max_distance) {
+  if (max_distance == 0) {
+    return;
+  }
+  while (palette.size() > 1) {
+    std::size_t best_a = 0;
+    std::size_t best_b = 0;
+    auto best_distance = std::numeric_limits<std::uint32_t>::max();
+    for (std::size_t a = 0; a + 1 < palette.size(); ++a) {
+      for (std::size_t b = a + 1; b < palette.size(); ++b) {
+        const auto distance = weighted_color_distance(palette[a], palette[b]);
+        if (distance < best_distance) {
+          best_distance = distance;
+          best_a = a;
+          best_b = b;
+        }
+      }
+    }
+    if (best_distance > max_distance) {
+      break;
+    }
+    const auto population_a = populations[best_a];
+    const auto population_b = populations[best_b];
+    const auto total = population_a + population_b;
+    if (total > 0) {
+      const auto mix = [&](std::uint8_t a, std::uint8_t b) {
+        return static_cast<std::uint8_t>((population_a * a + population_b * b + total / 2) / total);
+      };
+      palette[best_a] = RgbColor{mix(palette[best_a].red, palette[best_b].red),
+                                 mix(palette[best_a].green, palette[best_b].green),
+                                 mix(palette[best_a].blue, palette[best_b].blue)};
+    }
+    populations[best_a] = total;
+    palette.erase(palette.begin() + static_cast<std::ptrdiff_t>(best_b));
+    populations.erase(populations.begin() + static_cast<std::ptrdiff_t>(best_b));
+  }
+}
+
 // `palette_source` (already normalized and smoothed like `pixels`, or null)
 // feeds the Grayscale histogram and the Color palette counts, so the palette
 // can come from the whole layer while `pixels` is a selection-masked copy.
@@ -465,6 +511,25 @@ LabelMap build_label_map(const PixelBuffer& pixels, const ImageTraceOptions& opt
       }
       if (map.palette.empty()) {
         break;
+      }
+      if (const auto merge_distance = image_trace_merge_distance(options.merge_colors);
+          merge_distance > 0 && map.palette.size() > 1) {
+        // Level populations under the same nearest-gray-lowest-index rule the
+        // assignment below uses; merged gray means stay gray.
+        std::vector<std::uint64_t> populations(map.palette.size(), 0);
+        for (int value = 0; value < 256; ++value) {
+          std::size_t best = 0;
+          int best_distance = std::numeric_limits<int>::max();
+          for (std::size_t i = 0; i < map.palette.size(); ++i) {
+            const int distance = std::abs(value - static_cast<int>(map.palette[i].red));
+            if (distance < best_distance) {
+              best_distance = distance;
+              best = i;
+            }
+          }
+          populations[best] += histogram[static_cast<std::size_t>(value)];
+        }
+        merge_similar_palette(map.palette, populations, merge_distance);
       }
       // Nearest gray per value; the lowest index wins ties.
       std::array<std::int32_t, 256> nearest{};
@@ -543,6 +608,20 @@ LabelMap build_label_map(const PixelBuffer& pixels, const ImageTraceOptions& opt
       }
       if (map.palette.empty() || is_cancelled()) {
         break;
+      }
+      if (const auto merge_distance = image_trace_merge_distance(options.merge_colors);
+          merge_distance > 0 && map.palette.size() > 1) {
+        // Entry populations from the palette counts (the palette's own
+        // scope), under the exact-assignment tie-break rule.
+        const auto nearest_entries = assign_colors_exact(*palette_counts, map.palette, is_cancelled, max_workers);
+        if (is_cancelled()) {
+          break;
+        }
+        std::vector<std::uint64_t> populations(map.palette.size(), 0);
+        for (std::size_t i = 0; i < palette_counts->size(); ++i) {
+          populations[static_cast<std::size_t>(nearest_entries[i])] += (*palette_counts)[i].count;
+        }
+        merge_similar_palette(map.palette, populations, merge_distance);
       }
       const auto nearest = assign_colors_exact(counts, map.palette, is_cancelled, max_workers);
       if (is_cancelled()) {
@@ -1135,6 +1214,13 @@ double image_trace_fit_tolerance(int paths) noexcept {
 
 double image_trace_corner_angle(int corners) noexcept {
   return 120.0 - 0.9 * std::clamp(corners, 0, 100);
+}
+
+std::uint32_t image_trace_merge_distance(int merge_colors) noexcept {
+  // A uniform per-channel difference d scores 2d^2 + 4d^2 + 3d^2 = 9d^2 under
+  // weighted_color_distance.
+  const auto d = static_cast<std::uint32_t>(std::clamp(merge_colors, 0, 100));
+  return 9U * d * d;
 }
 
 ImageTraceResult trace_image(const PixelBuffer& pixels, const ImageTraceOptions& options,

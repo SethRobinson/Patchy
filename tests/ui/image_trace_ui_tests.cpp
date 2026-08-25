@@ -321,6 +321,7 @@ void ui_image_trace_user_presets_round_trip() {
   first.options.corners = 40;
   first.options.noise = 12;
   first.options.smoothing = 3;
+  first.options.merge_colors = 12;
   first.options.max_anchors = 2500;
   first.options.method = patchy::ImageTraceOptions::Method::Overlapping;
   first.options.snap_curves_to_lines = true;
@@ -343,11 +344,13 @@ void ui_image_trace_user_presets_round_trip() {
   // Presets saved before the smoothing/budget options load with the defaults,
   // and hand-edited out-of-range values clamp.
   CHECK(partial[0].options.smoothing == 0 && partial[0].options.max_anchors == 0);
+  CHECK(partial[0].options.merge_colors == 0);
   const auto clamped = patchy::ui::deserialize_image_trace_user_presets(
-      QByteArray("[{\"name\":\"Wild\",\"smoothing\":99,\"maxAnchors\":-5}]"));
+      QByteArray("[{\"name\":\"Wild\",\"smoothing\":99,\"maxAnchors\":-5,\"mergeColors\":999}]"));
   CHECK(clamped.size() == 1);
   CHECK(clamped[0].options.smoothing == patchy::ImageTraceOptions::kMaxSmoothing);
   CHECK(clamped[0].options.max_anchors == 0);
+  CHECK(clamped[0].options.merge_colors == 100);
   CHECK(patchy::ui::deserialize_image_trace_user_presets(QByteArray("not json")).empty());
 
   auto settings = patchy::ui::app_settings();
@@ -728,10 +731,13 @@ void ui_image_trace_dialog_offers_smoothing_and_anchor_budget() {
       auto* smoothing_slider = dialog->findChild<QSlider*>(QStringLiteral("imageTraceSmoothingSlider"));
       auto* max_anchors = dialog->findChild<QSpinBox*>(QStringLiteral("imageTraceMaxAnchorsSpin"));
       auto* max_anchors_slider = dialog->findChild<QSlider*>(QStringLiteral("imageTraceMaxAnchorsSlider"));
+      auto* merge = dialog->findChild<QSpinBox*>(QStringLiteral("imageTraceMergeColorsSpin"));
+      auto* merge_slider = dialog->findChild<QSlider*>(QStringLiteral("imageTraceMergeColorsSlider"));
       auto* mode = dialog->findChild<QComboBox*>(QStringLiteral("imageTraceModeCombo"));
       auto* preset = dialog->findChild<QComboBox*>(QStringLiteral("imageTracePresetCombo"));
       CHECK(colors != nullptr && smoothing != nullptr && smoothing_slider != nullptr && max_anchors != nullptr &&
-            max_anchors_slider != nullptr && mode != nullptr && preset != nullptr);
+            max_anchors_slider != nullptr && merge != nullptr && merge_slider != nullptr && mode != nullptr &&
+            preset != nullptr);
       // The color range follows the raised core cap.
       CHECK(colors->maximum() == 256);
       CHECK(colors->maximum() == patchy::ImageTraceOptions::kMaxColors);
@@ -746,15 +752,23 @@ void ui_image_trace_dialog_offers_smoothing_and_anchor_budget() {
       CHECK(smoothing->value() == 5);
       max_anchors->setValue(4000);
       CHECK(max_anchors_slider->value() == 4000);
+      // Merge colors: 0..100, 0 renders as Off, slider mirrored.
+      CHECK(merge->minimum() == 0 && merge->maximum() == 100);
+      CHECK(!merge->specialValueText().isEmpty());
+      merge->setValue(12);
+      CHECK(merge_slider->value() == 12);
       // Hand-edited settings show as the Custom preset.
       CHECK(preset->currentIndex() == 0);
-      // Both rows stay enabled in every mode.
+      // Smoothing and the budget stay enabled in every mode; Merge colors
+      // follows the palette rows (no palette in Black and White).
       for (const int mode_value : {0, 1, 2}) {
         mode->setCurrentIndex(mode->findData(mode_value));
         CHECK(smoothing->parentWidget()->isEnabled());
         CHECK(max_anchors->parentWidget()->isEnabled());
+        CHECK(merge->parentWidget()->isEnabled() == (mode_value != 2));
       }
-      // The Photo (Maximum) preset writes the full palette and light denoise.
+      // The Photo (Maximum) preset writes the full palette and light denoise
+      // and keeps Merge colors off (gradient steps are deliberate).
       const auto photo_maximum = preset->findText(QStringLiteral("Photo (Maximum)"));
       CHECK(photo_maximum > 0);
       preset->setCurrentIndex(photo_maximum);
@@ -762,6 +776,14 @@ void ui_image_trace_dialog_offers_smoothing_and_anchor_budget() {
       CHECK(colors->value() == 256);
       CHECK(smoothing->value() == 2);
       CHECK(max_anchors->value() == 0);
+      CHECK(merge->value() == 0);
+      // The flat-art presets carry the near-duplicate merge.
+      const auto three_colors = preset->findText(QStringLiteral("3 Colors"));
+      CHECK(three_colors > 0);
+      preset->setCurrentIndex(three_colors);
+      emit preset->activated(three_colors);
+      CHECK(colors->value() == 3);
+      CHECK(merge->value() == 15);
       save_widget_artifact("ui_image_trace_dialog_budget", *dialog);
       auto* buttons = dialog->findChild<QDialogButtonBox*>(QStringLiteral("imageTraceButtons"));
       CHECK(buttons != nullptr);
@@ -780,6 +802,7 @@ void ui_image_trace_new_options_persist_in_settings() {
   {
     auto settings = patchy::ui::app_settings();
     settings.remove(QStringLiteral("imageTrace/smoothing"));
+    settings.remove(QStringLiteral("imageTrace/mergeColors"));
     settings.remove(QStringLiteral("imageTrace/maxAnchors"));
   }
   patchy::ui::MainWindow window;
@@ -800,9 +823,11 @@ void ui_image_trace_new_options_persist_in_settings() {
       drove = true;
       auto* info = dialog->findChild<QLabel*>(QStringLiteral("imageTracePreviewInfo"));
       auto* smoothing = dialog->findChild<QSpinBox*>(QStringLiteral("imageTraceSmoothingSpin"));
+      auto* merge = dialog->findChild<QSpinBox*>(QStringLiteral("imageTraceMergeColorsSpin"));
       auto* max_anchors = dialog->findChild<QSpinBox*>(QStringLiteral("imageTraceMaxAnchorsSpin"));
-      CHECK(info != nullptr && smoothing != nullptr && max_anchors != nullptr);
+      CHECK(info != nullptr && smoothing != nullptr && merge != nullptr && max_anchors != nullptr);
       smoothing->setValue(2);
+      merge->setValue(7);
       max_anchors->setValue(5000);
       (void)process_events_until([&] { return info->text().contains(QStringLiteral("shape layer")); }, 15000);
       auto* buttons = dialog->findChild<QDialogButtonBox*>(QStringLiteral("imageTraceButtons"));
@@ -818,6 +843,7 @@ void ui_image_trace_new_options_persist_in_settings() {
   CHECK(drove);
   // The exact key spellings are persisted identifiers.
   CHECK(patchy::ui::app_settings().value(QStringLiteral("imageTrace/smoothing")).toInt() == 2);
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("imageTrace/mergeColors")).toInt() == 7);
   CHECK(patchy::ui::app_settings().value(QStringLiteral("imageTrace/maxAnchors")).toInt() == 5000);
 
   // Reopening seeds the dialog from the saved values.
@@ -833,9 +859,10 @@ void ui_image_trace_new_options_persist_in_settings() {
         return;
       }
       auto* smoothing = dialog->findChild<QSpinBox*>(QStringLiteral("imageTraceSmoothingSpin"));
+      auto* merge = dialog->findChild<QSpinBox*>(QStringLiteral("imageTraceMergeColorsSpin"));
       auto* max_anchors = dialog->findChild<QSpinBox*>(QStringLiteral("imageTraceMaxAnchorsSpin"));
-      restored = smoothing != nullptr && smoothing->value() == 2 && max_anchors != nullptr &&
-                 max_anchors->value() == 5000;
+      restored = smoothing != nullptr && smoothing->value() == 2 && merge != nullptr && merge->value() == 7 &&
+                 max_anchors != nullptr && max_anchors->value() == 5000;
       auto* buttons = dialog->findChild<QDialogButtonBox*>(QStringLiteral("imageTraceButtons"));
       if (buttons != nullptr) {
         buttons->button(QDialogButtonBox::Cancel)->click();
@@ -848,6 +875,7 @@ void ui_image_trace_new_options_persist_in_settings() {
   CHECK(restored);
   auto settings = patchy::ui::app_settings();
   settings.remove(QStringLiteral("imageTrace/smoothing"));
+  settings.remove(QStringLiteral("imageTrace/mergeColors"));
   settings.remove(QStringLiteral("imageTrace/maxAnchors"));
 }
 
@@ -1068,6 +1096,11 @@ void ui_script_trace_to_shapes_palette_from_layer_option() {
     names = [];
     for (var i = 0; i < scoped.children.length; ++i) { names.push(scoped.children[i].name); }
     console.log('scoped:' + names.sort().join(','));
+    var merged = layer.traceToShapes({mode: 'color', colors: 3, noise: 1, paletteFromLayer: false,
+                                      mergeColors: 2});
+    names = [];
+    for (var i = 0; i < merged.children.length; ++i) { names.push(merged.children[i].name); }
+    console.log('merged:' + names.sort().join(','));
   )JS"),
                          std::move(options));
   QElapsedTimer timer;
@@ -1080,6 +1113,7 @@ void ui_script_trace_to_shapes_palette_from_layer_option() {
   CHECK(!host.last_run_had_error());
   bool saw_whole = false;
   bool saw_scoped = false;
+  bool saw_merged = false;
   for (const auto& line : host.message_backlog()) {
     // Whole-layer colors (the default): the grain merges into one red layer.
     saw_whole =
@@ -1088,9 +1122,13 @@ void ui_script_trace_to_shapes_palette_from_layer_option() {
     // gets its own entry.
     saw_scoped =
         saw_scoped || (line.contains(QStringLiteral("scoped:")) && line.contains(QStringLiteral("#E01E1E")));
+    // mergeColors collapses the near-duplicate entries into their weighted
+    // mean ((220 + 224) / 2 with equal checkerboard populations).
+    saw_merged = saw_merged || line.contains(QStringLiteral("merged:#DE1E1E"));
   }
   CHECK(saw_whole);
   CHECK(saw_scoped);
+  CHECK(saw_merged);
 }
 
 }  // namespace
