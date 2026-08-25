@@ -10,6 +10,7 @@
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QDoubleSpinBox>
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
@@ -24,6 +25,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <vector>
 
 namespace patchy::ui {
@@ -244,6 +246,8 @@ ImageSaveOptions load_image_save_option_defaults() {
   options.pdf_missing_fonts_as_images =
       settings.value(QStringLiteral("saveOptions/pdfMissingFontsAsImages"), options.pdf_missing_fonts_as_images)
           .toBool();
+  options.gif_frame_delay_cs = std::clamp(
+      settings.value(QStringLiteral("saveOptions/gifFrameDelayCs"), options.gif_frame_delay_cs).toInt(), 0, 0xffff);
   return options;
 }
 
@@ -266,6 +270,7 @@ void save_image_save_option_defaults(const ImageSaveOptions& options) {
   settings.setValue(QStringLiteral("saveOptions/icoResample"), ico_resample_key(options.ico_resample));
   settings.setValue(QStringLiteral("saveOptions/pdfLossless"), options.pdf_lossless);
   settings.setValue(QStringLiteral("saveOptions/pdfMissingFontsAsImages"), options.pdf_missing_fonts_as_images);
+  settings.setValue(QStringLiteral("saveOptions/gifFrameDelayCs"), std::clamp(options.gif_frame_delay_cs, 0, 0xffff));
 }
 
 std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const QString& extension,
@@ -659,6 +664,99 @@ std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const
     return options;
   }
 
+  return options;
+}
+
+std::optional<ImageSaveOptions> prompt_gif_save_options(QWidget* parent, ImageSaveOptions options,
+                                                        bool offer_flatten_choice, bool for_export,
+                                                        bool has_visible_frames) {
+  options.export_scale = 1;
+  QDialog dialog(parent);
+  dialog.setObjectName(QStringLiteral("gifSaveOptionsDialog"));
+  auto* content = create_options_dialog_chrome(
+      dialog, offer_flatten_choice ? QObject::tr("GIF Options") : QObject::tr("Animated GIF Options"));
+  dialog.resize(380, offer_flatten_choice ? 280 : 230);
+  auto* scale_combo = for_export ? add_export_scale_row(content, dialog) : nullptr;
+
+  QRadioButton* animation_radio = nullptr;
+  QRadioButton* flatten_radio = nullptr;
+  if (offer_flatten_choice) {
+    animation_radio = new QRadioButton(QObject::tr("Animation from visible layers"), &dialog);
+    animation_radio->setObjectName(QStringLiteral("gifAnimationRadio"));
+    flatten_radio = new QRadioButton(QObject::tr("Single flattened image"), &dialog);
+    flatten_radio->setObjectName(QStringLiteral("gifFlattenRadio"));
+    auto* mode_group = new QButtonGroup(&dialog);
+    mode_group->addButton(animation_radio);
+    mode_group->addButton(flatten_radio);
+    // Animation is the remembered default: an opened animated GIF re-saves as an
+    // animation without extra choices.
+    const auto stored_mode =
+        app_settings().value(QStringLiteral("saveOptions/gifSaveMode"), QStringLiteral("animation")).toString();
+    const bool animate = has_visible_frames && stored_mode != QStringLiteral("flatten");
+    animation_radio->setChecked(animate);
+    flatten_radio->setChecked(!animate);
+    animation_radio->setEnabled(has_visible_frames);
+    content->addWidget(animation_radio);
+    content->addWidget(flatten_radio);
+  }
+
+  auto* delay_row = new QWidget(&dialog);
+  auto* delay_layout = new QHBoxLayout(delay_row);
+  delay_layout->setContentsMargins(0, 0, 0, 0);
+  delay_layout->setSpacing(10);
+  auto* delay_label = new QLabel(QObject::tr("Frame delay:"), delay_row);
+  auto* delay_spin = new QDoubleSpinBox(delay_row);
+  delay_spin->setObjectName(QStringLiteral("gifFrameDelaySpin"));
+  delay_spin->setSuffix(QObject::tr(" s"));
+  delay_spin->setRange(0.0, 655.35);  // the u16 centisecond wire range
+  delay_spin->setDecimals(2);
+  delay_spin->setSingleStep(0.05);
+  delay_spin->setValue(std::clamp(options.gif_frame_delay_cs, 0, 0xffff) / 100.0);
+  configure_dialog_spinbox(delay_spin, 96);
+  delay_layout->addWidget(delay_label);
+  delay_layout->addWidget(delay_spin);
+  delay_layout->addStretch(1);
+  content->addWidget(delay_row);
+
+  auto* explanation = new QLabel(
+      QObject::tr("Each visible top-level layer becomes one frame, with the top layer first. Hidden layers "
+                  "are skipped. A layer name ending in a time, like \"blink 0.25s\", overrides the default "
+                  "delay for that frame. The animation loops forever."),
+      &dialog);
+  explanation->setObjectName(QStringLiteral("gifAnimationExplanationLabel"));
+  explanation->setWordWrap(true);
+  content->addWidget(explanation);
+  add_dialog_buttons(content, dialog);
+
+  const auto sync_animation_controls = [delay_row, explanation, animation_radio] {
+    const bool animate = animation_radio == nullptr || animation_radio->isChecked();
+    delay_row->setEnabled(animate);
+    explanation->setEnabled(animate);
+  };
+  if (animation_radio != nullptr) {
+    QObject::connect(animation_radio, &QRadioButton::toggled, &dialog, sync_animation_controls);
+  }
+  sync_animation_controls();
+
+  if (exec_dialog(dialog) != QDialog::Accepted) {
+    return std::nullopt;
+  }
+  options.gif_animate = animation_radio == nullptr || animation_radio->isChecked();
+  options.gif_frame_delay_cs =
+      static_cast<int>(std::clamp<long long>(std::llround(delay_spin->value() * 100.0), 0, 0xffff));
+  auto settings = app_settings();
+  settings.setValue(QStringLiteral("saveOptions/gifFrameDelayCs"), options.gif_frame_delay_cs);
+  if (offer_flatten_choice && has_visible_frames) {
+    // Only the Save As / Export form remembers the mode, and only when the choice was
+    // real: the Export Layers as Animated GIF action is always an animation, and a
+    // forced flatten (nothing visible) is not the user's preference.
+    settings.setValue(QStringLiteral("saveOptions/gifSaveMode"),
+                      options.gif_animate ? QStringLiteral("animation") : QStringLiteral("flatten"));
+  }
+  if (scale_combo != nullptr) {
+    options.export_scale = scale_combo->currentData().toInt();
+    persist_export_scale(options.export_scale);
+  }
   return options;
 }
 

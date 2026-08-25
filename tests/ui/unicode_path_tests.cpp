@@ -33,6 +33,7 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QImage>
+#include <QImageReader>
 #include <QLineEdit>
 #include <QMenu>
 #include <QStringList>
@@ -129,6 +130,22 @@ void ui_unicode_write_flat_image_file_every_extension() {
     expected << name;
     CHECK(QFileInfo(path).isFile());
     CHECK(QFileInfo(path).size() > 0);
+  }
+  // The animated GIF writer is its own file-writing entry point, so it gets the same
+  // Unicode-path coverage: two layers, two frames, reread through Qt.
+  {
+    auto animated = small_document();
+    QImage top(8, 6, QImage::Format_RGBA8888);
+    top.fill(QColor(220, 40, 40, 255));
+    animated.add_pixel_layer("Frame 2 0.2s", patchy::ui::pixels_from_image_rgba(top));
+    const auto name = q(kUnicodeCombinedStem) + QStringLiteral(".anim.gif");
+    const auto path = dir + QLatin1Char('/') + name;
+    patchy::ui::ImageSaveOptions options;
+    options.gif_animate = true;
+    patchy::ui::write_flat_image_file(animated, path, QStringLiteral("gif"), options);
+    expected << name;
+    QImageReader reader(path);
+    CHECK(reader.imageCount() == 2);
   }
   check_dir_holds_only(dir, expected);
 

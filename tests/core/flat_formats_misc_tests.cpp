@@ -485,81 +485,30 @@ void tga_reads_real_world_samples() {
 
 // Minimal spec-compliant GIF parser + LZW decoder used ONLY to validate Patchy's encoder
 // with no external dependencies (Qt's qgif and Pillow provide the real-world checks).
-struct DecodedGif {
-  std::int32_t width{0};
-  std::int32_t height{0};
-  std::vector<patchy::RgbColor> palette;
+// Parses a full frame sequence (GCE delay/disposal/transparency, local color tables,
+// NETSCAPE loop extension); the legacy top-level fields mirror frame 0 plus the global
+// table so single-frame tests read them directly.
+struct DecodedGifFrame {
+  std::vector<patchy::RgbColor> palette;  // the local table when present, else the global
+  bool has_local_table{false};
   int transparent_index{-1};
+  int delay_cs{0};
+  int disposal{0};
   std::vector<std::uint8_t> indexes;
 };
 
-DecodedGif reference_decode_gif(std::span<const std::uint8_t> bytes) {
-  DecodedGif result;
-  std::size_t pos = 0;
-  const auto u8 = [&] { return bytes[pos++]; };
-  const auto u16 = [&] {
-    const auto value = static_cast<std::uint16_t>(bytes[pos] | (bytes[pos + 1] << 8U));
-    pos += 2;
-    return value;
-  };
-  CHECK(bytes.size() > 13);
-  CHECK(std::equal(bytes.begin(), bytes.begin() + 6, reinterpret_cast<const std::uint8_t*>("GIF89a")));
-  pos = 6;
-  result.width = u16();
-  result.height = u16();
-  const auto packed = u8();
-  u8();  // background index
-  u8();  // aspect
-  CHECK((packed & 0x80U) != 0);
-  const auto table_entries = std::size_t{1} << ((packed & 0x07U) + 1U);
-  for (std::size_t i = 0; i < table_entries; ++i) {
-    const auto r = u8();
-    const auto g = u8();
-    const auto b = u8();
-    result.palette.push_back(patchy::RgbColor{r, g, b});
-  }
+struct DecodedGif {
+  std::int32_t width{0};
+  std::int32_t height{0};
+  std::vector<patchy::RgbColor> palette;  // the global color table (padded entries included)
+  int transparent_index{-1};
+  std::vector<std::uint8_t> indexes;
+  std::vector<DecodedGifFrame> frames;
+  bool loop_forever{false};
+};
 
-  std::vector<std::uint8_t> data;
-  int min_code_size = 0;
-  while (pos < bytes.size()) {
-    const auto block = u8();
-    if (block == 0x3b) {
-      break;
-    }
-    if (block == 0x21) {
-      const auto label = u8();
-      if (label == 0xf9) {
-        const auto size = u8();
-        CHECK(size == 4);
-        const auto gce_packed = u8();
-        u16();  // delay
-        const auto transparent = u8();
-        if ((gce_packed & 0x01U) != 0) {
-          result.transparent_index = transparent;
-        }
-        CHECK(u8() == 0);
-      } else {
-        for (auto size = u8(); size != 0; size = u8()) {
-          pos += size;
-        }
-      }
-      continue;
-    }
-    CHECK(block == 0x2c);
-    u16();
-    u16();
-    CHECK(u16() == result.width);
-    CHECK(u16() == result.height);
-    CHECK(u8() == 0);  // no local table, not interlaced
-    min_code_size = u8();
-    for (auto size = u8(); size != 0; size = u8()) {
-      data.insert(data.end(), bytes.begin() + static_cast<std::ptrdiff_t>(pos),
-                  bytes.begin() + static_cast<std::ptrdiff_t>(pos + size));
-      pos += size;
-    }
-  }
-
-  // LZW decode.
+std::vector<std::uint8_t> reference_decode_gif_lzw(std::span<const std::uint8_t> data, int min_code_size) {
+  std::vector<std::uint8_t> indexes;
   const auto clear_code = 1U << min_code_size;
   const auto end_code = clear_code + 1U;
   std::array<std::uint16_t, 4096> prefix{};
@@ -607,19 +556,19 @@ DecodedGif reference_decode_gif(std::span<const std::uint8_t> bytes) {
     }
     if (prev < 0) {
       CHECK(code < clear_code);
-      result.indexes.push_back(static_cast<std::uint8_t>(code));
+      indexes.push_back(static_cast<std::uint8_t>(code));
       prev = static_cast<std::int64_t>(code);
       continue;
     }
     if (code < next) {
-      expand(code, result.indexes);
+      expand(code, indexes);
       prefix[next] = static_cast<std::uint16_t>(prev);
       suffix[next] = first_symbol(code);
     } else {
       CHECK(code == next);
       prefix[next] = static_cast<std::uint16_t>(prev);
       suffix[next] = first_symbol(static_cast<std::uint32_t>(prev));
-      expand(code, result.indexes);
+      expand(code, indexes);
     }
     ++next;
     if (next == (1U << width_bits) && width_bits < 12) {
@@ -627,6 +576,114 @@ DecodedGif reference_decode_gif(std::span<const std::uint8_t> bytes) {
     }
     prev = static_cast<std::int64_t>(code);
   }
+  return indexes;
+}
+
+DecodedGif reference_decode_gif(std::span<const std::uint8_t> bytes) {
+  DecodedGif result;
+  std::size_t pos = 0;
+  const auto u8 = [&] { return bytes[pos++]; };
+  const auto u16 = [&] {
+    const auto value = static_cast<std::uint16_t>(bytes[pos] | (bytes[pos + 1] << 8U));
+    pos += 2;
+    return value;
+  };
+  const auto read_color_table = [&](std::size_t entries) {
+    std::vector<patchy::RgbColor> table;
+    for (std::size_t i = 0; i < entries; ++i) {
+      const auto r = u8();
+      const auto g = u8();
+      const auto b = u8();
+      table.push_back(patchy::RgbColor{r, g, b});
+    }
+    return table;
+  };
+  CHECK(bytes.size() > 13);
+  CHECK(std::equal(bytes.begin(), bytes.begin() + 6, reinterpret_cast<const std::uint8_t*>("GIF89a")));
+  pos = 6;
+  result.width = u16();
+  result.height = u16();
+  const auto packed = u8();
+  u8();  // background index
+  u8();  // aspect
+  CHECK((packed & 0x80U) != 0);
+  result.palette = read_color_table(std::size_t{1} << ((packed & 0x07U) + 1U));
+
+  // GCE state applies to the next image descriptor only.
+  int pending_transparent = -1;
+  int pending_delay_cs = 0;
+  int pending_disposal = 0;
+  while (pos < bytes.size()) {
+    const auto block = u8();
+    if (block == 0x3b) {
+      break;
+    }
+    if (block == 0x21) {
+      const auto label = u8();
+      if (label == 0xf9) {
+        const auto size = u8();
+        CHECK(size == 4);
+        const auto gce_packed = u8();
+        pending_disposal = static_cast<int>((gce_packed >> 2U) & 0x07U);
+        pending_delay_cs = u16();
+        const auto transparent = u8();
+        if ((gce_packed & 0x01U) != 0) {
+          pending_transparent = transparent;
+        }
+        CHECK(u8() == 0);
+      } else if (label == 0xff) {
+        const auto app_size = u8();
+        CHECK(app_size == 11);
+        const auto app_id_start = pos;
+        pos += app_size;
+        const bool netscape = std::equal(bytes.begin() + static_cast<std::ptrdiff_t>(app_id_start),
+                                         bytes.begin() + static_cast<std::ptrdiff_t>(app_id_start + app_size),
+                                         reinterpret_cast<const std::uint8_t*>("NETSCAPE2.0"));
+        for (auto size = u8(); size != 0; size = u8()) {
+          if (netscape && size == 3 && bytes[pos] == 1) {
+            const auto loop_count = static_cast<std::uint16_t>(bytes[pos + 1] | (bytes[pos + 2] << 8U));
+            result.loop_forever = loop_count == 0;
+          }
+          pos += size;
+        }
+      } else {
+        for (auto size = u8(); size != 0; size = u8()) {
+          pos += size;
+        }
+      }
+      continue;
+    }
+    CHECK(block == 0x2c);
+    CHECK(u16() == 0);  // left
+    CHECK(u16() == 0);  // top
+    CHECK(u16() == result.width);
+    CHECK(u16() == result.height);
+    const auto image_packed = u8();
+    CHECK((image_packed & 0x40U) == 0);  // not interlaced
+    DecodedGifFrame frame;
+    frame.has_local_table = (image_packed & 0x80U) != 0;
+    frame.palette = frame.has_local_table ? read_color_table(std::size_t{1} << ((image_packed & 0x07U) + 1U))
+                                          : result.palette;
+    frame.transparent_index = pending_transparent;
+    frame.delay_cs = pending_delay_cs;
+    frame.disposal = pending_disposal;
+    pending_transparent = -1;
+    pending_delay_cs = 0;
+    pending_disposal = 0;
+    const auto min_code_size = u8();
+    std::vector<std::uint8_t> data;
+    for (auto size = u8(); size != 0; size = u8()) {
+      data.insert(data.end(), bytes.begin() + static_cast<std::ptrdiff_t>(pos),
+                  bytes.begin() + static_cast<std::ptrdiff_t>(pos + size));
+      pos += size;
+    }
+    frame.indexes = reference_decode_gif_lzw(data, min_code_size);
+    result.frames.push_back(std::move(frame));
+  }
+
+  CHECK(!result.frames.empty());
+  result.transparent_index = result.frames.front().transparent_index;
+  result.indexes = result.frames.front().indexes;
   return result;
 }
 
@@ -722,6 +779,100 @@ void gif_document_write_quantizes_and_round_trips() {
   CHECK(c5.red == colors[5 % 3].red);
   CHECK(c5.green == colors[5 % 3].green);
   CHECK(c5.blue == colors[5 % 3].blue);
+}
+
+void gif_animation_encodes_frames_delays_and_loop() {
+  // Three frames with different palettes (frame 2 exercises the local color table path),
+  // transparency only on frame 3, and distinct delays.
+  const std::int32_t width = 9;
+  const std::int32_t height = 7;
+  const auto frame_indexes = [&](int seed) {
+    std::vector<std::uint8_t> indexes;
+    for (std::int32_t i = 0; i < width * height; ++i) {
+      indexes.push_back(static_cast<std::uint8_t>((i + seed) % 4));
+    }
+    return indexes;
+  };
+  std::vector<patchy::gif::GifFrame> frames(3);
+  frames[0].palette = {{0, 0, 0}, {255, 0, 0}, {0, 255, 0}, {0, 0, 255}};
+  frames[0].indexes = frame_indexes(0);
+  frames[0].delay_cs = 10;
+  frames[1].palette = {{10, 20, 30}, {40, 50, 60}, {70, 80, 90}, {100, 110, 120}, {130, 140, 150}};
+  frames[1].indexes = frame_indexes(1);
+  frames[1].delay_cs = 4;
+  frames[2].palette = {{200, 200, 200}, {150, 150, 150}, {0, 0, 0}, {255, 255, 0}};
+  frames[2].indexes = frame_indexes(2);
+  frames[2].transparent_index = 2;
+  frames[2].delay_cs = 25;
+
+  const auto bytes = patchy::gif::encode_animation(width, height, frames);
+  const auto decoded = reference_decode_gif(bytes);
+  CHECK(decoded.width == width);
+  CHECK(decoded.height == height);
+  CHECK(decoded.loop_forever);
+  CHECK(decoded.frames.size() == 3);
+  // The global table is frame 1's palette; frame 1 carries no local table, later frames do.
+  CHECK(!decoded.frames[0].has_local_table);
+  CHECK(decoded.frames[1].has_local_table);
+  CHECK(decoded.frames[2].has_local_table);
+  for (std::size_t frame = 0; frame < frames.size(); ++frame) {
+    const auto& expected = frames[frame];
+    const auto& actual = decoded.frames[frame];
+    CHECK(actual.indexes == expected.indexes);
+    CHECK(actual.delay_cs == expected.delay_cs);
+    CHECK(actual.disposal == 2);  // restore to background, so each frame displays alone
+    CHECK(actual.transparent_index == expected.transparent_index);
+    CHECK(actual.palette.size() >= expected.palette.size());
+    for (std::size_t i = 0; i < expected.palette.size(); ++i) {
+      CHECK(actual.palette[i].red == expected.palette[i].red);
+      CHECK(actual.palette[i].green == expected.palette[i].green);
+      CHECK(actual.palette[i].blue == expected.palette[i].blue);
+    }
+  }
+  for (std::size_t i = 0; i < frames[0].palette.size(); ++i) {
+    CHECK(decoded.palette[i].red == frames[0].palette[i].red);
+    CHECK(decoded.palette[i].green == frames[0].palette[i].green);
+    CHECK(decoded.palette[i].blue == frames[0].palette[i].blue);
+  }
+}
+
+void gif_layer_name_delay_token_round_trips() {
+  using patchy::gif::format_delay_seconds_token;
+  using patchy::gif::parse_layer_name_delay_cs;
+  // Accepted trailing tokens.
+  CHECK(parse_layer_name_delay_cs("blink 0.25s") == std::uint16_t{25});
+  CHECK(parse_layer_name_delay_cs("Frame 1 0.1s") == std::uint16_t{10});
+  CHECK(parse_layer_name_delay_cs("1s") == std::uint16_t{100});
+  CHECK(parse_layer_name_delay_cs("0s") == std::uint16_t{0});
+  CHECK(parse_layer_name_delay_cs(".5s") == std::uint16_t{50});
+  CHECK(parse_layer_name_delay_cs("walk cycle 2.s") == std::uint16_t{200});
+  CHECK(parse_layer_name_delay_cs("0.045s") == std::uint16_t{5});   // rounds half-up
+  CHECK(parse_layer_name_delay_cs("0.044s") == std::uint16_t{4});
+  CHECK(parse_layer_name_delay_cs("700s") == std::uint16_t{65535});  // clamps to the u16 wire range
+  CHECK(parse_layer_name_delay_cs("999999999999999999999s") == std::uint16_t{65535});
+  CHECK(parse_layer_name_delay_cs("stuff 0.4s  ") == std::uint16_t{40});  // trailing spaces trim
+  // Rejected names fall back to the dialog default.
+  CHECK(!parse_layer_name_delay_cs("blink").has_value());
+  CHECK(!parse_layer_name_delay_cs("0.25S").has_value());  // uppercase S is not a token
+  CHECK(!parse_layer_name_delay_cs("2.5.1s").has_value());
+  CHECK(!parse_layer_name_delay_cs("s").has_value());
+  CHECK(!parse_layer_name_delay_cs(".s").has_value());
+  CHECK(!parse_layer_name_delay_cs("12 s").has_value());  // the last token holds no digits
+  CHECK(!parse_layer_name_delay_cs("0,5s").has_value());
+  CHECK(!parse_layer_name_delay_cs("").has_value());
+  CHECK(!parse_layer_name_delay_cs("1e2s").has_value());
+
+  CHECK(format_delay_seconds_token(10) == "0.1s");
+  CHECK(format_delay_seconds_token(4) == "0.04s");
+  CHECK(format_delay_seconds_token(100) == "1s");
+  CHECK(format_delay_seconds_token(250) == "2.5s");
+  CHECK(format_delay_seconds_token(0) == "0s");
+  CHECK(format_delay_seconds_token(65535) == "655.35s");
+  // Every wire value formats to a token that parses back to itself.
+  for (std::uint32_t cs = 0; cs <= 65535; cs += 7) {
+    const auto token = "layer " + format_delay_seconds_token(static_cast<std::uint16_t>(cs));
+    CHECK(parse_layer_name_delay_cs(token) == static_cast<std::uint16_t>(cs));
+  }
 }
 
 void aseprite_imports_layers_groups_and_palette() {
@@ -1227,6 +1378,8 @@ std::vector<patchy::test::TestCase> flat_formats_misc_tests() {
       {"gif_lzw_round_trips_through_reference_decoder", gif_lzw_round_trips_through_reference_decoder},
       {"gif_encoder_bytes_are_stable", gif_encoder_bytes_are_stable},
       {"gif_document_write_quantizes_and_round_trips", gif_document_write_quantizes_and_round_trips},
+      {"gif_animation_encodes_frames_delays_and_loop", gif_animation_encodes_frames_delays_and_loop},
+      {"gif_layer_name_delay_token_round_trips", gif_layer_name_delay_token_round_trips},
       {"aseprite_imports_layers_groups_and_palette", aseprite_imports_layers_groups_and_palette},
       {"aseprite_indexed_transparent_index", aseprite_indexed_transparent_index},
       {"aseprite_rejects_adobe_swatch_ase", aseprite_rejects_adobe_swatch_ase},

@@ -53,6 +53,15 @@ struct ImageSaveOptions {
   // rescaling a save would silently mutate the file the session points at). Deliberately
   // not part of the persisted option defaults; the export dialog persists its own combo.
   int export_scale{1};
+  // GIF: write the visible top-level layers as a looping animation (top layer = frame 1)
+  // instead of one flattened image. Per save, like pdf_editable_layers: only the GIF
+  // options dialog and the Export Layers as Animated GIF action set it, so CLI/scripted
+  // saves and every non-dialog path keep writing today's single-frame bytes.
+  bool gif_animate{false};
+  // GIF animation: default per-frame delay in centiseconds (the wire unit); a trailing
+  // "0.25s" token in a layer name overrides it per frame. Persists as
+  // saveOptions/gifFrameDelayCs.
+  int gif_frame_delay_cs{10};
 };
 
 struct RenderedDocumentPatch {
@@ -132,6 +141,12 @@ struct LayerPixelsOverrideSpec {
 // (today: editable PDF), one line each, for the save/export status message.
 void write_flat_image_file(const Document& document, const QString& path, const QString& extension,
                            const ImageSaveOptions& options = {}, std::vector<std::string>* notices = nullptr);
+// Writes the visible top-level layers as a looping animated GIF, top layer = frame 1
+// (write_flat_image_file dispatches here when options.gif_animate). Each layer or group
+// renders through render_layer_isolated; a trailing "0.25s" layer-name token overrides
+// options.gif_frame_delay_cs; export_scale replicates each frame nearest-neighbor.
+// Throws when no top-level layer is visible.
+void write_animated_gif_file(const Document& document, const QString& path, const ImageSaveOptions& options);
 // Installs the Qt-backed PNG codec used for the PNG-compressed entries inside .ico/.cur
 // files (the formats library is Qt-free). Idempotent; called from the MainWindow
 // constructor so every app and test path has it.

@@ -28,11 +28,18 @@ namespace patchy::ui {
 // otherwise returns just the input path. Used when the user selects a single file.
 [[nodiscard]] QStringList expand_numbered_sequence(const QString& path);
 
-// One layer per frame, bottom to top in list order, named from layer_names; only the
-// first layer starts visible (matching slice_sprite_sheet). Canvas is the max width x
-// max height across frames; smaller frames sit at the top-left. Shared by the
-// image-sequence import and the multi-page PDF import.
-[[nodiscard]] std::optional<Document> document_from_frames(std::vector<QImage> frames, const QStringList& layer_names);
+struct FramesToLayersOptions {
+  bool first_frame_on_top{false};   // reverse stacking so frame 1 becomes the TOP layer
+  bool all_layers_visible{false};   // every layer visible instead of only the first frame
+};
+
+// One layer per frame named from layer_names, bottom to top in list order by default;
+// only the first layer starts visible (matching slice_sprite_sheet). Canvas is the max
+// width x max height across frames; smaller frames sit at the top-left. Shared by the
+// image-sequence import, the multi-page PDF import, and (with both options set, so a
+// straight save-as-animation round-trips) the animated GIF import.
+[[nodiscard]] std::optional<Document> document_from_frames(std::vector<QImage> frames, const QStringList& layer_names,
+                                                           FramesToLayersOptions options = {});
 
 // One layer per file, bottom to top in list order, named after the file's base name;
 // only the first layer starts visible (matching slice_sprite_sheet). Canvas is the

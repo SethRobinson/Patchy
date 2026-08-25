@@ -2,6 +2,9 @@
 
 #include "core/document.hpp"
 
+#include <cstdint>
+#include <span>
+
 namespace patchy {
 
 // Flattened RGBA8 composite of the whole document canvas, shared by the flat-image format
@@ -30,5 +33,14 @@ struct IndexedFlattenResult {
 // flatten has pixels below alpha_threshold. Shared by the GIF and ILBM writers.
 [[nodiscard]] IndexedFlattenResult indexed_flatten_quantized(const Document& document, std::size_t max_colors,
                                                              std::uint8_t alpha_threshold);
+
+// PixelBuffer-level bodies of the two functions above, for callers that already hold an
+// RGBA8 image (the animated GIF writer indexes each frame separately). Identical mapping
+// and quantization semantics; the Document-level functions delegate here.
+[[nodiscard]] IndexedFlattenResult indexed_rgba8_with_palette(const PixelBuffer& rgba,
+                                                              std::span<const RgbColor> colors,
+                                                              std::uint8_t alpha_threshold);
+[[nodiscard]] IndexedFlattenResult indexed_rgba8_quantized(const PixelBuffer& rgba, std::size_t max_colors,
+                                                           std::uint8_t alpha_threshold);
 
 }  // namespace patchy

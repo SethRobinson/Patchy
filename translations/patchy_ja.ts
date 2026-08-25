@@ -122,6 +122,38 @@
         <translation>ホットスポットは最大サイズのピクセル単位で指定します。小さいサイズには自動的に換算されます。</translation>
     </message>
     <message>
+        <source>GIF Options</source>
+        <translation>GIF オプション</translation>
+    </message>
+    <message>
+        <source>Animated GIF Options</source>
+        <translation>アニメーション GIF オプション</translation>
+    </message>
+    <message>
+        <source>Animation from visible layers</source>
+        <translation>表示レイヤーからアニメーション</translation>
+    </message>
+    <message>
+        <source>Single flattened image</source>
+        <translation>単一の統合画像</translation>
+    </message>
+    <message>
+        <source>Frame delay:</source>
+        <translation>フレーム間隔:</translation>
+    </message>
+    <message>
+        <source> s</source>
+        <translation> 秒</translation>
+    </message>
+    <message>
+        <source>Each visible top-level layer becomes one frame, with the top layer first. Hidden layers are skipped. A layer name ending in a time, like &quot;blink 0.25s&quot;, overrides the default delay for that frame. The animation loops forever.</source>
+        <translation>表示されているトップレベルの各レイヤーが 1 フレームになり、いちばん上のレイヤーが最初のフレームです。非表示のレイヤーは使われません。レイヤー名が「blink 0.25s」のように時間で終わる場合、そのフレームでは既定のフレーム間隔の代わりにその時間が使われます。アニメーションは無限にループします。</translation>
+    </message>
+    <message>
+        <source>Animated GIF: imported %1 frames as layers</source>
+        <translation>アニメーション GIF: %1 フレームをレイヤーとして読み込みました</translation>
+    </message>
+    <message>
         <location line="-181"/>
         <source>Scale:</source>
         <translation>スケール:</translation>
@@ -7160,6 +7192,14 @@ Mixed selection</source>
         <translation>レイヤーを画像シーケンスとして書き出し(&amp;Q)...</translation>
     </message>
     <message>
+        <source>Export Layers as Animated &amp;GIF...</source>
+        <translation>レイヤーをアニメーション GIF として書き出し(&amp;G)...</translation>
+    </message>
+    <message>
+        <source>Export Animated GIF</source>
+        <translation>アニメーション GIF の書き出し</translation>
+    </message>
+    <message>
         <source>Image Sequence to Layers</source>
         <translation>画像シーケンスをレイヤーへ</translation>
     </message>
@@ -7788,6 +7828,10 @@ Mixed selection</source>
         <location line="+58"/>
         <source>Saved flattened copy %1</source>
         <translation>統合したコピー %1 を保存しました</translation>
+    </message>
+    <message>
+        <source>Saved animated GIF copy %1</source>
+        <translation>アニメーション GIF のコピー %1 を保存しました</translation>
     </message>
     <message>
         <source>SVG keeps shape layers as vectors, but masks, layer styles, text, and adjustments are baked into images, so Patchy will save a copy. The open document will keep its layers and unsaved changes. To keep everything editable, save as a Photoshop document (.psd) instead.</source>

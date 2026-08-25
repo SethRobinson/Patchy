@@ -204,6 +204,24 @@ void unicode_path_flat_format_file_io_round_trips() {
     CHECK(std::string(bytes.begin(), bytes.begin() + 6) == "GIF89a");
   }
 
+  const auto animated_gif_path = named(dir, kUnicodeCombinedStem, ".anim.gif");
+  {
+    std::vector<patchy::gif::GifFrame> frames(2);
+    frames[0].palette = {{0, 0, 0}, {255, 255, 255}};
+    frames[0].indexes.assign(4, 0);
+    frames[0].delay_cs = 10;
+    frames[1].palette = {{10, 20, 30}, {200, 100, 50}};
+    frames[1].indexes.assign(4, 1);
+    frames[1].delay_cs = 25;
+    patchy::gif::write_animation_file(2, 2, frames, animated_gif_path);
+  }
+  written.push_back(animated_gif_path);
+  {
+    const auto bytes = read_binary_file(animated_gif_path);
+    CHECK(bytes.size() > 6);
+    CHECK(std::string(bytes.begin(), bytes.begin() + 6) == "GIF89a");
+  }
+
   const auto svg_path = named(dir, kUnicodeCombinedStem, ".svg");
   patchy::svg::DocumentIo::write_file(rgb, svg_path);
   written.push_back(svg_path);

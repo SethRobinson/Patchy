@@ -360,6 +360,13 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   register_hotkey(export_image_sequence_action, "file.export_image_sequence");
   connect(export_image_sequence_action, &QAction::triggered, this, [this] { export_image_sequence(); });
   register_document_action(export_image_sequence_action);
+  // Stays visible on wasm, unlike the sequence export below: an animation is one file,
+  // so the browser handoff is a single download.
+  auto* export_animated_gif_action = file_menu->addAction(tr("Export Layers as Animated &GIF..."));
+  export_animated_gif_action->setObjectName(QStringLiteral("fileExportAnimatedGifAction"));
+  register_hotkey(export_animated_gif_action, "file.export_animated_gif");
+  connect(export_animated_gif_action, &QAction::triggered, this, [this] { export_animated_gif(); });
+  register_document_action(export_animated_gif_action);
   auto* page_setup_action = file_menu->addAction(tr("Page Set&up..."));
   auto* print_action = file_menu->addAction(tr("&Print..."));
 #ifdef Q_OS_WASM

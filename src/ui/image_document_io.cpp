@@ -1881,6 +1881,12 @@ void write_flat_image_file(const Document& document, const QString& path, const 
                             notices);
     return;
   }
+  if (lower == "gif" && options.gif_animate) {
+    // Before the export-scale re-entry: scaled_flat_document flattens the layers this
+    // writer needs, so the animated writer applies the scale per frame itself.
+    write_animated_gif_file(document, path, options);
+    return;
+  }
   if (options.export_scale > 1) {
     auto unscaled_options = options;
     unscaled_options.export_scale = 1;
@@ -1955,6 +1961,41 @@ void write_flat_image_file(const Document& document, const QString& path, const 
   if (!writer.write(image)) {
     throw std::runtime_error(writer.errorString().toStdString());
   }
+}
+
+void write_animated_gif_file(const Document& document, const QString& path, const ImageSaveOptions& options) {
+  const auto scale = std::max(1, options.export_scale);
+  const bool palette_mode =
+      document.palette_editing().has_value() && !document.palette_editing()->palette.colors.empty();
+  const auto default_delay_cs =
+      static_cast<std::uint16_t>(std::clamp(options.gif_frame_delay_cs, 0, 0xffff));
+
+  std::vector<gif::GifFrame> frames;
+  const auto& layers = std::as_const(document).layers();
+  for (auto it = layers.rbegin(); it != layers.rend(); ++it) {
+    if (!it->visible()) {
+      continue;
+    }
+    auto rgba = pixels_from_image_rgba(render_layer_isolated(document, *it));
+    if (scale > 1) {
+      rgba = upscale_nearest_buffer(rgba, scale);
+    }
+    auto indexed = palette_mode
+                       ? indexed_rgba8_with_palette(rgba, document.palette_editing()->palette.colors,
+                                                    document.palette_editing()->alpha_threshold)
+                       : indexed_rgba8_quantized(rgba, 256, gif::kQuantizeAlphaThreshold);
+    gif::GifFrame frame;
+    frame.palette = std::move(indexed.palette);
+    frame.transparent_index = indexed.transparent_index;
+    frame.indexes = std::move(indexed.indexes);
+    frame.delay_cs = gif::parse_layer_name_delay_cs(it->name()).value_or(default_delay_cs);
+    frames.push_back(std::move(frame));
+  }
+  if (frames.empty()) {
+    throw std::runtime_error("The document has no visible top-level layers to export as an animated GIF.");
+  }
+  gif::write_animation_file(document.width() * scale, document.height() * scale, frames,
+                            to_filesystem_path(path));
 }
 
 }  // namespace patchy::ui

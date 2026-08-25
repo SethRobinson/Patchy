@@ -15,8 +15,6 @@ namespace patchy::gif {
 
 namespace {
 
-constexpr std::uint8_t kAlphaThreshold = 128;
-
 // LZW code stream packed LSB-first into 255-byte sub-blocks.
 class SubBlockBitWriter {
 public:
@@ -71,6 +69,43 @@ private:
     ++bits;
   }
   return std::max(1, bits);  // GIF tables hold at least 2 entries
+}
+
+// Color table padded with black to the declared power-of-two entry count.
+void write_color_table(LittleEndianWriter& writer, std::span<const RgbColor> palette, int size_bits) {
+  const auto table_entries = std::size_t{1} << size_bits;
+  for (std::size_t i = 0; i < table_entries; ++i) {
+    if (i < palette.size()) {
+      writer.write_u8(palette[i].red);
+      writer.write_u8(palette[i].green);
+      writer.write_u8(palette[i].blue);
+    } else {
+      writer.write_u8(0);
+      writer.write_u8(0);
+      writer.write_u8(0);
+    }
+  }
+}
+
+void validate_frame_dimensions(std::int32_t width, std::int32_t height) {
+  if (width <= 0 || height <= 0 || width > 0xffff || height > 0xffff) {
+    throw std::runtime_error("GIF dimensions must be between 1 and 65535");
+  }
+}
+
+void validate_indexed_image(std::int32_t width, std::int32_t height, std::span<const RgbColor> palette,
+                            std::span<const std::uint8_t> indexes) {
+  if (palette.empty() || palette.size() > 256) {
+    throw std::runtime_error("GIF palettes must hold 1 to 256 colors");
+  }
+  if (indexes.size() != static_cast<std::size_t>(width) * static_cast<std::size_t>(height)) {
+    throw std::runtime_error("GIF index data does not match the image dimensions");
+  }
+  for (const auto index : indexes) {
+    if (index >= palette.size()) {
+      throw std::runtime_error("GIF index references a missing palette color");
+    }
+  }
 }
 
 void encode_lzw(LittleEndianWriter& out, std::span<const std::uint8_t> indexes, int min_code_size) {
@@ -129,20 +164,8 @@ void encode_lzw(LittleEndianWriter& out, std::span<const std::uint8_t> indexes, 
 
 std::vector<std::uint8_t> encode(std::int32_t width, std::int32_t height, std::span<const RgbColor> palette,
                                  std::span<const std::uint8_t> indexes, int transparent_index) {
-  if (width <= 0 || height <= 0 || width > 0xffff || height > 0xffff) {
-    throw std::runtime_error("GIF dimensions must be between 1 and 65535");
-  }
-  if (palette.empty() || palette.size() > 256) {
-    throw std::runtime_error("GIF palettes must hold 1 to 256 colors");
-  }
-  if (indexes.size() != static_cast<std::size_t>(width) * static_cast<std::size_t>(height)) {
-    throw std::runtime_error("GIF index data does not match the image dimensions");
-  }
-  for (const auto index : indexes) {
-    if (index >= palette.size()) {
-      throw std::runtime_error("GIF index references a missing palette color");
-    }
-  }
+  validate_frame_dimensions(width, height);
+  validate_indexed_image(width, height, palette, indexes);
 
   LittleEndianWriter writer;
   for (const char c : {'G', 'I', 'F', '8', '9', 'a'}) {
@@ -154,18 +177,7 @@ std::vector<std::uint8_t> encode(std::int32_t width, std::int32_t height, std::s
   writer.write_u8(static_cast<std::uint8_t>(0x80U | 0x70U | static_cast<unsigned>(size_bits - 1)));
   writer.write_u8(0);  // background color index
   writer.write_u8(0);  // pixel aspect ratio
-  const auto table_entries = std::size_t{1} << size_bits;
-  for (std::size_t i = 0; i < table_entries; ++i) {
-    if (i < palette.size()) {
-      writer.write_u8(palette[i].red);
-      writer.write_u8(palette[i].green);
-      writer.write_u8(palette[i].blue);
-    } else {
-      writer.write_u8(0);
-      writer.write_u8(0);
-      writer.write_u8(0);
-    }
-  }
+  write_color_table(writer, palette, size_bits);
   if (transparent_index >= 0 && static_cast<std::size_t>(transparent_index) < palette.size()) {
     writer.write_u8(0x21);  // extension introducer
     writer.write_u8(0xf9);  // graphic control label
@@ -189,11 +201,152 @@ std::vector<std::uint8_t> encode(std::int32_t width, std::int32_t height, std::s
   return std::move(writer.bytes());
 }
 
+std::vector<std::uint8_t> encode_animation(std::int32_t width, std::int32_t height,
+                                           std::span<const GifFrame> frames) {
+  validate_frame_dimensions(width, height);
+  if (frames.empty()) {
+    throw std::runtime_error("GIF animations need at least one frame");
+  }
+  for (const auto& frame : frames) {
+    validate_indexed_image(width, height, frame.palette, frame.indexes);
+    if (frame.transparent_index >= static_cast<int>(frame.palette.size())) {
+      throw std::runtime_error("GIF transparent index references a missing palette color");
+    }
+  }
+
+  LittleEndianWriter writer;
+  for (const char c : {'G', 'I', 'F', '8', '9', 'a'}) {
+    writer.write_u8(static_cast<std::uint8_t>(c));
+  }
+  const auto global_bits = color_table_size_bits(frames[0].palette.size());
+  writer.write_u16(static_cast<std::uint16_t>(width));
+  writer.write_u16(static_cast<std::uint16_t>(height));
+  writer.write_u8(static_cast<std::uint8_t>(0x80U | 0x70U | static_cast<unsigned>(global_bits - 1)));
+  writer.write_u8(0);  // background color index
+  writer.write_u8(0);  // pixel aspect ratio
+  write_color_table(writer, frames[0].palette, global_bits);
+
+  // NETSCAPE2.0 application extension: loop count 0 = forever.
+  writer.write_u8(0x21);
+  writer.write_u8(0xff);
+  writer.write_u8(11);
+  for (const char c : {'N', 'E', 'T', 'S', 'C', 'A', 'P', 'E', '2', '.', '0'}) {
+    writer.write_u8(static_cast<std::uint8_t>(c));
+  }
+  writer.write_u8(3);  // sub-block: id 1 + loop count u16
+  writer.write_u8(1);
+  writer.write_u16(0);
+  writer.write_u8(0);  // block terminator
+
+  for (std::size_t frame_index = 0; frame_index < frames.size(); ++frame_index) {
+    const auto& frame = frames[frame_index];
+    const bool transparent = frame.transparent_index >= 0;
+    writer.write_u8(0x21);  // extension introducer
+    writer.write_u8(0xf9);  // graphic control label
+    writer.write_u8(4);
+    // Disposal 2 (restore to background) so every full-canvas frame displays alone.
+    writer.write_u8(static_cast<std::uint8_t>(0x08U | (transparent ? 0x01U : 0x00U)));
+    writer.write_u16(frame.delay_cs);
+    writer.write_u8(transparent ? static_cast<std::uint8_t>(frame.transparent_index) : 0);
+    writer.write_u8(0);
+
+    writer.write_u8(0x2c);  // image descriptor
+    writer.write_u16(0);
+    writer.write_u16(0);
+    writer.write_u16(static_cast<std::uint16_t>(width));
+    writer.write_u16(static_cast<std::uint16_t>(height));
+    const auto frame_bits = color_table_size_bits(frame.palette.size());
+    if (frame_index == 0) {
+      writer.write_u8(0);  // the global table is frame 1's palette
+    } else {
+      writer.write_u8(static_cast<std::uint8_t>(0x80U | static_cast<unsigned>(frame_bits - 1)));
+      write_color_table(writer, frame.palette, frame_bits);
+    }
+    const int min_code_size = std::max(2, frame_bits);
+    writer.write_u8(static_cast<std::uint8_t>(min_code_size));
+    encode_lzw(writer, frame.indexes, min_code_size);
+  }
+  writer.write_u8(0x3b);  // trailer
+  return std::move(writer.bytes());
+}
+
+void write_animation_file(std::int32_t width, std::int32_t height, std::span<const GifFrame> frames,
+                          const std::filesystem::path& path) {
+  formats::write_file_bytes(path, encode_animation(width, height, frames), "GIF");
+}
+
+std::optional<std::uint16_t> parse_layer_name_delay_cs(std::string_view layer_name) {
+  while (!layer_name.empty() && (layer_name.back() == ' ' || layer_name.back() == '\t')) {
+    layer_name.remove_suffix(1);
+  }
+  if (layer_name.empty() || layer_name.back() != 's') {
+    return std::nullopt;
+  }
+  const auto separator = layer_name.find_last_of(" \t");
+  auto token = separator == std::string_view::npos ? layer_name : layer_name.substr(separator + 1);
+  token.remove_suffix(1);  // the trailing 's'
+  const auto dot = token.find('.');
+  if (dot != std::string_view::npos && token.find('.', dot + 1) != std::string_view::npos) {
+    return std::nullopt;
+  }
+  const auto int_part = dot == std::string_view::npos ? token : token.substr(0, dot);
+  const auto fraction = dot == std::string_view::npos ? std::string_view{} : token.substr(dot + 1);
+  if (int_part.empty() && fraction.empty()) {
+    return std::nullopt;
+  }
+  const auto is_digit = [](char c) { return c >= '0' && c <= '9'; };
+  for (const char c : int_part) {
+    if (!is_digit(c)) {
+      return std::nullopt;
+    }
+  }
+  for (const char c : fraction) {
+    if (!is_digit(c)) {
+      return std::nullopt;
+    }
+  }
+  std::uint64_t centiseconds = 0;
+  for (const char c : int_part) {
+    centiseconds = centiseconds * 10 + static_cast<std::uint64_t>(c - '0');
+    if (centiseconds > 0xffff) {
+      centiseconds = 0x10000;  // clamps below; stops the accumulator from overflowing
+      break;
+    }
+  }
+  centiseconds *= 100;
+  if (!fraction.empty()) {
+    centiseconds += static_cast<std::uint64_t>(fraction[0] - '0') * 10;
+  }
+  if (fraction.size() >= 2) {
+    centiseconds += static_cast<std::uint64_t>(fraction[1] - '0');
+  }
+  if (fraction.size() >= 3 && fraction[2] >= '5') {
+    ++centiseconds;  // round half-up from the third fraction digit
+  }
+  return static_cast<std::uint16_t>(std::min<std::uint64_t>(centiseconds, 0xffff));
+}
+
+std::string format_delay_seconds_token(std::uint16_t delay_cs) {
+  const auto whole = std::to_string(delay_cs / 100);
+  const auto remainder = delay_cs % 100;
+  if (remainder == 0) {
+    return whole + "s";
+  }
+  if (remainder % 10 == 0) {
+    return whole + "." + std::to_string(remainder / 10) + "s";
+  }
+  auto fraction = std::to_string(remainder);
+  if (fraction.size() == 1) {
+    fraction.insert(fraction.begin(), '0');
+  }
+  return whole + "." + fraction + "s";
+}
+
 std::vector<std::uint8_t> write(const Document& document) {
   const auto indexed =
       document.palette_editing().has_value() && !document.palette_editing()->palette.colors.empty()
           ? indexed_flatten_for_palette_mode(document)
-          : indexed_flatten_quantized(document, 256, kAlphaThreshold);
+          : indexed_flatten_quantized(document, 256, kQuantizeAlphaThreshold);
   return encode(indexed.width, indexed.height, indexed.palette, indexed.indexes, indexed.transparent_index);
 }
 

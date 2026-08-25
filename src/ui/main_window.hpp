@@ -567,6 +567,7 @@ private:
   void export_sprite_sheet();
   void import_image_sequence();
   void export_image_sequence();
+  void export_animated_gif();
   void set_tile_preview_visible(bool visible, QAction* toggle_action);
   bool accept_open_file_drag(QDropEvent* event);
   bool open_dropped_files(QDropEvent* event);

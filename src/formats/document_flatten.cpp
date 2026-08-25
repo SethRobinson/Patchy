@@ -133,9 +133,15 @@ IndexedFlattenResult indexed_flatten_for_palette_mode(const Document& document) 
     throw std::runtime_error("Document is not in palette mode");
   }
   const auto& editing = *document.palette_editing();
-  const auto& colors = editing.palette.colors;
-  const auto flattened = flatten_document_rgba8(document);
+  return indexed_rgba8_with_palette(flatten_document_rgba8(document), editing.palette.colors,
+                                    editing.alpha_threshold);
+}
 
+IndexedFlattenResult indexed_rgba8_with_palette(const PixelBuffer& rgba, std::span<const RgbColor> colors,
+                                                std::uint8_t alpha_threshold) {
+  if (colors.empty()) {
+    throw std::runtime_error("Indexed mapping needs a palette");
+  }
   PaletteLut lut;
   lut.build(colors);
   std::unordered_map<std::uint32_t, int> exact_index;
@@ -145,15 +151,15 @@ IndexedFlattenResult indexed_flatten_for_palette_mode(const Document& document) 
   }
 
   IndexedFlattenResult result;
-  result.width = flattened.width();
-  result.height = flattened.height();
-  result.palette = colors;
+  result.width = rgba.width();
+  result.height = rgba.height();
+  result.palette.assign(colors.begin(), colors.end());
 
-  const auto threshold = editing.alpha_threshold;
+  const auto threshold = alpha_threshold;
   bool needs_transparent = false;
-  for (std::int32_t y = 0; y < flattened.height() && !needs_transparent; ++y) {
-    for (std::int32_t x = 0; x < flattened.width(); ++x) {
-      if (flattened.pixel(x, y)[3] < threshold) {
+  for (std::int32_t y = 0; y < rgba.height() && !needs_transparent; ++y) {
+    for (std::int32_t x = 0; x < rgba.width(); ++x) {
+      if (rgba.pixel(x, y)[3] < threshold) {
         needs_transparent = true;
         break;
       }
@@ -165,9 +171,9 @@ IndexedFlattenResult indexed_flatten_for_palette_mode(const Document& document) 
   }
 
   result.indexes.resize(static_cast<std::size_t>(result.width) * static_cast<std::size_t>(result.height));
-  for (std::int32_t y = 0; y < flattened.height(); ++y) {
-    for (std::int32_t x = 0; x < flattened.width(); ++x) {
-      const auto* px = flattened.pixel(x, y);
+  for (std::int32_t y = 0; y < rgba.height(); ++y) {
+    for (std::int32_t x = 0; x < rgba.width(); ++x) {
+      const auto* px = rgba.pixel(x, y);
       auto& out =
           result.indexes[static_cast<std::size_t>(y) * static_cast<std::size_t>(result.width) +
                          static_cast<std::size_t>(x)];
@@ -186,11 +192,15 @@ IndexedFlattenResult indexed_flatten_for_palette_mode(const Document& document) 
 
 IndexedFlattenResult indexed_flatten_quantized(const Document& document, std::size_t max_colors,
                                                std::uint8_t alpha_threshold) {
-  const auto flattened = flatten_document_rgba8(document);
+  return indexed_rgba8_quantized(flatten_document_rgba8(document), max_colors, alpha_threshold);
+}
+
+IndexedFlattenResult indexed_rgba8_quantized(const PixelBuffer& rgba, std::size_t max_colors,
+                                             std::uint8_t alpha_threshold) {
   bool has_transparency = false;
-  for (std::int32_t y = 0; y < flattened.height() && !has_transparency; ++y) {
-    for (std::int32_t x = 0; x < flattened.width(); ++x) {
-      if (flattened.pixel(x, y)[3] < alpha_threshold) {
+  for (std::int32_t y = 0; y < rgba.height() && !has_transparency; ++y) {
+    for (std::int32_t x = 0; x < rgba.width(); ++x) {
+      if (rgba.pixel(x, y)[3] < alpha_threshold) {
         has_transparency = true;
         break;
       }
@@ -198,7 +208,7 @@ IndexedFlattenResult indexed_flatten_quantized(const Document& document, std::si
   }
 
   auto palette =
-      quantize_to_palette(flattened, has_transparency ? std::max<std::size_t>(1, max_colors - 1) : max_colors,
+      quantize_to_palette(rgba, has_transparency ? std::max<std::size_t>(1, max_colors - 1) : max_colors,
                           alpha_threshold);
   if (palette.colors.empty()) {
     palette.colors.push_back(RgbColor{0, 0, 0});
@@ -212,8 +222,8 @@ IndexedFlattenResult indexed_flatten_quantized(const Document& document, std::si
   }
 
   IndexedFlattenResult result;
-  result.width = flattened.width();
-  result.height = flattened.height();
+  result.width = rgba.width();
+  result.height = rgba.height();
   result.palette = std::move(palette.colors);
   if (has_transparency) {
     result.transparent_index = static_cast<int>(result.palette.size());
@@ -221,9 +231,9 @@ IndexedFlattenResult indexed_flatten_quantized(const Document& document, std::si
   }
 
   result.indexes.resize(static_cast<std::size_t>(result.width) * static_cast<std::size_t>(result.height));
-  for (std::int32_t y = 0; y < flattened.height(); ++y) {
-    for (std::int32_t x = 0; x < flattened.width(); ++x) {
-      const auto* px = flattened.pixel(x, y);
+  for (std::int32_t y = 0; y < rgba.height(); ++y) {
+    for (std::int32_t x = 0; x < rgba.width(); ++x) {
+      const auto* px = rgba.pixel(x, y);
       auto& out = result.indexes[static_cast<std::size_t>(y) * static_cast<std::size_t>(result.width) +
                                  static_cast<std::size_t>(x)];
       if (result.transparent_index >= 0 && px[3] < alpha_threshold) {

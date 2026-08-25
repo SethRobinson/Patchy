@@ -20,4 +20,17 @@ void save_image_save_option_defaults(const ImageSaveOptions& options);
                                                                         ImageSaveOptions options,
                                                                         bool for_export = false);
 
+// GIF options dialog, deliberately outside image_save_options_apply_to_extension so only
+// its three call sites raise it (Save As and Export Flat Image with a 2+ layer document,
+// and the Export Layers as Animated GIF action). offer_flatten_choice shows the
+// animation-vs-single-image radios (Save As / Export form, remembered as
+// saveOptions/gifSaveMode); false is the animated-export form: no radios, gif_animate
+// always true. for_export adds the Scale combo (applied per frame when animating).
+// has_visible_frames false disables the animation radio and forces the flattened choice.
+// Returns options with gif_animate, gif_frame_delay_cs, and export_scale set, or nullopt
+// on cancel.
+[[nodiscard]] std::optional<ImageSaveOptions> prompt_gif_save_options(QWidget* parent, ImageSaveOptions options,
+                                                                      bool offer_flatten_choice, bool for_export,
+                                                                      bool has_visible_frames);
+
 }  // namespace patchy::ui

@@ -74,6 +74,7 @@
 #include "core/photo_divide.hpp"
 #include "ui/divide_photos_dialog.hpp"
 #include "ui/image_sequence_dialog.hpp"
+#include "formats/gif_document_io.hpp"
 #include "ui/sprite_sheet_dialog.hpp"
 #include "ui/tile_preview_window.hpp"
 #include "ui/user_fonts.hpp"
@@ -765,6 +766,13 @@ bool is_svg_extension(const QString& extension) {
   return extension == QStringLiteral("svg") || extension == QStringLiteral("svgz");
 }
 
+// Whether an animated GIF export would have at least one frame (visible top-level layers
+// become the frames).
+bool has_visible_top_level_layer(const Document& document) {
+  const auto& layers = document.layers();
+  return std::any_of(layers.begin(), layers.end(), [](const Layer& layer) { return layer.visible(); });
+}
+
 OpenDocumentResult load_document_from_path(QString path) {
   const auto info = QFileInfo(path);
   const auto extension = info.suffix().toLower();
@@ -776,6 +784,43 @@ OpenDocumentResult load_document_from_path(QString path) {
     const auto image = reader.read();
     if (image.isNull()) {
       throw std::runtime_error(reader.errorString().toStdString());
+    }
+    // Animated GIFs import every frame as a layer, frame 1 on TOP and all layers visible,
+    // each frame's delay stamped as a trailing seconds token ("Frame 3 0.4s") that the
+    // animated GIF export parses back, so a straight open-then-save round-trips. qgif
+    // returns fully composited full-canvas frames; nextImageDelay() is the just-read
+    // frame's delay in milliseconds (natively centiseconds * 10).
+    if (extension == QStringLiteral("gif") && reader.supportsAnimation() && reader.imageCount() > 1) {
+      std::vector<QImage> frames;
+      QStringList layer_names;
+      frames.push_back(image);
+      layer_names.push_back(
+          QObject::tr("Frame %1").arg(1) + QLatin1Char(' ') +
+          QString::fromStdString(gif::format_delay_seconds_token(static_cast<std::uint16_t>(
+              std::clamp<long long>(std::llround(reader.nextImageDelay() / 10.0), 0, 0xffff)))));
+      for (int i = 1; i < reader.imageCount(); ++i) {
+        auto frame = reader.read();
+        if (frame.isNull()) {
+          break;  // a damaged tail keeps the frames that decoded
+        }
+        const auto delay_cs = static_cast<std::uint16_t>(
+            std::clamp<long long>(std::llround(reader.nextImageDelay() / 10.0), 0, 0xffff));
+        layer_names.push_back(QObject::tr("Frame %1").arg(i + 1) + QLatin1Char(' ') +
+                              QString::fromStdString(gif::format_delay_seconds_token(delay_cs)));
+        frames.push_back(std::move(frame));
+      }
+      if (frames.size() > 1) {
+        const auto frame_count = static_cast<int>(frames.size());
+        auto imported = document_from_frames(std::move(frames), layer_names,
+                                             {.first_frame_on_top = true, .all_layers_visible = true});
+        if (imported.has_value()) {
+          opened = std::move(*imported);
+          apply_imported_image_density(opened, read_all_file_bytes(path), image);
+          // Always 2+ frames here, so the plain plural reads right.
+          import_notices.push_back(QObject::tr("Animated GIF: imported %1 frames as layers").arg(frame_count));
+          return;
+        }
+      }
     }
     if (reader.supportsAnimation()) {
       const auto frames = reader.imageCount();
@@ -2402,6 +2447,46 @@ void MainWindow::export_image_sequence() {
   }
 }
 
+void MainWindow::export_animated_gif() {
+  if (!has_active_document()) {
+    show_status_error(tr("No document"));
+    return;
+  }
+  finish_active_text_editor();
+  // One frame per visible top-level layer, top to bottom; the options dialog restates
+  // the rules (hidden layers skipped, "0.25s" name tokens override the default delay).
+  if (!has_visible_top_level_layer(std::as_const(document()))) {
+    show_information_message(this, tr("Export Animated GIF"), tr("There are no visible layers to export."),
+                             QStringLiteral("animatedGifNoLayersMessageBox"));
+    return;
+  }
+  QString selected_filter;
+  const auto base_name = QFileInfo(session().title.isEmpty() ? tr("Untitled") : session().title).completeBaseName();
+  const auto initial_path = file_dialog_initial_path(QString(), base_name + QStringLiteral(".gif"));
+  auto path = get_save_file_name(this, tr("Export Animated GIF"), initial_path,
+                                 save_file_filter_for_path(initial_path), &selected_filter,
+                                 QStringLiteral("animatedGifExportFileDialog"));
+  if (path.isEmpty()) {
+    return;
+  }
+  path = path_with_default_extension(path, selected_filter);
+  auto options = prompt_gif_save_options(this, image_save_defaults_for_document(),
+                                         /*offer_flatten_choice*/ false, /*for_export*/ true,
+                                         /*has_visible_frames*/ true);
+  if (!options.has_value()) {
+    return;
+  }
+  try {
+    write_flat_image_file(document(), path, QStringLiteral("gif"), *options);
+    offer_browser_download_for_saved_file(path);
+    remember_save_directory_for_path(path);
+    statusBar()->showMessage(tr("Exported %1").arg(path));
+  } catch (const std::exception& error) {
+    show_critical_message(this, tr("Export failed"), QString::fromUtf8(error.what()),
+                          QStringLiteral("exportFailedMessageBox"));
+  }
+}
+
 void MainWindow::set_tile_preview_visible(bool visible, QAction* toggle_action) {
   if (!visible) {
     if (tile_preview_window_ != nullptr) {
@@ -2498,6 +2583,7 @@ bool MainWindow::save_document_as() {
   const bool discards_layers = layered_document && !save_extension_preserves_layers(extension);
   const bool linked_external_child =
       session().smart_object_link.has_value() && session().smart_object_link->external;
+  std::optional<ImageSaveOptions> image_options;
   std::optional<bool> pdf_editable_layers;
   if (discards_layers) {
     if (is_pdf_extension(extension) && !linked_external_child) {
@@ -2505,12 +2591,25 @@ bool MainWindow::save_document_as() {
       if (!pdf_editable_layers.has_value()) {
         return false;
       }
+    } else if (extension == QStringLiteral("gif") && std::as_const(document()).layers().size() >= 2) {
+      // GIF asks animation-or-flatten instead of the plain flatten warning; an explicit
+      // animation choice needs no warning (the frames round-trip through reopening).
+      auto gif_options =
+          prompt_gif_save_options(this, image_save_defaults_for_document(), /*offer_flatten_choice*/ true,
+                                  /*for_export*/ false, has_visible_top_level_layer(std::as_const(document())));
+      if (!gif_options.has_value()) {
+        return false;
+      }
+      if (!gif_options->gif_animate && !confirm_flatten_layers_for_save(extension)) {
+        return false;
+      }
+      image_options = std::move(gif_options);
     } else if (!confirm_flatten_layers_for_save(extension)) {
       return false;
     }
   }
-  std::optional<ImageSaveOptions> image_options;
-  if (!is_photoshop_document_extension(extension) && image_save_options_apply_to_extension(extension)) {
+  if (!image_options.has_value() && !is_photoshop_document_extension(extension) &&
+      image_save_options_apply_to_extension(extension)) {
     auto defaults = image_save_defaults_for_document();
     defaults.pdf_editable_layers = pdf_editable_layers.value_or(false);
     image_options = prompt_image_save_options(this, extension, defaults);
@@ -2706,6 +2805,8 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
       statusBar()->showMessage((extension == QStringLiteral("svg") ? tr("Saved SVG copy %1.")
                                 : is_pdf_extension(extension) && effective_image_options.pdf_editable_layers
                                     ? tr("Saved PDF copy with editable layers %1.")
+                                : extension == QStringLiteral("gif") && effective_image_options.gif_animate
+                                    ? tr("Saved animated GIF copy %1")
                                     : tr("Saved flattened copy %1"))
                                    .arg(path) +
                                export_notes_suffix);
@@ -2780,7 +2881,14 @@ void MainWindow::export_flat_image() {
       // for_export adds the nearest-neighbor Scale combo to every raster format's options
       // (a scale-only dialog for formats with no other options). SVG has no
       // raster options: vectors scale client-side.
-      image_options = prompt_image_save_options(this, extension, defaults, /*for_export*/ true);
+      if (extension == QStringLiteral("gif") && std::as_const(document()).layers().size() >= 2) {
+        // Animation-or-flatten plus the delay, replacing the scale-only dialog.
+        image_options = prompt_gif_save_options(this, defaults, /*offer_flatten_choice*/ true,
+                                                /*for_export*/ true,
+                                                has_visible_top_level_layer(std::as_const(document())));
+      } else {
+        image_options = prompt_image_save_options(this, extension, defaults, /*for_export*/ true);
+      }
       if (!image_options.has_value()) {
         return;
       }

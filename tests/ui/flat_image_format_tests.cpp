@@ -43,6 +43,7 @@
 #include "formats/acv_curves_io.hpp"
 #include "formats/bmp_document_io.hpp"
 #include "formats/aseprite_document_io.hpp"
+#include "formats/gif_document_io.hpp"
 #include "formats/ico_document_io.hpp"
 #include "formats/tga_document_io.hpp"
 #include "ui/image_document_io.hpp"
@@ -789,10 +790,24 @@ void ui_gif_export_round_trips_through_qt_reader() {
   }
 }
 
-void ui_animated_gif_open_notes_first_frame_only() {
+void ui_animated_gif_opens_frames_as_layers() {
   const auto path = QString::fromStdWString(
       patchy::test::committed_format_fixture_path("gif", "pillow-animated.gif").wstring());
   CHECK(QFileInfo::exists(path));
+
+  // Expected per-frame delays come from Qt's own reader so the check tracks the fixture.
+  std::vector<int> delays_ms;
+  {
+    QImageReader probe(path);
+    CHECK(probe.imageCount() == 3);
+    while (!probe.read().isNull()) {
+      delays_ms.push_back(probe.nextImageDelay());
+      if (delays_ms.size() >= 3) {
+        break;
+      }
+    }
+  }
+  CHECK(delays_ms.size() == 3);
 
   SettingsValueRestorer notes_setting(QStringLiteral("imports/showPsdWarningsAndInfo"));
   patchy::ui::app_settings().remove(QStringLiteral("imports/showPsdWarningsAndInfo"));
@@ -804,12 +819,27 @@ void ui_animated_gif_open_notes_first_frame_only() {
   QApplication::processEvents();
 
   const auto status = window.statusBar()->currentMessage();
-  CHECK(status.contains(QStringLiteral("first frame")));
+  CHECK(status.contains(QStringLiteral("frame")));
   CHECK(status.contains(QStringLiteral("3")));
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   CHECK(document.width() == 32);
   CHECK(document.height() == 24);
-  CHECK(document.layers().size() == 1);
+  // Every frame becomes a visible layer, frame 1 on TOP, its delay stamped as a trailing
+  // seconds token the animated export parses back.
+  CHECK(document.layers().size() == 3);
+  for (std::size_t frame = 0; frame < 3; ++frame) {
+    const auto& layer = std::as_const(document).layers()[2 - frame];  // index 0 is the bottom
+    CHECK(layer.visible());
+    const auto name = QString::fromStdString(layer.name());
+    CHECK(name.startsWith(QStringLiteral("Frame %1 ").arg(frame + 1)));
+    const auto expected_cs =
+        static_cast<std::uint16_t>(std::clamp<long long>(std::llround(delays_ms[frame] / 10.0), 0, 0xffff));
+    CHECK(patchy::gif::parse_layer_name_delay_cs(layer.name()) == expected_cs);
+  }
+  // Frames carry per-frame local palettes, so no document palette is adopted, and GIFs
+  // are untagged: 72 PPI.
+  CHECK(!document.indexed_palette().has_value());
+  CHECK(document.print_settings().horizontal_ppi == 72.0);
 }
 
 void ui_import_notices_dialog_shown_when_setting_enabled() {
@@ -850,9 +880,219 @@ void ui_import_notices_dialog_shown_when_setting_enabled() {
   poller.stop();
 
   CHECK(saw_notice);
-  CHECK(notice_text.contains(QStringLiteral("first frame")));
+  CHECK(notice_text.contains(QStringLiteral("frames as layers")));
   // The status bar carries the note either way.
-  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("first frame")));
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("frames as layers")));
+}
+
+void ui_animated_gif_export_round_trips() {
+  std::filesystem::create_directories("test-artifacts");
+  // Four layers bottom to top: a base, a hidden layer that must be skipped, a name-token
+  // delay override, and the top layer (= frame 1). The top layer covers only part of the
+  // canvas so its frame keeps transparency.
+  patchy::Document document(24, 16, patchy::PixelFormat::rgba8());
+  const auto add_layer = [&document](const std::string& name, QColor color, bool visible, int layer_width) {
+    patchy::PixelBuffer pixels(24, 16, patchy::PixelFormat::rgba8());
+    pixels.clear(0);
+    for (std::int32_t y = 0; y < 16; ++y) {
+      for (std::int32_t x = 0; x < layer_width; ++x) {
+        auto* px = pixels.pixel(x, y);
+        px[0] = static_cast<std::uint8_t>(color.red());
+        px[1] = static_cast<std::uint8_t>(color.green());
+        px[2] = static_cast<std::uint8_t>(color.blue());
+        px[3] = 255;
+      }
+    }
+    document.add_pixel_layer(name, std::move(pixels));
+    document.layers().back().set_visible(visible);
+  };
+  add_layer("Base", QColor(10, 200, 50), true, 24);
+  add_layer("Skipped", QColor(255, 0, 255), false, 24);
+  add_layer("blink 0.25s", QColor(60, 60, 220), true, 24);
+  add_layer("Top 0.1s", QColor(200, 30, 40), true, 12);
+
+  patchy::ui::ImageSaveOptions options;
+  options.gif_animate = true;
+  options.gif_frame_delay_cs = 7;  // only "Base" lacks a name token
+  const auto path = QStringLiteral("test-artifacts/ui_animated_gif_export.gif");
+  patchy::ui::write_flat_image_file(document, path, QStringLiteral("gif"), options);
+
+  QImageReader reader(path);
+  CHECK(reader.imageCount() == 3);  // the hidden layer exported no frame
+  // Top to bottom: frame 1 is the top layer, and Qt reports each frame's delay in ms.
+  const std::array<int, 3> expected_delays_ms = {100, 250, 70};
+  const std::array<QColor, 3> expected_colors = {QColor(200, 30, 40), QColor(60, 60, 220), QColor(10, 200, 50)};
+  for (int frame = 0; frame < 3; ++frame) {
+    const auto image = reader.read().convertToFormat(QImage::Format_RGBA8888);
+    CHECK(!image.isNull());
+    const auto actual = image.pixelColor(4, 8);
+    CHECK(actual.alpha() == 255);
+    CHECK(actual.red() == expected_colors[static_cast<std::size_t>(frame)].red());
+    CHECK(actual.green() == expected_colors[static_cast<std::size_t>(frame)].green());
+    CHECK(actual.blue() == expected_colors[static_cast<std::size_t>(frame)].blue());
+    CHECK(reader.nextImageDelay() == expected_delays_ms[static_cast<std::size_t>(frame)]);
+    if (frame == 0) {
+      // The top layer covers only the left half; the rest of its frame is transparent.
+      CHECK(image.pixelColor(20, 8).alpha() == 0);
+    }
+  }
+}
+
+void ui_animated_gif_open_save_round_trip() {
+  // The headline round trip: open an animated GIF (frames become layers with stamped
+  // delays), save it back as an animation, and the frame count and delays survive.
+  const auto path = QString::fromStdWString(
+      patchy::test::committed_format_fixture_path("gif", "pillow-animated.gif").wstring());
+  CHECK(QFileInfo::exists(path));
+  std::vector<int> source_delays_ms;
+  {
+    QImageReader probe(path);
+    while (!probe.read().isNull()) {
+      source_delays_ms.push_back(probe.nextImageDelay());
+      if (source_delays_ms.size() >= 16) {
+        break;
+      }
+    }
+  }
+  CHECK(source_delays_ms.size() == 3);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+  QApplication::processEvents();
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(document.layers().size() == 3);
+
+  std::filesystem::create_directories("test-artifacts");
+  patchy::ui::ImageSaveOptions options;
+  options.gif_animate = true;
+  const auto saved = QStringLiteral("test-artifacts/ui_animated_gif_round_trip.gif");
+  patchy::ui::write_flat_image_file(document, saved, QStringLiteral("gif"), options);
+
+  QImageReader reader(saved);
+  CHECK(reader.imageCount() == 3);
+  for (std::size_t frame = 0; frame < 3; ++frame) {
+    CHECK(!reader.read().isNull());
+    // Delays round-trip through the layer-name tokens at centisecond precision.
+    const auto expected_cs =
+        std::clamp<long long>(std::llround(source_delays_ms[frame] / 10.0), 0, 0xffff);
+    CHECK(reader.nextImageDelay() == static_cast<int>(expected_cs) * 10);
+  }
+}
+
+void ui_gif_save_options_dialog_choices() {
+  auto settings = patchy::ui::app_settings();
+  settings.remove(QStringLiteral("saveOptions"));
+  settings.sync();
+
+  // GIF stays outside the generic per-extension prompt gate: only the dedicated call
+  // sites raise its dialog.
+  CHECK(!patchy::ui::image_save_options_apply_to_extension(QStringLiteral("gif")));
+  const auto defaults = patchy::ui::load_image_save_option_defaults();
+  CHECK(defaults.gif_frame_delay_cs == 10);
+  CHECK(!defaults.gif_animate);
+
+  // Save As form: animation is the default, flatten + a new delay persist for next time.
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&saw_dialog] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("gifSaveOptionsDialog"));
+    CHECK(dialog != nullptr);
+    auto* animation = dialog->findChild<QRadioButton*>(QStringLiteral("gifAnimationRadio"));
+    auto* flatten = dialog->findChild<QRadioButton*>(QStringLiteral("gifFlattenRadio"));
+    auto* delay = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("gifFrameDelaySpin"));
+    auto* explanation = dialog->findChild<QLabel*>(QStringLiteral("gifAnimationExplanationLabel"));
+    CHECK(animation != nullptr);
+    CHECK(flatten != nullptr);
+    CHECK(delay != nullptr);
+    CHECK(explanation != nullptr);
+    CHECK(animation->isChecked());
+    CHECK(delay->value() == 0.10);
+    CHECK(delay->isEnabled());
+    delay->setValue(0.25);
+    flatten->click();
+    CHECK(!delay->isEnabled());  // the delay only applies to animations
+    saw_dialog = true;
+    dialog->accept();
+  });
+  auto options = patchy::ui::prompt_gif_save_options(nullptr, defaults, /*offer_flatten_choice*/ true,
+                                                     /*for_export*/ false, /*has_visible_frames*/ true);
+  CHECK(saw_dialog);
+  CHECK(options.has_value());
+  CHECK(!options->gif_animate);
+  CHECK(options->gif_frame_delay_cs == 25);
+
+  // Second invocation: the flatten choice and the delay were remembered.
+  saw_dialog = false;
+  QTimer::singleShot(0, [&saw_dialog] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("gifSaveOptionsDialog"));
+    CHECK(dialog != nullptr);
+    auto* animation = dialog->findChild<QRadioButton*>(QStringLiteral("gifAnimationRadio"));
+    auto* delay = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("gifFrameDelaySpin"));
+    CHECK(animation != nullptr);
+    CHECK(!animation->isChecked());
+    CHECK(delay->value() == 0.25);
+    animation->click();
+    CHECK(delay->isEnabled());
+    saw_dialog = true;
+    dialog->accept();
+  });
+  options = patchy::ui::prompt_gif_save_options(nullptr, patchy::ui::load_image_save_option_defaults(),
+                                                /*offer_flatten_choice*/ true, /*for_export*/ false,
+                                                /*has_visible_frames*/ true);
+  CHECK(saw_dialog);
+  CHECK(options.has_value());
+  CHECK(options->gif_animate);
+
+  // With nothing visible the animation radio disables and flatten is forced.
+  saw_dialog = false;
+  QTimer::singleShot(0, [&saw_dialog] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("gifSaveOptionsDialog"));
+    CHECK(dialog != nullptr);
+    auto* animation = dialog->findChild<QRadioButton*>(QStringLiteral("gifAnimationRadio"));
+    auto* flatten = dialog->findChild<QRadioButton*>(QStringLiteral("gifFlattenRadio"));
+    CHECK(animation != nullptr);
+    CHECK(!animation->isEnabled());
+    CHECK(flatten->isChecked());
+    saw_dialog = true;
+    dialog->accept();
+  });
+  options = patchy::ui::prompt_gif_save_options(nullptr, patchy::ui::load_image_save_option_defaults(),
+                                                /*offer_flatten_choice*/ true, /*for_export*/ false,
+                                                /*has_visible_frames*/ false);
+  CHECK(saw_dialog);
+  CHECK(options.has_value());
+  CHECK(!options->gif_animate);
+
+  // The Export Layers as Animated GIF form: no radios, always an animation, and the
+  // export flow adds the scale combo.
+  saw_dialog = false;
+  QTimer::singleShot(0, [&saw_dialog] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("gifSaveOptionsDialog"));
+    CHECK(dialog != nullptr);
+    CHECK(dialog->findChild<QRadioButton*>(QStringLiteral("gifAnimationRadio")) == nullptr);
+    CHECK(dialog->findChild<QRadioButton*>(QStringLiteral("gifFlattenRadio")) == nullptr);
+    auto* delay = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("gifFrameDelaySpin"));
+    CHECK(delay != nullptr);
+    CHECK(delay->isEnabled());
+    auto* scale = dialog->findChild<QComboBox*>(QStringLiteral("exportScaleCombo"));
+    CHECK(scale != nullptr);
+    scale->setCurrentIndex(std::max(0, scale->findData(2)));
+    saw_dialog = true;
+    dialog->accept();
+  });
+  options = patchy::ui::prompt_gif_save_options(nullptr, patchy::ui::load_image_save_option_defaults(),
+                                                /*offer_flatten_choice*/ false, /*for_export*/ true,
+                                                /*has_visible_frames*/ true);
+  CHECK(saw_dialog);
+  CHECK(options.has_value());
+  CHECK(options->gif_animate);  // the animation-only form never flattens
+  CHECK(options->export_scale == 2);
+  // The animation-only form must not flip the remembered Save As mode (still animation
+  // from the second invocation).
+  CHECK(settings.value(QStringLiteral("saveOptions/gifSaveMode")).toString() == QStringLiteral("animation"));
+
+  settings.remove(QStringLiteral("saveOptions"));
+  settings.sync();
 }
 
 }  // namespace
@@ -868,8 +1108,11 @@ std::vector<patchy::test::TestCase> flat_image_format_tests() {
       {"ui_ico_export_dialog_sizes_and_resample", ui_ico_export_dialog_sizes_and_resample},
       {"ui_ico_real_world_fixtures_decode_png_entries", ui_ico_real_world_fixtures_decode_png_entries},
       {"ui_gif_export_round_trips_through_qt_reader", ui_gif_export_round_trips_through_qt_reader},
-      {"ui_animated_gif_open_notes_first_frame_only", ui_animated_gif_open_notes_first_frame_only},
+      {"ui_animated_gif_opens_frames_as_layers", ui_animated_gif_opens_frames_as_layers},
       {"ui_import_notices_dialog_shown_when_setting_enabled",
        ui_import_notices_dialog_shown_when_setting_enabled},
+      {"ui_animated_gif_export_round_trips", ui_animated_gif_export_round_trips},
+      {"ui_animated_gif_open_save_round_trip", ui_animated_gif_open_save_round_trip},
+      {"ui_gif_save_options_dialog_choices", ui_gif_save_options_dialog_choices},
   };
 }

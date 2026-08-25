@@ -110,7 +110,8 @@ QStringList expand_numbered_sequence(const QString& path) {
   return sorted_sequence_paths(std::move(run));
 }
 
-std::optional<Document> document_from_frames(std::vector<QImage> frames, const QStringList& layer_names) {
+std::optional<Document> document_from_frames(std::vector<QImage> frames, const QStringList& layer_names,
+                                             FramesToLayersOptions options) {
   if (frames.empty()) {
     return std::nullopt;
   }
@@ -121,7 +122,9 @@ std::optional<Document> document_from_frames(std::vector<QImage> frames, const Q
     canvas_height = std::max(canvas_height, frame.height());
   }
   Document document(canvas_width, canvas_height, PixelFormat::rgba8());
-  for (std::size_t index = 0; index < frames.size(); ++index) {
+  for (std::size_t position = 0; position < frames.size(); ++position) {
+    // Layers stack bottom to top, so top-first ordering adds the LAST frame first.
+    const auto index = options.first_frame_on_top ? frames.size() - 1 - position : position;
     auto frame = std::move(frames[index]);
     if (frame.format() != QImage::Format_RGBA8888) {
       frame = frame.convertToFormat(QImage::Format_RGBA8888);
@@ -140,7 +143,7 @@ std::optional<Document> document_from_frames(std::vector<QImage> frames, const Q
                           ? layer_names[static_cast<int>(index)].toStdString()
                           : std::string();
     Layer layer(document.allocate_layer_id(), name, pixels_from_image_rgba(frame));
-    layer.set_visible(index == 0);
+    layer.set_visible(options.all_layers_visible || index == 0);
     document.add_layer(std::move(layer));
   }
   return document;
