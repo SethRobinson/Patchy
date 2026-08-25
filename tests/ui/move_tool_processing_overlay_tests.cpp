@@ -551,6 +551,239 @@ void ui_move_auto_select_blank_drag_keeps_multi_selection() {
   CHECK(blue_item->isSelected());
 }
 
+void ui_move_ctrl_click_toggles_layer_selection() {
+  patchy::Document document(140, 100, patchy::PixelFormat::rgba8());
+
+  patchy::Layer red(document.allocate_layer_id(), "Selected Red",
+                    solid_pixels(12, 12, patchy::PixelFormat::rgba8(), QColor(220, 40, 40, 255)));
+  red.set_bounds(patchy::Rect{18, 18, 12, 12});
+  document.add_layer(std::move(red));
+
+  patchy::Layer blue(document.allocate_layer_id(), "Selected Blue",
+                     solid_pixels(12, 12, patchy::PixelFormat::rgba8(), QColor(40, 90, 220, 255)));
+  blue.set_bounds(patchy::Rect{48, 18, 12, 12});
+  document.add_layer(std::move(blue));
+
+  patchy::Layer target(document.allocate_layer_id(), "Toggle Target",
+                       solid_pixels(16, 14, patchy::PixelFormat::rgba8(), QColor(40, 180, 90, 255)));
+  target.set_bounds(patchy::Rect{80, 50, 16, 14});
+  document.add_layer(std::move(target));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Ctrl Toggle Selection"));
+  QApplication::processEvents();
+
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* red_item = require_layer_item(*layer_list, QStringLiteral("Selected Red"));
+  auto* blue_item = require_layer_item(*layer_list, QStringLiteral("Selected Blue"));
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(blue_item);
+  blue_item->setSelected(true);
+  red_item->setSelected(true);
+  QApplication::processEvents();
+  CHECK(layer_list->selectedItems().size() == 2);
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_auto_select_layer(true);
+  canvas->set_show_transform_controls(false);
+  canvas->set_snap_enabled(false);
+
+  // Ctrl+click on an unselected layer adds it without moving any pixels.
+  const auto target_point = canvas->widget_position_for_document_point(QPoint(88, 57));
+  send_mouse(*canvas, QEvent::MouseButtonPress, target_point, Qt::LeftButton, Qt::LeftButton,
+             Qt::ControlModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, target_point, Qt::LeftButton, Qt::NoButton,
+             Qt::ControlModifier);
+  QApplication::processEvents();
+  red_item = require_layer_item(*layer_list, QStringLiteral("Selected Red"));
+  blue_item = require_layer_item(*layer_list, QStringLiteral("Selected Blue"));
+  auto* target_item = require_layer_item(*layer_list, QStringLiteral("Toggle Target"));
+  CHECK(layer_list->selectedItems().size() == 3);
+  CHECK(red_item->isSelected());
+  CHECK(blue_item->isSelected());
+  CHECK(target_item->isSelected());
+  CHECK(layer_list->currentItem() == target_item);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(88, 57)), QColor(40, 180, 90), 40));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(24, 24)), QColor(220, 40, 40), 40));
+
+  // Ctrl+click on a selected layer removes it, promotes the active layer to a
+  // remaining member, and moves nothing.
+  send_mouse(*canvas, QEvent::MouseButtonPress, target_point, Qt::LeftButton, Qt::LeftButton,
+             Qt::ControlModifier);
+  send_mouse(*canvas, QEvent::MouseMove,
+             canvas->widget_position_for_document_point(QPoint(108, 67)), Qt::NoButton, Qt::LeftButton,
+             Qt::ControlModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease,
+             canvas->widget_position_for_document_point(QPoint(108, 67)), Qt::LeftButton, Qt::NoButton,
+             Qt::ControlModifier);
+  QApplication::processEvents();
+  red_item = require_layer_item(*layer_list, QStringLiteral("Selected Red"));
+  blue_item = require_layer_item(*layer_list, QStringLiteral("Selected Blue"));
+  target_item = require_layer_item(*layer_list, QStringLiteral("Toggle Target"));
+  CHECK(layer_list->selectedItems().size() == 2);
+  CHECK(red_item->isSelected());
+  CHECK(blue_item->isSelected());
+  CHECK(!target_item->isSelected());
+  CHECK(layer_list->currentItem() != target_item);
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(88, 57)), QColor(40, 180, 90), 40));
+
+  // Ctrl+click that hits no layer leaves the selection alone and stays silent.
+  window.statusBar()->clearMessage();
+  const auto blank_point = canvas->widget_position_for_document_point(QPoint(120, 90));
+  send_mouse(*canvas, QEvent::MouseButtonPress, blank_point, Qt::LeftButton, Qt::LeftButton,
+             Qt::ControlModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, blank_point, Qt::LeftButton, Qt::NoButton,
+             Qt::ControlModifier);
+  QApplication::processEvents();
+  CHECK(layer_list->selectedItems().size() == 2);
+  CHECK(window.statusBar()->currentMessage().isEmpty());
+
+  // Removing the only selected layer is a no-op.
+  layer_list->clearSelection();
+  auto* red_row = require_layer_item(*layer_list, QStringLiteral("Selected Red"));
+  layer_list->setCurrentItem(red_row);
+  red_row->setSelected(true);
+  QApplication::processEvents();
+  const auto red_point = canvas->widget_position_for_document_point(QPoint(24, 24));
+  send_mouse(*canvas, QEvent::MouseButtonPress, red_point, Qt::LeftButton, Qt::LeftButton,
+             Qt::ControlModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, red_point, Qt::LeftButton, Qt::NoButton,
+             Qt::ControlModifier);
+  QApplication::processEvents();
+  red_row = require_layer_item(*layer_list, QStringLiteral("Selected Red"));
+  CHECK(layer_list->selectedItems().size() == 1);
+  CHECK(red_row->isSelected());
+
+  // The toggle is an explicit gesture: it works with Auto-Select off too.
+  canvas->set_auto_select_layer(false);
+  const auto blue_point = canvas->widget_position_for_document_point(QPoint(54, 24));
+  send_mouse(*canvas, QEvent::MouseButtonPress, blue_point, Qt::LeftButton, Qt::LeftButton,
+             Qt::ControlModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, blue_point, Qt::LeftButton, Qt::NoButton,
+             Qt::ControlModifier);
+  QApplication::processEvents();
+  red_row = require_layer_item(*layer_list, QStringLiteral("Selected Red"));
+  auto* blue_row = require_layer_item(*layer_list, QStringLiteral("Selected Blue"));
+  CHECK(layer_list->selectedItems().size() == 2);
+  CHECK(red_row->isSelected());
+  CHECK(blue_row->isSelected());
+  save_widget_artifact("ui_move_ctrl_click_toggles_selection", window);
+}
+
+void ui_move_ctrl_click_add_continues_into_drag() {
+  patchy::Document document(140, 100, patchy::PixelFormat::rgba8());
+
+  patchy::Layer red(document.allocate_layer_id(), "Selected Red",
+                    solid_pixels(12, 12, patchy::PixelFormat::rgba8(), QColor(220, 40, 40, 255)));
+  red.set_bounds(patchy::Rect{18, 18, 12, 12});
+  document.add_layer(std::move(red));
+
+  patchy::Layer blue(document.allocate_layer_id(), "Selected Blue",
+                     solid_pixels(12, 12, patchy::PixelFormat::rgba8(), QColor(40, 90, 220, 255)));
+  blue.set_bounds(patchy::Rect{48, 18, 12, 12});
+  document.add_layer(std::move(blue));
+
+  patchy::Layer target(document.allocate_layer_id(), "Drag Target",
+                       solid_pixels(16, 14, patchy::PixelFormat::rgba8(), QColor(40, 180, 90, 255)));
+  target.set_bounds(patchy::Rect{80, 50, 16, 14});
+  document.add_layer(std::move(target));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Ctrl Toggle Drag"));
+  QApplication::processEvents();
+
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* red_item = require_layer_item(*layer_list, QStringLiteral("Selected Red"));
+  auto* blue_item = require_layer_item(*layer_list, QStringLiteral("Selected Blue"));
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(blue_item);
+  blue_item->setSelected(true);
+  red_item->setSelected(true);
+  QApplication::processEvents();
+  CHECK(layer_list->selectedItems().size() == 2);
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_auto_select_layer(true);
+  canvas->set_show_transform_controls(false);
+  canvas->set_snap_enabled(false);
+
+  // A Ctrl+press that adds a layer keeps going as a drag of the whole
+  // enlarged selection.
+  const auto start = canvas->widget_position_for_document_point(QPoint(88, 57));
+  const auto end = canvas->widget_position_for_document_point(QPoint(108, 67));
+  send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton, Qt::ControlModifier);
+  send_mouse(*canvas, QEvent::MouseMove, end, Qt::NoButton, Qt::LeftButton, Qt::ControlModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton, Qt::ControlModifier);
+  QApplication::processEvents();
+
+  CHECK(!color_close(canvas_pixel(*canvas, QPoint(24, 24)), QColor(220, 40, 40), 40));
+  CHECK(!color_close(canvas_pixel(*canvas, QPoint(54, 24)), QColor(40, 90, 220), 40));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(44, 34)), QColor(220, 40, 40), 40));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(74, 34)), QColor(40, 90, 220), 40));
+  CHECK(!color_close(canvas_pixel(*canvas, QPoint(88, 57)), QColor(40, 180, 90), 40));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(108, 67)), QColor(40, 180, 90), 40));
+
+  red_item = require_layer_item(*layer_list, QStringLiteral("Selected Red"));
+  blue_item = require_layer_item(*layer_list, QStringLiteral("Selected Blue"));
+  auto* target_item = require_layer_item(*layer_list, QStringLiteral("Drag Target"));
+  CHECK(layer_list->selectedItems().size() == 3);
+  CHECK(red_item->isSelected());
+  CHECK(blue_item->isSelected());
+  CHECK(target_item->isSelected());
+  CHECK(layer_list->currentItem() == target_item);
+  save_widget_artifact("ui_move_ctrl_click_add_drag", window);
+}
+
+void ui_move_ctrl_click_selects_layer_inside_collapsed_folder() {
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(96, 72, patchy::PixelFormat::rgba8(), QColor(245, 245, 245, 255)));
+  patchy::Layer group(document.allocate_layer_id(), "Collapsed Folder", patchy::LayerKind::Group);
+  group.metadata()[patchy::kLayerMetadataGroupExpanded] = "false";
+  auto child = patchy::Layer(document.allocate_layer_id(), "Hidden Child",
+                             solid_pixels(12, 12, patchy::PixelFormat::rgba8(), QColor(40, 80, 220, 255)));
+  child.set_bounds(patchy::Rect{12, 12, 12, 12});
+  group.add_child(std::move(child));
+  document.add_layer(std::move(group));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Ctrl Toggle Collapsed"));
+  QApplication::processEvents();
+
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  CHECK(find_layer_item(*layer_list, QStringLiteral("Hidden Child")) == nullptr);
+  auto* background_item = require_layer_item(*layer_list, QStringLiteral("Background"));
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(background_item);
+  background_item->setSelected(true);
+  QApplication::processEvents();
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_auto_select_layer(true);
+  canvas->set_show_transform_controls(false);
+  const auto click = canvas->widget_position_for_document_point(QPoint(16, 16));
+  send_mouse(*canvas, QEvent::MouseButtonPress, click, Qt::LeftButton, Qt::LeftButton, Qt::ControlModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, click, Qt::LeftButton, Qt::NoButton, Qt::ControlModifier);
+  QApplication::processEvents();
+  QApplication::processEvents();
+
+  background_item = require_layer_item(*layer_list, QStringLiteral("Background"));
+  auto* child_item = require_layer_item(*layer_list, QStringLiteral("Hidden Child"));
+  CHECK(background_item->isSelected());
+  CHECK(child_item->isSelected());
+  CHECK(layer_list->selectedItems().size() == 2);
+  CHECK(layer_list->currentItem() == child_item);
+}
+
 void ui_shift_constrains_move_tool_drag_to_axis() {
   patchy::Document document(120, 100, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(120, 100, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
@@ -3170,6 +3403,10 @@ std::vector<patchy::test::TestCase> move_tool_processing_overlay_tests() {
        ui_move_auto_select_selected_member_drag_keeps_multi_selection},
       {"ui_move_auto_select_blank_drag_keeps_multi_selection",
        ui_move_auto_select_blank_drag_keeps_multi_selection},
+      {"ui_move_ctrl_click_toggles_layer_selection", ui_move_ctrl_click_toggles_layer_selection},
+      {"ui_move_ctrl_click_add_continues_into_drag", ui_move_ctrl_click_add_continues_into_drag},
+      {"ui_move_ctrl_click_selects_layer_inside_collapsed_folder",
+       ui_move_ctrl_click_selects_layer_inside_collapsed_folder},
       {"ui_shift_constrains_move_tool_drag_to_axis", ui_shift_constrains_move_tool_drag_to_axis},
       {"ui_move_tool_uses_opaque_bounds_for_transparent_layer",
        ui_move_tool_uses_opaque_bounds_for_transparent_layer},

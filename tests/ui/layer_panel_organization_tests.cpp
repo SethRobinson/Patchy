@@ -955,6 +955,38 @@ void ui_layer_rows_toggle_visibility_and_drag_reorder() {
   CHECK(layer_list->selectedItems().size() == 3);
   CHECK(layer_list->currentItem() == blue_item);
 
+  // Ctrl+Shift+click adds the anchor..target range to the selection: the
+  // clicked row is not toggled off (plain Ctrl would remove Paint) and rows
+  // outside the range stay selected (plain Shift would drop Background).
+  auto* paint_name = layer_list->itemWidget(paint_item)->findChild<QLabel*>(QStringLiteral("layerRowName"));
+  CHECK(paint_name != nullptr);
+  send_mouse(*paint_name, QEvent::MouseButtonPress, paint_name->rect().center(), Qt::LeftButton, Qt::LeftButton,
+             Qt::ControlModifier | Qt::ShiftModifier);
+  send_mouse(*paint_name, QEvent::MouseButtonRelease, paint_name->rect().center(), Qt::LeftButton, Qt::NoButton,
+             Qt::ControlModifier | Qt::ShiftModifier);
+  CHECK(background_item->isSelected());
+  CHECK(paint_item->isSelected());
+  CHECK(blue_item->isSelected());
+  CHECK(layer_list->selectedItems().size() == 3);
+  CHECK(layer_list->currentItem() == paint_item);
+
+  // The bare-viewport path applies the same additive range with the same
+  // anchor semantics.
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(background_item);
+  background_item->setSelected(true);
+  QApplication::processEvents();
+  const auto blue_row_center = layer_list->visualItemRect(blue_item).center();
+  send_mouse(*layer_list->viewport(), QEvent::MouseButtonPress, blue_row_center, Qt::LeftButton, Qt::LeftButton,
+             Qt::ControlModifier | Qt::ShiftModifier);
+  send_mouse(*layer_list->viewport(), QEvent::MouseButtonRelease, blue_row_center, Qt::LeftButton, Qt::NoButton,
+             Qt::ControlModifier | Qt::ShiftModifier);
+  CHECK(background_item->isSelected());
+  CHECK(paint_item->isSelected());
+  CHECK(blue_item->isSelected());
+  CHECK(layer_list->selectedItems().size() == 3);
+  CHECK(layer_list->currentItem() == blue_item);
+
   canvas->clear_selection();
   const auto blue_was_checked = blue_item->checkState();
   blue_visibility = layer_list->itemWidget(blue_item)->findChild<QToolButton*>(QStringLiteral("layerVisibilityCheck"));
@@ -974,6 +1006,17 @@ void ui_layer_rows_toggle_visibility_and_drag_reorder() {
              Qt::NoButton, Qt::ControlModifier);
   CHECK(canvas->has_selection());
   CHECK(blue_item->checkState() == blue_was_checked);
+
+  // Shift does not change thumbnail Ctrl-click semantics: it still loads the
+  // pixels as a selection and leaves the row selection alone.
+  canvas->clear_selection();
+  const auto selected_rows_before_thumbnail = layer_list->selectedItems().size();
+  send_mouse(*blue_thumbnail, QEvent::MouseButtonPress, blue_thumbnail->rect().center(), Qt::LeftButton,
+             Qt::LeftButton, Qt::ControlModifier | Qt::ShiftModifier);
+  send_mouse(*blue_thumbnail, QEvent::MouseButtonRelease, blue_thumbnail->rect().center(), Qt::LeftButton,
+             Qt::NoButton, Qt::ControlModifier | Qt::ShiftModifier);
+  CHECK(canvas->has_selection());
+  CHECK(layer_list->selectedItems().size() == selected_rows_before_thumbnail);
 
   CHECK(layer_list->model()->moveRow(QModelIndex(), 0, QModelIndex(), layer_list->count()));
   QApplication::processEvents();

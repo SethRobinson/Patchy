@@ -802,8 +802,58 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     Layer* hit_layer = nullptr;
     Layer* transform_controls_layer = nullptr;
     std::vector<LayerId> layer_ids;
+    // Ctrl+click toggles the clicked layer in or out of the multi-selection
+    // (Photoshop binds this to Shift, which Move already uses for the
+    // axis-constrained drag). Works with Auto-Select on or off.
+    const auto ctrl_toggle = (event->modifiers() & Qt::ControlModifier) != 0;
+    if (ctrl_toggle) {
+      if (clicked_layer == nullptr) {
+        // An aimed toggle that missed (or hit only position-locked layers);
+        // not an attempted move, so no error flash.
+        event->accept();
+        return;
+      }
+      // Membership is tested against the panel selection itself, not the
+      // flattened movable set: a leaf inside an already-selected group reads
+      // as unselected and is added alongside the group, because removing a
+      // group by one of its leaves would be ambiguous.
+      const auto already_selected =
+          std::find(selected_layer_ids_.begin(), selected_layer_ids_.end(), clicked_layer->id()) !=
+          selected_layer_ids_.end();
+      if (already_selected) {
+        if (selected_layer_ids_.size() <= 1U) {
+          // Removing the only selected layer would leave a degenerate empty
+          // selection; keep it.
+          event->accept();
+          return;
+        }
+        auto new_ids = selected_layer_ids_;
+        new_ids.erase(std::remove(new_ids.begin(), new_ids.end(), clicked_layer->id()), new_ids.end());
+        auto active_id = new_ids.front();
+        if (const auto current_active = document_->active_layer_id();
+            current_active.has_value() && *current_active != clicked_layer->id()) {
+          active_id = *current_active;
+        }
+        request_layer_selection(std::move(new_ids), active_id);
+        event->accept();
+        return;
+      }
+      auto new_ids = selected_layer_ids_;
+      new_ids.push_back(clicked_layer->id());
+      request_layer_selection(std::move(new_ids), clicked_layer->id());
+      // The selection push above round-tripped through the host, so the
+      // movable set must be recomputed here; the press then continues into a
+      // drag of the whole enlarged selection.
+      layer_ids = movable_layer_ids();
+      if (layer_ids.empty()) {
+        // Everything selected is position-locked. The toggle itself
+        // succeeded; only the drag is unavailable.
+        event->accept();
+        return;
+      }
+    }
     const auto selected_move_layer_ids = movable_layer_ids();
-    if (auto_select_layer_) {
+    if (!ctrl_toggle && auto_select_layer_) {
       hit_layer = clicked_layer;
       const auto hit_selected_layer =
           hit_layer != nullptr && !selected_layer_ids_.empty() &&
@@ -822,7 +872,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       if (hit_layer == nullptr && selected_layer_ids_.size() < 2U && passive_handle == TransformHandle::Move) {
         layer_ids = selected_move_layer_ids;
       }
-    } else if (selected_layer_ids_.size() < 2U) {
+    } else if (!ctrl_toggle && selected_layer_ids_.size() < 2U) {
       auto target_id = document_->active_layer_id();
       if (!selected_layer_ids_.empty()) {
         target_id = selected_layer_ids_.front();
@@ -834,7 +884,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
         }
       }
     }
-    if (show_transform_controls_ && (auto_select_layer_ || selected_layer_ids_.size() < 2U)) {
+    if (!ctrl_toggle && show_transform_controls_ && (auto_select_layer_ || selected_layer_ids_.size() < 2U)) {
       if (transform_controls_layer != nullptr) {
         set_move_transform_controls_layer(transform_controls_layer->id());
       } else if (transform_controls_layer == nullptr && passive_transform_rect.has_value() &&
@@ -848,13 +898,13 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
         set_move_transform_controls_layer(std::nullopt);
       }
     }
-    if (transform_controls_layer == nullptr && passive_transform_rect.has_value() &&
+    if (!ctrl_toggle && transform_controls_layer == nullptr && passive_transform_rect.has_value() &&
         passive_handle == TransformHandle::None) {
       set_move_transform_controls_layer(std::nullopt);
       event->accept();
       return;
     }
-    if (!auto_select_layer_) {
+    if (!ctrl_toggle && !auto_select_layer_) {
       layer_ids = selected_move_layer_ids;
     }
     if (layer_ids.empty()) {

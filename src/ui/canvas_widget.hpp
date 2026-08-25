@@ -914,6 +914,12 @@ public:
   void set_pen_button_action_callback(std::function<void(PenButtonAction)> callback);
   void set_text_requested_callback(std::function<void(QPoint, QRect)> callback);
   void set_active_layer_changed_callback(std::function<void(LayerId)> callback);
+  // The canvas asks the host (the layer panel is the selection's source of
+  // truth) to make exactly these layers selected with active_id current; the
+  // host pushes the result back through set_selected_layer_ids. Move-tool
+  // Ctrl+click toggling uses this; unset, the canvas applies the selection to
+  // itself directly.
+  void set_layer_selection_requested_callback(std::function<void(std::vector<LayerId>, LayerId)> callback);
   // Commit of a pending crop rect + box angle (document geometry lives on
   // MainWindow).
   void set_crop_commit_requested_callback(std::function<void(QRect, double)> callback);
@@ -1221,6 +1227,7 @@ private:
   [[nodiscard]] Layer* topmost_move_layer_at(QPoint document_point, bool skip_locked) const noexcept;
   [[nodiscard]] Layer* topmost_text_layer_at(QPoint document_point) const noexcept;
   void activate_layer(Layer& layer);
+  void request_layer_selection(std::vector<LayerId> layer_ids, LayerId active_id);
   [[nodiscard]] QPoint layer_position(const Layer& layer, QPoint document_point) const noexcept;
   [[nodiscard]] QRect widget_rect_for_document_rect(QRect document_rect) const;
   [[nodiscard]] QRectF widget_rect_for_document_rect(QRectF document_rect) const;
@@ -2287,6 +2294,7 @@ private:
   std::function<void(PenButtonAction)> pen_button_action_callback_;
   std::function<void(QPoint, QRect)> text_requested_callback_;
   std::function<void(LayerId)> active_layer_changed_callback_;
+  std::function<void(std::vector<LayerId>, LayerId)> layer_selection_requested_callback_;
   std::function<void(QString)> status_callback_;
   std::function<void(QString)> error_status_callback_;
   std::function<void(CanvasInfoState)> info_callback_;

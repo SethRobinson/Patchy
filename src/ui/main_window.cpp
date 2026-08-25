@@ -6736,6 +6736,16 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
     // bypass set_active_layer_from_selection.
     refresh_paths_panel();
   });
+  canvas->set_layer_selection_requested_callback([this, canvas](std::vector<LayerId> layer_ids,
+                                                                LayerId active_id) {
+    if (canvas != canvas_) {
+      return;
+    }
+    select_layers_in_layer_list(layer_ids, active_id);
+    refresh_layer_controls();
+    refresh_options_bar();
+    refresh_paths_panel();
+  });
   canvas->set_status_callback([this](QString message) { statusBar()->showMessage(message); });
   canvas->set_error_status_callback([this](QString message) { show_status_error(message); });
   canvas->set_ruler_unit_change_requested_callback(

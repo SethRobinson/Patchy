@@ -121,7 +121,7 @@ private:
   [[nodiscard]] std::optional<LayerCtrlClickTarget> ctrl_click_target(QListWidgetItem* item,
                                                                       QPoint viewport_pos) const;
   void toggle_ctrl_selection(QListWidgetItem* item);
-  void select_range_to_item(QListWidgetItem* target_item);
+  void select_range_to_item(QListWidgetItem* target_item, bool additive = false);
   void begin_single_drag_item(QListWidgetItem* item);
   void set_single_drag_item(QListWidgetItem* item);
   void set_current_item_preserving_scroll(QListWidgetItem* item, QItemSelectionModel::SelectionFlags command);

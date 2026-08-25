@@ -658,7 +658,11 @@ bool LayerListWidget::eventFilter(QObject* watched, QEvent* event) {
         return true;
       }
       if (item != nullptr) {
-        toggle_ctrl_selection(item);
+        if ((mouse_event->modifiers() & Qt::ShiftModifier) != 0) {
+          select_range_to_item(item, /*additive=*/true);
+        } else {
+          toggle_ctrl_selection(item);
+        }
         event->accept();
         return true;
       }
@@ -833,6 +837,11 @@ bool LayerListWidget::viewportEvent(QEvent* event) {
         event->accept();
         return true;
       }
+      if (item != nullptr && (mouse_event->modifiers() & Qt::ShiftModifier) != 0) {
+        select_range_to_item(item, /*additive=*/true);
+        event->accept();
+        return true;
+      }
     } else if (mouse_event->button() == Qt::LeftButton && (mouse_event->modifiers() & Qt::ShiftModifier) != 0) {
       if (auto* item = itemAt(mouse_event->pos()); item != nullptr) {
         if (const auto target = ctrl_click_target(item, mouse_event->pos());
@@ -969,7 +978,7 @@ void LayerListWidget::toggle_ctrl_selection(QListWidgetItem* item) {
   }
 }
 
-void LayerListWidget::select_range_to_item(QListWidgetItem* target_item) {
+void LayerListWidget::select_range_to_item(QListWidgetItem* target_item, bool additive) {
   if (target_item == nullptr || selectionModel() == nullptr || model() == nullptr) {
     return;
   }
@@ -986,7 +995,7 @@ void LayerListWidget::select_range_to_item(QListWidgetItem* target_item) {
   const auto vertical_scroll_value = verticalScrollBar() != nullptr ? verticalScrollBar()->value() : 0;
   const auto horizontal_scroll_value = horizontalScrollBar() != nullptr ? horizontalScrollBar()->value() : 0;
   selectionModel()->setCurrentIndex(target_index, QItemSelectionModel::NoUpdate);
-  selectionModel()->select(range, QItemSelectionModel::ClearAndSelect);
+  selectionModel()->select(range, additive ? QItemSelectionModel::Select : QItemSelectionModel::ClearAndSelect);
   if (auto* scroll_bar = verticalScrollBar(); scroll_bar != nullptr) {
     scroll_bar->setValue(std::clamp(vertical_scroll_value, scroll_bar->minimum(), scroll_bar->maximum()));
   }

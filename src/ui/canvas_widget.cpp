@@ -1083,6 +1083,28 @@ void CanvasWidget::set_active_layer_changed_callback(std::function<void(LayerId)
   active_layer_changed_callback_ = std::move(callback);
 }
 
+void CanvasWidget::set_layer_selection_requested_callback(
+    std::function<void(std::vector<LayerId>, LayerId)> callback) {
+  layer_selection_requested_callback_ = std::move(callback);
+}
+
+void CanvasWidget::request_layer_selection(std::vector<LayerId> layer_ids, LayerId active_id) {
+  if (layer_selection_requested_callback_) {
+    // The host round-trips synchronously: the panel selection change pushes
+    // back into set_selected_layer_ids and sets the document's active layer.
+    layer_selection_requested_callback_(std::move(layer_ids), active_id);
+    return;
+  }
+  // Standalone canvas (no panel wired): apply the selection directly. Do not
+  // fire active_layer_changed_callback_ here; in hosted embeddings it reveals
+  // a single layer with ClearAndSelect, which would collapse the selection.
+  if (document_ != nullptr &&
+      (!document_->active_layer_id().has_value() || *document_->active_layer_id() != active_id)) {
+    document_->set_active_layer(active_id);
+  }
+  set_selected_layer_ids(std::move(layer_ids));
+}
+
 void CanvasWidget::set_status_callback(std::function<void(QString)> callback) {
   status_callback_ = std::move(callback);
 }

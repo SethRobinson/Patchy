@@ -2518,6 +2518,80 @@ void MainWindow::reveal_layer_in_layer_list(LayerId id) {
   }
 }
 
+void MainWindow::select_layers_in_layer_list(const std::vector<LayerId>& ids, LayerId active_id) {
+  if (layer_list_ == nullptr || ids.empty()) {
+    return;
+  }
+
+  std::vector<LayerId> present_ids;
+  present_ids.reserve(ids.size());
+  auto filter_matches_all = true;
+  const auto filter_text = layer_name_filter_edit_ != nullptr ? layer_name_filter_edit_->text() : QString();
+  for (const auto id : ids) {
+    const auto* layer = document().find_layer(id);
+    if (layer == nullptr) {
+      continue;
+    }
+    present_ids.push_back(id);
+    std::vector<LayerId> ancestors;
+    if (collect_layer_ancestor_groups(document().layers(), id, ancestors)) {
+      for (const auto ancestor_id : ancestors) {
+        session().collapsed_layer_groups.erase(ancestor_id);
+      }
+    }
+    if (!filter_text.isEmpty() &&
+        !QString::fromStdString(layer->name()).contains(filter_text, Qt::CaseInsensitive)) {
+      filter_matches_all = false;
+    }
+  }
+  if (present_ids.empty()) {
+    return;
+  }
+  if (!filter_matches_all && layer_name_filter_edit_ != nullptr) {
+    // The refresh below re-reads the emptied text; blocking the signal avoids
+    // a second rebuild from textChanged.
+    const QSignalBlocker blocker(layer_name_filter_edit_);
+    layer_name_filter_edit_->clear();
+  }
+
+  refresh_layer_list();
+  auto* selection_model = layer_list_->selectionModel();
+  auto* model = layer_list_->model();
+  if (selection_model == nullptr || model == nullptr) {
+    return;
+  }
+  QItemSelection selection;
+  QListWidgetItem* active_item = nullptr;
+  for (int row = 0; row < layer_list_->count(); ++row) {
+    auto* item = layer_list_->item(row);
+    if (item == nullptr) {
+      continue;
+    }
+    const auto row_id = static_cast<LayerId>(item->data(kLayerIdRole).toULongLong());
+    if (std::find(present_ids.begin(), present_ids.end(), row_id) == present_ids.end()) {
+      continue;
+    }
+    selection.select(model->index(row, 0), model->index(row, 0));
+    if (row_id == active_id) {
+      active_item = item;
+    }
+  }
+  if (selection.isEmpty()) {
+    return;
+  }
+  // Move the current index silently first so the single select() below emits
+  // one itemSelectionChanged, which pushes the whole set back to the canvas
+  // (same ordering as LayerListWidget::select_range_to_item).
+  if (active_item != nullptr) {
+    selection_model->setCurrentIndex(layer_list_->indexFromItem(active_item), QItemSelectionModel::NoUpdate);
+  }
+  selection_model->select(selection, QItemSelectionModel::ClearAndSelect);
+  if (active_item != nullptr) {
+    layer_list_->scrollToItem(active_item, QAbstractItemView::PositionAtCenter);
+  }
+  restyle_layer_rows(layer_list_);
+}
+
 void MainWindow::set_layer_visibility_from_item(QListWidgetItem* item) {
   if (updating_layer_list_ || item == nullptr) {
     return;
