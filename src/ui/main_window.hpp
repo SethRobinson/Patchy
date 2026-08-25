@@ -100,6 +100,7 @@ class BrushTipLibrary;
 class BrushTipPicker;
 class DocumentFloatWindow;
 class CustomShapeLibrary;
+class AnimationPreviewWindow;
 class PalettePanel;
 class PathsPanel;
 class StartPanel;
@@ -569,6 +570,7 @@ private:
   void export_image_sequence();
   void export_animated_gif();
   void set_tile_preview_visible(bool visible, QAction* toggle_action);
+  void toggle_animation_preview_window();
   bool accept_open_file_drag(QDropEvent* event);
   bool open_dropped_files(QDropEvent* event);
   // Browser drops on wasm: the page-side glue reads the dropped files and
@@ -920,6 +922,7 @@ private:
   void set_layer_visibility_from_item(QListWidgetItem* item);
   void set_layer_visibility(LayerId id, bool visible);
   void isolate_layer_visibility(LayerId id);
+  void sync_layer_row_visibility_indicators();
   void show_layer_context_menu(QPoint position);
   bool handle_layer_action_button_drag_event(QObject* watched, QEvent* event);
   void merge_visible_to_new_layer();
@@ -1548,6 +1551,7 @@ private:
   int preview_dialog_edit_lock_depth_{0};
   bool scanner_import_active_{false};
   QPointer<QDialog> tile_preview_window_;
+  QPointer<AnimationPreviewWindow> animation_preview_window_;
   // Canvas that owns the open preview dialog; activation of any other canvas is
   // refused while the lock is held (canvas identity, not tab index: the locked
   // document may live in a float window).

@@ -76,6 +76,7 @@
 #include "ui/image_sequence_dialog.hpp"
 #include "formats/gif_document_io.hpp"
 #include "ui/sprite_sheet_dialog.hpp"
+#include "ui/animation_preview_window.hpp"
 #include "ui/tile_preview_window.hpp"
 #include "ui/user_fonts.hpp"
 #include "ui/warp_text_dialog.hpp"
@@ -2509,6 +2510,36 @@ void MainWindow::set_tile_preview_visible(bool visible, QAction* toggle_action) 
   tile_preview_window_->show();
   tile_preview_window_->raise();
   tile_preview_window_->activateWindow();
+}
+
+void MainWindow::toggle_animation_preview_window() {
+  if (animation_preview_window_ != nullptr && animation_preview_window_->isVisible()) {
+    // close() funnels through done(), which stops playback and restores visibility.
+    animation_preview_window_->close();
+    return;
+  }
+  if (animation_preview_window_ == nullptr) {
+    auto* window = new AnimationPreviewWindow(
+        [this]() -> Document* { return has_active_document() ? &document() : nullptr; },
+        [this](bool final_refresh) {
+          if (canvas_ != nullptr) {
+            canvas_->document_changed();
+          }
+          if (final_refresh) {
+            refresh_layer_list();
+            refresh_layer_controls();
+          } else {
+            // Per-frame: a full row rebuild is too heavy at animation rates.
+            sync_layer_row_visibility_indicators();
+          }
+        },
+        this);
+    window->setAttribute(Qt::WA_DeleteOnClose);
+    animation_preview_window_ = window;
+  }
+  animation_preview_window_->show();
+  animation_preview_window_->raise();
+  animation_preview_window_->activateWindow();
 }
 
 bool MainWindow::save_document() {

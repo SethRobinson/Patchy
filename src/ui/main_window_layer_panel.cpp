@@ -2733,6 +2733,51 @@ void MainWindow::isolate_layer_visibility(LayerId id) {
   statusBar()->showMessage(tr("Hid other layers"));
 }
 
+// Cheap in-place sync of every row's check state and eye button with the document, for
+// animation-preview playback: refresh_layer_list()'s full rebuild is far too heavy to run
+// per frame. Group-child dimming and thumbnails are left alone; the full refresh that
+// runs when playback stops settles everything.
+void MainWindow::sync_layer_row_visibility_indicators() {
+  if (!has_active_document() || layer_list_ == nullptr) {
+    return;
+  }
+  const auto was_updating = updating_layer_list_;
+  updating_layer_list_ = true;
+  for (int row = 0; row < layer_list_->count(); ++row) {
+    auto* item = layer_list_->item(row);
+    if (item == nullptr) {
+      continue;
+    }
+    const auto id = static_cast<LayerId>(item->data(kLayerIdRole).toULongLong());
+    const auto* layer = std::as_const(document()).find_layer(id);
+    if (layer == nullptr) {
+      continue;
+    }
+    const bool visible = layer->visible();
+    if ((item->checkState() == Qt::Checked) == visible) {
+      continue;
+    }
+    item->setCheckState(visible ? Qt::Checked : Qt::Unchecked);
+    item->setForeground(visible ? QBrush(QColor(226, 230, 237)) : QBrush(QColor(126, 132, 142)));
+    if (auto* row_widget = layer_list_->itemWidget(item); row_widget != nullptr) {
+      if (auto* visibility = row_widget->findChild<QToolButton*>(QStringLiteral("layerVisibilityCheck"));
+          visibility != nullptr) {
+        QSignalBlocker visibility_blocker(visibility);
+        visibility->setChecked(visible);
+        update_layer_visibility_button(visibility, visible);
+      }
+      if (auto* name = row_widget->findChild<QLabel*>(QStringLiteral("layerRowName")); name != nullptr) {
+        name->setEnabled(visible);
+      }
+      if (auto* details = row_widget->findChild<QLabel*>(QStringLiteral("layerRowDetails")); details != nullptr) {
+        details->setEnabled(visible);
+      }
+    }
+  }
+  updating_layer_list_ = was_updating;
+  restyle_layer_rows(layer_list_);
+}
+
 void MainWindow::refresh_layer_list() {
   if (layer_list_ == nullptr) {
     return;

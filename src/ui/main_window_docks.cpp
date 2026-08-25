@@ -1414,26 +1414,31 @@ void MainWindow::create_docks() {
   auto* adjustment_button = new QToolButton(layers_panel);
   auto* duplicate_button = new QPushButton(layers_panel);
   auto* rename_button = new QPushButton(layers_panel);
+  auto* animation_button = new QPushButton(layers_panel);
   auto* delete_button = new QPushButton(layers_panel);
   add_button->setObjectName(QStringLiteral("layerNewButton"));
   adjustment_button->setObjectName(QStringLiteral("layerNewAdjustmentButton"));
   add_folder_button->setObjectName(QStringLiteral("layerNewFolderButton"));
   duplicate_button->setObjectName(QStringLiteral("layerDuplicateButton"));
   rename_button->setObjectName(QStringLiteral("layerRenameButton"));
+  animation_button->setObjectName(QStringLiteral("layerAnimationButton"));
   delete_button->setObjectName(QStringLiteral("layerDeleteButton"));
   add_button->setIcon(simple_icon(QStringLiteral("new")));
   add_folder_button->setIcon(simple_icon(QStringLiteral("dir"), QColor(245, 205, 105)));
   adjustment_button->setIcon(simple_icon(QStringLiteral("ADJ"), QColor(190, 220, 255)));
   duplicate_button->setIcon(simple_icon(QStringLiteral("dup")));
   rename_button->setIcon(simple_icon(QStringLiteral("RN")));
+  animation_button->setIcon(simple_icon(QStringLiteral("film")));
   delete_button->setIcon(simple_icon(QStringLiteral("trash")));
   add_button->setToolTip(tr("New Layer"));
   add_folder_button->setToolTip(tr("New Folder"));
   adjustment_button->setToolTip(tr("New Adjustment Layer"));
   duplicate_button->setToolTip(tr("Duplicate Layer"));
   rename_button->setToolTip(tr("Rename Layer"));
+  animation_button->setToolTip(tr("Animation Preview"));
   delete_button->setToolTip(tr("Delete Layer"));
-  for (auto* button : {add_button, add_folder_button, duplicate_button, rename_button, delete_button}) {
+  for (auto* button :
+       {add_button, add_folder_button, duplicate_button, rename_button, animation_button, delete_button}) {
     button->setProperty("layerActionButton", true);
     button->setIconSize(QSize(24, 24));
     button->setFixedSize(40, 34);
@@ -1460,6 +1465,7 @@ void MainWindow::create_docks() {
   layer_buttons->addWidget(adjustment_button);
   layer_buttons->addWidget(duplicate_button);
   layer_buttons->addWidget(rename_button);
+  layer_buttons->addWidget(animation_button);
   layer_buttons->addWidget(delete_button);
   layer_buttons->addStretch(1);
   layers_layout->addLayout(layer_buttons);
@@ -1467,10 +1473,12 @@ void MainWindow::create_docks() {
   connect(add_folder_button, &QPushButton::clicked, this, [this] { create_layer_folder(); });
   connect(duplicate_button, &QPushButton::clicked, this, [this] { duplicate_active_layer(); });
   connect(rename_button, &QPushButton::clicked, this, [this] { rename_active_layer(); });
+  connect(animation_button, &QPushButton::clicked, this, [this] { toggle_animation_preview_window(); });
   connect(delete_button, &QPushButton::clicked, this, [this] { delete_active_layer(); });
   for (auto* widget : {static_cast<QWidget*>(add_button), static_cast<QWidget*>(add_folder_button),
                        static_cast<QWidget*>(adjustment_button), static_cast<QWidget*>(duplicate_button),
-                       static_cast<QWidget*>(rename_button), static_cast<QWidget*>(delete_button)}) {
+                       static_cast<QWidget*>(rename_button), static_cast<QWidget*>(animation_button),
+                       static_cast<QWidget*>(delete_button)}) {
     register_document_widget(widget);
   }
 

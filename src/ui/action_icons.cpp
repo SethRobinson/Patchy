@@ -323,6 +323,20 @@ void paint_simple_icon_glyph(QPainter& painter, const QString& text, const QColo
     if (text == QStringLiteral("eyeOff")) {
       painter.drawLine(QPointF(7.0, 25.0), QPointF(25.0, 7.0));
     }
+  } else if (text == QStringLiteral("film")) {
+    // Film strip: the frame area with a sprocket-hole column along each edge.
+    painter.drawRect(QRect(6, 8, 20, 16));
+    painter.drawLine(11, 8, 11, 24);
+    painter.drawLine(21, 8, 21, 24);
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(accent);
+    for (const int y : {11, 16, 21}) {
+      painter.drawRect(QRect(7, y - 1, 2, 2));
+      painter.drawRect(QRect(23, y - 1, 2, 2));
+    }
+    painter.setBrush(Qt::NoBrush);
+    painter.setPen(QPen(accent, 2.2));
+    painter.drawPolygon(QPolygon({QPoint(14, 12), QPoint(19, 16), QPoint(14, 20)}));
   } else if (text == QStringLiteral("lock") || text == QStringLiteral("unlock")) {
     painter.drawRoundedRect(QRectF(8.0, 14.0, 16.0, 11.0), 2.0, 2.0);
     QPainterPath shackle;

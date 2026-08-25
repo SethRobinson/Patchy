@@ -66,6 +66,7 @@
 #include "ui/scanner_import.hpp"
 #include "ui/image_sequence_dialog.hpp"
 #include "ui/sprite_sheet_dialog.hpp"
+#include "ui/animation_preview_window.hpp"
 #include "ui/tile_preview_window.hpp"
 #include "ui/warp_text_dialog.hpp"
 #include "ui/qt_geometry.hpp"
@@ -452,6 +453,11 @@ void MainWindow::activate_document_canvas(CanvasWidget* canvas) {
   }
   const auto canvas_changed = canvas != canvas_;
   if (canvas_changed) {
+    // Animation-preview playback belongs to the outgoing document: stop it and restore
+    // the captured visibility while that document is still the active one.
+    if (animation_preview_window_ != nullptr && has_active_document()) {
+      animation_preview_window_->stop_playback_for(&document());
+    }
     // Settle any open inline text edit while the OUTGOING canvas is still active:
     // the commit rasterizes into session(), so it must run before canvas_ moves.
     // User-driven tab clicks already committed via the focus change, but
@@ -581,6 +587,12 @@ bool MainWindow::close_document_session(DocumentSession& target_session) {
   auto* live_session = session_with_id(target_id);
   if (live_session == nullptr) {
     return false;
+  }
+  // Stop animation-preview playback before this session's document can be destroyed, and
+  // before the save-changes prompt below, so a Save writes the real layer visibility and
+  // not the frame the preview happened to be showing.
+  if (animation_preview_window_ != nullptr) {
+    animation_preview_window_->stop_playback_for(&live_session->document);
   }
   // Closing a document whose Edit Smart Object Contents tabs are still open would
   // orphan their commit target, so resolve the children first (each modified child

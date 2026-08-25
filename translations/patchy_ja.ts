@@ -7196,6 +7196,10 @@ Mixed selection</source>
         <translation>レイヤーをアニメーション GIF として書き出し(&amp;G)...</translation>
     </message>
     <message>
+        <source>Animation Preview</source>
+        <translation>アニメーションプレビュー</translation>
+    </message>
+    <message>
         <source>Export Animated GIF</source>
         <translation>アニメーション GIF の書き出し</translation>
     </message>
@@ -14089,6 +14093,41 @@ Clipped to the layer below</source>
         <location line="+1"/>
         <source>Blue</source>
         <translation>青</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::AnimationPreviewWindow</name>
+    <message>
+        <source>Animation Preview</source>
+        <translation>アニメーションプレビュー</translation>
+    </message>
+    <message>
+        <source>Play</source>
+        <translation>再生</translation>
+    </message>
+    <message>
+        <source>Stop</source>
+        <translation>停止</translation>
+    </message>
+    <message>
+        <source>Frame delay:</source>
+        <translation>フレーム間隔:</translation>
+    </message>
+    <message>
+        <source> s</source>
+        <translation> 秒</translation>
+    </message>
+    <message>
+        <source>Plays the visible top-level layers as frames, top layer first, exactly like the animated GIF export. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
+        <translation>表示されているトップレベルのレイヤーを、いちばん上のレイヤーから順にフレームとして再生します (アニメーション GIF の書き出しと同じ順序です)。レイヤー名が「blink 0.25s」のように時間で終わる場合、そのフレームはその時間だけ表示されます。</translation>
+    </message>
+    <message>
+        <source>No visible layers</source>
+        <translation>表示中のレイヤーがありません</translation>
+    </message>
+    <message>
+        <source>Frame %1/%2</source>
+        <translation>フレーム %1/%2</translation>
     </message>
 </context>
 <context>

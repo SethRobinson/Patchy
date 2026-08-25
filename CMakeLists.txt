@@ -982,6 +982,8 @@ if(PATCHY_BUILD_APP)
       src/ui/text_layout.cpp
       src/ui/tile_preview_window.hpp
       src/ui/tile_preview_window.cpp
+      src/ui/animation_preview_window.hpp
+      src/ui/animation_preview_window.cpp
       src/ui/app_credits.hpp
       src/ui/app_credits.cpp
       src/ui/build_info.hpp
@@ -1437,6 +1439,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/brush_pattern_palette_tests_patterns_palette.cpp
       tests/ui/brush_pattern_palette_tests_brush_dynamics.cpp
       tests/ui/layer_panel_organization_tests.cpp
+      tests/ui/layer_panel_organization_tests_animation.cpp
       tests/ui/move_tool_processing_overlay_tests.cpp
       tests/ui/selection_marquee_lasso_tests.cpp
       tests/ui/selection_marquee_lasso_tests_marquee_geometry.cpp

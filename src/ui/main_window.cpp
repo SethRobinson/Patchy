@@ -71,6 +71,7 @@
 #include "ui/start_panel.hpp"
 #include "ui/text_layer_painter.hpp"
 #include "ui/text_layout.hpp"
+#include "ui/animation_preview_window.hpp"
 #include "ui/tile_preview_window.hpp"
 #include "ui/warp_text_dialog.hpp"
 #include "ui/qt_geometry.hpp"
@@ -6503,6 +6504,11 @@ void MainWindow::closeEvent(QCloseEvent* event) {
   // lingers headless with only the preview on screen.
   if (tile_preview_window_ != nullptr) {
     tile_preview_window_->close();
+  }
+  // Same hazard: the animation preview is a Qt::Tool window too (closing it also stops
+  // playback and restores layer visibility while the sessions are still alive).
+  if (animation_preview_window_ != nullptr) {
+    animation_preview_window_->close();
   }
   // Same hazard for floated documents (they are top-level windows): hide, not
   // close - every session was already confirmed above, and close() would run

@@ -3040,8 +3040,10 @@ void ui_layer_eye_double_click_toggles_each_click() {
 
 }  // namespace
 
+std::vector<patchy::test::TestCase> layer_panel_organization_tests_animation_part();
+
 std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
-  return {
+  std::vector<patchy::test::TestCase> tests{
       {"ui_tab_switch_layers_follow_the_canvas_after_tab_reorder",
        ui_tab_switch_layers_follow_the_canvas_after_tab_reorder},
       {"ui_new_layer_defaults_and_multiselect_layers_work", ui_new_layer_defaults_and_multiselect_layers_work},
@@ -3122,4 +3124,7 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
       {"ui_layer_eye_sweep_survives_folder_row_rebuild", ui_layer_eye_sweep_survives_folder_row_rebuild},
       {"ui_layer_eye_double_click_toggles_each_click", ui_layer_eye_double_click_toggles_each_click},
   };
+  auto animation_part = layer_panel_organization_tests_animation_part();
+  tests.insert(tests.end(), animation_part.begin(), animation_part.end());
+  return tests;
 }
