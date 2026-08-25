@@ -1127,6 +1127,7 @@ bool CanvasWidget::handle_path_edit_press(QMouseEvent* event, QPointF document_p
   path_drag_mode_ = PathEditDrag::Marquee;
   path_marquee_start_ = document_point;
   path_marquee_current_ = document_point;
+  path_marquee_raw_current_ = document_point;
   if ((event->modifiers() & Qt::ShiftModifier) == 0) {
     path_selected_anchors_.clear();
     extra_selected_anchors_.clear();
@@ -1148,12 +1149,35 @@ bool CanvasWidget::handle_path_edit_move(QMouseEvent* event, QPointF document_po
     return true;  // hover only
   }
   if (path_drag_mode_ == PathEditDrag::Marquee) {
-    path_marquee_current_ = document_point;
+    if (spacebar_repositioning_drag_rect_) {
+      // Space held: the whole rect follows the pointer instead of resizing.
+      const auto delta = document_point - QPointF(spacebar_reposition_last_document_position_);
+      spacebar_reposition_last_document_position_ = document_point.toPoint();
+      path_marquee_start_ += delta;
+      path_marquee_current_ += delta;
+      path_marquee_raw_current_ += delta;
+      update();
+      return true;
+    }
+    path_marquee_raw_current_ = document_point;
+    path_marquee_current_ = constrain_marquee_current(document_point, event->modifiers());
     update();
     return true;
   }
   path_drag_raw_document_ = document_point;
   return update_path_edit_drag(document_point, event->modifiers());
+}
+
+QPointF CanvasWidget::constrain_marquee_current(QPointF current,
+                                                Qt::KeyboardModifiers modifiers) const {
+  if ((modifiers & Qt::ShiftModifier) == 0) {
+    return current;
+  }
+  const auto dx = current.x() - path_marquee_start_.x();
+  const auto dy = current.y() - path_marquee_start_.y();
+  const auto side = std::min(std::abs(dx), std::abs(dy));
+  return QPointF(path_marquee_start_.x() + std::copysign(side, dx),
+                 path_marquee_start_.y() + std::copysign(side, dy));
 }
 
 QPointF CanvasWidget::constrain_drag_to_axes(QPointF total_delta) noexcept {

@@ -96,6 +96,13 @@ meaning; only move/key state during the drag drives the constraint. Handle
 drags and the Pen's in-session Ctrl anchor drag stay unconstrained. The
 status-bar chip shows the selected-point count (see Hints above).
 
+The marquee drag takes Space and Shift like the selection marquee: Space held
+repositions the whole rect (its keyRelease branch deliberately skips
+`set_tool`, which would drop the Pen's Ctrl latch mid-drag), and Shift during
+the drag squares the rect (`constrain_marquee_current`, re-applied on Shift
+press/release with a stationary cursor via `path_marquee_raw_current_`).
+Shift at press keeps its additive-selection meaning.
+
 Cross-layer Direct Select: with several shape layers selected in the Layers
 panel, clicks, marquees, drags, nudges, Delete, and Escape span all of them.
 Point keys on non-target layers live in `extra_selected_anchors_` (a per-layer

@@ -983,6 +983,73 @@ void ui_direct_select_edits_points_across_selected_layers() {
   CHECK(anchor_count(document, second_id) == 4);
 }
 
+// The path-edit marquee repositions with Space held and squares with Shift,
+// like the selection marquee - including under the Pen's Ctrl latch, where
+// the Space release must not drop the latch.
+void ui_path_marquee_space_repositions_and_shift_squares() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  make_rect_shape_layer(window, *canvas);  // corners (100,100)..(300,220)
+  const auto widget_point = [&](QPoint document_point) {
+    return canvas->widget_position_for_document_point(document_point);
+  };
+
+  canvas->set_tool(patchy::ui::CanvasTool::DirectSelect);
+  // Space mid-marquee slides the whole rect: (40,40)-(270,160) shifts by
+  // (+70,+30) to (110,70)-(340,190), which contains only the (300,100) corner.
+  send_mouse(*canvas, QEvent::MouseButtonPress, widget_point(QPoint(40, 40)), Qt::LeftButton,
+             Qt::LeftButton, Qt::NoModifier);
+  send_mouse(*canvas, QEvent::MouseMove, widget_point(QPoint(270, 160)), Qt::NoButton,
+             Qt::LeftButton, Qt::NoModifier);
+  send_key_press(*canvas, Qt::Key_Space);
+  send_mouse(*canvas, QEvent::MouseMove, widget_point(QPoint(340, 190)), Qt::NoButton,
+             Qt::LeftButton, Qt::NoModifier);
+  send_key_release(*canvas, Qt::Key_Space);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, widget_point(QPoint(340, 190)), Qt::LeftButton,
+             Qt::NoButton, Qt::NoModifier);
+  QApplication::processEvents();
+  CHECK(canvas->path_edit_selected_anchor_count() == 1);
+
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+
+  // Shift pressed mid-marquee squares the rect immediately: (60,60)-(340,180)
+  // becomes (60,60)-(180,180), which contains only the (100,100) corner.
+  send_mouse(*canvas, QEvent::MouseButtonPress, widget_point(QPoint(60, 60)), Qt::LeftButton,
+             Qt::LeftButton, Qt::NoModifier);
+  send_mouse(*canvas, QEvent::MouseMove, widget_point(QPoint(340, 180)), Qt::NoButton,
+             Qt::LeftButton, Qt::NoModifier);
+  send_key_press(*canvas, Qt::Key_Shift, Qt::ShiftModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, widget_point(QPoint(340, 180)), Qt::LeftButton,
+             Qt::NoButton, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(canvas->path_edit_selected_anchor_count() == 1);
+
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+
+  // The Pen's Ctrl-latch marquee survives a Space press AND release mid-drag
+  // (the release must not run set_tool, which clears the latch).
+  canvas->set_tool(patchy::ui::CanvasTool::Pen);
+  send_mouse(*canvas, QEvent::MouseButtonPress, widget_point(QPoint(40, 40)), Qt::LeftButton,
+             Qt::LeftButton, Qt::ControlModifier);
+  send_mouse(*canvas, QEvent::MouseMove, widget_point(QPoint(270, 160)), Qt::NoButton,
+             Qt::LeftButton, Qt::ControlModifier);
+  send_key_press(*canvas, Qt::Key_Space);
+  send_mouse(*canvas, QEvent::MouseMove, widget_point(QPoint(340, 190)), Qt::NoButton,
+             Qt::LeftButton, Qt::ControlModifier);
+  send_key_release(*canvas, Qt::Key_Space);
+  send_mouse(*canvas, QEvent::MouseMove, widget_point(QPoint(345, 195)), Qt::NoButton,
+             Qt::LeftButton, Qt::ControlModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, widget_point(QPoint(345, 195)), Qt::LeftButton,
+             Qt::NoButton, Qt::ControlModifier);
+  QApplication::processEvents();
+  CHECK(canvas->path_edit_selected_anchor_count() == 1);
+  CHECK(!canvas->pen_session_active());
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> vector_point_editing_tests() {
@@ -1014,5 +1081,7 @@ std::vector<patchy::test::TestCase> vector_point_editing_tests() {
        ui_path_overlay_shows_all_selected_shape_layers},
       {"ui_direct_select_edits_points_across_selected_layers",
        ui_direct_select_edits_points_across_selected_layers},
+      {"ui_path_marquee_space_repositions_and_shift_squares",
+       ui_path_marquee_space_repositions_and_shift_squares},
   };
 }

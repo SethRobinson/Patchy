@@ -1396,6 +1396,10 @@ private:
   // Photoshop's vertex constraint: snaps the total drag delta onto the nearest
   // horizontal, vertical, or 45-degree axis (re-evaluated per call, no latch).
   [[nodiscard]] static QPointF constrain_drag_to_axes(QPointF total_delta) noexcept;
+  // Shift square constraint for the path-edit marquee (mirrors the selection
+  // marquee: side = the smaller drag axis, signs preserved).
+  [[nodiscard]] QPointF constrain_marquee_current(QPointF current,
+                                                  Qt::KeyboardModifiers modifiers) const;
   void notify_path_selection_changed();
   bool handle_path_edit_release(QMouseEvent* event);
   bool handle_path_edit_key(QKeyEvent* event);
@@ -1754,6 +1758,9 @@ private:
   QPointF path_drag_applied_delta_{};
   QPointF path_marquee_start_{};
   QPointF path_marquee_current_{};
+  // Last raw pointer position of the marquee drag; Shift key toggles replay
+  // the square constraint against it without waiting for a mouse move.
+  QPointF path_marquee_raw_current_{};
   bool path_edit_undo_armed_{false};
   bool path_edit_changed_{false};
   qint64 path_nudge_last_ms_{0};

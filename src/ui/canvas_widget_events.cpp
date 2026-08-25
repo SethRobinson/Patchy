@@ -2801,6 +2801,17 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
     return;
   }
 
+  // Shift pressed mid-path-marquee squares the rect without waiting for a
+  // mouse move (mirrors the selection marquee's constraint).
+  if (path_drag_mode_ == PathEditDrag::Marquee && !spacebar_repositioning_drag_rect_ &&
+      event->key() == Qt::Key_Shift && !event->isAutoRepeat()) {
+    path_marquee_current_ = constrain_marquee_current(path_marquee_raw_current_,
+                                                      event->modifiers() | Qt::ShiftModifier);
+    update();
+    event->accept();
+    return;
+  }
+
   if (warping_layer_) {
     if (event->key() == Qt::Key_Escape) {
       cancel_warp_transform();
@@ -2935,6 +2946,11 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
       spacebar_repositioning_drag_rect_ = true;
       spacebar_reposition_last_document_position_ = document_position(last_mouse_position_);
       setCursor(Qt::SizeAllCursor);
+    } else if (path_drag_mode_ == PathEditDrag::Marquee) {
+      // Space during the path-edit marquee repositions the whole rect.
+      spacebar_repositioning_drag_rect_ = true;
+      spacebar_reposition_last_document_position_ = document_position(last_mouse_position_);
+      setCursor(Qt::SizeAllCursor);
     } else {
       spacebar_panning_ = true;
       setCursor(Qt::OpenHandCursor);
@@ -3024,6 +3040,14 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
 }
 
 void CanvasWidget::keyReleaseEvent(QKeyEvent* event) {
+  // Space released mid-path-marquee goes back to resizing WITHOUT set_tool:
+  // that would drop the Pen's Ctrl latch and strand the drag.
+  if (event->key() == Qt::Key_Space && !event->isAutoRepeat() &&
+      path_drag_mode_ == PathEditDrag::Marquee && spacebar_repositioning_drag_rect_) {
+    spacebar_repositioning_drag_rect_ = false;
+    event->accept();
+    return;
+  }
   if (event->key() == Qt::Key_Space && !event->isAutoRepeat()) {
     spacebar_repositioning_drag_rect_ = false;
     spacebar_panning_ = false;
@@ -3061,6 +3085,15 @@ void CanvasWidget::keyReleaseEvent(QKeyEvent* event) {
   if (path_drag_mode_ == PathEditDrag::Anchors && event->key() == Qt::Key_Shift &&
       !event->isAutoRepeat()) {
     update_path_edit_drag(path_drag_raw_document_, event->modifiers() & ~Qt::ShiftModifier);
+    event->accept();
+    return;
+  }
+  // Shift released mid-path-marquee: back to the raw free-aspect rect.
+  if (path_drag_mode_ == PathEditDrag::Marquee && !spacebar_repositioning_drag_rect_ &&
+      event->key() == Qt::Key_Shift && !event->isAutoRepeat()) {
+    path_marquee_current_ = constrain_marquee_current(path_marquee_raw_current_,
+                                                      event->modifiers() & ~Qt::ShiftModifier);
+    update();
     event->accept();
     return;
   }
