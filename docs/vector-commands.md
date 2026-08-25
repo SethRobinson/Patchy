@@ -66,11 +66,13 @@ selection.
   part of the appearance widgets that hide without a shape layer) shows a
   short reminder per tool from `path_tool_hint_source`
   (main_window_vector.cpp, `refresh_path_tool_hint_label`); keep the texts
-  under about 70 characters so the flow layout never wraps. Under Direct
-  Select with two or more anchors selected the same label shows "%n points
-  selected" instead, refreshed through
+  under about 70 characters so the flow layout never wraps. With two or more
+  anchors selected under any per-point tool (Direct Select and the Pen
+  family's Ctrl latch, not Path Select) the label appends "(%n points
+  selected)" after the reminder, refreshed through
   `set_path_selection_changed_callback` (fired from every mutation of
   `path_selected_anchors_`: clicks, marquees, deletes, prunes, deselects).
+  The Pen hint also names the Ctrl-drag select/move gesture.
 
 ## Moving a selection
 
@@ -91,7 +93,8 @@ split out of `handle_path_edit_move`). Pressing or releasing Shift with a
 stationary cursor replays the drag at the last raw pointer position from
 keyPressEvent/keyReleaseEvent. Shift at press keeps its additive-selection
 meaning; only move/key state during the drag drives the constraint. Handle
-drags and the Pen's in-session Ctrl anchor drag stay unconstrained.
+drags and the Pen's in-session Ctrl anchor drag stay unconstrained. The
+options-bar hint label appends the selected-point count (see Hints above).
 
 ## Path context menu
 

@@ -13707,10 +13707,10 @@ Clipped to the layer below</source>
     <message><source>Convert Point: click a point to switch it between corner and smooth.</source><translation>ポイントを切り替え: ポイントをクリックしてコーナーとスムーズを切り替えます。</translation></message>
     <message><source>Auto Add/Delete</source><translation>自動追加/削除</translation></message>
     <message><source>Clicking a segment of the path adds a point and clicking a point deletes it</source><translation>パスのセグメントをクリックするとポイントを追加、ポイントをクリックすると削除します</translation></message>
-    <message><source>Click a segment to add a point or a point to delete it</source><translation>セグメントをクリックでポイント追加、ポイントをクリックで削除</translation></message>
+    <message><source>Click a segment to add, a point to delete. Ctrl-drag selects/moves points.</source><translation>セグメントをクリックで追加、ポイントをクリックで削除。Ctrl+ドラッグでポイントを選択/移動。</translation></message>
     <message><source>Click a shape to select it, drag to move it. Ctrl+T transforms.</source><translation>シェイプをクリックで選択、ドラッグで移動。Ctrl+Tで変形。</translation></message>
     <message><source>Click or drag points and handles. Delete removes selected points.</source><translation>ポイントやハンドルをクリックまたはドラッグ。Deleteで選択したポイントを削除。</translation></message>
-    <message numerus="yes"><source>%n points selected</source><translation><numerusform>%n 個のポイントを選択中</numerusform></translation></message>
+    <message numerus="yes"><source>(%n points selected)</source><translation><numerusform>(%n 個のポイントを選択中)</numerusform></translation></message>
     <message><source>Click a path segment to add a point</source><translation>パスのセグメントをクリックしてポイントを追加</translation></message>
     <message><source>Click a point on the path to delete it</source><translation>パス上のポイントをクリックして削除</translation></message>
     <message><source>Click a point to switch it between corner and smooth</source><translation>ポイントをクリックしてコーナーとスムーズを切り替え</translation></message>

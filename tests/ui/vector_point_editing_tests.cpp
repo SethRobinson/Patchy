@@ -262,7 +262,8 @@ void ui_path_tools_options_bar_shows_hint_label() {
   require_action(window, "toolPenAction")->trigger();
   QApplication::processEvents();
   CHECK(label->isVisible());
-  CHECK(label->text() == QStringLiteral("Click a segment to add a point or a point to delete it"));
+  CHECK(label->text() ==
+        QStringLiteral("Click a segment to add, a point to delete. Ctrl-drag selects/moves points."));
   auto* auto_add_delete = window.findChild<QCheckBox*>(QStringLiteral("penAutoAddDeleteCheck"));
   CHECK(auto_add_delete != nullptr);
   CHECK(auto_add_delete->isVisible());
@@ -841,9 +842,9 @@ void ui_direct_select_shift_toggle_mid_drag_reapplies_without_motion() {
   CHECK(std::abs(anchor_at(document, layer_id, 2).anchor_y - 220.0) < 1.0);
 }
 
-// The options-bar hint label swaps to a selected-point count once Direct
-// Select has two or more anchors selected, and back to the gesture reminder
-// on deselect or a single-point selection.
+// The options-bar hint label appends a selected-point count to the gesture
+// reminder once two or more anchors are selected (Direct Select and the Pen's
+// Ctrl latch), and drops it on deselect or a single-point selection.
 void ui_direct_select_hint_label_shows_selected_count() {
   VectorSettingsGuard settings_guard;
   patchy::ui::MainWindow window;
@@ -859,23 +860,36 @@ void ui_direct_select_hint_label_shows_selected_count() {
   auto* label = window.findChild<QLabel*>(QStringLiteral("pathToolHintLabel"));
   CHECK(label != nullptr);
   CHECK(label->text().startsWith(QStringLiteral("Click or drag points and handles")));
+  CHECK(!label->text().contains(QStringLiteral("selected)")));
 
   drag(*canvas, widget_point(QPoint(60, 60)), widget_point(QPoint(340, 260)));  // marquee all four
   QApplication::processEvents();
   CHECK(canvas->path_edit_selected_anchor_count() == 4);
-  CHECK(label->text() == QStringLiteral("4 points selected"));
+  CHECK(label->text().startsWith(QStringLiteral("Click or drag points and handles")));
+  CHECK(label->text().endsWith(QStringLiteral("(4 points selected)")));
 
   send_key(*canvas, Qt::Key_Escape);
   QApplication::processEvents();
   CHECK(!canvas->path_edit_has_selection());
-  CHECK(label->text().startsWith(QStringLiteral("Click or drag points and handles")));
+  CHECK(!label->text().contains(QStringLiteral("selected)")));
 
-  // A single-point selection keeps the gesture reminder.
+  // A single-point selection keeps the plain gesture reminder.
   const auto corner = widget_point(QPoint(100, 100));
   drag(*canvas, corner, corner);
   QApplication::processEvents();
   CHECK(canvas->path_edit_selected_anchor_count() == 1);
-  CHECK(label->text().startsWith(QStringLiteral("Click or drag points and handles")));
+  CHECK(!label->text().contains(QStringLiteral("selected)")));
+
+  // The Pen's Ctrl-latch marquee shows the same count after its own hint.
+  send_key(*canvas, Qt::Key_Escape);
+  require_action(window, "toolPenAction")->trigger();
+  QApplication::processEvents();
+  CHECK(label->text().startsWith(QStringLiteral("Click a segment to add")));
+  drag(*canvas, widget_point(QPoint(60, 60)), widget_point(QPoint(340, 260)), Qt::ControlModifier);
+  QApplication::processEvents();
+  CHECK(canvas->path_edit_selected_anchor_count() == 4);
+  CHECK(label->text().startsWith(QStringLiteral("Click a segment to add")));
+  CHECK(label->text().endsWith(QStringLiteral("(4 points selected)")));
 }
 
 }  // namespace
