@@ -189,11 +189,13 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 
 ## What's New
 
-### 0.90 - August 24, 2026
+### 0.90 - August 25, 2026
 
 - PDF is now a first-class format. Opening a PDF imports its pages as editable shape, text, and image layers by default, with a flat-image option, reads password-protected files, and converts shadings to gradient fills and spot colors through their tints. Saving as PDF works everywhere, with a choice of flattened pages or editable layers that keep paths, text, and images as real objects, and imported Photoshop text layers export as real selectable PDF text, substituting missing fonts unless you ask for images
-- Trace Image to Shapes converts a raster image, or just the selected area, into editable shape layers, with sliders to tune the result, saveable presets, and a size warning before heavy traces
-- Path point editing is discoverable: dedicated anchor tools with hints, a right-click path menu, and Auto Add/Delete on the Pen, plus Simplify Path and Combine Shapes commands for existing shape layers, and Direct Select drags a whole selection by any of its segments
+- Trace Image to Shapes converts a raster image, or just the selected area, into editable shape layers. Photo-quality palettes up to 256 colors with exact color assignment, a Merge Colors option that collapses near-duplicate colors, smoothing and anchor-budget sliders, saveable presets, and a size warning before heavy traces
+- File > Import > Photocopy scans a page and prints it at actual size in one step, using the scanner's true DPI, with a movable crop and a preview that shades anything the printable area cuts off, and Divide Scanned Photos splits a scan or photo into straightened per-photo images
+- Path point editing is discoverable: dedicated anchor tools with status-bar hints and a live selected-point count, a right-click path menu, and Auto Add/Delete on the Pen, plus Simplify Path and Combine Shapes commands for existing shape layers
+- Direct Select edits points across every shape layer selected in the Layers panel, drags a whole selection by any of its segments, and Shift constrains point drags to horizontal, vertical, or 45 degrees; marquees can be repositioned with Space or squared with Shift, and Ctrl+E keeps shape-layer merges vector
 - The Mixer Brush has calibrated continuous pickup, Sample All Layers, and a Useful Combinations dropdown with Photoshop-verified presets, and its options bar follows Photoshop's order
 - Photoshop-style stroke Smoothing steadies the Brush, Mixer Brush, and Eraser
 - The Print dialog adds a Copies field and a Print Using System Dialog button, and printing no longer crashes on a printer whose device context fails
