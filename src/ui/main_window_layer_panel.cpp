@@ -3093,6 +3093,11 @@ void MainWindow::refresh_layer_thumbnails() {
 void MainWindow::refresh_layer_controls() {
   const UiProfileScope profile_scope("refresh_layer_controls");
   refresh_convert_for_smart_filters_action_state();
+  if (canvas_ != nullptr) {
+    // The path overlay outlines every panel-selected shape layer.
+    canvas_->set_panel_selected_layer_ids(has_active_document() ? selected_or_active_layer_ids()
+                                                                : std::vector<LayerId>{});
+  }
   if (!updating_layer_controls_) {
     finish_pending_layer_opacity_edit();
     finish_pending_layer_fill_opacity_edit();

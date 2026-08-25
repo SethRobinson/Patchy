@@ -642,6 +642,10 @@ public:
   // still require a path tool.
   void set_panel_path_targeted(bool targeted);
   [[nodiscard]] bool panel_path_targeted() const noexcept;
+  // Layers-panel selection, pushed on every selection change: under a path
+  // tool the overlay also outlines every selected shape layer's path (hollow
+  // anchors), not just the editing target.
+  void set_panel_selected_layer_ids(std::vector<LayerId> ids);
   // View > Show > Target Path (Ctrl+Shift+H): false hides the whole path
   // overlay - including under path tools - without touching the targeting.
   void set_target_path_visible(bool visible);
@@ -1739,6 +1743,7 @@ private:
   qint64 path_nudge_last_ms_{0};
   std::optional<DocumentPathId> active_document_path_;
   bool panel_path_targeted_{false};
+  std::vector<LayerId> panel_selected_layer_ids_;
   bool target_path_visible_{true};
   std::function<void()> path_display_dismiss_callback_;
   std::function<void()> path_load_selection_callback_;

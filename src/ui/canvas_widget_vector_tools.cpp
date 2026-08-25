@@ -572,6 +572,16 @@ bool CanvasWidget::panel_path_targeted() const noexcept {
   return panel_path_targeted_;
 }
 
+void CanvasWidget::set_panel_selected_layer_ids(std::vector<LayerId> ids) {
+  if (panel_selected_layer_ids_ == ids) {
+    return;
+  }
+  panel_selected_layer_ids_ = std::move(ids);
+  if (path_edit_tool_active()) {
+    update();
+  }
+}
+
 void CanvasWidget::set_target_path_visible(bool visible) {
   if (target_path_visible_ == visible) {
     return;
@@ -1620,28 +1630,58 @@ void CanvasWidget::draw_path_edit_overlay(QPainter& painter) {
   painter.setRenderHint(QPainter::Antialiasing, true);
   const QColor accent(116, 192, 255);
 
-  QPainterPath outline;
-  for (const auto& subpath : path->subpaths) {
-    if (subpath.anchors.empty()) {
-      continue;
+  const auto build_outline = [this](const VectorPath& source) {
+    QPainterPath outline;
+    for (const auto& subpath : source.subpaths) {
+      if (subpath.anchors.empty()) {
+        continue;
+      }
+      outline.moveTo(path_point_to_screen(subpath.anchors[0].anchor_x, subpath.anchors[0].anchor_y));
+      const auto anchor_count = subpath.anchors.size();
+      const auto segment_count = subpath.closed ? anchor_count : anchor_count - 1;
+      for (std::size_t i = 0; i < segment_count; ++i) {
+        const auto& a = subpath.anchors[i];
+        const auto& b = subpath.anchors[(i + 1) % anchor_count];
+        outline.cubicTo(path_point_to_screen(a.out_x, a.out_y), path_point_to_screen(b.in_x, b.in_y),
+                        path_point_to_screen(b.anchor_x, b.anchor_y));
+      }
     }
-    outline.moveTo(path_point_to_screen(subpath.anchors[0].anchor_x, subpath.anchors[0].anchor_y));
-    const auto anchor_count = subpath.anchors.size();
-    const auto segment_count = subpath.closed ? anchor_count : anchor_count - 1;
-    for (std::size_t i = 0; i < segment_count; ++i) {
-      const auto& a = subpath.anchors[i];
-      const auto& b = subpath.anchors[(i + 1) % anchor_count];
-      outline.cubicTo(path_point_to_screen(a.out_x, a.out_y), path_point_to_screen(b.in_x, b.in_y),
-                      path_point_to_screen(b.anchor_x, b.anchor_y));
-    }
-  }
+    return outline;
+  };
   painter.setPen(QPen(accent, 1.2));
   painter.setBrush(Qt::NoBrush);
-  painter.drawPath(outline);
+  painter.drawPath(build_outline(*path));
 
   if (!editing) {
     painter.restore();
     return;
+  }
+
+  // Other panel-selected shape layers draw too (outline + hollow anchors), so
+  // a multi-layer selection shows every shape's points; only the target path
+  // above gets filled anchors, handles, and edits.
+  if (document_ != nullptr) {
+    for (const auto id : panel_selected_layer_ids_) {
+      const auto* layer = std::as_const(*document_).find_layer(id);
+      if (layer == nullptr || layer->vector_shape() == nullptr) {
+        continue;
+      }
+      const auto& extra = layer->vector_shape()->path;
+      if (&extra == path || extra.subpaths.empty()) {
+        continue;  // the editing target already drew
+      }
+      painter.setPen(QPen(accent, 1.2));
+      painter.setBrush(Qt::NoBrush);
+      painter.drawPath(build_outline(extra));
+      painter.setPen(QPen(QColor(30, 34, 40), 1.0));
+      painter.setBrush(QBrush(Qt::white));
+      for (const auto& subpath : extra.subpaths) {
+        for (const auto& anchor : subpath.anchors) {
+          const auto center = path_point_to_screen(anchor.anchor_x, anchor.anchor_y);
+          painter.drawRect(QRectF(center.x() - 2.5, center.y() - 2.5, 5.0, 5.0));
+        }
+      }
+    }
   }
 
   // Handles of selected anchors (DirectSelect editing surface).

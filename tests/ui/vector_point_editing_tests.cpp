@@ -886,6 +886,31 @@ void ui_direct_select_status_chip_shows_selected_count() {
   CHECK(!chip->isVisible());
 }
 
+// A Layers-panel multi-selection outlines every selected shape layer's path
+// under a path tool, not just the active editing target.
+void ui_path_overlay_shows_all_selected_shape_layers() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  make_rect_shape_layer(window, *canvas);  // (100,100)-(300,220), "Rectangle 1"
+  // Second rectangle away from the first; it becomes the active target.
+  canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+  shape_drag(*canvas, QPoint(340, 60), QPoint(420, 160));
+  require_action(window, "toolDirectSelectAction")->trigger();
+  QApplication::processEvents();
+  CHECK(accent_overlay_near(*canvas, QPoint(340, 60)));    // active target draws
+  CHECK(!accent_overlay_near(*canvas, QPoint(100, 100)));  // unselected layer does not
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  require_layer_item(*layer_list, QStringLiteral("Rectangle 1"))->setSelected(true);
+  require_layer_item(*layer_list, QStringLiteral("Rectangle 2"))->setSelected(true);
+  QApplication::processEvents();
+  CHECK(accent_overlay_near(*canvas, QPoint(100, 100)));  // both selected shapes draw
+  CHECK(accent_overlay_near(*canvas, QPoint(340, 60)));
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> vector_point_editing_tests() {
@@ -913,5 +938,7 @@ std::vector<patchy::test::TestCase> vector_point_editing_tests() {
        ui_direct_select_shift_toggle_mid_drag_reapplies_without_motion},
       {"ui_direct_select_status_chip_shows_selected_count",
        ui_direct_select_status_chip_shows_selected_count},
+      {"ui_path_overlay_shows_all_selected_shape_layers",
+       ui_path_overlay_shows_all_selected_shape_layers},
   };
 }

@@ -452,7 +452,8 @@ const char* tool_activation_hint_source(CanvasTool tool) {
   switch (tool) {
     case CanvasTool::Pen:
       return "Pen: click to add points, drag for curves. On a path, click a segment to add a "
-             "point, click a point to delete it, Alt+click converts it, Ctrl+drag moves it.";
+             "point, click a point to delete it, Alt+click converts it, Ctrl+drag selects or "
+             "moves points.";
     case CanvasTool::PathSelect:
       return "Path Select: click a shape to select it, drag to move it. Ctrl+T transforms the "
              "path, Delete removes the selected points.";

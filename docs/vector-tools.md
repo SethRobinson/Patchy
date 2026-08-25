@@ -118,7 +118,10 @@ outside 2000..2997 never enter the saved set, path-range stream entries
 normalize to ascending id order after upserts.
 
 While any row is selected its outline draws with EVERY tool;
-anchors/handles stay path-tool-only. View > Show Target Path (Ctrl+Shift+H,
+anchors/handles stay path-tool-only. Under a path tool the overlay also
+outlines every Layers-panel-selected shape layer with hollow anchors
+(`set_panel_selected_layer_ids`, pushed from `refresh_layer_controls`);
+only the target path gets filled anchors, handles, and edits. View > Show Target Path (Ctrl+Shift+H,
 view.target_path) hides the overlay without touching targeting (not
 persisted; a path-transform session always draws its box). Ctrl+H
 (view.selection_edges, PS's Extras toggle) hides it with the selection
