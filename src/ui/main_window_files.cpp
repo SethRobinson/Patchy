@@ -1797,7 +1797,8 @@ void MainWindow::import_and_divide_from_scanner() {
   // drive the divide dialog without hardware.
   const auto fake_path = qEnvironmentVariable("PATCHY_FAKE_SCANNER_FILE");
   if (!fake_path.isEmpty()) {
-    finish_divide_scanner_import({ScannerAcquireStatus::Acquired, fake_path, {}}, false);
+    while (finish_divide_scanner_import({ScannerAcquireStatus::Acquired, fake_path, {}}, false)) {
+    }
     return;
   }
 
@@ -1807,7 +1808,10 @@ void MainWindow::import_and_divide_from_scanner() {
   }
   scanner_import_active_ = true;
   const auto reentry_guard = qScopeGuard([this] { scanner_import_active_ = false; });
-  finish_divide_scanner_import(acquire_image_from_scanner(this), true);
+  // "Scan another batch?" loops straight back into acquisition, saving the
+  // menu round-trip when a stack of photos is being fed through.
+  while (finish_divide_scanner_import(acquire_image_from_scanner(this), true)) {
+  }
 #elif defined(Q_OS_MACOS)
   if (scanner_import_active_) {
     return;
@@ -1822,12 +1826,16 @@ void MainWindow::import_and_divide_from_scanner() {
       return;
     }
     window->scanner_import_active_ = false;
-    window->finish_divide_scanner_import(std::move(result), true);
+    // "Scan another batch?" re-enters acquisition (the async flow cannot loop
+    // in place; scanner_import_active_ is already cleared above).
+    if (window->finish_divide_scanner_import(std::move(result), true)) {
+      window->import_and_divide_from_scanner();
+    }
   });
 #endif
 }
 
-void MainWindow::finish_divide_scanner_import(ScannerAcquireResult result, bool delete_after) {
+bool MainWindow::finish_divide_scanner_import(ScannerAcquireResult result, bool delete_after) {
   const auto remove_temporary_scan = qScopeGuard([&result, delete_after] {
     if (delete_after && !result.file_path.isEmpty()) {
       QFile::remove(result.file_path);
@@ -1835,7 +1843,7 @@ void MainWindow::finish_divide_scanner_import(ScannerAcquireResult result, bool 
   });
   switch (result.status) {
     case ScannerAcquireStatus::Cancelled:
-      return;
+      return false;
     case ScannerAcquireStatus::NoDevice:
 #ifdef Q_OS_WIN
       show_information_message(
@@ -1848,11 +1856,11 @@ void MainWindow::finish_divide_scanner_import(ScannerAcquireResult result, bool 
           tr("No scanner was found. Connect a scanner recognized by macOS and try again."),
           QStringLiteral("scannerNoDeviceMessageBox"));
 #endif
-      return;
+      return false;
     case ScannerAcquireStatus::Failed:
       show_critical_message(this, tr("Divide Scanned Photos"), result.error,
                             QStringLiteral("scannerFailedMessageBox"));
-      return;
+      return false;
     case ScannerAcquireStatus::Acquired:
       break;
   }
@@ -1867,12 +1875,21 @@ void MainWindow::finish_divide_scanner_import(ScannerAcquireResult result, bool 
   } catch (const std::exception& error) {
     show_critical_message(this, tr("Divide Scanned Photos"), QString::fromUtf8(error.what()),
                           QStringLiteral("openFailedMessageBox"));
-    return;
+    return false;
   }
   const auto image = qimage_from_document_rect(
       *scanned, QRect(0, 0, scanned->width(), scanned->height()), /*preserve_alpha*/ true);
   auto pixels = std::make_shared<const PixelBuffer>(pixels_from_image_rgba(image));
-  run_divide_photos_flow(std::move(pixels), scanned->print_settings());
+  if (!run_divide_photos_flow(std::move(pixels), scanned->print_settings())) {
+    return false;
+  }
+  // Only after a completed batch: someone dividing a whole shoebox gets the
+  // next scan one keypress away instead of a menu round-trip.
+  const auto answer = show_warning_message(
+      this, tr("Divide Scanned Photos"), tr("Scan another batch of photos?"),
+      QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes,
+      QStringLiteral("dividePhotosScanAgainMessageBox"));
+  return answer == QMessageBox::Yes;
 }
 
 void MainWindow::divide_current_document_photos() {
@@ -1894,10 +1911,10 @@ void MainWindow::divide_current_document_photos() {
   run_divide_photos_flow(std::move(pixels), document().print_settings());
 }
 
-void MainWindow::run_divide_photos_flow(std::shared_ptr<const PixelBuffer> source,
+bool MainWindow::run_divide_photos_flow(std::shared_ptr<const PixelBuffer> source,
                                         DocumentPrintSettings print_settings) {
   if (source == nullptr || source->empty()) {
-    return;
+    return false;
   }
   DividePhotosSettings dialog_settings;
   {
@@ -1928,7 +1945,7 @@ void MainWindow::run_divide_photos_flow(std::shared_ptr<const PixelBuffer> sourc
   const auto result = request_divide_photos(this, source, print_settings.horizontal_ppi,
                                             dialog_settings, divide_photos_format_choices());
   if (!result.has_value()) {
-    return;
+    return false;
   }
   const DividePhotosSettings& chosen = result->settings;
   {
@@ -1949,7 +1966,7 @@ void MainWindow::run_divide_photos_flow(std::shared_ptr<const PixelBuffer> sourc
   }
   if (result->regions.empty()) {
     show_status_error(tr("No photos were found"));
-    return;
+    return false;
   }
 
   QProgressDialog progress(tr("Dividing photos..."), tr("Cancel"), 0, 100, this);
@@ -1986,11 +2003,11 @@ void MainWindow::run_divide_photos_flow(std::shared_ptr<const PixelBuffer> sourc
     progress.setValue(100);
   } catch (const FilterCancelled&) {
     statusBar()->showMessage(tr("Cancelled Divide Scanned Photos"));
-    return;
+    return false;
   }
   if (photos.empty()) {
     show_status_error(tr("No photos were found"));
-    return;
+    return false;
   }
 
   if (chosen.output != DividePhotosOutput::OpenDocuments) {
@@ -1998,7 +2015,7 @@ void MainWindow::run_divide_photos_flow(std::shared_ptr<const PixelBuffer> sourc
                                                      chosen.prefix, chosen.format,
                                                      chosen.existing_files);
     if (!saved.has_value()) {
-      return;
+      return false;
     }
     const int count = static_cast<int>(saved->size());
     const QString native_folder = QDir::toNativeSeparators(chosen.folder);
@@ -2028,7 +2045,7 @@ void MainWindow::run_divide_photos_flow(std::shared_ptr<const PixelBuffer> sourc
                                tr("Saved %n photo(s) to %1", nullptr, count).arg(native_folder),
                                QStringLiteral("dividePhotosSavedMessageBox"));
     }
-    return;
+    return true;
   }
 
   int photo_number = 1;
@@ -2047,6 +2064,7 @@ void MainWindow::run_divide_photos_flow(std::shared_ptr<const PixelBuffer> sourc
   refresh_layer_controls();
   update_undo_redo_actions();
   statusBar()->showMessage(tr("Divided into %n photo(s)", nullptr, static_cast<int>(photos.size())));
+  return true;
 }
 
 std::optional<QStringList> MainWindow::save_divided_photos_to_folder(

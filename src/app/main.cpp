@@ -20,6 +20,7 @@
 #include <QFileOpenEvent>
 #include <QFont>
 #include <QFontDatabase>
+#include <QImageReader>
 #include <QFormLayout>
 #include <QLocalServer>
 #include <QLocalSocket>
@@ -320,6 +321,11 @@ int main(int argc, char* argv[]) {
   app.setApplicationDisplayName(QString());
   app.setOrganizationName(QStringLiteral("Seth A. Robinson"));
   app.setWindowIcon(patchy::ui::patchy_app_icon());
+  // Qt 6 caps every image decode at 256 MB and fails bigger ones with a bare
+  // "Unable to read image data" (a large-bed flatbed scan at 600 DPI is
+  // enough to trip it). Patchy opens exactly such files on purpose, so the
+  // guard is disabled; the format readers keep their own sanity checks.
+  QImageReader::setAllocationLimit(0);
   load_bundled_fonts();
 #ifdef Q_OS_WASM
   // Rendering-level stand-ins for system families the browser cannot provide.

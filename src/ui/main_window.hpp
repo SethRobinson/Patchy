@@ -543,11 +543,15 @@ private:
   // platen, and open (or save) each one separately. The scan itself is a
   // throwaway, never a session (the photocopy precedent).
   void import_and_divide_from_scanner();
-  void finish_divide_scanner_import(ScannerAcquireResult result, bool delete_after);
+  // Returns true when the batch finished and the user asked to scan another
+  // (the caller loops back into acquisition).
+  bool finish_divide_scanner_import(ScannerAcquireResult result, bool delete_after);
   // Image > Divide Scanned Photos: the same flow on the current document's
   // flattened composite (the phone-photo case). Never modifies the source.
   void divide_current_document_photos();
-  void run_divide_photos_flow(std::shared_ptr<const PixelBuffer> source,
+  // Returns true when the flow produced output (opened documents or saved
+  // files); false on any cancel or failure along the way.
+  bool run_divide_photos_flow(std::shared_ptr<const PixelBuffer> source,
                               DocumentPrintSettings print_settings);
   // Writes the photos as numbered files (prefix + zero-padded index + "." +
   // extension) into folder. Add mode skips to the next free index per file;

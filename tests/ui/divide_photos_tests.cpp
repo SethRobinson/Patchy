@@ -44,6 +44,7 @@
 #include <cmath>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -84,6 +85,38 @@ struct DividePhotosSettingsGuard {
     settings.setValue(QStringLiteral("dividePhotos/existingFiles"), 0);
   }
 };
+
+// Clicks `button` on the named message box once it appears (retrying while the
+// flow is still pumping other modals such as the extraction progress),
+// recording the click in *done. Bounded so a stray watcher cannot outlive its
+// test by much.
+void click_message_box_when_shown(const QString& object_name, QMessageBox::StandardButton button,
+                                  std::shared_ptr<bool> done, int attempts_left = 300) {
+  QTimer::singleShot(10, [object_name, button, done, attempts_left] {
+    auto* dialog = find_top_level_dialog(object_name);
+    if (dialog == nullptr || !dialog->isVisible()) {
+      if (attempts_left > 0 && !*done) {
+        click_message_box_when_shown(object_name, button, done, attempts_left - 1);
+      }
+      return;
+    }
+    auto* box = qobject_cast<QMessageBox*>(dialog);
+    CHECK(box != nullptr);
+    if (box != nullptr) {
+      *done = true;
+      box->button(button)->click();
+    }
+  });
+}
+
+// Arms a No answer for the scan-another-batch prompt that follows every
+// completed scanner-driven divide.
+std::shared_ptr<bool> decline_scan_again_prompt() {
+  auto answered = std::make_shared<bool>(false);
+  click_message_box_when_shown(QStringLiteral("dividePhotosScanAgainMessageBox"), QMessageBox::No,
+                               answered);
+  return answered;
+}
 
 // A fake 800x600 platen scan at 300 ppi with three axis-aligned photos, all
 // larger than the half-inch physical minimum (150 px at 300 ppi).
@@ -194,9 +227,11 @@ void ui_scan_and_divide_opens_document_per_photo() {
     saw_dialog = true;
     buttons->button(QDialogButtonBox::Ok)->click();
   });
+  const auto scan_again = decline_scan_again_prompt();
   patchy::ui::MainWindowTestAccess::import_and_divide_from_scanner(window);
   QApplication::processEvents();
   CHECK(saw_dialog);
+  CHECK(*scan_again);
   // One untitled, modified document per photo; the scan itself never becomes a session.
   CHECK(tabs->count() == tab_count_before + 3);
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
@@ -365,9 +400,11 @@ void ui_divide_straighten_and_perspective_toggles() {
     saw_cut_dialog = true;
     buttons->button(QDialogButtonBox::Ok)->click();
   });
+  const auto first_scan_again = decline_scan_again_prompt();
   patchy::ui::MainWindowTestAccess::import_and_divide_from_scanner(window);
   QApplication::processEvents();
   CHECK(saw_cut_dialog);
+  CHECK(*first_scan_again);
   {
     // 300 cos 12 + 200 sin 12 by 300 sin 12 + 200 cos 12: about 335 x 258.
     auto& document = patchy::ui::MainWindowTestAccess::document(window);
@@ -398,9 +435,11 @@ void ui_divide_straighten_and_perspective_toggles() {
     saw_straighten_dialog = true;
     buttons->button(QDialogButtonBox::Ok)->click();
   });
+  const auto second_scan_again = decline_scan_again_prompt();
   patchy::ui::MainWindowTestAccess::import_and_divide_from_scanner(window);
   QApplication::processEvents();
   CHECK(saw_straighten_dialog);
+  CHECK(*second_scan_again);
   {
     auto& document = patchy::ui::MainWindowTestAccess::document(window);
     CHECK(std::abs(document.width() - 300) <= 6);
@@ -619,9 +658,11 @@ void ui_divide_up_direction_rotates_photos() {
     saw_dialog = true;
     buttons->button(QDialogButtonBox::Ok)->click();
   });
+  const auto scan_again = decline_scan_again_prompt();
   patchy::ui::MainWindowTestAccess::import_and_divide_from_scanner(window);
   QApplication::processEvents();
   CHECK(saw_dialog);
+  CHECK(*scan_again);
 
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   CHECK(document.width() == 200);
@@ -669,9 +710,11 @@ void ui_divide_save_and_open_opens_unmodified_sessions() {
     saw_dialog = true;
     buttons->button(QDialogButtonBox::Ok)->click();
   });
+  const auto scan_again = decline_scan_again_prompt();
   patchy::ui::MainWindowTestAccess::import_and_divide_from_scanner(window);
   QApplication::processEvents();
   CHECK(saw_dialog);
+  CHECK(*scan_again);
 
   for (int i = 1; i <= 3; ++i) {
     CHECK(QFileInfo::exists(temp.filePath(QStringLiteral("both_00%1.png").arg(i))));
@@ -683,6 +726,64 @@ void ui_divide_save_and_open_opens_unmodified_sessions() {
             .endsWith(QStringLiteral("both_003.png")));
   CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
   CHECK(tabs->tabText(tabs->currentIndex()).contains(QStringLiteral("both_003.png")));
+}
+
+// Answering Yes to the scan-another-batch prompt loops straight back into
+// acquisition (the fake scanner delivers the same file), so two batches import
+// without touching the menu; No ends the loop.
+void ui_divide_scan_again_prompt_repeats_scan() {
+  DividePhotosSettingsGuard settings_guard;
+  qputenv("PATCHY_FAKE_SCANNER_FILE",
+          write_three_photo_scan(QStringLiteral("ui_fake_divide_again.png")).toUtf8());
+  const auto env_guard = qScopeGuard([] { qunsetenv("PATCHY_FAKE_SCANNER_FILE"); });
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
+  CHECK(tabs != nullptr);
+  const auto tab_count_before = tabs->count();
+
+  auto dialogs_okayed = std::make_shared<int>(0);
+  auto answered_yes = std::make_shared<bool>(false);
+  auto answered_no = std::make_shared<bool>(false);
+  // One watcher drives the whole conversation: OK each divide dialog, Yes to
+  // the first prompt, No to the second.
+  const auto pump = std::make_shared<std::function<void(int)>>();
+  *pump = [pump, dialogs_okayed, answered_yes, answered_no](int attempts_left) {
+    QTimer::singleShot(10, [pump, dialogs_okayed, answered_yes, answered_no, attempts_left] {
+      if (auto* dialog = find_top_level_dialog(QStringLiteral("dividePhotosDialog"));
+          dialog != nullptr && dialog->isVisible()) {
+        auto* buttons = dialog->findChild<QDialogButtonBox*>(QStringLiteral("dividePhotosButtonBox"));
+        CHECK(buttons != nullptr);
+        ++*dialogs_okayed;
+        buttons->button(QDialogButtonBox::Ok)->click();
+      } else if (auto* box_dialog =
+                     find_top_level_dialog(QStringLiteral("dividePhotosScanAgainMessageBox"));
+                 box_dialog != nullptr && box_dialog->isVisible()) {
+        auto* box = qobject_cast<QMessageBox*>(box_dialog);
+        CHECK(box != nullptr);
+        if (*dialogs_okayed < 2) {
+          *answered_yes = true;
+          box->button(QMessageBox::Yes)->click();
+        } else {
+          *answered_no = true;
+          box->button(QMessageBox::No)->click();
+          return;  // conversation over
+        }
+      }
+      if (attempts_left > 0 && !*answered_no) {
+        (*pump)(attempts_left - 1);
+      }
+    });
+  };
+  (*pump)(600);
+  patchy::ui::MainWindowTestAccess::import_and_divide_from_scanner(window);
+  QApplication::processEvents();
+  CHECK(*dialogs_okayed == 2);
+  CHECK(*answered_yes);
+  CHECK(*answered_no);
+  // Two batches of three photos each.
+  CHECK(tabs->count() == tab_count_before + 6);
 }
 
 void ui_divide_output_controls_follow_output_mode() {
@@ -762,6 +863,7 @@ std::vector<patchy::test::TestCase> divide_photos_tests() {
       {"ui_divide_up_direction_rotates_photos", ui_divide_up_direction_rotates_photos},
       {"ui_divide_save_and_open_opens_unmodified_sessions",
        ui_divide_save_and_open_opens_unmodified_sessions},
+      {"ui_divide_scan_again_prompt_repeats_scan", ui_divide_scan_again_prompt_repeats_scan},
       {"ui_divide_output_controls_follow_output_mode",
        ui_divide_output_controls_follow_output_mode},
   };
