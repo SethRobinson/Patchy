@@ -123,7 +123,16 @@ AnimationPreviewWindow::AnimationPreviewWindow(
   timer_.setSingleShot(true);
   connect(&timer_, &QTimer::timeout, this, [this] { advance_frame(); });
 
-  resize(360, 200);
+  // Size to the content rather than a hardcoded height. The hint wraps to a different
+  // number of lines depending on the platform's font, and a fixed height cut its last
+  // line off in the browser build. totalHeightForWidth asks the layout what the content
+  // actually needs at the design width, the same question QWidget::adjustSize asks, and
+  // pinning that width as the minimum means the text can never rewrap taller than the
+  // height computed here.
+  constexpr int kPreferredWidth = 360;
+  const int needed_height = root->totalHeightForWidth(kPreferredWidth);
+  setMinimumSize(kPreferredWidth, needed_height);
+  resize(kPreferredWidth, needed_height);
 }
 
 void AnimationPreviewWindow::toggle_playback() {

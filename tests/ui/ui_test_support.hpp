@@ -595,6 +595,15 @@ LayerStyleContextMenuState layer_style_context_menu_state(QListWidget& layer_lis
 
 patchy::ui::CanvasWidget* require_canvas(patchy::ui::MainWindow& window);
 
+// Object names (or texts, for unnamed labels) of every visible QLabel under `root`
+// whose text does not fit the space the layout gave it: a word-wrapped label needing
+// more height than it has, or a single-line label narrower than its own text. A
+// non-empty result means the window is too small for its content, which is what
+// clipped hint text looks like to a user. Dialogs sized by a hardcoded resize() are
+// the usual cause; fonts differ per platform, so a size that fits on Windows can clip
+// on macOS or in the browser build.
+[[nodiscard]] QStringList clipped_labels(QWidget& root);
+
 void show_window(patchy::ui::MainWindow& window);
 
 // show_window without the compatibility document: the true empty-startup state

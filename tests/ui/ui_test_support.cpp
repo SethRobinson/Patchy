@@ -5,6 +5,7 @@
 
 #include <QDir>
 #include <QFont>
+#include <QLabel>
 #include <QFontDatabase>
 #include <QFontInfo>
 #include <QFontMetrics>
@@ -470,6 +471,58 @@ patchy::ui::CanvasWidget* require_canvas(patchy::ui::MainWindow& window) {
   }
   CHECK(canvas != nullptr);
   return canvas;
+}
+
+QStringList clipped_labels(QWidget& root) {
+  QStringList clipped;
+  for (auto* label : root.findChildren<QLabel*>()) {
+    if (!label->isVisible() || label->text().isEmpty()) {
+      continue;
+    }
+    // Pixmap labels and rich-text banners have their own sizing rules; only plain
+    // text laid out by the label itself is measured here.
+    if (!label->pixmap().isNull() || label->textFormat() == Qt::RichText) {
+      continue;
+    }
+    const auto identify = [label] {
+      return label->objectName().isEmpty() ? label->text().left(40) : label->objectName();
+    };
+    // A label laid out past the edge of its own window is clipped just as surely as one
+    // squeezed too short, and a window sized from a bad measurement produces exactly that.
+    if (auto* top = label->window(); top != nullptr) {
+      const QRect in_window(label->mapTo(top, QPoint(0, 0)), label->size());
+      if (!top->rect().contains(in_window)) {
+        clipped.append(QStringLiteral("%1 (extends outside its window: label %2x%3 at %4,%5, window %6x%7)")
+                           .arg(identify())
+                           .arg(in_window.width())
+                           .arg(in_window.height())
+                           .arg(in_window.x())
+                           .arg(in_window.y())
+                           .arg(top->width())
+                           .arg(top->height()));
+        continue;
+      }
+    }
+    if (label->wordWrap()) {
+      // heightForWidth is the height the wrapped text actually needs at this width.
+      const int needed = label->heightForWidth(label->width());
+      if (needed > label->height()) {
+        clipped.append(QStringLiteral("%1 (needs %2px height, has %3px)")
+                           .arg(identify())
+                           .arg(needed)
+                           .arg(label->height()));
+      }
+      continue;
+    }
+    const int needed = label->fontMetrics().horizontalAdvance(label->text()) + label->margin() * 2;
+    if (needed > label->width()) {
+      clipped.append(QStringLiteral("%1 (needs %2px width, has %3px)")
+                         .arg(identify())
+                         .arg(needed)
+                         .arg(label->width()));
+    }
+  }
+  return clipped;
 }
 
 void show_window(patchy::ui::MainWindow& window) {

@@ -11,12 +11,16 @@
 
 #include <QApplication>
 #include <QDoubleSpinBox>
+#include <QFileInfo>
+#include <QFontDatabase>
 #include <QLabel>
 #include <QListWidget>
 #include <QPointer>
 #include <QPushButton>
 #include <QToolButton>
+#include <QVBoxLayout>
 
+#include <cstdio>
 #include <string>
 #include <utility>
 #include <vector>
@@ -285,6 +289,78 @@ void ui_animation_preview_stops_on_tab_switch_and_close() {
   CHECK(!panel->playing());
 }
 
+// The panel has to fit its wrapped hint text under whatever font the platform supplies.
+// The browser build sets the UI in Noto Sans (see docs/fonts.md), which is wider than
+// Windows' Segoe UI, so the hint wrapped onto an extra line and the panel's hardcoded
+// opening height cut it off. This opens the panel under the browser build's own font,
+// and again at a deliberately larger size, and checks the text fits both times.
+void ui_animation_preview_fits_its_text_at_larger_fonts() {
+  patchy::ui::MainWindow window;
+  window.add_document_session(animation_test_document(), QStringLiteral("Animation"));
+  show_window(window);
+
+  const auto open_panel = [&window]() -> patchy::ui::AnimationPreviewWindow* {
+    auto* animation_button = window.findChild<QPushButton*>(QStringLiteral("layerAnimationButton"));
+    CHECK(animation_button != nullptr);
+    animation_button->click();
+    QApplication::processEvents();
+    return window.findChild<patchy::ui::AnimationPreviewWindow*>(
+        QStringLiteral("animationPreviewWindow"));
+  };
+  const auto check_fits = [](patchy::ui::AnimationPreviewWindow& panel, const char* label) {
+    auto* hint = panel.findChild<QLabel*>(QStringLiteral("animationPreviewHintLabel"));
+    std::puts(QStringLiteral("  [%1] panel=%2x%3 hint=%4x%5 needs=%6")
+                  .arg(QString::fromUtf8(label))
+                  .arg(panel.width())
+                  .arg(panel.height())
+                  .arg(hint != nullptr ? hint->width() : -1)
+                  .arg(hint != nullptr ? hint->height() : -1)
+                  .arg(hint != nullptr ? hint->heightForWidth(hint->width()) : -1)
+                  .toUtf8()
+                  .constData());
+    const auto clipped = patchy::test::ui::clipped_labels(panel);
+    if (!clipped.isEmpty()) {
+      std::printf("  clipped at %s: %s\n", label, clipped.join(QStringLiteral("; ")).toUtf8().constData());
+    }
+    CHECK(clipped.isEmpty());
+  };
+
+  auto* panel = open_panel();
+  CHECK(panel != nullptr);
+  check_fits(*panel, "the suite default font");
+  // Closed so each font gets a freshly built panel, the way the browser build builds one
+  // under its own font.
+  panel->close();
+  QApplication::processEvents();
+
+  // The theme drives fonts through QSS rather than setFont, so a QSS rule is what a
+  // different platform font looks like to the layout. Stylesheets propagate from the
+  // window into the panel, which is its child.
+  const auto original_style = window.styleSheet();
+  const auto open_with_hint_font = [&](const QString& rule, const char* label) {
+    window.setStyleSheet(original_style +
+                         QStringLiteral("\nQLabel#animationPreviewHintLabel { %1 }").arg(rule));
+    auto* styled = open_panel();
+    CHECK(styled != nullptr);
+    if (styled != nullptr) {
+      check_fits(*styled, label);
+      styled->close();
+      QApplication::processEvents();
+    }
+  };
+
+  // The browser build's actual UI font, if the bundled web tree is staged.
+  const auto noto_path =
+      QStringLiteral(PATCHY_SOURCE_DIR "/third_party/fonts-web/noto_sans/NotoSans-Regular.ttf");
+  if (QFileInfo::exists(noto_path) && QFontDatabase::addApplicationFont(noto_path) >= 0) {
+    open_with_hint_font(QStringLiteral("font-family: \"Noto Sans\";"), "the browser build's Noto Sans");
+  }
+  // A font well past any real platform's, so the panel has to grow rather than clip.
+  open_with_hint_font(QStringLiteral("font-size: 20px;"), "a 20px font");
+
+  window.setStyleSheet(original_style);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> layer_panel_organization_tests_animation_part() {
@@ -295,5 +371,7 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests_animation_par
        ui_animation_preview_sets_and_removes_frame_time_names},
       {"ui_animation_preview_stops_on_tab_switch_and_close",
        ui_animation_preview_stops_on_tab_switch_and_close},
+      {"ui_animation_preview_fits_its_text_at_larger_fonts",
+       ui_animation_preview_fits_its_text_at_larger_fonts},
   };
 }
