@@ -189,19 +189,21 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 
 ## What's New
 
-### 0.90 - August 25, 2026
+### 0.90 - August 26, 2026
 
 - PDF is now a first-class format. Opening a PDF imports its pages as editable shape, text, and image layers by default, with a flat-image option, reads password-protected files, and converts shadings to gradient fills and spot colors through their tints. Saving as PDF works everywhere, with a choice of flattened pages or editable layers that keep paths, text, and images as real objects, and imported Photoshop text layers export as real selectable PDF text, substituting missing fonts unless you ask for images
 - Trace Image to Shapes converts a raster image, or just the selected area, into editable shape layers. Photo-quality palettes up to 256 colors with exact color assignment, a Merge Colors option that collapses near-duplicate colors, smoothing and anchor-budget sliders, saveable presets, and a size warning before heavy traces
-- File > Import > Photocopy scans a page and prints it at actual size in one step, using the scanner's true DPI, with a movable crop and a preview that shades anything the printable area cuts off, and Divide Scanned Photos splits a scan or photo into straightened per-photo images
+- Animated GIFs open as layers, with each frame's delay kept in its layer name, and the visible layers export back as a looping animation. The Layers panel's film button opens an Animation Preview that plays those layers as frames and can set or clear the per-frame timings
+- File > Import > Photocopy scans a page and prints it at actual size in one step, using the scanner's true DPI, with a movable crop and a preview that shades anything the printable area cuts off. Divide Scanned Photos splits a scan or photo into straightened per-photo images, with an up-direction picker, the output folder, prefix, and format chosen right in the dialog, and a prompt to scan another batch
 - Path point editing is discoverable: dedicated anchor tools with status-bar hints and a live selected-point count, a right-click path menu, and Auto Add/Delete on the Pen, plus Simplify Path and Combine Shapes commands for existing shape layers
 - Direct Select edits points across every shape layer selected in the Layers panel, drags a whole selection by any of its segments, and Shift constrains point drags to horizontal, vertical, or 45 degrees; marquees can be repositioned with Space or squared with Shift, and Ctrl+E keeps shape-layer merges vector
 - The Mixer Brush has calibrated continuous pickup, Sample All Layers, and a Useful Combinations dropdown with Photoshop-verified presets, and its options bar follows Photoshop's order
 - Photoshop-style stroke Smoothing steadies the Brush, Mixer Brush, and Eraser
 - The Print dialog adds a Copies field and a Print Using System Dialog button, and printing no longer crashes on a printer whose device context fails
 - Ungroup Layers and Copy as SVG join the menus
-- Web build: the Clone tool's brush outline no longer vanishes at large sizes, a bare Alt tap no longer steals browser focus, dialogs open with keyboard focus on the intended widget, and the expanded tool palette stays open
-- Fixes: files with Unicode names save and reopen correctly instead of being mangled by the ANSI code page, Ctrl+H also hides path anchors, handles, and outlines, path anchors appear as soon as the active layer changes, and entry fields use the accent color for text selection
+- The Move tool's Ctrl+click toggles a layer in the current selection, and Ctrl+Shift+click in the Layers panel adds a whole range
+- Web build: the Clone tool's brush outline no longer vanishes at large sizes, a bare Alt tap no longer steals browser focus, dialogs open with keyboard focus on the intended widget, the expanded tool palette stays open, and opening a PDF explains that import is desktop only and offers a download button instead of a generic unsupported message
+- Fixes: 600 DPI flatbed scans load again instead of failing to read their image data, File > Place Embedded greys out when no document is open instead of doing nothing, files with Unicode names save and reopen correctly instead of being mangled by the ANSI code page, Ctrl+H also hides path anchors, handles, and outlines, path anchors appear as soon as the active layer changes, and entry fields use the accent color for text selection
 
 ### 0.89 - August 10, 2026
 
