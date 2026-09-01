@@ -1,4 +1,5 @@
 #include "ui/channel_panel.hpp"
+#include "ui/modifier_names.hpp"
 
 #include <QAbstractItemModel>
 #include <QAction>
@@ -102,12 +103,12 @@ void ChannelPanel::set_rows(std::vector<Row> rows, std::optional<Row> selected) 
       flags |= Qt::ItemIsDragEnabled | Qt::ItemIsUserCheckable;
       item->setCheckState(row.overlay ? Qt::Checked : Qt::Unchecked);
       item->setToolTip(tr("Select for a grayscale view. Check to show a colored overlay.") + QLatin1Char('\n') +
-                       tr("Ctrl-click to load this channel as a selection."));
+                       resolve_modifier_names(tr("%CTRL%-click to load this channel as a selection.")));
     } else if (row.kind == RowKind::Spot) {
       flags |= Qt::ItemIsUserCheckable;
       item->setCheckState(row.overlay ? Qt::Checked : Qt::Unchecked);
       item->setToolTip(tr("Spot channels can be previewed but not edited.") + QLatin1Char('\n') +
-                       tr("Ctrl-click to load this channel as a selection."));
+                       resolve_modifier_names(tr("%CTRL%-click to load this channel as a selection.")));
     } else if (row.kind == RowKind::QuickMask) {
       item->setToolTip(tr("Temporary selection mask. White selects, black masks, and gray creates partial selection."));
     } else {
@@ -115,7 +116,7 @@ void ChannelPanel::set_rows(std::vector<Row> rows, std::optional<Row> selected) 
                                    ? tr("Show the normal composite image.")
                                    : tr("Preview this component as grayscale. Component channels are read-only.");
       item->setToolTip(preview_tip + QLatin1Char('\n') +
-                       tr("Ctrl-click to load this channel as a selection."));
+                       resolve_modifier_names(tr("%CTRL%-click to load this channel as a selection.")));
     }
     item->setFlags(flags);
     if (selected.has_value() && selected->kind == row.kind && selected->id == row.id) {

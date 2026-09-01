@@ -13,6 +13,7 @@
 #include "ui/gradient_manager_dialog.hpp"
 #include "ui/gradient_preset_popup.hpp"
 #include "ui/gradient_stops_editor.hpp"
+#include "ui/modifier_names.hpp"
 #include "ui/pattern_library.hpp"
 #include "ui/pattern_manager_dialog.hpp"
 #include "ui/photo_pattern_presets.hpp"
@@ -2233,9 +2234,9 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     row.editor->setObjectName(editor_object_name);
     row.editor->set_accessibility_text(
         QObject::tr("%1 Blend If range").arg(title),
-        QObject::tr("Use Page Up or Page Down to select a handle, arrow keys "
-                    "to move it, and Alt/Option-drag to "
-                    "split a joined handle."));
+        resolve_modifier_names(QObject::tr("Use Page Up or Page Down to select a handle, arrow keys "
+                                           "to move it, and %ALT%-drag to "
+                                           "split a joined handle.")));
     blend_if_layout->addWidget(row.editor);
 
     auto* values = new QHBoxLayout();

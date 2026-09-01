@@ -1,5 +1,7 @@
 #include "ui/paths_panel.hpp"
 
+#include "ui/modifier_names.hpp"
+
 #include <QAction>
 #include <QAbstractItemModel>
 #include <QEvent>
@@ -138,8 +140,8 @@ void PathsPanel::set_rows(std::vector<Row> rows, std::optional<Row> selected) {
       flags |= Qt::ItemIsEditable | Qt::ItemIsDragEnabled;
       auto tooltip = tr("Saved path. Double-click to rename; select to edit with the pen and "
                         "path tools.") + QLatin1Char('\n') +
-                     tr("Ctrl-click or Ctrl+Enter loads the path as a selection; drag to "
-                        "reorder.");
+                     resolve_modifier_names(tr("%CTRL%-click or %CTRL%+Enter loads the path as a selection; "
+                                               "drag to reorder."));
       if (row.clipping) {
         // The Photoshop convention: the clipping path's name renders
         // distinctly (Patchy underlines it).

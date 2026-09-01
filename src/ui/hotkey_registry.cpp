@@ -1,6 +1,7 @@
 #include "ui/hotkey_registry.hpp"
 
 #include "ui/app_settings.hpp"
+#include "ui/modifier_names.hpp"
 
 #include <QAction>
 #include <QCoreApplication>
@@ -74,8 +75,11 @@ void refresh_action_tooltip(QAction* action) {
   const auto detail_source = action->property(kActionTooltipDetailProperty).toString();
   if (!detail_source.isEmpty()) {
     const auto detail_bytes = detail_source.toUtf8();
+    // The detail is a sentence, not a shortcut chip, so its modifier names are spelled out
+    // for the platform. The chip above already carries Qt's native glyphs.
     tooltip += QLatin1Char('\n') +
-               QCoreApplication::translate("patchy::ui::MainWindow", detail_bytes.constData());
+               resolve_modifier_names(
+                   QCoreApplication::translate("patchy::ui::MainWindow", detail_bytes.constData()));
   }
   action->setToolTip(tooltip);
 }

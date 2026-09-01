@@ -40,6 +40,7 @@
 #include "ui/compatibility_report.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/image_save_options_dialog.hpp"
+#include "ui/modifier_names.hpp"
 #include "ui/raw_develop_dialog.hpp"
 #include "ui/filter_workflows.hpp"
 #include "ui/gradient_stops_editor.hpp"
@@ -1415,10 +1416,10 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
         layer.children().empty()
             ? QObject::tr("Folder is empty")
             : group_expanded
-                ? QObject::tr(
-                      "Collapse folder (Alt-click includes nested folders, Ctrl+Alt-click all folders)")
-                : QObject::tr(
-                      "Expand folder (Alt-click includes nested folders, Ctrl+Alt-click all folders)"));
+                ? resolve_modifier_names(QObject::tr(
+                      "Collapse folder (%ALT%-click includes nested folders, %CTRL%+%ALT%-click all folders)"))
+                : resolve_modifier_names(QObject::tr(
+                      "Expand folder (%ALT%-click includes nested folders, %CTRL%+%ALT%-click all folders)")));
     disclosure->installEventFilter(new ClickModifierRecorder(disclosure));
     QObject::connect(disclosure, &QToolButton::clicked, row,
                      [parent, disclosure, id = layer.id(),
@@ -1519,9 +1520,9 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                                                        thumbnail_crop));
     mask_preview->setProperty(kLayerMaskThumbnailRevisionProperty,
                               QVariant::fromValue<qulonglong>(static_cast<qulonglong>(layer.render_revision())));
-    mask_preview->setToolTip(
-        QObject::tr("Layer mask. Click to edit it with the paint tools, Alt-click to view it, Shift-click to "
-                    "disable it."));
+    mask_preview->setToolTip(resolve_modifier_names(
+        QObject::tr("Layer mask. Click to edit it with the paint tools, %ALT%-click to view it, Shift-click to "
+                    "disable it.")));
     mask_preview->setProperty("layerTargetActive", mask_target_active);
     if (list_parent != nullptr) {
       mask_preview->installEventFilter(list_parent);
@@ -1536,9 +1537,9 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     vector_mask_preview->setAlignment(Qt::AlignCenter);
     vector_mask_preview->setPixmap(layer_vector_mask_thumbnail(
         *layer.vector_mask(), document_size.width(), document_size.height(), thumbnail_crop));
-    vector_mask_preview->setToolTip(
-        QObject::tr("Vector mask. Click to edit its path with the pen and path tools, Ctrl-click to "
-                    "load it as a selection, Alt-click to view it, Shift-click to disable it."));
+    vector_mask_preview->setToolTip(resolve_modifier_names(
+        QObject::tr("Vector mask. Click to edit its path with the pen and path tools, %CTRL%-click to "
+                    "load it as a selection, %ALT%-click to view it, Shift-click to disable it.")));
     vector_mask_preview->setProperty("layerTargetActive", vector_mask_target_active);
     if (list_parent != nullptr) {
       vector_mask_preview->installEventFilter(list_parent);
@@ -1807,8 +1808,8 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
       smart_filter_mask_thumbnail->setStyleSheet(QStringLiteral("background: transparent;"));
       smart_filter_mask_thumbnail->setToolTip(
           controls_supported && smart_filter_mask_size_supported
-              ? QObject::tr(
-                    "Shared Smart Filter mask. Click to edit it, Ctrl-click to load it as a selection, Alt-click to view it, or Shift-click to disable it.")
+              ? resolve_modifier_names(QObject::tr(
+                    "Shared Smart Filter mask. Click to edit it, %CTRL%-click to load it as a selection, %ALT%-click to view it, or Shift-click to disable it."))
               : smart_filter_mask_size_supported
                     ? preservation_tooltip
                     : QObject::tr(

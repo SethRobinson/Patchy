@@ -4,7 +4,7 @@
 <context>
     <name>patchy::ui::PathsPanel</name>
     <message><source>Saved path. Double-click to rename; select to edit with the pen and path tools.</source><translation>保存済みパス。ダブルクリックで名前を変更、選択するとペン/パスツールで編集できます。</translation></message>
-    <message><source>Ctrl-click or Ctrl+Enter loads the path as a selection; drag to reorder.</source><translation>Ctrl+クリックまたは Ctrl+Enter でパスを選択範囲として読み込み、ドラッグで並べ替えます。</translation></message>
+    <message><source>%CTRL%-click or %CTRL%+Enter loads the path as a selection; drag to reorder.</source><translation>%CTRL%+クリックまたは %CTRL%+Enter でパスを選択範囲として読み込み、ドラッグで並べ替えます。</translation></message>
     <message><source>This is the document&apos;s clipping path.</source><translation>このパスはドキュメントのクリッピングパスです。</translation></message>
     <message><source>The temporary work path. Double-click to save it as a named path.</source><translation>一時的な作業用パス。ダブルクリックで名前付きパスとして保存します。</translation></message>
     <message><source>The active layer&apos;s path (shape or vector mask).</source><translation>アクティブレイヤーのパス（シェイプまたはベクトルマスク）。</translation></message>
@@ -2417,8 +2417,8 @@
     </message>
     <message>
         <location line="+34"/>
-        <source>Use Page Up or Page Down to select a handle, arrow keys to move it, and Alt/Option-drag to split a joined handle.</source>
-        <translation>Page Up または Page Down でハンドルを選択し、矢印キーで移動します。結合されたハンドルを分割するには Alt/Option キーを押しながらドラッグします。</translation>
+        <source>Use Page Up or Page Down to select a handle, arrow keys to move it, and %ALT%-drag to split a joined handle.</source>
+        <translation>Page Up または Page Down でハンドルを選択し、矢印キーで移動します。結合されたハンドルを分割するには %ALT% キーを押しながらドラッグします。</translation>
     </message>
     <message>
         <location line="+88"/>
@@ -2811,10 +2811,6 @@
         <location line="+91"/>
         <source>%1 Blend If range</source>
         <translation>%1 の「ブレンド条件 (Blend If)」範囲</translation>
-    </message>
-    <message>
-        <source>Use Page Up or Page Down to select a handle, arrow keys to move it, and Alt-drag to split a joined handle.</source>
-        <translation type="vanished">Page Up または Page Down でハンドルを選択し、矢印キーで移動します。結合されたハンドルを分割するには Alt キーを押しながらドラッグします。</translation>
     </message>
     <message>
         <location line="+11"/>
@@ -3532,13 +3528,13 @@ Flow: %6
     </message>
     <message>
         <location line="+1"/>
-        <source>Collapse folder (Alt-click includes nested folders, Ctrl+Alt-click all folders)</source>
-        <translation>フォルダーを折りたたむ（Altクリックで中のフォルダーもまとめて、Ctrl+Altクリックで全フォルダー）</translation>
+        <source>Collapse folder (%ALT%-click includes nested folders, %CTRL%+%ALT%-click all folders)</source>
+        <translation>フォルダーを折りたたむ（Altクリックで中のフォルダーもまとめて、%CTRL%+Altクリックで全フォルダー）</translation>
     </message>
     <message>
         <location line="+0"/>
-        <source>Expand folder (Alt-click includes nested folders, Ctrl+Alt-click all folders)</source>
-        <translation>フォルダーを展開（Altクリックで中のフォルダーもまとめて、Ctrl+Altクリックで全フォルダー）</translation>
+        <source>Expand folder (%ALT%-click includes nested folders, %CTRL%+%ALT%-click all folders)</source>
+        <translation>フォルダーを展開（Altクリックで中のフォルダーもまとめて、%CTRL%+Altクリックで全フォルダー）</translation>
     </message>
     <message>
         <location line="+22"/>
@@ -3574,7 +3570,7 @@ Flow: %6
     </message>
     <message>
         <location line="+14"/>
-        <source>Layer mask. Click to edit it with the paint tools, Alt-click to view it, Shift-click to disable it.</source>
+        <source>Layer mask. Click to edit it with the paint tools, %ALT%-click to view it, Shift-click to disable it.</source>
         <translation>レイヤーマスク。クリックでペイントツールによる編集、Altクリックでマスク表示、Shiftクリックで無効化します。</translation>
     </message>
     <message>
@@ -6432,13 +6428,13 @@ Mixed selection</source>
     </message>
     <message>
         <location line="-3297"/>
-        <source>Alt-click to set a clone source</source>
-        <translation>Alt クリックでクローン元を設定します</translation>
+        <source>%ALT%-click to set a clone source</source>
+        <translation>%ALT% クリックでクローン元を設定します</translation>
     </message>
     <message>
         <location filename="../src/ui/canvas_widget_events.cpp" line="562"/>
-        <source>Alt-click to set a healing source</source>
-        <translation>Alt クリックで修復元を設定します</translation>
+        <source>%ALT%-click to set a healing source</source>
+        <translation>%ALT% クリックで修復元を設定します</translation>
     </message>
     <message>
         <location line="+5007"/>
@@ -6799,12 +6795,12 @@ Mixed selection</source>
     <message><source>Sharpen brush</source><translation>シャープブラシ</translation></message>
     <message><source>Crop cancelled</source><translation>切り抜きをキャンセルしました</translation></message>
     <message><source>Drag the handles or edges to adjust. Enter crops, Esc cancels.</source><translation>ハンドルや辺をドラッグして調整します。Enter で切り抜き、Esc でキャンセルします。</translation></message>
-    <message><source>Click to add a point here. Ctrl-drag moves the segment.</source><translation>クリックでここにポイントを追加。Ctrl+ドラッグでセグメントを移動。</translation></message>
-    <message><source>Click to delete this point. Ctrl-drag moves it. Alt+click converts it between corner and smooth.</source><translation>クリックでこのポイントを削除。Ctrl+ドラッグで移動。Alt+クリックでコーナーとスムーズを切り替えます。</translation></message>
-    <message><source>Click to delete this point. Ctrl-drag moves it.</source><translation>クリックでこのポイントを削除。Ctrl+ドラッグで移動。</translation></message>
+    <message><source>Click to add a point here. %CTRL%-drag moves the segment.</source><translation>クリックでここにポイントを追加。%CTRL%+ドラッグでセグメントを移動。</translation></message>
+    <message><source>Click to delete this point. %CTRL%-drag moves it. %ALT%+click converts it between corner and smooth.</source><translation>クリックでこのポイントを削除。%CTRL%+ドラッグで移動。%ALT%+クリックでコーナーとスムーズを切り替えます。</translation></message>
+    <message><source>Click to delete this point. %CTRL%-drag moves it.</source><translation>クリックでこのポイントを削除。%CTRL%+ドラッグで移動。</translation></message>
     <message><source>Click to convert this point between corner and smooth</source><translation>クリックでこのポイントのコーナーとスムーズを切り替え</translation></message>
     <message><source>Click to close the path</source><translation>クリックでパスを閉じる</translation></message>
-    <message><source>Click to select the shape, drag to move it. Ctrl+T transforms it.</source><translation>クリックでシェイプを選択、ドラッグで移動。Ctrl+Tで変形します。</translation></message>
+    <message><source>Click to select the shape, drag to move it. %CTRL%+T transforms it.</source><translation>クリックでシェイプを選択、ドラッグで移動。%CTRL%+Tで変形します。</translation></message>
     <message><source>Drag to move the point. Shift+click adds it to the selection; Delete removes the selected points.</source><translation>ドラッグでポイントを移動。Shift+クリックで選択に追加、Deleteで選択したポイントを削除します。</translation></message>
     <message><source>Drag the handle to reshape the curve</source><translation>ハンドルをドラッグして曲線を変形</translation></message>
     <message><source>Drag to move the segment, or the whole selection when its points are selected</source><translation>ドラッグでセグメントを移動、両端のポイントが選択済みなら選択範囲全体を移動</translation></message>
@@ -6842,8 +6838,8 @@ Mixed selection</source>
         <location line="-9"/>
         <location line="+5"/>
         <location line="+6"/>
-        <source>Ctrl-click to load this channel as a selection.</source>
-        <translation>Ctrl+クリックでこのチャンネルを選択範囲として読み込みます。</translation>
+        <source>%CTRL%-click to load this channel as a selection.</source>
+        <translation>%CTRL%+クリックでこのチャンネルを選択範囲として読み込みます。</translation>
     </message>
     <message>
         <source>New</source>
@@ -8339,7 +8335,7 @@ Either way Patchy writes a copy; the open document keeps its layers and unsaved 
     <message>
         <location line="-5529"/>
         <location line="+5548"/>
-        <source>Showing the layer mask. Alt-click the mask thumbnail to return.</source>
+        <source>Showing the layer mask. %ALT%-click the mask thumbnail to return.</source>
         <translation>レイヤーマスクを表示しています。マスクサムネールをAltクリックすると戻ります。</translation>
     </message>
     <message>
@@ -9316,8 +9312,8 @@ Either way Patchy writes a copy; the open document keeps its layers and unsaved 
     </message>
     <message>
         <location line="-572"/>
-        <source>Brush size — press [ or ], or Alt+Right-drag on the canvas</source>
-        <translation>ブラシサイズ — [ / ] キー、またはキャンバス上で Alt+右ドラッグ</translation>
+        <source>Brush size — press [ or ], or %ALT%+Right-drag on the canvas</source>
+        <translation>ブラシサイズ — [ / ] キー、またはキャンバス上で %ALT%+右ドラッグ</translation>
     </message>
     <message>
         <location line="+20"/>
@@ -9354,8 +9350,8 @@ Either way Patchy writes a copy; the open document keeps its layers and unsaved 
     </message>
     <message>
         <location line="+20"/>
-        <source>Brush edge softness — Alt+Right-drag up or down on the canvas</source>
-        <translation>ブラシエッジの柔らかさ — キャンバス上で Alt+右ドラッグ（上下）</translation>
+        <source>Brush edge softness — %ALT%+Right-drag up or down on the canvas</source>
+        <translation>ブラシエッジの柔らかさ — キャンバス上で %ALT%+右ドラッグ（上下）</translation>
     </message>
     <message>
         <location line="-36"/>
@@ -10167,8 +10163,8 @@ To update, paste this into a terminal:
     </message>
     <message>
         <location line="+1823"/>
-        <source>Also applies to a pen button set to Scroll. Hold Ctrl or Shift while scrolling to pan.</source>
-        <translation>スクロールに設定されたペンボタンにも適用されます。スクロール中に Ctrl または Shift を押すとパンします。</translation>
+        <source>Also applies to a pen button set to Scroll. Hold %CTRL% or Shift while scrolling to pan.</source>
+        <translation>スクロールに設定されたペンボタンにも適用されます。スクロール中に %CTRL% または Shift を押すとパンします。</translation>
     </message>
     <message>
         <location line="+6"/>
@@ -11309,8 +11305,8 @@ To update, paste this into a terminal:
     </message>
     <message>
         <location line="+3"/>
-        <source>Editing smart object contents. Save (Ctrl+S) applies them back to %1</source>
-        <translation>スマートオブジェクトの内容を編集中です。保存 (Ctrl+S) で %1 に反映されます</translation>
+        <source>Editing smart object contents. Save (%CTRL%+S) applies them back to %1</source>
+        <translation>スマートオブジェクトの内容を編集中です。保存 (%CTRL%+S) で %1 に反映されます</translation>
     </message>
     <message>
         <location line="+13"/>
@@ -11441,8 +11437,8 @@ To update, paste this into a terminal:
     </message>
     <message>
         <location line="-497"/>
-        <source>Editing linked file. Save (Ctrl+S) writes %1 and updates %2</source>
-        <translation>リンクファイルを編集中です。保存 (Ctrl+S) で %1 に書き込み、%2 を更新します</translation>
+        <source>Editing linked file. Save (%CTRL%+S) writes %1 and updates %2</source>
+        <translation>リンクファイルを編集中です。保存 (%CTRL%+S) で %1 に書き込み、%2 を更新します</translation>
     </message>
     <message>
         <location line="+268"/>
@@ -13357,8 +13353,8 @@ Clipped to the layer below</source>
         <translation>スマートフィルターマスクを編集中</translation>
     </message>
     <message>
-        <source>Showing the Smart Filter mask. Alt-click the mask thumbnail to return.</source>
-        <translation>スマートフィルターマスクを表示中です。マスクサムネイルを Alt+クリックすると戻ります。</translation>
+        <source>Showing the Smart Filter mask. %ALT%-click the mask thumbnail to return.</source>
+        <translation>スマートフィルターマスクを表示中です。マスクサムネイルを %ALT%+クリックすると戻ります。</translation>
     </message>
     <message>
         <source>This Smart Filter mask can only be preserved, not edited</source>
@@ -13610,7 +13606,7 @@ Clipped to the layer below</source>
     <message><source>Load vector mask selection</source><translation>ベクトルマスクを選択範囲として読み込み</translation></message>
     <message><source>Loaded the vector mask as a selection</source><translation>ベクトルマスクを選択範囲として読み込みました</translation></message>
     <message><source>Editing vector mask</source><translation>ベクトルマスクを編集中</translation></message>
-    <message><source>Showing the vector mask. Alt-click the thumbnail to return.</source><translation>ベクトルマスクを表示中です。サムネイルを Alt クリックすると戻ります。</translation></message>
+    <message><source>Showing the vector mask. %ALT%-click the thumbnail to return.</source><translation>ベクトルマスクを表示中です。サムネイルを %ALT% クリックすると戻ります。</translation></message>
     <message><source>Editing the vector mask path with the pen and path tools</source><translation>ペンツールとパスツールでベクトルマスクのパスを編集中</translation></message>
     <message><source>Paths</source><translation>パス</translation></message>
     <message><source>New Path</source><translation>新規パス</translation></message>
@@ -13771,15 +13767,15 @@ Clipped to the layer below</source>
     <message><source>Delete Anchor</source><translation>アンカー削除</translation></message>
     <message><source>Convert Point</source><translation>ポイント切り替え</translation></message>
     <message><source>Pen Tools</source><translation>ペンツール</translation></message>
-    <message><source>Click to place points, drag for curves. On a path: click a segment to add a point, click a point to delete it, Alt+click converts it, Ctrl moves points.</source><translation>クリックでポイントを置き、ドラッグで曲線を描きます。パス上では: セグメントをクリックでポイント追加、ポイントをクリックで削除、Alt+クリックで切り替え、Ctrlでポイントを移動。</translation></message>
-    <message><source>Select and move whole shapes. Ctrl+T transforms the path.</source><translation>シェイプ全体を選択して移動します。Ctrl+Tでパスを変形。</translation></message>
+    <message><source>Click to place points, drag for curves. On a path: click a segment to add a point, click a point to delete it, %ALT%+click converts it, %CTRL% moves points.</source><translation>クリックでポイントを置き、ドラッグで曲線を描きます。パス上では: セグメントをクリックでポイント追加、ポイントをクリックで削除、%ALT%+クリックで切り替え、Ctrlでポイントを移動。</translation></message>
+    <message><source>Select and move whole shapes. %CTRL%+T transforms the path.</source><translation>シェイプ全体を選択して移動します。%CTRL%+Tでパスを変形。</translation></message>
     <message><source>Select and drag points and handles. Delete removes the selected points.</source><translation>ポイントとハンドルを選択してドラッグします。Deleteで選択したポイントを削除。</translation></message>
     <message><source>Click a path segment to insert a point.</source><translation>パスのセグメントをクリックしてポイントを挿入します。</translation></message>
     <message><source>Click a point to remove it.</source><translation>ポイントをクリックして削除します。</translation></message>
     <message><source>Click a point to switch it between corner and smooth.</source><translation>ポイントをクリックしてコーナーとスムーズを切り替えます。</translation></message>
-    <message><source>Pen: click to add points, drag for curves. On a path, click a segment to add a point, click a point to delete it, Alt+click converts it, Ctrl+drag selects or moves points.</source><translation>ペン: クリックでポイント追加、ドラッグで曲線。パス上ではセグメントをクリックでポイント追加、ポイントをクリックで削除、Alt+クリックで切り替え、Ctrl+ドラッグでポイントを選択/移動。</translation></message>
-    <message><source>Path Select: click a shape to select it, drag to move it. Ctrl+T transforms the path, Delete removes the selected points.</source><translation>パス選択: シェイプをクリックで選択、ドラッグで移動。Ctrl+Tでパスを変形、Deleteで選択したポイントを削除。</translation></message>
-    <message><source>Direct Select: click or marquee points, drag points or handles. Shift adds, arrows nudge, Delete removes, Ctrl+T transforms the selected points.</source><translation>ダイレクト選択: ポイントをクリックまたは囲んで選択し、ポイントやハンドルをドラッグ。Shiftで追加、矢印キーで微調整、Deleteで削除、Ctrl+Tで選択したポイントを変形。</translation></message>
+    <message><source>Pen: click to add points, drag for curves. On a path, click a segment to add a point, click a point to delete it, %ALT%+click converts it, %CTRL%+drag selects or moves points.</source><translation>ペン: クリックでポイント追加、ドラッグで曲線。パス上ではセグメントをクリックでポイント追加、ポイントをクリックで削除、%ALT%+クリックで切り替え、%CTRL%+ドラッグでポイントを選択/移動。</translation></message>
+    <message><source>Path Select: click a shape to select it, drag to move it. %CTRL%+T transforms the path, Delete removes the selected points.</source><translation>パス選択: シェイプをクリックで選択、ドラッグで移動。%CTRL%+Tでパスを変形、Deleteで選択したポイントを削除。</translation></message>
+    <message><source>Direct Select: click or marquee points, drag points or handles. Shift adds, arrows nudge, Delete removes, %CTRL%+T transforms the selected points.</source><translation>ダイレクト選択: ポイントをクリックまたは囲んで選択し、ポイントやハンドルをドラッグ。Shiftで追加、矢印キーで微調整、Deleteで削除、%CTRL%+Tで選択したポイントを変形。</translation></message>
     <message><source>Add Anchor Point: click a path segment to insert a point.</source><translation>アンカーポイントを追加: パスのセグメントをクリックしてポイントを挿入します。</translation></message>
     <message><source>Delete Anchor Point: click a point to remove it.</source><translation>アンカーポイントを削除: ポイントをクリックして削除します。</translation></message>
     <message><source>Convert Point: click a point to switch it between corner and smooth.</source><translation>ポイントを切り替え: ポイントをクリックしてコーナーとスムーズを切り替えます。</translation></message>
@@ -14528,7 +14524,7 @@ Clipped to the layer below</source>
     <message><source>Liquify</source><translation>ゆがみ</translation></message>
     <message><source>Warp</source><translation>ワープ</translation></message>
     <message><source>Reconstruct</source><translation>再構築</translation></message>
-    <message><source>Twirl clockwise; hold Alt or Option to reverse</source><translation>時計回りに渦巻きを適用します。Alt または Option キーを押すと逆方向になります</translation></message>
+    <message><source>Twirl clockwise; hold %ALT% to reverse</source><translation>時計回りに渦巻きを適用します。%ALT% キーを押すと逆方向になります</translation></message>
     <message><source>Pucker</source><translation>収縮</translation></message>
     <message><source>Bloat</source><translation>膨張</translation></message>
     <message><source>Freeze</source><translation>固定</translation></message>
@@ -14607,7 +14603,7 @@ Clipped to the layer below</source>
     <message><source>Unsupported Smart Filter</source><translation>未対応のスマートフィルター</translation></message>
     <message><source>Edit Smart Filter</source><translation>スマートフィルターを編集</translation></message>
     <message><source>Smart Filter actions</source><translation>スマートフィルターの操作</translation></message>
-    <message><source>Shared Smart Filter mask. Click to edit it, Ctrl-click to load it as a selection, Alt-click to view it, or Shift-click to disable it.</source><translation>共有スマートフィルターマスク。クリックで編集、Ctrl+クリックで選択範囲として読み込み、Alt+クリックで表示、Shift+クリックで無効にします。</translation></message>
+    <message><source>Shared Smart Filter mask. Click to edit it, %CTRL%-click to load it as a selection, %ALT%-click to view it, or Shift-click to disable it.</source><translation>共有スマートフィルターマスク。クリックで編集、%CTRL%+クリックで選択範囲として読み込み、%ALT%+クリックで表示、Shift+クリックで無効にします。</translation></message>
     <message><source>Blending</source><translation>描画オプション</translation></message>
     <message><source>Mode:</source><translation>描画モード:</translation></message>
     <message><source>Opacity:</source><translation>不透明度:</translation></message>
@@ -14679,7 +14675,7 @@ Clipped to the layer below</source>
     <message><source>Triangle</source><translation>三角形</translation></message>
     <message><source>Speech Bubble</source><translation>吹き出し</translation></message>
     <message><source>Lightning Bolt</source><translation>稲妻</translation></message>
-    <message><source>Vector mask. Click to edit its path with the pen and path tools, Ctrl-click to load it as a selection, Alt-click to view it, Shift-click to disable it.</source><translation>ベクトルマスク。クリックでペン/パスツールでのパス編集、Ctrl クリックで選択範囲として読み込み、Alt クリックで表示、Shift クリックで無効化します。</translation></message>
+    <message><source>Vector mask. Click to edit its path with the pen and path tools, %CTRL%-click to load it as a selection, %ALT%-click to view it, Shift-click to disable it.</source><translation>ベクトルマスク。クリックでペン/パスツールでのパス編集、%CTRL% クリックで選択範囲として読み込み、%ALT% クリックで表示、Shift クリックで無効化します。</translation></message>
 
     <message><source>PDF Document</source><translation>PDF ドキュメント</translation></message>
     <message><source>PDF Options</source><translation>PDF オプション</translation></message>
@@ -14995,5 +14991,24 @@ Clipped to the layer below</source>
     <message><source>Demos</source><translation>デモ</translation></message>
     <message><source>Effects</source><translation>エフェクト</translation></message>
     <message><source>Utilities</source><translation>ユーティリティ</translation></message>
+</context>
+<context>
+    <name>patchy::ui::ModifierNames</name>
+    <message>
+        <source>Ctrl</source>
+        <translation>Ctrl</translation>
+    </message>
+    <message>
+        <source>Alt</source>
+        <translation>Alt</translation>
+    </message>
+    <message>
+        <source>Command</source>
+        <translation>Command</translation>
+    </message>
+    <message>
+        <source>Option</source>
+        <translation>Option</translation>
+    </message>
 </context>
 </TS>

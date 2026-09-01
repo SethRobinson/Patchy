@@ -7,6 +7,7 @@
 
 #include "core/vector_shape.hpp"
 #include "ui/app_settings.hpp"
+#include "ui/modifier_names.hpp"
 
 #include <QAction>
 #include <QCheckBox>
@@ -22,6 +23,7 @@
 #include <QToolButton>
 
 #include <cmath>
+#include <iostream>
 #include <cstddef>
 
 using namespace patchy::test::ui;
@@ -157,7 +159,8 @@ void ui_path_tools_show_activation_hints_and_tooltips() {
   require_action(window, "toolPenAction")->trigger();
   QApplication::processEvents();
   CHECK(window.statusBar()->currentMessage().startsWith(QStringLiteral("Pen: click to add points")));
-  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("Alt+click converts")));
+  CHECK(window.statusBar()->currentMessage().contains(
+      patchy::ui::resolve_modifier_names(QStringLiteral("%ALT%+click converts"))));
   require_action(window, "toolPathSelectAction")->trigger();
   QApplication::processEvents();
   CHECK(window.statusBar()->currentMessage().startsWith(
@@ -176,7 +179,9 @@ void ui_path_tools_show_activation_hints_and_tooltips() {
   CHECK(window.statusBar()->currentMessage() == QStringLiteral("Brush"));
 
   // Tooltips name the gestures; flyout buttons copy their default action's.
-  CHECK(require_action(window, "toolPenAction")->toolTip().contains(QStringLiteral("Alt+click")));
+  CHECK(require_action(window, "toolPenAction")
+            ->toolTip()
+            .contains(patchy::ui::resolve_modifier_names(QStringLiteral("%ALT%+click"))));
 
   // refresh_action_tooltip renders the shortcut chip with QKeySequence::NativeText, so the
   // expected text has to be built the same way: macOS spells Shift+A as the glyph "⇧A", and
@@ -208,8 +213,73 @@ void ui_path_tools_show_activation_hints_and_tooltips() {
   path_select_action->trigger();
   QApplication::processEvents();
   CHECK(path_button->toolTip().startsWith(path_select_tip));
-  // The detail sentence is a translated literal, so its modifier names stay portable.
-  CHECK(path_button->toolTip().contains(QStringLiteral("Ctrl+T")));
+  // The detail sentence names its modifier keys for the platform too (macOS says Command
+  // and Option), so the expectation resolves through the same helper the app uses.
+  CHECK(path_button->toolTip().contains(
+      patchy::ui::resolve_modifier_names(QStringLiteral("%CTRL%+T"))));
+}
+
+// The modifier tokens (%CTRL%, %ALT%) are an implementation detail of the platform key
+// names in ui/modifier_names.hpp: a sentence that carries one must resolve it before a user
+// sees it. A tokenized string that skipped resolve_modifier_names shipped a literal "%CTRL%"
+// to the status bar once (September 2026), so this walks every action and widget text plus
+// each tool's activation hint and fails on any surviving token.
+void ui_user_facing_text_never_shows_modifier_tokens() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  const auto has_token = [](const QString& text) {
+    return text.contains(QLatin1String(patchy::ui::kCtrlModifierToken)) ||
+           text.contains(QLatin1String(patchy::ui::kAltModifierToken));
+  };
+  int checked = 0;
+  for (auto* action : window.findChildren<QAction*>()) {
+    if (has_token(action->text()) || has_token(action->toolTip()) || has_token(action->statusTip())) {
+      std::cout << "token in action " << action->objectName().toStdString() << ": "
+                << action->toolTip().toStdString() << std::endl;
+      CHECK(false);
+    }
+    ++checked;
+  }
+  for (auto* widget : window.findChildren<QWidget*>()) {
+    if (has_token(widget->toolTip()) || has_token(widget->statusTip()) ||
+        has_token(widget->accessibleDescription())) {
+      std::cout << "token in widget " << widget->objectName().toStdString() << ": "
+                << widget->toolTip().toStdString() << std::endl;
+      CHECK(false);
+    }
+    ++checked;
+  }
+  CHECK(checked > 100);
+
+  // Tool activation hints are translated at their own choke point; trigger every tool.
+  for (auto* action : window.findChildren<QAction*>()) {
+    if (!action->objectName().startsWith(QStringLiteral("tool")) || !action->isCheckable()) {
+      continue;
+    }
+    action->trigger();
+    QApplication::processEvents();
+    if (has_token(window.statusBar()->currentMessage())) {
+      std::cout << "token in status hint for " << action->objectName().toStdString() << ": "
+                << window.statusBar()->currentMessage().toStdString() << std::endl;
+      CHECK(false);
+    }
+  }
+
+  // And the platform spelling itself: a sentence with a token resolves to the key name the
+  // platform actually uses, never to the token.
+  const auto resolved = patchy::ui::resolve_modifier_names(QStringLiteral("%CTRL%+T, %ALT%-click"));
+  CHECK(!has_token(resolved));
+  CHECK(resolved.startsWith(patchy::ui::ctrl_key_name()));
+  CHECK(resolved.contains(patchy::ui::alt_key_name()));
+#ifdef Q_OS_MACOS
+  CHECK(patchy::ui::ctrl_key_name() == QStringLiteral("Command"));
+  CHECK(patchy::ui::alt_key_name() == QStringLiteral("Option"));
+#else
+  CHECK(patchy::ui::ctrl_key_name() == QStringLiteral("Ctrl"));
+  CHECK(patchy::ui::alt_key_name() == QStringLiteral("Alt"));
+#endif
 }
 
 void ui_pen_hover_over_path_shows_edit_hints() {
@@ -228,10 +298,11 @@ void ui_pen_hover_over_path_shows_edit_hints() {
 
   hover(*canvas, QPoint(200, 100));  // top-edge segment
   CHECK(window.statusBar()->currentMessage() ==
-        QStringLiteral("Click to add a point here. Ctrl-drag moves the segment."));
+        patchy::ui::resolve_modifier_names(
+            QStringLiteral("Click to add a point here. %CTRL%-drag moves the segment.")));
   hover(*canvas, QPoint(100, 100));  // anchor
-  CHECK(window.statusBar()->currentMessage().startsWith(
-      QStringLiteral("Click to delete this point. Ctrl-drag moves it. Alt+click converts it")));
+  CHECK(window.statusBar()->currentMessage().startsWith(patchy::ui::resolve_modifier_names(
+      QStringLiteral("Click to delete this point. %CTRL%-drag moves it. %ALT%+click converts it"))));
   hover(*canvas, QPoint(100, 100), Qt::AltModifier);
   CHECK(window.statusBar()->currentMessage() ==
         QStringLiteral("Click to convert this point between corner and smooth"));
@@ -243,7 +314,8 @@ void ui_pen_hover_over_path_shows_edit_hints() {
   // ...and re-entering advertises the action again.
   hover(*canvas, QPoint(200, 100));
   CHECK(window.statusBar()->currentMessage() ==
-        QStringLiteral("Click to add a point here. Ctrl-drag moves the segment."));
+        patchy::ui::resolve_modifier_names(
+            QStringLiteral("Click to add a point here. %CTRL%-drag moves the segment.")));
 
   // Direct Select hovers describe the drag targets.
   require_action(window, "toolDirectSelectAction")->trigger();
@@ -1076,6 +1148,7 @@ void ui_path_marquee_space_repositions_and_shift_squares() {
 
 std::vector<patchy::test::TestCase> vector_point_editing_tests() {
   return {
+      {"ui_user_facing_text_never_shows_modifier_tokens", ui_user_facing_text_never_shows_modifier_tokens},
       {"ui_path_tools_show_activation_hints_and_tooltips",
        ui_path_tools_show_activation_hints_and_tooltips},
       {"ui_pen_hover_over_path_shows_edit_hints", ui_pen_hover_over_path_shows_edit_hints},

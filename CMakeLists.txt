@@ -874,6 +874,8 @@ if(PATCHY_BUILD_APP)
       src/ui/localization.cpp
       src/ui/memory_info.hpp
       src/ui/memory_info.cpp
+      src/ui/modifier_names.hpp
+      src/ui/modifier_names.cpp
       src/ui/markdown_viewer_dialog.hpp
       src/ui/markdown_viewer_dialog.cpp
       src/ui/main_window.hpp

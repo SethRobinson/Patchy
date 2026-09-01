@@ -43,6 +43,7 @@
 #include "ui/compatibility_report.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/image_save_options_dialog.hpp"
+#include "ui/modifier_names.hpp"
 #include "ui/raw_develop_dialog.hpp"
 #include "ui/filter_workflows.hpp"
 #include "ui/gradient_stops_editor.hpp"
@@ -1228,7 +1229,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   // window widths now that it also carries the Smoothing spin and gear
   // (ui_brush_tip_picker_keeps_options_bar_height).
   brush_size_slider->setFixedWidth(124);
-  brush_size_slider->setToolTip(tr("Brush size — press [ or ], or Alt+Right-drag on the canvas"));
+  brush_size_slider->setToolTip(
+      resolve_modifier_names(tr("Brush size — press [ or ], or %ALT%+Right-drag on the canvas")));
   add_option_widget(brush_size_slider,
                     {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::SpotHealing, CanvasTool::Smudge,
                      CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
@@ -1279,7 +1281,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   brush_softness_slider->setRange(0, 100);
   brush_softness_slider->setValue(canvas_defaults->brush_softness());
   brush_softness_slider->setFixedWidth(96);  // was 110; see the size-slider note
-  brush_softness_slider->setToolTip(tr("Brush edge softness — Alt+Right-drag up or down on the canvas"));
+  brush_softness_slider->setToolTip(
+      resolve_modifier_names(tr("Brush edge softness — %ALT%+Right-drag up or down on the canvas")));
   add_option_widget(brush_softness_slider,
                     {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::SpotHealing, CanvasTool::Smudge,
                      CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,

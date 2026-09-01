@@ -53,6 +53,7 @@
 #include "ui/compatibility_report.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/image_save_options_dialog.hpp"
+#include "ui/modifier_names.hpp"
 #include "ui/raw_develop_dialog.hpp"
 #include "ui/filter_workflows.hpp"
 #include "ui/gradient_stops_editor.hpp"
@@ -1589,10 +1590,10 @@ void MainWindow::set_layer_mask_view_shown(bool shown) {
       return;
     }
     canvas_->set_mask_display_mode(CanvasWidget::MaskDisplayMode::Grayscale);
-    statusBar()->showMessage(
+    statusBar()->showMessage(resolve_modifier_names(
         smart_target || canvas_->editing_smart_filter_mask()
-            ? tr("Showing the Smart Filter mask. Alt-click the mask thumbnail to return.")
-            : tr("Showing the layer mask. Alt-click the mask thumbnail to return."));
+            ? tr("Showing the Smart Filter mask. %ALT%-click the mask thumbnail to return.")
+            : tr("Showing the layer mask. %ALT%-click the mask thumbnail to return.")));
   } else {
     canvas_->set_mask_display_mode(CanvasWidget::MaskDisplayMode::None);
     statusBar()->showMessage(canvas_->editing_smart_filter_mask()

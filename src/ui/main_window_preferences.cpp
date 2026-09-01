@@ -41,6 +41,7 @@
 #include "ui/compatibility_report.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/image_save_options_dialog.hpp"
+#include "ui/modifier_names.hpp"
 #include "ui/raw_develop_dialog.hpp"
 #include "ui/filter_workflows.hpp"
 #include "ui/gradient_stops_editor.hpp"
@@ -709,7 +710,8 @@ void MainWindow::show_preferences() {
   pen_wheel_zoom_check->setObjectName(QStringLiteral("preferencesPenWheelZoomCheck"));
   pen_wheel_zoom_check->setChecked(wheel_zooms_);
   pen_wheel_zoom_check->setToolTip(
-      tr("Also applies to a pen button set to Scroll. Hold Ctrl or Shift while scrolling to pan."));
+      resolve_modifier_names(
+          tr("Also applies to a pen button set to Scroll. Hold %CTRL% or Shift while scrolling to pan.")));
   const auto populate_pen_button_combo = [](QComboBox* combo, PenButtonAction current) {
     const std::array<std::pair<PenButtonAction, QString>, 11> entries{{
         {PenButtonAction::None, tr("None")},

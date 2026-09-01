@@ -3,6 +3,7 @@
 #include "ui/dialog_utils.hpp"
 #include "ui/edit_conversions.hpp"
 #include "ui/image_document_io.hpp"
+#include "ui/modifier_names.hpp"
 #include "ui/theme_qss.hpp"
 
 #include <QButtonGroup>
@@ -315,7 +316,7 @@ std::optional<LiquifyMesh> request_liquify(QWidget* parent,
     button->setToolTip(QObject::tr(entry.name));
     if (entry.tool == LiquifyTool::TwirlClockwise) {
       button->setToolTip(
-          QObject::tr("Twirl clockwise; hold Alt or Option to reverse"));
+          resolve_modifier_names(QObject::tr("Twirl clockwise; hold %ALT% to reverse")));
     }
     button->setCheckable(true);
     button->setFixedWidth(tool_width);

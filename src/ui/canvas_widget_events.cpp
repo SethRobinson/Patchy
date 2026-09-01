@@ -20,6 +20,7 @@
 #include "core/vector_shape.hpp"
 #include "ui/edit_conversions.hpp"
 #include "ui/image_document_io.hpp"
+#include "ui/modifier_names.hpp"
 #include "ui/qt_geometry.hpp"
 #include "ui/smart_object_render.hpp"
 #include "ui/tool_cursors.hpp"
@@ -667,8 +668,8 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       return;
     }
     if (!clone_source_set_) {
-      report_status_error(healing ? tr("Alt-click to set a healing source")
-                                  : tr("Alt-click to set a clone source"));
+      report_status_error(resolve_modifier_names(healing ? tr("%ALT%-click to set a healing source")
+                                                         : tr("%ALT%-click to set a clone source")));
       return;
     }
     if (begin_edit(healing ? tr("Healing brush") : tr("Clone stamp"))) {

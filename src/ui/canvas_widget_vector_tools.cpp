@@ -14,6 +14,7 @@
 #include "core/layer_render_utils.hpp"
 #include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
+#include "ui/modifier_names.hpp"
 #include "ui/qt_geometry.hpp"
 
 #include <QDateTime>
@@ -1713,13 +1714,13 @@ void CanvasWidget::update_path_hover_hint(PenHoverAction action) {
   // the Ctrl-drag move gesture alongside the click edit.
   switch (action) {
     case PenHoverAction::Add:
-      status_callback_(tr("Click to add a point here. Ctrl-drag moves the segment."));
+      status_callback_(resolve_modifier_names(tr("Click to add a point here. %CTRL%-drag moves the segment.")));
       return;
     case PenHoverAction::Delete:
-      status_callback_(tool_ == CanvasTool::Pen
-                           ? tr("Click to delete this point. Ctrl-drag moves it. Alt+click "
-                                "converts it between corner and smooth.")
-                           : tr("Click to delete this point. Ctrl-drag moves it."));
+      status_callback_(resolve_modifier_names(
+          tool_ == CanvasTool::Pen ? tr("Click to delete this point. %CTRL%-drag moves it. %ALT%+click "
+                                        "converts it between corner and smooth.")
+                                   : tr("Click to delete this point. %CTRL%-drag moves it.")));
       return;
     case PenHoverAction::Convert:
       status_callback_(tr("Click to convert this point between corner and smooth"));
@@ -1759,7 +1760,8 @@ void CanvasWidget::update_path_select_hover_hint(PathHoverTarget target) {
     return;
   }
   if (path_edit_tool() == CanvasTool::PathSelect) {
-    status_callback_(tr("Click to select the shape, drag to move it. Ctrl+T transforms it."));
+    status_callback_(
+        resolve_modifier_names(tr("Click to select the shape, drag to move it. %CTRL%+T transforms it.")));
     return;
   }
   switch (target) {

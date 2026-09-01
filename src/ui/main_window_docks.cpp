@@ -8,6 +8,7 @@
 
 #include "ui/main_window.hpp"
 #include "ui/main_window_shared.hpp"
+#include "ui/modifier_names.hpp"
 #include "ui/paths_panel.hpp"
 
 #include "core/blend_math.hpp"
@@ -1138,10 +1139,10 @@ void MainWindow::create_docks() {
             showing_mask ? CanvasWidget::MaskDisplayMode::None
                          : CanvasWidget::MaskDisplayMode::Grayscale);
         refresh_layer_controls();
-        statusBar()->showMessage(
+        statusBar()->showMessage(resolve_modifier_names(
             showing_mask
                 ? tr("Editing Smart Filter mask")
-                : tr("Showing the Smart Filter mask. Alt-click the mask thumbnail to return."));
+                : tr("Showing the Smart Filter mask. %ALT%-click the mask thumbnail to return.")));
         return;
       }
       if (editing_mask) {
@@ -1160,9 +1161,9 @@ void MainWindow::create_docks() {
       canvas_->set_mask_display_mode(showing_mask ? CanvasWidget::MaskDisplayMode::None
                                                   : CanvasWidget::MaskDisplayMode::Grayscale);
       refresh_layer_controls();
-      statusBar()->showMessage(showing_mask
-                                   ? tr("Editing layer mask")
-                                   : tr("Showing the layer mask. Alt-click the mask thumbnail to return."));
+      statusBar()->showMessage(resolve_modifier_names(
+          showing_mask ? tr("Editing layer mask")
+                       : tr("Showing the layer mask. %ALT%-click the mask thumbnail to return.")));
       return;
     }
     if (target == LayerCtrlClickTarget::VectorMaskThumbnail && (modifiers & Qt::AltModifier) != 0) {
@@ -1173,9 +1174,9 @@ void MainWindow::create_docks() {
       canvas_->set_mask_display_mode(showing_mask ? CanvasWidget::MaskDisplayMode::None
                                                   : CanvasWidget::MaskDisplayMode::Grayscale);
       refresh_layer_controls();
-      statusBar()->showMessage(
+      statusBar()->showMessage(resolve_modifier_names(
           showing_mask ? tr("Editing vector mask")
-                       : tr("Showing the vector mask. Alt-click the thumbnail to return."));
+                       : tr("Showing the vector mask. %ALT%-click the thumbnail to return.")));
       return;
     }
     if (target == LayerCtrlClickTarget::VectorMaskThumbnail) {

@@ -45,6 +45,7 @@
 #include "ui/compatibility_report.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/image_save_options_dialog.hpp"
+#include "ui/modifier_names.hpp"
 #include "ui/raw_develop_dialog.hpp"
 #include "ui/filter_workflows.hpp"
 #include "ui/gradient_stops_editor.hpp"
@@ -430,9 +431,9 @@ const char* tool_tooltip_detail_source(CanvasTool tool) {
   switch (tool) {
     case CanvasTool::Pen:
       return "Click to place points, drag for curves. On a path: click a segment to add a "
-             "point, click a point to delete it, Alt+click converts it, Ctrl moves points.";
+             "point, click a point to delete it, %ALT%+click converts it, %CTRL% moves points.";
     case CanvasTool::PathSelect:
-      return "Select and move whole shapes. Ctrl+T transforms the path.";
+      return "Select and move whole shapes. %CTRL%+T transforms the path.";
     case CanvasTool::DirectSelect:
       return "Select and drag points and handles. Delete removes the selected points.";
     case CanvasTool::AddAnchor:
@@ -452,14 +453,14 @@ const char* tool_activation_hint_source(CanvasTool tool) {
   switch (tool) {
     case CanvasTool::Pen:
       return "Pen: click to add points, drag for curves. On a path, click a segment to add a "
-             "point, click a point to delete it, Alt+click converts it, Ctrl+drag selects or "
+             "point, click a point to delete it, %ALT%+click converts it, %CTRL%+drag selects or "
              "moves points.";
     case CanvasTool::PathSelect:
-      return "Path Select: click a shape to select it, drag to move it. Ctrl+T transforms the "
+      return "Path Select: click a shape to select it, drag to move it. %CTRL%+T transforms the "
              "path, Delete removes the selected points.";
     case CanvasTool::DirectSelect:
       return "Direct Select: click or marquee points, drag points or handles. Shift adds, "
-             "arrows nudge, Delete removes, Ctrl+T transforms the selected points.";
+             "arrows nudge, Delete removes, %CTRL%+T transforms the selected points.";
     case CanvasTool::AddAnchor:
       return "Add Anchor Point: click a path segment to insert a point.";
     case CanvasTool::DeleteAnchor:
@@ -1016,7 +1017,7 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
     refresh_document_info();
     // Tools whose gestures the name does not explain get a one-line hint.
     if (const auto* hint = tool_activation_hint_source(selected); hint != nullptr) {
-      statusBar()->showMessage(tr(hint));
+      statusBar()->showMessage(resolve_modifier_names(tr(hint)));
     } else {
       statusBar()->showMessage(tool_name(selected));
     }

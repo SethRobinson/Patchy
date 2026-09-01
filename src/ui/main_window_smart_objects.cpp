@@ -40,6 +40,7 @@
 #include "ui/compatibility_report.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/image_save_options_dialog.hpp"
+#include "ui/modifier_names.hpp"
 #include "ui/raw_develop_dialog.hpp"
 #include "ui/filter_workflows.hpp"
 #include "ui/gradient_stops_editor.hpp"
@@ -435,7 +436,7 @@ void MainWindow::open_smart_object_contents() {
     }
     child_session.smart_object_link = DocumentSession::SmartObjectLink{parent_session_id, uuid, true};
     statusBar()->showMessage(
-        tr("Editing linked file. Save (Ctrl+S) writes %1 and updates %2")
+        resolve_modifier_names(tr("Editing linked file. Save (%CTRL%+S) writes %1 and updates %2"))
             .arg(QString::fromStdString(source->filename), parent_title));
     return;
   }
@@ -463,7 +464,9 @@ void MainWindow::open_smart_object_contents() {
                        QString(), tr("Open"));
   auto& child_session = session();
   child_session.smart_object_link = DocumentSession::SmartObjectLink{parent_session_id, uuid};
-  statusBar()->showMessage(tr("Editing smart object contents. Save (Ctrl+S) applies them back to %1").arg(parent_title));
+  statusBar()->showMessage(
+      resolve_modifier_names(tr("Editing smart object contents. Save (%CTRL%+S) applies them back to %1"))
+          .arg(parent_title));
 }
 
 void MainWindow::prompt_paint_on_smart_object(CanvasWidget* canvas, LayerId layer_id) {
