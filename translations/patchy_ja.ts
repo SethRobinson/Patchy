@@ -62,6 +62,18 @@
         <translation>JPEG オプション</translation>
     </message>
     <message>
+        <source>JPEG XR Options</source>
+        <translation>JPEG XR オプション</translation>
+    </message>
+    <message>
+        <source>Lossless (larger file)</source>
+        <translation>可逆圧縮 (ファイルサイズが大きくなります)</translation>
+    </message>
+    <message>
+        <source>JPEG XR is written by the Windows codec. Patchy saves 8 bits per channel, so a file opened from an HDR capture is written back as the tone mapped image.</source>
+        <translation>JPEG XR は Windows のコーデックで書き出されます。Patchy はチャンネルあたり 8 ビットで保存するため、HDR キャプチャから開いたファイルはトーンマッピング後の画像として書き戻されます。</translation>
+    </message>
+    <message>
         <location line="+26"/>
         <source>Quality:</source>
         <translation>品質:</translation>
@@ -315,6 +327,10 @@
     <message>
         <source>HEIF Image</source>
         <translation>HEIF 画像</translation>
+    </message>
+    <message>
+        <source>JPEG XR Image</source>
+        <translation>JPEG XR 画像</translation>
     </message>
     <message>
         <source>Affinity Document</source>

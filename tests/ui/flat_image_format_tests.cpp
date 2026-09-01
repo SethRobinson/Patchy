@@ -47,6 +47,7 @@
 #include "formats/ico_document_io.hpp"
 #include "formats/tga_document_io.hpp"
 #include "ui/image_document_io.hpp"
+#include "formats/jxr_document_io.hpp"
 #include "ui/image_save_options_dialog.hpp"
 #include "ui/layer_list_widget.hpp"
 #include "ui/layer_style_dialog.hpp"
@@ -1095,6 +1096,97 @@ void ui_gif_save_options_dialog_choices() {
   settings.sync();
 }
 
+void ui_jxr_opens_and_saves_as_a_read_write_format() {
+  ensure_artifact_dir();
+  const auto fixture = QString::fromStdWString(
+      patchy::test::committed_format_fixture_path("jxr", "hdr-ramp.jxr").wstring());
+  CHECK(QFileInfo::exists(fixture));
+
+  // JPEG XR is Windows-only: everywhere else the filter table hides it and the reader
+  // throws, which is the documented behavior rather than a failure.
+  if (!patchy::jxr::is_available()) {
+    std::cout << "[SKIP] ui_jxr_opens_and_saves_as_a_read_write_format: no in-box Windows codec\n";
+    return;
+  }
+  // Alpha survives a .jxr export, unlike the formats that drop it.
+  CHECK(patchy::ui::image_format_preserves_alpha("jxr"));
+  CHECK(patchy::ui::image_format_preserves_alpha("wdp"));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, fixture);
+  QApplication::processEvents();
+
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(document.width() == 8);
+  CHECK(document.height() == 2);
+  CHECK(std::as_const(document).layers().front().name() == "Background");
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_path(window) == fixture);
+  CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+
+  // The contrast with HEIF: the registry handler HAS a writer, so Save writes the file in
+  // place instead of routing to Save As with a .psd default.
+  const QString saved = QStringLiteral("test-artifacts/jxr_round_trip.jxr");
+  QFile::remove(saved);
+  patchy::ui::ImageSaveOptions options;
+  options.jxr_lossless = true;
+  CHECK(patchy::ui::MainWindowTestAccess::save_document_to_path(window, saved, options));
+  CHECK(QFileInfo::exists(saved));
+
+  patchy::ui::MainWindow reopened;
+  show_window(reopened);
+  patchy::ui::MainWindowTestAccess::open_document_path(reopened, saved);
+  QApplication::processEvents();
+  auto& round_tripped = patchy::ui::MainWindowTestAccess::document(reopened);
+  CHECK(round_tripped.width() == 8);
+  CHECK(round_tripped.height() == 2);
+  // Lossless, and the second file is already 8-bit, so the tone map must not run again:
+  // the pixels come back exactly as they were written.
+  const auto& first = std::as_const(document.layers().front()).pixels();
+  const auto& second = std::as_const(round_tripped.layers().front()).pixels();
+  CHECK(first.format().channels == second.format().channels);
+  for (std::int32_t x = 0; x < 8; ++x) {
+    CHECK(second.pixel(x, 0)[0] == first.pixel(x, 0)[0]);
+    CHECK(second.pixel(x, 1)[0] == first.pixel(x, 1)[0]);
+  }
+}
+
+void ui_jxr_save_options_persist_quality_and_lossless() {
+  auto settings = patchy::ui::app_settings();
+  settings.remove(QStringLiteral("saveOptions/jxrQuality"));
+  settings.remove(QStringLiteral("saveOptions/jxrLossless"));
+  settings.sync();
+
+  // Defaults before anything is stored.
+  auto defaults = patchy::ui::load_image_save_option_defaults();
+  CHECK(defaults.jxr_quality == 90);
+  CHECK(!defaults.jxr_lossless);
+
+  // .jxr raises its own options dialog (quality plus lossless), unlike PNG or TGA.
+  CHECK(patchy::ui::image_save_options_apply_to_extension(QStringLiteral("jxr")));
+  CHECK(patchy::ui::image_save_options_apply_to_extension(QStringLiteral(".JXR")));
+  CHECK(patchy::ui::image_save_options_apply_to_extension(QStringLiteral("wdp")));
+  CHECK(!patchy::ui::image_save_options_apply_to_extension(QStringLiteral("png")));
+
+  defaults.jxr_quality = 55;
+  defaults.jxr_lossless = true;
+  patchy::ui::save_image_save_option_defaults(defaults);
+  const auto reloaded = patchy::ui::load_image_save_option_defaults();
+  CHECK(reloaded.jxr_quality == 55);
+  CHECK(reloaded.jxr_lossless);
+
+  // Out-of-range stored values clamp instead of reaching the encoder.
+  settings.setValue(QStringLiteral("saveOptions/jxrQuality"), 0);
+  settings.sync();
+  CHECK(patchy::ui::load_image_save_option_defaults().jxr_quality == 1);
+  settings.setValue(QStringLiteral("saveOptions/jxrQuality"), 1000);
+  settings.sync();
+  CHECK(patchy::ui::load_image_save_option_defaults().jxr_quality == 100);
+
+  settings.remove(QStringLiteral("saveOptions"));
+  settings.sync();
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> flat_image_format_tests() {
@@ -1114,5 +1206,8 @@ std::vector<patchy::test::TestCase> flat_image_format_tests() {
       {"ui_animated_gif_export_round_trips", ui_animated_gif_export_round_trips},
       {"ui_animated_gif_open_save_round_trip", ui_animated_gif_open_save_round_trip},
       {"ui_gif_save_options_dialog_choices", ui_gif_save_options_dialog_choices},
+      {"ui_jxr_opens_and_saves_as_a_read_write_format", ui_jxr_opens_and_saves_as_a_read_write_format},
+      {"ui_jxr_save_options_persist_quality_and_lossless",
+       ui_jxr_save_options_persist_quality_and_lossless},
   };
 }

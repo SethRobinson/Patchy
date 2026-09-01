@@ -434,6 +434,7 @@ add_library(patchy_formats
   src/formats/ico_document_io.cpp
   src/formats/image_density_probe.cpp
   src/formats/ilbm_document_io.cpp
+  src/formats/jxr_document_io.cpp
   src/formats/palette_io.cpp
   src/formats/pcx_document_io.cpp
   src/formats/pdf_content.cpp
@@ -475,7 +476,15 @@ elseif(WIN32)
   # HEIF/HEIC decodes through Windows Imaging Component (the Microsoft Store HEIF/HEVC
   # codec packages provide the HEVC decoder. macOS/Linux decode HEIC via Qt image plugins
   # instead, so they compile only the stub in heif_document_io.cpp.
-  target_sources(patchy_formats PRIVATE src/formats/heif_document_io_win.cpp)
+  #
+  # JPEG XR uses the same WIC plumbing (shared in wic_com.hpp), but its codec is in-box on
+  # every supported Windows and covers encoding too. No other platform has a decoder and Qt
+  # ships no plugin, so they compile only the throwing stub in jxr_document_io.cpp and hide
+  # the format from the save filters via jxr::is_available().
+  target_sources(patchy_formats PRIVATE
+    src/formats/heif_document_io_win.cpp
+    src/formats/jxr_document_io_win.cpp
+  )
   target_link_libraries(patchy_formats PRIVATE windowscodecs ole32)
 endif()
 patchy_configure_target(patchy_formats)
@@ -1385,6 +1394,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/psd_text_tests.cpp
     tests/core/psd_vector_fixtures_tests.cpp
     tests/core/psd_writer_stability_tests.cpp
+    tests/core/jxr_tests.cpp
     tests/core/raw_heif_tests.cpp
     tests/core/smart_filter_descriptors_tests.cpp
     tests/core/smart_filter_descriptors_tests_canonical.cpp

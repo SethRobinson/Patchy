@@ -1,5 +1,6 @@
 #include "ui/image_save_options_dialog.hpp"
 
+#include "formats/jxr_document_io.hpp"
 #include "ui/app_settings.hpp"
 
 #include "ui/dialog_utils.hpp"
@@ -61,6 +62,10 @@ bool is_cur_extension(const QString& extension) {
 
 bool is_pdf_extension(const QString& extension) {
   return normalized_save_extension(extension) == QStringLiteral("pdf");
+}
+
+bool is_jxr_extension(const QString& extension) {
+  return jxr::is_jxr_extension(normalized_save_extension(extension).toStdString());
 }
 
 constexpr std::array<int, 7> kIcoSizeChoices = {16, 24, 32, 48, 64, 128, 256};
@@ -203,7 +208,7 @@ void persist_export_scale(int scale) {
 
 bool image_save_options_apply_to_extension(const QString& extension) {
   return is_jpeg_extension(extension) || is_bmp_extension(extension) || is_ico_extension(extension) ||
-         is_cur_extension(extension) || is_pdf_extension(extension);
+         is_cur_extension(extension) || is_pdf_extension(extension) || is_jxr_extension(extension);
 }
 
 ImageSaveOptions load_image_save_option_defaults() {
@@ -248,6 +253,9 @@ ImageSaveOptions load_image_save_option_defaults() {
           .toBool();
   options.gif_frame_delay_cs = std::clamp(
       settings.value(QStringLiteral("saveOptions/gifFrameDelayCs"), options.gif_frame_delay_cs).toInt(), 0, 0xffff);
+  options.jxr_quality =
+      std::clamp(settings.value(QStringLiteral("saveOptions/jxrQuality"), options.jxr_quality).toInt(), 1, 100);
+  options.jxr_lossless = settings.value(QStringLiteral("saveOptions/jxrLossless"), options.jxr_lossless).toBool();
   return options;
 }
 
@@ -271,6 +279,8 @@ void save_image_save_option_defaults(const ImageSaveOptions& options) {
   settings.setValue(QStringLiteral("saveOptions/pdfLossless"), options.pdf_lossless);
   settings.setValue(QStringLiteral("saveOptions/pdfMissingFontsAsImages"), options.pdf_missing_fonts_as_images);
   settings.setValue(QStringLiteral("saveOptions/gifFrameDelayCs"), std::clamp(options.gif_frame_delay_cs, 0, 0xffff));
+  settings.setValue(QStringLiteral("saveOptions/jxrQuality"), std::clamp(options.jxr_quality, 1, 100));
+  settings.setValue(QStringLiteral("saveOptions/jxrLossless"), options.jxr_lossless);
 }
 
 std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const QString& extension,
@@ -313,6 +323,71 @@ std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const
       return std::nullopt;
     }
     options.jpeg_quality = quality->value();
+    if (scale_combo != nullptr) {
+      options.export_scale = scale_combo->currentData().toInt();
+      persist_export_scale(options.export_scale);
+    }
+    return options;
+  }
+
+  if (is_jxr_extension(extension)) {
+    QDialog dialog(parent);
+    dialog.setObjectName(QStringLiteral("jxrSaveOptionsDialog"));
+    auto* content = create_options_dialog_chrome(dialog, QObject::tr("JPEG XR Options"));
+    dialog.resize(380, 210);
+    auto* scale_combo = for_export ? add_export_scale_row(content, dialog) : nullptr;
+
+    auto* form = new QFormLayout();
+    form->setContentsMargins(0, 0, 0, 0);
+    form->setHorizontalSpacing(10);
+    form->setVerticalSpacing(8);
+    auto* quality_row = new QWidget(&dialog);
+    auto* quality_layout = new QHBoxLayout(quality_row);
+    quality_layout->setContentsMargins(0, 0, 0, 0);
+    quality_layout->setSpacing(8);
+    auto* quality_slider = new QSlider(Qt::Horizontal, quality_row);
+    quality_slider->setObjectName(QStringLiteral("jxrQualitySlider"));
+    quality_slider->setRange(1, 100);
+    quality_slider->setValue(std::clamp(options.jxr_quality, 1, 100));
+    quality_slider->setMinimumWidth(160);
+    auto* quality = new QSpinBox(quality_row);
+    quality->setObjectName(QStringLiteral("jxrQualitySpin"));
+    quality->setRange(1, 100);
+    quality->setSuffix(QStringLiteral("%"));
+    quality->setValue(std::clamp(options.jxr_quality, 1, 100));
+    configure_dialog_spinbox(quality, 88);
+    QObject::connect(quality_slider, &QSlider::valueChanged, quality, &QSpinBox::setValue);
+    QObject::connect(quality, &QSpinBox::valueChanged, quality_slider, &QSlider::setValue);
+    quality_layout->addWidget(quality_slider, 1);
+    quality_layout->addWidget(quality);
+    form->addRow(new QLabel(QObject::tr("Quality:"), &dialog), quality_row);
+    content->addLayout(form);
+
+    auto* lossless = new QCheckBox(QObject::tr("Lossless (larger file)"), &dialog);
+    lossless->setObjectName(QStringLiteral("jxrLosslessCheck"));
+    lossless->setChecked(options.jxr_lossless);
+    content->addWidget(lossless);
+
+    auto* note = new QLabel(
+        QObject::tr("JPEG XR is written by the Windows codec. Patchy saves 8 bits per channel, so a file opened "
+                    "from an HDR capture is written back as the tone mapped image."),
+        &dialog);
+    note->setObjectName(QStringLiteral("jxrSaveNote"));
+    note->setWordWrap(true);
+    content->addWidget(note);
+    add_dialog_buttons(content, dialog);
+
+    // Lossless overrides the quality value in the encoder, so the slider goes dead rather
+    // than showing a number the file will not use.
+    const auto sync_quality_enabled = [quality_row, lossless] { quality_row->setEnabled(!lossless->isChecked()); };
+    QObject::connect(lossless, &QCheckBox::toggled, &dialog, [sync_quality_enabled](bool) { sync_quality_enabled(); });
+    sync_quality_enabled();
+
+    if (exec_dialog(dialog) != QDialog::Accepted) {
+      return std::nullopt;
+    }
+    options.jxr_quality = quality->value();
+    options.jxr_lossless = lossless->isChecked();
     if (scale_combo != nullptr) {
       options.export_scale = scale_combo->currentData().toInt();
       persist_export_scale(options.export_scale);

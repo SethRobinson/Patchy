@@ -30,6 +30,7 @@ std::vector<patchy::test::TestCase> palette_tests();
 std::vector<patchy::test::TestCase> document_ops_filters_tests();
 std::vector<patchy::test::TestCase> flat_formats_bmp_tests();
 std::vector<patchy::test::TestCase> raw_heif_tests();
+std::vector<patchy::test::TestCase> jxr_tests();
 std::vector<patchy::test::TestCase> flat_formats_misc_tests();
 std::vector<patchy::test::TestCase> unicode_path_tests();
 std::vector<patchy::test::TestCase> font_zip_tests();

@@ -16,7 +16,7 @@ The visible portion must keep a `*.` token. The Windows 11 native dialog appends
 
 ## Per-format catalogue
 
-Everything reads AND writes except camera raw, HEIF/HEIC, and .af (read-only). Modules live in src/formats/, Qt-free, explicit-endian via `binary_le.hpp` (LE) or `psd_binary.hpp` (BE).
+Everything reads AND writes except camera raw, HEIF/HEIC, and .af (read-only); JPEG XR reads and writes on Windows only. Modules live in src/formats/, Qt-free, explicit-endian via `binary_le.hpp` (LE) or `psd_binary.hpp` (BE).
 
 - PSD/PSB: PSB section below plus [ps-compat.md](ps-compat.md); 16/32-bit files convert to 8-bit on import (section below).
 - BMP: includes 32-bit `BI_RGB`/compression 0, whose 4th byte Patchy keeps (feeds document-alpha import below).
@@ -27,6 +27,7 @@ Everything reads AND writes except camera raw, HEIF/HEIC, and .af (read-only). M
 - PCX: 8-bit indexed EOF-palette plus 24-bit 3-plane RLE.
 - ILBM/PBM: ByteRun1 via the shared `psd::decode_packbits`/`encode_packbits_row` (psd_descriptor.{hpp,cpp}); EHB supported, HAM rejected; writer emits planar ILBM with masking type 2.
 - PNG/JPEG/TIFF/WebP: Qt readers/writers.
+- JPEG XR (.jxr/.wdp/.hdp): read AND write through the in-box WIC codec, Windows only (no Store package, no vendored codec); the filter row is gated on `jxr::is_available()` so no other platform offers it, and the registry row carries a WRITER, which is what keeps Save on .jxr instead of routing to Save As. Float/HDR frames (NVIDIA captures are 32-bit float scRGB) tone map to 8-bit with a knee curve rather than clamping. Full record, including the curve calibration and why a filmic curve was rejected: [jxr.md](jxr.md).
 
 ## Camera raw (CR2/CR3/NEF/ARW/RAF/DNG, ...)
 

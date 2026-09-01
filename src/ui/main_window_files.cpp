@@ -23,6 +23,7 @@
 #include "formats/aseprite_document_io.hpp"
 #include "formats/bmp_document_io.hpp"
 #include "formats/heif_document_io.hpp"
+#include "formats/jxr_document_io.hpp"
 #include "formats/raw_document_io.hpp"
 #include "formats/svg_document_io.hpp"
 #include "plugins/legacy_photoshop_adapter.hpp"
@@ -521,6 +522,18 @@ const QList<FileFormatEntry>& file_format_entries() {
                     {},
                     false,
                     false});
+    // JPEG XR reads and writes, but only where the in-box Windows codec exists: Qt has no
+    // JPEG XR plugin, so on macOS/Linux/wasm the row would advertise an open and a save that
+    // can only fail. Gate the whole row like the PDF row's conditional open half.
+    QStringList jxr_extensions;
+    for (const auto& extension : jxr::jxr_extensions()) {
+      jxr_extensions.push_back(QString::fromStdString(extension));
+    }
+    list.push_back({QT_TRANSLATE_NOOP("QObject", "JPEG XR Image"),
+                    jxr::is_available() ? jxr_extensions : QStringList{},
+                    jxr::is_available() ? jxr_extensions : QStringList{},
+                    jxr::is_available(),
+                    jxr::is_available()});
     return list;
   }();
   return entries;

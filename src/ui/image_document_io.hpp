@@ -62,6 +62,12 @@ struct ImageSaveOptions {
   // "0.25s" token in a layer name overrides it per frame. Persists as
   // saveOptions/gifFrameDelayCs.
   int gif_frame_delay_cs{10};
+  // JPEG XR: 1-100, mapped onto the WIC encoder's ImageQuality (0.0-1.0). Persists as
+  // saveOptions/jxrQuality.
+  int jxr_quality{90};
+  // JPEG XR: lossless compression, which the codec treats as overriding the quality value.
+  // Persists as saveOptions/jxrLossless.
+  bool jxr_lossless{false};
 };
 
 struct RenderedDocumentPatch {

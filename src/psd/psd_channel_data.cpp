@@ -21,6 +21,7 @@
 #include "psd/psd_patterns.hpp"
 #include "psd/psd_smart_objects.hpp"
 #include "render/compositor.hpp"
+#include "support/srgb_transfer.hpp"
 #include "support/string_utils.hpp"
 
 #include <algorithm>
@@ -209,15 +210,6 @@ std::vector<std::uint8_t> read_rle_channel_from_counts(BigEndianReader& reader,
 
 [[nodiscard]] constexpr std::size_t bytes_per_sample(std::uint16_t depth) noexcept {
   return depth == 32 ? 4U : depth == 16 ? 2U : 1U;
-}
-
-// Same formula as the Affinity importer's linear_to_srgb8: PSD 32-bit channels are
-// linear-light floats, and the converted 8-bit document keeps sRGB-encoded values.
-[[nodiscard]] std::uint8_t linear_float_to_srgb8(float value) {
-  value = std::clamp(value, 0.0F, 1.0F);
-  const float srgb = value <= 0.0031308F ? value * 12.92F
-                                         : 1.055F * std::pow(value, 1.0F / 2.4F) - 0.055F;
-  return static_cast<std::uint8_t>(std::lround(std::clamp(srgb, 0.0F, 1.0F) * 255.0F));
 }
 
 // Inflates one zip/zip-prediction channel payload. Photoshop writes standard zlib
@@ -473,8 +465,10 @@ std::vector<std::uint8_t> convert_channel_to_8bit(std::vector<std::uint8_t>&& da
                         (static_cast<std::uint32_t>(data[i * 4U + 2U]) << 8U) |
                         static_cast<std::uint32_t>(data[i * 4U + 3U]);
       const auto value = std::bit_cast<float>(bits);
+      // PSD 32-bit channels are linear-light floats; color planes bake through the shared
+      // sRGB transfer, transparency/masks/saved channels scale linearly instead.
       data[i] = color_channel
-                    ? linear_float_to_srgb8(value)
+                    ? linear_to_srgb8(value)
                     : static_cast<std::uint8_t>(std::lround(std::clamp(value, 0.0F, 1.0F) * 255.0F));
     }
     data.resize(samples);

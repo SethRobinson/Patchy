@@ -13,6 +13,7 @@
 #include "formats/ico_document_io.hpp"
 #include "formats/ilbm_document_io.hpp"
 #include "formats/image_density_probe.hpp"
+#include "formats/jxr_document_io.hpp"
 #include "formats/pcx_document_io.hpp"
 #include "formats/tga_document_io.hpp"
 #include "core/rect_utils.hpp"
@@ -1702,7 +1703,8 @@ QImage qimage_from_document_rect_with_hidden_layers_banded(const Document& docum
 
 bool image_format_preserves_alpha(std::string_view extension) noexcept {
   const auto lower = lower_extension(extension);
-  return lower == "png" || lower == "tif" || lower == "tiff" || lower == "webp";
+  return lower == "png" || lower == "tif" || lower == "tiff" || lower == "webp" || lower == "jxr" ||
+         lower == "wdp" || lower == "hdp";
 }
 
 namespace {
@@ -1903,6 +1905,13 @@ void write_flat_image_file(const Document& document, const QString& path, const 
   }
   if (lower == "tga") {
     tga::DocumentIo::write_file(document, to_filesystem_path(path));
+    return;
+  }
+  if (jxr::is_jxr_extension(lower)) {
+    // Windows only (the filter row is gated on jxr::is_available(), so this is reachable
+    // elsewhere only through a hand-typed path, where the writer throws a clear message).
+    jxr::write_jxr_file(document, to_filesystem_path(path),
+                        jxr::WriteOptions{std::clamp(options.jxr_quality, 1, 100), options.jxr_lossless});
     return;
   }
   if (lower == "gif") {

@@ -22,6 +22,7 @@
 #include "formats/miniz/miniz.h"
 #include "formats/stb/stb_image.h"
 #include "formats/zstd/zstd.h"
+#include "support/srgb_transfer.hpp"
 
 #include <algorithm>
 #include <array>
@@ -556,13 +557,6 @@ enum class RasterFormat {
     case 9: return RasterFormat::RGBAFloat;
     default: return RasterFormat::Unsupported;
   }
-}
-
-[[nodiscard]] std::uint8_t linear_to_srgb8(float value) {
-  value = std::clamp(value, 0.0F, 1.0F);
-  const float srgb = value <= 0.0031308F ? value * 12.92F
-                                         : 1.055F * std::pow(value, 1.0F / 2.4F) - 0.055F;
-  return static_cast<std::uint8_t>(std::lround(std::clamp(srgb, 0.0F, 1.0F) * 255.0F));
 }
 
 [[nodiscard]] float srgb_to_linear(float value) {

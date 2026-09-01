@@ -6,6 +6,7 @@
 #include "formats/heif_document_io.hpp"
 #include "formats/ico_document_io.hpp"
 #include "formats/ilbm_document_io.hpp"
+#include "formats/jxr_document_io.hpp"
 #include "formats/pcx_document_io.hpp"
 #include "formats/raw_document_io.hpp"
 #include "formats/svg_document_io.hpp"
@@ -134,6 +135,15 @@ void register_builtin_formats(FormatRegistry& registry) {
                              [](std::span<const std::uint8_t> bytes) { return heif::read_heif(bytes); },
                              nullptr,
                              [](std::span<const std::uint8_t> bytes) { return heif::sniff(bytes); }});
+  // JPEG XR reads and writes through the in-box Windows Imaging Component codec; the write
+  // function is registered on every platform so is_read_only_source_extension keeps Save on
+  // .jxr, and the non-Windows stubs throw (see jxr_document_io.hpp).
+  registry.register_handler({"patchy.formats.jxr",
+                             "JPEG XR Image",
+                             jxr::jxr_extensions(),
+                             [](std::span<const std::uint8_t> bytes) { return jxr::read_jxr(bytes); },
+                             [](const Document& document) { return jxr::write_jxr(document); },
+                             [](std::span<const std::uint8_t> bytes) { return jxr::sniff(bytes); }});
   // Affinity's native container is a read-only source (write stays null). The 2.x
   // .afphoto/.afdesign/.afpub generations share the .af magic and wire grammar, so
   // one handler covers them all; pre-2.x files that fail the tree parse fall back

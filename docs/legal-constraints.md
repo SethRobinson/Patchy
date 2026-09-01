@@ -51,5 +51,14 @@ Read this file before changing any feature named below or introducing an adjacen
   the runtime `VideoDecoder.isConfigSupported()` check, and the distribution obligations
   recorded in `NOTICE-THIRD-PARTY.md` are binding parts of this boundary. See
   [file-formats.md](file-formats.md) for the platform and browser design.
+- JPEG XR decoding and encoding must use the in-box Windows Imaging Component codec. Never
+  vendor or link jxrlib, libjxr, or another JPEG XR codec, and never add a JPEG XR path to a
+  non-Windows build, without a new review. The boundary is cheap to hold and worth holding:
+  Patchy ships no codec, so no JPEG XR patent reads on the binary at all. The underlying
+  position is friendlier than HEVC's (Microsoft placed the JPEG XR patents under the Open
+  Specification Promise and released the reference implementation under BSD-2-Clause, and
+  the 2006-2009 priority dates are at or past term), but that reasoning has not been through
+  a claim-level review, so it is not a licence to vendor a codec. See [jxr.md](jxr.md) for
+  the design and [file-formats.md](file-formats.md) for the wiring.
 - Shipping dependencies must permit commercial distribution. GPL tools may be used locally for development or fixture generation only when they are not linked into or distributed with Patchy.
 - No Photoshop SDK code or Adobe-created assets may enter this repository or a Patchy binary. The only exception is the self-authored regression material in `test-fixtures/psd/`, which is not Adobe artwork.

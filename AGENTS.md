@@ -111,6 +111,7 @@ Read the linked document before working on the feature. The document, not this i
 - **Healing Brush, Spot Healing, Patch tool, and retouch Sample All Layers:** [docs/healing.md](docs/healing.md) and [docs/legal-constraints.md](docs/legal-constraints.md).
 - **Palette mode:** [docs/palette-mode.md](docs/palette-mode.md).
 - **File formats, PSB, Camera Raw, Affinity, HEIF/HEIC, and flat-image alpha:** [docs/file-formats.md](docs/file-formats.md).
+- **JPEG XR (.jxr) and the HDR tone map:** [docs/jxr.md](docs/jxr.md), plus the no-vendored-codec rule in [docs/legal-constraints.md](docs/legal-constraints.md).
 - **PDF import/export (editable layers, flat):** [docs/pdf.md](docs/pdf.md).
 - **Document channels:** [docs/channels.md](docs/channels.md).
 - **Resolution and measurement units:** [docs/resolution-units.md](docs/resolution-units.md).
