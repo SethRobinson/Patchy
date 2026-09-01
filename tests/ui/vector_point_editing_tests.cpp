@@ -177,16 +177,38 @@ void ui_path_tools_show_activation_hints_and_tooltips() {
 
   // Tooltips name the gestures; flyout buttons copy their default action's.
   CHECK(require_action(window, "toolPenAction")->toolTip().contains(QStringLiteral("Alt+click")));
-  CHECK(require_action(window, "toolDirectSelectAction")->toolTip().startsWith(
-      QStringLiteral("Direct Select (Shift+A)")));
+
+  // refresh_action_tooltip renders the shortcut chip with QKeySequence::NativeText, so the
+  // expected text has to be built the same way: macOS spells Shift+A as the glyph "⇧A", and
+  // hardcoding the Windows/Linux spelling made this a macOS-only failure. The binding itself
+  // is pinned separately in PortableText, which reads the same on every platform.
+  const auto binding = [](const QAction* action) {
+    return action->shortcuts().isEmpty() ? QString()
+                                         : action->shortcuts().first().toString(QKeySequence::PortableText);
+  };
+  const auto tooltip_prefix = [](const QAction* action, const QString& label) {
+    return action->shortcuts().isEmpty()
+               ? label
+               : QStringLiteral("%1 (%2)").arg(
+                     label, action->shortcuts().first().toString(QKeySequence::NativeText));
+  };
+  auto* direct_select_action = require_action(window, "toolDirectSelectAction");
+  auto* path_select_action = require_action(window, "toolPathSelectAction");
+  CHECK(binding(direct_select_action) == QStringLiteral("Shift+A"));
+  CHECK(binding(path_select_action) == QStringLiteral("A"));
+  const auto direct_select_tip = tooltip_prefix(direct_select_action, QStringLiteral("Direct Select"));
+  const auto path_select_tip = tooltip_prefix(path_select_action, QStringLiteral("Path Select"));
+  CHECK(direct_select_action->toolTip().startsWith(direct_select_tip));
+
   auto* path_button = window.findChild<QToolButton*>(QStringLiteral("pathSelectToolButton"));
   CHECK(path_button != nullptr);
   // The flyout button shows its current default action's tooltip (Direct
   // Select was picked last); re-picking Path Select swaps it back.
-  CHECK(path_button->toolTip().startsWith(QStringLiteral("Direct Select (Shift+A)")));
-  require_action(window, "toolPathSelectAction")->trigger();
+  CHECK(path_button->toolTip().startsWith(direct_select_tip));
+  path_select_action->trigger();
   QApplication::processEvents();
-  CHECK(path_button->toolTip().startsWith(QStringLiteral("Path Select (A)")));
+  CHECK(path_button->toolTip().startsWith(path_select_tip));
+  // The detail sentence is a translated literal, so its modifier names stay portable.
   CHECK(path_button->toolTip().contains(QStringLiteral("Ctrl+T")));
 }
 

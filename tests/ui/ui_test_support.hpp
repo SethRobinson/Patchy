@@ -642,6 +642,15 @@ std::optional<QRect> image_mismatch_bounds_rgba(const QImage& left, const QImage
 
 QImage render_widget_image(QWidget& widget, const QRegion& region = QRegion());
 
+// The part of a canvas that actually shows canvas pixels: its rect minus the scroll bars it
+// overlays on its own right and bottom edges (they are child widgets, not a
+// QAbstractScrollArea viewport, and stay visible whenever a document is open). A document
+// point can map underneath one, where render_widget_image reads scroll-bar chrome, so any
+// test sampling a rendered pixel near an edge should confirm the point lands in here first.
+// Scroll-bar thickness is style-dependent, which makes an edge-adjacent sample point
+// silently platform-dependent otherwise.
+QRect canvas_content_rect(const QWidget& canvas);
+
 QImage grab_widget_window_image(QWidget& widget);
 
 int count_pixels_close(const QImage& image, QRect region, QColor expected, int tolerance);

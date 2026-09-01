@@ -3132,9 +3132,17 @@ void ui_canvas_tiling_mode_paints_ghost_tiles_live() {
   const auto stroke_center = second_canvas->widget_position_for_document_point(QPoint(180, 120));
   drag(*second_canvas, stroke_center, stroke_center + QPoint(6, 0));
   QApplication::processEvents();
+  // Sample the LEFT neighbor tile, not the right one. The canvas overlays its scroll bars on
+  // its own right and bottom edges as child widgets (sync_scroll_bars, always visible while a
+  // document is open), so widget_position_for_document_point can legitimately return a point
+  // underneath one, where a render reads scroll-bar chrome instead of canvas pixels. The
+  // right-hand ghost landed 1 px inside the content area on Windows and 1 px under the bar on
+  // macOS, where the canvas is 4 px narrower; canvas_content_rect keeps that from silently
+  // coming back as a color mismatch.
+  const auto content = canvas_content_rect(*second_canvas);
   const auto ghost_stroke_point =
-      second_canvas->widget_position_for_document_point(QPoint(180 + 360, 120));
-  CHECK(second_canvas->rect().contains(ghost_stroke_point));
+      second_canvas->widget_position_for_document_point(QPoint(180 - 360, 120));
+  CHECK(content.adjusted(8, 8, -8, -8).contains(ghost_stroke_point));
   CHECK(recorder.region().contains(ghost_stroke_point));
   second_canvas->removeEventFilter(&recorder);
   {

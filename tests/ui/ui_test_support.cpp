@@ -779,6 +779,26 @@ QImage render_widget_image(QWidget& widget, const QRegion& region) {
   return image;
 }
 
+QRect canvas_content_rect(const QWidget& canvas) {
+  QRect content = canvas.rect();
+  for (const auto* bar : canvas.findChildren<QScrollBar*>()) {
+    if (bar->isHidden()) {
+      continue;
+    }
+    const auto geometry = bar->geometry();
+    if (geometry.isEmpty()) {
+      continue;
+    }
+    // The canvas lays each bar along a full edge, so orientation tells which side to trim.
+    if (bar->orientation() == Qt::Vertical) {
+      content.setRight(std::min(content.right(), geometry.left() - 1));
+    } else {
+      content.setBottom(std::min(content.bottom(), geometry.top() - 1));
+    }
+  }
+  return content;
+}
+
 QImage grab_widget_window_image(QWidget& widget) {
   auto* screen = widget.windowHandle() != nullptr ? widget.windowHandle()->screen() : QApplication::primaryScreen();
   CHECK(screen != nullptr);
