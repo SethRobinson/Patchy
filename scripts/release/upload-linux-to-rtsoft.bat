@@ -13,5 +13,21 @@ if not defined LINUX_BUNDLE (
 )
 echo Uploading %LINUX_BUNDLE% as PatchyLinux.flatpak
 copy /y "%LINUX_BUNDLE%" build\package\PatchyLinux.flatpak >nul
-call %RT_PROJECTS%\UploadFileToRTsoftSSH.bat build\package\PatchyLinux.flatpak files
+if errorlevel 1 (
+  echo ERROR: could not stage build\package\PatchyLinux.flatpak from "%LINUX_BUNDLE%".
+  if /i not "%~1"=="nopause" pause
+  exit /b 1
+)
+rem upload-one-file.bat fails loudly on a bad transfer and verifies the bytes that
+rem landed; see its header for why a plain scp is not enough.
+call "%~dp0upload-one-file.bat" build\package\PatchyLinux.flatpak files
+if errorlevel 1 (
+  echo.
+  echo Linux upload FAILED - https://rtsoft.com/files/PatchyLinux.flatpak was not
+  echo updated (or was left in a bad state). Do not announce this release.
+  if /i not "%~1"=="nopause" pause
+  exit /b 1
+)
+echo Linux upload OK: https://rtsoft.com/files/PatchyLinux.flatpak
 if /i not "%~1"=="nopause" pause
+exit /b 0

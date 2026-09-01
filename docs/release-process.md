@@ -33,6 +33,16 @@ specific clause that person wrote (see the existing 0.10/0.12 entries in
 
 Build order matters: finalize the README first (the Windows zip/installer embed a copy), then `scripts\release\release-all.bat` (four consoles: local Windows and wasm builds plus remote mac/linux; every builder deletes its previous artifacts up front so a failed build can never leave stale files for the upload scripts), then `scripts\release\upload-to-rtsoft.bat`.
 
+## A bad build must not be able to ship quietly
+
+Two failure modes used to look exactly like success, both found in September 2026 while publishing a macOS-only release. Do not reintroduce either shape.
+
+**Unsigned artifacts.** Signing was gated on credentials being present and merely printed "signing skipped" otherwise, so a missing `~/.patchy-release-env` (mac) or `RT_PROJECTS` (Windows) produced an unsigned build that a long log made invisible. Both sides now fail instead: `packaging/macos/make-dmg.sh` errors under `PATCHY_REQUIRE_SIGNING=1` (set by `scripts\remote\release-mac.ps1`) and additionally requires `spctl` to report `source=Notarized Developer ID` on the finished dmg; `build-release.bat`'s `:SignFile` errors unless `PATCHY_ALLOW_UNSIGNED=1` is set for a deliberately unsigned local build. Keep the escape hatches explicit and opt-in, and keep the safe behavior the default. Details and the `stapler validate` hang to avoid: [packaging/macos/README.md](../packaging/macos/README.md).
+
+**Unverified uploads.** The desktop upload scripts called `%RT_PROJECTS%\UploadFileToRTsoftSSH.bat`, a bare `scp` whose exit code nobody checked, and `upload-to-rtsoft.bat` ran all four platforms unconditionally and exited 0 regardless. A refused connection or a truncated transfer was indistinguishable from a publish. Every release artifact now goes through `scripts\release\upload-one-file.bat`, which fails on a bad `scp` and then compares the local SHA-256 against one the server computes over what actually landed; `upload-to-rtsoft.bat` collects per-platform failures and ends with a named summary and a non-zero exit. Uploading a new artifact means calling that helper, not `scp` directly. (`upload-wasm-to-rtsoft.bat` predates it and does its own multi-file transfer plus a live COOP/COEP header check, which is why it stays separate.)
+
+After any upload, the claim "it shipped" needs evidence: the helper's `Verified <name> (sha256 ...)` line, or `curl -sI` against the public URL.
+
 ## The wasm (web) release
 
 The web build ships with the desktop releases because the site redeploy is its only update mechanism (the in-app update check is stubbed out on wasm). Three scripts, all in `scripts\release` (plus `build-wasm-and-upload-to-rtsoft.bat`, a convenience wrapper that chains the build and upload scripts by full path and stops with an error, honoring `nopause`/`NO_PAUSE`, instead of uploading when the build fails):

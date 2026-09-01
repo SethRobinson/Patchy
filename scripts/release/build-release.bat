@@ -174,14 +174,30 @@ exit /b %ERRORLEVEL%
 
 :SignFile
 set "SIGN_TARGET=%~1"
+rem PATCHY_ALLOW_UNSIGNED=1 is the escape hatch for a local packaging run on a machine
+rem without the signing credentials. Without it a missing signer is a hard error: this
+rem script builds what gets published, SmartScreen punishes an unsigned installer, and
+rem "signing skipped" must never scroll past unnoticed in a long release log. The macOS
+rem side had the same silent skip; see PATCHY_REQUIRE_SIGNING in packaging/macos/make-dmg.sh.
 if not defined RT_PROJECTS (
-  echo RT_PROJECTS is not set; signing skipped for "%SIGN_TARGET%".
-  exit /b 0
+  if /i "%PATCHY_ALLOW_UNSIGNED%"=="1" (
+    echo RT_PROJECTS is not set; signing skipped for "%SIGN_TARGET%" ^(PATCHY_ALLOW_UNSIGNED=1^).
+    exit /b 0
+  )
+  echo ERROR: RT_PROJECTS is not set, so "%SIGN_TARGET%" cannot be signed.
+  echo Set RT_PROJECTS, or set PATCHY_ALLOW_UNSIGNED=1 for a deliberately unsigned local build.
+  exit /b 1
 )
 
 if not exist "%RT_PROJECTS%\Signing\sign.bat" (
-  echo Signing script was not found: "%RT_PROJECTS%\Signing\sign.bat"; signing skipped for "%SIGN_TARGET%".
-  exit /b 0
+  if /i "%PATCHY_ALLOW_UNSIGNED%"=="1" (
+    echo Signing script was not found: "%RT_PROJECTS%\Signing\sign.bat"; signing skipped for "%SIGN_TARGET%" ^(PATCHY_ALLOW_UNSIGNED=1^).
+    exit /b 0
+  )
+  echo ERROR: signing script was not found: "%RT_PROJECTS%\Signing\sign.bat".
+  echo "%SIGN_TARGET%" cannot be signed.
+  echo Fix the path, or set PATCHY_ALLOW_UNSIGNED=1 for a deliberately unsigned local build.
+  exit /b 1
 )
 
 if not exist "%SIGNTOOL_EXE%" (

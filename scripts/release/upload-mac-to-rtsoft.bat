@@ -13,5 +13,23 @@ if not defined MAC_DMG (
 )
 echo Uploading %MAC_DMG% as PatchyMacOS.dmg
 copy /y "%MAC_DMG%" build\package\PatchyMacOS.dmg >nul
-call %RT_PROJECTS%\UploadFileToRTsoftSSH.bat build\package\PatchyMacOS.dmg files
+if errorlevel 1 (
+  echo ERROR: could not stage build\package\PatchyMacOS.dmg from "%MAC_DMG%".
+  if /i not "%~1"=="nopause" pause
+  exit /b 1
+)
+rem upload-one-file.bat fails loudly on a bad transfer and verifies the bytes that
+rem landed; see its header for why a plain scp is not enough. Called by full path
+rem because cmd will not search the current directory when
+rem NoDefaultCurrentDirectoryInExePath is set.
+call "%~dp0upload-one-file.bat" build\package\PatchyMacOS.dmg files
+if errorlevel 1 (
+  echo.
+  echo macOS upload FAILED - https://rtsoft.com/files/PatchyMacOS.dmg was not updated
+  echo (or was left in a bad state). Do not announce this release.
+  if /i not "%~1"=="nopause" pause
+  exit /b 1
+)
+echo macOS upload OK: https://rtsoft.com/files/PatchyMacOS.dmg
 if /i not "%~1"=="nopause" pause
+exit /b 0

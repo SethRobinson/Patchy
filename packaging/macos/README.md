@@ -33,5 +33,26 @@ Uses the existing Apple Developer account (Robinson Technologies Corporation).
    export PATCHY_KEYCHAIN_PASSWORD="..."
    ```
 
-Without that file the scripts still produce an **unsigned** dmg (users must
-right-click-open / approve in System Settings on first launch).
+Without that file `make-dmg.sh` run by hand still produces an **unsigned** dmg (users
+must right-click-open / approve in System Settings on first launch).
+
+A RELEASE run is different: `scripts/remote/release-mac.ps1` passes
+`PATCHY_REQUIRE_SIGNING=1`, which turns both skips into hard errors and verifies the
+finished artifact. That flag exists because the skips are only messages in a long
+build log, so a missing `~/.patchy-release-env` used to yield an unsigned dmg that
+looked like a successful release and would have shipped (caught September 2026).
+With it set, `make-dmg.sh` fails when either the signing identity or the notary
+profile is absent, and after stapling it runs
+
+```
+spctl -a -t open --context context:primary-signature -v <dmg>
+```
+
+requiring both a non-zero-free assessment and the literal `source=Notarized Developer ID`
+in the output, which is what separates a notarized dmg from a merely signed one. That
+`spctl` call used to end in `|| true`, which hid a rejection.
+
+Do not add `xcrun stapler validate` to that check. It blocks indefinitely on studiomac
+(September 2026: still running after ten minutes, killed at sixty seconds on a bounded
+retest) and would hang every release; `spctl` covers the same ground in about a third of
+a second.

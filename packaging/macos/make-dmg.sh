@@ -9,6 +9,12 @@
 #   PATCHY_NOTARY_PROFILE     a notarytool keychain profile (xcrun notarytool store-credentials)
 # Otherwise those steps are skipped with a message and an unsigned dmg is produced
 # (mirrors the RT_PROJECTS gate in scripts/release/build-release.bat). See packaging/macos/README.md.
+#
+# PATCHY_REQUIRE_SIGNING=1 turns those skips into hard errors and additionally proves
+# the result: stapler validate and spctl must both accept the finished dmg. Release
+# runs set it (scripts/remote/release-mac.ps1) because an unsigned or un-notarized dmg
+# is not a shippable artifact -- Gatekeeper refuses to open it -- and the skip messages
+# scroll past in a long build log. Leave it unset for a local unsigned dev build.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
@@ -41,11 +47,39 @@ if [ -n "${PATCHY_MAC_SIGN_IDENTITY:-}" ]; then
     # SSH sessions get their own security context where the login keychain starts
     # LOCKED (codesign then fails with errSecInternalComponent); unlock it for this
     # session. The password lives in ~/.patchy-release-env (chmod 600) on the build mac.
-    security unlock-keychain -p "$PATCHY_KEYCHAIN_PASSWORD" ~/Library/Keychains/login.keychain-db
+    #
+    # Bounded, because this is a local operation that should take milliseconds and
+    # instead blocks forever when the mac's security subsystem is wedged (September
+    # 2026: a release sat here 30+ minutes with no output, and a plain
+    # `security show-keychain-info` hung the same way, which is a stuck SecurityAgent
+    # prompt on the machine's own screen rather than anything this script did). A
+    # release that hangs silently is as bad as one that ships unsigned, so fail loudly
+    # and say where to look. macOS ships no timeout(1), hence the watchdog.
+    security unlock-keychain -p "$PATCHY_KEYCHAIN_PASSWORD" ~/Library/Keychains/login.keychain-db &
+    unlock_pid=$!
+    ( sleep 60; kill -9 "$unlock_pid" 2>/dev/null ) &
+    unlock_watchdog=$!
+    if ! wait "$unlock_pid"; then
+      kill "$unlock_watchdog" 2>/dev/null || true
+      echo "ERROR: unlocking the login keychain failed or timed out after 60s." >&2
+      echo "The mac's security subsystem is usually wedged behind an authorization" >&2
+      echo "prompt on its own screen; check studiomac's display, then confirm with" >&2
+      echo "  security show-keychain-info ~/Library/Keychains/login.keychain-db" >&2
+      echo "which hangs in the same situation. Nothing was signed, so no artifact was" >&2
+      echo "produced." >&2
+      exit 1
+    fi
+    kill "$unlock_watchdog" 2>/dev/null || true
   fi
   echo "== codesign (hardened runtime) =="
   codesign --force --deep --options runtime --timestamp -s "$PATCHY_MAC_SIGN_IDENTITY" "$STAGE/Patchy.app"
   codesign --verify --deep --strict "$STAGE/Patchy.app"
+elif [ "${PATCHY_REQUIRE_SIGNING:-0}" = "1" ]; then
+  echo "ERROR: PATCHY_REQUIRE_SIGNING=1 but PATCHY_MAC_SIGN_IDENTITY is not set." >&2
+  echo "A release dmg must be signed; Gatekeeper blocks an unsigned one. Check that" >&2
+  echo "~/.patchy-release-env exists on this mac and exports the signing identity" >&2
+  echo "(see packaging/macos/README.md)." >&2
+  exit 1
 else
   echo "PATCHY_MAC_SIGN_IDENTITY is not set; skipping code signing (unsigned dmg)."
 fi
@@ -68,7 +102,39 @@ if [ -n "${PATCHY_MAC_SIGN_IDENTITY:-}" ] && [ -n "${PATCHY_NOTARY_PROFILE:-}" ]
   echo "== notarize + staple =="
   xcrun notarytool submit "$DMG" --keychain-profile "$PATCHY_NOTARY_PROFILE" --wait
   xcrun stapler staple "$DMG"
-  spctl -a -t open --context context:primary-signature -v "$DMG" || true
+
+  # Positive proof, not just "the commands above ran". spctl makes the same assessment
+  # Gatekeeper will make on a user's machine, and it used to end in "|| true", which
+  # swallowed a rejection and let a dmg that macOS would refuse leave the build looking
+  # healthy. Its "source=Notarized Developer ID" line is what distinguishes a notarized
+  # dmg from one that is merely signed, so the build asserts on it rather than trusting
+  # that notarytool and stapler did their jobs.
+  #
+  # Deliberately NOT "xcrun stapler validate": on this build mac it blocks forever
+  # (measured September 2026, still spinning after 10 minutes, killed at 60s in a
+  # bounded retest) and would hang every release. spctl covers the same ground in
+  # about a third of a second.
+  echo "== verify signature and Gatekeeper assessment =="
+  if ! SPCTL_OUT=$(spctl -a -t open --context context:primary-signature -v "$DMG" 2>&1); then
+    echo "ERROR: Gatekeeper rejected the finished dmg:" >&2
+    echo "$SPCTL_OUT" >&2
+    exit 1
+  fi
+  echo "$SPCTL_OUT"
+  case "$SPCTL_OUT" in
+    *"Notarized Developer ID"*) ;;
+    *)
+      echo "ERROR: the dmg was accepted, but not as a notarized artifact." >&2
+      echo "Users would be warned on first open. spctl said:" >&2
+      echo "$SPCTL_OUT" >&2
+      exit 1
+      ;;
+  esac
+elif [ "${PATCHY_REQUIRE_SIGNING:-0}" = "1" ]; then
+  echo "ERROR: PATCHY_REQUIRE_SIGNING=1 but PATCHY_NOTARY_PROFILE is not set." >&2
+  echo "A release dmg must be notarized and stapled or macOS will refuse to open it" >&2
+  echo "on any machine that has not seen it before (see packaging/macos/README.md)." >&2
+  exit 1
 else
   echo "PATCHY_NOTARY_PROFILE and/or the sign identity are not set; skipping notarization."
 fi
