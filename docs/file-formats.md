@@ -10,7 +10,7 @@ Deep reference for file-format work. Read this before touching a reader/writer, 
 
 ## Open-dialog filter contract
 
-Open, sprite-sheet, and image-sequence dialogs pass `FilterNameDetails::Hidden` through `get_open_file_name`. Qt shows only the text left of the last `(` and uses the final parenthesized list as the machine filter, so `open_file_filter()` writes each row as `Name (patterns) (patterns)`. The duplication is deliberate: the machine-readable patterns are the LAST parenthesized list, the rest is the visible name.
+Open, sprite-sheet, and image-sequence dialogs pass `FilterNameDetails::Hidden` through `get_open_file_names`. File > Open (and the Open Recent Folder entries) is multi-select: each picked file opens as its own document in dialog order and the last one is active, the same loop a multi-file drop runs (`ui_open_dialog_opens_every_selected_file`). Qt shows only the text left of the last `(` and uses the final parenthesized list as the machine filter, so `open_file_filter()` writes each row as `Name (patterns) (patterns)`. The duplication is deliberate: the machine-readable patterns are the LAST parenthesized list, the rest is the visible name.
 
 The visible portion must keep a `*.` token. The Windows 11 native dialog appends the complete semicolon-joined pattern list to any filter name without one, so the all-formats row uses the short `(*.psd *.png *.jpg and more)` hint instead of ~50 patterns. `ui_open_dialog_hides_name_filter_details` pins the shape.
 

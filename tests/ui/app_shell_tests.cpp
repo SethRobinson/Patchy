@@ -1454,6 +1454,64 @@ void ui_open_dialog_hides_name_filter_details() {
   CHECK(saw_save_dialog);
 }
 
+void ui_open_dialog_opens_every_selected_file() {
+  // File > Open is multi-select: every picked file opens as its own document in
+  // dialog order and the last one ends up active, the same loop a multi-file
+  // drop runs.
+  ensure_artifact_dir();
+  SettingsValueRestorer recent_files_restorer(QStringLiteral("recentFiles"));
+  SettingsValueRestorer recent_folders_restorer(QStringLiteral("recentFolders"));
+  SettingsValueRestorer last_open_directory_restorer(QStringLiteral("lastOpenDirectory"));
+  const auto dir = QFileInfo(QStringLiteral("test-artifacts")).absoluteFilePath();
+  const QStringList names{QStringLiteral("open-multi-a.png"), QStringLiteral("open-multi-b.png")};
+  QStringList paths;
+  for (const auto& name : names) {
+    QImage image(48, 32, QImage::Format_RGB32);
+    image.fill(QColor(90, 150, 210));
+    paths.push_back(dir + QLatin1Char('/') + name);
+    CHECK(image.save(paths.back()));
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto sessions_before = patchy::ui::MainWindowTestAccess::session_count(window);
+  QStringList picked;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("openFileDialog")));
+    CHECK(dialog != nullptr);
+    CHECK(dialog->fileMode() == QFileDialog::ExistingFiles);
+    dialog->setDirectory(dir);
+    // Qt's typed form for several files: "a" "b" (the widget dialog parses the quotes).
+    auto* name_edit = dialog->findChild<QLineEdit*>(QStringLiteral("fileNameEdit"));
+    CHECK(name_edit != nullptr);
+    name_edit->setText(QStringLiteral("\"%1\" \"%2\"").arg(names[0], names[1]));
+    QApplication::processEvents();
+    picked = dialog->selectedFiles();
+    static_cast<QDialog*>(dialog)->accept();
+  });
+  require_action(window, "fileOpenAction")->trigger();
+  QApplication::processEvents();
+
+  CHECK(picked.size() == 2);
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == sessions_before + 2);
+  if (!picked.isEmpty()) {
+    CHECK(QFileInfo(patchy::ui::MainWindowTestAccess::active_session_path(window)).absoluteFilePath() ==
+          QFileInfo(picked.last()).absoluteFilePath());
+  }
+  // Every opened file went through the recent-files bookkeeping, not only the last.
+  QStringList recent;
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.sync();
+    for (const auto& entry : settings.value(QStringLiteral("recentFiles")).toStringList()) {
+      recent.push_back(QFileInfo(entry).absoluteFilePath());
+    }
+  }
+  for (const auto& path : paths) {
+    CHECK(recent.contains(QFileInfo(path).absoluteFilePath()));
+  }
+}
+
 QStringList top_level_menu_texts(QMenuBar& menu_bar) {
   QStringList texts;
   for (auto* action : menu_bar.actions()) {
@@ -3627,6 +3685,7 @@ std::vector<patchy::test::TestCase> app_shell_tests() {
       {"ui_open_remembers_last_directory_and_lists_recent_folders",
        ui_open_remembers_last_directory_and_lists_recent_folders},
       {"ui_open_dialog_hides_name_filter_details", ui_open_dialog_hides_name_filter_details},
+      {"ui_open_dialog_opens_every_selected_file", ui_open_dialog_opens_every_selected_file},
       {"update_manifest_parser_handles_supported_cases", update_manifest_parser_handles_supported_cases},
       {"ui_update_available_dialog_warns_to_close_patchy_before_installing",
        ui_update_available_dialog_warns_to_close_patchy_before_installing},

@@ -1235,12 +1235,13 @@ void MainWindow::open_document() {
     show_preview_dialog_edit_lock_message();
     return;
   }
-  const auto path = get_open_file_name(this, tr("Open"), last_open_directory(), open_file_filter(), nullptr,
-                                       QStringLiteral("openFileDialog"), FilterNameDetails::Hidden);
-  if (path.isEmpty()) {
-    return;
+  // Multi-select: every picked file becomes its own document, in dialog order,
+  // exactly as a multi-file drop does; the last one opened ends up active.
+  const auto paths = get_open_file_names(this, tr("Open"), last_open_directory(), open_file_filter(), nullptr,
+                                         QStringLiteral("openFileDialog"), FilterNameDetails::Hidden);
+  for (const auto& path : paths) {
+    open_document_path(path);
   }
-  open_document_path(path);
 }
 
 bool MainWindow::accept_open_file_drag(QDropEvent* event) {
@@ -3344,9 +3345,9 @@ void MainWindow::rebuild_recent_folders_menu() {
         return;
       }
       const auto start_dir = QFileInfo(dir).isDir() ? dir : last_open_directory();
-      const auto path = get_open_file_name(this, tr("Open"), start_dir, open_file_filter(), nullptr,
-                                           QStringLiteral("openFileDialog"), FilterNameDetails::Hidden);
-      if (!path.isEmpty()) {
+      const auto paths = get_open_file_names(this, tr("Open"), start_dir, open_file_filter(), nullptr,
+                                             QStringLiteral("openFileDialog"), FilterNameDetails::Hidden);
+      for (const auto& path : paths) {
         open_document_path(path);
       }
     });
