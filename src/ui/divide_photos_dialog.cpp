@@ -890,10 +890,10 @@ std::optional<DividePhotosDialogResult> request_divide_photos(
     if (save_selected()) {
       const QString folder = folder_edit->text().trimmed();
       if (folder.isEmpty() || !QDir().mkpath(folder)) {
-        show_warning_message(&dialog, QObject::tr("Divide Scanned Photos"),
-                             QObject::tr("The folder \"%1\" could not be created.").arg(folder),
-                             QMessageBox::Ok, QMessageBox::Ok,
-                             QStringLiteral("dividePhotosFolderCreateFailedMessageBox"));
+        (void)show_warning_message(&dialog, QObject::tr("Divide Scanned Photos"),
+                                   QObject::tr("The folder \"%1\" could not be created.").arg(folder),
+                                   QMessageBox::Ok, QMessageBox::Ok,
+                                   QStringLiteral("dividePhotosFolderCreateFailedMessageBox"));
         return;
       }
     }

@@ -27,8 +27,10 @@ Required release handoff steps:
 1. Build the release preset:
 
    ```powershell
-   cmd /s /c 'scripts\vs-env.bat -arch=x64 -host_arch=x64 >nul && "C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" --build --preset release'
+   cmd /s /c 'scripts\vs-env.bat -arch=x64 -host_arch=x64 >nul && start "" /b /wait /belownormal "C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" --build --preset release -j 6'
    ```
+
+   The throttling is mandatory (Seth, September 2026): `-j 6` caps ninja's parallelism (its default of every core plus two makes this 24-core machine unresponsive) and `start "" /b /wait /belownormal` runs the whole build at below-normal priority. Run the test binaries through the same `start "" /b /wait /belownormal` wrapper. Never launch an unthrottled build.
 
    Run this from the repository root in PowerShell or a real cmd prompt, never Git Bash or another POSIX shell. Nested quoting collapses there, cmd prints its banner, and exits 0 without building. Trust the build only if the log contains compile/link lines or `ninja: no work to do`, never the exit code alone. Builds that include an app target never end at `ninja: no work to do`: every build rewrites the generated build-stamp header (`cmake/write_build_stamp.cmake`), recompiles `build_info.cpp`, and relinks, so the in-app build date always matches the build that produced the binary.
 
@@ -112,6 +114,7 @@ Read the linked document before working on the feature. The document, not this i
 - **Palette mode:** [docs/palette-mode.md](docs/palette-mode.md).
 - **File formats, PSB, Camera Raw, Affinity, HEIF/HEIC, and flat-image alpha:** [docs/file-formats.md](docs/file-formats.md).
 - **JPEG XR (.jxr) and the HDR tone map:** [docs/jxr.md](docs/jxr.md), plus the no-vendored-codec rule in [docs/legal-constraints.md](docs/legal-constraints.md).
+- **Proton textures (.rttex):** [docs/rttex.md](docs/rttex.md).
 - **PDF import/export (editable layers, flat):** [docs/pdf.md](docs/pdf.md).
 - **Document channels:** [docs/channels.md](docs/channels.md).
 - **Resolution and measurement units:** [docs/resolution-units.md](docs/resolution-units.md).

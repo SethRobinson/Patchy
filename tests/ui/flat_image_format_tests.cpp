@@ -48,6 +48,7 @@
 #include "formats/tga_document_io.hpp"
 #include "ui/image_document_io.hpp"
 #include "formats/jxr_document_io.hpp"
+#include "formats/rttex_document_io.hpp"
 #include "ui/image_save_options_dialog.hpp"
 #include "ui/layer_list_widget.hpp"
 #include "ui/layer_style_dialog.hpp"
@@ -1187,6 +1188,238 @@ void ui_jxr_save_options_persist_quality_and_lossless() {
   settings.sync();
 }
 
+void ui_rttex_opens_and_saves_as_a_read_write_format() {
+  ensure_artifact_dir();
+  const auto fixture = QString::fromStdWString(
+      patchy::test::committed_format_fixture_path("rttex", "rgba-10x10-in-16x16.rttex").wstring());
+  CHECK(QFileInfo::exists(fixture));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, fixture);
+  QApplication::processEvents();
+
+  // The 16x16 texture opens at its true 10x10 size, at the untagged 72 PPI, with its alpha
+  // promoted to an editable document-alpha mask like every other flat format.
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(document.width() == 10);
+  CHECK(document.height() == 10);
+  CHECK(std::as_const(document).layers().size() == 1);
+  const auto& layer = std::as_const(document).layers().front();
+  CHECK(layer.name() == "Background");
+  CHECK(layer.pixels().format() == patchy::PixelFormat::rgb8());
+  CHECK(layer.mask().has_value());
+  CHECK(patchy::layer_mask_is_document_alpha(layer));
+  CHECK(layer.mask()->pixels.pixel(0, 0)[0] == 0);
+  CHECK(layer.mask()->pixels.pixel(5, 5)[0] == 255);
+  CHECK(document.print_settings().horizontal_ppi == 72.0);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_path(window) == fixture);
+  CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+
+  // The registry handler has a writer, so Save writes the file in place instead of routing
+  // to Save As with a .psd default (the contrast with HEIF and camera raw).
+  const QString saved = QStringLiteral("test-artifacts/rttex_round_trip.rttex");
+  QFile::remove(saved);
+  CHECK(patchy::ui::MainWindowTestAccess::save_document_to_path(window, saved, patchy::ui::ImageSaveOptions{}));
+  CHECK(QFileInfo::exists(saved));
+
+  patchy::ui::MainWindow reopened;
+  show_window(reopened);
+  patchy::ui::MainWindowTestAccess::open_document_path(reopened, saved);
+  QApplication::processEvents();
+  auto& round_tripped = patchy::ui::MainWindowTestAccess::document(reopened);
+  CHECK(round_tripped.width() == 10);
+  CHECK(round_tripped.height() == 10);
+  const auto& second = std::as_const(round_tripped).layers().front();
+  CHECK(second.mask().has_value());
+  for (std::int32_t y = 0; y < 10; ++y) {
+    for (std::int32_t x = 0; x < 10; ++x) {
+      for (int channel = 0; channel < 3; ++channel) {
+        CHECK(second.pixels().pixel(x, y)[channel] == layer.pixels().pixel(x, y)[channel]);
+      }
+      CHECK(second.mask()->pixels.pixel(x, y)[0] == layer.mask()->pixels.pixel(x, y)[0]);
+    }
+  }
+}
+
+void ui_rttex_jpeg_save_round_trips_through_qt_encoder() {
+  ensure_artifact_dir();
+  // Four flat quadrants: JPEG keeps flat areas close, so interiors compare with a tolerance
+  // and nothing is byte-pinned (libjpeg's output is not a contract).
+  patchy::Document document(32, 24, patchy::PixelFormat::rgb8());
+  patchy::PixelBuffer pixels(32, 24, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < 24; ++y) {
+    for (std::int32_t x = 0; x < 32; ++x) {
+      auto* px = pixels.pixel(x, y);
+      const bool right = x >= 16;
+      const bool bottom = y >= 12;
+      px[0] = right ? 220 : 30;
+      px[1] = bottom ? 200 : 40;
+      px[2] = (right == bottom) ? 180 : 60;
+      px[3] = 255;
+    }
+  }
+  document.add_pixel_layer("Background", std::move(pixels));
+
+  patchy::ui::ImageSaveOptions options;
+  options.rttex_encoding = patchy::rttex::Encoding::Jpeg;
+  options.rttex_jpeg_quality = 90;
+  const QString path = QStringLiteral("test-artifacts/rttex_jpeg.rttex");
+  QFile::remove(path);
+  std::vector<std::string> notices;
+  patchy::ui::write_flat_image_file(document, path, QStringLiteral("rttex"), options, &notices);
+  CHECK(notices.empty());
+
+  const auto read_bytes = [](const QString& file_path) {
+    QFile file(file_path);
+    CHECK(file.open(QIODevice::ReadOnly));
+    const auto data = file.readAll();
+    return std::vector<std::uint8_t>(data.begin(), data.end());
+  };
+  const auto decoded = patchy::rttex::read_rttex(read_bytes(path));
+  CHECK(decoded.document.width() == 32);
+  CHECK(decoded.document.height() == 24);
+  CHECK(decoded.document.metadata().values.at(patchy::rttex::kMetadataEncoding) == "jpeg");
+  const auto& reloaded = std::as_const(decoded.document.layers().front()).pixels();
+  CHECK(reloaded.format().channels == 3);
+  const auto& original = std::as_const(document.layers().front()).pixels();
+  for (const auto& [x, y] : {std::pair{4, 4}, std::pair{28, 4}, std::pair{4, 20}, std::pair{28, 20}}) {
+    const auto* expected = original.pixel(x, y);
+    const auto* actual = reloaded.pixel(x, y);
+    for (int channel = 0; channel < 3; ++channel) {
+      CHECK(std::abs(actual[channel] - expected[channel]) <= 12);
+    }
+  }
+
+  // RTPack's rule: transparency means no JPEG. The writer falls back to lossless RGBA and
+  // reports it through the notices that become the status message suffix.
+  patchy::Document translucent(8, 8, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer translucent_pixels(8, 8, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < 8; ++y) {
+    for (std::int32_t x = 0; x < 8; ++x) {
+      auto* px = translucent_pixels.pixel(x, y);
+      px[0] = 200;
+      px[1] = 100;
+      px[2] = 50;
+      px[3] = x == 0 ? 0 : 255;
+    }
+  }
+  translucent.add_pixel_layer("Background", std::move(translucent_pixels));
+  const QString fallback_path = QStringLiteral("test-artifacts/rttex_jpeg_fallback.rttex");
+  QFile::remove(fallback_path);
+  notices.clear();
+  patchy::ui::write_flat_image_file(translucent, fallback_path, QStringLiteral("rttex"), options, &notices);
+  CHECK(notices.size() == 1);
+  CHECK(notices.front().find("JPEG") != std::string::npos);
+  const auto fallback = patchy::rttex::read_rttex(read_bytes(fallback_path));
+  CHECK(fallback.document.metadata().values.at(patchy::rttex::kMetadataEncoding) == "rgba8");
+  const auto& fallback_pixels = std::as_const(fallback.document.layers().front()).pixels();
+  CHECK(fallback_pixels.format().channels == 4);
+  CHECK(fallback_pixels.pixel(0, 3)[3] == 0);
+  CHECK(fallback_pixels.pixel(3, 3)[3] == 255);
+  CHECK(fallback_pixels.pixel(3, 3)[0] == 200);
+}
+
+void ui_rttex_save_options_persist_and_dialog_prefills_from_source() {
+  auto settings = patchy::ui::app_settings();
+  settings.remove(QStringLiteral("saveOptions"));
+  settings.sync();
+
+  auto defaults = patchy::ui::load_image_save_option_defaults();
+  CHECK(defaults.rttex_encoding == patchy::rttex::Encoding::Rgba8);
+  CHECK(defaults.rttex_jpeg_quality == 90);
+  CHECK(defaults.rttex_power_of_two == patchy::rttex::PowerOfTwo::Pad);
+  CHECK(!defaults.rttex_force_square);
+  CHECK(!defaults.rttex_force_alpha);
+  CHECK(defaults.rttex_compress);
+
+  // .rttex raises its own options dialog, unlike PNG or TGA.
+  CHECK(patchy::ui::image_save_options_apply_to_extension(QStringLiteral("rttex")));
+  CHECK(patchy::ui::image_save_options_apply_to_extension(QStringLiteral(".RTTEX")));
+
+  defaults.rttex_encoding = patchy::rttex::Encoding::Rgba4444;
+  defaults.rttex_jpeg_quality = 42;
+  defaults.rttex_power_of_two = patchy::rttex::PowerOfTwo::Stretch;
+  defaults.rttex_force_square = true;
+  defaults.rttex_force_alpha = true;
+  defaults.rttex_compress = false;
+  patchy::ui::save_image_save_option_defaults(defaults);
+  const auto reloaded = patchy::ui::load_image_save_option_defaults();
+  CHECK(reloaded.rttex_encoding == patchy::rttex::Encoding::Rgba4444);
+  CHECK(reloaded.rttex_jpeg_quality == 42);
+  CHECK(reloaded.rttex_power_of_two == patchy::rttex::PowerOfTwo::Stretch);
+  CHECK(reloaded.rttex_force_square);
+  CHECK(reloaded.rttex_force_alpha);
+  CHECK(!reloaded.rttex_compress);
+
+  // Out-of-range or unknown stored values clamp or fall back instead of reaching the writer.
+  settings.setValue(QStringLiteral("saveOptions/rttexJpegQuality"), 0);
+  settings.setValue(QStringLiteral("saveOptions/rttexEncoding"), QStringLiteral("bogus"));
+  settings.setValue(QStringLiteral("saveOptions/rttexPowerOfTwo"), QStringLiteral("bogus"));
+  settings.sync();
+  CHECK(patchy::ui::load_image_save_option_defaults().rttex_jpeg_quality == 1);
+  CHECK(patchy::ui::load_image_save_option_defaults().rttex_encoding == patchy::rttex::Encoding::Rgba8);
+  CHECK(patchy::ui::load_image_save_option_defaults().rttex_power_of_two == patchy::rttex::PowerOfTwo::Pad);
+  settings.setValue(QStringLiteral("saveOptions/rttexJpegQuality"), 1000);
+  settings.sync();
+  CHECK(patchy::ui::load_image_save_option_defaults().rttex_jpeg_quality == 100);
+
+  // The dialog: its controls carry the documented object names, and the JPEG quality row
+  // follows the encoding combo.
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&saw_dialog] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("rttexSaveOptionsDialog"));
+    CHECK(dialog != nullptr);
+    auto* encoding = dialog->findChild<QComboBox*>(QStringLiteral("rttexEncodingCombo"));
+    auto* quality = dialog->findChild<QSpinBox*>(QStringLiteral("rttexJpegQualitySpin"));
+    auto* power_of_two = dialog->findChild<QComboBox*>(QStringLiteral("rttexPowerOfTwoCombo"));
+    auto* force_square = dialog->findChild<QCheckBox*>(QStringLiteral("rttexForceSquareCheck"));
+    auto* compress = dialog->findChild<QCheckBox*>(QStringLiteral("rttexCompressCheck"));
+    CHECK(encoding != nullptr);
+    CHECK(quality != nullptr);
+    CHECK(power_of_two != nullptr);
+    CHECK(force_square != nullptr);
+    CHECK(compress != nullptr);
+    CHECK(!quality->isEnabled());  // lossless selected: the JPEG quality is dead
+    encoding->setCurrentIndex(encoding->findData(QStringLiteral("jpeg")));
+    CHECK(quality->isEnabled());
+    quality->setValue(65);
+    power_of_two->setCurrentIndex(power_of_two->findData(QStringLiteral("none")));
+    force_square->setChecked(true);
+    compress->setChecked(false);
+    saw_dialog = true;
+    dialog->accept();
+  });
+  const auto chosen = patchy::ui::prompt_image_save_options(nullptr, QStringLiteral("rttex"),
+                                                            patchy::ui::load_image_save_option_defaults());
+  CHECK(saw_dialog);
+  CHECK(chosen.has_value());
+  CHECK(chosen->rttex_encoding == patchy::rttex::Encoding::Jpeg);
+  CHECK(chosen->rttex_jpeg_quality == 65);
+  CHECK(chosen->rttex_power_of_two == patchy::rttex::PowerOfTwo::None);
+  CHECK(chosen->rttex_force_square);
+  CHECK(!chosen->rttex_compress);
+
+  // A document opened from a 16-bit texture prefills its own encoding so a plain Save keeps
+  // it, while the other options stay at the persisted defaults.
+  settings.remove(QStringLiteral("saveOptions"));
+  settings.sync();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::open_document_path(
+      window, QString::fromStdWString(
+                  patchy::test::committed_format_fixture_path("rttex", "rgba4444-61x80-in-64x128.rttex").wstring()));
+  QApplication::processEvents();
+  const auto prefilled = patchy::ui::MainWindowTestAccess::image_save_defaults(window);
+  CHECK(prefilled.rttex_encoding == patchy::rttex::Encoding::Rgba4444);
+  CHECK(prefilled.rttex_power_of_two == patchy::rttex::PowerOfTwo::Pad);
+  CHECK(prefilled.rttex_compress);
+  CHECK(!prefilled.rttex_force_alpha);
+
+  settings.remove(QStringLiteral("saveOptions"));
+  settings.sync();
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> flat_image_format_tests() {
@@ -1209,5 +1442,9 @@ std::vector<patchy::test::TestCase> flat_image_format_tests() {
       {"ui_jxr_opens_and_saves_as_a_read_write_format", ui_jxr_opens_and_saves_as_a_read_write_format},
       {"ui_jxr_save_options_persist_quality_and_lossless",
        ui_jxr_save_options_persist_quality_and_lossless},
+      {"ui_rttex_opens_and_saves_as_a_read_write_format", ui_rttex_opens_and_saves_as_a_read_write_format},
+      {"ui_rttex_jpeg_save_round_trips_through_qt_encoder", ui_rttex_jpeg_save_round_trips_through_qt_encoder},
+      {"ui_rttex_save_options_persist_and_dialog_prefills_from_source",
+       ui_rttex_save_options_persist_and_dialog_prefills_from_source},
   };
 }

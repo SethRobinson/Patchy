@@ -450,6 +450,7 @@ add_library(patchy_formats
   src/formats/raw_document_io.cpp
   src/formats/raw_tone.cpp
   src/formats/raw_white_balance.cpp
+  src/formats/rttex_document_io.cpp
   src/formats/svg_document_read.cpp
   src/formats/svg_document_write.cpp
   src/formats/svg_xml.cpp
@@ -1397,6 +1398,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/psd_vector_fixtures_tests.cpp
     tests/core/psd_writer_stability_tests.cpp
     tests/core/jxr_tests.cpp
+    tests/core/rttex_tests.cpp
     tests/core/raw_heif_tests.cpp
     tests/core/smart_filter_descriptors_tests.cpp
     tests/core/smart_filter_descriptors_tests_canonical.cpp

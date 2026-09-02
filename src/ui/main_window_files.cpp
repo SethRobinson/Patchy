@@ -25,6 +25,7 @@
 #include "formats/heif_document_io.hpp"
 #include "formats/jxr_document_io.hpp"
 #include "formats/raw_document_io.hpp"
+#include "formats/rttex_document_io.hpp"
 #include "formats/svg_document_io.hpp"
 #include "plugins/legacy_photoshop_adapter.hpp"
 #include "psd/psd_document_io.hpp"
@@ -534,6 +535,13 @@ const QList<FileFormatEntry>& file_format_entries() {
                     jxr::is_available() ? jxr_extensions : QStringList{},
                     jxr::is_available(),
                     jxr::is_available()});
+    // Proton SDK textures read and write on every platform: the codec is Patchy's own (raw
+    // pixels or an embedded JPEG inside a zlib container), so nothing gates the row.
+    QStringList rttex_extensions;
+    for (const auto& extension : rttex::rttex_extensions()) {
+      rttex_extensions.push_back(QString::fromStdString(extension));
+    }
+    list.push_back({QT_TRANSLATE_NOOP("QObject", "Proton Texture"), rttex_extensions, rttex_extensions, true, true});
     return list;
   }();
   return entries;
@@ -924,7 +932,7 @@ OpenDocumentResult load_document_from_path(QString path) {
       // BMP/HEIF/camera-raw record real densities and keep what their reader set.
       static const std::set<std::string> kDensitylessFormats = {
           "patchy.formats.ico", "patchy.formats.tga", "patchy.formats.aseprite",
-          "patchy.formats.pcx", "patchy.formats.ilbm"};
+          "patchy.formats.pcx", "patchy.formats.ilbm", "patchy.formats.rttex"};
       if (kDensitylessFormats.contains(handler->identifier)) {
         opened.print_settings().horizontal_ppi = kUntaggedImportPpi;
         opened.print_settings().vertical_ppi = kUntaggedImportPpi;

@@ -1,6 +1,7 @@
 #include "ui/image_save_options_dialog.hpp"
 
 #include "formats/jxr_document_io.hpp"
+#include "formats/rttex_document_io.hpp"
 #include "ui/app_settings.hpp"
 
 #include "ui/dialog_utils.hpp"
@@ -66,6 +67,30 @@ bool is_pdf_extension(const QString& extension) {
 
 bool is_jxr_extension(const QString& extension) {
   return jxr::is_jxr_extension(normalized_save_extension(extension).toStdString());
+}
+
+bool is_rttex_extension(const QString& extension) {
+  return rttex::is_rttex_extension(normalized_save_extension(extension).toStdString());
+}
+
+// The Proton texture tokens live with the codec so the settings keys, the dialog, and the
+// reader's session metadata can never disagree.
+QString rttex_encoding_key(rttex::Encoding encoding) {
+  const auto token = rttex::encoding_token(encoding);
+  return QString::fromLatin1(token.data(), static_cast<qsizetype>(token.size()));
+}
+
+rttex::Encoding rttex_encoding_from_key(const QString& key, rttex::Encoding fallback) {
+  return rttex::encoding_from_token(key.toStdString()).value_or(fallback);
+}
+
+QString rttex_power_of_two_key(rttex::PowerOfTwo mode) {
+  const auto token = rttex::power_of_two_token(mode);
+  return QString::fromLatin1(token.data(), static_cast<qsizetype>(token.size()));
+}
+
+rttex::PowerOfTwo rttex_power_of_two_from_key(const QString& key, rttex::PowerOfTwo fallback) {
+  return rttex::power_of_two_from_token(key.toStdString()).value_or(fallback);
 }
 
 constexpr std::array<int, 7> kIcoSizeChoices = {16, 24, 32, 48, 64, 128, 256};
@@ -208,7 +233,8 @@ void persist_export_scale(int scale) {
 
 bool image_save_options_apply_to_extension(const QString& extension) {
   return is_jpeg_extension(extension) || is_bmp_extension(extension) || is_ico_extension(extension) ||
-         is_cur_extension(extension) || is_pdf_extension(extension) || is_jxr_extension(extension);
+         is_cur_extension(extension) || is_pdf_extension(extension) || is_jxr_extension(extension) ||
+         is_rttex_extension(extension);
 }
 
 ImageSaveOptions load_image_save_option_defaults() {
@@ -256,6 +282,21 @@ ImageSaveOptions load_image_save_option_defaults() {
   options.jxr_quality =
       std::clamp(settings.value(QStringLiteral("saveOptions/jxrQuality"), options.jxr_quality).toInt(), 1, 100);
   options.jxr_lossless = settings.value(QStringLiteral("saveOptions/jxrLossless"), options.jxr_lossless).toBool();
+  options.rttex_encoding = rttex_encoding_from_key(
+      settings.value(QStringLiteral("saveOptions/rttexEncoding"), rttex_encoding_key(options.rttex_encoding))
+          .toString(),
+      options.rttex_encoding);
+  options.rttex_jpeg_quality = std::clamp(
+      settings.value(QStringLiteral("saveOptions/rttexJpegQuality"), options.rttex_jpeg_quality).toInt(), 1, 100);
+  options.rttex_power_of_two = rttex_power_of_two_from_key(
+      settings.value(QStringLiteral("saveOptions/rttexPowerOfTwo"), rttex_power_of_two_key(options.rttex_power_of_two))
+          .toString(),
+      options.rttex_power_of_two);
+  options.rttex_force_square =
+      settings.value(QStringLiteral("saveOptions/rttexForceSquare"), options.rttex_force_square).toBool();
+  options.rttex_force_alpha =
+      settings.value(QStringLiteral("saveOptions/rttexForceAlpha"), options.rttex_force_alpha).toBool();
+  options.rttex_compress = settings.value(QStringLiteral("saveOptions/rttexCompress"), options.rttex_compress).toBool();
   return options;
 }
 
@@ -281,6 +322,12 @@ void save_image_save_option_defaults(const ImageSaveOptions& options) {
   settings.setValue(QStringLiteral("saveOptions/gifFrameDelayCs"), std::clamp(options.gif_frame_delay_cs, 0, 0xffff));
   settings.setValue(QStringLiteral("saveOptions/jxrQuality"), std::clamp(options.jxr_quality, 1, 100));
   settings.setValue(QStringLiteral("saveOptions/jxrLossless"), options.jxr_lossless);
+  settings.setValue(QStringLiteral("saveOptions/rttexEncoding"), rttex_encoding_key(options.rttex_encoding));
+  settings.setValue(QStringLiteral("saveOptions/rttexJpegQuality"), std::clamp(options.rttex_jpeg_quality, 1, 100));
+  settings.setValue(QStringLiteral("saveOptions/rttexPowerOfTwo"), rttex_power_of_two_key(options.rttex_power_of_two));
+  settings.setValue(QStringLiteral("saveOptions/rttexForceSquare"), options.rttex_force_square);
+  settings.setValue(QStringLiteral("saveOptions/rttexForceAlpha"), options.rttex_force_alpha);
+  settings.setValue(QStringLiteral("saveOptions/rttexCompress"), options.rttex_compress);
 }
 
 std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const QString& extension,
@@ -388,6 +435,108 @@ std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const
     }
     options.jxr_quality = quality->value();
     options.jxr_lossless = lossless->isChecked();
+    if (scale_combo != nullptr) {
+      options.export_scale = scale_combo->currentData().toInt();
+      persist_export_scale(options.export_scale);
+    }
+    return options;
+  }
+
+  if (is_rttex_extension(extension)) {
+    QDialog dialog(parent);
+    dialog.setObjectName(QStringLiteral("rttexSaveOptionsDialog"));
+    auto* content = create_options_dialog_chrome(dialog, QObject::tr("Proton Texture Options"));
+    dialog.resize(440, 360);
+    auto* scale_combo = for_export ? add_export_scale_row(content, dialog) : nullptr;
+
+    auto* form = new QFormLayout();
+    form->setContentsMargins(0, 0, 0, 0);
+    form->setHorizontalSpacing(10);
+    form->setVerticalSpacing(8);
+
+    auto* encoding = new QComboBox(&dialog);
+    encoding->setObjectName(QStringLiteral("rttexEncodingCombo"));
+    encoding->addItem(QObject::tr("Lossless (8 bits per channel)"), rttex_encoding_key(rttex::Encoding::Rgba8));
+    encoding->addItem(QObject::tr("16-bit (RGBA 4444, or RGB 565 without alpha)"),
+                      rttex_encoding_key(rttex::Encoding::Rgba4444));
+    encoding->addItem(QObject::tr("JPEG (smaller, no alpha)"), rttex_encoding_key(rttex::Encoding::Jpeg));
+    encoding->setCurrentIndex(std::max(0, encoding->findData(rttex_encoding_key(options.rttex_encoding))));
+    form->addRow(new QLabel(QObject::tr("Encoding:"), &dialog), encoding);
+
+    auto* quality_row = new QWidget(&dialog);
+    auto* quality_layout = new QHBoxLayout(quality_row);
+    quality_layout->setContentsMargins(0, 0, 0, 0);
+    quality_layout->setSpacing(8);
+    auto* quality_slider = new QSlider(Qt::Horizontal, quality_row);
+    quality_slider->setObjectName(QStringLiteral("rttexJpegQualitySlider"));
+    quality_slider->setRange(1, 100);
+    quality_slider->setValue(std::clamp(options.rttex_jpeg_quality, 1, 100));
+    quality_slider->setMinimumWidth(160);
+    auto* quality = new QSpinBox(quality_row);
+    quality->setObjectName(QStringLiteral("rttexJpegQualitySpin"));
+    quality->setRange(1, 100);
+    quality->setSuffix(QStringLiteral("%"));
+    quality->setValue(std::clamp(options.rttex_jpeg_quality, 1, 100));
+    configure_dialog_spinbox(quality, 88);
+    QObject::connect(quality_slider, &QSlider::valueChanged, quality, &QSpinBox::setValue);
+    QObject::connect(quality, &QSpinBox::valueChanged, quality_slider, &QSlider::setValue);
+    quality_layout->addWidget(quality_slider, 1);
+    quality_layout->addWidget(quality);
+    form->addRow(new QLabel(QObject::tr("JPEG quality:"), &dialog), quality_row);
+
+    auto* power_of_two = new QComboBox(&dialog);
+    power_of_two->setObjectName(QStringLiteral("rttexPowerOfTwoCombo"));
+    power_of_two->addItem(QObject::tr("Pad to a power of two"), rttex_power_of_two_key(rttex::PowerOfTwo::Pad));
+    power_of_two->addItem(QObject::tr("Stretch to a power of two"),
+                          rttex_power_of_two_key(rttex::PowerOfTwo::Stretch));
+    power_of_two->addItem(QObject::tr("Keep the exact size"), rttex_power_of_two_key(rttex::PowerOfTwo::None));
+    power_of_two->setCurrentIndex(
+        std::max(0, power_of_two->findData(rttex_power_of_two_key(options.rttex_power_of_two))));
+    form->addRow(new QLabel(QObject::tr("Texture size:"), &dialog), power_of_two);
+    content->addLayout(form);
+
+    auto* force_square = new QCheckBox(QObject::tr("Force a square texture"), &dialog);
+    force_square->setObjectName(QStringLiteral("rttexForceSquareCheck"));
+    force_square->setChecked(options.rttex_force_square);
+    content->addWidget(force_square);
+    auto* force_alpha = new QCheckBox(QObject::tr("Keep the alpha channel even when the image is opaque"), &dialog);
+    force_alpha->setObjectName(QStringLiteral("rttexForceAlphaCheck"));
+    force_alpha->setChecked(options.rttex_force_alpha);
+    content->addWidget(force_alpha);
+    auto* compress = new QCheckBox(QObject::tr("Compress (RTPACK zlib container)"), &dialog);
+    compress->setObjectName(QStringLiteral("rttexCompressCheck"));
+    compress->setChecked(options.rttex_compress);
+    content->addWidget(compress);
+
+    auto* note = new QLabel(
+        QObject::tr("The texture is padded to a power of two and its true size is recorded in the header, so it "
+                    "opens again at the true size. JPEG applies only to images without transparency (RTPack's "
+                    "rule): a transparent image is written lossless instead."),
+        &dialog);
+    note->setObjectName(QStringLiteral("rttexSaveNote"));
+    note->setWordWrap(true);
+    content->addWidget(note);
+    add_dialog_buttons(content, dialog);
+
+    // The quality only feeds the JPEG encoder, so the row goes dead for the other encodings
+    // rather than showing a number the file will not use.
+    const auto sync_quality_enabled = [quality_row, encoding] {
+      quality_row->setEnabled(encoding->currentData().toString() == rttex_encoding_key(rttex::Encoding::Jpeg));
+    };
+    QObject::connect(encoding, &QComboBox::currentIndexChanged, &dialog,
+                     [sync_quality_enabled](int) { sync_quality_enabled(); });
+    sync_quality_enabled();
+
+    if (exec_dialog(dialog) != QDialog::Accepted) {
+      return std::nullopt;
+    }
+    options.rttex_encoding = rttex_encoding_from_key(encoding->currentData().toString(), options.rttex_encoding);
+    options.rttex_jpeg_quality = quality->value();
+    options.rttex_power_of_two =
+        rttex_power_of_two_from_key(power_of_two->currentData().toString(), options.rttex_power_of_two);
+    options.rttex_force_square = force_square->isChecked();
+    options.rttex_force_alpha = force_alpha->isChecked();
+    options.rttex_compress = compress->isChecked();
     if (scale_combo != nullptr) {
       options.export_scale = scale_combo->currentData().toInt();
       persist_export_scale(options.export_scale);

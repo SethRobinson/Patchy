@@ -74,6 +74,62 @@
         <translation>JPEG XR は Windows のコーデックで書き出されます。Patchy はチャンネルあたり 8 ビットで保存するため、HDR キャプチャから開いたファイルはトーンマッピング後の画像として書き戻されます。</translation>
     </message>
     <message>
+        <source>Proton Texture Options</source>
+        <translation>Proton テクスチャ オプション</translation>
+    </message>
+    <message>
+        <source>Lossless (8 bits per channel)</source>
+        <translation>可逆圧縮 (チャンネルあたり 8 ビット)</translation>
+    </message>
+    <message>
+        <source>16-bit (RGBA 4444, or RGB 565 without alpha)</source>
+        <translation>16 ビット (RGBA 4444、アルファなしの場合は RGB 565)</translation>
+    </message>
+    <message>
+        <source>JPEG (smaller, no alpha)</source>
+        <translation>JPEG (小さいファイル、アルファなし)</translation>
+    </message>
+    <message>
+        <source>Encoding:</source>
+        <translation>エンコード:</translation>
+    </message>
+    <message>
+        <source>JPEG quality:</source>
+        <translation>JPEG 品質:</translation>
+    </message>
+    <message>
+        <source>Pad to a power of two</source>
+        <translation>2 のべき乗にパディング</translation>
+    </message>
+    <message>
+        <source>Stretch to a power of two</source>
+        <translation>2 のべき乗に引き伸ばす</translation>
+    </message>
+    <message>
+        <source>Keep the exact size</source>
+        <translation>サイズをそのまま維持</translation>
+    </message>
+    <message>
+        <source>Texture size:</source>
+        <translation>テクスチャサイズ:</translation>
+    </message>
+    <message>
+        <source>Force a square texture</source>
+        <translation>正方形のテクスチャにする</translation>
+    </message>
+    <message>
+        <source>Keep the alpha channel even when the image is opaque</source>
+        <translation>画像が不透明でもアルファチャンネルを保持</translation>
+    </message>
+    <message>
+        <source>Compress (RTPACK zlib container)</source>
+        <translation>圧縮 (RTPACK zlib コンテナ)</translation>
+    </message>
+    <message>
+        <source>The texture is padded to a power of two and its true size is recorded in the header, so it opens again at the true size. JPEG applies only to images without transparency (RTPack&apos;s rule): a transparent image is written lossless instead.</source>
+        <translation>テクスチャは 2 のべき乗にパディングされ、本来のサイズがヘッダーに記録されるため、再度開くと本来のサイズで開きます。JPEG は透明部分のない画像にのみ適用されます (RTPack のルール): 透明な画像は代わりに可逆圧縮で書き出されます。</translation>
+    </message>
+    <message>
         <location line="+26"/>
         <source>Quality:</source>
         <translation>品質:</translation>
@@ -331,6 +387,10 @@
     <message>
         <source>JPEG XR Image</source>
         <translation>JPEG XR 画像</translation>
+    </message>
+    <message>
+        <source>Proton Texture</source>
+        <translation>Proton テクスチャ</translation>
     </message>
     <message>
         <source>Affinity Document</source>

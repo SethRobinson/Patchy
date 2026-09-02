@@ -198,6 +198,10 @@ void expand_layer_to_include_rect(Layer& layer, Rect document_rect);
 [[nodiscard]] Rect flip_layer_horizontal(Document& document, LayerId layer_id);
 [[nodiscard]] Rect flip_layer_vertical(Document& document, LayerId layer_id);
 void resize_image_and_layers(Document& document, std::int32_t width, std::int32_t height);
+// The resampler behind Image Size: bilinear with clamped edges for 8-bit buffers, nearest
+// for deeper formats. Shared with the Proton texture writer's stretch-to-power-of-two mode.
+[[nodiscard]] PixelBuffer scale_pixels_resampled(const PixelBuffer& source, std::int32_t width,
+                                                 std::int32_t height);
 void resize_canvas_and_layers(Document& document, std::int32_t width, std::int32_t height,
                               CanvasAnchor anchor = CanvasAnchor::TopLeft,
                               EditColor extension_color = EditColor{255, 255, 255, 255});

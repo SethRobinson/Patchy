@@ -9,6 +9,7 @@
 #include "formats/jxr_document_io.hpp"
 #include "formats/pcx_document_io.hpp"
 #include "formats/raw_document_io.hpp"
+#include "formats/rttex_document_io.hpp"
 #include "formats/svg_document_io.hpp"
 #include "formats/tga_document_io.hpp"
 #include "psd/psd_document_io.hpp"
@@ -144,6 +145,15 @@ void register_builtin_formats(FormatRegistry& registry) {
                              [](std::span<const std::uint8_t> bytes) { return jxr::read_jxr(bytes); },
                              [](const Document& document) { return jxr::write_jxr(document); },
                              [](std::span<const std::uint8_t> bytes) { return jxr::sniff(bytes); }});
+  // Proton SDK textures (Seth's engine format): raw 8888/888/4444/565 pixels or an embedded
+  // JPEG inside an optional RTPACK zlib wrapper, opened at the true size and written the way
+  // RTPack writes them. Patchy's own codec, so it reads and writes on every platform.
+  registry.register_handler({"patchy.formats.rttex",
+                             "Proton Texture",
+                             rttex::rttex_extensions(),
+                             [](std::span<const std::uint8_t> bytes) { return rttex::read_rttex(bytes); },
+                             [](const Document& document) { return rttex::write_rttex(document); },
+                             [](std::span<const std::uint8_t> bytes) { return rttex::sniff(bytes); }});
   // Affinity's native container is a read-only source (write stays null). The 2.x
   // .afphoto/.afdesign/.afpub generations share the .af magic and wire grammar, so
   // one handler covers them all; pre-2.x files that fail the tree parse fall back

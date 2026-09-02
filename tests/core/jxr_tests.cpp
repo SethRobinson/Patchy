@@ -165,7 +165,7 @@ void jxr_round_trips_rgba8_if_available() {
   CHECK(decoded.document.height() == 24);
   CHECK(decoded.document.layers().size() == 1);
   CHECK(decoded.document.layers().front().name() == "Background");
-  for (const auto [x, y] : {std::pair{4, 4}, std::pair{28, 4}, std::pair{4, 20}, std::pair{28, 20}}) {
+  for (const auto& [x, y] : {std::pair{4, 4}, std::pair{28, 4}, std::pair{4, 20}, std::pair{28, 20}}) {
     const auto expected = pixel_at(document, x, y);
     const auto actual = pixel_at(decoded.document, x, y);
     CHECK(actual == expected);
@@ -180,7 +180,7 @@ void jxr_round_trips_rgba8_if_available() {
   const auto lossy_decoded = patchy::jxr::read_jxr(lossy);
   CHECK(lossy_decoded.document.width() == 32);
   CHECK(lossy_decoded.document.height() == 24);
-  for (const auto [x, y] : {std::pair{4, 4}, std::pair{28, 4}, std::pair{4, 20}}) {
+  for (const auto& [x, y] : {std::pair{4, 4}, std::pair{28, 4}, std::pair{4, 20}}) {
     const auto expected = pixel_at(document, x, y);
     const auto actual = pixel_at(lossy_decoded.document, x, y);
     for (std::size_t channel = 0; channel < 3U; ++channel) {

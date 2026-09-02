@@ -28,6 +28,7 @@ Everything reads AND writes except camera raw, HEIF/HEIC, and .af (read-only); J
 - ILBM/PBM: ByteRun1 via the shared `psd::decode_packbits`/`encode_packbits_row` (psd_descriptor.{hpp,cpp}); EHB supported, HAM rejected; writer emits planar ILBM with masking type 2.
 - PNG/JPEG/TIFF/WebP: Qt readers/writers.
 - JPEG XR (.jxr/.wdp/.hdp): read AND write through the in-box WIC codec, Windows only (no Store package, no vendored codec); the filter row is gated on `jxr::is_available()` so no other platform offers it, and the registry row carries a WRITER, which is what keeps Save on .jxr instead of routing to Save As. Float/HDR frames (NVIDIA captures are 32-bit float scRGB) tone map to 8-bit with a knee curve rather than clamping. Full record, including the curve calibration and why a filmic curve was rejected: [jxr.md](jxr.md).
+- Proton `.rttex` (Seth's Proton SDK textures): read and write everywhere. An optional RTPACK zlib wrapper around raw 8888/888/4444/565 pixels stored bottom-up at a power-of-two padded size, or an embedded JPEG (alpha-free images only); opens at the true size; PVRTC rejected. Options, session-metadata prefill, and the RTPack parity table: [rttex.md](rttex.md).
 
 ## Camera raw (CR2/CR3/NEF/ARW/RAF/DNG, ...)
 

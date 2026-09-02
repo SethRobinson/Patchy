@@ -15,6 +15,7 @@
 #include "formats/image_density_probe.hpp"
 #include "formats/jxr_document_io.hpp"
 #include "formats/pcx_document_io.hpp"
+#include "formats/rttex_document_io.hpp"
 #include "formats/tga_document_io.hpp"
 #include "core/rect_utils.hpp"
 #include "render/layer_compositor.hpp"
@@ -1855,6 +1856,22 @@ void install_ico_png_codec() {
       });
 }
 
+void install_rttex_jpeg_codec() {
+  rttex::set_jpeg_encoder([](const rttex::RgbImage& image, int quality) {
+    const QImage qimage(image.rgb.data(), image.width, image.height, image.width * 3, QImage::Format_RGB888);
+    QByteArray encoded;
+    QBuffer buffer(&encoded);
+    buffer.open(QIODevice::WriteOnly);
+    QImageWriter writer(&buffer, "JPEG");
+    writer.setQuality(std::clamp(quality, 1, 100));
+    if (!writer.write(qimage)) {
+      return std::vector<std::uint8_t>{};
+    }
+    const auto* data = reinterpret_cast<const std::uint8_t*>(encoded.constData());
+    return std::vector<std::uint8_t>(data, data + encoded.size());
+  });
+}
+
 QImage flat_export_qimage(const Document& document, bool preserve_alpha) {
   // A single masked layer is exported non-destructively to alpha-capable formats: keep the
   // original colors and write the mask into the alpha channel (compositing would erase the
@@ -1912,6 +1929,18 @@ void write_flat_image_file(const Document& document, const QString& path, const 
     // elsewhere only through a hand-typed path, where the writer throws a clear message).
     jxr::write_jxr_file(document, to_filesystem_path(path),
                         jxr::WriteOptions{std::clamp(options.jxr_quality, 1, 100), options.jxr_lossless});
+    return;
+  }
+  if (rttex::is_rttex_extension(lower)) {
+    install_rttex_jpeg_codec();
+    rttex::WriteOptions rttex_options;
+    rttex_options.encoding = options.rttex_encoding;
+    rttex_options.jpeg_quality = std::clamp(options.rttex_jpeg_quality, 1, 100);
+    rttex_options.power_of_two = options.rttex_power_of_two;
+    rttex_options.force_square = options.rttex_force_square;
+    rttex_options.force_alpha = options.rttex_force_alpha;
+    rttex_options.compress = options.rttex_compress;
+    rttex::write_rttex_file(document, to_filesystem_path(path), rttex_options, notices);
     return;
   }
   if (lower == "gif") {

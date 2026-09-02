@@ -669,8 +669,10 @@ void copy_nearest_scaled_pixels(const PixelBuffer& source, PixelBuffer& scaled) 
   }
 }
 
-[[nodiscard]] PixelBuffer scale_pixels_resampled(const PixelBuffer& source, std::int32_t width,
-                                                 std::int32_t height) {
+}  // namespace
+
+// Declared in core/pixel_tools.hpp; the Proton texture writer's stretch mode shares it.
+PixelBuffer scale_pixels_resampled(const PixelBuffer& source, std::int32_t width, std::int32_t height) {
   PixelBuffer scaled(width, height, source.format());
   if (source.empty() || width <= 0 || height <= 0) {
     return scaled;
@@ -710,6 +712,8 @@ void copy_nearest_scaled_pixels(const PixelBuffer& source, PixelBuffer& scaled) 
   }
   return scaled;
 }
+
+namespace {
 
 void resize_layer_mask_image(Layer& layer, std::int32_t old_width, std::int32_t old_height,
                              std::int32_t new_width, std::int32_t new_height) {

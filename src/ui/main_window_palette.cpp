@@ -15,6 +15,7 @@
 #include "filters/builtin_filters.hpp"
 #include "formats/bmp_document_io.hpp"
 #include "formats/ico_document_io.hpp"
+#include "formats/rttex_document_io.hpp"
 #include "plugins/legacy_photoshop_adapter.hpp"
 #include "psd/psd_document_io.hpp"
 #include "ui/action_icons.hpp"
@@ -614,6 +615,22 @@ ImageSaveOptions MainWindow::image_save_defaults_for_document() {
           break;
         }
       }
+    }
+    // A document opened from .rttex remembers how its source was encoded, so a plain Save
+    // keeps a 4444 or JPEG texture as it was and Save As prefills the dialog with it.
+    const auto& values = std::as_const(document()).metadata().values;
+    if (const auto found = values.find(rttex::kMetadataEncoding); found != values.end()) {
+      options.rttex_encoding = rttex::encoding_from_token(found->second).value_or(options.rttex_encoding);
+    }
+    if (const auto found = values.find(rttex::kMetadataPowerOfTwo);
+        found != values.end() && found->second == rttex::power_of_two_token(rttex::PowerOfTwo::None)) {
+      options.rttex_power_of_two = rttex::PowerOfTwo::None;
+    }
+    if (const auto found = values.find(rttex::kMetadataCompressed); found != values.end()) {
+      options.rttex_compress = found->second == "1";
+    }
+    if (const auto found = values.find(rttex::kMetadataForceAlpha); found != values.end() && found->second == "1") {
+      options.rttex_force_alpha = true;
     }
   }
   return options;

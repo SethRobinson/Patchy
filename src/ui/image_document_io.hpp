@@ -2,6 +2,7 @@
 
 #include "core/document.hpp"
 #include "formats/bmp_document_io.hpp"
+#include "formats/rttex_document_io.hpp"
 
 #include <QImage>
 #include <QRect>
@@ -68,6 +69,15 @@ struct ImageSaveOptions {
   // JPEG XR: lossless compression, which the codec treats as overriding the quality value.
   // Persists as saveOptions/jxrLossless.
   bool jxr_lossless{false};
+  // Proton texture (.rttex): pixel encoding, JPEG quality (Jpeg only), power-of-two handling,
+  // and the RTPack-style flags. Persist as saveOptions/rttexEncoding, rttexJpegQuality,
+  // rttexPowerOfTwo, rttexForceSquare, rttexForceAlpha, and rttexCompress.
+  rttex::Encoding rttex_encoding{rttex::Encoding::Rgba8};
+  int rttex_jpeg_quality{90};
+  rttex::PowerOfTwo rttex_power_of_two{rttex::PowerOfTwo::Pad};
+  bool rttex_force_square{false};
+  bool rttex_force_alpha{false};
+  bool rttex_compress{true};
 };
 
 struct RenderedDocumentPatch {
@@ -157,5 +167,8 @@ void write_animated_gif_file(const Document& document, const QString& path, cons
 // files (the formats library is Qt-free). Idempotent; called from the MainWindow
 // constructor so every app and test path has it.
 void install_ico_png_codec();
+// Installs the Qt-backed JPEG encoder the Proton texture writer embeds for its JPEG
+// encoding (the formats library is Qt-free). Idempotent; installed beside the ICO codec.
+void install_rttex_jpeg_codec();
 
 }  // namespace patchy::ui
