@@ -3,6 +3,15 @@
 Older Patchy release notes are collected here. The two most recent releases
 remain in [README.md](README.md#whats-new).
 
+## 0.89 - August 10, 2026
+
+- Spot Healing (Shift+J) removes blemishes with a single drag and no source pick, and the new Patch tool draws a selection you drag to heal, with Source, Destination, and Transparent modes. Both heal with the classic boundary membrane, and Clone, Healing, Spot Healing, and Patch share one Sample All Layers option
+- A Photoshop-style Crop tool (C): drag out a box, resize or move it, rotate it to straighten, pick a ratio preset, and press Enter to commit. The crop can also expand the canvas
+- Auto Tone, Auto Contrast, and Auto Color apply immediately at their defaults, and the new Auto All runs all three as one undo step
+- Curves and Levels histograms match Photoshop's sampling and display, their eyedroppers show when they are armed, and destructive Levels and Hue/Saturation apply much faster
+- The Layer menu is organized into New, Layer Mask, and Arrange submenus
+- Fixes: Image Size, Canvas Size, Crop, and Rotate keep smart-object placements instead of refusing the document, the About dialog stays on screen and can be dragged
+
 ## 0.88 - August 6, 2026
 
 - Free Transform works on folders and multi-layer selections. Ctrl+T takes the whole selection as one target set with linked masks riding along, the Move tool frames the same union it would take, and preview-locked smart objects transform in a multi-target session instead of refusing. Corner drags scale proportionally by default, with a preference that restores the old pairing where a plain corner drag distorts and Shift keeps the aspect ratio

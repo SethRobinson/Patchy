@@ -190,6 +190,14 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 
 ## What's New
 
+### 0.91 - September 3, 2026
+
+- JPEG XR (.jxr) opens and saves on Windows through the codec built into Windows. HDR captures such as NVIDIA's in-game screenshots, stored as floating-point scRGB, tone map down to 8-bit with a knee curve that keeps standard-range colors exact and rolls the highlights off instead of clipping them to white
+- Proton SDK textures (.rttex) open at their true image size rather than the padded power-of-two texture size, and save through an RTPack-style options dialog: raw RGBA8888/RGB888, RGBA4444/RGB565, or an embedded JPEG with a quality setting, all inside the RTPACK zlib wrapper. A plain Save keeps a texture's existing encoding and Save As prefills the dialog with it
+- File > Open accepts several files at once and opens each as its own document, and the Open Recent Folder entries use the same multi-select dialog
+- Hint text names modifier keys for the platform it runs on, so macOS reads Command and Option instead of Ctrl and Alt
+- Fixes: Photoshop CS6 stroke-only shape layers (a stroke with no fill block) import as editable shapes instead of arriving vector-locked, which also lets Free Transform work on any folder or multi-layer selection containing one
+
 ### 0.90 - August 26, 2026
 
 - PDF is now a first-class format. Opening a PDF imports its pages as editable shape, text, and image layers by default, with a flat-image option, reads password-protected files, and converts shadings to gradient fills and spot colors through their tints. Saving as PDF works everywhere, with a choice of flattened pages or editable layers that keep paths, text, and images as real objects, and imported Photoshop text layers export as real selectable PDF text, substituting missing fonts unless you ask for images
@@ -205,15 +213,6 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 - The Move tool's Ctrl+click toggles a layer in the current selection, and Ctrl+Shift+click in the Layers panel adds a whole range
 - Web build: the Clone tool's brush outline no longer vanishes at large sizes, a bare Alt tap no longer steals browser focus, dialogs open with keyboard focus on the intended widget, the expanded tool palette stays open, and opening a PDF explains that import is desktop only and offers a download button instead of a generic unsupported message
 - Fixes: 600 DPI flatbed scans load again instead of failing to read their image data, File > Place Embedded greys out when no document is open instead of doing nothing, files with Unicode names save and reopen correctly instead of being mangled by the ANSI code page, Ctrl+H also hides path anchors, handles, and outlines, path anchors appear as soon as the active layer changes, and entry fields use the accent color for text selection
-
-### 0.89 - August 10, 2026
-
-- Spot Healing (Shift+J) removes blemishes with a single drag and no source pick, and the new Patch tool draws a selection you drag to heal, with Source, Destination, and Transparent modes. Both heal with the classic boundary membrane, and Clone, Healing, Spot Healing, and Patch share one Sample All Layers option
-- A Photoshop-style Crop tool (C): drag out a box, resize or move it, rotate it to straighten, pick a ratio preset, and press Enter to commit. The crop can also expand the canvas
-- Auto Tone, Auto Contrast, and Auto Color apply immediately at their defaults, and the new Auto All runs all three as one undo step
-- Curves and Levels histograms match Photoshop's sampling and display, their eyedroppers show when they are armed, and destructive Levels and Hue/Saturation apply much faster
-- The Layer menu is organized into New, Layer Mask, and Arrange submenus
-- Fixes: Image Size, Canvas Size, Crop, and Rotate keep smart-object placements instead of refusing the document, the About dialog stays on screen and can be dragged
 
 [Older releases](RELEASE-HISTORY.md)
 
