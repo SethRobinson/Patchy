@@ -1236,6 +1236,273 @@ void psd_legacy_vmsk_unset_combine_op_fills_by_parity() {
   CHECK(alpha_at(1, 1) == 0);
 }
 
+
+// CS6-era stroke-only shape layers (the September 2026 bath-controls PSD):
+// vmsk + vstk with fillEnabled false + a 'vscg' stroke-content block, and NO
+// fill block because the fill is none. The reader used to vector-lock them as
+// "unparsed", which refused Free Transform for every folder or multi-selection
+// holding one. They import as editable fill-kind-None shapes now; the vscg
+// paint is the stroke fallback when vstk carries no strokeStyleContent, and a
+// vscg without a vstk/vmsk pair still locks.
+std::vector<std::uint8_t> legacy_stroke_only_shape_psd(bool include_vstk, bool vstk_has_content) {
+  const auto double_value = [](double value) {
+    patchy::psd::DescriptorValue result;
+    result.type = patchy::psd::DescriptorValue::Type::Double;
+    result.double_value = value;
+    return result;
+  };
+  const auto bool_value = [](bool value) {
+    patchy::psd::DescriptorValue result;
+    result.type = patchy::psd::DescriptorValue::Type::Bool;
+    result.bool_value = value;
+    return result;
+  };
+  const auto red_color_object = [&]() {
+    patchy::psd::DescriptorObject rgb;
+    rgb.class_id = "RGBC";
+    rgb.values["Rd  "] = double_value(255.0);
+    rgb.values["Grn "] = double_value(0.0);
+    rgb.values["Bl  "] = double_value(0.0);
+    patchy::psd::DescriptorValue color;
+    color.type = patchy::psd::DescriptorValue::Type::Object;
+    color.object_value = std::make_shared<patchy::psd::DescriptorObject>(rgb);
+    return color;
+  };
+
+  // vscg: content key + descriptorVersion + a solid-color paint descriptor.
+  patchy::psd::BigEndianWriter vscg;
+  patchy::test::write_ascii4(vscg, "SoCo");
+  vscg.write_u32(16);
+  patchy::psd::DescriptorObject paint;
+  paint.class_id = "null";
+  paint.values["Clr "] = red_color_object();
+  patchy::psd::write_descriptor(vscg, paint);
+  // Photoshop pads its vector blocks to 4 bytes; an odd-length payload would
+  // legitimately re-emit even-padded and defeat the verbatim comparison.
+  const auto pad_to_4 = [](patchy::psd::BigEndianWriter& block) {
+    while ((block.bytes().size() % 4U) != 0U) {
+      block.write_u8(0);
+    }
+  };
+  pad_to_4(vscg);
+
+  // vstk: stroke on, fill off, 2 px, optional strokeStyleContent.
+  patchy::psd::BigEndianWriter vstk;
+  vstk.write_u32(16);
+  patchy::psd::DescriptorObject stroke;
+  stroke.class_id = "strokeStyle";
+  patchy::psd::DescriptorValue version;
+  version.type = patchy::psd::DescriptorValue::Type::Integer;
+  version.integer_value = 2;
+  stroke.values["strokeStyleVersion"] = version;
+  stroke.values["strokeEnabled"] = bool_value(true);
+  stroke.values["fillEnabled"] = bool_value(false);
+  patchy::psd::DescriptorValue width;
+  width.type = patchy::psd::DescriptorValue::Type::UnitFloat;
+  width.unit = "#Pxl";
+  width.double_value = 2.0;
+  stroke.values["strokeStyleLineWidth"] = width;
+  stroke.values["strokeStyleResolution"] = double_value(72.0);
+  if (vstk_has_content) {
+    patchy::psd::DescriptorObject content;
+    content.class_id = "solidColorLayer";
+    content.values["Clr "] = red_color_object();
+    patchy::psd::DescriptorValue content_value;
+    content_value.type = patchy::psd::DescriptorValue::Type::Object;
+    content_value.object_value = std::make_shared<patchy::psd::DescriptorObject>(content);
+    stroke.values["strokeStyleContent"] = content_value;
+  }
+  patchy::psd::write_descriptor(vstk, stroke);
+  pad_to_4(vstk);
+
+  // vmsk: one closed square subpath (op add) covering canvas 2..14 of 16.
+  patchy::psd::BigEndianWriter vmsk;
+  vmsk.write_u32(3);  // version
+  vmsk.write_u32(0);  // flags
+  const auto write_zeros = [&vmsk](std::size_t count) {
+    for (std::size_t i = 0; i < count; ++i) {
+      vmsk.write_u8(0);
+    }
+  };
+  vmsk.write_u16(6);  // fill rule record
+  write_zeros(24);
+  vmsk.write_u16(8);  // initial fill record
+  write_zeros(24);
+  const auto fixed_fraction = [](double fraction) {
+    return static_cast<std::uint32_t>(std::lround(fraction * 16777216.0));
+  };
+  const auto write_corner_knot = [&](double x_fraction, double y_fraction) {
+    vmsk.write_u16(2);  // closed corner knot
+    for (int pair = 0; pair < 3; ++pair) {
+      vmsk.write_u32(fixed_fraction(y_fraction));
+      vmsk.write_u32(fixed_fraction(x_fraction));
+    }
+  };
+  vmsk.write_u16(0);  // closed length record
+  vmsk.write_u16(4);  // knot count
+  vmsk.write_u16(1);  // op add
+  vmsk.write_u16(1);  // constant
+  write_zeros(18);
+  write_corner_knot(0.125, 0.125);
+  write_corner_knot(0.875, 0.125);
+  write_corner_knot(0.875, 0.875);
+  write_corner_knot(0.125, 0.875);
+
+  patchy::psd::BigEndianWriter layer_extra;
+  layer_extra.write_u32(0);
+  layer_extra.write_u32(0);
+  patchy::test::write_pascal_padded(layer_extra, "Stroke Only", 4);
+  patchy::test::write_test_layer_block(layer_extra, "vscg", vscg.bytes());
+  patchy::test::write_test_layer_block(layer_extra, "vmsk", vmsk.bytes());
+  if (include_vstk) {
+    patchy::test::write_test_layer_block(layer_extra, "vstk", vstk.bytes());
+  }
+
+  patchy::psd::BigEndianWriter layer_info;
+  layer_info.write_u16(1);
+  for (int i = 0; i < 4; ++i) {
+    layer_info.write_u32(0);  // 0x0 bounds: shape layers rasterize from the path
+  }
+  layer_info.write_u16(4);
+  for (const auto channel_id : {0xFFFFU, 0U, 1U, 2U}) {
+    layer_info.write_u16(static_cast<std::uint16_t>(channel_id));
+    layer_info.write_u32(2);  // compression marker only
+  }
+  patchy::test::write_ascii4(layer_info, "8BIM");
+  patchy::test::write_ascii4(layer_info, "norm");
+  layer_info.write_u8(255);
+  layer_info.write_u8(0);
+  layer_info.write_u8(0);
+  layer_info.write_u8(0);
+  layer_info.write_u32(static_cast<std::uint32_t>(layer_extra.bytes().size()));
+  layer_info.write_bytes(layer_extra.bytes());
+  for (int channel = 0; channel < 4; ++channel) {
+    layer_info.write_u16(0);  // raw, zero pixels
+  }
+  if ((layer_info.bytes().size() % 2U) != 0) {
+    layer_info.write_u8(0);
+  }
+
+  patchy::psd::BigEndianWriter writer;
+  patchy::psd::write_header(writer, patchy::psd::Header{false, 3, 16, 16, 8, 3});
+  writer.write_u32(0);
+  writer.write_u32(0);
+  patchy::psd::BigEndianWriter layer_mask;
+  layer_mask.write_u32(static_cast<std::uint32_t>(layer_info.bytes().size()));
+  layer_mask.write_bytes(layer_info.bytes());
+  layer_mask.write_u32(0);
+  writer.write_u32(static_cast<std::uint32_t>(layer_mask.bytes().size()));
+  writer.write_bytes(layer_mask.bytes());
+  writer.write_u16(0);
+  for (int i = 0; i < 3 * 16 * 16; ++i) {
+    writer.write_u8(255);
+  }
+  return writer.bytes();
+}
+
+int shape_alpha_at(const Layer& shape, int doc_x, int doc_y) {
+  const auto bounds = shape.bounds();
+  const auto& pixels = shape.pixels();
+  const int local_x = doc_x - bounds.x;
+  const int local_y = doc_y - bounds.y;
+  if (local_x < 0 || local_y < 0 || local_x >= pixels.width() || local_y >= pixels.height()) {
+    return 0;
+  }
+  return pixels.pixel(local_x, local_y)[3];
+}
+
+void psd_legacy_vscg_stroke_only_shape_parses_unlocked() {
+  const auto original = legacy_stroke_only_shape_psd(true, true);
+  auto document = patchy::psd::DocumentIo::read(original, {});
+  CHECK(document.layers().size() == 1);
+  const auto& shape = std::as_const(document.layers()).front();
+  const auto* content = shape.vector_shape();
+  CHECK(content != nullptr);
+  if (content == nullptr) {
+    return;
+  }
+  CHECK(shape.metadata().count(patchy::kLayerMetadataVectorLock) == 0);
+  CHECK(content->fill.kind == VectorFillKind::None);
+  CHECK(content->stroke.enabled);
+  CHECK(!content->stroke.fill_enabled);
+  CHECK(std::fabs(content->stroke.width - 2.0) < 1e-9);
+  CHECK(content->stroke.content.kind == VectorFillKind::Solid);
+  CHECK(content->stroke.content.color.red == 255 && content->stroke.content.color.green == 0 &&
+        content->stroke.content.color.blue == 0);
+  CHECK(content->path.subpaths.size() == 1);
+  // Rasterized from the path (empty channels): a red 2 px ring on the square's
+  // edge, nothing inside or outside.
+  CHECK(shape.pixels().format() == patchy::PixelFormat::rgba8());
+  CHECK(shape_alpha_at(shape, 2, 8) == 255);
+  CHECK(shape_alpha_at(shape, 8, 8) == 0);
+  CHECK(shape_alpha_at(shape, 0, 8) == 0);
+  {
+    const auto bounds = shape.bounds();
+    const auto* edge = shape.pixels().pixel(2 - bounds.x, 8 - bounds.y);
+    CHECK(edge[0] == 255 && edge[1] == 0 && edge[2] == 0);
+  }
+
+  // Untouched: the CS6 blocks re-emit verbatim and no fill block is invented.
+  const auto written = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  check_vector_blocks_byte_equal(original, written, 0, {"vscg", "vstk", "vmsk"});
+  CHECK(!patchy::test::psd_layer_block_payload(patchy::test::psd_first_layer_extra_data(written), "SoCo")
+             .has_value());
+
+  // Edited (moved): the blocks regenerate the modern way, SoCo + vstk with
+  // fillEnabled false, and the stale vscg is dropped, as PS's own resave does.
+  auto* layer = document.find_layer(document.layers().front().id());
+  CHECK(layer != nullptr);
+  const auto original_anchor = content->path.subpaths[0].anchors[0];
+  auto bounds = layer->bounds();
+  bounds.x += 3;
+  layer->set_bounds(bounds);
+  patchy::translate_moved_layer_metadata(*layer, 3, 0, document.width(), document.height());
+  const auto moved_bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto moved_extra = patchy::test::psd_first_layer_extra_data(moved_bytes);
+  CHECK(patchy::test::psd_layer_block_payload(moved_extra, "SoCo").has_value());
+  CHECK(patchy::test::psd_layer_block_payload(moved_extra, "vstk").has_value());
+  CHECK(patchy::test::psd_layer_block_payload(moved_extra, "vmsk").has_value());
+  CHECK(!patchy::test::psd_layer_block_payload(moved_extra, "vscg").has_value());
+  const auto reread = patchy::psd::DocumentIo::read(moved_bytes, {});
+  const auto& moved = std::as_const(reread.layers()).front();
+  const auto* moved_content = moved.vector_shape();
+  CHECK(moved_content != nullptr);
+  if (moved_content == nullptr) {
+    return;
+  }
+  CHECK(moved.metadata().count(patchy::kLayerMetadataVectorLock) == 0);
+  CHECK(moved_content->stroke.enabled && !moved_content->stroke.fill_enabled);
+  CHECK(std::fabs(moved_content->path.subpaths[0].anchors[0].anchor_x - (original_anchor.anchor_x + 3.0)) <
+        1e-5);
+  CHECK(shape_alpha_at(moved, 5, 8) == 255);
+  CHECK(shape_alpha_at(moved, 11, 8) == 0);
+}
+
+void psd_legacy_vscg_stroke_only_shape_paint_fallback_and_lock() {
+  // vstk without strokeStyleContent: the stroke paint comes from vscg.
+  const auto no_content = patchy::psd::DocumentIo::read(legacy_stroke_only_shape_psd(true, false), {});
+  const auto& shape = std::as_const(no_content.layers()).front();
+  const auto* content = shape.vector_shape();
+  CHECK(content != nullptr);
+  if (content != nullptr) {
+    CHECK(shape.metadata().count(patchy::kLayerMetadataVectorLock) == 0);
+    CHECK(content->fill.kind == VectorFillKind::None);
+    CHECK(content->stroke.enabled && !content->stroke.fill_enabled);
+    CHECK(content->stroke.content.kind == VectorFillKind::Solid);
+    CHECK(content->stroke.content.color.red == 255 && content->stroke.content.color.green == 0 &&
+          content->stroke.content.color.blue == 0);
+    CHECK(shape_alpha_at(shape, 2, 8) == 255);
+    CHECK(shape_alpha_at(shape, 8, 8) == 0);
+  }
+
+  // vscg + vmsk with no vstk: nothing describes the stroke, so the layer keeps
+  // the byte-preserving lock.
+  const auto no_stroke = patchy::psd::DocumentIo::read(legacy_stroke_only_shape_psd(false, false), {});
+  const auto& locked = std::as_const(no_stroke.layers()).front();
+  CHECK(locked.vector_shape() == nullptr);
+  CHECK(patchy::vector_lock_reason(locked) == "unparsed");
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> psd_vector_fixtures_tests() {
@@ -1246,6 +1513,9 @@ std::vector<patchy::test::TestCase> psd_vector_fixtures_tests() {
       {"psd_shape_strokes_fixture_parses_and_renders", psd_shape_strokes_fixture_parses_and_renders},
       {"psd_shape_boolean_fixture_combines_and_renders", psd_shape_boolean_fixture_combines_and_renders},
       {"psd_legacy_vmsk_unset_combine_op_fills_by_parity", psd_legacy_vmsk_unset_combine_op_fills_by_parity},
+      {"psd_legacy_vscg_stroke_only_shape_parses_unlocked", psd_legacy_vscg_stroke_only_shape_parses_unlocked},
+      {"psd_legacy_vscg_stroke_only_shape_paint_fallback_and_lock",
+       psd_legacy_vscg_stroke_only_shape_paint_fallback_and_lock},
       {"psd_shape_first_ops_fixture_renders", psd_shape_first_ops_fixture_renders},
       {"psd_shape_live_fixture_parses_origination", psd_shape_live_fixture_parses_origination},
       {"psd_vector_mask_fixture_masks_pixels", psd_vector_mask_fixture_masks_pixels},

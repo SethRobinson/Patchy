@@ -523,8 +523,11 @@ std::optional<VectorPath> parse_path_resource_records(std::span<const std::uint8
 std::optional<VectorFill> parse_vector_fill_block(std::string_view key,
                                                   std::span<const std::uint8_t> payload,
                                                   const CmykColorConverter& cmyk);
+// `content_present` (optional) reports whether the descriptor carried a
+// strokeStyleContent object; CS6 files keep the stroke paint in `vscg` instead.
 std::optional<VectorStroke> parse_vector_stroke_block(std::span<const std::uint8_t> payload,
-                                                      const CmykColorConverter& cmyk);
+                                                      const CmykColorConverter& cmyk,
+                                                      bool* content_present = nullptr);
 std::optional<std::vector<LiveShapeParams>> parse_vector_origination_block(
     std::span<const std::uint8_t> payload);
 [[nodiscard]] bool is_vector_content_block_key(std::string_view key) noexcept;

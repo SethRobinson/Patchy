@@ -8,6 +8,7 @@
 #include "core/layer_metadata.hpp"
 #include "core/pixel_buffer.hpp"
 #include "core/smart_object.hpp"
+#include "core/vector_shape.hpp"
 #include "psd/psd_document_io.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/image_document_io.hpp"
@@ -832,6 +833,102 @@ void ui_group_transform_commit_deferred_refresh_never_shows_old_geometry() {
   CHECK(color_close(canvas_pixel(*canvas, QPoint(110, 80)), QColor(230, 30, 30), 8));
 }
 
+
+patchy::Layer* find_leaf_layer(std::vector<patchy::Layer>& layers, const QString& name) {
+  for (auto& layer : layers) {
+    if (layer.kind() == patchy::LayerKind::Group) {
+      if (auto* found = find_leaf_layer(layer.children(), name); found != nullptr) {
+        return found;
+      }
+      continue;
+    }
+    if (QString::fromStdString(layer.name()) == name) {
+      return &layer;
+    }
+  }
+  return nullptr;
+}
+
+// The reported repro (September 2026): the bath-controls PSD's "Group 1" holds
+// CS6-era stroke-only shape layers ("Rounded Rectangle 1" and copies: vmsk +
+// vstk with fillEnabled false + vscg, no fill block). The reader used to
+// vector-lock them, and one locked leaf refuses the whole multi-target session,
+// so Ctrl-T on the folder or on any selection holding one showed no handles.
+void ui_group_transform_folder_with_stroke_only_shape_layers_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("bath-controls-stroke-only-shapes.psd");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] local bath-controls-stroke-only-shapes.psd fixture missing" << std::endl;
+    return;
+  }
+  auto document = patchy::psd::DocumentIo::read_file(path);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Bath Controls Group Transform"));
+  accept_missing_psd_text_font_warning_if_present();
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+
+  auto* folder = find_group_layer(doc.layers(), QStringLiteral("Group 1"));
+  auto* rounded = find_leaf_layer(doc.layers(), QStringLiteral("Rounded Rectangle 1"));
+  auto* plain = find_leaf_layer(doc.layers(), QStringLiteral("Layer 1"));
+  CHECK(folder != nullptr && rounded != nullptr && plain != nullptr);
+  if (folder == nullptr || rounded == nullptr || plain == nullptr) {
+    return;
+  }
+  CHECK(rounded->vector_shape() != nullptr);
+  CHECK(patchy::vector_lock_reason(*rounded).empty());
+  const auto folder_id = folder->id();
+  const auto rounded_id = rounded->id();
+  const auto plain_id = plain->id();
+  const auto before = patchy::ui::qimage_from_document(doc, true);
+
+  // The folder: a multi-target session that scales, commits, and undoes.
+  select_layer_rows_by_id(*layer_list, {folder_id});
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  CHECK(canvas->free_transform_is_multi_target());
+  const auto state = canvas->transform_controls_state();
+  CHECK(state.has_value());
+  if (!state.has_value()) {
+    return;
+  }
+  CHECK(canvas->set_transform_controls_state(state->reference_position, 110.0, 110.0, 0.0));
+  QApplication::processEvents();
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+  const auto after = patchy::ui::qimage_from_document(doc, true);
+  CHECK(!images_equal_rgba(before, after));
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(images_equal_rgba(before, patchy::ui::qimage_from_document(doc, true)));
+
+  // A multi-selection holding the shape layer. Its row sits inside a folder
+  // that may be collapsed, so push the selection directly.
+  canvas->set_selected_layer_ids({rounded_id, plain_id});
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  CHECK(canvas->free_transform_is_multi_target());
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+
+  // The shape layer alone takes the single-layer path.
+  canvas->set_selected_layer_ids({rounded_id});
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  CHECK(!canvas->free_transform_is_multi_target());
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> group_transform_tests() {
@@ -855,5 +952,7 @@ std::vector<patchy::test::TestCase> group_transform_tests() {
       {"ui_pinball_folder_free_transform_end_to_end", ui_pinball_folder_free_transform_end_to_end},
       {"ui_select_all_free_transform_transforms_retronight_poster",
        ui_select_all_free_transform_transforms_retronight_poster},
+      {"ui_group_transform_folder_with_stroke_only_shape_layers_if_available",
+       ui_group_transform_folder_with_stroke_only_shape_layers_if_available},
   };
 }

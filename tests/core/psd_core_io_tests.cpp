@@ -4,6 +4,7 @@
 #include "core/document.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/layer_tree.hpp"
+#include "core/vector_shape.hpp"
 #include "core/gradient_presets.hpp"
 #include "filters/filter_engine.hpp"
 #include "filters/filter_registry.hpp"
@@ -2154,6 +2155,54 @@ void psd_app_icon_legacy_fixture_loads_if_available() {
   CHECK(!document.layers().empty());
 }
 
+
+// The bath-controls PSD (September 2026): "Group 1" holds four CS6-era
+// stroke-only shape layers (vmsk + vstk with fillEnabled false + vscg, no fill
+// block) that used to import vector-locked, refusing Free Transform on every
+// folder or selection holding one. They import as editable stroke-only shapes.
+void psd_stroke_only_shape_layers_fixture_loads_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("bath-controls-stroke-only-shapes.psd");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] local bath-controls fixture missing: " << path.string() << '\n';
+    return;
+  }
+
+  const auto document = patchy::psd::DocumentIo::read_file(path);
+  const patchy::Layer* group = nullptr;
+  for (const auto& layer : document.layers()) {
+    if (layer.kind() == patchy::LayerKind::Group && layer.name() == "Group 1") {
+      group = &layer;
+    }
+  }
+  CHECK(group != nullptr);
+  if (group == nullptr) {
+    return;
+  }
+  int stroke_only_shapes = 0;
+  for (const auto& child : group->children()) {
+    if (child.name().rfind("Rounded Rectangle", 0) != 0) {
+      continue;
+    }
+    const auto* content = child.vector_shape();
+    if (content == nullptr) {
+      // "copy 4" and "copy 5" were rasterized in Photoshop.
+      continue;
+    }
+    ++stroke_only_shapes;
+    CHECK(patchy::vector_lock_reason(child).empty());
+    CHECK(content->fill.kind == patchy::VectorFillKind::None);
+    CHECK(content->stroke.enabled && !content->stroke.fill_enabled);
+    CHECK(std::fabs(content->stroke.width - 2.4193548387096775) < 0.01);
+    CHECK(content->stroke.content.kind == patchy::VectorFillKind::Solid);
+    CHECK(content->stroke.content.color.red == 255 && content->stroke.content.color.green == 0 &&
+          content->stroke.content.color.blue == 0);
+    CHECK(content->path.subpaths.size() == 1);
+    // Photoshop's rendered stroke pixels stay authoritative until an edit.
+    CHECK(!child.pixels().empty());
+  }
+  CHECK(stroke_only_shapes == 4);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> psd_core_io_tests() {
@@ -2193,6 +2242,8 @@ std::vector<patchy::test::TestCase> psd_core_io_tests() {
       {"psd_photoshop_16_bit_fixtures_load_if_available", psd_photoshop_16_bit_fixtures_load_if_available},
       {"psd_photoshop_32_bit_fixtures_load_if_available", psd_photoshop_32_bit_fixtures_load_if_available},
       {"psd_app_icon_legacy_fixture_loads_if_available", psd_app_icon_legacy_fixture_loads_if_available},
+      {"psd_stroke_only_shape_layers_fixture_loads_if_available",
+       psd_stroke_only_shape_layers_fixture_loads_if_available},
       {"psd_layered_writer_uses_rle_for_compressible_layer_channels",
        psd_layered_writer_uses_rle_for_compressible_layer_channels},
       {"psd_layer_locks_import_and_export_lspf", psd_layer_locks_import_and_export_lspf},

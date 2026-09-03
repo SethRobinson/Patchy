@@ -2,11 +2,10 @@
 
 Feature reference for Patchy's vector workflows: tool/UI behavior contracts,
 PSD vector-data encodings, fixtures, and the patent record. Encoding facts
-were pinned by observing Photoshop 27.8 via COM (July 2026; method rules at
-the end). PSD read/write round-trips per the dirty-or-verbatim rule with
-COM-verified Photoshop acceptance. Probe and fixture scripts (including the
-`psd_dump.py` structure dumper) live in `local-test-fixtures/vector-probe/`
-(untracked). Binding constraints: docs/legal-constraints.md.
+come from Photoshop 27.8 COM probes (July 2026; method rules at the end);
+probe scripts and the `psd_dump.py` structure dumper live in
+`local-test-fixtures/vector-probe/` (untracked). Binding constraints:
+docs/legal-constraints.md.
 
 ## Shape tools (Line / Rectangle / Ellipse)
 
@@ -60,7 +59,7 @@ Custom Shape stamps a library shape into the drag rect (Shift keeps it
 square). Both are vector-only: the mode combo greys out Pixels for them
 (and the Pen) and shows the effective mode (Path), leaving the setting
 untouched. They write plain paths (PS's polygon/custom origination
-descriptors were not probed), which PS opens as regular path shapes. The
+descriptors were not probed). The
 Line tool gains arrow start/end checkboxes (head width 5x, length 10x the
 weight, PS's proportions) encoded through the probed keyOriginLine arrow
 keys. The CustomShapeLibrary (JSON sidecars
@@ -104,7 +103,7 @@ transient row for the active layer's shape or vector-mask path. Selecting a
 row targets it for pen/path tools (outranking the layer/work-path fallback);
 empty-space click deselects. Double-click saves the work path: inline
 rename, row moves to the END (DocumentPath::set_kind drops the stale 1025
-resource source so the writer allocates a saved-range id;
+source so the writer allocates a saved-range id;
 psd_work_path_saved_as_named_round_trips). Ctrl-click (Cmd on macOS) loads a
 row's path as a selection without changing targeting; Ctrl+Enter on the
 CANVAS does the same for the targeted row (deliberately a canvas key, not an
@@ -186,13 +185,11 @@ layers.
 
 ## Appearance editing and fill layers
 
-Shape/fill layers carry a vector badge on their layer row (pixels are a
-baked cache, so the thumbnail cannot reveal the vector content). The badge,
+Shape/fill layers carry a vector badge on their layer row. The badge,
 double-clicking the row, or the context menu's "Edit Shape Appearance..."
 (after Edit Layer Styles, which stays first) opens the Shape Appearance
 dialog: fill kind with per-kind rows, plus the full stroke set (width; a
-Paint combo choosing solid/gradient/pattern content, so PSD-authored
-gradient and pattern strokes display truthfully and stay editable;
+Paint combo choosing solid/gradient/pattern content;
 alignment, caps, joins; dash presets plus a Custom entry preserving
 PSD-authored dash arrays). Align-with-layer maps `pattern_linked`: anchored
 at the layer's effects reference point when on, the document origin when
@@ -228,9 +225,8 @@ resources); model: src/core/vector_shape.hpp.
   mask block; live shapes add `vogk` (+ a 4-byte `vowv` = u32 2 beside it;
   PS wrote vowv for rect and line kinds but not ellipse); stroked shapes add
   `vstk`.
-- **Two hard open-refusal rules** (pinned by byte bisection of a rejected
-  user file with COM open tests; both produce "Could not open ... because of
-  a program error"; regression-test names in ps-compat.md):
+- **Two hard open-refusal rules** (pinned by byte bisection with COM open
+  tests; regression-test names in ps-compat.md):
   1. Every pattern id referenced by a `PtFl` fill or a `vstk` pattern
      stroke paint MUST resolve to pattern data in the file's
      `Patt`/`Pat2`/`Pat3` blocks. PS falls back to its OWN loaded presets
@@ -245,8 +241,7 @@ resources); model: src/core/vector_shape.hpp.
      (`origination_covers_path_groups` gates the writer; the reader keeps
      partial raw vogk/vowv out of the preserved blocks so damaged files
      heal on resave). The shapes open as plain paths, PS's own fallback;
-     only live editability is lost. PS's own encoding of mixed layers
-     remains unprobed.
+     only live editability is lost.
 - Channel data is EMPTY: layer bounds (0,0,0,0) and every channel (including
   transparency id -1) is 2 bytes (just the compression marker). Readers must
   rasterize from the vector data. (Writer in src/psd/psd_layer_records.cpp.)
@@ -255,8 +250,16 @@ resources); model: src/core/vector_shape.hpp.
 - `lnsr` = 'cont' for content layers ('bgnd' for Background). PS names:
   "Color Fill 1" (path-created), "Rectangle 1", "Ellipse 1", "Line 1".
 - A plain fill layer is the same structure with an empty or absent `vmsk`.
-- `vscg`: legacy key, never written by PS 27.8 in any probe; read if
-  present, never regenerate (PS's own resave migrates to vstk-only).
+- `vscg` (CS6 "vector stroke content"): 4-byte content key (SoCo/GdFl/PtFl)
+  + descriptorVersion 16 + the stroke paint descriptor; PS 27.8 never writes
+  it. A CS6 Fill: None shape has NO fill block, `fillEnabled` false in vstk,
+  and this vscg: the reader builds a fill-kind-None shape with the vstk
+  stroke (vscg paint fills in when vstk lacks strokeStyleContent) instead of
+  vector-locking it, which refused Free Transform for every folder or
+  multi-selection holding one. Untouched layers re-emit vscg verbatim; edits
+  regenerate SoCo + vstk and drop it (PS's resave does the same). A vscg
+  with no vstk/vmsk pair still locks as "unparsed". Pinned by
+  `psd_legacy_vscg_stroke_only_shape_*`.
 
 ### vmsk / vsms (vector mask path)
 
@@ -350,10 +353,9 @@ captured order (kind-dependent):
   Trnf, keyOriginLineEnd, keyOriginLineStart, keyOriginLineWeight,
   keyOriginLineArrowSt/ArrowEnd, keyOriginLineArrWdth/ArrLngth,
   keyOriginLineArrConc, keyOriginLineWidthArrowUnitPixels/
-  LengthArrowUnitPixels, keyOriginBoxCorners, keyOriginIndex. Arrowed lines
-  could not be authored headlessly, so the arrow key names/types come from
-  the plain line's defaults; Patchy-authored arrows are acceptance-verified
-  by reopening in PS.
+  LengthArrowUnitPixels, keyOriginBoxCorners, keyOriginIndex. Arrow keys
+  come from the plain line's defaults (not COM-authored); Patchy-authored
+  arrows are verified by reopening in PS.
 - App-level (`executeActionGet`) path-drawn subpaths report keyActionMode
   entries instead of live-shape data.
 
@@ -381,8 +383,7 @@ handles, corner orders) are recorded in src/core/vector_live_shapes.hpp.
 
 - GdFl with UNEVENLY spaced stops: PS parametrizes its smoothness spline
   non-uniformly by stop location; Patchy's uniform per-segment catmull
-  differs by a few /255 there (gradient fixture: mean 1.2, max 8); no
-  closed form found.
+  differs by a few /255 there (gradient fixture: mean 1.2, max 8).
 - Stroke dashes: boundaries land where each renderer's arc-length
   integration puts them; a handful of dash-edge pixels flip (mean ~0.3 on
   the strokes fixture).
@@ -414,18 +415,16 @@ handles, corner orders) are recorded in src/core/vector_live_shapes.hpp.
 
 ### Interior effects vs the vector stroke (probed July 2026)
 
-The fx-sofi-center/outside/nofill and fx-drsh-outside probes pinned where
-layer effects sit relative to a shape layer's vector stroke: interior
-overlays (Color/Gradient/Pattern Overlay) apply to the FILL plane only and
+The fx-sofi-center/outside/nofill and fx-drsh-outside probes pinned:
+interior overlays (Color/Gradient/Pattern Overlay) apply to the FILL plane only and
 the VECTOR STROKE composites above them; on a stroke-only shape (fill
 disabled) the overlay covers the stroke itself; drop shadows (and the
 silhouette generally) key off the full fill+stroke coverage; the Stroke
-EFFECT (frFX) stays above the vector stroke. Implementation: the shape bake emits split fill/stroke planes
-(ShapeRasterResult::fill_pixels/stroke_pixels; empty when inapplicable,
-then the compositor keeps the combined plane); overlay passes read the
-fill plane and re-stamp the stroke after Color Overlay
-(compositor_interior_overlay_stays_under_vector_stroke plus the
-_if_available probe test; src/render/layer_compositor.hpp). Blend-If layers
+EFFECT (frFX) stays above the vector stroke. Implementation: split
+fill/stroke planes (ShapeRasterResult::fill_pixels/stroke_pixels; empty when
+inapplicable); overlay passes read the fill plane and re-stamp the stroke
+(compositor_interior_overlay_stays_under_vector_stroke;
+src/render/layer_compositor.hpp). Blend-If layers
 and transform-preview overrides keep the legacy combined-plane behavior.
 Inner effects keep their full-silhouette geometry.
 

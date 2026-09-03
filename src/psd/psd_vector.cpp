@@ -274,7 +274,11 @@ std::optional<VectorFill> parse_vector_fill_block(std::string_view key,
 }
 
 std::optional<VectorStroke> parse_vector_stroke_block(std::span<const std::uint8_t> payload,
-                                                      const CmykColorConverter& cmyk) {
+                                                      const CmykColorConverter& cmyk,
+                                                      bool* content_present) {
+  if (content_present != nullptr) {
+    *content_present = false;
+  }
   const auto descriptor = read_block_descriptor(payload);
   if (!descriptor.has_value() || descriptor->class_id != "strokeStyle") {
     return std::nullopt;
@@ -321,6 +325,9 @@ std::optional<VectorStroke> parse_vector_stroke_block(std::span<const std::uint8
   if (const auto* content = descriptor_object(*descriptor, "strokeStyleContent"); content != nullptr) {
     if (auto paint = parse_content_object(*content, cmyk); paint.has_value()) {
       stroke.content = std::move(*paint);
+      if (content_present != nullptr) {
+        *content_present = true;
+      }
     } else {
       return std::nullopt;
     }

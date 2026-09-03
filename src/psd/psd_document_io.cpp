@@ -529,6 +529,11 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
     std::optional<std::vector<LiveShapeParams>> vector_origination;
     bool vector_parse_failed = false;
     bool has_legacy_vscg = false;
+    bool vector_stroke_has_content = false;
+    // CS6-era 'vscg' (vector stroke content): the stroke paint of a shape layer
+    // whose stroke settings live in vstk. Payload = 4-byte content key
+    // (SoCo/GdFl/PtFl) + descriptorVersion 16 + the paint descriptor.
+    std::optional<VectorFill> legacy_stroke_content;
     bool drop_partial_origination_blocks = false;
     for (const auto& block : record.additional_blocks) {
       if (block.key == "vmsk" || block.key == "vsms") {
@@ -549,7 +554,8 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
           vector_parse_failed = true;
         }
       } else if (block.key == "vstk") {
-        if (auto stroke = parse_vector_stroke_block(block.payload, cmyk_converter); stroke.has_value()) {
+        if (auto stroke = parse_vector_stroke_block(block.payload, cmyk_converter, &vector_stroke_has_content);
+            stroke.has_value()) {
           vector_stroke = std::move(*stroke);
         } else {
           vector_parse_failed = true;
@@ -560,6 +566,10 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
         vector_origination = parse_vector_origination_block(block.payload);
       } else if (block.key == "vscg") {
         has_legacy_vscg = true;
+        if (block.payload.size() > 8U) {
+          const std::string content_key(block.payload.begin(), block.payload.begin() + 4);
+          legacy_stroke_content = parse_vector_fill_block(content_key, block.payload, cmyk_converter);
+        }
       }
       if (block.key == "levl") {
         native_adjustment_settings = parse_photoshop_levels_adjustment(block.payload);
@@ -684,10 +694,26 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
     set_layer_lock_flags(layer,
                          record.protection_flags &
                              (kPsdProtectTransparency | kPsdProtectComposite | kPsdProtectPosition));
+    if (!vector_parse_failed && has_legacy_vscg && !vector_fill.has_value() && vector_mask_block.has_value() &&
+        vector_stroke.has_value()) {
+      // CS6 shape layer with Fill: None. That era wrote no fill block at all
+      // (modern PS writes SoCo plus fillEnabled false for the same thing) and
+      // kept the stroke paint in vscg, which vstk's strokeStyleContent later
+      // duplicated. Build the editable stroke-only shape instead of locking
+      // the layer: a vector lock refuses Free Transform, and one locked leaf
+      // refuses the whole folder or multi-selection session (September 2026,
+      // the bath-controls PSD).
+      VectorFill none;
+      none.kind = VectorFillKind::None;
+      vector_fill = std::move(none);
+      if (!vector_stroke_has_content && legacy_stroke_content.has_value()) {
+        vector_stroke->content = *legacy_stroke_content;
+      }
+    }
     if (vector_parse_failed || (has_legacy_vscg && !vector_fill.has_value())) {
-      // A vector block failed to parse (or a legacy vscg carries the paint we
-      // did not decode): everything stays byte-preserved and the layer locks,
-      // mirroring the preview-locked smart-object pattern.
+      // A vector block failed to parse (or a legacy vscg carries paint with no
+      // vstk/vmsk pair to build a shape from): everything stays byte-preserved
+      // and the layer locks, mirroring the preview-locked smart-object pattern.
       layer.metadata()[kLayerMetadataVectorLock] = "unparsed";
     } else if (vector_fill.has_value()) {
       // Shape/fill layer: fill content block, optional path, stroke, and
