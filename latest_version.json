@@ -5,7 +5,7 @@
       "download_url": "https://rtsoft.com/files/PatchyWindowsInstaller.exe"
     },
     "macos": {
-      "version": "0.90",
+      "version": "0.91",
       "download_url": "https://rtsoft.com/files/PatchyMacOS.dmg"
     },
     "linux": {
