@@ -42,6 +42,15 @@ rm -rf "$STAGE/Patchy.app/Contents/MacOS/test-fixtures"
 echo "== macdeployqt (bundling Qt frameworks and plugins) =="
 "$QT_BIN/macdeployqt" "$STAGE/Patchy.app"
 
+QT_OFFSCREEN_PLUGIN="$QT_BIN/../plugins/platforms/libqoffscreen.dylib"
+if [ ! -f "$QT_OFFSCREEN_PLUGIN" ]; then
+  echo "ERROR: $QT_OFFSCREEN_PLUGIN not found; install the matching Qt platform plugins." >&2
+  exit 1
+fi
+echo "== copy Qt offscreen platform plugin =="
+mkdir -p "$STAGE/Patchy.app/Contents/PlugIns/platforms"
+cp "$QT_OFFSCREEN_PLUGIN" "$STAGE/Patchy.app/Contents/PlugIns/platforms/libqoffscreen.dylib"
+
 if [ -n "${PATCHY_MAC_SIGN_IDENTITY:-}" ]; then
   if [ -n "${PATCHY_KEYCHAIN_PASSWORD:-}" ]; then
     # SSH sessions get their own security context where the login keychain starts
