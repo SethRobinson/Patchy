@@ -56,3 +56,18 @@ Do not add `xcrun stapler validate` to that check. It blocks indefinitely on stu
 (September 2026: still running after ten minutes, killed at sixty seconds on a bounded
 retest) and would hang every release; `spctl` covers the same ground in about a third of
 a second.
+
+## When the keychain unlock times out
+
+`make-dmg.sh` bounds `security unlock-keychain` at sixty seconds because the call hangs
+whenever securityd is holding a SecurityAgent dialog on studiomac's own screen that
+nobody can answer. Observed September 2026 (twice): the console session was locked or
+asleep, `screencapture -x /tmp/x.png` over ssh failed with `could not create image from
+display`, and every keychain request from ssh, the password unlock included, spawned a
+fresh `SecurityAgent` process and blocked. The fix is at the mac: unlock its screen,
+dismiss any prompt, then rerun `scripts\remote\release-mac.bat` and
+`scripts\release\upload-mac-to-rtsoft.bat`, and only then bump the macOS entry in
+`latest_version.json`. Do not diagnose with `security show-keychain-info`: it raises its
+own prompt on a locked keychain and hangs the same way, and the stale process then keeps
+that dialog alive for days. Killing `SecurityAgent` cancels only the current requester;
+the next keychain call raises a new one.

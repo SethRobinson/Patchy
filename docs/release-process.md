@@ -77,6 +77,14 @@ bare-name launch dies instantly before the delete-previous-artifacts step, leavi
 previous version's zip and installer in `build\package` for the newest-file upload
 scripts to pick up.
 
+Inside a parenthesized block such as `if errorlevel 1 ( ... )`, an unescaped `)` in
+echo text closes the block early, and the resulting "was unexpected at this time" is a
+fatal parse error that ends the whole calling chain, including `upload-to-rtsoft.bat`
+and any wrapper around it, before the later platforms run (September 2026: the Linux and
+mac failure messages said "(or was left in a bad state)", so the first failed hash
+silently ended the release upload). cmd parses the entire block when it reaches the
+`if`, so the bug fires even when the condition is false. Escape as `^)` or reword.
+
 ## scripts\vs-env.bat, not VsDevCmd.bat
 
 Every build entry point (`scripts\release\build-release.bat`, `scripts\run-tests.ps1`,
@@ -95,6 +103,10 @@ other caller prints it: check whether that caller went through vs-env.bat.
 **Agent/non-interactive release runs must set `NO_PAUSE=1` before launching the batch files.** From PowerShell in the repo root, set `$env:NO_PAUSE='1'` and then run `cmd /c scripts\release\release-all.bat`; the environment is inherited by the three `start`ed consoles and, critically, by `%RT_PROJECTS%\Signing\sign.bat`, which otherwise pauses after EVERY signed Windows file. Do this before the first launch, not after a signing prompt appears.
 
 `release-mac.bat` and `release-linux.bat` have their own unconditional final `pause`, so do not wait for those wrapper `cmd.exe` processes to exit: determine success from the child PowerShell completion and fresh versioned artifacts, then close the completed wrapper consoles.
+
+To keep evidence of each builder's result, an agent run can launch the same four scripts `release-all.bat` starts, each through a small wrapper batch file that redirects the builder's output to a log and then writes `%ERRORLEVEL%` to a marker file (call `release-mac.ps1` and `release-linux.ps1` directly there, since their `.bat` wrappers pause). Start each wrapper with `start "<title>" /min /belownormal cmd /c "<wrapper>"` so the whole tree inherits below-normal priority, and set `CMAKE_BUILD_PARALLEL_LEVEL=6` alongside `NO_PAUSE=1` so `cmake --build` inside the scripts is throttled as AGENTS.md requires. Do not capture exit codes with Windows PowerShell 5.1's `Start-Process -PassThru` while redirecting output: its `ExitCode` comes back empty there (pwsh 7 is fine).
+
+Launch the release batch files from cmd or Windows PowerShell, not from pwsh 7 (or reset `PSModulePath` first to `%USERPROFILE%\Documents\WindowsPowerShell\Modules;%ProgramFiles%\WindowsPowerShell\Modules;%SystemRoot%\system32\WindowsPowerShell\v1.0\Modules`). pwsh 7 puts its own module directories on `PSModulePath`, and the `powershell` 5.1 one-liners inside the scripts then load pwsh's incompatible `Microsoft.PowerShell.Utility`, so `Get-FileHash` is "not recognized" and `upload-one-file.bat` refuses every desktop upload (September 2026). The build scripts happened to survive because they only use cmdlets from other modules.
 
 `scripts\release\upload-to-rtsoft.bat` itself does not read `NO_PAUSE`: it already passes the positional `nopause` argument to the per-platform upload scripts, but the top-level script ends in one final unconditional `pause`, which an automated runner must dismiss (feed Enter) after all uploads complete.
 

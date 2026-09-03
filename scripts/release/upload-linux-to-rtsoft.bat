@@ -24,7 +24,7 @@ call "%~dp0upload-one-file.bat" build\package\PatchyLinux.flatpak files
 if errorlevel 1 (
   echo.
   echo Linux upload FAILED - https://rtsoft.com/files/PatchyLinux.flatpak was not
-  echo updated (or was left in a bad state). Do not announce this release.
+  echo updated, or was left in a bad state. Do not announce this release.
   if /i not "%~1"=="nopause" pause
   exit /b 1
 )

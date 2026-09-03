@@ -49,12 +49,13 @@ if [ -n "${PATCHY_MAC_SIGN_IDENTITY:-}" ]; then
     # session. The password lives in ~/.patchy-release-env (chmod 600) on the build mac.
     #
     # Bounded, because this is a local operation that should take milliseconds and
-    # instead blocks forever when the mac's security subsystem is wedged (September
-    # 2026: a release sat here 30+ minutes with no output, and a plain
-    # `security show-keychain-info` hung the same way, which is a stuck SecurityAgent
-    # prompt on the machine's own screen rather than anything this script did). A
-    # release that hangs silently is as bad as one that ships unsigned, so fail loudly
-    # and say where to look. macOS ships no timeout(1), hence the watchdog.
+    # instead blocks forever when every keychain request from this ssh session is
+    # queued behind a SecurityAgent dialog on the machine's own screen that nobody
+    # can answer (September 2026, twice: a release sat here 30+ minutes with no
+    # output; later even this password unlock spawned a fresh SecurityAgent per
+    # attempt while the console session was locked or asleep). A release that hangs
+    # silently is as bad as one that ships unsigned, so fail loudly and say where to
+    # look. macOS ships no timeout(1), hence the watchdog.
     security unlock-keychain -p "$PATCHY_KEYCHAIN_PASSWORD" ~/Library/Keychains/login.keychain-db &
     unlock_pid=$!
     ( sleep 60; kill -9 "$unlock_pid" 2>/dev/null ) &
@@ -62,11 +63,14 @@ if [ -n "${PATCHY_MAC_SIGN_IDENTITY:-}" ]; then
     if ! wait "$unlock_pid"; then
       kill "$unlock_watchdog" 2>/dev/null || true
       echo "ERROR: unlocking the login keychain failed or timed out after 60s." >&2
-      echo "The mac's security subsystem is usually wedged behind an authorization" >&2
-      echo "prompt on its own screen; check studiomac's display, then confirm with" >&2
-      echo "  security show-keychain-info ~/Library/Keychains/login.keychain-db" >&2
-      echo "which hangs in the same situation. Nothing was signed, so no artifact was" >&2
-      echo "produced." >&2
+      echo "Every keychain request from ssh is waiting on a SecurityAgent dialog on" >&2
+      echo "studiomac's own screen that nobody can answer, usually because the console" >&2
+      echo "session is locked or asleep (then 'screencapture -x /tmp/x.png' over ssh" >&2
+      echo "fails with 'could not create image from display'). Unlock the mac at its" >&2
+      echo "screen, dismiss any prompt, and rerun. Do not probe with" >&2
+      echo "'security show-keychain-info': it raises its own prompt and hangs the same" >&2
+      echo "way; killing SecurityAgent only cancels the current request. Nothing was" >&2
+      echo "signed, so no artifact was produced." >&2
       exit 1
     fi
     kill "$unlock_watchdog" 2>/dev/null || true
