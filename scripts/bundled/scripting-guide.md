@@ -195,7 +195,7 @@ Each `--script-arg key=value` on the command line becomes `patchy.args.key` (alw
 ## Command line
 
 ```text
-patchy --run-script <file.js> [--script-output out.txt] [--script-arg key=value ...] [files...]
+patchy [--headless] --run-script <file.js> [--script-output out.txt] [--script-arg key=value ...] [files...]
 ```
 
 | Flag | Meaning |
@@ -203,19 +203,22 @@ patchy --run-script <file.js> [--script-output out.txt] [--script-arg key=value 
 | `--run-script <file.js>` | The script to run. |
 | `--script-output <out.txt>` | Console output, errors, and a final `[done]` or `[failed]` line are written here when the run completes. |
 | `--script-arg key=value` | Passed to the script as `patchy.args.key` and as a `showOptions` override. Repeatable. |
+| `--headless` | Run with no display (the Qt offscreen platform). Never reuses a running Patchy; needs `--run-script`, `--export`, `--stress-test`, or `--screenshot`. |
 | `files...` | Opened before the script runs, so the last one is the active document. |
 
 Behavior worth knowing:
 
 - **If Patchy is already running**, the request is forwarded to that instance and the command returns immediately; poll the `--script-output` file for completion. Otherwise a new instance runs the script and exits with code 0 on success or 4 on a script error.
 - Command-line runs are **unattended**: dialogs never appear. `showOptions` returns its effective values, `alert` logs, `prompt` returns its default, and pickers return `""`. Scripts written with the OPTIONS pattern work in both worlds automatically.
+- **Headless runs** (`--headless`) use no display and never hand the job to a running Patchy, so they are safe on servers, in CI, and while a Patchy window is open; the exit code and output file always belong to the run itself. On Windows and macOS they see only Patchy's bundled fonts (Windows additionally loads installed families on demand from the font registry), while Linux sees the fontconfig fonts. Sound is muted. `--headless` needs one of `--run-script`, `--export`, `--stress-test`, or `--screenshot` and exits with code 2 otherwise.
 - Plain `console.log` lines reach the output file unprefixed, so a script can emit clean machine-readable data (JSON included). Warnings get `[warn] `, errors `[error] `.
 
-Two real examples:
+Three real examples:
 
 ```text
 patchy --run-script "Effects/duotone.js" photo.png
 patchy --run-script "Utilities/batch-export.js" --script-output result.txt --script-arg folder=C:\photos --script-arg out=C:\photos\web --script-arg format=jpg
+patchy --headless --run-script refresh-text.js --script-output result.txt input.psd
 ```
 
 The easiest way to get a working command: select the script in the Script Manager and click the **C:\\** toolbar button. It shows a copyable command line with the full program path filled in (script authors control the example's arguments with the `@cli` directive).

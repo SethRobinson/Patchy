@@ -1,3 +1,4 @@
+#include "support/cli_flags.hpp"
 #include "ui/action_icons.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/ui_font.hpp"
@@ -306,6 +307,21 @@ int main(int argc, char* argv[]) {
   if (const auto settings_dir = qEnvironmentVariable("PATCHY_SETTINGS_DIR"); !settings_dir.isEmpty()) {
     QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, settings_dir);
   }
+#ifdef Q_OS_WASM
+  const bool headless_mode = false;  // one tab is one instance; no platform choice
+#else
+  // Decided before the QApplication exists: Qt picks the platform plugin from
+  // QT_QPA_PLATFORM at construction, and the explicit flag beats an ambient value.
+  // PATCHY_HEADLESS marks the run for src/ui (the Windows registry font rescue
+  // stays off for the offscreen test suite but runs for a headless user), and
+  // PATCHY_NO_SOUND because nobody is listening.
+  const bool headless_mode = patchy::headless_flag_present(argc, argv);
+  if (headless_mode) {
+    qputenv("QT_QPA_PLATFORM", "offscreen");
+    qputenv("PATCHY_HEADLESS", "1");
+    qputenv("PATCHY_NO_SOUND", "1");
+  }
+#endif
   apply_gui_scale_factor();
   PatchyApplication app(argc, argv);
 #ifdef Q_OS_LINUX
@@ -351,6 +367,16 @@ int main(int argc, char* argv[]) {
   parser.addPositionalArgument(QStringLiteral("files"),
                                QCoreApplication::translate("QObject", "Image or Photoshop files to open."),
                                QStringLiteral("[files...]"));
+  // Listed first in --help. The platform switch itself already happened above
+  // (headless_flag_present); this entry documents the flag and keeps the parser
+  // from rejecting it as unknown.
+  QCommandLineOption headless_option(
+      QStringLiteral("headless"),
+      QCoreApplication::translate(
+          "QObject", "Run without a display (Qt offscreen platform) and never reuse a running "
+                     "instance. Needs --run-script, --export, --stress-test, or --screenshot; "
+                     "exits 2 otherwise."));
+  parser.addOption(headless_option);
   QCommandLineOption stress_option(
       QStringLiteral("stress-test"),
       QCoreApplication::translate(
@@ -476,18 +502,27 @@ int main(int argc, char* argv[]) {
   }
   const QStringList script_args = parser.values(script_arg_option);
 
+  // A headless session with nothing to do would sit in the event loop forever with
+  // no window anyone can close; refuse it the way a bad preset is refused.
+  if (headless_mode && !stress_mode && !export_mode && !run_script_mode && !screenshot_mode) {
+    fprintf(stderr, "--headless needs --run-script, --export, --stress-test, or --screenshot\n");
+    return 2;
+  }
+
   // Single-instance: if another Patchy is already running, hand it the files and exit so a double-click
   // reuses the existing window instead of spawning a new process. An env override keeps multi-instance
   // launches (and tests) possible. A stress-test or export launch opts out entirely: forwarding would
   // silently drop the run into the other instance, and this instance must not squat on the user's pipe
-  // either.
+  // either. A headless launch opts out for the same reasons: its exit code and output file
+  // must always be its own, and it must never hand the job to the user's open window.
 #ifdef Q_OS_WASM
   // One browser tab is one instance; there is no pipe/socket transport between
   // tabs, and QLocalSocket's blocking waits must never run under Asyncify.
   const bool single_instance_enabled = false;
 #else
-  const bool single_instance_enabled =
-      !qEnvironmentVariableIsSet("PATCHY_NO_SINGLE_INSTANCE") && !stress_mode && !export_mode;
+  const bool single_instance_enabled = !headless_mode &&
+                                       !qEnvironmentVariableIsSet("PATCHY_NO_SINGLE_INSTANCE") &&
+                                       !stress_mode && !export_mode;
 #endif
   QStringList forward_payload = files;
   if (screenshot_mode) {
@@ -502,6 +537,12 @@ int main(int argc, char* argv[]) {
   }
 
   patchy::ui::MainWindow window;
+
+  if (headless_mode) {
+    // Nobody can answer a prompt with no display; export and run-script set this
+    // anyway, screenshot and stress-test did not.
+    window.set_cli_automation_mode(true);
+  }
 
   // Become the primary instance: listen for future launches and adopt the files they forward.
   QLocalServer single_instance_server;

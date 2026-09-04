@@ -54,6 +54,7 @@
 #include "render/compositor.hpp"
 #include "render/layer_compositor.hpp"
 #include "render/tile_cache.hpp"
+#include "support/cli_flags.hpp"
 #include "support/string_utils.hpp"
 #include "test_harness.hpp"
 #include "local_psd_fixtures.hpp"
@@ -71,6 +72,7 @@
 #include <cstdint>
 #include <fstream>
 #include <functional>
+#include <initializer_list>
 #include <iomanip>
 #include <iostream>
 #include <iterator>
@@ -987,6 +989,24 @@ void heal_membrane_interpolates_boundary_offsets() {
   CHECK(solved_again == solved_ramp);
 }
 
+// main() decides the Qt platform before the QApplication exists, from a raw argv
+// scan; this pins the scan's contract (exact token, "--" ends it) so the
+// QCommandLineParser definition of --headless and the early scan cannot drift.
+void cli_headless_flag_matches_exact_token() {
+  const auto present = [](std::initializer_list<const char*> args) {
+    std::vector<const char*> argv(args);
+    return patchy::headless_flag_present(static_cast<int>(argv.size()), argv.data());
+  };
+  CHECK(!present({"patchy", "a.psd"}));
+  CHECK(present({"patchy", "--headless"}));
+  CHECK(present({"patchy", "--run-script", "x.js", "--headless"}));
+  // Exact token only: no value form, no single dash, no case folding.
+  CHECK(!present({"patchy", "--headless=1", "-headless", "headless", "--HEADLESS"}));
+  // "--" ends option parsing, so a later --headless is a positional argument.
+  CHECK(!present({"patchy", "--", "--headless"}));
+  CHECK(!patchy::headless_flag_present(0, nullptr));
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> infra_selection_tests() {
@@ -1015,5 +1035,6 @@ std::vector<patchy::test::TestCase> infra_selection_tests() {
       {"spot_heal_source_map_is_coherent_and_outside", spot_heal_source_map_is_coherent_and_outside},
       {"spot_heal_source_map_stays_in_canvas_at_edges", spot_heal_source_map_stays_in_canvas_at_edges},
       {"heal_membrane_interpolates_boundary_offsets", heal_membrane_interpolates_boundary_offsets},
+      {"cli_headless_flag_matches_exact_token", cli_headless_flag_matches_exact_token},
   };
 }

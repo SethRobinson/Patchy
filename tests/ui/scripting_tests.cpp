@@ -1649,6 +1649,7 @@ void ui_script_scripting_guide_opens_from_help() {
   CHECK(saw_guide);
   CHECK(guide_text.contains(QStringLiteral("Patchy Scripting Guide")));
   CHECK(guide_text.contains(QStringLiteral("--run-script")));
+  CHECK(guide_text.contains(QStringLiteral("--headless")));
   CHECK(guide_text.contains(QStringLiteral("@cli")));
 
   // Reopening (here via the Help menu action) reuses the single hidden

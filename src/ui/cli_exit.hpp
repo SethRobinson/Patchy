@@ -3,8 +3,9 @@
 namespace patchy::ui {
 
 // Ends a CLI automation flow (--run-script, --export, --stress-test,
-// --screenshot) with an exit code. Desktop platforms quit the event loop so
-// app.exec() in main returns and the process exits normally. On wasm,
+// --screenshot, each with or without --headless) with an exit code. Desktop
+// platforms quit the event loop so app.exec() in main returns and the process
+// exits normally. On wasm,
 // QCoreApplication::exit cannot end the program: the build keeps Emscripten's
 // default EXIT_RUNTIME=0, so when the Asyncify-resumed exec stack unwinds and
 // main returns, the runtime silently stays alive with Qt already destroyed.

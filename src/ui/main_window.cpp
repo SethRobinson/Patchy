@@ -972,9 +972,12 @@ QString substituted_text_family(const QString& family, const QString& demanded) 
 bool try_register_missing_system_font_family(const QString& family) {
 #ifdef Q_OS_WIN
   // The offscreen platform (the visual test suite) deliberately sees NO
-  // system fonts - tests register exactly what they need. Pulling registry
-  // fonts there would make test layouts machine-dependent.
-  if (QGuiApplication::platformName() == QLatin1String("offscreen")) {
+  // system fonts - tests register exactly what they need, and pulling registry
+  // fonts there would make test layouts machine-dependent. A --headless app run
+  // is offscreen too, but its user wants their installed fonts: main.cpp marks
+  // it with PATCHY_HEADLESS=1, which the suites never set (docs/testing.md).
+  if (QGuiApplication::platformName() == QLatin1String("offscreen") &&
+      !qEnvironmentVariableIsSet("PATCHY_HEADLESS")) {
     return false;
   }
   static QSet<QString> attempted;
