@@ -102,7 +102,7 @@ copy /Y "%APP_EXE%" "%STAGE_DIR%\" >nul || goto fail
   --no-system-d3d-compiler ^
   --no-system-dxc-compiler ^
   --no-opengl-sw ^
-  --exclude-plugins "qtuiotouchplugin,qminimal,qoffscreen,qdirect2d,qgif,qico,qicns,qtga,qwbmp" ^
+  --exclude-plugins "qtuiotouchplugin,qminimal,qdirect2d,qgif,qico,qicns,qtga,qwbmp" ^
   "%STAGE_DIR%\patchy.exe"
 if errorlevel 1 goto fail
 
@@ -123,6 +123,9 @@ if errorlevel 1 goto fail
 call :CopyRequiredTlsPlugins
 if errorlevel 1 goto fail
 
+call :CopyRequiredPlatformPlugins
+if errorlevel 1 goto fail
+
 call :CopyMsvcRuntimeDlls
 if errorlevel 1 goto fail
 
@@ -138,6 +141,9 @@ copy /Y "%REPO%\LICENSE" "%STAGE_DIR%\LICENSE" >nul || goto fail
 copy /Y "%APP_ICON%" "%STAGE_DIR%\Patchy.ico" >nul || goto fail
 
 call :CopyQtLicenseSbom
+if errorlevel 1 goto fail
+
+call :HeadlessSmokeCheck
 if errorlevel 1 goto fail
 
 echo Writing install manifest...
@@ -236,6 +242,44 @@ for %%P in (qschannelbackend) do (
   copy /Y "%QT_PREFIX%\plugins\tls\%%P.dll" "%PATCHY_STAGE_TLS%\" >nul || exit /b 1
 )
 exit /b 0
+
+:CopyRequiredPlatformPlugins
+rem windeployqt deploys qwindows only; qoffscreen (what --headless loads) is copied
+rem here on purpose so the shipped package can run with no display.
+set "PATCHY_STAGE_PLATFORMS=%STAGE_DIR%\platforms"
+if not exist "%PATCHY_STAGE_PLATFORMS%" mkdir "%PATCHY_STAGE_PLATFORMS%" || exit /b 1
+for %%P in (qwindows qoffscreen) do (
+  if not exist "%QT_PREFIX%\plugins\platforms\%%P.dll" (
+    echo Required Qt platform plugin was not found: "%QT_PREFIX%\plugins\platforms\%%P.dll".
+    exit /b 1
+  )
+  copy /Y "%QT_PREFIX%\plugins\platforms\%%P.dll" "%PATCHY_STAGE_PLATFORMS%\" >nul || exit /b 1
+)
+exit /b 0
+
+:HeadlessSmokeCheck
+rem Proves the STAGED tree runs with no display: Qt DLLs, platforms\qoffscreen.dll, the
+rem MSVC runtime, fonts, and translations all come from %STAGE_DIR%. --headless never
+rem forwards to a running Patchy; PATCHY_SETTINGS_DIR keeps the run out of the real
+rem settings; the temp files live outside staging so the install manifest never sees
+rem them. The bounded wait turns a hang into a failure: Qt's "no platform plugin"
+rem MessageBox has no console to print to.
+setlocal
+set "SMOKE_DIR=%PACKAGE_ROOT%\headless-smoke"
+if exist "%SMOKE_DIR%" rmdir /s /q "%SMOKE_DIR%"
+mkdir "%SMOKE_DIR%\settings" || exit /b 1
+> "%SMOKE_DIR%\smoke.js" echo console.log("headless smoke")
+set "PATCHY_SETTINGS_DIR=%SMOKE_DIR%\settings"
+set "PATCHY_NO_SOUND=1"
+set "QT_COMMAND_LINE_PARSER_NO_GUI_MESSAGE_BOXES=1"
+set "PATCHY_SMOKE_EXE=%STAGE_DIR%\patchy.exe"
+set "PATCHY_SMOKE_SCRIPT=%SMOKE_DIR%\smoke.js"
+set "PATCHY_SMOKE_OUTPUT=%SMOKE_DIR%\smoke-output.txt"
+echo Running the headless smoke check on the staged package...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$q = [char]34; $a = '--headless --run-script ' + $q + $env:PATCHY_SMOKE_SCRIPT + $q + ' --script-output ' + $q + $env:PATCHY_SMOKE_OUTPUT + $q; $p = Start-Process -FilePath $env:PATCHY_SMOKE_EXE -ArgumentList $a -PassThru; if (-not $p.WaitForExit(180000)) { $p.Kill(); Write-Error 'Headless smoke check timed out after 180 s.'; exit 1 }; if ($p.ExitCode -ne 0) { Write-Error ('Headless smoke check exited with code ' + $p.ExitCode); exit 1 }; if (-not (Test-Path -LiteralPath $env:PATCHY_SMOKE_OUTPUT)) { Write-Error 'Headless smoke check wrote no output file.'; exit 1 }; $last = @(Get-Content -LiteralPath $env:PATCHY_SMOKE_OUTPUT | Where-Object { $_ -ne '' })[-1]; if ($last -ne '[done]') { Write-Error ('Headless smoke check did not end with [done]: ' + $last); exit 1 }"
+set "SMOKE_RESULT=%ERRORLEVEL%"
+if "%SMOKE_RESULT%"=="0" echo Headless smoke check passed.
+endlocal & exit /b %SMOKE_RESULT%
 
 :CopyMsvcRuntimeDlls
 if not defined VCINSTALLDIR (

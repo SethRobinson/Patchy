@@ -42,6 +42,9 @@ rm -rf "$STAGE/Patchy.app/Contents/MacOS/test-fixtures"
 echo "== macdeployqt (bundling Qt frameworks and plugins) =="
 "$QT_BIN/macdeployqt" "$STAGE/Patchy.app"
 
+# macdeployqt bundles libqcocoa only; the offscreen platform is what --headless loads,
+# so it is copied by hand. It lands before codesign so the hardened-runtime signature
+# covers it, and the smoke check below proves it loads from the bundle.
 QT_OFFSCREEN_PLUGIN="$QT_BIN/../plugins/platforms/libqoffscreen.dylib"
 if [ ! -f "$QT_OFFSCREEN_PLUGIN" ]; then
   echo "ERROR: $QT_OFFSCREEN_PLUGIN not found; install the matching Qt platform plugins." >&2
@@ -96,6 +99,47 @@ elif [ "${PATCHY_REQUIRE_SIGNING:-0}" = "1" ]; then
 else
   echo "PATCHY_MAC_SIGN_IDENTITY is not set; skipping code signing (unsigned dmg)."
 fi
+
+# Proves the staged bundle runs with no display before any artifact exists: the
+# frameworks, the hand-copied offscreen plugin, fonts, and translations all come from
+# $STAGE. On a release run this is the signed hardened-runtime bundle loading the
+# freshly signed plugin. --headless never forwards to a running Patchy, and
+# PATCHY_SETTINGS_DIR keeps the run out of the real settings. macOS ships no
+# timeout(1), hence the watchdog (same shape as the keychain unlock above).
+echo "== headless smoke check (the staged app must run with no display) =="
+SMOKE=$(mktemp -d)
+trap 'rm -rf "$STAGE" "$SMOKE"' EXIT
+mkdir -p "$SMOKE/settings"
+echo 'console.log("headless smoke")' > "$SMOKE/smoke.js"
+PATCHY_SETTINGS_DIR="$SMOKE/settings" PATCHY_NO_SOUND=1 \
+  "$STAGE/Patchy.app/Contents/MacOS/Patchy" --headless \
+  --run-script "$SMOKE/smoke.js" --script-output "$SMOKE/smoke-output.txt" \
+  > "$SMOKE/smoke-console.txt" 2>&1 &
+smoke_pid=$!
+# The watchdog's own stderr goes to /dev/null so the job notice for its killed sleep
+# never reaches the release log; && keeps it from firing after the sleep is killed.
+( sleep 180 && kill -9 "$smoke_pid" 2>/dev/null ) 2>/dev/null &
+smoke_watchdog=$!
+smoke_status=0
+wait "$smoke_pid" || smoke_status=$?
+# Kill the watchdog's sleep before the watchdog itself: an orphaned sleep keeps the
+# inherited stdout open, which holds an ssh-driven release session for the full 180 s
+# after the script has finished. Then reap the watchdog so bash prints no "Terminated"
+# job notice into the release log.
+pkill -P "$smoke_watchdog" 2>/dev/null || true
+kill "$smoke_watchdog" 2>/dev/null || true
+wait "$smoke_watchdog" 2>/dev/null || true
+if [ "$smoke_status" != "0" ]; then
+  echo "ERROR: headless smoke check failed (exit $smoke_status). Console output:" >&2
+  cat "$SMOKE/smoke-console.txt" >&2
+  exit 1
+fi
+if [ "$(tail -n 1 "$SMOKE/smoke-output.txt" 2>/dev/null)" != "[done]" ]; then
+  echo "ERROR: headless smoke check output did not end with [done]:" >&2
+  cat "$SMOKE/smoke-output.txt" >&2 2>/dev/null || true
+  exit 1
+fi
+echo "Headless smoke check passed."
 
 echo "== dmg =="
 DMG_STAGE=$(mktemp -d)
