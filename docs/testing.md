@@ -26,7 +26,7 @@ Tests save PNG artifacts through `save_widget_artifact(...)` into `test-artifact
 
 ## Offscreen fonts and input
 
-The offscreen platform does not enumerate installed Windows fonts. Register required faces through `tests/test_fonts.hpp` or `QFontDatabase::addApplicationFont`. Never remove an application font during the suite because invalidating an in-use font cache can crash it.
+The offscreen platform does not enumerate installed Windows fonts. Register required faces through `tests/test_fonts.hpp` or `QFontDatabase::addApplicationFont`. Never remove an application font during the suite because invalidating an in-use font cache can crash it. The Windows registry font rescue (`try_register_missing_system_font_family`) is switched off under offscreen unless `PATCHY_HEADLESS` is set, which only a `--headless` app run does.
 
 Because fonts are never removed, every registration is permanent suite state: newly present families change which face Qt's missing-family fallback picks, which moves text metrics in every later test (the PSD text re-edit tests in `text_transform_commit_tests` pin committed rasters against that fallback and fail if a mass registration runs first). Register only the faces a test actually needs. A test that must register a large inventory runs it in a child process instead: `ui_bundled_web_fonts_register_and_create_engines` spawns `patchy_ui_visual_tests.exe --bundled-web-fonts-probe` (handled in `tests/ui/main.cpp` before the QSettings bootstrap, so the child never touches the parent's settings store).
 
@@ -85,6 +85,8 @@ Never use Computer Use, desktop automation, or input injection for native QA wit
 
 `patchy.exe --stress-test[=quick|small|standard|huge] [--stress-report-dir <dir>]` builds the deterministic performance scene and exits. Reports default to `%APPDATA%\Patchy\stress-reports\`; read `stress-latest.json`. Use quick at 1024 px for iteration and standard at 4096 px for full-scale measurements. Meaningful timings require a real screen. See [performance.md](performance.md).
 
+`patchy.exe --headless ...` runs any of those modes with no display (Qt's offscreen platform). It never forwards to a running instance, so the exit code and the `--script-output` file belong to the run itself; prompts are suppressed and sound is muted. Prefer it for unattended `--run-script` runs from tooling and agents. Leave it off when a capture must show the real platform and its installed fonts (the offscreen platform sees only bundled fonts, plus, on Windows, families loaded on demand from the font registry).
+
 Useful diagnostic variables:
 
 - `PATCHY_NO_SINGLE_INSTANCE=1` allows multiple instances.
@@ -96,6 +98,8 @@ Useful diagnostic variables:
 - `PATCHY_PROCESSING_OVERLAY_MIN_PIXELS` overrides the processing-overlay threshold.
 - `PATCHY_NO_SOUND=1` suppresses script audio; offscreen suites rely on it.
 - `PATCHY_SETTINGS_DIR=<dir>` redirects the app's ini settings store (automation isolation).
+- `PATCHY_HEADLESS=1` marks a `--headless` app run (main.cpp sets it). Never set it for the suites: it re-enables the registry font rescue and makes layouts machine-dependent.
+- `QT_COMMAND_LINE_PARSER_NO_GUI_MESSAGE_BOXES=1` makes `patchy.exe --help` and command-line parse errors print to the redirected stdout/stderr instead of a modal Win32 message box (patchy.exe is a GUI-subsystem binary), which is what an automated `--help` check needs.
 - `PATCHY_UI_TEST_FILTER` selects a UI test substring.
 - `PATCHY_UI_PROFILE=1` prints stderr timing lines for instrumented UI stages (layer-panel rebuild phases, layer-style dialog open/close, undo snapshots).
 - `PATCHY_PERF_SAMPLER=1` (patchy_perf_tests only) samples the main thread's stacks every 10 ms and prints the hottest ones at exit.

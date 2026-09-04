@@ -32,7 +32,7 @@ The package is intentionally limited to the files needed by end users:
 - `patchy.exe`
 - `Patchy.ico` and `PatchyInstallManifest.txt`
 - Qt DLLs for Core, GUI, Widgets, PrintSupport, Network, SVG, and the Qt ImageFormats plugins
-- the Windows platform plugin, current Windows style plugin, SVG icon engine, TLS backend, and JPEG, SVG, TIFF, and WebP image plugins
+- the Windows and offscreen platform plugins (offscreen is what `--headless` loads; the script smoke-tests the staged tree headless before zipping), current Windows style plugin, SVG icon engine, TLS backend, and JPEG, SVG, TIFF, and WebP image plugins
 - app-local Microsoft Visual C++ runtime DLLs copied from the local Visual Studio redist CRT directory
 - Japanese app and Qt base translations under `translations`
 - bundled compatibility fonts under `fonts`
@@ -48,6 +48,6 @@ When Seth's local signing setup is available, the script signs `build\release\pa
 - The script calls `%RT_PROJECTS%\Signing\sign.bat "%EXE%" "Patchy" "rtsoft.com"`.
 - Signature verification uses `C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\signtool.exe`.
 
-If `RT_PROJECTS` or the signing script is missing, signing is skipped and the unsigned package artifacts are still created.
+If `RT_PROJECTS` or the signing script is missing, the build fails. Set `PATCHY_ALLOW_UNSIGNED=1` for a deliberately unsigned local build (see `docs/release-process.md`).
 
 Publishing automation and a CI signing pipeline are not implemented yet; the current local handoff artifacts are the zip package and installer executable, with `latest_version.json` providing update metadata for published builds.

@@ -135,7 +135,7 @@ Read the linked document before working on the feature. The document, not this i
 - **Scanner, photocopy, Divide Scanned Photos, sprite-sheet, image-sequence, and seamless-tiling import:** [docs/import.md](docs/import.md).
 - **Plug-ins and legacy 8BF support:** [docs/plugins.md](docs/plugins.md).
 - **JavaScript scripting and bundled scripts:** [docs/scripting.md](docs/scripting.md).
-- **Single-instance forwarding and CLI screenshots:** `src/app/main.cpp` and [docs/testing.md](docs/testing.md).
+- **Single-instance forwarding, CLI screenshots, and `--headless` runs:** `src/app/main.cpp`, [docs/testing.md](docs/testing.md), and the CLI section of [docs/scripting.md](docs/scripting.md).
 - **README screenshots and contact sheets:** [docs/testing.md](docs/testing.md).
 - **Performance and the stress harness:** [docs/performance.md](docs/performance.md); the Move/Free Transform drag-preview machinery is in [docs/interactive-previews.md](docs/interactive-previews.md).
 - **Testy PSD benchmark:** [docs/testy.md](docs/testy.md).

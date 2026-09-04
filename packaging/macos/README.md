@@ -2,8 +2,11 @@
 
 `make-dmg.sh` turns a built `build/mac-release/Patchy.app` into
 `build/package/Patchy-<version>.dmg` (drag-to-Applications layout): it runs
-`macdeployqt` to bundle the Qt frameworks/plugins, code-signs and notarizes when the
-environment is configured (see below), and images the result with `hdiutil`.
+`macdeployqt` to bundle the Qt frameworks/plugins, copies `libqoffscreen.dylib` in by
+hand (macdeployqt bundles only the cocoa platform, and `--headless` needs offscreen),
+code-signs and notarizes when the environment is configured (see below), runs a
+`--headless --run-script` smoke check on the staged bundle, and images the result with
+`hdiutil`.
 `scripts/remote/release-mac.ps1` drives the whole flow from the Windows machine.
 
 Bundle metadata lives in `Info.plist.in` (configured through CMake's

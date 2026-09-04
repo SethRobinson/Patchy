@@ -37,3 +37,8 @@ but compositors may only flash the taskbar entry instead of stealing focus (no
 xdg-activation token), and clipboard content set by Patchy vanishes when the app
 exits (no clipboard manager in the sandbox). `--socket=fallback-x11` lets users force
 `QT_QPA_PLATFORM=xcb` if a Wayland quirk bites.
+
+Headless runs need no `--env`: `flatpak run com.rtsoft.patchy --headless --run-script
+/path/to/script.js --script-output /path/to/out.txt` selects Qt's offscreen platform
+inside the sandbox (the org.kde.Platform runtime ships the plugin), and
+`--filesystem=home` covers the script, the output file, and the documents it opens.
