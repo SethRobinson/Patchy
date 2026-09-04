@@ -350,7 +350,7 @@ newlines. The bundled `Utilities/batch-export.js` is the reference consumer.
   rescue run for a headless user; the offscreen suites never set it), and
   `PATCHY_NO_SOUND=1`. It forces single-instance off (never forwards, never listens),
   sets `cli_automation_mode_` in every mode, and exits 2 without a mode flag. Release
-  packages ship the offscreen plugin and both desktop packagers smoke-test it
+  packages ship the offscreen plugin and every packager smoke-tests it
   (docs/release-process.md).
 
 An AI agent drives Patchy by writing a .js file, invoking `--run-script`, and polling the

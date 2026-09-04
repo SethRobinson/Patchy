@@ -42,3 +42,12 @@ Headless runs need no `--env`: `flatpak run com.rtsoft.patchy --headless --run-s
 /path/to/script.js --script-output /path/to/out.txt` selects Qt's offscreen platform
 inside the sandbox (the org.kde.Platform runtime ships the plugin), and
 `--filesystem=home` covers the script, the output file, and the documents it opens.
+`make-flatpak.sh` runs that command inside the built sandbox (`flatpak-builder --run`,
+nothing installed) before `flatpak build-bundle` and fails unless the script output ends
+in `[done]`, so a bundle that cannot run headless is never produced.
+
+The Patchy Flatpak installed on glados is a manual test install and the release flow
+never refreshes it (September 2026: it still reported 0.88 after the 0.91 release). To
+test the shipped bundle there, reinstall it first:
+`flatpak install --user -y --reinstall --bundle build/package/Patchy-<version>.flatpak`,
+then `flatpak run --user com.rtsoft.patchy --headless --run-script ...`.
