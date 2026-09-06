@@ -319,16 +319,32 @@ std::vector<Layer> build_group_hierarchy(std::vector<DecodedLayer> flat_layers) 
     std::vector<std::uint8_t> boundary_blending_ranges;
   };
 
+  // Photoshop nests groups at most ten deep. Every walk over the finished tree (cloning,
+  // the vector/smart-object finalizers, the Layer destructor) recurses once per level, so a
+  // file that opens boundary records without end would overflow the loader thread's stack
+  // long before it ran out of bytes. Groups past the cap are flattened into the deepest
+  // kept group; their folder records are dropped.
+  constexpr std::size_t kMaxGroupDepth = 64;
+  std::size_t dropped_boundaries = 0;
+
   std::vector<GroupFrame> stack;
   stack.emplace_back();
 
   for (auto& decoded : flat_layers) {
     if (is_section_divider_boundary(decoded.section_divider_type)) {
+      if (stack.size() > kMaxGroupDepth) {
+        ++dropped_boundaries;
+        continue;
+      }
       stack.push_back(GroupFrame{{}, std::as_const(decoded.layer).raw_psd_blending_ranges()});
       continue;
     }
 
     if (is_section_divider_folder(decoded.section_divider_type)) {
+      if (dropped_boundaries > 0) {
+        --dropped_boundaries;
+        continue;
+      }
       std::vector<Layer> children;
       std::vector<std::uint8_t> boundary_blending_ranges;
       if (stack.size() > 1U) {
@@ -977,6 +993,15 @@ bool DocumentIo::can_read(std::span<const std::uint8_t> bytes) noexcept {
 Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions options) {
   BigEndianReader reader(bytes);
   const auto header = read_header(reader);
+  {
+    // Validate the canvas before anything sizes a buffer from it: the flat composite and every
+    // layer plane allocate width x height up front, and a damaged header would request
+    // terabytes (a bad_alloc at best, an OOM kill on overcommitting systems).
+    const auto limit = static_cast<std::uint32_t>(header.large_document ? kMaxPsbDimension : kMaxPsdDimension);
+    if (header.width == 0 || header.height == 0 || header.width > limit || header.height > limit) {
+      throw std::runtime_error(header.large_document ? "Invalid PSB canvas size" : "Invalid PSD canvas size");
+    }
+  }
   const auto format = format_from_header(header);
   if (header.depth != 8 && options.notices != nullptr) {
     options.notices->push_back(header.depth == 32

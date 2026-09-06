@@ -100,12 +100,12 @@ struct Rgba {
                                                             std::span<const std::uint8_t> bytes, bool rle,
                                                             std::size_t pixel_count, std::size_t bytes_per_pixel) {
   std::vector<std::uint8_t> out;
-  out.reserve(pixel_count * bytes_per_pixel);
+  const auto total = pixel_count * bytes_per_pixel;
   if (!rle) {
-    const auto total = pixel_count * bytes_per_pixel;
     if (reader.remaining() < total) {
       throw std::runtime_error("TGA data ended unexpectedly");
     }
+    out.reserve(total);
     const auto offset = reader.position();
     out.assign(bytes.begin() + static_cast<std::ptrdiff_t>(offset),
                bytes.begin() + static_cast<std::ptrdiff_t>(offset + total));
@@ -184,6 +184,11 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, std::vector<std::
   }
   if (grayscale && header.pixel_depth != 8) {
     throw std::runtime_error("Grayscale TGA images must be 8-bit");
+  }
+  if (!indexed && !grayscale && header.pixel_depth != 24 && header.pixel_depth != 32) {
+    // The truecolor decode reads three or four bytes per pixel; an 8-bit depth would walk
+    // past every pixel (and past the buffer on the last one).
+    throw std::runtime_error("Truecolor TGA images must be 24-bit or 32-bit");
   }
 
   const auto width = static_cast<std::int32_t>(header.width);

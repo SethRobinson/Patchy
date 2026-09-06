@@ -14957,6 +14957,11 @@ Clipped to the layer below</source>
     <message><source>fill needs a pixel layer, not a group.</source><translation>fill にはグループではなくピクセルレイヤーが必要です。</translation></message>
     <message><source>fill supports 8-bit RGBA layers only.</source><translation>fill は 8 ビット RGBA レイヤーのみ対応です。</translation></message>
     <message><source>fillRect needs a positive size.</source><translation>fillRect には正のサイズが必要です。</translation></message>
+    <message><source>fillRect needs a size between 1 and %1.</source><translation>fillRect のサイズは 1 から %1 の範囲で指定してください。</translation></message>
+    <message><source>selectRect needs a size between 1 and %1.</source><translation>selectRect のサイズは 1 から %1 の範囲で指定してください。</translation></message>
+    <message><source>selectEllipse needs a size between 1 and %1.</source><translation>selectEllipse のサイズは 1 から %1 の範囲で指定してください。</translation></message>
+    <message><source>opacity needs a number between 0 and 100.</source><translation>opacity には 0 から 100 の数値が必要です。</translation></message>
+    <message><source>readTextFile: %1 is larger than 256 MB</source><translation>readTextFile: %1 は 256 MB を超えています</translation></message>
     <message><source>fillRect needs a pixel layer, not a group.</source><translation>fillRect にはグループではなくピクセルレイヤーが必要です。</translation></message>
     <message><source>fillRect supports 8-bit RGBA layers only.</source><translation>fillRect は 8 ビット RGBA レイヤーのみ対応です。</translation></message>
     <message><source>getPixels supports 8-bit RGB and RGBA layers only.</source><translation>getPixels は 8 ビット RGB / RGBA レイヤーのみ対応です。</translation></message>

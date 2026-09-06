@@ -521,6 +521,22 @@ void ui_script_text_size_is_zoom_independent() {
   CHECK(backlog_contains(window, QStringLiteral("match=true")));
 }
 
+void ui_script_text_layer_with_uncovered_script_does_not_crash() {
+  // No registered face covers Thai in the offscreen suite (the registry rescue is off), so
+  // Qt answers the per-writing-system probe with its glyph-box engine. The missing-font
+  // check used to index that engine's empty family list and take the process down.
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var doc = app.activeDocument;
+    var layer = doc.addTextLayer('สวัสดี', {size: 24, x: 10, y: 40});
+    var first = layer.bounds.height;
+    layer.text = 'สวัสดี こんにちは';
+    console.log('survived=' + (first > 0 && layer.bounds.height > 0 && layer.isText));
+  )JS")));
+  CHECK(backlog_contains(window, QStringLiteral("survived=true")));
+}
+
 void ui_script_run_command_writes_output_file() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -2000,6 +2016,8 @@ std::vector<patchy::test::TestCase> scripting_tests() {
       {"ui_script_console_and_error_line_numbers", ui_script_console_and_error_line_numbers},
       {"ui_script_filters_and_text_layers", ui_script_filters_and_text_layers},
       {"ui_script_text_size_is_zoom_independent", ui_script_text_size_is_zoom_independent},
+      {"ui_script_text_layer_with_uncovered_script_does_not_crash",
+       ui_script_text_layer_with_uncovered_script_does_not_crash},
       {"ui_script_run_command_writes_output_file", ui_script_run_command_writes_output_file},
       {"ui_script_editor_dialog_runs_and_shows_console", ui_script_editor_dialog_runs_and_shows_console},
       {"ui_script_editor_status_shows_running_and_ready", ui_script_editor_status_shows_running_and_ready},

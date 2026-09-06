@@ -387,14 +387,7 @@ bool File::parse_xref_stream(const Object& stream_object) {
   return true;
 }
 
-void File::reconstruct_by_scanning(std::vector<std::string>* notices) {
-  // Every viewer does this when the xref is unusable: sweep the whole file for
-  // "N G obj" headers and believe the last definition of each object number.
-  scanned_ = true;
-  locations_.clear();
-  cache_.clear();
-  loaded_object_streams_.clear();
-
+std::size_t File::rescan_object_locations() {
   std::size_t found = 0;
   for (std::size_t position = 0; position + 3 < bytes_.size(); ++position) {
     if (bytes_[position] != 'o' || bytes_[position + 1] != 'b' || bytes_[position + 2] != 'j') {
@@ -435,6 +428,17 @@ void File::reconstruct_by_scanning(std::vector<std::string>* notices) {
     locations_[number] = Location{cursor, 0, 0, false};
     ++found;
   }
+  return found;
+}
+
+void File::reconstruct_by_scanning(std::vector<std::string>* notices) {
+  // Every viewer does this when the xref is unusable: sweep the whole file for
+  // "N G obj" headers and believe the last definition of each object number.
+  scanned_ = true;
+  locations_.clear();
+  cache_.clear();
+  loaded_object_streams_.clear();
+  const std::size_t found = rescan_object_locations();
 
   // The trailer may itself be gone; recover /Root by finding a catalog object.
   if (!get(trailer_, "Root").is_dictionary()) {
@@ -490,7 +494,8 @@ void File::load_object_stream(std::uint32_t stream_number) const {
   // The header is N pairs of "objectNumber offset", offsets relative to /First.
   Lexer header(data.data, 0);
   std::vector<std::pair<std::uint32_t, std::size_t>> entries;
-  entries.reserve(static_cast<std::size_t>(count));
+  // Each header pair needs at least "N O " (four bytes); reserve only what the data can hold.
+  entries.reserve(std::min(static_cast<std::size_t>(count), data.data.size() / 4 + 1));
   for (std::int64_t index = 0; index < count; ++index) {
     const auto number = header.next_object();
     const auto offset = header.next_object();
@@ -587,8 +592,17 @@ const Object& File::object(Reference reference) const {
     // The offset points at the wrong object: the xref is stale. One full rescan is
     // allowed, then the lookup is retried against the rebuilt table.
     if (!scanned_) {
+      // Callers hold const Object& into cache_ across further lookups (the page-tree walk,
+      // resource and font lookups during content interpretation), so a rebuild triggered
+      // mid-lookup must keep every parsed object alive: only the location table is
+      // rebuilt, and only this lookup's placeholder is dropped so the retry parses from
+      // the recovered offset.
       auto* mutable_self = const_cast<File*>(this);
-      mutable_self->reconstruct_by_scanning(nullptr);
+      mutable_self->scanned_ = true;
+      mutable_self->locations_.clear();
+      mutable_self->loaded_object_streams_.clear();
+      mutable_self->rescan_object_locations();
+      mutable_self->cache_.erase(reference.number);
       return object(reference);
     }
     return slot->second;

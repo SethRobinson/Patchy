@@ -1042,6 +1042,10 @@ struct Importer {
   std::size_t drawables{0};
   std::map<std::string, int, std::less<>> name_counters{};
   std::set<std::string> use_stack{};
+  // Total <use> instantiations so far: the depth cap and the ancestor-cycle check leave
+  // sibling references free to double at every level (a billion-laughs tree of nothing
+  // but <g> and <use> never reaches the drawable cap), so the count is bounded too.
+  std::size_t use_expansions{0};
 
   void notice(std::string text) {
     if (notices != nullptr && std::find(notices->begin(), notices->end(), text) == notices->end()) {
@@ -2005,6 +2009,14 @@ struct Importer {
         }
         if (!use_stack.insert(*href).second) {
           notice("A cyclic SVG <use> reference was skipped");
+          continue;
+        }
+        constexpr std::size_t kMaximumUseExpansions = 20000;
+        if (++use_expansions > kMaximumUseExpansions) {
+          if (use_expansions == kMaximumUseExpansions + 1) {
+            notice("The SVG instantiates too many <use> references; the rest were skipped");
+          }
+          use_stack.erase(*href);
           continue;
         }
         const auto found = ids.find(href->substr(1));

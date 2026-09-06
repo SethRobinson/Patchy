@@ -306,6 +306,11 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, std::vector<std::
               byte = reader.read_u8();
             }
           } else {
+            // The chunk header only promised 6 bytes; a cel chunk shorter than its fixed
+            // fields would otherwise wrap this subtraction and hand inflate the whole file.
+            if (reader.position() > chunk_end) {
+              throw std::runtime_error("Aseprite cel chunk is truncated");
+            }
             const auto compressed_size = chunk_end - reader.position();
             cel.pixels = inflate_cel(bytes.subspan(reader.position(), compressed_size), pixel_bytes);
           }
@@ -462,9 +467,17 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, std::vector<std::
       built.set_opacity(static_cast<float>(source.opacity) / 255.0F);
     }
 
-    const auto level = static_cast<std::size_t>(source.child_level);
+    // A child level deeper than the open group stack (a damaged file, or a child whose group
+    // was a skipped tilemap) lands at the root. It must also be treated AS level 0 below:
+    // resizing `parents` up to the claimed level would pad it with null slots and keep
+    // pointers that the root push_back may already have invalidated, and the next layer
+    // would dereference them.
+    auto level = static_cast<std::size_t>(source.child_level);
+    if (level > parents.size()) {
+      level = 0;
+    }
     Layer* added = nullptr;
-    if (level == 0 || level > parents.size()) {
+    if (level == 0) {
       added = &document.add_layer(std::move(built));
     } else {
       auto* parent = parents[level - 1];

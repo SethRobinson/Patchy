@@ -1298,7 +1298,14 @@ void CanvasWidget::set_selection_from_mask(QRegion selection, QRect mask_bounds,
   if (document_ != nullptr) {
     const QRect canvas_rect(0, 0, document_->width(), document_->height());
     selection = selection.intersected(canvas_rect);
-    mask_bounds = mask_bounds.intersected(canvas_rect);
+    const auto clipped_bounds = mask_bounds.intersected(canvas_rect);
+    // Every reader addresses the alpha image from mask_bounds.topLeft(): clipping the bounds
+    // without cropping the pixels would shift each soft edge by whatever was cut off the
+    // top or left (a feathered selection nudged off the canvas came back misaligned).
+    if (clipped_bounds != mask_bounds && !mask_alpha.isNull() && !clipped_bounds.isEmpty()) {
+      mask_alpha = mask_alpha.copy(clipped_bounds.translated(-mask_bounds.topLeft()));
+    }
+    mask_bounds = clipped_bounds;
   }
   selection_ = std::move(selection);
   if (selection_.isEmpty() || mask_alpha.isNull() || !mask_has_partial_alpha(mask_alpha)) {

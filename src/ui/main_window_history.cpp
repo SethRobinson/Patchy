@@ -792,6 +792,8 @@ void MainWindow::open_history_state_as_new_document(std::int64_t state_id) {
   }
   auto title = state_label.isEmpty() ? tr("Untitled-%1").arg(sessions_.size() + 1) : state_label;
   add_document_session(std::move(copy), title, QString(), tr("New document"));
+  // No backing file: closing must warn about unsaved changes.
+  mark_session_modified(session());
   statusBar()->showMessage(tr("Created new document from \"%1\"").arg(title));
 }
 

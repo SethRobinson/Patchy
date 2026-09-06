@@ -34,6 +34,7 @@
 #include <QTextStream>
 
 #include <algorithm>
+#include <cmath>
 #include <array>
 #include <functional>
 #include <utility>
@@ -41,6 +42,11 @@
 namespace patchy::ui {
 
 namespace {
+
+// The document size limit newDocument/resizeImage/resizeCanvas enforce; rect-shaped API
+// arguments that size buffers or regions share it so oversized input is a JS error, never a
+// bad_alloc escaping the engine.
+constexpr int kMaxScriptDimension = 30000;
 
 // Script-facing blend mode ids. Append-only and aligned with the BlendMode
 // enum order (core/layer.hpp); scripts hard-code these strings.
@@ -182,16 +188,22 @@ const Layer* ScriptLayerObject::read_layer() const {
 
 Layer* ScriptLayerObject::write_layer() {
   auto* document = host_.session_document(session_id_);
-  auto* layer = document != nullptr ? document->find_layer(layer_id_) : nullptr;
-  if (layer == nullptr) {
+  if (document == nullptr || document->find_layer(layer_id_) == nullptr) {
     host_.throw_js_error(ScriptEngineHost::tr("The layer no longer exists."));
     return nullptr;
   }
   if (!host_.prepare_mutation(session_id_)) {
     return nullptr;
   }
-  // prepare_mutation snapshots the pre-edit document, which copies it; the
-  // layer pointer stays valid (snapshotting copies, it does not move).
+  // prepare_mutation snapshots the pre-edit document (a copy, so nothing moves), but its
+  // busy indicator may pump user input while a script canvas window is open, and a click
+  // in the Layers panel can delete or reorder layers meanwhile: resolve after it.
+  document = host_.session_document(session_id_);
+  auto* layer = document != nullptr ? document->find_layer(layer_id_) : nullptr;
+  if (layer == nullptr) {
+    host_.throw_js_error(ScriptEngineHost::tr("The layer no longer exists."));
+    return nullptr;
+  }
   return layer;
 }
 
@@ -213,6 +225,11 @@ double ScriptLayerObject::opacity() const {
 }
 
 void ScriptLayerObject::set_opacity(double opacity) {
+  if (!std::isfinite(opacity)) {
+    // std::clamp passes NaN straight through, and a NaN opacity renders undefined.
+    host_.throw_js_error(ScriptEngineHost::tr("opacity needs a number between 0 and 100."));
+    return;
+  }
   if (auto* layer = write_layer()) {
     const auto before = to_qrect(layer_render_bounds(std::as_const(*layer)));
     layer->set_opacity(static_cast<float>(std::clamp(opacity, 0.0, 100.0) / 100.0));
@@ -479,6 +496,12 @@ void ScriptLayerObject::fill(const QString& color) {
 void ScriptLayerObject::fillRect(int x, int y, int width, int height, const QString& color) {
   if (width < 1 || height < 1) {
     host_.throw_js_error(ScriptEngineHost::tr("fillRect needs a positive size."));
+    return;
+  }
+  if (width > kMaxScriptDimension || height > kMaxScriptDimension) {
+    // On an empty layer the rect sizes a fresh buffer; a bad_alloc would not be a JS error.
+    host_.throw_js_error(
+        ScriptEngineHost::tr("fillRect needs a size between 1 and %1.").arg(kMaxScriptDimension));
     return;
   }
   QColor parsed;
@@ -811,12 +834,23 @@ void ScriptSelectionObject::selectRect(int x, int y, int width, int height) {
     host_.throw_js_error(ScriptEngineHost::tr("selectRect needs a positive size."));
     return;
   }
+  if (width > kMaxScriptDimension || height > kMaxScriptDimension) {
+    host_.throw_js_error(
+        ScriptEngineHost::tr("selectRect needs a size between 1 and %1.").arg(kMaxScriptDimension));
+    return;
+  }
   host_.select_region(session_id_, QRegion(x, y, width, height));
 }
 
 void ScriptSelectionObject::selectEllipse(int x, int y, int width, int height) {
   if (width < 1 || height < 1) {
     host_.throw_js_error(ScriptEngineHost::tr("selectEllipse needs a positive size."));
+    return;
+  }
+  if (width > kMaxScriptDimension || height > kMaxScriptDimension) {
+    // QRegion scan-converts the whole ellipse; an unbounded size is a hang or a bad_alloc.
+    host_.throw_js_error(
+        ScriptEngineHost::tr("selectEllipse needs a size between 1 and %1.").arg(kMaxScriptDimension));
     return;
   }
   host_.select_region(session_id_, QRegion(x, y, width, height, QRegion::Ellipse));
@@ -895,7 +929,10 @@ void ScriptDocumentObject::set_active_layer(const QJSValue& layer) {
     return;
   }
   const auto* wrapper = qobject_cast<ScriptLayerObject*>(layer.toQObject());
-  if (wrapper == nullptr || document->find_layer(wrapper->layer_id()) == nullptr) {
+  // LayerIds restart per document, so a wrapper from another document must be refused by
+  // session, not just by id, or it would activate an unrelated layer here.
+  if (wrapper == nullptr || wrapper->session_id() != session_id_ ||
+      document->find_layer(wrapper->layer_id()) == nullptr) {
     host_.throw_js_error(ScriptEngineHost::tr("activeLayer needs a layer of this document."));
     return;
   }
@@ -1215,6 +1252,12 @@ QString ScriptIoObject::readTextFile(const QString& path) {
   if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
     host_.throw_js_error(
         ScriptEngineHost::tr("Could not read %1").arg(QDir::toNativeSeparators(path)));
+    return QString();
+  }
+  constexpr qint64 kMaxTextFileBytes = 256LL * 1024 * 1024;
+  if (file.size() > kMaxTextFileBytes) {
+    host_.throw_js_error(ScriptEngineHost::tr("readTextFile: %1 is larger than 256 MB")
+                             .arg(QDir::toNativeSeparators(path)));
     return QString();
   }
   return QString::fromUtf8(file.readAll());

@@ -49,3 +49,12 @@ September 2026 additions (additive, still 1): document and layer `id`,
 semantics are specified in [ai-control.md](ai-control.md) and the packaged
 `patchy.d.ts`; menu commands and interactive canvases are unavailable in connector
 sessions. Ordinary scripts retain their existing interactive behavior.
+
+2026-09-06 (behavioral, still 1): `layer.fillRect`, `selection.selectRect`, and
+`selection.selectEllipse` throw for a side over 30000 (the document limit) instead of
+sizing a buffer or region from the raw argument, which ended in a bad_alloc no JS catch
+can see; `layer.opacity` refuses NaN; `patchy.io.readTextFile` throws for files over
+256 MB; `doc.activeLayer` refuses a layer wrapper from another document (LayerIds
+restart per document, so it activated an unrelated layer before); and text layers whose
+characters no registered font covers no longer crash the missing-font check (Thai and
+Japanese under `--headless`, where only bundled and rescued faces exist).

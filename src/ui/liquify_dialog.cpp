@@ -280,6 +280,10 @@ std::optional<LiquifyMesh> request_liquify(QWidget* parent,
       kMaximumProxyEdge) {
     proxy_size.scale(QSize(kMaximumProxyEdge, kMaximumProxyEdge),
                      Qt::KeepAspectRatio);
+    // KeepAspectRatio rounds the short edge of a very thin layer (a 1 px rule wider than
+    // 720 px) down to 0; a null proxy would throw from the mesh constructor inside the
+    // menu slot and take the process down.
+    proxy_size = proxy_size.expandedTo(QSize(1, 1));
   }
   auto proxy_image = source_image.scaled(proxy_size, Qt::IgnoreAspectRatio,
                                          Qt::SmoothTransformation);

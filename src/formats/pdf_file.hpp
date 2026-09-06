@@ -94,6 +94,9 @@ private:
   bool parse_xref_table(Lexer& lexer);
   bool parse_xref_stream(const Object& stream_object);
   void reconstruct_by_scanning(std::vector<std::string>* notices);
+  // Sweeps the bytes for "N G obj" headers into locations_ (last definition wins) and
+  // returns how many were found. Touches nothing else.
+  std::size_t rescan_object_locations();
   void load_object_stream(std::uint32_t stream_number) const;
   [[nodiscard]] std::size_t resolve_stream_length(const RawStream& stream) const;
   void collect_pages(std::vector<std::string>* notices);

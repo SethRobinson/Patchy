@@ -122,7 +122,7 @@ PrintPlacement calculate_print_placement(const Document& document, const PrintSe
 }
 
 void render_print_page(QPainter& painter, const Document& document, const PrintSettings& settings,
-                       const QPageLayout& page_layout) {
+                       const QPageLayout& page_layout, bool draw_printable_guide) {
   const auto layout = valid_page_layout(page_layout);
   const auto page = layout.fullRect(QPageLayout::Point);
   const auto printable = layout.paintRect(QPageLayout::Point);
@@ -139,11 +139,15 @@ void render_print_page(QPainter& painter, const Document& document, const PrintS
     draw_crop_marks(painter, placement.target_rect_points);
   }
 
-  QPen printable_pen(QColor(205, 205, 205), 0.0, Qt::DashLine);
-  printable_pen.setCosmetic(true);
-  painter.setPen(printable_pen);
-  painter.setBrush(Qt::NoBrush);
-  painter.drawRect(printable);
+  // The dashed printable-area outline is a preview aid only; a print job or a saved PDF
+  // must never carry it.
+  if (draw_printable_guide) {
+    QPen printable_pen(QColor(205, 205, 205), 0.0, Qt::DashLine);
+    printable_pen.setCosmetic(true);
+    painter.setPen(printable_pen);
+    painter.setBrush(Qt::NoBrush);
+    painter.drawRect(printable);
+  }
   painter.restore();
 }
 

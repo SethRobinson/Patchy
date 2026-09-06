@@ -783,22 +783,23 @@ void MainWindow::cut_selection() {
     return;
   }
 
-  const std::set<LayerId> selected(ids.begin(), ids.end());
+  // Resolve the selection the way Copy does, so a layer inside a folder is cut in place
+  // instead of being missed by a walk over the root list.
   std::vector<LayerId> layers_to_cut;
-  for (const auto& layer : document().layers()) {
-    if (!selected.contains(layer.id()) || layer.kind() != LayerKind::Pixel || !layer.visible() ||
-        layer_id_locks_image_pixels(layer.id())) {
+  for (const auto* layer :
+       find_layers_top_to_bottom(document().layers(), root_drop_layer_ids(document().layers(), ids))) {
+    if (layer == nullptr || layer->kind() != LayerKind::Pixel || !layer->visible() ||
+        layer_id_locks_image_pixels(layer->id())) {
       continue;
     }
-    layers_to_cut.push_back(layer.id());
+    layers_to_cut.push_back(layer->id());
   }
   if (layers_to_cut.empty()) {
     if (std::any_of(ids.begin(), ids.end(), [this](LayerId id) { return layer_id_locks_image_pixels(id); })) {
       show_status_error(tr("Layer pixels are locked."));
       return;
     }
-    clipboard_.reset();
-    clear_system_clipboard();
+    // Nothing was cut, so whatever the user had on the clipboard stays there.
     statusBar()->showMessage(tr("Selected layers are hidden or not editable; nothing cut"));
     return;
   }
@@ -2015,6 +2016,8 @@ void MainWindow::edit_active_layer_style() {
       image_document.add_pixel_layer(name.toStdString(), std::move(tile));
       add_document_session(std::move(image_document), name, QString(),
                            tr("Open pattern as image"));
+      // No backing file: closing must warn about unsaved changes.
+      mark_session_modified(session());
       statusBar()->showMessage(tr("Opened pattern \"%1\" as a new image").arg(name));
     }
     pending_pattern_images.clear();

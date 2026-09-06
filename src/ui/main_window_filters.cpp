@@ -1610,7 +1610,7 @@ void MainWindow::editable_smart_filter_dialog(
   auto preview_state =
       std::make_shared<AsyncPixelPreviewState<FilterPreviewSettings>>();
   preview_state->start =
-      [this, preview_state, layer_id, stack, filter_index,
+      [this, preview_state, layer_id, stack, filter_index, adding,
        unfiltered_pixels, unfiltered_bounds, original_pixels,
        original_bounds, filter_canvas_bounds,
        last_preview_bounds](const FilterPreviewSettings& settings) {
@@ -1631,8 +1631,12 @@ void MainWindow::editable_smart_filter_dialog(
         // stack, and swapping in Patchy's render of identical settings would
         // visibly change the image just because the dialog opened with Preview
         // on.
+        // Only an EDIT has a stored raster that already shows these settings; when
+        // adding, `stack` holds the new entry at its defaults and the layer's pixels do
+        // not include it yet, so the identity shortcut would show no preview at all.
         if (!candidate.has_value() ||
-            (candidate->entries[filter_index].parameters ==
+            (!adding &&
+             candidate->entries[filter_index].parameters ==
                  stack.entries[filter_index].parameters &&
              candidate->entries[filter_index].blend_mode ==
                  stack.entries[filter_index].blend_mode &&

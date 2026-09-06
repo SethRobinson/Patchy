@@ -1042,6 +1042,144 @@ void aseprite_rejects_adobe_swatch_ase() {
   CHECK(!patchy::aseprite::sniff(swatch));
 }
 
+namespace {
+
+// Builds a minimal one-frame 32-bit Aseprite file from hand-rolled chunks.
+class AseBytes {
+ public:
+  void u8(std::uint8_t value) { bytes_.push_back(value); }
+  void u16(std::uint16_t value) {
+    u8(static_cast<std::uint8_t>(value & 0xFFU));
+    u8(static_cast<std::uint8_t>(value >> 8U));
+  }
+  void u32(std::uint32_t value) {
+    u16(static_cast<std::uint16_t>(value & 0xFFFFU));
+    u16(static_cast<std::uint16_t>(value >> 16U));
+  }
+  void zeros(std::size_t count) { bytes_.insert(bytes_.end(), count, 0); }
+  void patch_u32(std::size_t offset, std::uint32_t value) {
+    for (int i = 0; i < 4; ++i) {
+      bytes_[offset + static_cast<std::size_t>(i)] = static_cast<std::uint8_t>((value >> (8U * i)) & 0xFFU);
+    }
+  }
+  [[nodiscard]] std::size_t size() const { return bytes_.size(); }
+  [[nodiscard]] const std::vector<std::uint8_t>& bytes() const { return bytes_; }
+
+ private:
+  std::vector<std::uint8_t> bytes_;
+};
+
+// A layer chunk (0x2004) with the given child level; `declared_size` overrides the chunk
+// size field when non-zero.
+void append_ase_layer_chunk(AseBytes& out, std::uint16_t child_level, std::uint16_t layer_type,
+                            const std::string& name) {
+  const auto start = out.size();
+  out.u32(0);  // size, patched below
+  out.u16(0x2004);
+  out.u16(1);  // flags: visible
+  out.u16(layer_type);
+  out.u16(child_level);
+  out.u16(0);
+  out.u16(0);
+  out.u16(0);    // blend mode Normal
+  out.u8(255);   // opacity
+  out.zeros(3);
+  out.u16(static_cast<std::uint16_t>(name.size()));
+  for (const auto character : name) {
+    out.u8(static_cast<std::uint8_t>(character));
+  }
+  out.patch_u32(start, static_cast<std::uint32_t>(out.size() - start));
+}
+
+std::vector<std::uint8_t> finish_ase_file(AseBytes& out, std::size_t frame_start, std::uint32_t chunk_count) {
+  out.patch_u32(frame_start, static_cast<std::uint32_t>(out.size() - frame_start));
+  out.patch_u32(frame_start + 12, chunk_count);
+  out.patch_u32(0, static_cast<std::uint32_t>(out.size()));
+  return out.bytes();
+}
+
+std::size_t begin_ase_file(AseBytes& out) {
+  out.u32(0);       // file size, patched at the end
+  out.u16(0xA5E0);  // magic
+  out.u16(1);       // frames
+  out.u16(4);       // width
+  out.u16(4);       // height
+  out.u16(32);      // depth
+  out.u32(1);       // flags: layer opacity valid
+  out.zeros(128 - out.size());
+  const auto frame_start = out.size();
+  out.u32(0);       // frame bytes, patched
+  out.u16(0xF1FA);  // frame magic
+  out.u16(0);       // old chunk count
+  out.u16(100);     // duration
+  out.zeros(2);
+  out.u32(0);       // new chunk count, patched
+  return frame_start;
+}
+
+}  // namespace
+
+void aseprite_out_of_range_child_level_lands_at_root() {
+  // Two image layers claiming child level 1 with no group open. The reader used to grow
+  // its parent stack with null slots for the first and dereference one for the second.
+  AseBytes out;
+  const auto frame_start = begin_ase_file(out);
+  append_ase_layer_chunk(out, 1, 0, "orphan-a");
+  append_ase_layer_chunk(out, 1, 0, "orphan-b");
+  const auto bytes = finish_ase_file(out, frame_start, 2);
+  const auto document = patchy::aseprite::DocumentIo::read(bytes);
+  CHECK(document.layers().size() == 2);
+  CHECK(document.layers()[0].name() == "orphan-a");
+  CHECK(document.layers()[1].name() == "orphan-b");
+
+  // A group at the root followed by a layer that skips a level and one that claims level
+  // 1: the skipped level lands at the root and closes the group (the root push_back may
+  // have moved it), so the third layer is a root layer too instead of a write through a
+  // stale group pointer.
+  AseBytes nested;
+  const auto nested_start = begin_ase_file(nested);
+  append_ase_layer_chunk(nested, 0, 1, "group");
+  append_ase_layer_chunk(nested, 2, 0, "skips-a-level");
+  append_ase_layer_chunk(nested, 1, 0, "child");
+  const auto nested_bytes = finish_ase_file(nested, nested_start, 3);
+  const auto nested_document = patchy::aseprite::DocumentIo::read(nested_bytes);
+  CHECK(nested_document.layers().size() == 3);
+  CHECK(nested_document.layers()[0].name() == "group");
+  CHECK(nested_document.layers()[0].children().empty());
+  CHECK(nested_document.layers()[1].name() == "skips-a-level");
+  CHECK(nested_document.layers()[1].kind() == patchy::LayerKind::Pixel);
+  CHECK(nested_document.layers()[2].name() == "child");
+}
+
+void aseprite_rejects_cel_chunk_shorter_than_its_header() {
+  // A compressed cel whose chunk size (10) ends before its fixed fields: the reader used to
+  // compute a wrapped negative payload size and hand inflate the rest of the file.
+  AseBytes out;
+  const auto frame_start = begin_ase_file(out);
+  append_ase_layer_chunk(out, 0, 0, "layer");
+  const auto cel_start = out.size();
+  out.u32(10);      // declared chunk size, shorter than the 26-byte cel header
+  out.u16(0x2005);  // cel chunk
+  out.u16(0);       // layer index
+  out.u16(0);       // x
+  out.u16(0);       // y
+  out.u8(255);      // opacity
+  out.u16(2);       // compressed image cel
+  out.zeros(7);
+  out.u16(2);       // width
+  out.u16(2);       // height
+  out.zeros(16);    // "compressed" payload
+  (void)cel_start;
+  const auto bytes = finish_ase_file(out, frame_start, 2);
+  bool threw = false;
+  try {
+    (void)patchy::aseprite::DocumentIo::read(bytes);
+  } catch (const std::exception&) {
+    threw = true;
+  }
+  CHECK(threw);
+}
+
 void aseprite_write_read_round_trips_layers_and_palette() {
   patchy::Document document(20, 20, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Backdrop", solid_rgba_square(20, 30, 60, 90, 255));
@@ -1397,6 +1535,8 @@ std::vector<patchy::test::TestCase> flat_formats_misc_tests() {
       {"aseprite_indexed_transparent_index", aseprite_indexed_transparent_index},
       {"aseprite_rejects_adobe_swatch_ase", aseprite_rejects_adobe_swatch_ase},
       {"aseprite_write_read_round_trips_layers_and_palette", aseprite_write_read_round_trips_layers_and_palette},
+      {"aseprite_out_of_range_child_level_lands_at_root", aseprite_out_of_range_child_level_lands_at_root},
+      {"aseprite_rejects_cel_chunk_shorter_than_its_header", aseprite_rejects_cel_chunk_shorter_than_its_header},
       {"aseprite_blend_modes_match_aseprite_render", aseprite_blend_modes_match_aseprite_render},
       {"psd_round_trips_new_blend_modes", psd_round_trips_new_blend_modes},
       {"pcx_reads_8bit_indexed_and_24bit_rle", pcx_reads_8bit_indexed_and_24bit_rle},
