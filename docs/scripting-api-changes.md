@@ -71,4 +71,5 @@ Qt color/button encodings remain unchanged.
 document's view, 0 with no document, clamped to 5..12800, throws for NaN or
 non-positive values or with no document) and `patchy.ui.fitOnScreen()`. They work in
 connector sessions, where `app.runCommand('view.fit_on_screen')` is refused, and only
-affect window captures, never document previews. Pinned by `ui_script_ui_view_zoom`.
+affect window captures, never document previews. Pinned by `ui_script_ui_view_zoom` and
+the connector run in `tests/mcp_client_tests.py`.

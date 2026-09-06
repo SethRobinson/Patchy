@@ -95,6 +95,14 @@ async def sdk_workflow(exe):
                 "nearestNeighbor": True, "maxWidth": 256, "maxHeight": 256}})
             assert base64.b64decode(next(x.data for x in reopened.content if x.type == "image")) == changed_png
             await call("get_preview", {"target": "window"})
+            # The view API stages window captures where menu commands are refused.
+            zoomed = (await call("execute_script", {"code":
+                "patchy.ui.setWindowSize(1000, 700); patchy.ui.fitOnScreen(); var fit = patchy.ui.zoom;"
+                " patchy.ui.zoom = 400; patchy.setResult({fit: fit, zoom: patchy.ui.zoom});"})).structuredContent["result"]
+            assert zoomed["fit"] > 0 and zoomed["zoom"] == 400
+            window = await call("get_preview", {"target": "window"})
+            assert window.structuredContent["width"] == 1000 and window.structuredContent["height"] == 700
+            await call("execute_script", {"code": "patchy.ui.zoom = NaN;"}, error=True)
             # Exercise every shipped example without relying on a source checkout.
             for script, args in [("painting", {"out": str(OUT)}),
                                  ("edit-document", {"input": str(final), "output": str(OUT / "edited.psd")})]:
