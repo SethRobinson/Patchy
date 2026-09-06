@@ -13,10 +13,12 @@ and platform paths. Register the connector and install the skill separately.
 Putting a skill in a repository does not install it in a client.
 
 For a Windows source build, use the absolute path to `build/release/patchy-mcp.exe`
-as the command in `codex mcp add patchy -- <command>`. Copy the assembled
-`build/release/ai/patchy-control` folder into `~/.agents/skills/` or a project's
-`.agents/skills/`. Restart the client if it does not discover the skill. Use
-absolute output paths or configure the server's working directory.
+as the command in `codex mcp add patchy -- <command>` or
+`claude mcp add patchy -- <command>`. Copy the assembled
+`build/release/ai/patchy-control` folder into `~/.agents/skills/` (Codex) or
+`~/.claude/skills/` (Claude Code), or the project-level equivalent. Restart the
+client if it does not discover the skill. Use absolute output paths or configure
+the server's working directory.
 
 `agent-kit/patchy-control` owns the skill, setup, and three examples. The shared
 `patchy_agent_kit` CMake target assembles `build/<preset>/ai/patchy-control`, copying

@@ -12,10 +12,16 @@ workspace. Restarting the connection closes unsaved documents.
 | Linux prefix install | `<prefix>/bin/patchy-mcp` | `<prefix>/share/patchy/ai/patchy-control` |
 | Linux Flatpak | command `flatpak`, arguments `run`, `--command=patchy-mcp`, `com.rtsoft.patchy` | `/app/share/patchy/ai/patchy-control` inside the sandbox |
 
-For example, in PowerShell:
+For example, in PowerShell, for Codex:
 
 ```powershell
 codex mcp add patchy -- 'C:\Program Files\Patchy\patchy-mcp.exe'
+```
+
+For Claude Code:
+
+```powershell
+claude mcp add patchy -- 'C:\Program Files\Patchy\patchy-mcp.exe'
 ```
 
 Generic client configuration (adapt the outer settings format to your client):
@@ -36,8 +42,9 @@ supports it. Otherwise use absolute paths in scripts. Patchy does not infer the
 agent's working directory from its conversation.
 
 For Codex, copy the entire assembled `patchy-control` directory into
-`~/.agents/skills/` (or a project's `.agents/skills/`). Other clients use their
-own skill installation locations. Restart the client if it does not discover
+`~/.agents/skills/` (or a project's `.agents/skills/`). For Claude Code, copy it
+into `~/.claude/skills/` (or a project's `.claude/skills/`). Other clients use
+their own skill installation locations. Restart the client if it does not discover
 the skill. Installing a skill and connecting an MCP server are separate steps.
 
 From a source checkout, build the desktop preset first: the assembled skill is
