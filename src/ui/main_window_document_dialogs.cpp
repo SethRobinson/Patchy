@@ -1082,6 +1082,8 @@ void MainWindow::create_clipboard_document(const QImage& image, QString history_
   new_document.add_pixel_layer(tr("Clipboard Image").toStdString(), std::move(pixels));
   add_document_session(std::move(new_document), tr("Untitled-%1").arg(sessions_.size() + 1),
                        QString(), std::move(history_label));
+  // The pasted pixels have no backing file: closing must warn about unsaved changes.
+  mark_session_modified(session());
   fit_new_document_view(canvas_);
   refresh_layer_list();
   refresh_layer_controls();

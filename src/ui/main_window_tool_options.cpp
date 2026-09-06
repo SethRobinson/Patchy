@@ -1503,6 +1503,10 @@ void MainWindow::show_color_panel(bool foreground) {
       this, foreground ? canvas_->primary_color() : canvas_->secondary_color(),
       foreground ? tr("Foreground Color") : tr("Background Color"),
       [this, foreground](QColor color) {
+        // The panel is non-modal and outlives sessions: after Close All there is no canvas.
+        if (canvas_ == nullptr) {
+          return;
+        }
         color.setAlpha(255);
         if (foreground) {
           canvas_->set_primary_color(color);
@@ -1581,8 +1585,8 @@ void MainWindow::edit_gradient_stops() {
   const auto result = request_gradient_stops_dialog(this, canvas_->effective_gradient_stops(),
                                                     canvas_->gradient_stops().has_value(), canvas_->primary_color(),
                                                     canvas_->secondary_color(), &gradient_library());
-  if (!result.has_value()) {
-    return;
+  if (!result.has_value() || canvas_ == nullptr) {
+    return;  // cancelled, or the document was closed while the dialog was open
   }
   canvas_->set_gradient_stops(*result);
   refresh_gradient_controls_from_canvas();

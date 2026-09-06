@@ -91,7 +91,8 @@ interface PatchyLayer {
    * Overwrites one document-space rect of the layer's pixels (clipped to its
    * buffer); a transparent color like "#00000000" clears. On an empty layer
    * this allocates a buffer covering exactly the rect, so small sprite layers
-   * can be created with one call and then animated cheaply via x/y.
+   * can be created with one call and then animated cheaply via x/y. Throws
+   * for a side over 30000.
    */
   fillRect(x: number, y: number, width: number, height: number, color: string): void;
   /**
@@ -184,6 +185,7 @@ interface PatchySelection {
   readonly bounds: PatchyRect | undefined;
   selectAll(): void;
   deselect(): void;
+  /** Sides are limited to 30000; larger values throw. */
   selectRect(x: number, y: number, width: number, height: number): void;
   selectEllipse(x: number, y: number, width: number, height: number): void;
 }
@@ -393,7 +395,7 @@ interface PatchyUi {
 }
 
 interface PatchyIo {
-  /** Throws when the file cannot be read. */
+  /** Throws when the file cannot be read or is larger than 256 MB. */
   readTextFile(path: string): string;
   /** Throws when the file cannot be written. */
   writeTextFile(path: string, text: string): void;

@@ -58,6 +58,21 @@ namespace patchy::psd {
 
 namespace {
 
+// Layer and mask rectangles come straight from the file as four signed edges. Subtracting
+// them in 32 bits can overflow (undefined, and in practice a wrapped size that then sizes a
+// plane), so form the size in 64 bits and refuse anything past what a PSB can hold. Inverted
+// edges are clamped to empty, which is how an empty old-Photoshop layer is stored.
+Rect checked_record_rect(std::int32_t left, std::int32_t top, std::int32_t right, std::int32_t bottom,
+                         const char* what) {
+  const auto width = static_cast<std::int64_t>(right) - static_cast<std::int64_t>(left);
+  const auto height = static_cast<std::int64_t>(bottom) - static_cast<std::int64_t>(top);
+  if (width > kMaxPsbDimension || height > kMaxPsbDimension) {
+    throw std::runtime_error(std::string("Invalid PSD ") + what + " rectangle");
+  }
+  return Rect{left, top, static_cast<std::int32_t>(std::max<std::int64_t>(0, width)),
+              static_cast<std::int32_t>(std::max<std::int64_t>(0, height))};
+}
+
 bool payload_contains_ascii(std::span<const std::uint8_t> payload, std::string_view marker) {
   const auto begin = reinterpret_cast<const char*>(payload.data());
   const auto end = begin + payload.size();
@@ -336,7 +351,7 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
   const auto left = static_cast<std::int32_t>(reader.read_u32());
   const auto bottom = static_cast<std::int32_t>(reader.read_u32());
   const auto right = static_cast<std::int32_t>(reader.read_u32());
-  record.bounds = Rect{left, top, right - left, bottom - top};
+  record.bounds = checked_record_rect(left, top, right, bottom, "layer");
 
   const auto channel_count = reader.read_u16();
   for (std::uint16_t i = 0; i < channel_count; ++i) {
@@ -371,8 +386,8 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
       const auto mask_flags = reader.read_u8();
       // Flag bit 0 ("position relative to layer" in the spec) is how Photoshop persists the
       // layer/mask link toggle: 1 means the chain icon is off (unlinked).
-      record.mask = LayerMaskInfo{Rect{mask_left, mask_top, mask_right - mask_left, mask_bottom - mask_top}, default_color,
-                                  (mask_flags & 0x02U) != 0, (mask_flags & 0x01U) == 0};
+      record.mask = LayerMaskInfo{checked_record_rect(mask_left, mask_top, mask_right, mask_bottom, "layer mask"),
+                                  default_color, (mask_flags & 0x02U) != 0, (mask_flags & 0x01U) == 0};
       // Bit 3: the stored plane was rendered from other data (Photoshop's baked
       // vector-mask coverage). Bit 4: mask parameters follow - flags byte with
       // bit 0 user density (u8), bit 1 user feather (f64), bit 2 vector density

@@ -32,6 +32,8 @@ Because fonts are never removed, every registration is permanent suite state: ne
 
 FreeType may expose an OpenType typographic family rather than its familiar GDI family, such as Arial with style Black for `ariblk.ttf`. Use `available_text_family_style_match`; do not gate tests on `QFontDatabase::families().contains(...)`.
 
+A writing system that no registered face covers (Thai or Japanese text in the suite or under `--headless`) makes Qt resolve the request to its glyph-box engine, whose family list is empty; `QRawFont::familyName()` indexes that list unchecked and crashes. Check `QFontDatabase::families(system)` before asking a per-script `QRawFont` for its family (`text_family_draws_any_of` in main_window.cpp is the reference; `ui_script_text_layer_with_uncovered_script_does_not_crash` pins it).
+
 Offscreen does not clear `QApplication::keyboardModifiers()` after synthetic key events, and the stuck bit persists in the shared QApplication. Assert behavior through code that reads the current event's folded modifiers. `ui_brush_alt_shows_eyedropper_cursor` is the order-independent reference.
 
 ## Failure and lifetime traps

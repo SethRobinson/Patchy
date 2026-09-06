@@ -53,7 +53,8 @@ struct PrintPlacement {
 [[nodiscard]] PrintPlacement calculate_print_placement(const Document& document, const PrintSettings& settings,
                                                        const QPageLayout& page_layout);
 void render_print_page(QPainter& painter, const Document& document, const PrintSettings& settings,
-                       const QPageLayout& page_layout);
+                       const QPageLayout& page_layout,
+                       bool draw_printable_guide = false);
 [[nodiscard]] bool write_print_pdf(const QString& path, const Document& document, const PrintSettings& settings,
                                    const QPageLayout& page_layout, const QString& document_name = {});
 // "photo.psd" -> "photo.pdf"; empty title -> "Untitled.pdf".

@@ -3070,7 +3070,14 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
       default:
         break;
     }
-    const auto movable_ids = movable_layer_ids();
+    // A nudge under a live stroke or drag would move the layer out from under the
+    // gesture's snapshot (the rest of a brush stroke reads originals a pixel off; a Move
+    // drag commits pixels and metadata by different deltas). Swallow it until release.
+    const bool gesture_active = painting_ || moving_layer_ || move_drag_pending_ || drawing_shape_ ||
+                                dragging_transform_ || selecting_ || lassoing_ || magnetic_lassoing_ ||
+                                moving_selection_ || quick_selecting_ || spot_healing_stroke_active_ ||
+                                patch_tool_dragging_;
+    const auto movable_ids = gesture_active ? std::vector<LayerId>{} : movable_layer_ids();
     if (!delta.isNull() && !movable_ids.empty()) {
       begin_processing_operation();
       tick_processing_operation();
@@ -3180,6 +3187,9 @@ bool CanvasWidget::handle_opacity_digit_key(int key, Qt::KeyboardModifiers modif
   if (opacity_pending_digit_ >= 0 && opacity_digit_timer_.isValid() &&
       opacity_digit_timer_.elapsed() < kDigitPairWindowMs) {
     value = opacity_pending_digit_ * 10 + digit;
+    if (value == 0) {
+      value = 100;  // "00" is Photoshop's spelling of 100%, not a clamped 1%
+    }
     opacity_pending_digit_ = -1;
     opacity_digit_timer_.invalidate();
   } else {

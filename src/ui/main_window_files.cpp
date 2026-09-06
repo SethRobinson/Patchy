@@ -2758,6 +2758,12 @@ std::optional<bool> MainWindow::resolve_pdf_layer_choice(bool for_export, bool a
 bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOptions> image_options,
                                        bool flatten_confirmed) {
   finish_active_text_editor();
+  // Playback drives real layer visibility one frame at a time; a save mid-playback would
+  // write that frame's visibility to disk (close_document_session stops it for the same
+  // reason before its own prompt).
+  if (animation_preview_window_ != nullptr && has_active_document()) {
+    animation_preview_window_->stop_playback_for(&document());
+  }
   const auto extension = extension_for_path(path);
   const bool discards_layers = !save_extension_preserves_layers(extension) &&
                                flat_save_discards_layers(std::as_const(document()));

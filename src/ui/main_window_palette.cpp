@@ -487,7 +487,10 @@ void MainWindow::paste_clipboard_color_to_palette() {
   }
   bool valid = text.size() == 6;
   for (const auto character : text) {
-    valid = valid && isxdigit(character.toLatin1()) != 0;
+    // toLatin1() yields 0 outside Latin-1 and a negative char for U+0080..U+00FF, which
+    // isxdigit may not take; classify the unsigned value instead.
+    const auto latin = static_cast<unsigned char>(character.toLatin1());
+    valid = valid && latin != 0 && std::isxdigit(latin) != 0;
   }
   if (!valid) {
     show_status_error(tr("The clipboard does not contain a color (expected #RRGGBB)"));

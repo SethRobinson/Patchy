@@ -282,7 +282,14 @@ everywhere a bundled script is resolved.
   the whole layer, matching a whole-layer trace's colors;
   `paletteFromLayer: false` restores selection-scoped colors, and the additive
   `mergeColors` option (0..100, default 0) merges near-duplicate palette entries
-  (docs/image-trace.md).
+  (docs/image-trace.md). 2026-09-06 (behavioral, still 1): `layer.fillRect`,
+  `selection.selectRect`, and `selection.selectEllipse` throw for a side over 30000 (the
+  document limit) instead of sizing a buffer or region from the raw argument, which
+  ended in a bad_alloc no JS catch can see; `patchy.io.readTextFile` throws for files
+  over 256 MB; `doc.activeLayer` refuses a layer wrapper from another document (LayerIds
+  restart per document, so it activated an unrelated layer before); and text layers whose
+  characters no registered font covers no longer crash the missing-font check (Thai and
+  Japanese under `--headless`, where only bundled and rescued faces exist).
 - **`include()` resolution order**: relative to the including script, then the user
   scripts root, then the bundled scripts root; a result inside the bundled folder maps
   through the shadow-override store. `patchy.isMainScript()` is false during an included

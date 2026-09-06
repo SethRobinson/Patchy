@@ -147,8 +147,11 @@ void parallel_chunks(std::size_t count, std::size_t min_per_worker, int max_work
     const auto end = std::min(count, begin + chunk);
     futures.push_back(std::async(std::launch::async, [&body, begin, end] { body(begin, end); }));
   }
+  // get() rethrows a worker's exception (bad_alloc under memory pressure); wait() would
+  // swallow it and the pipeline would carry on with that chunk's slots at their defaults,
+  // reporting a truncated trace as a success. The remaining futures join in the destructor.
   for (auto& future : futures) {
-    future.wait();
+    future.get();
   }
 }
 

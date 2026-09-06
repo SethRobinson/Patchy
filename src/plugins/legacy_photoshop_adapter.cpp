@@ -62,7 +62,7 @@ std::string host_architecture() {
 std::string detect_binary_architecture(std::span<const std::uint8_t> bytes) {
   if (bytes.size() >= 0x40 && bytes[0] == 'M' && bytes[1] == 'Z') {
     const auto pe_offset = read_u32(bytes, 0x3c);
-    if (pe_offset + 6 <= bytes.size() && bytes[pe_offset] == 'P' && bytes[pe_offset + 1] == 'E' &&
+    if (static_cast<std::size_t>(pe_offset) + 6 <= bytes.size() && bytes[pe_offset] == 'P' && bytes[pe_offset + 1] == 'E' &&
         bytes[pe_offset + 2] == 0 && bytes[pe_offset + 3] == 0) {
       return pe_machine_name(read_u16(bytes, pe_offset + 4));
     }

@@ -147,7 +147,7 @@ Field types: `number`, `slider`, `checkbox`, `choice`, `text`, `color`, `folder`
 | `layer.duplicate()` / `layer.remove()` | Copy above itself, or delete. |
 | `layer.ungroup()` | Releases a folder's layers into its parent (top to bottom) and removes the folder. |
 | `layer.fill(color)` | Fills the selection (or everything on an empty layer). |
-| `layer.fillRect(x, y, w, h, color)` | Overwrites one rectangle. A transparent color like `"#00000000"` clears. |
+| `layer.fillRect(x, y, w, h, color)` | Overwrites one rectangle (sides up to 30000). A transparent color like `"#00000000"` clears. |
 | `layer.applyFilter(id, params)` | Runs a filter, e.g. `layer.applyFilter("patchy.filters.gaussian_blur", { radius: 8 })`. |
 | `layer.getPixels()` / `layer.setPixels(imageData)` | Raw RGBA8 pixel access. `getPixels` returns `{x, y, width, height, data}` with an `ArrayBuffer` of `width * height * 4` bytes; `setPixels` replaces the layer's pixels with such a block. |
 | `layer.traceToShapes(options)` | Trace Image to Shapes: turns the pixel layer into a group of solid shape layers, one per color, and returns the group (the source layer is hidden). Options: `mode` (`"color"`, `"grayscale"`, `"blackAndWhite"`), `colors` (2..256), `threshold`, `paths`, `corners`, `noise`, `smoothing` (denoise blur px), `mergeColors` (merge traced colors within this per-channel difference, 0 = off), `maxAnchors` (anchor budget, 0 = unlimited), `method` (`"abutting"` or `"overlapping"`), `snapCurvesToLines`, `ignoreWhite`, `paletteFromLayer` (with a selection: colors from the whole layer when true, the default; `false` picks colors only from the selected pixels). With a selection active only the selected area is traced. Example: `layer.traceToShapes({ mode: "blackAndWhite", ignoreWhite: true })`. |
@@ -161,7 +161,7 @@ Colors everywhere are CSS-style strings: `"#rrggbb"`, `"#aarrggbb"`, or named co
 | --- | --- |
 | `doc.selection.exists` / `doc.selection.bounds` | Whether something is selected, and its box. |
 | `selectAll()` / `deselect()` | The classics. |
-| `selectRect(x, y, w, h)` / `selectEllipse(x, y, w, h)` | Shape selections. |
+| `selectRect(x, y, w, h)` / `selectEllipse(x, y, w, h)` | Shape selections (sides up to 30000). |
 
 ### Dialogs and UI (patchy.ui)
 
@@ -183,7 +183,7 @@ Sound is best-effort per platform: Windows and macOS play through the OS directl
 
 | Member | Meaning |
 | --- | --- |
-| `patchy.io.readTextFile(path)` / `patchy.io.writeTextFile(path, text)` | Plain text in and out (throws on failure). |
+| `patchy.io.readTextFile(path)` / `patchy.io.writeTextFile(path, text)` | Plain text in and out (throws on failure; reads are capped at 256 MB). |
 | `patchy.io.listFiles(dir, pattern)` | File names in a folder matching `"*.png"`-style patterns, sorted. |
 | `patchy.io.fileExists(path)` / `patchy.io.fileSize(path)` | Whether a file exists, and its size in bytes (-1 when missing). Never throw. |
 | `patchy.io.makeDir(path)` / `patchy.io.deleteFile(path)` | Create a folder (with parents) or remove one file; both return true on success. |

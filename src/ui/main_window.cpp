@@ -759,6 +759,23 @@ QFontDatabase::WritingSystem writing_system_for_character(QChar character) {
   }
 }
 
+// Whether the font database holds at least one family that can draw `system`. A "yes" is
+// cached for the process: application fonts are only ever added, never removed, so it cannot go
+// stale, while a "no" is asked again in case a later registration (the registry rescue, a user
+// font) filled the gap.
+bool writing_system_has_any_family(QFontDatabase::WritingSystem system) {
+  static QSet<int> covered;
+  const auto key = static_cast<int>(system);
+  if (covered.contains(key)) {
+    return true;
+  }
+  if (QFontDatabase::families(system).isEmpty()) {
+    return false;
+  }
+  covered.insert(key);
+  return true;
+}
+
 bool text_family_draws_any_of(const QString& family, const QString& demanded) {
   const auto requested = family.trimmed();
   if (requested.isEmpty() || demanded.isEmpty()) {
@@ -795,6 +812,14 @@ bool text_family_draws_any_of(const QString& family, const QString& demanded) {
     const auto& face = *found;
     if (!face.isValid()) {
       return true;  // nothing to interrogate; stay quiet rather than guess
+    }
+    // When NO registered family covers the writing system, Qt resolves the request to its
+    // glyph-box engine, whose family list is empty, and QRawFont::familyName() indexes that list
+    // without a check (an access violation, seen with Thai and Japanese text in --headless runs
+    // and in the offscreen suite, where only the bundled and rescued faces exist). Nothing can
+    // draw the character, which is exactly the fallthrough case below.
+    if (!writing_system_has_any_family(system)) {
+      continue;
     }
     if (face.familyName().compare(expected, Qt::CaseInsensitive) != 0) {
       continue;  // Qt already fell through to another family for this character
@@ -6492,7 +6517,11 @@ void MainWindow::closeEvent(QCloseEvent* event) {
   // that leaves an edit (focus loss, tool change, tab switch) and preserves
   // the typed text so it counts toward the unsaved-changes prompt below.
   finish_active_text_editor();
-  for (auto& target_session : sessions_) {
+  // Newest first: an Edit Contents child is appended after its parent, and answering
+  // Save for the child commits into the parent and marks it modified, so the parent
+  // must be asked afterwards (close_all_document_tabs walks the same direction).
+  for (auto it = sessions_.rbegin(); it != sessions_.rend(); ++it) {
+    auto& target_session = *it;
     if (target_session != nullptr && !confirm_close_session(*target_session)) {
       restore_hidden_floats();
       event->ignore();

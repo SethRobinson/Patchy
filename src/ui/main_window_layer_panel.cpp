@@ -2611,6 +2611,9 @@ void MainWindow::set_layer_visibility(LayerId id, bool visible) {
   }
 
   layer->set_visible(visible);
+  // Not undoable (docs/layer-panel.md), but it changes what a save writes, so closing
+  // afterwards must offer to save like any other edit.
+  mark_session_modified(session());
   const auto is_group = layer->kind() == LayerKind::Group;
   QListWidgetItem* item = nullptr;
   if (layer_list_ != nullptr) {

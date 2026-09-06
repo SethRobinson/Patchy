@@ -264,7 +264,7 @@ protected:
     painter.save();
     painter.translate(origin);
     painter.scale(scale, scale);
-    render_print_page(painter, *document_, *settings_, layout);
+    render_print_page(painter, *document_, *settings_, layout, /*draw_printable_guide=*/true);
     painter.restore();
 
     painter.setPen(QPen(QColor(18, 18, 18), 1));

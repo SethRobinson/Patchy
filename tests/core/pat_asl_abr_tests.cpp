@@ -853,6 +853,54 @@ void style_presets_have_stable_ids_and_recipes() {
   CHECK(patchy::builtin_style_preset_style("not-a-real-id").drop_shadows.empty());
 }
 
+void psd_descriptor_rejects_runaway_nesting() {
+  // A VlLs whose single item is another VlLs, 4000 levels deep: 12 bytes per level, so a
+  // 48 KB block. Every level used to be a C++ stack frame; the reader now stops at its
+  // depth cap with an error instead of overflowing the loader thread's stack.
+  patchy::psd::BigEndianWriter writer;
+  writer.write_u32(0);  // descriptor name: empty unicode string
+  writer.write_u32(0);  // class id: 4-char form
+  writer.write_bytes(std::vector<std::uint8_t>{'n', 'u', 'l', 'l'});
+  writer.write_u32(1);  // one item
+  writer.write_u32(0);  // key: 4-char form
+  writer.write_bytes(std::vector<std::uint8_t>{'l', 'i', 's', 't'});
+  constexpr int kLevels = 4000;
+  for (int level = 0; level < kLevels; ++level) {
+    writer.write_bytes(std::vector<std::uint8_t>{'V', 'l', 'L', 's'});
+    writer.write_u32(1);
+  }
+  writer.write_bytes(std::vector<std::uint8_t>{'l', 'o', 'n', 'g'});
+  writer.write_u32(7);
+  const auto bytes = writer.bytes();
+  patchy::psd::BigEndianReader reader(bytes);
+  bool threw = false;
+  try {
+    (void)patchy::psd::read_descriptor(reader);
+  } catch (const std::exception& error) {
+    threw = std::string(error.what()).find("nesting") != std::string::npos;
+  }
+  CHECK(threw);
+
+  // A modest nesting (well under the cap) still parses.
+  patchy::psd::BigEndianWriter shallow;
+  shallow.write_u32(0);
+  shallow.write_u32(0);
+  shallow.write_bytes(std::vector<std::uint8_t>{'n', 'u', 'l', 'l'});
+  shallow.write_u32(1);
+  shallow.write_u32(0);
+  shallow.write_bytes(std::vector<std::uint8_t>{'l', 'i', 's', 't'});
+  for (int level = 0; level < 8; ++level) {
+    shallow.write_bytes(std::vector<std::uint8_t>{'V', 'l', 'L', 's'});
+    shallow.write_u32(1);
+  }
+  shallow.write_bytes(std::vector<std::uint8_t>{'l', 'o', 'n', 'g'});
+  shallow.write_u32(7);
+  const auto shallow_bytes = shallow.bytes();
+  patchy::psd::BigEndianReader shallow_reader(shallow_bytes);
+  const auto descriptor = patchy::psd::read_descriptor(shallow_reader);
+  CHECK(descriptor.values.size() == 1);
+}
+
 void asl_reader_reads_photoshop_shipped_styles_if_available() {
   const auto path = patchy::test::local_format_fixture_path("asl", "Abstract Styles.asl");
   if (!std::filesystem::exists(path)) {
@@ -1520,5 +1568,6 @@ std::vector<patchy::test::TestCase> pat_asl_abr_tests() {
       {"abr_v1_parses_sampled_brush_and_skips_computed", abr_v1_parses_sampled_brush_and_skips_computed},
       {"abr_v2_parses_named_rle_and_16bit_brushes", abr_v2_parses_named_rle_and_16bit_brushes},
       {"abr_rejects_corrupt_truncated_and_empty_files", abr_rejects_corrupt_truncated_and_empty_files},
+      {"psd_descriptor_rejects_runaway_nesting", psd_descriptor_rejects_runaway_nesting},
   };
 }

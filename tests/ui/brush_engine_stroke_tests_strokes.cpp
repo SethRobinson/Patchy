@@ -201,6 +201,46 @@ namespace {
 
 using namespace patchy::test::ui;
 
+void ui_cut_selection_cuts_layer_nested_in_folder() {
+  // Cut used to walk only the root layer list: a selected layer inside a folder was
+  // "not editable", nothing was cut, and the clipboard was wiped.
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* folder_button = window.findChild<QPushButton*>(QStringLiteral("layerNewFolderButton"));
+  CHECK(layer_list != nullptr);
+  CHECK(folder_button != nullptr);
+
+  require_action(window, "layerNewAction")->trigger();
+  QApplication::processEvents();
+  auto* layer3 = require_layer_item(*layer_list, QStringLiteral("Layer 3"));
+  const std::vector<patchy::LayerId> ids{
+      static_cast<patchy::LayerId>(layer3->data(patchy::ui::kLayerIdRole).toULongLong())};
+  send_layer_button_drop(*folder_button, ids);
+  layer3 = require_layer_item(*layer_list, QStringLiteral("Layer 3"));
+  CHECK(layer3->data(patchy::ui::kLayerDepthRole).toInt() == 1);
+  layer_list->setCurrentItem(layer3);
+  QApplication::processEvents();
+
+  const QColor paint_color(20, 200, 40);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_primary_color(paint_color);
+  canvas->set_brush_size(22);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(92, 92)),
+       canvas->widget_position_for_document_point(QPoint(130, 110)));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(100, 100)), paint_color, 55));
+
+  canvas->set_tool(patchy::ui::CanvasTool::Marquee);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(70, 70)),
+       canvas->widget_position_for_document_point(QPoint(150, 130)));
+  CHECK(canvas->selected_document_rect().has_value());
+  require_action(window, "editCutAction")->trigger();
+  QApplication::processEvents();
+  CHECK(!color_close(canvas_pixel(*canvas, QPoint(100, 100)), paint_color, 55));
+  CHECK(!QApplication::clipboard()->image().isNull());
+}
+
 void ui_cut_selection_clears_source_and_keeps_clipboard() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -1144,6 +1184,13 @@ void ui_brush_opacity_and_flow_digit_keys_set_values() {
   CHECK(canvas.brush_opacity() == 100);
   send_key(canvas, Qt::Key_7);
   CHECK(canvas.brush_opacity() == 7);
+  // The (0,7) pair is consumed, so this 0 starts a fresh entry: 100%.
+  send_key(canvas, Qt::Key_0);
+  CHECK(canvas.brush_opacity() == 100);
+  // ...and a second 0 inside the pair window spells "00", Photoshop's 100% (it used to
+  // compute 0 and clamp to 1%).
+  send_key(canvas, Qt::Key_0);
+  CHECK(canvas.brush_opacity() == 100);
 
   // Shift targets Flow while Airbrush is off. With Airbrush on, Photoshop's
   // shortcut assignment flips: bare digits target Flow and Shift targets
@@ -3220,6 +3267,7 @@ void ui_brush_smoothing_catch_up_on_end_completes_stroke() {
 std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part1() {
   return {
       {"ui_cut_selection_clears_source_and_keeps_clipboard", ui_cut_selection_clears_source_and_keeps_clipboard},
+      {"ui_cut_selection_cuts_layer_nested_in_folder", ui_cut_selection_cuts_layer_nested_in_folder},
       {"ui_brush_on_pasted_layer_expands_layer_bounds", ui_brush_on_pasted_layer_expands_layer_bounds},
       {"ui_brush_opacity_caps_per_stroke", ui_brush_opacity_caps_per_stroke},
       {"ui_low_opacity_large_brush_whole_canvas_is_exact_fill_region",

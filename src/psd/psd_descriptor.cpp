@@ -83,7 +83,45 @@ std::string read_descriptor_id(BigEndianReader& reader) {
   return read_descriptor_id(reader, long_form);
 }
 
+namespace {
+
+// Descriptors nest through Objc/GlbO/ObAr objects and VlLs lists, and every level is a C++
+// stack frame; a crafted block can open a new level every 12 bytes, so a few tens of
+// kilobytes would overflow the loader thread's stack (which no catch can rescue). Real
+// Photoshop data nests a handful deep.
+constexpr int kMaxDescriptorDepth = 64;
+
+class DescriptorDepthGuard {
+ public:
+  DescriptorDepthGuard() {
+    if (++depth() > kMaxDescriptorDepth) {
+      --depth();
+      throw std::runtime_error("PSD descriptor nesting is too deep");
+    }
+  }
+  ~DescriptorDepthGuard() { --depth(); }
+  DescriptorDepthGuard(const DescriptorDepthGuard&) = delete;
+  DescriptorDepthGuard& operator=(const DescriptorDepthGuard&) = delete;
+
+ private:
+  static int& depth() {
+    thread_local int value = 0;
+    return value;
+  }
+};
+
+// Every list or reference item is at least four bytes (its type signature); a count the
+// remaining bytes cannot possibly hold is a damaged length, not a reservation request.
+void check_descriptor_count(std::uint32_t count, std::size_t minimum_item_bytes, const BigEndianReader& reader) {
+  if (static_cast<std::uint64_t>(count) * minimum_item_bytes > reader.remaining()) {
+    throw std::runtime_error("Invalid PSD descriptor item count");
+  }
+}
+
+}  // namespace
+
 DescriptorValue read_descriptor_value(BigEndianReader& reader, const std::array<char, 4>& type) {
+  const DescriptorDepthGuard depth_guard;
   DescriptorValue value;
   const auto type_key = key_string(type);
   if (type_key == "bool") {
@@ -133,6 +171,7 @@ DescriptorValue read_descriptor_value(BigEndianReader& reader, const std::array<
   if (type_key == "VlLs") {
     value.type = DescriptorValue::Type::List;
     const auto count = reader.read_u32();
+    check_descriptor_count(count, 4, reader);
     value.list_value.reserve(count);
     for (std::uint32_t index = 0; index < count; ++index) {
       value.list_value.push_back(read_descriptor_value(reader, read_signature(reader)));
@@ -159,6 +198,7 @@ DescriptorValue read_descriptor_value(BigEndianReader& reader, const std::array<
     value.type = DescriptorValue::Type::UnitFloatArray;
     value.unit = key_string(read_signature(reader));
     const auto count = reader.read_u32();
+    check_descriptor_count(count, 8, reader);
     value.unit_floats.reserve(count);
     for (std::uint32_t index = 0; index < count; ++index) {
       value.unit_floats.push_back(read_f64(reader));
@@ -177,6 +217,7 @@ DescriptorValue read_descriptor_value(BigEndianReader& reader, const std::array<
     // Action Manager reference (e.g. blendOptions per-channel 'Chnl' references).
     value.type = DescriptorValue::Type::Reference;
     const auto count = reader.read_u32();
+    check_descriptor_count(count, 4, reader);
     value.reference_items.reserve(count);
     for (std::uint32_t index = 0; index < count; ++index) {
       DescriptorReferenceItem item;
@@ -207,6 +248,7 @@ DescriptorObject read_descriptor(BigEndianReader& reader) {
   object.name = read_descriptor_unicode_string(reader);
   object.class_id = read_descriptor_id(reader, object.class_id_long_form);
   const auto item_count = reader.read_u32();
+  check_descriptor_count(item_count, 8, reader);
   object.key_order.reserve(item_count);
   for (std::uint32_t index = 0; index < item_count; ++index) {
     bool key_long_form = false;

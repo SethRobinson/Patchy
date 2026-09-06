@@ -31,7 +31,9 @@ inline FilterProgress filter_progress_phase(const FilterProgress *progress,
     const auto safe_phase_count = std::max(1, phase_count);
     const auto safe_total = std::max(1, total);
     const auto clamped_completed = std::clamp(completed, 0, safe_total);
-    const auto phase_completed = (clamped_completed * kPhaseScale) / safe_total;
+    // 64-bit: five-phase primitives report up to 5,000,000 and the product overflowed int.
+  const auto phase_completed =
+      static_cast<int>((static_cast<std::int64_t>(clamped_completed) * kPhaseScale) / safe_total);
     return progress->update(std::clamp(phase_index, 0, safe_phase_count - 1) *
                                     kPhaseScale +
                                 phase_completed,

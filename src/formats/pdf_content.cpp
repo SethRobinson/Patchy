@@ -871,6 +871,11 @@ private:
     if (mask_width <= 0 || mask_height <= 0) {
       return;
     }
+    // Same guard as the image itself: a damaged /Width must not allocate the world.
+    if (static_cast<std::int64_t>(mask_width) * mask_height > 80'000'000) {
+      notice("A PDF image transparency mask was too large to import; the image imported opaque.");
+      return;
+    }
     const auto mask_data = file_.stream_data(mask);
     if (mask_data.image_codec != FilterKind::None || mask_data.data.empty()) {
       notice("A PDF image's transparency mask used a codec Patchy could not decode; the image imported opaque.");
