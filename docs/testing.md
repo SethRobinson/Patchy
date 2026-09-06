@@ -36,6 +36,11 @@ Offscreen does not clear `QApplication::keyboardModifiers()` after synthetic key
 
 ## Failure and lifetime traps
 
+- Timer-driven checks wait for observable state with a bounded deadline. A fixed
+  sleep does not guarantee a number of timer deliveries on a busy machine. The
+  Airbrush opacity-cap test retains its pixel bounds and PSD round trip while
+  allowing delayed timer delivery.
+
 - The test `CHECK()` macro throws. A failure while a MainWindow still owns an open inline text editor can abort during unwind without printing a `[FAIL]` line. Commit or close the editor before assertions that may throw.
 - The test binaries can exit 0 even when tests fail. Never trust the exit code alone; grep the output for `[FAIL]` to judge a run. Both runners print `[PASS]` on stdout and `[FAIL]` on stderr, so when a run is captured to files, grep the stderr capture (a stdout-only grep reports zero failures for any run).
 - Never let a driver lambda (a `QTimer::singleShot` body or any slot) throw across Qt event dispatch; Qt does not support it, and on macOS the suite aborts in the CFRunLoop frames. Wrap the driver body in try/catch and pass `std::current_exception()` to `patchy::ui::unwind_non_modal_dialog_loop` when the code under test is parked in `run_non_modal_dialog`. `ui_filter_gallery_unwinding_call_disarms_in_flight_renders` is the reference.
@@ -78,6 +83,25 @@ corner pixels transparent so a shot reads as a window on a light or dark page. C
 radius in both places or the two pipelines drift.
 
 ## Native visual QA and app-driving commands
+
+For persistent background editing use `patchy-mcp`, which owns an isolated
+offscreen workspace. `patchy-mcp --check` validates native strokes, previews, and
+the assembled control kit from its installed location. See [ai-control.md](ai-control.md).
+The UI filter `ui_script_automation` covers native stroke parity, pressure,
+selection, palette snapping, history, stale IDs, and Unicode preview output.
+
+The standard-client integration test uses a development-only Python environment:
+
+```powershell
+python -m venv .deps/mcp-client
+.deps/mcp-client/Scripts/python -m pip install 'mcp>=1.26,<2'
+cmd /s /c 'start "" /b /wait /belownormal .deps\mcp-client\Scripts\python.exe tests\mcp_client_tests.py build\release\patchy-mcp.exe'
+```
+
+Run from the repository root. Artifacts stay under `test-artifacts/mcp`. The test
+uses only owned offscreen processes and also accepts a connector in a staged
+package directory, exercising resource discovery without source-relative paths.
+Python is not required by the shipped connector.
 
 Never use Computer Use, desktop automation, or input injection for native QA without Seth's explicit authorization in the current request. Use Patchy's command-line control surfaces and inspect their outputs directly.
 

@@ -166,7 +166,8 @@ everywhere a bundled script is resolved.
   a 60fps animation undoes to its pre-script state in one step. Scripts can opt out for
   speed with `app.undoEnabled = false` (per-run state, resets to true each run): the
   snapshot is skipped and those edits cannot be undone, but sessions are still marked
-  modified so closing protects the work (`breakout.js` uses this).
+  modified so closing protects the work (`breakout.js` uses this). Connector sessions
+  reject disabling history so failed edits remain recoverable.
 - **Wrappers hold ids, never pointers.** Layer wrappers keep session id + LayerId and
   re-resolve on every access, throwing a JS error when the target is gone. The layers
   vector reallocates and sessions close; a stored `Layer*` is the historical
@@ -242,47 +243,11 @@ everywhere a bundled script is resolved.
   `ui_script_text_size_is_zoom_independent`).
 - **Blend mode ids** (`script_blend_mode_id`) are a compatibility contract: scripts in
   the wild hard-code them. Append-only, aligned with the BlendMode enum, never rename.
-- **`app.apiVersion` is 1.** Bump it only for breaking API changes, and record what
-  changed here. July 2026 additions (all additive, still 1): `include()` search roots,
-  `patchy.isMainScript()`, `patchy.args`, `patchy.ui.showDialog`, `patchy.io.listFiles`,
-  `app.chooseFolder/chooseOpenFile/chooseSaveFile`, `app.runCommand/commandIds`,
-  `getPixels` reading 8-bit RGB layers (opaque opened photos) expanded to RGBA with
-  alpha 255 (it previously threw; `setPixels` still always writes RGBA8 back),
-  `patchy.ui.showOptions`, the `folder`/`file` form field types, the form dialogs'
-  `description` header, `patchy.ui.playTone`/`patchy.ui.playSound`, and the UI staging
-  quartet `patchy.ui.setWindowSize`/`setSidePanelWidth`/`captureWindow`/
-  `setStatusMessage` (built for the README screenshot scripts in
-  `scripts/dev/readme-shots/`; captureWindow rides the `--screenshot` grab machinery
-  and never raises the window; setStatusMessage doubles as a progress readout). Behavioral fixes
-  (still 1): `addTextLayer`'s `size` is defined as document pixels (it previously
-  committed at a canvas-zoom-dependent size), and setting `activeLayer` reveals the
-  row in the Layers panel (ancestor folders expand, the row scrolls into view).
-  August 2026 additions (additive, still 1): the `patchy.filters.auto_tone` and
-  `patchy.filters.auto_color` command ids reach `app.runCommand`/`commandIds` and
-  `layer.applyFilter`, and `patchy.filters.auto_contrast` switched from per-channel
-  to composite stretch (see filters.md; the id is unchanged). Later in August 2026:
-  `image.auto_all` (Auto All) joined the registered command ids, and the three auto
-  command ids now apply immediately with no settings dialog (behavioral; explicit
-  `layer.applyFilter` invocations with an `amount` are unaffected). Also August 2026
-  (additive, still 1): the `patchy.io` probes `fileExists`/`fileSize`/`makeDir`/
-  `deleteFile`, added so a script can verify its own output (the AGENTS.md rule:
-  missing test capabilities become scripting API); pinned by
-  `ui_script_io_round_trips_unicode_path`. 2026-08-23 (additive, still 1):
-  `layer.traceToShapes(options)` runs Trace Image to Shapes (docs/image-trace.md) on a
-  pixel layer and returns the new group layer (null when nothing traced); the
-  `layer.trace_image_to_shapes` command id reaches `app.runCommand` (it opens the dialog).
-  2026-08-24 (still 1): `layer.traceToShapes` honors the document selection (behavioral);
-  additive `layer.simplifyPath(options)`, `doc.combineShapes(layers, op)`, `layer.ungroup()`,
-  and the command ids `path.simplify`, `layer.combine_*`, `layer.ungroup`, `edit.copy_svg`
-  (docs/vector-commands.md). 2026-08-25 (additive, still 1): `layer.traceToShapes`
-  accepts `smoothing` (0..10 px pre-quantization denoise) and `maxAnchors` (anchor
-  budget, 0 = unlimited), and `colors` extends to 2..256 (values above 64 previously
-  clamped to 64; docs/image-trace.md). Also 2026-08-25 (behavioral plus additive,
-  still 1): with a document selection `layer.traceToShapes` picks its palette from
-  the whole layer, matching a whole-layer trace's colors;
-  `paletteFromLayer: false` restores selection-scoped colors, and the additive
-  `mergeColors` option (0..100, default 0) merges near-duplicate palette entries
-  (docs/image-trace.md).
+- **`app.apiVersion` is 1.** Bump only for breaking changes. Record additions and
+  behavioral changes in [scripting-api-changes.md](scripting-api-changes.md).
+  The native MCP connector, stable-ID lookups, strokes, previews, history access,
+  and structured script results are additive September 2026 APIs; see
+  [ai-control.md](ai-control.md) for their contracts.
 - **`include()` resolution order**: relative to the including script, then the user
   scripts root, then the bundled scripts root; a result inside the bundled folder maps
   through the shadow-override store. `patchy.isMainScript()` is false during an included
@@ -318,6 +283,11 @@ everywhere a bundled script is resolved.
   `run_non_modal_dialog` as usual.
 
 ## CLI and AI control
+
+`patchy-mcp` provides a persistent offscreen workspace over local stdio MCP.
+It shares application startup and the scripting engine with `patchy`, isolates
+settings, and ships the `patchy-control` skill. Setup, lifecycle, protocol, and
+packaging ownership are in [ai-control.md](ai-control.md).
 
 ```
 patchy [--headless] --run-script <file.js> [--script-output <out.txt>] [--script-arg key=value ...] [files...]
@@ -413,7 +383,7 @@ pipe is per-user, so `--run-script` adds no cross-user surface.
 Not built yet, in demand order: events/hooks (document changed, before/after
 save/command; needs a reentrancy design against the one-run-at-a-time rule), per-script
 keyboard shortcuts (stable HotkeyRegistry ids keyed off the script's relative path),
-persistent per-script storage, a tool-stroke API through the real brush engine,
+persistent per-script storage, more native stroke tools and brush settings,
 macro-record-to-script, non-blocking long batches, a script packaging format, and an
 editor REPL mode.
 

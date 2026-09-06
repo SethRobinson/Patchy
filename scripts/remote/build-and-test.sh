@@ -30,7 +30,7 @@ cd "$HOME/patchy/src"
 echo "== configure ($PRESET) =="
 cmake --preset "$PRESET"
 echo "== build ($PRESET) =="
-cmake --build --preset "$PRESET"
+nice -n 10 cmake --build --preset "$PRESET" -j 6
 
 if [ "$SKIP_TESTS" = "1" ]; then
   echo "== tests skipped =="
@@ -40,11 +40,11 @@ fi
 BUILD_DIR="build/$PRESET"
 
 echo "== patchy_core_tests =="
-(cd "$BUILD_DIR" && ./patchy_core_tests)
+(cd "$BUILD_DIR" && nice -n 10 ./patchy_core_tests)
 
 echo "== patchy_ui_visual_tests (offscreen) =="
 if [ -n "$FILTER" ]; then
-  (cd "$BUILD_DIR" && QT_QPA_PLATFORM=offscreen ./patchy_ui_visual_tests "$FILTER")
+  (cd "$BUILD_DIR" && QT_QPA_PLATFORM=offscreen nice -n 10 ./patchy_ui_visual_tests "$FILTER")
 else
-  (cd "$BUILD_DIR" && QT_QPA_PLATFORM=offscreen ./patchy_ui_visual_tests)
+  (cd "$BUILD_DIR" && QT_QPA_PLATFORM=offscreen nice -n 10 ./patchy_ui_visual_tests)
 fi

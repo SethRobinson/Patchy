@@ -4,6 +4,12 @@ How to cut and publish a Patchy release. Read this in full before bumping a vers
 
 ## Version bump checklist
 
+Desktop packages include `patchy-mcp` and the assembled `patchy-control` skill.
+Staging and resource paths are specified in [ai-control.md](ai-control.md). Each
+desktop packaging script runs the installed connector's `--check` smoke test;
+Windows signs both executables and macOS deploys Qt for both. The remote build
+helper caps builds at six jobs and runs builds/tests with lower priority.
+
 When bumping the release version, update the version fields:
 
 - `CMakeLists.txt` (`project(... VERSION x.y)`)

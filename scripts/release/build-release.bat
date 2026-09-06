@@ -95,6 +95,9 @@ mkdir "%STAGE_DIR%" || goto fail
 
 echo Staging application and Qt runtime...
 copy /Y "%APP_EXE%" "%STAGE_DIR%\" >nul || goto fail
+copy /Y "%BUILD_DIR%\patchy-mcp.exe" "%STAGE_DIR%\" >nul || goto fail
+xcopy /E /I /Y "%BUILD_DIR%\ai" "%STAGE_DIR%\ai" >nul || goto fail
+xcopy /E /I /Y "%BUILD_DIR%\scripts" "%STAGE_DIR%\scripts" >nul || goto fail
 "%WINDEPLOYQT%" --release ^
   --dir "%STAGE_DIR%" ^
   --no-compiler-runtime ^
@@ -145,6 +148,8 @@ if errorlevel 1 goto fail
 
 call :HeadlessSmokeCheck
 if errorlevel 1 goto fail
+"%STAGE_DIR%\patchy-mcp.exe" --check
+if errorlevel 1 goto fail
 
 echo Writing install manifest...
 set "PATCHY_INSTALL_MANIFEST=%STAGE_DIR%\PatchyInstallManifest.txt"
@@ -172,6 +177,8 @@ exit /b 0
 
 :SignReleaseExe
 call :SignFile "%APP_EXE%"
+if errorlevel 1 exit /b %ERRORLEVEL%
+call :SignFile "%BUILD_DIR%\patchy-mcp.exe"
 exit /b %ERRORLEVEL%
 
 :SignInstaller

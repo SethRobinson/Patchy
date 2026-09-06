@@ -64,6 +64,13 @@ Shared internal constants, record types, and declarations live in `psd_io_intern
 
 ## Build-system ownership
 
+`patchy-mcp` is a native console target sharing `src/app/main.cpp` initialization
+and `patchy_ui` with the application. `app/mcp_server.cpp` owns stdio and request
+lifetime; `ui/script_automation.cpp` owns state/preview/history and validates
+strokes; `ui/canvas_widget_script_stroke.cpp` calls the existing native stroke
+helpers. The shared `patchy_agent_kit` target assembles the installable skill and
+copies authoritative API references once. See [ai-control.md](ai-control.md).
+
 CMake runtime assets use shared copy-once targets: `patchy_bundled_fonts`, `patchy_qt_runtime`, and `patchy_qt_base_translations`. Never attach per-target POST_BUILD copies into the shared output directory because parallel Ninja builds can race. New executables call the existing `patchy_copy_*` helpers.
 
 Strict warnings belong to Patchy targets. Do not weaken a target's warning level to

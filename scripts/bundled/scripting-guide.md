@@ -6,11 +6,13 @@ For exact type signatures, see `patchy.d.ts` in the same folder as this guide. I
 
 ## Running scripts
 
-There are three ways to run a script:
+There are four ways to run a script:
 
 1. **The File > Scripts menu.** Every bundled script and every script in your user scripts folder shows up here, organized by folder.
 2. **The Script Manager** (File > Scripts > Script Manager). A folder tree, a code editor with syntax highlighting, a console, and Run/Stop buttons. Click a script in the tree to see its code (unsaved edits stay put until you save or confirm switching away), and press **F5** to run what is in the editor. This is the best place to write and test scripts.
 3. **The command line.** `patchy --run-script myscript.js` runs a script unattended, for batch jobs and external tools. See the Command line section below. The Script Manager's **C:\\** toolbar button shows a ready-made command line for any script.
+
+4. **The local MCP connector.** A desktop package includes `patchy-mcp` and the installable `ai/patchy-control` skill (inside Resources on macOS, or share/patchy on Linux). Configure the connector as a stdio MCP server. `get_help` provides this guide, the API reference, the workflow, and examples. No Python or Node installation is required.
 
 A script run is **one undo entry**: no matter how many edits a script makes, one Ctrl+Z puts the document back the way it was.
 
@@ -33,6 +35,43 @@ if (!doc) {
 `app` is the application, documents hold layers, and `console.log` writes to the Script Manager's console pane. That is most of the model already.
 
 Save it with the Save button and it lands in your user scripts folder, which means it also appears in the File > Scripts menu.
+
+## Persistent agent workspaces
+
+Each `patchy-mcp` connection owns an offscreen workspace. Documents and undo history stay open across requests; JavaScript globals reset for every script. Save files explicitly before disconnecting. The connector isolates settings and disables single-instance forwarding, sound, and update checks.
+
+Call `get_state` to inspect document/layer IDs, hierarchy, dimensions, selection, modified state, and history availability. IDs are decimal strings: document IDs last until close, and layer IDs identify a layer within its document while it exists. Undo can remove or restore layers. Re-query state after history changes and never keep IDs across connector restarts or document reopen. Use lookups in later requests:
+
+```js
+var doc = app.getDocument("1"); // use the ID from get_state
+var layer = doc.getLayer("2");
+layer.drawStrokes([{
+  tool: "brush", color: "#397ac9", size: 18, opacity: 85,
+  flow: 35, softness: 60, seed: 42,
+  points: [{x: 20, y: 40, pressure: 0.2},
+           {x: 80, y: 25, pressure: 1},
+           {x: 140, y: 55, pressure: 0.4}]
+}]);
+patchy.setResult({documentId: doc.id, layerId: layer.id});
+```
+
+`drawStrokes` uses the native round Brush or Eraser, including spacing, midpoint smoothing, opacity and Flow accumulation, selections, alpha locks, seeded size jitter/scatter, and palette snapping. It temporarily sets its own brush settings and restores the artist's settings. It requires an unlocked 8-bit RGB/RGBA pixel layer; text, vectors, Smart Objects, and groups must first be converted or painted on a separate pixel layer. Point coordinates are document pixels. Missing pressure means ordinary full-pressure mouse behavior; supplied pressure uses the default pen size/opacity mapping (20% size floor, 15% opacity floor). Size-one paths use exact pixel segments. Bitmap tips, stabilizers, tilt, and timed airbrush samples are outside this API. Read `PatchyStroke` in `patchy.d.ts` for defaults, fields, and limits. Unknown fields and malformed batches fail before painting. For exact sprites, use palette-colored RGBA arrays with `setPixels` or rectangles with `fillRect`.
+
+Inspect with `get_preview`: it returns PNG image content plus the crop rectangle and X/Y scale. The JavaScript equivalent writes a PNG without changing the document's save path or modified state:
+
+```js
+var preview = doc.renderPreview(patchy.args.preview, {
+  rect: {x: 0, y: 0, width: 32, height: 32},
+  maxWidth: 256, maxHeight: 256, nearestNeighbor: true
+});
+patchy.setResult(preview);
+```
+
+Preview dimensions default to a 1024 by 1024 bounding box and may be 1 through 4096. The aspect ratio is preserved. Ordinary previews shrink as needed; nearest-neighbor previews may enlarge pixel art. Crop rectangles are clipped to the canvas. For full-resolution outputs beyond the preview bound, use `exportAs`; it currently behaves like `saveAs`, so save the layered PSD last. MCP `get_preview` with `target: "window"` is an offscreen app-window render for inspecting the interface.
+
+A mutating script or stroke batch makes one undo entry per affected document. Failed or cancelled scripts may leave partial edits; inspect returned state and undo before revising. The connector does not retry edits. `doc.undo()` and `doc.redo()` return whether a history step was restored and must run before new edits in the same script. `doc.modified`, `doc.canUndo`, and `doc.canRedo` expose status. `patchy.setResult(value)` returns a small JSON value independently of logs.
+
+Send one tool request at a time. A concurrent edit/state request receives `busy`. Cancellation interrupts JavaScript, stops timers, and lets native work reach an interruption boundary. The inactivity watchdog still applies. `app.runCommand` and `patchy.ui.createCanvas` report unsupported operations in connector sessions; use explicit document APIs. Existing unattended option/dialog behavior applies. Scripts retain Patchy's trusted-script file privileges.
 
 ## Header directives
 

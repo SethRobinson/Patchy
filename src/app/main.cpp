@@ -10,6 +10,10 @@
 #include "ui/stress_test.hpp"
 #include "ui/theme_manager.hpp"
 #include "ui/user_fonts.hpp"
+#ifdef PATCHY_MCP_EXECUTABLE
+#include "app/mcp_server.hpp"
+#include <QTemporaryDir>
+#endif
 
 #include <QApplication>
 #include <QByteArray>
@@ -300,6 +304,12 @@ QFont application_font() {
 }  // namespace
 
 int main(int argc, char* argv[]) {
+#ifdef PATCHY_MCP_EXECUTABLE
+  QTemporaryDir connector_settings(QDir::tempPath() + QStringLiteral("/patchy-mcp-XXXXXX"));
+  if (!connector_settings.isValid()) { return 2; }
+  qputenv("PATCHY_SETTINGS_DIR", connector_settings.path().toUtf8());
+  qputenv("QT_COMMAND_LINE_PARSER_NO_GUI_MESSAGE_BOXES", "1");
+#endif
   // Automation hook (the README shot driver and similar tooling): redirect the
   // ini-backed app_settings() store so a driven run never reads or writes the
   // user's real Patchy settings (recent files, saved window geometry, panels).
@@ -315,7 +325,11 @@ int main(int argc, char* argv[]) {
   // PATCHY_HEADLESS marks the run for src/ui (the Windows registry font rescue
   // stays off for the offscreen test suite but runs for a headless user), and
   // PATCHY_NO_SOUND because nobody is listening.
-  const bool headless_mode = patchy::headless_flag_present(argc, argv);
+  const bool headless_mode = patchy::headless_flag_present(argc, argv)
+#ifdef PATCHY_MCP_EXECUTABLE
+                            || connector_settings.isValid()
+#endif
+      ;
   if (headless_mode) {
     qputenv("QT_QPA_PLATFORM", "offscreen");
     qputenv("PATCHY_HEADLESS", "1");
@@ -357,6 +371,10 @@ int main(int argc, char* argv[]) {
   app.setFont(application_font());
   patchy::ui::LocalizationManager::instance().load_saved_language();
   patchy::ui::ThemeManager::instance().load_saved_preference();
+
+#ifdef PATCHY_MCP_EXECUTABLE
+  if (connector_settings.isValid()) { return patchy::run_mcp_server(app); }
+#endif
 
   // Parse command-line arguments after translations load so option descriptions are localized.
   QCommandLineParser parser;

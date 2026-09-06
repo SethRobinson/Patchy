@@ -1447,7 +1447,16 @@ void ui_brush_flow_builds_only_to_opacity_cap_and_round_trips_psd() {
 
   const auto point = canvas.widget_position_for_document_point(QPoint(48, 48));
   send_mouse(canvas, QEvent::MouseButtonPress, point, Qt::LeftButton, Qt::LeftButton);
-  QTest::qWait(430);
+  // Timer delivery can be delayed on a busy Windows machine. Wait for the
+  // observable cap rather than assuming a number of dabs fits into 430 ms.
+  // The deadline still fails an airbrush that stops building prematurely.
+  QElapsedTimer cap_wait;
+  cap_wait.start();
+  while (std::as_const(document).find_layer(layer_id)->pixels().pixel(48, 48)[0] > 155U &&
+         cap_wait.elapsed() < 3000) {
+    QTest::qWait(20);
+  }
+  QTest::qWait(80);  // continued delivery must not paint beyond the opacity cap
   send_mouse(canvas, QEvent::MouseButtonRelease, point, Qt::LeftButton, Qt::NoButton);
   QApplication::processEvents();
 

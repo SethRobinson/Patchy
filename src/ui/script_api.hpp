@@ -33,6 +33,7 @@ class ScriptEngineHost;
 
 class ScriptLayerObject : public QObject {
   Q_OBJECT
+  Q_PROPERTY(QString id READ id)
   Q_PROPERTY(QString name READ name WRITE set_name)
   Q_PROPERTY(double opacity READ opacity WRITE set_opacity)
   Q_PROPERTY(bool visible READ visible WRITE set_visible)
@@ -50,6 +51,8 @@ public:
   ScriptLayerObject(ScriptEngineHost& host, std::int64_t session_id, LayerId layer_id);
 
   [[nodiscard]] QString name() const;
+  [[nodiscard]] QString id() const;
+  Q_INVOKABLE void drawStrokes(const QJSValue& strokes);
   void set_name(const QString& name);
   [[nodiscard]] double opacity() const;  // 0..100
   void set_opacity(double opacity);
@@ -124,6 +127,10 @@ private:
 
 class ScriptDocumentObject : public QObject {
   Q_OBJECT
+  Q_PROPERTY(QString id READ id)
+  Q_PROPERTY(bool modified READ modified)
+  Q_PROPERTY(bool canUndo READ can_undo)
+  Q_PROPERTY(bool canRedo READ can_redo)
   Q_PROPERTY(int width READ width)
   Q_PROPERTY(int height READ height)
   Q_PROPERTY(QString name READ name)
@@ -135,6 +142,14 @@ class ScriptDocumentObject : public QObject {
 
 public:
   ScriptDocumentObject(ScriptEngineHost& host, std::int64_t session_id);
+  [[nodiscard]] QString id() const;
+  [[nodiscard]] bool modified() const;
+  [[nodiscard]] bool can_undo() const;
+  [[nodiscard]] bool can_redo() const;
+  Q_INVOKABLE QJSValue getLayer(const QString& id);
+  Q_INVOKABLE QJSValue renderPreview(const QString& path, const QJSValue& options = QJSValue());
+  Q_INVOKABLE bool undo();
+  Q_INVOKABLE bool redo();
 
   [[nodiscard]] int width() const;
   [[nodiscard]] int height() const;
@@ -190,6 +205,7 @@ public:
   void set_undo_enabled(bool enabled);
 
   Q_INVOKABLE QJSValue open(const QString& path);
+  Q_INVOKABLE QJSValue getDocument(const QString& id);
   Q_INVOKABLE QJSValue newDocument(int width, int height);
   Q_INVOKABLE void alert(const QString& text);
   Q_INVOKABLE QJSValue prompt(const QString& text, const QString& defaultValue = QString());

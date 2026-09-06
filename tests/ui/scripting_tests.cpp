@@ -9,6 +9,9 @@
 #include "core/document.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/palette.hpp"
+#include "formats/document_flatten.hpp"
+#include <QJsonArray>
+#include <QJsonObject>
 #include "ui/canvas_widget.hpp"
 #include "ui/main_window.hpp"
 #include "ui/script_editor_dialog.hpp"
@@ -1783,8 +1786,200 @@ void ui_script_io_round_trips_unicode_path() {
   CHECK(QDir(dir + QStringLiteral("/サブ sub")).exists());
 }
 
+void ui_script_automation_strokes_match_native_and_undo() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(run_script(window, QStringLiteral("var d=app.newDocument(64,64); d.addLayer('Ink').fill('#e0d8c8'); d.selection.selectRect(10,10,40,40);")));
+  auto& host = window.script_engine_host();
+  auto* canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  CHECK(canvas != nullptr);
+  canvas->set_zoom(4.0);
+  for (const int size : {1, 2, 14}) {
+    for (const int flow : {100, 25}) {
+      for (const bool pressure : {false, true}) {
+        for (const bool erase : {false, true}) {
+          const auto points = pressure
+              ? QStringLiteral("[{x:12,y:20,pressure:0.1},{x:35,y:40,pressure:1},{x:50,y:18,pressure:0.3}]")
+              : QStringLiteral("[{x:12,y:20},{x:35,y:40},{x:50,y:18}]");
+          const auto source = QStringLiteral(
+              "app.activeDocument.activeLayer.drawStrokes([{size:%1,flow:%2,opacity:65,softness:40,color:'#245b93',seed:9,tool:'%3',points:%4}]);")
+              .arg(size).arg(flow).arg(erase ? "eraser" : "brush", points);
+          const auto depth = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+          CHECK(run_script(window, source));
+          CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+          const auto scripted = patchy::flatten_document_rgba8(*host.session_document_const(host.active_session_id()));
+          CHECK(run_script(window, QStringLiteral("app.activeDocument.undo();")));
+          canvas->set_tool(erase ? patchy::ui::CanvasTool::Eraser : patchy::ui::CanvasTool::Brush);
+          canvas->set_primary_color(QColor("#245b93"));
+          canvas->set_brush_size(size);
+          canvas->set_brush_opacity(65);
+          canvas->set_brush_softness(40);
+          canvas->set_brush_flow(flow);
+          canvas->set_brush_build_up(false);
+          canvas->set_brush_tip(nullptr, {});
+          canvas->set_brush_dynamics({});
+          canvas->set_brush_smoothing(0);
+          canvas->set_pen_input_settings({});
+          canvas->set_brush_dynamics_test_seed(9);
+          if (pressure) {
+            using patchy::test::ui::send_tablet;
+            const auto point = [&](int x, int y) { return canvas->widget_position_for_document_point(QPoint(x,y)); };
+            send_tablet(*canvas, QEvent::TabletPress, point(12,20), 0.1);
+            send_tablet(*canvas, QEvent::TabletMove, point(35,40), 1.0, Qt::NoButton);
+            send_tablet(*canvas, QEvent::TabletMove, point(50,18), 0.3, Qt::NoButton);
+            send_tablet(*canvas, QEvent::TabletRelease, point(50,18), 0.3, Qt::LeftButton, Qt::NoButton);
+          } else {
+            patchy::test::ui::drag_document_path(*canvas, {{12,20},{35,40},{50,18}}, 1);
+          }
+          const auto native = patchy::flatten_document_rgba8(*host.session_document_const(host.active_session_id()));
+          if (!std::equal(scripted.data().begin(), scripted.data().end(), native.data().begin(), native.data().end())) {
+            throw std::runtime_error("stroke parity: size=" + std::to_string(size) + " flow=" + std::to_string(flow) +
+                                     " pressure=" + std::to_string(pressure) + " erase=" + std::to_string(erase));
+          }
+          patchy::ui::MainWindowTestAccess::undo(window);
+        }
+      }
+    }
+  }
+}
+
+void ui_script_automation_preview_ids_and_errors() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.set_cli_automation_mode(true);
+  auto& host = window.script_engine_host();
+  host.set_connector_mode(true);
+  const auto dir = QString::fromUtf8(reinterpret_cast<const char*>(patchy::test::kUnicodeDirName.data()),
+                                    static_cast<qsizetype>(patchy::test::kUnicodeDirName.size()));
+  QDir().mkpath(QStringLiteral("test-artifacts/") + dir + "/preview");
+  const auto base = QStringLiteral("test-artifacts/") + dir + "/preview/";
+  patchy::ui::ScriptEngineHost::RunOptions options;
+  options.name = QStringLiteral("automation-preview");
+  options.args = {QStringLiteral("base=") + base};
+  options.unattended = true;
+  CHECK(host.run_source(QStringLiteral(R"JS(
+    var d=app.newDocument(16,16), l=d.addLayer('Ink');
+    l.fillRect(4,4,4,4,'#ff0000');
+    if(!d.saveAs(patchy.args.base+'doc.psd')) throw new Error('save');
+    var before=d.path, changed=d.modified;
+    var preview=d.renderPreview(patchy.args.base+'preview.png',
+        {rect:{x:4,y:4,width:4,height:4},maxWidth:32,maxHeight:32,nearestNeighbor:true});
+    if(d.path!==before || d.modified!==changed) throw new Error('preview changed save state');
+    patchy.setResult({documentId:d.id,layerId:l.id,preview:preview});
+  )JS"), std::move(options)));
+  wait_for_run_end(host);
+  CHECK(!host.last_run_had_error());
+  const auto result = host.last_result().toObject();
+  const QImage png(base + "preview.png");
+  CHECK(png.size() == QSize(32,32));
+  CHECK(png.pixelColor(5,5) == QColor("#ff0000"));
+  const auto id = result["documentId"].toString();
+  const auto layer_id = result["layerId"].toString();
+  CHECK(run_script(window, QStringLiteral("var l=app.getDocument('%1').getLayer('%2'); l.fill('#00ff00');").arg(id,layer_id)));
+  QJsonObject metadata;
+  const auto preview = host.render_preview(id.toLongLong(), {}, &metadata);
+  CHECK(preview.pixelColor(5,5) == QColor("#00ff00"));
+  CHECK(!run_script(window, QStringLiteral("app.getDocument('999999');")));
+  CHECK(!run_script(window, QStringLiteral("app.activeDocument.getLayer('999999');")));
+  CHECK(!run_script(window, QStringLiteral("app.activeDocument.activeLayer.drawStrokes([{points:[{x:2,y:2}],size:0}]);")));
+  CHECK(!run_script(window, QStringLiteral("app.runCommand('file.open');")));
+  CHECK(!run_script(window, QStringLiteral("patchy.ui.createCanvas();")));
+  CHECK(run_script(window, QStringLiteral("app.getDocument('%1').close();").arg(id)));
+  CHECK(!run_script(window, QStringLiteral("app.getDocument('%1');").arg(id)));
+}
+
+void ui_script_automation_pressure_seed_selection_palette() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(run_script(window, QStringLiteral("var d=app.newDocument(64,64); d.addLayer('Ink'); d.selection.selectRect(10,10,40,40);")));
+  auto& host = window.script_engine_host();
+  const auto script = QStringLiteral(R"JS(
+    app.activeDocument.activeLayer.drawStrokes([
+      {size:18,flow:25,opacity:60,softness:50,color:'#ef3322',seed:17,sizeJitter:0.3,scatter:0.4,
+       points:[{x:3,y:20,pressure:0.1},{x:24,y:20,pressure:1},{x:58,y:20,pressure:0.3}]},
+      {tool:'eraser',size:3,points:[{x:20,y:10},{x:20,y:35}]}
+    ]);
+  )JS");
+  CHECK(run_script(window, script));
+  const auto first = patchy::flatten_document_rgba8(*host.session_document_const(host.active_session_id()));
+  CHECK(run_script(window, QStringLiteral("app.activeDocument.undo();")));
+  CHECK(run_script(window, script));
+  const auto second = patchy::flatten_document_rgba8(*host.session_document_const(host.active_session_id()));
+  CHECK(std::equal(first.data().begin(), first.data().end(), second.data().begin(), second.data().end()));
+  CHECK(run_script(window, QStringLiteral("app.activeDocument.undo();")));
+  auto* canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  CHECK(canvas != nullptr);
+  canvas->set_zoom(4.0);
+  canvas->set_tool(patchy::ui::CanvasTool::Brush);
+  canvas->set_primary_color(QColor("#ef3322"));
+  canvas->set_brush_size(18);
+  canvas->set_brush_opacity(60);
+  canvas->set_brush_flow(25);
+  canvas->set_brush_softness(50);
+  canvas->set_brush_build_up(false);
+  canvas->set_brush_tip(nullptr, {});
+  patchy::BrushDynamics dynamics;
+  dynamics.seed = 17;
+  dynamics.size_jitter = 0.3;
+  dynamics.scatter = 0.4;
+  canvas->set_brush_dynamics(dynamics);
+  canvas->set_brush_dynamics_test_seed(17);
+  canvas->set_brush_smoothing(0);
+  canvas->set_pen_input_settings({});
+  using patchy::test::ui::send_tablet;
+  const auto point = [&](int x, int y) { return canvas->widget_position_for_document_point(QPoint(x,y)); };
+  send_tablet(*canvas, QEvent::TabletPress, point(3,20), 0.1);
+  send_tablet(*canvas, QEvent::TabletMove, point(24,20), 1.0, Qt::NoButton);
+  send_tablet(*canvas, QEvent::TabletMove, point(58,20), 0.3, Qt::NoButton);
+  send_tablet(*canvas, QEvent::TabletRelease, point(58,20), 0.3, Qt::LeftButton, Qt::NoButton);
+  canvas->set_tool(patchy::ui::CanvasTool::Eraser);
+  canvas->set_brush_size(3);
+  canvas->set_brush_opacity(100);
+  canvas->set_brush_flow(100);
+  canvas->set_brush_softness(0);
+  patchy::test::ui::drag_document_path(*canvas, {{20,10},{20,35}}, 1);
+  const auto native = patchy::flatten_document_rgba8(*host.session_document_const(host.active_session_id()));
+  CHECK(std::equal(first.data().begin(), first.data().end(), native.data().begin(), native.data().end()));
+  patchy::ui::MainWindowTestAccess::undo(window);
+  patchy::ui::MainWindowTestAccess::undo(window);
+  auto* doc = host.session_document(host.active_session_id());
+  patchy::DocumentPaletteEditing editing;
+  editing.palette.colors = {{0,0,0},{255,0,0}};
+  editing.palette_revision = 1;
+  doc->palette_editing() = editing;
+  CHECK(run_script(window, QStringLiteral("app.activeDocument.activeLayer.drawStrokes([{size:1,color:'#fb2311',points:[{x:0,y:25},{x:60,y:25}]}]);")));
+  const auto* layer = std::as_const(*doc).find_layer(*doc->active_layer_id());
+  CHECK(layer != nullptr);
+  const auto bounds = layer->bounds();
+  // Native storage may include transparent pixels beyond the selection.
+  // Assert painted coverage rather than the allocation rectangle.
+  for (int y = 0; y < layer->pixels().height(); ++y) {
+    for (int x = 0; x < layer->pixels().width(); ++x) {
+      if (!QRect(10,10,40,40).contains(x + bounds.x, y + bounds.y)) {
+        CHECK(layer->pixels().pixel(x,y)[3] == 0);
+      }
+    }
+  }
+  const auto* p = layer->pixels().pixel(20 - bounds.x,25 - bounds.y);
+  CHECK(p[0] == 255 && p[1] == 0 && p[2] == 0 && p[3] == 255);
+  const auto scripted_palette = patchy::flatten_document_rgba8(std::as_const(*doc));
+  CHECK(run_script(window, QStringLiteral("app.activeDocument.undo();")));
+  canvas->set_tool(patchy::ui::CanvasTool::Brush);
+  canvas->set_primary_color(QColor("#fb2311"));
+  canvas->set_brush_size(1);
+  canvas->set_brush_dynamics({});
+  canvas->set_brush_dynamics_test_seed(0);
+  patchy::test::ui::drag_document_path(*canvas, {{0,25},{60,25}}, 1);
+  const auto native_palette = patchy::flatten_document_rgba8(std::as_const(*doc));
+  CHECK(std::equal(scripted_palette.data().begin(), scripted_palette.data().end(),
+                   native_palette.data().begin(), native_palette.data().end()));
+}
+
 std::vector<patchy::test::TestCase> scripting_tests() {
   return {
+      {"ui_script_automation_strokes_match_native_and_undo", ui_script_automation_strokes_match_native_and_undo},
+      {"ui_script_automation_preview_ids_and_errors", ui_script_automation_preview_ids_and_errors},
+      {"ui_script_automation_pressure_seed_selection_palette", ui_script_automation_pressure_seed_selection_palette},
       {"ui_script_mutations_ride_single_undo_entry", ui_script_mutations_ride_single_undo_entry},
       {"ui_script_stale_layer_wrapper_throws", ui_script_stale_layer_wrapper_throws},
       {"ui_script_pixels_roundtrip_and_palette_snap", ui_script_pixels_roundtrip_and_palette_snap},

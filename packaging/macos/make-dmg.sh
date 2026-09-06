@@ -40,7 +40,7 @@ cp -R "$APP" "$STAGE/Patchy.app"
 rm -rf "$STAGE/Patchy.app/Contents/MacOS/test-fixtures"
 
 echo "== macdeployqt (bundling Qt frameworks and plugins) =="
-"$QT_BIN/macdeployqt" "$STAGE/Patchy.app"
+"$QT_BIN/macdeployqt" "$STAGE/Patchy.app" -executable="$STAGE/Patchy.app/Contents/MacOS/patchy-mcp"
 
 # macdeployqt bundles libqcocoa only; the offscreen platform is what --headless loads,
 # so it is copied by hand. It lands before codesign so the hardened-runtime signature
@@ -53,6 +53,7 @@ fi
 echo "== copy Qt offscreen platform plugin =="
 mkdir -p "$STAGE/Patchy.app/Contents/PlugIns/platforms"
 cp "$QT_OFFSCREEN_PLUGIN" "$STAGE/Patchy.app/Contents/PlugIns/platforms/libqoffscreen.dylib"
+"$STAGE/Patchy.app/Contents/MacOS/patchy-mcp" --check
 
 if [ -n "${PATCHY_MAC_SIGN_IDENTITY:-}" ]; then
   if [ -n "${PATCHY_KEYCHAIN_PASSWORD:-}" ]; then

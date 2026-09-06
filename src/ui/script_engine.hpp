@@ -1,5 +1,10 @@
 #pragma once
 
+#include <QJsonObject>
+#include <QJsonValue>
+#include <QImage>
+#include "ui/script_stroke.hpp"
+
 #include "core/document.hpp"
 #include "core/layer.hpp"
 
@@ -122,6 +127,18 @@ public:
   // happened while it was closed (menu/CLI runs).
   [[nodiscard]] const QStringList& message_backlog() const noexcept { return message_backlog_; }
   [[nodiscard]] bool last_run_had_error() const noexcept { return last_run_had_error_; }
+  void set_connector_mode(bool enabled) { connector_mode_ = enabled; }
+  [[nodiscard]] bool connector_mode() const { return connector_mode_; }
+  // Safe from the protocol input thread, including while JS runs a tight loop.
+  void interrupt_from_any_thread();
+  void clear_external_interrupt();
+  [[nodiscard]] QJsonValue last_result() const { return last_result_; }
+  [[nodiscard]] bool session_modified(std::int64_t id) const;
+  [[nodiscard]] bool session_can_undo(std::int64_t id, bool redo = false) const;
+  bool restore_session_history(std::int64_t id, bool redo);
+  QJsonObject automation_state() const;
+  QImage render_preview(std::int64_t id, const QJsonObject& options, QJsonObject* metadata);
+  void draw_strokes(std::int64_t session_id, LayerId layer_id, const QJSValue& strokes);
 
 signals:
   // Console output and errors (kind is int(MessageKind)); listeners: the editor
@@ -270,6 +287,7 @@ public:
   Q_INVOKABLE int scriptSetTimer(const QJSValue& callback, int interval_ms, bool repeat);
   Q_INVOKABLE void scriptClearTimer(int timer_id);
   Q_INVOKABLE void consoleEmit(int kind, const QString& text);
+  Q_INVOKABLE void scriptSetResult(const QString& json);
   Q_INVOKABLE void includeScript(const QString& path);
   // True while an include()d file's top-level code runs (patchy.isMainScript
   // is its negation - the `if __name__ == "__main__"` pattern).
@@ -282,6 +300,10 @@ public:
   bool call_script_callback(QJSValue callback, const QJSValueList& args);
 
 private:
+  bool connector_mode_{false};
+  mutable std::mutex interrupt_mutex_;
+  std::atomic<bool> external_interrupt_{false};
+  QJsonValue last_result_;
   struct ScriptRun {
     QString name;
     QStringList include_dir_stack;

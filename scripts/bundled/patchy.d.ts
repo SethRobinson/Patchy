@@ -50,6 +50,50 @@ interface PatchyRect {
   height: number;
 }
 
+interface PatchyStroke {
+  /** 1..100000 points across the batch; coordinates -100000..100000 document pixels. */
+  points: {x: number; y: number; pressure?: number}[];
+  /** Default brush. Round tip; no timed Airbrush, bitmap tips, or stabilizer. */
+  tool?: "brush" | "eraser";
+  /** Default black; CSS/Qt color, #rrggbb or #aarrggbb. */
+  color?: string;
+  /** Integer 1..1024, default 1. Size-one paths use exact pixel segments. */
+  size?: number;
+  /** Integer 1..100, default 100: opacity caps a stroke, Flow meters each dab. */
+  opacity?: number;
+  flow?: number;
+  /** Integer 0..100, default 0. */
+  softness?: number;
+  /** Unsigned 32-bit integer, default 0. Identical strokes and seeds reproduce pixels. */
+  seed?: number;
+  /** Fractions: 0..1 size jitter and 0..10 scatter; defaults 0, Brush only. */
+  sizeJitter?: number;
+  scatter?: number;
+  // Pressure 0..1 defaults to unavailable/full strength. Explicit pressure scales
+  // size and opacity with the native 20% / 15% floors; it does not inherit preferences.
+}
+
+interface PatchyPreviewOptions {
+  /** Document rectangle, clipped to the canvas; positive size, integer coordinates. */
+  rect?: PatchyRect;
+  /** Integer 1..4096, defaults 1024. Aspect ratio is preserved. */
+  maxWidth?: number;
+  maxHeight?: number;
+  /** Default false: smooth downscale only. True permits pixel-sharp enlargement. */
+  nearestNeighbor?: boolean;
+}
+
+interface PatchyPreview {
+  documentId: string;
+  rect: PatchyRect;
+  width: number;
+  height: number;
+  scaleX: number;
+  scaleY: number;
+  path: string;
+  offscreen: boolean;
+}
+
 /** RGBA8 pixel block; data holds width * height * 4 bytes. */
 interface PatchyImageData {
   /** Document-space position of the block. */
@@ -61,6 +105,10 @@ interface PatchyImageData {
 }
 
 interface PatchyLayer {
+  /** Decimal string identity, scoped to this open document. Re-query after undo/reopen. */
+  readonly id: string;
+  /** Native Brush/Eraser paths; validated as a batch before any painting. */
+  drawStrokes(strokes: PatchyStroke[]): void;
   name: string;
   /** 0..100 */
   opacity: number;
@@ -189,6 +237,18 @@ interface PatchySelection {
 }
 
 interface PatchyDocument {
+  /** Decimal string identity, valid while this document remains open. */
+  readonly id: string;
+  readonly modified: boolean;
+  readonly canUndo: boolean;
+  readonly canRedo: boolean;
+  /** Throws when the ID is absent from the current document. */
+  getLayer(id: string): PatchyLayer;
+  /** Restore one history step. Call before any edits in this script; false if unavailable. */
+  undo(): boolean;
+  redo(): boolean;
+  /** Writes a PNG without changing path, modified status, or history. */
+  renderPreview(path: string, options?: PatchyPreviewOptions): PatchyPreview;
   readonly width: number;
   readonly height: number;
   readonly name: string;
@@ -240,6 +300,8 @@ interface PatchyDocument {
 }
 
 interface PatchyApp {
+  /** Throws when the document is no longer open. */
+  getDocument(id: string): PatchyDocument;
   readonly version: string;
   readonly apiVersion: number;
   readonly documents: PatchyDocument[];
@@ -248,6 +310,7 @@ interface PatchyApp {
    * Normally a script run is one undo entry. Set false (ideally before the
    * first edit) to skip the undo snapshot for speed, e.g. games or huge batch
    * jobs; edits made while false cannot be undone. Resets to true each run.
+   * Connector sessions reject false to preserve recoverable edit history.
    */
   undoEnabled: boolean;
   open(path: string): PatchyDocument;
@@ -413,6 +476,9 @@ interface PatchyIo {
 }
 
 interface PatchyNamespace {
+  /** Set the structured result returned by MCP (null by default). Supports timer callbacks.
+   * JSON serializable values only, up to 4 Mi characters. Does not end the run. */
+  setResult(value: unknown): void;
   readonly app: PatchyApp;
   readonly io: PatchyIo;
   readonly ui: PatchyUi;

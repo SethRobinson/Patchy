@@ -1,5 +1,7 @@
 #pragma once
 
+#include "ui/script_stroke.hpp"
+
 #include "core/document.hpp"
 #include "core/magnetic_lasso.hpp"
 #include "core/pattern_resource.hpp"
@@ -426,6 +428,8 @@ public:
   // mode is off. Applied wherever images land in render_cache_.
   void quantize_image_for_palette_display(QImage& image) const;
   void set_brush_size(int size);
+  // Uses the native brush renderer; the caller owns validation, undo, and refresh.
+  QRect paint_script_stroke(const ScriptStroke& stroke, const std::function<bool()>& interrupted = {});
   [[nodiscard]] int brush_size() const noexcept;
   void set_brush_opacity(int opacity);
   [[nodiscard]] int brush_opacity() const noexcept;

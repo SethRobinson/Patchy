@@ -6,6 +6,10 @@ Patchy is a free, open-source image editor for Windows, macOS, and Linux, built 
 
 The browser version is the same editor compiled to WebAssembly. It runs entirely on your machine and nothing you open or make is sent online. The desktop builds are the faster and more capable way to use Patchy: they are not limited to a browser tab's 4 GB of memory, and they add printing, scanner and camera import, and command-line automation.
 
+Local AI agents can use the native MCP connector to draw, inspect previews, revise
+layers, and save editable files. Desktop packages include an installable skill
+and JavaScript examples. See [AI control setup](docs/ai-control.md).
+
 ## Screenshots
 
 Click a thumbnail for the full-size image.

@@ -1,5 +1,10 @@
 # Bitmap brush tips, dynamics and effects, Flow/Airbrush, Mixer Brush, Pattern Stamp, and .abr import
 
+The scripting API's `layer.drawStrokes` drives round Brush/Eraser paths through
+the native stroke lifecycle, without input events. It uses explicit temporary
+settings, pressure samples, and a deterministic seed. See [ai-control.md](ai-control.md)
+and `PatchyStroke` in `scripts/bundled/patchy.d.ts` for the supported subset.
+
 Deep reference for the brush-tip stamping engine, tip library/UI, brush dynamics, and .abr import. Repository-wide determinism and append-only identifier rules (e.g. `BrushDynamicControl`) remain in `AGENTS.md`; shared UI conventions live in [ui-conventions.md](ui-conventions.md), and the binding patent summary is in [legal-constraints.md](legal-constraints.md).
 
 Brush, Pattern Stamp, and Eraser can stamp bitmap **brush tips** in addition to the procedural round/soft brush.

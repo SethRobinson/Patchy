@@ -1153,7 +1153,13 @@ QJSValue ScriptAppObject::active_document() const {
 
 bool ScriptAppObject::undo_enabled() const { return host_.undo_enabled(); }
 
-void ScriptAppObject::set_undo_enabled(bool enabled) { host_.set_undo_enabled(enabled); }
+void ScriptAppObject::set_undo_enabled(bool enabled) {
+  if (host_.connector_mode() && !enabled) {
+    host_.throw_js_error(ScriptEngineHost::tr("Undo history cannot be disabled in a connector session."));
+    return;
+  }
+  host_.set_undo_enabled(enabled);
+}
 
 QJSValue ScriptAppObject::open(const QString& path) {
   const auto id = host_.open_document_file(path);
@@ -1265,6 +1271,10 @@ bool ScriptIoObject::deleteFile(const QString& path) {
 ScriptUiObject::ScriptUiObject(ScriptEngineHost& host) : host_(host) {}
 
 QJSValue ScriptUiObject::createCanvas(const QJSValue& options) {
+  if (host_.connector_mode()) {
+    host_.throw_js_error(ScriptEngineHost::tr("Script windows are unavailable in the background connector. Use a document preview."));
+    return {};
+  }
   int width = 640;
   int height = 480;
   QString title = ScriptEngineHost::tr("Script Window");

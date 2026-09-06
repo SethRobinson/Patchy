@@ -1,0 +1,51 @@
+# Scripting API compatibility
+
+- **`app.apiVersion` is 1.** Bump it only for breaking API changes, and record what
+  changed here. July 2026 additions (all additive, still 1): `include()` search roots,
+  `patchy.isMainScript()`, `patchy.args`, `patchy.ui.showDialog`, `patchy.io.listFiles`,
+  `app.chooseFolder/chooseOpenFile/chooseSaveFile`, `app.runCommand/commandIds`,
+  `getPixels` reading 8-bit RGB layers (opaque opened photos) expanded to RGBA with
+  alpha 255 (it previously threw; `setPixels` still always writes RGBA8 back),
+  `patchy.ui.showOptions`, the `folder`/`file` form field types, the form dialogs'
+  `description` header, `patchy.ui.playTone`/`patchy.ui.playSound`, and the UI staging
+  quartet `patchy.ui.setWindowSize`/`setSidePanelWidth`/`captureWindow`/
+  `setStatusMessage` (built for the README screenshot scripts in
+  `scripts/dev/readme-shots/`; captureWindow rides the `--screenshot` grab machinery
+  and never raises the window; setStatusMessage doubles as a progress readout). Behavioral fixes
+  (still 1): `addTextLayer`'s `size` is defined as document pixels (it previously
+  committed at a canvas-zoom-dependent size), and setting `activeLayer` reveals the
+  row in the Layers panel (ancestor folders expand, the row scrolls into view).
+  August 2026 additions (additive, still 1): the `patchy.filters.auto_tone` and
+  `patchy.filters.auto_color` command ids reach `app.runCommand`/`commandIds` and
+  `layer.applyFilter`, and `patchy.filters.auto_contrast` switched from per-channel
+  to composite stretch (see filters.md; the id is unchanged). Later in August 2026:
+  `image.auto_all` (Auto All) joined the registered command ids, and the three auto
+  command ids now apply immediately with no settings dialog (behavioral; explicit
+  `layer.applyFilter` invocations with an `amount` are unaffected). Also August 2026
+  (additive, still 1): the `patchy.io` probes `fileExists`/`fileSize`/`makeDir`/
+  `deleteFile`, added so a script can verify its own output (the AGENTS.md rule:
+  missing test capabilities become scripting API); pinned by
+  `ui_script_io_round_trips_unicode_path`. 2026-08-23 (additive, still 1):
+  `layer.traceToShapes(options)` runs Trace Image to Shapes (docs/image-trace.md) on a
+  pixel layer and returns the new group layer (null when nothing traced); the
+  `layer.trace_image_to_shapes` command id reaches `app.runCommand` (it opens the dialog).
+  2026-08-24 (still 1): `layer.traceToShapes` honors the document selection (behavioral);
+  additive `layer.simplifyPath(options)`, `doc.combineShapes(layers, op)`, `layer.ungroup()`,
+  and the command ids `path.simplify`, `layer.combine_*`, `layer.ungroup`, `edit.copy_svg`
+  (docs/vector-commands.md). 2026-08-25 (additive, still 1): `layer.traceToShapes`
+  accepts `smoothing` (0..10 px pre-quantization denoise) and `maxAnchors` (anchor
+  budget, 0 = unlimited), and `colors` extends to 2..256 (values above 64 previously
+  clamped to 64; docs/image-trace.md). Also 2026-08-25 (behavioral plus additive,
+  still 1): with a document selection `layer.traceToShapes` picks its palette from
+  the whole layer, matching a whole-layer trace's colors;
+  `paletteFromLayer: false` restores selection-scoped colors, and the additive
+  `mergeColors` option (0..100, default 0) merges near-duplicate palette entries
+  (docs/image-trace.md).
+
+September 2026 additions (additive, still 1): document and layer `id`,
+`app.getDocument`, `doc.getLayer`, `doc.modified`, `doc.canUndo`, `doc.canRedo`,
+`doc.undo`, `doc.redo`, `doc.renderPreview`, `layer.drawStrokes`, and
+`patchy.setResult`. The native MCP connector uses the same API. Identifiers and
+semantics are specified in [ai-control.md](ai-control.md) and the packaged
+`patchy.d.ts`; menu commands and interactive canvases are unavailable in connector
+sessions. Ordinary scripts retain their existing interactive behavior.

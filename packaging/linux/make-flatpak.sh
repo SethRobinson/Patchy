@@ -52,6 +52,7 @@ if [ "$(tail -n 1 "$SMOKE/smoke-output.txt" 2>/dev/null)" != "[done]" ]; then
   exit 1
 fi
 echo "Headless smoke check passed."
+timeout 180 flatpak-builder --run "$BUILD_DIR" "flatpak/$APP_ID.yml" patchy-mcp --check
 
 flatpak build-bundle "$REPO_DIR" "$PACKAGE_DIR/Patchy-$VERSION.flatpak" "$APP_ID"
 echo "Bundle written: $PACKAGE_DIR/Patchy-$VERSION.flatpak"

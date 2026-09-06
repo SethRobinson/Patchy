@@ -41,6 +41,8 @@
 #include <QHBoxLayout>
 #include <QInputDialog>
 #include <QJSEngine>
+#include <QJsonDocument>
+#include <QJsonArray>
 #include <QJSValueIterator>
 #include <QLabel>
 #include <QLineEdit>
@@ -109,6 +111,10 @@ constexpr const char* kBootstrapSource = R"JS(
     apiVersion: g.app.apiVersion,
     version: g.app.version,
     args: g.__patchy_args,
+    setResult: function(value) {
+      var json = JSON.stringify([value]);
+      host.scriptSetResult(json);
+    },
     isMainScript: function() { return !host.scriptIsIncluded(); }
   };
 })();
@@ -201,7 +207,7 @@ ScriptEngineHost::~ScriptEngineHost() {
     teardown_run_resources();
     run_.reset();
   }
-  engine_.reset();
+  { const std::lock_guard lock(interrupt_mutex_); engine_.reset(); }
 }
 
 QString ScriptEngineHost::active_run_name() const {
@@ -277,14 +283,18 @@ bool ScriptEngineHost::run_source(const QString& source, RunOptions options) {
   if (!options.path.isEmpty()) {
     run_->include_dir_stack.push_back(QFileInfo(options.path).absolutePath());
   }
-  engine_ = std::make_unique<QJSEngine>();
-  install_bindings(options);
+  last_result_ = QJsonValue(QJsonValue::Null);
+  {
+    const std::lock_guard lock(interrupt_mutex_);
+    engine_ = std::make_unique<QJSEngine>();
+    install_bindings(options);
+    engine_->setInterrupted(external_interrupt_);
+  }
   emit run_state_changed();
 
   run_->sync_running = true;
   run_->burst_clock.start();
   run_->run_clock.start();
-  engine_->setInterrupted(false);
   watchdog_->arm(watchdog_timeout());
   const auto file_name = options.path.isEmpty() ? run_->name : options.path;
   const QJSValue result = engine_->evaluate(source, file_name, 1);
@@ -295,7 +305,7 @@ bool ScriptEngineHost::run_source(const QString& source, RunOptions options) {
     run_->had_error = true;
     engine_->setInterrupted(false);
     emit_message(MessageKind::Error,
-                 run_->stop_requested
+                 run_->stop_requested || external_interrupt_
                      ? tr("Script stopped.")
                      : tr("Script stopped: no activity for %1 seconds (a stuck loop?).")
                            .arg(watchdog_timeout().count() / 1000));
@@ -322,22 +332,22 @@ void ScriptEngineHost::install_bindings(const RunOptions& options) {
   global.setProperty(QStringLiteral("__patchy_args"), args_object);
 
   // The bridge objects stay C++-owned: `this` is parented to the window, and
-  // the singleton wrappers are parented to `this`, so the JS GC never deletes
+  // the singleton wrappers are parented to the engine, so the JS GC never deletes
   // them (per-access document/layer wrappers are parentless and JS-owned).
   const auto host_value = engine.newQObject(this);
   QQmlEngine::setObjectOwnership(this, QQmlEngine::CppOwnership);
   global.setProperty(QStringLiteral("__patchy_host"), host_value);
 
   auto* app_object = new ScriptAppObject(*this);
-  app_object->setParent(this);
+  app_object->setParent(&engine);
   global.setProperty(QStringLiteral("app"), engine.newQObject(app_object));
 
   auto* io_object = new ScriptIoObject(*this);
-  io_object->setParent(this);
+  io_object->setParent(&engine);
   global.setProperty(QStringLiteral("__patchy_io"), engine.newQObject(io_object));
 
   auto* ui_object = new ScriptUiObject(*this);
-  ui_object->setParent(this);
+  ui_object->setParent(&engine);
   global.setProperty(QStringLiteral("__patchy_ui"), engine.newQObject(ui_object));
 
   const QJSValue bootstrap = engine.evaluate(QString::fromLatin1(kBootstrapSource),
@@ -350,6 +360,7 @@ void ScriptEngineHost::stop_active_run() {
     return;
   }
   run_->stop_requested = true;
+  run_->had_error = run_->had_error || connector_mode_;
   if (run_->sync_running || run_->in_callback) {
     // Script code is executing (or a wrapper opened a nested event loop from
     // it); the engine cannot be destroyed from under it. Interrupt and let the
@@ -377,7 +388,6 @@ bool ScriptEngineHost::call_script_callback(QJSValue callback, const QJSValueLis
   }
   run_->in_callback = true;
   run_->burst_clock.restart();  // busy indicator measures this burst alone
-  engine_->setInterrupted(false);
   watchdog_->arm(watchdog_timeout());
   const QJSValue result = callback.call(args);
   watchdog_->disarm();
@@ -392,7 +402,7 @@ bool ScriptEngineHost::call_script_callback(QJSValue callback, const QJSValueLis
     run_->had_error = true;
     engine_->setInterrupted(false);
     emit_message(MessageKind::Error,
-                 run_->stop_requested
+                 run_->stop_requested || external_interrupt_
                      ? tr("Script stopped.")
                      : tr("Script stopped: a callback showed no activity for %1 seconds "
                           "(a stuck loop?).")
@@ -456,7 +466,7 @@ void ScriptEngineHost::finish_run() {
   run_.reset();
   // The engine must outlive every stored QJSValue; the canvas windows released
   // theirs in teardown and the run owned the rest.
-  engine_.reset();
+  { const std::lock_guard lock(interrupt_mutex_); engine_.reset(); }
   emit run_state_changed();
   for (const auto session_id : undo_sessions) {
     if (window_.session_with_id(session_id) != nullptr) {
@@ -1760,6 +1770,10 @@ QJSValue ScriptEngineHost::run_form_dialog(const QJSValue& spec, bool merge_args
 // App commands
 
 bool ScriptEngineHost::run_app_command(const QString& command_id) {
+  if (connector_mode_) {
+    throw_js_error(tr("Menu commands are unavailable in the background connector. Use the scripting API."));
+    return false;
+  }
   const auto* command = window_.hotkey_registry().find_command(command_id);
   if (command == nullptr || command->action.isNull()) {
     return false;

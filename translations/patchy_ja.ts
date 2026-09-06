@@ -14993,6 +14993,83 @@ Clipped to the layer below</source>
     <message><source>combineShapes: fill layers without a path cannot be combined.</source><translation>combineShapes: パスのない塗りつぶしレイヤーは結合できません。</translation></message>
     <message><source>combineShapes: the shape layers must share one folder.</source><translation>combineShapes: シェイプレイヤーは同じフォルダーにある必要があります。</translation></message>
     <message><source>ungroup needs a group layer.</source><translation>ungroup にはグループレイヤーが必要です。</translation></message>
+
+    <message>
+        <source>A preview output path is required.</source>
+        <translation>プレビューの出力先パスを指定してください。</translation>
+    </message>
+    <message>
+        <source>Could not save the preview: %1</source>
+        <translation>プレビューを保存できませんでした: %1</translation>
+    </message>
+    <message>
+        <source>Invalid preview rectangle.</source>
+        <translation>プレビューの範囲が無効です。</translation>
+    </message>
+    <message>
+        <source>Invalid stroke argument: %1</source>
+        <translation>ストロークの引数が無効です: %1</translation>
+    </message>
+    <message>
+        <source>Preview dimensions must be integers from 1 to 4096.</source>
+        <translation>プレビューのサイズは1から4096の整数で指定してください。</translation>
+    </message>
+    <message>
+        <source>Preview options must be an object.</source>
+        <translation>プレビューのオプションはオブジェクトで指定してください。</translation>
+    </message>
+    <message>
+        <source>Strokes require an unlocked 8-bit pixel layer.</source>
+        <translation>ストロークにはロックされていない8ビットのピクセルレイヤーが必要です。</translation>
+    </message>
+    <message>
+        <source>The preview rectangle is outside the canvas.</source>
+        <translation>プレビューの範囲がキャンバスの外にあります。</translation>
+    </message>
+    <message>
+        <source>The script result is too large. Save large data to a file.</source>
+        <translation>スクリプトの結果が大きすぎます。大きなデータはファイルに保存してください。</translation>
+    </message>
+    <message>
+        <source>The script result must be JSON serializable.</source>
+        <translation>スクリプトの結果はJSONに変換できる値にしてください。</translation>
+    </message>
+    <message>
+        <source>Undo and redo must run before any edits in a script.</source>
+        <translation>スクリプト内で元に戻す操作とやり直しを行う場合は、編集より先に実行してください。</translation>
+    </message>
+    <message>
+        <source>Unknown document ID: %1</source>
+        <translation>不明なドキュメントID: %1</translation>
+    </message>
+    <message>
+        <source>Unknown layer ID: %1</source>
+        <translation>不明なレイヤーID: %1</translation>
+    </message>
+    <message>
+        <source>Unknown preview option: %1</source>
+        <translation>不明なプレビューオプション: %1</translation>
+    </message>
+    <message>
+        <source>nearestNeighbor must be a boolean.</source>
+        <translation>nearestNeighborは真偽値で指定してください。</translation>
+    </message>
+    <message>
+        <source>Menu commands are unavailable in the background connector. Use the scripting API.</source>
+        <translation>バックグラウンド接続ではメニューコマンドを使用できません。スクリプトAPIを使用してください。</translation>
+    </message>
+    <message>
+        <source>Script windows are unavailable in the background connector. Use a document preview.</source>
+        <translation>バックグラウンド接続ではスクリプトウィンドウを使用できません。ドキュメントのプレビューを使用してください。</translation>
+    </message>
+    <message>
+        <source>Undo history cannot be disabled in a connector session.</source>
+        <translation>コネクターのセッションでは取り消し履歴を無効にできません。</translation>
+    </message>
+    <message>
+        <source>Could not allocate the preview image.</source>
+        <translation>プレビュー画像のメモリを確保できませんでした。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptEditorDialog</name>
@@ -15070,6 +15147,122 @@ Clipped to the layer below</source>
     <message>
         <source>Option</source>
         <translation>Option</translation>
+    </message>
+</context>
+
+<context>
+    <name>PatchyMcp</name>
+    <message>
+        <source>Another operation is running. Wait for its reply before retrying.</source>
+        <translation>別の操作を実行中です。その応答を待ってから再試行してください。</translation>
+    </message>
+    <message>
+        <source>Could not read the control-kit resource.</source>
+        <translation>操作キットのリソースを読み込めませんでした。</translation>
+    </message>
+    <message>
+        <source>Could not render the preview.</source>
+        <translation>プレビューを描画できませんでした。</translation>
+    </message>
+    <message>
+        <source>Discover Patchy versions, capabilities, and the installed control skill.</source>
+        <translation>Patchyのバージョン、機能、インストール済み操作スキルを確認します。</translation>
+    </message>
+    <message>
+        <source>Initialize the MCP connection first.</source>
+        <translation>先にMCP接続を初期化してください。</translation>
+    </message>
+    <message>
+        <source>Inspect open documents, stable IDs, layers, selections, and undo availability.</source>
+        <translation>開いているドキュメント、ID、レイヤー、選択範囲、元に戻せるかを確認します。</translation>
+    </message>
+    <message>
+        <source>Invalid JSON-RPC message.</source>
+        <translation>JSON-RPCメッセージが無効です。</translation>
+    </message>
+    <message>
+        <source>Invalid tool argument: %1</source>
+        <translation>ツールの引数が無効です: %1</translation>
+    </message>
+    <message>
+        <source>Missing tool argument: %1</source>
+        <translation>ツールの引数がありません: %1</translation>
+    </message>
+    <message>
+        <source>Operation cancelled.</source>
+        <translation>操作をキャンセルしました。</translation>
+    </message>
+    <message>
+        <source>Paint a batch through the native Brush or Eraser. Read get_help(api) for stroke fields and pressure behavior. Coordinates are document pixels; the batch is one undo step.</source>
+        <translation>ブラシまたは消しゴムでストロークをまとめて描画します。引数と筆圧の動作はget_help(api)を参照してください。座標はドキュメントのピクセル単位です。全体を1回で元に戻せます。</translation>
+    </message>
+    <message>
+        <source>Patchy owns an isolated persistent background workspace. Read get_help(workflow) and get_help(api). Use document/layer IDs, batch edits, inspect get_preview, and save checkpoints. JS globals reset between calls. Requests are serialized; failed scripts may leave undoable edits. No desktop window is controlled.</source>
+        <translation>Patchyは独立したバックグラウンド作業領域を保持します。get_help(workflow)とget_help(api)を参照してください。ドキュメントとレイヤーのIDで編集をまとめ、get_previewで確認し、途中経過を保存してください。JSのグローバル変数は呼び出しごとに初期化されます。要求は順に処理されます。スクリプトが失敗しても元に戻せる編集が残る場合があります。デスクトップのウィンドウは操作しません。</translation>
+    </message>
+    <message>
+        <source>Read the scripting API, workflow, or a runnable example. Use before writing scripts.</source>
+        <translation>スクリプトAPI、作業手順、実行可能な例を読みます。スクリプトを書く前に参照してください。</translation>
+    </message>
+    <message>
+        <source>Redo one edit in the named document.</source>
+        <translation>指定したドキュメントの編集を1回やり直します。</translation>
+    </message>
+    <message>
+        <source>Return a fresh canvas PNG image and coordinate metadata, or an offscreen app-window capture. No save path or document state changes.</source>
+        <translation>最新のキャンバスPNGと座標情報、または画面外で描画したアプリウィンドウ画像を返します。保存先やドキュメントの状態は変更しません。</translation>
+    </message>
+    <message>
+        <source>Run JavaScript in the persistent background workspace. Use patchy.setResult(value) for a JSON result. Globals reset each run; documents persist. Edits form one undo step per document; errors can leave partial edits. Scripts are trusted and can access files.</source>
+        <translation>保持されたバックグラウンド作業領域でJavaScriptを実行します。JSONの結果はpatchy.setResult(value)で指定します。変数は毎回初期化され、ドキュメントは保持されます。編集はドキュメントごとに1回で元に戻せます。エラー時は一部の編集が残る場合があります。スクリプトは信頼済みとしてファイルにアクセスできます。</translation>
+    </message>
+    <message>
+        <source>Script argument values must be strings.</source>
+        <translation>スクリプトの引数の値は文字列で指定してください。</translation>
+    </message>
+    <message>
+        <source>Script source must contain 1 to 4194304 characters.</source>
+        <translation>スクリプトは1から4194304文字で指定してください。</translation>
+    </message>
+    <message>
+        <source>The request exceeds 16 MiB.</source>
+        <translation>要求が16 MiBを超えています。</translation>
+    </message>
+    <message>
+        <source>The requested control-kit resource is unavailable.</source>
+        <translation>指定した操作キットのリソースは利用できません。</translation>
+    </message>
+    <message>
+        <source>Tool arguments must be an object.</source>
+        <translation>ツールの引数はオブジェクトで指定してください。</translation>
+    </message>
+    <message>
+        <source>Undo one edit in the named document.</source>
+        <translation>指定したドキュメントの編集を1回元に戻します。</translation>
+    </message>
+    <message>
+        <source>Unknown MCP method.</source>
+        <translation>不明なMCPメソッドです。</translation>
+    </message>
+    <message>
+        <source>Unknown document ID.</source>
+        <translation>不明なドキュメントIDです。</translation>
+    </message>
+    <message>
+        <source>Unknown preview target.</source>
+        <translation>不明なプレビュー対象です。</translation>
+    </message>
+    <message>
+        <source>Unknown tool.</source>
+        <translation>不明なツールです。</translation>
+    </message>
+    <message>
+        <source>Usage: patchy-mcp [--check]. With no arguments, serve MCP over stdin/stdout.</source>
+        <translation>使用法: patchy-mcp [--check]。引数なしの場合、標準入出力でMCP接続を提供します。</translation>
+    </message>
+    <message>
+        <source>Window previews do not accept document or canvas options.</source>
+        <translation>ウィンドウのプレビューにはドキュメントやキャンバスのオプションを指定できません。</translation>
     </message>
 </context>
 </TS>

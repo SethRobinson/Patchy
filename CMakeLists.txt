@@ -775,6 +775,25 @@ if(PATCHY_BUILD_APP)
         add_dependencies(${target} patchy_bundled_scripts)
       endif()
     endfunction()
+    # One writer assembles the installable skill, including the authoritative API docs.
+    if(NOT EMSCRIPTEN)
+      set(PATCHY_AGENT_KIT_DIR "${PROJECT_SOURCE_DIR}/agent-kit")
+      file(GLOB_RECURSE PATCHY_AGENT_KIT_FILES CONFIGURE_DEPENDS "${PATCHY_AGENT_KIT_DIR}/*")
+      set(PATCHY_AGENT_KIT_STAMP "${CMAKE_BINARY_DIR}/CMakeFiles/patchy_agent_kit.stamp")
+      add_custom_command(OUTPUT "${PATCHY_AGENT_KIT_STAMP}"
+        # The output is always the dedicated ai child of the build directory.
+        COMMAND ${CMAKE_COMMAND} -E rm -rf "${CMAKE_BINARY_DIR}/ai"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${PATCHY_AGENT_KIT_DIR}" "${CMAKE_BINARY_DIR}/ai"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${PATCHY_BUNDLED_SCRIPTS_DIR}/patchy.d.ts"
+                "${PATCHY_BUNDLED_SCRIPTS_DIR}/scripting-guide.md"
+                "${CMAKE_BINARY_DIR}/ai/patchy-control/references/"
+        COMMAND ${CMAKE_COMMAND} -E touch "${PATCHY_AGENT_KIT_STAMP}"
+        DEPENDS ${PATCHY_AGENT_KIT_FILES} "${PATCHY_BUNDLED_SCRIPTS_DIR}/patchy.d.ts"
+                "${PATCHY_BUNDLED_SCRIPTS_DIR}/scripting-guide.md"
+        COMMENT "Assembling the Patchy control skill")
+      add_custom_target(patchy_agent_kit ALL DEPENDS "${PATCHY_AGENT_KIT_STAMP}")
+    endif()
     add_library(patchy_ui
       src/ui/action_icons.cpp
       src/ui/icon_theme.hpp
@@ -964,6 +983,8 @@ if(PATCHY_BUILD_APP)
       src/ui/script_editor_dialog.cpp
       src/ui/script_engine.hpp
       src/ui/script_engine.cpp
+      src/ui/script_automation.cpp
+      src/ui/canvas_widget_script_stroke.cpp
       src/ui/script_folders.hpp
       src/ui/script_folders.cpp
       src/ui/selection_outline.hpp
@@ -1248,6 +1269,18 @@ if(PATCHY_BUILD_APP)
       )
     endif()
     target_link_libraries(patchy PRIVATE patchy_ui)
+    if(NOT EMSCRIPTEN)
+      add_executable(patchy-mcp src/app/main.cpp src/app/mcp_server.cpp)
+      target_link_libraries(patchy-mcp PRIVATE patchy_ui)
+      target_compile_definitions(patchy-mcp PRIVATE PATCHY_MCP_EXECUTABLE=1 PATCHY_VERSION="${PROJECT_VERSION}")
+      patchy_configure_target(patchy-mcp)
+      patchy_copy_translations(patchy-mcp)
+      patchy_copy_qt_runtime(patchy-mcp)
+      patchy_copy_bundled_fonts(patchy-mcp)
+      patchy_copy_bundled_scripts(patchy-mcp)
+      add_dependencies(patchy-mcp patchy_agent_kit)
+      install(TARGETS patchy-mcp RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+    endif()
     target_compile_definitions(patchy PRIVATE PATCHY_VERSION="${PROJECT_VERSION}")
     patchy_configure_target(patchy)
     patchy_copy_translations(patchy)
@@ -1286,7 +1319,7 @@ if(PATCHY_BUILD_APP)
       # accumulated in Resources/scripts this way).
       set(PATCHY_BUNDLE_RESOURCES_STAMP
           "${CMAKE_BINARY_DIR}/CMakeFiles/patchy_bundle_resources.stamp")
-      set(PATCHY_BUNDLE_RESOURCE_DEPS patchy ${PATCHY_QM_FILES})
+      set(PATCHY_BUNDLE_RESOURCE_DEPS patchy patchy-mcp "${PATCHY_AGENT_KIT_STAMP}" ${PATCHY_QM_FILES})
       if(TARGET patchy_qt_base_translations)
         list(APPEND PATCHY_BUNDLE_RESOURCE_DEPS
              "${CMAKE_BINARY_DIR}/translations/qtbase_ja.qm")
@@ -1303,6 +1336,7 @@ if(PATCHY_BUILD_APP)
                 "$<TARGET_BUNDLE_CONTENT_DIR:patchy>/Resources/fonts"
                 "$<TARGET_BUNDLE_CONTENT_DIR:patchy>/Resources/translations"
                 "$<TARGET_BUNDLE_CONTENT_DIR:patchy>/Resources/scripts"
+                "$<TARGET_BUNDLE_CONTENT_DIR:patchy>/Resources/ai"
         COMMAND ${CMAKE_COMMAND} -E copy_directory
                 "${CMAKE_BINARY_DIR}/fonts"
                 "$<TARGET_BUNDLE_CONTENT_DIR:patchy>/Resources/fonts"
@@ -1312,6 +1346,10 @@ if(PATCHY_BUILD_APP)
         COMMAND ${CMAKE_COMMAND} -E copy_directory
                 "${CMAKE_BINARY_DIR}/scripts"
                 "$<TARGET_BUNDLE_CONTENT_DIR:patchy>/Resources/scripts"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:patchy-mcp>"
+                "$<TARGET_BUNDLE_CONTENT_DIR:patchy>/MacOS/patchy-mcp"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_BINARY_DIR}/ai"
+                "$<TARGET_BUNDLE_CONTENT_DIR:patchy>/Resources/ai"
         COMMAND ${CMAKE_COMMAND} -E touch "${PATCHY_BUNDLE_RESOURCES_STAMP}"
         DEPENDS ${PATCHY_BUNDLE_RESOURCE_DEPS}
         COMMENT "Staging fonts, translations, and scripts into the Patchy app bundle"
@@ -1334,6 +1372,11 @@ if(PATCHY_BUILD_APP)
       )
     endif()
     if(UNIX AND NOT APPLE AND NOT EMSCRIPTEN)
+      install(DIRECTORY "${PATCHY_AGENT_KIT_DIR}/"
+              DESTINATION "${CMAKE_INSTALL_DATADIR}/patchy/ai")
+      install(FILES "${PATCHY_BUNDLED_SCRIPTS_DIR}/patchy.d.ts"
+                    "${PATCHY_BUNDLED_SCRIPTS_DIR}/scripting-guide.md"
+              DESTINATION "${CMAKE_INSTALL_DATADIR}/patchy/ai/patchy-control/references")
       # Linux install layout (what the Flatpak build uses): binary in bin/, resources
       # under share/patchy/ (probed by load_bundled_fonts / translation_directories),
       # and the freedesktop integration files under share/.
