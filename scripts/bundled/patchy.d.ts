@@ -464,6 +464,16 @@ interface PatchyUi {
   captureWindow(path: string): boolean;
   /** Shows a message in the main window's status bar (progress readouts). */
   setStatusMessage(message: string): void;
+  /**
+   * The active document's view zoom in percent, as the status bar shows it.
+   * Reads 0 with no document. Setting clamps to 5..12800 and throws for NaN,
+   * non-positive values, or with no document. Use doc.activate() first to
+   * target another document. Only window captures (captureWindow, the
+   * connector's window preview) see the view; document previews never do.
+   */
+  zoom: number;
+  /** View > Fit on Screen for the active document; throws with no document. */
+  fitOnScreen(): void;
 }
 
 interface PatchyIo {

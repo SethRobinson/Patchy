@@ -105,7 +105,10 @@ The additive API remains version 1. Read the packaged TypeScript reference and
   rectangles preserve aspect ratio with bounded output; nearest-neighbor scaling
   can enlarge sprites. Coordinates map as
   `documentX = rect.x + previewX / scaleX`, similarly for Y. Canvas previews are
-  fresh renders; app-window captures are explicitly labeled offscreen.
+  fresh renders; app-window captures are explicitly labeled offscreen. Window
+  captures show the view as staged by `patchy.ui.zoom` (percent) and
+  `patchy.ui.fitOnScreen()`, which connector sessions allow; canvas previews
+  ignore the view.
 - The trusted-script model is unchanged. Scripts can access files with application
   privileges. Connector sessions reject `app.runCommand` and interactive script
   canvases; use explicit document APIs. Existing unattended option dialogs return

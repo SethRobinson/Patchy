@@ -283,6 +283,14 @@ public:
   Q_INVOKABLE bool captureWindow(const QString& path);
   // Shows a message in the main window's status bar (progress readouts).
   Q_INVOKABLE void setStatusMessage(const QString& message);
+  // The active document's view zoom in percent (0 with no document). Setting
+  // clamps like the status bar; throws for NaN/non-positive values or with no
+  // document. Only window captures see the view, never document previews.
+  Q_PROPERTY(double zoom READ zoom WRITE set_zoom)
+  [[nodiscard]] double zoom() const;
+  void set_zoom(double percent);
+  // View > Fit on Screen for the active document; throws with no document.
+  Q_INVOKABLE void fitOnScreen();
 
 private:
   ScriptEngineHost& host_;

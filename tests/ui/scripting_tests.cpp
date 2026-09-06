@@ -1690,6 +1690,62 @@ void ui_script_scripting_guide_opens_from_help() {
   viewers[0]->close();
 }
 
+// patchy.ui.zoom / fitOnScreen: the documented view controls (percent, active
+// document, status-bar clamping), including the connector sessions that refuse
+// app.runCommand('view.fit_on_screen').
+void ui_script_ui_view_zoom() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    patchy.ui.setWindowSize(1000, 700);
+    patchy.ui.zoom = 50;
+    console.log('half=' + patchy.ui.zoom);
+    patchy.ui.zoom = 100000;
+    console.log('max=' + patchy.ui.zoom);
+    patchy.ui.zoom = 0.001;
+    console.log('min=' + patchy.ui.zoom);
+    patchy.ui.fitOnScreen();
+    var fit = patchy.ui.zoom;
+    var doc = app.activeDocument;
+    console.log('fits=' + (fit > 0 && doc.width * fit / 100 <= 1000 && doc.height * fit / 100 <= 700));
+    patchy.ui.zoom = 200;
+    console.log('after=' + patchy.ui.zoom);
+  )JS")));
+  CHECK(backlog_contains(window, QStringLiteral("half=50")));
+  CHECK(backlog_contains(window, QStringLiteral("max=12800")));
+  CHECK(backlog_contains(window, QStringLiteral("min=5")));
+  CHECK(backlog_contains(window, QStringLiteral("fits=true")));
+  CHECK(backlog_contains(window, QStringLiteral("after=200")));
+  CHECK(!run_script(window, QStringLiteral("patchy.ui.zoom = NaN;")));
+  CHECK(!run_script(window, QStringLiteral("patchy.ui.zoom = -5;")));
+  CHECK(!run_script(window, QStringLiteral("patchy.ui.zoom = 0;")));
+  // A failed assignment leaves the view alone.
+  CHECK(run_script(window, QStringLiteral("console.log('kept=' + patchy.ui.zoom);")));
+  CHECK(backlog_contains(window, QStringLiteral("kept=200")));
+
+  patchy::ui::MainWindow connector;
+  show_window(connector);
+  connector.set_cli_automation_mode(true);
+  connector.script_engine_host().set_connector_mode(true);
+  CHECK(run_script(connector, QStringLiteral(R"JS(
+    app.documents.forEach(function (d) { d.close(); });
+    console.log('empty=' + patchy.ui.zoom);
+  )JS")));
+  CHECK(backlog_contains(connector, QStringLiteral("empty=0")));
+  CHECK(!run_script(connector, QStringLiteral("patchy.ui.zoom = 100;")));
+  CHECK(!run_script(connector, QStringLiteral("patchy.ui.fitOnScreen();")));
+  CHECK(run_script(connector, QStringLiteral(R"JS(
+    var doc = app.newDocument(64, 64);
+    patchy.ui.zoom = 200;
+    console.log('connector=' + patchy.ui.zoom);
+    patchy.ui.fitOnScreen();
+    console.log('connectorFit=' + (patchy.ui.zoom > 200));
+  )JS")));
+  CHECK(backlog_contains(connector, QStringLiteral("connector=200")));
+  CHECK(backlog_contains(connector, QStringLiteral("connectorFit=true")));
+  CHECK(!run_script(connector, QStringLiteral("app.runCommand('view.fit_on_screen');")));
+}
+
 void ui_script_ui_staging_apis() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -2127,6 +2183,7 @@ std::vector<patchy::test::TestCase> scripting_tests() {
        ui_script_cli_directive_and_example_command},
       {"ui_script_manager_cli_example_dialog", ui_script_manager_cli_example_dialog},
       {"ui_script_scripting_guide_opens_from_help", ui_script_scripting_guide_opens_from_help},
+      {"ui_script_ui_view_zoom", ui_script_ui_view_zoom},
       {"ui_script_ui_staging_apis", ui_script_ui_staging_apis},
       {"ui_script_active_layer_setter_reveals_row", ui_script_active_layer_setter_reveals_row},
       {"ui_script_io_round_trips_unicode_path", ui_script_io_round_trips_unicode_path},

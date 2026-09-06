@@ -71,7 +71,7 @@ Preview dimensions default to a 1024 by 1024 bounding box and may be 1 through 4
 
 A mutating script or stroke batch makes one undo entry per affected document. Failed or cancelled scripts may leave partial edits; inspect returned state and undo before revising. The connector does not retry edits. `doc.undo()` and `doc.redo()` return whether a history step was restored and must run before new edits in the same script. `doc.modified`, `doc.canUndo`, and `doc.canRedo` expose status. `patchy.setResult(value)` returns a small JSON value independently of logs.
 
-Send one tool request at a time. A concurrent edit/state request receives `busy`. Cancellation interrupts JavaScript, stops timers, and lets native work reach an interruption boundary. The inactivity watchdog still applies. `app.runCommand` and `patchy.ui.createCanvas` report unsupported operations in connector sessions; use explicit document APIs. Existing unattended option/dialog behavior applies. Scripts retain Patchy's trusted-script file privileges.
+Send one tool request at a time. A concurrent edit/state request receives `busy`. Cancellation interrupts JavaScript, stops timers, and lets native work reach an interruption boundary. The inactivity watchdog still applies. `app.runCommand` and `patchy.ui.createCanvas` report unsupported operations in connector sessions; use explicit document APIs (`patchy.ui.zoom` and `patchy.ui.fitOnScreen()` set the view before a window capture). Existing unattended option/dialog behavior applies. Scripts retain Patchy's trusted-script file privileges.
 
 ## Header directives
 
@@ -215,6 +215,8 @@ Colors everywhere are CSS-style strings: `"#rrggbb"`, `"#aarrggbb"`, or named co
 | `patchy.ui.setSidePanelWidth(px)` | Sets the width of the right panel stack (Layers/Channels/Paths). |
 | `patchy.ui.captureWindow(path)` | Saves a PNG screenshot of the main window without raising or focusing it. Returns false if the file could not be written. |
 | `patchy.ui.setStatusMessage(text)` | Shows a message in the status bar. Handy for progress readouts in long batches. |
+| `patchy.ui.zoom` | The active document's view zoom in percent (read/write, 0 with no document). Setting clamps to 5..12800; throws for NaN, non-positive values, or with no document. Only window captures see it. |
+| `patchy.ui.fitOnScreen()` | View > Fit on Screen for the active document. Throws with no document. |
 
 Sound is best-effort per platform: Windows and macOS play through the OS directly, Linux needs `paplay`, `pw-play`, or `aplay` on the PATH (most desktops have one). No sound device just means silence, never an error, and setting the environment variable `PATCHY_NO_SOUND=1` mutes scripts entirely.
 

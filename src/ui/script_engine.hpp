@@ -265,6 +265,14 @@ public:
   // patchy.ui.setStatusMessage: the status bar line (progress readouts, and
   // staging a clean "Ready" before a capture).
   void set_status_message(const QString& message);
+  // patchy.ui.zoom / patchy.ui.fitOnScreen: the active document's canvas view
+  // in percent (0 with no document). Setting throws with no document and
+  // clamps like the status bar; fitting settles pending layout first so an
+  // earlier setWindowSize has reached the canvas. Window captures see the
+  // view; document previews never do. Available in connector sessions.
+  [[nodiscard]] double view_zoom_percent() const;
+  void set_view_zoom_percent(double percent);
+  void fit_view_on_screen();
   // The activeLayer setter's reveal: expand collapsed ancestor folders and
   // (when the session is the active one) select + scroll the row into view.
   void reveal_layer_row(std::int64_t session_id, LayerId layer_id);

@@ -15002,6 +15002,8 @@ Clipped to the layer below</source>
     <message><source>setPixels needs a pixel layer, not a group.</source><translation>setPixels にはグループではなくピクセルレイヤーが必要です。</translation></message>
     <message><source>activeLayer needs a layer of this document.</source><translation>activeLayer にはこのドキュメントのレイヤーが必要です。</translation></message>
     <message><source>captureWindow needs an output file path.</source><translation>captureWindow には出力ファイルのパスが必要です。</translation></message>
+    <message><source>zoom needs a number greater than 0 (percent).</source><translation>zoom には 0 より大きい数値 (パーセント) が必要です。</translation></message>
+    <message><source>No document is open to zoom.</source><translation>ズームするドキュメントが開かれていません。</translation></message>
     <message><source>Layer</source><translation>レイヤー</translation></message>
     <message><source>Could not create the text layer.</source><translation>テキストレイヤーを作成できませんでした。</translation></message>
     <message><source>resizeImage needs a size between 1 and 30000.</source><translation>resizeImage のサイズは 1 から 30000 の範囲で指定してください。</translation></message>

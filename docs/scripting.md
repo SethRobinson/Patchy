@@ -276,6 +276,10 @@ everywhere a bundled script is resolved.
 - **`app.runCommand(id)`** triggers registered QActions by their stable HotkeyRegistry
   command id (the same ids the hotkey editor persists); returns false for unknown or
   disabled commands. It rides the same trust model as the rest of scripting.
+- **`patchy.ui.zoom` / `patchy.ui.fitOnScreen()`** are the documented view controls
+  (percent, active document, `CanvasWidget::set_zoom_centered` / `fit_to_view`). They
+  exist because connector sessions refuse `runCommand`; fitting settles posted layout
+  first so an earlier `setWindowSize` counts.
 - The script canvas window deliberately bypasses `run_non_modal_dialog` (that helper
   parks the caller in a nested event loop until the dialog finishes, and the calling
   script must keep running). It applies `keep_dialog_above_parent_window` directly, which

@@ -1401,6 +1401,19 @@ void ScriptUiObject::setSidePanelWidth(int width) { host_.set_side_panel_width(w
 
 void ScriptUiObject::setStatusMessage(const QString& message) { host_.set_status_message(message); }
 
+double ScriptUiObject::zoom() const { return host_.view_zoom_percent(); }
+
+void ScriptUiObject::set_zoom(double percent) {
+  if (!std::isfinite(percent) || percent <= 0.0) {
+    // std::clamp passes NaN straight through, and a zero zoom has no view.
+    host_.throw_js_error(ScriptEngineHost::tr("zoom needs a number greater than 0 (percent)."));
+    return;
+  }
+  host_.set_view_zoom_percent(percent);
+}
+
+void ScriptUiObject::fitOnScreen() { host_.fit_view_on_screen(); }
+
 bool ScriptUiObject::captureWindow(const QString& path) {
   if (path.trimmed().isEmpty()) {
     host_.throw_js_error(ScriptEngineHost::tr("captureWindow needs an output file path."));
