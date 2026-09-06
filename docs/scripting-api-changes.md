@@ -58,3 +58,11 @@ can see; `layer.opacity` refuses NaN; `patchy.io.readTextFile` throws for files 
 restart per document, so it activated an unrelated layer before); and text layers whose
 characters no registered font covers no longer crash the missing-font check (Thai and
 Japanese under `--headless`, where only bundled and rescued faces exist).
+
+September 6, 2026 behavioral corrections (API version remains 1): forwarded
+unattended scripts suppress file/close prompts and use default RAW/PDF imports;
+forms normalize defaults through the interactive controls and reject missing keys.
+`app.runCommand` refuses `edit.undo`, `edit.redo`, and `file.quit` during a run.
+RGB8 layers support `fill`/`fillRect`, positions reject overflow, selections clip to
+the canvas, and assigning empty text clears its raster. Existing identifiers and
+Qt color/button encodings remain unchanged.

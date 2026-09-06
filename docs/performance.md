@@ -99,7 +99,13 @@ semantics, and nothing in the suites builds 200 layers.
 
 ## Parallel strip rendering
 
-Full renders at 4 Mpx+ composite in parallel horizontal strips (render_document_rect, image_document_io.cpp; ~4-6x on many-core machines). Style-mask float blurs are windowed per clip, so strip output can differ from the sequential walk by ~1-2/255 at strip boundaries near styled layers — the same divergence class the dirty-rect patch path already has vs full refreshes. Every pixel test renders below the threshold (sequential, byte-stable); `PATCHY_RENDER_SINGLE_THREADED=1` forces the sequential path when a byte-stable big render is needed (e.g. cross-run checksum comparisons). Tracing/profiling renders also stay sequential so per-step instrumentation remains meaningful.
+Full renders at 4 Mpx+ use horizontal strips (`render_document_rect`).
+`PATCHY_RENDER_SINGLE_THREADED=1` and tracing/profiling force sequential rendering.
+Styled groups use their complete child silhouette; the bounded style-mask LRU
+shares it across strips and repaints, keyed by descendant render revisions.
+Transient geometry bypasses silhouette caching. Group effect domains stay complete
+outside the canvas too. Other windowed float masks can still differ by 1-2/255 at
+strip boundaries; retain sequential mode for their cross-run checksums.
 
 ## Compositor row kernels, mask plane, and the byte-identity corpus (August 2026)
 

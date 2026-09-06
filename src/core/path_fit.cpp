@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstddef>
 #include <vector>
+#include <utility>
 
 namespace patchy {
 
@@ -77,27 +78,32 @@ double chord_distance(Vec point, Vec a, Vec b) {
 // loop, walked forward with wraparound; first/last themselves already kept).
 void douglas_peucker_arc(const std::vector<FitPoint>& points, std::size_t first, std::size_t last,
                          double epsilon, std::vector<bool>& keep) {
-  const auto count = points.size();
-  const auto arc_length = (last + count - first) % count;
-  if (arc_length < 2) {
-    return;
-  }
-  const auto a = point_vec(points[first]);
-  const auto b = point_vec(points[last]);
-  double max_distance = -1.0;
-  std::size_t max_index = first;
-  for (std::size_t step = 1; step < arc_length; ++step) {
-    const auto index = (first + step) % count;
-    const auto distance = chord_distance(point_vec(points[index]), a, b);
-    if (distance > max_distance) {  // strict >: first index wins ties
-      max_distance = distance;
-      max_index = index;
+  std::vector<std::pair<std::size_t, std::size_t>> pending{{first, last}};
+  while (!pending.empty()) {
+    const auto [arc_first, arc_last] = pending.back();
+    pending.pop_back();
+    const auto count = points.size();
+    const auto arc_length = (arc_last + count - arc_first) % count;
+    if (arc_length < 2) {
+      continue;
     }
-  }
-  if (max_distance > epsilon) {
-    keep[max_index] = true;
-    douglas_peucker_arc(points, first, max_index, epsilon, keep);
-    douglas_peucker_arc(points, max_index, last, epsilon, keep);
+    const auto a = point_vec(points[arc_first]);
+    const auto b = point_vec(points[arc_last]);
+    double max_distance = -1.0;
+    std::size_t max_index = arc_first;
+    for (std::size_t step = 1; step < arc_length; ++step) {
+      const auto index = (arc_first + step) % count;
+      const auto distance = chord_distance(point_vec(points[index]), a, b);
+      if (distance > max_distance) {  // strict >: first index wins ties
+        max_distance = distance;
+        max_index = index;
+      }
+    }
+    if (max_distance > epsilon) {
+      keep[max_index] = true;
+      pending.emplace_back(max_index, arc_last);
+      pending.emplace_back(arc_first, max_index);
+    }
   }
 }
 

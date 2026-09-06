@@ -55,7 +55,12 @@ struct Header {
 [[nodiscard]] std::vector<std::uint8_t> decode_rle(std::span<const std::uint8_t> bytes, std::size_t offset,
                                                    std::size_t decoded_size, bool rle) {
   std::vector<std::uint8_t> out;
-  out.reserve(decoded_size);
+  const auto minimum_input = rle ? decoded_size / 63U + (decoded_size % 63U != 0U) : decoded_size;
+  if (offset > bytes.size() || minimum_input > bytes.size() - offset) {
+    throw std::runtime_error("PCX data ended unexpectedly");
+  }
+  // Grow beyond a small initial buffer only as encoded runs prove the size.
+  out.reserve(std::min<std::size_t>(decoded_size, 65536U));
   std::size_t position = offset;
   while (out.size() < decoded_size && position < bytes.size()) {
     const auto byte = bytes[position++];

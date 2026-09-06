@@ -119,6 +119,9 @@ void composite_corpus_flatten_digests_are_stable() {
     try {
       document.emplace(patchy::psd::DocumentIo::read_file(file));
     } catch (const std::exception& error) {
+      if (file.parent_path() == patchy::test::source_root_path() / "test-fixtures" / "psd") {
+        throw;
+      }
       std::cout << "[INFO] skipping unreadable " << file.filename().string() << ": " << error.what() << '\n';
       continue;
     }

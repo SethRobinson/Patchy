@@ -37,6 +37,7 @@
 #include <cmath>
 #include <array>
 #include <functional>
+#include <limits>
 #include <utility>
 
 namespace patchy::ui {
@@ -47,6 +48,23 @@ namespace {
 // arguments that size buffers or regions share it so oversized input is a JS error, never a
 // bad_alloc escaping the engine.
 constexpr int kMaxScriptDimension = 30000;
+
+void promote_script_rgb_pixels(Layer& layer) {
+  const auto& source = std::as_const(layer).pixels();
+  if (source.format() != PixelFormat::rgb8() || source.empty()) {
+    return;
+  }
+  PixelBuffer rgba(source.width(), source.height(), PixelFormat::rgba8());
+  for (int y = 0; y < source.height(); ++y) {
+    for (int x = 0; x < source.width(); ++x) {
+      const auto* input = source.pixel(x, y);
+      auto* output = rgba.pixel(x, y);
+      std::copy_n(input, 3, output);
+      output[3] = 255;
+    }
+  }
+  layer.set_pixels(std::move(rgba));
+}
 
 // Script-facing blend mode ids. Append-only and aligned with the BlendMode
 // enum order (core/layer.hpp); scripts hard-code these strings.
@@ -293,29 +311,43 @@ int ScriptLayerObject::y() const {
   return layer != nullptr ? layer->bounds().y : 0;
 }
 
-void ScriptLayerObject::set_x(int x) {
+void ScriptLayerObject::set_x(double x) {
   const auto* current = read_layer();
   if (current != nullptr) {
     moveTo(x, current->bounds().y);
   }
 }
 
-void ScriptLayerObject::set_y(int y) {
+void ScriptLayerObject::set_y(double y) {
   const auto* current = read_layer();
   if (current != nullptr) {
     moveTo(current->bounds().x, y);
   }
 }
 
-void ScriptLayerObject::moveTo(int x, int y) {
-  auto* layer = write_layer();
-  if (layer == nullptr) {
+void ScriptLayerObject::moveTo(double x, double y) {
+  const auto* current = read_layer();
+  if (current == nullptr) {
     return;
   }
-  const auto bounds = std::as_const(*layer).bounds();
-  const int dx = x - bounds.x;
-  const int dy = y - bounds.y;
+  const auto bounds = current->bounds();
+  const auto valid_integer = [](double value) {
+    return std::isfinite(value) && value >= std::numeric_limits<int>::min() &&
+           value <= std::numeric_limits<int>::max();
+  };
+  if (!valid_integer(x) || !valid_integer(y) ||
+      !valid_integer(x - bounds.x) || !valid_integer(y - bounds.y) ||
+      !valid_integer(x + bounds.width) || !valid_integer(y + bounds.height)) {
+    host_.throw_js_error(ScriptEngineHost::tr("Layer position is outside the supported range."));
+    return;
+  }
+  const int dx = static_cast<int>(x) - bounds.x;
+  const int dy = static_cast<int>(y) - bounds.y;
   if (dx == 0 && dy == 0) {
+    return;
+  }
+  auto* layer = write_layer();
+  if (layer == nullptr) {
     return;
   }
   const auto before = to_qrect(layer_render_bounds(std::as_const(*layer)));
@@ -463,9 +495,10 @@ void ScriptLayerObject::fill(const QString& color) {
     layer->set_bounds(Rect{box.x(), box.y(), box.width(), box.height()});
   }
   const auto bounds = std::as_const(*layer).bounds();
+  promote_script_rgb_pixels(*layer);
   auto& pixels = layer->pixels();
   if (pixels.format().channels != 4 || pixels.format().bit_depth != BitDepth::UInt8) {
-    host_.throw_js_error(ScriptEngineHost::tr("fill supports 8-bit RGBA layers only."));
+    host_.throw_js_error(ScriptEngineHost::tr("fill supports 8-bit RGB and RGBA layers only."));
     return;
   }
   const std::array<std::uint8_t, 4> rgba{static_cast<std::uint8_t>(parsed.red()),
@@ -523,9 +556,10 @@ void ScriptLayerObject::fillRect(int x, int y, int width, int height, const QStr
     layer->set_bounds(Rect{x, y, width, height});
   }
   const auto bounds = std::as_const(*layer).bounds();
+  promote_script_rgb_pixels(*layer);
   auto& pixels = layer->pixels();
   if (pixels.format().channels != 4 || pixels.format().bit_depth != BitDepth::UInt8) {
-    host_.throw_js_error(ScriptEngineHost::tr("fillRect supports 8-bit RGBA layers only."));
+    host_.throw_js_error(ScriptEngineHost::tr("fillRect supports 8-bit RGB and RGBA layers only."));
     return;
   }
   const QRect target = QRect(x, y, width, height)

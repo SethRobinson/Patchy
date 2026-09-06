@@ -35,8 +35,8 @@
 // progress periodically inside heavy pure-JS computations. GUI runs longer
 // than half a second show a busy overlay and a Stop panel automatically.
 //
-// Colors are CSS-style strings: "#rrggbb", "#aarrggbb", or named ("red").
-// Blend mode ids: "pass-through", "normal", "multiply", "screen", "overlay",
+// Color strings use Qt order: "#rrggbb", "#aarrggbb", or named ("red").
+// Blend mode ids: "pass-through", "normal", "dissolve", "multiply", "screen", "overlay",
 // "darken", "lighten", "color-dodge", "color-burn", "hard-light",
 // "soft-light", "difference", "linear-burn", "pin-light", "saturation",
 // "luminosity", "exclusion", "hue", "color", "linear-dodge", "subtract",
@@ -124,16 +124,17 @@ interface PatchyLayer {
   readonly isText: boolean;
   /** Child layers (groups only). */
   readonly children: PatchyLayer[];
-  /** Text layers: the text content. Setting it re-renders the layer. */
+  /** Text layers: setting text re-renders the layer; an empty string clears its ink. */
   text: string;
 
+  /** Finite signed 32-bit positions; throws if the position or resulting bounds overflow. */
   moveTo(x: number, y: number): void;
   /** Inserts the copy directly above this layer; returns it. */
   duplicate(): PatchyLayer;
   remove(): void;
   /** Ungroups this folder into its parent; returns the released layers top to bottom. */
   ungroup(): PatchyLayer[];
-  /** Fills the selection (or the whole canvas on an empty layer) with a color. */
+  /** Fills the selection (or the whole canvas on an empty layer). RGB8 and RGBA8 are supported. */
   fill(color: string): void;
   /**
    * Overwrites one document-space rect of the layer's pixels (clipped to its
@@ -234,6 +235,7 @@ interface PatchySelection {
   selectAll(): void;
   deselect(): void;
   /** Sides are limited to 30000; larger values throw. */
+  /** Clips to the canvas; a disjoint rectangle clears the selection. */
   selectRect(x: number, y: number, width: number, height: number): void;
   selectEllipse(x: number, y: number, width: number, height: number): void;
 }
@@ -290,6 +292,7 @@ interface PatchyDocument {
   flatten(): void;
   resizeImage(width: number, height: number): void;
   resizeCanvas(width: number, height: number): void;
+  /** Crops to the canvas intersection; throws if the rectangle is outside the canvas. */
   crop(x: number, y: number, width: number, height: number): void;
   /** Saves to the path; the format follows the extension (.psd, .png, ...). */
   saveAs(path: string): boolean;
@@ -315,6 +318,7 @@ interface PatchyApp {
    * Connector sessions reject false to preserve recoverable edit history.
    */
   undoEnabled: boolean;
+  /** Opens a file; throws on failure. Unattended RAW/PDF opens use default import settings. */
   open(path: string): PatchyDocument;
   newDocument(width: number, height: number): PatchyDocument;
   /** Message box; logs to the console instead in unattended CLI runs. */
@@ -335,7 +339,9 @@ interface PatchyApp {
   /**
    * Triggers a registered application command (menu items, tools) by its
    * stable hotkey command id, e.g. runCommand("file.scripts.editor"). Returns
-   * false when the id is unknown or the command is currently disabled.
+   * false when the id is unknown, disabled, or is edit.undo, edit.redo, or file.quit.
+   * Use doc.undo/redo outside an active script mutation. Unattended commands
+   * cancel dialogs and refuse to close modified documents; doc.close is explicit.
    */
   runCommand(commandId: string): boolean;
   /** Every registered command id, sorted. */
@@ -387,6 +393,7 @@ interface PatchyCanvasWindow {
   /** Key names follow Qt: "Up", "Down", "Space", "A", ... */
   onKeyDown: ((key: string) => void) | undefined;
   onKeyUp: ((key: string) => void) | undefined;
+  /** Button values: 1 left, 2 right, 4 middle; move reports held buttons as a bit mask. */
   onMouseDown: ((x: number, y: number, button: number) => void) | undefined;
   onMouseMove: ((x: number, y: number, button: number) => void) | undefined;
   onMouseUp: ((x: number, y: number, button: number) => void) | undefined;
@@ -403,7 +410,9 @@ interface PatchyUi {
    * Modal form built from a declarative field list; returns an object with one
    * property per field key, or null when cancelled. An optional description
    * renders as instructions above the form. Unattended runs (CLI) return the
-   * field defaults. Example:
+   * normalized defaults: choices return text, colors #rrggbb (or Qt #aarrggbb),
+   * numbers are clamped, text defaults to "", checkboxes to false. Keys must
+   * be nonempty strings. Example:
    *   var r = patchy.ui.showDialog({title: "Halftone", fields: [
    *     {key: "size", label: "Dot size", type: "slider", value: 4, min: 1, max: 32},
    *     {key: "invert", label: "Invert", type: "checkbox", value: false}]});

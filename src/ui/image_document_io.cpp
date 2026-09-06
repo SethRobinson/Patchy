@@ -801,7 +801,8 @@ private:
     if (value.entry == nullptr) {
       return 0;
     }
-    return (value.entry->primary.size() + value.entry->secondary.size()) * sizeof(float);
+    return (value.entry->primary.size() + value.entry->secondary.size()) * sizeof(float) +
+           (value.entry->group_pixels == nullptr ? 0U : value.entry->group_pixels->data().size());
   }
 
   std::mutex mutex_;
@@ -881,6 +882,16 @@ private:
                                                    std::optional<Rect> mask_bounds) noexcept {
     StyleMaskCacheKey key;
     key.content_revision = layer.content_revision();
+    if (layer.kind() == LayerKind::Group) {
+      const auto include_children = [&](auto&& self, const Layer& parent) -> void {
+        for (const auto& child : parent.children()) {
+          key.content_revision ^= child.render_revision() + 0x9e3779b97f4a7c15ULL +
+                                  (key.content_revision << 6U) + (key.content_revision >> 2U);
+          self(self, child);
+        }
+      };
+      include_children(include_children, layer);
+    }
     key.effect_index = effect_index;
     key.kind = kind;
     if (mask_bounds.has_value()) {

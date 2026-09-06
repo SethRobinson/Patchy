@@ -451,22 +451,23 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
       if (channel.length < 2) {
         throw std::runtime_error("Invalid PSD layer channel length");
       }
-      const auto compression = layer_reader.read_u16();
+      if (channel.length > layer_reader.remaining()) {
+        throw std::runtime_error("PSD layer channel data is truncated");
+      }
+      BigEndianReader channel_reader(layer_reader.read_span(static_cast<std::size_t>(channel.length)));
+      const auto compression = channel_reader.read_u16();
       const auto payload_length = channel.length - 2;
       if (channel.id == kChannelRealUserMask) {
         // Patchy does not model Photoshop's separate real-user-mask plane. A
         // complete -2 plane carries the rendered mask in files that also contain
         // -3. Skip the declared -3 bytes exactly instead of decoding them against
         // the layer bounds, which are not the real mask's dimensions.
-        layer_reader.skip(payload_length);
         continue;
       }
       if (compression != kCompressionRaw && compression != kCompressionRle &&
           compression != kCompressionZip && compression != kCompressionZipPrediction) {
-        layer_reader.skip(payload_length);
         continue;
       }
-      const auto channel_start = layer_reader.position();
       const auto channel_width = channel.id == kChannelUserMask && record.mask.has_value()
                                      ? std::max(0, record.mask->bounds.width)
                                      : width;
@@ -479,10 +480,18 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
       if (compression == kCompressionRaw && payload_length < channel_pixel_count * sample_bytes) {
         throw std::runtime_error("PSD layer channel data is truncated");
       }
-      const auto channel_data = read_channel_data(
-          layer_reader, compression, channel_width, channel_height, large_document,
+      std::vector<std::uint8_t> channel_data;
+      try {
+        channel_data = read_channel_data(
+          channel_reader, compression, channel_width, channel_height, large_document,
           ChannelDecodeInfo{depth, is_source_color_channel(channel.id, source_color_mode), payload_length},
           damaged_rows);
+      } catch (const std::runtime_error&) {
+        if (damaged_rows != nullptr) {
+          *damaged_rows += static_cast<std::size_t>(channel_height);
+        }
+        continue;  // the next channel starts at its declared boundary
+      }
       if (channel.id == kChannelUserMask && record.mask.has_value() && channel_width > 0 && channel_height > 0) {
         PixelBuffer mask_pixels(channel_width, channel_height, PixelFormat::gray8());
         std::copy(channel_data.begin(), channel_data.end(), mask_pixels.data().begin());
@@ -508,10 +517,6 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
             pixels.data()[i * pixels.format().channels + static_cast<std::size_t>(target_channel)] = channel_data[i];
           }
         }
-      }
-      const auto consumed = layer_reader.position() - channel_start;
-      if (payload_length > consumed) {
-        layer_reader.skip(payload_length - consumed);
       }
     }
     if (source_is_cmyk) {
@@ -1362,6 +1367,24 @@ void DocumentIo::write_flat_rgb8_file(const Document& document, const std::files
 
 std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& document, WriteOptions options) {
   check_write_dimensions(document, options.large_document);
+  if (document.layers().empty()) {
+    // The signed record count carries merged transparency. Supply one empty
+    // record in the file without inventing a layer in the live document.
+    auto writable = document;
+    writable.add_layer(Layer(writable.allocate_layer_id(), "Layer", PixelBuffer(1, 1, PixelFormat::rgba8())));
+    return write_layered_rgb8(writable, options);
+  }
+  std::size_t record_count = 0;
+  const auto count_records = [&](auto&& self, const std::vector<Layer>& layers) -> void {
+    for (const auto& layer : layers) {
+      record_count += layer.kind() == LayerKind::Group ? 2U : 1U;
+      if (record_count > 32767U) {
+        throw std::runtime_error("PSD/PSB supports at most 32767 layer records");
+      }
+      self(self, layer.children());
+    }
+  };
+  count_records(count_records, document.layers());
 
   auto composite = merged_flatten_composite(document);
 

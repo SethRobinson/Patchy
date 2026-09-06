@@ -173,8 +173,10 @@ private:
     painter.save();
     painter.setRenderHint(QPainter::Antialiasing);
     const QRectF frame = QRectF(rect).adjusted(0.5, 0.5, -0.5, -0.5);
-    painter.setPen(QPen(QColor(0x6f, 0xb1, 0xe8), 1.4));
-    painter.setBrush(QColor(0x6f, 0xb1, 0xe8, 0x30));
+    painter.setPen(QPen(theme().script_accent, 1.4));
+    auto badge_fill = theme().script_accent;
+    badge_fill.setAlpha(0x30);
+    painter.setBrush(badge_fill);
     painter.drawRoundedRect(frame, 2, 2);
     const double bar_y = frame.top() + frame.height() * 0.32;
     painter.drawLine(QPointF(frame.left(), bar_y), QPointF(frame.right(), bar_y));
@@ -268,14 +270,14 @@ protected:
   void paintEvent(QPaintEvent*) override {
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
-    painter.setPen(QPen(QColor(0x62, 0x68, 0x72), 1.0));
-    painter.setBrush(QColor(0x24, 0x27, 0x2d));
+    painter.setPen(QPen(theme().script_card_border, 1.0));
+    painter.setBrush(theme().script_card_bg);
     painter.drawRoundedRect(QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5), 8, 8);
     content_.icon.paint(&painter, QRect(kPad, kPad, kIconSize, kIconSize));
     const int text_left = kPad + kIconSize + kGap;
     const int text_width = width() - text_left - kPad;
     painter.setFont(name_font_);
-    painter.setPen(QColor(0xf2, 0xf4, 0xf6));
+    painter.setPen(theme().script_card_title);
     const QRect name_bounds = painter.boundingRect(QRect(text_left, kPad, text_width, 1000),
                                                    Qt::TextWordWrap, content_.name);
     painter.drawText(name_bounds, Qt::TextWordWrap, content_.name);
@@ -283,14 +285,14 @@ protected:
     painter.setFont(small_font_);
     const QFontMetrics small_metrics(small_font_);
     if (!content_.author.isEmpty()) {
-      painter.setPen(QColor(0x9a, 0xa3, 0xaf));
+      painter.setPen(theme().script_card_author);
       painter.drawText(QRect(text_left, y, text_width, small_metrics.height()),
                        Qt::TextSingleLine,
                        small_metrics.elidedText(content_.author, Qt::ElideRight, text_width));
       y += small_metrics.height() + 4;
     }
     if (!content_.window_note.isEmpty()) {
-      painter.setPen(QColor(0x6f, 0xb1, 0xe8));
+      painter.setPen(theme().script_accent);
       painter.drawText(QRect(text_left, y, text_width, small_metrics.height()),
                        Qt::TextSingleLine,
                        small_metrics.elidedText(content_.window_note, Qt::ElideRight, text_width));
@@ -305,7 +307,7 @@ protected:
     }
     if (!description_rect_.isNull()) {
       painter.setFont(font());
-      painter.setPen(QColor(0xd0, 0xd4, 0xda));
+      painter.setPen(theme().script_card_body);
       painter.drawText(description_rect_, Qt::TextWordWrap, content_.description);
     }
     painter.setFont(small_font_);
@@ -400,8 +402,8 @@ void ScriptCodeEditor::resizeEvent(QResizeEvent* event) {
 
 void ScriptCodeEditor::line_number_area_paint_event(QPaintEvent* event) {
   QPainter painter(line_number_area_);
-  painter.fillRect(event->rect(), QColor(0x2a, 0x2a, 0x2a));
-  painter.setPen(QColor(0x80, 0x80, 0x80));
+  painter.fillRect(event->rect(), theme().script_gutter_bg);
+  painter.setPen(theme().script_gutter_text);
   QTextBlock block = firstVisibleBlock();
   int block_number = block.blockNumber();
   int top = static_cast<int>(blockBoundingGeometry(block).translated(contentOffset()).top());

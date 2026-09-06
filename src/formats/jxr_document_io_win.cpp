@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -167,11 +168,22 @@ void apply_resolution(Document& document, IWICBitmapFrameDecode& frame) {
 
   const std::size_t stride = static_cast<std::size_t>(width) * 4U * sizeof(float);
   std::vector<float> samples(static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * 4U);
-  hr = converter->CopyPixels(nullptr, static_cast<UINT>(stride),
-                             static_cast<UINT>(samples.size() * sizeof(float)),
-                             reinterpret_cast<BYTE*>(samples.data()));
-  if (FAILED(hr)) {
-    throw_decode_error(hr);
+  // CopyPixels accepts a UINT byte count. A full 16384-square float image
+  // occupies 4 GiB, so deliver bounded row batches without narrowing that size.
+  if (stride > (std::numeric_limits<UINT>::max)()) {
+    throw std::runtime_error("JPEG XR float row exceeds the codec buffer limit");
+  }
+  const auto rows_per_copy = static_cast<UINT>(
+      std::min<std::size_t>(64U, (std::numeric_limits<UINT>::max)() / stride));
+  for (UINT y = 0; y < height; y += rows_per_copy) {
+    const auto rows = (std::min)(rows_per_copy, height - y);
+    WICRect rect{0, static_cast<INT>(y), static_cast<INT>(width), static_cast<INT>(rows)};
+    auto* destination = reinterpret_cast<BYTE*>(samples.data()) + static_cast<std::size_t>(y) * stride;
+    hr = converter->CopyPixels(&rect, static_cast<UINT>(stride),
+                               static_cast<UINT>(stride * rows), destination);
+    if (FAILED(hr)) {
+      throw_decode_error(hr);
+    }
   }
   return tone_map_scrgb_to_rgba8(samples, static_cast<std::int32_t>(width), static_cast<std::int32_t>(height));
 }

@@ -18,6 +18,7 @@
 #include "ui/script_engine.hpp"
 #include "ui/script_folders.hpp"
 #include "ui/sound_effects.hpp"
+#include "ui/theme_manager.hpp"
 
 #include "test_harness.hpp"
 #include "ui/ui_test_access.hpp"
@@ -203,7 +204,7 @@ void ui_script_get_pixels_reads_rgb_layers() {
     span[i + 1] = 100;
     span[i + 2] = 50;
   }
-  document.add_pixel_layer("RgbPhoto", std::move(rgb));
+  document.add_layer(patchy::Layer(document.allocate_layer_id(), "RgbPhoto", std::move(rgb)));
   CHECK(run_script(window, QStringLiteral(R"JS(
     var layer = app.activeDocument.findLayer('RgbPhoto');
     var img = layer.getPixels();
@@ -580,6 +581,12 @@ void ui_script_editor_dialog_runs_and_shows_console() {
   wait_for_run_end(window.script_engine_host());
   CHECK(console_pane->toPlainText().contains(QStringLiteral("hello from editor")));
   save_widget_artifact("script_editor_dialog", dialog);
+  auto& theme = patchy::ui::ThemeManager::instance();
+  const auto old_preference = theme.preference();
+  theme.set_preference(patchy::ui::ColorSchemePreference::Light, false);
+  QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+  save_widget_artifact("script_editor_dialog_light", dialog);
+  theme.set_preference(old_preference, false);
   dialog.close();
 }
 
@@ -1991,6 +1998,79 @@ void ui_script_automation_pressure_seed_selection_palette() {
                    native_palette.data().begin(), native_palette.data().end()));
 }
 
+
+void ui_script_unattended_normalizes_forms_and_guards_commands() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto& host = window.script_engine_host();
+  patchy::ui::ScriptEngineHost::RunOptions options;
+  options.name = QStringLiteral("unattended-regressions");
+  options.unattended = true;
+  CHECK(host.run_source(QStringLiteral(R"JS(
+    function check(ok, message) { if (!ok) throw new Error(message); }
+    var doc = app.activeDocument;
+    doc.addLayer('Keep me').fill('#aabbcc');
+    check(!app.runCommand('edit.undo'), 'undo must not alter the running transaction');
+    check(!app.runCommand('edit.redo'), 'redo must not alter the running transaction');
+    check(!app.runCommand('file.quit'), 'quit must not tear down the engine');
+    app.runCommand('file.close');
+    check(app.activeDocument.id === doc.id, 'modified document must stay open');
+    var r = patchy.ui.showDialog({fields:[
+      {key:'mode', type:'choice', choices:['first','second'], value:1},
+      {key:'color', type:'color', value:'RED'},
+      {key:'number', type:'number', min:2, max:5, value:99},
+      {key:'text', type:'text'}, {key:'checked', type:'checkbox'}]});
+    check(r.mode === 'second', 'choice index must normalize to text');
+    check(r.color === '#ff0000', 'color must normalize');
+    check(r.number === 5 && r.text === '' && r.checked === false, 'defaults and limits');
+    var rejected = false;
+    try { patchy.ui.showDialog({fields:[{type:'text'}]}); } catch(e) { rejected = true; }
+    check(rejected, 'missing field key must throw');
+    rejected = false;
+    try { app.open('this-file-does-not-exist.psd'); } catch(e) { rejected = true; }
+    check(rejected, 'failed open must throw without prompting');
+    console.log('unattended-complete');
+  )JS"), std::move(options)));
+  wait_for_run_end(host);
+  CHECK(!host.run_active());
+  CHECK(!host.last_run_had_error());
+  CHECK(backlog_contains(window, QStringLiteral("unattended-complete")));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == 1);
+}
+
+void ui_script_geometry_rgb_fill_and_empty_text_regressions() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  patchy::PixelBuffer rgb(4, 3, patchy::PixelFormat::rgb8());
+  std::fill(rgb.data().begin(), rgb.data().end(), std::uint8_t{90});
+  document.add_layer(patchy::Layer(document.allocate_layer_id(), "RgbPhoto", std::move(rgb)));
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    function check(ok, message) { if (!ok) throw new Error(message); }
+    var doc = app.activeDocument, layer = doc.findLayer('RgbPhoto');
+    layer.fillRect(1, 1, 1, 1, '#ff0000');
+    var p = new Uint8Array(layer.getPixels().data);
+    check(p[0] === 90 && p[3] === 255 && p[20] === 255 && p[21] === 0, 'RGB promotion');
+    layer.fill('#00ff00');
+    p = new Uint8Array(layer.getPixels().data);
+    check(p[0] === 0 && p[1] === 255 && p[3] === 255, 'RGB fill');
+    var rejected = false;
+    try { layer.moveTo(2147483648, 0); } catch(e) { rejected = true; }
+    check(rejected && layer.x === 0, 'move overflow must throw without mutation');
+    doc.selection.selectRect(5000, 5000, 20, 20);
+    check(!doc.selection.exists, 'outside selection must be empty');
+    doc.selection.selectRect(-3, -5, 10, 10);
+    var b = doc.selection.bounds;
+    check(b.x === 0 && b.y === 0 && b.width === 7 && b.height === 5, 'selection must clip');
+    doc.selection.deselect();
+    var text = doc.addTextLayer('Clear me', {x:20,y:20,size:24});
+    text.text = '';
+    check(text.text === '', 'empty text must commit');
+    var pixels = new Uint8Array(text.getPixels().data);
+    for (var i=3;i<pixels.length;i+=4) check(pixels[i] === 0, 'empty text has no ink');
+  )JS")));
+}
+
 std::vector<patchy::test::TestCase> scripting_tests() {
   return {
       {"ui_script_automation_strokes_match_native_and_undo", ui_script_automation_strokes_match_native_and_undo},
@@ -2050,5 +2130,7 @@ std::vector<patchy::test::TestCase> scripting_tests() {
       {"ui_script_ui_staging_apis", ui_script_ui_staging_apis},
       {"ui_script_active_layer_setter_reveals_row", ui_script_active_layer_setter_reveals_row},
       {"ui_script_io_round_trips_unicode_path", ui_script_io_round_trips_unicode_path},
+      {"ui_script_unattended_normalizes_forms_and_guards_commands", ui_script_unattended_normalizes_forms_and_guards_commands},
+      {"ui_script_geometry_rgb_fill_and_empty_text_regressions", ui_script_geometry_rgb_fill_and_empty_text_regressions},
   };
 }

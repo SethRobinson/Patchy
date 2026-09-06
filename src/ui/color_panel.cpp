@@ -203,6 +203,30 @@ QString color_tool_tip(QColor color) {
 
 // A color carried by drag-and-drop or the clipboard: Qt's standard color mime
 // (application/x-color) first, then "#RRGGBB"-style text.
+QColor parse_panel_color(QString text) {
+  text = text.trimmed();
+  if (!text.startsWith(QLatin1Char('#'))) {
+    const QColor named(text);
+    if (named.isValid()) {
+      return named;
+    }
+    text.prepend(QLatin1Char('#'));
+  }
+  if (text.size() == 5) {
+    QString expanded = QStringLiteral("#");
+    for (qsizetype i = 1; i < text.size(); ++i) {
+      expanded += QString(2, text[i]);
+    }
+    text = std::move(expanded);
+  }
+  if (text.size() == 9) {
+    bool valid = false;
+    const auto rgba = text.mid(1).toUInt(&valid, 16);
+    return valid ? QColor::fromRgba((rgba >> 8U) | ((rgba & 255U) << 24U)) : QColor{};
+  }
+  return QColor(text);
+}
+
 std::optional<QColor> color_from_mime(const QMimeData* mime) {
   if (mime == nullptr) {
     return std::nullopt;
@@ -214,11 +238,7 @@ std::optional<QColor> color_from_mime(const QMimeData* mime) {
     }
   }
   if (mime->hasText()) {
-    auto text = mime->text().trimmed();
-    if (!text.startsWith(QLatin1Char('#'))) {
-      text.prepend(QLatin1Char('#'));
-    }
-    const QColor parsed(text);
+    const auto parsed = parse_panel_color(mime->text());
     if (parsed.isValid()) {
       return normalized_rgb_color(parsed);
     }
@@ -1554,11 +1574,7 @@ void PatchyColorPickerPrivate::sync_controls() {
 }
 
 void PatchyColorPickerPrivate::set_html_color() {
-  auto html = html_edit_->text().trimmed();
-  if (!html.startsWith(QLatin1Char('#'))) {
-    html.prepend(QLatin1Char('#'));
-  }
-  const QColor parsed(html);
+  const auto parsed = parse_panel_color(html_edit_->text());
   if (parsed.isValid()) {
     set_color(parsed, ColorChangeNotification::Yes);
   } else {

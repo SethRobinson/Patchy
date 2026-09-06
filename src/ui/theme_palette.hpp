@@ -31,6 +31,21 @@ struct ThemePalette {
   QColor window_bg;
   QColor window_border;
   QColor text_primary;
+  QColor script_accent;
+  QColor script_card_border;
+  QColor script_card_bg;
+  QColor script_card_title;
+  QColor script_card_author;
+  QColor script_card_body;
+  QColor script_gutter_bg;
+  QColor script_gutter_text;
+  QColor script_keyword;
+  QColor script_literal;
+  QColor script_builtin;
+  QColor script_number;
+  QColor script_string;
+  QColor script_comment;
+
   QColor text_secondary;
   QColor text_bright;
   QColor text_disabled;

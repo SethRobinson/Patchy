@@ -322,6 +322,13 @@ void MainWindow::levels_dialog() {
   };
 
   auto preview_edit_lock = lock_preview_dialog_edits();
+  auto preview_cleanup = qScopeGuard([this, &doc, preview_state, original = *layer] {
+    close_async_pixel_preview(preview_state);
+    if (auto* target = doc.find_layer(original.id()); target != nullptr) {
+      *target = original;
+      canvas_->document_changed();
+    }
+  });
   const auto settings = request_levels_settings(this, preview_changed, {}, original_pixels.get());
   close_async_pixel_preview(preview_state);
   layer = doc.find_layer(active_id);
@@ -330,6 +337,7 @@ void MainWindow::levels_dialog() {
   }
   set_layer_pixels_preserving_origin(*layer, *original_pixels, bounds);
   canvas_->document_changed(to_qrect(bounds));
+  preview_cleanup.dismiss();
   preview_edit_lock.release();
   if (!settings.has_value()) {
     statusBar()->showMessage(tr("Cancelled Levels"));
@@ -479,6 +487,13 @@ void MainWindow::curves_dialog() {
         return image.isNull() ? QColor{} : image.pixelColor(0, 0);
       });
   auto preview_edit_lock = lock_preview_dialog_edits();
+  auto preview_cleanup = qScopeGuard([this, &doc, preview_state, original = *layer] {
+    close_async_pixel_preview(preview_state);
+    if (auto* target = doc.find_layer(original.id()); target != nullptr) {
+      *target = original;
+      canvas_->document_changed();
+    }
+  });
   const auto settings = request_curves_settings(this, preview_changed, {}, histograms, hooks);
   close_async_pixel_preview(preview_state);
   layer = doc.find_layer(active_id);
@@ -487,6 +502,7 @@ void MainWindow::curves_dialog() {
   }
   *layer = *original_layer;
   canvas_->document_changed(to_qrect(bounds));
+  preview_cleanup.dismiss();
   preview_edit_lock.release();
   if (!settings.has_value()) {
     statusBar()->showMessage(tr("Cancelled Curves"));
@@ -621,6 +637,13 @@ void MainWindow::hue_saturation_dialog() {
   };
 
   auto preview_edit_lock = lock_preview_dialog_edits();
+  auto preview_cleanup = qScopeGuard([this, &doc, preview_state, original = *layer] {
+    close_async_pixel_preview(preview_state);
+    if (auto* target = doc.find_layer(original.id()); target != nullptr) {
+      *target = original;
+      canvas_->document_changed();
+    }
+  });
   const auto settings = request_hue_saturation_settings(this, preview_changed);
   close_async_pixel_preview(preview_state);
   layer = doc.find_layer(active_id);
@@ -629,6 +652,7 @@ void MainWindow::hue_saturation_dialog() {
   }
   set_layer_pixels_preserving_origin(*layer, *original_pixels, bounds);
   canvas_->document_changed(to_qrect(bounds));
+  preview_cleanup.dismiss();
   preview_edit_lock.release();
   if (!settings.has_value()) {
     statusBar()->showMessage(tr("Cancelled Hue/Saturation"));
@@ -715,6 +739,13 @@ void MainWindow::color_balance_dialog() {
   };
 
   auto preview_edit_lock = lock_preview_dialog_edits();
+  auto preview_cleanup = qScopeGuard([this, &doc, preview_state, original = *layer] {
+    close_async_pixel_preview(preview_state);
+    if (auto* target = doc.find_layer(original.id()); target != nullptr) {
+      *target = original;
+      canvas_->document_changed();
+    }
+  });
   const auto settings = request_color_balance_settings(this, preview_changed);
   close_async_pixel_preview(preview_state);
   layer = doc.find_layer(active_id);
@@ -723,6 +754,7 @@ void MainWindow::color_balance_dialog() {
   }
   set_layer_pixels_preserving_origin(*layer, *original_pixels, bounds);
   canvas_->document_changed(to_qrect(bounds));
+  preview_cleanup.dismiss();
   preview_edit_lock.release();
   if (!settings.has_value()) {
     statusBar()->showMessage(tr("Cancelled Color Balance"));

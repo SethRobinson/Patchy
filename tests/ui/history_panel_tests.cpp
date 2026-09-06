@@ -9,6 +9,7 @@
 #include <QApplication>
 #include <QColor>
 #include <QDialog>
+#include <QFocusEvent>
 #include <QListWidget>
 #include <QTest>
 #include <QTimer>
@@ -337,6 +338,84 @@ void ui_history_clicks_blocked_during_preview_lock() {
 
 }  // namespace
 
+
+void ui_history_refuses_undo_during_live_gesture_and_clears_focus_latches() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  fill_with(window, *canvas, QColor(30, 60, 220));
+  canvas->set_tool(patchy::ui::CanvasTool::Brush);
+  const auto point = canvas->widget_position_for_document_point(QPoint(120, 100));
+  QTest::mousePress(canvas, Qt::LeftButton, Qt::NoModifier, point);
+  CHECK(canvas->pointer_gesture_active());
+  const auto depth = MainWindowTestAccess::active_session_undo_depth(window);
+  MainWindowTestAccess::undo(window);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth);
+  QTest::mouseRelease(canvas, Qt::LeftButton, Qt::NoModifier, point);
+  CHECK(!canvas->pointer_gesture_active());
+  MainWindowTestAccess::undo(window);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) + 1 == depth);
+  canvas->set_tool(patchy::ui::CanvasTool::Marquee);
+  QTest::mousePress(canvas, Qt::LeftButton, Qt::NoModifier, point);
+  CHECK(canvas->pointer_gesture_active());
+  QFocusEvent lost(QEvent::FocusOut, Qt::OtherFocusReason);
+  QApplication::sendEvent(canvas, &lost);
+  CHECK(!canvas->pointer_gesture_active());
+}
+
+
+void ui_nested_layer_move_and_noop_preserve_history() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::Document document(32, 32, patchy::PixelFormat::rgba8());
+  patchy::Layer group(document.allocate_layer_id(), "Folder", patchy::LayerKind::Group);
+  const auto first_id = document.allocate_layer_id();
+  const auto second_id = document.allocate_layer_id();
+  group.add_child(patchy::Layer(first_id, "First", patchy::PixelBuffer(1,1,patchy::PixelFormat::rgba8())));
+  group.add_child(patchy::Layer(second_id, "Second", patchy::PixelBuffer(1,1,patchy::PixelFormat::rgba8())));
+  document.add_layer(std::move(group));
+  document.set_active_layer(first_id);
+  window.add_document_session(std::move(document), QStringLiteral("Nested"));
+  auto* canvas = require_canvas(window);
+  canvas->set_selected_layer_ids({first_id});
+  auto* up = window.hotkey_registry().find_command(QStringLiteral("layer.move_up"))->action.data();
+  auto* down = window.hotkey_registry().find_command(QStringLiteral("layer.move_down"))->action.data();
+  CHECK(up != nullptr && down != nullptr);
+  up->trigger();
+  auto& live = MainWindowTestAccess::document(window);
+  CHECK(std::as_const(live).layers().front().children().back().id() == first_id);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == 1);
+  MainWindowTestAccess::undo(window);
+  const auto redo = MainWindowTestAccess::active_session_redo_depth(window);
+  down->trigger();
+  CHECK(std::as_const(live).layers().front().children().front().id() == first_id);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == 0);
+  CHECK(MainWindowTestAccess::active_session_redo_depth(window) == redo);
+}
+
+void ui_tool_settings_follow_canvas_activation() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* first = require_canvas(window);
+  first->set_fill_opacity(37);
+  first->set_fill_softness(61);
+  first->set_quick_select_size(17);
+  first->set_quick_select_sample_all_layers(true);
+  first->set_quick_select_enhance_edge(true);
+  first->set_transform_interpolation(patchy::ui::CanvasWidget::TransformInterpolation::NearestNeighbor);
+  first->set_polygon_sides(9);
+  first->set_polygon_star_inset(23);
+  patchy::Document document(32,32,patchy::PixelFormat::rgba8());
+  window.add_document_session(std::move(document), QStringLiteral("Second"));
+  auto* second = require_canvas(window);
+  CHECK(second != first);
+  CHECK(second->fill_opacity() == 37 && second->fill_softness() == 61);
+  CHECK(second->quick_select_size() == 17 && second->quick_select_sample_all_layers());
+  CHECK(second->quick_select_enhance_edge());
+  CHECK(second->transform_interpolation() == patchy::ui::CanvasWidget::TransformInterpolation::NearestNeighbor);
+  CHECK(second->polygon_sides() == 9 && second->polygon_star_inset() == 23);
+}
+
 std::vector<patchy::test::TestCase> history_panel_tests() {
   return {
       {"ui_history_panel_lists_states_oldest_first_with_current_highlight",
@@ -352,5 +431,8 @@ std::vector<patchy::test::TestCase> history_panel_tests() {
       {"ui_history_new_document_from_state_creates_independent_session",
        ui_history_new_document_from_state_creates_independent_session},
       {"ui_history_clicks_blocked_during_preview_lock", ui_history_clicks_blocked_during_preview_lock},
+      {"ui_history_refuses_undo_during_live_gesture_and_clears_focus_latches", ui_history_refuses_undo_during_live_gesture_and_clears_focus_latches},
+      {"ui_nested_layer_move_and_noop_preserve_history", ui_nested_layer_move_and_noop_preserve_history},
+      {"ui_tool_settings_follow_canvas_activation", ui_tool_settings_follow_canvas_activation},
   };
 }

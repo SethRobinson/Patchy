@@ -471,6 +471,22 @@ void MainWindow::apply_history_restore_tail(DocumentSession& active_session,
                                             const Document& before_document,
                                             CanvasWidget::SelectionSnapshot restored_selection,
                                             const QString& status_message) {
+  for (const auto& child : sessions_) {
+    if (!child->smart_object_link.has_value() ||
+        child->smart_object_link->parent_session_id != active_session.session_id) {
+      continue;
+    }
+    auto& link = *child->smart_object_link;
+    const auto& sources = std::as_const(active_session.document).metadata().smart_objects;
+    if (sources.find(link.source_uuid) == nullptr) {
+      for (const auto& uuid : link.source_uuid_history) {
+        if (sources.find(uuid) != nullptr) {
+          link.source_uuid = uuid;
+          break;
+        }
+      }
+    }
+  }
   // Rotations never touch the canvas, so reading the mask edit target here is
   // equivalent to capturing it before them.
   const auto restore_smart_filter_mask_owner =
@@ -517,6 +533,9 @@ void MainWindow::apply_history_restore_tail(DocumentSession& active_session,
 }
 
 void MainWindow::undo() {
+  if (canvas_ == nullptr || canvas_->pointer_gesture_active()) {
+    return;
+  }
   finish_pending_layer_opacity_edit();
   finish_pending_layer_fill_opacity_edit();
   auto& active_session = session();
@@ -532,6 +551,9 @@ void MainWindow::undo() {
 }
 
 void MainWindow::redo() {
+  if (canvas_ == nullptr || canvas_->pointer_gesture_active()) {
+    return;
+  }
   finish_pending_layer_opacity_edit();
   finish_pending_layer_fill_opacity_edit();
   auto& active_session = session();
@@ -679,6 +701,9 @@ void MainWindow::handle_history_row_clicked(QListWidgetItem* item) {
 }
 
 void MainWindow::jump_to_history_state(std::int64_t state_id) {
+  if (canvas_ == nullptr || canvas_->pointer_gesture_active()) {
+    return;
+  }
   auto* active = active_session();
   if (active == nullptr) {
     return;

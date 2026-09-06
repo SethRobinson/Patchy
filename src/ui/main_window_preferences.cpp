@@ -662,13 +662,6 @@ void MainWindow::show_preferences() {
   application_layout->addStretch(1);
   tabs->addTab(application_page, tr("Application"));
 
-  connect(language_combo, &QComboBox::currentIndexChanged, &dialog, [this, language_combo] {
-    const auto code = language_combo->currentData().toString();
-    if (!code.isEmpty() && LocalizationManager::instance().set_language(code)) {
-      refresh_language_actions();
-    }
-  });
-
   // Connected after setCurrentIndex so restoring the saved value does not count
   // as a user choice.
   connect(color_scheme_combo, &QComboBox::currentIndexChanged, &dialog, [color_scheme_combo] {
@@ -1037,6 +1030,10 @@ void MainWindow::show_preferences() {
   append_themed_style(dialog, dialog_spinbox_button_style());
 
   if (exec_dialog(dialog) == QDialog::Accepted) {
+    const auto code = language_combo->currentData().toString();
+    if (!code.isEmpty() && LocalizationManager::instance().set_language(code)) {
+      refresh_language_actions();
+    }
     hotkey_editor->commit();
     // No restart notice: the scheme is already applied, unlike interface scale.
     ThemeManager::instance().set_preference(

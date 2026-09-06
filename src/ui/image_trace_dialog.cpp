@@ -11,6 +11,7 @@
 #include <QComboBox>
 #include <QCoreApplication>
 #include <QDialog>
+#include <QScopeGuard>
 #include <QDialogButtonBox>
 #include <QFormLayout>
 #include <QHBoxLayout>
@@ -1066,6 +1067,7 @@ std::optional<ImageTraceDialogResult> request_image_trace(QWidget* parent, std::
   write_options(initial);
   select_matching_preset();
   append_themed_style(dialog, dialog_spinbox_button_style());
+  const auto preview_cleanup = qScopeGuard([state] { close_trace_preview(state); });
   set_tracing_busy(true);
   enqueue_trace(state, read_options(), palette_check->isChecked());
 

@@ -131,3 +131,8 @@ Useful diagnostic variables:
 - `PATCHY_PERF_SAMPLER=1` (patchy_perf_tests only) samples the main thread's stacks every 10 ms and prints the hottest ones at exit.
 
 Composite checksums from stress reports or large renders are comparable only on the same machine: text antialiasing varies by system and the parallel strip renderer varies with thread count.
+
+Committed PSD corpus fixtures must decode; unreadable committed files fail the
+corpus test. Optional local files may still skip. The real-photo HEIC sweep skips
+only a recognized unavailable-codec/backend condition; decoding or assertion
+failures with an available decoder fail the test.

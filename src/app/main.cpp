@@ -32,12 +32,14 @@
 #include <QProxyStyle>
 #include <QRect>
 #include <QSettings>
+#include <QScopedValueRollback>
 #include <QStringList>
 #include <QTimer>
 
 #include <array>
 #include <clocale>
 #include <cstdio>
+#include <deque>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -569,12 +571,46 @@ int main(int argc, char* argv[]) {
   }
 
   // Become the primary instance: listen for future launches and adopt the files they forward.
+  std::deque<QStringList> forwarded_requests;
+  QTimer forwarded_request_timer;
+  forwarded_request_timer.setInterval(50);
+  bool processing_forwarded_request = false;
+  QObject::connect(&forwarded_request_timer, &QTimer::timeout, &window, [&] {
+    if (forwarded_requests.empty()) {
+      forwarded_request_timer.stop();
+      return;
+    }
+    // File dialogs run a nested event loop. Do not change the active document
+    // (or run a script) until the operation that owns that dialog has returned.
+    if (QApplication::activeModalWidget() != nullptr || processing_forwarded_request) {
+      return;
+    }
+    QScopedValueRollback processing(processing_forwarded_request, true);
+    auto forwarded = std::move(forwarded_requests.front());
+    forwarded_requests.pop_front();
+    QStringList forwarded_files;
+    bool handled_command = false;
+    for (const auto& entry : forwarded) {
+      if (entry.startsWith(kRunScriptCommandPrefix)) {
+        const auto parts = entry.split(QLatin1Char('\n'));
+        if (parts.size() >= 3) {
+          window.run_script_command(parts[1], parts[2], parts.mid(3));
+        }
+        handled_command = true;
+      } else {
+        forwarded_files.append(entry);
+      }
+    }
+    if (!forwarded_files.isEmpty() || !handled_command) {
+      window.activate_for_second_instance(forwarded_files);
+    }
+  });
   QLocalServer single_instance_server;
   if (single_instance_enabled) {
     // A previous crash can leave a stale pipe/socket that blocks listen(); clear it first.
     QLocalServer::removeServer(single_instance_server_name());
     if (single_instance_server.listen(single_instance_server_name())) {
-      QObject::connect(&single_instance_server, &QLocalServer::newConnection, &window, [&single_instance_server, &window] {
+      QObject::connect(&single_instance_server, &QLocalServer::newConnection, &window, [&] {
         QLocalSocket* client = single_instance_server.nextPendingConnection();
         if (client == nullptr) {
           return;
@@ -583,7 +619,7 @@ int main(int argc, char* argv[]) {
         // chunked write can't be parsed half-read.
         auto buffer = std::make_shared<QByteArray>();
         QObject::connect(client, &QLocalSocket::readyRead, client, [client, buffer] { buffer->append(client->readAll()); });
-        QObject::connect(client, &QLocalSocket::disconnected, &window, [client, buffer, &window] {
+        QObject::connect(client, &QLocalSocket::disconnected, &window, [&, client, buffer] {
           buffer->append(client->readAll());
           QStringList forwarded;
           QDataStream stream(buffer.get(), QIODevice::ReadOnly);
@@ -592,7 +628,7 @@ int main(int argc, char* argv[]) {
           // Peel screenshot commands off the file list. A capture must not raise or focus the
           // window (that would perturb the very state being captured), so a pure-screenshot
           // request skips activation; a bare relaunch (no files, no commands) still activates.
-          QStringList forwarded_files;
+          QStringList deferred;
           bool handled_command = false;
           for (const auto& entry : forwarded) {
             if (entry.startsWith(kScreenshotCommandPrefix)) {
@@ -601,19 +637,13 @@ int main(int argc, char* argv[]) {
                 (void)window.save_debug_screenshot(parts[1], parts[2], parse_screenshot_rect(parts[3]));
               }
               handled_command = true;
-            } else if (entry.startsWith(kRunScriptCommandPrefix)) {
-              const auto parts = entry.split(QLatin1Char('\n'));
-              if (parts.size() >= 3) {
-                // Fields past the output path are --script-arg tokens.
-                window.run_script_command(parts[1], parts[2], parts.mid(3));
-              }
-              handled_command = true;
             } else {
-              forwarded_files.append(entry);
+              deferred.append(entry);
             }
           }
-          if (!forwarded_files.isEmpty() || !handled_command) {
-            window.activate_for_second_instance(forwarded_files);
+          if (!deferred.isEmpty() || !handled_command) {
+            forwarded_requests.push_back(std::move(deferred));
+            forwarded_request_timer.start();
           }
           client->deleteLater();
         });

@@ -523,7 +523,8 @@ std::vector<std::uint8_t> decode_packbits(std::span<const std::uint8_t> encoded,
                                          std::size_t expected_size,
                                          std::size_t* consumed_bytes) {
   std::vector<std::uint8_t> decoded;
-  decoded.reserve(expected_size);
+  // A damaged container must not turn a declared size into an eager allocation.
+  decoded.reserve(std::min<std::size_t>(expected_size, 65536U));
   std::size_t cursor = 0;
   while (cursor < encoded.size() && decoded.size() < expected_size) {
     const auto header = static_cast<std::int8_t>(encoded[cursor++]);

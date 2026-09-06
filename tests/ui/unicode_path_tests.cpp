@@ -458,6 +458,33 @@ void ui_unicode_divide_photos_folder_save() {
   CHECK(patchy::ui::MainWindowTestAccess::document(window).height() == 8);
 }
 
+
+void ui_save_as_aborts_when_the_owning_document_changes() {
+  const auto dir = unicode_dir(QStringLiteral("save-as-session-guard"));
+  const auto path = dir + QLatin1Char('/') + combined_name("psd");
+  SettingsValueRestorer last_save_directory_restorer(QStringLiteral("lastSaveDirectory"));
+  SettingsValueRestorer recent_files_restorer(QStringLiteral("recentFiles"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  bool confirmed = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("saveAsFileDialog")));
+    CHECK(dialog != nullptr);
+    dialog->setDirectory(dir);
+    dialog->selectFile(path);
+    patchy::Document other(32,24,patchy::PixelFormat::rgba8());
+    other.add_pixel_layer("Other", patchy::PixelBuffer(32,24,patchy::PixelFormat::rgba8()));
+    window.add_document_session(std::move(other), QStringLiteral("Other"));
+    confirmed = true;
+    static_cast<QDialog*>(dialog)->accept();
+  });
+  require_action(window, "fileSaveAsAction")->trigger();
+  CHECK(confirmed);
+  CHECK(!QFileInfo::exists(path));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_path(window).isEmpty());
+  CHECK(patchy::ui::MainWindowTestAccess::document(window).width() == 32);
+}
+
 std::vector<patchy::test::TestCase> unicode_path_tests() {
   return {
       {"ui_unicode_write_flat_image_file_every_extension", ui_unicode_write_flat_image_file_every_extension},
@@ -468,5 +495,6 @@ std::vector<patchy::test::TestCase> unicode_path_tests() {
       {"ui_unicode_recent_files_persist_through_settings", ui_unicode_recent_files_persist_through_settings},
       {"ui_unicode_legacy_plugin_probe_from_unicode_dir", ui_unicode_legacy_plugin_probe_from_unicode_dir},
       {"ui_unicode_divide_photos_folder_save", ui_unicode_divide_photos_folder_save},
+      {"ui_save_as_aborts_when_the_owning_document_changes", ui_save_as_aborts_when_the_owning_document_changes},
   };
 }

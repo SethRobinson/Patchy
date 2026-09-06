@@ -185,33 +185,32 @@ layers.
 
 ## Appearance editing and fill layers
 
-Shape/fill layers carry a vector badge on their layer row. The badge,
-double-clicking the row, or the context menu's "Edit Shape Appearance..."
-(after Edit Layer Styles, which stays first) opens the Shape Appearance
-dialog: fill kind with per-kind rows, plus the full stroke set (width; a
-Paint combo choosing solid/gradient/pattern content;
-alignment, caps, joins; dash presets plus a Custom entry preserving
-PSD-authored dash arrays). Align-with-layer maps `pattern_linked`: anchored
-at the layer's effects reference point when on, the document origin when
-off, offsets adding on top either way (the PatternTileSampler rule).
+The vector badge, row double-click, and context menu's Edit Shape Appearance
+(after Edit Layer Styles) open fill and stroke controls: paint kind, width,
+alignment, caps, joins, and dash presets. Custom preserves PSD dash arrays.
+`pattern_linked` anchors at the effects reference point when on and document
+origin when off; offsets add either way (PatternTileSampler).
 
-Single-live-shape layers also get a Geometry section (rect/rounded bounds
-and per-corner radii, a radius promotes a plain rect to rounded; ellipse
-bounds; line endpoints/weight): edits regenerate the subpaths via
-generate_live_shape_subpaths and the shape STAYS live (a parameter edit;
-dialogs are the patent-cleared route, on-canvas gizmos stay excluded).
-Shown only when one modeled origination covers every subpath.
+Geometry appears when one modeled origination covers every subpath: rect bounds
+and corner radii, ellipse bounds, or line endpoints/weight. A radius promotes a
+rect to rounded. generate_live_shape_subpaths preserves live shape parameters.
+Dialogs are the patent-cleared route; on-canvas gizmos stay excluded.
 
-Edits preview live and restore on cancel; a PSD-read gradient/pattern
+Edits preview live and restore on cancel or exception; a PSD-read gradient/pattern
 stroke paint stays untouched unless explicitly re-picked. The preview
-rasterizes on a background worker: the vector MODEL applies synchronously,
+rasterizes on a worker: the vector MODEL applies synchronously,
 baked pixels lag, requests coalesce, the pattern anchor rides a scratch
 layer; accept commits the in-flight result (60s timeout fallback). Layer >
 New Fill Layer creates Solid Color, Gradient (FG-to-BG linear), and Pattern
 fill layers as shape layers with an empty path (= whole canvas); a TARGETED
 Paths-panel row becomes the new layer's shape path (PS's "current path"
-rule, build_fill_layer), and an active selection still becomes the raster
-mask. Library patterns adopt into the document PatternStore on use.
+rule, build_fill_layer), and selections become raster masks. Library patterns adopt into the document PatternStore on use.
+
+New Gradient/Pattern Fill stages the layer and adds one history entry only on OK.
+Cancel restores the original document, including its active layer and pattern store.
+Changing a path transform's layer, selection, path, or edit target cancels it.
+Sub-lattice dash lengths clamp to the raster lattice; excessive boundary counts
+fall back to a solid stroke to bound work on imported paths.
 
 ## Photoshop file encodings (observed, PS 27.8 / July 2026)
 

@@ -29,6 +29,7 @@
 #include <span>
 #include <string>
 #include <vector>
+#include <utility>
 
 namespace {
 
@@ -128,6 +129,9 @@ void composite_corpus_render_digests_are_stable() {
     try {
       document.emplace(patchy::psd::DocumentIo::read_file(file));
     } catch (const std::exception& error) {
+      if (file.parent_path() == patchy::test::source_root_path() / "test-fixtures" / "psd") {
+        throw;
+      }
       std::cout << "[INFO] skipping unreadable " << file.filename().string() << ": " << error.what() << '\n';
       continue;
     }
@@ -251,6 +255,65 @@ void group_isolation_override_bounds_match_actual_layer_move() {
   CHECK(image_digest(override_rgb) == image_digest(actual_rgb));
 }
 
+
+void styled_group_partial_render_and_child_edit_match_full_render() {
+  for (const auto mode : {patchy::BlendMode::Normal, patchy::BlendMode::PassThrough}) {
+    patchy::Document document(256, 192, patchy::PixelFormat::rgba8());
+    patchy::Layer group(document.allocate_layer_id(), "Styled", patchy::LayerKind::Group);
+    group.set_blend_mode(mode);
+    patchy::LayerInnerGlow glow;
+    glow.enabled = true;
+    glow.blend_mode = patchy::BlendMode::Normal;
+    glow.color = {255, 0, 0};
+    glow.opacity = 1.0F;
+    glow.size = 12.0F;
+    group.layer_style().inner_glows.push_back(glow);
+    patchy::Layer child(document.allocate_layer_id(), "Child", solid_rgba(240, 176, 50, 100, 160, 255));
+    child.set_bounds({-8, -8, 240, 176});
+    const auto child_id = child.id();
+    group.add_child(std::move(child));
+    const auto group_id = group.id();
+    document.add_layer(std::move(group));
+    auto* editable = document.find_layer(child_id);
+    CHECK(editable != nullptr);
+    const auto full = patchy::ui::qimage_from_document(document, true);
+    const QRect patch(30, 62, 185, 23);
+    CHECK(patchy::ui::qimage_from_document_rect(document, patch, true) == full.copy(patch));
+    const auto group_revision = std::as_const(document).find_layer(group_id)->content_revision();
+    for (int y=70; y<90; ++y) {
+      for (int x=90; x<110; ++x) editable->pixels().pixel(x,y)[3] = 0;
+    }
+    CHECK(std::as_const(document).find_layer(group_id)->content_revision() == group_revision);
+    const auto after = patchy::ui::qimage_from_document(document, true);
+    // Force an unrelated group revision to obtain an independently keyed reference.
+    document.find_layer(group_id)->layer_style().inner_glows[0].opacity = 1.0F;
+    const auto fresh = patchy::ui::qimage_from_document(document, true);
+    CHECK(after == fresh);
+    CHECK(after != full);
+  }
+}
+
+void styled_group_parallel_strips_match_single_threaded() {
+  patchy::Document document(2048, 2048, patchy::PixelFormat::rgba8());
+  patchy::Layer group(document.allocate_layer_id(), "Styled", patchy::LayerKind::Group);
+  group.set_blend_mode(patchy::BlendMode::Normal);
+  patchy::LayerInnerGlow glow;
+  glow.enabled = true;
+  glow.blend_mode = patchy::BlendMode::Normal;
+  glow.color = {255, 0, 0};
+  glow.opacity = 1.0F;
+  glow.size = 8.0F;
+  group.layer_style().inner_glows.push_back(glow);
+  patchy::Layer child(document.allocate_layer_id(), "Child", solid_rgba(2000, 2000, 50, 100, 160, 255));
+  child.set_bounds({24, 24, 2000, 2000});
+  group.add_child(std::move(child));
+  document.add_layer(std::move(group));
+  const auto parallel = patchy::ui::qimage_from_document(document, true);
+  ScopedSingleThreadedRender single;
+  const auto sequential = patchy::ui::qimage_from_document(document, true);
+  CHECK(parallel == sequential);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> composite_render_tests() {
@@ -258,5 +321,7 @@ std::vector<patchy::test::TestCase> composite_render_tests() {
       {"composite_corpus_render_digests_are_stable", composite_corpus_render_digests_are_stable},
       {"group_isolation_override_bounds_match_actual_layer_move",
        group_isolation_override_bounds_match_actual_layer_move},
+      {"styled_group_partial_render_and_child_edit_match_full_render", styled_group_partial_render_and_child_edit_match_full_render},
+      {"styled_group_parallel_strips_match_single_threaded", styled_group_parallel_strips_match_single_threaded},
   };
 }

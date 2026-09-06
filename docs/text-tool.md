@@ -276,3 +276,7 @@ the free-transform commit composes the signed delta, the crisp re-render draws T
 mirrored matrix, and the drag preview's plain source blit applies the scale signs like the
 proxy path (it used to show unmirrored pixels for the whole drag).
 `ui_point_text_flip_transform_mirrors_and_survives_reedit` pins flip -> re-edit -> flip back.
+
+Committing empty text to an existing unlocked text layer clears its stored text
+and raster with an undoable Type edit. Canceling a new empty text session still
+removes only its provisional layer.

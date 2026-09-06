@@ -28,3 +28,6 @@ The quick picker (`src/ui/gradient_preset_popup.{hpp,cpp}`) and Gradient Manager
 ## PSD layer effects
 
 Gradient Overlay `GrFl` and gradient Stroke `FrFX` share the definition codec but have different required descriptor shapes. Untouched imported `lfx2`/`lmfx` remains byte-preserved. Once edited, writers must retain Photoshop's key order and types documented in `docs/ps-compat.md`, including `Grad`, `Angl`, `Type`, `Rvrs`, `Dthr`, interpolation, `Algn`, `Scl`, and `Ofst`.
+
+Factory reset writes a copied library entry first. In-memory gradients change only
+after the save succeeds, so a write failure leaves the current library intact.

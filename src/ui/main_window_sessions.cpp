@@ -499,6 +499,18 @@ void MainWindow::activate_document_canvas(CanvasWidget* canvas) {
     return;
   }
   canvas_ = canvas;
+  if (canvas_changed) {
+    canvas_->set_fill_opacity(current_fill_opacity_);
+    canvas_->set_fill_softness(current_fill_softness_);
+    canvas_->set_quick_select_size(current_quick_select_size_);
+    canvas_->set_quick_select_sample_all_layers(current_quick_select_sample_all_layers_);
+    canvas_->set_quick_select_enhance_edge(current_quick_select_enhance_edge_);
+    canvas_->set_transform_interpolation(current_transform_interpolation_);
+    canvas_->set_vector_tool_mode(current_vector_tool_mode_);
+    canvas_->set_pen_auto_add_delete(current_pen_auto_add_delete_);
+    canvas_->set_polygon_sides(current_polygon_sides_);
+    canvas_->set_polygon_star_inset(current_polygon_star_inset_);
+  }
   pending_layer_thumbnail_refresh_ = false;
   apply_selection_modes_to_canvas(canvas_);
   canvas_->set_tool(current_tool_);
@@ -1272,6 +1284,9 @@ void MainWindow::show_document_tab_context_menu(const QPoint& position) {
 bool MainWindow::confirm_close_session(DocumentSession& target_session) {
   if (!session_is_modified(target_session)) {
     return true;
+  }
+  if (unattended_automation()) {
+    return false;
   }
 
   const auto title = target_session.title.isEmpty() ? tr("Untitled") : target_session.title;

@@ -496,6 +496,11 @@ bool ScriptEngineHost::unattended_run() const {
   return window_.cli_automation_mode_ || (run_ != nullptr && run_->unattended);
 }
 
+bool MainWindow::unattended_automation() const {
+  return cli_automation_mode_ ||
+         (script_engine_host_ != nullptr && script_engine_host_->unattended_run());
+}
+
 namespace {
 
 // How long a synchronous script burst may block the GUI before the busy
@@ -1161,8 +1166,12 @@ void ScriptEngineHost::select_region(std::int64_t session_id, const QRegion& reg
     return;
   }
   CanvasWidget::SelectionSnapshot snapshot;
-  snapshot.selection = region;
-  snapshot.display_region = region;
+  const auto* document = session_document_const(session_id);
+  if (document == nullptr) {
+    return;
+  }
+  snapshot.selection = region.intersected(QRect(0, 0, document->width(), document->height()));
+  snapshot.display_region = snapshot.selection;
   canvas->apply_selection_snapshot(snapshot);
 }
 
@@ -1307,6 +1316,7 @@ bool ScriptEngineHost::set_text_layer_text(std::int64_t session_id, LayerId laye
   }
   auto cursor = editor->textCursor();
   cursor.select(QTextCursor::Document);
+  cursor.removeSelectedText();
   editor->setTextCursor(cursor);
   editor->insertPlainText(text);
   QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
@@ -1530,7 +1540,7 @@ QJSValue ScriptEngineHost::run_form_dialog(const QJSValue& spec, bool merge_args
                       ? entry.key
                       : field.property(QStringLiteral("label")).toString();
     entry.value = field.property(QStringLiteral("value"));
-    if (entry.key.isEmpty()) {
+    if (!field.property(QStringLiteral("key")).isString() || entry.key.isEmpty()) {
       throw_js_error(tr("showDialog: every field needs a non-empty \"key\""));
       return QJSValue(QJSValue::UndefinedValue);
     }
@@ -1572,15 +1582,6 @@ QJSValue ScriptEngineHost::run_form_dialog(const QJSValue& spec, bool merge_args
         entry.value = QJSValue(raw);
       }
     }
-  }
-
-  // Unattended runs answer with the effective values, the app.prompt rule.
-  if (unattended_run()) {
-    auto result = engine_->newObject();
-    for (std::size_t i = 0; i < parsed.size(); ++i) {
-      result.setProperty(parsed[i].key, parsed[i].value);
-    }
-    return result;
   }
 
   const ModalWatchdogPause pause(*this);
@@ -1756,7 +1757,8 @@ QJSValue ScriptEngineHost::run_form_dialog(const QJSValue& spec, bool merge_args
   // sub-control gotcha, dialog_utils.hpp).
   append_themed_style(dialog, dialog_spinbox_button_style());
 
-  if (exec_dialog(dialog) != QDialog::Accepted) {
+  // The fields normalize values identically for interactive and unattended runs.
+  if (!unattended_run() && exec_dialog(dialog) != QDialog::Accepted) {
     return QJSValue(QJSValue::NullValue);
   }
   auto result = engine_->newObject();
@@ -1770,6 +1772,11 @@ QJSValue ScriptEngineHost::run_form_dialog(const QJSValue& spec, bool merge_args
 // App commands
 
 bool ScriptEngineHost::run_app_command(const QString& command_id) {
+  if (command_id == QStringLiteral("edit.undo") ||
+      command_id == QStringLiteral("edit.redo") ||
+      command_id == QStringLiteral("file.quit")) {
+    return false;
+  }
   if (connector_mode_) {
     throw_js_error(tr("Menu commands are unavailable in the background connector. Use the scripting API."));
     return false;

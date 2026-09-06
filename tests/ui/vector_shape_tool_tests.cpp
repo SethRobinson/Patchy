@@ -2581,6 +2581,62 @@ void ui_make_work_path_from_selection_traces_selection() {
 
 }  // namespace
 
+
+void ui_new_fill_cancel_preserves_document_and_history() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  // Earlier ordered tests can empty the user's pattern library. Supply this
+  // document's own pattern so the Pattern command can open its dialog.
+  document.metadata().patterns.adopt(
+      patchy::builtin_pattern_resource(patchy::builtin_pattern_presets().front().id));
+  const auto layers = std::as_const(document).layers().size();
+  const auto active = document.active_layer_id();
+  const auto undo = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  for (const auto* name : {"layerNewGradientFillAction", "layerNewPatternFillAction"}) {
+    bool cancelled = false;
+    QTimer::singleShot(0, [&] {
+      auto* dialog = patchy::test::ui::find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
+      CHECK(dialog != nullptr);
+      cancelled = true;
+      dialog->reject();
+    });
+    auto* action = window.findChild<QAction*>(QString::fromLatin1(name));
+    CHECK(action != nullptr);
+    action->trigger();
+    QApplication::processEvents();
+    CHECK(cancelled);
+    CHECK(std::as_const(document).layers().size() == layers);
+    CHECK(document.active_layer_id() == active);
+    CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo);
+    CHECK(patchy::ui::MainWindowTestAccess::active_session_redo_depth(window) == 0);
+    CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+  }
+}
+
+
+void ui_path_transform_is_cancelled_on_layer_target_change() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  make_rect_shape_layer(window, *canvas);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto first = *document.active_layer_id();
+  canvas->set_tool(patchy::ui::CanvasTool::PathSelect);
+  CHECK(canvas->begin_path_transform());
+  CHECK(canvas->path_transform_active());
+  auto& other = document.add_layer(patchy::Layer(document.allocate_layer_id(), "Other",
+                                               patchy::PixelBuffer(2,2,patchy::PixelFormat::rgba8())));
+  const auto id = other.id();
+  canvas->set_selected_layer_ids({id});
+  CHECK(!canvas->path_transform_active());
+  canvas->commit_path_transform();
+  CHECK(std::as_const(document).find_layer(first)->vector_shape() != nullptr);
+  CHECK(std::as_const(document).find_layer(id)->vector_shape() == nullptr);
+}
+
 std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
   return {
       {"ui_shape_tool_creates_shape_layer_and_undoes", ui_shape_tool_creates_shape_layer_and_undoes},
@@ -2650,5 +2706,7 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
       {"ui_fill_path_supports_patterns", ui_fill_path_supports_patterns},
       {"ui_make_work_path_from_selection_traces_selection",
        ui_make_work_path_from_selection_traces_selection},
+      {"ui_new_fill_cancel_preserves_document_and_history", ui_new_fill_cancel_preserves_document_and_history},
+      {"ui_path_transform_is_cancelled_on_layer_target_change", ui_path_transform_is_cancelled_on_layer_target_change},
   };
 }

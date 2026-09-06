@@ -666,6 +666,23 @@ void path_simplify_preserves_ops_groups_open_flag_and_never_grows() {
 
 }  // namespace
 
+
+void path_fit_long_staircase_does_not_depend_on_call_stack_depth() {
+  std::vector<patchy::FitPoint> edge;
+  for (int i=0; i<7500; ++i) {
+    edge.push_back({2.0*i, static_cast<double>(i)});
+    edge.push_back({2.0*i+2.0, static_cast<double>(i)});
+  }
+  patchy::PathFitOptions options;
+  options.tolerance = 0.5;
+  const auto fitted = patchy::fit_open_polyline(edge, options);
+  CHECK(!fitted.closed);
+  CHECK(fitted.anchors.size() >= 2);
+  CHECK(fitted.anchors.front().anchor_x == edge.front().x);
+  CHECK(fitted.anchors.back().anchor_x == edge.back().x);
+  CHECK(fitted.anchors.back().anchor_y == edge.back().y);
+}
+
 std::vector<patchy::test::TestCase> vector_shape_tests() {
   return {
       {"vector_path_text_codec_round_trips", vector_path_text_codec_round_trips},
@@ -688,5 +705,6 @@ std::vector<patchy::test::TestCase> vector_shape_tests() {
       {"path_simplify_reduces_dense_circle_anchors", path_simplify_reduces_dense_circle_anchors},
       {"path_simplify_preserves_ops_groups_open_flag_and_never_grows",
        path_simplify_preserves_ops_groups_open_flag_and_never_grows},
+      {"path_fit_long_staircase_does_not_depend_on_call_stack_depth", path_fit_long_staircase_does_not_depend_on_call_stack_depth},
   };
 }

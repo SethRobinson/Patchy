@@ -12,6 +12,34 @@
 <context>
     <name>QObject</name>
     <message>
+        <source>Layer position is outside the supported range.</source>
+        <translation>レイヤーの位置が対応範囲を超えています。</translation>
+    </message>
+    <message>
+        <source>Layer '%1': invalid Gaussian blur radius; effect skipped</source>
+        <translation>レイヤー「%1」: ぼかし（ガウス）の半径が無効なため、効果をスキップしました。</translation>
+    </message>
+    <message>
+        <source>Layer '%1': Gaussian blur could not be applied; original pixels kept</source>
+        <translation>レイヤー「%1」: ぼかし（ガウス）を適用できなかったため、元のピクセルを保持しました。</translation>
+    </message>
+    <message>
+        <source>JPEG XR float row exceeds the codec buffer limit</source>
+        <translation>JPEG XR の浮動小数点ピクセル行がコーデックのバッファー上限を超えています。</translation>
+    </message>
+    <message>
+        <source>PSD/PSB supports at most 32767 layer records</source>
+        <translation>PSD/PSB は最大 32767 個のレイヤーレコードに対応しています。</translation>
+    </message>
+    <message>
+        <source>PSD layer channel data is truncated</source>
+        <translation>PSD のレイヤーチャンネルデータが途中で切れています。</translation>
+    </message>
+    <message>
+        <source>PSD layer mask exceeds the layer record</source>
+        <translation>PSD のレイヤーマスクがレイヤーレコードの範囲を超えています。</translation>
+    </message>
+    <message>
         <location filename="../src/app/main.cpp" line="+290"/>
         <source>Patchy raster image editor.</source>
         <translation>Patchy ラスター画像エディター。</translation>
@@ -14910,6 +14938,10 @@ Clipped to the layer below</source>
 </context>
 <context>
     <name>patchy::ui::ScriptEngineHost</name>
+    <message>
+        <source>Layer position is outside the supported range.</source>
+        <translation>レイヤーの位置が対応範囲を超えています。</translation>
+    </message>
     <message><source>Could not read script file: %1</source><translation>スクリプトファイルを読み込めませんでした: %1</translation></message>
     <message><source>A script is already running: %1</source><translation>スクリプトは既に実行中です: %1</translation></message>
     <message><source>Untitled Script</source><translation>無題のスクリプト</translation></message>
@@ -14955,7 +14987,7 @@ Clipped to the layer below</source>
     <message><source>This layer is not a text layer.</source><translation>このレイヤーはテキストレイヤーではありません。</translation></message>
     <message><source>Could not edit the text layer.</source><translation>テキストレイヤーを編集できませんでした。</translation></message>
     <message><source>fill needs a pixel layer, not a group.</source><translation>fill にはグループではなくピクセルレイヤーが必要です。</translation></message>
-    <message><source>fill supports 8-bit RGBA layers only.</source><translation>fill は 8 ビット RGBA レイヤーのみ対応です。</translation></message>
+    <message><source>fill supports 8-bit RGB and RGBA layers only.</source><translation>fill は 8 ビット RGB および RGBA レイヤーにのみ対応しています。</translation></message>
     <message><source>fillRect needs a positive size.</source><translation>fillRect には正のサイズが必要です。</translation></message>
     <message><source>fillRect needs a size between 1 and %1.</source><translation>fillRect のサイズは 1 から %1 の範囲で指定してください。</translation></message>
     <message><source>selectRect needs a size between 1 and %1.</source><translation>selectRect のサイズは 1 から %1 の範囲で指定してください。</translation></message>
@@ -14963,7 +14995,7 @@ Clipped to the layer below</source>
     <message><source>opacity needs a number between 0 and 100.</source><translation>opacity には 0 から 100 の数値が必要です。</translation></message>
     <message><source>readTextFile: %1 is larger than 256 MB</source><translation>readTextFile: %1 は 256 MB を超えています</translation></message>
     <message><source>fillRect needs a pixel layer, not a group.</source><translation>fillRect にはグループではなくピクセルレイヤーが必要です。</translation></message>
-    <message><source>fillRect supports 8-bit RGBA layers only.</source><translation>fillRect は 8 ビット RGBA レイヤーのみ対応です。</translation></message>
+    <message><source>fillRect supports 8-bit RGB and RGBA layers only.</source><translation>fillRect は 8 ビット RGB および RGBA レイヤーにのみ対応しています。</translation></message>
     <message><source>getPixels supports 8-bit RGB and RGBA layers only.</source><translation>getPixels は 8 ビット RGB / RGBA レイヤーのみ対応です。</translation></message>
     <message><source>setPixels needs a {width, height, data} object.</source><translation>setPixels には {width, height, data} オブジェクトが必要です。</translation></message>
     <message><source>setPixels: data must hold width * height * 4 RGBA bytes.</source><translation>setPixels: data は width * height * 4 バイトの RGBA データが必要です。</translation></message>

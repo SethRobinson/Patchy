@@ -52,6 +52,7 @@
 #include <QPixmap>
 #include <QPointer>
 #include <QSignalBlocker>
+#include <QScopeGuard>
 #include <QSpinBox>
 #include <QStandardItemModel>
 #include <QStatusBar>
@@ -502,22 +503,22 @@ void MainWindow::refresh_vector_tool_options_visibility() {
   update_vector_swatch_icons();
 }
 
-void MainWindow::edit_active_shape_appearance() {
+bool MainWindow::edit_active_shape_appearance(bool record_undo) {
   // The appearance dialog is a preview dialog; never stack one on another.
   if (preview_dialog_edit_locked()) {
     show_preview_dialog_edit_lock_message();
-    return;
+    return false;
   }
   auto& doc = document();
   const auto active = doc.active_layer_id();
   auto* layer = active.has_value() ? doc.find_layer(*active) : nullptr;
   if (layer == nullptr || !layer_is_vector_shape(*layer)) {
     show_status_error(tr("Select a shape layer to edit its appearance"));
-    return;
+    return false;
   }
   if (!vector_lock_reason(*layer).empty()) {
     show_status_error(tr("This shape layer's vector data is preserved but can't be edited."));
-    return;
+    return false;
   }
   const auto layer_id = *active;
   const Layer original_layer = *layer;
@@ -701,6 +702,10 @@ void MainWindow::edit_active_shape_appearance() {
   const auto preview_changed = [preview_state](const ShapeAppearanceSettings& settings) {
     enqueue_async_pixel_preview(preview_state, ShapePreviewRequest{settings});
   };
+  auto preview_cleanup = qScopeGuard([preview_state, restore_original_layer] {
+    close_async_pixel_preview(preview_state);
+    restore_original_layer();
+  });
   const auto accepted = request_shape_appearance_settings(
       this, preview_changed, std::move(initial), &gradient_library(), &pattern_library(),
       &doc.metadata().patterns,
@@ -730,12 +735,15 @@ void MainWindow::edit_active_shape_appearance() {
     }
   }
   restore_original_layer();
+  preview_cleanup.dismiss();
   preview_edit_lock.release();
   if (!accepted.has_value()) {
     statusBar()->showMessage(tr("Cancelled shape appearance"));
-    return;
+    return false;
   }
-  push_undo_snapshot(tr("Shape appearance"));
+  if (record_undo) {
+    push_undo_snapshot(tr("Shape appearance"));
+  }
   if (preview_result.has_value()) {
     if (auto* target = document().find_layer(layer_id); target != nullptr) {
       *target = std::move(*preview_result);
@@ -754,6 +762,7 @@ void MainWindow::edit_active_shape_appearance() {
   refresh_layer_list();
   refresh_layer_controls();
   statusBar()->showMessage(tr("Updated the shape appearance"));
+  return true;
 }
 
 Layer MainWindow::build_fill_layer(const VectorFill& fill, const QString& name) {
@@ -904,9 +913,7 @@ void MainWindow::new_gradient_fill_layer() {
                         0.5F}};
   fill.gradient.alpha_stops = {GradientAlphaStop{0.0F, 1.0F, 0.5F},
                                GradientAlphaStop{1.0F, 1.0F, 0.5F}};
-  create_fill_layer(fill, unique_fill_layer_name(tr("Gradient Fill %1")),
-                    tr("New fill layer"));
-  edit_active_shape_appearance();
+  create_fill_layer_with_appearance(fill, unique_fill_layer_name(tr("Gradient Fill %1")));
 }
 
 void MainWindow::new_pattern_fill_layer() {
@@ -926,9 +933,38 @@ void MainWindow::new_pattern_fill_layer() {
     show_status_error(tr("No patterns are available."));
     return;
   }
-  create_fill_layer(fill, unique_fill_layer_name(tr("Pattern Fill %1")),
-                    tr("New fill layer"));
-  edit_active_shape_appearance();
+  create_fill_layer_with_appearance(fill, unique_fill_layer_name(tr("Pattern Fill %1")));
+}
+
+void MainWindow::create_fill_layer_with_appearance(const VectorFill& fill, const QString& name) {
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  auto& doc = document();
+  const auto original = doc;
+  auto restore = qScopeGuard([&] {
+    doc = original;
+    canvas_->document_changed();
+    refresh_layer_list();
+    refresh_layer_controls();
+  });
+  auto temporary = build_fill_layer(fill, name);
+  const auto id = temporary.id();
+  doc.add_layer(std::move(temporary));
+  doc.set_active_layer(id);
+  canvas_->document_changed();
+  if (!edit_active_shape_appearance(false)) {
+    return;
+  }
+  auto completed = doc;
+  doc = original;
+  push_undo_snapshot(tr("New fill layer"));
+  doc = std::move(completed);
+  restore.dismiss();
+  canvas_->document_changed();
+  refresh_layer_list();
+  refresh_layer_controls();
 }
 
 void MainWindow::populate_new_fill_layer_menu(QMenu* menu, const QString& object_name_prefix) {

@@ -8,6 +8,7 @@
 #include <QObject>
 #include <QStringList>
 #include <algorithm>
+#include <stdexcept>
 
 namespace patchy::ui {
 
@@ -163,7 +164,9 @@ void HotkeyRegistry::register_command(QAction* action, QString id, QList<QKeySeq
   if (action == nullptr || id.isEmpty()) {
     return;
   }
-  Q_ASSERT_X(find_command(id) == nullptr, "HotkeyRegistry::register_command", "duplicate hotkey command id");
+  if (find_command(id) != nullptr) {
+    throw std::logic_error("Duplicate hotkey command id: " + id.toStdString());
+  }
   default_shortcuts.removeAll(QKeySequence());
   commands_.push_back({std::move(id), std::move(category), action, std::move(default_shortcuts)});
 }

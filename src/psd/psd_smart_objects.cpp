@@ -1534,7 +1534,7 @@ std::optional<ParsedElement> parse_link_element(BigEndianReader& reader, std::sp
     (void)read_descriptor(reader);
   }
   if (parsed.source.kind == SmartObjectSourceKind::Embedded) {
-    if (datasize > element_end - reader.position()) {
+    if (reader.position() > element_end || datasize > element_end - reader.position()) {
       return std::nullopt;
     }
     const auto data_start = reader.position();
@@ -1673,7 +1673,7 @@ std::optional<std::vector<std::uint8_t>> rebuild_embedded_element(
       (void)read_descriptor(reader);
     }
     const auto data_position = reader.position();
-    if (datasize > body_end - data_position) {
+    if (data_position > body_end || datasize > body_end - data_position) {
       return std::nullopt;
     }
     const auto suffix_start = data_position + static_cast<std::size_t>(datasize);

@@ -171,6 +171,7 @@ public:
   // boxes, indexed-palette adoption offer, missing-font substitution confirm, format
   // data-loss confirms). Set before opening files.
   void set_cli_automation_mode(bool enabled) { cli_automation_mode_ = enabled; }
+  [[nodiscard]] bool unattended_automation() const;
   // The JS scripting engine (lazily created; see main_window_scripting.cpp and
   // docs/scripting.md).
   [[nodiscard]] ScriptEngineHost& script_engine_host();
@@ -246,6 +247,9 @@ private:
       std::int64_t parent_session_id{0};
       std::string source_uuid;
       bool external{false};
+      // Edit Contents regenerates PSD UUIDs. Retain the lineage so parent
+      // history navigation can reconnect the open child to a restored source.
+      std::vector<std::string> source_uuid_history{};
     };
     std::optional<SmartObjectLink> smart_object_link;
     CanvasWidget* canvas{nullptr};
@@ -825,7 +829,8 @@ private:
   // Fill/stroke editing (main_window_vector.cpp): the live-preview appearance
   // dialog for the active shape layer, and Layer > New Fill Layer creation
   // (a shape layer with an empty path = the whole canvas).
-  void edit_active_shape_appearance();
+  bool edit_active_shape_appearance(bool record_undo = true);
+  void create_fill_layer_with_appearance(const VectorFill& fill, const QString& name);
   [[nodiscard]] Layer build_fill_layer(const patchy::VectorFill& fill, const QString& name);
   [[nodiscard]] QString unique_fill_layer_name(const QString& base);
   void create_fill_layer(const patchy::VectorFill& fill, const QString& name, QString label);
@@ -1641,6 +1646,15 @@ private:
   int current_shape_height_{768};
   VectorToolMode current_vector_tool_mode_{VectorToolMode::Shape};
   bool current_pen_auto_add_delete_{true};
+  int current_fill_opacity_{100};
+  int current_fill_softness_{0};
+  int current_quick_select_size_{30};
+  bool current_quick_select_sample_all_layers_{false};
+  bool current_quick_select_enhance_edge_{false};
+  CanvasWidget::TransformInterpolation current_transform_interpolation_{
+      CanvasWidget::TransformInterpolation::Bicubic};
+  int current_polygon_sides_{5};
+  int current_polygon_star_inset_{0};
   // Full paint mirrors (None/Solid/Gradient/Pattern) for the options-bar
   // fill/stroke pickers; VectorFill's defaults are solid black, matching the
   // historical QColor mirrors. Sticky like Photoshop: selecting a shape layer

@@ -1077,6 +1077,23 @@ void document_paths_add_find_and_work_semantics() {
 
 }  // namespace
 
+
+void stroke_sub_lattice_dashes_are_bounded() {
+  VectorPath path;
+  path.subpaths = {open_line(0, 10, 15000, 10)};
+  patchy::VectorStroke stroke;
+  stroke.enabled = true;
+  stroke.width = 0.1;
+  stroke.dashes = {0.0001, 0.0001};
+  const auto tiny = stroke_coverage(path, stroke, Rect{0, 0, 32, 20});
+  stroke.dashes.clear();
+  const auto solid = stroke_coverage(path, stroke, Rect{0, 0, 32, 20});
+  CHECK(tiny.bounds.x == solid.bounds.x && tiny.bounds.y == solid.bounds.y);
+  CHECK(tiny.bounds.width == solid.bounds.width && tiny.bounds.height == solid.bounds.height);
+  CHECK(std::equal(tiny.pixels.data().begin(), tiny.pixels.data().end(),
+                   solid.pixels.data().begin(), solid.pixels.data().end()));
+}
+
 std::vector<patchy::test::TestCase> vector_raster_tests() {
   return {
       {"raster_axis_aligned_rect_coverage_is_exact", raster_axis_aligned_rect_coverage_is_exact},
@@ -1109,5 +1126,6 @@ std::vector<patchy::test::TestCase> vector_raster_tests() {
       {"combine_shape_candidates_refuses_mixed_parents_locks_and_fill_layers",
        combine_shape_candidates_refuses_mixed_parents_locks_and_fill_layers},
       {"document_paths_add_find_and_work_semantics", document_paths_add_find_and_work_semantics},
+      {"stroke_sub_lattice_dashes_are_bounded", stroke_sub_lattice_dashes_are_bounded},
   };
 }

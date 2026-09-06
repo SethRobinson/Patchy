@@ -159,6 +159,11 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, std::vector<std::
                                 : plane_row_bytes(header.width);
   const auto rows_per_line = chunky ? std::size_t{1} : static_cast<std::size_t>(header.planes) + (mask_plane ? 1U : 0U);
   const auto decoded_size = row_bytes * rows_per_line * static_cast<std::size_t>(header.height);
+  const auto minimum_input = header.compression == 1
+      ? decoded_size / 128U + (decoded_size % 128U != 0U) : decoded_size;
+  if (minimum_input > body.size()) {
+    throw std::runtime_error("IFF ILBM body data ended unexpectedly");
+  }
   const auto data = header.compression == 1 ? psd::decode_packbits(body, decoded_size) : std::move(body);
   if (data.size() < decoded_size) {
     throw std::runtime_error("IFF ILBM body data ended unexpectedly");

@@ -3189,6 +3189,46 @@ void ui_color_balance_dialog_adjusts_selected_pixels() {
 
 }  // namespace
 
+
+void ui_levels_exception_restores_preview_pixels_and_unlocks_edits() {
+  patchy::Document source(48,32,patchy::PixelFormat::rgba8());
+  source.add_pixel_layer("Paint", solid_pixels(48,32,patchy::PixelFormat::rgba8(), QColor(40,60,80)));
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(source), QStringLiteral("Unwind"));
+  show_window(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto original = std::as_const(document).layers().front().pixels();
+  bool saw_preview = false;
+  QTimer::singleShot(0, [&] {
+    try {
+      auto* dialog = patchy::test::ui::find_top_level_dialog(QStringLiteral("patchyLevelsDialog"));
+      CHECK(dialog != nullptr);
+      auto* black = dialog->findChild<QSpinBox*>(QStringLiteral("levelsBlackOutputSpin"));
+      CHECK(black != nullptr);
+      black->setValue(200);
+      CHECK(process_events_until([&] {
+        return std::as_const(document).layers().front().pixels().pixel(0,0)[0] > 100;
+      }, 3000));
+      saw_preview = true;
+      throw std::runtime_error("levels unwind regression");
+    } catch (...) {
+      if (!patchy::ui::unwind_non_modal_dialog_loop(std::current_exception())) throw;
+    }
+  });
+  bool unwound = false;
+  try { require_action(window, "imageAdjustLevelsAction")->trigger(); }
+  catch (const std::runtime_error& error) {
+    if (std::string(error.what()) != "levels unwind regression") throw;
+    unwound = true;
+  }
+  CHECK(saw_preview && unwound);
+  process_events_for(200);
+  const auto& after = std::as_const(document).layers().front().pixels();
+  CHECK(std::equal(original.data().begin(), original.data().end(), after.data().begin(), after.data().end()));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == 0);
+  CHECK(require_action(window, "imageAdjustLevelsAction")->isEnabled());
+}
+
 std::vector<patchy::test::TestCase> image_adjustments_curves_tests() {
   return {
       {"ui_image_adjustments_menu_applies_active_layer_filters",
@@ -3262,5 +3302,6 @@ std::vector<patchy::test::TestCase> image_adjustments_curves_tests() {
       {"ui_curves_clipped_adjustment_reedit_disables_auto",
        ui_curves_clipped_adjustment_reedit_disables_auto},
       {"ui_color_balance_dialog_adjusts_selected_pixels", ui_color_balance_dialog_adjusts_selected_pixels},
+      {"ui_levels_exception_restores_preview_pixels_and_unlocks_edits", ui_levels_exception_restores_preview_pixels_and_unlocks_edits},
   };
 }

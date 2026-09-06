@@ -1096,6 +1096,24 @@ void compositor_interior_overlay_stays_under_vector_stroke() {
 
 }  // namespace
 
+
+void compositor_burn_dodge_effects_preserve_transparent_coverage() {
+  using namespace patchy;
+  for (const auto mode : {BlendMode::LinearBurn, BlendMode::ColorBurn, BlendMode::ColorDodge}) {
+    for (const auto backdrop_alpha : {0.0F, 0.5F, 1.0F}) {
+      render_detail::IsolatedClipGroupTarget target(Rect::from_size(1, 1));
+      target.composite_color(0, 0, {120, 140, 160}, backdrop_alpha, BlendMode::Normal);
+      render_detail::composite_effect_color(target, 0, 0, {30, 60, 90}, 0.25F, mode,
+                                            DissolveField::DropShadow);
+      const auto sample = target.sample_color(0, 0);
+      CHECK(std::abs(sample.alpha - (0.25F + backdrop_alpha * 0.75F)) < 0.00001F);
+      if (backdrop_alpha == 0.0F) {
+        CHECK(sample.color.red == 30 && sample.color.green == 60 && sample.color.blue == 90);
+      }
+    }
+  }
+}
+
 std::vector<patchy::test::TestCase> compositor_layer_styles_tests() {
   return {
       {"compositor_renders_layer_style_drop_shadow_gradient_and_stroke",
@@ -1140,5 +1158,6 @@ std::vector<patchy::test::TestCase> compositor_layer_styles_tests() {
        compositor_interior_overlay_knocks_out_semi_transparent_fill},
       {"compositor_interior_overlay_stays_under_vector_stroke",
        compositor_interior_overlay_stays_under_vector_stroke},
+      {"compositor_burn_dodge_effects_preserve_transparent_coverage", compositor_burn_dodge_effects_preserve_transparent_coverage},
   };
 }

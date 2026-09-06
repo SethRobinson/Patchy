@@ -1641,6 +1641,34 @@ void ui_hotkey_editor_reset_all_clears_overrides() {
 
 }  // namespace
 
+
+void ui_color_picker_accepts_css_rgba_and_names() {
+  patchy::ui::PatchyColorPicker picker(Qt::black);
+  auto* edit = picker.findChild<QLineEdit*>(QStringLiteral("patchyColorHtmlEdit"));
+  CHECK(edit != nullptr);
+  edit->setText(QStringLiteral("#11223380"));
+  CHECK(QMetaObject::invokeMethod(edit, "editingFinished", Qt::DirectConnection));
+  CHECK(picker.currentColor().red() == 0x11);
+  CHECK(picker.currentColor().green() == 0x22);
+  CHECK(picker.currentColor().blue() == 0x33);
+  // Qt's SVG color names include navy on every supported Qt version.
+  edit->setText(QStringLiteral("navy"));
+  CHECK(QMetaObject::invokeMethod(edit, "editingFinished", Qt::DirectConnection));
+  CHECK(picker.currentColor() == QColor(0, 0, 128));
+}
+
+void ui_hotkey_duplicate_ids_fail_without_replacing_the_command() {
+  patchy::ui::HotkeyRegistry registry;
+  QAction first(nullptr), second(nullptr);
+  registry.register_command(&first, QStringLiteral("test.duplicate"), {});
+  bool rejected = false;
+  try { registry.register_command(&second, QStringLiteral("test.duplicate"), {}); }
+  catch (const std::logic_error&) { rejected = true; }
+  CHECK(rejected);
+  CHECK(registry.commands().size() == 1);
+  CHECK(registry.find_command(QStringLiteral("test.duplicate"))->action == &first);
+}
+
 std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
   return {
       {"ui_color_picker_changes_foreground_color", ui_color_picker_changes_foreground_color},
@@ -1691,5 +1719,7 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
        ui_hotkey_editor_assigns_and_persists_custom_shortcut},
       {"ui_hotkey_editor_steals_conflicting_shortcut", ui_hotkey_editor_steals_conflicting_shortcut},
       {"ui_hotkey_editor_reset_all_clears_overrides", ui_hotkey_editor_reset_all_clears_overrides},
+      {"ui_color_picker_accepts_css_rgba_and_names", ui_color_picker_accepts_css_rgba_and_names},
+      {"ui_hotkey_duplicate_ids_fail_without_replacing_the_command", ui_hotkey_duplicate_ids_fail_without_replacing_the_command},
   };
 }

@@ -680,8 +680,16 @@ void heif_decodes_real_photos_if_available() {
       std::cout << "[INFO] decoded " << entry.path().filename().string() << " ("
                 << result.document.width() << 'x' << result.document.height() << ")\n";
     } catch (const std::exception& error) {
-      std::cout << "[SKIP] HEIC platform decoder unavailable: " << error.what() << '\n';
-      return;
+      const std::string message = error.what();
+      if (message.starts_with(patchy::heif::kHeifPackageMissingMarker) ||
+          message.starts_with(patchy::heif::kHevcPackageMissingMarker) ||
+          message.find("system codec") != std::string::npos ||
+          message.find("Flatpak codec extension") != std::string::npos ||
+          message.find("outside a browser") != std::string::npos) {
+        std::cout << "[SKIP] HEIC platform decoder unavailable: " << message << '\n';
+        return;
+      }
+      throw;
     }
   }
   CHECK(decoded > 0);

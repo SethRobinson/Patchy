@@ -373,17 +373,21 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
   reader.skip(1);  // filler
 
   const auto extra_length = read_section_length(reader, "layer extra data");
-  const auto extra_end = reader.position() + extra_length;
+  BigEndianReader extra_reader(reader.read_span(extra_length));
+  const auto extra_end = extra_reader.remaining();
   if (extra_length >= 8) {
-    const auto mask_length = read_section_length(reader, "layer mask data");
-    const auto mask_end = reader.position() + mask_length;
+    const auto mask_length = read_section_length(extra_reader, "layer mask data");
+    const auto mask_end = extra_reader.position() + mask_length;
+    if (mask_length > extra_reader.remaining()) {
+      throw std::runtime_error("PSD layer mask exceeds the layer record");
+    }
     if (mask_length >= 18U) {
-      const auto mask_top = static_cast<std::int32_t>(reader.read_u32());
-      const auto mask_left = static_cast<std::int32_t>(reader.read_u32());
-      const auto mask_bottom = static_cast<std::int32_t>(reader.read_u32());
-      const auto mask_right = static_cast<std::int32_t>(reader.read_u32());
-      const auto default_color = reader.read_u8();
-      const auto mask_flags = reader.read_u8();
+      const auto mask_top = static_cast<std::int32_t>(extra_reader.read_u32());
+      const auto mask_left = static_cast<std::int32_t>(extra_reader.read_u32());
+      const auto mask_bottom = static_cast<std::int32_t>(extra_reader.read_u32());
+      const auto mask_right = static_cast<std::int32_t>(extra_reader.read_u32());
+      const auto default_color = extra_reader.read_u8();
+      const auto mask_flags = extra_reader.read_u8();
       // Flag bit 0 ("position relative to layer" in the spec) is how Photoshop persists the
       // layer/mask link toggle: 1 means the chain icon is off (unlinked).
       record.mask = LayerMaskInfo{checked_record_rect(mask_left, mask_top, mask_right, mask_bottom, "layer mask"),
@@ -394,40 +398,40 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
       // (u8, raw 0..255), bit 3 vector feather (f64). Captured layout in
       // docs/vector-tools.md.
       record.mask->from_rendering = (mask_flags & 0x08U) != 0;
-      if ((mask_flags & 0x10U) != 0 && reader.position() < mask_end) {
-        const auto parameter_flags = reader.read_u8();
-        if ((parameter_flags & 0x01U) != 0 && reader.position() < mask_end) {
-          (void)reader.read_u8();  // user mask density (preserved via re-import only)
+      if ((mask_flags & 0x10U) != 0 && extra_reader.position() < mask_end) {
+        const auto parameter_flags = extra_reader.read_u8();
+        if ((parameter_flags & 0x01U) != 0 && extra_reader.position() < mask_end) {
+          (void)extra_reader.read_u8();  // user mask density (preserved via re-import only)
         }
-        if ((parameter_flags & 0x02U) != 0 && mask_end - reader.position() >= 8U) {
-          (void)read_f64(reader);  // user mask feather
+        if ((parameter_flags & 0x02U) != 0 && mask_end - extra_reader.position() >= 8U) {
+          (void)read_f64(extra_reader);  // user mask feather
         }
-        if ((parameter_flags & 0x04U) != 0 && reader.position() < mask_end) {
-          record.mask->vector_density = reader.read_u8();
+        if ((parameter_flags & 0x04U) != 0 && extra_reader.position() < mask_end) {
+          record.mask->vector_density = extra_reader.read_u8();
         }
-        if ((parameter_flags & 0x08U) != 0 && mask_end - reader.position() >= 8U) {
-          record.mask->vector_feather = read_f64(reader);
+        if ((parameter_flags & 0x08U) != 0 && mask_end - extra_reader.position() >= 8U) {
+          record.mask->vector_feather = read_f64(extra_reader);
         }
       }
     }
-    if (reader.position() < mask_end) {
-      reader.skip(mask_end - reader.position());
+    if (extra_reader.position() < mask_end) {
+      extra_reader.skip(mask_end - extra_reader.position());
     }
-    const auto blending_ranges_length = read_section_length(reader, "layer blending ranges");
-    if (reader.position() > extra_end || blending_ranges_length > extra_end - reader.position()) {
+    const auto blending_ranges_length = read_section_length(extra_reader, "layer blending ranges");
+    if (extra_reader.position() > extra_end || blending_ranges_length > extra_end - extra_reader.position()) {
       throw std::runtime_error("PSD layer blending ranges exceed the layer record");
     }
-    record.blending_ranges = reader.read_bytes(blending_ranges_length);
-    if (reader.position() < extra_end) {
-      record.name = read_pascal_string(reader, 4);
+    record.blending_ranges = extra_reader.read_bytes(blending_ranges_length);
+    if (extra_reader.position() < extra_end) {
+      record.name = read_pascal_string(extra_reader, 4);
     }
-    while (reader.position() + 12 <= extra_end) {
-      const auto block_signature = read_signature(reader);
+    while (extra_reader.position() + 12 <= extra_end) {
+      const auto block_signature = read_signature(extra_reader);
       if (block_signature != std::array<char, 4>{'8', 'B', 'I', 'M'} &&
           block_signature != std::array<char, 4>{'8', 'B', '6', '4'}) {
         break;
       }
-      const auto block_key = read_signature(reader);
+      const auto block_key = read_signature(extra_reader);
       const auto key = key_string(block_key);
       // Photoshop's parser picks the length width BY KEY (the documented 8-byte set)
       // in PSBs; the '8B64' signature additionally marks extras like 'cinf'. Both
@@ -436,15 +440,15 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
       // whole block walk (the 10cm-table-tent linked-SO regression).
       const bool wide_length = block_signature == std::array<char, 4>{'8', 'B', '6', '4'} ||
                                (large_document && tagged_block_length_is_u64(key));
-      if (wide_length && extra_end - reader.position() < 8U) {
+      if (wide_length && extra_end - extra_reader.position() < 8U) {
         break;
       }
       const auto block_length =
-          wide_length ? reader.read_u64() : static_cast<std::uint64_t>(reader.read_u32());
-      if (block_length > extra_end - reader.position()) {
+          wide_length ? extra_reader.read_u64() : static_cast<std::uint64_t>(extra_reader.read_u32());
+      if (block_length > extra_end - extra_reader.position()) {
         break;
       }
-      auto payload = reader.read_bytes(static_cast<std::size_t>(block_length));
+      auto payload = extra_reader.read_bytes(static_cast<std::size_t>(block_length));
       record.additional_blocks.push_back(UnknownPsdBlock{key, payload, wide_length});
       if (key == "iOpa" && payload.size() == 4U) {
         record.fill_opacity = payload[0];
@@ -601,8 +605,8 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
       }
     }
   }
-  if (reader.position() < extra_end) {
-    reader.skip(extra_end - reader.position());
+  if (extra_reader.position() < extra_end) {
+    extra_reader.skip(extra_end - extra_reader.position());
   }
   // The legacy lrFX block only speaks for layers that carry no descriptor
   // effects block at all (true PS 5.x-era files).

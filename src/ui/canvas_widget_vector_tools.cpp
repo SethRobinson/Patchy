@@ -553,6 +553,7 @@ void CanvasWidget::set_active_document_path(std::optional<DocumentPathId> id) {
   if (active_document_path_ == id) {
     return;
   }
+  cancel_path_transform();
   active_document_path_ = id;
   clear_path_edit_selection();
   update();

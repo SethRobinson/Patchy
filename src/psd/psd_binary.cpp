@@ -57,6 +57,13 @@ void BigEndianReader::skip(std::size_t count) {
   offset_ += count;
 }
 
+std::span<const std::uint8_t> BigEndianReader::read_span(std::size_t count) {
+  require(count);
+  const auto result = bytes_.subspan(offset_, count);
+  offset_ += count;
+  return result;
+}
+
 void BigEndianReader::require(std::size_t count) const {
   if (count > remaining()) {
     throw std::runtime_error("Unexpected end of PSD data");

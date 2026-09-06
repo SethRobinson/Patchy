@@ -765,6 +765,29 @@ QStringList font_or_zip_local_paths(const QMimeData* mime_data) {
   return paths;
 }
 
+QString translated_file_message(const std::string& message) {
+  const auto text = QString::fromStdString(message);
+  const auto layer_note = [&](const char* suffix, const QString& translated) -> QString {
+    const auto ending = QString::fromLatin1(suffix);
+    if (text.startsWith(QStringLiteral("Layer '")) && text.endsWith(ending)) {
+      return translated.arg(text.mid(7, text.size() - 7 - ending.size()));
+    }
+    return {};
+  };
+  if (auto note = layer_note("': invalid Gaussian blur radius; effect skipped",
+                            QObject::tr("Layer '%1': invalid Gaussian blur radius; effect skipped"));
+      !note.isEmpty()) {
+    return note;
+  }
+  if (auto note = layer_note("': Gaussian blur could not be applied; original pixels kept",
+                            QObject::tr("Layer '%1': Gaussian blur could not be applied; original pixels kept"));
+      !note.isEmpty()) {
+    return note;
+  }
+  // Core readers are Qt-free; localize their fixed diagnostic text at the UI boundary.
+  return QCoreApplication::translate("QObject", message.c_str());
+}
+
 struct OpenDocumentResult {
   Document document;
   QString file_name;
@@ -868,7 +891,7 @@ OpenDocumentResult load_document_from_path(QString path) {
       throw std::runtime_error(pdf_error.toStdString());
     }
     for (const auto& notice : pdf_result->notices) {
-      import_notices.push_back(QString::fromStdString(notice));
+      import_notices.push_back(translated_file_message(notice));
     }
     opened = std::move(pdf_result->document);
   } else if (is_photoshop_document_extension(extension)) {
@@ -877,7 +900,7 @@ OpenDocumentResult load_document_from_path(QString path) {
     psd_options.notices = &psd_notices;
     opened = psd::DocumentIo::read_file(to_filesystem_path(path), psd_options);
     for (const auto& notice : psd_notices) {
-      import_notices.push_back(QString::fromStdString(notice));
+      import_notices.push_back(translated_file_message(notice));
     }
     if (const auto notice = unsupported_blend_if_import_notice(opened); !notice.isEmpty()) {
       import_notices.push_back(notice);
@@ -925,7 +948,7 @@ OpenDocumentResult load_document_from_path(QString path) {
       auto result = handler->read(read_all_file_bytes(path));
       opened = std::move(result.document);
       for (const auto& notice : result.notices) {
-        import_notices.push_back(QString::fromStdString(notice));
+        import_notices.push_back(translated_file_message(notice));
       }
       // Containers with no density concept open at Photoshop's untagged 72 PPI
       // (their readers construct Documents with the 300 PPI new-document default).
@@ -1093,10 +1116,10 @@ QString path_with_default_extension(QString path, const QString& selected_filter
 // registry develops camera defaults. Everything else loads on a worker thread
 // behind a modal progress dialog so big documents keep the UI responsive.
 // Load failures propagate as exceptions.
-std::optional<OpenDocumentResult> load_document_interactive(QWidget* parent, const QString& path) {
+std::optional<OpenDocumentResult> load_document_interactive(QWidget* parent, const QString& path, bool interactive) {
   const QFileInfo info(path);
   const auto extension = info.suffix().toLower();
-  if (raw::is_camera_raw_extension(extension.toStdString()) &&
+  if (interactive && raw::is_camera_raw_extension(extension.toStdString()) &&
       app_settings().value(QStringLiteral("imports/showRawDevelopDialog"), true).toBool()) {
     auto outcome = run_raw_develop_dialog(parent, path);
     if (!outcome.has_value()) {
@@ -1113,7 +1136,7 @@ std::optional<OpenDocumentResult> load_document_interactive(QWidget* parent, con
   // dialog: the pages and the rasterization resolution have to be chosen before anything
   // is rendered. There is no preference to skip it, because there is no sane default page
   // set for a multi-page file.
-  if (is_pdf_extension(extension) && pdf_import_is_available()) {
+  if (interactive && is_pdf_extension(extension) && pdf_import_is_available()) {
     auto outcome = run_pdf_import_dialog(parent, path);
     if (!outcome.has_value()) {
       return std::nullopt;
@@ -1411,7 +1434,7 @@ bool MainWindow::save_debug_screenshot(const QString& file_path, const QString& 
 // Offer converting them to plain pixel layers instead: the remembered
 // preference decides ("smart"/"pixel"), "ask" (the default) raises a
 // one-question dialog. Unattended runs never get here (callers gate on
-// cli_automation_mode_) and keep the smart-object default.
+// unattended_automation() and keep the smart-object default.
 void MainWindow::maybe_convert_af_image_layers(Document& target) {
   const auto placed = count_smart_object_layers(std::as_const(target).layers());
   if (placed == 0) {
@@ -1489,7 +1512,7 @@ void MainWindow::open_document_path(QString path) {
   constexpr bool browser_transfer = false;
 #endif
   try {
-    auto loaded = load_document_interactive(this, path);
+    auto loaded = load_document_interactive(this, path, !unattended_automation());
     if (!loaded.has_value()) {
 #ifdef Q_OS_WASM
       wasm_files::publish_open_probe(QStringLiteral("cancelled"), path);
@@ -1500,7 +1523,7 @@ void MainWindow::open_document_path(QString path) {
     render_pending_af_text_layers(loaded->document);
     render_pending_pdf_text_layers(loaded->document);
     render_pending_pdf_image_layers(loaded->document);
-    if (!cli_automation_mode_ && is_affinity_document_extension(loaded->extension)) {
+    if (!unattended_automation() && is_affinity_document_extension(loaded->extension)) {
       maybe_convert_af_image_layers(loaded->document);
     }
 
@@ -1512,20 +1535,20 @@ void MainWindow::open_document_path(QString path) {
     const auto session_path = browser_transfer ? QString() : path;
     const auto loaded_file_name = loaded->file_name;
     add_document_session(std::move(loaded->document), loaded_file_name, session_path, tr("Open"));
-    if (!cli_automation_mode_ && is_photoshop_document_extension(loaded->extension) &&
+    if (!unattended_automation() && is_photoshop_document_extension(loaded->extension) &&
         app_settings().value(QStringLiteral("imports/showPsdWarningsAndInfo"), false).toBool()) {
       show_compatibility_report(this, document(), loaded_file_name);
     }
     canvas_->fit_to_view();
     refresh_layer_list();
     refresh_layer_controls();
-    if (!cli_automation_mode_) {
+    if (!unattended_automation()) {
       // Unattended runs must not block on the adoption offer, and they should leave the
       // user's recent-files state untouched.
       maybe_offer_indexed_palette_adoption();
     }
     update_undo_redo_actions();
-    if (!cli_automation_mode_ && !browser_transfer) {
+    if (!unattended_automation() && !browser_transfer) {
       add_recent_file(path);
       remember_open_directory_for_path(path);
       add_recent_folder(QFileInfo(path).absolutePath());
@@ -1542,7 +1565,7 @@ void MainWindow::open_document_path(QString path) {
             tr(" (+%n more import note(s))", nullptr, static_cast<int>(loaded->import_notices.size()) - 1);
       }
       statusBar()->showMessage(tr("Opened %1. %2").arg(loaded_file_name, status_notes));
-      if (!cli_automation_mode_ &&
+      if (!unattended_automation() &&
           app_settings().value(QStringLiteral("imports/showPsdWarningsAndInfo"), false).toBool()) {
         QStringList bullets;
         bullets.reserve(loaded->import_notices.size());
@@ -1560,12 +1583,12 @@ void MainWindow::open_document_path(QString path) {
 #endif
   } catch (const std::exception& error) {
 #ifdef Q_OS_WASM
-    wasm_files::publish_open_probe(QStringLiteral("failed"), path, QString::fromUtf8(error.what()));
+    wasm_files::publish_open_probe(QStringLiteral("failed"), path, translated_file_message(error.what()));
 #endif
-    if (cli_automation_mode_) {
+    if (unattended_automation()) {
       fprintf(stderr, "Open failed: %s (%s)\n", error.what(), path.toUtf8().constData());
     } else {
-      show_open_failed_message_box(this, QString::fromUtf8(error.what()));
+      show_open_failed_message_box(this, translated_file_message(error.what()));
     }
   }
 }
@@ -1599,7 +1622,7 @@ void MainWindow::reopen_document_session(DocumentSession& target_session) {
     }
   }
   try {
-    auto loaded = load_document_interactive(this, path);
+    auto loaded = load_document_interactive(this, path, !unattended_automation());
     if (!loaded.has_value()) {
       return;
     }
@@ -1607,7 +1630,7 @@ void MainWindow::reopen_document_session(DocumentSession& target_session) {
     render_pending_af_text_layers(loaded->document);
     render_pending_pdf_text_layers(loaded->document);
     render_pending_pdf_image_layers(loaded->document);
-    if (!cli_automation_mode_ &&
+    if (!unattended_automation() &&
         is_affinity_document_extension(QFileInfo(path).suffix().toLower())) {
       maybe_convert_af_image_layers(loaded->document);
     }
@@ -1647,7 +1670,7 @@ void MainWindow::reopen_document_session(DocumentSession& target_session) {
       statusBar()->showMessage(tr("Reopened %1. %2").arg(loaded->file_name, status_notes));
     }
   } catch (const std::exception& error) {
-    show_open_failed_message_box(this, QString::fromUtf8(error.what()));
+    show_open_failed_message_box(this, translated_file_message(error.what()));
   }
 }
 
@@ -1763,7 +1786,7 @@ void MainWindow::finish_scanner_import(ScannerAcquireResult result, bool delete_
     mark_session_modified(session());
     statusBar()->showMessage(tr("Imported image from scanner"));
   } catch (const std::exception& error) {
-    show_critical_message(this, tr("Import failed"), QString::fromUtf8(error.what()),
+    show_critical_message(this, tr("Import failed"), translated_file_message(error.what()),
                           QStringLiteral("openFailedMessageBox"));
   }
 }
@@ -1847,7 +1870,7 @@ void MainWindow::finish_photocopy_scan(ScannerAcquireResult result, bool delete_
     apply_scanned_document_ppi(loaded.document, result);
     scanned.emplace(std::move(loaded.document));
   } catch (const std::exception& error) {
-    show_critical_message(this, tr("Photocopy"), QString::fromUtf8(error.what()),
+    show_critical_message(this, tr("Photocopy"), translated_file_message(error.what()),
                           QStringLiteral("openFailedMessageBox"));
     return;
   }
@@ -1941,7 +1964,7 @@ bool MainWindow::finish_divide_scanner_import(ScannerAcquireResult result, bool 
     apply_scanned_document_ppi(loaded.document, result);
     scanned.emplace(std::move(loaded.document));
   } catch (const std::exception& error) {
-    show_critical_message(this, tr("Divide Scanned Photos"), QString::fromUtf8(error.what()),
+    show_critical_message(this, tr("Divide Scanned Photos"), translated_file_message(error.what()),
                           QStringLiteral("openFailedMessageBox"));
     return false;
   }
@@ -2223,7 +2246,7 @@ std::optional<QStringList> MainWindow::save_divided_photos_to_folder(
     statusBar()->showMessage(tr("Cancelled Divide Scanned Photos"));
     return std::nullopt;
   } catch (const std::exception& error) {
-    show_critical_message(this, tr("Save failed"), QString::fromUtf8(error.what()),
+    show_critical_message(this, tr("Save failed"), translated_file_message(error.what()),
                           QStringLiteral("exportFailedMessageBox"));
     return std::nullopt;
   }
@@ -2271,7 +2294,7 @@ void MainWindow::import_sprite_sheet() {
     mark_session_modified(session());
     statusBar()->showMessage(tr("Imported %1 frames from %2").arg(frame_count).arg(path));
   } catch (const std::exception& error) {
-    show_critical_message(this, tr("Import failed"), QString::fromUtf8(error.what()),
+    show_critical_message(this, tr("Import failed"), translated_file_message(error.what()),
                           QStringLiteral("openFailedMessageBox"));
   }
 }
@@ -2331,7 +2354,7 @@ void MainWindow::export_sprite_sheet() {
     remember_save_directory_for_path(path);
     statusBar()->showMessage(tr("Exported sprite sheet %1").arg(path));
   } catch (const std::exception& error) {
-    show_critical_message(this, tr("Export failed"), QString::fromUtf8(error.what()),
+    show_critical_message(this, tr("Export failed"), translated_file_message(error.what()),
                           QStringLiteral("exportFailedMessageBox"));
   }
 }
@@ -2465,7 +2488,7 @@ void MainWindow::export_image_sequence() {
     remember_save_directory_for_path(path);
     statusBar()->showMessage(tr("Exported %1 images to %2").arg(file_names.size()).arg(directory.absolutePath()));
   } catch (const std::exception& error) {
-    show_critical_message(this, tr("Export failed"), QString::fromUtf8(error.what()),
+    show_critical_message(this, tr("Export failed"), translated_file_message(error.what()),
                           QStringLiteral("exportFailedMessageBox"));
   }
 }
@@ -2505,7 +2528,7 @@ void MainWindow::export_animated_gif() {
     remember_save_directory_for_path(path);
     statusBar()->showMessage(tr("Exported %1").arg(path));
   } catch (const std::exception& error) {
-    show_critical_message(this, tr("Export failed"), QString::fromUtf8(error.what()),
+    show_critical_message(this, tr("Export failed"), translated_file_message(error.what()),
                           QStringLiteral("exportFailedMessageBox"));
   }
 }
@@ -2581,7 +2604,6 @@ bool MainWindow::save_document() {
       if (!save_document_to_path(session().path)) {
         return false;
       }
-      refresh_external_smart_object_after_save(session());
       return true;
     }
     // An embedded Edit Smart Object Contents tab: Save applies the contents back to
@@ -2612,6 +2634,10 @@ bool MainWindow::save_document_as() {
     return false;
   }
   finish_active_text_editor();
+  const auto saving_session_id = session().session_id;
+  const auto still_saving_same_session = [this, saving_session_id] {
+    return has_active_document() && session().session_id == saving_session_id;
+  };
   const auto fallback_name = session().title.isEmpty() ? tr("Untitled.psd") : session().title;
   auto initial_path = file_dialog_initial_path(session().path, fallback_name);
   const bool layered_document = flat_save_discards_layers(std::as_const(document()));
@@ -2629,7 +2655,7 @@ bool MainWindow::save_document_as() {
   auto selected_filter = save_file_filter_for_path(initial_path);
   auto path = get_save_file_name(this, tr("Save As"), initial_path, save_file_filter(), &selected_filter,
                                  QStringLiteral("saveAsFileDialog"), recent_files_);
-  if (path.isEmpty()) {
+  if (path.isEmpty() || !still_saving_same_session()) {
     return false;
   }
   path = path_with_default_extension(path, selected_filter);
@@ -2671,7 +2697,11 @@ bool MainWindow::save_document_as() {
       return false;
     }
   }
-  return save_document_to_path(path, image_options, /*flatten_confirmed*/ discards_layers);
+  if (!still_saving_same_session() ||
+      !save_document_to_path(path, image_options, /*flatten_confirmed*/ discards_layers)) {
+    return false;
+  }
+  return true;
 }
 
 bool MainWindow::confirm_flatten_layers_for_save(const QString& extension) {
@@ -2758,6 +2788,10 @@ std::optional<bool> MainWindow::resolve_pdf_layer_choice(bool for_export, bool a
 bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOptions> image_options,
                                        bool flatten_confirmed) {
   finish_active_text_editor();
+  if (!has_active_document()) {
+    return false;
+  }
+  const auto saving_session_id = session().session_id;
   // Playback drives real layer visibility one frame at a time; a save mid-playback would
   // write that frame's visibility to disk (close_document_session stops it for the same
   // reason before its own prompt).
@@ -2782,16 +2816,16 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
       // otherwise take the preference. Scripted, CLI, and already-confirmed saves never
       // prompt.
       pdf_editable_layers = resolve_pdf_layer_choice(
-          /*for_export*/ false, /*allow_prompt*/ !flatten_confirmed && !cli_automation_mode_);
+          /*for_export*/ false, /*allow_prompt*/ !flatten_confirmed && !unattended_automation());
       if (!pdf_editable_layers.has_value()) {
         return false;
       }
     }
-  } else if (discards_layers && !flatten_confirmed && !cli_automation_mode_ &&
+  } else if (discards_layers && !flatten_confirmed && !unattended_automation() &&
              !confirm_flatten_layers_for_save(extension)) {
     return false;
   }
-  if (!cli_automation_mode_ && !is_photoshop_document_extension(extension) &&
+  if (!unattended_automation() && !is_photoshop_document_extension(extension) &&
       !std::as_const(document()).channels().empty()) {
     const auto answer = show_warning_message(
         this, tr("Saved Channels Will Be Discarded"),
@@ -2802,7 +2836,7 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
       return false;
     }
   }
-  if (!cli_automation_mode_ && (extension == QStringLiteral("aseprite") || extension == QStringLiteral("ase")) &&
+  if (!unattended_automation() && (extension == QStringLiteral("aseprite") || extension == QStringLiteral("ase")) &&
       layers_have_nondefault_fill_opacity(std::as_const(document()).layers())) {
     const auto answer = show_warning_message(
         this, tr("Fill Opacity Will Be Discarded"),
@@ -2812,6 +2846,9 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
     if (answer != QMessageBox::Save) {
       return false;
     }
+  }
+  if (!has_active_document() || session().session_id != saving_session_id) {
+    return false;
   }
   try {
     auto effective_image_options = image_options.value_or(image_save_defaults_for_document());
@@ -2853,13 +2890,13 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
       // Photoshop's save-a-copy semantics: only the flat copy lands on disk; the layered
       // document stays open, modified, and pointed at its original file, so a later Save
       // still offers PSD instead of quietly flattening again.
-      if (!cli_automation_mode_) {
+      if (!unattended_automation()) {
         remember_save_directory_for_path(path);
         if (image_save_options_apply_to_extension(extension)) {
           persist_image_save_defaults(effective_image_options);
         }
       }
-      if (!cli_automation_mode_) {
+      if (!unattended_automation()) {
         add_recent_file(path);
       }
       statusBar()->showMessage((extension == QStringLiteral("svg") ? tr("Saved SVG copy %1.")
@@ -2875,14 +2912,14 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
     auto& active_session = session();
     active_session.path = path;
     active_session.title = QFileInfo(path).fileName();
-    if (!cli_automation_mode_) {
+    if (!unattended_automation()) {
       remember_save_directory_for_path(path);
     }
     if (!is_photoshop_document_extension(extension) && image_save_options_apply_to_extension(extension)) {
       active_session.image_save_options = effective_image_options;
       active_session.image_save_options_path = path;
       active_session.image_save_options_extension = extension;
-      if (!cli_automation_mode_) {
+      if (!unattended_automation()) {
         persist_image_save_defaults(effective_image_options);
       }
     } else {
@@ -2891,16 +2928,19 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
       active_session.image_save_options_extension.clear();
     }
     set_session_saved(active_session);
-    if (!cli_automation_mode_) {
+    if (!unattended_automation()) {
       add_recent_file(path);
     }
     statusBar()->showMessage(tr("Saved %1").arg(path) + export_notes_suffix);
+    if (linked_external_child) {
+      refresh_external_smart_object_after_save(active_session);
+    }
     return true;
   } catch (const std::exception& error) {
-    if (cli_automation_mode_) {
+    if (unattended_automation()) {
       fprintf(stderr, "Save failed: %s (%s)\n", error.what(), path.toUtf8().constData());
     } else {
-      show_critical_message(this, tr("Save failed"), QString::fromUtf8(error.what()),
+      show_critical_message(this, tr("Save failed"), translated_file_message(error.what()),
                             QStringLiteral("saveFailedMessageBox"));
     }
   }
@@ -2975,7 +3015,7 @@ void MainWindow::export_flat_image() {
     remember_save_directory_for_path(path);
     statusBar()->showMessage(tr("Exported %1").arg(path) + export_notes_suffix);
   } catch (const std::exception& error) {
-    show_critical_message(this, tr("Export failed"), QString::fromUtf8(error.what()),
+    show_critical_message(this, tr("Export failed"), translated_file_message(error.what()),
                           QStringLiteral("exportFailedMessageBox"));
   }
 }

@@ -2125,6 +2125,14 @@ void MainWindow::stash_active_brush_settings() {
   if (canvas_ == nullptr) {
     return;
   }
+  current_fill_opacity_ = canvas_->fill_opacity();
+  current_fill_softness_ = canvas_->fill_softness();
+  current_quick_select_size_ = canvas_->quick_select_size();
+  current_quick_select_sample_all_layers_ = canvas_->quick_select_sample_all_layers();
+  current_quick_select_enhance_edge_ = canvas_->quick_select_enhance_edge();
+  current_transform_interpolation_ = canvas_->transform_interpolation();
+  current_polygon_sides_ = canvas_->polygon_sides();
+  current_polygon_star_inset_ = canvas_->polygon_star_inset();
   active_stored_brush_settings() =
       BrushToolSettings{canvas_->brush_size(), canvas_->brush_opacity(), canvas_->brush_flow(),
                         canvas_->brush_softness(), canvas_->brush_build_up()};
@@ -2329,6 +2337,9 @@ void MainWindow::refresh_options_bar() {
     const auto visible = tool_matches && !transform_session_active;
     widget->setVisible(visible);
     auto enabled = edit_allowed;
+    if (widget->objectName() == QStringLiteral("mixerMixSpin")) {
+      enabled = enabled && current_mixer_wet_ > 0;
+    }
     if (widget == brush_dynamics_button_ && brush_dynamics_button_ != nullptr) {
       // Enabled once a model is loaded (bitmap tip or the Round session); only the brief
       // pre-initialization state has neither.
@@ -2532,6 +2543,26 @@ void MainWindow::refresh_options_bar() {
     }
   }
   refresh_gradient_controls_from_canvas();
+  if (canvas_ != nullptr) {
+    for (const auto& [name, value] : {
+             std::pair{"fillOpacitySpin", canvas_->fill_opacity()},
+             std::pair{"fillSoftnessSpin", canvas_->fill_softness()},
+             std::pair{"polygonSidesSpin", canvas_->polygon_sides()},
+             std::pair{"polygonStarInsetSpin", canvas_->polygon_star_inset()}}) {
+      if (auto* spin = findChild<QSpinBox*>(QString::fromLatin1(name)); spin != nullptr) {
+        const QSignalBlocker blocker(spin);
+        spin->setValue(value);
+      }
+    }
+    for (const auto& [name, value] : {
+             std::pair{"fillOpacitySlider", canvas_->fill_opacity()},
+             std::pair{"fillSoftnessSlider", canvas_->fill_softness()}}) {
+      if (auto* slider = findChild<QSlider*>(QString::fromLatin1(name)); slider != nullptr) {
+        const QSignalBlocker blocker(slider);
+        slider->setValue(value);
+      }
+    }
+  }
   // Show the active tool's stored combine mode. The temporary Shift/Alt override
   // is applied live from the canvas's key event filter (see
   // set_selection_mode_changed_callback), so it is not folded in here where a

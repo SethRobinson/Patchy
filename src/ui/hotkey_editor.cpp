@@ -482,7 +482,7 @@ void HotkeyEditorPanel::refresh_rows() {
     const auto& id = row.command->id;
     const bool modified = staged_.contains(id);
     const auto escaped_label = row.label.toHtmlEscaped();
-    row.name_label->setText(modified
+    set_themed_label_text(*row.name_label, modified
                                 ? QStringLiteral("<span style=\"color:@accent_border_bright;\">&#9679;</span> ") + escaped_label
                                 : escaped_label);
     row.reset_button->setVisible(modified);

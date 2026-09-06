@@ -17,3 +17,12 @@ Conventions: "PS" = Adobe Photoshop 2026/27.8, the installed ground truth; every
 - **Inner glow Technique/Range** (`photoshop-inner-glow{,-range}.psd/bmp`, `photoshop-inner-shadow.psd/bmp`): Edge source = interior falloff, then the Range gain `min(1, blur * 100/Inpr)` applied AFTER the blur. **Center source = the exact complement of the gained Edge field**, `1 - min(1, edge * gain)`. A descriptor omitting `Inpr` renders at Range 100 in BOTH glows (never fall back to 50; legacy Patchy files always wrote an explicit 50). The regenerated IrGl is PS's 12-item shape with `GlwT` between `Opct` and `Ckmt` plus stored `Inpr` (`LayerInnerGlow::technique/range`). Technique "Precise" keeps the historical triple-box falloff verbatim (approximate; Range not applied). Residuals: choke radii above 8 chamfer; two-edge overlaps differ ~1/255 (PS byte-rounds between tent passes).
 - **Outer glow "Softer"** (`photoshop-outer-glow{,-range}.psd/bmp`): spread dilation, tent blur `N = max(2, lround(size)) - spread_radius`, then the Range gain `min(1, blur * 100/Inpr)`. **Range's UI default is 50, so real files render TWICE the raw blur**; an Action-Manager-authored glow omitting `Inpr` gets 100, which is why naive probes miss it. `prepare_outer_glow_softer_mask`; `GlwT`/`Inpr` parsed, modeled (`LayerOuterGlow::technique/range`), and written (PS round-trips them). "Precise" keeps the legacy distance-ramp render (approximate; Range not applied). Residuals: spread radii above 8 chamfer; spread-100 corner arcs differ ~1 px.
 
+
+Styled groups derive effects from their full child silhouette, including children
+outside the canvas. The UI caches that silhouette with the style masks and keys
+group entries on descendant render revisions. Strips and dirty rectangles share
+the same source. Burn/Dodge effect opacity grows transparent coverage by the real
+effect alpha while retaining the folded blend against existing content. Large
+stroke mattes use native-resolution distance fields above the supersampling budget
+in `layer_style_mask_ops.cpp`; this bounds the extra allocation at the cost of
+subpixel contour precision for those large mattes.

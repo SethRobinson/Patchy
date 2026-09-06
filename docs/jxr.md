@@ -138,3 +138,7 @@ Conventions this format follows:
 Known gap: EXIF orientation is not applied. Camera-produced JPEG XR is rare and NVIDIA
 captures carry none. Adding it means moving `heif::apply_exif_orientation` to a
 format-neutral home and reusing it rather than writing a second copy.
+
+Float decode uses bounded row batches for WIC `CopyPixels`, whose buffer size is
+a UINT. The full float sample buffer retains size_t addressing, including the
+16384-square case whose byte count is exactly 4 GiB.

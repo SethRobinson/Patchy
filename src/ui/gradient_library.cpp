@@ -307,12 +307,15 @@ int GradientLibrary::reset_default_gradients_to_factory() {
     if (entry->name == name && entry->folder == folder &&
         definitions_equal(entry->definition, preset.definition))
       continue;
-    entry->name = name;
-    entry->folder = folder;
-    entry->definition = preset.definition;
-    entry->thumbnail = gradient_thumbnail(entry->definition);
-    if (save_entry(*entry))
+    auto updated = *entry;
+    updated.name = name;
+    updated.folder = folder;
+    updated.definition = preset.definition;
+    updated.thumbnail = gradient_thumbnail(updated.definition);
+    if (save_entry(updated)) {
+      *entry = std::move(updated);
       ++reset;
+    }
   }
   if (reset) {
     sort_entries();

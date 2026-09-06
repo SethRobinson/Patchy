@@ -20,6 +20,7 @@ public:
   [[nodiscard]] std::uint32_t read_u32();
   [[nodiscard]] std::uint64_t read_u64();
   [[nodiscard]] std::vector<std::uint8_t> read_bytes(std::size_t count);
+  [[nodiscard]] std::span<const std::uint8_t> read_span(std::size_t count);
 
   void skip(std::size_t count);
 

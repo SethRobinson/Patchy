@@ -12,6 +12,8 @@
 #include "formats/miniz/miniz.h"
 
 #include <algorithm>
+#include <array>
+#include <limits>
 #include <fstream>
 #include <iterator>
 #include <optional>
@@ -183,11 +185,39 @@ struct AseCel {
 
 [[nodiscard]] std::vector<std::uint8_t> inflate_cel(std::span<const std::uint8_t> compressed,
                                                     std::size_t expected_size) {
-  std::vector<std::uint8_t> out(expected_size);
-  mz_ulong out_length = static_cast<mz_ulong>(expected_size);
-  const auto status =
-      mz_uncompress(out.data(), &out_length, compressed.data(), static_cast<mz_ulong>(compressed.size()));
-  if (status != MZ_OK || out_length != expected_size) {
+  if (compressed.size() > std::numeric_limits<unsigned int>::max()) {
+    throw std::runtime_error("Aseprite cel data failed to decompress");
+  }
+  mz_stream stream{};
+  stream.next_in = compressed.data();
+  stream.avail_in = static_cast<unsigned int>(compressed.size());
+  if (mz_inflateInit(&stream) != MZ_OK) {
+    throw std::runtime_error("Aseprite cel data failed to decompress");
+  }
+  struct InflateCleanup {
+    mz_stream& stream;
+    ~InflateCleanup() { mz_inflateEnd(&stream); }
+  } cleanup{stream};
+  std::vector<std::uint8_t> out;
+  std::array<std::uint8_t, 65536> chunk{};
+  for (;;) {
+    stream.next_out = chunk.data();
+    stream.avail_out = static_cast<unsigned int>(chunk.size());
+    const auto input_before = stream.avail_in;
+    const auto status = mz_inflate(&stream, MZ_NO_FLUSH);
+    const auto produced = chunk.size() - stream.avail_out;
+    if (produced > expected_size - out.size()) {
+      throw std::runtime_error("Aseprite cel data failed to decompress");
+    }
+    out.insert(out.end(), chunk.begin(), chunk.begin() + static_cast<std::ptrdiff_t>(produced));
+    if (status == MZ_STREAM_END) {
+      break;
+    }
+    if (status != MZ_OK || (produced == 0 && stream.avail_in == input_before)) {
+      throw std::runtime_error("Aseprite cel data failed to decompress");
+    }
+  }
+  if (out.size() != expected_size) {
     throw std::runtime_error("Aseprite cel data failed to decompress");
   }
   return out;
@@ -301,6 +331,9 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, std::vector<std::
           const auto pixel_bytes = static_cast<std::size_t>(cel.width) * static_cast<std::size_t>(cel.height) *
                                    bytes_per_pixel;
           if (cel_type == 0) {
+            if (reader.position() > chunk_end || pixel_bytes > chunk_end - reader.position()) {
+              throw std::runtime_error("Aseprite cel chunk is truncated");
+            }
             cel.pixels.resize(pixel_bytes);
             for (auto& byte : cel.pixels) {
               byte = reader.read_u8();

@@ -145,13 +145,13 @@ Field types: `number`, `slider`, `checkbox`, `choice`, `text`, `color`, `folder`
 | --- | --- |
 | `app.activeDocument` | The active document, or `undefined` when none is open. |
 | `app.documents` | Every open document. |
-| `app.open(path)` | Opens a file and returns its document. |
+| `app.open(path)` | Opens a file and returns its document; throws on failure. Unattended RAW/PDF opens use default settings. |
 | `app.newDocument(width, height)` | Creates a new document. |
 | `app.alert(text)` | Message box (logs to the console in command-line runs). |
 | `app.prompt(text, defaultValue)` | Text input; `null` when cancelled, the default in command-line runs. |
 | `app.chooseFolder(title)` | Folder picker; `""` when cancelled or unattended. |
 | `app.chooseOpenFile(title, filter)` / `app.chooseSaveFile(title, filter)` | File pickers; the filter uses Qt syntax like `"Images (*.png *.jpg)"`. |
-| `app.runCommand(id)` | Triggers a menu command by its stable id, e.g. `app.runCommand("file.scripts.editor")`. `app.commandIds()` lists them all. |
+| `app.runCommand(id)` | Triggers a menu command by its stable id, e.g. `app.runCommand("file.scripts.editor")`. `app.commandIds()` lists them all. Returns false for unknown or disabled commands and for `edit.undo`, `edit.redo`, and `file.quit`. |
 | `app.undoEnabled` | Set `false` before the first edit to skip the undo snapshot for speed (games, huge batches). Those edits cannot be undone. Resets to `true` each run. |
 | `app.version` / `app.apiVersion` | Patchy's version string and the scripting API version (currently 1). |
 
@@ -169,7 +169,7 @@ Field types: `number`, `slider`, `checkbox`, `choice`, `text`, `color`, `folder`
 | `doc.combineShapes(layers, op)` | Combine Shapes: merges sibling shape layers into the bottom-most one and returns it. `op` is `"unite"`, `"subtract"` (front shapes cut from the base), `"intersect"`, or `"exclude"`. |
 | `doc.selection` | The selection object (below). |
 | `doc.flatten()` | Flattens the document. |
-| `doc.resizeImage(w, h)` / `doc.resizeCanvas(w, h)` / `doc.crop(x, y, w, h)` | Geometry operations. |
+| `doc.resizeImage(w, h)` / `doc.resizeCanvas(w, h)` / `doc.crop(x, y, w, h)` | Geometry operations. `crop` clips to the canvas and throws for a disjoint rectangle. |
 | `doc.saveAs(path)` / `doc.exportAs(path)` | Saves to the path; the format follows the extension (`.psd`, `.png`, `.jpg`, ...). |
 | `doc.close()` | Closes without prompting. |
 | `doc.activate()` | Makes this the active tab. |
@@ -186,7 +186,7 @@ Field types: `number`, `slider`, `checkbox`, `choice`, `text`, `color`, `folder`
 | `layer.duplicate()` / `layer.remove()` | Copy above itself, or delete. |
 | `layer.ungroup()` | Releases a folder's layers into its parent (top to bottom) and removes the folder. |
 | `layer.fill(color)` | Fills the selection (or everything on an empty layer). |
-| `layer.fillRect(x, y, w, h, color)` | Overwrites one rectangle (sides up to 30000). A transparent color like `"#00000000"` clears. |
+| `layer.fillRect(x, y, w, h, color)` | Overwrites one rectangle (sides up to 30000). RGB8 photos and RGBA8 layers are supported. A transparent color like `"#00000000"` clears. |
 | `layer.applyFilter(id, params)` | Runs a filter, e.g. `layer.applyFilter("patchy.filters.gaussian_blur", { radius: 8 })`. |
 | `layer.getPixels()` / `layer.setPixels(imageData)` | Raw RGBA8 pixel access. `getPixels` returns `{x, y, width, height, data}` with an `ArrayBuffer` of `width * height * 4` bytes; `setPixels` replaces the layer's pixels with such a block. |
 | `layer.traceToShapes(options)` | Trace Image to Shapes: turns the pixel layer into a group of solid shape layers, one per color, and returns the group (the source layer is hidden). Options: `mode` (`"color"`, `"grayscale"`, `"blackAndWhite"`), `colors` (2..256), `threshold`, `paths`, `corners`, `noise`, `smoothing` (denoise blur px), `mergeColors` (merge traced colors within this per-channel difference, 0 = off), `maxAnchors` (anchor budget, 0 = unlimited), `method` (`"abutting"` or `"overlapping"`), `snapCurvesToLines`, `ignoreWhite`, `paletteFromLayer` (with a selection: colors from the whole layer when true, the default; `false` picks colors only from the selected pixels). With a selection active only the selected area is traced. Example: `layer.traceToShapes({ mode: "blackAndWhite", ignoreWhite: true })`. |
@@ -248,7 +248,7 @@ patchy [--headless] --run-script <file.js> [--script-output out.txt] [--script-a
 Behavior worth knowing:
 
 - **If Patchy is already running**, the request is forwarded to that instance and the command returns immediately; poll the `--script-output` file for completion. Otherwise a new instance runs the script and exits with code 0 on success or 4 on a script error.
-- Command-line runs are **unattended**: dialogs never appear. `showOptions` returns its effective values, `alert` logs, `prompt` returns its default, and pickers return `""`. Scripts written with the OPTIONS pattern work in both worlds automatically.
+- Command-line runs are **unattended**: dialogs never appear. `showOptions` and `showDialog` return normalized values (choice text, normalized colors, clamped numbers, empty text and false checkboxes), `alert` logs, `prompt` returns its default, and pickers return `""`. Scripts written with the OPTIONS pattern work in both worlds automatically.
 - **Headless runs** (`--headless`) use no display and never hand the job to a running Patchy, so they are safe on servers, in CI, and while a Patchy window is open; the exit code and output file always belong to the run itself. On Windows and macOS they see only Patchy's bundled fonts (Windows additionally loads installed families on demand from the font registry), while Linux sees the fontconfig fonts. Sound is muted. `--headless` needs one of `--run-script`, `--export`, `--stress-test`, or `--screenshot` and exits with code 2 otherwise.
 - Plain `console.log` lines reach the output file unprefixed, so a script can emit clean machine-readable data (JSON included). Warnings get `[warn] `, errors `[error] `.
 
@@ -277,3 +277,10 @@ When a GUI run stays busy for more than half a second, Patchy shows a progress p
 - **Editing a bundled script** never touches the shipped file: Save writes a copy into your user folder at the same relative path, and that copy runs instead, tagged "modified". Right-click it for **Revert to Bundled**.
 
 The bundled scripts double as examples. Good starting points: `Effects/duotone.js` (pixel processing), `Utilities/watermark.js` (text layers and options), `Utilities/batch-export.js` (folder batch work), `Games/pong.js` (interactive windows).
+
+Input and unattended-run details:
+
+- Form keys must be nonempty strings. `selectRect` clips to the canvas; an outside rectangle clears the selection. Layer positions must fit signed 32-bit coordinates, including their bounds. Setting a text layer's `text` to `""` clears the ink.
+- Forwarded CLI scripts use the same unattended rules as fresh headless runs. Menu dialogs cancel without appearing. Closing a modified document through `file.close` is refused; `doc.close()` explicitly closes without prompting.
+- Script canvas mouse callbacks use button values 1 (left), 2 (right), and 4 (middle). Move callbacks report a bit mask of held buttons.
+- The accepted blend modes include `dissolve`. Script color strings keep Qt's eight-digit `#AARRGGBB` order.

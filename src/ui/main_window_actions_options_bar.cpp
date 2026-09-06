@@ -820,7 +820,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   transform_warp_mode_button_ = new QPushButton(toolbar);
   transform_warp_mode_button_->setObjectName(QStringLiteral("transformWarpModeButton"));
   transform_warp_mode_button_->setCheckable(true);
-  transform_warp_mode_button_->setIcon(simple_icon(QStringLiteral("warp"), QColor(220, 226, 235)));
+  transform_warp_mode_button_->setIcon(simple_icon(QStringLiteral("warp")));
   transform_warp_mode_button_->setToolTip(tr("Switch between free transform and warp"));
   transform_warp_mode_button_->setFixedWidth(30);
   // Session buttons render their icons at 20px (the QPushButton default of 16px

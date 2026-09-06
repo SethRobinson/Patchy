@@ -34,6 +34,21 @@ const ThemePalette& dark_palette() {
       .window_bg = rgb(0x262626),
       .window_border = rgb(0x1f1f1f),
       .text_primary = rgb(0xe6e6e6),
+      .script_accent = rgb(0x6fb1e8),
+      .script_card_border = rgb(0x626872),
+      .script_card_bg = rgb(0x24272d),
+      .script_card_title = rgb(0xf2f4f6),
+      .script_card_author = rgb(0x9aa3af),
+      .script_card_body = rgb(0xd0d4da),
+      .script_gutter_bg = rgb(0x2a2a2a),
+      .script_gutter_text = rgb(0x808080),
+      .script_keyword = rgb(0x569cd6),
+      .script_literal = rgb(0x4ec9b0),
+      .script_builtin = rgb(0xdcdcaa),
+      .script_number = rgb(0xb5cea8),
+      .script_string = rgb(0xce9178),
+      .script_comment = rgb(0x6a9955),
+
       .text_secondary = rgb(0xe1e1e1),
       .text_bright = rgb(0xf0f0f0),
       .text_disabled = rgb(0x737373),
@@ -468,6 +483,14 @@ const ThemePalette& light_palette() {
 
     // Everything below is a place where a mechanical flip is the wrong answer.
 
+    light.script_card_bg = light.window_bg;
+    light.script_keyword = rgb(0x185e9d);
+    light.script_literal = rgb(0x18675e);
+    light.script_builtin = rgb(0x695300);
+    light.script_number = rgb(0x466323);
+    light.script_string = rgb(0x984320);
+    light.script_comment = rgb(0x4c663e);
+
     // The pasteboard around the document never goes white: a white surround
     // destroys value judgement while editing, which is why Photoshop and every
     // other editor keep a mid gray in light mode. Its scroll-bar track is the
@@ -665,6 +688,21 @@ std::span<const ThemePaletteRole> theme_palette_roles() {
       PATCHY_THEME_ROLE(window_bg),
       PATCHY_THEME_ROLE(window_border),
       PATCHY_THEME_ROLE(text_primary),
+      PATCHY_THEME_ROLE(script_accent),
+      PATCHY_THEME_ROLE(script_card_border),
+      PATCHY_THEME_ROLE(script_card_bg),
+      PATCHY_THEME_ROLE(script_card_title),
+      PATCHY_THEME_ROLE(script_card_author),
+      PATCHY_THEME_ROLE(script_card_body),
+      PATCHY_THEME_ROLE(script_gutter_bg),
+      PATCHY_THEME_ROLE(script_gutter_text),
+      PATCHY_THEME_ROLE(script_keyword),
+      PATCHY_THEME_ROLE(script_literal),
+      PATCHY_THEME_ROLE(script_builtin),
+      PATCHY_THEME_ROLE(script_number),
+      PATCHY_THEME_ROLE(script_string),
+      PATCHY_THEME_ROLE(script_comment),
+
       PATCHY_THEME_ROLE(text_secondary),
       PATCHY_THEME_ROLE(text_bright),
       PATCHY_THEME_ROLE(text_disabled),

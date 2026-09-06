@@ -120,6 +120,7 @@ public:
   // script windows. Safe to call when no run is active.
   void stop_active_run();
   [[nodiscard]] bool run_active() const noexcept { return run_ != nullptr; }
+  [[nodiscard]] bool unattended_run() const;
   [[nodiscard]] QString active_run_name() const;
 
   enum class MessageKind { Log, Warn, Error };
@@ -369,7 +370,6 @@ private:
   [[nodiscard]] std::chrono::milliseconds watchdog_timeout() const;
   // True when interactive helpers must answer without UI: app-wide CLI
   // automation, or this run arrived via --run-script (forwarded included).
-  [[nodiscard]] bool unattended_run() const;
   // Automatic busy indicator: called from the hot service entry points. It
   // feeds the inactivity watchdog unconditionally; for GUI-interactive runs,
   // once the current synchronous burst exceeds the 0.5 s threshold it shows

@@ -3218,6 +3218,43 @@ bool CanvasWidget::handle_opacity_digit_key(int key, Qt::KeyboardModifiers modif
   return true;
 }
 
+void CanvasWidget::cancel_pointer_gestures() {
+  if (selecting_ || lassoing_ || quick_selecting_ || moving_selection_) {
+    restore_selection_before_edit();
+  }
+  selecting_ = lassoing_ = quick_selecting_ = moving_selection_ = false;
+  quick_select_seed_mask_ = QImage();
+  quick_select_seed_bounds_ = {};
+  quick_select_stroke_points_.clear();
+  lasso_points_.clear();
+  cancel_spot_heal_stroke();
+  cancel_patch_tool_drag();
+  drawing_shape_ = dragging_text_rect_ = false;
+  move_drag_pending_ = moving_layer_ = false;
+  moving_layers_.clear();
+  move_preview_delta_ = {};
+  move_preview_patches_.clear();
+  move_preview_patches_delta_.reset();
+  moving_layers_use_outline_preview_ = false;
+  move_drag_uses_proxy_preview_ = false;
+  clear_retained_move_caches();
+  reset_move_live_latch();
+  dragging_transform_ = dragging_warp_handle_ = false;
+  transform_drag_uses_proxy_preview_ = false;
+  path_transform_drag_handle_ = TransformHandle::None;
+  path_drag_mode_ = PathEditDrag::None;
+  pen_handle_dragging_ = false;
+  pen_session_drag_anchor_ = -1;
+  crop_dragging_out_ = crop_rotating_ = false;
+  crop_drag_handle_ = TransformHandle::None;
+  if (dragging_guide_) {
+    cancel_guide_drag();
+  }
+  panning_ = zooming_ = false;
+  spacebar_repositioning_drag_rect_ = spacebar_panning_ = false;
+  update();
+}
+
 void CanvasWidget::focusOutEvent(QFocusEvent* event) {
   const auto was_painting = painting_;
   const auto was_drawing_smart_filter_mask_shape =
@@ -3253,6 +3290,7 @@ void CanvasWidget::focusOutEvent(QFocusEvent* event) {
     drawing_shape_ = false;
     cancel_smart_filter_mask_edit();
   }
+  cancel_pointer_gestures();
   if (was_painting) {
     painting_ = false;
     last_stroke_end_document_ = last_document_position_f_;

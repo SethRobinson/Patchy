@@ -1728,6 +1728,13 @@ void MainWindow::editable_smart_filter_dialog(
       };
 
   auto preview_edit_lock = lock_preview_dialog_edits();
+  auto preview_cleanup = qScopeGuard([this, &doc, preview_state, original = *layer] {
+    close_async_pixel_preview(preview_state);
+    if (auto* target = doc.find_layer(original.id()); target != nullptr) {
+      *target = original;
+      canvas_->document_changed();
+    }
+  });
   const auto dialog_spec =
       editable_smart_filter_dialog_spec(kind, initial_invocation);
   const auto settings = request_filter_settings(
@@ -1742,6 +1749,7 @@ void MainWindow::editable_smart_filter_dialog(
   layer->set_bounds(original_bounds);
   canvas_->document_changed(to_qrect(*last_preview_bounds)
                                 .united(to_qrect(original_bounds)));
+  preview_cleanup.dismiss();
   preview_edit_lock.release();
   if (!settings.has_value()) {
     statusBar()->showMessage(
@@ -2436,6 +2444,13 @@ void MainWindow::apply_filter(const QString& identifier) {
       };
 
       auto preview_edit_lock = lock_preview_dialog_edits();
+      auto preview_cleanup = qScopeGuard([this, &doc, preview_state, original = *layer] {
+        close_async_pixel_preview(preview_state);
+        if (auto* target = doc.find_layer(original.id()); target != nullptr) {
+          *target = original;
+          canvas_->document_changed();
+        }
+      });
       const FilterDialogPreviewSource dialog_preview_source{
           source_pixels.get(), source_bounds, selection, &filters_};
       auto settings =
@@ -2450,6 +2465,7 @@ void MainWindow::apply_filter(const QString& identifier) {
       set_layer_pixels_preserving_origin(*layer, *original_pixels, bounds);
       canvas_->document_changed(to_qrect(*last_preview_bounds).united(to_qrect(bounds)));
       *last_preview_bounds = bounds;
+      preview_cleanup.dismiss();
       preview_edit_lock.release();
       if (!settings.has_value()) {
         statusBar()->showMessage(tr("Cancelled %1").arg(display_name));

@@ -195,12 +195,14 @@ enum class StyleMaskKind : std::uint8_t {
   BevelHeight,
   Stroke,
   Satin,
+  GroupSilhouette,
 };
 
 struct StyleMaskEntry {
   std::vector<float> primary;
   // BevelHeight keeps the alpha mask alongside the height mask.
   std::vector<float> secondary;
+  std::shared_ptr<const PixelBuffer> group_pixels{};
 };
 
 class StyleMaskProvider {
@@ -226,7 +228,7 @@ std::pair<std::shared_ptr<const StyleMaskEntry>, Rect> style_mask_for_render(
     StyleMaskProvider* provider, const Layer& layer, StyleMaskKind kind, std::uint32_t effect_index,
     Rect full_domain, Rect gate_rect, Rect legacy_domain, Rect bounds, std::optional<Rect> mask_bounds,
     ComputeFn&& compute) {
-  if (provider != nullptr && provider->full_domain_allowed(gate_rect)) {
+  if (provider != nullptr && (layer.kind() == LayerKind::Group || provider->full_domain_allowed(gate_rect))) {
     if (auto cached = provider->fetch(layer, kind, effect_index, full_domain, bounds, mask_bounds);
         cached != nullptr) {
       return {std::move(cached), full_domain};
@@ -243,7 +245,8 @@ std::pair<std::shared_ptr<const StyleMaskEntry>, Rect> style_mask_for_render(
     provider->store(layer, kind, effect_index, full_domain, bounds, mask_bounds, computed);
     return {std::move(computed), full_domain};
   }
-  return {std::make_shared<StyleMaskEntry>(compute(legacy_domain)), legacy_domain};
+  const auto domain = layer.kind() == LayerKind::Group ? full_domain : legacy_domain;
+  return {std::make_shared<StyleMaskEntry>(compute(domain)), domain};
 }
 
 inline const LayerBoundsOverride* layer_override_for_render(const Layer& layer,
@@ -578,6 +581,13 @@ inline void composite_effect_color(Target& destination, std::int32_t x, std::int
       return;
     }
     destination.composite_color(x, y, color, 1.0F, BlendMode::Normal);
+    return;
+  }
+  if ((mode == BlendMode::LinearBurn || mode == BlendMode::ColorBurn || mode == BlendMode::ColorDodge) &&
+      destination.sample_color(x, y).alpha < 1.0F) {
+    // The folded color describes the overlap with the backdrop. Uncovered
+    // ground still receives the original color at the effect's real alpha.
+    destination.composite_special_fill_color(x, y, color, 1.0F, alpha, 1.0F, mode);
     return;
   }
   if (mode == BlendMode::LinearBurn || mode == BlendMode::ColorBurn) {
@@ -3362,6 +3372,27 @@ void composite_layers(Target& destination, const std::vector<Layer>& layers, Rec
       patterns);
 }
 
+inline PixelBuffer group_silhouette_for_render(const Layer& layer, Rect bounds,
+                                                const std::vector<LayerBoundsOverride>* overrides,
+                                                bool throw_on_unsupported_pixel_format,
+                                                StyleMaskProvider* masks, const PatternStore* patterns) {
+  // Full child coverage anchors every effect, independent of the caller's strip
+  // or dirty rectangle. Cache it alongside effect masks to avoid re-flattening
+  // all child pixels per repaint. Transient geometry never enters that cache.
+  auto* cache = overrides == nullptr || overrides->empty() ? masks : nullptr;
+  const auto prepared = style_mask_for_render(
+      cache, layer, StyleMaskKind::GroupSilhouette, 0, bounds, bounds, bounds, bounds, std::nullopt,
+      [&](Rect rect) {
+        IsolatedClipGroupTarget isolated(rect);
+        composite_layers(isolated, layer.children(), rect, overrides,
+                         throw_on_unsupported_pixel_format, masks, patterns);
+        StyleMaskEntry result;
+        result.group_pixels = std::make_shared<const PixelBuffer>(isolated.to_pixel_buffer());
+        return result;
+      });
+  return *prepared.first->group_pixels;
+}
+
 template <typename Target>
 void composite_layer(Target& destination, const Layer& layer, Rect clip,
                      const std::vector<LayerBoundsOverride>* overrides,
@@ -3395,7 +3426,8 @@ void composite_layer(Target& destination, const Layer& layer, Rect clip,
       // isolation buffer per group per preview frame). Coverage can only
       // exist where pixel children painted, so the bounded buffer merges
       // identically.
-      const auto isolated_rect = !layer_has_rendered_blend_if(layer)
+      const auto isolated_rect = styled ? layer_render_bounds_for_render(layer, overrides)
+                                 : !layer_has_rendered_blend_if(layer)
                                      ? intersect_rect(clip, layer_render_bounds_for_render(layer, overrides))
                                      : clip;
       if (isolated_rect.empty()) {
@@ -3409,16 +3441,14 @@ void composite_layer(Target& destination, const Layer& layer, Rect clip,
       if (blend_if_has_underlying_ranges(blend_if) && !styled) {
         backdrop.emplace(destination, isolated_rect);
       }
-      IsolatedClipGroupTarget isolated(isolated_rect);
-      composite_layers(isolated, layer.children(), isolated_rect, overrides, throw_on_unsupported_pixel_format,
-                       masks, patterns);
       if (styled) {
         // Route the merged content through the full styled pipeline. The
         // group mask has NOT been applied yet (merge_layer_into is skipped),
         // so the pipeline's own mask handling applies it exactly once, which
         // also makes every effect derive from the masked silhouette (the
         // photoshop-group-fx-mask-stroke probe).
-        const PixelBuffer flattened = isolated.to_pixel_buffer();
+        const auto flattened = group_silhouette_for_render(layer, isolated_rect, overrides,
+                                                           throw_on_unsupported_pixel_format, masks, patterns);
         const auto* outer_override = layer_override_for_render(layer, overrides);
         std::vector<LayerBoundsOverride> styled_override{LayerBoundsOverride{
             layer.id(), isolated_rect, &flattened,
@@ -3428,6 +3458,9 @@ void composite_layer(Target& destination, const Layer& layer, Rect clip,
                               throw_on_unsupported_pixel_format, masks, blend_if_backdrop, patterns);
         return;
       }
+      IsolatedClipGroupTarget isolated(isolated_rect);
+      composite_layers(isolated, layer.children(), isolated_rect, overrides, throw_on_unsupported_pixel_format,
+                       masks, patterns);
       // A restricted isolated group applies its restriction where the merged
       // result meets the backdrop (the P5 isolated arm: the group's excluded
       // channel keeps the backdrop under Normal-mode children).
@@ -3491,12 +3524,10 @@ void composite_pass_through_group(Target& destination, const Layer& layer, Rect 
     // Override-aware: the children composite below WITH overrides, so a
     // preview-moved child outside the historical bounds must still land
     // inside the silhouette buffer.
-    silhouette_rect = intersect_rect(clip, layer_render_bounds_for_render(layer, overrides));
+    silhouette_rect = layer_render_bounds_for_render(layer, overrides);
     if (!silhouette_rect.empty()) {
-      IsolatedClipGroupTarget isolated(silhouette_rect);
-      composite_layers(isolated, layer.children(), silhouette_rect, overrides,
-                       throw_on_unsupported_pixel_format, masks, patterns);
-      silhouette = isolated.to_pixel_buffer();
+      silhouette = group_silhouette_for_render(layer, silhouette_rect, overrides,
+                                               throw_on_unsupported_pixel_format, masks, patterns);
       const auto& style = layer.layer_style();
       const auto mask_bounds = layer_mask_bounds_for_render(layer, overrides);
       if (style.effects_visible) {

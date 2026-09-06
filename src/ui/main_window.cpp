@@ -7727,6 +7727,24 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
   }
   if (text.trimmed().isEmpty()) {
     restore_hidden_text_layer();
+    if (layer_id.has_value() && !layer_id_locks_image_pixels(*layer_id)) {
+      push_undo_snapshot(tr("Type"));
+      if (auto* layer = document().find_layer(*layer_id); layer != nullptr) {
+        auto& metadata = layer->metadata();
+        metadata[kLayerMetadataText] = text.toStdString();
+        metadata[kLayerMetadataTextHtml].clear();
+        metadata[kLayerMetadataTextRuns].clear();
+        metadata[kLayerMetadataTextParagraphRuns].clear();
+        metadata[kLayerMetadataTextRasterStatus] = "patchy_raster";
+        clear_layer_psd_text_source(*layer);
+        const auto bounds = std::as_const(*layer).bounds();
+        layer->set_pixels(PixelBuffer(1, 1, PixelFormat::rgba8()));
+        layer->set_bounds(Rect{bounds.x, bounds.y, 1, 1});
+      }
+      canvas_->document_changed_effect_bounds(pre_commit_dirty);
+      refresh_layer_list();
+      refresh_layer_controls();
+    }
     return;
   }
 

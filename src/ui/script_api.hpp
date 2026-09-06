@@ -39,8 +39,8 @@ class ScriptLayerObject : public QObject {
   Q_PROPERTY(bool visible READ visible WRITE set_visible)
   Q_PROPERTY(QString blendMode READ blend_mode WRITE set_blend_mode)
   Q_PROPERTY(bool locked READ locked WRITE set_locked)
-  Q_PROPERTY(int x READ x WRITE set_x)
-  Q_PROPERTY(int y READ y WRITE set_y)
+  Q_PROPERTY(double x READ x WRITE set_x)
+  Q_PROPERTY(double y READ y WRITE set_y)
   Q_PROPERTY(QJSValue bounds READ bounds)
   Q_PROPERTY(bool isGroup READ is_group)
   Q_PROPERTY(bool isText READ is_text)
@@ -63,9 +63,9 @@ public:
   [[nodiscard]] bool locked() const;
   void set_locked(bool locked);
   [[nodiscard]] int x() const;
-  void set_x(int x);
+  void set_x(double x);
   [[nodiscard]] int y() const;
-  void set_y(int y);
+  void set_y(double y);
   [[nodiscard]] QJSValue bounds() const;
   [[nodiscard]] bool is_group() const;
   [[nodiscard]] bool is_text() const;
@@ -73,7 +73,7 @@ public:
   [[nodiscard]] QString text() const;
   void set_text(const QString& text);
 
-  Q_INVOKABLE void moveTo(int x, int y);
+  Q_INVOKABLE void moveTo(double x, double y);
   Q_INVOKABLE QJSValue duplicate();
   Q_INVOKABLE void remove();
   // Ungroup this group layer; returns the released layers top to bottom.

@@ -654,6 +654,8 @@ bool MainWindow::commit_smart_object_child_session(DocumentSession& child_sessio
                       tr("Edit Smart Object Contents"));
   parent->document = std::move(updated_document);
   if (child_session.smart_object_link.has_value()) {
+    child_session.smart_object_link->source_uuid_history.push_back(link.source_uuid);
+    child_session.smart_object_link->source_uuid_history.push_back(refreshed_source_uuid);
     child_session.smart_object_link->source_uuid = refreshed_source_uuid;
   }
 
@@ -789,6 +791,8 @@ void MainWindow::refresh_external_smart_object_after_save(DocumentSession& child
   // Decode via a probe that carries the fresh bytes (external sources keep none).
   SmartObjectSource probe = *source;
   probe.kind = SmartObjectSourceKind::Embedded;
+  probe.filename = QFileInfo(child_session.path).fileName().toStdString();
+  probe.filetype = psd_element_filetype_for_extension(QFileInfo(child_session.path).suffix().toLower());
   probe.file_bytes = std::make_shared<const std::vector<std::uint8_t>>(raw.begin(), raw.end());
   const auto rendered_image = decode_smart_object_source_image(probe);
   if (!rendered_image.has_value()) {
@@ -806,6 +810,13 @@ void MainWindow::refresh_external_smart_object_after_save(DocumentSession& child
     return;
   }
   const QFileInfo saved_info(child_session.path);
+  updated_source->filename = saved_info.fileName().toStdString();
+  updated_source->filetype = psd_element_filetype_for_extension(saved_info.suffix().toLower());
+  updated_source->external_original_path = QDir::toNativeSeparators(saved_info.absoluteFilePath()).toStdString();
+  updated_source->external_full_path = QUrl::fromLocalFile(saved_info.absoluteFilePath()).toString().toStdString();
+  updated_source->external_rel_path = parent->path.isEmpty()
+      ? saved_info.fileName().toStdString()
+      : QFileInfo(parent->path).dir().relativeFilePath(saved_info.absoluteFilePath()).toStdString();
   const auto modified = saved_info.lastModified();
   updated_source->external_mod_year = modified.date().year();
   updated_source->external_mod_month =
@@ -1380,7 +1391,8 @@ void MainWindow::convert_to_smart_object() {
 }
 
 bool MainWindow::convert_layers_to_smart_object(const std::vector<LayerId>& selected_ids) {
-  auto& doc = document();
+  auto& target_document = document();
+  auto doc = target_document;
   if (selected_ids.empty()) {
     show_status_error(tr("Select layers to convert to a smart object"));
     return false;
@@ -1424,8 +1436,6 @@ bool MainWindow::convert_layers_to_smart_object(const std::vector<LayerId>& sele
     show_status_error(tr("The selected layers have no pixels to convert"));
     return false;
   }
-
-  push_undo_snapshot(tr("Convert to Smart Object"));
 
   // Move copies of the selected trees into the child document, translated so the
   // union origin becomes the child origin.
@@ -1479,7 +1489,6 @@ bool MainWindow::convert_layers_to_smart_object(const std::vector<LayerId>& sele
   } catch (const std::exception& error) {
     show_critical_message(this, tr("Convert failed"), QString::fromUtf8(error.what()),
                           QStringLiteral("convertSmartObjectFailedMessageBox"));
-    undo();
     return false;
   }
   const auto preview = qimage_from_document(child, true).convertToFormat(QImage::Format_RGBA8888);
@@ -1524,6 +1533,8 @@ bool MainWindow::convert_layers_to_smart_object(const std::vector<LayerId>& sele
     }
   }
   doc.set_active_layer(top_id);
+  push_undo_snapshot(tr("Convert to Smart Object"));
+  target_document = std::move(doc);
   refresh_layer_list();
   refresh_layer_controls();
   canvas_->document_changed();
@@ -1535,7 +1546,8 @@ void MainWindow::new_smart_object_via_copy() {
   if (!has_active_document()) {
     return;
   }
-  auto& doc = document();
+  auto& target_document = document();
+  auto doc = target_document;
   const auto active = doc.active_layer_id();
   const auto* layer = active.has_value() ? doc.find_layer(*active) : nullptr;
   if (layer == nullptr || !layer_is_smart_object(*layer)) {
@@ -1559,8 +1571,6 @@ void MainWindow::new_smart_object_via_copy() {
     return;
   }
 
-  push_undo_snapshot(tr("New Smart Object via Copy"));
-
   // Photoshop's via-copy semantics (E8): the element is CLONED under a fresh uuid, so
   // the copy edits independently (a plain duplicate would keep tracking the source).
   const auto fresh_uuid = generate_smart_object_uuid();
@@ -1578,7 +1588,6 @@ void MainWindow::new_smart_object_via_copy() {
   }
   auto copy = clone_layer_tree_with_document_ids(doc, *layer);
   if (!copy.has_value()) {
-    undo();
     show_status_error(
         tr("Smart Filter cache data could not be duplicated safely"));
     return;
@@ -1592,6 +1601,8 @@ void MainWindow::new_smart_object_via_copy() {
   location->siblings->insert(location->siblings->begin() + static_cast<std::ptrdiff_t>(location->index) + 1,
                              std::move(*copy));
   doc.set_active_layer(copy_id);
+  push_undo_snapshot(tr("New Smart Object via Copy"));
+  target_document = std::move(doc);
   refresh_layer_list();
   refresh_layer_controls();
   canvas_->document_changed();
@@ -1648,7 +1659,8 @@ void MainWindow::place_embedded_file_with_path(const QString& path) {
     return;
   }
 
-  auto& doc = document();
+  auto& target_document = document();
+  auto doc = target_document;
   // E2 placement rule: physical pixels (content px scaled by doc_ppi/content_dpi) land
   // 1:1 centered when they fit, else scaled down to fit the canvas, centered.
   const double content_dpi = smart_object_source_dpi(placed);
@@ -1664,13 +1676,6 @@ void MainWindow::place_embedded_file_with_path(const QString& path) {
   const double left = (doc.width() - placed_width) / 2.0;
   const double top = (doc.height() - placed_height) / 2.0;
 
-  push_undo_snapshot(tr("Place Embedded"));
-
-  doc.metadata().smart_objects.add_embedded(placed.uuid, placed.filename, placed.filetype, placed.file_bytes);
-  if (auto* added = doc.metadata().smart_objects.find(placed.uuid); added != nullptr) {
-    added->creator = placed.creator;
-  }
-
   SmartObjectPlacement placement;
   placement.uuid = placed.uuid;
   placement.transform = {left,        top,          left + placed_width, top,
@@ -1681,7 +1686,6 @@ void MainWindow::place_embedded_file_with_path(const QString& path) {
 
   auto rendered = render_smart_object_pixels(*image, placement, CanvasWidget::TransformInterpolation::Bicubic);
   if (!rendered.has_value()) {
-    undo();
     show_critical_message(this, tr("Place failed"), tr("Could not decode %1").arg(info.fileName()),
                           QStringLiteral("placeEmbeddedFailedMessageBox"));
     return;
@@ -1695,8 +1699,14 @@ void MainWindow::place_embedded_file_with_path(const QString& path) {
                                   kSmartObjectRasterStatusPatchy);
   placed_layer.unknown_psd_blocks().push_back(
       UnknownPsdBlock{"SoLd", psd::author_placed_layer_sold_payload(placement, placed_instance)});
+  doc.metadata().smart_objects.add_embedded(placed.uuid, placed.filename, placed.filetype, placed.file_bytes);
+  if (auto* added = doc.metadata().smart_objects.find(placed.uuid); added != nullptr) {
+    added->creator = placed.creator;
+  }
   auto& layer = doc.add_layer(std::move(placed_layer));
   doc.set_active_layer(layer.id());
+  push_undo_snapshot(tr("Place Embedded"));
+  target_document = std::move(doc);
   refresh_layer_list();
   refresh_layer_controls();
   canvas_->document_changed();

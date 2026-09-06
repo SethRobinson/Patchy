@@ -1383,7 +1383,7 @@ void MainWindow::create_docks() {
   lock_all_button_->setProperty("layerLockControl", true);
   lock_all_button_->setCheckable(true);
   lock_all_button_->setToolButtonStyle(Qt::ToolButtonIconOnly);
-  lock_all_button_->setIcon(simple_icon(QStringLiteral("lock"), QColor(226, 232, 240)));
+  lock_all_button_->setIcon(simple_icon(QStringLiteral("lock")));
   lock_all_button_->setIconSize(QSize(15, 15));
   lock_all_button_->setToolTip(tr("Lock all"));
   lock_all_button_->setFixedSize(24, 24);

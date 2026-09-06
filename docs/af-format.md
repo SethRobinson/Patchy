@@ -39,3 +39,8 @@ Blend modes: layer `Blnd` and effect `BlnM` share one VERSIONED wire enum (`map_
 Erase blend mode removes alpha from everything beneath; no BlendMode can carry it. `fold_erase_layers` wraps the siblings beneath the carrier in an ISOLATED group "<carrier> (Erase)" with a gray8 group mask = 255 - (carrier alpha x Opacity x Fill x its own masks), canvas-clipped, `default_color` 255 (isolated masks the merged stack once; folder + raster mask is native PSD, so it round-trips). Declined with a notice: carriers in clipping runs, group/adjustment carriers, clip bases, bottom-most carriers, empty carriers, >64 folds; carrier effects drop. Pin: `af_erase_blend_round_trips_through_psd`.
 
 Fixtures: `test-fixtures/af/` is self-authored: `tiny-*.af` via scripted Affinity 3.x (regenerate with `testy/affinity_js.py`); `tiny-v2-*.afphoto` authored interactively in Affinity Photo 2.6.5 (ground truth in af-spike/v2_corpus); `tiny-v2-stale-dfsz.afphoto`/`tiny-lazy-placed.af` are byte-level derivations (af-spike/author_derived_fixtures.py). Wild-file tests skip without local samples (the esdreika resized/lazy-raster regression file lives in af-spike/from_esdreika).
+
+Gaussian layer-effect baking validates each radius, clamps it to the renderer's
+supported range after unit conversion, and contains failures to the affected
+layer. Invalid or failed effects retain the original pixels and report an import
+note; they do not force the whole document through the flat-preview fallback.

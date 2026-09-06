@@ -502,16 +502,30 @@ double distance(const DPoint& a, const DPoint& b) noexcept {
 // Splits a polyline into dash runs. Dash entries are stroke-width multiples
 // (the vstk descriptor's unitless values); offset likewise.
 std::vector<StrokeRun> apply_dashes(const std::vector<DPoint>& points, bool closed,
-                                    const std::vector<double>& dashes_px, double offset_px) {
+                                    const std::vector<double>& input_dashes, double offset_px) {
   std::vector<StrokeRun> runs;
   if (points.size() < 2) {
     return runs;
   }
+  auto dashes_px = input_dashes;
+  for (auto& dash : dashes_px) {
+    if (!std::isfinite(dash)) {
+      return {StrokeRun{points, closed}};
+    }
+    if (dash > 0.0) {
+      dash = std::max(dash, 1.0 / kSub);
+    }
+  }
+  if (!std::isfinite(offset_px)) {
+    offset_px = 0.0;
+  }
+  std::size_t boundaries = 0;
+  constexpr std::size_t kMaxDashBoundaries = 262144;
   double pattern_total = 0.0;
   for (const auto dash : dashes_px) {
     pattern_total += std::max(dash, 0.0);
   }
-  if (dashes_px.empty() || pattern_total <= 0.0) {
+  if (dashes_px.empty() || !std::isfinite(pattern_total) || pattern_total <= 0.0) {
     runs.push_back(StrokeRun{points, closed});
     return runs;
   }
@@ -555,6 +569,9 @@ std::vector<StrokeRun> apply_dashes(const std::vector<DPoint>& points, bool clos
     const DPoint b = walk[i + 1];
     double segment_left = distance(a, b);
     while (segment_left > remaining && remaining >= 0.0) {
+      if (++boundaries > kMaxDashBoundaries) {
+        return {StrokeRun{points, closed}};
+      }
       const double t = remaining / segment_left;
       const DPoint cut{a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t};
       if (on) {

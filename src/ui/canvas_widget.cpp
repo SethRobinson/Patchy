@@ -239,6 +239,16 @@ void CanvasWidget::set_document(Document* document) {
   set_document_internal(document, /*preserve_frame_for_same_size=*/false);
 }
 
+bool CanvasWidget::pointer_gesture_active() const noexcept {
+  return painting_ || drawing_shape_ || dragging_text_rect_ || move_drag_pending_ ||
+         moving_layer_ || dragging_transform_ || dragging_warp_handle_ || selecting_ ||
+         lassoing_ || quick_selecting_ || spot_healing_stroke_active_ || patch_tool_dragging_ ||
+         moving_selection_ || dragging_guide_ || crop_dragging_out_ || crop_rotating_ ||
+         crop_drag_handle_ != TransformHandle::None || pen_handle_dragging_ ||
+         pen_session_drag_anchor_ >= 0 || path_drag_mode_ != PathEditDrag::None ||
+         path_transform_drag_handle_ != TransformHandle::None;
+}
+
 void CanvasWidget::set_tiling_preview_enabled(bool enabled) {
   if (tiling_preview_enabled_ == enabled) {
     return;
@@ -259,6 +269,12 @@ void CanvasWidget::set_document_for_history_restore(Document* document, bool nor
 
 void CanvasWidget::set_document_internal(Document* document, bool preserve_frame_for_same_size,
                                          bool normal_composite_unchanged) {
+  cancel_pointer_gestures();
+  painting_ = false;
+  clear_brush_stroke_tracking();
+  reset_brush_smoothing();
+  reset_axis_constrained_stroke();
+  deferred_wait_release_.reset();
   cancel_pen_path();  // an in-flight path belongs to the outgoing document
   cancel_path_transform();
   clear_preview_scaled_document();
@@ -489,6 +505,7 @@ void CanvasWidget::set_layer_edit_target(LayerEditTarget target) noexcept {
   if (layer_edit_target_ == target) {
     return;
   }
+  cancel_path_transform();
   if (layer_edit_target_ == LayerEditTarget::SmartFilterMask &&
       target != LayerEditTarget::SmartFilterMask) {
     // Generic layer/channel switching is an exit path. Pending mask pixels are
@@ -1162,6 +1179,9 @@ void CanvasWidget::set_text_layer_transform_render_callback(std::function<bool(L
 }
 
 void CanvasWidget::set_selected_layer_ids(std::vector<LayerId> layer_ids) {
+  if (layer_ids != selected_layer_ids_) {
+    cancel_path_transform();
+  }
   const auto old_transform_controls_rect = move_transform_controls_rect();
   auto keeps_active_transform =
       transforming_layer_ && transform_layer_id_.has_value() && layer_ids.size() == 1U &&
@@ -1376,6 +1396,10 @@ Layer* CanvasWidget::topmost_text_layer_at(QPoint document_point) const noexcept
 void CanvasWidget::activate_layer(Layer& layer) {
   if (document_ == nullptr) {
     return;
+  }
+  if (document_->active_layer_id() != layer.id() ||
+      layer_edit_target_ != LayerEditTarget::Content) {
+    cancel_path_transform();
   }
   if (layer_edit_target_ == LayerEditTarget::SmartFilterMask) {
     clear_smart_filter_mask_edit_target();

@@ -1,11 +1,22 @@
 #include "ui/js_syntax_highlighter.hpp"
+#include "ui/theme_palette.hpp"
+#include "ui/theme_manager.hpp"
 
 namespace patchy::ui {
 
 JsSyntaxHighlighter::JsSyntaxHighlighter(QTextDocument* document)
     : QSyntaxHighlighter(document) {
+  rebuild_formats();
+  connect(&ThemeManager::instance(), &ThemeManager::color_scheme_changed, this, [this] {
+    rebuild_formats();
+    rehighlight();
+  });
+}
+
+void JsSyntaxHighlighter::rebuild_formats() {
+  rules_.clear();
   QTextCharFormat keyword_format;
-  keyword_format.setForeground(QColor(0x56, 0x9c, 0xd6));
+  keyword_format.setForeground(theme().script_keyword);
   const QStringList keywords = {
       QStringLiteral("break"),    QStringLiteral("case"),     QStringLiteral("catch"),
       QStringLiteral("class"),    QStringLiteral("const"),    QStringLiteral("continue"),
@@ -22,30 +33,30 @@ JsSyntaxHighlighter::JsSyntaxHighlighter(QTextDocument* document)
   }
 
   QTextCharFormat literal_format;
-  literal_format.setForeground(QColor(0x4e, 0xc9, 0xb0));
+  literal_format.setForeground(theme().script_literal);
   rules_.push_back(
       {QRegularExpression(QStringLiteral("\\b(true|false|null|undefined|NaN|Infinity)\\b")),
        literal_format});
 
   QTextCharFormat builtin_format;
-  builtin_format.setForeground(QColor(0xdc, 0xdc, 0xaa));
+  builtin_format.setForeground(theme().script_builtin);
   rules_.push_back(
       {QRegularExpression(QStringLiteral("\\b(app|patchy|console|Math|JSON|include)\\b")),
        builtin_format});
 
   QTextCharFormat number_format;
-  number_format.setForeground(QColor(0xb5, 0xce, 0xa8));
+  number_format.setForeground(theme().script_number);
   rules_.push_back(
       {QRegularExpression(QStringLiteral("\\b(0[xX][0-9a-fA-F]+|\\d+(\\.\\d+)?([eE][+-]?\\d+)?)\\b")),
        number_format});
 
   QTextCharFormat string_format;
-  string_format.setForeground(QColor(0xce, 0x91, 0x78));
+  string_format.setForeground(theme().script_string);
   rules_.push_back({QRegularExpression(QStringLiteral("\"[^\"\\n]*\"")), string_format});
   rules_.push_back({QRegularExpression(QStringLiteral("'[^'\\n]*'")), string_format});
   rules_.push_back({QRegularExpression(QStringLiteral("`[^`\\n]*`")), string_format});
 
-  comment_format_.setForeground(QColor(0x6a, 0x99, 0x55));
+  comment_format_.setForeground(theme().script_comment);
   rules_.push_back({QRegularExpression(QStringLiteral("//[^\\n]*")), comment_format_});
   comment_start_ = QRegularExpression(QStringLiteral("/\\*"));
   comment_end_ = QRegularExpression(QStringLiteral("\\*/"));

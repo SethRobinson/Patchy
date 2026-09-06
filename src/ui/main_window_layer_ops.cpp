@@ -2303,24 +2303,39 @@ void MainWindow::move_active_layer(int direction) {
     return;
   }
 
-  auto& layers = document().layers();
+  auto moved_document = document();
   const std::set<LayerId> selected(ids.begin(), ids.end());
-  push_undo_snapshot(tr("Move layer"));
-  if (direction > 0) {
-    for (int index = static_cast<int>(layers.size()) - 2; index >= 0; --index) {
-      if (selected.contains(layers[static_cast<std::size_t>(index)].id()) &&
-          !selected.contains(layers[static_cast<std::size_t>(index + 1)].id())) {
-        std::iter_swap(layers.begin() + index, layers.begin() + index + 1);
+  bool changed = false;
+  const auto move_siblings = [&](auto&& self, std::vector<Layer>& layers) -> void {
+    for (auto& layer : layers) {
+      if (!selected.contains(layer.id()) && !std::as_const(layer).children().empty()) {
+        self(self, layer.children());
       }
     }
-  } else {
-    for (int index = 1; index < static_cast<int>(layers.size()); ++index) {
-      if (selected.contains(layers[static_cast<std::size_t>(index)].id()) &&
-          !selected.contains(layers[static_cast<std::size_t>(index - 1)].id())) {
-        std::iter_swap(layers.begin() + index, layers.begin() + index - 1);
+    if (direction > 0) {
+      for (int index = static_cast<int>(layers.size()) - 2; index >= 0; --index) {
+        if (selected.contains(layers[static_cast<std::size_t>(index)].id()) &&
+            !selected.contains(layers[static_cast<std::size_t>(index + 1)].id())) {
+          std::iter_swap(layers.begin() + index, layers.begin() + index + 1);
+          changed = true;
+        }
+      }
+    } else {
+      for (int index = 1; index < static_cast<int>(layers.size()); ++index) {
+        if (selected.contains(layers[static_cast<std::size_t>(index)].id()) &&
+            !selected.contains(layers[static_cast<std::size_t>(index - 1)].id())) {
+          std::iter_swap(layers.begin() + index, layers.begin() + index - 1);
+          changed = true;
+        }
       }
     }
+  };
+  move_siblings(move_siblings, moved_document.layers());
+  if (!changed) {
+    return;
   }
+  push_undo_snapshot(tr("Move layer"));
+  document() = std::move(moved_document);
   refresh_layer_list();
   refresh_layer_controls();
   canvas_->document_changed();
@@ -3185,11 +3200,13 @@ void MainWindow::crop_to_selection() {
     return;
   }
 
-  push_undo_snapshot(tr("Crop"));
   auto& doc = document();
-  if (!patchy::crop_document(doc, to_core_rect(*selection))) {
+  auto cropped_document = doc;
+  if (!patchy::crop_document(cropped_document, to_core_rect(*selection))) {
     return;
   }
+  push_undo_snapshot(tr("Crop"));
+  doc = std::move(cropped_document);
   canvas_->clear_selection();
   const auto previous_channel_target = canvas_->layer_edit_target();
   const auto previous_channel_id = canvas_->active_document_channel_id();
@@ -3215,15 +3232,17 @@ void MainWindow::commit_crop_rect(QRect rect, double angle_degrees) {
     return;
   }
 
-  push_undo_snapshot(tr("Crop"));
   auto& doc = document();
+  auto cropped_document = doc;
   // The rect may extend past the canvas; the expansion fills with the
   // background color under a "Background" layer, transparent elsewhere. A
   // rotated box straightens on commit.
-  if (!patchy::crop_document(doc, to_core_rect(rect), angle_degrees,
+  if (!patchy::crop_document(cropped_document, to_core_rect(rect), angle_degrees,
                              edit_color(canvas_->secondary_color()))) {
     return;
   }
+  push_undo_snapshot(tr("Crop"));
+  doc = std::move(cropped_document);
   canvas_->cancel_crop_session();
   canvas_->clear_selection();
   const auto previous_channel_target = canvas_->layer_edit_target();

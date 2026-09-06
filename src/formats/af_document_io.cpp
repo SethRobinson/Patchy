@@ -5648,84 +5648,94 @@ void bake_pending_blur_effects(std::vector<Layer>& layers, std::vector<std::stri
     if (source.empty() || radius <= 0.0) {
       continue;
     }
-    const Rect source_bounds = layer.bounds();
-    // The smart-filter blur keeps the supplied bounds (edge-repeat outside),
-    // but Affinity's effect diffuses the layer's alpha boundary too - pad
-    // with transparency so the edges soften and the bounds grow with the
-    // spill.
-    const std::int32_t pad =
-        static_cast<std::int32_t>(std::ceil(radius)) * 3 + 1;
-    PixelBuffer padded(source.width() + 2 * pad, source.height() + 2 * pad,
-                       PixelFormat::rgba8());
-    for (std::int32_t y = 0; y < source.height(); ++y) {
-      const auto src_row = std::as_const(source).row(y);
-      auto dst_row = padded.row(y + pad);
-      std::copy(src_row.begin(), src_row.end(),
-                dst_row.begin() + static_cast<std::size_t>(pad) * 4U);
-    }
-    const Rect padded_bounds{source_bounds.x - pad, source_bounds.y - pad, padded.width(),
-                             padded.height()};
-    // Affinity's wire radius measures 2 sigma on its own renders while the
-    // Photoshop-calibrated kernel's radius measures ~1 sigma (edge-profile
-    // fit of the fx-gaussian probe), so halve it.
-    auto blurred = render_photoshop_gaussian_blur(padded, padded_bounds, radius * 0.5);
-    if (blurred.pixels.empty()) {
+    if (!std::isfinite(radius)) {
+      notices.push_back("Layer '" + layer.name() + "': invalid Gaussian blur radius; effect skipped");
       continue;
     }
-    if (opacity < 1.0) {
-      // The effect blends over the sharp original at its opacity.
-      auto& px = blurred.pixels;
-      for (std::int32_t y = 0; y < px.height(); ++y) {
-        auto row = px.row(y);
-        const std::int32_t sy = blurred.bounds.y + y - source_bounds.y;
-        for (std::int32_t x = 0; x < px.width(); ++x) {
-          const std::int32_t sx = blurred.bounds.x + x - source_bounds.x;
-          std::uint8_t original[4] = {0, 0, 0, 0};
-          if (sx >= 0 && sy >= 0 && sx < source.width() && sy < source.height()) {
-            const std::uint8_t* sp = source.pixel(sx, sy);
-            std::copy(sp, sp + 4, original);
+    radius = std::clamp(radius, 0.2, 2000.0);
+    opacity = std::isfinite(opacity) ? std::clamp(opacity, 0.0, 1.0) : 1.0;
+    try {
+      const Rect source_bounds = layer.bounds();
+      // The smart-filter blur keeps the supplied bounds (edge-repeat outside),
+      // but Affinity's effect diffuses the layer's alpha boundary too - pad
+      // with transparency so the edges soften and the bounds grow with the
+      // spill.
+      const std::int32_t pad =
+          static_cast<std::int32_t>(std::ceil(radius)) * 3 + 1;
+      PixelBuffer padded(source.width() + 2 * pad, source.height() + 2 * pad,
+                         PixelFormat::rgba8());
+      for (std::int32_t y = 0; y < source.height(); ++y) {
+        const auto src_row = std::as_const(source).row(y);
+        auto dst_row = padded.row(y + pad);
+        std::copy(src_row.begin(), src_row.end(),
+                  dst_row.begin() + static_cast<std::size_t>(pad) * 4U);
+      }
+      const Rect padded_bounds{source_bounds.x - pad, source_bounds.y - pad, padded.width(),
+                               padded.height()};
+      // Affinity's wire radius measures 2 sigma on its own renders while the
+      // Photoshop-calibrated kernel's radius measures ~1 sigma (edge-profile
+      // fit of the fx-gaussian probe), so halve it.
+      auto blurred = render_photoshop_gaussian_blur(padded, padded_bounds, radius * 0.5);
+      if (blurred.pixels.empty()) {
+        continue;
+      }
+      if (opacity < 1.0) {
+        // The effect blends over the sharp original at its opacity.
+        auto& px = blurred.pixels;
+        for (std::int32_t y = 0; y < px.height(); ++y) {
+          auto row = px.row(y);
+          const std::int32_t sy = blurred.bounds.y + y - source_bounds.y;
+          for (std::int32_t x = 0; x < px.width(); ++x) {
+            const std::int32_t sx = blurred.bounds.x + x - source_bounds.x;
+            std::uint8_t original[4] = {0, 0, 0, 0};
+            if (sx >= 0 && sy >= 0 && sx < source.width() && sy < source.height()) {
+              const std::uint8_t* sp = source.pixel(sx, sy);
+              std::copy(sp, sp + 4, original);
+            }
+            std::uint8_t* bp = row.data() + static_cast<std::size_t>(x) * 4U;
+            // Mix in premultiplied space so transparent-area colors stay inert.
+            const double ba = bp[3] / 255.0;
+            const double oa = original[3] / 255.0;
+            const double out_a = ba * opacity + oa * (1.0 - opacity);
+            for (int c = 0; c < 3; ++c) {
+              const double mixed =
+                  bp[c] * ba * opacity + original[c] * oa * (1.0 - opacity);
+              bp[c] = static_cast<std::uint8_t>(std::lround(
+                  out_a > 0.0 ? std::clamp(mixed / out_a, 0.0, 255.0) : 0.0));
+            }
+            bp[3] = static_cast<std::uint8_t>(std::lround(std::clamp(out_a * 255.0, 0.0, 255.0)));
           }
-          std::uint8_t* bp = row.data() + static_cast<std::size_t>(x) * 4U;
-          // Mix in premultiplied space so transparent-area colors stay inert.
-          const double ba = bp[3] / 255.0;
-          const double oa = original[3] / 255.0;
-          const double out_a = ba * opacity + oa * (1.0 - opacity);
-          for (int c = 0; c < 3; ++c) {
-            const double mixed =
-                bp[c] * ba * opacity + original[c] * oa * (1.0 - opacity);
-            bp[c] = static_cast<std::uint8_t>(std::lround(
-                out_a > 0.0 ? std::clamp(mixed / out_a, 0.0, 255.0) : 0.0));
-          }
-          bp[3] = static_cast<std::uint8_t>(std::lround(std::clamp(out_a * 255.0, 0.0, 255.0)));
         }
       }
-    }
-    if (preserve_alpha != 0) {
-      // Preserve Alpha keeps the original coverage: crop the blur back to the
-      // source bounds and reinstate the original alpha plane.
-      PixelBuffer kept(source.width(), source.height(), PixelFormat::rgba8());
-      for (std::int32_t y = 0; y < kept.height(); ++y) {
-        auto row = kept.row(y);
-        const std::int32_t by = source_bounds.y + y - blurred.bounds.y;
-        for (std::int32_t x = 0; x < kept.width(); ++x) {
-          std::uint8_t* kp = row.data() + static_cast<std::size_t>(x) * 4U;
-          const std::int32_t bx = source_bounds.x + x - blurred.bounds.x;
-          if (bx >= 0 && by >= 0 && bx < blurred.pixels.width() && by < blurred.pixels.height()) {
-            const std::uint8_t* bp = blurred.pixels.pixel(bx, by);
-            std::copy(bp, bp + 3, kp);
+      if (preserve_alpha != 0) {
+        // Preserve Alpha keeps the original coverage: crop the blur back to the
+        // source bounds and reinstate the original alpha plane.
+        PixelBuffer kept(source.width(), source.height(), PixelFormat::rgba8());
+        for (std::int32_t y = 0; y < kept.height(); ++y) {
+          auto row = kept.row(y);
+          const std::int32_t by = source_bounds.y + y - blurred.bounds.y;
+          for (std::int32_t x = 0; x < kept.width(); ++x) {
+            std::uint8_t* kp = row.data() + static_cast<std::size_t>(x) * 4U;
+            const std::int32_t bx = source_bounds.x + x - blurred.bounds.x;
+            if (bx >= 0 && by >= 0 && bx < blurred.pixels.width() && by < blurred.pixels.height()) {
+              const std::uint8_t* bp = blurred.pixels.pixel(bx, by);
+              std::copy(bp, bp + 3, kp);
+            }
+            kp[3] = source.pixel(x, y)[3];
           }
-          kp[3] = source.pixel(x, y)[3];
         }
+        layer.set_pixels(std::move(kept));
+        notices.push_back("Layer '" + layer.name() +
+                          "': Gaussian blur layer effect baked into the layer pixels");
+        continue;
       }
-      layer.set_pixels(std::move(kept));
+      layer.set_pixels(std::move(blurred.pixels));
+      layer.set_bounds(blurred.bounds);
       notices.push_back("Layer '" + layer.name() +
                         "': Gaussian blur layer effect baked into the layer pixels");
-      continue;
+    } catch (const std::exception&) {
+      notices.push_back("Layer '" + layer.name() + "': Gaussian blur could not be applied; original pixels kept");
     }
-    layer.set_pixels(std::move(blurred.pixels));
-    layer.set_bounds(blurred.bounds);
-    notices.push_back("Layer '" + layer.name() +
-                      "': Gaussian blur layer effect baked into the layer pixels");
   }
 }
 

@@ -365,6 +365,7 @@ public:
   explicit CanvasWidget(QWidget* parent = nullptr);
 
   void set_document(Document* document);
+  [[nodiscard]] bool pointer_gesture_active() const noexcept;
   [[nodiscard]] double zoom() const noexcept;
   void set_zoom(double zoom);
   // Absolute zoom anchored at the viewport center, Photoshop-style: the anchor
@@ -964,6 +965,7 @@ protected:
   void mousePressEvent(QMouseEvent* event) override;
   void mouseMoveEvent(QMouseEvent* event) override;
   void mouseReleaseEvent(QMouseEvent* event) override;
+  void cancel_pointer_gestures();
   void mouseDoubleClickEvent(QMouseEvent* event) override;
   void tabletEvent(QTabletEvent* event) override;
   void enterEvent(QEnterEvent* event) override;

@@ -2205,6 +2205,59 @@ void psd_stroke_only_shape_layers_fixture_loads_if_available() {
 
 }  // namespace
 
+
+void psd_empty_document_saves_transparent_without_mutating_layers() {
+  const patchy::Document document(9, 7, patchy::PixelFormat::rgba8());
+  for (const bool large : {false, true}) {
+    const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document, {large});
+    const auto restored = patchy::psd::DocumentIo::read(bytes);
+    CHECK(restored.width() == 9 && restored.height() == 7);
+    CHECK(document.layers().empty());
+    std::vector<std::uint8_t> alpha;
+    (void)patchy::Compositor{}.flatten_rgb8(restored, &alpha);
+    CHECK(alpha.size() == 63);
+    CHECK(std::all_of(alpha.begin(), alpha.end(), [](auto a) { return a == 0; }));
+  }
+}
+
+void psd_writer_rejects_layer_record_count_overflow() {
+  patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
+  for (int i = 0; i < 16384; ++i) {
+    document.add_layer(patchy::Layer(document.allocate_layer_id(), "Folder", patchy::LayerKind::Group));
+  }
+  for (const bool large : {false, true}) {
+    bool rejected = false;
+    try { (void)patchy::psd::DocumentIo::write_layered_rgb8(document, {large}); }
+    catch (const std::runtime_error& e) { rejected = std::string(e.what()).find("32767") != std::string::npos; }
+    CHECK(rejected);
+  }
+}
+
+
+void psd_damaged_channel_cannot_consume_later_channels() {
+  const std::vector<std::uint8_t> row{0x03U, 50U, 51U, 52U, 53U};
+  auto bytes = layered_psd_with_blue_row_bytes(row);
+  const std::string name = "Damaged";
+  const auto at = std::search(bytes.begin(), bytes.end(), name.begin(), name.end());
+  CHECK(at != bytes.end());
+  const auto channel_start = static_cast<std::size_t>(at - bytes.begin()) + name.size();
+  CHECK(bytes[channel_start] == 0 && bytes[channel_start+1] == 1);
+  // First red scanline claims more bytes than its entire channel owns.
+  bytes[channel_start+2] = 0xff;
+  bytes[channel_start+3] = 0xff;
+  std::vector<std::string> notices;
+  patchy::psd::ReadOptions options;
+  options.notices = &notices;
+  const auto document = patchy::psd::DocumentIo::read(bytes, options);
+  CHECK(document.layers().size() == 1);
+  const auto& layer = document.layers().front();
+  CHECK(layer.name() == "Damaged");
+  const auto& pixels = layer.pixels();
+  CHECK(pixels.pixel(0,1)[1] == 41);
+  CHECK(pixels.pixel(0,1)[2] == 50 && pixels.pixel(3,1)[2] == 53);
+  CHECK(has_damaged_row_notice(notices));
+}
+
 std::vector<patchy::test::TestCase> psd_core_io_tests() {
   return {
       {"psd_flat_rgb8_round_trips", psd_flat_rgb8_round_trips},
@@ -2279,5 +2332,8 @@ std::vector<patchy::test::TestCase> psd_core_io_tests() {
        psd_valid_packbits_rows_decode_without_a_damage_notice},
       {"psd_packbits_scanline_decoder_clips_pads_and_reports",
        psd_packbits_scanline_decoder_clips_pads_and_reports},
+      {"psd_empty_document_saves_transparent_without_mutating_layers", psd_empty_document_saves_transparent_without_mutating_layers},
+      {"psd_writer_rejects_layer_record_count_overflow", psd_writer_rejects_layer_record_count_overflow},
+      {"psd_damaged_channel_cannot_consume_later_channels", psd_damaged_channel_cannot_consume_later_channels},
   };
 }

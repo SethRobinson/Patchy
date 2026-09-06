@@ -1,6 +1,7 @@
 #include "ui/dialog_utils.hpp"
 
 #include "ui/app_settings.hpp"
+#include "ui/main_window.hpp"
 
 #include "ui/action_icons.hpp"
 #include "ui/theme_qss.hpp"
@@ -1225,7 +1226,19 @@ void remember_dialog_position(QDialog& dialog) {
   dialog.setProperty(kDialogPositionMemoryInstalledProperty, true);
 }
 
+static bool unattended_dialog(const QWidget& dialog) {
+  for (auto* owner = dialog.parentWidget(); owner != nullptr; owner = owner->parentWidget()) {
+    if (auto* window = qobject_cast<MainWindow*>(owner); window != nullptr) {
+      return window->unattended_automation();
+    }
+  }
+  return false;
+}
+
 int exec_dialog(QDialog& dialog) {
+  if (unattended_dialog(dialog)) {
+    return QDialog::Rejected;
+  }
   remember_dialog_position(dialog);
 #ifdef Q_OS_WASM
   // The guards watch app-wide events; make sure they exist before the first
@@ -1454,6 +1467,9 @@ std::vector<NonModalDialogLoopFrame*>& non_modal_dialog_loop_frames() {
 }  // namespace
 
 int run_non_modal_dialog(QDialog& dialog) {
+  if (unattended_dialog(dialog)) {
+    return QDialog::Rejected;
+  }
   remember_dialog_position(dialog);
 #ifdef Q_OS_WASM
   ensure_wasm_dialog_guards();

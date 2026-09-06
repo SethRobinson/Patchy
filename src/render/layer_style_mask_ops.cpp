@@ -145,6 +145,21 @@ void stroke_subpixel_distance_fields(const std::vector<float>& matte, int width,
                                      bool need_outside, bool need_inside,
                                      std::vector<float>& outside, std::vector<float>& inside) {
   constexpr int kScale = 3;
+  // Bound the two 9x float planes. Large mattes retain the native-resolution
+  // contour rather than multiplying a full-size layer's memory by nine.
+  constexpr std::size_t kMaxSupersampledMattePixels = 1024U * 1024U;
+  if (matte.size() > kMaxSupersampledMattePixels) {
+    std::vector<float> contour(matte.size());
+    std::transform(matte.begin(), matte.end(), contour.begin(),
+                   [](float alpha) { return alpha >= 0.5F ? 1.0F : 0.0F; });
+    if (need_outside) {
+      outside = stroke_distance_field(contour, width, height, true);
+    }
+    if (need_inside) {
+      inside = stroke_distance_field(contour, width, height, false);
+    }
+    return;
+  }
   const auto fine_width = width * kScale;
   const auto fine_height = height * kScale;
   std::vector<float> fine(static_cast<std::size_t>(fine_width) * static_cast<std::size_t>(fine_height),

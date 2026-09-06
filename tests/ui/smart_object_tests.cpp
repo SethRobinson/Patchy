@@ -52,6 +52,9 @@
 #include "ui/layer_style_dialog.hpp"
 #include "ui/localization.hpp"
 #include "ui/main_window.hpp"
+#include "ui/script_engine.hpp"
+#include "ui/qt_paths.hpp"
+#include "unicode_path_names.hpp"
 #include "ui/print_dialog.hpp"
 #include "ui/selection_outline.hpp"
 #include "ui/sprite_sheet_dialog.hpp"
@@ -728,6 +731,18 @@ void ui_smart_object_edit_contents_commit_rerenders_parent() {
   CHECK(undone_px != nullptr);
   CHECK(undone_px[0] == original_center[0] && undone_px[1] == original_center[1] &&
         undone_px[2] == original_center[2] && undone_px[3] == original_center[3]);
+  // The still-open child must follow parent history across UUID replacements.
+  patchy::ui::MainWindowTestAccess::redo(window);
+  patchy::ui::MainWindowTestAccess::undo(window);
+  patchy::ui::MainWindowTestAccess::open_smart_object_contents(window);
+  QApplication::processEvents();
+  CHECK(tabs->count() == tab_count_before + 1);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_is_smart_object_child(window));
+  CHECK(patchy::ui::MainWindowTestAccess::save_document(window));
+  tabs->setCurrentIndex(parent_tab_index);
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth_before + 1);
+
 }
 
 void ui_smart_object_locked_refusal_and_parent_close_prompt() {
@@ -1525,6 +1540,19 @@ void ui_smart_object_external_edit_from_disk_saves_and_refreshes_parent() {
   const auto disk_color = saved_on_disk.pixelColor(saved_on_disk.width() / 2, saved_on_disk.height() / 2);
   CHECK(disk_color.red() > 150 && disk_color.green() < 90 && disk_color.blue() > 150);
 
+  const auto renamed_path = patchy::ui::to_qstring(std::filesystem::absolute(
+      std::filesystem::path("test-artifacts") /
+      (patchy::test::unicode_path_piece(patchy::test::kUnicodePathStems[0]) += ".psd")));
+  auto& host = window.script_engine_host();
+  patchy::ui::ScriptEngineHost::RunOptions options;
+  options.unattended = true;
+  options.args = {QStringLiteral("target=") + renamed_path};
+  CHECK(host.run_source(QStringLiteral("if (!app.activeDocument.saveAs(patchy.args.target)) throw Error('save failed');"),
+                        std::move(options)));
+  CHECK(process_events_until([&] { return !host.run_active(); }, 5000));
+  CHECK(!host.last_run_had_error());
+  CHECK(QFileInfo::exists(renamed_path));
+
   tabs->setCurrentIndex(parent_tab_index);
   QApplication::processEvents();
   auto& parent_after = patchy::ui::MainWindowTestAccess::document(window);
@@ -1539,9 +1567,13 @@ void ui_smart_object_external_edit_from_disk_saves_and_refreshes_parent() {
   CHECK(source_after != nullptr);
   CHECK(source_after->kind == patchy::SmartObjectSourceKind::ExternalFile);
   CHECK(source_after->dirty);
+  CHECK(source_after->filename == QFileInfo(renamed_path).fileName().toStdString());
+  CHECK(source_after->filetype == "8BPS");
+  CHECK(QDir::fromNativeSeparators(QString::fromStdString(source_after->external_original_path)) ==
+        QDir::fromNativeSeparators(renamed_path));
   CHECK(source_after->external_file_size > 0U);
   CHECK(source_after->external_mod_year >= 2026);
-  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth_before + 1);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth_before + 2);
   CHECK(patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
 }
 

@@ -390,3 +390,10 @@ editor REPL mode.
 Anti-goals: never freeze or fork the API surface, no undocumented escape hatches as the
 real API (test-driven additions go through the documented API too, per the AGENTS.md
 scripting-for-testability rule), and scripts stay plain user-editable files.
+
+Unattended command dispatch also covers scripts forwarded to an existing GUI. File
+imports use RAW/PDF defaults, dialogs return Cancel, and modified documents remain
+open unless the script explicitly calls `doc.close()`. Forms use their normal
+widget normalization without showing. Menu Undo/Redo/Quit are rejected while the
+script owns the transaction. The editor's syntax, gutter, and hover-card colors
+use theme roles and refresh on scheme changes.
