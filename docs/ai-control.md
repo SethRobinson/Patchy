@@ -22,7 +22,12 @@ and the in-sandbox skill path. The blurb is deliberately not translated: its rea
 is the assistant. The action is hidden on wasm (no connector) but its command id
 stays registered. Dialog objectNames for tests: `aiSetupDialog`, `aiSetupBlurbText`,
 `aiSetupStatusLabel`, `aiSetupCopyButton`, `aiSetupOpenSkillFolderButton`,
-`aiSetupOpenGuideButton`, `aiSetupCloseButton`.
+`aiSetupOpenGuideButton`, `aiSetupCloseButton`, `aiSetupVisibleCheckBox`. The
+unchecked default requests hidden work; checking it adds `--visible` and explicit
+authorization to control that separate workspace to the copied instructions.
+The mode choice is local to the dialog and does not change existing connections.
+The instructions require saved test files and distinguish configuration from
+successful tool verification, including clients that need a restart.
 
 The [packaged setup document](../agent-kit/patchy-control/references/setup.md) is
 what the assistant reads (locally from the skill's `references` folder, or the
@@ -51,13 +56,22 @@ painting, preview rendering, and installed help resources without a client.
 ## Workspace and protocol
 
 `src/app/main.cpp` shares Qt, fonts, localization, and theme initialization between
-the application and console connector. The connector forces offscreen operation,
+the application and console connector. The connector defaults to offscreen operation,
 uses a temporary settings directory, and bypasses single-instance forwarding,
 sound, and update checks. Each process owns one MainWindow workspace and its
 documents/history. It never attaches to another Patchy process. No HTTP listener
 or hosted-chat connection is provided. Closing stdin interrupts active work,
 stops timers, exits the event loop, and waits for owned workers before destroying
 the workspace. Unsaved documents do not survive disconnect or restart.
+
+The sole startup argument `--visible` selects the desktop Qt backend and shows
+the connector's own workspace so the user can watch batches appear. An explicit
+`QT_QPA_PLATFORM` is respected in that mode; `get_info` reports actual `mode`,
+`platform`, and `windowVisible`, not just the requested mode. Hidden and visible
+sessions share settings isolation, scripting restrictions, and stdin lifetime.
+Mode changes require saving, reconnecting, and reopening with new IDs. Avoid
+manual editing during agent operations. Visible mode needs a desktop display;
+`--check`, help, and malformed invocations remain offscreen.
 
 `src/app/mcp_server.cpp` owns newline-delimited JSON-RPC over binary stdio. Stdout
 is exclusively protocol; Qt diagnostics use stderr. Supported revisions are
@@ -68,12 +82,12 @@ contain PNG MCP image content plus text and `structuredContent` metadata.
 
 | Tool | Purpose |
 |---|---|
-| `get_info` | Versions, capabilities, skill directory, trust model |
-| `get_help` | Workflow, API, guide, or one of three examples |
+| `get_info` | Versions, capabilities, actual display mode/visibility, skill directory, trust model |
+| `get_help` | Workflow, API, guide, reference-art workflow, or one of three examples |
 | `get_state` | Documents, layer hierarchy, IDs, dimensions, selection, modified state, history |
 | `execute_script` | Fresh JavaScript globals over persistent documents; JSON result and separate logs |
 | `draw_strokes` | Native Brush/Eraser batch targeting document/layer IDs |
-| `get_preview` | Fresh canvas PNG with crop/scale metadata, or offscreen app-window capture |
+| `get_preview` | Fresh canvas PNG with crop/scale metadata, or the connector's own window capture |
 | `undo`, `redo` | Restore one document history step |
 
 Document operations execute on the Qt UI thread. A dedicated input thread keeps
@@ -122,7 +136,7 @@ The additive API remains version 1. Read the packaged TypeScript reference and
   rectangles preserve aspect ratio with bounded output; nearest-neighbor scaling
   can enlarge sprites. Coordinates map as
   `documentX = rect.x + previewX / scaleX`, similarly for Y. Canvas previews are
-  fresh renders; app-window captures are explicitly labeled offscreen. Window
+  fresh renders; app-window captures report their actual offscreen status. Window
   captures show the view as staged by `patchy.ui.zoom` (percent) and
   `patchy.ui.fitOnScreen()`, which connector sessions allow; canvas previews
   ignore the view.

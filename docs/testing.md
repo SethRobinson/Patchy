@@ -87,7 +87,8 @@ radius in both places or the two pipelines drift.
 ## Native visual QA and app-driving commands
 
 For persistent background editing use `patchy-mcp`, which owns an isolated
-offscreen workspace. `patchy-mcp --check` validates native strokes, previews, and
+offscreen workspace. With explicit permission to show its separate workspace,
+`patchy-mcp --visible` runs the same protocol visibly. `patchy-mcp --check` validates native strokes, previews, and
 the assembled control kit from its installed location. See [ai-control.md](ai-control.md).
 The UI filter `ui_script_automation` covers native stroke parity, pressure,
 selection, palette snapping, history, stale IDs, and Unicode preview output.
@@ -104,6 +105,9 @@ Run from the repository root. Artifacts stay under `test-artifacts/mcp`. The tes
 uses only owned offscreen processes and also accepts a connector in a staged
 package directory, exercising resource discovery without source-relative paths.
 Python is not required by the shipped connector.
+The client suite also passes `--visible` with an explicit offscreen Qt backend
+to verify option handling and truthful mode/preview metadata without opening a
+desktop window. A real visible smoke test requires separate desktop permission.
 
 Never use Computer Use, desktop automation, or input injection for native QA without Seth's explicit authorization in the current request. Use Patchy's command-line control surfaces and inspect their outputs directly.
 

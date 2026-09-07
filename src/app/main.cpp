@@ -13,6 +13,7 @@
 #ifdef PATCHY_MCP_EXECUTABLE
 #include "app/mcp_server.hpp"
 #include <QTemporaryDir>
+#include <cstring>
 #endif
 
 #include <QApplication>
@@ -312,6 +313,10 @@ int main(int argc, char* argv[]) {
   if (!connector_settings.isValid()) { return 2; }
   qputenv("PATCHY_SETTINGS_DIR", connector_settings.path().toUtf8());
   qputenv("QT_COMMAND_LINE_PARSER_NO_GUI_MESSAGE_BOXES", "1");
+  qputenv("PATCHY_NO_SOUND", "1");
+  // Only the complete, valid visible invocation may select a desktop backend.
+  // Checks, help, and malformed invocations must remain safe without a display.
+  const bool connector_visible = argc == 2 && std::strcmp(argv[1], "--visible") == 0;
 #endif
   // Automation hook (the README shot driver and similar tooling): redirect the
   // ini-backed app_settings() store so a driven run never reads or writes the
@@ -330,7 +335,7 @@ int main(int argc, char* argv[]) {
   // PATCHY_NO_SOUND because nobody is listening.
   const bool headless_mode = patchy::headless_flag_present(argc, argv)
 #ifdef PATCHY_MCP_EXECUTABLE
-                            || connector_settings.isValid()
+                            || !connector_visible
 #endif
       ;
   if (headless_mode) {

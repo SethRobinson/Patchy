@@ -290,7 +290,8 @@ everywhere a bundled script is resolved.
 
 ## CLI and AI control
 
-`patchy-mcp` provides a persistent offscreen workspace over local stdio MCP.
+`patchy-mcp` provides a persistent workspace over local stdio MCP, offscreen by
+default or in a separate visible window with `--visible`.
 It shares application startup and the scripting engine with `patchy`, isolates
 settings, and ships the `patchy-control` skill. Setup, lifecycle, protocol, and
 packaging ownership are in [ai-control.md](ai-control.md).

@@ -43,14 +43,14 @@ QJsonArray tool_catalog() {
   return {
     tool("get_info", QCoreApplication::translate("PatchyMcp", "Discover Patchy versions, capabilities, and the installed control skill."), schema(), true),
     tool("get_help", QCoreApplication::translate("PatchyMcp", "Read the scripting API, workflow, or a runnable example. Use before writing scripts."),
-         schema({{"topic", QJsonObject{{"type", "string"}, {"enum", QJsonArray{"workflow", "api", "guide", "pixel-art", "painting", "edit-document"}}}}}), true),
+         schema({{"topic", QJsonObject{{"type", "string"}, {"enum", QJsonArray{"workflow", "api", "guide", "pixel-art", "painting", "edit-document", "reference-art"}}}}}), true),
     tool("get_state", QCoreApplication::translate("PatchyMcp", "Inspect open documents, stable IDs, layers, selections, and undo availability."), schema(), true),
-    tool("execute_script", QCoreApplication::translate("PatchyMcp", "Run JavaScript in the persistent background workspace. Use patchy.setResult(value) for a JSON result. Globals reset each run; documents persist. Edits form one undo step per document; errors can leave partial edits. Scripts are trusted and can access files."),
+    tool("execute_script", QCoreApplication::translate("PatchyMcp", "Run JavaScript in the persistent workspace. Use patchy.setResult(value) for a JSON result. Globals reset each run; documents persist. Edits form one undo step per document; errors can leave partial edits. Scripts are trusted and can access files."),
          schema({{"code", str}, {"name", str}, {"args", QJsonObject{{"type", "object"}, {"additionalProperties", str}}}}, {"code"}), false),
     tool("draw_strokes", QCoreApplication::translate("PatchyMcp", "Paint a batch through the native Brush or Eraser. Read get_help(api) for stroke fields and pressure behavior. Coordinates are document pixels; the batch is one undo step."),
          schema({{"documentId", str}, {"layerId", str}, {"strokes", QJsonObject{{"type", "array"}, {"minItems", 1}, {"maxItems", 1000}, {"items", QJsonObject{{"type", "object"}}}}}},
                 {"documentId", "layerId", "strokes"}), false),
-    tool("get_preview", QCoreApplication::translate("PatchyMcp", "Return a fresh canvas PNG image and coordinate metadata, or an offscreen app-window capture. No save path or document state changes."),
+    tool("get_preview", QCoreApplication::translate("PatchyMcp", "Return a fresh canvas PNG image and coordinate metadata, or a capture of the connector's own app window. No save path or document state changes."),
          schema({{"documentId", str}, {"target", QJsonObject{{"type", "string"}, {"enum", QJsonArray{"canvas", "window"}}}},
                  {"options", QJsonObject{{"type", "object"}}}}), true),
     tool("undo", QCoreApplication::translate("PatchyMcp", "Undo one edit in the named document."), schema({{"documentId", str}}, {"documentId"}), false),
@@ -198,7 +198,7 @@ class Server final : public QObject {
       reply(id, {{"protocolVersion", requested == "2025-06-18" ? requested : QStringLiteral("2025-11-25")},
         {"capabilities", QJsonObject{{"tools", QJsonObject{}}}},
         {"serverInfo", QJsonObject{{"name", "patchy"}, {"version", app_.applicationVersion()}}},
-        {"instructions", QCoreApplication::translate("PatchyMcp", "Patchy owns an isolated persistent background workspace. Read get_help(workflow) and get_help(api). Use document/layer IDs, batch edits, inspect get_preview, and save checkpoints. JS globals reset between calls. Requests are serialized; failed scripts may leave undoable edits. No desktop window is controlled.")}});
+        {"instructions", QCoreApplication::translate("PatchyMcp", "Patchy owns an isolated persistent workspace, hidden by default or visible with --visible. It never attaches to another Patchy window. Read get_help(workflow) and get_help(api). Use document/layer IDs, batch edits, inspect get_preview, and save checkpoints before disconnecting. JS globals reset between calls. Requests are serialized; failed scripts may leave undoable edits.")}});
       return;
     }
     if (method == "ping") { reply(id, {}); return; }
@@ -236,14 +236,17 @@ class Server final : public QObject {
         if (!args.contains(required.toString())) { throw std::runtime_error(QCoreApplication::translate("PatchyMcp", "Missing tool argument: %1").arg(required.toString()).toStdString()); }
       }
       if (name == "get_info") {
-        complete_tool(id, {{"version", app_.applicationVersion()}, {"apiVersion", 1}, {"mode", "offscreen"},
+        const bool offscreen = QGuiApplication::platformName() == QStringLiteral("offscreen");
+        complete_tool(id, {{"version", app_.applicationVersion()}, {"apiVersion", 1}, {"mode", offscreen ? "offscreen" : "visible"},
+          {"platform", QGuiApplication::platformName()}, {"windowVisible", !offscreen && window_.isVisible()},
           {"skillDirectory", kit_directory()}, {"capabilities", QJsonArray{"persistentDocuments", "javascript", "brush", "eraser", "pressure", "seededDynamics", "pixels", "preview", "undo", "redo"}},
           {"scriptTrust", "applicationPrivileges"}, {"liveWindowAttachment", false}});
       } else if (name == "get_help") {
         const auto topic = args["topic"].toString("workflow");
         const QMap<QString, QString> files{{"workflow", "SKILL.md"}, {"api", "references/patchy.d.ts"},
           {"guide", "references/scripting-guide.md"}, {"pixel-art", "scripts/pixel-art.js"},
-          {"painting", "scripts/painting.js"}, {"edit-document", "scripts/edit-document.js"}};
+          {"painting", "scripts/painting.js"}, {"edit-document", "scripts/edit-document.js"},
+          {"reference-art", "references/reference-art.md"}};
         if (!files.contains(topic) || kit_directory().isEmpty()) { throw std::runtime_error(QCoreApplication::translate("PatchyMcp", "The requested control-kit resource is unavailable.").toStdString()); }
         QFile file(kit_directory() + '/' + files.value(topic));
         if (!file.open(QIODevice::ReadOnly)) { throw std::runtime_error(QCoreApplication::translate("PatchyMcp", "Could not read the control-kit resource.").toStdString()); }
@@ -260,7 +263,7 @@ class Server final : public QObject {
           if (args.contains("options") || args.contains("documentId")) { throw std::runtime_error(QCoreApplication::translate("PatchyMcp", "Window previews do not accept document or canvas options.").toStdString()); }
           QApplication::sendPostedEvents(nullptr, QEvent::LayoutRequest);
           image = window_.grab().toImage();
-          metadata = {{"target", "window"}, {"offscreen", true}, {"width", image.width()}, {"height", image.height()}};
+          metadata = {{"target", "window"}, {"offscreen", QGuiApplication::platformName() == QStringLiteral("offscreen")}, {"width", image.width()}, {"height", image.height()}};
         } else { throw std::runtime_error(QCoreApplication::translate("PatchyMcp", "Unknown preview target.").toStdString()); }
         QByteArray png;
         QBuffer buffer(&png);
@@ -336,7 +339,7 @@ int run_mcp_server(QApplication& app) {
   app.setQuitOnLastWindowClosed(false);
   ui::MainWindow window;
   window.set_cli_automation_mode(true);
-  window.show();  // offscreen layout for text rendering and app-window capture
+  window.show();  // lays out text and previews; --visible also shows the workspace
   if (app.arguments().contains("--check")) {
     auto& host = window.script_engine_host();
     host.set_connector_mode(true);
@@ -360,8 +363,8 @@ int run_mcp_server(QApplication& app) {
     ui::wait_for_tracked_background_workers();
     return ok ? 0 : 2;
   }
-  if (app.arguments().size() > 1) {
-    const auto usage = QCoreApplication::translate("PatchyMcp", "Usage: patchy-mcp [--check]. With no arguments, serve MCP over stdin/stdout.").toUtf8();
+  if (app.arguments().size() > 1 && app.arguments() != QStringList{app.arguments().front(), QStringLiteral("--visible")}) {
+    const auto usage = QCoreApplication::translate("PatchyMcp", "Usage: patchy-mcp [--visible | --check]. Serve MCP over stdin/stdout, hidden by default; --visible opens a separate workspace window.").toUtf8();
     (void)std::fwrite(usage.constData(), 1, static_cast<std::size_t>(usage.size()), stderr);
     (void)std::fputc('\n', stderr);
     return app.arguments().contains("--help") ? 0 : 2;

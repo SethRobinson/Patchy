@@ -4,6 +4,7 @@
 #include "ui/theme_qss.hpp"
 
 #include <QClipboard>
+#include <QCheckBox>
 #include <QDesktopServices>
 #include <QDir>
 #include <QGuiApplication>
@@ -36,6 +37,15 @@ AiSetupDialog::AiSetupDialog(const AiControlPaths& paths, QWidget* parent)
   intro->setWordWrap(true);
   content->addWidget(intro);
 
+  auto* visible = new QCheckBox(tr("Show the AI's work in a separate Patchy window"), this);
+  visible->setObjectName(QStringLiteral("aiSetupVisibleCheckBox"));
+  content->addWidget(visible);
+  auto* mode_hint = new QLabel(
+      tr("Leave unchecked to work hidden and receive previews in chat. You can ask your AI "
+         "to change modes later; it must save its work before reconnecting."), this);
+  mode_hint->setWordWrap(true);
+  content->addWidget(mode_hint);
+
   blurb_ = new QPlainTextEdit(ai_setup_blurb_text(paths_), this);
   blurb_->setObjectName(QStringLiteral("aiSetupBlurbText"));
   blurb_->setReadOnly(true);
@@ -55,6 +65,9 @@ AiSetupDialog::AiSetupDialog(const AiControlPaths& paths, QWidget* parent)
     }
   )"));
   content->addWidget(blurb_, 1);
+  connect(visible, &QCheckBox::toggled, this, [this](bool checked) {
+    blurb_->setPlainText(ai_setup_blurb_text(paths_, checked));
+  });
 
   status_ = new QLabel(this);
   status_->setObjectName(QStringLiteral("aiSetupStatusLabel"));

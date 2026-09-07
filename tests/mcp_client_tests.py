@@ -37,11 +37,13 @@ async def sdk_workflow(exe):
                 return result
 
             info = (await call("get_info")).structuredContent
+            assert info["mode"] == "offscreen" and not info["windowVisible"]
             kit = Path(info["skillDirectory"])
             assert (kit / "SKILL.md").is_file()
             assert (await call("get_state")).structuredContent["documents"] == []
             help_result = (await call("get_help", {"topic": "api"})).structuredContent
             assert "drawStrokes" in help_result["text"]
+            assert (await call("get_help", {"topic": "reference-art"})).structuredContent["text"]
             created = (await call("execute_script", {
                 "code": (kit / "scripts" / "pixel-art.js").read_text(encoding="utf-8"),
                 "args": {"out": str(OUT)},
@@ -94,7 +96,7 @@ async def sdk_workflow(exe):
             reopened = await call("get_preview", {"options": {
                 "nearestNeighbor": True, "maxWidth": 256, "maxHeight": 256}})
             assert base64.b64decode(next(x.data for x in reopened.content if x.type == "image")) == changed_png
-            await call("get_preview", {"target": "window"})
+            assert (await call("get_preview", {"target": "window"})).structuredContent["offscreen"]
             # The view API stages window captures where menu commands are refused.
             zoomed = (await call("execute_script", {"code":
                 "patchy.ui.setWindowSize(1000, 700); patchy.ui.fitOnScreen(); var fit = patchy.ui.zoom;"
@@ -109,6 +111,30 @@ async def sdk_workflow(exe):
                 await call("execute_script", {"code": (kit / "scripts" / (script + ".js")).read_text(encoding="utf-8"), "args": args})
     print("[PASS] MCP SDK: discovery, examples, persistent edits, previews, undo/redo, errors, save/reopen")
     assert not list(SESSION_TEMP.glob("patchy-mcp-*")), "Session settings were not cleaned up"
+
+
+async def visible_options(exe):
+    # Test the flag without opening a desktop window. Report the actual backend.
+    params = StdioServerParameters(command=str(exe), args=["--visible"], cwd=str(OUT),
+                                   env={**TEMP_ENV, "QT_QPA_PLATFORM": "offscreen"})
+    async with stdio_client(params) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            info = await session.call_tool("get_info", {})
+            assert not info.isError
+            assert info.structuredContent["mode"] == "offscreen"
+            assert info.structuredContent["platform"] == "offscreen"
+            assert not info.structuredContent["windowVisible"]
+            assert not info.structuredContent["liveWindowAttachment"]
+            made = await session.call_tool("execute_script", {"code": "app.newDocument(64,64);"})
+            assert not made.isError
+            preview = await session.call_tool("get_preview", {"target": "window"})
+            assert not preview.isError and preview.structuredContent["offscreen"]
+    assert not list(SESSION_TEMP.glob("patchy-mcp-*")), "Session settings were not cleaned up"
+    invalid = subprocess.run([str(exe), "--visible", "--invalid"], capture_output=True,
+                             cwd=OUT, env={**os.environ, **TEMP_ENV}, timeout=30)
+    assert invalid.returncode == 2 and b"Usage:" in invalid.stderr
+    print("[PASS] MCP visible option: protocol, actual-backend metadata, isolation, invalid arguments")
 
 
 def protocol_edges(exe):
@@ -177,4 +203,5 @@ if __name__ == "__main__":
     OUT.mkdir(parents=True, exist_ok=True)
     SESSION_TEMP.mkdir(parents=True, exist_ok=True)
     asyncio.run(sdk_workflow(executable))
+    asyncio.run(visible_options(executable))
     protocol_edges(executable)

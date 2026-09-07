@@ -44,7 +44,7 @@ AiControlPaths resolve_ai_control_paths() {
   return paths;
 }
 
-QString ai_setup_blurb_text(const AiControlPaths& paths) {
+QString ai_setup_blurb_text(const AiControlPaths& paths, bool visible) {
   // One sentence per line and every path on its own line: the dialog wraps long
   // lines itself, and hard breaks inside a sentence would fight that wrapping.
   const auto quoted = [](const QString& path) {
@@ -77,7 +77,7 @@ QString ai_setup_blurb_text(const AiControlPaths& paths) {
   }
   lines << QString() << QStringLiteral("Then:")
         << QStringLiteral("1. Register Patchy's local MCP connector as a stdio server named "
-                          "\"patchy\". It takes no arguments and needs no Python or Node.");
+                          "\"patchy\". It needs no Python or Node.");
   if (paths.flatpak) {
     lines << QStringLiteral("   Command: flatpak run --command=patchy-mcp %1").arg(app_id)
           << QStringLiteral("   (the program is \"flatpak\" with the arguments run "
@@ -88,6 +88,10 @@ QString ai_setup_blurb_text(const AiControlPaths& paths) {
   } else {
     lines << QStringLiteral("   Command: %1").arg(quoted(paths.connector_path));
   }
+  lines << (visible
+                ? QStringLiteral("   Add the argument --visible so I can watch in a separate Patchy window. I authorize control of that workspace.")
+                : QStringLiteral("   Use no connector arguments: work hidden and show previews in this chat."));
+  lines << QStringLiteral("   This workspace is separate from any Patchy window I already have open.");
   lines << QStringLiteral("2. Install the \"patchy-control\" skill by copying this whole folder "
                           "into your skills directory, keeping its name:");
   if (paths.flatpak) {
@@ -100,9 +104,12 @@ QString ai_setup_blurb_text(const AiControlPaths& paths) {
   } else {
     lines << QStringLiteral("   %1").arg(quoted(paths.skill_directory));
   }
-  lines << QStringLiteral("3. Reconnect or restart if you do not see the new server, call the "
-                          "patchy \"get_info\" tool, then create a 64x64 document, draw a small "
-                          "smiley face, and show me the get_preview image.")
+  lines << QStringLiteral("3. Call the patchy \"get_info\" tool, then create a 64x64 document, "
+                          "draw a small smiley face, and show me the get_preview image. Save "
+                          "the drawing as a PSD and PNG and tell me where they are.")
+        << QStringLiteral("   If the new tools are unavailable in this chat, tell me exactly "
+                          "what is configured and how to reconnect or restart. Do not claim "
+                          "the drawing test passed until you have called the tools.")
         << QString()
         << QStringLiteral(
                "If anything above says NOT FOUND, tell me exactly what is missing and stop.");

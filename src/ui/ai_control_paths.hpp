@@ -34,6 +34,6 @@ struct AiControlPaths {
 // itself. Deliberately not translated: its reader is the assistant, and the
 // commands, config keys, and folder names it refers to are English. Missing pieces
 // read "NOT FOUND" so the assistant reports instead of guessing.
-[[nodiscard]] QString ai_setup_blurb_text(const AiControlPaths& paths);
+[[nodiscard]] QString ai_setup_blurb_text(const AiControlPaths& paths, bool visible = false);
 
 }  // namespace patchy::ui

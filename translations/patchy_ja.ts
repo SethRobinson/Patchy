@@ -15244,8 +15244,8 @@ Clipped to the layer below</source>
         <translation>ブラシまたは消しゴムでストロークをまとめて描画します。引数と筆圧の動作はget_help(api)を参照してください。座標はドキュメントのピクセル単位です。全体を1回で元に戻せます。</translation>
     </message>
     <message>
-        <source>Patchy owns an isolated persistent background workspace. Read get_help(workflow) and get_help(api). Use document/layer IDs, batch edits, inspect get_preview, and save checkpoints. JS globals reset between calls. Requests are serialized; failed scripts may leave undoable edits. No desktop window is controlled.</source>
-        <translation>Patchyは独立したバックグラウンド作業領域を保持します。get_help(workflow)とget_help(api)を参照してください。ドキュメントとレイヤーのIDで編集をまとめ、get_previewで確認し、途中経過を保存してください。JSのグローバル変数は呼び出しごとに初期化されます。要求は順に処理されます。スクリプトが失敗しても元に戻せる編集が残る場合があります。デスクトップのウィンドウは操作しません。</translation>
+        <source>Patchy owns an isolated persistent workspace, hidden by default or visible with --visible. It never attaches to another Patchy window. Read get_help(workflow) and get_help(api). Use document/layer IDs, batch edits, inspect get_preview, and save checkpoints before disconnecting. JS globals reset between calls. Requests are serialized; failed scripts may leave undoable edits.</source>
+        <translation>Patchyは独立した作業領域を保持し、通常は非表示、--visible指定時は表示します。他のPatchyウィンドウには接続しません。get_help(workflow)とget_help(api)を参照してください。ドキュメントとレイヤーのIDで編集をまとめ、get_previewで確認し、切断前に途中経過を保存してください。JSのグローバル変数は呼び出しごとに初期化されます。要求は順に処理されます。スクリプトが失敗しても元に戻せる編集が残る場合があります。</translation>
     </message>
     <message>
         <source>Read the scripting API, workflow, or a runnable example. Use before writing scripts.</source>
@@ -15256,12 +15256,12 @@ Clipped to the layer below</source>
         <translation>指定したドキュメントの編集を1回やり直します。</translation>
     </message>
     <message>
-        <source>Return a fresh canvas PNG image and coordinate metadata, or an offscreen app-window capture. No save path or document state changes.</source>
-        <translation>最新のキャンバスPNGと座標情報、または画面外で描画したアプリウィンドウ画像を返します。保存先やドキュメントの状態は変更しません。</translation>
+        <source>Return a fresh canvas PNG image and coordinate metadata, or a capture of the connector's own app window. No save path or document state changes.</source>
+        <translation>最新のキャンバスPNGと座標情報、またはコネクタ自身のアプリウィンドウ画像を返します。保存先やドキュメントの状態は変更しません。</translation>
     </message>
     <message>
-        <source>Run JavaScript in the persistent background workspace. Use patchy.setResult(value) for a JSON result. Globals reset each run; documents persist. Edits form one undo step per document; errors can leave partial edits. Scripts are trusted and can access files.</source>
-        <translation>保持されたバックグラウンド作業領域でJavaScriptを実行します。JSONの結果はpatchy.setResult(value)で指定します。変数は毎回初期化され、ドキュメントは保持されます。編集はドキュメントごとに1回で元に戻せます。エラー時は一部の編集が残る場合があります。スクリプトは信頼済みとしてファイルにアクセスできます。</translation>
+        <source>Run JavaScript in the persistent workspace. Use patchy.setResult(value) for a JSON result. Globals reset each run; documents persist. Edits form one undo step per document; errors can leave partial edits. Scripts are trusted and can access files.</source>
+        <translation>保持された作業領域でJavaScriptを実行します。JSONの結果はpatchy.setResult(value)で指定します。変数は毎回初期化され、ドキュメントは保持されます。編集はドキュメントごとに1回で元に戻せます。エラー時は一部の編集が残る場合があります。スクリプトは信頼済みとしてファイルにアクセスできます。</translation>
     </message>
     <message>
         <source>Script argument values must be strings.</source>
@@ -15304,8 +15304,8 @@ Clipped to the layer below</source>
         <translation>不明なツールです。</translation>
     </message>
     <message>
-        <source>Usage: patchy-mcp [--check]. With no arguments, serve MCP over stdin/stdout.</source>
-        <translation>使用法: patchy-mcp [--check]。引数なしの場合、標準入出力でMCP接続を提供します。</translation>
+        <source>Usage: patchy-mcp [--visible | --check]. Serve MCP over stdin/stdout, hidden by default; --visible opens a separate workspace window.</source>
+        <translation>使用法: patchy-mcp [--visible | --check]。標準入出力でMCP接続を提供し、通常は非表示で動作します。--visibleで独立した作業ウィンドウを表示します。</translation>
     </message>
     <message>
         <source>Window previews do not accept document or canvas options.</source>
@@ -15314,6 +15314,8 @@ Clipped to the layer below</source>
 </context>
 <context>
     <name>patchy::ui::AiSetupDialog</name>
+    <message><source>Show the AI's work in a separate Patchy window</source><translation>AIの作業を別のPatchyウィンドウに表示する</translation></message>
+    <message><source>Leave unchecked to work hidden and receive previews in chat. You can ask your AI to change modes later; it must save its work before reconnecting.</source><translation>チェックを外すと非表示で作業し、チャットでプレビューを確認できます。後でAIにモードの変更を頼めます。再接続する前に作業の保存が必要です。</translation></message>
     <message><source>Set up AI Control</source><translation>AI制御のセットアップ</translation></message>
     <message><source>Copy the text below and paste it into your AI assistant (Claude Code, Codex, Cursor, or another tool that supports MCP). The assistant reads it and sets itself up to control Patchy. The text is in English because it is written for the assistant.</source><translation>下のテキストをコピーして、お使いのAIアシスタント（Claude Code、Codex、Cursor、またはMCPに対応した他のツール）に貼り付けてください。アシスタントがこれを読み、Patchyを操作できるように自分でセットアップします。テキストはアシスタント向けに書かれているため英語です。</translation></message>
     <message><source>Connector: %1</source><translation>コネクタ: %1</translation></message>

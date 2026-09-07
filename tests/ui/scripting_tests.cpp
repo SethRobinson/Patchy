@@ -14,6 +14,7 @@
 #include <QJsonObject>
 #include "ui/canvas_widget.hpp"
 #include "ui/ai_control_paths.hpp"
+#include "ui/ai_setup_dialog.hpp"
 #include "ui/main_window.hpp"
 #include "ui/script_editor_dialog.hpp"
 #include "ui/script_engine.hpp"
@@ -1797,6 +1798,25 @@ void ui_ai_setup_blurb_reports_missing_and_flatpak_forms() {
   CHECK(text.contains(QLatin1Char('"') + QDir::toNativeSeparators(resolved.skill_directory) +
                       QLatin1Char('"')));
   CHECK(!text.contains(QStringLiteral("NOT FOUND (expected")));
+
+  // Switching modes must update the exact clipboard payload and be reversible.
+  patchy::ui::AiSetupDialog dialog(resolved);
+  auto* visible = dialog.findChild<QCheckBox*>(QStringLiteral("aiSetupVisibleCheckBox"));
+  auto* copy = dialog.findChild<QPushButton*>(QStringLiteral("aiSetupCopyButton"));
+  CHECK(visible != nullptr && copy != nullptr);
+  CHECK(!visible->isChecked());
+  CHECK(dialog.blurb_text() == text);
+  visible->setChecked(true);
+  CHECK(dialog.blurb_text() == patchy::ui::ai_setup_blurb_text(resolved, true));
+  CHECK(dialog.blurb_text().contains(QStringLiteral("argument --visible")));
+  copy->click();
+  CHECK(QGuiApplication::clipboard()->text() == dialog.blurb_text());
+  visible->setChecked(false);
+  CHECK(dialog.blurb_text() == text);
+  CHECK(!dialog.blurb_text().contains(QStringLiteral("--visible")));
+  const auto visible_flatpak = patchy::ui::ai_setup_blurb_text(flatpak, true);
+  CHECK(visible_flatpak.contains(QStringLiteral("argument --visible")));
+  CHECK(visible_flatpak.contains(QStringLiteral("flatpak run --command=patchy-mcp com.rtsoft.patchy")));
 }
 
 // patchy.ui.zoom / fitOnScreen: the documented view controls (percent, active
