@@ -45,67 +45,65 @@ AiControlPaths resolve_ai_control_paths() {
 }
 
 QString ai_setup_blurb_text(const AiControlPaths& paths) {
+  // One sentence per line and every path on its own line: the dialog wraps long
+  // lines itself, and hard breaks inside a sentence would fight that wrapping.
   const auto quoted = [](const QString& path) {
     return QLatin1Char('"') + QDir::toNativeSeparators(path) + QLatin1Char('"');
+  };
+  const auto expected = [&quoted](const char* relative) {
+    return quoted(
+        QDir(QCoreApplication::applicationDirPath()).absoluteFilePath(QLatin1String(relative)));
   };
   const auto url = QString::fromLatin1(kAiControlSetupUrl);
   const auto app_id = QString::fromLatin1(kFlatpakAppId);
   const auto flatpak_skill = QString::fromLatin1(kFlatpakSkillDirectory);
 
   QStringList lines;
-  lines << QStringLiteral(
-               "Please set up this AI assistant so it can control Patchy, the image editor")
-        << QStringLiteral(
-               "installed on this computer. Do the setup yourself. Do not change, remove, or")
-        << QStringLiteral("reorder any other MCP servers, skills, or settings.")
+  lines << QStringLiteral("Please set up this AI assistant so it can control Patchy, the image "
+                          "editor installed on this computer. Do the setup yourself. Do not "
+                          "change, remove, or reorder any other MCP servers, skills, or settings.")
         << QString() << QStringLiteral("Read the setup guide first:");
   if (paths.flatpak) {
     lines << QStringLiteral("  Online: %1").arg(url)
-          << QStringLiteral("  (Patchy runs as a Flatpak; the local copy is inside its sandbox at")
-          << QStringLiteral("  %1/references/setup.md)").arg(flatpak_skill);
+          << QStringLiteral("  (Patchy runs as a Flatpak; the local copy is inside its sandbox at "
+                            "%1/references/setup.md)")
+                 .arg(flatpak_skill);
   } else if (paths.setup_document_path.isEmpty()) {
-    lines << QStringLiteral("  Local:  not installed; use the online copy")
+    lines << QStringLiteral("  Local: not installed; use the online copy")
           << QStringLiteral("  Online: %1").arg(url);
   } else {
-    lines << QStringLiteral("  Local:  %1").arg(quoted(paths.setup_document_path))
+    lines << QStringLiteral("  Local: %1").arg(quoted(paths.setup_document_path))
           << QStringLiteral("  Online: %1").arg(url);
   }
   lines << QString() << QStringLiteral("Then:")
-        << QStringLiteral(
-               "1. Register Patchy's local MCP connector as a stdio server named \"patchy\".");
+        << QStringLiteral("1. Register Patchy's local MCP connector as a stdio server named "
+                          "\"patchy\". It takes no arguments and needs no Python or Node.");
   if (paths.flatpak) {
     lines << QStringLiteral("   Command: flatpak run --command=patchy-mcp %1").arg(app_id)
-          << QStringLiteral(
-                 "   (the program is \"flatpak\" with the arguments run --command=patchy-mcp %1;")
-                 .arg(app_id)
-          << QStringLiteral("   no Python or Node needed)");
+          << QStringLiteral("   (the program is \"flatpak\" with the arguments run "
+                            "--command=patchy-mcp %1)")
+                 .arg(app_id);
   } else if (paths.connector_path.isEmpty()) {
-    lines << QStringLiteral("   Command: NOT FOUND (expected %1)")
-                 .arg(quoted(QDir(QCoreApplication::applicationDirPath())
-                                 .absoluteFilePath(QStringLiteral("patchy-mcp"))));
+    lines << QStringLiteral("   Command: NOT FOUND (expected %1)").arg(expected("patchy-mcp"));
   } else {
-    lines << QStringLiteral("   Command (no arguments, no Python or Node needed): %1")
-                 .arg(quoted(paths.connector_path));
+    lines << QStringLiteral("   Command: %1").arg(quoted(paths.connector_path));
   }
-  lines << QStringLiteral(
-      "2. Install the \"patchy-control\" skill by copying this whole folder into your");
+  lines << QStringLiteral("2. Install the \"patchy-control\" skill by copying this whole folder "
+                          "into your skills directory, keeping its name:");
   if (paths.flatpak) {
-    lines << QStringLiteral("   skills directory, keeping its name. It is inside the sandbox at")
-          << QStringLiteral("   %1").arg(flatpak_skill)
-          << QStringLiteral("   Copy it out with: flatpak run --command=cp %1 -R %2 <a folder the")
-                 .arg(app_id, flatpak_skill)
-          << QStringLiteral("   sandbox can see>");
+    lines << QStringLiteral("   %1 (inside the Flatpak sandbox)").arg(flatpak_skill)
+          << QStringLiteral("   Copy it out with: flatpak run --command=cp %1 -R %2 <a folder "
+                            "the sandbox can see>")
+                 .arg(app_id, flatpak_skill);
   } else if (paths.skill_directory.isEmpty()) {
-    lines << QStringLiteral("   skills directory, keeping its name: NOT FOUND (expected %1)")
-                 .arg(quoted(QDir(QCoreApplication::applicationDirPath())
-                                 .absoluteFilePath(QStringLiteral("ai/patchy-control"))));
+    lines << QStringLiteral("   NOT FOUND (expected %1)").arg(expected("ai/patchy-control"));
   } else {
-    lines << QStringLiteral("   skills directory, keeping its name: %1")
-                 .arg(quoted(paths.skill_directory));
+    lines << QStringLiteral("   %1").arg(quoted(paths.skill_directory));
   }
-  lines << QStringLiteral("3. Reconnect or restart if you do not see the new server, call the patchy")
-        << QStringLiteral("   \"get_info\" tool, then create a 64x64 document, draw a small smiley face,")
-        << QStringLiteral("   and show me the get_preview image.") << QString()
+  lines << QStringLiteral("3. Reconnect or restart if you do not see the new server, call the "
+                          "patchy \"get_info\" tool, then create a 64x64 document, draw a small "
+                          "smiley face, and show me the get_preview image.")
+        << QString()
         << QStringLiteral(
                "If anything above says NOT FOUND, tell me exactly what is missing and stop.");
   return lines.join(QLatin1Char('\n'));

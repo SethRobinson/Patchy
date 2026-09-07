@@ -6,7 +6,6 @@
 #include <QClipboard>
 #include <QDesktopServices>
 #include <QDir>
-#include <QFontDatabase>
 #include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -40,7 +39,9 @@ AiSetupDialog::AiSetupDialog(const AiControlPaths& paths, QWidget* parent)
   blurb_ = new QPlainTextEdit(ai_setup_blurb_text(paths_), this);
   blurb_->setObjectName(QStringLiteral("aiSetupBlurbText"));
   blurb_->setReadOnly(true);
-  blurb_->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
+  // Prose for a person to skim before pasting, so the dialog font a step larger
+  // rather than the small monospace face used for command lines.
+  blurb_->setFont(scaled_font(font(), 1.2));
   blurb_->setLineWrapMode(QPlainTextEdit::WidgetWidth);
   // The global sheet themes QTextEdit but not QPlainTextEdit; give it the same
   // field roles so it does not paint the platform's white box on the dark chrome.

@@ -1771,7 +1771,7 @@ void ui_ai_setup_blurb_reports_missing_and_flatpak_forms() {
 
   const auto missing = patchy::ui::ai_setup_blurb_text(patchy::ui::AiControlPaths{});
   CHECK(missing.contains(QStringLiteral("Command: NOT FOUND (expected")));
-  CHECK(missing.contains(QStringLiteral("keeping its name: NOT FOUND (expected")));
+  CHECK(missing.contains(QStringLiteral("   NOT FOUND (expected")));
   CHECK(missing.contains(QStringLiteral("not installed; use the online copy")));
   CHECK(missing.contains(url));
   CHECK(!missing.contains(QChar(0x2014)));
