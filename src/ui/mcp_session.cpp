@@ -298,7 +298,7 @@ struct McpSession::Impl final : public QObject {
         complete_tool(id, {{"version", app_.applicationVersion()}, {"apiVersion", 1}, {"mode", offscreen ? "offscreen" : "visible"},
           {"platform", QGuiApplication::platformName()}, {"windowVisible", !offscreen && window_.isVisible()},
           {"skillDirectory", kit_directory()}, {"capabilities", QJsonArray{"persistentDocuments", "javascript", "brush", "eraser", "pressure", "seededDynamics", "pixels", "preview", "undo", "redo", "vectorShapes", "vectorPaths", "vectorMasks", "vectorPaints",
-            "brushTips", "brushPresets", "brushDynamics", "wetEdges", "mixerBrush", "penPose", "strokeSmoothing", "timedAirbrush", "brushLibraryWrites", "slowMode"}},
+            "brushTips", "brushPresets", "brushDynamics", "wetEdges", "mixerBrush", "penPose", "strokeSmoothing", "timedAirbrush", "brushLibraryWrites", "slowMode", "pauseAutomation"}},
           {"scriptTrust", "applicationPrivileges"}, {"liveWindowAttachment", attached_},
           {"workspace", attached_ ? "attached" : "isolated"}, {"requiresExpectedState", attached_},
           {"processId", QString::number(QCoreApplication::applicationPid())}});

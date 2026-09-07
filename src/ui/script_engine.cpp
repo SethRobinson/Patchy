@@ -378,6 +378,7 @@ void ScriptEngineHost::stop_active_run() {
     return;
   }
   run_->stop_requested = true;
+  set_paused(false);
   run_->had_error = run_->had_error || connector_mode_;
   if (run_->sync_running || run_->in_callback) {
     // Script code is executing (or a wrapper opened a nested event loop from
@@ -396,7 +397,7 @@ bool ScriptEngineHost::call_script_callback(QJSValue callback, const QJSValueLis
   if (run_ == nullptr || run_->finishing || engine_ == nullptr || !callback.isCallable()) {
     return false;
   }
-  if (run_->sync_running || run_->in_callback) {
+  if (run_->sync_running || run_->in_callback || run_->paused) {
     // The engine is not reentrant: a timer or input event dispatched from a
     // mid-script pump must not call back into JS while evaluate() or another
     // callback is still on the stack (the script-timer handler carries the
@@ -471,6 +472,7 @@ void ScriptEngineHost::finish_run() {
     return;
   }
   run_->finishing = true;
+  set_paused(false);
   last_run_had_error_ = run_->had_error;
   if (stop_confirm_ != nullptr) {
     stop_confirm_->close();  // the question is moot once the run ends
@@ -604,10 +606,12 @@ void ScriptEngineHost::pump_progress_indicator() {
   if (connector_mode_ && connector_progress_callback_) {
     refresh_script_view();
     connector_progress_callback_();
+    wait_while_paused();
     return;
   }
   if (script_activity_ && script_activity_->working()) {
     if (refresh_script_view()) { QApplication::processEvents(QEventLoop::AllEvents, 8); }
+    wait_while_paused();
     return;
   }
   if (unattended_run() || !run_->burst_clock.isValid()) {
@@ -664,6 +668,7 @@ void ScriptEngineHost::pump_progress_indicator() {
 #ifndef Q_OS_WASM
   QApplication::processEvents(QEventLoop::AllEvents, 16);
 #endif
+  wait_while_paused();
 }
 
 void ScriptEngineHost::end_progress_indicator() {
@@ -744,9 +749,20 @@ int ScriptEngineHost::scriptSetTimer(const QJSValue& callback, int interval_ms, 
   timer->setSingleShot(!repeat);
   QElapsedTimer elapsed;
   elapsed.start();
-  connect(timer, &QTimer::timeout, this, [this, id, repeat, callback, elapsed]() mutable {
+  connect(timer, &QTimer::timeout, this, [this, id, repeat, callback, elapsed, interval_ms]() mutable {
     if (run_ == nullptr || run_->finishing) {
       return;
+    }
+    if (run_->paused) {
+      // Do not execute JS or spin a zero-interval timer while playback is paused.
+      const auto found = run_->timers.find(id);
+      if (found != run_->timers.end()) { found->second->start(std::max(25, interval_ms)); }
+      elapsed.restart();
+      return;
+    }
+    if (const auto found = run_->timers.find(id); found != run_->timers.end() &&
+        found->second->interval() != std::max(0, interval_ms)) {
+      found->second->setInterval(std::max(0, interval_ms));
     }
     if (run_->sync_running || run_->in_callback) {
       // Script code is already executing (the busy-indicator pump processes
@@ -1119,6 +1135,35 @@ bool ScriptEngineHost::slow_mode_available() const {
 }
 
 bool ScriptEngineHost::slow_mode() const { return slow_mode_ && slow_mode_available(); }
+
+bool ScriptEngineHost::paused() const { return run_ && run_->paused; }
+
+void ScriptEngineHost::set_paused(bool paused) {
+  if (paused && (!run_ || !slow_mode_available() ||
+                 (!connector_mode_ && !(script_activity_ && script_activity_->working())))) {
+    throw_js_error(tr("Pausing requires visible MCP or command-line automation."));
+    return;
+  }
+  if (!run_ || run_->paused == paused) { return; }
+  run_->paused = paused;
+  emit paused_changed(paused);
+}
+
+void ScriptEngineHost::wait_while_paused() {
+  if (!paused() || waiting_for_resume_) { return; }
+  const QScopedValueRollback<bool> guard(waiting_for_resume_, true);
+  refresh_script_view(true);
+  while (paused() && !run_->stop_requested && engine_ && !engine_->isInterrupted()) {
+    // Yield the CPU, keep the window/navigation controls alive, and treat a
+    // deliberate pause as activity. Existing sync/callback gates protect JS.
+    if (watchdog_) { watchdog_->feed(); }
+    QEventLoop pause;
+    connect(this, &ScriptEngineHost::paused_changed, &pause, &QEventLoop::quit);
+    QTimer::singleShot(20, &pause, &QEventLoop::quit);
+    pause.exec(QEventLoop::AllEvents);
+  }
+  if (watchdog_) { watchdog_->feed(); }
+}
 
 void ScriptEngineHost::set_slow_mode(bool enabled) {
   if (enabled && !slow_mode_available()) {

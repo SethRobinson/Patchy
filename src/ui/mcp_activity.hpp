@@ -1,11 +1,13 @@
 #pragma once
 #include <QWidget>
+#include <QPointer>
 #include <functional>
 
 class QLabel;
 class QPushButton;
 namespace patchy::ui {
 class MainWindow;
+class CanvasWidget;
 
 // A permanent status-bar readout, also guarding manual input during a request.
 // This never locks programmatic document operations or changes the active tab.
@@ -26,13 +28,16 @@ class McpActivity final : public QWidget {
   MainWindow& window_;
   QLabel* label_;
   QPushButton* stop_;
+  QPushButton* pause_;
   QPushButton* slow_;
+  QPointer<CanvasWidget> panning_canvas_;
+  Qt::MouseButton pan_button_{Qt::NoButton};
+  bool space_down_{false};
   QString client_;
   QString operation_;
   bool connected_{false};
   bool working_{false};
   bool editing_{false};
-  bool menu_was_enabled_{true};
   bool script_{false};
 };
 }  // namespace patchy::ui

@@ -3256,6 +3256,13 @@ void CanvasWidget::cancel_pointer_gestures() {
 }
 
 void CanvasWidget::focusOutEvent(QFocusEvent* event) {
+  // View navigation and window movement can transfer focus during an automated
+  // stroke. Its caller owns the stroke lifetime and restores its tool state;
+  // the manual focus-loss cleanup would discard its spacing/pickup/coverage.
+  if (script_brush_progress_) {
+    QWidget::focusOutEvent(event);
+    return;
+  }
   const auto was_painting = painting_;
   const auto was_drawing_smart_filter_mask_shape =
       drawing_shape_ && layer_edit_target_ == LayerEditTarget::SmartFilterMask;

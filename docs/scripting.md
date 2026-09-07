@@ -188,6 +188,9 @@ everywhere a bundled script is resolved.
   Visible MCP/CLI runs also present completed edits periodically. `patchy.ui.present`
   provides explicit frames and optional pacing. CLI runs have a status-bar Stop
   control despite being unattended. See [automation-feedback.md](automation-feedback.md).
+  Visible MCP/CLI automation also exposes `patchy.ui.paused`, sharing Pause/Resume
+  without changing history or simulated paint time. Window movement, zoom and pan
+  remain usable under its edit guard.
 - **The watchdog measures INACTIVITY, never total runtime.** Legitimate scripts run for
   hours (contact sheets, batch converts); a blanket runtime limit is wrong by design.
   A helper thread arms around every evaluate and callback, and every hot service call
@@ -399,14 +402,11 @@ pipe is per-user, so `--run-script` adds no cross-user surface.
   `contact-sheet.js`, and `data-merge.js` take their folders/files via `--script-arg`
   and cancel cleanly without them).
 
-## Future work (ranked by community research, July 2026)
+## Future work
 
-Not built yet, in demand order: events/hooks (document changed, before/after
-save/command; needs a reentrancy design against the one-run-at-a-time rule), per-script
-keyboard shortcuts (stable HotkeyRegistry ids keyed off the script's relative path),
-persistent per-script storage, more native stroke tools and brush settings,
-macro-record-to-script, non-blocking long batches, a script packaging format, and an
-editor REPL mode.
+Not built: document/save/command hooks with a reentrancy design, per-script hotkeys
+with stable path-based IDs, persistent script storage, macro recording, non-blocking
+batches, script packaging, and an editor REPL.
 
 Anti-goals: never freeze or fork the API surface, no undocumented escape hatches as the
 real API (test-driven additions go through the documented API too, per the AGENTS.md

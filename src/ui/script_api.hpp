@@ -326,6 +326,9 @@ public:
   Q_PROPERTY(bool slowMode READ slow_mode WRITE set_slow_mode)
   [[nodiscard]] bool slow_mode() const;
   void set_slow_mode(bool enabled);
+  Q_PROPERTY(bool paused READ paused WRITE set_paused)
+  [[nodiscard]] bool paused() const;
+  void set_paused(bool paused);
 
 private:
   ScriptEngineHost& host_;

@@ -5,6 +5,7 @@
 
 #include "ui/main_window.hpp"
 #include "ui/main_window_shared.hpp"
+#include "ui/script_engine.hpp"
 
 #include "core/blend_math.hpp"
 #include "core/layer_metadata.hpp"
@@ -2797,7 +2798,22 @@ void MainWindow::refresh_layer_list() {
   QSignalBlocker blocker(layer_list_);
   layer_list_->setUpdatesEnabled(false);
   const auto clear_started = std::chrono::steady_clock::now();
+  // QListWidget retires index widgets with deleteLater(). A long automation
+  // evaluate() stays inside one outer event delivery, so ordinary nested pumps
+  // can retain every previous generation until the script returns. Retire only
+  // these detached rows now, while automation's input guard excludes row input;
+  // never flush unrelated deferred deletions or change manual click lifetimes.
+  std::vector<QPointer<QWidget>> retired_rows;
+  if (script_engine_host_ && script_engine_host_->run_active() && unattended_automation()) {
+    retired_rows.reserve(static_cast<std::size_t>(layer_list_->count()));
+    for (int row = 0; row < layer_list_->count(); ++row) {
+      retired_rows.emplace_back(layer_list_->itemWidget(layer_list_->item(row)));
+    }
+  }
   layer_list_->clear();
+  for (const auto& row : retired_rows) {
+    if (row) { QCoreApplication::sendPostedEvents(row.data(), QEvent::DeferredDelete); }
+  }
   const auto clear_ms = phase_ms(clear_started);
   if (!has_active_document()) {
     layer_list_->setUpdatesEnabled(true);

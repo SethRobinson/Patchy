@@ -1410,6 +1410,8 @@ void ScriptUiObject::set_zoom(double percent) {
 void ScriptUiObject::fitOnScreen() { host_.fit_view_on_screen(); }
 bool ScriptUiObject::slow_mode() const { return host_.slow_mode(); }
 void ScriptUiObject::set_slow_mode(bool enabled) { host_.set_slow_mode(enabled); }
+bool ScriptUiObject::paused() const { return host_.paused(); }
+void ScriptUiObject::set_paused(bool paused) { host_.set_paused(paused); }
 
 void ScriptUiObject::present(const QJSValue& delayMs) {
   const double delay = delayMs.isUndefined() ? 0 : delayMs.toNumber();

@@ -1,5 +1,12 @@
 # Scripting API compatibility
 
+2026-09-07 (additive, API 1): `patchy.ui.paused` shares Pause/Resume for visible
+MCP and CLI automation. It waits at native progress checkpoints, preserves Undo
+grouping and simulated painting time, and clears on completion or cancellation.
+The window, zoom and pan remain usable during normal, Slow and paused automation.
+MCP advertises `pauseAutomation` and returns `paused` in state. The active request
+remains busy; use the window's Resume button to continue it.
+
 2026-09-07 (additive, API 1): `patchy.ui.slowMode` mirrors the Slow toggle beside
 Stop. It presents each completed stroke/edit and gives it a separate Undo step,
 within existing history limits. Defaults off; normal scripts retain grouped Undo.

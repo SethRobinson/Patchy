@@ -14,6 +14,8 @@ In document-mapped mode (the zoom preference below turned off), layer-panel prev
 
 Layer-list rebuilds must keep `refresh_layer_list`'s three-pass order (configure parentless items, insert all items, then attach row widgets); interleaving inserts with item mutation or widget attachment is quadratic in row count. Details and the measured numbers live in [performance.md](performance.md).
 
+During a guarded unattended script, a rebuild captures old row widgets before clearing the list, then delivers their deferred deletion explicitly after detachment. This bounds retired rows while JavaScript stays inside one outer event delivery. Only those detached rows are flushed; manual row-event lifetimes and unrelated deferred deletions stay unchanged. `ui_mcp_layer_rows_stay_bounded_during_long_script` pins the live-widget bound during execution.
+
 The layer list may omit rows entirely: collapsed folders and the Layers panel name filter (`layerNameFilterEdit`) both rebuild without rows for excluded layers. Never assume every document layer has a row, and never introduce a "row exists but hidden" state; absent rows are the single not-shown state all consumers are hardened for. While the name filter is active, `LayerListWidget::set_drag_blocked` refuses drag reordering because a reorder would silently move filtered-out layers; each refused attempt reports through `show_status_error` and leftover held-button moves are swallowed so the base view cannot start a drag-selection sweep.
 
 ## Click selection

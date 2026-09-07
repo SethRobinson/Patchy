@@ -634,6 +634,14 @@ interface PatchyUi {
    * Existing history limits apply. Turning it off groups subsequent edits again.
    */
   slowMode: boolean;
+  /** Same as Pause/Resume in visible MCP or command-line automation. Pauses at
+   * the next native progress checkpoint; Resume continues the same script.
+   * The window, zoom and pan remain usable. Stop also works while paused.
+   * Resets on completion/cancellation, adds no Undo step, and does not advance
+   * simulated paint time. Hidden runs and interactive scripts reject true.
+   * A paused MCP request stays busy; resume with the window's button.
+   */
+  paused: boolean;
 }
 
 interface PatchyIo {

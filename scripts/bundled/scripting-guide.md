@@ -21,6 +21,8 @@ There are four ways to run a script:
 
 A script run normally creates **one undo entry per document**. Enable **Slow** beside Stop to watch each native stroke or undoable edit with a short pause and a separate Undo step. You can toggle it during work. The existing history limits still apply. `patchy.ui.slowMode` reads or changes the same workspace setting; it defaults off and stays selected between requests until you close Patchy. Headless runs reject Slow mode and keep normal speed and grouped Undo. Slow mode does not change timed airbrush or smoothing output.
 
+**Pause/Resume** beside Stop holds visible MCP or command-line automation at its next native progress checkpoint. The window can still be moved or resized, and you can use the zoom percentage box, the canvas wheel, scrollbars, or middle/right-drag and Space-drag panning during normal, Slow, or paused playback. Editing controls stay guarded. Stop remains available while paused. Pause does not add history or advance simulated brush time; a native operation already in progress finishes its current checkpoint first. `patchy.ui.paused` shares the button state and resets when the run finishes. Hidden work and ordinary interactive scripts reject enabling it. A paused MCP request is still busy, so resume using the window button.
+
 ## Your first script
 
 Open the Script Manager, paste this into the editor, and press F5 with a document open (the **New** button, also offered when you right-click a folder like My Scripts, starts you with a similar ready-to-run template):

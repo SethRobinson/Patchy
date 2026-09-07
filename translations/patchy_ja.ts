@@ -15008,6 +15008,7 @@ Clipped to the layer below</source>
     <message><source>Script: %1</source><translation>スクリプト: %1</translation></message>
     <message><source>Script: %1 (step %2)</source><translation>スクリプト: %1（ステップ %2）</translation></message>
     <message><source>Slow mode requires a visible Patchy workspace.</source><translation>「ゆっくり」モードには、表示されているPatchyの作業領域が必要です。</translation></message>
+    <message><source>Pausing requires visible MCP or command-line automation.</source><translation>一時停止には、ウィンドウを表示したMCPまたはコマンドラインの自動操作が必要です。</translation></message>
     <message><source>Script</source><translation>スクリプト</translation></message>
     <message><source>[alert] %1</source><translation>[alert] %1</translation></message>
     <message><source>The document is no longer open.</source><translation>ドキュメントは既に閉じられています。</translation></message>
@@ -15403,6 +15404,12 @@ Clipped to the layer below</source>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
+    <message><source>Pause</source><translation>一時停止</translation></message>
+    <message><source>Resume</source><translation>再開</translation></message>
+    <message><source>AI paused: %1</source><translation>AI一時停止中: %1</translation></message>
+    <message><source>Script paused: %1</source><translation>スクリプト一時停止中: %1</translation></message>
+    <message><source>Continue this operation from where it paused.</source><translation>一時停止した位置から処理を再開します。</translation></message>
+    <message><source>Pause automation at its next checkpoint. You can still move the window, zoom, and pan.</source><translation>次のチェックポイントで自動操作を一時停止します。ウィンドウの移動、ズーム、表示位置の移動は引き続き行えます。</translation></message>
     <message><source>Slow</source><translation>ゆっくり</translation></message>
     <message><source>Show each stroke or edit with a short pause and a separate Undo step. You can change this while work is running. History limits still apply.</source><translation>ストロークや編集ごとに短く待機して表示し、個別に元に戻せるようにします。処理中でも切り替えられます。履歴の保持上限は適用されます。</translation></message>
     <message><source>Running script: %1</source><translation>スクリプト実行中: %1</translation></message>

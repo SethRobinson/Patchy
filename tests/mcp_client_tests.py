@@ -57,6 +57,8 @@ async def sdk_workflow(exe):
             assert (installed / "SKILL.md").read_bytes() == bootstrap
             assert (await call("get_state")).structuredContent["documents"] == []
             assert "slowMode" in info["capabilities"]
+            assert "pauseAutomation" in info["capabilities"]
+            assert not (await call("get_state")).structuredContent["paused"]
             assert not (await call("get_state")).structuredContent["slowMode"]
             assert not (await call("get_state")).structuredContent["slowModeAvailable"]
             slow_doc = (await call("execute_script", {"code":
@@ -68,6 +70,8 @@ async def sdk_workflow(exe):
             blank = await slow_preview()
             before_slow = (await call("get_state")).structuredContent
             await call("execute_script", {"code": "patchy.ui.slowMode=true;"}, error=True)
+            assert (await call("get_state")).structuredContent == before_slow
+            await call("execute_script", {"code": "patchy.ui.paused=true;"}, error=True)
             assert (await call("get_state")).structuredContent == before_slow
             await call("draw_strokes", {**slow_doc, "strokes": [
                 {"size": 12, "color": "#883322", "points": [{"x": 8, "y": 8}]},
@@ -419,14 +423,16 @@ def protocol_edges(exe):
         assert take(4)["result"]["structuredContent"]["result"] == 42
         # Cancel inside simulated native painting, not just inside JavaScript.
         send("tools/call", {"name": "execute_script", "arguments": {"code":
-            "var l=app.activeDocument.addLayer('Cancelled airbrush');"
-            "l.drawStrokes([{size:64,flow:10,airbrush:true,points:["
-            "{x:4,y:4,timeMs:0},{x:4,y:4,timeMs:3600000}]}]);"}}, 15)
+            "app.newDocument(256,256).addLayer('Cancelled airbrush');"}}, 14)
+        assert not take(14)["result"]["isError"]
+        send("tools/call", {"name": "execute_script", "arguments": {"code":
+            "app.activeDocument.activeLayer.drawStrokes([{size:256,flow:10,airbrush:true,points:["
+            "{x:128,y:128,timeMs:0},{x:128,y:128,timeMs:3600000}]}]);"}}, 15)
         time.sleep(0.2)
         send("notifications/cancelled", {"requestId": 15, "reason": "native stroke stop"})
         paint_cancelled = take(15)["result"]
-        assert paint_cancelled["isError"] and paint_cancelled["structuredContent"]["status"] == "cancelled"
-        assert paint_cancelled["structuredContent"]["state"]["documents"][0]["canUndo"]
+        assert paint_cancelled["isError"] and paint_cancelled["structuredContent"]["status"] == "cancelled", paint_cancelled
+        assert paint_cancelled["structuredContent"]["state"]["documents"][-1]["canUndo"]
         assert paint_cancelled["structuredContent"]["state"]["currentBrush"] == cancelled["structuredContent"]["state"]["currentBrush"]
         send("tools/call", {"name": "execute_script", "arguments": {"code": "patchy.setResult(43);"}}, 16)
         assert take(16)["result"]["structuredContent"]["result"] == 43

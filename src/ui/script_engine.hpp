@@ -297,6 +297,9 @@ public:
   [[nodiscard]] bool slow_mode_available() const;
   void set_slow_mode(bool enabled);
   Q_SIGNAL void slow_mode_changed(bool enabled);
+  [[nodiscard]] bool paused() const;
+  void set_paused(bool paused);
+  Q_SIGNAL void paused_changed(bool paused);
   bool resize_session_image(std::int64_t session_id, int width, int height);
   // The activeLayer setter's reveal: expand collapsed ancestor folders and
   // (when the session is the active one) select + scroll the row into view.
@@ -338,6 +341,8 @@ private:
   QPointer<McpActivity> script_activity_;
   bool presenting_view_{false};
   bool slow_mode_{false};
+  bool waiting_for_resume_{false};
+  void wait_while_paused();
   void complete_mutation(std::int64_t session_id);
   bool refresh_script_view(bool force = false);
   std::function<void()> connector_progress_callback_;
@@ -364,6 +369,7 @@ private:
     // arriving then are deferred.
     bool in_callback{false};
     bool stop_requested{false};
+    bool paused{false};
     bool finishing{false};
     bool had_error{false};
     // CLI-originated run (RunOptions.unattended).

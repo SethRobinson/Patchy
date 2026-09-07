@@ -19,6 +19,8 @@ Legacy sizeJitter/scatter remain aliases; conflicting nested values fail. All
 resources in a batch resolve before painting and are held by shared ownership.
 Temporary settings never modify a tip sidecar. Artist tool, colors, pen mapping,
 tip, dynamics, smoothing and stroke state restore even after interruption.
+Focus loss during a native script stroke skips manual gesture cleanup: zoom-field
+focus or switching windows must not reset its coverage, spacing, or Mixer pickup.
 
 Brush dynamics follow the engine's existing JSON vocabulary. Sidecar parsing
 remains tolerant for compatibility; API validation is strict before conversion.

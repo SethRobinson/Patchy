@@ -135,6 +135,7 @@ QJsonObject ScriptEngineHost::automation_state() const {
   }
   return {{"activeDocumentId", active_session_id() ? QJsonValue(QString::number(active_session_id())) : QJsonValue(QJsonValue::Null)},
           {"documents", documents}, {"slowMode", slow_mode()}, {"slowModeAvailable", slow_mode_available()},
+          {"paused", paused()},
           {"brushLibraryRevision", brushes.revision()},
           {"currentBrush", window_.canvas_ ? QJsonValue(QJsonObject{
             {"tool", window_.canvas_->tool() == CanvasTool::MixerBrush ? "mixer" : window_.canvas_->tool() == CanvasTool::Eraser ? "eraser" : "brush"},

@@ -1,5 +1,20 @@
 # Automation feedback and image resize
 
+Pause/Resume beside Stop suspends visible MCP/CLI automation at its next progress
+checkpoint. `patchy.ui.paused` shares the control and resets at run end. A nested
+event loop yields CPU and services the guarded UI while feeding the inactivity
+watchdog. Script callbacks remain deferred; native simulated paint time does not
+advance. Stop, cancellation and disconnect leave the pause cleanly. Hidden runs
+and ordinary interactive scripts reject enabling it. The active MCP request stays
+busy; Resume is a window control, not a second concurrent script request.
+
+The activity input guard permits window chrome, the zoom percentage editor,
+canvas wheel/pinch navigation, canvas scrollbars, and middle/right/Space-drag pan.
+Pan calls the view helpers directly so it cannot enter a painting tool's mouse
+handlers. Document tabs and editing controls remain guarded. The menu bar stays
+enabled because it also contains custom title-bar dragging and window buttons;
+menu command input is filtered separately. This applies in normal, Slow and Pause.
+
 Visible MCP and unattended CLI runs publish completed edits at most every 50 ms.
 `ScriptEngineHost::refresh_script_view` flushes document dirt before repainting,
 including structure and vector panels. Pixel/structure notifications enqueue their
@@ -41,7 +56,13 @@ MCP keeps its Stop button visible while connected, disabled outside a mutating
 request. Idle means waiting for the next request; stopping the assistant between
 requests belongs to the client's own Stop control. Long labels have bounded width
 so they cannot crowd Stop and Slow out of a narrow status bar. Both controls are
-inside the input guard's allowed widget subtree.
+inside the input guard's allowed widget subtree, along with Pause/Resume.
+
+Layer-panel rebuilds during guarded automation promptly deliver deferred deletion
+only to their detached old row widgets. A long JavaScript evaluation otherwise
+retains every retired generation until it returns to its outer event loop, causing
+memory and repaint costs to climb with each edit. Manual row-click lifetimes and
+unrelated deferred objects retain their normal Qt delivery order.
 
 Visible unattended scripts use a separate `McpActivity` instance in script mode,
 with `scriptActivity` and `scriptStopButton` identifiers. Its input guard and Stop
