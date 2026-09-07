@@ -15148,6 +15148,8 @@ Clipped to the layer below</source>
     <message><source>Mixer Brush</source><translation>ミキサーブラシ</translation></message>
     <message><source>%1: stroke %2 of %3</source><translation>%1: ストローク %2 / %3</translation></message>
     <message><source>Brush</source><translation>ブラシ</translation></message>
+    <message><source>Finish the current manual edit before resuming automation.</source><translation>現在の手動編集を完了してから自動操作を再開してください。</translation></message>
+    <message><source>The stroke target changed while paused. Inspect the document before continuing.</source><translation>一時停止中にストロークの対象が変更されました。続行する前にドキュメントを確認してください。</translation></message>
 </context>
 <context>
     <name>patchy::ui::ScriptEditorDialog</name>
@@ -15421,6 +15423,16 @@ Clipped to the layer below</source>
     <message><source>%1 is using this workspace. Editing resumes when the request finishes. Stop keeps changes available for Undo.</source><translation>%1がこの作業領域を使用しています。要求の処理が終わると編集を再開できます。停止しても変更は残り、「元に戻す」で取り消せます。</translation></message>
     <message><source>Connected to %1 through MCP. Waiting for a Patchy request; the assistant may still be thinking.</source><translation>MCPで%1に接続しています。Patchyへの要求を待っています。アシスタントはまだ考え中の場合があります。</translation></message>
     <message><source>Stop</source><translation>停止</translation></message>
+    <message><source>AI pausing: %1</source><translation>AI一時停止準備中: %1</translation></message>
+    <message><source>Script pausing: %1</source><translation>スクリプト一時停止準備中: %1</translation></message>
+    <message><source>Pausing...</source><translation>一時停止準備中...</translation></message>
+    <message><source>%1 is using this workspace. You can browse while it works. Pause to edit; Stop keeps completed changes available for Undo.</source><translation>%1がこの作業領域を使用しています。処理中も閲覧できます。編集するには一時停止してください。停止しても完了済みの変更は「元に戻す」で取り消せます。</translation></message>
+    <message><source>Continue automation using the edited workspace. Missing or incompatible targets stop with an error.</source><translation>編集後の作業領域で自動操作を再開します。対象が削除されたか対応できない状態の場合は、エラーで停止します。</translation></message>
+    <message><source>Pause after the current edit so you can draw, move layers, or change the document.</source><translation>現在の編集が完了してから一時停止し、描画やレイヤーの移動、ドキュメントの変更を可能にします。</translation></message>
+    <message><source>Stop automation before closing Patchy.</source><translation>Patchyを閉じる前に自動操作を停止してください。</translation></message>
+    <message><source>Finishing the current edit. Manual editing is available when Resume appears.</source><translation>現在の編集を完了しています。「再開」が表示されると手動で編集できます。</translation></message>
+    <message><source>Pause automation to change the document or its editing controls. Browsing and scrolling are available while it works.</source><translation>ドキュメントや編集設定を変更するには自動操作を一時停止してください。処理中も閲覧やスクロールは可能です。</translation></message>
+    <message><source>Close Preferences and pause automation before applying settings.</source><translation>設定を適用するには、環境設定を閉じて自動操作を一時停止してください。</translation></message>
 </context>
 
 

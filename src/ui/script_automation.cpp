@@ -165,14 +165,18 @@ QString ScriptEngineHost::automation_fingerprint() const {
 }
 
 bool ScriptEngineHost::automation_ready() const {
-  if (run_active() || window_.preview_dialog_edit_locked() || QApplication::activeModalWidget()) { return false; }
+  return !run_active() && !QApplication::activeModalWidget() && !manual_edit_in_progress();
+}
+
+bool ScriptEngineHost::manual_edit_in_progress() const {
+  if (window_.preview_dialog_edit_locked()) { return true; }
   for (const auto& session : window_.sessions_) {
     const auto* canvas = session->canvas;
     if (canvas && (canvas->pointer_gesture_active() || canvas->free_transform_active() ||
                    canvas->warp_transform_active() || canvas->path_transform_active() || canvas->crop_session_active() ||
-                   canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")))) { return false; }
+                   canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")))) { return true; }
   }
-  return true;
+  return false;
 }
 
 QImage ScriptEngineHost::render_preview(std::int64_t id, const QJsonObject& options, QJsonObject* metadata) {
@@ -235,20 +239,28 @@ QImage ScriptEngineHost::render_preview(std::int64_t id, const QJsonObject& opti
 void ScriptEngineHost::draw_strokes(std::int64_t session_id, LayerId layer_id, const QJSValue& input) {
   try {
     const auto strokes = parse_brush_strokes(input);
-    auto* session = window_.session_with_id(session_id);
-    const auto* doc = session_document_const(session_id);
-    const auto* layer = doc ? doc->find_layer(layer_id) : nullptr;
-    if (!session || !layer || layer->kind() == LayerKind::Group ||
-        layer_effectively_locks_image_pixels(doc->layers(), layer_id) || layer_is_text(*layer) ||
-        layer_is_smart_object(*layer) || layer_is_vector_shape(*layer) ||
-        layer->pixels().format().bit_depth != BitDepth::UInt8 || layer->pixels().format().channels < 3) {
+    const auto valid_target = [&] {
+      const auto* doc = session_document_const(session_id);
+      const auto* layer = doc ? doc->find_layer(layer_id) : nullptr;
+      return layer && layer->kind() != LayerKind::Group &&
+        !layer_effectively_locks_image_pixels(doc->layers(), layer_id) && !layer_is_text(*layer) &&
+        !layer_is_smart_object(*layer) && !layer_is_vector_shape(*layer) &&
+        layer->pixels().format().bit_depth == BitDepth::UInt8 && layer->pixels().format().channels >= 3;
+    };
+    if (!valid_target()) {
       throw_js_error(tr("Strokes require an unlocked 8-bit pixel layer."));
       return;
     }
-    const auto previous = doc->active_layer_id();
     std::size_t stroke_index = 0;
     for (const auto& stroke : strokes) {
       if (engine_ && engine_->isInterrupted()) { break; }
+      // A manual pause may close/resize the document or replace/delete/lock the
+      // target. Resolve again before each stroke; never retain a session pointer
+      // across the editable pause below.
+      if (!valid_target()) {
+        throw_js_error(tr("The stroke target changed while paused. Inspect the document before continuing."));
+        break;
+      }
       if (!prepare_mutation(session_id)) { break; }
       const auto name = stroke.label.isEmpty() ? (stroke.mixer ? tr("Mixer Brush") : stroke.erase ? tr("Eraser") : tr("Brush")) : stroke.label;
       const auto message = tr("%1: stroke %2 of %3").arg(name).arg(++stroke_index).arg(strokes.size());
@@ -256,6 +268,9 @@ void ScriptEngineHost::draw_strokes(std::int64_t session_id, LayerId layer_id, c
       if (script_activity_) script_activity_->set_operation(message, true);
       QRect dirty;
       {
+        auto* session = window_.session_with_id(session_id);
+        if (!session) { break; }
+        const auto previous = session->document.active_layer_id();
         session->document.set_active_layer(layer_id);
         const auto restore = qScopeGuard([&] {
           if (previous) { session->document.set_active_layer(*previous); }
@@ -268,22 +283,24 @@ void ScriptEngineHost::draw_strokes(std::int64_t session_id, LayerId layer_id, c
         });
       }
       note_pixels_changed(session_id, dirty);
+      pause_at_edit_boundary();
     }
   } catch (const std::exception& e) {
     throw_js_error(tr("Invalid stroke argument: %1").arg(QString::fromUtf8(e.what())));
   }
 }
 
-QString ScriptLayerObject::id() const { return read_layer() ? QString::number(layer_id_) : QString(); }
-void ScriptLayerObject::drawStrokes(const QJSValue& strokes) { host_.draw_strokes(session_id_, layer_id_, strokes); }
-QString ScriptDocumentObject::id() const { return read_document() ? QString::number(session_id_) : QString(); }
-bool ScriptDocumentObject::modified() const { return read_document() && host_.session_modified(session_id_); }
-bool ScriptDocumentObject::can_undo() const { return read_document() && host_.session_can_undo(session_id_); }
-bool ScriptDocumentObject::can_redo() const { return read_document() && host_.session_can_undo(session_id_, true); }
-bool ScriptDocumentObject::undo() { return read_document() && host_.restore_session_history(session_id_, false); }
-bool ScriptDocumentObject::redo() { return read_document() && host_.restore_session_history(session_id_, true); }
+QString ScriptLayerObject::id() const { const ScriptApiCall api_call(host_); return read_layer() ? QString::number(layer_id_) : QString(); }
+void ScriptLayerObject::drawStrokes(const QJSValue& strokes) { const ScriptApiCall api_call(host_); host_.draw_strokes(session_id_, layer_id_, strokes); }
+QString ScriptDocumentObject::id() const { const ScriptApiCall api_call(host_); return read_document() ? QString::number(session_id_) : QString(); }
+bool ScriptDocumentObject::modified() const { const ScriptApiCall api_call(host_); return read_document() && host_.session_modified(session_id_); }
+bool ScriptDocumentObject::can_undo() const { const ScriptApiCall api_call(host_); return read_document() && host_.session_can_undo(session_id_); }
+bool ScriptDocumentObject::can_redo() const { const ScriptApiCall api_call(host_); return read_document() && host_.session_can_undo(session_id_, true); }
+bool ScriptDocumentObject::undo() { const ScriptApiCall api_call(host_); return read_document() && host_.restore_session_history(session_id_, false); }
+bool ScriptDocumentObject::redo() { const ScriptApiCall api_call(host_); return read_document() && host_.restore_session_history(session_id_, true); }
 
 QJSValue ScriptDocumentObject::getLayer(const QString& id) {
+  const ScriptApiCall api_call(host_);
   bool ok = false;
   const auto value = id.toULongLong(&ok);
   const auto* doc = read_document();
@@ -295,6 +312,7 @@ QJSValue ScriptDocumentObject::getLayer(const QString& id) {
 }
 
 QJSValue ScriptAppObject::getDocument(const QString& id) {
+  const ScriptApiCall api_call(host_);
   bool ok = false;
   const auto value = id.toLongLong(&ok);
   if (!ok || !host_.session_document_const(value)) {
@@ -305,6 +323,7 @@ QJSValue ScriptAppObject::getDocument(const QString& id) {
 }
 
 QJSValue ScriptDocumentObject::renderPreview(const QString& path, const QJSValue& options) {
+  const ScriptApiCall api_call(host_);
   try {
     if (path.isEmpty()) { throw std::runtime_error(ScriptEngineHost::tr("A preview output path is required.").toStdString()); }
     if (!options.isUndefined() && (!options.isObject() || options.isArray())) {

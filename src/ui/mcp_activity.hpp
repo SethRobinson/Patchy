@@ -5,6 +5,8 @@
 
 class QLabel;
 class QPushButton;
+class QAction;
+class QKeyEvent;
 namespace patchy::ui {
 class MainWindow;
 class CanvasWidget;
@@ -25,6 +27,9 @@ class McpActivity final : public QWidget {
   void changeEvent(QEvent* event) override;
  private:
   void refresh();
+  bool action_allowed(const QAction* action) const;
+  const QAction* shortcut_action(const QKeyEvent& event) const;
+  bool explain_conflict(QEvent* event, bool closing = false);
   MainWindow& window_;
   QLabel* label_;
   QPushButton* stop_;

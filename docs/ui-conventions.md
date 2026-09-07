@@ -2,6 +2,11 @@
 
 Read this before changing QActions, dialogs, the options bar, list-row widgets, status messages, application QSS, or other shared UI behavior.
 
+Visible automation permits Preferences, About and AI Setup through the dialog
+helpers. The activity guard permits inspection but explains conflicting actions.
+An editable Pause restores ordinary manual dialog and save-prompt behavior. See
+[automation-feedback.md](automation-feedback.md) for API lifetime and resume rules.
+
 ## Color scheme
 
 Patchy ships Dark and Light, chosen in Preferences (`preferences/colorScheme`, values `system`/`dark`/`light`, default `system`). Switching applies live; nothing requires a restart. `ThemeManager` in `src/ui/theme_manager.hpp` owns the preference, resolves "follow system" through `QStyleHints::colorScheme()`, and emits `color_scheme_changed`. It also mirrors the resolved scheme onto Qt with `QStyleHints::setColorScheme`; the native-chrome and offscreen consequences live in [platform.md](platform.md).

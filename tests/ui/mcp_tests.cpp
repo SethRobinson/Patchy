@@ -16,6 +16,12 @@
 #include <QJsonDocument>
 #include <QLabel>
 #include <QMenuBar>
+#include <QMenu>
+#include <QLineEdit>
+#include <QListWidget>
+#include <QScrollBar>
+#include <QStatusBar>
+#include <QDialogButtonBox>
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QKeyEvent>
@@ -84,8 +90,11 @@ struct Connection {
     });
     return result;
   }
+  QJsonObject request(const QString& name, const QJsonObject& args = {}) {
+    return take(send("tools/call", {{"name", name}, {"arguments", args}}))["result"].toObject();
+  }
   QJsonObject call(const QString& name, const QJsonObject& args = {}, bool error = false) {
-    const auto result = take(send("tools/call", {{"name", name}, {"arguments", args}}))["result"].toObject();
+    const auto result = request(name, args);
     CHECK(result["isError"].toBool() == error);
     return result;
   }
@@ -562,9 +571,11 @@ void ui_mcp_pause_resume_navigation_and_history() {
     mouse(canvas, QEvent::MouseMove, center + QPoint(30,20), Qt::NoButton, Qt::MiddleButton);
     mouse(canvas, QEvent::MouseButtonRelease, center + QPoint(30,20), Qt::MiddleButton, Qt::NoButton);
     CHECK(canvas->widget_position_for_document_point(QPoint(128,128)) != before_pan);
-    mouse(canvas, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
-    mouse(canvas, QEvent::MouseMove, center + QPoint(10,10), Qt::NoButton, Qt::LeftButton);
-    mouse(canvas, QEvent::MouseButtonRelease, center + QPoint(10,10), Qt::LeftButton, Qt::NoButton);
+    if (!host.manual_edit_pause()) {
+      mouse(canvas, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
+      mouse(canvas, QEvent::MouseMove, center + QPoint(10,10), Qt::NoButton, Qt::LeftButton);
+      mouse(canvas, QEvent::MouseButtonRelease, center + QPoint(10,10), Qt::LeftButton, Qt::NoButton);
+    }
     CHECK(layer->pixel_revision() == pixel_revision);
     CHECK(!canvas->pointer_gesture_active());
     CHECK(window.menuBar()->isEnabled());
@@ -594,12 +605,13 @@ void ui_mcp_pause_resume_navigation_and_history() {
         if (phase == 0 && host.run_active() && red() == 0x22) {
           navigate(); // Normal and Slow playback both allow navigation.
           CHECK(pause->isEnabled()); pause->click();
-          CHECK(host.paused() && pause->text() == QStringLiteral("Resume"));
-          CHECK(label->text().startsWith(QStringLiteral("AI paused:")));
+          CHECK(host.paused());
           hold.start(); phase = 1;
         } else if (phase == 1) {
           CHECK(host.paused() && red() == 0x22);
           if (hold.elapsed() >= 650) {
+            CHECK(host.manual_edit_pause() && pause->text() == QStringLiteral("Resume"));
+            CHECK(label->text().startsWith(QStringLiteral("AI paused:")));
             navigate(); // Paused navigation must leave the document untouched.
             save_widget_artifact("mcp_paused", window);
             pause->click(); CHECK(!host.paused()); phase = 2; observer.stop();
@@ -717,6 +729,252 @@ void ui_mcp_pause_preserves_timed_brush_pixels() {
     QImage::fromData(QByteArray::fromBase64(after.toString().toLatin1())).save("test-artifacts/paused-brush-after.png");
   }
   CHECK(after == pixels);
+  connection.disconnect();
+}
+
+void ui_mcp_pause_manual_paint_has_separate_history() {
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  Connection connection(window);
+  connection.edit("app.newDocument(96,96).addLayer('Ink').fill('#ffffff');");
+  auto& host = window.script_engine_host();
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(patchy::ui::CanvasTool::Brush);
+  canvas->set_primary_color(QColor("#00ff00"));
+  canvas->set_brush_size(9); canvas->set_brush_opacity(100);
+  canvas->set_brush_flow(100); canvas->set_brush_softness(0);
+  canvas->set_brush_smoothing(0); canvas->set_brush_build_up(false);
+  const auto pixel = [&] {
+    const auto& doc = std::as_const(MainWindowTestAccess::document(window));
+    const auto* p = doc.find_layer(*doc.active_layer_id())->pixels().pixel(40,40);
+    return QColor(p[0],p[1],p[2],p[3]);
+  };
+  const auto depth = MainWindowTestAccess::active_session_undo_depth(window);
+  bool edited = false;
+  std::exception_ptr error;
+  QTimer observer;
+  QObject::connect(&observer, &QTimer::timeout, &window, [&] {
+    if (!host.manual_edit_pause()) return;
+    observer.stop();
+    try {
+      const auto point = canvas->widget_position_for_document_point(QPoint(40,40));
+      send_mouse(*canvas, QEvent::MouseButtonPress, point, Qt::LeftButton, Qt::LeftButton);
+      CHECK(canvas->pointer_gesture_active());
+      host.set_paused(false);
+      CHECK(host.paused()); // Resume must not interrupt an unfinished manual gesture.
+      send_mouse(*canvas, QEvent::MouseButtonRelease, point, Qt::LeftButton, Qt::NoButton);
+      CHECK(!canvas->pointer_gesture_active() && pixel().green() > 240);
+      CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 2);
+      edited = true;
+      host.set_paused(false);
+    } catch (...) { error = std::current_exception(); host.stop_active_run(); }
+  });
+  observer.start(10);
+  const auto result = connection.request("execute_script", {{"expectedState", connection.state()["stateToken"]},
+    {"code", "var l=app.activeDocument.activeLayer;l.fill('#220000');patchy.ui.paused=true;"
+             "patchy.ui.present();l.fill('#660000');"}});
+  observer.stop(); if (error) std::rethrow_exception(error);
+  CHECK(edited && result["structuredContent"].toObject()["status"] == "done");
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 3);
+  connection.edit("app.activeDocument.undo();"); CHECK(pixel().green() > 240);
+  connection.edit("app.activeDocument.undo();"); CHECK(pixel().red() == 0x22 && pixel().green() == 0);
+  connection.edit("app.activeDocument.undo();"); CHECK(pixel() == QColor(Qt::white));
+  connection.disconnect();
+}
+
+void ui_mcp_pause_revalidates_deleted_stroke_target() {
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  Connection connection(window);
+  connection.edit("app.newDocument(96,96).addLayer('Delete me');");
+  auto& host = window.script_engine_host();
+  bool requested = false, deleted = false;
+  std::exception_ptr error;
+  const auto progress = QObject::connect(&host, &patchy::ui::ScriptEngineHost::painting_progress,
+                                        &window, [&](const QString&) {
+    if (!requested) { requested = true; host.set_paused(true); }
+  });
+  QTimer observer;
+  QObject::connect(&observer, &QTimer::timeout, &window, [&] {
+    if (!host.manual_edit_pause()) return;
+    observer.stop();
+    try {
+      CHECK(!require_canvas(window)->pointer_gesture_active());
+      require_action(window, "layerDeleteAction")->trigger();
+      CHECK(MainWindowTestAccess::document(window).layers().size() == 1);
+      deleted = true; host.set_paused(false);
+    } catch (...) { error = std::current_exception(); host.stop_active_run(); }
+  });
+  observer.start(10);
+  const auto result = connection.request("execute_script", {{"expectedState", connection.state()["stateToken"]},
+    {"code", "app.activeDocument.activeLayer.drawStrokes(["
+             "{size:12,points:[{x:10,y:10},{x:80,y:80}]},"
+             "{size:12,points:[{x:80,y:10},{x:10,y:80}]}]);"}});
+  observer.stop(); QObject::disconnect(progress);
+  if (error) std::rethrow_exception(error);
+  CHECK(requested && deleted && result["isError"].toBool());
+  CHECK(!host.run_active() && !host.paused());
+  connection.edit("app.activeDocument.addLayer('Still usable').fill('#abcdef');");
+  CHECK(MainWindowTestAccess::document(window).layers().size() == 2);
+  connection.disconnect();
+}
+
+void ui_mcp_running_browsing_and_conflict_feedback() {
+  EnvironmentVariableRestorer timeout("PATCHY_SCRIPT_TIMEOUT_MS");
+  // Leave time for synchronous dialog construction/QSS polish, which precedes
+  // the nested event loop. The browsing hold still exceeds this timeout.
+  qputenv("PATCHY_SCRIPT_TIMEOUT_MS", "2000");
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  Connection connection(window);
+  connection.edit("var d=app.newDocument(96,96);for(var i=0;i<30;i++)d.addLayer('Row '+i);");
+  auto& host = window.script_engine_host();
+  bool browsed = false;
+  std::exception_ptr error;
+  QTimer observer;
+  QObject::connect(&observer, &QTimer::timeout, &window, [&] {
+    if (!host.run_active()) return;
+    observer.stop();
+    try {
+      auto* list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+      CHECK(list && list->verticalScrollBar()->maximum() > 0);
+      list->verticalScrollBar()->setValue(0);
+      QWheelEvent wheel(QPointF(40,40), QPointF(list->viewport()->mapToGlobal(QPoint(40,40))),
+                        QPoint(), QPoint(0,-120), Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false);
+      QApplication::sendEvent(list->viewport(), &wheel);
+      CHECK(list->verticalScrollBar()->value() > 0);
+      list->verticalScrollBar()->setValue(0);
+      auto* row_label = list->findChild<QLabel*>(QStringLiteral("layerRowName"));
+      CHECK(row_label);
+      QApplication::sendEvent(row_label, &wheel);
+      CHECK(list->verticalScrollBar()->value() > 0);
+      auto* filter = window.findChild<QLineEdit*>(QStringLiteral("layerNameFilterEdit"));
+      CHECK(filter);
+      QKeyEvent letter(QEvent::KeyPress, Qt::Key_R, Qt::NoModifier, "R");
+      QApplication::sendEvent(filter, &letter); CHECK(filter->text() == "R");
+      filter->clear();
+      QMenu menu(&window);
+      auto* deletion = require_action(window, "layerDeleteAction");
+      menu.addAction(deletion); menu.setActiveAction(deletion);
+      QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+      QApplication::sendEvent(&menu, &enter);
+      CHECK(MainWindowTestAccess::document(window).layers().size() == 31);
+      CHECK(window.statusBar()->currentMessage().contains("Pause automation"));
+      const auto inspect_dialog = [&](QAction* action, const QString& name) {
+        bool seen = false;
+        std::exception_ptr dialog_error;
+        QTimer closer;
+        QObject::connect(&closer, &QTimer::timeout, &window, [&] {
+          if (auto* dialog = find_top_level_dialog(name)) {
+            seen = true; closer.stop();
+            try { if (name == QStringLiteral("patchyPreferencesDialog")) {
+              auto* tabs = dialog->findChild<QTabWidget*>();
+              CHECK(tabs && tabs->count() > 1); tabs->setCurrentIndex(1);
+              QKeyEvent apply(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+              QApplication::sendEvent(dialog, &apply);
+              CHECK(dialog->isVisible());
+              CHECK(window.statusBar()->currentMessage().contains("Close Preferences"));
+            }} catch (...) { dialog_error = std::current_exception(); }
+            dialog->reject();
+          }
+        });
+        closer.start(2400); // Browsing longer than the JS inactivity timeout is safe.
+        menu.addAction(action); menu.setActiveAction(action);
+        QApplication::sendEvent(&menu, &enter);
+        closer.stop(); if (dialog_error) std::rethrow_exception(dialog_error); CHECK(seen);
+      };
+      inspect_dialog(require_action(window, "filePreferencesAction"), QStringLiteral("patchyPreferencesDialog"));
+      QAction* about = nullptr;
+      for (auto* action : window.findChildren<QAction*>())
+        if (action->menuRole() == QAction::AboutRole) { about = action; break; }
+      CHECK(about); inspect_dialog(about, QStringLiteral("patchySplashScreen"));
+      browsed = true;
+    } catch (...) { error = std::current_exception(); host.stop_active_run(); }
+  });
+  observer.start(10);
+  const auto result = connection.request("execute_script", {{"expectedState", connection.state()["stateToken"]},
+    {"code", "patchy.ui.present(200);app.activeDocument.activeLayer.fill('#123456');"}});
+  observer.stop(); if (error) std::rethrow_exception(error);
+  if (result["isError"].toBool()) throw std::runtime_error(QJsonDocument(result).toJson(QJsonDocument::Compact).toStdString());
+  CHECK(browsed && !host.run_active());
+  connection.disconnect();
+}
+
+void ui_mcp_pause_can_close_document_and_resume_async_safely() {
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  Connection connection(window);
+  connection.edit("app.newDocument(32,32).addLayer('Ink').fill('#123456');");
+  auto& host = window.script_engine_host();
+  bool closed = false, prompted = false;
+  std::exception_ptr error;
+  QTimer observer;
+  QObject::connect(&observer, &QTimer::timeout, &window, [&] {
+    if (!host.manual_edit_pause()) return;
+    observer.stop();
+    try {
+      QTimer answer;
+      QObject::connect(&answer, &QTimer::timeout, &window, [&] {
+        if (auto* box = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("saveChangesMessageBox")))) {
+          prompted = true; answer.stop(); box->done(QMessageBox::No);
+        }
+      });
+      answer.start(10);
+      require_action(window, "fileCloseAction")->trigger();
+      answer.stop();
+      closed = host.session_ids().empty();
+      host.set_paused(false);
+    } catch (...) { error = std::current_exception(); host.stop_active_run(); }
+  });
+  observer.start(10);
+  const auto result = connection.request("execute_script", {{"expectedState", connection.state()["stateToken"]},
+    {"code", "var old=app.activeDocument;setTimeout(function(){old.addLayer('Gone');},40);"
+             "patchy.ui.paused=true;"}});
+  observer.stop(); if (error) std::rethrow_exception(error);
+  CHECK(closed && prompted && result["isError"].toBool() && !host.paused());
+  connection.edit("app.newDocument(16,16).addShape('Still editable',"
+                  "{type:'ellipse',x:2,y:2,width:10,height:10});");
+  CHECK(host.session_ids().size() == 1);
+  connection.disconnect();
+}
+
+void ui_mcp_pause_manual_move_preserves_native_shape_on_resume() {
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  Connection connection(window);
+  connection.edit("app.newDocument(96,96).addShape('Movable',"
+                  "{type:'rectangle',x:10,y:10,width:30,height:30});");
+  auto& host = window.script_engine_host();
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(patchy::ui::CanvasTool::Move);
+  canvas->set_auto_select_layer(false); canvas->set_show_transform_controls(false);
+  canvas->set_snap_enabled(false);
+  canvas->set_zoom(2);
+  bool moved = false;
+  std::exception_ptr error;
+  QTimer observer;
+  QObject::connect(&observer, &QTimer::timeout, &window, [&] {
+    if (!host.manual_edit_pause()) return;
+    observer.stop();
+    try {
+      const auto start = canvas->widget_position_for_document_point(QPoint(25,25));
+      const auto end = canvas->widget_position_for_document_point(QPoint(37,33));
+      send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+      send_mouse(*canvas, QEvent::MouseMove, end, Qt::NoButton, Qt::LeftButton);
+      send_mouse(*canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton);
+      const auto& doc = std::as_const(MainWindowTestAccess::document(window));
+      const auto* layer = doc.find_layer(*doc.active_layer_id());
+      CHECK(layer->bounds().x == 22 && layer->bounds().y == 18);
+      moved = true; host.set_paused(false);
+    } catch (...) { error = std::current_exception(); host.stop_active_run(); }
+  });
+  observer.start(10);
+  const auto result = connection.request("execute_script", {{"expectedState", connection.state()["stateToken"]},
+    {"code", "var s=app.activeDocument.activeLayer;patchy.ui.paused=true;patchy.ui.present();"
+                  "s.updateShape({fill:{type:'solid',color:'#123456'}});"
+                  "if(s.x!==22||s.y!==18||!s.isShape)throw Error('manual move lost');"}});
+  observer.stop(); if (error) std::rethrow_exception(error);
+  CHECK(moved && !result["isError"].toBool() && !host.paused());
   connection.disconnect();
 }
 
@@ -852,6 +1110,11 @@ std::vector<patchy::test::TestCase> mcp_tests() {
           {"ui_mcp_pause_resume_navigation_and_history", ui_mcp_pause_resume_navigation_and_history},
           {"ui_mcp_pause_stop_disconnect_and_cli_cleanup", ui_mcp_pause_stop_disconnect_and_cli_cleanup},
           {"ui_mcp_pause_preserves_timed_brush_pixels", ui_mcp_pause_preserves_timed_brush_pixels},
+          {"ui_mcp_pause_manual_paint_has_separate_history", ui_mcp_pause_manual_paint_has_separate_history},
+          {"ui_mcp_pause_revalidates_deleted_stroke_target", ui_mcp_pause_revalidates_deleted_stroke_target},
+          {"ui_mcp_running_browsing_and_conflict_feedback", ui_mcp_running_browsing_and_conflict_feedback},
+          {"ui_mcp_pause_can_close_document_and_resume_async_safely", ui_mcp_pause_can_close_document_and_resume_async_safely},
+          {"ui_mcp_pause_manual_move_preserves_native_shape_on_resume", ui_mcp_pause_manual_move_preserves_native_shape_on_resume},
           {"ui_mcp_layer_rows_stay_bounded_during_long_script", ui_mcp_layer_rows_stay_bounded_during_long_script},
           {"ui_script_visible_unattended_stop_and_resize_processing", ui_script_visible_unattended_stop_and_resize_processing},
           {"ui_mcp_visible_idle_save_prompts_and_window_close", ui_mcp_visible_idle_save_prompts_and_window_close},

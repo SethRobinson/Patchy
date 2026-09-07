@@ -1017,7 +1017,7 @@ private:
   void update_selection_mode_buttons(CanvasWidget::SelectionMode mode);
   // Apply the stored per-tool combine modes to a (new) canvas.
   void apply_selection_modes_to_canvas(CanvasWidget* canvas);
-  void refresh_layer_list();
+  void refresh_layer_list(bool retire_automation_rows = false);
   void refresh_layer_thumbnails();
   // Revision-keyed thumbnail pixmaps for the ACTIVE document's layer rows.
   // refresh_layer_list() destroys and rebuilds every row widget, so without

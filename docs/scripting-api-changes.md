@@ -1,9 +1,11 @@
 # Scripting API compatibility
 
-2026-09-07 (additive, API 1): `patchy.ui.paused` shares Pause/Resume for visible
-MCP and CLI automation. It waits at native progress checkpoints, preserves Undo
-grouping and simulated painting time, and clears on completion or cancellation.
-The window, zoom and pan remain usable during normal, Slow and paused automation.
+2026-09-08 (API 1): `patchy.ui.paused` shares Pause/Resume for visible MCP and CLI
+automation. Pausing finishes the current native edit; Resume appears when manual
+editing is safe. Manual edits split script Undo groups. Targets resolve again
+after resume; missing or incompatible targets raise an error. Browsing menus,
+panels and informational dialogs remains available during work. Pause freezes
+simulated painting time once parked and clears on completion or cancellation.
 MCP advertises `pauseAutomation` and returns `paused` in state. The active request
 remains busy; use the window's Resume button to continue it.
 

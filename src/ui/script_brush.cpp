@@ -93,6 +93,7 @@ std::vector<ScriptStroke> ScriptEngineHost::parse_brush_strokes(const QJSValue& 
   return strokes;
 }
 QJSValue ScriptEngineHost::scriptBrushCall(const QString& method, const QJSValue& args) {
+  const ScriptApiCall api_call(*this);
   try {
     pump_progress_indicator();
     auto& library = window_.brush_automation_library(); library.refresh();

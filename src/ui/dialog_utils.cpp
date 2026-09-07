@@ -1229,6 +1229,12 @@ void remember_dialog_position(QDialog& dialog) {
 static bool unattended_dialog(const QWidget& dialog) {
   for (auto* owner = dialog.parentWidget(); owner != nullptr; owner = owner->parentWidget()) {
     if (auto* window = qobject_cast<MainWindow*>(owner); window != nullptr) {
+      // These dialogs inspect application state. The automation activity guard
+      // checks commands that apply editing settings; opening the dialog is safe.
+      const auto name = dialog.objectName();
+      if (window->isVisible() && !qEnvironmentVariableIsSet("PATCHY_HEADLESS") &&
+          (name == QStringLiteral("patchyPreferencesDialog") || name == QStringLiteral("patchySplashScreen") ||
+           name == QStringLiteral("aiSetupDialog"))) return false;
       return window->unattended_automation();
     }
   }

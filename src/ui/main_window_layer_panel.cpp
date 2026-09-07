@@ -2783,7 +2783,7 @@ void MainWindow::sync_layer_row_visibility_indicators() {
   restyle_layer_rows(layer_list_);
 }
 
-void MainWindow::refresh_layer_list() {
+void MainWindow::refresh_layer_list(bool retire_automation_rows) {
   if (layer_list_ == nullptr) {
     return;
   }
@@ -2801,10 +2801,11 @@ void MainWindow::refresh_layer_list() {
   // QListWidget retires index widgets with deleteLater(). A long automation
   // evaluate() stays inside one outer event delivery, so ordinary nested pumps
   // can retain every previous generation until the script returns. Retire only
-  // these detached rows now, while automation's input guard excludes row input;
+  // these detached rows on script-originated refreshes outside editable pauses;
   // never flush unrelated deferred deletions or change manual click lifetimes.
   std::vector<QPointer<QWidget>> retired_rows;
-  if (script_engine_host_ && script_engine_host_->run_active() && unattended_automation()) {
+  if (retire_automation_rows && script_engine_host_ && script_engine_host_->run_active() &&
+      unattended_automation() && !script_engine_host_->manual_edit_pause()) {
     retired_rows.reserve(static_cast<std::size_t>(layer_list_->count()));
     for (int row = 0; row < layer_list_->count(); ++row) {
       retired_rows.emplace_back(layer_list_->itemWidget(layer_list_->item(row)));

@@ -634,11 +634,13 @@ interface PatchyUi {
    * Existing history limits apply. Turning it off groups subsequent edits again.
    */
   slowMode: boolean;
-  /** Same as Pause/Resume in visible MCP or command-line automation. Pauses at
-   * the next native progress checkpoint; Resume continues the same script.
-   * The window, zoom and pan remain usable. Stop also works while paused.
-   * Resets on completion/cancellation, adds no Undo step, and does not advance
-   * simulated paint time. Hidden runs and interactive scripts reject true.
+  /** Same as Pause/Resume in visible MCP or command-line automation. Pausing
+   * finishes the current native edit. Once Resume appears, manual editing is
+   * available. Manual document edits split script Undo groups. Resume uses the
+   * changed workspace; missing or incompatible targets raise an error. Refresh
+   * cached geometry when needed. Browsing, view navigation and Stop remain usable.
+   * Resets on completion/cancellation and does not advance simulated paint time
+   * while parked. Hidden runs and interactive scripts reject true.
    * A paused MCP request stays busy; resume with the window's button.
    */
   paused: boolean;

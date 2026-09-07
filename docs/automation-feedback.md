@@ -1,19 +1,37 @@
 # Automation feedback and image resize
 
-Pause/Resume beside Stop suspends visible MCP/CLI automation at its next progress
-checkpoint. `patchy.ui.paused` shares the control and resets at run end. A nested
-event loop yields CPU and services the guarded UI while feeding the inactivity
-watchdog. Script callbacks remain deferred; native simulated paint time does not
-advance. Stop, cancellation and disconnect leave the pause cleanly. Hidden runs
+Pause/Resume beside Stop suspends visible MCP/CLI automation after the current
+native edit. `patchy.ui.paused` shares the control and resets at run end. While
+Pausing appears, Stop remains available. Once Resume appears, manual drawing,
+layer edits, Undo, document changes and settings are available. A nested event
+loop yields CPU and feeds the inactivity watchdog. Script callbacks remain
+deferred; simulated paint time does not advance. Stop, cancellation and
+disconnect leave the pause cleanly. Hidden runs
 and ordinary interactive scripts reject enabling it. The active MCP request stays
 busy; Resume is a window control, not a second concurrent script request.
 
 The activity input guard permits window chrome, the zoom percentage editor,
-canvas wheel/pinch navigation, canvas scrollbars, and middle/right/Space-drag pan.
+canvas wheel/pinch navigation, panel scrolling/filtering/disclosure, informational
+dialogs, menu browsing, view commands, and middle/right/Space-drag pan.
 Pan calls the view helpers directly so it cannot enter a painting tool's mouse
-handlers. Document tabs and editing controls remain guarded. The menu bar stays
-enabled because it also contains custom title-bar dragging and window buttons;
-menu command input is filtered separately. This applies in normal, Slow and Pause.
+handlers. Conflicting edit commands display a localized explanation asking the
+user to pause. Preferences can be inspected while working; applying them requires
+closing the dialog and pausing first. The menu bar stays enabled because it also
+contains custom title-bar dragging and window buttons. Activation by mouse,
+shortcut or menu mnemonic is checked separately. Quit requires Stop first.
+The guard follows QObject ownership across popup windows; QWidget ancestry alone
+does not include menus and dialogs in another window.
+
+`ScriptApiCall` scopes defer editable pauses until native API locals and temporary
+tool state have unwound. Never retain session/layer pointers across an editable
+pause. Stroke batches also park between completed strokes, resolve the target
+again, and reject missing or incompatible layers before the next stroke. Other
+wrappers resolve their owning IDs on each call. Resume waits for unfinished manual
+pointer/transform/crop/text gestures to finish. Manual document changes split the
+script history group, keeping manual Undo steps separate from subsequent automated
+edits. Navigation alone does not split history. This also applies between async
+callbacks. Cached JS geometry remains the script author's responsibility: inspect
+again after a pause when an operation depends on the artist's latest geometry.
 
 Visible MCP and unattended CLI runs publish completed edits at most every 50 ms.
 `ScriptEngineHost::refresh_script_view` flushes document dirt before repainting,
@@ -58,7 +76,7 @@ requests belongs to the client's own Stop control. Long labels have bounded widt
 so they cannot crowd Stop and Slow out of a narrow status bar. Both controls are
 inside the input guard's allowed widget subtree, along with Pause/Resume.
 
-Layer-panel rebuilds during guarded automation promptly deliver deferred deletion
+Script-originated layer-panel rebuilds during guarded automation deliver deferred deletion
 only to their detached old row widgets. A long JavaScript evaluation otherwise
 retains every retired generation until it returns to its outer event loop, causing
 memory and repaint costs to climb with each edit. Manual row-click lifetimes and

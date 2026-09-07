@@ -226,11 +226,13 @@ Layer* ScriptLayerObject::write_layer() {
 }
 
 QString ScriptLayerObject::name() const {
+  const ScriptApiCall api_call(host_);
   const auto* layer = read_layer();
   return layer != nullptr ? QString::fromStdString(layer->name()) : QString();
 }
 
 void ScriptLayerObject::set_name(const QString& name) {
+  const ScriptApiCall api_call(host_);
   if (auto* layer = write_layer()) {
     layer->set_name(name.toStdString());
     host_.note_structure_changed(session_id_);
@@ -238,11 +240,13 @@ void ScriptLayerObject::set_name(const QString& name) {
 }
 
 double ScriptLayerObject::opacity() const {
+  const ScriptApiCall api_call(host_);
   const auto* layer = read_layer();
   return layer != nullptr ? static_cast<double>(layer->opacity()) * 100.0 : 0.0;
 }
 
 void ScriptLayerObject::set_opacity(double opacity) {
+  const ScriptApiCall api_call(host_);
   if (!std::isfinite(opacity)) {
     // std::clamp passes NaN straight through, and a NaN opacity renders undefined.
     host_.throw_js_error(ScriptEngineHost::tr("opacity needs a number between 0 and 100."));
@@ -257,11 +261,13 @@ void ScriptLayerObject::set_opacity(double opacity) {
 }
 
 bool ScriptLayerObject::visible() const {
+  const ScriptApiCall api_call(host_);
   const auto* layer = read_layer();
   return layer != nullptr && layer->visible();
 }
 
 void ScriptLayerObject::set_visible(bool visible) {
+  const ScriptApiCall api_call(host_);
   if (auto* layer = write_layer()) {
     layer->set_visible(visible);
     // set_visible deliberately does not bump revisions; repaint the layer's
@@ -272,11 +278,13 @@ void ScriptLayerObject::set_visible(bool visible) {
 }
 
 QString ScriptLayerObject::blend_mode() const {
+  const ScriptApiCall api_call(host_);
   const auto* layer = read_layer();
   return layer != nullptr ? script_blend_mode_id(layer->blend_mode()) : QString();
 }
 
 void ScriptLayerObject::set_blend_mode(const QString& mode) {
+  const ScriptApiCall api_call(host_);
   BlendMode parsed{};
   if (!script_blend_mode_from_id(mode, &parsed)) {
     host_.throw_js_error(ScriptEngineHost::tr("Unknown blend mode: %1").arg(mode));
@@ -290,11 +298,13 @@ void ScriptLayerObject::set_blend_mode(const QString& mode) {
 }
 
 bool ScriptLayerObject::locked() const {
+  const ScriptApiCall api_call(host_);
   const auto* layer = read_layer();
   return layer != nullptr && layer->lock_flags() != kLayerLockNone;
 }
 
 void ScriptLayerObject::set_locked(bool locked) {
+  const ScriptApiCall api_call(host_);
   if (auto* layer = write_layer()) {
     layer->set_lock_flags(locked ? kLayerLockAll : kLayerLockNone);
     host_.note_structure_changed(session_id_);
@@ -302,16 +312,19 @@ void ScriptLayerObject::set_locked(bool locked) {
 }
 
 int ScriptLayerObject::x() const {
+  const ScriptApiCall api_call(host_);
   const auto* layer = read_layer();
   return layer != nullptr ? layer->bounds().x : 0;
 }
 
 int ScriptLayerObject::y() const {
+  const ScriptApiCall api_call(host_);
   const auto* layer = read_layer();
   return layer != nullptr ? layer->bounds().y : 0;
 }
 
 void ScriptLayerObject::set_x(double x) {
+  const ScriptApiCall api_call(host_);
   const auto* current = read_layer();
   if (current != nullptr) {
     moveTo(x, current->bounds().y);
@@ -319,6 +332,7 @@ void ScriptLayerObject::set_x(double x) {
 }
 
 void ScriptLayerObject::set_y(double y) {
+  const ScriptApiCall api_call(host_);
   const auto* current = read_layer();
   if (current != nullptr) {
     moveTo(current->bounds().x, y);
@@ -326,6 +340,7 @@ void ScriptLayerObject::set_y(double y) {
 }
 
 void ScriptLayerObject::moveTo(double x, double y) {
+  const ScriptApiCall api_call(host_);
   const auto* current = read_layer();
   if (current == nullptr) {
     return;
@@ -357,20 +372,24 @@ void ScriptLayerObject::moveTo(double x, double y) {
 }
 
 QJSValue ScriptLayerObject::bounds() const {
+  const ScriptApiCall api_call(host_);
   const auto* layer = read_layer();
   return layer != nullptr ? rect_to_js(host_.engine(), layer->bounds()) : QJSValue();
 }
 
 bool ScriptLayerObject::is_group() const {
+  const ScriptApiCall api_call(host_);
   const auto* layer = read_layer();
   return layer != nullptr && layer->kind() == LayerKind::Group;
 }
 
 bool ScriptLayerObject::is_text() const {
+  const ScriptApiCall api_call(host_);
   return host_.layer_is_text_layer(session_id_, layer_id_);
 }
 
 QJSValue ScriptLayerObject::children() const {
+  const ScriptApiCall api_call(host_);
   const auto* layer = read_layer();
   if (layer == nullptr) {
     return QJSValue();
@@ -384,10 +403,12 @@ QJSValue ScriptLayerObject::children() const {
 }
 
 QString ScriptLayerObject::text() const {
+  const ScriptApiCall api_call(host_);
   return host_.text_layer_text(session_id_, layer_id_);
 }
 
 void ScriptLayerObject::set_text(const QString& text) {
+  const ScriptApiCall api_call(host_);
   if (!host_.layer_is_text_layer(session_id_, layer_id_)) {
     host_.throw_js_error(ScriptEngineHost::tr("This layer is not a text layer."));
     return;
@@ -398,6 +419,7 @@ void ScriptLayerObject::set_text(const QString& text) {
 }
 
 QJSValue ScriptLayerObject::duplicate() {
+  const ScriptApiCall api_call(host_);
   auto* document = host_.session_document(session_id_);
   if (document == nullptr) {
     host_.throw_js_error(ScriptEngineHost::tr("The document is no longer open."));
@@ -421,6 +443,7 @@ QJSValue ScriptLayerObject::duplicate() {
 }
 
 void ScriptLayerObject::remove() {
+  const ScriptApiCall api_call(host_);
   auto* document = host_.session_document(session_id_);
   if (document == nullptr || document->find_layer(layer_id_) == nullptr) {
     host_.throw_js_error(ScriptEngineHost::tr("The layer no longer exists."));
@@ -434,6 +457,7 @@ void ScriptLayerObject::remove() {
 }
 
 QJSValue ScriptLayerObject::ungroup() {
+  const ScriptApiCall api_call(host_);
   auto* document = host_.session_document(session_id_);
   const auto* view = document != nullptr ? std::as_const(*document).find_layer(layer_id_) : nullptr;
   if (view == nullptr) {
@@ -464,6 +488,7 @@ QJSValue ScriptLayerObject::ungroup() {
 }
 
 void ScriptLayerObject::fill(const QString& color) {
+  const ScriptApiCall api_call(host_);
   QColor parsed;
   if (!parse_color(host_, color, &parsed)) {
     return;
@@ -527,6 +552,7 @@ void ScriptLayerObject::fill(const QString& color) {
 // created with one call and then animated via x/y (much cheaper per frame than
 // re-uploading pixels). Palette mode snaps like every tool write.
 void ScriptLayerObject::fillRect(int x, int y, int width, int height, const QString& color) {
+  const ScriptApiCall api_call(host_);
   if (width < 1 || height < 1) {
     host_.throw_js_error(ScriptEngineHost::tr("fillRect needs a positive size."));
     return;
@@ -584,10 +610,12 @@ void ScriptLayerObject::fillRect(int x, int y, int width, int height, const QStr
 }
 
 void ScriptLayerObject::applyFilter(const QString& filterId, const QJSValue& params) {
+  const ScriptApiCall api_call(host_);
   host_.apply_filter_to_layer(session_id_, layer_id_, filterId, params);
 }
 
 QJSValue ScriptLayerObject::traceToShapes(const QJSValue& options) {
+  const ScriptApiCall api_call(host_);
   ImageTraceOptions trace_options;
   bool palette_from_layer = true;
   if (options.isObject()) {
@@ -693,6 +721,7 @@ QJSValue ScriptLayerObject::traceToShapes(const QJSValue& options) {
 }
 
 QJSValue ScriptLayerObject::simplifyPath(const QJSValue& options) {
+  const ScriptApiCall api_call(host_);
   PathSimplifyOptions simplify;
   if (options.isObject()) {
     QJSValueIterator it(options);
@@ -755,6 +784,7 @@ QJSValue ScriptLayerObject::simplifyPath(const QJSValue& options) {
 }
 
 QJSValue ScriptLayerObject::getPixels() {
+  const ScriptApiCall api_call(host_);
   const auto* layer = read_layer();
   if (layer == nullptr) {
     return QJSValue();
@@ -803,6 +833,7 @@ QJSValue ScriptLayerObject::getPixels() {
 }
 
 void ScriptLayerObject::setPixels(const QJSValue& imageData) {
+  const ScriptApiCall api_call(host_);
   if (!imageData.isObject()) {
     host_.throw_js_error(
         ScriptEngineHost::tr("setPixels needs a {width, height, data} object."));
@@ -847,9 +878,10 @@ void ScriptLayerObject::setPixels(const QJSValue& imageData) {
 ScriptSelectionObject::ScriptSelectionObject(ScriptEngineHost& host, std::int64_t session_id)
     : host_(host), session_id_(session_id) {}
 
-bool ScriptSelectionObject::exists() const { return host_.has_selection(session_id_); }
+bool ScriptSelectionObject::exists() const { const ScriptApiCall api_call(host_); return host_.has_selection(session_id_); }
 
 QJSValue ScriptSelectionObject::bounds() const {
+  const ScriptApiCall api_call(host_);
   const auto region = host_.selection_region(session_id_);
   if (region.isEmpty()) {
     return QJSValue();
@@ -859,11 +891,12 @@ QJSValue ScriptSelectionObject::bounds() const {
                     Rect{rect.x(), rect.y(), rect.width(), rect.height()});
 }
 
-void ScriptSelectionObject::selectAll() { host_.select_all(session_id_); }
+void ScriptSelectionObject::selectAll() { const ScriptApiCall api_call(host_); host_.select_all(session_id_); }
 
-void ScriptSelectionObject::deselect() { host_.deselect(session_id_); }
+void ScriptSelectionObject::deselect() { const ScriptApiCall api_call(host_); host_.deselect(session_id_); }
 
 void ScriptSelectionObject::selectRect(int x, int y, int width, int height) {
+  const ScriptApiCall api_call(host_);
   if (width < 1 || height < 1) {
     host_.throw_js_error(ScriptEngineHost::tr("selectRect needs a positive size."));
     return;
@@ -877,6 +910,7 @@ void ScriptSelectionObject::selectRect(int x, int y, int width, int height) {
 }
 
 void ScriptSelectionObject::selectEllipse(int x, int y, int width, int height) {
+  const ScriptApiCall api_call(host_);
   if (width < 1 || height < 1) {
     host_.throw_js_error(ScriptEngineHost::tr("selectEllipse needs a positive size."));
     return;
@@ -917,25 +951,29 @@ Document* ScriptDocumentObject::write_document() {
 }
 
 int ScriptDocumentObject::width() const {
+  const ScriptApiCall api_call(host_);
   const auto* document = read_document();
   return document != nullptr ? document->width() : 0;
 }
 
 int ScriptDocumentObject::height() const {
+  const ScriptApiCall api_call(host_);
   const auto* document = read_document();
   return document != nullptr ? document->height() : 0;
 }
 
-QString ScriptDocumentObject::name() const { return host_.session_title(session_id_); }
+QString ScriptDocumentObject::name() const { const ScriptApiCall api_call(host_); return host_.session_title(session_id_); }
 
-QString ScriptDocumentObject::path() const { return host_.session_file_path(session_id_); }
+QString ScriptDocumentObject::path() const { const ScriptApiCall api_call(host_); return host_.session_file_path(session_id_); }
 
 double ScriptDocumentObject::resolution() const {
+  const ScriptApiCall api_call(host_);
   const auto* document = read_document();
   return document != nullptr ? document->print_settings().horizontal_ppi : 0.0;
 }
 
 QJSValue ScriptDocumentObject::layers() const {
+  const ScriptApiCall api_call(host_);
   const auto* document = read_document();
   if (document == nullptr) {
     return QJSValue();
@@ -949,6 +987,7 @@ QJSValue ScriptDocumentObject::layers() const {
 }
 
 QJSValue ScriptDocumentObject::active_layer() const {
+  const ScriptApiCall api_call(host_);
   const auto* document = read_document();
   if (document == nullptr || !document->active_layer_id().has_value()) {
     return QJSValue();
@@ -957,6 +996,7 @@ QJSValue ScriptDocumentObject::active_layer() const {
 }
 
 void ScriptDocumentObject::set_active_layer(const QJSValue& layer) {
+  const ScriptApiCall api_call(host_);
   auto* document = host_.session_document(session_id_);
   if (document == nullptr) {
     host_.throw_js_error(ScriptEngineHost::tr("The document is no longer open."));
@@ -978,6 +1018,7 @@ void ScriptDocumentObject::set_active_layer(const QJSValue& layer) {
 }
 
 QJSValue ScriptDocumentObject::combineShapes(const QJSValue& layers, const QString& op) {
+  const ScriptApiCall api_call(host_);
   auto* document = host_.session_document(session_id_);
   if (document == nullptr) {
     host_.throw_js_error(ScriptEngineHost::tr("The document is no longer open."));
@@ -1048,10 +1089,12 @@ QJSValue ScriptDocumentObject::combineShapes(const QJSValue& layers, const QStri
 }
 
 QJSValue ScriptDocumentObject::selection() const {
+  const ScriptApiCall api_call(host_);
   return host_.engine()->newQObject(new ScriptSelectionObject(host_, session_id_));
 }
 
 QJSValue ScriptDocumentObject::addLayer(const QString& name) {
+  const ScriptApiCall api_call(host_);
   auto* document = write_document();
   if (document == nullptr) {
     return QJSValue();
@@ -1067,6 +1110,7 @@ QJSValue ScriptDocumentObject::addLayer(const QString& name) {
 }
 
 QJSValue ScriptDocumentObject::addTextLayer(const QString& text, const QJSValue& options) {
+  const ScriptApiCall api_call(host_);
   ScriptEngineHost::TextLayerParams params;
   params.text = text;
   if (options.isObject()) {
@@ -1100,6 +1144,7 @@ QJSValue ScriptDocumentObject::addTextLayer(const QString& text, const QJSValue&
 }
 
 QJSValue ScriptDocumentObject::findLayer(const QString& name) {
+  const ScriptApiCall api_call(host_);
   const auto* document = read_document();
   if (document == nullptr) {
     return QJSValue();
@@ -1123,6 +1168,7 @@ QJSValue ScriptDocumentObject::findLayer(const QString& name) {
 }
 
 void ScriptDocumentObject::flatten() {
+  const ScriptApiCall api_call(host_);
   auto* document = write_document();
   if (document == nullptr) {
     return;
@@ -1136,6 +1182,7 @@ void ScriptDocumentObject::flatten() {
 }
 
 void ScriptDocumentObject::resizeImage(int width, int height) {
+  const ScriptApiCall api_call(host_);
   if (width < 1 || height < 1 || width > 30000 || height > 30000) {
     host_.throw_js_error(ScriptEngineHost::tr("resizeImage needs a size between 1 and 30000."));
     return;
@@ -1144,6 +1191,7 @@ void ScriptDocumentObject::resizeImage(int width, int height) {
 }
 
 void ScriptDocumentObject::resizeCanvas(int width, int height) {
+  const ScriptApiCall api_call(host_);
   if (width < 1 || height < 1 || width > 30000 || height > 30000) {
     host_.throw_js_error(ScriptEngineHost::tr("resizeCanvas needs a size between 1 and 30000."));
     return;
@@ -1157,6 +1205,7 @@ void ScriptDocumentObject::resizeCanvas(int width, int height) {
 }
 
 void ScriptDocumentObject::crop(int x, int y, int width, int height) {
+  const ScriptApiCall api_call(host_);
   if (width < 1 || height < 1) {
     host_.throw_js_error(ScriptEngineHost::tr("crop needs a positive size."));
     return;
@@ -1173,15 +1222,17 @@ void ScriptDocumentObject::crop(int x, int y, int width, int height) {
 }
 
 bool ScriptDocumentObject::saveAs(const QString& path) {
+  const ScriptApiCall api_call(host_);
   if (read_document() == nullptr) {
     return false;
   }
   return host_.save_session_to_path(session_id_, path);
 }
 
-bool ScriptDocumentObject::exportAs(const QString& path) { return saveAs(path); }
+bool ScriptDocumentObject::exportAs(const QString& path) { const ScriptApiCall api_call(host_); return saveAs(path); }
 
 void ScriptDocumentObject::close() {
+  const ScriptApiCall api_call(host_);
   if (read_document() == nullptr) {
     return;
   }
@@ -1189,6 +1240,7 @@ void ScriptDocumentObject::close() {
 }
 
 void ScriptDocumentObject::activate() {
+  const ScriptApiCall api_call(host_);
   if (read_document() == nullptr) {
     return;
   }
@@ -1200,9 +1252,10 @@ void ScriptDocumentObject::activate() {
 
 ScriptAppObject::ScriptAppObject(ScriptEngineHost& host) : host_(host) {}
 
-QString ScriptAppObject::version() const { return QCoreApplication::applicationVersion(); }
+QString ScriptAppObject::version() const { const ScriptApiCall api_call(host_); return QCoreApplication::applicationVersion(); }
 
 QJSValue ScriptAppObject::documents() const {
+  const ScriptApiCall api_call(host_);
   const auto ids = host_.session_ids();
   auto array = host_.engine()->newArray(static_cast<quint32>(ids.size()));
   quint32 index = 0;
@@ -1213,13 +1266,15 @@ QJSValue ScriptAppObject::documents() const {
 }
 
 QJSValue ScriptAppObject::active_document() const {
+  const ScriptApiCall api_call(host_);
   const auto id = host_.active_session_id();
   return id != 0 ? make_document_value(host_, id) : QJSValue();
 }
 
-bool ScriptAppObject::undo_enabled() const { return host_.undo_enabled(); }
+bool ScriptAppObject::undo_enabled() const { const ScriptApiCall api_call(host_); return host_.undo_enabled(); }
 
 void ScriptAppObject::set_undo_enabled(bool enabled) {
+  const ScriptApiCall api_call(host_);
   if (host_.connector_mode() && !enabled) {
     host_.throw_js_error(ScriptEngineHost::tr("Undo history cannot be disabled in a connector session."));
     return;
@@ -1228,6 +1283,7 @@ void ScriptAppObject::set_undo_enabled(bool enabled) {
 }
 
 QJSValue ScriptAppObject::open(const QString& path) {
+  const ScriptApiCall api_call(host_);
   const auto id = host_.open_document_file(path);
   if (id == 0) {
     host_.throw_js_error(
@@ -1238,6 +1294,7 @@ QJSValue ScriptAppObject::open(const QString& path) {
 }
 
 QJSValue ScriptAppObject::newDocument(int width, int height) {
+  const ScriptApiCall api_call(host_);
   const auto id = host_.create_document(width, height);
   if (id == 0) {
     host_.throw_js_error(
@@ -1247,29 +1304,33 @@ QJSValue ScriptAppObject::newDocument(int width, int height) {
   return make_document_value(host_, id);
 }
 
-void ScriptAppObject::alert(const QString& text) { host_.show_alert(text); }
+void ScriptAppObject::alert(const QString& text) { const ScriptApiCall api_call(host_); host_.show_alert(text); }
 
 QJSValue ScriptAppObject::prompt(const QString& text, const QString& defaultValue) {
+  const ScriptApiCall api_call(host_);
   bool accepted = false;
   const auto result = host_.show_prompt(text, defaultValue, &accepted);
   return accepted ? QJSValue(result) : QJSValue(QJSValue::NullValue);
 }
 
-QString ScriptAppObject::chooseFolder(const QString& title) { return host_.choose_folder(title); }
+QString ScriptAppObject::chooseFolder(const QString& title) { const ScriptApiCall api_call(host_); return host_.choose_folder(title); }
 
 QString ScriptAppObject::chooseOpenFile(const QString& title, const QString& filter) {
+  const ScriptApiCall api_call(host_);
   return host_.choose_open_file(title, filter);
 }
 
 QString ScriptAppObject::chooseSaveFile(const QString& title, const QString& filter) {
+  const ScriptApiCall api_call(host_);
   return host_.choose_save_file(title, filter);
 }
 
 bool ScriptAppObject::runCommand(const QString& commandId) {
+  const ScriptApiCall api_call(host_);
   return host_.run_app_command(commandId);
 }
 
-QStringList ScriptAppObject::commandIds() { return host_.app_command_ids(); }
+QStringList ScriptAppObject::commandIds() { const ScriptApiCall api_call(host_); return host_.app_command_ids(); }
 
 // ---------------------------------------------------------------------------
 // ScriptIoObject
@@ -1343,6 +1404,7 @@ bool ScriptIoObject::deleteFile(const QString& path) {
 ScriptUiObject::ScriptUiObject(ScriptEngineHost& host) : host_(host) {}
 
 QJSValue ScriptUiObject::createCanvas(const QJSValue& options) {
+  const ScriptApiCall api_call(host_);
   if (host_.connector_mode()) {
     host_.throw_js_error(ScriptEngineHost::tr("Script windows are unavailable in the background connector. Use a document preview."));
     return {};
@@ -1374,31 +1436,34 @@ QJSValue ScriptUiObject::createCanvas(const QJSValue& options) {
   return host_.engine()->newQObject(window);
 }
 
-QJSValue ScriptUiObject::showDialog(const QJSValue& spec) { return host_.show_form_dialog(spec); }
+QJSValue ScriptUiObject::showDialog(const QJSValue& spec) { const ScriptApiCall api_call(host_); return host_.show_form_dialog(spec); }
 
 QJSValue ScriptUiObject::showOptions(const QJSValue& spec) {
+  const ScriptApiCall api_call(host_);
   return host_.show_options_dialog(spec);
 }
 
 void ScriptUiObject::playTone(const QJSValue& frequency, const QJSValue& durationMs,
                               const QJSValue& volume, const QJSValue& wave) {
+  const ScriptApiCall api_call(host_);
   host_.play_tone(frequency.isNumber() ? frequency.toNumber() : 880.0,
                   durationMs.isNumber() ? static_cast<int>(durationMs.toNumber()) : 120,
                   volume.isNumber() ? volume.toNumber() : 0.5,
                   wave.isString() ? wave.toString() : QStringLiteral("sine"));
 }
 
-void ScriptUiObject::playSound(const QString& path) { host_.play_sound_file(path); }
+void ScriptUiObject::playSound(const QString& path) { const ScriptApiCall api_call(host_); host_.play_sound_file(path); }
 
-void ScriptUiObject::setWindowSize(int width, int height) { host_.set_window_size(width, height); }
+void ScriptUiObject::setWindowSize(int width, int height) { const ScriptApiCall api_call(host_); host_.set_window_size(width, height); }
 
-void ScriptUiObject::setSidePanelWidth(int width) { host_.set_side_panel_width(width); }
+void ScriptUiObject::setSidePanelWidth(int width) { const ScriptApiCall api_call(host_); host_.set_side_panel_width(width); }
 
-void ScriptUiObject::setStatusMessage(const QString& message) { host_.set_status_message(message); }
+void ScriptUiObject::setStatusMessage(const QString& message) { const ScriptApiCall api_call(host_); host_.set_status_message(message); }
 
-double ScriptUiObject::zoom() const { return host_.view_zoom_percent(); }
+double ScriptUiObject::zoom() const { const ScriptApiCall api_call(host_); return host_.view_zoom_percent(); }
 
 void ScriptUiObject::set_zoom(double percent) {
+  const ScriptApiCall api_call(host_);
   if (!std::isfinite(percent) || percent <= 0.0) {
     // std::clamp passes NaN straight through, and a zero zoom has no view.
     host_.throw_js_error(ScriptEngineHost::tr("zoom needs a number greater than 0 (percent)."));
@@ -1407,7 +1472,7 @@ void ScriptUiObject::set_zoom(double percent) {
   host_.set_view_zoom_percent(percent);
 }
 
-void ScriptUiObject::fitOnScreen() { host_.fit_view_on_screen(); }
+void ScriptUiObject::fitOnScreen() { const ScriptApiCall api_call(host_); host_.fit_view_on_screen(); }
 bool ScriptUiObject::slow_mode() const { return host_.slow_mode(); }
 void ScriptUiObject::set_slow_mode(bool enabled) { host_.set_slow_mode(enabled); }
 bool ScriptUiObject::paused() const { return host_.paused(); }
@@ -1424,6 +1489,7 @@ void ScriptUiObject::present(const QJSValue& delayMs) {
 }
 
 bool ScriptUiObject::captureWindow(const QString& path) {
+  const ScriptApiCall api_call(host_);
   if (path.trimmed().isEmpty()) {
     host_.throw_js_error(ScriptEngineHost::tr("captureWindow needs an output file path."));
     return false;

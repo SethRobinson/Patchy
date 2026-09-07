@@ -188,9 +188,9 @@ everywhere a bundled script is resolved.
   Visible MCP/CLI runs also present completed edits periodically. `patchy.ui.present`
   provides explicit frames and optional pacing. CLI runs have a status-bar Stop
   control despite being unattended. See [automation-feedback.md](automation-feedback.md).
-  Visible MCP/CLI automation also exposes `patchy.ui.paused`, sharing Pause/Resume
-  without changing history or simulated paint time. Window movement, zoom and pan
-  remain usable under its edit guard.
+  `patchy.ui.paused` parks visible automation after a native edit. Browsing stays
+  available while working; paused manual edits split script Undo groups. See the
+  API scope and resume safety rules in [automation-feedback.md](automation-feedback.md).
 - **The watchdog measures INACTIVITY, never total runtime.** Legitimate scripts run for
   hours (contact sheets, batch converts); a blanket runtime limit is wrong by design.
   A helper thread arms around every evaluate and callback, and every hot service call

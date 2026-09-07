@@ -178,13 +178,13 @@ interrupt local user scripts. CLI/Finder file opens wait until a script ends.
 `mcpActivityLabel`, `mcpStopButton`). It appears after initialization, says AI
 connected while idle, and distinguishes reading from editing during requests.
 Its tooltip identifies the client and explains that idle can mean model thinking.
-It hides on disconnect. While working it filters manual
-input in that workspace, leaving its own Stop button usable. It restores input
-on success, error, cancellation, and disconnect. Window movement, resizing, zoom
-and pan remain available; only menu command input is blocked, since the menu bar
-also owns custom window chrome. Pause/Resume (`mcpPauseButton`) shares
-`patchy.ui.paused`, pauses at native checkpoints, and keeps the request busy while
-the user frames their view. It resets on completion or cancellation.
+It hides on disconnect. During work, scrolling panels, browsing menus, Preferences,
+About, window movement and view navigation remain available. Conflicting edits
+explain that Pause is required. Pause/Resume (`mcpPauseButton`) shares
+`patchy.ui.paused`. Pausing waits for the current native edit; Resume appears when
+manual editing is safe. Manual edits keep their own Undo steps. Resume resolves
+targets again and reports deleted or incompatible targets without crashing.
+The request stays busy throughout; Pause resets on completion or cancellation.
 
 Stop remains visible but disabled between edit requests, so its location is
 discoverable. Visible unattended CLI scripts use their own status-bar activity

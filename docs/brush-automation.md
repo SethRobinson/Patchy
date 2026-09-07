@@ -19,6 +19,10 @@ Legacy sizeJitter/scatter remain aliases; conflicting nested values fail. All
 resources in a batch resolve before painting and are held by shared ownership.
 Temporary settings never modify a tip sidecar. Artist tool, colors, pen mapping,
 tip, dynamics, smoothing and stroke state restore even after interruption.
+Editable Pause waits until a native stroke finishes and this temporary state is
+restored. Batches resolve and validate their target again before each stroke, so
+manual deletion, locking or document closure fails cleanly on resume. See
+[automation-feedback.md](automation-feedback.md) for history and API lifetime rules.
 Focus loss during a native script stroke skips manual gesture cleanup: zoom-field
 focus or switching windows must not reset its coverage, spacing, or Mixer pickup.
 

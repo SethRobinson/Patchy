@@ -318,6 +318,7 @@ bool ScriptEngineHost::run_source(const QString& source, RunOptions options) {
   const QJSValue result = engine_->evaluate(source, file_name, 1);
   watchdog_->disarm();
   run_->sync_running = false;
+  if (manual_edit_pause()) { begin_manual_pause(); emit paused_changed(true); }
   end_progress_indicator();
   if (engine_->isInterrupted()) {
     run_->had_error = true;
@@ -415,6 +416,7 @@ bool ScriptEngineHost::call_script_callback(QJSValue callback, const QJSValueLis
     return false;
   }
   run_->in_callback = false;
+  if (manual_edit_pause()) { begin_manual_pause(); emit paused_changed(true); }
   end_progress_indicator();
   bool failed = false;
   if (engine_ != nullptr && engine_->isInterrupted()) {
@@ -519,6 +521,8 @@ bool ScriptEngineHost::unattended_run() const {
 }
 
 bool MainWindow::unattended_automation() const {
+  // An editable pause belongs to the artist, including normal save prompts.
+  if (script_engine_host_ && script_engine_host_->manual_edit_pause()) return false;
   return cli_automation_mode_ ||
          (script_engine_host_ != nullptr && script_engine_host_->unattended_run());
 }
@@ -1138,6 +1142,55 @@ bool ScriptEngineHost::slow_mode() const { return slow_mode_ && slow_mode_availa
 
 bool ScriptEngineHost::paused() const { return run_ && run_->paused; }
 
+bool ScriptEngineHost::manual_edit_pause() const {
+  return paused() && (waiting_for_resume_ || (!run_->sync_running && !run_->in_callback && api_call_depth_ == 0));
+}
+
+void ScriptEngineHost::begin_api_call() {
+  if (api_call_depth_ == 0) { wait_while_paused(); }
+  ++api_call_depth_;
+}
+
+void ScriptEngineHost::end_api_call() {
+  --api_call_depth_;
+  if (api_call_depth_ == 0) { wait_while_paused(); }
+}
+
+void ScriptEngineHost::pause_at_edit_boundary() {
+  const QScopedValueRollback<int> guard(api_call_depth_, 0);
+  wait_while_paused();
+}
+
+void ScriptEngineHost::keep_alive_for_ui() { if (watchdog_ && run_) { watchdog_->feed(); } }
+
+QJsonArray ScriptEngineHost::pause_history_state() const {
+  QJsonArray state;
+  for (const auto& session : window_.sessions_) {
+    state.append(QJsonObject{{"id", QString::number(session->session_id)},
+      {"revision", QString::number(session->revision)},
+      {"history", QString::number(session->current_state_id)}});
+  }
+  return state;
+}
+
+void ScriptEngineHost::begin_manual_pause() {
+  if (run_ && !run_->paused_documents) {
+    refresh_script_view(true);
+    run_->paused_documents = pause_history_state();
+  }
+}
+
+void ScriptEngineHost::finish_manual_pause() {
+  if (!run_ || !run_->paused_documents) return;
+  if (pause_history_state() != *run_->paused_documents) {
+    // Manual history and the next automation edit must have distinct snapshots.
+    run_->undo_group_sessions.clear();
+    run_->pending_mutations.clear();
+    run_->slow_mutations.clear();
+  }
+  run_->paused_documents.reset();
+}
+
 void ScriptEngineHost::set_paused(bool paused) {
   if (paused && (!run_ || !slow_mode_available() ||
                  (!connector_mode_ && !(script_activity_ && script_activity_->working())))) {
@@ -1145,14 +1198,22 @@ void ScriptEngineHost::set_paused(bool paused) {
     return;
   }
   if (!run_ || run_->paused == paused) { return; }
+  if (!paused && !run_->stop_requested && manual_edit_pause() && manual_edit_in_progress()) {
+    window_.statusBar()->showMessage(tr("Finish the current manual edit before resuming automation."), 5000);
+    emit paused_changed(true);
+    return;
+  }
+  if (!paused) finish_manual_pause();
   run_->paused = paused;
+  if (manual_edit_pause()) begin_manual_pause();
   emit paused_changed(paused);
 }
 
 void ScriptEngineHost::wait_while_paused() {
-  if (!paused() || waiting_for_resume_) { return; }
+  if (!paused() || waiting_for_resume_ || api_call_depth_ != 0 || !engine_ || engine_->isInterrupted()) { return; }
   const QScopedValueRollback<bool> guard(waiting_for_resume_, true);
-  refresh_script_view(true);
+  begin_manual_pause();
+  emit paused_changed(true);
   while (paused() && !run_->stop_requested && engine_ && !engine_->isInterrupted()) {
     // Yield the CPU, keep the window/navigation controls alive, and treat a
     // deliberate pause as activity. Existing sync/callback gates protect JS.
@@ -1162,6 +1223,7 @@ void ScriptEngineHost::wait_while_paused() {
     QTimer::singleShot(20, &pause, &QEventLoop::quit);
     pause.exec(QEventLoop::AllEvents);
   }
+  finish_manual_pause();
   if (watchdog_) { watchdog_->feed(); }
 }
 
@@ -1254,7 +1316,7 @@ void ScriptEngineHost::flush_pending_refresh() {
   }
   // Panels mirror the active session only.
   if (active_structure) {
-    window_.refresh_layer_list();
+    window_.refresh_layer_list(true);
     window_.refresh_layer_controls();
     window_.update_document_action_state();
   } else if (active_pixels) {

@@ -48,6 +48,7 @@ namespace script_vector {
 // All parsing precedes prepare_mutation. Failures identify a public option or target.
 [[noreturn]] void invalid(const QString& field);
 template<class F> auto guarded(ScriptEngineHost& host, F&& function) -> std::invoke_result_t<F> {
+  const ScriptApiCall api_call(host);
   using Result = std::invoke_result_t<F>;
   try { return function(); }
   catch (const std::exception& error) {

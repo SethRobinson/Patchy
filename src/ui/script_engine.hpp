@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QJsonObject>
+#include <QJsonArray>
 #include <QJsonValue>
 #include <QImage>
 #include "ui/script_stroke.hpp"
@@ -298,8 +299,14 @@ public:
   void set_slow_mode(bool enabled);
   Q_SIGNAL void slow_mode_changed(bool enabled);
   [[nodiscard]] bool paused() const;
+  [[nodiscard]] bool manual_edit_pause() const;
   void set_paused(bool paused);
   Q_SIGNAL void paused_changed(bool paused);
+  // API scopes park only after native locals and temporary tool state unwind.
+  void begin_api_call();
+  void end_api_call();
+  void pause_at_edit_boundary();
+  void keep_alive_for_ui();
   bool resize_session_image(std::int64_t session_id, int width, int height);
   // The activeLayer setter's reveal: expand collapsed ancestor folders and
   // (when the session is the active one) select + scroll the row into view.
@@ -342,7 +349,12 @@ private:
   bool presenting_view_{false};
   bool slow_mode_{false};
   bool waiting_for_resume_{false};
+  int api_call_depth_{0};
+  [[nodiscard]] bool manual_edit_in_progress() const;
   void wait_while_paused();
+  void begin_manual_pause();
+  void finish_manual_pause();
+  QJsonArray pause_history_state() const;
   void complete_mutation(std::int64_t session_id);
   bool refresh_script_view(bool force = false);
   std::function<void()> connector_progress_callback_;
@@ -370,6 +382,7 @@ private:
     bool in_callback{false};
     bool stop_requested{false};
     bool paused{false};
+    std::optional<QJsonArray> paused_documents;
     bool finishing{false};
     bool had_error{false};
     // CLI-originated run (RunOptions.unattended).
@@ -459,6 +472,16 @@ private:
   bool last_run_had_error_{false};
   bool refresh_flush_scheduled_{false};
   bool completion_check_scheduled_{false};
+};
+
+class ScriptApiCall {
+public:
+  explicit ScriptApiCall(ScriptEngineHost& host) : host_(host) { host_.begin_api_call(); }
+  ~ScriptApiCall() { host_.end_api_call(); }
+  ScriptApiCall(const ScriptApiCall&) = delete;
+  ScriptApiCall& operator=(const ScriptApiCall&) = delete;
+private:
+  ScriptEngineHost& host_;
 };
 
 }  // namespace patchy::ui
