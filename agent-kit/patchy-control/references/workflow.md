@@ -12,6 +12,18 @@ If the connector is not configured, use the package's [setup instructions](setup
 
 For art from a supplied photo or image, read [Reference artwork](reference-art.md), also available as `get_help` with `topic: "reference-art"`. Use it to plan the crop, palette, editable layers, and preview comparisons. The setup guide includes example user requests for icons, sprite processing, and PSD edits.
 
+## Choose the workspace for the task
+
+Setup is done once. The example prompts in Help > Set up AI Control describe tasks; choosing one does not change or reinstall the connector or skill. Preserve a working installation when the user changes between background work and their open document.
+
+Use the configured MCP connection when `get_info` matches the requested workspace. MCP startup mode is fixed for that connection; a prompt does not turn an attached window into a hidden one. With shell access, use the same installation's command-line API for a task that needs another workspace:
+
+- For background work, use `patchy --headless --run-script ... --script-output ...`. It creates a private offscreen workspace. Save a PSD checkpoint between calls and read preview PNGs from disk. It never touches the user's open tabs.
+- For the user's open document, prefer attached MCP. Otherwise verify that the matching Patchy application is already running, then use `patchy --run-script ... --script-output ...` with no positional image paths. First inspect `app.activeDocument` and `app.documents`, log their IDs, and save a preview with `doc.renderPreview`. Recheck the intended IDs in the editing script, keep Undo enabled, and inspect the result. Poll the output file for `[done]` or `[failed]`; the forwarding process exits before the script finishes. If the application is unavailable, ask the user to open it; never create a replacement and claim it is their document.
+- For visible creation, use an available visible MCP workspace or run a non-headless CLI script. That command can forward into an existing window, so create a new document for the task and preserve existing documents. Without a running window, the CLI window lasts for that script; save results before it exits. Only show a window when the user's request authorizes it.
+
+CLI runs use the existing script-progress UI, not the MCP connection indicator. Read the API and workflow from this installation if its configured MCP connection is unavailable. A client with only MCP tools and no shell cannot change workspaces within the connection. Explain that limit if it matters and offer a connection-mode change with reconnection, not reinstalling the skill or application. Do not change client configuration just because the user selected a different example.
+
 ## Edit, inspect, revise
 
 - In attached mode, first inspect `get_state` and `get_preview`. Pass the latest returned `stateToken` as `expectedState` to every `execute_script`, `draw_strokes`, `undo`, and `redo` request. Arbitrary scripts need the token even if you intend only to read. A `stale_state` error means no edit ran: inspect the new state and preview, reconsider the edit, and only then retry with the fresh token. Switching tabs or editing pixels invalidates an older view. The token is opaque and valid only for that connection.

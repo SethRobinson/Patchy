@@ -3,8 +3,8 @@
 // Help > Set up AI Control. Shows the English text a user pastes into their AI
 // assistant (Claude Code, Codex, Cursor, ...) so the assistant reads the shipped
 // setup guide and configures Patchy's MCP connector and skill itself. The dialog
-// never shows commands or JSON to the person; those live in the guide the text
-// points at. Opened non-modally by MainWindow::open_ai_setup_dialog. See
+// also offers copyable task prompts independently of that one-time setup.
+// Opened non-modally by MainWindow::open_ai_setup_dialog. See
 // docs/ai-control.md.
 
 #include "ui/ai_control_paths.hpp"

@@ -15350,6 +15350,26 @@ Clipped to the layer below</source>
     <message><source>The AI can inspect and edit your open documents, including unsaved changes. The status bar shows when it is connected or working. Open Patchy before connecting.</source><translation>AIは未保存の変更を含め、開いているドキュメントを確認して編集できます。接続中か作業中かはステータスバーに表示されます。接続前にPatchyを開いてください。</translation></message>
     <message><source>Watch the AI work in a separate window. Save its documents before disconnecting or changing modes.</source><translation>別のウィンドウでAIの作業を確認できます。切断やモード変更の前に、作業中のドキュメントを保存してください。</translation></message>
     <message><source>Work in the background and receive previews in chat. Save its documents before disconnecting or changing modes.</source><translation>バックグラウンドで作業し、チャットでプレビューを確認できます。切断やモード変更の前に、作業中のドキュメントを保存してください。</translation></message>
+    <message><source>First, copy the setup prompt into your AI assistant (Claude Code, Codex, Cursor, or another tool that supports MCP). You only need to set up Patchy once. The setup prompt is in English because it is written for the assistant.</source><translation>まず、セットアップ用のプロンプトをAIアシスタント（Claude Code、Codex、CursorなどのMCP対応ツール）に貼り付けてください。Patchyのセットアップは一度だけで済みます。このプロンプトはアシスタント向けのため英語で書かれています。</translation></message>
+    <message><source>Copy Setup Prompt</source><translation>セットアップ用プロンプトをコピー</translation></message>
+    <message><source>After setup, try an example prompt. Choose one below, then copy it into your assistant. You can change tasks or workspaces without installing again.</source><translation>セットアップが終わったら、プロンプトの例を試してみましょう。下から選んでアシスタントに貼り付けてください。作業内容や作業領域を変えるために再インストールする必要はありません。</translation></message>
+    <message><source>Example prompts</source><translation>プロンプトの例</translation></message>
+    <message><source>Example prompt</source><translation>プロンプトの例文</translation></message>
+    <message><source>Copy Example Prompt</source><translation>例文をコピー</translation></message>
+    <message><source>Fix the face in my open document</source><translation>開いているドキュメントの顔を修正</translation></message>
+    <message><source>Edit the document I have open in Patchy. Make the face cuter on a separate correction layer, keep the other layers, and show me a before-and-after preview.</source><translation>Patchyで開いているドキュメントを編集してください。別の修正用レイヤーで顔をもっとかわいくして、ほかのレイヤーは残し、修正前と修正後のプレビューを見せてください。</translation></message>
+    <message><source>Create pixel art while I watch</source><translation>作業を見ながらピクセルアートを作成</translation></message>
+    <message><source>Create a cute 64x64 pixel-art animal in a visible Patchy window so I can watch. Use editable layers, inspect the preview and refine it, then save a layered PSD and a 64x64 PNG.</source><translation>作業を見られるようにPatchyのウィンドウを表示して、かわいい64x64の動物のピクセルアートを作ってください。編集できるレイヤーを使い、プレビューを確認して仕上げてから、レイヤー付きPSDと64x64のPNGを保存してください。</translation></message>
+    <message><source>Make icons in the background</source><translation>バックグラウンドでアイコンを作成</translation></message>
+    <message><source>Use Patchy in the background, without opening a window, to create three matching 32x32 app icons: a folder, a paintbrush, and a heart. Give them transparent backgrounds and show me the previews and saved PNG files.</source><translation>ウィンドウを開かずにPatchyをバックグラウンドで使って、フォルダー、絵筆、ハートの32x32アプリアイコンを統一したデザインで3つ作ってください。背景を透明にし、プレビューと保存したPNGファイルを見せてください。</translation></message>
+    <message><source>Turn a reference image into artwork</source><translation>参考画像からアートを作成</translation></message>
+    <message><source>Use the image I attach as a reference for a cute 64x64 portrait in Patchy. Keep its recognizable features, compare your preview with the reference as you refine it, and save both an editable PSD and a PNG.</source><translation>添付する画像を参考に、Patchyでかわいい64x64のポートレートを作ってください。元の画像の特徴を残し、プレビューを参考画像と比べながら仕上げて、編集可能なPSDとPNGの両方を保存してください。</translation></message>
+    <message><source>Export sizes from my open document</source><translation>開いているドキュメントを複数サイズで書き出し</translation></message>
+    <message><source>Use my open Patchy document to export transparent PNG copies at 64x64, 128x128, and 256x256. Preserve the proportions, leave the original document unchanged, and show me the exported files.</source><translation>Patchyで開いているドキュメントから、64x64、128x128、256x256の背景が透明なPNGコピーを書き出してください。縦横比を保ち、元のドキュメントは変更せず、書き出したファイルを見せてください。</translation></message>
+    <message><source>Make a contact sheet in the background</source><translation>バックグラウンドでコンタクトシートを作成</translation></message>
+    <message><source>Use Patchy in the background to make a labeled contact sheet from a folder of images. Ask me which folder if I have not provided one, keep the original files unchanged, and show me the finished sheet.</source><translation>Patchyをバックグラウンドで使って、画像フォルダーからラベル付きのコンタクトシートを作ってください。フォルダーをまだ指定していなければ確認し、元のファイルは変更せず、完成したシートを見せてください。</translation></message>
+    <message><source>Review my open document</source><translation>開いているドキュメントをレビュー</translation></message>
+    <message><source>Look at the document I have open in Patchy and suggest three specific improvements to its composition and colors. Show me the preview before making any edits.</source><translation>Patchyで開いているドキュメントを見て、構図や色を改善する具体的な案を3つ提案してください。編集を始める前にプレビューを見せてください。</translation></message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>

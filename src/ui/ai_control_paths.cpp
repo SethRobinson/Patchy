@@ -44,7 +44,7 @@ AiControlPaths resolve_ai_control_paths() {
   return paths;
 }
 
-QString ai_setup_blurb_text(const AiControlPaths& paths, AiWorkspaceMode mode) {
+QString ai_setup_blurb_text(const AiControlPaths& paths) {
   // One sentence per line and every path on its own line: the dialog wraps long
   // lines itself, and hard breaks inside a sentence would fight that wrapping.
   const auto quoted = [](const QString& path) {
@@ -88,15 +88,8 @@ QString ai_setup_blurb_text(const AiControlPaths& paths, AiWorkspaceMode mode) {
   } else {
     lines << QStringLiteral("   Command: %1").arg(quoted(paths.connector_path));
   }
-  if (mode == AiWorkspaceMode::Attached) {
-    lines << QStringLiteral("   Add the argument --attach to connect to the Patchy workspace I already have open. I authorize control of that workspace for my requested edits.")
-          << QStringLiteral("   If Patchy is unavailable, tell me to open it and reconnect. Do not create a separate workspace instead.");
-  } else {
-    lines << (mode == AiWorkspaceMode::Visible
-                ? QStringLiteral("   Add the argument --visible so I can watch in a separate Patchy window. I authorize control of that workspace.")
-                : QStringLiteral("   Use no connector arguments: work hidden and show previews in this chat."));
-    lines << QStringLiteral("   This workspace is separate from any Patchy window I already have open.");
-  }
+  lines << QStringLiteral("   For a new connection, use no connector arguments. Reuse an existing matching Patchy connection without changing its workspace mode.")
+        << QStringLiteral("   This is a one-time setup. For later tasks, follow the workflow to use my open workspace, work visibly, or work in the background without reinstalling. Use the existing connector or the command-line API as appropriate.");
   lines << QStringLiteral("2. Create a \"patchy-control\" folder in your skills directory and "
                           "copy only SKILL.md from this folder into it. The skill fetches "
                           "current instructions from Patchy; leave references and scripts here:");

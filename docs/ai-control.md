@@ -11,8 +11,7 @@ The user-facing entry point is Help > Set up AI Control (`help.ai_setup`,
 `MainWindow::open_ai_setup_dialog()` in `main_window_scripting.cpp`, dialog class
 `AiSetupDialog` in `src/ui/ai_setup_dialog.*`). It shows an English text the user
 pastes into their AI assistant; the assistant reads the shipped setup document and
-registers the connector and installs the skill itself. The dialog never shows
-commands or JSON to the person. The text is built by `ai_setup_blurb_text` in
+registers the connector and installs the skill itself. The setup text is built by `ai_setup_blurb_text` in
 `src/ui/ai_control_paths.*`, which also owns the install-layout resolver
 (`resolve_ai_control_paths`, `ai_control_skill_directory`) shared with
 `patchy-mcp`'s `get_info`, so the connector and the dialog cannot disagree about
@@ -22,11 +21,19 @@ and the in-sandbox skill path. The blurb is deliberately not translated: its rea
 is the assistant. The action is hidden on wasm (no connector) but its command id
 stays registered. Dialog objectNames for tests: `aiSetupDialog`, `aiSetupBlurbText`,
 `aiSetupStatusLabel`, `aiSetupCopyButton`, `aiSetupOpenSkillFolderButton`,
-`aiSetupOpenGuideButton`, `aiSetupCloseButton`, `aiSetupModeComboBox`, and
-`aiSetupModeHint`. Choices are the open workspace (`--attach`, initially selected),
-a separate visible window (`--visible`), and a hidden workspace (no argument).
-Attached and visible instructions carry explicit workspace authorization.
-The mode choice is local to the dialog and does not change existing connections.
+`aiSetupOpenGuideButton`, `aiSetupCloseButton`, `aiSetupExamplesLabel`,
+`aiSetupExamplesComboBox`, `aiSetupExampleText`, and `aiSetupExampleCopyButton`.
+One fixed setup prompt creates a default connection with no mode argument, or
+reuses a matching existing connection with its current arguments. A separate,
+localized example selector changes only the task prompt below it. Setup and
+examples have independent Copy buttons; selecting an example never changes the
+setup text or client configuration. Examples cover open-document fixes and
+review, visible art, background icons and contact sheets, reference art, and
+export sizes. The dialog and both prompt fields use larger proportional fonts;
+local stylesheet font rules override MainWindow's inherited text size.
+The served workflow routes tasks through an appropriate existing MCP connection
+or the CLI without reinstalling. MCP-only clients still need a reconnection for
+an explicitly requested startup-mode change; there is no runtime mode-switch tool.
 The instructions install only the `SKILL.md` entry point, require saved test files, and distinguish configuration from
 successful tool verification, including clients that need a restart.
 

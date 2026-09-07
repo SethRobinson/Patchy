@@ -11,14 +11,16 @@ to the AI client and may be processed by that client's hosted model.
 ## For people
 
 1. Open Patchy and choose Help > Set up AI Control.
-2. Choose your open Patchy workspace, a separate visible window, or hidden work,
-   then click Copy to Clipboard. The dialog initially selects your open workspace.
+2. Click Copy Setup Prompt. This is a one-time installation step.
 3. Paste the text into your AI assistant (Claude Code, Codex, Cursor, or another
    tool that supports MCP) and send it.
 
 The assistant reads this document, registers the connector, installs the skill,
 and shows you a small test drawing when it is done. Some clients need you to
 reconnect or restart before tools become available in the current chat.
+After setup, choose an example in the same dialog and click Copy Example Prompt.
+Examples include editing your open document, working visibly, and background jobs.
+Changing the example leaves the setup prompt and installed settings alone.
 The rest of this page is written for the assistant, and for anyone who prefers
 to do the steps by hand.
 
@@ -57,7 +59,12 @@ table below.
 installer path is `"$env:LOCALAPPDATA\Programs\Patchy\patchy-mcp.exe"`. Always
 use the absolute path, quoted, because user folders often contain spaces.
 
-The connector needs no Python or Node runtime. Choose one startup mode:
+The connector needs no Python or Node runtime. New installations use no arguments.
+Reuse an existing matching entry, including its mode. Tasks can use that connector
+or the same installation's CLI; see the workspace guidance in `get_help(workflow)`.
+Do not reinstall or rewrite MCP settings when the user changes example prompts.
+
+These startup modes remain available for clients that explicitly need one:
 
 | Argument | Workspace |
 |---|---|
@@ -73,8 +80,10 @@ a desktop display. Only one attached MCP client can use a workspace at a time.
 The client starts the connector when connecting. For isolated workspaces it also
 controls document lifetime: disconnecting loses unsaved documents and history.
 In attached mode, disconnecting leaves the artist's documents open and stops any
-active AI request. Save checkpoints before switching modes, change only Patchy's
-arguments, reconnect, and query the current IDs and state. Do not restart the AI client
+active AI request. If a client has no shell access and the user explicitly wants a
+different MCP startup mode, save checkpoints, change only Patchy's arguments,
+reconnect, and query the current IDs and state. This is a connection preference,
+not another installation. Do not restart the AI client
 yourself if that would interrupt the conversation. Tell the user what is ready
 and the exact remaining restart step.
 
@@ -109,15 +118,14 @@ codex mcp add patchy -- "<connector>"
 ```
 
 Create `~/.agents/skills/patchy-control` (or a project's
-`.agents/skills/patchy-control`) and copy `<skill>/SKILL.md` into it. For visible work append `--visible` to the
-connector command: `codex mcp add patchy -- "<connector>" --visible`. For the user's
-open document use `--attach` instead. Append the selected argument to the Claude
-Code command in the same way.
+`.agents/skills/patchy-control`) and copy `<skill>/SKILL.md` into it. The default
+connection needs no arguments. Preserve an existing matching connection.
 
 If editing `config.toml` directly, add only `[mcp_servers.patchy]`. On Windows,
 a TOML literal string such as `command = 'C:\Users\Name\...\patchy-mcp.exe'`
-preserves backslashes. Use `args = ["--attach"]` for the open workspace,
-`args = ["--visible"]` for a separate visible window, or no arguments for hidden work.
+preserves backslashes. Leave arguments empty for a new default connection. The
+optional `--attach` and `--visible` startup modes use the `args` array; they are
+not choices the user needs to make during installation.
 
 **Cursor and other JSON-configured clients**
 
@@ -137,8 +145,7 @@ Windows, double every backslash inside the JSON string.
 
 For Flatpak use `"command": "flatpak"` and
 `"args": ["run", "--command=patchy-mcp", "com.rtsoft.patchy"]`.
-For the open workspace use `"args": ["--attach"]`; for a separate visible window
-use `"args": ["--visible"]`. For Flatpak append the chosen mode to its argument list.
+Optional startup modes go in `args`; for Flatpak they follow the app ID.
 
 Install just `SKILL.md` in a `patchy-control` folder inside the client's skills
 directory, if it has one.

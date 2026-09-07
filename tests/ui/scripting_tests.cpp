@@ -15,6 +15,7 @@
 #include "ui/canvas_widget.hpp"
 #include "ui/ai_control_paths.hpp"
 #include "ui/ai_setup_dialog.hpp"
+#include "ui/localization.hpp"
 #include "ui/main_window.hpp"
 #include "ui/script_editor_dialog.hpp"
 #include "ui/script_engine.hpp"
@@ -36,6 +37,7 @@
 #include <QDialogButtonBox>
 #include <QDir>
 #include <QFileInfo>
+#include <QFontMetrics>
 #include <QDockWidget>
 #include <QElapsedTimer>
 #include <QEventLoop>
@@ -47,6 +49,7 @@
 #include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QScopeGuard>
 #include <QStandardPaths>
 #include <QStatusBar>
 #include <QTemporaryDir>
@@ -1800,29 +1803,72 @@ void ui_ai_setup_blurb_reports_missing_and_flatpak_forms() {
                       QLatin1Char('"')));
   CHECK(!text.contains(QStringLiteral("NOT FOUND (expected")));
 
-  // Switching modes must update the exact clipboard payload and be reversible.
-  patchy::ui::AiSetupDialog dialog(resolved);
-  auto* mode = dialog.findChild<QComboBox*>(QStringLiteral("aiSetupModeComboBox"));
+  CHECK(text.contains(QStringLiteral("use no connector arguments")));
+  CHECK(text.contains(QStringLiteral("Reuse an existing matching Patchy connection")));
+  CHECK(text.contains(QStringLiteral("without reinstalling")));
+}
+
+void ui_ai_setup_examples_keep_installation_prompt_stable() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto resolved = patchy::ui::resolve_ai_control_paths();
+  const auto text = patchy::ui::ai_setup_blurb_text(resolved);
+  patchy::ui::AiSetupDialog dialog(resolved, &window);
+  dialog.show();
+  QApplication::processEvents();
+  CHECK(!dialog.findChild<QComboBox*>(QStringLiteral("aiSetupModeComboBox")));
+  auto* examples = dialog.findChild<QComboBox*>(QStringLiteral("aiSetupExamplesComboBox"));
+  auto* example_text = dialog.findChild<QPlainTextEdit*>(QStringLiteral("aiSetupExampleText"));
+  auto* example_copy = dialog.findChild<QPushButton*>(QStringLiteral("aiSetupExampleCopyButton"));
+  auto* setup_text = dialog.findChild<QPlainTextEdit*>(QStringLiteral("aiSetupBlurbText"));
   auto* copy = dialog.findChild<QPushButton*>(QStringLiteral("aiSetupCopyButton"));
-  CHECK(mode != nullptr && copy != nullptr);
-  CHECK(mode->currentData().toInt() == static_cast<int>(patchy::ui::AiWorkspaceMode::Attached));
+  CHECK(examples && example_text && example_copy && setup_text && copy);
+  CHECK(examples->count() >= 5);
+  CHECK(example_text->isReadOnly());
+  CHECK(QFontMetrics(setup_text->font()).height() > QFontMetrics(window.font()).height());
+  CHECK(example_text->font() == setup_text->font());
+  QStringList prompts;
+  for (int i = 0; i < examples->count(); ++i) {
+    examples->setCurrentIndex(i);
+    const auto prompt = example_text->toPlainText();
+    CHECK(!prompt.isEmpty() && !prompts.contains(prompt));
+    prompts.append(prompt);
+    example_copy->click();
+    CHECK(QGuiApplication::clipboard()->text() == prompt);
+    CHECK(dialog.blurb_text() == text);
+    copy->click();
+    CHECK(QGuiApplication::clipboard()->text() == text);
+  }
+  const auto all = prompts.join(QLatin1Char('\n'));
+  CHECK(all.contains(QStringLiteral("document I have open")));
+  CHECK(all.contains(QStringLiteral("visible Patchy window")));
+  CHECK(all.contains(QStringLiteral("background, without opening a window")));
+  examples->setCurrentIndex(2);
+  QTest::qWait(1250);
+  CHECK(copy->text() == QStringLiteral("Copy Setup Prompt"));
+  CHECK(example_copy->text() == QStringLiteral("Copy Example Prompt"));
+  save_widget_artifact("ai_setup_examples", dialog);
+  auto& theme = patchy::ui::ThemeManager::instance();
+  auto& language = patchy::ui::LocalizationManager::instance();
+  const auto old_theme = theme.preference();
+  const auto old_language = language.current_language();
+  const auto restore = qScopeGuard([&] {
+    theme.set_preference(old_theme, false);
+    (void)language.set_language(old_language, false);
+  });
+  theme.set_preference(patchy::ui::ColorSchemePreference::Light, false);
+  QApplication::processEvents();
+  save_widget_artifact("ai_setup_examples_light", dialog);
+  dialog.close();
+  CHECK(language.set_language(QStringLiteral("ja"), false));
+  patchy::ui::AiSetupDialog japanese(resolved, &window);
+  japanese.show();
+  QApplication::processEvents();
+  auto* japanese_copy = japanese.findChild<QPushButton*>(QStringLiteral("aiSetupExampleCopyButton"));
+  CHECK(japanese_copy && japanese_copy->text() != QStringLiteral("Copy Example Prompt"));
+  save_widget_artifact("ai_setup_examples_ja", japanese);
+  japanese.close();
   CHECK(dialog.blurb_text() == text);
-  CHECK(text.contains(QStringLiteral("argument --attach")));
-  CHECK(text.contains(QStringLiteral("expectedState")));
-  mode->setCurrentIndex(mode->findData(static_cast<int>(patchy::ui::AiWorkspaceMode::Visible)));
-  CHECK(dialog.blurb_text() == patchy::ui::ai_setup_blurb_text(resolved, patchy::ui::AiWorkspaceMode::Visible));
-  CHECK(dialog.blurb_text().contains(QStringLiteral("argument --visible")));
-  copy->click();
-  CHECK(QGuiApplication::clipboard()->text() == dialog.blurb_text());
-  mode->setCurrentIndex(mode->findData(static_cast<int>(patchy::ui::AiWorkspaceMode::Hidden)));
-  CHECK(dialog.blurb_text().contains(QStringLiteral("Use no connector arguments")));
-  CHECK(!dialog.blurb_text().contains(QStringLiteral("--attach")));
-  mode->setCurrentIndex(mode->findData(static_cast<int>(patchy::ui::AiWorkspaceMode::Attached)));
-  CHECK(dialog.blurb_text() == text);
-  CHECK(!dialog.blurb_text().contains(QStringLiteral("--visible")));
-  const auto visible_flatpak = patchy::ui::ai_setup_blurb_text(flatpak, patchy::ui::AiWorkspaceMode::Visible);
-  CHECK(visible_flatpak.contains(QStringLiteral("argument --visible")));
-  CHECK(visible_flatpak.contains(QStringLiteral("flatpak run --command=patchy-mcp com.rtsoft.patchy")));
 }
 
 // patchy.ui.zoom / fitOnScreen: the documented view controls (percent, active
@@ -2321,6 +2367,7 @@ std::vector<patchy::test::TestCase> scripting_tests() {
       {"ui_ai_setup_dialog_opens_from_help", ui_ai_setup_dialog_opens_from_help},
       {"ui_ai_setup_blurb_reports_missing_and_flatpak_forms",
        ui_ai_setup_blurb_reports_missing_and_flatpak_forms},
+      {"ui_ai_setup_examples_keep_installation_prompt_stable", ui_ai_setup_examples_keep_installation_prompt_stable},
       {"ui_script_ui_view_zoom", ui_script_ui_view_zoom},
       {"ui_script_ui_staging_apis", ui_script_ui_staging_apis},
       {"ui_script_active_layer_setter_reveals_row", ui_script_active_layer_setter_reveals_row},

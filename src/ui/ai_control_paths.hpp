@@ -22,8 +22,6 @@ struct AiControlPaths {
   bool flatpak{false};          // running inside a Flatpak sandbox (FLATPAK_ID is set)
 };
 
-enum class AiWorkspaceMode { Hidden, Visible, Attached };
-
 // The assembled patchy-control skill next to the executable: ai/patchy-control
 // (Windows and source builds), ../Resources/ai/patchy-control (macOS bundle), or
 // ../share/patchy/ai/patchy-control (Linux prefix and Flatpak). Empty when none has
@@ -36,6 +34,6 @@ enum class AiWorkspaceMode { Hidden, Visible, Attached };
 // itself. Deliberately not translated: its reader is the assistant, and the
 // commands, config keys, and folder names it refers to are English. Missing pieces
 // read "NOT FOUND" so the assistant reports instead of guessing.
-[[nodiscard]] QString ai_setup_blurb_text(const AiControlPaths& paths, AiWorkspaceMode mode = AiWorkspaceMode::Attached);
+[[nodiscard]] QString ai_setup_blurb_text(const AiControlPaths& paths);
 
 }  // namespace patchy::ui
