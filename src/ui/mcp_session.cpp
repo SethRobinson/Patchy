@@ -27,6 +27,11 @@
 #endif
 
 namespace patchy::ui {
+void configure_owned_mcp_workspace(MainWindow& window, bool visible) {
+  window.set_cli_automation_mode(!visible);
+  qApp->setQuitOnLastWindowClosed(visible);
+}
+
 namespace {
 
 // Shared with Help > Set up AI Control so the connector and the dialog agree on

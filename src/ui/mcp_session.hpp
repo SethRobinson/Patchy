@@ -8,6 +8,11 @@
 namespace patchy::ui {
 class MainWindow;
 
+// Startup policy for a connector-owned window. Visible workspaces permit
+// normal user dialogs between requests and exit when their window is closed.
+// MCP script runs still suppress prompts through RunOptions::unattended.
+void configure_owned_mcp_workspace(MainWindow& window, bool visible);
+
 // Transport-independent MCP connection. Document operations run on the UI
 // thread; the transport calls receive_line/disconnect on its input thread so
 // cancellation still interrupts a synchronous JavaScript loop.

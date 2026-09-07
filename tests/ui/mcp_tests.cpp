@@ -8,11 +8,15 @@
 #include <QApplication>
 #include <QCloseEvent>
 #include <QElapsedTimer>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QLabel>
 #include <QMenuBar>
+#include <QMessageBox>
 #include <QPushButton>
+#include <QScopeGuard>
+#include <QTabWidget>
 #include <QTimer>
 #include <chrono>
 #include <exception>
@@ -39,8 +43,8 @@ struct Connection {
   std::vector<QJsonObject> replies;
   patchy::ui::McpSession session;
   int next_id{1};
-  explicit Connection(patchy::ui::MainWindow& window)
-      : session(window, true, [this](const QByteArray& line) {
+  explicit Connection(patchy::ui::MainWindow& window, bool attached = true)
+      : session(window, attached, [this](const QByteArray& line) {
           const std::lock_guard lock(mutex);
           replies.push_back(QJsonDocument::fromJson(line).object());
         }) { connect(); }
@@ -420,6 +424,104 @@ void ui_script_visible_unattended_stop_and_resize_processing() {
   until([&] {return !host.run_active();});
   CHECK(saw_interactive_stop && host.last_run_had_error());
 }
+
+void ui_mcp_visible_idle_save_prompts_and_window_close() {
+  const bool previous_quit = qApp->quitOnLastWindowClosed();
+  const auto restore_quit = qScopeGuard([previous_quit] { qApp->setQuitOnLastWindowClosed(previous_quit); });
+  patchy::ui::MainWindow window;
+  patchy::ui::configure_owned_mcp_workspace(window, true);
+  show_window_empty(window);
+  Connection connection(window, false);
+  CHECK(qApp->quitOnLastWindowClosed());
+  CHECK(!window.unattended_automation());
+  const auto path = QFileInfo(QStringLiteral("test-artifacts/mcp-visible-close.psd")).absoluteFilePath();
+  const auto path_json = QString::fromUtf8(QJsonDocument(QJsonArray{path}).toJson(QJsonDocument::Compact)) + "[0]";
+  connection.edit("var d=app.newDocument(24,24); d.addLayer('Painting').fill('#112233');"
+                  "if(!d.saveAs(" + path_json + ")) throw Error('save');");
+  connection.edit("app.activeDocument.activeLayer.fill('#445566');");
+  auto& host = window.script_engine_host();
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(tabs && tabs->count() == 1);
+
+  // Requests remain unattended, even though idle manual actions are interactive.
+  bool request_unattended = false;
+  QTimer request_observer;
+  QObject::connect(&request_observer, &QTimer::timeout, &window, [&] {
+    if (host.run_active()) { request_unattended = window.unattended_automation(); }
+  });
+  request_observer.start(5);
+  connection.edit("patchy.ui.present(60);");
+  request_observer.stop();
+  CHECK(request_unattended && !window.unattended_automation());
+
+  const auto answer_close = [&](QMessageBox::StandardButton answer, bool whole_window) {
+    bool seen = false;
+    bool busy_during_prompt = false;
+    QTimer dismiss;
+    QObject::connect(&dismiss, &QTimer::timeout, &window, [&] {
+      auto* box = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("saveChangesMessageBox")));
+      if (!box) { return; }
+      seen = true;
+      busy_during_prompt = !host.automation_ready();
+      dismiss.stop();
+      if (!whole_window && answer == QMessageBox::Cancel) {
+        box->grab().save(QStringLiteral("test-artifacts/mcp_visible_save_prompt.png"));
+      }
+      if (auto* button = box->button(answer)) { button->click(); }
+      else { box->reject(); }
+    });
+    dismiss.start(5);
+    if (whole_window) { window.close(); }
+    else { CHECK(QMetaObject::invokeMethod(tabs, "tabCloseRequested", Qt::DirectConnection, Q_ARG(int, 0))); }
+    dismiss.stop();
+    CHECK(seen && busy_during_prompt);
+  };
+
+  // The reported tab-X failure: Cancel preserves work, Discard closes it.
+  const auto before_cancel = connection.state();
+  answer_close(QMessageBox::Cancel, false);
+  CHECK(tabs->count() == 1 && window.isVisible());
+  CHECK(connection.state()["stateToken"] == before_cancel["stateToken"]);
+  answer_close(QMessageBox::No, false);
+  CHECK(host.session_ids().empty());
+  connection.edit("app.open(" + path_json + ");");
+  const auto active_red = [&] {
+    const auto* doc = host.session_document_const(host.active_session_id());
+    return doc->find_layer(*doc->active_layer_id())->pixels().pixel(0,0)[0];
+  };
+  CHECK(active_red() == 0x11); // Discard did not overwrite the saved file.
+  connection.edit("app.activeDocument.activeLayer.fill('#667788');");
+  answer_close(QMessageBox::Yes, false);
+  CHECK(host.session_ids().empty());
+  connection.edit("app.open(" + path_json + ");");
+  CHECK(active_red() == 0x66); // Save persisted the edit before closing.
+  CHECK(QMetaObject::invokeMethod(tabs, "tabCloseRequested", Qt::DirectConnection, Q_ARG(int, 0)));
+  CHECK(host.session_ids().empty()); // Unchanged documents still close directly.
+
+  connection.edit("app.newDocument(24,24).addLayer('Unsaved').fill('#8899aa');");
+  answer_close(QMessageBox::Cancel, true);
+  CHECK(window.isVisible() && host.session_ids().size() == 1);
+  answer_close(QMessageBox::No, true);
+  CHECK(!window.isVisible());
+  connection.disconnect();
+}
+
+void ui_mcp_hidden_workspace_keeps_unattended_policy() {
+  const bool previous_quit = qApp->quitOnLastWindowClosed();
+  const auto restore_quit = qScopeGuard([previous_quit] { qApp->setQuitOnLastWindowClosed(previous_quit); });
+  patchy::ui::MainWindow window;
+  patchy::ui::configure_owned_mcp_workspace(window, false);
+  show_window_empty(window);
+  Connection connection(window, false);
+  CHECK(window.unattended_automation() && !qApp->quitOnLastWindowClosed());
+  connection.edit("app.newDocument(24,24).addLayer('Unsaved').fill('#112233');");
+  require_action(window, "fileCloseAction")->trigger();
+  CHECK(window.script_engine_host().session_ids().size() == 1);
+  CHECK(!find_top_level_dialog(QStringLiteral("saveChangesMessageBox")));
+  connection.edit("app.activeDocument.close();");
+  CHECK(window.script_engine_host().session_ids().empty());
+  connection.disconnect();
+}
 }  // namespace
 
 std::vector<patchy::test::TestCase> mcp_tests() {
@@ -428,5 +530,7 @@ std::vector<patchy::test::TestCase> mcp_tests() {
           {"ui_mcp_attached_cancellation_interrupts_tight_loop", ui_mcp_attached_cancellation_interrupts_tight_loop},
           {"ui_mcp_vector_discovery_revisions_and_previews", ui_mcp_vector_discovery_revisions_and_previews},
           {"ui_mcp_progressive_edits_and_present_keep_history", ui_mcp_progressive_edits_and_present_keep_history},
-          {"ui_script_visible_unattended_stop_and_resize_processing", ui_script_visible_unattended_stop_and_resize_processing}};
+          {"ui_script_visible_unattended_stop_and_resize_processing", ui_script_visible_unattended_stop_and_resize_processing},
+          {"ui_mcp_visible_idle_save_prompts_and_window_close", ui_mcp_visible_idle_save_prompts_and_window_close},
+          {"ui_mcp_hidden_workspace_keeps_unattended_policy", ui_mcp_hidden_workspace_keeps_unattended_policy}};
 }

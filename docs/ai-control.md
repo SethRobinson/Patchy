@@ -92,6 +92,13 @@ the connector's own workspace so the user can watch batches appear. An explicit
 `QT_QPA_PLATFORM` is respected in that mode; `get_info` reports actual `mode`,
 `platform`, and `windowVisible`, not just the requested mode. Hidden and visible
 sessions share settings isolation, scripting restrictions, and stdin lifetime.
+Visible connector windows allow normal user dialogs between requests, including
+Save/Discard/Cancel when closing a modified document or the window. Only the MCP
+script run suppresses those prompts. Hidden workspaces suppress prompts for their
+entire lifetime. `configure_owned_mcp_workspace` owns this startup policy.
+Closing the visible window after resolving save prompts exits its connector;
+Cancel keeps the window and connection open. The client can start a new workspace
+on reconnect. Closing an unchanged document requires no prompt in either mode.
 Mode changes require saving, reconnecting, and reopening with new IDs. Avoid
 manual editing during agent operations. Visible mode needs a desktop display;
 `--check`, help, and malformed invocations remain offscreen.

@@ -62,7 +62,7 @@ int run_mcp_server(QApplication& app) {
     return args == QStringList{QStringLiteral("--help")} ? 0 : 2;
   }
   ui::MainWindow window;
-  window.set_cli_automation_mode(true);
+  ui::configure_owned_mcp_workspace(window, args == QStringList{QStringLiteral("--visible")});
   window.show();
   if (args == QStringList{QStringLiteral("--check")}) {
     auto& host = window.script_engine_host();
