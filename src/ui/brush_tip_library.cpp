@@ -2,6 +2,7 @@
 
 #include "psd/abr_reader.hpp"
 #include "ui/default_brush_tips.hpp"
+#include "ui/app_settings.hpp"
 
 #include <QDir>
 #include <QFile>
@@ -9,6 +10,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QPainter>
+#include <QSaveFile>
 #include <QUuid>
 
 #include <algorithm>
@@ -22,6 +24,12 @@ namespace {
 
 constexpr int kMaxTipDimension = 4096;
 constexpr std::size_t kTipCacheLimit = 16;
+
+QString automation_storage_dir(QString requested) {
+  if (requested.isEmpty() && !qEnvironmentVariableIsEmpty("PATCHY_BRUSH_SETTINGS_FILE"))
+    return QFileInfo(brush_library_settings().fileName()).absolutePath() + QStringLiteral("/brushes");
+  return requested;
+}
 
 [[nodiscard]] double clamp_spacing(double spacing) {
   return std::clamp(spacing, 0.01, 10.0);
@@ -225,7 +233,7 @@ struct BrushTipLibrary::StoredTip {
 };
 
 BrushTipLibrary::BrushTipLibrary(QString storage_dir, QObject* parent)
-    : BrushTipLibraryBase(std::move(storage_dir), parent) {
+    : BrushTipLibraryBase(automation_storage_dir(std::move(storage_dir)), parent) {
   reload();
 }
 
@@ -311,6 +319,28 @@ std::shared_ptr<const patchy::BrushTip> BrushTipLibrary::tip(const QString& id) 
   return loaded;
 }
 
+void BrushTipLibrary::refresh_from_disk() {
+  tip_cache_.clear();
+  reload();
+  emit changed();
+}
+
+QImage brush_coverage_from_image(const QImage& source, const std::function<int(int, int)>& selection_alpha) {
+  const auto image = source.convertToFormat(QImage::Format_ARGB32);
+  if (image.isNull()) return {};
+  QImage coverage(image.size(), QImage::Format_Grayscale8);
+  for (int y = 0; y < image.height(); ++y) {
+    const auto* row = reinterpret_cast<const QRgb*>(image.constScanLine(y));
+    auto* out = coverage.scanLine(y);
+    for (int x = 0; x < image.width(); ++x) {
+      int value = (255 - qGray(row[x])) * qAlpha(row[x]) / 255;
+      if (selection_alpha) value = value * std::clamp(selection_alpha(x, y), 0, 255) / 255;
+      out[x] = static_cast<uchar>(value);
+    }
+  }
+  return coverage;
+}
+
 bool BrushTipLibrary::write_sidecar(const BrushTipEntry& entry) const {
   QJsonObject object;
   object.insert(QStringLiteral("name"), entry.name);
@@ -335,12 +365,12 @@ bool BrushTipLibrary::write_sidecar(const BrushTipEntry& entry) const {
   if (entry.tool_airbrush.has_value()) {
     object.insert(QStringLiteral("toolAirbrush"), *entry.tool_airbrush);
   }
-  QFile file(json_path(entry.id));
-  if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+  QSaveFile file(json_path(entry.id));
+  if (!file.open(QIODevice::WriteOnly)) {
     return false;
   }
-  file.write(QJsonDocument(object).toJson(QJsonDocument::Indented));
-  return true;
+  const auto bytes = QJsonDocument(object).toJson(QJsonDocument::Indented);
+  return file.write(bytes) == bytes.size() && file.commit();
 }
 
 QString BrushTipLibrary::add_tip_internal(const QString& name, const QImage& coverage_mask, double spacing,
@@ -362,7 +392,8 @@ QString BrushTipLibrary::add_tip_internal(const QString& name, const QImage& cov
     return {};
   }
   const auto id = QUuid::createUuid().toString(QUuid::WithoutBraces);
-  if (!coverage_image_from_brush_tip(tip).save(png_path(id), "PNG")) {
+  QSaveFile png(png_path(id));
+  if (!png.open(QIODevice::WriteOnly) || !coverage_image_from_brush_tip(tip).save(&png, "PNG")) {
     return {};
   }
   BrushTipEntry entry;
@@ -378,9 +409,10 @@ QString BrushTipLibrary::add_tip_internal(const QString& name, const QImage& cov
   entry.size = QSize(tip.width, tip.height);
   entry.thumbnail = brush_tip_thumbnail(tip, 48);
   if (!write_sidecar(entry)) {
-    QFile::remove(png_path(id));
     return {};
   }
+  // The loader enumerates PNGs. Publish the complete mask only after its sidecar exists.
+  if (!png.commit()) { QFile::remove(json_path(id)); return {}; }
   entries_.push_back(std::move(entry));
   return id;
 }

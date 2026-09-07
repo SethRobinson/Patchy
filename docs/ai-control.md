@@ -92,6 +92,9 @@ the connector's own workspace so the user can watch batches appear. An explicit
 `QT_QPA_PLATFORM` is respected in that mode; `get_info` reports actual `mode`,
 `platform`, and `windowVisible`, not just the requested mode. Hidden and visible
 sessions share settings isolation, scripting restrictions, and stdin lifetime.
+Brush tips and complete brush presets use the artist's persistent library in both
+workspaces. The connector captures its original settings filename before redirecting
+window preferences; `PATCHY_SETTINGS_DIR` still redirects both for owned tests.
 Visible connector windows allow normal user dialogs between requests, including
 Save/Discard/Cancel when closing a modified document or the window. Only the MCP
 script run suppresses those prompts. Hidden workspaces suppress prompts for their
@@ -211,12 +214,13 @@ The additive API remains version 1. Read the packaged TypeScript reference and
   serialized result is bounded to 4 Mi characters. Script source has the same
   bound. Logs are capped at 1000 entries of 16000 characters each.
 - `layer.drawStrokes` parses the entire batch before painting. It temporarily
-  selects the target and round Brush/Eraser settings, then restores them. It
+  selects the target and native Brush/Eraser/Mixer settings, then restores them. It
   shares the native stroke lifecycle, spacing, midpoint smoothing, Flow/opacity
   accumulation, selection clipping, palette snapping, and deterministic seed.
-  Pressure uses default pen mapping. Bitmap tips, tilt, stabilizers, and timed
-  airbrush samples are outside this API. Exact pixel art uses `setPixels` and
-  `fillRect`. Limits and defaults belong in `PatchyStroke`.
+  Pressure defaults to the documented pen mapping. Tips, full dynamics, Mixer,
+  pen pose, smoothing and timed airbrush are exposed; `patchy.brushes` discovers,
+  previews and saves brushes. See [brush-automation.md](brush-automation.md).
+  Exact pixel art uses `setPixels` and `fillRect`; public types own the limits.
 - `doc.renderPreview(path, options)` writes PNG atomically through QSaveFile.
   MCP previews encode the same CPU composite directly into image content. Neither
   preview route changes the save path or modified state. Full canvas or clipped

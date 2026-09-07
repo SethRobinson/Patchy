@@ -431,6 +431,8 @@ public:
   void set_brush_size(int size);
   // Uses the native brush renderer; the caller owns validation, undo, and refresh.
   QRect paint_script_stroke(const ScriptStroke& stroke, const std::function<bool(const QRect&)>& progress = {});
+  [[nodiscard]] ScriptStroke current_script_brush() const;
+  void apply_script_brush(const ScriptStroke& settings);
   [[nodiscard]] int brush_size() const noexcept;
   void set_brush_opacity(int opacity);
   [[nodiscard]] int brush_opacity() const noexcept;
@@ -1829,6 +1831,9 @@ private:
   std::optional<BrushCursorCache> brush_cursor_cache_;
   bool brush_build_up_{false};
   int mixer_wet_{50};
+  std::optional<double> script_brush_spacing_;
+  std::function<bool(const QRect&)> script_brush_progress_;
+  bool script_brush_cancelled_{false};
   int mixer_load_{50};
   int mixer_mix_{50};
   int mixer_flow_{100};

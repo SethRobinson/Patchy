@@ -23,6 +23,7 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "test-artifacts" / "mcp"
 SESSION_TEMP = OUT / "sessions" / ("run-" + str(time.time_ns()))
 TEMP_ENV = {key: str(SESSION_TEMP) for key in ("TMPDIR", "TEMP", "TMP")}
+TEMP_ENV["PATCHY_SETTINGS_DIR"] = str(OUT / "brush-settings")
 
 
 async def sdk_workflow(exe):
@@ -60,6 +61,16 @@ async def sdk_workflow(exe):
             assert help_result["text"] == (kit / "references" / "patchy.d.ts").read_bytes().decode("utf-8")
             assert (await call("get_help", {"topic": "reference-art"})).structuredContent["text"]
             assert {"vectorShapes", "vectorPaths", "vectorMasks", "vectorPaints"} <= set(info["capabilities"])
+            assert {"brushTips", "brushPresets", "brushDynamics", "mixerBrush", "wetEdges", "timedAirbrush"} <= set(info["capabilities"])
+            assert (await call("get_help", {"topic": "painting-guide"})).structuredContent["text"]
+            abr_path = OUT / "ブラシ-dynamics.abr"
+            shutil.copyfile(ROOT / "test-fixtures" / "abr" / "photoshop-dynamics.abr", abr_path)
+            imported = (await call("execute_script", {"code":
+                f"patchy.setResult(patchy.brushes.importAbr({json.dumps(str(abr_path))}));"})).structuredContent["result"]
+            assert imported["ids"] and isinstance(imported["warnings"], list)
+            resolved = (await call("execute_script", {"code":
+                f"patchy.setResult(patchy.brushes.resolve({{tipId:{json.dumps(imported['ids'][0])}}}));"})).structuredContent["result"]
+            assert abs(resolved["settings"]["dynamics"]["sizeJitter"] - .37) < 1e-9
             for topic in ("vector-art", "edit-shape", "paths-masks"):
                 assert (await call("get_help", {"topic": topic})).structuredContent["text"] == (kit / "scripts" / (topic + ".js")).read_bytes().decode("utf-8")
             created = (await call("execute_script", {
@@ -125,6 +136,11 @@ async def sdk_workflow(exe):
             await call("execute_script", {"code": "patchy.ui.zoom = NaN;"}, error=True)
             # Exercise every shipped example without relying on a source checkout.
             for script, args in [("painting", {"out": str(OUT)}),
+                                 ("brush-swatches", {"out": str(OUT)}),
+                                 ("wet-paint", {"out": str(OUT)}),
+                                 ("fur-strokes", {"out": str(OUT)}),
+                                 ("timed-brush", {"out": str(OUT)}),
+                                 ("brush-library", {}),
                                  ("edit-document", {"input": str(final), "output": str(OUT / "edited.psd")})]:
                 await call("execute_script", {"code": (kit / "scripts" / (script + ".js")).read_text(encoding="utf-8"), "args": args})
             vector_code = (kit / "scripts" / "vector-art.js").read_text(encoding="utf-8")
@@ -217,6 +233,37 @@ async def attached_workspace(exe):
                             assert len(state["documents"]) == 1
                             assert Path(state["documents"][0]["path"]) == original
                             assert not state["documents"][0]["modified"]
+                            # Brush selection invalidates state without changing document pixels/history.
+                            activated = await client.call_tool("execute_script", {"code":
+                                "patchy.brushes.activate({size:27,dynamics:{wetEdges:true}});",
+                                "expectedState": state["stateToken"]})
+                            assert not activated.isError
+                            brush_state = (await client.call_tool("get_state", {})).structuredContent
+                            assert brush_state["stateToken"] != state["stateToken"]
+                            assert not brush_state["documents"][0]["modified"]
+                            stale_brush = await client.call_tool("execute_script", {"code": "patchy.setResult(1);",
+                                "expectedState": state["stateToken"]})
+                            assert stale_brush.isError and stale_brush.structuredContent["error"] == "stale_state"
+                            read_brush = await client.call_tool("execute_script", {"code":
+                                "patchy.setResult(patchy.brushes.getCurrent());", "expectedState": brush_state["stateToken"]})
+                            assert read_brush.structuredContent["result"]["dynamics"]["wetEdges"]
+                            assert (await client.call_tool("get_state", {})).structuredContent == brush_state
+                            # An isolated workspace writes the same persistent library, never the app's window settings.
+                            isolated_params = StdioServerParameters(command=str(exe), cwd=str(OUT), env=env)
+                            async with stdio_client(isolated_params, errlog=log) as (ir, iw):
+                                async with ClientSession(ir, iw) as isolated:
+                                    await isolated.initialize()
+                                    saved_brush = await isolated.call_tool("execute_script", {"code":
+                                        "patchy.setResult(patchy.brushes.savePreset('Cross-process oil',{size:29,dynamics:{wetEdges:true}}));"})
+                                    assert not saved_brush.isError, saved_brush.model_dump()
+                                    saved_id = saved_brush.structuredContent["result"]["id"]
+                            state = (await client.call_tool("get_state", {})).structuredContent
+                            assert state["brushLibraryRevision"] != brush_state["brushLibraryRevision"]
+                            assert state["stateToken"] != brush_state["stateToken"]
+                            persisted = await client.call_tool("execute_script", {"code":
+                                f"patchy.setResult(patchy.brushes.getPreset({json.dumps(saved_id)}));",
+                                "expectedState": state["stateToken"]})
+                            assert persisted.structuredContent["result"]["name"] == "Cross-process oil"
                             before = await client.call_tool("get_preview", {})
                             assert before.structuredContent["stateToken"] == state["stateToken"]
                             code = "app.activeDocument.addLayer('Face correction').fillRect(0,0,4,4,'#ffc080');"
@@ -334,6 +381,19 @@ def protocol_edges(exe):
         assert cancelled["structuredContent"]["state"]["documents"][0]["layers"][-1]["isShape"]
         send("tools/call", {"name": "execute_script", "arguments": {"code": "patchy.setResult(42);"}}, 4)
         assert take(4)["result"]["structuredContent"]["result"] == 42
+        # Cancel inside simulated native painting, not just inside JavaScript.
+        send("tools/call", {"name": "execute_script", "arguments": {"code":
+            "var l=app.activeDocument.addLayer('Cancelled airbrush');"
+            "l.drawStrokes([{size:64,flow:10,airbrush:true,points:["
+            "{x:4,y:4,timeMs:0},{x:4,y:4,timeMs:3600000}]}]);"}}, 15)
+        time.sleep(0.2)
+        send("notifications/cancelled", {"requestId": 15, "reason": "native stroke stop"})
+        paint_cancelled = take(15)["result"]
+        assert paint_cancelled["isError"] and paint_cancelled["structuredContent"]["status"] == "cancelled"
+        assert paint_cancelled["structuredContent"]["state"]["documents"][0]["canUndo"]
+        assert paint_cancelled["structuredContent"]["state"]["currentBrush"] == cancelled["structuredContent"]["state"]["currentBrush"]
+        send("tools/call", {"name": "execute_script", "arguments": {"code": "patchy.setResult(43);"}}, 16)
+        assert take(16)["result"]["structuredContent"]["result"] == 43
         # Immediate cancellation must not get lost while the engine is created.
         for request_id in range(20, 30):
             send("tools/call", {"name": "execute_script", "arguments": {"code": "while(true){}"}}, request_id)

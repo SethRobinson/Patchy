@@ -812,6 +812,9 @@ if(PATCHY_BUILD_APP)
       src/ui/brush_dynamics_popup.hpp
       src/ui/brush_dynamics_popup.cpp
       src/ui/brush_presets.cpp
+      src/ui/brush_automation.cpp
+      src/ui/main_window_brush_automation.cpp
+      src/ui/script_brush.cpp
       src/ui/brush_tip_library.hpp
       src/ui/brush_tip_library.cpp
       src/ui/brush_tip_manager_dialog.hpp

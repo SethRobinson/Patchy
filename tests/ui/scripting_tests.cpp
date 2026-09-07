@@ -13,6 +13,8 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include "ui/canvas_widget.hpp"
+#include "ui/brush_automation.hpp"
+#include "ui/brush_tip_library.hpp"
 #include "ui/ai_control_paths.hpp"
 #include "ui/ai_setup_dialog.hpp"
 #include "ui/localization.hpp"
@@ -44,6 +46,7 @@
 #include <QFile>
 #include <QGuiApplication>
 #include <QImage>
+#include <QInputDialog>
 #include <QLabel>
 #include <QMenu>
 #include <QMessageBox>
@@ -57,6 +60,7 @@
 #include <QTextBrowser>
 #include <QTimer>
 #include <QTreeWidget>
+#include <QTemporaryDir>
 #include <QTreeWidgetItem>
 
 #include <algorithm>
@@ -2308,8 +2312,206 @@ void ui_script_geometry_rgb_fill_and_empty_text_regressions() {
   )JS")));
 }
 
+void ui_script_advanced_brush_native_parity() {
+  using namespace patchy::ui;
+  MainWindow window; show_window(window); window.set_cli_automation_mode(true);
+  CHECK(run_script(window, "var d=app.newDocument(96,96);d.activeLayer.fill('#b9c7d8');"));
+  auto& host=window.script_engine_host(); auto* canvas=MainWindowTestAccess::canvas(window);
+  canvas->set_zoom(4.0);
+  auto& library=window.brush_automation_library();
+  const QStringList settings{
+    R"({"dynamics":{"wetEdges":true}})",
+    R"({"dynamics":{"textureEnabled":true,"textureStyle":"canvas","textureDepth":0.7}})",
+    R"({"dynamics":{"dualBrushEnabled":true,"dualBrushSize":0.4,"dualBrushSpacing":0.7}})",
+    R"({"dynamics":{"colorDynamicsEnabled":true,"foregroundBackgroundJitter":0.6,"hueJitter":0.1}})",
+    R"({"dynamics":{"sizeJitter":0.3,"angleJitter":0.3,"roundnessJitter":0.5,"flipXJitter":true}})",
+    R"({"dynamics":{"scatter":0.4,"scatterBothAxes":true,"count":3,"countJitter":0.4}})",
+    R"({"dynamics":{"opacityJitter":0.3,"flowJitter":0.4,"flowControl":"fade","flowFadeSteps":40}})",
+    R"({"tool":"mixer","mixer":{"wet":65,"load":40,"mix":75,"sampleAllLayers":true}})",
+    R"({"tool":"mixer","mixer":{"wet":0,"load":10,"mix":0}})",
+    R"({"smoothing":{"amount":12,"pulledString":true,"catchUp":false,"catchUpOnEnd":true}})"
+  };
+  for (const auto& settings_json:settings) {
+    auto config=QJsonDocument::fromJson(settings_json.toUtf8()).object();
+    config["size"]=19;config["flow"]=35;config["color"]="#813c22";config["seed"]=21;
+    const auto serialized=QString::fromUtf8(QJsonDocument(config).toJson(QJsonDocument::Compact));
+    const auto before=BrushAutomationLibrary::settings(canvas->current_script_brush());
+    CHECK(run_script(window,"var s="+serialized+";s.points=[{x:12,y:20},{x:35,y:66},{x:78,y:36}];app.activeDocument.activeLayer.drawStrokes([s]);"));
+    CHECK(before==BrushAutomationLibrary::settings(canvas->current_script_brush()));
+    const auto scripted=patchy::flatten_document_rgba8(*host.session_document_const(host.active_session_id()));
+    CHECK(run_script(window,"app.activeDocument.undo();"));
+    canvas->apply_script_brush(library.resolve(config));canvas->set_brush_dynamics_test_seed(21);
+    patchy::test::ui::drag_document_path(*canvas,{{12,20},{35,66},{78,36}},1);
+    const auto native=patchy::flatten_document_rgba8(*host.session_document_const(host.active_session_id()));
+    if (!std::equal(scripted.data().begin(),scripted.data().end(),native.data().begin(),native.data().end())) {
+      QImage(scripted.data().data(),96,96,96*4,QImage::Format_RGBA8888).save("test-artifacts/advanced-scripted.png");
+      QImage(native.data().data(),96,96,96*4,QImage::Format_RGBA8888).save("test-artifacts/advanced-native.png");
+      throw std::runtime_error("advanced brush parity: "+settings_json.toStdString());
+    }
+    MainWindowTestAccess::undo(window);
+  }
+}
+void ui_script_advanced_brush_timing_validation_and_restore() {
+  using namespace patchy::ui;
+  MainWindow window; show_window(window);window.set_cli_automation_mode(true);
+  CHECK(run_script(window,"app.newDocument(96,96).addLayer('Timed');"));
+  auto& host=window.script_engine_host();const auto id=host.active_session_id();
+  const auto stroke=QStringLiteral(R"JS(
+    var s={size:24,color:'#934321',flow:15,airbrush:true,
+      smoothing:{amount:15,catchUp:true},dynamics:{opacityControl:'off',sizeControl:'penPressure'},
+      points:[{x:20,y:40,pressure:.2,timeMs:0},{x:65,y:40,pressure:1,timeMs:100},{x:65,y:40,pressure:1,timeMs:500}]};
+    app.activeDocument.activeLayer.drawStrokes([s]);
+  )JS");
+  const auto before=host.automation_fingerprint();
+  const auto depth=MainWindowTestAccess::active_session_undo_depth(window);
+  const QStringList bad{
+    "{airbrush:true,points:[{x:2,y:2}]}",
+    "{points:[{x:2,y:2,timeMs:1}]}",
+    "{points:[{x:2,y:2,timeMs:0},{x:4,y:4}]}",
+    "{points:[{x:2,y:2,xTilt:4}]}",
+    "{dynamics:{wetEdges:1},points:[{x:2,y:2}]}",
+    "{dynamics:{sizeJitter:NaN},points:[{x:2,y:2}]}",
+    "{tool:'mixer',dynamics:{wetEdges:true},points:[{x:2,y:2}]}",
+    "{tipId:'missing',points:[{x:2,y:2}]}",
+    "{sizeJitter:.2,dynamics:{sizeJitter:.4},points:[{x:2,y:2}]}"
+  };
+  for(const auto& s:bad) {
+    CHECK(!run_script(window,"app.activeDocument.activeLayer.drawStrokes([{size:12,points:[{x:8,y:8}]} ,"+s+"]);"));
+    CHECK(host.automation_fingerprint()==before);
+    CHECK(MainWindowTestAccess::active_session_undo_depth(window)==depth);
+  }
+  CHECK(run_script(window,stroke));
+  const auto first=patchy::flatten_document_rgba8(*host.session_document_const(id));
+  CHECK(run_script(window,"app.activeDocument.undo();patchy.ui.present(60);"+stroke+"patchy.ui.present(60);"));
+  const auto second=patchy::flatten_document_rgba8(*host.session_document_const(id));
+  CHECK(std::equal(first.data().begin(),first.data().end(),second.data().begin(),second.data().end()));
+  CHECK(run_script(window,"app.activeDocument.undo();app.activeDocument.redo();"));
+  CHECK(run_script(window,R"JS(
+    var b=patchy.brushes.resolve({dynamics:{sizeControl:'penPressure',opacityControl:'off'}}).settings;
+    if(b.dynamics.sizeControl!=='penPressure'||b.dynamics.opacityControl!=='off')throw Error('independent pressure');
+    patchy.setResult(patchy.brushes.getCurrent());
+  )JS"));
+}
+void ui_script_advanced_brush_presets_snapshots_and_refresh() {
+  using namespace patchy::ui;
+  QTemporaryDir dir(QDir::currentPath()+"/test-artifacts/brush-library-XXXXXX");CHECK(dir.isValid());
+  BrushTipLibrary tips(dir.path()+"/tips");
+  BrushAutomationLibrary first(tips,nullptr,dir.path()+"/presets");
+  BrushTipLibrary other_tips(dir.path()+"/tips");
+  BrushAutomationLibrary other(other_tips,nullptr,dir.path()+"/presets");
+  QImage mask(12,8,QImage::Format_Grayscale8);mask.fill(0);
+  for(int y=2;y<6;++y)for(int x=1;x<11;++x)mask.scanLine(y)[x]=255;
+  const auto tip=tips.add_tip(QStringLiteral("\u6bdb brush"),mask,.4);CHECK(!tip.isEmpty());first.refresh();
+  const auto s=first.resolve(QJsonObject{{"tipId",tip},{"size",23},{"dynamics",QJsonObject{{"wetEdges",true}}}});
+  const auto id=first.save(QStringLiteral("\u6cb9 Oil"),s,false);
+  other.refresh();CHECK(other.preset(id)["name"]==QStringLiteral("\u6cb9 Oil"));
+  CHECK(tips.remove_tip(tip));first.refresh();
+  const auto saved=first.resolve(QJsonObject{{"presetId",id}});CHECK(saved.tip != nullptr);CHECK(saved.dynamics.wet_edges);
+  CHECK(saved.tip->mask==s.tip->mask);CHECK(saved.spacing==s.spacing);
+  const auto revision=first.revision();first.refresh();CHECK(first.revision()==revision);
+  CHECK(first.save("Renamed",saved,false,id)==id);other.refresh();CHECK(other.preset(id)["name"]=="Renamed");
+  first.remove(id);other.refresh();bool stale=false;
+  try{(void)other.resolve(QJsonObject{{"presetId",id}});}catch(const std::exception&){stale=true;}CHECK(stale);
+  QFile blocked(dir.path()+"/blocked");CHECK(blocked.open(QIODevice::WriteOnly));blocked.close();
+  BrushAutomationLibrary unwritable(tips,nullptr,blocked.fileName());
+  const auto unchanged=unwritable.revision();bool failed=false;
+  try{(void)unwritable.save("Cannot save",s,false);}catch(const std::exception&){failed=true;}
+  CHECK(failed);CHECK(unwritable.revision()==unchanged);CHECK(unwritable.presets().size()==first.presets().size());
+}
+void ui_script_advanced_brush_pen_pose_and_dab_cancellation() {
+  using namespace patchy::ui;
+  MainWindow window;show_window(window);window.set_cli_automation_mode(true);
+  CHECK(run_script(window,"app.newDocument(96,96).activeLayer.fill('#c6bdab');"));
+  auto& host=window.script_engine_host();auto* canvas=MainWindowTestAccess::canvas(window);
+  auto& library=window.brush_automation_library();canvas->set_zoom(4);
+  const QStringList configs{
+    R"({"dynamics":{"angleControl":"penRotation","roundnessControl":"penTilt","minimumRoundness":0.2,"opacityControl":"stylusWheel"}})",
+    R"({"dynamics":{"sizeControl":"penPressure","opacityControl":"off"}})",
+    R"({"pen":{"pressureSize":false,"pressureOpacity":true,"tiltShape":true}})",
+    R"({"tool":"eraser","pen":{"pressureSize":true,"pressureOpacity":false}})"
+  };
+  for(const auto& config:configs) {
+    auto settings=QJsonDocument::fromJson(config.toUtf8()).object();settings["size"]=23;settings["roundness"]=45;
+    settings["color"]="#713828";settings["flow"]=60;
+    const auto encoded=QString::fromUtf8(QJsonDocument(settings).toJson(QJsonDocument::Compact));
+    CHECK(run_script(window,"var s="+encoded+R"JS(;s.points=[
+      {x:12,y:20,pressure:.3,xTilt:10,yTilt:15,rotation:20,tangentialPressure:-.5},
+      {x:40,y:63,pressure:.9,xTilt:35,yTilt:25,rotation:90,tangentialPressure:.3},
+      {x:79,y:34,pressure:.6,xTilt:55,yTilt:5,rotation:150,tangentialPressure:.8}];
+      app.activeDocument.activeLayer.drawStrokes([s]);)JS"));
+    const auto scripted=patchy::flatten_document_rgba8(*host.session_document_const(host.active_session_id()));
+    CHECK(run_script(window,"app.activeDocument.undo();"));canvas->apply_script_brush(library.resolve(settings));
+    canvas->set_brush_dynamics_test_seed(0);
+    const auto tablet=[&](QEvent::Type type,QPoint p,double pressure,float tilt_x,float tilt_y,double rotation,float wheel) {
+      patchy::test::ui::send_tablet(*canvas,type,canvas->widget_position_for_document_point(p),pressure,
+        type==QEvent::TabletMove?Qt::NoButton:Qt::LeftButton,type==QEvent::TabletRelease?Qt::NoButton:Qt::LeftButton,
+        Qt::NoModifier,QPointingDevice::PointerType::Pen,
+        QInputDevice::Capability::Position|QInputDevice::Capability::Pressure|QInputDevice::Capability::XTilt|
+        QInputDevice::Capability::YTilt|QInputDevice::Capability::Rotation|QInputDevice::Capability::TangentialPressure,
+        tilt_x,tilt_y,rotation,wheel);
+    };
+    tablet(QEvent::TabletPress,{12,20},.3,10,15,20,-.5F);
+    tablet(QEvent::TabletMove,{40,63},.9,35,25,90,.3F);
+    tablet(QEvent::TabletMove,{79,34},.6,55,5,150,.8F);
+    tablet(QEvent::TabletRelease,{79,34},.6,55,5,150,.8F);
+    const auto native=patchy::flatten_document_rgba8(*host.session_document_const(host.active_session_id()));
+    CHECK(std::equal(scripted.data().begin(),scripted.data().end(),native.data().begin(),native.data().end()));
+    MainWindowTestAccess::undo(window);
+  }
+  // One very long segment must service cancellation inside its native dab loop.
+  const auto before=BrushAutomationLibrary::settings(canvas->current_script_brush());
+  auto stroke=library.resolve(QJsonObject{{"size",12},{"spacing",.01},{"dynamics",QJsonObject{{"textureEnabled",true}}}});
+  ScriptStrokePoint start;start.position={5,5};
+  ScriptStrokePoint end;end.position={99999,5};
+  stroke.points={start,end};int callbacks=0;
+  const auto dirty=canvas->paint_script_stroke(stroke,[&](const QRect&){return ++callbacks>=3;});
+  CHECK(!dirty.isEmpty());CHECK(callbacks>=3);CHECK(callbacks<10);
+  CHECK(before==BrushAutomationLibrary::settings(canvas->current_script_brush()));
+}
+void ui_script_advanced_brush_creation_preview_and_psd() {
+  using namespace patchy::ui;
+  MainWindow window;show_window(window);window.set_cli_automation_mode(true);
+  CHECK(run_script(window,"app.newDocument(96,96).activeLayer.fill('#dbc8a7');"));
+  auto& host=window.script_engine_host();auto& tips=window.brush_tip_library();auto& library=window.brush_automation_library();
+  QString tip_id,preset_id;
+  const auto cleanup=qScopeGuard([&]{if(!tip_id.isEmpty())tips.remove_tip(tip_id);if(!preset_id.isEmpty()){try{library.remove(preset_id);}catch(const std::exception&){}}});
+  CHECK(run_script(window,R"JS(
+    var bytes=new Uint8Array(12*8);for(var y=1;y<7;y++)for(var x=1;x<11;x++)bytes[y*12+x]=(x%3)?255:80;
+    var tip=patchy.brushes.createTip('Test brush',{width:12,height:8,data:bytes.buffer});
+    var preset=patchy.brushes.savePreset('Test oil',{tipId:tip.id,size:17,dynamics:{textureEnabled:true,textureDepth:.4}});
+    patchy.setResult({tip:tip.id,preset:preset.id});
+  )JS"));
+  tip_id=host.last_result().toObject()["tip"].toString();preset_id=host.last_result().toObject()["preset"].toString();CHECK(!tip_id.isEmpty());CHECK(!preset_id.isEmpty());
+  auto* combo=window.findChild<QComboBox*>("brushPresetCombo");CHECK(combo);CHECK(combo->findData(preset_id)>=0);
+  const auto before=host.automation_fingerprint();
+  const auto preview=QStringLiteral("test-artifacts/\u6bdb-swatch.png");
+  CHECK(run_script(window,"patchy.brushes.renderPreview('"+preview+"',{presetId:'"+preset_id+"'});"));
+  CHECK(QFileInfo::exists(preview));CHECK(host.automation_fingerprint()==before);
+  CHECK(run_script(window,"var l=app.activeDocument.addLayer('Fur');l.drawStrokes([{presetId:'"+preset_id+"',color:'#9a4b2b',points:[{x:10,y:20},{x:45,y:60},{x:80,y:30}]}]);"));
+  const auto saved=patchy::flatten_document_rgba8(*host.session_document_const(host.active_session_id()));
+  CHECK(run_script(window,"if(!app.activeDocument.saveAs('test-artifacts/advanced-brush.psd'))throw Error('save');app.activeDocument.close();app.open('test-artifacts/advanced-brush.psd');"));
+  const auto reopened=patchy::flatten_document_rgba8(*host.session_document_const(host.active_session_id()));
+  CHECK(std::equal(saved.data().begin(),saved.data().end(),reopened.data().begin(),reopened.data().end()));
+  combo->setCurrentIndex(combo->findData(preset_id));
+  CHECK(MainWindowTestAccess::canvas(window)->has_brush_tip());
+  for (int repeat=0;repeat<2;++repeat) {
+    bool opened=false;
+    QTimer::singleShot(0,&window,[&] {
+      if(auto* dialog=window.findChild<QInputDialog*>()) {opened=true;dialog->reject();}
+    });
+    combo->setCurrentIndex(combo->findData("__saveBrush"));
+    CHECK(opened);CHECK(combo->currentData().toString()==preset_id);
+  }
+  save_widget_artifact("advanced_brush_presets",window);
+}
+
 std::vector<patchy::test::TestCase> scripting_tests() {
   return {
+      {"ui_script_advanced_brush_pen_pose_and_dab_cancellation",ui_script_advanced_brush_pen_pose_and_dab_cancellation},
+      {"ui_script_advanced_brush_native_parity",ui_script_advanced_brush_native_parity},
+      {"ui_script_advanced_brush_timing_validation_and_restore",ui_script_advanced_brush_timing_validation_and_restore},
+      {"ui_script_advanced_brush_presets_snapshots_and_refresh",ui_script_advanced_brush_presets_snapshots_and_refresh},
+      {"ui_script_advanced_brush_creation_preview_and_psd",ui_script_advanced_brush_creation_preview_and_psd},
       {"ui_script_automation_strokes_match_native_and_undo", ui_script_automation_strokes_match_native_and_undo},
       {"ui_script_automation_preview_ids_and_errors", ui_script_automation_preview_ids_and_errors},
       {"ui_script_automation_pressure_seed_selection_palette", ui_script_automation_pressure_seed_selection_palette},

@@ -873,6 +873,7 @@ void ui_brush_dynamics_popup_control_edits_persist() {
   CHECK(sidecar.open(QIODevice::ReadOnly));
   const auto dynamics_json =
       QJsonDocument::fromJson(sidecar.readAll()).object().value(QStringLiteral("dynamics")).toObject();
+  sidecar.close();  // Atomic replacement requires readers to release Windows file handles.
   CHECK(dynamics_json.value(QStringLiteral("sizeControl")).toString() == QStringLiteral("off"));
   CHECK(dynamics_json.value(QStringLiteral("opacityControl")).toString() == QStringLiteral("penPressure"));
   CHECK(std::abs(dynamics_json.value(QStringLiteral("minimumOpacity")).toDouble() - 0.30) < 1e-9);

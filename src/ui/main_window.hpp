@@ -97,6 +97,7 @@ enum class DividePhotosExistingFiles : int;
 struct ActionBuildContext;
 class BrushDynamicsButton;
 class BrushTipLibrary;
+class BrushAutomationLibrary;
 class BrushTipPicker;
 class DocumentFloatWindow;
 class CustomShapeLibrary;
@@ -149,6 +150,11 @@ public:
   void begin_startup_update_check();
   [[nodiscard]] const HotkeyRegistry& hotkey_registry() const noexcept { return hotkey_registry_; }
   [[nodiscard]] BrushTipLibrary& brush_tip_library();
+  [[nodiscard]] BrushAutomationLibrary& brush_automation_library();
+  void activate_automation_brush(const ScriptStroke& brush);
+  void refresh_automation_brush_presets();
+  void manage_automation_brush_presets();
+  void save_current_automation_brush();
   [[nodiscard]] PatternLibrary& pattern_library();
   [[nodiscard]] GradientLibrary& gradient_library();
   [[nodiscard]] StyleLibrary& style_library();
@@ -1423,6 +1429,10 @@ private:
   QCheckBox* quick_select_enhance_edge_check_{nullptr};
   QComboBox* brush_preset_combo_{nullptr};
   BrushTipLibrary* brush_tip_library_{nullptr};
+  BrushAutomationLibrary* brush_automation_library_{nullptr};
+  std::shared_ptr<const BrushTip> active_preset_tip_;
+  QString active_automation_preset_id_;
+  std::optional<ScriptStroke> active_automation_brush_;
   PatternLibrary* pattern_library_{nullptr};
   GradientLibrary* gradient_library_{nullptr};
   CustomShapeLibrary* custom_shape_library_{nullptr};

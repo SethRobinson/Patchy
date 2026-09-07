@@ -300,6 +300,7 @@ bool CanvasWidget::brush_smoothing_zoom_adjust() const noexcept {
 }
 
 void CanvasWidget::set_brush_tip(std::shared_ptr<const patchy::BrushTip> tip, const QString& tip_id) {
+  script_brush_spacing_.reset();
   if (tip != nullptr && tip->empty()) {
     tip = nullptr;
   }
@@ -423,7 +424,7 @@ void CanvasWidget::apply_brush_tip_to_options(EditOptions& options, int brush_si
   // The cache's shared_ptr keeps the stamp alive for the duration of the paint call.
   options.brush_tip = scaled.get();
   options.brush_tip_spacing =
-      brush_tip_ != nullptr ? brush_tip_->default_spacing : kRoundDynamicsTipSpacing;
+      script_brush_spacing_.value_or(brush_tip_ != nullptr ? brush_tip_->default_spacing : kRoundDynamicsTipSpacing);
 
   if (!brush_dynamics_.active()) {
     return;
@@ -1100,12 +1101,14 @@ QRect CanvasWidget::draw_smoothed_brush_curve(QPointF start, QPointF control, QP
     const auto current = quadratic_point(start, control, end, t);
     dirty = united_dirty_rect(dirty, draw_brush_segment(previous, current, erase,
                                                        stamp_endpoint && step == steps));
+    if (script_brush_progress_ && script_brush_progress_(dirty)) return dirty;
     previous = current;
   }
   return dirty;
 }
 
 double CanvasWidget::brush_stamp_spacing(const EffectiveBrushInput& brush) const noexcept {
+  if (script_brush_spacing_) return std::max(.01, brush.size * *script_brush_spacing_);
   return std::clamp(static_cast<double>(std::max(1, brush.size)) * 0.125, 1.0, kMaxBrushStampSpacing);
 }
 
@@ -1113,6 +1116,7 @@ bool CanvasWidget::brush_uses_dab_stroke(const EffectiveBrushInput& brush, bool 
   if (brush_tip_ != nullptr) {
     return false;
   }
+  if (script_brush_spacing_ && (erase || !brush_dynamics_.active())) return true;
   if (!erase && tool_ == CanvasTool::MixerBrush) {
     // The mixer evolves once per spatial dab. The procedural capsule path has no dab cadence.
     return true;
@@ -1185,10 +1189,12 @@ QRect CanvasWidget::draw_brush_segment_with_dabs(QPointF from, QPointF to, bool 
   }
 
   auto last_stamp_distance = -1.0;
+  unsigned progress_steps = 0;
   while (next_stamp_distance <= segment_length + 0.001) {
     stamp(QPointF(from.x() + dx * next_stamp_distance, from.y() + dy * next_stamp_distance));
     last_stamp_distance = next_stamp_distance;
     next_stamp_distance += spacing;
+    if (script_brush_progress_ && ++progress_steps % 64 == 0 && script_brush_progress_(dirty)) return dirty;
   }
 
   if (last_stamp_distance >= 0.0) {
@@ -1666,6 +1672,9 @@ patchy::EditColor CanvasWidget::sample_mixer_pickup(double x, double y, int brus
 }
 
 void CanvasWidget::install_brush_stroke_compositor(EditOptions& options, bool erase) {
+  if (script_brush_progress_) options.stroke_progress = [this](Rect dirty) {
+    return script_brush_progress_(finalize_pending_wet_edges(to_qrect(dirty)));
+  };
   if (document_ == nullptr || !document_->active_layer_id().has_value()) {
     return;
   }

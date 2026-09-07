@@ -26,6 +26,13 @@ CLI runs use the existing script-progress UI, not the MCP connection indicator. 
 
 ## Edit, inspect, revise
 
+For painterly artwork, fetch `get_help` with `topic: "painting-guide"`. Discover
+tips/presets through `patchy.brushes`, inspect native swatches, and choose settings
+before committing a large painting batch. Full Brush dynamics, Mixer pickup, Wet
+Edges, pen pose, smoothing and timed airbrush are available; an "oil" label alone
+does not choose them. Fetch `brush-swatches`, `wet-paint`, `brush-library`, or
+`timed-brush` examples. Ordinary strokes restore the artist's settings.
+
 - When the user wants to watch, draw incrementally into the real document and
   call `patchy.ui.present(60)` after each stroke, shape, or small pixel-art step.
   This shows the frame and briefly holds it while Stop remains usable. Use
@@ -41,7 +48,9 @@ CLI runs use the existing script-progress UI, not the MCP connection indicator. 
 - `execute_script` runs ES6-level JavaScript in Patchy, not Node or a browser. Use `app.getDocument(id)`, `doc.getLayer(id)`, and the documented `patchy.*` API. Globals reset between requests; documents persist while the connection stays open.
 - Batch related edits into one script or `draw_strokes` request. Each mutating run gives one undo entry per document. Do not issue concurrent requests or retry a mutation automatically after an uncertain response.
 - Use `layer.drawStrokes` for real Brush/Eraser paths and pressure. Coordinates are document pixels. Set color, size, Flow, opacity, softness, and seed explicitly when their exact behavior matters. Inspect the API's supported fields rather than inventing brush settings.
-- Pressure scales opacity as well as size, so a stroke tapered with low pressure also fades. For solid editable contours such as an ear or tail, use native shape paths. Use pressure when a fading, thinning brush line is the intent.
+- Default pressure scales opacity and size. For a painted taper that stays opaque,
+  use independent dynamics controls: `sizeControl: 'penPressure'`,
+  `opacityControl: 'off'`. For editable vector contours, use native shape paths.
 - For editable vector artwork, use `doc.addShape`, `layer.getShape`/`updateShape`, and `transformShape`. Geometry and appearance are independent; do not substitute raster strokes or SVG imports for requested native shape creation. Inspect native shape/editability flags first when revising existing artwork. Fetch `vector-art` or `edit-shape` examples and the current API. Shape defaults are black fill and no outline, independent of toolbar settings. Paints support solid, gradient, pattern, and none; discover resource IDs with `doc.listVectorResources()`.
 - Path/anchor values are detached document-pixel snapshots. Commit changes explicitly and refresh group/anchor references after replacement or Undo. Saved/work paths, vector masks, path/selection conversion, and raster fill/stroke along paths share that representation; fetch the `paths-masks` example. Shapes already use their native vector-path slot, so put them in a group and apply additional vector masks to that group. Empty shape geometry is invalid; use `addFillLayer` for full-canvas paint. Empty vector masks reveal all unless inverted; remove them explicitly.
 - For exact pixel art, write palette-colored RGBA arrays with `setPixels`, or use `fillRect`. `setPixels` replaces the layer buffer; it does not update a subregion. Use separate layers for independently editable objects.

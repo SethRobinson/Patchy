@@ -119,6 +119,11 @@ constexpr const char* kBootstrapSource = R"JS(
     },
     isMainScript: function() { return !host.scriptIsIncluded(); }
   };
+  g.patchy.brushes = {};
+  ['listTips','getTip','listPresets','getPreset','getCurrent','resolve','renderPreview',
+   'createTip','importAbr','savePreset','updatePreset','duplicatePreset','removePreset','activate'].forEach(function(name) {
+    g.patchy.brushes[name] = function() { return host.scriptBrushCall(name, Array.prototype.slice.call(arguments)); };
+  });
 })();
 )JS";
 

@@ -6,6 +6,7 @@
 #include "core/pixel_tools.hpp"
 #include "ui/qt_geometry.hpp"
 #include "ui/vector_operations.hpp"
+#include "ui/brush_automation.hpp"
 #include <cmath>
 
 namespace patchy::ui {
@@ -95,14 +96,25 @@ void ScriptLayerObject::strokePath(const QJSValue& data, const QJSValue& options
   guarded(host_, [&] {
     const auto path = parse_path(object(data), false);
     auto opts = object(options, true);
-    keys(opts, {"tool", "color", "size", "opacity", "flow", "softness", "seed", "sizeJitter", "scatter", "pressure"});
+    auto allowed = BrushAutomationLibrary::setting_keys(); allowed << "pressure" << "durationMs";
+    for (auto it = opts.begin(); it != opts.end(); ++it) if (!allowed.contains(it.key())) invalid(it.key());
     const auto pressure = number(opts, "pressure", 1, 0, 1); opts.remove("pressure");
+    const bool timed = opts.contains("durationMs");
+    const auto duration = number(opts, "durationMs", 0, 0, 3600000); opts.remove("durationMs");
+    if (duration != std::floor(duration)) invalid("durationMs");
     auto batch = host_.engine()->newArray(); quint32 index = 0; std::size_t total = 0;
     for (const auto& line : stroke_polylines_for_path(path)) {
       total += line.size();
       if (total > 100000 || index >= 1000) { invalid("strokePath.points"); }
       QJsonArray points;
-      for (const auto& p : line) { points.append(QJsonObject{{"x", p.x()}, {"y", p.y()}, {"pressure", pressure}}); }
+      double length = 0, distance = 0;
+      for (std::size_t i=1;i<line.size();++i) length += std::hypot(line[i].x()-line[i-1].x(),line[i].y()-line[i-1].y());
+      for (std::size_t i=0;i<line.size();++i) {
+        if(i) distance += std::hypot(line[i].x()-line[i-1].x(),line[i].y()-line[i-1].y());
+        QJsonObject p{{"x",line[i].x()},{"y",line[i].y()},{"pressure",pressure}};
+        if(timed) p["timeMs"]=static_cast<int>(std::lround(length>0 ? duration*distance/length : 0));
+        points.append(p);
+      }
       auto entry = opts; entry["points"] = points;
       batch.setProperty(index++, to_js(host_, entry));
     }

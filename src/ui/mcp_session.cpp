@@ -51,11 +51,11 @@ QJsonArray tool_catalog() {
   return {
     tool("get_info", QCoreApplication::translate("PatchyMcp", "Discover Patchy versions, capabilities, and the installed control skill."), schema(), true),
     tool("get_help", QCoreApplication::translate("PatchyMcp", "Read the scripting API, workflow, or a runnable example. Use before writing scripts."),
-         schema({{"topic", QJsonObject{{"type", "string"}, {"enum", QJsonArray{"workflow", "api", "guide", "pixel-art", "painting", "edit-document", "reference-art", "vector-art", "edit-shape", "paths-masks"}}}}}), true),
+         schema({{"topic", QJsonObject{{"type", "string"}, {"enum", QJsonArray{"workflow", "api", "guide", "pixel-art", "painting", "edit-document", "reference-art", "vector-art", "edit-shape", "paths-masks", "painting-guide", "brush-swatches", "fur-strokes", "wet-paint", "brush-library", "timed-brush"}}}}}), true),
     tool("get_state", QCoreApplication::translate("PatchyMcp", "Inspect open documents, stable IDs, layers, selections, and undo availability."), schema(), true),
     tool("execute_script", QCoreApplication::translate("PatchyMcp", "Run JavaScript in the persistent workspace. Use patchy.setResult(value) for a JSON result. Globals reset each run; documents persist. Edits form one undo step per document; errors can leave partial edits. Scripts are trusted and can access files."),
          schema({{"code", str}, {"expectedState", str}, {"name", str}, {"args", QJsonObject{{"type", "object"}, {"additionalProperties", str}}}}, {"code"}), false),
-    tool("draw_strokes", QCoreApplication::translate("PatchyMcp", "Paint a batch through the native Brush or Eraser. Read get_help(api) for stroke fields and pressure behavior. Coordinates are document pixels; the batch is one undo step."),
+    tool("draw_strokes", QCoreApplication::translate("PatchyMcp", "Paint a batch through the native Brush, Eraser, or Mixer Brush. Read get_help(painting-guide) for tips, dynamics, pen inputs, and timed strokes. Coordinates are document pixels; the batch is one undo step."),
          schema({{"documentId", str}, {"expectedState", str}, {"layerId", str}, {"strokes", QJsonObject{{"type", "array"}, {"minItems", 1}, {"maxItems", 1000}, {"items", QJsonObject{{"type", "object"}}}}}},
                 {"documentId", "layerId", "strokes"}), false),
     tool("get_preview", QCoreApplication::translate("PatchyMcp", "Return a fresh canvas PNG image and coordinate metadata, or a capture of the connected Patchy window. No save path or document state changes."),
@@ -84,6 +84,9 @@ struct McpSession::Impl final : public QObject {
     });
     connect(&host_, &ui::ScriptEngineHost::run_state_changed, this, [this] {
       if (script_pending_ && !host_.run_active()) { finish_script(); }
+    });
+    connect(&host_, &ui::ScriptEngineHost::painting_progress, this, [this](const QString& text) {
+      if (script_pending_) activity_->set_operation(text, true);
     });
   }
 
@@ -294,7 +297,8 @@ struct McpSession::Impl final : public QObject {
         const bool offscreen = QGuiApplication::platformName() == QStringLiteral("offscreen");
         complete_tool(id, {{"version", app_.applicationVersion()}, {"apiVersion", 1}, {"mode", offscreen ? "offscreen" : "visible"},
           {"platform", QGuiApplication::platformName()}, {"windowVisible", !offscreen && window_.isVisible()},
-          {"skillDirectory", kit_directory()}, {"capabilities", QJsonArray{"persistentDocuments", "javascript", "brush", "eraser", "pressure", "seededDynamics", "pixels", "preview", "undo", "redo", "vectorShapes", "vectorPaths", "vectorMasks", "vectorPaints"}},
+          {"skillDirectory", kit_directory()}, {"capabilities", QJsonArray{"persistentDocuments", "javascript", "brush", "eraser", "pressure", "seededDynamics", "pixels", "preview", "undo", "redo", "vectorShapes", "vectorPaths", "vectorMasks", "vectorPaints",
+            "brushTips", "brushPresets", "brushDynamics", "wetEdges", "mixerBrush", "penPose", "strokeSmoothing", "timedAirbrush", "brushLibraryWrites"}},
           {"scriptTrust", "applicationPrivileges"}, {"liveWindowAttachment", attached_},
           {"workspace", attached_ ? "attached" : "isolated"}, {"requiresExpectedState", attached_},
           {"processId", QString::number(QCoreApplication::applicationPid())}});
@@ -304,7 +308,10 @@ struct McpSession::Impl final : public QObject {
           {"guide", "references/scripting-guide.md"}, {"pixel-art", "scripts/pixel-art.js"},
           {"painting", "scripts/painting.js"}, {"edit-document", "scripts/edit-document.js"},
           {"reference-art", "references/reference-art.md"}, {"vector-art", "scripts/vector-art.js"},
-          {"edit-shape", "scripts/edit-shape.js"}, {"paths-masks", "scripts/paths-masks.js"}};
+          {"edit-shape", "scripts/edit-shape.js"}, {"paths-masks", "scripts/paths-masks.js"},
+          {"painting-guide", "references/painting.md"}, {"brush-swatches", "scripts/brush-swatches.js"},
+          {"fur-strokes", "scripts/fur-strokes.js"},
+          {"wet-paint", "scripts/wet-paint.js"}, {"brush-library", "scripts/brush-library.js"}, {"timed-brush", "scripts/timed-brush.js"}};
         if (!files.contains(topic) || kit_directory().isEmpty()) { throw std::runtime_error(QCoreApplication::translate("PatchyMcp", "The requested control-kit resource is unavailable.").toStdString()); }
         QFile file(kit_directory() + '/' + files.value(topic));
         if (!file.open(QIODevice::ReadOnly)) { throw std::runtime_error(QCoreApplication::translate("PatchyMcp", "Could not read the control-kit resource.").toStdString()); }

@@ -83,6 +83,7 @@ BrushTipPicker::BrushTipPicker(BrushTipLibrary& library, QWidget* parent)
 }
 
 void BrushTipPicker::set_current_tip_id(const QString& id) {
+  working_name_.clear(); working_preview_ = {};
   const auto effective = id.isEmpty() ? builtin_round_brush_tip_id() : id;
   if (current_tip_id_ == effective) {
     update_button_face();
@@ -97,6 +98,7 @@ const QString& BrushTipPicker::current_tip_id() const noexcept {
 }
 
 void BrushTipPicker::refresh() {
+  if (!working_preview_.isNull()) { update_button_face(); return; }
   if (current_tip_id_ != builtin_round_brush_tip_id() && library_.find_entry(current_tip_id_) == nullptr) {
     current_tip_id_ = builtin_round_brush_tip_id();
     emit tip_selected(current_tip_id_);
@@ -105,6 +107,12 @@ void BrushTipPicker::refresh() {
 }
 
 void BrushTipPicker::update_button_face() {
+  if (!working_preview_.isNull()) {
+    setIcon(QIcon(working_preview_));
+    setText(QFontMetrics(font()).elidedText(working_name_, Qt::ElideRight, 96));
+    setToolTip(tr("Brush tip: %1").arg(working_name_));
+    return;
+  }
   if (current_tip_id_ == builtin_round_brush_tip_id()) {
     setIcon(QIcon(round_tip_thumbnail(kThumbnailExtent)));
     setText(round_tip_display_name());
@@ -125,6 +133,10 @@ void BrushTipPicker::update_button_face() {
     tooltip += tr(" • dynamics");
   }
   setToolTip(tooltip);
+}
+
+void BrushTipPicker::set_working_preview(const QString& name, const QPixmap& image) {
+  working_name_ = name; working_preview_ = image; update_button_face();
 }
 
 void BrushTipPicker::rebuild_popup_list(QListWidget* list, const QString& folder_filter) const {

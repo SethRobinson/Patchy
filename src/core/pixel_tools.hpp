@@ -57,6 +57,9 @@ struct EditOptions {
                      const EditColor&)>
       stroke_pixel_writer;
   std::function<void()> progress_callback;
+  // Optional cooperative boundary between completed stamp batches. Returning
+  // true stops this segment and preserves its completed pixels and dirty bounds.
+  std::function<bool(Rect)> stroke_progress;
 };
 
 enum class ShapeKind {

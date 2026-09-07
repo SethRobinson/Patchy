@@ -25,6 +25,7 @@ public:
   void set_current_tip_id(const QString& id);
   [[nodiscard]] const QString& current_tip_id() const noexcept;
   void refresh();  // re-reads the library (and current tip name) into the button face
+  void set_working_preview(const QString& name, const QPixmap& image);
 
 signals:
   void tip_selected(const QString& id);
@@ -39,6 +40,8 @@ private:
 
   BrushTipLibrary& library_;
   QString current_tip_id_;
+  QString working_name_;
+  QPixmap working_preview_;
   QString popup_folder_filter_;  // remembered across popup opens; empty = all folders
   QPointer<QFrame> popup_;
   // Toggle guard: the click that dismisses the Qt::Popup is replayed onto the button (or lands

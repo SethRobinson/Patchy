@@ -50,11 +50,75 @@ interface PatchyRect {
   height: number;
 }
 
-interface PatchyStroke {
+interface PatchyStroke extends PatchyBrushSettings {
   /** 1..100000 points across the batch; coordinates -100000..100000 document pixels. */
-  points: {x: number; y: number; pressure?: number}[];
-  /** Default brush. Round tip; no timed Airbrush, bitmap tips, or stabilizer. */
-  tool?: "brush" | "eraser";
+  points: PatchyStrokePoint[];
+}
+interface PatchyStrokePoint {
+  x: number; y: number;
+  /** 0..1; omitted inputs are unavailable, never inherited from a tablet. */
+  pressure?: number;
+  /** Degrees -90..90, supplied together. */
+  xTilt?: number; yTilt?: number;
+  /** Barrel rotation in degrees -360..360. */
+  rotation?: number;
+  /** Stylus wheel -1..1. */
+  tangentialPressure?: number;
+  /** Integer 0..3600000. Every point or none; starts at zero, nondecreasing.
+   * Airbrush requires timestamps. Repeated positions with later times dwell.
+   * At most 1000000 airbrush/smoothing ticks across a stroke batch. */
+  timeMs?: number;
+}
+type PatchyBrushControl = "off" | "fade" | "penPressure" | "penTilt" | "penRotation" | "stylusWheel";
+interface PatchyBrushDynamics {
+  sizeJitter?: number; minimumDiameter?: number;
+  sizeControl?: PatchyBrushControl | "global"; sizeFadeSteps?: number;
+  angleJitter?: number; angleControl?: PatchyBrushControl | "direction" | "initialDirection"; angleFadeSteps?: number;
+  roundnessJitter?: number; minimumRoundness?: number;
+  roundnessControl?: PatchyBrushControl | "global"; roundnessFadeSteps?: number;
+  flipXJitter?: boolean; flipYJitter?: boolean;
+  /** Scatter 0..10; other jitter/minimum fractions 0..1. */
+  scatter?: number; scatterBothAxes?: boolean; scatterControl?: PatchyBrushControl; scatterFadeSteps?: number;
+  /** Count integer 1..16; every FadeSteps field integer 1..9999. */
+  count?: number; countJitter?: number; countControl?: PatchyBrushControl; countFadeSteps?: number;
+  opacityJitter?: number; minimumOpacity?: number; opacityControl?: PatchyBrushControl | "global"; opacityFadeSteps?: number;
+  flowJitter?: number; minimumFlow?: number; flowControl?: PatchyBrushControl; flowFadeSteps?: number;
+  textureEnabled?: boolean; textureStyle?: "fineGrain" | "canvas" | "speckle";
+  /** Static grain scale .01..10, depth 0..1, unsigned 32-bit seed. */
+  textureScale?: number; textureDepth?: number; textureInvert?: boolean; textureSeed?: number;
+  dualBrushEnabled?: boolean;
+  /** Secondary size .05..4, hardness 0..1, spacing .1..10. */
+  dualBrushSize?: number; dualBrushHardness?: number; dualBrushSpacing?: number;
+  colorDynamicsEnabled?: boolean; foregroundBackgroundJitter?: number;
+  colorControl?: PatchyBrushControl; colorFadeSteps?: number;
+  hueJitter?: number; saturationJitter?: number; brightnessJitter?: number;
+  /** Purity -1..1; Color Dynamics varies selected colors, never canvas pickup. */
+  purity?: number; colorPerTip?: boolean;
+  /** Whole-stroke wash boundary treatment, not Mixer pickup. Disabled in palette mode. */
+  wetEdges?: boolean;
+}
+interface PatchyBrushSettings {
+  /** Default brush; Mixer uses Flow with its native full opacity. */
+  tool?: "brush" | "eraser" | "mixer";
+  presetId?: string;
+  tipId?: string;
+  /** Fraction of brush diameter .01..10; absent preserves native/default tip spacing. */
+  spacing?: number;
+  /** Degrees -180..360; roundness integer percent 1..100. */
+  angle?: number; roundness?: number;
+  backgroundColor?: string;
+  /** Brush only. Input fields are validated before the batch paints. */
+  dynamics?: PatchyBrushDynamics;
+  airbrush?: boolean;
+  /** Mixer only; Wet/Mix 0..100, Load 1..100. Defaults 50; Sample All Layers false. */
+  mixer?: {wet?: number; load?: number; mix?: number; sampleAllLayers?: boolean};
+  /** Explicit mapping of "global" controls; independent of artist preferences. */
+  pen?: {pressureSize?: boolean; pressureOpacity?: boolean; sizeMinimum?: number;
+    opacityMinimum?: number; tiltShape?: boolean; tiltMinimumRoundness?: number};
+  /** Amount 0..100, default 0. Default pulledString false; catch-up/end/adjustForZoom true.
+   * referenceZoom is a percentage .01..100000, default 100; used for screen-relative smoothing. */
+  smoothing?: {amount?: number; pulledString?: boolean; catchUp?: boolean;
+    catchUpOnEnd?: boolean; adjustForZoom?: boolean; referenceZoom?: number};
   /** Default black; CSS/Qt color, #rrggbb or #aarrggbb. */
   color?: string;
   /** Integer 1..1024, default 1. Size-one paths use exact pixel segments. */
@@ -71,6 +135,47 @@ interface PatchyStroke {
   scatter?: number;
   // Pressure 0..1 defaults to unavailable/full strength. Explicit pressure scales
   // size and opacity with the native 20% / 15% floors; it does not inherit preferences.
+}
+
+interface PatchyBrushTipInfo {
+  id: string; name: string; source: "builtin" | "library" | "session"; folder?: string;
+  width?: number; height?: number; spacing?: number; angle?: number; roundness?: number;
+  dynamics?: PatchyBrushDynamics;
+}
+interface PatchyBrushPreset {
+  id: string; name: string; source: "builtin" | "user"; folder?: string;
+  includeColors?: boolean; settings: PatchyBrushSettings;
+}
+interface PatchyBrushes {
+  listTips(): PatchyBrushTipInfo[];
+  getTip(id: string): PatchyBrushTipInfo;
+  listPresets(): PatchyBrushPreset[];
+  getPreset(id: string): PatchyBrushPreset;
+  /** Detached current brush/pen settings; requires an active document. Captured tip
+   * IDs live for this Patchy process. savePreset makes a persistent independent copy. */
+  getCurrent(): PatchyBrushSettings;
+  resolve(settings?: PatchyBrushSettings): {settings: PatchyBrushSettings;
+    capabilities: {dynamics: boolean; mixer: boolean; airbrush: boolean; timingRequired: boolean}};
+  /** Explicitly changes the selected UI tool/settings; ordinary strokes restore them. */
+  activate(settings: PatchyBrushSettings): ReturnType<PatchyBrushes["resolve"]>;
+  /** Native swatch PNG, default 320x160; each dimension 32..1024. No document edits/Undo. */
+  renderPreview(path: string, settings?: PatchyBrushSettings,
+    options?: {width?: number; height?: number; backgroundColor?: string}): {path: string; width: number; height: number};
+  /** Creates a persistent library tip. Buffers are 8-bit coverage (255 paints), max 4096x4096.
+   * Images/documents use inverted luminance times alpha. Selection applies by default. */
+  createTip(name: string, source: string | {width: number; height: number; data: ArrayBuffer} |
+    {documentId: string; rect?: PatchyRect; useSelection?: boolean},
+    options?: {spacing?: number; folder?: string}): PatchyBrushTipInfo;
+  importAbr(path: string, options?: {}): {ids: string[]; warnings: {message: string}[]};
+  /** Saves an independent tip/settings snapshot. Colors excluded by default. Library writes are outside document Undo. */
+  savePreset(name: string, settings: PatchyBrushSettings,
+    options?: {includeColors?: boolean; folder?: string}): PatchyBrushPreset;
+  /** Replaces settings explicitly, retaining name/folder/color inclusion unless supplied. */
+  updatePreset(id: string, settings: PatchyBrushSettings,
+    options?: {name?: string; includeColors?: boolean; folder?: string}): PatchyBrushPreset;
+  duplicatePreset(id: string, name: string,
+    options?: {includeColors?: boolean; folder?: string}): PatchyBrushPreset;
+  removePreset(id: string): boolean;
 }
 
 interface PatchyPreviewOptions {
@@ -139,7 +244,7 @@ interface PatchyLayer {
   /** Native raster fill on an unlocked RGB/RGBA8 pixel layer; selection clips the paint. */
   fillPath(path: PatchyVectorPath, options?: {paint?: PatchyVectorPaint; opacity?: number}): void;
   /** Native Brush/Eraser along actual segments, including the closing segment only for closed paths. */
-  strokePath(path: PatchyVectorPath, options?: Omit<PatchyStroke, "points"> & {pressure?: number}): void;
+  strokePath(path: PatchyVectorPath, options?: PatchyBrushSettings & {pressure?: number; durationMs?: number}): void;
   /** Child layers (groups only). */
   readonly children: PatchyLayer[];
   /** Text layers: setting text re-renders the layer; an empty string clears its ink. */
@@ -549,6 +654,7 @@ interface PatchyNamespace {
   readonly app: PatchyApp;
   readonly io: PatchyIo;
   readonly ui: PatchyUi;
+  readonly brushes: PatchyBrushes;
   readonly apiVersion: number;
   readonly version: string;
   /**

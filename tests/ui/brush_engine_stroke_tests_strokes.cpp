@@ -2486,7 +2486,7 @@ void ui_mixer_brush_uses_compact_controls_and_round_trips_raster_pixels() {
   CHECK(mix != nullptr && mix->isVisible());
   CHECK(flow != nullptr && flow->isVisible());
   CHECK(!window.findChild<QSpinBox*>(QStringLiteral("brushOpacitySpin"))->isVisible());
-  CHECK(!window.findChild<QComboBox*>(QStringLiteral("brushPresetCombo"))->isVisible());
+  CHECK(window.findChild<QComboBox*>(QStringLiteral("brushPresetCombo"))->isVisible());
   CHECK(!window.findChild<QToolButton*>(QStringLiteral("brushDynamicsButton"))->isVisible());
   auto* sample_all = window.findChild<QCheckBox*>(QStringLiteral("mixerSampleAllLayersCheck"));
   CHECK(sample_all != nullptr && sample_all->isVisible() && !sample_all->isChecked());

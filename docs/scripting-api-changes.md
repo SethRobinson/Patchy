@@ -1,5 +1,11 @@
 # Scripting API compatibility
 
+2026-09-07 (additive, API 1): `patchy.brushes` discovers, resolves, previews,
+creates/imports tips, saves independent complete presets, and explicitly activates
+manual brushes. Native strokes add bitmap tips, full dynamics, Mixer Brush,
+pen pose, smoothing, and simulated airbrush timing. Saved brushes also appear in
+the UI. Resource writes persist outside document Undo. See [brush-automation.md](brush-automation.md).
+
 2026-09-07 (additive, API 1): `patchy.ui.present(delayMs?)` presents completed
 edits and optionally holds the frame for 0..1000 ms while servicing Stop.
 Visible CLI/MCP runs repaint progressively; visible unattended scripts have a

@@ -13951,6 +13951,24 @@ Clipped to the layer below</source>
     <message><source>No frame times on the selected layers</source><translation>選択したレイヤーにフレーム時間はありません</translation></message>
     <message><source>Set frame time</source><translation>フレーム時間を設定</translation></message>
     <message><source>Remove frame time</source><translation>フレーム時間を削除</translation></message>
+    <message><source>Manage Saved Brushes...</source><translation>保存したブラシを管理...</translation></message>
+    <message><source>Delete</source><translation>削除</translation></message>
+    <message><source>Rename</source><translation>名前を変更</translation></message>
+    <message><source>Update</source><translation>更新</translation></message>
+    <message><source>Select a saved brush. Update replaces it with the current brush settings. Document Undo does not change saved brushes.</source><translation>保存したブラシを選択してください。「更新」は現在のブラシ設定で置き換えます。ドキュメントの「元に戻す」では保存したブラシは変更されません。</translation></message>
+    <message><source>Brush preset operation failed: %1</source><translation>ブラシプリセットの操作に失敗しました: %1</translation></message>
+    <message><source>Rename Brush</source><translation>ブラシ名を変更</translation></message>
+    <message><source>Duplicate Brush</source><translation>ブラシを複製</translation></message>
+    <message><source>Duplicate</source><translation>複製</translation></message>
+    <message><source>Save Current Brush...</source><translation>現在のブラシを保存...</translation></message>
+    <message><source>Use</source><translation>使用</translation></message>
+    <message><source>Save Brush Preset</source><translation>ブラシプリセットを保存</translation></message>
+    <message><source>Saved Brushes</source><translation>保存したブラシ</translation></message>
+    <message><source>Could not save brush preset: %1</source><translation>ブラシプリセットを保存できませんでした: %1</translation></message>
+    <message>
+        <source>Working brush</source>
+        <translation>作業中のブラシ</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::PalettePanel</name>
@@ -15122,6 +15140,11 @@ Clipped to the layer below</source>
         <source>Could not allocate the preview image.</source>
         <translation>プレビュー画像のメモリを確保できませんでした。</translation>
     </message>
+    <message><source>Invalid brush argument: %1</source><translation>ブラシの引数が無効です: %1</translation></message>
+    <message><source>Eraser</source><translation>消しゴム</translation></message>
+    <message><source>Mixer Brush</source><translation>ミキサーブラシ</translation></message>
+    <message><source>%1: stroke %2 of %3</source><translation>%1: ストローク %2 / %3</translation></message>
+    <message><source>Brush</source><translation>ブラシ</translation></message>
 </context>
 <context>
     <name>patchy::ui::ScriptEditorDialog</name>
@@ -15245,8 +15268,8 @@ Clipped to the layer below</source>
         <translation>操作をキャンセルしました。</translation>
     </message>
     <message>
-        <source>Paint a batch through the native Brush or Eraser. Read get_help(api) for stroke fields and pressure behavior. Coordinates are document pixels; the batch is one undo step.</source>
-        <translation>ブラシまたは消しゴムでストロークをまとめて描画します。引数と筆圧の動作はget_help(api)を参照してください。座標はドキュメントのピクセル単位です。全体を1回で元に戻せます。</translation>
+        <source>Paint a batch through the native Brush, Eraser, or Mixer Brush. Read get_help(painting-guide) for tips, dynamics, pen inputs, and timed strokes. Coordinates are document pixels; the batch is one undo step.</source>
+        <translation>ネイティブのブラシ、消しゴム、または混合ブラシで一括描画します。ブラシ先端、ダイナミクス、ペン入力、時刻付きの描画は get_help(painting-guide) を参照してください。座標はドキュメントのピクセル単位です。一括描画は1回で元に戻せます。</translation>
     </message>
     <message>
         <source>Patchy owns an isolated persistent workspace, hidden by default or visible with --visible. It never attaches to another Patchy window. Read get_help(workflow) and get_help(api). Use document/layer IDs, batch edits, inspect get_preview, and save checkpoints before disconnecting. JS globals reset between calls. Requests are serialized; failed scripts may leave undoable edits.</source>
@@ -15387,5 +15410,92 @@ Clipped to the layer below</source>
     <message><source>%1 is using this workspace. Editing resumes when the request finishes. Stop keeps changes available for Undo.</source><translation>%1がこの作業領域を使用しています。要求の処理が終わると編集を再開できます。停止しても変更は残り、「元に戻す」で取り消せます。</translation></message>
     <message><source>Connected to %1 through MCP. Waiting for a Patchy request; the assistant may still be thinking.</source><translation>MCPで%1に接続しています。Patchyへの要求を待っています。アシスタントはまだ考え中の場合があります。</translation></message>
     <message><source>Stop</source><translation>停止</translation></message>
+</context>
+
+
+<context>
+<name>patchy::ui::BrushAutomationLibrary</name>
+    <message><source>Round</source><translation>丸形</translation></message>
+
+    <message>
+        <source>Working brush</source>
+        <translation>作業中のブラシ</translation>
+    </message>
+    <message>
+        <source>airbrush: brush only</source>
+        <translation>airbrush: ブラシのみ使用できます</translation>
+    </message>
+    <message>
+        <source>dynamics: brush only</source>
+        <translation>dynamics: ブラシのみ使用できます</translation>
+    </message>
+    <message>
+        <source>mixer: mixer tool only</source>
+        <translation>mixer: 混合ブラシのみ使用できます</translation>
+    </message>
+    <message>
+        <source>opacity: Mixer uses Flow</source>
+        <translation>opacity: 混合ブラシでは流量を使用します</translation>
+    </message>
+    <message>
+        <source>preset directory</source>
+        <translation>プリセットの保存先を作成できません</translation>
+    </message>
+    <message>
+        <source>preset is read-only</source>
+        <translation>このプリセットは読み取り専用です</translation>
+    </message>
+    <message>
+        <source>preset library busy</source>
+        <translation>プリセットライブラリは使用中です</translation>
+    </message>
+    <message>
+        <source>preset remove</source>
+        <translation>プリセットを削除できません</translation>
+    </message>
+    <message>
+        <source>preset tip</source>
+        <translation>プリセットのブラシ先端を保存できません</translation>
+    </message>
+    <message>
+        <source>preset write</source>
+        <translation>プリセットを書き込めません</translation>
+    </message>
+    <message>
+        <source>active document</source>
+        <translation>アクティブなドキュメントが必要です</translation>
+    </message>
+    <message>
+        <source>airbrush requires timeMs</source>
+        <translation>エアブラシには timeMs が必要です</translation>
+    </message>
+    <message>
+        <source>brush library busy</source>
+        <translation>ブラシライブラリは使用中です</translation>
+    </message>
+    <message>
+        <source>coverage data length</source>
+        <translation>描画濃度データの長さが正しくありません</translation>
+    </message>
+    <message>
+        <source>empty or unsaveable tip</source>
+        <translation>ブラシ先端が空か、保存できません</translation>
+    </message>
+    <message>
+        <source>preview write</source>
+        <translation>プレビューを書き込めません</translation>
+    </message>
+    <message>
+        <source>timeline exceeds 1000000 ticks per batch</source>
+        <translation>1回の描画処理に対するタイマー更新が1000000回を超えています</translation>
+    </message>
+    <message>
+        <source>timeMs order</source>
+        <translation>timeMs は0から始め、時刻順に指定してください</translation>
+    </message>
+    <message>
+        <source>timeMs: complete timeline required</source>
+        <translation>timeMs: すべての入力点に時刻が必要です</translation>
+    </message>
 </context>
 </TS>

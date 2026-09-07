@@ -10,6 +10,7 @@
 #include <QString>
 
 #include <memory>
+#include <functional>
 #include <optional>
 #include <vector>
 
@@ -54,6 +55,8 @@ class BrushTipLibrary : public BrushTipLibraryBase {
 public:
   // storage_dir is overridable for tests; empty = <settings dir>/brushes.
   explicit BrushTipLibrary(QString storage_dir = {}, QObject* parent = nullptr);
+  // Refresh an external process's committed library edits without selecting a tip.
+  void refresh_from_disk();
 
   // Full-resolution tip for painting; cached after first load. Null for unknown/unreadable ids
   // and for the built-in round id.
@@ -127,6 +130,9 @@ private:
 [[nodiscard]] patchy::BrushTip brush_tip_from_coverage_image(const QImage& coverage_mask,
                                                              double spacing = 0.25);
 [[nodiscard]] QImage coverage_image_from_brush_tip(const patchy::BrushTip& tip);
+// Shared Define Brush conversion. Optional alpha is selection coverage in image coordinates.
+[[nodiscard]] QImage brush_coverage_from_image(const QImage& image,
+    const std::function<int(int, int)>& selection_alpha = {});
 [[nodiscard]] QPixmap brush_tip_thumbnail(const patchy::BrushTip& tip, int extent);
 
 // JSON (de)serialization for the sidecar "dynamics" object; exported for the popup and tests.

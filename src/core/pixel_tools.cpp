@@ -1464,10 +1464,15 @@ Rect paint_tip_segment(Document& document, LayerId layer_id, double x0, double y
   }
 
   auto position = state.residual_distance;
+  unsigned progress_steps = 0;
   while (position <= distance) {
     const auto t = position / distance;
     stamp_step(x0 + dx * t, y0 + dy * t);
     position += spacing;
+    if (options.stroke_progress && ++progress_steps % 64 == 0 && options.stroke_progress(dirty)) {
+      state.residual_distance = spacing;
+      return dirty;
+    }
   }
   state.residual_distance = position - distance;
   return dirty;

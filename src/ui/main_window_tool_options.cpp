@@ -710,7 +710,7 @@ BrushTipLibrary& MainWindow::brush_tip_library() {
     // user who deletes some or all of them is respected — they never come back on their own;
     // the manager's "Restore Defaults" button brings them back on demand. On upgrade only tips
     // NEWER than the stored version are seeded, so a bump never resurrects deleted defaults.
-    auto settings = app_settings();
+    auto settings = brush_library_settings();
     constexpr int kDefaultTipsVersion = 4;  // v4 (July 2026): texture, dual, color, wet-edge tips
     const auto stored_version =
         stored_default_asset_version(settings, QStringLiteral("brushes/defaultTipsVersion"));
@@ -789,8 +789,8 @@ void MainWindow::apply_brush_tip_to_canvas(CanvasWidget* canvas) {
   if (canvas == nullptr) {
     return;
   }
-  if (active_brush_tip_id_.isEmpty() || active_brush_tip_id_ == builtin_round_brush_tip_id()) {
-    canvas->set_brush_tip(nullptr, QString());
+  if (active_preset_tip_ || active_brush_tip_id_.isEmpty() || active_brush_tip_id_ == builtin_round_brush_tip_id()) {
+    canvas->set_brush_tip(active_preset_tip_, QString());
     // The Round brush carries session-only dynamics (reset every launch); while active they
     // stamp through a synthesized disc tip inside CanvasWidget.
     canvas->set_brush_dynamics(round_brush_dynamics_);
@@ -820,6 +820,10 @@ void MainWindow::apply_brush_tip_to_canvas(CanvasWidget* canvas) {
 
 void MainWindow::set_active_brush_tip(const QString& tip_id, bool announce,
                                       bool apply_tool_settings) {
+  active_preset_tip_.reset();
+  active_automation_preset_id_.clear();
+  active_automation_brush_.reset();
+  if (canvas_) apply_pen_input_settings(canvas_);
   auto effective = tip_id.isEmpty() ? builtin_round_brush_tip_id() : tip_id;
   const auto* entry = brush_tip_library().find_entry(effective);
   if (effective != builtin_round_brush_tip_id() && entry == nullptr) {
@@ -919,23 +923,9 @@ QImage MainWindow::capture_brush_tip_define_source() const {
   }
   // Photoshop semantics: dark pixels paint, light pixels stay clear, transparency masks out.
   // A soft or non-rectangular selection additionally shapes the tip.
-  QImage coverage(composited.size(), QImage::Format_Grayscale8);
-  const auto use_selection_shape = selected.has_value();
-  for (int y = 0; y < composited.height(); ++y) {
-    const auto* src = reinterpret_cast<const QRgb*>(composited.constScanLine(y));
-    auto* dst = coverage.scanLine(y);
-    for (int x = 0; x < composited.width(); ++x) {
-      const auto pixel = src[x];
-      auto value = (255 - qGray(pixel)) * qAlpha(pixel) / 255;
-      if (use_selection_shape) {
-        const auto selection_alpha =
-            canvas_->selection_alpha_at(QPoint(capture_rect.x() + x, capture_rect.y() + y));
-        value = value * selection_alpha / 255;
-      }
-      dst[x] = static_cast<std::uint8_t>(std::clamp(value, 0, 255));
-    }
-  }
-  return coverage;
+  return brush_coverage_from_image(composited, selected.has_value()
+      ? std::function<int(int,int)>([&](int x,int y) { return canvas_->selection_alpha_at(capture_rect.topLeft()+QPoint(x,y)); })
+      : std::function<int(int,int)>());
 }
 
 void MainWindow::define_brush_tip_from_selection() {
@@ -2125,6 +2115,10 @@ void MainWindow::stash_active_brush_settings() {
   if (canvas_ == nullptr) {
     return;
   }
+  if (active_automation_brush_) {
+    active_automation_brush_ = canvas_->current_script_brush();
+    active_automation_brush_->preset_id = active_automation_preset_id_;
+  }
   current_fill_opacity_ = canvas_->fill_opacity();
   current_fill_softness_ = canvas_->fill_softness();
   current_quick_select_size_ = canvas_->quick_select_size();
@@ -2151,6 +2145,16 @@ void MainWindow::apply_active_brush_settings_to_canvas() {
   // Brush tips are application-wide like the rest of the brush settings; an incoming canvas
   // (new tab or tab switch) may hold a stale or empty tip.
   apply_brush_tip_to_canvas(canvas_);
+  if (active_automation_brush_) {
+    auto settings = *active_automation_brush_;
+    const auto tool = canvas_->tool();
+    settings.color = canvas_->primary_color(); settings.background = canvas_->secondary_color();
+    settings.size = values.size; settings.opacity = values.opacity;
+    settings.flow = settings.mixer ? current_mixer_flow_ : values.flow;
+    settings.softness = values.softness; settings.airbrush = values.airbrush && !settings.mixer && !settings.erase;
+    settings.dynamics = round_brush_dynamics_;
+    canvas_->apply_script_brush(settings); canvas_->set_tool(tool);
+  }
 }
 
 void MainWindow::apply_pattern_stamp_settings_to_canvas(CanvasWidget* canvas) {

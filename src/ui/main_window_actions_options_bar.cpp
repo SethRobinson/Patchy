@@ -36,6 +36,7 @@
 #include "ui/blend_mode_ui.hpp"
 #include "ui/brush_dynamics_popup.hpp"
 #include "ui/brush_presets.hpp"
+#include "ui/brush_automation.hpp"
 #include "ui/brush_tip_library.hpp"
 #include "ui/brush_tip_manager_dialog.hpp"
 #include "ui/brush_tip_picker.hpp"
@@ -1182,13 +1183,15 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   });
 
   add_option_label(tr("Preset:"),
-                   {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
+                   {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
                     CanvasTool::Eraser});
   brush_preset_combo_ = new QComboBox(toolbar);
   brush_preset_combo_->setObjectName(QStringLiteral("brushPresetCombo"));
   // 112 (was 132): reclaims room for the labeled Smoothing controls on the
   // one-line Brush row (ui_brush_tip_picker_keeps_options_bar_height).
   brush_preset_combo_->setMinimumWidth(112);
+  brush_preset_combo_->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+  brush_preset_combo_->setMinimumContentsLength(8);
   for (const auto& preset : builtin_brush_presets()) {
     brush_preset_combo_->addItem(brush_preset_display_name(preset), preset.id);
   }
@@ -1198,9 +1201,10 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       brush_preset_combo_->setCurrentIndex(preset_index);
     }
   }
+  brush_preset_combo_->setProperty("lastBrushPresetId", brush_preset_combo_->currentData());
   add_option_widget(
       brush_preset_combo_,
-      {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
+      {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
        CanvasTool::Eraser});
 
   // The raster brush controls double as the shape tools' Pixels-mode options;
@@ -1564,10 +1568,29 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       return;
     }
     const auto preset_id = brush_preset_combo_->itemData(index).toString();
+    if (preset_id.startsWith("__")) {
+      const QSignalBlocker block(brush_preset_combo_);
+      brush_preset_combo_->setCurrentIndex(brush_preset_combo_->findData(brush_preset_combo_->property("lastBrushPresetId")));
+    } else {
+      brush_preset_combo_->setProperty("lastBrushPresetId", preset_id);
+    }
     const auto* preset = find_brush_preset(preset_id);
     if (preset == nullptr) {
+      if (preset_id == "__saveBrush") save_current_automation_brush();
+      else if (preset_id == "__manageBrushes") manage_automation_brush_presets();
+      else if (!preset_id.isEmpty()) {
+        try {
+          auto& library = brush_automation_library(); library.refresh();
+          auto s = library.resolve(QJsonObject{{"presetId", preset_id}});
+          if (!library.preset(preset_id)["includeColors"].toBool()) {
+            s.color = canvas_->primary_color(); s.background = canvas_->secondary_color();
+          }
+          activate_automation_brush(s);
+        } catch (const std::exception& e) { show_status_error(tr("Brush preset operation failed: %1").arg(QString::fromUtf8(e.what()))); }
+      }
       return;
     }
+    if (active_automation_brush_) set_active_brush_tip(builtin_round_brush_tip_id(), false, false);
     if (preset_id == QStringLiteral("airbrush")) {
       // The quick Airbrush preset is a predictable soft Round brush. Existing sampled tips
       // already cover Smoke/Spray/Spatter/Stipple, so do not invent a duplicate airbrush tip or
@@ -1590,7 +1613,10 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
 
   add_option_label(tr("Tip:"),
                    {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp,
-                    CanvasTool::Eraser});
+                   CanvasTool::Eraser});
+  (void)brush_automation_library();
+  refresh_automation_brush_presets();
+  register_retranslation([this] { refresh_automation_brush_presets(); });
   brush_tip_picker_ = new BrushTipPicker(brush_tip_library(), toolbar);
   // The options bar is built after load_tool_settings() reset the active tip to Round.
   brush_tip_picker_->set_current_tip_id(active_brush_tip_id_);
@@ -1607,7 +1633,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   connect(&brush_tip_library(), &BrushTipLibrary::changed, this, [this] {
     // A removed tip must not stay active; re-resolving also refreshes renamed/respaced tips.
     // Re-applying after a library edit must not reset Flow/Airbrush to imported tool settings.
-    set_active_brush_tip(active_brush_tip_id_, false, false);
+    if (!active_automation_brush_) set_active_brush_tip(active_brush_tip_id_, false, false);
   });
   QPointer<BrushTipPicker> tip_picker(brush_tip_picker_);
   register_retranslation([tip_picker] {
@@ -1628,7 +1654,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
               round_brush_base_angle_degrees_ = base_angle;
               round_brush_base_roundness_ = base_roundness;
               if (canvas_ != nullptr &&
-                  (active_brush_tip_id_.isEmpty() ||
+                  (active_preset_tip_ || active_brush_tip_id_.isEmpty() ||
                    active_brush_tip_id_ == builtin_round_brush_tip_id())) {
                 canvas_->set_brush_dynamics(dynamics);
                 canvas_->set_brush_base_shape(base_angle, static_cast<int>(std::lround(base_roundness)));

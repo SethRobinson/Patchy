@@ -311,6 +311,12 @@ QFont application_font() {
 
 int main(int argc, char* argv[]) {
 #ifdef PATCHY_MCP_EXECUTABLE
+  // Share explicitly persisted brushes with the artist, while keeping window/recent-file
+  // preferences isolated. Honor an automation settings root before capturing its filename.
+  if (const auto root = qEnvironmentVariable("PATCHY_SETTINGS_DIR"); !root.isEmpty())
+    QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, root);
+  if (qEnvironmentVariableIsEmpty("PATCHY_BRUSH_SETTINGS_FILE"))
+    qputenv("PATCHY_BRUSH_SETTINGS_FILE", patchy::ui::app_settings().fileName().toUtf8());
   QTemporaryDir connector_settings(QDir::tempPath() + QStringLiteral("/patchy-mcp-XXXXXX"));
   if (!connector_settings.isValid()) { return 2; }
   qputenv("PATCHY_SETTINGS_DIR", connector_settings.path().toUtf8());

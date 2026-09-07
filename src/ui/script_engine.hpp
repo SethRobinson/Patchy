@@ -147,6 +147,8 @@ public:
   [[nodiscard]] bool automation_ready() const;
   QImage render_preview(std::int64_t id, const QJsonObject& options, QJsonObject* metadata);
   void draw_strokes(std::int64_t session_id, LayerId layer_id, const QJSValue& strokes);
+  std::vector<ScriptStroke> parse_brush_strokes(const QJSValue& input);
+  Q_INVOKABLE QJSValue scriptBrushCall(const QString& method, const QJSValue& args);
 
 signals:
   // Console output and errors (kind is int(MessageKind)); listeners: the editor
@@ -154,6 +156,7 @@ signals:
   void message_emitted(int kind, const QString& text);
   // Fired when a run starts and when it fully completes (poll run_active()).
   void run_state_changed();
+  void painting_progress(const QString& description);
 
 public:
 

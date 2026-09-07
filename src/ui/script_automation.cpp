@@ -3,6 +3,8 @@
 #include "ui/script_api.hpp"
 #include "ui/main_window.hpp"
 #include "ui/canvas_widget.hpp"
+#include "ui/brush_automation.hpp"
+#include "ui/mcp_activity.hpp"
 #include "ui/qt_geometry.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/layer_tree.hpp"
@@ -26,31 +28,6 @@ namespace patchy::ui {
 namespace {
 QJsonObject rect_json(const QRect& r) {
   return {{"x", r.x()}, {"y", r.y()}, {"width", r.width()}, {"height", r.height()}};
-}
-
-void keys(const QJSValue& object, const QStringList& allowed) {
-  if (!object.isObject() || object.isArray()) { throw std::invalid_argument("object"); }
-  QJSValueIterator it(object);
-  while (it.hasNext()) {
-    it.next();
-    if (!allowed.contains(it.name())) { throw std::invalid_argument(it.name().toStdString()); }
-  }
-}
-
-double number(const QJSValue& obj, const QString& key, double fallback, double min, double max) {
-  const auto value = obj.property(key);
-  if (value.isUndefined()) { return fallback; }
-  const double n = value.toNumber();
-  if (!value.isNumber() || !std::isfinite(n) || n < min || n > max) {
-    throw std::invalid_argument(key.toStdString());
-  }
-  return n;
-}
-
-int integer(const QJSValue& obj, const QString& key, int fallback, int min, int max) {
-  const double n = number(obj, key, fallback, min, max);
-  if (n != std::floor(n)) { throw std::invalid_argument(key.toStdString()); }
-  return static_cast<int>(n);
 }
 
 QJsonArray layer_state(const std::vector<Layer>& layers, const std::vector<Layer>& roots) {
@@ -129,6 +106,8 @@ bool ScriptEngineHost::restore_session_history(std::int64_t id, bool redo) {
 }
 
 QJsonObject ScriptEngineHost::automation_state() const {
+  auto& brushes = window_.brush_automation_library();
+  brushes.refresh();
   QJsonArray documents;
   for (const auto id : session_ids()) {
     const auto* doc = session_document_const(id);
@@ -155,13 +134,18 @@ QJsonObject ScriptEngineHost::automation_state() const {
         {"clippingPathId", clipping_path}, {"vectorTarget", vector_target(id)}});
   }
   return {{"activeDocumentId", active_session_id() ? QJsonValue(QString::number(active_session_id())) : QJsonValue(QJsonValue::Null)},
-          {"documents", documents}};
+          {"documents", documents}, {"brushLibraryRevision", brushes.revision()},
+          {"currentBrush", window_.canvas_ ? QJsonValue(QJsonObject{
+            {"tool", window_.canvas_->tool() == CanvasTool::MixerBrush ? "mixer" : window_.canvas_->tool() == CanvasTool::Eraser ? "eraser" : "brush"},
+            {"tipId", window_.canvas_->current_script_brush().tip_id},
+            {"presetId", window_.active_automation_preset_id_}}) : QJsonValue(QJsonValue::Null)}};
 }
 
 QString ScriptEngineHost::automation_fingerprint() const {
   // Revisions and selection geometry, never a scan of layer pixel buffers.
   // The active document/layer and save state are deliberately part of the token.
   QByteArray bytes = QJsonDocument(automation_state()).toJson(QJsonDocument::Compact);
+  if (window_.canvas_) bytes += QJsonDocument(BrushAutomationLibrary::settings(window_.canvas_->current_script_brush())).toJson(QJsonDocument::Compact);
   QDataStream stream(&bytes, QIODevice::Append);
   stream.setVersion(QDataStream::Qt_6_0);
   for (const auto id : session_ids()) {
@@ -248,51 +232,7 @@ QImage ScriptEngineHost::render_preview(std::int64_t id, const QJsonObject& opti
 
 void ScriptEngineHost::draw_strokes(std::int64_t session_id, LayerId layer_id, const QJSValue& input) {
   try {
-    if (!input.isArray()) { throw std::invalid_argument("strokes"); }
-    const auto length = input.property("length").toUInt();
-    if (length == 0 || length > 1000) { throw std::invalid_argument("strokes.length (1..1000)"); }
-    std::vector<ScriptStroke> strokes;
-    std::size_t total_points = 0;
-    for (quint32 i = 0; i < length; ++i) {
-      const auto value = input.property(i);
-      keys(value, {"points", "tool", "color", "size", "opacity", "flow", "softness", "seed", "sizeJitter", "scatter"});
-      ScriptStroke stroke;
-      const auto tool = value.property("tool");
-      if (!tool.isUndefined() && (!tool.isString() || (tool.toString() != "brush" && tool.toString() != "eraser"))) {
-        throw std::invalid_argument("tool");
-      }
-      stroke.erase = tool.toString() == "eraser";
-      const auto color = value.property("color");
-      if (!color.isUndefined()) {
-        if (!color.isString()) { throw std::invalid_argument("color"); }
-        stroke.color = QColor(color.toString());
-        if (!stroke.color.isValid()) { throw std::invalid_argument("color"); }
-      }
-      stroke.size = integer(value, "size", 1, 1, 1024);
-      stroke.opacity = integer(value, "opacity", 100, 1, 100);
-      stroke.flow = integer(value, "flow", 100, 1, 100);
-      stroke.softness = integer(value, "softness", 0, 0, 100);
-      const double seed = number(value, "seed", 0, 0, 4294967295.0);
-      if (seed != std::floor(seed)) { throw std::invalid_argument("seed"); }
-      stroke.dynamics.seed = static_cast<std::uint32_t>(seed);
-      stroke.dynamics.size_jitter = number(value, "sizeJitter", 0, 0, 1);
-      stroke.dynamics.scatter = number(value, "scatter", 0, 0, 10);
-      const auto points = value.property("points");
-      if (!points.isArray()) { throw std::invalid_argument("points"); }
-      const auto count = points.property("length").toUInt();
-      total_points += count;
-      if (count == 0 || total_points > 100000) { throw std::invalid_argument("points.length (1..100000 total)"); }
-      for (quint32 p = 0; p < count; ++p) {
-        const auto point = points.property(p);
-        keys(point, {"x", "y", "pressure"});
-        if (point.property("x").isUndefined() || point.property("y").isUndefined()) { throw std::invalid_argument("x/y"); }
-        ScriptStrokePoint sample;
-        sample.position = {number(point, "x", 0, -100000, 100000), number(point, "y", 0, -100000, 100000)};
-        if (!point.property("pressure").isUndefined()) { sample.pressure = static_cast<float>(number(point, "pressure", 1, 0, 1)); }
-        stroke.points.push_back(sample);
-      }
-      strokes.push_back(std::move(stroke));
-    }
+    const auto strokes = parse_brush_strokes(input);
     auto* session = window_.session_with_id(session_id);
     const auto* doc = session_document_const(session_id);
     const auto* layer = doc ? doc->find_layer(layer_id) : nullptr;
@@ -310,8 +250,13 @@ void ScriptEngineHost::draw_strokes(std::int64_t session_id, LayerId layer_id, c
       if (previous) { session->document.set_active_layer(*previous); }
       else { session->document.clear_active_layer(); }
     });
+    std::size_t stroke_index = 0;
     for (const auto& stroke : strokes) {
       if (engine_ && engine_->isInterrupted()) { break; }
+      const auto name = stroke.label.isEmpty() ? (stroke.mixer ? tr("Mixer Brush") : stroke.erase ? tr("Eraser") : tr("Brush")) : stroke.label;
+      const auto message = tr("%1: stroke %2 of %3").arg(name).arg(++stroke_index).arg(strokes.size());
+      emit painting_progress(message);
+      if (script_activity_) script_activity_->set_operation(message, true);
       const auto dirty = session->canvas->paint_script_stroke(stroke, [this, session_id](const QRect& changed) {
         if (!changed.isEmpty()) { note_pixels_changed(session_id, changed); }
         else { pump_progress_indicator(); }

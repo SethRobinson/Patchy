@@ -24,6 +24,8 @@ change.
 - `src/ui/script_vector*.{hpp,cpp}`: native shapes, paints, paths, masks,
   organization, and selection bindings. See [vector-automation.md](vector-automation.md)
   for shared operations, validation, and refresh contracts.
+- `ui/script_brush` and `ui/brush_automation`: brush bindings, resolution and
+  presets; see [brush-automation.md](brush-automation.md).
 - `src/ui/script_canvas_window.{hpp,cpp}`: interactive script windows (games/demos).
 - `src/ui/script_editor_dialog.{hpp,cpp}` + `src/ui/js_syntax_highlighter.{hpp,cpp}`: the
   Script Manager UI (folder tree, shadow-override saves, context menu, and the run
