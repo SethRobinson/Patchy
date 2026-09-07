@@ -7,18 +7,35 @@ required. The JavaScript API edits through Patchy's existing engines.
 
 ## Setup and distribution
 
-Read the [packaged setup instructions](../agent-kit/patchy-control/references/setup.md)
-for copyable Codex configuration, generic stdio settings, skill installation,
-and platform paths. Register the connector and install the skill separately.
-Putting a skill in a repository does not install it in a client.
+The user-facing entry point is Help > Set up AI Control (`help.ai_setup`,
+`MainWindow::open_ai_setup_dialog()` in `main_window_scripting.cpp`, dialog class
+`AiSetupDialog` in `src/ui/ai_setup_dialog.*`). It shows an English text the user
+pastes into their AI assistant; the assistant reads the shipped setup document and
+registers the connector and installs the skill itself. The dialog never shows
+commands or JSON to the person. The text is built by `ai_setup_blurb_text` in
+`src/ui/ai_control_paths.*`, which also owns the install-layout resolver
+(`resolve_ai_control_paths`, `ai_control_skill_directory`) shared with
+`patchy-mcp`'s `get_info`, so the connector and the dialog cannot disagree about
+paths. Missing pieces read `NOT FOUND` in the text and as a warning in the dialog's
+status label; Flatpak (`FLATPAK_ID` set) switches to the `flatpak run` command form
+and the in-sandbox skill path. The blurb is deliberately not translated: its reader
+is the assistant. The action is hidden on wasm (no connector) but its command id
+stays registered. Dialog objectNames for tests: `aiSetupDialog`, `aiSetupBlurbText`,
+`aiSetupStatusLabel`, `aiSetupCopyButton`, `aiSetupOpenSkillFolderButton`,
+`aiSetupOpenGuideButton`, `aiSetupCloseButton`.
 
-For a Windows source build, use the absolute path to `build/release/patchy-mcp.exe`
-as the command in `codex mcp add patchy -- <command>` or
-`claude mcp add patchy -- <command>`. Copy the assembled
-`build/release/ai/patchy-control` folder into `~/.agents/skills/` (Codex) or
-`~/.claude/skills/` (Claude Code), or the project-level equivalent. Restart the
-client if it does not discover the skill. Use absolute output paths or configure
-the server's working directory.
+The [packaged setup document](../agent-kit/patchy-control/references/setup.md) is
+what the assistant reads (locally from the skill's `references` folder, or the
+GitHub copy the blurb also names). It carries the per-platform paths, per-client
+steps, and verification. The Windows installer installs to
+`%LOCALAPPDATA%\Programs\Patchy`, never Program Files; keep every example on
+that path. Register the connector and install the skill separately. Putting a
+skill in a repository does not install it in a client.
+
+For a Windows source build, the same dialog works from `build/release/patchy.exe`:
+it resolves `build/release/patchy-mcp.exe` and the assembled
+`build/release/ai/patchy-control`. Use absolute output paths or configure the
+server's working directory.
 
 `agent-kit/patchy-control` owns the skill, setup, and three examples. The shared
 `patchy_agent_kit` CMake target assembles `build/<preset>/ai/patchy-control`, copying

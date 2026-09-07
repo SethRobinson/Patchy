@@ -47,11 +47,10 @@ Required release handoff steps:
    $env:QT_QPA_PLATFORM='offscreen'; .\patchy_ui_visual_tests.exe
    ```
 
-   - Both binaries accept a name-substring filter as the first argument; the UI suite also reads `PATCHY_UI_TEST_FILTER`.
-   - For a minor localized change with no core/shared code, serialization, byte-pinned/canary paths, rendering/compositing, or build-system work, filtered subsets covering the feature and changed tests are sufficient. Report the filters used.
-   - Run the full core suite for changes to `src/core`, shared helpers (`main_window_shared`, `canvas_widget_shared`, `psd_io_common`), PSD or other serialization, byte-pinned/canary paths, CMake files/presets, refactors or file moves, and whenever uncertain.
-   - Run the full UI visual suite only when the change can affect rendering or UI behavior: compositing/rendering, application-wide QSS/theme or hotkeys, widget/dialog code, or the visual tests themselves. Do not run it for build-system or other non-rendering changes (Seth, July 2026).
-   - Packaging or uploading a release always requires both full suites. Filtered runs miss ordered cross-test state such as QSettings and artifact dependencies.
+   - **Per-change verification runs only the tests the change could possibly affect** (Seth, September 2026). Both binaries accept a name-substring filter as the first argument; the UI suite also reads `PATCHY_UI_TEST_FILTER`. Pick filters that cover the feature, the changed tests, and any shared code the change touches, and report the filters used. Do not run a full suite "to be safe" for a localized change: a new dialog, menu item, or script API needs its own tests plus the theme-token and hotkey checks, not the whole UI suite.
+   - Widen to the full core suite only when the change reaches core-wide surfaces: `src/core`, shared helpers (`main_window_shared`, `canvas_widget_shared`, `psd_io_common`), PSD or other serialization, byte-pinned/canary paths, or refactors and file moves whose blast radius cannot be filtered.
+   - Widen to the full UI visual suite only for changes that can affect rendering or UI behavior application-wide: compositing/rendering, application-wide QSS/theme or hotkeys, or the visual test harness itself. Never run it for build-system or other non-rendering changes (Seth, July 2026).
+   - **A real release (preparing release builds for final packaging and upload) always runs both full suites.** Filtered runs miss ordered cross-test state such as QSettings and artifact dependencies, so that is the one time the whole suite is mandatory.
 
 3. Explicitly report whether `build\release\patchy.exe` exists.
 

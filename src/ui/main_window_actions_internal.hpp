@@ -113,6 +113,7 @@ struct ActionBuildContext {
   QMenu* screen_size_menu{nullptr};
   QAction* force_refresh_action{nullptr};
   QAction* scripting_guide_action{nullptr};
+  QAction* ai_setup_action{nullptr};
   QAction* about_action{nullptr};
 
   // Written by build_tool_palette(), read by bind_action_translations().

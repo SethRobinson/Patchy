@@ -898,6 +898,10 @@ if(PATCHY_BUILD_APP)
       src/ui/modifier_names.cpp
       src/ui/markdown_viewer_dialog.hpp
       src/ui/markdown_viewer_dialog.cpp
+      src/ui/ai_control_paths.hpp
+      src/ui/ai_control_paths.cpp
+      src/ui/ai_setup_dialog.hpp
+      src/ui/ai_setup_dialog.cpp
       src/ui/main_window.hpp
       src/ui/main_window.cpp
       src/ui/main_window_actions.cpp

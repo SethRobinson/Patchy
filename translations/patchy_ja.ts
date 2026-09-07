@@ -8740,6 +8740,14 @@ Either way Patchy writes a copy; the open document keeps its layers and unsaved 
         <translation>スクリプティングガイド(&amp;S)</translation>
     </message>
     <message>
+        <source>Set &amp;up AI Control...</source>
+        <translation>AI制御のセットアップ(&amp;U)...</translation>
+    </message>
+    <message>
+        <source>AI setup text copied to the clipboard</source>
+        <translation>AIセットアップ用のテキストをクリップボードにコピーしました</translation>
+    </message>
+    <message>
         <source>Scripting Guide</source>
         <translation>スクリプティングガイド</translation>
     </message>
@@ -15303,5 +15311,20 @@ Clipped to the layer below</source>
         <source>Window previews do not accept document or canvas options.</source>
         <translation>ウィンドウのプレビューにはドキュメントやキャンバスのオプションを指定できません。</translation>
     </message>
+</context>
+<context>
+    <name>patchy::ui::AiSetupDialog</name>
+    <message><source>Set up AI Control</source><translation>AI制御のセットアップ</translation></message>
+    <message><source>Copy the text below and paste it into your AI assistant (Claude Code, Codex, Cursor, or another tool that supports MCP). The assistant reads it and sets itself up to control Patchy. The text is in English because it is written for the assistant.</source><translation>下のテキストをコピーして、お使いのAIアシスタント（Claude Code、Codex、Cursor、またはMCPに対応した他のツール）に貼り付けてください。アシスタントがこれを読み、Patchyを操作できるように自分でセットアップします。テキストはアシスタント向けに書かれているため英語です。</translation></message>
+    <message><source>Connector: %1</source><translation>コネクタ: %1</translation></message>
+    <message><source>Skill folder: %1</source><translation>スキルフォルダ: %1</translation></message>
+    <message><source>Patchy is running inside a Flatpak sandbox; the skill folder is only visible from inside it.</source><translation>PatchyはFlatpakサンドボックス内で実行されています。スキルフォルダはサンドボックスの内側からのみ見えます。</translation></message>
+    <message><source>The patchy-mcp connector was not found next to Patchy. Reinstall Patchy or download a full package.</source><translation>patchy-mcpコネクタがPatchyの隣に見つかりません。Patchyを再インストールするか、完全なパッケージをダウンロードしてください。</translation></message>
+    <message><source>The patchy-control skill folder was not found. Reinstall Patchy or download a full package.</source><translation>patchy-controlスキルフォルダが見つかりません。Patchyを再インストールするか、完全なパッケージをダウンロードしてください。</translation></message>
+    <message><source>Copy to Clipboard</source><translation>クリップボードにコピー</translation></message>
+    <message><source>Copied</source><translation>コピーしました</translation></message>
+    <message><source>Open Skill Folder</source><translation>スキルフォルダを開く</translation></message>
+    <message><source>Open Online Guide</source><translation>オンラインガイドを開く</translation></message>
+    <message><source>Close</source><translation>閉じる</translation></message>
 </context>
 </TS>

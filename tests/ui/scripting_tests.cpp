@@ -13,6 +13,7 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include "ui/canvas_widget.hpp"
+#include "ui/ai_control_paths.hpp"
 #include "ui/main_window.hpp"
 #include "ui/script_editor_dialog.hpp"
 #include "ui/script_engine.hpp"
@@ -1690,6 +1691,114 @@ void ui_script_scripting_guide_opens_from_help() {
   viewers[0]->close();
 }
 
+// Help > Set up AI Control opens the paste-into-your-assistant dialog. The
+// release layout has the connector, the assembled skill, and its setup.md next
+// to the test binary, so the text must carry all three real paths and no NOT
+// FOUND marker, and Copy must put exactly that text on the clipboard.
+void ui_ai_setup_dialog_opens_from_help() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto paths = patchy::ui::resolve_ai_control_paths();
+  CHECK(!paths.connector_path.isEmpty());
+  CHECK(!paths.skill_directory.isEmpty());
+  CHECK(!paths.setup_document_path.isEmpty());
+  CHECK(QFileInfo::exists(paths.connector_path));
+  CHECK(QFileInfo::exists(paths.skill_directory + QStringLiteral("/SKILL.md")));
+
+  auto* action = patchy::test::ui::require_action(window, "helpAiSetupAction");
+  CHECK(action->isVisible());
+  bool saw_dialog = false;
+  QString blurb;
+  QString status;
+  QGuiApplication::clipboard()->clear();
+  auto* dismisser = new QTimer(&window);
+  QObject::connect(dismisser, &QTimer::timeout, &window, [&] {
+    auto* dialog = window.findChild<QDialog*>(QStringLiteral("aiSetupDialog"));
+    if (dialog == nullptr || !dialog->isVisible()) {
+      return;
+    }
+    if (auto* text = dialog->findChild<QPlainTextEdit*>(QStringLiteral("aiSetupBlurbText"))) {
+      blurb = text->toPlainText();
+      CHECK(text->isReadOnly());
+    }
+    if (auto* label = dialog->findChild<QLabel*>(QStringLiteral("aiSetupStatusLabel"))) {
+      status = label->text();
+    }
+    auto* copy = dialog->findChild<QPushButton*>(QStringLiteral("aiSetupCopyButton"));
+    CHECK(copy != nullptr);
+    if (copy != nullptr) {
+      copy->click();
+    }
+    auto* open_skill =
+        dialog->findChild<QPushButton*>(QStringLiteral("aiSetupOpenSkillFolderButton"));
+    CHECK(open_skill != nullptr && open_skill->isEnabled());
+    if (!saw_dialog) {
+      save_widget_artifact("ai_setup_dialog", *dialog);
+    }
+    saw_dialog = true;
+    dialog->close();
+  });
+  dismisser->start(30);
+  action->trigger();
+  dismisser->stop();
+  CHECK(saw_dialog);
+
+  CHECK(blurb.contains(QDir::toNativeSeparators(paths.connector_path)));
+  CHECK(blurb.contains(QDir::toNativeSeparators(paths.skill_directory)));
+  CHECK(blurb.contains(QDir::toNativeSeparators(paths.setup_document_path)));
+  CHECK(blurb.contains(QString::fromLatin1(patchy::ui::kAiControlSetupUrl)));
+  CHECK(blurb.contains(QStringLiteral("\"get_info\"")));
+  CHECK(blurb.contains(QStringLiteral("named \"patchy\"")));
+  CHECK(!blurb.contains(QStringLiteral("NOT FOUND (expected")));
+  CHECK(!blurb.contains(QChar(0x2014)));
+  CHECK(QGuiApplication::clipboard()->text() == blurb);
+  CHECK(status.contains(QDir::toNativeSeparators(paths.connector_path).toHtmlEscaped()));
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("copied")));
+
+  // Reopening reuses the one hidden instance; no second nested loop.
+  action->trigger();
+  QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+  const auto dialogs = window.findChildren<QDialog*>(QStringLiteral("aiSetupDialog"));
+  CHECK(dialogs.size() == 1);
+  CHECK(dialogs[0]->isVisible());
+  dialogs[0]->close();
+}
+
+// The blurb builder handles a build without the kit (source tree, old zip) and
+// the Flatpak sandbox, where the connector is reached through `flatpak run`.
+void ui_ai_setup_blurb_reports_missing_and_flatpak_forms() {
+  const auto url = QString::fromLatin1(patchy::ui::kAiControlSetupUrl);
+
+  const auto missing = patchy::ui::ai_setup_blurb_text(patchy::ui::AiControlPaths{});
+  CHECK(missing.contains(QStringLiteral("Command: NOT FOUND (expected")));
+  CHECK(missing.contains(QStringLiteral("keeping its name: NOT FOUND (expected")));
+  CHECK(missing.contains(QStringLiteral("not installed; use the online copy")));
+  CHECK(missing.contains(url));
+  CHECK(!missing.contains(QChar(0x2014)));
+
+  patchy::ui::AiControlPaths flatpak;
+  flatpak.flatpak = true;
+  const auto sandboxed = patchy::ui::ai_setup_blurb_text(flatpak);
+  CHECK(sandboxed.contains(QStringLiteral("flatpak run --command=patchy-mcp com.rtsoft.patchy")));
+  CHECK(sandboxed.contains(QStringLiteral("/app/share/patchy/ai/patchy-control")));
+  CHECK(sandboxed.contains(QStringLiteral("flatpak run --command=cp com.rtsoft.patchy -R")));
+  CHECK(sandboxed.contains(url));
+  CHECK(!sandboxed.contains(QStringLiteral("NOT FOUND (expected")));
+  CHECK(!sandboxed.contains(QChar(0x2014)));
+
+  // A resolved layout quotes native paths so folders with spaces survive a paste.
+  patchy::ui::AiControlPaths resolved;
+  resolved.connector_path = QStringLiteral("/opt/My Apps/patchy-mcp");
+  resolved.skill_directory = QStringLiteral("/opt/My Apps/ai/patchy-control");
+  resolved.setup_document_path = resolved.skill_directory + QStringLiteral("/references/setup.md");
+  const auto text = patchy::ui::ai_setup_blurb_text(resolved);
+  CHECK(text.contains(QLatin1Char('"') + QDir::toNativeSeparators(resolved.connector_path) +
+                      QLatin1Char('"')));
+  CHECK(text.contains(QLatin1Char('"') + QDir::toNativeSeparators(resolved.skill_directory) +
+                      QLatin1Char('"')));
+  CHECK(!text.contains(QStringLiteral("NOT FOUND (expected")));
+}
+
 // patchy.ui.zoom / fitOnScreen: the documented view controls (percent, active
 // document, status-bar clamping), including the connector sessions that refuse
 // app.runCommand('view.fit_on_screen').
@@ -2183,6 +2292,9 @@ std::vector<patchy::test::TestCase> scripting_tests() {
        ui_script_cli_directive_and_example_command},
       {"ui_script_manager_cli_example_dialog", ui_script_manager_cli_example_dialog},
       {"ui_script_scripting_guide_opens_from_help", ui_script_scripting_guide_opens_from_help},
+      {"ui_ai_setup_dialog_opens_from_help", ui_ai_setup_dialog_opens_from_help},
+      {"ui_ai_setup_blurb_reports_missing_and_flatpak_forms",
+       ui_ai_setup_blurb_reports_missing_and_flatpak_forms},
       {"ui_script_ui_view_zoom", ui_script_ui_view_zoom},
       {"ui_script_ui_staging_apis", ui_script_ui_staging_apis},
       {"ui_script_active_layer_setter_reveals_row", ui_script_active_layer_setter_reveals_row},

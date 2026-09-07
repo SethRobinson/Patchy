@@ -196,6 +196,9 @@ public:
   // scripts) in the markdown viewer; public so the Script Manager's Help
   // button shares the Help-menu instance.
   void open_scripting_guide();
+  // Help > Set up AI Control: the paste-into-your-assistant dialog
+  // (ai_setup_dialog.hpp), single non-modal instance like the guide.
+  void open_ai_setup_dialog();
   // Marginal history bytes retained across all sessions, cached by the last
   // enforce_history_memory_budget run (push-time; slightly stale by design).
   // The wasm memory telemetry (ui/wasm_memory_telemetry.cpp) reads it at 1 Hz.
@@ -1582,6 +1585,7 @@ private:
   ScriptEngineHost* script_engine_host_{nullptr};
   QPointer<QDialog> script_editor_dialog_;
   QPointer<QDialog> scripting_guide_dialog_;
+  QPointer<QDialog> ai_setup_dialog_;
   QMenu* scripts_menu_{nullptr};
   FilterRegistry filters_;
   PluginHost plugin_host_;

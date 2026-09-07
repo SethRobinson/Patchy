@@ -29,6 +29,7 @@
 #include "psd/psd_filter_effects.hpp"
 #include "psd/psd_smart_objects.hpp"
 #include "ui/action_icons.hpp"
+#include "ui/ai_setup_dialog.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/cli_exit.hpp"
 #include "render/compositor.hpp"
@@ -292,6 +293,22 @@ void MainWindow::open_scripting_guide() {
   // Parented to the main window (not the Script Manager) so the guide
   // survives closing the manager and both Help entries share one instance.
   scripting_guide_dialog_ = dialog;
+  run_non_modal_dialog(*dialog);
+}
+
+void MainWindow::open_ai_setup_dialog() {
+  if (ai_setup_dialog_ != nullptr) {
+    ai_setup_dialog_->show();
+    ai_setup_dialog_->raise();
+    ai_setup_dialog_->activateWindow();
+    return;
+  }
+  // Always opens, even on a build without the connector or the assembled skill:
+  // the text then says NOT FOUND and the online guide button is the way out.
+  auto* dialog = new AiSetupDialog(resolve_ai_control_paths(), this);
+  connect(dialog, &AiSetupDialog::blurb_copied, this,
+          [this] { statusBar()->showMessage(tr("AI setup text copied to the clipboard")); });
+  ai_setup_dialog_ = dialog;
   run_non_modal_dialog(*dialog);
 }
 

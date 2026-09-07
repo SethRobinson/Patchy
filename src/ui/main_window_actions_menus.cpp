@@ -1612,6 +1612,17 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   register_hotkey(scripting_guide_action, "help.scripting_guide");
   connect(scripting_guide_action, &QAction::triggered, this, [this] { open_scripting_guide(); });
 
+  auto* ai_setup_action = help_menu->addAction(tr("Set &up AI Control..."));
+  ai_setup_action->setObjectName(QStringLiteral("helpAiSetupAction"));
+  ai_setup_action->setMenuRole(QAction::NoRole);
+  register_hotkey(ai_setup_action, "help.ai_setup");
+  connect(ai_setup_action, &QAction::triggered, this, [this] { open_ai_setup_dialog(); });
+#ifdef Q_OS_WASM
+  // The browser build ships no connector; hide the entry but keep the command id
+  // registered so saved hotkey tables stay stable across platforms.
+  ai_setup_action->setVisible(false);
+#endif
+
   auto* about_action = help_menu->addAction(tr("&About Patchy"));
   about_action->setMenuRole(QAction::AboutRole);
   connect(about_action, &QAction::triggered, this, [this] { show_about(); });
@@ -1703,6 +1714,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   ctx.force_refresh_action = force_refresh_action;
   ctx.scripting_guide_action = scripting_guide_action;
   ctx.about_action = about_action;
+  ctx.ai_setup_action = ai_setup_action;
 }
 
 }  // namespace patchy::ui

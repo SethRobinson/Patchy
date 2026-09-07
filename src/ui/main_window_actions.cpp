@@ -414,6 +414,7 @@ void MainWindow::bind_action_translations(ActionBuildContext& ctx) {
       {ctx.force_refresh_action, "Force Refresh"},
       {language_english_action_, "&English"},
       {ctx.scripting_guide_action, "&Scripting Guide"},
+      {ctx.ai_setup_action, "Set &up AI Control..."},
       {ctx.about_action, "&About Patchy"},
       {ctx.default_colors_action, "Default Colors"},
       {ctx.swap_colors_action, "Swap Colors"},

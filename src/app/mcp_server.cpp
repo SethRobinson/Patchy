@@ -1,4 +1,5 @@
 #include "app/mcp_server.hpp"
+#include "ui/ai_control_paths.hpp"
 #include "ui/main_window.hpp"
 #include "ui/script_engine.hpp"
 #include "ui/background_workers.hpp"
@@ -25,14 +26,9 @@
 namespace patchy {
 namespace {
 
-QString kit_directory() {
-  const QDir exe(QCoreApplication::applicationDirPath());
-  for (const auto& path : {"ai/patchy-control", "../Resources/ai/patchy-control", "../share/patchy/ai/patchy-control"}) {
-    const auto candidate = exe.absoluteFilePath(QLatin1String(path));
-    if (QFileInfo::exists(candidate + "/SKILL.md")) { return QDir::cleanPath(candidate); }
-  }
-  return {};
-}
+// Shared with Help > Set up AI Control so the connector and the dialog agree on
+// the installed layout.
+QString kit_directory() { return ui::ai_control_skill_directory(); }
 
 QJsonObject schema(const QJsonObject& properties = {}, const QJsonArray& required = {}) {
   return {{"type", "object"}, {"properties", properties}, {"required", required}, {"additionalProperties", false}};

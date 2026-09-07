@@ -42,7 +42,7 @@ Return the editable file and preview paths. Documents and undo history disappear
 With a shell, run the package's executable using an absolute path:
 
 ```powershell
-& 'C:\Program Files\Patchy\patchy.exe' --headless --run-script 'job.js' --script-output 'job-result.txt'
+& "$env:LOCALAPPDATA\Programs\Patchy\patchy.exe" --headless --run-script 'job.js' --script-output 'job-result.txt'
 ```
 
 Pass script parameters as repeated `--script-arg key=value`. Each headless launch is a fresh workspace and exits on completion. Check the process exit code and the output's final `[done]` or `[failed]` marker. Use unique output paths. Without `--headless`, the command can forward to an existing artist window; use headless for background work.

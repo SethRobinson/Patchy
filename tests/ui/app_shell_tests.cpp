@@ -2231,6 +2231,8 @@ void ui_language_switch_updates_existing_window() {
   CHECK(!japanese_menus.contains(QStringLiteral("環境設定(P)")));
   CHECK(tabs->count() == initial_tab_count);
   CHECK(require_action(window, "preferencesLanguageJapaneseAction")->isChecked());
+  CHECK(require_action(window, "helpAiSetupAction")->text() ==
+        QStringLiteral("AI制御のセットアップ(&U)..."));
 
   choose_preferences_language(window, QStringLiteral("en"));
 
@@ -2239,6 +2241,8 @@ void ui_language_switch_updates_existing_window() {
   CHECK(english_menus.contains(QStringLiteral("File")));
   CHECK(!english_menus.contains(QStringLiteral("Preferences")));
   CHECK(require_action(window, "fileSaveAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_S));
+  CHECK(require_action(window, "helpAiSetupAction")->text() ==
+        QStringLiteral("Set &up AI Control..."));
   CHECK(tabs->count() == initial_tab_count);
   CHECK(require_action(window, "preferencesLanguageEnglishAction")->isChecked());
 }

@@ -41,7 +41,9 @@ change.
   uses the palette's unreadable-on-dark default). `MainWindow::open_scripting_guide()`
   (main_window_scripting.cpp) owns the single instance, shared by Help > Scripting
   Guide (`help.scripting_guide`) and the Script Manager's Help button, and loads
-  `scripting-guide.md` from the bundled scripts folder.
+  `scripting-guide.md` from the bundled scripts folder. Help > Set up AI Control
+  (`help.ai_setup`, `MainWindow::open_ai_setup_dialog()`) is the sibling entry for the
+  MCP connector; see [ai-control.md](ai-control.md).
 - `src/ui/script_folders.{hpp,cpp}`: the script browser model - recursive bundled/user
   folder scans and the shadow-override merge, shared by the File > Scripts menu and the
   editor tree.
