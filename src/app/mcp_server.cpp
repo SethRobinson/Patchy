@@ -243,7 +243,7 @@ class Server final : public QObject {
           {"scriptTrust", "applicationPrivileges"}, {"liveWindowAttachment", false}});
       } else if (name == "get_help") {
         const auto topic = args["topic"].toString("workflow");
-        const QMap<QString, QString> files{{"workflow", "SKILL.md"}, {"api", "references/patchy.d.ts"},
+        const QMap<QString, QString> files{{"workflow", "references/workflow.md"}, {"api", "references/patchy.d.ts"},
           {"guide", "references/scripting-guide.md"}, {"pixel-art", "scripts/pixel-art.js"},
           {"painting", "scripts/painting.js"}, {"edit-document", "scripts/edit-document.js"},
           {"reference-art", "references/reference-art.md"}};
@@ -353,7 +353,7 @@ int run_mcp_server(QApplication& app) {
     try {
       ok = ok && !host.render_preview(host.active_session_id(), {}, &metadata).isNull();
     } catch (...) { ok = false; }
-    for (const auto& file : {"references/patchy.d.ts", "references/scripting-guide.md", "scripts/pixel-art.js"}) {
+    for (const auto& file : {"references/workflow.md", "references/patchy.d.ts", "references/scripting-guide.md", "scripts/pixel-art.js"}) {
       ok = ok && QFileInfo::exists(kit_directory() + '/' + QLatin1String(file));
     }
     const auto report = QJsonDocument(QJsonObject{{"ok", ok}, {"version", app.applicationVersion()},

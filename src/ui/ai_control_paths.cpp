@@ -92,12 +92,13 @@ QString ai_setup_blurb_text(const AiControlPaths& paths, bool visible) {
                 ? QStringLiteral("   Add the argument --visible so I can watch in a separate Patchy window. I authorize control of that workspace.")
                 : QStringLiteral("   Use no connector arguments: work hidden and show previews in this chat."));
   lines << QStringLiteral("   This workspace is separate from any Patchy window I already have open.");
-  lines << QStringLiteral("2. Install the \"patchy-control\" skill by copying this whole folder "
-                          "into your skills directory, keeping its name:");
+  lines << QStringLiteral("2. Create a \"patchy-control\" folder in your skills directory and "
+                          "copy only SKILL.md from this folder into it. The skill fetches "
+                          "current instructions from Patchy; leave references and scripts here:");
   if (paths.flatpak) {
     lines << QStringLiteral("   %1 (inside the Flatpak sandbox)").arg(flatpak_skill)
-          << QStringLiteral("   Copy it out with: flatpak run --command=cp %1 -R %2 <a folder "
-                            "the sandbox can see>")
+          << QStringLiteral("   Copy the file out with: flatpak run --command=cp %1 %2/SKILL.md "
+                            "<the destination patchy-control folder, visible to the sandbox>")
                  .arg(app_id, flatpak_skill);
   } else if (paths.skill_directory.isEmpty()) {
     lines << QStringLiteral("   NOT FOUND (expected %1)").arg(expected("ai/patchy-control"));

@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import queue
+import shutil
 import subprocess
 import sys
 import threading
@@ -40,9 +41,22 @@ async def sdk_workflow(exe):
             assert info["mode"] == "offscreen" and not info["windowVisible"]
             kit = Path(info["skillDirectory"])
             assert (kit / "SKILL.md").is_file()
+            # A client installs only the stable entry point. All working
+            # instructions come from the connected installation, not this copy.
+            installed = OUT / "client-skills" / ("patchy-control-" + str(time.time_ns()))
+            installed.mkdir(parents=True)
+            shutil.copyfile(kit / "SKILL.md", installed / "SKILL.md")
+            bootstrap = (installed / "SKILL.md").read_bytes()
+            workflow = (await call("get_help", {"topic": "workflow"})).structuredContent["text"]
+            assert workflow == (kit / "references" / "workflow.md").read_bytes().decode("utf-8")
+            assert workflow != bootstrap.decode("utf-8")
+            assert (await call("get_help")).structuredContent["text"] == workflow
+            assert list(installed.iterdir()) == [installed / "SKILL.md"]
+            assert (installed / "SKILL.md").read_bytes() == bootstrap
             assert (await call("get_state")).structuredContent["documents"] == []
             help_result = (await call("get_help", {"topic": "api"})).structuredContent
             assert "drawStrokes" in help_result["text"]
+            assert help_result["text"] == (kit / "references" / "patchy.d.ts").read_bytes().decode("utf-8")
             assert (await call("get_help", {"topic": "reference-art"})).structuredContent["text"]
             created = (await call("execute_script", {
                 "code": (kit / "scripts" / "pixel-art.js").read_text(encoding="utf-8"),

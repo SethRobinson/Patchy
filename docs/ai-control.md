@@ -26,7 +26,7 @@ stays registered. Dialog objectNames for tests: `aiSetupDialog`, `aiSetupBlurbTe
 unchecked default requests hidden work; checking it adds `--visible` and explicit
 authorization to control that separate workspace to the copied instructions.
 The mode choice is local to the dialog and does not change existing connections.
-The instructions require saved test files and distinguish configuration from
+The instructions install only the `SKILL.md` entry point, require saved test files, and distinguish configuration from
 successful tool verification, including clients that need a restart.
 
 The [packaged setup document](../agent-kit/patchy-control/references/setup.md) is
@@ -42,10 +42,21 @@ it resolves `build/release/patchy-mcp.exe` and the assembled
 `build/release/ai/patchy-control`. Use absolute output paths or configure the
 server's working directory.
 
-`agent-kit/patchy-control` owns the skill, setup, and three examples. The shared
+`agent-kit/patchy-control/SKILL.md` is the stable client entry point. Install only
+that file in the client's `patchy-control` skill folder. The full workflow lives
+in `references/workflow.md`; `get_help(workflow)` returns it, including when
+`topic` is omitted. API references, setup, and examples remain with Patchy and
+are fetched through `get_help` or read from that installation for CLI use.
+Existing topic identifiers remain unchanged. The connector reads the files for
+each request, so workflow updates do not require recopying a client skill.
+After upgrading the executable, reconnect before editing so code and help match.
+Entry-point changes require an explicit one-file refresh; migrate old full-folder
+installs by removing only verified unmodified package files, preserving local edits.
+
+`agent-kit/patchy-control` owns the entry point, workflow, setup, and examples. The shared
 `patchy_agent_kit` CMake target assembles `build/<preset>/ai/patchy-control`, copying
 the authoritative `scripts/bundled/patchy.d.ts` and `scripting-guide.md` into its
-references. Install that assembled folder. API docs are not duplicated in source.
+references. This assembled folder stays with Patchy. API docs are not duplicated in source.
 Windows stages the connector, `ai`, and `scripts` beside the application. macOS
 copies the connector into `Contents/MacOS` and the kit into `Contents/Resources/ai`;
 `macdeployqt` processes both executables. Linux installs the connector in `bin`
@@ -151,7 +162,7 @@ lifecycle entry point; it does not synthesize Qt or desktop input events.
 
 ## Workflow and validation
 
-The skill teaches discovery, batched edits, image inspection, checkpoints, undo,
+The served workflow teaches discovery, batched edits, image inspection, checkpoints, undo,
 and PSD plus PNG delivery. Its examples create layered pixel art, pressure paint,
 and an accent layer in an existing file. The alternative entry point is
 `patchy --headless --run-script file.js --script-arg key=value`; see

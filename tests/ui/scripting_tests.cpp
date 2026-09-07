@@ -1782,7 +1782,7 @@ void ui_ai_setup_blurb_reports_missing_and_flatpak_forms() {
   const auto sandboxed = patchy::ui::ai_setup_blurb_text(flatpak);
   CHECK(sandboxed.contains(QStringLiteral("flatpak run --command=patchy-mcp com.rtsoft.patchy")));
   CHECK(sandboxed.contains(QStringLiteral("/app/share/patchy/ai/patchy-control")));
-  CHECK(sandboxed.contains(QStringLiteral("flatpak run --command=cp com.rtsoft.patchy -R")));
+  CHECK(sandboxed.contains(QStringLiteral("flatpak run --command=cp com.rtsoft.patchy /app/share/patchy/ai/patchy-control/SKILL.md")));
   CHECK(sandboxed.contains(url));
   CHECK(!sandboxed.contains(QStringLiteral("NOT FOUND (expected")));
   CHECK(!sandboxed.contains(QChar(0x2014)));

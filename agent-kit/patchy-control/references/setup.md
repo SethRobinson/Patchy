@@ -31,10 +31,10 @@ Configure only the requested Patchy connector and skill:
    settings. Inspect the existing `patchy` entry first. Reuse a matching entry;
    if it points to a different installation, report the conflict before replacing
    it. Preserve other configuration content, including its order.
-2. Install the skill by copying the whole `patchy-control` folder, keeping its
-   name, into your skills directory. Skip this if your tool has no skills
-   feature; the connector works without it. Reuse an identical installed copy;
-   preserve local skill customizations if updating an existing Patchy skill.
+2. Create `patchy-control` in your skills directory and copy only the package's
+   `SKILL.md` into it. Leave `references` and `scripts` with Patchy. Skip this if
+   your tool has no skills feature; the connector works without it. Reuse an
+   identical installed file and preserve local customizations when updating.
 3. Verify (see below). If a path you were given says NOT FOUND, report what is
    missing and stop instead of guessing.
 
@@ -70,14 +70,14 @@ restarting loses unsaved documents and undo history. Do not restart the AI clien
 yourself if that would interrupt the conversation. Tell the user what is ready
 and the exact remaining restart step.
 
-For Flatpak, copy the skill out of the sandbox with
-`flatpak run --command=cp com.rtsoft.patchy -R /app/share/patchy/ai/patchy-control <destination>`
-where the destination is a folder the sandbox can see. The connector can also
-read the skill for you through its `get_help` tool.
+For Flatpak, create the destination `patchy-control` folder, then copy the entry
+point with `flatpak run --command=cp com.rtsoft.patchy /app/share/patchy/ai/patchy-control/SKILL.md <destination>/SKILL.md`
+where the destination is a folder the sandbox can see. The full workflow stays
+inside the sandbox and is read through `get_help`.
 
 From a source checkout, build a desktop preset first. CMake assembles the skill
 into `build/<preset>/ai/patchy-control` with the current API reference and
-guide; never install the unassembled `agent-kit` source folder.
+guide. The assistant installs only `SKILL.md` from that assembled folder.
 
 ## Per-client steps
 
@@ -90,8 +90,8 @@ the skill folder.
 claude mcp add patchy -- "<connector>"
 ```
 
-Copy `<skill>` to `~/.claude/skills/patchy-control` (or a project's
-`.claude/skills/patchy-control`). Run `/mcp` or restart if the server does not
+Create `~/.claude/skills/patchy-control` (or a project's
+`.claude/skills/patchy-control`) and copy `<skill>/SKILL.md` into it. Run `/mcp` or restart if the server does not
 appear.
 
 **Codex**
@@ -100,8 +100,8 @@ appear.
 codex mcp add patchy -- "<connector>"
 ```
 
-Copy `<skill>` to `~/.agents/skills/patchy-control` (or a project's
-`.agents/skills/patchy-control`). For visible work append `--visible` to the
+Create `~/.agents/skills/patchy-control` (or a project's
+`.agents/skills/patchy-control`) and copy `<skill>/SKILL.md` into it. For visible work append `--visible` to the
 connector command: `codex mcp add patchy -- "<connector>" --visible`.
 
 If editing `config.toml` directly, add only `[mcp_servers.patchy]`. On Windows,
@@ -129,8 +129,8 @@ For Flatpak use `"command": "flatpak"` and
 For a visible native workspace use `"args": ["--visible"]`; for Flatpak append
 it to that argument list.
 
-Install the skill wherever the client documents its skills folder, if it has
-one.
+Install just `SKILL.md` in a `patchy-control` folder inside the client's skills
+directory, if it has one.
 
 **Claude Desktop**
 
@@ -151,7 +151,7 @@ Reconnect or restart the client if it does not list the new server. Then:
    mode, window visibility, and the skill directory it found. If visible work
    was requested but `mode` is `offscreen`, check the display and the client's
    `QT_QPA_PLATFORM` environment before claiming the window is visible.
-2. Call `get_help` with `topic: "api"` and `get_state`.
+2. Call `get_help` with `topic: "workflow"`, then `topic: "api"`, then `get_state`.
 3. Create a 64x64 document, draw a small smiley face, and inspect the `get_preview`
    image with nearest-neighbor enlargement. Save a PSD and a native-size PNG to
    explicit output paths and return the image and those paths.
@@ -168,6 +168,26 @@ permissions, a stale tool catalog, or a timeout. Inspect the actual error and
 stderr instead of assuming the path is wrong. If the returned skill directory
 is empty, the installation's assembled `ai/patchy-control` folder is missing.
 
+## Updating Patchy and the entry point
+
+The installed `SKILL.md` is a small entry point that fetches the connected
+installation's current workflow and API. `get_help` reads the packaged files on
+each request; the client does not need copied API references or examples.
+After upgrading Patchy, save work and reconnect the MCP server so the running
+executable matches the new package, then fetch the help again. If Patchy moved,
+update only its connector command in the client configuration.
+
+Ordinary API and workflow updates need no changes in the client skill folder.
+If the entry point itself changes, explicitly replace that one file while
+preserving customizations, and refresh the client's skills if necessary. Client
+skill discovery does not synchronize files with the Patchy installation.
+
+To migrate an older full-folder copy, compare its files with the corresponding
+old package before removing them. Replace the unmodified `SKILL.md` and remove
+only unmodified packaged references/examples. Preserve custom files and edits;
+the entry point instructs the assistant to use current server help instead of
+old copies. Never remove another skill or change unrelated MCP configuration.
+
 ## Things to ask Patchy to do
 
 - "Turn this photo into a 64x64 pixel portrait. Show drafts, preserve the cap and
@@ -178,6 +198,13 @@ is empty, the installation's assembled `ai/patchy-control` folder is missing.
   to a new folder. Keep the originals."
 - "Open this PSD, add a highlight layer, and compare before and after. Save a
   separate edited copy."
+- "Export every image in this folder as PNG at three sizes into new folders."
+- "Make a labeled contact sheet of these images so I can compare them."
+- "Create three color treatments of this product photo and show the results."
+- "Use this template to create name badges from my list, with editable text."
+- "Report each PSD's dimensions, layer names, visibility, and blend modes."
+- "Apply the same crop, border, and watermark to a folder of screenshots."
+- "Make a repeatable texture or geometric background from this color palette."
 
 For reference-based art, read `get_help` with `topic: "reference-art"`. The
 workflow uses deliberate drawing and visual iteration. Patchy does not infer
