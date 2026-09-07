@@ -3,16 +3,16 @@
 Patchy ships two pieces for AI assistants: `patchy-mcp`, a local MCP connector
 that lets an assistant create, paint, inspect, and save layered artwork, and
 `patchy-control`, a skill folder that teaches the assistant how to use it well.
-The connector runs on this computer, hidden by default or in a separate visible
-window when requested. It never attaches to the artist's existing window. The
+The connector runs on this computer. It can connect to the artist's open Patchy
+workspace, work in a separate visible window, or work hidden. The
 connector itself has no network connection; previews and tool results are returned
 to the AI client and may be processed by that client's hosted model.
 
 ## For people
 
 1. Open Patchy and choose Help > Set up AI Control.
-2. Choose whether to show the AI's work in a separate window, then click Copy to
-   Clipboard. Leave the checkbox clear for hidden work with previews in chat.
+2. Choose your open Patchy workspace, a separate visible window, or hidden work,
+   then click Copy to Clipboard. The dialog initially selects your open workspace.
 3. Paste the text into your AI assistant (Claude Code, Codex, Cursor, or another
    tool that supports MCP) and send it.
 
@@ -57,16 +57,24 @@ table below.
 installer path is `"$env:LOCALAPPDATA\Programs\Patchy\patchy-mcp.exe"`. Always
 use the absolute path, quoted, because user folders often contain spaces.
 
-The connector needs no Python or Node runtime. With no arguments it uses an
-offscreen workspace. Add the single argument `--visible` when the user asks to
-watch it work in a separate Patchy window. For Flatpak append `--visible` after
-the app ID. Keep the executable and arguments separate in the client config.
-Both modes use the same tools and isolate the artist's existing windows and
-preferences. A visible session needs a working desktop display.
+The connector needs no Python or Node runtime. Choose one startup mode:
 
-The client starts and stops its workspace. Switching modes requires saving the
-PSD, changing only Patchy's arguments, reconnecting, and reopening the saved PSD;
-restarting loses unsaved documents and undo history. Do not restart the AI client
+| Argument | Workspace |
+|---|---|
+| `--attach` | The user's already-running Patchy from the same installation, including unsaved documents. Fails if unavailable; never creates a substitute window. |
+| `--visible` | A separate visible workspace owned by the connector. |
+| No argument | A separate offscreen workspace owned by the connector. |
+
+For Flatpak append the chosen argument after the app ID. Keep the executable and
+arguments separate in client configuration. Never combine modes. The two separate
+workspace modes isolate the artist's windows and preferences. Visible work needs
+a desktop display. Only one attached MCP client can use a workspace at a time.
+
+The client starts the connector when connecting. For isolated workspaces it also
+controls document lifetime: disconnecting loses unsaved documents and history.
+In attached mode, disconnecting leaves the artist's documents open and stops any
+active AI request. Save checkpoints before switching modes, change only Patchy's
+arguments, reconnect, and query the current IDs and state. Do not restart the AI client
 yourself if that would interrupt the conversation. Tell the user what is ready
 and the exact remaining restart step.
 
@@ -102,11 +110,14 @@ codex mcp add patchy -- "<connector>"
 
 Create `~/.agents/skills/patchy-control` (or a project's
 `.agents/skills/patchy-control`) and copy `<skill>/SKILL.md` into it. For visible work append `--visible` to the
-connector command: `codex mcp add patchy -- "<connector>" --visible`.
+connector command: `codex mcp add patchy -- "<connector>" --visible`. For the user's
+open document use `--attach` instead. Append the selected argument to the Claude
+Code command in the same way.
 
 If editing `config.toml` directly, add only `[mcp_servers.patchy]`. On Windows,
 a TOML literal string such as `command = 'C:\Users\Name\...\patchy-mcp.exe'`
-preserves backslashes. For visible work use `args = ["--visible"]`.
+preserves backslashes. Use `args = ["--attach"]` for the open workspace,
+`args = ["--visible"]` for a separate visible window, or no arguments for hidden work.
 
 **Cursor and other JSON-configured clients**
 
@@ -126,8 +137,8 @@ Windows, double every backslash inside the JSON string.
 
 For Flatpak use `"command": "flatpak"` and
 `"args": ["run", "--command=patchy-mcp", "com.rtsoft.patchy"]`.
-For a visible native workspace use `"args": ["--visible"]`; for Flatpak append
-it to that argument list.
+For the open workspace use `"args": ["--attach"]`; for a separate visible window
+use `"args": ["--visible"]`. For Flatpak append the chosen mode to its argument list.
 
 Install just `SKILL.md` in a `patchy-control` folder inside the client's skills
 directory, if it has one.
@@ -152,7 +163,11 @@ Reconnect or restart the client if it does not list the new server. Then:
    was requested but `mode` is `offscreen`, check the display and the client's
    `QT_QPA_PLATFORM` environment before claiming the window is visible.
 2. Call `get_help` with `topic: "workflow"`, then `topic: "api"`, then `get_state`.
-3. Create a 64x64 document, draw a small smiley face, and inspect the `get_preview`
+   Verify `workspace` and `liveWindowAttachment` match the requested mode. Attached
+   mutations require `expectedState` from the latest `stateToken`; follow the
+   workflow's stale-state handling. The status bar shows AI connected while idle
+   and AI reading or AI editing during requests, with Stop during an edit.
+3. Create a new 64x64 document without changing existing documents, draw a small smiley face, and inspect the `get_preview`
    image with nearest-neighbor enlargement. Save a PSD and a native-size PNG to
    explicit output paths and return the image and those paths.
 
@@ -190,6 +205,8 @@ old copies. Never remove another skill or change unrelated MCP configuration.
 
 ## Things to ask Patchy to do
 
+- "Look at the document I have open in Patchy and fix the face on a new layer.
+  Show me before and after, then leave it open so I can keep editing."
 - "Turn this photo into a 64x64 pixel portrait. Show drafts, preserve the cap and
   expression, and deliver an editable PSD plus a PNG."
 - "Work visibly so I can watch. Make three layered icon variations, show me the

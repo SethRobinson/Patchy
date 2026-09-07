@@ -4,7 +4,7 @@
 #include "ui/theme_qss.hpp"
 
 #include <QClipboard>
-#include <QCheckBox>
+#include <QComboBox>
 #include <QDesktopServices>
 #include <QDir>
 #include <QGuiApplication>
@@ -37,12 +37,19 @@ AiSetupDialog::AiSetupDialog(const AiControlPaths& paths, QWidget* parent)
   intro->setWordWrap(true);
   content->addWidget(intro);
 
-  auto* visible = new QCheckBox(tr("Show the AI's work in a separate Patchy window"), this);
-  visible->setObjectName(QStringLiteral("aiSetupVisibleCheckBox"));
-  content->addWidget(visible);
-  auto* mode_hint = new QLabel(
-      tr("Leave unchecked to work hidden and receive previews in chat. You can ask your AI "
-         "to change modes later; it must save its work before reconnecting."), this);
+  auto* mode_row = new QHBoxLayout();
+  auto* mode_label = new QLabel(tr("AI workspace:"), this);
+  auto* mode = new QComboBox(this);
+  mode->setObjectName(QStringLiteral("aiSetupModeComboBox"));
+  mode->addItem(tr("My open Patchy workspace"), static_cast<int>(AiWorkspaceMode::Attached));
+  mode->addItem(tr("A separate visible window"), static_cast<int>(AiWorkspaceMode::Visible));
+  mode->addItem(tr("A hidden workspace"), static_cast<int>(AiWorkspaceMode::Hidden));
+  mode_label->setBuddy(mode);
+  mode_row->addWidget(mode_label);
+  mode_row->addWidget(mode, 1);
+  content->addLayout(mode_row);
+  auto* mode_hint = new QLabel(this);
+  mode_hint->setObjectName(QStringLiteral("aiSetupModeHint"));
   mode_hint->setWordWrap(true);
   content->addWidget(mode_hint);
 
@@ -65,9 +72,17 @@ AiSetupDialog::AiSetupDialog(const AiControlPaths& paths, QWidget* parent)
     }
   )"));
   content->addWidget(blurb_, 1);
-  connect(visible, &QCheckBox::toggled, this, [this](bool checked) {
-    blurb_->setPlainText(ai_setup_blurb_text(paths_, checked));
-  });
+  const auto update_mode = [this, mode, mode_hint] {
+    const auto selected = static_cast<AiWorkspaceMode>(mode->currentData().toInt());
+    blurb_->setPlainText(ai_setup_blurb_text(paths_, selected));
+    mode_hint->setText(selected == AiWorkspaceMode::Attached
+        ? tr("The AI can inspect and edit your open documents, including unsaved changes. The status bar shows when it is connected or working. Open Patchy before connecting.")
+        : selected == AiWorkspaceMode::Visible
+        ? tr("Watch the AI work in a separate window. Save its documents before disconnecting or changing modes.")
+        : tr("Work in the background and receive previews in chat. Save its documents before disconnecting or changing modes."));
+  };
+  connect(mode, &QComboBox::currentIndexChanged, this, update_mode);
+  update_mode();
 
   status_ = new QLabel(this);
   status_->setObjectName(QStringLiteral("aiSetupStatusLabel"));

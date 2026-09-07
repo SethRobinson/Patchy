@@ -581,6 +581,10 @@ void ScriptEngineHost::pump_progress_indicator() {
   if (watchdog_ != nullptr) {
     watchdog_->feed();
   }
+  if (connector_mode_ && connector_progress_callback_) {
+    connector_progress_callback_();
+    return;
+  }
   if (unattended_run() || !run_->burst_clock.isValid()) {
     return;
   }

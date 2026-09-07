@@ -8,6 +8,10 @@
 #include "core/layer_tree.hpp"
 #include "formats/document_flatten.hpp"
 #include <QJSEngine>
+#include <QApplication>
+#include <QCryptographicHash>
+#include <QDataStream>
+#include <QTextEdit>
 #include <QGuiApplication>
 #include <QJSValueIterator>
 #include <QJsonArray>
@@ -53,6 +57,7 @@ QJsonArray layer_state(const std::vector<Layer>& layers) {
   QJsonArray result;
   for (const auto& layer : layers) {
     result.append(QJsonObject{{"id", QString::number(layer.id())},
+                            {"renderRevision", QString::number(layer.render_revision())},
                             {"name", QString::fromStdString(layer.name())},
                             {"bounds", rect_json(to_qrect(layer.bounds()))},
                             {"visible", layer.visible()}, {"locked", layer.lock_flags() != kLayerLockNone},
@@ -120,6 +125,8 @@ QJsonObject ScriptEngineHost::automation_state() const {
     QJsonObject selection{{"exists", has_selection(id)}};
     if (has_selection(id)) { selection["bounds"] = rect_json(selection_region(id).boundingRect()); }
     documents.append(QJsonObject{{"id", QString::number(id)}, {"name", session_title(id)},
+        {"revision", QString::number(window_.session_with_id(id)->revision)},
+        {"historyStateId", QString::number(window_.session_with_id(id)->current_state_id)},
         {"path", session_file_path(id)}, {"width", doc->width()}, {"height", doc->height()},
         {"modified", session_modified(id)}, {"canUndo", session_can_undo(id)},
         {"canRedo", session_can_undo(id, true)}, {"layers", layer_state(doc->layers())},
@@ -128,6 +135,37 @@ QJsonObject ScriptEngineHost::automation_state() const {
   }
   return {{"activeDocumentId", active_session_id() ? QJsonValue(QString::number(active_session_id())) : QJsonValue(QJsonValue::Null)},
           {"documents", documents}};
+}
+
+QString ScriptEngineHost::automation_fingerprint() const {
+  // Revisions and selection geometry, never a scan of layer pixel buffers.
+  // The active document/layer and save state are deliberately part of the token.
+  QByteArray bytes = QJsonDocument(automation_state()).toJson(QJsonDocument::Compact);
+  QDataStream stream(&bytes, QIODevice::Append);
+  stream.setVersion(QDataStream::Qt_6_0);
+  for (const auto id : session_ids()) {
+    stream << selection_region(id);
+    const auto* doc = session_document_const(id);
+    stream << quint64(doc->palette_editing() ? doc->palette_editing()->palette_revision : 0);
+    for (const auto& channel : doc->channels()) { stream << quint64(channel.id()) << quint64(channel.content_revision()); }
+    for (const auto& path : doc->paths()) { stream << quint64(path.id()) << quint64(path.content_revision()); }
+    if (const auto* canvas = window_.session_with_id(id)->canvas) {
+      stream << qint32(canvas->layer_edit_target()) << canvas->quick_mask_active()
+             << quint64(canvas->quick_mask_revision()) << quint64(canvas->smart_filter_mask_revision());
+    }
+  }
+  return QString::fromLatin1(QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex());
+}
+
+bool ScriptEngineHost::automation_ready() const {
+  if (run_active() || window_.preview_dialog_edit_locked() || QApplication::activeModalWidget()) { return false; }
+  for (const auto& session : window_.sessions_) {
+    const auto* canvas = session->canvas;
+    if (canvas && (canvas->pointer_gesture_active() || canvas->free_transform_active() ||
+                   canvas->warp_transform_active() || canvas->path_transform_active() || canvas->crop_session_active() ||
+                   canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")))) { return false; }
+  }
+  return true;
 }
 
 QImage ScriptEngineHost::render_preview(std::int64_t id, const QJsonObject& options, QJsonObject* metadata) {
@@ -254,7 +292,7 @@ void ScriptEngineHost::draw_strokes(std::int64_t session_id, LayerId layer_id, c
     for (const auto& stroke : strokes) {
       if (engine_ && engine_->isInterrupted()) { break; }
       const auto dirty = session->canvas->paint_script_stroke(stroke, [this] {
-        if (watchdog_) { watchdog_->feed(); }
+        pump_progress_indicator();
         return engine_ && engine_->isInterrupted();
       });
       note_pixels_changed(session_id, dirty);

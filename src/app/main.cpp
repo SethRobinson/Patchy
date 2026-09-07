@@ -6,6 +6,8 @@
 #include "ui/cli_exit.hpp"
 #include "ui/localization.hpp"
 #include "ui/main_window.hpp"
+#include "ui/mcp_attachment.hpp"
+#include "ui/script_engine.hpp"
 #include "ui/psd_font_resolver.hpp"
 #include "ui/stress_test.hpp"
 #include "ui/theme_manager.hpp"
@@ -587,7 +589,8 @@ int main(int argc, char* argv[]) {
     }
     // File dialogs run a nested event loop. Do not change the active document
     // (or run a script) until the operation that owns that dialog has returned.
-    if (QApplication::activeModalWidget() != nullptr || processing_forwarded_request) {
+    if (QApplication::activeModalWidget() != nullptr || processing_forwarded_request ||
+        window.script_engine_host().run_active()) {
       return;
     }
     QScopedValueRollback processing(processing_forwarded_request, true);
@@ -693,8 +696,13 @@ int main(int argc, char* argv[]) {
   window.begin_startup_update_check();
   // Finder opens reuse the second-launch path (raise the window, open the file); any
   // that arrived before the window existed join the command-line batch below.
-  app.file_open_handler = [&window](const QString& path) {
-    window.activate_for_second_instance({path});
+  app.file_open_handler = [&window, &forwarded_requests, &forwarded_request_timer](const QString& path) {
+    if (window.script_engine_host().run_active()) {
+      forwarded_requests.push_back(QStringList{path});
+      forwarded_request_timer.start();
+    } else {
+      window.activate_for_second_instance({path});
+    }
   };
   files += app.pending_file_opens;
   app.pending_file_opens.clear();
@@ -714,6 +722,18 @@ int main(int argc, char* argv[]) {
     });
   }
 
+#ifndef Q_OS_WASM
+  // The connector's --attach mode bridges to this window. The listener belongs
+  // to the interactive app, never an export, script, screenshot, or headless job.
+  // It is destroyed before the window and its scripting host.
+  std::unique_ptr<patchy::ui::McpAttachment> mcp_attachment;
+  if (!headless_mode && !screenshot_mode) {
+    mcp_attachment = std::make_unique<patchy::ui::McpAttachment>(window);
+    if (!mcp_attachment->error().isEmpty()) {
+      qWarning("Patchy MCP attachment: %s", qPrintable(mcp_attachment->error()));
+    }
+  }
+#endif
   const int exec_result = app.exec();
   // The window (declared after `app`) is destroyed before the application object; drop
   // the handler so a late event cannot reach a dead window.

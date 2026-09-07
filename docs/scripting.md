@@ -189,7 +189,9 @@ everywhere a bundled script is resolved.
   only possible defense against `while (true) {}`: a frozen UI thread cannot show any
   prompt. Pure-JS computation that goes silent longer than the window still dies -
   the documented convention is to log or write progress periodically (every heavy
-  bundled script does; the same calls drive the busy overlay). Never remove the
+  bundled script does; the same calls drive the busy overlay). Connector-owned
+  runs instead use a throttled UI progress callback under the MCP input guard,
+  allowing the status-bar Stop button without a modal panel. Never remove the
   arm/disarm pairing around a new entry point into script code; route new callback
   invocations through `call_script_callback`.
 - **Reentrancy: never destroy the engine from inside script code.** Timer slots and
@@ -291,7 +293,9 @@ everywhere a bundled script is resolved.
 ## CLI and AI control
 
 `patchy-mcp` provides a persistent workspace over local stdio MCP, offscreen by
-default or in a separate visible window with `--visible`.
+default, in a separate visible window with `--visible`, or attached to the user's
+open workspace with `--attach`. Attached mutations require an expected-state token;
+connection/activity indicators and lifecycle rules live in [ai-control.md](ai-control.md).
 It shares application startup and the scripting engine with `patchy`, isolates
 settings, and ships the `patchy-control` skill. Setup, lifecycle, protocol, and
 packaging ownership are in [ai-control.md](ai-control.md).
@@ -305,7 +309,8 @@ string values); the forwarded single-instance payload carries the raw tokens as 
 newline-separated fields after the output path, so keys and values must not contain
 newlines. The bundled `Utilities/batch-export.js` is the reference consumer.
 
-- With a running instance: the request forwards over the single-instance socket (the
+- With a running instance: file/script requests wait until any current script
+  finishes before dispatch, including Finder opens. The request forwards over the single-instance socket (the
   `patchy-cmd:run-script` reserved entry, same scheme as `--screenshot`), the invoker
   exits immediately, and the running instance executes the script. Console output,
   errors, and a final `[done]` or `[failed]` line are written to the output file when the

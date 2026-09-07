@@ -65,8 +65,11 @@ Shared internal constants, record types, and declarations live in `psd_io_intern
 ## Build-system ownership
 
 `patchy-mcp` is a native console target sharing `src/app/main.cpp` initialization
-and `patchy_ui` with the application. `app/mcp_server.cpp` owns stdio and request
-lifetime; `ui/script_automation.cpp` owns state/preview/history and validates
+and `patchy_ui` with the application. `app/mcp_server.cpp` owns startup/proxying,
+`app/mcp_stdio.cpp` owns binary stdio, `ui/mcp_session.cpp` owns shared request
+lifetime, `ui/mcp_attachment.cpp` owns the interactive app's local socket, and
+`ui/mcp_activity.cpp` owns the status-bar indicator and request input guard.
+`ui/script_automation.cpp` owns state/preview/history and validates
 strokes; `ui/canvas_widget_script_stroke.cpp` calls the existing native stroke
 helpers. The shared `patchy_agent_kit` target assembles the installable skill and
 copies authoritative API references once. See [ai-control.md](ai-control.md).

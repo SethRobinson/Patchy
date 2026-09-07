@@ -86,6 +86,13 @@ radius in both places or the two pipelines drift.
 
 ## Native visual QA and app-driving commands
 
+`patchy-mcp --attach` connects to an already-running interactive Patchy; use it
+only when authorized to control that workspace. For automated attachment tests,
+launch a test-owned app with `QT_QPA_PLATFORM=offscreen`, isolated
+`PATCHY_SETTINGS_DIR`, and a unique `PATCHY_MCP_ENDPOINT` shared with the proxy.
+Do not pass `--headless`: it deliberately disables attachment. `ui_mcp` covers
+state guards, input locking, cancellation, reconnect, and unsaved history.
+
 For persistent background editing use `patchy-mcp`, which owns an isolated
 offscreen workspace. With explicit permission to show its separate workspace,
 `patchy-mcp --visible` runs the same protocol visibly. `patchy-mcp --check` validates native strokes, previews, and

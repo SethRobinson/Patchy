@@ -15311,6 +15311,21 @@ Clipped to the layer below</source>
         <source>Window previews do not accept document or canvas options.</source>
         <translation>ウィンドウのプレビューにはドキュメントやキャンバスのオプションを指定できません。</translation>
     </message>
+    <message><source>No running Patchy workspace is available for attachment. Open Patchy from the same installation, then reconnect. No separate workspace was created.</source><translation>接続できるPatchyの作業領域がありません。同じインストール先のPatchyを開いてから再接続してください。別の作業領域は作成していません。</translation></message>
+    <message><source>Usage: patchy-mcp [--attach | --visible | --check]. Default: hidden workspace. --visible: separate window. --attach: the running Patchy workspace.</source><translation>使用法: patchy-mcp [--attach | --visible | --check]。既定は非表示の作業領域です。--visibleは別のウィンドウ、--attachは起動中のPatchyの作業領域に接続します。</translation></message>
+    <message><source>The MCP connection is already initialized.</source><translation>MCP接続はすでに初期化されています。</translation></message>
+    <message><source>Finish the current gesture, text edit, transform, dialog, or script before using AI control.</source><translation>AI制御を使う前に、現在の描画操作、テキスト編集、変形、ダイアログ、またはスクリプトを終了してください。</translation></message>
+    <message><source>The workspace changed or expectedState is missing. Inspect the current document and preview before retrying an edit.</source><translation>作業領域が変更されたか、expectedStateが指定されていません。編集を再試行する前に、現在のドキュメントとプレビューを確認してください。</translation></message>
+    <message><source>Connection details</source><translation>接続情報</translation></message>
+    <message><source>Instructions</source><translation>操作手順</translation></message>
+    <message><source>Document state</source><translation>ドキュメントの状態</translation></message>
+    <message><source>Preview</source><translation>プレビュー</translation></message>
+    <message><source>Painting</source><translation>描画</translation></message>
+    <message><source>Undo</source><translation>元に戻す</translation></message>
+    <message><source>Redo</source><translation>やり直し</translation></message>
+    <message><source>Script</source><translation>スクリプト</translation></message>
+    <message><source>Return a fresh canvas PNG image and coordinate metadata, or a capture of the connected Patchy window. No save path or document state changes.</source><translation>最新のキャンバスPNGと座標情報、または接続先のPatchyウィンドウの画像を返します。保存先やドキュメントの状態は変更しません。</translation></message>
+    <message><source>Read get_info to identify the workspace: isolated, or the user's open Patchy window with --attach. Read get_help(workflow) and get_help(api). In attached mode every mutating tool requires expectedState from a fresh get_state or preview. If state is stale, inspect again before editing. Use document/layer IDs, batch edits, inspect get_preview, and save checkpoints. JS globals reset between calls. Requests are serialized; failed scripts may leave undoable edits.</source><translation>get_infoで独立した作業領域か、--attachで接続したユーザーのPatchyウィンドウかを確認してください。get_help(workflow)とget_help(api)を参照してください。接続モードでは、変更を行うすべてのツールに最新のget_stateまたはプレビューのexpectedStateが必要です。状態が古い場合は編集前に再確認してください。ドキュメントとレイヤーのIDで編集をまとめ、get_previewで確認し、途中経過を保存してください。JSのグローバル変数は呼び出しごとに初期化されます。要求は順に処理されます。失敗時にも元に戻せる編集が残る場合があります。</translation></message>
 </context>
 <context>
     <name>patchy::ui::AiSetupDialog</name>
@@ -15328,5 +15343,21 @@ Clipped to the layer below</source>
     <message><source>Open Skill Folder</source><translation>スキルフォルダを開く</translation></message>
     <message><source>Open Online Guide</source><translation>オンラインガイドを開く</translation></message>
     <message><source>Close</source><translation>閉じる</translation></message>
+    <message><source>AI workspace:</source><translation>AIの作業領域:</translation></message>
+    <message><source>My open Patchy workspace</source><translation>現在開いているPatchyの作業領域</translation></message>
+    <message><source>A separate visible window</source><translation>別のウィンドウを表示</translation></message>
+    <message><source>A hidden workspace</source><translation>非表示の作業領域</translation></message>
+    <message><source>The AI can inspect and edit your open documents, including unsaved changes. The status bar shows when it is connected or working. Open Patchy before connecting.</source><translation>AIは未保存の変更を含め、開いているドキュメントを確認して編集できます。接続中か作業中かはステータスバーに表示されます。接続前にPatchyを開いてください。</translation></message>
+    <message><source>Watch the AI work in a separate window. Save its documents before disconnecting or changing modes.</source><translation>別のウィンドウでAIの作業を確認できます。切断やモード変更の前に、作業中のドキュメントを保存してください。</translation></message>
+    <message><source>Work in the background and receive previews in chat. Save its documents before disconnecting or changing modes.</source><translation>バックグラウンドで作業し、チャットでプレビューを確認できます。切断やモード変更の前に、作業中のドキュメントを保存してください。</translation></message>
+</context>
+<context>
+    <name>patchy::ui::McpActivity</name>
+    <message><source>AI editing: %1</source><translation>AIが編集中: %1</translation></message>
+    <message><source>AI reading: %1</source><translation>AIが確認中: %1</translation></message>
+    <message><source>AI connected</source><translation>AI接続中</translation></message>
+    <message><source>%1 is using this workspace. Editing resumes when the request finishes. Stop keeps changes available for Undo.</source><translation>%1がこの作業領域を使用しています。要求の処理が終わると編集を再開できます。停止しても変更は残り、「元に戻す」で取り消せます。</translation></message>
+    <message><source>Connected to %1 through MCP. Waiting for a Patchy request; the assistant may still be thinking.</source><translation>MCPで%1に接続しています。Patchyへの要求を待っています。アシスタントはまだ考え中の場合があります。</translation></message>
+    <message><source>Stop</source><translation>停止</translation></message>
 </context>
 </TS>

@@ -1,5 +1,12 @@
 # Scripting API compatibility
 
+September 2026 (additive, still API 1): MCP `--attach` connects to an existing
+interactive workspace. Mutating MCP tools accept `expectedState` (required for
+attachment); state/preview results include `stateToken`. State also exposes
+session/history and layer render revisions. Connector restrictions and responsive
+UI progress pumping apply only during connector-owned script runs. CLI and Finder
+file opens wait for a running script to finish. See [ai-control.md](ai-control.md).
+
 - **`app.apiVersion` is 1.** Bump it only for breaking API changes, and record what
   changed here. July 2026 additions (all additive, still 1): `include()` search roots,
   `patchy.isMainScript()`, `patchy.args`, `patchy.ui.showDialog`, `patchy.io.listFiles`,

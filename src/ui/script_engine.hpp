@@ -130,6 +130,7 @@ public:
   [[nodiscard]] bool last_run_had_error() const noexcept { return last_run_had_error_; }
   void set_connector_mode(bool enabled) { connector_mode_ = enabled; }
   [[nodiscard]] bool connector_mode() const { return connector_mode_; }
+  void set_connector_progress_callback(std::function<void()> callback) { connector_progress_callback_ = std::move(callback); }
   // Safe from the protocol input thread, including while JS runs a tight loop.
   void interrupt_from_any_thread();
   void clear_external_interrupt();
@@ -138,6 +139,8 @@ public:
   [[nodiscard]] bool session_can_undo(std::int64_t id, bool redo = false) const;
   bool restore_session_history(std::int64_t id, bool redo);
   QJsonObject automation_state() const;
+  [[nodiscard]] QString automation_fingerprint() const;
+  [[nodiscard]] bool automation_ready() const;
   QImage render_preview(std::int64_t id, const QJsonObject& options, QJsonObject* metadata);
   void draw_strokes(std::int64_t session_id, LayerId layer_id, const QJSValue& strokes);
 
@@ -310,6 +313,7 @@ public:
 
 private:
   bool connector_mode_{false};
+  std::function<void()> connector_progress_callback_;
   mutable std::mutex interrupt_mutex_;
   std::atomic<bool> external_interrupt_{false};
   QJsonValue last_result_;

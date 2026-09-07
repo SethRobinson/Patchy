@@ -31,6 +31,7 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QClipboard>
+#include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
@@ -1801,20 +1802,25 @@ void ui_ai_setup_blurb_reports_missing_and_flatpak_forms() {
 
   // Switching modes must update the exact clipboard payload and be reversible.
   patchy::ui::AiSetupDialog dialog(resolved);
-  auto* visible = dialog.findChild<QCheckBox*>(QStringLiteral("aiSetupVisibleCheckBox"));
+  auto* mode = dialog.findChild<QComboBox*>(QStringLiteral("aiSetupModeComboBox"));
   auto* copy = dialog.findChild<QPushButton*>(QStringLiteral("aiSetupCopyButton"));
-  CHECK(visible != nullptr && copy != nullptr);
-  CHECK(!visible->isChecked());
+  CHECK(mode != nullptr && copy != nullptr);
+  CHECK(mode->currentData().toInt() == static_cast<int>(patchy::ui::AiWorkspaceMode::Attached));
   CHECK(dialog.blurb_text() == text);
-  visible->setChecked(true);
-  CHECK(dialog.blurb_text() == patchy::ui::ai_setup_blurb_text(resolved, true));
+  CHECK(text.contains(QStringLiteral("argument --attach")));
+  CHECK(text.contains(QStringLiteral("expectedState")));
+  mode->setCurrentIndex(mode->findData(static_cast<int>(patchy::ui::AiWorkspaceMode::Visible)));
+  CHECK(dialog.blurb_text() == patchy::ui::ai_setup_blurb_text(resolved, patchy::ui::AiWorkspaceMode::Visible));
   CHECK(dialog.blurb_text().contains(QStringLiteral("argument --visible")));
   copy->click();
   CHECK(QGuiApplication::clipboard()->text() == dialog.blurb_text());
-  visible->setChecked(false);
+  mode->setCurrentIndex(mode->findData(static_cast<int>(patchy::ui::AiWorkspaceMode::Hidden)));
+  CHECK(dialog.blurb_text().contains(QStringLiteral("Use no connector arguments")));
+  CHECK(!dialog.blurb_text().contains(QStringLiteral("--attach")));
+  mode->setCurrentIndex(mode->findData(static_cast<int>(patchy::ui::AiWorkspaceMode::Attached)));
   CHECK(dialog.blurb_text() == text);
   CHECK(!dialog.blurb_text().contains(QStringLiteral("--visible")));
-  const auto visible_flatpak = patchy::ui::ai_setup_blurb_text(flatpak, true);
+  const auto visible_flatpak = patchy::ui::ai_setup_blurb_text(flatpak, patchy::ui::AiWorkspaceMode::Visible);
   CHECK(visible_flatpak.contains(QStringLiteral("argument --visible")));
   CHECK(visible_flatpak.contains(QStringLiteral("flatpak run --command=patchy-mcp com.rtsoft.patchy")));
 }

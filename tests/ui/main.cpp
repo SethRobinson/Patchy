@@ -246,6 +246,7 @@ int main(int argc, char* argv[]) {
            svg_ui_tests,
            image_trace_ui_tests,
            scripting_tests,
+           mcp_tests,
            unicode_path_tests,
            history_panel_tests,
            composite_render_tests,

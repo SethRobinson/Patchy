@@ -44,7 +44,7 @@ AiControlPaths resolve_ai_control_paths() {
   return paths;
 }
 
-QString ai_setup_blurb_text(const AiControlPaths& paths, bool visible) {
+QString ai_setup_blurb_text(const AiControlPaths& paths, AiWorkspaceMode mode) {
   // One sentence per line and every path on its own line: the dialog wraps long
   // lines itself, and hard breaks inside a sentence would fight that wrapping.
   const auto quoted = [](const QString& path) {
@@ -88,10 +88,15 @@ QString ai_setup_blurb_text(const AiControlPaths& paths, bool visible) {
   } else {
     lines << QStringLiteral("   Command: %1").arg(quoted(paths.connector_path));
   }
-  lines << (visible
+  if (mode == AiWorkspaceMode::Attached) {
+    lines << QStringLiteral("   Add the argument --attach to connect to the Patchy workspace I already have open. I authorize control of that workspace for my requested edits.")
+          << QStringLiteral("   If Patchy is unavailable, tell me to open it and reconnect. Do not create a separate workspace instead.");
+  } else {
+    lines << (mode == AiWorkspaceMode::Visible
                 ? QStringLiteral("   Add the argument --visible so I can watch in a separate Patchy window. I authorize control of that workspace.")
                 : QStringLiteral("   Use no connector arguments: work hidden and show previews in this chat."));
-  lines << QStringLiteral("   This workspace is separate from any Patchy window I already have open.");
+    lines << QStringLiteral("   This workspace is separate from any Patchy window I already have open.");
+  }
   lines << QStringLiteral("2. Create a \"patchy-control\" folder in your skills directory and "
                           "copy only SKILL.md from this folder into it. The skill fetches "
                           "current instructions from Patchy; leave references and scripts here:");
@@ -105,7 +110,8 @@ QString ai_setup_blurb_text(const AiControlPaths& paths, bool visible) {
   } else {
     lines << QStringLiteral("   %1").arg(quoted(paths.skill_directory));
   }
-  lines << QStringLiteral("3. Call the patchy \"get_info\" tool, then create a 64x64 document, "
+  lines << QStringLiteral("3. Call \"get_info\", read get_help(workflow) and get_help(api), and call get_state. In attached mode, use the returned stateToken as expectedState for every editing tool.")
+        << QStringLiteral("   For the setup test, create a new 64x64 document without changing any existing documents, "
                           "draw a small smiley face, and show me the get_preview image. Save "
                           "the drawing as a PSD and PNG and tell me where they are.")
         << QStringLiteral("   If the new tools are unavailable in this chat, tell me exactly "

@@ -22,9 +22,10 @@ and the in-sandbox skill path. The blurb is deliberately not translated: its rea
 is the assistant. The action is hidden on wasm (no connector) but its command id
 stays registered. Dialog objectNames for tests: `aiSetupDialog`, `aiSetupBlurbText`,
 `aiSetupStatusLabel`, `aiSetupCopyButton`, `aiSetupOpenSkillFolderButton`,
-`aiSetupOpenGuideButton`, `aiSetupCloseButton`, `aiSetupVisibleCheckBox`. The
-unchecked default requests hidden work; checking it adds `--visible` and explicit
-authorization to control that separate workspace to the copied instructions.
+`aiSetupOpenGuideButton`, `aiSetupCloseButton`, `aiSetupModeComboBox`, and
+`aiSetupModeHint`. Choices are the open workspace (`--attach`, initially selected),
+a separate visible window (`--visible`), and a hidden workspace (no argument).
+Attached and visible instructions carry explicit workspace authorization.
 The mode choice is local to the dialog and does not change existing connections.
 The instructions install only the `SKILL.md` entry point, require saved test files, and distinguish configuration from
 successful tool verification, including clients that need a restart.
@@ -67,15 +68,13 @@ painting, preview rendering, and installed help resources without a client.
 ## Workspace and protocol
 
 `src/app/main.cpp` shares Qt, fonts, localization, and theme initialization between
-the application and console connector. The connector defaults to offscreen operation,
-uses a temporary settings directory, and bypasses single-instance forwarding,
-sound, and update checks. Each process owns one MainWindow workspace and its
-documents/history. It never attaches to another Patchy process. No HTTP listener
-or hosted-chat connection is provided. Closing stdin interrupts active work,
-stops timers, exits the event loop, and waits for owned workers before destroying
-the workspace. Unsaved documents do not survive disconnect or restart.
+the application and console connector. With no arguments, the connector creates
+an offscreen MainWindow with temporary settings and bypasses single-instance
+forwarding, sound, and updates. `--visible` shows that separate workspace. Its
+documents and history disappear on disconnect. Closing stdin interrupts work and
+waits for workers before destroying that owned workspace.
 
-The sole startup argument `--visible` selects the desktop Qt backend and shows
+The startup argument `--visible` selects the desktop Qt backend and shows
 the connector's own workspace so the user can watch batches appear. An explicit
 `QT_QPA_PLATFORM` is respected in that mode; `get_info` reports actual `mode`,
 `platform`, and `windowVisible`, not just the requested mode. Hidden and visible
@@ -84,7 +83,26 @@ Mode changes require saving, reconnecting, and reopening with new IDs. Avoid
 manual editing during agent operations. Visible mode needs a desktop display;
 `--check`, help, and malformed invocations remain offscreen.
 
-`src/app/mcp_server.cpp` owns newline-delimited JSON-RPC over binary stdio. Stdout
+`--attach` is a stdio proxy to the already-running interactive Patchy from the
+same installation. It never creates a replacement window. `get_info` reports
+`workspace` (`attached` or `isolated`), `liveWindowAttachment`,
+`requiresExpectedState`, and the document-owning `processId` in addition to actual
+display metadata. Closing the proxy, its stdin, or its client connection stops
+only its own request; the artist's window, unsaved documents, and history remain.
+Closing Patchy closes the proxy even if its client's stdin remains open.
+
+`ui/mcp_attachment.*` owns a per-user local socket with `UserAccessOption`, scoped
+by installation directory and home directory. `PATCHY_MCP_ENDPOINT` selects an
+explicit endpoint for multiple instances and isolated automation. A QThread owns
+all socket reads/writes and processes cancellation independently of UI work. Only
+one attached client is accepted; additional connections are closed, never queued.
+The listener starts only for the interactive desktop app, not headless, script,
+export, stress, screenshot, or wasm runs. It is destroyed before MainWindow and
+its scripting host. No TCP/HTTP listener or hosted-chat connection is provided.
+
+`src/app/mcp_server.cpp` owns connector startup and proxying;
+`app/mcp_stdio.*` owns interruptible binary stdio; `ui/mcp_session.*` owns shared
+JSON-RPC dispatch for attached and isolated workspaces. Stdout
 is exclusively protocol; Qt diagnostics use stderr. Supported revisions are
 2025-11-25 and 2025-06-18. Initialization returns tools capability and server
 instructions. Messages are bounded to 16 MiB. Tool errors use `isError` and
@@ -95,10 +113,10 @@ contain PNG MCP image content plus text and `structuredContent` metadata.
 |---|---|
 | `get_info` | Versions, capabilities, actual display mode/visibility, skill directory, trust model |
 | `get_help` | Workflow, API, guide, reference-art workflow, or one of three examples |
-| `get_state` | Documents, layer hierarchy, IDs, dimensions, selection, modified state, history |
+| `get_state` | Documents, layer hierarchy, IDs, dimensions, selection, modified state, history, state token |
 | `execute_script` | Fresh JavaScript globals over persistent documents; JSON result and separate logs |
 | `draw_strokes` | Native Brush/Eraser batch targeting document/layer IDs |
-| `get_preview` | Fresh canvas PNG with crop/scale metadata, or the connector's own window capture |
+| `get_preview` | Fresh canvas PNG with crop/scale metadata and state token, or the connected window capture |
 | `undo`, `redo` | Restore one document history step |
 
 Document operations execute on the Qt UI thread. A dedicated input thread keeps
@@ -116,13 +134,46 @@ cancellation before evaluation. A completed request releases its busy slot befor
 sending its reply. Disconnect does not silently save, retry mutations, or leave
 a background child process running.
 
+## Attached editing and activity
+
+Each mutating tool (`execute_script`, `draw_strokes`, `undo`, `redo`) accepts
+`expectedState`. Attached sessions require it to equal the latest `stateToken`
+returned by `get_state`, a preview, or a mutation's returned state. It is optional
+for isolated sessions. A mismatch or missing token returns `stale_state` with
+current state before any edit. The assistant must inspect the new preview before
+retrying. Tokens combine a connection nonce with a fingerprint of IDs, active
+document/layer, session/history revisions, layer render revisions, selection
+geometry, palette revision, channel/path revisions, and canvas mask state. No
+layer pixel scan is used. Reconnect changes the nonce even if documents survive.
+
+Document tools refuse an unfinished pointer gesture, text edit, transform, crop,
+preview dialog, modal dialog, or other script with `busy`. Connector restrictions
+are scoped to the owned script run, so an idle connection does not restrict or
+interrupt local user scripts. CLI/Finder file opens wait until a script ends.
+
+`ui/mcp_activity.*` installs a permanent status-bar widget (`mcpActivity`,
+`mcpActivityLabel`, `mcpStopButton`). It appears after initialization, says AI
+connected while idle, and distinguishes reading from editing during requests.
+Its tooltip identifies the client and explains that idle can mean model thinking.
+It hides on disconnect. While working it disables the menu bar and filters manual
+input in that workspace, leaving its own Stop button usable. It restores input
+and menu state on success, error, cancellation, and disconnect.
+
+An owned connector run supplies a throttled progress callback to ScriptEngineHost.
+API calls pump UI events under the input guard, including native stroke samples,
+so previews can update and Stop can cancel without a modal dialog. The existing
+engine/timer reentrancy gates remain required. Stop retains changes and available
+undo history. Pure JavaScript without API calls cannot pump the UI; protocol
+cancellation and the inactivity watchdog still interrupt it from another thread.
+Connected means a client is attached, not that the AI is computing or has finished.
+
 ## Scripting contracts
 
 The additive API remains version 1. Read the packaged TypeScript reference and
 [scripting guide](../scripts/bundled/scripting-guide.md) for signatures and examples.
 
 - Document `id` and layer `id` are decimal strings, avoiding JavaScript number
-  precision loss. A document ID is valid until close in that connector process;
+  precision loss. A document ID is valid until close in its owning Patchy process;
   layer IDs are scoped to the document and valid while that layer exists. History
   can remove/restore a layer. Re-query state after history changes and reopen.
   `app.getDocument(id)` and `doc.getLayer(id)` report stale/invalid IDs.
@@ -130,7 +181,7 @@ The additive API remains version 1. Read the packaged TypeScript reference and
   one snapshot per affected document. `doc.undo()` and `redo()` must precede new
   mutations in the same script. Errors and cancellation retain available undo
   history and can leave partial changes, reported with state and logs.
-  Connector sessions reject `app.undoEnabled = false`.
+  Connector requests reject `app.undoEnabled = false`.
 - `patchy.setResult(value)` returns JSON independently of console output. The
   serialized result is bounded to 4 Mi characters. Script source has the same
   bound. Logs are capped at 1000 entries of 16000 characters each.
@@ -171,6 +222,10 @@ and an accent layer in an existing file. The alternative entry point is
 `tests/mcp_client_tests.py` drives the installed connector with the official Python
 MCP client SDK as a development-only dependency. It also checks raw JSON-RPC busy,
 cancellation, recovery, malformed messages, and disconnect behavior.
+`ui_mcp_*` tests attached unsaved state/history, stale pixel edits and tab changes,
+reconnect tokens, input locking, Stop, local-script independence, and tight-loop
+cancellation. The SDK suite also launches an isolated offscreen interactive app
+and tests the real attached proxy, reconnect lifetime, and app-close behavior.
 `ui_script_automation_*` checks stroke parity with native brush output, seeded
 pressure/selection/erasing/palette behavior, Unicode previews, unchanged save
 state, stale IDs, and interactive-operation errors. See [testing.md](testing.md)

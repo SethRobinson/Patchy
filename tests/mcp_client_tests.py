@@ -14,6 +14,7 @@ import subprocess
 import sys
 import threading
 import time
+import uuid
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
@@ -151,6 +152,123 @@ async def visible_options(exe):
     print("[PASS] MCP visible option: protocol, actual-backend metadata, isolation, invalid arguments")
 
 
+async def attached_workspace(exe):
+    candidates = [exe.with_name("patchy.exe"), exe.with_name("patchy"),
+                  exe.parent / "Patchy.app" / "Contents" / "MacOS" / "Patchy",
+                  exe.with_name("Patchy")]
+    app_exe = next((path for path in candidates if path.is_file()), None)
+    assert app_exe, "The matching Patchy application is required for attachment tests"
+    endpoint = "PatchyMcpTest-" + uuid.uuid4().hex
+    if os.name != "nt":
+        # Unix sockets have a short path limit. The isolated TMPDIR below is
+        # deliberately deep, so put this socket directly in our artifact area.
+        endpoint = str(OUT / ("s-" + uuid.uuid4().hex[:12]))
+    settings = SESSION_TEMP / "attached-settings"
+    ini = settings / "Patchy" / "Patchy.ini"
+    ini.parent.mkdir(parents=True)
+    ini.write_text("[updates]\ncheckOnStartup=false\n", encoding="utf-8")
+    env = {**os.environ, **TEMP_ENV, "QT_QPA_PLATFORM": "offscreen",
+           "PATCHY_SETTINGS_DIR": str(settings), "PATCHY_MCP_ENDPOINT": endpoint,
+           "PATCHY_NO_SINGLE_INSTANCE": "1", "PATCHY_NO_SOUND": "1"}
+    original = OUT / "final.psd"
+    original_bytes = original.read_bytes()
+    params = StdioServerParameters(command=str(exe), args=["--attach"], cwd=str(OUT), env=env)
+    with (OUT / "attached-app-stderr.log").open("w", encoding="utf-8") as log:
+        app = subprocess.Popen([str(app_exe), str(original)], cwd=OUT, env=env,
+                               stdout=log, stderr=log)
+        try:
+            initialized = False
+            deadline = time.monotonic() + 45
+            while True:
+                try:
+                    async with stdio_client(params, errlog=log) as (read, write):
+                        async with ClientSession(read, write) as client:
+                            await client.initialize()
+                            initialized = True
+                            info = (await client.call_tool("get_info", {})).structuredContent
+                            assert info["liveWindowAttachment"] and info["requiresExpectedState"]
+                            assert info["workspace"] == "attached" and int(info["processId"]) == app.pid
+                            state = (await client.call_tool("get_state", {})).structuredContent
+                            assert len(state["documents"]) == 1
+                            assert Path(state["documents"][0]["path"]) == original
+                            assert not state["documents"][0]["modified"]
+                            before = await client.call_tool("get_preview", {})
+                            assert before.structuredContent["stateToken"] == state["stateToken"]
+                            code = "app.activeDocument.addLayer('Face correction').fillRect(0,0,4,4,'#ffc080');"
+                            missing = await client.call_tool("execute_script", {"code": code})
+                            assert missing.isError and missing.structuredContent["error"] == "stale_state"
+                            changed = await client.call_tool("execute_script", {
+                                "code": code, "name": "Face correction", "expectedState": state["stateToken"]})
+                            assert not changed.isError, changed.model_dump()
+                            assert changed.structuredContent["state"]["documents"][0]["modified"]
+                            stale = await client.call_tool("execute_script", {"code": code, "expectedState": state["stateToken"]})
+                            assert stale.isError and stale.structuredContent["error"] == "stale_state"
+                            preview = await client.call_tool("get_preview", {})
+                            changed_png = next(x.data for x in preview.content if x.type == "image")
+                            assert changed_png != next(x.data for x in before.content if x.type == "image")
+                            token = preview.structuredContent["stateToken"]
+                            # A second client is refused promptly, never queued.
+                            extra = subprocess.Popen([str(exe), "--attach"], stdin=subprocess.PIPE,
+                                                     stdout=subprocess.PIPE, stderr=log, env=env, cwd=OUT)
+                            try:
+                                extra.stdin.write(b'{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n')
+                                extra.stdin.flush()
+                                assert await asyncio.to_thread(extra.wait, 10) == 0
+                                assert not extra.stdout.read()
+                            finally:
+                                if extra.poll() is None:
+                                    extra.kill()
+                                    extra.wait()
+                                extra.stdin.close()
+                                extra.stdout.close()
+                    break
+                except Exception:
+                    # Retry startup only, never a mutation or failed assertion.
+                    if initialized or app.poll() is not None or time.monotonic() >= deadline:
+                        raise
+                    await asyncio.sleep(0.1)
+            assert app.poll() is None, "Disconnect must not close the artist's app"
+            async with stdio_client(params, errlog=log) as (read, write):
+                async with ClientSession(read, write) as client:
+                    await client.initialize()
+                    state = (await client.call_tool("get_state", {})).structuredContent
+                    assert state["stateToken"] != token
+                    assert state["documents"][0]["modified"]
+                    preview = await client.call_tool("get_preview", {})
+                    assert next(x.data for x in preview.content if x.type == "image") == changed_png
+                    undone = await client.call_tool("undo", {"documentId": state["activeDocumentId"],
+                                                             "expectedState": state["stateToken"]})
+                    assert not undone.isError
+                    preview = await client.call_tool("get_preview", {})
+                    assert next(x.data for x in preview.content if x.type == "image") == next(x.data for x in before.content if x.type == "image")
+            assert original.read_bytes() == original_bytes, "Attachment must not silently save the original"
+            # If the app exits, the proxy must exit even with its stdin still open.
+            proxy = subprocess.Popen([str(exe), "--attach"], stdin=subprocess.PIPE,
+                                     stdout=subprocess.PIPE, stderr=log, env=env, cwd=OUT)
+            try:
+                proxy.stdin.write(b'{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n')
+                proxy.stdin.flush()
+                initialized_reply = await asyncio.wait_for(asyncio.to_thread(proxy.stdout.readline), 10)
+                assert json.loads(initialized_reply)["id"] == 1
+                app.terminate()  # only the test-owned offscreen application
+                await asyncio.to_thread(app.wait, 10)
+                assert await asyncio.to_thread(proxy.wait, 10) == 0
+            finally:
+                if proxy.poll() is None:
+                    proxy.kill()
+                    proxy.wait()
+                proxy.stdin.close()
+                proxy.stdout.close()
+            absent = subprocess.run([str(exe), "--attach"], input=b"", capture_output=True,
+                                    env=env, cwd=OUT, timeout=10)
+            assert absent.returncode == 2 and absent.stderr and not absent.stdout
+        finally:
+            if app.poll() is None:
+                app.terminate()
+                app.wait(timeout=10)
+    print("[PASS] MCP attachment: existing document, guarded edits, previews, single client, unsaved reconnect, undo, app exit, no fallback")
+
+
 def protocol_edges(exe):
     log = (OUT / "protocol-stderr.log").open("w", encoding="utf-8")
     proc = subprocess.Popen([str(exe)], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
@@ -219,3 +337,4 @@ if __name__ == "__main__":
     asyncio.run(sdk_workflow(executable))
     asyncio.run(visible_options(executable))
     protocol_edges(executable)
+    asyncio.run(attached_workspace(executable))

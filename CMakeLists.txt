@@ -988,6 +988,12 @@ if(PATCHY_BUILD_APP)
       src/ui/script_engine.hpp
       src/ui/script_engine.cpp
       src/ui/script_automation.cpp
+      src/ui/mcp_session.hpp
+      src/ui/mcp_session.cpp
+      src/ui/mcp_activity.hpp
+      src/ui/mcp_activity.cpp
+      src/ui/mcp_attachment.hpp
+      src/ui/mcp_attachment.cpp
       src/ui/canvas_widget_script_stroke.cpp
       src/ui/script_folders.hpp
       src/ui/script_folders.cpp
@@ -1274,7 +1280,7 @@ if(PATCHY_BUILD_APP)
     endif()
     target_link_libraries(patchy PRIVATE patchy_ui)
     if(NOT EMSCRIPTEN)
-      add_executable(patchy-mcp src/app/main.cpp src/app/mcp_server.cpp)
+      add_executable(patchy-mcp src/app/main.cpp src/app/mcp_server.cpp src/app/mcp_stdio.cpp)
       target_link_libraries(patchy-mcp PRIVATE patchy_ui)
       target_compile_definitions(patchy-mcp PRIVATE PATCHY_MCP_EXECUTABLE=1 PATCHY_VERSION="${PROJECT_VERSION}")
       patchy_configure_target(patchy-mcp)
@@ -1540,6 +1546,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/svg_ui_tests.cpp
       tests/ui/image_trace_ui_tests.cpp
       tests/ui/scripting_tests.cpp
+      tests/ui/mcp_tests.cpp
       tests/ui/unicode_path_tests.cpp
       tests/ui/history_panel_tests.cpp
       tests/ui/composite_render_tests.cpp

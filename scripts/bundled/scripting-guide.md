@@ -12,7 +12,12 @@ There are four ways to run a script:
 2. **The Script Manager** (File > Scripts > Script Manager). A folder tree, a code editor with syntax highlighting, a console, and Run/Stop buttons. Click a script in the tree to see its code (unsaved edits stay put until you save or confirm switching away), and press **F5** to run what is in the editor. This is the best place to write and test scripts.
 3. **The command line.** `patchy --run-script myscript.js` runs a script unattended, for batch jobs and external tools. See the Command line section below. The Script Manager's **C:\\** toolbar button shows a ready-made command line for any script.
 
-4. **The local MCP connector.** A desktop package includes `patchy-mcp` and the installable `ai/patchy-control` skill (inside Resources on macOS, or share/patchy on Linux). Configure the connector as a stdio MCP server. `get_help` provides this guide, the API reference, the workflow, and examples. No Python or Node installation is required.
+4. **The local MCP connector.** A desktop package includes `patchy-mcp` and the installable `ai/patchy-control` skill (inside Resources on macOS, or share/patchy on Linux). Configure the connector as a stdio MCP server. `get_help` provides this guide, the API reference, the workflow, and examples. No Python or Node installation is required. `--attach` connects to your already-open
+   Patchy workspace, `--visible` opens a separate visible window, and no argument
+   creates a hidden workspace. Attached edits require `expectedState` from the
+   latest `get_state` or preview. The status bar shows AI connected, reading, or
+   editing, with Stop during an edit. Disconnecting an attached client leaves
+   your unsaved documents open. Read `get_help(workflow)` for the full procedure.
 
 A script run is **one undo entry**: no matter how many edits a script makes, one Ctrl+Z puts the document back the way it was.
 
