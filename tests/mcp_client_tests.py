@@ -56,6 +56,28 @@ async def sdk_workflow(exe):
             assert list(installed.iterdir()) == [installed / "SKILL.md"]
             assert (installed / "SKILL.md").read_bytes() == bootstrap
             assert (await call("get_state")).structuredContent["documents"] == []
+            assert "slowMode" in info["capabilities"]
+            assert not (await call("get_state")).structuredContent["slowMode"]
+            assert not (await call("get_state")).structuredContent["slowModeAvailable"]
+            slow_doc = (await call("execute_script", {"code":
+                "var d=app.newDocument(32,32);var l=d.addLayer('Slow ink');"
+                "patchy.setResult({documentId:d.id,layerId:l.id});"})).structuredContent["result"]
+            async def slow_preview():
+                preview = await call("get_preview", {"documentId": slow_doc["documentId"]})
+                return next(x.data for x in preview.content if x.type == "image")
+            blank = await slow_preview()
+            before_slow = (await call("get_state")).structuredContent
+            await call("execute_script", {"code": "patchy.ui.slowMode=true;"}, error=True)
+            assert (await call("get_state")).structuredContent == before_slow
+            await call("draw_strokes", {**slow_doc, "strokes": [
+                {"size": 12, "color": "#883322", "points": [{"x": 8, "y": 8}]},
+                {"size": 12, "color": "#224488", "points": [{"x": 24, "y": 24}]}]})
+            painted = await slow_preview()
+            await call("undo", {"documentId": slow_doc["documentId"]})
+            assert await slow_preview() == blank
+            await call("redo", {"documentId": slow_doc["documentId"]})
+            assert await slow_preview() == painted
+            await call("execute_script", {"code": "patchy.ui.slowMode=false;app.activeDocument.close();"})
             help_result = (await call("get_help", {"topic": "api"})).structuredContent
             assert "drawStrokes" in help_result["text"]
             assert help_result["text"] == (kit / "references" / "patchy.d.ts").read_bytes().decode("utf-8")
@@ -233,6 +255,20 @@ async def attached_workspace(exe):
                             assert len(state["documents"]) == 1
                             assert Path(state["documents"][0]["path"]) == original
                             assert not state["documents"][0]["modified"]
+                            slow_enabled = await client.call_tool("execute_script", {"code":
+                                "patchy.ui.slowMode=true;", "expectedState": state["stateToken"]})
+                            assert not slow_enabled.isError
+                            slow_state = (await client.call_tool("get_state", {})).structuredContent
+                            assert slow_state["slowMode"] and slow_state["documents"] == state["documents"]
+                            assert slow_state["slowModeAvailable"]
+                            assert slow_state["stateToken"] != state["stateToken"]
+                            slow_window = await client.call_tool("get_preview", {"target": "window"})
+                            (OUT / "slow-mode-window.png").write_bytes(base64.b64decode(
+                                next(x.data for x in slow_window.content if x.type == "image")))
+                            slow_disabled = await client.call_tool("execute_script", {"code":
+                                "patchy.ui.slowMode=false;", "expectedState": slow_state["stateToken"]})
+                            assert not slow_disabled.isError
+                            state = (await client.call_tool("get_state", {})).structuredContent
                             # Brush selection invalidates state without changing document pixels/history.
                             activated = await client.call_tool("execute_script", {"code":
                                 "patchy.brushes.activate({size:27,dynamics:{wetEdges:true}});",

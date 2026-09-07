@@ -76,7 +76,10 @@ Smoothing uses the existing controls and an explicit reference zoom for the
 screen-relative case. Preview pacing cannot add paint. Dirty rectangles reach
 the existing progressive-refresh machinery; stroke progress updates the current
 MCP/CLI operation label. Stop checks run between pointer samples and native ticks.
-One script still creates one Undo entry per touched document.
+Normal mode creates one Undo entry per touched document per script. Slow mode
+separates each native stroke, including strokes within one batch or strokePath.
+It presents completed changes without changing simulated time; see
+[automation-feedback.md](automation-feedback.md).
 
 MCP state contains compact current-brush metadata and the library revision.
 Attached fingerprints additionally include current brush settings. Fetch full

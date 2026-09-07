@@ -1,5 +1,6 @@
 #include "ui/mcp_activity.hpp"
 #include "ui/main_window.hpp"
+#include "ui/script_engine.hpp"
 #include <QApplication>
 #include <QEvent>
 #include <QHBoxLayout>
@@ -11,18 +12,26 @@
 namespace patchy::ui {
 McpActivity::McpActivity(MainWindow& window, std::function<void()> stop, bool script)
     : QWidget(window.statusBar()), window_(window), label_(new QLabel(this)),
-      stop_(new QPushButton(this)), script_(script) {
+      stop_(new QPushButton(this)), slow_(new QPushButton(this)), script_(script) {
   setObjectName(script ? QStringLiteral("scriptActivity") : QStringLiteral("mcpActivity"));
   label_->setObjectName(script ? QStringLiteral("scriptActivityLabel") : QStringLiteral("mcpActivityLabel"));
   label_->setTextFormat(Qt::PlainText);
   stop_->setObjectName(script ? QStringLiteral("scriptStopButton") : QStringLiteral("mcpStopButton"));
   label_->setMaximumWidth(280);
   stop_->setFocusPolicy(Qt::NoFocus);
+  slow_->setObjectName(script ? QStringLiteral("scriptSlowButton") : QStringLiteral("mcpSlowButton"));
+  slow_->setCheckable(true);
+  slow_->setFocusPolicy(Qt::NoFocus);
+  auto& host = window.script_engine_host();
+  slow_->setChecked(host.slow_mode());
+  connect(slow_, &QPushButton::toggled, &host, &ScriptEngineHost::set_slow_mode);
+  connect(&host, &ScriptEngineHost::slow_mode_changed, slow_, &QPushButton::setChecked);
   auto* row = new QHBoxLayout(this);
   row->setContentsMargins(6, 0, 6, 0);
   row->setSpacing(6);
   row->addWidget(label_);
   row->addWidget(stop_);
+  row->addWidget(slow_);
   connect(stop_, &QPushButton::clicked, this, [stop = std::move(stop)] { stop(); });
   window.statusBar()->addPermanentWidget(this);
   qApp->installEventFilter(this);
@@ -64,6 +73,10 @@ void McpActivity::refresh() {
   setToolTip(working_ ? tr("%1 is using this workspace. Editing resumes when the request finishes. Stop keeps changes available for Undo.").arg(client_)
                      : tr("Connected to %1 through MCP. Waiting for a Patchy request; the assistant may still be thinking.").arg(client_));
   stop_->setText(tr("Stop"));
+  slow_->setText(tr("Slow"));
+  slow_->setVisible(!qEnvironmentVariableIsSet("PATCHY_HEADLESS"));
+  slow_->setEnabled(window_.isVisible());
+  slow_->setToolTip(tr("Show each stroke or edit with a short pause and a separate Undo step. You can change this while work is running. History limits still apply."));
   stop_->setVisible(true);
   stop_->setEnabled(working_ && editing_);
   stop_->setToolTip(working_ && editing_ ? tr("Stop this operation and keep its changes available for Undo.")

@@ -205,8 +205,10 @@ The additive API remains version 1. Read the packaged TypeScript reference and
   layer IDs are scoped to the document and valid while that layer exists. History
   can remove/restore a layer. Re-query state after history changes and reopen.
   `app.getDocument(id)` and `doc.getLayer(id)` report stale/invalid IDs.
-- `doc.modified`, `canUndo`, and `canRedo` report state. Each mutating run creates
-  one snapshot per affected document. `doc.undo()` and `redo()` must precede new
+- `doc.modified`, `canUndo`, and `canRedo` report state. By default each run creates
+  one snapshot per affected document. `slowMode` in state reports the workspace's
+  Slow toggle, which separates native strokes and undoable edits within history
+  limits. `doc.undo()` and `redo()` must precede new
   mutations in the same script. Errors and cancellation retain available undo
   history and can leave partial changes, reported with state and logs.
   Connector requests reject `app.undoEnabled = false`.

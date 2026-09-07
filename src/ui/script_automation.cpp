@@ -134,7 +134,8 @@ QJsonObject ScriptEngineHost::automation_state() const {
         {"clippingPathId", clipping_path}, {"vectorTarget", vector_target(id)}});
   }
   return {{"activeDocumentId", active_session_id() ? QJsonValue(QString::number(active_session_id())) : QJsonValue(QJsonValue::Null)},
-          {"documents", documents}, {"brushLibraryRevision", brushes.revision()},
+          {"documents", documents}, {"slowMode", slow_mode()}, {"slowModeAvailable", slow_mode_available()},
+          {"brushLibraryRevision", brushes.revision()},
           {"currentBrush", window_.canvas_ ? QJsonValue(QJsonObject{
             {"tool", window_.canvas_->tool() == CanvasTool::MixerBrush ? "mixer" : window_.canvas_->tool() == CanvasTool::Eraser ? "eraser" : "brush"},
             {"tipId", window_.canvas_->current_script_brush().tip_id},
@@ -243,25 +244,28 @@ void ScriptEngineHost::draw_strokes(std::int64_t session_id, LayerId layer_id, c
       throw_js_error(tr("Strokes require an unlocked 8-bit pixel layer."));
       return;
     }
-    if (!prepare_mutation(session_id)) { return; }
     const auto previous = doc->active_layer_id();
-    session->document.set_active_layer(layer_id);
-    const auto restore = qScopeGuard([&] {
-      if (previous) { session->document.set_active_layer(*previous); }
-      else { session->document.clear_active_layer(); }
-    });
     std::size_t stroke_index = 0;
     for (const auto& stroke : strokes) {
       if (engine_ && engine_->isInterrupted()) { break; }
+      if (!prepare_mutation(session_id)) { break; }
       const auto name = stroke.label.isEmpty() ? (stroke.mixer ? tr("Mixer Brush") : stroke.erase ? tr("Eraser") : tr("Brush")) : stroke.label;
       const auto message = tr("%1: stroke %2 of %3").arg(name).arg(++stroke_index).arg(strokes.size());
       emit painting_progress(message);
       if (script_activity_) script_activity_->set_operation(message, true);
-      const auto dirty = session->canvas->paint_script_stroke(stroke, [this, session_id](const QRect& changed) {
-        if (!changed.isEmpty()) { note_pixels_changed(session_id, changed); }
-        else { pump_progress_indicator(); }
-        return engine_ && engine_->isInterrupted();
-      });
+      QRect dirty;
+      {
+        session->document.set_active_layer(layer_id);
+        const auto restore = qScopeGuard([&] {
+          if (previous) { session->document.set_active_layer(*previous); }
+          else { session->document.clear_active_layer(); }
+        });
+        dirty = session->canvas->paint_script_stroke(stroke, [this, session_id](const QRect& changed) {
+          if (!changed.isEmpty()) { note_pixels_changed(session_id, changed, false); }
+          else { pump_progress_indicator(); }
+          return engine_ && engine_->isInterrupted();
+        });
+      }
       note_pixels_changed(session_id, dirty);
     }
   } catch (const std::exception& e) {

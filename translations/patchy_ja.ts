@@ -15006,6 +15006,8 @@ Clipped to the layer below</source>
     <message><source>Background</source><translation>背景</translation></message>
     <message><source>Untitled</source><translation>無題</translation></message>
     <message><source>Script: %1</source><translation>スクリプト: %1</translation></message>
+    <message><source>Script: %1 (step %2)</source><translation>スクリプト: %1（ステップ %2）</translation></message>
+    <message><source>Slow mode requires a visible Patchy workspace.</source><translation>「ゆっくり」モードには、表示されているPatchyの作業領域が必要です。</translation></message>
     <message><source>Script</source><translation>スクリプト</translation></message>
     <message><source>[alert] %1</source><translation>[alert] %1</translation></message>
     <message><source>The document is no longer open.</source><translation>ドキュメントは既に閉じられています。</translation></message>
@@ -15268,8 +15270,8 @@ Clipped to the layer below</source>
         <translation>操作をキャンセルしました。</translation>
     </message>
     <message>
-        <source>Paint a batch through the native Brush, Eraser, or Mixer Brush. Read get_help(painting-guide) for tips, dynamics, pen inputs, and timed strokes. Coordinates are document pixels; the batch is one undo step.</source>
-        <translation>ネイティブのブラシ、消しゴム、または混合ブラシで一括描画します。ブラシ先端、ダイナミクス、ペン入力、時刻付きの描画は get_help(painting-guide) を参照してください。座標はドキュメントのピクセル単位です。一括描画は1回で元に戻せます。</translation>
+        <source>Paint a batch through the native Brush, Eraser, or Mixer Brush. Read get_help(painting-guide) for tips, dynamics, pen inputs, and timed strokes. Coordinates are document pixels. Normally the batch is one undo step; Slow mode gives each stroke its own step.</source>
+        <translation>ネイティブのブラシ、消しゴム、または混合ブラシで一括描画します。ブラシ先端、ダイナミクス、ペン入力、時刻付きの描画は get_help(painting-guide) を参照してください。座標はドキュメントのピクセル単位です。通常は一括描画を1回で元に戻せます。「ゆっくり」モードではストロークごとに元に戻せます。</translation>
     </message>
     <message>
         <source>Patchy owns an isolated persistent workspace, hidden by default or visible with --visible. It never attaches to another Patchy window. Read get_help(workflow) and get_help(api). Use document/layer IDs, batch edits, inspect get_preview, and save checkpoints before disconnecting. JS globals reset between calls. Requests are serialized; failed scripts may leave undoable edits.</source>
@@ -15288,8 +15290,8 @@ Clipped to the layer below</source>
         <translation>最新のキャンバスPNGと座標情報、またはコネクタ自身のアプリウィンドウ画像を返します。保存先やドキュメントの状態は変更しません。</translation>
     </message>
     <message>
-        <source>Run JavaScript in the persistent workspace. Use patchy.setResult(value) for a JSON result. Globals reset each run; documents persist. Edits form one undo step per document; errors can leave partial edits. Scripts are trusted and can access files.</source>
-        <translation>保持された作業領域でJavaScriptを実行します。JSONの結果はpatchy.setResult(value)で指定します。変数は毎回初期化され、ドキュメントは保持されます。編集はドキュメントごとに1回で元に戻せます。エラー時は一部の編集が残る場合があります。スクリプトは信頼済みとしてファイルにアクセスできます。</translation>
+        <source>Run JavaScript in the persistent workspace. Use patchy.setResult(value) for a JSON result. Globals reset each run; documents persist. Normally edits form one undo step per document; Slow mode separates strokes and edits. Errors can leave partial edits. Scripts are trusted and can access files.</source>
+        <translation>保持された作業領域でJavaScriptを実行します。JSONの結果はpatchy.setResult(value)で指定します。変数は毎回初期化され、ドキュメントは保持されます。通常はドキュメントごとに1回で元に戻せます。「ゆっくり」モードではストロークや編集ごとに元に戻せます。エラー時は一部の編集が残る場合があります。スクリプトは信頼済みとしてファイルにアクセスできます。</translation>
     </message>
     <message>
         <source>Script argument values must be strings.</source>
@@ -15401,6 +15403,8 @@ Clipped to the layer below</source>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
+    <message><source>Slow</source><translation>ゆっくり</translation></message>
+    <message><source>Show each stroke or edit with a short pause and a separate Undo step. You can change this while work is running. History limits still apply.</source><translation>ストロークや編集ごとに短く待機して表示し、個別に元に戻せるようにします。処理中でも切り替えられます。履歴の保持上限は適用されます。</translation></message>
     <message><source>Running script: %1</source><translation>スクリプト実行中: %1</translation></message>
     <message><source>Stop this operation and keep its changes available for Undo.</source><translation>この処理を停止します。変更は「元に戻す」で取り消せます。</translation></message>
     <message><source>No Patchy edit is running. Use Stop in your assistant to stop it between requests.</source><translation>Patchyでは編集処理を実行していません。要求と要求の間に停止するには、アシスタント側の停止ボタンを使ってください。</translation></message>

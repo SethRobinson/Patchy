@@ -1476,6 +1476,23 @@ void ui_script_stop_panel_confirm_and_undo() {
                       "stop-cancel-layer") != nullptr);
     auto* panel = window.findChild<QDialog*>(QStringLiteral("scriptStopPanel"));
     CHECK(panel != nullptr && !panel->isVisible());
+    // Slow mode creates several groups before the Stop confirmation. Its Undo
+    // option must restore all retained steps of this run, not just the last one.
+    panel_clicked = false;
+    confirm_answered = false;
+    pending_layer_name = "stop-slow-layer";
+    const auto before_slow = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+    driver->start(30);
+    (void)host.run_source(QStringLiteral(R"JS(
+      patchy.ui.slowMode=true;
+      app.activeDocument.addLayer('slow-earlier-layer').fill('#335577');
+    )JS") + busy_script.arg(QStringLiteral("stop-slow-layer")), {});
+    wait_for_run_end(host);
+    driver->stop();
+    CHECK(panel_clicked && confirm_answered && host.last_run_had_error());
+    CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == before_slow);
+    CHECK(layer_named(patchy::ui::MainWindowTestAccess::document(window), "slow-earlier-layer") == nullptr);
+    CHECK(layer_named(patchy::ui::MainWindowTestAccess::document(window), "stop-slow-layer") == nullptr);
   }
   qunsetenv("PATCHY_SCRIPT_BUSY_DELAY_MS");
 }
@@ -2385,6 +2402,10 @@ void ui_script_advanced_brush_timing_validation_and_restore() {
   CHECK(run_script(window,"app.activeDocument.undo();patchy.ui.present(60);"+stroke+"patchy.ui.present(60);"));
   const auto second=patchy::flatten_document_rgba8(*host.session_document_const(id));
   CHECK(std::equal(first.data().begin(),first.data().end(),second.data().begin(),second.data().end()));
+  CHECK(run_script(window,"app.activeDocument.undo();patchy.ui.slowMode=true;"+stroke));
+  const auto slow=patchy::flatten_document_rgba8(*host.session_document_const(id));
+  CHECK(std::equal(first.data().begin(),first.data().end(),slow.data().begin(),slow.data().end()));
+  CHECK(run_script(window,"patchy.ui.slowMode=false;"));
   CHECK(run_script(window,"app.activeDocument.undo();app.activeDocument.redo();"));
   CHECK(run_script(window,R"JS(
     var b=patchy.brushes.resolve({dynamics:{sizeControl:'penPressure',opacityControl:'off'}}).settings;

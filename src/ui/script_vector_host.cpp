@@ -33,6 +33,7 @@ void ScriptEngineHost::note_vector_changed(std::int64_t id, const QRect& dirty, 
   }
   schedule_refresh_flush();
   pump_progress_indicator();
+  complete_mutation(id);
 }
 void ScriptEngineHost::activate_document_path(std::int64_t session, DocumentPathId path) {
   if (!script_vector::document(*this, session).find_path(path)) { script_vector::invalid("path.id"); }

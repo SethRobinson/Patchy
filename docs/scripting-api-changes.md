@@ -1,5 +1,12 @@
 # Scripting API compatibility
 
+2026-09-07 (additive, API 1): `patchy.ui.slowMode` mirrors the Slow toggle beside
+Stop. It presents each completed stroke/edit and gives it a separate Undo step,
+within existing history limits. Defaults off; normal scripts retain grouped Undo.
+It requires a visible workspace; headless runs reject it. It persists for the
+workspace lifetime and appears in MCP state, with `slowModeAvailable`. Native timed
+painting remains independent of display pacing.
+
 2026-09-07 (additive, API 1): `patchy.brushes` discovers, resolves, previews,
 creates/imports tips, saves independent complete presets, and explicitly activates
 manual brushes. Native strokes add bitmap tips, full dynamics, Mixer Brush,

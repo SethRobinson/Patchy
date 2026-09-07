@@ -26,6 +26,7 @@ class McpActivity final : public QWidget {
   MainWindow& window_;
   QLabel* label_;
   QPushButton* stop_;
+  QPushButton* slow_;
   QString client_;
   QString operation_;
   bool connected_{false};

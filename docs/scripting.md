@@ -168,13 +168,14 @@ everywhere a bundled script is resolved.
   evaluation AND every timer and script canvas window are done. A fresh QJSEngine is
   created per run and destroyed at run end, so nothing leaks between runs and stored
   QJSValues die with their engine (canvas windows drop theirs in teardown first).
-- **One undo entry per run and session.** The first mutation a run makes to a session
+- **One undo entry per run and session by default.** The first mutation a run makes to a session
   pushes one "Script: name" snapshot (`prepare_mutation`); everything after rides it, so
   a 60fps animation undoes to its pre-script state in one step. Scripts can opt out for
   speed with `app.undoEnabled = false` (per-run state, resets to true each run): the
   snapshot is skipped and those edits cannot be undone, but sessions are still marked
   modified so closing protects the work (`breakout.js` uses this). Connector sessions
-  reject disabling history so failed edits remain recoverable.
+  reject disabling history so failed edits remain recoverable. `patchy.ui.slowMode`
+  instead separates native strokes and undoable edits; see [automation-feedback.md](automation-feedback.md).
 - **Wrappers hold ids, never pointers.** Layer wrappers keep session id + LayerId and
   re-resolve on every access, throwing a JS error when the target is gone. The layers
   vector reallocates and sessions close; a stored `Layer*` is the historical

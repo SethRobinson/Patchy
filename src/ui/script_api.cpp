@@ -251,7 +251,7 @@ void ScriptLayerObject::set_opacity(double opacity) {
   if (auto* layer = write_layer()) {
     const auto before = to_qrect(layer_render_bounds(std::as_const(*layer)));
     layer->set_opacity(static_cast<float>(std::clamp(opacity, 0.0, 100.0) / 100.0));
-    host_.note_pixels_changed(session_id_, before);
+    host_.note_pixels_changed(session_id_, before, false);
     host_.note_structure_changed(session_id_);
   }
 }
@@ -266,7 +266,7 @@ void ScriptLayerObject::set_visible(bool visible) {
     layer->set_visible(visible);
     // set_visible deliberately does not bump revisions; repaint the layer's
     // reach and refresh the panel's eye toggle.
-    host_.note_pixels_changed(session_id_, to_qrect(layer_render_bounds(std::as_const(*layer))));
+    host_.note_pixels_changed(session_id_, to_qrect(layer_render_bounds(std::as_const(*layer))), false);
     host_.note_structure_changed(session_id_);
   }
 }
@@ -284,7 +284,7 @@ void ScriptLayerObject::set_blend_mode(const QString& mode) {
   }
   if (auto* layer = write_layer()) {
     layer->set_blend_mode(parsed);
-    host_.note_pixels_changed(session_id_, to_qrect(layer_render_bounds(std::as_const(*layer))));
+    host_.note_pixels_changed(session_id_, to_qrect(layer_render_bounds(std::as_const(*layer))), false);
     host_.note_structure_changed(session_id_);
   }
 }
@@ -1408,6 +1408,9 @@ void ScriptUiObject::set_zoom(double percent) {
 }
 
 void ScriptUiObject::fitOnScreen() { host_.fit_view_on_screen(); }
+bool ScriptUiObject::slow_mode() const { return host_.slow_mode(); }
+void ScriptUiObject::set_slow_mode(bool enabled) { host_.set_slow_mode(enabled); }
+
 void ScriptUiObject::present(const QJSValue& delayMs) {
   const double delay = delayMs.isUndefined() ? 0 : delayMs.toNumber();
   if ((!delayMs.isUndefined() && !delayMs.isNumber()) || !std::isfinite(delay) ||

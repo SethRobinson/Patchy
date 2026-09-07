@@ -125,7 +125,9 @@ closing chord for open paths; strokes traverse only actual segments.
 
 Validate types, ranges, references, locks, resources, and destinations before
 `prepare_mutation`. Stage multi-layer changes and shape/mask caches before commit.
-The host supplies one Undo entry per document per script. Later script failures
+The host normally supplies one Undo entry per document per script. Slow mode
+separates undoable edits and presents completed changes; see
+[automation-feedback.md](automation-feedback.md). Later script failures
 leave earlier edits undoable. Deferred refresh includes layer/Paths panels,
 thumbnails, active overlays, shape controls, and old/new dirty bounds. Geometry
 edits clear stale anchor selections; removing active paths/masks repairs targets.

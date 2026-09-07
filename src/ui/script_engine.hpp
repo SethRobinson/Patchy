@@ -190,7 +190,7 @@ public:
   // Coalesced refresh (flushed once per event-loop turn): pixel changes mark the
   // canvas dirty (empty rect = whole canvas); structure changes also rebuild the
   // layer panel and action states.
-  void note_pixels_changed(std::int64_t session_id, const QRect& dirty_document_rect);
+  void note_pixels_changed(std::int64_t session_id, const QRect& dirty_document_rect, bool completed = true);
   void note_structure_changed(std::int64_t session_id);
   void note_vector_changed(std::int64_t session_id, const QRect& dirty = {}, bool structure = false);
   PatternLibrary& vector_pattern_library();
@@ -292,7 +292,11 @@ public:
   [[nodiscard]] double view_zoom_percent() const;
   void set_view_zoom_percent(double percent);
   void fit_view_on_screen();
-  void present_script_view(int delay_ms = 0);
+  void present_script_view(int delay_ms = 0, bool slow_hold = false);
+  [[nodiscard]] bool slow_mode() const;
+  [[nodiscard]] bool slow_mode_available() const;
+  void set_slow_mode(bool enabled);
+  Q_SIGNAL void slow_mode_changed(bool enabled);
   bool resize_session_image(std::int64_t session_id, int width, int height);
   // The activeLayer setter's reveal: expand collapsed ancestor folders and
   // (when the session is the active one) select + scroll the row into view.
@@ -333,6 +337,8 @@ private:
   bool connector_mode_{false};
   QPointer<McpActivity> script_activity_;
   bool presenting_view_{false};
+  bool slow_mode_{false};
+  void complete_mutation(std::int64_t session_id);
   bool refresh_script_view(bool force = false);
   std::function<void()> connector_progress_callback_;
   mutable std::mutex interrupt_mutex_;
@@ -344,6 +350,10 @@ private:
     // Depth of nested include() evaluations (0 = top-level script code).
     int include_depth{0};
     std::set<std::int64_t> snapshotted_sessions;
+    std::set<std::int64_t> undo_group_sessions;
+    std::set<std::int64_t> pending_mutations;
+    std::set<std::int64_t> slow_mutations;
+    std::map<std::int64_t, std::size_t> undo_steps;
     bool undo_enabled{true};
     std::map<int, QTimer*> timers;
     int next_timer_id{1};

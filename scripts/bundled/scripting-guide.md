@@ -19,7 +19,7 @@ There are four ways to run a script:
    editing, with Stop during an edit. Disconnecting an attached client leaves
    your unsaved documents open. Read `get_help(workflow)` for the full procedure.
 
-A script run is **one undo entry**: no matter how many edits a script makes, one Ctrl+Z puts the document back the way it was.
+A script run normally creates **one undo entry per document**. Enable **Slow** beside Stop to watch each native stroke or undoable edit with a short pause and a separate Undo step. You can toggle it during work. The existing history limits still apply. `patchy.ui.slowMode` reads or changes the same workspace setting; it defaults off and stays selected between requests until you close Patchy. Headless runs reject Slow mode and keep normal speed and grouped Undo. Slow mode does not change timed airbrush or smoothing output.
 
 ## Your first script
 
@@ -74,7 +74,7 @@ patchy.setResult(preview);
 
 Preview dimensions default to a 1024 by 1024 bounding box and may be 1 through 4096. The aspect ratio is preserved. Ordinary previews shrink as needed; nearest-neighbor previews may enlarge pixel art. Crop rectangles are clipped to the canvas. For full-resolution outputs beyond the preview bound, use `exportAs`; it currently behaves like `saveAs`, so save the layered PSD last. MCP `get_preview` with `target: "window"` is an offscreen app-window render for inspecting the interface.
 
-A mutating script or stroke batch makes one undo entry per affected document. Failed or cancelled scripts may leave partial edits; inspect returned state and undo before revising. The connector does not retry edits. `doc.undo()` and `doc.redo()` return whether a history step was restored and must run before new edits in the same script. `doc.modified`, `doc.canUndo`, and `doc.canRedo` expose status. `patchy.setResult(value)` returns a small JSON value independently of logs.
+A mutating script or stroke batch normally makes one undo entry per affected document; Slow mode separates strokes and edits within the batch. Failed or cancelled scripts may leave partial edits; inspect returned state and undo before revising. The connector does not retry edits. `doc.undo()` and `doc.redo()` return whether a history step was restored and must run before new edits in the same script. `doc.modified`, `doc.canUndo`, and `doc.canRedo` expose status. `patchy.setResult(value)` returns a small JSON value independently of logs.
 
 Send one tool request at a time. A concurrent edit/state request receives `busy`. Cancellation interrupts JavaScript, stops timers, and lets native work reach an interruption boundary. The inactivity watchdog still applies. `app.runCommand` and `patchy.ui.createCanvas` report unsupported operations in connector sessions; use explicit document APIs (`patchy.ui.zoom` and `patchy.ui.fitOnScreen()` set the view before a window capture). Existing unattended option/dialog behavior applies. Scripts retain Patchy's trusted-script file privileges.
 

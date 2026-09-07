@@ -478,7 +478,7 @@ void ScriptEngineHost::finish_run() {
   // The stop-panel confirm's undo option: roll back the run's "Script: name"
   // snapshot in every session it touched, once the run is fully gone.
   const auto undo_sessions =
-      run_->undo_after_stop ? run_->snapshotted_sessions : std::set<std::int64_t>{};
+      run_->undo_after_stop ? run_->undo_steps : std::map<std::int64_t, std::size_t>{};
   teardown_run_resources();
   flush_pending_refresh();
   if (script_activity_) { script_activity_->set_disconnected(); }
@@ -487,10 +487,11 @@ void ScriptEngineHost::finish_run() {
   // theirs in teardown and the run owned the rest.
   { const std::lock_guard lock(interrupt_mutex_); engine_.reset(); }
   emit run_state_changed();
-  for (const auto session_id : undo_sessions) {
-    if (window_.session_with_id(session_id) != nullptr) {
+  for (const auto& [session_id, steps] : undo_sessions) {
+    if (const auto* session = window_.session_with_id(session_id)) {
+      const auto available = std::min(steps, session->undo_stack.size());
       activate_session(session_id);
-      window_.undo();
+      for (std::size_t i = 0; i < available; ++i) { window_.undo(); }
     }
   }
 }
@@ -1032,20 +1033,32 @@ void ScriptEngineHost::activate_session(std::int64_t session_id) {
 
 bool ScriptEngineHost::prepare_mutation(std::int64_t session_id) {
   pump_progress_indicator();
+  if (engine_ && engine_->isInterrupted()) { return false; }
   auto* session = window_.session_with_id(session_id);
   if (session == nullptr) {
     return false;
   }
   if (run_ != nullptr) {
+    // Enabling Slow between edits starts a new history group. Progress inside
+    // a native stroke is not an edit boundary and must never split that stroke.
+    if (slow_mode() && !run_->pending_mutations.count(session_id)) {
+      run_->undo_group_sessions.erase(session_id);
+      run_->slow_mutations.insert(session_id);
+    }
+    run_->pending_mutations.insert(session_id);
     if (!run_->undo_enabled) {
       // Undo opted out (app.undoEnabled = false): skip the snapshot, but the
       // session is still modified work that closing must protect.
       window_.mark_session_modified(*session);
       return true;
     }
-    if (run_->snapshotted_sessions.count(session_id) == 0) {
-      window_.push_undo_snapshot(*session, tr("Script: %1").arg(run_->name));
+    if (run_->undo_group_sessions.count(session_id) == 0) {
+      const auto label = slow_mode() ? tr("Script: %1 (step %2)").arg(run_->name).arg(run_->undo_steps[session_id] + 1)
+                                    : tr("Script: %1").arg(run_->name);
+      window_.push_undo_snapshot(*session, label);
       run_->snapshotted_sessions.insert(session_id);
+      run_->undo_group_sessions.insert(session_id);
+      ++run_->undo_steps[session_id];
     }
   } else {
     // Defensive: wrappers should never outlive their run, but a mutation with
@@ -1080,7 +1093,7 @@ void ScriptEngineHost::set_undo_enabled(bool enabled) noexcept {
   }
 }
 
-void ScriptEngineHost::note_pixels_changed(std::int64_t session_id, const QRect& dirty_document_rect) {
+void ScriptEngineHost::note_pixels_changed(std::int64_t session_id, const QRect& dirty_document_rect, bool completed) {
   auto& pending = pending_refresh_[session_id];
   if (dirty_document_rect.isEmpty()) {
     pending.full_canvas = true;
@@ -1089,6 +1102,7 @@ void ScriptEngineHost::note_pixels_changed(std::int64_t session_id, const QRect&
   }
   schedule_refresh_flush();
   pump_progress_indicator();
+  if (completed) { complete_mutation(session_id); }
 }
 
 void ScriptEngineHost::note_structure_changed(std::int64_t session_id) {
@@ -1097,6 +1111,31 @@ void ScriptEngineHost::note_structure_changed(std::int64_t session_id) {
   pending.full_canvas = true;
   schedule_refresh_flush();
   pump_progress_indicator();
+  complete_mutation(session_id);
+}
+
+bool ScriptEngineHost::slow_mode_available() const {
+  return window_.isVisible() && !qEnvironmentVariableIsSet("PATCHY_HEADLESS");
+}
+
+bool ScriptEngineHost::slow_mode() const { return slow_mode_ && slow_mode_available(); }
+
+void ScriptEngineHost::set_slow_mode(bool enabled) {
+  if (enabled && !slow_mode_available()) {
+    throw_js_error(tr("Slow mode requires a visible Patchy workspace."));
+    return;
+  }
+  if (slow_mode_ == enabled) { return; }
+  slow_mode_ = enabled;
+  emit slow_mode_changed(enabled);
+}
+
+void ScriptEngineHost::complete_mutation(std::int64_t session_id) {
+  if (!run_ || !run_->pending_mutations.erase(session_id)) { return; }
+  const bool began_slow = run_->slow_mutations.erase(session_id) != 0;
+  if (!began_slow && !slow_mode()) { return; }
+  run_->undo_group_sessions.erase(session_id);
+  if (slow_mode()) { present_script_view(60, true); }
 }
 
 bool ScriptEngineHost::refresh_script_view(bool force) {
@@ -1112,7 +1151,7 @@ bool ScriptEngineHost::refresh_script_view(bool force) {
   return true;
 }
 
-void ScriptEngineHost::present_script_view(int delay_ms) {
+void ScriptEngineHost::present_script_view(int delay_ms, bool slow_hold) {
   // A script checkpoint has no history or file side effects. Script timer
   // callbacks remain deferred by the normal sync_running/in_callback gates.
   refresh_script_view(true);
@@ -1123,7 +1162,7 @@ void ScriptEngineHost::present_script_view(int delay_ms) {
     const bool input_guarded = connector_mode_ || (script_activity_ && script_activity_->working()) ||
                                (stop_panel_ && stop_panel_->isVisible());
     QApplication::processEvents(input_guarded ? QEventLoop::AllEvents : QEventLoop::ExcludeUserInputEvents, 8);
-    if (!run_ || (engine_ && engine_->isInterrupted()) || clock.elapsed() >= delay_ms) { break; }
+    if (!run_ || (engine_ && engine_->isInterrupted()) || (slow_hold && !slow_mode()) || clock.elapsed() >= delay_ms) { break; }
     QEventLoop pause;
     QTimer::singleShot(static_cast<int>(std::clamp<qint64>(delay_ms - clock.elapsed(), 1, 16)), &pause, &QEventLoop::quit);
     pause.exec(input_guarded ? QEventLoop::AllEvents : QEventLoop::ExcludeUserInputEvents);

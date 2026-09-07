@@ -5,6 +5,7 @@
 #include "ui/canvas_widget.hpp"
 #include "test_harness.hpp"
 #include "ui_test_support.hpp"
+#include "ui_test_access.hpp"
 #include <QApplication>
 #include <QCloseEvent>
 #include <QElapsedTimer>
@@ -27,6 +28,7 @@
 
 namespace {
 using namespace patchy::test::ui;
+using patchy::ui::MainWindowTestAccess;
 
 template <typename Predicate> void until(Predicate ready) {
   QElapsedTimer deadline;
@@ -425,6 +427,95 @@ void ui_script_visible_unattended_stop_and_resize_processing() {
   CHECK(saw_interactive_stop && host.last_run_had_error());
 }
 
+void ui_mcp_slow_steps_history_and_stop() {
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  Connection connection(window);
+  connection.edit("app.newDocument(64,64).addLayer('Ink').fill('#ffffff');");
+  auto& host = window.script_engine_host();
+  auto* slow = window.findChild<QPushButton*>(QStringLiteral("mcpSlowButton"));
+  CHECK(slow && slow->isVisible() && slow->isEnabled() && !slow->isChecked());
+  slow->click();
+  CHECK(host.slow_mode() && connection.state()["slowMode"].toBool());
+  const auto depth = MainWindowTestAccess::active_session_undo_depth(window);
+  auto* canvas = require_canvas(window);
+  ScriptPaintObserver observer(host);
+  canvas->installEventFilter(&observer);
+  connection.edit(R"JS(
+    var l=app.activeDocument.activeLayer;
+    l.drawStrokes(['#220000','#440000','#660000'].map(function(color){
+      return {size:16,color:color,points:[{x:0,y:0}]};
+    }));
+    l.opacity=50;
+    app.activeDocument.addShape('Eye',{type:'ellipse',x:32,y:32,width:8,height:8});
+  )JS");
+  CHECK(observer.colors.count(0x22) && observer.colors.count(0x44) && observer.colors.count(0x66));
+  // A property edit posts both pixel and structure dirt but is still one step.
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 5);
+  window.grab().save(QStringLiteral("test-artifacts/mcp_slow_mode.png"));
+  const auto undo = [&] { connection.edit("app.activeDocument.undo();"); };
+  undo();
+  connection.edit("if(app.activeDocument.layers.some(function(l){return l.isShape;}))throw Error('shape survived');");
+  undo();
+  connection.edit("if(app.activeDocument.activeLayer.opacity!==100)throw Error('opacity');");
+  const auto red = [&] {
+    const auto* doc = host.session_document_const(host.active_session_id());
+    return doc->find_layer(*doc->active_layer_id())->pixels().pixel(0,0)[0];
+  };
+  undo(); CHECK(red() == 0x44);
+  undo(); CHECK(red() == 0x22);
+  undo(); CHECK(red() == 255);
+  connection.edit("for(var i=0;i<5;i++)app.activeDocument.redo();");
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 5);
+  connection.edit("app.activeDocument.undo(); app.activeDocument.undo();");
+
+  const QJsonValue before_invalid = connection.state()["stateToken"];
+  connection.call("execute_script", {{"expectedState", before_invalid}, {"code",
+    "app.activeDocument.activeLayer.drawStrokes([{points:[{x:1,y:1}]},{size:-1,points:[{x:2,y:2}]}]);"}}, true);
+  CHECK(connection.state()["stateToken"] == before_invalid);
+
+  // The guarded UI must allow switching Slow during a request. Subsequent
+  // normal edits share a new group; previously displayed steps stay separate.
+  const auto before_toggle = MainWindowTestAccess::active_session_undo_depth(window);
+  bool toggled = false;
+  QTimer toggle;
+  QObject::connect(&toggle, &QTimer::timeout, &window, [&] {
+    if (host.run_active() && red() == 0x88) {
+      toggled = true; toggle.stop(); slow->click();
+    }
+  });
+  toggle.start(1);
+  connection.edit("var l=app.activeDocument.activeLayer;l.fill('#880000');l.fill('#990000');l.fill('#aa0000');");
+  toggle.stop();
+  CHECK(toggled && !slow->isChecked());
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == before_toggle + 2);
+  undo(); CHECK(red() == 0x88);
+  undo(); CHECK(red() == 0x66);
+
+  slow->click();
+  const auto before_stop = MainWindowTestAccess::active_session_undo_depth(window);
+  bool stopped = false;
+  QTimer stop_timer;
+  QObject::connect(&stop_timer, &QTimer::timeout, &window, [&] {
+    if (host.run_active() && red() == 0xcc) {
+      stopped = true; stop_timer.stop();
+      window.findChild<QPushButton*>(QStringLiteral("mcpStopButton"))->click();
+    }
+  });
+  stop_timer.start(1);
+  connection.call("execute_script", {{"expectedState", connection.state()["stateToken"]}, {"code",
+    "var l=app.activeDocument.activeLayer;l.fill('#cc0000');l.fill('#dd0000');"}}, true);
+  stop_timer.stop();
+  CHECK(stopped && red() == 0xcc && window.menuBar()->isEnabled());
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == before_stop + 1);
+  undo(); CHECK(red() == 0x66);
+  connection.disconnect(); connection.connect();
+  CHECK(slow->isChecked() && connection.state()["slowMode"].toBool());
+  local_script(window, "if(!patchy.ui.slowMode)throw Error('shared Slow'); patchy.ui.slowMode=false;");
+  CHECK(!slow->isChecked());
+  connection.disconnect();
+}
+
 void ui_mcp_visible_idle_save_prompts_and_window_close() {
   const bool previous_quit = qApp->quitOnLastWindowClosed();
   const auto restore_quit = qScopeGuard([previous_quit] { qApp->setQuitOnLastWindowClosed(previous_quit); });
@@ -530,6 +621,7 @@ std::vector<patchy::test::TestCase> mcp_tests() {
           {"ui_mcp_attached_cancellation_interrupts_tight_loop", ui_mcp_attached_cancellation_interrupts_tight_loop},
           {"ui_mcp_vector_discovery_revisions_and_previews", ui_mcp_vector_discovery_revisions_and_previews},
           {"ui_mcp_progressive_edits_and_present_keep_history", ui_mcp_progressive_edits_and_present_keep_history},
+          {"ui_mcp_slow_steps_history_and_stop", ui_mcp_slow_steps_history_and_stop},
           {"ui_script_visible_unattended_stop_and_resize_processing", ui_script_visible_unattended_stop_and_resize_processing},
           {"ui_mcp_visible_idle_save_prompts_and_window_close", ui_mcp_visible_idle_save_prompts_and_window_close},
           {"ui_mcp_hidden_workspace_keeps_unattended_policy", ui_mcp_hidden_workspace_keeps_unattended_policy}};

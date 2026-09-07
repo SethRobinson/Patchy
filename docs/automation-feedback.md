@@ -5,8 +5,29 @@ Visible MCP and unattended CLI runs publish completed edits at most every 50 ms.
 including structure and vector panels. Pixel/structure notifications enqueue their
 current change before pumping. Native brush samples publish their accumulated
 dirty rectangle at safe boundaries through `paint_script_stroke`'s progress
-callback. Painting math, seed order, and the one-snapshot-per-run contract remain
-unchanged. Hidden work retains coalesced refresh without forced screen repainting.
+callback. Painting math and seed order remain unchanged. Hidden work retains
+coalesced refresh without forced screen repainting.
+
+The checkable Slow button beside Stop enables `patchy.ui.slowMode`. It defaults
+off for each workspace, stays selected between requests and reconnects, and can
+change during a run. It shares state between the MCP and visible CLI controls.
+Each completed native stroke or undoable document edit then gets a separate Undo
+step and a short visible hold. Normal mode groups edits per script and document.
+Enabling Slow starts a new group at the next edit boundary; disabling it groups
+subsequent edits again. Earlier grouped work stays grouped. Existing history count
+and memory limits still apply; large paintings cannot retain unlimited strokes.
+The display hold ends early on Stop or when Slow is turned off. Simulated paint
+time is independent, so airbrush buildup and smoothing output stay unchanged.
+Headless runs cannot enable Slow and retain normal speed and grouped Undo.
+The setter rejects enabling it without a visible workspace. MCP state includes
+`slowModeAvailable`; offscreen UI tests exercise visible-mode behavior in their
+owned windows without setting the production `PATCHY_HEADLESS` flag.
+
+`prepare_mutation` tracks both touched documents and the current history group.
+Completion notifications close a Slow group once, including vector changes.
+Native in-stroke dirt passes `completed=false`; only the finished stroke closes
+its group. Multiple notifications for one edit cannot create extra checkpoints.
+Reads, previews, brush-library writes and view changes do not create Undo steps.
 
 `patchy.ui.present(delayMs)` forces a frame and services events for an optional
 0..1000 ms hold. It feeds the inactivity watchdog without mutating history or file
@@ -19,7 +40,8 @@ should omit it. Repainting cannot show computation still taking place in a clien
 MCP keeps its Stop button visible while connected, disabled outside a mutating
 request. Idle means waiting for the next request; stopping the assistant between
 requests belongs to the client's own Stop control. Long labels have bounded width
-so they cannot crowd Stop out of a narrow status bar.
+so they cannot crowd Stop and Slow out of a narrow status bar. Both controls are
+inside the input guard's allowed widget subtree.
 
 Visible unattended scripts use a separate `McpActivity` instance in script mode,
 with `scriptActivity` and `scriptStopButton` identifiers. Its input guard and Stop

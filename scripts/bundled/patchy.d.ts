@@ -625,6 +625,15 @@ interface PatchyUi {
    * Upload edited arrays with setPixels first. Headless work does not need pacing.
    */
   present(delayMs?: number): void;
+  /** Same as the status-bar Slow toggle. Defaults to false for each workspace;
+   * retained between requests, never saved as a preference. While true, each
+   * native stroke and each undoable document edit gets a separate Undo step.
+   * Presents each completed edit with a short pause. Enabling requires a visible
+   * workspace; headless runs reject it and retain normal grouped Undo.
+   * Does not alter simulated paint time.
+   * Existing history limits apply. Turning it off groups subsequent edits again.
+   */
+  slowMode: boolean;
 }
 
 interface PatchyIo {

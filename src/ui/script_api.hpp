@@ -323,6 +323,9 @@ public:
   // View > Fit on Screen for the active document; throws with no document.
   Q_INVOKABLE void fitOnScreen();
   Q_INVOKABLE void present(const QJSValue& delayMs = QJSValue());
+  Q_PROPERTY(bool slowMode READ slow_mode WRITE set_slow_mode)
+  [[nodiscard]] bool slow_mode() const;
+  void set_slow_mode(bool enabled);
 
 private:
   ScriptEngineHost& host_;
