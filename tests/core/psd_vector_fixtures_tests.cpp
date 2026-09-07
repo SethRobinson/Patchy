@@ -1,4 +1,5 @@
 #include "core/document.hpp"
+#include "core/adjustment_layer.hpp"
 #include "core/environment.hpp"
 #include "core/layer.hpp"
 #include "core/layer_render_utils.hpp"
@@ -477,6 +478,55 @@ void psd_saved_paths_write_round_trips_and_edits() {
   (void)original_bytes;
 }
 
+void psd_authored_group_vector_mask_and_raster_parameters_round_trip() {
+  for (const bool raster : {false, true}) {
+    for (const bool disabled : {false, true}) {
+      patchy::Document doc(32, 32, patchy::PixelFormat::rgba8());
+      patchy::Layer group(doc.allocate_layer_id(), "Masked group", patchy::LayerKind::Group);
+      patchy::PixelBuffer pixels(32, 32, patchy::PixelFormat::rgba8()); pixels.clear(200);
+      group.add_child(patchy::Layer(doc.allocate_layer_id(), "Artwork", std::move(pixels)));
+      patchy::LayerVectorMask mask;
+      patchy::LiveShapeParams rectangle;
+      rectangle.kind = patchy::LiveShapeKind::Rectangle;
+      rectangle.left = 6; rectangle.top = 5; rectangle.right = 25; rectangle.bottom = 27;
+      mask.path.subpaths = patchy::generate_live_shape_subpaths(rectangle);
+      mask.density = 153; mask.feather = 1.5; mask.unlinked = true; mask.disabled = disabled;
+      group.set_vector_mask(mask);
+      patchy::update_vector_mask_raster(group, {0,0,32,32});
+      if (raster) {
+        patchy::PixelBuffer coverage(32, 32, patchy::PixelFormat::gray8()); coverage.clear(192);
+        group.set_mask(patchy::LayerMask{{0,0,32,32}, std::move(coverage), 255, false});
+      }
+      doc.add_layer(std::move(group));
+      patchy::Compositor compositor;
+      const auto before = compositor.flatten_rgb8(doc);
+      const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(doc);
+      const auto copy = patchy::psd::DocumentIo::read(bytes, {});
+      CHECK(copy.layers().size() == 1 && copy.layers()[0].kind() == patchy::LayerKind::Group);
+      const auto& read_group = copy.layers()[0];
+      CHECK(read_group.vector_mask());
+      CHECK(read_group.vector_mask()->density == 153 && read_group.vector_mask()->feather == 1.5);
+      CHECK(read_group.vector_mask()->unlinked && read_group.vector_mask()->disabled == disabled);
+      CHECK(read_group.mask().has_value() == raster);
+      const auto after = compositor.flatten_rgb8(copy);
+      CHECK(before.data().size() == after.data().size());
+      for (std::size_t i=0; i<before.data().size(); ++i) { CHECK(std::abs(int(before.data()[i])-int(after.data()[i])) <= 1); }
+      patchy::Layer adjustment(doc.allocate_layer_id(), "Masked adjustment", patchy::LayerKind::Adjustment);
+      patchy::configure_adjustment_layer(adjustment, patchy::AdjustmentSettings{});
+      adjustment.set_vector_mask(mask);
+      patchy::update_vector_mask_raster(adjustment, {0,0,32,32});
+      if (raster) { adjustment.set_mask(*std::as_const(doc).layers()[0].mask()); }
+      doc.add_layer(std::move(adjustment));
+      const auto adjustment_copy = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(doc), {});
+      const auto& read_adjustment = adjustment_copy.layers().back();
+      CHECK(read_adjustment.kind() == patchy::LayerKind::Adjustment && read_adjustment.vector_mask());
+      CHECK(read_adjustment.vector_mask()->density == 153 && read_adjustment.vector_mask()->feather == 1.5);
+      CHECK(read_adjustment.vector_mask()->unlinked && read_adjustment.vector_mask()->disabled == disabled);
+      CHECK(read_adjustment.mask().has_value() == raster);
+    }
+  }
+}
+
 void psd_saved_paths_reorder_round_trips() {
   // Panel drag-reorder swaps the document order of the saved paths; the
   // writer renumbers the moved paths onto the sorted id set (verbatim payload
@@ -636,6 +686,38 @@ void psd_authored_shape_layer_writes_native_blocks() {
   const auto flat_reread = patchy::Compositor{}.flatten_rgb8(reread);
   const auto metrics = rgb_diff_metrics(flat_original, flat_reread);
   CHECK(metrics.max_channel_delta == 0);
+}
+
+void psd_authored_none_paints_preserve_rendering() {
+  for (int mode = 0; mode < 4; ++mode) {
+    patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("bg", patchy::test::solid_rgba(64, 64, 255, 255, 255, 255));
+    patchy::Layer shape(document.allocate_layer_id(), "None paint", patchy::PixelBuffer());
+    patchy::VectorShapeContent content;
+    patchy::LiveShapeParams params;
+    params.kind = patchy::LiveShapeKind::Rectangle;
+    params.left = 8; params.top = 8; params.right = 48; params.bottom = 48;
+    content.path.subpaths = patchy::generate_live_shape_subpaths(params);
+    content.fill.kind = mode < 2 ? VectorFillKind::None : VectorFillKind::Solid;
+    content.fill.color = patchy::RgbColor{220, 120, 30};
+    content.stroke.fill_enabled = mode != 2;
+    content.stroke.enabled = mode == 0 || mode == 3;
+    content.stroke.width = 4;
+    content.stroke.content.kind = mode == 3 ? VectorFillKind::None : VectorFillKind::Solid;
+    shape.set_vector_shape(content);
+    shape.metadata()[patchy::kLayerMetadataVectorShape] = "1";
+    patchy::update_vector_shape_raster(shape, patchy::Rect::from_size(64, 64), nullptr);
+    document.add_layer(std::move(shape));
+    const auto written = patchy::psd::DocumentIo::write_layered_rgb8(document);
+    const auto reread = patchy::psd::DocumentIo::read(written, {});
+    const auto* roundtrip = reread.layers()[1].vector_shape();
+    CHECK(roundtrip != nullptr);
+    CHECK(roundtrip->stroke.fill_enabled == (mode == 3));
+    CHECK(roundtrip->stroke.enabled == (mode == 0));
+    const auto metrics = rgb_diff_metrics(patchy::Compositor{}.flatten_rgb8(document),
+                                         patchy::Compositor{}.flatten_rgb8(reread));
+    CHECK(metrics.max_channel_delta == 0);
+  }
 }
 
 patchy::PixelBuffer checker_tile(std::int32_t size, std::uint8_t r, std::uint8_t g, std::uint8_t b) {
@@ -1527,10 +1609,12 @@ std::vector<patchy::test::TestCase> psd_vector_fixtures_tests() {
        psd_vector_dirty_regeneration_reproduces_unchanged_bytes},
       {"psd_vector_move_translates_model_and_round_trips", psd_vector_move_translates_model_and_round_trips},
       {"psd_vector_mask_and_params_write_round_trip", psd_vector_mask_and_params_write_round_trip},
+      {"psd_authored_group_vector_mask_and_raster_parameters_round_trip", psd_authored_group_vector_mask_and_raster_parameters_round_trip},
       {"psd_saved_paths_write_round_trips_and_edits", psd_saved_paths_write_round_trips_and_edits},
       {"psd_saved_paths_reorder_round_trips", psd_saved_paths_reorder_round_trips},
       {"psd_work_path_saved_as_named_round_trips", psd_work_path_saved_as_named_round_trips},
       {"psd_authored_shape_layer_writes_native_blocks", psd_authored_shape_layer_writes_native_blocks},
+      {"psd_authored_none_paints_preserve_rendering", psd_authored_none_paints_preserve_rendering},
       {"psd_pattern_fill_shape_embeds_patt_block", psd_pattern_fill_shape_embeds_patt_block},
       {"psd_pattern_fill_missing_tile_writes_placeholder", psd_pattern_fill_missing_tile_writes_placeholder},
       {"psd_partial_vogk_is_omitted_full_vogk_kept", psd_partial_vogk_is_omitted_full_vogk_kept},

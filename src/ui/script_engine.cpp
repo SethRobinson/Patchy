@@ -1079,6 +1079,7 @@ void ScriptEngineHost::flush_pending_refresh() {
   pending_refresh_.clear();
   bool active_structure = false;
   bool active_pixels = false;
+  bool active_paths = false;
   for (auto& [session_id, refresh] : pending) {
     auto* session = window_.session_with_id(session_id);
     if (session == nullptr) {
@@ -1093,6 +1094,7 @@ void ScriptEngineHost::flush_pending_refresh() {
     }
     if (session == window_.active_session()) {
       active_structure = active_structure || refresh.structure;
+      active_paths = active_paths || refresh.paths;
       active_pixels = true;
     }
   }
@@ -1106,6 +1108,11 @@ void ScriptEngineHost::flush_pending_refresh() {
   }
   if (active_pixels) {
     window_.refresh_document_info();
+  }
+  if (active_paths) {
+    window_.refresh_layer_controls();
+    window_.refresh_paths_panel();
+    if (window_.canvas_) { window_.canvas_->update(); }
   }
 }
 

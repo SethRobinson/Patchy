@@ -2211,4 +2211,30 @@ Rect draw_linear_gradient(Document& document, LayerId layer_id, std::int32_t x0,
   return draw_gradient(document, layer_id, x0, y0, x1, y1, options, gradient);
 }
 
+Rect paint_pixel_block(Layer& layer, const PixelBuffer& source, Rect bounds, const EditOptions& options) {
+  if (source.empty() || source.format() != PixelFormat::rgba8() || source.width() != bounds.width || source.height() != bounds.height) {
+    return {};
+  }
+  const auto format = std::as_const(layer).pixels().format();
+  if (format.bit_depth != BitDepth::UInt8 || format.channels < 3) { return {}; }
+  expand_layer_to_include_rect(layer, bounds);
+  auto& pixels = layer.pixels();
+  const auto destination = layer.bounds();
+  bool changed = false;
+  auto edit = options;
+  for (int y = 0; y < source.height(); ++y) {
+    for (int x = 0; x < source.width(); ++x) {
+      const auto* input = source.pixel(x, y);
+      if (input[3] == 0) { continue; }
+      const auto coverage = static_cast<float>(input[3]) / 255.0F * selection_coverage(options, bounds.x + x, bounds.y + y);
+      if (coverage <= 0.0F) { continue; }
+      edit.primary = {input[0], input[1], input[2], 255};
+      auto* output = pixels.pixel(bounds.x + x - destination.x, bounds.y + y - destination.y);
+      changed = write_pixel(pixels, output, edit, false, coverage) || changed;
+    }
+    report_edit_progress(options);
+  }
+  return changed ? bounds : Rect{};
+}
+
 }  // namespace patchy

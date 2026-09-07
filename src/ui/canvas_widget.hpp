@@ -881,6 +881,8 @@ public:
   [[nodiscard]] QRect clear_active_layer_mask();
   [[nodiscard]] PixelBuffer selection_as_grayscale() const;
   void replace_selection_from_grayscale(const PixelBuffer& pixels, QString history_label);
+  // Apply under a caller-owned history transaction (native script batches).
+  void apply_grayscale_to_selection(const PixelBuffer& pixels);
   void grow_selection();
   void select_similar_to_selection();
   [[nodiscard]] std::optional<QRect> selected_document_rect() const noexcept;
@@ -1529,7 +1531,6 @@ private:
   void set_selection_from_region(QRegion selection);
   void set_selection_from_mask(QRegion selection, QRect mask_bounds, QImage mask_alpha);
   void restore_selection_before_edit();
-  void apply_grayscale_to_selection(const PixelBuffer& pixels);
   void finish_quick_mask_edit();
   void invalidate_quick_mask_display() noexcept;
   // Marks the cached marching-ants outline stale. Must be called by any code

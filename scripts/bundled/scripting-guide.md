@@ -78,6 +78,150 @@ A mutating script or stroke batch makes one undo entry per affected document. Fa
 
 Send one tool request at a time. A concurrent edit/state request receives `busy`. Cancellation interrupts JavaScript, stops timers, and lets native work reach an interruption boundary. The inactivity watchdog still applies. `app.runCommand` and `patchy.ui.createCanvas` report unsupported operations in connector sessions; use explicit document APIs (`patchy.ui.zoom` and `patchy.ui.fitOnScreen()` set the view before a window capture). Existing unattended option/dialog behavior applies. Scripts retain Patchy's trusted-script file privileges.
 
+## Native shapes, paths, and masks
+
+Use native shapes for editable illustrations, icons, diagrams, and reusable
+outlines. Inspect `layer.isShape` and `layer.getShape()` before editing an existing
+layer. Imported content can have `editable:false`; keep those layers intact.
+`patchy.d.ts` defines every option, default, unit, and returned snapshot.
+
+```js
+var doc = app.newDocument(960, 960);
+doc.addFillLayer('Backdrop', '#d9ebe4');
+var face = doc.addShape('Face',
+  {type:'ellipse', x:240, y:240, width:480, height:380},
+  {fill:'#efaa60', stroke:{width:6, paint:'#733f32'}});
+patchy.setResult({documentId:doc.id, layerId:face.id, shape:face.getShape()});
+```
+
+New shapes default to black fill and no outline, independently of toolbar settings.
+Supplying a stroke enables it by default with inside alignment. Geometry types are
+rectangle, roundedRectangle (one radius or TL/TR/BR/BL radii), ellipse, line (weight
+and arrowheads), polygon (sides and optional starInset), custom (resourceId and
+bounds), and path. Full-canvas fills use `addFillLayer`; empty shape geometry fails.
+
+Preview after this batch. In the next script, resolve those document/layer IDs and
+revise a small part. Globals reset between MCP calls, while documents persist.
+
+```js
+var doc = app.getDocument(patchy.args.documentId);
+var face = doc.getLayer(patchy.args.layerId);
+face.updateShape({fill:'#f2af69', stroke:{width:4}});
+var path = face.getShape().path; // detached, changing this does nothing by itself
+path.subpaths[0].anchors[0].outY -= 12;
+face.updateShape({path:path});  // explicitly commit the changed curve
+```
+
+Appearance updates preserve live geometry. Direct path edits invalidate only
+changed live groups. `updateShape({geometry:...})` replaces geometry; add `group`
+to replace one inspected group. Geometry and path replacement cannot be combined.
+Refresh anchor/group references after geometry replacement or Undo.
+
+All path coordinates and handles are absolute document pixels:
+
+```js
+var outline = {subpaths:[{closed:false, operation:'unite', group:0, anchors:[
+  {x:10,y:30,outX:20,outY:5,smooth:true},
+  {x:70,y:30,inX:60,inY:5,smooth:true}
+]}]};
+```
+
+Omitted handles coincide with the anchor. `closed` defaults true; operations are
+unite/subtract/intersect/exclude. Same-group subpaths use native even-odd fill,
+then group operations combine coverage. Paths allow 4096 subpaths and 100000
+anchors total; each subpath needs two anchors. Coordinates must be finite and in
+-100000..100000. Open path fills use an implied closing chord; strokes do not.
+
+`layer.transformShape([a,b,c,d,tx,ty],{strokeScale:1})` uses native affine geometry:
+`x'=a*x+c*y+tx`, `y'=b*x+d*y+ty`. It also accepts groups containing shapes and
+nested groups, validating every child first. Mixed groups and singular transforms
+fail. Vector masks transform with this native geometry; raster mask pixels keep
+their own coordinates. Stroke width stays fixed unless strokeScale is supplied.
+Supported transforms retain live parameters; other transforms keep editable paths.
+
+`doc.addGroup(name)`, `doc.groupLayers(layers,name)`, and
+`doc.moveLayers(layers,{parentId:group.id,index:0})` organize artwork. Grouping
+requires siblings and keeps their order. Destination index counts bottom to top
+after removing moving layers; null/omitted parentId means root, omitted index
+means top. Existing duplication, `ungroup`, and `combineShapes` also work.
+
+Fills and stroke paints accept `"none"`, RGB color strings, or typed solid,
+gradient, and pattern objects. Solid opacity belongs to the layer or stroke.
+Stroke fields include width, alignment, cap, join, miter limit, dashes/dashOffset
+(width multiples), opacity (0..1), blendMode, scaleLock, adjust, and fillEnabled.
+Partial updates preserve omitted values; explicitly enable a previously disabled
+stroke with `enabled:true`.
+
+```js
+face.updateShape({fill:{type:'gradient',gradient:{type:'radial',scale:1,
+  colorStops:[{position:0,color:'#fff0ce'},{position:1,color:'#efaa60'}],
+  alphaStops:[{position:0,opacity:1},{position:1,opacity:1}]}}});
+var resources = doc.listVectorResources();
+var pattern = resources.patterns.filter(function(p){return p.source==='library';})[0];
+if (pattern) { face.updateShape({fill:{type:'pattern',source:pattern.source,
+  resourceId:pattern.resourceId,scale:0.5}}); }
+```
+
+Gradients expose their current definition and placement: linear/radial/angle/
+reflected/diamond, solid/noise, stop midpoint/alpha, native smoothness, interpolation,
+reverse/dither, angle/scale, alignment/offset, and noise ranges/seed. A gradient
+`presetId` replaces its definition while retaining omitted placement. Foreground
+and background inputs default black/white; supply them explicitly if needed.
+Do not mix presetId with explicit definition fields in one update. Numeric paint
+scales use 1 = 100%; gradient offsets use native percentages. Pattern references
+distinguish library storage IDs and document IDs. Library application adopts the
+actual resource, handling ID collisions; inspection returns the adopted document
+reference. Resource enumeration is read-only and does not manage the libraries.
+
+Document paths use decimal-string IDs and wrappers that resolve through their
+owning document. `doc.paths` lists saved/work paths; `workPath` and `clippingPath`
+return a wrapper or null. `getPath(id)`, `addPath(name,data)`, and `setWorkPath(data)`
+provide targeted access. Path wrappers offer name, kind, getPath/setPath,
+transform, duplicate, remove, moveTo, activate, and save. `work.save(name)` makes a
+saved path at the end, retaining its ID; `moveTo(index)` orders saved paths only.
+Clipping assignment accepts one saved path from the same document or null.
+
+```js
+var saved = doc.addPath('Face outline', face.getShape().path);
+doc.clippingPath = saved;
+var masked = doc.groupLayers([face], 'Masked face');
+masked.setVectorMask({path:saved.getPath(),enabled:true,inverted:false,
+  linked:true,density:100,feather:0});
+doc.selection.fromPath(saved.getPath(),{operation:'replace',antialias:true,feather:0});
+doc.setWorkPath(doc.selection.toPath({tolerance:1}));
+```
+
+Shapes already use their native vector-path slot for geometry. Apply additional
+vector masks to groups containing those shapes. Ordinary pixel layers can carry
+a vector mask directly. The API rejects adding a second path slot to a shape.
+Mask density is 0..100 and feather is 0..1000 pixels. `getVectorMask()` returns a
+snapshot or null; `setVectorMask` creates or partially updates it. An empty path
+reveals all unless inverted. Use `removeVectorMask()` to remove one,
+`transformVectorMask(matrix)` to move only its geometry, or
+`rasterizeVectorMask()` to bake it through the native operation.
+Selection operations include replace/add/subtract/intersect. `toPath` fits the
+existing selection outline and returns geometry without storing it. Quick Mask
+must be exited before path-to-selection conversion.
+
+To paint on pixels, explicitly target an unlocked 8-bit pixel layer and call
+`layer.fillPath(path,{paint:'#ffaa77',opacity:1})` or
+`layer.strokePath(path,{color:'#733f32',size:4,seed:0})`. Fill accepts all native
+paints, and stroke uses the documented native Brush/Eraser options plus pressure.
+Both honor the selection and palette behavior. Native editable outlines instead
+belong to the shape's stroke appearance.
+
+Invalid operations are validated before mutation and do not add history. Earlier
+edits in a script that later fails remain undoable under its one-entry history
+contract. In attached MCP, pass expectedState from the latest state/preview even
+to an inspection script. State includes compact vector flags, masks, path IDs and
+revisions, and the active vector target; fetch full geometry with a targeted call.
+After a batch, inspect a fresh preview, revise, and save an editable PSD checkpoint.
+SVG exports supported native artwork; PSD retains richer layers/masks/paths.
+If exporting multiple formats, save PSD last to retain its document path.
+
+Served examples: `get_help` topics `vector-art` (staged ginger cat), `edit-shape`,
+and `paths-masks`. Each demonstrates small batches with preview/review between runs.
+
 ## Header directives
 
 A comment block at the top of a script describes it to the Script Manager and the Scripts menu:

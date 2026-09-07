@@ -43,6 +43,9 @@ namespace patchy::ui {
 class CanvasWidget;
 class MainWindow;
 class ScriptCanvasWindow;
+class PatternLibrary;
+class GradientLibrary;
+class CustomShapeLibrary;
 
 // Interrupts a STUCK script from a helper thread: the UI thread arms an
 // inactivity window around every evaluate()/callback invocation, and every
@@ -185,6 +188,15 @@ public:
   // layer panel and action states.
   void note_pixels_changed(std::int64_t session_id, const QRect& dirty_document_rect);
   void note_structure_changed(std::int64_t session_id);
+  void note_vector_changed(std::int64_t session_id, const QRect& dirty = {}, bool structure = false);
+  PatternLibrary& vector_pattern_library();
+  GradientLibrary& vector_gradient_library();
+  CustomShapeLibrary& vector_custom_shape_library();
+  void activate_document_path(std::int64_t session_id, DocumentPathId path_id);
+  QJsonObject vector_target(std::int64_t session_id) const;
+  void select_vector_path(std::int64_t session_id, const VectorPath& path,
+                          double feather, bool antialias, const QString& operation);
+  VectorPath selection_vector_path(std::int64_t session_id, double tolerance) const;
 
   // Palette-mode write constraint for script pixel writes (setPixels/fill are
   // tool-like writes and snap; filters deliberately stay advisory, matching the
@@ -356,6 +368,7 @@ private:
     QRegion dirty;
     bool full_canvas{false};
     bool structure{false};
+    bool paths{false};
   };
 
   // RAII: disarms the watchdog while a modal interactive helper (alert,

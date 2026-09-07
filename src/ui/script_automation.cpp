@@ -53,7 +53,7 @@ int integer(const QJSValue& obj, const QString& key, int fallback, int min, int 
   return static_cast<int>(n);
 }
 
-QJsonArray layer_state(const std::vector<Layer>& layers) {
+QJsonArray layer_state(const std::vector<Layer>& layers, const std::vector<Layer>& roots) {
   QJsonArray result;
   for (const auto& layer : layers) {
     result.append(QJsonObject{{"id", QString::number(layer.id())},
@@ -64,7 +64,17 @@ QJsonArray layer_state(const std::vector<Layer>& layers) {
                             {"opacity", layer.opacity() * 100.0},
                             {"blendMode", script_blend_mode_id(layer.blend_mode())},
                             {"isGroup", layer.kind() == LayerKind::Group}, {"isText", layer_is_text(layer)},
-                            {"children", layer_state(layer.children())}});
+                            {"isShape", layer_has_vector_shape_marker(layer)},
+                            {"vectorEditable", (layer.vector_shape() || layer.vector_mask()) &&
+                              vector_lock_reason(layer).empty() && layer.lock_flags() == kLayerLockNone &&
+                              !layer_effectively_locks_image_pixels(roots, layer.id()) && !layer_effectively_locks_position(roots, layer.id())},
+                            {"vectorLockReason", QString::fromStdString(vector_lock_reason(layer))},
+                            {"hasVectorMask", layer.vector_mask() != nullptr},
+                            {"vectorMask", layer.vector_mask() ? QJsonValue(QJsonObject{
+                              {"enabled", !layer.vector_mask()->disabled}, {"inverted", layer.vector_mask()->inverted},
+                              {"linked", !layer.vector_mask()->unlinked}, {"density", layer.vector_mask()->density * 100.0 / 255.0},
+                              {"feather", layer.vector_mask()->feather}}) : QJsonValue(QJsonValue::Null)},
+                            {"children", layer_state(layer.children(), roots)}});
   }
   return result;
 }
@@ -122,6 +132,16 @@ QJsonObject ScriptEngineHost::automation_state() const {
   QJsonArray documents;
   for (const auto id : session_ids()) {
     const auto* doc = session_document_const(id);
+    QJsonArray paths;
+    QJsonValue work_path(QJsonValue::Null), clipping_path(QJsonValue::Null);
+    for (const auto& path : doc->paths()) {
+      const auto path_id = QString::number(path.id());
+      paths.append(QJsonObject{{"id", path_id}, {"name", QString::fromStdString(path.name())},
+        {"kind", path.kind() == DocumentPathKind::Work ? "work" : "saved"},
+        {"revision", QString::number(path.content_revision())}, {"isClippingPath", path.is_clipping_path()}});
+      if (path.kind() == DocumentPathKind::Work) { work_path = path_id; }
+      if (path.is_clipping_path()) { clipping_path = path_id; }
+    }
     QJsonObject selection{{"exists", has_selection(id)}};
     if (has_selection(id)) { selection["bounds"] = rect_json(selection_region(id).boundingRect()); }
     documents.append(QJsonObject{{"id", QString::number(id)}, {"name", session_title(id)},
@@ -129,9 +149,10 @@ QJsonObject ScriptEngineHost::automation_state() const {
         {"historyStateId", QString::number(window_.session_with_id(id)->current_state_id)},
         {"path", session_file_path(id)}, {"width", doc->width()}, {"height", doc->height()},
         {"modified", session_modified(id)}, {"canUndo", session_can_undo(id)},
-        {"canRedo", session_can_undo(id, true)}, {"layers", layer_state(doc->layers())},
+        {"canRedo", session_can_undo(id, true)}, {"layers", layer_state(doc->layers(), doc->layers())},
         {"activeLayerId", doc->active_layer_id() ? QJsonValue(QString::number(*doc->active_layer_id())) : QJsonValue(QJsonValue::Null)},
-        {"selection", selection}});
+        {"selection", selection}, {"paths", paths}, {"workPathId", work_path},
+        {"clippingPathId", clipping_path}, {"vectorTarget", vector_target(id)}});
   }
   return {{"activeDocumentId", active_session_id() ? QJsonValue(QString::number(active_session_id())) : QJsonValue(QJsonValue::Null)},
           {"documents", documents}};

@@ -1,5 +1,11 @@
 # Local AI control
 
+Native vector automation uses `execute_script` with additive API 1 methods.
+`get_info` advertises vector capabilities; `get_state` includes compact shape,
+mask, path/revision, and target discovery, covered by attached state tokens.
+`get_help` topics `vector-art`, `edit-shape`, and `paths-masks` serve examples from
+the connected installation. See [vector-automation.md](vector-automation.md).
+
 Desktop packages include a native `patchy-mcp` stdio connector and an installable
 `patchy-control` skill. Agents can create documents, paint, inspect images, revise
 layers in later requests, and save editable PSDs. No Python or Node runtime is

@@ -241,10 +241,50 @@ void ui_mcp_attached_cancellation_interrupts_tight_loop() {
   connection.disconnect();
   CHECK(window.script_engine_host().session_ids().size() == 1);
 }
+void ui_mcp_vector_discovery_revisions_and_previews() {
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  Connection connection(window);
+  const auto info = connection.call("get_info")["structuredContent"].toObject();
+  CHECK(info["capabilities"].toArray().contains("vectorShapes"));
+  connection.edit(R"JS(
+    var d=app.newDocument(64,64);
+    var s=d.addShape('Face',{type:'ellipse',x:8,y:8,width:48,height:48},{fill:'#ffaa77'});
+    d.setWorkPath(s.getShape().path);
+    d.groupLayers([s],'Masked face').setVectorMask({path:s.getShape().path});
+    d.activeLayer=s;
+  )JS");
+  auto state = connection.state();
+  auto doc = state["documents"].toArray()[0].toObject();
+  CHECK(doc["paths"].toArray().size() == 1);
+  CHECK(!doc["workPathId"].toString().isEmpty());
+  const auto group = doc["layers"].toArray().last().toObject();
+  const auto shape = group["children"].toArray()[0].toObject();
+  CHECK(shape["isShape"].toBool() && shape["vectorEditable"].toBool());
+  CHECK(group["hasVectorMask"].toBool());
+  const auto before = connection.call("get_preview")["content"].toArray()[0].toObject()["data"].toString();
+  connection.edit("var d=app.activeDocument; d.activeLayer.getShape(); d.listVectorResources(); d.workPath.getPath();");
+  CHECK(connection.state()["stateToken"] == state["stateToken"]);
+  local_script(window, "app.activeDocument.workPath.activate();");
+  connection.call("execute_script", {{"code", "app.activeDocument.activeLayer.updateShape({fill:'#bb6611'});"},
+                                    {"expectedState", state["stateToken"]}}, true);
+  state = connection.state();
+  CHECK(state["documents"].toArray()[0].toObject()["vectorTarget"].toObject()["kind"] == "path");
+  connection.edit("var s=app.activeDocument.activeLayer; var p=s.getShape().path; p.subpaths[0].anchors[0].x+=8; s.updateShape({path:p,fill:'#bb6611'});");
+  CHECK(connection.state()["stateToken"] != state["stateToken"]);
+  const auto after = connection.call("get_preview")["content"].toArray()[0].toObject()["data"].toString();
+  CHECK(before != after);
+  connection.call("undo", {{"documentId", doc["id"]}, {"expectedState", connection.state()["stateToken"]}});
+  CHECK(connection.call("get_preview")["content"].toArray()[0].toObject()["data"] == before);
+  connection.call("redo", {{"documentId", doc["id"]}, {"expectedState", connection.state()["stateToken"]}});
+  CHECK(connection.call("get_preview")["content"].toArray()[0].toObject()["data"] == after);
+  connection.disconnect();
+}
 }  // namespace
 
 std::vector<patchy::test::TestCase> mcp_tests() {
   return {{"ui_mcp_attached_state_guard_and_unsaved_history", ui_mcp_attached_state_guard_and_unsaved_history},
           {"ui_mcp_activity_stop_input_lock_and_local_scripts", ui_mcp_activity_stop_input_lock_and_local_scripts},
-          {"ui_mcp_attached_cancellation_interrupts_tight_loop", ui_mcp_attached_cancellation_interrupts_tight_loop}};
+          {"ui_mcp_attached_cancellation_interrupts_tight_loop", ui_mcp_attached_cancellation_interrupts_tight_loop},
+          {"ui_mcp_vector_discovery_revisions_and_previews", ui_mcp_vector_discovery_revisions_and_previews}};
 }

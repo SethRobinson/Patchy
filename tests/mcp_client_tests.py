@@ -59,6 +59,9 @@ async def sdk_workflow(exe):
             assert "drawStrokes" in help_result["text"]
             assert help_result["text"] == (kit / "references" / "patchy.d.ts").read_bytes().decode("utf-8")
             assert (await call("get_help", {"topic": "reference-art"})).structuredContent["text"]
+            assert {"vectorShapes", "vectorPaths", "vectorMasks", "vectorPaints"} <= set(info["capabilities"])
+            for topic in ("vector-art", "edit-shape", "paths-masks"):
+                assert (await call("get_help", {"topic": topic})).structuredContent["text"] == (kit / "scripts" / (topic + ".js")).read_bytes().decode("utf-8")
             created = (await call("execute_script", {
                 "code": (kit / "scripts" / "pixel-art.js").read_text(encoding="utf-8"),
                 "args": {"out": str(OUT)},
@@ -124,6 +127,27 @@ async def sdk_workflow(exe):
             for script, args in [("painting", {"out": str(OUT)}),
                                  ("edit-document", {"input": str(final), "output": str(OUT / "edited.psd")})]:
                 await call("execute_script", {"code": (kit / "scripts" / (script + ".js")).read_text(encoding="utf-8"), "args": args})
+            vector_code = (kit / "scripts" / "vector-art.js").read_text(encoding="utf-8")
+            vector_id = ""
+            for stage in range(1, 9):
+                result = (await call("execute_script", {"code": vector_code, "args": {
+                    "stage": str(stage), "documentId": vector_id, "output": str(OUT / "vector-example")}})).structuredContent
+                vector_id = result["result"]["documentId"]
+                preview = await call("get_preview", {"documentId": vector_id, "options": {"maxWidth": 480, "maxHeight": 480}})
+                (OUT / ("vector-stage-%d.png" % stage)).write_bytes(base64.b64decode(next(x.data for x in preview.content if x.type == "image")))
+            inspected = (await call("execute_script", {"code": "var d=app.getDocument(patchy.args.documentId); patchy.setResult({layerId:d.findLayer('Head').id,shape:d.findLayer('Head').getShape()});",
+                                                    "args": {"documentId": vector_id}})).structuredContent["result"]
+            assert inspected["shape"]["editable"] and inspected["shape"]["path"]["subpaths"]
+            target_args = {"documentId": vector_id, "layerId": inspected["layerId"]}
+            await call("execute_script", {"code": "app.getDocument(patchy.args.documentId).getLayer(patchy.args.layerId).updateShape({fill:'#112233'}); throw Error('later failure');",
+                                          "args": target_args}, error=True)
+            await call("undo", {"documentId": vector_id})
+            restored = (await call("execute_script", {"code": "patchy.setResult(app.getDocument(patchy.args.documentId).getLayer(patchy.args.layerId).getShape());",
+                                                     "args": target_args})).structuredContent["result"]
+            assert restored == inspected["shape"], "Earlier vector edits must remain undoable after a later script failure"
+            for example, action in (("edit-shape", "inspect"), ("edit-shape", "revise"), ("paths-masks", "create"), ("paths-masks", "selection")):
+                await call("execute_script", {"code": (kit / "scripts" / (example + ".js")).read_text(encoding="utf-8"),
+                                              "args": {"documentId": vector_id, "layerId": inspected["layerId"], "action": action}})
     print("[PASS] MCP SDK: discovery, examples, persistent edits, previews, undo/redo, errors, save/reopen")
     assert not list(SESSION_TEMP.glob("patchy-mcp-*")), "Session settings were not cleaned up"
 
@@ -297,7 +321,7 @@ def protocol_edges(exe):
         send("tools/call", {"name": "get_state"}, 100)
         assert take(100)["result"]["structuredContent"]["documents"] == []
         send("tools/call", {"name": "execute_script", "arguments": {
-            "code": "app.newDocument(8,8); app.activeDocument.addLayer('Partial cancel'); while(true){}"}}, 2)
+            "code": "app.newDocument(8,8).addShape('Partial cancel',{type:'ellipse',x:1,y:1,width:6,height:6}); while(true){}"}}, 2)
         time.sleep(0.2)
         send("tools/call", {"name": "get_state"}, 3)
         assert take(3)["result"]["structuredContent"]["error"] == "busy"
@@ -306,6 +330,7 @@ def protocol_edges(exe):
         assert cancelled["isError"]
         assert cancelled["structuredContent"]["status"] == "cancelled"
         assert cancelled["structuredContent"]["state"]["documents"][0]["canUndo"]
+        assert cancelled["structuredContent"]["state"]["documents"][0]["layers"][-1]["isShape"]
         send("tools/call", {"name": "execute_script", "arguments": {"code": "patchy.setResult(42);"}}, 4)
         assert take(4)["result"]["structuredContent"]["result"] == 42
         # Immediate cancellation must not get lost while the engine is created.

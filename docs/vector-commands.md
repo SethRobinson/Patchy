@@ -1,5 +1,9 @@
 # Vector commands and point-editing UI
 
+JavaScript bindings share native path fitting, selection coverage, stroke
+sampling, and mask baking through `vector_operations.cpp`. See
+[vector-automation.md](vector-automation.md) for the automation contract.
+
 Feature reference for the path point-editing surface added in August 2026
 and the vector commands that operate on existing shapes. The model, PSD
 encodings, and the Pen/Direct Select basics live in

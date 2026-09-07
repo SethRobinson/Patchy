@@ -25,6 +25,10 @@ inline constexpr double kLiveShapeKappa = 0.5522847498307936;
 // kinds without a generator (None/Custom).
 [[nodiscard]] std::vector<PathSubpath> generate_live_shape_subpaths(const LiveShapeParams& params);
 
+// Shared center-out Polygon/Star tool geometry, angle in radians.
+[[nodiscard]] PathSubpath generate_polygon_subpath(double cx, double cy, double radius,
+                                                  double angle_radians, int sides, int star_inset);
+
 // Fills box_corners (A..D clockwise from top-left) from the bbox.
 void populate_live_shape_box_corners(LiveShapeParams& params) noexcept;
 

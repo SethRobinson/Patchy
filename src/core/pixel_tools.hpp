@@ -195,6 +195,11 @@ enum class CanvasAnchor {
 [[nodiscard]] Rect draw_linear_gradient(Document& document, LayerId layer_id, std::int32_t x0, std::int32_t y0,
                                         std::int32_t x1, std::int32_t y1, const EditOptions& options);
 void expand_layer_to_include_rect(Layer& layer, Rect document_rect);
+// Source-over an RGBA8 document-space block through the native pixel writer.
+// The caller has already applied selection coverage to the source alpha.
+// Preserves layer metadata and supports the same palette/alpha-lock rules as painting.
+[[nodiscard]] Rect paint_pixel_block(Layer& layer, const PixelBuffer& source, Rect bounds,
+                                      const EditOptions& options);
 [[nodiscard]] Rect flip_layer_horizontal(Document& document, LayerId layer_id);
 [[nodiscard]] Rect flip_layer_vertical(Document& document, LayerId layer_id);
 void resize_image_and_layers(Document& document, std::int32_t width, std::int32_t height);

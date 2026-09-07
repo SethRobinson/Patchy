@@ -1,10 +1,11 @@
 # Vector tools: pen paths, shape layers, vector masks, Paths panel
 
-Feature reference for Patchy's vector workflows: tool/UI behavior contracts,
-PSD vector-data encodings, fixtures, and the patent record. Encoding facts
-come from Photoshop 27.8 COM probes (July 2026; method rules at the end);
-probe scripts and the `psd_dump.py` structure dumper live in
-`local-test-fixtures/vector-probe/` (untracked). Binding constraints:
+Native scripting for shapes, paints, paths, masks, and selection conversion is
+documented in [vector-automation.md](vector-automation.md).
+
+UI/PSD contracts and patent boundaries. Encoding facts: Photoshop 27.8 COM
+probes (July 2026; method rules below);
+Probe scripts and `psd_dump.py`: `local-test-fixtures/vector-probe/` (untracked). Constraints:
 docs/legal-constraints.md.
 
 ## Shape tools (Line / Rectangle / Ellipse)

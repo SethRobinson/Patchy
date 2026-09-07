@@ -894,6 +894,32 @@ void tool_write_paths_digest_baseline() {
 
 }  // namespace
 
+namespace {
+void tool_paint_pixel_block_native_blend_selection_and_palette() {
+  auto document = make_tool_document();
+  const auto id = active_tool_layer(document);
+  patchy::PixelBuffer input(2, 1, patchy::PixelFormat::rgba8());
+  for (int x = 0; x < 2; ++x) { input.pixel(x, 0)[0] = 240; input.pixel(x, 0)[3] = 128; }
+  auto* layer = document.find_layer(id);
+  auto options = tool_options(0, 0, 0);
+  options.selection = patchy::Rect{10, 10, 1, 1};
+  CHECK(!patchy::paint_pixel_block(*layer, input, {10, 10, 2, 1}, options).empty());
+  CHECK(std::as_const(*layer).pixels().pixel(10, 10)[0] == 240);
+  CHECK(std::as_const(*layer).pixels().pixel(10, 10)[3] == 128);
+  CHECK(std::as_const(*layer).pixels().pixel(11, 10)[3] == 0);
+  options.selection.reset();
+  patchy::PaletteLut lut;
+  const std::array<patchy::RgbColor, 2> colors{{{0, 0, 0}, {255, 0, 0}}};
+  lut.build(colors);
+  patchy::PaletteSnapContext snap; snap.lut = &lut; snap.coverage_threshold = 0.5F;
+  options.palette_snap = &snap;
+  input.pixel(0, 0)[3] = 127;
+  CHECK(!patchy::paint_pixel_block(*layer, input, {20, 10, 2, 1}, options).empty());
+  CHECK(std::as_const(*layer).pixels().pixel(20, 10)[3] == 0);
+  CHECK(std::as_const(*layer).pixels().pixel(21, 10)[0] == 255);
+  CHECK(std::as_const(*layer).pixels().pixel(21, 10)[3] == 255);
+}
+}
 std::vector<patchy::test::TestCase> pixel_tools_tests() {
   return {
       {"tool_one_pixel_brush_segment_snaps_fractional_points_to_one_pixel",
@@ -932,5 +958,6 @@ std::vector<patchy::test::TestCase> pixel_tools_tests() {
       {"tool_clear_rgb_selection_converts_only_when_pixels_change",
        tool_clear_rgb_selection_converts_only_when_pixels_change},
       {"tool_write_paths_digest_baseline", tool_write_paths_digest_baseline},
+      {"tool_paint_pixel_block_native_blend_selection_and_palette", tool_paint_pixel_block_native_blend_selection_and_palette},
   };
 }

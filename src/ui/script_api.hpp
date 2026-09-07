@@ -44,6 +44,7 @@ class ScriptLayerObject : public QObject {
   Q_PROPERTY(QJSValue bounds READ bounds)
   Q_PROPERTY(bool isGroup READ is_group)
   Q_PROPERTY(bool isText READ is_text)
+  Q_PROPERTY(bool isShape READ is_shape)
   Q_PROPERTY(QJSValue children READ children)
   Q_PROPERTY(QString text READ text WRITE set_text)
 
@@ -69,6 +70,17 @@ public:
   [[nodiscard]] QJSValue bounds() const;
   [[nodiscard]] bool is_group() const;
   [[nodiscard]] bool is_text() const;
+  [[nodiscard]] bool is_shape() const;
+  Q_INVOKABLE QJSValue getShape() const;
+  Q_INVOKABLE void updateShape(const QJSValue& changes);
+  Q_INVOKABLE void transformShape(const QJSValue& matrix, const QJSValue& options = QJSValue());
+  Q_INVOKABLE QJSValue getVectorMask() const;
+  Q_INVOKABLE void setVectorMask(const QJSValue& options);
+  Q_INVOKABLE void removeVectorMask();
+  Q_INVOKABLE void transformVectorMask(const QJSValue& matrix);
+  Q_INVOKABLE void rasterizeVectorMask();
+  Q_INVOKABLE void fillPath(const QJSValue& path, const QJSValue& options = QJSValue());
+  Q_INVOKABLE void strokePath(const QJSValue& path, const QJSValue& options = QJSValue());
   [[nodiscard]] QJSValue children() const;
   [[nodiscard]] QString text() const;
   void set_text(const QString& text);
@@ -119,6 +131,8 @@ public:
   Q_INVOKABLE void deselect();
   Q_INVOKABLE void selectRect(int x, int y, int width, int height);
   Q_INVOKABLE void selectEllipse(int x, int y, int width, int height);
+  Q_INVOKABLE void fromPath(const QJSValue& path, const QJSValue& options = QJSValue());
+  Q_INVOKABLE QJSValue toPath(const QJSValue& options = QJSValue()) const;
 
 private:
   ScriptEngineHost& host_;
@@ -139,6 +153,9 @@ class ScriptDocumentObject : public QObject {
   Q_PROPERTY(QJSValue layers READ layers)
   Q_PROPERTY(QJSValue activeLayer READ active_layer WRITE set_active_layer)
   Q_PROPERTY(QJSValue selection READ selection)
+  Q_PROPERTY(QJSValue paths READ paths)
+  Q_PROPERTY(QJSValue workPath READ work_path)
+  Q_PROPERTY(QJSValue clippingPath READ clipping_path WRITE set_clipping_path)
 
 public:
   ScriptDocumentObject(ScriptEngineHost& host, std::int64_t session_id);
@@ -162,6 +179,20 @@ public:
   [[nodiscard]] QJSValue selection() const;
 
   Q_INVOKABLE QJSValue addLayer(const QString& name);
+  Q_INVOKABLE QJSValue addShape(const QString& name, const QJSValue& geometry,
+                               const QJSValue& appearance = QJSValue());
+  Q_INVOKABLE QJSValue addFillLayer(const QString& name, const QJSValue& paint);
+  Q_INVOKABLE QJSValue addGroup(const QString& name);
+  Q_INVOKABLE QJSValue groupLayers(const QJSValue& layers, const QString& name);
+  Q_INVOKABLE void moveLayers(const QJSValue& layers, const QJSValue& destination);
+  Q_INVOKABLE QJSValue listVectorResources() const;
+  [[nodiscard]] QJSValue paths() const;
+  [[nodiscard]] QJSValue work_path() const;
+  [[nodiscard]] QJSValue clipping_path() const;
+  void set_clipping_path(const QJSValue& path);
+  Q_INVOKABLE QJSValue getPath(const QString& id) const;
+  Q_INVOKABLE QJSValue addPath(const QString& name, const QJSValue& data);
+  Q_INVOKABLE QJSValue setWorkPath(const QJSValue& data);
   Q_INVOKABLE QJSValue addTextLayer(const QString& text, const QJSValue& options = QJSValue());
   Q_INVOKABLE QJSValue findLayer(const QString& name);
   // Combine Shapes: merges the shape layers (siblings) into the bottom-most

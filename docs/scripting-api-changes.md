@@ -1,5 +1,13 @@
 # Scripting API compatibility
 
+2026-09-07 (additive, still API 1): native `addShape`/`addFillLayer`,
+`isShape`/`getShape`/`updateShape`/`transformShape`, `addGroup`/`groupLayers`/
+`moveLayers`, saved/work/clipping path wrappers, vector-mask editing, path/selection
+conversion, raster `fillPath`/`strokePath`, and `listVectorResources`. Fills and
+outlines support all existing native paint types. MCP exposes vector state and
+includes revisions and targets in attached tokens. See [vector-automation.md](vector-automation.md).
+The installed skill remains a stable entry point to the connected app's types/examples.
+
 September 2026 (additive, still API 1): MCP `--attach` connects to an existing
 interactive workspace. Mutating MCP tools accept `expectedState` (required for
 attachment); state/preview results include `stateToken`. State also exposes

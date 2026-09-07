@@ -10,6 +10,7 @@
 #include "ui/canvas_widget.hpp"
 
 #include "core/document_path.hpp"
+#include "core/vector_live_shapes.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/layer_render_utils.hpp"
 #include "core/vector_raster.hpp"
@@ -108,31 +109,9 @@ const patchy::VectorPath* CanvasWidget::custom_shape_path() const noexcept {
 
 // Center-out polygon/star: the first vertex points at the drag cursor.
 PathSubpath CanvasWidget::polygon_drag_subpath(QPointF center, QPointF radius_point) const {
-  PathSubpath subpath;
-  const double radius = std::hypot(radius_point.x() - center.x(), radius_point.y() - center.y());
-  if (radius < 0.5) {
-    return subpath;
-  }
-  const double base_angle =
-      std::atan2(radius_point.y() - center.y(), radius_point.x() - center.x());
-  const int sides = std::clamp(polygon_sides_, 3, 100);
-  const bool star = polygon_star_inset_ > 0;
-  const double inner_radius = radius * (100 - polygon_star_inset_) / 100.0;
-  const int point_count = star ? sides * 2 : sides;
-  for (int i = 0; i < point_count; ++i) {
-    const double point_radius = star && (i % 2) != 0 ? inner_radius : radius;
-    const double angle =
-        base_angle + i * 2.0 * std::numbers::pi / point_count;
-    PathAnchor anchor;
-    anchor.anchor_x = center.x() + point_radius * std::cos(angle);
-    anchor.anchor_y = center.y() + point_radius * std::sin(angle);
-    anchor.in_x = anchor.anchor_x;
-    anchor.in_y = anchor.anchor_y;
-    anchor.out_x = anchor.anchor_x;
-    anchor.out_y = anchor.anchor_y;
-    subpath.anchors.push_back(anchor);
-  }
-  return subpath;
+  const auto dx = radius_point.x() - center.x(), dy = radius_point.y() - center.y();
+  return generate_polygon_subpath(center.x(), center.y(), std::hypot(dx, dy),
+      std::atan2(dy, dx), polygon_sides_, polygon_star_inset_);
 }
 
 void CanvasWidget::commit_polygon_drag(QPointF center, QPointF radius_point) {

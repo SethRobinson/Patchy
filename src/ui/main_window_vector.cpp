@@ -4,6 +4,7 @@
 // the Line/Rectangle/Ellipse tools live here too (built in
 // main_window_actions.cpp, refined by refresh_vector_tool_options_visibility).
 #include "ui/main_window.hpp"
+#include "ui/vector_operations.hpp"
 
 #include "core/path_simplify.hpp"
 #include "core/shape_combine.hpp"
@@ -989,29 +990,6 @@ void MainWindow::populate_new_fill_layer_menu(QMenu* menu, const QString& object
            [this] { new_pattern_fill_layer(); });
 }
 
-namespace {
-
-// Materializes the vector-mask coverage cache onto the full canvas (zero
-// outside cache_bounds).
-PixelBuffer vector_mask_full_coverage(const LayerVectorMask& mask, int width, int height) {
-  PixelBuffer coverage(width, height, PixelFormat::gray8());
-  for (int y = 0; y < height; ++y) {
-    for (int x = 0; x < width; ++x) {
-      const auto local_x = x - mask.cache_bounds.x;
-      const auto local_y = y - mask.cache_bounds.y;
-      std::uint8_t value = 0;
-      if (!mask.cache.empty() && local_x >= 0 && local_y >= 0 && local_x < mask.cache.width() &&
-          local_y < mask.cache.height()) {
-        value = *mask.cache.pixel(local_x, local_y);
-      }
-      *coverage.pixel(x, y) = value;
-    }
-  }
-  return coverage;
-}
-
-}  // namespace
-
 Layer* MainWindow::vector_mask_command_layer(bool require_mask) {
   if (!has_active_document()) {
     return nullptr;
@@ -1019,8 +997,12 @@ Layer* MainWindow::vector_mask_command_layer(bool require_mask) {
   auto& doc = document();
   const auto active = doc.active_layer_id();
   auto* layer = active.has_value() ? doc.find_layer(*active) : nullptr;
-  if (layer == nullptr || layer->kind() == LayerKind::Group) {
+  if (layer == nullptr) {
     show_status_error(tr("Select a layer to work with vector masks"));
+    return nullptr;
+  }
+  if (!require_mask && layer->vector_shape()) {
+    show_status_error(tr("Put shape layers in a group and apply the vector mask to that group."));
     return nullptr;
   }
   if (!vector_lock_reason(*layer).empty()) {
@@ -1116,41 +1098,7 @@ void MainWindow::rasterize_active_vector_mask() {
   }
   auto& doc = document();
   push_undo_snapshot(tr("Rasterize vector mask"));
-  auto coverage = vector_mask_full_coverage(*layer->vector_mask(), doc.width(), doc.height());
-  if (layer->vector_mask()->density != 255) {
-    // Bake the density the way the compositor applies it.
-    const auto density = static_cast<int>(layer->vector_mask()->density);
-    for (int y = 0; y < coverage.height(); ++y) {
-      for (int x = 0; x < coverage.width(); ++x) {
-        auto* value = coverage.pixel(x, y);
-        *value = static_cast<std::uint8_t>((*value * density) / 255 + (255 - density));
-      }
-    }
-  }
-  if (const auto& existing = std::as_const(*layer).mask(); existing.has_value()) {
-    // Both masks multiply in the compositor; the baked result does the same.
-    for (int y = 0; y < coverage.height(); ++y) {
-      for (int x = 0; x < coverage.width(); ++x) {
-        const auto local_x = x - existing->bounds.x;
-        const auto local_y = y - existing->bounds.y;
-        std::uint8_t raster_value = existing->default_color;
-        if (!existing->pixels.empty() && local_x >= 0 && local_y >= 0 &&
-            local_x < existing->pixels.width() && local_y < existing->pixels.height()) {
-          raster_value = *existing->pixels.pixel(local_x, local_y);
-        }
-        auto* value = coverage.pixel(x, y);
-        *value = static_cast<std::uint8_t>((*value * raster_value) / 255);
-      }
-    }
-  }
-  layer->set_mask(LayerMask{Rect::from_size(doc.width(), doc.height()), std::move(coverage), 255,
-                            false});
-  layer->clear_vector_mask();
-  auto& blocks = layer->unknown_psd_blocks();
-  std::erase_if(blocks, [](const UnknownPsdBlock& block) {
-    return block.key == "vmsk" || block.key == "vsms";
-  });
-  mark_layer_vector_block_dirty(*layer);
+  bake_vector_mask(*layer, doc.width(), doc.height());
   if (canvas_ != nullptr &&
       canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::VectorMask) {
     canvas_->set_layer_edit_target(CanvasWidget::LayerEditTarget::Mask);

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <numbers>
 
 namespace patchy {
 
@@ -263,6 +264,32 @@ std::vector<PathSubpath> generate_live_shape_subpaths(const LiveShapeParams& par
 void populate_live_shape_box_corners(LiveShapeParams& params) noexcept {
   params.box_corners = {params.left,  params.top,    params.right, params.top,
                         params.right, params.bottom, params.left,  params.bottom};
+}
+
+PathSubpath generate_polygon_subpath(double cx, double cy, double radius, double angle_radians,
+                                      int requested_sides, int star_inset) {
+  PathSubpath subpath;
+  if (radius < 0.5) {
+    return subpath;
+  }
+  const int sides = std::clamp(requested_sides, 3, 100);
+  const bool star = star_inset > 0;
+  const double inner_radius = radius * (100 - star_inset) / 100.0;
+  const int point_count = star ? sides * 2 : sides;
+  for (int i = 0; i < point_count; ++i) {
+    const double point_radius = star && (i % 2) != 0 ? inner_radius : radius;
+    const double angle =
+        angle_radians + i * 2.0 * std::numbers::pi / point_count;
+    PathAnchor anchor;
+    anchor.anchor_x = cx + point_radius * std::cos(angle);
+    anchor.anchor_y = cy + point_radius * std::sin(angle);
+    anchor.in_x = anchor.anchor_x;
+    anchor.in_y = anchor.anchor_y;
+    anchor.out_x = anchor.anchor_x;
+    anchor.out_y = anchor.anchor_y;
+    subpath.anchors.push_back(anchor);
+  }
+  return subpath;
 }
 
 }  // namespace patchy

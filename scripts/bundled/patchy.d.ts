@@ -122,6 +122,24 @@ interface PatchyLayer {
   readonly bounds: PatchyRect;
   readonly isGroup: boolean;
   readonly isText: boolean;
+  readonly isShape: boolean;
+  getShape(): PatchyShapeState | null;
+  /** Partial update. geometry and path are mutually exclusive; group targets one existing shape group. */
+  updateShape(changes: {geometry?: PatchyVectorGeometry; group?: number; path?: PatchyVectorPath;
+    fill?: PatchyVectorPaint; stroke?: PatchyVectorStroke; pathDisabled?: boolean; pathInverted?: boolean}): void;
+  /** Affine [a,b,c,d,tx,ty]: x'=a*x+c*y+tx, y'=b*x+d*y+ty. Native stroke width stays fixed unless strokeScale is supplied. */
+  transformShape(matrix: PatchyVectorMatrix, options?: {strokeScale?: number}): void;
+  getVectorMask(): PatchyVectorMask | null;
+  /** Creates or partially updates a mask on an ordinary layer or group. For shapes, mask their group.
+   * An empty path reveals all, or hides all when inverted. */
+  setVectorMask(options: Partial<PatchyVectorMask>): void;
+  removeVectorMask(): void;
+  transformVectorMask(matrix: PatchyVectorMatrix): void;
+  rasterizeVectorMask(): void;
+  /** Native raster fill on an unlocked RGB/RGBA8 pixel layer; selection clips the paint. */
+  fillPath(path: PatchyVectorPath, options?: {paint?: PatchyVectorPaint; opacity?: number}): void;
+  /** Native Brush/Eraser along actual segments, including the closing segment only for closed paths. */
+  strokePath(path: PatchyVectorPath, options?: Omit<PatchyStroke, "points"> & {pressure?: number}): void;
   /** Child layers (groups only). */
   readonly children: PatchyLayer[];
   /** Text layers: setting text re-renders the layer; an empty string clears its ink. */
@@ -229,6 +247,10 @@ interface PatchyTraceOptions {
 }
 
 interface PatchySelection {
+  fromPath(path: PatchyVectorPath, options?: {operation?: "replace" | "add" | "subtract" | "intersect";
+    feather?: number; antialias?: boolean}): void;
+  /** Fits the hard selection boundary once. tolerance: 0.5..10 px, default 2. */
+  toPath(options?: {tolerance?: number}): PatchyVectorPath;
   readonly exists: boolean;
   /** Bounding box, or undefined when there is no selection. */
   readonly bounds: PatchyRect | undefined;
@@ -241,6 +263,25 @@ interface PatchySelection {
 }
 
 interface PatchyDocument {
+  readonly paths: PatchyDocumentPath[];
+  readonly workPath: PatchyDocumentPath | null;
+  clippingPath: PatchyDocumentPath | null;
+  getPath(id: string): PatchyDocumentPath;
+  addPath(name: string, data: PatchyVectorPath): PatchyDocumentPath;
+  /** Replaces the single work path while preserving its ID, or creates it. */
+  setWorkPath(data: PatchyVectorPath): PatchyDocumentPath;
+  /** Creates a top-level native shape and activates it. Defaults: black fill, no stroke. */
+  addShape(name: string, geometry: PatchyVectorGeometry,
+    appearance?: {fill?: PatchyVectorPaint; stroke?: PatchyVectorStroke}): PatchyLayer;
+  addFillLayer(name: string, paint: PatchyVectorPaint): PatchyLayer;
+  addGroup(name: string): PatchyLayer;
+  /** Siblings only; preserves their bottom-to-top order, inserts the group at the bottom selected position. */
+  groupLayers(layers: PatchyLayer[], name: string): PatchyLayer;
+  /** index is measured AFTER removing the moved layers. null/omitted parentId means document root; omitted index appends. */
+  moveLayers(layers: PatchyLayer[], destination: {parentId?: string | null; index?: number}): void;
+  listVectorResources(): {customShapes: {resourceId: string; name: string; folder: string}[];
+    gradients: {presetId: string; name: string; folder: string}[];
+    patterns: {source: "library" | "document"; resourceId: string; name: string; folder?: string; width: number; height: number}[]};
   /** Decimal string identity, valid while this document remains open. */
   readonly id: string;
   readonly modified: boolean;
@@ -544,3 +585,94 @@ declare const console: {
   warn(...values: unknown[]): void;
   error(...values: unknown[]): void;
 };
+
+/** Document pixels, finite and between -100000 and 100000; controls are absolute.
+ * Missing handles coincide with the anchor. Snapshots are detached, never live proxies.
+ */
+interface PatchyVectorAnchor {
+  x: number; y: number; inX?: number; inY?: number; outX?: number; outY?: number; smooth?: boolean;
+}
+interface PatchyVectorPath {
+  /** At most 4096 subpaths, 100000 anchors total, at least two anchors per subpath.
+   * Same-group subpaths use even-odd fill; operations combine groups in native order.
+   * group defaults to the subpath index, operation to unite, closed to true.
+   */
+  subpaths: {anchors: PatchyVectorAnchor[]; closed?: boolean;
+    operation?: "unite" | "subtract" | "intersect" | "exclude"; group?: number}[];
+}
+type PatchyVectorMatrix = [number, number, number, number, number, number];
+type PatchyVectorGeometry =
+  | {type: "rectangle" | "roundedRectangle"; x: number; y: number; width: number; height: number;
+      radius?: number; /** TL, TR, BR, BL */ radii?: [number, number, number, number]}
+  | {type: "ellipse"; x: number; y: number; width: number; height: number}
+  | {type: "line"; x1: number; y1: number; x2: number; y2: number; weight?: number;
+      arrowStart?: boolean; arrowEnd?: boolean; arrowWidth?: number; arrowLength?: number}
+  | {type: "polygon"; cx: number; cy: number; radius: number; sides?: number;
+      /** 0..99 percent, default 0 */ starInset?: number; /** degrees, default -90 */ angle?: number}
+  | {type: "custom"; resourceId: string; x: number; y: number; width: number; height: number}
+  | {type: "path"; path: PatchyVectorPath};
+/** RGB colors use #rrggbb or named colors. Solid alpha belongs to layer opacity/stroke opacity.
+ * A color string abbreviates solid paint; "none" disables paint. Numeric scales use 1 = 100%.
+ */
+type PatchyVectorPaint = string
+  | {type: "none"}
+  | {type: "solid"; color: string}
+  | {type: "gradient"; gradient: PatchyVectorGradient}
+  | {type: "pattern"; source?: "library" | "document"; resourceId?: string;
+      scale?: number; angle?: number; linked?: boolean; offsetX?: number; offsetY?: number};
+interface PatchyVectorGradient {
+  /** Applying a preset replaces only the definition, preserving placement.
+   * presetId cannot be mixed with form/colorStops/alphaStops/noise in the same update.
+   */
+  presetId?: string;
+  /** Resolve dynamic preset stops at apply time; defaults black/white. */
+  foreground?: string; background?: string;
+  name?: string; form?: "solid" | "noise";
+  type?: "linear" | "radial" | "angle" | "reflected" | "diamond";
+  /** position, midpoint, opacity: 0..1. Up to 256 stops in each list. */
+  colorStops?: {position: number; color?: string; midpoint?: number; kind?: "color" | "foreground" | "background"}[];
+  alphaStops?: {position: number; opacity: number; midpoint?: number}[];
+  /** Native 0..4096 smoothness. */ smoothness?: number;
+  angle?: number; scale?: number; reverse?: boolean; dither?: boolean;
+  interpolation?: "classic" | "perceptual" | "linear";
+  alignWithLayer?: boolean;
+  /** Native percentage offsets. */ offsetX?: number; offsetY?: number;
+  noise?: {seed?: number; roughness?: number; transparency?: boolean; restrictColors?: boolean;
+    colorModel?: "rgb" | "hsb" | "lab"; minimum?: [number, number, number, number]; maximum?: [number, number, number, number]};
+}
+interface PatchyVectorStroke {
+  enabled?: boolean; fillEnabled?: boolean; width?: number; paint?: PatchyVectorPaint;
+  alignment?: "inside" | "center" | "outside";
+  cap?: "butt" | "round" | "square"; join?: "miter" | "round" | "bevel";
+  /** Dash values and offset are stroke-width multiples; at most 64 positive values. */
+  dashes?: number[]; dashOffset?: number; miterLimit?: number;
+  /** 0..1 */ opacity?: number; blendMode?: string; scaleLock?: boolean; adjust?: boolean;
+}
+interface PatchyShapeState {
+  editable: boolean; lockReason: string;
+  /** Geometry/appearance may be absent for imported, unparsed vector content. */
+  path?: PatchyVectorPath;
+  liveShapes?: {group: number; geometry: PatchyVectorGeometry}[];
+  fill?: PatchyVectorPaint; stroke?: PatchyVectorStroke;
+  pathDisabled?: boolean; pathInverted?: boolean; isFillLayer?: boolean;
+}
+interface PatchyVectorMask {
+  path: PatchyVectorPath; enabled: boolean; inverted: boolean; linked: boolean;
+  /** 0..100, default 100. */ density: number;
+  /** Document pixels, 0..1000, default 0. */ feather: number;
+}
+interface PatchyDocumentPath {
+  readonly id: string;
+  /** Rename saved paths. To name the work path, call save(name). */ name: string;
+  readonly kind: "saved" | "work";
+  getPath(): PatchyVectorPath;
+  setPath(data: PatchyVectorPath): void;
+  transform(matrix: PatchyVectorMatrix): void;
+  /** Creates a saved copy with a fresh ID; omitted name keeps the source name. */
+  duplicate(name?: string): PatchyDocumentPath;
+  remove(): void;
+  /** Zero-based index among saved paths. */ moveTo(index: number): void;
+  activate(): void;
+  /** Converts the work path to a saved path at the end, retaining its ID; otherwise renames. */
+  save(name: string): void;
+}

@@ -3,6 +3,7 @@
 // Fill Path (foreground), Stroke Path (brush-sized band), Make Selection,
 // Delete Path. The panel widget itself is presentation-only (paths_panel.cpp).
 #include "ui/main_window.hpp"
+#include "ui/vector_operations.hpp"
 
 #include "core/blend_math.hpp"
 #include "core/document_path.hpp"
@@ -115,64 +116,6 @@ QPixmap path_outline_thumbnail(const VectorPath& path, int document_width, int d
   return pixmap;
 }
 
-// Dense document-space polylines for stroking with the brush engine: one per
-// subpath, sampled every ~2 px (the engine applies its own stamp spacing
-// between input events). Closed subpaths traverse their closing segment; open
-// subpaths do NOT gain the fill-only implied chord.
-std::vector<std::vector<QPointF>> stroke_polylines_for_path(const VectorPath& path) {
-  std::vector<std::vector<QPointF>> polylines;
-  for (const auto& subpath : path.subpaths) {
-    if (subpath.anchors.size() < 2) {
-      continue;
-    }
-    std::vector<QPointF> points;
-    const auto anchor_count = subpath.anchors.size();
-    const auto segment_count = subpath.closed ? anchor_count : anchor_count - 1;
-    points.emplace_back(subpath.anchors[0].anchor_x, subpath.anchors[0].anchor_y);
-    for (std::size_t i = 0; i < segment_count; ++i) {
-      const auto& a = subpath.anchors[i];
-      const auto& b = subpath.anchors[(i + 1) % anchor_count];
-      const QPointF p0(a.anchor_x, a.anchor_y);
-      const QPointF p1(a.out_x, a.out_y);
-      const QPointF p2(b.in_x, b.in_y);
-      const QPointF p3(b.anchor_x, b.anchor_y);
-      const auto hull =
-          QLineF(p0, p1).length() + QLineF(p1, p2).length() + QLineF(p2, p3).length();
-      const int steps = std::clamp(static_cast<int>(std::lround(hull / 2.0)), 4, 400);
-      for (int step = 1; step <= steps; ++step) {
-        const double t = static_cast<double>(step) / steps;
-        const double u = 1.0 - t;
-        points.emplace_back(u * u * u * p0.x() + 3.0 * t * u * u * p1.x() +
-                                3.0 * t * t * u * p2.x() + t * t * t * p3.x(),
-                            u * u * u * p0.y() + 3.0 * t * u * u * p1.y() +
-                                3.0 * t * t * u * p2.y() + t * t * t * p3.y());
-      }
-    }
-    polylines.push_back(std::move(points));
-  }
-  return polylines;
-}
-
-// Full-canvas grayscale coverage of a path (no feather).
-PixelBuffer path_selection_coverage(const VectorPath& path, int width, int height) {
-  VectorRasterOptions options;
-  options.clip = Rect::from_size(width, height);
-  auto coverage = rasterize_vector_path(path, options);
-  PixelBuffer full(width, height, PixelFormat::gray8());
-  for (int y = 0; y < height; ++y) {
-    for (int x = 0; x < width; ++x) {
-      const auto local_x = x - coverage.bounds.x;
-      const auto local_y = y - coverage.bounds.y;
-      std::uint8_t value = 0;
-      if (!coverage.pixels.empty() && local_x >= 0 && local_y >= 0 &&
-          local_x < coverage.pixels.width() && local_y < coverage.pixels.height()) {
-        value = *coverage.pixels.pixel(local_x, local_y);
-      }
-      *full.pixel(x, y) = value;
-    }
-  }
-  return full;
-}
 
 }  // namespace
 
@@ -1034,90 +977,9 @@ void MainWindow::make_selection_from_path() {
   }
 
   auto& doc = document();
-  auto coverage = path_selection_coverage(*path, doc.width(), doc.height());
-  if (feather->value() > 0.0) {
-    // Triple box blur approximating a gaussian (the vector-mask feather rule:
-    // box radius is about half the feather value).
-    const auto radius = std::max(1, static_cast<int>(std::lround(feather->value() * 0.5)));
-    const auto width = coverage.width();
-    const auto height = coverage.height();
-    PixelBuffer scratch(width, height, PixelFormat::gray8());
-    for (int pass = 0; pass < 3; ++pass) {
-      // Horizontal then vertical box.
-      for (int y = 0; y < height; ++y) {
-        int sum = 0;
-        int count = 0;
-        for (int x = -radius; x <= radius; ++x) {
-          if (x >= 0 && x < width) {
-            sum += *coverage.pixel(x, y);
-            ++count;
-          }
-        }
-        for (int x = 0; x < width; ++x) {
-          *scratch.pixel(x, y) = static_cast<std::uint8_t>(sum / std::max(1, count));
-          const auto add_x = x + radius + 1;
-          const auto remove_x = x - radius;
-          if (add_x < width) {
-            sum += *coverage.pixel(add_x, y);
-            ++count;
-          }
-          if (remove_x >= 0) {
-            sum -= *coverage.pixel(remove_x, y);
-            --count;
-          }
-        }
-      }
-      for (int x = 0; x < width; ++x) {
-        int sum = 0;
-        int count = 0;
-        for (int y = -radius; y <= radius; ++y) {
-          if (y >= 0 && y < height) {
-            sum += *scratch.pixel(x, y);
-            ++count;
-          }
-        }
-        for (int y = 0; y < height; ++y) {
-          *coverage.pixel(x, y) = static_cast<std::uint8_t>(sum / std::max(1, count));
-          const auto add_y = y + radius + 1;
-          const auto remove_y = y - radius;
-          if (add_y < height) {
-            sum += *scratch.pixel(x, add_y);
-            ++count;
-          }
-          if (remove_y >= 0) {
-            sum -= *scratch.pixel(x, remove_y);
-            --count;
-          }
-        }
-      }
-    }
-  }
-  if (!antialias->isChecked()) {
-    for (int y = 0; y < coverage.height(); ++y) {
-      for (int x = 0; x < coverage.width(); ++x) {
-        auto* value = coverage.pixel(x, y);
-        *value = *value >= 128 ? 255 : 0;
-      }
-    }
-  }
-  const auto operation_index = has_selection ? operation->currentIndex() : 0;
-  if (operation_index != 0) {
-    const auto existing =
-        selection_mask_pixels(*canvas_, QRect(0, 0, doc.width(), doc.height()));
-    for (int y = 0; y < coverage.height(); ++y) {
-      for (int x = 0; x < coverage.width(); ++x) {
-        auto* value = coverage.pixel(x, y);
-        const auto current = *existing.pixel(x, y);
-        if (operation_index == 1) {
-          *value = std::max(*value, current);
-        } else if (operation_index == 2) {
-          *value = static_cast<std::uint8_t>((current * (255 - *value)) / 255);
-        } else {
-          *value = static_cast<std::uint8_t>((current * *value) / 255);
-        }
-      }
-    }
-  }
+  const auto existing = selection_mask_pixels(*canvas_, QRect(0, 0, doc.width(), doc.height()));
+  auto coverage = make_path_selection_coverage(*path, doc.width(), doc.height(), feather->value(),
+      antialias->isChecked(), has_selection ? operation->currentIndex() : 0, &existing);
   canvas_->replace_selection_from_grayscale(coverage, tr("Make selection from path"));
   statusBar()->showMessage(tr("Made a selection from the path"));
 }
@@ -1162,25 +1024,7 @@ void MainWindow::make_work_path_from_selection() {
     return;
   }
 
-  const auto loops = trace_selection_outlines(canvas_->selected_document_region());
-  VectorPath fitted;
-  for (const auto& loop : loops) {
-    std::vector<FitPoint> points;
-    points.reserve(static_cast<std::size_t>(loop.points.size()));
-    for (const auto& point : loop.points) {
-      points.push_back(FitPoint{point.x(), point.y()});
-    }
-    auto subpath = fit_closed_loop(points, tolerance->value());
-    if (subpath.anchors.size() < 2) {
-      continue;
-    }
-    // Outer boundaries (clockwise in y-down coordinates) add coverage, holes
-    // (counterclockwise) subtract; the tracer orders outers before their
-    // holes, so the sequential combine reproduces the selection.
-    subpath.op = loop_signed_area(points) >= 0.0 ? PathCombineOp::Add : PathCombineOp::Subtract;
-    subpath.shape_group = static_cast<std::int32_t>(fitted.subpaths.size());
-    fitted.subpaths.push_back(std::move(subpath));
-  }
+  auto fitted = fit_selection_vector_path(canvas_->selected_document_region(), tolerance->value());
   if (fitted.subpaths.empty()) {
     show_status_error(tr("The selection is too small to trace"));
     return;

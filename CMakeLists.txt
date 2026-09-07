@@ -979,6 +979,15 @@ if(PATCHY_BUILD_APP)
       src/ui/js_syntax_highlighter.cpp
       src/ui/script_api.hpp
       src/ui/script_api.cpp
+      src/ui/script_vector.hpp
+      src/ui/script_vector.cpp
+      src/ui/script_vector_paints.cpp
+      src/ui/script_vector_shapes.cpp
+      src/ui/script_vector_paths.cpp
+      src/ui/script_vector_masks.cpp
+      src/ui/script_vector_host.cpp
+      src/ui/vector_operations.hpp
+      src/ui/vector_operations.cpp
       src/ui/script_canvas_window.hpp
       src/ui/script_canvas_window.cpp
       src/ui/sound_effects.hpp
@@ -1543,6 +1552,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/vector_shape_tool_tests.cpp
       tests/ui/vector_point_editing_tests.cpp
       tests/ui/vector_commands_tests.cpp
+      tests/ui/vector_scripting_tests.cpp
       tests/ui/svg_ui_tests.cpp
       tests/ui/image_trace_ui_tests.cpp
       tests/ui/scripting_tests.cpp

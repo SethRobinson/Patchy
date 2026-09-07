@@ -7146,6 +7146,7 @@ Mixed selection</source>
 </context>
 <context>
     <name>patchy::ui::MainWindow</name>
+    <message><source>Put shape layers in a group and apply the vector mask to that group.</source><translation>シェイプレイヤーをグループに入れ、そのグループにベクトルマスクを適用してください。</translation></message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="+13149"/>
         <source>Import Notes</source>
@@ -14946,6 +14947,9 @@ Clipped to the layer below</source>
 </context>
 <context>
     <name>patchy::ui::ScriptEngineHost</name>
+    <message><source>Put shape layers in a group and apply the vector mask to that group.</source><translation>シェイプレイヤーをグループに入れ、そのグループにベクトルマスクを適用してください。</translation></message>
+    <message><source>Invalid vector option or target: %1.</source><translation>無効なベクターオプションまたは対象です: %1。</translation></message>
+    <message><source>Work Path</source><translation>作業用パス</translation></message>
     <message>
         <source>Layer position is outside the supported range.</source>
         <translation>レイヤーの位置が対応範囲を超えています。</translation>

@@ -19,6 +19,14 @@ Drive PS from PowerShell: `(New-Object -ComObject Photoshop.Application).DoJavaS
 
 ## Write rules pinned against PS (silent corruption otherwise)
 
+Vector automation uses group masks for an extra mask around shape artwork: a
+shape's native vector-path slot is already its geometry. Folder records write
+vmsk and optional derived density/feather planes. Raster-plus-vector masks retain
+vector parameters in their shared mask-data section. See [vector-automation.md](vector-automation.md).
+Authored None paints write disabled `vstk` fill/stroke flags, including shapes
+with both paints off. PSD paint descriptors still carry a placeholder color;
+the flags prevent that color from appearing on reopen.
+
 - **Per-layer tagged blocks declare an even length with the pad byte inside it.** PS walks by declared length rounded up to even and never writes odd lengths; one odd block makes PS discard every later block in the record. `write_additional_layer_block` enforces it. Generated TySh instead keeps its body even internally (its 16-byte end-anchored tail must not be followed by a pad). Global-section blocks keep 4-byte alignment OUTSIDE the declared length. The reader stays exact-advance so old odd-block Patchy files load.
 - **Layer record flags bit 3 must be set on every layer** or PS applies legacy semantics. The layer mask shapes effect sources regardless of link state (the chain toggle only affects move). Effect output still lands on mask-hidden areas unless 'lmgm' is set (4 bytes, first byte bool; `LayerStyle::layer_mask_hides_effects`).
 - **lfx2 effect blend modes must be full stringIDs** in 'BlnM': PS reads a 4-char code inside a length-prefixed stringID as Normal; the length-0 charID encoding works. CS-era files store true charIDs; `blend_mode_from_descriptor_enum` maps both, the writer emits stringIDs. Dissolve maps as 'Dslv', 'diss', and "dissolve". See [blend-modes.md](blend-modes.md).

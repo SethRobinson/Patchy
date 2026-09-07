@@ -306,6 +306,12 @@ EncodedLayer encode_adjustment_layer(const Layer& layer, bool large_document) {
     }
     encoded.channels.push_back(encode_channel(kChannelUserMask, mask.pixels.width(), mask.pixels.height(),
                                               mask.pixels.data(), large_document));
+  } else if (const auto* mask = layer.vector_mask(); mask && (mask->density != 255 || mask->feather > 0.0)) {
+    const auto plane = vector_mask_derived_plane(*mask);
+    if (!plane.bounds.empty()) {
+      encoded.channels.push_back(encode_channel(kChannelUserMask, plane.pixels.width(), plane.pixels.height(),
+                                                plane.pixels.data(), large_document));
+    }
   }
   return encoded;
 }
@@ -336,6 +342,12 @@ EncodedLayer encode_group(const Layer& layer, bool large_document) {
     }
     encoded.channels.push_back(encode_channel(kChannelUserMask, mask.pixels.width(), mask.pixels.height(),
                                               mask.pixels.data(), large_document));
+  } else if (const auto* mask = layer.vector_mask(); mask && (mask->density != 255 || mask->feather > 0.0)) {
+    const auto plane = vector_mask_derived_plane(*mask);
+    if (!plane.bounds.empty()) {
+      encoded.channels.push_back(encode_channel(kChannelUserMask, plane.pixels.width(), plane.pixels.height(),
+                                                plane.pixels.data(), large_document));
+    }
   }
   return encoded;
 }
@@ -679,12 +691,19 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
     if (mask.disabled) {
       mask_flags |= 0x02U;
     }
+    const auto* vector_mask = encoded.layer->vector_mask();
+    const bool vector_parameters = vector_mask && (vector_mask->density != 255 || vector_mask->feather > 0.0);
+    if (vector_parameters) { mask_flags |= 0x10U; }
     mask_data.write_u8(mask_flags);
-    mask_data.write_u16(0);
+    if (vector_parameters) {
+      mask_data.write_u8(0x0C);
+      mask_data.write_u8(vector_mask->density);
+      write_f64(mask_data, vector_mask->feather);
+    } else { mask_data.write_u16(0); }
     write_length_prefixed_block(extra, mask_data.bytes());
   } else if (const auto* vector_mask =
                  encoded.layer != nullptr ? encoded.layer->vector_mask() : nullptr;
-             vector_mask != nullptr && encoded.kind == EncodedLayerKind::Pixel &&
+             vector_mask != nullptr && encoded.kind != EncodedLayerKind::GroupBoundary &&
              (vector_mask->density != 255 || vector_mask->feather > 0.0)) {
     // Non-default vector-mask parameters: the 28-byte mask-parameters form
     // with the derived-plane rect, section flags bit 3 (rendered from other
@@ -816,7 +835,7 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
   // (no preserved originals); untouched imported layers re-emit their exact
   // original bytes through the preserved loop below instead.
   const bool generated_vector_blocks =
-      encoded.layer != nullptr && encoded.kind == EncodedLayerKind::Pixel &&
+      encoded.layer != nullptr && encoded.kind != EncodedLayerKind::GroupBoundary &&
       (encoded.layer->vector_shape() != nullptr || encoded.layer->vector_mask() != nullptr) &&
       vector_lock_reason(*encoded.layer).empty() &&
       (layer_vector_block_dirty(*encoded.layer) ||
@@ -853,10 +872,16 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
                                              find_layer_block(*encoded.layer, "vogk")),
             large_document);
       }
-      if (content->stroke.enabled || find_layer_block(*encoded.layer, "vstk") != nullptr) {
+      // PSD paint descriptors always carry a concrete color/gradient/pattern.
+      // Encode None through the vstk enable flags, including invisible shapes
+      // with neither fill nor stroke, so the placeholder color cannot reappear.
+      auto stroke = content->stroke;
+      stroke.fill_enabled = stroke.fill_enabled && content->fill.kind != VectorFillKind::None;
+      stroke.enabled = stroke.enabled && stroke.content.kind != VectorFillKind::None;
+      if (stroke.enabled || !stroke.fill_enabled || find_layer_block(*encoded.layer, "vstk") != nullptr) {
         write_additional_layer_block(
             extra, {'v', 's', 't', 'k'},
-            vector_stroke_block_payload(content->stroke, find_layer_block(*encoded.layer, "vstk")),
+            vector_stroke_block_payload(stroke, find_layer_block(*encoded.layer, "vstk")),
             large_document);
       }
     } else if (const auto* vector_mask = encoded.layer->vector_mask(); vector_mask != nullptr) {

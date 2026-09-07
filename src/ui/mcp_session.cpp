@@ -46,7 +46,7 @@ QJsonArray tool_catalog() {
   return {
     tool("get_info", QCoreApplication::translate("PatchyMcp", "Discover Patchy versions, capabilities, and the installed control skill."), schema(), true),
     tool("get_help", QCoreApplication::translate("PatchyMcp", "Read the scripting API, workflow, or a runnable example. Use before writing scripts."),
-         schema({{"topic", QJsonObject{{"type", "string"}, {"enum", QJsonArray{"workflow", "api", "guide", "pixel-art", "painting", "edit-document", "reference-art"}}}}}), true),
+         schema({{"topic", QJsonObject{{"type", "string"}, {"enum", QJsonArray{"workflow", "api", "guide", "pixel-art", "painting", "edit-document", "reference-art", "vector-art", "edit-shape", "paths-masks"}}}}}), true),
     tool("get_state", QCoreApplication::translate("PatchyMcp", "Inspect open documents, stable IDs, layers, selections, and undo availability."), schema(), true),
     tool("execute_script", QCoreApplication::translate("PatchyMcp", "Run JavaScript in the persistent workspace. Use patchy.setResult(value) for a JSON result. Globals reset each run; documents persist. Edits form one undo step per document; errors can leave partial edits. Scripts are trusted and can access files."),
          schema({{"code", str}, {"expectedState", str}, {"name", str}, {"args", QJsonObject{{"type", "object"}, {"additionalProperties", str}}}}, {"code"}), false),
@@ -289,7 +289,7 @@ struct McpSession::Impl final : public QObject {
         const bool offscreen = QGuiApplication::platformName() == QStringLiteral("offscreen");
         complete_tool(id, {{"version", app_.applicationVersion()}, {"apiVersion", 1}, {"mode", offscreen ? "offscreen" : "visible"},
           {"platform", QGuiApplication::platformName()}, {"windowVisible", !offscreen && window_.isVisible()},
-          {"skillDirectory", kit_directory()}, {"capabilities", QJsonArray{"persistentDocuments", "javascript", "brush", "eraser", "pressure", "seededDynamics", "pixels", "preview", "undo", "redo"}},
+          {"skillDirectory", kit_directory()}, {"capabilities", QJsonArray{"persistentDocuments", "javascript", "brush", "eraser", "pressure", "seededDynamics", "pixels", "preview", "undo", "redo", "vectorShapes", "vectorPaths", "vectorMasks", "vectorPaints"}},
           {"scriptTrust", "applicationPrivileges"}, {"liveWindowAttachment", attached_},
           {"workspace", attached_ ? "attached" : "isolated"}, {"requiresExpectedState", attached_},
           {"processId", QString::number(QCoreApplication::applicationPid())}});
@@ -298,7 +298,8 @@ struct McpSession::Impl final : public QObject {
         const QMap<QString, QString> files{{"workflow", "references/workflow.md"}, {"api", "references/patchy.d.ts"},
           {"guide", "references/scripting-guide.md"}, {"pixel-art", "scripts/pixel-art.js"},
           {"painting", "scripts/painting.js"}, {"edit-document", "scripts/edit-document.js"},
-          {"reference-art", "references/reference-art.md"}};
+          {"reference-art", "references/reference-art.md"}, {"vector-art", "scripts/vector-art.js"},
+          {"edit-shape", "scripts/edit-shape.js"}, {"paths-masks", "scripts/paths-masks.js"}};
         if (!files.contains(topic) || kit_directory().isEmpty()) { throw std::runtime_error(QCoreApplication::translate("PatchyMcp", "The requested control-kit resource is unavailable.").toStdString()); }
         QFile file(kit_directory() + '/' + files.value(topic));
         if (!file.open(QIODevice::ReadOnly)) { throw std::runtime_error(QCoreApplication::translate("PatchyMcp", "Could not read the control-kit resource.").toStdString()); }
