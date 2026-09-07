@@ -14947,6 +14947,7 @@ Clipped to the layer below</source>
 </context>
 <context>
     <name>patchy::ui::ScriptEngineHost</name>
+    <message><source>present needs a delay from 0 to 1000 milliseconds.</source><translation>presentの待機時間は0から1000ミリ秒で指定してください。</translation></message>
     <message><source>Put shape layers in a group and apply the vector mask to that group.</source><translation>シェイプレイヤーをグループに入れ、そのグループにベクトルマスクを適用してください。</translation></message>
     <message><source>Invalid vector option or target: %1.</source><translation>無効なベクターオプションまたは対象です: %1。</translation></message>
     <message><source>Work Path</source><translation>作業用パス</translation></message>
@@ -15377,6 +15378,9 @@ Clipped to the layer below</source>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
+    <message><source>Running script: %1</source><translation>スクリプト実行中: %1</translation></message>
+    <message><source>Stop this operation and keep its changes available for Undo.</source><translation>この処理を停止します。変更は「元に戻す」で取り消せます。</translation></message>
+    <message><source>No Patchy edit is running. Use Stop in your assistant to stop it between requests.</source><translation>Patchyでは編集処理を実行していません。要求と要求の間に停止するには、アシスタント側の停止ボタンを使ってください。</translation></message>
     <message><source>AI editing: %1</source><translation>AIが編集中: %1</translation></message>
     <message><source>AI reading: %1</source><translation>AIが確認中: %1</translation></message>
     <message><source>AI connected</source><translation>AI接続中</translation></message>

@@ -322,6 +322,7 @@ public:
   void set_zoom(double percent);
   // View > Fit on Screen for the active document; throws with no document.
   Q_INVOKABLE void fitOnScreen();
+  Q_INVOKABLE void present(const QJSValue& delayMs = QJSValue());
 
 private:
   ScriptEngineHost& host_;

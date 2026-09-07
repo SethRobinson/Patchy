@@ -172,6 +172,11 @@ It hides on disconnect. While working it disables the menu bar and filters manua
 input in that workspace, leaving its own Stop button usable. It restores input
 and menu state on success, error, cancellation, and disconnect.
 
+Stop remains visible but disabled between edit requests, so its location is
+discoverable. Visible unattended CLI scripts use their own status-bar activity
+and Stop control. Progressive painting, explicit `patchy.ui.present` checkpoints,
+and resize progress are described in [automation-feedback.md](automation-feedback.md).
+
 An owned connector run supplies a throttled progress callback to ScriptEngineHost.
 API calls pump UI events under the input guard, including native stroke samples,
 so previews can update and Stop can cancel without a modal dialog. The existing

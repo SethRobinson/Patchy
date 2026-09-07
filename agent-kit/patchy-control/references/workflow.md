@@ -26,6 +26,14 @@ CLI runs use the existing script-progress UI, not the MCP connection indicator. 
 
 ## Edit, inspect, revise
 
+- When the user wants to watch, draw incrementally into the real document and
+  call `patchy.ui.present(60)` after each stroke, shape, or small pixel-art step.
+  This shows the frame and briefly holds it while Stop remains usable. Use
+  `present()` without a hold when pacing is unnecessary. For buffered pixel art,
+  upload the current full buffer with `setPixels` at intermediate steps before
+  presenting; private arrays are invisible until uploaded. The vector-art example
+  accepts `watch=true`. Hidden work should omit deliberate pacing.
+
 - In attached mode, first inspect `get_state` and `get_preview`. Pass the latest returned `stateToken` as `expectedState` to every `execute_script`, `draw_strokes`, `undo`, and `redo` request. Arbitrary scripts need the token even if you intend only to read. A `stale_state` error means no edit ran: inspect the new state and preview, reconsider the edit, and only then retry with the fresh token. Switching tabs or editing pixels invalidates an older view. The token is opaque and valid only for that connection.
 - To fix something in an open document, identify its ID, inspect the face or other relevant region, and prefer a separate correction layer. Leave the document open and preserve unrelated layers. Do not create a replacement document unless requested. Use document and layer IDs in the script even when the intended tab is currently active.
 - Patchy's status bar distinguishes AI connected, AI reading, and AI editing. Connected means waiting for a tool call, not that the model has finished thinking. Editing is paused during a request; Stop cancels the current operation and leaves available undo history. Long scripts should call APIs or log progress periodically so the visible window and Stop control can respond. Pure JavaScript with no API calls cannot pump the UI; client cancellation and the inactivity watchdog still interrupt it.

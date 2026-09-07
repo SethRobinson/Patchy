@@ -46,6 +46,7 @@ class ScriptCanvasWindow;
 class PatternLibrary;
 class GradientLibrary;
 class CustomShapeLibrary;
+class McpActivity;
 
 // Interrupts a STUCK script from a helper thread: the UI thread arms an
 // inactivity window around every evaluate()/callback invocation, and every
@@ -288,6 +289,8 @@ public:
   [[nodiscard]] double view_zoom_percent() const;
   void set_view_zoom_percent(double percent);
   void fit_view_on_screen();
+  void present_script_view(int delay_ms = 0);
+  bool resize_session_image(std::int64_t session_id, int width, int height);
   // The activeLayer setter's reveal: expand collapsed ancestor folders and
   // (when the session is the active one) select + scroll the row into view.
   void reveal_layer_row(std::int64_t session_id, LayerId layer_id);
@@ -325,6 +328,9 @@ public:
 
 private:
   bool connector_mode_{false};
+  QPointer<McpActivity> script_activity_;
+  bool presenting_view_{false};
+  bool refresh_script_view(bool force = false);
   std::function<void()> connector_progress_callback_;
   mutable std::mutex interrupt_mutex_;
   std::atomic<bool> external_interrupt_{false};
@@ -358,6 +364,7 @@ private:
     // Whole-run wall clock (the stop panel's elapsed display).
     QElapsedTimer run_clock;
     qint64 last_pump_ms{0};
+    qint64 last_preview_ms{-50};
     bool busy_active{false};
     QPointer<CanvasWidget> busy_canvas;
     // Stop-panel confirm: undo the run's snapshots after it finishes.

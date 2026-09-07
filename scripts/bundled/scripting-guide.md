@@ -145,6 +145,14 @@ requires siblings and keeps their order. Destination index counts bottom to top
 after removing moving layers; null/omitted parentId means root, omitted index
 means top. Existing duplication, `ungroup`, and `combineShapes` also work.
 
+For a visible demonstration, call `patchy.ui.present(60)` after each shape or
+stroke to show the step and hold it briefly. The default `present()` just presents
+completed edits; it does not add history. Delays are integers from 0 to 1000 ms.
+Ordinary visible MCP/CLI edits also refresh periodically without explicit calls.
+Write changed JavaScript arrays back with `setPixels` before presenting them.
+Use no deliberate delay for background work. Stop remains responsive during the
+hold; script timer callbacks cannot reenter the current script.
+
 Fills and stroke paints accept `"none"`, RGB color strings, or typed solid,
 gradient, and pattern objects. Solid opacity belongs to the layer or stroke.
 Stroke fields include width, alignment, cap, join, miter limit, dashes/dashOffset

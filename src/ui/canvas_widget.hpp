@@ -430,7 +430,7 @@ public:
   void quantize_image_for_palette_display(QImage& image) const;
   void set_brush_size(int size);
   // Uses the native brush renderer; the caller owns validation, undo, and refresh.
-  QRect paint_script_stroke(const ScriptStroke& stroke, const std::function<bool()>& interrupted = {});
+  QRect paint_script_stroke(const ScriptStroke& stroke, const std::function<bool(const QRect&)>& progress = {});
   [[nodiscard]] int brush_size() const noexcept;
   void set_brush_opacity(int opacity);
   [[nodiscard]] int brush_opacity() const noexcept;

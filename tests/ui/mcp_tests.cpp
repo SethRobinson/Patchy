@@ -11,6 +11,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QLabel>
+#include <QMenuBar>
 #include <QPushButton>
 #include <QTimer>
 #include <chrono>
@@ -18,6 +19,7 @@
 #include <mutex>
 #include <thread>
 #include <vector>
+#include <set>
 
 namespace {
 using namespace patchy::test::ui;
@@ -162,7 +164,7 @@ void ui_mcp_activity_stop_input_lock_and_local_scripts() {
   CHECK(indicator && label && stop);
   CHECK(indicator->isVisible());
   CHECK(label->text() == QStringLiteral("AI connected"));
-  CHECK(!stop->isVisible());
+  CHECK(stop->isVisible() && !stop->isEnabled());
   save_widget_artifact("mcp_connected", window);
   const auto state = connection.state();
   bool saw_working = false;
@@ -203,7 +205,7 @@ void ui_mcp_activity_stop_input_lock_and_local_scripts() {
   CHECK(saw_working && close_blocked && read_busy);
   CHECK(result["structuredContent"].toObject()["status"] == "cancelled");
   CHECK(!indicator->working());
-  CHECK(!stop->isVisible());
+  CHECK(stop->isVisible() && !stop->isEnabled());
   CHECK(!window.script_engine_host().connector_mode());
   connection.call("undo", {{"documentId", state["activeDocumentId"]}, {"expectedState", connection.state()["stateToken"]}});
   CHECK(connection.state()["documents"].toArray()[0].toObject()["layers"].toArray().size() == 2);
@@ -280,11 +282,151 @@ void ui_mcp_vector_discovery_revisions_and_previews() {
   CHECK(connection.call("get_preview")["content"].toArray()[0].toObject()["data"] == after);
   connection.disconnect();
 }
+
+class ScriptPaintObserver final : public QObject {
+ public:
+  explicit ScriptPaintObserver(patchy::ui::ScriptEngineHost& host) : host_(host) {}
+  std::set<int> colors;
+ protected:
+  bool eventFilter(QObject*, QEvent* event) override {
+    if (event->type() == QEvent::Paint && host_.run_active()) {
+      const auto* doc = host_.session_document_const(host_.active_session_id());
+      const auto* layer = doc && doc->active_layer_id() ? doc->find_layer(*doc->active_layer_id()) : nullptr;
+      if (layer && !layer->pixels().empty()) { colors.insert(layer->pixels().pixel(0, 0)[0]); }
+    }
+    return false;
+  }
+ private:
+  patchy::ui::ScriptEngineHost& host_;
+};
+
+void ui_mcp_progressive_edits_and_present_keep_history() {
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  Connection connection(window);
+  connection.edit("app.newDocument(64,64).addLayer('Ink').fill('#ffffff');");
+  auto& host = window.script_engine_host();
+  auto* canvas = require_canvas(window);
+  ScriptPaintObserver observer(host);
+  canvas->installEventFilter(&observer);
+  connection.edit(R"JS(
+    var l=app.activeDocument.activeLayer, end=Date.now()+350, i=0;
+    while(Date.now()<end){l.fill(i++%2?'#220000':'#dd0000');}
+    l.fill('#440000'); patchy.ui.present(30);
+    l.fill('#660000'); patchy.ui.present(30);
+  )JS");
+  CHECK(observer.colors.count(0x44) && observer.colors.count(0x66));
+  CHECK(observer.colors.count(0x22) || observer.colors.count(0xdd));
+  const auto state=connection.state();
+  connection.call("undo", {{"documentId", state["activeDocumentId"]}, {"expectedState", state["stateToken"]}});
+  const auto* restored = host.session_document_const(host.active_session_id());
+  CHECK(restored->find_layer(*restored->active_layer_id())->pixels().pixel(0,0)[0] == 255);
+  auto* stop = window.findChild<QPushButton*>(QStringLiteral("mcpStopButton"));
+  CHECK(stop && stop->isVisible() && !stop->isEnabled());
+  const QJsonValue before_read = connection.state()["stateToken"];
+  connection.edit(R"JS(
+    patchy.ui.present();
+    for (var delay of [-1, 1001, 0.5, NaN, Infinity, '30', null]) {
+      var rejected = false;
+      try { patchy.ui.present(delay); } catch (e) { rejected = true; }
+      if (!rejected) throw Error('invalid presentation delay accepted');
+    }
+  )JS");
+  CHECK(connection.state()["stateToken"] == before_read);
+  connection.disconnect();
+}
+
+void ui_script_visible_unattended_stop_and_resize_processing() {
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  local_script(window, "app.newDocument(32,32).addLayer('Ink').fill('#aabbcc');");
+  auto& host = window.script_engine_host();
+  bool saw_stop = false;
+  QTimer observer;
+  QObject::connect(&observer, &QTimer::timeout, &window, [&] {
+    auto* stop = window.findChild<QPushButton*>(QStringLiteral("scriptStopButton"));
+    if (host.run_active() && stop && stop->isVisible() && stop->isEnabled()) {
+      saw_stop = true; observer.stop();
+      window.grab().save(QStringLiteral("test-artifacts/script_visible_stop.png"));
+      stop->click();
+    }
+  });
+  observer.start(10);
+  patchy::ui::ScriptEngineHost::RunOptions options; options.unattended = true;
+  host.run_source("app.activeDocument.activeLayer.fill('#dd0000'); patchy.ui.present(500);", options);
+  until([&] {return !host.run_active();});
+  CHECK(saw_stop && host.last_run_had_error());
+  CHECK(window.menuBar()->isEnabled());
+  CHECK(!window.findChild<QWidget*>(QStringLiteral("scriptActivity"))->isVisible());
+  local_script(window, "app.activeDocument.undo();");
+  auto* canvas = require_canvas(window);
+  EnvironmentVariableRestorer delay("PATCHY_PROCESSING_OVERLAY_DELAY_MS");
+  qputenv("PATCHY_PROCESSING_OVERLAY_DELAY_MS", "0");
+  const auto before = canvas->render_cache_diagnostics();
+  bool saw_processing = false;
+  bool resize_locked = false;
+  QTimer processing_observer;
+  QObject::connect(&processing_observer, &QTimer::timeout, &window, [&] {
+    if (canvas->processing_overlay_visible()) {
+      saw_processing = true;
+      resize_locked = !host.automation_ready();
+      processing_observer.stop();
+      window.grab().save(QStringLiteral("test-artifacts/image_resize_processing.png"));
+    }
+  });
+  processing_observer.start(10);
+  // Real 100 MP resampling, the size of the reported freeze. No synthetic wait.
+  accept_image_size_dialog(10000,10000);
+  require_action(window, "imageSizeAction")->trigger();
+  const auto after = canvas->render_cache_diagnostics();
+  CHECK(after.processing_overlays_shown > before.processing_overlays_shown);
+  CHECK(saw_processing && resize_locked);
+  CHECK(!canvas->processing_overlay_visible() && !canvas->processing_operation_active());
+  CHECK(host.session_document_const(host.active_session_id())->width() == 10000);
+  local_script(window, "app.activeDocument.undo();");
+  CHECK(host.session_document_const(host.active_session_id())->width() == 32);
+  bool stopped_resize = false;
+  QTimer cancel_resize;
+  QObject::connect(&cancel_resize, &QTimer::timeout, &window, [&] {
+    if (host.run_active() && canvas->processing_operation_active()) {
+      stopped_resize = true;
+      cancel_resize.stop();
+      host.stop_active_run();
+    }
+  });
+  cancel_resize.start(1);
+  host.run_source("app.activeDocument.resizeImage(4096,4096);", options);
+  until([&] {return !host.run_active();});
+  CHECK(stopped_resize && host.last_run_had_error());
+  CHECK(host.session_document_const(host.active_session_id())->width() == 32);
+  CHECK(!canvas->processing_operation_active() && host.automation_ready());
+  local_script(window, "app.activeDocument.resizeImage(96,64);");
+  CHECK(host.session_document_const(host.active_session_id())->width() == 96);
+  EnvironmentVariableRestorer busy_delay("PATCHY_SCRIPT_BUSY_DELAY_MS");
+  qputenv("PATCHY_SCRIPT_BUSY_DELAY_MS", "0");
+  bool saw_interactive_stop = false;
+  QTimer interactive_stop;
+  QObject::connect(&interactive_stop, &QTimer::timeout, &window, [&] {
+    const auto* panel = window.findChild<QWidget*>(QStringLiteral("scriptStopPanel"));
+    if (panel && panel->isVisible()) {
+      saw_interactive_stop = true;
+      interactive_stop.stop();
+      host.stop_active_run();
+    }
+  });
+  interactive_stop.start(10);
+  options.unattended = false;
+  host.run_source("patchy.ui.present(500);", options);
+  until([&] {return !host.run_active();});
+  CHECK(saw_interactive_stop && host.last_run_had_error());
+}
 }  // namespace
 
 std::vector<patchy::test::TestCase> mcp_tests() {
   return {{"ui_mcp_attached_state_guard_and_unsaved_history", ui_mcp_attached_state_guard_and_unsaved_history},
           {"ui_mcp_activity_stop_input_lock_and_local_scripts", ui_mcp_activity_stop_input_lock_and_local_scripts},
           {"ui_mcp_attached_cancellation_interrupts_tight_loop", ui_mcp_attached_cancellation_interrupts_tight_loop},
-          {"ui_mcp_vector_discovery_revisions_and_previews", ui_mcp_vector_discovery_revisions_and_previews}};
+          {"ui_mcp_vector_discovery_revisions_and_previews", ui_mcp_vector_discovery_revisions_and_previews},
+          {"ui_mcp_progressive_edits_and_present_keep_history", ui_mcp_progressive_edits_and_present_keep_history},
+          {"ui_script_visible_unattended_stop_and_resize_processing", ui_script_visible_unattended_stop_and_resize_processing}};
 }

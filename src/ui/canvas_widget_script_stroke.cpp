@@ -4,7 +4,7 @@
 
 namespace patchy::ui {
 
-QRect CanvasWidget::paint_script_stroke(const ScriptStroke& stroke, const std::function<bool()>& interrupted) {
+QRect CanvasWidget::paint_script_stroke(const ScriptStroke& stroke, const std::function<bool(const QRect&)>& progress) {
   if (stroke.points.empty()) { return {}; }
   const auto saved_tool = tool_;
   const auto saved_target = layer_edit_target_;
@@ -75,7 +75,9 @@ QRect CanvasWidget::paint_script_stroke(const ScriptStroke& stroke, const std::f
   if (effective_brush_input().size != 1) { begin_brush_smoothing(previous); }
   QRect dirty = draw_brush_at(rounded(previous), stroke.erase);
   for (std::size_t i = 1; i < stroke.points.size(); ++i) {
-    if (interrupted && interrupted()) { return dirty; }
+    // Each completed sample is a safe native brush boundary for invalidation,
+    // presentation and Stop. The host coalesces these regions between frames.
+    if (progress && progress(dirty)) { return dirty; }
     apply_sample(stroke.points[i]);
     const auto point = stroke.points[i].position;
     dirty = dirty.united(effective_brush_input().size == 1

@@ -12,7 +12,7 @@ class MainWindow;
 class McpActivity final : public QWidget {
   Q_OBJECT
  public:
-  McpActivity(MainWindow& window, std::function<void()> stop);
+  McpActivity(MainWindow& window, std::function<void()> stop, bool script = false);
   void set_connected(const QString& client);
   void set_operation(const QString& operation, bool editing);
   void finish_operation();
@@ -32,5 +32,6 @@ class McpActivity final : public QWidget {
   bool working_{false};
   bool editing_{false};
   bool menu_was_enabled_{true};
+  bool script_{false};
 };
 }  // namespace patchy::ui

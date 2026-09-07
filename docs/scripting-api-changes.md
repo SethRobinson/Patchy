@@ -1,5 +1,11 @@
 # Scripting API compatibility
 
+2026-09-07 (additive, API 1): `patchy.ui.present(delayMs?)` presents completed
+edits and optionally holds the frame for 0..1000 ms while servicing Stop.
+Visible CLI/MCP runs repaint progressively; visible unattended scripts have a
+status-bar Stop control. Image Size and `doc.resizeImage` compute a private resized
+document while the existing Processing indicator remains responsive.
+
 2026-09-07 (additive, still API 1): native `addShape`/`addFillLayer`,
 `isShape`/`getShape`/`updateShape`/`transformShape`, `addGroup`/`groupLayers`/
 `moveLayers`, saved/work/clipping path wrappers, vector-mask editing, path/selection

@@ -8,6 +8,7 @@
 
 #include "ui/main_window.hpp"
 #include "ui/main_window_shared.hpp"
+#include "ui/background_workers.hpp"
 
 #include "core/blend_math.hpp"
 #include "core/layer_metadata.hpp"
@@ -1111,6 +1112,32 @@ void MainWindow::create_new_document() {
   fit_new_document_view(canvas_);
 }
 
+bool MainWindow::resize_document_image(DocumentSession& target, int width, int height,
+                                       std::function<bool()> keep_running) {
+  if (target.document.width() == width && target.document.height() == height) { return true; }
+  auto edit_lock = lock_preview_dialog_edits();
+  // The displayed document remains immutable during the wait. Resampling a
+  // private copy lets the normal Processing overlay paint without racing the
+  // canvas, thumbnails, or an in-flight renderer against partially resized data.
+  const auto* source = &std::as_const(target.document);
+  auto future = launch_async([source, width, height] {
+    auto resized = *source;
+    resize_image_and_layers(resized, width, height);
+    return resized;
+  });
+  bool cancelled = false;
+  if (target.canvas) {
+    target.canvas->wait_for_processing_operation([&] {
+      if (keep_running && !keep_running()) { cancelled = true; }
+      return future.wait_for(std::chrono::milliseconds(16)) == std::future_status::ready;
+    });
+  }
+  auto resized = future.get();
+  if (cancelled || (keep_running && !keep_running())) { return false; }
+  target.document = std::move(resized);
+  return true;
+}
+
 void MainWindow::resize_image_dialog() {
   auto& doc = document();
   const auto settings = request_image_size_settings(this, doc);
@@ -1142,7 +1169,7 @@ void MainWindow::resize_image_dialog() {
 
   push_undo_snapshot(tr("Image size"));
   if (dimensions_changed) {
-    resize_image_and_layers(doc, settings->width, settings->height);
+    resize_document_image(session(), settings->width, settings->height);
     // Image Size is the one geometry operation that resamples: the scaled placements
     // re-render from their full-resolution sources so smart objects stay crisp, the
     // way Photoshop's non-destructive Image Size leaves them.

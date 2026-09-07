@@ -312,8 +312,9 @@ void ScriptEngineHost::draw_strokes(std::int64_t session_id, LayerId layer_id, c
     });
     for (const auto& stroke : strokes) {
       if (engine_ && engine_->isInterrupted()) { break; }
-      const auto dirty = session->canvas->paint_script_stroke(stroke, [this] {
-        pump_progress_indicator();
+      const auto dirty = session->canvas->paint_script_stroke(stroke, [this, session_id](const QRect& changed) {
+        if (!changed.isEmpty()) { note_pixels_changed(session_id, changed); }
+        else { pump_progress_indicator(); }
         return engine_ && engine_->isInterrupted();
       });
       note_pixels_changed(session_id, dirty);

@@ -182,6 +182,9 @@ everywhere a bundled script is resolved.
   event-loop turn repaints the canvas (region or full) and refreshes panels for the
   active session only. Structure changes (add/remove/reorder/rename) rebuild the layer
   panel; pixel-only changes refresh thumbnails.
+  Visible MCP/CLI runs also present completed edits periodically. `patchy.ui.present`
+  provides explicit frames and optional pacing. CLI runs have a status-bar Stop
+  control despite being unattended. See [automation-feedback.md](automation-feedback.md).
 - **The watchdog measures INACTIVITY, never total runtime.** Legitimate scripts run for
   hours (contact sheets, batch converts); a blanket runtime limit is wrong by design.
   A helper thread arms around every evaluate and callback, and every hot service call

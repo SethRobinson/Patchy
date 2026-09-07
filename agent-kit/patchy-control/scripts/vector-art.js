@@ -11,7 +11,9 @@ var ink = '#733f32', orange = '#efaa60', cream = '#fff0ce', stripe = '#cf7944';
 function shape(name, geometry, fill, width) {
   var layer = doc.addShape(name, geometry, {fill: fill,
     stroke: {enabled: !!width, width: width || 0, paint: ink, alignment: 'center', cap: 'round', join: 'round'}});
-  batch.push(layer); return layer;
+  batch.push(layer);
+  if (patchy.args.watch === 'true') { patchy.ui.present(60); }
+  return layer;
 }
 function ellipse(name, x, y, w, h, fill, width) {
   return shape(name, {type: 'ellipse', x:x, y:y, width:w, height:h}, fill, width);

@@ -513,6 +513,8 @@ private:
   void create_clipboard_document(const QImage& image, QString history_label);
   void create_new_document();
   void resize_image_dialog();
+  bool resize_document_image(DocumentSession& target, int width, int height,
+                             std::function<bool()> keep_running = {});
   void resize_canvas_dialog();
   // Shared gate for the whole-document geometry operations (Image Size, Canvas Size,
   // Crop, Rotate). Smart-object placements ride a document-space remap, so those are

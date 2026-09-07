@@ -515,6 +515,11 @@ interface PatchyUi {
   zoom: number;
   /** View > Fit on Screen for the active document; throws with no document. */
   fitOnScreen(): void;
+  /** Show completed edits now; optionally hold the frame for 0..1000 ms (default 0).
+   * Services Stop and painting without reentering script callbacks or adding history.
+   * Upload edited arrays with setPixels first. Headless work does not need pacing.
+   */
+  present(delayMs?: number): void;
 }
 
 interface PatchyIo {

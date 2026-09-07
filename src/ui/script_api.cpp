@@ -1140,12 +1140,7 @@ void ScriptDocumentObject::resizeImage(int width, int height) {
     host_.throw_js_error(ScriptEngineHost::tr("resizeImage needs a size between 1 and 30000."));
     return;
   }
-  auto* document = write_document();
-  if (document == nullptr) {
-    return;
-  }
-  resize_image_and_layers(*document, width, height);
-  host_.note_structure_changed(session_id_);
+  if (read_document()) { host_.resize_session_image(session_id_, width, height); }
 }
 
 void ScriptDocumentObject::resizeCanvas(int width, int height) {
@@ -1413,6 +1408,15 @@ void ScriptUiObject::set_zoom(double percent) {
 }
 
 void ScriptUiObject::fitOnScreen() { host_.fit_view_on_screen(); }
+void ScriptUiObject::present(const QJSValue& delayMs) {
+  const double delay = delayMs.isUndefined() ? 0 : delayMs.toNumber();
+  if ((!delayMs.isUndefined() && !delayMs.isNumber()) || !std::isfinite(delay) ||
+      delay < 0 || delay > 1000 || delay != std::floor(delay)) {
+    host_.throw_js_error(ScriptEngineHost::tr("present needs a delay from 0 to 1000 milliseconds."));
+    return;
+  }
+  host_.present_script_view(static_cast<int>(delay));
+}
 
 bool ScriptUiObject::captureWindow(const QString& path) {
   if (path.trimmed().isEmpty()) {

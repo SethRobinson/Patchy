@@ -9,13 +9,14 @@
 #include <QStatusBar>
 
 namespace patchy::ui {
-McpActivity::McpActivity(MainWindow& window, std::function<void()> stop)
+McpActivity::McpActivity(MainWindow& window, std::function<void()> stop, bool script)
     : QWidget(window.statusBar()), window_(window), label_(new QLabel(this)),
-      stop_(new QPushButton(this)) {
-  setObjectName(QStringLiteral("mcpActivity"));
-  label_->setObjectName(QStringLiteral("mcpActivityLabel"));
+      stop_(new QPushButton(this)), script_(script) {
+  setObjectName(script ? QStringLiteral("scriptActivity") : QStringLiteral("mcpActivity"));
+  label_->setObjectName(script ? QStringLiteral("scriptActivityLabel") : QStringLiteral("mcpActivityLabel"));
   label_->setTextFormat(Qt::PlainText);
-  stop_->setObjectName(QStringLiteral("mcpStopButton"));
+  stop_->setObjectName(script ? QStringLiteral("scriptStopButton") : QStringLiteral("mcpStopButton"));
+  label_->setMaximumWidth(280);
   stop_->setFocusPolicy(Qt::NoFocus);
   auto* row = new QHBoxLayout(this);
   row->setContentsMargins(6, 0, 6, 0);
@@ -59,10 +60,14 @@ void McpActivity::set_disconnected() {
 void McpActivity::refresh() {
   label_->setText(working_ ? (editing_ ? tr("AI editing: %1") : tr("AI reading: %1")).arg(operation_)
                           : tr("AI connected"));
+  if (script_) { label_->setText(tr("Running script: %1").arg(operation_)); }
   setToolTip(working_ ? tr("%1 is using this workspace. Editing resumes when the request finishes. Stop keeps changes available for Undo.").arg(client_)
                      : tr("Connected to %1 through MCP. Waiting for a Patchy request; the assistant may still be thinking.").arg(client_));
   stop_->setText(tr("Stop"));
-  stop_->setVisible(working_ && editing_);
+  stop_->setVisible(true);
+  stop_->setEnabled(working_ && editing_);
+  stop_->setToolTip(working_ && editing_ ? tr("Stop this operation and keep its changes available for Undo.")
+                                       : tr("No Patchy edit is running. Use Stop in your assistant to stop it between requests."));
   setVisible(connected_);
 }
 void McpActivity::changeEvent(QEvent* event) {

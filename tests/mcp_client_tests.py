@@ -131,7 +131,8 @@ async def sdk_workflow(exe):
             vector_id = ""
             for stage in range(1, 9):
                 result = (await call("execute_script", {"code": vector_code, "args": {
-                    "stage": str(stage), "documentId": vector_id, "output": str(OUT / "vector-example")}})).structuredContent
+                    "stage": str(stage), "documentId": vector_id, "watch": "true",
+                    "output": str(OUT / "vector-example")}})).structuredContent
                 vector_id = result["result"]["documentId"]
                 preview = await call("get_preview", {"documentId": vector_id, "options": {"maxWidth": 480, "maxHeight": 480}})
                 (OUT / ("vector-stage-%d.png" % stage)).write_bytes(base64.b64decode(next(x.data for x in preview.content if x.type == "image")))

@@ -14,6 +14,8 @@
 #include "ui/canvas_widget.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/main_window.hpp"
+#include "ui/mcp_activity.hpp"
+#include <QScopedValueRollback>
 #include "ui/qt_geometry.hpp"
 #include "ui/script_api.hpp"
 #include "ui/script_canvas_window.hpp"
@@ -203,6 +205,9 @@ void ScriptWatchdog::disarm() {
 ScriptEngineHost::ScriptEngineHost(MainWindow& window) : QObject(&window), window_(window) {}
 
 ScriptEngineHost::~ScriptEngineHost() {
+  // The status bar can be destroyed before this QObject child of MainWindow.
+  // QPointer also handles that parent-owned teardown order.
+  delete script_activity_.data();
   if (run_ != nullptr) {
     teardown_run_resources();
     run_.reset();
@@ -295,6 +300,14 @@ bool ScriptEngineHost::run_source(const QString& source, RunOptions options) {
   run_->sync_running = true;
   run_->burst_clock.start();
   run_->run_clock.start();
+  if (run_->unattended && !connector_mode_ && window_.isVisible() &&
+      !qEnvironmentVariableIsSet("PATCHY_HEADLESS")) {
+    if (!script_activity_) {
+      script_activity_ = new McpActivity(window_, [this] { stop_active_run(); }, true);
+    }
+    script_activity_->set_connected(tr("Script"));
+    script_activity_->set_operation(run_->name, true);
+  }
   watchdog_->arm(watchdog_timeout());
   const auto file_name = options.path.isEmpty() ? run_->name : options.path;
   const QJSValue result = engine_->evaluate(source, file_name, 1);
@@ -463,6 +476,7 @@ void ScriptEngineHost::finish_run() {
       run_->undo_after_stop ? run_->snapshotted_sessions : std::set<std::int64_t>{};
   teardown_run_resources();
   flush_pending_refresh();
+  if (script_activity_) { script_activity_->set_disconnected(); }
   run_.reset();
   // The engine must outlive every stored QJSValue; the canvas windows released
   // theirs in teardown and the run owned the rest.
@@ -582,7 +596,12 @@ void ScriptEngineHost::pump_progress_indicator() {
     watchdog_->feed();
   }
   if (connector_mode_ && connector_progress_callback_) {
+    refresh_script_view();
     connector_progress_callback_();
+    return;
+  }
+  if (script_activity_ && script_activity_->working()) {
+    if (refresh_script_view()) { QApplication::processEvents(QEventLoop::AllEvents, 8); }
     return;
   }
   if (unattended_run() || !run_->burst_clock.isValid()) {
@@ -1031,6 +1050,21 @@ bool ScriptEngineHost::prepare_mutation(std::int64_t session_id) {
   return true;
 }
 
+bool ScriptEngineHost::resize_session_image(std::int64_t session_id, int width, int height) {
+  auto* session = window_.session_with_id(session_id);
+  if (!session) { return false; }
+  if (session->document.width() == width && session->document.height() == height) { return true; }
+  if (!prepare_mutation(session_id)) { return false; }
+  const bool resized = window_.resize_document_image(*session, width, height, [this] {
+    pump_progress_indicator();
+    return !engine_ || !engine_->isInterrupted();
+  });
+  if (resized) {
+    note_structure_changed(session_id);
+  }
+  return resized;
+}
+
 bool ScriptEngineHost::undo_enabled() const noexcept {
   return run_ == nullptr || run_->undo_enabled;
 }
@@ -1042,7 +1076,6 @@ void ScriptEngineHost::set_undo_enabled(bool enabled) noexcept {
 }
 
 void ScriptEngineHost::note_pixels_changed(std::int64_t session_id, const QRect& dirty_document_rect) {
-  pump_progress_indicator();
   auto& pending = pending_refresh_[session_id];
   if (dirty_document_rect.isEmpty()) {
     pending.full_canvas = true;
@@ -1050,14 +1083,46 @@ void ScriptEngineHost::note_pixels_changed(std::int64_t session_id, const QRect&
     pending.dirty += dirty_document_rect;
   }
   schedule_refresh_flush();
+  pump_progress_indicator();
 }
 
 void ScriptEngineHost::note_structure_changed(std::int64_t session_id) {
-  pump_progress_indicator();
   auto& pending = pending_refresh_[session_id];
   pending.structure = true;
   pending.full_canvas = true;
   schedule_refresh_flush();
+  pump_progress_indicator();
+}
+
+bool ScriptEngineHost::refresh_script_view(bool force) {
+  if (!run_ || presenting_view_ || !window_.isVisible()) { return false; }
+  const auto now = run_->run_clock.elapsed();
+  if (!force && now - run_->last_preview_ms < 50) { return false; }
+  run_->last_preview_ms = now;
+  const QScopedValueRollback<bool> guard(presenting_view_, true);
+  flush_pending_refresh();
+  QApplication::sendPostedEvents(nullptr, QEvent::LayoutRequest);
+  if (auto* canvas = session_canvas(active_session_id())) { canvas->repaint(); }
+  QApplication::sendPostedEvents(nullptr, QEvent::UpdateRequest);
+  return true;
+}
+
+void ScriptEngineHost::present_script_view(int delay_ms) {
+  // A script checkpoint has no history or file side effects. Script timer
+  // callbacks remain deferred by the normal sync_running/in_callback gates.
+  refresh_script_view(true);
+  QElapsedTimer clock;
+  clock.start();
+  do {
+    pump_progress_indicator();
+    const bool input_guarded = connector_mode_ || (script_activity_ && script_activity_->working()) ||
+                               (stop_panel_ && stop_panel_->isVisible());
+    QApplication::processEvents(input_guarded ? QEventLoop::AllEvents : QEventLoop::ExcludeUserInputEvents, 8);
+    if (!run_ || (engine_ && engine_->isInterrupted()) || clock.elapsed() >= delay_ms) { break; }
+    QEventLoop pause;
+    QTimer::singleShot(static_cast<int>(std::clamp<qint64>(delay_ms - clock.elapsed(), 1, 16)), &pause, &QEventLoop::quit);
+    pause.exec(input_guarded ? QEventLoop::AllEvents : QEventLoop::ExcludeUserInputEvents);
+  } while (true);
 }
 
 void ScriptEngineHost::schedule_refresh_flush() {
@@ -1901,6 +1966,7 @@ void ScriptEngineHost::reveal_layer_row(std::int64_t session_id, LayerId layer_i
 // Script canvas windows
 
 void ScriptEngineHost::dismiss_busy_indicator() {
+  if (script_activity_) { script_activity_->set_disconnected(); }
   if (run_ == nullptr) {
     return;
   }
