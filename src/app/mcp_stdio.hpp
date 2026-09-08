@@ -5,8 +5,8 @@
 #include <thread>
 
 namespace patchy {
-// Interruptible input: closing an attached Patchy window must let the proxy
-// exit even when the MCP client still has its stdin pipe open.
+// Interruptible input: the reader can stop without waiting for the MCP client
+// to close stdin. Client EOF disconnects the workspace and exits the connector.
 class McpStdioReader {
  public:
   McpStdioReader(std::function<void(const QByteArray&)> receive, std::function<void()> eof);

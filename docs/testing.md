@@ -112,6 +112,9 @@ Run from the repository root. Artifacts stay under `test-artifacts/mcp`. The tes
 uses only owned offscreen processes and also accepts a connector in a staged
 package directory, exercising resource discovery without source-relative paths.
 Python is not required by the shipped connector.
+Pass `--attachment-recovery-only` after the connector path to reproduce offline
+discovery, late app startup, restart with fresh state tokens, and interruption
+without replay. This test owns its offscreen apps and requires no prior artifacts.
 The client suite also passes `--visible` with an explicit offscreen Qt backend
 to verify option handling and truthful mode/preview metadata without opening a
 desktop window. A real visible smoke test requires separate desktop permission.

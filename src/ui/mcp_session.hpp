@@ -1,12 +1,20 @@
 #pragma once
 
 #include <QByteArray>
+#include <QJsonArray>
+#include <QJsonObject>
 #include <QString>
 #include <functional>
 #include <memory>
 
 namespace patchy::ui {
 class MainWindow;
+
+// Discovery stays available in an attached proxy while its workspace is closed.
+// Both transports use the same protocol metadata and installed help resources.
+QJsonArray mcp_tool_catalog();
+QJsonObject mcp_initialize_result(const QJsonObject& params);
+QJsonObject mcp_help_result(const QJsonObject& args);
 
 // Startup policy for a connector-owned window. Visible workspaces permit
 // normal user dialogs between requests and exit when their window is closed.

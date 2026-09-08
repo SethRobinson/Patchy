@@ -68,7 +68,7 @@ These startup modes remain available for clients that explicitly need one:
 
 | Argument | Workspace |
 |---|---|
-| `--attach` | The user's already-running Patchy from the same installation, including unsaved documents. Fails if unavailable; never creates a substitute window. |
+| `--attach` | The user's Patchy from the same installation, including unsaved documents. Discovery remains available while Patchy is closed. Workspace requests report unavailability; a later read retries attachment. Never creates a substitute window. |
 | `--visible` | A separate visible workspace owned by the connector. |
 | No argument | A separate offscreen workspace owned by the connector. |
 
@@ -80,7 +80,10 @@ a desktop display. Only one attached MCP client can use a workspace at a time.
 The client starts the connector when connecting. For isolated workspaces it also
 controls document lifetime: disconnecting loses unsaved documents and history.
 In attached mode, disconnecting leaves the artist's documents open and stops any
-active AI request. If a client has no shell access and the user explicitly wants a
+active AI request. Closing Patchy leaves the MCP proxy available: open Patchy and
+call `get_info` again on the same connection. A `workspace_disconnected` error can
+mean an interrupted edit made changes; inspect before repeating it. If a client
+has no shell access and the user explicitly wants a
 different MCP startup mode, save checkpoints, change only Patchy's arguments,
 reconnect, and query the current IDs and state. This is a connection preference,
 not another installation. Do not restart the AI client

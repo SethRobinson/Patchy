@@ -15304,6 +15304,9 @@ Clipped to the layer below</source>
 
 <context>
     <name>PatchyMcp</name>
+    <message><source>The Patchy workspace disconnected during this request. Changes may have been made. Do not repeat the edit automatically. Open Patchy from the same installation, call get_info, and inspect the document before continuing.</source><translation>この要求の処理中にPatchyの作業領域への接続が切れました。変更が行われた可能性があります。編集を自動的に繰り返さないでください。同じインストール先のPatchyを開き、get_infoを呼び出してドキュメントを確認してから続けてください。</translation></message>
+    <message><source>The Patchy workspace is unavailable. Open Patchy from the same installation, or disconnect another attached client, then call get_info again. This MCP connection remains available. No separate workspace was created.</source><translation>Patchyの作業領域に接続できません。同じインストール先のPatchyを開くか、接続中の別のクライアントを切断してから、get_infoをもう一度呼び出してください。このMCP接続は引き続き利用できます。別の作業領域は作成していません。</translation></message>
+    <message><source>Unknown MCP tool.</source><translation>不明なMCPツールです。</translation></message>
     <message>
         <source>Another operation is running. Wait for its reply before retrying.</source>
         <translation>別の操作を実行中です。その応答を待ってから再試行してください。</translation>

@@ -116,7 +116,16 @@ same installation. It never creates a replacement window. `get_info` reports
 `requiresExpectedState`, and the document-owning `processId` in addition to actual
 display metadata. Closing the proxy, its stdin, or its client connection stops
 only its own request; the artist's window, unsaved documents, and history remain.
-Closing Patchy closes the proxy even if its client's stdin remains open.
+The proxy's stdio connection remains alive when Patchy is absent or closes.
+Initialization, the tool catalog, ping, and installed help remain available.
+`get_info`, `get_state`, and `get_preview` attempt attachment when disconnected;
+failure returns a `workspace_unavailable` tool error with `workspaceAvailable:
+false`. No replacement window is created. Open the matching Patchy and repeat a
+read on the same MCP session. Mutating tools never initiate attachment. A request
+already sent to a lost workspace returns `workspace_disconnected` with
+`retrySafe: false`; it is never replayed. Reattachment obtains a fresh state token,
+so old edits cannot target reused document IDs. Connected `get_info` results
+include `workspaceAvailable: true` in both isolated and attached modes.
 
 `ui/mcp_attachment.*` owns a per-user local socket with `UserAccessOption`, scoped
 by installation directory and home directory. `PATCHY_MCP_ENDPOINT` selects an
@@ -129,7 +138,9 @@ its scripting host. No TCP/HTTP listener or hosted-chat connection is provided.
 
 `src/app/mcp_server.cpp` owns connector startup and proxying;
 `app/mcp_stdio.*` owns interruptible binary stdio; `ui/mcp_session.*` owns shared
-JSON-RPC dispatch for attached and isolated workspaces. Stdout
+discovery metadata, installed help, and JSON-RPC document dispatch. The attached
+proxy performs local discovery and a bounded, asynchronous workspace handshake;
+socket loss completes pending requests without ending stdio. Stdout
 is exclusively protocol; Qt diagnostics use stderr. Supported revisions are
 2025-11-25 and 2025-06-18. Initialization returns tools capability and server
 instructions. Messages are bounded to 16 MiB. Tool errors use `isError` and

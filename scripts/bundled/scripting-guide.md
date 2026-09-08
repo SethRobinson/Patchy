@@ -45,7 +45,16 @@ Save it with the Save button and it lands in your user scripts folder, which mea
 
 ## Persistent agent workspaces
 
-Each `patchy-mcp` connection owns an offscreen workspace. Documents and undo history stay open across requests; JavaScript globals reset for every script. Save files explicitly before disconnecting. The connector isolates settings and disables single-instance forwarding, sound, and update checks.
+With no arguments, each `patchy-mcp` connection owns an offscreen workspace. Documents and undo history stay open across requests; JavaScript globals reset for every script. Save files explicitly before disconnecting. The connector isolates settings and disables single-instance forwarding, sound, and update checks.
+
+With `--attach`, the connector uses your existing Patchy window. Closing that
+window leaves MCP discovery and help available. A `workspace_unavailable` error
+means a workspace could not be attached: open the matching Patchy and call
+`get_info` again. Connected responses include `workspaceAvailable: true`. Read
+tools can reconnect; edits require a fresh `expectedState` and never initiate
+attachment. An interrupted request reports `workspace_disconnected` with
+`retrySafe: false`. Inspect the document before repeating an edit because it may
+have made changes. Requests are never replayed into a new workspace.
 
 Call `get_state` to inspect document/layer IDs, hierarchy, dimensions, selection, modified state, and history availability. IDs are decimal strings: document IDs last until close, and layer IDs identify a layer within its document while it exists. Undo can remove or restore layers. Re-query state after history changes and never keep IDs across connector restarts or document reopen. Use lookups in later requests:
 

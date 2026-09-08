@@ -10,6 +10,17 @@ This workflow is served from the connected Patchy installation. The assistant's 
 
 If the connector is not configured, use the package's [setup instructions](setup.md). Installing this skill does not register an MCP server. A shell-capable agent can also use the headless CLI below.
 
+An attached connector remains available when Patchy is closed. A
+`workspace_unavailable` tool error means no workspace is attached; open Patchy
+from the same installation (or release another client's attachment) and call
+`get_info` again. Initialization, help, and ping still work. A
+`workspace_disconnected` error with `retrySafe: false` means a request lost its
+workspace after dispatch and may have made changes. Never replay that edit
+automatically. Reattach with a read, inspect the document, and obtain a fresh
+state token. Editing requests never initiate attachment or create a fallback
+workspace. This recovery applies to the current connector; an already-dead
+transport from an older executable still needs one client reconnection.
+
 For art from a supplied photo or image, read [Reference artwork](reference-art.md), also available as `get_help` with `topic: "reference-art"`. Use it to plan the crop, palette, editable layers, and preview comparisons. The setup guide includes example user requests for icons, sprite processing, and PSD edits.
 
 ## Choose the workspace for the task

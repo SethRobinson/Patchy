@@ -1,5 +1,11 @@
 # Scripting API compatibility
 
+2026-09-08 (API 1): Attached MCP discovery survives an absent or closed Patchy.
+Read tools retry attachment; `workspace_unavailable` reports absence and
+`workspace_disconnected` reports an interrupted request with `retrySafe: false`.
+Requests are never replayed. `get_info` includes `workspaceAvailable` and
+reattachment requires a fresh state token. See [ai-control.md](ai-control.md).
+
 2026-09-08 (API 1): `getShape().parts` exposes independent merged vector paints.
 `mergeLayers` now retains different colors and strokes in one vector layer;
 `separateVectorTypes` groups solid/gradient/pattern paint categories. Disabling

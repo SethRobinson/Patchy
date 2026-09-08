@@ -42,6 +42,7 @@ async def sdk_workflow(exe):
 
             info = (await call("get_info")).structuredContent
             assert info["mode"] == "offscreen" and not info["windowVisible"]
+            assert info["workspaceAvailable"]
             kit = Path(info["skillDirectory"])
             assert (kit / "SKILL.md").is_file()
             # A client installs only the stable entry point. All working
@@ -220,12 +221,17 @@ async def visible_options(exe):
     print("[PASS] MCP visible option: protocol, actual-backend metadata, isolation, invalid arguments")
 
 
-async def attached_workspace(exe):
+def matching_app(exe):
     candidates = [exe.with_name("patchy.exe"), exe.with_name("patchy"),
                   exe.parent / "Patchy.app" / "Contents" / "MacOS" / "Patchy",
                   exe.with_name("Patchy")]
     app_exe = next((path for path in candidates if path.is_file()), None)
     assert app_exe, "The matching Patchy application is required for attachment tests"
+    return app_exe
+
+
+async def attached_workspace(exe):
+    app_exe = matching_app(exe)
     endpoint = "PatchyMcpTest-" + uuid.uuid4().hex
     if os.name != "nt":
         # Unix sockets have a short path limit. The isolated TMPDIR below is
@@ -252,8 +258,12 @@ async def attached_workspace(exe):
                     async with stdio_client(params, errlog=log) as (read, write):
                         async with ClientSession(read, write) as client:
                             await client.initialize()
+                            discovered = await client.call_tool("get_info", {})
+                            if discovered.isError and discovered.structuredContent["error"] == "workspace_unavailable":
+                                raise RuntimeError("Workspace is still starting")
                             initialized = True
-                            info = (await client.call_tool("get_info", {})).structuredContent
+                            assert not discovered.isError
+                            info = discovered.structuredContent
                             assert info["liveWindowAttachment"] and info["requiresExpectedState"]
                             assert info["workspace"] == "attached" and int(info["processId"]) == app.pid
                             state = (await client.call_tool("get_state", {})).structuredContent
@@ -320,20 +330,14 @@ async def attached_workspace(exe):
                             changed_png = next(x.data for x in preview.content if x.type == "image")
                             assert changed_png != next(x.data for x in before.content if x.type == "image")
                             token = preview.structuredContent["stateToken"]
-                            # A second client is refused promptly, never queued.
-                            extra = subprocess.Popen([str(exe), "--attach"], stdin=subprocess.PIPE,
-                                                     stdout=subprocess.PIPE, stderr=log, env=env, cwd=OUT)
-                            try:
-                                extra.stdin.write(b'{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n')
-                                extra.stdin.flush()
-                                assert await asyncio.to_thread(extra.wait, 10) == 0
-                                assert not extra.stdout.read()
-                            finally:
-                                if extra.poll() is None:
-                                    extra.kill()
-                                    extra.wait()
-                                extra.stdin.close()
-                                extra.stdout.close()
+                            # A second client gets a useful tool error, never
+                            # queued edits or a dead stdio transport.
+                            async with stdio_client(params, errlog=log) as (er, ew):
+                                async with ClientSession(er, ew) as extra:
+                                    await extra.initialize()
+                                    refused = await extra.call_tool("get_info", {})
+                                    assert refused.isError and refused.structuredContent["error"] == "workspace_unavailable"
+                                    await extra.send_ping()
                     break
                 except Exception:
                     # Retry startup only, never a mutation or failed assertion.
@@ -355,26 +359,17 @@ async def attached_workspace(exe):
                     preview = await client.call_tool("get_preview", {})
                     assert next(x.data for x in preview.content if x.type == "image") == next(x.data for x in before.content if x.type == "image")
             assert original.read_bytes() == original_bytes, "Attachment must not silently save the original"
-            # If the app exits, the proxy must exit even with its stdin still open.
-            proxy = subprocess.Popen([str(exe), "--attach"], stdin=subprocess.PIPE,
-                                     stdout=subprocess.PIPE, stderr=log, env=env, cwd=OUT)
-            try:
-                proxy.stdin.write(b'{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n')
-                proxy.stdin.flush()
-                initialized_reply = await asyncio.wait_for(asyncio.to_thread(proxy.stdout.readline), 10)
-                assert json.loads(initialized_reply)["id"] == 1
-                app.terminate()  # only the test-owned offscreen application
-                await asyncio.to_thread(app.wait, 10)
-                assert await asyncio.to_thread(proxy.wait, 10) == 0
-            finally:
-                if proxy.poll() is None:
-                    proxy.kill()
-                    proxy.wait()
-                proxy.stdin.close()
-                proxy.stdout.close()
-            absent = subprocess.run([str(exe), "--attach"], input=b"", capture_output=True,
-                                    env=env, cwd=OUT, timeout=10)
-            assert absent.returncode == 2 and absent.stderr and not absent.stdout
+            # App shutdown leaves discovery usable on the same client session.
+            async with stdio_client(params, errlog=log) as (read, write):
+                async with ClientSession(read, write) as client:
+                    await client.initialize()
+                    assert not (await client.call_tool("get_info", {})).isError
+                    app.terminate()  # only the test-owned offscreen application
+                    await asyncio.to_thread(app.wait, 10)
+                    absent = await client.call_tool("get_info", {})
+                    assert absent.isError and not absent.structuredContent["workspaceAvailable"]
+                    assert not (await client.call_tool("get_help", {"topic": "workflow"})).isError
+                    await client.send_ping()
         finally:
             if app.poll() is None:
                 app.terminate()
@@ -382,11 +377,115 @@ async def attached_workspace(exe):
     print("[PASS] MCP attachment: existing document, guarded edits, previews, single client, unsaved reconnect, undo, app exit, no fallback")
 
 
-def protocol_edges(exe):
-    log = (OUT / "protocol-stderr.log").open("w", encoding="utf-8")
-    proc = subprocess.Popen([str(exe)], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                            stderr=log, cwd=OUT, env={**os.environ, **TEMP_ENV})
+async def attached_recovery(exe):
+    """One MCP transport survives absent, started, disconnected and restarted apps."""
+    endpoint = "PatchyMcpRecovery-" + uuid.uuid4().hex
+    if os.name != "nt":
+        endpoint = str(OUT / ("r-" + uuid.uuid4().hex[:12]))
+    settings = SESSION_TEMP / "recovery-settings"
+    ini = settings / "Patchy" / "Patchy.ini"
+    ini.parent.mkdir(parents=True)
+    ini.write_text("[updates]\ncheckOnStartup=false\n", encoding="utf-8")
+    env = {**os.environ, **TEMP_ENV, "QT_QPA_PLATFORM": "offscreen",
+           "PATCHY_SETTINGS_DIR": str(settings), "PATCHY_MCP_ENDPOINT": endpoint,
+           "PATCHY_NO_SINGLE_INSTANCE": "1", "PATCHY_NO_SOUND": "1"}
+    app_exe = matching_app(exe)
+    params = StdioServerParameters(command=str(exe), args=["--attach"], cwd=str(OUT), env=env)
+    app = None
+    with (OUT / "recovery-stderr.log").open("w", encoding="utf-8") as log:
+        try:
+            async with stdio_client(params, errlog=log) as (read, write):
+                async with ClientSession(read, write) as client:
+                    await client.initialize()  # Must succeed before Patchy opens.
+                    assert len((await client.list_tools()).tools) == 8
+                    assert not (await client.call_tool("get_help", {"topic": "api"})).isError
+                    unavailable = await client.call_tool("get_info", {})
+                    assert unavailable.isError and unavailable.structuredContent["error"] == "workspace_unavailable"
+                    assert unavailable.structuredContent["workspace"] == "attached"
+                    assert not unavailable.structuredContent["workspaceAvailable"]
+                    blocked = await client.call_tool("execute_script", {"code": "app.newDocument(16,16);"})
+                    assert blocked.isError and blocked.structuredContent["error"] == "workspace_unavailable"
+
+                    async def start_app():
+                        process = subprocess.Popen([str(app_exe)], cwd=OUT, env=env, stdout=log, stderr=log)
+                        deadline = time.monotonic() + 30
+                        try:
+                            while time.monotonic() < deadline:
+                                result = await client.call_tool("get_info", {})
+                                if not result.isError:
+                                    assert result.structuredContent["workspaceAvailable"]
+                                    assert int(result.structuredContent["processId"]) == process.pid
+                                    return process
+                                assert process.poll() is None
+                                await asyncio.sleep(.05)
+                            raise AssertionError("Workspace did not become available")
+                        except BaseException:
+                            process.terminate()
+                            process.wait(timeout=10)
+                            raise
+
+                    app = await start_app()
+                    state = (await client.call_tool("get_state", {})).structuredContent
+                    assert state["documents"] == []  # No offline edit was queued.
+                    created = await client.call_tool("execute_script", {
+                        "code": "var d=app.newDocument(16,16);d.addLayer('Before disconnect').fill('#ff0000');",
+                        "expectedState": state["stateToken"]})
+                    assert not created.isError
+                    old_token = created.structuredContent["state"]["stateToken"]
+                    app.terminate()
+                    await asyncio.to_thread(app.wait, 10)
+                    unavailable = await client.call_tool("get_state", {})
+                    assert unavailable.isError
+                    await client.send_ping()
+                    app = await start_app()
+                    stale = await client.call_tool("execute_script", {
+                        "code": "app.newDocument(32,32);", "expectedState": old_token})
+                    assert stale.isError and stale.structuredContent["error"] == "stale_state"
+                    state = (await client.call_tool("get_state", {})).structuredContent
+                    assert state["documents"] == [] and state["stateToken"] != old_token
+
+                    # Disconnect during an edit must return an uncertain result,
+                    # never replay the script into a later workspace.
+                    pending = asyncio.create_task(client.call_tool("execute_script", {
+                        "code": "app.newDocument(8,8);setTimeout(function(){},30000);",
+                        "expectedState": state["stateToken"]}))
+                    # Wait for an observable busy reply proving the request was forwarded.
+                    for _ in range(100):
+                        await asyncio.sleep(.01)
+                        busy = await client.call_tool("get_state", {})
+                        if busy.isError and busy.structuredContent["error"] == "busy":
+                            break
+                    else:
+                        raise AssertionError("Edit did not become pending")
+                    app.terminate()
+                    await asyncio.to_thread(app.wait, 10)
+                    interrupted = await asyncio.wait_for(pending, 10)
+                    assert interrupted.isError and interrupted.structuredContent["error"] == "workspace_disconnected"
+                    assert not interrupted.structuredContent["retrySafe"]
+                    app = await start_app()
+                    state = (await client.call_tool("get_state", {})).structuredContent
+                    assert state["documents"] == []
+                    await client.send_ping()
+            # Exercise cancellation and malformed input through the recovered
+            # proxy, after the SDK releases its single-client attachment.
+            protocol_edges(exe, env)
+        finally:
+            if app is not None and app.poll() is None:
+                app.terminate()
+                app.wait(timeout=10)
+    closed = subprocess.run([str(exe), "--attach"], input=b"", capture_output=True,
+                            env=env, cwd=OUT, timeout=10)
+    assert closed.returncode == 0 and not closed.stdout
+    print("[PASS] MCP recovery: offline discovery, late open, app restart, stale tokens, interrupted edit, no replay, client EOF")
+
+
+def protocol_edges(exe, attach_env=None):
+    log = (OUT / ("attached-protocol-stderr.log" if attach_env else "protocol-stderr.log")).open("w", encoding="utf-8")
+    proc = subprocess.Popen([str(exe), *(["--attach"] if attach_env else [])],
+                            stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                            stderr=log, cwd=OUT, env={**os.environ, **TEMP_ENV, **(attach_env or {})})
     received = queue.Queue()
+    state_token = ""
     def reader():
         for line in proc.stdout:
             received.put(json.loads(line))
@@ -394,13 +493,19 @@ def protocol_edges(exe):
     thread.start()
     def send(method, params=None, request_id=None):
         message = {"jsonrpc": "2.0", "method": method, "params": params or {}}
+        if attach_env and method == "tools/call" and message["params"].get("name") == "execute_script":
+            message["params"]["arguments"]["expectedState"] = state_token
         if request_id is not None:
             message["id"] = request_id
         proc.stdin.write(json.dumps(message).encode() + b"\n")
         proc.stdin.flush()
     def take(request_id):
+        nonlocal state_token
         message = received.get(timeout=30)
         assert message["id"] == request_id, message
+        data = message.get("result", {}).get("structuredContent", {})
+        state = data.get("state", data)
+        state_token = state.get("stateToken", state_token)
         return message
     try:
         send("initialize", {"protocolVersion": "2025-06-18", "capabilities": {},
@@ -456,7 +561,7 @@ def protocol_edges(exe):
             proc.kill()  # only the test-owned background process
             proc.wait()
         log.close()
-    print("[PASS] MCP protocol: version negotiation, busy, tight-loop cancellation, recovery, malformed JSON, disconnect")
+    print("[PASS] MCP " + ("attached " if attach_env else "") + "protocol: version negotiation, busy, tight-loop cancellation, recovery, malformed JSON, disconnect")
 
 
 async def shared_recent_history(exe):
@@ -539,9 +644,13 @@ if __name__ == "__main__":
     executable = Path(sys.argv[1]).resolve()
     OUT.mkdir(parents=True, exist_ok=True)
     SESSION_TEMP.mkdir(parents=True, exist_ok=True)
+    if "--attachment-recovery-only" in sys.argv[2:]:
+        asyncio.run(attached_recovery(executable))
+        sys.exit(0)
     asyncio.run(shared_recent_history(executable))
     if "--recent-history-only" not in sys.argv[2:]:
         asyncio.run(sdk_workflow(executable))
         asyncio.run(visible_options(executable))
         protocol_edges(executable)
         asyncio.run(attached_workspace(executable))
+        asyncio.run(attached_recovery(executable))
