@@ -3216,7 +3216,9 @@ void ui_levels_exception_restores_preview_pixels_and_unlocks_edits() {
     }
   });
   bool unwound = false;
-  try { require_action(window, "imageAdjustLevelsAction")->trigger(); }
+  // Exercise the caller's unwind without sending the intentional exception
+  // through QAction's Qt signal-dispatch frames (unsupported on macOS).
+  try { patchy::ui::MainWindowTestAccess::levels_dialog(window); }
   catch (const std::runtime_error& error) {
     if (std::string(error.what()) != "levels unwind regression") throw;
     unwound = true;

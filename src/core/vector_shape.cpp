@@ -1,4 +1,5 @@
 #include "core/vector_shape.hpp"
+#include "core/vector_compound.hpp"
 
 #include "core/layer_metadata.hpp"
 #include "core/smart_object.hpp"
@@ -307,6 +308,7 @@ void translate_vector_path(VectorPath& path, double dx, double dy) {
 
 void translate_vector_shape_content(VectorShapeContent& content, double dx, double dy) {
   translate_vector_path(content.path, dx, dy);
+  transform_vector_part_appearance(content, {1, 0, 0, 1, dx, dy}, 1.0);
   for (auto& params : content.origination) {
     params.left += dx;
     params.right += dx;

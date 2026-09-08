@@ -1,3 +1,4 @@
+#include "core/vector_compound.hpp"
 #include "ui/pdf_export.hpp"
 
 #include "core/layer_metadata.hpp"
@@ -452,6 +453,10 @@ struct Writer {
 
 void write_editable_pdf_document_file(const Document& document, const QString& path, const PdfExportOptions& options,
                                       std::vector<std::string>* notices) {
+  if (document_has_compound_vectors(document)) {
+    write_editable_pdf_document_file(expand_compound_vectors(document, true), path, options, notices);
+    return;
+  }
   if (document.width() <= 0 || document.height() <= 0) {
     throw std::runtime_error("The document could not be rendered for PDF export.");
   }

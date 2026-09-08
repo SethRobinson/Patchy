@@ -24,6 +24,13 @@ Layer-row click selection (`LayerListWidget::eventFilter` for row widgets, `view
 
 The Move tool mirrors this on canvas: Ctrl+click toggles the clicked layer in or out of the multi-selection whether Auto-Select is on or off (Shift is taken by the axis-constrained drag), an add can continue straight into a drag of the enlarged selection, a remove never starts a drag, and a Ctrl-miss is silent. The canvas requests panel selection changes through `CanvasWidget::set_layer_selection_requested_callback` -> `MainWindow::select_layers_in_layer_list` (the panel stays the source of truth and pushes the result back via `set_selected_layer_ids`); `activate_layer`'s single-id path still collapses to one row by design.
 
+Range selection normalizes selected ancestors with one const tree traversal
+(`root_drop_layer_ids`), preserving requested order and rejecting missing ids.
+It never compares every selected pair by repeatedly searching the tree.
+Thumbnail target styles repolish only when their active state changes. Selection
+updates use the delayed **Selecting layers...** canvas processing message when
+control/row refresh takes long enough; fast selections show no overlay.
+
 ## Disclosure arrow, double-click, visibility eye
 
 The folder disclosure arrow (`layerFolderDisclosureButton`) toggles one folder, Alt-click also toggles the folders nested inside it, and Ctrl+Alt-click sets every folder in the document to the clicked folder's toggled state (`MainWindow::toggle_all_layer_folders_expanded`, Photoshop's binding). `QToolButton::clicked` carries no modifiers, so a `ClickModifierRecorder` event filter stores them off the button's own mouse events; the handler defers through `QTimer::singleShot(0)` because the toggle rebuilds the rows. Runtime expand state is the session's `collapsed_layer_groups` set; layer metadata only seeds it at open.

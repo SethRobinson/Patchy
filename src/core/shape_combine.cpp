@@ -57,6 +57,8 @@ ShapeCombineCandidates combine_shape_candidates(const std::vector<Layer>& layers
 }
 
 void append_shape_groups(VectorShapeContent& base, const VectorPath& front, PathCombineOp op) {
+  // Explicit Boolean commands deliberately use the bottom shape's paint.
+  base.parts.clear();
   auto next_group = base.path.next_shape_group();
   std::vector<std::pair<std::int32_t, std::int32_t>> remap;  // front group -> base group
   for (const auto& subpath : front.subpaths) {

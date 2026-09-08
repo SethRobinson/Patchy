@@ -783,7 +783,8 @@ void update_layer_target_styles(QListWidget* list, std::optional<LayerId> active
   }
 
   auto set_target_active = [](QWidget* widget, bool active) {
-    if (widget == nullptr) {
+    if (widget == nullptr || (widget->property("layerTargetActive").isValid() &&
+                             widget->property("layerTargetActive").toBool() == active)) {
       return;
     }
     widget->setProperty("layerTargetActive", active);

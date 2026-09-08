@@ -9,6 +9,7 @@
 class QWidget;
 
 namespace patchy::ui {
+class CanvasWidget;
 
 // Merge Down's appearance-preserving alternative to flattening. See docs/layer-merging.md.
 struct LayerMergeOptions {
@@ -46,6 +47,9 @@ struct LayerMergePlan {
 // Prepare before arming undo. A failed bake leaves the source and history intact.
 [[nodiscard]] Document render_layer_merge(
     const Document& document, const LayerMergePlan& plan,
+    const std::function<std::optional<Layer>(const Layer&)>& raster_source = {});
+[[nodiscard]] Document render_layer_merge_with_processing(
+    CanvasWidget* canvas, const Document& document, const LayerMergePlan& plan,
     const std::function<std::optional<Layer>(const Layer&)>& raster_source = {});
 [[nodiscard]] std::optional<LayerMergeOptions> show_layer_merge_dialog(
     QWidget* parent, const Document& document, const std::vector<LayerId>& ids);

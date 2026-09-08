@@ -1,6 +1,6 @@
 # Vector tools: pen paths, shape layers, vector masks, Paths panel
 
-References: [scripting](vector-automation.md), [Dynamic Vector Preview](vector-preview.md).
+References: [scripting](vector-automation.md), [preview](vector-preview.md), [merged vector layers](layer-merging.md).
 
 UI/PSD contracts and patent boundaries. Encoding facts: Photoshop 27.8 COM
 probes (July 2026; method rules below);

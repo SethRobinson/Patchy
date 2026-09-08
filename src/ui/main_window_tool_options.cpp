@@ -1045,12 +1045,22 @@ void MainWindow::set_active_layer_from_selection() {
     QTimer::singleShot(0, this, [this] { refresh_layer_list(); });
     return;
   }
+  const QPointer<CanvasWidget> selecting_canvas(canvas_);
+  if (selecting_canvas) { selecting_canvas->begin_processing_operation(tr("Selecting layers...")); }
+  const auto finish_selection = qScopeGuard([selecting_canvas] {
+    if (selecting_canvas) { selecting_canvas->end_processing_operation(); }
+  });
+  const auto selection_progress = [&] {
+    if (selecting_canvas) { selecting_canvas->tick_processing_operation(); }
+  };
+  selection_progress();
   if (canvas_ != nullptr) {
     canvas_->set_selected_layer_ids(selected_layer_ids());
   }
   // A pure multi-selection change (same active layer) still decides whether
   // Combine Shapes applies.
   refresh_combine_shapes_action_states();
+  selection_progress();
   if (layer_list_->currentItem() == nullptr) {
     return;
   }
@@ -1072,7 +1082,9 @@ void MainWindow::set_active_layer_from_selection() {
       update_layer_target_styles(layer_list_, doc.active_layer_id(), canvas_->layer_edit_target());
     }
     refresh_layer_controls();
+    selection_progress();
     restyle_layer_rows(layer_list_);
+    selection_progress();
   }
 }
 

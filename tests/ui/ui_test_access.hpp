@@ -45,6 +45,10 @@ public:
     window.refresh_document_info();
   }
 
+  static void levels_dialog(MainWindow& window) {
+    window.levels_dialog();
+  }
+
   static bool apply_text_warp(MainWindow& window, Layer& layer, const TextWarp& warp) {
     return window.apply_text_warp_to_layer(layer, warp);
   }

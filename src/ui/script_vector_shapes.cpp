@@ -1,3 +1,4 @@
+#include "core/vector_compound.hpp"
 #include "ui/script_vector.hpp"
 #include "ui/script_api.hpp"
 #include "core/layer_metadata.hpp"
@@ -74,6 +75,15 @@ QJSValue ScriptLayerObject::getShape() const {
       result["fill"] = paint_json(shape->fill); result["stroke"] = stroke_json(shape->stroke);
       result["pathDisabled"] = shape->path_disabled; result["pathInverted"] = shape->path_inverted;
       result["isFillLayer"] = shape->path.empty();
+      QJsonArray parts;
+      for (const auto& part : shape->parts) {
+        QJsonArray groups;
+        for (const auto group : part.groups) { groups.push_back(group); }
+        parts.push_back(QJsonObject{{"groups", groups}, {"fill", paint_json(part.fill)},
+          {"stroke", stroke_json(part.stroke)}, {"opacity", part.opacity}, {"fillOpacity", part.fill_opacity},
+          {"pathDisabled", part.path_disabled}, {"pathInverted", part.path_inverted}, {"wholeCanvas", part.whole_canvas}});
+      }
+      result["parts"] = parts;
     }
     return to_js(host_, result);
   });
@@ -123,7 +133,13 @@ void ScriptLayerObject::updateShape(const QJSValue& changes) {
         content.path.subpaths.insert(content.path.subpaths.begin() + position, fresh.path.subpaths.begin(), fresh.path.subpaths.end());
         drop_live_shape_origination(content, {group});
         for (auto& p : fresh.origination) { p.index = group; content.origination.push_back(p); }
-      } else { content.path = std::move(fresh.path); content.origination = std::move(fresh.origination); }
+      } else {
+        content.path = std::move(fresh.path);
+        content.origination = std::move(fresh.origination);
+        // Whole-object replacement adopts the primary appearance. Group edits
+        // above retain all independent paints and their group references.
+        content.parts.clear();
+      }
     }
     if (args.contains("path")) {
       auto fresh = parse_path(child_object(args, "path"), false);
@@ -145,6 +161,11 @@ void ScriptLayerObject::updateShape(const QJSValue& changes) {
     content.path_disabled = boolean(args, "pathDisabled", content.path_disabled);
     content.path_inverted = boolean(args, "pathInverted", content.path_inverted);
     const auto& old = *original.vector_shape();
+    update_vector_part_appearance(content, old.fill, old.stroke);
+    for (auto& part : content.parts) {
+      if (content.path_disabled != old.path_disabled) { part.path_disabled = content.path_disabled; }
+      if (content.path_inverted != old.path_inverted) { part.path_inverted = content.path_inverted; }
+    }
     if (old.path == content.path && old.origination == content.origination && old.fill == content.fill && old.stroke == content.stroke &&
         old.path_disabled == content.path_disabled && old.path_inverted == content.path_inverted) { return; }
     Layer prepared = original;
@@ -176,6 +197,9 @@ void ScriptLayerObject::transformShape(const QJSValue& transform, const QJSValue
         if (!l.vector_shape()) { invalid("layer.shape"); }
         validate_transformed_path(l.vector_shape()->path, m);
         if (l.vector_shape()->stroke.width * stroke_scale > 30000) { invalid("strokeScale"); }
+        for (const auto& part : l.vector_shape()->parts) {
+          if (part.stroke.width * stroke_scale > 30000) { invalid("strokeScale"); }
+        }
         ids.push_back(l.id());
       }
     };

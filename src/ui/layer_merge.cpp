@@ -1,3 +1,4 @@
+#include "core/vector_compound.hpp"
 #include "ui/layer_merge.hpp"
 
 #include "core/layer_metadata.hpp"
@@ -6,6 +7,8 @@
 #include "core/rect_utils.hpp"
 #include "core/vector_raster.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/background_workers.hpp"
+#include "ui/canvas_widget.hpp"
 #include "ui/image_document_io.hpp"
 
 #include <QCheckBox>
@@ -14,6 +17,8 @@
 #include <QDialogButtonBox>
 #include <QLabel>
 #include <QPushButton>
+#include <QPointer>
+#include <QScopeGuard>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -46,69 +51,33 @@ bool simple_group(const Layer& layer) {
          !blend_if_payload_has_non_identity_or_unsupported(layer.raw_psd_group_boundary_blending_ranges());
 }
 
-bool appendable_path(const VectorShapeContent& shape) {
-  // Opaque Custom descriptors are emitted verbatim by the PSD writer. Their
-  // embedded keyOriginIndex cannot follow a remapped shape group, so retain
-  // the source layer instead of saving inconsistent live-shape annotations.
-  if (std::any_of(shape.origination.begin(), shape.origination.end(), [](const auto& origin) {
-        return origin.kind == LiveShapeKind::Custom && !origin.raw_descriptor.empty();
-      })) {
-    return false;
-  }
-  if (shape.path.empty() || shape.path_disabled || shape.path_inverted ||
-      shape.path.subpaths.front().op == PathCombineOp::Subtract) {
-    return false;
-  }
-  const auto first_group = shape.path.subpaths.front().shape_group;
-  // Intersect operates on the entire accumulated path, including earlier
-  // layers. Keeping this layer separate preserves its independent operation.
-  return std::none_of(shape.path.subpaths.begin(), shape.path.subpaths.end(), [first_group](const auto& path) {
-    return path.shape_group != first_group && path.op == PathCombineOp::Intersect;
-  });
-}
-
-bool opaque_union(const Layer& layer) {
-  const auto& shape = *layer.vector_shape();
-  return layer.opacity() == 1.0F && layer.fill_opacity() == 1.0F &&
-         shape.fill.kind == VectorFillKind::Solid && shape.stroke.fill_enabled && !shape.stroke.enabled &&
-         std::all_of(shape.path.subpaths.begin(), shape.path.subpaths.end(), [](const auto& path) {
-           return path.op == PathCombineOp::Add;
-         });
-}
-
 bool contains_locked_descendant(const Layer& group) {
   return std::any_of(group.children().begin(), group.children().end(), [](const Layer& child) {
     return layer_lock_flags(child) != kLayerLockNone || contains_locked_descendant(child);
   });
 }
 
-bool matching_paint(const VectorFill& a, const VectorFill& b) {
-  if (a.kind != b.kind) { return false; }
-  switch (a.kind) {
-    case VectorFillKind::None: return true;
-    case VectorFillKind::Solid: return a.color == b.color;
-    case VectorFillKind::Gradient: return a.gradient == b.gradient && a.gradient_noise_pre_seed == b.gradient_noise_pre_seed;
-    case VectorFillKind::Pattern:
-      return a.pattern_id == b.pattern_id && a.pattern_scale == b.pattern_scale &&
-             a.pattern_angle_degrees == b.pattern_angle_degrees && a.pattern_linked == b.pattern_linked &&
-             a.pattern_phase_x == b.pattern_phase_x && a.pattern_phase_y == b.pattern_phase_y;
-  }
-  return false;
-}
-
-bool matching_stroke(const VectorStroke& a, const VectorStroke& b) {
-  if (a.enabled != b.enabled) { return false; }
-  if (!a.enabled) { return true; }
-  auto left = a;
-  auto right = b;
-  left.content = {}; right.content = {};
-  // Fill enablement belongs to the separate shape paint, not the stroke.
-  left.fill_enabled = true; right.fill_enabled = true;
-  return left == right && matching_paint(a.content, b.content);
-}
-
 std::optional<VectorPathBounds> geometry_bounds(const Layer& layer) {
   const auto& shape = *layer.vector_shape();
+  if (!shape.parts.empty()) {
+    std::optional<VectorPathBounds> result;
+    for (const auto& part : shape.parts) {
+      Layer temporary(0, {}, LayerKind::Pixel);
+      temporary.set_vector_shape(vector_shape_part_content(shape, part));
+      const auto bounds = geometry_bounds(temporary);
+      if (!bounds) { return std::nullopt; }
+      if (!result) { result = bounds; }
+      else {
+        result->left = std::min(result->left, bounds->left);
+        result->top = std::min(result->top, bounds->top);
+        result->right = std::max(result->right, bounds->right);
+        result->bottom = std::max(result->bottom, bounds->bottom);
+      }
+    }
+    return result;
+  }
+  if (shape.path_disabled || shape.path_inverted ||
+      (!shape.path.empty() && shape.path.subpaths.front().op == PathCombineOp::Subtract)) { return std::nullopt; }
   auto bounds = shape.path.bounds();
   if (!bounds.has_value()) {
     return std::nullopt;
@@ -133,31 +102,17 @@ bool disjoint(const std::optional<VectorPathBounds>& x, const std::optional<Vect
          (x->right < y->left || y->right < x->left || x->bottom < y->top || y->bottom < x->top);
 }
 
-bool stable_paint_anchor(const VectorFill& paint, const Layer& a, const Layer& b) {
-  // Aligned gradients use tight coverage bounds, which change after a merge.
-  // Keep them independent. Canvas-aligned gradients retain their coordinates.
-  if (paint.kind == VectorFillKind::Gradient && paint.gradient.align_with_layer) {
-    return false;
-  }
-  return paint.kind != VectorFillKind::Pattern || !paint.pattern_linked ||
-         layer_effects_reference_point(a) == layer_effects_reference_point(b);
-}
-
-bool matching_vectors(const Layer& base, const Layer& front, bool separate_types) {
-  if (base.opacity() != front.opacity() || base.fill_opacity() != front.fill_opacity()) {
-    return false;
-  }
-  const auto& a = *base.vector_shape();
-  const auto& b = *front.vector_shape();
-  if (separate_types) {
-    const bool fill_a = a.stroke.fill_enabled && a.fill.kind != VectorFillKind::None;
-    const bool fill_b = b.stroke.fill_enabled && b.fill.kind != VectorFillKind::None;
-    if (fill_a != fill_b || (fill_a && !matching_paint(a.fill, b.fill)) || !matching_stroke(a.stroke, b.stroke)) {
-      return false;
-    }
-  }
-  return (!a.stroke.fill_enabled || stable_paint_anchor(a.fill, base, front)) &&
-         (!a.stroke.enabled || stable_paint_anchor(a.stroke.content, base, front));
+unsigned vector_paint_type(const VectorShapeContent& shape) {
+  const auto classify = [](const VectorFill& fill, const VectorStroke& stroke) {
+    unsigned type = 0;
+    if (stroke.fill_enabled && fill.kind != VectorFillKind::None) { type |= 1U << static_cast<unsigned>(fill.kind); }
+    if (stroke.enabled && stroke.content.kind != VectorFillKind::None) { type |= 1U << static_cast<unsigned>(stroke.content.kind); }
+    return type;
+  };
+  if (shape.parts.empty()) { return classify(shape.fill, shape.stroke); }
+  unsigned type = 0;
+  for (const auto& part : shape.parts) { type |= classify(part.fill, part.stroke); }
+  return type;
 }
 
 class Planner {
@@ -192,24 +147,11 @@ private:
     if (!base.vector) {
       return true;
     }
-    const auto& bottom = source(base.sources.front());
-    for (const auto front_id : front.sources) {
-      const auto& top = source(front_id);
-      if (!matching_vectors(bottom, top, options_.separate_vector_types)) {
-        return false;
-      }
-      for (const auto base_id : base.sources) {
-        const auto& previous = source(base_id);
-        // With one paint, opaque additive fills can share overlapping coverage.
-        // Other paths need independent extents to preserve holes, alpha and
-        // the original fill/stroke ordering.
-        if (!(opaque_union(previous) && opaque_union(top) && opaque_union(bottom)) &&
-            !disjoint(bounds_.at(base_id), bounds_.at(front_id))) {
-          return false;
-        }
-      }
-    }
-    return true;
+    const auto type = vector_paint_type(*source(base.sources.front()).vector_shape());
+    return !options_.separate_vector_types ||
+        std::all_of(front.sources.begin(), front.sources.end(), [&](LayerId id) {
+          return vector_paint_type(*source(id).vector_shape()) == type;
+        });
   }
 
   std::vector<LayerMergeNode> visit(const std::vector<Layer>& layers, bool all, bool inherited_lock) {
@@ -277,7 +219,8 @@ private:
                           ordinary_appearance(layer) && layer.blend_mode() == BlendMode::Normal &&
                           vector_lock_reason(layer).empty();
       if (node.vector) {
-        node.mergeable = common && vector_lock_reason(layer).empty() && appendable_path(*layer.vector_shape());
+        node.mergeable = common && (!layer_is_compound_vector(layer) ||
+            (layer.opacity() == 1.0F && layer.fill_opacity() == 1.0F));
       } else if (options_.keep_vectors) {
         node.mergeable = common && layer.kind() == LayerKind::Pixel && !layer_pixels_are_procedural(layer) &&
                          !layer_has_vector_shape_marker(layer) && layer.vector_shape() == nullptr;
@@ -322,34 +265,6 @@ private:
   LayerMergePlan plan_;
 };
 
-void append_independent_shape(VectorShapeContent& base, const VectorShapeContent& front) {
-  std::int64_t next = 0;
-  for (const auto& path : base.path.subpaths) {
-    next = std::max(next, static_cast<std::int64_t>(path.shape_group) + 1);
-  }
-  std::map<std::int32_t, std::int32_t> groups;
-  const auto first = front.path.subpaths.front().shape_group;
-  for (auto path : front.path.subpaths) {
-    if (!groups.contains(path.shape_group)) {
-      if (next >= std::numeric_limits<std::int32_t>::max()) {
-        throw std::runtime_error("Too many vector shape groups");
-      }
-      groups.emplace(path.shape_group, static_cast<std::int32_t>(next++));
-    }
-    if (path.shape_group == first) {
-      path.op = PathCombineOp::Add;
-    }
-    path.shape_group = groups.at(path.shape_group);
-    base.path.subpaths.push_back(std::move(path));
-  }
-  for (auto origin : front.origination) {
-    if (const auto group = groups.find(origin.index); group != groups.end()) {
-      origin.index = group->second;
-      base.origination.push_back(std::move(origin));
-    }
-  }
-}
-
 }  // namespace
 
 bool merge_selection_contains_vectors(const Document& document, const std::vector<LayerId>& ids) {
@@ -378,11 +293,12 @@ Document render_layer_merge(const Document& document, const LayerMergePlan& plan
       if (node.rebuild_group && node.changed) {
         output.children() = self(self, node.children);
       } else if (node.vector && node.sources.size() > 1) {
-        auto shape = *base.vector_shape();
-        for (std::size_t i = 1; i < node.sources.size(); ++i) {
-          append_independent_shape(shape, *document.find_layer(node.sources[i])->vector_shape());
-        }
-        output.set_vector_shape(std::move(shape));
+        std::vector<const Layer*> parts;
+        parts.reserve(node.sources.size());
+        for (const auto id : node.sources) { parts.push_back(document.find_layer(id)); }
+        output.set_vector_shape(combine_vector_appearances(parts));
+        output.set_opacity(1.0F);
+        output.set_fill_opacity(1.0F);
         mark_layer_vector_block_dirty(output);
         update_vector_shape_raster(output, Rect::from_size(document.width(), document.height()),
                                    &document.metadata().patterns);
@@ -427,6 +343,45 @@ Document render_layer_merge(const Document& document, const LayerMergePlan& plan
   return result;
 }
 
+Document render_layer_merge_with_processing(
+    CanvasWidget* canvas, const Document& document, const LayerMergePlan& plan,
+    const std::function<std::optional<Layer>(const Layer&)>& raster_source) {
+  const QPointer<CanvasWidget> target(canvas);
+  const Document snapshot = document;
+  if (target) { target->begin_processing_operation(LayerMergeStrings::tr("Merging layers...")); }
+  const auto finish = qScopeGuard([target] { if (target) { target->end_processing_operation(); } });
+  // Prepare text/font-dependent sources on the UI thread before launching the
+  // independent raster work. The worker only sees immutable snapshots.
+  std::map<LayerId, Layer> prepared_sources;
+  const auto prepare = [&](const auto& self, const std::vector<LayerMergeNode>& nodes) -> void {
+    for (const auto& node : nodes) {
+      if (node.rasterize && raster_source) {
+        for (const auto id : node.sources) {
+          auto source = raster_source(*snapshot.find_layer(id));
+          if (!source) { throw std::runtime_error("Layer has no renderable pixels"); }
+          prepared_sources.emplace(id, std::move(*source));
+          if (target) { target->tick_processing_operation(); }
+        }
+      }
+      self(self, node.children);
+    }
+  };
+  prepare(prepare, plan.roots);
+  if (target) { target->tick_processing_operation(); }
+  auto future = launch_async([source = snapshot, plan, prepared_sources = std::move(prepared_sources)] {
+    return render_layer_merge(source, plan, [&](const Layer& layer) -> std::optional<Layer> {
+      const auto found = prepared_sources.find(layer.id());
+      return found == prepared_sources.end() ? layer : found->second;
+    });
+  });
+  if (target) {
+    target->wait_for_processing_operation([&future] {
+      return future.wait_for(std::chrono::milliseconds(16)) == std::future_status::ready;
+    });
+  }
+  return future.get();
+}
+
 std::optional<LayerMergeOptions> show_layer_merge_dialog(QWidget* parent, const Document& document,
                                                         const std::vector<LayerId>& ids) {
   QDialog dialog(parent);
@@ -450,7 +405,7 @@ std::optional<LayerMergeOptions> show_layer_merge_dialog(QWidget* parent, const 
   auto* types = new QCheckBox(LayerMergeStrings::tr("Separate merges for different vector types"), &dialog);
   types->setObjectName(QStringLiteral("mergeSeparateVectorTypesCheck"));
   types->setChecked(true);
-  types->setToolTip(LayerMergeStrings::tr("Keep different fills, gradients, patterns, and strokes separate. Turn off to use the bottom shape's fill and stroke."));
+  types->setToolTip(LayerMergeStrings::tr("Merge solid artwork, gradients, and patterns separately. Colors and stroke settings stay intact within each merged vector layer."));
   layout->addWidget(types);
   auto* note = new QLabel(&dialog);
   note->setWordWrap(true);
@@ -467,8 +422,7 @@ std::optional<LayerMergeOptions> show_layer_merge_dialog(QWidget* parent, const 
     const auto choice = options();
     types->setEnabled(choice.keep_vectors);
     note->setText(choice.keep_vectors
-        ? LayerMergeStrings::tr("Overlapping artwork keeps its order. Masks, effects, blending, and paint alignment that need separate layers stay intact.") +
-          (choice.separate_vector_types ? QString() : QStringLiteral("\n") + LayerMergeStrings::tr("Vector merges use the bottom shape's fill and stroke."))
+        ? LayerMergeStrings::tr("Merged vectors keep their colors, strokes, and paint order. Masks, effects, and blending that need separate layers stay intact.")
         : LayerMergeStrings::tr("Merged artwork becomes pixels. Undo restores the original layers."));
     const auto plan = plan_layer_merge(document, ids, choice);
     summary->setText(LayerMergeStrings::tr("Result: %1 vector layers, %2 bitmap layers, %3 other layers kept.")

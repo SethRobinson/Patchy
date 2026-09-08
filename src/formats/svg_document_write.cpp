@@ -1,3 +1,4 @@
+#include "core/vector_compound.hpp"
 #include "formats/svg_document_io.hpp"
 
 #include "core/blend_math.hpp"
@@ -709,6 +710,9 @@ struct Writer {
 }  // namespace
 
 std::vector<std::uint8_t> DocumentIo::write(const Document& document, std::vector<std::string>* notices) {
+  if (document_has_compound_vectors(document)) {
+    return write(expand_compound_vectors(document, true), notices);
+  }
   if (document.width() <= 0 || document.height() <= 0) {
     throw std::runtime_error("Cannot export an empty document as SVG");
   }

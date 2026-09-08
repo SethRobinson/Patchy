@@ -2,6 +2,10 @@
 #include "local_psd_fixtures.hpp"
 
 #include "core/layer_metadata.hpp"
+#include "core/vector_compound.hpp"
+#include "core/pixel_tools.hpp"
+#include "ui/layer_list_widget.hpp"
+#include <QScrollBar>
 #include "core/layer_render_utils.hpp"
 #include "core/layer_tree.hpp"
 #include "core/vector_live_shapes.hpp"
@@ -10,6 +14,7 @@
 #include "ui/layer_merge.hpp"
 #include "ui/script_engine.hpp"
 #include "ui/vector_preview_renderer.hpp"
+#include "formats/svg_document_io.hpp"
 
 #include <QCheckBox>
 #include <QDialogButtonBox>
@@ -150,10 +155,12 @@ void ui_layer_merge_holes_alpha_and_strokes_keep_independent_operations() {
   auto intersect = *std::as_const(doc).layers()[1].vector_shape();
   intersect.path.subpaths[1].op = PathCombineOp::Intersect;
   doc.layers()[1].set_vector_shape(intersect);
-  CHECK(!plan_layer_merge(doc, roots(doc)).changed);
+  update_vector_shape_raster(doc.layers()[1], Rect::from_size(doc.width(), doc.height()), nullptr);
+  check_close_images(qimage_from_document(doc, true), qimage_from_document(render_layer_merge(doc, plan_layer_merge(doc, roots(doc))), true));
   intersect.path_inverted = true;
   doc.layers()[1].set_vector_shape(intersect);
-  CHECK(!plan_layer_merge(doc, roots(doc)).changed);
+  update_vector_shape_raster(doc.layers()[1], Rect::from_size(doc.width(), doc.height()), nullptr);
+  check_close_images(qimage_from_document(doc, true), qimage_from_document(render_layer_merge(doc, plan_layer_merge(doc, roots(doc))), true));
 }
 
 void ui_layer_merge_gradients_patterns_and_paint_alignment() {
@@ -194,7 +201,11 @@ void ui_layer_merge_gradients_patterns_and_paint_alignment() {
     } else {
       set_layer_effects_reference_point(doc.layers()[1], 10, 4);
     }
-    CHECK(!plan_layer_merge(doc, roots(doc)).changed);
+    for (auto& layer : doc.layers()) { update_vector_shape_raster(layer, Rect::from_size(doc.width(), doc.height()), &std::as_const(doc).metadata().patterns); }
+    const auto aligned = render_layer_merge(doc, plan_layer_merge(doc, roots(doc)));
+    CHECK(aligned.layers().size() == 1);
+    check_close_images(qimage_from_document(doc, true), qimage_from_document(aligned, true));
+    check_close_images(qimage_from_document(aligned, true), qimage_from_document(psd::DocumentIo::read(psd::DocumentIo::write_layered_rgb8(aligned)), true), 2);
   }
 }
 
@@ -220,10 +231,16 @@ void ui_layer_merge_group_and_vector_type_choices() {
   Document colors(96, 80, PixelFormat::rgba8());
   colors.add_layer(vector_layer(colors, rectangle(8, 8, 40, 40, {255, 0, 0})));
   colors.add_layer(vector_layer(colors, rectangle(28, 28, 40, 40, {0, 0, 255})));
-  CHECK(!plan_layer_merge(colors, roots(colors)).changed);
+  CHECK(plan_layer_merge(colors, roots(colors)).vector_layers == 1);
   const auto bottom_paint = render_layer_merge(colors, plan_layer_merge(colors, roots(colors), {true, true, false}));
   CHECK(bottom_paint.layers().size() == 1);
-  CHECK((bottom_paint.layers()[0].vector_shape()->fill.color == RgbColor{255, 0, 0}));
+  CHECK(bottom_paint.layers()[0].vector_shape()->parts.size() == 2);
+  check_close_images(qimage_from_document(colors, true), qimage_from_document(bottom_paint, true));
+  auto gradient = rectangle(18, 18, 30, 30);
+  gradient.fill.kind = VectorFillKind::Gradient;
+  colors.add_layer(vector_layer(colors, gradient));
+  CHECK(plan_layer_merge(colors, roots(colors)).vector_layers == 2);
+  CHECK(plan_layer_merge(colors, roots(colors), {true, true, false}).vector_layers == 1);
   const auto bitmap = render_layer_merge(colors, plan_layer_merge(colors, roots(colors), {false, false, true}));
   CHECK(bitmap.layers().size() == 1 && !layer_is_vector_shape(bitmap.layers()[0]));
   check_close_images(qimage_from_document(colors, true), qimage_from_document(bitmap, true));
@@ -258,7 +275,7 @@ void ui_layer_merge_protected_layers_and_unselected_order_are_barriers() {
   separated.add_layer(vector_layer(separated, rectangle(78, 8, 20, 20, {230, 20, 20})));
   separated.add_layer(vector_layer(separated, rectangle(140, 8, 20, 20)));
   const auto collected = plan_layer_merge(separated, roots(separated));
-  CHECK(collected.changed && collected.vector_layers == 2);
+  CHECK(collected.changed && collected.vector_layers == 1);
   const auto collected_doc = render_layer_merge(separated, collected);
   check_close_images(qimage_from_document(separated, true), qimage_from_document(collected_doc, true));
   Layer protected_group(doc.allocate_layer_id(), "Locked contents", LayerKind::Group);
@@ -282,8 +299,10 @@ void ui_layer_merge_protected_layers_and_unselected_order_are_barriers() {
   annotation.raw_descriptor = {1, 2, 3};
   opaque.origination.push_back(annotation);
   custom.add_layer(vector_layer(custom, opaque));
-  // Opaque annotation payloads remain on their original layer and group id.
-  CHECK(!plan_layer_merge(custom, roots(custom)).changed);
+  // The curves merge; an unmodeled live annotation cannot follow new ids.
+  const auto custom_merged = render_layer_merge(custom, plan_layer_merge(custom, roots(custom)));
+  CHECK(custom_merged.layers().size() == 1);
+  CHECK(custom_merged.layers()[0].vector_shape()->origination.empty());
   CHECK(std::as_const(custom).layers()[1].vector_shape()->origination[0].raw_descriptor == annotation.raw_descriptor);
 }
 
@@ -394,17 +413,35 @@ void ui_layer_merge_little_everywhere_if_available() {
   const auto doc = psd::DocumentIo::read_file(path);
   QElapsedTimer timer;
   timer.start();
-  const auto plan = plan_layer_merge(doc, roots(doc));
+  const auto plan = plan_layer_merge(doc, roots(doc), {true, true, true});
   const auto planning_ms = timer.elapsed();
   std::printf("Little-Everywhere plan: %zu removals, %zu vectors, %zu bitmaps, %zu other layers\n",
               plan.removed_layers, plan.vector_layers, plan.bitmap_layers, plan.kept_layers);
   CHECK(plan.changed && plan.removed_layers > 100);
   const auto merged = render_layer_merge(doc, plan);
-  CHECK(plan.bitmap_layers == 0 && plan.vector_layers > 0);
+  CHECK(plan.bitmap_layers == 0 && plan.vector_layers > 0 && plan.vector_layers < 200);
+  const auto verify_groups = [&](const auto& self, const std::vector<Layer>& originals) -> void {
+    for (const auto& group : originals) {
+      if (group.kind() != LayerKind::Group) { continue; }
+      const auto* output = merged.find_layer(group.id());
+      CHECK(output != nullptr && output->kind() == LayerKind::Group);
+      if (!group.children().empty() && std::all_of(group.children().begin(), group.children().end(), layer_is_vector_shape)) {
+        CHECK(output->children().size() == 1);
+        CHECK(layer_is_vector_shape(output->children()[0]));
+      }
+      self(self, group.children());
+    }
+  };
+  verify_groups(verify_groups, doc.layers());
   CHECK(layer_tree_count(merged.layers()) + plan.removed_layers == layer_tree_count(doc.layers()));
   std::printf("Little-Everywhere merge: %zu -> %zu layers; %zu vectors; planning %lld ms; total %lld ms\n",
               layer_tree_count(doc.layers()), layer_tree_count(merged.layers()), plan.vector_layers,
               static_cast<long long>(planning_ms), static_cast<long long>(timer.elapsed()));
+  check_close_images(qimage_from_document(doc, true), qimage_from_document(merged, true), 2);
+  auto mixed = doc;
+  mixed.add_layer(pixel_layer(mixed, 0, 0, {80, 100, 120}));
+  const auto mixed_plan = plan_layer_merge(mixed, roots(mixed), {true, true, true});
+  CHECK(mixed_plan.changed && mixed_plan.vector_layers == 153 && mixed_plan.bitmap_layers == 1);
   const auto before_scene = build_vector_preview_scene(doc);
   const auto after_scene = build_vector_preview_scene(merged);
   const auto find_bench = [&](const auto& self, const std::vector<Layer>& layers) -> const Layer* {
@@ -423,20 +460,158 @@ void ui_layer_merge_little_everywhere_if_available() {
     const auto before = render_vector_preview(before_scene, view);
     const auto after = render_vector_preview(after_scene, view);
     CHECK(before.fallback == VectorPreviewFallback::None && after.fallback == VectorPreviewFallback::None);
+    std::printf("Little-Everywhere merged preview %.2fx: %.1f ms, peak buffers %llu bytes\n",
+                view.scale, after.elapsed_ms, static_cast<unsigned long long>(after.peak_raster_bytes));
     const auto prefix = QStringLiteral("test-artifacts/layer-merge-little-%1").arg(view.scale);
     CHECK(before.image.save(prefix + QStringLiteral("-before.png")));
     CHECK(after.image.save(prefix + QStringLiteral("-after.png")));
     check_close_images(before.image, after.image, 2);
   }
   const auto reread = psd::DocumentIo::read(psd::DocumentIo::write_layered_rgb8(merged));
-  const auto restored = plan_layer_merge(reread, roots(reread));
+  const auto restored = plan_layer_merge(reread, roots(reread), {true, true, true});
   CHECK(restored.vector_layers == plan.vector_layers && restored.bitmap_layers == 0);
+}
+
+void ui_layer_merge_compound_geometry_and_processing() {
+  MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& doc = MainWindowTestAccess::document(window);
+  doc = Document(160, 128, PixelFormat::rgba8());
+  auto a = rectangle(16, 16, 55, 55, {220, 40, 20});
+  a.stroke.enabled = true;
+  a.stroke.width = 0.7;
+  a.stroke.content.color = {25, 50, 80};
+  auto b = rectangle(35, 25, 55, 55, {20, 150, 210});
+  b.stroke.enabled = true;
+  b.stroke.width = 3.2;
+  b.stroke.join = VectorStrokeJoin::Round;
+  b.stroke.dashes = {2, 1};
+  b.stroke.content.color = {150, 80, 20};
+  doc.add_layer(vector_layer(doc, a));
+  auto front = vector_layer(doc, b);
+  front.set_opacity(0.6F);
+  doc.add_layer(std::move(front));
+  canvas->set_document(&doc);
+  MainWindowTestAccess::refresh_layer_ui(window);
+  CHECK(process_events_until([&] { return canvas->render_settled(); }));
+  const auto before = qimage_from_document(doc, true);
+  const auto before_zoom = render_vector_preview(build_vector_preview_scene(doc), {{800, 600}, 4.5, {-20, -10}});
+  EnvironmentVariableRestorer restore_delay("PATCHY_PROCESSING_OVERLAY_DELAY_MS");
+  qputenv("PATCHY_PROCESSING_OVERLAY_DELAY_MS", "0");
+  const auto overlays = canvas->render_cache_diagnostics().processing_overlays_shown;
+  const auto plan = plan_layer_merge(doc, roots(doc), {true, true, true});
+  // A zero display delay exercises feedback without slowing ordinary runs.
+  auto merged = render_layer_merge_with_processing(canvas, doc, plan);
+  CHECK(merged.layers().size() == 1 && layer_is_compound_vector(merged.layers()[0]));
+  CHECK(!canvas->processing_operation_active());
+  CHECK(canvas->render_cache_diagnostics().processing_overlays_shown > overlays);
+  check_close_images(before, qimage_from_document(merged, true), 2);
+  const auto after_zoom = render_vector_preview(build_vector_preview_scene(merged), {{800, 600}, 4.5, {-20, -10}});
+  check_close_images(before_zoom.image, after_zoom.image, 2);
+  CHECK(after_zoom.peak_raster_bytes <= kVectorPreviewRasterBudget);
+  auto faded = merged;
+  faded.layers()[0].set_fill_opacity(0.4F);
+  const auto faded_native = qimage_from_document(faded, true);
+  const auto faded_preview = render_vector_preview(build_vector_preview_scene(faded), {{160, 128}, 1.0, {}});
+  CHECK(faded_preview.fallback == VectorPreviewFallback::None);
+  check_close_images(faded_native, faded_preview.image, 2);
+  const auto faded_read = psd::DocumentIo::read(psd::DocumentIo::write_layered_rgb8(faded));
+  CHECK(faded_read.layers().size() == 1 && layer_is_compound_vector(faded_read.layers()[0]));
+  CHECK(std::abs(faded_read.layers()[0].fill_opacity() - 0.4F) < 0.005F);
+  check_close_images(faded_native, qimage_from_document(faded_read, true), 2);
+  const std::array<double, 6> matrix{1.25, 0, 0, 1.25, 5, 8};
+  for (auto& layer : doc.layers()) {
+    transform_layer_vector_data(doc, layer, matrix, Rect::from_size(160, 128), 1.25);
+  }
+  transform_layer_vector_data(merged, merged.layers()[0], matrix, Rect::from_size(160, 128), 1.25);
+  check_close_images(qimage_from_document(doc, true), qimage_from_document(merged, true), 2);
+  const auto reread = psd::DocumentIo::read(psd::DocumentIo::write_layered_rgb8(merged));
+  CHECK(reread.layers().size() == 1 && layer_is_compound_vector(reread.layers()[0]));
+  CHECK(reread.layers()[0].vector_shape()->parts.size() == 2);
+  check_close_images(qimage_from_document(merged, true), qimage_from_document(reread, true), 2);
+  // SVG retains both native paints when its normal representability checks
+  // permit them. Use plain solid geometry to isolate the compound expansion.
+  Document svg_doc(100, 80, PixelFormat::rgba8());
+  svg_doc.add_layer(vector_layer(svg_doc, rectangle(4, 4, 35, 35, {255, 0, 0})));
+  svg_doc.add_layer(vector_layer(svg_doc, rectangle(14, 14, 35, 35, {0, 0, 255})));
+  const auto svg_merged = render_layer_merge(svg_doc, plan_layer_merge(svg_doc, roots(svg_doc)));
+  const auto svg_bytes = svg::DocumentIo::write(svg_merged);
+  const std::string svg_text(svg_bytes.begin(), svg_bytes.end());
+  CHECK(svg_text.find("<image") == std::string::npos);
+  const auto svg_read = svg::DocumentIo::read(svg_bytes);
+  check_close_images(qimage_from_document(svg_doc, true), qimage_from_document(svg_read, true), 2);
+  // A direct point edit only moves the selected part, leaving other paints.
+  auto edited = *std::as_const(merged).layers()[0].vector_shape();
+  const auto group = edited.parts[0].groups[0];
+  std::erase_if(edited.path.subpaths, [group](const auto& path) { return path.shape_group == group; });
+  merged.layers()[0].set_vector_shape(std::move(edited));
+  update_vector_shape_raster(merged.layers()[0], Rect::from_size(160, 128), nullptr);
+  CHECK(qimage_from_document(merged, true).pixelColor(26, 30).alpha() == 0);
+}
+
+void ui_layer_selection_little_everywhere_shift_range_if_available() {
+  const auto path = patchy::test::local_format_fixture_path("vector-preview", "Little-Everywhere.psd");
+  if (!std::filesystem::exists(path)) { return; }
+  MainWindow window;
+  show_window(window);
+  auto& doc = MainWindowTestAccess::document(window);
+  doc = psd::DocumentIo::read_file(path);
+  auto* canvas = require_canvas(window);
+  canvas->set_document(&doc);
+  MainWindowTestAccess::refresh_layer_ui(window);
+  auto* list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(list != nullptr && list->count() == 2056);
+  list->setCurrentRow(0, QItemSelectionModel::ClearAndSelect);
+  list->scrollToBottom();
+  CHECK(process_events_until([&] { return canvas->render_settled(); }, 30000));
+  const auto undo = MainWindowTestAccess::active_session_undo_depth(window);
+  const auto modified = MainWindowTestAccess::active_session_is_modified(window);
+  auto* last = list->itemWidget(list->item(list->count() - 1))->findChild<QLabel*>(QStringLiteral("layerRowName"));
+  CHECK(last != nullptr);
+  QElapsedTimer timer;
+  timer.start();
+  send_mouse(*last, QEvent::MouseButtonPress, last->rect().center(), Qt::LeftButton, Qt::LeftButton, Qt::ShiftModifier);
+  send_mouse(*last, QEvent::MouseButtonRelease, last->rect().center(), Qt::LeftButton, Qt::NoButton, Qt::ShiftModifier);
+  const auto elapsed = timer.elapsed();
+  std::printf("Little-Everywhere Shift-select: %d rows, %lld ms\n", list->count(), static_cast<long long>(elapsed));
+  CHECK(list->selectedItems().size() == list->count());
+  CHECK(elapsed < 4000);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == undo);
+  CHECK(MainWindowTestAccess::active_session_is_modified(window) == modified);
+  CHECK(!canvas->processing_operation_active());
+  // The actual three-checkbox dialog must offer a useful merge on this file.
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&] {
+    try {
+      auto* dialog = find_top_level_dialog(QStringLiteral("mergeLayersDialog"));
+      CHECK(dialog != nullptr);
+      dialog->findChild<QCheckBox*>(QStringLiteral("mergeWithinGroupsCheck"))->setChecked(true);
+      CHECK(dialog->findChild<QCheckBox*>(QStringLiteral("mergeKeepVectorsCheck"))->isChecked());
+      CHECK(dialog->findChild<QCheckBox*>(QStringLiteral("mergeSeparateVectorTypesCheck"))->isChecked());
+      CHECK(dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Ok)->isEnabled());
+      CHECK(dialog->findChild<QLabel*>(QStringLiteral("mergeLayersSummaryLabel"))->text().contains(QStringLiteral("153 vector layers")));
+      save_widget_artifact("ui_layer_merge_little_all_options", *dialog);
+      saw_dialog = true;
+      dialog->accept();
+    } catch (...) { (void)unwind_non_modal_dialog_loop(std::current_exception()); }
+  });
+  require_action(window, "layerMergeDownAction")->trigger();
+  CHECK(saw_dialog);
+  CHECK(layer_tree_count(std::as_const(doc).layers()) == 305);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == undo + 1);
+  MainWindowTestAccess::undo(window);
+  CHECK(layer_tree_count(std::as_const(doc).layers()) == 2056);
+  MainWindowTestAccess::redo(window);
+  CHECK(layer_tree_count(std::as_const(doc).layers()) == 305);
 }
 
 }  // namespace
 
 std::vector<patchy::test::TestCase> layer_merge_tests() {
   return {
+      {"ui_layer_merge_compound_geometry_and_processing", ui_layer_merge_compound_geometry_and_processing},
+      {"ui_layer_selection_little_everywhere_shift_range_if_available", ui_layer_selection_little_everywhere_shift_range_if_available},
       {"ui_layer_merge_mixed_group_keeps_vectors_order_opacity_and_psd", ui_layer_merge_mixed_group_keeps_vectors_order_opacity_and_psd},
       {"ui_layer_merge_holes_alpha_and_strokes_keep_independent_operations", ui_layer_merge_holes_alpha_and_strokes_keep_independent_operations},
       {"ui_layer_merge_gradients_patterns_and_paint_alignment", ui_layer_merge_gradients_patterns_and_paint_alignment},

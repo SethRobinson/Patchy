@@ -1,4 +1,5 @@
 #include "core/vector_raster.hpp"
+#include "core/vector_compound.hpp"
 
 #include "core/blend_math.hpp"
 #include "core/pattern_sampler.hpp"
@@ -1249,6 +1250,39 @@ ShapeRasterResult rasterize_vector_shape(const VectorShapeContent& content, Rect
                                          const Layer* layer_for_pattern_anchor,
                                          const VectorPaintBounds* paint_bounds) {
   ShapeRasterResult result;
+  if (!content.parts.empty()) {
+    struct PaintedPart { ShapeRasterResult raster; double opacity; };
+    std::vector<PaintedPart> painted;
+    painted.reserve(content.parts.size());
+    for (const auto& part : content.parts) {
+      if (part.opacity <= 0.0F || part.fill_opacity <= 0.0F) { continue; }
+      Layer anchor(0, {}, LayerKind::Pixel);
+      set_layer_effects_reference_point(anchor, part.pattern_anchor[0], part.pattern_anchor[1]);
+      auto raster = rasterize_vector_shape(vector_shape_part_content(content, part), canvas, patterns, &anchor);
+      result.bounds = union_rects(result.bounds, raster.bounds);
+      painted.push_back({std::move(raster), static_cast<double>(part.opacity) * part.fill_opacity});
+    }
+    if (result.bounds.empty()) { return result; }
+    result.pixels = PixelBuffer(result.bounds.width, result.bounds.height, PixelFormat::rgba8());
+    for (const auto& part : painted) {
+      const auto& raster = part.raster;
+      for (int y = 0; y < raster.bounds.height; ++y) {
+        const auto* source = raster.pixels.data().data() + static_cast<std::size_t>(y) * raster.pixels.stride_bytes();
+        auto* target = result.pixels.pixel(raster.bounds.x - result.bounds.x, raster.bounds.y - result.bounds.y + y);
+        for (int x = 0; x < raster.bounds.width; ++x, source += 4, target += 4) {
+          const double alpha = source[3] / 255.0 * part.opacity;
+          if (alpha <= 0.0) { continue; }
+          const double retained = target[3] / 255.0 * (1.0 - alpha);
+          const double combined = alpha + retained;
+          for (int c = 0; c < 3; ++c) {
+            target[c] = static_cast<std::uint8_t>(std::clamp(std::lround((source[c] * alpha + target[c] * retained) / combined), 0L, 255L));
+          }
+          target[3] = static_cast<std::uint8_t>(std::clamp(std::lround(combined * 255.0), 0L, 255L));
+        }
+      }
+    }
+    return result;
+  }
   VectorRasterOptions options;
   options.clip = canvas;
 

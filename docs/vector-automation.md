@@ -43,6 +43,9 @@ shape geometry is rejected; empty saved/work paths are allowed.
 
 `getShape()` returns path, live groups, appearance, and editability. Unparsed
 imported markers still identify a shape but may lack parsed geometry.
+Merged shapes expose read-only `parts`: group references, fill/stroke, opacity,
+fill opacity and path flags. Their shared path remains editable; whole-layer
+appearance edits change supplied fields across all parts. See [layer merging](layer-merging.md).
 `updateShape` changes only supplied fields. `geometry` and `path` are exclusive;
 `group` with geometry replaces that group, retaining its operation and position.
 Whole geometry replacement replaces live annotations. Direct path edits drop

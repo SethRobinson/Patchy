@@ -1,5 +1,10 @@
 # Scripting API compatibility
 
+2026-09-08 (API 1): `getShape().parts` exposes independent merged vector paints.
+`mergeLayers` now retains different colors and strokes in one vector layer;
+`separateVectorTypes` groups solid/gradient/pattern paint categories. Disabling
+that option retains all appearances instead of inheriting the bottom paint.
+
 2026-09-08 (API 1): `doc.mergeLayers(layers, options?)` adds the vector-preserving
 Merge Layers planner without a dialog. Boolean options `keepVectors`,
 `withinGroups`, and `separateVectorTypes` default to true, false, and true. It returns surviving

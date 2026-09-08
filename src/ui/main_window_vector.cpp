@@ -1,3 +1,4 @@
+#include "core/vector_compound.hpp"
 // Vector shape tool flows: a released Shape/Path-mode drag from the canvas
 // becomes a new shape layer, an addition to the active shape layer, or work
 // path subpaths. The options-bar swatches and per-mode widget visibility for
@@ -231,6 +232,18 @@ void MainWindow::create_or_extend_shape_layer(std::vector<PathSubpath> subpaths,
         auto content = *layer->vector_shape();
         const auto group = content.path.next_shape_group();
         const auto op = combine_op_for_index(current_vector_combine_index_);
+        if (!content.parts.empty()) {
+          if (op == PathCombineOp::Add) {
+            VectorShapePart part;
+            part.groups = {group};
+            part.fill = content.fill;
+            part.stroke = content.stroke;
+            part.pattern_anchor = layer_effects_reference_point(*layer);
+            content.parts.push_back(std::move(part));
+          } else {
+            for (auto& part : content.parts) { part.groups.push_back(group); }
+          }
+        }
         for (auto& subpath : subpaths) {
           subpath.shape_group = group;
           subpath.op = op;
@@ -545,8 +558,11 @@ bool MainWindow::edit_active_shape_appearance(bool record_undo) {
 
   const auto assemble_content = [](const ShapeAppearanceSettings& settings,
                                    VectorShapeContent content) {
+    const auto previous_fill = content.fill;
+    const auto previous_stroke = content.stroke;
     content.fill = settings.fill;
     content.stroke = settings.stroke;
+    update_vector_part_appearance(content, previous_fill, previous_stroke);
     if (settings.geometry.has_value() && content.origination.size() == 1) {
       // Regenerate the live shape from the edited parameters; the shape STAYS
       // live (this is a parameter edit, not a direct path edit).
@@ -1495,6 +1511,7 @@ bool MainWindow::apply_options_bar_appearance_to_active_shape() {
   if (existing->fill == content.fill && existing->stroke == content.stroke) {
     return false;  // no-op; also keeps stale debounced applies harmless
   }
+  update_vector_part_appearance(content, existing->fill, existing->stroke);
   const auto layer_id = layer->id();
   auto& doc = document();
   push_undo_snapshot(tr("Shape appearance"));
@@ -1597,11 +1614,14 @@ void MainWindow::pick_vector_solid_color(bool for_stroke) {
       return;
     }
     auto content = *std::as_const(*target).vector_shape();
+    const auto previous_fill = content.fill;
+    const auto previous_stroke = content.stroke;
     auto& target_paint = for_stroke ? content.stroke.content : content.fill;
     target_paint.kind = VectorFillKind::Solid;
     target_paint.color = RgbColor{static_cast<std::uint8_t>(color.red()),
                                   static_cast<std::uint8_t>(color.green()),
                                   static_cast<std::uint8_t>(color.blue())};
+    update_vector_part_appearance(content, previous_fill, previous_stroke);
     target->set_vector_shape(std::move(content));
     target->metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPatchy;
     update_vector_shape_raster(*target, Rect::from_size(document().width(), document().height()),

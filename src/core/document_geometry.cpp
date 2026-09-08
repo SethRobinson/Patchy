@@ -1,3 +1,4 @@
+#include "core/vector_compound.hpp"
 // Document and layer geometry operations (crop, rotate, flip, image/canvas resize, and the
 // DocumentChannel geometry counterparts) split out of pixel_tools.cpp as pure moves; bodies
 // are verbatim. Helpers shared with the painting half stay in pixel_tools.cpp and are
@@ -964,6 +965,7 @@ void transform_layer_vector_data(Document& document, Layer& layer,
   if (const auto* shape = layer.vector_shape(); shape != nullptr) {
     auto content = *shape;
     transform_vector_path(content.path, matrix);
+    transform_vector_part_appearance(content, matrix, stroke_scale);
     transform_origination_or_drop(content, matrix);
     if (stroke_scale != 1.0 && stroke_scale > 0.0) {
       content.stroke.width *= stroke_scale;

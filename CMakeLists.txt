@@ -135,6 +135,7 @@ add_library(patchy_core
   src/core/worker_budget.cpp
   src/core/vector_raster.cpp
   src/core/vector_shape.cpp
+  src/core/vector_compound.cpp
   src/core/warp_mesh.hpp
   src/core/warp_mesh.cpp
 )

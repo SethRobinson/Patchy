@@ -101,3 +101,9 @@ The optional fixture is
 captures cover native, enlarged, fractional and maximum zoom. Repeat with
 `QT_SCALE_FACTOR=2` for display density. Test-owned offscreen canvases require no
 desktop input or attachment to the user's application.
+
+Merged vector layers expand their independent paints into temporary native vector
+nodes when a scene is built. Parts retain their own paint anchors, stroke sizes
+and opacity. Their combined tile uses the original pixel layer properties,
+including Fill and clipping; tile bounds and raster budgets apply normally. See
+[layer-merging.md](layer-merging.md).

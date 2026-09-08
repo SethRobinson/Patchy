@@ -13985,6 +13985,8 @@ Clipped to the layer below</source>
         <source>Merged layers</source>
         <translation>レイヤーを結合しました</translation>
     </message>
+    <message><source>Selecting layers...</source><translation>レイヤーを選択中...</translation></message>
+    <message><source>Merging layers...</source><translation>レイヤーを結合中...</translation></message>
 </context>
 <context>
     <name>patchy::ui::PalettePanel</name>
@@ -15591,16 +15593,16 @@ Clipped to the layer below</source>
         <translation>ベクターの種類ごとに分けて結合</translation>
     </message>
     <message>
-        <source>Keep different fills, gradients, patterns, and strokes separate. Turn off to use the bottom shape's fill and stroke.</source>
-        <translation>異なる塗り、グラデーション、パターン、線を分けて保持します。オフにすると、一番下のシェイプの塗りと線を使用します。</translation>
+        <source>Merge solid artwork, gradients, and patterns separately. Colors and stroke settings stay intact within each merged vector layer.</source>
+        <translation>単色、グラデーション、パターンを種類ごとに結合します。各ベクターレイヤー内の色と線の設定は保持されます。</translation>
     </message>
     <message>
         <source>Merge</source>
         <translation>結合</translation>
     </message>
     <message>
-        <source>Overlapping artwork keeps its order. Masks, effects, blending, and paint alignment that need separate layers stay intact.</source>
-        <translation>重なるアートワークの順序を保持します。マスク、効果、描画モード、塗りの配置により個別のレイヤーが必要な場合は、そのまま保持します。</translation>
+        <source>Merged vectors keep their colors, strokes, and paint order. Masks, effects, and blending that need separate layers stay intact.</source>
+        <translation>結合したベクターは色、線、描画順序を保持します。マスク、効果、描画モードにより個別のレイヤーが必要な場合は、そのまま保持します。</translation>
     </message>
     <message>
         <source>Vector merges use the bottom shape's fill and stroke.</source>
@@ -15622,5 +15624,6 @@ Clipped to the layer below</source>
         <source>These layers need to stay separate with the selected options.</source>
         <translation>選択した設定では、これらのレイヤーを個別に保持する必要があります。</translation>
     </message>
+    <message><source>Merging layers...</source><translation>レイヤーを結合中...</translation></message>
 </context>
 </TS>

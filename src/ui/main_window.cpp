@@ -1,5 +1,6 @@
 #include "ui/main_window.hpp"
 #include "ui/main_window_shared.hpp"
+#include "ui/background_workers.hpp"
 
 #include "core/blend_math.hpp"
 #include "core/layer_metadata.hpp"
@@ -9439,8 +9440,10 @@ void MainWindow::merge_down() {
       return;
     }
     std::optional<Document> prepared;
+    const auto merging_session = active_session()->session_id;
+    auto merge_edit_lock = lock_preview_dialog_edits();
     try {
-      prepared = render_layer_merge(std::as_const(doc), plan, [](const Layer& layer) -> std::optional<Layer> {
+      prepared = render_layer_merge_with_processing(canvas_, std::as_const(doc), plan, [](const Layer& layer) -> std::optional<Layer> {
         if (layer.kind() == LayerKind::Group || layer.kind() == LayerKind::Adjustment) {
           return layer;
         }
@@ -9450,6 +9453,8 @@ void MainWindow::merge_down() {
       show_status_error(tr("Could not merge the layers. The original layers are unchanged."));
       return;
     }
+    if (active_session() == nullptr || active_session()->session_id != merging_session) { return; }
+    merge_edit_lock.release();
     push_undo_snapshot(tr("Merge down"));
     doc = std::move(*prepared);
     if (canvas_ != nullptr) {
@@ -9472,6 +9477,13 @@ void MainWindow::merge_down() {
   // layers when merging. Folders and adjustment layers are added as-is so the compositor flattens or
   // applies them; anything the compositor can't draw is skipped the same way. The merged pixels land
   // in the bottom-most visible item, which keeps its id and name.
+  const auto merging_session = active_session()->session_id;
+  auto merge_edit_lock = lock_preview_dialog_edits();
+  const QPointer<CanvasWidget> processing_canvas(canvas_);
+  if (processing_canvas) { processing_canvas->begin_processing_operation(tr("Merging layers...")); }
+  const auto finish_processing = qScopeGuard([processing_canvas] {
+    if (processing_canvas) { processing_canvas->end_processing_operation(); }
+  });
   Rect affected;
   Document merge_document(doc.width(), doc.height(), doc.format());
   merge_document.metadata().patterns = std::as_const(doc).metadata().patterns;
@@ -9500,6 +9512,7 @@ void MainWindow::merge_down() {
     affected = unite_rect(affected, layer_render_bounds(*layer));
     auto& added = merge_document.add_layer(std::move(*renderable));
     affected = unite_rect(affected, layer_render_bounds(added));
+    if (processing_canvas) { processing_canvas->tick_processing_operation(); }
   }
 
   if (target_id == 0) {
@@ -9518,14 +9531,28 @@ void MainWindow::merge_down() {
     return;
   }
 
-  const auto image =
-      qimage_from_document_rect(merge_document, QRect(merge_bounds.x, merge_bounds.y, merge_bounds.width, merge_bounds.height), true);
+  auto image_future = launch_async([merge_document = std::move(merge_document), merge_bounds] {
+    return qimage_from_document_rect(merge_document, QRect(merge_bounds.x, merge_bounds.y, merge_bounds.width, merge_bounds.height), true);
+  });
+  if (processing_canvas) {
+    processing_canvas->wait_for_processing_operation([&image_future] {
+      return image_future.wait_for(std::chrono::milliseconds(16)) == std::future_status::ready;
+    });
+  }
+  QImage image;
+  try { image = image_future.get(); }
+  catch (const std::exception&) {
+    show_status_error(tr("Could not merge the layers. The original layers are unchanged."));
+    return;
+  }
+  if (active_session() == nullptr || active_session()->session_id != merging_session) { return; }
   if (image.isNull()) {
     statusBar()->showMessage(tr("Nothing to merge down"));
     return;
   }
   auto merged_pixels = pixels_from_image_rgba(image);
 
+  merge_edit_lock.release();
   push_undo_snapshot(tr("Merge down"));
   const auto target_location = find_layer_location(doc.layers(), target_id);
   if (!target_location.has_value()) {

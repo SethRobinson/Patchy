@@ -438,9 +438,9 @@ interface PatchyDocument {
   /**
    * Merges exactly the supplied layers and selected groups' contents. Returns
    * surviving selected leaf layers in bottom-to-top paint order. keepVectors and separateVectorTypes
-   * default true; withinGroups defaults false. Incompatible appearances and layer order remain separate.
-   * keepVectors=false explicitly rasterizes merges; separateVectorTypes=false
-   * lets vector merges inherit the bottom shape's fill and stroke.
+   * default true; withinGroups defaults false. Vector parts preserve their individual appearances.
+   * keepVectors=false explicitly rasterizes merges; separateVectorTypes separates
+   * solid, gradient, pattern and mixed-paint categories, irrespective of colors/stroke settings.
    * A single leaf is unchanged (no implicit layer below, unlike Merge Down).
    */
   mergeLayers(layers: PatchyLayer[], options?: {
@@ -797,6 +797,11 @@ interface PatchyShapeState {
   liveShapes?: {group: number; geometry: PatchyVectorGeometry}[];
   fill?: PatchyVectorPaint; stroke?: PatchyVectorStroke;
   pathDisabled?: boolean; pathInverted?: boolean; isFillLayer?: boolean;
+  /** Independent paints in a merged vector layer; empty on ordinary shapes.
+   * Read-only snapshots. Group numbers refer to path.subpaths[].group.
+   * Whole-layer appearance updates change only the edited fields in every part. */
+  parts?: {groups: number[]; fill: PatchyVectorPaint; stroke: PatchyVectorStroke;
+    opacity: number; fillOpacity: number; pathDisabled: boolean; pathInverted: boolean; wholeCanvas: boolean}[];
 }
 interface PatchyVectorMask {
   path: PatchyVectorPath; enabled: boolean; inverted: boolean; linked: boolean;

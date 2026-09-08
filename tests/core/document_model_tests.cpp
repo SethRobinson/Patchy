@@ -506,6 +506,15 @@ void layer_drop_roots_ignore_selected_descendants() {
   const auto roots = patchy::root_drop_layer_ids(document.layers(), {folder_id, child_id});
   CHECK(roots.size() == 1);
   CHECK(roots.front() == folder_id);
+  const auto& view = std::as_const(document);
+  const auto background_id = view.layers()[0].id();
+  const auto revision = view.layers()[1].content_revision();
+  CHECK((patchy::root_drop_layer_ids(view.layers(), {child_id, 0, folder_id, background_id, folder_id}) ==
+         std::vector<patchy::LayerId>{folder_id, background_id}));
+  CHECK((patchy::root_drop_layer_ids(view.layers(), {child_id, background_id, child_id}) ==
+         std::vector<patchy::LayerId>{child_id, background_id}));
+  CHECK(patchy::root_drop_layer_ids(view.layers(), {folder_id, child_id, 99999}).empty());
+  CHECK(view.layers()[1].content_revision() == revision);
 }
 
 void document_print_settings_default_and_copy() {

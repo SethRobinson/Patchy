@@ -29,6 +29,7 @@ struct VectorPreviewNode {
   Layer layer;
   Rect source_bounds;
   std::optional<VectorShapeContent> shape;
+  bool compound{false};
   std::optional<QRectF> bounds;  // null = potentially covers the entire canvas
   Rect fill_bounds;
   Rect stroke_bounds;

@@ -1,3 +1,4 @@
+#include "core/vector_compound.hpp"
 #include "ui/vector_preview_renderer.hpp"
 
 #include "core/layer_metadata.hpp"
@@ -63,15 +64,26 @@ Layer copy_render_properties(const Layer& source) {
   return layer;
 }
 
-void copy_nodes(const std::vector<Layer>& layers, std::vector<VectorPreviewNode>& out, bool& has_vectors) {
+void copy_nodes(const std::vector<Layer>& layers, std::vector<VectorPreviewNode>& out, bool& has_vectors,
+                Document& ids) {
   for (const auto& source : layers) {
     VectorPreviewNode node;
     node.layer = copy_render_properties(source);
     node.source_bounds = source.kind() == LayerKind::Group ? layer_render_bounds(source) : layer_pixel_bounds(source);
     node.fill_bounds = node.stroke_bounds = node.source_bounds;
     if (source.visible() && source.opacity() > 0.0F) {
-      if (source.kind() == LayerKind::Group) {
-        copy_nodes(source.children(), node.children, has_vectors);
+      if (layer_is_compound_vector(source) && source.smart_filter_stack() == nullptr) {
+        auto content_layer = source;
+        content_layer.set_fill_opacity(1.0F); // The original outer pixel layer applies Fill once.
+        auto expanded = expand_compound_vector_layer(content_layer);
+        for (auto& part : expanded.children()) {
+          const auto id = ids.allocate_layer_id();
+          part = part.clone_with_id(id);
+        }
+        node.compound = true;
+        copy_nodes(std::as_const(expanded).children(), node.children, has_vectors, ids);
+      } else if (source.kind() == LayerKind::Group) {
+        copy_nodes(source.children(), node.children, has_vectors, ids);
       } else if (const auto* shape = source.vector_shape(); shape && !layer_is_text(source) &&
                  !layer_is_smart_object(source) && vector_lock_reason(source).empty() &&
                  source.smart_filter_stack() == nullptr) {
@@ -211,6 +223,10 @@ std::uint64_t compositor_workspace_per_pixel(const LayerStyle& style) {
 
 Layer native_group_tree(const VectorPreviewNode& node, std::uint64_t& workspace) {
   auto layer = node.layer;
+  if (node.compound) {
+    workspace = compositor_workspace_per_pixel(layer.layer_style());
+    return layer; // Its original combined pixels already provide the silhouette.
+  }
   if (node.shape) { layer.set_vector_shape(*node.shape); }
   std::uint64_t children_workspace = 0;
   for (const auto& child : node.children) {
@@ -289,7 +305,7 @@ int transform_nodes(std::vector<VectorPreviewNode>& nodes, const VectorPreviewVi
     padding = std::max(padding, combined_padding);
     if (node.bounds) {
       *node.bounds = QRectF(node.bounds->topLeft() * view.scale + view.offset, node.bounds->size() * view.scale);
-    } else if (!node.shape && source.kind() != LayerKind::Group && source.kind() != LayerKind::Adjustment) {
+    } else if (!node.shape && !node.compound && source.kind() != LayerKind::Group && source.kind() != LayerKind::Adjustment) {
       node.bounds = mapped_rect(node.source_bounds, view);
     }
     if (node.bounds && !node.bounds->adjusted(-combined_padding - 2, -combined_padding - 2,
@@ -302,7 +318,7 @@ int transform_nodes(std::vector<VectorPreviewNode>& nodes, const VectorPreviewVi
     const auto visible = checked_rect(mapped_rect(native_visible, view));
     context.appearance.emplace(source.id(), render_detail::RasterViewAppearance{
         full, visible, {}});
-    if (source.kind() == LayerKind::Group) {
+    if (source.kind() == LayerKind::Group || node.compound) {
       padding = std::max(padding, transform_nodes(node.children, view, native_canvas, context, budget, patterns, combined_padding));
     }
     if (node.shape) {
@@ -389,7 +405,25 @@ void raster_nodes(const std::vector<VectorPreviewNode>& nodes, std::vector<Layer
     const bool styled = source.layer_style().effects_visible && !source.layer_style().empty();
     const auto workspace_per_pixel = compositor_workspace_per_pixel(source.layer_style());
     budget.check_workspace(area_pixels * workspace_per_pixel * static_cast<std::uint64_t>(depth + 1));
-    if (source.kind() == LayerKind::Group) {
+    if (node.compound) {
+      // Flatten just this tile's native paints, then apply the real pixel
+      // layer's opacity, Fill, effects, masks and clipping in the compositor.
+      // A group substitute would ignore Fill and stop acting as a clip base.
+      const auto retained = budget.retained;
+      PixelBuffer combined;
+      {
+        Document parts(view.pixels.width(), view.pixels.height(), PixelFormat::rgba8());
+        parts.metadata().patterns = patterns;
+        raster_nodes(node.children, parts.layers(), area, view, canvas, patterns, budget, depth + 1, cancelled);
+        const auto image = qimage_from_document_rect(parts, QRect(area.x, area.y, area.width, area.height), true);
+        if (image.isNull()) { throw VectorPreviewFallback::Memory; }
+        combined = pixels_from_image_rgba(image);
+      }
+      budget.retained = retained;
+      budget.keep(combined);
+      layer.set_pixels(std::move(combined));
+      layer.set_bounds(area);
+    } else if (source.kind() == LayerKind::Group) {
       raster_nodes(node.children, layer.children(), area, view, canvas, patterns, budget, depth + 1, cancelled);
     } else if (node.shape) {
       const VectorPaintBounds paint_bounds{canvas, node.fill_bounds, node.stroke_bounds};
@@ -458,7 +492,8 @@ VectorPreviewScene build_vector_preview_scene(const Document& document) {
     scene.fallback = VectorPreviewFallback::Content;
   } else {
     scene.patterns = document.metadata().patterns;
-    copy_nodes(document.layers(), scene.layers, scene.has_vectors);
+    Document ids = document;
+    copy_nodes(document.layers(), scene.layers, scene.has_vectors, ids);
   }
   return scene;
 }

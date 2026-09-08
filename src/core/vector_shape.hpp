@@ -192,6 +192,21 @@ struct LiveShapeParams {
   friend bool operator==(const LiveShapeParams&, const LiveShapeParams&) = default;
 };
 
+// An independently painted part of a merged vector layer. Geometry stays in
+// the owning shape's path, so existing point editing works on the same knots.
+// Parts paint bottom-to-top, each with its original fill, stroke and opacity.
+struct VectorShapePart {
+  std::vector<std::int32_t> groups;
+  bool whole_canvas{false};
+  bool path_disabled{false};
+  bool path_inverted{false};
+  VectorFill fill;
+  VectorStroke stroke;
+  float opacity{1.0F};
+  float fill_opacity{1.0F};
+  std::array<double, 2> pattern_anchor{};
+};
+
 // The whole editable content of a shape/fill layer.
 struct VectorShapeContent {
   VectorPath path;         // empty path == full-canvas fill layer
@@ -202,6 +217,9 @@ struct VectorShapeContent {
   VectorFill fill{};
   VectorStroke stroke{};
   std::vector<LiveShapeParams> origination;
+  // Empty for an ordinary single-appearance PSD shape. When nonempty, these
+  // independent paints replace the top-level fill/stroke during rendering.
+  std::vector<VectorShapePart> parts;
   // Style-compositing caches (never serialized; rebuilt with the pixel bake):
   // straight-alpha planes over the layer's baked bounds. Interior overlay
   // effects apply over fill_cache and the vector stroke re-composites above

@@ -168,32 +168,27 @@ bool layer_contains_descendant(const Layer& layer, LayerId id) {
 std::vector<LayerId> root_drop_layer_ids(const std::vector<Layer>& layers,
                                          const std::vector<LayerId>& ids_top_to_bottom) {
   std::vector<LayerId> roots;
-  std::set<LayerId> seen;
+  std::set<LayerId> selected(ids_top_to_bottom.begin(), ids_top_to_bottom.end());
+  selected.erase(0);
+  std::set<LayerId> found;
+  std::set<LayerId> eligible;
+  // One tree walk replaces a tree search for every pair of selected layers.
+  // Preserve the caller's order below, including the all-or-nothing handling
+  // of missing ids used by drag/drop and transform commands.
+  const auto visit = [&](const auto& self, const std::vector<Layer>& siblings, bool ancestor_selected) -> void {
+    for (const auto& layer : siblings) {
+      const bool chosen = selected.contains(layer.id());
+      if (chosen) {
+        found.insert(layer.id());
+        if (!ancestor_selected) { eligible.insert(layer.id()); }
+      }
+      self(self, layer.children(), ancestor_selected || chosen);
+    }
+  };
+  visit(visit, layers, false);
+  if (found.size() != selected.size()) { return {}; }
   for (const auto id : ids_top_to_bottom) {
-    if (id == 0 || seen.contains(id)) {
-      continue;
-    }
-    const auto* layer = find_layer_in_tree(layers, id);
-    if (layer == nullptr) {
-      return {};
-    }
-
-    bool has_selected_ancestor = false;
-    for (const auto possible_ancestor_id : ids_top_to_bottom) {
-      if (possible_ancestor_id == id || possible_ancestor_id == 0) {
-        continue;
-      }
-      const auto* possible_ancestor = find_layer_in_tree(layers, possible_ancestor_id);
-      if (possible_ancestor != nullptr && layer_contains_descendant(*possible_ancestor, id)) {
-        has_selected_ancestor = true;
-        break;
-      }
-    }
-
-    if (!has_selected_ancestor) {
-      roots.push_back(id);
-      seen.insert(id);
-    }
+    if (eligible.erase(id) != 0) { roots.push_back(id); }
   }
   return roots;
 }
