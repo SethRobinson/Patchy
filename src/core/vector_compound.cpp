@@ -35,6 +35,25 @@ void copy_properties(const Layer& from, Layer& to) {
 }
 }  // namespace
 
+CompoundVectorGroupKind compound_vector_group_kind(const Layer& layer) {
+  if (layer.kind() != LayerKind::Group) { return CompoundVectorGroupKind::None; }
+  for (const auto& block : layer.unknown_psd_blocks()) {
+    if (block.payload != kCompoundPayload) { continue; }
+    if (block.key == kCompoundBlock) { return CompoundVectorGroupKind::Content; }
+    if (block.key == "pvfi") { return CompoundVectorGroupKind::FillOpacity; }
+  }
+  return CompoundVectorGroupKind::None;
+}
+
+void set_compound_vector_group_kind(Layer& layer, CompoundVectorGroupKind kind) {
+  std::erase_if(layer.unknown_psd_blocks(), [](const auto& block) {
+    return block.key == kCompoundBlock || block.key == "pvfi";
+  });
+  if (kind != CompoundVectorGroupKind::None) {
+    layer.unknown_psd_blocks().push_back({kind == CompoundVectorGroupKind::Content ? kCompoundBlock : "pvfi", kCompoundPayload});
+  }
+}
+
 bool layer_is_compound_vector(const Layer& layer) {
   return layer_is_vector_shape(layer) && !layer.vector_shape()->parts.empty();
 }
@@ -139,7 +158,7 @@ Layer expand_compound_vector_layer(const Layer& layer) {
   copy_properties(layer, group);
   strip_layer_vector_data(group);
   if (layer.vector_mask()) { group.set_vector_mask(*layer.vector_mask()); }
-  group.unknown_psd_blocks().push_back({kCompoundBlock, kCompoundPayload});
+  set_compound_vector_group_kind(group, CompoundVectorGroupKind::Content);
   group.set_fill_opacity(1.0F); // Native folders ignore Fill; use an inner opacity boundary.
   const auto& shape = *layer.vector_shape();
   for (const auto& part : shape.parts) {
@@ -156,7 +175,7 @@ Layer expand_compound_vector_layer(const Layer& layer) {
   if (layer.fill_opacity() != 1.0F) {
     Layer fill(0, layer.name(), LayerKind::Group);
     fill.set_opacity(layer.fill_opacity());
-    fill.unknown_psd_blocks().push_back({"pvfi", kCompoundPayload});
+    set_compound_vector_group_kind(fill, CompoundVectorGroupKind::FillOpacity);
     fill.children() = std::move(group.children());
     group.children().clear();
     group.add_child(std::move(fill));
@@ -197,18 +216,14 @@ void collapse_compound_vector_groups(Document& document) {
       if (layer.kind() != LayerKind::Group) { continue; }
       self(self, layer.children());
       const auto& view = std::as_const(layer);
-      const bool marked = std::any_of(view.unknown_psd_blocks().begin(), view.unknown_psd_blocks().end(), [](const auto& block) {
-        return block.key == kCompoundBlock && block.payload == kCompoundPayload;
-      });
+      const bool marked = compound_vector_group_kind(view) == CompoundVectorGroupKind::Content;
       if (!marked || view.children().empty()) { continue; }
       if (blend_if_payload_has_non_identity_or_unsupported(view.raw_psd_group_boundary_blending_ranges())) { continue; }
       const auto* paints = &view.children();
       float fill_opacity = 1.0F;
       if (paints->size() == 1 && paints->front().kind() == LayerKind::Group) {
         const auto& inner = paints->front();
-        const bool fill_boundary = std::any_of(inner.unknown_psd_blocks().begin(), inner.unknown_psd_blocks().end(), [](const auto& block) {
-          return block.key == "pvfi" && block.payload == kCompoundPayload;
-        });
+        const bool fill_boundary = compound_vector_group_kind(inner) == CompoundVectorGroupKind::FillOpacity;
         if (!fill_boundary || inner.lock_flags() != kLayerLockNone || inner.mask() || inner.vector_mask() || !inner.layer_style().empty() ||
             inner.blend_mode() != BlendMode::Normal || !inner.visible() || inner.clipped() ||
             inner.restricted_channels() != 0 || !inner.channel_restriction_supported() ||

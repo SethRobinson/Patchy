@@ -16,6 +16,7 @@ struct LayerMergeOptions {
   bool keep_vectors{true};
   bool within_groups{false};
   bool separate_vector_types{true};
+  bool hide_originals{true}; // Copy dialog only; Merge Down never changes this.
 };
 
 struct LayerMergeNode {
@@ -43,7 +44,8 @@ struct LayerMergePlan {
 // Read-only: never bakes pixels or changes document revisions. Unselected layers,
 // clipping chains, locks, masks and backdrop-dependent appearances are barriers.
 [[nodiscard]] LayerMergePlan plan_layer_merge(const Document& document, const std::vector<LayerId>& ids,
-                                             LayerMergeOptions options = {});
+                                             LayerMergeOptions options = {}, bool copy = false);
+[[nodiscard]] Document visible_document_for_merge_copy(const Document& document);
 // Prepare before arming undo. A failed bake leaves the source and history intact.
 [[nodiscard]] Document render_layer_merge(
     const Document& document, const LayerMergePlan& plan,
@@ -52,6 +54,6 @@ struct LayerMergePlan {
     CanvasWidget* canvas, const Document& document, const LayerMergePlan& plan,
     const std::function<std::optional<Layer>(const Layer&)>& raster_source = {});
 [[nodiscard]] std::optional<LayerMergeOptions> show_layer_merge_dialog(
-    QWidget* parent, const Document& document, const std::vector<LayerId>& ids);
+    QWidget* parent, const Document& document, const std::vector<LayerId>& ids, bool copy = false);
 
 }  // namespace patchy::ui

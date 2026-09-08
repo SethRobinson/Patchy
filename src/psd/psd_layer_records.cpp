@@ -140,7 +140,10 @@ bool is_smart_object_reference_block(std::string_view key) {
 
 bool should_skip_layer_block(const EncodedLayer& encoded, const UnknownPsdBlock& block, bool generated_text_block,
                              bool generated_style_block, bool generated_vector_blocks) {
-  if (block.key == "luni" || block.key == "plFX" || block.key == "lspf" || block.key == "lmgm" ||
+  // Runtime/legacy compound markers travel in plug-in resource 4211. Unknown
+  // per-layer keys make Photoshop warn that editable data will be discarded.
+  if (block.key == "pvcl" || block.key == "pvfi" ||
+      block.key == "luni" || block.key == "plFX" || block.key == "lspf" || block.key == "lmgm" ||
       block.key == "infx" || (block.key == "plAD" && encoded.kind == EncodedLayerKind::Adjustment)) {
     return true;
   }

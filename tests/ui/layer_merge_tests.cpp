@@ -606,10 +606,150 @@ void ui_layer_selection_little_everywhere_shift_range_if_available() {
   CHECK(layer_tree_count(std::as_const(doc).layers()) == 305);
 }
 
+void drive_visible_copy_dialog(MainWindow& window, const std::function<void(QDialog&)>& driver) {
+  bool saw = false;
+  std::exception_ptr failure;
+  QTimer timer;
+  timer.setSingleShot(true);
+  QObject::connect(&timer, &QTimer::timeout, &window, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("mergeLayersDialog"));
+    try {
+      CHECK(dialog != nullptr);
+      saw = true;
+      CHECK(dialog->windowTitle().contains(QStringLiteral("(Copy)")));
+      driver(*dialog);
+    } catch (...) {
+      failure = std::current_exception();
+      if (dialog != nullptr) { dialog->reject(); }
+    }
+  });
+  timer.start(0);
+  require_action(window, "layerMergeVisibleAction")->trigger();
+  if (failure) { std::rethrow_exception(failure); }
+  CHECK(saw);
+}
+
+void ui_merge_visible_copy_dialog_preserves_sources_and_history() {
+  MainWindow window;
+  show_window(window);
+  auto& doc = MainWindowTestAccess::document(window);
+  doc = grouped_sample();
+  Layer hidden(doc.allocate_layer_id(), "Hidden folder", LayerKind::Group);
+  hidden.set_visible(false);
+  hidden.add_child(vector_layer(doc, rectangle(0, 0, 120, 90, {240, 0, 0})));
+  doc.add_layer(std::move(hidden));
+  auto base = pixel_layer(doc, 5, 5, {0, 255, 0});
+  base.set_visible(false);
+  doc.add_layer(std::move(base));
+  auto clipped = vector_layer(doc, rectangle(0, 0, 120, 90, {0, 255, 0}));
+  clipped.set_clipped(true);
+  doc.add_layer(std::move(clipped));
+  const Document original = doc;
+  auto* canvas = require_canvas(window);
+  canvas->set_document(&doc);
+  MainWindowTestAccess::refresh_layer_ui(window);
+  const auto bytes = psd::DocumentIo::write_layered_rgb8(doc);
+  const auto history = MainWindowTestAccess::active_session_undo_depth(window);
+  const auto modified = MainWindowTestAccess::active_session_is_modified(window);
+  drive_visible_copy_dialog(window, [&](QDialog& dialog) { dialog.reject(); });
+  CHECK(psd::DocumentIo::write_layered_rgb8(doc) == bytes);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == history);
+  CHECK(MainWindowTestAccess::active_session_is_modified(window) == modified);
+  drive_visible_copy_dialog(window, [&](QDialog& dialog) {
+    CHECK(dialog.findChild<QCheckBox*>(QStringLiteral("mergeKeepVectorsCheck"))->isChecked());
+    CHECK(dialog.findChild<QCheckBox*>(QStringLiteral("mergeSeparateVectorTypesCheck"))->isChecked());
+    CHECK(dialog.findChild<QCheckBox*>(QStringLiteral("mergeHideOriginalsCheck"))->isChecked());
+    dialog.findChild<QCheckBox*>(QStringLiteral("mergeWithinGroupsCheck"))->setChecked(true);
+    CHECK(dialog.findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Ok)->isEnabled());
+    save_widget_artifact("ui_merge_visible_copy_dialog", dialog);
+    dialog.accept();
+  });
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == history + 1);
+  CHECK(std::as_const(doc).layers().size() == original.layers().size() + 1);
+  const auto& copy = std::as_const(doc).layers().back();
+  CHECK(copy.kind() == LayerKind::Group && copy.children().size() == 4);
+  CHECK(layer_is_compound_vector(copy.children()[1]) && layer_is_compound_vector(copy.children()[3]));
+  CHECK(doc.active_layer_id() == copy.id());
+  for (std::size_t i = 0; i < original.layers().size(); ++i) { CHECK(!std::as_const(doc).layers()[i].visible()); }
+  auto originals = doc;
+  originals.layers().resize(original.layers().size());
+  for (std::size_t i = 0; i < original.layers().size(); ++i) {
+    originals.layers()[i].set_visible(original.layers()[i].visible());
+  }
+  CHECK(psd::DocumentIo::write_layered_rgb8(originals) == bytes);
+  check_close_images(qimage_from_document(original, true), qimage_from_document(doc, true), 2);
+  CHECK(!canvas->processing_operation_active());
+  MainWindowTestAccess::undo(window);
+  CHECK(psd::DocumentIo::write_layered_rgb8(doc) == bytes);
+  MainWindowTestAccess::redo(window);
+  check_close_images(qimage_from_document(original, true), qimage_from_document(doc, true), 2);
+}
+
+void ui_merge_visible_copy_single_vector_raster_and_visibility_choices() {
+  MainWindow window;
+  show_window(window);
+  auto& doc = MainWindowTestAccess::document(window);
+  doc = Document(96, 72, PixelFormat::rgba8());
+  auto shape = vector_layer(doc, rectangle(4, 8, 55, 50));
+  shape.set_opacity(0.5F);
+  doc.add_layer(std::move(shape));
+  require_canvas(window)->set_document(&doc);
+  MainWindowTestAccess::refresh_layer_ui(window);
+  const Document original = doc;
+  drive_visible_copy_dialog(window, [&](QDialog& dialog) {
+    CHECK(dialog.findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Ok)->isEnabled());
+    dialog.findChild<QCheckBox*>(QStringLiteral("mergeHideOriginalsCheck"))->setChecked(false);
+    dialog.accept();
+  });
+  CHECK(std::as_const(doc).layers().size() == 2);
+  CHECK(std::as_const(doc).layers()[0].visible() && layer_is_vector_shape(std::as_const(doc).layers()[1]));
+  CHECK(std::as_const(doc).layers()[0].id() != std::as_const(doc).layers()[1].id());
+  MainWindowTestAccess::undo(window);
+  for (const bool within : {false, true}) {
+    drive_visible_copy_dialog(window, [&](QDialog& dialog) {
+      dialog.findChild<QCheckBox*>(QStringLiteral("mergeKeepVectorsCheck"))->setChecked(false);
+      dialog.findChild<QCheckBox*>(QStringLiteral("mergeWithinGroupsCheck"))->setChecked(within);
+      dialog.accept();
+    });
+    CHECK(std::as_const(doc).layers().size() == 2);
+    CHECK(layer_is_vector_shape(std::as_const(doc).layers()[0]) && !std::as_const(doc).layers()[0].visible());
+    CHECK(!layer_is_vector_shape(std::as_const(doc).layers()[1]));
+    check_close_images(qimage_from_document(original, true), qimage_from_document(doc, true), 2);
+    MainWindowTestAccess::undo(window);
+  }
+}
+
+void ui_merge_visible_copy_little_everywhere_if_available() {
+  const auto path = patchy::test::local_format_fixture_path("vector-preview", "Little-Everywhere.psd");
+  if (!std::filesystem::exists(path)) { std::printf("[SKIP] Little-Everywhere fixture missing\n"); return; }
+  MainWindow window;
+  show_window(window);
+  auto& doc = MainWindowTestAccess::document(window);
+  doc = psd::DocumentIo::read_file(path);
+  const Document original = doc;
+  require_canvas(window)->set_document(&doc);
+  MainWindowTestAccess::refresh_layer_ui(window);
+  drive_visible_copy_dialog(window, [&](QDialog& dialog) {
+    dialog.findChild<QCheckBox*>(QStringLiteral("mergeWithinGroupsCheck"))->setChecked(true);
+    CHECK(dialog.findChild<QLabel*>(QStringLiteral("mergeLayersSummaryLabel"))->text().contains(QStringLiteral("153 vector layers")));
+    dialog.accept();
+  });
+  CHECK(layer_tree_count(std::as_const(doc).layers()) == 2362);
+  CHECK(layer_tree_count(std::as_const(doc).layers().back().children()) == 305);
+  check_close_images(qimage_from_document(original, true), qimage_from_document(doc, true), 2);
+  const auto reread = psd::DocumentIo::read(psd::DocumentIo::write_layered_rgb8(doc));
+  CHECK(layer_tree_count(reread.layers()) == 2362);
+  MainWindowTestAccess::undo(window);
+  CHECK(layer_tree_count(std::as_const(doc).layers()) == 2056);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> layer_merge_tests() {
   return {
+      {"ui_merge_visible_copy_dialog_preserves_sources_and_history", ui_merge_visible_copy_dialog_preserves_sources_and_history},
+      {"ui_merge_visible_copy_single_vector_raster_and_visibility_choices", ui_merge_visible_copy_single_vector_raster_and_visibility_choices},
+      {"ui_merge_visible_copy_little_everywhere_if_available", ui_merge_visible_copy_little_everywhere_if_available},
       {"ui_layer_merge_compound_geometry_and_processing", ui_layer_merge_compound_geometry_and_processing},
       {"ui_layer_selection_little_everywhere_shift_range_if_available", ui_layer_selection_little_everywhere_shift_range_if_available},
       {"ui_layer_merge_mixed_group_keeps_vectors_order_opacity_and_psd", ui_layer_merge_mixed_group_keeps_vectors_order_opacity_and_psd},

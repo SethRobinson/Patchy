@@ -782,7 +782,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   }
   layer_menu->addSeparator();
   auto* duplicate_layer_action = layer_menu->addAction(tr("&Duplicate Layer"));
-  auto* merge_visible_action = layer_menu->addAction(tr("Merge &Visible to New Layer"));
+  auto* merge_visible_action = layer_menu->addAction(tr("Merge &Visible to New Layer (Copy)"));
   merge_visible_action->setObjectName(QStringLiteral("layerMergeVisibleAction"));
   auto* merge_down_action = layer_menu->addAction(tr("Merge &Down"));
   merge_down_action->setObjectName(QStringLiteral("layerMergeDownAction"));

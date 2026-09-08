@@ -15,6 +15,8 @@
 
 #include "ui/main_window.hpp"
 #include "ui/main_window_shared.hpp"
+#include "ui/layer_merge.hpp"
+#include "ui/background_workers.hpp"
 
 #include "core/blend_math.hpp"
 #include "core/layer_metadata.hpp"
@@ -2442,7 +2444,7 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   menu.addSeparator();
   auto* merge_down_action =
       menu.addAction(simple_icon(QStringLiteral("merge"), QColor(160, 220, 255)), tr("Merge Down"));
-  auto* merge_visible_action = menu.addAction(simple_icon(QStringLiteral("merge")), tr("Merge Visible to New Layer"));
+  auto* merge_visible_action = menu.addAction(simple_icon(QStringLiteral("merge")), tr("Merge Visible to New Layer (Copy)"));
   if (layer_rasterize_action_ != nullptr) {
     layer_rasterize_action_->setEnabled(has_rasterizable_layer);
     menu.addAction(layer_rasterize_action_);
@@ -2713,14 +2715,79 @@ void MainWindow::show_layer_context_menu(QPoint position) {
 }
 
 void MainWindow::merge_visible_to_new_layer() {
-  auto& doc = document();
-  push_undo_snapshot(tr("Merge visible"));
-  auto merged = Compositor{}.flatten_rgb8(doc);
-  doc.add_pixel_layer(tr("Merged Visible").toStdString(), std::move(merged));
+  if (canvas_ != nullptr) { canvas_->finish_free_transform(); }
+  finish_active_text_editor();
+  if (active_session() == nullptr) { return; }
+  const auto session_id = active_session()->session_id;
+  const Document source = std::as_const(document());
+  auto visible = visible_document_for_merge_copy(source);
+  if (visible.layers().empty()) {
+    statusBar()->showMessage(tr("No visible layers to copy"));
+    return;
+  }
+  std::vector<LayerId> ids;
+  for (const auto& layer : std::as_const(visible).layers()) { ids.push_back(layer.id()); }
+  const bool vectors = merge_selection_contains_vectors(visible, ids);
+  auto edit_lock = lock_preview_dialog_edits();
+  LayerMergeOptions options;
+  if (vectors) {
+    const auto choice = show_layer_merge_dialog(this, visible, ids, true);
+    if (!choice || active_session() == nullptr || active_session()->session_id != session_id) { return; }
+    options = *choice;
+  }
+  const QPointer<CanvasWidget> target(canvas_);
+  if (target) { target->begin_processing_operation(tr("Merging layers...")); }
+  const auto finish_processing = qScopeGuard([target] { if (target) { target->end_processing_operation(); } });
+  Document prepared = source;
+  LayerId copy_id = 0;
+  try {
+    if (vectors) {
+      const auto plan = plan_layer_merge(visible, ids, options, true);
+      auto rendered = render_layer_merge_with_processing(target, visible, plan);
+      Layer group(0, {}, LayerKind::Group);
+      group.set_blend_mode(BlendMode::Normal);
+      group.children() = std::as_const(rendered).layers();
+      const auto& content = std::as_const(group).children().size() == 1 ? std::as_const(group).children().front() : group;
+      auto copy = clone_layer_tree_with_document_ids(prepared, content);
+      if (!copy) { throw std::runtime_error("Could not duplicate merged layer resources"); }
+      copy->set_name(tr("Merged Visible (Copy)").toStdString());
+      copy_id = copy->id();
+      if (options.hide_originals) {
+        for (auto& layer : prepared.layers()) { if (layer.visible()) { layer.set_visible(false); } }
+      }
+      prepared.add_layer(std::move(*copy));
+    } else {
+      // Bitmap-only copies retain the existing opaque snapshot behavior.
+      auto future = launch_async([source] { return Compositor{}.flatten_rgb8(source); });
+      if (target) {
+        target->wait_for_processing_operation([&future] {
+          return future.wait_for(std::chrono::milliseconds(16)) == std::future_status::ready;
+        });
+      }
+      auto pixels = future.get();
+      copy_id = prepared.add_pixel_layer(tr("Merged Visible (Copy)").toStdString(), std::move(pixels)).id();
+    }
+  } catch (const std::exception&) {
+    show_status_error(tr("Could not copy the visible layers. The original layers are unchanged."));
+    return;
+  }
+  if (active_session() == nullptr || active_session()->session_id != session_id) { return; }
+  prepared.set_active_layer(copy_id);
+  edit_lock.release();
+  push_undo_snapshot(tr("Merge visible (copy)"));
+  document() = std::move(prepared);
+  if (canvas_ != nullptr) {
+    canvas_->clear_path_edit_selection();
+    canvas_->set_layer_edit_target(CanvasWidget::LayerEditTarget::Content);
+    canvas_->set_selected_layer_ids({copy_id});
+  }
   refresh_layer_list();
   refresh_layer_controls();
-  canvas_->document_changed();
-  statusBar()->showMessage(tr("Merged visible layers to a new layer"));
+  refresh_document_info();
+  path_row_hidden_for_layer_.reset();
+  refresh_paths_panel();
+  if (canvas_ != nullptr) { canvas_->document_changed(); }
+  statusBar()->showMessage(tr("Created a merged copy of the visible layers"));
 }
 
 void MainWindow::fill_active_layer() {

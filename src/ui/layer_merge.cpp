@@ -117,8 +117,8 @@ unsigned vector_paint_type(const VectorShapeContent& shape) {
 
 class Planner {
 public:
-  Planner(const Document& document, const std::vector<LayerId>& ids, LayerMergeOptions options)
-      : document_(document), selected_(ids.begin(), ids.end()), options_(options) {
+  Planner(const Document& document, const std::vector<LayerId>& ids, LayerMergeOptions options, bool copy)
+      : document_(document), selected_(ids.begin(), ids.end()), options_(options), copy_(copy) {
     const auto index = [&](const auto& self, const std::vector<Layer>& layers) -> void {
       for (const auto& layer : layers) {
         sources_.emplace(layer.id(), &layer);
@@ -226,7 +226,8 @@ private:
                          !layer_has_vector_shape_marker(layer) && layer.vector_shape() == nullptr;
       } else {
         node.mergeable = selected && !locked && layer.visible() && !clipping;
-        node.rasterize = node.mergeable && layer.kind() == LayerKind::Group;
+        node.rasterize = node.mergeable && (layer.kind() == LayerKind::Group ||
+            (copy_ && ordinary_appearance(layer) && layer.blend_mode() == BlendMode::Normal));
         node.changed = node.rasterize;
         if (node.rasterize) {
           plan_.removed_layers += layer_descendant_count(layer);
@@ -260,6 +261,7 @@ private:
   const Document& document_;
   std::set<LayerId> selected_;
   LayerMergeOptions options_;
+  bool copy_{false};
   std::map<LayerId, const Layer*> sources_;
   std::map<LayerId, std::optional<VectorPathBounds>> bounds_;
   LayerMergePlan plan_;
@@ -278,8 +280,46 @@ bool merge_selection_contains_vectors(const Document& document, const std::vecto
   });
 }
 
-LayerMergePlan plan_layer_merge(const Document& document, const std::vector<LayerId>& ids, LayerMergeOptions options) {
-  return Planner(document, ids, options).run();
+LayerMergePlan plan_layer_merge(const Document& document, const std::vector<LayerId>& ids, LayerMergeOptions options, bool copy) {
+  if (copy && !options.keep_vectors && !options.within_groups && !document.layers().empty()) {
+    // Copy mode supplies the complete visible tree. Flattening that complete
+    // stack preserves backdrop-dependent blending and clipping relationships.
+    LayerMergePlan plan;
+    LayerMergeNode node;
+    for (const auto& layer : document.layers()) {
+      node.sources.push_back(layer.id());
+      plan.removed_layers += 1 + layer_descendant_count(layer);
+    }
+    --plan.removed_layers;
+    node.selected = node.rasterize = node.changed = true;
+    plan.result_ids = {node.sources.front()};
+    plan.roots.push_back(std::move(node));
+    plan.bitmap_layers = 1;
+    plan.changed = true;
+    return plan;
+  }
+  return Planner(document, ids, options, copy).run();
+}
+
+Document visible_document_for_merge_copy(const Document& document) {
+  Document result = document;
+  const auto visible = [&](const auto& self, const std::vector<Layer>& siblings) -> std::vector<Layer> {
+    std::vector<Layer> copies;
+    bool base_visible = true;
+    for (const auto& layer : siblings) {
+      if (!layer.clipped()) { base_visible = layer.visible(); }
+      if (!layer.visible() || (layer.clipped() && !base_visible)) { continue; }
+      auto copy = layer;
+      // A copy can merge locked sources without modifying those originals.
+      copy.set_lock_flags(kLayerLockNone);
+      if (layer.kind() == LayerKind::Group) { copy.children() = self(self, layer.children()); }
+      copies.push_back(std::move(copy));
+    }
+    return copies;
+  };
+  result.layers() = visible(visible, document.layers());
+  result.clear_active_layer();
+  return result;
 }
 
 Document render_layer_merge(const Document& document, const LayerMergePlan& plan,
@@ -383,13 +423,14 @@ Document render_layer_merge_with_processing(
 }
 
 std::optional<LayerMergeOptions> show_layer_merge_dialog(QWidget* parent, const Document& document,
-                                                        const std::vector<LayerId>& ids) {
+                                                        const std::vector<LayerId>& ids, bool copy) {
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("mergeLayersDialog"));
-  dialog.setWindowTitle(LayerMergeStrings::tr("Merge Layers"));
+  dialog.setWindowTitle(copy ? LayerMergeStrings::tr("Merge Visible to New Layer (Copy)") : LayerMergeStrings::tr("Merge Layers"));
   dialog.setMinimumWidth(440);
   auto* layout = new QVBoxLayout(&dialog);
-  auto* intro = new QLabel(LayerMergeStrings::tr("Choose how to merge the selected layers and their groups."), &dialog);
+  auto* intro = new QLabel(copy ? LayerMergeStrings::tr("Choose how to merge a copy of the visible layers.")
+                               : LayerMergeStrings::tr("Choose how to merge the selected layers and their groups."), &dialog);
   intro->setWordWrap(true);
   layout->addWidget(intro);
   auto* vectors = new QCheckBox(LayerMergeStrings::tr("Keep vectors and bitmaps separate"), &dialog);
@@ -407,6 +448,14 @@ std::optional<LayerMergeOptions> show_layer_merge_dialog(QWidget* parent, const 
   types->setChecked(true);
   types->setToolTip(LayerMergeStrings::tr("Merge solid artwork, gradients, and patterns separately. Colors and stroke settings stay intact within each merged vector layer."));
   layout->addWidget(types);
+  QCheckBox* hide_originals = nullptr;
+  if (copy) {
+    hide_originals = new QCheckBox(LayerMergeStrings::tr("Hide original layers"), &dialog);
+    hide_originals->setObjectName(QStringLiteral("mergeHideOriginalsCheck"));
+    hide_originals->setChecked(true);
+    hide_originals->setToolTip(LayerMergeStrings::tr("Keep the originals, but hide them so transparent artwork is not displayed twice."));
+    layout->addWidget(hide_originals);
+  }
   auto* note = new QLabel(&dialog);
   note->setWordWrap(true);
   layout->addWidget(note);
@@ -415,22 +464,26 @@ std::optional<LayerMergeOptions> show_layer_merge_dialog(QWidget* parent, const 
   summary->setWordWrap(true);
   layout->addWidget(summary);
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
-  buttons->button(QDialogButtonBox::Ok)->setText(LayerMergeStrings::tr("Merge"));
+  buttons->button(QDialogButtonBox::Ok)->setText(copy ? LayerMergeStrings::tr("Create Copy") : LayerMergeStrings::tr("Merge"));
   layout->addWidget(buttons);
-  const auto options = [&] { return LayerMergeOptions{vectors->isChecked(), groups->isChecked(), types->isChecked()}; };
+  const auto options = [&] {
+    return LayerMergeOptions{vectors->isChecked(), groups->isChecked(), types->isChecked(),
+                             hide_originals == nullptr || hide_originals->isChecked()};
+  };
   const auto update = [&] {
     const auto choice = options();
     types->setEnabled(choice.keep_vectors);
     note->setText(choice.keep_vectors
         ? LayerMergeStrings::tr("Merged vectors keep their colors, strokes, and paint order. Masks, effects, and blending that need separate layers stay intact.")
         : LayerMergeStrings::tr("Merged artwork becomes pixels. Undo restores the original layers."));
-    const auto plan = plan_layer_merge(document, ids, choice);
+    const auto plan = plan_layer_merge(document, ids, choice, copy);
     summary->setText(LayerMergeStrings::tr("Result: %1 vector layers, %2 bitmap layers, %3 other layers kept.")
         .arg(static_cast<qulonglong>(plan.vector_layers)).arg(static_cast<qulonglong>(plan.bitmap_layers))
         .arg(static_cast<qulonglong>(plan.kept_layers)) + QStringLiteral("\n") +
-        (plan.changed ? LayerMergeStrings::tr("%1 layers removed by merging.").arg(static_cast<qulonglong>(plan.removed_layers))
+        (copy ? LayerMergeStrings::tr("The original layers are kept. Multiple outputs are placed in a new group.") :
+         plan.changed ? LayerMergeStrings::tr("%1 layers removed by merging.").arg(static_cast<qulonglong>(plan.removed_layers))
                       : LayerMergeStrings::tr("These layers need to stay separate with the selected options.")));
-    buttons->button(QDialogButtonBox::Ok)->setEnabled(plan.changed);
+    buttons->button(QDialogButtonBox::Ok)->setEnabled(copy ? !plan.roots.empty() : plan.changed);
   };
   QObject::connect(vectors, &QCheckBox::toggled, &dialog, update);
   QObject::connect(groups, &QCheckBox::toggled, &dialog, update);

@@ -9,6 +9,7 @@
 #include "color/color_management.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/layer_metadata.hpp"
+#include "core/vector_compound.hpp"
 #include "core/pattern_resource.hpp"
 #include "core/smart_object.hpp"
 #include "core/style_contour.hpp"
@@ -666,6 +667,73 @@ void apply_patchy_palette_resource(Document& document, std::span<const std::uint
   }
 }
 
+std::optional<Document> prepare_compound_vector_psd(const Document& document) {
+  std::optional<Document> prepared;
+  if (document_has_compound_vectors(document)) { prepared = expand_compound_vectors(document, true); }
+  const auto& source = prepared ? std::as_const(*prepared) : document;
+  std::map<std::uint32_t, std::size_t> native_ids;
+  std::vector<LayerId> marked;
+  const auto collect = [&](const auto& self, const std::vector<Layer>& layers) -> void {
+    for (const auto& layer : layers) {
+      if (const auto id = photoshop_layer_id(layer)) { ++native_ids[*id]; }
+      if (compound_vector_group_kind(layer) != CompoundVectorGroupKind::None) { marked.push_back(layer.id()); }
+      self(self, layer.children());
+    }
+  };
+  collect(collect, source.layers());
+  std::vector<LayerId> missing;
+  for (const auto id : marked) {
+    const auto native_id = photoshop_layer_id(*source.find_layer(id));
+    if (!native_id || native_ids.at(*native_id) != 1) { missing.push_back(id); }
+  }
+  if (missing.empty()) { return prepared; }
+  if (!prepared) { prepared = document; }
+  std::uint64_t next = 1;
+  for (const auto id : missing) {
+    while (next <= UINT32_MAX && native_ids.contains(static_cast<std::uint32_t>(next))) { ++next; }
+    if (next > UINT32_MAX) { throw std::runtime_error("No available Photoshop layer identifiers"); }
+    const auto native_id = static_cast<std::uint32_t>(next++);
+    native_ids.emplace(native_id, 1);
+    set_photoshop_layer_id(*prepared->find_layer(id), native_id);
+  }
+  return prepared;
+}
+
+void apply_compound_vector_resource(Document& document, std::span<const std::uint8_t> payload) {
+  // Validate the entire bounded record before changing any layer. Duplicate
+  // native ids after foreign edits are ambiguous and must never fold a group.
+  if (payload.size() < 12) { return; }
+  BigEndianReader reader(payload);
+  if (reader.read_u32() != kPatchyCompoundVectorsMagic || reader.read_u16() != 1 || reader.read_u16() != 0) { return; }
+  const auto count = reader.read_u32();
+  if (count > 32767 || reader.remaining() != static_cast<std::size_t>(count) * 8) { return; }
+  std::map<std::uint32_t, CompoundVectorGroupKind> entries;
+  for (std::uint32_t i = 0; i < count; ++i) {
+    const auto id = reader.read_u32();
+    const auto kind = reader.read_u32();
+    if (id == 0 || kind < 1 || kind > 2 || !entries.emplace(id, static_cast<CompoundVectorGroupKind>(kind)).second) { return; }
+  }
+  std::map<std::uint32_t, std::vector<LayerId>> layers_by_native_id;
+  const auto collect = [&](const auto& self, const std::vector<Layer>& layers) -> void {
+    for (const auto& layer : layers) {
+      if (const auto id = photoshop_layer_id(layer); id && entries.contains(*id)) {
+        layers_by_native_id[*id].push_back(layer.id());
+      }
+      self(self, layer.children());
+    }
+  };
+  collect(collect, std::as_const(document).layers());
+  for (const auto& [id, kind] : entries) {
+    const auto found = layers_by_native_id.find(id);
+    if (found == layers_by_native_id.end() || found->second.size() != 1) { continue; }
+    const auto layer_id = found->second.front();
+    const auto* layer = std::as_const(document).find_layer(layer_id);
+    if (layer->kind() == LayerKind::Group && compound_vector_group_kind(*layer) == CompoundVectorGroupKind::None) {
+      set_compound_vector_group_kind(*document.find_layer(layer_id), kind);
+    }
+  }
+}
+
 std::vector<std::uint8_t> image_resources_for_document(const Document& document,
                                                        std::span<const CompositeChannelInfo> channels) {
   auto resources = document.metadata().raw_psd_image_resources;
@@ -726,6 +794,35 @@ std::vector<std::uint8_t> image_resources_for_document(const Document& document,
                                                                               : std::uint8_t{128}));
   } else {
     remove_image_resource(*parsed, kImageResourcePatchyPalette);
+  }
+  BigEndianWriter compound_entries;
+  const auto collect_compound = [&](const auto& self, const std::vector<Layer>& layers) -> void {
+    for (const auto& layer : layers) {
+      const auto kind = compound_vector_group_kind(layer);
+      if (const auto id = photoshop_layer_id(layer); id && kind != CompoundVectorGroupKind::None) {
+        compound_entries.write_u32(*id);
+        compound_entries.write_u32(static_cast<std::uint32_t>(kind));
+      }
+      self(self, layer.children());
+    }
+  };
+  collect_compound(collect_compound, document.layers());
+  if (!compound_entries.bytes().empty()) {
+    BigEndianWriter payload;
+    payload.write_u32(kPatchyCompoundVectorsMagic);
+    payload.write_u16(1);
+    payload.write_u16(0);
+    payload.write_u32(checked_u32(compound_entries.bytes().size() / 8, "compound vector group count"));
+    payload.write_bytes(compound_entries.bytes());
+    upsert_image_resource(*parsed, kImageResourcePatchyCompoundVectors, payload.bytes());
+  } else {
+    // Retain opaque future/foreign payloads. Only our understood v1 data can
+    // become stale after its marked shapes were rasterized or removed.
+    std::erase_if(*parsed, [](const auto& resource) {
+      if (resource.id != kImageResourcePatchyCompoundVectors || resource.payload.size() < 8) { return false; }
+      BigEndianReader reader(resource.payload);
+      return reader.read_u32() == kPatchyCompoundVectorsMagic && reader.read_u16() == 1;
+    });
   }
   return write_image_resources(*parsed);
 }

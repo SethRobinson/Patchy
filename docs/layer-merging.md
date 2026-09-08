@@ -26,6 +26,20 @@ removed layers. Merge is disabled only when the choices cannot change anything.
 Cancel leaves revisions, saved bytes, dirty state and history unchanged.
 Bitmap-only Merge Down keeps its existing flattening behavior without a dialog.
 
+**Merge Visible to New Layer (Copy)** (`layer.merge_visible`, Ctrl+Shift+E) copies
+all effectively visible content, independent of selection. Visible vectors open
+the same dialog, including all three merge choices. Copy remains available even
+when its layers cannot be combined further. Multiple outputs form one new Normal
+group. Hidden folders and children are excluded, including clipped artwork whose
+base is hidden. Source locks protect the originals and do not block copying.
+**Hide original layers** defaults on for vector copies to avoid drawing transparent
+art twice; uncheck it to retain the originals' visibility. Originals retain their
+content, properties and ids. Copied layers receive fresh document/native ids and
+Smart Object instance/cache identities. One Undo restores the tree and visibility.
+Bitmap-only copies retain the existing opaque snapshot without a dialog.
+Copy rendering uses the same worker and delayed processing overlay as Merge Down;
+preparation and resource duplication finish before undo and document mutation.
+
 ## Vector representation and editing
 
 `core/vector_compound.{hpp,cpp}` owns merged vector objects. They remain real
@@ -72,17 +86,24 @@ position-only Background locking permits merging as in ordinary Merge Down.
 ## PSD, SVG and PDF
 
 A native PSD shape has one fill/stroke, so compound vector layers expand on save
-into a normal group containing native shape records, marked by private `pvcl`
-bytes `PVCL` followed by big-endian u32 version 1. No private geometry codec is
-needed. Other PSD readers see editable vector children. Patchy recognizes the
-marker after native vectors and patterns load and folds the compatible group
-back into one vector layer. If a foreign editor adds unrepresentable child
-properties, Patchy retains that ordinary group instead of dropping data.
-A changed Fill opacity uses an inner Normal group marked `pvfi` with the same
-version payload, because native folders ignore Fill. On reopen its opacity
-restores the merged layer's Fill. Object-level styles use the native group style
-semantics in other PSD readers. Ordinary PSD output is unchanged, including the
-byte-stability canary.
+into a Normal group containing native shape records. Other PSD readers see editable
+vector children. Patchy restores one vector layer after native vectors/patterns load.
+
+Associations use image resource **4211**, in Adobe's plug-in resource range, with
+big-endian payload `PtcV`, u16 version 1, u16 reserved 0, u32 count, then count pairs
+`{u32 native lyid, u32 role}`. Roles are 1 for compound content and 2 for the inner
+Fill-opacity boundary. The writer assigns missing or ambiguous native ids on its
+temporary document. The bounded reader validates the entire payload; duplicate ids,
+missing groups and unsupported versions cannot fold arbitrary layers. Other editors
+may preserve the resource without interpreting it. Ordinary PSD bytes remain unchanged.
+
+The old per-layer `pvcl` and `pvfi` tags (`PVCL` + big-endian u32 version 1) remain
+readable and serve as runtime annotations. They are **never emitted**: Photoshop
+warns about unknown per-layer keys. Saving a legacy merged file migrates its markers
+to resource 4211. A foreign editor's unrepresentable child changes preserve native
+groups rather than losing artwork. A changed Fill opacity uses an inner Normal
+group because native folders ignore Fill. Object-level styles follow native group
+semantics in other PSD readers.
 
 Native live-shape annotations follow remapped group ids. Unmodeled Custom live
 annotations cannot follow reassigned indices and are dropped during merging;

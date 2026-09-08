@@ -2,6 +2,9 @@
 #include "core/adjustment_layer.hpp"
 #include "core/blend_math.hpp"
 #include "core/document.hpp"
+#include "core/vector_compound.hpp"
+#include "core/vector_live_shapes.hpp"
+#include "psd/psd_io_internal.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/layer_tree.hpp"
 #include "core/gradient_presets.hpp"
@@ -1222,6 +1225,117 @@ void psd_layer_tagged_blocks_declare_even_lengths() {
   CHECK(psb_keys.count("plAD") == 0U);
 }
 
+void psd_compound_vectors_use_plugin_resource_and_read_legacy_markers() {
+  using namespace patchy;
+  Document source(64, 48, PixelFormat::rgba8());
+  for (int x : {4, 18}) {
+    LiveShapeParams geometry;
+    geometry.kind = LiveShapeKind::Rectangle;
+    geometry.left = x; geometry.top = 5; geometry.right = x + 26; geometry.bottom = 36;
+    VectorShapeContent shape;
+    shape.path.subpaths = generate_live_shape_subpaths(geometry);
+    shape.fill.color = x == 4 ? RgbColor{200, 40, 20} : RgbColor{20, 60, 210};
+    Layer layer(source.allocate_layer_id(), "Paint", LayerKind::Pixel);
+    layer.metadata()[kLayerMetadataVectorShape] = "1";
+    layer.set_vector_shape(std::move(shape));
+    update_vector_shape_raster(layer, Rect::from_size(64, 48), nullptr);
+    source.add_layer(std::move(layer));
+  }
+  const auto& originals = std::as_const(source).layers();
+  const std::array<const Layer*, 2> paints{&originals[0], &originals[1]};
+  const auto combined = combine_vector_appearances(paints);
+  Document document(64, 48, PixelFormat::rgba8());
+  Layer layer(document.allocate_layer_id(), "Merged", LayerKind::Pixel);
+  layer.metadata()[kLayerMetadataVectorShape] = "1";
+  layer.set_vector_shape(combined);
+  layer.set_fill_opacity(0.4F);
+  update_vector_shape_raster(layer, Rect::from_size(64, 48), nullptr);
+  document.add_layer(std::move(layer));
+  const auto revision = std::as_const(document).layers()[0].content_revision();
+  for (const bool large : {false, true}) {
+    const auto bytes = psd::DocumentIo::write_layered_rgb8(document, {large});
+    const auto keys = collect_layer_block_keys_checking_even_envelopes(bytes, large);
+    CHECK(!keys.contains("pvcl") && !keys.contains("pvfi"));
+    CHECK(keys.contains("lyid") && keys.contains("SoCo") && keys.contains("vmsk"));
+    psd::BigEndianReader reader(bytes);
+    (void)psd::read_header(reader);
+    reader.skip(reader.read_u32());
+    const auto resources = reader.read_bytes(reader.read_u32());
+    const auto resource = psd::find_image_resource_payload(resources, 4211);
+    CHECK(resource && resource->size() == 28); // two group roles, 12-byte header
+    const auto reread = psd::DocumentIo::read(bytes);
+    CHECK(reread.layers().size() == 1 && layer_is_compound_vector(reread.layers()[0]));
+    CHECK(reread.layers()[0].vector_shape()->parts.size() == 2);
+    CHECK(std::abs(reread.layers()[0].fill_opacity() - 0.4F) < 0.001F);
+    const auto before_pixels = Compositor{}.flatten_rgb8(document);
+    const auto after_pixels = Compositor{}.flatten_rgb8(reread);
+    CHECK(std::equal(before_pixels.data().begin(), before_pixels.data().end(), after_pixels.data().begin(), after_pixels.data().end()));
+    auto prepared_native = psd::prepare_compound_vector_psd(document);
+    CHECK(prepared_native.has_value());
+    auto native = std::move(*prepared_native);
+    const auto strip = [&](const auto& self, std::vector<Layer>& layers) -> void {
+      for (auto& item : layers) {
+        set_compound_vector_group_kind(item, CompoundVectorGroupKind::None);
+        self(self, item.children());
+      }
+    };
+    strip(strip, native.layers());
+    // The malformed cases need real matching ids: without them even a valid
+    // payload would be ignored, so those assertions would prove nothing.
+    psd::apply_compound_vector_resource(native, *resource);
+    CHECK(compound_vector_group_kind(std::as_const(native).layers()[0]) == CompoundVectorGroupKind::Content);
+    CHECK(compound_vector_group_kind(std::as_const(native).layers()[0].children()[0]) == CompoundVectorGroupKind::FillOpacity);
+    strip(strip, native.layers());
+    auto corrupt = *resource;
+    corrupt[5] = 2; // future version must not fold native groups
+    psd::apply_compound_vector_resource(native, corrupt);
+    CHECK(compound_vector_group_kind(std::as_const(native).layers()[0]) == CompoundVectorGroupKind::None);
+    corrupt = *resource;
+    corrupt[11] = 255; // inconsistent record count
+    psd::apply_compound_vector_resource(native, corrupt);
+    CHECK(compound_vector_group_kind(std::as_const(native).layers()[0]) == CompoundVectorGroupKind::None);
+    corrupt = *resource;
+    std::copy_n(corrupt.begin() + 12, 4, corrupt.begin() + 20); // duplicate native ids reject the whole record
+    psd::apply_compound_vector_resource(native, corrupt);
+    CHECK(compound_vector_group_kind(std::as_const(native).layers()[0]) == CompoundVectorGroupKind::None);
+    CHECK(std::as_const(document).layers()[0].content_revision() == revision);
+  }
+  document.layers()[0].set_fill_opacity(1.0F);
+  auto legacy = expand_compound_vectors(document, true);
+  for (auto& block : legacy.layers()[0].unknown_psd_blocks()) {
+    if (block.key == "pvcl") { block.key = "zzzz"; }
+  }
+  auto old_bytes = psd::DocumentIo::write_layered_rgb8(legacy);
+  const std::string old_tag = "8BIMzzzz";
+  auto pos = std::search(old_bytes.begin(), old_bytes.end(), old_tag.begin(), old_tag.end());
+  CHECK(pos != old_bytes.end());
+  std::copy_n("pvcl", 4, pos + 4);
+  const auto old_read = psd::DocumentIo::read(old_bytes);
+  CHECK(old_read.layers().size() == 1 && layer_is_compound_vector(old_read.layers()[0]));
+  const auto healed = psd::DocumentIo::write_layered_rgb8(old_read);
+  CHECK(!collect_layer_block_keys_checking_even_envelopes(healed, false).contains("pvcl"));
+  const auto healed_read = psd::DocumentIo::read(healed);
+  CHECK(layer_is_compound_vector(healed_read.layers()[0]));
+}
+
+void psd_compound_vectors_repair_little_everywhere_if_available() {
+  using namespace patchy;
+  const auto path = test::local_format_fixture_path("merge-visible", "Little-Everywhere_merged.psd");
+  if (!std::filesystem::exists(path)) { std::cout << "[SKIP] merged Little-Everywhere fixture missing\n"; return; }
+  const auto document = psd::DocumentIo::read_file(path);
+  CHECK(layer_tree_count(document.layers()) == 305);
+  const auto repaired = psd::DocumentIo::write_layered_rgb8(document);
+  const auto keys = collect_layer_block_keys_checking_even_envelopes(repaired, false);
+  CHECK(!keys.contains("pvcl") && !keys.contains("pvfi"));
+  const auto reopened = psd::DocumentIo::read(repaired);
+  CHECK(layer_tree_count(reopened.layers()) == 305);
+  const auto before_pixels = Compositor{}.flatten_rgb8(document);
+  const auto after_pixels = Compositor{}.flatten_rgb8(reopened);
+  CHECK(std::equal(before_pixels.data().begin(), before_pixels.data().end(), after_pixels.data().begin(), after_pixels.data().end()));
+  std::filesystem::create_directories("test-artifacts");
+  psd::DocumentIo::write_layered_rgb8_file(document, "test-artifacts/Little-Everywhere_merged_fixed.psd");
+}
+
 void psd_pinball_resave_writes_even_blocks_and_no_plad_if_available() {
   // The July 2026 user report: Photoshop showed "This document contains
   // unknown data which will be discarded" on every Patchy resave because the
@@ -1279,6 +1393,8 @@ std::vector<patchy::test::TestCase> psd_writer_stability_tests() {
       {"psb_write_accepts_over_30k_dimension_psd_rejects",
        psb_write_accepts_over_30k_dimension_psd_rejects},
       {"psd_layered_writer_bytes_are_stable", psd_layered_writer_bytes_are_stable},
+      {"psd_compound_vectors_use_plugin_resource_and_read_legacy_markers", psd_compound_vectors_use_plugin_resource_and_read_legacy_markers},
+      {"psd_compound_vectors_repair_little_everywhere_if_available", psd_compound_vectors_repair_little_everywhere_if_available},
       {"psd_layer_tagged_blocks_declare_even_lengths", psd_layer_tagged_blocks_declare_even_lengths},
       {"psd_pinball_resave_writes_even_blocks_and_no_plad_if_available",
        psd_pinball_resave_writes_even_blocks_and_no_plad_if_available},

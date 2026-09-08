@@ -1295,6 +1295,9 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
   // pattern fills resolve); saved/work/clipping paths parse from the preserved
   // image resources.
   finalize_vector_layers(document);
+  if (const auto compound = find_image_resource_payload(image_resources, kImageResourcePatchyCompoundVectors)) {
+    apply_compound_vector_resource(document, *compound);
+  }
   collapse_compound_vector_groups(document);
   parse_document_path_resources(document, image_resources);
 
@@ -1369,8 +1372,8 @@ void DocumentIo::write_flat_rgb8_file(const Document& document, const std::files
 
 std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& document, WriteOptions options) {
   check_write_dimensions(document, options.large_document);
-  if (document_has_compound_vectors(document)) {
-    return write_layered_rgb8(expand_compound_vectors(document, true), options);
+  if (auto prepared = prepare_compound_vector_psd(document)) {
+    return write_layered_rgb8(*prepared, options);
   }
   if (document.layers().empty()) {
     // The signed record count carries merged transparency. Supply one empty

@@ -362,7 +362,7 @@ void MainWindow::bind_action_translations(ActionBuildContext& ctx) {
       {layer_rasterize_action_, "Rasterize"},
       {layer_rasterize_layer_style_action_, "Rasterize (including layer style)"},
       {ctx.duplicate_layer_action, "&Duplicate Layer"},
-      {ctx.merge_visible_action, "Merge &Visible to New Layer"},
+      {ctx.merge_visible_action, "Merge &Visible to New Layer (Copy)"},
       {ctx.merge_down_action, "Merge &Down"},
       {ctx.rename_layer_action, "&Rename Layer..."},
       {ctx.delete_layer_action, "&Delete Layer"},

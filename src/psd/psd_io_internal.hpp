@@ -66,6 +66,10 @@ constexpr std::uint16_t kImageResourceDisplayInfoFloat = 1077;
 // threshold, u8 reserved, u16 color count, then count RGB byte triples.
 constexpr std::uint16_t kImageResourcePatchyPalette = 4210;
 constexpr std::uint32_t kPatchyPaletteMagic = 0x50746350U;  // 'PtcP'
+// Plug-in image resource: 'PtcV', u16 version 1, u16 reserved 0, u32 count,
+// then count pairs {u32 Photoshop lyid, u32 CompoundVectorGroupKind}.
+constexpr std::uint16_t kImageResourcePatchyCompoundVectors = 4211;
+constexpr std::uint32_t kPatchyCompoundVectorsMagic = 0x50746356U;  // 'PtcV'
 constexpr float kDefaultGlobalLightAngle = 120.0F;
 constexpr float kDefaultGlobalLightAltitude = 30.0F;
 constexpr std::int32_t kDefaultGridCycle32 = 576;
@@ -584,6 +588,8 @@ std::optional<DocumentPrintSettings> print_settings_from_resolution_resource(std
 std::optional<std::pair<DocumentGridSettings, std::vector<DocumentGuide>>>
 grid_guides_from_resource(std::span<const std::uint8_t> payload);
 void apply_patchy_palette_resource(Document& document, std::span<const std::uint8_t> payload);
+std::optional<Document> prepare_compound_vector_psd(const Document& document);
+void apply_compound_vector_resource(Document& document, std::span<const std::uint8_t> payload);
 std::vector<std::uint8_t> image_resources_for_document(const Document& document,
                                                        std::span<const CompositeChannelInfo> channels);
 

@@ -8478,8 +8478,8 @@ Either way Patchy writes a copy; the open document keeps its layers and unsaved 
     </message>
     <message>
         <location line="+1"/>
-        <source>Merge &amp;Visible to New Layer</source>
-        <translation>表示レイヤーを新規レイヤーに結合(&amp;V)</translation>
+        <source>Merge &amp;Visible to New Layer (Copy)</source>
+        <translation>表示レイヤーを新規レイヤーに結合（コピー）(&amp;V)</translation>
     </message>
     <message>
         <location line="+2"/>
@@ -11104,8 +11104,8 @@ To update, paste this into a terminal:
     </message>
     <message>
         <location line="+1"/>
-        <source>Merge Visible to New Layer</source>
-        <translation>表示レイヤーを新規レイヤーに結合</translation>
+        <source>Merge Visible to New Layer (Copy)</source>
+        <translation>表示レイヤーを新規レイヤーに結合（コピー）</translation>
     </message>
     <message>
         <location line="-10016"/>
@@ -13987,6 +13987,26 @@ Clipped to the layer below</source>
     </message>
     <message><source>Selecting layers...</source><translation>レイヤーを選択中...</translation></message>
     <message><source>Merging layers...</source><translation>レイヤーを結合中...</translation></message>
+    <message>
+        <source>No visible layers to copy</source>
+        <translation>コピーする表示レイヤーがありません</translation>
+    </message>
+    <message>
+        <source>Merged Visible (Copy)</source>
+        <translation>表示レイヤーの結合（コピー）</translation>
+    </message>
+    <message>
+        <source>Merge visible (copy)</source>
+        <translation>表示レイヤーを結合（コピー）</translation>
+    </message>
+    <message>
+        <source>Could not copy the visible layers. The original layers are unchanged.</source>
+        <translation>表示レイヤーをコピーできませんでした。元のレイヤーは変更されていません。</translation>
+    </message>
+    <message>
+        <source>Created a merged copy of the visible layers</source>
+        <translation>表示レイヤーを結合したコピーを作成しました</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::PalettePanel</name>
@@ -15625,5 +15645,29 @@ Clipped to the layer below</source>
         <translation>選択した設定では、これらのレイヤーを個別に保持する必要があります。</translation>
     </message>
     <message><source>Merging layers...</source><translation>レイヤーを結合中...</translation></message>
+    <message>
+        <source>Merge Visible to New Layer (Copy)</source>
+        <translation>表示レイヤーを新規レイヤーに結合（コピー）</translation>
+    </message>
+    <message>
+        <source>Choose how to merge a copy of the visible layers.</source>
+        <translation>表示レイヤーのコピーを結合する方法を選択してください。</translation>
+    </message>
+    <message>
+        <source>Hide original layers</source>
+        <translation>元のレイヤーを非表示にする</translation>
+    </message>
+    <message>
+        <source>Keep the originals, but hide them so transparent artwork is not displayed twice.</source>
+        <translation>元のレイヤーを残して非表示にし、半透明の画像が二重に表示されるのを防ぎます。</translation>
+    </message>
+    <message>
+        <source>Create Copy</source>
+        <translation>コピーを作成</translation>
+    </message>
+    <message>
+        <source>The original layers are kept. Multiple outputs are placed in a new group.</source>
+        <translation>元のレイヤーは保持されます。複数の結果は新しいグループにまとめられます。</translation>
+    </message>
 </context>
 </TS>

@@ -1056,7 +1056,7 @@ void ui_photoshop_shortcuts_are_registered() {
   CHECK(require_action(window, "layerFillForegroundAction")->shortcut() == QKeySequence(Qt::ALT | Qt::Key_Backspace));
   CHECK(require_action(window, "layerFillBackgroundAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_Backspace));
   CHECK(require_action_by_text(window, QStringLiteral("Merge Down"))->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_E));
-  CHECK(require_action_by_text(window, QStringLiteral("Merge Visible to New Layer"))->shortcut() ==
+  CHECK(require_action_by_text(window, QStringLiteral("Merge Visible to New Layer (Copy)"))->shortcut() ==
         QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E));
   CHECK(require_action(window, "imageSizeAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_I));
   CHECK(require_action_by_text(window, QStringLiteral("Canvas Size..."))->shortcut() ==
