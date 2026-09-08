@@ -828,6 +828,12 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
           std::find(selected_move_layer_ids.begin(), selected_move_layer_ids.end(), hit_layer->id()) !=
               selected_move_layer_ids.end();
       if (hit_selected_layer) {
+        if (selected_layer_ids_.size() != 1U || selected_layer_ids_.front() != hit_layer->id()) {
+          // Like a layer-row click, collapse only on release: a drag still
+          // moves the selected set, including a selected folder's contents.
+          begin_move_layer_selection(event, hit_layer, false);
+          return;
+        }
         layer_ids = selected_move_layer_ids;
         if (selected_layer_ids_.size() < 2U && selected_move_layer_ids.size() == 1U) {
           transform_controls_layer = hit_layer;
@@ -1379,7 +1385,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       event->accept();
       return;
     }
-    // A promoted Shift-drag processes this same move through the normal path.
+    // A promoted layer drag processes this same move through the normal path.
   }
 
   const auto document_point = document_position(event->pos());

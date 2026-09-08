@@ -1054,9 +1054,13 @@ void MainWindow::set_active_layer_from_selection() {
     if (selecting_canvas) { selecting_canvas->tick_processing_operation(); }
   };
   selection_progress();
+  const auto selected_ids = selected_layer_ids();
   if (canvas_ != nullptr) {
-    canvas_->set_selected_layer_ids(selected_layer_ids());
+    canvas_->set_selected_layer_ids(selected_ids);
   }
+  statusBar()->showMessage(selected_ids.size() == 1U
+                              ? tr("1 layer selected")
+                              : tr("%1 layers selected").arg(selected_ids.size()));
   // A pure multi-selection change (same active layer) still decides whether
   // Combine Shapes applies.
   refresh_combine_shapes_action_states();

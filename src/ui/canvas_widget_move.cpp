@@ -143,11 +143,11 @@ bool CanvasWidget::update_move_layer_selection(QMouseEvent* event) {
     return true;
   }
 
-  // Shift-drag adds an unselected target but never removes a selected one.
+  // Shift-drag adds an unselected target; a plain drag keeps the selected set.
   // Once promoted to a move, later Ctrl changes cannot turn it into a box.
   auto pending = std::move(*move_layer_selection_gesture_);
   move_layer_selection_gesture_.reset();
-  if (pending.clicked_id.has_value() &&
+  if (pending.additive && pending.clicked_id.has_value() &&
       std::find(pending.selected_ids.begin(), pending.selected_ids.end(), *pending.clicked_id) ==
           pending.selected_ids.end()) {
     pending.selected_ids.push_back(*pending.clicked_id);
@@ -214,6 +214,10 @@ void CanvasWidget::finish_move_layer_selection(QMouseEvent* event) {
     if (!active.has_value() || std::find(ids.begin(), ids.end(), *active) == ids.end()) {
       active = matches.front();
     }
+  } else if (gesture.clicked_id.has_value() && !gesture.rectangle_allowed && !gesture.additive) {
+    // This was a plain click on a selected member, not a modifier toggle.
+    ids = {*gesture.clicked_id};
+    active = gesture.clicked_id;
   } else if (gesture.clicked_id.has_value()) {
     const auto found = std::find(ids.begin(), ids.end(), *gesture.clicked_id);
     if (found == ids.end()) {

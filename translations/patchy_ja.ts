@@ -9111,6 +9111,14 @@ Either way Patchy writes a copy; the open document keeps its layers and unsaved 
         <translation>画像をクリックするか、空いている場所から四角形をドラッグしてレイヤーを選択します</translation>
     </message>
     <message>
+        <source>1 layer selected</source>
+        <translation>1 枚のレイヤーを選択中</translation>
+    </message>
+    <message>
+        <source>%1 layers selected</source>
+        <translation>%1 枚のレイヤーを選択中</translation>
+    </message>
+    <message>
         <source>Shift+click or %CTRL%+click toggles layers. %CTRL%+drag selects layers in a rectangle; hold Shift before dragging to add. Shift constrains layer movement.</source>
         <translation>Shift+クリックまたは%CTRL%+クリックでレイヤーの選択を切り替えます。%CTRL%+ドラッグで四角形内のレイヤーを選択し、ドラッグ前からShiftを押すと追加します。レイヤーの移動中はShiftで方向を固定します。</translation>
     </message>

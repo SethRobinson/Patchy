@@ -852,6 +852,97 @@ struct MoveSelectionScene {
   }
 };
 
+void ui_move_plain_click_selects_only_hit_layer_and_reports_count() {
+  patchy::Document document(140, 100, patchy::PixelFormat::rgba8());
+  const std::array<QPoint, 3> positions{QPoint(18, 18), QPoint(48, 18), QPoint(80, 50)};
+  const std::array<const char*, 3> names{"Red", "Blue", "Green"};
+  std::vector<patchy::LayerId> ids;
+  for (std::size_t i = 0; i < positions.size(); ++i) {
+    patchy::Layer layer(document.allocate_layer_id(), names[i],
+        solid_pixels(16, 14, patchy::PixelFormat::rgba8(), QColor(40 + static_cast<int>(i) * 70, 80, 180)));
+    layer.set_bounds({positions[i].x(), positions[i].y(), 16, 14});
+    ids.push_back(layer.id());
+    document.add_layer(std::move(layer));
+  }
+  document.set_active_layer(ids.back());
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Move Selection Count"));
+  auto* canvas = require_canvas(window);
+  auto* list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* history = window.findChild<QListWidget*>(QStringLiteral("historyList"));
+  CHECK(list != nullptr && history != nullptr);
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_auto_select_layer(true);
+  canvas->set_show_transform_controls(false);
+  const auto history_count = history->count();
+  const auto click = [&](std::size_t index, Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+    const auto point = canvas->widget_position_for_document_point(positions[index] + QPoint(6, 6));
+    send_mouse(*canvas, QEvent::MouseButtonPress, point, Qt::LeftButton, Qt::LeftButton, modifiers);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, point, Qt::LeftButton, Qt::NoButton, modifiers);
+  };
+  const auto expect_single = [&](const QString& name) {
+    CHECK(list->selectedItems().size() == 1);
+    CHECK(require_layer_item(*list, name)->isSelected());
+    CHECK(list->currentItem() == require_layer_item(*list, name));
+    CHECK(window.statusBar()->currentMessage() == QStringLiteral("1 layer selected"));
+  };
+  click(0, Qt::ControlModifier);
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("2 layers selected"));
+  click(1, Qt::ShiftModifier);
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("3 layers selected"));
+
+  // Even clicking the active member collapses the set, but only on release.
+  const auto blue_point = canvas->widget_position_for_document_point(positions[1] + QPoint(6, 6));
+  send_mouse(*canvas, QEvent::MouseButtonPress, blue_point, Qt::LeftButton, Qt::LeftButton);
+  CHECK(list->selectedItems().size() == 3);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, blue_point + QPoint(1, 0), Qt::LeftButton, Qt::NoButton);
+  expect_single(QStringLiteral("Blue"));
+
+  click(0, Qt::ShiftModifier);
+  click(2); // A new, unselected target also replaces the selection.
+  expect_single(QStringLiteral("Green"));
+  click(0, Qt::ControlModifier);
+  click(1, Qt::ShiftModifier);
+  click(0); // A selected member that was not active also replaces the set.
+  expect_single(QStringLiteral("Red"));
+
+  // Panel changes with the same active layer update the count too.
+  require_layer_item(*list, QStringLiteral("Blue"))->setSelected(true);
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("2 layers selected"));
+  save_widget_artifact("ui_move_selection_count", window);
+  require_layer_item(*list, QStringLiteral("Blue"))->setSelected(false);
+  expect_single(QStringLiteral("Red"));
+  CHECK(history->count() == history_count);
+  const auto& final_document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  for (std::size_t i = 0; i < ids.size(); ++i) {
+    CHECK(final_document.find_layer(ids[i])->bounds().x == positions[i].x());
+    CHECK(final_document.find_layer(ids[i])->bounds().y == positions[i].y());
+  }
+}
+
+void ui_move_plain_click_folder_child_collapses_but_drag_keeps_folder() {
+  MoveSelectionScene scene;
+  patchy::Layer group(scene.document.allocate_layer_id(), "Group", patchy::LayerKind::Group);
+  const auto group_id = group.id();
+  std::vector<patchy::LayerId> children;
+  for (int i = 0; i < 2; ++i) {
+    patchy::Layer child(scene.document.allocate_layer_id(), "Child",
+        solid_pixels(10, 10, patchy::PixelFormat::rgba8(), QColor(Qt::black)));
+    children.push_back(child.id());
+    child.set_bounds({90 + i * 20, 5, 10, 10});
+    group.add_child(std::move(child));
+  }
+  scene.document.add_layer(std::move(group));
+  scene.select({group_id}, group_id);
+  scene.box(QPoint(94, 9), QPoint(114, 19));
+  scene.expect({group_id});
+  CHECK(scene.document.find_layer(children[0])->bounds().x == 110);
+  CHECK(scene.document.find_layer(children[1])->bounds().x == 130);
+  scene.click(QPoint(114, 19), Qt::NoModifier);
+  scene.expect({children[0]});
+}
+
 void ui_move_modifier_clicks_defer_toggles_and_shift_drag_keeps_selection() {
   for (const auto modifiers : {Qt::KeyboardModifiers(Qt::ShiftModifier),
                                Qt::KeyboardModifiers(Qt::ControlModifier),
@@ -1100,6 +1191,7 @@ void ui_move_rectangle_reveals_collapsed_and_filtered_layers() {
   CHECK(list->selectedItems().size() == 2);
   CHECK(require_layer_item(*list, QStringLiteral("Red"))->isSelected());
   CHECK(require_layer_item(*list, QStringLiteral("Blue"))->isSelected());
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("2 layers selected"));
   CHECK(list->currentItem() == require_layer_item(*list, QStringLiteral("Blue")));
   CHECK(history->count() == history_count);
   CHECK(require_action_by_text(window, QStringLiteral("Move"))->toolTip().contains(
@@ -3732,6 +3824,10 @@ std::vector<patchy::test::TestCase> move_tool_processing_overlay_tests() {
       {"ui_shift_constrains_move_tool_drag_to_axis", ui_shift_constrains_move_tool_drag_to_axis},
       {"ui_move_modifier_clicks_defer_toggles_and_shift_drag_keeps_selection",
        ui_move_modifier_clicks_defer_toggles_and_shift_drag_keeps_selection},
+      {"ui_move_plain_click_selects_only_hit_layer_and_reports_count",
+       ui_move_plain_click_selects_only_hit_layer_and_reports_count},
+      {"ui_move_plain_click_folder_child_collapses_but_drag_keeps_folder",
+       ui_move_plain_click_folder_child_collapses_but_drag_keeps_folder},
       {"ui_move_rectangle_matches_overlap_and_latches_modifiers", ui_move_rectangle_matches_overlap_and_latches_modifiers},
       {"ui_move_rectangle_uses_content_bounds_and_inherited_eligibility",
        ui_move_rectangle_uses_content_bounds_and_inherited_eligibility},

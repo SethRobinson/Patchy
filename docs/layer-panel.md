@@ -22,7 +22,7 @@ The layer list may omit rows entirely: collapsed folders and the Layers panel na
 
 Layer-row click selection (`LayerListWidget::eventFilter` for row widgets, `viewportEvent` for bare viewport; keep the two branches in step): plain click selects one layer (collapse from a multi-selection is deferred to release so drags work), Ctrl-click toggles the row, Shift-click selects `currentRow()`..target replacing the selection, and Ctrl+Shift-click selects the same range but adds it to the existing selection (`select_range_to_item`'s `additive` flag, Explorer/Photoshop style). The Ctrl branch is tested first, so a Ctrl-click on a thumbnail always loads the layer pixels as a selection, with or without Shift.
 
-The Move tool supports Shift+click and Ctrl+click on canvas to toggle the clicked layer whether Auto-Select is on or off (Command replaces Ctrl on macOS). Toggles commit on release below Qt's drag threshold. Shift-drag adds an unselected target before moving the enlarged selection, keeps an already-selected target selected, and constrains movement to an axis. Ctrl-drag always draws a layer-selection rectangle, including over artwork and with Auto-Select off. With Auto-Select on, dragging empty space or the pasteboard also draws a rectangle; a position-locked Background counts as empty space. Ctrl bypasses passive transform handles, while rulers, guides, panning, and active transform sessions retain priority.
+The Move tool supports Shift+click and Ctrl+click on canvas to toggle the clicked layer whether Auto-Select is on or off (Command replaces Ctrl on macOS). Toggles commit on release below Qt's drag threshold. With Auto-Select on, a plain click selects only the clicked leaf, including a member of the current selection or a selected folder; collapse is deferred to release so dragging a selected member still moves the whole set. Shift-drag adds an unselected target before moving the enlarged selection, keeps an already-selected target selected, and constrains movement to an axis. Ctrl-drag always draws a layer-selection rectangle, including over artwork and with Auto-Select off. With Auto-Select on, dragging empty space or the pasteboard also draws a rectangle; a position-locked Background counts as empty space. Ctrl bypasses passive transform handles, while rulers, guides, panning, and active transform sessions retain priority.
 
 Rectangle intent and Shift-add mode latch at press. A plain rectangle replaces the selection; Shift adds. Matching runs once on release through the const layer tree, using cached Move outline bounds (opaque raster extent or text rect), clipped to the document. Any positive overlap selects an eligible leaf, including occluded leaves and children of collapsed folders; hidden, zero-opacity, position-locked, and non-movable layers are skipped with inherited group restrictions. The current active layer stays active if it remains selected; otherwise the topmost match becomes active. Empty clicks, empty rectangles, and toggling the last selected layer keep the existing selection. Escape, focus loss, tool/document changes, and edit locking discard pending selection gestures. Layer selection changes neither pixel selections nor content history.
 
@@ -33,7 +33,10 @@ Range selection normalizes selected ancestors with one const tree traversal
 It never compares every selected pair by repeatedly searching the tree.
 Thumbnail target styles repolish only when their active state changes. Selection
 updates use the delayed **Selecting layers...** canvas processing message when
-control/row refresh takes long enough; fast selections show no overlay.
+control/row refresh takes long enough; fast selections show no overlay. The shared
+selection handler and single-layer reveal path report the selected row count in
+the status bar (including single-layer selection), covering canvas clicks,
+rectangle selection, and panel selection. A selected folder counts as one row.
 
 ## Disclosure arrow, double-click, visibility eye
 

@@ -2516,6 +2516,9 @@ void MainWindow::reveal_layer_in_layer_list(LayerId id) {
     layer_list_->setCurrentItem(item, QItemSelectionModel::ClearAndSelect);
     layer_list_->scrollToItem(item, QAbstractItemView::PositionAtCenter);
     restyle_layer_rows(layer_list_);
+    // The rebuild may have silently selected this row already, in which case
+    // setCurrentItem emits no selection change to refresh the status count.
+    statusBar()->showMessage(tr("1 layer selected"));
     break;
   }
 }
@@ -2587,7 +2590,13 @@ void MainWindow::select_layers_in_layer_list(const std::vector<LayerId>& ids, La
   if (active_item != nullptr) {
     selection_model->setCurrentIndex(layer_list_->indexFromItem(active_item), QItemSelectionModel::NoUpdate);
   }
+  const auto selection_unchanged = selection_model->selection() == selection;
   selection_model->select(selection, QItemSelectionModel::ClearAndSelect);
+  if (selection_unchanged) {
+    // refresh_layer_list silently selects the active row. Collapsing onto it
+    // still needs the shared handler, including its selection-count message.
+    set_active_layer_from_selection();
+  }
   if (active_item != nullptr) {
     layer_list_->scrollToItem(active_item, QAbstractItemView::PositionAtCenter);
   }
