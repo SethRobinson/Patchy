@@ -6786,10 +6786,13 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
     refresh_paths_panel();
   });
   canvas->set_status_callback([this](QString message) { statusBar()->showMessage(message); });
-  canvas->set_vector_preview_status_callback([this, canvas](QString message) {
+  canvas->set_vector_preview_status_callback([this, canvas](QString message, bool notice) {
     if (canvas == canvas_) {
       refresh_vector_preview_action();
-      if (!message.isEmpty()) {
+      // Progress belongs in the tooltip. A resource failure gets at most one
+      // notice per window, and never replaces an unrelated status message.
+      if (notice && !message.isEmpty() && vector_preview_notices_shown_.insert(message).second &&
+          statusBar()->currentMessage().isEmpty()) {
         statusBar()->showMessage(message, 5000);
       }
     }

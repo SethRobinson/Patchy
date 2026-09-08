@@ -107,6 +107,9 @@ bool promote_flat_alpha_to_layer_mask(Document& document);
 // image-sequence exports share this).
 [[nodiscard]] QImage render_layer_isolated(const Document& document, const Layer& layer);
 [[nodiscard]] QImage qimage_from_document_rect(const Document& document, QRect document_rect, bool preserve_alpha);
+// Native child coverage used to anchor paints in a clipped viewport render.
+// The caller budgets the native silhouette and compositor workspace first.
+[[nodiscard]] Rect group_visible_alpha_bounds(const Layer& group, Rect bounds, const PatternStore& patterns);
 [[nodiscard]] std::vector<RenderedDocumentPatch> qimage_patches_from_document_region(const Document& document,
                                                                                      const QRegion& document_region,
                                                                                      bool preserve_alpha);

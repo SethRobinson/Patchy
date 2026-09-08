@@ -25,17 +25,17 @@ void CanvasWidget::set_vector_preview_enabled(bool enabled) {
 bool CanvasWidget::vector_preview_enabled() const noexcept { return vector_preview_enabled_; }
 QString CanvasWidget::vector_preview_status() const { return vector_preview_status_; }
 
-void CanvasWidget::set_vector_preview_status_callback(std::function<void(QString)> callback) {
+void CanvasWidget::set_vector_preview_status_callback(std::function<void(QString, bool)> callback) {
   vector_preview_status_callback_ = std::move(callback);
 }
 
-void CanvasWidget::report_vector_preview_status(QString status) {
+void CanvasWidget::report_vector_preview_status(QString status, bool notice) {
   if (vector_preview_status_ == status) {
     return;
   }
   vector_preview_status_ = std::move(status);
   if (vector_preview_status_callback_) {
-    vector_preview_status_callback_(vector_preview_status_);
+    vector_preview_status_callback_(vector_preview_status_, notice);
   }
 }
 
@@ -67,7 +67,8 @@ VectorPreviewView CanvasWidget::vector_preview_view() const noexcept {
 
 bool CanvasWidget::vector_preview_settled() const noexcept {
   if (!vector_preview_available_for_view() || kBackgroundWorkRunsInline ||
-      (vector_preview_scene_ && vector_preview_scene_->fallback != VectorPreviewFallback::None)) {
+      (vector_preview_scene_ && (vector_preview_scene_->fallback != VectorPreviewFallback::None ||
+                                 !vector_preview_scene_->has_vectors))) {
     return true;
   }
   return !vector_preview_in_flight_ && vector_preview_completed_generation_ == vector_preview_generation_ &&
@@ -81,20 +82,21 @@ void CanvasWidget::prepare_vector_preview() {
     }
     if (vector_preview_enabled_) {
       report_vector_preview_status(zoom_ * devicePixelRatioF() <= 1.0
-          ? tr("Vector Preview: pixel view at this zoom.")
-          : tr("Vector Preview: pixel view during editing or alternate canvas views."));
+          ? tr("Dynamic Vector Preview: pixel view at this zoom.")
+          : tr("Dynamic Vector Preview: pixel view during editing or alternate canvas views."));
     }
     return;
   }
   if constexpr (kBackgroundWorkRunsInline) {
-    report_vector_preview_status(tr("Pixel view: Vector Preview requires background rendering."));
+    report_vector_preview_status(tr("Pixel view: Dynamic Vector Preview requires background rendering."));
     return;
   }
   const auto view = vector_preview_view();
   if (!vector_preview_in_flight_ && vector_preview_completed_generation_ == vector_preview_generation_ &&
       vector_preview_completed_view_ == view) {
     report_vector_preview_status(vector_preview_fallback_ == VectorPreviewFallback::None
-        ? tr("Vector Preview: sharp vector view.") : vector_preview_fallback_text(vector_preview_fallback_));
+        ? tr("Dynamic Vector Preview: sharp vector view.") : vector_preview_fallback_text(vector_preview_fallback_),
+        vector_preview_fallback_ != VectorPreviewFallback::None);
     return;
   }
   if (!vector_preview_scene_) {
@@ -104,12 +106,16 @@ void CanvasWidget::prepare_vector_preview() {
       vector_preview_completed_view_ = view;
       vector_preview_completed_generation_ = vector_preview_generation_;
       vector_preview_fallback_ = VectorPreviewFallback::Memory;
-      report_vector_preview_status(vector_preview_fallback_text(vector_preview_fallback_));
+      report_vector_preview_status(vector_preview_fallback_text(vector_preview_fallback_), true);
       return;
     }
   }
   if (vector_preview_scene_->fallback != VectorPreviewFallback::None) {
     report_vector_preview_status(vector_preview_fallback_text(vector_preview_scene_->fallback));
+    return;
+  }
+  if (!vector_preview_scene_->has_vectors) {
+    report_vector_preview_status(tr("Dynamic Vector Preview: no vector artwork to sharpen."));
     return;
   }
   if (vector_preview_in_flight_) {
@@ -125,7 +131,7 @@ void CanvasWidget::prepare_vector_preview() {
     vector_preview_completed_generation_ = vector_preview_generation_;
     vector_preview_fallback_ = VectorPreviewFallback::Memory;
     vector_preview_image_ = {};
-    report_vector_preview_status(vector_preview_fallback_text(vector_preview_fallback_));
+    report_vector_preview_status(vector_preview_fallback_text(vector_preview_fallback_), true);
     return;
   }
   vector_preview_requested_view_ = view;
@@ -133,7 +139,7 @@ void CanvasWidget::prepare_vector_preview() {
   ++render_cache_diagnostics_.vector_preview_renders;
   const auto generation = vector_preview_generation_;
   const auto retained_bytes = static_cast<std::uint64_t>(vector_preview_image_.sizeInBytes());
-  report_vector_preview_status(tr("Vector Preview: rendering sharp vectors..."));
+  report_vector_preview_status(tr("Dynamic Vector Preview: rendering sharp vectors..."));
   QPointer<CanvasWidget> widget(this);
   auto* app = QApplication::instance();
   run_tracked_background_worker([widget, app, generation, view, retained_bytes,

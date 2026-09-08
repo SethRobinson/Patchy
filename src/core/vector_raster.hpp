@@ -67,6 +67,15 @@ struct ShapeRasterResult {
   PixelBuffer stroke_pixels{};
 };
 
+// Optional paint geometry for a clipped display render. Coverage still uses
+// the requested clip; gradients retain their full canvas/fill/stroke anchors
+// instead of restarting inside each tile. Null keeps the document bake exact.
+struct VectorPaintBounds {
+  Rect canvas;
+  Rect fill;
+  Rect stroke;
+};
+
 // Rasterizes fill coverage and paints the fill appearance (solid, gradient
 // via the shared blend_math shading, pattern via PatternTileSampler).
 // `layer_for_pattern_anchor` supplies the fxrp anchor for linked pattern
@@ -75,7 +84,8 @@ struct ShapeRasterResult {
 // content.stroke.fill_enabled allows it.
 [[nodiscard]] ShapeRasterResult rasterize_vector_shape(const VectorShapeContent& content, Rect canvas,
                                                        const PatternStore* patterns,
-                                                       const Layer* layer_for_pattern_anchor);
+                                                       const Layer* layer_for_pattern_anchor,
+                                                       const VectorPaintBounds* paint_bounds = nullptr);
 
 // Bakes the layer's vector shape into pixels()/bounds() and stamps the
 // raster-status metadata (the text-layer "pixels are a cache" contract). The

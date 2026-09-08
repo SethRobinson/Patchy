@@ -6229,11 +6229,12 @@ Mixed selection</source>
 </context>
 <context>
     <name>patchy::ui::CanvasWidget</name>
-    <message><source>Vector Preview: pixel view at this zoom.</source><translation>ベクトルプレビュー: このズーム倍率ではピクセル表示を使用します。</translation></message>
-    <message><source>Vector Preview: pixel view during editing or alternate canvas views.</source><translation>ベクトルプレビュー: 編集中または別のキャンバス表示中はピクセル表示を使用します。</translation></message>
-    <message><source>Pixel view: Vector Preview requires background rendering.</source><translation>ピクセル表示: ベクトルプレビューにはバックグラウンド描画が必要です。</translation></message>
-    <message><source>Vector Preview: sharp vector view.</source><translation>ベクトルプレビュー: ベクトルを鮮明に表示しています。</translation></message>
-    <message><source>Vector Preview: rendering sharp vectors...</source><translation>ベクトルプレビュー: 鮮明なベクトル表示を描画中...</translation></message>
+    <message><source>Dynamic Vector Preview: no vector artwork to sharpen.</source><translation>動的ベクトルプレビュー: 鮮明に表示できるベクトル画像がありません。</translation></message>
+    <message><source>Dynamic Vector Preview: pixel view at this zoom.</source><translation>動的ベクトルプレビュー: このズーム倍率ではピクセル表示を使用します。</translation></message>
+    <message><source>Dynamic Vector Preview: pixel view during editing or alternate canvas views.</source><translation>動的ベクトルプレビュー: 編集中または別のキャンバス表示中はピクセル表示を使用します。</translation></message>
+    <message><source>Pixel view: Dynamic Vector Preview requires background rendering.</source><translation>ピクセル表示: 動的ベクトルプレビューにはバックグラウンド描画が必要です。</translation></message>
+    <message><source>Dynamic Vector Preview: sharp vector view.</source><translation>動的ベクトルプレビュー: ベクトルを鮮明に表示しています。</translation></message>
+    <message><source>Dynamic Vector Preview: rendering sharp vectors...</source><translation>動的ベクトルプレビュー: 鮮明なベクトル表示を描画中...</translation></message>
     <message>
         <location filename="../src/ui/canvas_widget.cpp" line="+9988"/>
         <source>Size: %1 px  Soft: %2%</source>
@@ -7151,8 +7152,8 @@ Mixed selection</source>
 </context>
 <context>
     <name>patchy::ui::MainWindow</name>
-    <message><source>Vector Preview</source><translation>ベクトルプレビュー</translation></message>
-    <message><source>Render supported vector artwork at screen resolution. Saved files and exports use the document's pixel resolution.</source><translation>対応するベクトル画像を画面解像度で描画します。保存ファイルと書き出しにはドキュメントのピクセル解像度を使用します。</translation></message>
+    <message><source>Keep vector artwork sharp when zooming, including in documents with pixel layers. Saved files and exports keep their pixel resolution.</source><translation>ピクセルレイヤーを含むドキュメントでも、拡大時にベクトル画像を鮮明に表示します。保存ファイルと書き出しのピクセル解像度は変わりません。</translation></message>
+    <message><source>Dynamic Vector Preview</source><translation>動的ベクトルプレビュー</translation></message>
     <message><source>Put shape layers in a group and apply the vector mask to that group.</source><translation>シェイプレイヤーをグループに入れ、そのグループにベクトルマスクを適用してください。</translation></message>
     <message>
         <location filename="../src/ui/main_window.cpp" line="+13149"/>
@@ -15530,13 +15531,9 @@ Clipped to the layer below</source>
 </context>
 <context>
     <name>VectorPreview</name>
-    <message><source>Pixel view: visible content includes non-vector or unsupported layers.</source><translation>ピクセル表示: 表示中の内容にベクトル以外または未対応のレイヤーが含まれています。</translation></message>
-    <message><source>Pixel view: gradient and pattern paints are not supported by Vector Preview.</source><translation>ピクセル表示: ベクトルプレビューはグラデーションとパターンに対応していません。</translation></message>
-    <message><source>Pixel view: separate layer masks are not supported by Vector Preview.</source><translation>ピクセル表示: ベクトルプレビューは独立したレイヤーマスクに対応していません。</translation></message>
-    <message><source>Pixel view: clipping or advanced blending is not supported by Vector Preview.</source><translation>ピクセル表示: ベクトルプレビューはクリッピングと高度な合成に対応していません。</translation></message>
-    <message><source>Pixel view: layer effects and filters are not supported by Vector Preview.</source><translation>ピクセル表示: ベクトルプレビューはレイヤー効果とフィルターに対応していません。</translation></message>
+    <message><source>Dynamic Vector Preview: using the document's pixel view.</source><translation>動的ベクトルプレビュー: ドキュメントのピクセル表示を使用しています。</translation></message>
     <message><source>Pixel view: vector coordinates exceed the preview range at this zoom.</source><translation>ピクセル表示: このズーム倍率ではベクトル座標がプレビューの範囲を超えています。</translation></message>
-    <message><source>Pixel view: Vector Preview reached its memory limit.</source><translation>ピクセル表示: ベクトルプレビューがメモリ上限に達しました。</translation></message>
-    <message><source>Pixel view: Vector Preview could not render this view.</source><translation>ピクセル表示: ベクトルプレビューでこの表示を描画できませんでした。</translation></message>
+    <message><source>Pixel view: Dynamic Vector Preview reached its memory limit.</source><translation>ピクセル表示: 動的ベクトルプレビューがメモリ上限に達しました。</translation></message>
+    <message><source>Pixel view: Dynamic Vector Preview could not render this view.</source><translation>ピクセル表示: 動的ベクトルプレビューでこの表示を描画できませんでした。</translation></message>
 </context>
 </TS>

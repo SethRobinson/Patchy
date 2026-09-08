@@ -22,20 +22,24 @@ inline constexpr int kVectorPreviewTileSize = 256;
 enum class VectorPreviewFallback { None, Content, Paint, Masks, Blending, Effects, Coordinates, Memory, Failed };
 [[nodiscard]] QString vector_preview_fallback_text(VectorPreviewFallback reason);
 
-// No document pixels, styles, import payloads, or mutable document references.
+// Immutable render properties and shared, copy-on-write source pixels. No
+// mutable document references or duplicated source rasters. Temporary copies
+// replace their pixels/masks with viewport-sized surfaces on the worker.
 struct VectorPreviewNode {
-  LayerId id{};
-  float opacity{1.0F};
-  float fill_opacity{1.0F};
-  BlendMode blend{BlendMode::Normal};
-  bool group{false};
+  Layer layer;
+  Rect source_bounds;
   std::optional<VectorShapeContent> shape;
   std::optional<QRectF> bounds;  // null = potentially covers the entire canvas
+  Rect fill_bounds;
+  Rect stroke_bounds;
   std::vector<VectorPreviewNode> children;
 };
 
 struct VectorPreviewScene {
   std::vector<VectorPreviewNode> layers;
+  PatternStore patterns;
+  QSize canvas;
+  bool has_vectors{false};
   VectorPreviewFallback fallback{VectorPreviewFallback::None};
 };
 

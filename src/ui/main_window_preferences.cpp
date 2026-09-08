@@ -540,6 +540,11 @@ void MainWindow::show_preferences() {
          "previewing the whole canvas, so small layers fill their thumbnail."));
   zoom_thumbnails_check->setChecked(zoom_layer_thumbnails_to_content_);
   application_form->addRow(zoom_thumbnails_check);
+  auto* vector_preview_check = new QCheckBox(tr("Dynamic Vector Preview"), application_group);
+  vector_preview_check->setObjectName(QStringLiteral("preferencesDynamicVectorPreviewCheck"));
+  vector_preview_check->setToolTip(tr("Keep vector artwork sharp when zooming, including in documents with pixel layers. Saved files and exports keep their pixel resolution."));
+  vector_preview_check->setChecked(view_vector_preview_enabled_);
+  application_form->addRow(vector_preview_check);
   // Resets the "Do this for every indexed image" choice remembered by the
   // indexed-image adoption prompt.
   auto* indexed_open_combo = new QComboBox(application_group);
@@ -1086,6 +1091,7 @@ void MainWindow::show_preferences() {
       refresh_layer_list();
     }
     view_rulers_visible_ = default_rulers_check->isChecked();
+    view_vector_preview_action_->setChecked(vector_preview_check->isChecked());
     view_grid_visible_ = default_grid_check->isChecked();
     view_guides_visible_ = default_guides_check->isChecked();
     view_guides_locked_ = lock_guides_check->isChecked();
@@ -1304,7 +1310,7 @@ void MainWindow::refresh_vector_preview_action() {
   }
   refresh_action_tooltip(view_vector_preview_action_);
   auto tooltip = view_vector_preview_action_->toolTip() + QLatin1Char('\n') +
-      tr("Render supported vector artwork at screen resolution. Saved files and exports use the document's pixel resolution.");
+      tr("Keep vector artwork sharp when zooming, including in documents with pixel layers. Saved files and exports keep their pixel resolution.");
   if (canvas_ != nullptr && view_vector_preview_enabled_ && !canvas_->vector_preview_status().isEmpty()) {
     tooltip += QLatin1Char('\n') + canvas_->vector_preview_status();
   }

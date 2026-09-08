@@ -1,5 +1,10 @@
 # Scripting API compatibility
 
+2026-09-08 (API 1): Dynamic Vector Preview adds mixed-content compositing and a
+Preferences checkbox. `view.vector_preview` and `view/vectorPreview` remain
+unchanged. Routine preview status is tooltip-only; resource notices do not repeat
+or replace existing status text. See [vector-preview.md](vector-preview.md).
+
 2026-09-08 (API 1): `app.runCommand("view.vector_preview")` toggles the
 persisted screen-resolution vector view. Window captures, including
 `patchy.ui.captureWindow`, wait up to 60 seconds for its current render and return

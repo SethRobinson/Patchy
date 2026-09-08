@@ -395,7 +395,7 @@ void MainWindow::bind_action_translations(ActionBuildContext& ctx) {
       {ctx.tile_preview_action, "Seamless &Tile Preview"},
       {tiling_mode_action_, "Seamless Tiling in &Window"},
       {view_rulers_action_, "&Rulers"},
-      {view_vector_preview_action_, "Vector Preview"},
+      {view_vector_preview_action_, "Dynamic Vector Preview"},
       {view_grid_action_, "&Grid"},
       {view_guides_action_, "&Guides"},
       {view_snap_action_, "&Snap"},

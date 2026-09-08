@@ -8,6 +8,7 @@
 #include "core/style_contour.hpp"
 
 #include "render/layer_style_mask_ops.hpp"
+#include "render/raster_view_context.hpp"
 
 #include <algorithm>
 #include <array>
@@ -21,6 +22,20 @@
 #include <vector>
 
 namespace patchy::render_detail {
+
+inline Rect paint_bounds_for_render(const Layer& layer, const PixelBuffer& pixels, Rect bounds,
+                                    bool aligned, int effect_padding = 0) {
+  if (const auto* appearance = raster_view_appearance(layer.id())) {
+    if (aligned) {
+      const auto* shape = layer.vector_shape();
+      if (shape && &pixels == &shape->fill_cache && !appearance->fill_visible_bounds.empty()) {
+        return appearance->fill_visible_bounds;
+      }
+    }
+    return aligned ? appearance->visible_bounds : outset_rect(appearance->bounds, effect_padding);
+  }
+  return aligned ? layer_visible_alpha_bounds(layer, pixels, bounds).value_or(bounds) : bounds;
+}
 
 struct LayerBoundsOverride {
   LayerId layer_id{};
@@ -691,9 +706,7 @@ struct PreparedInteriorOverlay {
     entry.blend_mode = fill.blend_mode;
     entry.opacity = fill.opacity;
     entry.gradient = &fill.gradient;
-    entry.gradient_bounds = fill.gradient.align_with_layer
-                                ? layer_visible_alpha_bounds(layer, source, bounds).value_or(bounds)
-                                : bounds;
+    entry.gradient_bounds = paint_bounds_for_render(layer, source, bounds, fill.gradient.align_with_layer);
     prepared.push_back(std::move(entry));
   }
   for (const auto& overlay : style.color_overlays) {
@@ -1065,9 +1078,7 @@ void render_gradient_fill(Target& destination, const Layer& layer, const PixelBu
   }
   const auto source_mask = layer_alpha_mask(source, layer, bounds, draw_rect, 0, 0, layer_mask_bounds);
   const auto source_mask_width = draw_rect.width;
-  const auto gradient_bounds = fill.gradient.align_with_layer
-                                   ? layer_visible_alpha_bounds(layer, source, bounds).value_or(bounds)
-                                   : bounds;
+  const auto gradient_bounds = paint_bounds_for_render(layer, source, bounds, fill.gradient.align_with_layer);
   for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
     for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
       const auto source_alpha =
@@ -1222,9 +1233,7 @@ void render_bevel_emboss(Target& destination, const Layer& layer, const PixelBuf
                 return stroke.enabled && stroke.opacity > 0.0F && stroke.size > 0.0F && stroke.uses_gradient &&
                        stroke.gradient.align_with_layer;
               });
-          const auto aligned_gradient_bounds = has_aligned_gradient
-                                                   ? layer_visible_alpha_bounds(layer, source, bounds).value_or(bounds)
-                                                   : bounds;
+          const auto aligned_gradient_bounds = paint_bounds_for_render(layer, source, bounds, has_aligned_gradient);
           for (const auto& stroke : *strokes) {
             if (!stroke.enabled || stroke.opacity <= 0.0F || stroke.size <= 0.0F) {
               continue;
@@ -1241,7 +1250,8 @@ void render_bevel_emboss(Target& destination, const Layer& layer, const PixelBuf
                                                   : outset_rect(bounds, stroke_radius + 1);
             const auto stroke_gradient_bounds = stroke.uses_gradient && stroke.gradient.align_with_layer
                                                     ? aligned_gradient_bounds
-                                                    : stroke_effect_bounds;
+                                                    : paint_bounds_for_render(layer, source, stroke_effect_bounds, false,
+                                                        stroke.position == LayerStrokePosition::Inside ? 0 : stroke_radius + 1);
             for (std::int32_t local_y = 0; local_y < domain.height; ++local_y) {
               for (std::int32_t local_x = 0; local_x < domain.width; ++local_x) {
                 const auto index = static_cast<std::size_t>(local_y) * domain.width + local_x;
@@ -1770,8 +1780,9 @@ inline std::optional<PreparedStroke> prepare_stroke_render(const Layer& layer, c
   prepared.clip_to_mask = layer_mask_clips_effect_output(layer);
   prepared.shape_burst = shape_burst;
   prepared.gradient_bounds = stroke.uses_gradient && stroke.gradient.align_with_layer
-                                 ? layer_visible_alpha_bounds(layer, source, bounds).value_or(bounds)
-                                 : effect_bounds;
+                                 ? paint_bounds_for_render(layer, source, bounds, true)
+                                 : paint_bounds_for_render(layer, source, effect_bounds, false,
+                                     stroke.position == LayerStrokePosition::Inside ? 0 : radius + 1);
   return prepared;
 }
 

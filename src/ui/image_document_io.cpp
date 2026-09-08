@@ -932,7 +932,7 @@ bool layer_can_affect_clip(const Layer& layer, Rect clip,
 
 bool composite_cached_style_layer(QImageCompositeTarget& destination, const Layer& layer, Rect clip,
                                   const std::vector<render_detail::LayerBoundsOverride>* overrides) {
-  if (has_layer_render_override(layer, overrides)) {
+  if (render_detail::raster_view_context != nullptr || has_layer_render_override(layer, overrides)) {
     return false;
   }
 
@@ -1194,10 +1194,10 @@ QImage render_document_rect(const Document& document, QRect document_rect, bool 
   // deadlocks the tab (fewer strips render the same bytes, just slower).
   const auto parallel_strips = max_blocking_fanout_workers(
       std::clamp(std::min(clip.height / 128, hardware_threads), 1, 16));
-  const bool parallel_render = !timed_render && parallel_strips >= 2 && clip_area >= 4'000'000 &&
+  const bool parallel_render = render_detail::raster_view_context == nullptr && !timed_render && parallel_strips >= 2 && clip_area >= 4'000'000 &&
                                !qEnvironmentVariableIsSet("PATCHY_RENDER_SINGLE_THREADED");
   DocumentStyleMaskProvider mask_provider(Rect::from_size(document.width(), document.height()));
-  auto* masks = DocumentStyleMaskProvider::enabled() ? &mask_provider : nullptr;
+  auto* masks = render_detail::raster_view_context == nullptr && DocumentStyleMaskProvider::enabled() ? &mask_provider : nullptr;
   if (parallel_render) {
     struct StripJob {
       Rect clip{};
@@ -1549,6 +1549,14 @@ QImage qimage_from_document(const Document& document, bool preserve_alpha) {
 
 QImage qimage_from_document_rect(const Document& document, QRect document_rect, bool preserve_alpha) {
   return render_document_rect(document, document_rect, preserve_alpha, nullptr);
+}
+
+Rect group_visible_alpha_bounds(const Layer& group, Rect bounds, const PatternStore& patterns) {
+  if (bounds.empty()) { return bounds; }
+  const render_detail::RasterViewContext context;
+  const render_detail::ScopedRasterViewContext scope(context);
+  const auto pixels = render_detail::group_silhouette_for_render(group, bounds, nullptr, false, nullptr, &patterns);
+  return layer_visible_alpha_bounds(pixels, bounds).value_or(bounds);
 }
 
 QImage render_layer_isolated(const Document& document, const Layer& layer) {

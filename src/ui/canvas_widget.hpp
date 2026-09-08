@@ -769,7 +769,7 @@ public:
   void set_vector_preview_enabled(bool enabled);
   [[nodiscard]] bool vector_preview_enabled() const noexcept;
   [[nodiscard]] QString vector_preview_status() const;
-  void set_vector_preview_status_callback(std::function<void(QString)> callback);
+  void set_vector_preview_status_callback(std::function<void(QString, bool)> callback);
   // set_document for undo/redo restores of the SAME logical document: identical
   // interaction-state reset, but when the restored document has the same
   // dimensions the previous frame stays in the render cache (as a stale frame
@@ -1093,7 +1093,7 @@ private:
   [[nodiscard]] bool vector_preview_settled() const noexcept;
   void prepare_vector_preview();
   bool draw_vector_preview(QPainter& painter);
-  void report_vector_preview_status(QString status);
+  void report_vector_preview_status(QString status, bool notice = false);
   // True when a paint should keep showing the previous frame and let the async
   // refresh swap the new composite in, instead of blocking the paint on a full
   // recomposite: the cache is dirty, a same-size previous frame exists, no
@@ -2334,7 +2334,7 @@ private:
   VectorPreviewFallback vector_preview_fallback_{VectorPreviewFallback::None};
   QImage vector_preview_image_;
   QString vector_preview_status_;
-  std::function<void(QString)> vector_preview_status_callback_;
+  std::function<void(QString, bool)> vector_preview_status_callback_;
   std::function<void(QString)> error_status_callback_;
   std::function<void(CanvasInfoState)> info_callback_;
   std::function<void()> document_changed_callback_;

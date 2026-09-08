@@ -45,6 +45,8 @@ Session data must outlive canvas event delivery. `~MainWindow` detaches every ca
 
 `canvas_widget_vector_preview.cpp` owns the optional vector view's worker/cache lifecycle;
 `vector_preview_renderer.{hpp,cpp}` owns its scene and tiled renderer. See [vector-preview.md](vector-preview.md).
+`render/raster_view_context.hpp` scopes full paint bounds and transient style-mask
+behavior to a viewport renderer's compositor call; normal renders have no context.
 
 `CanvasWidget` is split into `canvas_widget_*.cpp` files for events, render, view, guides, selection, selection engines, brush, draw tools, transform, move, pen, vector tools, and cursors. Free transform and warp remain together in `canvas_widget_transform.cpp` because they share pending-session state. Promote cross-TU helpers to `canvas_widget_shared.{hpp,cpp}`.
 

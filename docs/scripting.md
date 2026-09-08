@@ -294,7 +294,7 @@ everywhere a bundled script is resolved.
   disabled commands. It rides the same trust model as the rest of scripting.
 - **`patchy.ui.zoom` / `patchy.ui.fitOnScreen()`** are the documented view controls
   (percent, active document). Connector sessions refuse `runCommand`; fitting settles
-  posted layout first. Window captures wait for [Vector Preview](vector-preview.md).
+  posted layout first. Window captures wait for [Dynamic Vector Preview](vector-preview.md).
 - The script canvas window deliberately bypasses `run_non_modal_dialog` (that helper
   parks the caller in a nested event loop until the dialog finishes, and the calling
   script must keep running). It applies `keep_dialog_above_parent_window` directly, which

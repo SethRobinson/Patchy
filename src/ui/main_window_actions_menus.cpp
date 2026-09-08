@@ -1299,7 +1299,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   auto* zoom_out = view_menu->addAction(tr("Zoom &Out"));
   auto* fit_on_screen = view_menu->addAction(tr("&Fit on Screen"));
   auto* zoom_reset = view_menu->addAction(tr("&Actual Pixels"));
-  view_vector_preview_action_ = view_menu->addAction(tr("Vector Preview"));
+  view_vector_preview_action_ = view_menu->addAction(tr("Dynamic Vector Preview"));
   view_vector_preview_action_->setObjectName(QStringLiteral("viewVectorPreviewAction"));
   view_vector_preview_action_->setCheckable(true);
   view_vector_preview_action_->setChecked(view_vector_preview_enabled_);

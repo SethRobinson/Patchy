@@ -605,7 +605,7 @@ interface PatchyUi {
   setSidePanelWidth(width: number): void;
   /**
    * Saves a PNG capture of the main window (never raises or focuses it).
-   * Waits up to 60 seconds for enabled Vector Preview to settle. Returns false
+   * Waits up to 60 seconds for enabled Dynamic Vector Preview to settle. Returns false
    * on timeout or write failure; throws on an empty path.
    */
   captureWindow(path: string): boolean;

@@ -2,7 +2,10 @@
 #include "local_psd_fixtures.hpp"
 #include "core/vector_live_shapes.hpp"
 #include "core/vector_raster.hpp"
+#include "core/adjustment_layer.hpp"
+#include "core/layer_metadata.hpp"
 #include "ui/background_workers.hpp"
+#include "ui/dialog_utils.hpp"
 #include "ui/script_engine.hpp"
 #include "ui/vector_preview_renderer.hpp"
 
@@ -136,26 +139,32 @@ void ui_vector_preview_strokes_complements_and_group_isolation() {
 void ui_vector_preview_eligibility_and_resource_guards() {
   auto doc = sample();
   auto& raster = doc.add_layer(Layer(doc.allocate_layer_id(), "Raster", PixelBuffer(1, 1, PixelFormat::rgba8())));
-  CHECK(build_vector_preview_scene(doc).fallback == VectorPreviewFallback::Content);
+  CHECK(build_vector_preview_scene(doc).fallback == VectorPreviewFallback::None);
   raster.set_visible(false);
   CHECK(build_vector_preview_scene(doc).fallback == VectorPreviewFallback::None);
   auto& layer = doc.layers().front();
   layer.set_clipped(true);
-  CHECK(build_vector_preview_scene(doc).fallback == VectorPreviewFallback::Blending);
+  CHECK(build_vector_preview_scene(doc).fallback == VectorPreviewFallback::None);
   layer.set_clipped(false);
   auto changed = *std::as_const(layer).vector_shape();
   changed.fill.kind = VectorFillKind::Gradient;
   layer.set_vector_shape(changed);
-  CHECK(build_vector_preview_scene(doc).fallback == VectorPreviewFallback::Paint);
+  CHECK(build_vector_preview_scene(doc).fallback == VectorPreviewFallback::None);
   changed.fill.kind = VectorFillKind::Solid;
   layer.set_vector_shape(changed);
   layer.set_vector_mask(LayerVectorMask{});
-  CHECK(build_vector_preview_scene(doc).fallback == VectorPreviewFallback::Masks);
+  CHECK(build_vector_preview_scene(doc).fallback == VectorPreviewFallback::None);
   layer.clear_vector_mask();
   LayerDropShadow shadow;
   shadow.enabled = true;
   layer.layer_style().drop_shadows.push_back(shadow);
-  CHECK(build_vector_preview_scene(doc).fallback == VectorPreviewFallback::Effects);
+  CHECK(build_vector_preview_scene(doc).fallback == VectorPreviewFallback::None);
+  layer.layer_style().drop_shadows[0].size = 1e12F;
+  layer.layer_style().drop_shadows[0].enabled = false;
+  CHECK(render_vector_preview(build_vector_preview_scene(doc), {{100, 100}, 4, {}}).fallback == VectorPreviewFallback::None);
+  layer.layer_style().drop_shadows[0].enabled = true;
+  layer.layer_style().effects_visible = false;
+  CHECK(render_vector_preview(build_vector_preview_scene(doc), {{100, 100}, 4, {}}).fallback == VectorPreviewFallback::None);
   layer.layer_style() = {};
   const auto scene = build_vector_preview_scene(doc);
   CHECK(render_vector_preview(scene, {{100000, 100000}, 8, {}}).fallback == VectorPreviewFallback::Memory);
@@ -170,6 +179,200 @@ void ui_vector_preview_eligibility_and_resource_guards() {
   CHECK(render_vector_preview(build_vector_preview_scene(huge), {{100, 100}, 8, {}}).fallback == VectorPreviewFallback::Coordinates);
   std::atomic_bool cancelled{true};
   CHECK(render_vector_preview(scene, {{100, 100}, 8, {}}, 0, &cancelled).image.isNull());
+}
+
+Document mixed_sample() {
+  auto doc = sample();
+  PixelBuffer pixels(40, 35, PixelFormat::rgba8());
+  for (int y = 0; y < pixels.height(); ++y) {
+    for (int x = 0; x < pixels.width(); ++x) {
+      auto* p = pixels.pixel(x, y);
+      p[0] = ((x / 3 + y / 3) % 2) ? 220 : 40;
+      p[1] = 180; p[2] = 120; p[3] = 180;
+    }
+  }
+  Layer raster(doc.allocate_layer_id(), "Bitmap", pixels);
+  raster.set_bounds({24, 23, pixels.width(), pixels.height()});
+  raster.set_blend_mode(BlendMode::Multiply);
+  doc.add_layer(std::move(raster));
+  auto& group = doc.layers()[1];
+  PixelBuffer mask(45, 50, PixelFormat::gray8());
+  mask.clear(200);
+  group.set_mask(LayerMask{{20, 10, 45, 50}, std::move(mask), 30, false});
+  auto& child = group.children()[1];
+  child.set_clipped(true);
+  child.set_blend_mode(BlendMode::Screen);
+  LayerBlendIf blend;
+  blend.channels[0].underlying_layer.white_low = 210;
+  blend.channels[0].underlying_layer.white_high = 250;
+  CHECK(child.set_blend_if(blend));
+  child.set_restricted_channels(kRestrictBlue);
+  Layer adjustment(doc.allocate_layer_id(), "Invert", LayerKind::Adjustment);
+  adjustment.metadata()[kLayerMetadataAdjustmentType] = "invert";
+  adjustment.set_opacity(0.3F);
+  doc.add_layer(std::move(adjustment));
+  return doc;
+}
+
+void ui_vector_preview_mixed_content_matches_compositor() {
+  auto doc = mixed_sample();
+  const auto original = psd::DocumentIo::write_layered_rgb8(doc);
+  const auto scene = build_vector_preview_scene(doc);
+  CHECK(scene.fallback == VectorPreviewFallback::None);
+  CHECK(scene.has_vectors);
+  const auto native = render_vector_preview(scene, {{doc.width(), doc.height()}, 1, {}});
+  CHECK(native.fallback == VectorPreviewFallback::None);
+  CHECK(native.image == qimage_from_document(doc, true));
+  const VectorPreviewView full{{700, 600}, 4.25, {17.375, 20.625}};
+  const auto a = render_vector_preview(scene, full);
+  const auto b = render_vector_preview(scene, {{400, 330}, full.scale, full.offset - QPointF(211, 189)});
+  CHECK(a.fallback == VectorPreviewFallback::None);
+  CHECK(b.fallback == VectorPreviewFallback::None);
+  CHECK(b.image == a.image.copy(211, 189, 400, 330));
+  CHECK(a.image.save(QStringLiteral("test-artifacts/vector-preview-mixed.png")));
+  CHECK(psd::DocumentIo::write_layered_rgb8(doc) == original);
+}
+
+void ui_vector_preview_gradient_pattern_effects_and_vector_masks() {
+  for (int variant = 0; variant < 18; ++variant) {
+    auto doc = sample();
+    auto& group = doc.layers()[1];
+    auto& layer = group.children()[0];
+    auto shape = *std::as_const(layer).vector_shape();
+    LayerStyleGradient gradient;
+    gradient.color_stops = {{0, {240, 40, 20}}, {1, {10, 150, 240}}};
+    gradient.alpha_stops = {{0, 1}, {1, 0.6F}};
+    gradient.angle_degrees = 27;
+    if (variant == 0) { shape.fill.kind = VectorFillKind::Gradient; shape.fill.gradient = gradient; }
+    if (variant == 1) {
+      PixelBuffer pattern(3, 3, PixelFormat::rgba8());
+      pattern.clear(255);
+      pattern.pixel(1, 1)[0] = 0;
+      doc.metadata().patterns.adopt({"preview-pattern", "Pattern", std::move(pattern)});
+      shape.fill.kind = VectorFillKind::Pattern;
+      shape.fill.pattern_id = "preview-pattern";
+      shape.fill.pattern_scale = 2;
+      shape.fill.pattern_phase_x = 1.25;
+      set_layer_effects_reference_point(layer, 11, 7);
+    }
+    if (variant == 2) {
+      LayerVectorMask mask;
+      mask.path = ellipse(20, 10, 60, 58, {}).path;
+      mask.density = 220;
+      group.set_vector_mask(std::move(mask));
+      update_vector_mask_raster(group, {0, 0, doc.width(), doc.height()});
+    }
+    if (variant == 3) {
+      LayerDropShadow shadow;
+      shadow.enabled = true; shadow.size = 2; shadow.distance = 3;
+      layer.layer_style().drop_shadows.push_back(shadow);
+    }
+    if (variant == 4) {
+      LayerGradientFill fill;
+      fill.enabled = true; fill.gradient = gradient;
+      layer.layer_style().gradient_fills.push_back(fill);
+    }
+    if (variant == 5) {
+      LayerStroke stroke;
+      stroke.enabled = true; stroke.size = 2;
+      stroke.uses_gradient = true; stroke.gradient = gradient;
+      layer.layer_style().strokes.push_back(stroke);
+    }
+    if (variant == 6) {
+      LayerBevelEmboss bevel;
+      bevel.enabled = true; bevel.size = 2;
+      layer.layer_style().bevels.push_back(bevel);
+    }
+    if (variant == 7) {
+      LayerDropShadow shadow;
+      shadow.enabled = true; shadow.size = 2; shadow.distance = 3;
+      group.layer_style().drop_shadows.push_back(shadow);
+    }
+    if (variant == 8) {
+      LayerVectorMask mask;
+      mask.path = ellipse(20, 10, 60, 58, {}).path;
+      mask.feather = 1.25;
+      mask.inverted = true;
+      group.set_vector_mask(std::move(mask));
+      update_vector_mask_raster(group, {0, 0, doc.width(), doc.height()});
+    }
+    if (variant == 9) {
+      LayerInnerGlow inner;
+      inner.enabled = true; inner.size = 2;
+      layer.layer_style().inner_glows.push_back(inner);
+      LayerOuterGlow outer;
+      outer.enabled = true; outer.size = 2;
+      layer.layer_style().outer_glows.push_back(outer);
+    }
+    if (variant == 10) {
+      LayerSatin satin;
+      satin.enabled = true; satin.size = 2; satin.distance = 2;
+      layer.layer_style().satins.push_back(satin);
+    }
+    if (variant == 11) {
+      LayerGradientFill fill;
+      fill.enabled = true; fill.gradient = gradient;
+      group.layer_style().gradient_fills.push_back(fill);
+      PixelBuffer mask(30, 25, PixelFormat::gray8());
+      mask.clear(255);
+      layer.set_mask(LayerMask{{30, 30, 30, 25}, std::move(mask), 0, false});
+    }
+    if (variant == 12) {
+      PixelBuffer pattern(3, 3, PixelFormat::rgba8());
+      pattern.clear(255);
+      pattern.pixel(1, 1)[1] = 0;
+      doc.metadata().patterns.adopt({"overlay-pattern", "Overlay", std::move(pattern)});
+      LayerPatternOverlay overlay;
+      overlay.enabled = true; overlay.pattern_id = "overlay-pattern";
+      overlay.scale = 2; overlay.phase_x = 1.25F; overlay.phase_y = -3;
+      layer.layer_style().pattern_overlays.push_back(overlay);
+      set_layer_effects_reference_point(layer, 11, 7);
+    }
+    if (variant == 13) {
+      LayerInnerGlow glow;
+      glow.enabled = true; glow.size = 2;
+      doc.layers()[0].layer_style().inner_glows.push_back(glow);
+    }
+    if (variant == 14 || variant == 15) {
+      LayerStroke stroke;
+      stroke.enabled = true; stroke.size = 2;
+      stroke.uses_gradient = true; stroke.gradient = gradient;
+      stroke.gradient.align_with_layer = false;
+      layer.layer_style().strokes.push_back(stroke);
+      if (variant == 15) {
+        LayerBevelEmboss bevel;
+        bevel.enabled = true; bevel.size = 2; bevel.style = BevelEmbossStyleKind::StrokeEmboss;
+        layer.layer_style().bevels.push_back(bevel);
+      }
+    }
+    if (variant == 16 || variant == 17) {
+      gradient.alpha_stops = {{0, 0}, {0.5F, 0}, {1, 1}};
+      auto& paint = variant == 16 ? shape.fill : shape.stroke.content;
+      paint.kind = VectorFillKind::Gradient;
+      paint.gradient = gradient;
+    }
+    layer.set_vector_shape(std::move(shape));
+    update_vector_shape_raster(layer, {0, 0, doc.width(), doc.height()}, &std::as_const(doc).metadata().patterns);
+    const auto scene = build_vector_preview_scene(doc);
+    const auto native = render_vector_preview(scene, {{doc.width(), doc.height()}, 1, {}});
+    CHECK(native.fallback == VectorPreviewFallback::None);
+    const auto expected = qimage_from_document(doc, true);
+    if (native.image != expected) {
+      (void)native.image.save(QStringLiteral("test-artifacts/vector-preview-variant-%1-actual.png").arg(variant));
+      (void)expected.save(QStringLiteral("test-artifacts/vector-preview-variant-%1-expected.png").arg(variant));
+      throw std::runtime_error("native mixed variant " + std::to_string(variant));
+    }
+    const VectorPreviewView full{{530, 460}, 4, {}};
+    const auto a = render_vector_preview(scene, full);
+    const auto b = render_vector_preview(scene, {{310, 280}, 4, {-197, -173}});
+    CHECK(a.fallback == VectorPreviewFallback::None);
+    CHECK(b.fallback == VectorPreviewFallback::None);
+    if (b.image != a.image.copy(197, 173, 310, 280)) {
+      (void)b.image.save(QStringLiteral("test-artifacts/vector-preview-variant-%1-crop.png").arg(variant));
+      (void)a.image.save(QStringLiteral("test-artifacts/vector-preview-variant-%1-full.png").arg(variant));
+      throw std::runtime_error("tile mixed variant " + std::to_string(variant));
+    }
+  }
 }
 
 void ui_vector_preview_canvas_cache_invalidation_and_lifetime() {
@@ -220,7 +423,7 @@ void ui_vector_preview_canvas_cache_invalidation_and_lifetime() {
   const auto raster_id = raster.id();
   canvas.document_changed();
   settle(canvas);
-  CHECK(canvas.vector_preview_status().contains(QStringLiteral("non-vector")));
+  CHECK(canvas.vector_preview_status().contains(QStringLiteral("sharp vector view")));
   doc.find_layer(raster_id)->set_visible(false);
   canvas.document_changed();
   settle(canvas);
@@ -254,9 +457,11 @@ void ui_vector_preview_action_persistence_script_and_history() {
   canvas->set_document(&doc);
   auto* action = window.findChild<QAction*>(QStringLiteral("viewVectorPreviewAction"));
   CHECK(action && !action->isChecked());
+  CHECK(action->text() == QStringLiteral("Dynamic Vector Preview"));
   const auto history = MainWindowTestAccess::active_session_undo_depth(window);
   const auto modified = MainWindowTestAccess::active_session_is_modified(window);
   const auto bytes = psd::DocumentIo::write_layered_rgb8(doc);
+  window.statusBar()->showMessage(QStringLiteral("Keep this editing message"));
   ScriptEngineHost::RunOptions options;
   options.name = QStringLiteral("vector-preview-test");
   (void)window.script_engine_host().run_source(QStringLiteral(
@@ -267,6 +472,7 @@ void ui_vector_preview_action_persistence_script_and_history() {
   CHECK(!window.script_engine_host().last_run_had_error());
   CHECK(!QImage(QStringLiteral("test-artifacts/ui_vector_preview_capture.png")).isNull());
   CHECK(action->isChecked());
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Keep this editing message"));
   CHECK(app_settings().value(QStringLiteral("view/vectorPreview")).toBool());
   CHECK(MainWindowTestAccess::active_session_undo_depth(window) == history);
   CHECK(MainWindowTestAccess::active_session_is_modified(window) == modified);
@@ -291,6 +497,26 @@ void ui_vector_preview_action_persistence_script_and_history() {
   MainWindow another;
   show_window(another);
   CHECK(require_canvas(another)->vector_preview_enabled());
+
+  bool saw_preferences = false;
+  QTimer::singleShot(0, [&] {
+    try {
+      auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+      CHECK(dialog != nullptr);
+      auto* check = dialog->findChild<QCheckBox*>(QStringLiteral("preferencesDynamicVectorPreviewCheck"));
+      CHECK(check && check->isChecked());
+      check->setChecked(false);
+      saw_preferences = true;
+      dialog->accept();
+    } catch (...) {
+      (void)unwind_non_modal_dialog_loop(std::current_exception());
+    }
+  });
+  require_action(window, "filePreferencesAction")->trigger();
+  CHECK(saw_preferences);
+  CHECK(!action->isChecked());
+  CHECK(!canvas->vector_preview_enabled());
+  CHECK(!app_settings().value(QStringLiteral("view/vectorPreview")).toBool());
 }
 
 void ui_vector_preview_little_everywhere_if_available() {
@@ -348,6 +574,36 @@ void ui_vector_preview_little_everywhere_if_available() {
   }
 }
 
+void ui_vector_preview_resource_notice_is_once_and_never_covers_other_status() {
+  PreviewPreferenceGuard guard;
+  MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& doc = MainWindowTestAccess::document(window);
+  doc = sample();
+  auto& layer = doc.layers()[1].children()[0];
+  auto shape = *std::as_const(layer).vector_shape();
+  shape.path.subpaths[0].anchors[0].in_x = 1e12;
+  layer.set_vector_shape(std::move(shape));
+  canvas->set_document(&doc);
+  canvas->set_zoom_centered(8);
+  window.statusBar()->clearMessage();
+  require_action(window, "viewVectorPreviewAction")->trigger();
+  settle(*canvas);
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("preview range")));
+  window.statusBar()->clearMessage();
+  for (const double zoom : {4.0, 8.0, 6.375}) {
+    canvas->set_zoom_centered(zoom);
+    settle(*canvas);
+    CHECK(window.statusBar()->currentMessage().isEmpty());
+  }
+  window.statusBar()->showMessage(QStringLiteral("Another tool's message"));
+  canvas->set_vector_preview_enabled(false);
+  canvas->set_vector_preview_enabled(true);
+  settle(*canvas);
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Another tool's message"));
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> vector_preview_tests() {
@@ -355,8 +611,11 @@ std::vector<patchy::test::TestCase> vector_preview_tests() {
       {"ui_vector_preview_tiles_match_full_vector_raster", ui_vector_preview_tiles_match_full_vector_raster},
       {"ui_vector_preview_strokes_complements_and_group_isolation", ui_vector_preview_strokes_complements_and_group_isolation},
       {"ui_vector_preview_eligibility_and_resource_guards", ui_vector_preview_eligibility_and_resource_guards},
+      {"ui_vector_preview_mixed_content_matches_compositor", ui_vector_preview_mixed_content_matches_compositor},
+      {"ui_vector_preview_gradient_pattern_effects_and_vector_masks", ui_vector_preview_gradient_pattern_effects_and_vector_masks},
       {"ui_vector_preview_canvas_cache_invalidation_and_lifetime", ui_vector_preview_canvas_cache_invalidation_and_lifetime},
       {"ui_vector_preview_action_persistence_script_and_history", ui_vector_preview_action_persistence_script_and_history},
+      {"ui_vector_preview_resource_notice_is_once_and_never_covers_other_status", ui_vector_preview_resource_notice_is_once_and_never_covers_other_status},
       {"ui_vector_preview_little_everywhere_if_available", ui_vector_preview_little_everywhere_if_available},
   };
 }
