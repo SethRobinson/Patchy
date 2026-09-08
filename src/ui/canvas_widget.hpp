@@ -12,6 +12,7 @@
 #include "ui/image_document_io.hpp"
 #include "ui/measurement_units.hpp"
 #include "ui/selection_outline.hpp"
+#include "ui/vector_preview_renderer.hpp"
 
 #include <QBasicTimer>
 #include <QBrush>
@@ -283,6 +284,9 @@ public:
   };
 
   struct RenderCacheDiagnostics {
+    int vector_preview_renders{0};
+    std::uint64_t vector_preview_peak_raster_bytes{0};
+    double vector_preview_elapsed_ms{0.0};
     int full_refreshes{0};
     int partial_patches{0};
     int move_precommit_patches{0};
@@ -762,6 +766,10 @@ public:
   // pending and no fire-and-forget async refresh in flight. Used by the
   // profiling stress test's settle loop.
   [[nodiscard]] bool render_settled() const noexcept;
+  void set_vector_preview_enabled(bool enabled);
+  [[nodiscard]] bool vector_preview_enabled() const noexcept;
+  [[nodiscard]] QString vector_preview_status() const;
+  void set_vector_preview_status_callback(std::function<void(QString)> callback);
   // set_document for undo/redo restores of the SAME logical document: identical
   // interaction-state reset, but when the restored document has the same
   // dimensions the previous frame stays in the render cache (as a stale frame
@@ -1079,6 +1087,13 @@ private:
                              bool normal_composite_unchanged = false);
   void start_async_render_cache_refresh();
   void cancel_async_render_cache_refresh() noexcept;
+  void invalidate_vector_preview() noexcept;
+  [[nodiscard]] bool vector_preview_available_for_view() const noexcept;
+  [[nodiscard]] VectorPreviewView vector_preview_view() const noexcept;
+  [[nodiscard]] bool vector_preview_settled() const noexcept;
+  void prepare_vector_preview();
+  bool draw_vector_preview(QPainter& painter);
+  void report_vector_preview_status(QString status);
   // True when a paint should keep showing the previous frame and let the async
   // refresh swap the new composite in, instead of blocking the paint on a full
   // recomposite: the cache is dirty, a same-size previous frame exists, no
@@ -2308,6 +2323,18 @@ private:
   std::function<void(LayerId)> active_layer_changed_callback_;
   std::function<void(std::vector<LayerId>, LayerId)> layer_selection_requested_callback_;
   std::function<void(QString)> status_callback_;
+  bool vector_preview_enabled_{false};
+  std::uint64_t vector_preview_generation_{1};
+  std::uint64_t vector_preview_completed_generation_{0};
+  std::shared_ptr<const VectorPreviewScene> vector_preview_scene_;
+  std::shared_ptr<std::atomic_bool> vector_preview_cancel_;
+  bool vector_preview_in_flight_{false};
+  std::optional<VectorPreviewView> vector_preview_requested_view_;
+  std::optional<VectorPreviewView> vector_preview_completed_view_;
+  VectorPreviewFallback vector_preview_fallback_{VectorPreviewFallback::None};
+  QImage vector_preview_image_;
+  QString vector_preview_status_;
+  std::function<void(QString)> vector_preview_status_callback_;
   std::function<void(QString)> error_status_callback_;
   std::function<void(CanvasInfoState)> info_callback_;
   std::function<void()> document_changed_callback_;

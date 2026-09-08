@@ -6786,6 +6786,14 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
     refresh_paths_panel();
   });
   canvas->set_status_callback([this](QString message) { statusBar()->showMessage(message); });
+  canvas->set_vector_preview_status_callback([this, canvas](QString message) {
+    if (canvas == canvas_) {
+      refresh_vector_preview_action();
+      if (!message.isEmpty()) {
+        statusBar()->showMessage(message, 5000);
+      }
+    }
+  });
   canvas->set_error_status_callback([this](QString message) { show_status_error(message); });
   canvas->set_ruler_unit_change_requested_callback(
       [this](MeasurementUnit unit) { set_ruler_unit_preference(unit); });

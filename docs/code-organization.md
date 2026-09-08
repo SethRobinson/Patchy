@@ -43,6 +43,9 @@ Session data must outlive canvas event delivery. `~MainWindow` detaches every ca
 
 ## CanvasWidget
 
+`canvas_widget_vector_preview.cpp` owns the optional vector view's worker/cache lifecycle;
+`vector_preview_renderer.{hpp,cpp}` owns its scene and tiled renderer. See [vector-preview.md](vector-preview.md).
+
 `CanvasWidget` is split into `canvas_widget_*.cpp` files for events, render, view, guides, selection, selection engines, brush, draw tools, transform, move, pen, vector tools, and cursors. Free transform and warp remain together in `canvas_widget_transform.cpp` because they share pending-session state. Promote cross-TU helpers to `canvas_widget_shared.{hpp,cpp}`.
 
 `canvas_widget.cpp` keeps construction, document lifecycle, setters, smart-filter-mask targeting, callback plumbing, and picking helpers. Patent-constraint comments for Quick Select solve-on-release and Magnetic Lasso finish-time region construction stay verbatim with their functions in `canvas_widget_selection_engines.cpp`.

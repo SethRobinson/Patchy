@@ -1,5 +1,11 @@
 # Scripting API compatibility
 
+2026-09-08 (API 1): `app.runCommand("view.vector_preview")` toggles the
+persisted screen-resolution vector view. Window captures, including
+`patchy.ui.captureWindow`, wait up to 60 seconds for its current render and return
+false on timeout. Document previews, saved pixels and exports keep document
+resolution. See [vector-preview.md](vector-preview.md).
+
 2026-09-08 (API 1): `patchy.ui.paused` shares Pause/Resume for visible MCP and CLI
 automation. Pausing finishes the current native edit; Resume appears when manual
 editing is safe. Manual edits split script Undo groups. Targets resolve again

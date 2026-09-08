@@ -1,7 +1,6 @@
 # Vector tools: pen paths, shape layers, vector masks, Paths panel
 
-Native scripting for shapes, paints, paths, masks, and selection conversion is
-documented in [vector-automation.md](vector-automation.md).
+References: [scripting](vector-automation.md), [Vector Preview](vector-preview.md).
 
 UI/PSD contracts and patent boundaries. Encoding facts: Photoshop 27.8 COM
 probes (July 2026; method rules below);

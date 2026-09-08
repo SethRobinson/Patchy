@@ -1299,6 +1299,19 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   auto* zoom_out = view_menu->addAction(tr("Zoom &Out"));
   auto* fit_on_screen = view_menu->addAction(tr("&Fit on Screen"));
   auto* zoom_reset = view_menu->addAction(tr("&Actual Pixels"));
+  view_vector_preview_action_ = view_menu->addAction(tr("Vector Preview"));
+  view_vector_preview_action_->setObjectName(QStringLiteral("viewVectorPreviewAction"));
+  view_vector_preview_action_->setCheckable(true);
+  view_vector_preview_action_->setChecked(view_vector_preview_enabled_);
+  register_hotkey(view_vector_preview_action_, "view.vector_preview");
+  connect(view_vector_preview_action_, &QAction::toggled, this, [this](bool checked) {
+    view_vector_preview_enabled_ = checked;
+    for (const auto& session : sessions_) {
+      session->canvas->set_vector_preview_enabled(checked);
+    }
+    save_view_settings();
+    refresh_vector_preview_action();
+  });
   auto* selection_edges_action = view_menu->addAction(tr("Show Selection &Edges"));
   auto* target_path_action = view_menu->addAction(tr("Show Target &Path"));
   view_menu->addSeparator();

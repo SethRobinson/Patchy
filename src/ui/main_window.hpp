@@ -624,6 +624,7 @@ private:
   void clear_selected_guides();
   void set_ruler_unit_preference(MeasurementUnit unit);
   void apply_canvas_aid_settings(CanvasWidget* canvas) const;
+  void refresh_vector_preview_action();
   void apply_pen_input_settings(CanvasWidget* canvas) const;
   void load_pen_input_settings();
   void save_pen_input_settings() const;
@@ -1492,6 +1493,7 @@ private:
   QAction* undo_action_{nullptr};
   QAction* redo_action_{nullptr};
   QAction* view_rulers_action_{nullptr};
+  QAction* view_vector_preview_action_{nullptr};
   QAction* view_grid_action_{nullptr};
   QAction* view_guides_action_{nullptr};
   QAction* view_snap_action_{nullptr};
@@ -1718,6 +1720,7 @@ private:
   // Photoshop's View > Show > Target Path (Ctrl+Shift+H). Deliberately NOT
   // persisted: every launch starts visible, like Photoshop.
   bool view_target_path_visible_{true};
+  bool view_vector_preview_enabled_{false};
   bool view_guides_locked_{false};
   bool view_snap_enabled_{true};
   bool view_snap_to_guides_{true};

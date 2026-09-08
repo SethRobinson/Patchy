@@ -547,6 +547,7 @@ void MainWindow::activate_document_canvas(CanvasWidget* canvas) {
     sync_brush_controls_from_canvas();
   }
   apply_canvas_aid_settings(canvas_);
+  refresh_vector_preview_action();
   canvas_->setFocus(Qt::OtherFocusReason);
   refresh_options_bar();
   refresh_layer_list();

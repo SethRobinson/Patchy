@@ -1295,6 +1295,20 @@ void MainWindow::apply_canvas_aid_settings(CanvasWidget* canvas) const {
   canvas->set_grid_color(view_grid_color_);
   canvas->set_guide_color(view_guide_color_);
   canvas->set_target_path_visible(view_target_path_visible_);
+  canvas->set_vector_preview_enabled(view_vector_preview_enabled_);
+}
+
+void MainWindow::refresh_vector_preview_action() {
+  if (view_vector_preview_action_ == nullptr) {
+    return;
+  }
+  refresh_action_tooltip(view_vector_preview_action_);
+  auto tooltip = view_vector_preview_action_->toolTip() + QLatin1Char('\n') +
+      tr("Render supported vector artwork at screen resolution. Saved files and exports use the document's pixel resolution.");
+  if (canvas_ != nullptr && view_vector_preview_enabled_ && !canvas_->vector_preview_status().isEmpty()) {
+    tooltip += QLatin1Char('\n') + canvas_->vector_preview_status();
+  }
+  view_vector_preview_action_->setToolTip(tooltip);
 }
 
 // The load/save/apply trio named for the pen carries the general canvas input
@@ -1407,6 +1421,7 @@ void MainWindow::save_pen_input_settings() const {
 
 void MainWindow::load_view_settings() {
   auto settings = app_settings();
+  view_vector_preview_enabled_ = settings.value(QStringLiteral("view/vectorPreview"), false).toBool();
   view_rulers_visible_ = settings.value(QStringLiteral("view/rulersVisible"), view_rulers_visible_).toBool();
   ruler_unit_ = measurement_unit_from_settings_token(
       settings.value(QStringLiteral("view/rulerUnits"), QStringLiteral("px")).toString(),
@@ -1480,6 +1495,7 @@ void MainWindow::load_view_settings() {
 
 void MainWindow::save_view_settings() const {
   auto settings = app_settings();
+  settings.setValue(QStringLiteral("view/vectorPreview"), view_vector_preview_enabled_);
   settings.setValue(QStringLiteral("view/rulersVisible"), view_rulers_visible_);
   settings.setValue(QStringLiteral("view/rulerUnits"), measurement_unit_settings_token(ruler_unit_));
   settings.setValue(QStringLiteral("view/gridVisible"), view_grid_visible_);

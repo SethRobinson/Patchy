@@ -269,6 +269,7 @@ void CanvasWidget::set_document_for_history_restore(Document* document, bool nor
 
 void CanvasWidget::set_document_internal(Document* document, bool preserve_frame_for_same_size,
                                          bool normal_composite_unchanged) {
+  invalidate_vector_preview();
   cancel_pointer_gestures();
   painting_ = false;
   clear_brush_stroke_tracking();

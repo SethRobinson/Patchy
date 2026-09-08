@@ -605,7 +605,8 @@ interface PatchyUi {
   setSidePanelWidth(width: number): void;
   /**
    * Saves a PNG capture of the main window (never raises or focuses it).
-   * Returns false when the file cannot be written; throws on an empty path.
+   * Waits up to 60 seconds for enabled Vector Preview to settle. Returns false
+   * on timeout or write failure; throws on an empty path.
    */
   captureWindow(path: string): boolean;
   /** Shows a message in the main window's status bar (progress readouts). */

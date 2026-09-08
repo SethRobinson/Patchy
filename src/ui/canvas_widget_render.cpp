@@ -263,7 +263,7 @@ CanvasWidget::RenderCacheDiagnostics CanvasWidget::render_cache_diagnostics() co
 }
 
 bool CanvasWidget::render_settled() const noexcept {
-  return !render_cache_dirty_ && !async_render_cache_in_flight_;
+  return !render_cache_dirty_ && !async_render_cache_in_flight_ && vector_preview_settled();
 }
 
 bool CanvasWidget::should_defer_full_refresh_to_async() const noexcept {
@@ -380,6 +380,7 @@ void CanvasWidget::end_processing_operation() {
 }
 
 void CanvasWidget::notify_document_changed(DocumentChangeReason reason) {
+  invalidate_vector_preview();
   if (document_changed_reason_callback_) {
     document_changed_reason_callback_(reason);
   } else if (document_changed_callback_) {
@@ -724,6 +725,8 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
   const QRectF target_rect = pixel_aligned_view ? QRectF(pixel_aligned_target_rect) : exact_target_rect;
   draw_checkerboard(painter, target_rect, exposed_rect);
 
+  prepare_vector_preview();
+
   if (!processing_render_wait_active_) {
     if (should_defer_full_refresh_to_async()) {
       // Keep the previous frame on screen while the recomposite runs in the
@@ -952,6 +955,7 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
       draw_scaled_image(curves_clipping_mode_.has_value() && !curves_clipping_preview_image_.isNull()
                             ? curves_clipping_preview_image_
                             : render_cache_);
+      draw_vector_preview(painter);
     }
   }
   if (!curves_clipping_mode_.has_value()) {
@@ -1180,6 +1184,7 @@ void CanvasWidget::start_async_render_cache_refresh() {
 }
 
 void CanvasWidget::cancel_async_render_cache_refresh() noexcept {
+  invalidate_vector_preview();
   ++async_render_cache_generation_;
   async_render_cache_pending_ = false;
 }

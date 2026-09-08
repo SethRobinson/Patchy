@@ -835,6 +835,8 @@ if(PATCHY_BUILD_APP)
       src/ui/canvas_widget_patch_tool.cpp
       src/ui/canvas_widget_pen.cpp
       src/ui/canvas_widget_render.cpp
+      src/ui/canvas_widget_vector_preview.cpp
+      src/ui/vector_preview_renderer.cpp
       src/ui/canvas_widget_selection.cpp
       src/ui/canvas_widget_selection_engines.cpp
       src/ui/canvas_widget_spot_healing.cpp
@@ -1553,6 +1555,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/misc_visuals_outline_stress_tests.cpp
       tests/ui/float_window_tests.cpp
       tests/ui/vector_shape_tool_tests.cpp
+      tests/ui/vector_preview_tests.cpp
       tests/ui/vector_point_editing_tests.cpp
       tests/ui/vector_commands_tests.cpp
       tests/ui/vector_scripting_tests.cpp

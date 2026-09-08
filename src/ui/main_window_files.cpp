@@ -1418,6 +1418,22 @@ void MainWindow::activate_for_second_instance(const QStringList& paths) {
 
 bool MainWindow::save_debug_screenshot(const QString& file_path, const QString& widget_name,
                                        const QRect& region) {
+  // Window captures include the optional display renderer; exports deliberately
+  // do not. Wait for its newest generation, with no user-input reentrancy.
+  QPointer<CanvasWidget> preview_canvas(canvas_);
+  if (preview_canvas && preview_canvas->vector_preview_enabled()) {
+    preview_canvas->update();
+    QElapsedTimer deadline;
+    deadline.start();
+    while (preview_canvas && !preview_canvas->render_settled()) {
+      if (deadline.elapsed() >= 60000) {
+        return false;
+      }
+      QEventLoop pause;
+      QTimer::singleShot(8, &pause, &QEventLoop::quit);
+      pause.exec(QEventLoop::ExcludeUserInputEvents);
+    }
+  }
   QWidget* target = this;
   if (!widget_name.isEmpty()) {
     target = findChild<QWidget*>(widget_name);

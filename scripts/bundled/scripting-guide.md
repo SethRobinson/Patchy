@@ -372,10 +372,11 @@ Colors everywhere are CSS-style strings: `"#rrggbb"`, `"#aarrggbb"`, or named co
 | `patchy.ui.playSound(path)` | Plays a `.wav` file (10 MB max). Relative paths resolve like `include()`. Throws if the file is missing or not a WAV. |
 | `patchy.ui.setWindowSize(w, h)` | Resizes the main window. Meant for automation that captures the app at a known size. |
 | `patchy.ui.setSidePanelWidth(px)` | Sets the width of the right panel stack (Layers/Channels/Paths). |
-| `patchy.ui.captureWindow(path)` | Saves a PNG screenshot of the main window without raising or focusing it. Returns false if the file could not be written. |
+| `patchy.ui.captureWindow(path)` | Saves a PNG screenshot without raising or focusing the window. Waits up to 60 seconds for enabled Vector Preview to settle; returns false on timeout or write failure. |
 | `patchy.ui.setStatusMessage(text)` | Shows a message in the status bar. Handy for progress readouts in long batches. |
 | `patchy.ui.zoom` | The active document's view zoom in percent (read/write, 0 with no document). Setting clamps to 5..12800; throws for NaN, non-positive values, or with no document. Only window captures see it. |
 | `patchy.ui.fitOnScreen()` | View > Fit on Screen for the active document. Throws with no document. |
+| `app.runCommand("view.vector_preview")` | Toggles View > Vector Preview. Supported solid vector artwork stays sharp when magnified; saved/exported pixels keep document resolution. This is a persisted application view option. Connector sessions refuse `runCommand`. |
 
 Sound is best-effort per platform: Windows and macOS play through the OS directly, Linux needs `paplay`, `pw-play`, or `aplay` on the PATH (most desktops have one). No sound device just means silence, never an error, and setting the environment variable `PATCHY_NO_SOUND=1` mutes scripts entirely.
 
