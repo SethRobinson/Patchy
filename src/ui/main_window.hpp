@@ -443,7 +443,7 @@ private:
   // Makes `canvas` the active document (canvas_). The only writer of canvas_ after
   // construction; every activation source (tab switch, float window, canvas focus)
   // funnels through here so text-editor settle and panel refresh stay consistent.
-  void activate_document_canvas(CanvasWidget* canvas);
+  void activate_document_canvas(CanvasWidget* canvas, const std::function<void()>& progress = {});
   bool close_document_tab(int index);
   bool close_document_session(DocumentSession& target_session);
   bool close_active_document();
@@ -1018,7 +1018,7 @@ private:
   void update_selection_mode_buttons(CanvasWidget::SelectionMode mode);
   // Apply the stored per-tool combine modes to a (new) canvas.
   void apply_selection_modes_to_canvas(CanvasWidget* canvas);
-  void refresh_layer_list(bool retire_automation_rows = false);
+  void refresh_layer_list(bool retire_automation_rows = false, const std::function<void()>& progress = {});
   void refresh_layer_thumbnails();
   // Revision-keyed thumbnail pixmaps for the ACTIVE document's layer rows.
   // refresh_layer_list() destroys and rebuilds every row widget, so without
@@ -1282,7 +1282,7 @@ private:
   std::int64_t next_session_id_{1};
   // The ACTIVE document's canvas, the single source of truth for "current document"
   // (session()/document() resolve through it). Writers: activate_document_canvas (every
-  // activation source funnels through it) plus add_document_session's new-document tail;
+  // activation source, including new sessions, funnels through it);
   // never derive the active document from document_tabs_'s current tab, which is wrong
   // once a document floats in its own window.
   CanvasWidget* canvas_{nullptr};

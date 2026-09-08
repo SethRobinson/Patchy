@@ -9915,6 +9915,7 @@ RGB: -
     <message>
         <location line="-10203"/>
         <source>Opening %1...</source>
+        <extracomment>Shown while decoding a file and while preparing its document session and layer rows.</extracomment>
         <translation>%1 を開いています...</translation>
     </message>
     <message>

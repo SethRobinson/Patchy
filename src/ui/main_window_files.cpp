@@ -1556,8 +1556,6 @@ void MainWindow::open_document_path(QString path) {
       show_compatibility_report(this, document(), loaded_file_name);
     }
     canvas_->fit_to_view();
-    refresh_layer_list();
-    refresh_layer_controls();
     if (!unattended_automation()) {
       // Unattended runs must not block on the adoption offer, and they should leave the
       // user's recent-files state untouched.

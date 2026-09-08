@@ -2792,8 +2792,8 @@ void MainWindow::sync_layer_row_visibility_indicators() {
   restyle_layer_rows(layer_list_);
 }
 
-void MainWindow::refresh_layer_list(bool retire_automation_rows) {
-  if (layer_list_ == nullptr) {
+void MainWindow::refresh_layer_list(bool retire_automation_rows, const std::function<void()>& progress) {
+  if (layer_list_ == nullptr || updating_layer_list_) {
     return;
   }
   const auto started = std::chrono::steady_clock::now();
@@ -3085,6 +3085,9 @@ void MainWindow::refresh_layer_list(bool retire_automation_rows) {
     const auto set_widget_started = std::chrono::steady_clock::now();
     layer_list_->setItemWidget(item, row_widget);
     set_widget_ms += phase_ms(set_widget_started);
+    if (progress) {
+      progress();
+    }
   }
   const auto build_ms = phase_ms(build_started);
 

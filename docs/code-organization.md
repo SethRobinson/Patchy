@@ -41,6 +41,12 @@ Per-file helpers stay in an anonymous namespace. When a second TU needs one, mov
 
 Startup creates no document. The start panel in `src/ui/start_panel.cpp` overlays `document_tabs_` only while `sessions_` is empty. `load_tool_settings()` runs once when the first document session is added because it needs a canvas. `MainWindow::begin_startup_update_check` is called only from `src/app/main.cpp`, so tests do not start network requests. `show_window` supplies the historical test document; use `show_window_empty` for real empty-workspace behavior.
 
+`add_document_session` initializes history and hides the start panel before adding
+the tab with signals blocked, then explicitly calls `activate_document_canvas`
+once. That activation owns the initial panel refresh; file-open callers must not
+repeat it after fitting the view. Row-build progress and its edit guard are
+documented in [performance.md](performance.md).
+
 Session data must outlive canvas event delivery. `~MainWindow` detaches every canvas with `set_document(nullptr)` before member destruction frees Documents. `close_document_session` destroys the canvas before erasing the session because QWidget destruction can deliver focus-out events to child widgets. Preserve both orders. References into `SmartObjectStore` do not survive `add_embedded`.
 
 ## CanvasWidget

@@ -2735,6 +2735,11 @@ void ui_start_panel_recent_files_open_on_click() {
   CHECK(recent_list->count() == 1);
   CHECK(recent_list->item(0)->text() == QStringLiteral("start_panel_recent.png"));
 
+  auto* layers = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layers != nullptr);
+  int layer_rebuilds = 0;
+  QObject::connect(layers->model(), &QAbstractItemModel::modelReset, &window, [&] { ++layer_rebuilds; });
+
   const auto row_center = recent_list->visualItemRect(recent_list->item(0)).center();
   send_mouse(*recent_list->viewport(), QEvent::MouseButtonPress, row_center, Qt::LeftButton, Qt::LeftButton);
   send_mouse(*recent_list->viewport(), QEvent::MouseButtonRelease, row_center, Qt::LeftButton, Qt::NoButton);
@@ -2743,6 +2748,82 @@ void ui_start_panel_recent_files_open_on_click() {
   CHECK(tabs->count() == 1);
   CHECK(!panel->isVisible());
   CHECK(info->text().contains(QStringLiteral("48 x 32 px")));
+  CHECK(layer_rebuilds == 1);
+}
+
+void ui_large_document_session_keeps_loading_responsive() {
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  auto* panel = window.findChild<QWidget*>(QStringLiteral("startPanel"));
+  auto* layers = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layers != nullptr);
+  CHECK(panel != nullptr && panel->isVisible());
+
+  patchy::Document document(96, 96, patchy::PixelFormat::rgba8());
+  constexpr int row_count = 2048;
+  for (int index = 0; index < row_count; ++index) {
+    document.add_layer(patchy::Layer(document.allocate_layer_id(), "Layer " + std::to_string(index),
+                                    solid_pixels(1, 1, patchy::PixelFormat::rgba8(), QColor(80, 140, 210))));
+  }
+  EnvironmentVariableRestorer restore_delay("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS");
+  qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", QByteArray("2000"));
+
+  int rebuilds = 0;
+  int partial_row_ticks = 0;
+  bool welcome_over_canvas = false;
+  bool canvas_unlocked = false;
+  QImage first_spinner;
+  QImage changed_spinner;
+  QImage loading_window;
+  QObject::connect(layers->model(), &QAbstractItemModel::modelReset, &window, [&] { ++rebuilds; });
+  QTimer heartbeat;
+  heartbeat.setInterval(20);
+  QObject::connect(&heartbeat, &QTimer::timeout, &window, [&] {
+    auto* canvas = window.findChild<patchy::ui::CanvasWidget*>();
+    if (canvas == nullptr || layers->count() != row_count ||
+        layers->itemWidget(layers->item(0)) == nullptr ||
+        layers->itemWidget(layers->item(row_count - 1)) != nullptr) {
+      return;
+    }
+    ++partial_row_ticks;
+    welcome_over_canvas = welcome_over_canvas || panel->isVisible();
+    canvas_unlocked = canvas_unlocked || !canvas->edit_locked();
+    if (!canvas->render_settled() && changed_spinner.isNull()) {
+      const auto badge = canvas->grab().toImage().copy((canvas->width() - 168) / 2, 12, 168, 50);
+      if (first_spinner.isNull()) {
+        first_spinner = badge;
+      } else if (!images_equal_rgba(first_spinner, badge)) {
+        changed_spinner = badge;
+        loading_window = window.grab().toImage();
+      }
+    }
+  });
+  heartbeat.start();
+  window.add_document_session(std::move(document), QStringLiteral("Many layers"));
+  heartbeat.stop();
+
+  auto* canvas = window.findChild<patchy::ui::CanvasWidget*>();
+  CHECK(canvas != nullptr);
+  CHECK(rebuilds == 1);
+  CHECK(partial_row_ticks >= 2);
+  CHECK(!welcome_over_canvas);
+  CHECK(!canvas_unlocked);
+  CHECK(!first_spinner.isNull() && !changed_spinner.isNull());
+  ensure_artifact_dir();
+  CHECK(loading_window.save(QStringLiteral("test-artifacts/ui_large_document_session_loading.png")));
+  CHECK(!canvas->edit_locked());
+  CHECK(!panel->isVisible());
+  CHECK(layers->count() == row_count);
+  for (int row = 0; row < row_count; ++row) {
+    CHECK(layers->itemWidget(layers->item(row)) != nullptr);
+  }
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(15);
+  while (!canvas->render_settled() && std::chrono::steady_clock::now() < deadline) {
+    QApplication::processEvents();
+    QThread::msleep(5);
+  }
+  CHECK(canvas->render_settled());
+  save_widget_artifact("ui_large_document_session_loaded", window);
 }
 
 void ui_start_panel_recent_files_scroll_and_context_menu() {
@@ -3656,6 +3737,7 @@ std::vector<patchy::test::TestCase> app_shell_tests() {
       {"ui_derived_font_sizes_scale_in_points_and_pixels", ui_derived_font_sizes_scale_in_points_and_pixels},
       {"ui_startup_opens_empty_workspace_with_start_panel", ui_startup_opens_empty_workspace_with_start_panel},
       {"ui_start_panel_recent_files_open_on_click", ui_start_panel_recent_files_open_on_click},
+      {"ui_large_document_session_keeps_loading_responsive", ui_large_document_session_keeps_loading_responsive},
       {"ui_start_panel_recent_files_scroll_and_context_menu", ui_start_panel_recent_files_scroll_and_context_menu},
       {"ui_start_panel_recent_filter_narrows_rows_and_opens_match",
        ui_start_panel_recent_filter_narrows_rows_and_opens_match},

@@ -375,18 +375,53 @@ void MainWindow::add_document_session(Document document, QString title, QString 
 
   auto* canvas = session->canvas;
   const auto tab_title = session->title;
+  initialize_session_history(*session, initial_history_label.isEmpty()
+                                                    ? tr("New document")
+                                                    : std::move(initial_history_label));
+  // Hide the welcome panel before adding a visible canvas or pumping progress.
+  // Tab insertion activates the first page synchronously; handle activation
+  // once below so a large document does not rebuild every layer row twice.
+  if (start_panel_ != nullptr) {
+    start_panel_->hide();
+  }
+  {
+    const QSignalBlocker blocker(document_tabs_);
+    const auto tab_index = document_tabs_->addTab(canvas, tab_title);
+    document_tabs_->setCurrentIndex(tab_index);
+  }
+  // Publish only after insertion: QStackedWidget may send FocusIn even with
+  // tab signals blocked, and that must not activate a half-installed session.
   sessions_.push_back(std::move(session));
-  const auto tab_index = document_tabs_->addTab(canvas, tab_title);
-  document_tabs_->setCurrentIndex(tab_index);
   // Unreachable while the preview-dialog edit lock is held: every document
   // creation entry point (File > New/Open, open_document_path, drag & drop,
   // scanner import) refuses up front, so this tail may assume the new session
   // owns activation. configure_canvas still births canvases edit-locked as
   // defense in depth.
-  canvas_ = canvas;
-  pending_layer_thumbnail_refresh_ = false;
-  canvas_->setFocus(Qt::OtherFocusReason);
-  refresh_options_bar();
+  //: Shown while decoding a file and while preparing its document session and layer rows.
+  QProgressDialog progress(tr("Opening %1...").arg(tab_title), QString(), 0, 0, this);
+  progress.setObjectName(QStringLiteral("openSessionProgressDialog"));
+  progress.setWindowTitle(tr("Opening %1").arg(tab_title));
+  progress.setWindowModality(Qt::WindowModal);
+  progress.setCancelButton(nullptr);
+  progress.setAutoClose(false);
+  progress.setAutoReset(false);
+  const auto started = std::chrono::steady_clock::now();
+  auto last_tick = started;
+  const auto tick_progress = [&] {
+    const auto now = std::chrono::steady_clock::now();
+    if (now - last_tick < std::chrono::milliseconds(32)) {
+      return;
+    }
+    if (!progress.isVisible() && now - started >= std::chrono::milliseconds(500)) {
+      remember_dialog_position(progress);
+      progress.show();
+    }
+    QApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 16);
+    // Budget row work between pumps, excluding time spent delivering events.
+    // Otherwise a slow pump immediately schedules another one on the next row.
+    last_tick = std::chrono::steady_clock::now();
+  };
+  activate_document_canvas(canvas, tick_progress);
   if (used_default_tool_settings) {
     if (brush_preset_combo_ != nullptr) {
       const auto preset_index = brush_preset_combo_->findData(default_startup_brush_preset_id());
@@ -396,14 +431,6 @@ void MainWindow::add_document_session(Document document, QString title, QString 
     }
     sync_brush_controls_from_canvas();
   }
-  initialize_session_history(*sessions_.back(), initial_history_label.isEmpty()
-                                                    ? tr("New document")
-                                                    : std::move(initial_history_label));
-  refresh_layer_list();
-  refresh_layer_controls();
-  refresh_channel_panel();
-  refresh_document_info();  update_undo_redo_actions();
-  update_document_action_state();
   refresh_document_tab_titles();
   if (startup_tool_settings_pending_) {
     // Startup opens with no document, so the one-time settings load waits for the
@@ -435,7 +462,7 @@ void MainWindow::activate_document_tab(int index) {
   activate_document_canvas(canvas);
 }
 
-void MainWindow::activate_document_canvas(CanvasWidget* canvas) {
+void MainWindow::activate_document_canvas(CanvasWidget* canvas, const std::function<void()>& progress) {
   if (preview_dialog_edit_locked() && canvas != preview_dialog_edit_lock_canvas_) {
     if (auto* locked_canvas = preview_dialog_edit_lock_canvas_.data(); locked_canvas != nullptr) {
       if (auto* locked_session = session_for_canvas(locked_canvas);
@@ -550,7 +577,15 @@ void MainWindow::activate_document_canvas(CanvasWidget* canvas) {
   refresh_vector_preview_action();
   canvas_->setFocus(Qt::OtherFocusReason);
   refresh_options_bar();
-  refresh_layer_list();
+  {
+    // Row construction can yield to paints/timers during session setup. Keep
+    // the document and active tab fixed until all row references are retired.
+    std::optional<PreviewDialogEditLock> edit_lock;
+    if (progress) {
+      edit_lock.emplace(*this);
+    }
+    refresh_layer_list(false, progress);
+  }
   refresh_layer_controls();
   refresh_channel_panel();
   refresh_document_info();
