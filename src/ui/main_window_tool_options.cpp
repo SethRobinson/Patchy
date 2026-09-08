@@ -232,6 +232,7 @@
 #include <memory>
 #include <optional>
 #include <set>
+#include <unordered_set>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -968,6 +969,26 @@ std::vector<LayerId> MainWindow::selected_layer_ids() const {
   return ids;
 }
 
+void MainWindow::report_layer_selection_count(const std::vector<LayerId>& selected_ids) {
+  const std::unordered_set<LayerId> selected(selected_ids.begin(), selected_ids.end());
+  // Count the document tree, not the panel rows. Descendants of a selected
+  // group count once even when they also have selected rows of their own.
+  const auto count_selected = [&](const auto& self, const std::vector<Layer>& layers,
+                                   bool ancestor_selected) -> std::size_t {
+    std::size_t count = 0;
+    for (const auto& layer : layers) {
+      const bool included = ancestor_selected || selected.contains(layer.id());
+      if (included) ++count;
+      count += self(self, layer.children(), included);
+    }
+    return count;
+  };
+  const auto count = has_active_document() && !selected.empty()
+      ? count_selected(count_selected, std::as_const(document()).layers(), false) : 0U;
+  statusBar()->showMessage(count == 1U ? tr("1 layer selected")
+                                      : tr("%1 layers selected").arg(count));
+}
+
 std::vector<LayerId> MainWindow::selected_or_active_layer_ids() const {
   auto ids = selected_layer_ids();
   const auto active = document().active_layer_id();
@@ -1058,9 +1079,7 @@ void MainWindow::set_active_layer_from_selection() {
   if (canvas_ != nullptr) {
     canvas_->set_selected_layer_ids(selected_ids);
   }
-  statusBar()->showMessage(selected_ids.size() == 1U
-                              ? tr("1 layer selected")
-                              : tr("%1 layers selected").arg(selected_ids.size()));
+  report_layer_selection_count(selected_ids);
   // A pure multi-selection change (same active layer) still decides whether
   // Combine Shapes applies.
   refresh_combine_shapes_action_states();

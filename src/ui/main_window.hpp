@@ -970,6 +970,7 @@ private:
   void rotate_canvas_counterclockwise();
   void toggle_tile_seam_offset();
   [[nodiscard]] std::vector<LayerId> selected_layer_ids() const;
+  void report_layer_selection_count(const std::vector<LayerId>& selected_ids);
   [[nodiscard]] std::vector<LayerId> selected_or_active_layer_ids() const;
   [[nodiscard]] std::vector<LayerId> rasterize_target_layer_ids(std::vector<LayerId> selected_ids) const;
   void set_active_layer_from_selection();

@@ -34,9 +34,15 @@ It never compares every selected pair by repeatedly searching the tree.
 Thumbnail target styles repolish only when their active state changes. Selection
 updates use the delayed **Selecting layers...** canvas processing message when
 control/row refresh takes long enough; fast selections show no overlay. The shared
-selection handler and single-layer reveal path report the selected row count in
-the status bar (including single-layer selection), covering canvas clicks,
-rectangle selection, and panel selection. A selected folder counts as one row.
+selection handler and single-layer reveal path report the selected layer count
+in the status bar, covering canvas clicks, rectangle selection, and panel
+selection. A selected folder includes itself and every descendant, including
+nested folders and hidden, locked, collapsed, or filtered-out layers. A selected
+parent and child never count a layer twice. One const tree traversal computes the
+count without changing the row selection or content/history state. Expanding a
+folder therefore cannot change the count for the same selected trees.
+`ui_layer_selection_count` covers nesting, overlapping selections, filtering,
+empty folders, script selection, and the optional Little-Everywhere fixture.
 
 ## Disclosure arrow, double-click, visibility eye
 

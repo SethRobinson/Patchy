@@ -2518,7 +2518,7 @@ void MainWindow::reveal_layer_in_layer_list(LayerId id) {
     restyle_layer_rows(layer_list_);
     // The rebuild may have silently selected this row already, in which case
     // setCurrentItem emits no selection change to refresh the status count.
-    statusBar()->showMessage(tr("1 layer selected"));
+    report_layer_selection_count(selected_layer_ids());
     break;
   }
 }

@@ -550,6 +550,120 @@ void ui_layer_merge_compound_geometry_and_processing() {
   CHECK(qimage_from_document(merged, true).pixelColor(26, 30).alpha() == 0);
 }
 
+void ui_layer_selection_count_includes_collapsed_descendants() {
+  Document doc(32, 32, PixelFormat::rgba8());
+  Layer group(doc.allocate_layer_id(), "Group", LayerKind::Group);
+  const auto group_id = group.id();
+  group.add_child(Layer(doc.allocate_layer_id(), "Visible", PixelBuffer(8, 8, PixelFormat::rgba8())));
+  Layer nested(doc.allocate_layer_id(), "Nested", LayerKind::Group);
+  Layer hidden(doc.allocate_layer_id(), "Hidden", PixelBuffer(8, 8, PixelFormat::rgba8()));
+  hidden.set_visible(false);
+  hidden.set_lock_flags(kLayerLockAll);
+  nested.add_child(std::move(hidden));
+  group.add_child(std::move(nested));
+  doc.add_layer(std::move(group));
+  doc.add_layer(Layer(doc.allocate_layer_id(), "Empty", LayerKind::Group));
+  doc.add_layer(Layer(doc.allocate_layer_id(), "Outside", PixelBuffer(8, 8, PixelFormat::rgba8())));
+  MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(doc), QStringLiteral("Recursive selection count"));
+  auto* list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(list && list->count() == 6);
+  const auto undo = MainWindowTestAccess::active_session_undo_depth(window);
+  const auto modified = MainWindowTestAccess::active_session_is_modified(window);
+  const auto select = [&](const QString& name) {
+    list->setCurrentItem(require_layer_item(*list, name), QItemSelectionModel::ClearAndSelect);
+  };
+  const auto toggle_group = [&] {
+    auto* row = list->itemWidget(require_layer_item(*list, QStringLiteral("Group")));
+    auto* disclosure = row->findChild<QToolButton*>(QStringLiteral("layerFolderDisclosureButton"));
+    CHECK(disclosure);
+    disclosure->click();
+    QApplication::processEvents();
+  };
+  select(QStringLiteral("Group"));
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("4 layers selected"));
+  require_layer_item(*list, QStringLiteral("Visible"))->setSelected(true);
+  require_layer_item(*list, QStringLiteral("Nested"))->setSelected(true);
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("4 layers selected"));
+  list->selectAll();
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("6 layers selected"));
+  toggle_group();
+  CHECK(list->count() == 3);
+  select(QStringLiteral("Outside"));
+  list->selectAll();
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("6 layers selected"));
+  select(QStringLiteral("Group"));
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("4 layers selected"));
+  toggle_group();
+  CHECK(list->count() == 6);
+  select(QStringLiteral("Nested"));
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("2 layers selected"));
+  select(QStringLiteral("Empty"));
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("1 layer selected"));
+  select(QStringLiteral("Outside"));
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("1 layer selected"));
+  auto* filter = window.findChild<QLineEdit*>(QStringLiteral("layerNameFilterEdit"));
+  CHECK(filter);
+  filter->setText(QStringLiteral("Visible"));
+  CHECK(list->count() == 2);
+  select(QStringLiteral("Visible"));
+  select(QStringLiteral("Group"));
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("4 layers selected"));
+  // The API's active-layer reveal has a separate status refresh, including when
+  // the row was already selected and Qt emits no selection-change signal.
+  ScriptEngineHost::RunOptions options;
+  options.name = QStringLiteral("selection-count");
+  window.statusBar()->showMessage(QStringLiteral("Before reveal"));
+  (void)window.script_engine_host().run_source(QStringLiteral(
+      "app.activeDocument.activeLayer = app.activeDocument.getLayer('%1');").arg(group_id), options);
+  CHECK(process_events_until([&] { return !window.script_engine_host().run_active(); }));
+  CHECK(!window.script_engine_host().last_run_had_error());
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("4 layers selected"));
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == undo);
+  CHECK(MainWindowTestAccess::active_session_is_modified(window) == modified);
+}
+
+void ui_layer_selection_count_little_everywhere_if_available() {
+  const auto path = patchy::test::local_format_fixture_path("vector-preview", "Little-Everywhere.psd");
+  if (!std::filesystem::exists(path)) { return; }
+  auto doc = psd::DocumentIo::read_file(path);
+  const auto total = layer_tree_count(std::as_const(doc).layers());
+  CHECK(total == 2056);
+  MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(doc), QStringLiteral("Little-Everywhere count"));
+  auto* list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(list);
+  const auto select_all = [&] {
+    list->setCurrentRow(0, QItemSelectionModel::ClearAndSelect);
+    list->selectAll();
+    CHECK(window.statusBar()->currentMessage() == QStringLiteral("2056 layers selected"));
+  };
+  const auto toggle_all = [&] {
+    QToolButton* disclosure = nullptr;
+    for (int row = 0; row < list->count() && disclosure == nullptr; ++row) {
+      disclosure = list->itemWidget(list->item(row))->findChild<QToolButton*>(
+          QStringLiteral("layerFolderDisclosureButton"));
+    }
+    CHECK(disclosure);
+    const auto point = disclosure->rect().center();
+    send_mouse(*disclosure, QEvent::MouseButtonPress, point, Qt::LeftButton, Qt::LeftButton,
+               Qt::ControlModifier | Qt::AltModifier);
+    send_mouse(*disclosure, QEvent::MouseButtonRelease, point, Qt::LeftButton, Qt::NoButton,
+               Qt::ControlModifier | Qt::AltModifier);
+    QApplication::processEvents();
+  };
+  select_all();
+  toggle_all();
+  select_all();
+  const auto rows = list->count();
+  toggle_all();
+  select_all();
+  CHECK(list->count() != rows);
+  std::printf("Little-Everywhere selected count: %zu layers, expanded or collapsed\n", total);
+}
+
 void ui_layer_selection_little_everywhere_shift_range_if_available() {
   const auto path = patchy::test::local_format_fixture_path("vector-preview", "Little-Everywhere.psd");
   if (!std::filesystem::exists(path)) { return; }
@@ -747,6 +861,8 @@ void ui_merge_visible_copy_little_everywhere_if_available() {
 
 std::vector<patchy::test::TestCase> layer_merge_tests() {
   return {
+      {"ui_layer_selection_count_includes_collapsed_descendants", ui_layer_selection_count_includes_collapsed_descendants},
+      {"ui_layer_selection_count_little_everywhere_if_available", ui_layer_selection_count_little_everywhere_if_available},
       {"ui_merge_visible_copy_dialog_preserves_sources_and_history", ui_merge_visible_copy_dialog_preserves_sources_and_history},
       {"ui_merge_visible_copy_single_vector_raster_and_visibility_choices", ui_merge_visible_copy_single_vector_raster_and_visibility_choices},
       {"ui_merge_visible_copy_little_everywhere_if_available", ui_merge_visible_copy_little_everywhere_if_available},
