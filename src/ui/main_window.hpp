@@ -1200,13 +1200,12 @@ private:
   bool show_preview_dialog_edit_lock_message();
   void sync_brush_controls_from_canvas();
   void load_recent_files();
-  void save_recent_files() const;
+  void refresh_recent_history();
   void add_recent_file(QString path);
   void rebuild_recent_files_menu();
   void apply_recent_files_filter(const QString& filter_text);
   bool handle_recent_files_filter_key(QKeyEvent& event);
   void load_recent_folders();
-  void save_recent_folders() const;
   void add_recent_folder(QString dir);
   void rebuild_recent_folders_menu();
   void configure_recent_files_context_menu(QMenu* menu);

@@ -13,6 +13,10 @@ does not mutate the document for a no-op. Unlike `layer.merge_down`, a single
 leaf does not implicitly include its lower sibling. `doc.combineShapes` retains
 its existing boolean-operation semantics. See [layer-merging.md](layer-merging.md).
 
+2026-09-08 (API 1): Successful unattended document opens and saves now update
+shared recent files and folders. Owned MCP workspaces use the same persistent
+history as the interactive application, honoring `PATCHY_SETTINGS_DIR` for tests.
+
 2026-09-08 (API 1): Dynamic Vector Preview adds mixed-content compositing and a
 Preferences checkbox. `view.vector_preview` and `view/vectorPreview` remain
 unchanged. Routine preview status is tooltip-only; resource notices do not repeat

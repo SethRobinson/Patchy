@@ -36,6 +36,12 @@ QSettings brush_library_settings() {
   return app_settings();
 }
 
+QSettings recent_history_settings() {
+  const auto file = qEnvironmentVariable("PATCHY_RECENT_SETTINGS_FILE");
+  if (!file.isEmpty()) return QSettings(file, QSettings::IniFormat);
+  return app_settings();
+}
+
 int stored_gui_scale_percent() {
   return normalize_gui_scale_percent(
       app_settings().value(gui_scale_key(), kDefaultGuiScalePercent).toInt());

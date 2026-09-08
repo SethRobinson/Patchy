@@ -5,6 +5,7 @@ All artifacts stay under the project. No desktop UI or existing app is controlle
 """
 import asyncio
 import base64
+import configparser
 import json
 import os
 from pathlib import Path
@@ -458,11 +459,89 @@ def protocol_edges(exe):
     print("[PASS] MCP protocol: version negotiation, busy, tight-loop cancellation, recovery, malformed JSON, disconnect")
 
 
+async def shared_recent_history(exe):
+    candidates = [exe.with_name("patchy.exe"), exe.with_name("patchy"),
+                  exe.parent / "Patchy.app" / "Contents" / "MacOS" / "Patchy",
+                  exe.with_name("Patchy")]
+    app_exe = next(path for path in candidates if path.is_file())
+    root = SESSION_TEMP / "recent-history"
+    settings_root = root / "settings"
+    ini = settings_root / "Patchy" / "Patchy.ini"
+    ini.parent.mkdir(parents=True)
+    ini.write_text("[view]\nvectorPreview=true\n[window]\nrecentHistorySentinel=keep\n", encoding="utf-8")
+    env = {**os.environ, **TEMP_ENV, "PATCHY_SETTINGS_DIR": str(settings_root)}
+    env.pop("PATCHY_RECENT_SETTINGS_FILE", None)
+    env.pop("PATCHY_BRUSH_SETTINGS_FILE", None)
+    source = root / "source.psd"
+    copy_dir = root / "copies"
+    copy_dir.mkdir()
+    copy = copy_dir / "flat.png"
+    saved = copy_dir / "mcp.psd"
+    script = root / "create.js"
+    script.write_text(
+        "var d=app.newDocument(8,8); d.addLayer('One'); d.addLayer('Two');"
+        f"if(!d.saveAs({json.dumps(source.as_posix())})) throw new Error('save');"
+        f"if(!d.exportAs({json.dumps(copy.as_posix())})) throw new Error('copy');",
+        encoding="utf-8")
+    def history(key):
+        data = configparser.ConfigParser(interpolation=None)
+        data.read(ini, encoding="utf-8")
+        value = data.get("General", key, fallback="")
+        return [part.strip().strip('"') for part in value.split(",") if part.strip()]
+
+    run = subprocess.run([str(app_exe), "--headless", "--run-script", str(script)],
+                         env=env, cwd=root, capture_output=True, timeout=60)
+    assert run.returncode == 0, run.stderr.decode(errors="replace")
+    assert history("recentFiles") == [copy.as_posix(), source.as_posix()]
+    assert history("recentFolders") == [copy_dir.as_posix(), root.as_posix()]
+    params = StdioServerParameters(command=str(exe), cwd=str(root), env=env)
+    # Both connectors start before either writes, exercising stale-workspace merges.
+    async with stdio_client(params) as (read_a, write_a), stdio_client(params) as (read_b, write_b):
+        async with ClientSession(read_a, write_a) as a, ClientSession(read_b, write_b) as b:
+            await a.initialize()
+            await b.initialize()
+            opened = await a.call_tool("execute_script", {"code":
+                f"app.open({json.dumps(source.as_posix())});"})
+            assert not opened.isError, opened.model_dump()
+            assert history("recentFiles") == [source.as_posix(), copy.as_posix()]
+            exported = await b.call_tool("execute_script", {"code":
+                "var d=app.newDocument(8,8); d.addLayer('Saved');"
+                f"if(!d.saveAs({json.dumps(saved.as_posix())})) throw new Error('save');"})
+            assert not exported.isError, exported.model_dump()
+            assert history("recentFiles") == [saved.as_posix(), source.as_posix(), copy.as_posix()]
+            failed = await a.call_tool("execute_script", {"code":
+                f"if(app.activeDocument.saveAs({json.dumps((root / 'missing' / 'bad.psd').as_posix())})) "
+                "throw new Error('unexpected save');"})
+            assert not failed.isError, failed.model_dump()
+            assert history("recentFiles") == [saved.as_posix(), source.as_posix(), copy.as_posix()]
+            concurrent = [root / "concurrent-a.psd", root / "concurrent-b.psd"]
+            results = await asyncio.gather(*(
+                client.call_tool("execute_script", {"code":
+                    "for(var i=0;i<8;++i) {"
+                    f"if(!app.activeDocument.saveAs({json.dumps(path.as_posix())})) "
+                    "throw new Error('concurrent save');}"})
+                for client, path in zip((a, b), concurrent)))
+            assert all(not result.isError for result in results)
+            final_history = history("recentFiles")
+            assert len(final_history) == 5
+            assert set(final_history[:2]) == {path.as_posix() for path in concurrent}
+            assert final_history[2:] == [saved.as_posix(), source.as_posix(), copy.as_posix()]
+    # The persistent history survives disconnect; temporary view settings did not overwrite it.
+    assert history("recentFiles") == final_history
+    data = configparser.ConfigParser(interpolation=None)
+    data.read(ini, encoding="utf-8")
+    assert data.getboolean("view", "vectorPreview")
+    assert data.get("window", "recentHistorySentinel") == "keep"
+    print("[PASS] Shared recent history: headless save/copy, MCP open/save, concurrent writes, failure, isolation")
+
+
 if __name__ == "__main__":
     executable = Path(sys.argv[1]).resolve()
     OUT.mkdir(parents=True, exist_ok=True)
     SESSION_TEMP.mkdir(parents=True, exist_ok=True)
-    asyncio.run(sdk_workflow(executable))
-    asyncio.run(visible_options(executable))
-    protocol_edges(executable)
-    asyncio.run(attached_workspace(executable))
+    asyncio.run(shared_recent_history(executable))
+    if "--recent-history-only" not in sys.argv[2:]:
+        asyncio.run(sdk_workflow(executable))
+        asyncio.run(visible_options(executable))
+        protocol_edges(executable)
+        asyncio.run(attached_workspace(executable))

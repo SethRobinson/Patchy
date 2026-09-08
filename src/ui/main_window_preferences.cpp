@@ -1308,6 +1308,8 @@ void MainWindow::refresh_vector_preview_action() {
   if (view_vector_preview_action_ == nullptr) {
     return;
   }
+  const QSignalBlocker blocker(view_vector_preview_action_);
+  view_vector_preview_action_->setChecked(view_vector_preview_enabled_);
   refresh_action_tooltip(view_vector_preview_action_);
   auto tooltip = view_vector_preview_action_->toolTip() + QLatin1Char('\n') +
       tr("Keep vector artwork sharp when zooming, including in documents with pixel layers. Saved files and exports keep their pixel resolution.");
@@ -1428,6 +1430,7 @@ void MainWindow::save_pen_input_settings() const {
 void MainWindow::load_view_settings() {
   auto settings = app_settings();
   view_vector_preview_enabled_ = settings.value(QStringLiteral("view/vectorPreview"), false).toBool();
+  refresh_vector_preview_action();
   view_rulers_visible_ = settings.value(QStringLiteral("view/rulersVisible"), view_rulers_visible_).toBool();
   ruler_unit_ = measurement_unit_from_settings_token(
       settings.value(QStringLiteral("view/rulerUnits"), QStringLiteral("px")).toString(),

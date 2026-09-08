@@ -308,7 +308,8 @@ default, in a separate visible window with `--visible`, or attached to the user'
 open workspace with `--attach`. Attached mutations require an expected-state token;
 connection/activity indicators and lifecycle rules live in [ai-control.md](ai-control.md).
 It shares application startup and the scripting engine with `patchy`, isolates
-settings, and ships the `patchy-control` skill. Setup, lifecycle, protocol, and
+window preferences, shares saved brushes and recent history, and ships the
+`patchy-control` skill. Setup, lifecycle, protocol, and
 packaging ownership are in [ai-control.md](ai-control.md).
 
 ```
@@ -345,6 +346,9 @@ newlines. The bundled `Utilities/batch-export.js` is the reference consumer.
   sets `cli_automation_mode_` in every mode, and exits 2 without a mode flag. Release
   packages ship the offscreen plugin and every packager smoke-tests it
   (docs/release-process.md).
+- Successful unattended document opens and saves update recent files and their
+  containing folders, including saved flat copies. Failed operations and preview
+  captures do not add entries. `PATCHY_SETTINGS_DIR` isolates this history for tests.
 
 An AI agent drives Patchy by writing a .js file, invoking `--run-script`, and polling the
 output file. `scripts/bundled/patchy.d.ts` is the machine-readable API description and

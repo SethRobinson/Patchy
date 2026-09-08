@@ -92,9 +92,13 @@ the connector's own workspace so the user can watch batches appear. An explicit
 `QT_QPA_PLATFORM` is respected in that mode; `get_info` reports actual `mode`,
 `platform`, and `windowVisible`, not just the requested mode. Hidden and visible
 sessions share settings isolation, scripting restrictions, and stdin lifetime.
-Brush tips and complete brush presets use the artist's persistent library in both
-workspaces. The connector captures its original settings filename before redirecting
-window preferences; `PATCHY_SETTINGS_DIR` still redirects both for owned tests.
+Brush tips, complete brush presets, and recent files/folders use the artist's
+persistent settings in both workspaces. Successful document opens and saves,
+including flat copies, update shared history immediately. The connector captures
+its original settings filename before redirecting window preferences;
+`PATCHY_SETTINGS_DIR` still redirects both stores for owned tests. Recent-history
+transactions merge under a separate lock, so concurrent workspaces retain each
+other's entries. The interactive File menu and start panel refresh that history.
 Visible connector windows allow normal user dialogs between requests, including
 Save/Discard/Cancel when closing a modified document or the window. Only the MCP
 script run suppresses those prompts. Hidden workspaces suppress prompts for their

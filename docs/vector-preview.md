@@ -5,6 +5,8 @@ Preview control the same application view preference. It starts off, persists as
 `view/vectorPreview`, and applies across document tabs. The command remains
 `view.vector_preview`, with no default shortcut. Renaming the label does not
 change existing settings or scripts.
+Loading the preference synchronizes the View action before it can be used;
+Preferences and the first menu toggle after startup reflect the live canvas state.
 
 ## Mixed content and display
 

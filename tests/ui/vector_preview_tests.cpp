@@ -497,6 +497,14 @@ void ui_vector_preview_action_persistence_script_and_history() {
   MainWindow another;
   show_window(another);
   CHECK(require_canvas(another)->vector_preview_enabled());
+  auto* restored_action = require_action(another, "viewVectorPreviewAction");
+  CHECK(restored_action->isChecked());
+  // The first click after loading an enabled preference must turn it off.
+  restored_action->trigger();
+  CHECK(!restored_action->isChecked());
+  CHECK(!require_canvas(another)->vector_preview_enabled());
+  restored_action->trigger();
+  CHECK(require_canvas(another)->vector_preview_enabled());
 
   bool saw_preferences = false;
   QTimer::singleShot(0, [&] {
@@ -512,10 +520,10 @@ void ui_vector_preview_action_persistence_script_and_history() {
       (void)unwind_non_modal_dialog_loop(std::current_exception());
     }
   });
-  require_action(window, "filePreferencesAction")->trigger();
+  require_action(another, "filePreferencesAction")->trigger();
   CHECK(saw_preferences);
-  CHECK(!action->isChecked());
-  CHECK(!canvas->vector_preview_enabled());
+  CHECK(!restored_action->isChecked());
+  CHECK(!require_canvas(another)->vector_preview_enabled());
   CHECK(!app_settings().value(QStringLiteral("view/vectorPreview")).toBool());
 }
 

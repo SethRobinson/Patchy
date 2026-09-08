@@ -115,6 +115,10 @@ Python is not required by the shipped connector.
 The client suite also passes `--visible` with an explicit offscreen Qt backend
 to verify option handling and truthful mode/preview metadata without opening a
 desktop window. A real visible smoke test requires separate desktop permission.
+Pass `--recent-history-only` after the connector path to check shared history
+with owned headless and MCP processes. The UI filters `ui_unicode_recent_history`
+and `ui_vector_preview_action_persistence` cover history merging/live refresh and
+the restored preview preference's menu/Preferences synchronization.
 
 Never use Computer Use, desktop automation, or input injection for native QA without Seth's explicit authorization in the current request. Use Patchy's command-line control surfaces and inspect their outputs directly.
 

@@ -35,6 +35,7 @@
 #include <QImage>
 #include <QImageReader>
 #include <QLineEdit>
+#include <QListWidget>
 #include <QMenu>
 #include <QStringList>
 #include <QTimer>
@@ -397,6 +398,83 @@ void ui_unicode_recent_files_persist_through_settings() {
   CHECK(nfc(stored.front()) == nfc(path));
 }
 
+void ui_unicode_recent_history_merges_unattended_work_and_refreshes() {
+  using namespace patchy::ui;
+  using namespace patchy::test::ui;
+  const auto dir = unicode_dir(QStringLiteral("shared-recent-history"));
+  SettingsValueRestorer files_guard(QStringLiteral("recentFiles"));
+  SettingsValueRestorer folders_guard(QStringLiteral("recentFolders"));
+  SettingsValueRestorer open_dir_guard(QStringLiteral("lastOpenDirectory"));
+  SettingsValueRestorer save_dir_guard(QStringLiteral("lastSaveDirectory"));
+  app_settings().setValue(QStringLiteral("recentFiles"), QStringList{});
+  app_settings().setValue(QStringLiteral("recentFolders"), QStringList{});
+  const auto input = dir + QLatin1Char('/') + combined_name("psd");
+  const auto output_dir = dir + QStringLiteral("/output");
+  CHECK(QDir().mkpath(output_dir));
+  const auto saved = output_dir + QStringLiteral("/saved.psd");
+  const auto copy = output_dir + QStringLiteral("/copy.png");
+  const auto local = dir + QStringLiteral("/local.psd");
+  write_psd(input);
+  write_psd(local);
+
+  MainWindow window;
+  show_window_empty(window);
+  MainWindow worker;
+  worker.set_cli_automation_mode(true);
+  auto* recent_menu = window.findChild<QMenu*>(QStringLiteral("fileOpenRecentMenu"));
+  auto* folder_menu = window.findChild<QMenu*>(QStringLiteral("fileOpenRecentFolderMenu"));
+  CHECK(recent_menu && folder_menu && !recent_menu->isEnabled() && !folder_menu->isEnabled());
+  const auto menu_paths = [](QMenu* menu) {
+    QStringList paths;
+    for (auto* action : menu->actions()) {
+      if (!action->data().toString().isEmpty()) paths << action->data().toString();
+    }
+    return paths;
+  };
+  const auto open_dir = app_settings().value(QStringLiteral("lastOpenDirectory"));
+  const auto save_dir = app_settings().value(QStringLiteral("lastSaveDirectory"));
+  MainWindowTestAccess::open_document_path(worker, input);
+  CHECK(MainWindowTestAccess::active_session_path(worker) == input);
+  CHECK(app_settings().value(QStringLiteral("lastOpenDirectory")) == open_dir);
+  // The idle start panel discovers background work without reopening the app.
+  auto* list = window.findChild<QListWidget*>(QStringLiteral("startPanelRecentList"));
+  CHECK(list);
+  CHECK(process_events_until([&] {
+    return list->count() == 1 && list->item(0)->toolTip() == QDir::toNativeSeparators(input);
+  }, 6000));
+  CHECK(menu_paths(recent_menu) == QStringList{input});
+  CHECK(menu_paths(folder_menu) == QStringList{dir});
+
+  // Both windows started with an empty cache. Alternating their writes must
+  // preserve the other window's entries and move duplicates to the front.
+  MainWindowTestAccess::open_document_path(window, local);
+  CHECK(MainWindowTestAccess::save_document_to_path(worker, saved));
+  auto& doc = MainWindowTestAccess::document(worker);
+  doc.add_pixel_layer("Second", patchy::PixelBuffer(8, 6, patchy::PixelFormat::rgba8()));
+  CHECK(MainWindowTestAccess::save_document_to_path(worker, copy));
+  CHECK(MainWindowTestAccess::active_session_path(worker) == saved); // flat copy
+  CHECK(app_settings().value(QStringLiteral("lastSaveDirectory")) == save_dir);
+  // Open in the foreground changed this preference; a background reopen must not.
+  const auto foreground_open_dir = app_settings().value(QStringLiteral("lastOpenDirectory"));
+  MainWindowTestAccess::open_document_path(worker, input);
+  CHECK(app_settings().value(QStringLiteral("lastOpenDirectory")) == foreground_open_dir);
+  CHECK(recent_history_settings().value(QStringLiteral("recentFiles")).toStringList() ==
+        (QStringList{input, copy, saved, local}));
+  auto* file_menu = qobject_cast<QMenu*>(recent_menu->parentWidget());
+  CHECK(file_menu);
+  CHECK(QMetaObject::invokeMethod(file_menu, "aboutToShow", Qt::DirectConnection));
+  CHECK(menu_paths(recent_menu) == (QStringList{input, copy, saved, local}));
+  CHECK(menu_paths(folder_menu) == (QStringList{dir, output_dir}));
+  require_action(window, "fileClearRecentAction")->trigger();
+  require_action(window, "fileClearRecentFoldersAction")->trigger();
+  CHECK(recent_history_settings().value(QStringLiteral("recentFiles")).toStringList().isEmpty());
+  CHECK(recent_history_settings().value(QStringLiteral("recentFolders")).toStringList().isEmpty());
+  // A stale workspace cannot resurrect cleared entries on its next save.
+  CHECK(MainWindowTestAccess::save_document_to_path(worker, saved));
+  CHECK(recent_history_settings().value(QStringLiteral("recentFiles")).toStringList() == QStringList{saved});
+  CHECK(recent_history_settings().value(QStringLiteral("recentFolders")).toStringList() == QStringList{output_dir});
+}
+
 void ui_unicode_legacy_plugin_probe_from_unicode_dir() {
   const auto dir = unicode_dir(QStringLiteral("plugins"));
   const auto source = patchy::test::source_root_path() / "test-fixtures" / "photoshop-plugins" / "Greyscale64.8bf";
@@ -493,6 +571,7 @@ std::vector<patchy::test::TestCase> unicode_path_tests() {
       {"ui_unicode_open_dialog_round_trip", ui_unicode_open_dialog_round_trip},
       {"ui_unicode_export_flat_image_dialog", ui_unicode_export_flat_image_dialog},
       {"ui_unicode_recent_files_persist_through_settings", ui_unicode_recent_files_persist_through_settings},
+      {"ui_unicode_recent_history_merges_unattended_work_and_refreshes", ui_unicode_recent_history_merges_unattended_work_and_refreshes},
       {"ui_unicode_legacy_plugin_probe_from_unicode_dir", ui_unicode_legacy_plugin_probe_from_unicode_dir},
       {"ui_unicode_divide_photos_folder_save", ui_unicode_divide_photos_folder_save},
       {"ui_save_as_aborts_when_the_owning_document_changes", ui_save_as_aborts_when_the_owning_document_changes},

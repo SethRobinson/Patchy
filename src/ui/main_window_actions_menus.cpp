@@ -310,6 +310,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   recent_folders_menu_->setObjectName(QStringLiteral("fileOpenRecentFolderMenu"));
   configure_recent_files_context_menu(recent_folders_menu_);
   recent_folders_menu_->setProperty(kRecentFoldersMenuProperty, true);
+  connect(file_menu, &QMenu::aboutToShow, this, &MainWindow::refresh_recent_history);
   auto* import_menu = file_menu->addMenu(tr("I&mport"));
   import_menu->setObjectName(QStringLiteral("fileImportMenu"));
 #if defined(Q_OS_WIN) || defined(Q_OS_MACOS)

@@ -448,6 +448,7 @@ void MainWindow::update_start_panel_visibility() {
   }
   const bool show = sessions_.empty();
   if (show) {
+    refresh_recent_history();
     start_panel_->set_recent_files(recent_files_);
     start_panel_->setGeometry(document_tabs_->rect());
     start_panel_->raise();

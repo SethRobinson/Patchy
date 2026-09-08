@@ -7,8 +7,9 @@
 namespace patchy::ui {
 
 [[nodiscard]] QSettings app_settings();
-// Brush assets persist across owned MCP workspaces; other connector preferences stay temporary.
+// Brush assets and recent paths persist across owned MCP workspaces.
 [[nodiscard]] QSettings brush_library_settings();
+[[nodiscard]] QSettings recent_history_settings();
 
 // Interface-scale steps offered in Preferences and honored at startup, in percent. The
 // sub-100 entries are the reciprocals of the 150%/133%/111% display steps, so a browser

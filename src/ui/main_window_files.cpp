@@ -157,6 +157,7 @@
 #include <QListWidget>
 #include <QLinearGradient>
 #include <QLineEdit>
+#include <QLockFile>
 #include <QMenu>
 #include <QMenuBar>
 #include <QMimeData>
@@ -285,6 +286,33 @@ void trim_recent_files(QStringList& recent_files) {
   while (recent_files.size() > kMaxRecentFiles) {
     recent_files.removeLast();
   }
+}
+
+// QSettings merges different keys, but a recent list is one value. Serialize the
+// complete read/modify/write so simultaneous GUI, headless and MCP saves cannot
+// replace each other's entries. Use a separate lock from QSettings' own .lock.
+QStringList update_recent_history(const QString& key, int limit,
+                                  const std::function<void(QStringList&)>& update) {
+  auto settings = recent_history_settings();
+  std::unique_ptr<QLockFile> lock;
+  if (settings.format() == QSettings::IniFormat) {
+    QDir().mkpath(QFileInfo(settings.fileName()).absolutePath());
+    lock = std::make_unique<QLockFile>(settings.fileName() + QStringLiteral(".recent-lock"));
+    if (!lock->tryLock(1000)) {
+      qWarning("Could not lock recent history for update");
+      settings.sync();
+      return settings.value(key).toStringList();
+    }
+  }
+  settings.sync();
+  auto paths = settings.value(key).toStringList();
+  while (paths.size() > limit) paths.removeLast();
+  update(paths);
+  paths.removeDuplicates();
+  while (paths.size() > limit) paths.removeLast();
+  settings.setValue(key, paths);
+  settings.sync();
+  return paths;
 }
 
 bool is_photoshop_document_extension(const QString& extension) {
@@ -1557,15 +1585,13 @@ void MainWindow::open_document_path(QString path) {
     }
     canvas_->fit_to_view();
     if (!unattended_automation()) {
-      // Unattended runs must not block on the adoption offer, and they should leave the
-      // user's recent-files state untouched.
+      // Unattended runs must not block on the adoption offer.
       maybe_offer_indexed_palette_adoption();
     }
     update_undo_redo_actions();
-    if (!unattended_automation() && !browser_transfer) {
+    if (!browser_transfer) {
       add_recent_file(path);
-      remember_open_directory_for_path(path);
-      add_recent_folder(QFileInfo(path).absolutePath());
+      if (!unattended_automation()) remember_open_directory_for_path(path);
     }
     if (loaded->import_notices.isEmpty()) {
       statusBar()->showMessage(tr("Opened %1").arg(browser_transfer ? loaded_file_name : path));
@@ -2667,6 +2693,7 @@ bool MainWindow::save_document_as() {
     initial_path = initial_info.dir().filePath(base_name + QStringLiteral(".psd"));
   }
   auto selected_filter = save_file_filter_for_path(initial_path);
+  refresh_recent_history();
   auto path = get_save_file_name(this, tr("Save As"), initial_path, save_file_filter(), &selected_filter,
                                  QStringLiteral("saveAsFileDialog"), recent_files_);
   if (path.isEmpty() || !still_saving_same_session()) {
@@ -2910,9 +2937,7 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
           persist_image_save_defaults(effective_image_options);
         }
       }
-      if (!unattended_automation()) {
-        add_recent_file(path);
-      }
+      add_recent_file(path);
       statusBar()->showMessage((extension == QStringLiteral("svg") ? tr("Saved SVG copy %1.")
                                 : is_pdf_extension(extension) && effective_image_options.pdf_editable_layers
                                     ? tr("Saved PDF copy with editable layers %1.")
@@ -2942,9 +2967,7 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
       active_session.image_save_options_extension.clear();
     }
     set_session_saved(active_session);
-    if (!unattended_automation()) {
-      add_recent_file(path);
-    }
+    add_recent_file(path);
     statusBar()->showMessage(tr("Saved %1").arg(path) + export_notes_suffix);
     if (linked_external_child) {
       refresh_external_smart_object_after_save(active_session);
@@ -3136,7 +3159,8 @@ void MainWindow::begin_startup_update_check() {
 }
 
 void MainWindow::load_recent_files() {
-  auto settings = app_settings();
+  auto settings = recent_history_settings();
+  settings.sync();
   recent_files_ = settings.value(QStringLiteral("recentFiles")).toStringList();
   recent_files_.erase(std::remove_if(recent_files_.begin(), recent_files_.end(), [](const QString& path) {
                         return path.trimmed().isEmpty() || !QFileInfo::exists(path);
@@ -3145,9 +3169,13 @@ void MainWindow::load_recent_files() {
   trim_recent_files(recent_files_);
 }
 
-void MainWindow::save_recent_files() const {
-  auto settings = app_settings();
-  settings.setValue(QStringLiteral("recentFiles"), recent_files_);
+void MainWindow::refresh_recent_history() {
+  const auto files = recent_files_;
+  const auto folders = recent_folders_;
+  load_recent_files();
+  load_recent_folders();
+  if (files != recent_files_) rebuild_recent_files_menu();
+  if (folders != recent_folders_) rebuild_recent_folders_menu();
 }
 
 void MainWindow::add_recent_file(QString path) {
@@ -3155,11 +3183,10 @@ void MainWindow::add_recent_file(QString path) {
   if (path.isEmpty()) {
     return;
   }
-  recent_files_.removeAll(path);
-  recent_files_.prepend(path);
-  trim_recent_files(recent_files_);
-  save_recent_files();
+  recent_files_ = update_recent_history(QStringLiteral("recentFiles"), kMaxRecentFiles,
+      [&path](QStringList& paths) { paths.removeAll(path); paths.prepend(path); });
   rebuild_recent_files_menu();
+  add_recent_folder(QFileInfo(path).absolutePath());
 }
 
 void MainWindow::rebuild_recent_files_menu() {
@@ -3246,8 +3273,8 @@ void MainWindow::rebuild_recent_files_menu() {
     auto* clear_action = recent_files_menu_->addAction(tr("Clear Recent Files"));
     clear_action->setObjectName(QStringLiteral("fileClearRecentAction"));
     connect(clear_action, &QAction::triggered, this, [this] {
-      recent_files_.clear();
-      save_recent_files();
+      recent_files_ = update_recent_history(QStringLiteral("recentFiles"), kMaxRecentFiles,
+          [](QStringList& paths) { paths.clear(); });
       rebuild_recent_files_menu();
     });
   }
@@ -3356,7 +3383,8 @@ bool MainWindow::handle_recent_files_filter_key(QKeyEvent& event) {
 }
 
 void MainWindow::load_recent_folders() {
-  auto settings = app_settings();
+  auto settings = recent_history_settings();
+  settings.sync();
   recent_folders_ = settings.value(QStringLiteral("recentFolders")).toStringList();
   recent_folders_.erase(std::remove_if(recent_folders_.begin(), recent_folders_.end(),
                                        [](const QString& dir) {
@@ -3368,22 +3396,13 @@ void MainWindow::load_recent_folders() {
   }
 }
 
-void MainWindow::save_recent_folders() const {
-  auto settings = app_settings();
-  settings.setValue(QStringLiteral("recentFolders"), recent_folders_);
-}
-
 void MainWindow::add_recent_folder(QString dir) {
   dir = QFileInfo(dir).absoluteFilePath();
   if (dir.isEmpty()) {
     return;
   }
-  recent_folders_.removeAll(dir);
-  recent_folders_.prepend(dir);
-  while (recent_folders_.size() > kMaxRecentFolders) {
-    recent_folders_.removeLast();
-  }
-  save_recent_folders();
+  recent_folders_ = update_recent_history(QStringLiteral("recentFolders"), kMaxRecentFolders,
+      [&dir](QStringList& paths) { paths.removeAll(dir); paths.prepend(dir); });
   rebuild_recent_folders_menu();
 }
 
@@ -3438,8 +3457,8 @@ void MainWindow::rebuild_recent_folders_menu() {
     auto* clear_action = recent_folders_menu_->addAction(tr("Clear Recent Folders"));
     clear_action->setObjectName(QStringLiteral("fileClearRecentFoldersAction"));
     connect(clear_action, &QAction::triggered, this, [this] {
-      recent_folders_.clear();
-      save_recent_folders();
+      recent_folders_ = update_recent_history(QStringLiteral("recentFolders"), kMaxRecentFolders,
+          [](QStringList& paths) { paths.clear(); });
       rebuild_recent_folders_menu();
     });
   }
@@ -3556,8 +3575,8 @@ void MainWindow::reveal_path_in_file_explorer(const QString& path, bool is_file)
 
 void MainWindow::open_recent_document(QString path) {
   if (!QFileInfo::exists(path)) {
-    recent_files_.removeAll(path);
-    save_recent_files();
+    recent_files_ = update_recent_history(QStringLiteral("recentFiles"), kMaxRecentFiles,
+        [&path](QStringList& paths) { paths.removeAll(path); });
     rebuild_recent_files_menu();
     show_status_error(tr("Recent file is missing"));
     return;

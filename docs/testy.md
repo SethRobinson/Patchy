@@ -407,6 +407,7 @@ runs" table reads it for the over-time view.
 Testy drives Patchy through product flags added for it (src/app/main.cpp):
 `patchy.exe <in> --export <out>` opens a file, saves it to `<out>` (format by
 extension) and exits unattended (single-instance opt-out, prompts suppressed,
-recents/prefs untouched); `--append-text <s>` first appends `<s>` to every text
+recent files/folders updated); set `PATCHY_SETTINGS_DIR` to isolate automation
+history from the artist's settings. `--append-text <s>` first appends `<s>` to every text
 layer through real editor sessions so rasters re-render through the text pipeline.
 Pinned by the `ui_cli_append_text_rerenders_and_roundtrips` visual test.

@@ -99,3 +99,13 @@ when the active canvas changes. Language changes in Preferences apply only on OK
 The color panel accepts named colors and CSS `#RRGGBBAA` (plus `#RGBA`); its stored
 foreground/background colors remain opaque RGB. History navigation is refused
 during a live pointer gesture, and focus loss clears the drag latches.
+
+Recent files and folders include successful interactive, scripted, headless and
+MCP document opens and saves, including saved flat copies. Saving records the
+containing folder too. `recent_history_settings()` shares the persistent history
+with owned MCP workspaces while their other preferences stay temporary. Native
+updates lock the complete read/modify/write transaction and merge against the
+latest stored list, so another process's additions or Clear command survive.
+The File menu and Save As refresh before opening; the empty start panel refreshes
+every two seconds while no popup is active and when it reappears. Rebuilds occur
+only when the stored list changes, preserving a live start-panel filter.
