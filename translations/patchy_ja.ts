@@ -9107,8 +9107,16 @@ Either way Patchy writes a copy; the open document keeps its layers and unsaved 
     </message>
     <message>
         <location line="+2"/>
-        <source>Automatically select the clicked layer while using Move</source>
-        <translation>移動ツール使用時にクリックしたレイヤーを自動選択します</translation>
+        <source>Select layers by clicking artwork or dragging a rectangle from empty space</source>
+        <translation>画像をクリックするか、空いている場所から四角形をドラッグしてレイヤーを選択します</translation>
+    </message>
+    <message>
+        <source>Shift+click or %CTRL%+click toggles layers. %CTRL%+drag selects layers in a rectangle; hold Shift before dragging to add. Shift constrains layer movement.</source>
+        <translation>Shift+クリックまたは%CTRL%+クリックでレイヤーの選択を切り替えます。%CTRL%+ドラッグで四角形内のレイヤーを選択し、ドラッグ前からShiftを押すと追加します。レイヤーの移動中はShiftで方向を固定します。</translation>
+    </message>
+    <message>
+        <source>Move: Shift+click or %CTRL%+click toggles layers. %CTRL%+drag selects a rectangle; Shift adds. Drag selected artwork to move it.</source>
+        <translation>移動: Shift+クリックまたは%CTRL%+クリックでレイヤーの選択を切り替えます。%CTRL%+ドラッグで四角形選択し、Shiftで追加します。選択した画像をドラッグすると移動します。</translation>
     </message>
     <message>
         <location line="+8"/>

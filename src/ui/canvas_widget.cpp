@@ -240,7 +240,8 @@ void CanvasWidget::set_document(Document* document) {
 }
 
 bool CanvasWidget::pointer_gesture_active() const noexcept {
-  return painting_ || drawing_shape_ || dragging_text_rect_ || move_drag_pending_ ||
+  return move_layer_selection_gesture_.has_value() || painting_ || drawing_shape_ || dragging_text_rect_ ||
+         move_drag_pending_ ||
          moving_layer_ || dragging_transform_ || dragging_warp_handle_ || selecting_ ||
          lassoing_ || quick_selecting_ || spot_healing_stroke_active_ || patch_tool_dragging_ ||
          moving_selection_ || dragging_guide_ || crop_dragging_out_ || crop_rotating_ ||
@@ -331,6 +332,7 @@ void CanvasWidget::set_document_internal(Document* document, bool preserve_frame
   if (warping_layer_) {
     reset_warp_state();
   }
+  cancel_move_layer_selection();
   move_drag_pending_ = false;
   moving_layer_ = false;
   moving_layers_.clear();
@@ -431,6 +433,7 @@ void CanvasWidget::set_tool(CanvasTool tool) {
     commit_path_transform();  // tool switches commit, like the pen session
     finish_free_transform();
     finish_warp_transform();
+    cancel_move_layer_selection();
     move_drag_pending_ = false;
     moving_layer_ = false;
     moving_layers_.clear();
@@ -470,6 +473,7 @@ void CanvasWidget::set_edit_locked(bool locked) noexcept {
   edit_locked_ = locked;
   if (edit_locked_) {
     clear_move_hover_outline();
+    cancel_move_layer_selection();
     move_drag_pending_ = false;
     moving_layer_ = false;
     moving_layers_.clear();

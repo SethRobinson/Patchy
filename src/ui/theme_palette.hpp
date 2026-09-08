@@ -262,6 +262,8 @@ struct ThemePalette {
   QColor canvas_backdrop;
   QColor canvas_empty_text;
   QColor canvas_document_border;
+  QColor canvas_layer_selection_border;
+  QColor canvas_layer_selection_fill;
   QColor ruler_bar_bg;
   QColor ruler_corner_bg;
   QColor ruler_edge;

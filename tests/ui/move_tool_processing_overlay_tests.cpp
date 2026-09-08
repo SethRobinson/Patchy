@@ -1,4 +1,8 @@
 #include "ui/canvas_widget.hpp"
+#include "ui/theme_palette.hpp"
+#include "ui/modifier_names.hpp"
+#include <QScopeGuard>
+#include <QFocusEvent>
 #include "core/adjustment_layer.hpp"
 #include "core/contour_presets.hpp"
 #include "core/gradient_presets.hpp"
@@ -609,15 +613,11 @@ void ui_move_ctrl_click_toggles_layer_selection() {
   CHECK(color_close(canvas_pixel(*canvas, QPoint(88, 57)), QColor(40, 180, 90), 40));
   CHECK(color_close(canvas_pixel(*canvas, QPoint(24, 24)), QColor(220, 40, 40), 40));
 
-  // Ctrl+click on a selected layer removes it, promotes the active layer to a
-  // remaining member, and moves nothing.
+  // Ctrl+click on a selected layer removes it on release without moving pixels.
   send_mouse(*canvas, QEvent::MouseButtonPress, target_point, Qt::LeftButton, Qt::LeftButton,
              Qt::ControlModifier);
-  send_mouse(*canvas, QEvent::MouseMove,
-             canvas->widget_position_for_document_point(QPoint(108, 67)), Qt::NoButton, Qt::LeftButton,
-             Qt::ControlModifier);
-  send_mouse(*canvas, QEvent::MouseButtonRelease,
-             canvas->widget_position_for_document_point(QPoint(108, 67)), Qt::LeftButton, Qt::NoButton,
+  CHECK(layer_list->selectedItems().size() == 3);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, target_point, Qt::LeftButton, Qt::NoButton,
              Qt::ControlModifier);
   QApplication::processEvents();
   red_item = require_layer_item(*layer_list, QStringLiteral("Selected Red"));
@@ -673,7 +673,7 @@ void ui_move_ctrl_click_toggles_layer_selection() {
   save_widget_artifact("ui_move_ctrl_click_toggles_selection", window);
 }
 
-void ui_move_ctrl_click_add_continues_into_drag() {
+void ui_move_ctrl_drag_selects_rectangle_without_moving() {
   patchy::Document document(140, 100, patchy::PixelFormat::rgba8());
 
   patchy::Layer red(document.allocate_layer_id(), "Selected Red",
@@ -713,8 +713,7 @@ void ui_move_ctrl_click_add_continues_into_drag() {
   canvas->set_show_transform_controls(false);
   canvas->set_snap_enabled(false);
 
-  // A Ctrl+press that adds a layer keeps going as a drag of the whole
-  // enlarged selection.
+  // Ctrl-drag replaces the selection with the intersecting target; no layer moves.
   const auto start = canvas->widget_position_for_document_point(QPoint(88, 57));
   const auto end = canvas->widget_position_for_document_point(QPoint(108, 67));
   send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton, Qt::ControlModifier);
@@ -722,22 +721,20 @@ void ui_move_ctrl_click_add_continues_into_drag() {
   send_mouse(*canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton, Qt::ControlModifier);
   QApplication::processEvents();
 
-  CHECK(!color_close(canvas_pixel(*canvas, QPoint(24, 24)), QColor(220, 40, 40), 40));
-  CHECK(!color_close(canvas_pixel(*canvas, QPoint(54, 24)), QColor(40, 90, 220), 40));
-  CHECK(color_close(canvas_pixel(*canvas, QPoint(44, 34)), QColor(220, 40, 40), 40));
-  CHECK(color_close(canvas_pixel(*canvas, QPoint(74, 34)), QColor(40, 90, 220), 40));
-  CHECK(!color_close(canvas_pixel(*canvas, QPoint(88, 57)), QColor(40, 180, 90), 40));
-  CHECK(color_close(canvas_pixel(*canvas, QPoint(108, 67)), QColor(40, 180, 90), 40));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(24, 24)), QColor(220, 40, 40), 40));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(54, 24)), QColor(40, 90, 220), 40));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(88, 57)), QColor(40, 180, 90), 40));
+  CHECK(!color_close(canvas_pixel(*canvas, QPoint(108, 67)), QColor(40, 180, 90), 40));
 
   red_item = require_layer_item(*layer_list, QStringLiteral("Selected Red"));
   blue_item = require_layer_item(*layer_list, QStringLiteral("Selected Blue"));
   auto* target_item = require_layer_item(*layer_list, QStringLiteral("Drag Target"));
-  CHECK(layer_list->selectedItems().size() == 3);
-  CHECK(red_item->isSelected());
-  CHECK(blue_item->isSelected());
+  CHECK(layer_list->selectedItems().size() == 1);
+  CHECK(!red_item->isSelected());
+  CHECK(!blue_item->isSelected());
   CHECK(target_item->isSelected());
   CHECK(layer_list->currentItem() == target_item);
-  save_widget_artifact("ui_move_ctrl_click_add_drag", window);
+  save_widget_artifact("ui_move_ctrl_rectangle", window);
 }
 
 void ui_move_ctrl_click_selects_layer_inside_collapsed_folder() {
@@ -782,6 +779,331 @@ void ui_move_ctrl_click_selects_layer_inside_collapsed_folder() {
   CHECK(child_item->isSelected());
   CHECK(layer_list->selectedItems().size() == 2);
   CHECK(layer_list->currentItem() == child_item);
+}
+
+struct MoveSelectionScene {
+  patchy::Document document{160, 120, patchy::PixelFormat::rgba8()};
+  patchy::ui::CanvasWidget canvas;
+  patchy::LayerId red{}, blue{}, green{};
+  std::vector<patchy::LayerId> selected;
+  int content_edits{0};
+  int selection_edits{0};
+
+  MoveSelectionScene() {
+    auto& background = document.add_pixel_layer("Background",
+        solid_pixels(160, 120, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+    patchy::set_layer_locks_position(background, true);
+    red = add("Red", QRect(20, 20, 18, 18), QColor(220, 40, 40));
+    blue = add("Blue", QRect(65, 20, 18, 18), QColor(40, 90, 220));
+    green = add("Green", QRect(110, 70, 18, 18), QColor(40, 180, 90));
+    canvas.resize(560, 420);
+    canvas.set_document(&document);
+    canvas.set_zoom(2.0);
+    canvas.set_tool(patchy::ui::CanvasTool::Move);
+    canvas.set_auto_select_layer(true);
+    canvas.set_show_transform_controls(false);
+    canvas.set_snap_enabled(false);
+    canvas.set_rulers_visible(false);
+    canvas.set_layer_selection_requested_callback([this](std::vector<patchy::LayerId> ids, patchy::LayerId active) {
+      select(std::move(ids), active);
+    });
+    canvas.set_before_edit_callback([this](QString) { ++content_edits; });
+    canvas.set_selection_history_callback(
+        [this](QString, patchy::ui::CanvasWidget::SelectionSnapshot, bool) { ++selection_edits; });
+    select({green}, green);
+    canvas.show();
+    QApplication::processEvents();
+  }
+
+  patchy::LayerId add(const char* name, QRect bounds, QColor color) {
+    patchy::Layer layer(document.allocate_layer_id(), name,
+        solid_pixels(bounds.width(), bounds.height(), patchy::PixelFormat::rgba8(), color));
+    const auto id = layer.id();
+    layer.set_bounds({bounds.x(), bounds.y(), bounds.width(), bounds.height()});
+    document.add_layer(std::move(layer));
+    return id;
+  }
+
+  void select(std::vector<patchy::LayerId> ids, patchy::LayerId active) {
+    selected = std::move(ids);
+    document.set_active_layer(active);
+    canvas.set_selected_layer_ids(selected);
+  }
+
+  void expect(std::vector<patchy::LayerId> ids) const {
+    auto actual = selected;
+    std::sort(ids.begin(), ids.end());
+    std::sort(actual.begin(), actual.end());
+    CHECK(actual == ids);
+  }
+
+  QPoint point(QPoint document_point) const {
+    return canvas.widget_position_for_document_point(document_point);
+  }
+
+  void click(QPoint document_point, Qt::KeyboardModifiers modifiers) {
+    const auto pos = point(document_point);
+    send_mouse(canvas, QEvent::MouseButtonPress, pos, Qt::LeftButton, Qt::LeftButton, modifiers);
+    send_mouse(canvas, QEvent::MouseButtonRelease, pos, Qt::LeftButton, Qt::NoButton, modifiers);
+  }
+
+  void box(QPoint from, QPoint to, Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+    drag(canvas, point(from), point(to), modifiers);
+  }
+};
+
+void ui_move_modifier_clicks_defer_toggles_and_shift_drag_keeps_selection() {
+  for (const auto modifiers : {Qt::KeyboardModifiers(Qt::ShiftModifier),
+                               Qt::KeyboardModifiers(Qt::ControlModifier),
+                               Qt::KeyboardModifiers(Qt::ControlModifier | Qt::ShiftModifier)}) {
+    MoveSelectionScene scene;
+    scene.canvas.set_auto_select_layer(false);
+    const auto start = scene.point(QPoint(25, 25));
+    const auto jitter = start + QPoint(1, 0);
+    send_mouse(scene.canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton, modifiers);
+    scene.expect({scene.green});
+    CHECK(scene.canvas.pointer_gesture_active());
+    send_mouse(scene.canvas, QEvent::MouseMove, jitter, Qt::NoButton, Qt::LeftButton, modifiers);
+    scene.expect({scene.green});
+    send_mouse(scene.canvas, QEvent::MouseButtonRelease, jitter, Qt::LeftButton, Qt::NoButton, modifiers);
+    scene.expect({scene.red, scene.green});
+    CHECK(!scene.canvas.pointer_gesture_active());
+    scene.click(QPoint(25, 25), modifiers);
+    scene.expect({scene.green});
+    scene.click(QPoint(115, 75), modifiers);
+    scene.expect({scene.green});
+    CHECK(scene.content_edits == 0);
+    CHECK(scene.selection_edits == 0);
+  }
+
+  MoveSelectionScene scene;
+  scene.select({scene.red, scene.blue}, scene.blue);
+  scene.box(QPoint(25, 25), QPoint(45, 32), Qt::ShiftModifier);
+  scene.expect({scene.red, scene.blue});
+  CHECK(scene.document.find_layer(scene.red)->bounds().x == 40);
+  CHECK(scene.document.find_layer(scene.blue)->bounds().x == 85);
+  CHECK(scene.document.find_layer(scene.red)->bounds().y == 20);
+  scene.box(QPoint(115, 75), QPoint(125, 80), Qt::ShiftModifier);
+  scene.expect({scene.red, scene.blue, scene.green});
+  CHECK(scene.document.find_layer(scene.green)->bounds().x == 120);
+  CHECK(scene.document.find_layer(scene.green)->bounds().y == 70);
+
+  MoveSelectionScene latched;
+  const auto start = latched.point(QPoint(115, 75));
+  const auto end = latched.point(QPoint(130, 85));
+  send_mouse(latched.canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(latched.canvas, QEvent::MouseMove, end, Qt::NoButton, Qt::LeftButton, Qt::ControlModifier);
+  send_mouse(latched.canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton, Qt::ControlModifier);
+  CHECK(latched.document.find_layer(latched.green)->bounds().x == 125);
+  CHECK(latched.document.find_layer(latched.green)->bounds().y == 80);
+}
+
+void ui_move_rectangle_matches_overlap_and_latches_modifiers() {
+  MoveSelectionScene scene;
+  // Drag over a locked Background from the pasteboard, at a zoomed and panned view.
+  scene.canvas.set_zoom(1.5);
+  const auto pan_start = scene.point(QPoint(80, 60));
+  send_mouse(scene.canvas, QEvent::MouseButtonPress, pan_start, Qt::MiddleButton, Qt::MiddleButton);
+  send_mouse(scene.canvas, QEvent::MouseMove, pan_start + QPoint(27, 19), Qt::NoButton, Qt::MiddleButton);
+  send_mouse(scene.canvas, QEvent::MouseButtonRelease, pan_start + QPoint(27, 19), Qt::MiddleButton, Qt::NoButton);
+  scene.box(QPoint(-12, -10), QPoint(70, 30));
+  scene.expect({scene.red, scene.blue});
+  CHECK(scene.document.active_layer_id() == scene.blue);
+  scene.select({scene.green}, scene.green);
+  // Shift and Ctrl are press-time intent; releasing both mid-box cannot change it.
+  const auto start = scene.point(QPoint(75, 30));
+  const auto end = scene.point(QPoint(25, 25));
+  send_mouse(scene.canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton,
+             Qt::ControlModifier | Qt::ShiftModifier);
+  send_mouse(scene.canvas, QEvent::MouseMove, end, Qt::NoButton, Qt::LeftButton);
+  scene.expect({scene.green});
+  send_mouse(scene.canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton);
+  scene.expect({scene.red, scene.blue, scene.green});
+  CHECK(scene.document.active_layer_id() == scene.green);
+  // A rectangle may include just a sliver of a layer.
+  scene.box(QPoint(38, 18), QPoint(36, 25));
+  scene.expect({scene.red});
+  scene.box(QPoint(2, 95), QPoint(10, 110));
+  scene.expect({scene.red});
+  scene.box(QPoint(-20, -20), QPoint(-5, 80), Qt::ControlModifier);
+  scene.expect({scene.red});
+  scene.canvas.set_auto_select_layer(false);
+  scene.box(QPoint(70, 25), QPoint(120, 80), Qt::ControlModifier);
+  scene.expect({scene.blue, scene.green});
+  CHECK(scene.document.find_layer(scene.red)->bounds().x == 20);
+  CHECK(scene.document.find_layer(scene.blue)->bounds().x == 65);
+  CHECK(scene.content_edits == 0);
+  CHECK(scene.selection_edits == 0);
+}
+
+void ui_move_rectangle_uses_content_bounds_and_inherited_eligibility() {
+  MoveSelectionScene scene;
+  auto padding_pixels = solid_pixels(100, 100, patchy::PixelFormat::rgba8(), QColor(Qt::transparent));
+  fill_pixel_rect(padding_pixels, QRect(42, 45, 5, 5), QColor(Qt::black));
+  patchy::Layer padded(scene.document.allocate_layer_id(), "Padded", std::move(padding_pixels));
+  const auto padded_id = padded.id();
+  scene.document.add_layer(std::move(padded));
+  auto text_pixels = solid_pixels(25, 15, patchy::PixelFormat::rgba8(), QColor(Qt::transparent));
+  fill_pixel_rect(text_pixels, QRect(0, 0, 2, 2), QColor(Qt::black));
+  patchy::Layer text(scene.document.allocate_layer_id(), "Text", std::move(text_pixels));
+  const auto text_id = text.id();
+  text.set_bounds({90, 45, 25, 15});
+  text.metadata()[patchy::kLayerMetadataText] = "Wide";
+  scene.document.add_layer(std::move(text));
+  const auto hidden = scene.add("Hidden", QRect(5, 5, 100, 80), QColor(Qt::black));
+  scene.document.find_layer(hidden)->set_visible(false);
+  const auto transparent = scene.add("Invisible", QRect(5, 5, 100, 80), QColor(Qt::black));
+  scene.document.find_layer(transparent)->set_opacity(0.0F);
+  const auto locked = scene.add("Locked", QRect(5, 5, 100, 80), QColor(Qt::black));
+  patchy::set_layer_locks_position(*scene.document.find_layer(locked), true);
+  scene.add("Empty", QRect(5, 5, 100, 80), QColor(Qt::transparent));
+  // Opaque overlap selects both leaves even when only the upper one can be clicked.
+  const auto covered = scene.add("Covered", QRect(20, 20, 18, 18), QColor(Qt::black));
+  for (int restriction = 0; restriction < 3; ++restriction) {
+    patchy::Layer group(scene.document.allocate_layer_id(), "Restricted", patchy::LayerKind::Group);
+    patchy::Layer child(scene.document.allocate_layer_id(), "Child",
+                       solid_pixels(100, 100, patchy::PixelFormat::rgba8(), QColor(Qt::black)));
+    group.add_child(std::move(child));
+    if (restriction == 0) { group.set_visible(false); }
+    if (restriction == 1) { group.set_opacity(0.0F); }
+    if (restriction == 2) { patchy::set_layer_locks_position(group, true); }
+    scene.document.add_layer(std::move(group));
+  }
+  scene.canvas.force_refresh();
+  const auto revision = std::as_const(scene.document).find_layer(padded_id)->pixel_revision();
+  scene.box(QPoint(5, 5), QPoint(80, 40), Qt::ControlModifier);
+  scene.expect({scene.red, scene.blue, covered});
+  scene.box(QPoint(40, 44), QPoint(44, 48), Qt::ControlModifier);
+  scene.expect({padded_id});
+  scene.box(QPoint(105, 48), QPoint(113, 58), Qt::ControlModifier);
+  scene.expect({text_id});
+  CHECK(std::as_const(scene.document).find_layer(padded_id)->pixel_revision() == revision);
+  CHECK(scene.content_edits == 0);
+}
+
+void ui_move_rectangle_cancellation_preserves_pixels_selection_and_history() {
+  for (int cancel = 0; cancel < 6; ++cancel) {
+    MoveSelectionScene scene;
+    scene.canvas.set_tool(patchy::ui::CanvasTool::Marquee);
+    scene.box(QPoint(90, 95), QPoint(130, 110));
+    const auto pixel_selection = scene.canvas.selected_document_rect();
+    scene.canvas.set_tool(patchy::ui::CanvasTool::Move);
+    scene.selection_edits = 0;
+    const auto start = scene.point(QPoint(10, 10));
+    const auto end = scene.point(QPoint(80, 40));
+    send_mouse(scene.canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(scene.canvas, QEvent::MouseMove, end, Qt::NoButton, Qt::LeftButton);
+    CHECK(scene.canvas.pointer_gesture_active());
+    scene.expect({scene.green});
+    if (cancel == 0) { send_key(scene.canvas, Qt::Key_Escape); }
+    if (cancel == 1) {
+      QFocusEvent event(QEvent::FocusOut);
+      QApplication::sendEvent(&scene.canvas, &event);
+    }
+    if (cancel == 2) { scene.canvas.set_tool(patchy::ui::CanvasTool::Brush); }
+    if (cancel == 3) { scene.canvas.set_edit_locked(true); }
+    if (cancel == 4) { scene.canvas.set_document(nullptr); }
+    if (cancel == 5) {
+      send_mouse(scene.canvas, QEvent::MouseMove, end, Qt::NoButton, Qt::NoButton);
+    }
+    CHECK(!scene.canvas.pointer_gesture_active());
+    send_mouse(scene.canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton);
+    scene.expect({scene.green});
+    if (cancel != 4) { CHECK(scene.canvas.selected_document_rect() == pixel_selection); }
+    CHECK(scene.document.find_layer(scene.red)->bounds().x == 20);
+    CHECK(scene.content_edits == 0);
+    CHECK(scene.selection_edits == 0);
+  }
+  MoveSelectionScene scene;
+  scene.canvas.set_tool(patchy::ui::CanvasTool::Marquee);
+  scene.box(QPoint(90, 95), QPoint(130, 110));
+  const auto selection = scene.canvas.selected_document_rect();
+  scene.canvas.set_tool(patchy::ui::CanvasTool::Move);
+  scene.selection_edits = 0;
+  scene.box(QPoint(10, 10), QPoint(80, 40));
+  scene.expect({scene.red, scene.blue});
+  CHECK(scene.canvas.selected_document_rect() == selection);
+  CHECK(scene.content_edits == 0);
+  CHECK(scene.selection_edits == 0);
+}
+
+void ui_move_rectangle_theme_and_passive_handle_priority() {
+  const auto saved_scheme = patchy::ui::active_color_scheme();
+  const auto restore = qScopeGuard([saved_scheme] { patchy::ui::set_active_color_scheme(saved_scheme); });
+  for (const auto scheme : {patchy::ui::ColorScheme::Dark, patchy::ui::ColorScheme::Light}) {
+    patchy::ui::set_active_color_scheme(scheme);
+    MoveSelectionScene scene;
+    scene.canvas.set_show_transform_controls(true);
+    scene.select({scene.red}, scene.red);
+    const auto start = scene.point(QPoint(20, 20)); // Passive corner handle.
+    const auto end = scene.point(QPoint(90, 55));
+    send_mouse(scene.canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton, Qt::ControlModifier);
+    send_mouse(scene.canvas, QEvent::MouseMove, end, Qt::NoButton, Qt::LeftButton, Qt::ControlModifier);
+    const auto preview = scene.canvas.grab().toImage();
+    const QRect edge(QPoint(start.x() + 30, start.y() - 2), QSize(60, 5));
+    CHECK(count_pixels_close(preview, edge, patchy::ui::theme().canvas_layer_selection_border, 12) > 30);
+    const auto artifact = scheme == patchy::ui::ColorScheme::Dark ? "ui_move_rectangle_dark" : "ui_move_rectangle_light";
+    save_widget_artifact(artifact, scene.canvas);
+    send_mouse(scene.canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton, Qt::ControlModifier);
+    scene.expect({scene.red, scene.blue});
+    CHECK(scene.document.find_layer(scene.red)->bounds().width == 18);
+    CHECK(scene.content_edits == 0);
+  }
+}
+
+void ui_move_pending_click_cancel_and_empty_document_are_safe() {
+  MoveSelectionScene scene;
+  const auto pos = scene.point(QPoint(25, 25));
+  send_mouse(scene.canvas, QEvent::MouseButtonPress, pos, Qt::LeftButton, Qt::LeftButton, Qt::ShiftModifier);
+  send_key(scene.canvas, Qt::Key_Escape);
+  send_mouse(scene.canvas, QEvent::MouseButtonRelease, pos, Qt::LeftButton, Qt::NoButton, Qt::ShiftModifier);
+  scene.expect({scene.green});
+  CHECK(!scene.canvas.pointer_gesture_active());
+  scene.canvas.set_document(nullptr);
+  scene.click(QPoint(25, 25), Qt::ControlModifier);
+  CHECK(!scene.canvas.pointer_gesture_active());
+}
+
+void ui_move_rectangle_reveals_collapsed_and_filtered_layers() {
+  patchy::Document document(120, 90, patchy::PixelFormat::rgba8());
+  auto& background = document.add_pixel_layer("Background",
+      solid_pixels(120, 90, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  patchy::set_layer_locks_position(background, true);
+  const auto background_id = background.id();
+  patchy::Layer group(document.allocate_layer_id(), "Folder", patchy::LayerKind::Group);
+  group.metadata()[patchy::kLayerMetadataGroupExpanded] = "false";
+  for (int i = 0; i < 2; ++i) {
+    patchy::Layer child(document.allocate_layer_id(), i == 0 ? "Red" : "Blue",
+        solid_pixels(12, 12, patchy::PixelFormat::rgba8(), QColor(Qt::red)));
+    child.set_bounds({15 + i * 30, 15, 12, 12});
+    group.add_child(std::move(child));
+  }
+  document.add_layer(std::move(group));
+  document.set_active_layer(background_id);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Rectangle Layers"));
+  auto* canvas = require_canvas(window);
+  auto* list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* filter = window.findChild<QLineEdit*>(QStringLiteral("layerNameFilterEdit"));
+  auto* history = window.findChild<QListWidget*>(QStringLiteral("historyList"));
+  CHECK(list != nullptr && filter != nullptr && history != nullptr);
+  CHECK(find_layer_item(*list, QStringLiteral("Red")) == nullptr);
+  filter->setText(QStringLiteral("Background"));
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_auto_select_layer(true);
+  canvas->set_show_transform_controls(false);
+  const auto history_count = history->count();
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(5, 5)),
+       canvas->widget_position_for_document_point(QPoint(65, 35)));
+  CHECK(filter->text().isEmpty());
+  CHECK(list->selectedItems().size() == 2);
+  CHECK(require_layer_item(*list, QStringLiteral("Red"))->isSelected());
+  CHECK(require_layer_item(*list, QStringLiteral("Blue"))->isSelected());
+  CHECK(list->currentItem() == require_layer_item(*list, QStringLiteral("Blue")));
+  CHECK(history->count() == history_count);
+  CHECK(require_action_by_text(window, QStringLiteral("Move"))->toolTip().contains(
+      patchy::ui::resolve_modifier_names(QStringLiteral("%CTRL%+drag"))));
 }
 
 void ui_shift_constrains_move_tool_drag_to_axis() {
@@ -3404,10 +3726,20 @@ std::vector<patchy::test::TestCase> move_tool_processing_overlay_tests() {
       {"ui_move_auto_select_blank_drag_keeps_multi_selection",
        ui_move_auto_select_blank_drag_keeps_multi_selection},
       {"ui_move_ctrl_click_toggles_layer_selection", ui_move_ctrl_click_toggles_layer_selection},
-      {"ui_move_ctrl_click_add_continues_into_drag", ui_move_ctrl_click_add_continues_into_drag},
+      {"ui_move_ctrl_drag_selects_rectangle_without_moving", ui_move_ctrl_drag_selects_rectangle_without_moving},
       {"ui_move_ctrl_click_selects_layer_inside_collapsed_folder",
        ui_move_ctrl_click_selects_layer_inside_collapsed_folder},
       {"ui_shift_constrains_move_tool_drag_to_axis", ui_shift_constrains_move_tool_drag_to_axis},
+      {"ui_move_modifier_clicks_defer_toggles_and_shift_drag_keeps_selection",
+       ui_move_modifier_clicks_defer_toggles_and_shift_drag_keeps_selection},
+      {"ui_move_rectangle_matches_overlap_and_latches_modifiers", ui_move_rectangle_matches_overlap_and_latches_modifiers},
+      {"ui_move_rectangle_uses_content_bounds_and_inherited_eligibility",
+       ui_move_rectangle_uses_content_bounds_and_inherited_eligibility},
+      {"ui_move_rectangle_cancellation_preserves_pixels_selection_and_history",
+       ui_move_rectangle_cancellation_preserves_pixels_selection_and_history},
+      {"ui_move_rectangle_theme_and_passive_handle_priority", ui_move_rectangle_theme_and_passive_handle_priority},
+      {"ui_move_pending_click_cancel_and_empty_document_are_safe", ui_move_pending_click_cancel_and_empty_document_are_safe},
+      {"ui_move_rectangle_reveals_collapsed_and_filtered_layers", ui_move_rectangle_reveals_collapsed_and_filtered_layers},
       {"ui_move_tool_uses_opaque_bounds_for_transparent_layer",
        ui_move_tool_uses_opaque_bounds_for_transparent_layer},
       {"ui_move_preview_keeps_underlying_layers_steady_when_zoomed_out",

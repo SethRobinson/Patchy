@@ -934,7 +934,7 @@ public:
   // The canvas asks the host (the layer panel is the selection's source of
   // truth) to make exactly these layers selected with active_id current; the
   // host pushes the result back through set_selected_layer_ids. Move-tool
-  // Ctrl+click toggling uses this; unset, the canvas applies the selection to
+  // modifier clicks and rectangle selection use this; unset, the canvas applies the selection to
   // itself directly.
   void set_layer_selection_requested_callback(std::function<void(std::vector<LayerId>, LayerId)> callback);
   // Commit of a pending crop rect + box angle (document geometry lives on
@@ -1253,6 +1253,13 @@ private:
   [[nodiscard]] Layer* topmost_text_layer_at(QPoint document_point) const noexcept;
   void activate_layer(Layer& layer);
   void request_layer_selection(std::vector<LayerId> layer_ids, LayerId active_id);
+  void begin_move_drag(const std::vector<LayerId>& layer_ids, QPoint document_point, QPoint widget_point);
+  void begin_move_layer_selection(QMouseEvent* event, const Layer* clicked_layer, bool rectangle_allowed);
+  bool update_move_layer_selection(QMouseEvent* event);
+  void finish_move_layer_selection(QMouseEvent* event);
+  void cancel_move_layer_selection();
+  void draw_move_layer_selection(QPainter& painter) const;
+  [[nodiscard]] QRect move_layer_selection_widget_rect() const;
   [[nodiscard]] QPoint layer_position(const Layer& layer, QPoint document_point) const noexcept;
   [[nodiscard]] QRect widget_rect_for_document_rect(QRect document_rect) const;
   [[nodiscard]] QRectF widget_rect_for_document_rect(QRectF document_rect) const;
@@ -1941,6 +1948,18 @@ private:
   bool drawing_shape_{false};
   bool dragging_text_rect_{false};
   bool move_drag_pending_{false};
+  struct MoveLayerSelectionGesture {
+    QPoint press_widget;
+    QPointF anchor_document;
+    QPointF current_document;
+    std::vector<LayerId> selected_ids;
+    std::optional<LayerId> active_id;
+    std::optional<LayerId> clicked_id;
+    bool rectangle_allowed{false};
+    bool additive{false};
+    bool dragging_rectangle{false};
+  };
+  std::optional<MoveLayerSelectionGesture> move_layer_selection_gesture_;
   bool moving_layer_{false};
   bool transforming_layer_{false};
   bool dragging_transform_{false};

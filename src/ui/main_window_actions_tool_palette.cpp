@@ -429,6 +429,9 @@ QString tool_hotkey_id(CanvasTool tool) {
 // the plain "Name (Key)" tooltip.
 const char* tool_tooltip_detail_source(CanvasTool tool) {
   switch (tool) {
+    case CanvasTool::Move:
+      return "Shift+click or %CTRL%+click toggles layers. %CTRL%+drag selects layers in a rectangle; "
+             "hold Shift before dragging to add. Shift constrains layer movement.";
     case CanvasTool::Pen:
       return "Click to place points, drag for curves. On a path: click a segment to add a "
              "point, click a point to delete it, %ALT%+click converts it, %CTRL% moves points.";
@@ -451,6 +454,9 @@ const char* tool_tooltip_detail_source(CanvasTool tool) {
 // name. Reserved for tools whose workflow the name alone does not explain.
 const char* tool_activation_hint_source(CanvasTool tool) {
   switch (tool) {
+    case CanvasTool::Move:
+      return "Move: Shift+click or %CTRL%+click toggles layers. %CTRL%+drag selects a rectangle; "
+             "Shift adds. Drag selected artwork to move it.";
     case CanvasTool::Pen:
       return "Pen: click to add points, drag for curves. On a path, click a segment to add a "
              "point, click a point to delete it, %ALT%+click converts it, %CTRL%+drag selects or "

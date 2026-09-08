@@ -574,7 +574,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
 
   move_auto_select_check_ = new CheckGlyphBox(tr("Auto-Select"), toolbar);
   move_auto_select_check_->setObjectName(QStringLiteral("moveAutoSelectCheck"));
-  move_auto_select_check_->setToolTip(tr("Automatically select the clicked layer while using Move"));
+  move_auto_select_check_->setToolTip(tr("Select layers by clicking artwork or dragging a rectangle from empty space"));
   move_auto_select_check_->setChecked(canvas_defaults->auto_select_layer());
   add_option_widget(move_auto_select_check_, {CanvasTool::Move});
   connect(move_auto_select_check_, &QCheckBox::toggled, this, [this](bool checked) {

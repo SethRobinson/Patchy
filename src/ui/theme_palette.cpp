@@ -234,6 +234,8 @@ const ThemePalette& dark_palette() {
       .canvas_backdrop = rgb(0x242629),
       .canvas_empty_text = rgb(0xaab0b8),
       .canvas_document_border = rgb(0x5f656e),
+      .canvas_layer_selection_border = rgb(0x5faaff),
+      .canvas_layer_selection_fill = QColor(95, 170, 255, 30),
       .ruler_bar_bg = rgb(0x2a2d31),
       .ruler_corner_bg = rgb(0x23262a),
       .ruler_edge = rgb(0x4e525a),
@@ -507,6 +509,8 @@ const ThemePalette& light_palette() {
     // The document edge has to stay visible against that mid gray rather than
     // becoming the near-white a flip would produce.
     light.canvas_document_border = rgb(0x6e747c);
+    light.canvas_layer_selection_border = rgb(0x246cb0);
+    light.canvas_layer_selection_fill = QColor(36, 108, 176, 30);
     // The smoothing leash is drawn over artwork, not chrome: keep the violet
     // family but deepen it so it reads on light documents.
     light.brush_leash = rgb(0x7a4fd0);
@@ -864,6 +868,8 @@ std::span<const ThemePaletteRole> theme_palette_roles() {
       PATCHY_THEME_ROLE(canvas_backdrop),
       PATCHY_THEME_ROLE(canvas_empty_text),
       PATCHY_THEME_ROLE(canvas_document_border),
+      PATCHY_THEME_ROLE(canvas_layer_selection_border),
+      PATCHY_THEME_ROLE(canvas_layer_selection_fill),
       PATCHY_THEME_ROLE(ruler_bar_bg),
       PATCHY_THEME_ROLE(ruler_corner_bg),
       PATCHY_THEME_ROLE(ruler_edge),

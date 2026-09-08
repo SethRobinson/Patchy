@@ -21,6 +21,7 @@
 #include "ui/qt_geometry.hpp"
 #include "ui/smart_object_render.hpp"
 #include "ui/tool_cursors.hpp"
+#include "ui/theme_palette.hpp"
 
 #include <QApplication>
 #include <QCursor>
@@ -74,6 +75,11 @@ namespace patchy::ui {
 
 namespace {
 
+bool move_layer_has_expensive_style(const Layer& layer) {
+  const auto& style = layer.layer_style();
+  return style.effects_visible && !style.empty();
+}
+
 constexpr std::int64_t kMoveOutlineDirtyAreaThreshold = 4'000'000;
 constexpr std::int64_t kStyledMoveOutlineDirtyAreaThreshold = 1'000'000;
 // The proxy snapshot is downscaled to at most this many pixels (mirrors
@@ -84,6 +90,232 @@ constexpr std::int64_t kMoveProxyMaxPixels = 4'000'000;
 constexpr std::int64_t kMoveProxyLastResortSnapshotArea = 80'000'000;
 
 }  // namespace
+
+void CanvasWidget::begin_move_layer_selection(QMouseEvent* event, const Layer* clicked_layer,
+                                             bool rectangle_allowed) {
+  event->accept();
+  if (document_ == nullptr || event->button() != Qt::LeftButton) {
+    return;
+  }
+  MoveLayerSelectionGesture gesture;
+  gesture.press_widget = event->pos();
+  gesture.anchor_document = document_position_f(event->position());
+  gesture.current_document = gesture.anchor_document;
+  gesture.selected_ids = selected_layer_ids_;
+  gesture.active_id = document_->active_layer_id();
+  if (gesture.selected_ids.empty() && gesture.active_id.has_value()) {
+    gesture.selected_ids.push_back(*gesture.active_id);
+  }
+  if (clicked_layer != nullptr) {
+    gesture.clicked_id = clicked_layer->id();
+  }
+  gesture.rectangle_allowed = rectangle_allowed;
+  gesture.additive = event->modifiers().testFlag(Qt::ShiftModifier);
+  move_layer_selection_gesture_ = std::move(gesture);
+  clear_move_hover_outline();
+}
+
+QRect CanvasWidget::move_layer_selection_widget_rect() const {
+  if (!move_layer_selection_gesture_ || !move_layer_selection_gesture_->dragging_rectangle) {
+    return {};
+  }
+  const auto& gesture = *move_layer_selection_gesture_;
+  return QRectF(widget_position_f(gesture.anchor_document), widget_position_f(gesture.current_document))
+      .normalized().toAlignedRect().adjusted(-2, -2, 2, 2);
+}
+
+bool CanvasWidget::update_move_layer_selection(QMouseEvent* event) {
+  if (!move_layer_selection_gesture_) {
+    return false;
+  }
+  auto& gesture = *move_layer_selection_gesture_;
+  if (!gesture.dragging_rectangle &&
+      (event->pos() - gesture.press_widget).manhattanLength() < QApplication::startDragDistance()) {
+    return true;
+  }
+  if (gesture.rectangle_allowed) {
+    const auto old_rect = move_layer_selection_widget_rect();
+    gesture.dragging_rectangle = true;
+    gesture.current_document = document_position_f(event->position());
+    // Only the rectangle changes while dragging; bounds collection and the
+    // panel round-trip happen once, on release.
+    update(old_rect.united(move_layer_selection_widget_rect()));
+    return true;
+  }
+
+  // Shift-drag adds an unselected target but never removes a selected one.
+  // Once promoted to a move, later Ctrl changes cannot turn it into a box.
+  auto pending = std::move(*move_layer_selection_gesture_);
+  move_layer_selection_gesture_.reset();
+  if (pending.clicked_id.has_value() &&
+      std::find(pending.selected_ids.begin(), pending.selected_ids.end(), *pending.clicked_id) ==
+          pending.selected_ids.end()) {
+    pending.selected_ids.push_back(*pending.clicked_id);
+    request_layer_selection(std::move(pending.selected_ids), *pending.clicked_id);
+  }
+  const auto ids = movable_layer_ids();
+  if (ids.empty()) {
+    return true;
+  }
+  begin_move_drag(ids, document_position(pending.press_widget), pending.press_widget);
+  return false;
+}
+
+void CanvasWidget::finish_move_layer_selection(QMouseEvent* event) {
+  auto gesture = std::move(*move_layer_selection_gesture_);
+  move_layer_selection_gesture_.reset();
+  update();
+  if (document_ == nullptr) {
+    return;
+  }
+  const auto rectangle = gesture.rectangle_allowed &&
+      (gesture.dragging_rectangle ||
+       (event->pos() - gesture.press_widget).manhattanLength() >= QApplication::startDragDistance());
+  auto ids = gesture.selected_ids;
+  auto active = gesture.active_id;
+  if (rectangle) {
+    const auto box = QRectF(gesture.anchor_document, document_position_f(event->position())).normalized()
+                         .intersected(QRectF(0, 0, document_->width(), document_->height()));
+    if (box.isEmpty()) {
+      return;
+    }
+    std::vector<LayerId> matches;
+    const auto collect = [&](const auto& self, const std::vector<Layer>& layers,
+                             LayerLockFlags ancestor_flags) -> void {
+      for (auto it = layers.rbegin(); it != layers.rend(); ++it) {
+        const auto& layer = *it;
+        const auto flags = ancestor_flags | patchy::layer_lock_flags(layer);
+        if (!layer.visible() || layer.opacity() <= 0.0F || (flags & kLayerLockPosition) != kLayerLockNone) {
+          continue;
+        }
+        if (layer.kind() == LayerKind::Group) {
+          self(self, layer.children(), flags);
+        } else if (const auto bounds = move_layer_outline_bounds(layer); bounds.has_value() &&
+                   box.intersects(QRectF(bounds->x, bounds->y, bounds->width, bounds->height))) {
+          matches.push_back(layer.id());
+        }
+      }
+    };
+    collect(collect, std::as_const(*document_).layers(), kLayerLockNone);
+    if (matches.empty()) {
+      return;
+    }
+    if (!gesture.additive) {
+      ids = matches;
+    } else {
+      QSet<LayerId> selected(ids.begin(), ids.end());
+      for (const auto id : matches) {
+        if (!selected.contains(id)) {
+          ids.push_back(id);
+          selected.insert(id);
+        }
+      }
+    }
+    if (!active.has_value() || std::find(ids.begin(), ids.end(), *active) == ids.end()) {
+      active = matches.front();
+    }
+  } else if (gesture.clicked_id.has_value()) {
+    const auto found = std::find(ids.begin(), ids.end(), *gesture.clicked_id);
+    if (found == ids.end()) {
+      ids.push_back(*gesture.clicked_id);
+      active = gesture.clicked_id;
+    } else {
+      if (ids.size() <= 1U) {
+        return;
+      }
+      ids.erase(found);
+      if (!active.has_value() || std::find(ids.begin(), ids.end(), *active) == ids.end()) {
+        active = ids.front();
+      }
+    }
+  } else {
+    return;
+  }
+  request_layer_selection(std::move(ids), *active);
+}
+
+void CanvasWidget::cancel_move_layer_selection() {
+  if (!move_layer_selection_gesture_) {
+    return;
+  }
+  const auto dirty = move_layer_selection_widget_rect();
+  move_layer_selection_gesture_.reset();
+  if (!dirty.isEmpty()) {
+    update(dirty);
+  }
+}
+
+void CanvasWidget::draw_move_layer_selection(QPainter& painter) const {
+  if (!move_layer_selection_gesture_ || !move_layer_selection_gesture_->dragging_rectangle) {
+    return;
+  }
+  const auto& gesture = *move_layer_selection_gesture_;
+  painter.save();
+  QPen pen(theme().canvas_layer_selection_border, 1.0);
+  pen.setCosmetic(true);
+  painter.setPen(pen);
+  painter.setBrush(theme().canvas_layer_selection_fill);
+  painter.drawRect(QRectF(widget_position_f(gesture.anchor_document),
+                         widget_position_f(gesture.current_document)).normalized());
+  painter.restore();
+}
+
+void CanvasWidget::begin_move_drag(const std::vector<LayerId>& layer_ids, QPoint document_point,
+                                   QPoint widget_point) {
+  move_drag_pending_ = true;
+  moving_layer_ = false;
+  move_start_ = document_point;
+  begin_axis_constrained_stroke(QPointF(move_start_));
+  move_press_widget_position_ = widget_point;
+  move_preview_delta_ = QPoint();
+  moving_layers_.clear();
+  moving_layers_use_outline_preview_ = false;
+  move_external_change_during_drag_ = false;
+  // Reuse the retained base/proxy when this press re-drags exactly the
+  // retained selection at the composite level they were built at: the
+  // commit translated the proxy rect and the base never contained the
+  // moving set, so both are current.
+  auto sorted_press_ids = layer_ids;
+  std::sort(sorted_press_ids.begin(), sorted_press_ids.end());
+  if (!retained_move_ids_.empty() && sorted_press_ids == retained_move_ids_ &&
+      preview_composite_level_for_zoom(zoom_) == retained_move_composite_level_ && !move_base_cache_.isNull()) {
+    // Counted only when the press becomes a real drag (the caches build
+    // lazily at the first move, so a plain click skips nothing).
+    move_press_reused_retained_caches_ = true;
+    move_drag_uses_proxy_preview_ = false;
+  } else {
+    move_press_reused_retained_caches_ = false;
+    clear_retained_move_caches();
+  }
+  moving_layers_.reserve(layer_ids.size());
+  // Selected groups were flattened to leaves above, so a style on the folder
+  // itself is invisible to the per-leaf check: fold every styled ancestor's
+  // expense and padding back into each leaf's entry.
+  const auto ancestor_style_info = collect_ancestor_group_style_info(std::as_const(*document_).layers());
+  for (const auto id : layer_ids) {
+    auto* layer = document_->find_layer(id);
+    if (layer != nullptr) {
+      auto expensive_style = move_layer_has_expensive_style(*layer);
+      int ancestor_effect_padding = 0;
+      if (const auto found = ancestor_style_info.find(id); found != ancestor_style_info.end()) {
+        expensive_style = expensive_style || found->second.styled;
+        ancestor_effect_padding = found->second.effect_padding;
+      }
+      moving_layers_.push_back(MovingLayer{id, layer->bounds(), move_layer_outline_bounds(*layer), expensive_style,
+                                           ancestor_effect_padding});
+    }
+  }
+  // The slow-frame latch persists across drags of the same moving set at the
+  // same composite level; a different set or level re-prices from a live
+  // frame. (Must run after the moving_layers_ build: the key hashes it.)
+  if (const auto latch_key = move_live_latch_key(); latch_key != move_live_latch_key_) {
+    move_live_frame_slow_ = false;
+    move_live_latch_key_ = latch_key;
+  }
+  move_preview_patches_.clear();
+  move_preview_patches_delta_.reset();
+  move_preview_patches_scale_level_ = 0;
+}
 
 std::vector<LayerId> CanvasWidget::movable_layer_ids() const {
   std::vector<LayerId> ids;
@@ -139,7 +371,8 @@ std::vector<LayerId> CanvasWidget::movable_layer_ids() const {
 
 std::optional<QRect> CanvasWidget::move_hover_outline_rect_at(QPoint widget_position,
                                                               Qt::KeyboardModifiers modifiers) const {
-  if (document_ == nullptr || tool_ != CanvasTool::Move || moving_layer_ || transforming_layer_ || dragging_transform_ ||
+  if (document_ == nullptr || tool_ != CanvasTool::Move || move_layer_selection_gesture_ ||
+      moving_layer_ || transforming_layer_ || dragging_transform_ ||
       panning_ || dragging_guide_ || creating_guide_ || widget_position_in_ruler(widget_position)) {
     return std::nullopt;
   }

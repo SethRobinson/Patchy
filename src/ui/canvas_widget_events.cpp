@@ -82,11 +82,6 @@ bool render_trace_enabled() noexcept {
   return enabled;
 }
 
-bool move_layer_has_expensive_style(const Layer& layer) {
-  const auto& style = layer.layer_style();
-  return style.effects_visible && !style.empty();
-}
-
 bool tool_supports_off_canvas_brush_strokes(CanvasTool tool) noexcept {
   switch (tool) {
     case CanvasTool::Brush:
@@ -238,6 +233,10 @@ bool CanvasWidget::event(QEvent* event) {
       return true;
     }
     const auto* key_event = static_cast<QKeyEvent*>(event);
+    if (move_layer_selection_gesture_ && key_event->key() == Qt::Key_Escape) {
+      event->accept();
+      return true;
+    }
     if (key_event->modifiers() == Qt::NoModifier &&
         (key_event->key() == Qt::Key_Backspace || key_event->key() == Qt::Key_Delete)) {
       // While a magnetic-lasso trace is live (Backspace pops the last anchor) or guides
@@ -347,6 +346,10 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
   setFocus(Qt::MouseFocusReason);
   last_mouse_position_ = event->pos();
   emit_info_for_widget_position(event->pos());
+  if (event->button() == Qt::LeftButton) {
+    // A new press also retires a pending selection whose release was lost.
+    cancel_move_layer_selection();
+  }
 
   // Right-click on a ruler opens the unit menu (Photoshop's gesture); it must win
   // over the right-button drag-to-pan below.
@@ -618,7 +621,9 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     // Marquee/lasso and brush strokes may begin in the grey area, and the zoom
     // tool zooms toward the nearest frame point when clicked outside the
     // canvas. Other tools discard an out-of-bounds press.
-    const bool allows_off_canvas_press = tool_ == CanvasTool::Marquee ||
+    const bool allows_off_canvas_press = (tool_ == CanvasTool::Move && event->button() == Qt::LeftButton &&
+                                         (auto_select_layer_ || event->modifiers().testFlag(Qt::ControlModifier))) ||
+                                         tool_ == CanvasTool::Marquee ||
                                          tool_ == CanvasTool::EllipticalMarquee ||
                                          tool_ == CanvasTool::Lasso ||
                                          tool_ == CanvasTool::MagneticLasso ||
@@ -777,6 +782,12 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
   }
 
   if (tool_ == CanvasTool::Move) {
+    auto* top_clicked_layer = topmost_move_layer_at(document_point, false);
+    auto* clicked_layer = document_contains(document_point) ? topmost_move_layer_at(document_point, true) : nullptr;
+    if (event->modifiers().testFlag(Qt::ControlModifier)) {
+      begin_move_layer_selection(event, clicked_layer, true);
+      return;
+    }
     const auto passive_transform_rect = move_transform_controls_rect();
     auto passive_handle = TransformHandle::None;
     if (passive_transform_rect.has_value()) {
@@ -798,63 +809,19 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
         return;
       }
     }
-    auto* top_clicked_layer = topmost_move_layer_at(document_point, false);
-    auto* clicked_layer = topmost_move_layer_at(document_point, true);
     Layer* hit_layer = nullptr;
     Layer* transform_controls_layer = nullptr;
     std::vector<LayerId> layer_ids;
-    // Ctrl+click toggles the clicked layer in or out of the multi-selection
-    // (Photoshop binds this to Shift, which Move already uses for the
-    // axis-constrained drag). Works with Auto-Select on or off.
-    const auto ctrl_toggle = (event->modifiers() & Qt::ControlModifier) != 0;
-    if (ctrl_toggle) {
-      if (clicked_layer == nullptr) {
-        // An aimed toggle that missed (or hit only position-locked layers);
-        // not an attempted move, so no error flash.
-        event->accept();
-        return;
-      }
-      // Membership is tested against the panel selection itself, not the
-      // flattened movable set: a leaf inside an already-selected group reads
-      // as unselected and is added alongside the group, because removing a
-      // group by one of its leaves would be ambiguous.
-      const auto already_selected =
-          std::find(selected_layer_ids_.begin(), selected_layer_ids_.end(), clicked_layer->id()) !=
-          selected_layer_ids_.end();
-      if (already_selected) {
-        if (selected_layer_ids_.size() <= 1U) {
-          // Removing the only selected layer would leave a degenerate empty
-          // selection; keep it.
-          event->accept();
-          return;
-        }
-        auto new_ids = selected_layer_ids_;
-        new_ids.erase(std::remove(new_ids.begin(), new_ids.end(), clicked_layer->id()), new_ids.end());
-        auto active_id = new_ids.front();
-        if (const auto current_active = document_->active_layer_id();
-            current_active.has_value() && *current_active != clicked_layer->id()) {
-          active_id = *current_active;
-        }
-        request_layer_selection(std::move(new_ids), active_id);
-        event->accept();
-        return;
-      }
-      auto new_ids = selected_layer_ids_;
-      new_ids.push_back(clicked_layer->id());
-      request_layer_selection(std::move(new_ids), clicked_layer->id());
-      // The selection push above round-tripped through the host, so the
-      // movable set must be recomputed here; the press then continues into a
-      // drag of the whole enlarged selection.
-      layer_ids = movable_layer_ids();
-      if (layer_ids.empty()) {
-        // Everything selected is position-locked. The toggle itself
-        // succeeded; only the drag is unavailable.
-        event->accept();
-        return;
-      }
+    if (event->modifiers().testFlag(Qt::ShiftModifier) && clicked_layer != nullptr) {
+      begin_move_layer_selection(event, clicked_layer, false);
+      return;
+    }
+    if (auto_select_layer_ && clicked_layer == nullptr) {
+      begin_move_layer_selection(event, nullptr, true);
+      return;
     }
     const auto selected_move_layer_ids = movable_layer_ids();
-    if (!ctrl_toggle && auto_select_layer_) {
+    if (auto_select_layer_) {
       hit_layer = clicked_layer;
       const auto hit_selected_layer =
           hit_layer != nullptr && !selected_layer_ids_.empty() &&
@@ -870,10 +837,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
         layer_ids.push_back(hit_layer->id());
         transform_controls_layer = hit_layer;
       }
-      if (hit_layer == nullptr && selected_layer_ids_.size() < 2U && passive_handle == TransformHandle::Move) {
-        layer_ids = selected_move_layer_ids;
-      }
-    } else if (!ctrl_toggle && selected_layer_ids_.size() < 2U) {
+    } else if (selected_layer_ids_.size() < 2U) {
       auto target_id = document_->active_layer_id();
       if (!selected_layer_ids_.empty()) {
         target_id = selected_layer_ids_.front();
@@ -885,7 +849,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
         }
       }
     }
-    if (!ctrl_toggle && show_transform_controls_ && (auto_select_layer_ || selected_layer_ids_.size() < 2U)) {
+    if (show_transform_controls_ && (auto_select_layer_ || selected_layer_ids_.size() < 2U)) {
       if (transform_controls_layer != nullptr) {
         set_move_transform_controls_layer(transform_controls_layer->id());
       } else if (transform_controls_layer == nullptr && passive_transform_rect.has_value() &&
@@ -899,13 +863,13 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
         set_move_transform_controls_layer(std::nullopt);
       }
     }
-    if (!ctrl_toggle && transform_controls_layer == nullptr && passive_transform_rect.has_value() &&
+    if (transform_controls_layer == nullptr && passive_transform_rect.has_value() &&
         passive_handle == TransformHandle::None) {
       set_move_transform_controls_layer(std::nullopt);
       event->accept();
       return;
     }
-    if (!ctrl_toggle && !auto_select_layer_) {
+    if (!auto_select_layer_) {
       layer_ids = selected_move_layer_ids;
     }
     if (layer_ids.empty()) {
@@ -916,59 +880,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       }
       return;
     }
-    move_drag_pending_ = true;
-    moving_layer_ = false;
-    move_start_ = document_point;
-    begin_axis_constrained_stroke(QPointF(move_start_));
-    move_press_widget_position_ = event->pos();
-    move_preview_delta_ = QPoint();
-    moving_layers_.clear();
-    moving_layers_use_outline_preview_ = false;
-    move_external_change_during_drag_ = false;
-    // Reuse the retained base/proxy when this press re-drags exactly the
-    // retained selection at the composite level they were built at: the
-    // commit translated the proxy rect and the base never contained the
-    // moving set, so both are current.
-    auto sorted_press_ids = layer_ids;
-    std::sort(sorted_press_ids.begin(), sorted_press_ids.end());
-    if (!retained_move_ids_.empty() && sorted_press_ids == retained_move_ids_ &&
-        preview_composite_level_for_zoom(zoom_) == retained_move_composite_level_ && !move_base_cache_.isNull()) {
-      // Counted only when the press becomes a real drag (the caches build
-      // lazily at the first move, so a plain click skips nothing).
-      move_press_reused_retained_caches_ = true;
-      move_drag_uses_proxy_preview_ = false;
-    } else {
-      move_press_reused_retained_caches_ = false;
-      clear_retained_move_caches();
-    }
-    moving_layers_.reserve(layer_ids.size());
-    // Selected groups were flattened to leaves above, so a style on the folder
-    // itself is invisible to the per-leaf check: fold every styled ancestor's
-    // expense and padding back into each leaf's entry.
-    const auto ancestor_style_info = collect_ancestor_group_style_info(std::as_const(*document_).layers());
-    for (const auto id : layer_ids) {
-      auto* layer = document_->find_layer(id);
-      if (layer != nullptr) {
-        auto expensive_style = move_layer_has_expensive_style(*layer);
-        int ancestor_effect_padding = 0;
-        if (const auto found = ancestor_style_info.find(id); found != ancestor_style_info.end()) {
-          expensive_style = expensive_style || found->second.styled;
-          ancestor_effect_padding = found->second.effect_padding;
-        }
-        moving_layers_.push_back(MovingLayer{id, layer->bounds(), move_layer_outline_bounds(*layer), expensive_style,
-                                             ancestor_effect_padding});
-      }
-    }
-    // The slow-frame latch persists across drags of the same moving set at the
-    // same composite level; a different set or level re-prices from a live
-    // frame. (Must run after the moving_layers_ build: the key hashes it.)
-    if (const auto latch_key = move_live_latch_key(); latch_key != move_live_latch_key_) {
-      move_live_frame_slow_ = false;
-      move_live_latch_key_ = latch_key;
-    }
-    move_preview_patches_.clear();
-    move_preview_patches_delta_.reset();
-    move_preview_patches_scale_level_ = 0;
+    begin_move_drag(layer_ids, document_point, event->pos());
     return;
   }
 
@@ -1457,6 +1369,17 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     }
     last_mouse_position_ = event->pos();
     return;
+  }
+
+  if (move_layer_selection_gesture_) {
+    if (!event->buttons().testFlag(Qt::LeftButton)) {
+      cancel_move_layer_selection();
+    } else if (update_move_layer_selection(event)) {
+      last_mouse_position_ = event->pos();
+      event->accept();
+      return;
+    }
+    // A promoted Shift-drag processes this same move through the normal path.
   }
 
   const auto document_point = document_position(event->pos());
@@ -2062,6 +1985,12 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
                                requested_box);
     }
     update();
+    return;
+  }
+
+  if (move_layer_selection_gesture_ && event->button() == Qt::LeftButton) {
+    finish_move_layer_selection(event);
+    event->accept();
     return;
   }
 
@@ -2688,6 +2617,12 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
     event->accept();
     return;
   }
+  if (move_layer_selection_gesture_ && event->key() == Qt::Key_Escape) {
+    cancel_move_layer_selection();
+    event->accept();
+    return;
+  }
+
   if (brush_adjust_dragging_ && event->key() == Qt::Key_Escape) {
     end_brush_adjust_drag(false);
     event->accept();
@@ -3073,7 +3008,8 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
     // A nudge under a live stroke or drag would move the layer out from under the
     // gesture's snapshot (the rest of a brush stroke reads originals a pixel off; a Move
     // drag commits pixels and metadata by different deltas). Swallow it until release.
-    const bool gesture_active = painting_ || moving_layer_ || move_drag_pending_ || drawing_shape_ ||
+    const bool gesture_active = move_layer_selection_gesture_.has_value() || painting_ || moving_layer_ ||
+                                move_drag_pending_ || drawing_shape_ ||
                                 dragging_transform_ || selecting_ || lassoing_ || magnetic_lassoing_ ||
                                 moving_selection_ || quick_selecting_ || spot_healing_stroke_active_ ||
                                 patch_tool_dragging_;
@@ -3219,6 +3155,7 @@ bool CanvasWidget::handle_opacity_digit_key(int key, Qt::KeyboardModifiers modif
 }
 
 void CanvasWidget::cancel_pointer_gestures() {
+  cancel_move_layer_selection();
   if (selecting_ || lassoing_ || quick_selecting_ || moving_selection_) {
     restore_selection_before_edit();
   }
