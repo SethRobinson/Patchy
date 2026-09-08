@@ -50,6 +50,7 @@
 #include <QEventLoop>
 #include <QFile>
 #include <QGuiApplication>
+#include <QHelpEvent>
 #include <QImage>
 #include <QInputDialog>
 #include <QLabel>
@@ -64,6 +65,7 @@
 #include <QTest>
 #include <QTextBrowser>
 #include <QTimer>
+#include <QToolTip>
 #include <QTreeWidget>
 #include <QTemporaryDir>
 #include <QTreeWidgetItem>
@@ -261,6 +263,71 @@ void ui_script_palette_unicode_files_and_indexed_png() {
   QFile rgb(base + QStringLiteral("-rgb.png"));
   CHECK(rgb.open(QIODevice::ReadOnly));
   CHECK(static_cast<unsigned char>(rgb.read(26)[25]) != 3);
+}
+
+void ui_palette_panel_named_readout_stays_visible() {
+  patchy::ui::PalettePanel panel;
+  const std::vector<patchy::RgbColor> colors{{230,214,173}, {0,0,0}, {255,255,255}};
+  panel.set_palette(colors, true, {"Bone <white>", "Ink", ""});
+  panel.resize(390, 300);
+  panel.show();
+  QApplication::processEvents();
+  auto* label = panel.findChild<QLabel*>(QStringLiteral("paletteCountLabel"));
+  auto* grid = panel.findChild<QWidget*>(QStringLiteral("paletteSwatchGrid"));
+  auto* copy = panel.findChild<QWidget*>(QStringLiteral("paletteCopyHexButton"));
+  CHECK(label && grid && copy);
+  CHECK(label->isVisibleTo(&panel));
+  CHECK(label->width() >= panel.width() - 20);
+  CHECK(label->height() >= label->fontMetrics().lineSpacing() * 2);
+  CHECK(label->geometry().top() > copy->geometry().bottom());
+  CHECK(label->text() == QStringLiteral("Bone <white>\nIndex 0: #e6d6ad"));
+  QHelpEvent tip(QEvent::ToolTip, QPoint(9,9), grid->mapToGlobal(QPoint(9,9)));
+  QApplication::sendEvent(grid, &tip);
+  CHECK(QToolTip::text().contains(QStringLiteral("Bone &lt;white&gt;")));
+  CHECK(QToolTip::text().contains(QStringLiteral("#E6D6AD")));
+  CHECK(QToolTip::text().contains(QStringLiteral("RGB: 230, 214, 173")));
+  QToolTip::hideText();
+  save_widget_artifact("palette_named_panel", panel);
+
+  // Long labels wrap inside a narrow dock without taking away the code readout.
+  panel.resize(260, 300);
+  panel.set_palette(colors, true, {"A long bead color name that wraps across several lines in a narrow palette panel", "Ink", ""});
+  QApplication::processEvents();
+  CHECK(panel.width() == 260);
+  CHECK(label->width() >= 240);
+  CHECK(label->height() >= label->fontMetrics().lineSpacing() * 3);
+  CHECK(label->geometry().bottom() < grid->parentWidget()->mapTo(&panel, QPoint()).y());
+  QTest::mouseClick(grid, Qt::LeftButton, Qt::NoModifier, QPoint(49,9));
+  QApplication::processEvents();
+  CHECK(label->text() == QStringLiteral("Index 2: #ffffff"));
+  CHECK(label->width() >= 240);
+  panel.set_palette({}, false);
+  CHECK(label->isHidden());
+}
+
+void ui_script_palette_extract_preserves_matching_names() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(run_script(window, R"JS(
+    var d=app.newDocument(8,8);
+    d.setPalette(['#ffffff','#000000','#ffffff','#ff0000'],
+      {enabled:false,names:['Bone','Ink','Duplicate white','Unused red']});
+    d.activeLayer.fill('#ffffff');
+    d.activeLayer.fillRect(0,0,4,8,'#000000');
+    d.activeLayer.fillRect(7,7,1,1,'#fffffe');
+  )JS"));
+  auto* extract = window.findChild<QWidget*>(QStringLiteral("paletteExtractButton"));
+  CHECK(extract);
+  QTest::mouseClick(extract, Qt::LeftButton);
+  CHECK(run_script(window, R"JS(
+    var p=app.activeDocument.getPalette();
+    if(p.colors.length!==3 || p.names[p.colors.indexOf('#ffffff')]!=='Bone' ||
+       p.names[p.colors.indexOf('#000000')]!=='Ink' ||
+       p.names[p.colors.indexOf('#fffffe')]!=='' || p.enabled) throw Error('extracted names');
+    app.activeDocument.undo();
+    p=app.activeDocument.getPalette();
+    if(p.colors.length!==4 || p.names[2]!=='Duplicate white' || p.names[3]!=='Unused red') throw Error('extract undo');
+  )JS"));
 }
 
 void ui_script_palette_named_controls_and_rename() {
@@ -2720,6 +2787,8 @@ std::vector<patchy::test::TestCase> scripting_tests() {
       {"ui_script_palette_validation_and_history", ui_script_palette_validation_and_history},
       {"ui_script_palette_unicode_files_and_indexed_png", ui_script_palette_unicode_files_and_indexed_png},
       {"ui_script_palette_named_controls_and_rename", ui_script_palette_named_controls_and_rename},
+      {"ui_palette_panel_named_readout_stays_visible", ui_palette_panel_named_readout_stays_visible},
+      {"ui_script_palette_extract_preserves_matching_names", ui_script_palette_extract_preserves_matching_names},
       {"ui_script_advanced_brush_pen_pose_and_dab_cancellation",ui_script_advanced_brush_pen_pose_and_dab_cancellation},
       {"ui_script_advanced_brush_native_parity",ui_script_advanced_brush_native_parity},
       {"ui_script_advanced_brush_timing_validation_and_restore",ui_script_advanced_brush_timing_validation_and_restore},

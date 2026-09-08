@@ -318,7 +318,9 @@ PalettePanel::PalettePanel(QWidget* parent) : QWidget(parent) {
   action_row->addStretch(1);
   count_label_ = new QLabel(this);
   count_label_->setObjectName(QStringLiteral("paletteCountLabel"));
-  action_row->addWidget(count_label_);
+  count_label_->setTextFormat(Qt::PlainText);
+  count_label_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+  count_label_->setWordWrap(true);
   copy_button_ = add_tool_button("paletteCopyHexButton", tr("Copy"),
                                  tr("Copy the selected color's hex code to the clipboard"));
   connect(copy_button_, &QToolButton::clicked, this, [this] {
@@ -328,6 +330,9 @@ PalettePanel::PalettePanel(QWidget* parent) : QWidget(parent) {
   });
   action_row->addWidget(copy_button_);
   layout->addLayout(action_row);
+  // A separate full-width row keeps names readable in narrow docks. An ignored
+  // size hint beside the action row's stretch can collapse the label to zero.
+  layout->addWidget(count_label_);
 
   grid_ = new PaletteSwatchGrid(this);
   grid_->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -405,6 +410,7 @@ std::optional<RgbColor> PalettePanel::selected_color() const {
 }
 
 void PalettePanel::update_selection_readout() {
+  count_label_->setVisible(!colors_.empty());
   if (colors_.empty()) {
     count_label_->setText(QString());
     count_label_->setToolTip(QString());
@@ -428,9 +434,6 @@ void PalettePanel::update_selection_readout() {
   if (index >= 0 && static_cast<std::size_t>(index) < names_.size() && !names_[static_cast<std::size_t>(index)].empty()) {
     text = QString::fromUtf8(names_[static_cast<std::size_t>(index)]) + QLatin1Char('\n') + text;
   }
-  count_label_->setTextFormat(Qt::PlainText);
-  count_label_->setWordWrap(true);
-  count_label_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
   count_label_->setText(text);
   count_label_->setToolTip(
       has_duplicate_colors_

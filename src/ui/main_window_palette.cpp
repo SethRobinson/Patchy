@@ -578,15 +578,20 @@ void MainWindow::extract_palette_from_image() {
     return;
   }
   const auto flattened = Compositor().flatten_rgb8(document());
-  const auto exact = patchy::exact_palette_from_pixels(flattened, 256, 0);
+  auto exact = patchy::exact_palette_from_pixels(flattened, 256, 0);
   if (!exact.has_value()) {
     show_status_error(
         tr("The image has more than 256 colors. Use Image > Mode > Indexed (Palette) to optimize it down."));
     return;
   }
   const auto count = static_cast<int>(exact->colors.size());
+  std::vector<std::string> names;
+  names.reserve(exact->colors.size());
+  for (const auto& color : exact->colors) {
+    names.emplace_back(patchy::palette_color_name(std::as_const(document()), color));
+  }
   set_document_palette(std::move(exact->colors), tr("Extract palette"),
-                       tr("Extracted %n color(s) from the image", nullptr, count));
+                       tr("Extracted %n color(s) from the image", nullptr, count), std::move(names));
 }
 
 void MainWindow::load_palette_from_file() {
