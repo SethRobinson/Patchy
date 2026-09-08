@@ -410,7 +410,11 @@ private:
   // refreshes stay in lockstep.
   [[nodiscard]] static std::uint64_t next_palette_revision() noexcept;
   [[nodiscard]] std::vector<RgbColor> displayed_palette_colors();
-  void set_document_palette(std::vector<RgbColor> colors, const QString& undo_label, const QString& status_message);
+  [[nodiscard]] std::vector<std::string> displayed_palette_names();
+  void set_document_palette(std::vector<RgbColor> colors, const QString& undo_label, const QString& status_message,
+                             std::vector<std::string> names = {});
+  void rename_palette_entry(int index);
+  void apply_palette_entry_name(int index, const QString& name);
   void apply_palette_entry_color(int index, RgbColor color, bool remap_pixels, const QString& undo_label);
   void edit_palette_entry(int index);
   void swap_palette_entries(int from_index, int to_index);

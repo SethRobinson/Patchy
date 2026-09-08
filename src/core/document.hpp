@@ -66,6 +66,7 @@ struct DocumentPrintSettings {
 struct DocumentIndexedPalette {
   std::vector<RgbColor> colors;
   std::uint16_t source_bit_depth{0};
+  std::vector<std::string> names{};
 };
 
 // Palettized-editing state: present = palette mode is on and tool writes snap to

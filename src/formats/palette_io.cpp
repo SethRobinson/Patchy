@@ -192,6 +192,13 @@ void require_color_count(std::size_t count) {
         blue > 255) {
       throw std::runtime_error("GIMP palette color entry is invalid");
     }
+    std::string label;
+    std::getline(entry, label);
+    label = trimmed(label);
+    if (label.size() > kMaxPaletteColorNameBytes || label.find('\0') != std::string::npos) {
+      throw std::runtime_error("Palette color name is invalid");
+    }
+    data.names.push_back(std::move(label));
     data.colors.push_back(RgbColor{static_cast<std::uint8_t>(red), static_cast<std::uint8_t>(green),
                                    static_cast<std::uint8_t>(blue)});
     if (data.colors.size() > kMaxColors) {
@@ -451,12 +458,22 @@ std::span<const std::string_view> readable_palette_extensions() noexcept {
 }
 
 std::vector<std::uint8_t> write_palette_bytes(std::span<const RgbColor> colors, PaletteFileFormat format,
-                                              std::string_view name) {
+                                              std::string_view name, std::span<const std::string> names) {
   if (colors.empty()) {
     throw std::runtime_error("Cannot save an empty palette");
   }
   if (colors.size() > kMaxColors) {
     throw std::runtime_error("Palette has more than 256 colors");
+  }
+  // GPL is line-oriented. Refuse line breaks instead of silently changing names
+  // or letting one label inject another palette entry.
+  const auto invalid_name = [](std::string_view value) {
+    return value.size() > kMaxPaletteColorNameBytes || value.find_first_of("\r\n") != std::string_view::npos ||
+           value.find('\0') != std::string_view::npos;
+  };
+  if (format == PaletteFileFormat::Gpl &&
+      (invalid_name(name) || std::any_of(names.begin(), names.end(), invalid_name))) {
+    throw std::runtime_error("Palette names must be single lines of at most 4096 UTF-8 bytes");
   }
 
   std::string text;
@@ -479,9 +496,11 @@ std::vector<std::uint8_t> write_palette_bytes(std::span<const RgbColor> colors, 
       text = "GIMP Palette\nName: ";
       text += name.empty() ? std::string_view{"Patchy Palette"} : name;
       text += "\nColumns: 16\n#\n";
-      for (const auto& color : colors) {
-        text += std::to_string(color.red) + " " + std::to_string(color.green) + " " + std::to_string(color.blue) +
-                "\n";
+      for (std::size_t i = 0; i < colors.size(); ++i) {
+        const auto& color = colors[i];
+        text += std::to_string(color.red) + " " + std::to_string(color.green) + " " + std::to_string(color.blue);
+        if (i < names.size() && !names[i].empty()) { text += "\t" + names[i]; }
+        text += "\n";
       }
       return {text.begin(), text.end()};
     }
@@ -525,8 +544,8 @@ std::vector<std::uint8_t> write_palette_bytes(std::span<const RgbColor> colors, 
 }
 
 void write_palette_file(const std::filesystem::path& path, std::span<const RgbColor> colors,
-                        PaletteFileFormat format, std::string_view name) {
-  const auto bytes = write_palette_bytes(colors, format, name);
+                        PaletteFileFormat format, std::string_view name, std::span<const std::string> names) {
+  const auto bytes = write_palette_bytes(colors, format, name, names);
   std::ofstream file(path, std::ios::binary | std::ios::trunc);
   if (!file) {
     throw std::runtime_error("Could not create palette file");

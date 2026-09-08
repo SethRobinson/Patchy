@@ -64,6 +64,9 @@ constexpr std::uint16_t kImageResourceDisplayInfoFloat = 1077;
 // the file stays a plain RGB PSD everywhere else. Payload, big-endian: magic
 // 'PtcP', u16 version = 1, u16 flags (bit0 = palette mode active), u8 alpha
 // threshold, u8 reserved, u16 color count, then count RGB byte triples.
+// Optional trailing 'Nm01' + count {u16 UTF-8 byte length, bytes} stores labels
+// (at most 4096 bytes each). Old readers ignore the suffix; unnamed files keep
+// their original bytes. A malformed suffix discards names, never valid RGB data.
 constexpr std::uint16_t kImageResourcePatchyPalette = 4210;
 constexpr std::uint32_t kPatchyPaletteMagic = 0x50746350U;  // 'PtcP'
 // Plug-in image resource: 'PtcV', u16 version 1, u16 reserved 0, u32 count,

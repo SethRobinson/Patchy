@@ -569,12 +569,12 @@ std::optional<PaletteConvertSettings> request_palette_convert_settings(
             }
             return bytes;
           }());
-          file_palette = Palette{std::move(data.colors)};
+          file_palette = Palette{std::move(data.colors), std::move(data.names)};
           file_name = QFileInfo(path).fileName();
         } catch (const std::exception& error) {
           QMessageBox::warning(&dialog, QObject::tr("Load Palette"),
                                QObject::tr("Could not load the palette file.\n%1")
-                                   .arg(QString::fromUtf8(error.what())));
+                                   .arg(QObject::tr(error.what())));
           file_palette.reset();
         }
       }

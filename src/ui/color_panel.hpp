@@ -8,6 +8,7 @@
 #include <memory>
 #include <optional>
 #include <vector>
+#include <string>
 
 class QDialog;
 class QWidget;
@@ -57,7 +58,9 @@ inline constexpr const char* kColorPickerPaletteChoiceKey = "palettes/lastPalett
 // opened later): the picker's palette dropdown shows it as "Current palette",
 // defaults to it while palette mode is on, and refreshes it live. MainWindow's
 // refresh_palette_panel pushes this on every palette change.
-void set_color_picker_document_palette(std::vector<QColor> colors, bool palette_mode_active);
+void set_color_picker_document_palette(std::vector<QColor> colors, bool palette_mode_active,
+                                       std::vector<std::string> names = {});
+void set_color_picker_document_palette_name_editor(std::function<void(int, const QString&)> editor);
 
 // Installs the write path for editing the "Current palette" from a picker
 // (dropping or pasting a color onto a palette cell): MainWindow points this at

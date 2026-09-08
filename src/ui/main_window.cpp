@@ -6592,6 +6592,7 @@ MainWindow::~MainWindow() {
   // created after teardown (tests build windows serially) cannot call into a
   // destroyed MainWindow.
   set_color_picker_document_palette_editor({});
+  set_color_picker_document_palette_name_editor({});
   set_color_picker_document_palette({}, false);
   // Detach every canvas from its Document while sessions_ is still intact.
   // Member destruction frees the session Documents BEFORE ~QWidget runs, and
@@ -6677,11 +6678,17 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
       }
     }
     refresh_color_buttons();
-    statusBar()->showMessage(tr("Picked color %1, %2, %3 (%4)")
+    auto message = tr("Picked color %1, %2, %3 (%4)")
                                  .arg(color.red())
                                  .arg(color.green())
                                  .arg(color.blue())
-                                 .arg(color.name(QColor::HexRgb).toUpper()));
+                                 .arg(color.name(QColor::HexRgb).toUpper());
+    if (has_active_document()) {
+      const auto name = palette_color_name(std::as_const(document()),
+          {static_cast<std::uint8_t>(color.red()), static_cast<std::uint8_t>(color.green()), static_cast<std::uint8_t>(color.blue())});
+      if (!name.empty()) { message += QStringLiteral(" | ") + QString::fromUtf8(name.data(), static_cast<qsizetype>(name.size())); }
+    }
+    statusBar()->showMessage(message);
   });
   canvas->set_pen_button_action_callback(
       [this](PenButtonAction action) { handle_pen_button_action(action); });

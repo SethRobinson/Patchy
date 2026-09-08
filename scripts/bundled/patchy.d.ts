@@ -394,6 +394,20 @@ interface PatchyDocument {
   readonly canRedo: boolean;
   /** Throws when the ID is absent from the current document. */
   getLayer(id: string): PatchyLayer;
+  /** Snapshot in export order, including attached palettes when mode is off; null if absent. */
+  getPalette(): {colors: string[]; names: string[]; enabled: boolean; alphaThreshold: number | null; sourceBitDepth: number} | null;
+  /** 1..256 opaque color strings. Metadata only: existing layer pixels are preserved.
+   * enabled defaults true, alphaThreshold defaults 128 (integer 0..255).
+   * names must parallel colors: single lines, at most 4096 UTF-8 bytes each; omitted names clears labels.
+   * Enabled mode constrains tool writes, display and PNG export. Unknown options throw.
+   * enabled:false attaches the colors without the constraint. Undoable; preserves duplicates/order. */
+  setPalette(colors: string[], options?: {enabled?: boolean; alphaThreshold?: number; names?: string[]}): void;
+  /** Loads native palette formats, then applies setPalette with the same options.
+   * Preserves GPL color names unless options.names overrides them. Transparency indexes are not imported. */
+  loadPalette(path: string, options?: {enabled?: boolean; alphaThreshold?: number; names?: string[]}): NonNullable<ReturnType<PatchyDocument["getPalette"]>>;
+  /** Native .pal/.gpl/.hex/.act/.aco writer; GPL preserves color names.
+   * Throws on failure; no history/path/modified change. */
+  savePalette(path: string, name?: string): boolean;
   /** Restore one history step. Call before any edits in this script; false if unavailable. */
   undo(): boolean;
   redo(): boolean;

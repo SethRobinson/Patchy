@@ -12,6 +12,8 @@
 #include <QClipboard>
 #include <QComboBox>
 #include <QConicalGradient>
+#include <QContextMenuEvent>
+#include <QMenu>
 #include <QCursor>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -109,12 +111,18 @@ QPointer<QDialog> g_open_request_picker;
 // shown by every picker's palette dropdown as "Current palette".
 struct DocumentPaletteState {
   std::vector<QColor> colors;
+  std::vector<std::string> names;
   bool mode_active{false};
 };
 
 DocumentPaletteState& document_palette_state() {
   static DocumentPaletteState state;
   return state;
+}
+
+std::function<void(int, const QString&)>& document_palette_name_editor() {
+  static std::function<void(int, const QString&)> editor;
+  return editor;
 }
 
 std::vector<PatchyColorPickerPrivate*>& picker_palette_registry() {
@@ -332,6 +340,9 @@ public:
   // the built-in palettes are read-only (grid drops are rejected for them).
   [[nodiscard]] bool palette_grid_accepts_color_drops() const;
   void write_palette_entry(int index, QColor color);
+  void rename_palette_entry(int index);
+  [[nodiscard]] QString palette_entry_name(int index) const;
+  [[nodiscard]] QString palette_entry_tooltip(int index) const;
   // Edit > Cut/Copy/Paste implementations (see PatchyColorPicker's wrappers).
   QColor copy_color_to_clipboard();
   std::optional<QColor> paste_color_from_clipboard();
@@ -357,6 +368,8 @@ private:
   void populate_palette_combo();
   void select_initial_palette();
   void refresh_palette_grid();
+  void refresh_color_name();
+  [[nodiscard]] std::vector<std::string> names_for_palette_choice(const QString& choice) const;
   void set_current_palette_row_enabled();
   [[nodiscard]] std::vector<QColor> colors_for_palette_choice(const QString& choice) const;
   void run_load_palette_file_action();
@@ -377,6 +390,7 @@ private:
   QComboBox* palette_combo_{nullptr};
   PickerPaletteGrid* palette_grid_{nullptr};
   std::vector<QColor> file_palette_colors_;
+  std::vector<std::string> file_palette_names_;
   QString file_palette_name_;
   QString last_real_palette_choice_{QLatin1String(kPaletteChoiceBasic)};
   ColorPlaneWidget* color_plane_{nullptr};
@@ -392,6 +406,7 @@ private:
   QSpinBox* green_spin_{nullptr};
   QSpinBox* blue_spin_{nullptr};
   QLineEdit* html_edit_{nullptr};
+  QLabel* color_name_label_{nullptr};
   QPushButton* set_custom_button_{nullptr};
   std::array<QPushButton*, kCustomColorCount> custom_buttons_{};
   std::array<QColor, kCustomColorCount> custom_colors_{};
@@ -436,6 +451,17 @@ public:
   }
 
 protected:
+  void contextMenuEvent(QContextMenuEvent* event) override {
+    const auto index = index_at(event->pos());
+    if (index < 0 || !picker_.palette_grid_accepts_color_drops()) { return; }
+    set_selected(index);
+    QMenu menu(this);
+    auto* rename = menu.addAction(picker_.palette_entry_name(index).isEmpty() ? PatchyColorPicker::tr("Set Name")
+                                                                           : PatchyColorPicker::tr("Rename"));
+    rename->setObjectName(QStringLiteral("paletteRenameAction"));
+    QObject::connect(rename, &QAction::triggered, this, [this, index] { picker_.rename_palette_entry(index); });
+    menu.exec(event->globalPos());
+  }
   void paintEvent(QPaintEvent* event) override {
     Q_UNUSED(event);
     QPainter painter(this);
@@ -522,7 +548,8 @@ protected:
       auto* help = static_cast<QHelpEvent*>(event);
       const auto index = index_at(help->pos());
       if (index >= 0) {
-        QToolTip::showText(help->globalPos(), color_tool_tip(colors_[static_cast<std::size_t>(index)]), this);
+        const auto text = picker_.palette_entry_tooltip(index);
+        QToolTip::showText(help->globalPos(), QStringLiteral("<qt>%1</qt>").arg(text.toHtmlEscaped().replace(QLatin1Char('\n'), QStringLiteral("<br>"))), this);
       } else {
         QToolTip::hideText();
       }
@@ -1347,6 +1374,12 @@ void PatchyColorPickerPrivate::build_ui() {
   fields_grid->addWidget(blue_spin_, 2, 4);
   fields_grid->addWidget(new QLabel(PatchyColorPicker::tr("HTML:"), picker_column), 3, 0);
   fields_grid->addWidget(html_edit_, 3, 1, 1, 4);
+  color_name_label_ = new QLabel(picker_column);
+  color_name_label_->setObjectName(QStringLiteral("patchyColorNameLabel"));
+  color_name_label_->setTextFormat(Qt::PlainText);
+  color_name_label_->setWordWrap(true);
+  color_name_label_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+  fields_grid->addWidget(color_name_label_, 4, 0, 1, 5);
   footer_row->addLayout(fields_grid);
   footer_row->addStretch(1);
   picker_layout->addLayout(footer_row);
@@ -1563,6 +1596,7 @@ void PatchyColorPickerPrivate::sync_controls() {
   green_spin_->setValue(color_.green());
   blue_spin_->setValue(color_.blue());
   html_edit_->setText(color_.name(QColor::HexRgb).toUpper());
+  refresh_color_name();
   set_themed_style(*preview_, color_frame_style(color_));
   for (auto* view : live_views_) {
     if (view != nullptr) {
@@ -1638,6 +1672,7 @@ void PatchyColorPickerPrivate::select_initial_palette() {
 }
 
 void PatchyColorPickerPrivate::adopt_loaded_palette_file(const LoadedPaletteFile& loaded) {
+  file_palette_names_ = loaded.names;
   file_palette_colors_.clear();
   file_palette_colors_.reserve(loaded.colors.size());
   for (const auto& color : loaded.colors) {
@@ -1732,11 +1767,64 @@ void PatchyColorPickerPrivate::run_save_palette_file_action() {
     rgb_colors.push_back(RgbColor{static_cast<std::uint8_t>(color.red()), static_cast<std::uint8_t>(color.green()),
                                   static_cast<std::uint8_t>(color.blue())});
   }
-  (void)prompt_save_palette_file(&owner_, rgb_colors);
+  (void)prompt_save_palette_file(&owner_, rgb_colors, names_for_palette_choice(last_real_palette_choice_));
 }
 
 void PatchyColorPickerPrivate::refresh_palette_grid() {
   palette_grid_->set_colors(colors_for_palette_choice(palette_combo_->currentData().toString()));
+  refresh_color_name();
+}
+
+std::vector<std::string> PatchyColorPickerPrivate::names_for_palette_choice(const QString& choice) const {
+  if (choice == QLatin1String(kPaletteChoiceCurrent)) { return document_palette_state().names; }
+  if (choice == QLatin1String(kPaletteChoiceFile)) { return file_palette_names_; }
+  return {};
+}
+
+QString PatchyColorPickerPrivate::palette_entry_name(int index) const {
+  const auto names = names_for_palette_choice(palette_combo_->currentData().toString());
+  return index >= 0 && static_cast<std::size_t>(index) < names.size() ? QString::fromUtf8(names[static_cast<std::size_t>(index)]) : QString();
+}
+
+QString PatchyColorPickerPrivate::palette_entry_tooltip(int index) const {
+  const auto colors = colors_for_palette_choice(palette_combo_->currentData().toString());
+  if (index < 0 || index >= static_cast<int>(colors.size())) { return {}; }
+  const auto color = colors[static_cast<std::size_t>(index)];
+  const auto name = palette_entry_name(index).toUtf8();
+  return palette_color_description({static_cast<std::uint8_t>(color.red()), static_cast<std::uint8_t>(color.green()),
+                                     static_cast<std::uint8_t>(color.blue())}, name.constData());
+}
+
+void PatchyColorPickerPrivate::refresh_color_name() {
+  if (!color_name_label_) { return; }
+  const auto choice = palette_combo_->currentData().toString();
+  const auto colors = colors_for_palette_choice(choice);
+  const auto names = names_for_palette_choice(choice);
+  const auto lookup = [this](const auto& entries, const auto& labels) -> QString {
+    for (std::size_t i = 0; i < entries.size(); ++i) {
+      if (entries[i].rgb() == color_.rgb()) { return i < labels.size() ? QString::fromUtf8(labels[i]) : QString(); }
+    }
+    return {};
+  };
+  auto name = lookup(colors, names);
+  if (name.isEmpty()) { name = lookup(document_palette_state().colors, document_palette_state().names); }
+  color_name_label_->setText(name);
+  color_name_label_->setVisible(!name.isEmpty());
+}
+
+void PatchyColorPickerPrivate::rename_palette_entry(int index) {
+  const auto choice = palette_combo_->currentData().toString();
+  if (!palette_choice_is_editable(choice)) { return; }
+  const auto name = prompt_palette_color_name(&owner_, palette_entry_name(index));
+  if (!name) { return; }
+  if (choice == QLatin1String(kPaletteChoiceFile)) {
+    if (index < 0 || index >= static_cast<int>(file_palette_colors_.size())) { return; }
+    file_palette_names_.resize(file_palette_colors_.size());
+    file_palette_names_[static_cast<std::size_t>(index)] = name->toUtf8().toStdString();
+    refresh_palette_grid();
+  } else if (document_palette_name_editor()) {
+    document_palette_name_editor()(index, *name);
+  }
 }
 
 void PatchyColorPickerPrivate::set_current_palette_row_enabled() {
@@ -1779,6 +1867,7 @@ void PatchyColorPickerPrivate::document_palette_changed(bool palette_mode_turned
   if (palette_combo_->currentData().toString() == QLatin1String(kPaletteChoiceCurrent)) {
     refresh_palette_grid();
   }
+  refresh_color_name();
 }
 
 QColor PatchyColorPickerPrivate::custom_color(int index) const {
@@ -2103,11 +2192,13 @@ std::optional<QColor> request_patchy_color(QWidget* parent, QColor initial, cons
   return normalized_rgb_color(picker->currentColor());
 }
 
-void set_color_picker_document_palette(std::vector<QColor> colors, bool palette_mode_active) {
+void set_color_picker_document_palette(std::vector<QColor> colors, bool palette_mode_active,
+                                       std::vector<std::string> names) {
   auto& state = document_palette_state();
   const bool mode_turned_on = palette_mode_active && !state.mode_active;
   state.colors = std::move(colors);
   state.mode_active = palette_mode_active;
+  state.names = std::move(names);
   for (auto* picker : picker_palette_registry()) {
     picker->document_palette_changed(mode_turned_on);
   }
@@ -2115,6 +2206,10 @@ void set_color_picker_document_palette(std::vector<QColor> colors, bool palette_
 
 void set_color_picker_document_palette_editor(std::function<void(int index, QColor color)> editor) {
   document_palette_editor() = std::move(editor);
+}
+
+void set_color_picker_document_palette_name_editor(std::function<void(int, const QString&)> editor) {
+  document_palette_name_editor() = std::move(editor);
 }
 
 bool apply_color_to_open_color_picker(QColor color) {

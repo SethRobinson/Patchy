@@ -19,6 +19,7 @@ struct PaletteFileData {
   std::vector<RgbColor> colors;
   std::optional<std::uint16_t> transparent_index;
   std::string name;
+  std::vector<std::string> names{};
 };
 
 enum class PaletteFileFormat {
@@ -41,9 +42,11 @@ enum class PaletteFileFormat {
 [[nodiscard]] std::span<const std::string_view> readable_palette_extensions() noexcept;
 
 [[nodiscard]] std::vector<std::uint8_t> write_palette_bytes(std::span<const RgbColor> colors,
-                                                            PaletteFileFormat format, std::string_view name);
+                                                            PaletteFileFormat format, std::string_view name,
+                                                            std::span<const std::string> names = {});
 void write_palette_file(const std::filesystem::path& path, std::span<const RgbColor> colors,
-                        PaletteFileFormat format, std::string_view name);
+                        PaletteFileFormat format, std::string_view name,
+                        std::span<const std::string> names = {});
 
 // Suggested format for a save path's extension; nullopt for unknown extensions.
 [[nodiscard]] std::optional<PaletteFileFormat> palette_format_for_extension(std::string_view extension) noexcept;

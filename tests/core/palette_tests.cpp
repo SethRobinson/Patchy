@@ -43,6 +43,7 @@
 #include "core/contour_presets.hpp"
 #include "core/magnetic_lasso.hpp"
 #include "core/palette.hpp"
+#include "unicode_path_names.hpp"
 #include "core/palette_presets.hpp"
 #include "core/pattern_presets.hpp"
 #include "core/style_contour.hpp"
@@ -761,6 +762,50 @@ void psd_round_trips_palette_resource() {
   CHECK(!corrupt_reread.palette_editing().has_value());
 }
 
+void palette_names_round_trip_gpl_and_psd() {
+  const std::vector<patchy::RgbColor> colors = {{1, 2, 3}, {200, 180, 150}, {1, 2, 3}};
+  const std::vector<std::string> names = {patchy::test::utf8_string(u8"\u9AA8 caf\u00e9"), "", "Duplicate"};
+  const auto bytes = patchy::palette_io::write_palette_bytes(colors, patchy::palette_io::PaletteFileFormat::Gpl, "Beads", names);
+  const auto loaded = patchy::palette_io::read_palette_bytes(bytes);
+  CHECK(loaded.colors == colors);
+  CHECK(loaded.names == names);
+  CHECK(loaded.name == "Beads");
+  bool rejected = false;
+  try {
+    const std::vector<std::string> invalid = {"bad\n255 0 0 injected"};
+    (void)patchy::palette_io::write_palette_bytes(colors, patchy::palette_io::PaletteFileFormat::Gpl, "Beads", invalid);
+  } catch (const std::runtime_error&) { rejected = true; }
+  CHECK(rejected);
+
+  auto document = make_tool_document();
+  patchy::DocumentPaletteEditing editing;
+  editing.palette = patchy::Palette{colors, names};
+  editing.alpha_threshold = 0;
+  document.palette_editing() = editing;
+  patchy::sync_document_indexed_palette(document);
+  CHECK(document.indexed_palette()->names == names);
+  CHECK(patchy::palette_color_name(document, colors[0]) == names[0]);
+  CHECK(patchy::palette_color_name(document, {8, 9, 10}).empty());
+  auto encoded = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto decoded = patchy::psd::DocumentIo::read(encoded);
+  CHECK(decoded.palette_editing()->palette.names == names);
+  CHECK(decoded.palette_editing()->alpha_threshold == 0);
+  CHECK(decoded.indexed_palette()->names == names);
+  document.palette_editing().reset();
+  const auto inactive = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_flat_rgb8(document));
+  CHECK(!inactive.palette_editing());
+  CHECK(inactive.indexed_palette()->names == names);
+  CHECK(patchy::palette_color_name(inactive, colors[0]) == names[0]);
+
+  const std::array<std::uint8_t, 4> marker = {'N', 'm', '0', '1'};
+  auto it = std::search(encoded.begin(), encoded.end(), marker.begin(), marker.end());
+  CHECK(it != encoded.end());
+  *(it + 4) = 0xff; *(it + 5) = 0xff;
+  const auto corrupt = patchy::psd::DocumentIo::read(encoded);
+  CHECK(corrupt.indexed_palette()->colors == colors);
+  CHECK(corrupt.indexed_palette()->names.empty());
+}
+
 void document_palette_editing_copies_and_syncs_indexed_mirror() {
   patchy::Document document(4, 4, patchy::PixelFormat::rgb8());
   CHECK(!document.palette_editing().has_value());
@@ -800,6 +845,7 @@ void document_palette_editing_copies_and_syncs_indexed_mirror() {
 
 std::vector<patchy::test::TestCase> palette_tests() {
   return {
+      {"palette_names_round_trip_gpl_and_psd", palette_names_round_trip_gpl_and_psd},
       {"palette_lut_snaps_within_quantization_bound_and_is_idempotent",
        palette_lut_snaps_within_quantization_bound_and_is_idempotent},
       {"palette_snap_pixel_thresholds_alpha_and_ignores_low_channel_buffers",

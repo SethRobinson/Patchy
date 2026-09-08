@@ -1579,14 +1579,22 @@ void MainWindow::default_colors() {
 void MainWindow::refresh_color_buttons() {
   const auto primary_color = canvas_ != nullptr ? canvas_->primary_color() : QColor(Qt::black);
   const auto secondary_color = canvas_ != nullptr ? canvas_->secondary_color() : QColor(Qt::white);
+  const auto named_tooltip = [this](const QString& text, QColor color) {
+    if (!has_active_document()) { return text; }
+    const auto name = palette_color_name(std::as_const(document()),
+        {static_cast<std::uint8_t>(color.red()), static_cast<std::uint8_t>(color.green()), static_cast<std::uint8_t>(color.blue())});
+    if (name.empty()) { return text; }
+    return QStringLiteral("<qt>%1<br>%2</qt>")
+        .arg(QString::fromUtf8(name.data(), static_cast<qsizetype>(name.size())).toHtmlEscaped(), text.toHtmlEscaped());
+  };
   if (primary_color_button_ != nullptr) {
     primary_color_button_->setText(tr("FG"));
-    primary_color_button_->setToolTip(tr("Foreground color %1").arg(primary_color.name(QColor::HexRgb).toUpper()));
+    primary_color_button_->setToolTip(named_tooltip(tr("Foreground color %1").arg(primary_color.name(QColor::HexRgb).toUpper()), primary_color));
     set_themed_style(*primary_color_button_, color_button_style(primary_color));
   }
   if (secondary_color_button_ != nullptr) {
     secondary_color_button_->setText(tr("BG"));
-    secondary_color_button_->setToolTip(tr("Background color %1").arg(secondary_color.name(QColor::HexRgb).toUpper()));
+    secondary_color_button_->setToolTip(named_tooltip(tr("Background color %1").arg(secondary_color.name(QColor::HexRgb).toUpper()), secondary_color));
     set_themed_style(*secondary_color_button_, color_button_style(secondary_color));
   }
   refresh_text_color_button();

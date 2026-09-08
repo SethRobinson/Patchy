@@ -167,6 +167,10 @@ public:
   Q_INVOKABLE QJSValue renderPreview(const QString& path, const QJSValue& options = QJSValue());
   Q_INVOKABLE bool undo();
   Q_INVOKABLE bool redo();
+  Q_INVOKABLE QJSValue getPalette() const;
+  Q_INVOKABLE void setPalette(const QJSValue& colors, const QJSValue& options = QJSValue());
+  Q_INVOKABLE QJSValue loadPalette(const QString& path, const QJSValue& options = QJSValue());
+  Q_INVOKABLE bool savePalette(const QString& path, const QString& name = QString());
 
   [[nodiscard]] int width() const;
   [[nodiscard]] int height() const;

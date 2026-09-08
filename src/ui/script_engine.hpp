@@ -207,6 +207,8 @@ public:
   // tool-like writes and snap; filters deliberately stay advisory, matching the
   // interactive behavior). No-ops when palette mode is off.
   void palette_snap_buffer(std::int64_t session_id, PixelBuffer& pixels);
+  bool set_session_palette(std::int64_t session_id, std::vector<RgbColor> colors,
+                           bool enabled, std::uint8_t alpha_threshold, std::vector<std::string> names);
   [[nodiscard]] QColor palette_snap_color(std::int64_t session_id, QColor color) const;
 
   // Selection, through the session's canvas.
@@ -404,6 +406,7 @@ private:
   };
 
   struct PendingRefresh {
+    bool palette{false};
     QRegion dirty;
     bool full_canvas{false};
     bool structure{false};

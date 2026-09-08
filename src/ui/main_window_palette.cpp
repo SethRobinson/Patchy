@@ -324,8 +324,35 @@ std::vector<RgbColor> MainWindow::displayed_palette_colors() {
   return {};
 }
 
+std::vector<std::string> MainWindow::displayed_palette_names() {
+  if (!has_active_document()) { return {}; }
+  const auto& doc = std::as_const(document());
+  if (doc.palette_editing()) { return doc.palette_editing()->palette.names; }
+  return doc.indexed_palette() ? doc.indexed_palette()->names : std::vector<std::string>{};
+}
+
+void MainWindow::rename_palette_entry(int index) {
+  const auto colors = displayed_palette_colors();
+  if (index < 0 || index >= static_cast<int>(colors.size())) { return; }
+  const auto names = displayed_palette_names();
+  const auto current = static_cast<std::size_t>(index) < names.size() ? QString::fromUtf8(names[static_cast<std::size_t>(index)]) : QString();
+  if (const auto name = prompt_palette_color_name(this, current)) { apply_palette_entry_name(index, *name); }
+}
+
+void MainWindow::apply_palette_entry_name(int index, const QString& name) {
+  const auto colors = displayed_palette_colors();
+  if (index < 0 || index >= static_cast<int>(colors.size())) { return; }
+  auto names = displayed_palette_names();
+  names.resize(colors.size());
+  const auto utf8 = name.toUtf8();
+  const std::string value(utf8.constData(), static_cast<std::size_t>(utf8.size()));
+  if (names[static_cast<std::size_t>(index)] == value) { return; }
+  names[static_cast<std::size_t>(index)] = value;
+  set_document_palette(colors, tr("Rename palette color"), tr("Palette color name updated"), std::move(names));
+}
+
 void MainWindow::set_document_palette(std::vector<RgbColor> colors, const QString& undo_label,
-                                      const QString& status_message) {
+                                      const QString& status_message, std::vector<std::string> names) {
   if (!has_active_document() || colors.empty()) {
     return;
   }
@@ -336,6 +363,7 @@ void MainWindow::set_document_palette(std::vector<RgbColor> colors, const QStrin
   auto& doc = document();
   if (doc.palette_editing().has_value()) {
     doc.palette_editing()->palette.colors = std::move(colors);
+    doc.palette_editing()->palette.names = std::move(names);
     doc.palette_editing()->palette_revision = next_palette_revision();
     patchy::sync_document_indexed_palette(doc);
     // Replacing the palette under existing art does not repaint pixels; the
@@ -350,7 +378,7 @@ void MainWindow::set_document_palette(std::vector<RgbColor> colors, const QStrin
     // Convert command turns it into the editing constraint).
     const auto count = colors.size();
     const std::uint16_t depth = count <= 4 ? 2 : (count <= 16 ? 4 : 8);
-    doc.indexed_palette() = DocumentIndexedPalette{std::move(colors), depth};
+    doc.indexed_palette() = DocumentIndexedPalette{std::move(colors), depth, std::move(names)};
   }
   refresh_palette_panel();
   statusBar()->showMessage(status_message);
@@ -452,6 +480,9 @@ void MainWindow::swap_palette_entries(int from_index, int to_index) {
   // Pixels reference colors by value, so swapping entries never repaints; it
   // only changes which index each color exports as.
   std::swap((*colors)[static_cast<std::size_t>(from_index)], (*colors)[static_cast<std::size_t>(to_index)]);
+  auto& names = doc.palette_editing() ? doc.palette_editing()->palette.names : doc.indexed_palette()->names;
+  names.resize(colors->size());
+  std::swap(names[static_cast<std::size_t>(from_index)], names[static_cast<std::size_t>(to_index)]);
   if (doc.palette_editing().has_value()) {
     doc.palette_editing()->palette_revision = next_palette_revision();
     patchy::sync_document_indexed_palette(doc);
@@ -518,7 +549,9 @@ void MainWindow::add_palette_entry_from_foreground() {
     return;
   }
   colors.push_back(color);
-  set_document_palette(std::move(colors), tr("Add palette color"), tr("Added the foreground color to the palette"));
+  auto names = displayed_palette_names();
+  names.resize(colors.size());
+  set_document_palette(std::move(colors), tr("Add palette color"), tr("Added the foreground color to the palette"), std::move(names));
 }
 
 void MainWindow::remove_palette_entry(int index) {
@@ -534,7 +567,10 @@ void MainWindow::remove_palette_entry(int index) {
     return;
   }
   colors.erase(colors.begin() + index);
-  set_document_palette(std::move(colors), tr("Remove palette color"), tr("Removed the palette color"));
+  auto names = displayed_palette_names();
+  names.resize(colors.size() + 1);
+  names.erase(names.begin() + index);
+  set_document_palette(std::move(colors), tr("Remove palette color"), tr("Removed the palette color"), std::move(names));
 }
 
 void MainWindow::extract_palette_from_image() {
@@ -561,7 +597,7 @@ void MainWindow::load_palette_from_file() {
     return;
   }
   const auto file_name = loaded->file_name;
-  set_document_palette(std::move(loaded->colors), tr("Load palette"), tr("Loaded palette %1").arg(file_name));
+  set_document_palette(std::move(loaded->colors), tr("Load palette"), tr("Loaded palette %1").arg(file_name), std::move(loaded->names));
 }
 
 void MainWindow::save_palette_to_file() {
@@ -569,7 +605,7 @@ void MainWindow::save_palette_to_file() {
   if (colors.empty()) {
     return;
   }
-  if (const auto saved = prompt_save_palette_file(this, colors); saved.has_value()) {
+  if (const auto saved = prompt_save_palette_file(this, colors, displayed_palette_names()); saved.has_value()) {
     statusBar()->showMessage(tr("Saved palette %1").arg(*saved));
   }
 }
@@ -665,7 +701,7 @@ void MainWindow::convert_document_to_indexed() {
   const auto flattened = Compositor().flatten_rgb8(document());
   std::optional<Palette> current_palette;
   if (auto colors = displayed_palette_colors(); !colors.empty()) {
-    current_palette = Palette{std::move(colors)};
+    current_palette = Palette{std::move(colors), displayed_palette_names()};
   }
   const auto settings = request_palette_convert_settings(this, flattened, current_palette);
   if (!settings.has_value()) {
@@ -888,6 +924,7 @@ void MainWindow::maybe_offer_indexed_palette_adoption() {
 
   DocumentPaletteEditing editing;
   editing.palette.colors = doc.indexed_palette()->colors;
+  editing.palette.names = doc.indexed_palette()->names;
   editing.palette_revision = next_palette_revision();
   doc.palette_editing() = std::move(editing);
   patchy::sync_document_indexed_palette(doc);
@@ -906,7 +943,8 @@ void MainWindow::refresh_palette_panel() {
   }
   const auto colors = displayed_palette_colors();
   const auto mode_active = has_active_document() && document().palette_editing().has_value();
-  palette_panel_->set_palette(colors, mode_active);
+  const auto names = displayed_palette_names();
+  palette_panel_->set_palette(colors, mode_active, names);
   {
     // Publish to the color pickers' palette dropdowns ("Current palette").
     std::vector<QColor> picker_colors;
@@ -914,7 +952,7 @@ void MainWindow::refresh_palette_panel() {
     for (const auto& color : colors) {
       picker_colors.emplace_back(color.red, color.green, color.blue);
     }
-    set_color_picker_document_palette(std::move(picker_colors), mode_active);
+    set_color_picker_document_palette(std::move(picker_colors), mode_active, names);
   }
   std::optional<RgbColor> highlight;
   if (mode_active && canvas_ != nullptr) {
@@ -932,6 +970,7 @@ void MainWindow::refresh_palette_panel() {
     snap_layer_to_palette_action_->setEnabled(mode_active);
   }
   refresh_palette_mode_chip();
+  refresh_color_buttons();
 }
 
 void MainWindow::refresh_palette_mode_chip() {

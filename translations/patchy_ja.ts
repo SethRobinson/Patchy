@@ -11,6 +11,16 @@
 </context>
 <context>
     <name>QObject</name>
+    <message><source>Palette color name is invalid</source><translation>パレットの色名が無効です</translation></message>
+    <message><source>Palette color name is too long</source><translation>パレットの色名が長すぎます</translation></message>
+    <message><source>Palette names must be single lines of at most 4096 UTF-8 bytes</source><translation>パレットの色名は4096 UTF-8バイト以内の1行で指定してください</translation></message>
+    <message><source>%1
+RGB: %2, %3, %4</source><translation>%1
+RGB: %2, %3, %4</translation></message>
+    <message><source>Set Name</source><translation>名前を設定</translation></message>
+    <message><source>Color name (leave empty to clear):</source><translation>色名（空欄で削除）:</translation></message>
+    <message><source>Color name</source><translation>色名</translation></message>
+    <message><source>Use a single line of at most 4096 UTF-8 bytes.</source><translation>4096 UTF-8バイト以内の1行で入力してください。</translation></message>
     <message>
         <source>Layer position is outside the supported range.</source>
         <translation>レイヤーの位置が対応範囲を超えています。</translation>
@@ -7153,6 +7163,8 @@ Mixed selection</source>
 </context>
 <context>
     <name>patchy::ui::MainWindow</name>
+    <message><source>Rename palette color</source><translation>パレットの色名を変更</translation></message>
+    <message><source>Palette color name updated</source><translation>パレットの色名を更新しました</translation></message>
     <message><source>Keep vector artwork sharp when zooming, including in documents with pixel layers. Saved files and exports keep their pixel resolution.</source><translation>ピクセルレイヤーを含むドキュメントでも、拡大時にベクトル画像を鮮明に表示します。保存ファイルと書き出しのピクセル解像度は変わりません。</translation></message>
     <message><source>Dynamic Vector Preview</source><translation>動的ベクトルプレビュー</translation></message>
     <message><source>Put shape layers in a group and apply the vector mask to that group.</source><translation>シェイプレイヤーをグループに入れ、そのグループにベクトルマスクを適用してください。</translation></message>
@@ -14028,6 +14040,8 @@ Clipped to the layer below</source>
 </context>
 <context>
     <name>patchy::ui::PalettePanel</name>
+    <message><source>Set Name</source><translation>名前を設定</translation></message>
+    <message><source>Rename</source><translation>名前を変更</translation></message>
     <message>
         <location filename="../src/ui/palette_panel.cpp" line="-202"/>
         <source>Load a built-in palette</source>
@@ -14148,6 +14162,8 @@ Clipped to the layer below</source>
 </context>
 <context>
     <name>patchy::ui::PatchyColorPicker</name>
+    <message><source>Set Name</source><translation>名前を設定</translation></message>
+    <message><source>Rename</source><translation>名前を変更</translation></message>
     <message>
         <location filename="../src/ui/color_panel.cpp" line="+1567"/>
         <source>Basic colors</source>
@@ -15021,6 +15037,15 @@ Clipped to the layer below</source>
 </context>
 <context>
     <name>patchy::ui::ScriptEngineHost</name>
+    <message><source>Palette names must be single lines of at most 4096 UTF-8 bytes.</source><translation>パレットの色名は4096 UTF-8バイト以内の1行で指定してください。</translation></message>
+    <message><source>A palette needs 1 to 256 opaque colors.</source><translation>パレットには1色から256色の不透明な色を指定してください。</translation></message>
+    <message><source>Palette options must be an object.</source><translation>パレットのオプションはオブジェクトで指定してください。</translation></message>
+    <message><source>Palette alphaThreshold must be an integer from 0 to 255.</source><translation>パレットのalphaThresholdは0から255の整数で指定してください。</translation></message>
+    <message><source>Unknown or invalid palette option: %1</source><translation>不明または無効なパレットオプション: %1</translation></message>
+    <message><source>Could not load palette: %1</source><translation>パレットを読み込めませんでした: %1</translation></message>
+    <message><source>Could not save palette: %1</source><translation>パレットを保存できませんでした: %1</translation></message>
+    <message><source>The document has no palette.</source><translation>ドキュメントにパレットがありません。</translation></message>
+    <message><source>Use .pal, .gpl, .hex, .act, or .aco to save a palette.</source><translation>パレットの保存には.pal、.gpl、.hex、.act、.acoを使用してください。</translation></message>
     <message><source>present needs a delay from 0 to 1000 milliseconds.</source><translation>presentの待機時間は0から1000ミリ秒で指定してください。</translation></message>
     <message><source>Put shape layers in a group and apply the vector mask to that group.</source><translation>シェイプレイヤーをグループに入れ、そのグループにベクトルマスクを適用してください。</translation></message>
     <message><source>Invalid vector option or target: %1.</source><translation>無効なベクターオプションまたは対象です: %1。</translation></message>

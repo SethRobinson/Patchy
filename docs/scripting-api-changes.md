@@ -1,5 +1,16 @@
 # Scripting API compatibility
 
+2026-09-08 (API 1): Documents expose `getPalette`, `setPalette`, `loadPalette`,
+and `savePalette` to scripts and MCP. Set/load preserve existing pixels and
+enable palette-constrained editing and native indexed PNG export by default;
+`enabled:false` keeps an inactive attached table. Native palette file I/O,
+export order, duplicate colors, alpha threshold, and undo are supported.
+Optional parallel `names` arrays preserve GPL color labels and travel through
+PSD and indexed PNG. Palette/picker swatches expose Set Name/Rename; exact RGB
+names appear in palette controls, color pickers and eyedropper readouts.
+MCP discovery advertises `palettes`, `paletteColorNames`, and `indexedPng`.
+See [palette-mode.md](palette-mode.md) and the scripting guide.
+
 2026-09-08 (API 1): Attached MCP discovery survives an absent or closed Patchy.
 Read tools retry attachment; `workspace_unavailable` reports absence and
 `workspace_disconnected` reports an interrupted request with `retrySafe: false`.

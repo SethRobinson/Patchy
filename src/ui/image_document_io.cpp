@@ -23,6 +23,8 @@
 #include "ui/pdf_export.hpp"
 
 #include <QBuffer>
+#include <QJsonArray>
+#include <QJsonDocument>
 #include <QByteArray>
 #include <QColor>
 #include <QImage>
@@ -1461,6 +1463,23 @@ Document document_from_qimage(const QImage& image, std::string layer_name) {
     const auto count = palette.size();
     const std::uint16_t depth = count <= 4 ? 2 : (count <= 16 ? 4 : 8);
     document.indexed_palette() = DocumentIndexedPalette{std::move(palette), depth};
+    // Optional Patchy PNG text metadata. Names are tied to palette order and
+    // never applied to truecolor images or mismatched/malformed tables.
+    const auto text = image.text(QStringLiteral("PatchyPaletteNames"));
+    if (text.size() <= 256 * 6 * static_cast<int>(kMaxPaletteColorNameBytes)) {
+      const auto json = QJsonDocument::fromJson(text.toUtf8());
+      if (json.isArray() && json.array().size() == image.colorCount()) {
+        std::vector<std::string> names;
+        for (const auto& value : json.array()) {
+          const auto utf8 = value.toString().toUtf8();
+          if (!value.isString() || utf8.size() > static_cast<qsizetype>(kMaxPaletteColorNameBytes)) {
+            names.clear(); break;
+          }
+          names.emplace_back(utf8.constData(), static_cast<std::size_t>(utf8.size()));
+        }
+        document.indexed_palette()->names = std::move(names);
+      }
+    }
   }
   return document;
 }
@@ -1767,6 +1786,18 @@ namespace {
 
   QImage indexed(source.width(), source.height(), QImage::Format_Indexed8);
   indexed.setColorTable(table);
+  if (std::any_of(editing.palette.names.begin(), editing.palette.names.end(),
+                  [](const auto& name) { return !name.empty(); })) {
+    QJsonArray names;
+    for (qsizetype i = 0; i < table.size(); ++i) {
+      const auto index = static_cast<std::size_t>(i);
+      const auto name = index < editing.palette.names.size() ? QString::fromUtf8(editing.palette.names[index])
+                                                           : QString();
+      names.append(name);
+    }
+    indexed.setText(QStringLiteral("PatchyPaletteNames"),
+                    QString::fromUtf8(QJsonDocument(names).toJson(QJsonDocument::Compact)));
+  }
   for (int y = 0; y < source.height(); ++y) {
     for (int x = 0; x < source.width(); ++x) {
       const auto pixel = source.pixel(x, y);

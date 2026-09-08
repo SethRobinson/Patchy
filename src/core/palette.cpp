@@ -656,7 +656,19 @@ void sync_document_indexed_palette(Document& document) {
   }
   const auto count = editing->palette.colors.size();
   const std::uint16_t bit_depth = count <= 4 ? 2 : (count <= 16 ? 4 : 8);
-  document.indexed_palette() = DocumentIndexedPalette{editing->palette.colors, bit_depth};
+  document.indexed_palette() = DocumentIndexedPalette{editing->palette.colors, bit_depth, editing->palette.names};
+}
+
+std::string_view palette_color_name(const Document& document, RgbColor color) noexcept {
+  const auto& editing = document.palette_editing();
+  const auto& attached = document.indexed_palette();
+  if (!editing && !attached) { return {}; }
+  const auto& colors = editing ? editing->palette.colors : attached->colors;
+  const auto& names = editing ? editing->palette.names : attached->names;
+  for (std::size_t i = 0; i < colors.size(); ++i) {
+    if (colors[i] == color) { return i < names.size() ? std::string_view(names[i]) : std::string_view{}; }
+  }
+  return {};
 }
 
 }  // namespace patchy

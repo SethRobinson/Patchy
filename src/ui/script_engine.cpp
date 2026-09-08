@@ -1296,6 +1296,7 @@ void ScriptEngineHost::flush_pending_refresh() {
   bool active_structure = false;
   bool active_pixels = false;
   bool active_paths = false;
+  bool active_palette = false;
   for (auto& [session_id, refresh] : pending) {
     auto* session = window_.session_with_id(session_id);
     if (session == nullptr) {
@@ -1311,6 +1312,7 @@ void ScriptEngineHost::flush_pending_refresh() {
     if (session == window_.active_session()) {
       active_structure = active_structure || refresh.structure;
       active_paths = active_paths || refresh.paths;
+      active_palette = active_palette || refresh.palette;
       active_pixels = true;
     }
   }
@@ -1325,6 +1327,10 @@ void ScriptEngineHost::flush_pending_refresh() {
   if (active_pixels) {
     window_.refresh_document_info();
   }
+  if (active_palette) {
+    window_.refresh_palette_panel();
+    window_.schedule_palette_compliance_check();
+  }
   if (active_paths) {
     window_.refresh_layer_controls();
     window_.refresh_paths_panel();
@@ -1334,6 +1340,43 @@ void ScriptEngineHost::flush_pending_refresh() {
 
 // ---------------------------------------------------------------------------
 // Palette-mode write constraint
+
+bool ScriptEngineHost::set_session_palette(std::int64_t session_id, std::vector<RgbColor> colors,
+                                           bool enabled, std::uint8_t alpha_threshold, std::vector<std::string> names) {
+  const auto* before = session_document_const(session_id);
+  if (!before) { return false; }
+  const auto& editing = before->palette_editing();
+  if (enabled && editing && editing->palette.colors == colors && editing->palette.names == names &&
+      editing->alpha_threshold == alpha_threshold) {
+    return true;
+  }
+  if (!enabled && !editing && before->indexed_palette() && before->indexed_palette()->colors == colors &&
+      before->indexed_palette()->names == names) {
+    return true;
+  }
+  if (!prepare_mutation(session_id)) { return false; }
+  auto* document = session_document(session_id);
+  if (!document) { return false; }
+  if (enabled) {
+    DocumentPaletteEditing replacement;
+    replacement.palette.colors = std::move(colors);
+    replacement.palette.names = std::move(names);
+    replacement.alpha_threshold = alpha_threshold;
+    replacement.palette_revision = MainWindow::next_palette_revision();
+    document->palette_editing() = std::move(replacement);
+    sync_document_indexed_palette(*document);
+  } else {
+    const auto count = colors.size();
+    const std::uint16_t depth = count <= 4 ? 2 : (count <= 16 ? 4 : 8);
+    document->indexed_palette() = DocumentIndexedPalette{std::move(colors), depth, std::move(names)};
+    document->palette_editing().reset();
+  }
+  // Metadata only: keep editable layers and derived Smart Object previews intact.
+  // A full refresh invalidates the canvas's cached display quantization in both modes.
+  pending_refresh_[session_id].palette = true;
+  note_structure_changed(session_id);
+  return true;
+}
 
 void ScriptEngineHost::palette_snap_buffer(std::int64_t session_id, PixelBuffer& pixels) {
   const auto* document = session_document_const(session_id);

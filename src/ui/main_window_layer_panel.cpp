@@ -3771,6 +3771,11 @@ void MainWindow::update_canvas_info(CanvasInfoState info) {
                      .arg(color.green(), 2, 16, QLatin1Char('0'))
                      .arg(color.blue(), 2, 16, QLatin1Char('0'))
                      .toUpper();
+    if (has_active_document() && color.alpha() > 0) {
+      const auto name = palette_color_name(std::as_const(document()),
+          {static_cast<std::uint8_t>(color.red()), static_cast<std::uint8_t>(color.green()), static_cast<std::uint8_t>(color.blue())});
+      if (!name.empty()) { color_line = QString::fromUtf8(name.data(), static_cast<qsizetype>(name.size())) + QLatin1Char('\n') + color_line; }
+    }
   }
 
   QString rect_line = tr("Rect: -");
@@ -3784,6 +3789,7 @@ void MainWindow::update_canvas_info(CanvasInfoState info) {
                     .arg(rect.y());
   }
 
+  canvas_info_label_->setTextFormat(Qt::PlainText);
   canvas_info_label_->setText(
       tr("X: %1\nY: %2\n%3\n%4").arg(x_value).arg(y_value).arg(color_line).arg(rect_line));
 }

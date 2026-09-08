@@ -343,6 +343,47 @@ Field types: `number`, `slider`, `checkbox`, `choice`, `text`, `color`, `folder`
 | `doc.close()` | Closes without prompting. |
 | `doc.activate()` | Makes this the active tab. |
 
+### Palettes and indexed PNG
+
+`doc.setPalette(colors, options?)` sets 1 to 256 opaque color strings in export
+order, including duplicates. Options are `enabled` (default `true`) and
+`alphaThreshold` (integer 0 to 255, default 128). Unknown options throw.
+Optional `names` is an array parallel to `colors`; use empty strings for unnamed
+swatches. Labels are single lines of at most 4096 UTF-8 bytes. `setPalette`
+without `names` clears labels; `loadPalette` preserves file labels by default.
+This undoable operation preserves existing layer pixels and editable content.
+Enabled mode snaps tool writes, the display, and PNG export to the palette;
+filters and live effects can still produce off-palette layer pixels.
+`enabled:false` attaches the colors without constraining editing or export.
+
+`doc.getPalette()` returns a detached snapshot with `colors`, `names`, `enabled`,
+`alphaThreshold` (`null` when disabled), and `sourceBitDepth`, or `null` when
+there is no palette. Imported indexed PNG/BMP/GIF palettes are readable even
+when editing mode is off. Source depth describes the attached table, not the
+document's internal RGBA pixel storage.
+
+`doc.loadPalette(path, options?)` uses the native palette reader and applies
+the same options as `setPalette`, returning the resulting palette. It reads
+PAL, GPL, HEX, ACT, ACO, ASE, and indexed BMP. GPL color names are imported;
+format-specific transparency indexes are not. `doc.savePalette(path, name?)` writes
+PAL, GPL, HEX, ACT, or ACO, returning true or throwing on failure. Saving a
+palette does not change document history, path, or modified status.
+Use GPL to preserve color names in a palette file. Names also persist in PSD
+and in Patchy's optional indexed PNG text metadata. Other image editors may
+discard that metadata. Palette controls and eyedropper readouts show exact-match
+names alongside color codes. Right-click editable swatches for Set Name/Rename;
+an empty name clears the label. Document renames are undoable.
+
+```js
+var doc = app.activeDocument;
+doc.loadPalette("beads_palette.gpl");
+doc.saveAs("skeleton_indexed.png"); // Actual indexed PNG, with a color table.
+doc.saveAs("skeleton.psd");         // Editable layers and palette mode retained.
+```
+
+Use `saveAs`/`exportAs` for indexed PNG. `renderPreview` writes a truecolor
+preview. PNG export may reserve one extra palette entry for transparency.
+
 ### Layers
 
 | Member | Meaning |

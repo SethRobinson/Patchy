@@ -16,11 +16,13 @@
 
 #include "core/layer_metadata.hpp"
 #include "formats/document_flatten.hpp"
+#include "formats/palette_io.hpp"
 #include "core/layer_render_utils.hpp"
 #include "core/pixel_tools.hpp"
 #include "ui/main_window.hpp"
 #include "ui/layer_merge.hpp"
 #include "ui/qt_geometry.hpp"
+#include "ui/qt_paths.hpp"
 #include "ui/script_canvas_window.hpp"
 #include "ui/script_engine.hpp"
 
@@ -949,6 +951,157 @@ Document* ScriptDocumentObject::write_document() {
     return nullptr;
   }
   return document;
+}
+
+QJSValue ScriptDocumentObject::getPalette() const {
+  const ScriptApiCall api_call(host_);
+  const auto* document = read_document();
+  if (!document || (!document->palette_editing() && !document->indexed_palette())) {
+    return QJSValue(QJSValue::NullValue);
+  }
+  const auto& editing = document->palette_editing();
+  const auto& colors = editing ? editing->palette.colors : document->indexed_palette()->colors;
+  auto result = host_.engine()->newObject();
+  auto values = host_.engine()->newArray(static_cast<quint32>(colors.size()));
+  for (quint32 i = 0; i < static_cast<quint32>(colors.size()); ++i) {
+    const auto& c = colors[i];
+    values.setProperty(i, QColor(c.red, c.green, c.blue).name());
+  }
+  result.setProperty(QStringLiteral("colors"), values);
+  const auto& names = editing ? editing->palette.names : document->indexed_palette()->names;
+  auto labels = host_.engine()->newArray(static_cast<quint32>(colors.size()));
+  for (quint32 i = 0; i < static_cast<quint32>(colors.size()); ++i) {
+    labels.setProperty(i, i < names.size() ? QString::fromUtf8(names[i]) : QString());
+  }
+  result.setProperty(QStringLiteral("names"), labels);
+  result.setProperty(QStringLiteral("enabled"), editing.has_value());
+  result.setProperty(QStringLiteral("alphaThreshold"), editing ? QJSValue(editing->alpha_threshold)
+                                                              : QJSValue(QJSValue::NullValue));
+  result.setProperty(QStringLiteral("sourceBitDepth"), document->indexed_palette()
+      ? document->indexed_palette()->source_bit_depth : 0);
+  return result;
+}
+
+void ScriptDocumentObject::setPalette(const QJSValue& values, const QJSValue& options) {
+  const ScriptApiCall api_call(host_);
+  if (!read_document()) { return; }
+  const auto count = values.property(QStringLiteral("length")).toUInt();
+  if (!values.isArray() || count == 0 || count > 256) {
+    host_.throw_js_error(ScriptEngineHost::tr("A palette needs 1 to 256 opaque colors."));
+    return;
+  }
+  std::vector<RgbColor> colors;
+  colors.reserve(count);
+  for (quint32 i = 0; i < count; ++i) {
+    const auto value = values.property(i);
+    const QColor color(value.isString() ? value.toString() : QString());
+    if (!color.isValid() || color.alpha() != 255) {
+      host_.throw_js_error(ScriptEngineHost::tr("A palette needs 1 to 256 opaque colors."));
+      return;
+    }
+    colors.push_back({static_cast<std::uint8_t>(color.red()), static_cast<std::uint8_t>(color.green()),
+                      static_cast<std::uint8_t>(color.blue())});
+  }
+  bool enabled = true;
+  int threshold = 128;
+  std::vector<std::string> names;
+  if (!options.isUndefined()) {
+    if (!options.isObject() || options.isArray() || options.isNull()) {
+      host_.throw_js_error(ScriptEngineHost::tr("Palette options must be an object."));
+      return;
+    }
+    QJSValueIterator it(options);
+    while (it.hasNext()) {
+      it.next();
+      if (it.name() == QStringLiteral("names") && it.value().isArray() &&
+          it.value().property(QStringLiteral("length")).toUInt() == count) {
+        for (quint32 i = 0; i < count; ++i) {
+          const auto value = it.value().property(i);
+          const auto name = value.toString().toUtf8();
+          if (!value.isString() || name.size() > static_cast<qsizetype>(kMaxPaletteColorNameBytes) ||
+              name.contains('\n') || name.contains('\r') || name.contains('\0')) {
+            host_.throw_js_error(ScriptEngineHost::tr("Palette names must be single lines of at most 4096 UTF-8 bytes."));
+            return;
+          }
+          names.emplace_back(name.constData(), static_cast<std::size_t>(name.size()));
+        }
+      } else if (it.name() == QStringLiteral("enabled") && it.value().isBool()) {
+        enabled = it.value().toBool();
+      } else if (it.name() == QStringLiteral("alphaThreshold") && it.value().isNumber()) {
+        const auto value = it.value().toNumber();
+        if (!std::isfinite(value) || value < 0 || value > 255 || std::floor(value) != value) {
+          host_.throw_js_error(ScriptEngineHost::tr("Palette alphaThreshold must be an integer from 0 to 255."));
+          return;
+        }
+        threshold = static_cast<int>(value);
+      } else {
+        host_.throw_js_error(ScriptEngineHost::tr("Unknown or invalid palette option: %1").arg(it.name()));
+        return;
+      }
+    }
+  }
+  (void)host_.set_session_palette(session_id_, std::move(colors), enabled, static_cast<std::uint8_t>(threshold),
+                                std::move(names));
+}
+
+QJSValue ScriptDocumentObject::loadPalette(const QString& path, const QJSValue& options) {
+  const ScriptApiCall api_call(host_);
+  if (!read_document()) { return QJSValue(); }
+  palette_io::PaletteFileData loaded;
+  try {
+    loaded = palette_io::read_palette_file(to_filesystem_path(path));
+  } catch (const std::exception& error) {
+    host_.throw_js_error(ScriptEngineHost::tr("Could not load palette: %1").arg(QObject::tr(error.what())));
+    return QJSValue();
+  }
+  auto colors = host_.engine()->newArray(static_cast<quint32>(loaded.colors.size()));
+  for (quint32 i = 0; i < static_cast<quint32>(loaded.colors.size()); ++i) {
+    const auto& c = loaded.colors[i];
+    colors.setProperty(i, QColor(c.red, c.green, c.blue).name());
+  }
+  // Preserve the file's labels unless the caller explicitly supplies replacements.
+  auto effective_options = options;
+  if (effective_options.isUndefined()) { effective_options = host_.engine()->newObject(); }
+  if (effective_options.isObject() && !effective_options.isArray() &&
+      !effective_options.hasProperty(QStringLiteral("names"))) {
+    auto copy = host_.engine()->newObject();
+    QJSValueIterator it(effective_options);
+    while (it.hasNext()) { it.next(); copy.setProperty(it.name(), it.value()); }
+    auto names = host_.engine()->newArray(static_cast<quint32>(loaded.colors.size()));
+    for (quint32 i = 0; i < static_cast<quint32>(loaded.colors.size()); ++i) {
+      names.setProperty(i, i < loaded.names.size() ? QString::fromUtf8(loaded.names[i]) : QString());
+    }
+    copy.setProperty(QStringLiteral("names"), names);
+    effective_options = copy;
+  }
+  setPalette(colors, effective_options);
+  return getPalette();
+}
+
+bool ScriptDocumentObject::savePalette(const QString& path, const QString& name) {
+  const ScriptApiCall api_call(host_);
+  const auto* document = read_document();
+  if (!document) { return false; }
+  if (!document->palette_editing() && !document->indexed_palette()) {
+    host_.throw_js_error(ScriptEngineHost::tr("The document has no palette."));
+    return false;
+  }
+  const auto extension = QFileInfo(path).suffix().toLower().toUtf8();
+  const auto format = palette_io::palette_format_for_extension(extension.constData());
+  if (!format) {
+    host_.throw_js_error(ScriptEngineHost::tr("Use .pal, .gpl, .hex, .act, or .aco to save a palette."));
+    return false;
+  }
+  const auto& editing = document->palette_editing();
+  const auto& colors = editing ? editing->palette.colors : document->indexed_palette()->colors;
+  try {
+    const auto& names = editing ? editing->palette.names : document->indexed_palette()->names;
+    palette_io::write_palette_file(to_filesystem_path(path), colors, *format, name.toUtf8().constData(), names);
+  } catch (const std::exception& error) {
+    host_.throw_js_error(ScriptEngineHost::tr("Could not save palette: %1").arg(QObject::tr(error.what())));
+    return false;
+  }
+  return true;
 }
 
 int ScriptDocumentObject::width() const {

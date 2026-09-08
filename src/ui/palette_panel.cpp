@@ -11,6 +11,9 @@
 #include <QFileInfo>
 #include <QHBoxLayout>
 #include <QImage>
+#include <QHelpEvent>
+#include <QInputDialog>
+#include <QToolTip>
 #include <QLabel>
 #include <QMenu>
 #include <QMessageBox>
@@ -30,6 +33,31 @@
 #include <utility>
 
 namespace patchy::ui {
+
+QString palette_color_description(RgbColor color, std::string_view name) {
+  const auto codes = QObject::tr("%1\nRGB: %2, %3, %4")
+      .arg(QColor(color.red, color.green, color.blue).name().toUpper())
+      .arg(color.red).arg(color.green).arg(color.blue);
+  return name.empty() ? codes : QString::fromUtf8(name.data(), static_cast<qsizetype>(name.size())) + QLatin1Char('\n') + codes;
+}
+
+std::optional<QString> prompt_palette_color_name(QWidget* parent, const QString& current) {
+  QInputDialog dialog(parent);
+  dialog.setObjectName(QStringLiteral("paletteColorNameDialog"));
+  dialog.setWindowTitle(current.isEmpty() ? QObject::tr("Set Name") : QObject::tr("Rename"));
+  dialog.setLabelText(QObject::tr("Color name (leave empty to clear):"));
+  dialog.setTextValue(current);
+  while (exec_dialog(dialog) == QDialog::Accepted) {
+    const auto name = dialog.textValue().trimmed();
+    if (name.toUtf8().size() <= static_cast<qsizetype>(kMaxPaletteColorNameBytes) &&
+        !name.contains(QLatin1Char('\n')) && !name.contains(QLatin1Char('\r')) && !name.contains(QChar(0))) {
+      return name;
+    }
+    QMessageBox::warning(parent, QObject::tr("Color name"),
+                        QObject::tr("Use a single line of at most 4096 UTF-8 bytes."));
+  }
+  return std::nullopt;
+}
 
 namespace {
 
@@ -57,8 +85,9 @@ public:
 
   [[nodiscard]] const std::vector<RgbColor>& colors() const noexcept { return colors_; }
 
-  void set_colors(std::vector<RgbColor> colors) {
+  void set_colors(std::vector<RgbColor> colors, std::vector<std::string> names) {
     colors_ = std::move(colors);
+    names_ = std::move(names);
     const auto previous_selected = selected_;
     if (selected_ >= static_cast<int>(colors_.size())) {
       selected_ = colors_.empty() ? -1 : static_cast<int>(colors_.size()) - 1;
@@ -108,6 +137,19 @@ public:
   [[nodiscard]] QSize minimumSizeHint() const override { return sizeHint(); }
 
 protected:
+  bool event(QEvent* event) override {
+    if (event->type() == QEvent::ToolTip) {
+      const auto* help = static_cast<QHelpEvent*>(event);
+      const auto index = index_at(help->pos());
+      if (index >= 0) {
+        const auto i = static_cast<std::size_t>(index);
+        const auto text = palette_color_description(colors_[i], i < names_.size() ? names_[i] : std::string());
+        QToolTip::showText(help->globalPos(), QStringLiteral("<qt>%1</qt>").arg(text.toHtmlEscaped().replace(QLatin1Char('\n'), QStringLiteral("<br>"))), this);
+      } else { QToolTip::hideText(); }
+      return true;
+    }
+    return QWidget::event(event);
+  }
   void paintEvent(QPaintEvent*) override {
     QPainter painter(this);
     const auto cell = kSwatchSize + kSwatchGap;
@@ -207,6 +249,7 @@ protected:
 private:
   PalettePanel* panel_{nullptr};
   std::vector<RgbColor> colors_;
+  std::vector<std::string> names_;
   std::optional<RgbColor> highlight_;
   std::function<void()> selection_changed_;
   QPoint press_position_;
@@ -320,16 +363,18 @@ PalettePanel::PalettePanel(QWidget* parent) : QWidget(parent) {
   set_palette({}, false);
 }
 
-void PalettePanel::set_palette(const std::vector<RgbColor>& colors, bool mode_active) {
+void PalettePanel::set_palette(const std::vector<RgbColor>& colors, bool mode_active,
+                               const std::vector<std::string>& names) {
   mode_active_ = mode_active;
   colors_ = colors;
+  names_ = names;
   std::unordered_set<std::uint32_t> unique;
   unique.reserve(colors_.size());
   has_duplicate_colors_ = false;
   for (const auto& color : colors_) {
     has_duplicate_colors_ = has_duplicate_colors_ || !unique.insert(palette_color_key(color)).second;
   }
-  grid_->set_colors(colors);
+  grid_->set_colors(colors, names);
   grid_scroll_->setVisible(!colors.empty());
   empty_hint_->setVisible(colors.empty());
   remove_button_->setEnabled(colors.size() > 1);
@@ -380,6 +425,12 @@ void PalettePanel::update_selection_readout() {
   if (has_duplicate_colors_) {
     text += tr(" (duplicates)");
   }
+  if (index >= 0 && static_cast<std::size_t>(index) < names_.size() && !names_[static_cast<std::size_t>(index)].empty()) {
+    text = QString::fromUtf8(names_[static_cast<std::size_t>(index)]) + QLatin1Char('\n') + text;
+  }
+  count_label_->setTextFormat(Qt::PlainText);
+  count_label_->setWordWrap(true);
+  count_label_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
   count_label_->setText(text);
   count_label_->setToolTip(
       has_duplicate_colors_
@@ -394,6 +445,10 @@ void PalettePanel::show_grid_context_menu(const QPoint& grid_position) {
   QMenu menu(this);
   if (index >= 0) {
     menu.addAction(tr("Edit Color..."), this, [this, index] { emit entry_edit_requested(index); });
+    const bool named = static_cast<std::size_t>(index) < names_.size() && !names_[static_cast<std::size_t>(index)].empty();
+    auto* rename = menu.addAction(named ? tr("Rename") : tr("Set Name"), this,
+                                  [this, index] { emit entry_name_requested(index); });
+    rename->setObjectName(QStringLiteral("paletteRenameAction"));
     menu.addAction(tr("Copy Hex Code"), this, [this, index] { emit copy_color_requested(index); });
     auto* remove = menu.addAction(tr("Remove Color"), this, [this, index] { emit remove_entry_requested(index); });
     remove->setEnabled(grid_->color_count() > 1);
@@ -412,7 +467,7 @@ std::optional<LoadedPaletteFile> read_palette_file_quietly(const QString& path) 
     if (data.colors.empty()) {
       return std::nullopt;
     }
-    return LoadedPaletteFile{std::move(data.colors), QFileInfo(path).fileName(), path};
+    return LoadedPaletteFile{std::move(data.colors), QFileInfo(path).fileName(), path, std::move(data.names)};
   } catch (const std::exception&) {
     return std::nullopt;
   }
@@ -434,15 +489,16 @@ std::optional<LoadedPaletteFile> prompt_load_palette_file(QWidget* parent) {
     if (data.colors.empty()) {
       throw std::runtime_error("The palette file contains no colors");
     }
-    return LoadedPaletteFile{std::move(data.colors), QFileInfo(path).fileName(), path};
+    return LoadedPaletteFile{std::move(data.colors), QFileInfo(path).fileName(), path, std::move(data.names)};
   } catch (const std::exception& error) {
     QMessageBox::warning(parent, QObject::tr("Load Palette"),
-                         QObject::tr("Could not load the palette file.\n%1").arg(QString::fromUtf8(error.what())));
+                         QObject::tr("Could not load the palette file.\n%1").arg(QObject::tr(error.what())));
     return std::nullopt;
   }
 }
 
-std::optional<QString> prompt_save_palette_file(QWidget* parent, const std::vector<RgbColor>& colors) {
+std::optional<QString> prompt_save_palette_file(QWidget* parent, const std::vector<RgbColor>& colors,
+                                                const std::vector<std::string>& names) {
   if (colors.empty()) {
     return std::nullopt;
   }
@@ -491,13 +547,13 @@ std::optional<QString> prompt_save_palette_file(QWidget* parent, const std::vect
         throw std::runtime_error("Unsupported palette file extension");
       }
       patchy::palette_io::write_palette_file(to_filesystem_path(path), colors, *format,
-                                             QFileInfo(path).completeBaseName().toStdString());
+                                             QFileInfo(path).completeBaseName().toStdString(), names);
     }
     offer_browser_download_for_saved_file(path);
     return QFileInfo(path).fileName();
   } catch (const std::exception& error) {
     QMessageBox::warning(parent, QObject::tr("Save Palette"),
-                         QObject::tr("Could not save the palette file.\n%1").arg(QString::fromUtf8(error.what())));
+                         QObject::tr("Could not save the palette file.\n%1").arg(QObject::tr(error.what())));
     return std::nullopt;
   }
 }

@@ -1772,6 +1772,7 @@ void MainWindow::create_palette_dock() {
     statusBar()->showMessage(tr("Foreground: palette index %1 (%2)").arg(index).arg(color.name()));
   });
   connect(palette_panel_, &PalettePanel::entry_edit_requested, this, [this](int index) { edit_palette_entry(index); });
+  connect(palette_panel_, &PalettePanel::entry_name_requested, this, [this](int index) { rename_palette_entry(index); });
   connect(palette_panel_, &PalettePanel::entry_swap_requested, this,
           [this](int from_index, int to_index) { swap_palette_entries(from_index, to_index); });
   connect(palette_panel_, &PalettePanel::add_from_foreground_requested, this,
@@ -1823,6 +1824,9 @@ void MainWindow::create_palette_dock() {
                                        static_cast<std::uint8_t>(color.blue())},
                               true, tr("Edit palette entry"));
     statusBar()->showMessage(tr("Palette index %1 set to %2").arg(index).arg(color.name()));
+  });
+  set_color_picker_document_palette_name_editor([this](int index, const QString& name) {
+    apply_palette_entry_name(index, name);
   });
   palette_panel_->setContentsMargins(kRightDockResizeHandleWidth, 0, 0, 0);
   palette_dock_->setWidget(palette_panel_);

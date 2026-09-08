@@ -6,6 +6,8 @@
 #include <functional>
 #include <optional>
 #include <span>
+#include <string>
+#include <string_view>
 #include <unordered_set>
 #include <vector>
 
@@ -19,7 +21,13 @@ class Document;
 // change. See docs/palette-mode.md.
 struct Palette {
   std::vector<RgbColor> colors;
+  // UTF-8 labels parallel to colors; missing/empty entries are unnamed.
+  std::vector<std::string> names{};
 };
+
+inline constexpr std::size_t kMaxPaletteColorNameBytes = 4096;
+// Exact RGB match, first matching index, matching indexed export tie-breaking.
+[[nodiscard]] std::string_view palette_color_name(const Document& document, RgbColor color) noexcept;
 
 [[nodiscard]] std::uint32_t palette_color_key(RgbColor color) noexcept;
 [[nodiscard]] RgbColor palette_color_from_key(std::uint32_t key) noexcept;

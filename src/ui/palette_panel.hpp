@@ -22,6 +22,7 @@ struct LoadedPaletteFile {
   std::vector<RgbColor> colors;
   QString file_name;  // display name, e.g. "sweetie16.gpl"
   QString path;       // absolute path (the picker remembers it across sessions)
+  std::vector<std::string> names{};
 };
 // nullopt = canceled or failed (failures show a warning box on parent).
 [[nodiscard]] std::optional<LoadedPaletteFile> prompt_load_palette_file(QWidget* parent);
@@ -31,7 +32,10 @@ struct LoadedPaletteFile {
 // nullopt = canceled or failed (failures show a warning box on parent); value =
 // the saved file's display name for status messages.
 [[nodiscard]] std::optional<QString> prompt_save_palette_file(QWidget* parent,
-                                                              const std::vector<RgbColor>& colors);
+                                                              const std::vector<RgbColor>& colors,
+                                                              const std::vector<std::string>& names = {});
+[[nodiscard]] std::optional<QString> prompt_palette_color_name(QWidget* parent, const QString& current);
+[[nodiscard]] QString palette_color_description(RgbColor color, std::string_view name = {});
 
 class PaletteSwatchGrid;
 
@@ -48,7 +52,8 @@ public:
   // Replaces the displayed palette. mode_active = the document is in palette
   // (indexed) mode; when false the Convert button is offered instead of the
   // "editing constrained" hint.
-  void set_palette(const std::vector<RgbColor>& colors, bool mode_active);
+  void set_palette(const std::vector<RgbColor>& colors, bool mode_active,
+                   const std::vector<std::string>& names = {});
   // Ring-highlights the entry matching this color (foreground / eyedropper pick).
   void set_highlight_color(std::optional<RgbColor> color);
   [[nodiscard]] int selected_index() const noexcept;
@@ -61,6 +66,7 @@ public:
 signals:
   void entry_clicked(int index);
   void entry_edit_requested(int index);
+  void entry_name_requested(int index);
   void entry_swap_requested(int from_index, int to_index);
   // Copy this entry's hex code to the clipboard (the readout's Copy button and
   // the context menu); MainWindow owns the clipboard write and status message.
@@ -86,6 +92,7 @@ private:
   QToolButton* remove_button_{nullptr};
   QToolButton* copy_button_{nullptr};
   std::vector<RgbColor> colors_;
+  std::vector<std::string> names_;
   bool has_duplicate_colors_{false};
   bool mode_active_{false};
 };

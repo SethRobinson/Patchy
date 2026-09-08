@@ -13,9 +13,13 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include "ui/canvas_widget.hpp"
+#include "ui/color_panel.hpp"
+#include "ui/palette_panel.hpp"
+#include "ui/qt_paths.hpp"
 #include "ui/brush_automation.hpp"
 #include "ui/brush_tip_library.hpp"
 #include "ui/ai_control_paths.hpp"
+#include "ui/app_settings.hpp"
 #include "ui/ai_setup_dialog.hpp"
 #include "ui/localization.hpp"
 #include "ui/main_window.hpp"
@@ -35,6 +39,7 @@
 #include <QCheckBox>
 #include <QClipboard>
 #include <QComboBox>
+#include <QContextMenuEvent>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
@@ -159,6 +164,190 @@ void ui_script_stale_layer_wrapper_throws() {
     console.log('stale-threw=' + threw);
   )JS")));
   CHECK(backlog_contains(window, QStringLiteral("stale-threw=true")));
+}
+
+void ui_script_palette_validation_and_history() {
+  using patchy::ui::MainWindowTestAccess;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(run_script(window, "var d=app.newDocument(8,8);d.activeLayer.fill('#123456');"));
+  const auto depth = MainWindowTestAccess::active_session_undo_depth(window);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var d=app.activeDocument;
+    if(d.getPalette()!==null)throw Error('unexpected palette');
+    d.setPalette(['#000000','#ffffff','#000000'],{names:['Ink','Bone','Duplicate'],alphaThreshold:96});
+    var p=d.getPalette();
+    if(!p.enabled||p.colors[2]!=='#000000'||p.names[1]!=='Bone'||p.alphaThreshold!==96)throw Error('palette metadata');
+    p.colors[0]='#ff0000';p.names[1]='Changed';
+    if(d.getPalette().colors[0]!=='#000000'||d.getPalette().names[1]!=='Bone')throw Error('not detached');
+    var raw=new Uint8Array(d.activeLayer.getPixels().data);
+    if(raw[0]!==18||raw[1]!==52||raw[2]!==86)throw Error('rewrote layer');
+  )JS")));
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+  auto& host = window.script_engine_host();
+  const auto revision = host.session_document_const(host.active_session_id())->palette_editing()->palette_revision;
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var d=app.activeDocument;
+    d.setPalette(['#000000','#ffffff','#000000'],{names:['Ink','Bone','Duplicate'],alphaThreshold:96});
+    var invalid=[[],['transparent'],[17],new Array(257).fill('#000000')];
+    invalid.forEach(function(v){var caught=false;try{d.setPalette(v);}catch(e){caught=true;}if(!caught)throw Error('accepted invalid colors');});
+    [{enabled:'yes'},{typo:true},{alphaThreshold:256},{alphaThreshold:NaN},{alphaThreshold:1.5},
+     {names:['short']},{names:['bad\nname','','']}].forEach(function(o){
+      var caught=false;try{d.setPalette(['#000000','#ffffff','#000000'],o);}catch(e){caught=true;}
+      if(!caught)throw Error('accepted invalid options');
+    });
+  )JS")));
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+  CHECK(run_script(window, "app.activeDocument.undo();if(app.activeDocument.getPalette()!==null)throw Error('undo palette');"));
+  CHECK(run_script(window, "app.activeDocument.redo();app.activeDocument.activeLayer.fill('#eeeeee');"));
+  const auto* doc = host.session_document_const(host.active_session_id());
+  CHECK(doc->layers().front().pixels().pixel(0,0)[0] == 255);
+  CHECK(run_script(window, "var d=app.activeDocument;d.setPalette(['#ff0000'],{enabled:false,names:['Red']});"));
+  CHECK(!host.session_document_const(host.active_session_id())->palette_editing());
+  CHECK(run_script(window, "app.activeDocument.setPalette(['#ffffff'],{names:['Pearl']});"));
+  CHECK(host.session_document_const(host.active_session_id())->palette_editing()->palette_revision > revision);
+}
+
+void ui_script_palette_unicode_files_and_indexed_png() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.set_cli_automation_mode(true);
+  const auto dir = patchy::test::unicode_artifact_dir(u8"script-palette");
+  const auto base = patchy::ui::to_qstring(dir / patchy::test::unicode_path_piece(patchy::test::kUnicodeCombinedStem));
+  auto& host = window.script_engine_host();
+  patchy::ui::ScriptEngineHost::RunOptions options;
+  options.name = QStringLiteral("palette-files");
+  options.args = QStringList{QStringLiteral("base=") + base};
+  CHECK(host.run_source(QStringLiteral(R"JS(
+    var base=patchy.args.base,d=app.newDocument(8,8);
+    var colors=['#ffffff','#000000','#bbaa99','#ffffff'];
+    var names=['Bone 骨 café','Ink','','Duplicate'];
+    d.setPalette(colors,{names:names,alphaThreshold:96});
+    d.activeLayer.fill('transparent');
+    d.activeLayer.fillRect(0,0,4,8,'#ffffff');
+    var path=d.path,modified=d.modified;
+    ['gpl','pal','hex','act','aco'].forEach(function(ext){
+      if(!d.savePalette(base+'.'+ext,'Beads'))throw Error('save palette');
+      var p=d.loadPalette(base+'.'+ext,{enabled:false});
+      if(JSON.stringify(p.colors)!==JSON.stringify(colors))throw Error('color order');
+      if(ext==='gpl'&&JSON.stringify(p.names)!==JSON.stringify(names))throw Error('GPL names');
+      d.setPalette(colors,{names:names,alphaThreshold:96});
+    });
+    if(d.path!==path||d.modified!==modified)throw Error('palette changed file identity');
+    if(!d.saveAs(base+'.psd'))throw Error('PSD save');
+    if(!d.exportAs(base+'.png'))throw Error('PNG export');
+    d.close();
+    var p=app.open(base+'.png').getPalette();
+    if(!p||p.colors.length!==5||p.names[0]!==names[0]||p.names[4]!=='')throw Error('indexed PNG names');
+    app.activeDocument.close();
+    d=app.open(base+'.psd');p=d.getPalette();
+    if(!p.enabled||p.alphaThreshold!==96||JSON.stringify(p.names)!==JSON.stringify(names))throw Error('PSD names');
+    d.setPalette(colors,{names:names,enabled:false});
+    if(!d.saveAs(base+'-rgb.png'))throw Error('RGB export');
+    var caught=false;try{d.loadPalette(base+'-missing.gpl');}catch(e){caught=true;}if(!caught)throw Error('missing palette accepted');
+    caught=false;try{d.savePalette(base+'.bad');}catch(e){caught=true;}if(!caught)throw Error('unsupported format accepted');
+  )JS"), std::move(options)));
+  wait_for_run_end(host);
+  CHECK(!host.last_run_had_error());
+  QFile png(base + QStringLiteral(".png"));
+  CHECK(png.open(QIODevice::ReadOnly));
+  const auto header = png.read(26);
+  CHECK(header.size() == 26 && static_cast<unsigned char>(header[25]) == 3);
+  QImage indexed(base + QStringLiteral(".png"));
+  CHECK(indexed.size() == QSize(8,8));
+  CHECK(indexed.format() == QImage::Format_Indexed8);
+  CHECK(indexed.colorCount() == 5);
+  CHECK(qAlpha(indexed.color(4)) == 0);
+  QFile rgb(base + QStringLiteral("-rgb.png"));
+  CHECK(rgb.open(QIODevice::ReadOnly));
+  CHECK(static_cast<unsigned char>(rgb.read(26)[25]) != 3);
+}
+
+void ui_script_palette_named_controls_and_rename() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(run_script(window, "var d=app.newDocument(128,128);d.setPalette(['#ffffff','#000000'],{names:['','Ink']});d.activeLayer.fill('#ffffff');"));
+  patchy::ui::PatchyColorPicker picker(QColor(Qt::white), &window);
+  picker.resize(600,400);
+  picker.show();
+  auto* grid = window.findChild<QWidget*>(QStringLiteral("paletteSwatchGrid"));
+  auto* picker_grid = picker.findChild<QWidget*>(QStringLiteral("patchyColorPaletteGrid"));
+  auto* label = picker.findChild<QLabel*>(QStringLiteral("patchyColorNameLabel"));
+  auto* readout = window.findChild<QLabel*>(QStringLiteral("paletteCountLabel"));
+  CHECK(grid && picker_grid && label && readout);
+  const auto rename = [&](QWidget* target, const QString& expected_action, const QString& answer, bool accept) {
+    bool saw_menu = false, saw_dialog = false;
+    QTimer::singleShot(0, &window, [&] {
+      auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+      if (!menu) { return; }
+      auto* action = menu->findChild<QAction*>(QStringLiteral("paletteRenameAction"));
+      if (!action) { menu->close(); return; }
+      saw_menu = action->text() == expected_action;
+      QTimer::singleShot(0, &window, [&] {
+        for (auto* widget : QApplication::topLevelWidgets()) {
+          if (auto* dialog = qobject_cast<QInputDialog*>(widget); dialog && dialog->objectName() == QStringLiteral("paletteColorNameDialog")) {
+            saw_dialog = true;
+            dialog->setTextValue(answer);
+            if (accept) { dialog->accept(); } else { dialog->reject(); }
+          }
+        }
+      });
+      action->trigger();
+      menu->close();
+    });
+    QContextMenuEvent context(QContextMenuEvent::Mouse, QPoint(5,5), target->mapToGlobal(QPoint(5,5)));
+    QApplication::sendEvent(target, &context);
+    QApplication::processEvents();
+    CHECK(saw_menu && saw_dialog);
+  };
+  rename(grid, QStringLiteral("Set Name"), QStringLiteral("Bone <white>"), true);
+  CHECK(label->text() == QStringLiteral("Bone <white>"));
+  CHECK(readout->text().contains(QStringLiteral("Bone <white>")) && readout->text().contains(QStringLiteral("#ffffff")));
+  rename(picker_grid, QStringLiteral("Rename"), QStringLiteral("Pearl"), false);
+  CHECK(label->text() == QStringLiteral("Bone <white>"));
+  rename(picker_grid, QStringLiteral("Rename"), QStringLiteral("Pearl"), true);
+  CHECK(label->text() == QStringLiteral("Pearl"));
+  CHECK(run_script(window, "app.activeDocument.undo();"));
+  CHECK(label->text() == QStringLiteral("Bone <white>"));
+  rename(grid, QStringLiteral("Rename"), QString(), true);
+  CHECK(label->text().isEmpty());
+  CHECK(run_script(window, "app.activeDocument.undo();"));
+  picker.setCurrentColor(QColor(2,3,4));
+  CHECK(label->text().isEmpty());
+  picker.setCurrentColor(Qt::white);
+  CHECK(label->text() == QStringLiteral("Bone <white>"));
+  save_widget_artifact("palette_named_picker", picker);
+  picker.hide();
+  auto* canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  canvas->set_tool(patchy::ui::CanvasTool::Eyedropper);
+  const auto point = canvas->widget_position_for_document_point(QPoint(64,64));
+  QTest::mouseMove(canvas, point);
+  QTest::mouseClick(canvas, Qt::LeftButton, Qt::NoModifier, point);
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("Bone <white>")));
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("#FFFFFF")));
+  CHECK(window.findChild<QPushButton*>(QStringLiteral("foregroundColorButton"))->toolTip().contains(QStringLiteral("Bone &lt;white&gt;")));
+  CHECK(window.findChild<QLabel*>(QStringLiteral("canvasInfoLabel"))->text().contains(QStringLiteral("Bone <white>")));
+  // A remembered file palette keeps its own labels and edits them in memory,
+  // without silently attaching or renaming the active document's palette.
+  CHECK(run_script(window, "app.activeDocument.savePalette('test-artifacts/named-picker.gpl','Named');app.newDocument(8,8);"));
+  auto settings = patchy::ui::app_settings();
+  const auto choice_key = QString::fromLatin1(patchy::ui::kColorPickerPaletteChoiceKey);
+  const auto file_key = QStringLiteral("palettes/lastPaletteFile");
+  const auto old_choice = settings.value(choice_key), old_file = settings.value(file_key);
+  const auto restore = qScopeGuard([&] {
+    if (old_choice.isValid()) { settings.setValue(choice_key, old_choice); } else { settings.remove(choice_key); }
+    if (old_file.isValid()) { settings.setValue(file_key, old_file); } else { settings.remove(file_key); }
+  });
+  settings.setValue(choice_key, QStringLiteral("file"));
+  settings.setValue(file_key, QFileInfo(QStringLiteral("test-artifacts/named-picker.gpl")).absoluteFilePath());
+  patchy::ui::PatchyColorPicker file_picker(Qt::white, &window);
+  file_picker.resize(600,400);
+  file_picker.show();
+  auto* file_label = file_picker.findChild<QLabel*>(QStringLiteral("patchyColorNameLabel"));
+  CHECK(file_label && file_label->text() == QStringLiteral("Bone <white>"));
+  rename(file_picker.findChild<QWidget*>(QStringLiteral("patchyColorPaletteGrid")), QStringLiteral("Rename"), QStringLiteral("File pearl"), true);
+  CHECK(file_label->text() == QStringLiteral("File pearl"));
+  CHECK(run_script(window, "if(app.activeDocument.getPalette()!==null)throw Error('file rename changed document');"));
 }
 
 void ui_script_pixels_roundtrip_and_palette_snap() {
@@ -2528,6 +2717,9 @@ void ui_script_advanced_brush_creation_preview_and_psd() {
 
 std::vector<patchy::test::TestCase> scripting_tests() {
   return {
+      {"ui_script_palette_validation_and_history", ui_script_palette_validation_and_history},
+      {"ui_script_palette_unicode_files_and_indexed_png", ui_script_palette_unicode_files_and_indexed_png},
+      {"ui_script_palette_named_controls_and_rename", ui_script_palette_named_controls_and_rename},
       {"ui_script_advanced_brush_pen_pose_and_dab_cancellation",ui_script_advanced_brush_pen_pose_and_dab_cancellation},
       {"ui_script_advanced_brush_native_parity",ui_script_advanced_brush_native_parity},
       {"ui_script_advanced_brush_timing_validation_and_restore",ui_script_advanced_brush_timing_validation_and_restore},

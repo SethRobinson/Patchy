@@ -296,7 +296,8 @@ std::vector<std::uint8_t> grid_guides_resource_for_document(const Document& docu
 }
 
 [[nodiscard]] std::vector<std::uint8_t> patchy_palette_resource(std::span<const RgbColor> colors, bool mode_active,
-                                                                std::uint8_t alpha_threshold) {
+                                                                std::uint8_t alpha_threshold,
+                                                                std::span<const std::string> names) {
   std::vector<std::uint8_t> payload;
   payload.reserve(12U + colors.size() * 3U);
   const auto push_u16 = [&payload](std::uint16_t value) {
@@ -316,6 +317,17 @@ std::vector<std::uint8_t> grid_guides_resource_for_document(const Document& docu
     payload.push_back(color.red);
     payload.push_back(color.green);
     payload.push_back(color.blue);
+  }
+  // Version 1 readers accept trailing bytes. Keep the RGB table compatible and
+  // omit the extension entirely for unnamed palettes (historical bytes unchanged).
+  if (std::any_of(names.begin(), names.end(), [](const auto& name) { return !name.empty(); })) {
+    payload.insert(payload.end(), {'N', 'm', '0', '1'});
+    for (std::size_t i = 0; i < colors.size(); ++i) {
+      const std::string_view name = i < names.size() ? std::string_view(names[i]) : std::string_view{};
+      if (name.size() > kMaxPaletteColorNameBytes) { throw std::runtime_error("Palette color name is too long"); }
+      push_u16(static_cast<std::uint16_t>(name.size()));
+      payload.insert(payload.end(), name.begin(), name.end());
+    }
   }
   return payload;
 }
@@ -658,11 +670,26 @@ void apply_patchy_palette_resource(Document& document, std::span<const std::uint
     colors.push_back(RgbColor{payload[offset], payload[offset + 1U], payload[offset + 2U]});
   }
   const std::uint16_t depth = count <= 4 ? 2 : (count <= 16 ? 4 : 8);
-  document.indexed_palette() = DocumentIndexedPalette{colors, depth};
+  std::vector<std::string> names;
+  auto offset = 12U + static_cast<std::size_t>(count) * 3U;
+  if (payload.size() >= offset + 4U && payload[offset] == 'N' && payload[offset + 1] == 'm' &&
+      payload[offset + 2] == '0' && payload[offset + 3] == '1') {
+    offset += 4;
+    for (std::uint16_t i = 0; i < count; ++i) {
+      if (payload.size() < offset + 2) { names.clear(); break; }
+      const auto size = static_cast<std::size_t>((payload[offset] << 8U) | payload[offset + 1]);
+      offset += 2;
+      if (size > kMaxPaletteColorNameBytes || size > payload.size() - offset) { names.clear(); break; }
+      names.emplace_back(reinterpret_cast<const char*>(payload.data() + offset), size);
+      offset += size;
+    }
+  }
+  document.indexed_palette() = DocumentIndexedPalette{colors, depth, names};
   if ((flags & 1U) != 0U) {
     DocumentPaletteEditing editing;
     editing.palette.colors = std::move(colors);
-    editing.alpha_threshold = alpha_threshold == 0 ? std::uint8_t{128} : alpha_threshold;
+    editing.palette.names = std::move(names);
+    editing.alpha_threshold = alpha_threshold;
     document.palette_editing() = std::move(editing);
   }
 }
@@ -778,20 +805,23 @@ std::vector<std::uint8_t> image_resources_for_document(const Document& document,
   }
   const auto& palette_editing = document.palette_editing();
   const std::vector<RgbColor>* palette_colors = nullptr;
+  const std::vector<std::string>* palette_names = nullptr;
   if (palette_editing.has_value() && !palette_editing->palette.colors.empty() &&
       palette_editing->palette.colors.size() <= 256) {
     palette_colors = &palette_editing->palette.colors;
+    palette_names = &palette_editing->palette.names;
   } else if (document.indexed_palette().has_value() && !document.indexed_palette()->colors.empty() &&
              document.indexed_palette()->colors.size() <= 256) {
     // A palette attached without the editing mode (imports, RGB round trips)
     // still travels with the file.
     palette_colors = &document.indexed_palette()->colors;
+    palette_names = &document.indexed_palette()->names;
   }
   if (palette_colors != nullptr) {
     upsert_image_resource(*parsed, kImageResourcePatchyPalette,
                           patchy_palette_resource(*palette_colors, palette_editing.has_value(),
                                                   palette_editing.has_value() ? palette_editing->alpha_threshold
-                                                                              : std::uint8_t{128}));
+                                                                              : std::uint8_t{128}, *palette_names));
   } else {
     remove_image_resource(*parsed, kImageResourcePatchyPalette);
   }
