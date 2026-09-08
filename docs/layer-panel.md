@@ -44,6 +44,28 @@ folder therefore cannot change the count for the same selected trees.
 `ui_layer_selection_count` covers nesting, overlapping selections, filtering,
 empty folders, script selection, and the optional Little-Everywhere fixture.
 
+## Move-tool layer menu
+
+A right-click on the canvas with Move active opens `canvasMoveLayerContextMenu`
+on release. It lists the hit leaf layers from top to bottom, including occluded
+layers and children of collapsed or filtered folders. Folder paths distinguish
+nested names. Picking a row replaces the layer selection; **Select All Layers
+Here** appears for multiple hits and selects them with the topmost active. This
+works with Auto-Select off. Locks do not prevent explicit selection.
+
+Hit testing reads the const tree once, using raster alpha and masks or the text
+rectangle. Hidden and zero-opacity trees, transparent pixels, and masked-out
+folder contents are excluded. Empty canvas space opens no menu. Selection goes
+through the same panel callback as rectangle selection, revealing its rows and
+updating the count without editing pixels or history.
+
+Small pointer jitter does not pan. Crossing Qt's drag threshold commits to
+right-button panning, even if the pointer returns to its starting position.
+Rulers, tablet-button actions, Space/middle-button panning, and active transform
+sessions keep their existing handling. Tool/document changes and edit locks
+close the popup; focus loss cancels a pending click. The `ui_move_layer_menu`
+tests cover selection, eligibility, panel reveal, and gesture/lifetime behavior.
+
 ## Disclosure arrow, double-click, visibility eye
 
 The folder disclosure arrow (`layerFolderDisclosureButton`) toggles one folder, Alt-click also toggles the folders nested inside it, and Ctrl+Alt-click sets every folder in the document to the clicked folder's toggled state (`MainWindow::toggle_all_layer_folders_expanded`, Photoshop's binding). `QToolButton::clicked` carries no modifiers, so a `ClickModifierRecorder` event filter stores them off the button's own mouse events; the handler defers through `QTimer::singleShot(0)` because the toggle rebuilds the rows. Runtime expand state is the session's `collapsed_layer_groups` set; layer metadata only seeds it at open.

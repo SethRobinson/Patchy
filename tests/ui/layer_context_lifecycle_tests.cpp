@@ -88,6 +88,7 @@
 #include <QDir>
 #include <QDoubleSpinBox>
 #include <QDragEnterEvent>
+#include <QFocusEvent>
 #include <QDragMoveEvent>
 #include <QDropEvent>
 #include <QElapsedTimer>
@@ -199,6 +200,268 @@
 namespace {
 
 using namespace patchy::test::ui;
+
+QMenu* move_layer_menu(patchy::ui::CanvasWidget& canvas) {
+  for (auto* menu : canvas.findChildren<QMenu*>(QStringLiteral("canvasMoveLayerContextMenu"))) {
+    if (menu->isVisible()) {
+      return menu;
+    }
+  }
+  return nullptr;
+}
+
+QMenu* right_click_move_canvas(patchy::ui::CanvasWidget& canvas, QPoint document_point) {
+  const auto point = canvas.widget_position_for_document_point(document_point);
+  send_mouse(canvas, QEvent::MouseButtonPress, point, Qt::RightButton, Qt::RightButton);
+  send_mouse(canvas, QEvent::MouseButtonRelease, point, Qt::RightButton, Qt::NoButton);
+  QApplication::processEvents();
+  return move_layer_menu(canvas);
+}
+
+void click_move_menu_action(QMenu& menu, QAction* action) {
+  CHECK(action != nullptr);
+  const auto point = menu.actionGeometry(action).center();
+  send_mouse(menu, QEvent::MouseButtonPress, point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(menu, QEvent::MouseButtonRelease, point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+}
+
+void ui_move_layer_menu_selects_overlapping_layers_and_reveals_rows() {
+  patchy::Document document(160, 120, patchy::PixelFormat::rgba8());
+  patchy::Layer bottom(document.allocate_layer_id(), "Bottom",
+      solid_pixels(80, 80, patchy::PixelFormat::rgba8(), QColor(Qt::red)));
+  const auto bottom_id = bottom.id();
+  patchy::set_layer_locks_position(bottom, true);
+  document.add_layer(std::move(bottom));
+  patchy::Layer group(document.allocate_layer_id(), "Folder", patchy::LayerKind::Group);
+  group.metadata()[patchy::kLayerMetadataGroupExpanded] = "false";
+  patchy::Layer child(document.allocate_layer_id(), "Ink & Paper",
+      solid_pixels(60, 60, patchy::PixelFormat::rgba8(), QColor(Qt::blue)));
+  const auto child_id = child.id();
+  group.add_child(std::move(child));
+  document.add_layer(std::move(group));
+  patchy::Layer top(document.allocate_layer_id(), "Ink & Paper",
+      solid_pixels(40, 40, patchy::PixelFormat::rgba8(), QColor(Qt::green)));
+  const auto top_id = top.id();
+  document.add_layer(std::move(top));
+  document.set_active_layer(bottom_id);
+
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  window.add_document_session(std::move(document), QStringLiteral("Move Layer Menu"));
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  auto* list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* filter = window.findChild<QLineEdit*>(QStringLiteral("layerNameFilterEdit"));
+  CHECK(list != nullptr && filter != nullptr);
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_auto_select_layer(false);
+  canvas->set_show_transform_controls(true);
+  canvas->set_rulers_visible(false);
+  filter->setText(QStringLiteral("Bottom"));
+  QApplication::processEvents();
+  CHECK(list->count() == 1);
+  const auto undo_depth = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  const auto modified = patchy::ui::MainWindowTestAccess::active_session_is_modified(window);
+
+  auto* menu = right_click_move_canvas(*canvas, QPoint(20, 20));
+  CHECK(menu != nullptr);
+  const auto actions = menu->actions();
+  CHECK(actions.size() == 5); // Three layers, separator, Select All.
+  CHECK(actions[0]->data().toULongLong() == top_id);
+  CHECK(actions[0]->text() == QStringLiteral("Ink && Paper"));
+  CHECK(actions[1]->data().toULongLong() == child_id);
+  CHECK(actions[1]->text() == QStringLiteral("Folder / Ink && Paper"));
+  CHECK(actions[2]->data().toULongLong() == bottom_id);
+  CHECK(actions[2]->isChecked());
+  CHECK(actions[4]->text() == QStringLiteral("Select All Layers Here"));
+  save_widget_artifact("ui_move_layer_menu", *menu);
+  click_move_menu_action(*menu, actions[1]);
+  CHECK(filter->text().isEmpty());
+  CHECK(list->selectedItems().size() == 1);
+  CHECK(list->currentItem()->data(Qt::UserRole).toULongLong() == child_id);
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("1 layer selected"));
+
+  menu = right_click_move_canvas(*canvas, QPoint(20, 20));
+  CHECK(menu != nullptr);
+  CHECK(menu->actions()[1]->isChecked());
+  click_move_menu_action(*menu, menu->findChild<QAction*>(QStringLiteral("moveMenuSelectAllLayersAction")));
+  CHECK(list->selectedItems().size() == 3);
+  CHECK(list->currentItem()->data(Qt::UserRole).toULongLong() == top_id);
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("3 layers selected"));
+
+  menu = right_click_move_canvas(*canvas, QPoint(70, 70));
+  CHECK(menu != nullptr);
+  CHECK(menu->actions().size() == 1);
+  CHECK(menu->actions().front()->data().toULongLong() == bottom_id);
+  click_move_menu_action(*menu, menu->actions().front());
+  CHECK(list->selectedItems().size() == 1);
+  CHECK(list->currentItem()->data(Qt::UserRole).toULongLong() == bottom_id);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_is_modified(window) == modified);
+}
+
+void ui_move_layer_menu_respects_pixels_masks_and_visibility() {
+  patchy::Document document(120, 100, patchy::PixelFormat::rgba8());
+  const auto make_layer = [&](const char* name) {
+    patchy::Layer layer(document.allocate_layer_id(), name,
+        solid_pixels(40, 40, patchy::PixelFormat::rgba8(), QColor(Qt::blue)));
+    layer.set_bounds({20, 20, 40, 40});
+    return layer;
+  };
+  auto bottom = make_layer("Bottom");
+  const auto bottom_id = bottom.id();
+  document.add_layer(std::move(bottom));
+  auto hidden = make_layer("Hidden");
+  hidden.set_visible(false);
+  document.add_layer(std::move(hidden));
+  auto zero = make_layer("Zero opacity");
+  zero.set_opacity(0.0F);
+  document.add_layer(std::move(zero));
+  auto hole = make_layer("Transparent hole");
+  hole.pixels().pixel(5, 5)[3] = 0;
+  document.add_layer(std::move(hole));
+  auto masked = make_layer("Mask hole");
+  patchy::PixelBuffer mask(40, 40, patchy::PixelFormat::gray8());
+  masked.set_mask(patchy::LayerMask{{20, 20, 40, 40}, std::move(mask), 0, false});
+  document.add_layer(std::move(masked));
+  for (int i = 0; i < 3; ++i) {
+    patchy::Layer group(document.allocate_layer_id(), "Excluded folder", patchy::LayerKind::Group);
+    group.add_child(make_layer("Excluded child"));
+    if (i == 0) {
+      group.set_visible(false);
+    } else if (i == 1) {
+      group.set_opacity(0.0F);
+    } else {
+      patchy::PixelBuffer group_mask(40, 40, patchy::PixelFormat::gray8());
+      group.set_mask(patchy::LayerMask{{20, 20, 40, 40}, std::move(group_mask), 0, false});
+    }
+    document.add_layer(std::move(group));
+  }
+  patchy::Layer locked_group(document.allocate_layer_id(), "Locked folder", patchy::LayerKind::Group);
+  patchy::set_layer_locks_position(locked_group, true);
+  auto locked_child = make_layer("Locked child");
+  const auto locked_child_id = locked_child.id();
+  locked_group.add_child(std::move(locked_child));
+  document.add_layer(std::move(locked_group));
+  document.set_active_layer(bottom_id);
+  std::vector<std::uint64_t> revisions;
+  for (const auto& layer : std::as_const(document).layers()) {
+    revisions.push_back(layer.content_revision());
+  }
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(560, 420);
+  canvas.set_document(&document);
+  canvas.set_zoom(2.0);
+  canvas.set_tool(patchy::ui::CanvasTool::Move);
+  canvas.set_rulers_visible(false);
+  canvas.set_show_transform_controls(false);
+  canvas.show();
+  QApplication::processEvents();
+  auto* menu = right_click_move_canvas(canvas, QPoint(25, 25));
+  CHECK(menu != nullptr);
+  CHECK(menu->actions().size() == 4);
+  CHECK(menu->actions()[0]->data().toULongLong() == locked_child_id);
+  CHECK(menu->actions()[1]->data().toULongLong() == bottom_id);
+  send_key(*menu, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(document.active_layer_id() == bottom_id);
+  CHECK(move_layer_menu(canvas) == nullptr);
+  CHECK(right_click_move_canvas(canvas, QPoint(90, 80)) == nullptr);
+  CHECK(right_click_move_canvas(canvas, QPoint(-10, 40)) == nullptr);
+  std::size_t index = 0;
+  for (const auto& layer : std::as_const(document).layers()) {
+    CHECK(layer.content_revision() == revisions[index++]);
+  }
+}
+
+void ui_move_layer_menu_preserves_pan_and_cancels_stale_clicks() {
+  patchy::Document document(1000, 800, patchy::PixelFormat::rgba8());
+  const auto bottom_id = document.add_pixel_layer("Bottom",
+      solid_pixels(1000, 800, patchy::PixelFormat::rgba8(), QColor(Qt::red))).id();
+  document.add_pixel_layer("Top",
+      solid_pixels(1000, 800, patchy::PixelFormat::rgba8(), QColor(Qt::blue)));
+  document.set_active_layer(bottom_id);
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(560, 420);
+  canvas.set_document(&document);
+  canvas.set_zoom(1.0);
+  canvas.set_tool(patchy::ui::CanvasTool::Move);
+  canvas.set_rulers_visible(false);
+  canvas.set_show_transform_controls(false);
+  canvas.show();
+  QApplication::processEvents();
+  const auto start = canvas.widget_position_for_document_point(QPoint(500, 400));
+  const auto origin = canvas.widget_position_for_document_point(QPoint());
+  send_mouse(canvas, QEvent::MouseButtonPress, start, Qt::RightButton, Qt::RightButton);
+  CHECK(move_layer_menu(canvas) == nullptr);
+  send_mouse(canvas, QEvent::MouseMove, start + QPoint(1, 0), Qt::NoButton, Qt::RightButton);
+  CHECK(canvas.widget_position_for_document_point(QPoint()) == origin);
+  send_mouse(canvas, QEvent::MouseButtonRelease, start + QPoint(1, 0), Qt::RightButton, Qt::NoButton);
+  CHECK(move_layer_menu(canvas) != nullptr);
+  move_layer_menu(canvas)->close();
+  QApplication::processEvents();
+
+  send_mouse(canvas, QEvent::MouseButtonPress, start, Qt::RightButton, Qt::RightButton);
+  send_mouse(canvas, QEvent::MouseMove, start + QPoint(40, 30), Qt::NoButton, Qt::RightButton);
+  CHECK(canvas.widget_position_for_document_point(QPoint()) == origin + QPoint(40, 30));
+  send_mouse(canvas, QEvent::MouseMove, start, Qt::NoButton, Qt::RightButton);
+  send_mouse(canvas, QEvent::MouseButtonRelease, start, Qt::RightButton, Qt::NoButton);
+  CHECK(move_layer_menu(canvas) == nullptr);
+
+  canvas.set_tool(patchy::ui::CanvasTool::Pan);
+  CHECK(right_click_move_canvas(canvas, QPoint(500, 400)) == nullptr);
+  canvas.set_tool(patchy::ui::CanvasTool::Move);
+  send_key_press(canvas, Qt::Key_Space);
+  CHECK(right_click_move_canvas(canvas, QPoint(500, 400)) == nullptr);
+  send_key_release(canvas, Qt::Key_Space);
+  CHECK(canvas.begin_free_transform());
+  CHECK(right_click_move_canvas(canvas, QPoint(500, 400)) == nullptr);
+  CHECK(canvas.free_transform_active());
+  canvas.cancel_free_transform();
+
+  // Context clicks are cancelled by focus/tool/lock/document changes, and an
+  // already-open menu must not select a stale target after those changes.
+  for (int scenario = 0; scenario < 4; ++scenario) {
+    canvas.set_document(&document);
+    canvas.set_tool(patchy::ui::CanvasTool::Move);
+    canvas.set_edit_locked(false);
+    canvas.set_zoom(1.0);
+    const auto point = canvas.widget_position_for_document_point(QPoint(500, 400));
+    send_mouse(canvas, QEvent::MouseButtonPress, point, Qt::RightButton, Qt::RightButton);
+    if (scenario == 0) {
+      QFocusEvent focus(QEvent::FocusOut);
+      QApplication::sendEvent(&canvas, &focus);
+    } else if (scenario == 1) {
+      canvas.set_tool(patchy::ui::CanvasTool::Brush);
+    } else if (scenario == 2) {
+      canvas.set_edit_locked(true);
+    } else {
+      canvas.set_document(nullptr);
+    }
+    send_mouse(canvas, QEvent::MouseButtonRelease, point, Qt::RightButton, Qt::NoButton);
+    CHECK(move_layer_menu(canvas) == nullptr);
+  }
+  for (int scenario = 0; scenario < 3; ++scenario) {
+    canvas.set_document(&document);
+    canvas.set_tool(patchy::ui::CanvasTool::Move);
+    canvas.set_edit_locked(false);
+    auto* menu = right_click_move_canvas(canvas, QPoint(500, 400));
+    CHECK(menu != nullptr);
+    auto* stale_action = menu->actions().front();
+    if (scenario == 0) {
+      canvas.set_tool(patchy::ui::CanvasTool::Brush);
+    } else if (scenario == 1) {
+      canvas.set_edit_locked(true);
+    } else {
+      canvas.set_document(nullptr);
+    }
+    stale_action->trigger();
+    CHECK(move_layer_menu(canvas) == nullptr);
+    CHECK(document.active_layer_id() == bottom_id);
+    QApplication::processEvents();
+  }
+}
 
 void ui_layer_style_color_overlay_patch_double_click_opens_picker() {
   // The Color Overlay page's color patch is a passive QLabel next to the Choose
@@ -1963,6 +2226,12 @@ void ui_document_tab_context_menu_file_actions() {
 
 std::vector<patchy::test::TestCase> layer_context_lifecycle_tests() {
   return {
+      {"ui_move_layer_menu_selects_overlapping_layers_and_reveals_rows",
+       ui_move_layer_menu_selects_overlapping_layers_and_reveals_rows},
+      {"ui_move_layer_menu_respects_pixels_masks_and_visibility",
+       ui_move_layer_menu_respects_pixels_masks_and_visibility},
+      {"ui_move_layer_menu_preserves_pan_and_cancels_stale_clicks",
+       ui_move_layer_menu_preserves_pan_and_cancels_stale_clicks},
       {"ui_layer_style_color_overlay_patch_double_click_opens_picker",
        ui_layer_style_color_overlay_patch_double_click_opens_picker},
       {"ui_layer_context_menu_exposes_blending_options_dialog",

@@ -6906,6 +6906,7 @@ Mixed selection</source>
     <message><source>Deselect Points</source><translation>ポイントの選択を解除</translation></message>
     <message><source>Free Transform Points</source><translation>ポイントを自由変形</translation></message>
     <message><source>Free Transform Path</source><translation>パスを自由変形</translation></message>
+    <message><source>Select All Layers Here</source><translation>この位置のすべてのレイヤーを選択</translation></message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>

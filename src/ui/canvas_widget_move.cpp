@@ -91,6 +91,93 @@ constexpr std::int64_t kMoveProxyLastResortSnapshotArea = 80'000'000;
 
 }  // namespace
 
+void CanvasWidget::close_move_layer_context_menu() {
+  move_context_press_pos_.reset();
+  if (move_layer_context_menu_) {
+    move_layer_context_menu_->close();
+    move_layer_context_menu_->deleteLater();
+    move_layer_context_menu_.clear();
+  }
+}
+
+void CanvasWidget::show_move_layer_context_menu(QPoint widget_point, QPoint global_position) {
+  close_move_layer_context_menu();
+  if (document_ == nullptr || tool_ != CanvasTool::Move || edit_locked_ || pointer_gesture_active() ||
+      transforming_layer_ || warping_layer_ || path_transform_active_) {
+    return;
+  }
+  const auto point = document_position(widget_point);
+  if (!document_contains(point)) {
+    return;
+  }
+
+  // Walk the whole stack once, including occluded leaves and collapsed folders.
+  // Locks prevent moving a layer, but must not prevent explicitly selecting it.
+  std::vector<std::pair<LayerId, QString>> matches;
+  const auto collect = [&](const auto& self, const std::vector<Layer>& layers, const QString& prefix) -> void {
+    for (auto it = layers.rbegin(); it != layers.rend(); ++it) {
+      const auto& layer = *it;
+      if (!layer.visible() || layer.opacity() <= 0.0F) {
+        continue;
+      }
+      const auto name = prefix + QString::fromStdString(layer.name());
+      if (layer.kind() == LayerKind::Group) {
+        if (layer_mask_alpha_at(layer, point.x(), point.y()) >= 8.0F / 255.0F) {
+          self(self, layer.children(), name + QStringLiteral(" / "));
+        }
+      } else if (layer_is_text(layer) ? layer.bounds().contains(point.x(), point.y())
+                                     : pixel_layer_contains_document_point(layer, point, true)) {
+        matches.emplace_back(layer.id(), name);
+      }
+    }
+  };
+  collect(collect, std::as_const(*document_).layers(), QString());
+  if (matches.empty()) {
+    return;
+  }
+
+  auto* menu = new QMenu(this);
+  menu->setObjectName(QStringLiteral("canvasMoveLayerContextMenu"));
+  move_layer_context_menu_ = menu;
+  connect(menu, &QMenu::aboutToHide, menu, &QObject::deleteLater);
+  const auto select = [this, menu, source_document = document_](std::vector<LayerId> ids, LayerId active) {
+    if (move_layer_context_menu_ != menu || document_ != source_document || !isVisible() ||
+        tool_ != CanvasTool::Move || edit_locked_ || pointer_gesture_active() ||
+        transforming_layer_ || warping_layer_ || path_transform_active_) {
+      return;
+    }
+    // The document can change while a popup is open. Validate the leaf IDs in
+    // one tree walk so Select All does not search the document for every hit.
+    const auto& document = std::as_const(*document_);
+    if (root_drop_layer_ids(document.layers(), ids).size() != ids.size()) {
+      return;
+    }
+    request_layer_selection(std::move(ids), active);
+  };
+  std::vector<LayerId> ids;
+  QSet<LayerId> selected(selected_layer_ids_.begin(), selected_layer_ids_.end());
+  if (selected.isEmpty() && document_->active_layer_id().has_value()) {
+    selected.insert(*document_->active_layer_id());
+  }
+  for (const auto& [id, name] : matches) {
+    auto label = name;
+    label.replace(QStringLiteral("&"), QStringLiteral("&&"));
+    auto* action = menu->addAction(label);
+    action->setData(QVariant::fromValue<qulonglong>(id));
+    action->setCheckable(true);
+    action->setChecked(selected.contains(id));
+    connect(action, &QAction::triggered, menu, [select, id] { select({id}, id); });
+    ids.push_back(id);
+  }
+  if (ids.size() > 1U) {
+    menu->addSeparator();
+    auto* action = menu->addAction(tr("Select All Layers Here"));
+    action->setObjectName(QStringLiteral("moveMenuSelectAllLayersAction"));
+    connect(action, &QAction::triggered, menu, [select, ids] { select(ids, ids.front()); });
+  }
+  menu->popup(global_position);
+}
+
 void CanvasWidget::begin_move_layer_selection(QMouseEvent* event, const Layer* clicked_layer,
                                              bool rectangle_allowed) {
   event->accept();

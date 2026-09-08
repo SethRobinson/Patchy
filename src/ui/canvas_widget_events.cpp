@@ -346,6 +346,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
   setFocus(Qt::MouseFocusReason);
   last_mouse_position_ = event->pos();
   emit_info_for_widget_position(event->pos());
+  move_context_press_pos_.reset();
   if (event->button() == Qt::LeftButton) {
     // A new press also retires a pending selection whose release was lost.
     cancel_move_layer_selection();
@@ -439,6 +440,12 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
         !spacebar_panning_ && !handling_tablet_event_ && !pen_session_active_ &&
         !path_transform_active_ && (event->modifiers() & Qt::AltModifier) == 0) {
       path_context_press_pos_ = event->pos();
+    }
+    if (event->button() == Qt::RightButton && event->buttons() == Qt::RightButton &&
+        tool_ == CanvasTool::Move && document_ != nullptr && !edit_locked_ &&
+        !spacebar_panning_ && !handling_tablet_event_ && !pen_recently_in_proximity() &&
+        !pointer_gesture_active() && !transforming_layer_ && !warping_layer_ && !path_transform_active_) {
+      move_context_press_pos_ = event->pos();
     }
     panning_ = true;
     setCursor(Qt::ClosedHandCursor);
@@ -1246,6 +1253,14 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
   }
   if (panning_) {
     clear_move_hover_outline();
+    if (move_context_press_pos_) {
+      if ((event->pos() - *move_context_press_pos_).manhattanLength() < QApplication::startDragDistance()) {
+        return;
+      }
+      // Crossing the threshold commits to panning, even if the pointer returns
+      // to its starting point before release.
+      move_context_press_pos_.reset();
+    }
     const auto delta = event->pos() - last_mouse_position_;
     const auto old_pan = pan_;
     pan_ += QPointF(delta);
@@ -1819,6 +1834,14 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     update_tool_cursor();
     const auto context_press = path_context_press_pos_;
     path_context_press_pos_.reset();
+    const auto move_context_press = move_context_press_pos_;
+    move_context_press_pos_.reset();
+    if (event->button() == Qt::RightButton && move_context_press.has_value() &&
+        (event->pos() - *move_context_press).manhattanLength() < QApplication::startDragDistance()) {
+      show_move_layer_context_menu(*move_context_press, event->globalPosition().toPoint());
+      event->accept();
+      return;
+    }
     if (event->button() == Qt::RightButton && context_press.has_value() &&
         (event->pos() - *context_press).manhattanLength() < QApplication::startDragDistance()) {
       show_path_context_menu(event->position(), event->globalPosition().toPoint());
@@ -3161,6 +3184,7 @@ bool CanvasWidget::handle_opacity_digit_key(int key, Qt::KeyboardModifiers modif
 }
 
 void CanvasWidget::cancel_pointer_gestures() {
+  move_context_press_pos_.reset();
   cancel_move_layer_selection();
   if (selecting_ || lassoing_ || quick_selecting_ || moving_selection_) {
     restore_selection_before_edit();

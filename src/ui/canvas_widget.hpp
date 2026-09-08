@@ -24,6 +24,7 @@
 #include <QPixmap>
 #include <QPoint>
 #include <QPointF>
+#include <QPointer>
 #include <QPolygon>
 #include <QRect>
 #include <QRectF>
@@ -47,6 +48,7 @@
 #include <vector>
 
 class QPainter;
+class QMenu;
 class QEvent;
 class QResizeEvent;
 class QScrollBar;
@@ -1253,6 +1255,8 @@ private:
   [[nodiscard]] Layer* topmost_text_layer_at(QPoint document_point) const noexcept;
   void activate_layer(Layer& layer);
   void request_layer_selection(std::vector<LayerId> layer_ids, LayerId active_id);
+  void show_move_layer_context_menu(QPoint widget_point, QPoint global_position);
+  void close_move_layer_context_menu();
   void begin_move_drag(const std::vector<LayerId>& layer_ids, QPoint document_point, QPoint widget_point);
   void begin_move_layer_selection(QMouseEvent* event, const Layer* clicked_layer, bool rectangle_allowed);
   bool update_move_layer_selection(QMouseEvent* event);
@@ -1927,6 +1931,8 @@ private:
   int selection_feather_radius_{0};
   bool selection_antialias_{true};
   bool panning_{false};
+  std::optional<QPoint> move_context_press_pos_;
+  QPointer<QMenu> move_layer_context_menu_;
   bool spacebar_panning_{false};
   bool spacebar_repositioning_drag_rect_{false};
   QPoint spacebar_reposition_last_document_position_{};
