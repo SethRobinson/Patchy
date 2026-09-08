@@ -19,6 +19,7 @@
 #include "core/layer_render_utils.hpp"
 #include "core/pixel_tools.hpp"
 #include "ui/main_window.hpp"
+#include "ui/layer_merge.hpp"
 #include "ui/qt_geometry.hpp"
 #include "ui/script_canvas_window.hpp"
 #include "ui/script_engine.hpp"
@@ -1086,6 +1087,78 @@ QJSValue ScriptDocumentObject::combineShapes(const QJSValue& layers, const QStri
   mutable_document->set_active_layer(result->layer_id);
   host_.note_structure_changed(session_id_);
   return make_layer_value(host_, session_id_, result->layer_id);
+}
+
+QJSValue ScriptDocumentObject::mergeLayers(const QJSValue& layers, const QJSValue& options) {
+  const ScriptApiCall api_call(host_);
+  const auto* document = read_document();
+  if (document == nullptr) {
+    return QJSValue();
+  }
+  LayerMergeOptions choice;
+  if (!options.isUndefined()) {
+    if (!options.isObject() || options.isArray() || options.isCallable()) {
+      host_.throw_js_error(ScriptEngineHost::tr("mergeLayers: options must be an object of booleans."));
+      return QJSValue();
+    }
+    QJSValueIterator it(options);
+    while (it.hasNext()) {
+      it.next();
+      if (!it.value().isBool()) {
+        host_.throw_js_error(ScriptEngineHost::tr("mergeLayers: options must be an object of booleans."));
+        return QJSValue();
+      }
+      const auto key = it.name();
+      if (key == QLatin1String("keepVectors")) {
+        choice.keep_vectors = it.value().toBool();
+      } else if (key == QLatin1String("withinGroups")) {
+        choice.within_groups = it.value().toBool();
+      } else if (key == QLatin1String("separateVectorTypes")) {
+        choice.separate_vector_types = it.value().toBool();
+      } else {
+        host_.throw_js_error(ScriptEngineHost::tr("mergeLayers: unknown option %1").arg(key));
+        return QJSValue();
+      }
+    }
+  }
+  std::vector<LayerId> ids;
+  const auto length = layers.isArray() ? layers.property(QStringLiteral("length")).toUInt() : 0U;
+  if (length == 0 || length > layer_tree_count(document->layers())) {
+    host_.throw_js_error(ScriptEngineHost::tr("mergeLayers needs a nonempty array of layers of this document."));
+    return QJSValue();
+  }
+  for (quint32 i = 0; i < length; ++i) {
+    const auto* wrapper = qobject_cast<ScriptLayerObject*>(layers.property(i).toQObject());
+    if (wrapper == nullptr || wrapper->session_id() != session_id_ || document->find_layer(wrapper->layer_id()) == nullptr) {
+      host_.throw_js_error(ScriptEngineHost::tr("mergeLayers needs a nonempty array of layers of this document."));
+      return QJSValue();
+    }
+    ids.push_back(wrapper->layer_id());
+  }
+  LayerMergePlan plan;
+  std::optional<Document> prepared;
+  try {
+    plan = plan_layer_merge(*document, ids, choice);
+    if (plan.changed) {
+      prepared = render_layer_merge(*document, plan);
+    }
+  } catch (const std::exception&) {
+    host_.throw_js_error(ScriptEngineHost::tr("Could not merge the layers. The original layers are unchanged."));
+    return QJSValue();
+  }
+  if (prepared.has_value()) {
+    auto* target = write_document();
+    if (target == nullptr) {
+      return QJSValue();
+    }
+    *target = std::move(*prepared);
+    host_.note_structure_changed(session_id_);
+  }
+  auto result = host_.engine()->newArray(static_cast<uint>(plan.result_ids.size()));
+  for (quint32 i = 0; i < plan.result_ids.size(); ++i) {
+    result.setProperty(i, make_layer_value(host_, session_id_, plan.result_ids[i]));
+  }
+  return result;
 }
 
 QJSValue ScriptDocumentObject::selection() const {

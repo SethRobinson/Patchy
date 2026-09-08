@@ -13977,6 +13977,14 @@ Clipped to the layer below</source>
         <source>Working brush</source>
         <translation>作業中のブラシ</translation>
     </message>
+    <message>
+        <source>Could not merge the layers. The original layers are unchanged.</source>
+        <translation>レイヤーを結合できませんでした。元のレイヤーは変更されていません。</translation>
+    </message>
+    <message>
+        <source>Merged layers</source>
+        <translation>レイヤーを結合しました</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::PalettePanel</name>
@@ -15158,6 +15166,22 @@ Clipped to the layer below</source>
     <message><source>Brush</source><translation>ブラシ</translation></message>
     <message><source>Finish the current manual edit before resuming automation.</source><translation>現在の手動編集を完了してから自動操作を再開してください。</translation></message>
     <message><source>The stroke target changed while paused. Inspect the document before continuing.</source><translation>一時停止中にストロークの対象が変更されました。続行する前にドキュメントを確認してください。</translation></message>
+    <message>
+        <source>mergeLayers: options must be an object of booleans.</source>
+        <translation>mergeLayers: オプションには真偽値のオブジェクトを指定してください。</translation>
+    </message>
+    <message>
+        <source>mergeLayers: unknown option %1</source>
+        <translation>mergeLayers: 不明なオプション %1</translation>
+    </message>
+    <message>
+        <source>mergeLayers needs a nonempty array of layers of this document.</source>
+        <translation>mergeLayers には、このドキュメントのレイヤーを含む空でない配列が必要です。</translation>
+    </message>
+    <message>
+        <source>Could not merge the layers. The original layers are unchanged.</source>
+        <translation>レイヤーを結合できませんでした。元のレイヤーは変更されていません。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptEditorDialog</name>
@@ -15535,5 +15559,68 @@ Clipped to the layer below</source>
     <message><source>Pixel view: vector coordinates exceed the preview range at this zoom.</source><translation>ピクセル表示: このズーム倍率ではベクトル座標がプレビューの範囲を超えています。</translation></message>
     <message><source>Pixel view: Dynamic Vector Preview reached its memory limit.</source><translation>ピクセル表示: 動的ベクトルプレビューがメモリ上限に達しました。</translation></message>
     <message><source>Pixel view: Dynamic Vector Preview could not render this view.</source><translation>ピクセル表示: 動的ベクトルプレビューでこの表示を描画できませんでした。</translation></message>
+</context>
+<context>
+    <name>LayerMerge</name>
+    <message>
+        <source>Merge Layers</source>
+        <translation>レイヤーを結合</translation>
+    </message>
+    <message>
+        <source>Choose how to merge the selected layers and their groups.</source>
+        <translation>選択したレイヤーとグループの結合方法を選択します。</translation>
+    </message>
+    <message>
+        <source>Keep vectors and bitmaps separate</source>
+        <translation>ベクターとビットマップを分けて結合</translation>
+    </message>
+    <message>
+        <source>Keep editable shapes. Turn off to merge the artwork into bitmap layers.</source>
+        <translation>編集可能なシェイプを保持します。オフにすると、アートワークをビットマップレイヤーに結合します。</translation>
+    </message>
+    <message>
+        <source>Merge within each group separately</source>
+        <translation>グループごとに個別に結合</translation>
+    </message>
+    <message>
+        <source>Keep folders and merge their contents separately. Turn off to merge across ordinary Pass Through groups.</source>
+        <translation>フォルダーを保持し、内容を個別に結合します。オフにすると、通常の「通過」グループをまたいで結合します。</translation>
+    </message>
+    <message>
+        <source>Separate merges for different vector types</source>
+        <translation>ベクターの種類ごとに分けて結合</translation>
+    </message>
+    <message>
+        <source>Keep different fills, gradients, patterns, and strokes separate. Turn off to use the bottom shape's fill and stroke.</source>
+        <translation>異なる塗り、グラデーション、パターン、線を分けて保持します。オフにすると、一番下のシェイプの塗りと線を使用します。</translation>
+    </message>
+    <message>
+        <source>Merge</source>
+        <translation>結合</translation>
+    </message>
+    <message>
+        <source>Overlapping artwork keeps its order. Masks, effects, blending, and paint alignment that need separate layers stay intact.</source>
+        <translation>重なるアートワークの順序を保持します。マスク、効果、描画モード、塗りの配置により個別のレイヤーが必要な場合は、そのまま保持します。</translation>
+    </message>
+    <message>
+        <source>Vector merges use the bottom shape's fill and stroke.</source>
+        <translation>ベクターの結合には、一番下のシェイプの塗りと線を使用します。</translation>
+    </message>
+    <message>
+        <source>Merged artwork becomes pixels. Undo restores the original layers.</source>
+        <translation>結合したアートワークはピクセルになります。「取り消し」で元のレイヤーを復元できます。</translation>
+    </message>
+    <message>
+        <source>Result: %1 vector layers, %2 bitmap layers, %3 other layers kept.</source>
+        <translation>結果：ベクターレイヤー %1、ビットマップレイヤー %2、その他の保持レイヤー %3。</translation>
+    </message>
+    <message>
+        <source>%1 layers removed by merging.</source>
+        <translation>結合によりレイヤーが %1 個減ります。</translation>
+    </message>
+    <message>
+        <source>These layers need to stay separate with the selected options.</source>
+        <translation>選択した設定では、これらのレイヤーを個別に保持する必要があります。</translation>
+    </message>
 </context>
 </TS>

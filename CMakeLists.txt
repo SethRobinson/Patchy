@@ -837,6 +837,7 @@ if(PATCHY_BUILD_APP)
       src/ui/canvas_widget_render.cpp
       src/ui/canvas_widget_vector_preview.cpp
       src/ui/vector_preview_renderer.cpp
+      src/ui/layer_merge.cpp
       src/ui/canvas_widget_selection.cpp
       src/ui/canvas_widget_selection_engines.cpp
       src/ui/canvas_widget_spot_healing.cpp
@@ -1558,6 +1559,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/vector_preview_tests.cpp
       tests/ui/vector_point_editing_tests.cpp
       tests/ui/vector_commands_tests.cpp
+      tests/ui/layer_merge_tests.cpp
       tests/ui/vector_scripting_tests.cpp
       tests/ui/svg_ui_tests.cpp
       tests/ui/image_trace_ui_tests.cpp

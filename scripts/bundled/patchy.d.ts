@@ -435,6 +435,17 @@ interface PatchyDocument {
    * "subtract" (front shapes cut from the base), "intersect", or "exclude".
    */
   combineShapes(layers: PatchyLayer[], op: "unite" | "subtract" | "intersect" | "exclude"): PatchyLayer;
+  /**
+   * Merges exactly the supplied layers and selected groups' contents. Returns
+   * surviving selected leaf layers in bottom-to-top paint order. keepVectors and separateVectorTypes
+   * default true; withinGroups defaults false. Incompatible appearances and layer order remain separate.
+   * keepVectors=false explicitly rasterizes merges; separateVectorTypes=false
+   * lets vector merges inherit the bottom shape's fill and stroke.
+   * A single leaf is unchanged (no implicit layer below, unlike Merge Down).
+   */
+  mergeLayers(layers: PatchyLayer[], options?: {
+    keepVectors?: boolean; withinGroups?: boolean; separateVectorTypes?: boolean;
+  }): PatchyLayer[];
   flatten(): void;
   resizeImage(width: number, height: number): void;
   resizeCanvas(width: number, height: number): void;

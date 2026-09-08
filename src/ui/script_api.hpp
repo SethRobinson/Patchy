@@ -198,6 +198,7 @@ public:
   // Combine Shapes: merges the shape layers (siblings) into the bottom-most
   // one with op "unite" | "subtract" | "intersect" | "exclude"; returns it.
   Q_INVOKABLE QJSValue combineShapes(const QJSValue& layers, const QString& op);
+  Q_INVOKABLE QJSValue mergeLayers(const QJSValue& layers, const QJSValue& options = QJSValue());
   Q_INVOKABLE void flatten();
   Q_INVOKABLE void resizeImage(int width, int height);
   Q_INVOKABLE void resizeCanvas(int width, int height);

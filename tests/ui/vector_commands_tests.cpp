@@ -10,6 +10,7 @@
 #include "ui/script_engine.hpp"
 
 #include <QAction>
+#include <QCheckBox>
 #include <QDialog>
 #include <QDoubleSpinBox>
 #include <QElapsedTimer>
@@ -261,9 +262,8 @@ void ui_combine_shapes_subtracts_front_and_undoes() {
   CHECK(color_close(canvas_pixel(*canvas, QPoint(250, 190)), Qt::black, 8));
 }
 
-// Ctrl+E on shape layers merges as vectors (Photoshop's Merge Shapes): the
-// bottom layer keeps its identity and the front's groups are appended with
-// Add. A shape-onto-raster merge still rasterizes.
+// Ctrl+E merges compatible shapes immediately. Mixed content asks before
+// rasterizing, and defaults to retaining the editable shapes.
 void ui_merge_down_keeps_shape_layers_vector() {
   VectorSettingsGuard settings_guard;
   patchy::ui::MainWindow window;
@@ -299,14 +299,29 @@ void ui_merge_down_keeps_shape_layers_vector() {
   CHECK(document.layers().size() == layers_before);
   CHECK(std::as_const(document).find_layer(front_id) != nullptr);
 
-  // A shape merging onto the raster Background still rasterizes.
+  // A shape merging onto the raster Background rasterizes only by choice.
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   CHECK(layer_list != nullptr);
   layer_list->clearSelection();
   require_layer_item(*layer_list, QStringLiteral("Rectangle 1"))->setSelected(true);
   QApplication::processEvents();
+  bool saw_merge_dialog = false;
+  QTimer::singleShot(0, [&] {
+    try {
+      auto* dialog = find_top_level_dialog(QStringLiteral("mergeLayersDialog"));
+      CHECK(dialog != nullptr);
+      auto* keep = dialog->findChild<QCheckBox*>(QStringLiteral("mergeKeepVectorsCheck"));
+      CHECK(keep != nullptr && keep->isChecked());
+      keep->setChecked(false);
+      saw_merge_dialog = true;
+      dialog->accept();
+    } catch (...) {
+      (void)patchy::ui::unwind_non_modal_dialog_loop(std::current_exception());
+    }
+  });
   require_action(window, "layerMergeDownAction")->trigger();
   QApplication::processEvents();
+  CHECK(saw_merge_dialog);
   CHECK(std::as_const(document).find_layer(base_id) == nullptr ||
         std::as_const(document).find_layer(base_id)->vector_shape() == nullptr);
 }

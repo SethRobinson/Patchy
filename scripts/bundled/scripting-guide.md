@@ -326,6 +326,7 @@ Field types: `number`, `slider`, `checkbox`, `choice`, `text`, `color`, `folder`
 | `doc.addTextLayer(text, options)` | Text layer through the real text engine. Options: `font`, `size`, `x`, `y`, `color`, `bold`, `italic`. `size` is the text height in document pixels. |
 | `doc.findLayer(name)` | First layer with that exact name, or `undefined`. |
 | `doc.combineShapes(layers, op)` | Combine Shapes: merges sibling shape layers into the bottom-most one and returns it. `op` is `"unite"`, `"subtract"` (front shapes cut from the base), `"intersect"`, or `"exclude"`. |
+| `doc.mergeLayers(layers, options?)` | Merges the supplied layers and selected groups' contents without a dialog. Options `keepVectors`, `withinGroups`, `separateVectorTypes` default to `true`, `false`, `true`. Keeps compatible vector appearances together and bitmaps separate. Enable `withinGroups` to retain folders. Returns surviving selected leaf layers in bottom-to-top order. A single leaf is unchanged. Set `keepVectors:false` to rasterize merges, or `separateVectorTypes:false` to use the bottom shape's fill and stroke. Masks, effects, clipping, paint alignment, locks, and stacking order can require additional layers. |
 | `doc.selection` | The selection object (below). |
 | `doc.flatten()` | Flattens the document. |
 | `doc.resizeImage(w, h)` / `doc.resizeCanvas(w, h)` / `doc.crop(x, y, w, h)` | Geometry operations. `crop` clips to the canvas and throws for a disjoint rectangle. |

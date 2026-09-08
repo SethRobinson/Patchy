@@ -4,6 +4,8 @@ Read this before moving functions, adding members to the large UI classes, split
 
 ## MainWindow
 
+Vector-preserving merge planning, output preparation, and its dialog live in `ui/layer_merge.{hpp,cpp}`; `MainWindow::merge_down` retains command selection and the internal text-render callback. See [layer-merging.md](layer-merging.md).
+
 `MainWindow` is one class declared in `src/ui/main_window.hpp`, with its implementation split by area:
 
 - `main_window_chrome.cpp` - frameless-window machinery, `configure_window_chrome()`, and `use_custom_window_chrome()`.

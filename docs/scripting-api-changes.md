@@ -1,5 +1,13 @@
 # Scripting API compatibility
 
+2026-09-08 (API 1): `doc.mergeLayers(layers, options?)` adds the vector-preserving
+Merge Layers planner without a dialog. Boolean options `keepVectors`,
+`withinGroups`, and `separateVectorTypes` default to true, false, and true. It returns surviving
+selected leaf layers in bottom-to-top order, validates before arming Undo, and
+does not mutate the document for a no-op. Unlike `layer.merge_down`, a single
+leaf does not implicitly include its lower sibling. `doc.combineShapes` retains
+its existing boolean-operation semantics. See [layer-merging.md](layer-merging.md).
+
 2026-09-08 (API 1): Dynamic Vector Preview adds mixed-content compositing and a
 Preferences checkbox. `view.vector_preview` and `view/vectorPreview` remain
 unchanged. Routine preview status is tooltip-only; resource notices do not repeat

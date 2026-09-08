@@ -11,7 +11,6 @@
 #include "core/palette_presets.hpp"
 #include "core/pattern_presets.hpp"
 #include "core/pixel_tools.hpp"
-#include "core/shape_combine.hpp"
 #include "formats/palette_io.hpp"
 #include "filters/builtin_filters.hpp"
 #include "formats/aseprite_document_io.hpp"
@@ -54,6 +53,7 @@
 #include "ui/color_panel.hpp"
 #include "ui/layer_style_dialog.hpp"
 #include "ui/layer_list_widget.hpp"
+#include "ui/layer_merge.hpp"
 #include "ui/localization.hpp"
 #include "ui/measurement_units.hpp"
 #include "ui/palette_convert_dialog.hpp"
@@ -9365,11 +9365,11 @@ void MainWindow::merge_down() {
     if (!seen_ids.insert(id).second) {
       continue;
     }
-    if (doc.find_layer(id) == nullptr) {
+    if (std::as_const(doc).find_layer(id) == nullptr) {
       continue;
     }
     std::vector<LayerId> ancestors;
-    if (collect_layer_ancestor_groups(doc.layers(), id, ancestors) &&
+    if (collect_layer_ancestor_groups(std::as_const(doc).layers(), id, ancestors) &&
         std::any_of(ancestors.begin(), ancestors.end(),
                     [&selected](LayerId ancestor) { return selected.count(ancestor) != 0; })) {
       continue;
@@ -9385,7 +9385,7 @@ void MainWindow::merge_down() {
   // Order the selection bottom-to-top by global compositor paint order so blend modes composite
   // correctly and the bottom-most item becomes the merge target.
   std::vector<LayerId> render_order;
-  collect_layer_render_order(doc.layers(), render_order);
+  collect_layer_render_order(std::as_const(doc).layers(), render_order);
   const auto stack_position = [&render_order](LayerId id) {
     return static_cast<std::size_t>(
         std::distance(render_order.begin(), std::find(render_order.begin(), render_order.end(), id)));
@@ -9399,11 +9399,11 @@ void MainWindow::merge_down() {
   std::vector<LayerId> merge_list;
   if (normalized.size() == 1U) {
     const auto id = normalized.front();
-    const auto* single = doc.find_layer(id);
+    const auto* single = std::as_const(doc).find_layer(id);
     if (single != nullptr && single->kind() == LayerKind::Group) {
       merge_list = {id};
     } else {
-      const auto location = find_layer_location(doc.layers(), id);
+      const auto location = find_layer_location(std::as_const(doc).layers(), id);
       if (!location.has_value() || location->index == 0U) {
         show_status_error(tr("No layer below to merge"));
         return;
@@ -9414,19 +9414,44 @@ void MainWindow::merge_down() {
     merge_list = normalized;  // already sorted bottom-to-top
   }
 
-  // Photoshop's Merge Shapes: when the whole merge list is editable
-  // same-parent shape layers, merge as vectors instead of rasterizing. The
-  // bottom layer stays the base (id, name, appearance, styles); every front
-  // group is appended with Add, so the result composes like Unite Shapes.
-  if (const auto shape_candidates = combine_shape_candidates(std::as_const(doc).layers(), merge_list);
-      shape_candidates.refusal == ShapeCombineRefusal::None) {
-    push_undo_snapshot(tr("Merge shapes"));
-    const auto result = combine_shape_layers(doc, shape_candidates.bottom_to_top, PathCombineOp::Add);
-    if (!result.has_value()) {
-      show_status_error(tr("Only editable shape layers can be combined"));
+  // Vectors, including shapes inside selected folders, use the preserving
+  // planner. Bitmap-only Merge Down retains its established flattening behavior.
+  if (merge_selection_contains_vectors(std::as_const(doc), merge_list)) {
+    auto plan = plan_layer_merge(std::as_const(doc), merge_list);
+    const bool simple_shapes = merge_list.size() > 1 && plan.changed && plan.result_ids.size() == 1 &&
+        std::all_of(merge_list.begin(), merge_list.end(), [&](LayerId id) {
+          const auto* layer = std::as_const(doc).find_layer(id);
+          return layer != nullptr && layer_is_vector_shape(*layer);
+        });
+    if (!simple_shapes) {
+      // The dialog owns a const snapshot, so closing a tab cannot invalidate a
+      // readout callback. The edit lock prevents concurrent document edits.
+      const auto session_id = active_session()->session_id;
+      const Document source = std::as_const(doc);
+      auto edit_lock = lock_preview_dialog_edits();
+      const auto options = show_layer_merge_dialog(this, source, merge_list);
+      if (!options.has_value() || active_session() == nullptr || active_session()->session_id != session_id) {
+        return;
+      }
+      plan = plan_layer_merge(std::as_const(doc), merge_list, *options);
+    }
+    if (!plan.changed) {
       return;
     }
-    doc.set_active_layer(result->layer_id);
+    std::optional<Document> prepared;
+    try {
+      prepared = render_layer_merge(std::as_const(doc), plan, [](const Layer& layer) -> std::optional<Layer> {
+        if (layer.kind() == LayerKind::Group || layer.kind() == LayerKind::Adjustment) {
+          return layer;
+        }
+        return renderable_merge_layer_copy(layer);
+      });
+    } catch (const std::exception&) {
+      show_status_error(tr("Could not merge the layers. The original layers are unchanged."));
+      return;
+    }
+    push_undo_snapshot(tr("Merge down"));
+    doc = std::move(*prepared);
     if (canvas_ != nullptr) {
       canvas_->clear_path_edit_selection();
     }
@@ -9438,7 +9463,7 @@ void MainWindow::merge_down() {
     if (canvas_ != nullptr) {
       canvas_->document_changed();
     }
-    statusBar()->showMessage(tr("Merged shapes down"));
+    statusBar()->showMessage(simple_shapes ? tr("Merged shapes down") : tr("Merged layers"));
     return;
   }
 
@@ -9449,14 +9474,15 @@ void MainWindow::merge_down() {
   // in the bottom-most visible item, which keeps its id and name.
   Rect affected;
   Document merge_document(doc.width(), doc.height(), doc.format());
+  merge_document.metadata().patterns = std::as_const(doc).metadata().patterns;
   LayerId target_id = 0;
   for (const auto id : merge_list) {
-    const auto* layer = doc.find_layer(id);
+    const auto* layer = std::as_const(doc).find_layer(id);
     if (layer == nullptr) {
       show_status_error(tr("Select a layer to merge down"));
       return;
     }
-    if (!layer_is_effectively_visible(doc.layers(), id)) {
+    if (!layer_is_effectively_visible(std::as_const(doc).layers(), id)) {
       continue;
     }
     std::optional<Layer> renderable;

@@ -39,10 +39,8 @@ Corner handles scale proportionally on their own and Shift releases the lock, ma
 - Coverage: `ui_transform_shift_frees_aspect_ratio_by_default`, `ui_transform_shift_aspect_preference_restores_legacy`, `ui_transform_shift_aspect_preference_defaults_to_off`, `ui_transform_shift_aspect_preference_persists_and_reaches_canvas`. The path session's branch has no test yet.
 
 ## Merge Down
-
-`MainWindow::merge_down()` flattens folders and any multi-selection into the bottom-most visible item, Photoshop-style. Hidden layers are discarded, never blocking (they must not abort the merge); cross-folder leaf merges may leave an emptied folder behind — intended. Coverage: `ui_merge_down_*`.
-
-When the whole merge list is editable same-parent shape layers, the merge stays vector (Photoshop's Merge Shapes): `combine_shape_candidates` gates it and `combine_shape_layers` (src/core/shape_combine) appends every front group onto the bottom layer with Add, so the bottom layer keeps its id, name, and appearance and the result equals Unite Shapes. Undo label "Merge shapes". Any refusal (a raster or locked layer in the list, different parents, an empty path) falls through to the raster merge unchanged. See [vector-commands.md](vector-commands.md) for the combine semantics. Coverage: `ui_merge_down_keeps_shape_layers_vector`.
+- `MainWindow::merge_down` normalizes the selection, includes a single leaf's lower sibling, and routes selections containing vectors through the preserving planner and Merge Layers dialog. Compatible shapes merge immediately. The dialog offers separate vector/bitmap outputs, merges within each group, and separate vector appearances. [layer-merging.md](layer-merging.md) owns the options, preservation boundaries, transaction, and scripting contracts.
+- Bitmap-only selections retain the existing CPU-composited flattening path: hidden items contribute no pixels and are removed; the bottom visible layer keeps its id and name. Groups flatten in place, and pixels land within the canvas-clipped render bounds. Pattern resources accompany the scratch document. Position-only Background locking permits merge; image-pixel locking refuses it.
 
 ## Tool palette layout
 
