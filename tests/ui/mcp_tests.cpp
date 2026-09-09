@@ -4,6 +4,8 @@
 #include "ui/mcp_activity.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/zoom_status_bar.hpp"
+#include "ui/raw_develop_settings.hpp"
+#include "synthetic_dng.hpp"
 #include "test_harness.hpp"
 #include "ui_test_support.hpp"
 #include "ui_test_access.hpp"
@@ -11,6 +13,7 @@
 #include <QCloseEvent>
 #include <QElapsedTimer>
 #include <QFileInfo>
+#include <QFile>
 #include <QFocusEvent>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -1098,10 +1101,50 @@ void ui_mcp_hidden_workspace_keeps_unattended_policy() {
   CHECK(window.script_engine_host().session_ids().empty());
   connection.disconnect();
 }
+
+void ui_raw_mcp_open_reads_sidecar_without_writing() {
+  using namespace patchy::ui;
+  ensure_artifact_dir();
+  const auto path = QFileInfo(QStringLiteral("test-artifacts/raw_connector.dng")).absoluteFilePath();
+  QFile::remove(raw_develop_settings_path(path));
+  const auto bytes = patchy::test::synthetic_bayer_dng(129, 97);
+  QFile source(path);
+  CHECK(source.open(QIODevice::WriteOnly));
+  CHECK(source.write(reinterpret_cast<const char*>(bytes.data()), static_cast<qsizetype>(bytes.size())) == static_cast<qsizetype>(bytes.size()));
+  source.close();
+  patchy::raw::DevelopParams params;
+  params.exposure_ev = 1;
+  params.half_size = true;
+  CHECK(save_raw_develop_settings(path, params, {}).isEmpty());
+  const auto read = [](const QString& name) {
+    QFile file(name);
+    CHECK(file.open(QIODevice::ReadOnly));
+    return file.readAll();
+  };
+  const auto before = read(raw_develop_settings_path(path));
+  MainWindow window;
+  show_window_empty(window);
+  Connection connection(window, false);
+  const auto quoted = QString::fromUtf8(QJsonDocument(QJsonArray{path}).toJson(QJsonDocument::Compact));
+  connection.edit(QStringLiteral("app.open(%1[0]);").arg(quoted));
+  const auto expected = patchy::raw::read_camera_raw(bytes, params);
+  const auto& actual = std::as_const(MainWindowTestAccess::document(window));
+  CHECK(actual.width() == expected.document.width());
+  CHECK(actual.height() == expected.document.height());
+  const auto& pixels = actual.layers().front().pixels();
+  for (int y = 0; y < pixels.height(); ++y) {
+    const auto expected_row = expected.document.layers().front().pixels().row(y);
+    CHECK(std::equal(pixels.row(y).begin(), pixels.row(y).end(), expected_row.begin()));
+  }
+  CHECK(read(raw_develop_settings_path(path)) == before);
+  CHECK(read(path) == QByteArray(reinterpret_cast<const char*>(bytes.data()), static_cast<qsizetype>(bytes.size())));
+  connection.disconnect();
+}
 }  // namespace
 
 std::vector<patchy::test::TestCase> mcp_tests() {
-  return {{"ui_mcp_attached_state_guard_and_unsaved_history", ui_mcp_attached_state_guard_and_unsaved_history},
+  return {{"ui_raw_mcp_open_reads_sidecar_without_writing", ui_raw_mcp_open_reads_sidecar_without_writing},
+          {"ui_mcp_attached_state_guard_and_unsaved_history", ui_mcp_attached_state_guard_and_unsaved_history},
           {"ui_mcp_activity_stop_input_lock_and_local_scripts", ui_mcp_activity_stop_input_lock_and_local_scripts},
           {"ui_mcp_attached_cancellation_interrupts_tight_loop", ui_mcp_attached_cancellation_interrupts_tight_loop},
           {"ui_mcp_vector_discovery_revisions_and_previews", ui_mcp_vector_discovery_revisions_and_previews},

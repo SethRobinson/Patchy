@@ -1,5 +1,10 @@
 # Scripting API compatibility
 
+2026-09-09 (API 1): RAW filename opens through `app.open` and MCP read the photo's
+`.rawprefs` sidecar, falling back to current defaults for missing or unsupported
+settings. Automated opens never write sidecars. Signatures are unchanged; legacy
+global RAW adjustments are ignored. See [camera-raw.md](camera-raw.md).
+
 2026-09-08 (API 1): Documents expose `getPalette`, `setPalette`, `loadPalette`,
 and `savePalette` to scripts and MCP. Set/load preserve existing pixels and
 enable palette-constrained editing and native indexed PNG export by default;

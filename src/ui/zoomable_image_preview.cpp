@@ -1,6 +1,10 @@
 #include "ui/zoomable_image_preview.hpp"
 #include "ui/theme_palette.hpp"
+#include "ui/background_workers.hpp"
 
+#include <QCoreApplication>
+#include <QEvent>
+#include <QPointer>
 #include <QCursor>
 #include <QKeyEvent>
 #include <QMouseEvent>
@@ -50,7 +54,17 @@ constexpr double kPi = 3.14159265358979323846;
 
 }  // namespace
 
+struct ZoomableImagePreview::ScaleState {
+  struct Request { QImage image; QSize size; std::uint64_t generation; };
+  std::optional<Request> pending;
+  bool in_flight{false};
+  qint64 requested_key{0};
+  QSize requested_size;
+  std::uint64_t generation{0};
+};
+
 ZoomableImagePreview::ZoomableImagePreview(QWidget* parent) : QWidget(parent) {
+  scale_state_ = std::make_shared<ScaleState>();
   setMinimumSize(420, 300);
   setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
   setMouseTracking(true);
@@ -64,10 +78,13 @@ ZoomableImagePreview::ZoomableImagePreview(QWidget* parent) : QWidget(parent) {
   publish_overlay_state();
 }
 
-void ZoomableImagePreview::set_image(QImage image) {
-  const auto size_changed = image_.size() != image.size();
+void ZoomableImagePreview::set_image(QImage image, QSize logical_size) {
+  if (logical_size.isEmpty()) logical_size = image.size();
+  const auto size_changed = logical_size_ != logical_size;
+  logical_size_ = logical_size;
   image_ = std::move(image);
   if (size_changed) {
+    scaled_image_ = {};
     fit_mode_ = true;
     pan_offset_ = {};
   }
@@ -100,8 +117,8 @@ void ZoomableImagePreview::zoom_to(double factor,
   if (!image_.isNull() && previous_zoom > 0.0) {
     const auto old_top_left = displayed_rect().topLeft();
     const auto image_point = (anchor_point - old_top_left) / previous_zoom;
-    const QPointF centered_top_left((width() - image_.width() * target) / 2.0,
-                                    (height() - image_.height() * target) / 2.0);
+    const QPointF centered_top_left((width() - logical_size_.width() * target) / 2.0,
+                                    (height() - logical_size_.height() * target) / 2.0);
     pan_offset_ = anchor_point - centered_top_left - image_point * target;
   }
   fit_mode_ = false;
@@ -259,7 +276,9 @@ void ZoomableImagePreview::paintEvent(QPaintEvent*) {
     }
   }
   painter.setRenderHint(QPainter::SmoothPixmapTransform, zoom() < 1.0);
-  painter.drawImage(target, image_);
+  const bool reduced = target.width() * devicePixelRatioF() < image_.width() && zoom() < 1.0;
+  if (!reduced) painter.drawImage(target, image_);
+  else if (!scaled_image_.isNull()) painter.drawImage(target, scaled_image_);
   painter.restore();
   painter.setPen(QColor(18, 20, 23));
   painter.drawRect(target.adjusted(-1.0, -1.0, 0.0, 0.0));
@@ -271,6 +290,70 @@ void ZoomableImagePreview::resizeEvent(QResizeEvent* event) {
   QWidget::resizeEvent(event);
   clamp_pan();
   publish_state();
+}
+
+bool ZoomableImagePreview::event(QEvent* event) {
+  const auto handled = QWidget::event(event);
+  if (event->type() == QEvent::DevicePixelRatioChange) {
+    request_display_cache();
+    update();
+  }
+  return handled;
+}
+
+void ZoomableImagePreview::request_display_cache() {
+  if (!scale_state_) return;
+  const auto target = displayed_rect().size() * devicePixelRatioF();
+  const QSize size(std::max(1, static_cast<int>(std::ceil(target.width()))),
+                   std::max(1, static_cast<int>(std::ceil(target.height()))));
+  if (image_.isNull() || zoom() >= 1.0 || size.width() >= image_.width()) {
+    ++scale_state_->generation;
+    scale_state_->pending.reset();
+    scale_state_->requested_key = 0;
+    setProperty("previewScaleReady", true);
+    return;
+  }
+  if (scaled_source_key_ == image_.cacheKey() && scaled_size_ == size) {
+    if (scale_state_->requested_key != image_.cacheKey() || scale_state_->requested_size != size) {
+      ++scale_state_->generation;
+      scale_state_->pending.reset();
+      scale_state_->requested_key = image_.cacheKey();
+      scale_state_->requested_size = size;
+    }
+    setProperty("previewScaleReady", true);
+    return;
+  }
+  setProperty("previewScaleReady", false);
+  if (scale_state_->requested_key == image_.cacheKey() && scale_state_->requested_size == size) return;
+  scale_state_->requested_key = image_.cacheKey();
+  scale_state_->requested_size = size;
+  scale_state_->pending = ScaleState::Request{image_, size, ++scale_state_->generation};
+  if (!scale_state_->in_flight) start_display_cache();
+}
+
+void ZoomableImagePreview::start_display_cache() {
+  auto state = scale_state_;
+  if (!state->pending) return;
+  auto request = std::move(*state->pending);
+  state->pending.reset();
+  state->in_flight = true;
+  auto* app = QCoreApplication::instance();
+  const QPointer<ZoomableImagePreview> guard(this);
+  run_tracked_background_worker([state, request = std::move(request), app, guard] {
+    auto scaled = request.image.scaled(request.size, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+    QMetaObject::invokeMethod(app, [state, request, scaled = std::move(scaled), guard]() mutable {
+      state->in_flight = false;
+      if (!guard) return;
+      if (request.generation == state->generation) {
+        guard->scaled_image_ = std::move(scaled);
+        guard->scaled_size_ = request.size;
+        guard->scaled_source_key_ = request.image.cacheKey();
+        guard->setProperty("previewScaleReady", !guard->scaled_image_.isNull());
+        guard->update();
+      }
+      if (state->pending) guard->start_display_cache();
+    }, Qt::QueuedConnection);
+  });
 }
 
 void ZoomableImagePreview::mousePressEvent(QMouseEvent* event) {
@@ -458,8 +541,8 @@ double ZoomableImagePreview::fit_zoom() const {
     return 1.0;
   }
   const auto scale =
-      std::min(static_cast<double>(width()) / image_.width(),
-               static_cast<double>(height()) / image_.height());
+      std::min(static_cast<double>(width()) / logical_size_.width(),
+               static_cast<double>(height()) / logical_size_.height());
   return std::clamp(scale, kMinimumZoom, kMaximumZoom);
 }
 
@@ -468,7 +551,7 @@ QRectF ZoomableImagePreview::displayed_rect() const {
     return {};
   }
   const auto z = zoom();
-  const QSizeF size(image_.width() * z, image_.height() * z);
+  const QSizeF size(logical_size_.width() * z, logical_size_.height() * z);
   return QRectF(QPointF((width() - size.width()) / 2.0,
                         (height() - size.height()) / 2.0) +
                     pan_offset_,
@@ -881,8 +964,8 @@ void ZoomableImagePreview::clamp_pan() {
     return;
   }
   const auto z = zoom();
-  const auto excess_x = std::max(0.0, image_.width() * z - width());
-  const auto excess_y = std::max(0.0, image_.height() * z - height());
+  const auto excess_x = std::max(0.0, logical_size_.width() * z - width());
+  const auto excess_y = std::max(0.0, logical_size_.height() * z - height());
   pan_offset_.setX(std::clamp(pan_offset_.x(), -excess_x / 2.0,
                               excess_x / 2.0));
   pan_offset_.setY(std::clamp(pan_offset_.y(), -excess_y / 2.0,
@@ -890,6 +973,7 @@ void ZoomableImagePreview::clamp_pan() {
 }
 
 void ZoomableImagePreview::publish_state() {
+  request_display_cache();
   setProperty("previewZoomPercent",
               static_cast<int>(std::lround(zoom() * 100.0)));
   setProperty("previewFitMode", fit_mode_);

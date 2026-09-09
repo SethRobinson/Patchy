@@ -59,6 +59,14 @@
 #include "ui/update_checker.hpp"
 #include "ui/visual_filter_gallery_dialog.hpp"
 #include "ui/zoomable_image_preview.hpp"
+#include "ui/raw_develop_dialog.hpp"
+#include "ui/raw_develop_settings.hpp"
+#include "ui/script_engine.hpp"
+#include "ui/qt_paths.hpp"
+#include "unicode_path_names.hpp"
+#include <QJsonDocument>
+#include <QJsonArray>
+#include <QJsonObject>
 #include "ui/zoom_status_bar.hpp"
 #include "filters/builtin_filters.hpp"
 #include "psd/psd_document_io.hpp"
@@ -259,6 +267,7 @@ void ui_flat_save_of_layered_document_warns_and_saves_copy() {
 QString write_raw_dng_fixture(const QString& file_name) {
   ensure_artifact_dir();
   const auto path = QFileInfo(QDir(QStringLiteral("test-artifacts")).filePath(file_name)).absoluteFilePath();
+  QFile::remove(patchy::ui::raw_develop_settings_path(path));
   const auto bytes = patchy::test::synthetic_bayer_dng(128, 96);
   QFile file(path);
   CHECK(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
@@ -267,8 +276,7 @@ QString write_raw_dng_fixture(const QString& file_name) {
   return path;
 }
 
-// The develop dialog persists its parameters on accept (last-used-as-defaults), so raw
-// UI tests must not inherit each other's (or the user's) imports/rawDevelop* values.
+// Isolate legacy values for older tests; per-photo settings must never read them.
 // Snapshots and removes them, restoring the original state afterwards. The
 // imports/showRawDevelopDialog preference has a different prefix and is unaffected.
 class RawDevelopSettingsSanitizer {
@@ -318,6 +326,477 @@ void drive_raw_develop_dialog(const std::shared_ptr<std::function<bool()>>& step
   });
 }
 
+QByteArray raw_test_bytes(const QString& path) {
+  QFile file(path);
+  CHECK(file.open(QIODevice::ReadOnly));
+  return file.readAll();
+}
+
+void raw_test_write(const QString& path, const QByteArray& bytes) {
+  QFile file(path);
+  CHECK(file.open(QIODevice::WriteOnly));
+  CHECK(file.write(bytes) == bytes.size());
+}
+
+std::optional<patchy::ui::RawDevelopOutcome> raw_test_dialog(
+    const QString& path, const std::function<void(QDialog&)>& step) {
+  std::exception_ptr error;
+  QElapsedTimer elapsed;
+  elapsed.start();
+  QTimer timer;
+  QObject::connect(&timer, &QTimer::timeout, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("rawDevelopDialog"));
+    if (!dialog) return;
+    try {
+      CHECK(elapsed.elapsed() < 30000);
+      step(*dialog);
+    } catch (...) {
+      error = std::current_exception();
+      dialog->reject();
+      timer.stop();
+    }
+  });
+  timer.start(15);
+  auto result = patchy::ui::run_raw_develop_dialog(nullptr, path);
+  timer.stop();
+  if (error) std::rethrow_exception(error);
+  return result;
+}
+
+void ui_raw_sidecar_round_trips_unicode_and_preserves_unknown_fields() {
+  using namespace patchy::ui;
+  for (const auto stem : patchy::test::kUnicodePathStems) {
+    const auto utf8 = patchy::test::utf8_string(stem);
+    const auto path = write_raw_dng_fixture(QString::fromUtf8(utf8.data(), static_cast<qsizetype>(utf8.size())) + QStringLiteral(".ARW"));
+    const auto source_bytes = raw_test_bytes(path);
+    auto initial = load_raw_develop_settings(path);
+    CHECK(!initial.exists);
+    CHECK(save_raw_develop_settings(path, {}, initial).isEmpty());
+    CHECK(!QFileInfo::exists(raw_develop_settings_path(path)));
+    patchy::raw::DevelopParams params;
+    params.white_balance = patchy::raw::WhiteBalanceMode::Custom;
+    params.custom_white_balance = {4300.0, 12.0};
+    params.exposure_ev = 0.75;
+    params.highlight_recovery = patchy::raw::HighlightMode::Rebuild;
+    params.auto_brighten = true;
+    params.brightness = 1.25;
+    params.contrast = 13;
+    params.highlights = -24;
+    params.shadows = 16;
+    params.saturation = 7;
+    params.vibrance = 9;
+    params.demosaic = patchy::raw::DemosaicAlgorithm::Dht;
+    params.noise_reduction = patchy::raw::NoiseReductionMode::Manual;
+    params.wavelet_denoise_threshold = 123;
+    params.fbdd = patchy::raw::FbddNoiseReduction::Full;
+    params.half_size = true;
+    CHECK(save_raw_develop_settings(path, params, initial).isEmpty());
+    auto loaded = load_raw_develop_settings(path);
+    CHECK(loaded.recognized);
+    CHECK(loaded.params == params);
+    auto root = loaded.preserved;
+    root.insert(QStringLiteral("future"), QStringLiteral("keep"));
+    auto fields = root.value(QStringLiteral("parameters")).toObject();
+    fields.insert(QStringLiteral("futureParameter"), 17);
+    root.insert(QStringLiteral("parameters"), fields);
+    raw_test_write(raw_develop_settings_path(path), QJsonDocument(root).toJson());
+    loaded = load_raw_develop_settings(path);
+    params.exposure_ev = 1.0;
+    CHECK(save_raw_develop_settings(path, params, loaded).isEmpty());
+    loaded = load_raw_develop_settings(path);
+    CHECK(loaded.preserved.value(QStringLiteral("future")).toString() == QStringLiteral("keep"));
+    CHECK(loaded.preserved.value(QStringLiteral("parameters")).toObject().value(QStringLiteral("futureParameter")).toInt() == 17);
+    CHECK(raw_test_bytes(path) == source_bytes);
+    CHECK(save_raw_develop_settings(path, {}, loaded).isEmpty());
+    CHECK(!QFileInfo::exists(raw_develop_settings_path(path)));
+  }
+}
+
+void ui_raw_sidecar_rejects_invalid_and_preserves_failed_writes() {
+  using namespace patchy::ui;
+  const auto path = write_raw_dng_fixture(QStringLiteral("raw_sidecar_invalid.dng"));
+  patchy::raw::DevelopParams params;
+  params.exposure_ev = 1.0;
+  CHECK(save_raw_develop_settings(path, params, load_raw_develop_settings(path)).isEmpty());
+  const auto valid = load_raw_develop_settings(path).preserved;
+  const std::array<QJsonValue, 5> invalid_values{QJsonValue(QStringLiteral("1")), QJsonValue(true), QJsonValue(4), QJsonValue(), QJsonValue(QJsonArray{})};
+  for (const auto& invalid : invalid_values) {
+    auto root = valid;
+    auto fields = root.value(QStringLiteral("parameters")).toObject();
+    fields.insert(QStringLiteral("exposure"), invalid);
+    root.insert(QStringLiteral("parameters"), fields);
+    const auto bytes = QJsonDocument(root).toJson();
+    raw_test_write(raw_develop_settings_path(path), bytes);
+    const auto loaded = load_raw_develop_settings(path);
+    CHECK(!loaded.recognized && !loaded.notice.isEmpty());
+    CHECK(loaded.params == patchy::raw::DevelopParams{});
+    CHECK(!save_raw_develop_settings(path, params, loaded).isEmpty());
+    CHECK(raw_test_bytes(raw_develop_settings_path(path)) == bytes);
+  }
+  for (const auto* key : {"version", "processingVersion"}) {
+    auto root = valid;
+    root.insert(QString::fromLatin1(key), 999);
+    raw_test_write(raw_develop_settings_path(path), QJsonDocument(root).toJson());
+    CHECK(!load_raw_develop_settings(path).recognized);
+  }
+  raw_test_write(raw_develop_settings_path(path), QByteArray("not json"));
+  auto loaded = load_raw_develop_settings(path);
+  CHECK(save_raw_develop_settings(path, params, loaded, true).isEmpty());
+  loaded = load_raw_develop_settings(path);
+  raw_test_write(raw_develop_settings_path(path), QByteArray("changed externally"));
+  CHECK(!save_raw_develop_settings(path, params, loaded).isEmpty());
+  CHECK(raw_test_bytes(raw_develop_settings_path(path)) == QByteArray("changed externally"));
+  const auto missing_parent = path + QStringLiteral("/missing/photo.ARW");
+  CHECK(!save_raw_develop_settings(missing_parent, params, {}).isEmpty());
+  QFile::remove(raw_develop_settings_path(path));
+}
+
+void ui_raw_dialog_done_cancel_reset_and_global_isolation() {
+  using namespace patchy::ui;
+  SettingsValueRestorer global(QStringLiteral("imports/rawDevelopExposure"));
+  auto settings = app_settings();
+  settings.setValue(QStringLiteral("imports/rawDevelopExposure"), 2.0);
+  settings.sync();
+  const auto a = write_raw_dng_fixture(QStringLiteral("raw_per_photo_a.dng"));
+  const auto b = write_raw_dng_fixture(QStringLiteral("raw_per_photo_b.dng"));
+  bool changed = false;
+  CHECK(!raw_test_dialog(a, [&](QDialog& dialog) {
+    auto* exposure = dialog.findChild<QSlider*>(QStringLiteral("rawExposureSlider"));
+    auto* done = dialog.findChild<QPushButton*>(QStringLiteral("rawDoneButton"));
+    if (!done->isEnabled()) return;
+    CHECK(exposure->value() == 0);
+    exposure->setValue(125);
+    changed = true;
+    done->click();
+  }));
+  CHECK(changed);
+  CHECK(load_raw_develop_settings(a).params.exposure_ev == 1.25);
+  CHECK(!load_raw_develop_settings(b).exists);
+  const auto saved = raw_test_bytes(raw_develop_settings_path(a));
+  CHECK(!raw_test_dialog(a, [&](QDialog& dialog) {
+    auto* exposure = dialog.findChild<QSlider*>(QStringLiteral("rawExposureSlider"));
+    CHECK(exposure->value() == 125);
+    exposure->setValue(-100);
+    dialog.reject();
+  }));
+  CHECK(raw_test_bytes(raw_develop_settings_path(a)) == saved);
+  CHECK(!raw_test_dialog(a, [&](QDialog& dialog) {
+    dialog.findChild<QPushButton*>(QStringLiteral("rawResetButton"))->click();
+    dialog.reject();
+  }));
+  CHECK(raw_test_bytes(raw_develop_settings_path(a)) == saved);
+  CHECK(!raw_test_dialog(a, [&](QDialog& dialog) {
+    auto* done = dialog.findChild<QPushButton*>(QStringLiteral("rawDoneButton"));
+    if (!done->isEnabled()) return;
+    dialog.findChild<QPushButton*>(QStringLiteral("rawResetButton"))->click();
+    CHECK(dialog.findChild<QSlider*>(QStringLiteral("rawExposureSlider"))->value() == 0);
+    done->click();
+  }));
+  CHECK(!load_raw_develop_settings(a).exists);
+  CHECK(app_settings().value(QStringLiteral("imports/rawDevelopExposure")).toDouble() == 2.0);
+}
+
+void ui_raw_dialog_preview_matches_open_and_script() {
+  using namespace patchy::ui;
+  const auto path = write_raw_dng_fixture(QStringLiteral("raw_preview_parity.dng"));
+  QImage accurate;
+  int stage = 0;
+  const auto outcome = raw_test_dialog(path, [&](QDialog& dialog) {
+    auto* preview = dynamic_cast<ZoomableImagePreview*>(dialog.findChild<QWidget*>(QStringLiteral("rawDevelopPreview")));
+    if (stage == 0) {
+      dialog.findChild<QSlider*>(QStringLiteral("rawExposureSlider"))->setValue(40);
+      dialog.findChild<QSlider*>(QStringLiteral("rawExposureSlider"))->setValue(80);
+      dialog.findChild<QSlider*>(QStringLiteral("rawExposureSlider"))->setValue(100);
+      stage = 1;
+      return;
+    }
+    if (!dialog.property("rawPreviewAccurate").toBool() || !preview->property("previewScaleReady").toBool()) return;
+    accurate = preview->image();
+    save_widget_artifact("ui_raw_refined_preview", dialog);
+    dialog.findChild<QPushButton*>(QStringLiteral("rawOpenButton"))->click();
+  });
+  CHECK(outcome.has_value());
+  CHECK(!accurate.isNull());
+  const auto verify = [&](const patchy::Document& document) {
+    CHECK(document.width() == accurate.width());
+    CHECK(document.height() == accurate.height());
+    const auto& pixels = document.layers().front().pixels();
+    for (int y = 0; y < document.height(); ++y)
+      for (int x = 0; x < document.width(); ++x) {
+        const auto color = accurate.pixel(x, y);
+        CHECK(pixels.pixel(x, y)[0] == qRed(color));
+        CHECK(pixels.pixel(x, y)[1] == qGreen(color));
+        CHECK(pixels.pixel(x, y)[2] == qBlue(color));
+      }
+  };
+  verify(outcome->document);
+  const auto sidecar = raw_test_bytes(raw_develop_settings_path(path));
+  SettingsValueRestorer pref(QStringLiteral("imports/showRawDevelopDialog"));
+  app_settings().setValue(QStringLiteral("imports/showRawDevelopDialog"), false);
+  MainWindow window;
+  show_window_empty(window);
+  MainWindowTestAccess::open_document_path(window, path);
+  verify(MainWindowTestAccess::document(window));
+  CHECK(raw_test_bytes(raw_develop_settings_path(path)) == sidecar);
+  // Reopen must re-read the sidecar, rather than retaining the open document's recipe.
+  auto changed_settings = load_raw_develop_settings(path);
+  auto changed_params = changed_settings.params;
+  changed_params.exposure_ev = 0.5;
+  CHECK(save_raw_develop_settings(path, changed_params, changed_settings).isEmpty());
+  std::exception_ptr reopen_error;
+  bool reopened = false;
+  QTimer reopen_timer;
+  reopen_timer.setSingleShot(true);
+  QObject::connect(&reopen_timer, &QTimer::timeout, &reopen_timer, [&] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* menu = qobject_cast<QMenu*>(widget);
+      if (!menu || menu->objectName() != QStringLiteral("documentTabContextMenu")) continue;
+      try {
+        for (auto* action : menu->actions()) {
+          if (action->objectName() == QStringLiteral("documentTabReopenAction")) {
+            CHECK(action->isEnabled());
+            action->trigger();
+            reopened = true;
+          }
+        }
+      } catch (...) { reopen_error = std::current_exception(); }
+      menu->close();
+    }
+  });
+  reopen_timer.start(0);
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(tabs != nullptr);
+  auto* tab_bar = tabs->findChild<QTabBar*>();
+  CHECK(tab_bar != nullptr);
+  const auto context_point = tab_bar->tabRect(tab_bar->currentIndex()).center();
+  QContextMenuEvent context_event(QContextMenuEvent::Mouse, context_point, tab_bar->mapToGlobal(context_point));
+  QApplication::sendEvent(tab_bar, &context_event);
+  if (reopen_error) std::rethrow_exception(reopen_error);
+  CHECK(reopened);
+  CHECK(std::as_const(MainWindowTestAccess::document(window)).layers().front().pixels().pixel(60, 40)[1] < qGreen(accurate.pixel(60, 40)));
+  raw_test_write(raw_develop_settings_path(path), sidecar);
+  app_settings().setValue(QStringLiteral("imports/showRawDevelopDialog"), true);
+  for (const bool unattended : {false, true}) {
+    MainWindow script_window;
+    show_window_empty(script_window);
+    auto& host = script_window.script_engine_host();
+    // JSON serialization keeps quotes, backslashes and Unicode literal in JS.
+    const auto quoted_array = QJsonDocument(QJsonArray{path}).toJson(QJsonDocument::Compact);
+    const auto script = QStringLiteral("app.open(%1[0]);").arg(QString::fromUtf8(quoted_array));
+    ScriptEngineHost::RunOptions options;
+    options.name = QStringLiteral("raw-sidecar-open");
+    options.unattended = unattended;
+    bool saw_dialog = false;
+    QTimer unexpected_dialog;
+    QObject::connect(&unexpected_dialog, &QTimer::timeout, [&] {
+      if (auto* dialog = find_top_level_dialog(QStringLiteral("rawDevelopDialog"))) {
+        saw_dialog = true;
+        dialog->reject();
+      }
+    });
+    unexpected_dialog.start(10);
+    CHECK(host.run_source(script, std::move(options)));
+    CHECK(process_events_until([&] { return !host.run_active(); }, 15000));
+    CHECK(!host.last_run_had_error());
+    CHECK(!saw_dialog);
+    verify(MainWindowTestAccess::document(script_window));
+    CHECK(raw_test_bytes(raw_develop_settings_path(path)) == sidecar);
+  }
+}
+
+void ui_raw_dialog_auto_controls_and_open_during_refinement() {
+  using namespace patchy::ui;
+  const auto path = write_raw_dng_fixture(QStringLiteral("raw_auto_controls.dng"));
+  patchy::test::SyntheticDngOptions fixture;
+  fixture.iso = 5000;
+  fixture.red_value = 18000;
+  fixture.blue_value = 7000;
+  const auto bytes = patchy::test::synthetic_bayer_dng(513, 385, fixture);
+  raw_test_write(path, QByteArray(reinterpret_cast<const char*>(bytes.data()), static_cast<qsizetype>(bytes.size())));
+  int stage = 0;
+  const auto result = raw_test_dialog(path, [&](QDialog& dialog) {
+    auto* noise = dialog.findChild<QComboBox*>(QStringLiteral("rawNoiseReductionCombo"));
+    auto* denoise = dialog.findChild<QSlider*>(QStringLiteral("rawDenoiseSlider"));
+    auto* fbdd = dialog.findChild<QComboBox*>(QStringLiteral("rawFbddCombo"));
+    auto* wb = dialog.findChild<QComboBox*>(QStringLiteral("rawWhiteBalanceCombo"));
+    auto* temperature = dialog.findChild<QSlider*>(QStringLiteral("rawTemperatureSlider"));
+    auto* label = dialog.findChild<QLabel*>(QStringLiteral("rawTemperatureSliderValue"));
+    if (stage == 0) {
+      if (!dialog.property("rawPreviewAccurate").toBool()) return;
+      CHECK(denoise->value() == 182 && !denoise->isEnabled());
+      CHECK(fbdd->currentData().toString() == QStringLiteral("full") && !fbdd->isEnabled());
+      noise->setCurrentIndex(noise->findData(QStringLiteral("manual")));
+      CHECK(denoise->value() == 182 && denoise->isEnabled());
+      CHECK(fbdd->currentData().toString() == QStringLiteral("full"));
+      noise->setCurrentIndex(noise->findData(QStringLiteral("off")));
+      CHECK(denoise->value() == 0 && !denoise->isEnabled());
+      wb->setCurrentIndex(wb->findData(QStringLiteral("auto")));
+      CHECK(label->text() == QObject::tr("Calculating..."));
+      stage = 1;
+    } else if (stage == 1) {
+      if (!dialog.property("rawPreviewAccurate").toBool()) return;
+      CHECK(label->text() != QObject::tr("Calculating..."));
+      const auto effective_temperature = temperature->value();
+      wb->setCurrentIndex(wb->findData(QStringLiteral("custom")));
+      CHECK(temperature->value() == effective_temperature);
+      dialog.findChild<QSlider*>(QStringLiteral("rawExposureSlider"))->setValue(75);
+      CHECK(!dialog.property("rawPreviewAccurate").toBool());
+      stage = 2;
+      dialog.findChild<QPushButton*>(QStringLiteral("rawOpenButton"))->click();
+    }
+  });
+  CHECK(stage == 2 && result.has_value());
+  patchy::raw::DevelopSession session(bytes);
+  const auto accurate = session.develop_document(result->params);
+  CHECK(result->document.width() == 513);
+  const auto& actual = std::as_const(result->document).layers().front().pixels();
+  const auto& expected = accurate.document.layers().front().pixels();
+  for (int y = 0; y < actual.height(); ++y)
+    CHECK(std::equal(actual.row(y).begin(), actual.row(y).end(), expected.row(y).begin()));
+}
+
+void ui_raw_dialog_failed_saves_and_untouched_precision() {
+  using namespace patchy::ui;
+  const auto path = write_raw_dng_fixture(QStringLiteral("raw_save_failure.dng"));
+  const auto sidecar_path = raw_develop_settings_path(path);
+  for (const bool open : {false, true}) {
+    int stage = 0;
+    std::exception_ptr prompt_error;
+    QTimer prompt_timer;
+    QObject::connect(&prompt_timer, &QTimer::timeout, [&] {
+      auto* box = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("rawSettingsSaveMessageBox")));
+      if (!box) return;
+      try {
+        CHECK(stage == 1);
+        stage = 2;
+        if (open) box->findChild<QPushButton*>(QStringLiteral("rawOpenWithoutSavingButton"))->click();
+        else box->button(QMessageBox::Cancel)->click();
+      } catch (...) {
+        prompt_error = std::current_exception();
+        box->reject();
+      }
+    });
+    prompt_timer.start(10);
+    const auto outcome = raw_test_dialog(path, [&](QDialog& dialog) {
+      if (stage == 0) {
+        if (!dialog.findChild<QPushButton*>(QStringLiteral("rawDoneButton"))->isEnabled()) return;
+        dialog.findChild<QSlider*>(QStringLiteral("rawExposureSlider"))->setValue(50);
+        // An external directory at the sidecar path deterministically prevents saving.
+        CHECK(QDir().mkdir(sidecar_path));
+        stage = 1;
+        dialog.findChild<QPushButton*>(open ? QStringLiteral("rawOpenButton") : QStringLiteral("rawDoneButton"))->click();
+      } else if (stage == 2 && !open) {
+        CHECK(dialog.isVisible());
+        CHECK(dialog.findChild<QPushButton*>(QStringLiteral("rawDoneButton"))->isEnabled());
+        stage = 3;
+        dialog.reject();
+      }
+    });
+    prompt_timer.stop();
+    CHECK(QDir().rmdir(sidecar_path));
+    if (prompt_error) std::rethrow_exception(prompt_error);
+    CHECK(outcome.has_value() == open);
+    CHECK(stage == (open ? 2 : 3));
+  }
+  patchy::raw::DevelopParams precise;
+  precise.white_balance = patchy::raw::WhiteBalanceMode::Custom;
+  precise.custom_white_balance = {4300.123, 12.345};
+  precise.exposure_ev = 0.12345;
+  CHECK(save_raw_develop_settings(path, precise, {}).isEmpty());
+  const auto saved = raw_test_bytes(sidecar_path);
+  CHECK(!raw_test_dialog(path, [&](QDialog& dialog) {
+    auto* done = dialog.findChild<QPushButton*>(QStringLiteral("rawDoneButton"));
+    if (done->isEnabled()) done->click();
+  }));
+  CHECK(raw_test_bytes(sidecar_path) == saved);
+  raw_test_write(sidecar_path, QByteArray("unsupported"));
+  CHECK(!raw_test_dialog(path, [&](QDialog& dialog) {
+    CHECK(!dialog.findChild<QLabel*>(QStringLiteral("rawSettingsNotice"))->text().isEmpty());
+    auto* done = dialog.findChild<QPushButton*>(QStringLiteral("rawDoneButton"));
+    if (done->isEnabled()) done->click();
+  }));
+  CHECK(raw_test_bytes(sidecar_path) == QByteArray("unsupported"));
+  CHECK(QFile::remove(sidecar_path));
+}
+
+void ui_zoomable_preview_downsampling_and_logical_dimensions() {
+  using namespace patchy::ui;
+  ZoomableImagePreview preview;
+  preview.resize(600, 400);
+  QImage source(2400, 1600, QImage::Format_RGB32);
+  for (int y = 0; y < source.height(); ++y)
+    for (int x = 0; x < source.width(); ++x)
+      source.setPixel(x, y, ((x / 2 + y / 2) & 1) ? qRgb(240, 20, 80) : qRgb(0, 220, 160));
+  preview.set_image(source);
+  preview.show();
+  CHECK(process_events_until([&] { return preview.property("previewScaleReady").toBool(); }, 10000));
+  const auto captured = preview.grab().toImage();
+  // Compare painted pixels to a full-area reduction, including fractional DPI ratios.
+  // The 2x2 blocks alias strongly under direct QPainter shrinking.
+  const auto reference = source.scaled(captured.size(), Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+  for (int y = captured.height() / 2 - 20; y < captured.height() / 2 + 20; ++y)
+    for (int x = captured.width() / 2 - 20; x < captured.width() / 2 + 20; ++x) {
+      const auto color = captured.pixel(x, y), expected = reference.pixel(x, y);
+      CHECK(std::abs(qRed(color) - qRed(expected)) <= 1);
+      CHECK(std::abs(qGreen(color) - qGreen(expected)) <= 1);
+      CHECK(std::abs(qBlue(color) - qBlue(expected)) <= 1);
+    }
+  const auto repeated = preview.grab().toImage();
+  CHECK(repeated == captured);
+  preview.zoom_to(0.125);
+  preview.zoom_to(0.25);
+  CHECK(process_events_until([&] { return preview.property("previewScaleReady").toBool(); }, 10000));
+  preview.zoom_to(1.0, QPointF(170, 120));
+  const auto pan = preview.property("previewPanOffset");
+  preview.set_image(source.scaled(1200, 800), source.size());
+  CHECK(preview.zoom() == 1.0);
+  CHECK(preview.property("previewPanOffset") == pan);
+  preview.set_image(source);
+  CHECK(preview.zoom() == 1.0);
+  CHECK(preview.property("previewPanOffset") == pan);
+  source.fill(qRgb(40, 80, 160));
+  preview.set_image(source);
+  preview.zoom_to_fit();
+  CHECK(process_events_until([&] { return preview.property("previewScaleReady").toBool(); }, 10000));
+  const auto changed = preview.grab().toImage();
+  CHECK(changed.pixel(changed.width() / 2, changed.height() / 2) == qRgb(40, 80, 160));
+  save_widget_artifact("ui_raw_preview_downsampling", preview);
+  // Premultiplied alpha averaging must not introduce the transparent pixels' red.
+  QImage alpha(2400, 1600, QImage::Format_ARGB32);
+  for (int y = 0; y < alpha.height(); ++y)
+    for (int x = 0; x < alpha.width(); ++x)
+      alpha.setPixel(x, y, ((x + y) & 1) ? qRgba(255, 0, 0, 0) : qRgba(0, 0, 255, 255));
+  preview.set_image(alpha);
+  CHECK(process_events_until([&] { return preview.property("previewScaleReady").toBool(); }, 10000));
+  const auto transparent = preview.grab().toImage();
+  const auto center = transparent.pixel(transparent.width() / 2, transparent.height() / 2);
+  CHECK(std::abs(qRed(center) - qGreen(center)) <= 1);
+  CHECK(qBlue(center) > qRed(center) + 100);
+}
+
+void ui_raw_local_photo_visual_acceptance_if_available() {
+  using namespace patchy::ui;
+  const auto source = patchy::test::source_root_path() / "local-test-fixtures" / "raw" / "sony_fx30_fx300416.arw";
+  if (!std::filesystem::exists(source)) {
+    std::cout << "[SKIP] local Sony FX30 fixture missing\n";
+    return;
+  }
+  const auto path = to_qstring(source);
+  const auto original = raw_test_bytes(path);
+  CHECK(!raw_test_dialog(path, [&](QDialog& dialog) {
+    auto* preview = dynamic_cast<ZoomableImagePreview*>(dialog.findChild<QWidget*>(QStringLiteral("rawDevelopPreview")));
+    if (!dialog.property("rawPreviewAccurate").toBool() || !preview->property("previewScaleReady").toBool()) return;
+    CHECK(preview->image().size() == QSize(4168, 6240));
+    CHECK(dialog.findChild<QSlider*>(QStringLiteral("rawDenoiseSlider"))->value() == 182);
+    CHECK(dialog.findChild<QComboBox*>(QStringLiteral("rawFbddCombo"))->currentData().toString() == QStringLiteral("full"));
+    save_widget_artifact("ui_raw_sony_fx30_fit", dialog);
+    preview->zoom_to(1.0);
+    save_widget_artifact("ui_raw_sony_fx30_100", dialog);
+    dialog.reject();
+  }));
+  CHECK(raw_test_bytes(path) == original);
+}
+
 void ui_raw_develop_dialog_accept_opens_document_and_save_routes_to_psd() {
   RawDevelopSettingsSanitizer raw_settings_sanitizer;
   SettingsValueRestorer dialog_restorer(QStringLiteral("imports/showRawDevelopDialog"));
@@ -348,6 +827,7 @@ void ui_raw_develop_dialog_accept_opens_document_and_save_routes_to_psd() {
   drive_raw_develop_dialog(step);
   patchy::ui::MainWindowTestAccess::open_document_path(window, path);
   CHECK(*clicked);
+  CHECK(!QFileInfo::exists(patchy::ui::raw_develop_settings_path(path)));
 
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   CHECK(document.width() == 128);
@@ -455,10 +935,10 @@ void ui_raw_develop_dialog_exposure_slider_brightens_preview() {
     const auto& image = preview->image();
     switch (*stage) {
       case 0:
-        // Wait for the first develop: previews always run at half size (64x48). The
+        // Wait for the first develop: the accurate preview uses full output size (128x96). The
         // sanitized defaults have auto-brighten off, so the exposure shift below is
         // monotonic with no extra setup.
-        if (image.isNull() || image.width() != 64 || !status->text().isEmpty()) {
+        if (image.isNull() || image.width() != 128 || !status->text().isEmpty()) {
           return false;
         }
         *last_image_key = image.cacheKey();
@@ -602,6 +1082,14 @@ void ui_heif_open_is_read_only_if_available() {
 
 std::vector<patchy::test::TestCase> camera_raw_heif_tests() {
   return {
+      {"ui_raw_sidecar_round_trips_unicode_and_preserves_unknown_fields", ui_raw_sidecar_round_trips_unicode_and_preserves_unknown_fields},
+      {"ui_raw_sidecar_rejects_invalid_and_preserves_failed_writes", ui_raw_sidecar_rejects_invalid_and_preserves_failed_writes},
+      {"ui_raw_dialog_done_cancel_reset_and_global_isolation", ui_raw_dialog_done_cancel_reset_and_global_isolation},
+      {"ui_raw_dialog_preview_matches_open_and_script", ui_raw_dialog_preview_matches_open_and_script},
+      {"ui_raw_dialog_auto_controls_and_open_during_refinement", ui_raw_dialog_auto_controls_and_open_during_refinement},
+      {"ui_raw_dialog_failed_saves_and_untouched_precision", ui_raw_dialog_failed_saves_and_untouched_precision},
+      {"ui_zoomable_preview_downsampling_and_logical_dimensions", ui_zoomable_preview_downsampling_and_logical_dimensions},
+      {"ui_raw_local_photo_visual_acceptance_if_available", ui_raw_local_photo_visual_acceptance_if_available},
       {"ui_raw_develop_dialog_accept_opens_document_and_save_routes_to_psd",
        ui_raw_develop_dialog_accept_opens_document_and_save_routes_to_psd},
       {"ui_raw_develop_dialog_cancel_aborts_open", ui_raw_develop_dialog_cancel_aborts_open},

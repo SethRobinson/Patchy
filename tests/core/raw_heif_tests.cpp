@@ -372,11 +372,134 @@ void raw_develop_half_size_and_denoise_run() {
   heavy.exposure_ev = 0.5;
   heavy.highlight_recovery = patchy::raw::HighlightMode::Rebuild;
   heavy.demosaic = patchy::raw::DemosaicAlgorithm::Dht;
+  heavy.noise_reduction = patchy::raw::NoiseReductionMode::Manual;
   heavy.wavelet_denoise_threshold = 300;
   heavy.fbdd = patchy::raw::FbddNoiseReduction::Full;
   const auto processed = patchy::raw::read_camera_raw(dng, heavy).document;
   CHECK(processed.width() == 128);
   CHECK(processed.height() == 96);
+}
+
+void raw_auto_noise_policy_and_modes() {
+  using namespace patchy::raw;
+  RawFileInfo info;
+  info.is_three_color_bayer = true;
+  DevelopParams params;
+  const std::array<double, 8> isos{100, 400, 800, 1600, 3200, 5000, 6400, 25600};
+  const std::array<int, 8> thresholds{0, 0, 50, 100, 150, 182, 200, 250};
+  for (std::size_t i = 0; i < isos.size(); ++i) {
+    info.iso = isos[i];
+    const auto result = effective_noise_reduction(params, info);
+    CHECK(result.auto_available);
+    CHECK(result.wavelet_threshold == thresholds[i]);
+    CHECK(result.fbdd == (info.iso >= 1600 ? FbddNoiseReduction::Full :
+                         info.iso >= 800 ? FbddNoiseReduction::Light : FbddNoiseReduction::Off));
+  }
+  info.iso = 0;
+  CHECK(!effective_noise_reduction(params, info).auto_available);
+  info.iso = 5000;
+  info.is_three_color_bayer = false;
+  CHECK(effective_noise_reduction(params, info).wavelet_threshold == 0);
+  params.noise_reduction = NoiseReductionMode::Manual;
+  params.wavelet_denoise_threshold = 333;
+  params.fbdd = FbddNoiseReduction::Light;
+  CHECK(effective_noise_reduction(params, info).wavelet_threshold == 333);
+  CHECK(effective_noise_reduction(params, info).fbdd == FbddNoiseReduction::Light);
+  params.noise_reduction = NoiseReductionMode::Off;
+  CHECK(effective_noise_reduction(params, info).wavelet_threshold == 0);
+  CHECK(effective_noise_reduction(params, info).fbdd == FbddNoiseReduction::Off);
+  params.exposure_ev = std::numeric_limits<double>::quiet_NaN();
+  params.brightness = std::numeric_limits<double>::infinity();
+  const auto normalized = normalize_develop_params(params);
+  CHECK(normalized.exposure_ev == 0);
+  CHECK(normalized.brightness == 1);
+}
+
+void raw_final_half_size_preserves_processing_and_cancellation_recovers() {
+  using namespace patchy::raw;
+  SyntheticDngOptions fixture;
+  fixture.horizontal_ramp = true;
+  fixture.noise_amplitude = 700;
+  fixture.iso = 5000;
+  // Odd dimensions exercise partial 2x2 blocks after LibRaw's own active-area handling.
+  DevelopSession session(synthetic_bayer_dng(257, 193, fixture));
+  CHECK(session.info().iso == 5000);
+  DevelopParams params;
+  const auto full = session.develop(params);
+  CHECK(full.noise.wavelet_threshold == 182);
+  CHECK(full.noise.fbdd == FbddNoiseReduction::Full);
+  const auto draft = session.develop(params, {DevelopQuality::Draft, {}});
+  CHECK(draft.output_width == full.width);
+  CHECK(draft.output_height == full.height);
+  CHECK(draft.width < draft.output_width);
+  CHECK(draft.fast_half_size && !draft.demosaic);
+  CHECK(draft.noise.fbdd == FbddNoiseReduction::Off);
+  CHECK(full.demosaic == DemosaicAlgorithm::Ahd);
+  params.half_size = true;
+  const auto half = session.develop(params);
+  CHECK(half.width == (full.width + 1) / 2);
+  CHECK(half.height == (full.height + 1) / 2);
+  for (int y = 0; y < half.height; ++y) {
+    for (int x = 0; x < half.width; ++x) {
+      for (std::size_t c = 0; c < 3; ++c) {
+        int sum = 0, count = 0;
+        for (int sy = 2 * y; sy < std::min(2 * y + 2, full.height); ++sy)
+          for (int sx = 2 * x; sx < std::min(2 * x + 2, full.width); ++sx) {
+            sum += full.rgb[(static_cast<std::size_t>(sy) * full.width + sx) * 3 + c];
+            ++count;
+          }
+        const int actual = half.rgb[(static_cast<std::size_t>(y) * half.width + x) * 3 + c];
+        CHECK(std::abs(actual - (sum + count / 2) / count) <= 1);
+      }
+    }
+  }
+  bool cancelled = false;
+  int checkpoints = 0;
+  try { (void)session.develop(params, {DevelopQuality::Final, [&] { return ++checkpoints >= 2; }}); }
+  catch (const DevelopCancelled&) { cancelled = true; }
+  CHECK(cancelled);
+  const auto recovered = session.develop(params);
+  CHECK(recovered.width == half.width);
+  CHECK(recovered.rgb == half.rgb); // same process, not a cross-toolchain byte pin
+}
+
+void raw_auto_denoise_reduces_chroma_without_color_shift() {
+  using namespace patchy::raw;
+  SyntheticDngOptions fixture;
+  fixture.iso = 5000;
+  fixture.noise_amplitude = 1800;
+  DevelopSession session(synthetic_bayer_dng(256, 256, fixture));
+  DevelopParams params;
+  const auto clean = session.develop(params);
+  params.noise_reduction = NoiseReductionMode::Off;
+  const auto noisy = session.develop(params);
+  const auto stats = [](const DevelopSession::DevelopedImage& image) {
+    std::array<double, 2> result{};
+    for (int y = 16; y < image.height - 16; ++y)
+      for (int x = 16; x < image.width - 16; ++x) {
+        const auto* pixel = image.rgb.data() + (static_cast<std::size_t>(y) * image.width + x) * 3;
+        const auto rg = static_cast<double>(pixel[0]) - pixel[1];
+        const auto bg = static_cast<double>(pixel[2]) - pixel[1];
+        result[0] += rg * rg + bg * bg;
+        result[1] += (pixel[0] + pixel[1] + pixel[2]) / 3.0;
+      }
+    const auto count = static_cast<double>((image.width - 32) * (image.height - 32));
+    result[0] /= count;
+    result[1] /= count;
+    return result;
+  };
+  const auto before = stats(noisy), after = stats(clean);
+  CHECK(after[0] < before[0] * 0.7);
+  CHECK(std::abs(after[1] - before[1]) < 4.0);
+  fixture.red_value = 16000;
+  fixture.blue_value = 8000;
+  DevelopSession colored(synthetic_bayer_dng(256, 256, fixture));
+  params.white_balance = WhiteBalanceMode::Auto;
+  const auto automatic = colored.develop(params);
+  CHECK(automatic.white_balance_multipliers.has_value());
+  CHECK(automatic.effective_white_balance.has_value());
+  CHECK(std::abs((*automatic.white_balance_multipliers)[0] - 1.0) > 0.1);
+  CHECK(std::abs((*automatic.white_balance_multipliers)[2] - 1.0) > 0.1);
 }
 
 void raw_develop_session_reports_info_and_orientation() {
@@ -699,6 +822,9 @@ void heif_decodes_real_photos_if_available() {
 
 std::vector<patchy::test::TestCase> raw_heif_tests() {
   return {
+      {"raw_auto_noise_policy_and_modes", raw_auto_noise_policy_and_modes},
+      {"raw_final_half_size_preserves_processing_and_cancellation_recovers", raw_final_half_size_preserves_processing_and_cancellation_recovers},
+      {"raw_auto_denoise_reduces_chroma_without_color_shift", raw_auto_denoise_reduces_chroma_without_color_shift},
       {"raw_white_balance_round_trips_temperature_and_tint", raw_white_balance_round_trips_temperature_and_tint},
       {"raw_develop_reads_synthetic_dng", raw_develop_reads_synthetic_dng},
       {"raw_develop_exposure_and_white_balance_shift_output",

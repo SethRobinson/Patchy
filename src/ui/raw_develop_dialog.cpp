@@ -1,6 +1,6 @@
 #include "ui/raw_develop_dialog.hpp"
 
-#include "ui/app_settings.hpp"
+#include "ui/raw_develop_settings.hpp"
 #include "ui/background_workers.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/zoomable_image_preview.hpp"
@@ -20,6 +20,7 @@
 #include <QImage>
 #include <QLabel>
 #include <QLocale>
+#include <QMessageBox>
 #include <QPushButton>
 #include <QScopeGuard>
 #include <QScrollArea>
@@ -53,26 +54,6 @@ constexpr double kMaxTemperatureK = 25000.0;
 constexpr int kTemperatureSliderSteps = 1000;
 constexpr int kPreviewDebounceMs = 200;
 
-// The persisted imports/rawDevelop* keys are a contract: never rename them.
-// kSettingHighlights stores the clipped-highlight RECOVERY mode (its historical meaning);
-// the tonal highlights slider uses kSettingToneHighlights.
-constexpr auto kSettingWhiteBalance = "imports/rawDevelopWhiteBalance";
-constexpr auto kSettingTemperature = "imports/rawDevelopTemperature";
-constexpr auto kSettingTint = "imports/rawDevelopTint";
-constexpr auto kSettingExposure = "imports/rawDevelopExposure";
-constexpr auto kSettingHighlights = "imports/rawDevelopHighlights";
-constexpr auto kSettingAutoBrighten = "imports/rawDevelopAutoBrighten";
-constexpr auto kSettingBrightness = "imports/rawDevelopBrightness";
-constexpr auto kSettingContrast = "imports/rawDevelopContrast";
-constexpr auto kSettingToneHighlights = "imports/rawDevelopToneHighlights";
-constexpr auto kSettingToneShadows = "imports/rawDevelopToneShadows";
-constexpr auto kSettingSaturation = "imports/rawDevelopSaturation";
-constexpr auto kSettingVibrance = "imports/rawDevelopVibrance";
-constexpr auto kSettingDemosaic = "imports/rawDevelopDemosaic";
-constexpr auto kSettingDenoise = "imports/rawDevelopDenoise";
-constexpr auto kSettingFbdd = "imports/rawDevelopFbdd";
-constexpr auto kSettingHalfSize = "imports/rawDevelopHalfSize";
-
 QString white_balance_token(raw::WhiteBalanceMode mode) {
   switch (mode) {
     case raw::WhiteBalanceMode::AsShot:
@@ -83,16 +64,6 @@ QString white_balance_token(raw::WhiteBalanceMode mode) {
       return QStringLiteral("custom");
   }
   return QStringLiteral("asShot");
-}
-
-raw::WhiteBalanceMode white_balance_from_token(const QString& token) {
-  if (token == QStringLiteral("auto")) {
-    return raw::WhiteBalanceMode::Auto;
-  }
-  if (token == QStringLiteral("custom")) {
-    return raw::WhiteBalanceMode::Custom;
-  }
-  return raw::WhiteBalanceMode::AsShot;
 }
 
 QString highlight_token(raw::HighlightMode mode) {
@@ -235,14 +206,16 @@ struct RawPreviewState {
   struct Completion {
     QImage image;
     std::shared_ptr<Document> document;
-    raw::RawFileInfo info;
     bool final_render{false};
-    bool first_completion{false};
+    raw::DevelopParams params;
+    std::optional<raw::WhiteBalance> white_balance;
+    QSize output_size;
   };
 
   QString file_path;
   bool closed{false};
   bool in_flight{false};
+  std::optional<Work> active;
   std::atomic<std::uint64_t> generation{0};
   std::optional<Work> pending;
   std::shared_ptr<raw::DevelopSession> session;
@@ -258,9 +231,11 @@ void enqueue_raw_develop(const std::shared_ptr<RawPreviewState>& state, raw::Dev
   if (state == nullptr || state->closed || !state->start) {
     return;
   }
-  const auto generation = state->generation.fetch_add(1, std::memory_order_acq_rel) + 1;
+  const auto generation = state->generation.load(std::memory_order_acquire);
   RawPreviewState::Work work{generation, params, final_render};
   if (state->in_flight) {
+    if (state->active && state->active->generation == generation &&
+        state->active->params == params && (state->active->final_render || !final_render)) return;
     state->pending = work;
     return;
   }
@@ -302,61 +277,10 @@ QString format_shutter(double seconds) {
 
 }  // namespace
 
-raw::DevelopParams saved_raw_develop_params() {
-  auto settings = app_settings();
-  raw::DevelopParams params;
-  params.white_balance =
-      white_balance_from_token(settings.value(kSettingWhiteBalance, white_balance_token(params.white_balance))
-                                   .toString());
-  params.custom_white_balance.temperature_k =
-      std::clamp(settings.value(kSettingTemperature, params.custom_white_balance.temperature_k).toDouble(),
-                 kMinTemperatureK, kMaxTemperatureK);
-  params.custom_white_balance.tint =
-      std::clamp(settings.value(kSettingTint, params.custom_white_balance.tint).toDouble(), -150.0, 150.0);
-  params.exposure_ev = std::clamp(settings.value(kSettingExposure, params.exposure_ev).toDouble(), -2.0, 3.0);
-  params.highlight_recovery = highlight_from_token(
-      settings.value(kSettingHighlights, highlight_token(params.highlight_recovery)).toString());
-  params.auto_brighten = settings.value(kSettingAutoBrighten, params.auto_brighten).toBool();
-  params.brightness = std::clamp(settings.value(kSettingBrightness, params.brightness).toDouble(), 0.25, 4.0);
-  params.contrast = std::clamp(settings.value(kSettingContrast, params.contrast).toDouble(), -100.0, 100.0);
-  params.highlights =
-      std::clamp(settings.value(kSettingToneHighlights, params.highlights).toDouble(), -100.0, 100.0);
-  params.shadows = std::clamp(settings.value(kSettingToneShadows, params.shadows).toDouble(), -100.0, 100.0);
-  params.saturation =
-      std::clamp(settings.value(kSettingSaturation, params.saturation).toDouble(), -100.0, 100.0);
-  params.vibrance = std::clamp(settings.value(kSettingVibrance, params.vibrance).toDouble(), -100.0, 100.0);
-  params.demosaic =
-      demosaic_from_token(settings.value(kSettingDemosaic, demosaic_token(params.demosaic)).toString());
-  params.wavelet_denoise_threshold =
-      std::clamp(settings.value(kSettingDenoise, params.wavelet_denoise_threshold).toInt(), 0, 1000);
-  params.fbdd = fbdd_from_token(settings.value(kSettingFbdd, fbdd_token(params.fbdd)).toString());
-  params.half_size = settings.value(kSettingHalfSize, params.half_size).toBool();
-  return params;
-}
-
-void save_raw_develop_params(const raw::DevelopParams& params) {
-  auto settings = app_settings();
-  settings.setValue(kSettingWhiteBalance, white_balance_token(params.white_balance));
-  settings.setValue(kSettingTemperature, params.custom_white_balance.temperature_k);
-  settings.setValue(kSettingTint, params.custom_white_balance.tint);
-  settings.setValue(kSettingExposure, params.exposure_ev);
-  settings.setValue(kSettingHighlights, highlight_token(params.highlight_recovery));
-  settings.setValue(kSettingAutoBrighten, params.auto_brighten);
-  settings.setValue(kSettingBrightness, params.brightness);
-  settings.setValue(kSettingContrast, params.contrast);
-  settings.setValue(kSettingToneHighlights, params.highlights);
-  settings.setValue(kSettingToneShadows, params.shadows);
-  settings.setValue(kSettingSaturation, params.saturation);
-  settings.setValue(kSettingVibrance, params.vibrance);
-  settings.setValue(kSettingDemosaic, demosaic_token(params.demosaic));
-  settings.setValue(kSettingDenoise, params.wavelet_denoise_threshold);
-  settings.setValue(kSettingFbdd, fbdd_token(params.fbdd));
-  settings.setValue(kSettingHalfSize, params.half_size);
-}
-
 std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const QString& file_path) {
   const QFileInfo file_info(file_path);
-  auto params = saved_raw_develop_params();
+  auto saved_settings = load_raw_develop_settings(file_path);
+  auto params = saved_settings.params;
 
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("rawDevelopDialog"));
@@ -367,6 +291,11 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
                                      "QWidget#rawDevelopControlsPage { background: transparent; }"));
 
   auto* layout = new QVBoxLayout(&dialog);
+  auto* settings_notice = new QLabel(saved_settings.notice, &dialog);
+  settings_notice->setObjectName(QStringLiteral("rawSettingsNotice"));
+  settings_notice->setWordWrap(true);
+  settings_notice->setVisible(!saved_settings.notice.isEmpty());
+  layout->addWidget(settings_notice);
   auto* content_row = new QHBoxLayout();
   layout->addLayout(content_row, 1);
 
@@ -492,6 +421,12 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
   demosaic_combo->addItem(QObject::tr("VNG"), QStringLiteral("vng"));
   demosaic_combo->addItem(QObject::tr("Bilinear (fastest)"), QStringLiteral("linear"));
   detail_form->addRow(QObject::tr("Demosaic:"), demosaic_combo);
+  auto* noise_combo = new QComboBox(detail_group);
+  noise_combo->setObjectName(QStringLiteral("rawNoiseReductionCombo"));
+  noise_combo->addItem(QObject::tr("Auto"), QStringLiteral("auto"));
+  noise_combo->addItem(QObject::tr("Manual"), QStringLiteral("manual"));
+  noise_combo->addItem(QObject::tr("Off"), QStringLiteral("off"));
+  detail_form->addRow(QObject::tr("Noise reduction:"), noise_combo);
   auto [denoise_slider, denoise_value] =
       add_slider_row(detail_form, QObject::tr("Denoise:"), 0, 1000, "rawDenoiseSlider");
   auto* fbdd_combo = new QComboBox(detail_group);
@@ -500,9 +435,13 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
   fbdd_combo->addItem(QObject::tr("Light"), QStringLiteral("light"));
   fbdd_combo->addItem(QObject::tr("Full"), QStringLiteral("full"));
   detail_form->addRow(QObject::tr("FBDD noise reduction:"), fbdd_combo);
-  auto* half_size_check = new QCheckBox(QObject::tr("Open at half size (faster)"), detail_group);
+  auto* half_size_check = new QCheckBox(QObject::tr("Open at half size"), detail_group);
   half_size_check->setObjectName(QStringLiteral("rawHalfSizeCheck"));
   detail_form->addRow(half_size_check);
+  auto* noise_note = new QLabel(detail_group);
+  noise_note->setObjectName(QStringLiteral("rawNoiseReductionNote"));
+  noise_note->setWordWrap(true);
+  detail_form->addRow(noise_note);
   controls_column->addWidget(detail_group);
 
   // --- File info ---
@@ -523,17 +462,34 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
   auto* open_button = buttons->addButton(QObject::tr("Open"), QDialogButtonBox::AcceptRole);
   open_button->setObjectName(QStringLiteral("rawOpenButton"));
   open_button->setDefault(true);
+  auto* done_button = buttons->addButton(QObject::tr("Done"), QDialogButtonBox::ActionRole);
+  done_button->setObjectName(QStringLiteral("rawDoneButton"));
+  done_button->setEnabled(false);
+  auto* retry_button = buttons->addButton(QObject::tr("Retry Preview"), QDialogButtonBox::ActionRole);
+  retry_button->setObjectName(QStringLiteral("rawRetryPreviewButton"));
+  retry_button->hide();
   buttons->addButton(QDialogButtonBox::Cancel);
   status_row->addWidget(buttons);
   layout->addLayout(status_row);
 
   // --- Widget <-> params sync ---
   std::optional<raw::WhiteBalance> as_shot_white_balance;
+  std::optional<raw::RawFileInfo> raw_info;
+  std::optional<raw::WhiteBalance> effective_white_balance;
+  bool auto_white_balance_pending = params.white_balance == raw::WhiteBalanceMode::Auto;
   bool syncing_widgets = false;
+  temperature_slider->setToolTip(QObject::tr("Estimated white balance temperature. Adjust to use Custom white balance."));
+  tint_slider->setToolTip(QObject::tr("Estimated white balance tint. Adjust to use Custom white balance."));
 
   const auto refresh_value_labels = [&] {
     temperature_value->setText(QObject::tr("%1 K").arg(std::lround(slider_to_temperature(temperature_slider->value()))));
     tint_value->setText(QString::number(tint_slider->value()));
+    if (auto_white_balance_pending) {
+      temperature_value->setText(QObject::tr("Calculating..."));
+      tint_value->setText(QObject::tr("Calculating..."));
+    }
+    temperature_slider->setEnabled(!auto_white_balance_pending);
+    tint_slider->setEnabled(!auto_white_balance_pending);
     const auto ev = exposure_slider->value() / 100.0;
     exposure_value->setText(QObject::tr("%1 EV").arg(QString::number(ev, 'f', 2)));
     contrast_value->setText(QString::number(contrast_slider->value()));
@@ -551,6 +507,19 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
     combo->setCurrentIndex(index >= 0 ? index : 0);
   };
 
+  const auto refresh_noise_widgets = [&] {
+    const auto noise = raw::effective_noise_reduction(params, raw_info.value_or(raw::RawFileInfo{}));
+    const QSignalBlocker block_denoise(denoise_slider), block_fbdd(fbdd_combo);
+    denoise_slider->setValue(noise.wavelet_threshold);
+    select_combo_data(fbdd_combo, fbdd_token(noise.fbdd));
+    const bool manual = params.noise_reduction == raw::NoiseReductionMode::Manual;
+    denoise_slider->setEnabled(manual);
+    fbdd_combo->setEnabled(manual);
+    noise_note->setText(params.noise_reduction == raw::NoiseReductionMode::Auto && !noise.auto_available ?
+        QObject::tr("Auto requires ISO metadata and a supported Bayer sensor.") : QString());
+    noise_note->setVisible(!noise_note->text().isEmpty());
+    refresh_value_labels();
+  };
   const auto apply_params_to_widgets = [&] {
     syncing_widgets = true;
     const QSignalBlocker block_wb(white_balance_combo);
@@ -569,6 +538,7 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
     const QSignalBlocker block_denoise(denoise_slider);
     const QSignalBlocker block_fbdd(fbdd_combo);
     const QSignalBlocker block_half(half_size_check);
+    const QSignalBlocker block_noise(noise_combo);
 
     select_combo_data(white_balance_combo, white_balance_token(params.white_balance));
     auto displayed_white_balance = params.custom_white_balance;
@@ -587,14 +557,21 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
     saturation_slider->setValue(static_cast<int>(std::lround(params.saturation)));
     vibrance_slider->setValue(static_cast<int>(std::lround(params.vibrance)));
     select_combo_data(demosaic_combo, demosaic_token(params.demosaic));
+    select_combo_data(noise_combo, params.noise_reduction == raw::NoiseReductionMode::Auto ? QStringLiteral("auto") :
+        params.noise_reduction == raw::NoiseReductionMode::Manual ? QStringLiteral("manual") : QStringLiteral("off"));
     denoise_slider->setValue(params.wavelet_denoise_threshold);
     select_combo_data(fbdd_combo, fbdd_token(params.fbdd));
     half_size_check->setChecked(params.half_size);
-    refresh_value_labels();
+    refresh_noise_widgets();
     syncing_widgets = false;
   };
 
   const auto read_params_from_widgets = [&] {
+    // Preserve supported sidecar precision until its slider actually changes.
+    const auto read_slider = [](QSlider* slider, double& value, double scale = 1.0) {
+      if (slider->value() != static_cast<int>(std::lround(value * scale)))
+        value = slider->value() / scale;
+    };
     const auto wb_data = white_balance_combo->currentData().toString();
     if (wb_data == QStringLiteral("asShot")) {
       params.white_balance = raw::WhiteBalanceMode::AsShot;
@@ -604,21 +581,24 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
       // Custom and the named presets both develop as explicit temperature/tint; the
       // sliders always hold the effective values (preset selection sets them).
       params.white_balance = raw::WhiteBalanceMode::Custom;
-      params.custom_white_balance.temperature_k = slider_to_temperature(temperature_slider->value());
-      params.custom_white_balance.tint = tint_slider->value();
+      if (temperature_slider->value() != temperature_to_slider(params.custom_white_balance.temperature_k))
+        params.custom_white_balance.temperature_k = slider_to_temperature(temperature_slider->value());
+      read_slider(tint_slider, params.custom_white_balance.tint);
     }
-    params.exposure_ev = exposure_slider->value() / 100.0;
-    params.contrast = contrast_slider->value();
-    params.highlights = tone_highlights_slider->value();
-    params.shadows = shadows_slider->value();
+    read_slider(exposure_slider, params.exposure_ev, 100.0);
+    read_slider(contrast_slider, params.contrast);
+    read_slider(tone_highlights_slider, params.highlights);
+    read_slider(shadows_slider, params.shadows);
     params.highlight_recovery = highlight_from_token(highlights_combo->currentData().toString());
     params.auto_brighten = auto_brighten_check->isChecked();
-    params.brightness = brightness_slider->value() / 100.0;
-    params.saturation = saturation_slider->value();
-    params.vibrance = vibrance_slider->value();
+    read_slider(brightness_slider, params.brightness, 100.0);
+    read_slider(saturation_slider, params.saturation);
+    read_slider(vibrance_slider, params.vibrance);
     params.demosaic = demosaic_from_token(demosaic_combo->currentData().toString());
-    params.wavelet_denoise_threshold = denoise_slider->value();
-    params.fbdd = fbdd_from_token(fbdd_combo->currentData().toString());
+    if (params.noise_reduction == raw::NoiseReductionMode::Manual) {
+      params.wavelet_denoise_threshold = denoise_slider->value();
+      params.fbdd = fbdd_from_token(fbdd_combo->currentData().toString());
+    }
     params.half_size = half_size_check->isChecked();
   };
 
@@ -642,6 +622,8 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
   raw::DevelopParams final_params;
   bool accepting = false;
   bool preview_has_render = false;
+  bool reset_requested = false;
+  std::optional<RawPreviewState::Completion> accurate_cache;
 
   const auto set_controls_enabled = [&](bool enabled) {
     white_balance_group->setEnabled(enabled);
@@ -650,24 +632,84 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
     detail_group->setEnabled(enabled);
     reset_button->setEnabled(enabled);
     open_button->setEnabled(enabled);
+    done_button->setEnabled(enabled && raw_info.has_value());
   };
 
   auto* debounce = new QTimer(&dialog);
   debounce->setSingleShot(true);
   debounce->setInterval(kPreviewDebounceMs);
 
+  auto* refine = new QTimer(&dialog);
+  refine->setSingleShot(true);
+  refine->setInterval(500);
+  const auto sliders_dragging = [&] {
+    for (auto* slider : dialog.findChildren<QSlider*>()) if (slider->isSliderDown()) return true;
+    return false;
+  };
   const auto set_busy_status = [&](const QString& text) { status_label->setText(text); };
-
-  const auto enqueue_preview = [&, state] {
+  const auto request_preview = [&](bool accurate) {
+    if (accepting || state->closed) return;
     read_params_from_widgets();
-    auto preview_params = params;
-    preview_params.half_size = true;  // previews always develop at half size for speed
-    set_busy_status(QObject::tr("Developing preview..."));
-    enqueue_raw_develop(state, preview_params, false);
+    retry_button->hide();
+    set_busy_status(QObject::tr("Quick preview - refining..."));
+    enqueue_raw_develop(state, params, accurate);
+  };
+  const auto enqueue_preview = [&] { request_preview(false); };
+
+  const auto save_settings = [&](bool allow_open_without_saving) {
+    if (!reset_requested && params == saved_settings.params) return true;
+    bool replace = false;
+    if (saved_settings.exists && !saved_settings.recognized) {
+      QMessageBox prompt(QMessageBox::Warning, QObject::tr("RAW settings"),
+          QObject::tr("The existing RAW settings file is unreadable or unsupported. Replace it to save these adjustments."),
+          QMessageBox::NoButton, &dialog);
+      prompt.setObjectName(QStringLiteral("rawSettingsSaveMessageBox"));
+      auto* replace_button = prompt.addButton(QObject::tr("Replace Settings"), QMessageBox::AcceptRole);
+      replace_button->setObjectName(QStringLiteral("rawReplaceSettingsButton"));
+      QPushButton* without = nullptr;
+      if (allow_open_without_saving) {
+        without = prompt.addButton(QObject::tr("Open Without Saving"), QMessageBox::ActionRole);
+        without->setObjectName(QStringLiteral("rawOpenWithoutSavingButton"));
+      }
+      prompt.addButton(QMessageBox::Cancel);
+      exec_dialog(prompt);
+      if (without && prompt.clickedButton() == without) return true;
+      if (prompt.clickedButton() != replace_button) return false;
+      replace = true;
+    }
+    for (;;) {
+      const auto error = save_raw_develop_settings(file_path, params, saved_settings, replace);
+      if (error.isEmpty()) return true;
+      QMessageBox prompt(QMessageBox::Warning, QObject::tr("RAW settings"), error,
+                         QMessageBox::Retry | QMessageBox::Cancel, &dialog);
+      prompt.setObjectName(QStringLiteral("rawSettingsSaveMessageBox"));
+      QPushButton* without = nullptr;
+      if (allow_open_without_saving) {
+        without = prompt.addButton(QObject::tr("Open Without Saving"), QMessageBox::ActionRole);
+        without->setObjectName(QStringLiteral("rawOpenWithoutSavingButton"));
+      }
+      exec_dialog(prompt);
+      if (without && prompt.clickedButton() == without) return true;
+      if (prompt.standardButton(prompt.clickedButton()) != QMessageBox::Retry) return false;
+    }
+  };
+  const auto finish_open = [&] {
+    if (!accurate_cache || !accurate_cache->document || accurate_cache->params != final_params) return;
+    if (!save_settings(true)) {
+      accepting = false;
+      set_controls_enabled(true);
+      set_busy_status(QObject::tr("Settings were not saved."));
+      return;
+    }
+    outcome = RawDevelopOutcome{std::move(*accurate_cache->document), final_params};
+    dialog.accept();
   };
 
   state->info_ready = [&](raw::RawFileInfo info) {
+    raw_info = info;
     as_shot_white_balance = info.as_shot_white_balance;
+    done_button->setEnabled(!accepting);
+    refresh_noise_widgets();
     QStringList lines;
     QString camera = QString::fromStdString(info.camera_make);
     const auto model = QString::fromStdString(info.camera_model);
@@ -710,26 +752,41 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
     if (!preview_has_render && !info.thumbnail.empty()) {
       auto thumbnail = QImage::fromData(info.thumbnail.data(), static_cast<int>(info.thumbnail.size()));
       if (!thumbnail.isNull()) {
-        preview->set_image(rotated_for_orientation(std::move(thumbnail), info.orientation_flip));
+        preview->set_image(rotated_for_orientation(std::move(thumbnail), info.orientation_flip),
+            QSize(params.half_size ? (info.output_width + 1) / 2 : info.output_width,
+                  params.half_size ? (info.output_height + 1) / 2 : info.output_height));
       }
     }
     // As Shot temperature/tint become displayable once the file is inspected.
-    if (params.white_balance == raw::WhiteBalanceMode::AsShot) {
-      apply_params_to_widgets();
+    if (params.white_balance == raw::WhiteBalanceMode::AsShot && as_shot_white_balance) {
+      const QSignalBlocker block_temperature(temperature_slider), block_tint(tint_slider);
+      temperature_slider->setValue(temperature_to_slider(as_shot_white_balance->temperature_k));
+      tint_slider->setValue(static_cast<int>(std::lround(as_shot_white_balance->tint)));
+      refresh_value_labels();
     }
   };
 
   state->apply = [&](RawPreviewState::Completion completion) {
-    if (completion.final_render) {
-      if (completion.document != nullptr) {
-        outcome = RawDevelopOutcome{std::move(*completion.document), final_params};
-        dialog.accept();
-      }
-      return;
-    }
     preview_has_render = true;
-    preview->set_image(std::move(completion.image));
-    set_busy_status(QString());
+    preview->set_image(completion.image, completion.output_size);
+    if (completion.white_balance) {
+      effective_white_balance = completion.white_balance;
+      if (params.white_balance != raw::WhiteBalanceMode::Custom) {
+        const QSignalBlocker block_temperature(temperature_slider), block_tint(tint_slider);
+        temperature_slider->setValue(temperature_to_slider(effective_white_balance->temperature_k));
+        tint_slider->setValue(static_cast<int>(std::lround(effective_white_balance->tint)));
+        auto_white_balance_pending = false;
+        refresh_value_labels();
+      }
+    }
+    dialog.setProperty("rawPreviewAccurate", completion.final_render);
+    if (completion.final_render) {
+      accurate_cache = std::move(completion);
+      set_busy_status(QString());
+      if (accepting) finish_open();
+    } else {
+      set_busy_status(QObject::tr("Quick preview - refining..."));
+    }
   };
 
   state->fail = [&](QString message, bool fatal) {
@@ -738,7 +795,9 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
       dialog.reject();
       return;
     }
-    set_busy_status(message);
+    dialog.setProperty("rawPreviewAccurate", false);
+    set_busy_status(QObject::tr("Preview incomplete: %1").arg(message));
+    retry_button->show();
     if (accepting) {
       accepting = false;
       set_controls_enabled(true);
@@ -747,48 +806,50 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
 
   state->start = [state](RawPreviewState::Work work) {
     state->in_flight = true;
+    state->active = work;
     auto* app = QCoreApplication::instance();
     run_tracked_background_worker([state, work, app]() mutable {
       RawPreviewState::Completion completion;
       completion.final_render = work.final_render;
+      completion.params = work.params;
       QString error;
       bool fatal = false;
+      bool cancelled = false;
       try {
         if (state->session == nullptr) {
           state->session = std::make_shared<raw::DevelopSession>(read_file_bytes_for_worker(state->file_path));
-          completion.first_completion = true;
-          completion.info = state->session->info();
+          QMetaObject::invokeMethod(app, [state, info = state->session->info()] {
+            if (!state->closed && state->info_ready) state->info_ready(info);
+          }, Qt::QueuedConnection);
         }
+        raw::DevelopOptions options;
+        options.quality = work.final_render ? raw::DevelopQuality::Final : raw::DevelopQuality::Draft;
+        options.cancelled = [state, generation = work.generation] {
+          return state->generation.load(std::memory_order_acquire) != generation;
+        };
+        auto developed = state->session->develop(work.params, options);
+        completion.image = image_from_developed(developed);
+        completion.output_size = QSize(developed.output_width, developed.output_height);
+        completion.white_balance = developed.effective_white_balance;
         if (work.final_render) {
-          auto result = state->session->develop_document(work.params);
+          auto result = raw::document_from_developed(developed);
           completion.document = std::make_shared<Document>(std::move(result.document));
-        } else {
-          completion.image = image_from_developed(state->session->develop(work.params));
         }
+      } catch (const raw::DevelopCancelled&) {
+        cancelled = true;
       } catch (const std::exception& caught) {
         error = QString::fromUtf8(caught.what());
         fatal = state->session == nullptr;
       }
-      if (app == nullptr) {
-        return;
-      }
-      QMetaObject::invokeMethod(
-          app,
-          [state, work, completion = std::move(completion), error, fatal]() mutable {
+      QMetaObject::invokeMethod(app,
+          [state, work, completion = std::move(completion), error, fatal, cancelled]() mutable {
             state->in_flight = false;
-            if (state->closed) {
-              return;
-            }
-            if (completion.first_completion && error.isEmpty() && state->info_ready) {
-              state->info_ready(completion.info);
-            }
-            const auto is_latest =
-                work.generation == state->generation.load(std::memory_order_acquire);
+            state->active.reset();
+            if (state->closed) return;
+            const auto is_latest = work.generation == state->generation.load(std::memory_order_acquire);
             if (!error.isEmpty()) {
-              if (state->fail && (is_latest || fatal)) {
-                state->fail(error, fatal);
-              }
-            } else if (is_latest && state->apply) {
+              if (state->fail && (is_latest || fatal)) state->fail(error, fatal);
+            } else if (!cancelled && is_latest && state->apply) {
               state->apply(std::move(completion));
             }
             if (state->pending.has_value() && state->start) {
@@ -796,8 +857,7 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
               state->pending.reset();
               state->start(std::move(next));
             }
-          },
-          Qt::QueuedConnection);
+          }, Qt::QueuedConnection);
     });
   };
 
@@ -806,7 +866,17 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
     if (syncing_widgets) {
       return;
     }
+    read_params_from_widgets();
+    state->generation.fetch_add(1, std::memory_order_acq_rel);
+    state->pending.reset();
+    dialog.setProperty("rawPreviewAccurate", false);
+    if (params.white_balance == raw::WhiteBalanceMode::Auto) {
+      auto_white_balance_pending = true;
+      refresh_value_labels();
+    }
+    set_busy_status(QObject::tr("Quick preview - refining..."));
     debounce->start();
+    refine->start();
   };
   const auto on_white_balance_slider = [&] {
     if (syncing_widgets) {
@@ -819,7 +889,7 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
       select_combo_data(white_balance_combo, QStringLiteral("custom"));
     }
     refresh_value_labels();
-    debounce->start();
+    on_control_changed();
   };
   QObject::connect(temperature_slider, &QSlider::valueChanged, &dialog, on_white_balance_slider);
   QObject::connect(tint_slider, &QSlider::valueChanged, &dialog, on_white_balance_slider);
@@ -847,10 +917,18 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
       tint_slider->setValue(
           static_cast<int>(std::lround(std::clamp(as_shot_white_balance->tint, -150.0, 150.0))));
       refresh_value_labels();
-    } else {
-      refresh_value_labels();
+    } else if (data == QStringLiteral("custom")) {
+      const auto balance = effective_white_balance ? effective_white_balance : as_shot_white_balance;
+      if (balance) {
+        params.custom_white_balance = *balance;
+        const QSignalBlocker block_temperature(temperature_slider), block_tint(tint_slider);
+        temperature_slider->setValue(temperature_to_slider(balance->temperature_k));
+        tint_slider->setValue(static_cast<int>(std::lround(balance->tint)));
+      }
     }
-    debounce->start();
+    auto_white_balance_pending = data == QStringLiteral("auto");
+    refresh_value_labels();
+    on_control_changed();
   });
   for (auto* value_slider : {exposure_slider, contrast_slider, tone_highlights_slider, shadows_slider,
                              brightness_slider, saturation_slider, vibrance_slider, denoise_slider}) {
@@ -863,13 +941,42 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
   QObject::connect(auto_brighten_check, &QCheckBox::toggled, &dialog, on_control_changed);
   QObject::connect(demosaic_combo, &QComboBox::currentIndexChanged, &dialog, on_control_changed);
   QObject::connect(fbdd_combo, &QComboBox::currentIndexChanged, &dialog, on_control_changed);
-  // Half size affects only the final decode; no preview refresh needed.
+  QObject::connect(half_size_check, &QCheckBox::toggled, &dialog, on_control_changed);
+  QObject::connect(noise_combo, &QComboBox::currentIndexChanged, &dialog, [&](int) {
+    if (syncing_widgets) return;
+    const auto previous = raw::effective_noise_reduction(params, raw_info.value_or(raw::RawFileInfo{}));
+    const auto token = noise_combo->currentData().toString();
+    params.noise_reduction = token == QStringLiteral("auto") ? raw::NoiseReductionMode::Auto :
+        token == QStringLiteral("manual") ? raw::NoiseReductionMode::Manual : raw::NoiseReductionMode::Off;
+    if (params.noise_reduction == raw::NoiseReductionMode::Manual) {
+      params.wavelet_denoise_threshold = previous.wavelet_threshold;
+      params.fbdd = previous.fbdd;
+    }
+    refresh_noise_widgets();
+    on_control_changed();
+  });
   QObject::connect(debounce, &QTimer::timeout, &dialog, enqueue_preview);
+  QObject::connect(refine, &QTimer::timeout, &dialog, [&] {
+    if (sliders_dragging()) { refine->start(); return; }
+    debounce->stop();
+    request_preview(true);
+  });
+  for (auto* slider : dialog.findChildren<QSlider*>()) {
+    QObject::connect(slider, &QSlider::sliderReleased, &dialog, [&] {
+      debounce->stop();
+      refine->stop();
+      request_preview(true);
+    });
+  }
+  QObject::connect(retry_button, &QPushButton::clicked, &dialog, [&] { request_preview(true); });
 
   QObject::connect(reset_button, &QPushButton::clicked, &dialog, [&] {
     params = raw::DevelopParams{};
+    reset_requested = true;
+    auto_white_balance_pending = false;
+    effective_white_balance.reset();
     apply_params_to_widgets();
-    debounce->start();
+    on_control_changed();
   });
   QObject::connect(open_button, &QPushButton::clicked, &dialog, [&, state] {
     if (accepting) {
@@ -882,12 +989,23 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
     set_busy_status(final_params.half_size ? QObject::tr("Developing half size...")
                                            : QObject::tr("Developing full resolution..."));
     debounce->stop();
-    enqueue_raw_develop(state, final_params, true);
+    refine->stop();
+    if (accurate_cache && accurate_cache->params == final_params) finish_open();
+    else enqueue_raw_develop(state, final_params, true);
+  });
+  QObject::connect(done_button, &QPushButton::clicked, &dialog, [&] {
+    read_params_from_widgets();
+    debounce->stop();
+    refine->stop();
+    if (save_settings(false)) dialog.reject();
+    else refine->start();
   });
   QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+  QObject::connect(&dialog, &QDialog::finished, &dialog, [state] { close_raw_develop(state); });
 
   apply_params_to_widgets();
   enqueue_preview();
+  refine->start();
 
   exec_dialog(dialog);
   close_raw_develop(state);
@@ -898,7 +1016,6 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
   if (dialog.result() != QDialog::Accepted || !outcome.has_value()) {
     return std::nullopt;
   }
-  save_raw_develop_params(outcome->params);
   return outcome;
 }
 

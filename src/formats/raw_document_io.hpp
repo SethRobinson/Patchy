@@ -4,6 +4,8 @@
 #include "formats/raw_white_balance.hpp"
 
 #include <cstdint>
+#include <exception>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <span>
@@ -49,6 +51,21 @@ enum class FbddNoiseReduction {
   Full
 };
 
+enum class NoiseReductionMode { Auto, Manual, Off };
+enum class DevelopQuality { Final, Draft };
+inline constexpr int kProcessingVersion = 1;
+
+struct DevelopOptions {
+  DevelopQuality quality{DevelopQuality::Final};
+  // Called on the worker at decoder checkpoints. Must not throw.
+  std::function<bool()> cancelled;
+};
+
+class DevelopCancelled final : public std::exception {
+public:
+  const char* what() const noexcept override { return "RAW development cancelled"; }
+};
+
 struct DevelopParams {
   WhiteBalanceMode white_balance{WhiteBalanceMode::AsShot};
   // Used when white_balance == Custom.
@@ -70,11 +87,21 @@ struct DevelopParams {
   double saturation{0.0};
   double vibrance{0.0};
   DemosaicAlgorithm demosaic{DemosaicAlgorithm::Ahd};
+  NoiseReductionMode noise_reduction{NoiseReductionMode::Auto};
   // Wavelet denoise threshold, 0 (off) .. 1000; 100-350 is a typical high-ISO range.
   int wavelet_denoise_threshold{0};
   FbddNoiseReduction fbdd{FbddNoiseReduction::Off};
-  // Decode at half linear size (quarter pixels): fast opens for very large sensors.
+  // Reduce finished output by 2 in each dimension. Draft quality is independent.
   bool half_size{false};
+  friend bool operator==(const DevelopParams&, const DevelopParams&) = default;
+};
+
+[[nodiscard]] DevelopParams normalize_develop_params(DevelopParams params);
+
+struct EffectiveNoiseReduction {
+  int wavelet_threshold{0};
+  FbddNoiseReduction fbdd{FbddNoiseReduction::Off};
+  bool auto_available{false};
 };
 
 struct RawFileInfo {
@@ -95,6 +122,7 @@ struct RawFileInfo {
   int orientation_flip{0};
   bool is_xtrans{false};
   bool is_foveon{false};
+  bool is_three_color_bayer{false};
   // As-shot white balance expressed as temperature/tint through the camera matrix;
   // nullopt when the file carries no usable as-shot multipliers or camera matrix.
   std::optional<WhiteBalance> as_shot_white_balance;
@@ -102,6 +130,9 @@ struct RawFileInfo {
   // is the caller's job: the formats library stays image-codec-free.
   std::vector<std::uint8_t> thumbnail;
 };
+
+[[nodiscard]] EffectiveNoiseReduction effective_noise_reduction(
+    const DevelopParams& params, const RawFileInfo& info);
 
 // Lowercase extensions (no dot) routed to the raw reader. Deliberately excludes the
 // ambiguous ".raw". TIFF-based raws that some cameras write as .tif stay with Qt's TIFF.
@@ -125,21 +156,33 @@ public:
   struct DevelopedImage {
     std::int32_t width{0};
     std::int32_t height{0};
+    // Intended final-output dimensions, even when rgb contains a smaller draft.
+    std::int32_t output_width{0};
+    std::int32_t output_height{0};
+    DevelopQuality quality{DevelopQuality::Final};
+    bool fast_half_size{false};
+    // Bayer demosaic actually used; the fast draft path bypasses demosaicing.
+    std::optional<DemosaicAlgorithm> demosaic;
+    EffectiveNoiseReduction noise;
+    std::optional<std::array<double, 4>> white_balance_multipliers;
+    std::optional<WhiteBalance> effective_white_balance;
     // Tightly packed interleaved RGB, 3 bytes per pixel, orientation applied.
     std::vector<std::uint8_t> rgb;
   };
 
   // Runs the raw develop pipeline with `params`. Callable repeatedly.
-  [[nodiscard]] DevelopedImage develop(const DevelopParams& params);
+  [[nodiscard]] DevelopedImage develop(const DevelopParams& params, const DevelopOptions& options = {});
 
   // develop() wrapped into a single-"Background"-pixel-layer sRGB document (the flat-reader
   // convention shared with BMP/TGA/PCX).
-  [[nodiscard]] FormatReadResult develop_document(const DevelopParams& params);
+  [[nodiscard]] FormatReadResult develop_document(const DevelopParams& params, const DevelopOptions& options = {});
 
 private:
   struct Impl;
   std::unique_ptr<Impl> impl_;
 };
+
+[[nodiscard]] FormatReadResult document_from_developed(const DevelopSession::DevelopedImage& image);
 
 // One-shot convenience for the headless paths (format registry, tests): open + develop +
 // wrap in a document.

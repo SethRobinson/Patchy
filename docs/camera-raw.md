@@ -22,39 +22,108 @@ tint as Duv offset, bisection for the inverse As Shot display. Without a usable
 matrix, treat as sRGB. LibRaw floats are not byte-stable across toolchains; tests
 assert statistics, never hashes.
 
-## Settings and displayed white balance
+## Defaults, noise reduction, and white balance
 
-`imports/showRawDevelopDialog` defaults to true. The dialog loads global last-used
-parameters from `imports/rawDevelop*`, saved on successful Open. These are not
-per-file settings: opening a new photo without touching a control can still apply
-an earlier photo's white balance, exposure, tone, color, denoise, and half-size
-choices. Reset restores `DevelopParams{}`. Preference-off and headless paths use
-neutral defaults, As Shot WB, AHD, full resolution, and disabled denoise.
+New photos use As Shot WB, exposure 0, brightness 1, neutral tone/color controls,
+histogram auto-brightening off, AHD, full output dimensions, and Auto noise
+reduction. Patchy retains camera-to-sRGB conversion; no Adobe profiles are bundled.
+Neutral controls also mean no photographic base tone curve or camera look. Adobe
+Color applies its own color and tone rendering underneath zeroed adjustment
+sliders, so matching slider values does not imply matching developed pixels.
+Displayed temperature/tint estimates alone are not a measure of that difference.
+`effective_noise_reduction` owns the fixed processing-version-1 ISO policy:
 
-Persisted keys never change. `rawDevelopHighlights` stores highlight RECOVERY;
-the tonal slider uses `rawDevelopToneHighlights`.
+| ISO | Wavelet threshold | FBDD |
+|---|---:|---|
+| Up to 400 | 0 | Off |
+| 800 | 50 | Light |
+| 1600 | 100 | Full |
+| 3200 | 150 | Full |
+| 6400 | 200 | Full |
+| 12800 and above | 250 | Full |
+
+Wavelet strength interpolates logarithmically; FBDD changes at the listed
+thresholds. ISO 5000 resolves to 182/Full. Auto applies only to three-color 2x2
+Bayer layouts with finite, positive ISO metadata. Other layouts and unknown ISO
+get no automatic reduction, explained in the dialog. Auto values are read-only;
+switching to Manual seeds both controls from effective values. Off disables both
+engines. Manual retains the existing algorithms/range and LibRaw's sensor support.
+This policy reduces noise; it does not reproduce Camera Raw's noise processing.
+Residual color speckling remains visible in high-ISO Sony shadows. LibRaw's
+post-demosaic color-difference median filter is currently disabled. Any added
+base rendering or color-noise stage needs an explicit processing-version contract
+for existing sidecars and validation of thin colored details across the corpus.
 
 As Shot decoding uses the camera's recorded multipliers directly. Its displayed
-temperature/tint is Patchy's matrix-based estimate, not Adobe's calibration. Auto
-uses LibRaw's gray-world estimate. Auto does not refresh the temperature/tint
-controls with its computed white balance; they retain custom or As Shot values.
+temperature/tint is Patchy's matrix-based estimate, not Adobe's calibration.
+Auto uses LibRaw's gray-world estimate. Completed developments return effective
+multipliers and estimated temperature/tint. Pending Auto displays Calculating;
+switching to Custom starts from the latest effective balance.
 
-## Preview quality limitations
+## Per-photo settings contract
 
-The worker is latest-wins and always develops half size, independently of the
-Open at half size checkbox, which controls the final import. On Bayer sensors,
-LibRaw's half-size path clears `filters` in `pre_interpolate()`. This skips both
-the selected demosaic algorithm and FBDD in `dcraw_process()`. Wavelet denoise
-still runs. AHD/FBDD controls therefore do not describe the effective Bayer
-preview processing, and full-size final output can differ from the preview.
+`imports/showRawDevelopDialog` still controls the interactive dialog. Legacy
+`imports/rawDevelop*` keys remain untouched and are never applied or migrated.
+The only settings store is the source's complete filename plus `.rawprefs`, for
+example `FX300416.ARW.rawprefs`. `raw_develop_settings.{hpp,cpp}` reads/writes UTF-8
+JSON with `format: "patchy.rawprefs"`, `version: 1`, `processingVersion: 1`, and a
+`parameters` object. No paths, window geometry, preview zoom, or hidden cache.
 
-`ZoomableImagePreview::paintEvent` currently draws the full preview image into a
-smaller rectangle with `QPainter::SmoothPixmapTransform`. At large reductions,
-this samples too few source pixels and aliases high-ISO color noise. It is not
-equivalent to `QImage::scaled(..., Qt::SmoothTransformation)`, which averages
-the reduced image. Compare the same decoded RGB through both paths before
-attributing fit-preview grain to RAW decoding or denoise. This affects display;
-it does not alter the developed document's pixel data.
+Store all normalized develop parameters, including explicit enum string tokens.
+Require correct types, finite bounded numbers, integer wavelet strength, and
+supported schema/processing versions. Inactive manual/custom parameters retain
+their values. Preserve unknown root and parameter fields in supported sidecars.
+Slider display rounding must not change untouched sidecar precision. Damaged,
+unreadable, or unsupported sidecars yield a notice and default rendering; preserve
+them unless the user explicitly replaces them. Changes to persisted processing
+require a deliberate processing-version decision; never silently interpret a
+newer version as version 1.
+
+Open waits for matching accurate pixels, saves customized settings, and imports.
+Done saves and closes without importing. Cancel discards the session. Reset
+restores current defaults; Open/Done commits it by removing a recognized sidecar.
+An untouched default import creates nothing. Unchanged unsupported files are
+preserved on Open/Done; committing Reset over one requires explicit replacement.
+Save uses `QSaveFile` atomic replacement without direct-write fallback and detects
+external changes since loading. Failed Done stays in the dialog; failed Open
+offers Retry, Cancel, or Open Without Saving. Neither operation writes RAW bytes.
+
+The shared filename-opening path reads sidecars for interactive Open, Reopen,
+dialog-disabled imports, scripts, and the connector. Automated opens never write
+sidecars, irrespective of the dialog preference. Byte-buffer decoding has no
+filename: it uses explicit parameters or defaults. Script signatures are unchanged;
+the bundled scripting guide and `patchy.d.ts` document the filename behavior.
+
+## Accurate processing and preview scheduling
+
+`DevelopOptions` selects Draft or Final independently of the `half_size` output
+choice. Draft may use LibRaw's fast half-size processing, bypassing Bayer
+demosaic/FBDD. Final always runs full processing with selected demosaic/noise
+settings. Final half-size output averages each 2x2 block after 16-bit tone/color
+operations, including partial blocks at odd edges, before rounded 8-bit conversion.
+Results include intended output dimensions, quality, effective processing and WB
+metadata. `document_from_developed` lets Open reuse accurate preview pixels.
+
+Cancellation is checked at LibRaw checkpoints and output rows. LibRaw recycles
+on cancellation: before another decode, reopen/unpack retained bytes with the
+original neutral decoder options. A previous wavelet threshold must not affect
+active dimensions during re-identification. One worker owns each session.
+
+The dialog has one decoder worker and one latest pending request. Edits invalidate
+old completions and request a draft after 200 ms; 500 ms idle or slider release
+requests accurate refinement. Open reuses a matching accurate cache or waits;
+draft pixels are never imported. Drafts remain visibly marked as refining. A
+refinement error marks the remaining preview incomplete and offers Retry Preview.
+Closing immediately disarms callbacks and cancels obsolete processing.
+
+`ZoomableImagePreview` has logical output dimensions independent of its current
+bitmap. Draft replacement preserves fit mode, zoom, pan, and image coordinates.
+Below 100%, worker-prepared `QImage::scaled(..., SmoothTransformation)` images
+average source samples at physical display resolution. Cache identity includes
+source generation and size derived from zoom, viewport, and device pixel ratio.
+One pending latest request bounds work. Painting/panning reuse the cache; 100%
+and above retain precise pixel viewing. Shared users, including Filter Gallery,
+receive the same scaling fix with alpha and overlay coordinates intact.
 
 ## Formats and tests
 

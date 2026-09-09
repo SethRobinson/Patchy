@@ -15,6 +15,7 @@ struct WhiteBalance {
   // Positive = magenta, negative = green, roughly matching the ACR/Lightroom slider
   // direction and scale (about -150..150 useful range).
   double tint{0.0};
+  friend bool operator==(const WhiteBalance&, const WhiteBalance&) = default;
 };
 
 // The camera's XYZ(D65) -> camera-space matrix, rows = camera channels R,G,B,G2 (LibRaw's

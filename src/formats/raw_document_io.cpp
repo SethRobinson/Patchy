@@ -102,6 +102,36 @@ int libraw_highlight_for(HighlightMode mode) {
 
 }  // namespace
 
+DevelopParams normalize_develop_params(DevelopParams params) {
+  const auto bounded = [](double value, double low, double high, double fallback) {
+    return std::isfinite(value) ? std::clamp(value, low, high) : fallback;
+  };
+  params.custom_white_balance.temperature_k = bounded(params.custom_white_balance.temperature_k, 2000, 25000, 5500);
+  params.custom_white_balance.tint = bounded(params.custom_white_balance.tint, -150, 150, 0);
+  params.exposure_ev = bounded(params.exposure_ev, -2, 3, 0);
+  params.brightness = bounded(params.brightness, 0.25, 4, 1);
+  for (auto* value : {&params.contrast, &params.highlights, &params.shadows, &params.saturation, &params.vibrance})
+    *value = bounded(*value, -100, 100, 0);
+  params.wavelet_denoise_threshold = std::clamp(params.wavelet_denoise_threshold, 0, 1000);
+  return params;
+}
+
+EffectiveNoiseReduction effective_noise_reduction(const DevelopParams& params, const RawFileInfo& info) {
+  EffectiveNoiseReduction result;
+  result.auto_available = info.is_three_color_bayer && std::isfinite(info.iso) && info.iso > 0;
+  if (params.noise_reduction == NoiseReductionMode::Manual) {
+    result.wavelet_threshold = std::clamp(params.wavelet_denoise_threshold, 0, 1000);
+    result.fbdd = params.fbdd;
+  } else if (params.noise_reduction == NoiseReductionMode::Auto && result.auto_available) {
+    // Processing version 1: metadata-only, fixed ISO policy. See docs/camera-raw.md.
+    result.wavelet_threshold = static_cast<int>(std::lround(
+        std::clamp(50.0 * std::log2(std::max(info.iso, 400.0) / 400.0), 0.0, 250.0)));
+    result.fbdd = info.iso >= 1600 ? FbddNoiseReduction::Full :
+                  info.iso >= 800 ? FbddNoiseReduction::Light : FbddNoiseReduction::Off;
+  }
+  return result;
+}
+
 const std::vector<std::string>& camera_raw_extensions() {
   // Mainstream interchangeable-lens and compact camera formats LibRaw decodes. ".raw" is
   // deliberately absent (it is used for arbitrary sensor/firmware dumps), and TIFF-based
@@ -138,9 +168,11 @@ struct DevelopSession::Impl {
   // outlive the processor (members destroy in reverse order).
   std::vector<std::uint8_t> file_bytes;
   LibRaw processor;
+  const libraw_output_params_t initial_output{processor.imgdata.params};
   RawFileInfo info;
+  bool needs_unpack{false};
 
-  void apply_params(const DevelopParams& params) {
+  void apply_params(const DevelopParams& params, DevelopQuality quality) {
     auto& output = processor.imgdata.params;
     // 16-bit output: the tone/color stage below runs at raw precision and quantizes to
     // 8 bits only at the very end.
@@ -181,9 +213,10 @@ struct DevelopSession::Impl {
     output.no_auto_bright = params.auto_brighten ? 0 : 1;
     output.bright = static_cast<float>(std::clamp(params.brightness, 0.25, 4.0));
     output.user_qual = libraw_quality_for(params.demosaic);
-    output.threshold = static_cast<float>(std::clamp(params.wavelet_denoise_threshold, 0, 1000));
-    output.fbdd_noiserd = std::clamp(static_cast<int>(params.fbdd), 0, 2);
-    output.half_size = params.half_size ? 1 : 0;
+    const auto noise = effective_noise_reduction(params, info);
+    output.threshold = static_cast<float>(noise.wavelet_threshold);
+    output.fbdd_noiserd = std::clamp(static_cast<int>(noise.fbdd), 0, 2);
+    output.half_size = quality == DevelopQuality::Draft ? 1 : 0;
   }
 
   void gather_info() {
@@ -205,6 +238,23 @@ struct DevelopSession::Impl {
     info.orientation_flip = sizes.flip;
     info.is_xtrans = idata.filters == 9;
     info.is_foveon = idata.is_foveon != 0;
+    info.is_three_color_bayer = !info.is_foveon && idata.filters > 1000 && idata.colors == 3;
+    if (info.is_three_color_bayer) {
+      std::array<int, 3> sites{};
+      const auto channel_at = [&](int y, int x) {
+        const auto channel = processor.fcol(y, x);
+        return channel == 3 ? 1 : channel;
+      };
+      for (int y = 0; y < 8; ++y) {
+        for (int x = 0; x < 8; ++x) {
+          const auto channel = channel_at(y, x);
+          if (channel < 0 || channel > 2 || channel != channel_at(y % 2, x % 2))
+            info.is_three_color_bayer = false;
+          else if (y < 2 && x < 2) ++sites[static_cast<std::size_t>(channel)];
+        }
+      }
+      info.is_three_color_bayer = info.is_three_color_bayer && sites == std::array{1, 2, 1};
+    }
 
     const auto& color = processor.imgdata.color;
     if (color.cam_mul[0] > 0.0f && color.cam_mul[1] > 0.0f && color.cam_mul[2] > 0.0f) {
@@ -244,9 +294,34 @@ const RawFileInfo& DevelopSession::info() const noexcept {
   return impl_->info;
 }
 
-DevelopSession::DevelopedImage DevelopSession::develop(const DevelopParams& params) {
-  impl_->apply_params(params);
-  check_libraw(impl_->processor.dcraw_process(), "develop");
+DevelopSession::DevelopedImage DevelopSession::develop(const DevelopParams& requested, const DevelopOptions& options) {
+  if (options.cancelled && options.cancelled()) throw DevelopCancelled{};
+  const auto params = normalize_develop_params(requested);
+  auto& processor = impl_->processor;
+  processor.set_progress_handler([](void* context, LibRaw_progress, int, int) {
+    const auto& check = static_cast<const DevelopOptions*>(context)->cancelled;
+    return check && check() ? 1 : 0;
+  }, const_cast<DevelopOptions*>(&options));
+  struct ClearCallback {
+    LibRaw& processor;
+    ~ClearCallback() { processor.set_progress_handler(nullptr, nullptr); }
+  } clear_callback{processor};
+  const auto check_processing = [&](int code, const char* stage) {
+    if (code != LIBRAW_SUCCESS) impl_->needs_unpack = true;
+    if (code == LIBRAW_CANCELLED_BY_CALLBACK) throw DevelopCancelled{};
+    check_libraw(code, stage);
+  };
+  if (impl_->needs_unpack) {
+    processor.recycle();
+    // Identification uses threshold/half_size when calculating active dimensions.
+    // Reopen with the same neutral decoder options as the initial unpack.
+    processor.imgdata.params = impl_->initial_output;
+    check_processing(processor.open_buffer(impl_->file_bytes.data(), impl_->file_bytes.size()), "open");
+    check_processing(processor.unpack(), "decode");
+    impl_->needs_unpack = false;
+  }
+  impl_->apply_params(params, options.quality);
+  check_processing(processor.dcraw_process(), "develop");
 
   int error_code = LIBRAW_SUCCESS;
   auto* processed = impl_->processor.dcraw_make_mem_image(&error_code);
@@ -264,6 +339,19 @@ DevelopSession::DevelopedImage DevelopSession::develop(const DevelopParams& para
   DevelopedImage image;
   image.width = processed->width;
   image.height = processed->height;
+  image.quality = options.quality;
+  image.fast_half_size = options.quality == DevelopQuality::Draft;
+  if (impl_->info.is_three_color_bayer && !image.fast_half_size) image.demosaic = params.demosaic;
+  image.noise = effective_noise_reduction(params, impl_->info);
+  if (image.fast_half_size || !impl_->info.is_three_color_bayer) image.noise.fbdd = FbddNoiseReduction::Off;
+  const auto& color = processor.imgdata.color;
+  if (color.pre_mul[0] > 0 && color.pre_mul[1] > 0 && color.pre_mul[2] > 0) {
+    image.white_balance_multipliers = std::array<double, 4>{
+        color.pre_mul[0] / color.pre_mul[1], 1.0, color.pre_mul[2] / color.pre_mul[1],
+        color.pre_mul[3] > 0 ? color.pre_mul[3] / color.pre_mul[1] : 1.0};
+    image.effective_white_balance = white_balance_for_multipliers(
+        *image.white_balance_multipliers, camera_matrix_from(color.cam_xyz));
+  }
   const auto pixel_count = static_cast<std::size_t>(image.width) * static_cast<std::size_t>(image.height);
   const auto channel_count = static_cast<std::size_t>(processed->colors);
   if (processed->data_size < pixel_count * channel_count * 2) {
@@ -280,43 +368,45 @@ DevelopSession::DevelopedImage DevelopSession::develop(const DevelopParams& para
     return static_cast<std::uint8_t>((value16 * 255U + 32767U) / 65535U);
   };
 
-  image.rgb.resize(pixel_count * 3);
-  if (channel_count == 3) {
-    if (color_active) {
-      std::array<std::uint16_t, 3> pixel_channels{};
-      for (std::size_t pixel = 0; pixel < pixel_count; ++pixel) {
-        const auto* in = source + pixel * 3;
-        pixel_channels = {lut[in[0]], lut[in[1]], lut[in[2]]};
-        apply_color(std::span<std::uint16_t>(pixel_channels), params.saturation, params.vibrance);
-        auto* out = image.rgb.data() + pixel * 3;
-        out[0] = quantize8(pixel_channels[0]);
-        out[1] = quantize8(pixel_channels[1]);
-        out[2] = quantize8(pixel_channels[2]);
+  const int source_width = image.width;
+  const int source_height = image.height;
+  const int step = options.quality == DevelopQuality::Final && params.half_size ? 2 : 1;
+  image.width = (source_width + step - 1) / step;
+  image.height = (source_height + step - 1) / step;
+  image.output_width = options.quality == DevelopQuality::Final ? image.width :
+      params.half_size ? (impl_->info.output_width + 1) / 2 : impl_->info.output_width;
+  image.output_height = options.quality == DevelopQuality::Final ? image.height :
+      params.half_size ? (impl_->info.output_height + 1) / 2 : impl_->info.output_height;
+  image.rgb.resize(static_cast<std::size_t>(image.width) * image.height * 3);
+  for (int y = 0; y < image.height; ++y) {
+    if (options.cancelled && options.cancelled()) throw DevelopCancelled{};
+    for (int x = 0; x < image.width; ++x) {
+      std::array<std::uint32_t, 3> sum{};
+      std::uint32_t samples = 0;
+      for (int sy = y * step; sy < std::min((y + 1) * step, source_height); ++sy) {
+        for (int sx = x * step; sx < std::min((x + 1) * step, source_width); ++sx) {
+          const auto* in = source + (static_cast<std::size_t>(sy) * source_width + sx) * channel_count;
+          std::array<std::uint16_t, 3> channels = channel_count == 3 ?
+              std::array<std::uint16_t, 3>{lut[in[0]], lut[in[1]], lut[in[2]]} :
+              std::array<std::uint16_t, 3>{lut[in[0]], lut[in[0]], lut[in[0]]};
+          if (color_active && channel_count == 3)
+            apply_color(channels, params.saturation, params.vibrance);
+          for (std::size_t c = 0; c < 3; ++c) sum[c] += channels[c];
+          ++samples;
+        }
       }
-    } else {
-      for (std::size_t pixel = 0; pixel < pixel_count; ++pixel) {
-        const auto* in = source + pixel * 3;
-        auto* out = image.rgb.data() + pixel * 3;
-        out[0] = quantize8(lut[in[0]]);
-        out[1] = quantize8(lut[in[1]]);
-        out[2] = quantize8(lut[in[2]]);
-      }
-    }
-  } else {
-    // Monochrome sensors (Leica M Monochrom and similar) develop to one channel;
-    // saturation/vibrance are no-ops on gray, so only the tone curve applies.
-    for (std::size_t pixel = 0; pixel < pixel_count; ++pixel) {
-      const auto value = quantize8(lut[source[pixel]]);
-      image.rgb[pixel * 3 + 0] = value;
-      image.rgb[pixel * 3 + 1] = value;
-      image.rgb[pixel * 3 + 2] = value;
+      auto* out = image.rgb.data() + (static_cast<std::size_t>(y) * image.width + x) * 3;
+      for (std::size_t c = 0; c < 3; ++c) out[c] = quantize8((sum[c] + samples / 2) / samples);
     }
   }
   return image;
 }
 
-FormatReadResult DevelopSession::develop_document(const DevelopParams& params) {
-  auto image = develop(params);
+FormatReadResult DevelopSession::develop_document(const DevelopParams& params, const DevelopOptions& options) {
+  return document_from_developed(develop(params, options));
+}
+
+FormatReadResult document_from_developed(const DevelopSession::DevelopedImage& image) {
   PixelBuffer pixels(image.width, image.height, PixelFormat::rgb8());
   for (std::int32_t y = 0; y < image.height; ++y) {
     const auto* source = image.rgb.data() + static_cast<std::size_t>(y) * static_cast<std::size_t>(image.width) * 3;

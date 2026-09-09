@@ -981,6 +981,8 @@ if(PATCHY_BUILD_APP)
       src/ui/qt_geometry.cpp
       src/ui/raw_develop_dialog.hpp
       src/ui/raw_develop_dialog.cpp
+      src/ui/raw_develop_settings.hpp
+      src/ui/raw_develop_settings.cpp
       src/ui/scanner_import.hpp
       src/ui/js_syntax_highlighter.hpp
       src/ui/js_syntax_highlighter.cpp

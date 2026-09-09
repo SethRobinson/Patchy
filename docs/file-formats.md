@@ -33,9 +33,9 @@ Everything reads AND writes except camera raw, HEIF/HEIC, and .af (read-only); J
 ## Camera raw (CR2/CR3/NEF/ARW/RAF/DNG, ...)
 
 Read-only LibRaw import through `raw_document_io.{hpp,cpp}`. Decoder, precision,
-licensing, settings, and tests: [camera-raw.md](camera-raw.md). The dialog restores
-global last-used adjustments; its forced half-size processing and downsampling
-have preview quality limitations documented there.
+licensing, per-photo sidecars, defaults, and tests: [camera-raw.md](camera-raw.md).
+The dialog refines drafts into accurate previews and saves adjustments beside
+the source. Automated filename opens read those sidecars without writing them.
 
 ## HEIF/HEIC (.heic/.heif/.hif)
 

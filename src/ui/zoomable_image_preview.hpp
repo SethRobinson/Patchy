@@ -5,6 +5,7 @@
 #include <QWidget>
 
 #include <functional>
+#include <memory>
 #include <optional>
 
 class QMouseEvent;
@@ -46,7 +47,7 @@ class ZoomableImagePreview final : public QWidget {
 public:
   explicit ZoomableImagePreview(QWidget* parent = nullptr);
 
-  void set_image(QImage image);
+  void set_image(QImage image, QSize logical_size = {});
   [[nodiscard]] const QImage& image() const noexcept;
   [[nodiscard]] double zoom() const;
   [[nodiscard]] bool fit_mode() const noexcept;
@@ -77,6 +78,7 @@ public:
                          bool gesture_finished)> callback);
 
 protected:
+  bool event(QEvent* event) override;
   void paintEvent(QPaintEvent* event) override;
   void resizeEvent(QResizeEvent* event) override;
   void mousePressEvent(QMouseEvent* event) override;
@@ -130,6 +132,15 @@ private:
   void clamp_pan();
   void publish_state();
   void publish_overlay_state();
+  void request_display_cache();
+  void start_display_cache();
+
+  struct ScaleState;
+  std::shared_ptr<ScaleState> scale_state_;
+  QImage scaled_image_;
+  QSize logical_size_;
+  QSize scaled_size_;
+  qint64 scaled_source_key_{0};
 
   QImage image_;
   QPointF pan_offset_;

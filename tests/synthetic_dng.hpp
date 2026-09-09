@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <algorithm>
 #include <cstdint>
 #include <initializer_list>
 #include <string_view>
@@ -23,6 +24,8 @@ struct SyntheticDngOptions {
   // Scale every site by x/(width-1): a black-to-bright horizontal ramp, giving tone-curve
   // tests distinct shadow and highlight regions in one frame.
   bool horizontal_ramp{false};
+  std::uint16_t iso{0};
+  std::uint16_t noise_amplitude{0};
 };
 
 inline std::vector<std::uint8_t> synthetic_bayer_dng(std::int32_t width, std::int32_t height,
@@ -40,7 +43,7 @@ inline std::vector<std::uint8_t> synthetic_bayer_dng(std::int32_t width, std::in
   constexpr std::uint16_t kTypeRational = 5;
   constexpr std::uint16_t kTypeSrational = 10;
 
-  constexpr std::uint32_t kEntryCount = 20;
+  constexpr std::uint32_t kEntryCount = 21;
   constexpr std::uint32_t kIfdOffset = 8;
   constexpr std::uint32_t kDataArea = kIfdOffset + 2 + kEntryCount * 12 + 4;
 
@@ -93,6 +96,13 @@ inline std::vector<std::uint8_t> synthetic_bayer_dng(std::int32_t width, std::in
       add_srationals({32405, -15371, -4985, -9693, 18760, 416, 556, -2040, 10572}, 10000);
   const auto as_shot_neutral_offset = add_rationals({10000, 10000, 10000}, 10000);
   pad_extra();
+  const auto exif_offset = extra_offset();
+  put16(extra, 1);
+  put16(extra, 34855);  // PhotographicSensitivity in the EXIF IFD
+  put16(extra, kTypeShort);
+  put32(extra, 1);
+  put32(extra, options.iso);
+  put32(extra, 0);
   const auto pixel_offset = extra_offset();
   const auto pixel_count = static_cast<std::uint32_t>(width) * static_cast<std::uint32_t>(height);
 
@@ -112,6 +122,7 @@ inline std::vector<std::uint8_t> synthetic_bayer_dng(std::int32_t width, std::in
       {279, kTypeLong, 1, pixel_count * 2},                     // StripByteCounts
       {33421, kTypeShort, 2, 0x00020002U},                      // CFARepeatPatternDim 2x2
       {33422, kTypeByte, 4, 0x02010100U},                       // CFAPattern RGGB
+      {34665, kTypeLong, 1, exif_offset},                       // EXIF IFD
       {50706, kTypeByte, 4, 0x00000401U},                       // DNGVersion 1.4.0.0
       {50708, kTypeAscii, unique_count, unique_offset},         // UniqueCameraModel
       {50721, kTypeSrational, 9, color_matrix_offset},          // ColorMatrix1
@@ -147,6 +158,16 @@ inline std::vector<std::uint8_t> synthetic_bayer_dng(std::int32_t width, std::in
       if (options.horizontal_ramp && width > 1) {
         value = static_cast<std::uint16_t>(static_cast<std::uint32_t>(value) * static_cast<std::uint32_t>(x) /
                                            static_cast<std::uint32_t>(width - 1));
+      }
+      if (options.noise_amplitude != 0) {
+        // splitmix64 with explicit mapping; identical fixtures on every toolchain.
+        auto random = static_cast<std::uint64_t>(y) * static_cast<std::uint64_t>(width) +
+                      static_cast<std::uint64_t>(x) + 0x9e3779b97f4a7c15ULL;
+        random = (random ^ (random >> 30)) * 0xbf58476d1ce4e5b9ULL;
+        random = (random ^ (random >> 27)) * 0x94d049bb133111ebULL;
+        random ^= random >> 31;
+        const auto noise = static_cast<int>(random % (2U * options.noise_amplitude + 1U)) - options.noise_amplitude;
+        value = static_cast<std::uint16_t>(std::clamp(static_cast<int>(value) + noise, 0, 65535));
       }
       put16(bytes, value);
     }

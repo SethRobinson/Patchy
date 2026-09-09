@@ -495,7 +495,7 @@ interface PatchyApp {
    * Connector sessions reject false to preserve recoverable edit history.
    */
   undoEnabled: boolean;
-  /** Opens a file; throws on failure. Unattended RAW/PDF opens use default import settings. */
+  /** Opens a file; throws on failure. RAW opens read the photo's .rawprefs sidecar or use defaults, without writing settings. Unattended PDF opens use default import settings. */
   open(path: string): PatchyDocument;
   newDocument(width: number, height: number): PatchyDocument;
   /** Message box; logs to the console instead in unattended CLI runs. */

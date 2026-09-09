@@ -5776,6 +5776,82 @@ Mixed selection</source>
     <message><source>Scan</source><translation>スキャン</translation></message>
     <message><source>Paper</source><translation>用紙</translation></message>
     <message><source>The shaded parts fall outside the printable area and will be cut off. Drag the preview to choose which part prints.</source><translation>網掛けの部分は印刷可能範囲の外にあるため切り落とされます。プレビューをドラッグして印刷する部分を選べます。</translation></message>
+    <message>
+        <source>Auto requires ISO metadata and a supported Bayer sensor.</source>
+        <translation>自動ノイズ低減には ISO 情報と対応するベイヤーセンサーが必要です。</translation>
+    </message>
+    <message>
+        <source>Calculating...</source>
+        <translation>計算中...</translation>
+    </message>
+    <message>
+        <source>Could not save RAW settings next to %1.</source>
+        <translation>%1 と同じフォルダーに RAW 設定を保存できませんでした。</translation>
+    </message>
+    <message>
+        <source>Done</source>
+        <translation>完了</translation>
+    </message>
+    <message>
+        <source>Estimated white balance temperature. Adjust to use Custom white balance.</source>
+        <translation>推定ホワイトバランス色温度です。調整するとカスタムホワイトバランスになります。</translation>
+    </message>
+    <message>
+        <source>Estimated white balance tint. Adjust to use Custom white balance.</source>
+        <translation>推定ホワイトバランス色かぶり補正です。調整するとカスタムホワイトバランスになります。</translation>
+    </message>
+    <message>
+        <source>Manual</source>
+        <translation>手動</translation>
+    </message>
+    <message>
+        <source>Noise reduction:</source>
+        <translation>ノイズ低減:</translation>
+    </message>
+    <message>
+        <source>Open Without Saving</source>
+        <translation>設定を保存せずに開く</translation>
+    </message>
+    <message>
+        <source>Open at half size</source>
+        <translation>半分のサイズで開く</translation>
+    </message>
+    <message>
+        <source>Preview incomplete: %1</source>
+        <translation>プレビュー未完了: %1</translation>
+    </message>
+    <message>
+        <source>Quick preview - refining...</source>
+        <translation>簡易プレビュー - 高画質化中...</translation>
+    </message>
+    <message>
+        <source>RAW settings</source>
+        <translation>RAW 設定</translation>
+    </message>
+    <message>
+        <source>Replace Settings</source>
+        <translation>設定を置き換える</translation>
+    </message>
+    <message>
+        <source>Retry Preview</source>
+        <translation>プレビューを再試行</translation>
+    </message>
+    <message>
+        <source>Saved RAW settings could not be read. Patchy defaults are being used.</source>
+        <translation>保存済みの RAW 設定を読み込めませんでした。Patchy の初期設定を使用しています。</translation>
+    </message>
+    <message>
+        <source>Settings were not saved.</source>
+        <translation>設定は保存されませんでした。</translation>
+    </message>
+    <message>
+        <source>The RAW settings file changed while this photo was open. Reopen the photo before saving settings.</source>
+        <translation>この写真を開いている間に RAW 設定ファイルが変更されました。写真を開き直してから設定を保存してください。</translation>
+    </message>
+    <message>
+        <source>The existing RAW settings file is unreadable or unsupported. Replace it to save these adjustments.</source>
+        <translation>既存の RAW 設定ファイルは読み込めないか未対応です。この調整を保存するには設定を置き換えてください。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -47,6 +47,8 @@
 #include "ui/image_document_io.hpp"
 #include "ui/image_save_options_dialog.hpp"
 #include "ui/raw_develop_dialog.hpp"
+#include "ui/raw_develop_settings.hpp"
+#include "ui/script_engine.hpp"
 #include "ui/filter_workflows.hpp"
 #include "ui/gradient_stops_editor.hpp"
 #include "ui/gradient_library.hpp"
@@ -970,6 +972,11 @@ OpenDocumentResult load_document_from_path(QString path) {
     for (int i = 0; i < link_notices.size(); ++i) {
       import_notices.insert(i, link_notices.at(i));
     }
+  } else if (raw::is_camera_raw_extension(extension.toStdString())) {
+    const auto settings = load_raw_develop_settings(path);
+    auto result = raw::read_camera_raw(read_all_file_bytes(path), settings.params);
+    opened = std::move(result.document);
+    if (!settings.notice.isEmpty()) import_notices.push_back(settings.notice);
   } else if (const auto* handler = builtin_format_registry().find_by_extension(extension.toStdString());
              handler != nullptr) {
     try {
@@ -1140,14 +1147,15 @@ QString path_with_default_extension(QString path, const QString& selected_filter
 // Interactive-open machinery shared by open_document_path and the document-tab
 // Reopen command. Camera raws get the interactive develop step (white balance,
 // exposure, ...) and nullopt means the user cancelled it there; with the
-// preference off, raws fall through to the normal path, where the format
-// registry develops camera defaults. Everything else loads on a worker thread
+// preference off or from a script, the shared file-opening path reads the photo's
+// sidecar. Everything else loads on a worker thread
 // behind a modal progress dialog so big documents keep the UI responsive.
 // Load failures propagate as exceptions.
-std::optional<OpenDocumentResult> load_document_interactive(QWidget* parent, const QString& path, bool interactive) {
+std::optional<OpenDocumentResult> load_document_interactive(QWidget* parent, const QString& path,
+                                                          bool interactive, bool allow_raw_dialog) {
   const QFileInfo info(path);
   const auto extension = info.suffix().toLower();
-  if (interactive && raw::is_camera_raw_extension(extension.toStdString()) &&
+  if (interactive && allow_raw_dialog && raw::is_camera_raw_extension(extension.toStdString()) &&
       app_settings().value(QStringLiteral("imports/showRawDevelopDialog"), true).toBool()) {
     auto outcome = run_raw_develop_dialog(parent, path);
     if (!outcome.has_value()) {
@@ -1556,7 +1564,9 @@ void MainWindow::open_document_path(QString path) {
   constexpr bool browser_transfer = false;
 #endif
   try {
-    auto loaded = load_document_interactive(this, path, !unattended_automation());
+    const bool allow_raw_dialog = !script_engine_host_ || !script_engine_host_->run_active() ||
+                                  script_engine_host_->manual_edit_pause();
+    auto loaded = load_document_interactive(this, path, !unattended_automation(), allow_raw_dialog);
     if (!loaded.has_value()) {
 #ifdef Q_OS_WASM
       wasm_files::publish_open_probe(QStringLiteral("cancelled"), path);
@@ -1662,7 +1672,9 @@ void MainWindow::reopen_document_session(DocumentSession& target_session) {
     }
   }
   try {
-    auto loaded = load_document_interactive(this, path, !unattended_automation());
+    const bool allow_raw_dialog = !script_engine_host_ || !script_engine_host_->run_active() ||
+                                  script_engine_host_->manual_edit_pause();
+    auto loaded = load_document_interactive(this, path, !unattended_automation(), allow_raw_dialog);
     if (!loaded.has_value()) {
       return;
     }
