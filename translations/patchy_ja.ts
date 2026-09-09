@@ -11,6 +11,17 @@
 </context>
 <context>
     <name>QObject</name>
+    <message><source>Rendering</source><translation>仕上がり</translation></message>
+    <message><source>Natural</source><translation>ナチュラル</translation></message>
+    <message><source>Neutral</source><translation>ニュートラル</translation></message>
+    <message><source>Profile:</source><translation>プロファイル:</translation></message>
+    <message><source>Natural adds photographic tone and color. Neutral retains the straight camera-to-sRGB rendering.</source><translation>ナチュラルは写真向けの階調と色を加えます。ニュートラルはカメラからsRGBへの変換結果をそのまま使用します。</translation></message>
+    <message><source>Original processing is preserved. Reset or changing Profile or Color noise uses current processing.</source><translation>従来の処理を維持しています。リセット、プロファイルまたはカラーノイズの変更で新しい処理に切り替わります。</translation></message>
+    <message><source>Color noise:</source><translation>カラーノイズ:</translation></message>
+    <message><source>Reduces colored speckles separately from brightness grain. Stronger settings can soften thin colored details.</source><translation>明暗の粒状感とは別に色の斑点を軽減します。強く設定すると細い色付きのディテールがぼやける場合があります。</translation></message>
+    <message><source>Standard</source><translation>標準</translation></message>
+    <message><source>Strong</source><translation>強</translation></message>
+    <message><source>Maximum</source><translation>最大</translation></message>
     <message><source>Palette color name is invalid</source><translation>パレットの色名が無効です</translation></message>
     <message><source>Palette color name is too long</source><translation>パレットの色名が長すぎます</translation></message>
     <message><source>Palette names must be single lines of at most 4096 UTF-8 bytes</source><translation>パレットの色名は4096 UTF-8バイト以内の1行で指定してください</translation></message>

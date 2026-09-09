@@ -336,6 +336,21 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
     return std::make_pair(slider, value_label);
   };
 
+  auto* profile_group = new QGroupBox(QObject::tr("Rendering"), &dialog);
+  auto* profile_form = new QFormLayout(profile_group);
+  auto* profile_combo = new QComboBox(profile_group);
+  profile_combo->setObjectName(QStringLiteral("rawProfileCombo"));
+  profile_combo->addItem(QObject::tr("Natural"), QStringLiteral("natural"));
+  profile_combo->addItem(QObject::tr("Neutral"), QStringLiteral("neutral"));
+  profile_combo->setToolTip(QObject::tr("Natural adds photographic tone and color. Neutral retains the straight camera-to-sRGB rendering."));
+  profile_form->addRow(QObject::tr("Profile:"), profile_combo);
+  auto* processing_note = new QLabel(profile_group);
+  processing_note->setObjectName(QStringLiteral("rawProcessingNote"));
+  processing_note->setWordWrap(true);
+  processing_note->setText(QObject::tr("Original processing is preserved. Reset or changing Profile or Color noise uses current processing."));
+  profile_form->addRow(processing_note);
+  controls_column->addWidget(profile_group);
+
   // --- White balance ---
   auto* white_balance_group = new QGroupBox(QObject::tr("White Balance"), &dialog);
   auto* white_balance_form = new QFormLayout(white_balance_group);
@@ -435,6 +450,15 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
   fbdd_combo->addItem(QObject::tr("Light"), QStringLiteral("light"));
   fbdd_combo->addItem(QObject::tr("Full"), QStringLiteral("full"));
   detail_form->addRow(QObject::tr("FBDD noise reduction:"), fbdd_combo);
+  auto* color_noise_combo = new QComboBox(detail_group);
+  color_noise_combo->setObjectName(QStringLiteral("rawColorNoiseCombo"));
+  color_noise_combo->addItem(QObject::tr("Off"), 0);
+  color_noise_combo->addItem(QObject::tr("Light"), 1);
+  color_noise_combo->addItem(QObject::tr("Standard"), 2);
+  color_noise_combo->addItem(QObject::tr("Strong"), 3);
+  color_noise_combo->addItem(QObject::tr("Maximum"), 4);
+  color_noise_combo->setToolTip(QObject::tr("Reduces colored speckles separately from brightness grain. Stronger settings can soften thin colored details."));
+  detail_form->addRow(QObject::tr("Color noise:"), color_noise_combo);
   auto* half_size_check = new QCheckBox(QObject::tr("Open at half size"), detail_group);
   half_size_check->setObjectName(QStringLiteral("rawHalfSizeCheck"));
   detail_form->addRow(half_size_check);
@@ -509,12 +533,15 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
 
   const auto refresh_noise_widgets = [&] {
     const auto noise = raw::effective_noise_reduction(params, raw_info.value_or(raw::RawFileInfo{}));
-    const QSignalBlocker block_denoise(denoise_slider), block_fbdd(fbdd_combo);
+    const QSignalBlocker block_denoise(denoise_slider), block_fbdd(fbdd_combo), block_color_noise(color_noise_combo);
     denoise_slider->setValue(noise.wavelet_threshold);
     select_combo_data(fbdd_combo, fbdd_token(noise.fbdd));
+    color_noise_combo->setCurrentIndex(color_noise_combo->findData(noise.color_passes));
     const bool manual = params.noise_reduction == raw::NoiseReductionMode::Manual;
     denoise_slider->setEnabled(manual);
     fbdd_combo->setEnabled(manual);
+    color_noise_combo->setEnabled(manual && raw_info && raw_info->is_three_color_bayer);
+    processing_note->setVisible(params.processing_version == 1);
     noise_note->setText(params.noise_reduction == raw::NoiseReductionMode::Auto && !noise.auto_available ?
         QObject::tr("Auto requires ISO metadata and a supported Bayer sensor.") : QString());
     noise_note->setVisible(!noise_note->text().isEmpty());
@@ -539,7 +566,10 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
     const QSignalBlocker block_fbdd(fbdd_combo);
     const QSignalBlocker block_half(half_size_check);
     const QSignalBlocker block_noise(noise_combo);
+    const QSignalBlocker block_profile(profile_combo);
+    const QSignalBlocker block_color_noise(color_noise_combo);
 
+    select_combo_data(profile_combo, params.profile == raw::RenderingProfile::Natural ? QStringLiteral("natural") : QStringLiteral("neutral"));
     select_combo_data(white_balance_combo, white_balance_token(params.white_balance));
     auto displayed_white_balance = params.custom_white_balance;
     if (params.white_balance == raw::WhiteBalanceMode::AsShot && as_shot_white_balance.has_value()) {
@@ -598,6 +628,9 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
     if (params.noise_reduction == raw::NoiseReductionMode::Manual) {
       params.wavelet_denoise_threshold = denoise_slider->value();
       params.fbdd = fbdd_from_token(fbdd_combo->currentData().toString());
+      // Unsupported layouts keep inactive manual values intact, like Auto/Off.
+      if (raw_info && raw_info->is_three_color_bayer)
+        params.color_denoise_passes = color_noise_combo->currentData().toInt();
     }
     params.half_size = half_size_check->isChecked();
   };
@@ -626,6 +659,7 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
   std::optional<RawPreviewState::Completion> accurate_cache;
 
   const auto set_controls_enabled = [&](bool enabled) {
+    profile_group->setEnabled(enabled);
     white_balance_group->setEnabled(enabled);
     tone_group->setEnabled(enabled);
     color_group->setEnabled(enabled);
@@ -941,6 +975,21 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
   QObject::connect(auto_brighten_check, &QCheckBox::toggled, &dialog, on_control_changed);
   QObject::connect(demosaic_combo, &QComboBox::currentIndexChanged, &dialog, on_control_changed);
   QObject::connect(fbdd_combo, &QComboBox::currentIndexChanged, &dialog, on_control_changed);
+  QObject::connect(profile_combo, &QComboBox::currentIndexChanged, &dialog, [&] {
+    if (syncing_widgets) return;
+    params.processing_version = raw::kProcessingVersion;
+    params.profile = profile_combo->currentData().toString() == QStringLiteral("natural") ?
+        raw::RenderingProfile::Natural : raw::RenderingProfile::Neutral;
+    refresh_noise_widgets();
+    on_control_changed();
+  });
+  QObject::connect(color_noise_combo, &QComboBox::currentIndexChanged, &dialog, [&] {
+    if (syncing_widgets) return;
+    params.processing_version = raw::kProcessingVersion;
+    params.color_denoise_passes = color_noise_combo->currentData().toInt();
+    processing_note->hide();
+    on_control_changed();
+  });
   QObject::connect(half_size_check, &QCheckBox::toggled, &dialog, on_control_changed);
   QObject::connect(noise_combo, &QComboBox::currentIndexChanged, &dialog, [&](int) {
     if (syncing_widgets) return;
@@ -951,6 +1000,7 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
     if (params.noise_reduction == raw::NoiseReductionMode::Manual) {
       params.wavelet_denoise_threshold = previous.wavelet_threshold;
       params.fbdd = previous.fbdd;
+      params.color_denoise_passes = previous.color_passes;
     }
     refresh_noise_widgets();
     on_control_changed();

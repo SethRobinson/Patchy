@@ -299,6 +299,8 @@ void raw_develop_tone_and_color_controls_shift_output() {
   };
 
   patchy::raw::DevelopParams neutral;
+  // Keep the existing adjustment calibration independent of the base profile.
+  neutral.profile = patchy::raw::RenderingProfile::Neutral;
   const auto base = patchy::raw::read_camera_raw(ramp_dng, neutral).document;
   const auto base_dark = quarter_green_mean(base, false);
   const auto base_bright = quarter_green_mean(base, true);
@@ -386,7 +388,8 @@ void raw_auto_noise_policy_and_modes() {
   info.is_three_color_bayer = true;
   DevelopParams params;
   const std::array<double, 8> isos{100, 400, 800, 1600, 3200, 5000, 6400, 25600};
-  const std::array<int, 8> thresholds{0, 0, 50, 100, 150, 182, 200, 250};
+  const std::array<int, 8> thresholds{0, 0, 100, 200, 300, 364, 400, 500};
+  const std::array<int, 8> original_thresholds{0, 0, 50, 100, 150, 182, 200, 250};
   for (std::size_t i = 0; i < isos.size(); ++i) {
     info.iso = isos[i];
     const auto result = effective_noise_reduction(params, info);
@@ -394,20 +397,41 @@ void raw_auto_noise_policy_and_modes() {
     CHECK(result.wavelet_threshold == thresholds[i]);
     CHECK(result.fbdd == (info.iso >= 1600 ? FbddNoiseReduction::Full :
                          info.iso >= 800 ? FbddNoiseReduction::Light : FbddNoiseReduction::Off));
+    CHECK(result.color_passes == (info.iso >= 1600 ? 2 : info.iso >= 800 ? 1 : 0));
+    params.processing_version = 1;
+    const auto original = effective_noise_reduction(params, info);
+    CHECK(original.wavelet_threshold == original_thresholds[i]);
+    CHECK(original.color_passes == 0);
+    params.processing_version = kProcessingVersion;
   }
+  for (const double iso : {799.999, 800.0, 1599.999, 1600.0}) {
+    info.iso = iso;
+    CHECK(effective_noise_reduction(params, info).color_passes == (iso >= 1600 ? 2 : iso >= 800 ? 1 : 0));
+  }
+  params.processing_version = 1;
+  CHECK(effective_noise_reduction(params, info).color_passes == 0);
+  params.processing_version = kProcessingVersion;
   info.iso = 0;
   CHECK(!effective_noise_reduction(params, info).auto_available);
+  CHECK(effective_noise_reduction(params, info).color_passes == 0);
+  info.iso = std::numeric_limits<double>::quiet_NaN();
+  CHECK(effective_noise_reduction(params, info).color_passes == 0);
   info.iso = 5000;
   info.is_three_color_bayer = false;
   CHECK(effective_noise_reduction(params, info).wavelet_threshold == 0);
   params.noise_reduction = NoiseReductionMode::Manual;
   params.wavelet_denoise_threshold = 333;
   params.fbdd = FbddNoiseReduction::Light;
+  params.color_denoise_passes = 3;
+  CHECK(effective_noise_reduction(params, info).color_passes == 0);
+  info.is_three_color_bayer = true;
+  CHECK(effective_noise_reduction(params, info).color_passes == 3);
   CHECK(effective_noise_reduction(params, info).wavelet_threshold == 333);
   CHECK(effective_noise_reduction(params, info).fbdd == FbddNoiseReduction::Light);
   params.noise_reduction = NoiseReductionMode::Off;
   CHECK(effective_noise_reduction(params, info).wavelet_threshold == 0);
   CHECK(effective_noise_reduction(params, info).fbdd == FbddNoiseReduction::Off);
+  CHECK(effective_noise_reduction(params, info).color_passes == 0);
   params.exposure_ev = std::numeric_limits<double>::quiet_NaN();
   params.brightness = std::numeric_limits<double>::infinity();
   const auto normalized = normalize_develop_params(params);
@@ -426,14 +450,16 @@ void raw_final_half_size_preserves_processing_and_cancellation_recovers() {
   CHECK(session.info().iso == 5000);
   DevelopParams params;
   const auto full = session.develop(params);
-  CHECK(full.noise.wavelet_threshold == 182);
+  CHECK(full.noise.wavelet_threshold == 364);
   CHECK(full.noise.fbdd == FbddNoiseReduction::Full);
+  CHECK(full.noise.color_passes == 2);
   const auto draft = session.develop(params, {DevelopQuality::Draft, {}});
   CHECK(draft.output_width == full.width);
   CHECK(draft.output_height == full.height);
   CHECK(draft.width < draft.output_width);
   CHECK(draft.fast_half_size && !draft.demosaic);
   CHECK(draft.noise.fbdd == FbddNoiseReduction::Off);
+  CHECK(draft.noise.color_passes == 0);
   CHECK(full.demosaic == DemosaicAlgorithm::Ahd);
   params.half_size = true;
   const auto half = session.develop(params);
@@ -500,6 +526,107 @@ void raw_auto_denoise_reduces_chroma_without_color_shift() {
   CHECK(automatic.effective_white_balance.has_value());
   CHECK(std::abs((*automatic.white_balance_multipliers)[0] - 1.0) > 0.1);
   CHECK(std::abs((*automatic.white_balance_multipliers)[2] - 1.0) > 0.1);
+}
+
+void raw_natural_profile_preserves_hues_and_tonal_detail() {
+  using namespace patchy::raw;
+  const auto lut = build_natural_profile_lut();
+  CHECK(lut.front() == 0 && lut.back() == 65535);
+  CHECK(lut[6553] < 6553); // deeper shadows
+  CHECK(lut[32768] > 39000); // brighter midtones
+  CHECK(lut[62000] < 65000); // highlight detail survives
+  for (std::size_t i = 1; i < lut.size(); ++i) CHECK(lut[i] >= lut[i - 1]);
+  for (int value = 0; value <= 65535; value += 257) {
+    std::array<std::uint16_t, 3> gray{static_cast<std::uint16_t>(value), static_cast<std::uint16_t>(value), static_cast<std::uint16_t>(value)};
+    apply_natural_profile(gray, lut);
+    CHECK(gray[0] == gray[1] && gray[1] == gray[2]);
+    CHECK(std::abs(int(gray[0]) - int(lut[static_cast<std::size_t>(value)])) <= 1);
+  }
+  // Hue is the relative position of the middle channel between the extremes.
+  // Test the gamut boundary as well as muted colors and different channel orders.
+  for (const auto source : {std::array<std::uint16_t, 3>{60000, 15000, 4000},
+                           std::array<std::uint16_t, 3>{8000, 32000, 18000},
+                           std::array<std::uint16_t, 3>{24000, 20000, 45000},
+                           std::array<std::uint16_t, 3>{65535, 42000, 0}}) {
+    auto mapped = source;
+    apply_natural_profile(mapped, lut);
+    std::array<std::size_t, 3> order{0, 1, 2};
+    std::sort(order.begin(), order.end(), [&](auto a, auto b) { return source[a] < source[b]; });
+    CHECK(mapped[order[0]] < mapped[order[1]] && mapped[order[1]] < mapped[order[2]]);
+    const double before = double(source[order[1]] - source[order[0]]) / (source[order[2]] - source[order[0]]);
+    const double after = double(mapped[order[1]] - mapped[order[0]]) / (mapped[order[2]] - mapped[order[0]]);
+    CHECK(std::abs(before - after) < 0.001);
+  }
+}
+
+void raw_profiles_and_color_noise_preserve_legacy_processing() {
+  using namespace patchy::raw;
+  SyntheticDngOptions fixture;
+  fixture.iso = 4000;
+  fixture.noise_amplitude = 1700;
+  DevelopSession session(synthetic_bayer_dng(256, 192, fixture));
+  DevelopParams legacy;
+  legacy.processing_version = 1;
+  legacy.contrast = 12;
+  const auto old = session.develop(legacy);
+  CHECK(old.profile == RenderingProfile::Neutral && old.processing_version == 1);
+  CHECK(old.noise.color_passes == 0);
+  auto current = normalize_develop_params(legacy);
+  current.processing_version = kProcessingVersion;
+  current.noise_reduction = NoiseReductionMode::Manual;
+  current.wavelet_denoise_threshold = old.noise.wavelet_threshold;
+  current.fbdd = old.noise.fbdd;
+  const auto equivalent = session.develop(current);
+  CHECK(equivalent.rgb == old.rgb); // same-process compatibility, not a byte canary
+  current.color_denoise_passes = 2;
+  const auto cleaned = session.develop(current);
+  const auto chroma = [](const DevelopSession::DevelopedImage& image) {
+    double total = 0;
+    for (int y = 16; y < image.height - 16; ++y)
+      for (int x = 16; x < image.width - 16; ++x) {
+        const auto* p = image.rgb.data() + (static_cast<std::size_t>(y) * image.width + x) * 3;
+        total += std::pow(double(p[0]) - p[1], 2) + std::pow(double(p[2]) - p[1], 2);
+      }
+    return total;
+  };
+  CHECK(cleaned.noise.color_passes == 2);
+  CHECK(chroma(cleaned) < chroma(old) * 0.65);
+  const auto natural = session.develop({});
+  CHECK(natural.profile == RenderingProfile::Natural && natural.processing_version == 2);
+  CHECK(natural.rgb != old.rgb);
+}
+
+void raw_color_noise_preserves_thin_lines_and_color_edges() {
+  using namespace patchy::raw;
+  constexpr int width = 256, height = 128;
+  auto bytes = synthetic_bayer_dng(width, height);
+  const auto offset = bytes.size() - width * height * 2;
+  for (int y = 0; y < height; ++y) {
+    for (int x = 0; x < width; ++x) {
+      const int channel = (y % 2 == 0 && x % 2 == 0) ? 0 : (y % 2 != 0 && x % 2 != 0) ? 2 : 1;
+      const std::array<int, 3> rgb = x < width / 2 ? std::array{30000, 9000, 6000} : std::array{6000, 9000, 30000};
+      const int value = x >= 80 && x < 86 ? 45000 : rgb[static_cast<std::size_t>(channel)];
+      const auto index = offset + static_cast<std::size_t>(y * width + x) * 2;
+      bytes[index] = static_cast<std::uint8_t>(value & 255);
+      bytes[index + 1] = static_cast<std::uint8_t>(value >> 8);
+    }
+  }
+  DevelopSession session(std::move(bytes));
+  DevelopParams params;
+  params.profile = RenderingProfile::Neutral;
+  params.noise_reduction = NoiseReductionMode::Manual;
+  const auto original = session.develop(params);
+  params.color_denoise_passes = 2;
+  const auto clean = session.develop(params);
+  const auto sample = [](const auto& image, int x, int c) {
+    return int(image.rgb[(static_cast<std::size_t>(image.height / 2) * image.width + x) * 3 + c]);
+  };
+  for (int x : {40, 160, 200})
+    for (int c = 0; c < 3; ++c) CHECK(std::abs(sample(clean, x, c) - sample(original, x, c)) <= 1);
+  // Keep the thin bright line and the two distinct colors on either side of the edge.
+  CHECK(sample(clean, 82, 1) - sample(clean, 70, 1) > 0.9 * (sample(original, 82, 1) - sample(original, 70, 1)));
+  CHECK(sample(clean, 122, 0) - sample(clean, 122, 2) > 50);
+  CHECK(sample(clean, 134, 2) - sample(clean, 134, 0) > 50);
 }
 
 void raw_develop_session_reports_info_and_orientation() {
@@ -822,6 +949,9 @@ void heif_decodes_real_photos_if_available() {
 
 std::vector<patchy::test::TestCase> raw_heif_tests() {
   return {
+      {"raw_natural_profile_preserves_hues_and_tonal_detail", raw_natural_profile_preserves_hues_and_tonal_detail},
+      {"raw_profiles_and_color_noise_preserve_legacy_processing", raw_profiles_and_color_noise_preserve_legacy_processing},
+      {"raw_color_noise_preserves_thin_lines_and_color_edges", raw_color_noise_preserves_thin_lines_and_color_edges},
       {"raw_auto_noise_policy_and_modes", raw_auto_noise_policy_and_modes},
       {"raw_final_half_size_preserves_processing_and_cancellation_recovers", raw_final_half_size_preserves_processing_and_cancellation_recovers},
       {"raw_auto_denoise_reduces_chroma_without_color_shift", raw_auto_denoise_reduces_chroma_without_color_shift},

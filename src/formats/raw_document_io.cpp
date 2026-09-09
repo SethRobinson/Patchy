@@ -113,6 +113,11 @@ DevelopParams normalize_develop_params(DevelopParams params) {
   for (auto* value : {&params.contrast, &params.highlights, &params.shadows, &params.saturation, &params.vibrance})
     *value = bounded(*value, -100, 100, 0);
   params.wavelet_denoise_threshold = std::clamp(params.wavelet_denoise_threshold, 0, 1000);
+  params.color_denoise_passes = std::clamp(params.color_denoise_passes, 0, 4);
+  if (params.processing_version == 1) {
+    params.profile = RenderingProfile::Neutral;
+    params.color_denoise_passes = 0;
+  }
   return params;
 }
 
@@ -122,12 +127,18 @@ EffectiveNoiseReduction effective_noise_reduction(const DevelopParams& params, c
   if (params.noise_reduction == NoiseReductionMode::Manual) {
     result.wavelet_threshold = std::clamp(params.wavelet_denoise_threshold, 0, 1000);
     result.fbdd = params.fbdd;
+    if (params.processing_version >= 2 && info.is_three_color_bayer)
+      result.color_passes = std::clamp(params.color_denoise_passes, 0, 4);
   } else if (params.noise_reduction == NoiseReductionMode::Auto && result.auto_available) {
-    // Processing version 1: metadata-only, fixed ISO policy. See docs/camera-raw.md.
+    // Fixed, metadata-only policies. Version 2 also controls the brightness grain
+    // made more visible by photographic midtone rendering. Version 1 is frozen.
+    const double strength = params.processing_version == 1 ? 50.0 : 100.0;
     result.wavelet_threshold = static_cast<int>(std::lround(
-        std::clamp(50.0 * std::log2(std::max(info.iso, 400.0) / 400.0), 0.0, 250.0)));
+        std::clamp(strength * std::log2(std::max(info.iso, 400.0) / 400.0), 0.0, strength * 5.0)));
     result.fbdd = info.iso >= 1600 ? FbddNoiseReduction::Full :
                   info.iso >= 800 ? FbddNoiseReduction::Light : FbddNoiseReduction::Off;
+    if (params.processing_version >= 2)
+      result.color_passes = info.iso >= 1600 ? 2 : info.iso >= 800 ? 1 : 0;
   }
   return result;
 }
@@ -216,6 +227,7 @@ struct DevelopSession::Impl {
     const auto noise = effective_noise_reduction(params, info);
     output.threshold = static_cast<float>(noise.wavelet_threshold);
     output.fbdd_noiserd = std::clamp(static_cast<int>(noise.fbdd), 0, 2);
+    output.med_passes = quality == DevelopQuality::Final ? noise.color_passes : 0;
     output.half_size = quality == DevelopQuality::Draft ? 1 : 0;
   }
 
@@ -295,6 +307,8 @@ const RawFileInfo& DevelopSession::info() const noexcept {
 }
 
 DevelopSession::DevelopedImage DevelopSession::develop(const DevelopParams& requested, const DevelopOptions& options) {
+  if (requested.processing_version < 1 || requested.processing_version > kProcessingVersion)
+    throw std::invalid_argument("Unsupported RAW processing version");
   if (options.cancelled && options.cancelled()) throw DevelopCancelled{};
   const auto params = normalize_develop_params(requested);
   auto& processor = impl_->processor;
@@ -340,10 +354,13 @@ DevelopSession::DevelopedImage DevelopSession::develop(const DevelopParams& requ
   image.width = processed->width;
   image.height = processed->height;
   image.quality = options.quality;
+  image.processing_version = params.processing_version;
+  image.profile = params.profile;
   image.fast_half_size = options.quality == DevelopQuality::Draft;
   if (impl_->info.is_three_color_bayer && !image.fast_half_size) image.demosaic = params.demosaic;
   image.noise = effective_noise_reduction(params, impl_->info);
   if (image.fast_half_size || !impl_->info.is_three_color_bayer) image.noise.fbdd = FbddNoiseReduction::Off;
+  if (image.fast_half_size) image.noise.color_passes = 0;
   const auto& color = processor.imgdata.color;
   if (color.pre_mul[0] > 0 && color.pre_mul[1] > 0 && color.pre_mul[2] > 0) {
     image.white_balance_multipliers = std::array<double, 4>{
@@ -364,6 +381,8 @@ DevelopSession::DevelopedImage DevelopSession::develop(const DevelopParams& requ
   const ToneParams tone{params.contrast, params.highlights, params.shadows};
   const bool color_active = params.saturation != 0.0 || params.vibrance != 0.0;
   const auto lut = build_tone_lut(tone);
+  const bool natural = params.profile == RenderingProfile::Natural;
+  static const auto profile_lut = build_natural_profile_lut();
   const auto quantize8 = [](std::uint32_t value16) {
     return static_cast<std::uint8_t>((value16 * 255U + 32767U) / 65535U);
   };
@@ -387,8 +406,10 @@ DevelopSession::DevelopedImage DevelopSession::develop(const DevelopParams& requ
         for (int sx = x * step; sx < std::min((x + 1) * step, source_width); ++sx) {
           const auto* in = source + (static_cast<std::size_t>(sy) * source_width + sx) * channel_count;
           std::array<std::uint16_t, 3> channels = channel_count == 3 ?
-              std::array<std::uint16_t, 3>{lut[in[0]], lut[in[1]], lut[in[2]]} :
-              std::array<std::uint16_t, 3>{lut[in[0]], lut[in[0]], lut[in[0]]};
+              std::array<std::uint16_t, 3>{in[0], in[1], in[2]} :
+              std::array<std::uint16_t, 3>{in[0], in[0], in[0]};
+          if (natural) apply_natural_profile(channels, profile_lut);
+          for (auto& channel : channels) channel = lut[channel];
           if (color_active && channel_count == 3)
             apply_color(channels, params.saturation, params.vibrance);
           for (std::size_t c = 0; c < 3; ++c) sum[c] += channels[c];

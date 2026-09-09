@@ -389,6 +389,8 @@ void ui_raw_sidecar_round_trips_unicode_and_preserves_unknown_fields() {
     params.noise_reduction = patchy::raw::NoiseReductionMode::Manual;
     params.wavelet_denoise_threshold = 123;
     params.fbdd = patchy::raw::FbddNoiseReduction::Full;
+    params.profile = patchy::raw::RenderingProfile::Neutral;
+    params.color_denoise_passes = 3;
     params.half_size = true;
     CHECK(save_raw_develop_settings(path, params, initial).isEmpty());
     auto loaded = load_raw_develop_settings(path);
@@ -439,6 +441,16 @@ void ui_raw_sidecar_rejects_invalid_and_preserves_failed_writes() {
     raw_test_write(raw_develop_settings_path(path), QJsonDocument(root).toJson());
     CHECK(!load_raw_develop_settings(path).recognized);
   }
+  for (const auto* key : {"profile", "colorDenoisePasses"}) {
+    for (const auto& value : {QJsonValue(), QJsonValue(true), QJsonValue(QStringLiteral("unknown")), QJsonValue(2.5), QJsonValue(5)}) {
+      auto root = valid;
+      auto fields = root.value(QStringLiteral("parameters")).toObject();
+      fields.insert(QString::fromLatin1(key), value);
+      root.insert(QStringLiteral("parameters"), fields);
+      raw_test_write(raw_develop_settings_path(path), QJsonDocument(root).toJson());
+      CHECK(!load_raw_develop_settings(path).recognized);
+    }
+  }
   raw_test_write(raw_develop_settings_path(path), QByteArray("not json"));
   auto loaded = load_raw_develop_settings(path);
   CHECK(save_raw_develop_settings(path, params, loaded, true).isEmpty());
@@ -449,6 +461,70 @@ void ui_raw_sidecar_rejects_invalid_and_preserves_failed_writes() {
   const auto missing_parent = path + QStringLiteral("/missing/photo.ARW");
   CHECK(!save_raw_develop_settings(missing_parent, params, {}).isEmpty());
   QFile::remove(raw_develop_settings_path(path));
+}
+
+void ui_raw_legacy_sidecars_preserve_processing_and_upgrade_explicitly() {
+  using namespace patchy::ui;
+  using namespace patchy::raw;
+  const auto path = write_raw_dng_fixture(QStringLiteral("raw_original_processing.dng"));
+  patchy::test::SyntheticDngOptions fixture;
+  fixture.iso = 5000;
+  const auto bytes = patchy::test::synthetic_bayer_dng(257, 193, fixture);
+  raw_test_write(path, QByteArray(reinterpret_cast<const char*>(bytes.data()), static_cast<qsizetype>(bytes.size())));
+  DevelopParams params;
+  params.exposure_ev = 0.125;
+  CHECK(save_raw_develop_settings(path, params, {}).isEmpty());
+  auto root = load_raw_develop_settings(path).preserved;
+  root.insert(QStringLiteral("processingVersion"), 1);
+  auto fields = root.value(QStringLiteral("parameters")).toObject();
+  fields.remove(QStringLiteral("profile"));
+  fields.remove(QStringLiteral("colorDenoisePasses"));
+  fields.insert(QStringLiteral("futureSetting"), 42);
+  root.insert(QStringLiteral("parameters"), fields);
+  raw_test_write(raw_develop_settings_path(path), QJsonDocument(root).toJson());
+  auto loaded = load_raw_develop_settings(path);
+  CHECK(loaded.recognized && loaded.notice.isEmpty());
+  CHECK(loaded.params.processing_version == 1 && loaded.params.profile == RenderingProfile::Neutral);
+  const auto original_bytes = loaded.original_bytes;
+  CHECK(!raw_test_dialog(path, [&](QDialog& dialog) {
+    auto* done = dialog.findChild<QPushButton*>(QStringLiteral("rawDoneButton"));
+    if (!done->isEnabled()) return;
+    CHECK(dialog.findChild<QComboBox*>(QStringLiteral("rawProfileCombo"))->currentData().toString() == QStringLiteral("neutral"));
+    CHECK(dialog.findChild<QLabel*>(QStringLiteral("rawProcessingNote"))->isVisible());
+    CHECK(dialog.findChild<QComboBox*>(QStringLiteral("rawColorNoiseCombo"))->currentData().toInt() == 0);
+    CHECK(dialog.findChild<QSlider*>(QStringLiteral("rawDenoiseSlider"))->value() == 182);
+    done->click();
+  }));
+  CHECK(raw_test_bytes(raw_develop_settings_path(path)) == original_bytes);
+  // Ordinary edits preserve the old processing contract, including unknown fields.
+  params = loaded.params;
+  params.exposure_ev = 0.25;
+  CHECK(save_raw_develop_settings(path, params, loaded).isEmpty());
+  loaded = load_raw_develop_settings(path);
+  CHECK(loaded.params.processing_version == 1);
+  CHECK(loaded.preserved.value(QStringLiteral("parameters")).toObject().value(QStringLiteral("futureSetting")).toInt() == 42);
+  bool changed = false;
+  auto outcome = raw_test_dialog(path, [&](QDialog& dialog) {
+    if (changed || !dialog.property("rawPreviewAccurate").toBool()) return;
+    auto* profile = dialog.findChild<QComboBox*>(QStringLiteral("rawProfileCombo"));
+    profile->setCurrentIndex(profile->findData(QStringLiteral("natural")));
+    CHECK(!dialog.findChild<QLabel*>(QStringLiteral("rawProcessingNote"))->isVisible());
+    CHECK(dialog.findChild<QComboBox*>(QStringLiteral("rawColorNoiseCombo"))->currentData().toInt() == 2);
+    CHECK(dialog.findChild<QSlider*>(QStringLiteral("rawDenoiseSlider"))->value() == 364);
+    changed = true;
+    dialog.findChild<QPushButton*>(QStringLiteral("rawOpenButton"))->click();
+    CHECK(!profile->isEnabled());
+  });
+  CHECK(changed && outcome.has_value());
+  CHECK(outcome->params.processing_version == 2 && outcome->params.profile == RenderingProfile::Natural);
+  loaded = load_raw_develop_settings(path);
+  CHECK(loaded.params == outcome->params);
+  const auto expected = read_camera_raw(bytes, loaded.params);
+  const auto& actual = std::as_const(outcome->document).layers().front().pixels();
+  const auto& reference = expected.document.layers().front().pixels();
+  for (int y = 0; y < actual.height(); ++y)
+    CHECK(std::equal(actual.row(y).begin(), actual.row(y).end(), reference.row(y).begin()));
+  CHECK(raw_test_bytes(path) == QByteArray(reinterpret_cast<const char*>(bytes.data()), static_cast<qsizetype>(bytes.size())));
 }
 
 void ui_raw_dialog_done_cancel_reset_and_global_isolation() {
@@ -618,18 +694,22 @@ void ui_raw_dialog_auto_controls_and_open_during_refinement() {
     auto* noise = dialog.findChild<QComboBox*>(QStringLiteral("rawNoiseReductionCombo"));
     auto* denoise = dialog.findChild<QSlider*>(QStringLiteral("rawDenoiseSlider"));
     auto* fbdd = dialog.findChild<QComboBox*>(QStringLiteral("rawFbddCombo"));
+    auto* color_noise = dialog.findChild<QComboBox*>(QStringLiteral("rawColorNoiseCombo"));
     auto* wb = dialog.findChild<QComboBox*>(QStringLiteral("rawWhiteBalanceCombo"));
     auto* temperature = dialog.findChild<QSlider*>(QStringLiteral("rawTemperatureSlider"));
     auto* label = dialog.findChild<QLabel*>(QStringLiteral("rawTemperatureSliderValue"));
     if (stage == 0) {
       if (!dialog.property("rawPreviewAccurate").toBool()) return;
-      CHECK(denoise->value() == 182 && !denoise->isEnabled());
+      CHECK(denoise->value() == 364 && !denoise->isEnabled());
+      CHECK(color_noise->currentData().toInt() == 2 && !color_noise->isEnabled());
       CHECK(fbdd->currentData().toString() == QStringLiteral("full") && !fbdd->isEnabled());
       noise->setCurrentIndex(noise->findData(QStringLiteral("manual")));
-      CHECK(denoise->value() == 182 && denoise->isEnabled());
+      CHECK(denoise->value() == 364 && denoise->isEnabled());
+      CHECK(color_noise->currentData().toInt() == 2 && color_noise->isEnabled());
       CHECK(fbdd->currentData().toString() == QStringLiteral("full"));
       noise->setCurrentIndex(noise->findData(QStringLiteral("off")));
       CHECK(denoise->value() == 0 && !denoise->isEnabled());
+      CHECK(color_noise->currentData().toInt() == 0 && !color_noise->isEnabled());
       wb->setCurrentIndex(wb->findData(QStringLiteral("auto")));
       CHECK(label->text() == QObject::tr("Calculating..."));
       stage = 1;
@@ -776,25 +856,30 @@ void ui_zoomable_preview_downsampling_and_logical_dimensions() {
 
 void ui_raw_local_photo_visual_acceptance_if_available() {
   using namespace patchy::ui;
-  const auto source = patchy::test::source_root_path() / "local-test-fixtures" / "raw" / "sony_fx30_fx300416.arw";
-  if (!std::filesystem::exists(source)) {
-    std::cout << "[SKIP] local Sony FX30 fixture missing\n";
-    return;
+  for (const bool shelves : {false, true}) {
+    const auto source = patchy::test::source_root_path() / "local-test-fixtures" / "raw" /
+        (shelves ? "sony_fx30_fx300354.arw" : "sony_fx30_fx300416.arw");
+    if (!std::filesystem::exists(source)) {
+      std::cout << "[SKIP] local Sony FX30 fixture missing\n";
+      continue;
+    }
+    const auto path = to_qstring(source);
+    const auto original = raw_test_bytes(path);
+    CHECK(!raw_test_dialog(path, [&](QDialog& dialog) {
+      auto* preview = dynamic_cast<ZoomableImagePreview*>(dialog.findChild<QWidget*>(QStringLiteral("rawDevelopPreview")));
+      if (!dialog.property("rawPreviewAccurate").toBool() || !preview->property("previewScaleReady").toBool()) return;
+      CHECK(preview->image().size() == (shelves ? QSize(6240, 4168) : QSize(4168, 6240)));
+      CHECK(dialog.findChild<QSlider*>(QStringLiteral("rawDenoiseSlider"))->value() == (shelves ? 332 : 364));
+      CHECK(dialog.findChild<QComboBox*>(QStringLiteral("rawFbddCombo"))->currentData().toString() == QStringLiteral("full"));
+      CHECK(dialog.findChild<QComboBox*>(QStringLiteral("rawColorNoiseCombo"))->currentData().toInt() == 2);
+      CHECK(dialog.findChild<QComboBox*>(QStringLiteral("rawProfileCombo"))->currentData().toString() == QStringLiteral("natural"));
+      save_widget_artifact(shelves ? "ui_raw_sony_fx30_shelves_fit" : "ui_raw_sony_fx30_fit", dialog);
+      preview->zoom_to(1.0);
+      save_widget_artifact(shelves ? "ui_raw_sony_fx30_shelves_100" : "ui_raw_sony_fx30_100", dialog);
+      dialog.reject();
+    }));
+    CHECK(raw_test_bytes(path) == original);
   }
-  const auto path = to_qstring(source);
-  const auto original = raw_test_bytes(path);
-  CHECK(!raw_test_dialog(path, [&](QDialog& dialog) {
-    auto* preview = dynamic_cast<ZoomableImagePreview*>(dialog.findChild<QWidget*>(QStringLiteral("rawDevelopPreview")));
-    if (!dialog.property("rawPreviewAccurate").toBool() || !preview->property("previewScaleReady").toBool()) return;
-    CHECK(preview->image().size() == QSize(4168, 6240));
-    CHECK(dialog.findChild<QSlider*>(QStringLiteral("rawDenoiseSlider"))->value() == 182);
-    CHECK(dialog.findChild<QComboBox*>(QStringLiteral("rawFbddCombo"))->currentData().toString() == QStringLiteral("full"));
-    save_widget_artifact("ui_raw_sony_fx30_fit", dialog);
-    preview->zoom_to(1.0);
-    save_widget_artifact("ui_raw_sony_fx30_100", dialog);
-    dialog.reject();
-  }));
-  CHECK(raw_test_bytes(path) == original);
 }
 
 void ui_raw_develop_dialog_accept_opens_document_and_save_routes_to_psd() {
@@ -1082,6 +1167,7 @@ void ui_heif_open_is_read_only_if_available() {
 
 std::vector<patchy::test::TestCase> camera_raw_heif_tests() {
   return {
+      {"ui_raw_legacy_sidecars_preserve_processing_and_upgrade_explicitly", ui_raw_legacy_sidecars_preserve_processing_and_upgrade_explicitly},
       {"ui_raw_sidecar_round_trips_unicode_and_preserves_unknown_fields", ui_raw_sidecar_round_trips_unicode_and_preserves_unknown_fields},
       {"ui_raw_sidecar_rejects_invalid_and_preserves_failed_writes", ui_raw_sidecar_rejects_invalid_and_preserves_failed_writes},
       {"ui_raw_dialog_done_cancel_reset_and_global_isolation", ui_raw_dialog_done_cancel_reset_and_global_isolation},

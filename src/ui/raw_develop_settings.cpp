@@ -71,7 +71,18 @@ bool parameters(QJsonObject& json, raw::DevelopParams& params, bool reading) {
       number("waveletDenoise", wavelet, 0, 1000) && std::floor(wavelet) == wavelet &&
       boolean("autoBrighten", params.auto_brighten) && boolean("halfSize", params.half_size);
   params.wavelet_denoise_threshold = static_cast<int>(wavelet);
-  return valid;
+  if (!valid) return false;
+  if (params.processing_version == 1) {
+    params.profile = raw::RenderingProfile::Neutral;
+    params.color_denoise_passes = 0;
+    return true;
+  }
+  double color_passes = params.color_denoise_passes;
+  const bool current_valid =
+      enum_field(json, "profile", params.profile, std::array{"neutral", "natural"}, reading) &&
+      number("colorDenoisePasses", color_passes, 0, 4) && std::floor(color_passes) == color_passes;
+  params.color_denoise_passes = static_cast<int>(color_passes);
+  return current_valid;
 }
 
 QString settings_error(const QString& path) {
@@ -99,10 +110,12 @@ RawDevelopSettings load_raw_develop_settings(const QString& source_path) {
   const auto root = doc.object();
   if (root.value(QStringLiteral("format")) != QJsonValue(QStringLiteral("patchy.rawprefs")) ||
       root.value(QStringLiteral("version")) != QJsonValue(1) ||
-      root.value(QStringLiteral("processingVersion")) != QJsonValue(raw::kProcessingVersion) ||
       !root.value(QStringLiteral("parameters")).isObject()) return result;
+  const auto version = root.value(QStringLiteral("processingVersion"));
+  if (version != QJsonValue(1) && version != QJsonValue(raw::kProcessingVersion)) return result;
   auto fields = root.value(QStringLiteral("parameters")).toObject();
   raw::DevelopParams parsed;
+  parsed.processing_version = version.toInt();
   if (!parameters(fields, parsed, true)) return result;
   result.params = parsed;
   result.preserved = root;
@@ -119,6 +132,8 @@ QString save_raw_develop_settings(const QString& source_path, const raw::Develop
   if (current.exists && !current.recognized && !replace_unrecognized)
     return QObject::tr("The existing RAW settings file is unreadable or unsupported. Replace it to save these adjustments.");
   auto params = raw::normalize_develop_params(requested);
+  if (params.processing_version != 1 && params.processing_version != raw::kProcessingVersion)
+    return settings_error(source_path);
   const auto path = raw_develop_settings_path(source_path);
   if (params == raw::DevelopParams{}) {
     if (current.exists && !QFile::remove(path)) return settings_error(source_path);
@@ -129,7 +144,7 @@ QString save_raw_develop_settings(const QString& source_path, const raw::Develop
   if (!parameters(fields, params, false)) return settings_error(source_path);
   root.insert(QStringLiteral("format"), QStringLiteral("patchy.rawprefs"));
   root.insert(QStringLiteral("version"), 1);
-  root.insert(QStringLiteral("processingVersion"), raw::kProcessingVersion);
+  root.insert(QStringLiteral("processingVersion"), params.processing_version);
   root.insert(QStringLiteral("parameters"), fields);
   const auto bytes = QJsonDocument(root).toJson();
   if (bytes == current.original_bytes) return {};

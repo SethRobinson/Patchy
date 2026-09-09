@@ -1,6 +1,7 @@
 #pragma once
 
 #include "formats/format_registry.hpp"
+#include "formats/raw_tone.hpp"
 #include "formats/raw_white_balance.hpp"
 
 #include <cstdint>
@@ -53,7 +54,7 @@ enum class FbddNoiseReduction {
 
 enum class NoiseReductionMode { Auto, Manual, Off };
 enum class DevelopQuality { Final, Draft };
-inline constexpr int kProcessingVersion = 1;
+inline constexpr int kProcessingVersion = 2;
 
 struct DevelopOptions {
   DevelopQuality quality{DevelopQuality::Final};
@@ -67,6 +68,9 @@ public:
 };
 
 struct DevelopParams {
+  // Version 1 preserves the original neutral rendering and Auto noise policy.
+  int processing_version{kProcessingVersion};
+  RenderingProfile profile{RenderingProfile::Natural};
   WhiteBalanceMode white_balance{WhiteBalanceMode::AsShot};
   // Used when white_balance == Custom.
   WhiteBalance custom_white_balance{};
@@ -91,6 +95,8 @@ struct DevelopParams {
   // Wavelet denoise threshold, 0 (off) .. 1000; 100-350 is a typical high-ISO range.
   int wavelet_denoise_threshold{0};
   FbddNoiseReduction fbdd{FbddNoiseReduction::Off};
+  // Manual color-difference median passes (0..4); Auto resolves from ISO.
+  int color_denoise_passes{0};
   // Reduce finished output by 2 in each dimension. Draft quality is independent.
   bool half_size{false};
   friend bool operator==(const DevelopParams&, const DevelopParams&) = default;
@@ -102,6 +108,7 @@ struct EffectiveNoiseReduction {
   int wavelet_threshold{0};
   FbddNoiseReduction fbdd{FbddNoiseReduction::Off};
   bool auto_available{false};
+  int color_passes{0};
 };
 
 struct RawFileInfo {
@@ -160,6 +167,8 @@ public:
     std::int32_t output_width{0};
     std::int32_t output_height{0};
     DevelopQuality quality{DevelopQuality::Final};
+    int processing_version{kProcessingVersion};
+    RenderingProfile profile{RenderingProfile::Natural};
     bool fast_half_size{false};
     // Bayer demosaic actually used; the fast draft path bypasses demosaicing.
     std::optional<DemosaicAlgorithm> demosaic;

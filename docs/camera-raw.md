@@ -12,8 +12,9 @@ packs are GPL.
 `raw_document_io.{hpp,cpp}` develops to 16-bit sRGB with an explicit sRGB transfer
 curve; LibRaw defaults to BT.709. `raw_tone.{hpp,cpp}` applies contrast, highlights,
 and shadows through one composed 65536-entry LUT, then saturation/vibrance, before
-rounded 8-bit output. Shadow lift is pinned at black; the highlight ramp is not
-pinned at white, so -100 dims blown areas. Defaults are neutral.
+rounded 8-bit output. The Natural profile runs first, on 16-bit sRGB. Shadow lift
+is pinned at black; the highlight ramp is not pinned at white, so -100 dims blown
+areas. Adjustment sliders default to zero independently of the selected profile.
 
 `DevelopSession` retains unpacked sensor data for repeated developments. Decoding
 uses `open_buffer`, never narrow file paths. `raw_white_balance.{hpp,cpp}` maps
@@ -24,35 +25,44 @@ assert statistics, never hashes.
 
 ## Defaults, noise reduction, and white balance
 
-New photos use As Shot WB, exposure 0, brightness 1, neutral tone/color controls,
+New photos use Natural rendering, As Shot WB, exposure 0, brightness 1, neutral tone/color controls,
 histogram auto-brightening off, AHD, full output dimensions, and Auto noise
 reduction. Patchy retains camera-to-sRGB conversion; no Adobe profiles are bundled.
-Neutral controls also mean no photographic base tone curve or camera look. Adobe
-Color applies its own color and tone rendering underneath zeroed adjustment
-sliders, so matching slider values does not imply matching developed pixels.
-Displayed temperature/tint estimates alone are not a measure of that difference.
-`effective_noise_reduction` owns the fixed processing-version-1 ISO policy:
+Natural is Patchy's fixed photographic rendering, not an Adobe or camera-matching
+profile. A self-authored monotone cubic curve deepens shadows, opens midtones and
+rolls highlights gently toward white. It maps sRGB luma, scales all color
+differences together to retain hue, and adds modest color enhancement that fades
+on saturated colors. Gamut bounds limit that scale before quantization, avoiding
+individual channel clipping. The curve and constants live in `raw_tone.cpp`.
+Neutral bypasses this stage for straight camera-to-sRGB output. WB multipliers,
+exposure, histogram behavior and the adjustment sliders are independent of it.
 
-| ISO | Wavelet threshold | FBDD |
-|---|---:|---|
-| Up to 400 | 0 | Off |
-| 800 | 50 | Light |
-| 1600 | 100 | Full |
-| 3200 | 150 | Full |
-| 6400 | 200 | Full |
-| 12800 and above | 250 | Full |
+`effective_noise_reduction` owns the fixed ISO policy. Version 2 strengthens
+wavelet reduction to control visible high-ISO brightness grain, retains FBDD,
+and adds color-difference median passes:
+
+| ISO | Wavelet threshold | FBDD | Color passes |
+|---|---:|---|---:|
+| Up to 400 | 0 | Off | 0 |
+| 800 | 100 | Light | 1 |
+| 1600 | 200 | Full | 2 |
+| 3200 | 300 | Full | 2 |
+| 6400 | 400 | Full | 2 |
+| 12800 and above | 500 | Full | 2 |
 
 Wavelet strength interpolates logarithmically; FBDD changes at the listed
-thresholds. ISO 5000 resolves to 182/Full. Auto applies only to three-color 2x2
+thresholds; color passes change at 800 and 1600. ISO 4000 resolves to 332/Full/2
+and ISO 5000 to 364/Full/2. Version 1 uses half the wavelet strength before
+rounding, the same FBDD thresholds, and no color passes (ISO 5000: 182/Full/0).
+Auto applies only to three-color 2x2
 Bayer layouts with finite, positive ISO metadata. Other layouts and unknown ISO
 get no automatic reduction, explained in the dialog. Auto values are read-only;
-switching to Manual seeds both controls from effective values. Off disables both
-engines. Manual retains the existing algorithms/range and LibRaw's sensor support.
-This policy reduces noise; it does not reproduce Camera Raw's noise processing.
-Residual color speckling remains visible in high-ISO Sony shadows. LibRaw's
-post-demosaic color-difference median filter is currently disabled. Any added
-base rendering or color-noise stage needs an explicit processing-version contract
-for existing sidecars and validation of thin colored details across the corpus.
+switching to Manual seeds all controls from effective values. Off disables all
+three stages. Manual retains the existing wavelet/FBDD ranges and sensor support;
+the new Color noise control selects 0..4 median passes on supported Bayer layouts.
+LibRaw's stock post-demosaic 3x3 median filter cleans R-G/B-G differences while
+retaining green detail. It is not luminance smoothing, and stronger settings can
+soften thin colored detail. No new codec, demosaic pack or learned algorithm.
 
 As Shot decoding uses the camera's recorded multipliers directly. Its displayed
 temperature/tint is Patchy's matrix-based estimate, not Adobe's calibration.
@@ -66,7 +76,7 @@ switching to Custom starts from the latest effective balance.
 `imports/rawDevelop*` keys remain untouched and are never applied or migrated.
 The only settings store is the source's complete filename plus `.rawprefs`, for
 example `FX300416.ARW.rawprefs`. `raw_develop_settings.{hpp,cpp}` reads/writes UTF-8
-JSON with `format: "patchy.rawprefs"`, `version: 1`, `processingVersion: 1`, and a
+JSON with `format: "patchy.rawprefs"`, `version: 1`, `processingVersion: 2`, and a
 `parameters` object. No paths, window geometry, preview zoom, or hidden cache.
 
 Store all normalized develop parameters, including explicit enum string tokens.
@@ -77,7 +87,13 @@ Slider display rounding must not change untouched sidecar precision. Damaged,
 unreadable, or unsupported sidecars yield a notice and default rendering; preserve
 them unless the user explicitly replaces them. Changes to persisted processing
 require a deliberate processing-version decision; never silently interpret a
-newer version as version 1.
+newer version as version 1. Supported processing versions are 1 and 2. Version 1
+loads as Neutral with color-noise cleanup disabled and retains its original
+wavelet/FBDD policy. Ordinary edits and saves retain version 1; untouched files
+remain byte-identical. Reset, changing Profile, or changing Color noise selects
+version 2. The dialog explains this when opening version 1 settings. Version 2
+requires `profile` (`neutral`/`natural`) and integer `colorDenoisePasses` (0..4),
+including inactive Manual values. No hidden migration or per-camera settings cache.
 
 Open waits for matching accurate pixels, saves customized settings, and imports.
 Done saves and closes without importing. Cancel discards the session. Reset
@@ -98,7 +114,8 @@ the bundled scripting guide and `patchy.d.ts` document the filename behavior.
 
 `DevelopOptions` selects Draft or Final independently of the `half_size` output
 choice. Draft may use LibRaw's fast half-size processing, bypassing Bayer
-demosaic/FBDD. Final always runs full processing with selected demosaic/noise
+demosaic/FBDD/color cleanup. Both qualities use the same selected rendering
+profile. Final always runs full processing with selected demosaic/noise
 settings. Final half-size output averages each 2x2 block after 16-bit tone/color
 operations, including partial blocks at odd edges, before rounded 8-bit conversion.
 Results include intended output dimensions, quality, effective processing and WB
