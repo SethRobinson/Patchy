@@ -11,6 +11,10 @@
 </context>
 <context>
     <name>QObject</name>
+    <message><source>Progress is estimated from processing stages. Some stages report only when complete.</source><translation>進捗率は処理段階から推定しています。完了時にのみ進捗を報告する段階もあります。</translation></message>
+    <message><source>Refining... %1%</source><translation>高品質プレビューを処理中... %1%</translation></message>
+    <message><source>Updating quick preview... %1%</source><translation>簡易プレビューを更新中... %1%</translation></message>
+    <message><source>Quick preview - waiting to refine</source><translation>簡易プレビュー: 高品質処理を待機中</translation></message>
     <message><source>Rendering</source><translation>仕上がり</translation></message>
     <message><source>Natural</source><translation>ナチュラル</translation></message>
     <message><source>Neutral</source><translation>ニュートラル</translation></message>

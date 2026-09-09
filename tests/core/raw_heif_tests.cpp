@@ -531,6 +531,8 @@ void raw_auto_denoise_reduces_chroma_without_color_shift() {
 void raw_natural_profile_preserves_hues_and_tonal_detail() {
   using namespace patchy::raw;
   const auto lut = build_natural_profile_lut();
+  const auto previous = build_natural_profile_lut(2);
+  CHECK(lut[32768] > previous[32768] + 4000);
   CHECK(lut.front() == 0 && lut.back() == 65535);
   CHECK(lut[6553] < 6553); // deeper shadows
   CHECK(lut[32768] > 39000); // brighter midtones
@@ -557,6 +559,46 @@ void raw_natural_profile_preserves_hues_and_tonal_detail() {
     const double after = double(mapped[order[1]] - mapped[order[0]]) / (mapped[order[2]] - mapped[order[0]]);
     CHECK(std::abs(before - after) < 0.001);
   }
+}
+
+void raw_small_drafts_cache_color_processing_and_report_progress() {
+  using namespace patchy::raw;
+  SyntheticDngOptions fixture;
+  fixture.iso = 5000;
+  fixture.horizontal_ramp = true;
+  fixture.orientation = 6;
+  const auto bytes = synthetic_bayer_dng(2601, 1703, fixture);
+  DevelopSession session(bytes);
+  DevelopParams params;
+  params.noise_reduction = NoiseReductionMode::Off;
+  std::vector<int> progress;
+  DevelopOptions options;
+  options.progress = [&](int percent) { progress.push_back(percent); };
+  const auto full = session.develop(params, options);
+  CHECK(progress.front() == 0 && progress.back() == 100 && progress.size() > 5);
+  CHECK(std::is_sorted(progress.begin(), progress.end()));
+  options.quality = DevelopQuality::Draft;
+  progress.clear();
+  const auto draft = session.develop(params, options);
+  CHECK(std::max(draft.width, draft.height) <= 1280);
+  CHECK(draft.output_width == full.width && draft.output_height == full.height);
+  CHECK(draft.width < draft.height); // orientation survives the sensor proxy
+  CHECK(!draft.reused_draft_decode && draft.noise.wavelet_threshold == 0);
+  CHECK(progress.front() == 0 && progress.back() == 100 && std::is_sorted(progress.begin(), progress.end()));
+  CHECK(draft.white_balance_multipliers == full.white_balance_multipliers);
+  params.contrast = 30;
+  params.saturation = 15;
+  params.noise_reduction = NoiseReductionMode::Auto;
+  const auto edited = session.develop(params, options);
+  CHECK(edited.reused_draft_decode && edited.rgb != draft.rgb);
+  CHECK(edited.noise.wavelet_threshold == 0 && edited.noise.color_passes == 0);
+  DevelopSession fresh(bytes);
+  CHECK(fresh.develop(params, options).rgb == edited.rgb);
+  params.exposure_ev = 0.5;
+  CHECK(!session.develop(params, options).reused_draft_decode);
+  params = {};
+  params.noise_reduction = NoiseReductionMode::Off;
+  CHECK(session.develop(params).rgb == full.rgb); // proxy never changes final geometry/pixels
 }
 
 void raw_profiles_and_color_noise_preserve_legacy_processing() {
@@ -592,7 +634,7 @@ void raw_profiles_and_color_noise_preserve_legacy_processing() {
   CHECK(cleaned.noise.color_passes == 2);
   CHECK(chroma(cleaned) < chroma(old) * 0.65);
   const auto natural = session.develop({});
-  CHECK(natural.profile == RenderingProfile::Natural && natural.processing_version == 2);
+  CHECK(natural.profile == RenderingProfile::Natural && natural.processing_version == kProcessingVersion);
   CHECK(natural.rgb != old.rgb);
 }
 
@@ -949,6 +991,7 @@ void heif_decodes_real_photos_if_available() {
 
 std::vector<patchy::test::TestCase> raw_heif_tests() {
   return {
+      {"raw_small_drafts_cache_color_processing_and_report_progress", raw_small_drafts_cache_color_processing_and_report_progress},
       {"raw_natural_profile_preserves_hues_and_tonal_detail", raw_natural_profile_preserves_hues_and_tonal_detail},
       {"raw_profiles_and_color_noise_preserve_legacy_processing", raw_profiles_and_color_noise_preserve_legacy_processing},
       {"raw_color_noise_preserves_thin_lines_and_color_edges", raw_color_noise_preserves_thin_lines_and_color_edges},

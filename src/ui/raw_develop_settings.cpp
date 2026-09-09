@@ -112,7 +112,8 @@ RawDevelopSettings load_raw_develop_settings(const QString& source_path) {
       root.value(QStringLiteral("version")) != QJsonValue(1) ||
       !root.value(QStringLiteral("parameters")).isObject()) return result;
   const auto version = root.value(QStringLiteral("processingVersion"));
-  if (version != QJsonValue(1) && version != QJsonValue(raw::kProcessingVersion)) return result;
+  if (!version.isDouble() || version.toDouble() != version.toInt() ||
+      version.toInt() < 1 || version.toInt() > raw::kProcessingVersion) return result;
   auto fields = root.value(QStringLiteral("parameters")).toObject();
   raw::DevelopParams parsed;
   parsed.processing_version = version.toInt();
@@ -132,7 +133,7 @@ QString save_raw_develop_settings(const QString& source_path, const raw::Develop
   if (current.exists && !current.recognized && !replace_unrecognized)
     return QObject::tr("The existing RAW settings file is unreadable or unsupported. Replace it to save these adjustments.");
   auto params = raw::normalize_develop_params(requested);
-  if (params.processing_version != 1 && params.processing_version != raw::kProcessingVersion)
+  if (params.processing_version < 1 || params.processing_version > raw::kProcessingVersion)
     return settings_error(source_path);
   const auto path = raw_develop_settings_path(source_path);
   if (params == raw::DevelopParams{}) {

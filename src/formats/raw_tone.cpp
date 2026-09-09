@@ -22,11 +22,13 @@ double inverse_smoothstep(double x) {
 
 }  // namespace
 
-std::array<std::uint16_t, 65536> build_natural_profile_lut() {
+std::array<std::uint16_t, 65536> build_natural_profile_lut(int processing_version) {
   // Self-authored photographic curve, not a camera/vendor profile. Work in sRGB
   // code values: retain a toe, open midtones, and roll highlights gently to white.
   constexpr std::array x{0.0, 0.04, 0.10, 0.20, 0.35, 0.50, 0.70, 0.85, 1.0};
-  constexpr std::array y{0.0, 0.018, 0.065, 0.20, 0.43, 0.64, 0.83, 0.93, 1.0};
+  const auto y = processing_version <= 2 ?
+      std::array{0.0, 0.018, 0.065, 0.20, 0.43, 0.64, 0.83, 0.93, 1.0} :
+      std::array{0.0, 0.016, 0.070, 0.245, 0.50, 0.73, 0.895, 0.958, 1.0};
   std::array<double, x.size() - 1> slopes{};
   for (std::size_t i = 0; i < slopes.size(); ++i)
     slopes[i] = (y[i + 1] - y[i]) / (x[i + 1] - x[i]);
@@ -53,7 +55,7 @@ std::array<std::uint16_t, 65536> build_natural_profile_lut() {
 }
 
 void apply_natural_profile(std::array<std::uint16_t, 3>& rgb,
-                           const std::array<std::uint16_t, 65536>& lut) {
+                           const std::array<std::uint16_t, 65536>& lut, int processing_version) {
   const double luma = 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
   if (luma <= 0.0) return;
   const double mapped = lut[static_cast<std::size_t>(std::lround(luma))];
@@ -63,7 +65,8 @@ void apply_natural_profile(std::array<std::uint16_t, 3>& rgb,
   // Scale all color differences together to retain hue. A small color enhancement
   // fades on already-saturated colors; bound it before rounding so highlights do
   // not clip individual channels or change the order of the channels.
-  double scale = mapped / luma * (1.0 + 0.12 * (1.0 - saturation));
+  const double color_strength = processing_version <= 2 ? 0.12 : 0.24;
+  double scale = mapped / luma * (1.0 + color_strength * (1.0 - saturation));
   if (high > luma) scale = std::min(scale, (65535.0 - mapped) / (high - luma));
   if (low < luma) scale = std::min(scale, mapped / (luma - low));
   for (auto& channel : rgb)

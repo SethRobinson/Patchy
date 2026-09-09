@@ -6,7 +6,9 @@ settings. Automated opens never write sidecars. Signatures are unchanged; legacy
 global RAW adjustments are ignored. See [camera-raw.md](camera-raw.md).
 New defaults use Natural rendering and separate color-noise cleanup. Version 1
 RAW sidecars retain their original neutral processing; version 2 stores the
-profile and color-noise controls. Script signatures and API version are unchanged.
+profile and color-noise controls. Processing version 3 strengthens the Natural
+default while preserving version 1 and 2 sidecars. Script signatures and API
+version are unchanged.
 
 2026-09-08 (API 1): Documents expose `getPalette`, `setPalette`, `loadPalette`,
 and `savePalette` to scripts and MCP. Set/load preserve existing pixels and

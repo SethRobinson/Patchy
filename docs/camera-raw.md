@@ -16,7 +16,8 @@ rounded 8-bit output. The Natural profile runs first, on 16-bit sRGB. Shadow lif
 is pinned at black; the highlight ramp is not pinned at white, so -100 dims blown
 areas. Adjustment sliders default to zero independently of the selected profile.
 
-`DevelopSession` retains unpacked sensor data for repeated developments. Decoding
+`DevelopSession` opens metadata and the embedded thumbnail before unpacking, then
+retains unpacked sensor data for repeated developments. Decoding
 uses `open_buffer`, never narrow file paths. `raw_white_balance.{hpp,cpp}` maps
 temperature/tint through `cam_xyz`: Planckian below 4000 K, CIE daylight above,
 tint as Duv offset, bisection for the inverse As Shot display. Without a usable
@@ -34,6 +35,8 @@ rolls highlights gently toward white. It maps sRGB luma, scales all color
 differences together to retain hue, and adds modest color enhancement that fades
 on saturated colors. Gamut bounds limit that scale before quantization, avoiding
 individual channel clipping. The curve and constants live in `raw_tone.cpp`.
+Processing version 3 gives Natural brighter midtones, stronger contrast and more
+color enhancement. Version 2 retains its original Natural curve and color strength.
 Neutral bypasses this stage for straight camera-to-sRGB output. WB multipliers,
 exposure, histogram behavior and the adjustment sliders are independent of it.
 
@@ -76,7 +79,7 @@ switching to Custom starts from the latest effective balance.
 `imports/rawDevelop*` keys remain untouched and are never applied or migrated.
 The only settings store is the source's complete filename plus `.rawprefs`, for
 example `FX300416.ARW.rawprefs`. `raw_develop_settings.{hpp,cpp}` reads/writes UTF-8
-JSON with `format: "patchy.rawprefs"`, `version: 1`, `processingVersion: 2`, and a
+JSON with `format: "patchy.rawprefs"`, `version: 1`, `processingVersion: 3`, and a
 `parameters` object. No paths, window geometry, preview zoom, or hidden cache.
 
 Store all normalized develop parameters, including explicit enum string tokens.
@@ -87,11 +90,12 @@ Slider display rounding must not change untouched sidecar precision. Damaged,
 unreadable, or unsupported sidecars yield a notice and default rendering; preserve
 them unless the user explicitly replaces them. Changes to persisted processing
 require a deliberate processing-version decision; never silently interpret a
-newer version as version 1. Supported processing versions are 1 and 2. Version 1
+newer version as version 1. Supported processing versions are 1, 2 and 3. Version 1
 loads as Neutral with color-noise cleanup disabled and retains its original
 wavelet/FBDD policy. Ordinary edits and saves retain version 1; untouched files
-remain byte-identical. Reset, changing Profile, or changing Color noise selects
-version 2. The dialog explains this when opening version 1 settings. Version 2
+remain byte-identical. Version 2 also retains its original rendering on ordinary
+edits. Reset, changing Profile, or changing Color noise selects the current
+processing version. The dialog explains this when opening older settings. Versions 2 and 3
 requires `profile` (`neutral`/`natural`) and integer `colorDenoisePasses` (0..4),
 including inactive Manual values. No hidden migration or per-camera settings cache.
 
@@ -113,9 +117,16 @@ the bundled scripting guide and `patchy.d.ts` document the filename behavior.
 ## Accurate processing and preview scheduling
 
 `DevelopOptions` selects Draft or Final independently of the `half_size` output
-choice. Draft may use LibRaw's fast half-size processing, bypassing Bayer
-demosaic/FBDD/color cleanup. Both qualities use the same selected rendering
-profile. Final always runs full processing with selected demosaic/noise
+choice. Draft uses LibRaw's fast half-size path with wavelet/FBDD/color cleanup
+disabled. At the SCALE_COLORS entry checkpoint, supported Bayer drafts average
+the black-subtracted four-channel sensor cells in place to a maximum long edge
+of 1280, before WB, exposure and RGB conversion. The original rawdata geometry
+remains intact for final processing. Other layouts use the regular half-size path
+and reduce its output to the same bound. Draft-to-output geometry stays logical.
+The latest draft's 16-bit sRGB decode is cached independently of profile, tone,
+color, noise and output-size controls; WB, exposure, brightness and highlight
+recovery invalidate it. Cache reuse never substitutes for an accurate decode.
+Both qualities use the selected rendering profile. Final always runs full processing with selected demosaic/noise
 settings. Final half-size output averages each 2x2 block after 16-bit tone/color
 operations, including partial blocks at odd edges, before rounded 8-bit conversion.
 Results include intended output dimensions, quality, effective processing and WB
@@ -126,12 +137,27 @@ on cancellation: before another decode, reopen/unpack retained bytes with the
 original neutral decoder options. A previous wavelet threshold must not affect
 active dimensions during re-identification. One worker owns each session.
 
-The dialog has one decoder worker and one latest pending request. Edits invalidate
-old completions and request a draft after 200 ms; 500 ms idle or slider release
-requests accurate refinement. Open reuses a matching accurate cache or waits;
-draft pixels are never imported. Drafts remain visibly marked as refining. A
+The dialog has two bounded lanes, one for drafts and one for accurate processing,
+each with one worker, one session and one latest pending request. The separate
+draft lane avoids waiting for long LibRaw stages to reach a cancellation checkpoint.
+Both lanes use the same retained file-byte snapshot. Edits invalidate old completions
+and throttle draft requests to 80 ms even during continuous dragging. Slider release
+requests a draft immediately. After 500 ms idle, refinement starts only when the
+latest draft has appeared; the timer never replaces a queued draft with full work.
+Superseded short drafts may finish into their decode cache; superseded accurate
+work cancels at supported checkpoints. Closing cancels both lanes immediately.
+Open reuses a matching accurate cache or waits; an early Open waits for the initial
+draft to publish the file snapshot before starting the accurate lane. Draft pixels
+are never imported and cannot overwrite a matching accurate completion. A
 refinement error marks the remaining preview incomplete and offers Retry Preview.
 Closing immediately disarms callbacks and cancels obsolete processing.
+
+Worker progress reports monotone 0..100 completed-stage estimates, including
+sensor unpacking and output-row processing. Long stages without LibRaw checkpoints
+hold their last percentage; there is no elapsed-time animation. The dialog shows
+percentages while updating/refining, ignores stale reports, and caps them at 99
+until image/document conversion completes. Idle drafts are labeled as waiting for
+refinement. Percentages describe processing work, not estimated time remaining.
 
 `ZoomableImagePreview` has logical output dimensions independent of its current
 bitmap. Draft replacement preserves fit mode, zoom, pan, and image coordinates.

@@ -52,7 +52,7 @@ namespace {
 constexpr double kMinTemperatureK = 2000.0;
 constexpr double kMaxTemperatureK = 25000.0;
 constexpr int kTemperatureSliderSteps = 1000;
-constexpr int kPreviewDebounceMs = 200;
+constexpr int kPreviewDebounceMs = 80;
 
 QString white_balance_token(raw::WhiteBalanceMode mode) {
   switch (mode) {
@@ -193,9 +193,9 @@ QImage rotated_for_orientation(QImage image, int orientation_flip) {
   }
 }
 
-// One in-flight develop at a time with a one-deep latest-wins queue (the async preview
-// pattern from the filter gallery / adjustment dialogs). The DevelopSession is created by
-// the first work item and only ever touched by the single in-flight worker.
+// Each lane has one worker and one latest pending request. A small draft can update
+// while an obsolete accurate decode is reaching its next cancellation checkpoint.
+// Sessions are lane-owned and never accessed concurrently.
 struct RawPreviewState {
   struct Work {
     std::uint64_t generation{0};
@@ -213,17 +213,22 @@ struct RawPreviewState {
   };
 
   QString file_path;
-  bool closed{false};
-  bool in_flight{false};
-  std::optional<Work> active;
+  std::atomic<bool> closed{false};
+  struct Lane {
+    bool in_flight{false};
+    std::optional<Work> active;
+    std::optional<Work> pending;
+    std::shared_ptr<raw::DevelopSession> session;
+  } draft, accurate;
+  Lane& lane(bool final_render) { return final_render ? accurate : draft; }
   std::atomic<std::uint64_t> generation{0};
-  std::optional<Work> pending;
-  std::shared_ptr<raw::DevelopSession> session;
+  std::shared_ptr<const std::vector<std::uint8_t>> file_bytes;
   std::function<void(Work)> start;
   std::function<void(Completion)> apply;
   // (message, fatal) — fatal means the file itself cannot be decoded.
   std::function<void(QString, bool)> fail;
   std::function<void(raw::RawFileInfo)> info_ready;
+  std::function<void(int, bool)> progress;
 };
 
 void enqueue_raw_develop(const std::shared_ptr<RawPreviewState>& state, raw::DevelopParams params,
@@ -233,10 +238,10 @@ void enqueue_raw_develop(const std::shared_ptr<RawPreviewState>& state, raw::Dev
   }
   const auto generation = state->generation.load(std::memory_order_acquire);
   RawPreviewState::Work work{generation, params, final_render};
-  if (state->in_flight) {
-    if (state->active && state->active->generation == generation &&
-        state->active->params == params && (state->active->final_render || !final_render)) return;
-    state->pending = work;
+  auto& lane = state->lane(final_render);
+  if (lane.in_flight) {
+    if (lane.active && lane.active->generation == generation && lane.active->params == params) return;
+    lane.pending = work;
     return;
   }
   state->start(work);
@@ -248,11 +253,13 @@ void close_raw_develop(const std::shared_ptr<RawPreviewState>& state) {
   }
   state->closed = true;
   state->generation.fetch_add(1, std::memory_order_acq_rel);
-  state->pending.reset();
+  state->draft.pending.reset();
+  state->accurate.pending.reset();
   state->start = {};
   state->apply = {};
   state->fail = {};
   state->info_ready = {};
+  state->progress = {};
 }
 
 std::vector<std::uint8_t> read_file_bytes_for_worker(const QString& path) {
@@ -479,6 +486,7 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
   auto* status_row = new QHBoxLayout();
   auto* status_label = new QLabel(&dialog);
   status_label->setObjectName(QStringLiteral("rawDevelopStatus"));
+  status_label->setToolTip(QObject::tr("Progress is estimated from processing stages. Some stages report only when complete."));
   status_row->addWidget(status_label, 1);
   auto* buttons = new QDialogButtonBox(&dialog);
   auto* reset_button = buttons->addButton(QObject::tr("Reset"), QDialogButtonBox::ResetRole);
@@ -541,7 +549,7 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
     denoise_slider->setEnabled(manual);
     fbdd_combo->setEnabled(manual);
     color_noise_combo->setEnabled(manual && raw_info && raw_info->is_three_color_bayer);
-    processing_note->setVisible(params.processing_version == 1);
+    processing_note->setVisible(params.processing_version < raw::kProcessingVersion);
     noise_note->setText(params.noise_reduction == raw::NoiseReductionMode::Auto && !noise.auto_available ?
         QObject::tr("Auto requires ISO metadata and a supported Bayer sensor.") : QString());
     noise_note->setVisible(!noise_note->text().isEmpty());
@@ -656,6 +664,8 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
   bool accepting = false;
   bool preview_has_render = false;
   bool reset_requested = false;
+  std::optional<raw::DevelopParams> displayed_draft;
+  bool refinement_due = false;
   std::optional<RawPreviewState::Completion> accurate_cache;
 
   const auto set_controls_enabled = [&](bool enabled) {
@@ -685,7 +695,18 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
     if (accepting || state->closed) return;
     read_params_from_widgets();
     retry_button->hide();
-    set_busy_status(QObject::tr("Quick preview - refining..."));
+    if (accurate && accurate_cache && accurate_cache->params == params) {
+      refinement_due = false;
+      if (state->apply) state->apply(*accurate_cache);
+      return;
+    }
+    if (accurate && (!displayed_draft || *displayed_draft != params)) {
+      refinement_due = true;
+      enqueue_raw_develop(state, params, false);
+      return;
+    }
+    if (accurate) refinement_due = false;
+    set_busy_status(accurate ? QObject::tr("Refining... %1%").arg(0) : QObject::tr("Updating quick preview... %1%").arg(0));
     enqueue_raw_develop(state, params, accurate);
   };
   const auto enqueue_preview = [&] { request_preview(false); };
@@ -801,6 +822,8 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
   };
 
   state->apply = [&](RawPreviewState::Completion completion) {
+    if (!completion.final_render && accurate_cache && accurate_cache->params == completion.params)
+      completion = *accurate_cache;
     preview_has_render = true;
     preview->set_image(completion.image, completion.output_size);
     if (completion.white_balance) {
@@ -814,13 +837,24 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
       }
     }
     dialog.setProperty("rawPreviewAccurate", completion.final_render);
+    dialog.setProperty("rawProgressPercent", 100);
     if (completion.final_render) {
       accurate_cache = std::move(completion);
       set_busy_status(QString());
       if (accepting) finish_open();
     } else {
-      set_busy_status(QObject::tr("Quick preview - refining..."));
+      displayed_draft = completion.params;
+      set_busy_status(QObject::tr("Quick preview - waiting to refine"));
+      if (accepting) enqueue_raw_develop(state, final_params, true);
+      else if (refinement_due && !sliders_dragging()) request_preview(true);
     }
+  };
+
+  state->progress = [&](int percent, bool accurate) {
+    dialog.setProperty("rawProgressPercent", percent);
+    dialog.setProperty("rawProgressAccurate", accurate);
+    if (accurate) set_busy_status(QObject::tr("Refining... %1%").arg(percent));
+    else if (!accepting) set_busy_status(QObject::tr("Updating quick preview... %1%").arg(percent));
   };
 
   state->fail = [&](QString message, bool fatal) {
@@ -839,8 +873,9 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
   };
 
   state->start = [state](RawPreviewState::Work work) {
-    state->in_flight = true;
-    state->active = work;
+    auto& lane = state->lane(work.final_render);
+    lane.in_flight = true;
+    lane.active = work;
     auto* app = QCoreApplication::instance();
     run_tracked_background_worker([state, work, app]() mutable {
       RawPreviewState::Completion completion;
@@ -850,18 +885,32 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
       bool fatal = false;
       bool cancelled = false;
       try {
-        if (state->session == nullptr) {
-          state->session = std::make_shared<raw::DevelopSession>(read_file_bytes_for_worker(state->file_path));
-          QMetaObject::invokeMethod(app, [state, info = state->session->info()] {
+        auto& worker_lane = state->lane(work.final_render);
+        if (worker_lane.session == nullptr) {
+          // Accurate work is admitted only after the first draft completed, so this
+          // immutable byte snapshot is published before the second lane reads it.
+          if (!state->file_bytes)
+            state->file_bytes = std::make_shared<const std::vector<std::uint8_t>>(read_file_bytes_for_worker(state->file_path));
+          worker_lane.session = std::make_shared<raw::DevelopSession>(*state->file_bytes);
+          if (!work.final_render) QMetaObject::invokeMethod(app, [state, info = worker_lane.session->info()] {
             if (!state->closed && state->info_ready) state->info_ready(info);
           }, Qt::QueuedConnection);
         }
         raw::DevelopOptions options;
         options.quality = work.final_render ? raw::DevelopQuality::Final : raw::DevelopQuality::Draft;
-        options.cancelled = [state, generation = work.generation] {
-          return state->generation.load(std::memory_order_acquire) != generation;
+        options.cancelled = [state, work] {
+          // Short drafts finish into the cache even when superseded. This avoids
+          // repeated sensor unpacking during a drag. Closure cancels both lanes.
+          return state->closed.load() || (work.final_render &&
+              state->generation.load(std::memory_order_acquire) != work.generation);
         };
-        auto developed = state->session->develop(work.params, options);
+        options.progress = [state, work, app](int percent) {
+          QMetaObject::invokeMethod(app, [state, work, percent] {
+            if (!state->closed && state->progress && work.generation == state->generation.load())
+              state->progress(std::min(percent, 99), work.final_render);
+          }, Qt::QueuedConnection);
+        };
+        auto developed = worker_lane.session->develop(work.params, options);
         completion.image = image_from_developed(developed);
         completion.output_size = QSize(developed.output_width, developed.output_height);
         completion.white_balance = developed.effective_white_balance;
@@ -873,12 +922,13 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
         cancelled = true;
       } catch (const std::exception& caught) {
         error = QString::fromUtf8(caught.what());
-        fatal = state->session == nullptr;
+        fatal = !work.final_render && state->lane(false).session == nullptr;
       }
       QMetaObject::invokeMethod(app,
           [state, work, completion = std::move(completion), error, fatal, cancelled]() mutable {
-            state->in_flight = false;
-            state->active.reset();
+            auto& completed_lane = state->lane(work.final_render);
+            completed_lane.in_flight = false;
+            completed_lane.active.reset();
             if (state->closed) return;
             const auto is_latest = work.generation == state->generation.load(std::memory_order_acquire);
             if (!error.isEmpty()) {
@@ -886,9 +936,9 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
             } else if (!cancelled && is_latest && state->apply) {
               state->apply(std::move(completion));
             }
-            if (state->pending.has_value() && state->start) {
-              auto next = std::move(*state->pending);
-              state->pending.reset();
+            if (completed_lane.pending.has_value() && state->start) {
+              auto next = std::move(*completed_lane.pending);
+              completed_lane.pending.reset();
               state->start(std::move(next));
             }
           }, Qt::QueuedConnection);
@@ -902,14 +952,17 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
     }
     read_params_from_widgets();
     state->generation.fetch_add(1, std::memory_order_acq_rel);
-    state->pending.reset();
+    state->draft.pending.reset();
+    state->accurate.pending.reset();
+    refinement_due = false;
     dialog.setProperty("rawPreviewAccurate", false);
     if (params.white_balance == raw::WhiteBalanceMode::Auto) {
       auto_white_balance_pending = true;
       refresh_value_labels();
     }
-    set_busy_status(QObject::tr("Quick preview - refining..."));
-    debounce->start();
+    set_busy_status(QObject::tr("Updating quick preview... %1%").arg(0));
+    // Throttle during a continuous drag, rather than postponing every frame.
+    if (!debounce->isActive()) debounce->start();
     refine->start();
   };
   const auto on_white_balance_slider = [&] {
@@ -1008,14 +1061,13 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
   QObject::connect(debounce, &QTimer::timeout, &dialog, enqueue_preview);
   QObject::connect(refine, &QTimer::timeout, &dialog, [&] {
     if (sliders_dragging()) { refine->start(); return; }
-    debounce->stop();
     request_preview(true);
   });
   for (auto* slider : dialog.findChildren<QSlider*>()) {
     QObject::connect(slider, &QSlider::sliderReleased, &dialog, [&] {
       debounce->stop();
-      refine->stop();
-      request_preview(true);
+      request_preview(false);
+      refine->start();
     });
   }
   QObject::connect(retry_button, &QPushButton::clicked, &dialog, [&] { request_preview(true); });
@@ -1041,7 +1093,13 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
     debounce->stop();
     refine->stop();
     if (accurate_cache && accurate_cache->params == final_params) finish_open();
-    else enqueue_raw_develop(state, final_params, true);
+    else if (displayed_draft) enqueue_raw_develop(state, final_params, true);
+    else {
+      // Initial file loading must publish its immutable byte snapshot before
+      // another lane starts. Complete the first draft, then accept accurately.
+      refinement_due = true;
+      enqueue_raw_develop(state, final_params, false);
+    }
   });
   QObject::connect(done_button, &QPushButton::clicked, &dialog, [&] {
     read_params_from_widgets();

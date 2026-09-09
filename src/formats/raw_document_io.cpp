@@ -18,6 +18,38 @@ namespace {
 // LibRaw's supported linear exposure-shift range (0.25 = 2 stops darker, 8 = 3 lighter).
 constexpr double kMinExposureShift = 0.25;
 constexpr double kMaxExposureShift = 8.0;
+constexpr int kDraftLongEdge = 1280;
+
+DevelopParams draft_decode_key(DevelopParams params) {
+  params.processing_version = kProcessingVersion;
+  params.profile = RenderingProfile::Neutral;
+  params.contrast = params.highlights = params.shadows = params.saturation = params.vibrance = 0;
+  params.half_size = false;
+  params.demosaic = DemosaicAlgorithm::Ahd;
+  params.noise_reduction = NoiseReductionMode::Off;
+  params.wavelet_denoise_threshold = params.color_denoise_passes = 0;
+  params.fbdd = FbddNoiseReduction::Off;
+  return params;
+}
+
+// Decoder stages have different costs. These are completed-work estimates, not
+// elapsed-time animation; gaps without LibRaw checkpoints remain at the last value.
+int processing_progress(LibRaw_progress stage, int iteration, int expected) {
+  int low = 15, high = 20;
+  switch (stage) {
+    case LIBRAW_PROGRESS_OPEN: case LIBRAW_PROGRESS_IDENTIFY: low = 0; high = 3; break;
+    case LIBRAW_PROGRESS_LOAD_RAW: low = 3; high = 15; break;
+    case LIBRAW_PROGRESS_SCALE_COLORS: low = 20; high = 45; break;
+    case LIBRAW_PROGRESS_PRE_INTERPOLATE: low = 45; high = 50; break;
+    case LIBRAW_PROGRESS_INTERPOLATE: low = 50; high = 80; break;
+    case LIBRAW_PROGRESS_MIX_GREEN: case LIBRAW_PROGRESS_MEDIAN_FILTER: low = 80; high = 87; break;
+    case LIBRAW_PROGRESS_HIGHLIGHTS: low = 87; high = 90; break;
+    case LIBRAW_PROGRESS_CONVERT_RGB: low = 90; high = 93; break;
+    case LIBRAW_PROGRESS_STRETCH: low = 93; high = 94; break;
+    default: break;
+  }
+  return low + (high - low) * std::clamp(iteration, 0, std::max(1, expected - 1)) / std::max(1, expected - 1);
+}
 
 [[noreturn]] void throw_libraw_error(int code, const char* stage) {
   std::string message = "Camera raw ";
@@ -181,7 +213,45 @@ struct DevelopSession::Impl {
   LibRaw processor;
   const libraw_output_params_t initial_output{processor.imgdata.params};
   RawFileInfo info;
-  bool needs_unpack{false};
+  bool needs_unpack{true};
+  bool needs_reopen{false};
+  std::shared_ptr<libraw_processed_image_t> draft_pixels;
+  DevelopParams draft_key;
+  DevelopedImage draft_metadata;
+
+  // At SCALE_COLORS entry, raw2image has subtracted the sensor black levels and
+  // packed each 2x2 Bayer cell into four channels. Average those cells in place
+  // before WB, exposure, RGB conversion or tone processing. The next raw2image
+  // restores the original geometry from rawdata, so final processing is untouched.
+  bool reduce_draft_sensor(const DevelopOptions& options) {
+    if (!info.is_three_color_bayer) return true;
+    auto& sizes = processor.imgdata.sizes;
+    const int width = sizes.iwidth, height = sizes.iheight;
+    const int step = (std::max(width, height) + kDraftLongEdge - 1) / kDraftLongEdge;
+    if (step <= 1) return true;
+    const int reduced_width = (width + step - 1) / step;
+    const int reduced_height = (height + step - 1) / step;
+    auto* pixels = processor.imgdata.image;
+    for (int y = 0; y < reduced_height; ++y) {
+      if (options.cancelled && options.cancelled()) return false;
+      for (int x = 0; x < reduced_width; ++x) {
+        std::array<std::uint64_t, 4> sums{};
+        unsigned count = 0;
+        for (int sy = y * step; sy < std::min((y + 1) * step, height); ++sy)
+          for (int sx = x * step; sx < std::min((x + 1) * step, width); ++sx) {
+            for (int c = 0; c < 4; ++c) sums[c] += pixels[sy * width + sx][c];
+            ++count;
+          }
+        for (int c = 0; c < 4; ++c)
+          pixels[y * reduced_width + x][c] = static_cast<unsigned short>((sums[c] + count / 2) / count);
+      }
+    }
+    sizes.iwidth = static_cast<unsigned short>(reduced_width);
+    sizes.iheight = static_cast<unsigned short>(reduced_height);
+    sizes.width = static_cast<unsigned short>(reduced_width * 2);
+    sizes.height = static_cast<unsigned short>(reduced_height * 2);
+    return true;
+  }
 
   void apply_params(const DevelopParams& params, DevelopQuality quality) {
     auto& output = processor.imgdata.params;
@@ -225,8 +295,8 @@ struct DevelopSession::Impl {
     output.bright = static_cast<float>(std::clamp(params.brightness, 0.25, 4.0));
     output.user_qual = libraw_quality_for(params.demosaic);
     const auto noise = effective_noise_reduction(params, info);
-    output.threshold = static_cast<float>(noise.wavelet_threshold);
-    output.fbdd_noiserd = std::clamp(static_cast<int>(noise.fbdd), 0, 2);
+    output.threshold = quality == DevelopQuality::Final ? static_cast<float>(noise.wavelet_threshold) : 0.0f;
+    output.fbdd_noiserd = quality == DevelopQuality::Final ? std::clamp(static_cast<int>(noise.fbdd), 0, 2) : 0;
     output.med_passes = quality == DevelopQuality::Final ? noise.color_passes : 0;
     output.half_size = quality == DevelopQuality::Draft ? 1 : 0;
   }
@@ -296,7 +366,7 @@ DevelopSession::DevelopSession(std::vector<std::uint8_t> file_bytes) : impl_(std
     throw std::runtime_error("Camera raw open failed: the file is empty");
   }
   check_libraw(impl_->processor.open_buffer(impl_->file_bytes.data(), impl_->file_bytes.size()), "open");
-  check_libraw(impl_->processor.unpack(), "decode");
+  // Metadata and the embedded preview are available before the expensive unpack.
   impl_->gather_info();
 }
 
@@ -311,64 +381,99 @@ DevelopSession::DevelopedImage DevelopSession::develop(const DevelopParams& requ
     throw std::invalid_argument("Unsupported RAW processing version");
   if (options.cancelled && options.cancelled()) throw DevelopCancelled{};
   const auto params = normalize_develop_params(requested);
-  auto& processor = impl_->processor;
-  processor.set_progress_handler([](void* context, LibRaw_progress, int, int) {
-    const auto& check = static_cast<const DevelopOptions*>(context)->cancelled;
-    return check && check() ? 1 : 0;
-  }, const_cast<DevelopOptions*>(&options));
-  struct ClearCallback {
-    LibRaw& processor;
-    ~ClearCallback() { processor.set_progress_handler(nullptr, nullptr); }
-  } clear_callback{processor};
-  const auto check_processing = [&](int code, const char* stage) {
-    if (code != LIBRAW_SUCCESS) impl_->needs_unpack = true;
-    if (code == LIBRAW_CANCELLED_BY_CALLBACK) throw DevelopCancelled{};
-    check_libraw(code, stage);
+  int last_progress = -1;
+  const auto report = [&](int percent) {
+    if (percent > last_progress) {
+      last_progress = percent;
+      if (options.progress) options.progress(percent);
+    }
   };
-  if (impl_->needs_unpack) {
-    processor.recycle();
-    // Identification uses threshold/half_size when calculating active dimensions.
-    // Reopen with the same neutral decoder options as the initial unpack.
-    processor.imgdata.params = impl_->initial_output;
-    check_processing(processor.open_buffer(impl_->file_bytes.data(), impl_->file_bytes.size()), "open");
-    check_processing(processor.unpack(), "decode");
-    impl_->needs_unpack = false;
-  }
-  impl_->apply_params(params, options.quality);
-  check_processing(processor.dcraw_process(), "develop");
-
-  int error_code = LIBRAW_SUCCESS;
-  auto* processed = impl_->processor.dcraw_make_mem_image(&error_code);
-  if (processed == nullptr) {
-    throw_libraw_error(error_code, "develop");
-  }
-  const auto release = [](libraw_processed_image_t* image) { LibRaw::dcraw_clear_mem(image); };
-  const std::unique_ptr<libraw_processed_image_t, decltype(release)> guard(processed, release);
-
-  if (processed->type != LIBRAW_IMAGE_BITMAP || processed->bits != 16 ||
-      (processed->colors != 3 && processed->colors != 1)) {
-    throw std::runtime_error("Camera raw develop failed: unexpected decoder output format");
-  }
-
+  report(0);
+  const auto decode_key = draft_decode_key(params);
+  const bool cached = options.quality == DevelopQuality::Draft && impl_->draft_pixels && impl_->draft_key == decode_key;
   DevelopedImage image;
-  image.width = processed->width;
-  image.height = processed->height;
-  image.quality = options.quality;
+  const auto release = [](libraw_processed_image_t* pixels) { LibRaw::dcraw_clear_mem(pixels); };
+  std::unique_ptr<libraw_processed_image_t, decltype(release)> guard(nullptr, release);
+  libraw_processed_image_t* processed = nullptr;
+  if (cached) {
+    image = impl_->draft_metadata;
+    image.reused_draft_decode = true;
+    processed = impl_->draft_pixels.get();
+  } else {
+    auto& processor = impl_->processor;
+    const auto progress_callback = [&](LibRaw_progress stage, int iteration, int expected) {
+      if (options.cancelled && options.cancelled()) return 1;
+      if (options.quality == DevelopQuality::Draft && stage == LIBRAW_PROGRESS_SCALE_COLORS && iteration == 0 &&
+          !impl_->reduce_draft_sensor(options)) return 1;
+      report(processing_progress(stage, iteration, expected));
+      return 0;
+    };
+    processor.set_progress_handler([](void* context, LibRaw_progress stage, int iteration, int expected) {
+      return (*static_cast<const decltype(progress_callback)*>(context))(stage, iteration, expected);
+    }, const_cast<void*>(static_cast<const void*>(&progress_callback)));
+    struct ClearCallback {
+      LibRaw& processor;
+      ~ClearCallback() { processor.set_progress_handler(nullptr, nullptr); }
+    } clear_callback{processor};
+    const auto check_processing = [&](int code, const char* stage) {
+      if (code != LIBRAW_SUCCESS) impl_->needs_unpack = impl_->needs_reopen = true;
+      if (code == LIBRAW_CANCELLED_BY_CALLBACK) throw DevelopCancelled{};
+      check_libraw(code, stage);
+    };
+    if (impl_->needs_unpack) {
+      if (impl_->needs_reopen) {
+        processor.recycle();
+        // Identification uses threshold/half_size when calculating active dimensions.
+        // Reopen with the same neutral decoder options as the initial unpack.
+        processor.imgdata.params = impl_->initial_output;
+        check_processing(processor.open_buffer(impl_->file_bytes.data(), impl_->file_bytes.size()), "open");
+      }
+      check_processing(processor.unpack(), "decode");
+      impl_->needs_unpack = impl_->needs_reopen = false;
+    }
+    impl_->apply_params(params, options.quality);
+    check_processing(processor.dcraw_process(), "develop");
+
+    int error_code = LIBRAW_SUCCESS;
+    report(94);
+    processed = impl_->processor.dcraw_make_mem_image(&error_code);
+    if (processed == nullptr) {
+      throw_libraw_error(error_code, "develop");
+    }
+    guard.reset(processed);
+
+    if (processed->type != LIBRAW_IMAGE_BITMAP || processed->bits != 16 ||
+        (processed->colors != 3 && processed->colors != 1)) {
+      throw std::runtime_error("Camera raw develop failed: unexpected decoder output format");
+    }
+
+    image.width = processed->width;
+    image.height = processed->height;
+    image.quality = options.quality;
+    image.processing_version = params.processing_version;
+    image.profile = params.profile;
+    image.fast_half_size = options.quality == DevelopQuality::Draft;
+    if (impl_->info.is_three_color_bayer && !image.fast_half_size) image.demosaic = params.demosaic;
+    image.noise = effective_noise_reduction(params, impl_->info);
+    if (image.fast_half_size || !impl_->info.is_three_color_bayer) image.noise.fbdd = FbddNoiseReduction::Off;
+    if (image.fast_half_size) image.noise.wavelet_threshold = image.noise.color_passes = 0;
+    const auto& color = processor.imgdata.color;
+    if (color.pre_mul[0] > 0 && color.pre_mul[1] > 0 && color.pre_mul[2] > 0) {
+      image.white_balance_multipliers = std::array<double, 4>{
+          color.pre_mul[0] / color.pre_mul[1], 1.0, color.pre_mul[2] / color.pre_mul[1],
+          color.pre_mul[3] > 0 ? color.pre_mul[3] / color.pre_mul[1] : 1.0};
+      image.effective_white_balance = white_balance_for_multipliers(
+          *image.white_balance_multipliers, camera_matrix_from(color.cam_xyz));
+    }
+    if (options.quality == DevelopQuality::Draft) {
+      impl_->draft_metadata = image;
+      impl_->draft_key = decode_key;
+      impl_->draft_pixels.reset(guard.release(), release);
+    }
+  }
   image.processing_version = params.processing_version;
   image.profile = params.profile;
-  image.fast_half_size = options.quality == DevelopQuality::Draft;
-  if (impl_->info.is_three_color_bayer && !image.fast_half_size) image.demosaic = params.demosaic;
-  image.noise = effective_noise_reduction(params, impl_->info);
-  if (image.fast_half_size || !impl_->info.is_three_color_bayer) image.noise.fbdd = FbddNoiseReduction::Off;
-  if (image.fast_half_size) image.noise.color_passes = 0;
-  const auto& color = processor.imgdata.color;
-  if (color.pre_mul[0] > 0 && color.pre_mul[1] > 0 && color.pre_mul[2] > 0) {
-    image.white_balance_multipliers = std::array<double, 4>{
-        color.pre_mul[0] / color.pre_mul[1], 1.0, color.pre_mul[2] / color.pre_mul[1],
-        color.pre_mul[3] > 0 ? color.pre_mul[3] / color.pre_mul[1] : 1.0};
-    image.effective_white_balance = white_balance_for_multipliers(
-        *image.white_balance_multipliers, camera_matrix_from(color.cam_xyz));
-  }
+  report(95);
   const auto pixel_count = static_cast<std::size_t>(image.width) * static_cast<std::size_t>(image.height);
   const auto channel_count = static_cast<std::size_t>(processed->colors);
   if (processed->data_size < pixel_count * channel_count * 2) {
@@ -382,14 +487,18 @@ DevelopSession::DevelopedImage DevelopSession::develop(const DevelopParams& requ
   const bool color_active = params.saturation != 0.0 || params.vibrance != 0.0;
   const auto lut = build_tone_lut(tone);
   const bool natural = params.profile == RenderingProfile::Natural;
-  static const auto profile_lut = build_natural_profile_lut();
+  static const auto original_profile_lut = build_natural_profile_lut(2);
+  static const auto current_profile_lut = build_natural_profile_lut();
+  const auto& profile_lut = params.processing_version <= 2 ? original_profile_lut : current_profile_lut;
   const auto quantize8 = [](std::uint32_t value16) {
     return static_cast<std::uint8_t>((value16 * 255U + 32767U) / 65535U);
   };
 
   const int source_width = image.width;
   const int source_height = image.height;
-  const int step = options.quality == DevelopQuality::Final && params.half_size ? 2 : 1;
+  const int step = options.quality == DevelopQuality::Draft ?
+      std::max(1, (std::max(source_width, source_height) + kDraftLongEdge - 1) / kDraftLongEdge) :
+      params.half_size ? 2 : 1;
   image.width = (source_width + step - 1) / step;
   image.height = (source_height + step - 1) / step;
   image.output_width = options.quality == DevelopQuality::Final ? image.width :
@@ -399,6 +508,7 @@ DevelopSession::DevelopedImage DevelopSession::develop(const DevelopParams& requ
   image.rgb.resize(static_cast<std::size_t>(image.width) * image.height * 3);
   for (int y = 0; y < image.height; ++y) {
     if (options.cancelled && options.cancelled()) throw DevelopCancelled{};
+    report(95 + 4 * y / image.height);
     for (int x = 0; x < image.width; ++x) {
       std::array<std::uint32_t, 3> sum{};
       std::uint32_t samples = 0;
@@ -408,7 +518,7 @@ DevelopSession::DevelopedImage DevelopSession::develop(const DevelopParams& requ
           std::array<std::uint16_t, 3> channels = channel_count == 3 ?
               std::array<std::uint16_t, 3>{in[0], in[1], in[2]} :
               std::array<std::uint16_t, 3>{in[0], in[0], in[0]};
-          if (natural) apply_natural_profile(channels, profile_lut);
+          if (natural) apply_natural_profile(channels, profile_lut, params.processing_version);
           for (auto& channel : channels) channel = lut[channel];
           if (color_active && channel_count == 3)
             apply_color(channels, params.saturation, params.vibrance);
@@ -420,6 +530,7 @@ DevelopSession::DevelopedImage DevelopSession::develop(const DevelopParams& requ
       for (std::size_t c = 0; c < 3; ++c) out[c] = quantize8((sum[c] + samples / 2) / samples);
     }
   }
+  report(100);
   return image;
 }
 

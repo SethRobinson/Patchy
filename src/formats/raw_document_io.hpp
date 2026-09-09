@@ -54,12 +54,14 @@ enum class FbddNoiseReduction {
 
 enum class NoiseReductionMode { Auto, Manual, Off };
 enum class DevelopQuality { Final, Draft };
-inline constexpr int kProcessingVersion = 2;
+inline constexpr int kProcessingVersion = 3;
 
 struct DevelopOptions {
   DevelopQuality quality{DevelopQuality::Final};
   // Called on the worker at decoder checkpoints. Must not throw.
   std::function<bool()> cancelled;
+  // Monotone completed-stage estimate, 0..100, delivered on the worker. Must not throw.
+  std::function<void(int)> progress{};
 };
 
 class DevelopCancelled final : public std::exception {
@@ -170,6 +172,7 @@ public:
     int processing_version{kProcessingVersion};
     RenderingProfile profile{RenderingProfile::Natural};
     bool fast_half_size{false};
+    bool reused_draft_decode{false};
     // Bayer demosaic actually used; the fast draft path bypasses demosaicing.
     std::optional<DemosaicAlgorithm> demosaic;
     EffectiveNoiseReduction noise;

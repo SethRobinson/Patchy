@@ -516,7 +516,7 @@ void ui_raw_legacy_sidecars_preserve_processing_and_upgrade_explicitly() {
     CHECK(!profile->isEnabled());
   });
   CHECK(changed && outcome.has_value());
-  CHECK(outcome->params.processing_version == 2 && outcome->params.profile == RenderingProfile::Natural);
+  CHECK(outcome->params.processing_version == kProcessingVersion && outcome->params.profile == RenderingProfile::Natural);
   loaded = load_raw_develop_settings(path);
   CHECK(loaded.params == outcome->params);
   const auto expected = read_camera_raw(bytes, loaded.params);
@@ -525,6 +525,19 @@ void ui_raw_legacy_sidecars_preserve_processing_and_upgrade_explicitly() {
   for (int y = 0; y < actual.height(); ++y)
     CHECK(std::equal(actual.row(y).begin(), actual.row(y).end(), reference.row(y).begin()));
   CHECK(raw_test_bytes(path) == QByteArray(reinterpret_cast<const char*>(bytes.data()), static_cast<qsizetype>(bytes.size())));
+  // Version 2 Natural settings also remain recognized and byte-identical on Done.
+  params = {};
+  params.processing_version = 2;
+  CHECK(save_raw_develop_settings(path, params, loaded).isEmpty());
+  loaded = load_raw_develop_settings(path);
+  CHECK(loaded.recognized && loaded.params.processing_version == 2);
+  CHECK(!raw_test_dialog(path, [&](QDialog& dialog) {
+    auto* done = dialog.findChild<QPushButton*>(QStringLiteral("rawDoneButton"));
+    if (!done->isEnabled()) return;
+    CHECK(dialog.findChild<QLabel*>(QStringLiteral("rawProcessingNote"))->isVisible());
+    done->click();
+  }));
+  CHECK(raw_test_bytes(raw_develop_settings_path(path)) == loaded.original_bytes);
 }
 
 void ui_raw_dialog_done_cancel_reset_and_global_isolation() {
@@ -678,6 +691,74 @@ void ui_raw_dialog_preview_matches_open_and_script() {
     verify(MainWindowTestAccess::document(script_window));
     CHECK(raw_test_bytes(raw_develop_settings_path(path)) == sidecar);
   }
+}
+
+void ui_raw_quick_edits_preempt_refinement_and_initial_open_waits() {
+  using namespace patchy::ui;
+  const auto path = write_raw_dng_fixture(QStringLiteral("raw_responsive.dng"));
+  patchy::test::SyntheticDngOptions fixture;
+  fixture.iso = 5000;
+  fixture.horizontal_ramp = true;
+  const auto bytes = patchy::test::synthetic_bayer_dng(2601, 1703, fixture);
+  raw_test_write(path, QByteArray(reinterpret_cast<const char*>(bytes.data()), static_cast<qsizetype>(bytes.size())));
+  int stage = 0;
+  qint64 old_image = 0;
+  bool quick_update = false;
+  QElapsedTimer response;
+  const auto outcome = raw_test_dialog(path, [&](QDialog& dialog) {
+    auto* preview = dynamic_cast<ZoomableImagePreview*>(dialog.findChild<QWidget*>(QStringLiteral("rawDevelopPreview")));
+    if (stage == 0) {
+      const int percent = dialog.property("rawProgressPercent").toInt();
+      if (!dialog.property("rawProgressAccurate").toBool() || percent < 20 || percent >= 100) return;
+      auto* label = dialog.findChild<QLabel*>(QStringLiteral("rawDevelopStatus"));
+      CHECK(label && label->text().contains(QLatin1Char('%')));
+      old_image = preview->image().cacheKey();
+      auto* contrast = dialog.findChild<QSlider*>(QStringLiteral("rawContrastSlider"));
+      contrast->setSliderDown(true);
+      contrast->setValue(25);
+      contrast->setValue(35);
+      contrast->setSliderDown(false); // release must still deliver the quick frame
+      response.start();
+      stage = 1;
+      return;
+    }
+    if (stage == 1) {
+      if (preview->image().cacheKey() == old_image) return;
+      CHECK(!dialog.property("rawPreviewAccurate").toBool());
+      CHECK(std::max(preview->image().width(), preview->image().height()) <= 1280);
+      std::cout << "[INFO] RAW quick edit while refining: " << response.elapsed() << " ms\n";
+      quick_update = true;
+      stage = 2;
+    }
+    if (stage == 2 && dialog.property("rawPreviewAccurate").toBool()) {
+      old_image = preview->image().cacheKey();
+      dialog.findChild<QSlider*>(QStringLiteral("rawContrastSlider"))->setValue(0);
+      stage = 3;
+    } else if (stage == 3 && preview->image().cacheKey() != old_image) {
+      CHECK(!dialog.property("rawPreviewAccurate").toBool());
+      dialog.findChild<QSlider*>(QStringLiteral("rawContrastSlider"))->setValue(35);
+      stage = 4;
+    } else if (stage == 4 && dialog.property("rawPreviewAccurate").toBool()) {
+      CHECK(dialog.property("rawProgressPercent").toInt() == 100);
+      dialog.findChild<QPushButton*>(QStringLiteral("rawOpenButton"))->click();
+    }
+  });
+  CHECK(quick_update && outcome.has_value() && outcome->params.contrast == 35);
+  const auto expected = patchy::raw::read_camera_raw(bytes, outcome->params);
+  const auto& actual_pixels = std::as_const(outcome->document).layers().front().pixels();
+  const auto& expected_pixels = expected.document.layers().front().pixels();
+  for (int y = 0; y < actual_pixels.height(); ++y)
+    CHECK(std::equal(actual_pixels.row(y).begin(), actual_pixels.row(y).end(), expected_pixels.row(y).begin()));
+  QFile::remove(raw_develop_settings_path(path));
+  bool clicked = false;
+  const auto initial = raw_test_dialog(path, [&](QDialog& dialog) {
+    if (clicked) return;
+    clicked = true;
+    dialog.findChild<QSlider*>(QStringLiteral("rawSaturationSlider"))->setValue(10);
+    dialog.findChild<QPushButton*>(QStringLiteral("rawOpenButton"))->click();
+  });
+  CHECK(clicked && initial.has_value() && initial->params.saturation == 10);
+  CHECK(initial->document.width() == 2601 && initial->document.height() == 1703);
 }
 
 void ui_raw_dialog_auto_controls_and_open_during_refinement() {
@@ -865,8 +946,19 @@ void ui_raw_local_photo_visual_acceptance_if_available() {
     }
     const auto path = to_qstring(source);
     const auto original = raw_test_bytes(path);
+    bool captured_draft = false, captured_progress = false;
     CHECK(!raw_test_dialog(path, [&](QDialog& dialog) {
       auto* preview = dynamic_cast<ZoomableImagePreview*>(dialog.findChild<QWidget*>(QStringLiteral("rawDevelopPreview")));
+      if (!captured_draft && preview->image().size() == (shelves ? QSize(1040, 695) : QSize(695, 1040)) &&
+          preview->property("previewScaleReady").toBool()) {
+        save_widget_artifact(shelves ? "ui_raw_sony_fx30_shelves_quick" : "ui_raw_sony_fx30_quick", dialog);
+        captured_draft = true;
+      }
+      const int percent = dialog.property("rawProgressPercent").toInt();
+      if (!captured_progress && dialog.property("rawProgressAccurate").toBool() && percent >= 20 && percent < 100) {
+        save_widget_artifact(shelves ? "ui_raw_sony_fx30_shelves_refining" : "ui_raw_sony_fx30_refining", dialog);
+        captured_progress = true;
+      }
       if (!dialog.property("rawPreviewAccurate").toBool() || !preview->property("previewScaleReady").toBool()) return;
       CHECK(preview->image().size() == (shelves ? QSize(6240, 4168) : QSize(4168, 6240)));
       CHECK(dialog.findChild<QSlider*>(QStringLiteral("rawDenoiseSlider"))->value() == (shelves ? 332 : 364));
@@ -878,6 +970,7 @@ void ui_raw_local_photo_visual_acceptance_if_available() {
       save_widget_artifact(shelves ? "ui_raw_sony_fx30_shelves_100" : "ui_raw_sony_fx30_100", dialog);
       dialog.reject();
     }));
+    CHECK(captured_draft && captured_progress);
     CHECK(raw_test_bytes(path) == original);
   }
 }
@@ -1167,6 +1260,7 @@ void ui_heif_open_is_read_only_if_available() {
 
 std::vector<patchy::test::TestCase> camera_raw_heif_tests() {
   return {
+      {"ui_raw_quick_edits_preempt_refinement_and_initial_open_waits", ui_raw_quick_edits_preempt_refinement_and_initial_open_waits},
       {"ui_raw_legacy_sidecars_preserve_processing_and_upgrade_explicitly", ui_raw_legacy_sidecars_preserve_processing_and_upgrade_explicitly},
       {"ui_raw_sidecar_round_trips_unicode_and_preserves_unknown_fields", ui_raw_sidecar_round_trips_unicode_and_preserves_unknown_fields},
       {"ui_raw_sidecar_rejects_invalid_and_preserves_failed_writes", ui_raw_sidecar_rejects_invalid_and_preserves_failed_writes},
