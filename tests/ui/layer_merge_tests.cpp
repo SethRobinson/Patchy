@@ -851,8 +851,18 @@ void ui_merge_visible_copy_little_everywhere_if_available() {
   CHECK(layer_tree_count(std::as_const(doc).layers()) == 2362);
   CHECK(layer_tree_count(std::as_const(doc).layers().back().children()) == 305);
   check_close_images(qimage_from_document(original, true), qimage_from_document(doc, true), 2);
-  const auto reread = psd::DocumentIo::read(psd::DocumentIo::write_layered_rgb8(doc));
-  CHECK(layer_tree_count(reread.layers()) == 2362);
+  // Both complete vector copies exceed Photoshop's 8000 native records after
+  // open-stroke expansion. Refuse the invalid export without changing history.
+  bool rejected = false;
+  try { (void)psd::DocumentIo::write_layered_rgb8(doc); }
+  catch (const std::runtime_error& error) { rejected = std::string(error.what()).find("8000") != std::string::npos; }
+  CHECK(rejected);
+  auto copy_only = doc;
+  copy_only.layers().clear();
+  copy_only.add_layer(std::as_const(doc).layers().back());
+  const auto reread = psd::DocumentIo::read(psd::DocumentIo::write_layered_rgb8(copy_only));
+  CHECK(layer_tree_count(reread.layers()) == 306);
+  check_close_images(qimage_from_document(original, true), qimage_from_document(reread, true), 2);
   MainWindowTestAccess::undo(window);
   CHECK(layer_tree_count(std::as_const(doc).layers()) == 2056);
 }

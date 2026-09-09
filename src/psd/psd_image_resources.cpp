@@ -697,6 +697,9 @@ void apply_patchy_palette_resource(Document& document, std::span<const std::uint
 std::optional<Document> prepare_compound_vector_psd(const Document& document) {
   std::optional<Document> prepared;
   if (document_has_compound_vectors(document)) { prepared = expand_compound_vectors(document, true); }
+  if (document_has_open_path_strokes(prepared ? std::as_const(*prepared) : document)) {
+    prepared = expand_open_path_strokes(prepared ? std::as_const(*prepared) : document);
+  }
   const auto& source = prepared ? std::as_const(*prepared) : document;
   std::map<std::uint32_t, std::size_t> native_ids;
   std::vector<LayerId> marked;
@@ -738,7 +741,7 @@ void apply_compound_vector_resource(Document& document, std::span<const std::uin
   for (std::uint32_t i = 0; i < count; ++i) {
     const auto id = reader.read_u32();
     const auto kind = reader.read_u32();
-    if (id == 0 || kind < 1 || kind > 2 || !entries.emplace(id, static_cast<CompoundVectorGroupKind>(kind)).second) { return; }
+    if (id == 0 || kind < 1 || kind > 3 || !entries.emplace(id, static_cast<CompoundVectorGroupKind>(kind)).second) { return; }
   }
   std::map<std::uint32_t, std::vector<LayerId>> layers_by_native_id;
   const auto collect = [&](const auto& self, const std::vector<Layer>& layers) -> void {

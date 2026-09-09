@@ -5,6 +5,7 @@
 #include "core/layer_render_utils.hpp"
 #include "core/pattern_resource.hpp"
 #include "core/vector_shape.hpp"
+#include "core/vector_compound.hpp"
 #include "formats/bmp_document_io.hpp"
 #include "psd/psd_document_io.hpp"
 #include "psd/psd_patterns.hpp"
@@ -686,6 +687,110 @@ void psd_authored_shape_layer_writes_native_blocks() {
   const auto flat_reread = patchy::Compositor{}.flatten_rgb8(reread);
   const auto metrics = rgb_diff_metrics(flat_original, flat_reread);
   CHECK(metrics.max_channel_delta == 0);
+}
+
+void psd_open_path_strokes_legacy_export_preserves_shape() {
+  // Legacy Patchy file: one open L, a dashed L, a closed triangle, and two
+  // open Ls sharing a layer. Photoshop closes only that last pair on open.
+  const auto document = read_fixture("patchy-open-path-strokes.psd");
+  CHECK(patchy::document_has_open_path_strokes(document));
+  const auto expanded = patchy::expand_open_path_strokes(document);
+  CHECK(!patchy::document_has_open_path_strokes(expanded));
+  const auto* original = patchy::test::find_layer_named(document.layers(), "Two open subpaths");
+  const auto* native = patchy::test::find_layer_named(expanded.layers(), "Two open subpaths");
+  CHECK(original != nullptr && native != nullptr);
+  CHECK(original->vector_shape()->path.subpaths.size() == 2);
+  CHECK(native->kind() == patchy::LayerKind::Group);
+  CHECK(native->children().size() == 2);
+  for (std::size_t i = 0; i < native->children().size(); ++i) {
+    const auto& child = native->children()[i];
+    CHECK(child.vector_shape()->stroke.enabled);
+    CHECK(child.vector_shape()->path.subpaths.size() == 1);
+    CHECK(!child.vector_shape()->path.subpaths[0].closed);
+  }
+  for (const bool psb : {false, true}) {
+    patchy::psd::WriteOptions options;
+    options.large_document = psb;
+    const auto written = patchy::psd::DocumentIo::write_layered_rgb8(document, options);
+    const auto restored = patchy::psd::DocumentIo::read(written, {});
+    CHECK(restored.layers().size() == document.layers().size());
+    const auto* shape = patchy::test::find_layer_named(restored.layers(), "Two open subpaths");
+    CHECK(shape != nullptr && shape->vector_shape() != nullptr);
+    CHECK(shape->vector_shape()->parts.empty());
+    CHECK(shape->vector_shape()->path == original->vector_shape()->path);
+    CHECK(shape->vector_shape()->stroke == original->vector_shape()->stroke);
+    const auto metrics = rgb_diff_metrics(patchy::Compositor{}.flatten_rgb8(document),
+                                          patchy::Compositor{}.flatten_rgb8(restored));
+    CHECK(metrics.max_channel_delta == 0);
+    CHECK(written == patchy::psd::DocumentIo::write_layered_rgb8(document, options));
+  }
+  CHECK(original->kind() == patchy::LayerKind::Pixel);
+  CHECK(original->vector_shape()->parts.empty());
+}
+
+void psd_open_path_strokes_preserve_opacity_and_foreign_edits() {
+  auto document = read_fixture("patchy-open-path-strokes.psd");
+  const auto* source = patchy::test::find_layer_named(std::as_const(document).layers(), "Two open subpaths");
+  CHECK(source != nullptr);
+  const auto id = source->id();
+  auto content = *source->vector_shape();
+  content.fill.kind = VectorFillKind::Solid;
+  content.fill.color = {200, 180, 120};
+  content.stroke.fill_enabled = true;
+  content.stroke.opacity = 128.0 / 255.0;
+  auto* edited = document.find_layer(id);
+  edited->set_vector_shape(content);
+  edited->set_opacity(192.0F / 255.0F);
+  edited->set_fill_opacity(128.0F / 255.0F);
+  patchy::mark_layer_vector_block_dirty(*edited);
+  patchy::update_vector_shape_raster(*edited, patchy::Rect::from_size(document.width(), document.height()), nullptr);
+  const auto written = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto restored = patchy::psd::DocumentIo::read(written, {});
+  const auto* roundtrip = patchy::test::find_layer_named(restored.layers(), "Two open subpaths");
+  CHECK(roundtrip != nullptr && roundtrip->vector_shape() != nullptr);
+  CHECK(roundtrip->vector_shape()->fill == content.fill);
+  CHECK(roundtrip->vector_shape()->path == content.path);
+  CHECK(std::abs(roundtrip->vector_shape()->stroke.opacity - content.stroke.opacity) < 1e-7);
+  CHECK(roundtrip->fill_opacity() == std::as_const(*edited).fill_opacity());
+  const auto metrics = rgb_diff_metrics(patchy::Compositor{}.flatten_rgb8(document),
+                                        patchy::Compositor{}.flatten_rgb8(restored));
+  CHECK(metrics.max_channel_delta <= 1);
+
+  auto changed = patchy::expand_open_path_strokes(document);
+  auto* group = changed.find_layer(id);
+  CHECK(group != nullptr);
+  auto& child = group->children()[0].children()[1].children()[0];
+  auto changed_stroke = *std::as_const(child).vector_shape();
+  changed_stroke.stroke.content.color = {255, 0, 0};
+  child.set_vector_shape(std::move(changed_stroke));
+  patchy::mark_layer_vector_block_dirty(child);
+  const auto foreign = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(changed), {});
+  const auto* retained = patchy::test::find_layer_named(foreign.layers(), "Two open subpaths");
+  CHECK(retained != nullptr && retained->kind() == patchy::LayerKind::Group);
+  CHECK(retained->children()[0].children()[1].children()[0].vector_shape()->stroke.content.color.red == 255);
+}
+
+void psd_open_path_strokes_group_opacity_without_fill() {
+  for (const float fill_opacity : {1.0F, 128.0F / 255.0F}) {
+    auto document = read_fixture("patchy-open-path-strokes.psd");
+    const auto* source = patchy::test::find_layer_named(std::as_const(document).layers(), "Two open subpaths");
+    CHECK(source != nullptr);
+    const auto id = source->id();
+    auto content = *source->vector_shape();
+    content.stroke.opacity = 128.0 / 255.0;
+    content.stroke.blend_mode = patchy::BlendMode::Multiply;
+    document.find_layer(id)->set_vector_shape(content);
+    document.find_layer(id)->set_fill_opacity(fill_opacity);
+    const auto restored = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+    const auto* layer = patchy::test::find_layer_named(restored.layers(), "Two open subpaths");
+    CHECK(layer != nullptr && layer->vector_shape() != nullptr);
+    CHECK(layer->vector_shape()->path == content.path);
+    CHECK(layer->vector_shape()->fill == content.fill);
+    CHECK(!layer->vector_shape()->stroke.fill_enabled);
+    CHECK(std::abs(layer->vector_shape()->stroke.opacity - content.stroke.opacity) < 1e-7);
+    CHECK(layer->vector_shape()->stroke.blend_mode == content.stroke.blend_mode);
+    CHECK(layer->fill_opacity() == fill_opacity);
+  }
 }
 
 void psd_authored_none_paints_preserve_rendering() {
@@ -1614,6 +1719,9 @@ std::vector<patchy::test::TestCase> psd_vector_fixtures_tests() {
       {"psd_saved_paths_reorder_round_trips", psd_saved_paths_reorder_round_trips},
       {"psd_work_path_saved_as_named_round_trips", psd_work_path_saved_as_named_round_trips},
       {"psd_authored_shape_layer_writes_native_blocks", psd_authored_shape_layer_writes_native_blocks},
+      {"psd_open_path_strokes_legacy_export_preserves_shape", psd_open_path_strokes_legacy_export_preserves_shape},
+      {"psd_open_path_strokes_preserve_opacity_and_foreign_edits", psd_open_path_strokes_preserve_opacity_and_foreign_edits},
+      {"psd_open_path_strokes_group_opacity_without_fill", psd_open_path_strokes_group_opacity_without_fill},
       {"psd_authored_none_paints_preserve_rendering", psd_authored_none_paints_preserve_rendering},
       {"psd_pattern_fill_shape_embeds_patt_block", psd_pattern_fill_shape_embeds_patt_block},
       {"psd_pattern_fill_missing_tile_writes_placeholder", psd_pattern_fill_missing_tile_writes_placeholder},

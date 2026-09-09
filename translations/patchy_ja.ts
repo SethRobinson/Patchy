@@ -38,8 +38,8 @@ RGB: %2, %3, %4</translation></message>
         <translation>JPEG XR の浮動小数点ピクセル行がコーデックのバッファー上限を超えています。</translation>
     </message>
     <message>
-        <source>PSD/PSB supports at most 32767 layer records</source>
-        <translation>PSD/PSB は最大 32767 個のレイヤーレコードに対応しています。</translation>
+        <source>Photoshop supports at most 8000 layer records, including group boundaries</source>
+        <translation>Photoshop はグループ境界を含め、最大 8000 個のレイヤーレコードに対応しています。</translation>
     </message>
     <message>
         <source>PSD layer channel data is truncated</source>

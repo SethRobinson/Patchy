@@ -1,6 +1,6 @@
 # File formats: registry, per-format quirks, PSB, document alpha
 
-Deep reference for file-format work. Read this before touching a reader/writer, open/save filters, PSD/PSB internals, import notices, or alpha/mask import.
+Read before changing format I/O, open/save filters, notices, or alpha/mask import.
 
 ## Registry and dispatch
 
@@ -98,8 +98,9 @@ Real legacy PSDs carry corrupt RLE scanlines and Photoshop still opens them, so 
 
 Damaged-structure caps (September 2026): the header is validated before anything sizes a buffer from it (zero or over-limit canvases are refused; PSD 30,000, PSB 300,000 per side), layer and mask rectangles are formed in 64-bit and refused past the PSB limit, descriptor nesting (`Objc`/`VlLs`/`ObAr`) stops at 64 levels with an error (each level was a C++ stack frame, so a 25 KB crafted block overflowed the loader thread), item counts are checked against the remaining bytes before any reserve, and group nesting is capped at 64 (Photoshop allows 10): deeper boundary records are flattened into the deepest kept group and their folder records dropped.
 
-PSD channels/extra data use bounded sub-readers. PSD/PSB rejects layer-record count
-overflow; empty documents save a transparent placeholder without changing the live
+PSD channels/extra data use bounded sub-readers. PSD/PSB writing caps expanded
+native layer records, including group boundaries, at Photoshop's limit of 8000.
+Empty documents save a transparent placeholder without changing the live
 tree. PCX/ILBM validate encoded length; PCX and strict PackBits cap their initial
 reserve and grow as runs decode. Aseprite cels also grow as decoded. JXR float decode uses bounded WIC row batches.
 

@@ -88,11 +88,17 @@ position-only Background locking permits merging as in ordinary Merge Down.
 A native PSD shape has one fill/stroke, so compound vector layers expand on save
 into a Normal group containing native shape records. Other PSD readers see editable
 vector children. Patchy restores one vector layer after native vectors/patterns load.
+PSD/PSB saves enforce Photoshop's 8000 native-record limit after expansion,
+including hidden originals and group boundaries. A merged vector copy plus its
+complete original artwork can exceed that limit even with few visible layers;
+the save fails without discarding either copy. Saving only the desired copy or
+explicitly rasterizing some artwork reduces the native record count.
 
 Associations use image resource **4211**, in Adobe's plug-in resource range, with
 big-endian payload `PtcV`, u16 version 1, u16 reserved 0, u32 count, then count pairs
-`{u32 native lyid, u32 role}`. Roles are 1 for compound content and 2 for the inner
-Fill-opacity boundary. The writer assigns missing or ambiguous native ids on its
+`{u32 native lyid, u32 role}`. Roles are 1 for compound content, 2 for the inner
+Fill-opacity boundary, and 3 for [open-stroke compatibility groups](open-path-strokes.md).
+The writer assigns missing or ambiguous native ids on its
 temporary document. The bounded reader validates the entire payload; duplicate ids,
 missing groups and unsupported versions cannot fold arbitrary layers. Other editors
 may preserve the resource without interpreting it. Ordinary PSD bytes remain unchanged.

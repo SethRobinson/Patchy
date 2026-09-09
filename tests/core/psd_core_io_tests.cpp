@@ -2222,13 +2222,18 @@ void psd_empty_document_saves_transparent_without_mutating_layers() {
 
 void psd_writer_rejects_layer_record_count_overflow() {
   patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
-  for (int i = 0; i < 16384; ++i) {
+  for (int i = 0; i < 4000; ++i) {
     document.add_layer(patchy::Layer(document.allocate_layer_id(), "Folder", patchy::LayerKind::Group));
   }
   for (const bool large : {false, true}) {
+    const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document, {large});
+    CHECK(patchy::psd::DocumentIo::read(bytes).layers().size() == 4000);
+  }
+  document.add_layer(patchy::Layer(document.allocate_layer_id(), "One too many", patchy::PixelBuffer()));
+  for (const bool large : {false, true}) {
     bool rejected = false;
     try { (void)patchy::psd::DocumentIo::write_layered_rgb8(document, {large}); }
-    catch (const std::runtime_error& e) { rejected = std::string(e.what()).find("32767") != std::string::npos; }
+    catch (const std::runtime_error& e) { rejected = std::string(e.what()).find("8000") != std::string::npos; }
     CHECK(rejected);
   }
 }

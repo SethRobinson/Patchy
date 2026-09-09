@@ -1386,8 +1386,10 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
   const auto count_records = [&](auto&& self, const std::vector<Layer>& layers) -> void {
     for (const auto& layer : layers) {
       record_count += layer.kind() == LayerKind::Group ? 2U : 1U;
-      if (record_count > 32767U) {
-        throw std::runtime_error("PSD/PSB supports at most 32767 layer records");
+      // The format's signed count holds more, but Photoshop rejects 8001
+      // records with a composite-only fallback. Folder boundaries count too.
+      if (record_count > 8000U) {
+        throw std::runtime_error("Photoshop supports at most 8000 layer records, including group boundaries");
       }
       self(self, layer.children());
     }
