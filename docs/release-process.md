@@ -9,6 +9,7 @@ Staging and resource paths are specified in [ai-control.md](ai-control.md). Each
 desktop packaging script runs the installed connector's `--check` smoke test;
 Windows signs both executables and macOS deploys Qt for both. The remote build
 helper caps builds at six jobs and runs builds/tests with lower priority.
+The Flatpak packager also runs its sandbox build at lower priority with six jobs.
 
 When bumping the release version, update the version fields:
 
@@ -36,6 +37,17 @@ specific clause that person wrote (see the existing 0.10/0.12 entries in
 `RELEASE-HISTORY.md` for the mid-bullet style).
 
 ## Build and upload order
+
+Before publishing, run both full native suites and the full
+`tests/mcp_client_tests.py` suite on Windows, macOS, and Linux. Repeat the MCP
+suite against each staged desktop package, including inside the Flatpak sandbox;
+install the current user bundle and run `tests/flatpak_mcp_tests.py` on the Linux host to verify attachment between
+separate app and connector sandboxes using their default endpoint.
+The packagers' `--check` smoke tests do not cover the full protocol or attachment
+lifecycle. Use isolated offscreen workspaces and run test processes sequentially
+on each machine. See [testing.md](testing.md) for the client dependency and commands.
+WebAssembly does not ship `patchy-mcp`; build both web variants and run the full
+wasm core suite.
 
 Build order matters: finalize the README first (the Windows zip/installer embed a copy), then `scripts\release\release-all.bat` (four consoles: local Windows and wasm builds plus remote mac/linux; every builder deletes its previous artifacts up front so a failed build can never leave stale files for the upload scripts), then `scripts\release\upload-to-rtsoft.bat`.
 

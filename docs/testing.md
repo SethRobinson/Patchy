@@ -14,6 +14,11 @@ Groups that outgrew ~3,000 lines are split into part files (`<group>_tests_<them
 
 Local-fixture tests skip on a remote machine until `local-test-fixtures` is copied there, because that directory is deliberately untracked. Sync it from the repo root with `tar -cf - local-test-fixtures | ssh <host> 'tar -xf - -C ~/patchy/src'` (Git Bash; macOS tar drops four `__MACOSX/._*` AppleDouble entries, which are not test inputs). The snapshot checkout leaves untracked files alone, so one sync persists across later `remote-build.ps1` runs. Read the per-platform consequences in [platform.md](platform.md) before doing this: a synced corpus turns previously skipped text tests into failures and one hang. The repository-wide fixture sourcing rule lives in `AGENTS.md`.
 
+Adding a committed PSD also requires entries in the local and remote
+`local-test-fixtures/composite-corpus/flatten-digests.txt` and
+`render-digests.txt` baselines. Add only the new fixture's verified digests and
+preserve every existing entry. A snapshot sync does not copy these untracked files.
+
 ## Running and filtering
 
 Run `patchy_ui_visual_tests.exe` with `QT_QPA_PLATFORM=offscreen`. Both release test binaries accept a name substring as their first argument. The UI suite also reads `PATCHY_UI_TEST_FILTER`; there is no `--test` flag. The UI filter may also be a comma-separated list of substrings (a test runs if its name contains any of them), which is how to reproduce ordered cross-test interactions: select the state-leaking test and its victim in one run. The core suite takes a single substring only.
@@ -100,7 +105,8 @@ the assembled control kit from its installed location. See [ai-control.md](ai-co
 The UI filter `ui_script_automation` covers native stroke parity, pressure,
 selection, palette snapping, history, stale IDs, and Unicode preview output.
 
-The standard-client integration test uses a development-only Python environment:
+The standard-client integration test uses a development-only Python 3.10+
+environment:
 
 ```powershell
 python -m venv .deps/mcp-client
@@ -112,12 +118,28 @@ Run from the repository root. Artifacts stay under `test-artifacts/mcp`. The tes
 uses only owned offscreen processes and also accepts a connector in a staged
 package directory, exercising resource discovery without source-relative paths.
 Python is not required by the shipped connector.
+On studiomac, use `.deps/mcp-client-py312/bin/python` (project-local Python 3.12);
+its system Python 3.9 cannot install the MCP dependency. On glados, use
+`.deps/mcp-client/bin/python`. Run from the remote repository root with
+`nice -n 10 <python> tests/mcp_client_tests.py <connector>`.
+The full suite includes both owned and attached workspaces, competing clients,
+cancellation, disconnect cleanup, app restart, stale tokens, and shared history.
+Unix crash simulations remove their own socket paths during cleanup.
 Pass `--attachment-recovery-only` after the connector path to reproduce offline
 discovery, late app startup, restart with fresh state tokens, and interruption
 without replay. This test owns its offscreen apps and requires no prior artifacts.
 The client suite also passes `--visible` with an explicit offscreen Qt backend
 to verify option handling and truthful mode/preview metadata without opening a
 desktop window. A real visible smoke test requires separate desktop permission.
+On Linux it also holds a fake desktop bus open without answering and verifies that
+headless scripting and an immediately closed MCP client still exit promptly.
+After installing the current Flatpak user bundle, run `nice -n 10 .deps/mcp-client/bin/python
+tests/flatpak_mcp_tests.py` from the host. This launches the app and connector in
+separate sandboxes with the default endpoint, verifies an owned document before
+editing, and checks preview and unsaved reconnect. Close any existing Patchy Flatpak first; the test refuses
+to run alongside it and removes only its own processes and runtime socket.
+The host session must set `XDG_RUNTIME_DIR`; the test forwards it through the MCP
+SDK's filtered subprocess environment so both launchers use the same runtime mount.
 Pass `--recent-history-only` after the connector path to check shared history
 with owned headless and MCP processes. The UI filters `ui_unicode_recent_history`
 and `ui_vector_preview_action_persistence` cover history merging/live refresh and

@@ -32,6 +32,9 @@ automatically from Flathub.
   (glados.local): `bash packaging/linux/make-flatpak.sh`. One-time setup is in the
   script header. `scripts/remote/release-linux.ps1` drives it from Windows.
 
+The source manifest excludes root `test-artifacts`, including Unix sockets left
+by interrupted MCP tests. Generated test output is not a packaging input.
+
 Known Wayland caveats (accepted for v1): a second launch raises the running window
 but compositors may only flash the taskbar entry instead of stealing focus (no
 xdg-activation token), and clipboard content set by Patchy vanishes when the app
@@ -42,6 +45,11 @@ Headless runs need no `--env`: `flatpak run com.rtsoft.patchy --headless --run-s
 /path/to/script.js --script-output /path/to/out.txt` selects Qt's offscreen platform
 inside the sandbox (the org.kde.Platform runtime ships the plugin), and
 `--filesystem=home` covers the script, the output file, and the documents it opens.
+Offscreen startup disables the process's desktop D-Bus connection so Qt's portal
+appearance query cannot delay a headless command or MCP client disconnect.
+The default MCP socket lives in `$XDG_RUNTIME_DIR/app/$FLATPAK_ID`, shared by
+separate app and connector sandboxes. It retains per-user socket permissions;
+the private `/tmp` in each invocation cannot support this attachment.
 `make-flatpak.sh` runs that command inside the built sandbox (`flatpak-builder --run`,
 nothing installed) before `flatpak build-bundle` and fails unless the script output ends
 in `[done]`, so a bundle that cannot run headless is never produced.

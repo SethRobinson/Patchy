@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import queue
 import shutil
+import socket
 import subprocess
 import sys
 import threading
@@ -25,6 +26,31 @@ OUT = ROOT / "test-artifacts" / "mcp"
 SESSION_TEMP = OUT / "sessions" / ("run-" + str(time.time_ns()))
 TEMP_ENV = {key: str(SESSION_TEMP) for key in ("TMPDIR", "TEMP", "TMP")}
 TEMP_ENV["PATCHY_SETTINGS_DIR"] = str(OUT / "brush-settings")
+
+
+def headless_without_desktop_bus(exe):
+    if not sys.platform.startswith("linux"):
+        return
+    # Accept connections into a backlog but never answer D-Bus authentication.
+    # A Qt portal lookup during QApplication startup would hang before MCP EOF.
+    endpoint = OUT / ("bus-" + uuid.uuid4().hex[:12])
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as bus:
+            bus.bind(str(endpoint))
+            bus.listen(8)
+            env = {**os.environ, **TEMP_ENV,
+                   "DBUS_SESSION_BUS_ADDRESS": "unix:path=" + str(endpoint)}
+            closed = subprocess.run([str(exe), "--attach"], input=b"", capture_output=True,
+                                    env=env, cwd=OUT, timeout=5)
+            assert closed.returncode == 0 and not closed.stdout, closed.stderr
+            script = SESSION_TEMP / "no-desktop-bus.js"
+            script.write_text("app.newDocument(8,8); console.log('no desktop bus');", encoding="utf-8")
+            ran = subprocess.run([str(matching_app(exe)), "--headless", "--run-script", str(script)],
+                                 capture_output=True, env=env, cwd=OUT, timeout=10)
+            assert ran.returncode == 0, ran.stderr
+    finally:
+        endpoint.unlink(missing_ok=True)
+    print("[PASS] Headless startup: MCP EOF and scripting ignore an unresponsive desktop bus")
 
 
 async def sdk_workflow(exe):
@@ -374,6 +400,9 @@ async def attached_workspace(exe):
             if app.poll() is None:
                 app.terminate()
                 app.wait(timeout=10)
+            if os.name != "nt":
+                # Crash simulations leave filesystem sockets behind on Unix.
+                Path(endpoint).unlink(missing_ok=True)
     print("[PASS] MCP attachment: existing document, guarded edits, previews, single client, unsaved reconnect, undo, app exit, no fallback")
 
 
@@ -473,6 +502,8 @@ async def attached_recovery(exe):
             if app is not None and app.poll() is None:
                 app.terminate()
                 app.wait(timeout=10)
+            if os.name != "nt":
+                Path(endpoint).unlink(missing_ok=True)
     closed = subprocess.run([str(exe), "--attach"], input=b"", capture_output=True,
                             env=env, cwd=OUT, timeout=10)
     assert closed.returncode == 0 and not closed.stdout
@@ -644,6 +675,7 @@ if __name__ == "__main__":
     executable = Path(sys.argv[1]).resolve()
     OUT.mkdir(parents=True, exist_ok=True)
     SESSION_TEMP.mkdir(parents=True, exist_ok=True)
+    headless_without_desktop_bus(executable)
     if "--attachment-recovery-only" in sys.argv[2:]:
         asyncio.run(attached_recovery(executable))
         sys.exit(0)

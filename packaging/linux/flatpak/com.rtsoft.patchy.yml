@@ -53,3 +53,4 @@ modules:
           - .deps
           - .git
           - local-test-fixtures
+          - test-artifacts

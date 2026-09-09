@@ -9,6 +9,10 @@ code-signs and notarizes when the environment is configured (see below), runs a
 `hdiutil`.
 `scripts/remote/release-mac.ps1` drives the whole flow from the Windows machine.
 
+Run the staged connector's `--check` after code signing, like the headless app
+check. `macdeployqt` rewrites Mach-O load commands and invalidates existing
+signatures; executing that intermediate connector can be killed by macOS.
+
 Bundle metadata lives in `Info.plist.in` (configured through CMake's
 `MACOSX_BUNDLE_*` properties; the version comes from the CMake project version).
 `patchy.icns` was generated from the native layers of `src/app/patchy.ico`
@@ -31,8 +35,8 @@ Uses the existing Apple Developer account (Robinson Technologies Corporation).
    ```sh
    export PATCHY_MAC_SIGN_IDENTITY="Developer ID Application: Robinson Technologies Corporation (TEAMID)"
    export PATCHY_NOTARY_PROFILE="patchy-notary"
-   # SSH build sessions start with the login keychain locked; make-dmg.sh unlocks it
-   # with this (the mac login password). Keep the file chmod 600.
+   # Used by the noninteractive unlock helper. Keep the file chmod 600.
+   # This is the keychain password, which can differ from the current login password.
    export PATCHY_KEYCHAIN_PASSWORD="..."
    ```
 
@@ -60,17 +64,26 @@ Do not add `xcrun stapler validate` to that check. It blocks indefinitely on stu
 retest) and would hang every release; `spctl` covers the same ground in about a third of
 a second.
 
-## When the keychain unlock times out
+## Unattended keychain access
 
-`make-dmg.sh` bounds `security unlock-keychain` at sixty seconds because the call hangs
-whenever securityd is holding a SecurityAgent dialog on studiomac's own screen that
-nobody can answer. Observed September 2026 (twice): the console session was locked or
-asleep, `screencapture -x /tmp/x.png` over ssh failed with `could not create image from
-display`, and every keychain request from ssh, the password unlock included, spawned a
-fresh `SecurityAgent` process and blocked. The fix is at the mac: unlock its screen,
-dismiss any prompt, then rerun `scripts\remote\release-mac.bat` and
-`scripts\release\upload-mac-to-rtsoft.bat`, and only then bump the macOS entry in
-`latest_version.json`. Do not diagnose with `security show-keychain-info`: it raises its
-own prompt on a locked keychain and hangs the same way, and the stale process then keeps
-that dialog alive for days. Killing `SecurityAgent` cancels only the current requester;
-the next keychain call raises a new one.
+`make-dmg.sh` uses the system Python 3 and `unlock-keychain.py`. The helper disables
+Security.framework user interaction before opening the login keychain, unlocks it
+using the existing environment credential, and verifies the unlocked status. The
+password never enters command-line arguments or logs. A worker has a fifteen-second
+deadline, is killed and reaped on timeout, and is never retried automatically. A bad
+password or denied access fails the release without raising a password dialog.
+The parent script removes the password from its environment after the unlock.
+
+Do not use `security show-keychain-info` or prompt-capable unlock probes to diagnose
+an unattended build. Read status with `SecKeychainGetStatus` after calling
+`SecKeychainSetUserInteractionAllowed(false)`. Settings queries can require an
+unlocked keychain; a denied query is not evidence of corrupt settings.
+
+Desktop and SSH sessions can have different keychain lock states. A successful
+release unlock does not establish that the desktop login keychain is unlocked.
+When system services repeatedly request the login password, inspect the desktop
+session separately using an owned background helper with interaction disabled.
+Preserve the user's password, items, access controls, and lock-on-sleep settings.
+Do not reset the keychain, disable its security settings, repeatedly retry failed
+requests, or kill system services to suppress dialogs. Canceling a dialog only
+cancels that request. Fix the requesting session's locked state or credential.

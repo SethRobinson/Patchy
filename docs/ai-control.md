@@ -87,6 +87,9 @@ forwarding, sound, and updates. `--visible` shows that separate workspace. Its
 documents and history disappear on disconnect. Closing stdin interrupts work and
 waits for workers before destroying that owned workspace.
 
+Linux offscreen runs do not connect to the desktop D-Bus session. This keeps
+Flatpak's Qt portal theme from blocking MCP startup when no desktop portal answers.
+
 The startup argument `--visible` selects the desktop Qt backend and shows
 the connector's own workspace so the user can watch batches appear. An explicit
 `QT_QPA_PLATFORM` is respected in that mode; `get_info` reports actual `mode`,
@@ -129,9 +132,16 @@ include `workspaceAvailable: true` in both isolated and attached modes.
 
 `ui/mcp_attachment.*` owns a per-user local socket with `UserAccessOption`, scoped
 by installation directory and home directory. `PATCHY_MCP_ENDPOINT` selects an
-explicit endpoint for multiple instances and isolated automation. A QThread owns
+explicit endpoint for multiple instances and isolated automation. Flatpak uses
+`$XDG_RUNTIME_DIR/app/$FLATPAK_ID` for the default socket because separate app and
+connector sandboxes have private `/tmp` directories. Other desktop installs retain
+the platform's normal local-socket location. A QThread owns
 all socket reads/writes and processes cancellation independently of UI work. Only
 one attached client is accepted; additional connections are closed, never queued.
+The host `flatpak` launcher must inherit the desktop user's `XDG_RUNTIME_DIR`.
+Clients that filter subprocess environments, including the Python MCP SDK, must
+pass its existing value explicitly. Otherwise Flatpak can bind its per-app runtime
+directory from GLib's cache fallback, hiding the desktop app's socket.
 The listener starts only for the interactive desktop app, not headless, script,
 export, stress, screenshot, or wasm runs. It is destroyed before MainWindow and
 its scripting host. No TCP/HTTP listener or hosted-chat connection is provided.

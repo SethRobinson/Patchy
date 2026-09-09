@@ -354,6 +354,15 @@ int main(int argc, char* argv[]) {
     qputenv("PATCHY_NO_SOUND", "1");
   }
 #endif
+#ifdef Q_OS_LINUX
+  // Qt 6.8 loads Flatpak's portal theme even with the offscreen platform. Its
+  // synchronous appearance query can block startup on an absent desktop portal,
+  // before MCP can observe client EOF. Offscreen runs need no desktop session
+  // services; an unsupported D-Bus transport fails immediately without autolaunch.
+  if (qgetenv("QT_QPA_PLATFORM").split(':').first() == "offscreen") {
+    qputenv("DBUS_SESSION_BUS_ADDRESS", "disabled:");
+  }
+#endif
   apply_gui_scale_factor();
   PatchyApplication app(argc, argv);
   // Qt adopts the user's locale for the C runtime on Unix (setlocale(LC_ALL, "")), which turns

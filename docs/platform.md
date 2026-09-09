@@ -4,6 +4,11 @@ Deep reference for cross-platform work. Read this before hunting a platform-spec
 
 ## Cross-platform implementation rules
 
+Linux offscreen app and MCP startup disables the process's desktop D-Bus session
+before constructing QApplication. Qt 6.8 loads the Flatpak portal theme even for
+offscreen and synchronously queries appearance; a missing portal otherwise delays
+startup and client EOF. Interactive desktop runs retain the normal bus and portals.
+
 Windows is the lead platform and must not regress. Every code change still completes the Windows release handoff in `AGENTS.md`. Changes to platform guards, CMake files/presets, or packaging additionally run the affected macOS and/or Linux remote build best-effort and report its result.
 
 - Prefer a small local `#ifdef Q_OS_WIN`, `Q_OS_MACOS`, or `Q_OS_LINUX` (`_WIN32` in Qt-free code) with a portable fallback. Split into `foo_win.cpp`, `foo_mac.mm`, and `foo_linux.cpp` behind `WIN32`, `APPLE`, and `UNIX AND NOT APPLE` only when the site needs Objective-C++/system frameworks or outgrows about one screenful. Per-OS files live beside their feature, not in a platform directory.

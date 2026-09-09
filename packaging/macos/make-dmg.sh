@@ -53,41 +53,16 @@ fi
 echo "== copy Qt offscreen platform plugin =="
 mkdir -p "$STAGE/Patchy.app/Contents/PlugIns/platforms"
 cp "$QT_OFFSCREEN_PLUGIN" "$STAGE/Patchy.app/Contents/PlugIns/platforms/libqoffscreen.dylib"
-"$STAGE/Patchy.app/Contents/MacOS/patchy-mcp" --check
 
 if [ -n "${PATCHY_MAC_SIGN_IDENTITY:-}" ]; then
   if [ -n "${PATCHY_KEYCHAIN_PASSWORD:-}" ]; then
-    # SSH sessions get their own security context where the login keychain starts
-    # LOCKED (codesign then fails with errSecInternalComponent); unlock it for this
-    # session. The password lives in ~/.patchy-release-env (chmod 600) on the build mac.
-    #
-    # Bounded, because this is a local operation that should take milliseconds and
-    # instead blocks forever when every keychain request from this ssh session is
-    # queued behind a SecurityAgent dialog on the machine's own screen that nobody
-    # can answer (September 2026, twice: a release sat here 30+ minutes with no
-    # output; later even this password unlock spawned a fresh SecurityAgent per
-    # attempt while the console session was locked or asleep). A release that hangs
-    # silently is as bad as one that ships unsigned, so fail loudly and say where to
-    # look. macOS ships no timeout(1), hence the watchdog.
-    security unlock-keychain -p "$PATCHY_KEYCHAIN_PASSWORD" ~/Library/Keychains/login.keychain-db &
-    unlock_pid=$!
-    ( sleep 60; kill -9 "$unlock_pid" 2>/dev/null ) &
-    unlock_watchdog=$!
-    if ! wait "$unlock_pid"; then
-      kill "$unlock_watchdog" 2>/dev/null || true
-      echo "ERROR: unlocking the login keychain failed or timed out after 60s." >&2
-      echo "Every keychain request from ssh is waiting on a SecurityAgent dialog on" >&2
-      echo "studiomac's own screen that nobody can answer, usually because the console" >&2
-      echo "session is locked or asleep (then 'screencapture -x /tmp/x.png' over ssh" >&2
-      echo "fails with 'could not create image from display'). Unlock the mac at its" >&2
-      echo "screen, dismiss any prompt, and rerun. Do not probe with" >&2
-      echo "'security show-keychain-info': it raises its own prompt and hangs the same" >&2
-      echo "way; killing SecurityAgent only cancels the current request. Nothing was" >&2
-      echo "signed, so no artifact was produced." >&2
-      exit 1
-    fi
-    kill "$unlock_watchdog" 2>/dev/null || true
+    # Disable Security.framework interaction before touching the keychain. A
+    # password passed to `security unlock-keychain` alone does not forbid UI.
+    # The helper has one bounded attempt and never puts the password in argv.
+    echo "== unlock signing keychain (noninteractive) =="
+    /usr/bin/python3 packaging/macos/unlock-keychain.py
   fi
+  unset PATCHY_KEYCHAIN_PASSWORD
   echo "== codesign (hardened runtime) =="
   codesign --force --deep --options runtime --timestamp -s "$PATCHY_MAC_SIGN_IDENTITY" "$STAGE/Patchy.app"
   codesign --verify --deep --strict "$STAGE/Patchy.app"
@@ -106,7 +81,7 @@ fi
 # $STAGE. On a release run this is the signed hardened-runtime bundle loading the
 # freshly signed plugin. --headless never forwards to a running Patchy, and
 # PATCHY_SETTINGS_DIR keeps the run out of the real settings. macOS ships no
-# timeout(1), hence the watchdog (same shape as the keychain unlock above).
+# timeout(1), hence the watchdog.
 echo "== headless smoke check (the staged app must run with no display) =="
 SMOKE=$(mktemp -d)
 trap 'rm -rf "$STAGE" "$SMOKE"' EXIT
@@ -141,6 +116,11 @@ if [ "$(tail -n 1 "$SMOKE/smoke-output.txt" 2>/dev/null)" != "[done]" ]; then
   exit 1
 fi
 echo "Headless smoke check passed."
+
+# macdeployqt rewrites Mach-O load commands, invalidating existing signatures.
+# Exercise the connector only after signing the final deployed bundle.
+echo "== MCP smoke check (the staged connector must run) =="
+"$STAGE/Patchy.app/Contents/MacOS/patchy-mcp" --check
 
 echo "== dmg =="
 DMG_STAGE=$(mktemp -d)

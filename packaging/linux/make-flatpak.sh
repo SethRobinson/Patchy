@@ -21,7 +21,7 @@ mkdir -p "$PACKAGE_DIR"
 # Delete ALL previous bundles up front (not just this version's): if the build fails,
 # nothing stale remains for the newest-file upload script to pick up by accident.
 rm -f "$PACKAGE_DIR"/Patchy-*.flatpak
-flatpak-builder --force-clean --repo="$REPO_DIR" "$BUILD_DIR" "flatpak/$APP_ID.yml"
+nice -n 10 flatpak-builder --jobs=6 --force-clean --repo="$REPO_DIR" "$BUILD_DIR" "flatpak/$APP_ID.yml"
 
 # Proves the sandboxed app runs with no display before any bundle exists. The Qt
 # offscreen platform comes from the org.kde.Platform runtime, not from this repo, so

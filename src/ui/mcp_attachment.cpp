@@ -6,6 +6,7 @@
 #include <QDir>
 #include <QLocalServer>
 #include <QLocalSocket>
+#include <QStandardPaths>
 #include <QThread>
 #include <atomic>
 #include <chrono>
@@ -22,8 +23,18 @@ QString mcp_attachment_endpoint() {
   installation = installation.toLower();
 #endif
   const auto identity = (QDir::homePath() + '\n' + installation).toUtf8();
-  return QStringLiteral("PatchyMcp-") + QString::fromLatin1(
+  const auto name = QStringLiteral("PatchyMcp-") + QString::fromLatin1(
       QCryptographicHash::hash(identity, QCryptographicHash::Sha256).toHex().left(32));
+#ifdef Q_OS_LINUX
+  const auto flatpak_id = qEnvironmentVariable("FLATPAK_ID");
+  if (!flatpak_id.isEmpty()) {
+    // Each Flatpak invocation has private /tmp, but this per-app runtime directory
+    // is shared across its sandboxes and restricted to the current user.
+    return QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation)
+        + QStringLiteral("/app/") + flatpak_id + '/' + name;
+  }
+#endif
+  return name;
 }
 
 struct McpAttachment::Impl {

@@ -9,7 +9,9 @@ The browser version is the same editor compiled to WebAssembly. It runs entirely
 Local AI agents can use the native MCP connector to draw, inspect previews, revise
 layers, and save editable files. In the desktop app, Help > Set up AI Control gives
 you a short text to paste into your AI assistant, which then configures itself.
-Desktop packages include an installable skill and JavaScript examples. See
+Agents can work in a separate workspace or connect to your open desktop app, where
+you can watch edits, choose Slow playback, pause to make changes yourself, and stop
+an operation. Desktop packages include an installable skill and JavaScript examples. See
 [AI control setup](docs/ai-control.md).
 
 ## Screenshots
@@ -141,10 +143,10 @@ notarized (Robinson Technologies Corporation).
 
 | Platform                  | Package                     | Download                                                                                      |
 | ------------------------- | --------------------------- | --------------------------------------------------------------------------------------------- |
-| Windows 10/11 (64-bit)    | Installer                   | [PatchyWindowsInstaller.exe](https://rtsoft.com/files/PatchyWindowsInstaller.exe) (35 MB)     |
-| Windows 10/11 (64-bit)    | Portable ZIP (no installer) | [PatchyWindowsNoInstaller.zip](https://rtsoft.com/files/PatchyWindowsNoInstaller.zip) (35 MB) |
-| macOS 12+ (Apple Silicon) | DMG - drag to Applications  | [PatchyMacOS.dmg](https://rtsoft.com/files/PatchyMacOS.dmg) (44 MB)                           |
-| Linux                     | Flatpak bundle              | [PatchyLinux.flatpak](https://rtsoft.com/files/PatchyLinux.flatpak) (14 MB)                   |
+| Windows 10/11 (64-bit)    | Installer                   | [PatchyWindowsInstaller.exe](https://rtsoft.com/files/PatchyWindowsInstaller.exe) (59 MB)     |
+| Windows 10/11 (64-bit)    | Portable ZIP (no installer) | [PatchyWindowsNoInstaller.zip](https://rtsoft.com/files/PatchyWindowsNoInstaller.zip) (59 MB) |
+| macOS 12+ (Apple Silicon) | DMG - drag to Applications  | [PatchyMacOS.dmg](https://rtsoft.com/files/PatchyMacOS.dmg) (64 MB)                           |
+| Linux                     | Flatpak bundle              | [PatchyLinux.flatpak](https://rtsoft.com/files/PatchyLinux.flatpak) (31 MB)                   |
 | Any modern browser        | Nothing to install          | [rtsoft.com/patchy](https://www.rtsoft.com/patchy/) (slower and less capable)                 |
 
 The browser version is the same editor compiled to WebAssembly, and everything runs locally:
@@ -172,6 +174,8 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 - Open and save layered PSD and PSB files with groups, masks, clipping masks, saved alpha and spot channels, text objects, Fill Opacity, the full Photoshop blend mode set, layer styles and more
 - Common raster editing tools, including Brush with Flow and timed Airbrush buildup, Healing Brush, Spot Healing, Patch, Clone Stamp, Dodge, Burn, Sponge, Blur, Sharpen, Smudge, Eraser, selections, transforms, gradients, and shapes
 - Vector tools: Pen paths, editable shape layers (Rectangle, Ellipse, Line, Polygon, Custom Shape) with solid, gradient, or pattern fills and strokes, vector masks, path selection and anchor editing, and a Paths panel with fill, stroke, and make-selection commands, all round-tripping through PSD files that open correctly in Photoshop
+- Dynamic Vector Preview keeps native shapes and vector masks sharp when zoomed in, alongside pixel layers, masks, adjustments, and effects. Merge Layers can preserve editable vectors and keep bitmap runs separate, with options for merging within groups or making a merged copy
+- Move tool layer selection: drag a rectangle to select overlapping layers, Shift-click to toggle individual layers, or right-click to choose among the layers under the pointer, with a selected-layer count in the status bar
 - Trace Image to Shapes: converts a pixel layer (logo, scan, photo) into a group of editable shape layers, one per color, with Illustrator-style presets, color, grayscale, and black-and-white modes, abutting or overlapping shapes, noise removal, and a live preview; export the result as SVG
 - Non-destructive adjustment layers (Levels, Curves, Hue/Saturation, Color Balance, Brightness/Contrast, Invert, Posterize, Threshold) with live preview, editable settings, native Photoshop PSD data, and .acv Curves preset import and export
 - Smart Objects: place or convert layers to embedded or linked smart objects, edit or replace their contents, transform them non-destructively, and build editable native Smart Filter stacks (13 filter types) with paintable shared masks and per-filter blending
@@ -181,6 +185,7 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 - Multiple document interface: tabbed documents that can float in their own windows, with Photoshop-style Tile and Cascade arrangement
 - Rich text with per-run color, font, size, and style, plus a searchable font picker and Character controls for leading, tracking, and horizontal or vertical glyph scaling
 - Palettized (indexed color) editing mode for pixel art: paint constrained to a palette, quantize with optional dithering, built-in retro palettes (NES, C64, Game Boy, PICO-8, and more), palette files (.pal/.gpl/.hex/.act/.aco/.ase), and exact indexed PNG-8 and 2/4/8-bit BMP export. Layers, layer styles, and effects all keep working (Photoshop's indexed mode flattens and disables them)
+- Named palette colors appear in the Palette panel, color picker, Info panel, and eyedropper readout. Rename swatches, preserve names through GPL, PSD, and indexed PNG round trips, and manage palettes through scripts
 - Pixel-art and game-dev extras: seamless texture authoring (live tile preview window, in-canvas tiling mode, seam shifting), sprite sheet export/import, image sequence export/import (numbered files become layers and back), animated GIF import/export (frames become layers with their timings in the layer names, visible layers save back as a looping animation, and the layers panel's film button previews the animation in-app), and nearest-neighbor scaled export (2x-8x)
 - Reads and writes a wide range of formats: PSD/PSB, PNG, JPEG, TIFF, WebP, BMP, TGA, GIF, PCX, Amiga IFF/LBM, Windows icons and cursors (ICO/CUR), Aseprite files, JPEG XR (.jxr, on Windows), Proton SDK textures (.rttex), and SVG (opens as editable shape layers, exports with vectors preserved)
 - Imports Affinity documents as layered files: the current .af format, Affinity 2 .afphoto/.afdesign/.afpub, and most Affinity 1.x-era files, bringing across rasters, groups, masks, clipping, blend modes, editable text layers, vector shapes, adjustment layers, layer effects, and placed images (which become embedded Smart Objects)
@@ -189,12 +194,24 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 - Photoshop-compatible document resolution, physical measurement units, rulers, image sizing, and printing
 - Pen/stylus pressure and size dynamics, GUI scaling, scanner import (Windows and macOS), camera import (Windows), legacy .8bf plugins, and command line options
 - JavaScript scripting: a built-in Script Manager (File > Scripts) with a folder tree over the bundled and user scripts, a code editor with live run status, a documented API covering documents, layers, text, selections, pixels, filters, form dialogs, file pickers, and batch processing, bundled examples ranging from CSV data merge, contact sheets, icon export, and versioned saves to glitch/duotone effects and playable Breakout and Pong (scripts can call other scripts), safe editing of bundled scripts (your saved copy overrides the original and can be reverted), and a --run-script command line flag with script arguments so external tools and AI agents can drive Patchy (add --headless to run with no display, on a server or in CI). See the [scripting guide](scripts/bundled/scripting-guide.md) (also under Help inside the app)
+- Local AI control through the bundled MCP connector: native pressure-aware brush strokes, reusable brush presets, editable vector shapes and paths, palette controls, image previews, and persistent document sessions. Help > Set up AI Control provides setup instructions and example prompts; see the [AI control guide](docs/ai-control.md)
 - Cross-platform: Windows is the lead platform, with native macOS (Apple Silicon) and Linux (Flatpak) builds
 - Built with C++ and Qt for a native desktop experience. No GPU used, should run on a potato
 - Privacy: YES! Absolutely no telemetry, no tracking, no data collection (if update checks are enabled, it contacts GitHub only to check for a newer version). Settings live in a plain local file, and the installer doesn't screw with your file extension preferences
 - Localized in English and Japanese (change language in File->Preferences)
 
 ## What's New
+
+### 0.92 - September 9, 2026
+
+- Local AI control: desktop packages include a native MCP connector, an installable skill, and JavaScript examples. Help > Set up AI Control provides a setup prompt and task examples. Agents can use an isolated background workspace, show their own workspace, or attach to your open Patchy app; attached connections recover when the app restarts
+- Automation uses Patchy's native brushes, pressure dynamics, reusable brush presets, editable vector shapes, paths, and masks. Edits appear progressively, Slow playback offers per-stroke Undo, and Pause lets you browse documents or make manual changes before resuming
+- View > Dynamic Vector Preview renders native shapes and vector masks at screen resolution when zoomed in, keeping them sharp alongside pixel layers, groups, adjustments, and layer effects without changing saved output
+- Merge Layers preserves editable vector artwork and offers separate bitmap merges, merging within each group, and separate merges by vector paint type. Merge Visible to New Layer (Copy) keeps the originals and can hide them to avoid drawing transparent artwork twice
+- The Move tool adds rectangle layer selection, Shift-click toggles, and a right-click menu for choosing overlapping layers or selecting all layers under the pointer. The status bar counts selected layers, including folder contents, and large layer selections respond faster
+- Palette colors can have names: rename swatches and see their labels in the Palette panel, color picker, Info panel, and eyedropper readout. Names survive GPL, PSD, and indexed PNG round trips, and extracting colors retains names for exact matches. Scripts and MCP can read, set, load, and save document palettes
+- Command-line runs gain --headless for unattended editing and exports without a display or interference with an open workspace. Desktop packages include the offscreen support it needs, including the macOS packaging fix by [@csbun](https://github.com/csbun). Linux headless and MCP startup also works without a responsive desktop portal
+- Fixes: large documents load with responsive progress, open vector strokes retain their appearance in Photoshop exports, merged vector PSD data round-trips correctly, and automated opens and saves appear in shared recent history. Additional fixes cover unsaved-change prompts, Cut inside folders, text with missing script coverage, layer rendering, and damaged-file handling
 
 ### 0.91 - September 3, 2026
 
@@ -203,22 +220,6 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 - File > Open accepts several files at once and opens each as its own document, and the Open Recent Folder entries use the same multi-select dialog
 - Hint text names modifier keys for the platform it runs on, so macOS reads Command and Option instead of Ctrl and Alt
 - Fixes: Photoshop CS6 stroke-only shape layers (a stroke with no fill block) import as editable shapes instead of arriving vector-locked, which also lets Free Transform work on any folder or multi-layer selection containing one
-
-### 0.90 - August 26, 2026
-
-- PDF is now a first-class format. Opening a PDF imports its pages as editable shape, text, and image layers by default, with a flat-image option, reads password-protected files, and converts shadings to gradient fills and spot colors through their tints. Saving as PDF works everywhere, with a choice of flattened pages or editable layers that keep paths, text, and images as real objects, and imported Photoshop text layers export as real selectable PDF text, substituting missing fonts unless you ask for images
-- Trace Image to Shapes converts a raster image, or just the selected area, into editable shape layers. Photo-quality palettes up to 256 colors with exact color assignment, a Merge Colors option that collapses near-duplicate colors, smoothing and anchor-budget sliders, saveable presets, and a size warning before heavy traces
-- Animated GIFs open as layers, with each frame's delay kept in its layer name, and the visible layers export back as a looping animation. The Layers panel's film button opens an Animation Preview that plays those layers as frames and can set or clear the per-frame timings
-- File > Import > Photocopy scans a page and prints it at actual size in one step, using the scanner's true DPI, with a movable crop and a preview that shades anything the printable area cuts off. Divide Scanned Photos splits a scan or photo into straightened per-photo images, with an up-direction picker, the output folder, prefix, and format chosen right in the dialog, and a prompt to scan another batch
-- Path point editing is discoverable: dedicated anchor tools with status-bar hints and a live selected-point count, a right-click path menu, and Auto Add/Delete on the Pen, plus Simplify Path and Combine Shapes commands for existing shape layers
-- Direct Select edits points across every shape layer selected in the Layers panel, drags a whole selection by any of its segments, and Shift constrains point drags to horizontal, vertical, or 45 degrees; marquees can be repositioned with Space or squared with Shift, and Ctrl+E keeps shape-layer merges vector
-- The Mixer Brush has calibrated continuous pickup, Sample All Layers, and a Useful Combinations dropdown with Photoshop-verified presets, and its options bar follows Photoshop's order
-- Photoshop-style stroke Smoothing steadies the Brush, Mixer Brush, and Eraser
-- The Print dialog adds a Copies field and a Print Using System Dialog button, and printing no longer crashes on a printer whose device context fails
-- Ungroup Layers and Copy as SVG join the menus
-- The Move tool's Ctrl+click toggles a layer in the current selection, and Ctrl+Shift+click in the Layers panel adds a whole range
-- Web build: the Clone tool's brush outline no longer vanishes at large sizes, a bare Alt tap no longer steals browser focus, dialogs open with keyboard focus on the intended widget, the expanded tool palette stays open, and opening a PDF explains that import is desktop only and offers a download button instead of a generic unsupported message
-- Fixes: 600 DPI flatbed scans load again instead of failing to read their image data, File > Place Embedded greys out when no document is open instead of doing nothing, files with Unicode names save and reopen correctly instead of being mangled by the ANSI code page, Ctrl+H also hides path anchors, handles, and outlines, path anchors appear as soon as the active layer changes, and entry fields use the accent color for text selection
 
 [Older releases](RELEASE-HISTORY.md)
 
