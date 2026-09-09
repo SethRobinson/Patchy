@@ -6,6 +6,7 @@ Keep this file at or below 30,000 bytes. Detailed implementation knowledge belon
 
 ## Repository-wide rules
 
+- Every PSD/PSB Patchy writes, including script and MCP output, must open in Adobe Photoshop without warnings or errors. Custom metadata is allowed only when Photoshop accepts the file without warning, repair, or data-discard prompts. Follow the compatibility contract in [docs/ps-compat.md](docs/ps-compat.md).
 - When adding or changing user-facing English text, wire it through Patchy's localization system and update `translations/patchy_ja.ts` in the same change.
 - Tests that need files outside the project must first copy them into `local-test-fixtures`; never add hardcoded external paths such as `C:\temp` or `D:\projects` to test code.
 - Commit automatically only after a finished piece of work is verified and its required handoff is complete. Do not commit failing or half-finished states. Never push unless Seth explicitly asks in the current request.

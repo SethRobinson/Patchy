@@ -73,7 +73,59 @@ does not choose them. Fetch `brush-swatches`, `wet-paint`, `brush-library`, or
 - On failure, inspect the error and updated state. Partial edits may remain and can be undone. `undo`/`redo` restore one history step; in scripts call them before any new edits.
 - Keep undo enabled. Connector sessions reject `app.undoEnabled = false`.
 
+## Named palettes and PSDs
+
+Palette operations are available through `execute_script`: `doc.getPalette`,
+`setPalette`, `loadPalette`, and `savePalette`. Check `get_info` for the
+`palettes` and `paletteColorNames` capabilities. Attach the palette to the
+document with `setPalette(colors, {names: [...]})` or
+`loadPalette("beads_palette.gpl")`; a JavaScript color array alone is not an
+attached palette. Names parallel the colors and may contain Japanese and
+English together. Use an empty string for an unnamed color. Omitting `names`
+from `setPalette` clears labels; `loadPalette` preserves GPL labels by default.
+
+Saving that document with `doc.saveAs("art.psd")` automatically embeds the
+colors, names, and palette-mode settings. No companion palette file is needed
+to restore them when Patchy reopens the PSD. The PSD retains normal RGB layers;
+the palette is optional Patchy metadata, not Photoshop's native named swatches.
+Use the native saver, without editing PSD bytes or inventing additional tags.
+Other editors may discard the optional metadata when resaving.
+
+This minimal example creates a new document with two named colors. Use a
+task-specific output directory; for existing artwork, resolve its document ID
+instead of creating a replacement:
+
+```js
+var output = patchy.args.output || "named-palette-example";
+if (!patchy.io.makeDir(output)) throw new Error("Cannot create output folder");
+var doc = app.newDocument(128, 128);
+doc.setPalette(["#FFFFFF", "#000000"], {
+    names: ["しろ WHITE", "くろ BLACK"]
+});
+doc.addLayer("Sample").fillRect(0, 0, 128, 128, "#FFFFFF");
+if (!doc.savePalette(output + "/example_palette.gpl", "example_palette"))
+    throw new Error("Palette save failed");
+if (!doc.saveAs(output + "/example.psd")) throw new Error("PSD save failed");
+patchy.setResult({path: doc.path, palette: doc.getPalette()});
+```
+
+Set/load enables palette mode by default. `enabled:false` attaches the table
+and names for PSD persistence without constraining editing. When verifying a
+saved copy, reopen it and compare `getPalette()` colors, names, `enabled`, and
+`alphaThreshold` with the pre-save snapshot. Do not close an unsaved user tab
+to perform that check. `savePalette` writes a reusable palette file; choose GPL
+to retain names. For an actual indexed PNG, use `saveAs`/`exportAs` with palette
+mode enabled. `renderPreview` writes a truecolor PNG.
+
 ## Save and deliver
+
+Every PSD/PSB output must open in Adobe Photoshop without warnings or errors,
+including files with Patchy metadata. A repair, unknown-data, or data-discard
+prompt is a compatibility defect. Custom metadata is acceptable only when
+Photoshop accepts the file without those problems. A Patchy round trip alone,
+or opening Photoshop with dialogs suppressed, does not verify warning-free
+opening. Report the checks actually performed; do not claim Photoshop testing
+unless it happened. This requirement does not authorize control of Photoshop.
 
 Save checkpoints before substantial revisions and final layered artwork with `doc.saveAs(path)`. Check its boolean result. Write a PNG with `doc.renderPreview(path, options)` when its bounded output size is appropriate; this preserves the PSD path and modified state. For full-resolution format export use `doc.exportAs(path)`, which currently has the same save-path behavior as `saveAs`; save the PSD last if both are used.
 

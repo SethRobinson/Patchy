@@ -368,18 +368,43 @@ PAL, GPL, HEX, ACT, ACO, ASE, and indexed BMP. GPL color names are imported;
 format-specific transparency indexes are not. `doc.savePalette(path, name?)` writes
 PAL, GPL, HEX, ACT, or ACO, returning true or throwing on failure. Saving a
 palette does not change document history, path, or modified status.
-Use GPL to preserve color names in a palette file. Names also persist in PSD
-and in Patchy's optional indexed PNG text metadata. Other image editors may
-discard that metadata. Palette controls and eyedropper readouts show exact-match
+Use GPL to preserve color names in a palette file. Names also persist in Patchy's
+optional indexed PNG text metadata. Other image editors may discard that
+metadata. Palette controls and eyedropper readouts show exact-match
 names alongside color codes. Right-click editable swatches for Set Name/Rename;
 an empty name clears the label. Document renames are undoable.
 
+**Embedding a named palette in a PSD:** first attach it with `setPalette` or
+`loadPalette`, then call `saveAs` with a `.psd` path. Saving automatically embeds
+the colors, names, and palette-mode settings, even when `enabled` is false.
+Patchy restores them on reopen without needing a companion GPL file. The PSD
+retains normal RGB layers with optional Patchy metadata; it does not become a
+Photoshop indexed-mode document or install Photoshop named swatches. A color
+array used only to draw pixels is not an attached document palette.
+
+All PSD/PSB output must open in Adobe Photoshop without warnings or errors.
+Custom metadata is allowed only when it causes no warning, repair, or
+data-discard prompt. Use Patchy's native saver. A successful Patchy round trip
+does not establish warning-free Photoshop opening; report actual verification
+and do not treat suppressed Photoshop dialogs as proof. Other editors may
+discard Patchy metadata when resaving.
+
 ```js
 var doc = app.activeDocument;
+if (!doc) throw new Error("No active document");
 doc.loadPalette("beads_palette.gpl");
-doc.saveAs("skeleton_indexed.png"); // Actual indexed PNG, with a color table.
-doc.saveAs("skeleton.psd");         // Editable layers and palette mode retained.
+// Alternatively: doc.setPalette(["#FFFFFF", "#000000"], {
+//     names: ["しろ WHITE", "くろ BLACK"]
+// });
+if (!doc.saveAs("skeleton_indexed.png")) throw new Error("Indexed PNG save failed");
+if (!doc.saveAs("skeleton.psd")) throw new Error("PSD save failed");
+patchy.setResult({path: doc.path, palette: doc.getPalette()});
 ```
+
+Verify a saved copy by reopening it and comparing `getPalette()` colors, names,
+`enabled`, and `alphaThreshold` with the pre-save snapshot. Keep unsaved user
+documents open. Names preserve Unicode, including mixed Japanese and English;
+do not substitute translations for labels the user asked to retain exactly.
 
 Use `saveAs`/`exportAs` for indexed PNG. `renderPreview` writes a truecolor
 preview. PNG export may reserve one extra palette entry for transparency.

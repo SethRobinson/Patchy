@@ -264,7 +264,12 @@ lifecycle entry point; it does not synthesize Qt or desktop input events.
 ## Workflow and validation
 
 The served workflow teaches discovery, batched edits, image inspection, checkpoints, undo,
-and PSD plus PNG delivery. Its examples create layered pixel art, pressure paint,
+and PSD plus PNG delivery. Its named-palette recipe attaches colors and Unicode
+names with `setPalette`/`loadPalette`, then embeds them with native PSD saving.
+The workflow, API reference, and guide require all PSD output to open in
+Photoshop without warnings or errors, including optional Patchy metadata;
+the canonical contract is in [ps-compat.md](ps-compat.md#required-compatibility-contract).
+Its examples create layered pixel art, pressure paint,
 and an accent layer in an existing file. The alternative entry point is
 `patchy --headless --run-script file.js --script-arg key=value`; see
 [scripting.md](scripting.md) for output capture and process lifetime.

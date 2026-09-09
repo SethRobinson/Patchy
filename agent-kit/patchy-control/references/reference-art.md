@@ -20,6 +20,14 @@ and retain its document ID. Otherwise work from the visible attachment without
 claiming it was imported; ask for a path only if the operation needs its pixels.
 Do not search unrelated personal folders for a matching photo.
 
+For a palette based on labeled samples, preserve readable printed names exactly,
+including languages and abbreviations. Distinguish estimated photo colors from
+measured samples; leave unreadable names empty and report that uncertainty
+instead of inventing labels or translations. Attach the colors and parallel
+names with `doc.setPalette`, or load a named GPL with `doc.loadPalette`.
+See [Named palettes and PSDs](workflow.md#named-palettes-and-psds) for embedding
+them in the editable deliverable and saving a reusable palette file.
+
 ## Work in editable passes
 
 1. Create the target-sized document and choose a compact palette. Use named
@@ -48,6 +56,9 @@ return between passes so the user sees progress.
 Save an editable PSD and a PNG at the requested dimensions. Also provide a
 nearest-neighbor enlarged preview if useful, labeled with its display size.
 Check `saveAs` results and verify the saved PSD by reopening it and comparing
-its preview with the final image. Return actual files and the MCP image; do not
+its preview with the final image. If a palette is required, also compare its
+colors and names after reopening. Follow the workflow's
+[Photoshop compatibility requirement](workflow.md#save-and-deliver) for every
+PSD. Return actual files and the MCP image; do not
 describe an uninspected or unsaved drawing as finished. Keep user photos and
 personal artwork out of source-control commits.

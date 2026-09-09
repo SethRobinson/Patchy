@@ -394,16 +394,19 @@ interface PatchyDocument {
   readonly canRedo: boolean;
   /** Throws when the ID is absent from the current document. */
   getLayer(id: string): PatchyLayer;
-  /** Snapshot in export order, including attached palettes when mode is off; null if absent. */
+  /** Snapshot in export order, including attached palettes when mode is off; null if absent.
+   * PSD save/reopen preserves colors, names and palette-mode settings. */
   getPalette(): {colors: string[]; names: string[]; enabled: boolean; alphaThreshold: number | null; sourceBitDepth: number} | null;
   /** 1..256 opaque color strings. Metadata only: existing layer pixels are preserved.
    * enabled defaults true, alphaThreshold defaults 128 (integer 0..255).
    * names must parallel colors: single lines, at most 4096 UTF-8 bytes each; omitted names clears labels.
    * Enabled mode constrains tool writes, display and PNG export. Unknown options throw.
-   * enabled:false attaches the colors without the constraint. Undoable; preserves duplicates/order. */
+   * enabled:false attaches the colors without the constraint. Undoable; preserves duplicates/order.
+   * saveAs("art.psd") embeds the attached palette and names, including when mode is off. */
   setPalette(colors: string[], options?: {enabled?: boolean; alphaThreshold?: number; names?: string[]}): void;
   /** Loads native palette formats, then applies setPalette with the same options.
-   * Preserves GPL color names unless options.names overrides them. Transparency indexes are not imported. */
+   * Preserves GPL color names unless options.names overrides them. Transparency indexes are not imported.
+   * A subsequent PSD save embeds this palette; reopening in Patchy needs no companion palette file. */
   loadPalette(path: string, options?: {enabled?: boolean; alphaThreshold?: number; names?: string[]}): NonNullable<ReturnType<PatchyDocument["getPalette"]>>;
   /** Native .pal/.gpl/.hex/.act/.aco writer; GPL preserves color names.
    * Throws on failure; no history/path/modified change. */
@@ -465,7 +468,10 @@ interface PatchyDocument {
   resizeCanvas(width: number, height: number): void;
   /** Crops to the canvas intersection; throws if the rectangle is outside the canvas. */
   crop(x: number, y: number, width: number, height: number): void;
-  /** Saves to the path; the format follows the extension (.psd, .png, ...). */
+  /** Saves to the path; the format follows the extension (.psd, .png, ...).
+   * PSD embeds attached palette colors/names/settings as optional Patchy metadata and retains normal RGB
+   * layers, not Photoshop's native named swatches. All PSD output must open without Photoshop warnings/errors.
+   * Check the result; a successful save alone does not verify Photoshop compatibility. */
   saveAs(path: string): boolean;
   /** Same as saveAs; reads better for export-a-copy flows. */
   exportAs(path: string): boolean;

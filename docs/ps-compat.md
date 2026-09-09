@@ -4,6 +4,27 @@ Canonical reference for Photoshop compatibility work: the COM observation workfl
 
 Conventions: "PS" = Adobe Photoshop 2026/27.8, installed here and the ground truth. Every rule below is pinned by PS COM captures (June-August 2026) unless noted. Fixtures named `photoshop-*` live in `test-fixtures/psd/` and have pinning tests; `local-test-fixtures/` is machine-local.
 
+## Required compatibility contract
+
+Every PSD/PSB Patchy writes must open in Adobe Photoshop without warnings or
+errors, including saves and exports from the UI, JavaScript, and MCP. A file
+that requires repair or produces unknown-data or data-discard prompts fails
+this requirement even if its preview looks correct.
+
+Optional Patchy metadata is permitted only in extension points Photoshop
+accepts without those problems. Use native PSD structures for editable content
+and the established image-resource mechanism for private document metadata.
+Do not introduce unknown per-layer tagged keys; the write rules below explain
+that failure. Photoshop does not have to interpret Patchy-only metadata, such
+as palette color names, and may discard it when saving.
+
+A successful Patchy save/reopen or a structurally valid file is not evidence
+of warning-free Photoshop opening. Changes to PSD writing must preserve this
+contract and report the verification actually performed. Opening with dialogs
+suppressed cannot establish the absence of warnings. If Photoshop was not
+checked, say so; this requirement does not grant permission to control it.
+Follow the repository's computer-control rule and [testing.md](testing.md).
+
 ## COM scripting techniques
 
 Drive PS from PowerShell: `(New-Object -ComObject Photoshop.Application).DoJavaScript($jsx)` (first call launches PS, ~30s).
