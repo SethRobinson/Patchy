@@ -1036,6 +1036,94 @@ void ui_raw_develop_dialog_accept_opens_document_and_save_routes_to_psd() {
   CHECK(default_name == QStringLiteral("raw_develop_accept.psd"));
 }
 
+void ui_raw_file_drop_returns_before_dialog_and_preserves_batch() {
+  using patchy::ui::MainWindowTestAccess;
+  SettingsValueRestorer dialog_restorer(QStringLiteral("imports/showRawDevelopDialog"));
+  auto settings = patchy::ui::app_settings();
+  settings.setValue(QStringLiteral("imports/showRawDevelopDialog"), true);
+  settings.sync();
+
+  const auto stem = patchy::test::utf8_string(patchy::test::kUnicodeCombinedStem);
+  const auto path = write_raw_dng_fixture(QStringLiteral("drop ") +
+      QString::fromUtf8(stem.data(), static_cast<qsizetype>(stem.size())) + QStringLiteral(".dng"));
+  const auto original_bytes = raw_test_bytes(path);
+  const auto png_path = path + QStringLiteral(".png");
+  QImage source(6, 4, QImage::Format_RGB32);
+  source.fill(QColor(20, 80, 160));
+  CHECK(source.save(png_path));
+
+  for (const bool drop_on_tabs : {false, true}) {
+    for (const bool open_raw : {false, true}) {
+      patchy::ui::MainWindow window;
+      show_window_empty(window);
+      auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+      CHECK(tabs != nullptr);
+      QWidget* target = drop_on_tabs ? static_cast<QWidget*>(tabs) : &window;
+      bool drop_returned = false;
+      bool dialog_seen = false;
+      bool clicked_open = false;
+      std::exception_ptr error;
+      QElapsedTimer elapsed;
+      elapsed.start();
+      QTimer driver;
+      QObject::connect(&driver, &QTimer::timeout, [&] {
+        auto* dialog = find_top_level_dialog(QStringLiteral("rawDevelopDialog"));
+        if (!dialog) return;
+        try {
+          // The native source can release its drag loop before any modal UI.
+          CHECK(drop_returned);
+          CHECK(elapsed.elapsed() < 30000);
+          CHECK(MainWindowTestAccess::session_count(window) == 0);
+          CHECK(dialog->windowTitle().contains(QFileInfo(path).fileName()));
+          dialog_seen = true;
+          if (!open_raw) {
+            dialog->reject();
+          } else if (!clicked_open) {
+            auto* button = dialog->findChild<QPushButton*>(QStringLiteral("rawOpenButton"));
+            CHECK(button != nullptr);
+            if (button->isEnabled()) {
+              clicked_open = true;
+              button->click();
+            }
+          }
+        } catch (...) {
+          error = std::current_exception();
+          dialog->reject();
+          driver.stop();
+        }
+      });
+      driver.start(10);
+      {
+        QMimeData mime;
+        mime.setUrls({QUrl::fromLocalFile(path), QUrl::fromLocalFile(png_path)});
+        QDragEnterEvent enter(QPoint(50, 50), Qt::CopyAction | Qt::MoveAction, &mime,
+                              Qt::LeftButton, Qt::NoModifier);
+        QApplication::sendEvent(target, &enter);
+        CHECK(enter.isAccepted());
+        QDropEvent drop(QPointF(50, 50), Qt::CopyAction | Qt::MoveAction, &mime,
+                        Qt::LeftButton, Qt::NoModifier);
+        QApplication::sendEvent(target, &drop);
+        drop_returned = true;
+        CHECK(drop.isAccepted());
+        CHECK(drop.dropAction() == Qt::CopyAction);
+      }  // Native events and mime data are gone before processing starts.
+      CHECK(!dialog_seen);
+      CHECK(MainWindowTestAccess::session_count(window) == 0);
+      QApplication::processEvents();
+      driver.stop();
+      if (error) std::rethrow_exception(error);
+      CHECK(dialog_seen);
+      CHECK(clicked_open == open_raw);
+      CHECK(tabs->count() == (open_raw ? 2 : 1));
+      if (open_raw) CHECK(tabs->tabText(0) == QFileInfo(path).fileName());
+      CHECK(tabs->tabText(tabs->count() - 1) == QFileInfo(png_path).fileName());
+      CHECK(QDir::fromNativeSeparators(MainWindowTestAccess::active_session_path(window)) == png_path);
+      CHECK(raw_test_bytes(path) == original_bytes);
+      CHECK(!QFileInfo::exists(patchy::ui::raw_develop_settings_path(path)));
+    }
+  }
+}
+
 void ui_raw_develop_dialog_cancel_aborts_open() {
   RawDevelopSettingsSanitizer raw_settings_sanitizer;
   SettingsValueRestorer dialog_restorer(QStringLiteral("imports/showRawDevelopDialog"));
@@ -1273,6 +1361,8 @@ std::vector<patchy::test::TestCase> camera_raw_heif_tests() {
       {"ui_raw_develop_dialog_accept_opens_document_and_save_routes_to_psd",
        ui_raw_develop_dialog_accept_opens_document_and_save_routes_to_psd},
       {"ui_raw_develop_dialog_cancel_aborts_open", ui_raw_develop_dialog_cancel_aborts_open},
+      {"ui_raw_file_drop_returns_before_dialog_and_preserves_batch",
+       ui_raw_file_drop_returns_before_dialog_and_preserves_batch},
       {"ui_raw_develop_dialog_exposure_slider_brightens_preview",
        ui_raw_develop_dialog_exposure_slider_brightens_preview},
       {"ui_raw_preference_disabled_opens_with_camera_defaults",

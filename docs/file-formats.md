@@ -14,6 +14,14 @@ Open, sprite-sheet, and image-sequence dialogs pass `FilterNameDetails::Hidden` 
 
 The visible portion must keep a `*.` token. The Windows 11 native dialog appends the complete semicolon-joined pattern list to any filter name without one, so the all-formats row uses the short `(*.psd *.png *.jpg and more)` hint instead of ~50 patterns. `ui_open_dialog_hides_name_filter_details` pins the shape.
 
+Desktop file drops copy the accepted local paths and queue processing on the main
+window after the drop handler returns. Never enter import dialogs or decode files
+inside the native drop callback: Windows Explorer waits for that callback and
+would remain blocked for the lifetime of a RAW or PDF dialog. Main-window, canvas,
+tab-area, and floating-window drops share this path. Files retain their drop order;
+cancelling one import still permits the remaining files to open. Destroying or
+closing the main window before delivery discards the queued work.
+
 ## Per-format catalogue
 
 Everything reads AND writes except camera raw, HEIF/HEIC, and .af (read-only); JPEG XR reads and writes on Windows only. Modules live in src/formats/, Qt-free, explicit-endian via `binary_le.hpp` (LE) or `psd_binary.hpp` (BE).

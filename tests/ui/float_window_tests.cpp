@@ -932,6 +932,8 @@ void ui_float_window_accepts_file_drop() {
 
   QDropEvent drop(QPointF(drop_position), Qt::CopyAction, &mime_data, Qt::LeftButton, Qt::NoModifier);
   QApplication::sendEvent(float_window, &drop);
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == 1);
+  CHECK(tabs->count() == 0);
   QApplication::processEvents();
   CHECK(drop.isAccepted());
 

@@ -1355,12 +1355,25 @@ bool MainWindow::open_dropped_files(QDropEvent* event) {
     event->acceptProposedAction();
   }
 
-  if (!font_paths.isEmpty()) {
-    show_user_font_drop_result(user_fonts::add_user_fonts(font_paths));
-  }
-  for (const auto& path : paths) {
-    open_document_path(path);
-  }
+  // Return from the native drop before opening dialogs or processing files.
+  // Windows Explorer waits for its OLE drop call to return, including any nested
+  // RAW/PDF/import dialog loop entered here. Own the paths, never the event or
+  // its source-owned mime data, and cancel delivery if this window is destroyed.
+  QTimer::singleShot(0, this, [this, paths, font_paths] {
+    if (shutting_down_ || !isVisible()) {
+      return;
+    }
+    if (preview_dialog_edit_locked()) {
+      show_preview_dialog_edit_lock_message();
+      return;
+    }
+    if (!font_paths.isEmpty()) {
+      show_user_font_drop_result(user_fonts::add_user_fonts(font_paths));
+    }
+    for (const auto& path : paths) {
+      open_document_path(path);
+    }
+  });
   return true;
 }
 

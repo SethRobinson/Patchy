@@ -2584,11 +2584,20 @@ void ui_dragged_image_file_opens_document_tab() {
   CHECK(drag_move.isAccepted());
 
   bool saw_open_progress = false;
-  QTimer::singleShot(0, [&] { verify_open_progress_dialog(QStringLiteral("drag-open.png"), saw_open_progress); });
 
   QDropEvent drop(QPointF(drop_position), Qt::CopyAction, &mime_data, Qt::LeftButton, Qt::NoModifier);
   QApplication::sendEvent(canvas, &drop);
+  CHECK(tabs->count() == 1);
+  std::exception_ptr progress_error;
+  QTimer::singleShot(0, &window, [&] {
+    try {
+      verify_open_progress_dialog(QStringLiteral("drag-open.png"), saw_open_progress);
+    } catch (...) {
+      progress_error = std::current_exception();
+    }
+  });
   QApplication::processEvents();
+  if (progress_error) std::rethrow_exception(progress_error);
 
   CHECK(drop.isAccepted());
   CHECK(saw_open_progress);
@@ -2610,6 +2619,35 @@ void ui_dragged_image_file_opens_document_tab() {
   CHECK(layer_list->currentItem()->isSelected());
   CHECK(active_layer_info->text().contains(QStringLiteral("drag-open")));
   CHECK(color_close(canvas_pixel_center(*canvas, QPoint(2, 1)), QColor(30, 200, 240), 8));
+}
+
+void ui_file_drop_discards_work_when_owner_closes() {
+  ensure_artifact_dir();
+  const auto path = QFileInfo(QStringLiteral("test-artifacts/drop-closed-window.png")).absoluteFilePath();
+  QImage source(6, 4, QImage::Format_RGB32);
+  source.fill(QColor(30, 60, 90));
+  CHECK(source.save(path));
+
+  for (const bool destroy_owner : {false, true}) {
+    auto window = std::make_unique<patchy::ui::MainWindow>();
+    show_window_empty(*window);
+    {
+      QMimeData mime;
+      mime.setUrls({QUrl::fromLocalFile(path)});
+      QDragEnterEvent enter(QPoint(50, 50), Qt::CopyAction, &mime, Qt::LeftButton, Qt::NoModifier);
+      QApplication::sendEvent(window.get(), &enter);
+      CHECK(enter.isAccepted());
+      QDropEvent drop(QPointF(50, 50), Qt::CopyAction, &mime, Qt::LeftButton, Qt::NoModifier);
+      QApplication::sendEvent(window.get(), &drop);
+      CHECK(drop.isAccepted());
+    }
+    CHECK(patchy::ui::MainWindowTestAccess::session_count(*window) == 0);
+    CHECK(window->close());
+    if (destroy_owner) window.reset();
+    QApplication::processEvents();
+    if (window) CHECK(patchy::ui::MainWindowTestAccess::session_count(*window) == 0);
+    CHECK(find_top_level_dialog(QStringLiteral("openProgressDialog")) == nullptr);
+  }
 }
 
 void ui_reported_psd_open_shows_progress_dialog_if_available() {
@@ -2643,7 +2681,6 @@ void ui_reported_psd_open_shows_progress_dialog_if_available() {
 
   bool saw_open_progress = false;
   const auto expected_file_name = QFileInfo(psd_path).fileName();
-  QTimer::singleShot(0, [&] { verify_open_progress_dialog(expected_file_name, saw_open_progress); });
   const auto compatibility_report_done = std::make_shared<bool>(false);
   accept_compatibility_report_when_present(compatibility_report_done);
 
@@ -2651,8 +2688,18 @@ void ui_reported_psd_open_shows_progress_dialog_if_available() {
   // bar (the popup only appears when imports/showPsdWarningsAndInfo is enabled).
   QDropEvent drop(QPointF(drop_position), Qt::CopyAction, &mime_data, Qt::LeftButton, Qt::NoModifier);
   QApplication::sendEvent(canvas, &drop);
+  CHECK(tabs->count() == original_tab_count);
+  std::exception_ptr progress_error;
+  QTimer::singleShot(0, &window, [&] {
+    try {
+      verify_open_progress_dialog(expected_file_name, saw_open_progress);
+    } catch (...) {
+      progress_error = std::current_exception();
+    }
+  });
   QApplication::processEvents();
   *compatibility_report_done = true;
+  if (progress_error) std::rethrow_exception(progress_error);
 
   CHECK(drop.isAccepted());
   CHECK(saw_open_progress);
@@ -3225,6 +3272,7 @@ std::vector<patchy::test::TestCase> import_print_resolution_tests() {
        ui_imported_image_density_follows_photoshop_conventions},
       {"ui_ruler_unit_preference_changes_ruler_ticks", ui_ruler_unit_preference_changes_ruler_ticks},
       {"ui_dragged_image_file_opens_document_tab", ui_dragged_image_file_opens_document_tab},
+      {"ui_file_drop_discards_work_when_owner_closes", ui_file_drop_discards_work_when_owner_closes},
       {"ui_reported_psd_open_shows_progress_dialog_if_available",
        ui_reported_psd_open_shows_progress_dialog_if_available},
       {"ui_qimage_render_respects_hidden_layer_groups", ui_qimage_render_respects_hidden_layer_groups},
