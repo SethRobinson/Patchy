@@ -216,6 +216,7 @@ struct RawPreviewState {
   std::atomic<bool> closed{false};
   struct Lane {
     bool in_flight{false};
+    int progress_percent{0}; // GUI-thread state for this lane's active request.
     std::optional<Work> active;
     std::optional<Work> pending;
     std::shared_ptr<raw::DevelopSession> session;
@@ -691,6 +692,22 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
     return false;
   };
   const auto set_busy_status = [&](const QString& text) { status_label->setText(text); };
+  const auto show_open_progress = [&] {
+    // Before the first draft completes, Open is waiting for the source snapshot.
+    // Afterwards it joins accurate processing, preserving any progress already made.
+    const bool accurate = displayed_draft.has_value();
+    const auto& lane = state->lane(accurate);
+    const int percent = lane.active && lane.active->generation == state->generation.load() &&
+        lane.active->params == final_params ? lane.progress_percent : 0;
+    dialog.setProperty("rawProgressPercent", percent);
+    dialog.setProperty("rawProgressAccurate", accurate);
+    if (!accurate) {
+      set_busy_status(QObject::tr("Preparing RAW... %1%").arg(percent));
+    } else {
+      set_busy_status((final_params.half_size ? QObject::tr("Developing half size... %1%")
+                                            : QObject::tr("Developing full resolution... %1%")).arg(percent));
+    }
+  };
   const auto request_preview = [&](bool accurate) {
     if (accepting || state->closed) return;
     read_params_from_widgets();
@@ -844,13 +861,23 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
       if (accepting) finish_open();
     } else {
       displayed_draft = completion.params;
-      set_busy_status(QObject::tr("Quick preview - waiting to refine"));
-      if (accepting) enqueue_raw_develop(state, final_params, true);
-      else if (refinement_due && !sliders_dragging()) request_preview(true);
+      if (accepting) {
+        show_open_progress();
+        enqueue_raw_develop(state, final_params, true);
+      } else {
+        set_busy_status(QObject::tr("Quick preview - waiting to refine"));
+        if (refinement_due && !sliders_dragging()) request_preview(true);
+      }
     }
   };
 
   state->progress = [&](int percent, bool accurate) {
+    state->lane(accurate).progress_percent = percent;
+    if (accepting) {
+      // Draft completions/progress must not replace Open's accurate progress.
+      show_open_progress();
+      return;
+    }
     dialog.setProperty("rawProgressPercent", percent);
     dialog.setProperty("rawProgressAccurate", accurate);
     if (accurate) set_busy_status(QObject::tr("Refining... %1%").arg(percent));
@@ -876,6 +903,8 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
     auto& lane = state->lane(work.final_render);
     lane.in_flight = true;
     lane.active = work;
+    lane.progress_percent = 0;
+    if (state->progress) state->progress(0, work.final_render);
     auto* app = QCoreApplication::instance();
     run_tracked_background_worker([state, work, app]() mutable {
       RawPreviewState::Completion completion;
@@ -1088,12 +1117,14 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
     read_params_from_widgets();
     final_params = params;
     set_controls_enabled(false);
-    set_busy_status(final_params.half_size ? QObject::tr("Developing half size...")
-                                           : QObject::tr("Developing full resolution..."));
     debounce->stop();
     refine->stop();
-    if (accurate_cache && accurate_cache->params == final_params) finish_open();
-    else if (displayed_draft) enqueue_raw_develop(state, final_params, true);
+    if (accurate_cache && accurate_cache->params == final_params) {
+      finish_open();
+      return;
+    }
+    show_open_progress();
+    if (displayed_draft) enqueue_raw_develop(state, final_params, true);
     else {
       // Initial file loading must publish its immutable byte snapshot before
       // another lane starts. Complete the first draft, then accept accurately.

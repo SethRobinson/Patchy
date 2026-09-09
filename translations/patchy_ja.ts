@@ -14,6 +14,7 @@
     <message><source>Progress is estimated from processing stages. Some stages report only when complete.</source><translation>進捗率は処理段階から推定しています。完了時にのみ進捗を報告する段階もあります。</translation></message>
     <message><source>Refining... %1%</source><translation>高品質プレビューを処理中... %1%</translation></message>
     <message><source>Updating quick preview... %1%</source><translation>簡易プレビューを更新中... %1%</translation></message>
+    <message><source>Preparing RAW... %1%</source><translation>RAWを準備中... %1%</translation></message>
     <message><source>Quick preview - waiting to refine</source><translation>簡易プレビュー: 高品質処理を待機中</translation></message>
     <message><source>Rendering</source><translation>仕上がり</translation></message>
     <message><source>Natural</source><translation>ナチュラル</translation></message>
@@ -682,12 +683,12 @@ RGB: %2, %3, %4</translation></message>
         <translation>プレビューを現像中...</translation>
     </message>
     <message>
-        <source>Developing full resolution...</source>
-        <translation>フル解像度で現像中...</translation>
+        <source>Developing full resolution... %1%</source>
+        <translation>フル解像度で現像中... %1%</translation>
     </message>
     <message>
-        <source>Developing half size...</source>
-        <translation>1/2 サイズで現像中...</translation>
+        <source>Developing half size... %1%</source>
+        <translation>1/2 サイズで現像中... %1%</translation>
     </message>
     <message>
         <source>Could not read %1</source>

@@ -158,6 +158,12 @@ hold their last percentage; there is no elapsed-time animation. The dialog shows
 percentages while updating/refining, ignores stale reports, and caps them at 99
 until image/document conversion completes. Idle drafts are labeled as waiting for
 refinement. Percentages describe processing work, not estimated time remaining.
+Open immediately displays the matching accurate request's existing percentage
+and continues it under the full-resolution or half-size developing message; it
+does not restart matching work. An early Open labels the initial draft stage as
+Preparing RAW with its own percentage, then switches to accurate development.
+Draft progress cannot overwrite that accurate Open status. A matching completed
+accurate result still opens directly from the cache.
 
 `ZoomableImagePreview` has logical output dimensions independent of its current
 bitmap. Draft replacement preserves fit mode, zoom, pan, and image coordinates.

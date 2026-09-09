@@ -741,6 +741,8 @@ void ui_raw_quick_edits_preempt_refinement_and_initial_open_waits() {
     } else if (stage == 4 && dialog.property("rawPreviewAccurate").toBool()) {
       CHECK(dialog.property("rawProgressPercent").toInt() == 100);
       dialog.findChild<QPushButton*>(QStringLiteral("rawOpenButton"))->click();
+      CHECK(dialog.result() == QDialog::Accepted); // Cached accurate pixels open immediately.
+      CHECK(dialog.property("rawProgressPercent").toInt() == 100);
     }
   });
   CHECK(quick_update && outcome.has_value() && outcome->params.contrast == 35);
@@ -751,14 +753,85 @@ void ui_raw_quick_edits_preempt_refinement_and_initial_open_waits() {
     CHECK(std::equal(actual_pixels.row(y).begin(), actual_pixels.row(y).end(), expected_pixels.row(y).begin()));
   QFile::remove(raw_develop_settings_path(path));
   bool clicked = false;
+  bool saw_open_progress = false;
   const auto initial = raw_test_dialog(path, [&](QDialog& dialog) {
-    if (clicked) return;
-    clicked = true;
-    dialog.findChild<QSlider*>(QStringLiteral("rawSaturationSlider"))->setValue(10);
-    dialog.findChild<QPushButton*>(QStringLiteral("rawOpenButton"))->click();
+    if (!clicked) {
+      clicked = true;
+      dialog.findChild<QSlider*>(QStringLiteral("rawSaturationSlider"))->setValue(10);
+      dialog.findChild<QPushButton*>(QStringLiteral("rawOpenButton"))->click();
+    }
+    auto* label = dialog.findChild<QLabel*>(QStringLiteral("rawDevelopStatus"));
+    CHECK(label != nullptr);
+    const int percent = dialog.property("rawProgressPercent").toInt();
+    if (percent == 100) {
+      CHECK(dialog.property("rawPreviewAccurate").toBool());
+      CHECK(label->text().isEmpty());
+      return; // Processing is complete; saving/closing can still deliver a timer.
+    }
+    CHECK(percent >= 0 && percent < 100);
+    const bool accurate = dialog.property("rawProgressAccurate").toBool();
+    const auto text = accurate ? QObject::tr("Developing full resolution... %1%")
+                               : QObject::tr("Preparing RAW... %1%");
+    CHECK(label->text() == text.arg(percent));
+    saw_open_progress = saw_open_progress || (accurate && percent > 0);
   });
-  CHECK(clicked && initial.has_value() && initial->params.saturation == 10);
+  CHECK(clicked && saw_open_progress && initial.has_value() && initial->params.saturation == 10);
   CHECK(initial->document.width() == 2601 && initial->document.height() == 1703);
+}
+
+void ui_raw_open_progress_continues_matching_refinement() {
+  using namespace patchy::ui;
+  const auto path = write_raw_dng_fixture(QStringLiteral("raw_open_progress.dng"));
+  patchy::test::SyntheticDngOptions fixture;
+  fixture.iso = 5000;
+  fixture.horizontal_ramp = true;
+  const auto bytes = patchy::test::synthetic_bayer_dng(2601, 1703, fixture);
+  raw_test_write(path, QByteArray(reinterpret_cast<const char*>(bytes.data()), static_cast<qsizetype>(bytes.size())));
+  for (const bool half_size : {false, true}) {
+    QFile::remove(raw_develop_settings_path(path));
+    bool configured = false;
+    bool clicked_open = false;
+    bool advanced = false;
+    int previous_percent = 0;
+    const auto result = raw_test_dialog(path, [&](QDialog& dialog) {
+      if (!configured) {
+        configured = true;
+        dialog.findChild<QCheckBox*>(QStringLiteral("rawHalfSizeCheck"))->setChecked(half_size);
+        return;
+      }
+      const bool accurate = dialog.property("rawProgressAccurate").toBool();
+      const int percent = dialog.property("rawProgressPercent").toInt();
+      auto* label = dialog.findChild<QLabel*>(QStringLiteral("rawDevelopStatus"));
+      auto* button = dialog.findChild<QPushButton*>(QStringLiteral("rawOpenButton"));
+      CHECK(label != nullptr && button != nullptr);
+      if (!clicked_open) {
+        if (!accurate || percent < 20 || percent >= 80) return;
+        previous_percent = percent;
+        clicked_open = true;
+        button->click();
+        // Open joins the active accurate decode, including its last checkpoint.
+        CHECK(dialog.property("rawProgressPercent").toInt() == percent);
+        save_widget_artifact(half_size ? "ui_raw_open_half_progress" : "ui_raw_open_full_progress", dialog);
+      } else {
+        CHECK(accurate);
+        CHECK(percent >= previous_percent && percent <= 100);
+        if (percent == 100) {
+          CHECK(dialog.property("rawPreviewAccurate").toBool());
+          CHECK(label->text().isEmpty());
+          return; // A completed image is already ready for the import.
+        }
+        advanced = advanced || percent > previous_percent;
+        previous_percent = percent;
+      }
+      CHECK(!button->isEnabled());
+      const auto text = half_size ? QObject::tr("Developing half size... %1%")
+                                  : QObject::tr("Developing full resolution... %1%");
+      CHECK(label->text() == text.arg(percent));
+    });
+    CHECK(clicked_open && advanced && result.has_value());
+    CHECK(result->document.width() == (half_size ? 1301 : 2601));
+    CHECK(result->document.height() == (half_size ? 852 : 1703));
+  }
 }
 
 void ui_raw_dialog_auto_controls_and_open_during_refinement() {
@@ -1349,6 +1422,7 @@ void ui_heif_open_is_read_only_if_available() {
 std::vector<patchy::test::TestCase> camera_raw_heif_tests() {
   return {
       {"ui_raw_quick_edits_preempt_refinement_and_initial_open_waits", ui_raw_quick_edits_preempt_refinement_and_initial_open_waits},
+      {"ui_raw_open_progress_continues_matching_refinement", ui_raw_open_progress_continues_matching_refinement},
       {"ui_raw_legacy_sidecars_preserve_processing_and_upgrade_explicitly", ui_raw_legacy_sidecars_preserve_processing_and_upgrade_explicitly},
       {"ui_raw_sidecar_round_trips_unicode_and_preserves_unknown_fields", ui_raw_sidecar_round_trips_unicode_and_preserves_unknown_fields},
       {"ui_raw_sidecar_rejects_invalid_and_preserves_failed_writes", ui_raw_sidecar_rejects_invalid_and_preserves_failed_writes},
