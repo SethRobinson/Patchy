@@ -138,6 +138,8 @@ These are corpus-specific results, not universal product ratings. See the [full 
 
 ## Download
 
+**Latest release: 0.92** · September 9, 2026 · [Release notes](#whats-new)
+
 Windows releases are code signed by Seth A. Robinson; the macOS app is signed and
 notarized (Robinson Technologies Corporation).
 

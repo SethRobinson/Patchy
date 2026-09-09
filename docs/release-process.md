@@ -16,6 +16,8 @@ When bumping the release version, update the version fields:
 - `CMakeLists.txt` (`project(... VERSION x.y)`)
 - `latest_version.json` — the per-platform `version` entries: windows always; macos/linux only when those artifacts actually ship. This is the update-check manifest served to the app from raw.githubusercontent.com on main, and only takes effect once pushed.
 - The `<release>` tag in `packaging/linux/com.rtsoft.patchy.metainfo.xml`
+- The latest-release line in `README.md`'s Download section, with the published
+  version and release date matching the newest "What's New" entry.
 - A new top entry under `README.md`'s "What's New" section for that version,
   dated with the release date and summarizing the user-visible changes.
 - Keep only the two newest release entries in `README.md`. After adding the new
