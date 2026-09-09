@@ -32,13 +32,10 @@ Everything reads AND writes except camera raw, HEIF/HEIC, and .af (read-only); J
 
 ## Camera raw (CR2/CR3/NEF/ARW/RAF/DNG, ...)
 
-Vendored LibRaw 0.22.1 (`src/formats/libraw/`, static `patchy_libraw`, PRIVATE into `patchy_formats`; public header LibRaw-free). Licensing/build rules: the CMake comment + NOTICE-THIRD-PARTY.md (CDDL-1.0 elected; stock tarball only, demosaic packs are GPL).
-
-- `raw_document_io.{hpp,cpp}`: LibRaw develops to 16-bit sRGB (set explicitly; LibRaw defaults to BT.709), then `raw_tone.{hpp,cpp}` applies contrast/highlights/shadows as one composed 65536-entry LUT (shadow lift pinned at black; highlight ramp deliberately NOT pinned at white so -100 dims blown areas) and saturation/vibrance before the rounded 8-bit bake. Defaults neutral. `DevelopSession` keeps unpacked sensor data so previews rerun without re-decoding. All decoding goes through `open_buffer`, never file paths (Windows wide paths).
-- `raw_white_balance.{hpp,cpp}`: temperature/tint to camera multipliers via `cam_xyz` (Planckian below 4000 K, CIE daylight above; tint = Duv offset), inverted by bisection so As Shot shows real kelvin; no usable matrix = treat as sRGB. LibRaw floats are NOT byte-stable across toolchains: raw tests assert statistics, never hashes.
-- The develop dialog intercepts raw opens when `imports/showRawDevelopDialog` (default true); previews develop half size on a worker, latest-wins. Settings persist under `imports/rawDevelop*` (never rename; `rawDevelopHighlights` stores the RECOVERY mode, the tonal slider uses `rawDevelopToneHighlights`). Preference off and all headless paths: neutral defaults, as-shot WB, AHD.
-- Read-only sources: no writer, empty save_extensions; `save_document()` routes to Save As defaulting `<basename>.psd` (`is_read_only_source_extension`). `raw::camera_raw_extensions()` is the single source of truth; ambiguous `.raw` excluded; TIFF-based raws stay on Qt.
-- Tests: `tests/synthetic_dng.hpp`; real samples in untracked `local-test-fixtures/raw/`, skipped when absent. Clean-error gaps: lossy/deflate DNG, JPEG-XL DNG 1.7, Nikon High Efficiency NEF.
+Read-only LibRaw import through `raw_document_io.{hpp,cpp}`. Decoder, precision,
+licensing, settings, and tests: [camera-raw.md](camera-raw.md). The dialog restores
+global last-used adjustments; its forced half-size processing and downsampling
+have preview quality limitations documented there.
 
 ## HEIF/HEIC (.heic/.heif/.hif)
 
