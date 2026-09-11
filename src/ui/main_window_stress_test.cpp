@@ -266,6 +266,7 @@ CanvasWidget::RenderCacheDiagnostics diag_delta(const CanvasWidget::RenderCacheD
   delta.full_refreshes = diag_field_delta(before.full_refreshes, after.full_refreshes);
   delta.partial_patches = diag_field_delta(before.partial_patches, after.partial_patches);
   delta.move_precommit_patches = diag_field_delta(before.move_precommit_patches, after.move_precommit_patches);
+  delta.move_deferred_commits = diag_field_delta(before.move_deferred_commits, after.move_deferred_commits);
   delta.forced_refreshes = diag_field_delta(before.forced_refreshes, after.forced_refreshes);
   delta.dirty_region_batches = diag_field_delta(before.dirty_region_batches, after.dirty_region_batches);
   delta.dirty_region_rects = diag_field_delta(before.dirty_region_rects, after.dirty_region_rects);
@@ -292,6 +293,7 @@ QJsonObject diag_to_json(const CanvasWidget::RenderCacheDiagnostics& diag) {
   object.insert(QStringLiteral("full_refreshes"), diag.full_refreshes);
   object.insert(QStringLiteral("partial_patches"), diag.partial_patches);
   object.insert(QStringLiteral("move_precommit_patches"), diag.move_precommit_patches);
+  object.insert(QStringLiteral("move_deferred_commits"), diag.move_deferred_commits);
   object.insert(QStringLiteral("forced_refreshes"), diag.forced_refreshes);
   object.insert(QStringLiteral("dirty_region_batches"), diag.dirty_region_batches);
   object.insert(QStringLiteral("dirty_region_rects"), diag.dirty_region_rects);

@@ -724,6 +724,7 @@ void CanvasWidget::grow_selection() {
     return;
   }
 
+  wait_for_move_commit_job();  // exact pixels: a deferred Move commit may still be rendering
   ensure_render_cache();
   if (render_cache_.isNull()) {
     return;
@@ -839,6 +840,7 @@ void CanvasWidget::select_similar_to_selection() {
     return;
   }
 
+  wait_for_move_commit_job();  // exact pixels: a deferred Move commit may still be rendering
   ensure_render_cache();
   if (render_cache_.isNull()) {
     return;

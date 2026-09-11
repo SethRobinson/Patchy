@@ -263,7 +263,12 @@ CanvasWidget::RenderCacheDiagnostics CanvasWidget::render_cache_diagnostics() co
 }
 
 bool CanvasWidget::render_settled() const noexcept {
-  return !render_cache_dirty_ && !async_render_cache_in_flight_ && vector_preview_settled();
+  return !render_cache_dirty_ && !async_render_cache_in_flight_ && !move_commit_job_.has_value() &&
+         vector_preview_settled();
+}
+
+bool CanvasWidget::move_commit_job_pending() const noexcept {
+  return move_commit_job_.has_value();
 }
 
 bool CanvasWidget::should_defer_full_refresh_to_async() const noexcept {
@@ -390,6 +395,7 @@ void CanvasWidget::notify_document_changed(DocumentChangeReason reason) {
 
 void CanvasWidget::document_changed() {
   clear_transform_commit_hold();
+  cancel_move_commit_job();
   cancel_async_render_cache_refresh();
   render_cache_dirty_ = true;
   // This overload bypasses document_changed_impl, so drop the preview-scaled
@@ -411,6 +417,7 @@ void CanvasWidget::document_changed() {
 
 void CanvasWidget::document_changed_async_preview() {
   clear_transform_commit_hold();
+  cancel_move_commit_job();
   if (document_ == nullptr || render_cache_.isNull() ||
       render_cache_.size() != QSize(document_->width(), document_->height())) {
     document_changed();
@@ -442,6 +449,7 @@ void CanvasWidget::force_refresh() {
   }
 
   clear_transform_commit_hold();
+  cancel_move_commit_job();
   cancel_async_render_cache_refresh();
   // Bypasses document_changed_impl: see the invalidation note in
   // document_changed().
@@ -492,6 +500,7 @@ void CanvasWidget::active_edit_target_changed_impl(QRegion document_region, Docu
   // invalidate the retained move caches up front (harmlessly repeated when
   // the plain branch falls through to document_changed_impl).
   clear_transform_commit_hold();
+  cancel_move_commit_job();
   invalidate_retained_move_caches();
   if (quick_mask_active_) {
     const auto canvas_rect = document_ != nullptr
@@ -594,6 +603,14 @@ void CanvasWidget::document_changed_impl(QRegion document_region, bool includes_
     transform_commit_hold_fresh_ = false;
   } else {
     clear_transform_commit_hold();
+  }
+  if (move_commit_job_.has_value()) {
+    // The pending accurate patches would land on top of this change: drop the
+    // job and let this invalidation cover its stale region as well.
+    if (!document_region.isEmpty()) {
+      document_region += move_commit_job_->region;
+    }
+    cancel_move_commit_job();
   }
   if (layer_edit_target_ == LayerEditTarget::SmartFilterMask && !editing_smart_filter_mask()) {
     // Layer deletion can occur without replacing the Document object. Drop the
@@ -925,6 +942,25 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
     } else {
       for (const auto& patch : move_preview_patches_) {
         draw_document_patch(patch, !base_excludes_layer);
+      }
+    }
+  } else if (move_commit_job_.has_value() && !move_commit_hold_base_.isNull() &&
+             !(deep_pixel_renderer && move_commit_hold_scale_level_ > 0)) {
+    // Deferred Move commit: the accurate patches are still rendering, so keep
+    // the commit-time preview frame (base plus the moved content at its
+    // committed place). Transient by construction: the raw smooth downscale
+    // at zoom < 1 is acceptable, and a mip-sized hold skips the deep-zoom
+    // per-pixel renderer like the transform hold does.
+    draw_scaled_image(move_commit_hold_base_);
+    if (!move_commit_hold_proxy_.isNull()) {
+      painter.drawImage(widget_rect_for_document_rect(QRectF(move_commit_hold_proxy_rect_)), move_commit_hold_proxy_,
+                        QRectF(move_commit_hold_proxy_.rect()));
+    } else {
+      for (const auto& patch : move_commit_hold_patches_) {
+        if (!patch.image.isNull() && !patch.document_rect.isEmpty()) {
+          painter.drawImage(widget_rect_for_document_rect(QRectF(patch.document_rect)), patch.image,
+                            QRectF(patch.image.rect()));
+        }
       }
     }
   } else if (patch_tool_dragging_ && !patch_tool_source_image_.isNull()) {
@@ -1464,6 +1500,8 @@ void CanvasWidget::ensure_move_base_cache() {
     }
   }
   move_base_cache_scale_level_ = 0;
+  // The full-res base patches the render cache, which must be exact first.
+  wait_for_move_commit_job();
   // Recompositing the whole document (with the moving layers hidden) is very
   // slow on heavy PSDs and caused a multi-second hitch at the start of a drag.
   // Instead reuse the already-composited render cache and only re-render the
@@ -1506,6 +1544,144 @@ void CanvasWidget::ensure_move_base_cache() {
     painter.end();
   }
   move_base_cache_ = std::move(base);
+}
+
+bool CanvasWidget::can_hold_move_commit_preview(QPoint commit_delta) const noexcept {
+  if constexpr (kBackgroundWorkRunsInline) {
+    return false;  // no worker to defer to
+  }
+  if (move_base_cache_.isNull() || moving_layers_use_outline_preview_) {
+    return false;
+  }
+  if (move_drag_uses_proxy_preview_) {
+    // A canvas-clipped proxy (the usual case for a big styled layer) is missing
+    // the content that enters from off-canvas; the hold shows a transient gap
+    // there until the patches land, which beats freezing for the render.
+    return !move_proxy_image_.isNull();
+  }
+  return !move_preview_patches_.empty() && move_preview_patches_rendered_delta_.has_value() &&
+         *move_preview_patches_rendered_delta_ == commit_delta;
+}
+
+void CanvasWidget::arm_move_commit_hold(QPoint commit_delta) {
+  move_commit_hold_base_ = move_base_cache_;
+  move_commit_hold_scale_level_ = move_base_cache_scale_level_;
+  if (move_drag_uses_proxy_preview_ && !move_proxy_image_.isNull()) {
+    move_commit_hold_proxy_ = move_proxy_image_;
+    move_commit_hold_proxy_rect_ = move_proxy_document_rect_.translated(commit_delta);
+    move_commit_hold_patches_.clear();
+  } else {
+    move_commit_hold_proxy_ = QImage();
+    move_commit_hold_proxy_rect_ = QRect();
+    move_commit_hold_patches_ = move_preview_patches_;
+  }
+}
+
+void CanvasWidget::clear_move_commit_hold() noexcept {
+  move_commit_hold_base_ = QImage();
+  move_commit_hold_scale_level_ = 0;
+  move_commit_hold_proxy_ = QImage();
+  move_commit_hold_proxy_rect_ = QRect();
+  move_commit_hold_patches_.clear();
+}
+
+void CanvasWidget::start_move_commit_job(const QRegion& document_region) {
+  if (document_ == nullptr) {
+    return;
+  }
+  auto region = document_region.intersected(QRect(0, 0, document_->width(), document_->height()));
+  if (move_commit_job_.has_value()) {
+    // One job over both regions: the earlier result is stale now.
+    region += move_commit_job_->region;
+  }
+  if (region.isEmpty()) {
+    cancel_move_commit_job();
+    return;
+  }
+  const auto generation = ++move_commit_job_generation_;
+  auto snapshot = std::make_shared<const Document>(*document_);
+  auto promise = std::make_shared<std::promise<std::vector<RenderedDocumentPatch>>>();
+  MoveCommitJob job;
+  job.generation = generation;
+  job.region = region;
+  job.result = promise->get_future().share();
+  move_commit_job_ = std::move(job);
+  ++render_cache_diagnostics_.move_deferred_commits;
+  auto* app = QApplication::instance();
+  QPointer<CanvasWidget> widget(this);
+  run_tracked_background_worker([app, widget, generation, snapshot, region, promise] {
+    std::vector<RenderedDocumentPatch> patches;
+    try {
+      if (const auto delay = processing_render_test_delay_ms(); delay > 0) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(delay));
+      }
+      patches = qimage_patches_from_document_region(*snapshot, region, true);
+      for (auto& patch : patches) {
+        patch.image = patch.image.convertToFormat(QImage::Format_RGBA8888);
+      }
+    } catch (...) {
+      patches.clear();
+    }
+    promise->set_value(std::move(patches));
+    if (app == nullptr) {
+      return;
+    }
+    QMetaObject::invokeMethod(
+        app,
+        [widget, generation] {
+          if (widget != nullptr) {
+            widget->finish_move_commit_job(generation);
+          }
+        },
+        Qt::QueuedConnection);
+  });
+}
+
+void CanvasWidget::finish_move_commit_job(std::uint64_t generation) {
+  if (!move_commit_job_.has_value() || move_commit_job_->generation != generation) {
+    return;  // cancelled or superseded; a later completion owns the cache
+  }
+  auto job = std::move(*move_commit_job_);
+  move_commit_job_.reset();
+  clear_move_commit_hold();
+  std::vector<RenderedDocumentPatch> patches;
+  try {
+    patches = job.result.get();
+  } catch (...) {
+    patches.clear();
+  }
+  const bool landed = !patches.empty() && !render_cache_dirty_ && document_ != nullptr && !render_cache_.isNull() &&
+                      render_cache_.size() == QSize(document_->width(), document_->height()) &&
+                      patch_render_cache_patches(patches);
+  if (landed) {
+    ++render_cache_diagnostics_.move_precommit_patches;
+  } else {
+    // The region is stale either way; a normal refresh repairs it.
+    render_cache_dirty_ = true;
+    invalidate_display_mip_cache();
+  }
+  if (isVisible()) {
+    update();
+  }
+}
+
+void CanvasWidget::cancel_move_commit_job() noexcept {
+  // The queued completion finds no job with its generation and does nothing.
+  move_commit_job_.reset();
+  clear_move_commit_hold();
+}
+
+void CanvasWidget::wait_for_move_commit_job() {
+  if (!move_commit_job_.has_value()) {
+    return;
+  }
+  const auto generation = move_commit_job_->generation;
+  auto result = move_commit_job_->result;
+  wait_for_processing_operation(
+      [&result] { return result.wait_for(std::chrono::milliseconds(16)) == std::future_status::ready; }, true);
+  // The pump may have delivered a document change that cancelled or replaced
+  // the job; finish() checks the generation itself.
+  finish_move_commit_job(generation);
 }
 
 void CanvasWidget::clear_move_base_cache() noexcept {

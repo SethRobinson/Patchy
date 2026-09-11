@@ -1204,6 +1204,7 @@ bool CanvasWidget::prepare_free_transform_source() {
 // its effects) occupies, with the layer hidden via a visibility override so
 // no revision-bumping visibility toggle is needed.
 void CanvasWidget::rebuild_transform_base_cache() {
+  wait_for_move_commit_job();  // the base patches the render cache, which must be exact
   transform_base_cache_ = QImage();
   transform_base_cache_scale_level_ = 0;
   transform_base_display_mip_cache_.clear();

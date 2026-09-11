@@ -1637,6 +1637,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
         }
         move_preview_patches_scale_level_ = composite_level;
         move_preview_patches_delta_.reset();
+        move_preview_patches_rendered_delta_ = move_preview_delta_;
       } else {
         move_preview_patches_scale_level_ = 0;
         move_preview_patches_ = qimage_patches_from_document_region_with_layer_bounds(
@@ -1645,6 +1646,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
           patch.image = patch.image.convertToFormat(QImage::Format_RGBA8888);
         }
         move_preview_patches_delta_ = move_preview_delta_;
+        move_preview_patches_rendered_delta_ = move_preview_delta_;
       }
       const auto patch_render_ms =
           std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - patch_render_start).count();
@@ -2084,6 +2086,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     bool attempted_precommit_patch = false;
     bool used_precommit_patch = false;
     bool reused_preview_patch = false;
+    bool defer_accurate_patches = false;
     const auto move_layer_count = committed_layers.size();
     const auto move_operation_active = !commit_delta.isNull();
     const bool rerender_smart_filters =
@@ -2145,10 +2148,20 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
               moving_layers_use_outline_preview_ || move_drag_uses_proxy_preview_ ||
               std::any_of(committed_layers.begin(), committed_layers.end(),
                           [](const MovingLayer& layer) { return layer.expensive_style; });
-          precommit_patches =
-              render_document_patches_with_processing(patched_region, final_bounds, force_processing_wait);
-          for (auto& patch : precommit_patches) {
-            patch.image = patch.image.convertToFormat(QImage::Format_RGBA8888);
+          if ((force_processing_wait || dirty_region_should_use_processing_wait(patched_region)) &&
+              can_hold_move_commit_preview(commit_delta)) {
+            // Deferred commit: this render would block behind the processing
+            // overlay (a 4000x2781 styled poster paid 9-19 s per release,
+            // September 2026). Mutate now, keep the preview frame on screen,
+            // and render the accurate patches on a worker (start_move_commit_job).
+            defer_accurate_patches = true;
+            arm_move_commit_hold(commit_delta);
+          } else {
+            precommit_patches =
+                render_document_patches_with_processing(patched_region, final_bounds, force_processing_wait);
+            for (auto& patch : precommit_patches) {
+              patch.image = patch.image.convertToFormat(QImage::Format_RGBA8888);
+            }
           }
         }
       }
@@ -2204,7 +2217,16 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     // the same selection.
     bool retain_move_caches = false;
     if (!dirty_region.isEmpty()) {
-      if (!precommit_patches.empty() && patch_render_cache_patches(precommit_patches)) {
+      if (defer_accurate_patches) {
+        start_move_commit_job(patched_region);
+        retain_move_caches = true;
+        retarget_preview_scaled_for_committed_move(committed_move_ids);
+        if (async_render_cache_in_flight_) {
+          async_render_cache_pending_ = true;
+        }
+        notify_document_changed();
+        update();
+      } else if (!precommit_patches.empty() && patch_render_cache_patches(precommit_patches)) {
         ++render_cache_diagnostics_.move_precommit_patches;
         if (reused_preview_patch) {
           ++render_cache_diagnostics_.move_preview_patch_reuses;
@@ -2257,7 +2279,8 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
                 << trace_dirty.width() << "," << trace_dirty.height() << " layers=" << move_layer_count
                 << " precommit_attempted=" << (attempted_precommit_patch ? 1 : 0)
                 << " precommit_patched=" << (used_precommit_patch ? 1 : 0)
-                << " preview_reused=" << (reused_preview_patch ? 1 : 0) << " elapsed_ms=" << elapsed.count()
+                << " preview_reused=" << (reused_preview_patch ? 1 : 0)
+                << " deferred=" << (defer_accurate_patches ? 1 : 0) << " elapsed_ms=" << elapsed.count()
                 << '\n';
     }
     return;

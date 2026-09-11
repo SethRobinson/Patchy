@@ -1,4 +1,5 @@
 #include "ui/image_document_io.hpp"
+#include "ui/memory_info.hpp"
 #include "ui/qt_paths.hpp"
 
 #include "core/blend_math.hpp"
@@ -765,12 +766,9 @@ public:
 
   void store(const StyleMaskCacheKey& key, StyleMaskCacheValue value) {
     const auto bytes = value_bytes(value);
-#ifdef Q_OS_WASM
-    // Same heap-ratchet rationale as the styled-image cache above.
-    constexpr std::size_t kMaxBytes = 48U * 1024U * 1024U;
-#else
-    constexpr std::size_t kMaxBytes = 256U * 1024U * 1024U;
-#endif
+    // RAM-scaled on desktop, fixed and small on wasm (see memory_info.hpp): a
+    // styled poster's masks must all fit or every render recomputes them all.
+    const std::size_t kMaxBytes = style_mask_cache_budget_bytes();
     if (bytes > kMaxBytes || value.entry == nullptr) {
       abandon(key);
       return;

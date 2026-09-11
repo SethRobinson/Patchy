@@ -287,6 +287,7 @@ void CanvasWidget::set_document_internal(Document* document, bool preserve_frame
   cancel_path_transform();
   clear_preview_scaled_document();
   clear_transform_commit_hold();  // a held commit frame belongs to the outgoing state
+  cancel_move_commit_job();
   active_document_path_.reset();
   path_selected_anchors_.clear();
   extra_selected_anchors_.clear();
@@ -1077,6 +1078,7 @@ void CanvasWidget::set_curves_clipping_preview(std::optional<CurvesClippingMode>
   curves_clipping_mode_ = mode;
   curves_clipping_channel_ = mode.has_value() ? channel : std::nullopt;
   if (mode.has_value()) {
+    wait_for_move_commit_job();  // the clipping preview scans exact composite pixels
     const bool cache_needs_refresh =
         document_ != nullptr &&
         (render_cache_dirty_ || render_cache_.size() != QSize(document_->width(), document_->height()));

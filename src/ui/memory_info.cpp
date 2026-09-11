@@ -202,4 +202,23 @@ std::size_t history_memory_budget_bytes() {
 #endif
 }
 
+std::size_t style_mask_cache_budget_bytes() {
+  if (qEnvironmentVariableIsSet("PATCHY_STYLE_MASK_BUDGET_TEST_MB")) {
+    const qint64 mb = std::clamp<qint64>(qEnvironmentVariableIntValue("PATCHY_STYLE_MASK_BUDGET_TEST_MB"), 0, 8192);
+    return static_cast<std::size_t>(mb) * 1024U * 1024U;
+  }
+#ifdef Q_OS_WASM
+  // Same heap-ratchet rationale as the history budget: wasm linear memory
+  // never shrinks, so keep the mask planes small.
+  return 48U * 1024U * 1024U;
+#else
+  static const std::size_t default_budget = [] {
+    const qint64 ram_mb = total_physical_ram_mb();
+    const qint64 budget_mb = ram_mb > 0 ? std::clamp<qint64>(ram_mb / 8, 256, 2048) : 512;
+    return static_cast<std::size_t>(budget_mb) * 1024ULL * 1024ULL;
+  }();
+  return default_budget;
+#endif
+}
+
 }  // namespace patchy::ui

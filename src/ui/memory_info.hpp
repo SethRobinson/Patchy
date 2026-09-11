@@ -42,4 +42,13 @@ namespace patchy::ui {
 // PATCHY_HISTORY_BUDGET_TEST_MB (read on every call) exists for tests.
 [[nodiscard]] std::size_t history_memory_budget_bytes();
 
+// Byte budget for the process-wide layer-style mask LRU (the float EDT/blur
+// planes the compositor reuses across renders and strips). A fixed 256 MB held
+// only a few canvas-sized masks: a 4000x2781 poster with 26 styled layers needs
+// about 600 MB, so every render recomputed every mask (September 2026). A
+// fraction of physical RAM on desktop, small and fixed on wasm. The env
+// override PATCHY_STYLE_MASK_BUDGET_TEST_MB (read on every call) exists for
+// tests.
+[[nodiscard]] std::size_t style_mask_cache_budget_bytes();
+
 }  // namespace patchy::ui

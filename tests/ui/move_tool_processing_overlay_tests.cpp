@@ -2483,6 +2483,18 @@ void ui_move_expensive_styled_layer_uses_proxy_until_release() {
 
   send_mouse(canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton);
   QApplication::processEvents();
+  // A styled release defers its accurate patches behind the held preview
+  // frame (September 2026): the moved content is already in place on screen,
+  // and the precommit-patch counter lands with the worker's result.
+  const auto released_stats = canvas.render_cache_diagnostics();
+  CHECK(released_stats.move_deferred_commits == before_release_stats.move_deferred_commits + 1);
+  CHECK(color_close(canvas_pixel(canvas, moved_only_point), QColor(20, 90, 235), 45));
+  CHECK(color_close(canvas_pixel(canvas, old_only_point), QColor(Qt::white), 45));
+  const auto settle_deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+  while (!canvas.render_settled() && std::chrono::steady_clock::now() < settle_deadline) {
+    QApplication::processEvents();
+  }
+  CHECK(canvas.render_settled());
   const auto after_release_stats = canvas.render_cache_diagnostics();
   CHECK(after_release_stats.full_refreshes == before_release_stats.full_refreshes);
   CHECK(after_release_stats.move_precommit_patches == before_release_stats.move_precommit_patches + 1);
@@ -3094,7 +3106,9 @@ void ui_move_commit_ignores_reentrant_input_during_processing_wait() {
   QTimer::singleShot(300, canvas, inject);
 
   // Release at a position past the last live move so the commit renders
-  // fresh patches (the second wait) instead of reusing the live ones.
+  // fresh patches instead of reusing the live ones. Without a proxy and with
+  // the patches rendered at another delta the commit cannot hold a preview
+  // frame, so this stays the synchronous route (the second wait).
   send_mouse(*canvas, QEvent::MouseButtonRelease, start + QPoint(50, 0), Qt::LeftButton, Qt::NoButton);
   QApplication::processEvents();
   CHECK(injections_during_wait >= 1);
@@ -3927,6 +3941,164 @@ void ui_text_reedit_preserves_rich_text_spacing() {
   QApplication::processEvents();
 }
 
+// Deferred Move commit fixture: a blue 60x60 layer on white at zoom 1, the
+// proxy preview latched on the first live frame (PATCHY_MOVE_LIVE_LATCH_MS=0)
+// so the release takes the accurate-patch route, and a 400 ms worker delay so
+// the job is observably pending after the release returns.
+struct DeferredMoveScene {
+  patchy::ui::MainWindow window;
+  patchy::ui::CanvasWidget* canvas{nullptr};
+  patchy::LayerId layer_id{};
+  EnvironmentVariableRestorer restore_render_delay{"PATCHY_PROCESSING_RENDER_TEST_DELAY_MS"};
+  EnvironmentVariableRestorer restore_latch{"PATCHY_MOVE_LIVE_LATCH_MS"};
+
+  DeferredMoveScene() {
+    patchy::Document document(400, 300, patchy::PixelFormat::rgba8());
+    document.add_pixel_layer("Background",
+                             solid_pixels(400, 300, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+    patchy::Layer layer(document.allocate_layer_id(), "Deferred Move",
+                        solid_pixels(60, 60, patchy::PixelFormat::rgba8(), QColor(20, 90, 235)));
+    layer_id = layer.id();
+    layer.set_bounds(patchy::Rect{40, 40, 60, 60});
+    document.add_layer(std::move(layer));
+    document.set_active_layer(layer_id);
+    window.add_document_session(std::move(document), QStringLiteral("Deferred Move"));
+    show_window(window);
+    canvas = require_canvas(window);
+    canvas->set_tool(patchy::ui::CanvasTool::Move);
+    canvas->set_show_transform_controls(false);
+    canvas->set_auto_select_layer(false);
+    canvas->set_snap_enabled(false);
+    canvas->set_zoom(1.0);
+    canvas->set_selected_layer_ids({layer_id});
+    QApplication::processEvents();
+    canvas->force_refresh();
+    QApplication::processEvents();
+    settle();
+    qputenv("PATCHY_MOVE_LIVE_LATCH_MS", QByteArray("0"));
+    qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", QByteArray("400"));
+  }
+
+  void settle() {
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+    while (!canvas->render_settled() && std::chrono::steady_clock::now() < deadline) {
+      QApplication::processEvents();
+    }
+    CHECK(canvas->render_settled());
+  }
+
+  // Press at `from` (document space), two moves (the second one on the proxy),
+  // release 50 px right of the press; returns the release's elapsed ms.
+  double drag_right(QPoint from) {
+    const auto start = canvas->widget_position_for_document_point(from);
+    send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseMove, start + QPoint(20, 0), Qt::NoButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseMove, start + QPoint(40, 0), Qt::NoButton, Qt::LeftButton);
+    QApplication::processEvents();
+    const auto released = std::chrono::steady_clock::now();
+    send_mouse(*canvas, QEvent::MouseButtonRelease, start + QPoint(50, 0), Qt::LeftButton, Qt::NoButton);
+    return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - released).count();
+  }
+
+  int layer_x() {
+    const auto* layer = std::as_const(patchy::ui::MainWindowTestAccess::document(window)).find_layer(layer_id);
+    return layer != nullptr ? layer->bounds().x : -1;
+  }
+
+  QImage reference_image() {
+    qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", QByteArray("0"));
+    canvas->force_refresh();
+    settle();
+    return render_widget_image(*canvas);
+  }
+};
+
+// A Move release that would block behind the processing overlay mutates the
+// document at once, keeps the preview frame on screen, and lands the accurate
+// patches from a worker (a 4000x2781 styled poster paid 9-19 s per release).
+void ui_move_release_defers_accurate_patches_behind_a_hold() {
+  DeferredMoveScene scene;
+  const auto undo_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(scene.window);
+  const auto before = scene.canvas->render_cache_diagnostics();
+  const auto release_ms = scene.drag_right(QPoint(70, 70));
+  CHECK(release_ms < 300.0);
+  CHECK(scene.canvas->move_commit_job_pending());
+  CHECK(!scene.canvas->render_settled());
+  CHECK(scene.canvas->render_cache_diagnostics().move_deferred_commits == before.move_deferred_commits + 1);
+  CHECK(scene.layer_x() == 90);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(scene.window) == undo_before + 1);
+  // The hold already shows the layer at its committed place.
+  CHECK(color_close(canvas_pixel(*scene.canvas, QPoint(140, 70)), QColor(20, 90, 235), 8));
+  CHECK(color_close(canvas_pixel(*scene.canvas, QPoint(45, 70)), QColor(Qt::white), 8));
+
+  scene.settle();
+  CHECK(!scene.canvas->move_commit_job_pending());
+  CHECK(scene.canvas->render_cache_diagnostics().move_precommit_patches == before.move_precommit_patches + 1);
+  CHECK(color_close(canvas_pixel(*scene.canvas, QPoint(140, 70)), QColor(20, 90, 235), 8));
+  CHECK(color_close(canvas_pixel(*scene.canvas, QPoint(45, 70)), QColor(Qt::white), 8));
+  const auto committed = render_widget_image(*scene.canvas);
+  CHECK(images_equal_rgba(committed, scene.reference_image()));
+}
+
+// A document change while the job is pending (Undo here) drops the job and
+// refreshes the stale region itself.
+void ui_move_deferred_commit_yields_to_undo() {
+  DeferredMoveScene scene;
+  scene.drag_right(QPoint(70, 70));
+  CHECK(scene.canvas->move_commit_job_pending());
+  patchy::ui::MainWindowTestAccess::undo(scene.window);
+  QApplication::processEvents();
+  CHECK(!scene.canvas->move_commit_job_pending());
+  CHECK(scene.layer_x() == 40);
+  scene.settle();
+  CHECK(color_close(canvas_pixel(*scene.canvas, QPoint(45, 70)), QColor(20, 90, 235), 8));
+  CHECK(color_close(canvas_pixel(*scene.canvas, QPoint(140, 70)), QColor(Qt::white), 8));
+  const auto restored = render_widget_image(*scene.canvas);
+  CHECK(images_equal_rgba(restored, scene.reference_image()));
+}
+
+// Readers that need exact pixels (the Magic Wand with Sample All Layers reads
+// the composite) wait for the pending job instead of sampling the stale region.
+void ui_move_deferred_commit_serves_exact_pixels_to_readers() {
+  DeferredMoveScene scene;
+  scene.drag_right(QPoint(70, 70));
+  CHECK(scene.canvas->move_commit_job_pending());
+  scene.canvas->set_tool(patchy::ui::CanvasTool::MagicWand);
+  scene.canvas->set_wand_sample_all_layers(true);
+  const auto click = scene.canvas->widget_position_for_document_point(QPoint(140, 70));
+  send_mouse(*scene.canvas, QEvent::MouseButtonPress, click, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*scene.canvas, QEvent::MouseButtonRelease, click, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(!scene.canvas->move_commit_job_pending());
+  CHECK(scene.canvas->selected_document_rect() == QRect(90, 40, 60, 60));
+}
+
+// A second drag of the same layer while the first job is pending restarts one
+// job over both regions; the cache ends exact and both moves are undoable.
+void ui_move_second_drag_while_commit_pending_merges_jobs() {
+  DeferredMoveScene scene;
+  const auto undo_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(scene.window);
+  const auto before = scene.canvas->render_cache_diagnostics();
+  scene.drag_right(QPoint(70, 70));
+  CHECK(scene.canvas->move_commit_job_pending());
+  scene.drag_right(QPoint(120, 70));
+  CHECK(scene.canvas->move_commit_job_pending());
+  CHECK(scene.canvas->render_cache_diagnostics().move_deferred_commits == before.move_deferred_commits + 2);
+  CHECK(scene.layer_x() == 140);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(scene.window) == undo_before + 2);
+  scene.settle();
+  CHECK(!scene.canvas->move_commit_job_pending());
+  CHECK(color_close(canvas_pixel(*scene.canvas, QPoint(190, 70)), QColor(20, 90, 235), 8));
+  CHECK(color_close(canvas_pixel(*scene.canvas, QPoint(100, 70)), QColor(Qt::white), 8));
+  const auto committed = render_widget_image(*scene.canvas);
+  CHECK(images_equal_rgba(committed, scene.reference_image()));
+  patchy::ui::MainWindowTestAccess::undo(scene.window);
+  patchy::ui::MainWindowTestAccess::undo(scene.window);
+  QApplication::processEvents();
+  scene.settle();
+  CHECK(scene.layer_x() == 40);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> move_tool_processing_overlay_tests() {
@@ -4016,6 +4188,13 @@ std::vector<patchy::test::TestCase> move_tool_processing_overlay_tests() {
       {"ui_move_repeat_drag_reuses_retained_caches", ui_move_repeat_drag_reuses_retained_caches},
       {"ui_move_commit_ignores_reentrant_input_during_processing_wait",
        ui_move_commit_ignores_reentrant_input_during_processing_wait},
+      {"ui_move_release_defers_accurate_patches_behind_a_hold",
+       ui_move_release_defers_accurate_patches_behind_a_hold},
+      {"ui_move_deferred_commit_yields_to_undo", ui_move_deferred_commit_yields_to_undo},
+      {"ui_move_deferred_commit_serves_exact_pixels_to_readers",
+       ui_move_deferred_commit_serves_exact_pixels_to_readers},
+      {"ui_move_second_drag_while_commit_pending_merges_jobs",
+       ui_move_second_drag_while_commit_pending_merges_jobs},
       {"ui_move_pinball_poster_second_folder_drag_has_no_sync_composite_if_available",
        ui_move_pinball_poster_second_folder_drag_has_no_sync_composite_if_available},
       {"ui_move_live_slow_latch_persists_across_drags",

@@ -138,6 +138,7 @@ void CanvasWidget::magic_wand_select(QPoint start) {
 
   QImage source_image;
   if (wand_sample_all_layers_) {
+    wait_for_move_commit_job();  // exact pixels: a deferred Move commit may still be rendering
     ensure_render_cache();
     if (render_cache_.isNull()) {
       return;
@@ -373,6 +374,7 @@ void CanvasWidget::finish_quick_select_stroke() {
 
   QImage source_image;
   if (quick_select_sample_all_layers_) {
+    wait_for_move_commit_job();  // exact pixels: a deferred Move commit may still be rendering
     ensure_render_cache();
     source_image = render_cache_;
   } else {
@@ -564,6 +566,7 @@ QCursor CanvasWidget::quick_select_cursor(SelectionMode mode) const {
 }
 
 void CanvasWidget::start_magnetic_lasso(QPoint document_point, Qt::KeyboardModifiers modifiers) {
+  wait_for_move_commit_job();  // exact pixels: a deferred Move commit may still be rendering
   ensure_render_cache();
   if (render_cache_.isNull() || render_cache_.format() != QImage::Format_RGBA8888) {
     return;

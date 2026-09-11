@@ -41,6 +41,7 @@
 #include <functional>
 #include <limits>
 #include <memory>
+#include <future>
 #include <optional>
 #include <unordered_map>
 #include <unordered_set>
@@ -292,6 +293,8 @@ public:
     int full_refreshes{0};
     int partial_patches{0};
     int move_precommit_patches{0};
+    // Move releases whose accurate patches rendered on a worker behind a hold.
+    int move_deferred_commits{0};
     int forced_refreshes{0};
     int dirty_region_batches{0};
     int dirty_region_rects{0};
@@ -768,6 +771,8 @@ public:
   // pending and no fire-and-forget async refresh in flight. Used by the
   // profiling stress test's settle loop.
   [[nodiscard]] bool render_settled() const noexcept;
+  // A deferred Move commit is still rendering its accurate patches.
+  [[nodiscard]] bool move_commit_job_pending() const noexcept;
   void set_vector_preview_enabled(bool enabled);
   [[nodiscard]] bool vector_preview_enabled() const noexcept;
   [[nodiscard]] QString vector_preview_status() const;
@@ -1128,6 +1133,14 @@ private:
   void invalidate_display_mip_cache() noexcept;
   void refresh_curves_clipping_preview();
   void ensure_move_base_cache();
+  // Deferred Move commit (see mouseReleaseEvent and the MoveCommitJob members).
+  [[nodiscard]] bool can_hold_move_commit_preview(QPoint commit_delta) const noexcept;
+  void arm_move_commit_hold(QPoint commit_delta);
+  void clear_move_commit_hold() noexcept;
+  void start_move_commit_job(const QRegion& document_region);
+  void finish_move_commit_job(std::uint64_t generation);
+  void cancel_move_commit_job() noexcept;
+  void wait_for_move_commit_job();
   void clear_move_base_cache() noexcept;
   // Builds the once-per-drag snapshot of ONLY the moving subtree (intra-set
   // blending, clip runs, and styled ancestor folders baked in), downscaled to
@@ -2215,6 +2228,34 @@ private:
   // The press matched the retained selection; counted into
   // move_preview_cache_reuses only when the press becomes a real drag.
   bool move_press_reused_retained_caches_{false};
+  // Deferred Move commit (mouseReleaseEvent, September 2026): when the
+  // accurate release render would block behind the processing overlay, the
+  // layer bounds change at once, the last preview frame stays on screen as a
+  // hold (base plus proxy or patches, mip-sized when the base was), and a
+  // worker renders the accurate full-res patches from a document snapshot; a
+  // queued completion lands them in the render cache. Until then the cache is
+  // stale inside the job's region but never dirty: readers that need exact
+  // pixels (selection engines, transform/move bases, the curves clipping
+  // preview) call wait_for_move_commit_job() first while paint never waits,
+  // any other document change cancels the job and folds its region
+  // into that change's invalidation, and a further commit restarts one job
+  // over the union of both regions.
+  struct MoveCommitJob {
+    std::uint64_t generation{0};
+    QRegion region{};
+    std::shared_future<std::vector<RenderedDocumentPatch>> result{};
+  };
+  std::optional<MoveCommitJob> move_commit_job_{};
+  std::uint64_t move_commit_job_generation_{0};
+  QImage move_commit_hold_base_{};
+  int move_commit_hold_scale_level_{0};
+  QImage move_commit_hold_proxy_{};
+  QRect move_commit_hold_proxy_rect_{};
+  std::vector<RenderedDocumentPatch> move_commit_hold_patches_{};
+  // Delta the live preview patches were last rendered at, at either composite
+  // level (move_preview_patches_delta_ is reset for scaled patches so the
+  // release never reuses them; the hold may still show them).
+  std::optional<QPoint> move_preview_patches_rendered_delta_{};
   QImage move_base_cache_{};
   // Level the base was composited at (preview-scaled document); 0 = full-res.
   int move_base_cache_scale_level_{0};

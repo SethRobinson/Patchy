@@ -209,6 +209,7 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 - Paste clears the selection, so the marquee that produced the copy no longer stays over the pasted layer. Undo of the paste brings it back
 - The Move tool grabs a layer anywhere inside its outline rectangle, transparent pixels included, instead of starting a layer-selection rectangle there. A visible pixel still wins over an enclosing rectangle, and the selected layer's rectangle wins over a larger one above it
 - Speed improvements with selections on documents with tons of layers
+- Moving a layer on a large document with layer styles no longer freezes while the final pixels render: the move lands immediately and the accurate render catches up in the background. Layer-style masks also stay cached between renders, which halves repeated renders of heavily styled posters
 
 ### 0.93 - September 11, 2026
 

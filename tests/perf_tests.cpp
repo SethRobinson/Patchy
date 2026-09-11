@@ -1,3 +1,4 @@
+#include "core/layer_metadata.hpp"
 #include "core/layer_render_utils.hpp"
 #include "core/rect_utils.hpp"
 #include "psd/psd_document_io.hpp"
@@ -784,9 +785,13 @@ std::optional<QPoint> opaque_document_point(const patchy::Layer& layer, int inse
 // PATCHY_PERF_SAMPLER=1 samples only the measured interactions: the sampler
 // starts after the open has settled so the load cannot swamp the stacks.
 void many_layers_select_and_move_perf_if_available() {
-  const auto path = patchy::test::local_psd_fixture_path("Little-Everywhere-fixed.psd");
+  // PATCHY_PERF_MANYLAYERS_PSD=<path> points the scenario at another document
+  // (a styled poster, say); the default is the 2056-layer file.
+  const auto env_path = qgetenv("PATCHY_PERF_MANYLAYERS_PSD");
+  const auto path = env_path.isEmpty() ? patchy::test::local_psd_fixture_path("Little-Everywhere-fixed.psd")
+                                       : patchy::ui::to_filesystem_path(env_path);
   if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] Little-Everywhere-fixed.psd missing: " << path.string() << '\n';
+    std::cout << "[SKIP] many-layers fixture missing: " << path.string() << '\n';
     return;
   }
 
@@ -817,10 +822,14 @@ void many_layers_select_and_move_perf_if_available() {
   auto& doc = patchy::ui::MainWindowTestAccess::document(window);
   std::vector<const patchy::Layer*> leaves;
   int layer_count = 0;
+  int styled_count = 0;
   std::function<void(const std::vector<patchy::Layer>&, bool)> collect =
       [&](const std::vector<patchy::Layer>& layers, bool ancestors_visible) {
         for (const auto& layer : layers) {
           ++layer_count;
+          if (layer.layer_style().effects_visible && !layer.layer_style().empty()) {
+            ++styled_count;
+          }
           const bool visible = ancestors_visible && layer.visible();
           if (layer.kind() == patchy::LayerKind::Group) {
             collect(layer.children(), visible);
@@ -852,11 +861,13 @@ void many_layers_select_and_move_perf_if_available() {
   // 40 document px keeps the press clear of the passive box's handles at any
   // zoom above 25%.
   for (auto it = leaves.rbegin(); it != leaves.rend() && !canvas_point.has_value(); ++it) {
+    if (patchy::layer_effectively_locks_position(std::as_const(doc).layers(), (*it)->id())) {
+      continue;  // the Move tool skips these, so the click would land below
+    }
     canvas_point = opaque_document_point(**it, 40);
     canvas_target = *it;
   }
   CHECK(canvas_point.has_value());
-  const auto canvas_target_bounds_before = canvas_target->bounds();
 
   // One sampler per measured phase so each dump attributes that phase alone.
 #ifdef Q_OS_WIN
@@ -877,6 +888,20 @@ void many_layers_select_and_move_perf_if_available() {
   const auto begin_phase = [] {};
   const auto end_phase = [](const char*) {};
 #endif
+
+  // 0. Optional compositor profile: PATCHY_PERF_RENDER_PHASE=1 renders the
+  //    whole document once on this thread (set PATCHY_RENDER_SINGLE_THREADED=1
+  //    too so the sampler sees the compositor rather than a worker wait).
+  double full_render_ms = 0.0;
+  if (qEnvironmentVariableIsSet("PATCHY_PERF_RENDER_PHASE")) {
+    begin_phase();
+    full_render_ms = elapsed_ms([&] {
+      const auto image = patchy::ui::qimage_from_document(std::as_const(doc), true);
+      CHECK(!image.isNull());
+    });
+    end_phase("full_render");
+    std::cout << "[PERF_MANY_LAYERS_RENDER] full_render_ms=" << full_render_ms << '\n';
+  }
 
   // 1. Layers-panel row click.
   begin_phase();
@@ -900,6 +925,12 @@ void many_layers_select_and_move_perf_if_available() {
   });
   end_phase("canvas_click");
   const auto active_after_click = doc.active_layer_id();
+  // The drag moves whatever the click activated (a masked or occluding layer
+  // can win the hit test over the picked leaf); its bounds are the move check.
+  CHECK(active_after_click.has_value());
+  const auto* drag_target = std::as_const(doc).find_layer(*active_after_click);
+  CHECK(drag_target != nullptr);
+  const auto drag_target_bounds_before = drag_target->bounds();
 
   // 3. Move-tool drag of that layer: press, first frame past the drag
   //    threshold, a second frame, release (each timed on its own).
@@ -933,27 +964,57 @@ void many_layers_select_and_move_perf_if_available() {
     QApplication::processEvents();
   });
   end_phase("move_release");
+  // A second drag of the same layer: the retained caches and warm style masks
+  // are what a user hits on every move after the first.
+  begin_phase();
+  const auto press2_ms = elapsed_ms([&] {
+    send_mouse(*canvas, QEvent::MouseButtonPress, drag_position, Qt::LeftButton, Qt::LeftButton);
+    QApplication::processEvents();
+  });
+  std::vector<double> frame2_ms;
+  const auto drag2_origin = drag_position;
+  for (int frame = 1; frame <= kDragFrames; ++frame) {
+    drag_position = drag2_origin - QPoint(30 * frame, 20 * frame);
+    frame2_ms.push_back(elapsed_ms([&] {
+      send_mouse(*canvas, QEvent::MouseMove, drag_position, Qt::NoButton, Qt::LeftButton);
+      QApplication::processEvents();
+      canvas->repaint();
+    }));
+  }
+  const auto release2_ms = elapsed_ms([&] {
+    send_mouse(*canvas, QEvent::MouseButtonRelease, drag_position, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+  });
+  end_phase("move2");
+  std::ostringstream frames2;
+  for (std::size_t index = 0; index < frame2_ms.size(); ++index) {
+    frames2 << (index == 0 ? "" : "/") << frame2_ms[index];
+  }
   const auto after = canvas->render_cache_diagnostics();
-  const auto* moved_target = std::as_const(doc).find_layer(canvas_target->id());
-  CHECK(moved_target != nullptr);
-  CHECK(moved_target->bounds().x != canvas_target_bounds_before.x ||
-        moved_target->bounds().y != canvas_target_bounds_before.y);
+  const auto* moved_target = std::as_const(doc).find_layer(*active_after_click);
+  const bool moved = moved_target != nullptr && (moved_target->bounds().x != drag_target_bounds_before.x ||
+                                                 moved_target->bounds().y != drag_target_bounds_before.y);
   std::ostringstream frames;
   for (std::size_t index = 0; index < frame_ms.size(); ++index) {
     frames << (index == 0 ? "" : "/") << frame_ms[index];
   }
 
-  std::cout << "[PERF_MANY_LAYERS] layers=" << layer_count << " visible_pixel_leaves=" << leaves.size()
+  std::cout << "[PERF_MANY_LAYERS] file=\"" << path.filename().string() << "\" layers=" << layer_count << " visible_pixel_leaves=" << leaves.size()
             << " rows=" << layer_list->count() << " open_ms=" << open_ms << " select_row_ms=" << select_row_ms
             << " canvas_click_ms=" << click_ms << " move_press_ms=" << press_ms
             << " move_frames_ms=" << frames.str() << " move_release_ms=" << release_ms
+            << " move2_press_ms=" << press2_ms << " move2_frames_ms=" << frames2.str()
+            << " move2_release_ms=" << release2_ms << " styled_layers=" << styled_count
             << " full_refresh_delta=" << (after.full_refreshes - before.full_refreshes)
             << " proxy_previews_delta=" << (after.move_proxy_previews - before.move_proxy_previews)
             << " outline_previews_delta=" << (after.move_outline_previews - before.move_outline_previews)
             << " panel_target=\"" << clean_name(panel_target->name()) << "\" canvas_target=\""
             << clean_name(canvas_target->name()) << "\" active_after_click="
             << (active_after_click.has_value() ? std::to_string(*active_after_click) : std::string("none"))
-            << " (canvas_target_id=" << canvas_target->id() << ")\n";
+            << " (canvas_target_id=" << canvas_target->id() << ") drag_target=\""
+            << (moved_target != nullptr ? clean_name(moved_target->name()) : std::string("?")) << "\" moved="
+            << (moved ? 1 : 0) << '\n';
+  CHECK(moved);
 }
 
 }  // namespace
