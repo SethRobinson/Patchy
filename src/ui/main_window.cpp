@@ -4790,13 +4790,17 @@ std::optional<PixelBuffer> render_text_layer_pixels_from_metadata(const Layer& l
                             inputs->rich_text_runs);
 }
 
-// Re-render a point-text layer's glyphs *through* the layer transform so a scaled/rotated layer stays
+// Re-render a text layer's glyphs *through* the layer transform so a scaled/rotated layer stays
 // crisp (vector glyphs rasterized at the final scale) instead of resampling an already-baked bitmap.
-// Returns std::nullopt for box text, which has its own transform-aware layout path.
+// Box text is opt-in (`allow_boxed`): the plan renderer draws a frame through any affine, but the
+// pixels-only callers (Affinity/SVG artistic text, PDF pending text) rely on the point-only refusal,
+// so they keep the default. A boxed render keeps its full frame buffer (no ink crop), the way a
+// box commit does, so the layer bounds stay the frame the next edit session opens on.
 std::optional<TransformedTextPixels> render_text_layer_pixels_through_transform(const Layer& layer,
-                                                                               const QTransform& transform) {
+                                                                               const QTransform& transform,
+                                                                               bool allow_boxed = false) {
   auto inputs = text_render_inputs_from_layer(layer);
-  if (!inputs.has_value() || inputs->settings.boxed) {
+  if (!inputs.has_value() || (inputs->settings.boxed && !allow_boxed)) {
     return std::nullopt;
   }
   const auto rendered = render_text_pixels_with_local_rect(inputs->settings, inputs->color, inputs->max_width,
@@ -4810,8 +4814,9 @@ std::optional<TransformedTextPixels> render_text_layer_pixels_through_transform(
   // Trim transparent margins (e.g. the bounding box of rotated glyphs, or any residual padding) so the
   // layer bounds -- and therefore the free-transform handles -- hug the inked glyphs.
   if (const auto visible = visible_alpha_local_bounds(rendered.pixels);
-      visible.has_value() && (visible->x > 0 || visible->y > 0 || visible->width < rendered.pixels.width() ||
-                              visible->height < rendered.pixels.height())) {
+      !inputs->settings.boxed && visible.has_value() &&
+      (visible->x > 0 || visible->y > 0 || visible->width < rendered.pixels.width() ||
+       visible->height < rendered.pixels.height())) {
     const auto cropped = qimage_from_pixel_buffer(rendered.pixels)
                              .convertToFormat(QImage::Format_RGBA8888)
                              .copy(visible->x, visible->y, visible->width, visible->height);
@@ -5290,24 +5295,39 @@ void store_patchy_text_metadata(Layer& layer, const TextToolSettings& settings, 
   clear_layer_psd_text_source(layer);
 }
 
+// Version number of a serialized runs string ("v3" -> 3); 0 when the first line is not a tag.
+int text_runs_format_version(const QStringList& lines) {
+  if (lines.isEmpty()) {
+    return 0;
+  }
+  const auto tag = lines[0].trimmed();
+  if (tag.size() < 2 || tag[0] != QLatin1Char('v')) {
+    return 0;
+  }
+  bool ok = false;
+  const int version = tag.mid(1).toInt(&ok);
+  return ok ? version : 0;
+}
+
 // Scale the per-run font sizes (and any explicit leading) in a serialized rich-text-runs string.
 // Format (see rich_text_runs_from_document): line 0 is the version tag, each subsequent line is
-// "start\tlength\tsize\tbold\titalic\tcolor\tfamily[\tleading[\ttracking]]". v3 sizes are
-// doubles and the leading column may be the literal "auto" (scale-free); tracking is in
-// 1/1000-em units and therefore never scales.
+// "start\tlength\tsize\tbold\titalic\tcolor\tfamily[\tleading[\ttracking]]". Sizes are doubles
+// from v3 on (v4-v6 only append columns, so they keep the double sizes), the leading column may
+// be the literal "auto" (scale-free), and tracking is in 1/1000-em units and never scales. Gating
+// the double path on exactly "v3" left v4+ fractional sizes unscaled (toInt fails on "16.2").
 QString scale_rich_text_runs(const QString& runs, double scale) {
   if (runs.trimmed().isEmpty() || !std::isfinite(scale) || std::abs(scale - 1.0) < 0.0001) {
     return runs;
   }
   auto lines = runs.split(QLatin1Char('\n'));
-  const bool v3 = !lines.isEmpty() && lines[0].trimmed() == QStringLiteral("v3");
+  const bool double_sizes = text_runs_format_version(lines) >= 3;
   for (int i = 1; i < lines.size(); ++i) {
     auto fields = lines[i].split(QLatin1Char('\t'));
     if (fields.size() < 3) {
       continue;
     }
     bool ok = false;
-    if (v3) {
+    if (double_sizes) {
       if (const double size = fields[2].toDouble(&ok); ok && std::isfinite(size) && size > 0.0) {
         fields[2] = QString::number(std::clamp(size * scale, 1.0, 8192.0), 'g', 17);
       }
@@ -5324,14 +5344,42 @@ QString scale_rich_text_runs(const QString& runs, double scale) {
   return lines.join(QLatin1Char('\n'));
 }
 
-// Fold the vertical scale of a Patchy point-text layer's transform into its font size -- matching how
+// Scale the text-local layout metrics of a serialized paragraph-runs string: fields 3-7 (text
+// indent, left/right/top/bottom margins) are document pixels that the renderer multiplies by the
+// layout scale (apply_paragraph_runs_to_document), so a size fold that left them alone shifted
+// every indented paragraph. Alignment (field 2) and the auto-leading fraction (field 8) are
+// scale-free; v1 lines carry only the alignment.
+QString scale_paragraph_runs(const QString& paragraph_runs, double scale) {
+  if (paragraph_runs.trimmed().isEmpty() || !std::isfinite(scale) || std::abs(scale - 1.0) < 0.0001) {
+    return paragraph_runs;
+  }
+  auto lines = paragraph_runs.split(QLatin1Char('\n'));
+  for (int i = 1; i < lines.size(); ++i) {
+    auto fields = lines[i].split(QLatin1Char('\t'));
+    if (fields.size() < 8) {
+      continue;
+    }
+    for (int field = 3; field <= 7; ++field) {
+      bool ok = false;
+      if (const double value = fields[field].toDouble(&ok); ok && std::isfinite(value)) {
+        fields[field] = QString::number(value * scale, 'g', 17);
+      }
+    }
+    lines[i] = fields.join(QLatin1Char('\t'));
+  }
+  return lines.join(QLatin1Char('\n'));
+}
+
+// Fold the vertical scale of a Patchy text layer's transform into its font size -- matching how
 // imported PSD text records the *visual* size -- and return the residual matrix (vertical scale
 // removed, rotation/aspect/translation kept) to render and store.  Updates the size-bearing metadata
-// (base size, per-run sizes, regenerated HTML) so the Type panel and PSD export show the new point
-// size.  Returns the input transform unchanged when there is no meaningful scale to fold.
+// (base size, per-run sizes, paragraph metrics, regenerated HTML, and for box text the frame dims,
+// which are text-local units and must grow with the runs to cover the same document area) so the
+// Type panel and PSD export show the new point size.  Returns the input transform unchanged when
+// there is no meaningful scale to fold.
 QTransform fold_text_transform_scale_into_font_size(Layer& layer, const QTransform& transform) {
   auto inputs = text_render_inputs_from_layer(layer);
-  if (!inputs.has_value() || inputs->settings.boxed) {
+  if (!inputs.has_value()) {
     return transform;
   }
   const double vertical_scale = std::hypot(transform.m21(), transform.m22());
@@ -5359,13 +5407,21 @@ QTransform fold_text_transform_scale_into_font_size(Layer& layer, const QTransfo
   };
   const auto rich_runs = string_value(kLayerMetadataTextRuns);
   const auto paragraph_runs = string_value(kLayerMetadataTextParagraphRuns);
-  const auto box_width = int_value(kLayerMetadataTextBoxWidth, inputs->settings.box_width);
-  const auto box_height = int_value(kLayerMetadataTextBoxHeight, inputs->settings.box_height);
+  auto box_width = int_value(kLayerMetadataTextBoxWidth, inputs->settings.box_width);
+  auto box_height = int_value(kLayerMetadataTextBoxHeight, inputs->settings.box_height);
   auto settings = inputs->settings;
   settings.size = new_size;
+  if (settings.boxed) {
+    box_width = std::max(kMinimumTextBoxDocumentSize, static_cast<int>(std::lround(box_width * applied_scale)));
+    box_height = std::max(kMinimumTextBoxDocumentSize, static_cast<int>(std::lround(box_height * applied_scale)));
+    settings.box_width = box_width;
+    settings.box_height = box_height;
+  }
   const auto scaled_runs = scale_rich_text_runs(rich_runs, applied_scale);
+  const auto scaled_paragraph_runs = scale_paragraph_runs(paragraph_runs, applied_scale);
   settings.html = document_html_from_text_runs(settings.text, scaled_runs, settings, inputs->color);
-  store_patchy_text_metadata(layer, settings, inputs->color, scaled_runs, paragraph_runs, box_width, box_height);
+  store_patchy_text_metadata(layer, settings, inputs->color, scaled_runs, scaled_paragraph_runs, box_width,
+                             box_height);
   layer.metadata()[kLayerMetadataTextTransform] =
       serialize_layer_affine_transform(affine_from_qtransform(residual));
   return residual;
@@ -5508,6 +5564,97 @@ bool text_layer_name_is_auto(const Layer& layer) {
     }
   }
   return false;
+}
+
+// Re-rasterize a text layer through its stored (already composed) transform. Shared by the
+// free-transform commit callback and the Image Size re-render pass, so both land the same
+// pixels for the same transform. Returns false when the layer keeps whatever raster the caller
+// already produced (the resampled bitmap), which is the right answer for imported text whose
+// font is missing or whose glyph alignment is unknown.
+bool rerender_text_layer_through_stored_transform(Layer& layer) {
+  const auto transform = canonical_text_affine_transform_for_layer(layer);
+  if (!transform.has_value()) {
+    return false;
+  }
+  if (const auto warp = text_warp_from_layer(layer); warp.has_value() && !text_warp_is_identity(*warp)) {
+    if (layer.metadata().contains(kLayerMetadataPsdTextTransform)) {
+      // Imported warped text keeps Photoshop's raster; transforms resample it
+      // (re-rendering would need the PSD glyph alignment the warp box predates).
+      return false;
+    }
+    // Patchy-authored warped text: fold scale into the point size like the
+    // unwarped path, then re-render through the warp surface with a box freshly
+    // derived from the (possibly rescaled) layout.
+    const auto residual = fold_text_transform_scale_into_font_size(layer, qtransform_from_affine(*transform));
+    const auto inputs = text_render_inputs_from_layer(layer);
+    if (!inputs.has_value()) {
+      return false;
+    }
+    TextWarp refreshed = *warp;
+    refreshed.bounds_left = 0.0;
+    refreshed.bounds_top = 0.0;
+    refreshed.bounds_right = 0.0;
+    refreshed.bounds_bottom = 0.0;
+    auto rendered = render_warped_text_pixels_for_layer(*inputs, refreshed, residual, &refreshed);
+    if (!rendered.has_value()) {
+      return false;
+    }
+    layer.set_pixels(std::move(rendered->pixels));
+    layer.set_bounds(rendered->bounds);
+    layer.metadata()[kLayerMetadataTextWarp] = serialize_text_warp(refreshed);
+    return true;
+  }
+  if (layer.metadata().contains(kLayerMetadataPsdTextTransform)) {
+    // PSD type layers anchor their transform at the typographic baseline, so rendering the glyph
+    // raster (top-left origin) through it directly would drop the text ~one ascent.  Render crisp
+    // through the glyph-top-aligned transform instead (the same alignment the editor uses), keeping
+    // the imported size + matrix representation.  Falls back to the resampled bitmap when it can't be
+    // aligned (box text, missing PSD glyph metrics, or a pure move with no scale).
+    //
+    // Only do this when the original font is installed: re-rasterizing a missing font would
+    // substitute a generic face (e.g. Arial), so the decorative type would change appearance on
+    // scale.  In that case keep the resampled bitmap, which preserves the imported glyph shapes.
+    const auto font_value = layer.metadata().find(kLayerMetadataTextFont);
+    const QString family =
+        font_value == layer.metadata().end() ? QString() : QString::fromStdString(font_value->second);
+    const bool font_substituted = family.trimmed().isEmpty() ||
+                                  family.compare(QStringLiteral("PSD Text"), Qt::CaseInsensitive) == 0 ||
+                                  !missing_text_families_for_layer(layer).isEmpty();
+    if (font_substituted) {
+      return false;
+    }
+    const auto flow = layer.metadata().find(kLayerMetadataTextFlow);
+    const bool boxed =
+        flow != layer.metadata().end() && text_flow_is_box(QString::fromStdString(flow->second));
+    const auto base_pixels = render_text_layer_pixels_from_metadata(layer);
+    if (!base_pixels.has_value()) {
+      return false;
+    }
+    const auto aligned = psd_point_text_local_bounds_transform_for_pixels(layer, *base_pixels, boxed,
+                                                                          layer_anchor_alignment_factor(layer));
+    if (!aligned.has_value()) {
+      return false;
+    }
+    auto rendered = render_text_layer_pixels_through_transform(layer, qtransform_from_affine(*aligned));
+    if (!rendered.has_value()) {
+      return false;
+    }
+    layer.set_pixels(std::move(rendered->pixels));
+    layer.set_bounds(rendered->bounds);
+    return true;
+  }
+  // Patchy-authored text (point or box): fold the transform's scale into the point size (so the
+  // Type panel and a saved PSD show the new size, matching imported text), then re-rasterize
+  // through the residual. Box text draws its frame through the residual too; for a uniform scale
+  // that residual is a pure translation, so the frame commits crisp at the folded size.
+  const auto residual = fold_text_transform_scale_into_font_size(layer, qtransform_from_affine(*transform));
+  auto rendered = render_text_layer_pixels_through_transform(layer, residual, /*allow_boxed*/ true);
+  if (!rendered.has_value()) {
+    return false;
+  }
+  layer.set_pixels(std::move(rendered->pixels));
+  layer.set_bounds(rendered->bounds);
+  return true;
 }
 
 }  // namespace
@@ -6927,88 +7074,34 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
     if (layer == nullptr || !layer_is_text(*layer)) {
       return false;
     }
-    const auto transform = canonical_text_affine_transform_for_layer(*layer);
-    if (!transform.has_value()) {
-      return false;
-    }
-    if (const auto warp = text_warp_from_layer(*layer); warp.has_value() && !text_warp_is_identity(*warp)) {
-      if (layer->metadata().contains(kLayerMetadataPsdTextTransform)) {
-        // Imported warped text keeps Photoshop's raster; transforms resample it
-        // (re-rendering would need the PSD glyph alignment the warp box predates).
-        return false;
-      }
-      // Patchy-authored warped text: fold scale into the point size like the
-      // unwarped path, then re-render through the warp surface with a box freshly
-      // derived from the (possibly rescaled) layout.
-      const auto residual = fold_text_transform_scale_into_font_size(*layer, qtransform_from_affine(*transform));
-      const auto inputs = text_render_inputs_from_layer(*layer);
-      if (!inputs.has_value()) {
-        return false;
-      }
-      TextWarp refreshed = *warp;
-      refreshed.bounds_left = 0.0;
-      refreshed.bounds_top = 0.0;
-      refreshed.bounds_right = 0.0;
-      refreshed.bounds_bottom = 0.0;
-      auto rendered = render_warped_text_pixels_for_layer(*inputs, refreshed, residual, &refreshed);
-      if (!rendered.has_value()) {
-        return false;
-      }
-      layer->set_pixels(std::move(rendered->pixels));
-      layer->set_bounds(rendered->bounds);
-      layer->metadata()[kLayerMetadataTextWarp] = serialize_text_warp(refreshed);
-      return true;
-    }
-    if (layer->metadata().contains(kLayerMetadataPsdTextTransform)) {
-      // PSD type layers anchor their transform at the typographic baseline, so rendering the glyph
-      // raster (top-left origin) through it directly would drop the text ~one ascent.  Render crisp
-      // through the glyph-top-aligned transform instead (the same alignment the editor uses), keeping
-      // the imported size + matrix representation.  Falls back to the resampled bitmap when it can't be
-      // aligned (box text, missing PSD glyph metrics, or a pure move with no scale).
-      //
-      // Only do this when the original font is installed: re-rasterizing a missing font would
-      // substitute a generic face (e.g. Arial), so the decorative type would change appearance on
-      // scale.  In that case keep the resampled bitmap, which preserves the imported glyph shapes.
-      const auto font_value = layer->metadata().find(kLayerMetadataTextFont);
-      const QString family =
-          font_value == layer->metadata().end() ? QString() : QString::fromStdString(font_value->second);
-      const bool font_substituted = family.trimmed().isEmpty() ||
-                                    family.compare(QStringLiteral("PSD Text"), Qt::CaseInsensitive) == 0 ||
-                                    !missing_text_families_for_layer(*layer).isEmpty();
-      if (font_substituted) {
-        return false;
-      }
-      const auto flow = layer->metadata().find(kLayerMetadataTextFlow);
-      const bool boxed =
-          flow != layer->metadata().end() && text_flow_is_box(QString::fromStdString(flow->second));
-      const auto base_pixels = render_text_layer_pixels_from_metadata(*layer);
-      if (!base_pixels.has_value()) {
-        return false;
-      }
-      const auto aligned = psd_point_text_local_bounds_transform_for_pixels(*layer, *base_pixels, boxed,
-                                                                            layer_anchor_alignment_factor(*layer));
-      if (!aligned.has_value()) {
-        return false;
-      }
-      auto rendered = render_text_layer_pixels_through_transform(*layer, qtransform_from_affine(*aligned));
-      if (!rendered.has_value()) {
-        return false;
-      }
-      layer->set_pixels(std::move(rendered->pixels));
-      layer->set_bounds(rendered->bounds);
-      return true;
-    }
-    // Patchy-authored text: fold the transform's scale into the point size (so the Type panel and a
-    // saved PSD show the new size, matching imported text), then re-rasterize through the residual.
-    const auto residual = fold_text_transform_scale_into_font_size(*layer, qtransform_from_affine(*transform));
-    auto rendered = render_text_layer_pixels_through_transform(*layer, residual);
-    if (!rendered.has_value()) {
-      return false;
-    }
-    layer->set_pixels(std::move(rendered->pixels));
-    layer->set_bounds(rendered->bounds);
-    return true;
+    return rerender_text_layer_through_stored_transform(*layer);
   });
+}
+
+void MainWindow::rerender_text_layers_through_transforms(DocumentSession& target) {
+  // Const walk on purpose (see rerender_smart_object_previews): the non-const children()
+  // accessor bumps every visited layer's revisions, so only the layers that really get
+  // re-rendered are cast back. A pure-translation transform means Canvas Size / Crop-style
+  // moves that already ride in the bounds; nothing to re-render there. Locks are ignored
+  // like the core resize ignores them: a locked layer was resampled too, and refusing here
+  // would leave it the one blurry raster in the document.
+  std::function<void(const std::vector<Layer>&)> refresh_layers = [&](const std::vector<Layer>& layers) {
+    for (const auto& const_layer : layers) {
+      if (!const_layer.children().empty()) {
+        refresh_layers(const_layer.children());
+      }
+      if (!layer_is_text(const_layer) || !layer_has_non_translation_text_transform(const_layer)) {
+        continue;
+      }
+      auto& layer = const_cast<Layer&>(const_layer);
+      if (rerender_text_layer_through_stored_transform(layer)) {
+        // Only a real re-render is a Patchy raster; a kept Photoshop preview (missing font)
+        // stays psd_raster_preview so its warning, badge and PDF placement remain truthful.
+        layer.metadata()[kLayerMetadataTextRasterStatus] = "patchy_raster";
+      }
+    }
+  };
+  refresh_layers(std::as_const(target.document).layers());
 }
 
 void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
@@ -7127,12 +7220,15 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box) {
           found != layer->metadata().end()) {
         photoshop_text_layout = found->second == kTextLayoutModePhotoshop;
       }
-      if (photoshop_text_layout) {
-        if (const auto affine = canonical_text_affine_transform_for_layer(*layer); affine.has_value()) {
-          const auto vertical_scale = std::hypot((*affine)[2], (*affine)[3]);
-          if (std::isfinite(vertical_scale) && vertical_scale > 0.01) {
-            text_size_display_scale = vertical_scale;
-          }
+      // The options bar shows the EFFECTIVE size (stored size x the transform's vertical scale)
+      // for any layer whose transform carries scale, not only Photoshop-layout imports: a
+      // Patchy layer resized by Image Size before the fold existed (or one whose fold rounded
+      // a residual) renders through that scale too, and showing the raw size made a typed size
+      // land text-local and get multiplied by the matrix again on render.
+      if (const auto affine = canonical_text_affine_transform_for_layer(*layer); affine.has_value()) {
+        const auto vertical_scale = std::hypot((*affine)[2], (*affine)[3]);
+        if (std::isfinite(vertical_scale) && vertical_scale > 0.01) {
+          text_size_display_scale = vertical_scale;
         }
       }
       if (const auto found = layer->metadata().find(kLayerMetadataTextRasterStatus);
@@ -8295,11 +8391,9 @@ bool MainWindow::apply_text_warp_to_layer(Layer& layer, const patchy::TextWarp& 
     layer.set_bounds(rendered->bounds);
     layer.metadata()[kLayerMetadataTextWarp] = serialize_text_warp(effective);
   } else {
-    // Style None: back to the plain affine text render.
-    std::optional<TransformedTextPixels> rendered;
-    if (!inputs->settings.boxed) {
-      rendered = render_text_layer_pixels_through_transform(layer, transform);
-    }
+    // Style None: back to the plain affine text render (box text included, drawn through the
+    // transform rather than resampled).
+    auto rendered = render_text_layer_pixels_through_transform(layer, transform, /*allow_boxed*/ true);
     if (!rendered.has_value()) {
       const auto base = render_text_pixels_with_local_rect(inputs->settings, inputs->color, inputs->max_width,
                                                            inputs->paragraph_runs, inputs->rich_text_runs);

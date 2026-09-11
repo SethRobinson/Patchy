@@ -271,6 +271,22 @@ purpose: it is the import snapshot, and diverging from it is exactly what routes
 off the templated TySh (and turns off the PSD-frame edit session via
 `layer_patchy_text_transform_overrides_psd_source`).
 
+Image Size is the one operation that RESAMPLES, so composing the matrix is not enough: the
+raster is soft and the stored size, runs and box dims are still pre-resize. After the resized
+document is swapped in, `resize_document_image` (so the dialog, `doc.resizeImage` and MCP all
+get it) runs `rerender_text_layers_through_transforms`, which re-renders every text layer whose
+transform carries scale with the free-transform commit's rules
+(`rerender_text_layer_through_stored_transform`): Patchy-authored point AND box text fold the
+vertical scale into the size, per-run sizes, paragraph metrics and frame dims
+(`fold_text_transform_scale_into_font_size`) and re-rasterize through the residual; installed-font
+PSD point text re-renders crisp through the glyph-aligned transform; everything else keeps the
+resampled raster and its raster status. Without the fold, the next session showed the OLD size in
+the options bar and a typed size landed text-local, so the matrix multiplied it again (a 2x
+resize turned 60 pt into 120 pt). The options bar now derives its displayed size from the
+transform's vertical scale for ANY layer, so documents saved in that split state edit at the
+effective size. `ui_image_size_dialog_*` and `ui_split_state_text_size_spin_shows_effective_size`
+pin it.
+
 Negative-determinant (flipped) transforms are ordinary transforms everywhere in the pipeline:
 the free-transform commit composes the signed delta, the crisp re-render draws THROUGH the
 mirrored matrix, and the drag preview's plain source blit applies the scale signs like the

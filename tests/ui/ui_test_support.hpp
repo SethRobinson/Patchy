@@ -288,6 +288,12 @@ void ensure_artifact_dir();
 // patchy::Document directly get the core default (300) and must pass it explicitly.
 double text_points_for_pixels(int pixels, double ppi = 72.0) noexcept;
 
+// Crispness probe for a rendered glyph raster: {opaque pixels on the densest row, widest run of
+// partial-alpha (anti-aliased edge) pixels on that row}. Crisp vector rasterization keeps the
+// ramp to ~1-2 px; a bilinear upscale of a small bitmap smears each edge into a gradient about
+// as wide as the scale factor.
+std::pair<int, int> max_edge_ramp(const QImage& image);
+
 class SettingsValueRestorer {
 public:
   explicit SettingsValueRestorer(QString key)

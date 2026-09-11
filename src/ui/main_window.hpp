@@ -551,6 +551,15 @@ private:
   // non-destructive; without this the layer would keep the bilinear-scaled preview even
   // though the source is still full resolution. Callers own the undo snapshot.
   void rerender_smart_object_previews();
+  // The text counterpart for Image Size: every text layer whose composed
+  // patchy.text.transform now carries scale is re-rendered through it with the
+  // free-transform commit's rules (Patchy-authored text folds the scale into its
+  // size, runs and box dims; installed-font PSD point text re-renders crisp;
+  // everything else keeps the resampled raster). Without this the raster is soft
+  // and the next edit session shows the pre-resize size. Runs on the GUI thread
+  // after the resized document is swapped in; callers own the undo snapshot.
+  // Defined in main_window.cpp (it needs the text render machinery there).
+  void rerender_text_layers_through_transforms(DocumentSession& target);
   void open_document();
   void open_document_path(QString path);
   // SVG post-open pass: renders text layers the Qt-free reader marked

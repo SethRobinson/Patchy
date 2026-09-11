@@ -11,6 +11,7 @@
 #include <QFontMetrics>
 #include <QScrollBar>
 
+#include <algorithm>
 #include <cstdio>
 #include <functional>
 
@@ -57,6 +58,37 @@ void ensure_artifact_dir() {
 
 double text_points_for_pixels(int pixels, double ppi) noexcept {
   return static_cast<double>(pixels) * 72.0 / ppi;
+}
+
+std::pair<int, int> max_edge_ramp(const QImage& image) {
+  int best_row = -1;
+  int best_opaque = -1;
+  for (int y = 0; y < image.height(); ++y) {
+    int opaque = 0;
+    for (int x = 0; x < image.width(); ++x) {
+      if (qAlpha(image.pixel(x, y)) >= 235) {
+        ++opaque;
+      }
+    }
+    if (opaque > best_opaque) {
+      best_opaque = opaque;
+      best_row = y;
+    }
+  }
+  int max_ramp = 0;
+  int current_ramp = 0;
+  if (best_row >= 0) {
+    for (int x = 0; x < image.width(); ++x) {
+      const auto alpha = qAlpha(image.pixel(x, best_row));
+      if (alpha > 20 && alpha < 235) {
+        ++current_ramp;
+        max_ramp = std::max(max_ramp, current_ramp);
+      } else {
+        current_ramp = 0;
+      }
+    }
+  }
+  return std::pair<int, int>{best_opaque, max_ramp};
 }
 
 void save_widget_artifact(const std::string& name, QWidget& widget) {

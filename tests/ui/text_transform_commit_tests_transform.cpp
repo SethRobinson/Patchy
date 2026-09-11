@@ -430,37 +430,7 @@ void ui_point_text_transform_scales_crisply() {
 
   // Widest run of partial-alpha (anti-aliased edge) pixels on the densest glyph row.  Crisp vector
   // rasterization keeps this to ~1-2px; a 4x bitmap upscale spreads each edge into a ~4px gradient.
-  const auto max_edge_ramp = [](const QImage& img) {
-    int best_row = -1;
-    int best_opaque = -1;
-    for (int y = 0; y < img.height(); ++y) {
-      int opaque = 0;
-      for (int x = 0; x < img.width(); ++x) {
-        if (qAlpha(img.pixel(x, y)) >= 235) {
-          ++opaque;
-        }
-      }
-      if (opaque > best_opaque) {
-        best_opaque = opaque;
-        best_row = y;
-      }
-    }
-    int max_ramp = 0;
-    int current_ramp = 0;
-    if (best_row >= 0) {
-      for (int x = 0; x < img.width(); ++x) {
-        const auto alpha = qAlpha(img.pixel(x, best_row));
-        if (alpha > 20 && alpha < 235) {
-          ++current_ramp;
-          max_ramp = std::max(max_ramp, current_ramp);
-        } else {
-          current_ramp = 0;
-        }
-      }
-    }
-    return std::pair<int, int>{best_opaque, max_ramp};
-  };
-
+  // (max_edge_ramp lives in ui_test_support so the Image Size probes share it.)
   const auto* layer = patchy::ui::MainWindowTestAccess::document(window).find_layer(*layer_id);
   CHECK(layer != nullptr);
   CHECK(layer->pixels().format().channels >= 4);

@@ -12,6 +12,7 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QDoubleSpinBox>
 #include <QImage>
 #include <QPoint>
 #include <QPointF>
@@ -570,6 +571,335 @@ void ui_layer_flip_keeps_text_mirrored_across_reedit() {
       }});
 }
 
+int text_metadata_int(const patchy::Layer& layer, const char* key) {
+  const auto found = layer.metadata().find(key);
+  return found == layer.metadata().end() ? 0 : std::atoi(found->second.c_str());
+}
+
+QImage layer_argb_image(const patchy::Layer& layer) {
+  return image_from_pixels_for_visuals(layer.pixels()).convertToFormat(QImage::Format_ARGB32);
+}
+
+// Runs the real Image Size dialog (the path the menu, doc.resizeImage and MCP share) at a
+// uniform scale. The dialog's link button keeps the aspect, so a uniform factor never fights
+// the second setValue.
+void resize_image_through_dialog(patchy::ui::MainWindow& window, patchy::Document& document, int factor) {
+  const auto old_width = document.width();
+  const auto old_height = document.height();
+  accept_image_size_dialog(old_width * factor, old_height * factor);
+  require_action(window, "imageSizeAction")->trigger();
+  QApplication::processEvents();
+  process_events_for(120);
+  CHECK(document.width() == old_width * factor);
+  CHECK(document.height() == old_height * factor);
+}
+
+// Opens a Type session on the active text layer at the given document point and returns the
+// editor (nullptr when none opened). The caller ends the session.
+QTextEdit* open_text_session_at(patchy::ui::MainWindow& window, patchy::ui::CanvasWidget& canvas,
+                                QPoint document_point) {
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto click_widget = canvas.widget_position_for_document_point(document_point);
+  CHECK(canvas.rect().contains(click_widget));
+  send_mouse(canvas, QEvent::MouseButtonPress, click_widget, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseButtonRelease, click_widget, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  process_events_for(300);
+  return canvas.findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+}
+
+// Image Size through the dialog must do for text what Free Transform does: fold the resample
+// scale into the stored size (so the options bar and PSD export show the real size), leave a
+// translation-only transform behind, and re-rasterize the glyphs crisp instead of keeping the
+// bilinear-scaled bitmap. A no-change re-edit must then commit the same pixels, and the next
+// session's size spinbox must show the folded size. 3x rather than 2x so the crispness probe
+// separates a vector re-render (~1-2 px edge ramps) from a bitmap upscale (~3-6 px).
+void ui_image_size_dialog_folds_point_text_scale_and_rerenders_crisp() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+
+  // Near the document center so the recentered post-resize view still shows the text.
+  const auto layer_id = create_point_text(window, *canvas, QPoint(470, 350), QStringLiteral("Hello HI"));
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto* base_layer = document.find_layer(layer_id);
+  CHECK(base_layer != nullptr);
+  if (base_layer == nullptr) {
+    return;
+  }
+  const int base_size = text_metadata_int(*base_layer, patchy::kLayerMetadataTextSize);
+  CHECK(base_size > 0);
+  const auto base_ink = document_ink_rect(*base_layer);
+  CHECK(base_ink.has_value());
+  if (!base_ink.has_value()) {
+    return;
+  }
+  print_transform_state("dialog point base", *base_layer);
+
+  constexpr int kFactor = 3;
+  resize_image_through_dialog(window, document, kFactor);
+  const auto* scaled_layer = document.find_layer(layer_id);
+  CHECK(scaled_layer != nullptr);
+  if (scaled_layer == nullptr) {
+    return;
+  }
+  print_transform_state("dialog point scaled", *scaled_layer);
+  CHECK(text_metadata_int(*scaled_layer, patchy::kLayerMetadataTextSize) == base_size * kFactor);
+  const auto scaled_transform = stored_text_transform(*scaled_layer);
+  CHECK(scaled_transform.has_value());
+  if (scaled_transform.has_value()) {
+    CHECK(std::abs((*scaled_transform)[0] - 1.0) <= 0.01);
+    CHECK(std::abs((*scaled_transform)[1]) <= 0.01);
+    CHECK(std::abs((*scaled_transform)[2]) <= 0.01);
+    CHECK(std::abs((*scaled_transform)[3] - 1.0) <= 0.01);
+  }
+  const auto scaled_ink = document_ink_rect(*scaled_layer);
+  CHECK(scaled_ink.has_value());
+  if (!scaled_ink.has_value()) {
+    return;
+  }
+  const auto expected_height = base_ink->height() * kFactor;
+  CHECK(std::abs(scaled_ink->height() - expected_height) <= std::max(4.0, expected_height * 0.15));
+  CHECK(std::abs(scaled_ink->center().x() - base_ink->center().x() * kFactor) <= 8.0);
+  CHECK(std::abs(scaled_ink->center().y() - base_ink->center().y() * kFactor) <= 8.0);
+  const auto [opaque_after_resize, ramp_after_resize] = max_edge_ramp(layer_argb_image(*scaled_layer));
+  std::cout << "[text-transform] dialog point ramp: opaque=" << opaque_after_resize
+            << " ramp=" << ramp_after_resize << std::endl;
+  CHECK(opaque_after_resize > 0);
+  CHECK(ramp_after_resize <= 3);
+  CHECK(scaled_layer->metadata().at(patchy::kLayerMetadataTextRasterStatus) == "patchy_raster");
+
+  reedit_and_apply(window, *canvas, scaled_ink->center().toPoint());
+  const auto* reedited_layer = document.find_layer(layer_id);
+  CHECK(reedited_layer != nullptr);
+  if (reedited_layer == nullptr) {
+    return;
+  }
+  print_transform_state("dialog point reedited", *reedited_layer);
+  const auto reedited_ink = document_ink_rect(*reedited_layer);
+  CHECK(reedited_ink.has_value());
+  if (!reedited_ink.has_value()) {
+    return;
+  }
+  CHECK(std::abs(reedited_ink->center().x() - scaled_ink->center().x()) <= 8.0);
+  CHECK(std::abs(reedited_ink->center().y() - scaled_ink->center().y()) <= 8.0);
+  CHECK(std::abs(reedited_ink->height() - scaled_ink->height()) <= std::max(4.0, scaled_ink->height() * 0.15));
+  CHECK(std::abs(reedited_ink->width() - scaled_ink->width()) <= std::max(4.0, scaled_ink->width() * 0.15));
+
+  // The options bar shows the folded size, not the pre-resize one.
+  auto* editor = open_text_session_at(window, *canvas, reedited_ink->center().toPoint());
+  CHECK(editor != nullptr);
+  auto* size_spin = window.findChild<QDoubleSpinBox*>(QStringLiteral("textSizeSpin"));
+  CHECK(size_spin != nullptr);
+  if (editor != nullptr && size_spin != nullptr) {
+    std::cout << "[text-transform] dialog point spin=" << size_spin->value()
+              << " expected=" << text_points_for_pixels(base_size * kFactor) << std::endl;
+    CHECK(std::abs(size_spin->value() - text_points_for_pixels(base_size * kFactor)) <= 1.0);
+  }
+  if (editor != nullptr) {
+    send_key(*editor, Qt::Key_Escape);
+    QApplication::processEvents();
+  }
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+}
+
+// Box text through the same dialog: the frame dims are text-local units, so they must grow with
+// the runs or the scaled runs re-wrap inside a pre-resize frame. The committed raster stays the
+// frame (as a box commit leaves it), the residual transform is a pure translation at the scaled
+// frame corner, the wrapped ink scales with the document, and a no-change re-edit holds.
+void ui_image_size_dialog_scales_box_text_frame_and_size() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+
+  const QPoint box_top_left(400, 300);
+  const QPoint box_bottom_right(700, 540);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  drag(*canvas, canvas->widget_position_for_document_point(box_top_left),
+       canvas->widget_position_for_document_point(box_bottom_right));
+  QApplication::processEvents();
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+  CHECK(editor->property("patchy.documentTextFlow").toString() == QStringLiteral("box"));
+  editor->setPlainText(QStringLiteral("Wrapped box text on a few lines"));
+  QApplication::processEvents();
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  process_events_for(120);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto active = document.active_layer_id();
+  CHECK(active.has_value());
+  if (!active.has_value()) {
+    return;
+  }
+  const auto layer_id = *active;
+  const auto* base_layer = document.find_layer(layer_id);
+  CHECK(base_layer != nullptr);
+  if (base_layer == nullptr) {
+    return;
+  }
+  const int base_size = text_metadata_int(*base_layer, patchy::kLayerMetadataTextSize);
+  const int base_box_width = text_metadata_int(*base_layer, patchy::kLayerMetadataTextBoxWidth);
+  const int base_box_height = text_metadata_int(*base_layer, patchy::kLayerMetadataTextBoxHeight);
+  CHECK(base_size > 0);
+  CHECK(base_box_width >= 290);
+  CHECK(base_box_height >= 230);
+  const auto base_ink = document_ink_rect(*base_layer);
+  CHECK(base_ink.has_value());
+  if (!base_ink.has_value()) {
+    return;
+  }
+  // The paragraph really wraps: taller than two lines of the base size.
+  CHECK(base_ink->height() > base_size * 1.5);
+  print_transform_state("dialog box base", *base_layer);
+
+  constexpr int kFactor = 3;
+  resize_image_through_dialog(window, document, kFactor);
+  const auto* scaled_layer = document.find_layer(layer_id);
+  CHECK(scaled_layer != nullptr);
+  if (scaled_layer == nullptr) {
+    return;
+  }
+  print_transform_state("dialog box scaled", *scaled_layer);
+  CHECK(text_metadata_int(*scaled_layer, patchy::kLayerMetadataTextSize) == base_size * kFactor);
+  CHECK(std::abs(text_metadata_int(*scaled_layer, patchy::kLayerMetadataTextBoxWidth) - base_box_width * kFactor) <= 1);
+  CHECK(std::abs(text_metadata_int(*scaled_layer, patchy::kLayerMetadataTextBoxHeight) - base_box_height * kFactor) <= 1);
+  const auto scaled_transform = stored_text_transform(*scaled_layer);
+  CHECK(scaled_transform.has_value());
+  if (scaled_transform.has_value()) {
+    CHECK(std::abs((*scaled_transform)[0] - 1.0) <= 0.01);
+    CHECK(std::abs((*scaled_transform)[1]) <= 0.01);
+    CHECK(std::abs((*scaled_transform)[2]) <= 0.01);
+    CHECK(std::abs((*scaled_transform)[3] - 1.0) <= 0.01);
+    CHECK(std::abs((*scaled_transform)[4] - box_top_left.x() * kFactor) <= 2.0);
+    CHECK(std::abs((*scaled_transform)[5] - box_top_left.y() * kFactor) <= 2.0);
+  }
+  // The raster is the frame at the scaled corner (a box commit leaves the frame as the bounds).
+  CHECK(std::abs(scaled_layer->bounds().x - box_top_left.x() * kFactor) <= 1);
+  CHECK(std::abs(scaled_layer->bounds().y - box_top_left.y() * kFactor) <= 1);
+  CHECK(std::abs(scaled_layer->bounds().width - base_box_width * kFactor) <= 2);
+  const auto scaled_ink = document_ink_rect(*scaled_layer);
+  CHECK(scaled_ink.has_value());
+  if (!scaled_ink.has_value()) {
+    return;
+  }
+  const auto expected_height = base_ink->height() * kFactor;
+  CHECK(std::abs(scaled_ink->height() - expected_height) <= std::max(4.0, expected_height * 0.15));
+  CHECK(scaled_ink->width() <= base_box_width * kFactor + 2.0);
+  CHECK(std::abs(scaled_ink->left() - base_ink->left() * kFactor) <= 8.0);
+  CHECK(std::abs(scaled_ink->top() - base_ink->top() * kFactor) <= 8.0);
+  const auto [opaque_after_resize, ramp_after_resize] = max_edge_ramp(layer_argb_image(*scaled_layer));
+  std::cout << "[text-transform] dialog box ramp: opaque=" << opaque_after_resize
+            << " ramp=" << ramp_after_resize << std::endl;
+  CHECK(opaque_after_resize > 0);
+  CHECK(ramp_after_resize <= 3);
+
+  reedit_and_apply(window, *canvas, scaled_ink->center().toPoint());
+  const auto* reedited_layer = document.find_layer(layer_id);
+  CHECK(reedited_layer != nullptr);
+  if (reedited_layer == nullptr) {
+    return;
+  }
+  print_transform_state("dialog box reedited", *reedited_layer);
+  const auto reedited_ink = document_ink_rect(*reedited_layer);
+  CHECK(reedited_ink.has_value());
+  if (!reedited_ink.has_value()) {
+    return;
+  }
+  CHECK(std::abs(reedited_ink->center().x() - scaled_ink->center().x()) <= 8.0);
+  CHECK(std::abs(reedited_ink->center().y() - scaled_ink->center().y()) <= 8.0);
+  CHECK(std::abs(reedited_ink->height() - scaled_ink->height()) <= std::max(4.0, scaled_ink->height() * 0.15));
+  CHECK(std::abs(reedited_ink->width() - scaled_ink->width()) <= std::max(4.0, scaled_ink->width() * 0.15));
+}
+
+// The reported bug, on a document already saved in the split state (matrix carries the scale,
+// stored size does not; every Image Size before the fold left layers this way): the options bar
+// must show the EFFECTIVE size, and typing the original absolute size back must commit text at
+// that size. Before the fix the spinbox showed the pre-resize size and the typed value landed
+// text-local, so the matrix doubled it again ("edit the text and it gets much larger").
+void ui_split_state_text_size_spin_shows_effective_size() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+
+  const auto layer_id = create_point_text(window, *canvas, QPoint(470, 350), QStringLiteral("Hello HI"));
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto* base_layer = document.find_layer(layer_id);
+  CHECK(base_layer != nullptr);
+  if (base_layer == nullptr) {
+    return;
+  }
+  const int base_size = text_metadata_int(*base_layer, patchy::kLayerMetadataTextSize);
+  CHECK(base_size > 0);
+  const auto base_ink = document_ink_rect(*base_layer);
+  CHECK(base_ink.has_value());
+  if (!base_ink.has_value()) {
+    return;
+  }
+
+  // The core operation alone: composes the matrix, resamples the raster, folds nothing.
+  patchy::resize_image_and_layers(document, document.width() * 2, document.height() * 2);
+  canvas->set_document(&document);
+  canvas->center_document_in_view();
+  QApplication::processEvents();
+  const auto* split_layer = document.find_layer(layer_id);
+  CHECK(split_layer != nullptr);
+  if (split_layer == nullptr) {
+    return;
+  }
+  print_transform_state("split state", *split_layer);
+  CHECK(text_metadata_int(*split_layer, patchy::kLayerMetadataTextSize) == base_size);
+  const auto split_ink = document_ink_rect(*split_layer);
+  CHECK(split_ink.has_value());
+  if (!split_ink.has_value()) {
+    return;
+  }
+
+  auto* editor = open_text_session_at(window, *canvas, split_ink->center().toPoint());
+  CHECK(editor != nullptr);
+  auto* size_spin = window.findChild<QDoubleSpinBox*>(QStringLiteral("textSizeSpin"));
+  CHECK(size_spin != nullptr);
+  if (editor == nullptr || size_spin == nullptr) {
+    return;
+  }
+  std::cout << "[text-transform] split spin=" << size_spin->value()
+            << " effective=" << text_points_for_pixels(base_size * 2) << std::endl;
+  CHECK(std::abs(size_spin->value() - text_points_for_pixels(base_size * 2)) <= 1.0);
+  // Ask for the original absolute size: the commit must land there, not at twice it.
+  size_spin->setValue(text_points_for_pixels(base_size));
+  QApplication::processEvents();
+  process_events_for(300);
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  process_events_for(120);
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+
+  const auto* final_layer = document.find_layer(layer_id);
+  CHECK(final_layer != nullptr);
+  if (final_layer == nullptr) {
+    return;
+  }
+  print_transform_state("split state committed", *final_layer);
+  const auto final_ink = document_ink_rect(*final_layer);
+  CHECK(final_ink.has_value());
+  if (!final_ink.has_value()) {
+    return;
+  }
+  std::cout << "[text-transform] split heights: base=" << base_ink->height() << " split=" << split_ink->height()
+            << " final=" << final_ink->height() << std::endl;
+  CHECK(std::abs(final_ink->height() - base_ink->height()) <= std::max(4.0, base_ink->height() * 0.15));
+  CHECK(final_ink->height() < base_ink->height() * 1.5);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> text_transform_commit_tests_part3() {
@@ -583,5 +913,9 @@ std::vector<patchy::test::TestCase> text_transform_commit_tests_part3() {
       {"ui_crop_keeps_text_transform_in_sync", ui_crop_keeps_text_transform_in_sync},
       {"ui_rotate_canvas_keeps_text_transform_in_sync", ui_rotate_canvas_keeps_text_transform_in_sync},
       {"ui_layer_flip_keeps_text_mirrored_across_reedit", ui_layer_flip_keeps_text_mirrored_across_reedit},
+      {"ui_image_size_dialog_folds_point_text_scale_and_rerenders_crisp",
+       ui_image_size_dialog_folds_point_text_scale_and_rerenders_crisp},
+      {"ui_image_size_dialog_scales_box_text_frame_and_size", ui_image_size_dialog_scales_box_text_frame_and_size},
+      {"ui_split_state_text_size_spin_shows_effective_size", ui_split_state_text_size_spin_shows_effective_size},
   };
 }

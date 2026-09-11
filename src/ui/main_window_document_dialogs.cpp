@@ -1135,10 +1135,17 @@ bool MainWindow::resize_document_image(DocumentSession& target, int width, int h
   auto resized = future.get();
   if (cancelled || (keep_running && !keep_running())) { return false; }
   target.document = std::move(resized);
+  // Text layers only had their transform composed and their raster resampled by the core
+  // resize; re-render them here (GUI thread, after the swap) so the dialog, doc.resizeImage
+  // and MCP all land the same crisp, size-folded result.
+  rerender_text_layers_through_transforms(target);
   return true;
 }
 
 void MainWindow::resize_image_dialog() {
+  // A live text session's provisional layer must be committed before the document is
+  // resampled and its text layers re-rendered (docs/text-tool.md, mutating actions).
+  finish_active_text_editor();
   auto& doc = document();
   const auto settings = request_image_size_settings(this, doc);
   if (!settings.has_value()) {
@@ -1199,6 +1206,7 @@ void MainWindow::resize_image_dialog() {
 }
 
 void MainWindow::resize_canvas_dialog() {
+  finish_active_text_editor();
   auto& doc = document();
   const auto settings = request_canvas_size_settings(this, doc);
   if (!settings.has_value()) {
