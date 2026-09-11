@@ -55,37 +55,9 @@ Three changes cut what an inline text session costs, none of which changes commi
 Do not read a single stress run as a measurement: text steps swing 50%+ run to run, and stale
 `kStepBaselines` can make a faster build look like a regression. Alternate builds, compare means.
 
-## Layer-panel rebuilds are three strictly-separated passes
+## Layer-panel rebuilds and selection
 
-`MainWindow::refresh_layer_list` (main_window_layer_panel.cpp) rebuilds in
-passes: configure every `QListWidgetItem` while still parentless, insert ALL
-items, then attach the row widgets. The order is load-bearing twice over: a
-`setData`/`setToolTip` on an inserted item emits a model `dataChanged` the view
-answers with layout work, and - the expensive one - `setItemWidget` registers a
-persistent editor index that every LATER model insert pays an update walk over,
-which made interleaved insert-and-attach quadratic in row count (~2.2 s per
-rebuild for the 622-row Affinity card template, ~0.4 s batched; the remaining
-cost is genuine widget construction + QSS polish). Never mutate an inserted
-item mid-rebuild and never attach a row widget before the last item is in.
-`refresh_layer_list` logs per-phase timings under `PATCHY_UI_PROFILE=1`, and
-`patchy_perf_tests.exe layerpanel` reproduces the numbers on the untracked
-Quintavius fixture (af-spike/web_samples2; [SKIP] when absent) - it also times
-folder collapse/expand and a Layer Style dialog open/cancel round trip, and
-`PATCHY_PERF_SAMPLER=1` turns on an in-process sampling profiler over the
-scenario (10 ms main-thread stacks, hottest stacks printed at exit).
-
-New sessions build rows once. Their row-attachment callback pumps paints/timers
-with input excluded and the preview edit lock held; recursive rebuilds are refused.
-Slow setup shows an opening dialog while the first-render spinner animates.
-Hide the welcome panel before inserting the tab. Tests:
-`ui_large_document_session_keeps_loading_responsive` checks spinner-frame changes
-during row construction; the recent-file open test pins one rebuild.
-
-The Layer Style dialog's CANCEL path deliberately skips `refresh_layer_list`:
-it restored the exact pre-dialog state, so no row structure/name/badge/detail
-changed - only the previewed layer's thumbnail revision moved
-(`refresh_layer_thumbnails` + `refresh_layer_controls` cover it). Committing
-keeps the full rebuild (badges and details may genuinely change).
+The Layers panel's rules (three-pass rebuild order, no rebuild on canvas-driven selection of existing rows, viewport-bounded row masks) and their measured numbers live in [layer-panel.md](layer-panel.md). Profiling: `refresh_layer_list`, `set_active_layer_from_selection`, `restyle_layer_rows`, `update_layer_target_styles`, and `refresh_options_bar` log under `PATCHY_UI_PROFILE=1`, and `PATCHY_ZOOM_TRACE=1` adds the Move-tool press phases (`move_press.*`, including `handle_transform_start` for a passive-handle grab). `patchy_perf_tests.exe layerpanel` times the Quintavius rebuild, folder collapse/expand, and a Layer Style open/cancel round trip (af-spike/web_samples2; [SKIP] when absent); `manylayers` times a panel row click, a canvas auto-select click, and a Move-tool press/drag/release on the 2056-layer Little-Everywhere-fixed.psd (local-test-fixtures/psd; [SKIP] when absent). `PATCHY_PERF_SAMPLER=1` samples 10 ms main-thread stacks per measured phase. Never read one run as a measurement: alternate builds and compare means.
 
 ## Deep documents defer full recomposites (layer-count gate)
 

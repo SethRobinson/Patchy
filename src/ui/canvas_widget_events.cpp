@@ -789,8 +789,14 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
   }
 
   if (tool_ == CanvasTool::Move) {
-    auto* top_clicked_layer = topmost_move_layer_at(document_point, false);
-    auto* clicked_layer = document_contains(document_point) ? topmost_move_layer_at(document_point, true) : nullptr;
+    const ZoomTraceScope press_trace("move_press", zoom_);
+    Layer* top_clicked_layer = nullptr;
+    Layer* clicked_layer = nullptr;
+    {
+      const ZoomTraceScope hit_trace("move_press.hit_test", zoom_);
+      top_clicked_layer = topmost_move_layer_at(document_point, false);
+      clicked_layer = document_contains(document_point) ? topmost_move_layer_at(document_point, true) : nullptr;
+    }
     if (event->modifiers().testFlag(Qt::ControlModifier)) {
       begin_move_layer_selection(event, clicked_layer, true);
       return;
@@ -800,6 +806,11 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     if (passive_transform_rect.has_value()) {
       passive_handle = transform_handle_at(event->pos(), *passive_transform_rect, 0.0);
       if (passive_handle != TransformHandle::None && passive_handle != TransformHandle::Move) {
+        // A handle grab starts a Free Transform session; at zoom <= 50% its
+        // source preparation builds the preview-scaled document (every raster
+        // layer box-downscaled once), which is where a slow handle grab on a
+        // thousands-of-layers document goes.
+        const ZoomTraceScope handle_trace("move_press.handle_transform_start", zoom_);
         if (begin_free_transform() && prepare_free_transform_source()) {
           dragging_transform_ = true;
           transform_drag_uses_proxy_preview_ = false;
@@ -865,6 +876,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     }
     if (show_transform_controls_ && (auto_select_layer_ || selected_layer_ids_.size() < 2U)) {
       if (transform_controls_layer != nullptr) {
+        const ZoomTraceScope controls_trace("move_press.set_controls_layer", zoom_);
         set_move_transform_controls_layer(transform_controls_layer->id());
       } else if (transform_controls_layer == nullptr && passive_transform_rect.has_value() &&
                  passive_handle == TransformHandle::None) {
@@ -894,7 +906,10 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       }
       return;
     }
-    begin_move_drag(layer_ids, document_point, event->pos());
+    {
+      const ZoomTraceScope begin_trace("move_press.begin_move_drag", zoom_);
+      begin_move_drag(layer_ids, document_point, event->pos());
+    }
     return;
   }
 

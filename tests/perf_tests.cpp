@@ -5,12 +5,16 @@
 #include "test_harness.hpp"
 #include "local_psd_fixtures.hpp"
 #include "ui/image_document_io.hpp"
+#include "ui/layer_list_widget.hpp"
 #include "ui/main_window.hpp"
 
 #include <QApplication>
 #include <QByteArray>
 #include <QDialog>
+#include <QItemSelectionModel>
 #include <QKeyEvent>
+#include <QListWidget>
+#include <QMouseEvent>
 #include <QImage>
 #include <QPainter>
 #include <QRect>
@@ -30,6 +34,7 @@
 #include <iostream>
 #include <map>
 #include <memory>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -486,8 +491,13 @@ class MainThreadSampler {
     process_ = GetCurrentProcess();
     main_thread_ = OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT | THREAD_QUERY_INFORMATION,
                               FALSE, GetCurrentThreadId());
-    SymSetOptions(SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS);
-    symbols_ready_ = SymInitialize(process_, nullptr, TRUE) != FALSE;
+    // dbghelp accepts one SymInitialize per process; later samplers (one per
+    // measured phase) reuse it or they would print raw addresses.
+    static const bool symbols_initialized = [] {
+      SymSetOptions(SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS);
+      return SymInitialize(GetCurrentProcess(), nullptr, TRUE) != FALSE;
+    }();
+    symbols_ready_ = symbols_initialized;
     if (main_thread_ != nullptr) {
       worker_ = std::thread([this] { run(); });
     }
@@ -728,6 +738,224 @@ void quintavius_layer_panel_perf_if_available() {
             << " style_layer=\"" << clean_name(style_target->name()) << "\"\n";
 }
 
+// Mouse events for the interaction scenarios (the visual suite's helper lives in
+// its own support TU; this binary only needs the plain form).
+void send_mouse(QWidget& widget, QEvent::Type type, QPoint position, Qt::MouseButton button,
+                Qt::MouseButtons buttons, Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+  QMouseEvent event(type, QPointF(position), QPointF(widget.mapToGlobal(position)), button, buttons, modifiers);
+  QApplication::sendEvent(&widget, &event);
+}
+
+// First fully opaque pixel of a rgba8 layer inside its opaque extent inset by
+// `inset` document pixels, scanning outward from the middle row, as a
+// document-space point. The inset keeps a press there inside the Move tool's
+// passive transform box rather than on one of its edge handles (a handle grab
+// starts Free Transform instead of a move). nullopt when nothing qualifies.
+std::optional<QPoint> opaque_document_point(const patchy::Layer& layer, int inset) {
+  const auto& pixels = layer.pixels();
+  if (pixels.empty() || pixels.format().bit_depth != patchy::BitDepth::UInt8 || pixels.format().channels < 4) {
+    return std::nullopt;
+  }
+  const auto extent = patchy::visible_alpha_local_bounds(layer);
+  if (!extent.has_value()) {
+    return std::nullopt;
+  }
+  const QRect scan(extent->x + inset, extent->y + inset, extent->width - 2 * inset, extent->height - 2 * inset);
+  if (scan.isEmpty()) {
+    return std::nullopt;
+  }
+  for (int dy = 0; dy < scan.height(); ++dy) {
+    const auto y = scan.top() + (scan.height() / 2 + dy) % scan.height();
+    for (int x = scan.left(); x <= scan.right(); ++x) {
+      if (pixels.pixel(x, y)[3] >= 200) {
+        return QPoint(layer.bounds().x + x, layer.bounds().y + y);
+      }
+    }
+  }
+  return std::nullopt;
+}
+
+// Layer-selection and move-start latency on a document with thousands of
+// layers (Little-Everywhere-fixed.psd: 2600x2100 px, 7229 layers; September
+// 2026 report: selecting a layer and starting a Move-tool drag each stalled
+// about two seconds). Times a Layers-panel row click, a canvas auto-select
+// click, and the press / first frame / release of a Move-tool drag, with
+// render-diagnostics deltas. PATCHY_UI_PROFILE=1 adds the per-phase lines and
+// PATCHY_PERF_SAMPLER=1 samples only the measured interactions: the sampler
+// starts after the open has settled so the load cannot swamp the stacks.
+void many_layers_select_and_move_perf_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("Little-Everywhere-fixed.psd");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] Little-Everywhere-fixed.psd missing: " << path.string() << '\n';
+    return;
+  }
+
+  patchy::ui::MainWindow window;
+  window.resize(1600, 1000);
+  if (qEnvironmentVariableIsSet("PATCHY_PERF_ONSCREEN")) {
+    window.showMaximized();
+  } else {
+    window.show();
+  }
+  QApplication::processEvents();
+  const auto open_ms = elapsed_ms([&] {
+    patchy::ui::MainWindowTestAccess::open_document_path(window, QString::fromStdString(path.string()));
+    QApplication::processEvents();
+  });
+  auto* canvas = active_canvas(window);
+  CHECK(canvas != nullptr);
+  const auto settle_started = Clock::now();
+  while (!canvas->render_settled() &&
+         std::chrono::duration<double>(Clock::now() - settle_started).count() < 120.0) {
+    canvas->repaint();
+    QApplication::processEvents();
+  }
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+
+  // Visible pixel leaves (visible ancestors too), bottom to top.
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+  std::vector<const patchy::Layer*> leaves;
+  int layer_count = 0;
+  std::function<void(const std::vector<patchy::Layer>&, bool)> collect =
+      [&](const std::vector<patchy::Layer>& layers, bool ancestors_visible) {
+        for (const auto& layer : layers) {
+          ++layer_count;
+          const bool visible = ancestors_visible && layer.visible();
+          if (layer.kind() == patchy::LayerKind::Group) {
+            collect(layer.children(), visible);
+          } else if (visible && layer.kind() == patchy::LayerKind::Pixel && !layer.pixels().empty()) {
+            leaves.push_back(&layer);
+          }
+        }
+      };
+  collect(std::as_const(doc).layers(), true);
+  CHECK(!leaves.empty());
+
+  std::map<patchy::LayerId, QListWidgetItem*> rows;
+  for (int row = 0; row < layer_list->count(); ++row) {
+    auto* item = layer_list->item(row);
+    rows[static_cast<patchy::LayerId>(item->data(patchy::ui::kLayerIdRole).toULongLong())] = item;
+  }
+  // Panel target: a leaf with a row, from the middle of the stack. Canvas
+  // target: the topmost leaf with an opaque pixel, so nothing occludes it.
+  std::vector<const patchy::Layer*> leaves_with_rows;
+  for (const auto* leaf : leaves) {
+    if (rows.contains(leaf->id())) {
+      leaves_with_rows.push_back(leaf);
+    }
+  }
+  CHECK(!leaves_with_rows.empty());
+  const auto* panel_target = leaves_with_rows[leaves_with_rows.size() / 2];
+  const patchy::Layer* canvas_target = nullptr;
+  std::optional<QPoint> canvas_point;
+  // 40 document px keeps the press clear of the passive box's handles at any
+  // zoom above 25%.
+  for (auto it = leaves.rbegin(); it != leaves.rend() && !canvas_point.has_value(); ++it) {
+    canvas_point = opaque_document_point(**it, 40);
+    canvas_target = *it;
+  }
+  CHECK(canvas_point.has_value());
+  const auto canvas_target_bounds_before = canvas_target->bounds();
+
+  // One sampler per measured phase so each dump attributes that phase alone.
+#ifdef Q_OS_WIN
+  std::unique_ptr<MainThreadSampler> sampler;
+  const bool sampling = qEnvironmentVariableIsSet("PATCHY_PERF_SAMPLER");
+  const auto begin_phase = [&] {
+    if (sampling) {
+      sampler = std::make_unique<MainThreadSampler>();
+    }
+  };
+  const auto end_phase = [&](const char* name) {
+    if (sampler) {
+      std::cout << "[SAMPLER_PHASE] " << name << '\n';
+      sampler.reset();
+    }
+  };
+#else
+  const auto begin_phase = [] {};
+  const auto end_phase = [](const char*) {};
+#endif
+
+  // 1. Layers-panel row click.
+  begin_phase();
+  const auto select_row_ms = elapsed_ms([&] {
+    layer_list->setCurrentItem(rows[panel_target->id()], QItemSelectionModel::ClearAndSelect);
+    QApplication::processEvents();
+  });
+  end_phase("select_row");
+
+  // 2. Canvas auto-select click on the topmost layer's opaque pixel.
+  canvas->set_tool(patchy::ui::CanvasTool::Move);
+  canvas->set_auto_select_layer(true);
+  canvas->set_show_transform_controls(true);
+  QApplication::processEvents();
+  const auto click_position = canvas->widget_position_for_document_point(*canvas_point);
+  begin_phase();
+  const auto click_ms = elapsed_ms([&] {
+    send_mouse(*canvas, QEvent::MouseButtonPress, click_position, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, click_position, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+  });
+  end_phase("canvas_click");
+  const auto active_after_click = doc.active_layer_id();
+
+  // 3. Move-tool drag of that layer: press, first frame past the drag
+  //    threshold, a second frame, release (each timed on its own).
+  const auto before = canvas->render_cache_diagnostics();
+  begin_phase();
+  const auto press_ms = elapsed_ms([&] {
+    send_mouse(*canvas, QEvent::MouseButtonPress, click_position, Qt::LeftButton, Qt::LeftButton);
+    QApplication::processEvents();
+  });
+  end_phase("move_press");
+  // A press inside the box must start a move, never a transform session.
+  CHECK(!canvas->free_transform_active());
+  // Six frames: the live path's per-frame cost, and whether the slow-frame
+  // latch (proxy/base build) engages and what that costs.
+  constexpr int kDragFrames = 6;
+  std::vector<double> frame_ms;
+  QPoint drag_position = click_position;
+  begin_phase();
+  for (int frame = 1; frame <= kDragFrames; ++frame) {
+    drag_position = click_position + QPoint(30 * frame, 20 * frame);
+    frame_ms.push_back(elapsed_ms([&] {
+      send_mouse(*canvas, QEvent::MouseMove, drag_position, Qt::NoButton, Qt::LeftButton);
+      QApplication::processEvents();
+      canvas->repaint();
+    }));
+  }
+  end_phase("move_frames");
+  begin_phase();
+  const auto release_ms = elapsed_ms([&] {
+    send_mouse(*canvas, QEvent::MouseButtonRelease, drag_position, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+  });
+  end_phase("move_release");
+  const auto after = canvas->render_cache_diagnostics();
+  const auto* moved_target = std::as_const(doc).find_layer(canvas_target->id());
+  CHECK(moved_target != nullptr);
+  CHECK(moved_target->bounds().x != canvas_target_bounds_before.x ||
+        moved_target->bounds().y != canvas_target_bounds_before.y);
+  std::ostringstream frames;
+  for (std::size_t index = 0; index < frame_ms.size(); ++index) {
+    frames << (index == 0 ? "" : "/") << frame_ms[index];
+  }
+
+  std::cout << "[PERF_MANY_LAYERS] layers=" << layer_count << " visible_pixel_leaves=" << leaves.size()
+            << " rows=" << layer_list->count() << " open_ms=" << open_ms << " select_row_ms=" << select_row_ms
+            << " canvas_click_ms=" << click_ms << " move_press_ms=" << press_ms
+            << " move_frames_ms=" << frames.str() << " move_release_ms=" << release_ms
+            << " full_refresh_delta=" << (after.full_refreshes - before.full_refreshes)
+            << " proxy_previews_delta=" << (after.move_proxy_previews - before.move_proxy_previews)
+            << " outline_previews_delta=" << (after.move_outline_previews - before.move_outline_previews)
+            << " panel_target=\"" << clean_name(panel_target->name()) << "\" canvas_target=\""
+            << clean_name(canvas_target->name()) << "\" active_after_click="
+            << (active_after_click.has_value() ? std::to_string(*active_after_click) : std::string("none"))
+            << " (canvas_target_id=" << canvas_target->id() << ")\n";
+}
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
@@ -747,10 +975,15 @@ int main(int argc, char* argv[]) {
       quintavius_layer_panel_perf_if_available();
       return 0;
     }
+    if (argc > 1 && std::string_view(argv[1]) == "manylayers") {
+      many_layers_select_and_move_perf_if_available();
+      return 0;
+    }
     template_psd_dirty_move_perf_if_available();
     template_psd_ui_keyboard_nudge_perf_if_available();
     tent_psb_zoom_step_perf_if_available();
     quintavius_layer_panel_perf_if_available();
+    many_layers_select_and_move_perf_if_available();
   } catch (const std::exception& error) {
     std::cerr << "[FAIL] " << error.what() << '\n';
     return 1;

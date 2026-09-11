@@ -705,6 +705,7 @@ void restyle_layer_rows(QListWidget* list) {
   if (list == nullptr) {
     return;
   }
+  const UiProfileScope profile_scope("restyle_layer_rows");
   for (int row = 0; row < list->count(); ++row) {
     auto* item = list->item(row);
     auto* row_widget = list->itemWidget(item);
@@ -781,6 +782,7 @@ void update_layer_target_styles(QListWidget* list, std::optional<LayerId> active
   if (list == nullptr) {
     return;
   }
+  const UiProfileScope profile_scope("update_layer_target_styles");
 
   auto set_target_active = [](QWidget* widget, bool active) {
     if (widget == nullptr || (widget->property("layerTargetActive").isValid() &&

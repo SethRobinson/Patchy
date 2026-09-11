@@ -34,6 +34,7 @@
 #include <algorithm>
 #include <cmath>
 #include <utility>
+#include <vector>
 
 #ifdef Q_OS_WIN
 #ifndef NOMINMAX
@@ -461,33 +462,56 @@ void LayerListWidget::schedule_row_viewport_mask_update() {
 }
 
 void LayerListWidget::update_row_viewport_masks() {
-  if (viewport() == nullptr) {
+  auto* view = viewport();
+  if (view == nullptr) {
     return;
   }
+  // The scroll bars live in QAbstractScrollArea's own container widgets,
+  // siblings of the viewport rather than ancestors of the rows, so their
+  // rects are mapped through global coordinates. (mapFrom(scroll bar parent)
+  // was not an ancestor mapping: Qt warned once per row per call, 140k
+  // formatted stderr writes in one short session on a 2000-layer document,
+  // September 2026.)
+  std::vector<QRect> scroll_rects_in_viewport;
   for (auto* scroll_bar : {verticalScrollBar(), horizontalScrollBar()}) {
-    if (scroll_bar != nullptr && scroll_bar->isVisible()) {
-      scroll_bar->raise();
+    if (scroll_bar == nullptr || !scroll_bar->isVisible() || scroll_bar->maximum() <= scroll_bar->minimum() ||
+        scroll_bar->width() <= 0 || scroll_bar->height() <= 0) {
+      continue;
     }
+    scroll_bar->raise();
+    scroll_rects_in_viewport.emplace_back(view->mapFromGlobal(scroll_bar->mapToGlobal(QPoint(0, 0))),
+                                          scroll_bar->size());
   }
+  const auto viewport_rect = view->rect();
   for (int row_index = 0; row_index < count(); ++row_index) {
     auto* layer_item = item(row_index);
     auto* row_widget = layer_item != nullptr ? itemWidget(layer_item) : nullptr;
     if (row_widget == nullptr) {
       continue;
     }
-    const QRect viewport_rect_in_row(row_widget->mapFrom(viewport(), QPoint(0, 0)), viewport()->size());
-    QRegion mask(row_widget->rect().intersected(viewport_rect_in_row));
-    for (auto* scroll_bar : {verticalScrollBar(), horizontalScrollBar()}) {
-      if (scroll_bar == nullptr || scroll_bar->parentWidget() == nullptr ||
-          scroll_bar->maximum() <= scroll_bar->minimum() ||
-          (scroll_bar->width() <= 0 || scroll_bar->height() <= 0)) {
-        continue;
-      }
-      const QRect scroll_rect_in_row(row_widget->mapFrom(scroll_bar->parentWidget(), scroll_bar->geometry().topLeft()),
-                                     scroll_bar->size());
-      mask = mask.subtracted(QRegion(scroll_rect_in_row));
+    // Rows are children of the viewport, so geometry() is already in
+    // viewport coordinates. Rows outside it are not painted at all; they get
+    // their mask when a scroll brings them in (scrollContentsBy re-runs this),
+    // which keeps a scroll on a thousands-of-rows list proportional to the
+    // visible rows instead of the whole document.
+    const auto row_rect = row_widget->geometry();
+    if (!row_rect.intersects(viewport_rect)) {
+      continue;
     }
-    row_widget->setMask(mask);
+    const auto row_origin = row_rect.topLeft();
+    QRegion mask(row_widget->rect().intersected(viewport_rect.translated(-row_origin)));
+    bool overlaps_scroll_bar = false;
+    for (const auto& scroll_rect : scroll_rects_in_viewport) {
+      if (scroll_rect.intersects(row_rect)) {
+        overlaps_scroll_bar = true;
+        mask = mask.subtracted(QRegion(scroll_rect.translated(-row_origin)));
+      }
+    }
+    if (overlaps_scroll_bar || !viewport_rect.contains(row_rect)) {
+      row_widget->setMask(mask);
+    } else {
+      row_widget->clearMask();
+    }
   }
 }
 

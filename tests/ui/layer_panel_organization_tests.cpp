@@ -144,6 +144,7 @@
 #include <QRadioButton>
 #include <QSpinBox>
 #include <QStringList>
+#include <QScopeGuard>
 #include <QScrollBar>
 #include <QScreen>
 #include <QSettings>
@@ -3038,6 +3039,165 @@ void ui_layer_eye_double_click_toggles_each_click() {
   CHECK(require_layer_item(*layer_list, QStringLiteral("Blink Layer"))->checkState() == Qt::Checked);
 }
 
+// Canvas-driven layer activation must not rebuild the Layers panel when the
+// target row already exists: every Move-tool auto-select click reconstructed
+// every row widget (about 5 s on a 2000-layer document, September 2026). Only
+// a collapsed ancestor or a name filter that has to clear changes the row set,
+// and those still rebuild. Covers both entry points: the single activation
+// (reveal_layer_in_layer_list) and the rectangle/multi selection
+// (select_layers_in_layer_list).
+void ui_move_auto_select_click_keeps_existing_layer_rows() {
+  patchy::Document document(160, 120, patchy::PixelFormat::rgba8());
+  auto& background =
+      document.add_pixel_layer("Background", solid_pixels(160, 120, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  patchy::set_layer_locks_position(background, true);
+  patchy::Layer group(document.allocate_layer_id(), "Folder", patchy::LayerKind::Group);
+  patchy::Layer nested_1(document.allocate_layer_id(), "Nested 1",
+                         solid_pixels(18, 18, patchy::PixelFormat::rgba8(), QColor(220, 40, 40)));
+  nested_1.set_bounds(patchy::Rect{20, 20, 18, 18});
+  group.add_child(std::move(nested_1));
+  patchy::Layer nested_2(document.allocate_layer_id(), "Nested 2",
+                         solid_pixels(18, 18, patchy::PixelFormat::rgba8(), QColor(40, 90, 220)));
+  nested_2.set_bounds(patchy::Rect{65, 20, 18, 18});
+  group.add_child(std::move(nested_2));
+  document.add_layer(std::move(group));
+  patchy::Layer solo(document.allocate_layer_id(), "Solo",
+                     solid_pixels(18, 18, patchy::PixelFormat::rgba8(), QColor(40, 180, 90)));
+  solo.set_bounds(patchy::Rect{110, 70, 18, 18});
+  const auto solo_id = solo.id();
+  document.add_layer(std::move(solo));
+  document.set_active_layer(solo_id);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Auto Select Keeps Rows"));
+  QApplication::processEvents();
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_auto_select_layer(true);
+  canvas->set_show_transform_controls(false);
+  canvas->set_snap_enabled(false);
+
+  const auto row_widgets = [layer_list] {
+    std::vector<QWidget*> widgets;
+    for (int row = 0; row < layer_list->count(); ++row) {
+      widgets.push_back(layer_list->itemWidget(layer_list->item(row)));
+    }
+    return widgets;
+  };
+  const auto click = [&](QPoint document_point) {
+    const auto position = canvas->widget_position_for_document_point(document_point);
+    send_mouse(*canvas, QEvent::MouseButtonPress, position, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, position, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    QApplication::processEvents();
+  };
+
+  // Every row exists: the click activates the layer without a rebuild.
+  CHECK(layer_list->count() == 5);
+  const auto before_click = row_widgets();
+  click(QPoint(74, 29));
+  CHECK(row_widgets() == before_click);
+  auto* nested_2_item = require_layer_item(*layer_list, QStringLiteral("Nested 2"));
+  CHECK(nested_2_item->isSelected());
+  CHECK(layer_list->currentItem() == nested_2_item);
+  CHECK(canvas->active_layer_document_rect() == QRect(65, 20, 18, 18));
+
+  // Collapse the folder, then click a hidden child: its row must come back,
+  // which is the one case that still rebuilds.
+  auto* folder_widget = layer_list->itemWidget(require_layer_item(*layer_list, QStringLiteral("Folder")));
+  CHECK(folder_widget != nullptr);
+  auto* disclosure = folder_widget->findChild<QToolButton*>(QStringLiteral("layerFolderDisclosureButton"));
+  CHECK(disclosure != nullptr);
+  disclosure->click();
+  QApplication::processEvents();
+  QApplication::processEvents();
+  CHECK(layer_list->count() == 3);
+  click(QPoint(29, 29));
+  CHECK(layer_list->count() == 5);
+  auto* nested_1_item = require_layer_item(*layer_list, QStringLiteral("Nested 1"));
+  CHECK(nested_1_item->isSelected());
+  CHECK(layer_list->currentItem() == nested_1_item);
+  CHECK(canvas->active_layer_document_rect() == QRect(20, 20, 18, 18));
+
+  // A Ctrl-drag rectangle over existing rows selects them without a rebuild.
+  const auto before_rectangle = row_widgets();
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(10, 10)),
+       canvas->widget_position_for_document_point(QPoint(90, 45)), Qt::ControlModifier);
+  QApplication::processEvents();
+  QApplication::processEvents();
+  CHECK(row_widgets() == before_rectangle);
+  CHECK(require_layer_item(*layer_list, QStringLiteral("Nested 1"))->isSelected());
+  CHECK(require_layer_item(*layer_list, QStringLiteral("Nested 2"))->isSelected());
+}
+
+// Row masks keep rows from painting over the scroll bars. They used to be
+// mapped through the scroll bar's container, which is not an ancestor of the
+// rows, so Qt warned once per row on every scroll and resize (140k formatted
+// stderr writes in one short session on a 2000-layer document, September
+// 2026); the pass now maps through global coordinates and touches only rows
+// inside the viewport.
+void ui_layer_list_row_masks_map_scroll_bars_without_warnings() {
+  patchy::Document document(64, 64, patchy::PixelFormat::rgba8());
+  for (int index = 0; index < 60; ++index) {
+    document.add_pixel_layer("Row " + std::to_string(index),
+                             solid_pixels(64, 64, patchy::PixelFormat::rgba8(), QColor(index * 4, 80, 120)));
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Row Masks"));
+  QApplication::processEvents();
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  CHECK(layer_list->count() == 60);
+  auto* scroll_bar = layer_list->verticalScrollBar();
+  CHECK(scroll_bar != nullptr);
+  CHECK(scroll_bar->maximum() > scroll_bar->minimum());
+
+  static int map_from_warnings = 0;
+  static QtMessageHandler previous_handler = nullptr;
+  map_from_warnings = 0;
+  previous_handler = qInstallMessageHandler([](QtMsgType type, const QMessageLogContext& context,
+                                               const QString& message) {
+    if (message.contains(QStringLiteral("mapFrom"))) {
+      ++map_from_warnings;
+    }
+    if (previous_handler != nullptr) {
+      previous_handler(type, context, message);
+    }
+  });
+  const auto restore_handler = qScopeGuard([] { qInstallMessageHandler(previous_handler); });
+
+  scroll_bar->setValue((scroll_bar->minimum() + scroll_bar->maximum()) / 2);
+  QApplication::processEvents();
+  QApplication::processEvents();
+  layer_list->resize(layer_list->width() - 8, layer_list->height());
+  QApplication::processEvents();
+  QApplication::processEvents();
+  CHECK(map_from_warnings == 0);
+
+  // Visible rows under the bar are masked away from it (rows beside a bar
+  // that does not overlay them simply have nothing to mask).
+  auto* viewport = layer_list->viewport();
+  CHECK(viewport != nullptr);
+  const QRect scroll_rect(viewport->mapFromGlobal(scroll_bar->mapToGlobal(QPoint(0, 0))), scroll_bar->size());
+  for (int row = 0; row < layer_list->count(); ++row) {
+    auto* row_widget = layer_list->itemWidget(layer_list->item(row));
+    if (row_widget == nullptr) {
+      continue;
+    }
+    const auto row_rect = row_widget->geometry();
+    if (!row_rect.intersects(viewport->rect()) || !row_rect.intersects(scroll_rect)) {
+      continue;
+    }
+    const auto probe = row_rect.intersected(scroll_rect).center() - row_rect.topLeft();
+    CHECK(!row_widget->mask().isEmpty());
+    CHECK(!row_widget->mask().contains(probe));
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> layer_panel_organization_tests_animation_part();
@@ -3124,6 +3284,10 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
       {"ui_layer_eye_sweep_skips_disabled_and_off_column", ui_layer_eye_sweep_skips_disabled_and_off_column},
       {"ui_layer_eye_sweep_survives_folder_row_rebuild", ui_layer_eye_sweep_survives_folder_row_rebuild},
       {"ui_layer_eye_double_click_toggles_each_click", ui_layer_eye_double_click_toggles_each_click},
+      {"ui_move_auto_select_click_keeps_existing_layer_rows",
+       ui_move_auto_select_click_keeps_existing_layer_rows},
+      {"ui_layer_list_row_masks_map_scroll_bars_without_warnings",
+       ui_layer_list_row_masks_map_scroll_bars_without_warnings},
   };
   auto animation_part = layer_panel_organization_tests_animation_part();
   tests.insert(tests.end(), animation_part.begin(), animation_part.end());

@@ -2656,6 +2656,20 @@ void MainWindow::zoom_canvas_to_layer_content(LayerId id) {
   canvas_->zoom_to_document_rect(rect);
 }
 
+namespace {
+
+QListWidgetItem* layer_row_item(QListWidget& list, LayerId id) {
+  for (int row = 0; row < list.count(); ++row) {
+    auto* item = list.item(row);
+    if (item != nullptr && static_cast<LayerId>(item->data(kLayerIdRole).toULongLong()) == id) {
+      return item;
+    }
+  }
+  return nullptr;
+}
+
+}  // namespace
+
 void MainWindow::reveal_layer_in_layer_list(LayerId id) {
   if (layer_list_ == nullptr) {
     return;
@@ -2665,8 +2679,13 @@ void MainWindow::reveal_layer_in_layer_list(LayerId id) {
   if (!collect_layer_ancestor_groups(document().layers(), id, ancestors)) {
     return;
   }
+  // The row set only changes when a collapsed ancestor has to open or the
+  // name filter has to go; otherwise the row already exists and a full
+  // rebuild (every row widget reconstructed, ~5 s on a 2000-layer document)
+  // would only reproduce it. Rebuild on structural change alone.
+  bool rows_change = false;
   for (const auto ancestor_id : ancestors) {
-    session().collapsed_layer_groups.erase(ancestor_id);
+    rows_change = session().collapsed_layer_groups.erase(ancestor_id) > 0 || rows_change;
   }
 
   if (layer_name_filter_edit_ != nullptr && !layer_name_filter_edit_->text().isEmpty()) {
@@ -2677,23 +2696,24 @@ void MainWindow::reveal_layer_in_layer_list(LayerId id) {
       // avoids a second rebuild from textChanged.
       const QSignalBlocker blocker(layer_name_filter_edit_);
       layer_name_filter_edit_->clear();
+      rows_change = true;
     }
   }
 
-  refresh_layer_list();
-  for (int row = 0; row < layer_list_->count(); ++row) {
-    auto* item = layer_list_->item(row);
-    if (item == nullptr || static_cast<LayerId>(item->data(kLayerIdRole).toULongLong()) != id) {
-      continue;
-    }
-    layer_list_->setCurrentItem(item, QItemSelectionModel::ClearAndSelect);
-    layer_list_->scrollToItem(item, QAbstractItemView::PositionAtCenter);
-    restyle_layer_rows(layer_list_);
-    // The rebuild may have silently selected this row already, in which case
-    // setCurrentItem emits no selection change to refresh the status count.
-    report_layer_selection_count(selected_layer_ids());
-    break;
+  auto* item = layer_row_item(*layer_list_, id);
+  if (rows_change || item == nullptr) {
+    refresh_layer_list();
+    item = layer_row_item(*layer_list_, id);
   }
+  if (item == nullptr) {
+    return;
+  }
+  layer_list_->setCurrentItem(item, QItemSelectionModel::ClearAndSelect);
+  layer_list_->scrollToItem(item, QAbstractItemView::PositionAtCenter);
+  restyle_layer_rows(layer_list_);
+  // The rebuild may have silently selected this row already, in which case
+  // setCurrentItem emits no selection change to refresh the status count.
+  report_layer_selection_count(selected_layer_ids());
 }
 
 void MainWindow::select_layers_in_layer_list(const std::vector<LayerId>& ids, LayerId active_id) {
@@ -2704,6 +2724,9 @@ void MainWindow::select_layers_in_layer_list(const std::vector<LayerId>& ids, La
   std::vector<LayerId> present_ids;
   present_ids.reserve(ids.size());
   auto filter_matches_all = true;
+  // Same rule as reveal_layer_in_layer_list: rebuild the rows only when a
+  // collapsed ancestor opens, the filter clears, or a target has no row yet.
+  bool rows_change = false;
   const auto filter_text = layer_name_filter_edit_ != nullptr ? layer_name_filter_edit_->text() : QString();
   for (const auto id : ids) {
     const auto* layer = document().find_layer(id);
@@ -2714,12 +2737,15 @@ void MainWindow::select_layers_in_layer_list(const std::vector<LayerId>& ids, La
     std::vector<LayerId> ancestors;
     if (collect_layer_ancestor_groups(document().layers(), id, ancestors)) {
       for (const auto ancestor_id : ancestors) {
-        session().collapsed_layer_groups.erase(ancestor_id);
+        rows_change = session().collapsed_layer_groups.erase(ancestor_id) > 0 || rows_change;
       }
     }
     if (!filter_text.isEmpty() &&
         !QString::fromStdString(layer->name()).contains(filter_text, Qt::CaseInsensitive)) {
       filter_matches_all = false;
+    }
+    if (layer_row_item(*layer_list_, id) == nullptr) {
+      rows_change = true;
     }
   }
   if (present_ids.empty()) {
@@ -2730,9 +2756,12 @@ void MainWindow::select_layers_in_layer_list(const std::vector<LayerId>& ids, La
     // a second rebuild from textChanged.
     const QSignalBlocker blocker(layer_name_filter_edit_);
     layer_name_filter_edit_->clear();
+    rows_change = true;
   }
 
-  refresh_layer_list();
+  if (rows_change) {
+    refresh_layer_list();
+  }
   auto* selection_model = layer_list_->selectionModel();
   auto* model = layer_list_->model();
   if (selection_model == nullptr || model == nullptr) {
