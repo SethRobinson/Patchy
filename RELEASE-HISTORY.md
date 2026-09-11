@@ -3,6 +3,17 @@
 Older Patchy release notes are collected here. The two most recent releases
 remain in [README.md](README.md#whats-new).
 
+## 0.92 - September 9, 2026
+
+- Local AI control: desktop packages include a native MCP connector, an installable skill, and JavaScript examples. Help > Set up AI Control provides a setup prompt and task examples. Agents can use an isolated background workspace, show their own workspace, or attach to your open Patchy app; attached connections recover when the app restarts
+- Automation uses Patchy's native brushes, pressure dynamics, reusable brush presets, editable vector shapes, paths, and masks. Edits appear progressively, Slow playback offers per-stroke Undo, and Pause lets you browse documents or make manual changes before resuming
+- View > Dynamic Vector Preview renders native shapes and vector masks at screen resolution when zoomed in, keeping them sharp alongside pixel layers, groups, adjustments, and layer effects without changing saved output
+- Merge Layers preserves editable vector artwork and offers separate bitmap merges, merging within each group, and separate merges by vector paint type. Merge Visible to New Layer (Copy) keeps the originals and can hide them to avoid drawing transparent artwork twice
+- The Move tool adds rectangle layer selection, Shift-click toggles, and a right-click menu for choosing overlapping layers or selecting all layers under the pointer. The status bar counts selected layers, including folder contents, and large layer selections respond faster
+- Palette colors can have names: rename swatches and see their labels in the Palette panel, color picker, Info panel, and eyedropper readout. Names survive GPL, PSD, and indexed PNG round trips, and extracting colors retains names for exact matches. Scripts and MCP can read, set, load, and save document palettes
+- Command-line runs gain --headless for unattended editing and exports without a display or interference with an open workspace. Desktop packages include the offscreen support it needs, including the macOS packaging fix by [@csbun](https://github.com/csbun). Linux headless and MCP startup also works without a responsive desktop portal
+- Fixes: large documents load with responsive progress, open vector strokes retain their appearance in Photoshop exports, merged vector PSD data round-trips correctly, and automated opens and saves appear in shared recent history. Additional fixes cover unsaved-change prompts, Cut inside folders, text with missing script coverage, layer rendering, and damaged-file handling
+
 ## 0.91 - September 3, 2026
 
 - JPEG XR (.jxr) opens and saves on Windows through the codec built into Windows. HDR captures such as NVIDIA's in-game screenshots, stored as floating-point scRGB, tone map down to 8-bit with a knee curve that keeps standard-range colors exact and rolls the highlights off instead of clipping them to white
