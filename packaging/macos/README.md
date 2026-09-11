@@ -109,10 +109,14 @@ crashed, and every session's keychains come back locked when it restarts. Septem
 and crashed at 17:03 with no Patchy build or ssh session running (the last remote build
 was two days earlier); the iCloudHelper dialog followed at 17:08. The build scripts only
 ever unlock the keychain and never lock it, and a `SecKeychainGetStatus` probe from an
-ssh session reports that session, not the desktop. macOS re-unlocks the login keychain
-by itself only when its password equals the login password, so keeping the two equal
-(Keychain Access > login > Change Password) is what makes recovery from a restart
-automatic; `PATCHY_KEYCHAIN_PASSWORD` must then be updated to match.
+ssh session reports that session, not the desktop. The login keychain password equals
+the login password on studiomac (verified September 11, 2026: the stored credential
+passes `sudo -S`), so login and reboot unlock the keychain automatically; after a
+securityd crash in the middle of a session nothing can, and the dialog is answered
+with the login password or by the script below. If the passwords ever diverge (a
+login password reset that skips the keychain), Keychain Access > login > Change
+Password for Keychain restores the match, and `PATCHY_KEYCHAIN_PASSWORD` must be
+updated with it.
 
 Recovery without touching the desktop: `packaging/macos/desktop-keychain-unlock.sh`
 (run over ssh) bootstraps a one-shot helper into the desktop `gui/<uid>` launchd
