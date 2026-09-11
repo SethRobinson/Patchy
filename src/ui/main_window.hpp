@@ -77,6 +77,10 @@ struct VectorPath;
 struct VectorShapeContent;
 }
 
+namespace patchy {
+struct LayerDropRequest;
+}  // namespace patchy
+
 namespace patchy::ui {
 
 namespace user_fonts {
@@ -500,6 +504,9 @@ private:
   [[nodiscard]] bool maybe_save_session(DocumentSession& target_session);
   void refresh_document_tab_titles();
   void refresh_document_window_title();
+  // Window menu: one checkable entry per open session (checked = active),
+  // rebuilt on aboutToShow; triggering one activates that session by id.
+  void rebuild_window_document_entries(QMenu* window_menu);
   void set_session_saved(DocumentSession& target_session);
   void mark_session_modified(DocumentSession& target_session);
   [[nodiscard]] bool session_is_modified(const DocumentSession& target_session) const noexcept;
@@ -975,6 +982,9 @@ private:
   void delete_layers(std::vector<LayerId> ids);
   void move_active_layer(int direction);
   void handle_layer_drop();
+  // The Alt-drop branch of handle_layer_drop: clones the dragged roots and
+  // moves the clones to the drop position, leaving the originals in place.
+  void duplicate_layers_for_drop(const LayerDropRequest& request);
   void reorder_layers_from_list();
   void toggle_layer_folder_expanded(LayerId id, bool include_nested = false);
   void toggle_all_layer_folders_expanded(LayerId reference_id);
@@ -1599,6 +1609,8 @@ private:
   QAction* language_english_action_{nullptr};
   QAction* language_japanese_action_{nullptr};
   QAction* float_document_action_{nullptr};
+  QAction* window_documents_separator_{nullptr};
+  std::vector<QAction*> window_document_actions_;
   QAction* duplicate_layer_to_document_action_{nullptr};
   QAction* dock_document_action_{nullptr};
   QAction* consolidate_tabs_action_{nullptr};

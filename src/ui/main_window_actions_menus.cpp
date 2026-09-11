@@ -291,6 +291,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   bind_action_text(plugins_menu->menuAction(), "&Plugins");
   bind_action_text(view_menu->menuAction(), "&View");
   bind_action_text(window_menu->menuAction(), "&Window");
+  window_menu->setObjectName(QStringLiteral("windowMenu"));
   bind_action_text(help_menu->menuAction(), "&Help");
 
   auto* new_action = file_menu->addAction(tr("&New"));
@@ -1631,6 +1632,14 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
     }
   });
   register_document_action(force_refresh_action);
+
+  // Photoshop lists the open documents at the bottom of the Window menu. The
+  // entries are rebuilt each time the menu opens (dynamic actions, no hotkey
+  // ids), so a floated or hidden document is one click away.
+  window_documents_separator_ = window_menu->addSeparator();
+  connect(window_menu, &QMenu::aboutToShow, this, [this, window_menu] {
+    rebuild_window_document_entries(window_menu);
+  });
 
   auto* scripting_guide_action = help_menu->addAction(tr("&Scripting Guide"));
   scripting_guide_action->setObjectName(QStringLiteral("helpScriptingGuideAction"));

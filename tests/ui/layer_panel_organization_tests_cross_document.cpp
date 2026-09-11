@@ -458,6 +458,49 @@ void ui_duplicate_layer_to_document_dialog_copies() {
   CHECK(std::as_const(*created_document).layers().front().bounds().x == 10);
 }
 
+void ui_layer_alt_drag_duplicates_in_panel() {
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  window.add_document_session(cross_document_source(), QStringLiteral("Only"));
+  QApplication::processEvents();
+  auto* canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  auto* document = patchy::ui::MainWindowTestAccess::document_for_canvas(window, canvas);
+  const auto session = patchy::ui::MainWindowTestAccess::session_id_for_canvas(window, canvas);
+  const auto mark_id = layer_id_named(*document, "Mark");
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+
+  // Alt-drop "Mark" onto the top edge of the Background row: a copy lands
+  // directly above Background and the original stays where it was.
+  auto* background_item = require_layer_item(*layer_list, QStringLiteral("Background"));
+  const auto row = layer_list->visualItemRect(background_item);
+  bool entered = false;
+  send_layer_drop_to_widget(*layer_list->viewport(), QPoint(row.center().x(), row.top() + 2), {mark_id}, session,
+                            Qt::AltModifier, &entered);
+  CHECK(entered);
+  const auto& layers = std::as_const(*document).layers();
+  CHECK(layers.size() == 4);
+  CHECK(layers[0].name() == "Background");
+  CHECK(layers[1].name() == "Mark copy");
+  CHECK(layers[2].name() == "Mark");
+  CHECK(layers[2].id() == mark_id);
+  CHECK(layers[3].name() == "Set");
+  CHECK(layers[1].bounds().x == 10 && layers[1].bounds().y == 8);
+  CHECK(document->active_layer_id() == layers[1].id());
+  CHECK(patchy::ui::MainWindowTestAccess::undo_depth_for_canvas(window, canvas) == 1);
+
+  // Without Alt the same drop is the ordinary reorder (the rows were rebuilt,
+  // so the Background row is looked up again).
+  const auto rebuilt_row = layer_list->visualItemRect(require_layer_item(*layer_list, QStringLiteral("Background")));
+  send_layer_drop_to_widget(*layer_list->viewport(), QPoint(rebuilt_row.center().x(), rebuilt_row.top() + 2),
+                            {mark_id}, session, Qt::NoModifier, &entered);
+  CHECK(entered);
+  CHECK(std::as_const(*document).layers().size() == 4);
+  CHECK(std::as_const(*document).layers()[1].id() == mark_id);
+  CHECK(std::as_const(*document).layers()[2].name() == "Mark copy");
+  CHECK(patchy::ui::MainWindowTestAccess::undo_depth_for_canvas(window, canvas) == 2);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> layer_panel_organization_tests_cross_document_part() {
@@ -470,5 +513,6 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests_cross_documen
       {"ui_layer_drag_group_mask_style_and_shape_survive", ui_layer_drag_group_mask_style_and_shape_survive},
       {"ui_duplicate_layer_to_document_dialog_copies", ui_duplicate_layer_to_document_dialog_copies},
       {"ui_layer_drag_smart_object_adopts_source", ui_layer_drag_smart_object_adopts_source},
+      {"ui_layer_alt_drag_duplicates_in_panel", ui_layer_alt_drag_duplicates_in_panel},
   };
 }

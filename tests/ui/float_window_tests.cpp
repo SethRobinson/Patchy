@@ -1038,6 +1038,54 @@ void ui_layer_drag_to_float_canvas_centers_at_drop_point() {
   CHECK(patchy::ui::MainWindowTestAccess::undo_depth_for_canvas(window, target_canvas) == 2);
 }
 
+void ui_window_menu_lists_open_documents() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* first_canvas = require_canvas(window);
+  window.add_document_session(make_float_test_document(QColor(90, 120, 30)), QStringLiteral("Second"));
+  QApplication::processEvents();
+  auto* second_canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  require_action(window, "windowFloatDocumentAction")->trigger();
+  QApplication::processEvents();
+  CHECK(find_document_float_window(window) != nullptr);
+  auto* window_menu = window.findChild<QMenu*>(QStringLiteral("windowMenu"));
+  CHECK(window_menu != nullptr);
+
+  const auto document_entries = [&] {
+    QList<QAction*> entries;
+    for (auto* action : window_menu->actions()) {
+      if (action->objectName().startsWith(QStringLiteral("windowDocument"))) {
+        entries.push_back(action);
+      }
+    }
+    return entries;
+  };
+
+  // The floated (active) document is checked; the tabbed one is not.
+  emit window_menu->aboutToShow();
+  QApplication::processEvents();
+  auto entries = document_entries();
+  CHECK(entries.size() == 2);
+  CHECK(entries[0]->text().contains(QStringLiteral("Untitled")));
+  CHECK(entries[1]->text().contains(QStringLiteral("Second")));
+  CHECK(!entries[0]->isChecked());
+  CHECK(entries[1]->isChecked());
+
+  // Picking an entry activates that document, tabbed or floated.
+  entries[0]->trigger();
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::canvas(window) == first_canvas);
+  emit window_menu->aboutToShow();
+  QApplication::processEvents();
+  entries = document_entries();
+  CHECK(entries.size() == 2);
+  CHECK(entries[0]->isChecked());
+  CHECK(!entries[1]->isChecked());
+  entries[1]->trigger();
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::canvas(window) == second_canvas);
+}
+
 void ui_float_window_accepts_file_drop() {
   ensure_artifact_dir();
   const auto image_path = std::filesystem::absolute(std::filesystem::path("test-artifacts") / "float-drop.png");
@@ -1099,6 +1147,7 @@ std::vector<patchy::test::TestCase> float_window_tests() {
       {"ui_float_window_smart_object_child_commits_to_parent",
        ui_float_window_smart_object_child_commits_to_parent},
       {"ui_float_window_accepts_file_drop", ui_float_window_accepts_file_drop},
+      {"ui_window_menu_lists_open_documents", ui_window_menu_lists_open_documents},
       {"ui_layer_drag_to_float_canvas_centers_at_drop_point", ui_layer_drag_to_float_canvas_centers_at_drop_point},
       {"ui_window_float_all_tile_and_cascade", ui_window_float_all_tile_and_cascade},
       {"ui_tab_drag_out_tears_off_document", ui_tab_drag_out_tears_off_document},

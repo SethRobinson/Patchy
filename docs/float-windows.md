@@ -11,6 +11,10 @@ with the usual save prompt, and Cancel keeps both the window and the document. H
 `window.consolidate_all_to_tabs`, `window.float_all`, `window.tile_windows`,
 `window.cascade_windows`, all without default shortcuts.
 
+The bottom of the Window menu lists every open document, tabbed or floated (rebuilt on
+`aboutToShow` by `rebuild_window_document_entries`; checked = active; triggering one
+activates the session by id). `ui_window_menu_lists_open_documents` pins it.
+
 ## Gestures and arrangement
 
 - **Tear-off**: dragging a tab 24+ px above or below the tab bar floats its document at

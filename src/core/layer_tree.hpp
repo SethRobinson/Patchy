@@ -21,6 +21,10 @@ struct LayerDropRequest {
   std::vector<LayerId> layer_ids_top_to_bottom;
   std::optional<LayerId> target_layer_id;
   LayerDropPosition position{LayerDropPosition::OnViewport};
+  // Alt-drop (Photoshop's Alt-drag): duplicate the dragged layers at the drop
+  // position instead of moving them. move_layers_for_drop ignores it; the
+  // panel host clones first and moves the clones.
+  bool copy{false};
 };
 
 struct LayerSiblingLocation {

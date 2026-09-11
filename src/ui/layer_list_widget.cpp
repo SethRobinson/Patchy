@@ -1160,7 +1160,10 @@ void LayerListWidget::dragEnterEvent(QDragEnterEvent* event) {
   keep_drag_anchor_selected();
   update_drop_preview(event->position().toPoint());
   update_auto_scroll(event->position().toPoint());
-  event->setDropAction(Qt::MoveAction);
+  // Alt turns the reorder into a duplicate (Photoshop's Alt-drag); the copy
+  // badge on the cursor says so. Modifiers come from the event, never the
+  // global keyboard state.
+  event->setDropAction((event->modifiers() & Qt::AltModifier) != 0 ? Qt::CopyAction : Qt::MoveAction);
   event->accept();
 }
 
@@ -1172,7 +1175,10 @@ void LayerListWidget::dragMoveEvent(QDragMoveEvent* event) {
   keep_drag_anchor_selected();
   update_drop_preview(event->position().toPoint());
   update_auto_scroll(event->position().toPoint());
-  event->setDropAction(Qt::MoveAction);
+  // Alt turns the reorder into a duplicate (Photoshop's Alt-drag); the copy
+  // badge on the cursor says so. Modifiers come from the event, never the
+  // global keyboard state.
+  event->setDropAction((event->modifiers() & Qt::AltModifier) != 0 ? Qt::CopyAction : Qt::MoveAction);
   event->accept();
 }
 
@@ -1206,12 +1212,14 @@ void LayerListWidget::dropEvent(QDropEvent* event) {
       }
     }
     const auto target = drop_target_at(position);
+    const bool copy = (event->modifiers() & Qt::AltModifier) != 0;
     pending_drop_request_ = LayerDropRequest{
         std::move(ids),
         target.layer_id,
-        target.position};
+        target.position,
+        copy};
     drop_in_progress_ = true;
-    event->setDropAction(Qt::MoveAction);
+    event->setDropAction(copy ? Qt::CopyAction : Qt::MoveAction);
     event->accept();
     drop_in_progress_ = false;
   } else {

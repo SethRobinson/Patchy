@@ -14157,6 +14157,10 @@ Clipped to the layer below</source>
         <source>%1 layer(s)</source>
         <translation>%1 個のレイヤー</translation>
     </message>
+    <message>
+        <source>Duplicated layers</source>
+        <translation>レイヤーを複製しました</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::PalettePanel</name>

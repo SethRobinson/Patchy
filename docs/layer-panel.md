@@ -123,6 +123,14 @@ tests/ui/layer_panel_organization_tests_cross_document.cpp and
 `ui_layer_drag_to_float_canvas_centers_at_drop_point` in tests/ui/float_window_tests.cpp pin
 it; `send_layer_drop_to_widget` synthesizes the drag.
 
+Inside the panel, an Alt-drop duplicates instead of moving (Photoshop's Alt-drag):
+`LayerListWidget::dropEvent` records `LayerDropRequest::copy` from the event's
+modifiers (the enter/move handlers report CopyAction so the cursor shows the badge), and
+`MainWindow::duplicate_layers_for_drop` clones each dragged root directly above its
+source, then runs the ordinary `move_layers_for_drop` on the CLONES, so the originals
+never move; the copies become the selection under one "Duplicate layer" snapshot.
+`ui_layer_alt_drag_duplicates_in_panel` pins it.
+
 The same core backs Duplicate Layer to Document... (`layerDuplicateToDocumentAction`, hotkey
 id `layer.duplicate_to_document`, in the layer context menu and added to the window itself
 because the Layer menu's row count is pinned): its dialog (`duplicateLayerToDocumentDialog`)

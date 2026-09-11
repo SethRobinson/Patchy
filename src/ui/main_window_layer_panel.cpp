@@ -2410,6 +2410,10 @@ void MainWindow::handle_layer_drop() {
   }
 
   auto& doc = document();
+  if (request->copy) {
+    duplicate_layers_for_drop(*request);
+    return;
+  }
   auto trial_layers = doc.layers();
   const auto before_signature = layer_tree_signature(doc.layers());
   if (!move_layers_for_drop(trial_layers, *request) || layer_tree_signature(trial_layers) == before_signature) {
@@ -2429,6 +2433,81 @@ void MainWindow::handle_layer_drop() {
   refresh_layer_controls();
   canvas_->document_changed();
   statusBar()->showMessage(tr("Reordered layers"));
+}
+
+void MainWindow::duplicate_layers_for_drop(const LayerDropRequest& request) {
+  // Alt-drop: Photoshop duplicates the dragged layers at the drop position and
+  // leaves the originals in place. Clone each root directly above its source,
+  // then run the ordinary drop move on the CLONES; the originals never move.
+  auto& doc = document();
+  const auto root_ids = root_drop_layer_ids(std::as_const(doc).layers(), request.layer_ids_top_to_bottom);
+  const auto caches_available = std::all_of(root_ids.begin(), root_ids.end(), [&](LayerId id) {
+    const auto* source = std::as_const(doc).find_layer(id);
+    return source == nullptr || smart_filter_records_available_for_clone(*source, doc.metadata().smart_filter_effects);
+  });
+  if (root_ids.empty() || !caches_available) {
+    if (!caches_available) {
+      show_status_error(tr("Smart Filter cache data could not be duplicated safely"));
+    }
+    refresh_layer_list();
+    return;
+  }
+
+  push_undo_snapshot(tr("Duplicate layer"));
+  auto trial_layers = doc.layers();
+  std::set<std::string> existing_names;
+  const auto collect_names = [&existing_names](auto&& self, const std::vector<Layer>& layers) -> void {
+    for (const auto& layer : layers) {
+      existing_names.insert(layer.name());
+      self(self, layer.children());
+    }
+  };
+  collect_names(collect_names, std::as_const(trial_layers));
+  std::vector<LayerId> clone_ids_top_to_bottom;
+  clone_ids_top_to_bottom.reserve(root_ids.size());
+  for (const auto id : root_ids) {
+    const auto* source = find_layer_in_tree(std::as_const(trial_layers), id);
+    if (source == nullptr) {
+      continue;
+    }
+    auto clone = clone_layer_tree_with_document_ids(doc, *source);
+    if (!clone.has_value()) {
+      undo();
+      show_status_error(tr("Smart Filter cache data could not be duplicated safely"));
+      return;
+    }
+    clone->set_name(next_duplicate_name(source->name(), existing_names));
+    existing_names.insert(clone->name());
+    const auto clone_id = clone->id();
+    auto location = find_layer_location(trial_layers, id);
+    if (!location.has_value() || location->siblings == nullptr) {
+      continue;
+    }
+    location->siblings->insert(location->siblings->begin() + static_cast<std::ptrdiff_t>(location->index + 1U),
+                               std::move(*clone));
+    clone_ids_top_to_bottom.push_back(clone_id);
+  }
+  LayerDropRequest clone_request = request;
+  clone_request.layer_ids_top_to_bottom = clone_ids_top_to_bottom;
+  clone_request.copy = false;
+  if (clone_ids_top_to_bottom.empty() || !move_layers_for_drop(trial_layers, clone_request)) {
+    undo();
+    refresh_layer_list();
+    return;
+  }
+  doc.layers() = std::move(trial_layers);
+  if (request.position == LayerDropPosition::OnItem && request.target_layer_id.has_value()) {
+    if (const auto* target = std::as_const(doc).find_layer(*request.target_layer_id);
+        target != nullptr && target->kind() == LayerKind::Group) {
+      session().collapsed_layer_groups.erase(*request.target_layer_id);
+    }
+  }
+  doc.set_active_layer(clone_ids_top_to_bottom.front());
+  refresh_layer_list();
+  refresh_layer_controls();
+  canvas_->document_changed();
+  select_layers_in_layer_list(clone_ids_top_to_bottom, clone_ids_top_to_bottom.front());
+  statusBar()->showMessage(tr("Duplicated layers"));
 }
 
 void MainWindow::reorder_layers_from_list() {

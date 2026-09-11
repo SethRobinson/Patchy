@@ -1377,6 +1377,42 @@ QString MainWindow::session_display_title(const DocumentSession& target_session)
   return title;
 }
 
+void MainWindow::rebuild_window_document_entries(QMenu* window_menu) {
+  if (window_menu == nullptr) {
+    return;
+  }
+  for (auto* action : window_document_actions_) {
+    window_menu->removeAction(action);
+    delete action;
+  }
+  window_document_actions_.clear();
+  if (window_documents_separator_ != nullptr) {
+    window_documents_separator_->setVisible(!sessions_.empty());
+  }
+  const auto* active = active_session();
+  int number = 0;
+  for (const auto& target_session : sessions_) {
+    if (target_session == nullptr) {
+      continue;
+    }
+    ++number;
+    auto* action = new QAction(QStringLiteral("&%1 %2").arg(number).arg(session_display_title(*target_session)),
+                               window_menu);
+    action->setObjectName(QStringLiteral("windowDocument%1Action").arg(number));
+    action->setCheckable(true);
+    action->setChecked(target_session.get() == active);
+    const auto session_id = target_session->session_id;
+    connect(action, &QAction::triggered, this, [this, session_id] {
+      // By id: the session may have closed between the menu opening and the click.
+      if (auto* chosen = session_with_id(session_id); chosen != nullptr) {
+        activate_document_session(*chosen);
+      }
+    });
+    window_menu->addAction(action);
+    window_document_actions_.push_back(action);
+  }
+}
+
 void MainWindow::refresh_document_tab_titles() {
   if (document_tabs_ == nullptr) {
     return;
