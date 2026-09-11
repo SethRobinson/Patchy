@@ -95,6 +95,7 @@ struct ActionBuildContext {
   QAction* crop_action{nullptr};
   QAction* rotate_cw_action{nullptr};
   QAction* rotate_ccw_action{nullptr};
+  QAction* rotate_arbitrary_action{nullptr};
   QAction* shift_seams_action{nullptr};
   QAction* scan_legacy_plugins_action{nullptr};
   QAction* zoom_in{nullptr};

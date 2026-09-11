@@ -400,6 +400,67 @@ void document_rotate_clockwise_changes_canvas_and_writes_artifact() {
   write_bmp_artifact("document_rotate_clockwise", document);
 }
 
+// A 90-degree clockwise turn through the arbitrary path is the exact Rotate Right result:
+// pixel centers land on pixel centers, so the bilinear sampler degenerates to a copy. This
+// also pins the sign convention (positive = clockwise on screen).
+void document_rotate_arbitrary_quarter_turn_matches_rotate_right() {
+  auto rotated = make_tool_document();
+  const auto layer_id = active_tool_layer(rotated);
+  auto options = tool_options(255, 120, 0);
+  CHECK(!patchy::fill_rect(rotated, layer_id, patchy::Rect{0, 0, 8, 6}, options).empty());
+  auto quarter = rotated;
+  patchy::rotate_document_clockwise(quarter);
+  CHECK(patchy::rotate_document_arbitrary(rotated, 90.0, patchy::EditColor{255, 255, 255, 255}));
+  CHECK(rotated.width() == quarter.width());
+  CHECK(rotated.height() == quarter.height());
+  CHECK(rotated.width() == 48);
+  CHECK(rotated.height() == 64);
+  const auto* arbitrary_layer = rotated.find_layer(layer_id);
+  const auto* quarter_layer = quarter.find_layer(layer_id);
+  CHECK(arbitrary_layer != nullptr);
+  CHECK(quarter_layer != nullptr);
+  CHECK(arbitrary_layer->bounds().x == quarter_layer->bounds().x);
+  CHECK(arbitrary_layer->bounds().y == quarter_layer->bounds().y);
+  CHECK(arbitrary_layer->bounds().width == quarter_layer->bounds().width);
+  CHECK(arbitrary_layer->bounds().height == quarter_layer->bounds().height);
+  const auto& arbitrary_pixels = arbitrary_layer->pixels();
+  const auto& quarter_pixels = quarter_layer->pixels();
+  CHECK(arbitrary_pixels.width() == quarter_pixels.width());
+  CHECK(arbitrary_pixels.height() == quarter_pixels.height());
+  CHECK(arbitrary_pixels.format().channels == quarter_pixels.format().channels);
+  std::size_t mismatches = 0;
+  for (std::int32_t y = 0; y < quarter_pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < quarter_pixels.width(); ++x) {
+      const auto* a = arbitrary_pixels.pixel(x, y);
+      const auto* q = quarter_pixels.pixel(x, y);
+      for (std::int32_t channel = 0; channel < quarter_pixels.format().channels; ++channel) {
+        mismatches += a[channel] != q[channel] ? 1U : 0U;
+      }
+    }
+  }
+  CHECK(mismatches == 0);
+  // The top-left fill ends up top-right after a clockwise turn, like Rotate Right.
+  CHECK(arbitrary_pixels.pixel(47, 0)[3] == 255);
+  CHECK(arbitrary_pixels.pixel(0, 0)[3] == 0);
+  write_bmp_artifact("document_rotate_arbitrary_quarter", rotated);
+}
+
+void document_rotate_arbitrary_expands_canvas_to_fit() {
+  auto document = make_tool_document();
+  CHECK(document.width() == 64);
+  CHECK(document.height() == 48);
+  // 30 degrees counterclockwise: 64 cos30 + 48 sin30 = 79.4, 64 sin30 + 48 cos30 = 73.6.
+  CHECK(patchy::rotate_document_arbitrary(document, -30.0, patchy::EditColor{255, 255, 255, 255}));
+  CHECK(document.width() == 79);
+  CHECK(document.height() == 74);
+  // Sub-threshold angles are a no-op, and a whole turn is too.
+  CHECK(patchy::rotate_document_arbitrary(document, 0.0, patchy::EditColor{255, 255, 255, 255}));
+  CHECK(patchy::rotate_document_arbitrary(document, 360.0, patchy::EditColor{255, 255, 255, 255}));
+  CHECK(document.width() == 79);
+  CHECK(document.height() == 74);
+  write_bmp_artifact("document_rotate_arbitrary_30", document);
+}
+
 void document_rotate_counterclockwise_changes_canvas_and_writes_artifact() {
   auto document = make_tool_document();
   const auto layer_id = active_tool_layer(document);
@@ -2575,5 +2636,8 @@ std::vector<patchy::test::TestCase> document_ops_filters_tests() {
        liquify_freeze_mask_protects_the_deformation_field},
       {"liquify_render_preserves_identity_and_scales_the_field",
        liquify_render_preserves_identity_and_scales_the_field},
+      {"document_rotate_arbitrary_quarter_turn_matches_rotate_right",
+       document_rotate_arbitrary_quarter_turn_matches_rotate_right},
+      {"document_rotate_arbitrary_expands_canvas_to_fit", document_rotate_arbitrary_expands_canvas_to_fit},
   };
 }

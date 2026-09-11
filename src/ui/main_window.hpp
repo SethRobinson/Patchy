@@ -1035,6 +1035,9 @@ private:
   void commit_crop_rect(QRect rect, double angle_degrees);
   void rotate_canvas_clockwise();
   void rotate_canvas_counterclockwise();
+  // Image > Rotate Arbitrary...: asks for an angle and direction, rotates the whole
+  // canvas about its center, and enlarges it to fit (main_window_document_dialogs.cpp).
+  void rotate_canvas_arbitrary();
   void toggle_tile_seam_offset();
   [[nodiscard]] std::vector<LayerId> selected_layer_ids() const;
   void report_layer_selection_count(const std::vector<LayerId>& selected_ids);

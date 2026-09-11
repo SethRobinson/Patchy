@@ -1102,15 +1102,23 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   auto* crop_action = image_menu->addAction(tr("&Crop to Selection"));
   crop_action->setObjectName(QStringLiteral("imageCropToSelectionAction"));
   image_menu->addSeparator();
-  auto* rotate_cw_action = image_menu->addAction(tr("Rotate 90 &Clockwise"));
-  auto* rotate_ccw_action = image_menu->addAction(tr("Rotate 90 Counterclockwise"));
+  // "Right" is the 90-degree clockwise turn and "Left" the counterclockwise one; the object
+  // names and hotkey ids keep their persisted clockwise/counterclockwise identities.
+  auto* rotate_cw_action = image_menu->addAction(tr("Rotate &Right"));
+  auto* rotate_ccw_action = image_menu->addAction(tr("Rotate &Left"));
+  auto* rotate_arbitrary_action = image_menu->addAction(tr("Rotate &Arbitrary..."));
   rotate_cw_action->setObjectName(QStringLiteral("imageRotateClockwiseAction"));
   rotate_ccw_action->setObjectName(QStringLiteral("imageRotateCounterclockwiseAction"));
+  rotate_arbitrary_action->setObjectName(QStringLiteral("imageRotateArbitraryAction"));
+  rotate_cw_action->setStatusTip(tr("Rotate the canvas 90 degrees clockwise"));
+  rotate_ccw_action->setStatusTip(tr("Rotate the canvas 90 degrees counterclockwise"));
+  rotate_arbitrary_action->setStatusTip(tr("Rotate the canvas by any angle, enlarging it to fit"));
   image_size_action->setIcon(simple_icon(QStringLiteral("IS")));
   canvas_size_action->setIcon(simple_icon(QStringLiteral("CS")));
   crop_action->setIcon(simple_icon(QStringLiteral("crop")));
   rotate_cw_action->setIcon(simple_icon(QStringLiteral("rotate")));
   rotate_ccw_action->setIcon(simple_icon(QStringLiteral("rotate")));
+  rotate_arbitrary_action->setIcon(simple_icon(QStringLiteral("rotate")));
   register_hotkey(image_size_action, "image.size", QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_I));
   register_hotkey(canvas_size_action, "image.canvas_size", QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_C));
   // Plain C now belongs to the Crop tool (tools.crop); the menu command keeps
@@ -1118,6 +1126,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   register_hotkey(crop_action, "image.crop_to_selection");
   register_hotkey(rotate_cw_action, "image.rotate_cw", QKeySequence(Qt::CTRL | Qt::Key_BracketRight));
   register_hotkey(rotate_ccw_action, "image.rotate_ccw", QKeySequence(Qt::CTRL | Qt::Key_BracketLeft));
+  register_hotkey(rotate_arbitrary_action, "image.rotate_arbitrary");
   auto* shift_seams_action = image_menu->addAction(tr("Shift &Seams to Center"));
   shift_seams_action->setObjectName(QStringLiteral("imageShiftSeamsAction"));
   shift_seams_action->setStatusTip(
@@ -1131,6 +1140,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   connect(crop_action, &QAction::triggered, this, [this] { crop_to_selection(); });
   connect(rotate_cw_action, &QAction::triggered, this, [this] { rotate_canvas_clockwise(); });
   connect(rotate_ccw_action, &QAction::triggered, this, [this] { rotate_canvas_counterclockwise(); });
+  connect(rotate_arbitrary_action, &QAction::triggered, this, [this] { rotate_canvas_arbitrary(); });
   connect(shift_seams_action, &QAction::triggered, this, [this] { toggle_tile_seam_offset(); });
   auto* divide_photos_action = image_menu->addAction(tr("Divide Scanned P&hotos..."));
   divide_photos_action->setObjectName(QStringLiteral("imageDivideScannedPhotosAction"));
@@ -1142,7 +1152,8 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   register_hotkey(divide_photos_action, "image.divide_photos");
   connect(divide_photos_action, &QAction::triggered, this, [this] { divide_current_document_photos(); });
   for (auto* action : {adjustments_menu->menuAction(), image_size_action, canvas_size_action, crop_action,
-                       rotate_cw_action, rotate_ccw_action, shift_seams_action, divide_photos_action}) {
+                       rotate_cw_action, rotate_ccw_action, rotate_arbitrary_action, shift_seams_action,
+                       divide_photos_action}) {
     register_document_action(action);
   }
 
@@ -1731,6 +1742,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   ctx.crop_action = crop_action;
   ctx.rotate_cw_action = rotate_cw_action;
   ctx.rotate_ccw_action = rotate_ccw_action;
+  ctx.rotate_arbitrary_action = rotate_arbitrary_action;
   ctx.shift_seams_action = shift_seams_action;
   ctx.scan_legacy_plugins_action = scan_legacy_plugins_action;
   ctx.zoom_in = zoom_in;

@@ -731,6 +731,8 @@ void accept_clipboard_new_document_dialog(QSize clipboard_size);
 void accept_integer_dialog(const QString& object_name, int value);
 
 void accept_canvas_size_dialog(int width_value, int height_value);
+// Arms the Image > Rotate Arbitrary dialog: sets the angle, picks the direction, accepts.
+void accept_rotate_canvas_dialog(double degrees, bool clockwise);
 
 void accept_image_size_dialog(int width_value, int height_value);
 

@@ -256,7 +256,8 @@ style must not render nothing).
 ## Document geometry operations follow the text transform
 
 Every operation that remaps document space -- Image Size, Canvas Size, Crop to Selection,
-Rotate Canvas, layer Flip Horizontal/Vertical, and Shift Seams -- composes its matrix onto each
+Rotate Left/Right, Rotate Arbitrary (the rotated-crop path), layer Flip Horizontal/Vertical,
+and Shift Seams -- composes its matrix onto each
 text layer's `patchy.text.transform` (`compose_text_layer_transform`, document_geometry.cpp)
 BEFORE mutating the layer, so the implicit case can materialize translate(bounds) from
 pre-operation bounds. A layer with no stored transform gets one only under a matrix with a

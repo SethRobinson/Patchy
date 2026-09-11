@@ -11,6 +11,9 @@
 </context>
 <context>
     <name>QObject</name>
+    <message><source>Rotate Canvas</source><translation>キャンバスを回転</translation></message>
+    <message><source>Clockwise</source><translation>時計回り</translation></message>
+    <message><source>Counterclockwise</source><translation>反時計回り</translation></message>
     <message><source>Progress is estimated from processing stages. Some stages report only when complete.</source><translation>進捗率は処理段階から推定しています。完了時にのみ進捗を報告する段階もあります。</translation></message>
     <message><source>Refining... %1%</source><translation>高品質プレビューを処理中... %1%</translation></message>
     <message><source>Updating quick preview... %1%</source><translation>簡易プレビューを更新中... %1%</translation></message>
@@ -7267,6 +7270,12 @@ Mixed selection</source>
 </context>
 <context>
     <name>patchy::ui::MainWindow</name>
+    <message><source>Rotate &amp;Arbitrary...</source><translation>任意の角度で回転(&amp;A)...</translation></message>
+    <message><source>Rotate the canvas 90 degrees clockwise</source><translation>キャンバスを時計回りに 90 度回転します</translation></message>
+    <message><source>Rotate the canvas 90 degrees counterclockwise</source><translation>キャンバスを反時計回りに 90 度回転します</translation></message>
+    <message><source>Rotate the canvas by any angle, enlarging it to fit</source><translation>任意の角度でキャンバスを回転し、収まるように拡大します</translation></message>
+    <message><source>Rotated canvas %1 degrees clockwise</source><translation>キャンバスを時計回りに %1 度回転しました</translation></message>
+    <message><source>Rotated canvas %1 degrees counterclockwise</source><translation>キャンバスを反時計回りに %1 度回転しました</translation></message>
     <message><source>Rename palette color</source><translation>パレットの色名を変更</translation></message>
     <message><source>Palette color name updated</source><translation>パレットの色名を更新しました</translation></message>
     <message><source>Keep vector artwork sharp when zooming, including in documents with pixel layers. Saved files and exports keep their pixel resolution.</source><translation>ピクセルレイヤーを含むドキュメントでも、拡大時にベクトル画像を鮮明に表示します。保存ファイルと書き出しのピクセル解像度は変わりません。</translation></message>
@@ -8801,13 +8810,13 @@ Either way Patchy writes a copy; the open document keeps its layers and unsaved 
     </message>
     <message>
         <location line="+3"/>
-        <source>Rotate 90 &amp;Clockwise</source>
-        <translation>90 度時計回りに回転(&amp;C)</translation>
+        <source>Rotate &amp;Right</source>
+        <translation>右に回転(&amp;R)</translation>
     </message>
     <message>
         <location line="+1"/>
-        <source>Rotate 90 Counterclockwise</source>
-        <translation>90 度反時計回りに回転</translation>
+        <source>Rotate &amp;Left</source>
+        <translation>左に回転(&amp;L)</translation>
     </message>
     <message>
         <location line="+92"/>

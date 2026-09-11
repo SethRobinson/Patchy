@@ -1468,6 +1468,33 @@ void accept_canvas_size_dialog(int width_value, int height_value) {
   });
 }
 
+void accept_rotate_canvas_dialog(double degrees, bool clockwise) {
+  QTimer::singleShot(0, [degrees, clockwise] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() != QStringLiteral("patchyRotateCanvasDialog")) {
+        continue;
+      }
+      auto* dialog = qobject_cast<QDialog*>(widget);
+      CHECK(dialog != nullptr);
+      auto* angle = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("rotateCanvasAngleSpin"));
+      auto* clockwise_radio = dialog->findChild<QRadioButton*>(QStringLiteral("rotateCanvasClockwiseRadio"));
+      auto* counterclockwise_radio =
+          dialog->findChild<QRadioButton*>(QStringLiteral("rotateCanvasCounterclockwiseRadio"));
+      CHECK(angle != nullptr);
+      CHECK(clockwise_radio != nullptr);
+      CHECK(counterclockwise_radio != nullptr);
+      CHECK(angle->buttonSymbols() == QAbstractSpinBox::NoButtons);
+      CHECK(clockwise_radio->isChecked());
+      angle->setValue(degrees);
+      (clockwise ? clockwise_radio : counterclockwise_radio)->setChecked(true);
+      widget->grab().save(QStringLiteral("test-artifacts/ui_rotate_canvas_dialog.png"));
+      dialog->accept();
+      return;
+    }
+    CHECK(false);
+  });
+}
+
 void accept_image_size_dialog(int width_value, int height_value) {
   QTimer::singleShot(0, [width_value, height_value] {
     for (auto* widget : QApplication::topLevelWidgets()) {

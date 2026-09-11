@@ -229,6 +229,14 @@ void resize_canvas_and_layers(Document& document, std::int32_t width, std::int32
                                  EditColor extension_color);
 void rotate_document_clockwise(Document& document);
 void rotate_document_counterclockwise(Document& document);
+// Rotates the whole document by any angle (positive = clockwise on screen) about its
+// center and enlarges the canvas to the rotated image's bounding box, like Photoshop's
+// Image > Rotate > Arbitrary. Exposed corners follow the rotated-crop fill rules
+// (extension_color under a "Background" layer, transparent elsewhere); text transforms,
+// smart-object placements and vector data ride the same affine. Angles under 0.01
+// degrees are a no-op that returns true.
+[[nodiscard]] bool rotate_document_arbitrary(Document& document, double clockwise_degrees,
+                                             EditColor extension_color);
 // Shifts the whole document by (dx, dy) with wraparound at the canvas edges (the seamless
 // tile "offset" operation). Raster layer content, layer masks, and document channels roll;
 // object-like layers (text, placed records, shape layers) translate whole without wrapping,

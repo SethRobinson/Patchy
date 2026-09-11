@@ -160,6 +160,7 @@
 #include <QPointer>
 #include <QProcess>
 #include <QProgressDialog>
+#include <QRadioButton>
 #include <QRegion>
 #include <QScreen>
 #include <QScrollArea>
@@ -273,6 +274,115 @@ struct CanvasSizeSettings {
   CanvasAnchor anchor{CanvasAnchor::Center};
   QColor extension_color{Qt::white};
 };
+
+struct RotateCanvasSettings {
+  // Positive turns the canvas clockwise on screen, negative counterclockwise.
+  double clockwise_degrees{0.0};
+};
+
+// Image > Rotate Arbitrary...: Photoshop's small angle + direction prompt.
+std::optional<RotateCanvasSettings> request_rotate_canvas_settings(QWidget* parent) {
+  QDialog dialog(parent);
+  dialog.setObjectName(QStringLiteral("patchyRotateCanvasDialog"));
+  dialog.setWindowTitle(QObject::tr("Rotate Canvas"));
+  append_themed_style(dialog, QStringLiteral(R"(
+    QDialog#patchyRotateCanvasDialog {
+      background: @dlg_raised_bg;
+      color: @text_on_raised;
+    }
+    QDialog#patchyRotateCanvasDialog QWidget {
+      background: @dlg_raised_bg;
+      color: @text_on_raised;
+    }
+    QDialog#patchyRotateCanvasDialog QLabel {
+      background: transparent;
+      color: @text_on_raised;
+      font-size: 11px;
+    }
+    QDialog#patchyRotateCanvasDialog QDoubleSpinBox {
+      background: @dlg_tab_bg;
+      border: 1px solid @dlg_tab_border;
+      border-radius: 3px;
+      color: @text_on_raised;
+      min-height: 22px;
+      padding: 0 8px;
+    }
+    QDialog#patchyRotateCanvasDialog QDoubleSpinBox:focus {
+      border-color: @dlg_focus_border;
+      background: @dlg_button_bg;
+    }
+    QDialog#patchyRotateCanvasDialog QRadioButton {
+      background: transparent;
+      color: @text_on_raised;
+      font-size: 11px;
+      spacing: 7px;
+    }
+    QDialog#patchyRotateCanvasDialog QRadioButton::indicator {
+      width: 11px;
+      height: 11px;
+      border-radius: 6px;
+      background: @dlg_grid_bg;
+      border: 1px solid @dlg_grid_border;
+    }
+    QDialog#patchyRotateCanvasDialog QRadioButton::indicator:checked {
+      background: @accent_pressed_bg;
+      border-color: @dlg_focus_border;
+    }
+    QDialog#patchyRotateCanvasDialog QPushButton {
+      background: @dlg_raised_bg;
+      border: 1px solid @dlg_action_border;
+      border-radius: 13px;
+      color: @text_on_raised;
+      min-width: 70px;
+      min-height: 24px;
+      padding: 0 14px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    QDialog#patchyRotateCanvasDialog QPushButton:hover {
+      background: @dlg_raised_hover_bg;
+      border-color: @dlg_action_hover_border;
+    }
+  )"));
+
+  auto* layout = new QVBoxLayout(&dialog);
+  layout->setContentsMargins(15, 17, 14, 14);
+  layout->setSpacing(10);
+  auto* form = new QFormLayout();
+  form->setHorizontalSpacing(8);
+  auto* angle = new QDoubleSpinBox(&dialog);
+  angle->setObjectName(QStringLiteral("rotateCanvasAngleSpin"));
+  angle->setRange(0.0, 360.0);
+  angle->setDecimals(2);
+  angle->setSingleStep(1.0);
+  angle->setValue(0.0);
+  angle->setSuffix(QStringLiteral("\u00B0"));
+  configure_dialog_spinbox(angle);
+  form->addRow(QObject::tr("Angle:"), angle);
+  layout->addLayout(form);
+
+  auto* direction = new QHBoxLayout();
+  direction->setSpacing(14);
+  auto* clockwise = new QRadioButton(QObject::tr("Clockwise"), &dialog);
+  clockwise->setObjectName(QStringLiteral("rotateCanvasClockwiseRadio"));
+  clockwise->setChecked(true);
+  auto* counterclockwise = new QRadioButton(QObject::tr("Counterclockwise"), &dialog);
+  counterclockwise->setObjectName(QStringLiteral("rotateCanvasCounterclockwiseRadio"));
+  direction->addWidget(clockwise);
+  direction->addWidget(counterclockwise);
+  direction->addStretch(1);
+  layout->addLayout(direction);
+
+  auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+  layout->addWidget(buttons);
+  QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+  QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+  angle->selectAll();
+  if (exec_dialog(dialog) != QDialog::Accepted) {
+    return std::nullopt;
+  }
+  return RotateCanvasSettings{clockwise->isChecked() ? angle->value() : -angle->value()};
+}
 
 struct ImageSizeSettings {
   std::int32_t width{0};
@@ -1242,6 +1352,47 @@ void MainWindow::resize_canvas_dialog() {
   refresh_layer_controls();
   refresh_document_info();
   statusBar()->showMessage(tr("Canvas %1 x %2").arg(settings->width).arg(settings->height));
+}
+
+void MainWindow::rotate_canvas_arbitrary() {
+  finish_active_text_editor();
+  auto& doc = document();
+  const auto settings = request_rotate_canvas_settings(this);
+  if (!settings.has_value()) {
+    return;
+  }
+  const auto turn = std::fmod(std::abs(settings->clockwise_degrees), 360.0);
+  if (turn < 0.01 || turn > 359.99 || doc.width() <= 0 || doc.height() <= 0) {
+    return;
+  }
+  if (refuse_document_geometry_change()) {
+    return;
+  }
+
+  push_undo_snapshot(tr("Rotate canvas"));
+  // Exposed corners take the background color under a Background layer, transparent elsewhere.
+  if (!patchy::rotate_document_arbitrary(doc, settings->clockwise_degrees, edit_color(canvas_->secondary_color()))) {
+    return;
+  }
+  // The rotation resampled every raster; text layers re-render crisp through the composed
+  // matrix, exactly as after Image Size.
+  rerender_text_layers_through_transforms(session());
+  canvas_->clear_selection();
+  const auto previous_channel_target = canvas_->layer_edit_target();
+  const auto previous_channel_id = canvas_->active_document_channel_id();
+  const auto previous_channel_display = canvas_->mask_display_mode();
+  canvas_->set_document(&doc);
+  restore_channel_target_after_document_reset(previous_channel_target, previous_channel_id,
+                                              previous_channel_display);
+  // The enlarged canvas makes the old pan stale, so recenter at the current zoom.
+  canvas_->center_document_in_view();
+  refresh_layer_list();
+  refresh_layer_controls();
+  refresh_document_info();
+  const auto degrees_text = QString::number(std::abs(settings->clockwise_degrees), 'f', 2);
+  statusBar()->showMessage(settings->clockwise_degrees > 0.0
+                               ? tr("Rotated canvas %1 degrees clockwise").arg(degrees_text)
+                               : tr("Rotated canvas %1 degrees counterclockwise").arg(degrees_text));
 }
 
 }  // namespace patchy::ui

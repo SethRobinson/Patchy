@@ -1847,6 +1847,34 @@ void ui_new_document_and_canvas_size_dialogs_work() {
   save_widget_artifact("ui_canvas_size_result", window);
 }
 
+// Image > Rotate Arbitrary...: the dialog's angle and direction rotate the whole canvas and
+// enlarge it to the rotated bounding box. The quarter-turn commands keep their persisted
+// action ids under their new Rotate Right / Rotate Left labels.
+void ui_rotate_canvas_arbitrary_dialog_rotates_and_expands_canvas() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* info = window.findChild<QLabel*>(QStringLiteral("documentInfoLabel"));
+  CHECK(info != nullptr);
+  if (info == nullptr) {
+    return;
+  }
+  CHECK(info->text().contains(QStringLiteral("1024 x 768 px")));
+  CHECK(require_action(window, "imageRotateClockwiseAction")->text().contains(QStringLiteral("Right")));
+  CHECK(require_action(window, "imageRotateCounterclockwiseAction")->text().contains(QStringLiteral("Left")));
+
+  accept_rotate_canvas_dialog(90.0, true);
+  require_action(window, "imageRotateArbitraryAction")->trigger();
+  QApplication::processEvents();
+  CHECK(info->text().contains(QStringLiteral("768 x 1024 px")));
+
+  // 45 degrees either way: (768 + 1024) * cos 45 = 1267 on both axes.
+  accept_rotate_canvas_dialog(45.0, false);
+  require_action(window, "imageRotateArbitraryAction")->trigger();
+  QApplication::processEvents();
+  CHECK(info->text().contains(QStringLiteral("1267 x 1267 px")));
+  save_widget_artifact("ui_rotate_canvas_result", window);
+}
+
 void ui_new_document_presets_and_clipboard_work() {
   QApplication::clipboard()->clear();
   // Earlier tests in the suite accept the dialog (settings leak by construction);
@@ -2266,5 +2294,7 @@ std::vector<patchy::test::TestCase> layer_context_lifecycle_tests() {
        ui_merge_down_into_position_locked_background_works},
       {"ui_first_tab_still_draws_after_second_tab_created", ui_first_tab_still_draws_after_second_tab_created},
       {"ui_document_tab_context_menu_file_actions", ui_document_tab_context_menu_file_actions},
+      {"ui_rotate_canvas_arbitrary_dialog_rotates_and_expands_canvas",
+       ui_rotate_canvas_arbitrary_dialog_rotates_and_expands_canvas},
   };
 }

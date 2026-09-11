@@ -1219,6 +1219,40 @@ void rotate_document_counterclockwise(Document& document) {
                                  Rect::from_size(old_height, old_width));
 }
 
+bool rotate_document_arbitrary(Document& document, double clockwise_degrees, EditColor extension_color) {
+  if (!std::isfinite(clockwise_degrees)) {
+    return false;
+  }
+  const auto width = document.width();
+  const auto height = document.height();
+  if (width <= 0 || height <= 0) {
+    return false;
+  }
+  double degrees = std::fmod(clockwise_degrees, 360.0);
+  if (degrees > 180.0) {
+    degrees -= 360.0;
+  } else if (degrees <= -180.0) {
+    degrees += 360.0;
+  }
+  if (std::abs(degrees) < 0.01) {
+    return true;
+  }
+  // The result is the bounding box of the rotated canvas, centered where the canvas was.
+  const auto radians = degrees * (std::numbers::pi / 180.0);
+  const auto cos_abs = std::abs(std::cos(radians));
+  const auto sin_abs = std::abs(std::sin(radians));
+  const auto new_width =
+      std::max<std::int32_t>(1, static_cast<std::int32_t>(std::lround(width * cos_abs + height * sin_abs)));
+  const auto new_height =
+      std::max<std::int32_t>(1, static_cast<std::int32_t>(std::lround(width * sin_abs + height * cos_abs)));
+  const Rect crop{static_cast<std::int32_t>(std::floor((width - new_width) / 2.0)),
+                  static_cast<std::int32_t>(std::floor((height - new_height) / 2.0)), new_width, new_height};
+  // The rotated crop "straightens" a box rotated by its angle: a box rotated clockwise on
+  // screen comes out with the image turned counterclockwise, so a clockwise canvas rotation
+  // is the crop of a box rotated the other way.
+  return crop_document(document, crop, -degrees, extension_color);
+}
+
 namespace {
 
 // Wrap-rolls a buffer by (dx, dy) within its own dimensions: content pushed past one edge
