@@ -42,7 +42,7 @@ Required release handoff steps:
 
    A running `build\release\patchy.exe` locks the link step (`LNK1104`). Ask Seth to close it; never force-kill it because he may have unsaved work.
 
-   A running `build\release\patchy-mcp.exe` (an MCP client such as the Codex app keeps it alive) locks its own link the same way (September 2026). Build the `patchy`, `patchy_ui_visual_tests`, and `patchy_core_tests` targets explicitly with `--target`, never kill the connector, and report that the MCP target was skipped.
+   A running `build\release\patchy-mcp.exe` (an MCP client such as the Codex app keeps it alive) locks its own link the same way (September 2026). Build the `patchy`, `patchy_ui_visual_tests`, and `patchy_core_tests` targets explicitly with `--target`, never kill the connector, and report that the MCP target was skipped. A release needs a fresh connector, so release day renames the locked file out of the way first; see [docs/release-process.md](docs/release-process.md).
 
 2. Run release test binaries from `build\release`, scoped to the change:
 

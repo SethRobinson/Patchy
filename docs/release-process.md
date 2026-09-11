@@ -77,6 +77,19 @@ There are no versioned wasm artifacts: the site serves stable names and a redepl
 
 `build-wasm.bat` also builds the `wasm-release-st` preset and stages that single-threaded artifact under `st/` in the site directory (four files plus their precompressed variants; the page serves it to Safari/WebKit visitors, see [wasm.md](wasm.md) and [wasm-memory.md](wasm-memory.md); the uncompressed st wasm size is baked in as `__PATCHY_WASM_SIZE_ST__`). Both upload scripts create the remote `st/` directory and push that set before the main one, keeping the html files last overall. `build-wasm.bat` additionally stages the memory-diagnostics harness (`stress-harness.html` from `scripts\wasm`, cache-tag substituted, plus `memsoak.js`). The production upload list deliberately excludes the harness; `upload-wasm-to-rtsoft-beta.bat` publishes the same staged site plus the harness to the staging copy at `rtsoft.com/patchy-beta` (same nopause convention and COOP/COEP checks) for Safari/iOS device testing. The diagnostics workflow lives in [performance.md](performance.md).
 
+## A running connector must not block the Windows relink
+
+`build\release\patchy-mcp.exe` is usually running (the Codex app keeps several `--attach`
+connectors alive), which makes the release preset's connector link fail with `LNK1104`
+and would otherwise leave the package with a stale connector. Never kill those clients.
+Before launching `build-release.bat`, rename the locked file:
+`Rename-Item build\release\patchy-mcp.exe patchy-mcp-<previous version>-running.exe`.
+Windows allows renaming a running image, the clients keep running from the renamed file,
+and the build links a fresh `patchy-mcp.exe` that the packager signs and stages. Delete the
+renamed backup once no process runs it (compare the process list's image paths); it is a
+build artifact covered by the housekeeping rule in AGENTS.md. The 0.92 and 0.93 releases
+were built this way.
+
 ## Batch files live in scripts\release and call their siblings by full path
 
 The release and upload batch files live in `scripts\release`. Each derives the repo
@@ -126,7 +139,7 @@ other caller prints it: check whether that caller went through vs-env.bat.
 
 `release-mac.bat` and `release-linux.bat` have their own unconditional final `pause`, so do not wait for those wrapper `cmd.exe` processes to exit: determine success from the child PowerShell completion and fresh versioned artifacts, then close the completed wrapper consoles.
 
-To keep evidence of each builder's result, an agent run can launch the same four scripts `release-all.bat` starts, each through a small wrapper batch file that redirects the builder's output to a log and then writes `%ERRORLEVEL%` to a marker file (call `release-mac.ps1` and `release-linux.ps1` directly there, since their `.bat` wrappers pause). Start each wrapper with `start "<title>" /min /belownormal cmd /c "<wrapper>"` so the whole tree inherits below-normal priority, and set `CMAKE_BUILD_PARALLEL_LEVEL=6` alongside `NO_PAUSE=1` so `cmake --build` inside the scripts is throttled as AGENTS.md requires. Do not capture exit codes with Windows PowerShell 5.1's `Start-Process -PassThru` while redirecting output: its `ExitCode` comes back empty there (pwsh 7 is fine).
+To keep evidence of each builder's result, an agent run can launch the same four scripts `release-all.bat` starts, each through a small wrapper batch file that redirects the builder's output to a log and then writes `%ERRORLEVEL%` to a marker file (call `release-mac.ps1` and `release-linux.ps1` directly there, since their `.bat` wrappers pause). Start each wrapper with `start "<title>" /min /belownormal cmd /c "<wrapper>"` so the whole tree inherits below-normal priority, and set `CMAKE_BUILD_PARALLEL_LEVEL=6` alongside `NO_PAUSE=1` so `cmake --build` inside the scripts is throttled as AGENTS.md requires. Do not capture exit codes with Windows PowerShell 5.1's `Start-Process -PassThru` while redirecting output: its `ExitCode` comes back empty there (pwsh 7 is fine). Inside those wrappers invoke the test binaries as `.\patchy_core_tests.exe`, a path, never by bare name: `NoDefaultCurrentDirectoryInExePath` applies to them too, and a bare name exits 9009 (`not recognized`) after `cd /d build\release` (September 2026, 0.93 run).
 
 Launch the release batch files from cmd or Windows PowerShell, not from pwsh 7 (or reset `PSModulePath` first to `%USERPROFILE%\Documents\WindowsPowerShell\Modules;%ProgramFiles%\WindowsPowerShell\Modules;%SystemRoot%\system32\WindowsPowerShell\v1.0\Modules`). pwsh 7 puts its own module directories on `PSModulePath`, and the `powershell` 5.1 one-liners inside the scripts then load pwsh's incompatible `Microsoft.PowerShell.Utility`, so `Get-FileHash` is "not recognized" and `upload-one-file.bat` refuses every desktop upload (September 2026). The build scripts happened to survive because they only use cmdlets from other modules.
 

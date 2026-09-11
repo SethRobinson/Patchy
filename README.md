@@ -138,7 +138,7 @@ These are corpus-specific results, not universal product ratings. See the [full 
 
 ## Download
 
-**Latest release: 0.92** · September 9, 2026 · [Release notes](#whats-new)
+**Latest release: 0.93** · September 11, 2026 · [Release notes](#whats-new)
 
 Windows releases are code signed by Seth A. Robinson; the macOS app is signed and
 notarized (Robinson Technologies Corporation).
@@ -184,14 +184,14 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 - Filter Gallery with 32 effects, live full-resolution preview, ordered effect stacks, favorites, and reusable Saved Looks, plus a manual Liquify workspace with warp, twirl, pucker, bloat, and freeze brushes
 - Photoshop-compatible layer style, pattern, and gradient preset libraries, including .asl, .pat, and .grd import/export, 39 built-in styles, and 20 bundled CC0 photo textures
 - Warp Transform tool and Warp Text with all 15 Photoshop warp styles and live preview
-- Multiple document interface: tabbed documents that can float in their own windows, with Photoshop-style Tile and Cascade arrangement
+- Multiple document interface: tabbed documents that can float in their own windows, Photoshop-style Tile and Cascade arrangement, a Window menu that lists every open document, and layers that drag or duplicate between documents
 - Rich text with per-run color, font, size, and style, plus a searchable font picker and Character controls for leading, tracking, and horizontal or vertical glyph scaling
 - Palettized (indexed color) editing mode for pixel art: paint constrained to a palette, quantize with optional dithering, built-in retro palettes (NES, C64, Game Boy, PICO-8, and more), palette files (.pal/.gpl/.hex/.act/.aco/.ase), and exact indexed PNG-8 and 2/4/8-bit BMP export. Layers, layer styles, and effects all keep working (Photoshop's indexed mode flattens and disables them)
 - Named palette colors appear in the Palette panel, color picker, Info panel, and eyedropper readout. Rename swatches, preserve names through GPL, PSD, and indexed PNG round trips, and manage palettes through scripts
-- Pixel-art and game-dev extras: seamless texture authoring (live tile preview window, in-canvas tiling mode, seam shifting), sprite sheet export/import, image sequence export/import (numbered files become layers and back), animated GIF import/export (frames become layers with their timings in the layer names, visible layers save back as a looping animation, and the layers panel's film button previews the animation in-app), and nearest-neighbor scaled export (2x-8x)
+- Pixel-art and game-dev extras: seamless texture authoring (live tile preview window, in-canvas tiling mode, seam shifting), sprite sheet export/import, image sequence export/import (numbered files become layers and back), animated GIF import/export (frames become layers with their timings in the layer names, visible layers save back as a looping animation, and the layers panel's film button previews the animation in-app), and an Export Flat Image dialog with nearest-neighbor scaling (2x-8x), smooth resize, transparent-edge trimming, and background fill
 - Reads and writes a wide range of formats: PSD/PSB, PNG, JPEG, TIFF, WebP, BMP, TGA, GIF, PCX, Amiga IFF/LBM, Windows icons and cursors (ICO/CUR), Aseprite files, JPEG XR (.jxr, on Windows), Proton SDK textures (.rttex), and SVG (opens as editable shape layers, exports with vectors preserved)
 - Imports Affinity documents as layered files: the current .af format, Affinity 2 .afphoto/.afdesign/.afpub, and most Affinity 1.x-era files, bringing across rasters, groups, masks, clipping, blend modes, editable text layers, vector shapes, adjustment layers, layer effects, and placed images (which become embedded Smart Objects)
-- Opens camera raw files (CR2/CR3/NEF/ARW/RAF/DNG and more) through a 16-bit develop dialog, and HEIC/HEIF photos through platform codecs
+- Opens camera raw files (CR2/CR3/NEF/ARW/RAF/DNG and more) through a 16-bit develop dialog with a Natural rendering profile, ISO-based noise reduction, and per-photo settings saved beside the original, and HEIC/HEIF photos through platform codecs
 - Opens HDR screenshots saved as JPEG XR (.jxr), the format NVIDIA's in-game capture uses, tone mapping the high dynamic range down to 8-bit so highlights keep their detail instead of clipping to white
 - Photoshop-compatible document resolution, physical measurement units, rulers, image sizing, and printing
 - Pen/stylus pressure and size dynamics, GUI scaling, scanner import (Windows and macOS), camera import (Windows), legacy .8bf plugins, and command line options
@@ -204,6 +204,16 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 
 ## What's New
 
+### 0.93 - September 11, 2026
+
+- Drag layers from the Layers panel onto another open document's canvas or tab to copy them there, Photoshop style. Layer > Duplicate Layer to Document offers a destination dialog (any open document or a new one), Alt-dragging inside the panel duplicates layers at the drop position, and scripts gain layer.duplicate(targetDocument)
+- The Window menu lists every open document, a document floated in its own window stays active when the main window is clicked, and the tab strip dims a tab whose document currently lives in a float
+- Export Flat Image (Ctrl+Alt+Shift+S) opens a real options dialog: smooth resize, a labeled pixel-art scale, background fill, trim transparent edges, show in Explorer when done, and WebP quality or lossless
+- Camera raw: a Natural rendering profile deepens shadows and rolls highlights off gently while Neutral keeps the straight camera-to-sRGB output, automatic ISO-based noise reduction gains a separate color noise control, develop settings are saved per photo in a .rawprefs file beside the original, quick previews refine in the background with real progress, and Open shows its progress too. The develop dialog's Done button is gone because Open already saves the settings
+- Image Size folds its scale into text layers and re-renders them crisp instead of leaving resampled text, box text scales its frame with it, and the options bar shows the effective size of any scaled text layer
+- Every choose-a-color prompt uses Patchy's own color picker instead of the system dialog: export background, Canvas Size, New Document, script color fields, and the grid and guide colors, which gain opacity controls
+- Fixes: dropping files from Explorer no longer holds Explorer up while a RAW or PDF import dialog is open
+
 ### 0.92 - September 9, 2026
 
 - Local AI control: desktop packages include a native MCP connector, an installable skill, and JavaScript examples. Help > Set up AI Control provides a setup prompt and task examples. Agents can use an isolated background workspace, show their own workspace, or attach to your open Patchy app; attached connections recover when the app restarts
@@ -214,14 +224,6 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 - Palette colors can have names: rename swatches and see their labels in the Palette panel, color picker, Info panel, and eyedropper readout. Names survive GPL, PSD, and indexed PNG round trips, and extracting colors retains names for exact matches. Scripts and MCP can read, set, load, and save document palettes
 - Command-line runs gain --headless for unattended editing and exports without a display or interference with an open workspace. Desktop packages include the offscreen support it needs, including the macOS packaging fix by [@csbun](https://github.com/csbun). Linux headless and MCP startup also works without a responsive desktop portal
 - Fixes: large documents load with responsive progress, open vector strokes retain their appearance in Photoshop exports, merged vector PSD data round-trips correctly, and automated opens and saves appear in shared recent history. Additional fixes cover unsaved-change prompts, Cut inside folders, text with missing script coverage, layer rendering, and damaged-file handling
-
-### 0.91 - September 3, 2026
-
-- JPEG XR (.jxr) opens and saves on Windows through the codec built into Windows. HDR captures such as NVIDIA's in-game screenshots, stored as floating-point scRGB, tone map down to 8-bit with a knee curve that keeps standard-range colors exact and rolls the highlights off instead of clipping them to white
-- Proton SDK textures (.rttex) open at their true image size rather than the padded power-of-two texture size, and save through an RTPack-style options dialog: raw RGBA8888/RGB888, RGBA4444/RGB565, or an embedded JPEG with a quality setting, all inside the RTPACK zlib wrapper. A plain Save keeps a texture's existing encoding and Save As prefills the dialog with it
-- File > Open accepts several files at once and opens each as its own document, and the Open Recent Folder entries use the same multi-select dialog
-- Hint text names modifier keys for the platform it runs on, so macOS reads Command and Option instead of Ctrl and Alt
-- Fixes: Photoshop CS6 stroke-only shape layers (a stroke with no fill block) import as editable shapes instead of arriving vector-locked, which also lets Free Transform work on any folder or multi-layer selection containing one
 
 [Older releases](RELEASE-HISTORY.md)
 

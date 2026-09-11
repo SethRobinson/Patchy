@@ -3,6 +3,14 @@
 Older Patchy release notes are collected here. The two most recent releases
 remain in [README.md](README.md#whats-new).
 
+## 0.91 - September 3, 2026
+
+- JPEG XR (.jxr) opens and saves on Windows through the codec built into Windows. HDR captures such as NVIDIA's in-game screenshots, stored as floating-point scRGB, tone map down to 8-bit with a knee curve that keeps standard-range colors exact and rolls the highlights off instead of clipping them to white
+- Proton SDK textures (.rttex) open at their true image size rather than the padded power-of-two texture size, and save through an RTPack-style options dialog: raw RGBA8888/RGB888, RGBA4444/RGB565, or an embedded JPEG with a quality setting, all inside the RTPACK zlib wrapper. A plain Save keeps a texture's existing encoding and Save As prefills the dialog with it
+- File > Open accepts several files at once and opens each as its own document, and the Open Recent Folder entries use the same multi-select dialog
+- Hint text names modifier keys for the platform it runs on, so macOS reads Command and Option instead of Ctrl and Alt
+- Fixes: Photoshop CS6 stroke-only shape layers (a stroke with no fill block) import as editable shapes instead of arriving vector-locked, which also lets Free Transform work on any folder or multi-layer selection containing one
+
 ## 0.90 - August 26, 2026
 
 - PDF is now a first-class format. Opening a PDF imports its pages as editable shape, text, and image layers by default, with a flat-image option, reads password-protected files, and converts shadings to gradient fills and spot colors through their tints. Saving as PDF works everywhere, with a choice of flattened pages or editable layers that keep paths, text, and images as real objects, and imported Photoshop text layers export as real selectable PDF text, substituting missing fonts unless you ask for images
