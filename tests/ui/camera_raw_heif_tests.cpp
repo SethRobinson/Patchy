@@ -486,15 +486,17 @@ void ui_raw_legacy_sidecars_preserve_processing_and_upgrade_explicitly() {
   CHECK(loaded.recognized && loaded.notice.isEmpty());
   CHECK(loaded.params.processing_version == 1 && loaded.params.profile == RenderingProfile::Neutral);
   const auto original_bytes = loaded.original_bytes;
-  CHECK(!raw_test_dialog(path, [&](QDialog& dialog) {
-    auto* done = dialog.findChild<QPushButton*>(QStringLiteral("rawDoneButton"));
-    if (!done->isEnabled()) return;
+  bool opened = false;
+  CHECK(raw_test_dialog(path, [&](QDialog& dialog) {
+    if (opened || !dialog.property("rawInfoReady").toBool()) return;
     CHECK(dialog.findChild<QComboBox*>(QStringLiteral("rawProfileCombo"))->currentData().toString() == QStringLiteral("neutral"));
     CHECK(dialog.findChild<QLabel*>(QStringLiteral("rawProcessingNote"))->isVisible());
     CHECK(dialog.findChild<QComboBox*>(QStringLiteral("rawColorNoiseCombo"))->currentData().toInt() == 0);
     CHECK(dialog.findChild<QSlider*>(QStringLiteral("rawDenoiseSlider"))->value() == 182);
-    done->click();
-  }));
+    opened = true;
+    dialog.findChild<QPushButton*>(QStringLiteral("rawOpenButton"))->click();
+  }).has_value());
+  CHECK(opened);
   CHECK(raw_test_bytes(raw_develop_settings_path(path)) == original_bytes);
   // Ordinary edits preserve the old processing contract, including unknown fields.
   params = loaded.params;
@@ -525,22 +527,24 @@ void ui_raw_legacy_sidecars_preserve_processing_and_upgrade_explicitly() {
   for (int y = 0; y < actual.height(); ++y)
     CHECK(std::equal(actual.row(y).begin(), actual.row(y).end(), reference.row(y).begin()));
   CHECK(raw_test_bytes(path) == QByteArray(reinterpret_cast<const char*>(bytes.data()), static_cast<qsizetype>(bytes.size())));
-  // Version 2 Natural settings also remain recognized and byte-identical on Done.
+  // Version 2 Natural settings also remain recognized and byte-identical on Open.
   params = {};
   params.processing_version = 2;
   CHECK(save_raw_develop_settings(path, params, loaded).isEmpty());
   loaded = load_raw_develop_settings(path);
   CHECK(loaded.recognized && loaded.params.processing_version == 2);
-  CHECK(!raw_test_dialog(path, [&](QDialog& dialog) {
-    auto* done = dialog.findChild<QPushButton*>(QStringLiteral("rawDoneButton"));
-    if (!done->isEnabled()) return;
+  opened = false;
+  CHECK(raw_test_dialog(path, [&](QDialog& dialog) {
+    if (opened || !dialog.property("rawInfoReady").toBool()) return;
     CHECK(dialog.findChild<QLabel*>(QStringLiteral("rawProcessingNote"))->isVisible());
-    done->click();
-  }));
+    opened = true;
+    dialog.findChild<QPushButton*>(QStringLiteral("rawOpenButton"))->click();
+  }).has_value());
+  CHECK(opened);
   CHECK(raw_test_bytes(raw_develop_settings_path(path)) == loaded.original_bytes);
 }
 
-void ui_raw_dialog_done_cancel_reset_and_global_isolation() {
+void ui_raw_dialog_open_cancel_reset_and_global_isolation() {
   using namespace patchy::ui;
   SettingsValueRestorer global(QStringLiteral("imports/rawDevelopExposure"));
   auto settings = app_settings();
@@ -549,15 +553,14 @@ void ui_raw_dialog_done_cancel_reset_and_global_isolation() {
   const auto a = write_raw_dng_fixture(QStringLiteral("raw_per_photo_a.dng"));
   const auto b = write_raw_dng_fixture(QStringLiteral("raw_per_photo_b.dng"));
   bool changed = false;
-  CHECK(!raw_test_dialog(a, [&](QDialog& dialog) {
+  CHECK(raw_test_dialog(a, [&](QDialog& dialog) {
+    if (changed || !dialog.property("rawInfoReady").toBool()) return;
     auto* exposure = dialog.findChild<QSlider*>(QStringLiteral("rawExposureSlider"));
-    auto* done = dialog.findChild<QPushButton*>(QStringLiteral("rawDoneButton"));
-    if (!done->isEnabled()) return;
     CHECK(exposure->value() == 0);
     exposure->setValue(125);
     changed = true;
-    done->click();
-  }));
+    dialog.findChild<QPushButton*>(QStringLiteral("rawOpenButton"))->click();
+  }).has_value());
   CHECK(changed);
   CHECK(load_raw_develop_settings(a).params.exposure_ev == 1.25);
   CHECK(!load_raw_develop_settings(b).exists);
@@ -574,13 +577,15 @@ void ui_raw_dialog_done_cancel_reset_and_global_isolation() {
     dialog.reject();
   }));
   CHECK(raw_test_bytes(raw_develop_settings_path(a)) == saved);
-  CHECK(!raw_test_dialog(a, [&](QDialog& dialog) {
-    auto* done = dialog.findChild<QPushButton*>(QStringLiteral("rawDoneButton"));
-    if (!done->isEnabled()) return;
+  changed = false;
+  CHECK(raw_test_dialog(a, [&](QDialog& dialog) {
+    if (changed || !dialog.property("rawInfoReady").toBool()) return;
     dialog.findChild<QPushButton*>(QStringLiteral("rawResetButton"))->click();
     CHECK(dialog.findChild<QSlider*>(QStringLiteral("rawExposureSlider"))->value() == 0);
-    done->click();
-  }));
+    changed = true;
+    dialog.findChild<QPushButton*>(QStringLiteral("rawOpenButton"))->click();
+  }).has_value());
+  CHECK(changed);
   CHECK(!load_raw_develop_settings(a).exists);
   CHECK(app_settings().value(QStringLiteral("imports/rawDevelopExposure")).toDouble() == 2.0);
 }
@@ -893,62 +898,56 @@ void ui_raw_dialog_failed_saves_and_untouched_precision() {
   using namespace patchy::ui;
   const auto path = write_raw_dng_fixture(QStringLiteral("raw_save_failure.dng"));
   const auto sidecar_path = raw_develop_settings_path(path);
-  for (const bool open : {false, true}) {
-    int stage = 0;
-    std::exception_ptr prompt_error;
-    QTimer prompt_timer;
-    QObject::connect(&prompt_timer, &QTimer::timeout, [&] {
-      auto* box = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("rawSettingsSaveMessageBox")));
-      if (!box) return;
-      try {
-        CHECK(stage == 1);
-        stage = 2;
-        if (open) box->findChild<QPushButton*>(QStringLiteral("rawOpenWithoutSavingButton"))->click();
-        else box->button(QMessageBox::Cancel)->click();
-      } catch (...) {
-        prompt_error = std::current_exception();
-        box->reject();
-      }
-    });
-    prompt_timer.start(10);
-    const auto outcome = raw_test_dialog(path, [&](QDialog& dialog) {
-      if (stage == 0) {
-        if (!dialog.findChild<QPushButton*>(QStringLiteral("rawDoneButton"))->isEnabled()) return;
-        dialog.findChild<QSlider*>(QStringLiteral("rawExposureSlider"))->setValue(50);
-        // An external directory at the sidecar path deterministically prevents saving.
-        CHECK(QDir().mkdir(sidecar_path));
-        stage = 1;
-        dialog.findChild<QPushButton*>(open ? QStringLiteral("rawOpenButton") : QStringLiteral("rawDoneButton"))->click();
-      } else if (stage == 2 && !open) {
-        CHECK(dialog.isVisible());
-        CHECK(dialog.findChild<QPushButton*>(QStringLiteral("rawDoneButton"))->isEnabled());
-        stage = 3;
-        dialog.reject();
-      }
-    });
-    prompt_timer.stop();
-    CHECK(QDir().rmdir(sidecar_path));
-    if (prompt_error) std::rethrow_exception(prompt_error);
-    CHECK(outcome.has_value() == open);
-    CHECK(stage == (open ? 2 : 3));
-  }
+  int stage = 0;
+  std::exception_ptr prompt_error;
+  QTimer prompt_timer;
+  QObject::connect(&prompt_timer, &QTimer::timeout, [&] {
+    auto* box = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("rawSettingsSaveMessageBox")));
+    if (!box) return;
+    try {
+      CHECK(stage == 1);
+      stage = 2;
+      box->findChild<QPushButton*>(QStringLiteral("rawOpenWithoutSavingButton"))->click();
+    } catch (...) {
+      prompt_error = std::current_exception();
+      box->reject();
+    }
+  });
+  prompt_timer.start(10);
+  const auto outcome = raw_test_dialog(path, [&](QDialog& dialog) {
+    if (stage != 0 || !dialog.property("rawInfoReady").toBool()) return;
+    dialog.findChild<QSlider*>(QStringLiteral("rawExposureSlider"))->setValue(50);
+    // An external directory at the sidecar path deterministically prevents saving.
+    CHECK(QDir().mkdir(sidecar_path));
+    stage = 1;
+    dialog.findChild<QPushButton*>(QStringLiteral("rawOpenButton"))->click();
+  });
+  prompt_timer.stop();
+  CHECK(QDir().rmdir(sidecar_path));
+  if (prompt_error) std::rethrow_exception(prompt_error);
+  CHECK(outcome.has_value());
+  CHECK(stage == 2);
   patchy::raw::DevelopParams precise;
   precise.white_balance = patchy::raw::WhiteBalanceMode::Custom;
   precise.custom_white_balance = {4300.123, 12.345};
   precise.exposure_ev = 0.12345;
   CHECK(save_raw_develop_settings(path, precise, {}).isEmpty());
   const auto saved = raw_test_bytes(sidecar_path);
-  CHECK(!raw_test_dialog(path, [&](QDialog& dialog) {
-    auto* done = dialog.findChild<QPushButton*>(QStringLiteral("rawDoneButton"));
-    if (done->isEnabled()) done->click();
-  }));
+  bool opened = false;
+  CHECK(raw_test_dialog(path, [&](QDialog& dialog) {
+    if (opened || !dialog.property("rawInfoReady").toBool()) return;
+    opened = true;
+    dialog.findChild<QPushButton*>(QStringLiteral("rawOpenButton"))->click();
+  }).has_value());
   CHECK(raw_test_bytes(sidecar_path) == saved);
   raw_test_write(sidecar_path, QByteArray("unsupported"));
-  CHECK(!raw_test_dialog(path, [&](QDialog& dialog) {
+  opened = false;
+  CHECK(raw_test_dialog(path, [&](QDialog& dialog) {
     CHECK(!dialog.findChild<QLabel*>(QStringLiteral("rawSettingsNotice"))->text().isEmpty());
-    auto* done = dialog.findChild<QPushButton*>(QStringLiteral("rawDoneButton"));
-    if (done->isEnabled()) done->click();
-  }));
+    if (opened || !dialog.property("rawInfoReady").toBool()) return;
+    opened = true;
+    dialog.findChild<QPushButton*>(QStringLiteral("rawOpenButton"))->click();
+  }).has_value());
   CHECK(raw_test_bytes(sidecar_path) == QByteArray("unsupported"));
   CHECK(QFile::remove(sidecar_path));
 }
@@ -1426,7 +1425,7 @@ std::vector<patchy::test::TestCase> camera_raw_heif_tests() {
       {"ui_raw_legacy_sidecars_preserve_processing_and_upgrade_explicitly", ui_raw_legacy_sidecars_preserve_processing_and_upgrade_explicitly},
       {"ui_raw_sidecar_round_trips_unicode_and_preserves_unknown_fields", ui_raw_sidecar_round_trips_unicode_and_preserves_unknown_fields},
       {"ui_raw_sidecar_rejects_invalid_and_preserves_failed_writes", ui_raw_sidecar_rejects_invalid_and_preserves_failed_writes},
-      {"ui_raw_dialog_done_cancel_reset_and_global_isolation", ui_raw_dialog_done_cancel_reset_and_global_isolation},
+      {"ui_raw_dialog_open_cancel_reset_and_global_isolation", ui_raw_dialog_open_cancel_reset_and_global_isolation},
       {"ui_raw_dialog_preview_matches_open_and_script", ui_raw_dialog_preview_matches_open_and_script},
       {"ui_raw_dialog_auto_controls_and_open_during_refinement", ui_raw_dialog_auto_controls_and_open_during_refinement},
       {"ui_raw_dialog_failed_saves_and_untouched_precision", ui_raw_dialog_failed_saves_and_untouched_precision},

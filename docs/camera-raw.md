@@ -100,13 +100,14 @@ requires `profile` (`neutral`/`natural`) and integer `colorDenoisePasses` (0..4)
 including inactive Manual values. No hidden migration or per-camera settings cache.
 
 Open waits for matching accurate pixels, saves customized settings, and imports.
-Done saves and closes without importing. Cancel discards the session. Reset
-restores current defaults; Open/Done commits it by removing a recognized sidecar.
-An untouched default import creates nothing. Unchanged unsupported files are
-preserved on Open/Done; committing Reset over one requires explicit replacement.
-Save uses `QSaveFile` atomic replacement without direct-write fallback and detects
-external changes since loading. Failed Done stays in the dialog; failed Open
+Cancel discards the session. Reset restores current defaults; Open commits it by
+removing a recognized sidecar. An untouched default import creates nothing.
+Unchanged unsupported files are preserved on Open; committing Reset over one
+requires explicit replacement. Save uses `QSaveFile` atomic replacement without
+direct-write fallback and detects external changes since loading. Failed Open
 offers Retry, Cancel, or Open Without Saving. Neither operation writes RAW bytes.
+There is no Done (save without importing) button: it read as if it should open
+the file (Seth, September 2026).
 
 The shared filename-opening path reads sidecars for interactive Open, Reopen,
 dialog-disabled imports, scripts, and the connector. Automated opens never write

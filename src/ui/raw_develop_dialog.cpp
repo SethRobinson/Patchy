@@ -495,9 +495,6 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
   auto* open_button = buttons->addButton(QObject::tr("Open"), QDialogButtonBox::AcceptRole);
   open_button->setObjectName(QStringLiteral("rawOpenButton"));
   open_button->setDefault(true);
-  auto* done_button = buttons->addButton(QObject::tr("Done"), QDialogButtonBox::ActionRole);
-  done_button->setObjectName(QStringLiteral("rawDoneButton"));
-  done_button->setEnabled(false);
   auto* retry_button = buttons->addButton(QObject::tr("Retry Preview"), QDialogButtonBox::ActionRole);
   retry_button->setObjectName(QStringLiteral("rawRetryPreviewButton"));
   retry_button->hide();
@@ -677,7 +674,6 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
     detail_group->setEnabled(enabled);
     reset_button->setEnabled(enabled);
     open_button->setEnabled(enabled);
-    done_button->setEnabled(enabled && raw_info.has_value());
   };
 
   auto* debounce = new QTimer(&dialog);
@@ -728,7 +724,7 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
   };
   const auto enqueue_preview = [&] { request_preview(false); };
 
-  const auto save_settings = [&](bool allow_open_without_saving) {
+  const auto save_settings = [&] {
     if (!reset_requested && params == saved_settings.params) return true;
     bool replace = false;
     if (saved_settings.exists && !saved_settings.recognized) {
@@ -738,14 +734,11 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
       prompt.setObjectName(QStringLiteral("rawSettingsSaveMessageBox"));
       auto* replace_button = prompt.addButton(QObject::tr("Replace Settings"), QMessageBox::AcceptRole);
       replace_button->setObjectName(QStringLiteral("rawReplaceSettingsButton"));
-      QPushButton* without = nullptr;
-      if (allow_open_without_saving) {
-        without = prompt.addButton(QObject::tr("Open Without Saving"), QMessageBox::ActionRole);
-        without->setObjectName(QStringLiteral("rawOpenWithoutSavingButton"));
-      }
+      auto* without = prompt.addButton(QObject::tr("Open Without Saving"), QMessageBox::ActionRole);
+      without->setObjectName(QStringLiteral("rawOpenWithoutSavingButton"));
       prompt.addButton(QMessageBox::Cancel);
       exec_dialog(prompt);
-      if (without && prompt.clickedButton() == without) return true;
+      if (prompt.clickedButton() == without) return true;
       if (prompt.clickedButton() != replace_button) return false;
       replace = true;
     }
@@ -755,19 +748,16 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
       QMessageBox prompt(QMessageBox::Warning, QObject::tr("RAW settings"), error,
                          QMessageBox::Retry | QMessageBox::Cancel, &dialog);
       prompt.setObjectName(QStringLiteral("rawSettingsSaveMessageBox"));
-      QPushButton* without = nullptr;
-      if (allow_open_without_saving) {
-        without = prompt.addButton(QObject::tr("Open Without Saving"), QMessageBox::ActionRole);
-        without->setObjectName(QStringLiteral("rawOpenWithoutSavingButton"));
-      }
+      auto* without = prompt.addButton(QObject::tr("Open Without Saving"), QMessageBox::ActionRole);
+      without->setObjectName(QStringLiteral("rawOpenWithoutSavingButton"));
       exec_dialog(prompt);
-      if (without && prompt.clickedButton() == without) return true;
+      if (prompt.clickedButton() == without) return true;
       if (prompt.standardButton(prompt.clickedButton()) != QMessageBox::Retry) return false;
     }
   };
   const auto finish_open = [&] {
     if (!accurate_cache || !accurate_cache->document || accurate_cache->params != final_params) return;
-    if (!save_settings(true)) {
+    if (!save_settings()) {
       accepting = false;
       set_controls_enabled(true);
       set_busy_status(QObject::tr("Settings were not saved."));
@@ -780,7 +770,7 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
   state->info_ready = [&](raw::RawFileInfo info) {
     raw_info = info;
     as_shot_white_balance = info.as_shot_white_balance;
-    done_button->setEnabled(!accepting);
+    dialog.setProperty("rawInfoReady", true);
     refresh_noise_widgets();
     QStringList lines;
     QString camera = QString::fromStdString(info.camera_make);
@@ -1131,13 +1121,6 @@ std::optional<RawDevelopOutcome> run_raw_develop_dialog(QWidget* parent, const Q
       refinement_due = true;
       enqueue_raw_develop(state, final_params, false);
     }
-  });
-  QObject::connect(done_button, &QPushButton::clicked, &dialog, [&] {
-    read_params_from_widgets();
-    debounce->stop();
-    refine->stop();
-    if (save_settings(false)) dialog.reject();
-    else refine->start();
   });
   QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
   QObject::connect(&dialog, &QDialog::finished, &dialog, [state] { close_raw_develop(state); });

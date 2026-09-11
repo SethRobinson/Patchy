@@ -5805,10 +5805,6 @@ Mixed selection</source>
         <translation>%1 と同じフォルダーに RAW 設定を保存できませんでした。</translation>
     </message>
     <message>
-        <source>Done</source>
-        <translation>完了</translation>
-    </message>
-    <message>
         <source>Estimated white balance temperature. Adjust to use Custom white balance.</source>
         <translation>推定ホワイトバランス色温度です。調整するとカスタムホワイトバランスになります。</translation>
     </message>
