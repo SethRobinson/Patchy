@@ -64,6 +64,13 @@ activates the session by id). `ui_window_menu_lists_open_documents` pins it.
   alone fires no FocusIn. Layers-panel buttons take `Qt::NoFocus` for the same reason.
   `ui_float_activation_survives_main_window_refocus` pins it (September 2026: New Layer
   landed in the tabbed document after a float was clicked).
+- A QTabWidget always has a current tab, but while a float holds the active document no
+  tab IS the active document. `refresh_document_tab_active_state` (called at the end of
+  `activate_document_canvas`) sets `documentTabsInactive` on the document tab bar
+  (`documentTabBar`) whenever the current tab's canvas is not `canvas_`, and the theme
+  rule `QTabBar#documentTabBar[documentTabsInactive="true"]::tab:selected` paints that
+  tab like an unselected one (Photoshop dims it the same way).
+  `ui_document_tab_looks_inactive_while_float_holds_the_active_document` pins it.
 - Canvas history callbacks (`set_before_edit_callback`, the selection-history callback)
   resolve `session_for_canvas(canvas)` at fire time, so an edit or an async completion
   lands in the OWNING session's undo stack regardless of which document is active, and

@@ -983,6 +983,15 @@ QString photoshop_style_template() {
       color: @text_on_raised;
       border-bottom-color: @tab_selected_bg;
     }
+    /* A QTabWidget always has a current tab, but while a float window holds the
+       active document no tab IS the active document: the document tab bar's
+       documentTabsInactive property makes the current tab paint like an
+       unselected one (Photoshop dims it the same way). */
+    QTabBar#documentTabBar[documentTabsInactive="true"]::tab:selected {
+      background: @tab_bg;
+      color: @text_secondary;
+      border-bottom-color: @tab_bg;
+    }
     /* The tab-overflow scroll arrows are QToolButtons whose geometry comes from
        the style's scroll-button metric, not from a layout, so the global
        QToolButton minimums shove the arrow glyph off-center and the right arrow

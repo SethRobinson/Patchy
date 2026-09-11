@@ -523,6 +523,7 @@ void MainWindow::activate_document_canvas(CanvasWidget* canvas, const std::funct
     update_undo_redo_actions();
     update_document_action_state();
     refresh_document_window_title();
+    refresh_document_tab_active_state();
     update_start_panel_visibility();
     return;
   }
@@ -604,6 +605,28 @@ void MainWindow::activate_document_canvas(CanvasWidget* canvas, const std::funct
   update_undo_redo_actions();
   update_document_action_state();
   refresh_document_window_title();
+  refresh_document_tab_active_state();
+}
+
+void MainWindow::refresh_document_tab_active_state() {
+  if (document_tabs_ == nullptr) {
+    return;
+  }
+  auto* tab_bar = document_tabs_->tabBar();
+  if (tab_bar == nullptr) {
+    return;
+  }
+  // A QTabWidget always has a current tab; it only deserves the selected look
+  // while its document is the active one. With a float window active (or no
+  // document at all) the tab strip has no active document to show.
+  const bool inactive = document_tabs_->count() > 0 && document_tabs_->currentWidget() != canvas_;
+  if (tab_bar->property("documentTabsInactive").toBool() == inactive) {
+    return;
+  }
+  tab_bar->setProperty("documentTabsInactive", inactive);
+  tab_bar->style()->unpolish(tab_bar);
+  tab_bar->style()->polish(tab_bar);
+  tab_bar->update();
 }
 
 bool MainWindow::close_document_tab(int index) {

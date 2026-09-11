@@ -504,6 +504,10 @@ private:
   [[nodiscard]] bool maybe_save_session(DocumentSession& target_session);
   void refresh_document_tab_titles();
   void refresh_document_window_title();
+  // Sets documentTabsInactive on the document tab bar when the current tab's
+  // document is not the active one (a float holds it), so the current tab
+  // paints unselected; repolishes only on a change.
+  void refresh_document_tab_active_state();
   // Window menu: one checkable entry per open session (checked = active),
   // rebuilt on aboutToShow; triggering one activates that session by id.
   void rebuild_window_document_entries(QMenu* window_menu);

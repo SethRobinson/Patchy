@@ -1086,6 +1086,54 @@ void ui_window_menu_lists_open_documents() {
   CHECK(patchy::ui::MainWindowTestAccess::canvas(window) == second_canvas);
 }
 
+void ui_document_tab_looks_inactive_while_float_holds_the_active_document() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(tabs != nullptr);
+  window.add_document_session(make_float_test_document(QColor(30, 90, 30)), QStringLiteral("Second tab"));
+  QApplication::processEvents();
+  auto* second_canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  window.add_document_session(make_float_test_document(QColor(90, 30, 30)), QStringLiteral("Floated"));
+  QApplication::processEvents();
+  auto* float_canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  require_action(window, "windowFloatDocumentAction")->trigger();
+  QApplication::processEvents();
+  CHECK(find_document_float_window(window) != nullptr);
+  CHECK(tabs->count() == 2);
+  auto* tab_bar = tabs->tabBar();
+  CHECK(tab_bar != nullptr);
+  CHECK(tab_bar->objectName() == QStringLiteral("documentTabBar"));
+
+  const auto tab_color = [tab_bar](int index) {
+    const auto image = tab_bar->grab().toImage();
+    const auto rect = tab_bar->tabRect(index);
+    // Inside the tab's left padding: clear of the label and the borders.
+    return image.pixelColor(rect.left() + 5, rect.center().y());
+  };
+  const auto other_index = [tabs] { return tabs->currentIndex() == 0 ? 1 : 0; };
+
+  // The float holds the active document: the current tab paints like the
+  // other one instead of claiming to be active.
+  CHECK(patchy::ui::MainWindowTestAccess::canvas(window) == float_canvas);
+  CHECK(tab_bar->property("documentTabsInactive").toBool());
+  CHECK(tab_color(tabs->currentIndex()) == tab_color(other_index()));
+  save_widget_artifact("ui_document_tab_inactive_while_float_active", *tab_bar);
+
+  // Activating a tabbed document restores the selected look.
+  patchy::ui::MainWindowTestAccess::activate_canvas(window, second_canvas);
+  QApplication::processEvents();
+  CHECK(tabs->currentWidget() == second_canvas);
+  CHECK(!tab_bar->property("documentTabsInactive").toBool());
+  CHECK(tab_color(tabs->currentIndex()) != tab_color(other_index()));
+
+  // And the float takes it away again.
+  patchy::ui::MainWindowTestAccess::activate_canvas(window, float_canvas);
+  QApplication::processEvents();
+  CHECK(tab_bar->property("documentTabsInactive").toBool());
+  CHECK(tab_color(tabs->currentIndex()) == tab_color(other_index()));
+}
+
 void ui_float_window_accepts_file_drop() {
   ensure_artifact_dir();
   const auto image_path = std::filesystem::absolute(std::filesystem::path("test-artifacts") / "float-drop.png");
@@ -1147,6 +1195,8 @@ std::vector<patchy::test::TestCase> float_window_tests() {
       {"ui_float_window_smart_object_child_commits_to_parent",
        ui_float_window_smart_object_child_commits_to_parent},
       {"ui_float_window_accepts_file_drop", ui_float_window_accepts_file_drop},
+      {"ui_document_tab_looks_inactive_while_float_holds_the_active_document",
+       ui_document_tab_looks_inactive_while_float_holds_the_active_document},
       {"ui_window_menu_lists_open_documents", ui_window_menu_lists_open_documents},
       {"ui_layer_drag_to_float_canvas_centers_at_drop_point", ui_layer_drag_to_float_canvas_centers_at_drop_point},
       {"ui_window_float_all_tile_and_cascade", ui_window_float_all_tile_and_cascade},

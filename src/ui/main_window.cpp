@@ -5587,6 +5587,9 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   document_tabs_->installEventFilter(this);
   suppress_native_tab_bar_base(*document_tabs_);
   if (auto* tab_bar = document_tabs_->findChild<QTabBar*>(); tab_bar != nullptr) {
+    // Named so the theme can dim the current tab while a float window holds
+    // the active document (refresh_document_tab_active_state).
+    tab_bar->setObjectName(QStringLiteral("documentTabBar"));
     tab_bar->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(tab_bar, &QWidget::customContextMenuRequested, this, &MainWindow::show_document_tab_context_menu);
     // Tear-off gesture: dragging a tab out of the bar floats its document.
