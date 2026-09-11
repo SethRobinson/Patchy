@@ -421,8 +421,27 @@ void ScriptLayerObject::set_text(const QString& text) {
   }
 }
 
-QJSValue ScriptLayerObject::duplicate() {
+QJSValue ScriptLayerObject::duplicate(const QJSValue& target) {
   const ScriptApiCall api_call(host_);
+  if (!target.isUndefined() && !target.isNull()) {
+    const auto* wrapper = qobject_cast<ScriptDocumentObject*>(target.toQObject());
+    if (wrapper == nullptr) {
+      host_.throw_js_error(ScriptEngineHost::tr("duplicate needs an open document as its target."));
+      return QJSValue();
+    }
+    if (wrapper->session_id() != session_id_) {
+      // Another document: the copy lands above its active layer at the same
+      // coordinates (centered when the sizes differ) and belongs to it.
+      QString error;
+      const auto root_ids =
+          host_.duplicate_layers_to_session(session_id_, {layer_id_}, wrapper->session_id(), &error);
+      if (root_ids.empty()) {
+        host_.throw_js_error(error.isEmpty() ? ScriptEngineHost::tr("The document is no longer open.") : error);
+        return QJSValue();
+      }
+      return make_layer_value(host_, wrapper->session_id(), root_ids.front());
+    }
+  }
   auto* document = host_.session_document(session_id_);
   if (document == nullptr) {
     host_.throw_js_error(ScriptEngineHost::tr("The document is no longer open."));

@@ -1051,6 +1051,30 @@ void ScriptEngineHost::activate_session(std::int64_t session_id) {
   }
 }
 
+std::vector<LayerId> ScriptEngineHost::duplicate_layers_to_session(std::int64_t source_session_id,
+                                                                    std::vector<LayerId> ids,
+                                                                    std::int64_t target_session_id,
+                                                                    QString* error) {
+  pump_progress_indicator();
+  auto* source = window_.session_with_id(source_session_id);
+  auto* target = window_.session_with_id(target_session_id);
+  if (source == nullptr || target == nullptr || source == target) {
+    if (error != nullptr) {
+      *error = tr("The document is no longer open.");
+    }
+    return {};
+  }
+  MainWindow::CrossDocumentLayerPlacement placement;
+  placement.keep_source_position = true;
+  auto root_ids = window_.copy_layers_between_sessions(
+      *source, std::move(ids), *target, placement,
+      [this, target_session_id] { return prepare_mutation(target_session_id); }, error);
+  if (!root_ids.empty()) {
+    note_structure_changed(target_session_id);
+  }
+  return root_ids;
+}
+
 bool ScriptEngineHost::prepare_mutation(std::int64_t session_id) {
   pump_progress_indicator();
   if (engine_ && engine_->isInterrupted()) { return false; }

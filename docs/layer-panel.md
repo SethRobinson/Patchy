@@ -122,3 +122,14 @@ canvas, activates the target session and selects the copies. `ui_layer_drag_*` i
 tests/ui/layer_panel_organization_tests_cross_document.cpp and
 `ui_layer_drag_to_float_canvas_centers_at_drop_point` in tests/ui/float_window_tests.cpp pin
 it; `send_layer_drop_to_widget` synthesizes the drag.
+
+The same core backs Duplicate Layer to Document... (`layerDuplicateToDocumentAction`, hotkey
+id `layer.duplicate_to_document`, in the layer context menu and added to the window itself
+because the Layer menu's row count is pinned): its dialog (`duplicateLayerToDocumentDialog`)
+takes a name for a lone copy (`duplicateLayerNameEdit`) and a destination
+(`duplicateLayerTargetCombo`: every other open document, then New Document, a fresh
+session the source's size and print resolution), always with keep-position placement.
+The scripting API's `layer.duplicate(targetDocument)` routes through
+`ScriptEngineHost::duplicate_layers_to_session`, so the run's own snapshot covers the
+target and no activation happens. `ui_duplicate_layer_to_document_dialog_copies` and
+`ui_script_layer_duplicate_to_document` pin them.

@@ -959,6 +959,17 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
           [this] { relink_smart_object_contents(); });
   connect(layer_smart_object_embed_action_, &QAction::triggered, this, [this] { embed_linked_smart_object(); });
   connect(duplicate_layer_action, &QAction::triggered, this, [this] { duplicate_active_layer(); });
+  // Photoshop's Duplicate Layer dialog with a destination document. It lives
+  // in the layer context menu (the Layer menu's row count is pinned) and on
+  // the window itself, so its hotkey works without a menu-bar row.
+  duplicate_layer_to_document_action_ = new QAction(tr("Duplicate Layer to Document..."), this);
+  duplicate_layer_to_document_action_->setObjectName(QStringLiteral("layerDuplicateToDocumentAction"));
+  duplicate_layer_to_document_action_->setIcon(simple_icon(QStringLiteral("dup")));
+  register_hotkey(duplicate_layer_to_document_action_, "layer.duplicate_to_document");
+  connect(duplicate_layer_to_document_action_, &QAction::triggered, this,
+          [this] { duplicate_layer_to_document(); });
+  addAction(duplicate_layer_to_document_action_);
+  register_document_action(duplicate_layer_to_document_action_);
   connect(merge_visible_action, &QAction::triggered, this, [this] { merge_visible_to_new_layer(); });
   connect(merge_down_action, &QAction::triggered, this, [this] { merge_down(); });
   connect(rename_layer_action, &QAction::triggered, this, [this] { rename_active_layer(); });

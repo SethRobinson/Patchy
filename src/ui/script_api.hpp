@@ -86,7 +86,7 @@ public:
   void set_text(const QString& text);
 
   Q_INVOKABLE void moveTo(double x, double y);
-  Q_INVOKABLE QJSValue duplicate();
+  Q_INVOKABLE QJSValue duplicate(const QJSValue& target = QJSValue());
   Q_INVOKABLE void remove();
   // Ungroup this group layer; returns the released layers top to bottom.
   Q_INVOKABLE QJSValue ungroup();

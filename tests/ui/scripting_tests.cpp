@@ -2782,6 +2782,30 @@ void ui_script_advanced_brush_creation_preview_and_psd() {
   save_widget_artifact("advanced_brush_presets",window);
 }
 
+void ui_script_layer_duplicate_to_document() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var a=app.newDocument(64,48);
+    var mark=a.activeLayer; mark.name='Mark';
+    var b=app.newDocument(64,48);
+    var copy=mark.duplicate(b);
+    if(copy.name!=='Mark')throw Error('name '+copy.name);
+    if(b.layers.length!==2)throw Error('b layers '+b.layers.length);
+    if(a.layers.length!==1)throw Error('a layers '+a.layers.length);
+    if(b.activeLayer.name!=='Mark')throw Error('active '+b.activeLayer.name);
+    if(copy.x!==mark.x||copy.y!==mark.y)throw Error('position '+copy.x+','+copy.y);
+    var same=mark.duplicate(a);
+    if(a.layers.length!==2||same.name!=='Mark copy')throw Error('same-document path '+same.name);
+    mark.duplicate();
+    if(a.layers.length!==3)throw Error('no-argument path');
+    var threw=false; try{mark.duplicate('nope');}catch(e){threw=true;}
+    if(!threw)throw Error('bad target accepted');
+    console.log('dup-ok '+b.canUndo+' '+a.canUndo);
+  )JS")));
+  CHECK(backlog_contains(window, QStringLiteral("dup-ok true true")));
+}
+
 std::vector<patchy::test::TestCase> scripting_tests() {
   return {
       {"ui_script_palette_validation_and_history", ui_script_palette_validation_and_history},
@@ -2858,5 +2882,6 @@ std::vector<patchy::test::TestCase> scripting_tests() {
       {"ui_script_io_round_trips_unicode_path", ui_script_io_round_trips_unicode_path},
       {"ui_script_unattended_normalizes_forms_and_guards_commands", ui_script_unattended_normalizes_forms_and_guards_commands},
       {"ui_script_geometry_rgb_fill_and_empty_text_regressions", ui_script_geometry_rgb_fill_and_empty_text_regressions},
+      {"ui_script_layer_duplicate_to_document", ui_script_layer_duplicate_to_document},
   };
 }

@@ -14137,6 +14137,26 @@ Clipped to the layer below</source>
         <source>Choose a different document to copy the layers into</source>
         <translation>レイヤーのコピー先には別のドキュメントを選んでください</translation>
     </message>
+    <message>
+        <source>Duplicate Layer to Document...</source>
+        <translation>レイヤーを別のドキュメントに複製...</translation>
+    </message>
+    <message>
+        <source>As:</source>
+        <translation>名前:</translation>
+    </message>
+    <message>
+        <source>Destination:</source>
+        <translation>コピー先:</translation>
+    </message>
+    <message>
+        <source>New Document</source>
+        <translation>新規ドキュメント</translation>
+    </message>
+    <message>
+        <source>%1 layer(s)</source>
+        <translation>%1 個のレイヤー</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::PalettePanel</name>
@@ -15346,6 +15366,10 @@ Clipped to the layer below</source>
     <message>
         <source>Could not merge the layers. The original layers are unchanged.</source>
         <translation>レイヤーを結合できませんでした。元のレイヤーは変更されていません。</translation>
+    </message>
+    <message>
+        <source>duplicate needs an open document as its target.</source>
+        <translation>duplicate のコピー先には開いているドキュメントを指定してください。</translation>
     </message>
 </context>
 <context>

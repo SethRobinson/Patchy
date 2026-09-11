@@ -1,5 +1,11 @@
 # Scripting API compatibility
 
+2026-09-11 (API 1): `layer.duplicate(targetDocument?)` accepts another open
+document and copies the layer there, above its active layer at the same
+coordinates (centered when the sizes differ); masks, styles, and smart-object
+sources travel with it. Without an argument the behavior is unchanged.
+Additive; apiVersion unchanged. See [layer-panel.md](layer-panel.md).
+
 2026-09-09 (API 1): RAW filename opens through `app.open` and MCP read the photo's
 `.rawprefs` sidecar, falling back to current defaults for missing or unsupported
 settings. Automated opens never write sidecars. Signatures are unchanged; legacy

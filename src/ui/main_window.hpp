@@ -820,8 +820,15 @@ private:
   // The interactive flow around copy_layers_between_sessions: the target's
   // undo snapshot, refresh, activation of the target, and selecting the
   // copies. Sessions are addressed by id: a document may close mid-drag.
+  // single_copy_name renames a lone copy inside the same undo step (the
+  // dialog's "As:" field).
   bool duplicate_layers_to_session(std::int64_t source_session_id, std::vector<LayerId> ids,
-                                   std::int64_t target_session_id, CrossDocumentLayerPlacement placement);
+                                   std::int64_t target_session_id, CrossDocumentLayerPlacement placement,
+                                   std::optional<std::string> single_copy_name = std::nullopt);
+  // Duplicate Layer to Document...: Photoshop's Duplicate Layer dialog with a
+  // destination document (another open session, or a new document the
+  // source's size).
+  void duplicate_layer_to_document();
   void rename_active_layer();
   // Animation Preview's name-token edits: stamps (a value) or strips (nullopt) the
   // trailing frame-time token on the selected (else active) layers' names, as one
@@ -1592,6 +1599,7 @@ private:
   QAction* language_english_action_{nullptr};
   QAction* language_japanese_action_{nullptr};
   QAction* float_document_action_{nullptr};
+  QAction* duplicate_layer_to_document_action_{nullptr};
   QAction* dock_document_action_{nullptr};
   QAction* consolidate_tabs_action_{nullptr};
   QAction* float_all_action_{nullptr};

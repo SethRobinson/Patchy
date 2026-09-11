@@ -1985,8 +1985,8 @@ std::vector<LayerId> MainWindow::copy_layers_between_sessions(DocumentSession& s
 }
 
 bool MainWindow::duplicate_layers_to_session(std::int64_t source_session_id, std::vector<LayerId> ids,
-                                             std::int64_t target_session_id,
-                                             CrossDocumentLayerPlacement placement) {
+                                             std::int64_t target_session_id, CrossDocumentLayerPlacement placement,
+                                             std::optional<std::string> single_copy_name) {
   auto* source = session_with_id(source_session_id);
   auto* target = session_with_id(target_session_id);
   if (source == nullptr || target == nullptr || source == target) {
@@ -2016,6 +2016,11 @@ bool MainWindow::duplicate_layers_to_session(std::int64_t source_session_id, std
     }
     return false;
   }
+  if (single_copy_name.has_value() && root_ids.size() == 1U) {
+    if (auto* copy = target->document.find_layer(root_ids.front()); copy != nullptr) {
+      copy->set_name(*single_copy_name);
+    }
+  }
   if (target->canvas != nullptr) {
     target->canvas->document_changed();
   }
@@ -2025,6 +2030,85 @@ bool MainWindow::duplicate_layers_to_session(std::int64_t source_session_id, std
   select_layers_in_layer_list(root_ids, root_ids.front());
   statusBar()->showMessage(tr("Copied %1 layer(s) to %2").arg(static_cast<qulonglong>(count)).arg(target_title));
   return true;
+}
+
+void MainWindow::duplicate_layer_to_document() {
+  if (!has_active_document()) {
+    return;
+  }
+  if (canvas_ != nullptr) {
+    canvas_->finish_free_transform();
+  }
+  auto ids = root_drop_layer_ids(std::as_const(document()).layers(), selected_or_active_layer_ids());
+  if (ids.empty()) {
+    show_status_error(tr("Select a layer to copy"));
+    return;
+  }
+  const auto source_session_id = session().session_id;
+  const auto& source_document = std::as_const(session().document);
+  const auto* single_source = ids.size() == 1U ? source_document.find_layer(ids.front()) : nullptr;
+
+  // Photoshop's Duplicate Layer dialog: the copy's name (one layer) and the
+  // destination. Every other open document is offered, plus a new document
+  // the source's size.
+  QDialog dialog(this);
+  dialog.setObjectName(QStringLiteral("duplicateLayerToDocumentDialog"));
+  dialog.setWindowTitle(tr("Duplicate Layer"));
+  auto* layout = new QVBoxLayout(&dialog);
+  auto* form = new QFormLayout();
+  auto* name_edit = new QLineEdit(&dialog);
+  name_edit->setObjectName(QStringLiteral("duplicateLayerNameEdit"));
+  if (single_source != nullptr) {
+    name_edit->setText(QString::fromStdString(single_source->name()));
+  } else {
+    name_edit->setText(tr("%1 layer(s)").arg(static_cast<qulonglong>(ids.size())));
+    name_edit->setEnabled(false);
+  }
+  form->addRow(tr("As:"), name_edit);
+  auto* target_combo = new QComboBox(&dialog);
+  target_combo->setObjectName(QStringLiteral("duplicateLayerTargetCombo"));
+  for (const auto& candidate : sessions_) {
+    if (candidate == nullptr || candidate->session_id == source_session_id) {
+      continue;
+    }
+    target_combo->addItem(candidate->title, QVariant::fromValue<qlonglong>(candidate->session_id));
+  }
+  target_combo->addItem(tr("New Document"), QVariant::fromValue<qlonglong>(0));
+  form->addRow(tr("Destination:"), target_combo);
+  layout->addLayout(form);
+  auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+  layout->addWidget(buttons);
+  connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+  connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+  name_edit->selectAll();
+  if (exec_dialog(dialog) != QDialog::Accepted) {
+    return;
+  }
+
+  std::optional<std::string> copy_name;
+  if (single_source != nullptr) {
+    const auto typed = name_edit->text().trimmed();
+    if (!typed.isEmpty() && typed.toStdString() != single_source->name()) {
+      copy_name = typed.toStdString();
+    }
+  }
+  CrossDocumentLayerPlacement placement;
+  placement.keep_source_position = true;
+  auto target_session_id = static_cast<std::int64_t>(target_combo->currentData().toLongLong());
+  if (target_session_id == 0) {
+    // A fresh document the source's size and print resolution; the copies
+    // become its first layers. Captured ids, not references: adding a session
+    // activates it.
+    Document fresh(source_document.width(), source_document.height(), source_document.format());
+    fresh.print_settings() = source_document.print_settings();
+    add_document_session(std::move(fresh), tr("Untitled"));
+    const auto* created = active_session();
+    if (created == nullptr || created->session_id == source_session_id) {
+      return;  // an edit lock kept the source active; nothing to copy into
+    }
+    target_session_id = created->session_id;
+  }
+  duplicate_layers_to_session(source_session_id, std::move(ids), target_session_id, placement, copy_name);
 }
 
 void MainWindow::rename_active_layer() {
@@ -2669,6 +2753,8 @@ void MainWindow::show_layer_context_menu(QPoint position) {
                                                 tr("New Adjustment Layer"));
   populate_new_adjustment_layer_menu(new_adjustment_menu);
   auto* duplicate_action = menu.addAction(simple_icon(QStringLiteral("dup")), tr("Duplicate Layer"));
+  auto* duplicate_to_document_action =
+      menu.addAction(simple_icon(QStringLiteral("dup")), tr("Duplicate Layer to Document..."));
   auto* rename_action = menu.addAction(simple_icon(QStringLiteral("RN")), tr("Rename Layer..."));
   auto* delete_action = menu.addAction(simple_icon(QStringLiteral("trash")), tr("Delete Layer"));
   QAction* ungroup_action = nullptr;
@@ -2832,6 +2918,7 @@ void MainWindow::show_layer_context_menu(QPoint position) {
                                                   tr("Delete Layer Mask"));
 
   duplicate_action->setEnabled(has_layer);
+  duplicate_to_document_action->setEnabled(has_layer);
   rename_action->setEnabled(active_layer != nullptr);
   delete_action->setEnabled(has_layer);
   merge_down_action->setEnabled(has_layer);
@@ -2888,6 +2975,8 @@ void MainWindow::show_layer_context_menu(QPoint position) {
     create_layer_folder();
   } else if (chosen == duplicate_action) {
     duplicate_active_layer();
+  } else if (chosen == duplicate_to_document_action) {
+    duplicate_layer_to_document();
   } else if (chosen == rename_action) {
     rename_active_layer();
   } else if (chosen == delete_action) {

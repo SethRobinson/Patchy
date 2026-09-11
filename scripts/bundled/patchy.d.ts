@@ -252,8 +252,14 @@ interface PatchyLayer {
 
   /** Finite signed 32-bit positions; throws if the position or resulting bounds overflow. */
   moveTo(x: number, y: number): void;
-  /** Inserts the copy directly above this layer; returns it. */
-  duplicate(): PatchyLayer;
+  /**
+   * Inserts the copy directly above this layer and returns it. With another
+   * open document as `targetDocument`, the copy lands above that document's
+   * active layer instead (same coordinates, or centered when the sizes differ),
+   * keeps its name unless the target already uses it, and the returned layer
+   * belongs to the target; the target is not activated.
+   */
+  duplicate(targetDocument?: PatchyDocument): PatchyLayer;
   remove(): void;
   /** Ungroups this folder into its parent; returns the released layers top to bottom. */
   ungroup(): PatchyLayer[];

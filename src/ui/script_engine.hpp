@@ -178,6 +178,12 @@ public:
   bool save_session_to_path(std::int64_t session_id, const QString& path);
   bool close_session(std::int64_t session_id);
   void activate_session(std::int64_t session_id);
+  // layer.duplicate(targetDocument): copies the layers into another open
+  // session above its active layer (same coordinates, or centered when the
+  // sizes differ). Returns the new root ids top to bottom, empty with *error
+  // set on refusal; the target's undo rides this run's snapshot.
+  std::vector<LayerId> duplicate_layers_to_session(std::int64_t source_session_id, std::vector<LayerId> ids,
+                                                   std::int64_t target_session_id, QString* error);
 
   // Undo integration: the FIRST mutation a run makes to a session pushes one
   // "Script: <name>" snapshot; later mutations in the same run ride it, so the

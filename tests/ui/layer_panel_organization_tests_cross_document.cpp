@@ -16,7 +16,9 @@
 
 #include <QApplication>
 #include <QColor>
+#include <QComboBox>
 #include <QDialog>
+#include <QLineEdit>
 #include <QListWidget>
 #include <QTabBar>
 #include <QTabWidget>
@@ -374,6 +376,88 @@ void ui_layer_drag_smart_object_adopts_source() {
   CHECK(patchy::ui::MainWindowTestAccess::undo_depth_for_canvas(window, source_canvas) == source_undo);
 }
 
+void ui_duplicate_layer_to_document_dialog_copies() {
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  window.add_document_session(plain_document(kSourceWidth, kSourceHeight, QColor(40, 40, 40)),
+                              QStringLiteral("Target"));
+  QApplication::processEvents();
+  auto* target_canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  auto* target_document = patchy::ui::MainWindowTestAccess::document_for_canvas(window, target_canvas);
+  const auto target_session = patchy::ui::MainWindowTestAccess::session_id_for_canvas(window, target_canvas);
+  // The source opens with "Mark" active, so the panel selection is the mark.
+  auto source = plain_document(kSourceWidth, kSourceHeight, QColor(255, 255, 255));
+  patchy::Layer mark(source.allocate_layer_id(), "Mark", opaque_pixels(20, 12, QColor(200, 30, 30)));
+  mark.set_bounds(patchy::Rect{10, 8, 20, 12});
+  source.add_layer(std::move(mark));
+  source.set_active_layer(source.layers().back().id());
+  window.add_document_session(std::move(source), QStringLiteral("Source"));
+  QApplication::processEvents();
+  auto* source_canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  CHECK(source_canvas != target_canvas);
+
+  // The dialog offers the other open document and New Document; the name
+  // field renames a lone copy.
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = window.findChild<QDialog*>(QStringLiteral("duplicateLayerToDocumentDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* name_edit = dialog->findChild<QLineEdit*>(QStringLiteral("duplicateLayerNameEdit"));
+    auto* combo = dialog->findChild<QComboBox*>(QStringLiteral("duplicateLayerTargetCombo"));
+    CHECK(name_edit != nullptr && combo != nullptr);
+    CHECK(name_edit->text() == QStringLiteral("Mark"));
+    CHECK(combo->count() == 2);
+    CHECK(combo->itemText(0) == QStringLiteral("Target"));
+    CHECK(combo->itemData(0).toLongLong() == target_session);
+    CHECK(combo->itemData(1).toLongLong() == 0);
+    name_edit->setText(QStringLiteral("Renamed"));
+    combo->setCurrentIndex(0);
+    saw_dialog = true;
+    dialog->accept();
+  });
+  require_action(window, "layerDuplicateToDocumentAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_dialog);
+  CHECK(patchy::ui::MainWindowTestAccess::canvas(window) == target_canvas);
+  CHECK(std::as_const(*target_document).layers().size() == 2);
+  CHECK(std::as_const(*target_document).layers().back().name() == "Renamed");
+  CHECK(std::as_const(*target_document).layers().back().bounds().x == 10);
+  CHECK(patchy::ui::MainWindowTestAccess::undo_depth_for_canvas(window, target_canvas) == 1);
+
+  // New Document: a fresh session the source's size holding only the copy.
+  patchy::ui::MainWindowTestAccess::activate_canvas(window, source_canvas);
+  QApplication::processEvents();
+  const auto sessions_before = patchy::ui::MainWindowTestAccess::session_count(window);
+  saw_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = window.findChild<QDialog*>(QStringLiteral("duplicateLayerToDocumentDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* combo = dialog->findChild<QComboBox*>(QStringLiteral("duplicateLayerTargetCombo"));
+    CHECK(combo != nullptr);
+    combo->setCurrentIndex(combo->count() - 1);
+    saw_dialog = true;
+    dialog->accept();
+  });
+  require_action(window, "layerDuplicateToDocumentAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_dialog);
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == sessions_before + 1);
+  auto* created_canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  CHECK(created_canvas != source_canvas && created_canvas != target_canvas);
+  auto* created_document = patchy::ui::MainWindowTestAccess::document_for_canvas(window, created_canvas);
+  CHECK(created_document != nullptr);
+  CHECK(created_document->width() == kSourceWidth && created_document->height() == kSourceHeight);
+  CHECK(std::as_const(*created_document).layers().size() == 1);
+  CHECK(std::as_const(*created_document).layers().front().name() == "Mark");
+  CHECK(std::as_const(*created_document).layers().front().bounds().x == 10);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> layer_panel_organization_tests_cross_document_part() {
@@ -384,6 +468,7 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests_cross_documen
       {"ui_layer_drag_unknown_source_session_is_ignored", ui_layer_drag_unknown_source_session_is_ignored},
       {"ui_layer_drag_to_other_document_respects_edit_lock", ui_layer_drag_to_other_document_respects_edit_lock},
       {"ui_layer_drag_group_mask_style_and_shape_survive", ui_layer_drag_group_mask_style_and_shape_survive},
+      {"ui_duplicate_layer_to_document_dialog_copies", ui_duplicate_layer_to_document_dialog_copies},
       {"ui_layer_drag_smart_object_adopts_source", ui_layer_drag_smart_object_adopts_source},
   };
 }
