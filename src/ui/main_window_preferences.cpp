@@ -94,7 +94,6 @@
 #include <QCheckBox>
 #include <QClipboard>
 #include <QCloseEvent>
-#include <QColorDialog>
 #include <QComboBox>
 #include <QContextMenuEvent>
 #include <QCoreApplication>
@@ -337,7 +336,8 @@ int color_alpha_percent(QColor color) {
 }
 
 QString overlay_color_summary_text(QColor color) {
-  return QStringLiteral("%1  %2%").arg(color.name(QColor::HexRgb).toUpper()).arg(color_alpha_percent(color));
+  // The opacity spin beside the button shows the alpha, so the button names only the color.
+  return color.name(QColor::HexRgb).toUpper();
 }
 
 QIcon overlay_color_swatch_icon(QColor color) {
@@ -851,6 +851,17 @@ void MainWindow::show_preferences() {
   grid_color_button->setObjectName(QStringLiteral("preferencesGridColorButton"));
   auto* guide_color_button = new QPushButton(view_group);
   guide_color_button->setObjectName(QStringLiteral("preferencesGuideColorButton"));
+  // The picker chooses the opaque color; these own the alpha the grid and guide renderers read.
+  const auto make_opacity_spin = [view_group](const QString& object_name, QColor color) {
+    auto* spin = new QSpinBox(view_group);
+    spin->setObjectName(object_name);
+    spin->setRange(0, 100);
+    spin->setSuffix(QStringLiteral("%"));
+    spin->setValue(color_alpha_percent(color));
+    return spin;
+  };
+  auto* grid_opacity_spin = make_opacity_spin(QStringLiteral("preferencesGridOpacitySpin"), selected_grid_color);
+  auto* guide_opacity_spin = make_opacity_spin(QStringLiteral("preferencesGuideOpacitySpin"), selected_guide_color);
   const auto refresh_color_choice_button = [](QPushButton* button, QColor color) {
     button->setText(overlay_color_summary_text(color));
     button->setIcon(overlay_color_swatch_icon(color));
@@ -870,24 +881,33 @@ void MainWindow::show_preferences() {
   refresh_color_choice_button(grid_color_button, selected_grid_color);
   refresh_color_choice_button(guide_color_button, selected_guide_color);
   refresh_overlay_preview();
-  connect(grid_color_button, &QPushButton::clicked, &dialog, [&] {
-    const auto color = QColorDialog::getColor(selected_grid_color, &dialog, tr("Grid Color"),
-                                              QColorDialog::ShowAlphaChannel);
-    if (color.isValid()) {
-      selected_grid_color = color;
-      refresh_color_choice_button(grid_color_button, selected_grid_color);
+  // Patchy's own picker (palettes, names, hex) chooses the opaque color and previews it
+  // live; the opacity spin beside each button owns the alpha, so a picked color keeps the
+  // current opacity and a cancel puts the previous color back.
+  const auto choose_overlay_color = [&](QPushButton* button, QColor& selected, const QString& title) {
+    const auto original = selected;
+    const auto apply = [&, button](QColor color) {
+      color.setAlpha(original.alpha());
+      selected = color;
+      refresh_color_choice_button(button, selected);
       refresh_overlay_preview();
-    }
-  });
-  connect(guide_color_button, &QPushButton::clicked, &dialog, [&] {
-    const auto color = QColorDialog::getColor(selected_guide_color, &dialog, tr("Guide Color"),
-                                              QColorDialog::ShowAlphaChannel);
-    if (color.isValid()) {
-      selected_guide_color = color;
-      refresh_color_choice_button(guide_color_button, selected_guide_color);
-      refresh_overlay_preview();
-    }
-  });
+    };
+    const auto chosen = request_patchy_color(&dialog, original, title, apply);
+    apply(chosen.value_or(original));
+  };
+  connect(grid_color_button, &QPushButton::clicked, &dialog,
+          [&] { choose_overlay_color(grid_color_button, selected_grid_color, tr("Grid Color")); });
+  connect(guide_color_button, &QPushButton::clicked, &dialog,
+          [&] { choose_overlay_color(guide_color_button, selected_guide_color, tr("Guide Color")); });
+  const auto apply_opacity = [&](QColor& selected, QPushButton* button, int percent) {
+    selected.setAlphaF(std::clamp(percent, 0, 100) / 100.0);
+    refresh_color_choice_button(button, selected);
+    refresh_overlay_preview();
+  };
+  connect(grid_opacity_spin, &QSpinBox::valueChanged, &dialog,
+          [&](int percent) { apply_opacity(selected_grid_color, grid_color_button, percent); });
+  connect(guide_opacity_spin, &QSpinBox::valueChanged, &dialog,
+          [&](int percent) { apply_opacity(selected_guide_color, guide_color_button, percent); });
   connect(grid_subdivisions_spin, QOverload<int>::of(&QSpinBox::valueChanged), &dialog,
           [&](int) { refresh_overlay_preview(); });
   connect(grid_style_combo, QOverload<int>::of(&QComboBox::currentIndexChanged), &dialog,
@@ -936,8 +956,17 @@ void MainWindow::show_preferences() {
   view_form->addRow(tr("Grid spacing:"), grid_spacing_spin);
   view_form->addRow(tr("Grid subdivisions:"), grid_subdivisions_spin);
   view_form->addRow(tr("Grid style:"), grid_style_combo);
-  view_form->addRow(tr("Grid color:"), grid_color_button);
-  view_form->addRow(tr("Guide color:"), guide_color_button);
+  const auto overlay_color_row = [view_group](QPushButton* button, QSpinBox* opacity) {
+    auto* row = new QWidget(view_group);
+    auto* layout = new QHBoxLayout(row);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(6);
+    layout->addWidget(button, 1);
+    layout->addWidget(opacity);
+    return row;
+  };
+  view_form->addRow(tr("Grid color:"), overlay_color_row(grid_color_button, grid_opacity_spin));
+  view_form->addRow(tr("Guide color:"), overlay_color_row(guide_color_button, guide_opacity_spin));
   view_form->addRow(tr("Overlay preview:"), overlay_preview);
   view_layout->addWidget(view_group);
   view_layout->addStretch(1);

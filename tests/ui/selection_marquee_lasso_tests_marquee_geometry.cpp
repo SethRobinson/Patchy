@@ -1844,7 +1844,13 @@ void ui_canvas_aid_preferences_and_guide_dialogs_work() {
     auto* grid_color_button = dialog->findChild<QPushButton*>(QStringLiteral("preferencesGridColorButton"));
     CHECK(grid_color_button != nullptr);
     CHECK(grid_color_button->text().contains(QStringLiteral("#")));
-    CHECK(grid_color_button->text().contains(QStringLiteral("%")));
+    // The picker chooses opaque colors, so the alpha lives in an opacity spin beside each
+    // button, prefilled from the current color.
+    auto* grid_opacity = dialog->findChild<QSpinBox*>(QStringLiteral("preferencesGridOpacitySpin"));
+    CHECK(grid_opacity != nullptr);
+    CHECK(dialog->findChild<QSpinBox*>(QStringLiteral("preferencesGuideOpacitySpin")) != nullptr);
+    CHECK(grid_opacity->value() == qRound(canvas->grid_color().alphaF() * 100.0));
+    grid_opacity->setValue(60);
     auto* overlay_preview = dialog->findChild<QLabel*>(QStringLiteral("preferencesGridOverlayPreview"));
     CHECK(overlay_preview != nullptr);
     CHECK(overlay_preview->width() >= 200);
@@ -1869,6 +1875,7 @@ void ui_canvas_aid_preferences_and_guide_dialogs_work() {
   CHECK(!canvas->snap_enabled());
   CHECK(canvas->grid_subdivisions() == 8);
   CHECK(canvas->grid_style() == 1);
+  CHECK(canvas->grid_color().alpha() == 153);  // the 60% opacity spin
   CHECK(require_action(window, "viewToggleRulersAction")->isChecked());
   CHECK(require_action(window, "viewToggleGridAction")->isChecked());
   CHECK(!require_action(window, "viewToggleSnapAction")->isChecked());

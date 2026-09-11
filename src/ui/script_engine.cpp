@@ -12,6 +12,7 @@
 #include "core/layer_tree.hpp"
 #include "core/palette.hpp"
 #include "ui/canvas_widget.hpp"
+#include "ui/color_panel.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/main_window.hpp"
 #include "ui/mcp_activity.hpp"
@@ -28,7 +29,6 @@
 #include <QCheckBox>
 #include <QCloseEvent>
 #include <QColor>
-#include <QColorDialog>
 #include <QComboBox>
 #include <QCoreApplication>
 #include <QDialogButtonBox>
@@ -1984,12 +1984,17 @@ QJSValue ScriptEngineHost::run_form_dialog(const QJSValue& spec, bool merge_args
       };
       refresh_swatch();
       QObject::connect(button, &QPushButton::clicked, &dialog, [&dialog, color, refresh_swatch] {
-        const auto picked = QColorDialog::getColor(*color, &dialog, tr("Choose Color"),
-                                                   QColorDialog::ShowAlphaChannel);
-        if (picked.isValid()) {
+        // Patchy's own picker (palettes, names, hex) chooses the opaque color; a field that
+        // came in with alpha ("#AARRGGBB") keeps that alpha on the new color. A cancel puts
+        // the previous color back.
+        const auto original = *color;
+        const auto apply = [color, refresh_swatch, original](QColor picked) {
+          picked.setAlpha(original.alpha());
           *color = picked;
           refresh_swatch();
-        }
+        };
+        const auto picked = request_patchy_color(&dialog, original, tr("Choose Color"), apply);
+        apply(picked.value_or(original));
       });
       form->addRow(entry.label, button);
       getters.emplace_back([color] {

@@ -1681,8 +1681,30 @@ void ui_export_options_dialog_shared_section() {
     probe.scale->setCurrentIndex(std::max(0, probe.scale->findData(4)));
     probe.fill->click();
     CHECK(probe.swatch->isEnabled());
-    // The color dialog is modal; the swatch's stored color is the documented stand-in.
-    probe.swatch->setProperty("patchy.exportBackgroundColor", QColor(10, 20, 30));
+    // The swatch opens Patchy's own picker (never Qt's stock dialog): pick through it, then
+    // check that a cancel keeps the color even after a live preview.
+    QTimer::singleShot(0, [] {
+      auto* picker_dialog = find_top_level_dialog(QStringLiteral("patchyColorDialog"));
+      CHECK(picker_dialog != nullptr);
+      if (picker_dialog == nullptr) {
+        return;
+      }
+      CHECK(patchy::ui::apply_color_to_open_color_picker(QColor(10, 20, 30)));
+      picker_dialog->accept();
+    });
+    probe.swatch->click();
+    CHECK(probe.swatch->property("patchy.exportBackgroundColor").value<QColor>() == QColor(10, 20, 30));
+    QTimer::singleShot(0, [] {
+      auto* picker_dialog = find_top_level_dialog(QStringLiteral("patchyColorDialog"));
+      CHECK(picker_dialog != nullptr);
+      if (picker_dialog == nullptr) {
+        return;
+      }
+      CHECK(patchy::ui::apply_color_to_open_color_picker(QColor(99, 99, 99)));
+      picker_dialog->reject();
+    });
+    probe.swatch->click();
+    CHECK(probe.swatch->property("patchy.exportBackgroundColor").value<QColor>() == QColor(10, 20, 30));
     probe.trim->click();
     probe.reveal->click();
     saw_dialog = true;

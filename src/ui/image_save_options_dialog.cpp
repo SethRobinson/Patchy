@@ -3,13 +3,12 @@
 #include "formats/jxr_document_io.hpp"
 #include "formats/rttex_document_io.hpp"
 #include "ui/app_settings.hpp"
-
+#include "ui/color_panel.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/theme_qss.hpp"
 
 #include <QButtonGroup>
 #include <QCheckBox>
-#include <QColorDialog>
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -464,11 +463,13 @@ ExportSectionWidgets add_export_options_section(QVBoxLayout* content, QDialog& d
                    [sync_swatch_enabled](bool) { sync_swatch_enabled(); });
   sync_swatch_enabled();
   QObject::connect(background_swatch, &QPushButton::clicked, &dialog, [&dialog, background_swatch] {
-    const auto chosen = QColorDialog::getColor(export_background_color(*background_swatch), &dialog,
-                                               QObject::tr("Export Background Color"));
-    if (chosen.isValid()) {
-      set_export_background_color(*background_swatch, chosen);
-    }
+    // Patchy's own picker (palettes, names, hex), previewed live on the swatch; a cancel
+    // puts the previous color back.
+    const auto original = export_background_color(*background_swatch);
+    const auto chosen = request_patchy_color(
+        &dialog, original, QObject::tr("Export Background Color"),
+        [background_swatch](QColor color) { set_export_background_color(*background_swatch, color); });
+    set_export_background_color(*background_swatch, chosen.value_or(original));
   });
   auto* trim_check = new QCheckBox(QObject::tr("Trim transparent edges"), transparency_group);
   trim_check->setObjectName(QStringLiteral("exportTrimCheck"));

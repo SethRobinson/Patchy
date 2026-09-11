@@ -9,6 +9,7 @@
 #include "ui/theme_palette.hpp"
 
 #include "ui/app_settings.hpp"
+#include "ui/color_panel.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/measurement_units.hpp"
 #include "ui/theme_qss.hpp"
@@ -17,7 +18,6 @@
 #include <QBoxLayout>
 #include <QButtonGroup>
 #include <QClipboard>
-#include <QColorDialog>
 #include <QComboBox>
 #include <QDialog>
 #include <QDoubleSpinBox>
@@ -684,11 +684,15 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   };
   const auto choose_background_color = [&dialog, &background_color, update_swatch,
                                         select_background_index_for] {
-    const auto selected = QColorDialog::getColor(background_color, &dialog, QObject::tr("Background Color"),
-                                                 QColorDialog::ShowAlphaChannel);
-    if (selected.isValid()) {
-      background_color = selected;
-    }
+    // Patchy's own picker (palettes, names, hex), previewed live on the swatch. It picks
+    // opaque colors; a transparent canvas is the combo's own "Transparent" entry.
+    const auto original = background_color;
+    const auto selected = request_patchy_color(&dialog, original, QObject::tr("Background Color"),
+                                               [&background_color, update_swatch](QColor color) {
+                                                 background_color = color;
+                                                 update_swatch();
+                                               });
+    background_color = selected.value_or(original);
     select_background_index_for(background_color);
     update_swatch();
   };

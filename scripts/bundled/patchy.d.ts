@@ -537,7 +537,8 @@ interface PatchyDialogField {
   key: string;
   /** Row label; defaults to key. */
   label?: string;
-  /** folder/file rows are a path line edit plus a Browse button. */
+  /** folder/file rows are a path line edit plus a Browse button. color rows open Patchy's
+   * color picker (palettes, names, hex) and keep any alpha the value came with. */
   type: "number" | "slider" | "checkbox" | "choice" | "text" | "color" | "folder" | "file";
   /** Initial value (number, boolean, or string depending on type). */
   value?: number | boolean | string;

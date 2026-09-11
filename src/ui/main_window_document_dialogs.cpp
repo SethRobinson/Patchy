@@ -94,7 +94,6 @@
 #include <QCheckBox>
 #include <QClipboard>
 #include <QCloseEvent>
-#include <QColorDialog>
 #include <QComboBox>
 #include <QContextMenuEvent>
 #include <QCoreApplication>
@@ -958,13 +957,21 @@ std::optional<CanvasSizeSettings> request_canvas_size_settings(QWidget* parent, 
   update_swatch();
 
   const auto choose_extension_color = [extension_color, &dialog, &extension_color_value, update_swatch] {
-    const auto selected = QColorDialog::getColor(extension_color_value, &dialog, QObject::tr("Canvas Extension Color"));
-    if (!selected.isValid()) {
+    // Patchy's own picker (palettes, names, hex), previewed live on the swatch; a cancel
+    // puts the previous color back.
+    const auto original = extension_color_value;
+    const auto selected = request_patchy_color(&dialog, original, QObject::tr("Canvas Extension Color"),
+                                               [&extension_color_value, update_swatch](QColor color) {
+                                                 extension_color_value = color;
+                                                 update_swatch();
+                                               });
+    if (!selected.has_value()) {
+      extension_color_value = original;
       update_swatch();
       return;
     }
-    extension_color_value = selected;
-    extension_color->setItemData(0, selected);
+    extension_color_value = *selected;
+    extension_color->setItemData(0, *selected);
     extension_color->setCurrentIndex(0);
     update_swatch();
   };
