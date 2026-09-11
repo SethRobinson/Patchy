@@ -212,7 +212,8 @@ flatpak install -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 - Camera raw: a Natural rendering profile deepens shadows and rolls highlights off gently while Neutral keeps the straight camera-to-sRGB output, automatic ISO-based noise reduction gains a separate color noise control, develop settings are saved per photo in a .rawprefs file beside the original, quick previews refine in the background with real progress, and Open shows its progress too. The develop dialog's Done button is gone because Open already saves the settings
 - Image Size folds its scale into text layers and re-renders them crisp instead of leaving resampled text, box text scales its frame with it, and the options bar shows the effective size of any scaled text layer
 - Every choose-a-color prompt uses Patchy's own color picker instead of the system dialog: export background, Canvas Size, New Document, script color fields, and the grid and guide colors, which gain opacity controls
-- Fixes: dropping files from Explorer no longer holds Explorer up while a RAW or PDF import dialog is open
+- Image > Rotate Left and Rotate Right replace the 90-degree rotate items, and a new Rotate Arbitrary command turns the canvas by any angle in either direction and grows it to fit, re-rendering text layers crisp
+- Fixes: dropping files from Explorer no longer holds Explorer up while a RAW or PDF import dialog is open, and grabbing a Move-tool transform handle on box text no longer stretches the text out to its frame
 
 ### 0.92 - September 9, 2026
 
