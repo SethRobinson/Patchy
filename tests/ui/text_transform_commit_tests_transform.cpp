@@ -238,8 +238,11 @@ void ui_transformed_text_reedit_preserves_transform() {
   require_action(window, "editFreeTransformAction")->trigger();
   QApplication::processEvents();
   CHECK(canvas->free_transform_active());
+  // A text session frames the layer's whole raster (the box frame here, the same rect the
+  // passive Move controls draw), so the rotate handle hangs 32 px above the LAYER rect's
+  // top-center, not the visible ink's.
   const auto top_center = canvas->widget_position_for_document_point(
-      QPoint(before_visible_text->center().x(), before_visible_text->top()));
+      QPoint(before_transform->center().x(), before_transform->top()));
   drag(*canvas, top_center + QPoint(0, -32), top_center + QPoint(70, 26));
   QApplication::processEvents();
   CHECK(canvas->free_transform_active());

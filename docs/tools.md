@@ -36,6 +36,7 @@ Corner handles scale proportionally on their own and Shift releases the lock, ma
 - The options-bar link button (`freeTransformLinkScaleButton`) mirrors the W% and H% spin boxes only. It does not reach handle drags.
 - The session start status line reports the active pairing, so both sentences are translated strings.
 - Shift on the shape and marquee tools remains a 1:1 square/circle constraint on a new shape (`shape_square_constrained_`, `selection_square_constrained_`); that is unrelated and unchanged.
+- A text layer's session rect is its whole raster (`move_layer_transform_local_rect`: a box layer's frame, a point layer's line box), the same rect the passive Move-tool controls draw, like Photoshop's paragraph-text box. Other layers use the opaque pixel rect. The two must agree because a handle drag sets the rect corner to the absolute mouse position: a session started on the smaller ink rect while the grabbed handle sat at the frame corner stretched the ink to the frame on the first move (September 2026, box text after Image Size went "instantly giant"). `ui_box_text_transform_handle_grab_keeps_ink_size` pins it.
 - Coverage: `ui_transform_shift_frees_aspect_ratio_by_default`, `ui_transform_shift_aspect_preference_restores_legacy`, `ui_transform_shift_aspect_preference_defaults_to_off`, `ui_transform_shift_aspect_preference_persists_and_reaches_canvas`. The path session's branch has no test yet.
 
 ## Merge Down

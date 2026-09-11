@@ -900,6 +900,102 @@ void ui_split_state_text_size_spin_shows_effective_size() {
   CHECK(final_ink->height() < base_ink->height() * 1.5);
 }
 
+// Grabbing a Move-tool transform handle on a box text layer whose frame is much larger than its
+// ink must start the session on the frame the handles were drawn on. The session used to start
+// on the ink rect while the grabbed handle sat at the frame corner, and the drag sets the rect
+// corner to the absolute mouse position, so the first mouse move stretched the ink out to the
+// frame ("grab a handle and the text instantly becomes giant").
+void ui_box_text_transform_handle_grab_keeps_ink_size() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+
+  const QPoint box_top_left(200, 150);
+  const QPoint box_bottom_right(520, 400);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  drag(*canvas, canvas->widget_position_for_document_point(box_top_left),
+       canvas->widget_position_for_document_point(box_bottom_right));
+  QApplication::processEvents();
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+  editor->setPlainText(QStringLiteral("Grab me"));
+  QApplication::processEvents();
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  process_events_for(120);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto active = document.active_layer_id();
+  CHECK(active.has_value());
+  if (!active.has_value()) {
+    return;
+  }
+  const auto layer_id = *active;
+  const auto* base_layer = document.find_layer(layer_id);
+  CHECK(base_layer != nullptr);
+  if (base_layer == nullptr) {
+    return;
+  }
+  const auto frame = base_layer->bounds();
+  const auto base_ink = document_ink_rect(*base_layer);
+  CHECK(base_ink.has_value());
+  if (!base_ink.has_value()) {
+    return;
+  }
+  // The one-line ink is far smaller than the dragged frame, which is what exposes the mismatch.
+  CHECK(base_ink->height() < frame.height * 0.5);
+  CHECK(base_ink->width() < frame.width * 0.9);
+  print_transform_state("handle grab base", *base_layer);
+
+  canvas->set_show_transform_controls(true);
+  QApplication::processEvents();
+  // Grab the passive bottom-right handle (the frame corner) and drag it a little.
+  const QPoint corner_document(frame.x + frame.width, frame.y + frame.height);
+  const auto corner_widget = canvas->widget_position_for_document_point(corner_document);
+  const auto dragged_widget = canvas->widget_position_for_document_point(corner_document + QPoint(16, 12));
+  send_mouse(*canvas, QEvent::MouseButtonPress, corner_widget, Qt::LeftButton, Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  send_mouse(*canvas, QEvent::MouseMove, dragged_widget, Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  const auto state = canvas->transform_controls_state();
+  CHECK(state.has_value());
+  if (state.has_value()) {
+    std::cout << "[text-transform] handle grab scale=" << state->scale_x_percent << "% x "
+              << state->scale_y_percent << "%" << std::endl;
+    // A 16 x 12 px drag on a ~320 x 250 frame is a few percent, never the frame/ink ratio.
+    CHECK(state->scale_x_percent > 100.0);
+    CHECK(state->scale_x_percent < 115.0);
+    CHECK(state->scale_y_percent > 100.0);
+    CHECK(state->scale_y_percent < 115.0);
+  }
+  send_mouse(*canvas, QEvent::MouseButtonRelease, dragged_widget, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  process_events_for(120);
+  CHECK(!canvas->free_transform_active());
+
+  const auto* final_layer = document.find_layer(layer_id);
+  CHECK(final_layer != nullptr);
+  if (final_layer == nullptr) {
+    return;
+  }
+  print_transform_state("handle grab committed", *final_layer);
+  const auto final_ink = document_ink_rect(*final_layer);
+  CHECK(final_ink.has_value());
+  if (!final_ink.has_value()) {
+    return;
+  }
+  CHECK(final_ink->height() < base_ink->height() * 1.3);
+  CHECK(final_ink->height() > base_ink->height() * 0.8);
+  CHECK(final_ink->width() < base_ink->width() * 1.3);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> text_transform_commit_tests_part3() {
@@ -917,5 +1013,6 @@ std::vector<patchy::test::TestCase> text_transform_commit_tests_part3() {
        ui_image_size_dialog_folds_point_text_scale_and_rerenders_crisp},
       {"ui_image_size_dialog_scales_box_text_frame_and_size", ui_image_size_dialog_scales_box_text_frame_and_size},
       {"ui_split_state_text_size_spin_shows_effective_size", ui_split_state_text_size_spin_shows_effective_size},
+      {"ui_box_text_transform_handle_grab_keeps_ink_size", ui_box_text_transform_handle_grab_keeps_ink_size},
   };
 }

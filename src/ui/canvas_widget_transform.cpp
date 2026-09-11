@@ -641,11 +641,19 @@ bool CanvasWidget::begin_free_transform() {
     report_status_error(tr("This layer's vector data is preserved but can't be edited."));
     return false;
   }
-  const auto local_transform_rect = opaque_pixel_local_rect(*layer);
-  if (!local_transform_rect.has_value()) {
+  const auto opaque_rect = opaque_pixel_local_rect(*layer);
+  if (!opaque_rect.has_value()) {
     report_status_error(tr("Layer has no opaque pixels to transform"));
     return false;
   }
+  // A text layer transforms its whole raster (a box layer's frame, a point layer's tight
+  // bounds): the rect the passive Move-tool controls draw (move_layer_transform_local_rect)
+  // and what Photoshop frames for paragraph text. A handle grabbed on that passive frame must
+  // start the session on the SAME rect: the drag sets the rect corner to the absolute mouse
+  // position, so a session started on the smaller ink rect stretched the ink out to the frame
+  // corner under the cursor on the first mouse move (box text went "instantly giant").
+  const std::optional<QRect> local_transform_rect =
+      layer_is_text(*layer) ? move_layer_transform_local_rect(*layer).value_or(*opaque_rect) : *opaque_rect;
 
   transforming_layer_ = true;
   dragging_transform_ = false;
