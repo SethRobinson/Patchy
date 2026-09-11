@@ -225,6 +225,7 @@ void ui_copy_paste_and_transform_pasted_layer_work() {
   CHECK(pasted_rect.has_value());
   CHECK(pasted_rect->topLeft() == copied_selection_rect->topLeft());
   CHECK(pasted_rect->size() == copied_selection_rect->size());
+  CHECK(!canvas->has_selection());
   require_action_by_text(window, QStringLiteral("Move"))->trigger();
   canvas->set_show_transform_controls(false);
   drag(*canvas, QPoint(120, 100), QPoint(150, 130));
@@ -268,6 +269,31 @@ void ui_copy_paste_and_transform_pasted_layer_work() {
   CHECK(after_rotate.has_value());
   CHECK(after_rotate->width() >= after_transform->width());
   save_widget_artifact("ui_copy_paste_transform", window);
+}
+
+void ui_paste_clears_selection_and_undo_restores_it() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+
+  canvas->set_primary_color(QColor(255, 80, 20));
+  canvas->set_tool(patchy::ui::CanvasTool::Marquee);
+  drag(*canvas, QPoint(60, 60), QPoint(180, 140));
+  const auto copied_selection_rect = canvas->selected_document_rect();
+  CHECK(copied_selection_rect.has_value());
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+
+  require_action(window, "editCopyAction")->trigger();
+  require_action(window, "editPasteAction")->trigger();
+  QApplication::processEvents();
+  // Photoshop parity: the marquee does not stay live over the pasted layer.
+  CHECK(!canvas->has_selection());
+
+  // The deselect rides the Paste undo entry.
+  require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->selected_document_rect() == copied_selection_rect);
 }
 
 void ui_external_clipboard_image_paste_creates_centered_layer() {
@@ -1347,6 +1373,7 @@ void ui_edit_conversion_scanline_rewrites_are_byte_identical() {
 std::vector<patchy::test::TestCase> clipboard_free_transform_tests() {
   return {
       {"ui_copy_paste_and_transform_pasted_layer_work", ui_copy_paste_and_transform_pasted_layer_work},
+      {"ui_paste_clears_selection_and_undo_restores_it", ui_paste_clears_selection_and_undo_restores_it},
       {"ui_external_clipboard_image_paste_creates_centered_layer",
        ui_external_clipboard_image_paste_creates_centered_layer},
       {"ui_external_clipboard_image_paste_overrides_internal_payload",

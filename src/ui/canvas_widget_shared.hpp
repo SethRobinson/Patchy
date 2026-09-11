@@ -52,6 +52,12 @@ bool pixel_layer_contains_document_point(const Layer& layer, QPoint document_poi
 // the auto-select press handling in the events TU.
 bool move_layer_contains_document_point(const Layer& layer, QPoint document_point);
 
+// Whether the document point lies inside the rect the Move tool draws for the
+// layer (move_layer_outline_bounds: opaque raster extent or text frame),
+// transparent pixels included. The rect pass behind the pixel-precise hit
+// test above, so a press anywhere inside a layer's outline grabs it.
+bool move_layer_rect_contains_document_point(const Layer& layer, QPoint document_point);
+
 // Document-space bounds for a moving layer's outline preview; shared by the
 // move-gesture setup in the events TU and the outline painters in the move TU.
 std::optional<Rect> move_layer_outline_bounds(const Layer& layer);

@@ -1420,6 +1420,129 @@ void ui_move_tool_hover_outlines_opaque_bounds() {
   CHECK(count_pixels_close(cleared, expected_outline.normalized().adjusted(-2, -2, 2, 2), outline_color, 18) < 6);
 }
 
+// A layer whose Move rect (opaque extent) has a transparent middle: two
+// opaque squares at the rect's opposite corners.
+patchy::LayerId add_hollow_layer(patchy::Document& document, const char* name, QRect first_square,
+                                 QRect second_square) {
+  auto pixels = solid_pixels(document.width(), document.height(), patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  fill_pixel_rect(pixels, first_square, QColor(20, 20, 20, 255));
+  fill_pixel_rect(pixels, second_square, QColor(20, 20, 20, 255));
+  patchy::Layer layer(document.allocate_layer_id(), name, std::move(pixels));
+  const auto id = layer.id();
+  layer.set_bounds(patchy::Rect{0, 0, document.width(), document.height()});
+  document.add_layer(std::move(layer));
+  return id;
+}
+
+void ui_move_tool_grabs_transparent_pixel_inside_layer_rect() {
+  patchy::Document document(180, 120, patchy::PixelFormat::rgba8());
+  auto& background =
+      document.add_pixel_layer("Background", solid_pixels(180, 120, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  patchy::set_layer_locks_position(background, true);  // counts as empty space
+  const auto background_id = background.id();
+  // Move rect (60,30)-(120,80); its middle is transparent.
+  const auto sprite_id = add_hollow_layer(document, "Sprite", QRect(60, 30, 10, 10), QRect(110, 70, 10, 10));
+  document.set_active_layer(background_id);
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(520, 360);
+  canvas.set_document(&document);
+  canvas.set_zoom(2.0);
+  canvas.set_tool(patchy::ui::CanvasTool::Move);
+  canvas.set_auto_select_layer(true);
+  canvas.set_show_transform_controls(false);
+  canvas.set_snap_enabled(false);
+  std::vector<patchy::LayerId> selected{background_id};
+  canvas.set_selected_layer_ids(selected);
+  canvas.set_layer_selection_requested_callback([&](std::vector<patchy::LayerId> ids, patchy::LayerId active) {
+    selected = std::move(ids);
+    document.set_active_layer(active);
+    canvas.set_selected_layer_ids(selected);
+  });
+  int content_edits = 0;
+  canvas.set_before_edit_callback([&](QString) { ++content_edits; });
+  canvas.show();
+  QApplication::processEvents();
+
+  const QPoint transparent_inside(90, 55);
+  send_mouse(canvas, QEvent::MouseMove, canvas.widget_position_for_document_point(transparent_inside), Qt::NoButton,
+             Qt::NoButton);
+  const auto hover = canvas.grab().toImage();
+  const QColor outline_color(95, 170, 255);
+  const QRect expected_outline(canvas.widget_position_for_document_point(QPoint(60, 30)),
+                               canvas.widget_position_for_document_point(QPoint(120, 80)));
+  CHECK(count_pixels_close(hover, expected_outline.normalized().adjusted(-2, -2, 2, 2), outline_color, 18) > 20);
+
+  const QPoint delta(12, 8);
+  const auto start = canvas.widget_position_for_document_point(transparent_inside);
+  const auto end = canvas.widget_position_for_document_point(transparent_inside + delta);
+  send_mouse(canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, end, Qt::NoButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(document.find_layer(sprite_id)->bounds().x == delta.x());
+  CHECK(document.find_layer(sprite_id)->bounds().y == delta.y());
+  CHECK(document.active_layer_id() == sprite_id);
+  CHECK(content_edits == 1);
+
+  // Outside every layer's rect a drag still draws the layer-selection
+  // rectangle and moves nothing.
+  const auto blank_start = canvas.widget_position_for_document_point(QPoint(20, 100));
+  const auto blank_end = canvas.widget_position_for_document_point(QPoint(30, 110));
+  send_mouse(canvas, QEvent::MouseButtonPress, blank_start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, blank_end, Qt::NoButton, Qt::LeftButton);
+  CHECK(canvas.pointer_gesture_active());
+  send_mouse(canvas, QEvent::MouseButtonRelease, blank_end, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(document.find_layer(sprite_id)->bounds().x == delta.x());
+  CHECK(document.find_layer(sprite_id)->bounds().y == delta.y());
+  CHECK(content_edits == 1);
+}
+
+void ui_move_tool_prefers_selected_layer_rect_over_topmost_rect() {
+  patchy::Document document(180, 120, patchy::PixelFormat::rgba8());
+  auto& background =
+      document.add_pixel_layer("Background", solid_pixels(180, 120, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  patchy::set_layer_locks_position(background, true);
+  // Lower rect (40,30)-(110,90) sits entirely inside the upper rect (30,20)-(130,110).
+  const auto lower_id = add_hollow_layer(document, "Lower", QRect(40, 30, 10, 10), QRect(100, 80, 10, 10));
+  const auto upper_id = add_hollow_layer(document, "Upper", QRect(30, 20, 10, 10), QRect(120, 100, 10, 10));
+  document.set_active_layer(lower_id);
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(520, 360);
+  canvas.set_document(&document);
+  canvas.set_zoom(2.0);
+  canvas.set_tool(patchy::ui::CanvasTool::Move);
+  canvas.set_auto_select_layer(true);
+  canvas.set_show_transform_controls(false);
+  canvas.set_snap_enabled(false);
+  std::vector<patchy::LayerId> selected{lower_id};
+  canvas.set_selected_layer_ids(selected);
+  canvas.set_layer_selection_requested_callback([&](std::vector<patchy::LayerId> ids, patchy::LayerId active) {
+    selected = std::move(ids);
+    document.set_active_layer(active);
+    canvas.set_selected_layer_ids(selected);
+  });
+  canvas.show();
+  QApplication::processEvents();
+
+  // Transparent in both layers, inside both rects: the selected layer wins.
+  const QPoint overlap(75, 60);
+  const QPoint delta(10, 6);
+  const auto start = canvas.widget_position_for_document_point(overlap);
+  const auto end = canvas.widget_position_for_document_point(overlap + delta);
+  send_mouse(canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, end, Qt::NoButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(document.find_layer(lower_id)->bounds().x == delta.x());
+  CHECK(document.find_layer(lower_id)->bounds().y == delta.y());
+  CHECK(document.find_layer(upper_id)->bounds().x == 0);
+  CHECK(document.find_layer(upper_id)->bounds().y == 0);
+  CHECK(selected == std::vector<patchy::LayerId>{lower_id});
+}
+
 void ui_move_tool_uses_text_rect_for_hit_and_hover() {
   patchy::Document document(220, 140, patchy::PixelFormat::rgba8());
   auto& background =
@@ -3817,6 +3940,10 @@ std::vector<patchy::test::TestCase> move_tool_processing_overlay_tests() {
        ui_move_auto_select_selected_member_drag_keeps_multi_selection},
       {"ui_move_auto_select_blank_drag_keeps_multi_selection",
        ui_move_auto_select_blank_drag_keeps_multi_selection},
+      {"ui_move_tool_grabs_transparent_pixel_inside_layer_rect",
+       ui_move_tool_grabs_transparent_pixel_inside_layer_rect},
+      {"ui_move_tool_prefers_selected_layer_rect_over_topmost_rect",
+       ui_move_tool_prefers_selected_layer_rect_over_topmost_rect},
       {"ui_move_ctrl_click_toggles_layer_selection", ui_move_ctrl_click_toggles_layer_selection},
       {"ui_move_ctrl_drag_selects_rectangle_without_moving", ui_move_ctrl_drag_selects_rectangle_without_moving},
       {"ui_move_ctrl_click_selects_layer_inside_collapsed_folder",

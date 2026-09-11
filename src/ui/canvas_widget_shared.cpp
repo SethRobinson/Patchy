@@ -108,6 +108,14 @@ bool move_layer_contains_document_point(const Layer& layer, QPoint document_poin
   return pixel_layer_contains_document_point(layer, document_point, true);
 }
 
+bool move_layer_rect_contains_document_point(const Layer& layer, QPoint document_point) {
+  if (!layer.visible() || layer.opacity() <= 0.0F || !layer_has_movable_pixels(layer)) {
+    return false;
+  }
+  const auto bounds = move_layer_outline_bounds(layer);
+  return bounds.has_value() && bounds->contains(document_point.x(), document_point.y());
+}
+
 std::optional<Rect> move_layer_outline_bounds(const Layer& layer) {
   if (!layer_has_movable_pixels(layer)) {
     return std::nullopt;

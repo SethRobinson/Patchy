@@ -53,3 +53,7 @@ The selection outline is not rebuilt per paint from QRegion edge subtractions. `
 - Below 100% zoom the outline is retraced at *device resolution* (AA coverage rasterisation thresholded at 50%, `trace_device_selection_outlines`), which merges or drops sub-pixel holes/islands exactly like the scaled-down artwork — do not "fix" that by tracing document space at low zoom; it strobes. Loops shorter than one 4-4 dash period go to a separate `pinpoint` path drawn with 2-2 dashes over the solid black underlay so single-pixel selections never blink invisible.
 
 Test filters: `selection_outline` (tracer/path units) and `ui_marching_ants` (rendering).
+
+## Paste deselects
+
+Every Edit > Paste branch (internal layers, raster, SVG shapes) calls `clear_selection()` right after its `push_undo_snapshot`, so the marquee that produced the copy does not stay live over the new layer (Photoshop parity) and Undo of the paste brings it back with no extra history entry. Pinned by `ui_paste_clears_selection_and_undo_restores_it`.

@@ -1020,6 +1020,9 @@ bool MainWindow::paste_svg_from_clipboard() {
 
   auto& doc = document();
   push_undo_snapshot(tr("Paste shape"));
+  // Photoshop drops the selection once the clipboard lands on its own layer;
+  // the snapshot above keeps it for Undo.
+  canvas_->clear_selection();
   for (const auto& resource : imported.metadata().patterns.patterns) {
     doc.metadata().patterns.adopt(resource);
   }
@@ -1095,6 +1098,7 @@ void MainWindow::paste_clipboard() {
     collect_layer_names(doc.layers(), existing_names);
 
     push_undo_snapshot(tr("Paste"));
+    canvas_->clear_selection();
     for (const auto& source : clipboard_->smart_object_sources) {
       doc.metadata().smart_objects.adopt(source);
     }
@@ -1150,6 +1154,9 @@ void MainWindow::paste_clipboard() {
   }
 
   push_undo_snapshot(tr("Paste"));
+  // The marquee that produced the copy must not stay live over the new layer
+  // (Photoshop parity); Undo of the paste brings it back.
+  canvas_->clear_selection();
   Layer pasted(document().allocate_layer_id(), "Pasted Layer", std::move(pixels));
   pasted.set_bounds(Rect{origin.x(), origin.y(), pasted.pixels().width(), pasted.pixels().height()});
   document().add_layer(std::move(pasted));

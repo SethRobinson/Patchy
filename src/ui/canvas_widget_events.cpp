@@ -857,7 +857,8 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       }
       if (target_id.has_value()) {
         auto* layer = document_->find_layer(*target_id);
-        if (layer != nullptr && move_layer_contains_document_point(*layer, document_point)) {
+        if (layer != nullptr && (move_layer_contains_document_point(*layer, document_point) ||
+                                 move_layer_rect_contains_document_point(*layer, document_point))) {
           transform_controls_layer = layer;
         }
       }

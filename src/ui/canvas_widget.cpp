@@ -130,7 +130,12 @@ const Layer* topmost_pixel_layer_at_recursive(const std::vector<Layer>& layers, 
   return nullptr;
 }
 
+// One walk for both Move-tool hit passes: `contains` is the pixel-precise
+// test (move_layer_contains_document_point) or the outline-rect test
+// (move_layer_rect_contains_document_point); see topmost_move_layer_at.
+template <typename Contains>
 const Layer* topmost_move_layer_at_recursive(const std::vector<Layer>& layers, QPoint document_point, bool skip_locked,
+                                             const Contains& contains,
                                              LayerLockFlags ancestor_lock_flags = kLayerLockNone) {
   for (auto it = layers.rbegin(); it != layers.rend(); ++it) {
     const auto& layer = *it;
@@ -139,7 +144,7 @@ const Layer* topmost_move_layer_at_recursive(const std::vector<Layer>& layers, Q
     }
     const auto effective_lock_flags = ancestor_lock_flags | patchy::layer_lock_flags(layer);
     if (layer.kind() == LayerKind::Group) {
-      if (const auto* found = topmost_move_layer_at_recursive(layer.children(), document_point, skip_locked,
+      if (const auto* found = topmost_move_layer_at_recursive(layer.children(), document_point, skip_locked, contains,
                                                               effective_lock_flags);
           found != nullptr) {
         return found;
@@ -149,7 +154,7 @@ const Layer* topmost_move_layer_at_recursive(const std::vector<Layer>& layers, Q
     if (skip_locked && (effective_lock_flags & kLayerLockPosition) != kLayerLockNone) {
       continue;
     }
-    if (move_layer_contains_document_point(layer, document_point)) {
+    if (contains(layer, document_point)) {
       return &layer;
     }
   }
@@ -1389,8 +1394,28 @@ Layer* CanvasWidget::topmost_move_layer_at(QPoint document_point, bool skip_lock
     return nullptr;
   }
 
-  return const_cast<Layer*>(
-      topmost_move_layer_at_recursive(std::as_const(*document_).layers(), document_point, skip_locked));
+  // Three passes, shared by the press handler, the hover outline, and the
+  // lock status message so they always agree on the grabbed layer:
+  // 1. a visible pixel under the point wins (precise, the original test);
+  // 2. otherwise a selected layer whose Move rect contains the point (the box
+  //    the user is looking at beats a larger unselected rect above it);
+  // 3. otherwise the topmost layer whose Move rect contains the point, so a
+  //    press on a transparent pixel inside a layer's outline still grabs it
+  //    instead of drawing the layer-selection rectangle (Photoshop parity).
+  const auto& document = std::as_const(*document_);
+  if (const auto* hit = topmost_move_layer_at_recursive(document.layers(), document_point, skip_locked,
+                                                        move_layer_contains_document_point);
+      hit != nullptr) {
+    return const_cast<Layer*>(hit);
+  }
+  for (const auto id : movable_layer_ids()) {
+    const auto* layer = document.find_layer(id);
+    if (layer != nullptr && move_layer_rect_contains_document_point(*layer, document_point)) {
+      return const_cast<Layer*>(layer);
+    }
+  }
+  return const_cast<Layer*>(topmost_move_layer_at_recursive(document.layers(), document_point, skip_locked,
+                                                            move_layer_rect_contains_document_point));
 }
 
 Layer* CanvasWidget::topmost_text_layer_at(QPoint document_point) const noexcept {
