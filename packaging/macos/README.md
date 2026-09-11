@@ -87,3 +87,37 @@ Preserve the user's password, items, access controls, and lock-on-sleep settings
 Do not reset the keychain, disable its security settings, repeatedly retry failed
 requests, or kill system services to suppress dialogs. Canceling a dialog only
 cancels that request. Fix the requesting session's locked state or credential.
+
+### Diagnosing a keychain password dialog on the desktop
+
+A dialog such as "com.apple.iCloudHelper wants to use the login keychain" means the
+desktop session's login keychain is locked; it does not mean a build asked for
+anything. Read the unified log before blaming a build (read-only, no `security`
+commands, safe over ssh):
+
+```
+log show --last 6h --style compact --predicate 'process == "launchd" AND eventMessage CONTAINS "SecurityAgent"'
+log show --last 6h --style compact --predicate 'process == "securityd" AND (eventMessage CONTAINS "thread limit" OR eventMessage CONTAINS "makeUnlocked")'
+ls -lt /Library/Logs/DiagnosticReports | head
+ps -axo pid,lstart,command | grep "[s]ecurityd -i"
+```
+
+`Successfully spawned SecurityAgent` is the dialog appearing. A `securityd-<date>.ips`
+report together with a recent start time on `/usr/sbin/securityd -i` means securityd
+crashed, and every session's keychains come back locked when it restarts. September 11,
+2026: securityd logged "reached its thread limit (100) - service deadlock is possible"
+and crashed at 17:03 with no Patchy build or ssh session running (the last remote build
+was two days earlier); the iCloudHelper dialog followed at 17:08. The build scripts only
+ever unlock the keychain and never lock it, and a `SecKeychainGetStatus` probe from an
+ssh session reports that session, not the desktop. macOS re-unlocks the login keychain
+by itself only when its password equals the login password, so keeping the two equal
+(Keychain Access > login > Change Password) is what makes recovery from a restart
+automatic; `PATCHY_KEYCHAIN_PASSWORD` must then be updated to match.
+
+Recovery without touching the desktop: `packaging/macos/desktop-keychain-unlock.sh`
+(run over ssh) bootstraps a one-shot helper into the desktop `gui/<uid>` launchd
+domain, the only place that can read or change the desktop session's keychain state.
+The helper unlocks the login keychain there once, with UI disabled, using the release
+credential, then removes itself, so iCloudHelper's next retry succeeds silently
+(September 11, 2026: status 2 = locked before, 7 after). That repairs the session, not
+the cause.
