@@ -6,6 +6,7 @@
 #include "core/worker_budget.hpp"
 #include "core/smart_object.hpp"
 #include "core/layer_render_utils.hpp"
+#include "core/pixel_tools.hpp"
 #include "formats/bmp_document_io.hpp"
 #include "formats/document_flatten.hpp"
 #include "formats/gif_document_io.hpp"
@@ -29,6 +30,7 @@
 #include <QColor>
 #include <QImage>
 #include <QImageWriter>
+#include <QObject>
 #include <QString>
 #include <QtGlobal>
 
@@ -1844,34 +1846,198 @@ namespace {
   return scaled;
 }
 
-// A flat, scaled stand-in document that every format writer treats exactly like the
-// original: the document-alpha mask structure survives (so alpha-capable formats stay
-// non-destructive) and the palette-mode/palette metadata carries over (so indexed exports
-// keep the document palette).
-[[nodiscard]] Document scaled_flat_document(const Document& document, int scale) {
-  Document scaled(document.width() * scale, document.height() * scale, PixelFormat::rgba8());
-  scaled.print_settings() = document.print_settings();
+// Export-only geometry, applied in this order: crop (Trim transparent edges), resize (the
+// bilinear Image Size resampler), nearest-neighbor pixel-art scale. Channel-agnostic, so
+// rgb8/rgba8 pixels and gray8 mask planes go through identical math.
+struct ExportTransform {
+  std::optional<Rect> crop;                                     // source pixels; nullopt = whole buffer
+  std::optional<std::pair<std::int32_t, std::int32_t>> resize;  // target size AFTER the crop
+  int scale{1};
+};
 
-  bool built_masked = false;
-  if (document.layers().size() == 1) {
-    const auto& layer = std::as_const(document).layers().front();
-    if (layer.kind() == LayerKind::Pixel && layer.mask().has_value() && layer_mask_is_document_alpha(layer)) {
-      Layer copy(scaled.allocate_layer_id(), layer.name(), upscale_nearest_buffer(layer.pixels(), scale));
-      auto mask_pixels = upscale_nearest_buffer(layer.mask()->pixels, scale);
-      copy.set_mask(LayerMask{Rect::from_size(mask_pixels.width(), mask_pixels.height()), std::move(mask_pixels),
-                              layer.mask()->default_color, layer.mask()->disabled});
-      set_layer_mask_is_document_alpha(copy, true);
-      scaled.add_layer(std::move(copy));
-      built_masked = true;
+[[nodiscard]] PixelBuffer crop_buffer(const PixelBuffer& source, Rect rect) {
+  PixelBuffer cropped(rect.width, rect.height, source.format());
+  const auto row_bytes = static_cast<std::size_t>(rect.width) * bytes_per_pixel(source.format());
+  for (std::int32_t y = 0; y < rect.height; ++y) {
+    const auto* src = source.pixel(rect.x, rect.y + y);
+    std::copy(src, src + row_bytes, cropped.pixel(0, y));
+  }
+  return cropped;
+}
+
+[[nodiscard]] PixelBuffer transform_export_buffer(const PixelBuffer& source, const ExportTransform& transform) {
+  PixelBuffer result = source;  // implicitly shared: free until a step replaces it
+  if (transform.crop.has_value()) {
+    result = crop_buffer(result, *transform.crop);
+  }
+  if (transform.resize.has_value() &&
+      (transform.resize->first != result.width() || transform.resize->second != result.height())) {
+    result = scale_pixels_resampled(result, transform.resize->first, transform.resize->second);
+  }
+  if (transform.scale > 1) {
+    result = upscale_nearest_buffer(result, transform.scale);
+  }
+  return result;
+}
+
+// Straight-alpha source-over onto an opaque background with the render_document_rect matte
+// rounding ((src * a + bg * (255 - a) + 127) / 255). Every alpha becomes 255; the alpha of
+// the background color itself is ignored (a matte is opaque by definition).
+void composite_over_background(PixelBuffer& rgba, QColor background) {
+  const std::array<int, 3> bg{background.red(), background.green(), background.blue()};
+  for (std::int32_t y = 0; y < rgba.height(); ++y) {
+    auto row = rgba.row(y);
+    for (std::int32_t x = 0; x < rgba.width(); ++x) {
+      auto* px = row.data() + static_cast<std::size_t>(x) * 4U;
+      const int alpha = px[3];
+      if (alpha == 255) {
+        continue;
+      }
+      for (std::size_t channel = 0; channel < 3; ++channel) {
+        px[channel] = static_cast<std::uint8_t>((px[channel] * alpha + bg[channel] * (255 - alpha) + 127) / 255);
+      }
+      px[3] = 255;
     }
   }
-  if (!built_masked) {
-    scaled.add_pixel_layer("Background", upscale_nearest_buffer(flatten_document_rgba8(document), scale));
+}
+
+[[nodiscard]] bool export_geometry_requested(const ImageSaveOptions& options) noexcept {
+  return options.export_trim_transparent || options.export_width > 0 || options.export_height > 0;
+}
+
+[[nodiscard]] bool export_transform_requested(const ImageSaveOptions& options) noexcept {
+  return options.export_scale > 1 || export_geometry_requested(options) || options.export_fill_transparent;
+}
+
+// The resize target for a (possibly trimmed) source. export_width/height describe the FULL
+// canvas: an untrimmed source gets them exactly, a trimmed one scales by the same factors
+// so it never distorts. One zero side follows the factor of the other (scripted callers).
+[[nodiscard]] std::optional<std::pair<std::int32_t, std::int32_t>> export_resize_target(
+    const ImageSaveOptions& options, std::int32_t source_width, std::int32_t source_height,
+    std::int32_t canvas_width, std::int32_t canvas_height) {
+  if (options.export_width <= 0 && options.export_height <= 0) {
+    return std::nullopt;
+  }
+  const auto scaled = [](std::int64_t source, std::int64_t numerator, std::int64_t denominator) {
+    return static_cast<std::int32_t>(
+        std::max<std::int64_t>(1, (source * numerator + denominator / 2) / denominator));
+  };
+  const auto width = options.export_width > 0 ? scaled(source_width, options.export_width, canvas_width)
+                                              : scaled(source_width, options.export_height, canvas_height);
+  const auto height = options.export_height > 0 ? scaled(source_height, options.export_height, canvas_height)
+                                                : scaled(source_height, options.export_width, canvas_width);
+  return std::pair{width, height};
+}
+
+[[nodiscard]] std::string trim_kept_full_canvas_notice() {
+  return QObject::tr("Trim transparent edges kept the full canvas: the image has no visible pixels.").toStdString();
+}
+
+[[nodiscard]] Rect union_rects(Rect a, Rect b) noexcept {
+  const auto x0 = std::min(a.x, b.x);
+  const auto y0 = std::min(a.y, b.y);
+  const auto x1 = std::max(a.x + a.width, b.x + b.width);
+  const auto y1 = std::max(a.y + a.height, b.y + b.height);
+  return Rect{x0, y0, x1 - x0, y1 - y0};
+}
+
+// Resolves the export options against an RGBA8 composite whose alpha decides the trim
+// rect. A crop is only recorded when it actually shrinks the canvas.
+[[nodiscard]] ExportTransform resolve_export_transform(const ImageSaveOptions& options,
+                                                       const PixelBuffer& alpha_source,
+                                                       std::vector<std::string>* notices) {
+  ExportTransform transform;
+  const auto canvas_width = alpha_source.width();
+  const auto canvas_height = alpha_source.height();
+  auto width = canvas_width;
+  auto height = canvas_height;
+  if (options.export_trim_transparent) {
+    if (const auto bounds = visible_alpha_local_bounds(alpha_source); bounds.has_value()) {
+      if (bounds->width != width || bounds->height != height) {
+        transform.crop = *bounds;
+      }
+      width = bounds->width;
+      height = bounds->height;
+    } else if (notices != nullptr) {
+      notices->push_back(trim_kept_full_canvas_notice());
+    }
+  }
+  transform.resize = export_resize_target(options, width, height, canvas_width, canvas_height);
+  transform.scale = std::max(1, options.export_scale);
+  return transform;
+}
+
+// A flat stand-in document that every format writer treats exactly like the original. The
+// document-alpha mask structure survives trim, resize, and scale (so alpha-capable formats
+// stay non-destructive: the colors under the mask are kept) and the palette-mode/palette
+// metadata carries over (so indexed exports keep the document palette). A background fill
+// always yields one opaque pixel layer. Scale-only performs exactly the operations the old
+// scale re-entry did, so those bytes are unchanged.
+[[nodiscard]] Document export_stand_in_document(const Document& document, const ImageSaveOptions& options,
+                                                std::vector<std::string>* notices) {
+  const auto finish = [&document](Document& stand_in) {
+    stand_in.print_settings() = document.print_settings();
+    stand_in.palette_editing() = document.palette_editing();
+    stand_in.indexed_palette() = document.indexed_palette();
+  };
+
+  if (!options.export_fill_transparent && document.layers().size() == 1) {
+    const auto& layer = std::as_const(document).layers().front();
+    if (layer.kind() == LayerKind::Pixel && layer.mask().has_value() && layer_mask_is_document_alpha(layer)) {
+      std::optional<PixelBuffer> pixels;
+      std::optional<PixelBuffer> mask_pixels;
+      std::int32_t stand_in_width = 0;
+      std::int32_t stand_in_height = 0;
+      if (!export_geometry_requested(options)) {
+        // Scale only: replicate the pixels and the mask plane exactly as stored.
+        const auto scale = std::max(1, options.export_scale);
+        const ExportTransform transform{std::nullopt, std::nullopt, scale};
+        pixels = transform_export_buffer(layer.pixels(), transform);
+        mask_pixels = transform_export_buffer(layer.mask()->pixels, transform);
+        stand_in_width = document.width() * scale;
+        stand_in_height = document.height() * scale;
+      } else if (const auto masked = document_alpha_rgba8(document); masked.has_value()) {
+        // The trim rect comes from the combined alpha (the mask resolved to canvas size,
+        // bounds and default color applied); the pixels and that canvas-sized mask plane
+        // then go through one transform, so they stay aligned.
+        const auto transform = resolve_export_transform(options, *masked, notices);
+        PixelBuffer mask_plane(masked->width(), masked->height(), PixelFormat::gray8());
+        for (std::int32_t y = 0; y < masked->height(); ++y) {
+          const auto src_row = masked->row(y);
+          auto dst_row = mask_plane.row(y);
+          for (std::int32_t x = 0; x < masked->width(); ++x) {
+            dst_row[static_cast<std::size_t>(x)] = src_row[static_cast<std::size_t>(x) * 4U + 3U];
+          }
+        }
+        pixels = transform_export_buffer(layer.pixels(), transform);
+        mask_pixels = transform_export_buffer(mask_plane, transform);
+        stand_in_width = pixels->width();
+        stand_in_height = pixels->height();
+      }
+      if (pixels.has_value() && mask_pixels.has_value()) {
+        Document stand_in(stand_in_width, stand_in_height, PixelFormat::rgba8());
+        const auto mask_bounds = Rect::from_size(mask_pixels->width(), mask_pixels->height());
+        Layer copy(stand_in.allocate_layer_id(), layer.name(), std::move(*pixels));
+        copy.set_mask(LayerMask{mask_bounds, std::move(*mask_pixels), layer.mask()->default_color,
+                                layer.mask()->disabled});
+        set_layer_mask_is_document_alpha(copy, true);
+        stand_in.add_layer(std::move(copy));
+        finish(stand_in);
+        return stand_in;
+      }
+      // document_alpha_rgba8 declined (disabled mask, vector mask, other format): flatten below.
+    }
   }
 
-  scaled.palette_editing() = document.palette_editing();
-  scaled.indexed_palette() = document.indexed_palette();
-  return scaled;
+  auto rgba = flatten_document_rgba8(document);
+  rgba = transform_export_buffer(rgba, resolve_export_transform(options, rgba, notices));
+  if (options.export_fill_transparent) {
+    composite_over_background(rgba, options.export_background_color);
+  }
+  Document stand_in(rgba.width(), rgba.height(), PixelFormat::rgba8());
+  stand_in.add_pixel_layer("Background", std::move(rgba));
+  finish(stand_in);
+  return stand_in;
 }
 
 }  // namespace
@@ -1943,24 +2109,29 @@ void write_flat_image_file(const Document& document, const QString& path, const 
   const auto extension_bytes = extension.toStdString();
   const auto lower = lower_extension(extension_bytes);
   if (lower == "pdf" && options.pdf_editable_layers) {
-    // The layered writer needs the real document (scaled_flat_document would flatten it
-    // first); vectors and text scale by the page, so the export scale does not apply.
+    // The layered writer needs the real document (export_stand_in_document would flatten
+    // it first); vectors and text scale by the page, so the export transforms do not apply.
     write_pdf_document_file(document, path,
                             PdfExportOptions{options.pdf_lossless, true, options.pdf_missing_fonts_as_images},
                             notices);
     return;
   }
   if (lower == "gif" && options.gif_animate) {
-    // Before the export-scale re-entry: scaled_flat_document flattens the layers this
-    // writer needs, so the animated writer applies the scale per frame itself.
-    write_animated_gif_file(document, path, options);
+    // Before the export-transform re-entry: export_stand_in_document flattens the layers
+    // this writer needs, so the animated writer applies the transforms per frame itself.
+    write_animated_gif_file(document, path, options, notices);
     return;
   }
-  if (options.export_scale > 1) {
-    auto unscaled_options = options;
-    unscaled_options.export_scale = 1;
-    write_flat_image_file(scaled_flat_document(document, options.export_scale), path, extension, unscaled_options,
-                          notices);
+  if (export_transform_requested(options)) {
+    // One level of re-entry: the stand-in has every transform applied, so the resolved
+    // options carry none of them.
+    auto resolved = options;
+    resolved.export_scale = 1;
+    resolved.export_trim_transparent = false;
+    resolved.export_width = 0;
+    resolved.export_height = 0;
+    resolved.export_fill_transparent = false;
+    write_flat_image_file(export_stand_in_document(document, options, notices), path, extension, resolved, notices);
     return;
   }
   // HEIF is decode-only everywhere. Without this guard a hand-typed .heic in Save As
@@ -2044,6 +2215,9 @@ void write_flat_image_file(const Document& document, const QString& path, const 
   QImageWriter writer(path);
   if (is_jpeg_extension(extension_bytes)) {
     writer.setQuality(std::clamp(options.jpeg_quality, 0, 100));
+  } else if (lower == "webp") {
+    // Qt's WebP plugin encodes losslessly at quality 100 and lossy below it.
+    writer.setQuality(options.webp_lossless ? 100 : std::clamp(options.webp_quality, 0, 100));
   }
   const QImage image = flat_export_qimage(document, image_format_preserves_alpha(extension_bytes));
   if (!writer.write(image)) {
@@ -2051,23 +2225,69 @@ void write_flat_image_file(const Document& document, const QString& path, const 
   }
 }
 
-void write_animated_gif_file(const Document& document, const QString& path, const ImageSaveOptions& options) {
-  const auto scale = std::max(1, options.export_scale);
+void write_animated_gif_file(const Document& document, const QString& path, const ImageSaveOptions& options,
+                             std::vector<std::string>* notices) {
   const bool palette_mode =
       document.palette_editing().has_value() && !document.palette_editing()->palette.colors.empty();
   const auto default_delay_cs =
       static_cast<std::uint16_t>(std::clamp(options.gif_frame_delay_cs, 0, 0xffff));
 
-  std::vector<gif::GifFrame> frames;
+  std::vector<const Layer*> visible_layers;
   const auto& layers = std::as_const(document).layers();
   for (auto it = layers.rbegin(); it != layers.rend(); ++it) {
-    if (!it->visible()) {
-      continue;
+    if (it->visible()) {
+      visible_layers.push_back(&*it);
     }
-    auto rgba = pixels_from_image_rgba(render_layer_isolated(document, *it));
-    if (scale > 1) {
-      rgba = upscale_nearest_buffer(rgba, scale);
+  }
+  if (visible_layers.empty()) {
+    throw std::runtime_error("The document has no visible top-level layers to export as an animated GIF.");
+  }
+
+  // One transform for every frame. Trim needs every frame up front: it crops to the UNION
+  // of their visible-alpha bounds so the frames keep a single canvas size (the encoder
+  // writes full-canvas frames, no offsets). Without trim the frames render one at a time.
+  ExportTransform transform;
+  const auto canvas_width = document.width();
+  const auto canvas_height = document.height();
+  auto width = canvas_width;
+  auto height = canvas_height;
+  std::vector<PixelBuffer> rendered;
+  if (options.export_trim_transparent) {
+    rendered.reserve(visible_layers.size());
+    std::optional<Rect> union_bounds;
+    for (const auto* layer : visible_layers) {
+      rendered.push_back(pixels_from_image_rgba(render_layer_isolated(document, *layer)));
+      if (const auto bounds = visible_alpha_local_bounds(rendered.back()); bounds.has_value()) {
+        union_bounds = union_bounds.has_value() ? union_rects(*union_bounds, *bounds) : *bounds;
+      }
     }
+    if (union_bounds.has_value()) {
+      if (union_bounds->width != width || union_bounds->height != height) {
+        transform.crop = *union_bounds;
+      }
+      width = union_bounds->width;
+      height = union_bounds->height;
+    } else if (notices != nullptr) {
+      notices->push_back(trim_kept_full_canvas_notice());
+    }
+  }
+  transform.resize = export_resize_target(options, width, height, canvas_width, canvas_height);
+  transform.scale = std::max(1, options.export_scale);
+
+  std::vector<gif::GifFrame> frames;
+  frames.reserve(visible_layers.size());
+  std::int32_t frame_width = canvas_width;
+  std::int32_t frame_height = canvas_height;
+  for (std::size_t index = 0; index < visible_layers.size(); ++index) {
+    const Layer& layer = *visible_layers[index];
+    auto rgba = index < rendered.size() ? std::move(rendered[index])
+                                        : pixels_from_image_rgba(render_layer_isolated(document, layer));
+    rgba = transform_export_buffer(rgba, transform);
+    if (options.export_fill_transparent) {
+      composite_over_background(rgba, options.export_background_color);
+    }
+    frame_width = rgba.width();
+    frame_height = rgba.height();
     auto indexed = palette_mode
                        ? indexed_rgba8_with_palette(rgba, document.palette_editing()->palette.colors,
                                                     document.palette_editing()->alpha_threshold)
@@ -2076,14 +2296,10 @@ void write_animated_gif_file(const Document& document, const QString& path, cons
     frame.palette = std::move(indexed.palette);
     frame.transparent_index = indexed.transparent_index;
     frame.indexes = std::move(indexed.indexes);
-    frame.delay_cs = gif::parse_layer_name_delay_cs(it->name()).value_or(default_delay_cs);
+    frame.delay_cs = gif::parse_layer_name_delay_cs(layer.name()).value_or(default_delay_cs);
     frames.push_back(std::move(frame));
   }
-  if (frames.empty()) {
-    throw std::runtime_error("The document has no visible top-level layers to export as an animated GIF.");
-  }
-  gif::write_animation_file(document.width() * scale, document.height() * scale, frames,
-                            to_filesystem_path(path));
+  gif::write_animation_file(frame_width, frame_height, frames, to_filesystem_path(path));
 }
 
 }  // namespace patchy::ui

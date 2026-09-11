@@ -282,14 +282,30 @@ RGB: %2, %3, %4</translation></message>
     </message>
     <message>
         <location line="+4"/>
-        <source>%1x (nearest neighbor)</source>
-        <translation>%1 倍 (ニアレストネイバー)</translation>
+        <source>%1x</source>
+        <translation>%1 倍</translation>
     </message>
     <message>
         <location line="+380"/>
         <source>Export Options</source>
         <translation>書き出しオプション</translation>
     </message>
+    <message><source>1x (off)</source><translation>1 倍 (オフ)</translation></message>
+    <message><source>Pixel art scale:</source><translation>ドット絵スケール:</translation></message>
+    <message><source>Enlarges by whole pixels with no smoothing, so pixel art and sprites stay crisp. Leave at 1x for photos and paintings.</source><translation>スムージングなしでピクセル単位に拡大するので、ドット絵やスプライトがくっきりしたまま保たれます。写真や絵画は 1 倍のままにしてください。</translation></message>
+    <message><source>Resize to:</source><translation>サイズ変更:</translation></message>
+    <message><source>Smooth resampling. Use the pixel art scale below for crisp enlargements.</source><translation>滑らかに再サンプリングします。くっきり拡大するには下のドット絵スケールを使ってください。</translation></message>
+    <message><source>Transparency</source><translation>透明部分</translation></message>
+    <message><source>Keep transparent</source><translation>透明のまま</translation></message>
+    <message><source>Fill with:</source><translation>塗りつぶす色:</translation></message>
+    <message><source>Background:</source><translation>背景:</translation></message>
+    <message><source>Export Background Color</source><translation>書き出しの背景色</translation></message>
+    <message><source>Trim transparent edges</source><translation>透明な縁を切り落とす</translation></message>
+    <message><source>Show in Explorer when done</source><translation>完了後にエクスプローラーで表示</translation></message>
+    <message><source>Show in Finder when done</source><translation>完了後に Finder で表示</translation></message>
+    <message><source>Show in file manager when done</source><translation>完了後にファイルマネージャーで表示</translation></message>
+    <message><source>WebP Options</source><translation>WebP オプション</translation></message>
+    <message><source>Trim transparent edges kept the full canvas: the image has no visible pixels.</source><translation>透明な縁の切り落としはキャンバス全体を残しました: 画像に表示されるピクセルがありません。</translation></message>
     <message>
         <location filename="../src/ui/sprite_sheet_dialog.cpp" line="+46"/>
         <source>Export Sprite Sheet</source>

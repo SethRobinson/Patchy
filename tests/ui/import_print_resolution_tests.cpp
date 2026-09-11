@@ -629,6 +629,204 @@ void ui_png8_export_scaled_stays_indexed() {
   }
 }
 
+// The export transforms through write_flat_image_file with explicit options, read back from
+// the written PNG so every assertion covers the whole writer path.
+void ui_export_trim_transparent_crops_to_visible_alpha() {
+  std::filesystem::create_directories("test-artifacts");
+  patchy::Document document(10, 8, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer pixels(10, 8, patchy::PixelFormat::rgba8());
+  pixels.clear(0);
+  for (std::int32_t y = 2; y < 5; ++y) {
+    for (std::int32_t x = 3; x < 7; ++x) {
+      auto* px = pixels.pixel(x, y);
+      px[0] = 200;
+      px[1] = 30;
+      px[2] = 40;
+      px[3] = 255;
+    }
+  }
+  document.add_pixel_layer("Sprite", std::move(pixels));
+  patchy::ui::ImageSaveOptions options;
+  options.export_trim_transparent = true;
+  std::vector<std::string> notices;
+  const auto path = QStringLiteral("test-artifacts/ui_export_trimmed.png");
+  patchy::ui::write_flat_image_file(document, path, QStringLiteral("png"), options, &notices);
+  const auto image = QImage(path).convertToFormat(QImage::Format_RGBA8888);
+  CHECK(image.width() == 4);
+  CHECK(image.height() == 3);
+  CHECK(image.pixelColor(0, 0) == QColor(200, 30, 40, 255));
+  CHECK(image.pixelColor(3, 2) == QColor(200, 30, 40, 255));
+  CHECK(notices.empty());
+
+  // Nothing visible: the canvas is kept whole and the writer says so.
+  patchy::Document empty(5, 5, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer clear(5, 5, patchy::PixelFormat::rgba8());
+  clear.clear(0);
+  empty.add_pixel_layer("Empty", std::move(clear));
+  notices.clear();
+  const auto empty_path = QStringLiteral("test-artifacts/ui_export_trimmed_empty.png");
+  patchy::ui::write_flat_image_file(empty, empty_path, QStringLiteral("png"), options, &notices);
+  const QImage kept(empty_path);
+  CHECK(kept.width() == 5);
+  CHECK(kept.height() == 5);
+  CHECK(notices.size() == 1);
+  CHECK(!notices.empty() && notices.front().find("kept the full canvas") != std::string::npos);
+}
+
+void ui_export_resize_resamples_bilinear_to_target() {
+  std::filesystem::create_directories("test-artifacts");
+  patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
+  patchy::PixelBuffer pixels(2, 2, patchy::PixelFormat::rgb8());
+  for (std::int32_t y = 0; y < 2; ++y) {
+    for (std::int32_t x = 0; x < 2; ++x) {
+      auto* px = pixels.pixel(x, y);
+      px[0] = static_cast<std::uint8_t>(x == 0 ? 0 : 100);
+      px[1] = 0;
+      px[2] = 0;
+    }
+  }
+  document.add_pixel_layer("Ramp", std::move(pixels));
+  patchy::ui::ImageSaveOptions options;
+  options.export_width = 4;
+  options.export_height = 2;
+  const auto path = QStringLiteral("test-artifacts/ui_export_resized.png");
+  patchy::ui::write_flat_image_file(document, path, QStringLiteral("png"), options);
+  const auto image = QImage(path).convertToFormat(QImage::Format_RGB888);
+  CHECK(image.width() == 4);
+  CHECK(image.height() == 2);
+  // Bilinear with clamped edges (the Image Size resampler): source x = (x + 0.5) / 2 - 0.5
+  // gives 0, 25, 75, 100 exactly.
+  const int expected_red[4] = {0, 25, 75, 100};
+  for (int x = 0; x < 4; ++x) {
+    CHECK(image.pixelColor(x, 0).red() == expected_red[x]);
+    CHECK(image.pixelColor(x, 1).red() == expected_red[x]);
+  }
+
+  // One zero side follows the aspect.
+  options.export_height = 0;
+  const auto aspect_path = QStringLiteral("test-artifacts/ui_export_resized_aspect.png");
+  patchy::ui::write_flat_image_file(document, aspect_path, QStringLiteral("png"), options);
+  const QImage aspect(aspect_path);
+  CHECK(aspect.width() == 4);
+  CHECK(aspect.height() == 4);
+}
+
+void ui_export_fill_transparent_mattes_over_background() {
+  std::filesystem::create_directories("test-artifacts");
+  patchy::Document document(2, 1, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer pixels(2, 1, patchy::PixelFormat::rgba8());
+  pixels.clear(0);
+  auto* half = pixels.pixel(0, 0);
+  half[0] = 200;
+  half[1] = 100;
+  half[2] = 0;
+  half[3] = 128;
+  document.add_pixel_layer("Half", std::move(pixels));
+  patchy::ui::ImageSaveOptions options;
+  options.export_fill_transparent = true;
+  options.export_background_color = QColor(10, 20, 250);
+  const auto path = QStringLiteral("test-artifacts/ui_export_matted.png");
+  patchy::ui::write_flat_image_file(document, path, QStringLiteral("png"), options);
+  const auto image = QImage(path).convertToFormat(QImage::Format_RGBA8888);
+  CHECK(image.width() == 2);
+  // Straight-alpha over with the writer's rounding: (200 * 128 + 10 * 127 + 127) / 255 = 105.
+  CHECK(image.pixelColor(0, 0) == QColor(105, 60, 125, 255));
+  CHECK(image.pixelColor(1, 0) == QColor(10, 20, 250, 255));
+
+  // A palette-mode document stays an indexed PNG-8, now without a transparent slot.
+  patchy::Document indexed(4, 4, patchy::PixelFormat::rgba8());
+  const auto* preset = patchy::find_builtin_palette_preset("gameboy");
+  CHECK(preset != nullptr);
+  patchy::DocumentPaletteEditing editing;
+  editing.palette.colors.assign(preset->colors.begin(), preset->colors.end());
+  editing.palette_revision = 1;
+  indexed.palette_editing() = editing;
+  patchy::PixelBuffer indexed_pixels(4, 4, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < 4; ++y) {
+    for (std::int32_t x = 0; x < 4; ++x) {
+      const auto& color = preset->colors[static_cast<std::size_t>(x)];
+      auto* px = indexed_pixels.pixel(x, y);
+      px[0] = color.red;
+      px[1] = color.green;
+      px[2] = color.blue;
+      px[3] = (x == 0 && y == 0) ? 0 : 255;
+    }
+  }
+  indexed.add_pixel_layer("Pixels", std::move(indexed_pixels));
+  options.export_background_color = QColor(preset->colors[3].red, preset->colors[3].green, preset->colors[3].blue);
+  const auto indexed_path = QStringLiteral("test-artifacts/ui_export_matted_indexed.png");
+  patchy::ui::write_flat_image_file(indexed, indexed_path, QStringLiteral("png"), options);
+  const QImage indexed_image(indexed_path);
+  CHECK(indexed_image.format() == QImage::Format_Indexed8);
+  CHECK(indexed_image.colorCount() <= 4);
+  const auto rgba = indexed_image.convertToFormat(QImage::Format_RGBA8888);
+  CHECK(rgba.pixelColor(0, 0).alpha() == 255);
+  CHECK(rgba.pixelColor(0, 0).red() == preset->colors[3].red);
+}
+
+void ui_export_transforms_apply_trim_resize_scale_matte_in_order() {
+  std::filesystem::create_directories("test-artifacts");
+  // Row 1 holds two opaque red pixels around a transparent one; everything else is clear.
+  patchy::Document document(7, 3, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer pixels(7, 3, patchy::PixelFormat::rgba8());
+  pixels.clear(0);
+  for (const std::int32_t x : {2, 4}) {
+    auto* px = pixels.pixel(x, 1);
+    px[0] = 252;
+    px[3] = 252;
+  }
+  document.add_pixel_layer("Dots", std::move(pixels));
+  patchy::ui::ImageSaveOptions options;
+  options.export_trim_transparent = true;
+  // The target describes the full 7x3 canvas; the 3x1 trim scales by the same 2x factor.
+  options.export_width = 14;
+  options.export_height = 6;
+  options.export_scale = 2;
+  options.export_fill_transparent = true;
+  options.export_background_color = QColor(0, 0, 255);
+  const auto path = QStringLiteral("test-artifacts/ui_export_transform_order.png");
+  patchy::ui::write_flat_image_file(document, path, QStringLiteral("png"), options);
+  const auto image = QImage(path).convertToFormat(QImage::Format_RGBA8888);
+  CHECK(image.width() == 12);
+  CHECK(image.height() == 4);
+  // trim -> 3x1 [red, clear, red]; bilinear to 6x2 -> alpha 252, 189, 63, 63, 189, 252 on
+  // both rows; 2x replication; then the matte over blue. Matting before the resize would
+  // leave (63, 0, 191) at the fringe instead of (16, 0, 192); skipping the trim would give
+  // a mostly blue image.
+  const QColor expected[6] = {QColor(249, 0, 3),  QColor(140, 0, 66), QColor(16, 0, 192),
+                              QColor(16, 0, 192), QColor(140, 0, 66), QColor(249, 0, 3)};
+  for (int x = 0; x < 12; ++x) {
+    for (int y = 0; y < 4; ++y) {
+      CHECK(image.pixelColor(x, y) == expected[x / 2]);
+    }
+  }
+}
+
+void ui_export_option_defaults_leave_output_untransformed() {
+  std::filesystem::create_directories("test-artifacts");
+  patchy::Document document(6, 4, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer pixels(6, 4, patchy::PixelFormat::rgba8());
+  pixels.clear(0);
+  for (std::int32_t y = 1; y < 3; ++y) {
+    for (std::int32_t x = 1; x < 5; ++x) {
+      auto* px = pixels.pixel(x, y);
+      px[0] = 255;
+      px[3] = 255;
+    }
+  }
+  pixels.pixel(2, 1)[3] = 128;
+  document.add_pixel_layer("Art", std::move(pixels));
+  const patchy::ui::ImageSaveOptions defaults;
+  const auto path = QStringLiteral("test-artifacts/ui_export_defaults.png");
+  patchy::ui::write_flat_image_file(document, path, QStringLiteral("png"), defaults);
+  const auto image = QImage(path).convertToFormat(QImage::Format_RGBA8888);
+  CHECK(image.width() == 6);
+  CHECK(image.height() == 4);
+  CHECK(image.pixelColor(0, 0).alpha() == 0);
+  CHECK(image.pixelColor(2, 1).alpha() == 128);
+  CHECK(image.pixelColor(2, 1).red() == 255);
+}
+
 void ui_sprite_sheet_export_grid_layout_and_padding() {
   // 3 visible layers + 1 hidden: the sheet holds exactly the visible ones in grid order.
   patchy::Document document(10, 6, patchy::PixelFormat::rgba8());
@@ -3227,6 +3425,12 @@ std::vector<patchy::test::TestCase> import_print_resolution_tests() {
       {"ui_aseprite_open_adopts_palette_and_builds_layer_tree", ui_aseprite_open_adopts_palette_and_builds_layer_tree},
       {"ui_export_scale_writes_nearest_neighbor_pixels", ui_export_scale_writes_nearest_neighbor_pixels},
       {"ui_png8_export_scaled_stays_indexed", ui_png8_export_scaled_stays_indexed},
+      {"ui_export_trim_transparent_crops_to_visible_alpha", ui_export_trim_transparent_crops_to_visible_alpha},
+      {"ui_export_resize_resamples_bilinear_to_target", ui_export_resize_resamples_bilinear_to_target},
+      {"ui_export_fill_transparent_mattes_over_background", ui_export_fill_transparent_mattes_over_background},
+      {"ui_export_transforms_apply_trim_resize_scale_matte_in_order",
+       ui_export_transforms_apply_trim_resize_scale_matte_in_order},
+      {"ui_export_option_defaults_leave_output_untransformed", ui_export_option_defaults_leave_output_untransformed},
       {"ui_sprite_sheet_export_grid_layout_and_padding", ui_sprite_sheet_export_grid_layout_and_padding},
       {"ui_sprite_sheet_import_slices_cells_into_layers", ui_sprite_sheet_import_slices_cells_into_layers},
       {"ui_image_sequence_ordering_and_numbered_expansion", ui_image_sequence_ordering_and_numbered_expansion},

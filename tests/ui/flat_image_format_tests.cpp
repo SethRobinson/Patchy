@@ -1420,6 +1420,571 @@ void ui_rttex_save_options_persist_and_dialog_prefills_from_source() {
   settings.sync();
 }
 
+void ui_export_trim_keeps_document_alpha_mask_colors() {
+  ensure_artifact_dir();
+  // An opaque RGB layer whose document-alpha mask reveals a 3x2 block with one hidden pixel
+  // inside it: trim must follow the mask (the pixels themselves are opaque), keep the colors
+  // under the hidden pixel, and resize the mask together with the pixels.
+  patchy::Document document(6, 4, patchy::PixelFormat::rgb8());
+  patchy::PixelBuffer pixels(6, 4, patchy::PixelFormat::rgb8());
+  for (std::int32_t y = 0; y < 4; ++y) {
+    for (std::int32_t x = 0; x < 6; ++x) {
+      auto* px = pixels.pixel(x, y);
+      px[0] = 200;
+      px[1] = 100;
+      px[2] = 50;
+    }
+  }
+  patchy::PixelBuffer mask(6, 4, patchy::PixelFormat::gray8());
+  mask.clear(0);
+  for (std::int32_t y = 1; y < 3; ++y) {
+    for (std::int32_t x = 1; x < 4; ++x) {
+      mask.pixel(x, y)[0] = 255;
+    }
+  }
+  mask.pixel(1, 1)[0] = 0;
+  document.add_pixel_layer("Photo", std::move(pixels));
+  auto& layer = document.layers().back();
+  layer.set_mask(patchy::LayerMask{patchy::Rect::from_size(6, 4), std::move(mask), 255, false});
+  patchy::set_layer_mask_is_document_alpha(layer, true);
+
+  patchy::ui::ImageSaveOptions options;
+  options.export_trim_transparent = true;
+  const auto trimmed_path = QStringLiteral("test-artifacts/ui_export_mask_trimmed.png");
+  patchy::ui::write_flat_image_file(document, trimmed_path, QStringLiteral("png"), options);
+  const auto trimmed = QImage(trimmed_path).convertToFormat(QImage::Format_RGBA8888);
+  CHECK(trimmed.width() == 3);
+  CHECK(trimmed.height() == 2);
+  CHECK(trimmed.pixelColor(0, 0).alpha() == 0);
+  CHECK(trimmed.pixelColor(0, 0).red() == 200);  // the colors survive under the mask
+  CHECK(trimmed.pixelColor(1, 0) == QColor(200, 100, 50, 255));
+
+  // Trim plus resize: the mask plane is resampled with the pixels.
+  options.export_width = 12;
+  options.export_height = 8;
+  const auto resized_path = QStringLiteral("test-artifacts/ui_export_mask_resized.png");
+  patchy::ui::write_flat_image_file(document, resized_path, QStringLiteral("png"), options);
+  const auto resized = QImage(resized_path).convertToFormat(QImage::Format_RGBA8888);
+  CHECK(resized.width() == 6);
+  CHECK(resized.height() == 4);
+  CHECK(resized.pixelColor(5, 3).alpha() == 255);
+  CHECK(resized.pixelColor(0, 0).alpha() < 255);
+  CHECK(resized.pixelColor(5, 3).red() == 200);
+
+  // A background fill drops the mask structure: everything opaque, hidden pixels white.
+  options.export_width = 0;
+  options.export_height = 0;
+  options.export_fill_transparent = true;
+  options.export_background_color = QColor(Qt::white);
+  const auto filled_path = QStringLiteral("test-artifacts/ui_export_mask_filled.png");
+  patchy::ui::write_flat_image_file(document, filled_path, QStringLiteral("png"), options);
+  const auto filled = QImage(filled_path).convertToFormat(QImage::Format_RGBA8888);
+  CHECK(filled.width() == 3);
+  CHECK(filled.height() == 2);
+  CHECK(filled.pixelColor(0, 0) == QColor(255, 255, 255, 255));
+  CHECK(filled.pixelColor(1, 0) == QColor(200, 100, 50, 255));
+}
+
+void ui_animated_gif_export_trims_frames_to_union_bounds() {
+  std::filesystem::create_directories("test-artifacts");
+  patchy::Document document(16, 8, patchy::PixelFormat::rgba8());
+  const auto add_sprite = [&document](const std::string& name, QColor color, QRect rect) {
+    patchy::PixelBuffer pixels(16, 8, patchy::PixelFormat::rgba8());
+    pixels.clear(0);
+    for (int y = rect.top(); y <= rect.bottom(); ++y) {
+      for (int x = rect.left(); x <= rect.right(); ++x) {
+        auto* px = pixels.pixel(x, y);
+        px[0] = static_cast<std::uint8_t>(color.red());
+        px[1] = static_cast<std::uint8_t>(color.green());
+        px[2] = static_cast<std::uint8_t>(color.blue());
+        px[3] = 255;
+      }
+    }
+    document.add_pixel_layer(name, std::move(pixels));
+  };
+  add_sprite("A", QColor(255, 0, 0), QRect(2, 1, 3, 2));
+  add_sprite("B", QColor(0, 0, 255), QRect(10, 4, 4, 3));
+
+  patchy::ui::ImageSaveOptions options;
+  options.gif_animate = true;
+  options.export_trim_transparent = true;
+  const auto path = QStringLiteral("test-artifacts/ui_animated_gif_trimmed.gif");
+  patchy::ui::write_flat_image_file(document, path, QStringLiteral("gif"), options);
+  QImageReader reader(path);
+  CHECK(reader.imageCount() == 2);
+  // The union of both sprites is x 2..13, y 1..6: every frame is 12x6.
+  const auto first = reader.read().convertToFormat(QImage::Format_RGBA8888);  // top layer = B
+  CHECK(first.size() == QSize(12, 6));
+  CHECK(first.pixelColor(8, 3) == QColor(0, 0, 255, 255));
+  const auto second = reader.read().convertToFormat(QImage::Format_RGBA8888);
+  CHECK(second.size() == QSize(12, 6));
+  CHECK(second.pixelColor(0, 0) == QColor(255, 0, 0, 255));
+
+  // Fill plus scale apply per frame after the shared trim.
+  options.export_fill_transparent = true;
+  options.export_background_color = QColor(Qt::white);
+  options.export_scale = 2;
+  const auto filled_path = QStringLiteral("test-artifacts/ui_animated_gif_trimmed_filled.gif");
+  patchy::ui::write_flat_image_file(document, filled_path, QStringLiteral("gif"), options);
+  QImageReader filled_reader(filled_path);
+  CHECK(filled_reader.imageCount() == 2);
+  const auto filled = filled_reader.read().convertToFormat(QImage::Format_RGBA8888);
+  CHECK(filled.size() == QSize(24, 12));
+  CHECK(filled.pixelColor(0, 0) == QColor(255, 255, 255, 255));
+  CHECK(filled.pixelColor(16, 6) == QColor(0, 0, 255, 255));
+}
+
+void ui_webp_lossless_round_trips_and_quality_orders_size() {
+  ensure_artifact_dir();
+  // Noisy RGBA content: lossless must come back exact, lossy must not, and lower quality
+  // must be smaller. Alpha stays above 0 so the encoder never gets to discard hidden RGB.
+  constexpr std::int32_t kSize = 32;
+  patchy::PixelBuffer pixels(kSize, kSize, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < kSize; ++y) {
+    for (std::int32_t x = 0; x < kSize; ++x) {
+      auto* px = pixels.pixel(x, y);
+      px[0] = static_cast<std::uint8_t>((x * 31 + y * 7) % 256);
+      px[1] = static_cast<std::uint8_t>((x * 13 + y * 29) % 256);
+      px[2] = static_cast<std::uint8_t>((x * 3 + y * 61) % 256);
+      px[3] = static_cast<std::uint8_t>(64 + (x * 5 + y * 3) % 192);
+    }
+  }
+  patchy::Document document(kSize, kSize, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Noise", pixels);
+
+  const auto matches_source = [&pixels](const QString& path) {
+    const auto image = QImage(path).convertToFormat(QImage::Format_RGBA8888);
+    if (image.size() != QSize(kSize, kSize)) {
+      return false;
+    }
+    for (std::int32_t y = 0; y < kSize; ++y) {
+      for (std::int32_t x = 0; x < kSize; ++x) {
+        const auto* px = pixels.pixel(x, y);
+        if (image.pixelColor(x, y) != QColor(px[0], px[1], px[2], px[3])) {
+          return false;
+        }
+      }
+    }
+    return true;
+  };
+  const auto write = [&document](const QString& path, int quality, bool lossless) {
+    patchy::ui::ImageSaveOptions options;
+    options.webp_quality = quality;
+    options.webp_lossless = lossless;
+    patchy::ui::write_flat_image_file(document, path, QStringLiteral("webp"), options);
+    return QFileInfo(path).size();
+  };
+  const auto lossless_path = QStringLiteral("test-artifacts/ui_webp_lossless.webp");
+  write(lossless_path, 10, true);
+  CHECK(matches_source(lossless_path));
+  const auto low_path = QStringLiteral("test-artifacts/ui_webp_q10.webp");
+  const auto high_path = QStringLiteral("test-artifacts/ui_webp_q95.webp");
+  const auto low_size = write(low_path, 10, false);
+  const auto high_size = write(high_path, 95, false);
+  CHECK(!matches_source(low_path));
+  CHECK(low_size < high_size);
+  // Quality 100 without the checkbox is the lossless mode of Qt's WebP plugin, which is
+  // what the writer relies on for the Lossless option.
+  const auto hundred_path = QStringLiteral("test-artifacts/ui_webp_q100.webp");
+  write(hundred_path, 100, false);
+  CHECK(matches_source(hundred_path));
+}
+
+struct ExportSectionProbe {
+  QCheckBox* resize{nullptr};
+  QSpinBox* width{nullptr};
+  QSpinBox* height{nullptr};
+  QDoubleSpinBox* percent{nullptr};
+  QComboBox* scale{nullptr};
+  QRadioButton* keep{nullptr};
+  QRadioButton* fill{nullptr};
+  QPushButton* swatch{nullptr};
+  QCheckBox* trim{nullptr};
+  QCheckBox* reveal{nullptr};
+
+  [[nodiscard]] bool complete() const {
+    return resize != nullptr && width != nullptr && height != nullptr && percent != nullptr && scale != nullptr &&
+           keep != nullptr && fill != nullptr && swatch != nullptr && trim != nullptr && reveal != nullptr;
+  }
+};
+
+ExportSectionProbe probe_export_section(QDialog& dialog) {
+  ExportSectionProbe probe;
+  probe.resize = dialog.findChild<QCheckBox*>(QStringLiteral("exportResizeCheck"));
+  probe.width = dialog.findChild<QSpinBox*>(QStringLiteral("exportResizeWidthSpin"));
+  probe.height = dialog.findChild<QSpinBox*>(QStringLiteral("exportResizeHeightSpin"));
+  probe.percent = dialog.findChild<QDoubleSpinBox*>(QStringLiteral("exportResizePercentSpin"));
+  probe.scale = dialog.findChild<QComboBox*>(QStringLiteral("exportScaleCombo"));
+  probe.keep = dialog.findChild<QRadioButton*>(QStringLiteral("exportKeepTransparencyRadio"));
+  probe.fill = dialog.findChild<QRadioButton*>(QStringLiteral("exportFillTransparencyRadio"));
+  probe.swatch = dialog.findChild<QPushButton*>(QStringLiteral("exportBackgroundColorSwatch"));
+  probe.trim = dialog.findChild<QCheckBox*>(QStringLiteral("exportTrimCheck"));
+  probe.reveal = dialog.findChild<QCheckBox*>(QStringLiteral("exportRevealCheck"));
+  return probe;
+}
+
+// Prints the clipped labels so a platform font difference is diagnosable from the log.
+bool no_clipped_labels(QDialog& dialog) {
+  const auto clipped = clipped_labels(dialog);
+  for (const auto& entry : clipped) {
+    std::cerr << "clipped label in " << dialog.objectName().toStdString() << ": " << entry.toStdString() << "\n";
+  }
+  return clipped.isEmpty();
+}
+
+void ui_export_options_dialog_shared_section() {
+  auto settings = patchy::ui::app_settings();
+  settings.remove(QStringLiteral("saveOptions"));
+  settings.sync();
+
+  const patchy::ui::ImageSaveOptions defaults;
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&saw_dialog] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("exportScaleOptionsDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    const auto probe = probe_export_section(*dialog);
+    CHECK(probe.complete());
+    if (!probe.complete()) {
+      dialog->reject();
+      return;
+    }
+    // Defaults: nothing transforms, the pixel-art scale reads as off, and every label fits.
+    CHECK(!probe.resize->isChecked());
+    CHECK(!probe.width->isEnabled());
+    CHECK(probe.width->value() == 640);
+    CHECK(probe.height->value() == 480);
+    CHECK(probe.percent->value() == 100.0);
+    CHECK(probe.scale->currentData().toInt() == 1);
+    CHECK(probe.scale->itemText(0).contains(QStringLiteral("off")));
+    CHECK(probe.keep->isChecked());
+    CHECK(!probe.swatch->isEnabled());
+    CHECK(!probe.trim->isChecked());
+    CHECK(!probe.reveal->isChecked());
+    CHECK(no_clipped_labels(*dialog));
+    ensure_artifact_dir();
+    render_widget_image(*dialog).save(QStringLiteral("test-artifacts/export_options_dialog.png"));
+    // Width, height, and percent mirror each other with the aspect locked.
+    probe.resize->click();
+    CHECK(probe.width->isEnabled() && probe.height->isEnabled() && probe.percent->isEnabled());
+    probe.width->setValue(320);
+    CHECK(probe.height->value() == 240);
+    CHECK(probe.percent->value() == 50.0);
+    probe.height->setValue(120);
+    CHECK(probe.width->value() == 160);
+    CHECK(probe.percent->value() == 25.0);
+    probe.percent->setValue(200.0);
+    CHECK(probe.width->value() == 1280);
+    CHECK(probe.height->value() == 960);
+    probe.scale->setCurrentIndex(std::max(0, probe.scale->findData(4)));
+    probe.fill->click();
+    CHECK(probe.swatch->isEnabled());
+    // The color dialog is modal; the swatch's stored color is the documented stand-in.
+    probe.swatch->setProperty("patchy.exportBackgroundColor", QColor(10, 20, 30));
+    probe.trim->click();
+    probe.reveal->click();
+    saw_dialog = true;
+    dialog->accept();
+  });
+  auto chosen = patchy::ui::prompt_image_save_options(nullptr, QStringLiteral("png"), defaults, /*for_export*/ true,
+                                                      QSize(640, 480));
+  CHECK(saw_dialog);
+  CHECK(chosen.has_value());
+  if (chosen.has_value()) {
+    CHECK(chosen->export_width == 1280);
+    CHECK(chosen->export_height == 960);
+    CHECK(chosen->export_scale == 4);
+    CHECK(chosen->export_fill_transparent);
+    CHECK(chosen->export_background_color == QColor(10, 20, 30));
+    CHECK(chosen->export_trim_transparent);
+    CHECK(chosen->export_reveal_in_file_explorer);
+  }
+  CHECK(settings.value(QStringLiteral("saveOptions/exportScale")).toInt() == 4);
+  CHECK(settings.value(QStringLiteral("saveOptions/exportResize")).toBool());
+  CHECK(settings.value(QStringLiteral("saveOptions/exportResizePercent")).toDouble() == 200.0);
+  CHECK(settings.value(QStringLiteral("saveOptions/exportFillTransparent")).toBool());
+  CHECK(settings.value(QStringLiteral("saveOptions/exportBackgroundColor")).toString() == QStringLiteral("#0a141e"));
+  CHECK(settings.value(QStringLiteral("saveOptions/exportTrim")).toBool());
+  CHECK(settings.value(QStringLiteral("saveOptions/exportRevealInFileExplorer")).toBool());
+
+  // A second document prefills from the remembered choices; the percent scales its size.
+  saw_dialog = false;
+  QTimer::singleShot(0, [&saw_dialog] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("exportScaleOptionsDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    const auto probe = probe_export_section(*dialog);
+    CHECK(probe.complete());
+    if (!probe.complete()) {
+      dialog->reject();
+      return;
+    }
+    CHECK(probe.resize->isChecked());
+    CHECK(probe.width->value() == 200);
+    CHECK(probe.height->value() == 100);
+    CHECK(probe.scale->currentData().toInt() == 4);
+    CHECK(probe.fill->isChecked());
+    CHECK(probe.swatch->isEnabled());
+    CHECK(probe.trim->isChecked());
+    CHECK(probe.reveal->isChecked());
+    probe.keep->click();
+    CHECK(!probe.swatch->isEnabled());
+    saw_dialog = true;
+    dialog->accept();
+  });
+  chosen = patchy::ui::prompt_image_save_options(nullptr, QStringLiteral("png"), defaults, /*for_export*/ true,
+                                                 QSize(100, 50));
+  CHECK(saw_dialog);
+  CHECK(chosen.has_value());
+  if (chosen.has_value()) {
+    CHECK(chosen->export_width == 200);
+    CHECK(chosen->export_height == 100);
+    CHECK(!chosen->export_fill_transparent);
+    CHECK(chosen->export_background_color == QColor(10, 20, 30));
+  }
+  CHECK(!settings.value(QStringLiteral("saveOptions/exportFillTransparent")).toBool());
+
+  // Without a document size the Resize row hides and nothing resize-related changes.
+  saw_dialog = false;
+  QTimer::singleShot(0, [&saw_dialog] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("exportScaleOptionsDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* row = dialog->findChild<QWidget*>(QStringLiteral("exportResizeRow"));
+    CHECK(row != nullptr && row->isHidden());
+    saw_dialog = true;
+    dialog->accept();
+  });
+  chosen = patchy::ui::prompt_image_save_options(nullptr, QStringLiteral("png"), defaults, /*for_export*/ true);
+  CHECK(saw_dialog);
+  CHECK(chosen.has_value());
+  if (chosen.has_value()) {
+    CHECK(chosen->export_width == 0);
+    CHECK(chosen->export_height == 0);
+  }
+  CHECK(settings.value(QStringLiteral("saveOptions/exportResize")).toBool());  // untouched
+
+  settings.remove(QStringLiteral("saveOptions"));
+  settings.sync();
+}
+
+void ui_export_options_jpeg_forces_background_fill() {
+  auto settings = patchy::ui::app_settings();
+  settings.remove(QStringLiteral("saveOptions"));
+  settings.sync();
+
+  const patchy::ui::ImageSaveOptions defaults;
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&saw_dialog] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("jpegSaveOptionsDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    const auto probe = probe_export_section(*dialog);
+    CHECK(probe.complete());
+    if (!probe.complete()) {
+      dialog->reject();
+      return;
+    }
+    // JPEG cannot keep transparency: the radios hide, the fill is forced, and the swatch
+    // reads as the background color.
+    CHECK(probe.keep->isHidden());
+    CHECK(probe.fill->isHidden());
+    CHECK(probe.fill->isChecked());
+    auto* background_label = dialog->findChild<QLabel*>(QStringLiteral("exportBackgroundLabel"));
+    CHECK(background_label != nullptr && !background_label->isHidden());
+    CHECK(probe.swatch->isEnabled());
+    CHECK(dialog->findChild<QSpinBox*>(QStringLiteral("jpegQualitySpin")) != nullptr);
+    CHECK(no_clipped_labels(*dialog));
+    saw_dialog = true;
+    dialog->accept();
+  });
+  auto chosen = patchy::ui::prompt_image_save_options(nullptr, QStringLiteral("jpg"), defaults, /*for_export*/ true,
+                                                      QSize(64, 64));
+  CHECK(saw_dialog);
+  CHECK(chosen.has_value());
+  if (chosen.has_value()) {
+    CHECK(chosen->export_fill_transparent);
+    CHECK(chosen->export_background_color == QColor(Qt::white));
+  }
+  // The forced fill is not a preference: the next PNG export must not inherit it.
+  CHECK(!settings.contains(QStringLiteral("saveOptions/exportFillTransparent")));
+  CHECK(settings.value(QStringLiteral("saveOptions/exportBackgroundColor")).toString() == QStringLiteral("#ffffff"));
+
+  // Save As keeps the plain JPEG form.
+  saw_dialog = false;
+  QTimer::singleShot(0, [&saw_dialog] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("jpegSaveOptionsDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    CHECK(dialog->findChild<QComboBox*>(QStringLiteral("exportScaleCombo")) == nullptr);
+    CHECK(dialog->findChild<QCheckBox*>(QStringLiteral("exportTrimCheck")) == nullptr);
+    saw_dialog = true;
+    dialog->accept();
+  });
+  chosen = patchy::ui::prompt_image_save_options(nullptr, QStringLiteral("jpg"), defaults);
+  CHECK(saw_dialog);
+  CHECK(chosen.has_value());
+  if (chosen.has_value()) {
+    CHECK(!chosen->export_fill_transparent);
+    CHECK(chosen->export_scale == 1);
+  }
+
+  settings.remove(QStringLiteral("saveOptions"));
+  settings.sync();
+}
+
+void ui_webp_save_options_dialog_persists_quality_and_lossless() {
+  auto settings = patchy::ui::app_settings();
+  settings.remove(QStringLiteral("saveOptions"));
+  settings.sync();
+
+  // Defaults match Qt's own implicit quality, so an unset save writes today's bytes.
+  auto defaults = patchy::ui::load_image_save_option_defaults();
+  CHECK(defaults.webp_quality == 75);
+  CHECK(!defaults.webp_lossless);
+  CHECK(patchy::ui::image_save_options_apply_to_extension(QStringLiteral("webp")));
+  CHECK(patchy::ui::image_save_options_apply_to_extension(QStringLiteral(".WEBP")));
+
+  defaults.webp_quality = 42;
+  defaults.webp_lossless = true;
+  patchy::ui::save_image_save_option_defaults(defaults);
+  const auto reloaded = patchy::ui::load_image_save_option_defaults();
+  CHECK(reloaded.webp_quality == 42);
+  CHECK(reloaded.webp_lossless);
+
+  // Out-of-range stored values clamp instead of reaching the encoder.
+  settings.setValue(QStringLiteral("saveOptions/webpQuality"), -5);
+  settings.sync();
+  CHECK(patchy::ui::load_image_save_option_defaults().webp_quality == 0);
+  settings.setValue(QStringLiteral("saveOptions/webpQuality"), 1000);
+  settings.sync();
+  CHECK(patchy::ui::load_image_save_option_defaults().webp_quality == 100);
+  settings.remove(QStringLiteral("saveOptions"));
+  settings.sync();
+
+  // Save As form: slider and spin mirror, Lossless greys the quality row, no export section.
+  patchy::ui::ImageSaveOptions seed;
+  seed.webp_quality = 42;
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&saw_dialog] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("webpSaveOptionsDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* quality = dialog->findChild<QSpinBox*>(QStringLiteral("webpQualitySpin"));
+    auto* slider = dialog->findChild<QSlider*>(QStringLiteral("webpQualitySlider"));
+    auto* lossless = dialog->findChild<QCheckBox*>(QStringLiteral("webpLosslessCheck"));
+    CHECK(quality != nullptr && slider != nullptr && lossless != nullptr);
+    if (quality == nullptr || slider == nullptr || lossless == nullptr) {
+      dialog->reject();
+      return;
+    }
+    CHECK(quality->value() == 42);
+    slider->setValue(64);
+    CHECK(quality->value() == 64);
+    CHECK(quality->isEnabled());
+    lossless->click();
+    CHECK(!quality->isEnabled());
+    CHECK(dialog->findChild<QComboBox*>(QStringLiteral("exportScaleCombo")) == nullptr);
+    saw_dialog = true;
+    dialog->accept();
+  });
+  auto chosen = patchy::ui::prompt_image_save_options(nullptr, QStringLiteral("webp"), seed);
+  CHECK(saw_dialog);
+  CHECK(chosen.has_value());
+  if (chosen.has_value()) {
+    CHECK(chosen->webp_quality == 64);
+    CHECK(chosen->webp_lossless);
+  }
+
+  // The export form carries the shared section and still fits its labels.
+  saw_dialog = false;
+  QTimer::singleShot(0, [&saw_dialog] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("webpSaveOptionsDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    CHECK(dialog->findChild<QComboBox*>(QStringLiteral("exportScaleCombo")) != nullptr);
+    CHECK(dialog->findChild<QCheckBox*>(QStringLiteral("exportTrimCheck")) != nullptr);
+    CHECK(no_clipped_labels(*dialog));
+    saw_dialog = true;
+    dialog->reject();
+  });
+  chosen = patchy::ui::prompt_image_save_options(nullptr, QStringLiteral("webp"), seed, /*for_export*/ true,
+                                                 QSize(32, 32));
+  CHECK(saw_dialog);
+  CHECK(!chosen.has_value());
+
+  settings.remove(QStringLiteral("saveOptions"));
+  settings.sync();
+}
+
+void ui_export_options_sections_do_not_clip_labels() {
+  auto settings = patchy::ui::app_settings();
+  settings.remove(QStringLiteral("saveOptions"));
+  settings.sync();
+
+  const patchy::ui::ImageSaveOptions defaults;
+  const std::vector<std::pair<QString, QString>> forms = {
+      {QStringLiteral("bmp"), QStringLiteral("bmpSaveOptionsDialog")},
+      {QStringLiteral("jxr"), QStringLiteral("jxrSaveOptionsDialog")},
+      {QStringLiteral("rttex"), QStringLiteral("rttexSaveOptionsDialog")},
+      {QStringLiteral("pdf"), QStringLiteral("pdfSaveOptionsDialog")},
+      {QStringLiteral("tga"), QStringLiteral("exportScaleOptionsDialog")},
+  };
+  for (const auto& [extension, object_name] : forms) {
+    bool saw_dialog = false;
+    QTimer::singleShot(0, [&saw_dialog, object_name] {
+      auto* dialog = find_top_level_dialog(object_name);
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        return;
+      }
+      CHECK(dialog->findChild<QComboBox*>(QStringLiteral("exportScaleCombo")) != nullptr);
+      CHECK(no_clipped_labels(*dialog));
+      saw_dialog = true;
+      dialog->reject();
+    });
+    const auto chosen =
+        patchy::ui::prompt_image_save_options(nullptr, extension, defaults, /*for_export*/ true, QSize(300, 200));
+    CHECK(saw_dialog);
+    CHECK(!chosen.has_value());
+  }
+
+  bool saw_gif_dialog = false;
+  QTimer::singleShot(0, [&saw_gif_dialog] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("gifSaveOptionsDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    CHECK(dialog->findChild<QComboBox*>(QStringLiteral("exportScaleCombo")) != nullptr);
+    CHECK(no_clipped_labels(*dialog));
+    saw_gif_dialog = true;
+    dialog->reject();
+  });
+  const auto gif = patchy::ui::prompt_gif_save_options(nullptr, defaults, /*offer_flatten_choice*/ true,
+                                                       /*for_export*/ true, /*has_visible_frames*/ true,
+                                                       QSize(300, 200));
+  CHECK(saw_gif_dialog);
+  CHECK(!gif.has_value());
+
+  settings.remove(QStringLiteral("saveOptions"));
+  settings.sync();
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> flat_image_format_tests() {
@@ -1446,5 +2011,13 @@ std::vector<patchy::test::TestCase> flat_image_format_tests() {
       {"ui_rttex_jpeg_save_round_trips_through_qt_encoder", ui_rttex_jpeg_save_round_trips_through_qt_encoder},
       {"ui_rttex_save_options_persist_and_dialog_prefills_from_source",
        ui_rttex_save_options_persist_and_dialog_prefills_from_source},
+      {"ui_export_trim_keeps_document_alpha_mask_colors", ui_export_trim_keeps_document_alpha_mask_colors},
+      {"ui_animated_gif_export_trims_frames_to_union_bounds", ui_animated_gif_export_trims_frames_to_union_bounds},
+      {"ui_webp_lossless_round_trips_and_quality_orders_size", ui_webp_lossless_round_trips_and_quality_orders_size},
+      {"ui_export_options_dialog_shared_section", ui_export_options_dialog_shared_section},
+      {"ui_export_options_jpeg_forces_background_fill", ui_export_options_jpeg_forces_background_fill},
+      {"ui_webp_save_options_dialog_persists_quality_and_lossless",
+       ui_webp_save_options_dialog_persists_quality_and_lossless},
+      {"ui_export_options_sections_do_not_clip_labels", ui_export_options_sections_do_not_clip_labels},
   };
 }

@@ -4,6 +4,7 @@
 #include "formats/bmp_document_io.hpp"
 #include "formats/rttex_document_io.hpp"
 
+#include <QColor>
 #include <QImage>
 #include <QRect>
 #include <QRegion>
@@ -50,10 +51,33 @@ struct ImageSaveOptions {
   // pixels instead of drawn as real text in a substitute face. Persists as
   // saveOptions/pdfMissingFontsAsImages. See PdfExportOptions::missing_fonts_as_images.
   bool pdf_missing_fonts_as_images{false};
-  // Nearest-neighbor output scale, offered by the EXPORT flow only (never Save/Save As —
+  // Export-only transforms, offered by the Export Flat Image flow (never Save/Save As:
   // rescaling a save would silently mutate the file the session points at). Deliberately
-  // not part of the persisted option defaults; the export dialog persists its own combo.
+  // not part of the persisted option defaults; the export dialog persists its own
+  // saveOptions/export* keys. write_flat_image_file applies them in this order: trim,
+  // resize, nearest-neighbor scale, background fill. With all of them at their defaults
+  // the writer path is byte-identical to a plain save.
+  // Nearest-neighbor pixel-art scale (1x/2x/4x/8x).
   int export_scale{1};
+  // Crop to the bounding box of alpha != 0 before anything else. A fully transparent image
+  // keeps its size and adds a writer notice.
+  bool export_trim_transparent{false};
+  // Smooth (bilinear) resize target for the FULL canvas, 0 = no resize. A trimmed export
+  // scales by the same factors so it never distorts; one zero side follows the aspect.
+  int export_width{0};
+  int export_height{0};
+  // Composite the final pixels over export_background_color (straight alpha). The result
+  // is opaque and drops the document-alpha mask structure.
+  bool export_fill_transparent{false};
+  QColor export_background_color{Qt::white};
+  // UI-only: MainWindow reveals the written file afterwards; the writers ignore it.
+  bool export_reveal_in_file_explorer{false};
+  // WebP: 0-100 through QImageWriter::setQuality (75 is Qt's own default, so an unset
+  // save keeps today's bytes). Persists as saveOptions/webpQuality.
+  int webp_quality{75};
+  // WebP: lossless, sent as quality 100 (Qt's WebP plugin encodes losslessly at 100).
+  // Persists as saveOptions/webpLossless.
+  bool webp_lossless{false};
   // GIF: write the visible top-level layers as a looping animation (top layer = frame 1)
   // instead of one flattened image. Per save, like pdf_editable_layers: only the GIF
   // options dialog and the Export Layers as Animated GIF action set it, so CLI/scripted
@@ -163,9 +187,11 @@ void write_flat_image_file(const Document& document, const QString& path, const 
 // Writes the visible top-level layers as a looping animated GIF, top layer = frame 1
 // (write_flat_image_file dispatches here when options.gif_animate). Each layer or group
 // renders through render_layer_isolated; a trailing "0.25s" layer-name token overrides
-// options.gif_frame_delay_cs; export_scale replicates each frame nearest-neighbor.
-// Throws when no top-level layer is visible.
-void write_animated_gif_file(const Document& document, const QString& path, const ImageSaveOptions& options);
+// options.gif_frame_delay_cs. The export transforms apply per frame; trim uses the union
+// of every frame's visible bounds so the frames keep one size. `notices` receives the
+// trim notice. Throws when no top-level layer is visible.
+void write_animated_gif_file(const Document& document, const QString& path, const ImageSaveOptions& options,
+                             std::vector<std::string>* notices = nullptr);
 // Installs the Qt-backed PNG codec used for the PNG-compressed entries inside .ico/.cur
 // files (the formats library is Qt-free). Idempotent; called from the MainWindow
 // constructor so every app and test path has it.

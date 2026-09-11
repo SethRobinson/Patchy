@@ -440,7 +440,9 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   preferences_action->setMenuRole(QAction::PreferencesRole);
   quit_action->setMenuRole(QAction::QuitRole);
   register_hotkey(quit_action, "file.quit", QKeySequence(Qt::CTRL | Qt::Key_Q));
-  register_hotkey(export_flat_action, "file.export_flat");
+  // Ctrl+Alt+Shift+S is Photoshop's Save for Web key (Qt maps CTRL onto Command on macOS).
+  register_hotkey(export_flat_action, "file.export_flat",
+                  QKeySequence(Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_S));
   register_hotkey(page_setup_action, "file.page_setup");
   // Cmd+, is the universal macOS settings shortcut (Qt maps CTRL to Cmd there);
   // Windows/Linux keep Preferences unbound by default.

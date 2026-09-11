@@ -9,6 +9,7 @@
 
 #include <QButtonGroup>
 #include <QCheckBox>
+#include <QColorDialog>
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -21,6 +22,8 @@
 #include <QPushButton>
 #include <QRadioButton>
 #include <QSettings>
+#include <QSignalBlocker>
+#include <QSize>
 #include <QSlider>
 #include <QSpinBox>
 #include <QVBoxLayout>
@@ -28,6 +31,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <optional>
 #include <vector>
 
 namespace patchy::ui {
@@ -47,6 +51,10 @@ QString normalized_save_extension(QString extension) {
 bool is_jpeg_extension(const QString& extension) {
   const auto normalized = normalized_save_extension(extension);
   return normalized == QStringLiteral("jpg") || normalized == QStringLiteral("jpeg");
+}
+
+bool is_webp_extension(const QString& extension) {
+  return normalized_save_extension(extension) == QStringLiteral("webp");
 }
 
 bool is_bmp_extension(const QString& extension) {
@@ -205,36 +213,382 @@ QDialogButtonBox* add_dialog_buttons(QVBoxLayout* content, QDialog& dialog) {
   return buttons;
 }
 
-// The export Scale combo (1x/2x/4x/8x nearest neighbor). Its choice persists via its own
-// settings key so Save/Save As option defaults can never pick up a stale scale.
-QComboBox* add_export_scale_row(QVBoxLayout* content, QDialog& dialog) {
-  auto* row = new QWidget(&dialog);
-  auto* layout = new QHBoxLayout(row);
-  layout->setContentsMargins(0, 0, 0, 0);
-  layout->setSpacing(10);
-  layout->addWidget(new QLabel(QObject::tr("Scale:"), row));
-  auto* combo = new QComboBox(row);
-  combo->setObjectName(QStringLiteral("exportScaleCombo"));
-  for (const auto scale : {1, 2, 4, 8}) {
-    combo->addItem(QObject::tr("%1x (nearest neighbor)").arg(scale), scale);
-  }
-  const auto stored = app_settings().value(QStringLiteral("saveOptions/exportScale"), 1).toInt();
-  combo->setCurrentIndex(std::max(0, combo->findData(stored)));
-  layout->addWidget(combo, 1);
-  content->addWidget(row);
-  return combo;
+constexpr int kExportResizeMaxPixels = 30000;
+constexpr char kExportBackgroundColorProperty[] = "patchy.exportBackgroundColor";
+
+// The shared Export section every export dialog appends below its format options: Size
+// (smooth resize, pixel-art scale), Transparency (keep or fill, trim), and the reveal
+// checkbox. Its choices persist through their own saveOptions/export* keys so Save/Save As
+// option defaults can never pick up a stale transform.
+struct ExportSectionWidgets {
+  QWidget* transform_section{nullptr};  // Size + Transparency; disabled when transforms cannot apply
+  QCheckBox* resize_check{nullptr};
+  QSpinBox* resize_width{nullptr};
+  QSpinBox* resize_height{nullptr};
+  QDoubleSpinBox* resize_percent{nullptr};
+  QComboBox* scale_combo{nullptr};
+  QRadioButton* keep_transparency{nullptr};
+  QRadioButton* fill_transparency{nullptr};
+  QPushButton* background_swatch{nullptr};
+  QCheckBox* trim_check{nullptr};
+  QCheckBox* reveal_check{nullptr};
+  bool resize_offered{false};              // false without a document size: the row is hidden
+  bool transparency_choice_offered{true};  // false for JPEG: the fill is forced, never persisted
+};
+
+ThemedQss export_background_swatch_style(QColor color) {
+  // The swatch shows the user's chosen color (user data, like the Canvas Size swatch); its
+  // chrome stays on theme roles.
+  return ThemedQss(QStringLiteral("QPushButton#exportBackgroundColorSwatch { background: rgb(%1, %2, %3); "
+                                  "border: 1px solid @dlg_neutral_border; border-radius: 3px; padding: 0; "
+                                  "min-width: 49px; max-width: 49px; min-height: 24px; max-height: 24px; } "
+                                  "QPushButton#exportBackgroundColorSwatch:hover { border-color: "
+                                  "@dlg_neutral_border_bright; } "
+                                  "QPushButton#exportBackgroundColorSwatch:disabled { background: "
+                                  "@field_bg_disabled; border-color: @field_border_disabled; }")
+                       .arg(color.red())
+                       .arg(color.green())
+                       .arg(color.blue()));
 }
 
-void persist_export_scale(int scale) {
-  app_settings().setValue(QStringLiteral("saveOptions/exportScale"), scale);
+QColor export_background_color(const QPushButton& swatch) {
+  const auto color = swatch.property(kExportBackgroundColorProperty).value<QColor>();
+  return color.isValid() ? color : QColor(Qt::white);
+}
+
+void set_export_background_color(QPushButton& swatch, QColor color) {
+  swatch.setProperty(kExportBackgroundColorProperty, color);
+  set_themed_style(swatch, export_background_swatch_style(color));
+}
+
+QLabel* add_export_hint(QVBoxLayout* layout, QWidget* parent, const QString& text, const QString& object_name) {
+  auto* hint = new QLabel(text, parent);
+  hint->setObjectName(object_name);
+  hint->setWordWrap(true);
+  set_themed_style(*hint, QStringLiteral("color: @hint_text;"));
+  layout->addWidget(hint);
+  return hint;
+}
+
+QString reveal_check_label() {
+#if defined(Q_OS_WIN)
+  return QObject::tr("Show in Explorer when done");
+#elif defined(Q_OS_MACOS)
+  return QObject::tr("Show in Finder when done");
+#else
+  return QObject::tr("Show in file manager when done");
+#endif
+}
+
+ExportSectionWidgets add_export_options_section(QVBoxLayout* content, QDialog& dialog, const QString& extension,
+                                                QSize document_size) {
+  ExportSectionWidgets widgets;
+  auto settings = app_settings();
+
+  auto* section = new QWidget(&dialog);
+  section->setObjectName(QStringLiteral("exportTransformSection"));
+  auto* section_layout = new QVBoxLayout(section);
+  section_layout->setContentsMargins(0, 0, 0, 0);
+  section_layout->setSpacing(8);
+  widgets.transform_section = section;
+
+  auto* size_group = new QGroupBox(QObject::tr("Size"), section);
+  size_group->setObjectName(QStringLiteral("exportSizeGroup"));
+  auto* size_layout = new QVBoxLayout(size_group);
+  size_layout->setContentsMargins(10, 8, 10, 8);
+  size_layout->setSpacing(4);
+
+  // Resize: width, height, and percent mirror each other, aspect locked to the document.
+  widgets.resize_offered = document_size.width() > 0 && document_size.height() > 0;
+  auto* resize_row = new QWidget(size_group);
+  resize_row->setObjectName(QStringLiteral("exportResizeRow"));
+  auto* resize_layout = new QHBoxLayout(resize_row);
+  resize_layout->setContentsMargins(0, 0, 0, 0);
+  resize_layout->setSpacing(6);
+  auto* resize_check = new QCheckBox(QObject::tr("Resize to:"), resize_row);
+  resize_check->setObjectName(QStringLiteral("exportResizeCheck"));
+  auto* width_spin = new QSpinBox(resize_row);
+  width_spin->setObjectName(QStringLiteral("exportResizeWidthSpin"));
+  width_spin->setRange(1, kExportResizeMaxPixels);
+  width_spin->setSuffix(QObject::tr(" px"));
+  configure_dialog_spinbox(width_spin, 88);
+  auto* height_spin = new QSpinBox(resize_row);
+  height_spin->setObjectName(QStringLiteral("exportResizeHeightSpin"));
+  height_spin->setRange(1, kExportResizeMaxPixels);
+  height_spin->setSuffix(QObject::tr(" px"));
+  configure_dialog_spinbox(height_spin, 88);
+  auto* percent_spin = new QDoubleSpinBox(resize_row);
+  percent_spin->setObjectName(QStringLiteral("exportResizePercentSpin"));
+  const double source_width = std::max(1, document_size.width());
+  const double source_height = std::max(1, document_size.height());
+  // The percent range keeps both pixel sides inside the spin-box range, so the three
+  // fields can never disagree.
+  const double max_percent = std::clamp(
+      std::floor(kExportResizeMaxPixels * 100.0 / std::max(source_width, source_height)), 1.0, 1000.0);
+  percent_spin->setRange(1.0, max_percent);
+  percent_spin->setDecimals(2);
+  percent_spin->setSuffix(QStringLiteral("%"));
+  configure_dialog_spinbox(percent_spin, 96);
+  resize_layout->addWidget(resize_check);
+  resize_layout->addWidget(width_spin);
+  resize_layout->addWidget(new QLabel(QString(QChar(0x00d7)), resize_row));
+  resize_layout->addWidget(height_spin);
+  resize_layout->addWidget(percent_spin);
+  resize_layout->addStretch(1);
+  size_layout->addWidget(resize_row);
+  auto* resize_hint =
+      add_export_hint(size_layout, size_group,
+                      QObject::tr("Smooth resampling. Use the pixel art scale below for crisp enlargements."),
+                      QStringLiteral("exportResizeHint"));
+
+  const auto pixels_for = [](double source, double percent) {
+    return static_cast<int>(
+        std::clamp<long long>(std::llround(source * percent / 100.0), 1, kExportResizeMaxPixels));
+  };
+  const auto apply_percent = [width_spin, height_spin, source_width, source_height, pixels_for](double percent) {
+    const QSignalBlocker block_width(width_spin);
+    const QSignalBlocker block_height(height_spin);
+    width_spin->setValue(pixels_for(source_width, percent));
+    height_spin->setValue(pixels_for(source_height, percent));
+  };
+  QObject::connect(percent_spin, &QDoubleSpinBox::valueChanged, &dialog,
+                   [apply_percent](double percent) { apply_percent(percent); });
+  QObject::connect(width_spin, &QSpinBox::valueChanged, &dialog,
+                   [percent_spin, height_spin, source_width, source_height, pixels_for](int width) {
+                     const double percent = width * 100.0 / source_width;
+                     const QSignalBlocker block_percent(percent_spin);
+                     const QSignalBlocker block_height(height_spin);
+                     percent_spin->setValue(percent);
+                     height_spin->setValue(pixels_for(source_height, percent));
+                   });
+  QObject::connect(height_spin, &QSpinBox::valueChanged, &dialog,
+                   [percent_spin, width_spin, source_width, source_height, pixels_for](int height) {
+                     const double percent = height * 100.0 / source_height;
+                     const QSignalBlocker block_percent(percent_spin);
+                     const QSignalBlocker block_width(width_spin);
+                     percent_spin->setValue(percent);
+                     width_spin->setValue(pixels_for(source_width, percent));
+                   });
+  {
+    const QSignalBlocker block_percent(percent_spin);
+    percent_spin->setValue(std::clamp(
+        settings.value(QStringLiteral("saveOptions/exportResizePercent"), 100.0).toDouble(), 1.0, max_percent));
+  }
+  apply_percent(percent_spin->value());
+  const auto sync_resize_enabled = [resize_check, width_spin, height_spin, percent_spin] {
+    const bool enabled = resize_check->isChecked();
+    width_spin->setEnabled(enabled);
+    height_spin->setEnabled(enabled);
+    percent_spin->setEnabled(enabled);
+  };
+  QObject::connect(resize_check, &QCheckBox::toggled, &dialog,
+                   [sync_resize_enabled](bool) { sync_resize_enabled(); });
+  resize_check->setChecked(widgets.resize_offered &&
+                           settings.value(QStringLiteral("saveOptions/exportResize"), false).toBool());
+  sync_resize_enabled();
+  if (!widgets.resize_offered) {
+    resize_row->hide();
+    resize_hint->hide();
+  }
+
+  // Pixel-art scale: whole-pixel replication, so the hint says who it is for.
+  auto* scale_row = new QWidget(size_group);
+  auto* scale_layout = new QHBoxLayout(scale_row);
+  scale_layout->setContentsMargins(0, 0, 0, 0);
+  scale_layout->setSpacing(10);
+  scale_layout->addWidget(new QLabel(QObject::tr("Pixel art scale:"), scale_row));
+  auto* scale_combo = new QComboBox(scale_row);
+  scale_combo->setObjectName(QStringLiteral("exportScaleCombo"));
+  scale_combo->addItem(QObject::tr("1x (off)"), 1);
+  for (const auto scale : {2, 4, 8}) {
+    scale_combo->addItem(QObject::tr("%1x").arg(scale), scale);
+  }
+  const auto stored_scale = settings.value(QStringLiteral("saveOptions/exportScale"), 1).toInt();
+  scale_combo->setCurrentIndex(std::max(0, scale_combo->findData(stored_scale)));
+  scale_layout->addWidget(scale_combo, 1);
+  size_layout->addWidget(scale_row);
+  add_export_hint(size_layout, size_group,
+                  QObject::tr("Enlarges by whole pixels with no smoothing, so pixel art and sprites stay crisp. "
+                              "Leave at 1x for photos and paintings."),
+                  QStringLiteral("exportScaleHint"));
+  section_layout->addWidget(size_group);
+
+  auto* transparency_group = new QGroupBox(QObject::tr("Transparency"), section);
+  transparency_group->setObjectName(QStringLiteral("exportTransparencyGroup"));
+  auto* transparency_layout = new QVBoxLayout(transparency_group);
+  transparency_layout->setContentsMargins(10, 8, 10, 8);
+  transparency_layout->setSpacing(4);
+  auto* keep_transparency = new QRadioButton(QObject::tr("Keep transparent"), transparency_group);
+  keep_transparency->setObjectName(QStringLiteral("exportKeepTransparencyRadio"));
+  auto* fill_row = new QWidget(transparency_group);
+  auto* fill_layout = new QHBoxLayout(fill_row);
+  fill_layout->setContentsMargins(0, 0, 0, 0);
+  fill_layout->setSpacing(8);
+  auto* fill_transparency = new QRadioButton(QObject::tr("Fill with:"), fill_row);
+  fill_transparency->setObjectName(QStringLiteral("exportFillTransparencyRadio"));
+  auto* background_label = new QLabel(QObject::tr("Background:"), fill_row);
+  background_label->setObjectName(QStringLiteral("exportBackgroundLabel"));
+  auto* background_swatch = new QPushButton(fill_row);
+  background_swatch->setObjectName(QStringLiteral("exportBackgroundColorSwatch"));
+  background_swatch->setAccessibleName(QObject::tr("Background color"));
+  background_swatch->setToolTip(QObject::tr("Choose background color"));
+  background_swatch->setCursor(Qt::PointingHandCursor);
+  background_swatch->setFocusPolicy(Qt::StrongFocus);
+  background_swatch->setFixedSize(49, 24);
+  fill_layout->addWidget(fill_transparency);
+  fill_layout->addWidget(background_label);
+  fill_layout->addWidget(background_swatch);
+  fill_layout->addStretch(1);
+  auto* transparency_buttons = new QButtonGroup(transparency_group);
+  transparency_buttons->addButton(keep_transparency);
+  transparency_buttons->addButton(fill_transparency);
+  const QColor stored_background(settings.value(QStringLiteral("saveOptions/exportBackgroundColor")).toString());
+  set_export_background_color(*background_swatch,
+                              stored_background.isValid() ? stored_background : QColor(Qt::white));
+  widgets.transparency_choice_offered = !is_jpeg_extension(extension);
+  if (widgets.transparency_choice_offered) {
+    background_label->hide();
+    const bool fill = settings.value(QStringLiteral("saveOptions/exportFillTransparent"), false).toBool();
+    fill_transparency->setChecked(fill);
+    keep_transparency->setChecked(!fill);
+  } else {
+    // JPEG has no alpha: transparent areas always take the background color.
+    keep_transparency->hide();
+    fill_transparency->hide();
+    fill_transparency->setChecked(true);
+  }
+  const auto sync_swatch_enabled = [fill_transparency, background_swatch] {
+    background_swatch->setEnabled(fill_transparency->isChecked());
+  };
+  QObject::connect(fill_transparency, &QRadioButton::toggled, &dialog,
+                   [sync_swatch_enabled](bool) { sync_swatch_enabled(); });
+  sync_swatch_enabled();
+  QObject::connect(background_swatch, &QPushButton::clicked, &dialog, [&dialog, background_swatch] {
+    const auto chosen = QColorDialog::getColor(export_background_color(*background_swatch), &dialog,
+                                               QObject::tr("Export Background Color"));
+    if (chosen.isValid()) {
+      set_export_background_color(*background_swatch, chosen);
+    }
+  });
+  auto* trim_check = new QCheckBox(QObject::tr("Trim transparent edges"), transparency_group);
+  trim_check->setObjectName(QStringLiteral("exportTrimCheck"));
+  trim_check->setChecked(settings.value(QStringLiteral("saveOptions/exportTrim"), false).toBool());
+  transparency_layout->addWidget(keep_transparency);
+  transparency_layout->addWidget(fill_row);
+  transparency_layout->addWidget(trim_check);
+  section_layout->addWidget(transparency_group);
+  content->addWidget(section);
+
+  auto* reveal_check = new QCheckBox(reveal_check_label(), &dialog);
+  reveal_check->setObjectName(QStringLiteral("exportRevealCheck"));
+  reveal_check->setChecked(
+      settings.value(QStringLiteral("saveOptions/exportRevealInFileExplorer"), false).toBool());
+#ifdef Q_OS_WASM
+  reveal_check->hide();  // no file manager to open from a browser tab
+#endif
+  content->addWidget(reveal_check);
+
+  widgets.resize_check = resize_check;
+  widgets.resize_width = width_spin;
+  widgets.resize_height = height_spin;
+  widgets.resize_percent = percent_spin;
+  widgets.scale_combo = scale_combo;
+  widgets.keep_transparency = keep_transparency;
+  widgets.fill_transparency = fill_transparency;
+  widgets.background_swatch = background_swatch;
+  widgets.trim_check = trim_check;
+  widgets.reveal_check = reveal_check;
+  return widgets;
+}
+
+// Reads the section into the options and persists its keys. Runs after the dialog was
+// accepted (it is hidden by then, so only enabled state is consulted, never visibility).
+void apply_export_section(ImageSaveOptions& options, const ExportSectionWidgets& widgets) {
+  auto settings = app_settings();
+  if (widgets.transform_section->isEnabled()) {
+    options.export_scale = widgets.scale_combo->currentData().toInt();
+    settings.setValue(QStringLiteral("saveOptions/exportScale"), options.export_scale);
+    if (widgets.resize_offered) {
+      const bool resize = widgets.resize_check->isChecked();
+      settings.setValue(QStringLiteral("saveOptions/exportResize"), resize);
+      settings.setValue(QStringLiteral("saveOptions/exportResizePercent"), widgets.resize_percent->value());
+      if (resize) {
+        options.export_width = widgets.resize_width->value();
+        options.export_height = widgets.resize_height->value();
+      }
+    }
+    options.export_fill_transparent = widgets.fill_transparency->isChecked();
+    options.export_background_color = export_background_color(*widgets.background_swatch);
+    if (widgets.transparency_choice_offered) {
+      settings.setValue(QStringLiteral("saveOptions/exportFillTransparent"), options.export_fill_transparent);
+    }
+    settings.setValue(QStringLiteral("saveOptions/exportBackgroundColor"), options.export_background_color.name());
+    options.export_trim_transparent = widgets.trim_check->isChecked();
+    settings.setValue(QStringLiteral("saveOptions/exportTrim"), options.export_trim_transparent);
+  }
+#ifndef Q_OS_WASM
+  options.export_reveal_in_file_explorer = widgets.reveal_check->isChecked();
+  settings.setValue(QStringLiteral("saveOptions/exportRevealInFileExplorer"),
+                    options.export_reveal_in_file_explorer);
+#endif
+}
+
+// Every prompt starts from no transform: only the export section can turn one on, so a
+// Save/Save As can never inherit a stale export choice.
+void reset_export_options(ImageSaveOptions& options) {
+  options.export_scale = 1;
+  options.export_trim_transparent = false;
+  options.export_width = 0;
+  options.export_height = 0;
+  options.export_fill_transparent = false;
+  options.export_reveal_in_file_explorer = false;
+}
+
+// Export forms outgrow the branch resize() sizes; the layout decides from a sensible width.
+// Not adjustSize(): it caps a dialog at two thirds of the screen, and a tall form (BMP,
+// Proton texture) then squeezes its wrapped hints (the clipped_labels tests guard this).
+// The height comes from the layout's height-for-width so the wrapped labels get the lines
+// they need at the chosen width.
+void finish_export_dialog_size(QDialog& dialog) {
+  dialog.setMinimumWidth(460);
+  auto* layout = dialog.layout();
+  if (layout == nullptr) {
+    dialog.adjustSize();
+    return;
+  }
+  const auto hint = layout->totalSizeHint();
+  const int width = std::max(dialog.minimumWidth(), hint.width());
+  const int height =
+      layout->hasHeightForWidth() ? std::max(hint.height(), layout->totalHeightForWidth(width)) : hint.height();
+  dialog.resize(width, height);
+}
+
+// Appends the shared Export section (export forms only) and the OK/Cancel buttons, then
+// lets an export form grow to fit its extra rows. Returns the section for
+// apply_export_section.
+std::optional<ExportSectionWidgets> finish_options_dialog(QVBoxLayout* content, QDialog& dialog, bool for_export,
+                                                          const QString& extension, QSize document_size,
+                                                          QDialogButtonBox** buttons_out = nullptr) {
+  std::optional<ExportSectionWidgets> section;
+  if (for_export) {
+    section = add_export_options_section(content, dialog, extension, document_size);
+  }
+  auto* buttons = add_dialog_buttons(content, dialog);
+  if (buttons_out != nullptr) {
+    *buttons_out = buttons;
+  }
+  if (for_export) {
+    finish_export_dialog_size(dialog);
+  }
+  return section;
 }
 
 }  // namespace
 
 bool image_save_options_apply_to_extension(const QString& extension) {
-  return is_jpeg_extension(extension) || is_bmp_extension(extension) || is_ico_extension(extension) ||
-         is_cur_extension(extension) || is_pdf_extension(extension) || is_jxr_extension(extension) ||
-         is_rttex_extension(extension);
+  return is_jpeg_extension(extension) || is_webp_extension(extension) || is_bmp_extension(extension) ||
+         is_ico_extension(extension) || is_cur_extension(extension) || is_pdf_extension(extension) ||
+         is_jxr_extension(extension) || is_rttex_extension(extension);
 }
 
 ImageSaveOptions load_image_save_option_defaults() {
@@ -242,6 +596,9 @@ ImageSaveOptions load_image_save_option_defaults() {
   ImageSaveOptions options;
   options.jpeg_quality =
       std::clamp(settings.value(QStringLiteral("saveOptions/jpegQuality"), kDefaultJpegQuality).toInt(), 0, 100);
+  options.webp_quality =
+      std::clamp(settings.value(QStringLiteral("saveOptions/webpQuality"), options.webp_quality).toInt(), 0, 100);
+  options.webp_lossless = settings.value(QStringLiteral("saveOptions/webpLossless"), options.webp_lossless).toBool();
   if (settings.contains(QStringLiteral("saveOptions/bmpEncoding"))) {
     options.bmp_encoding =
         bmp_encoding_from_key(settings.value(QStringLiteral("saveOptions/bmpEncoding")).toString(), options.bmp_encoding);
@@ -303,6 +660,8 @@ ImageSaveOptions load_image_save_option_defaults() {
 void save_image_save_option_defaults(const ImageSaveOptions& options) {
   auto settings = app_settings();
   settings.setValue(QStringLiteral("saveOptions/jpegQuality"), std::clamp(options.jpeg_quality, 0, 100));
+  settings.setValue(QStringLiteral("saveOptions/webpQuality"), std::clamp(options.webp_quality, 0, 100));
+  settings.setValue(QStringLiteral("saveOptions/webpLossless"), options.webp_lossless);
   settings.setValue(QStringLiteral("saveOptions/bmpEncoding"), bmp_encoding_key(options.bmp_encoding));
   settings.setValue(QStringLiteral("saveOptions/bmpPaletteMode"), bmp_palette_mode_key(options.bmp_palette_mode));
   if (!options.bmp_palette_path.isEmpty()) {
@@ -331,13 +690,13 @@ void save_image_save_option_defaults(const ImageSaveOptions& options) {
 }
 
 std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const QString& extension,
-                                                          ImageSaveOptions options, bool for_export) {
-  options.export_scale = 1;
+                                                          ImageSaveOptions options, bool for_export,
+                                                          QSize document_size) {
+  reset_export_options(options);
   if (is_jpeg_extension(extension)) {
     QDialog dialog(parent);
     dialog.setObjectName(QStringLiteral("jpegSaveOptionsDialog"));
     auto* content = create_options_dialog_chrome(dialog, QObject::tr("JPEG Options"));
-    auto* scale_combo = for_export ? add_export_scale_row(content, dialog) : nullptr;
 
     auto* form = new QFormLayout();
     form->setContentsMargins(0, 0, 0, 0);
@@ -364,15 +723,55 @@ std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const
     quality_layout->addWidget(quality);
     form->addRow(new QLabel(QObject::tr("Quality:"), &dialog), quality_row);
     content->addLayout(form);
-    add_dialog_buttons(content, dialog);
+    const auto section = finish_options_dialog(content, dialog, for_export, extension, document_size);
 
     if (exec_dialog(dialog) != QDialog::Accepted) {
       return std::nullopt;
     }
     options.jpeg_quality = quality->value();
-    if (scale_combo != nullptr) {
-      options.export_scale = scale_combo->currentData().toInt();
-      persist_export_scale(options.export_scale);
+    if (section.has_value()) {
+      apply_export_section(options, *section);
+    }
+    return options;
+  }
+
+  if (is_webp_extension(extension)) {
+    QDialog dialog(parent);
+    dialog.setObjectName(QStringLiteral("webpSaveOptionsDialog"));
+    auto* content = create_options_dialog_chrome(dialog, QObject::tr("WebP Options"));
+    dialog.resize(380, 170);
+
+    auto* form = new QFormLayout();
+    form->setContentsMargins(0, 0, 0, 0);
+    form->setHorizontalSpacing(10);
+    form->setVerticalSpacing(8);
+    auto* quality = add_dialog_slider_spin_row(form, &dialog, QObject::tr("Quality:"),
+                                               QStringLiteral("webpQualitySlider"), QStringLiteral("webpQualitySpin"),
+                                               0, 100, std::clamp(options.webp_quality, 0, 100),
+                                               QStringLiteral("%"), 88, 8);
+    content->addLayout(form);
+
+    auto* lossless = new QCheckBox(QObject::tr("Lossless (larger file)"), &dialog);
+    lossless->setObjectName(QStringLiteral("webpLosslessCheck"));
+    lossless->setChecked(options.webp_lossless);
+    content->addWidget(lossless);
+
+    const auto section = finish_options_dialog(content, dialog, for_export, extension, document_size);
+
+    // Lossless ignores the quality value, so the row goes dead rather than showing a
+    // number the file will not use.
+    auto* quality_row = quality->parentWidget();
+    const auto sync_quality_enabled = [quality_row, lossless] { quality_row->setEnabled(!lossless->isChecked()); };
+    QObject::connect(lossless, &QCheckBox::toggled, &dialog, [sync_quality_enabled](bool) { sync_quality_enabled(); });
+    sync_quality_enabled();
+
+    if (exec_dialog(dialog) != QDialog::Accepted) {
+      return std::nullopt;
+    }
+    options.webp_quality = quality->value();
+    options.webp_lossless = lossless->isChecked();
+    if (section.has_value()) {
+      apply_export_section(options, *section);
     }
     return options;
   }
@@ -382,7 +781,6 @@ std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const
     dialog.setObjectName(QStringLiteral("jxrSaveOptionsDialog"));
     auto* content = create_options_dialog_chrome(dialog, QObject::tr("JPEG XR Options"));
     dialog.resize(380, 210);
-    auto* scale_combo = for_export ? add_export_scale_row(content, dialog) : nullptr;
 
     auto* form = new QFormLayout();
     form->setContentsMargins(0, 0, 0, 0);
@@ -422,7 +820,7 @@ std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const
     note->setObjectName(QStringLiteral("jxrSaveNote"));
     note->setWordWrap(true);
     content->addWidget(note);
-    add_dialog_buttons(content, dialog);
+    const auto section = finish_options_dialog(content, dialog, for_export, extension, document_size);
 
     // Lossless overrides the quality value in the encoder, so the slider goes dead rather
     // than showing a number the file will not use.
@@ -435,9 +833,8 @@ std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const
     }
     options.jxr_quality = quality->value();
     options.jxr_lossless = lossless->isChecked();
-    if (scale_combo != nullptr) {
-      options.export_scale = scale_combo->currentData().toInt();
-      persist_export_scale(options.export_scale);
+    if (section.has_value()) {
+      apply_export_section(options, *section);
     }
     return options;
   }
@@ -447,7 +844,6 @@ std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const
     dialog.setObjectName(QStringLiteral("rttexSaveOptionsDialog"));
     auto* content = create_options_dialog_chrome(dialog, QObject::tr("Proton Texture Options"));
     dialog.resize(440, 360);
-    auto* scale_combo = for_export ? add_export_scale_row(content, dialog) : nullptr;
 
     auto* form = new QFormLayout();
     form->setContentsMargins(0, 0, 0, 0);
@@ -516,7 +912,7 @@ std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const
     note->setObjectName(QStringLiteral("rttexSaveNote"));
     note->setWordWrap(true);
     content->addWidget(note);
-    add_dialog_buttons(content, dialog);
+    const auto section = finish_options_dialog(content, dialog, for_export, extension, document_size);
 
     // The quality only feeds the JPEG encoder, so the row goes dead for the other encodings
     // rather than showing a number the file will not use.
@@ -537,9 +933,8 @@ std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const
     options.rttex_force_square = force_square->isChecked();
     options.rttex_force_alpha = force_alpha->isChecked();
     options.rttex_compress = compress->isChecked();
-    if (scale_combo != nullptr) {
-      options.export_scale = scale_combo->currentData().toInt();
-      persist_export_scale(options.export_scale);
+    if (section.has_value()) {
+      apply_export_section(options, *section);
     }
     return options;
   }
@@ -640,7 +1035,6 @@ std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const
     dialog.setObjectName(QStringLiteral("bmpSaveOptionsDialog"));
     auto* content = create_options_dialog_chrome(dialog, QObject::tr("BMP Options"));
     dialog.resize(420, 360);
-    auto* scale_combo = for_export ? add_export_scale_row(content, dialog) : nullptr;
 
     auto* depth_group = new QGroupBox(QObject::tr("Color depth"), &dialog);
     auto* depth_layout = new QVBoxLayout(depth_group);
@@ -724,7 +1118,8 @@ std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const
     palette_layout->addWidget(palette_row);
     content->addWidget(palette_group);
 
-    auto* buttons = add_dialog_buttons(content, dialog);
+    QDialogButtonBox* buttons = nullptr;
+    const auto section = finish_options_dialog(content, dialog, for_export, extension, document_size, &buttons);
     auto* ok_button = buttons->button(QDialogButtonBox::Ok);
 
     const auto selected_encoding = [depth_buttons] {
@@ -789,9 +1184,8 @@ std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const
       options.bmp_palette_mode = bmp::BmpPaletteMode::Exact;
     }
     options.bmp_palette_path = palette_path->text().trimmed();
-    if (scale_combo != nullptr) {
-      options.export_scale = scale_combo->currentData().toInt();
-      persist_export_scale(options.export_scale);
+    if (section.has_value()) {
+      apply_export_section(options, *section);
     }
     return options;
   }
@@ -800,7 +1194,6 @@ std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const
     QDialog dialog(parent);
     dialog.setObjectName(QStringLiteral("pdfSaveOptionsDialog"));
     auto* content = create_options_dialog_chrome(dialog, QObject::tr("PDF Options"));
-    auto* scale_combo = for_export ? add_export_scale_row(content, dialog) : nullptr;
 
     auto* lossless = new QCheckBox(QObject::tr("Lossless image data (larger file)"), &dialog);
     lossless->setObjectName(QStringLiteral("pdfLosslessCheck"));
@@ -846,15 +1239,15 @@ std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const
     page_note->setObjectName(QStringLiteral("pdfPageSizeNote"));
     page_note->setWordWrap(true);
     content->addWidget(page_note);
-    add_dialog_buttons(content, dialog);
+    const auto section = finish_options_dialog(content, dialog, for_export, extension, document_size);
 
     const bool keep_layers = options.pdf_editable_layers;
     editable_warning->setVisible(keep_layers);
     missing_fonts_as_images->setVisible(keep_layers);
-    if (scale_combo != nullptr) {
-      // Vectors and text scale with the page; the nearest-neighbor pixel scale only
-      // applies to the flattened image.
-      scale_combo->setEnabled(!keep_layers);
+    if (section.has_value()) {
+      // Vectors and text scale with the page; the pixel transforms (resize, scale, trim,
+      // background fill) only apply to the flattened image.
+      section->transform_section->setEnabled(!keep_layers);
     }
 
     if (exec_dialog(dialog) != QDialog::Accepted) {
@@ -864,27 +1257,23 @@ std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const
     if (keep_layers) {
       options.pdf_missing_fonts_as_images = missing_fonts_as_images->isChecked();
     }
-    if (scale_combo != nullptr) {
-      options.export_scale = options.pdf_editable_layers ? 1 : scale_combo->currentData().toInt();
-      if (!options.pdf_editable_layers) {
-        persist_export_scale(options.export_scale);
-      }
+    if (section.has_value()) {
+      // A disabled section leaves every transform at its default and persists none of them.
+      apply_export_section(options, *section);
     }
     return options;
   }
 
-  // Formats with no format-specific options still get the scale choice on export.
+  // Formats with no format-specific options still get the shared Export section.
   if (for_export && !is_ico_extension(extension) && !is_cur_extension(extension)) {
     QDialog dialog(parent);
     dialog.setObjectName(QStringLiteral("exportScaleOptionsDialog"));
     auto* content = create_options_dialog_chrome(dialog, QObject::tr("Export Options"));
-    auto* scale_combo = add_export_scale_row(content, dialog);
-    add_dialog_buttons(content, dialog);
+    const auto section = finish_options_dialog(content, dialog, /*for_export*/ true, extension, document_size);
     if (exec_dialog(dialog) != QDialog::Accepted) {
       return std::nullopt;
     }
-    options.export_scale = scale_combo->currentData().toInt();
-    persist_export_scale(options.export_scale);
+    apply_export_section(options, *section);
     return options;
   }
 
@@ -893,14 +1282,13 @@ std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const
 
 std::optional<ImageSaveOptions> prompt_gif_save_options(QWidget* parent, ImageSaveOptions options,
                                                         bool offer_flatten_choice, bool for_export,
-                                                        bool has_visible_frames) {
-  options.export_scale = 1;
+                                                        bool has_visible_frames, QSize document_size) {
+  reset_export_options(options);
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("gifSaveOptionsDialog"));
   auto* content = create_options_dialog_chrome(
       dialog, offer_flatten_choice ? QObject::tr("GIF Options") : QObject::tr("Animated GIF Options"));
   dialog.resize(380, offer_flatten_choice ? 280 : 230);
-  auto* scale_combo = for_export ? add_export_scale_row(content, dialog) : nullptr;
 
   QRadioButton* animation_radio = nullptr;
   QRadioButton* flatten_radio = nullptr;
@@ -950,7 +1338,8 @@ std::optional<ImageSaveOptions> prompt_gif_save_options(QWidget* parent, ImageSa
   explanation->setObjectName(QStringLiteral("gifAnimationExplanationLabel"));
   explanation->setWordWrap(true);
   content->addWidget(explanation);
-  add_dialog_buttons(content, dialog);
+  const auto section =
+      finish_options_dialog(content, dialog, for_export, QStringLiteral("gif"), document_size);
 
   const auto sync_animation_controls = [delay_row, explanation, animation_radio] {
     const bool animate = animation_radio == nullptr || animation_radio->isChecked();
@@ -977,9 +1366,8 @@ std::optional<ImageSaveOptions> prompt_gif_save_options(QWidget* parent, ImageSa
     settings.setValue(QStringLiteral("saveOptions/gifSaveMode"),
                       options.gif_animate ? QStringLiteral("animation") : QStringLiteral("flatten"));
   }
-  if (scale_combo != nullptr) {
-    options.export_scale = scale_combo->currentData().toInt();
-    persist_export_scale(options.export_scale);
+  if (section.has_value()) {
+    apply_export_section(options, *section);
   }
   return options;
 }

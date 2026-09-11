@@ -2405,11 +2405,11 @@ void MainWindow::export_sprite_sheet() {
   try {
     const auto extension = extension_for_path(path);
     auto image_options = prompt_image_save_options(this, extension, image_save_defaults_for_document(),
-                                                   /*for_export*/ true);
+                                                   /*for_export*/ true, sheet.size());
     if (!image_options.has_value()) {
       return;
     }
-    // The sheet routes through the normal export machinery (scale option, indexed GIF/PCX
+    // The sheet routes through the normal export machinery (export transforms, indexed GIF/PCX
     // quantization, ...) as a flat document. It inherits the source document's print
     // resolution (the composed QImage would otherwise contribute Qt's screen default).
     auto sheet_document = document_from_qimage(sheet, "Sprite Sheet");
@@ -2418,6 +2418,9 @@ void MainWindow::export_sprite_sheet() {
     offer_browser_download_for_saved_file(path);
     remember_save_directory_for_path(path);
     statusBar()->showMessage(tr("Exported sprite sheet %1").arg(path));
+    if (image_options->export_reveal_in_file_explorer) {
+      reveal_path_in_file_explorer(path, /*is_file*/ true);
+    }
   } catch (const std::exception& error) {
     show_critical_message(this, tr("Export failed"), translated_file_message(error.what()),
                           QStringLiteral("exportFailedMessageBox"));
@@ -2512,8 +2515,9 @@ void MainWindow::export_image_sequence() {
     return;
   }
   try {
-    auto image_options = prompt_image_save_options(this, extension, image_save_defaults_for_document(),
-                                                   /*for_export*/ true);
+    auto image_options = prompt_image_save_options(
+        this, extension, image_save_defaults_for_document(), /*for_export*/ true,
+        QSize(std::as_const(document()).width(), std::as_const(document()).height()));
     if (!image_options.has_value()) {
       return;
     }
@@ -2552,6 +2556,9 @@ void MainWindow::export_image_sequence() {
     }
     remember_save_directory_for_path(path);
     statusBar()->showMessage(tr("Exported %1 images to %2").arg(file_names.size()).arg(directory.absolutePath()));
+    if (image_options->export_reveal_in_file_explorer) {
+      reveal_path_in_file_explorer(directory.absolutePath(), /*is_file*/ false);
+    }
   } catch (const std::exception& error) {
     show_critical_message(this, tr("Export failed"), translated_file_message(error.what()),
                           QStringLiteral("exportFailedMessageBox"));
@@ -2583,15 +2590,20 @@ void MainWindow::export_animated_gif() {
   path = path_with_default_extension(path, selected_filter);
   auto options = prompt_gif_save_options(this, image_save_defaults_for_document(),
                                          /*offer_flatten_choice*/ false, /*for_export*/ true,
-                                         /*has_visible_frames*/ true);
+                                         /*has_visible_frames*/ true,
+                                         QSize(std::as_const(document()).width(), std::as_const(document()).height()));
   if (!options.has_value()) {
     return;
   }
   try {
-    write_flat_image_file(document(), path, QStringLiteral("gif"), *options);
+    std::vector<std::string> writer_notices;
+    write_flat_image_file(document(), path, QStringLiteral("gif"), *options, &writer_notices);
     offer_browser_download_for_saved_file(path);
     remember_save_directory_for_path(path);
-    statusBar()->showMessage(tr("Exported %1").arg(path));
+    statusBar()->showMessage(tr("Exported %1").arg(path) + export_notes_suffix_for(writer_notices));
+    if (options->export_reveal_in_file_explorer) {
+      reveal_path_in_file_explorer(path, /*is_file*/ true);
+    }
   } catch (const std::exception& error) {
     show_critical_message(this, tr("Export failed"), translated_file_message(error.what()),
                           QStringLiteral("exportFailedMessageBox"));
@@ -3040,16 +3052,19 @@ void MainWindow::export_flat_image() {
         }
         defaults.pdf_editable_layers = *pdf_editable_layers;
       }
-      // for_export adds the nearest-neighbor Scale combo to every raster format's options
-      // (a scale-only dialog for formats with no other options). SVG has no
-      // raster options: vectors scale client-side.
+      // for_export adds the shared Export section (resize, pixel-art scale, transparency,
+      // trim, reveal) to every raster format's options (a section-only dialog for formats
+      // with no other options). SVG has no raster options: vectors scale client-side.
+      const QSize document_size(std::as_const(document()).width(), std::as_const(document()).height());
       if (extension == QStringLiteral("gif") && std::as_const(document()).layers().size() >= 2) {
-        // Animation-or-flatten plus the delay, replacing the scale-only dialog.
+        // Animation-or-flatten plus the delay, replacing the section-only dialog.
         image_options = prompt_gif_save_options(this, defaults, /*offer_flatten_choice*/ true,
                                                 /*for_export*/ true,
-                                                has_visible_top_level_layer(std::as_const(document())));
+                                                has_visible_top_level_layer(std::as_const(document())),
+                                                document_size);
       } else {
-        image_options = prompt_image_save_options(this, extension, defaults, /*for_export*/ true);
+        image_options =
+            prompt_image_save_options(this, extension, defaults, /*for_export*/ true, document_size);
       }
       if (!image_options.has_value()) {
         return;
@@ -3076,6 +3091,9 @@ void MainWindow::export_flat_image() {
     }
     remember_save_directory_for_path(path);
     statusBar()->showMessage(tr("Exported %1").arg(path) + export_notes_suffix);
+    if (effective_image_options.export_reveal_in_file_explorer) {
+      reveal_path_in_file_explorer(path, /*is_file*/ true);
+    }
   } catch (const std::exception& error) {
     show_critical_message(this, tr("Export failed"), translated_file_message(error.what()),
                           QStringLiteral("exportFailedMessageBox"));
