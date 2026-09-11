@@ -42,6 +42,8 @@ Required release handoff steps:
 
    A running `build\release\patchy.exe` locks the link step (`LNK1104`). Ask Seth to close it; never force-kill it because he may have unsaved work.
 
+   A running `build\release\patchy-mcp.exe` (an MCP client such as the Codex app keeps it alive) locks its own link the same way (September 2026). Build the `patchy`, `patchy_ui_visual_tests`, and `patchy_core_tests` targets explicitly with `--target`, never kill the connector, and report that the MCP target was skipped.
+
 2. Run release test binaries from `build\release`, scoped to the change:
 
    ```powershell
@@ -81,7 +83,7 @@ Read these before acting in the named area:
 |---|---|
 | MainWindow/CanvasWidget/PSD splits, function moves, shared helpers, broad refactors | [docs/code-organization.md](docs/code-organization.md), plus [docs/refactor-backlog.md](docs/refactor-backlog.md) for cleanup work |
 | QActions, dialogs, options bar, list rows, status messages, shared QSS/UI conventions, colors and the Dark/Light color scheme | [docs/ui-conventions.md](docs/ui-conventions.md) |
-| Layers panel (rows, thumbnails, click selection, disclosure arrow, visibility eye) | [docs/layer-panel.md](docs/layer-panel.md) |
+| Layers panel (rows, thumbnails, click selection, disclosure arrow, visibility eye, drags to another document, Alt-drag duplicate) | [docs/layer-panel.md](docs/layer-panel.md) |
 | Tests, offscreen behavior, visual QA, app screenshots, suite failure diagnosis | [docs/testing.md](docs/testing.md) |
 | Platform-guarded code, macOS/Linux behavior, remote builds | [docs/platform.md](docs/platform.md) |
 | WebAssembly builds, the wasm-core preset, emsdk provisioning | [docs/wasm.md](docs/wasm.md); wasm memory/telemetry in [docs/wasm-memory.md](docs/wasm-memory.md); wasm input/focus/hotkeys in [docs/wasm-input.md](docs/wasm-input.md) |
