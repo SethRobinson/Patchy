@@ -1307,6 +1307,16 @@ if(PATCHY_BUILD_APP)
       patchy_copy_bundled_fonts(patchy-mcp)
       patchy_copy_bundled_scripts(patchy-mcp)
       add_dependencies(patchy-mcp patchy_agent_kit)
+      if(WIN32)
+        # MCP clients (the Codex app) keep a connector alive per thread, which locks
+        # patchy-mcp.exe against relinking (LNK1104). Move a locked one aside right
+        # before the link and sweep stale copies once nothing runs them; never kill
+        # a client. See docs/release-process.md.
+        add_custom_command(TARGET patchy-mcp PRE_LINK
+          COMMAND ${CMAKE_COMMAND} -DPATCHY_LOCKED_EXECUTABLE=$<TARGET_FILE:patchy-mcp>
+                  -P ${CMAKE_SOURCE_DIR}/cmake/unlock_locked_executable.cmake
+          VERBATIM)
+      endif()
       install(TARGETS patchy-mcp RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
     endif()
     target_compile_definitions(patchy PRIVATE PATCHY_VERSION="${PROJECT_VERSION}")

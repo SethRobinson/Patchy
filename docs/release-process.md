@@ -79,16 +79,19 @@ There are no versioned wasm artifacts: the site serves stable names and a redepl
 
 ## A running connector must not block the Windows relink
 
-`build\release\patchy-mcp.exe` is usually running (the Codex app keeps several `--attach`
-connectors alive), which makes the release preset's connector link fail with `LNK1104`
-and would otherwise leave the package with a stale connector. Never kill those clients.
-Before launching `build-release.bat`, rename the locked file:
-`Rename-Item build\release\patchy-mcp.exe patchy-mcp-<previous version>-running.exe`.
-Windows allows renaming a running image, the clients keep running from the renamed file,
-and the build links a fresh `patchy-mcp.exe` that the packager signs and stages. Delete the
-renamed backup once no process runs it (compare the process list's image paths); it is a
-build artifact covered by the housekeeping rule in AGENTS.md. The 0.92 and 0.93 releases
-were built this way.
+`build\release\patchy-mcp.exe` is usually running (the Codex app keeps one `--attach`
+connector alive per thread for as long as the thread exists), which would make the release
+preset's connector link fail with `LNK1104` and leave the package with a stale connector.
+Never kill those clients. Since September 2026 the `patchy-mcp` target's PRE_LINK step
+(`cmake/unlock_locked_executable.cmake`) handles it: a locked `patchy-mcp.exe` is renamed to
+`patchy-mcp.stale-<timestamp>.exe` (Windows allows renaming a running image, and the
+clients keep running from the renamed file), the build links a fresh `patchy-mcp.exe` that
+the packager signs and stages, and every later connector link deletes stale copies that
+nothing runs any more. Nothing manual is needed; `build-release.bat` runs through. Stale
+copies are build artifacts under the housekeeping rule in AGENTS.md and must never be
+packaged (the packager stages `patchy-mcp.exe` by name). The connector must not be copied
+elsewhere to dodge the lock: its `--attach` socket name hashes the executable's own folder,
+so a connector outside `build\release` cannot attach to a Patchy running from it.
 
 ## Batch files live in scripts\release and call their siblings by full path
 
