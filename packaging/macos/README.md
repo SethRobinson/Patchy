@@ -110,8 +110,10 @@ and crashed at 17:03 with no Patchy build or ssh session running (the last remot
 was two days earlier); the iCloudHelper dialog followed at 17:08. The build scripts only
 ever unlock the keychain and never lock it, and a `SecKeychainGetStatus` probe from an
 ssh session reports that session, not the desktop. The login keychain password equals
-the login password on studiomac (verified September 11, 2026: the stored credential
-passes `sudo -S`), so login and reboot unlock the keychain automatically; after a
+the login password on studiomac (verified September 11, 2026 with
+`packaging/macos/check-keychain-password.sh`, which pipes the stored credential to
+`sudo -S` and prints only MATCH or DIFFERENT), so login and reboot unlock the keychain
+automatically; after a
 securityd crash in the middle of a session nothing can, and the dialog is answered
 with the login password or by the script below. If the passwords ever diverge (a
 login password reset that skips the keychain), Keychain Access > login > Change
@@ -119,9 +121,19 @@ Password for Keychain restores the match, and `PATCHY_KEYCHAIN_PASSWORD` must be
 updated with it.
 
 Recovery without touching the desktop: `packaging/macos/desktop-keychain-unlock.sh`
-(run over ssh) bootstraps a one-shot helper into the desktop `gui/<uid>` launchd
+bootstraps a one-shot helper into the desktop `gui/<uid>` launchd
 domain, the only place that can read or change the desktop session's keychain state.
 The helper unlocks the login keychain there once, with UI disabled, using the release
 credential, then removes itself, so iCloudHelper's next retry succeeds silently
 (September 11, 2026: status 2 = locked before, 7 after). That repairs the session, not
-the cause.
+the cause. Both scripts are run from Windows without any quoting, which PowerShell and
+cmd would otherwise mangle (inner double quotes and `2>/dev/null` do not survive them):
+
+```
+ssh seth@studiomac.local bash /Users/seth/patchy/src/packaging/macos/check-keychain-password.sh
+ssh seth@studiomac.local bash /Users/seth/patchy/src/packaging/macos/desktop-keychain-unlock.sh
+```
+
+The mac checkout under `~/patchy/src` is the last remote-build snapshot, so a script
+added since then must be pushed by a remote build (or copied with scp) before it exists
+there.
