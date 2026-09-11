@@ -43,12 +43,23 @@ with the usual save prompt, and Cancel keeps both the window and the document. H
 - `canvas_` is the single source of truth for the ACTIVE document: `session()` /
   `document()` / `has_active_document()` resolve through it, and every activation source
   (tab `currentChanged`, `tabBarClicked` on the already-current tab, float
-  `WindowActivate`, canvas `FocusIn` in the app-level event filter) funnels through
-  `activate_document_canvas`, which settles any open inline text edit BEFORE reassigning
-  `canvas_` (the commit rasterizes into the active session). Never derive the active
-  document from the tab widget's current index: a floated document has no tab. Clicking
-  a dock panel or the main window title bar deliberately does NOT move activation away
-  from a float (Photoshop behavior: panels edit the focused document wherever it lives).
+  `WindowActivate`, canvas `FocusIn` and canvas `MouseButtonPress`/`TabletPress` in the
+  app-level event filter) funnels through `activate_document_canvas`, which settles any
+  open inline text edit BEFORE reassigning `canvas_` (the commit rasterizes into the
+  active session). Never derive the active document from the tab widget's current index:
+  a floated document has no tab.
+- Clicking a dock panel, the menu bar, or the main window title bar does NOT move
+  activation away from a float (Photoshop behavior: panels edit the focused document
+  wherever it lives). Qt re-focuses the main window's remembered focus child (the tabbed
+  canvas that was active last) with `ActiveWindowFocusReason` BEFORE delivering the click
+  that re-activated the window, so the FocusIn branch ignores `ActiveWindowFocusReason`,
+  `PopupFocusReason`, and `MenuBarFocusReason`, and drops that stale focus one event
+  later so canvas key handlers cannot edit a document the panels are not showing. A real
+  press on a canvas activates its document through the MouseButtonPress/TabletPress
+  branch instead: the canvas may already hold focus, so `mousePressEvent`'s `setFocus`
+  alone fires no FocusIn. Layers-panel buttons take `Qt::NoFocus` for the same reason.
+  `ui_float_activation_survives_main_window_refocus` pins it (September 2026: New Layer
+  landed in the tabbed document after a float was clicked).
 - Canvas history callbacks (`set_before_edit_callback`, the selection-history callback)
   resolve `session_for_canvas(canvas)` at fire time, so an edit or an async completion
   lands in the OWNING session's undo stack regardless of which document is active, and

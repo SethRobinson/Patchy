@@ -6120,10 +6120,42 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
   if (event->type() == QEvent::FocusIn && !shutting_down_) {
     // Focusing a document canvas makes its document active. Tab switches do this
     // through currentChanged; this covers the paths that move focus without a
-    // tab change - clicking the visible tab page while a float window holds the
-    // active document, or clicking a float's canvas.
+    // tab change, such as programmatic focus or a click on a float's canvas.
+    // Qt re-focuses the main window's remembered focus child (typically the
+    // tabbed canvas) with ActiveWindowFocusReason BEFORE delivering the click
+    // that re-activated the window, so a panel, menu, or title-bar click while
+    // a float holds the active document must not count as the user choosing
+    // that canvas; popup and menu-bar focus round trips are the same. The
+    // stale focus is dropped one event later so canvas key handlers cannot
+    // edit a document the panels are not showing. A real press on a canvas
+    // activates it through the MouseButtonPress branch below.
+    const auto reason = static_cast<QFocusEvent*>(event)->reason();
+    const bool window_refocus = reason == Qt::ActiveWindowFocusReason || reason == Qt::PopupFocusReason ||
+                                reason == Qt::MenuBarFocusReason;
     if (auto* canvas = qobject_cast<CanvasWidget*>(watched);
         canvas != nullptr && canvas != canvas_ && session_for_canvas(canvas) != nullptr) {
+      if (!window_refocus) {
+        activate_document_canvas(canvas);
+      } else if (reason == Qt::ActiveWindowFocusReason) {
+        QPointer<CanvasWidget> stale(canvas);
+        QTimer::singleShot(0, this, [this, stale] {
+          if (stale != nullptr && stale != canvas_ && stale->hasFocus()) {
+            stale->clearFocus();
+          }
+        });
+      }
+    }
+  }
+
+  if ((event->type() == QEvent::MouseButtonPress || event->type() == QEvent::TabletPress) && !shutting_down_) {
+    // A press on a non-active canvas activates its document (clicking the
+    // visible tab page while a float holds the active document). The FocusIn
+    // path cannot cover it: the canvas may already hold keyboard focus, so
+    // mousePressEvent's setFocus is a no-op there. The processing-wait guard
+    // mirrors mousePressEvent's own early return.
+    if (auto* canvas = qobject_cast<CanvasWidget*>(watched);
+        canvas != nullptr && canvas != canvas_ && !canvas->processing_render_wait_active() &&
+        session_for_canvas(canvas) != nullptr) {
       activate_document_canvas(canvas);
     }
   }

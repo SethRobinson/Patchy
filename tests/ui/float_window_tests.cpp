@@ -645,6 +645,75 @@ void ui_float_window_activation_switches_panels() {
   CHECK(float_window_title.contains(QStringLiteral("Solo layer")));
 }
 
+void ui_float_activation_survives_main_window_refocus() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(tabs != nullptr);
+  auto* tab_canvas = require_canvas(window);
+  window.add_document_session(make_float_test_document(QColor(90, 90, 200)), QStringLiteral("Floated"));
+  QApplication::processEvents();
+  auto* float_canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  CHECK(float_canvas != tab_canvas);
+  require_action(window, "windowFloatDocumentAction")->trigger();
+  QApplication::processEvents();
+  CHECK(find_document_float_window(window) != nullptr);
+
+  // Click the tab document, then the float: the float's document is active.
+  patchy::ui::MainWindowTestAccess::activate_canvas(window, tab_canvas);
+  QApplication::processEvents();
+  patchy::ui::MainWindowTestAccess::activate_canvas(window, float_canvas);
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::canvas(window) == float_canvas);
+
+  auto* tab_document = patchy::ui::MainWindowTestAccess::document_for_canvas(window, tab_canvas);
+  auto* float_document = patchy::ui::MainWindowTestAccess::document_for_canvas(window, float_canvas);
+  CHECK(tab_document != nullptr);
+  CHECK(float_document != nullptr);
+  const auto tab_layers_before = tab_document->layers().size();
+  const auto float_layers_before = float_document->layers().size();
+  const auto tab_undo_before = patchy::ui::MainWindowTestAccess::undo_depth_for_canvas(window, tab_canvas);
+  const auto float_undo_before = patchy::ui::MainWindowTestAccess::undo_depth_for_canvas(window, float_canvas);
+
+  // Clicking a main-window panel re-activates the main window, and Qt restores
+  // keyboard focus to its remembered focus child (the tab canvas) with
+  // ActiveWindowFocusReason before the click is delivered. That refocus must
+  // not switch documents; neither may a popup or menu-bar focus round trip.
+  for (const auto reason : {Qt::ActiveWindowFocusReason, Qt::PopupFocusReason, Qt::MenuBarFocusReason}) {
+    QFocusEvent refocus(QEvent::FocusIn, reason);
+    QApplication::sendEvent(tab_canvas, &refocus);
+    QApplication::processEvents();
+    CHECK(patchy::ui::MainWindowTestAccess::canvas(window) == float_canvas);
+  }
+
+  auto* new_layer_button = window.findChild<QAbstractButton*>(QStringLiteral("layerNewButton"));
+  CHECK(new_layer_button != nullptr);
+  CHECK(new_layer_button->focusPolicy() == Qt::NoFocus);
+  new_layer_button->click();
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::canvas(window) == float_canvas);
+  CHECK(float_document->layers().size() == float_layers_before + 1);
+  CHECK(tab_document->layers().size() == tab_layers_before);
+  CHECK(patchy::ui::MainWindowTestAccess::undo_depth_for_canvas(window, float_canvas) == float_undo_before + 1);
+  CHECK(patchy::ui::MainWindowTestAccess::undo_depth_for_canvas(window, tab_canvas) == tab_undo_before);
+
+  // A real press on the tab canvas still activates its document, even when the
+  // canvas already holds keyboard focus (mousePressEvent's setFocus is then a
+  // no-op and fires no FocusIn).
+  tab_canvas->setFocus(Qt::OtherFocusReason);
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::canvas(window) == float_canvas);
+  QTest::mouseClick(tab_canvas, Qt::LeftButton, Qt::NoModifier, tab_canvas->rect().center());
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::canvas(window) == tab_canvas);
+
+  // Ordinary focus reasons keep activating (a click on a float's canvas).
+  QFocusEvent mouse_focus(QEvent::FocusIn, Qt::MouseFocusReason);
+  QApplication::sendEvent(float_canvas, &mouse_focus);
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::canvas(window) == float_canvas);
+}
+
 void ui_float_window_smart_object_child_commits_to_parent() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -960,6 +1029,7 @@ std::vector<patchy::test::TestCase> float_window_tests() {
       {"ui_float_only_document_keeps_actions_enabled", ui_float_only_document_keeps_actions_enabled},
       {"ui_float_window_title_tracks_modified_state", ui_float_window_title_tracks_modified_state},
       {"ui_float_window_activation_switches_panels", ui_float_window_activation_switches_panels},
+      {"ui_float_activation_survives_main_window_refocus", ui_float_activation_survives_main_window_refocus},
       {"ui_float_window_smart_object_child_commits_to_parent",
        ui_float_window_smart_object_child_commits_to_parent},
       {"ui_float_window_accepts_file_drop", ui_float_window_accepts_file_drop},

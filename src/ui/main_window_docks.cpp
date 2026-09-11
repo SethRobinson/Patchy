@@ -1443,6 +1443,9 @@ void MainWindow::create_docks() {
     button->setProperty("layerActionButton", true);
     button->setIconSize(QSize(24, 24));
     button->setFixedSize(40, 34);
+    // Panel buttons never take keyboard focus (the Channels/Paths panel rule):
+    // a focused button would swallow canvas keys after a click.
+    button->setFocusPolicy(Qt::NoFocus);
   }
   add_button->setProperty("layerDropAction", QStringLiteral("duplicate"));
   add_folder_button->setProperty("layerDropAction", QStringLiteral("folder"));
@@ -1455,6 +1458,7 @@ void MainWindow::create_docks() {
   adjustment_button->setProperty("layerActionButton", true);
   adjustment_button->setIconSize(QSize(24, 24));
   adjustment_button->setFixedSize(40, 34);
+  adjustment_button->setFocusPolicy(Qt::NoFocus);
   auto* adjustment_button_menu = new QMenu(adjustment_button);
   adjustment_button_menu->setObjectName(QStringLiteral("layerNewAdjustmentButtonMenu"));
   populate_new_adjustment_layer_menu(adjustment_button_menu);
