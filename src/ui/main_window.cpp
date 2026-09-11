@@ -5591,6 +5591,9 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     connect(tab_bar, &QWidget::customContextMenuRequested, this, &MainWindow::show_document_tab_context_menu);
     // Tear-off gesture: dragging a tab out of the bar floats its document.
     tab_bar->installEventFilter(this);
+    // Layer drags from the Layers panel drop onto document tabs; file drags
+    // stay unaccepted here and propagate to the tab widget as before.
+    tab_bar->setAcceptDrops(true);
     // Clicking the already-current tab emits no currentChanged, but it must
     // still activate that document when a float window holds the active one.
     connect(tab_bar, &QTabBar::tabBarClicked, this, [this](int index) {
@@ -6236,6 +6239,10 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
   }
 
   if (handle_layer_action_button_drag_event(watched, event)) {
+    return true;
+  }
+
+  if (handle_cross_document_layer_drag_event(watched, event)) {
     return true;
   }
 

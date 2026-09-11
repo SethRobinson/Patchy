@@ -2297,6 +2297,100 @@ bool MainWindow::handle_layer_action_button_drag_event(QObject* watched, QEvent*
   return true;
 }
 
+bool MainWindow::handle_cross_document_layer_drag_event(QObject* watched, QEvent* event) {
+  if (event == nullptr || document_tabs_ == nullptr || shutting_down_) {
+    return false;
+  }
+  const auto type = event->type();
+  if (type != QEvent::DragEnter && type != QEvent::DragMove && type != QEvent::DragLeave && type != QEvent::Drop) {
+    return false;
+  }
+  // The document under the pointer: a session canvas (tab page or float) or a
+  // document tab. Anything else keeps its existing handlers.
+  auto* canvas = qobject_cast<CanvasWidget*>(watched);
+  auto* tab_bar = document_tabs_->tabBar();
+  const bool on_tab_bar = canvas == nullptr && tab_bar != nullptr && watched == tab_bar;
+  if (canvas == nullptr && !on_tab_bar) {
+    return false;
+  }
+  if (type == QEvent::DragLeave) {
+    if (on_tab_bar) {
+      hide_tab_strip_highlight();
+    }
+    return false;
+  }
+
+  auto* drop_event = static_cast<QDropEvent*>(event);
+  auto ids = layer_ids_from_mime_data(drop_event->mimeData());
+  if (ids.empty()) {
+    // File drags and everything else propagate as before.
+    if (on_tab_bar) {
+      hide_tab_strip_highlight();
+    }
+    return false;
+  }
+
+  const auto position = drop_event->position().toPoint();
+  int tab_index = -1;
+  DocumentSession* target = nullptr;
+  if (canvas != nullptr) {
+    target = session_for_canvas(canvas);
+  } else {
+    tab_index = tab_bar->tabAt(position);
+    if (tab_index >= 0) {
+      target = session_for_canvas(dynamic_cast<CanvasWidget*>(document_tabs_->widget(tab_index)));
+    }
+  }
+  // Layer ids restart per document: only a drag stamped with a session of this
+  // process resolves. A drag over its own document, a gap between tabs, or the
+  // preview-dialog edit lock refuses the drop (no drop cursor), and refusing
+  // here keeps the file-drop handlers from ever seeing a layer drag.
+  const auto source_token = layer_drag_source_session_from_mime_data(drop_event->mimeData());
+  auto* source = source_token.has_value() ? session_with_id(*source_token) : nullptr;
+  const bool locked = preview_dialog_edit_locked();
+  if (target == nullptr || source == nullptr || source == target || locked) {
+    if (on_tab_bar) {
+      hide_tab_strip_highlight();
+    }
+    if (type == QEvent::Drop && locked && target != nullptr && source != nullptr && source != target) {
+      show_preview_dialog_edit_lock_message();
+    }
+    drop_event->ignore();
+    return true;
+  }
+
+  drop_event->setDropAction(Qt::CopyAction);
+  drop_event->accept();
+  if (type != QEvent::Drop) {
+    if (on_tab_bar) {
+      const auto tab_rect = tab_bar->tabRect(tab_index);
+      show_tab_strip_highlight(QRect(document_tabs_->mapFrom(tab_bar, tab_rect.topLeft()), tab_rect.size()));
+    }
+    return true;
+  }
+  if (on_tab_bar) {
+    hide_tab_strip_highlight();
+  }
+
+  // Return from the drop before touching any document: the source panel's
+  // QDrag::exec is still on the stack and the copy rebuilds its rows. Own
+  // every value the deferred call needs; never the event or its mime data.
+  CrossDocumentLayerPlacement placement;
+  if (canvas != nullptr && (drop_event->modifiers() & Qt::ShiftModifier) == 0) {
+    placement.drop_document_point = canvas->document_point_for_widget_position(position);
+  } else {
+    placement.keep_source_position = true;
+  }
+  const auto source_id = source->session_id;
+  const auto target_id = target->session_id;
+  QTimer::singleShot(0, this, [this, source_id, ids = std::move(ids), target_id, placement] {
+    if (!shutting_down_) {
+      duplicate_layers_to_session(source_id, ids, target_id, placement);
+    }
+  });
+  return true;
+}
+
 void MainWindow::handle_layer_drop() {
   if (preview_dialog_edit_locked()) {
     show_preview_dialog_edit_lock_message();
@@ -2825,13 +2919,21 @@ void MainWindow::refresh_layer_list(bool retire_automation_rows, const std::func
     if (row) { QCoreApplication::sendPostedEvents(row.data(), QEvent::DeferredDelete); }
   }
   const auto clear_ms = phase_ms(clear_started);
+  auto* drag_source_list = dynamic_cast<LayerListWidget*>(layer_list_);
   if (!has_active_document()) {
+    if (drag_source_list != nullptr) {
+      drag_source_list->set_drag_source_session_id(0);
+    }
     layer_list_->setUpdatesEnabled(true);
     updating_layer_list_ = false;
     return;
   }
 
   const auto& doc = document();
+  if (drag_source_list != nullptr) {
+    // Cross-document drops resolve the dragged ids against this session.
+    drag_source_list->set_drag_source_session_id(session().session_id);
+  }
   auto& collapsed_groups = session().collapsed_layer_groups;
   std::set<LayerId> current_group_ids;
   collect_layer_group_ids(doc.layers(), current_group_ids);

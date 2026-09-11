@@ -79,3 +79,46 @@ The visibility eye (`layerVisibilityCheck`) does not toggle through its QToolBut
 The film button in the panel's action row (`layerAnimationButton`) toggles the Animation Preview tool window (`AnimationPreviewWindow`, `src/ui/animation_preview_window.{hpp,cpp}`; the TilePreviewWindow pattern: Qt::Tool with custom chrome, every dismissal through `done()`, `WA_DeleteOnClose` behind a `QPointer`). Play cycles the top-level layers that were visible at start, top to bottom (the animated GIF export's frame order), hiding every other top-level layer; a trailing "0.25s" layer-name token overrides the per-frame delay and the panel's spin edits the shared `saveOptions/gifFrameDelayCs` default the export dialog reads. Stop, closing the panel, a tab switch, or closing the document restores the visibility captured at start: MainWindow calls `stop_playback_for` in `activate_document_canvas` (while the outgoing document is still active) and early in `close_document_session` (before the save-changes prompt, so a Save never writes a preview frame's visibility). Playback mutates visibility directly, pushes no undo entries, never marks the session modified, and updates rows per frame through the cheap in-place `sync_layer_row_visibility_indicators`, never a per-frame `refresh_layer_list` rebuild; the full refresh runs once at stop. Pinned by `ui_animation_preview_plays_visible_layers_and_restores` and `ui_animation_preview_stops_on_tab_switch_and_close`.
 
 The panel's "Selected layers" row edits the name tokens: Set Time renames the selected (else active) layers to end with the row's own time spin (replacing any existing token, via `gif::strip_layer_name_delay_token` plus `format_delay_seconds_token`), Remove strips the token, and a name that is nothing but a token keeps it (empty layer names help nobody). Both go through `MainWindow::set_selected_layers_frame_time` as one undo snapshot ("Set frame time"/"Remove frame time"), and the panel stops playback (with restore) before invoking it so the snapshot never captures a preview frame's visibility; a no-op click pushes nothing and reports through `show_status_error`. Pinned by `ui_animation_preview_sets_and_removes_frame_time_names`.
+
+## Drag to another document
+
+Dragging rows out of the panel onto another open document copies the layers there
+(Photoshop's duplicate-by-drag). The drag's mime data carries the layer ids
+(`application/x-patchy-layer-ids`) plus the source session as `pid:session_id`
+(`application/x-patchy-layer-source-session`, written by `LayerListWidget::mimeData` from the
+id `refresh_layer_list` stamps on the list) because layer ids restart per document, and a
+drag from another Patchy process never matches. `startDrag` offers `Copy | Move` so the
+cursor shows the copy badge over a foreign document; the panel's own reorder and the
+footer buttons keep forcing Move. Drop targets are every session canvas (a tab page or a
+float) and the document tabs, all handled by
+`MainWindow::handle_cross_document_layer_drag_event` from the app event filter, ahead of
+the tab-bar tear-off branch: the tab bar has `setAcceptDrops` so it becomes the DnD
+receiver, and non-layer mime stays unaccepted so file drops still propagate to the tab
+widget. A drag over its own document, a missing or foreign source token, a gap between
+tabs, or the preview-dialog edit lock refuses the drop (no drop cursor, and the file-drop
+handlers never see a layer drag); the hovered tab lights through the shared tab-strip
+highlight (`show_tab_strip_highlight`, the float-docking overlay).
+
+The drop returns before any document work: the payload (ids, session ids, drop point,
+Shift) is copied out and `duplicate_layers_to_session` runs from `QTimer::singleShot(0)`
+(the source panel's `QDrag::exec` is still on the stack and the copy rebuilds its rows).
+`copy_layers_between_sessions` (main_window_layer_ops.cpp) is the core, shared with the
+dialog and scripting paths: it builds the payload Edit > Copy builds (root ids, referenced
+smart-object sources, Smart Filter records, pattern tiles), validates the Smart Filter
+caches against the target, runs the caller's `before_mutation` hook (the UI pushes the
+target's "Duplicate layer" snapshot there), clones every root with
+`clone_layer_tree_with_document_ids` BEFORE inserting anything (there is no
+session-targeted undo to roll back a half-inserted stack), keeps the source names (a
+collision earns the copy suffix), applies one shared placement offset, re-bakes vector
+rasters against the target canvas, and inserts the stack directly above the target's
+active layer in source order, making the topmost copy active. Placement: a canvas drop
+centers the copied set's movable extent on the drop point; Shift-drop, a tab drop, the
+dialog and scripts keep the source coordinates when the documents share dimensions and
+center on the target canvas otherwise. A root whose Smart Filters depend on position keeps
+its coordinates (the adopted cache would go stale; re-rendering it is a follow-up). Linked
+masks move inside `translate_moved_layer_metadata`; unlinked raster and vector masks are
+shifted explicitly so the copy stays one unit. The UI wrapper then refreshes the target
+canvas, activates the target session and selects the copies. `ui_layer_drag_*` in
+tests/ui/layer_panel_organization_tests_cross_document.cpp and
+`ui_layer_drag_to_float_canvas_centers_at_drop_point` in tests/ui/float_window_tests.cpp pin
+it; `send_layer_drop_to_widget` synthesizes the drag.

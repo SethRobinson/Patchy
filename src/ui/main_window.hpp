@@ -486,6 +486,10 @@ private:
   // float hovers the dock zone.
   void update_float_dock_highlight(QPoint global_position);
   void set_float_dock_highlight_visible(bool visible);
+  // The translucent accent overlay lighting the tab strip (a float about to
+  // dock) or one tab (a layer drag hovering it); document_tabs_ coordinates.
+  void show_tab_strip_highlight(QRect geometry);
+  void hide_tab_strip_highlight();
   [[nodiscard]] DocumentSession* session_for_float_window(DocumentFloatWindow* window) noexcept;
   // Successor for canvas_ after a close: the current tab's canvas, else the most
   // recent floated session, else null (null iff sessions_ is empty).
@@ -792,6 +796,32 @@ private:
   void apply_active_layer_mask();
   void duplicate_active_layer();
   void duplicate_layers(std::vector<LayerId> ids);
+  // Cross-document layer copy: a Layers-panel drag dropped on another
+  // document's canvas or tab, Duplicate Layer to Document, and
+  // layer.duplicate(target) all end here.
+  struct CrossDocumentLayerPlacement {
+    // Canvas drop: center the copied set's movable extent on this document
+    // point of the target.
+    std::optional<QPoint> drop_document_point;
+    // Shift-drop, tab drop, dialog, scripts: keep the source coordinates when
+    // the documents share dimensions, else center on the target canvas.
+    bool keep_source_position{false};
+  };
+  // Mutates target.document only: no undo push, no refresh, no activation.
+  // before_mutation runs after validation and before the first target
+  // mutation (the UI pushes the target's undo snapshot there; scripts call
+  // prepare_mutation). Returns the new root ids top to bottom; empty (with
+  // *error set when non-null) on refusal.
+  std::vector<LayerId> copy_layers_between_sessions(DocumentSession& source, std::vector<LayerId> ids,
+                                                    DocumentSession& target,
+                                                    const CrossDocumentLayerPlacement& placement,
+                                                    const std::function<bool()>& before_mutation,
+                                                    QString* error);
+  // The interactive flow around copy_layers_between_sessions: the target's
+  // undo snapshot, refresh, activation of the target, and selecting the
+  // copies. Sessions are addressed by id: a document may close mid-drag.
+  bool duplicate_layers_to_session(std::int64_t source_session_id, std::vector<LayerId> ids,
+                                   std::int64_t target_session_id, CrossDocumentLayerPlacement placement);
   void rename_active_layer();
   // Animation Preview's name-token edits: stamps (a value) or strips (nullopt) the
   // trailing frame-time token on the selected (else active) layers' names, as one
@@ -950,6 +980,9 @@ private:
   void sync_layer_row_visibility_indicators();
   void show_layer_context_menu(QPoint position);
   bool handle_layer_action_button_drag_event(QObject* watched, QEvent* event);
+  // A Layers-panel drag over another document (a session canvas, tabbed or
+  // floated, or a document tab): accepts it as a copy and defers the copy.
+  bool handle_cross_document_layer_drag_event(QObject* watched, QEvent* event);
   void merge_visible_to_new_layer();
   void merge_down();
   void fill_active_layer();

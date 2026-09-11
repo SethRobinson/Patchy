@@ -13,6 +13,7 @@
 
 #include <cstddef>
 #include <functional>
+#include <cstdint>
 #include <optional>
 #include <vector>
 
@@ -38,9 +39,16 @@ inline constexpr int kLayerDepthRole = Qt::UserRole + 1;
 inline constexpr int kLayerIsGroupRole = Qt::UserRole + 2;
 inline constexpr int kLayerGroupExpandedRole = Qt::UserRole + 3;
 inline constexpr const char* kLayerDragMimeType = "application/x-patchy-layer-ids";
+// The drag's source document as "<pid>:<session id>": layer ids restart per
+// document, so a drop on another document resolves them against this session,
+// and a drag from another Patchy process never matches.
+inline constexpr const char* kLayerDragSourceSessionMimeType = "application/x-patchy-layer-source-session";
 
 [[nodiscard]] QByteArray layer_ids_to_mime_data(const std::vector<LayerId>& ids);
 [[nodiscard]] std::vector<LayerId> layer_ids_from_mime_data(const QMimeData* mime_data);
+[[nodiscard]] QByteArray layer_drag_source_session_to_mime_data(std::int64_t session_id);
+// nullopt when absent, malformed, or written by another process.
+[[nodiscard]] std::optional<std::int64_t> layer_drag_source_session_from_mime_data(const QMimeData* mime_data);
 
 enum class LayerCtrlClickTarget {
   ContentThumbnail,
@@ -54,6 +62,9 @@ public:
   explicit LayerListWidget(QWidget* parent = nullptr);
 
   void set_drop_finished_callback(std::function<void()> callback);
+  // Stamped on every drag's mime data (kLayerDragSourceSessionMimeType) so a
+  // drop on another document can resolve the ids; 0 means no document.
+  void set_drag_source_session_id(std::int64_t session_id);
   // Photoshop's Alt-hover/Alt-click on the boundary between two rows: can_toggle
   // decides whether the clip cursor shows for (upper, lower); toggle clips or
   // releases the upper layer.
@@ -186,6 +197,7 @@ private:
   QPoint last_drag_viewport_position_{};
   std::optional<LayerId> drag_anchor_layer_id_;
   std::vector<LayerId> dragged_layer_ids_;
+  std::int64_t drag_source_session_id_{0};
   std::optional<DropTarget> drop_preview_;
   QWidget* insertion_indicator_{nullptr};
   QWidget* folder_highlight_indicator_{nullptr};

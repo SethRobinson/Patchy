@@ -1151,11 +1151,23 @@ void MainWindow::update_float_dock_highlight(QPoint global_position) {
 
 void MainWindow::set_float_dock_highlight_visible(bool visible) {
   if (!visible) {
-    if (float_dock_highlight_ != nullptr) {
-      float_dock_highlight_->hide();
-    }
+    hide_tab_strip_highlight();
     return;
   }
+  if (document_tabs_ == nullptr) {
+    return;
+  }
+  const auto zone = float_dock_zone_global();
+  show_tab_strip_highlight(QRect(document_tabs_->mapFromGlobal(zone.topLeft()), zone.size()));
+}
+
+void MainWindow::hide_tab_strip_highlight() {
+  if (float_dock_highlight_ != nullptr) {
+    float_dock_highlight_->hide();
+  }
+}
+
+void MainWindow::show_tab_strip_highlight(QRect geometry) {
   if (document_tabs_ == nullptr) {
     return;
   }
@@ -1174,8 +1186,7 @@ void MainWindow::set_float_dock_highlight_visible(bool visible) {
           .arg(accent.red())
           .arg(accent.green())
           .arg(accent.blue()));
-  const auto zone = float_dock_zone_global();
-  float_dock_highlight_->setGeometry(QRect(document_tabs_->mapFromGlobal(zone.topLeft()), zone.size()));
+  float_dock_highlight_->setGeometry(geometry);
   float_dock_highlight_->raise();
   float_dock_highlight_->show();
 }

@@ -264,6 +264,29 @@ void send_layer_button_drop(QWidget& button, const std::vector<patchy::LayerId>&
   QApplication::processEvents();
 }
 
+void send_layer_drop_to_widget(QWidget& target, QPoint position, const std::vector<patchy::LayerId>& ids,
+                               std::optional<std::int64_t> source_session_id, Qt::KeyboardModifiers modifiers,
+                               bool* entered) {
+  QMimeData mime_data;
+  mime_data.setData(QString::fromLatin1(patchy::ui::kLayerDragMimeType), patchy::ui::layer_ids_to_mime_data(ids));
+  if (source_session_id.has_value()) {
+    mime_data.setData(QString::fromLatin1(patchy::ui::kLayerDragSourceSessionMimeType),
+                      patchy::ui::layer_drag_source_session_to_mime_data(*source_session_id));
+  }
+  const Qt::DropActions actions = Qt::CopyAction | Qt::MoveAction;
+  QDragEnterEvent enter(position, actions, &mime_data, Qt::LeftButton, modifiers);
+  QApplication::sendEvent(&target, &enter);
+  if (entered != nullptr) {
+    *entered = enter.isAccepted();
+  }
+  QDragMoveEvent move(position, actions, &mime_data, Qt::LeftButton, modifiers);
+  QApplication::sendEvent(&target, &move);
+  QDropEvent drop(QPointF(position), actions, &mime_data, Qt::LeftButton, modifiers);
+  QApplication::sendEvent(&target, &drop);
+  QApplication::processEvents();
+  QApplication::processEvents();
+}
+
 QAction* require_action(QWidget& root, const char* object_name) {
   auto* action = root.findChild<QAction*>(QString::fromLatin1(object_name));
   CHECK(action != nullptr);

@@ -14129,6 +14129,14 @@ Clipped to the layer below</source>
         <source>Created a merged copy of the visible layers</source>
         <translation>表示レイヤーを結合したコピーを作成しました</translation>
     </message>
+    <message>
+        <source>Copied %1 layer(s) to %2</source>
+        <translation>%1 個のレイヤーを %2 にコピーしました</translation>
+    </message>
+    <message>
+        <source>Choose a different document to copy the layers into</source>
+        <translation>レイヤーのコピー先には別のドキュメントを選んでください</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::PalettePanel</name>

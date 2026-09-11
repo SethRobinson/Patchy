@@ -3041,6 +3041,7 @@ void ui_layer_eye_double_click_toggles_each_click() {
 }  // namespace
 
 std::vector<patchy::test::TestCase> layer_panel_organization_tests_animation_part();
+std::vector<patchy::test::TestCase> layer_panel_organization_tests_cross_document_part();
 
 std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
   std::vector<patchy::test::TestCase> tests{
@@ -3126,5 +3127,7 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
   };
   auto animation_part = layer_panel_organization_tests_animation_part();
   tests.insert(tests.end(), animation_part.begin(), animation_part.end());
+  auto cross_document_part = layer_panel_organization_tests_cross_document_part();
+  tests.insert(tests.end(), cross_document_part.begin(), cross_document_part.end());
   return tests;
 }

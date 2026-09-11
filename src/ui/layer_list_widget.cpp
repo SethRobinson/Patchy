@@ -5,6 +5,7 @@
 #include "ui/theme_qss.hpp"
 
 #include <QApplication>
+#include <QCoreApplication>
 #include <QByteArray>
 #include <QCursor>
 #include <QDrag>
@@ -135,6 +136,30 @@ std::vector<LayerId> layer_ids_from_mime_data(const QMimeData* mime_data) {
     }
   }
   return ids;
+}
+
+QByteArray layer_drag_source_session_to_mime_data(std::int64_t session_id) {
+  return QByteArray::number(static_cast<qlonglong>(QCoreApplication::applicationPid())) + ':' +
+         QByteArray::number(static_cast<qlonglong>(session_id));
+}
+
+std::optional<std::int64_t> layer_drag_source_session_from_mime_data(const QMimeData* mime_data) {
+  if (mime_data == nullptr || !mime_data->hasFormat(QString::fromLatin1(kLayerDragSourceSessionMimeType))) {
+    return std::nullopt;
+  }
+  const auto parts = mime_data->data(QString::fromLatin1(kLayerDragSourceSessionMimeType)).split(':');
+  if (parts.size() != 2) {
+    return std::nullopt;
+  }
+  bool pid_ok = false;
+  bool session_ok = false;
+  const auto pid = parts[0].toLongLong(&pid_ok);
+  const auto session_id = parts[1].toLongLong(&session_ok);
+  if (!pid_ok || !session_ok || pid != static_cast<qlonglong>(QCoreApplication::applicationPid()) ||
+      session_id <= 0) {
+    return std::nullopt;
+  }
+  return static_cast<std::int64_t>(session_id);
 }
 
 LayerListWidget::LayerListWidget(QWidget* parent) : QListWidget(parent) {
@@ -948,6 +973,10 @@ std::optional<LayerCtrlClickTarget> LayerListWidget::ctrl_click_target(QListWidg
   return std::nullopt;
 }
 
+void LayerListWidget::set_drag_source_session_id(std::int64_t session_id) {
+  drag_source_session_id_ = session_id;
+}
+
 QMimeData* LayerListWidget::mimeData(const QList<QListWidgetItem*>& items) const {
   auto* mime_data = QListWidget::mimeData(items);
   auto ids = selected_layer_ids_top_to_bottom();
@@ -961,6 +990,10 @@ QMimeData* LayerListWidget::mimeData(const QList<QListWidgetItem*>& items) const
     }
   }
   mime_data->setData(QString::fromLatin1(kLayerDragMimeType), layer_ids_to_mime_data(ids));
+  if (drag_source_session_id_ > 0) {
+    mime_data->setData(QString::fromLatin1(kLayerDragSourceSessionMimeType),
+                       layer_drag_source_session_to_mime_data(drag_source_session_id_));
+  }
   return mime_data;
 }
 
@@ -1103,7 +1136,10 @@ void LayerListWidget::startDrag(Qt::DropActions supported_actions) {
   qApp->installNativeEventFilter(this);
 #endif
   install_drag_wheel_hook();
-  drag.exec(supported_actions, Qt::MoveAction);
+  // Copy joins the offered actions so a drop on ANOTHER document can report
+  // CopyAction (the cursor shows the copy badge there); the panel's own
+  // reorder and the footer buttons keep forcing Move.
+  drag.exec(supported_actions | Qt::CopyAction, Qt::MoveAction);
   remove_drag_wheel_hook();
 #ifdef Q_OS_WIN
   qApp->removeNativeEventFilter(this);

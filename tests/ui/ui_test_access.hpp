@@ -261,6 +261,11 @@ public:
     return session == nullptr ? nullptr : &session->document;
   }
 
+  static std::int64_t session_id_for_canvas(MainWindow& window, CanvasWidget* canvas) {
+    auto* session = window.session_for_canvas(canvas);
+    return session == nullptr ? 0 : session->session_id;
+  }
+
   static std::ptrdiff_t undo_depth_for_canvas(MainWindow& window, CanvasWidget* canvas) {
     auto* session = window.session_for_canvas(canvas);
     return session == nullptr ? -1 : static_cast<std::ptrdiff_t>(session->undo_stack.size());

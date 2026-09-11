@@ -28,6 +28,7 @@
 #include "core/palette_presets.hpp"
 #include "core/pattern_presets.hpp"
 #include "core/pixel_tools.hpp"
+#include "core/rect_utils.hpp"
 #include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
 #include "formats/palette_io.hpp"
@@ -68,6 +69,7 @@
 #include "ui/edit_conversions.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/layer_style_dialog.hpp"
+#include "ui/canvas_widget_shared.hpp"
 #include "ui/layer_list_widget.hpp"
 #include "ui/localization.hpp"
 #include "ui/measurement_units.hpp"
@@ -1790,6 +1792,239 @@ void MainWindow::duplicate_layers(std::vector<LayerId> ids) {
   refresh_layer_list();
   refresh_layer_controls();
   canvas_->document_changed();
+}
+
+namespace {
+
+// Union of the copied roots' movable extents (the opaque raster / text rect,
+// else the render bounds), descending into folders so a folder lands where its
+// children are.
+void unite_placement_bounds(const Layer& layer, std::optional<Rect>& bounds) {
+  if (layer.kind() == LayerKind::Group) {
+    for (const auto& child : layer.children()) {
+      unite_placement_bounds(child, bounds);
+    }
+    return;
+  }
+  auto extent = move_layer_outline_bounds(layer);
+  if (!extent.has_value() || extent->empty()) {
+    const auto render = layer_render_bounds(layer);
+    if (render.empty()) {
+      return;
+    }
+    extent = render;
+  }
+  bounds = bounds.has_value() ? unite_rect(*bounds, *extent) : *extent;
+}
+
+// Moves a copied subtree by (dx, dy) in its new document: bounds, the
+// text/vector/smart-object metadata the Move tool shifts too (linked masks ride
+// along inside translate_moved_layer_metadata), and unlinked raster and vector
+// masks, which a Move leaves behind but a copy carries as one unit.
+void offset_copied_layer_tree(Layer& layer, std::int32_t dx, std::int32_t dy, std::int32_t document_width,
+                              std::int32_t document_height) {
+  if (!layer.bounds().empty()) {
+    const auto bounds = layer.bounds();
+    layer.set_bounds(Rect{bounds.x + dx, bounds.y + dy, bounds.width, bounds.height});
+  }
+  const bool mask_linked = layer_mask_linked(std::as_const(layer));
+  translate_moved_layer_metadata(layer, dx, dy, document_width, document_height);
+  if (!mask_linked) {
+    if (auto& mask = layer.mask(); mask.has_value()) {
+      mask->bounds.x += dx;
+      mask->bounds.y += dy;
+    }
+  }
+  if (const auto* vector_mask = std::as_const(layer).vector_mask();
+      vector_mask != nullptr && vector_mask->unlinked) {
+    auto moved = *vector_mask;
+    translate_vector_path(moved.path, dx, dy);
+    moved.cache_bounds.x += dx;
+    moved.cache_bounds.y += dy;
+    layer.set_vector_mask_translated(std::move(moved));
+    mark_layer_vector_block_dirty(layer);
+  }
+  for (auto& child : layer.children()) {
+    offset_copied_layer_tree(child, dx, dy, document_width, document_height);
+  }
+}
+
+// The copied bakes were clipped to the source canvas; re-rasterize against the
+// target's (paste_svg_from_clipboard's rule).
+void rebake_vector_rasters(Layer& layer, Rect canvas, const PatternStore* patterns) {
+  for (auto& child : layer.children()) {
+    rebake_vector_rasters(child, canvas, patterns);
+  }
+  update_vector_shape_raster(layer, canvas, patterns);
+  update_vector_mask_raster(layer, canvas);
+}
+
+}  // namespace
+
+std::vector<LayerId> MainWindow::copy_layers_between_sessions(DocumentSession& source, std::vector<LayerId> ids,
+                                                              DocumentSession& target,
+                                                              const CrossDocumentLayerPlacement& placement,
+                                                              const std::function<bool()>& before_mutation,
+                                                              QString* error) {
+  const auto fail = [error](const QString& message) {
+    if (error != nullptr) {
+      *error = message;
+    }
+    return std::vector<LayerId>{};
+  };
+  if (&source == &target) {
+    return fail(tr("Choose a different document to copy the layers into"));
+  }
+  const auto& source_document = std::as_const(source.document);
+  ids = root_drop_layer_ids(source_document.layers(), ids);
+  const auto roots = find_layers_top_to_bottom(source_document.layers(), ids);
+  if (roots.empty()) {
+    return fail(tr("Select a layer to copy"));
+  }
+
+  // The payload Edit > Copy builds: the layers plus every document-scoped
+  // resource they reference, adopted into the target below.
+  ClipboardPayload payload;
+  payload.layers_top_to_bottom.reserve(roots.size());
+  for (const auto* layer : roots) {
+    payload.layers_top_to_bottom.push_back(*layer);
+    collect_referenced_smart_object_sources(*layer, source_document.metadata().smart_objects,
+                                            payload.smart_object_sources);
+    collect_referenced_smart_filter_records(*layer, source_document.metadata().smart_filter_effects,
+                                            payload.smart_filter_effect_records);
+    collect_referenced_pattern_resources(*layer, source_document.metadata().patterns, payload.pattern_resources);
+  }
+  auto& target_document = target.document;
+  const auto caches_available = std::all_of(
+      payload.layers_top_to_bottom.begin(), payload.layers_top_to_bottom.end(), [&](const Layer& layer) {
+        return smart_filter_records_available_for_clone(layer, target_document.metadata().smart_filter_effects,
+                                                        &payload.smart_filter_effect_records);
+      });
+  if (!caches_available) {
+    return fail(tr("Smart Filter cache data could not be duplicated safely"));
+  }
+  if (!before_mutation()) {
+    return {};
+  }
+
+  // Clone everything before inserting anything: there is no session-targeted
+  // undo to roll back a half-inserted stack in a background document.
+  std::set<std::string> existing_names;
+  collect_layer_names(target_document.layers(), existing_names);
+  std::vector<Layer> clones_bottom_to_top;
+  clones_bottom_to_top.reserve(payload.layers_top_to_bottom.size());
+  for (auto it = payload.layers_top_to_bottom.rbegin(); it != payload.layers_top_to_bottom.rend(); ++it) {
+    auto clone = clone_layer_tree_with_document_ids(target_document, *it, &payload.smart_filter_effect_records);
+    if (!clone.has_value()) {
+      return fail(tr("Smart Filter cache data could not be duplicated safely"));
+    }
+    // Photoshop keeps the name on a cross-document copy; only a collision earns
+    // the copy suffix.
+    if (existing_names.contains(it->name())) {
+      clone->set_name(next_duplicate_name(it->name(), existing_names));
+    }
+    existing_names.insert(clone->name());
+    clones_bottom_to_top.push_back(std::move(*clone));
+  }
+  for (const auto& smart_source : payload.smart_object_sources) {
+    target_document.metadata().smart_objects.adopt(smart_source);
+  }
+  for (const auto& resource : payload.pattern_resources) {
+    PatternResource adopted = resource;
+    adopted.provenance = PatternProvenance::Authored;  // target file has no raw block for it
+    target_document.metadata().patterns.adopt(adopted);
+  }
+
+  // One shared offset keeps the set's relative layout: a canvas drop centers
+  // the set's extent on the drop point; keep-position is exact when the
+  // documents share dimensions and centers on the target canvas otherwise.
+  std::int32_t dx = 0;
+  std::int32_t dy = 0;
+  {
+    std::optional<Rect> extent;
+    for (const auto* layer : roots) {
+      unite_placement_bounds(*layer, extent);
+    }
+    const bool same_size = source_document.width() == target_document.width() &&
+                           source_document.height() == target_document.height();
+    if (extent.has_value() && !(placement.keep_source_position && same_size)) {
+      const auto center_x = placement.drop_document_point.has_value() ? placement.drop_document_point->x()
+                                                                        : target_document.width() / 2;
+      const auto center_y = placement.drop_document_point.has_value() ? placement.drop_document_point->y()
+                                                                        : target_document.height() / 2;
+      dx = center_x - (extent->x + extent->width / 2);
+      dy = center_y - (extent->y + extent->height / 2);
+    }
+  }
+  const auto target_canvas = Rect::from_size(target_document.width(), target_document.height());
+  for (auto& clone : clones_bottom_to_top) {
+    // A filtered Smart Object whose filters depend on position keeps its
+    // coordinates: its adopted cache would go stale under an offset.
+    if ((dx != 0 || dy != 0) && !move_layer_requires_smart_filter_rerender(std::as_const(clone))) {
+      offset_copied_layer_tree(clone, dx, dy, target_document.width(), target_document.height());
+    }
+    rebake_vector_rasters(clone, target_canvas, &std::as_const(target_document).metadata().patterns);
+  }
+
+  // Directly above the target's active layer, in source order, then the
+  // topmost copy becomes active.
+  std::optional<LayerId> anchor = target_document.active_layer_id();
+  if (anchor.has_value() && std::as_const(target_document).find_layer(*anchor) == nullptr) {
+    anchor.reset();
+  }
+  std::vector<LayerId> root_ids_top_to_bottom;
+  root_ids_top_to_bottom.reserve(clones_bottom_to_top.size());
+  for (auto& clone : clones_bottom_to_top) {
+    const auto id = clone.id();
+    insert_layer_after_anchor(target_document, std::move(clone), anchor);
+    anchor = id;
+    root_ids_top_to_bottom.insert(root_ids_top_to_bottom.begin(), id);
+  }
+  target_document.set_active_layer(root_ids_top_to_bottom.front());
+  return root_ids_top_to_bottom;
+}
+
+bool MainWindow::duplicate_layers_to_session(std::int64_t source_session_id, std::vector<LayerId> ids,
+                                             std::int64_t target_session_id,
+                                             CrossDocumentLayerPlacement placement) {
+  auto* source = session_with_id(source_session_id);
+  auto* target = session_with_id(target_session_id);
+  if (source == nullptr || target == nullptr || source == target) {
+    return false;  // a document closed mid-drag
+  }
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return false;
+  }
+  if (source == active_session() && canvas_ != nullptr) {
+    // A pending transform or inline text edit belongs in the source before it
+    // is read.
+    canvas_->finish_free_transform();
+    finish_active_text_editor();
+  }
+  QString error;
+  const auto root_ids = copy_layers_between_sessions(
+      *source, std::move(ids), *target, placement,
+      [this, target] {
+        push_undo_snapshot(*target, tr("Duplicate layer"));
+        return true;
+      },
+      &error);
+  if (root_ids.empty()) {
+    if (!error.isEmpty()) {
+      show_status_error(error);
+    }
+    return false;
+  }
+  if (target->canvas != nullptr) {
+    target->canvas->document_changed();
+  }
+  const auto count = root_ids.size();
+  const auto target_title = target->title;
+  activate_document_session(*target);
+  select_layers_in_layer_list(root_ids, root_ids.front());
+  statusBar()->showMessage(tr("Copied %1 layer(s) to %2").arg(static_cast<qulonglong>(count)).arg(target_title));
+  return true;
 }
 
 void MainWindow::rename_active_layer() {

@@ -542,6 +542,14 @@ void send_layer_drop(QListWidget& list, QPoint position, const std::vector<patch
 
 void send_layer_button_drop(QWidget& button, const std::vector<patchy::LayerId>& ids);
 
+// A Layers-panel drag dropped on `target` (another document's canvas or the tab
+// bar): both mime formats, Enter, Move, Drop, then two event pumps so the
+// deferred copy runs. `entered` reports whether the DragEnter was accepted; the
+// Drop is sent regardless so a refusing target proves it ignores it too.
+void send_layer_drop_to_widget(QWidget& target, QPoint position, const std::vector<patchy::LayerId>& ids,
+                               std::optional<std::int64_t> source_session_id,
+                               Qt::KeyboardModifiers modifiers = Qt::NoModifier, bool* entered = nullptr);
+
 QAction* require_action(QWidget& root, const char* object_name);
 
 QAction* require_hotkey_action(patchy::ui::MainWindow& window, const QString& id);

@@ -972,6 +972,72 @@ void ui_float_dock_highlight_tracks_drop_zone() {
   CHECK(!highlight->isVisible());
 }
 
+void ui_layer_drag_to_float_canvas_centers_at_drop_point() {
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  // Source: 64x48 with a 20x12 mark at (10, 8). Target: a larger floated document.
+  auto source = make_float_test_document(QColor(255, 255, 255));
+  patchy::Layer mark(source.allocate_layer_id(), "Mark",
+                     solid_pixels(20, 12, patchy::PixelFormat::rgba8(), QColor(200, 30, 30)));
+  mark.set_bounds(patchy::Rect{10, 8, 20, 12});
+  source.add_layer(std::move(mark));
+  window.add_document_session(std::move(source), QStringLiteral("Source"));
+  QApplication::processEvents();
+  auto* source_canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  const auto source_session = patchy::ui::MainWindowTestAccess::session_id_for_canvas(window, source_canvas);
+  auto* source_document = patchy::ui::MainWindowTestAccess::document_for_canvas(window, source_canvas);
+  CHECK(source_document != nullptr);
+  const auto mark_id = std::as_const(*source_document).layers().back().id();
+
+  window.add_document_session(make_float_test_document(QColor(20, 20, 20), 128, 96), QStringLiteral("Target"));
+  QApplication::processEvents();
+  auto* target_canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  require_action(window, "windowFloatDocumentAction")->trigger();
+  QApplication::processEvents();
+  CHECK(find_document_float_window(window) != nullptr);
+  auto* target_document = patchy::ui::MainWindowTestAccess::document_for_canvas(window, target_canvas);
+  CHECK(target_document != nullptr);
+
+  // Work in the source; the floated target is a background document.
+  patchy::ui::MainWindowTestAccess::activate_canvas(window, source_canvas);
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::canvas(window) == source_canvas);
+
+  // A plain drop centers the copy on the drop point and activates the target.
+  bool entered = false;
+  send_layer_drop_to_widget(*target_canvas, target_canvas->widget_position_for_document_point(QPoint(40, 30)),
+                            {mark_id}, source_session, Qt::NoModifier, &entered);
+  CHECK(entered);
+  CHECK(patchy::ui::MainWindowTestAccess::canvas(window) == target_canvas);
+  CHECK(std::as_const(*target_document).layers().size() == 2);
+  {
+    const auto& centered = std::as_const(*target_document).layers().back();
+    CHECK(centered.name() == "Mark");
+    CHECK(std::abs(centered.bounds().x - 30) <= 1);
+    CHECK(std::abs(centered.bounds().y - 24) <= 1);
+    CHECK(target_document->active_layer_id() == centered.id());
+  }
+  CHECK(patchy::ui::MainWindowTestAccess::undo_depth_for_canvas(window, target_canvas) == 1);
+  CHECK(patchy::ui::MainWindowTestAccess::undo_depth_for_canvas(window, source_canvas) == 0);
+  CHECK(std::as_const(*source_document).layers().size() == 2);
+
+  // Shift keeps the source position; the sizes differ, so the copy centers on
+  // the target canvas instead, above the previous copy.
+  patchy::ui::MainWindowTestAccess::activate_canvas(window, source_canvas);
+  QApplication::processEvents();
+  send_layer_drop_to_widget(*target_canvas, target_canvas->widget_position_for_document_point(QPoint(5, 5)),
+                            {mark_id}, source_session, Qt::ShiftModifier, &entered);
+  CHECK(entered);
+  CHECK(std::as_const(*target_document).layers().size() == 3);
+  {
+    const auto& canvas_centered = std::as_const(*target_document).layers().back();
+    CHECK(canvas_centered.name() == "Mark copy");
+    CHECK(canvas_centered.bounds().x == 54);
+    CHECK(canvas_centered.bounds().y == 42);
+  }
+  CHECK(patchy::ui::MainWindowTestAccess::undo_depth_for_canvas(window, target_canvas) == 2);
+}
+
 void ui_float_window_accepts_file_drop() {
   ensure_artifact_dir();
   const auto image_path = std::filesystem::absolute(std::filesystem::path("test-artifacts") / "float-drop.png");
@@ -1033,6 +1099,7 @@ std::vector<patchy::test::TestCase> float_window_tests() {
       {"ui_float_window_smart_object_child_commits_to_parent",
        ui_float_window_smart_object_child_commits_to_parent},
       {"ui_float_window_accepts_file_drop", ui_float_window_accepts_file_drop},
+      {"ui_layer_drag_to_float_canvas_centers_at_drop_point", ui_layer_drag_to_float_canvas_centers_at_drop_point},
       {"ui_window_float_all_tile_and_cascade", ui_window_float_all_tile_and_cascade},
       {"ui_tab_drag_out_tears_off_document", ui_tab_drag_out_tears_off_document},
       {"ui_float_drag_over_tab_bar_docks", ui_float_drag_over_tab_bar_docks},

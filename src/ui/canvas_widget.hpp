@@ -904,6 +904,11 @@ public:
   [[nodiscard]] bool has_selection() const noexcept;
   [[nodiscard]] bool selection_contains(QPoint point) const noexcept;
   [[nodiscard]] QPoint widget_position_for_document_point(QPoint document_position) const;
+  // The document pixel under a widget-local point, for drop handlers outside
+  // the widget (document_position itself stays private).
+  [[nodiscard]] QPoint document_point_for_widget_position(QPoint widget_position) const {
+    return document_position(widget_position);
+  }
   void set_before_edit_callback(std::function<void(QString)> callback);
   // Invoked when a selection-only edit completes and actually changed the
   // selection, so the host can push an undo entry holding the pre-edit state.
