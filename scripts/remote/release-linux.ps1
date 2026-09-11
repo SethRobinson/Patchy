@@ -22,6 +22,10 @@ $remoteHost = 'glados@glados.local'
 # newest-file upload script to pick up by accident (the remote side does the same).
 $repoRoot = (git rev-parse --show-toplevel).Trim()
 Remove-Item (Join-Path $repoRoot 'build\package\Patchy-*.flatpak') -Force -ErrorAction SilentlyContinue
+# The upload script's staging copy of the PREVIOUS version must go too: it carries the
+# final published name, so a stale one sitting beside a fresh versioned bundle reads as the
+# release being ready when it is not (Seth, September 2026).
+Remove-Item (Join-Path $repoRoot 'build\package\PatchyLinux.flatpak') -Force -ErrorAction SilentlyContinue
 
 & "$PSScriptRoot\remote-build.ps1" -Target linux -SkipTests
 if ($LASTEXITCODE -ne 0) { throw 'remote linux build failed' }

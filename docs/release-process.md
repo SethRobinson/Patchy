@@ -53,6 +53,8 @@ wasm core suite.
 
 Build order matters: finalize the README first (the Windows zip/installer embed a copy), then `scripts\release\release-all.bat` (four consoles: local Windows and wasm builds plus remote mac/linux; every builder deletes its previous artifacts up front so a failed build can never leave stale files for the upload scripts), then `scripts\release\upload-to-rtsoft.bat`.
 
+`build\package` must never hold a previous version's files once a new build starts (Seth, September 2026). The mac and Linux builders write versioned artifacts (`Patchy-<version>.dmg`, `Patchy-<version>.flatpak`); the upload scripts copy the newest one over the published names `PatchyMacOS.dmg` and `PatchyLinux.flatpak` and upload that copy, so those unversioned files are upload staging copies of whatever shipped LAST. `release-mac.ps1` and `release-linux.ps1` delete them along with the old versioned artifacts, and the Windows packager deletes its own final-named outputs before rebuilding. An agent that builds packages by hand must do the same delete before reporting the folder as release-ready.
+
 ## A bad build must not be able to ship quietly
 
 Two failure modes used to look exactly like success, both found in September 2026 while publishing a macOS-only release. Do not reintroduce either shape.
