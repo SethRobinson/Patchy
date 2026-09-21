@@ -42,8 +42,12 @@
 #include <QMetaObject>
 #include <QScopeGuard>
 #include <QScopedValueRollback>
+#include <QScreen>
+#include <QSet>
+#include <QShowEvent>
 #include <QSize>
 #include <QString>
+#include <QTabletEvent>
 #include <QTimerEvent>
 #include <QWheelEvent>
 #include <QWidget>
@@ -334,6 +338,11 @@ bool CanvasWidget::event(QEvent* event) {
     notify_view_changed();
     return handled;
   }
+#ifdef PATCHY_GPU_CANVAS
+  if (event->type() == QEvent::UpdateRequest && canvas_render_backend_ == CanvasRenderBackend::OpenGL) {
+    request_gpu_canvas_update(QRegion(rect()));
+  }
+#endif
   if (event->type() == QEvent::ShortcutOverride) {
     if (processing_render_wait_active_) {
       // A blocking processing wait is live and the canvas has focus (every
@@ -381,11 +390,7 @@ bool CanvasWidget::event(QEvent* event) {
       return true;
     }
   }
-#ifdef PATCHY_GPU_CANVAS
-  return QOpenGLWidget::event(event);
-#else
   return QWidget::event(event);
-#endif
 }
 
 bool CanvasWidget::wheel_event_is_continuous_scroll(const QWheelEvent& event) noexcept {
@@ -542,10 +547,9 @@ void CanvasWidget::wheelEvent(QWheelEvent* event) {
 }
 
 void CanvasWidget::resizeEvent(QResizeEvent* event) {
-#ifdef PATCHY_GPU_CANVAS
-  QOpenGLWidget::resizeEvent(event);
-#else
   QWidget::resizeEvent(event);
+#ifdef PATCHY_GPU_CANVAS
+  resize_gpu_canvas_surface();
 #endif
   // A maximized window, a dock opening or closing and a resized float window all re-anchor
   // the view (GitHub issue 241). Hidden tabs too, so they show centered when chosen. Only
@@ -564,6 +568,13 @@ void CanvasWidget::resizeEvent(QResizeEvent* event) {
   // Bar geometry and page step track the viewport even when pan was unchanged
   // (idempotent when notify_view_changed already synced above).
   sync_scroll_bars();
+}
+
+void CanvasWidget::showEvent(QShowEvent* event) {
+  QWidget::showEvent(event);
+#ifdef PATCHY_GPU_CANVAS
+  show_gpu_canvas();
+#endif
 }
 
 void CanvasWidget::mousePressEvent(QMouseEvent* event) {
