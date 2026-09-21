@@ -6378,10 +6378,12 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     resize(1280, 860);
     clamp_window_to_available_screen();
   }
-  setStyleSheet(photoshop_style());
+  setStyleSheet(window_style());
   // Connected after the first sheet is applied: connecting earlier would let a
   // scheme change restyle a half-built window.
   connect(&ThemeManager::instance(), &ThemeManager::color_scheme_changed, this,
+          [this] { apply_color_scheme(); });
+  connect(&ThemeManager::instance(), &ThemeManager::window_appearance_changed, this,
           [this] { apply_color_scheme(); });
   ensure_native_resizable_frame();
   mask_edit_mode_chip_ = new QToolButton(statusBar());

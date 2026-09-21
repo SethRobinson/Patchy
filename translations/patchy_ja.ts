@@ -12302,6 +12302,18 @@ RGB: -
         <translation>配色:</translation>
     </message>
     <message>
+        <source>Window appearance:</source>
+        <translation>ウィンドウの外観:</translation>
+    </message>
+    <message>
+        <source>Photoshop</source>
+        <translation>Photoshop</translation>
+    </message>
+    <message>
+        <source>Compositor</source>
+        <translation>Compositor</translation>
+    </message>
+    <message>
         <source>Follow system</source>
         <translation>システム設定に従う</translation>
     </message>

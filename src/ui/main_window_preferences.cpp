@@ -492,6 +492,32 @@ void MainWindow::show_preferences() {
     }
   });
 
+  // Window appearance: Compositor (native macOS look) vs Photoshop (historical).
+  // Presentation only; the Compositor skin layers a token-only QSS delta over the
+  // same Dark/Light palettes and never touches core or documents.
+  auto* appearance_combo = new QComboBox(application_group);
+  appearance_combo->setObjectName(QStringLiteral("preferencesWindowAppearanceCombo"));
+  appearance_combo->addItem(tr("Photoshop"),
+                            window_appearance_preference_to_token(WindowAppearancePreference::Photoshop));
+  appearance_combo->addItem(tr("Compositor"),
+                            window_appearance_preference_to_token(WindowAppearancePreference::Compositor));
+  const auto entry_appearance = ThemeManager::instance().window_appearance_preference();
+  const auto appearance_index =
+      appearance_combo->findData(window_appearance_preference_to_token(entry_appearance));
+  appearance_combo->setCurrentIndex(appearance_index >= 0 ? appearance_index : 0);
+  application_form->addRow(tr("Window appearance:"), appearance_combo);
+  bool appearance_committed = false;
+  const auto restore_appearance = qScopeGuard([entry_appearance, &appearance_committed] {
+    if (!appearance_committed) {
+      ThemeManager::instance().set_appearance(entry_appearance, /*persist=*/false);
+    }
+  });
+  connect(appearance_combo, &QComboBox::currentIndexChanged, &dialog, [appearance_combo] {
+    ThemeManager::instance().set_appearance(
+        window_appearance_preference_from_token(appearance_combo->currentData().toString()),
+        /*persist=*/false);
+  });
+
   auto* gui_scale_combo = new QComboBox(application_group);
   gui_scale_combo->setObjectName(QStringLiteral("preferencesGuiScaleCombo"));
   for (const int percent : kGuiScalePercents) {
@@ -1076,6 +1102,10 @@ void MainWindow::show_preferences() {
         color_scheme_preference_from_token(color_scheme_combo->currentData().toString()),
         /*persist=*/true);
     color_scheme_committed = true;
+    ThemeManager::instance().set_appearance(
+        window_appearance_preference_from_token(appearance_combo->currentData().toString()),
+        /*persist=*/true);
+    appearance_committed = true;
     const auto new_grid_spacing_32 =
         std::clamp(static_cast<int>(std::lround(grid_spacing_spin->value() * 32.0)), 1, 320000);
 #ifndef Q_OS_WASM

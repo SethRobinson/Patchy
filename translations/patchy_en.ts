@@ -15343,6 +15343,18 @@ Y: %2
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Window appearance:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Photoshop</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Compositor</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Interface scale:</source>
         <translation type="unfinished"></translation>
     </message>

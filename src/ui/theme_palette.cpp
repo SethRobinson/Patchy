@@ -25,6 +25,7 @@ namespace {
 
 ColorScheme g_active_scheme = ColorScheme::Dark;
 int g_generation = 0;
+WindowAppearance g_active_appearance = WindowAppearance::Photoshop;
 
 }  // namespace
 
@@ -108,6 +109,14 @@ const ThemePalette& dark_palette() {
       .checkbox_indicator_border = rgb(0x8a8a8a),
       .checkbox_accent_border = rgb(0x9ccfff),
       .accent = rgb(0x1473e6),
+      .compositor_accent = rgb(0x0086ff),
+      .compositor_field_bg = rgb(0x181818),
+      .compositor_canvas_backdrop = rgb(0x1b1b1b),
+      .compositor_selected_bg = rgb(0x0158d1),
+      .compositor_selected_chrome_bg = rgb(0x3e3e3e),
+      .compositor_selected_chrome_border = rgb(0x595959),
+      .compositor_primary_bg = rgb(0x007aff),
+      .compositor_button_bg = rgb(0x2d2d2d),
       .slider_groove_bg = rgb(0x1c1c1c),
       .slider_groove_border = rgb(0x555555),
       .slider_fill_border = rgb(0x5aa9ff),
@@ -525,6 +534,14 @@ const ThemePalette& light_palette() {
     // Brand and state colors carry meaning, so they hold their hue rather than
     // being pushed to a mid tone. The blue accent already reads on both.
     light.accent = rgb(0x1473e6);
+    light.compositor_accent = rgb(0x0086ff);
+    light.compositor_field_bg = rgb(0xe8e8e8);
+    light.compositor_canvas_backdrop = rgb(0xb0b0b0);
+    light.compositor_selected_bg = rgb(0x0a5cff);
+    light.compositor_selected_chrome_bg = rgb(0xdcdcdc);
+    light.compositor_selected_chrome_border = rgb(0xc0c0c0);
+    light.compositor_primary_bg = rgb(0x007aff);
+    light.compositor_button_bg = rgb(0xe4e4e4);
     light.window_close_hover_bg = rgb(0xc42b1c);
     light.window_close_pressed_bg = rgb(0x9f2117);
 
@@ -684,6 +701,16 @@ void set_active_color_scheme(ColorScheme scheme) {
 
 int theme_generation() { return g_generation; }
 
+WindowAppearance active_window_appearance() { return g_active_appearance; }
+
+void set_active_window_appearance(WindowAppearance appearance) {
+  if (appearance == g_active_appearance) {
+    return;
+  }
+  g_active_appearance = appearance;
+  ++g_generation;
+}
+
 std::span<const ThemePaletteRole> theme_palette_roles() {
 // The macro spells the role name from the member itself, so the token used in
 // QSS and the struct field can never drift apart.
@@ -758,6 +785,14 @@ std::span<const ThemePaletteRole> theme_palette_roles() {
       PATCHY_THEME_ROLE(checkbox_indicator_border),
       PATCHY_THEME_ROLE(checkbox_accent_border),
       PATCHY_THEME_ROLE(accent),
+      PATCHY_THEME_ROLE(compositor_accent),
+      PATCHY_THEME_ROLE(compositor_field_bg),
+      PATCHY_THEME_ROLE(compositor_canvas_backdrop),
+      PATCHY_THEME_ROLE(compositor_selected_bg),
+      PATCHY_THEME_ROLE(compositor_selected_chrome_bg),
+      PATCHY_THEME_ROLE(compositor_selected_chrome_border),
+      PATCHY_THEME_ROLE(compositor_primary_bg),
+      PATCHY_THEME_ROLE(compositor_button_bg),
       PATCHY_THEME_ROLE(slider_groove_bg),
       PATCHY_THEME_ROLE(slider_groove_border),
       PATCHY_THEME_ROLE(slider_fill_border),

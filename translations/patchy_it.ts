@@ -15385,6 +15385,18 @@ Y: %2
         <translation>Combinazione colori:</translation>
     </message>
     <message>
+        <source>Window appearance:</source>
+        <translation>Aspetto della finestra:</translation>
+    </message>
+    <message>
+        <source>Photoshop</source>
+        <translation>Photoshop</translation>
+    </message>
+    <message>
+        <source>Compositor</source>
+        <translation>Compositor</translation>
+    </message>
+    <message>
         <source>Interface scale:</source>
         <translation>Scala dell&apos;interfaccia:</translation>
     </message>

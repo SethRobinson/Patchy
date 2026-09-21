@@ -15348,6 +15348,18 @@ Y：%2
         <translation>色彩配置:</translation>
     </message>
     <message>
+        <source>Window appearance:</source>
+        <translation>視窗外觀:</translation>
+    </message>
+    <message>
+        <source>Photoshop</source>
+        <translation>Photoshop</translation>
+    </message>
+    <message>
+        <source>Compositor</source>
+        <translation>Compositor</translation>
+    </message>
+    <message>
         <source>Interface scale:</source>
         <translation>介面縮放:</translation>
     </message>

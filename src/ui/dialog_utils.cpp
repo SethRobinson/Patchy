@@ -419,7 +419,11 @@ void install_numeric_popup(SpinBox* spin) {
 }
 
 ThemedQss dialog_chrome_style() {
-  return ThemedQss(QStringLiteral(R"(
+  // In the Compositor appearance, dialogs read as one continuous surface: the
+  // title bar takes the window background and the top corners round the way
+  // native macOS panels do.
+  const bool compositor = active_window_appearance() == WindowAppearance::Compositor;
+  ThemedQss base = ThemedQss(QStringLiteral(R"(
     QDialog {
       background: @window_bg;
       color: @text_primary;
@@ -466,6 +470,21 @@ ThemedQss dialog_chrome_style() {
       max-width: 22px;
       min-height: 22px;
       max-height: 22px;
+    }
+  )"));
+  if (!compositor) {
+    return base;
+  }
+  // Compositor sheets: a single rounded surface, header merged into the body.
+  return base + ThemedQss(QStringLiteral(R"(
+    QDialog {
+      border-radius: 10px;
+    }
+    QWidget#dialogChromeTitleBar {
+      background: @window_bg;
+      border-bottom: 1px solid @window_border;
+      border-top-left-radius: 10px;
+      border-top-right-radius: 10px;
     }
   )"));
 }

@@ -26,6 +26,11 @@ namespace patchy::ui {
 
 enum class ColorScheme { Dark, Light };
 
+// Which window-appearance skin the chrome is drawn in. Compositor is the native
+// macOS look (flat surfaces, hairline borders, pill controls, SF Pro); Photoshop
+// is the historical look. Presentation only - never touches core or rendering.
+enum class WindowAppearance { Photoshop, Compositor };
+
 struct ThemePalette {
   // Base surfaces, text, and window frame.
   QColor window_bg;
@@ -115,6 +120,19 @@ struct ThemePalette {
   QColor checkbox_indicator_border;
   QColor checkbox_accent_border;
   QColor accent;
+  // Compositor-skin accent (macOS system blue); keeps the Photoshop accent pinned.
+  QColor compositor_accent;
+  // Compositor-skin wells, buttons and selection: exact reference-design hexes,
+  // scoped to the Compositor appearance; the Photoshop skin never paints them.
+  QColor compositor_field_bg;
+  // Compositor canvas pasteboard (darker than the window surface).
+  QColor compositor_canvas_backdrop;
+  QColor compositor_selected_bg;
+  // Selected tool-rail / lock-control chrome: a neutral raised chip.
+  QColor compositor_selected_chrome_bg;
+  QColor compositor_selected_chrome_border;
+  QColor compositor_primary_bg;
+  QColor compositor_button_bg;
   QColor slider_groove_bg;
   QColor slider_groove_border;
   QColor slider_fill_border;
@@ -455,6 +473,10 @@ struct ThemePalette {
 [[nodiscard]] const ThemePalette& theme();
 [[nodiscard]] ColorScheme active_color_scheme();
 void set_active_color_scheme(ColorScheme scheme);
+
+// The currently-applied window appearance; MainWindow reads it when choosing a sheet.
+[[nodiscard]] WindowAppearance active_window_appearance();
+void set_active_window_appearance(WindowAppearance appearance);
 
 // Bumped on every actual scheme change. Caches derived from theme() key on this;
 // Qt sends no event for a palette-struct change, so a cache that ignores it goes

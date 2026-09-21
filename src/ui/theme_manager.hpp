@@ -29,6 +29,11 @@ enum class ColorSchemePreference { FollowSystem, Dark, Light };
 [[nodiscard]] QString color_scheme_preference_to_token(ColorSchemePreference preference);
 [[nodiscard]] ColorSchemePreference color_scheme_preference_from_token(const QString& token);
 
+// Persisted identifiers: "photoshop", "compositor". Never rename or re-spell.
+enum class WindowAppearancePreference { Photoshop, Compositor };
+[[nodiscard]] QString window_appearance_preference_to_token(WindowAppearancePreference preference);
+[[nodiscard]] WindowAppearancePreference window_appearance_preference_from_token(const QString& token);
+
 class ThemeManager : public QObject {
   Q_OBJECT
 
@@ -44,6 +49,9 @@ class ThemeManager : public QObject {
   // the Preferences combo shows a choice before the dialog is accepted.
   void set_preference(ColorSchemePreference preference, bool persist);
 
+  [[nodiscard]] WindowAppearancePreference window_appearance_preference() const { return appearance_preference_; }
+  void set_appearance(WindowAppearancePreference preference, bool persist);
+
   // Reads the saved preference and applies it. Called once at startup, after
   // QSettings::setPath so PATCHY_SETTINGS_DIR isolation holds.
   void load_saved_preference();
@@ -56,6 +64,8 @@ class ThemeManager : public QObject {
  signals:
   // Emitted only when the resolved scheme actually moves.
   void color_scheme_changed(ColorScheme scheme);
+  // Emitted when the window-appearance skin moves, so MainWindow can restyle.
+  void window_appearance_changed(WindowAppearancePreference preference);
 
  private:
   ThemeManager();
@@ -65,6 +75,7 @@ class ThemeManager : public QObject {
   void apply_resolved_scheme();
 
   ColorSchemePreference preference_ = ColorSchemePreference::FollowSystem;
+  WindowAppearancePreference appearance_preference_ = WindowAppearancePreference::Photoshop;
   std::optional<Qt::ColorScheme> system_scheme_override_;
 };
 

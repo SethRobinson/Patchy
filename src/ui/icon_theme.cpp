@@ -1,4 +1,5 @@
 #include "ui/icon_theme.hpp"
+#include "ui/theme_palette.hpp"
 
 #include <QApplication>
 #include <QFile>
@@ -175,11 +176,20 @@ QByteArray themed_icon_svg(const QString& name) {
   }
   auto svg = file.readAll();
   const auto& palette = theme();
+  // In the Compositor appearance the tool rail and panel buttons are
+  // single-color (SF-Symbol-like): collapse every accent in the authored
+  // ten-color vocabulary onto the theme's icon ink, so painted glyphs follow
+  // the active appearance without touching any icon assets.
+  const bool monochrome = active_window_appearance() == WindowAppearance::Compositor;
   for (const auto& [source, member] : icon_color_roles()) {
     // Authored icons write hex in lowercase; ui_icon_color_map_covers_every_authored_color
     // enforces that so this stays a plain byte replace.
     const QByteArray needle(source.data(), source.size());
-    const auto replacement = (palette.*member).name(QColor::HexRgb).toLatin1();
+    const auto replacement =
+        (monochrome && member != &ThemePalette::icon_surface ? palette.icon_ink
+                                                            : (palette.*member))
+            .name(QColor::HexRgb)
+            .toLatin1();
     if (replacement != needle) {
       svg.replace(needle, replacement);
     }

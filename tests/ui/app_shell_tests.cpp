@@ -1894,6 +1894,39 @@ void ui_color_scheme_preference_persists_setting() {
   CHECK(find_top_level_dialog(QStringLiteral("preferencesInterfaceScaleMessageBox")) == nullptr);
 }
 
+// The Compositor skin is opt-in, so this pins that selecting it actually reaches
+// the applied sheet with its documented colors, and that the resolved rows it
+// repaints on purpose (the layer selection) use the skin's blue.
+void ui_compositor_appearance_styles_the_chrome() {
+  const auto entry_appearance = patchy::ui::active_window_appearance();
+  ColorSchemeRestorer restore_active;
+  struct AppearanceRestorer {
+    patchy::ui::WindowAppearance entry;
+    ~AppearanceRestorer() { patchy::ui::set_active_window_appearance(entry); }
+  } restore_appearance{entry_appearance};
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto photoshop_sheet = window.styleSheet();
+
+  patchy::ui::set_active_window_appearance(patchy::ui::WindowAppearance::Compositor);
+  window.setStyleSheet(patchy::ui::window_style());
+  QApplication::processEvents();
+  const auto compositor_sheet = window.styleSheet();
+
+  CHECK(compositor_sheet != photoshop_sheet);
+  const auto& palette = patchy::ui::theme();
+  CHECK(compositor_sheet.contains(palette.compositor_accent.name(QColor::HexRgb)));
+  CHECK(compositor_sheet.contains(palette.compositor_selected_bg.name(QColor::HexRgb)));
+  CHECK(compositor_sheet.contains(palette.compositor_field_bg.name(QColor::HexRgb)));
+  // compositor_canvas_backdrop is painted by the canvas, not by the sheet.
+  CHECK(palette.compositor_canvas_backdrop.isValid());
+  CHECK(compositor_sheet.contains(palette.compositor_selected_chrome_bg.name(QColor::HexRgb)));
+  // The skin collapses the layer rows onto its own selection color, which is the
+  // one Photoshop chrome value it deliberately replaces while active.
+  CHECK(compositor_sheet.contains(QStringLiteral("layerRowSelected")));
+}
+
 void ui_color_scheme_cancel_restores_entry_scheme() {
   SettingsValueRestorer restore_scheme(QStringLiteral("preferences/colorScheme"));
   ColorSchemeRestorer restore_active;
@@ -3779,6 +3812,18 @@ void ui_theme_qss_resolves_every_token() {
     CHECK(!style.contains(QLatin1Char('@')));
   }
 
+  // The Compositor skin is off by default, so its sheet is resolved explicitly:
+  // a survivor token there would also drop whole declarations silently.
+  const auto entry_appearance = patchy::ui::active_window_appearance();
+  patchy::ui::set_active_window_appearance(patchy::ui::WindowAppearance::Compositor);
+  for (const auto scheme : {patchy::ui::ColorScheme::Dark, patchy::ui::ColorScheme::Light}) {
+    patchy::ui::set_active_color_scheme(scheme);
+    const auto compositor = patchy::ui::window_style();
+    CHECK(!compositor.isEmpty());
+    CHECK(!compositor.contains(QLatin1Char('@')));
+  }
+  patchy::ui::set_active_window_appearance(entry_appearance);
+
   patchy::ui::set_active_color_scheme(entry_scheme);
 
   // The template is the thing that must stay token-only: a hex literal added
@@ -3931,6 +3976,8 @@ std::vector<patchy::test::TestCase> app_shell_tests() {
       {"ui_light_scheme_about_dialog_reads_as_a_light_surface",
        ui_light_scheme_about_dialog_reads_as_a_light_surface},
       {"ui_theme_qss_resolves_every_token", ui_theme_qss_resolves_every_token},
+      {"ui_compositor_appearance_styles_the_chrome",
+       ui_compositor_appearance_styles_the_chrome},
       {"ui_status_bar_error_message_flashes_then_persists_until_replaced",
        ui_status_bar_error_message_flashes_then_persists_until_replaced},
       {"ui_blocking_refusal_shows_error_status_and_info_clears_it",

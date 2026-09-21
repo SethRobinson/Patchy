@@ -1107,6 +1107,22 @@ QPixmap layer_content_thumbnail(const Layer& layer, int document_width, int docu
     QPainter painter(&pixmap);
     painter.setRenderHint(QPainter::Antialiasing);
 
+    // Compositor paints panel iconography monochrome: the folder keeps its
+    // silhouette but drops the two-tone gold for shades of the theme's icon ink.
+    const bool monochrome = active_window_appearance() == WindowAppearance::Compositor;
+    const QColor ink = theme().icon_ink;
+    const auto ink_alpha = [&ink](int alpha) {
+      return QColor(ink.red(), ink.green(), ink.blue(), alpha);
+    };
+    const QColor back_top = monochrome ? ink_alpha(150) : QColor(255, 218, 105);
+    const QColor back_bottom = monochrome ? ink_alpha(110) : QColor(190, 128, 32);
+    const QColor face_fill = monochrome ? ink_alpha(235) : QColor(246, 200, 84);
+    const QColor face_top = monochrome ? ink_alpha(70) : QColor(104, 76, 31);
+    const QColor face_bottom = monochrome ? ink_alpha(45) : QColor(56, 46, 29);
+    const QColor face_highlight = monochrome ? ink_alpha(150) : QColor(255, 233, 132);
+    const QColor edge_back = monochrome ? ink_alpha(165) : QColor(255, 223, 108);
+    const QColor edge_face = monochrome ? ink_alpha(165) : QColor(255, 231, 132);
+
     QPainterPath shadow;
     shadow.moveTo(4.6, 23.2);
     shadow.lineTo(4.6, 9.2);
@@ -1132,8 +1148,8 @@ QPixmap layer_content_thumbnail(const Layer& layer, int document_width, int docu
     back.lineTo(24.2, 22.6);
     back.closeSubpath();
     QLinearGradient back_gradient(QPointF(5.0, 5.0), QPointF(24.0, 22.0));
-    back_gradient.setColorAt(0.0, QColor(255, 218, 105));
-    back_gradient.setColorAt(1.0, QColor(190, 128, 32));
+    back_gradient.setColorAt(0.0, back_top);
+    back_gradient.setColorAt(1.0, back_bottom);
     painter.setBrush(back_gradient);
     painter.drawPath(back);
 
@@ -1145,7 +1161,7 @@ QPixmap layer_content_thumbnail(const Layer& layer, int document_width, int docu
     front_outline.lineTo(5.4, 24.6);
     front_outline.quadTo(4.2, 24.6, 3.9, 23.3);
     front_outline.closeSubpath();
-    painter.setBrush(QColor(246, 200, 84));
+    painter.setBrush(face_fill);
     painter.drawPath(front_outline);
 
     QPainterPath front;
@@ -1155,15 +1171,15 @@ QPixmap layer_content_thumbnail(const Layer& layer, int document_width, int docu
     front.lineTo(6.3, 22.3);
     front.closeSubpath();
     QLinearGradient front_gradient(QPointF(5.0, 14.0), QPointF(23.0, 23.0));
-    front_gradient.setColorAt(0.0, QColor(104, 76, 31));
-    front_gradient.setColorAt(1.0, QColor(56, 46, 29));
+    front_gradient.setColorAt(0.0, face_top);
+    front_gradient.setColorAt(1.0, face_bottom);
     painter.setBrush(front_gradient);
     painter.drawPath(front);
 
-    painter.fillRect(QRectF(6.0, 14.6, 17.1, 1.0), QColor(255, 233, 132));
-    painter.setPen(QPen(QColor(255, 223, 108), 1.0));
+    painter.fillRect(QRectF(6.0, 14.6, 17.1, 1.0), face_highlight);
+    painter.setPen(QPen(edge_back, 1.0));
     painter.drawPath(back);
-    painter.setPen(QPen(QColor(255, 231, 132), 1.0));
+    painter.setPen(QPen(edge_face, 1.0));
     painter.drawPath(front_outline);
     return pixmap;
   }

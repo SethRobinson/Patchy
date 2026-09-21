@@ -67,6 +67,7 @@
 #include "ui/sprite_sheet_dialog.hpp"
 #include "ui/start_panel.hpp"
 #include "ui/theme_qss.hpp"
+#include "ui/theme_palette.hpp"
 #include "ui/tile_preview_window.hpp"
 #include "ui/warp_text_dialog.hpp"
 #include "ui/qt_geometry.hpp"
@@ -1133,6 +1134,680 @@ QString photoshop_style_template() {
 
 }  // namespace
 
+static QString compositor_style_template() {
+  /* Native-macOS / Compositor chrome delta: flat unified surfaces, hairline
+     borders instead of bevels, pill controls, macOS sliders and checkboxes,
+     overlay scroll bars, SF Pro font stack. Token-only; adapts to both schemes. */
+  QString sheet = QStringLiteral(R"(
+        /* ---------- Typography ---------- */
+        QMainWindow, QMenuBar, QMenu, QDockWidget, QWidget, QDialog {
+          font-family: "__PATCHY_UI_FONT__";
+          font-size: 13px;
+        }
+        QWidget#layersDockTitle QLabel, QWidget#channelsDockTitle QLabel,
+        QWidget#historyDockTitle QLabel, QWidget#pathsDockTitle QLabel,
+        QWidget#propertiesDockTitle QLabel, QWidget#infoDockTitle QLabel,
+        QWidget#paletteDockTitle QLabel {
+          font-weight: 600;
+          letter-spacing: 0.2px;
+        }
+
+        /* ---------- Flat window + unified top chrome ---------- */
+        QMainWindow, QDockWidget, QDialog { border: 0; }
+        QMenuBar {
+          background: @window_bg;
+          color: @text_bright;
+          border-bottom: 1px solid @window_border;
+          min-height: 36px;
+          max-height: 36px;
+          padding-left: 12px;
+        }
+        QMenuBar::item {
+          background: transparent;
+          border-radius: 5px;
+          padding: 4px 10px;
+          margin: 4px 1px;
+        }
+        QMenuBar::item:selected {
+          background: @button_hover_bg;
+          color: @text_bright;
+        }
+        QMenu {
+          background: @menu_bg;
+          border: 1px solid @menu_border;
+          border-radius: 8px;
+          padding: 5px 0;
+        }
+        QMenu::item { padding: 5px 30px 5px 24px; }
+        QMenu::item:selected {
+          background: @menu_item_selected_bg;
+          color: @text_on_accent;
+        }
+        QMenu::separator { margin: 5px 12px; }
+
+        /* ---------- Tool rail: flat, breathing room, pill buttons ---------- */
+        QToolBar#toolPalette {
+          background: @window_bg;
+          border: 0;
+          border-right: 1px solid @window_border;
+          padding: 6px 5px;
+          spacing: 2px;
+        }
+        QToolBar#toolPalette QToolButton {
+          background: transparent;
+          border: 0;
+          border-radius: 7px;
+          min-width: 30px;
+          max-width: 30px;
+          min-height: 28px;
+          max-height: 28px;
+          padding: 0;
+        }
+        QToolBar#toolPalette QToolButton:hover {
+          background: @button_hover_bg;
+          border: 0;
+        }
+        QToolBar#toolPalette QToolButton:checked {
+          background: @compositor_selected_chrome_bg;
+          border: 1px solid @compositor_selected_chrome_border;
+          border-radius: 7px;
+        }
+        QToolBar#toolPalette::separator {
+          background: @window_border;
+          height: 1px;
+          margin: 5px 9px;
+        }
+        QWidget#toolPaletteSpacer { background: @window_bg; }
+
+        /* ---------- Options bar: one flat strip ---------- */
+        QToolBar#Options {
+          background: @window_bg;
+          border: 0;
+          border-bottom: 1px solid @window_border;
+          min-height: 42px;
+          spacing: 7px;
+          padding: 5px 12px;
+        }
+        QToolBar#Options::separator {
+          background: @window_border;
+          width: 1px;
+          margin: 7px 4px;
+        }
+        QToolBar#Options QLabel {
+          color: @text_secondary;
+          background: transparent;
+          border: 0;
+          padding: 0 2px;
+        }
+        QToolBar#Options QToolButton {
+          background: transparent;
+          border: 0;
+          border-radius: 6px;
+          padding: 4px;
+        }
+        QToolBar#Options QToolButton:hover { background: @button_hover_bg; }
+        QToolBar#Options QToolButton:checked {
+          background: @compositor_accent;
+          border: 0;
+        }
+        QToolBar#Options QToolButton[optionsBarButton="true"] {
+          background: @field_bg;
+          border: 1px solid @window_border;
+          border-radius: 6px;
+          min-height: 22px;
+          padding: 2px 8px;
+        }
+        QToolBar#Options QToolButton[optionsBarButton="true"]:hover {
+          background: @button_hover_bg;
+          border-color: @field_border;
+        }
+        QToolBar#Options QToolButton[optionsBarButton="true"]:checked {
+          background: @compositor_accent;
+          border-color: @compositor_accent;
+        }
+
+
+        /* ---------- Fields: rounded, hairline, no bevel ---------- */
+        QSpinBox, QDoubleSpinBox, QComboBox, QFontComboBox, QLineEdit, QTextEdit {
+          background: @field_bg_large;
+          border: 1px solid @field_border;
+          border-radius: 6px;
+          padding: 2px 7px;
+          min-height: 20px;
+        }
+        QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus, QLineEdit:focus,
+        QTextEdit:focus { border-color: @compositor_accent; }
+        QSpinBox:disabled, QDoubleSpinBox:disabled, QComboBox:disabled,
+        QLineEdit:disabled, QTextEdit:disabled {
+          background: @field_bg_disabled;
+          color: @field_text_disabled;
+          border-color: @field_border_disabled;
+        }
+        QSpinBox::up-button, QSpinBox::down-button, QDoubleSpinBox::up-button,
+        QDoubleSpinBox::down-button {
+          background: transparent;
+          border: 0;
+          width: 14px;
+        }
+        QSpinBox::up-button:hover, QSpinBox::down-button:hover,
+        QDoubleSpinBox::up-button:hover, QDoubleSpinBox::down-button:hover {
+          background: @button_hover_bg;
+          border-radius: 4px;
+        }
+        QComboBox::drop-down { border: 0; width: 20px; }
+        QComboBox QAbstractItemView {
+          background: @popup_list_bg;
+          border: 1px solid @menu_border;
+          border-radius: 8px;
+          selection-background-color: @list_selection_bg;
+          selection-color: @list_selection_text;
+          outline: 0;
+          padding: 4px;
+        }
+        QListWidget, QTreeWidget {
+          background: @field_bg_large;
+          border: 1px solid @field_border;
+          border-radius: 8px;
+          padding: 3px;
+          outline: 0;
+        }
+        QListWidget::item {
+          border: 0;
+          border-radius: 6px;
+          min-height: 22px;
+          padding: 2px 6px;
+        }
+        QListWidget::item:selected {
+          background: @list_selection_bg;
+          color: @list_selection_text;
+          border: 0;
+        }
+        QListWidget::item:hover { background: @button_hover_bg; }
+
+        /* ---------- Buttons: filled pill, flat hover ---------- */
+        QPushButton {
+          background: @button_bg;
+          border: 1px solid @button_border;
+          border-radius: 7px;
+          padding: 4px 14px;
+          min-height: 20px;
+        }
+        QPushButton:hover {
+          background: @neutral_button_hover_bg;
+          border-color: @neutral_button_hover_border;
+        }
+        QPushButton:checked {
+          background: @compositor_accent;
+          border-color: @compositor_accent;
+          color: @text_on_accent;
+        }
+        QPushButton:default {
+          background: @compositor_accent;
+          border-color: @compositor_accent;
+          color: @text_on_accent;
+          font-weight: 600;
+        }
+        QToolBar#Options QPushButton {
+          background: @field_bg;
+          border: 1px solid @window_border;
+          border-radius: 6px;
+          padding: 3px 10px;
+          min-height: 22px;
+        }
+        QToolBar#Options QPushButton:checked {
+          background: @compositor_accent;
+          border-color: @compositor_accent;
+          color: @text_on_accent;
+        }
+
+        /* ---------- Checkbox: macOS rounded indicator ---------- */
+        QCheckBox { color: @text_bright; spacing: 7px; }
+        QCheckBox::indicator {
+          width: 16px;
+          height: 16px;
+          border-radius: 5px;
+          background: @checkbox_compact_bg;
+          border: 1px solid @checkbox_compact_border;
+        }
+        QCheckBox::indicator:hover { border-color: @checkbox_accent_border; }
+        QCheckBox::indicator:checked {
+          background: @compositor_accent;
+          border-color: @compositor_accent;
+          image: url(@icon(checkmark));
+        }
+
+        /* ---------- Slider: macOS track + round handle ---------- */
+        QSlider { min-height: 22px; }
+        QSlider::groove:horizontal {
+          height: 4px;
+          border: 0;
+          border-radius: 2px;
+          background: @slider_groove_bg;
+        }
+        QSlider::sub-page:horizontal {
+          background: @compositor_accent;
+          border: 0;
+          border-radius: 2px;
+        }
+        QSlider::handle:horizontal {
+          background: @slider_handle_bg;
+          border: 0;
+          width: 18px;
+          height: 18px;
+          margin: -7px 0;
+          border-radius: 9px;
+        }
+
+    /* ---------- Docks: flat title bars ---------- */
+        QDockWidget::title {
+          background: @window_bg;
+          padding: 8px 10px;
+          border: 0;
+          border-bottom: 1px solid @window_border;
+        }
+        QWidget#layersDockTitle, QWidget#channelsDockTitle, QWidget#historyDockTitle,
+        QWidget#pathsDockTitle, QWidget#propertiesDockTitle, QWidget#infoDockTitle,
+        QWidget#paletteDockTitle {
+          background: @window_bg;
+          border: 0;
+          border-bottom: 1px solid @window_border;
+        }
+        QMainWindow::separator {
+          background: @window_bg;
+          width: 4px;
+          height: 4px;
+        }
+        QMainWindow::separator:hover { background: @splitter_hover_bg; }
+
+        /* ---------- Tabs: soft rounded ---------- */
+        QTabBar { background: transparent; }
+        QTabBar::tab {
+          background: transparent;
+          border: 0;
+          border-radius: 6px;
+          padding: 5px 14px;
+          margin: 3px 2px 0 2px;
+          color: @text_secondary;
+        }
+        QTabBar::tab:hover {
+          background: @button_hover_bg;
+          color: @text_bright;
+        }
+        QTabBar::tab:selected {
+          background: @tab_selected_bg;
+          color: @text_bright;
+        }
+
+        /* ---------- Scroll bars: overlay style ---------- */
+        QScrollBar:vertical {
+          background: transparent;
+          width: 11px;
+          margin: 2px;
+        }
+        QScrollBar:horizontal {
+          background: transparent;
+          height: 11px;
+          margin: 2px;
+        }
+        QScrollBar::handle:vertical, QScrollBar::handle:horizontal {
+          background: @scrollbar_handle_bg;
+          border: 0;
+          border-radius: 4px;
+          min-height: 24px;
+          min-width: 24px;
+        }
+        QScrollBar::handle:vertical:hover, QScrollBar::handle:horizontal:hover {
+          background: @scrollbar_handle_hover_bg;
+        }
+        QScrollBar::add-line, QScrollBar::sub-line {
+          width: 0;
+          height: 0;
+          background: none;
+          border: none;
+        }
+        QScrollBar::add-page, QScrollBar::sub-page { background: transparent; }
+
+        /* ---------- Status bar: flat strip ---------- */
+        QStatusBar {
+          background: @window_bg;
+          color: @text_secondary;
+          border-top: 1px solid @window_border;
+        }
+        QLineEdit#statusZoomEdit {
+          background: @field_bg;
+          border: 1px solid @window_border;
+          border-radius: 5px;
+          padding: 1px 7px;
+        }
+
+        /* ---------- Assorted ---------- */
+        QProgressBar {
+          border: 0;
+          background: @field_bg;
+          border-radius: 4px;
+          text-align: center;
+          color: @text_bright;
+        }
+        QProgressBar::chunk {
+          background: @compositor_accent;
+          border-radius: 4px;
+        }
+        QToolTip {
+          background: @menu_bg;
+          color: @text_bright;
+          border: 1px solid @menu_border;
+          border-radius: 6px;
+          padding: 4px 8px;
+        }
+
+        /* ---------- De-bevel the remaining options-bar chips ---------- */
+        QToolBar#Options QLabel[optionLabel="true"] {
+          border: 1px solid @field_border;
+          border-right: 0;
+          border-top-left-radius: 6px;
+          border-bottom-left-radius: 6px;
+        }
+        QWidget#selectionFeatherGroup {
+          border: 1px solid @field_border;
+          border-radius: 6px;
+        }
+        QWidget#selectionFeatherGroup QLabel {
+          border: 0;
+          border-top-left-radius: 6px;
+          border-bottom-left-radius: 6px;
+        }
+        QToolBar#Options QCheckBox#selectionAntiAliasCheck {
+          border: 1px solid @field_border;
+          border-radius: 6px;
+        }
+        QToolBar#Options QComboBox, QToolBar#Options QFontComboBox,
+        QToolBar#Options QSpinBox, QToolBar#Options QDoubleSpinBox {
+          border: 1px solid @field_border;
+          border-radius: 6px;
+        }
+
+        /* ---------- Right panels read as one continuous dark surface ---------- */
+        QWidget#layersPanel, QWidget#channelPanel, QWidget#pathsPanel,
+        QWidget#infoPanel, QWidget#palettePanel, QWidget#propertiesPanel {
+          background: @window_bg;
+        }
+        QListWidget#layerList, QListWidget#channelList, QListWidget#pathsList,
+        QListWidget#historyList {
+          background: @window_bg;
+          border: 0;
+        }
+
+        /* ---------- Tab strips sit on the window surface ---------- */
+        QTabBar {
+          background: @window_bg;
+          border: 0;
+        }
+        QTabBar::tab {
+          background: transparent;
+          border: 1px solid transparent;
+          border-radius: 6px;
+          padding: 5px 14px;
+          margin: 4px 2px 0 2px;
+          color: @text_secondary;
+        }
+        QTabBar::tab:hover:!selected {
+          background: @button_hover_bg;
+          color: @text_bright;
+        }
+        QTabBar::tab:selected {
+          background: @tab_selected_bg;
+          color: @text_bright;
+          border: 1px solid @window_border;
+          border-bottom-color: @tab_selected_bg;
+        }
+        QTabWidget::pane {
+          border-top: 1px solid @window_border;
+        }
+
+        /* ---------- Compositor parity: flat labels, wells, dividers ---------- */
+        /* Non-button toolbar objects carry no chrome at all. */
+        QToolBar#Options QSlider {
+          background: transparent;
+          border: 0;
+        }
+        QToolBar#Options QLabel {
+          background: transparent;
+          border: 0;
+        }
+
+        /* Dropdowns and text fields: borderless dark wells. */
+        QSpinBox, QDoubleSpinBox, QComboBox, QFontComboBox, QLineEdit, QTextEdit {
+          background: @compositor_field_bg;
+          border: 0;
+        }
+        QToolBar#Options QSpinBox, QToolBar#Options QDoubleSpinBox,
+        QToolBar#Options QComboBox, QToolBar#Options QFontComboBox {
+          background: @compositor_field_bg;
+          border: 0;
+        }
+        QToolBar#Options QLabel[optionLabel="true"] {
+          background: @compositor_field_bg;
+          border: 0;
+        }
+        QWidget#selectionFeatherGroup {
+          background: @compositor_field_bg;
+          border: 0;
+        }
+        QWidget#selectionFeatherGroup QLabel {
+          background: @compositor_field_bg;
+          border: 0;
+        }
+        QToolBar#Options QCheckBox#selectionAntiAliasCheck {
+          background: @compositor_field_bg;
+          border: 0;
+        }
+        QComboBox QAbstractItemView {
+          background: @compositor_field_bg;
+          border: 0;
+        }
+
+        /* The dock divider and its resize handle stay grabbable but paint
+           nothing: canvas and panels touch directly. */
+        QMainWindow {
+          background: @window_bg;
+        }
+        QMainWindow::separator {
+          background: @window_bg;
+          border: 0;
+        }
+        QMainWindow::separator:hover {
+          background: @splitter_hover_bg;
+          border: 0;
+        }
+        QWidget#rightDockResizeHandle:hover {
+          background: transparent;
+        }
+
+        /* Layer rows: unselected are fully transparent; the selection is the
+           Compositor blue. */
+        QWidget#layerRowWidget {
+          background: transparent;
+          border-bottom: 0;
+        }
+        QWidget#layerRowWidget[layerRowGroup="true"] {
+          background: transparent;
+        }
+        QWidget#layerRowWidget[layerRowSelected="true"] {
+          background: @compositor_selected_bg;
+          border-bottom: 0;
+        }
+
+        /* Bottom utility icons: bare glyphs, no button chrome ever. */
+        QPushButton[layerActionButton="true"],
+        QToolButton#layerNewAdjustmentButton {
+          background: transparent;
+          border: 0;
+        }
+        QPushButton[layerActionButton="true"]:hover,
+        QToolButton#layerNewAdjustmentButton:hover {
+          background: transparent;
+          border: 0;
+        }
+
+        /* Buttons: borderless; standard is a dark gray, primary/active is the
+           exact system blue. */
+        QPushButton {
+          background: @compositor_button_bg;
+          border: 0;
+        }
+        QPushButton:hover, QPushButton:pressed {
+          background: @neutral_button_hover_bg;
+          border: 0;
+        }
+        QPushButton:checked, QPushButton:default {
+          background: @compositor_primary_bg;
+          border: 0;
+        }
+        QToolBar#Options QPushButton {
+          background: @compositor_button_bg;
+          border: 0;
+        }
+        QToolBar#Options QPushButton:checked {
+          background: @compositor_primary_bg;
+          border: 0;
+        }
+        QToolBar#Options QToolButton[optionsBarButton="true"] {
+          background: @compositor_field_bg;
+          border: 0;
+        }
+        QToolBar#Options QToolButton[optionsBarButton="true"]:hover {
+          background: @button_hover_bg;
+          border: 0;
+        }
+        QToolBar#Options QToolButton[optionsBarButton="true"]:checked {
+          background: @compositor_primary_bg;
+          border: 0;
+        }
+
+        /* ---------- Corrections pass: chrome that must not paint at all ---------- */
+        /* Options-bar text carries NO background: the chips only looked flat
+           because the field next to them was dark. */
+        QToolBar#Options QLabel,
+        QToolBar#Options QLabel[optionLabel="true"] {
+          background: transparent;
+          border: 0;
+        }
+        QWidget#selectionFeatherGroup QLabel {
+          background: transparent;
+          border: 0;
+        }
+        /* The window frame itself carries no border in this skin. */
+        QMainWindow {
+          background: @window_bg;
+          border: 0;
+        }
+        /* The dock-width handle overlays each dock's left edge. Painting it the
+           pasteboard color makes the divider read as canvas instead of a band,
+           while the widget keeps its width and cursor for resizing. */
+        QWidget#rightDockResizeHandle {
+          background: transparent;
+        }
+        QWidget#rightDockResizeHandle:hover {
+          background: @splitter_hover_bg;
+        }
+
+        /* ---------- Layer lock controls ---------- */
+        QToolButton[layerLockControl="true"] {
+          background: transparent;
+          border: 0;
+        }
+        QToolButton[layerLockControl="true"]:hover {
+          background: transparent;
+          border: 0;
+        }
+        QToolButton[layerLockControl="true"]:checked {
+          background: @compositor_selected_chrome_bg;
+          border: 1px solid @compositor_selected_chrome_border;
+          border-radius: 4px;
+        }
+        QToolButton[layerLockControl="true"][mixed="true"] {
+          background: transparent;
+          border: 0;
+        }
+
+        /* ---------- Tool rail sizing ---------- */
+        /* Only a floor, never a ceiling: a forced max-width fights Qt's
+           overflow extension, and the rail's buttons then land off-grid after
+           an expand/collapse cycle. */
+        QToolBar#toolPalette QToolButton {
+          min-width: 30px;
+          min-height: 30px;
+          max-width: 40px;
+          max-height: 40px;
+          padding: 0 2px;
+        }
+        /* Qt's toolbar overflow button sizes itself; leave it alone. */
+        QToolBar#toolPalette QToolButton#qt_toolbar_ext_button {
+          min-width: 0;
+          min-height: 0;
+          max-width: 40px;
+          max-height: 40px;
+          padding: 0;
+        }
+
+        /* ---------- Welcome screen buttons ---------- */
+        /* The start panel installs its own sheet, so these carry an extra
+           ancestor in the selector to out-rank it. They exist only inside this
+           delta, which means the Photoshop skin never sees them. */
+        QMainWindow QWidget#startPanel QPushButton {
+          background: @compositor_button_bg;
+          border: 0;
+          border-radius: 14px;
+        }
+        QMainWindow QWidget#startPanel QPushButton:hover {
+          background: @neutral_button_hover_bg;
+          border: 0;
+        }
+        QMainWindow QWidget#startPanel QPushButton#startPanelNewButton {
+          background: @compositor_primary_bg;
+          border: 0;
+        }
+        QMainWindow QWidget#startPanel QPushButton#startPanelNewButton:hover {
+          background: @compositor_primary_bg;
+          border: 0;
+        }
+
+        /* ---------- Combo chevron + slider chrome ---------- */
+        QComboBox::drop-down {
+          background: transparent;
+          border: 0;
+          width: 20px;
+        }
+        QComboBox::down-arrow {
+          background: transparent;
+          border: 0;
+        }
+        QSlider,
+        QSlider::groove:horizontal, QSlider::groove:vertical,
+        QSlider::sub-page:horizontal, QSlider::sub-page:vertical,
+        QSlider::add-page:horizontal, QSlider::add-page:vertical,
+        QSlider::handle:horizontal, QSlider::handle:vertical {
+          border: 0;
+        }
+  )");
+#ifdef Q_OS_MACOS
+  sheet.replace(QStringLiteral("__PATCHY_UI_FONT__"),
+                QStringLiteral("-apple-system, 'SF Pro Text', 'SF Pro Display',"
+                               " 'Helvetica Neue', 'Segoe UI', 'Roboto', Arial, sans-serif"));
+#else
+  sheet.replace(QStringLiteral("__PATCHY_UI_FONT__"),
+                QStringLiteral("'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif"));
+#endif
+  return sheet;
+}
+
+QString window_style() {
+  return active_window_appearance() == WindowAppearance::Compositor
+             ? apply_theme_tokens(photoshop_style_template()
+                                  + compositor_style_template())
+             : photoshop_style();
+}
+
 QString photoshop_style() {
   // Both palettes are compile-time constants, so a scheme's resolved sheet never
   // changes once built and can be cached for the process lifetime.
@@ -1152,7 +1827,7 @@ void MainWindow::apply_color_scheme() {
   //    which covers every dock, panel, and parented dialog, plus
   //    DocumentFloatWindow (stylesheet propagation follows the QObject parent
   //    chain, and a float window is a child of this window).
-  setStyleSheet(photoshop_style());
+  setStyleSheet(window_style());
 
   // 2. Top-level windows that are not in this window's child tree, plus any
   //    widget deeper in the tree that carries its own themed template (the

@@ -15,6 +15,7 @@
 #include "core/smart_filter_effects.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/filter_workflows.hpp"
+#include "ui/theme_palette.hpp"
 
 #include <QEventLoop>
 #include <QRect>
@@ -164,6 +165,10 @@ constexpr auto kMainWindowTranslationContext = "patchy::ui::MainWindow";
 // The application-wide dark QSS theme (defined in main_window_theme.cpp);
 // applied once by the MainWindow constructor.
 [[nodiscard]] QString photoshop_style();
+
+// The stylesheet for whichever window appearance is currently active
+// (Photoshop base sheet, plus the Compositor chrome delta when selected).
+[[nodiscard]] QString window_style();
 
 QString translate_source(const QObject* object, const char* property_name);
 void bind_translated_text(QObject* object, const char* source, const char* context = kMainWindowTranslationContext);

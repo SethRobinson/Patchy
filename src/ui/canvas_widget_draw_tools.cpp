@@ -420,7 +420,9 @@ void CanvasWidget::draw_shape_preview(QPainter& painter, QRect exposed_rect) {
 
       if (quick_mask_active_ || mask_display_mode_ == MaskDisplayMode::Overlay) {
         QImage base(preview_rect.size(), QImage::Format_ARGB32_Premultiplied);
-        base.fill(theme().canvas_backdrop);
+        base.fill(active_window_appearance() == WindowAppearance::Compositor
+                      ? theme().compositor_canvas_backdrop
+                      : theme().canvas_backdrop);
         {
           QPainter base_painter(&base);
           base_painter.translate(-preview_rect.topLeft());

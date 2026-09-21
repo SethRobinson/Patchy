@@ -16,6 +16,12 @@ const QString& color_scheme_key() {
   return key;
 }
 
+// Persisted identifier for the window-appearance skin.
+const QString& window_appearance_key() {
+  static const QString key = QStringLiteral("preferences/windowAppearance");
+  return key;
+}
+
 }  // namespace
 
 QString color_scheme_preference_to_token(ColorSchemePreference preference) {
@@ -38,6 +44,23 @@ ColorSchemePreference color_scheme_preference_from_token(const QString& token) {
     return ColorSchemePreference::Light;
   }
   return ColorSchemePreference::FollowSystem;
+}
+
+QString window_appearance_preference_to_token(WindowAppearancePreference preference) {
+  switch (preference) {
+    case WindowAppearancePreference::Photoshop:
+      return QStringLiteral("photoshop");
+    case WindowAppearancePreference::Compositor:
+      return QStringLiteral("compositor");
+  }
+  return QStringLiteral("photoshop");
+}
+
+WindowAppearancePreference window_appearance_preference_from_token(const QString& token) {
+  if (token == QStringLiteral("compositor")) {
+    return WindowAppearancePreference::Compositor;
+  }
+  return WindowAppearancePreference::Photoshop;
 }
 
 ThemeManager& ThemeManager::instance() {
@@ -119,6 +142,18 @@ void ThemeManager::set_preference(ColorSchemePreference preference, bool persist
   apply_resolved_scheme();
 }
 
+void ThemeManager::set_appearance(WindowAppearancePreference preference, bool persist) {
+  appearance_preference_ = preference;
+  if (persist) {
+    auto settings = app_settings();
+    settings.setValue(window_appearance_key(), window_appearance_preference_to_token(preference));
+  }
+  set_active_window_appearance(preference == WindowAppearancePreference::Compositor
+                                   ? WindowAppearance::Compositor
+                                   : WindowAppearance::Photoshop);
+  emit window_appearance_changed(preference);
+}
+
 void ThemeManager::load_saved_preference() {
   auto settings = app_settings();
   const auto token =
@@ -127,6 +162,17 @@ void ThemeManager::load_saved_preference() {
                  color_scheme_preference_to_token(ColorSchemePreference::FollowSystem))
           .toString();
   set_preference(color_scheme_preference_from_token(token), /*persist=*/false);
+
+  const auto appearance_token =
+      settings
+          .value(window_appearance_key(),
+                 window_appearance_preference_to_token(WindowAppearancePreference::Photoshop))
+          .toString();
+  const auto appearance = window_appearance_preference_from_token(appearance_token);
+  appearance_preference_ = appearance;
+  set_active_window_appearance(appearance == WindowAppearancePreference::Compositor
+                                   ? WindowAppearance::Compositor
+                                   : WindowAppearance::Photoshop);
 }
 
 void ThemeManager::set_system_color_scheme_for_testing(std::optional<Qt::ColorScheme> scheme) {
