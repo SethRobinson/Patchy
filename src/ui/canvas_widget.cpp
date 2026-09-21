@@ -31,12 +31,6 @@
 #include <QMetaObject>
 #include <QMouseEvent>
 #include <QNativeGestureEvent>
-#ifdef PATCHY_GPU_CANVAS
-#include <QOpenGLContext>
-#include <QOffscreenSurface>
-#include <QOpenGLWidget>
-#include <QSurfaceFormat>
-#endif
 #include <QPainter>
 #include <QPainterPath>
 #include <QPixmap>
@@ -223,27 +217,6 @@ bool expand_mask_to_include_rect(LayerMask& mask, QRect document_rect, QSize can
 
 }  // namespace
 
-#ifdef PATCHY_GPU_CANVAS
-class CanvasWidget::OpenGLCanvasSurface final : public QOpenGLWidget {
-public:
-  explicit OpenGLCanvasSurface(CanvasWidget& owner) : QOpenGLWidget(&owner), owner_(owner) {
-    setAutoFillBackground(false);
-    setAttribute(Qt::WA_TransparentForMouseEvents);
-    setFocusPolicy(Qt::NoFocus);
-    setUpdateBehavior(QOpenGLWidget::PartialUpdate);
-  }
-
-protected:
-  void paintGL() override {
-    QPainter painter(this);
-    owner_.paint_canvas(painter, rect());
-  }
-
-private:
-  CanvasWidget& owner_;
-};
-#endif
-
 CanvasWidget::CanvasWidget(QWidget* parent) : QWidget(parent) {
   setAutoFillBackground(false);
   setMouseTracking(true);
@@ -268,14 +241,14 @@ CanvasWidget::CanvasWidget(QWidget* parent) : QWidget(parent) {
   selection_timer_.start(120, this);
   pen_proximity_clock_.start();
 #ifdef PATCHY_GPU_CANVAS
-  initialize_gpu_canvas();
+  initialize_graphics_canvas();
 #endif
 }
 
 CanvasWidget::~CanvasWidget() {
 #ifdef PATCHY_GPU_CANVAS
   canvas_render_backend_ = CanvasRenderBackend::Cpu;
-  gpu_canvas_surface_.reset();
+  graphics_surface_.reset();
 #endif
 }
 
@@ -284,116 +257,98 @@ CanvasWidget::CanvasRenderBackend CanvasWidget::canvas_render_backend() const no
 }
 
 #ifdef PATCHY_GPU_CANVAS
-bool CanvasWidget::opengl_context_available() const {
-  const auto platform = QGuiApplication::platformName();
-  if (platform == QStringLiteral("offscreen") || platform == QStringLiteral("minimal") ||
-      platform == QStringLiteral("minimalegl")) {
-    return false;
+void CanvasWidget::initialize_graphics_canvas() {
+  if (graphics_surface_ != nullptr) {
+    return;
   }
-
-  const auto format = QSurfaceFormat::defaultFormat();
-  QOffscreenSurface surface;
-  surface.setFormat(format);
-  surface.create();
-  if (!surface.isValid()) {
-    return false;
+  graphics_surface_ = CanvasGraphicsSurface::create(this);
+  if (graphics_surface_ == nullptr) {
+    disable_gpu_canvas(QStringLiteral("GPU presentation was disabled by configuration or build"));
+    return;
   }
-  QOpenGLContext context;
-  context.setFormat(surface.format());
-  const bool available = context.create() && context.makeCurrent(&surface);
-  if (available) {
-    context.doneCurrent();
-  }
-  return available;
+  canvas_render_backend_ = CanvasRenderBackend::Initializing;
+  connect(graphics_surface_.get(), &CanvasGraphicsSurface::ready, this,
+          [this](CanvasGraphicsApi api) { graphics_surface_ready(api); });
+  connect(graphics_surface_.get(), &CanvasGraphicsSurface::failed, this,
+          [this](const QString& reason) { graphics_surface_failed(reason); });
+  graphics_surface_->setGeometry(rect());
+  graphics_surface_->lower();
 }
 
-void CanvasWidget::initialize_gpu_canvas() {
-  if (gpu_canvas_initialization_started_) {
+void CanvasWidget::show_graphics_canvas() {
+  if (graphics_surface_ == nullptr) {
     return;
   }
-  gpu_canvas_initialization_started_ = true;
-
-  if (!opengl_context_available()) {
-    disable_gpu_canvas(QStringLiteral("No compatible OpenGL context is available"));
-    return;
+  resize_graphics_canvas_surface();
+  if (!graphics_surface_->isVisible()) {
+    graphics_surface_->show();
   }
-
-  gpu_canvas_surface_ = std::make_unique<OpenGLCanvasSurface>(*this);
-  gpu_canvas_surface_->setGeometry(rect());
-  gpu_canvas_surface_->lower();
-  canvas_render_backend_ = CanvasRenderBackend::OpenGL;
+  render_graphics_canvas_frame();
 }
 
-void CanvasWidget::show_gpu_canvas() {
-  if (!gpu_canvas_surface_ || canvas_render_backend_ != CanvasRenderBackend::OpenGL) {
-    return;
-  }
-  resize_gpu_canvas_surface();
-  if (!gpu_canvas_surface_->isVisible()) {
-    gpu_canvas_surface_->show();
-  }
-  // QOpenGLWidget creates its real context lazily when the widget enters the
-  // event loop. Check after show() so unsupported platform plugins fall back
-  // before the first visible frame instead of leaving a blank canvas.
-  if (gpu_canvas_surface_->context() == nullptr && !gpu_canvas_context_check_retried_) {
-    QTimer::singleShot(0, this, [this] { gpu_canvas_context_ready(); });
-  } else if (gpu_canvas_surface_->context() != nullptr) {
-    gpu_canvas_context_ready();
+void CanvasWidget::resize_graphics_canvas_surface() {
+  if (graphics_surface_ != nullptr && canvas_render_backend_ != CanvasRenderBackend::Cpu) {
+    graphics_surface_->setGeometry(rect());
   }
 }
 
-void CanvasWidget::resize_gpu_canvas_surface() {
-  if (gpu_canvas_surface_ && canvas_render_backend_ == CanvasRenderBackend::OpenGL) {
-    gpu_canvas_surface_->setGeometry(rect());
+void CanvasWidget::graphics_surface_ready(CanvasGraphicsApi api) {
+  switch (api) {
+  case CanvasGraphicsApi::OpenGL:
+    canvas_render_backend_ = CanvasRenderBackend::OpenGL;
+    break;
+  case CanvasGraphicsApi::Vulkan:
+    canvas_render_backend_ = CanvasRenderBackend::Vulkan;
+    break;
+  case CanvasGraphicsApi::Metal:
+    canvas_render_backend_ = CanvasRenderBackend::Metal;
+    break;
+  case CanvasGraphicsApi::Direct3D11:
+    canvas_render_backend_ = CanvasRenderBackend::Direct3D11;
+    break;
+  case CanvasGraphicsApi::Direct3D12:
+    canvas_render_backend_ = CanvasRenderBackend::Direct3D12;
+    break;
+  case CanvasGraphicsApi::Unknown:
+    disable_gpu_canvas(QStringLiteral("Qt Quick reported an unknown graphics API"));
+    return;
   }
+  show_graphics_canvas();
 }
 
-void CanvasWidget::gpu_canvas_context_ready() {
-  if (!gpu_canvas_surface_ || canvas_render_backend_ != CanvasRenderBackend::OpenGL) {
-    return;
-  }
-  if (gpu_canvas_surface_->context() == nullptr && !gpu_canvas_context_check_retried_) {
-    gpu_canvas_context_check_retried_ = true;
-    QTimer::singleShot(50, this, [this] { gpu_canvas_context_ready(); });
-    return;
-  }
-  if (gpu_canvas_surface_->context() == nullptr || !gpu_canvas_surface_->isValid()) {
-    disable_gpu_canvas(QStringLiteral("Qt could not create a QOpenGLWidget context"));
-    return;
-  }
-  if (!gpu_canvas_context_connected_) {
-    connect(gpu_canvas_surface_->context(), &QOpenGLContext::aboutToBeDestroyed, this, [this] {
-      if (canvas_render_backend_ == CanvasRenderBackend::OpenGL) {
-        QTimer::singleShot(0, this, [this] {
-          if (canvas_render_backend_ == CanvasRenderBackend::OpenGL) {
-            disable_gpu_canvas(QStringLiteral("The OpenGL context was lost"));
-          }
-        });
-      }
-    });
-    gpu_canvas_context_connected_ = true;
-  }
+void CanvasWidget::graphics_surface_failed(const QString& reason) {
+  disable_gpu_canvas(reason);
 }
 
-void CanvasWidget::request_gpu_canvas_update(const QRegion& region) {
-  if (!gpu_canvas_surface_ || canvas_render_backend_ != CanvasRenderBackend::OpenGL) {
+void CanvasWidget::render_graphics_canvas_frame() {
+  if (graphics_surface_ == nullptr || canvas_render_backend_ == CanvasRenderBackend::Cpu) {
     return;
   }
-  if (region.isEmpty()) {
-    gpu_canvas_surface_->update();
-  } else {
-    gpu_canvas_surface_->update(region);
+  QImage frame(size() * devicePixelRatioF(), QImage::Format_ARGB32_Premultiplied);
+  frame.setDevicePixelRatio(devicePixelRatioF());
+  frame.fill(Qt::transparent);
+  QPainter painter(&frame);
+  paint_canvas(painter, QRect(QPoint(), size()));
+  painter.end();
+  graphics_surface_->set_frame(std::move(frame));
+}
+
+void CanvasWidget::request_graphics_canvas_update(const QRegion& region) {
+  if (graphics_surface_ == nullptr || canvas_render_backend_ == CanvasRenderBackend::Cpu) {
+    return;
   }
+  render_graphics_canvas_frame();
+  graphics_surface_->request_update(region);
 }
 
 void CanvasWidget::disable_gpu_canvas(const QString& reason) {
-  if (canvas_render_backend_ == CanvasRenderBackend::Cpu && gpu_canvas_surface_ == nullptr) {
+  if (canvas_render_backend_ == CanvasRenderBackend::Cpu && graphics_surface_ == nullptr) {
     return;
   }
   canvas_render_backend_ = CanvasRenderBackend::Cpu;
-  gpu_canvas_surface_.reset();
+  graphics_surface_.reset();
   if (!reason.isEmpty()) {
-    qInfo().noquote() << "Patchy GPU canvas unavailable:" << reason;
+    qInfo().noquote() << "Patchy GPU presentation unavailable; using CPU canvas:" << reason;
   }
   update();
 }
