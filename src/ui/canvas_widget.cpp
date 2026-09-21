@@ -18,6 +18,7 @@
 
 #include <QApplication>
 #include <QCursor>
+#include <QDebug>
 #include <QEnterEvent>
 #include <QEventLoop>
 #include <QFocusEvent>
@@ -30,6 +31,12 @@
 #include <QMetaObject>
 #include <QMouseEvent>
 #include <QNativeGestureEvent>
+#ifdef PATCHY_GPU_CANVAS
+#include <QOpenGLContext>
+#include <QOffscreenSurface>
+#include <QOpenGLWidget>
+#include <QSurfaceFormat>
+#endif
 #include <QPainter>
 #include <QPainterPath>
 #include <QPixmap>
@@ -43,6 +50,7 @@
 #include <QScrollBar>
 #include <QSet>
 #include <QTabletEvent>
+#include <QTimer>
 #include <QTimerEvent>
 #include <QTransform>
 #include <QWheelEvent>
@@ -216,11 +224,27 @@ bool expand_mask_to_include_rect(LayerMask& mask, QRect document_rect, QSize can
 }  // namespace
 
 #ifdef PATCHY_GPU_CANVAS
-CanvasWidget::CanvasWidget(QWidget* parent) : QOpenGLWidget(parent) {
-  setUpdateBehavior(QOpenGLWidget::PartialUpdate);
-#else
-CanvasWidget::CanvasWidget(QWidget* parent) : QWidget(parent) {
+class CanvasWidget::OpenGLCanvasSurface final : public QOpenGLWidget {
+public:
+  explicit OpenGLCanvasSurface(CanvasWidget& owner) : QOpenGLWidget(&owner), owner_(owner) {
+    setAutoFillBackground(false);
+    setAttribute(Qt::WA_TransparentForMouseEvents);
+    setFocusPolicy(Qt::NoFocus);
+    setUpdateBehavior(QOpenGLWidget::PartialUpdate);
+  }
+
+protected:
+  void paintGL() override {
+    QPainter painter(this);
+    owner_.paint_canvas(painter, rect());
+  }
+
+private:
+  CanvasWidget& owner_;
+};
 #endif
+
+CanvasWidget::CanvasWidget(QWidget* parent) : QWidget(parent) {
   setAutoFillBackground(false);
   setMouseTracking(true);
   setTabletTracking(true);
@@ -243,7 +267,136 @@ CanvasWidget::CanvasWidget(QWidget* parent) : QWidget(parent) {
   qApp->installEventFilter(this);
   selection_timer_.start(120, this);
   pen_proximity_clock_.start();
+#ifdef PATCHY_GPU_CANVAS
+  initialize_gpu_canvas();
+#endif
 }
+
+CanvasWidget::~CanvasWidget() {
+#ifdef PATCHY_GPU_CANVAS
+  canvas_render_backend_ = CanvasRenderBackend::Cpu;
+  gpu_canvas_surface_.reset();
+#endif
+}
+
+CanvasWidget::CanvasRenderBackend CanvasWidget::canvas_render_backend() const noexcept {
+  return canvas_render_backend_;
+}
+
+#ifdef PATCHY_GPU_CANVAS
+bool CanvasWidget::opengl_context_available() const {
+  const auto platform = QGuiApplication::platformName();
+  if (platform == QStringLiteral("offscreen") || platform == QStringLiteral("minimal")) {
+    return false;
+  }
+
+  const auto format = QSurfaceFormat::defaultFormat();
+  QOffscreenSurface surface;
+  surface.setFormat(format);
+  surface.create();
+  if (!surface.isValid()) {
+    return false;
+  }
+  QOpenGLContext context;
+  context.setFormat(surface.format());
+  const bool available = context.create() && context.makeCurrent(&surface);
+  if (available) {
+    context.doneCurrent();
+  }
+  return available;
+}
+
+void CanvasWidget::initialize_gpu_canvas() {
+  if (gpu_canvas_initialization_started_) {
+    return;
+  }
+  gpu_canvas_initialization_started_ = true;
+
+  if (!opengl_context_available()) {
+    disable_gpu_canvas(QStringLiteral("No compatible OpenGL context is available"));
+    return;
+  }
+
+  gpu_canvas_surface_ = std::make_unique<OpenGLCanvasSurface>(*this);
+  gpu_canvas_surface_->setGeometry(rect());
+  gpu_canvas_surface_->lower();
+  canvas_render_backend_ = CanvasRenderBackend::OpenGL;
+}
+
+void CanvasWidget::show_gpu_canvas() {
+  if (!gpu_canvas_surface_ || canvas_render_backend_ != CanvasRenderBackend::OpenGL) {
+    return;
+  }
+  resize_gpu_canvas_surface();
+  if (!gpu_canvas_surface_->isVisible()) {
+    gpu_canvas_surface_->show();
+  }
+  // QOpenGLWidget creates its real context lazily when the widget enters the
+  // event loop. Check after show() so unsupported platform plugins fall back
+  // before the first visible frame instead of leaving a blank canvas.
+  if (gpu_canvas_surface_->context() == nullptr && !gpu_canvas_context_check_retried_) {
+    QTimer::singleShot(0, this, [this] { gpu_canvas_context_ready(); });
+  } else if (gpu_canvas_surface_->context() != nullptr) {
+    gpu_canvas_context_ready();
+  }
+}
+
+void CanvasWidget::resize_gpu_canvas_surface() {
+  if (gpu_canvas_surface_ && canvas_render_backend_ == CanvasRenderBackend::OpenGL) {
+    gpu_canvas_surface_->setGeometry(rect());
+  }
+}
+
+void CanvasWidget::gpu_canvas_context_ready() {
+  if (!gpu_canvas_surface_ || canvas_render_backend_ != CanvasRenderBackend::OpenGL) {
+    return;
+  }
+  if (gpu_canvas_surface_->context() == nullptr && !gpu_canvas_context_check_retried_) {
+    gpu_canvas_context_check_retried_ = true;
+    QTimer::singleShot(50, this, [this] { gpu_canvas_context_ready(); });
+    return;
+  }
+  if (gpu_canvas_surface_->context() == nullptr || !gpu_canvas_surface_->isValid()) {
+    disable_gpu_canvas(QStringLiteral("Qt could not create a QOpenGLWidget context"));
+    return;
+  }
+  if (!gpu_canvas_context_connected_) {
+    connect(gpu_canvas_surface_->context(), &QOpenGLContext::aboutToBeDestroyed, this, [this] {
+      if (canvas_render_backend_ == CanvasRenderBackend::OpenGL) {
+        QTimer::singleShot(0, this, [this] {
+          if (canvas_render_backend_ == CanvasRenderBackend::OpenGL) {
+            disable_gpu_canvas(QStringLiteral("The OpenGL context was lost"));
+          }
+        });
+      }
+    });
+    gpu_canvas_context_connected_ = true;
+  }
+}
+
+void CanvasWidget::request_gpu_canvas_update(const QRegion& region) {
+  if (!gpu_canvas_surface_ || canvas_render_backend_ != CanvasRenderBackend::OpenGL) {
+    return;
+  }
+  if (region.isEmpty()) {
+    gpu_canvas_surface_->update();
+  } else {
+    gpu_canvas_surface_->update(region);
+  }
+}
+
+void CanvasWidget::disable_gpu_canvas(const QString& reason) {
+  if (canvas_render_backend_ == CanvasRenderBackend::Cpu && gpu_canvas_surface_ == nullptr) {
+    return;
+  }
+  canvas_render_backend_ = CanvasRenderBackend::Cpu;
+  gpu_canvas_surface_.reset();
+  if (!reason.isEmpty()) {
+    qInfo().noquote() << "Patchy GPU canvas unavailable:" << reason;
+  }
+  update();
+}
+#endif
 
 void CanvasWidget::set_document(Document* document) {
   set_document_internal(document, /*preserve_frame_for_same_size=*/false);
