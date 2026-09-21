@@ -20,7 +20,7 @@ The option adds the Qt `OpenGLWidgets` component. If that optional module is mis
 | Runtime condition | Canvas surface | Document pixels and file output |
 |---|---|---|
 | Desktop Qt with a valid OpenGL context | `QOpenGLWidget` and GPU-backed `QPainter` presentation | CPU compositor remains authoritative |
-| Desktop Qt without a usable OpenGL context, including `offscreen` and `minimal` test platforms | Ordinary `QWidget` painting | CPU compositor remains authoritative |
+| Desktop Qt without a usable OpenGL context, including `offscreen`, `minimal`, and `minimalegl` test platforms | Ordinary `QWidget` painting | CPU compositor remains authoritative |
 | Desktop build without the `OpenGLWidgets` module | Ordinary `QWidget` painting | CPU compositor remains authoritative |
 | WebAssembly | Existing browser/WebGL integration | Existing wasm behavior |
 
