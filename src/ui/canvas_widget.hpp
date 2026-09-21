@@ -72,6 +72,7 @@ class QMenu;
 class QEvent;
 class QResizeEvent;
 class QScrollBar;
+class QShowEvent;
 class QTabletEvent;
 
 namespace patchy {
@@ -118,6 +119,11 @@ class CanvasWidget final : public QWidget {
   Q_OBJECT
 
 public:
+  enum class CanvasRenderBackend : std::uint8_t {
+    Cpu,
+    OpenGL
+  };
+
   using LocalToneRange = patchy::ui::LocalToneRange;
 
   using SpongeMode = patchy::ui::SpongeMode;
@@ -215,6 +221,9 @@ public:
   };
 
   explicit CanvasWidget(QWidget* parent = nullptr);
+  ~CanvasWidget() override;
+
+  [[nodiscard]] CanvasRenderBackend canvas_render_backend() const noexcept;
 
   void set_document(Document* document);
   // set_document for the same document after its canvas grew by an artboard edit
@@ -1387,11 +1396,8 @@ protected:
   // ShortcutOverride (canvas-owned Backspace/Delete during magnetic traces and guide
   // editing) + macOS trackpad pinch zoom (QNativeGestureEvent).
   bool event(QEvent* event) override;
-#ifndef PATCHY_GPU_CANVAS
   void paintEvent(QPaintEvent* event) override;
-#else
-  void paintGL() override;
-#endif
+  void showEvent(QShowEvent* event) override;
   void wheelEvent(QWheelEvent* event) override;
   void resizeEvent(QResizeEvent* event) override;
   void mousePressEvent(QMouseEvent* event) override;
@@ -1410,6 +1416,17 @@ protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
+#ifdef PATCHY_GPU_CANVAS
+  class OpenGLCanvasSurface;
+
+  void initialize_gpu_canvas();
+  void show_gpu_canvas();
+  void resize_gpu_canvas_surface();
+  void gpu_canvas_context_ready();
+  void disable_gpu_canvas(const QString& reason);
+  [[nodiscard]] bool opengl_context_available() const;
+  void request_gpu_canvas_update(const QRegion& region);
+#endif
   void paint_canvas(QPainter& painter, const QRect& exposed_rect);
 
   enum class TransformHandle {
@@ -2714,6 +2731,13 @@ private:
   QScrollBar* horizontal_scroll_bar_{nullptr};
   QScrollBar* vertical_scroll_bar_{nullptr};
   bool syncing_scroll_bars_{false};
+  CanvasRenderBackend canvas_render_backend_{CanvasRenderBackend::Cpu};
+#ifdef PATCHY_GPU_CANVAS
+  std::unique_ptr<OpenGLCanvasSurface> gpu_canvas_surface_;
+  bool gpu_canvas_initialization_started_{false};
+  bool gpu_canvas_context_check_retried_{false};
+  bool gpu_canvas_context_connected_{false};
+#endif
   QImage render_cache_{};
   bool render_cache_dirty_{true};
   bool tiling_preview_enabled_{false};
