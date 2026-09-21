@@ -40,6 +40,24 @@ option(PATCHY_USE_PCH "Precompile stable Qt and standard library headers for nat
 set(PATCHY_BUILD_STAMP_REFRESH_TOKEN "" CACHE STRING "Packaging token forcing a fresh build timestamp")
 include(cmake/patchy_incremental.cmake)
 
+if(EMSCRIPTEN)
+  set(PATCHY_GPU_CANVAS_DEFAULT OFF)
+else()
+  set(PATCHY_GPU_CANVAS_DEFAULT ON)
+endif()
+option(PATCHY_ENABLE_GPU_CANVAS
+       "Compile the automatic OpenGL canvas backend"
+       ${PATCHY_GPU_CANVAS_DEFAULT})
+
+if(PATCHY_ENABLE_GPU_CANVAS AND EMSCRIPTEN)
+  message(FATAL_ERROR
+          "PATCHY_ENABLE_GPU_CANVAS is currently supported only by desktop Qt builds")
+endif()
+
+set(PATCHY_GPU_CANVAS_AVAILABLE OFF)
+
+
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -770,6 +788,17 @@ if(PATCHY_BUILD_APP)
     set(PATCHY_QT_COMPONENTS Widgets Svg PrintSupport Network Qml LinguistTools Test)
   endif()
   find_package(Qt6 QUIET COMPONENTS ${PATCHY_QT_COMPONENTS})
+  if(PATCHY_ENABLE_GPU_CANVAS AND Qt6_FOUND)
+    # Keep this optional Qt add-on lookup separate so a missing OpenGL module
+    # cannot silently make the whole desktop application disappear.
+    find_package(Qt6 QUIET COMPONENTS OpenGLWidgets)
+    if(TARGET Qt6::OpenGLWidgets)
+      set(PATCHY_GPU_CANVAS_AVAILABLE ON)
+    else()
+      message(STATUS
+              "Qt OpenGLWidgets was not found; using the automatic CPU canvas backend")
+    endif()
+  endif()
   # Qt PDF is optional: a stock Qt install does not carry it and Qt publishes no
   # WebAssembly build of it at all. Absent, patchy_ui compiles src/ui/pdf_import_stub.cpp
   # and Patchy still EXPORTS PDF (QPdfWriter is QtGui), it just cannot open one.
@@ -1802,6 +1831,10 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       # wintrust, crypt32: the one-click update checks the installer's Authenticode signer
     # (update_installer.cpp).
     target_link_libraries(patchy_ui PUBLIC wiaguid winmm ws2_32 wintrust crypt32 dxgi)
+    endif()
+    if(PATCHY_GPU_CANVAS_AVAILABLE)
+      target_link_libraries(patchy_ui PUBLIC Qt6::OpenGLWidgets)
+      target_compile_definitions(patchy_ui PUBLIC PATCHY_GPU_CANVAS=1)
     endif()
     patchy_configure_target(patchy_ui)
 
