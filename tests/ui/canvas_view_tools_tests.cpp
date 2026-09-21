@@ -853,6 +853,24 @@ std::pair<QScrollBar*, QScrollBar*> require_canvas_scroll_bars(patchy::ui::Canva
   return {horizontal, vertical};
 }
 
+void ui_canvas_renderer_selects_a_safe_runtime_backend() {
+  patchy::ui::CanvasWidget canvas;
+  const auto backend = canvas.canvas_render_backend();
+  CHECK(backend == patchy::ui::CanvasWidget::CanvasRenderBackend::Cpu ||
+        backend == patchy::ui::CanvasWidget::CanvasRenderBackend::OpenGL);
+
+  if (QGuiApplication::platformName() == QStringLiteral("offscreen")) {
+    CHECK(backend == patchy::ui::CanvasWidget::CanvasRenderBackend::Cpu);
+  }
+
+  canvas.resize(320, 240);
+  canvas.show();
+  QApplication::processEvents();
+  const auto after_show = canvas.canvas_render_backend();
+  CHECK(after_show == patchy::ui::CanvasWidget::CanvasRenderBackend::Cpu ||
+        after_show == patchy::ui::CanvasWidget::CanvasRenderBackend::OpenGL);
+}
+
 void ui_canvas_scroll_bars_reflect_pan_range() {
   patchy::Document document(100, 80, patchy::PixelFormat::rgba8());
   patchy::ui::CanvasWidget canvas;
@@ -4011,6 +4029,8 @@ void ui_menu_disabled_items_render_grayed() {
 std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
   return {
       {"ui_startup_defaults_to_round_brush", ui_startup_defaults_to_round_brush},
+      {"ui_canvas_renderer_selects_a_safe_runtime_backend",
+       ui_canvas_renderer_selects_a_safe_runtime_backend},
       {"ui_canvas_wheel_matches_photoshop_navigation", ui_canvas_wheel_matches_photoshop_navigation},
       {"ui_canvas_wheel_zoom_mode_zooms_at_cursor", ui_canvas_wheel_zoom_mode_zooms_at_cursor},
       {"ui_canvas_trackpad_scroll_pans_both_axes", ui_canvas_trackpad_scroll_pans_both_axes},
