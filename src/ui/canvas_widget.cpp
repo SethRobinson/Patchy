@@ -286,7 +286,8 @@ CanvasWidget::CanvasRenderBackend CanvasWidget::canvas_render_backend() const no
 #ifdef PATCHY_GPU_CANVAS
 bool CanvasWidget::opengl_context_available() const {
   const auto platform = QGuiApplication::platformName();
-  if (platform == QStringLiteral("offscreen") || platform == QStringLiteral("minimal")) {
+  if (platform == QStringLiteral("offscreen") || platform == QStringLiteral("minimal") ||
+      platform == QStringLiteral("minimalegl")) {
     return false;
   }
 

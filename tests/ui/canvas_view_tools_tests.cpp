@@ -858,7 +858,9 @@ void ui_canvas_renderer_selects_a_safe_runtime_backend() {
   CHECK(backend == patchy::ui::CanvasWidget::CanvasRenderBackend::Cpu ||
         backend == patchy::ui::CanvasWidget::CanvasRenderBackend::OpenGL);
 
-  if (QGuiApplication::platformName() == QStringLiteral("offscreen")) {
+  const auto platform = QGuiApplication::platformName();
+  if (platform == QStringLiteral("offscreen") || platform == QStringLiteral("minimal") ||
+      platform == QStringLiteral("minimalegl")) {
     CHECK(backend == patchy::ui::CanvasWidget::CanvasRenderBackend::Cpu);
   }
 
