@@ -327,6 +327,7 @@ add_library(patchy_render
   src/render/native_cmyk.cpp
   src/render/native_adjustment_stack.cpp
   src/render/native_duotone.cpp
+  src/render/gpu_document_capabilities.cpp
   src/render/layer_style_mask_ops.cpp
   src/render/tile_cache.cpp
 )
