@@ -12,6 +12,7 @@
 #include "core/stroke_stabilizer.hpp"
 #include "core/warp_mesh.hpp"
 #include "ui/curves_clipping_preview.hpp"
+#include "ui/canvas_graphics_surface.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/measurement_units.hpp"
 #include "ui/selection_outline.hpp"
@@ -209,7 +210,12 @@ class CanvasWidget final : public QWidget {
 public:
   enum class CanvasRenderBackend : std::uint8_t {
     Cpu,
-    OpenGL
+    Initializing,
+    OpenGL,
+    Vulkan,
+    Metal,
+    Direct3D11,
+    Direct3D12
   };
 
   enum class LocalToneRange {
@@ -1340,15 +1346,14 @@ protected:
 
 private:
 #ifdef PATCHY_GPU_CANVAS
-  class OpenGLCanvasSurface;
-
-  void initialize_gpu_canvas();
-  void show_gpu_canvas();
-  void resize_gpu_canvas_surface();
-  void gpu_canvas_context_ready();
+  void initialize_graphics_canvas();
+  void show_graphics_canvas();
+  void resize_graphics_canvas_surface();
+  void graphics_surface_ready(CanvasGraphicsApi api);
+  void graphics_surface_failed(const QString& reason);
+  void render_graphics_canvas_frame();
   void disable_gpu_canvas(const QString& reason);
-  [[nodiscard]] bool opengl_context_available() const;
-  void request_gpu_canvas_update(const QRegion& region);
+  void request_graphics_canvas_update(const QRegion& region);
 #endif
   void paint_canvas(QPainter& painter, const QRect& exposed_rect);
 
@@ -2248,10 +2253,7 @@ private:
   bool syncing_scroll_bars_{false};
   CanvasRenderBackend canvas_render_backend_{CanvasRenderBackend::Cpu};
 #ifdef PATCHY_GPU_CANVAS
-  std::unique_ptr<OpenGLCanvasSurface> gpu_canvas_surface_;
-  bool gpu_canvas_initialization_started_{false};
-  bool gpu_canvas_context_check_retried_{false};
-  bool gpu_canvas_context_connected_{false};
+  std::unique_ptr<CanvasGraphicsSurface> graphics_surface_;
 #endif
   QImage render_cache_{};
   bool render_cache_dirty_{true};

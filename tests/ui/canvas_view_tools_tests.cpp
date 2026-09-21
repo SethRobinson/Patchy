@@ -150,7 +150,8 @@
 #include <QStringList>
 #include <QScrollArea>
 #include <QScrollBar>
-#include <QScreen>
+#include <QScopeGuard>
+#include <QSlider>
 #include <QSettings>
 #include <QSlider>
 #include <QStandardItemModel>
@@ -857,7 +858,12 @@ void ui_canvas_renderer_selects_a_safe_runtime_backend() {
   patchy::ui::CanvasWidget canvas;
   const auto backend = canvas.canvas_render_backend();
   CHECK(backend == patchy::ui::CanvasWidget::CanvasRenderBackend::Cpu ||
-        backend == patchy::ui::CanvasWidget::CanvasRenderBackend::OpenGL);
+        backend == patchy::ui::CanvasWidget::CanvasRenderBackend::Initializing ||
+        backend == patchy::ui::CanvasWidget::CanvasRenderBackend::OpenGL ||
+        backend == patchy::ui::CanvasWidget::CanvasRenderBackend::Vulkan ||
+        backend == patchy::ui::CanvasWidget::CanvasRenderBackend::Metal ||
+        backend == patchy::ui::CanvasWidget::CanvasRenderBackend::Direct3D11 ||
+        backend == patchy::ui::CanvasWidget::CanvasRenderBackend::Direct3D12);
 
   const auto platform = QGuiApplication::platformName();
   if (platform == QStringLiteral("offscreen") || platform == QStringLiteral("minimal") ||
@@ -870,7 +876,28 @@ void ui_canvas_renderer_selects_a_safe_runtime_backend() {
   QApplication::processEvents();
   const auto after_show = canvas.canvas_render_backend();
   CHECK(after_show == patchy::ui::CanvasWidget::CanvasRenderBackend::Cpu ||
-        after_show == patchy::ui::CanvasWidget::CanvasRenderBackend::OpenGL);
+        after_show == patchy::ui::CanvasWidget::CanvasRenderBackend::Initializing ||
+        after_show == patchy::ui::CanvasWidget::CanvasRenderBackend::OpenGL ||
+        after_show == patchy::ui::CanvasWidget::CanvasRenderBackend::Vulkan ||
+        after_show == patchy::ui::CanvasWidget::CanvasRenderBackend::Metal ||
+        after_show == patchy::ui::CanvasWidget::CanvasRenderBackend::Direct3D11 ||
+        after_show == patchy::ui::CanvasWidget::CanvasRenderBackend::Direct3D12);
+}
+
+void ui_canvas_renderer_honors_cpu_override() {
+  const bool had_override = qEnvironmentVariableIsSet("PATCHY_RENDER_BACKEND");
+  const auto previous_override = qgetenv("PATCHY_RENDER_BACKEND");
+  const auto restore_override = qScopeGuard([had_override, previous_override] {
+    if (had_override) {
+      qputenv("PATCHY_RENDER_BACKEND", previous_override);
+    } else {
+      qunsetenv("PATCHY_RENDER_BACKEND");
+    }
+  });
+  qputenv("PATCHY_RENDER_BACKEND", "cpu");
+
+  patchy::ui::CanvasWidget canvas;
+  CHECK(canvas.canvas_render_backend() == patchy::ui::CanvasWidget::CanvasRenderBackend::Cpu);
 }
 
 void ui_canvas_scroll_bars_reflect_pan_range() {
@@ -4033,6 +4060,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_startup_defaults_to_round_brush", ui_startup_defaults_to_round_brush},
       {"ui_canvas_renderer_selects_a_safe_runtime_backend",
        ui_canvas_renderer_selects_a_safe_runtime_backend},
+      {"ui_canvas_renderer_honors_cpu_override", ui_canvas_renderer_honors_cpu_override},
       {"ui_canvas_wheel_matches_photoshop_navigation", ui_canvas_wheel_matches_photoshop_navigation},
       {"ui_canvas_wheel_zoom_mode_zooms_at_cursor", ui_canvas_wheel_zoom_mode_zooms_at_cursor},
       {"ui_canvas_trackpad_scroll_pans_both_axes", ui_canvas_trackpad_scroll_pans_both_axes},

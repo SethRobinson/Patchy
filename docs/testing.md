@@ -221,6 +221,7 @@ Useful diagnostic variables:
 - `PATCHY_RENDER_SINGLE_THREADED=1` forces byte-stable sequential rendering.
 - `PATCHY_RENDER_THREADS=<n>` caps every parallel fan-out at n workers in place of the hardware thread count (perf harness emulation of a low-core machine; the transform proxy gate scales with it).
 - `PATCHY_PROCESSING_OVERLAY_MIN_PIXELS` overrides the processing-overlay threshold.
+- `PATCHY_RENDER_BACKEND=auto|cpu|opengl|vulkan|metal|d3d11|d3d12` selects the Qt Quick/RHI presentation preference; `PATCHY_GPU_CANVAS=auto|cpu` remains an alias.
 - `PATCHY_NO_SOUND=1` suppresses script audio; offscreen suites rely on it.
 - `PATCHY_UPDATE_MANIFEST_URL=<url>` replaces the startup update check's manifest URL (a loopback server in the update-check tests). Pointing it at an unresolvable host such as `https://x.local/m.json` holds a resolver call open for seconds, which reproduced the issue 48 quit freeze on macOS: quit within that window and time the exit (AGENTS.md). `PATCHY_NO_UPDATE_CHECK=1` removes the check, like a `PATCHY_STORE_BUILD` build.
 - `PATCHY_SETTINGS_DIR=<dir>` redirects the app's ini settings store (automation isolation).

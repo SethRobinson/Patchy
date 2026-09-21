@@ -1,37 +1,66 @@
 # GPU canvas presentation
 
-Patchy remains CPU-authoritative for document compositing, PSD compatibility, export, and byte-identity tests. One desktop binary can use Qt's `QOpenGLWidget` as the canvas surface so `QPainter` presents the existing render cache, zooms, pans, images, and canvas overlays through the system OpenGL paint engine.
+Patchy keeps the CPU compositor as the reference renderer for document pixels, PSD compatibility, export, and byte-identity tests. The desktop binary can now present that CPU-composed frame through Qt Quick Scene Graph and Qt RHI. Qt Quick selects the native graphics API for the platform, while Patchy verifies that the selected scene graph is hardware accelerated before it replaces the ordinary QWidget paint path.
 
-This is a **presentation-layer acceleration**, not yet a GPU compositor. The expensive layer compositor continues to run on the CPU and retains its existing multithreaded strip renderer. The application probes an offscreen OpenGL context before creating the GPU surface. If the probe fails, if Qt cannot create the widget context, or if the context is later lost, the same `CanvasWidget` continues painting through its CPU `paintEvent` path.
+This is presentation-layer acceleration, not GPU document compositing. Layer blending, masks, filters, adjustment layers, layer styles, PSD saving, and export remain on the established CPU path. The Qt Quick surface uploads and presents the composed frame through the selected RHI backend. Zoom, pan, and canvas overlays therefore use the same pixels and geometry as the CPU path.
 
 ## Build
 
-Desktop builds include the backend by default. Enable it explicitly with:
+Desktop builds enable the feature by default:
 
 ```sh
 cmake --preset qt-local -DPATCHY_ENABLE_GPU_CANVAS=ON
 cmake --build --preset qt-local
 ```
 
-The option adds the Qt `OpenGLWidgets` component. If that optional module is missing, CMake keeps the native application target and builds the automatic CPU backend instead. `-DPATCHY_ENABLE_GPU_CANVAS=OFF` forces the CPU-only build. WebAssembly keeps its existing Qt/WebGL integration path and does not use this desktop backend.
+The optional modules are `Qt Quick` and `Qt Quick Widgets`. If they are unavailable, CMake keeps the application target and compiles the CPU surface implementation from the same source tree. `-DPATCHY_ENABLE_GPU_CANVAS=OFF` forces the CPU-only build. WebAssembly keeps its existing browser rendering path and does not enable this desktop surface.
+
+The output is one desktop binary. It does not require a second executable for machines without a GPU, a native graphics driver, or the optional Qt Quick modules used at build time.
 
 ## Runtime selection
 
-| Runtime condition | Canvas surface | Document pixels and file output |
+`PATCHY_RENDER_BACKEND` controls the preference for the current process. The default is `auto`.
+
+| Value | Requested Qt Quick API | Behavior |
 |---|---|---|
-| Desktop Qt with a valid OpenGL context | `QOpenGLWidget` and GPU-backed `QPainter` presentation | CPU compositor remains authoritative |
-| Desktop Qt without a usable OpenGL context, including `offscreen`, `minimal`, and `minimalegl` test platforms | Ordinary `QWidget` painting | CPU compositor remains authoritative |
-| Desktop build without the `OpenGLWidgets` module | Ordinary `QWidget` painting | CPU compositor remains authoritative |
-| WebAssembly | Existing browser/WebGL integration | Existing wasm behavior |
+| `auto` | `Unknown` | Lets Qt choose the platform-native RHI backend, then accepts it only if it is hardware accelerated |
+| `cpu` | No Qt Quick surface | Uses the ordinary QWidget canvas |
+| `opengl` | OpenGL | Uses OpenGL when the context is available and the renderer is not a known software implementation |
+| `vulkan` | Vulkan | Uses Vulkan when the scene graph and physical device are available |
+| `metal` | Metal | Uses Metal on macOS when available |
+| `d3d11` | Direct3D 11 | Uses Direct3D 11 on Windows when available |
+| `d3d12` | Direct3D 12 | Uses Direct3D 12 on Qt versions that expose that scene graph backend |
 
-## Scope and fallback
+The older `PATCHY_GPU_CANVAS=auto` and `PATCHY_GPU_CANVAS=cpu` spellings remain accepted as compatibility aliases. An unknown value is treated as `auto` and is reported in the diagnostic log.
 
-The CPU compositor still creates the `QImage` render cache. The OpenGL canvas accelerates the subsequent painting of that cache and of the canvas overlays, including scaled image presentation during zoom and pan. Document edits, filters, masks, blend modes, layer styles, PSD saving, and export continue to use the established CPU path. A machine or driver without OpenGL support does not need a separate package: runtime selection uses the CPU surface automatically.
+On the supported desktop platforms, automatic selection follows Qt's native scene graph policy. Linux normally chooses an available Vulkan or OpenGL path, Windows normally chooses Direct3D, and macOS normally chooses Metal. The exact choice remains a Qt and driver decision rather than a compile-time preprocessor branch.
 
-The default build remains a single binary with runtime selection. To compare presentation paths, compile once with `PATCHY_ENABLE_GPU_CANVAS=OFF` and once with it enabled, then use the existing stress harness and visual tests. The GPU mode should be treated as a display optimization: it must not change document data or compatibility behavior.
+## Capability and fallback policy
 
-The UI test `ui_canvas_renderer_selects_a_safe_runtime_backend` verifies that the offscreen test platform selects the CPU surface and that a visible canvas always reports a valid backend enum. Run it with the normal UI test binary using the existing name filter. A desktop smoke run must use the real display backend rather than `QT_QPA_PLATFORM=offscreen`, because offscreen intentionally selects CPU and has no OpenGL window surface.
+The surface starts in an initializing state. After Qt Quick initializes its scene graph, Patchy reads `QSGRendererInterface::graphicsApi()`. Qt Quick's `Software` scene graph, `Null` backend, unknown APIs, scene graph errors, and lost graphics devices all select the CPU surface instead.
 
-## Next GPU phase
+For OpenGL, Patchy reads the renderer and vendor strings through the scene graph context. For Vulkan, it reads the physical device properties. For Direct3D, it checks the DXGI software-adapter flag. Known software implementations such as `llvmpipe`, `softpipe`, `swrast`, `lavapipe`, `SwiftShader`, WARP, and Microsoft Basic Render Driver are rejected. A software implementation is still useful for test infrastructure, but it is not reported as GPU acceleration for the canvas.
 
-The next step would be a separate GPU preview compositor with an explicit capability matrix and automatic CPU fallback. It should begin with ordinary RGBA8 layers, opacity, transforms, and a small set of blend modes. The CPU compositor must remain authoritative for final renders until GPU output is covered by the existing corpus and visual-equivalence tests. Metal and Vulkan-specific compositor paths are intentionally not claimed by this phase; Qt's OpenGL widget is the portable presentation backend currently implemented.
+The fallback is in-process and does not change the document. A typical diagnostic is:
+
+```text
+Patchy graphics backend: Vulkan, adapter: Intel Iris Xe, hardware acceleration: yes
+```
+
+or:
+
+```text
+Patchy GPU presentation unavailable; using CPU canvas: Qt Quick selected its software scene graph
+```
+
+The same `CanvasWidget` continues to own input, scrollbars, tool overlays, selection geometry, and document state. The optional surface is transparent to mouse and keyboard input, so it cannot intercept painting, selection, or tool gestures.
+
+## Testing
+
+The UI test `ui_canvas_renderer_selects_a_safe_runtime_backend` accepts the initializing state and every supported native RHI backend, while requiring CPU on `offscreen`, `minimal`, and `minimalegl` platforms. The source is also checked in both modes: with `PATCHY_GPU_CANVAS` enabled, the Qt Quick implementation is compiled; without it, the surface is a no-op CPU fallback.
+
+A real desktop smoke test must run with the native Qt platform plugin. The offscreen test platform intentionally selects CPU because it has no display surface and is not a hardware acceleration test. The CPU compositor corpus remains the authority for pixel and file-output validation in every mode.
+
+## Scope boundary
+
+The patch provides a single presentation architecture for OpenGL, Vulkan, Metal, Direct3D, and CPU fallback. It does not move layer compositing to shaders or replace the CPU compositor. A future GPU compositor would need separate capability coverage, shader equivalence tests, color-management validation, and explicit byte-authoritative fallback rules before it could be used for document rendering.
