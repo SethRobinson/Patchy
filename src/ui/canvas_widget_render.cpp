@@ -1317,18 +1317,16 @@ void CanvasWidget::draw_outside_canvas(QPainter& painter, QRect exposed) {
   }
   painter.restore();
 }
-
-#ifndef PATCHY_GPU_CANVAS
 void CanvasWidget::paintEvent(QPaintEvent* event) {
+#ifdef PATCHY_GPU_CANVAS
+  if (canvas_render_backend_ == CanvasRenderBackend::OpenGL) {
+    request_gpu_canvas_update(event != nullptr ? event->region() : QRegion(rect()));
+    return;
+  }
+#endif
   QPainter painter(this);
   paint_canvas(painter, event != nullptr ? event->rect() : rect());
-  }
-#else
-void CanvasWidget::paintGL() {
-  QPainter painter(this);
-  paint_canvas(painter, rect());
 }
-#endif
 
 void CanvasWidget::paint_canvas(QPainter& painter, const QRect& exposed_rect) {
   ZoomTraceScope trace("paint", zoom_);
