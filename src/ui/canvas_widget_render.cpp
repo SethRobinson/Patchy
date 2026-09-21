@@ -1319,8 +1319,8 @@ void CanvasWidget::draw_outside_canvas(QPainter& painter, QRect exposed) {
 }
 void CanvasWidget::paintEvent(QPaintEvent* event) {
 #ifdef PATCHY_GPU_CANVAS
-  if (canvas_render_backend_ == CanvasRenderBackend::OpenGL) {
-    request_gpu_canvas_update(event != nullptr ? event->region() : QRegion(rect()));
+  if (canvas_render_backend_ != CanvasRenderBackend::Cpu) {
+    request_graphics_canvas_update(event != nullptr ? event->region() : QRegion(rect()));
     return;
   }
 #endif
