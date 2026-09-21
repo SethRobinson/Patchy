@@ -15,12 +15,18 @@ CanvasGraphicsApi CanvasGraphicsSurface::api() const noexcept {
   return CanvasGraphicsApi::Unknown;
 }
 
-void CanvasGraphicsSurface::set_frame(QImage frame) {
-  Q_UNUSED(frame);
+void CanvasGraphicsSurface::set_gpu_document(CanvasGpuDocument document) {
+  Q_UNUSED(document);
 }
+
+void CanvasGraphicsSurface::clear_gpu_document() {}
 
 void CanvasGraphicsSurface::request_update(const QRegion& region) {
   Q_UNUSED(region);
+}
+
+void CanvasGraphicsSurface::set_overlay_painter(std::function<void(QPainter&, QRect)> painter) {
+  Q_UNUSED(painter);
 }
 
 void CanvasGraphicsSurface::resizeEvent(QResizeEvent* event) {
@@ -37,10 +43,14 @@ void CanvasGraphicsSurface::resizeEvent(QResizeEvent* event) {
 #include <QGuiApplication>
 #include <QMetaObject>
 #include <QPainter>
+#include <QPaintEvent>
 #include <QQuickPaintedItem>
+#include <QQuickItem>
 #include <QQuickWindow>
 #include <QQuickWidget>
 #include <QSGRendererInterface>
+#include <QSGSimpleTextureNode>
+#include <QSGNode>
 #include <QTimer>
 #include <QUrl>
 #include <QtGlobal>
@@ -66,6 +76,7 @@ void CanvasGraphicsSurface::resizeEvent(QResizeEvent* event) {
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <mutex>
 #include <optional>
 #include <string>
@@ -408,37 +419,194 @@ SceneGraphProbe probe_scene_graph(QQuickWindow* window) {
 
 }  // namespace
 
-class CanvasGraphicsSurface::QuickCanvasItem final : public QQuickPaintedItem {
+class CanvasGraphicsSurface::QuickCanvasItem final : public QQuickItem {
 public:
-  explicit QuickCanvasItem() {
-    setFillColor(Qt::transparent);
-    setRenderTarget(QQuickPaintedItem::Image);
-    setAntialiasing(false);
+  class Background final : public QQuickPaintedItem {
+  public:
+    explicit Background(QQuickItem* parent) : QQuickPaintedItem(parent) {
+      setFillColor(Qt::transparent);
+      setRenderTarget(QQuickPaintedItem::Image);
+      setAntialiasing(false);
+    }
+
+    void set_document_rect(QRectF rect, QColor backdrop) {
+      rect_ = rect;
+      backdrop_ = std::move(backdrop);
+      update();
+    }
+
+    void paint(QPainter* painter) override {
+      painter->fillRect(boundingRect(), backdrop_);
+      if (rect_.isEmpty()) {
+        return;
+      }
+      painter->save();
+      painter->setClipRect(rect_);
+      constexpr qreal square = 12.0;
+      const auto left = std::floor(rect_.left() / square) * square;
+      const auto top = std::floor(rect_.top() / square) * square;
+      for (qreal y = top; y < rect_.bottom(); y += square) {
+        for (qreal x = left; x < rect_.right(); x += square) {
+          const auto column = static_cast<int>(std::floor((x - left) / square));
+          const auto row = static_cast<int>(std::floor((y - top) / square));
+          painter->fillRect(QRectF(x, y, square, square),
+                            ((column + row) & 1) == 0 ? QColor(188, 188, 188) : QColor(236, 236, 236));
+        }
+      }
+      painter->restore();
+    }
+
+  private:
+    QRectF rect_;
+    QColor backdrop_{Qt::transparent};
+  };
+
+  class Layers final : public QQuickItem {
+  public:
+    class LayerNode final : public QSGOpacityNode {
+    public:
+      std::uint64_t id{0};
+      std::uint64_t revision{0};
+      QSGSimpleTextureNode* texture_node{nullptr};
+
+      LayerNode() {
+        texture_node = new QSGSimpleTextureNode;
+        texture_node->setFlag(QSGNode::OwnedByParent);
+        appendChildNode(texture_node);
+        setFlag(QSGNode::OwnedByParent);
+      }
+    };
+
+    explicit Layers(QQuickItem* parent) : QQuickItem(parent) {
+      setFlag(QQuickItem::ItemHasContents, true);
+    }
+
+    void set_document(CanvasGpuDocument document) {
+      {
+        const std::lock_guard lock(document_mutex_);
+        document_ = std::move(document);
+      }
+      update();
+    }
+
+    QSGNode* updatePaintNode(QSGNode* old_node, UpdatePaintNodeData*) override {
+      auto* root = old_node != nullptr ? old_node : new QSGNode;
+      CanvasGpuDocument document;
+      {
+        const std::lock_guard lock(document_mutex_);
+        document = document_;
+      }
+      auto* window = this->window();
+      if (window == nullptr) {
+        return root;
+      }
+      std::size_t index = 0;
+      for (auto& layer : document.layers) {
+        if (layer.image.isNull() || layer.rect.isEmpty() || layer.opacity <= 0.0) {
+          continue;
+        }
+        auto* node = index < static_cast<std::size_t>(root->childCount())
+                         ? dynamic_cast<LayerNode*>(root->childAtIndex(static_cast<int>(index)))
+                         : nullptr;
+        if (node == nullptr || node->id != layer.id) {
+          auto* replacement = new LayerNode;
+          if (index < static_cast<std::size_t>(root->childCount())) {
+            auto* before = root->childAtIndex(static_cast<int>(index));
+            root->insertChildNodeBefore(replacement, before);
+            root->removeChildNode(before);
+            delete before;
+          } else {
+            root->appendChildNode(replacement);
+          }
+          node = replacement;
+        }
+        node->setOpacity(static_cast<qreal>(layer.opacity));
+        node->texture_node->setRect(layer.rect);
+        node->texture_node->setFiltering(document.smooth_scaling ? QSGTexture::Linear : QSGTexture::Nearest);
+        if (node->revision != layer.revision || node->texture_node->texture() == nullptr) {
+          auto image = layer.image.convertToFormat(QImage::Format_RGBA8888_Premultiplied);
+          node->texture_node->setOwnsTexture(false);
+          delete node->texture_node->texture();
+          node->texture_node->setTexture(window->createTextureFromImage(image, QQuickWindow::TextureHasAlphaChannel));
+          if (node->texture_node->texture() == nullptr) {
+            node->texture_node->setOwnsTexture(false);
+            ++index;
+            continue;
+          }
+          node->texture_node->setOwnsTexture(true);
+          node->revision = layer.revision;
+        }
+        ++index;
+      }
+      while (root->childCount() > static_cast<int>(index)) {
+        auto* stale = root->lastChild();
+        root->removeChildNode(stale);
+        delete stale;
+      }
+      return root;
+    }
+
+  private:
+    std::mutex document_mutex_;
+    CanvasGpuDocument document_;
+  };
+
+  explicit QuickCanvasItem() : QQuickItem() {
+    background_ = new Background(this);
+    layers_ = new Layers(this);
+    background_->setZ(0.0);
+    layers_->setZ(1.0);
+    setFlag(QQuickItem::ItemHasContents, false);
   }
 
-  void set_frame(QImage frame) {
-    {
-      const std::lock_guard lock(frame_mutex_);
-      frame_ = std::move(frame);
-    }
+  void set_document(CanvasGpuDocument document) {
+    background_->set_document_rect(document.canvas_rect, document.canvas_backdrop);
+    layers_->set_document(std::move(document));
+  }
+
+  void clear_document() {
+    layers_->set_document(CanvasGpuDocument{});
+    background_->set_document_rect({}, Qt::transparent);
+  }
+
+protected:
+  void geometryChange(const QRectF& new_geometry, const QRectF& old_geometry) override {
+    QQuickItem::geometryChange(new_geometry, old_geometry);
+    background_->setSize(new_geometry.size());
+    layers_->setSize(new_geometry.size());
+  }
+private:
+  Background* background_{nullptr};
+  Layers* layers_{nullptr};
+};
+
+class CanvasGraphicsSurface::OverlayWidget final : public QWidget {
+public:
+  explicit OverlayWidget(QWidget* parent) : QWidget(parent) {
+    setAttribute(Qt::WA_TransparentForMouseEvents);
+    setAttribute(Qt::WA_TranslucentBackground);
+    setAttribute(Qt::WA_NoSystemBackground);
+    setAutoFillBackground(false);
+  }
+
+  void set_painter(std::function<void(QPainter&, QRect)> painter) {
+    painter_ = std::move(painter);
     update();
   }
 
-  void paint(QPainter* painter) override {
-    QImage frame;
-    {
-      const std::lock_guard lock(frame_mutex_);
-      frame = frame_;
-    }
-    painter->fillRect(boundingRect(), Qt::transparent);
-    if (!frame.isNull()) {
-      painter->drawImage(QPointF(0.0, 0.0), frame);
+protected:
+  void paintEvent(QPaintEvent* event) override {
+    QPainter painter(this);
+    painter.setCompositionMode(QPainter::CompositionMode_Source);
+    painter.fillRect(event != nullptr ? event->rect() : rect(), Qt::transparent);
+    painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+    if (painter_) {
+      painter_(painter, event != nullptr ? event->rect() : rect());
     }
   }
 
 private:
-  std::mutex frame_mutex_;
-  QImage frame_;
+  std::function<void(QPainter&, QRect)> painter_;
 };
 
 std::unique_ptr<CanvasGraphicsSurface> CanvasGraphicsSurface::create(QWidget* parent) {
@@ -474,6 +642,9 @@ CanvasGraphicsSurface::CanvasGraphicsSurface(QWidget* parent) : QWidget(parent) 
   quick_item_ = new QuickCanvasItem;
   quick_item_->setSize(size());
   quick_widget_->setContent(QUrl(), nullptr, quick_item_);
+  overlay_widget_ = new OverlayWidget(this);
+  overlay_widget_->setGeometry(rect());
+  overlay_widget_->raise();
 
   connect(quick_widget_, &QQuickWidget::sceneGraphError, this,
           [this](QQuickWindow::SceneGraphError error, const QString& message) {
@@ -513,6 +684,7 @@ void CanvasGraphicsSurface::set_api_from_scene_graph() {
   const auto probe = probe_scene_graph(quick_widget_->quickWindow());
   QMetaObject::invokeMethod(this, [this, probe] {
     if (!probe.failure_reason.isEmpty()) {
+      qInfo().noquote() << "Patchy graphics surface unavailable; using CPU canvas:" << probe.failure_reason;
       emit failed(probe.failure_reason);
       return;
     }
@@ -531,9 +703,15 @@ void CanvasGraphicsSurface::scene_graph_error(int error, const QString& message)
   QMetaObject::invokeMethod(this, [this, reason] { emit failed(reason); }, Qt::QueuedConnection);
 }
 
-void CanvasGraphicsSurface::set_frame(QImage frame) {
+void CanvasGraphicsSurface::set_gpu_document(CanvasGpuDocument document) {
   if (quick_item_ != nullptr) {
-    quick_item_->set_frame(std::move(frame));
+    quick_item_->set_document(std::move(document));
+  }
+}
+
+void CanvasGraphicsSurface::clear_gpu_document() {
+  if (quick_item_ != nullptr) {
+    quick_item_->clear_document();
   }
 }
 
@@ -542,12 +720,24 @@ void CanvasGraphicsSurface::request_update(const QRegion& region) {
   if (quick_item_ != nullptr) {
     quick_item_->update();
   }
+  if (overlay_widget_ != nullptr) {
+    overlay_widget_->update(region);
+  }
+}
+
+void CanvasGraphicsSurface::set_overlay_painter(std::function<void(QPainter&, QRect)> painter) {
+  if (overlay_widget_ != nullptr) {
+    overlay_widget_->set_painter(std::move(painter));
+  }
 }
 
 void CanvasGraphicsSurface::resizeEvent(QResizeEvent* event) {
   QWidget::resizeEvent(event);
   if (quick_widget_ != nullptr) {
     quick_widget_->setGeometry(rect());
+  }
+  if (overlay_widget_ != nullptr) {
+    overlay_widget_->setGeometry(rect());
   }
   if (quick_item_ != nullptr) {
     quick_item_->setSize(size());

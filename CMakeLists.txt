@@ -163,6 +163,7 @@ patchy_configure_target(patchy_core)
 
 add_library(patchy_render
   src/render/compositor.cpp
+  src/render/gpu_document_capabilities.cpp
   src/render/layer_style_mask_ops.cpp
   src/render/tile_cache.cpp
 )

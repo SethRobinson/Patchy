@@ -10,10 +10,12 @@
 #include "core/layer_tree.hpp"
 #include "core/pixel_tools.hpp"
 #include "core/quick_select.hpp"
+#include "render/gpu_document_capabilities.hpp"
 #include "ui/edit_conversions.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/qt_geometry.hpp"
 #include "ui/smart_object_render.hpp"
+#include "ui/theme_palette.hpp"
 #include "ui/tool_cursors.hpp"
 
 #include <QApplication>
@@ -271,6 +273,9 @@ void CanvasWidget::initialize_graphics_canvas() {
           [this](CanvasGraphicsApi api) { graphics_surface_ready(api); });
   connect(graphics_surface_.get(), &CanvasGraphicsSurface::failed, this,
           [this](const QString& reason) { graphics_surface_failed(reason); });
+  graphics_surface_->set_overlay_painter([this](QPainter& painter, QRect exposed_rect) {
+    paint_gpu_overlay(painter, exposed_rect);
+  });
   graphics_surface_->setGeometry(rect());
   graphics_surface_->lower();
 }
@@ -280,9 +285,6 @@ void CanvasWidget::show_graphics_canvas() {
     return;
   }
   resize_graphics_canvas_surface();
-  if (!graphics_surface_->isVisible()) {
-    graphics_surface_->show();
-  }
   render_graphics_canvas_frame();
 }
 
@@ -324,21 +326,140 @@ void CanvasWidget::render_graphics_canvas_frame() {
   if (graphics_surface_ == nullptr || canvas_render_backend_ == CanvasRenderBackend::Cpu) {
     return;
   }
-  QImage frame(size() * devicePixelRatioF(), QImage::Format_ARGB32_Premultiplied);
-  frame.setDevicePixelRatio(devicePixelRatioF());
-  frame.fill(Qt::transparent);
-  QPainter painter(&frame);
-  paint_canvas(painter, QRect(QPoint(), size()));
-  painter.end();
-  graphics_surface_->set_frame(std::move(frame));
+  CanvasGpuDocument document;
+  QString rejection_reason;
+  if (!build_gpu_document(document, &rejection_reason)) {
+    if (rejection_reason != last_gpu_fallback_reason_) {
+      last_gpu_fallback_reason_ = rejection_reason;
+      if (!rejection_reason.isEmpty()) {
+        qInfo().noquote() << "Patchy GPU document compositor unavailable; using CPU compositor:" << rejection_reason;
+      }
+    }
+    if (gpu_document_active_) {
+      gpu_document_active_ = false;
+      graphics_surface_->clear_gpu_document();
+      graphics_surface_->hide();
+      update();
+    }
+    return;
+  }
+  gpu_document_active_ = true;
+  last_gpu_fallback_reason_.clear();
+  if (!graphics_surface_->isVisible()) {
+    graphics_surface_->show();
+    graphics_surface_->lower();
+  }
+  graphics_surface_->set_gpu_document(std::move(document));
 }
 
 void CanvasWidget::request_graphics_canvas_update(const QRegion& region) {
-  if (graphics_surface_ == nullptr || canvas_render_backend_ == CanvasRenderBackend::Cpu) {
+  if (graphics_surface_ == nullptr || canvas_render_backend_ == CanvasRenderBackend::Cpu || !gpu_document_active_) {
     return;
   }
   render_graphics_canvas_frame();
   graphics_surface_->request_update(region);
+}
+
+bool CanvasWidget::build_gpu_document(CanvasGpuDocument& result, QString* rejection_reason) const {
+  const auto reject = [rejection_reason](QString reason) {
+    if (rejection_reason != nullptr) {
+      *rejection_reason = std::move(reason);
+    }
+    return false;
+  };
+  if (document_ == nullptr || document_->width() <= 0 || document_->height() <= 0) {
+    return reject(QStringLiteral("document has no renderable canvas"));
+  }
+
+  // The GPU path is deliberately all-or-nothing for a document. Falling back
+  // here is safer than mixing a GPU approximation with CPU-rendered siblings.
+  // This first capability tier covers the common raster stack: top-level
+  // pixel layers, source-over alpha, and no Photoshop feature that requires
+  // sampling the accumulated backdrop in a custom shader.
+  if (tiling_preview_enabled_ || uses_deep_zoom_pixel_renderer(zoom_) || transforming_layer_ || warping_layer_ ||
+      moving_layer_ || patch_tool_dragging_ || curves_clipping_mode_.has_value() || processing_operation_active() ||
+      layer_edit_target_ != LayerEditTarget::Content) {
+    return reject(QStringLiteral("an interactive preview or non-content channel is active"));
+  }
+
+  const auto capability = patchy::gpu_document_capability(*document_);
+  if (!capability.supported()) {
+    return reject(QString::fromStdString(capability.reason));
+  }
+
+  result.document_size = QSize(document_->width(), document_->height());
+  result.canvas_backdrop = theme().canvas_backdrop;
+  result.smooth_scaling = uses_smooth_display_scaling(zoom_, false);
+  const QRectF exact_target_rect(widget_position_f(QPointF(0.0, 0.0)),
+                                 widget_position_f(QPointF(document_->width(), document_->height())));
+  if (uses_pixel_aligned_view(zoom_)) {
+    const auto top_left = widget_position(QPoint(0, 0));
+    const auto bottom_right = widget_position(QPoint(document_->width(), document_->height()));
+    result.canvas_rect = QRectF(QRect(top_left, QSize(bottom_right.x() - top_left.x(), bottom_right.y() - top_left.y())));
+  } else {
+    result.canvas_rect = exact_target_rect;
+  }
+
+  result.layers.reserve(document_->layers().size());
+  for (const auto& layer : document_->layers()) {
+    if (!layer.visible() || layer.opacity() <= 0.0F) {
+      continue;
+    }
+    result.layers.push_back(CanvasGpuLayer{
+        layer.id(),
+        layer.render_revision(),
+        qimage_from_pixel_buffer(layer.pixels()),
+        widget_rect_for_document_rect(QRectF(layer.bounds().x, layer.bounds().y, layer.bounds().width,
+                                              layer.bounds().height)),
+        static_cast<qreal>(std::clamp(layer.opacity(), 0.0F, 1.0F)),
+    });
+  }
+  return true;
+}
+
+void CanvasWidget::paint_gpu_overlay(QPainter& painter, QRect exposed_rect) {
+  if (document_ == nullptr || document_->width() <= 0 || document_->height() <= 0) {
+    return;
+  }
+  const QRectF exact_target_rect(widget_position_f(QPointF(0.0, 0.0)),
+                                 widget_position_f(QPointF(document_->width(), document_->height())));
+  const bool pixel_aligned_view = uses_pixel_aligned_view(zoom_);
+  QRect pixel_aligned_target_rect;
+  if (pixel_aligned_view) {
+    const auto top_left = widget_position(QPoint(0, 0));
+    const auto bottom_right = widget_position(QPoint(document_->width(), document_->height()));
+    pixel_aligned_target_rect =
+        QRect(top_left, QSize(bottom_right.x() - top_left.x(), bottom_right.y() - top_left.y()));
+  }
+  const QRectF target_rect = pixel_aligned_view ? QRectF(pixel_aligned_target_rect) : exact_target_rect;
+
+  if (!curves_clipping_mode_.has_value()) {
+    draw_mask_display_overlay(painter, target_rect, pixel_aligned_view, pixel_aligned_target_rect);
+  }
+  draw_grid_overlay(painter, target_rect, exposed_rect);
+  draw_guides_overlay(painter);
+  painter.setPen(theme().canvas_document_border);
+  const auto border_rect = target_rect.adjusted(0.5, 0.5, -0.5, -0.5);
+  if (!border_rect.isEmpty()) {
+    painter.drawRect(border_rect);
+  }
+  draw_selection_overlay(painter);
+  draw_patch_tool_drag_outline(painter);
+  draw_quick_select_stroke_overlay(painter);
+  draw_spot_heal_stroke_overlay(painter);
+  draw_pen_overlay(painter);
+  draw_path_edit_overlay(painter);
+  draw_shape_preview(painter, exposed_rect);
+  draw_crop_overlay(painter);
+  draw_move_layer_selection(painter);
+  draw_drag_size_readout(painter);
+  draw_text_rect_preview(painter);
+  draw_zoom_preview(painter);
+  draw_rulers(painter);
+  draw_brush_hover_outline(painter);
+  draw_stroke_leash_overlay(painter);
+  draw_brush_adjust_overlay(painter);
+  draw_processing_overlay(painter);
 }
 
 void CanvasWidget::disable_gpu_canvas(const QString& reason) {
@@ -346,6 +467,7 @@ void CanvasWidget::disable_gpu_canvas(const QString& reason) {
     return;
   }
   canvas_render_backend_ = CanvasRenderBackend::Cpu;
+  gpu_document_active_ = false;
   graphics_surface_.reset();
   if (!reason.isEmpty()) {
     qInfo().noquote() << "Patchy GPU presentation unavailable; using CPU canvas:" << reason;

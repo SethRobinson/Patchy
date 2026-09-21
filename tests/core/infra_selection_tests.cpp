@@ -53,6 +53,7 @@
 #include "core/quick_select.hpp"
 #include "core/spot_heal.hpp"
 #include "render/compositor.hpp"
+#include "render/gpu_document_capabilities.hpp"
 #include "render/layer_compositor.hpp"
 #include "render/tile_cache.hpp"
 #include "support/cli_flags.hpp"
@@ -162,6 +163,29 @@ void color_manager_assigns_profiles() {
   patchy::ColorManager manager;
   manager.assign_icc_profile(document, {1, 2, 3});
   CHECK(document.color_state().embedded_icc_profile.size() == 3);
+}
+
+void gpu_document_capability_accepts_simple_pixel_stack() {
+  patchy::Document document(4, 4, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer pixels(4, 4, patchy::PixelFormat::rgba8());
+  pixels.clear(0);
+  document.add_pixel_layer("Paint", std::move(pixels));
+
+  const auto capability = patchy::gpu_document_capability(document);
+  CHECK(capability.mode == patchy::GpuDocumentRenderMode::PixelStackSourceOver);
+  CHECK(capability.reason.empty());
+}
+
+void gpu_document_capability_rejects_non_normal_blend_without_mixing_paths() {
+  patchy::Document document(4, 4, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer pixels(4, 4, patchy::PixelFormat::rgba8());
+  pixels.clear(0);
+  document.add_pixel_layer("Paint", std::move(pixels));
+  document.layers().front().set_blend_mode(patchy::BlendMode::Multiply);
+
+  const auto capability = patchy::gpu_document_capability(document);
+  CHECK(capability.mode == patchy::GpuDocumentRenderMode::Unsupported);
+  CHECK(capability.reason == "document contains a non-Normal blend mode");
 }
 
 // ---------------------------------------------------------------------------
@@ -1301,6 +1325,10 @@ std::vector<patchy::test::TestCase> infra_selection_tests() {
       {"plugin_host_and_legacy_probe_work", plugin_host_and_legacy_probe_work},
       {"tile_cache_stores_and_invalidates", tile_cache_stores_and_invalidates},
       {"color_manager_assigns_profiles", color_manager_assigns_profiles},
+      {"gpu_document_capability_accepts_simple_pixel_stack",
+       gpu_document_capability_accepts_simple_pixel_stack},
+      {"gpu_document_capability_rejects_non_normal_blend_without_mixing_paths",
+       gpu_document_capability_rejects_non_normal_blend_without_mixing_paths},
       {"quick_select_maxflow_solves_tiny_grid", quick_select_maxflow_solves_tiny_grid},
       {"quick_select_maxflow_matches_reference_on_random_grids",
        quick_select_maxflow_matches_reference_on_random_grids},

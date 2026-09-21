@@ -37,13 +37,10 @@
 #include <QRegion>
 #include <QSize>
 #include <QString>
-<<<<<<< HEAD
 #include <QStringList>
 #ifdef PATCHY_GPU_CANVAS
 #include <QOpenGLWidget>
 #endif
-=======
->>>>>>> 15954a60 (Add automatic GPU canvas backend fallback)
 #include <QWidget>
 
 #include <array>
@@ -1315,6 +1312,8 @@ private:
   void render_graphics_canvas_frame();
   void disable_gpu_canvas(const QString& reason);
   void request_graphics_canvas_update(const QRegion& region);
+  [[nodiscard]] bool build_gpu_document(CanvasGpuDocument& document, QString* rejection_reason = nullptr) const;
+  void paint_gpu_overlay(QPainter& painter, QRect exposed_rect);
 #endif
   void paint_canvas(QPainter& painter, const QRect& exposed_rect);
 
@@ -2186,6 +2185,8 @@ private:
   CanvasRenderBackend canvas_render_backend_{CanvasRenderBackend::Cpu};
 #ifdef PATCHY_GPU_CANVAS
   std::unique_ptr<CanvasGraphicsSurface> graphics_surface_;
+  bool gpu_document_active_{false};
+  QString last_gpu_fallback_reason_;
 #endif
   QImage render_cache_{};
   bool render_cache_dirty_{true};
