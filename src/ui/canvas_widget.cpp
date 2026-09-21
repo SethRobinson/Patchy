@@ -237,7 +237,12 @@ bool expand_mask_to_include_rect(LayerMask& mask, QRect document_rect, QSize can
 
 }  // namespace
 
+#ifdef PATCHY_GPU_CANVAS
+CanvasWidget::CanvasWidget(QWidget* parent) : QOpenGLWidget(parent) {
+  setUpdateBehavior(QOpenGLWidget::PartialUpdate);
+#else
 CanvasWidget::CanvasWidget(QWidget* parent) : QWidget(parent) {
+#endif
   // Windows: keep Alt+Space mid-gesture away from Qt's system-menu path.
   install_alt_space_drag_filter();
   setAutoFillBackground(false);

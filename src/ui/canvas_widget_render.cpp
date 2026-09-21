@@ -697,10 +697,20 @@ void CanvasWidget::document_changed_impl(QRegion document_region, bool includes_
   }
 }
 
+#ifndef PATCHY_GPU_CANVAS
 void CanvasWidget::paintEvent(QPaintEvent* event) {
-  ZoomTraceScope trace("paint", zoom_);
   QPainter painter(this);
-  const auto exposed_rect = event != nullptr ? event->rect() : rect();
+  paint_canvas(painter, event != nullptr ? event->rect() : rect());
+}
+#else
+void CanvasWidget::paintGL() {
+  QPainter painter(this);
+  paint_canvas(painter, rect());
+}
+#endif
+
+void CanvasWidget::paint_canvas(QPainter& painter, const QRect& exposed_rect) {
+  ZoomTraceScope trace("paint", zoom_);
   painter.fillRect(exposed_rect, backdrop_color());
 
   if (document_ == nullptr || document_->width() == 0 || document_->height() == 0) {
