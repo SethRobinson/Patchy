@@ -65,7 +65,7 @@
 ## Platforms, privacy, and interface
 
 - Cross-platform: Windows is the lead platform, with native macOS (Apple Silicon) and Linux (Flatpak) builds
-- Built with C++ and Qt for a native desktop experience. No GPU used, should run on a potato
+- Built with C++ and Qt for a native desktop experience. The default remains CPU-authoritative; desktop builds can opt into the experimental Qt RHI and Dawn/WebGPU tiers, with unsupported features falling back atomically to CPU
 - Privacy: YES! Absolutely no telemetry, no tracking, no data collection (if update checks are enabled, it contacts GitHub only to check for a newer version). Settings live in a plain local file, and the installer doesn't screw with your file extension preferences
 - Localized in English, German, Spanish, French, Italian, Japanese, and Chinese (Simplified and Traditional); the language follows your system or can be changed in File->Preferences
 - UI themes: Dark, Light, seven bundled themes (Darkest, Medium Gray, Solarized Dark, Nord, Dracula, Gruvbox Dark, High Contrast), or your own. A theme is a small JSON file (`.patchytheme`) that names a base scheme and overrides any of the interface colors, icon tints included; File->Preferences imports it and keeps it in your app-data themes folder (Open Themes Folder shows where). Start from [themes/example-high-contrast.patchytheme](../themes/example-high-contrast.patchytheme) or export the current look, which writes every color so you can see the role names; colors you leave out keep the base scheme's value, and Reload Themes applies an edit without restarting
@@ -82,7 +82,7 @@ Important Photoshop features that are not supported yet, or are only partially s
 - Layer comps, timeline/video editing, generative tools (animated GIF import, preview, and export are supported)
 - Photoshop's own automation surfaces: Actions (.atn), UXP/JSX panels, and scripts written for Photoshop (Patchy has its own JavaScript scripting and batch processing instead, see above)
 - High-fidelity PSD/PSB edge cases and byte-perfect preservation of every Photoshop-only metadata block
-- Patchy is slower than Photoshop, especially on large documents and it doesn't support any GPU acceleration. (Like, layer styles being done in pixel shaders, etc)  However, being CPU only helps with porting, consistent output, and stability so kind of a trade-off that makes sense, for now.  That said, certain operations have been optimized for multicore - canvas compositing and image flattening are multithreaded, splitting large images (4 Mpx+) into strips rendered on all CPU cores.
+- Patchy is slower than Photoshop, especially on large documents. CPU compositing, PSD output, and compatibility tests remain authoritative for portability and deterministic output. Optional Qt RHI and Dawn/WebGPU tiers can accelerate supported presentation and document-compositing paths; unsupported features and export fall back atomically to CPU. See [GPU canvas presentation](gpu-canvas.md). Canvas compositing and image flattening are also optimized for multicore execution.
 
 ### Affinity import
 

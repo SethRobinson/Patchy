@@ -215,7 +215,12 @@ bool expand_mask_to_include_rect(LayerMask& mask, QRect document_rect, QSize can
 
 }  // namespace
 
+#ifdef PATCHY_GPU_CANVAS
+CanvasWidget::CanvasWidget(QWidget* parent) : QOpenGLWidget(parent) {
+  setUpdateBehavior(QOpenGLWidget::PartialUpdate);
+#else
 CanvasWidget::CanvasWidget(QWidget* parent) : QWidget(parent) {
+#endif
   setAutoFillBackground(false);
   setMouseTracking(true);
   setTabletTracking(true);
