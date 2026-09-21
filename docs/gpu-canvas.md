@@ -2,7 +2,7 @@
 
 Patchy keeps the CPU compositor as the reference renderer for document pixels, PSD compatibility, export, and byte-identity tests. The desktop binary can now present that CPU-composed frame through Qt Quick Scene Graph and Qt RHI. Qt Quick selects the native graphics API for the platform, while Patchy verifies that the selected scene graph is hardware accelerated before it replaces the ordinary QWidget paint path.
 
-This is presentation-layer acceleration, not GPU document compositing. Layer blending, masks, filters, adjustment layers, layer styles, PSD saving, and export remain on the established CPU path. The Qt Quick surface uploads and presents the composed frame through the selected RHI backend. Zoom, pan, and canvas overlays therefore use the same pixels and geometry as the CPU path.
+This is presentation-layer acceleration, not GPU document compositing. The current path does not send individual layers or filter kernels to the GPU: the CPU compositor first produces the authoritative `QImage` frame, and Qt Quick/RHI then uploads and presents that frame through the selected backend. Layer blending, masks, filters, adjustment layers, layer styles, PSD saving, and export remain on the established CPU path. Zoom, pan, and canvas overlays therefore use the same pixels and geometry as the CPU path.
 
 ## Build
 
