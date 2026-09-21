@@ -180,11 +180,7 @@ renders and difference maps for all nine columns. Read the
 [full comparison and methodology](docs/psd-compatibility-benchmark.md) for the
 tables, per-folder results, scoring rules, and limitations.
 
-**Know the limits:** editing is RGB at 8, 16, or 32 bits per channel (the browser
-build stops at 16). CMYK work is proofing and export: CMYK Proof mode shows the print
-colors and saves CMYK JPEG, TIFF, and PDF, but pixels stay RGB. Lab and the other color
-modes convert to RGB on open, and there is no GPU acceleration. Unsupported Smart Filters can remain preview-locked,
-and Affinity import has format-specific limitations. See [current compatibility](docs/features.md#current-status).
+**Know the limits:** editing is RGB at 8, 16, or 32 bits per channel (the browser build stops at 16). CMYK work is proofing and export: CMYK Proof mode shows the print colors and saves CMYK JPEG, TIFF, and PDF, but pixels stay RGB. Lab and the other color modes convert to RGB on open. CPU compositing, PSD output, and compatibility tests remain authoritative for portability and deterministic output. Desktop builds can opt into the optional GPU presentation and document-compositing tiers with `-DPATCHY_ENABLE_GPU_CANVAS=ON` and `-DPATCHY_ENABLE_WEBGPU=ON`; unsupported features and export remain on the CPU with atomic fallback. Unsupported Smart Filters can remain preview-locked, and Affinity import has format-specific limitations. See [current compatibility](docs/features.md#current-status).
 
 ## What's New
 

@@ -385,7 +385,11 @@ bool CanvasWidget::event(QEvent* event) {
       return true;
     }
   }
+#ifdef PATCHY_GPU_CANVAS
+  return QOpenGLWidget::event(event);
+#else
   return QWidget::event(event);
+#endif
 }
 
 bool CanvasWidget::wheel_event_is_continuous_scroll(const QWheelEvent& event) noexcept {
@@ -542,7 +546,11 @@ void CanvasWidget::wheelEvent(QWheelEvent* event) {
 }
 
 void CanvasWidget::resizeEvent(QResizeEvent* event) {
+#ifdef PATCHY_GPU_CANVAS
+  QOpenGLWidget::resizeEvent(event);
+#else
   QWidget::resizeEvent(event);
+#endif
   // A maximized window, a dock opening or closing and a resized float window all re-anchor
   // the view (GitHub issue 241). Hidden tabs too, so they show centered when chosen. Only
   // a view something placed (view_size_ is set): a canvas no command has placed keeps its
