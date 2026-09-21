@@ -49,6 +49,9 @@
 #include <QSize>
 #include <QString>
 #include <QStringList>
+#ifdef PATCHY_GPU_CANVAS
+#include <QOpenGLWidget>
+#endif
 #include <QWidget>
 
 #include <array>
@@ -113,7 +116,11 @@ inline constexpr char kMoveAutoSelectTargetSettingsKey[] = "tools/moveAutoSelect
 [[nodiscard]] QString move_auto_select_target_token(MoveAutoSelectTarget target);
 [[nodiscard]] MoveAutoSelectTarget move_auto_select_target_from_token(const QString& token);
 
+#ifdef PATCHY_GPU_CANVAS
+class CanvasWidget final : public QOpenGLWidget {
+#else
 class CanvasWidget final : public QWidget {
+#endif
   Q_OBJECT
 
 public:
@@ -1550,7 +1557,11 @@ protected:
   // ShortcutOverride (canvas-owned Backspace/Delete during magnetic traces and guide
   // editing) + macOS trackpad pinch zoom (QNativeGestureEvent).
   bool event(QEvent* event) override;
+#ifndef PATCHY_GPU_CANVAS
   void paintEvent(QPaintEvent* event) override;
+#else
+  void paintGL() override;
+#endif
   void wheelEvent(QWheelEvent* event) override;
   void resizeEvent(QResizeEvent* event) override;
   void mousePressEvent(QMouseEvent* event) override;
@@ -1584,6 +1595,8 @@ protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
+  void paint_canvas(QPainter& painter, const QRect& exposed_rect);
+
   enum class TransformHandle {
     None,
     Move,
