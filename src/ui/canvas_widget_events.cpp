@@ -343,8 +343,8 @@ bool CanvasWidget::event(QEvent* event) {
     return handled;
   }
 #ifdef PATCHY_GPU_CANVAS
-  if (event->type() == QEvent::UpdateRequest && canvas_render_backend_ == CanvasRenderBackend::OpenGL) {
-    request_gpu_canvas_update(QRegion(rect()));
+  if (event->type() == QEvent::UpdateRequest && canvas_render_backend_ != CanvasRenderBackend::Cpu) {
+    request_graphics_canvas_update(QRegion(rect()));
   }
 #endif
   if (event->type() == QEvent::ShortcutOverride) {
@@ -553,7 +553,7 @@ void CanvasWidget::wheelEvent(QWheelEvent* event) {
 void CanvasWidget::resizeEvent(QResizeEvent* event) {
   QWidget::resizeEvent(event);
 #ifdef PATCHY_GPU_CANVAS
-  resize_gpu_canvas_surface();
+  resize_graphics_canvas_surface();
 #endif
   // A maximized window, a dock opening or closing and a resized float window all re-anchor
   // the view (GitHub issue 241). Hidden tabs too, so they show centered when chosen. Only
@@ -577,7 +577,7 @@ void CanvasWidget::resizeEvent(QResizeEvent* event) {
 void CanvasWidget::showEvent(QShowEvent* event) {
   QWidget::showEvent(event);
 #ifdef PATCHY_GPU_CANVAS
-  show_gpu_canvas();
+  show_graphics_canvas();
 #endif
 }
 
