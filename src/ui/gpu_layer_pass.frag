@@ -12,6 +12,15 @@ layout(std140, binding = 0) uniform buf {
     float maskDefault;
     float maskDensity;
     vec4 maskRect;
+    float hasBlendIf;
+    vec4 blendIfGrayThis;
+    vec4 blendIfRedThis;
+    vec4 blendIfGreenThis;
+    vec4 blendIfBlueThis;
+    vec4 blendIfGrayUnderlying;
+    vec4 blendIfRedUnderlying;
+    vec4 blendIfGreenUnderlying;
+    vec4 blendIfBlueUnderlying;
 };
 
 layout(binding = 1) uniform sampler2D source;
@@ -106,6 +115,29 @@ vec3 blend_color(vec3 sourceColor, vec3 backdropColor, int mode)
                 blend_channel(sourceColor.b, backdropColor.b, mode));
 }
 
+float blend_if_threshold_factor(vec4 thresholds, float value)
+{
+    if (value < thresholds.x || value > thresholds.w)
+        return 0.0;
+    if (value < thresholds.y)
+        return (value - thresholds.x + 1.0) / (thresholds.y - thresholds.x + 1.0);
+    if (value > thresholds.z)
+        return (thresholds.w - value + 1.0) / (thresholds.w - thresholds.z + 1.0);
+    return 1.0;
+}
+
+float blend_if_color_factor(vec3 color, bool source)
+{
+    float gray = floor((299.0 * color.r * 255.0 + 590.0 * color.g * 255.0 +
+                        111.0 * color.b * 255.0 + 500.0) / 1000.0);
+    float factor = 1.0;
+    factor *= blend_if_threshold_factor(source ? blendIfGrayThis : blendIfGrayUnderlying, gray);
+    factor *= blend_if_threshold_factor(source ? blendIfRedThis : blendIfRedUnderlying, color.r * 255.0);
+    factor *= blend_if_threshold_factor(source ? blendIfGreenThis : blendIfGreenUnderlying, color.g * 255.0);
+    factor *= blend_if_threshold_factor(source ? blendIfBlueThis : blendIfBlueUnderlying, color.b * 255.0);
+    return factor;
+}
+
 float sample_mask(vec2 coordinate)
 {
     if (hasMask < 0.5)
@@ -131,6 +163,10 @@ void main()
     vec3 backdropColor = backdropAlpha > 0.000001
             ? backdropPremultiplied.rgb / backdropAlpha
             : vec3(0.0);
+    if (hasBlendIf > 0.5) {
+        sourceAlpha *= blend_if_color_factor(sourceColor, true);
+        sourceAlpha *= blend_if_color_factor(backdropColor, false);
+    }
     vec3 blended = blend_color(sourceColor, backdropColor, int(blendMode + 0.5));
 
     float outputAlpha = sourceAlpha + backdropAlpha * (1.0 - sourceAlpha);
