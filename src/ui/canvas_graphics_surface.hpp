@@ -8,6 +8,7 @@
 #include <QSize>
 #include <QWidget>
 
+#include <array>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -28,7 +29,20 @@ enum class CanvasGraphicsApi : std::uint8_t {
   Direct3D12
 };
 
-// A document snapshot that the Qt Quick scene graph can composite directly.
+struct CanvasGpuBlendIfThresholds {
+  std::uint8_t black_low{0};
+  std::uint8_t black_high{0};
+  std::uint8_t white_low{255};
+  std::uint8_t white_high{255};
+};
+
+struct CanvasGpuBlendIfRanges {
+  CanvasGpuBlendIfThresholds this_layer;
+  CanvasGpuBlendIfThresholds underlying_layer;
+};
+
+// A document snapshot that the Qt Quick scene graph or an optional external
+// compositor can composite directly.
 // `rect` is in CanvasWidget coordinates; the image remains in document pixel
 // coordinates and is therefore filtered/scaled by the graphics backend.
 struct CanvasGpuLayer {
@@ -45,6 +59,9 @@ struct CanvasGpuLayer {
   qreal mask_default{1.0};
   qreal mask_density{1.0};
   bool has_mask{false};
+  bool has_blend_if{false};
+  // The order is Gray, Red, Green, Blue, matching LayerBlendIf and PSD.
+  std::array<CanvasGpuBlendIfRanges, 4> blend_if;
 };
 
 struct CanvasGpuDocument {
