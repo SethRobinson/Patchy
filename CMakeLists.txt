@@ -1800,7 +1800,10 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       list(APPEND PATCHY_TRANSLATION_RUNTIME_INPUTS "${PATCHY_TRANSLATION_RUNTIME_MANIFEST}")
       patchy_add_success_check(patchy_check_translation_runtime
         STAMP "${PATCHY_TRANSLATION_OUTPUT_DIR}/runtime-check.stamp"
-        COMMAND $<TARGET_FILE:patchy_translation_checks>
+        COMMAND ${CMAKE_COMMAND} -E env
+                QT_QPA_PLATFORM=offscreen
+                PATCHY_RENDER_BACKEND=cpu
+                $<TARGET_FILE:patchy_translation_checks>
         DEPENDS ${PATCHY_TRANSLATION_RUNTIME_INPUTS}
         WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
         COMMENT "Checking UI translations at startup and after language switches"
