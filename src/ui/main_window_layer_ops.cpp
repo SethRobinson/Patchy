@@ -1088,6 +1088,10 @@ void MainWindow::paste_clipboard(bool in_place) {
     paste_clipboard_color_to_palette();
     return;
   }
+  // Clipboard change notifications can be delayed by some platform backends. Re-check
+  // the system image synchronously so an external image can never inherit the origin
+  // of Patchy's previous internal copy, especially for Paste in Place.
+  clear_internal_clipboard_on_external_change();
   if (canvas_ != nullptr) {
     canvas_->finish_free_transform();
   }

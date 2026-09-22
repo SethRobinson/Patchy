@@ -1086,7 +1086,8 @@ void ui_photoshop_shortcuts_are_registered() {
   CHECK(require_action_by_text(window, QStringLiteral("Save As..."))->shortcut() ==
         QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_S));
   // Photoshop's Save for Web key.
-  // File > Export > Flat Image... (the submenu title carries the verb).
+  // File > Export > Flat Image...; use its stable object name rather than the
+  // submenu-relative display text.
   CHECK(require_action(window, "fileExportFlatAction")->shortcut() ==
         QKeySequence(Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_S));
   CHECK(require_action_by_text(window, QStringLiteral("Close"))->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_W));

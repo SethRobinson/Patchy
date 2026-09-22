@@ -39,9 +39,12 @@
 #include <QSize>
 #include <QString>
 #include <QStringList>
+<<<<<<< HEAD
 #ifdef PATCHY_GPU_CANVAS
 #include <QOpenGLWidget>
 #endif
+=======
+>>>>>>> 55d5be83 (Fix rebased UI ordering and external paste behavior)
 #include <QWidget>
 
 #include <array>
