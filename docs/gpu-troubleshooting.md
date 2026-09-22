@@ -176,6 +176,7 @@ The `webgpu` value is a preference, not a guarantee. The following outcomes are 
 - the Dawn adapter is CPU or software: Patchy rejects it;
 - the document dimensions are invalid: the incomplete frame is discarded;
 - the document is outside the capability matrix: the complete document stays on CPU;
+- a clipped layer is present: the current GPU tier rejects the document and keeps the authoritative CPU compositor;
 - an interactive preview or non-content channel is active: Patchy stays on the CPU compositor;
 - device, shader, queue, or readback initialization fails: the complete frame falls back to Qt RHI or CPU.
 

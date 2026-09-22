@@ -289,10 +289,22 @@ QT_LOGGING_RULES='qt.scenegraph.general=true;qt.rhi.general=true' \
   test-fixtures/af/tiny-rgba8.png 2>&1 | tee /tmp/patchy-gpu-runtime.log
 ```
 
-A WebGPU run is confirmed only when the log contains a line similar to:
+The adapter line confirms that Dawn initialized successfully, including its device
+and compute pipeline. A complete document composition run is confirmed only when
+the log also contains the `active on ... via ...` line; a document can still be
+rejected afterward by the GPU capability matrix and remain on the CPU compositor.
+
+The Dawn initialization line looks similar to:
 
 ```text
 Patchy WebGPU document compositor: Intel(R) Iris(R) Xe Graphics (ADL GT2), native API: Vulkan
+```
+
+For a document accepted by the GPU capability matrix, the later activation line
+looks similar to:
+
+```text
+Patchy WebGPU document compositor active on Intel(R) Iris(R) Xe Graphics (ADL GT2) via Vulkan
 ```
 
 A Qt RHI run is confirmed by a line similar to:
