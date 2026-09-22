@@ -217,6 +217,37 @@ bool expand_mask_to_include_rect(LayerMask& mask, QRect document_rect, QSize can
   return true;
 }
 
+#ifdef PATCHY_GPU_CANVAS
+std::uint64_t webgpu_hash_combine(std::uint64_t hash, std::uint64_t value) {
+  hash ^= value + UINT64_C(0x9e3779b97f4a7c15) + (hash << 6U) + (hash >> 2U);
+  return hash;
+}
+
+std::uint64_t webgpu_document_key(const CanvasGpuDocument& document) {
+  std::uint64_t hash = UINT64_C(0xcbf29ce484222325);
+  hash = webgpu_hash_combine(hash, static_cast<std::uint64_t>(document.document_size.width()));
+  hash = webgpu_hash_combine(hash, static_cast<std::uint64_t>(document.document_size.height()));
+  for (const auto& layer : document.layers) {
+    hash = webgpu_hash_combine(hash, layer.id);
+    hash = webgpu_hash_combine(hash, layer.revision);
+    hash = webgpu_hash_combine(hash, static_cast<std::uint64_t>(layer.blend_mode));
+    hash = webgpu_hash_combine(hash, std::hash<double>{}(layer.opacity));
+    hash = webgpu_hash_combine(hash, std::hash<double>{}(layer.mask_default));
+    hash = webgpu_hash_combine(hash, std::hash<double>{}(layer.mask_density));
+    hash = webgpu_hash_combine(hash, static_cast<std::uint64_t>(layer.has_mask));
+    hash = webgpu_hash_combine(hash, static_cast<std::uint64_t>(layer.image.width()));
+    hash = webgpu_hash_combine(hash, static_cast<std::uint64_t>(layer.image.height()));
+    hash = webgpu_hash_combine(hash, std::hash<double>{}(layer.document_rect.left()));
+    hash = webgpu_hash_combine(hash, std::hash<double>{}(layer.document_rect.top()));
+    hash = webgpu_hash_combine(hash, std::hash<double>{}(layer.mask_document_rect.left()));
+    hash = webgpu_hash_combine(hash, std::hash<double>{}(layer.mask_document_rect.top()));
+    hash = webgpu_hash_combine(hash, static_cast<std::uint64_t>(layer.mask_image.width()));
+    hash = webgpu_hash_combine(hash, static_cast<std::uint64_t>(layer.mask_image.height()));
+  }
+  return hash;
+}
+#endif
+
 }  // namespace
 
 CanvasWidget::CanvasWidget(QWidget* parent) : QWidget(parent) {
@@ -259,10 +290,22 @@ CanvasWidget::CanvasRenderBackend CanvasWidget::canvas_render_backend() const no
 }
 
 #ifdef PATCHY_GPU_CANVAS
+void CanvasWidget::initialize_webgpu_compositor() {
+  if (!WebGpuDocumentCompositor::should_try_automatically()) {
+    return;
+  }
+  QString reason;
+  webgpu_compositor_ = WebGpuDocumentCompositor::create(&reason);
+  if (webgpu_compositor_ == nullptr && !reason.isEmpty()) {
+    qInfo().noquote() << "Patchy WebGPU document compositor unavailable; using Qt RHI/CPU fallback:" << reason;
+  }
+}
+
 void CanvasWidget::initialize_graphics_canvas() {
   if (graphics_surface_ != nullptr) {
     return;
   }
+  initialize_webgpu_compositor();
   graphics_surface_ = CanvasGraphicsSurface::create(this);
   if (graphics_surface_ == nullptr) {
     disable_gpu_canvas(QStringLiteral("GPU presentation was disabled by configuration or build"));
@@ -343,6 +386,35 @@ void CanvasWidget::render_graphics_canvas_frame() {
     }
     return;
   }
+
+  if (webgpu_compositor_ != nullptr) {
+    const auto cache_key = webgpu_document_key(document);
+    QString webgpu_reason;
+    if (cache_key == webgpu_frame_cache_key_ && !webgpu_frame_cache_.isNull()) {
+      document.composited_frame = webgpu_frame_cache_;
+      document.layers.clear();
+    } else {
+      QImage composited_frame;
+      if (webgpu_compositor_->compose(document, composited_frame, &webgpu_reason)) {
+        webgpu_frame_cache_ = std::move(composited_frame);
+        webgpu_frame_cache_key_ = cache_key;
+        document.composited_frame = webgpu_frame_cache_;
+        document.layers.clear();
+      }
+    }
+    if (!document.composited_frame.isNull()) {
+      if (!webgpu_compositor_reported_) {
+        webgpu_compositor_reported_ = true;
+        qInfo().noquote() << "Patchy WebGPU document compositor active on"
+                          << webgpu_compositor_->adapter_name() << "via"
+                          << webgpu_compositor_->native_backend_name();
+      }
+    } else if (!webgpu_reason.isEmpty() && webgpu_reason != last_gpu_fallback_reason_) {
+      qInfo().noquote() << "Patchy WebGPU document compositor failed; using Qt RHI/CPU document fallback:"
+                        << webgpu_reason;
+    }
+  }
+
   gpu_document_active_ = true;
   last_gpu_fallback_reason_.clear();
   if (!graphics_surface_->isVisible()) {
@@ -418,8 +490,9 @@ bool CanvasWidget::build_gpu_document(CanvasGpuDocument& result, QString* reject
     gpu_layer.id = layer.id();
     gpu_layer.revision = layer.render_revision();
     gpu_layer.image = qimage_from_pixel_buffer(layer.pixels());
-    gpu_layer.rect = widget_rect_for_document_rect(QRectF(layer.bounds().x, layer.bounds().y, layer.bounds().width,
-                                                           layer.bounds().height));
+    const QRectF document_rect(layer.bounds().x, layer.bounds().y, layer.bounds().width, layer.bounds().height);
+    gpu_layer.document_rect = document_rect;
+    gpu_layer.rect = widget_rect_for_document_rect(document_rect);
     gpu_layer.opacity = static_cast<qreal>(std::clamp(layer.opacity() * layer.fill_opacity(), 0.0F, 1.0F));
     gpu_layer.blend_mode = static_cast<int>(layer.blend_mode());
     if (layer.mask().has_value() && !layer.mask()->disabled) {
@@ -431,8 +504,9 @@ bool CanvasWidget::build_gpu_document(CanvasGpuDocument& result, QString* reject
           std::memcpy(gpu_layer.mask_image.scanLine(y), mask.pixels.row(y).data(),
                       static_cast<std::size_t>(mask.pixels.width()));
         }
-        gpu_layer.mask_rect = widget_rect_for_document_rect(
-            QRectF(mask.bounds.x, mask.bounds.y, mask.bounds.width, mask.bounds.height));
+        gpu_layer.mask_document_rect =
+            QRectF(mask.bounds.x, mask.bounds.y, mask.bounds.width, mask.bounds.height);
+        gpu_layer.mask_rect = widget_rect_for_document_rect(gpu_layer.mask_document_rect);
       }
       gpu_layer.mask_default = static_cast<qreal>(mask.default_color) / 255.0;
       gpu_layer.mask_density = static_cast<qreal>(mask.density) / 255.0;
@@ -614,6 +688,10 @@ void CanvasWidget::set_document_internal(Document* document, bool preserve_frame
   moving_layers_use_outline_preview_ = false;
   clear_retained_move_caches();
   reset_move_live_latch();
+#ifdef PATCHY_GPU_CANVAS
+  webgpu_frame_cache_ = QImage();
+  webgpu_frame_cache_key_ = 0;
+#endif
   document_ = document;
   set_move_transform_controls_layer(std::nullopt);
   selected_guide_index_ = -1;
