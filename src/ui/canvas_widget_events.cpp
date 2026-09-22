@@ -439,11 +439,25 @@ void CanvasWidget::wheelEvent(QWheelEvent* event) {
 }
 
 void CanvasWidget::resizeEvent(QResizeEvent* event) {
+  const auto old_size = event->oldSize();
+  const auto old_pan = pan_;
+  const bool preserve_document_center = old_size.width() > 0 && old_size.height() > 0 && document_ != nullptr &&
+                                        document_->width() > 0 && document_->height() > 0 && zoom_ > 0.0;
+  const QPointF old_document_center = preserve_document_center
+                                          ? QPointF((static_cast<double>(old_size.width()) / 2.0 - pan_.x()) / zoom_,
+                                                     (static_cast<double>(old_size.height()) / 2.0 - pan_.y()) / zoom_)
+                                          : QPointF();
   QWidget::resizeEvent(event);
 #ifdef PATCHY_GPU_CANVAS
   resize_graphics_canvas_surface();
 #endif
-  if (isVisible() && constrain_pan()) {
+  if (preserve_document_center) {
+    pan_ = QPointF(static_cast<double>(width()) / 2.0 - old_document_center.x() * zoom_,
+                   static_cast<double>(height()) / 2.0 - old_document_center.y() * zoom_);
+  }
+  const bool pan_changed = pan_ != old_pan;
+  const bool pan_constrained = constrain_pan();
+  if (isVisible() && (pan_changed || pan_constrained)) {
     update();
     notify_view_changed();
   }
