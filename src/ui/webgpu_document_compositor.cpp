@@ -41,6 +41,16 @@ struct Params {
   maskDefault: f32,
   maskDensity: f32,
   hasMask: u32,
+  hasBlendIf: u32,
+  padding: vec2<u32>,
+  blendIfGrayThis: vec4<f32>,
+  blendIfRedThis: vec4<f32>,
+  blendIfGreenThis: vec4<f32>,
+  blendIfBlueThis: vec4<f32>,
+  blendIfGrayUnderlying: vec4<f32>,
+  blendIfRedUnderlying: vec4<f32>,
+  blendIfGreenUnderlying: vec4<f32>,
+  blendIfBlueUnderlying: vec4<f32>,
 };
 
 @group(0) @binding(0) var<uniform> params: Params;
@@ -107,6 +117,28 @@ fn blendColor(source: vec3<f32>, backdrop: vec3<f32>, mode: u32) -> vec3<f32> {
                    blendChannel(source.b, backdrop.b, mode));
 }
 
+fn blendIfThresholdFactor(thresholds: vec4<f32>, value: f32) -> f32 {
+  if (value < thresholds.x || value > thresholds.w) { return 0.0; }
+  if (value < thresholds.y) {
+    return (value - thresholds.x + 1.0) / (thresholds.y - thresholds.x + 1.0);
+  }
+  if (value > thresholds.z) {
+    return (thresholds.w - value + 1.0) / (thresholds.w - thresholds.z + 1.0);
+  }
+  return 1.0;
+}
+
+fn blendIfColorFactor(color: vec3<f32>, source: bool) -> f32 {
+  let gray = floor((299.0 * color.r * 255.0 + 590.0 * color.g * 255.0 +
+                   111.0 * color.b * 255.0 + 500.0) / 1000.0);
+  var factor = 1.0;
+  factor = factor * blendIfThresholdFactor(select(params.blendIfGrayUnderlying, params.blendIfGrayThis, source), gray);
+  factor = factor * blendIfThresholdFactor(select(params.blendIfRedUnderlying, params.blendIfRedThis, source), color.r * 255.0);
+  factor = factor * blendIfThresholdFactor(select(params.blendIfGreenUnderlying, params.blendIfGreenThis, source), color.g * 255.0);
+  factor = factor * blendIfThresholdFactor(select(params.blendIfBlueUnderlying, params.blendIfBlueThis, source), color.b * 255.0);
+  return factor;
+}
+
 fn maskCoverage(coord: vec2<i32>) -> f32 {
   if (params.hasMask == 0u) { return 1.0; }
   let dimensions = textureDimensions(maskTexture);
@@ -136,6 +168,10 @@ fn main(@builtin(global_invocation_id) invocation: vec3<u32>) {
   let backdropAlpha = clamp(backdropSample.a, 0.0, 1.0);
   let sourceColor = select(vec3<f32>(0.0), sourceSample.rgb / max(sourceSample.a, 0.000001), sourceAlpha > 0.000001);
   let backdropColor = select(vec3<f32>(0.0), backdropSample.rgb / max(backdropAlpha, 0.000001), backdropAlpha > 0.000001);
+  if (params.hasBlendIf != 0u) {
+    sourceAlpha = sourceAlpha * blendIfColorFactor(sourceColor, true);
+    sourceAlpha = sourceAlpha * blendIfColorFactor(backdropColor, false);
+  }
   let blended = blendColor(sourceColor, backdropColor, params.blendMode);
   let outputAlpha = sourceAlpha + backdropAlpha * (1.0 - sourceAlpha);
   let outputRgb = blended * sourceAlpha * backdropAlpha +
@@ -313,9 +349,11 @@ struct Params {
   float mask_default{1.0F};
   float mask_density{1.0F};
   uint32_t has_mask{0};
-  uint32_t padding{0};
+  uint32_t has_blend_if{0};
+  uint32_t padding[2]{0, 0};
+  std::array<std::array<float, 4>, 8> blend_if{};
 };
-static_assert(sizeof(Params) == 40);
+static_assert(sizeof(Params) == 176);
 
 struct TextureData {
   TextureHandle texture;
@@ -466,6 +504,17 @@ public:
       params.mask_default = static_cast<float>(std::clamp(layer.mask_default, 0.0, 1.0));
       params.mask_density = static_cast<float>(std::clamp(layer.mask_density, 0.0, 1.0));
       params.has_mask = layer.has_mask ? 1U : 0U;
+      params.has_blend_if = layer.has_blend_if ? 1U : 0U;
+      const auto copy_thresholds = [](const CanvasGpuBlendIfThresholds& thresholds) {
+        return std::array<float, 4>{static_cast<float>(thresholds.black_low),
+                                    static_cast<float>(thresholds.black_high),
+                                    static_cast<float>(thresholds.white_low),
+                                    static_cast<float>(thresholds.white_high)};
+      };
+      for (std::size_t index = 0; index < layer.blend_if.size(); ++index) {
+        params.blend_if[index * 2U] = copy_thresholds(layer.blend_if[index].this_layer);
+        params.blend_if[index * 2U + 1U] = copy_thresholds(layer.blend_if[index].underlying_layer);
+      }
 
       WGPUBufferDescriptor uniform_descriptor = WGPU_BUFFER_DESCRIPTOR_INIT;
       uniform_descriptor.usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst;
