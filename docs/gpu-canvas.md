@@ -2,9 +2,9 @@
 
 Patchy has one desktop binary with a native Qt Quick/RHI graphics path and an authoritative CPU compositor. The graphics path has two distinct responsibilities: it can compose a capability-supported document from layer textures on the GPU, and it can present the established CPU result when the document or platform requires it.
 
-The GPU document path currently supports a complete top-level stack of 8-bit RGB/RGBA pixel layers using source-over alpha and Normal blend mode. It uploads each layer as a texture and lets the Qt Quick scene graph position, scale, filter, and composite those layers. The CPU path remains authoritative for every feature that is not yet shader-equivalent.
+The GPU document path currently supports a complete top-level stack of 8-bit RGB/RGBA pixel layers. The source-over tier handles Normal blend mode, ordinary opacity, and fill opacity through the native Qt Quick scene graph. The shader tier adds the separable colour modes (`Multiply`, `Screen`, `Overlay`, `Darken`, `Lighten`, `Color Dodge`, `Color Burn`, `Hard Light`, `Soft Light`, `Difference`, `Linear Burn`, `Pin Light`, `Exclusion`, `Linear Dodge`, `Subtract`, `Divide`, `Vivid Light`, `Linear Light`, and `Hard Mix`) plus unfeathered grayscale raster masks and mask density. Each layer is uploaded as a texture and composed in a portable QSB pass that Qt RHI translates for OpenGL, Vulkan, Metal, or Direct3D. The CPU path remains authoritative for every feature that is not yet shader-equivalent.
 
-This is intentionally all-or-nothing per document. Patchy never mixes an approximate GPU layer with CPU-composed siblings. A document containing a group, non-Normal blend mode, mask, adjustment, vector or text content, layer style, smart filter, Blend If rule, channel restriction, clipped layer, or unsupported pixel format stays on the CPU compositor until an equivalent GPU implementation is available.
+This is intentionally all-or-nothing per document. Patchy never mixes an approximate GPU layer with CPU-composed siblings. A document containing a group, a non-separable blend mode, a feathered mask, adjustment, vector or text content, layer style, smart filter, Blend If rule, channel restriction, clipped layer, or unsupported pixel format stays on the CPU compositor until an equivalent GPU implementation is available.
 
 ## Build
 
@@ -45,7 +45,8 @@ For OpenGL, Patchy reads the renderer and vendor strings through the scene-graph
 
 After the graphics device is accepted, a separate document capability check decides whether the GPU compositor may be used. The decision is conservative and all-or-nothing:
 
-- `PixelStackSourceOver`: visible top-level 8-bit RGB/RGBA pixel layers, Normal blend mode, ordinary opacity, matching bounds, and no masks or effects are composed as GPU textures;
+- `PixelStackSourceOver`: visible top-level 8-bit RGB/RGBA pixel layers, Normal blend mode, ordinary/fill opacity, matching bounds, and no enabled masks or effects are composed as GPU textures;
+- `PixelStackShader`: the same stack may additionally use the supported separable blend modes and an unfeathered gray8 raster mask; each layer is evaluated by a QSB fragment pass that samples the accumulated backdrop texture;
 - `Unsupported`: the complete document is rendered by the existing CPU compositor, with a diagnostic explaining the first unsupported feature.
 
 A typical GPU-composition diagnostic is:
@@ -57,17 +58,17 @@ Patchy graphics backend: Vulkan, adapter: Intel Iris Xe, hardware acceleration: 
 A typical document fallback is:
 
 ```text
-Patchy GPU document compositor unavailable; using CPU compositor: document contains a non-Normal blend mode
+Patchy GPU document compositor unavailable; using CPU compositor: document contains a non-separable or unsupported blend mode
 ```
 
 The fallback is in-process and does not change the document. The same `CanvasWidget` continues to own input, scrollbars, selection geometry, tool state, and overlays. During GPU composition, a transparent QWidget overlay keeps those controls and guides above the Qt Quick layer tree.
 
 ## Testing
 
-The core capability tests accept simple pixel stacks and require unsupported blend modes to select CPU without mixing rendering paths. The UI backend test accepts the initializing state and every supported native RHI backend, while requiring CPU on `offscreen`, `minimal`, and `minimalegl` platforms.
+The core capability tests accept simple pixel stacks, separable shader blend modes, and unfeathered gray8 masks, while requiring unsupported features to select CPU without mixing rendering paths. The UI backend test accepts the initializing state and every supported native RHI backend, while requiring CPU on `offscreen`, `minimal`, and `minimalegl` platforms. A native-window smoke test must also exercise at least one QSB pass; an offscreen-only test cannot validate ShaderEffect because the software scene graph intentionally bypasses hardware composition.
 
 A real desktop smoke test must run with the native Qt platform plugin. The offscreen test platform intentionally selects CPU because it has no display surface and is not a hardware-acceleration test. The CPU compositor corpus remains the authority for pixel and file-output validation in every mode. GPU-composed documents must gain explicit CPU/GPU equivalence coverage before additional feature classes are enabled.
 
 ## Scope and expansion boundary
 
-This stage is a real GPU document compositor for the supported pixel-stack capability, not merely a presentation of a pre-composed `QImage`. It is not yet a GPU implementation of every Patchy feature. The next capability tiers require backend-portable shaders and equivalence tests for blend modes, masks, groups, adjustment layers, layer styles, filters, vectors, text, smart objects, color management, and Photoshop-specific rounding rules. Until each tier is validated, its documents continue to use the byte-authoritative CPU compositor.
+This stage is a real GPU document compositor for the supported pixel-stack and shader capability tiers, not merely a presentation of a pre-composed `QImage`. It is not yet a GPU implementation of every Patchy feature, and floating-point shader output is not used for exports or byte-identity decisions. The next capability tiers require backend-portable shaders and equivalence tests for separable-mode rounding, non-separable blend modes, groups, adjustment layers, layer styles, filters, vectors, text, smart objects, color management, and Photoshop-specific rounding rules. Until each tier is validated, its documents continue to use the byte-authoritative CPU compositor.
