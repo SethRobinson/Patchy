@@ -205,6 +205,34 @@ void gpu_document_capability_accepts_unfeathered_gray8_mask_in_shader_tier() {
   CHECK(capability.reason.empty());
 }
 
+void gpu_document_capability_accepts_supported_blend_if_in_shader_tier() {
+  patchy::Document document(4, 4, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer pixels(4, 4, patchy::PixelFormat::rgba8());
+  pixels.clear(0);
+  document.add_pixel_layer("Paint", std::move(pixels));
+
+  patchy::LayerBlendIf settings;
+  settings.channels[static_cast<std::size_t>(patchy::BlendIfChannel::Gray)].this_layer =
+      patchy::BlendIfThresholds{32, 96, 160, 224};
+  CHECK(document.layers().front().set_blend_if(settings));
+
+  const auto capability = patchy::gpu_document_capability(document);
+  CHECK(capability.mode == patchy::GpuDocumentRenderMode::PixelStackShader);
+  CHECK(capability.reason.empty());
+}
+
+void gpu_document_capability_rejects_unsupported_blend_if_payload() {
+  patchy::Document document(4, 4, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer pixels(4, 4, patchy::PixelFormat::rgba8());
+  pixels.clear(0);
+  document.add_pixel_layer("Paint", std::move(pixels));
+  document.layers().front().set_blend_if_payload({1, 2, 3});
+
+  const auto capability = patchy::gpu_document_capability(document);
+  CHECK(capability.mode == patchy::GpuDocumentRenderMode::Unsupported);
+  CHECK(capability.reason == "document contains unsupported Blend If settings");
+}
+
 void gpu_document_capability_rejects_non_separable_blend() {
   patchy::Document document(4, 4, patchy::PixelFormat::rgba8());
   patchy::PixelBuffer pixels(4, 4, patchy::PixelFormat::rgba8());
@@ -1360,6 +1388,10 @@ std::vector<patchy::test::TestCase> infra_selection_tests() {
        gpu_document_capability_accepts_separable_blend_in_shader_tier},
       {"gpu_document_capability_accepts_unfeathered_gray8_mask_in_shader_tier",
        gpu_document_capability_accepts_unfeathered_gray8_mask_in_shader_tier},
+      {"gpu_document_capability_accepts_supported_blend_if_in_shader_tier",
+       gpu_document_capability_accepts_supported_blend_if_in_shader_tier},
+      {"gpu_document_capability_rejects_unsupported_blend_if_payload",
+       gpu_document_capability_rejects_unsupported_blend_if_payload},
       {"gpu_document_capability_rejects_non_separable_blend",
        gpu_document_capability_rejects_non_separable_blend},
       {"quick_select_maxflow_solves_tiny_grid", quick_select_maxflow_solves_tiny_grid},

@@ -12,6 +12,15 @@ Item {
     property real maskDefault: 1.0
     property real maskDensity: 1.0
     property rect maskRect: Qt.rect(0, 0, 0, 0)
+    property real hasBlendIf: 0.0
+    property vector4d blendIfGrayThis: Qt.vector4d(0, 0, 255, 255)
+    property vector4d blendIfRedThis: Qt.vector4d(0, 0, 255, 255)
+    property vector4d blendIfGreenThis: Qt.vector4d(0, 0, 255, 255)
+    property vector4d blendIfBlueThis: Qt.vector4d(0, 0, 255, 255)
+    property vector4d blendIfGrayUnderlying: Qt.vector4d(0, 0, 255, 255)
+    property vector4d blendIfRedUnderlying: Qt.vector4d(0, 0, 255, 255)
+    property vector4d blendIfGreenUnderlying: Qt.vector4d(0, 0, 255, 255)
+    property vector4d blendIfBlueUnderlying: Qt.vector4d(0, 0, 255, 255)
     property bool outputVisible: false
 
     Item {
@@ -69,6 +78,15 @@ Item {
         property real maskDefault: root.maskDefault
         property real maskDensity: root.maskDensity
         property rect maskRect: root.maskRect
+        property real hasBlendIf: root.hasBlendIf
+        property vector4d blendIfGrayThis: root.blendIfGrayThis
+        property vector4d blendIfRedThis: root.blendIfRedThis
+        property vector4d blendIfGreenThis: root.blendIfGreenThis
+        property vector4d blendIfBlueThis: root.blendIfBlueThis
+        property vector4d blendIfGrayUnderlying: root.blendIfGrayUnderlying
+        property vector4d blendIfRedUnderlying: root.blendIfRedUnderlying
+        property vector4d blendIfGreenUnderlying: root.blendIfGreenUnderlying
+        property vector4d blendIfBlueUnderlying: root.blendIfBlueUnderlying
         vertexShader: "qrc:/patchy/shaders/gpu_layer_pass.vert.qsb"
         fragmentShader: "qrc:/patchy/shaders/gpu_layer_pass.frag.qsb"
     }

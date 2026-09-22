@@ -3,6 +3,7 @@
 
 #include "core/adjustment_layer.hpp"
 #include "core/blend_math.hpp"
+#include "core/layer.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/smart_object.hpp"
 #include "core/smart_filter.hpp"
@@ -235,6 +236,15 @@ std::uint64_t webgpu_document_key(const CanvasGpuDocument& document) {
     hash = webgpu_hash_combine(hash, std::hash<double>{}(layer.mask_default));
     hash = webgpu_hash_combine(hash, std::hash<double>{}(layer.mask_density));
     hash = webgpu_hash_combine(hash, static_cast<std::uint64_t>(layer.has_mask));
+    hash = webgpu_hash_combine(hash, static_cast<std::uint64_t>(layer.has_blend_if));
+    for (const auto& ranges : layer.blend_if) {
+      for (const auto& thresholds : {ranges.this_layer, ranges.underlying_layer}) {
+        hash = webgpu_hash_combine(hash, thresholds.black_low);
+        hash = webgpu_hash_combine(hash, thresholds.black_high);
+        hash = webgpu_hash_combine(hash, thresholds.white_low);
+        hash = webgpu_hash_combine(hash, thresholds.white_high);
+      }
+    }
     hash = webgpu_hash_combine(hash, static_cast<std::uint64_t>(layer.image.width()));
     hash = webgpu_hash_combine(hash, static_cast<std::uint64_t>(layer.image.height()));
     hash = webgpu_hash_combine(hash, std::hash<double>{}(layer.document_rect.left()));
@@ -495,6 +505,19 @@ bool CanvasWidget::build_gpu_document(CanvasGpuDocument& result, QString* reject
     gpu_layer.rect = widget_rect_for_document_rect(document_rect);
     gpu_layer.opacity = static_cast<qreal>(std::clamp(layer.opacity() * layer.fill_opacity(), 0.0F, 1.0F));
     gpu_layer.blend_mode = static_cast<int>(layer.blend_mode());
+    const auto blend_if_status = layer.blend_if_payload_status();
+    if (blend_if_status == BlendIfPayloadStatus::Supported && !blend_if_is_identity(layer.blend_if())) {
+      const auto settings = layer.blend_if();
+      gpu_layer.has_blend_if = true;
+      for (std::size_t index = 0; index < settings.channels.size(); ++index) {
+        const auto copy_thresholds = [](const BlendIfThresholds& thresholds) {
+          return CanvasGpuBlendIfThresholds{thresholds.black_low, thresholds.black_high, thresholds.white_low,
+                                            thresholds.white_high};
+        };
+        gpu_layer.blend_if[index] = CanvasGpuBlendIfRanges{copy_thresholds(settings.channels[index].this_layer),
+                                                           copy_thresholds(settings.channels[index].underlying_layer)};
+      }
+    }
     if (layer.mask().has_value() && !layer.mask()->disabled) {
       const auto& mask = *layer.mask();
       gpu_layer.has_mask = true;
