@@ -34,4 +34,12 @@ if grep -Fq 'let sourceAlpha = clamp(sourceSample.a * params.layerOpacity * cove
   exit 1
 fi
 
+grep -Fq 'if (width <= 0 || height <= 0)' \
+  "$REPO_ROOT/src/ui/webgpu_document_compositor.cpp"
+if grep -Fq 'static_cast<int>(std::numeric_limits<uint32_t>::max())' \
+  "$REPO_ROOT/src/ui/webgpu_document_compositor.cpp"; then
+  echo 'WebGPU dimensions must not compare int sizes with a narrowed uint32_t maximum' >&2
+  exit 1
+fi
+
 echo 'Dawn helper syntax and lock checks passed'
