@@ -1175,6 +1175,11 @@ void MainWindow::paste_clipboard(bool in_place) {
     }
     return;
   }
+  // Clipboard change notifications can be delayed by some platform backends. Re-check
+  // the system image synchronously so an external image can never inherit the origin
+  // of Patchy's previous internal copy, especially for Paste in Place.
+  clear_internal_clipboard_on_external_change();
+
   // Copied shapes paste into the target path, in place (GitHub #555).
   if (paste_path_components()) {
     return;
