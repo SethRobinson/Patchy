@@ -26,4 +26,12 @@ if grep -Eq 'set\(PATCHY_DAWN_(REPOSITORY|COMMIT) "(main|master|HEAD|latest)"\)'
   exit 1
 fi
 
+grep -Fq 'var sourceAlpha = clamp(sourceSample.a * params.layerOpacity * coverage, 0.0, 1.0);' \
+  "$REPO_ROOT/src/ui/webgpu_document_compositor.cpp"
+if grep -Fq 'let sourceAlpha = clamp(sourceSample.a * params.layerOpacity * coverage, 0.0, 1.0);' \
+  "$REPO_ROOT/src/ui/webgpu_document_compositor.cpp"; then
+  echo 'WGSL sourceAlpha must be mutable because Blend If updates it' >&2
+  exit 1
+fi
+
 echo 'Dawn helper syntax and lock checks passed'

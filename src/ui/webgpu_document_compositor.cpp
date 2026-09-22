@@ -164,7 +164,7 @@ fn main(@builtin(global_invocation_id) invocation: vec3<u32>) {
   let sourceSample = select(vec4<f32>(0.0), textureLoad(sourceTexture, safeSourceRelative, 0), sourceInside);
   let backdropSample = textureLoad(backdropTexture, coord, 0);
   let coverage = maskCoverage(coord);
-  let sourceAlpha = clamp(sourceSample.a * params.layerOpacity * coverage, 0.0, 1.0);
+  var sourceAlpha = clamp(sourceSample.a * params.layerOpacity * coverage, 0.0, 1.0);
   let backdropAlpha = clamp(backdropSample.a, 0.0, 1.0);
   let sourceColor = select(vec3<f32>(0.0), sourceSample.rgb / max(sourceSample.a, 0.000001), sourceAlpha > 0.000001);
   let backdropColor = select(vec3<f32>(0.0), backdropSample.rgb / max(backdropAlpha, 0.000001), backdropAlpha > 0.000001);
