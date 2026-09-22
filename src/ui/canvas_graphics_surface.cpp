@@ -127,7 +127,7 @@ GraphicsPreference graphics_preference() {
   if (value == QStringLiteral("cpu") || value == QStringLiteral("software")) {
     return GraphicsPreference::Cpu;
   }
-  if (value == QStringLiteral("auto") || value == QStringLiteral("gpu")) {
+  if (value == QStringLiteral("auto") || value == QStringLiteral("gpu") || value == QStringLiteral("webgpu")) {
     return GraphicsPreference::Auto;
   }
   if (value == QStringLiteral("opengl") || value == QStringLiteral("gl")) {
@@ -555,23 +555,92 @@ public:
     CanvasGpuDocument document_;
   };
 
+  class CompositeFrame final : public QQuickItem {
+  public:
+    explicit CompositeFrame(QQuickItem* parent) : QQuickItem(parent) {
+      setFlag(QQuickItem::ItemHasContents, true);
+    }
+
+    void set_frame(QImage image, QRectF rect, bool smooth) {
+      image_ = std::move(image);
+      rect_ = rect;
+      smooth_ = smooth;
+      ++revision_;
+      update();
+    }
+
+    void clear_frame() {
+      image_ = {};
+      rect_ = {};
+      ++revision_;
+      update();
+    }
+
+    QSGNode* updatePaintNode(QSGNode* old_node, UpdatePaintNodeData*) override {
+      auto* node = static_cast<QSGSimpleTextureNode*>(old_node);
+      if (node == nullptr) {
+        node = new QSGSimpleTextureNode;
+      }
+      auto* window = this->window();
+      if (window == nullptr || image_.isNull() || rect_.isEmpty()) {
+        node->setRect(QRectF());
+        return node;
+      }
+      if (texture_revision_ != revision_ || node->texture() == nullptr) {
+        node->setOwnsTexture(false);
+        delete node->texture();
+        const auto image = image_.format() == QImage::Format_RGBA8888_Premultiplied
+                               ? image_
+                               : image_.convertToFormat(QImage::Format_RGBA8888_Premultiplied);
+        node->setTexture(window->createTextureFromImage(image, QQuickWindow::TextureHasAlphaChannel));
+        node->setOwnsTexture(true);
+        texture_revision_ = revision_;
+      }
+      node->setRect(rect_);
+      node->setFiltering(smooth_ ? QSGTexture::Linear : QSGTexture::Nearest);
+      return node;
+    }
+
+  private:
+    QImage image_;
+    QRectF rect_;
+    bool smooth_{true};
+    std::uint64_t revision_{0};
+    std::uint64_t texture_revision_{0};
+  };
+
     explicit QuickCanvasItem(QQmlEngine* engine, QQmlContext* context) : QQuickItem() {
       background_ = new Background(this);
+      composite_frame_ = new CompositeFrame(this);
       layers_ = new Layers(this);
 #ifdef PATCHY_GPU_SHADER_COMPOSITOR
       shader_layers_ = new GpuShaderCompositor(engine, context, this);
 #endif
       background_->setZ(0.0);
-      layers_->setZ(1.0);
+      composite_frame_->setZ(1.0);
+      layers_->setZ(2.0);
 #ifdef PATCHY_GPU_SHADER_COMPOSITOR
-      shader_layers_->setZ(2.0);
+      shader_layers_->setZ(3.0);
       shader_layers_->setVisible(false);
 #endif
+      composite_frame_->setVisible(false);
       setFlag(QQuickItem::ItemHasContents, false);
     }
 
   bool set_document(CanvasGpuDocument document) {
       background_->set_document_rect(document.canvas_rect, document.canvas_backdrop);
+      if (!document.composited_frame.isNull()) {
+        composite_frame_->set_frame(std::move(document.composited_frame), document.canvas_rect,
+                                    document.smooth_scaling);
+        composite_frame_->setVisible(true);
+        layers_->setVisible(false);
+#ifdef PATCHY_GPU_SHADER_COMPOSITOR
+        shader_layers_->clear_document();
+#endif
+        return true;
+      }
+      composite_frame_->clear_frame();
+      composite_frame_->setVisible(false);
       if (document.shader_composition) {
 #ifdef PATCHY_GPU_SHADER_COMPOSITOR
         layers_->setVisible(false);
@@ -594,6 +663,8 @@ public:
     }
 
   void clear_document() {
+    composite_frame_->clear_frame();
+    composite_frame_->setVisible(false);
     layers_->set_document(CanvasGpuDocument{});
 #ifdef PATCHY_GPU_SHADER_COMPOSITOR
     shader_layers_->clear_document();
@@ -605,10 +676,12 @@ protected:
   void geometryChange(const QRectF& new_geometry, const QRectF& old_geometry) override {
     QQuickItem::geometryChange(new_geometry, old_geometry);
     background_->setSize(new_geometry.size());
+    composite_frame_->setSize(new_geometry.size());
     layers_->setSize(new_geometry.size());
   }
 private:
   Background* background_{nullptr};
+  CompositeFrame* composite_frame_{nullptr};
   Layers* layers_{nullptr};
 #ifdef PATCHY_GPU_SHADER_COMPOSITOR
   GpuShaderCompositor* shader_layers_{nullptr};
