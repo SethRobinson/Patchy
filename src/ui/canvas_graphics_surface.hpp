@@ -36,10 +36,12 @@ struct CanvasGpuLayer {
   std::uint64_t revision{0};
   QImage image;
   QRectF rect;
+  QRectF document_rect;
   qreal opacity{1.0};
   int blend_mode{1};
   QImage mask_image;
   QRectF mask_rect;
+  QRectF mask_document_rect;
   qreal mask_default{1.0};
   qreal mask_density{1.0};
   bool has_mask{false};
@@ -50,6 +52,10 @@ struct CanvasGpuDocument {
   QRectF canvas_rect;
   QColor canvas_backdrop;
   std::vector<CanvasGpuLayer> layers;
+  // When a separate document compositor such as Dawn/WebGPU has already
+  // produced the complete image, this is presented as one authoritative layer.
+  // It must never be combined with the individual layer list.
+  QImage composited_frame;
   bool smooth_scaling{true};
   bool shader_composition{false};
 };

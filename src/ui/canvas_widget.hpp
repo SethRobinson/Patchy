@@ -24,6 +24,7 @@
 #include "ui/selection_outline.hpp"
 #include "ui/stroke_pixel_map.hpp"
 #include "ui/vector_preview_renderer.hpp"
+#include "ui/webgpu_document_compositor.hpp"
 
 #include <QBasicTimer>
 #include <QBrush>
@@ -1423,6 +1424,7 @@ protected:
 
 private:
 #ifdef PATCHY_GPU_CANVAS
+  void initialize_webgpu_compositor();
   void initialize_graphics_canvas();
   void show_graphics_canvas();
   void resize_graphics_canvas_surface();
@@ -1433,6 +1435,10 @@ private:
   void request_graphics_canvas_update(const QRegion& region);
   [[nodiscard]] bool build_gpu_document(CanvasGpuDocument& document, QString* rejection_reason = nullptr) const;
   void paint_gpu_overlay(QPainter& painter, QRect exposed_rect);
+  std::unique_ptr<WebGpuDocumentCompositor> webgpu_compositor_;
+  QImage webgpu_frame_cache_;
+  std::uint64_t webgpu_frame_cache_key_{0};
+  bool webgpu_compositor_reported_{false};
 #endif
   void paint_canvas(QPainter& painter, const QRect& exposed_rect);
 
