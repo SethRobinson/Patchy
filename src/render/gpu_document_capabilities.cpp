@@ -85,8 +85,9 @@ GpuDocumentCapability inspect_layer(const Layer& layer) {
   if (layer.vector_shape() != nullptr || layer.vector_mask() != nullptr) {
     return unsupported("document contains vector layer content");
   }
-  if (layer.blend_if_payload_status() != BlendIfPayloadStatus::Empty) {
-    return unsupported("document contains Blend If settings");
+  const auto blend_if_status = layer.blend_if_payload_status();
+  if (blend_if_status == BlendIfPayloadStatus::Unsupported) {
+    return unsupported("document contains unsupported Blend If settings");
   }
   if (!layer.channel_restriction_supported() || layer.restricted_channels() != 0) {
     return unsupported("document contains channel restrictions");
@@ -100,6 +101,8 @@ GpuDocumentCapability inspect_layer(const Layer& layer) {
     return unsupported("layer bounds do not match its pixel buffer");
   }
   const auto shader_required = layer.blend_mode() != BlendMode::Normal ||
+                               (blend_if_status == BlendIfPayloadStatus::Supported &&
+                                !blend_if_is_identity(layer.blend_if())) ||
                                (layer.mask().has_value() && !layer.mask()->disabled);
   return {shader_required ? GpuDocumentRenderMode::PixelStackShader
                           : GpuDocumentRenderMode::PixelStackSourceOver,
