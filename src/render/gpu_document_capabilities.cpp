@@ -13,6 +13,53 @@ GpuDocumentCapability unsupported(std::string reason) {
   return GpuDocumentCapability{GpuDocumentRenderMode::Unsupported, std::move(reason)};
 }
 
+bool separable_shader_blend_mode(BlendMode mode) {
+  switch (mode) {
+  case BlendMode::Normal:
+  case BlendMode::Multiply:
+  case BlendMode::Screen:
+  case BlendMode::Overlay:
+  case BlendMode::Darken:
+  case BlendMode::Lighten:
+  case BlendMode::ColorDodge:
+  case BlendMode::ColorBurn:
+  case BlendMode::HardLight:
+  case BlendMode::SoftLight:
+  case BlendMode::Difference:
+  case BlendMode::LinearBurn:
+  case BlendMode::PinLight:
+  case BlendMode::Exclusion:
+  case BlendMode::LinearDodge:
+  case BlendMode::Subtract:
+  case BlendMode::Divide:
+  case BlendMode::VividLight:
+  case BlendMode::LinearLight:
+  case BlendMode::HardMix:
+    return true;
+  case BlendMode::PassThrough:
+  case BlendMode::Saturation:
+  case BlendMode::Luminosity:
+  case BlendMode::Hue:
+  case BlendMode::Color:
+  case BlendMode::DarkerColor:
+  case BlendMode::LighterColor:
+  case BlendMode::Dissolve:
+    return false;
+  }
+  return false;
+}
+
+bool simple_mask_supported(const LayerMask& mask) {
+  if (mask.disabled) {
+    return true;
+  }
+  if (mask.feather != 0.0 || mask.pixels.empty()) {
+    return mask.pixels.empty();
+  }
+  return mask.pixels.format() == PixelFormat::gray8() &&
+         mask.bounds.width == mask.pixels.width() && mask.bounds.height == mask.pixels.height();
+}
+
 GpuDocumentCapability inspect_layer(const Layer& layer) {
   if (layer.kind() != LayerKind::Pixel) {
     return unsupported("document contains a non-pixel layer");
@@ -23,14 +70,11 @@ GpuDocumentCapability inspect_layer(const Layer& layer) {
   if (layer.clipped()) {
     return unsupported("document contains a clipped layer");
   }
-  if (layer.fill_opacity() != 1.0F) {
-    return unsupported("document contains fill opacity");
+  if (!separable_shader_blend_mode(layer.blend_mode())) {
+    return unsupported("document contains a non-separable or unsupported blend mode");
   }
-  if (layer.blend_mode() != BlendMode::Normal) {
-    return unsupported("document contains a non-Normal blend mode");
-  }
-  if (layer.mask().has_value()) {
-    return unsupported("document contains a raster mask");
+  if (layer.mask().has_value() && !simple_mask_supported(*layer.mask())) {
+    return unsupported("document contains a feathered or unsupported mask");
   }
   if (!layer.layer_style().empty()) {
     return unsupported("document contains a layer style");
@@ -55,7 +99,11 @@ GpuDocumentCapability inspect_layer(const Layer& layer) {
   if (layer.bounds().width != pixels.width() || layer.bounds().height != pixels.height()) {
     return unsupported("layer bounds do not match its pixel buffer");
   }
-  return {GpuDocumentRenderMode::PixelStackSourceOver, {}};
+  const auto shader_required = layer.blend_mode() != BlendMode::Normal ||
+                               (layer.mask().has_value() && !layer.mask()->disabled);
+  return {shader_required ? GpuDocumentRenderMode::PixelStackShader
+                          : GpuDocumentRenderMode::PixelStackSourceOver,
+          {}};
 }
 
 }  // namespace
@@ -64,6 +112,7 @@ GpuDocumentCapability gpu_document_capability(const Document& document) {
   if (document.width() <= 0 || document.height() <= 0) {
     return unsupported("document has no renderable canvas");
   }
+  auto mode = GpuDocumentRenderMode::PixelStackSourceOver;
   for (const auto& layer : document.layers()) {
     if (!layer.visible() || layer.opacity() <= 0.0F) {
       continue;
@@ -72,8 +121,11 @@ GpuDocumentCapability gpu_document_capability(const Document& document) {
     if (!capability.supported()) {
       return capability;
     }
+    if (capability.mode == GpuDocumentRenderMode::PixelStackShader) {
+      mode = GpuDocumentRenderMode::PixelStackShader;
+    }
   }
-  return {GpuDocumentRenderMode::PixelStackSourceOver, {}};
+  return {mode, {}};
 }
 
 }  // namespace patchy
