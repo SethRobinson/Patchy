@@ -9,6 +9,7 @@ class Document;
 enum class GpuDocumentRenderMode {
   Unsupported,
   PixelStackSourceOver,
+  PixelStackShader,
 };
 
 struct GpuDocumentCapability {

@@ -15,8 +15,9 @@ CanvasGraphicsApi CanvasGraphicsSurface::api() const noexcept {
   return CanvasGraphicsApi::Unknown;
 }
 
-void CanvasGraphicsSurface::set_gpu_document(CanvasGpuDocument document) {
+bool CanvasGraphicsSurface::set_gpu_document(CanvasGpuDocument document) {
   Q_UNUSED(document);
+  return false;
 }
 
 void CanvasGraphicsSurface::clear_gpu_document() {}
@@ -38,6 +39,9 @@ void CanvasGraphicsSurface::resizeEvent(QResizeEvent* event) {
 #else
 
 #include "core/environment.hpp"
+#ifdef PATCHY_GPU_SHADER_COMPOSITOR
+#include "ui/gpu_shader_compositor.hpp"
+#endif
 
 #include <QImage>
 #include <QGuiApplication>
@@ -551,21 +555,49 @@ public:
     CanvasGpuDocument document_;
   };
 
-  explicit QuickCanvasItem() : QQuickItem() {
-    background_ = new Background(this);
-    layers_ = new Layers(this);
-    background_->setZ(0.0);
-    layers_->setZ(1.0);
-    setFlag(QQuickItem::ItemHasContents, false);
-  }
+    explicit QuickCanvasItem(QQmlEngine* engine, QQmlContext* context) : QQuickItem() {
+      background_ = new Background(this);
+      layers_ = new Layers(this);
+#ifdef PATCHY_GPU_SHADER_COMPOSITOR
+      shader_layers_ = new GpuShaderCompositor(engine, context, this);
+#endif
+      background_->setZ(0.0);
+      layers_->setZ(1.0);
+#ifdef PATCHY_GPU_SHADER_COMPOSITOR
+      shader_layers_->setZ(2.0);
+      shader_layers_->setVisible(false);
+#endif
+      setFlag(QQuickItem::ItemHasContents, false);
+    }
 
-  void set_document(CanvasGpuDocument document) {
-    background_->set_document_rect(document.canvas_rect, document.canvas_backdrop);
-    layers_->set_document(std::move(document));
-  }
+  bool set_document(CanvasGpuDocument document) {
+      background_->set_document_rect(document.canvas_rect, document.canvas_backdrop);
+      if (document.shader_composition) {
+#ifdef PATCHY_GPU_SHADER_COMPOSITOR
+        layers_->setVisible(false);
+        const auto ready = shader_layers_->set_document(document);
+        if (!ready) {
+          shader_layers_->clear_document();
+          return false;
+        }
+        return true;
+#else
+        return false;
+#endif
+      }
+#ifdef PATCHY_GPU_SHADER_COMPOSITOR
+      shader_layers_->clear_document();
+#endif
+      layers_->setVisible(true);
+      layers_->set_document(std::move(document));
+      return true;
+    }
 
   void clear_document() {
     layers_->set_document(CanvasGpuDocument{});
+#ifdef PATCHY_GPU_SHADER_COMPOSITOR
+    shader_layers_->clear_document();
+#endif
     background_->set_document_rect({}, Qt::transparent);
   }
 
@@ -578,6 +610,9 @@ protected:
 private:
   Background* background_{nullptr};
   Layers* layers_{nullptr};
+#ifdef PATCHY_GPU_SHADER_COMPOSITOR
+  GpuShaderCompositor* shader_layers_{nullptr};
+#endif
 };
 
 class CanvasGraphicsSurface::OverlayWidget final : public QWidget {
@@ -639,7 +674,7 @@ CanvasGraphicsSurface::CanvasGraphicsSurface(QWidget* parent) : QWidget(parent) 
   quick_widget_->setAttribute(Qt::WA_TransparentForMouseEvents);
   quick_widget_->setFocusPolicy(Qt::NoFocus);
 
-  quick_item_ = new QuickCanvasItem;
+  quick_item_ = new QuickCanvasItem(quick_widget_->engine(), quick_widget_->rootContext());
   quick_item_->setSize(size());
   quick_widget_->setContent(QUrl(), nullptr, quick_item_);
   overlay_widget_ = new OverlayWidget(this);
@@ -703,10 +738,11 @@ void CanvasGraphicsSurface::scene_graph_error(int error, const QString& message)
   QMetaObject::invokeMethod(this, [this, reason] { emit failed(reason); }, Qt::QueuedConnection);
 }
 
-void CanvasGraphicsSurface::set_gpu_document(CanvasGpuDocument document) {
+bool CanvasGraphicsSurface::set_gpu_document(CanvasGpuDocument document) {
   if (quick_item_ != nullptr) {
-    quick_item_->set_document(std::move(document));
+    return quick_item_->set_document(std::move(document));
   }
+  return false;
 }
 
 void CanvasGraphicsSurface::clear_gpu_document() {

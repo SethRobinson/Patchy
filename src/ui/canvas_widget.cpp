@@ -349,7 +349,9 @@ void CanvasWidget::render_graphics_canvas_frame() {
     graphics_surface_->show();
     graphics_surface_->lower();
   }
-  graphics_surface_->set_gpu_document(std::move(document));
+  if (!graphics_surface_->set_gpu_document(std::move(document))) {
+    disable_gpu_canvas(QStringLiteral("Qt Quick could not create the portable GPU compositor passes"));
+  }
 }
 
 void CanvasWidget::request_graphics_canvas_update(const QRegion& region) {
@@ -373,9 +375,10 @@ bool CanvasWidget::build_gpu_document(CanvasGpuDocument& result, QString* reject
 
   // The GPU path is deliberately all-or-nothing for a document. Falling back
   // here is safer than mixing a GPU approximation with CPU-rendered siblings.
-  // This first capability tier covers the common raster stack: top-level
-  // pixel layers, source-over alpha, and no Photoshop feature that requires
-  // sampling the accumulated backdrop in a custom shader.
+  // The capability matrix covers the common raster stack in two all-or-nothing
+  // tiers: source-over textures and a portable shader pass for separable blends
+  // and simple raster masks. Unsupported Photoshop features stay on the CPU
+  // compositor rather than being mixed with an approximate GPU sibling.
   if (tiling_preview_enabled_ || uses_deep_zoom_pixel_renderer(zoom_) || transforming_layer_ || warping_layer_ ||
       moving_layer_ || patch_tool_dragging_ || curves_clipping_mode_.has_value() || processing_operation_active() ||
       layer_edit_target_ != LayerEditTarget::Content) {
@@ -386,10 +389,16 @@ bool CanvasWidget::build_gpu_document(CanvasGpuDocument& result, QString* reject
   if (!capability.supported()) {
     return reject(QString::fromStdString(capability.reason));
   }
+#ifndef PATCHY_GPU_SHADER_COMPOSITOR
+  if (capability.mode == patchy::GpuDocumentRenderMode::PixelStackShader) {
+    return reject(QStringLiteral("GPU shader compositor is not available in this build"));
+  }
+#endif
 
   result.document_size = QSize(document_->width(), document_->height());
   result.canvas_backdrop = theme().canvas_backdrop;
   result.smooth_scaling = uses_smooth_display_scaling(zoom_, false);
+  result.shader_composition = capability.mode == patchy::GpuDocumentRenderMode::PixelStackShader;
   const QRectF exact_target_rect(widget_position_f(QPointF(0.0, 0.0)),
                                  widget_position_f(QPointF(document_->width(), document_->height())));
   if (uses_pixel_aligned_view(zoom_)) {
@@ -405,14 +414,30 @@ bool CanvasWidget::build_gpu_document(CanvasGpuDocument& result, QString* reject
     if (!layer.visible() || layer.opacity() <= 0.0F) {
       continue;
     }
-    result.layers.push_back(CanvasGpuLayer{
-        layer.id(),
-        layer.render_revision(),
-        qimage_from_pixel_buffer(layer.pixels()),
-        widget_rect_for_document_rect(QRectF(layer.bounds().x, layer.bounds().y, layer.bounds().width,
-                                              layer.bounds().height)),
-        static_cast<qreal>(std::clamp(layer.opacity(), 0.0F, 1.0F)),
-    });
+    CanvasGpuLayer gpu_layer;
+    gpu_layer.id = layer.id();
+    gpu_layer.revision = layer.render_revision();
+    gpu_layer.image = qimage_from_pixel_buffer(layer.pixels());
+    gpu_layer.rect = widget_rect_for_document_rect(QRectF(layer.bounds().x, layer.bounds().y, layer.bounds().width,
+                                                           layer.bounds().height));
+    gpu_layer.opacity = static_cast<qreal>(std::clamp(layer.opacity() * layer.fill_opacity(), 0.0F, 1.0F));
+    gpu_layer.blend_mode = static_cast<int>(layer.blend_mode());
+    if (layer.mask().has_value() && !layer.mask()->disabled) {
+      const auto& mask = *layer.mask();
+      gpu_layer.has_mask = true;
+      if (!mask.pixels.empty()) {
+        gpu_layer.mask_image = QImage(mask.pixels.width(), mask.pixels.height(), QImage::Format_Alpha8);
+        for (int y = 0; y < mask.pixels.height(); ++y) {
+          std::memcpy(gpu_layer.mask_image.scanLine(y), mask.pixels.row(y).data(),
+                      static_cast<std::size_t>(mask.pixels.width()));
+        }
+        gpu_layer.mask_rect = widget_rect_for_document_rect(
+            QRectF(mask.bounds.x, mask.bounds.y, mask.bounds.width, mask.bounds.height));
+      }
+      gpu_layer.mask_default = static_cast<qreal>(mask.default_color) / 255.0;
+      gpu_layer.mask_density = static_cast<qreal>(mask.density) / 255.0;
+    }
+    result.layers.push_back(std::move(gpu_layer));
   }
   return true;
 }
