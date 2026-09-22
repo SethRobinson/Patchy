@@ -17,7 +17,6 @@
 #include <cstdint>
 #include <cmath>
 #include <cstring>
-#include <limits>
 #include <memory>
 #include <string>
 #include <utility>
@@ -433,8 +432,11 @@ public:
     }
     const auto width = document.document_size.width();
     const auto height = document.document_size.height();
-    if (width <= 0 || height <= 0 || width > static_cast<int>(std::numeric_limits<uint32_t>::max()) ||
-        height > static_cast<int>(std::numeric_limits<uint32_t>::max())) {
+    // QSize stores dimensions as int, so every positive value is already
+    // representable by the uint32_t extent used by WebGPU. Do not cast
+    // UINT32_MAX back to int: on 32-bit int platforms that becomes -1 and
+    // would reject every valid document.
+    if (width <= 0 || height <= 0) {
       return fail(reason, QStringLiteral("WebGPU document dimensions are invalid"));
     }
 
