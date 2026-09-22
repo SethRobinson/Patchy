@@ -1558,7 +1558,10 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       patchy_copy_bundled_fonts(patchy_translation_checks)
       patchy_copy_bundled_scripts(patchy_translation_checks)
       add_custom_target(patchy_check_translation_runtime
-        COMMAND $<TARGET_FILE:patchy_translation_checks>
+        COMMAND ${CMAKE_COMMAND} -E env
+                QT_QPA_PLATFORM=offscreen
+                PATCHY_RENDER_BACKEND=cpu
+                $<TARGET_FILE:patchy_translation_checks>
         DEPENDS patchy_translation_checks
         WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
         COMMENT "Checking UI translations at startup and after language switches"
