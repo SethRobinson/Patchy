@@ -8,6 +8,7 @@
 #include <QSGTexture>
 #include <QUrl>
 #include <QVariant>
+#include <QVector4D>
 #include <QtGlobal>
 
 #include <algorithm>
@@ -112,6 +113,19 @@ QQuickItem* GpuShaderCompositor::create_pass(const CanvasGpuLayer& layer, QQuick
   pass->setProperty("hasMask", layer.has_mask);
   pass->setProperty("maskDefault", layer.mask_default);
   pass->setProperty("maskDensity", layer.mask_density);
+  pass->setProperty("hasBlendIf", layer.has_blend_if ? 1.0 : 0.0);
+  const auto thresholds = [](const CanvasGpuBlendIfThresholds& value) {
+    return QVector4D(static_cast<float>(value.black_low), static_cast<float>(value.black_high),
+                     static_cast<float>(value.white_low), static_cast<float>(value.white_high));
+  };
+  pass->setProperty("blendIfGrayThis", thresholds(layer.blend_if[0].this_layer));
+  pass->setProperty("blendIfRedThis", thresholds(layer.blend_if[1].this_layer));
+  pass->setProperty("blendIfGreenThis", thresholds(layer.blend_if[2].this_layer));
+  pass->setProperty("blendIfBlueThis", thresholds(layer.blend_if[3].this_layer));
+  pass->setProperty("blendIfGrayUnderlying", thresholds(layer.blend_if[0].underlying_layer));
+  pass->setProperty("blendIfRedUnderlying", thresholds(layer.blend_if[1].underlying_layer));
+  pass->setProperty("blendIfGreenUnderlying", thresholds(layer.blend_if[2].underlying_layer));
+  pass->setProperty("blendIfBlueUnderlying", thresholds(layer.blend_if[3].underlying_layer));
   const auto width = std::max<qreal>(1.0, size().width());
   const auto height = std::max<qreal>(1.0, size().height());
   pass->setProperty("maskRect", QRectF(layer.mask_rect.x() / width, layer.mask_rect.y() / height,
