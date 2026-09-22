@@ -136,6 +136,7 @@ require_command ninja
 require_command python3
 
 mkdir -p "$DAWN_ROOT" "$(dirname -- "$DAWN_SOURCE")" "$(dirname -- "$DAWN_BUILD_DIR")" "$(dirname -- "$DAWN_INSTALL_DIR")"
+SOURCE_CHECKOUT_CREATED=0
 
 if [[ "$CLEAN" == 1 ]]; then
   [[ -n "$DAWN_BUILD_DIR" && "$DAWN_BUILD_DIR" != / ]] || { echo 'Refusing to clean an empty/root Dawn build path' >&2; exit 1; }
@@ -159,6 +160,7 @@ if [[ ! -d "$DAWN_SOURCE/.git" && ! -f "$DAWN_SOURCE/.git" ]]; then
       clone --depth 1 --filter=blob:none --no-checkout \
       "$DAWN_REPOSITORY" "$DAWN_SOURCE"
   fi
+  SOURCE_CHECKOUT_CREATED=1
 fi
 
 SOURCE_TOP="$(git -C "$DAWN_SOURCE" rev-parse --show-toplevel 2>/dev/null || true)"
@@ -169,7 +171,13 @@ EXPECTED_SOURCE="$(CDPATH= cd -- "$DAWN_SOURCE" && pwd -P)"
   echo "Dawn source path must be the checkout root: $DAWN_SOURCE" >&2
   exit 1
 }
-if [[ -n "$(git -C "$DAWN_SOURCE" status --porcelain)" ]]; then
+# A --no-checkout clone has an empty worktree until the pinned revision is
+# materialized below. Do not mistake that intentional state for user changes.
+if [[ "$SOURCE_CHECKOUT_CREATED" != 1 && -z "$(find "$DAWN_SOURCE" -mindepth 1 -maxdepth 1 ! -name .git -print -quit)" &&
+      -z "$(git -C "$DAWN_SOURCE" ls-files --deleted)" ]]; then
+  SOURCE_CHECKOUT_CREATED=1
+fi
+if [[ "$SOURCE_CHECKOUT_CREATED" != 1 && -n "$(git -C "$DAWN_SOURCE" status --porcelain)" ]]; then
   echo "Dawn source checkout has local changes; refusing to reset it: $DAWN_SOURCE" >&2
   exit 1
 fi
@@ -192,8 +200,8 @@ if [[ "$CURRENT_COMMIT" != "$DAWN_COMMIT" ]]; then
       -c http.lowSpeedTime=60 \
       fetch --depth 1 "$DAWN_REPOSITORY" "$DAWN_COMMIT"
   fi
-  git -C "$DAWN_SOURCE" checkout -q --detach "$DAWN_COMMIT"
 fi
+git -C "$DAWN_SOURCE" checkout -q --detach "$DAWN_COMMIT"
 [[ "$(git -C "$DAWN_SOURCE" rev-parse HEAD)" == "$DAWN_COMMIT" ]] || {
   echo "Dawn checkout verification failed" >&2
   exit 1
