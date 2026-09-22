@@ -37,6 +37,12 @@ struct CanvasGpuLayer {
   QImage image;
   QRectF rect;
   qreal opacity{1.0};
+  int blend_mode{1};
+  QImage mask_image;
+  QRectF mask_rect;
+  qreal mask_default{1.0};
+  qreal mask_density{1.0};
+  bool has_mask{false};
 };
 
 struct CanvasGpuDocument {
@@ -45,6 +51,7 @@ struct CanvasGpuDocument {
   QColor canvas_backdrop;
   std::vector<CanvasGpuLayer> layers;
   bool smooth_scaling{true};
+  bool shader_composition{false};
 };
 
 // Owns the optional Qt Quick scene-graph surface used to present and compose
@@ -58,7 +65,7 @@ public:
   ~CanvasGraphicsSurface() override;
 
   [[nodiscard]] CanvasGraphicsApi api() const noexcept;
-  void set_gpu_document(CanvasGpuDocument document);
+  [[nodiscard]] bool set_gpu_document(CanvasGpuDocument document);
   void clear_gpu_document();
   void request_update(const QRegion& region);
   void set_overlay_painter(std::function<void(QPainter&, QRect)> painter);

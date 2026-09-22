@@ -176,7 +176,7 @@ void gpu_document_capability_accepts_simple_pixel_stack() {
   CHECK(capability.reason.empty());
 }
 
-void gpu_document_capability_rejects_non_normal_blend_without_mixing_paths() {
+void gpu_document_capability_accepts_separable_blend_in_shader_tier() {
   patchy::Document document(4, 4, patchy::PixelFormat::rgba8());
   patchy::PixelBuffer pixels(4, 4, patchy::PixelFormat::rgba8());
   pixels.clear(0);
@@ -184,8 +184,37 @@ void gpu_document_capability_rejects_non_normal_blend_without_mixing_paths() {
   document.layers().front().set_blend_mode(patchy::BlendMode::Multiply);
 
   const auto capability = patchy::gpu_document_capability(document);
+  CHECK(capability.mode == patchy::GpuDocumentRenderMode::PixelStackShader);
+  CHECK(capability.reason.empty());
+}
+
+void gpu_document_capability_accepts_unfeathered_gray8_mask_in_shader_tier() {
+  patchy::Document document(4, 4, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer pixels(4, 4, patchy::PixelFormat::rgba8());
+  pixels.clear(0);
+  document.add_pixel_layer("Paint", std::move(pixels));
+
+  patchy::LayerMask mask;
+  mask.bounds = patchy::Rect{0, 0, 4, 4};
+  mask.pixels = patchy::PixelBuffer(4, 4, patchy::PixelFormat::gray8());
+  mask.pixels.clear(255);
+  document.layers().front().set_mask(std::move(mask));
+
+  const auto capability = patchy::gpu_document_capability(document);
+  CHECK(capability.mode == patchy::GpuDocumentRenderMode::PixelStackShader);
+  CHECK(capability.reason.empty());
+}
+
+void gpu_document_capability_rejects_non_separable_blend() {
+  patchy::Document document(4, 4, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer pixels(4, 4, patchy::PixelFormat::rgba8());
+  pixels.clear(0);
+  document.add_pixel_layer("Paint", std::move(pixels));
+  document.layers().front().set_blend_mode(patchy::BlendMode::Hue);
+
+  const auto capability = patchy::gpu_document_capability(document);
   CHECK(capability.mode == patchy::GpuDocumentRenderMode::Unsupported);
-  CHECK(capability.reason == "document contains a non-Normal blend mode");
+  CHECK(capability.reason == "document contains a non-separable or unsupported blend mode");
 }
 
 // ---------------------------------------------------------------------------
@@ -1327,8 +1356,12 @@ std::vector<patchy::test::TestCase> infra_selection_tests() {
       {"color_manager_assigns_profiles", color_manager_assigns_profiles},
       {"gpu_document_capability_accepts_simple_pixel_stack",
        gpu_document_capability_accepts_simple_pixel_stack},
-      {"gpu_document_capability_rejects_non_normal_blend_without_mixing_paths",
-       gpu_document_capability_rejects_non_normal_blend_without_mixing_paths},
+      {"gpu_document_capability_accepts_separable_blend_in_shader_tier",
+       gpu_document_capability_accepts_separable_blend_in_shader_tier},
+      {"gpu_document_capability_accepts_unfeathered_gray8_mask_in_shader_tier",
+       gpu_document_capability_accepts_unfeathered_gray8_mask_in_shader_tier},
+      {"gpu_document_capability_rejects_non_separable_blend",
+       gpu_document_capability_rejects_non_separable_blend},
       {"quick_select_maxflow_solves_tiny_grid", quick_select_maxflow_solves_tiny_grid},
       {"quick_select_maxflow_matches_reference_on_random_grids",
        quick_select_maxflow_matches_reference_on_random_grids},
