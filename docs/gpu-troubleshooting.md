@@ -97,12 +97,28 @@ The application can still build. CMake reports:
 Dawn/WebGPU was not found; automatic WebGPU document composition is disabled
 ```
 
-This means the configured CMake search did not find a linkable Dawn target. A WebGPU header by itself is insufficient. The build needs a package configuration file and a target named `dawn::webgpu_dawn`, `Dawn::webgpu_dawn`, or `webgpu_dawn`.
+When `PATCHY_DAWN_PREFIX` or `PATCHY_DAWN_ROOT` was supplied, the message names the configured local prefixes instead. Both messages mean that no supported linkable target was found; the Qt RHI and CPU paths remain available.
+
+This means the configured CMake search did not find a linkable Dawn target. A WebGPU header by itself is insufficient. The build needs a package configuration file and a target named `dawn::webgpu_dawn`, `Dawn::webgpu_dawn`, or `webgpu_dawn`. This is an expected configuration state when Dawn was not requested.
+
+The default GPU helper does not download Dawn. To obtain the pinned revision and verify its install package, run:
+
+```sh
+PATCHY_BUILD_JOBS=6 scripts/build-dawn.sh
+```
+
+Or let the GPU helper do both stages explicitly:
+
+```sh
+PATCHY_BUILD_JOBS=6 scripts/build-gpu.sh linux-release --with-dawn
+```
+
+The checkout, build tree, install prefix, and fetched dependency sources are under `.deps/dawn/`, which is ignored by Git. The helper refuses to overwrite a dirty Dawn checkout and verifies that `git rev-parse HEAD` equals the full SHA in `cmake/dawn-version.cmake`.
 
 Find the package files in the Dawn prefix:
 
 ```sh
-find "$HOME/.local/dawn" -type f \
+find "$PWD/.deps/dawn/install" -type f \
   \( -name 'DawnConfig.cmake' -o -name 'webgpu_dawnConfig.cmake' \) \
   -print
 ```
@@ -110,11 +126,11 @@ find "$HOME/.local/dawn" -type f \
 Then configure with the actual package directories:
 
 ```sh
-PATCHY_DAWN_PREFIX="$HOME/.local/dawn" \
+PATCHY_DAWN_PREFIX="$PWD/.deps/dawn/install/release" \
 PATCHY_BUILD_JOBS=6 scripts/build-gpu.sh linux-release
 ```
 
-If the prefix does not follow the helper's conventional layout, pass `Dawn_DIR` and `webgpu_dawn_DIR` directly. Reconfigure from a clean build directory after changing the prefix.
+If the prefix does not follow the helper's conventional layout, pass `PATCHY_DAWN_PREFIX`, `Dawn_DIR`, and `webgpu_dawn_DIR` directly. Reconfigure from a clean build directory after changing the prefix. Dawn installation is platform-specific; do not copy a Linux prefix to macOS or Windows.
 
 ## Runtime fallback problems
 
