@@ -2,7 +2,7 @@
 
 This guide describes how to configure, build, and verify Patchy's single desktop binary with the optional Qt Quick/RHI and Dawn/WebGPU document-composition paths. The normal build remains valid when an optional graphics dependency is absent.
 
-The implementation has three build-time layers:
+The implementation has four build-time layers:
 
 1. **Qt Widgets** is required for the native desktop application. If the base Qt component set is not found, CMake builds the core libraries and tests but skips the native application target.
 2. **Qt Quick and Qt Quick Widgets** enable the automatic Qt RHI canvas. If they are absent while Qt Widgets is available, the application keeps the ordinary QWidget/CPU canvas.
@@ -27,7 +27,7 @@ For Linux remote builds, `scripts/remote/setup-linux.sh` provisions the system l
 
 ## Quick start with the repository helper
 
-On Linux, macOS, or another POSIX shell, the repository helper is the shortest repeatable path:
+On Linux, macOS, or another POSIX shell, the repository helper is the shortest repeatable path. The default does not download Dawn:
 
 ```sh
 PATCHY_BUILD_JOBS=6 scripts/build-gpu.sh linux-release
@@ -48,6 +48,20 @@ The helper performs these operations:
 - runs the CTest suite when the selected build produced the core test executable;
 - runs `ui_canvas_renderer_selects_a_safe_runtime_backend` when the UI test executable exists.
 
+The optional Dawn build is a separate, explicit step. Use `--with-dawn` when the WebGPU document compositor is desired:
+
+```sh
+PATCHY_BUILD_JOBS=6 scripts/build-gpu.sh linux-release --with-dawn
+```
+
+Use `--dawn-only` to fetch, build, install, and verify Dawn without configuring Patchy:
+
+```sh
+PATCHY_BUILD_JOBS=6 scripts/build-gpu.sh linux-release --dawn-only
+```
+
+The normal Patchy build remains unchanged when neither flag nor `PATCHY_BUILD_DAWN=ON` is present. This is intentional: a missing network connection, compiler, graphics driver, or Dawn dependency never makes Dawn mandatory for the application.
+
 Use `--skip-tests` when only the binary or CMake configuration is needed:
 
 ```sh
@@ -63,7 +77,7 @@ PATCHY_BUILD_JOBS=6 \
 scripts/build-gpu.sh linux-release
 ```
 
-`PATCHY_QT_PREFIX` sets both `CMAKE_PREFIX_PATH` and `Qt6_DIR`. `PATCHY_DAWN_PREFIX` sets the common `Dawn_DIR` and `webgpu_dawn_DIR` locations and adds the prefix to `CMAKE_PREFIX_PATH`. The helper does not download or compile either dependency.
+`PATCHY_QT_PREFIX` sets both `CMAKE_PREFIX_PATH` and `Qt6_DIR`. `PATCHY_DAWN_PREFIX` adds the prefix to `CMAKE_PREFIX_PATH` and supplies the common `Dawn_DIR` and `webgpu_dawn_DIR` hints when those files exist. The helper does not download or compile either dependency unless `--with-dawn` or `PATCHY_BUILD_DAWN=ON` is supplied.
 
 ## Direct CMake builds
 
@@ -142,36 +156,83 @@ This produces the same application target without the Qt Quick/RHI canvas. `PATC
 
 Qt RHI and WebGPU are separate layers. Qt Quick owns the application surface and final presentation. Dawn supplies an optional WebGPU document compositor when CMake finds an installed Dawn target. Qt does not provide a WebGPU backend through `QSGRendererInterface` in this project.
 
-Build or install Dawn using the official Dawn instructions, then expose the generated CMake package to Patchy. The exact package layout depends on the Dawn revision and platform. The Patchy CMake discovery accepts these common targets:
+### Reproducible local build
+
+The repository pins a complete Dawn commit in `cmake/dawn-version.cmake`. The dedicated helper checks out that commit from the official repository, asks Dawn to fetch the dependency revisions recorded in its own `DEPS` file, installs the result below `.deps/dawn/`, and verifies the generated CMake package. No Dawn source checkout, dependency tree, generated file, or binary is tracked by Git; `.deps/` is ignored by the repository.
+
+Run the helper explicitly:
+
+```sh
+PATCHY_BUILD_JOBS=6 scripts/build-dawn.sh
+```
+
+The generated directories are:
+
+```text
+.deps/dawn/src/                 pinned Dawn checkout
+.deps/dawn/build/release/      CMake/Ninja build tree
+.deps/dawn/install/release/    local CMake package and libraries
+```
+
+The helper uses `DAWN_FETCH_DEPENDENCIES=ON`, `DAWN_ENABLE_INSTALL=ON`, `DAWN_BUILD_MONOLITHIC_LIBRARY=STATIC`, `BUILD_SHARED_LIBS=OFF`, `BUILD_TESTS=OFF`, `DAWN_BUILD_TESTS=OFF`, `BUILD_SAMPLES=OFF`, `DAWN_BUILD_SAMPLES=OFF`, and `DAWN_BUILD_NODE_BINDINGS=OFF`. The platform backend set is deliberately isolated:
+
+| Host | Dawn backends built by the helper | Presentation in Patchy |
+|---|---|---|
+| Linux | Vulkan, desktop OpenGL, and the null backend | Dawn composes documents; Qt RHI presents the window |
+| macOS | Metal and the null backend | Dawn composes documents; Qt RHI presents the window |
+| Windows | D3D11, D3D12, Vulkan, and the null backend | Dawn composes documents; Qt RHI presents the window |
+
+The helper does not enable a backend belonging to another operating system. Qt Quick/RHI remains the independent presentation route for OpenGL, Vulkan, Metal, and Direct3D.
+
+`--print-config` validates the lock format and prints the paths without accessing the network:
+
+```sh
+scripts/build-dawn.sh --print-config
+```
+
+To use a machine-local workspace or a different install prefix, set the variables explicitly. The source checkout must be clean; the helper refuses to reset local changes.
+
+```sh
+PATCHY_DAWN_ROOT="$HOME/.cache/patchy-dawn" \
+PATCHY_DAWN_PREFIX="$HOME/.cache/patchy-dawn/install/release" \
+PATCHY_BUILD_JOBS=6 scripts/build-dawn.sh
+```
+
+Update the Dawn revision only as a conscious dependency change. Replace `PATCHY_DAWN_COMMIT` with a complete SHA, run the helper from a clean workspace, verify the CMake package and Patchy build, and record the new date in the lock file. Never use `main`, `HEAD`, a moving tag, or a short hash.
+
+After Dawn is installed, build Patchy and point CMake at the generated prefix:
+
+```sh
+PATCHY_DAWN_PREFIX="$PWD/.deps/dawn/install/release" \
+PATCHY_BUILD_JOBS=6 scripts/build-gpu.sh linux-release
+```
+
+The combined one-command form is:
+
+```sh
+PATCHY_BUILD_JOBS=6 scripts/build-gpu.sh linux-release --with-dawn
+```
+
+The Patchy discovery accepts these target names because Dawn package layouts can vary by revision:
 
 - `dawn::webgpu_dawn`;
 - `Dawn::webgpu_dawn`;
 - `webgpu_dawn`.
 
-For a conventional prefix, configure directly with:
-
-```sh
-cmake --preset linux-release \
-  -DPATCHY_ENABLE_GPU_CANVAS=ON \
-  -DPATCHY_ENABLE_WEBGPU=ON \
-  -DDawn_DIR="$HOME/.local/dawn/lib/cmake/Dawn" \
-  -Dwebgpu_dawn_DIR="$HOME/.local/dawn/lib/cmake/webgpu_dawn"
-```
-
-If the package uses a different layout, pass the actual directories containing `DawnConfig.cmake` or `webgpu_dawnConfig.cmake`. Do not assume that a WebGPU header alone is sufficient. The build needs a linkable Dawn target and its runtime libraries.
+Do not assume that a WebGPU header alone is sufficient. The build needs a package configuration file, a linkable target, and the runtime libraries that target references.
 
 After changing Dawn locations, remove the build directory or clear the relevant CMake cache before configuring again:
 
 ```sh
 rm -rf build/linux-release
-PATCHY_DAWN_PREFIX="$HOME/.local/dawn" \
+PATCHY_DAWN_PREFIX="$PWD/.deps/dawn/install/release" \
 PATCHY_BUILD_JOBS=6 scripts/build-gpu.sh linux-release
 ```
 
-Inspect the configure output and cache:
+The CMake cache records `PATCHY_DAWN_PREFIX` and `PATCHY_DAWN_ROOT` when they were supplied. Inspect the configure output and cache:
 
 ```sh
-grep -E 'PATCHY_ENABLE_GPU_CANVAS|PATCHY_ENABLE_WEBGPU|Qt6_DIR' \
+grep -E 'PATCHY_ENABLE_GPU_CANVAS|PATCHY_ENABLE_WEBGPU|PATCHY_DAWN_(PREFIX|ROOT)|Qt6_DIR' \
   build/linux-release/CMakeCache.txt
 ```
 
@@ -200,6 +261,12 @@ CMake options describe compiled capabilities, not a promise that a particular ma
 The presence of `PATCHY_ENABLE_GPU_CANVAS=ON` in `CMakeCache.txt` does not prove that Qt Quick was found. Confirm the target and compile definition in the generated build files when necessary. The shader baker output may be embedded in generated Qt resources instead of appearing as a standalone `.qsb` file in the build directory.
 
 ## Build validation
+
+The repository includes a lightweight validation that checks shell syntax, the complete SHA lock, the official repository URL, and the printed path configuration without downloading Dawn:
+
+```sh
+scripts/test-build-dawn.sh
+```
 
 The deterministic backend test must run with the offscreen platform:
 
