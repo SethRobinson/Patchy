@@ -165,6 +165,8 @@ namespace patchy::ui {
 
 namespace {
 
+constexpr auto kPatchyInternalClipboardMime = "application/x-patchy-internal-clipboard";
+
 QByteArray clipboard_image_signature(const QImage& image) {
   if (image.isNull()) {
     return {};
@@ -719,7 +721,10 @@ void MainWindow::clear_system_clipboard() {
 void MainWindow::set_system_clipboard_image(const QImage& image) {
   if (auto* clipboard = QApplication::clipboard(); clipboard != nullptr) {
     const QSignalBlocker blocker(clipboard);
-    clipboard->setImage(image);
+    auto* mime = new QMimeData();
+    mime->setImageData(image);
+    mime->setData(QString::fromLatin1(kPatchyInternalClipboardMime), QByteArrayLiteral("1"));
+    clipboard->setMimeData(mime);
     patchy_system_clipboard_signature_ = clipboard_image_signature(clipboard->image());
   }
 #ifdef Q_OS_WASM
@@ -871,6 +876,10 @@ void MainWindow::ungroup_selected_layers() {
 }
 
 void MainWindow::clear_internal_clipboard_on_external_change() {
+  const auto* external_mime = QApplication::clipboard()->mimeData();
+  if (external_mime != nullptr && external_mime->hasFormat(QString::fromLatin1(kPatchyInternalClipboardMime))) {
+    return;
+  }
   if (patchy_system_clipboard_signature_.has_value()) {
     const auto* clipboard = QApplication::clipboard();
     if (patchy_system_clipboard_signature_->isEmpty()) {
@@ -1385,7 +1394,10 @@ void MainWindow::paste_clipboard(bool in_place) {
   std::optional<QPoint> source_origin;
   const auto system_image = QApplication::clipboard()->image();
   const auto system_signature = clipboard_image_signature(system_image);
+  const auto* system_mime = QApplication::clipboard()->mimeData();
   const bool system_image_is_patchy_copy =
+      system_mime != nullptr &&
+      system_mime->hasFormat(QString::fromLatin1(kPatchyInternalClipboardMime)) &&
       patchy_system_clipboard_signature_.has_value() &&
       system_signature == *patchy_system_clipboard_signature_;
   if (clipboard_.has_value() && !clipboard_->pixels.empty() && system_image_is_patchy_copy) {
