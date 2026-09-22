@@ -2,7 +2,7 @@
 
 Patchy has one desktop binary with a native Qt Quick/RHI graphics path and an authoritative CPU compositor. The graphics path has two distinct responsibilities: it can compose a capability-supported document from layer textures on the GPU, and it can present the established CPU result when the document or platform requires it.
 
-The GPU document path currently supports a complete top-level stack of 8-bit RGB/RGBA pixel layers. The source-over tier handles Normal blend mode, ordinary opacity, and fill opacity through the native Qt Quick scene graph. The shader tier adds the separable colour modes (`Multiply`, `Screen`, `Overlay`, `Darken`, `Lighten`, `Color Dodge`, `Color Burn`, `Hard Light`, `Soft Light`, `Difference`, `Linear Burn`, `Pin Light`, `Exclusion`, `Linear Dodge`, `Subtract`, `Divide`, `Vivid Light`, `Linear Light`, and `Hard Mix`) plus unfeathered grayscale raster masks and mask density. Each layer is uploaded as a texture and composed in a portable QSB pass that Qt RHI translates for OpenGL, Vulkan, Metal, or Direct3D. The CPU path remains authoritative for every feature that is not yet shader-equivalent.
+The GPU document path currently supports a complete top-level stack of 8-bit RGB/RGBA pixel layers. The source-over tier handles Normal blend mode, ordinary opacity, and fill opacity through the native Qt Quick scene graph. The shader tier adds the separable colour modes (`Multiply`, `Screen`, `Overlay`, `Darken`, `Lighten`, `Color Dodge`, `Color Burn`, `Hard Light`, `Soft Light`, `Difference`, `Linear Burn`, `Pin Light`, `Exclusion`, `Linear Dodge`, `Subtract`, `Divide`, `Vivid Light`, `Linear Light`, and `Hard Mix`) plus unfeathered grayscale raster masks and mask density. Each layer is uploaded as a texture and composed in a portable QSB pass that Qt RHI translates for OpenGL, Vulkan, Metal, or Direct3D. When an external Dawn installation is available, the same capability tiers can instead be composed by a WebGPU compute pipeline and read back as one complete frame for presentation by Qt. The CPU path remains authoritative for every feature that is not yet shader-equivalent.
 
 This is intentionally all-or-nothing per document. Patchy never mixes an approximate GPU layer with CPU-composed siblings. A document containing a group, a non-separable blend mode, a feathered mask, adjustment, vector or text content, layer style, smart filter, Blend If rule, channel restriction, clipped layer, or unsupported pixel format stays on the CPU compositor until an equivalent GPU implementation is available.
 
@@ -15,7 +15,7 @@ cmake --preset qt-local -DPATCHY_ENABLE_GPU_CANVAS=ON
 cmake --build --preset qt-local -j6
 ```
 
-The optional modules are `Qt Quick` and `Qt Quick Widgets`. If they are unavailable, CMake keeps the application target and compiles the CPU surface implementation from the same source tree. `-DPATCHY_ENABLE_GPU_CANVAS=OFF` forces the CPU-only build. WebAssembly keeps its existing browser rendering path and does not enable this desktop surface.
+The optional modules are `Qt Quick` and `Qt Quick Widgets`. If they are unavailable, CMake keeps the application target and compiles the CPU surface implementation from the same source tree. `-DPATCHY_ENABLE_GPU_CANVAS=OFF` forces the CPU-only build. Dawn is also optional: `-DPATCHY_ENABLE_WEBGPU=ON` asks CMake to discover an installed Dawn package, but a missing package never fails the application build. WebAssembly keeps its existing browser rendering path and does not enable this desktop surface.
 
 The output is one desktop binary. A machine without a usable graphics device does not need a second executable: the scene-graph failure or software-adapter check returns the process to the QWidget/CPU path, and a document outside the current GPU capability matrix also returns to the CPU compositor.
 
@@ -26,6 +26,7 @@ The output is one desktop binary. A machine without a usable graphics device doe
 | Value | Requested Qt Quick API | Behavior |
 |---|---|---|
 | `auto` | `Unknown` | Lets Qt choose the platform-native RHI backend, then accepts it only if it is hardware accelerated |
+| `webgpu` | Automatic Dawn probe plus Qt presentation | Tries the optional Dawn/WebGPU document compositor first; if Dawn, its adapter, or a document pass is unavailable, continues with the ordinary Qt RHI/CPU fallback |
 | `cpu` | No Qt Quick surface | Uses the ordinary QWidget canvas and CPU compositor |
 | `opengl` | OpenGL | Uses OpenGL when the context is available and the renderer is not a known software implementation |
 | `vulkan` | Vulkan | Uses Vulkan when the scene graph and physical device are available |
@@ -33,7 +34,7 @@ The output is one desktop binary. A machine without a usable graphics device doe
 | `d3d11` | Direct3D 11 | Uses Direct3D 11 on Windows when available |
 | `d3d12` | Direct3D 12 | Uses Direct3D 12 on Qt versions that expose that scene-graph backend |
 
-The older `PATCHY_GPU_CANVAS=auto` and `PATCHY_GPU_CANVAS=cpu` spellings remain accepted as compatibility aliases. An unknown value is treated as `auto` and is reported in the diagnostic log.
+The older `PATCHY_GPU_CANVAS=auto` and `PATCHY_GPU_CANVAS=cpu` spellings remain accepted as compatibility aliases. An unknown value is treated as `auto` and is reported in the diagnostic log. In `auto`, Dawn is attempted before the Qt document path only when it was found at configure time; no environment variable is required to activate it.
 
 On supported desktop platforms, automatic selection follows Qt's native scene-graph policy. Linux normally chooses an available Vulkan or OpenGL path, Windows normally chooses Direct3D, and macOS normally chooses Metal. The exact choice remains a Qt and driver decision rather than a compile-time preprocessor branch.
 
@@ -61,6 +62,14 @@ A typical document fallback is:
 Patchy GPU document compositor unavailable; using CPU compositor: document contains a non-separable or unsupported blend mode
 ```
 
+When Dawn is present and the adapter is hardware-backed, the log also identifies the WebGPU implementation and its native API:
+
+```text
+Patchy WebGPU document compositor active on Intel(R) Iris(R) Xe Graphics via Vulkan
+```
+
+The WebGPU route is a separate Dawn document compositor, not a claim that WebGPU is a Qt RHI backend. Qt Quick still owns the desktop widget, input surface, overlays, and final presentation. Dawn is rejected when it reports a CPU/software adapter, and any initialization, shader, queue, or readback error discards the incomplete GPU frame and keeps the complete document on the Qt RHI or CPU path.
+
 The fallback is in-process and does not change the document. The same `CanvasWidget` continues to own input, scrollbars, selection geometry, tool state, and overlays. During GPU composition, a transparent QWidget overlay keeps those controls and guides above the Qt Quick layer tree.
 
 ## Testing
@@ -71,4 +80,4 @@ A real desktop smoke test must run with the native Qt platform plugin. The offsc
 
 ## Scope and expansion boundary
 
-This stage is a real GPU document compositor for the supported pixel-stack and shader capability tiers, not merely a presentation of a pre-composed `QImage`. It is not yet a GPU implementation of every Patchy feature, and floating-point shader output is not used for exports or byte-identity decisions. The next capability tiers require backend-portable shaders and equivalence tests for separable-mode rounding, non-separable blend modes, groups, adjustment layers, layer styles, filters, vectors, text, smart objects, color management, and Photoshop-specific rounding rules. Until each tier is validated, its documents continue to use the byte-authoritative CPU compositor.
+This stage is a real GPU document compositor for the supported pixel-stack and shader capability tiers, not merely a presentation of a pre-composed `QImage`. It is not yet a GPU implementation of every Patchy feature, and floating-point shader output is not used for exports or byte-identity decisions. The optional Dawn path currently uses a complete GPU composition followed by a single readback because portable zero-copy interoperation between Dawn and Qt Quick is platform-specific; this preserves one display binary and avoids exposing a second input/windowing path. The next capability tiers require backend-portable shaders and equivalence tests for separable-mode rounding, non-separable blend modes, groups, adjustment layers, layer styles, filters, vectors, text, smart objects, color management, and Photoshop-specific rounding rules. Until each tier is validated, its documents continue to use the byte-authoritative CPU compositor.
