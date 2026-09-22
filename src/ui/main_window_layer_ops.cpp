@@ -1252,22 +1252,30 @@ void MainWindow::paste_clipboard(bool in_place) {
 
   PixelBuffer pixels;
   std::optional<QPoint> source_origin;
-  if (clipboard_.has_value() && !clipboard_->pixels.empty()) {
+  const auto system_image = QApplication::clipboard()->image();
+  const auto system_signature = clipboard_image_signature(system_image);
+  const bool system_image_is_patchy_copy =
+      patchy_system_clipboard_signature_.has_value() &&
+      system_signature == *patchy_system_clipboard_signature_;
+  if (clipboard_.has_value() && !clipboard_->pixels.empty() && system_image_is_patchy_copy) {
+    pixels = clipboard_->pixels;
+    source_origin = clipboard_->origin;
+  } else if (!system_image.isNull()) {
+    // If the platform delivered a new image before dataChanged reached us, do not
+    // let the previous internal payload supply its document origin.
+    pixels = pixels_from_image_rgba(system_image);
+  } else if (clipboard_.has_value() && !clipboard_->pixels.empty()) {
     pixels = clipboard_->pixels;
     source_origin = clipboard_->origin;
   } else {
-    const auto image = QApplication::clipboard()->image();
-    if (image.isNull()) {
-      // A file copied in a file manager carries URLs and no bitmap: paste the
-      // supported image files as layers (Files as Layers, docs/import.md).
-      if (const auto paths = supported_layer_drop_paths(QApplication::clipboard()->mimeData()); !paths.isEmpty()) {
-        add_files_as_layers_interactive(paths, std::nullopt, tr("Paste"));
-        return;
-      }
-      show_status_error(tr("Clipboard does not contain an image"));
+    // A file copied in a file manager carries URLs and no bitmap: paste the
+    // supported image files as layers (Files as Layers, docs/import.md).
+    if (const auto paths = supported_layer_drop_paths(QApplication::clipboard()->mimeData()); !paths.isEmpty()) {
+      add_files_as_layers_interactive(paths, std::nullopt, tr("Paste"));
       return;
     }
-    pixels = pixels_from_image_rgba(image);
+    show_status_error(tr("Clipboard does not contain an image"));
+    return;
   }
   // Pixels from another document or another app join this document at its depth.
   if (const auto depth = std::as_const(document()).color_state().bit_depth; pixels.format().bit_depth != depth) {
