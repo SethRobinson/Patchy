@@ -356,7 +356,8 @@ the Dawn and CPU-reference times, rendered tiles, padded regional readback
 bytes, source/mask/clear upload bytes, and resource-reuse counters. Run this
 manual benchmark only after the equivalence checks pass. Compare repeated,
 interleaved runs on the same machine; one run is not evidence of a product
-throughput improvement. The assembled frame is still copied to a CPU-readable
+throughput improvement. The metrics also report queue submissions and waits;
+the target is one of each per rendered tile. The assembled frame is still copied to a CPU-readable
 `QImage` for Qt Quick presentation.
 
 ```sh
