@@ -95,24 +95,4 @@ Shape drag-out commits, combine-extend drags, Direct/Path Select anchor drags, v
 
 ## Wasm memory diagnostics
 
-The headless wasm stress harness (`scripts/wasm/stress-harness.html`, `memsoak.js`) and the Safari/iOS memory diagnostics moved to [wasm-memory.md](wasm-memory.md) under the same headings.
-
-## Hardware-agnostic GPU planning and equivalence
-
-The render graph, dirty-region coalescing, tile invalidation, and fake device
-contracts are documented in [Hardware-agnostic GPU render graph](gpu-render-graph.md).
-The current `compare_pixel_buffers()` policy and fake tiled renderer establish the
-first structured `render_cpu()` versus `render_gpu()` comparison, but the fake path
-still calls the CPU compositor for tile contents. They are useful correctness and
-invalidation infrastructure, not a performance measurement, and do not imply that
-a physical GPU was used. A future benchmark must compare native `render_gpu()` and
-`render_cpu()` on the same scene, format, and document revision before claiming a
-speedup. Zero-copy presentation, complete filter shaders, HDR/16-bit paths, and
-native device-loss recovery require real platform validation after their contracts
-and equivalence tests are implemented.
-
-The current Dawn bridge is a correctness boundary, not a throughput optimization:
-it validates the full tile graph and then uses the existing complete-document
-compute compositor with one readback. Benchmark results must therefore identify
-whether they measure Qt RHI presentation, Dawn document composition, or the CPU
-reference. Per-tile native execution and readback reduction remain separate work.
+The headless wasm stress harness (`scripts/wasm/stress-harness.html`, `memsoak.js`) and the Safari/iOS memory diagnostics are in [wasm-memory.md](wasm-memory.md).
