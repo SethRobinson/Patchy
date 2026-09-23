@@ -361,6 +361,20 @@ the target is one of each per non-empty full or dirty plan, even when that plan
 contains multiple tiles. The assembled frame is still copied to a CPU-readable
 `QImage` for Qt Quick presentation.
 
+The zero-copy interop contract is validated by the ordinary core build; it does
+not enable a native bridge or require a graphics device. Run the focused check
+after a CPU-only configure:
+
+```sh
+/tmp/patchy-build/patchy_core_tests zero_copy_interop
+```
+
+The check rejects unknown APIs, mismatched Qt/Dawn APIs, missing shared device,
+missing native texture import, and missing synchronization in that order. Only a
+fully verified set of prerequisites returns `Ready`. With the current Dawn
+compositor the expected presentation remains a regional readback followed by Qt
+Quick `QImage` upload; a zero-copy runtime claim is not valid yet.
+
 ```sh
 if timeout 120s \
   ./build/linux-release/patchy_webgpu_equivalence_tests | tee /tmp/patchy-webgpu-metrics.log

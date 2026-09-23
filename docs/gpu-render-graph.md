@@ -45,6 +45,14 @@ The bridge is intentionally all-or-nothing. Adapter creation, graph validation, 
 
 Zero-copy presentation, shader implementations of all Photoshop filters, HDR/16-bit output, and native device-loss recovery remain later milestones. The tile scheduler, comparison policy, logical recovery path, and now the Dawn tile executor can be developed independently. Native validation on Intel, AMD, NVIDIA, macOS, and Windows is still required before those paths are advertised as production capabilities.
 
+The first zero-copy-specific step is deliberately a pure eligibility contract in
+`src/render/gpu_presentation_interop.hpp`. `evaluate_zero_copy_interop()` requires
+matching compositor and presentation APIs, a verified shared device, native
+texture import, and an explicit synchronization mechanism. It has no Qt, Dawn, or
+platform-handle dependency and cannot make an unverified path eligible. The
+current Dawn compositor therefore remains readback-based until a platform bridge
+can prove those conditions and preserve resource ownership and queue ordering.
+
 The optional `patchy_webgpu_equivalence_tests` executable is the first native
 validation boundary. It compares Dawn output with the CPU compositor for 255,
 256, and 257 pixel boundaries, a multi-tile frame, a gray8 mask, supported Blend
