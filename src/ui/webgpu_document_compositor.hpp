@@ -21,6 +21,9 @@ struct WebGpuCompositionMetrics {
   std::size_t scratch_texture_reuses{0};
   std::size_t uniform_buffer_reuses{0};
   std::size_t readback_buffer_reuses{0};
+  std::size_t bind_group_reuses{0};
+  std::size_t queue_submissions{0};
+  std::size_t queue_waits{0};
   std::uint64_t composition_time_ns{0};
 };
 
