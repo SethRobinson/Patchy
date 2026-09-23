@@ -45,6 +45,15 @@ The bridge is intentionally all-or-nothing. Adapter creation, graph validation, 
 
 Zero-copy presentation, shader implementations of all Photoshop filters, HDR/16-bit output, and native device-loss recovery remain later milestones. The tile scheduler, comparison policy, logical recovery path, and now the Dawn tile executor can be developed independently. Native validation on Intel, AMD, NVIDIA, macOS, and Windows is still required before those paths are advertised as production capabilities.
 
+The optional `patchy_webgpu_equivalence_tests` executable is the first native
+validation boundary. It compares Dawn output with the CPU compositor for 255,
+256, and 257 pixel boundaries, a multi-tile frame, a gray8 mask, supported Blend
+If settings, an incremental dirty region, and an empty dirty region. It checks
+the planned tile count, three graph passes per tile, regional readback size, and
+the all-or-nothing output contract. The target is manual and hardware-backed;
+the normal CTest suite continues to use the fake backend and remains independent
+of Dawn.
+
 ## Validation
 
 The complete CPU core test executable includes the following hardware-free checks:
@@ -76,3 +85,9 @@ cmake --build /tmp/patchy-build --target patchy_core_tests -j4
 ```
 
 These commands do not download Dawn, open a window, or require a hardware adapter. The existing full CTest suite remains authoritative for document bytes, UI behavior, and export compatibility.
+
+For the separate native check, configure with
+`-DPATCHY_BUILD_WEBGPU_VALIDATION_TESTS=ON`, build
+`patchy_webgpu_equivalence_tests`, and run it with a real desktop platform as
+described in [the GPU build guide](gpu-build.md). A `[SKIP]` result is expected
+when the optional dependency or hardware is absent; it is not a CTest failure.
