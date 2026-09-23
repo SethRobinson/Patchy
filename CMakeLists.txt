@@ -49,6 +49,9 @@ option(PATCHY_ENABLE_GPU_CANVAS
 option(PATCHY_ENABLE_WEBGPU
        "Discover and use an optional Dawn/WebGPU document compositor when available"
        ON)
+option(PATCHY_BUILD_WEBGPU_VALIDATION_TESTS
+       "Build manual hardware-backed Dawn/CPU equivalence checks"
+       OFF)
 set(PATCHY_DAWN_PREFIX "" CACHE PATH "Optional installed Dawn prefix; never downloads Dawn")
 set(PATCHY_DAWN_ROOT "" CACHE PATH "Optional local Dawn workspace containing install/<config> prefixes")
 
@@ -1845,6 +1848,19 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
   else()
     message(STATUS "Qt 6 Widgets was not found; skipping the native Patchy app target.")
   endif()
+endif()
+
+if(PATCHY_BUILD_WEBGPU_VALIDATION_TESTS)
+  if(NOT PATCHY_BUILD_APP OR NOT Qt6_FOUND OR EMSCRIPTEN)
+    message(FATAL_ERROR "PATCHY_BUILD_WEBGPU_VALIDATION_TESTS requires the native Qt desktop application")
+  endif()
+  add_executable(patchy_webgpu_equivalence_tests
+    tests/webgpu_equivalence_tests.cpp
+  )
+  target_link_libraries(patchy_webgpu_equivalence_tests PRIVATE patchy_ui)
+  patchy_configure_target(patchy_webgpu_equivalence_tests)
+  # This target is deliberately not registered with CTest: it skips when Dawn or
+  # a hardware adapter is unavailable and must remain a separate manual smoke.
 endif()
 
 if(PATCHY_BUILD_TESTS)
