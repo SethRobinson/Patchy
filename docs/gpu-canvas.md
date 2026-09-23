@@ -85,7 +85,7 @@ Patchy GPU document compositor unavailable; using CPU compositor: document conta
 When Dawn is present and the adapter is hardware-backed, the log also identifies the WebGPU implementation and its native API:
 
 ```text
-Patchy WebGPU document compositor active on Intel(R) Iris(R) Xe Graphics via Vulkan
+Patchy WebGPU document compositor active on Intel(R) Iris(R) Xe Graphics via Vulkan ; render-graph passes: <N>
 ```
 
 The WebGPU route is a separate Dawn document compositor, not a claim that WebGPU is a Qt RHI backend. Qt Quick still owns the desktop widget, input surface, overlays, and final presentation. Dawn is rejected when it reports a CPU/software adapter, and any initialization, shader, queue, or readback error discards the incomplete GPU frame and keeps the complete document on the Qt RHI or CPU path. The Dawn kernel uses the same Blend If threshold contract as the QSB path; the two implementations are display paths, not export authorities.
@@ -112,6 +112,14 @@ GPU. A future native pass must first have CPU/GPU equivalence coverage for its
 format, alpha convention, color space, clipping, and invalidation bounds. Until
 then, the CPU compositor remains the authority for export, byte identity, and
 unsupported documents.
+
+When the optional Dawn prefix is found at configure time, `WebGpuRenderBackend`
+adds one more gate before the existing `WebGpuDocumentCompositor` publishes a
+frame. It validates a full-document render graph and then delegates the current
+complete-document compute pass and readback to Dawn. This is real WebGPU
+composition, but it is not yet native per-tile execution or zero-copy
+presentation. If initialization, graph validation, composition, readback, or
+recovery fails, the document remains on the Qt RHI/CPU path.
 
 ## Testing
 
