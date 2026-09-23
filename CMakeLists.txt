@@ -177,6 +177,7 @@ add_library(patchy_render
   src/render/compositor.cpp
   src/render/dirty_region.cpp
   src/render/gpu_document_capabilities.cpp
+  src/render/gpu_presentation_interop.cpp
   src/render/gpu_render_graph.cpp
   src/render/gpu_tile_scheduler.cpp
   src/render/layer_style_mask_ops.cpp
