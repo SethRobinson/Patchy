@@ -357,7 +357,8 @@ bytes, source/mask/clear upload bytes, and resource-reuse counters. Run this
 manual benchmark only after the equivalence checks pass. Compare repeated,
 interleaved runs on the same machine; one run is not evidence of a product
 throughput improvement. The metrics also report queue submissions and waits;
-the target is one of each per rendered tile. The assembled frame is still copied to a CPU-readable
+the target is one of each per non-empty full or dirty plan, even when that plan
+contains multiple tiles. The assembled frame is still copied to a CPU-readable
 `QImage` for Qt Quick presentation.
 
 ```sh

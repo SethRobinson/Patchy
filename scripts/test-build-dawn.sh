@@ -66,6 +66,12 @@ grep -Fq 'last_metrics_.queue_submissions' \
   "$REPO_ROOT/src/ui/webgpu_document_compositor.cpp"
 grep -Fq 'cached.bind_groups' \
   "$REPO_ROOT/src/ui/webgpu_document_compositor.cpp"
+grep -Fq 'uniforms_by_tile' \
+  "$REPO_ROOT/src/ui/webgpu_document_compositor.cpp"
+grep -Fq 'std::vector<PendingTile>' \
+  "$REPO_ROOT/src/ui/webgpu_document_compositor.cpp"
+grep -Fq 'wgpuCommandEncoderFinish(encoder.get()' \
+  "$REPO_ROOT/src/ui/webgpu_document_compositor.cpp"
 grep -Fq 'wgpuCommandEncoderCopyTextureToBuffer(encoder.get()' \
   "$REPO_ROOT/src/ui/webgpu_document_compositor.cpp"
 grep -Fq '++last_metrics_.queue_submissions' \
