@@ -2679,6 +2679,9 @@ void ui_right_docks_collapse_layers_show_metadata_and_info_updates() {
   show_window(window);
   auto* canvas = require_canvas(window);
   canvas->set_zoom(1.0);
+  // This assertion checks the exact document-space marquee origin. Do not let
+  // persisted snapping preferences from another UI test move the press point.
+  canvas->set_snap_enabled(false);
   QApplication::processEvents();
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   auto* info = window.findChild<QLabel*>(QStringLiteral("canvasInfoLabel"));
@@ -2803,6 +2806,14 @@ void ui_right_docks_collapse_layers_show_metadata_and_info_updates() {
   CHECK(info->text().contains(QStringLiteral("RGB:")));
 
   require_action_by_text(window, QStringLiteral("Marquee"))->trigger();
+  // Activating a tool can resize the options bar and move the canvas before the
+  // synthetic press is delivered. Flush that layout first so both coordinates
+  // are calculated from the same viewport state used by the gesture.
+  QApplication::processEvents();
+  // The dock-resize assertions above may leave a fractional pan. This test is
+  // about the metadata text, so use the historical integer origin to make the
+  // QPoint-to-document conversion exact at 1x zoom.
+  canvas->set_view_pan(QPointF(40.0, 40.0));
   const auto marquee_start = canvas->widget_position_for_document_point(QPoint(40, 40));
   const auto marquee_end = canvas->widget_position_for_document_point(QPoint(140, 90));
   send_mouse(*canvas, QEvent::MouseButtonPress, marquee_start, Qt::LeftButton, Qt::LeftButton);

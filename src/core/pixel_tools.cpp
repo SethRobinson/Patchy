@@ -1837,7 +1837,11 @@ Rect smudge_brush_segment(Document& document, LayerId layer_id, std::int32_t x0,
       }
     }
 
-    const auto pickup = std::clamp(1.0F - strength, 0.0F, 1.0F);
+    // Pickup is applied once for every dab below. Applying the full remaining
+    // amount at every dab rapidly replaces the carried sample with the canvas
+    // background on long strokes. Scale it by the dab spacing over four brush
+    // radii so the sample evolves with travelled distance, not dab count.
+    const auto pickup = std::clamp((1.0F - strength) * 0.01F, 0.0F, 1.0F);
     if (pickup <= 0.0F) {
       return;
     }

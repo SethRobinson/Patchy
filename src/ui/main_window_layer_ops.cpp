@@ -1172,10 +1172,10 @@ void MainWindow::paste_clipboard(bool in_place) {
   std::optional<QPoint> source_origin;
   const auto system_image = QApplication::clipboard()->image();
   const auto system_signature = clipboard_image_signature(system_image);
-  const auto* system_mime = QApplication::clipboard()->mimeData();
+  // QClipboard::setImage() can re-publish the same Patchy image while dropping
+  // custom MIME formats. The dataChanged handler deliberately keeps an identical
+  // signed image as internal, so the signature alone must also restore its origin.
   const bool system_image_is_patchy_copy =
-      system_mime != nullptr &&
-      system_mime->hasFormat(QString::fromLatin1(kPatchyInternalClipboardMime)) &&
       patchy_system_clipboard_signature_.has_value() &&
       system_signature == *patchy_system_clipboard_signature_;
   if (clipboard_.has_value() && !clipboard_->pixels.empty() && system_image_is_patchy_copy) {

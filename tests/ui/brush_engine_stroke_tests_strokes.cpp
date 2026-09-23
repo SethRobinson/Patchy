@@ -2457,8 +2457,10 @@ void ui_smudge_tool_drags_painted_pixels() {
   canvas->set_brush_size(28);
   canvas->set_brush_opacity(70);
   canvas->set_brush_softness(100);
-  drag(*canvas, canvas->widget_position_for_document_point(QPoint(100, 120)),
-       canvas->widget_position_for_document_point(QPoint(170, 120)));
+  // The press can finish the previous edit and post one last viewport layout pass.
+  // Compute the move point after that press so the document-space endpoint stays at
+  // (170, 120) instead of using a stale widget coordinate.
+  drag_document_path(*canvas, {QPoint(100, 120), QPoint(170, 120)}, 1);
   QApplication::processEvents();
 
   const auto smeared = canvas_pixel(*canvas, QPoint(165, 120));

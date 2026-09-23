@@ -114,6 +114,19 @@ double CanvasWidget::zoom() const noexcept {
   return zoom_;
 }
 
+QPointF CanvasWidget::view_pan() const noexcept {
+  return pan_;
+}
+
+void CanvasWidget::set_view_pan(QPointF pan) {
+  if (pan_ == pan) {
+    return;
+  }
+  pan_ = pan;
+  update();
+  notify_view_changed();
+}
+
 void CanvasWidget::set_zoom(double zoom) {
   const auto clamped = std::clamp(zoom, kMinZoom, kMaxZoom);
   if (std::abs(clamped - zoom_) < 0.0001) {

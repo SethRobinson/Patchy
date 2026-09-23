@@ -560,7 +560,8 @@ void ui_delete_key_action_removes_text_layer_object() {
 
   // While a text edit is in progress the clear action leaves the layer alone;
   // Delete belongs to typing.
-  send_mouse(*canvas, QEvent::MouseButtonDblClick, text_widget_point + QPoint(12, 12), Qt::LeftButton,
+  const auto reedit_widget_point = canvas->widget_position_for_document_point(text_document_point) + QPoint(12, 12);
+  send_mouse(*canvas, QEvent::MouseButtonDblClick, reedit_widget_point, Qt::LeftButton,
              Qt::LeftButton);
   QApplication::processEvents();
   CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) != nullptr);

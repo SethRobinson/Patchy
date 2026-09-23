@@ -1884,7 +1884,7 @@ if(PATCHY_BUILD_TESTS)
     patchy_copy_bundled_scripts(patchy_ui_visual_tests)
     add_test(NAME patchy_ui_visual_tests COMMAND patchy_ui_visual_tests)
     set_tests_properties(patchy_ui_visual_tests PROPERTIES
-      ENVIRONMENT "QT_QPA_PLATFORM=offscreen;PATCHY_RENDER_BACKEND=cpu")
+      ENVIRONMENT "QT_QPA_PLATFORM=offscreen;PATCHY_RENDER_BACKEND=cpu;PATCHY_NO_SOUND=1;PATCHY_RENDER_SINGLE_THREADED=1;PATCHY_RENDER_THREADS=1;LC_ALL=C.UTF-8;LANG=C.UTF-8;LANGUAGE=C;QT_SCALE_FACTOR=1")
 
     add_executable(patchy_curves_clipping_preview_tests
       tests/curves_clipping_preview_tests.cpp
