@@ -115,11 +115,13 @@ unsupported documents.
 
 When the optional Dawn prefix is found at configure time, `WebGpuRenderBackend`
 adds one more gate before the existing `WebGpuDocumentCompositor` publishes a
-frame. It validates a full-document render graph and then delegates the current
-complete-document compute pass and readback to Dawn. This is real WebGPU
-composition, but it is not yet native per-tile execution or zero-copy
-presentation. If initialization, graph validation, composition, readback, or
-recovery fails, the document remains on the Qt RHI/CPU path.
+frame. It validates a full or dirty render graph and executes its mip-0 tiles
+with independent compute passes and regional readbacks. When a valid previous
+frame exists, clean tiles are reused and only tiles intersecting the document
+dirty region are rebuilt. This is real WebGPU tile execution, but it is not
+zero-copy presentation: the assembled `QImage` still crosses into the existing
+Qt Quick surface. If initialization, graph validation, composition, any tile
+readback, or recovery fails, the document remains on the Qt RHI/CPU path.
 
 ## Testing
 
@@ -129,4 +131,4 @@ A real desktop smoke test must run with the native Qt platform plugin. The offsc
 
 ## Scope and expansion boundary
 
-This stage is a real GPU document compositor for the supported pixel-stack and shader capability tiers, not merely a presentation of a pre-composed `QImage`. It is not yet a GPU implementation of every Patchy feature, and floating-point shader output is not used for exports or byte-identity decisions. The optional Dawn path currently uses a complete GPU composition followed by a single readback because portable zero-copy interoperation between Dawn and Qt Quick is platform-specific; this preserves one display binary and avoids exposing a second input/windowing path. The next capability tiers require backend-portable shaders and equivalence tests for separable-mode rounding, non-separable blend modes, groups, adjustment layers, layer styles, filters, vectors, text, smart objects, color management, and Photoshop-specific rounding rules. Until each tier is validated, its documents continue to use the byte-authoritative CPU compositor.
+This stage is a real GPU document compositor for the supported pixel-stack and shader capability tiers, not merely a presentation of a pre-composed `QImage`. It is not yet a GPU implementation of every Patchy feature, and floating-point shader output is not used for exports or byte-identity decisions. The optional Dawn path executes bounded mip-0 tiles and reads back only tiles selected by the full-frame or dirty-region plan. It still uploads source layer textures for each composition call and copies the assembled `QImage` through the existing Qt Quick surface; portable zero-copy interoperation remains platform-specific. The next capability tiers require backend-portable shaders and equivalence tests for separable-mode rounding, non-separable blend modes, groups, adjustment layers, layer styles, filters, vectors, text, smart objects, color management, and Photoshop-specific rounding rules. Until each tier is validated, its documents continue to use the byte-authoritative CPU compositor.

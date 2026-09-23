@@ -1315,7 +1315,7 @@ private:
   void resize_graphics_canvas_surface();
   void graphics_surface_ready(CanvasGraphicsApi api);
   void graphics_surface_failed(const QString& reason);
-  void render_graphics_canvas_frame();
+  void render_graphics_canvas_frame(const QRegion& dirty_widget_region = {});
   void disable_gpu_canvas(const QString& reason);
   void request_graphics_canvas_update(const QRegion& region);
   [[nodiscard]] bool build_gpu_document(CanvasGpuDocument& document, QString* rejection_reason = nullptr) const;

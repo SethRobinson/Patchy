@@ -377,7 +377,7 @@ void CanvasWidget::graphics_surface_failed(const QString& reason) {
   disable_gpu_canvas(reason);
 }
 
-void CanvasWidget::render_graphics_canvas_frame() {
+void CanvasWidget::render_graphics_canvas_frame(const QRegion& dirty_widget_region) {
   if (graphics_surface_ == nullptr || canvas_render_backend_ == CanvasRenderBackend::Cpu) {
     return;
   }
@@ -420,7 +420,23 @@ void CanvasWidget::render_graphics_canvas_frame() {
       document.layers.clear();
     } else {
       QImage composited_frame;
-      if (webgpu_compositor_->compose(document, composited_frame, &webgpu_reason)) {
+      bool composed = false;
+      if (!webgpu_frame_cache_.isNull() && !dirty_widget_region.isEmpty()) {
+        QRegion dirty_document_region;
+        for (const auto& widget_rect : dirty_widget_region) {
+          const auto top_left = document_point_for_widget_position(widget_rect.topLeft());
+          const auto bottom_right = document_point_for_widget_position(widget_rect.bottomRight() + QPoint(1, 1));
+          const auto document_rect = QRectF(top_left, bottom_right).normalized().toAlignedRect();
+          if (!document_rect.isEmpty()) {
+            dirty_document_region += document_rect;
+          }
+        }
+        composed = webgpu_compositor_->compose_incremental(document, dirty_document_region, webgpu_frame_cache_,
+                                                           composited_frame, &webgpu_reason);
+      } else {
+        composed = webgpu_compositor_->compose(document, composited_frame, &webgpu_reason);
+      }
+      if (composed) {
         webgpu_frame_cache_ = std::move(composited_frame);
         webgpu_frame_cache_key_ = cache_key;
         document.composited_frame = webgpu_frame_cache_;
@@ -433,7 +449,9 @@ void CanvasWidget::render_graphics_canvas_frame() {
         qInfo().noquote() << "Patchy WebGPU document compositor active on"
                           << webgpu_compositor_->adapter_name() << "via"
                           << webgpu_compositor_->native_backend_name()
-                          << "; render-graph passes:" << webgpu_compositor_->last_submitted_pass_count();
+                          << "; render-graph passes:" << webgpu_compositor_->last_submitted_pass_count()
+                          << "; tiles:" << webgpu_compositor_->last_rendered_tile_count()
+                          << "; readback bytes:" << webgpu_compositor_->last_readback_bytes();
       }
     } else if (!webgpu_reason.isEmpty() && webgpu_reason != last_gpu_fallback_reason_) {
       qInfo().noquote() << "Patchy WebGPU document compositor failed; using Qt RHI/CPU document fallback:"
@@ -456,7 +474,7 @@ void CanvasWidget::request_graphics_canvas_update(const QRegion& region) {
   if (graphics_surface_ == nullptr || canvas_render_backend_ == CanvasRenderBackend::Cpu || !gpu_document_active_) {
     return;
   }
-  render_graphics_canvas_frame();
+  render_graphics_canvas_frame(region);
   graphics_surface_->request_update(region);
 }
 
