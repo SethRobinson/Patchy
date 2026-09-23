@@ -44,6 +44,18 @@ fi
 
 grep -Fq 'outputOrigin: vec2<i32>' \
   "$REPO_ROOT/src/ui/webgpu_document_compositor.cpp"
+grep -Fq 'let localCoord = vec2<i32>(invocation.xy);' \
+  "$REPO_ROOT/src/ui/webgpu_document_compositor.cpp"
+grep -Fq 'textureLoad(backdropTexture, localCoord, 0)' \
+  "$REPO_ROOT/src/ui/webgpu_document_compositor.cpp"
+grep -Fq 'textureStore(outputTexture, localCoord' \
+  "$REPO_ROOT/src/ui/webgpu_document_compositor.cpp"
+grep -Fq 'fn blendIfThresholdAlphaByte' \
+  "$REPO_ROOT/src/ui/webgpu_document_compositor.cpp"
+grep -Fq 'sourceAlpha = sourceAlpha * ((1.0 - backdropAlpha) + backdropAlpha * underlyingFactor);' \
+  "$REPO_ROOT/src/ui/webgpu_document_compositor.cpp"
+grep -Fq 'return f32((sourceByte * backdropByte) / 255u) / 255.0;' \
+  "$REPO_ROOT/src/ui/webgpu_document_compositor.cpp"
 grep -Fq 'static_assert(sizeof(Params) == 192);' \
   "$REPO_ROOT/src/ui/webgpu_document_compositor.cpp"
 grep -Fq 'compose_tiles(const CanvasGpuDocument& document' \
