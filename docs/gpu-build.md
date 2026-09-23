@@ -350,6 +350,27 @@ echo "Terminal remains open."
 
 A line saying `Dawn/WebGPU was not found at configure time` means that the binary was built without the optional Dawn target. It is not a runtime GPU failure, and the Qt RHI/CPU fallback remains the expected behavior.
 
+The same executable also prints `[METRIC]` records for `full_cold`,
+`full_warm`, `dirty_single`, `dirty_multiple`, and `idle`. These records report
+the Dawn and CPU-reference times, rendered tiles, padded regional readback
+bytes, source/mask/clear upload bytes, and resource-reuse counters. Run this
+manual benchmark only after the equivalence checks pass. Compare repeated,
+interleaved runs on the same machine; one run is not evidence of a product
+throughput improvement. The assembled frame is still copied to a CPU-readable
+`QImage` for Qt Quick presentation.
+
+```sh
+if timeout 120s \
+  ./build/linux-release/patchy_webgpu_equivalence_tests | tee /tmp/patchy-webgpu-metrics.log
+then
+  echo "Dawn benchmark and equivalence validation finished."
+else
+  validation_status=$?
+  echo "Dawn benchmark or equivalence validation failed or timed out: $validation_status"
+fi
+echo "Terminal remains open."
+```
+
 ## Runtime selection variables
 
 The build options and runtime variables solve different problems:

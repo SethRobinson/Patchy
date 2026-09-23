@@ -28,6 +28,7 @@ bool WebGpuRenderBackend::initialize() {
   last_submitted_pass_count_ = 0;
   last_rendered_tile_count_ = 0;
   last_readback_bytes_ = 0;
+  last_composition_metrics_ = {};
   return true;
 }
 
@@ -88,6 +89,7 @@ bool WebGpuRenderBackend::compose(const CanvasGpuDocument& document, QImage& out
                                   QString* failure_reason) {
   last_rendered_tile_count_ = 0;
   last_readback_bytes_ = 0;
+  last_composition_metrics_ = {};
   if (state_ != patchy::GpuBackendState::Ready || compositor_ == nullptr) {
     const auto reason = last_error_.empty() ? QStringLiteral("Dawn/WebGPU backend is not ready")
                                             : QString::fromStdString(last_error_);
@@ -129,6 +131,7 @@ bool WebGpuRenderBackend::compose(const CanvasGpuDocument& document, QImage& out
   }
 
   output = std::move(composed);
+  last_composition_metrics_ = compositor_->last_metrics();
   last_error_.clear();
   return true;
 }
@@ -139,6 +142,7 @@ bool WebGpuRenderBackend::compose_incremental(const CanvasGpuDocument& document,
                                                QString* failure_reason) {
   last_rendered_tile_count_ = 0;
   last_readback_bytes_ = 0;
+  last_composition_metrics_ = {};
   if (state_ != patchy::GpuBackendState::Ready || compositor_ == nullptr) {
     const auto reason = last_error_.empty() ? QStringLiteral("Dawn/WebGPU backend is not ready")
                                             : QString::fromStdString(last_error_);
@@ -170,6 +174,7 @@ bool WebGpuRenderBackend::compose_incremental(const CanvasGpuDocument& document,
       last_submitted_pass_count_ = 0;
       last_rendered_tile_count_ = 0;
       last_readback_bytes_ = 0;
+      last_composition_metrics_ = {};
       last_error_.clear();
       return true;
     }
@@ -202,6 +207,7 @@ bool WebGpuRenderBackend::compose_incremental(const CanvasGpuDocument& document,
                 failure_reason);
   }
   output = std::move(composed);
+  last_composition_metrics_ = compositor_->last_metrics();
   last_error_.clear();
   return true;
 }
@@ -224,6 +230,10 @@ std::size_t WebGpuRenderBackend::last_rendered_tile_count() const noexcept {
 
 std::size_t WebGpuRenderBackend::last_readback_bytes() const noexcept {
   return last_readback_bytes_;
+}
+
+WebGpuCompositionMetrics WebGpuRenderBackend::last_composition_metrics() const noexcept {
+  return last_composition_metrics_;
 }
 
 bool WebGpuRenderBackend::fail(patchy::GpuBackendState state, QString reason, QString* failure_reason) {
