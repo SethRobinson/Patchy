@@ -56,6 +56,12 @@ grep -Fq 'sourceAlpha = sourceAlpha * ((1.0 - backdropAlpha) + backdropAlpha * u
   "$REPO_ROOT/src/ui/webgpu_document_compositor.cpp"
 grep -Fq 'return f32((sourceByte * backdropByte) / 255u) / 255.0;' \
   "$REPO_ROOT/src/ui/webgpu_document_compositor.cpp"
+grep -Fq 'acquire_scratch_texture' \
+  "$REPO_ROOT/src/ui/webgpu_document_compositor.cpp"
+grep -Fq 'last_metrics_.source_upload_bytes' \
+  "$REPO_ROOT/src/ui/webgpu_document_compositor.cpp"
+grep -Fq 'mask_revision' \
+  "$REPO_ROOT/src/ui/webgpu_document_compositor.cpp"
 grep -Fq 'static_assert(sizeof(Params) == 192);' \
   "$REPO_ROOT/src/ui/webgpu_document_compositor.cpp"
 grep -Fq 'compose_tiles(const CanvasGpuDocument& document' \
