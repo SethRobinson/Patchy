@@ -159,19 +159,21 @@ tile, and reports the number of rendered tiles and padded readback bytes.
 Benchmark results must therefore identify whether they measure Qt RHI
 presentation, Dawn document composition, dirty-tile reuse, or the CPU reference.
 The compositor now retains source and mask textures by their pixel/content
-revisions, keeps one uniform buffer per layer, and reuses scratch and readback
+revisions, keeps one uniform buffer per layer and tile, and reuses scratch and readback
 resources by tile size. These caches are device-owned and are discarded when
 the Dawn backend is recreated, so recovery cannot reuse resources from a lost
-device. Each tile records all layer passes and its regional copy in one command
-buffer, followed by one queue submission and one wait before mapping the
-readback. Bind groups are retained while their five resource views remain
-valid. The CPU path remains the output authority.
+device. Every non-empty composition plan records all of its tile passes and
+regional copies in one command buffer, followed by one queue submission and one
+wait before mapping the readbacks. Bind groups are retained while their five
+resource views remain valid. The CPU path remains the output authority.
 
 The optional `patchy_webgpu_equivalence_tests` executable prints `[METRIC]`
 records for `full_cold`, `full_warm`, `dirty_single`, `dirty_multiple`, and
 `idle`. Each record includes Dawn time, CPU reference time, rendered tiles,
 padded readback bytes, source/mask/clear upload bytes, and resource-reuse
-counters, including queue submissions and waits. Run it repeatedly on the same
+counters, including queue submissions and waits. A non-empty full or dirty
+plan should report one submission and one wait regardless of its tile count;
+an idle plan should report zero for both. Run it repeatedly on the same
 machine and interleave configurations before comparing means. A lower Dawn
 time is not by itself a product-level
 speedup: the executable still performs regional readback and returns a
