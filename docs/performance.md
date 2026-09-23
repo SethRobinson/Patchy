@@ -162,14 +162,18 @@ The compositor now retains source and mask textures by their pixel/content
 revisions, keeps one uniform buffer per layer, and reuses scratch and readback
 resources by tile size. These caches are device-owned and are discarded when
 the Dawn backend is recreated, so recovery cannot reuse resources from a lost
-device. The CPU path remains the output authority.
+device. Each tile records all layer passes and its regional copy in one command
+buffer, followed by one queue submission and one wait before mapping the
+readback. Bind groups are retained while their five resource views remain
+valid. The CPU path remains the output authority.
 
 The optional `patchy_webgpu_equivalence_tests` executable prints `[METRIC]`
 records for `full_cold`, `full_warm`, `dirty_single`, `dirty_multiple`, and
 `idle`. Each record includes Dawn time, CPU reference time, rendered tiles,
 padded readback bytes, source/mask/clear upload bytes, and resource-reuse
-counters. Run it repeatedly on the same machine and interleave configurations
-before comparing means. A lower Dawn time is not by itself a product-level
+counters, including queue submissions and waits. Run it repeatedly on the same
+machine and interleave configurations before comparing means. A lower Dawn
+time is not by itself a product-level
 speedup: the executable still performs regional readback and returns a
 CPU-readable `QImage` to Qt Quick. Zero-copy presentation, complete filter
 shaders, HDR/16-bit paths, and platform-specific device-loss recovery remain

@@ -62,6 +62,14 @@ grep -Fq 'last_metrics_.source_upload_bytes' \
   "$REPO_ROOT/src/ui/webgpu_document_compositor.cpp"
 grep -Fq 'mask_revision' \
   "$REPO_ROOT/src/ui/webgpu_document_compositor.cpp"
+grep -Fq 'last_metrics_.queue_submissions' \
+  "$REPO_ROOT/src/ui/webgpu_document_compositor.cpp"
+grep -Fq 'cached.bind_groups' \
+  "$REPO_ROOT/src/ui/webgpu_document_compositor.cpp"
+grep -Fq 'wgpuCommandEncoderCopyTextureToBuffer(encoder.get()' \
+  "$REPO_ROOT/src/ui/webgpu_document_compositor.cpp"
+grep -Fq '++last_metrics_.queue_submissions' \
+  "$REPO_ROOT/src/ui/webgpu_document_compositor.cpp"
 grep -Fq 'static_assert(sizeof(Params) == 192);' \
   "$REPO_ROOT/src/ui/webgpu_document_compositor.cpp"
 grep -Fq 'compose_tiles(const CanvasGpuDocument& document' \

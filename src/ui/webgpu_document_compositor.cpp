@@ -388,10 +388,36 @@ struct TextureData {
   QSize size;
 };
 
+struct BindGroupKey {
+  std::uintptr_t uniform{0};
+  std::uintptr_t source{0};
+  std::uintptr_t backdrop{0};
+  std::uintptr_t mask{0};
+  std::uintptr_t output{0};
+
+  friend bool operator==(const BindGroupKey&, const BindGroupKey&) = default;
+};
+
+struct BindGroupKeyHash {
+  std::size_t operator()(const BindGroupKey& key) const noexcept {
+    std::size_t hash = key.uniform;
+    const auto combine = [&hash](std::uintptr_t value) {
+      hash ^= static_cast<std::size_t>(value) + static_cast<std::size_t>(0x9e3779b9U) +
+              (hash << 6U) + (hash >> 2U);
+    };
+    combine(key.source);
+    combine(key.backdrop);
+    combine(key.mask);
+    combine(key.output);
+    return hash;
+  }
+};
+
 struct CachedLayerResources {
   TextureData source;
   TextureData mask;
   BufferHandle uniforms;
+  std::unordered_map<BindGroupKey, BindGroupHandle, BindGroupKeyHash> bind_groups;
   std::uint64_t pixel_revision{0};
   std::uint64_t mask_revision{0};
   bool has_mask{false};
@@ -532,6 +558,7 @@ public:
                                   cached.pixel_revision == pixel_revision &&
                                   cached.source.size == source_image.size();
       if (!source_matches) {
+        cached.bind_groups.clear();
         cached.source = create_texture(source_image.size(), WGPUTextureFormat_RGBA8Unorm,
                                        WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst, reason);
         if (!cached.source.texture || !cached.source.view) {
@@ -559,6 +586,7 @@ public:
                                 cached.mask_revision == mask_revision &&
                                 cached.has_mask == layer.has_mask && cached.mask.size == mask_image.size();
       if (!mask_matches) {
+        cached.bind_groups.clear();
         cached.mask = create_texture(mask_image.size(), WGPUTextureFormat_R8Unorm,
                                      WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst, reason);
         if (!cached.mask.texture || !cached.mask.view) {
@@ -593,6 +621,7 @@ public:
         params.blend_if[index * 2U + 1U] = copy_thresholds(layer.blend_if[index].underlying_layer);
       }
       if (!cached.uniforms) {
+        cached.bind_groups.clear();
         WGPUBufferDescriptor uniform_descriptor = WGPU_BUFFER_DESCRIPTOR_INIT;
         uniform_descriptor.usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst;
         uniform_descriptor.size = sizeof(Params);
@@ -614,7 +643,27 @@ public:
       }
     }
 
-    const auto readback_tile = [&](const TextureData& texture, QSize tile_size, QImage& tile) {
+    for (const auto key : plan.tiles) {
+      if (key.mip != 0) {
+        return fail(reason, QStringLiteral("Dawn tile composition currently supports only mip 0"));
+      }
+      const auto tile_rect = plan.tile_rect(key);
+      if (tile_rect.empty()) {
+        continue;
+      }
+      const QSize tile_size(tile_rect.width, tile_rect.height);
+      auto backdrop = acquire_scratch_texture(tile_size, reason);
+      if (!backdrop.texture || !backdrop.view) {
+        return false;
+      }
+      QImage clear_image(tile_size, QImage::Format_RGBA8888_Premultiplied);
+      clear_image.fill(Qt::transparent);
+      if (!write_texture(backdrop.texture.get(), image_bytes(clear_image), tile_size,
+                         WGPUTextureFormat_RGBA8Unorm, reason)) {
+        return false;
+      }
+      last_metrics_.clear_upload_bytes += padded_upload_bytes(tile_size, 4U);
+
       const auto padded_row_bytes = ((static_cast<uint32_t>(tile_size.width()) * kBytesPerPixel +
                                       kBytesPerRowAlignment - 1U) /
                                      kBytesPerRowAlignment) *
@@ -624,26 +673,92 @@ public:
       if (!readback) {
         return fail(reason, QStringLiteral("WebGPU could not allocate a tile readback buffer"));
       }
-
-      CommandEncoderHandle copy_encoder(wgpuDeviceCreateCommandEncoder(device_.get(), nullptr));
-      if (!copy_encoder) {
-        return fail(reason, QStringLiteral("WebGPU could not create a tile readback encoder"));
+      CommandEncoderHandle encoder(wgpuDeviceCreateCommandEncoder(device_.get(), nullptr));
+      if (!encoder) {
+        return fail(reason, QStringLiteral("WebGPU could not create a tile command encoder"));
       }
+      TextureData spare_backdrop;
+
+      for (const auto& layer : layers) {
+        auto params = layer.params;
+        params.output_origin_x = tile_rect.x;
+        params.output_origin_y = tile_rect.y;
+        auto& cached = layer_resource_cache_.at(layer.id);
+        wgpuQueueWriteBuffer(queue_.get(), cached.uniforms.get(), 0, &params, sizeof(params));
+      }
+
+      for (const auto& layer : layers) {
+        auto target = spare_backdrop.texture ? std::move(spare_backdrop) : acquire_scratch_texture(tile_size, reason);
+        if (!target.texture || !target.view) {
+          return false;
+        }
+        auto& cached = layer_resource_cache_.at(layer.id);
+
+        WGPUBindGroupEntry bindings[5] = {};
+        for (uint32_t index = 0; index < 5; ++index) {
+          bindings[index] = WGPU_BIND_GROUP_ENTRY_INIT;
+          bindings[index].binding = index;
+        }
+        bindings[0].buffer = cached.uniforms.get();
+        bindings[0].size = sizeof(Params);
+        bindings[1].textureView = cached.source.view.get();
+        bindings[2].textureView = backdrop.view.get();
+        bindings[3].textureView = cached.mask.view.get();
+        bindings[4].textureView = target.view.get();
+        const BindGroupKey bind_group_key{reinterpret_cast<std::uintptr_t>(bindings[0].buffer),
+                                          reinterpret_cast<std::uintptr_t>(bindings[1].textureView),
+                                          reinterpret_cast<std::uintptr_t>(bindings[2].textureView),
+                                          reinterpret_cast<std::uintptr_t>(bindings[3].textureView),
+                                          reinterpret_cast<std::uintptr_t>(bindings[4].textureView)};
+        WGPUBindGroup bind_group = nullptr;
+        if (const auto cached_bind_group = cached.bind_groups.find(bind_group_key);
+            cached_bind_group != cached.bind_groups.end()) {
+          bind_group = cached_bind_group->second.get();
+          ++last_metrics_.bind_group_reuses;
+        } else {
+          WGPUBindGroupDescriptor bind_group_descriptor = WGPU_BIND_GROUP_DESCRIPTOR_INIT;
+          bind_group_descriptor.layout = bind_group_layout_.get();
+          bind_group_descriptor.entryCount = std::size(bindings);
+          bind_group_descriptor.entries = bindings;
+          BindGroupHandle created_bind_group(wgpuDeviceCreateBindGroup(device_.get(), &bind_group_descriptor));
+          if (!created_bind_group) {
+            return fail(reason, QStringLiteral("WebGPU could not create a compositor bind group"));
+          }
+          bind_group = created_bind_group.get();
+          cached.bind_groups.emplace(bind_group_key, std::move(created_bind_group));
+        }
+        WGPUComputePassDescriptor pass_descriptor = WGPU_COMPUTE_PASS_DESCRIPTOR_INIT;
+        ComputePassHandle pass(wgpuCommandEncoderBeginComputePass(encoder.get(), &pass_descriptor));
+        if (!pass) {
+          return fail(reason, QStringLiteral("WebGPU could not begin a compositor compute pass"));
+        }
+        wgpuComputePassEncoderSetPipeline(pass.get(), pipeline_.get());
+        wgpuComputePassEncoderSetBindGroup(pass.get(), 0, bind_group, 0, nullptr);
+        wgpuComputePassEncoderDispatchWorkgroups(
+            pass.get(), (static_cast<uint32_t>(tile_size.width()) + kWorkgroupSize - 1U) / kWorkgroupSize,
+            (static_cast<uint32_t>(tile_size.height()) + kWorkgroupSize - 1U) / kWorkgroupSize, 1);
+        wgpuComputePassEncoderEnd(pass.get());
+        pass.reset();
+        spare_backdrop = std::move(backdrop);
+        backdrop = std::move(target);
+      }
+
       WGPUTexelCopyTextureInfo source_info = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
-      source_info.texture = texture.texture.get();
+      source_info.texture = backdrop.texture.get();
       WGPUTexelCopyBufferInfo destination_info = WGPU_TEXEL_COPY_BUFFER_INFO_INIT;
       destination_info.buffer = readback.get();
       destination_info.layout.bytesPerRow = padded_row_bytes;
       destination_info.layout.rowsPerImage = static_cast<uint32_t>(tile_size.height());
       const WGPUExtent3D copy_size{static_cast<uint32_t>(tile_size.width()),
                                    static_cast<uint32_t>(tile_size.height()), 1};
-      wgpuCommandEncoderCopyTextureToBuffer(copy_encoder.get(), &source_info, &destination_info, &copy_size);
-      CommandBufferHandle copy_commands(wgpuCommandEncoderFinish(copy_encoder.get(), nullptr));
-      if (!copy_commands) {
-        return fail(reason, QStringLiteral("WebGPU could not finish a tile readback command buffer"));
+      wgpuCommandEncoderCopyTextureToBuffer(encoder.get(), &source_info, &destination_info, &copy_size);
+      CommandBufferHandle commands(wgpuCommandEncoderFinish(encoder.get(), nullptr));
+      if (!commands) {
+        return fail(reason, QStringLiteral("WebGPU could not finish a tile command buffer"));
       }
-      WGPUCommandBuffer copy_command = copy_commands.get();
-      wgpuQueueSubmit(queue_.get(), 1, &copy_command);
+      WGPUCommandBuffer command = commands.get();
+      wgpuQueueSubmit(queue_.get(), 1, &command);
+      ++last_metrics_.queue_submissions;
       if (!wait_for_queue(reason)) {
         return false;
       }
@@ -668,102 +783,14 @@ public:
         wgpuBufferUnmap(readback.get());
         return fail(reason, QStringLiteral("WebGPU returned an empty tile readback"));
       }
-      tile = QImage(tile_size, QImage::Format_RGBA8888_Premultiplied);
+      QImage tile(tile_size, QImage::Format_RGBA8888_Premultiplied);
       for (int y = 0; y < tile_size.height(); ++y) {
         std::memcpy(tile.scanLine(y), mapped + static_cast<size_t>(y) * padded_row_bytes,
                     static_cast<size_t>(tile_size.width()) * kBytesPerPixel);
       }
       wgpuBufferUnmap(readback.get());
       recycle_readback_buffer(static_cast<std::size_t>(readback_size), std::move(readback));
-      return true;
-    };
-
-    for (const auto key : plan.tiles) {
-      if (key.mip != 0) {
-        return fail(reason, QStringLiteral("Dawn tile composition currently supports only mip 0"));
-      }
-      const auto tile_rect = plan.tile_rect(key);
-      if (tile_rect.empty()) {
-        continue;
-      }
-      const QSize tile_size(tile_rect.width, tile_rect.height);
-      auto backdrop = acquire_scratch_texture(tile_size, reason);
-      if (!backdrop.texture || !backdrop.view) {
-        return false;
-      }
-      QImage clear_image(tile_size, QImage::Format_RGBA8888_Premultiplied);
-      clear_image.fill(Qt::transparent);
-      if (!write_texture(backdrop.texture.get(), image_bytes(clear_image), tile_size,
-                         WGPUTextureFormat_RGBA8Unorm, reason)) {
-        return false;
-      }
-      last_metrics_.clear_upload_bytes += padded_upload_bytes(tile_size, 4U);
-
-      for (const auto& layer : layers) {
-        auto target = acquire_scratch_texture(tile_size, reason);
-        if (!target.texture || !target.view) {
-          return false;
-        }
-        auto params = layer.params;
-        params.output_origin_x = tile_rect.x;
-        params.output_origin_y = tile_rect.y;
-
-        auto& cached = layer_resource_cache_.at(layer.id);
-        wgpuQueueWriteBuffer(queue_.get(), cached.uniforms.get(), 0, &params, sizeof(params));
-
-        WGPUBindGroupEntry bindings[5] = {};
-        for (uint32_t index = 0; index < 5; ++index) {
-          bindings[index] = WGPU_BIND_GROUP_ENTRY_INIT;
-          bindings[index].binding = index;
-        }
-        bindings[0].buffer = cached.uniforms.get();
-        bindings[0].size = sizeof(params);
-        bindings[1].textureView = cached.source.view.get();
-        bindings[2].textureView = backdrop.view.get();
-        bindings[3].textureView = cached.mask.view.get();
-        bindings[4].textureView = target.view.get();
-        WGPUBindGroupDescriptor bind_group_descriptor = WGPU_BIND_GROUP_DESCRIPTOR_INIT;
-        bind_group_descriptor.layout = bind_group_layout_.get();
-        bind_group_descriptor.entryCount = std::size(bindings);
-        bind_group_descriptor.entries = bindings;
-        BindGroupHandle bind_group(wgpuDeviceCreateBindGroup(device_.get(), &bind_group_descriptor));
-        if (!bind_group) {
-          return fail(reason, QStringLiteral("WebGPU could not create a compositor bind group"));
-        }
-
-        CommandEncoderHandle encoder(wgpuDeviceCreateCommandEncoder(device_.get(), nullptr));
-        if (!encoder) {
-          return fail(reason, QStringLiteral("WebGPU could not create a compositor command encoder"));
-        }
-        WGPUComputePassDescriptor pass_descriptor = WGPU_COMPUTE_PASS_DESCRIPTOR_INIT;
-        ComputePassHandle pass(wgpuCommandEncoderBeginComputePass(encoder.get(), &pass_descriptor));
-        if (!pass) {
-          return fail(reason, QStringLiteral("WebGPU could not begin a compositor compute pass"));
-        }
-        wgpuComputePassEncoderSetPipeline(pass.get(), pipeline_.get());
-        wgpuComputePassEncoderSetBindGroup(pass.get(), 0, bind_group.get(), 0, nullptr);
-        wgpuComputePassEncoderDispatchWorkgroups(
-            pass.get(), (static_cast<uint32_t>(tile_size.width()) + kWorkgroupSize - 1U) / kWorkgroupSize,
-            (static_cast<uint32_t>(tile_size.height()) + kWorkgroupSize - 1U) / kWorkgroupSize, 1);
-        wgpuComputePassEncoderEnd(pass.get());
-        pass.reset();
-        CommandBufferHandle commands(wgpuCommandEncoderFinish(encoder.get(), nullptr));
-        if (!commands) {
-          return fail(reason, QStringLiteral("WebGPU could not finish a compositor command buffer"));
-        }
-        WGPUCommandBuffer command = commands.get();
-        wgpuQueueSubmit(queue_.get(), 1, &command);
-        if (!wait_for_queue(reason)) {
-          return false;
-        }
-        recycle_scratch_texture(std::move(backdrop));
-        backdrop = std::move(target);
-      }
-
-      QImage tile;
-      if (!readback_tile(backdrop, tile_size, tile)) {
-        return false;
-      }
+      recycle_scratch_texture(std::move(spare_backdrop));
       recycle_scratch_texture(std::move(backdrop));
       for (int y = 0; y < tile_rect.height; ++y) {
         std::memcpy(result.scanLine(tile_rect.y + y) + static_cast<qsizetype>(tile_rect.x) * kBytesPerPixel,
@@ -966,6 +993,7 @@ private:
   }
 
   bool wait_for_queue(QString* reason) {
+    ++last_metrics_.queue_waits;
     QueueRequest request;
     WGPUQueueWorkDoneCallbackInfo callback = WGPU_QUEUE_WORK_DONE_CALLBACK_INFO_INIT;
     callback.mode = WGPUCallbackMode_WaitAnyOnly;
