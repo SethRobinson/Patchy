@@ -113,6 +113,14 @@ format, alpha convention, color space, clipping, and invalidation bounds. Until
 then, the CPU compositor remains the authority for export, byte identity, and
 unsupported documents.
 
+The zero-copy milestone now has a Qt-free eligibility gate in
+`gpu_presentation_interop.hpp`. It refuses to activate until the compositor and
+presentation use the same graphics API and verified shared device, native texture
+import, and explicit synchronization. The gate is a contract and a hardware-free
+test seam only; it does not import a Qt or Dawn resource and it is not a native
+zero-copy implementation. This distinction is required because the current Dawn
+path owns a separate device and publishes a CPU-readable `QImage` to Qt Quick.
+
 When the optional Dawn prefix is found at configure time, `WebGpuRenderBackend`
 adds one more gate before the existing `WebGpuDocumentCompositor` publishes a
 frame. It validates a full or dirty render graph and executes its mip-0 tiles
