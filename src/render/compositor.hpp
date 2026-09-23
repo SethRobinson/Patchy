@@ -18,6 +18,12 @@ public:
   // document's depth, as straight RGBA at that depth (16-bit display-encoded, or 32-bit
   // linear float), uncovered pixels transparent black.
   [[nodiscard]] PixelBuffer flatten_rgba_deep(const Document& document) const;
+
+  // Composes only the document-space intersection of `region`. The returned
+  // buffer is local to that intersection and uses the same RGB8 kernel as the
+  // full flatten. This is a reference operation for bounded GPU/tile passes;
+  // it is not itself a GPU implementation.
+  [[nodiscard]] PixelBuffer flatten_rgb8_region(const Document& document, Rect region) const;
 };
 
 }  // namespace patchy
