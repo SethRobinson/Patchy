@@ -14,7 +14,7 @@ The execution order is a stable topological sort. Independent passes retain inse
 
 `DirtyRegionSet` stores document-space rectangles with their mip level. Empty rectangles are ignored. Regions at the same mip that overlap or touch are coalesced into one deterministic bounding rectangle; regions at different mips remain independent because they represent different derived resolutions.
 
-`TileCache` now supports `invalidate_region()` for one mip and `invalidate_all_mips()` for a document-space region. Tile coordinates are interpreted using the cache tile size and the mip scale. These operations only remove intersecting cached tiles; they do not render, allocate GPU resources, or mutate document pixels. A later render scheduler can therefore turn a layer revision or effect-bounds change into a bounded set of graph passes without making the cache policy part of Qt or Dawn code.
+`TileCache` now supports `invalidate_region()` for one mip and `invalidate_all_mips()` for a document-space region. `GpuTileScheduler` turns a full or dirty region set into stable tile keys and emits `Clear -> Composite -> Readback` passes for each tile. Tile coordinates are interpreted using the cache tile size and the mip scale. These operations only remove intersecting cached tiles; they do not allocate native GPU resources or mutate document pixels. A native backend can therefore consume bounded graph work without making the cache policy part of Qt or Dawn code.
 
 ## Backend contract and device loss
 
@@ -31,9 +31,13 @@ The current `FakeGpuBackend` records pass ids and simulates loss/recovery. It ex
 
 ## CPU/GPU equivalence boundary
 
-The render graph is not permission to replace the CPU authority prematurely. The next native backend work must compare `render_cpu()` and `render_gpu()` on the same bounded scene and format, with a declared tolerance for display previews and exact byte identity for export paths. A graph pass may be promoted only after its inputs, blend equations, color space, alpha convention, clipping behavior, and invalidation bounds have an equivalence test.
+`compare_pixel_buffers()` now provides the first structured comparison contract. It reports dimensions/format comparability, differing pixels and channels, maximum channel error, mean absolute channel error, and the differing-pixel fraction. `PixelComparisonPolicy` makes the acceptance rule explicit: preview paths may declare a small tolerance, while export and byte-identity paths use a zero-delta policy. The comparison is RGB8-specific today because the current authoritative flatten is RGB8; it does not silently coerce formats.
 
-Zero-copy presentation, shader implementations of all Photoshop filters, HDR/16-bit output, tiled scheduling, and complete device-loss recovery remain later milestones. They can now be developed against this contract and a fake backend first. Native validation on Intel, AMD, NVIDIA, macOS, and Windows is still required before those paths are advertised as production capabilities.
+`FakeGpuDocumentRenderer` is the first execution oracle for this contract. It submits the generated graph to the fake backend, renders missing mip-0 tiles with `Compositor::flatten_rgb8_region()`, updates only invalidated tiles, and compares the assembled frame against `Compositor::flatten_rgb8()`. It is deliberately CPU-backed and test-only: it proves graph scheduling, bounded invalidation, cache reuse, and recovery semantics without pretending to measure GPU throughput.
+
+The render graph is not permission to replace the CPU authority prematurely. A native backend must compare `render_cpu()` and `render_gpu()` on the same bounded scene and format, with a declared tolerance for display previews and exact byte identity for export paths. A graph pass may be promoted only after its inputs, blend equations, color space, alpha convention, clipping behavior, and invalidation bounds have an equivalence test.
+
+Zero-copy presentation, shader implementations of all Photoshop filters, HDR/16-bit output, native device-loss recovery, and real GPU tile execution remain later milestones. The tile scheduler, comparison policy, and logical recovery path can now be developed against the fake backend first. Native validation on Intel, AMD, NVIDIA, macOS, and Windows is still required before those paths are advertised as production capabilities.
 
 ## Validation
 
@@ -43,7 +47,11 @@ The complete CPU core test executable includes the following hardware-free check
 - tile invalidation removes only intersecting tiles at one mip or across all mips;
 - graph passes receive a stable dependency order;
 - multiple writers and dependency cycles are rejected;
-- a fake device rejects submission before initialization, reports loss, recovers, and accepts the graph again.
+- a fake device rejects submission before initialization, reports loss, recovers, and accepts the graph again;
+- RGB8 comparison reports exact differences and accepts only an explicitly declared preview tolerance;
+- a tiled fake render matches the full CPU compositor, re-renders one dirty tile, and reuses clean tiles;
+- logical device loss clears cached resources, rebuilds all tiles, and returns to CPU-equivalent output;
+- unsupported documents are rejected before a fake GPU frame can be mixed with the CPU path.
 
 Build and run the checks with:
 
@@ -57,6 +65,8 @@ cmake --build /tmp/patchy-build --target patchy_core_tests -j4
 /tmp/patchy-build/patchy_core_tests render_graph_
 /tmp/patchy-build/patchy_core_tests dirty_regions_
 /tmp/patchy-build/patchy_core_tests tile_cache_invalidates_regions
+/tmp/patchy-build/patchy_core_tests pixel_comparison
+/tmp/patchy-build/patchy_core_tests gpu_tile_renderer
 ```
 
 These commands do not download Dawn, open a window, or require a hardware adapter. The existing full CTest suite remains authoritative for document bytes, UI behavior, and export compatibility.
