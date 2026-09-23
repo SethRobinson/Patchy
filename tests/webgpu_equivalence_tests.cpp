@@ -13,6 +13,7 @@
 #include <QString>
 
 #include <algorithm>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -98,6 +99,9 @@ patchy::ui::CanvasGpuDocument gpu_document_from(const patchy::Document& document
     patchy::ui::CanvasGpuLayer gpu_layer;
     gpu_layer.id = layer.id();
     gpu_layer.revision = layer.render_revision();
+    gpu_layer.pixel_revision = layer.pixel_revision();
+    gpu_layer.content_revision = layer.content_revision();
+    gpu_layer.mask_revision = layer.mask_revision();
     gpu_layer.image = patchy::ui::qimage_from_pixel_buffer(layer.pixels());
     const auto bounds = layer.bounds();
     gpu_layer.document_rect = QRectF(bounds.x, bounds.y, bounds.width, bounds.height);
@@ -287,6 +291,100 @@ void dirty_regions_recompute_only_intersecting_tiles(patchy::ui::WebGpuRenderBac
   CHECK(idle_frame == incremental_frame);
 }
 
+std::uint64_t cpu_reference_time_ns(const patchy::Document& document) {
+  const auto start = std::chrono::steady_clock::now();
+  const auto frame = cpu_frame(document);
+  if (frame.empty()) {
+    throw std::runtime_error("CPU reference compositor returned an empty frame");
+  }
+  return static_cast<std::uint64_t>(
+      std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - start).count());
+}
+
+void print_benchmark_metrics(const char* scenario, const patchy::ui::WebGpuRenderBackend& backend,
+                             std::uint64_t cpu_ns) {
+  const auto metrics = backend.last_composition_metrics();
+  std::cout << "[METRIC] scenario=" << scenario << " tiles=" << backend.last_rendered_tile_count()
+            << " readback_bytes=" << backend.last_readback_bytes()
+            << " source_upload_bytes=" << metrics.source_upload_bytes
+            << " mask_upload_bytes=" << metrics.mask_upload_bytes
+            << " clear_upload_bytes=" << metrics.clear_upload_bytes
+            << " source_reuses=" << metrics.source_texture_reuses
+            << " mask_reuses=" << metrics.mask_texture_reuses
+            << " scratch_reuses=" << metrics.scratch_texture_reuses
+            << " uniform_reuses=" << metrics.uniform_buffer_reuses
+            << " readback_reuses=" << metrics.readback_buffer_reuses
+            << " dawn_ns=" << metrics.composition_time_ns << " cpu_ns=" << cpu_ns << '\n';
+}
+
+void benchmark_full_dirty_and_idle(patchy::ui::WebGpuRenderBackend& backend) {
+  auto document = make_document(513, 257);
+  const auto snapshot = gpu_document_from(document);
+  QString reason;
+  QImage full_frame;
+  if (!backend.compose(snapshot, full_frame, &reason)) {
+    throw std::runtime_error("benchmark full frame failed: " + reason.toStdString());
+  }
+  require_equivalent(document, full_frame, "benchmark full frame");
+  print_benchmark_metrics("full_cold", backend, cpu_reference_time_ns(document));
+
+  QImage warm_full_frame;
+  if (!backend.compose(snapshot, warm_full_frame, &reason)) {
+    throw std::runtime_error("benchmark warm full frame failed: " + reason.toStdString());
+  }
+  require_equivalent(document, warm_full_frame, "benchmark warm full frame");
+  const auto warm_metrics = backend.last_composition_metrics();
+  CHECK(warm_metrics.source_upload_bytes == 0U);
+  CHECK(warm_metrics.mask_upload_bytes == 0U);
+  CHECK(warm_metrics.source_texture_reuses >= 2U);
+  CHECK(warm_metrics.mask_texture_reuses >= 2U);
+  CHECK(warm_metrics.scratch_texture_reuses > 0U);
+  CHECK(warm_metrics.uniform_buffer_reuses >= 2U);
+  CHECK(warm_metrics.readback_buffer_reuses > 0U);
+  print_benchmark_metrics("full_warm", backend, cpu_reference_time_ns(document));
+
+  auto& overlay = document.layers().back();
+  overlay.pixels().pixel(204, 80)[0] = 12;
+  const auto single_dirty_snapshot = gpu_document_from(document);
+  QImage single_dirty_frame;
+  if (!backend.compose_incremental(single_dirty_snapshot, QRegion(QRect(300, 120, 1, 1)), warm_full_frame,
+                                   single_dirty_frame, &reason)) {
+    throw std::runtime_error("benchmark single dirty tile failed: " + reason.toStdString());
+  }
+  CHECK(backend.last_rendered_tile_count() == 1U);
+  const auto single_dirty_metrics = backend.last_composition_metrics();
+  CHECK(single_dirty_metrics.source_upload_bytes > 0U);
+  CHECK(single_dirty_metrics.mask_upload_bytes == 0U);
+  require_equivalent(document, single_dirty_frame, "benchmark single dirty tile");
+  print_benchmark_metrics("dirty_single", backend, cpu_reference_time_ns(document));
+
+  overlay.pixels().pixel(20, 20)[1] = 19;
+  overlay.pixels().pixel(204, 80)[2] = 23;
+  const auto multi_dirty_snapshot = gpu_document_from(document);
+  QRegion multi_dirty;
+  multi_dirty += QRect(10, 10, 1, 1);
+  multi_dirty += QRect(300, 120, 1, 1);
+  QImage multi_dirty_frame;
+  if (!backend.compose_incremental(multi_dirty_snapshot, multi_dirty, single_dirty_frame, multi_dirty_frame,
+                                   &reason)) {
+    throw std::runtime_error("benchmark multiple dirty tiles failed: " + reason.toStdString());
+  }
+  CHECK(backend.last_rendered_tile_count() == 2U);
+  CHECK(backend.last_composition_metrics().source_upload_bytes > 0U);
+  CHECK(backend.last_composition_metrics().mask_upload_bytes == 0U);
+  require_equivalent(document, multi_dirty_frame, "benchmark multiple dirty tiles");
+  print_benchmark_metrics("dirty_multiple", backend, cpu_reference_time_ns(document));
+
+  QImage idle_frame;
+  if (!backend.compose_incremental(multi_dirty_snapshot, QRegion{}, multi_dirty_frame, idle_frame, &reason)) {
+    throw std::runtime_error("benchmark idle frame failed: " + reason.toStdString());
+  }
+  CHECK(backend.last_rendered_tile_count() == 0U);
+  CHECK(backend.last_readback_bytes() == 0U);
+  CHECK(idle_frame == multi_dirty_frame);
+  print_benchmark_metrics("idle", backend, cpu_reference_time_ns(document));
+}
+
 int run_test(const char* name, const std::function<void()>& test) {
   try {
     test();
@@ -316,5 +414,14 @@ int main(int argc, char** argv) {
                        [&backend] { supported_shader_features_match_cpu(backend); });
   failures += run_test("webgpu_dirty_regions_recompute_only_intersecting_tiles",
                        [&backend] { dirty_regions_recompute_only_intersecting_tiles(backend); });
+  failures += run_test("webgpu_resource_reuse_benchmark",
+                       [] {
+                         patchy::ui::WebGpuRenderBackend benchmark_backend;
+                         if (!benchmark_backend.initialize()) {
+                           throw std::runtime_error("benchmark backend initialization failed: " +
+                                                    std::string(benchmark_backend.last_error()));
+                         }
+                         benchmark_full_dirty_and_idle(benchmark_backend);
+                       });
   return failures == 0 ? 0 : 1;
 }
