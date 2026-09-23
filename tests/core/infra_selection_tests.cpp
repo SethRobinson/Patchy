@@ -53,7 +53,10 @@
 #include "core/quick_select.hpp"
 #include "core/spot_heal.hpp"
 #include "render/compositor.hpp"
+#include "render/dirty_region.hpp"
 #include "render/gpu_document_capabilities.hpp"
+#include "render/gpu_render_backend.hpp"
+#include "render/gpu_render_graph.hpp"
 #include "render/layer_compositor.hpp"
 #include "render/tile_cache.hpp"
 #include "support/cli_flags.hpp"
@@ -92,6 +95,7 @@
 #include <vector>
 
 #include "core_test_support.hpp"
+#include "fake_gpu_backend.hpp"
 #include "test_groups.hpp"
 
 namespace {
@@ -156,6 +160,91 @@ void tile_cache_stores_and_invalidates() {
   CHECK(cache.find(key).has_value());
   cache.invalidate(key);
   CHECK(!cache.find(key).has_value());
+}
+
+void tile_cache_invalidates_regions_across_mips() {
+  patchy::TileCache cache(4);
+  cache.put({0, 0, 0}, solid_rgb(1, 1, 1, 2, 3));
+  cache.put({1, 0, 0}, solid_rgb(1, 1, 4, 5, 6));
+  cache.put({0, 0, 1}, solid_rgb(1, 1, 7, 8, 9));
+  cache.put({2, 0, 0}, solid_rgb(1, 1, 10, 11, 12));
+
+  CHECK(cache.invalidate_region(patchy::Rect{4, 0, 1, 1}, 0) == 1);
+  CHECK(!cache.find({1, 0, 0}).has_value());
+  CHECK(cache.find({0, 0, 1}).has_value());
+  CHECK(cache.invalidate_all_mips(patchy::Rect{0, 0, 1, 1}) == 2);
+  CHECK(cache.find({2, 0, 0}).has_value());
+}
+
+void dirty_regions_coalesce_deterministically() {
+  patchy::DirtyRegionSet dirty;
+  dirty.add({4, 0, 2, 4}, 1);
+  dirty.add({0, 0, 4, 4}, 1);
+  dirty.add({0, 8, 2, 2}, 0);
+  dirty.add({20, 20, 0, 5}, 0);
+
+  CHECK(dirty.size() == 2);
+  CHECK(dirty.regions()[0].mip == 0);
+  CHECK(dirty.regions()[1].mip == 1);
+  CHECK(dirty.regions()[1].bounds.x == 0);
+  CHECK(dirty.regions()[1].bounds.width == 6);
+  CHECK(dirty.regions()[1].bounds.height == 4);
+}
+
+void render_graph_orders_passes_and_recovers_fake_device() {
+  patchy::RenderGraph graph;
+  const auto source = graph.add_resource("source", {0, 0, 8, 8}, patchy::RenderPixelFormat::Rgba8Unorm, true);
+  const auto backdrop = graph.add_resource("backdrop", {0, 0, 8, 8}, patchy::RenderPixelFormat::Rgba16Float);
+  const auto output = graph.add_resource("output", {0, 0, 8, 8}, patchy::RenderPixelFormat::Rgba8Unorm, true);
+  const auto clear = graph.add_pass("clear", patchy::RenderPassType::Clear, {0, 0, 0});
+  const auto composite = graph.add_pass("composite", patchy::RenderPassType::Composite, {0, 0, 0});
+  const auto readback = graph.add_pass("readback", patchy::RenderPassType::Readback, {0, 0, 0});
+  CHECK(graph.add_write(clear, backdrop));
+  CHECK(graph.add_read(composite, source));
+  CHECK(graph.add_read(composite, backdrop));
+  CHECK(graph.add_write(composite, output));
+  CHECK(graph.add_read(readback, output));
+
+  std::string reason;
+  CHECK(graph.validate(&reason));
+  const std::vector<patchy::RenderPassId> expected_order{clear, composite, readback};
+  CHECK(graph.execution_order(&reason) == expected_order);
+
+  patchy::test::FakeGpuBackend backend;
+  CHECK(backend.submit(graph) == patchy::GpuSubmitResult::BackendError);
+  CHECK(backend.initialize());
+  CHECK(backend.submit(graph) == patchy::GpuSubmitResult::Submitted);
+  CHECK(backend.submitted_passes() == expected_order);
+  backend.lose_device();
+  CHECK(backend.submit(graph) == patchy::GpuSubmitResult::DeviceLost);
+  CHECK(backend.recover());
+  CHECK(backend.recovery_count() == 1);
+  CHECK(backend.submit(graph) == patchy::GpuSubmitResult::Submitted);
+}
+
+void render_graph_rejects_cycles_and_multiple_writers() {
+  patchy::RenderGraph multiple_writers;
+  const auto resource = multiple_writers.add_resource("resource", {0, 0, 2, 2}, patchy::RenderPixelFormat::Rgba8Unorm);
+  const auto first = multiple_writers.add_pass("first", patchy::RenderPassType::Clear);
+  const auto second = multiple_writers.add_pass("second", patchy::RenderPassType::Clear);
+  CHECK(multiple_writers.add_write(first, resource));
+  CHECK(multiple_writers.add_write(second, resource));
+  std::string reason;
+  CHECK(!multiple_writers.validate(&reason));
+  CHECK(reason == "render resource has multiple writers");
+
+  patchy::RenderGraph cycle;
+  const auto first_resource = cycle.add_resource("first", {0, 0, 2, 2}, patchy::RenderPixelFormat::Rgba8Unorm);
+  const auto second_resource = cycle.add_resource("second", {0, 0, 2, 2}, patchy::RenderPixelFormat::Rgba8Unorm);
+  const auto first_pass = cycle.add_pass("first", patchy::RenderPassType::Composite);
+  const auto second_pass = cycle.add_pass("second", patchy::RenderPassType::Composite);
+  CHECK(cycle.add_read(first_pass, second_resource));
+  CHECK(cycle.add_write(first_pass, first_resource));
+  CHECK(cycle.add_read(second_pass, first_resource));
+  CHECK(cycle.add_write(second_pass, second_resource));
+  CHECK(cycle.validate(&reason));
+  CHECK(cycle.execution_order(&reason).empty());
+  CHECK(reason == "render graph contains a dependency cycle");
 }
 
 void color_manager_assigns_profiles() {
@@ -1381,6 +1470,10 @@ std::vector<patchy::test::TestCase> infra_selection_tests() {
   return {
       {"plugin_host_and_legacy_probe_work", plugin_host_and_legacy_probe_work},
       {"tile_cache_stores_and_invalidates", tile_cache_stores_and_invalidates},
+      {"tile_cache_invalidates_regions_across_mips", tile_cache_invalidates_regions_across_mips},
+      {"dirty_regions_coalesce_deterministically", dirty_regions_coalesce_deterministically},
+      {"render_graph_orders_passes_and_recovers_fake_device", render_graph_orders_passes_and_recovers_fake_device},
+      {"render_graph_rejects_cycles_and_multiple_writers", render_graph_rejects_cycles_and_multiple_writers},
       {"color_manager_assigns_profiles", color_manager_assigns_profiles},
       {"gpu_document_capability_accepts_simple_pixel_stack",
        gpu_document_capability_accepts_simple_pixel_stack},
