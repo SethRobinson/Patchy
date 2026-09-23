@@ -154,7 +154,7 @@ RenderGraph GpuTileScheduler::build_graph(const GpuTileRenderPlan& plan) const {
     const auto source = graph.add_resource(tile_name("source", tile), bounds,
                                            RenderPixelFormat::Rgba8Unorm, true);
     const auto backdrop = graph.add_resource(tile_name("backdrop", tile), bounds,
-                                             RenderPixelFormat::Rgba16Float);
+                                             RenderPixelFormat::Rgba8Unorm);
     const auto output = graph.add_resource(tile_name("output", tile), bounds,
                                            RenderPixelFormat::Rgba8Unorm, true);
     const auto clear = graph.add_pass(tile_name("clear", tile), RenderPassType::Clear, tile);
