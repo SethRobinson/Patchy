@@ -26,6 +26,8 @@ bool WebGpuRenderBackend::initialize() {
   state_ = patchy::GpuBackendState::Ready;
   last_error_.clear();
   last_submitted_pass_count_ = 0;
+  last_rendered_tile_count_ = 0;
+  last_readback_bytes_ = 0;
   return true;
 }
 
@@ -84,6 +86,8 @@ patchy::GpuBackendInfo WebGpuRenderBackend::info() const {
 
 bool WebGpuRenderBackend::compose(const CanvasGpuDocument& document, QImage& output,
                                   QString* failure_reason) {
+  last_rendered_tile_count_ = 0;
+  last_readback_bytes_ = 0;
   if (state_ != patchy::GpuBackendState::Ready || compositor_ == nullptr) {
     const auto reason = last_error_.empty() ? QStringLiteral("Dawn/WebGPU backend is not ready")
                                             : QString::fromStdString(last_error_);
@@ -106,14 +110,97 @@ bool WebGpuRenderBackend::compose(const CanvasGpuDocument& document, QImage& out
                 reason.isEmpty() ? QStringLiteral("Dawn rejected the render graph") : reason, failure_reason);
   }
 
+  last_rendered_tile_count_ = plan.tiles.size();
+  last_readback_bytes_ = 0;
+  for (const auto key : plan.tiles) {
+    const auto rect = plan.tile_rect(key);
+    if (!rect.empty()) {
+      const auto padded_row_bytes = ((static_cast<std::size_t>(rect.width) * 4U + 255U) / 256U) * 256U;
+      last_readback_bytes_ += padded_row_bytes * static_cast<std::size_t>(rect.height);
+    }
+  }
+
   QImage composed;
   QString reason;
-  if (!compositor_->compose(document, composed, &reason)) {
+  if (!compositor_->compose_tiles(document, plan, nullptr, composed, &reason)) {
     return fail(patchy::GpuBackendState::Lost,
                 reason.isEmpty() ? QStringLiteral("Dawn failed the WebGPU document composition") : reason,
                 failure_reason);
   }
 
+  output = std::move(composed);
+  last_error_.clear();
+  return true;
+}
+
+bool WebGpuRenderBackend::compose_incremental(const CanvasGpuDocument& document,
+                                               const QRegion& dirty_document_region,
+                                               const QImage& previous_frame, QImage& output,
+                                               QString* failure_reason) {
+  last_rendered_tile_count_ = 0;
+  last_readback_bytes_ = 0;
+  if (state_ != patchy::GpuBackendState::Ready || compositor_ == nullptr) {
+    const auto reason = last_error_.empty() ? QStringLiteral("Dawn/WebGPU backend is not ready")
+                                            : QString::fromStdString(last_error_);
+    return fail(patchy::GpuBackendState::Failed, reason, failure_reason);
+  }
+
+  const auto width = document.document_size.width();
+  const auto height = document.document_size.height();
+  if (width <= 0 || height <= 0) {
+    return fail(patchy::GpuBackendState::Failed, QStringLiteral("WebGPU document dimensions are invalid"),
+                failure_reason);
+  }
+
+  const patchy::Rect document_bounds{0, 0, width, height};
+  const bool previous_valid = previous_frame.size() == document.document_size && !previous_frame.isNull();
+  patchy::GpuTileRenderPlan plan;
+  if (!previous_valid) {
+    plan = scheduler_.full_plan(document_bounds);
+  } else {
+    patchy::DirtyRegionSet dirty;
+    for (const auto& document_rect : dirty_document_region) {
+      const auto clipped = document_rect.intersected(QRect(0, 0, width, height));
+      if (!clipped.isEmpty()) {
+        dirty.add(patchy::Rect{clipped.x(), clipped.y(), clipped.width(), clipped.height()});
+      }
+    }
+    if (dirty.empty()) {
+      output = previous_frame;
+      last_submitted_pass_count_ = 0;
+      last_rendered_tile_count_ = 0;
+      last_readback_bytes_ = 0;
+      last_error_.clear();
+      return true;
+    }
+    plan = scheduler_.dirty_plan(document_bounds, dirty);
+  }
+
+  const auto graph = scheduler_.build_graph(plan);
+  if (submit(graph) != patchy::GpuSubmitResult::Submitted) {
+    const auto reason = QString::fromStdString(last_error_);
+    return fail(patchy::GpuBackendState::Failed,
+                reason.isEmpty() ? QStringLiteral("Dawn rejected the dirty render graph") : reason,
+                failure_reason);
+  }
+
+  last_rendered_tile_count_ = plan.tiles.size();
+  last_readback_bytes_ = 0;
+  for (const auto key : plan.tiles) {
+    const auto rect = plan.tile_rect(key);
+    if (!rect.empty()) {
+      const auto padded_row_bytes = ((static_cast<std::size_t>(rect.width) * 4U + 255U) / 256U) * 256U;
+      last_readback_bytes_ += padded_row_bytes * static_cast<std::size_t>(rect.height);
+    }
+  }
+
+  QImage composed;
+  QString reason;
+  if (!compositor_->compose_tiles(document, plan, previous_valid ? &previous_frame : nullptr, composed, &reason)) {
+    return fail(patchy::GpuBackendState::Lost,
+                reason.isEmpty() ? QStringLiteral("Dawn failed the dirty WebGPU tile composition") : reason,
+                failure_reason);
+  }
   output = std::move(composed);
   last_error_.clear();
   return true;
@@ -129,6 +216,14 @@ QString WebGpuRenderBackend::native_backend_name() const {
 
 std::size_t WebGpuRenderBackend::last_submitted_pass_count() const noexcept {
   return last_submitted_pass_count_;
+}
+
+std::size_t WebGpuRenderBackend::last_rendered_tile_count() const noexcept {
+  return last_rendered_tile_count_;
+}
+
+std::size_t WebGpuRenderBackend::last_readback_bytes() const noexcept {
+  return last_readback_bytes_;
 }
 
 bool WebGpuRenderBackend::fail(patchy::GpuBackendState state, QString reason, QString* failure_reason) {
