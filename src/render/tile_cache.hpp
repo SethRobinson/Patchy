@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/layer.hpp"
 #include "core/pixel_buffer.hpp"
 
 #include <cstdint>
@@ -30,6 +31,11 @@ public:
 
   void put(TileKey key, PixelBuffer tile);
   void invalidate(TileKey key);
+  // Invalidates cached tiles at `mip` whose tile rectangle intersects
+  // `region` in document pixels. Returns the number of removed tiles.
+  [[nodiscard]] std::size_t invalidate_region(Rect region, std::int32_t mip = 0);
+  // Dirty document regions normally affect every derived mip.
+  [[nodiscard]] std::size_t invalidate_all_mips(Rect region);
   void clear();
 
 private:
