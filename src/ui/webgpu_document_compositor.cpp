@@ -85,7 +85,11 @@ fn softLight(source: f32, backdrop: f32) -> f32 {
 
 fn blendChannel(source: f32, backdrop: f32, mode: u32) -> f32 {
   if (mode == 1u) { return source; }
-  if (mode == 2u) { return source * backdrop; }
+  if (mode == 2u) {
+    let sourceByte = u32(clamp(floor(source * 255.0 + 0.5), 0.0, 255.0));
+    let backdropByte = u32(clamp(floor(backdrop * 255.0 + 0.5), 0.0, 255.0));
+    return f32((sourceByte * backdropByte) / 255u) / 255.0;
+  }
   if (mode == 3u) { return source + backdrop - source * backdrop; }
   if (mode == 4u) { return select(2.0 * source * backdrop, 1.0 - 2.0 * (1.0 - source) * (1.0 - backdrop), backdrop >= 0.5); }
   if (mode == 5u) { return min(source, backdrop); }
@@ -118,26 +122,40 @@ fn blendColor(source: vec3<f32>, backdrop: vec3<f32>, mode: u32) -> vec3<f32> {
                    blendChannel(source.b, backdrop.b, mode));
 }
 
-fn blendIfThresholdFactor(thresholds: vec4<f32>, value: f32) -> f32 {
-  if (value < thresholds.x || value > thresholds.w) { return 0.0; }
-  if (value < thresholds.y) {
-    return (value - thresholds.x + 1.0) / (thresholds.y - thresholds.x + 1.0);
+fn blendIfThresholdAlphaByte(thresholds: vec4<f32>, value: u32) -> u32 {
+  let blackLow = u32(thresholds.x);
+  let blackHigh = u32(thresholds.y);
+  let whiteLow = u32(thresholds.z);
+  let whiteHigh = u32(thresholds.w);
+  if (value < blackLow || value > whiteHigh) { return 0u; }
+  if (value < blackHigh) {
+    let numerator = value - blackLow + 1u;
+    let denominator = blackHigh - blackLow + 1u;
+    return (numerator * 255u) / denominator;
   }
-  if (value > thresholds.z) {
-    return (thresholds.w - value + 1.0) / (thresholds.w - thresholds.z + 1.0);
+  if (value > whiteLow) {
+    let numerator = whiteHigh - value + 1u;
+    let denominator = whiteHigh - whiteLow + 1u;
+    return (numerator * 255u) / denominator;
   }
-  return 1.0;
+  return 255u;
+}
+
+fn colorByte(value: f32) -> u32 {
+  return u32(clamp(floor(value * 255.0 + 0.5), 0.0, 255.0));
 }
 
 fn blendIfColorFactor(color: vec3<f32>, source: bool) -> f32 {
-  let gray = floor((299.0 * color.r * 255.0 + 590.0 * color.g * 255.0 +
-                   111.0 * color.b * 255.0 + 500.0) / 1000.0);
-  var factor = 1.0;
-  factor = factor * blendIfThresholdFactor(select(params.blendIfGrayUnderlying, params.blendIfGrayThis, source), gray);
-  factor = factor * blendIfThresholdFactor(select(params.blendIfRedUnderlying, params.blendIfRedThis, source), color.r * 255.0);
-  factor = factor * blendIfThresholdFactor(select(params.blendIfGreenUnderlying, params.blendIfGreenThis, source), color.g * 255.0);
-  factor = factor * blendIfThresholdFactor(select(params.blendIfBlueUnderlying, params.blendIfBlueThis, source), color.b * 255.0);
-  return factor;
+  let red = colorByte(color.r);
+  let green = colorByte(color.g);
+  let blue = colorByte(color.b);
+  let gray = (299u * red + 590u * green + 111u * blue + 500u) / 1000u;
+  var factor = 255u;
+  factor = (factor * blendIfThresholdAlphaByte(select(params.blendIfGrayUnderlying, params.blendIfGrayThis, source), gray)) / 255u;
+  factor = (factor * blendIfThresholdAlphaByte(select(params.blendIfRedUnderlying, params.blendIfRedThis, source), red)) / 255u;
+  factor = (factor * blendIfThresholdAlphaByte(select(params.blendIfGreenUnderlying, params.blendIfGreenThis, source), green)) / 255u;
+  factor = (factor * blendIfThresholdAlphaByte(select(params.blendIfBlueUnderlying, params.blendIfBlueThis, source), blue)) / 255u;
+  return f32(factor) / 255.0;
 }
 
 fn maskCoverage(coord: vec2<i32>) -> f32 {
@@ -155,7 +173,8 @@ fn maskCoverage(coord: vec2<i32>) -> f32 {
 fn main(@builtin(global_invocation_id) invocation: vec3<u32>) {
   let outputDimensions = textureDimensions(outputTexture);
   if (invocation.x >= outputDimensions.x || invocation.y >= outputDimensions.y) { return; }
-  let coord = vec2<i32>(invocation.xy) + params.outputOrigin;
+  let localCoord = vec2<i32>(invocation.xy);
+  let coord = localCoord + params.outputOrigin;
   let sourceDimensions = textureDimensions(sourceTexture);
   let sourceRelative = coord - params.layerOrigin;
   let sourceInside = sourceRelative.x >= 0 && sourceRelative.y >= 0 &&
@@ -163,7 +182,7 @@ fn main(@builtin(global_invocation_id) invocation: vec3<u32>) {
   let safeSourceRelative = clamp(sourceRelative, vec2<i32>(0),
                                  vec2<i32>(i32(sourceDimensions.x) - 1, i32(sourceDimensions.y) - 1));
   let sourceSample = select(vec4<f32>(0.0), textureLoad(sourceTexture, safeSourceRelative, 0), sourceInside);
-  let backdropSample = textureLoad(backdropTexture, coord, 0);
+  let backdropSample = textureLoad(backdropTexture, localCoord, 0);
   let coverage = maskCoverage(coord);
   var sourceAlpha = clamp(sourceSample.a * params.layerOpacity * coverage, 0.0, 1.0);
   let backdropAlpha = clamp(backdropSample.a, 0.0, 1.0);
@@ -171,14 +190,15 @@ fn main(@builtin(global_invocation_id) invocation: vec3<u32>) {
   let backdropColor = select(vec3<f32>(0.0), backdropSample.rgb / max(backdropAlpha, 0.000001), backdropAlpha > 0.000001);
   if (params.hasBlendIf != 0u) {
     sourceAlpha = sourceAlpha * blendIfColorFactor(sourceColor, true);
-    sourceAlpha = sourceAlpha * blendIfColorFactor(backdropColor, false);
+    let underlyingFactor = blendIfColorFactor(backdropColor, false);
+    sourceAlpha = sourceAlpha * ((1.0 - backdropAlpha) + backdropAlpha * underlyingFactor);
   }
   let blended = blendColor(sourceColor, backdropColor, params.blendMode);
   let outputAlpha = sourceAlpha + backdropAlpha * (1.0 - sourceAlpha);
   let outputRgb = blended * sourceAlpha * backdropAlpha +
                   sourceColor * sourceAlpha * (1.0 - backdropAlpha) +
                   backdropColor * backdropAlpha * (1.0 - sourceAlpha);
-  textureStore(outputTexture, coord, vec4<f32>(outputRgb, outputAlpha));
+  textureStore(outputTexture, localCoord, vec4<f32>(outputRgb, outputAlpha));
 }
 )WGSL";
 
