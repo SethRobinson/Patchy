@@ -314,6 +314,9 @@ void print_benchmark_metrics(const char* scenario, const patchy::ui::WebGpuRende
             << " scratch_reuses=" << metrics.scratch_texture_reuses
             << " uniform_reuses=" << metrics.uniform_buffer_reuses
             << " readback_reuses=" << metrics.readback_buffer_reuses
+            << " bind_group_reuses=" << metrics.bind_group_reuses
+            << " queue_submissions=" << metrics.queue_submissions
+            << " queue_waits=" << metrics.queue_waits
             << " dawn_ns=" << metrics.composition_time_ns << " cpu_ns=" << cpu_ns << '\n';
 }
 
@@ -341,6 +344,9 @@ void benchmark_full_dirty_and_idle(patchy::ui::WebGpuRenderBackend& backend) {
   CHECK(warm_metrics.scratch_texture_reuses > 0U);
   CHECK(warm_metrics.uniform_buffer_reuses >= 2U);
   CHECK(warm_metrics.readback_buffer_reuses > 0U);
+  CHECK(warm_metrics.bind_group_reuses > 0U);
+  CHECK(warm_metrics.queue_submissions == 6U);
+  CHECK(warm_metrics.queue_waits == 6U);
   print_benchmark_metrics("full_warm", backend, cpu_reference_time_ns(document));
 
   auto& overlay = document.layers().back();
@@ -355,6 +361,8 @@ void benchmark_full_dirty_and_idle(patchy::ui::WebGpuRenderBackend& backend) {
   const auto single_dirty_metrics = backend.last_composition_metrics();
   CHECK(single_dirty_metrics.source_upload_bytes > 0U);
   CHECK(single_dirty_metrics.mask_upload_bytes == 0U);
+  CHECK(single_dirty_metrics.queue_submissions == 1U);
+  CHECK(single_dirty_metrics.queue_waits == 1U);
   require_equivalent(document, single_dirty_frame, "benchmark single dirty tile");
   print_benchmark_metrics("dirty_single", backend, cpu_reference_time_ns(document));
 
@@ -372,6 +380,8 @@ void benchmark_full_dirty_and_idle(patchy::ui::WebGpuRenderBackend& backend) {
   CHECK(backend.last_rendered_tile_count() == 2U);
   CHECK(backend.last_composition_metrics().source_upload_bytes > 0U);
   CHECK(backend.last_composition_metrics().mask_upload_bytes == 0U);
+  CHECK(backend.last_composition_metrics().queue_submissions == 2U);
+  CHECK(backend.last_composition_metrics().queue_waits == 2U);
   require_equivalent(document, multi_dirty_frame, "benchmark multiple dirty tiles");
   print_benchmark_metrics("dirty_multiple", backend, cpu_reference_time_ns(document));
 
