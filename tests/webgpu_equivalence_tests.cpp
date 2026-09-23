@@ -242,6 +242,8 @@ void compose_full_and_check(patchy::ui::WebGpuRenderBackend& backend, const patc
   CHECK(backend.last_rendered_tile_count() == expected_tiles);
   CHECK(backend.last_submitted_pass_count() == expected_tiles * 3U);
   CHECK(backend.last_readback_bytes() == regional_readback_bytes(document.width(), document.height()));
+  CHECK(backend.last_composition_metrics().queue_submissions == 1U);
+  CHECK(backend.last_composition_metrics().queue_waits == 1U);
   require_equivalent(document, frame, label);
 }
 
@@ -267,6 +269,8 @@ void dirty_regions_recompute_only_intersecting_tiles(patchy::ui::WebGpuRenderBac
   }
   CHECK(backend.last_rendered_tile_count() == 6U);
   CHECK(backend.last_submitted_pass_count() == 18U);
+  CHECK(backend.last_composition_metrics().queue_submissions == 1U);
+  CHECK(backend.last_composition_metrics().queue_waits == 1U);
 
   auto& overlay = document.layers().back();
   overlay.pixels().pixel(204, 80)[0] = 12;
@@ -279,6 +283,8 @@ void dirty_regions_recompute_only_intersecting_tiles(patchy::ui::WebGpuRenderBac
   CHECK(backend.last_rendered_tile_count() == 1U);
   CHECK(backend.last_submitted_pass_count() == 3U);
   CHECK(backend.last_readback_bytes() == regional_readback_bytes(256, 256));
+  CHECK(backend.last_composition_metrics().queue_submissions == 1U);
+  CHECK(backend.last_composition_metrics().queue_waits == 1U);
   require_equivalent(document, incremental_frame, "dirty-region frame");
 
   QImage idle_frame;
@@ -345,8 +351,8 @@ void benchmark_full_dirty_and_idle(patchy::ui::WebGpuRenderBackend& backend) {
   CHECK(warm_metrics.uniform_buffer_reuses >= 2U);
   CHECK(warm_metrics.readback_buffer_reuses > 0U);
   CHECK(warm_metrics.bind_group_reuses > 0U);
-  CHECK(warm_metrics.queue_submissions == 6U);
-  CHECK(warm_metrics.queue_waits == 6U);
+  CHECK(warm_metrics.queue_submissions == 1U);
+  CHECK(warm_metrics.queue_waits == 1U);
   print_benchmark_metrics("full_warm", backend, cpu_reference_time_ns(document));
 
   auto& overlay = document.layers().back();
@@ -380,8 +386,8 @@ void benchmark_full_dirty_and_idle(patchy::ui::WebGpuRenderBackend& backend) {
   CHECK(backend.last_rendered_tile_count() == 2U);
   CHECK(backend.last_composition_metrics().source_upload_bytes > 0U);
   CHECK(backend.last_composition_metrics().mask_upload_bytes == 0U);
-  CHECK(backend.last_composition_metrics().queue_submissions == 2U);
-  CHECK(backend.last_composition_metrics().queue_waits == 2U);
+  CHECK(backend.last_composition_metrics().queue_submissions == 1U);
+  CHECK(backend.last_composition_metrics().queue_waits == 1U);
   require_equivalent(document, multi_dirty_frame, "benchmark multiple dirty tiles");
   print_benchmark_metrics("dirty_multiple", backend, cpu_reference_time_ns(document));
 

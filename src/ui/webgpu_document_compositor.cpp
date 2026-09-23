@@ -416,7 +416,7 @@ struct BindGroupKeyHash {
 struct CachedLayerResources {
   TextureData source;
   TextureData mask;
-  BufferHandle uniforms;
+  std::unordered_map<patchy::TileKey, BufferHandle, patchy::TileKeyHash> uniforms_by_tile;
   std::unordered_map<BindGroupKey, BindGroupHandle, BindGroupKeyHash> bind_groups;
   std::uint64_t pixel_revision{0};
   std::uint64_t mask_revision{0};
@@ -620,18 +620,6 @@ public:
         params.blend_if[index * 2U] = copy_thresholds(layer.blend_if[index].this_layer);
         params.blend_if[index * 2U + 1U] = copy_thresholds(layer.blend_if[index].underlying_layer);
       }
-      if (!cached.uniforms) {
-        cached.bind_groups.clear();
-        WGPUBufferDescriptor uniform_descriptor = WGPU_BUFFER_DESCRIPTOR_INIT;
-        uniform_descriptor.usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst;
-        uniform_descriptor.size = sizeof(Params);
-        cached.uniforms.reset(wgpuDeviceCreateBuffer(device_.get(), &uniform_descriptor));
-        if (!cached.uniforms) {
-          return fail(reason, QStringLiteral("WebGPU could not allocate compositor uniforms"));
-        }
-      } else {
-        ++last_metrics_.uniform_buffer_reuses;
-      }
       layers.push_back(std::move(resources));
     }
 
@@ -642,6 +630,20 @@ public:
         ++it;
       }
     }
+
+    struct PendingTile {
+      patchy::TileKey key;
+      patchy::Rect rect;
+      QSize size;
+      std::uint32_t padded_row_bytes{0};
+      std::uint64_t readback_size{0};
+      BufferHandle readback;
+      TextureData spare_backdrop;
+      TextureData backdrop;
+    };
+    std::vector<PendingTile> pending_tiles;
+    pending_tiles.reserve(plan.tiles.size());
+    CommandEncoderHandle encoder;
 
     for (const auto key : plan.tiles) {
       if (key.mip != 0) {
@@ -669,40 +671,59 @@ public:
                                      kBytesPerRowAlignment) *
                                     kBytesPerRowAlignment;
       const auto readback_size = static_cast<uint64_t>(padded_row_bytes) * static_cast<uint32_t>(tile_size.height());
-      BufferHandle readback = acquire_readback_buffer(static_cast<std::size_t>(readback_size));
+      auto readback = acquire_readback_buffer(static_cast<std::size_t>(readback_size));
       if (!readback) {
         return fail(reason, QStringLiteral("WebGPU could not allocate a tile readback buffer"));
       }
-      CommandEncoderHandle encoder(wgpuDeviceCreateCommandEncoder(device_.get(), nullptr));
       if (!encoder) {
-        return fail(reason, QStringLiteral("WebGPU could not create a tile command encoder"));
+        encoder.reset(wgpuDeviceCreateCommandEncoder(device_.get(), nullptr));
+        if (!encoder) {
+          return fail(reason, QStringLiteral("WebGPU could not create a batch command encoder"));
+        }
       }
-      TextureData spare_backdrop;
+
+      pending_tiles.push_back(PendingTile{key, tile_rect, tile_size, padded_row_bytes, readback_size,
+                                          std::move(readback), {}, std::move(backdrop)});
+      auto& pending = pending_tiles.back();
 
       for (const auto& layer : layers) {
+        auto& cached = layer_resource_cache_.at(layer.id);
+        auto& uniforms = cached.uniforms_by_tile[key];
+        if (!uniforms) {
+          WGPUBufferDescriptor uniform_descriptor = WGPU_BUFFER_DESCRIPTOR_INIT;
+          uniform_descriptor.usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst;
+          uniform_descriptor.size = sizeof(Params);
+          uniforms.reset(wgpuDeviceCreateBuffer(device_.get(), &uniform_descriptor));
+          if (!uniforms) {
+            return fail(reason, QStringLiteral("WebGPU could not allocate compositor uniforms"));
+          }
+        } else {
+          ++last_metrics_.uniform_buffer_reuses;
+        }
         auto params = layer.params;
         params.output_origin_x = tile_rect.x;
         params.output_origin_y = tile_rect.y;
-        auto& cached = layer_resource_cache_.at(layer.id);
-        wgpuQueueWriteBuffer(queue_.get(), cached.uniforms.get(), 0, &params, sizeof(params));
+        wgpuQueueWriteBuffer(queue_.get(), uniforms.get(), 0, &params, sizeof(params));
       }
 
       for (const auto& layer : layers) {
-        auto target = spare_backdrop.texture ? std::move(spare_backdrop) : acquire_scratch_texture(tile_size, reason);
+        auto& cached = layer_resource_cache_.at(layer.id);
+        auto& uniforms = cached.uniforms_by_tile.at(key);
+        auto target = pending.spare_backdrop.texture ? std::move(pending.spare_backdrop)
+                                                     : acquire_scratch_texture(tile_size, reason);
         if (!target.texture || !target.view) {
           return false;
         }
-        auto& cached = layer_resource_cache_.at(layer.id);
 
         WGPUBindGroupEntry bindings[5] = {};
         for (uint32_t index = 0; index < 5; ++index) {
           bindings[index] = WGPU_BIND_GROUP_ENTRY_INIT;
           bindings[index].binding = index;
         }
-        bindings[0].buffer = cached.uniforms.get();
+        bindings[0].buffer = uniforms.get();
         bindings[0].size = sizeof(Params);
         bindings[1].textureView = cached.source.view.get();
-        bindings[2].textureView = backdrop.view.get();
+        bindings[2].textureView = pending.backdrop.view.get();
         bindings[3].textureView = cached.mask.view.get();
         bindings[4].textureView = target.view.get();
         const BindGroupKey bind_group_key{reinterpret_cast<std::uintptr_t>(bindings[0].buffer),
@@ -739,22 +760,25 @@ public:
             (static_cast<uint32_t>(tile_size.height()) + kWorkgroupSize - 1U) / kWorkgroupSize, 1);
         wgpuComputePassEncoderEnd(pass.get());
         pass.reset();
-        spare_backdrop = std::move(backdrop);
-        backdrop = std::move(target);
+        pending.spare_backdrop = std::move(pending.backdrop);
+        pending.backdrop = std::move(target);
       }
 
       WGPUTexelCopyTextureInfo source_info = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
-      source_info.texture = backdrop.texture.get();
+      source_info.texture = pending.backdrop.texture.get();
       WGPUTexelCopyBufferInfo destination_info = WGPU_TEXEL_COPY_BUFFER_INFO_INIT;
-      destination_info.buffer = readback.get();
-      destination_info.layout.bytesPerRow = padded_row_bytes;
+      destination_info.buffer = pending.readback.get();
+      destination_info.layout.bytesPerRow = pending.padded_row_bytes;
       destination_info.layout.rowsPerImage = static_cast<uint32_t>(tile_size.height());
       const WGPUExtent3D copy_size{static_cast<uint32_t>(tile_size.width()),
                                    static_cast<uint32_t>(tile_size.height()), 1};
       wgpuCommandEncoderCopyTextureToBuffer(encoder.get(), &source_info, &destination_info, &copy_size);
+    }
+
+    if (!pending_tiles.empty()) {
       CommandBufferHandle commands(wgpuCommandEncoderFinish(encoder.get(), nullptr));
       if (!commands) {
-        return fail(reason, QStringLiteral("WebGPU could not finish a tile command buffer"));
+        return fail(reason, QStringLiteral("WebGPU could not finish the batch command buffer"));
       }
       WGPUCommandBuffer command = commands.get();
       wgpuQueueSubmit(queue_.get(), 1, &command);
@@ -763,38 +787,42 @@ public:
         return false;
       }
 
-      MapRequest map_request;
-      WGPUBufferMapCallbackInfo map_callback = WGPU_BUFFER_MAP_CALLBACK_INFO_INIT;
-      map_callback.mode = WGPUCallbackMode_WaitAnyOnly;
-      map_callback.callback = on_map_request;
-      map_callback.userdata1 = &map_request;
-      if (!wait_for_future(instance_.get(),
-                           wgpuBufferMapAsync(readback.get(), WGPUMapMode_Read, 0, readback_size, map_callback),
-                           reason)) {
-        return false;
-      }
-      if (map_request.status != WGPUMapAsyncStatus_Success) {
-        return fail(reason, map_request.message.isEmpty() ? QStringLiteral("WebGPU tile readback mapping failed")
-                                                          : map_request.message);
-      }
-      const auto* mapped = static_cast<const std::uint8_t*>(
-          wgpuBufferGetConstMappedRange(readback.get(), 0, static_cast<size_t>(readback_size)));
-      if (mapped == nullptr) {
-        wgpuBufferUnmap(readback.get());
-        return fail(reason, QStringLiteral("WebGPU returned an empty tile readback"));
-      }
-      QImage tile(tile_size, QImage::Format_RGBA8888_Premultiplied);
-      for (int y = 0; y < tile_size.height(); ++y) {
-        std::memcpy(tile.scanLine(y), mapped + static_cast<size_t>(y) * padded_row_bytes,
-                    static_cast<size_t>(tile_size.width()) * kBytesPerPixel);
-      }
-      wgpuBufferUnmap(readback.get());
-      recycle_readback_buffer(static_cast<std::size_t>(readback_size), std::move(readback));
-      recycle_scratch_texture(std::move(spare_backdrop));
-      recycle_scratch_texture(std::move(backdrop));
-      for (int y = 0; y < tile_rect.height; ++y) {
-        std::memcpy(result.scanLine(tile_rect.y + y) + static_cast<qsizetype>(tile_rect.x) * kBytesPerPixel,
-                    tile.constScanLine(y), static_cast<size_t>(tile_rect.width) * kBytesPerPixel);
+      for (auto& pending : pending_tiles) {
+        MapRequest map_request;
+        WGPUBufferMapCallbackInfo map_callback = WGPU_BUFFER_MAP_CALLBACK_INFO_INIT;
+        map_callback.mode = WGPUCallbackMode_WaitAnyOnly;
+        map_callback.callback = on_map_request;
+        map_callback.userdata1 = &map_request;
+        if (!wait_for_future(instance_.get(),
+                             wgpuBufferMapAsync(pending.readback.get(), WGPUMapMode_Read, 0, pending.readback_size,
+                                                map_callback),
+                             reason)) {
+          return false;
+        }
+        if (map_request.status != WGPUMapAsyncStatus_Success) {
+          return fail(reason, map_request.message.isEmpty() ? QStringLiteral("WebGPU tile readback mapping failed")
+                                                            : map_request.message);
+        }
+        const auto* mapped = static_cast<const std::uint8_t*>(
+            wgpuBufferGetConstMappedRange(pending.readback.get(), 0,
+                                           static_cast<size_t>(pending.readback_size)));
+        if (mapped == nullptr) {
+          wgpuBufferUnmap(pending.readback.get());
+          return fail(reason, QStringLiteral("WebGPU returned an empty tile readback"));
+        }
+        QImage tile(pending.size, QImage::Format_RGBA8888_Premultiplied);
+        for (int y = 0; y < pending.size.height(); ++y) {
+          std::memcpy(tile.scanLine(y), mapped + static_cast<size_t>(y) * pending.padded_row_bytes,
+                      static_cast<size_t>(pending.size.width()) * kBytesPerPixel);
+        }
+        wgpuBufferUnmap(pending.readback.get());
+        recycle_readback_buffer(static_cast<std::size_t>(pending.readback_size), std::move(pending.readback));
+        recycle_scratch_texture(std::move(pending.spare_backdrop));
+        recycle_scratch_texture(std::move(pending.backdrop));
+        for (int y = 0; y < pending.rect.height; ++y) {
+          std::memcpy(result.scanLine(pending.rect.y + y) + static_cast<qsizetype>(pending.rect.x) * kBytesPerPixel,
+                      tile.constScanLine(y), static_cast<size_t>(pending.rect.width) * kBytesPerPixel);
+        }
       }
     }
 
