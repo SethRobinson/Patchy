@@ -158,6 +158,19 @@ throughput win: it validates a full or dirty tile graph, executes each planned
 tile, and reports the number of rendered tiles and padded readback bytes.
 Benchmark results must therefore identify whether they measure Qt RHI
 presentation, Dawn document composition, dirty-tile reuse, or the CPU reference.
-The path still uploads source layers per composition call and copies the
-assembled image through Qt Quick; zero-copy presentation and platform-specific
-device-loss recovery remain separate work.
+The compositor now retains source and mask textures by their pixel/content
+revisions, keeps one uniform buffer per layer, and reuses scratch and readback
+resources by tile size. These caches are device-owned and are discarded when
+the Dawn backend is recreated, so recovery cannot reuse resources from a lost
+device. The CPU path remains the output authority.
+
+The optional `patchy_webgpu_equivalence_tests` executable prints `[METRIC]`
+records for `full_cold`, `full_warm`, `dirty_single`, `dirty_multiple`, and
+`idle`. Each record includes Dawn time, CPU reference time, rendered tiles,
+padded readback bytes, source/mask/clear upload bytes, and resource-reuse
+counters. Run it repeatedly on the same machine and interleave configurations
+before comparing means. A lower Dawn time is not by itself a product-level
+speedup: the executable still performs regional readback and returns a
+CPU-readable `QImage` to Qt Quick. Zero-copy presentation, complete filter
+shaders, HDR/16-bit paths, and platform-specific device-loss recovery remain
+separate work.
