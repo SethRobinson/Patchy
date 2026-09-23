@@ -28,9 +28,9 @@ struct GpuBackendInfo {
   bool supports_zero_copy{false};
 };
 
-// The application-specific Qt RHI and Dawn adapters will implement this
-// contract in later tiers. Keeping it Qt-free lets state transitions and
-// fallback policy be tested with a recording backend now.
+// The application-specific Qt RHI and Dawn adapters consume this contract at
+// their integration boundaries. Keeping it Qt-free lets state transitions and
+// fallback policy be tested with a recording backend without a physical GPU.
 class GpuRenderBackend {
 public:
   virtual ~GpuRenderBackend() = default;
