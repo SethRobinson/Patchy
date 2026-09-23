@@ -57,7 +57,9 @@
 #include "render/gpu_document_capabilities.hpp"
 #include "render/gpu_render_backend.hpp"
 #include "render/gpu_render_graph.hpp"
+#include "render/gpu_tile_scheduler.hpp"
 #include "render/layer_compositor.hpp"
+#include "render/pixel_comparison.hpp"
 #include "render/tile_cache.hpp"
 #include "support/cli_flags.hpp"
 #include "support/string_utils.hpp"
@@ -96,6 +98,7 @@
 
 #include "core_test_support.hpp"
 #include "fake_gpu_backend.hpp"
+#include "fake_gpu_document_renderer.hpp"
 #include "test_groups.hpp"
 
 namespace {
@@ -245,6 +248,112 @@ void render_graph_rejects_cycles_and_multiple_writers() {
   CHECK(cycle.validate(&reason));
   CHECK(cycle.execution_order(&reason).empty());
   CHECK(reason == "render graph contains a dependency cycle");
+}
+
+patchy::Document make_gpu_equivalence_document() {
+  patchy::Document document(8, 8, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer background(8, 8, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < background.height(); ++y) {
+    for (std::int32_t x = 0; x < background.width(); ++x) {
+      auto* pixel = background.pixel(x, y);
+      pixel[0] = static_cast<std::uint8_t>(20 + x * 3);
+      pixel[1] = static_cast<std::uint8_t>(30 + y * 4);
+      pixel[2] = 40;
+      pixel[3] = 255;
+    }
+  }
+  document.add_pixel_layer("Background", std::move(background));
+
+  patchy::PixelBuffer overlay(8, 8, patchy::PixelFormat::rgba8());
+  overlay.clear(0);
+  for (std::int32_t y = 0; y < 4; ++y) {
+    for (std::int32_t x = 0; x < 4; ++x) {
+      auto* pixel = overlay.pixel(x, y);
+      pixel[0] = 220;
+      pixel[1] = 60;
+      pixel[2] = 15;
+      pixel[3] = 160;
+    }
+  }
+  document.add_pixel_layer("Overlay", std::move(overlay));
+  return document;
+}
+
+void pixel_comparison_reports_exact_and_tolerated_differences() {
+  auto reference = patchy::test::solid_rgb(2, 1, 10, 20, 30);
+  auto candidate = reference;
+  CHECK(patchy::compare_pixel_buffers(reference, candidate).within());
+
+  candidate.pixel(1, 0)[0] = 12;
+  const auto report = patchy::compare_pixel_buffers(reference, candidate);
+  CHECK(report.comparable);
+  CHECK(report.differing_pixels == 1);
+  CHECK(report.differing_channels == 1);
+  CHECK(report.max_channel_delta == 2);
+  CHECK(!report.within());
+
+  patchy::PixelComparisonPolicy preview_policy;
+  preview_policy.max_channel_delta = 2;
+  preview_policy.max_differing_pixels = 1;
+  preview_policy.max_mean_abs_channel_delta = 1.0;
+  preview_policy.max_differing_fraction = 0.5;
+  CHECK(report.within(preview_policy));
+
+  patchy::PixelBuffer different_format(2, 1, patchy::PixelFormat::rgba8());
+  different_format.clear(0);
+  CHECK(!patchy::compare_pixel_buffers(reference, different_format).comparable);
+}
+
+void gpu_tile_renderer_matches_cpu_and_updates_only_dirty_tiles() {
+  auto document = make_gpu_equivalence_document();
+  patchy::test::FakeGpuDocumentRenderer renderer(4);
+
+  const auto initial = renderer.render(document);
+  CHECK(initial.success);
+  CHECK(initial.rendered_tiles == 4);
+  CHECK(renderer.tile_cache().size() == 4);
+  CHECK(renderer.compare_with_cpu(document).within());
+
+  patchy::DirtyRegionSet dirty;
+  dirty.add(patchy::Rect{0, 0, 1, 1});
+  auto* overlay = document.find_layer(document.layers().back().id());
+  CHECK(overlay != nullptr);
+  overlay->pixels().pixel(0, 0)[0] = 120;
+  const auto incremental = renderer.render(document, dirty);
+  CHECK(incremental.success);
+  CHECK(incremental.rendered_tiles == 1);
+  CHECK(renderer.tile_cache().size() == 4);
+  CHECK(renderer.compare_with_cpu(document).within());
+
+  const auto idle = renderer.render(document);
+  CHECK(idle.success);
+  CHECK(idle.rendered_tiles == 0);
+  CHECK(renderer.compare_with_cpu(document).within());
+}
+
+void gpu_tile_renderer_recovers_device_and_rebuilds_resources() {
+  auto document = make_gpu_equivalence_document();
+  patchy::test::FakeGpuDocumentRenderer renderer(4);
+  CHECK(renderer.render(document).success);
+  renderer.backend().lose_device();
+
+  const auto recovered = renderer.render(document);
+  CHECK(recovered.success);
+  CHECK(recovered.recovered_device);
+  CHECK(recovered.rendered_tiles == 4);
+  CHECK(renderer.backend().recovery_count() == 1);
+  CHECK(renderer.compare_with_cpu(document).within());
+}
+
+void gpu_tile_renderer_rejects_unsupported_document_without_mixing_paths() {
+  auto document = make_gpu_equivalence_document();
+  document.layers().back().set_blend_mode(patchy::BlendMode::Hue);
+  patchy::test::FakeGpuDocumentRenderer renderer(4);
+
+  const auto result = renderer.render(document);
+  CHECK(!result.success);
+  CHECK(result.error == "document contains a non-separable or unsupported blend mode");
+  CHECK(renderer.rendered_frame().empty());
 }
 
 void color_manager_assigns_profiles() {
@@ -1474,6 +1583,14 @@ std::vector<patchy::test::TestCase> infra_selection_tests() {
       {"dirty_regions_coalesce_deterministically", dirty_regions_coalesce_deterministically},
       {"render_graph_orders_passes_and_recovers_fake_device", render_graph_orders_passes_and_recovers_fake_device},
       {"render_graph_rejects_cycles_and_multiple_writers", render_graph_rejects_cycles_and_multiple_writers},
+      {"pixel_comparison_reports_exact_and_tolerated_differences",
+       pixel_comparison_reports_exact_and_tolerated_differences},
+      {"gpu_tile_renderer_matches_cpu_and_updates_only_dirty_tiles",
+       gpu_tile_renderer_matches_cpu_and_updates_only_dirty_tiles},
+      {"gpu_tile_renderer_recovers_device_and_rebuilds_resources",
+       gpu_tile_renderer_recovers_device_and_rebuilds_resources},
+      {"gpu_tile_renderer_rejects_unsupported_document_without_mixing_paths",
+       gpu_tile_renderer_rejects_unsupported_document_without_mixing_paths},
       {"color_manager_assigns_profiles", color_manager_assigns_profiles},
       {"gpu_document_capability_accepts_simple_pixel_stack",
        gpu_document_capability_accepts_simple_pixel_stack},

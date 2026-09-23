@@ -92,24 +92,26 @@ The WebGPU route is a separate Dawn document compositor, not a claim that WebGPU
 
 The fallback is in-process and does not change the document. The same `CanvasWidget` continues to own input, scrollbars, selection geometry, tool state, and overlays. During GPU composition, a transparent QWidget overlay keeps those controls and guides above the Qt Quick layer tree.
 
-## Hardware-agnostic render graph foundation
+## Hardware-agnostic render graph and equivalence foundation
 
 The next GPU work starts with a Qt-free render graph rather than another native API
 branch. `src/render/gpu_render_graph.hpp` describes named resources and passes,
 validates single-writer dependencies, and produces a stable topological order.
-`DirtyRegionSet` coalesces document-space invalidations by mip, while `TileCache`
-can invalidate only the tiles intersecting a changed region. `GpuRenderBackend`
-defines the common submission and device-loss contract, and the test-only fake
-backend exercises it without a display or physical adapter. See
-[Hardware-agnostic GPU render graph](gpu-render-graph.md) for the state machine,
-validation commands, and the boundary between this foundation and future native
-backends.
+`DirtyRegionSet` coalesces document-space invalidations by mip, `GpuTileScheduler`
+turns them into bounded graph passes, and `TileCache` invalidates only tiles that
+intersect a changed region. `GpuRenderBackend` defines the common submission and
+device-loss contract, while the test-only fake renderer assembles CPU-backed tiles
+and checks them against the full CPU compositor. See [Hardware-agnostic GPU render
+graph](gpu-render-graph.md) for the state machine, comparison policy, validation
+commands, and the boundary between this foundation and future native backends.
 
 This foundation is deliberately not a claim of zero-copy presentation, complete
-Photoshop filter coverage, or hardware performance. A future pass must first have
-CPU/GPU equivalence coverage for its format, alpha convention, color space,
-clipping, and invalidation bounds. Until then, the CPU compositor remains the
-authority for export, byte identity, and unsupported documents.
+Photoshop filter coverage, or hardware performance. The current equivalence tests
+use the CPU compositor to emulate missing tiles; they do not exercise a physical
+GPU. A future native pass must first have CPU/GPU equivalence coverage for its
+format, alpha convention, color space, clipping, and invalidation bounds. Until
+then, the CPU compositor remains the authority for export, byte identity, and
+unsupported documents.
 
 ## Testing
 
