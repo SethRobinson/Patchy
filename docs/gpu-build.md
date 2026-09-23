@@ -313,6 +313,41 @@ A Qt RHI run is confirmed by a line similar to:
 Patchy graphics backend: OpenGL, adapter: Intel Iris Xe, hardware acceleration: yes
 ```
 
+## Native Dawn equivalence validation
+
+The repository also contains a manual validation executable for the native Dawn
+path. It is disabled by default and is never registered with CTest because it
+needs a linkable Dawn installation and a non-software hardware adapter. Enable it
+only for a desktop validation build:
+
+```sh
+cmake --preset linux-release \
+  -DPATCHY_BUILD_WEBGPU_VALIDATION_TESTS=ON \
+  -DPATCHY_ENABLE_WEBGPU=ON \
+  -DPATCHY_DAWN_PREFIX="$PWD/.deps/dawn/install/release"
+cmake --build --preset linux-release \
+  --target patchy_webgpu_equivalence_tests -j6
+```
+
+Run the target with the native desktop platform. It prints `[SKIP]` and returns
+success when Dawn or a hardware adapter is unavailable, so the ordinary CTest
+suite remains portable. A hardware-backed run must print `[PASS]` for boundary
+dimensions, supported gray8-mask and Blend If fixtures, and dirty-region
+validation. The checks compare the Dawn frame with the CPU compositor using an
+explicit display-preview tolerance; they do not authorize GPU export or byte
+identity.
+
+```sh
+if timeout 120s \
+  ./build/linux-release/patchy_webgpu_equivalence_tests
+then
+  echo "Dawn equivalence validation finished."
+else
+  validation_status=$?
+  echo "Dawn equivalence validation failed or timed out: $validation_status"
+fi
+echo "Terminal remains open."
+
 A line saying `Dawn/WebGPU was not found at configure time` means that the binary was built without the optional Dawn target. It is not a runtime GPU failure, and the Qt RHI/CPU fallback remains the expected behavior.
 
 ## Runtime selection variables
