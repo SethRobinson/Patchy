@@ -42,4 +42,17 @@ if grep -Fq 'static_cast<int>(std::numeric_limits<uint32_t>::max())' \
   exit 1
 fi
 
+grep -Fq 'outputOrigin: vec2<i32>' \
+  "$REPO_ROOT/src/ui/webgpu_document_compositor.cpp"
+grep -Fq 'static_assert(sizeof(Params) == 192);' \
+  "$REPO_ROOT/src/ui/webgpu_document_compositor.cpp"
+grep -Fq 'compose_tiles(const CanvasGpuDocument& document' \
+  "$REPO_ROOT/src/ui/webgpu_document_compositor.cpp"
+grep -Fq 'wgpuCommandEncoderCopyTextureToBuffer' \
+  "$REPO_ROOT/src/ui/webgpu_document_compositor.cpp"
+grep -Fq 'compose_incremental(const CanvasGpuDocument& document' \
+  "$REPO_ROOT/src/ui/webgpu_render_backend.cpp"
+grep -Fq 'last_readback_bytes_' \
+  "$REPO_ROOT/src/ui/webgpu_render_backend.cpp"
+
 echo 'Dawn helper syntax and lock checks passed'
