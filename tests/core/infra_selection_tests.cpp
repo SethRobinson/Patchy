@@ -55,6 +55,7 @@
 #include "render/compositor.hpp"
 #include "render/dirty_region.hpp"
 #include "render/gpu_document_capabilities.hpp"
+#include "render/gpu_presentation_interop.hpp"
 #include "render/gpu_render_backend.hpp"
 #include "render/gpu_render_graph.hpp"
 #include "render/gpu_tile_scheduler.hpp"
@@ -248,6 +249,35 @@ void render_graph_rejects_cycles_and_multiple_writers() {
   CHECK(cycle.validate(&reason));
   CHECK(cycle.execution_order(&reason).empty());
   CHECK(reason == "render graph contains a dependency cycle");
+}
+
+void zero_copy_interop_requires_verified_shared_resources() {
+  patchy::ZeroCopyInteropRequirements requirements;
+  CHECK(!patchy::evaluate_zero_copy_interop(requirements).eligible());
+  CHECK(patchy::evaluate_zero_copy_interop(requirements).status ==
+        patchy::ZeroCopyInteropStatus::UnknownApi);
+
+  requirements.compositor_api = patchy::GpuPresentationApi::Vulkan;
+  requirements.presentation_api = patchy::GpuPresentationApi::OpenGL;
+  auto decision = patchy::evaluate_zero_copy_interop(requirements);
+  CHECK(decision.status == patchy::ZeroCopyInteropStatus::ApiMismatch);
+
+  requirements.presentation_api = patchy::GpuPresentationApi::Vulkan;
+  decision = patchy::evaluate_zero_copy_interop(requirements);
+  CHECK(decision.status == patchy::ZeroCopyInteropStatus::SharedDeviceRequired);
+
+  requirements.shared_device = true;
+  decision = patchy::evaluate_zero_copy_interop(requirements);
+  CHECK(decision.status == patchy::ZeroCopyInteropStatus::NativeTextureImportRequired);
+
+  requirements.native_texture_import = true;
+  decision = patchy::evaluate_zero_copy_interop(requirements);
+  CHECK(decision.status == patchy::ZeroCopyInteropStatus::SynchronizationRequired);
+
+  requirements.synchronization = true;
+  decision = patchy::evaluate_zero_copy_interop(requirements);
+  CHECK(decision.eligible());
+  CHECK(decision.status == patchy::ZeroCopyInteropStatus::Ready);
 }
 
 patchy::Document make_gpu_equivalence_document() {
@@ -1583,6 +1613,8 @@ std::vector<patchy::test::TestCase> infra_selection_tests() {
       {"dirty_regions_coalesce_deterministically", dirty_regions_coalesce_deterministically},
       {"render_graph_orders_passes_and_recovers_fake_device", render_graph_orders_passes_and_recovers_fake_device},
       {"render_graph_rejects_cycles_and_multiple_writers", render_graph_rejects_cycles_and_multiple_writers},
+      {"zero_copy_interop_requires_verified_shared_resources",
+       zero_copy_interop_requires_verified_shared_resources},
       {"pixel_comparison_reports_exact_and_tolerated_differences",
        pixel_comparison_reports_exact_and_tolerated_differences},
       {"gpu_tile_renderer_matches_cpu_and_updates_only_dirty_tiles",
