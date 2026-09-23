@@ -287,6 +287,7 @@ std::optional<LayerMask>& Layer::mask() noexcept {
   trace_revision_bump("mask", name_);
   render_revision_ = next_layer_revision();
   content_revision_ = next_layer_revision();
+  mask_revision_ = next_layer_revision();
   return mask_;
 }
 
@@ -371,6 +372,10 @@ std::uint64_t Layer::content_revision() const noexcept {
 
 std::uint64_t Layer::pixel_revision() const noexcept {
   return pixel_revision_;
+}
+
+std::uint64_t Layer::mask_revision() const noexcept {
+  return mask_revision_;
 }
 
 Layer Layer::clone_with_id(LayerId id) const {
@@ -522,12 +527,14 @@ void Layer::set_mask(LayerMask mask) {
   mask_ = std::move(mask);
   render_revision_ = next_layer_revision();
   content_revision_ = next_layer_revision();
+  mask_revision_ = next_layer_revision();
 }
 
 void Layer::clear_mask() noexcept {
   mask_.reset();
   render_revision_ = next_layer_revision();
   content_revision_ = next_layer_revision();
+  mask_revision_ = next_layer_revision();
 }
 
 bool Layer::set_blend_if(const LayerBlendIf& settings, bool replace_unsupported) {

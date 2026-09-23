@@ -48,6 +48,11 @@ struct CanvasGpuBlendIfRanges {
 struct CanvasGpuLayer {
   std::uint64_t id{0};
   std::uint64_t revision{0};
+  // Device-resource keys. They are separate from `revision` so opacity,
+  // blend-mode, and placement edits do not re-upload unchanged pixel planes.
+  std::uint64_t pixel_revision{0};
+  std::uint64_t content_revision{0};
+  std::uint64_t mask_revision{0};
   QImage image;
   QRectF rect;
   QRectF document_rect;

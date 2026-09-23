@@ -13,12 +13,15 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cmath>
 #include <cstring>
 #include <memory>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -385,6 +388,27 @@ struct TextureData {
   QSize size;
 };
 
+struct CachedLayerResources {
+  TextureData source;
+  TextureData mask;
+  BufferHandle uniforms;
+  std::uint64_t pixel_revision{0};
+  std::uint64_t mask_revision{0};
+  bool has_mask{false};
+};
+
+std::uint64_t texture_size_key(QSize size) {
+  return (static_cast<std::uint64_t>(static_cast<std::uint32_t>(size.width())) << 32U) |
+         static_cast<std::uint32_t>(size.height());
+}
+
+std::size_t padded_upload_bytes(QSize size, uint32_t channels) {
+  const auto row_bytes = static_cast<std::size_t>(size.width()) * channels;
+  const auto padded_row_bytes = ((row_bytes + kBytesPerRowAlignment - 1U) / kBytesPerRowAlignment) *
+                                kBytesPerRowAlignment;
+  return padded_row_bytes * static_cast<std::size_t>(size.height());
+}
+
 class WebGpuImplementation final {
 public:
   bool initialize(QString* reason) {
@@ -465,6 +489,8 @@ public:
   [[nodiscard]] bool compose_tiles(const CanvasGpuDocument& document,
                                    const patchy::GpuTileRenderPlan& plan,
                                    const QImage* previous_frame, QImage& output, QString* reason) {
+    last_metrics_ = {};
+    const auto composition_start = std::chrono::steady_clock::now();
     if (!device_ || !pipeline_ || !queue_) {
       return fail(reason, QStringLiteral("WebGPU compositor is not initialized"));
     }
@@ -481,12 +507,12 @@ public:
     }
 
     struct LayerResources {
-      TextureData source;
-      TextureData mask;
+      std::uint64_t id{0};
       Params params;
     };
     std::vector<LayerResources> layers;
     layers.reserve(document.layers.size());
+    std::unordered_set<std::uint64_t> active_layer_ids;
     const auto copy_thresholds = [](const CanvasGpuBlendIfThresholds& thresholds) {
       return std::array<float, 4>{static_cast<float>(thresholds.black_low),
                                   static_cast<float>(thresholds.black_high),
@@ -498,16 +524,27 @@ public:
       if (layer.image.isNull() || layer.rect.isEmpty() || layer.opacity <= 0.0) {
         continue;
       }
+      active_layer_ids.insert(layer.id);
       const auto source_image = layer.image.convertToFormat(QImage::Format_RGBA8888_Premultiplied);
-      LayerResources resources;
-      resources.source = create_texture(source_image.size(), WGPUTextureFormat_RGBA8Unorm,
-                                         WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst, reason);
-      if (!resources.source.texture || !resources.source.view) {
-        return false;
-      }
-      if (!write_texture(resources.source.texture.get(), image_bytes(source_image), source_image.size(),
-                         WGPUTextureFormat_RGBA8Unorm, reason)) {
-        return false;
+      auto& cached = layer_resource_cache_[layer.id];
+      const auto pixel_revision = layer.pixel_revision != 0 ? layer.pixel_revision : layer.revision;
+      const bool source_matches = cached.source.texture && cached.source.view &&
+                                  cached.pixel_revision == pixel_revision &&
+                                  cached.source.size == source_image.size();
+      if (!source_matches) {
+        cached.source = create_texture(source_image.size(), WGPUTextureFormat_RGBA8Unorm,
+                                       WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst, reason);
+        if (!cached.source.texture || !cached.source.view) {
+          return false;
+        }
+        if (!write_texture(cached.source.texture.get(), image_bytes(source_image), source_image.size(),
+                           WGPUTextureFormat_RGBA8Unorm, reason)) {
+          return false;
+        }
+        cached.pixel_revision = pixel_revision;
+        last_metrics_.source_upload_bytes += padded_upload_bytes(source_image.size(), 4U);
+      } else {
+        ++last_metrics_.source_texture_reuses;
       }
 
       QImage mask_image = layer.mask_image;
@@ -517,16 +554,29 @@ public:
       } else {
         mask_image = mask_image.convertToFormat(QImage::Format_Grayscale8);
       }
-      resources.mask = create_texture(mask_image.size(), WGPUTextureFormat_R8Unorm,
-                                      WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst, reason);
-      if (!resources.mask.texture || !resources.mask.view) {
-        return false;
-      }
-      if (!write_texture(resources.mask.texture.get(), image_bytes(mask_image), mask_image.size(),
-                         WGPUTextureFormat_R8Unorm, reason)) {
-        return false;
+      const auto mask_revision = layer.mask_revision != 0 ? layer.mask_revision : layer.content_revision;
+      const bool mask_matches = cached.mask.texture && cached.mask.view &&
+                                cached.mask_revision == mask_revision &&
+                                cached.has_mask == layer.has_mask && cached.mask.size == mask_image.size();
+      if (!mask_matches) {
+        cached.mask = create_texture(mask_image.size(), WGPUTextureFormat_R8Unorm,
+                                     WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst, reason);
+        if (!cached.mask.texture || !cached.mask.view) {
+          return false;
+        }
+        if (!write_texture(cached.mask.texture.get(), image_bytes(mask_image), mask_image.size(),
+                           WGPUTextureFormat_R8Unorm, reason)) {
+          return false;
+        }
+        cached.mask_revision = mask_revision;
+        cached.has_mask = layer.has_mask;
+        last_metrics_.mask_upload_bytes += padded_upload_bytes(mask_image.size(), 1U);
+      } else {
+        ++last_metrics_.mask_texture_reuses;
       }
 
+      LayerResources resources;
+      resources.id = layer.id;
       auto& params = resources.params;
       params.layer_origin_x = static_cast<int32_t>(std::llround(layer.document_rect.left()));
       params.layer_origin_y = static_cast<int32_t>(std::llround(layer.document_rect.top()));
@@ -542,7 +592,26 @@ public:
         params.blend_if[index * 2U] = copy_thresholds(layer.blend_if[index].this_layer);
         params.blend_if[index * 2U + 1U] = copy_thresholds(layer.blend_if[index].underlying_layer);
       }
+      if (!cached.uniforms) {
+        WGPUBufferDescriptor uniform_descriptor = WGPU_BUFFER_DESCRIPTOR_INIT;
+        uniform_descriptor.usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst;
+        uniform_descriptor.size = sizeof(Params);
+        cached.uniforms.reset(wgpuDeviceCreateBuffer(device_.get(), &uniform_descriptor));
+        if (!cached.uniforms) {
+          return fail(reason, QStringLiteral("WebGPU could not allocate compositor uniforms"));
+        }
+      } else {
+        ++last_metrics_.uniform_buffer_reuses;
+      }
       layers.push_back(std::move(resources));
+    }
+
+    for (auto it = layer_resource_cache_.begin(); it != layer_resource_cache_.end();) {
+      if (!active_layer_ids.contains(it->first)) {
+        it = layer_resource_cache_.erase(it);
+      } else {
+        ++it;
+      }
     }
 
     const auto readback_tile = [&](const TextureData& texture, QSize tile_size, QImage& tile) {
@@ -551,10 +620,7 @@ public:
                                      kBytesPerRowAlignment) *
                                     kBytesPerRowAlignment;
       const auto readback_size = static_cast<uint64_t>(padded_row_bytes) * static_cast<uint32_t>(tile_size.height());
-      WGPUBufferDescriptor readback_descriptor = WGPU_BUFFER_DESCRIPTOR_INIT;
-      readback_descriptor.usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_MapRead;
-      readback_descriptor.size = readback_size;
-      BufferHandle readback(wgpuDeviceCreateBuffer(device_.get(), &readback_descriptor));
+      BufferHandle readback = acquire_readback_buffer(static_cast<std::size_t>(readback_size));
       if (!readback) {
         return fail(reason, QStringLiteral("WebGPU could not allocate a tile readback buffer"));
       }
@@ -608,6 +674,7 @@ public:
                     static_cast<size_t>(tile_size.width()) * kBytesPerPixel);
       }
       wgpuBufferUnmap(readback.get());
+      recycle_readback_buffer(static_cast<std::size_t>(readback_size), std::move(readback));
       return true;
     };
 
@@ -620,10 +687,7 @@ public:
         continue;
       }
       const QSize tile_size(tile_rect.width, tile_rect.height);
-      auto backdrop = create_texture(tile_size, WGPUTextureFormat_RGBA8Unorm,
-                                     WGPUTextureUsage_StorageBinding | WGPUTextureUsage_TextureBinding |
-                                         WGPUTextureUsage_CopyDst | WGPUTextureUsage_CopySrc,
-                                     reason);
+      auto backdrop = acquire_scratch_texture(tile_size, reason);
       if (!backdrop.texture || !backdrop.view) {
         return false;
       }
@@ -633,12 +697,10 @@ public:
                          WGPUTextureFormat_RGBA8Unorm, reason)) {
         return false;
       }
+      last_metrics_.clear_upload_bytes += padded_upload_bytes(tile_size, 4U);
 
       for (const auto& layer : layers) {
-        auto target = create_texture(tile_size, WGPUTextureFormat_RGBA8Unorm,
-                                     WGPUTextureUsage_StorageBinding | WGPUTextureUsage_TextureBinding |
-                                         WGPUTextureUsage_CopySrc,
-                                     reason);
+        auto target = acquire_scratch_texture(tile_size, reason);
         if (!target.texture || !target.view) {
           return false;
         }
@@ -646,25 +708,19 @@ public:
         params.output_origin_x = tile_rect.x;
         params.output_origin_y = tile_rect.y;
 
-        WGPUBufferDescriptor uniform_descriptor = WGPU_BUFFER_DESCRIPTOR_INIT;
-        uniform_descriptor.usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst;
-        uniform_descriptor.size = sizeof(params);
-        BufferHandle uniforms(wgpuDeviceCreateBuffer(device_.get(), &uniform_descriptor));
-        if (!uniforms) {
-          return fail(reason, QStringLiteral("WebGPU could not allocate compositor uniforms"));
-        }
-        wgpuQueueWriteBuffer(queue_.get(), uniforms.get(), 0, &params, sizeof(params));
+        auto& cached = layer_resource_cache_.at(layer.id);
+        wgpuQueueWriteBuffer(queue_.get(), cached.uniforms.get(), 0, &params, sizeof(params));
 
         WGPUBindGroupEntry bindings[5] = {};
         for (uint32_t index = 0; index < 5; ++index) {
           bindings[index] = WGPU_BIND_GROUP_ENTRY_INIT;
           bindings[index].binding = index;
         }
-        bindings[0].buffer = uniforms.get();
+        bindings[0].buffer = cached.uniforms.get();
         bindings[0].size = sizeof(params);
-        bindings[1].textureView = layer.source.view.get();
+        bindings[1].textureView = cached.source.view.get();
         bindings[2].textureView = backdrop.view.get();
-        bindings[3].textureView = layer.mask.view.get();
+        bindings[3].textureView = cached.mask.view.get();
         bindings[4].textureView = target.view.get();
         WGPUBindGroupDescriptor bind_group_descriptor = WGPU_BIND_GROUP_DESCRIPTOR_INIT;
         bind_group_descriptor.layout = bind_group_layout_.get();
@@ -700,6 +756,7 @@ public:
         if (!wait_for_queue(reason)) {
           return false;
         }
+        recycle_scratch_texture(std::move(backdrop));
         backdrop = std::move(target);
       }
 
@@ -707,18 +764,23 @@ public:
       if (!readback_tile(backdrop, tile_size, tile)) {
         return false;
       }
+      recycle_scratch_texture(std::move(backdrop));
       for (int y = 0; y < tile_rect.height; ++y) {
         std::memcpy(result.scanLine(tile_rect.y + y) + static_cast<qsizetype>(tile_rect.x) * kBytesPerPixel,
                     tile.constScanLine(y), static_cast<size_t>(tile_rect.width) * kBytesPerPixel);
       }
     }
 
+    last_metrics_.composition_time_ns = static_cast<std::uint64_t>(
+        std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - composition_start)
+            .count());
     output = std::move(result);
     return true;
   }
 
   [[nodiscard]] QString adapter_name() const { return adapter_name_; }
   [[nodiscard]] QString native_backend_name() const { return native_backend_name_; }
+  [[nodiscard]] WebGpuCompositionMetrics last_metrics() const noexcept { return last_metrics_; }
 
 private:
   bool fail(QString* reason, QString value) {
@@ -840,6 +902,46 @@ private:
     return bytes;
   }
 
+  TextureData acquire_scratch_texture(QSize size, QString* reason) {
+    auto& pool = scratch_texture_pool_[texture_size_key(size)];
+    if (!pool.empty()) {
+      auto result = std::move(pool.back());
+      pool.pop_back();
+      ++last_metrics_.scratch_texture_reuses;
+      return result;
+    }
+    return create_texture(size, WGPUTextureFormat_RGBA8Unorm,
+                          WGPUTextureUsage_StorageBinding | WGPUTextureUsage_TextureBinding |
+                              WGPUTextureUsage_CopyDst | WGPUTextureUsage_CopySrc,
+                          reason);
+  }
+
+  void recycle_scratch_texture(TextureData texture) {
+    if (texture.texture && texture.view) {
+      scratch_texture_pool_[texture_size_key(texture.size)].push_back(std::move(texture));
+    }
+  }
+
+  BufferHandle acquire_readback_buffer(std::size_t size) {
+    auto& pool = readback_buffer_pool_[size];
+    if (!pool.empty()) {
+      auto result = std::move(pool.back());
+      pool.pop_back();
+      ++last_metrics_.readback_buffer_reuses;
+      return result;
+    }
+    WGPUBufferDescriptor descriptor = WGPU_BUFFER_DESCRIPTOR_INIT;
+    descriptor.usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_MapRead;
+    descriptor.size = size;
+    return BufferHandle(wgpuDeviceCreateBuffer(device_.get(), &descriptor));
+  }
+
+  void recycle_readback_buffer(std::size_t size, BufferHandle buffer) {
+    if (buffer) {
+      readback_buffer_pool_[size].push_back(std::move(buffer));
+    }
+  }
+
   bool write_texture(WGPUTexture texture, const QByteArray& bytes, QSize size, WGPUTextureFormat format,
                      QString* reason) {
     const uint32_t channels = format == WGPUTextureFormat_R8Unorm ? 1U : 4U;
@@ -888,6 +990,10 @@ private:
   ComputePipelineHandle pipeline_;
   QString adapter_name_;
   QString native_backend_name_;
+  WebGpuCompositionMetrics last_metrics_;
+  std::unordered_map<std::uint64_t, CachedLayerResources> layer_resource_cache_;
+  std::unordered_map<std::uint64_t, std::vector<TextureData>> scratch_texture_pool_;
+  std::unordered_map<std::size_t, std::vector<BufferHandle>> readback_buffer_pool_;
 };
 
 }  // namespace
@@ -1000,6 +1106,15 @@ bool WebGpuDocumentCompositor::compose_tiles(const CanvasGpuDocument& document,
     *failure_reason = QStringLiteral("Dawn/WebGPU was not found at configure time");
   }
   return false;
+#endif
+}
+
+WebGpuCompositionMetrics WebGpuDocumentCompositor::last_metrics() const noexcept {
+#ifdef PATCHY_WEBGPU_AVAILABLE
+  return implementation_ != nullptr ? static_cast<WebGpuImplementation*>(implementation_)->last_metrics()
+                                    : WebGpuCompositionMetrics{};
+#else
+  return {};
 #endif
 }
 

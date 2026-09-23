@@ -53,6 +53,7 @@ public:
   [[nodiscard]] std::size_t last_submitted_pass_count() const noexcept;
   [[nodiscard]] std::size_t last_rendered_tile_count() const noexcept;
   [[nodiscard]] std::size_t last_readback_bytes() const noexcept;
+  [[nodiscard]] WebGpuCompositionMetrics last_composition_metrics() const noexcept;
 
 private:
   bool fail(patchy::GpuBackendState state, QString reason, QString* failure_reason = nullptr);
@@ -64,6 +65,7 @@ private:
   std::size_t last_submitted_pass_count_{0};
   std::size_t last_rendered_tile_count_{0};
   std::size_t last_readback_bytes_{0};
+  WebGpuCompositionMetrics last_composition_metrics_{};
 };
 
 }  // namespace patchy::ui

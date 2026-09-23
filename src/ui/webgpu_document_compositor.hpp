@@ -6,9 +6,23 @@
 #include <QImage>
 #include <QString>
 
+#include <cstddef>
+#include <cstdint>
 #include <memory>
 
 namespace patchy::ui {
+
+struct WebGpuCompositionMetrics {
+  std::size_t source_upload_bytes{0};
+  std::size_t mask_upload_bytes{0};
+  std::size_t clear_upload_bytes{0};
+  std::size_t source_texture_reuses{0};
+  std::size_t mask_texture_reuses{0};
+  std::size_t scratch_texture_reuses{0};
+  std::size_t uniform_buffer_reuses{0};
+  std::size_t readback_buffer_reuses{0};
+  std::uint64_t composition_time_ns{0};
+};
 
 // Dawn is an optional document-composition backend. Qt Quick remains the
 // presentation backend because Qt RHI does not expose WebGPU as a GraphicsApi.
@@ -40,6 +54,7 @@ public:
                                    const patchy::GpuTileRenderPlan& plan,
                                    const QImage* previous_frame, QImage& output,
                                    QString* failure_reason = nullptr);
+  [[nodiscard]] WebGpuCompositionMetrics last_metrics() const noexcept;
 
 private:
   explicit WebGpuDocumentCompositor(void* implementation);

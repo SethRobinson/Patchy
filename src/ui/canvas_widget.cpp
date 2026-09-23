@@ -533,6 +533,9 @@ bool CanvasWidget::build_gpu_document(CanvasGpuDocument& result, QString* reject
     CanvasGpuLayer gpu_layer;
     gpu_layer.id = layer.id();
     gpu_layer.revision = layer.render_revision();
+    gpu_layer.pixel_revision = layer.pixel_revision();
+    gpu_layer.content_revision = layer.content_revision();
+    gpu_layer.mask_revision = layer.mask_revision();
     gpu_layer.image = qimage_from_pixel_buffer(layer.pixels());
     const QRectF document_rect(layer.bounds().x, layer.bounds().y, layer.bounds().width, layer.bounds().height);
     gpu_layer.document_rect = document_rect;
