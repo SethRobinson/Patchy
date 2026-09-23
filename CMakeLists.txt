@@ -46,12 +46,21 @@ option(PATCHY_ENABLE_GPU_CANVAS
        "Compile the automatic OpenGL canvas backend"
        ${PATCHY_GPU_CANVAS_DEFAULT})
 
+option(PATCHY_ENABLE_WEBGPU
+       "Discover and use an optional Dawn/WebGPU document compositor when available"
+       ON)
+set(PATCHY_DAWN_PREFIX "" CACHE PATH "Optional installed Dawn prefix; never downloads Dawn")
+set(PATCHY_DAWN_ROOT "" CACHE PATH "Optional local Dawn workspace containing install/<config> prefixes")
+
 if(PATCHY_ENABLE_GPU_CANVAS AND EMSCRIPTEN)
   message(FATAL_ERROR
           "PATCHY_ENABLE_GPU_CANVAS is currently supported only by desktop Qt builds")
 endif()
 
 set(PATCHY_GPU_CANVAS_AVAILABLE OFF)
+
+set(PATCHY_WEBGPU_AVAILABLE OFF)
+set(PATCHY_WEBGPU_TARGET "")
 
 
 
@@ -634,6 +643,52 @@ if(PATCHY_BUILD_APP)
               "Qt OpenGLWidgets was not found; using the automatic CPU canvas backend")
     endif()
   endif()
+  if(PATCHY_ENABLE_WEBGPU AND PATCHY_GPU_CANVAS_AVAILABLE AND NOT EMSCRIPTEN)
+    # Dawn is deliberately an external optional dependency. A machine without
+    # Dawn keeps the same Patchy binary and uses the Qt RHI/CPU compositor.
+    set(PATCHY_DAWN_PACKAGE_HINTS)
+    if(PATCHY_DAWN_PREFIX)
+      list(APPEND PATCHY_DAWN_PACKAGE_HINTS "${PATCHY_DAWN_PREFIX}")
+    endif()
+    if(PATCHY_DAWN_ROOT)
+      file(GLOB _PATCHY_DAWN_LOCAL_PREFIXES LIST_DIRECTORIES true
+        "${PATCHY_DAWN_ROOT}/install/*")
+      list(APPEND PATCHY_DAWN_PACKAGE_HINTS ${_PATCHY_DAWN_LOCAL_PREFIXES})
+    endif()
+    if(PATCHY_DAWN_PACKAGE_HINTS)
+      list(REMOVE_DUPLICATES PATCHY_DAWN_PACKAGE_HINTS)
+      message(STATUS "Searching optional Dawn packages in: ${PATCHY_DAWN_PACKAGE_HINTS}")
+      find_package(Dawn CONFIG QUIET HINTS ${PATCHY_DAWN_PACKAGE_HINTS})
+    else()
+      find_package(Dawn CONFIG QUIET)
+    endif()
+    if(NOT TARGET dawn::webgpu_dawn AND NOT TARGET Dawn::webgpu_dawn AND NOT TARGET webgpu_dawn)
+      if(PATCHY_DAWN_PACKAGE_HINTS)
+        find_package(webgpu_dawn CONFIG QUIET HINTS ${PATCHY_DAWN_PACKAGE_HINTS})
+      else()
+        find_package(webgpu_dawn CONFIG QUIET)
+      endif()
+    endif()
+    if(TARGET dawn::webgpu_dawn)
+      set(PATCHY_WEBGPU_TARGET dawn::webgpu_dawn)
+      set(PATCHY_WEBGPU_AVAILABLE ON)
+    elseif(TARGET Dawn::webgpu_dawn)
+      set(PATCHY_WEBGPU_TARGET Dawn::webgpu_dawn)
+      set(PATCHY_WEBGPU_AVAILABLE ON)
+    elseif(TARGET webgpu_dawn)
+      set(PATCHY_WEBGPU_TARGET webgpu_dawn)
+      set(PATCHY_WEBGPU_AVAILABLE ON)
+    else()
+      if(PATCHY_DAWN_PACKAGE_HINTS)
+        message(STATUS "Dawn/WebGPU was not found in the configured local prefixes; automatic WebGPU document composition is disabled")
+      else()
+        message(STATUS "Dawn/WebGPU was not found; automatic WebGPU document composition is disabled")
+      endif()
+    endif()
+    if(PATCHY_WEBGPU_AVAILABLE)
+      message(STATUS "Dawn/WebGPU found: ${PATCHY_WEBGPU_TARGET}")
+    endif()
+  endif()
   # Qt PDF is optional: a stock Qt install does not carry it and Qt publishes no
   # WebAssembly build of it at all. Absent, patchy_ui compiles src/ui/pdf_import_stub.cpp
   # and Patchy still EXPORTS PDF (QPdfWriter is QtGui), it just cannot open one.
@@ -1025,6 +1080,12 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/brush_tip_manager_dialog.cpp
       src/ui/brush_tip_picker.hpp
       src/ui/brush_tip_picker.cpp
+      src/ui/canvas_graphics_surface.hpp
+      src/ui/canvas_graphics_surface.cpp
+      src/ui/webgpu_document_compositor.hpp
+      src/ui/webgpu_document_compositor.cpp
+      src/ui/webgpu_render_backend.hpp
+      src/ui/webgpu_render_backend.cpp
       src/ui/canvas_widget.hpp
       src/ui/canvas_widget.cpp
       src/ui/canvas_widget_shared.hpp
@@ -1434,6 +1495,10 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
     if(PATCHY_GPU_CANVAS_AVAILABLE)
       target_link_libraries(patchy_ui PUBLIC Qt6::OpenGLWidgets)
       target_compile_definitions(patchy_ui PUBLIC PATCHY_GPU_CANVAS=1)
+    endif()
+    if(PATCHY_WEBGPU_AVAILABLE)
+      target_link_libraries(patchy_ui PRIVATE ${PATCHY_WEBGPU_TARGET})
+      target_compile_definitions(patchy_ui PRIVATE PATCHY_WEBGPU_AVAILABLE=1)
     endif()
     patchy_configure_target(patchy_ui)
 

@@ -152,3 +152,9 @@ a physical GPU was used. A future benchmark must compare native `render_gpu()` a
 speedup. Zero-copy presentation, complete filter shaders, HDR/16-bit paths, and
 native device-loss recovery require real platform validation after their contracts
 and equivalence tests are implemented.
+
+The current Dawn bridge is a correctness boundary, not a throughput optimization:
+it validates the full tile graph and then uses the existing complete-document
+compute compositor with one readback. Benchmark results must therefore identify
+whether they measure Qt RHI presentation, Dawn document composition, or the CPU
+reference. Per-tile native execution and readback reduction remain separate work.
