@@ -139,13 +139,16 @@ The sampler tracks the number WebKit's kill policy watches: per-process `footpri
 
 iOS device runs use the beta deploy (`scripts\release\upload-wasm-to-rtsoft-beta.bat` publishes the same staged site plus the harness to https://www.rtsoft.com/patchy-beta/; an iPhone needs real https for SharedArrayBuffer, a LAN http server cannot boot the threaded build ). Walk the memory knobs on the device against `stress-harness.html`; the black-box banner attributes deaths to a load stage. One-time device step: Settings > Apps > Safari > Advanced > Web Inspector ON (inspect from the mac build host's Safari Develop menu). After a death, fetch jetsam logs from the mac build host: `xcrun devicectl device copy from --device "<name>" --domain-type systemCrashLogs --source . --destination <dir>`, then read the newest JetsamEvent-*.ips: `per-process-limit` with a footprint near the chosen cap means the shared maximum was committed eagerly; `vm-pageshortage` well below limits means a transient spike (module compile or pool spawn).
 
-## Hardware-agnostic GPU planning
+## Hardware-agnostic GPU planning and equivalence
 
 The render graph, dirty-region coalescing, tile invalidation, and fake device
 contracts are documented in [Hardware-agnostic GPU render graph](gpu-render-graph.md).
-They are useful optimization infrastructure, but they are not a performance
-measurement and do not imply that a physical GPU was used. A future benchmark
-must compare `render_cpu()` and `render_gpu()` on the same scene, format, and
-document revision before claiming a speedup. Zero-copy presentation, complete
-filter shaders, HDR/16-bit paths, and native device-loss recovery require real
-platform validation after their contracts and equivalence tests are implemented.
+The current `compare_pixel_buffers()` policy and fake tiled renderer establish the
+first structured `render_cpu()` versus `render_gpu()` comparison, but the fake path
+still calls the CPU compositor for tile contents. They are useful correctness and
+invalidation infrastructure, not a performance measurement, and do not imply that
+a physical GPU was used. A future benchmark must compare native `render_gpu()` and
+`render_cpu()` on the same scene, format, and document revision before claiming a
+speedup. Zero-copy presentation, complete filter shaders, HDR/16-bit paths, and
+native device-loss recovery require real platform validation after their contracts
+and equivalence tests are implemented.

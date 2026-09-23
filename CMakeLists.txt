@@ -166,7 +166,9 @@ add_library(patchy_render
   src/render/dirty_region.cpp
   src/render/gpu_document_capabilities.cpp
   src/render/gpu_render_graph.cpp
+  src/render/gpu_tile_scheduler.cpp
   src/render/layer_style_mask_ops.cpp
+  src/render/pixel_comparison.cpp
   src/render/tile_cache.cpp
 )
 # flatten_rgb8 composites large documents in parallel strips (std::async).
