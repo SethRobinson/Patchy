@@ -37,6 +37,12 @@ The current `FakeGpuBackend` records pass ids and simulates loss/recovery. It ex
 
 The render graph is not permission to replace the CPU authority prematurely. A native backend must compare `render_cpu()` and `render_gpu()` on the same bounded scene and format, with a declared tolerance for display previews and exact byte identity for export paths. A graph pass may be promoted only after its inputs, blend equations, color space, alpha convention, clipping behavior, and invalidation bounds have an equivalence test.
 
+## Dawn bridge
+
+When `PATCHY_ENABLE_WEBGPU=ON` finds the pinned Dawn package, `WebGpuRenderBackend` connects the existing real WebGPU compositor to this contract. For each fresh document frame it builds the full mip-0 tile plan, validates the graph's dependency order, and records the accepted pass count before invoking Dawn's compute composition. Dawn still performs one complete-document composition and one readback at this stage; the graph is the validated scheduling boundary, not yet a pass-by-pass native executor.
+
+The bridge is intentionally all-or-nothing. Adapter creation, graph validation, queue composition, readback, or device recovery may fail without publishing a partial frame. The caller then keeps the individual Qt RHI layers or the CPU compositor. A successful Dawn frame is presented by the existing Qt Quick surface, so this step does not add a second window, input path, or mandatory WebGPU dependency.
+
 Zero-copy presentation, shader implementations of all Photoshop filters, HDR/16-bit output, native device-loss recovery, and real GPU tile execution remain later milestones. The tile scheduler, comparison policy, and logical recovery path can now be developed against the fake backend first. Native validation on Intel, AMD, NVIDIA, macOS, and Windows is still required before those paths are advertised as production capabilities.
 
 ## Validation
