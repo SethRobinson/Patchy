@@ -304,11 +304,13 @@ void CanvasWidget::initialize_webgpu_compositor() {
   if (!WebGpuDocumentCompositor::should_try_automatically()) {
     return;
   }
-  QString reason;
-  webgpu_compositor_ = WebGpuDocumentCompositor::create(&reason);
-  if (webgpu_compositor_ == nullptr && !reason.isEmpty()) {
+  auto backend = std::make_unique<WebGpuRenderBackend>();
+  if (!backend->initialize()) {
+    const auto reason = QString::fromStdString(std::string(backend->last_error()));
     qInfo().noquote() << "Patchy WebGPU document compositor unavailable; using Qt RHI/CPU fallback:" << reason;
+    return;
   }
+  webgpu_compositor_ = std::move(backend);
 }
 
 void CanvasWidget::initialize_graphics_canvas() {
@@ -398,6 +400,19 @@ void CanvasWidget::render_graphics_canvas_frame() {
   }
 
   if (webgpu_compositor_ != nullptr) {
+    if (webgpu_compositor_->state() != patchy::GpuBackendState::Ready &&
+        !webgpu_compositor_->recover()) {
+      const auto reason = QString::fromStdString(std::string(webgpu_compositor_->last_error()));
+      if (!reason.isEmpty() && reason != last_gpu_fallback_reason_) {
+        last_gpu_fallback_reason_ = reason;
+        qInfo().noquote() << "Patchy WebGPU document compositor could not recover; using Qt RHI/CPU fallback:"
+                          << reason;
+      }
+      webgpu_compositor_.reset();
+    }
+  }
+
+  if (webgpu_compositor_ != nullptr) {
     const auto cache_key = webgpu_document_key(document);
     QString webgpu_reason;
     if (cache_key == webgpu_frame_cache_key_ && !webgpu_frame_cache_.isNull()) {
@@ -417,7 +432,8 @@ void CanvasWidget::render_graphics_canvas_frame() {
         webgpu_compositor_reported_ = true;
         qInfo().noquote() << "Patchy WebGPU document compositor active on"
                           << webgpu_compositor_->adapter_name() << "via"
-                          << webgpu_compositor_->native_backend_name();
+                          << webgpu_compositor_->native_backend_name()
+                          << "; render-graph passes:" << webgpu_compositor_->last_submitted_pass_count();
       }
     } else if (!webgpu_reason.isEmpty() && webgpu_reason != last_gpu_fallback_reason_) {
       qInfo().noquote() << "Patchy WebGPU document compositor failed; using Qt RHI/CPU document fallback:"

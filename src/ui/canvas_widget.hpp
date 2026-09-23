@@ -17,7 +17,7 @@
 #include "ui/measurement_units.hpp"
 #include "ui/selection_outline.hpp"
 #include "ui/vector_preview_renderer.hpp"
-#include "ui/webgpu_document_compositor.hpp"
+#include "ui/webgpu_render_backend.hpp"
 
 #include <QBasicTimer>
 #include <QBrush>
@@ -1320,7 +1320,7 @@ private:
   void request_graphics_canvas_update(const QRegion& region);
   [[nodiscard]] bool build_gpu_document(CanvasGpuDocument& document, QString* rejection_reason = nullptr) const;
   void paint_gpu_overlay(QPainter& painter, QRect exposed_rect);
-  std::unique_ptr<WebGpuDocumentCompositor> webgpu_compositor_;
+  std::unique_ptr<WebGpuRenderBackend> webgpu_compositor_;
   QImage webgpu_frame_cache_;
   std::uint64_t webgpu_frame_cache_key_{0};
   bool webgpu_compositor_reported_{false};
