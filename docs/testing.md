@@ -215,6 +215,7 @@ Useful diagnostic variables:
 
 - `PATCHY_NO_SINGLE_INSTANCE=1` allows multiple instances.
 - `patchy_core_tests` also validates the hardware-agnostic GPU foundation: dirty-region coalescing, tile invalidation by mip, deterministic render-graph ordering, cycle and multiple-writer rejection, explicit RGB8 comparison tolerances, CPU-equivalent tiled rendering, bounded dirty-tile updates, and fake-backend device-loss recovery. These tests do not open a window, download Dawn, or require a graphics adapter; see [Hardware-agnostic GPU render graph](gpu-render-graph.md).
+- The optional UI build also compiles `WebGpuRenderBackend` when Dawn is absent. With a real Dawn prefix, an explicit `PATCHY_RENDER_BACKEND=webgpu` or `auto` run exercises the graph gate followed by the existing Dawn compute compositor. Confirm `Patchy WebGPU document compositor active on ... via ...` before treating the real backend as exercised. A missing package, failed graph submission, queue error, readback error, or recovery failure is expected to fall back without changing CPU-authoritative tests.
 - `PATCHY_FAKE_SCANNER_FILE=<path>` bypasses native scanner acquisition in tests.
 - `PATCHY_REV_TRACE=1` logs revision bumps.
 - `PATCHY_ZOOM_TRACE=1` logs paint and zoom phases over 2 ms.
