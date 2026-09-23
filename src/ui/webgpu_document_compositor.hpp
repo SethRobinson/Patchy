@@ -1,5 +1,6 @@
 #pragma once
 
+#include "render/gpu_tile_scheduler.hpp"
 #include "ui/canvas_graphics_surface.hpp"
 
 #include <QImage>
@@ -31,6 +32,14 @@ public:
   // all-or-nothing contract is intentional: a failed composition never mixes
   // partially composed GPU layers with the CPU reference compositor.
   [[nodiscard]] bool compose(const CanvasGpuDocument& document, QImage& output, QString* failure_reason = nullptr);
+
+  // Executes only the mip-0 tiles in `plan`. When `previous_frame` has the
+  // document dimensions, untouched tiles are copied from it and the output is
+  // committed only after every requested tile has been read back successfully.
+  [[nodiscard]] bool compose_tiles(const CanvasGpuDocument& document,
+                                   const patchy::GpuTileRenderPlan& plan,
+                                   const QImage* previous_frame, QImage& output,
+                                   QString* failure_reason = nullptr);
 
 private:
   explicit WebGpuDocumentCompositor(void* implementation);

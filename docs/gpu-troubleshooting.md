@@ -43,10 +43,17 @@ The diagnostic line for the selected Qt path has this shape:
 Patchy graphics backend: <API>, adapter: <vendor and renderer>, hardware acceleration: yes
 ```
 
-The diagnostic line for an active Dawn path has this shape:
+The initialization line for a Dawn path has this shape:
 
 ```text
 Patchy WebGPU document compositor: <adapter>, native API: <API>
+```
+
+After a document is successfully composed, the active-path line also reports
+the graph and transfer metrics:
+
+```text
+Patchy WebGPU document compositor active on <adapter> via <API>; render-graph passes: <n>; tiles: <n>; readback bytes: <n>
 ```
 
 A document-level fallback has this shape:
@@ -178,7 +185,7 @@ The `webgpu` value is a preference, not a guarantee. The following outcomes are 
 - the document is outside the capability matrix: the complete document stays on CPU;
 - a clipped layer is present: the current GPU tier rejects the document and keeps the authoritative CPU compositor;
 - an interactive preview or non-content channel is active: Patchy stays on the CPU compositor;
-- device, shader, queue, or readback initialization fails: the complete frame falls back to Qt RHI or CPU.
+- device, shader, queue, tile composition, or regional readback fails: the complete frame falls back atomically to Qt RHI or CPU.
 
 Confirm the build flag before debugging the runtime:
 
