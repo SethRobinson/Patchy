@@ -236,6 +236,11 @@ WebGpuCompositionMetrics WebGpuRenderBackend::last_composition_metrics() const n
   return last_composition_metrics_;
 }
 
+DawnVulkanInteropObservation WebGpuRenderBackend::vulkan_interop_observation() const noexcept {
+  return compositor_ != nullptr ? compositor_->vulkan_interop_observation()
+                                : DawnVulkanInteropObservation{};
+}
+
 bool WebGpuRenderBackend::fail(patchy::GpuBackendState state, QString reason, QString* failure_reason) {
   state_ = state;
   last_error_ = reason.toStdString();

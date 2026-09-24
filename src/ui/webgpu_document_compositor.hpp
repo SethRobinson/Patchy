@@ -2,6 +2,7 @@
 
 #include "render/gpu_tile_scheduler.hpp"
 #include "ui/canvas_graphics_surface.hpp"
+#include "ui/vulkan_qt_interop_probe.hpp"
 
 #include <QImage>
 #include <QString>
@@ -58,6 +59,7 @@ public:
                                    const QImage* previous_frame, QImage& output,
                                    QString* failure_reason = nullptr);
   [[nodiscard]] WebGpuCompositionMetrics last_metrics() const noexcept;
+  [[nodiscard]] DawnVulkanInteropObservation vulkan_interop_observation() const noexcept;
 
 private:
   explicit WebGpuDocumentCompositor(void* implementation);
