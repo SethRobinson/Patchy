@@ -16,6 +16,7 @@
 
 class QPainter;
 class QQuickWidget;
+class QQuickWindow;
 class QResizeEvent;
 
 namespace patchy::ui {
@@ -97,6 +98,7 @@ public:
   void clear_gpu_document();
   void request_update(const QRegion& region);
   void set_overlay_painter(std::function<void(QPainter&, QRect)> painter);
+  void set_render_thread_probe(std::function<void(QQuickWindow*)> probe);
 
 signals:
   void ready(CanvasGraphicsApi api);

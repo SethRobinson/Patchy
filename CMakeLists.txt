@@ -52,6 +52,9 @@ option(PATCHY_ENABLE_WEBGPU
 option(PATCHY_BUILD_WEBGPU_VALIDATION_TESTS
        "Build manual hardware-backed Dawn/CPU equivalence checks"
        OFF)
+option(PATCHY_ENABLE_VULKAN_QT_INTEROP_PROBE
+       "Build the opt-in Vulkan/Qt RHI interop observation probe"
+       OFF)
 set(PATCHY_DAWN_PREFIX "" CACHE PATH "Optional installed Dawn prefix; never downloads Dawn")
 set(PATCHY_DAWN_ROOT "" CACHE PATH "Optional local Dawn workspace containing install/<config> prefixes")
 
@@ -64,6 +67,7 @@ set(PATCHY_GPU_CANVAS_AVAILABLE OFF)
 
 set(PATCHY_WEBGPU_AVAILABLE OFF)
 set(PATCHY_WEBGPU_TARGET "")
+set(PATCHY_VULKAN_QT_INTEROP_AVAILABLE OFF)
 
 
 
@@ -691,6 +695,23 @@ if(PATCHY_BUILD_APP)
     endif()
     if(PATCHY_WEBGPU_AVAILABLE)
       message(STATUS "Dawn/WebGPU found: ${PATCHY_WEBGPU_TARGET}")
+    endif()
+    if(PATCHY_ENABLE_VULKAN_QT_INTEROP_PROBE AND PATCHY_WEBGPU_AVAILABLE AND PATCHY_GPU_CANVAS_AVAILABLE AND
+       NOT EMSCRIPTEN)
+      # QSGRendererInterface is public Qt API and exposes the Vulkan device,
+      # queue, physical device, and instance during scene-graph rendering.
+      # Dawn's native Vulkan header remains opt-in; the normal WebGPU build
+      # keeps only the readback presentation path.
+      find_path(PATCHY_DAWN_VULKAN_BACKEND_HEADER
+        NAMES dawn/native/VulkanBackend.h
+        HINTS "${PATCHY_DAWN_PREFIX}" ${PATCHY_DAWN_PACKAGE_HINTS}
+        PATH_SUFFIXES include)
+      if(PATCHY_DAWN_VULKAN_BACKEND_HEADER)
+        set(PATCHY_VULKAN_QT_INTEROP_AVAILABLE ON)
+        message(STATUS "Vulkan/Qt RHI interop probe enabled (opt-in diagnostic only)")
+      else()
+        message(STATUS "Vulkan/Qt RHI interop probe unavailable; keeping the readback presentation path")
+      endif()
     endif()
   endif()
   # Qt PDF is optional: a stock Qt install does not carry it and Qt publishes no
@@ -1503,6 +1524,14 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
     if(PATCHY_WEBGPU_AVAILABLE)
       target_link_libraries(patchy_ui PRIVATE ${PATCHY_WEBGPU_TARGET})
       target_compile_definitions(patchy_ui PRIVATE PATCHY_WEBGPU_AVAILABLE=1)
+    endif()
+    if(PATCHY_VULKAN_QT_INTEROP_AVAILABLE)
+      target_sources(patchy_ui PRIVATE
+        src/ui/vulkan_qt_interop_probe.hpp
+        src/ui/vulkan_qt_interop_probe.cpp)
+      target_compile_definitions(patchy_ui PRIVATE
+        PATCHY_VULKAN_QT_INTEROP_PROBE=1
+        PATCHY_DAWN_NATIVE_AVAILABLE=1)
     endif()
     patchy_configure_target(patchy_ui)
 
