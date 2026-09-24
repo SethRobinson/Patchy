@@ -235,14 +235,18 @@ The probe is deliberately opt-in and diagnostic. Build with
 `PATCHY_VULKAN_QT_INTEROP_PROBE=1`, and force `QSG_RHI_BACKEND=vulkan` on a
 native desktop session. The report observes Qt's Vulkan device, queue,
 physical device, and instance from the scene-graph render thread. It also
-reports whether Dawn exposed its native Vulkan instance and whether the two
-instances match.
+reports Qt's vendor/device identity, whether Dawn exposed its native Vulkan
+instance and adapter identity, and whether the two instances or adapter
+identities match. An adapter-identity match means that both APIs selected the
+same physical GPU; it does not mean that their `VkDevice` objects can be used
+interchangeably.
 
 The expected current result is `zero-copy remains disabled`. Qt resource
-visibility alone is insufficient: the current Dawn compositor creates a
-separate device, does not export a compatible image allocation for Qt, and
-does not establish external semaphore or queue-ownership synchronization.
-The probe never imports, retains, destroys, or publishes a native resource.
+visibility alone is insufficient. The current Dawn compositor creates a
+separate device, Qt does not export a compatible image allocation for this
+path, and the bridge does not establish external semaphore or queue-ownership
+synchronization. The probe never imports, retains, destroys, or publishes a
+native resource.
 Regional Dawn readback followed by Qt Quick `QImage` presentation remains the
 only active path. A future bridge may change this only after all three gate
 conditions—shared device, verified native texture import, and explicit

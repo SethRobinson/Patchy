@@ -86,5 +86,13 @@ grep -Fq 'compose_incremental(const CanvasGpuDocument& document' \
   "$REPO_ROOT/src/ui/webgpu_render_backend.cpp"
 grep -Fq 'last_readback_bytes_' \
   "$REPO_ROOT/src/ui/webgpu_render_backend.cpp"
+grep -Fq 'adapter_vendor_id_ = info.vendorID' \
+  "$REPO_ROOT/src/ui/webgpu_document_compositor.cpp"
+grep -Fq 'observation.external_image_api_available = true' \
+  "$REPO_ROOT/src/ui/webgpu_document_compositor.cpp"
+grep -Fq 'adapter-match=%12' \
+  "$REPO_ROOT/src/ui/vulkan_qt_interop_probe.cpp"
+grep -Fq 'native-device-adoption=no' \
+  "$REPO_ROOT/src/ui/vulkan_qt_interop_probe.cpp"
 
 echo 'Dawn helper syntax and lock checks passed'
