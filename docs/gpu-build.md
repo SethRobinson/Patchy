@@ -257,6 +257,7 @@ CMake options describe compiled capabilities, not a promise that a particular ma
 | Qt Quick available, ShaderTools missing | The texture-only Qt RHI tier remains available. Shader-tier documents use CPU. |
 | Qt Quick and ShaderTools available, Dawn missing | Qt RHI and CPU paths are available. WebGPU is unavailable. |
 | Qt Quick, ShaderTools, and Dawn available | Qt RHI, shader-tier, WebGPU, and CPU fallback paths are compiled. Runtime capability checks still decide which path is used. |
+| Vulkan/Qt interop probe enabled but Dawn's native Vulkan header missing | The probe is omitted; WebGPU readback and Qt Quick presentation remain unchanged. |
 
 The presence of `PATCHY_ENABLE_GPU_CANVAS=ON` in `CMakeCache.txt` does not prove that Qt Quick was found. Confirm the target and compile definition in the generated build files when necessary. The shader baker output may be embedded in generated Qt resources instead of appearing as a standalone `.qsb` file in the build directory.
 
@@ -360,6 +361,50 @@ throughput improvement. The metrics also report queue submissions and waits;
 the target is one of each per non-empty full or dirty plan, even when that plan
 contains multiple tiles. The assembled frame is still copied to a CPU-readable
 `QImage` for Qt Quick presentation.
+
+## Opt-in Vulkan/Qt RHI interop probe
+
+The repository also contains an opt-in diagnostic for the next zero-copy milestone. Enable
+`PATCHY_ENABLE_VULKAN_QT_INTEROP_PROBE=ON` only with the pinned Dawn installation produced by
+`scripts/build-dawn.sh`. The option adds the Dawn Vulkan native header and a render-thread probe;
+it does not change the normal WebGPU target, download dependencies, import a texture, or publish a
+native resource.
+
+```sh
+cmake --preset linux-release \
+  -DPATCHY_ENABLE_WEBGPU=ON \
+  -DPATCHY_ENABLE_VULKAN_QT_INTEROP_PROBE=ON \
+  -DPATCHY_DAWN_PREFIX="$PWD/.deps/dawn/install/release"
+cmake --build --preset linux-release --target patchy -j6
+```
+
+Run it only on a native desktop session. `QSG_RHI_BACKEND=vulkan` selects Vulkan for Qt Quick,
+while `PATCHY_RENDER_BACKEND=webgpu` leaves Dawn responsible for the document compositor:
+
+```sh
+if timeout 30s env \
+  PATCHY_NO_SINGLE_INSTANCE=1 \
+  PATCHY_RENDER_BACKEND=webgpu \
+  QSG_RHI_BACKEND=vulkan \
+  PATCHY_VULKAN_QT_INTEROP_PROBE=1 \
+  ./build/linux-release/patchy test-fixtures/af/tiny-rgba8.af \
+  2>&1 | tee /tmp/patchy-vulkan-interop.log
+then
+  echo "Vulkan/Qt RHI interop probe finished."
+else
+  probe_status=$?
+  echo "Vulkan/Qt RHI interop probe failed or timed out: $probe_status"
+fi
+echo "Terminal remains open."
+```
+
+The report observes Qt's Vulkan device, queue, physical device, and instance on the scene-graph
+render thread and compares the Dawn Vulkan instance when the native Dawn target is available. The
+current result must remain ineligible: Dawn creates its own device, the compositor does not export
+a compatible image allocation for Qt, and no external semaphore or queue-ownership protocol has
+been installed. A `zero-copy remains disabled` line is therefore the correct result. The regional
+readback and Qt Quick `QImage` path remain the only published path until a future bridge proves
+shared-device ownership, native texture import, and synchronization together.
 
 The zero-copy interop contract is validated by the ordinary core build; it does
 not enable a native bridge or require a graphics device. Run the focused check

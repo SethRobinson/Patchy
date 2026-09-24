@@ -29,7 +29,9 @@ void CanvasGraphicsSurface::request_update(const QRegion& region) {
 void CanvasGraphicsSurface::set_overlay_painter(std::function<void(QPainter&, QRect)> painter) {
   Q_UNUSED(painter);
 }
-
+void CanvasGraphicsSurface::set_render_thread_probe(std::function<void(QQuickWindow*)> probe) {
+  Q_UNUSED(probe);
+}
 void CanvasGraphicsSurface::resizeEvent(QResizeEvent* event) {
   QWidget::resizeEvent(event);
 }
@@ -53,6 +55,7 @@ void CanvasGraphicsSurface::resizeEvent(QResizeEvent* event) {
 #include <QQuickWindow>
 #include <QQuickWidget>
 #include <QSGRendererInterface>
+#include <QSGRenderNode>
 #include <QSGSimpleTextureNode>
 #include <QSGNode>
 #include <QTimer>
@@ -425,6 +428,72 @@ SceneGraphProbe probe_scene_graph(QQuickWindow* window) {
 
 class CanvasGraphicsSurface::QuickCanvasItem final : public QQuickItem {
 public:
+  class RenderProbeNode final : public QSGRenderNode {
+  public:
+    void set_probe(QQuickWindow* window, std::function<void(QQuickWindow*)> probe) {
+      const bool first_probe = probe_ == nullptr || window_ != window;
+      window_ = window;
+      probe_ = std::move(probe);
+      if (first_probe) {
+        fired_ = false;
+      }
+    }
+
+    StateFlags changedStates() const override { return {}; }
+
+    void render(const RenderState*) override {
+      if (fired_ || !probe_) {
+        return;
+      }
+      fired_ = true;
+      probe_(window_);
+    }
+
+    RenderingFlags flags() const override { return BoundedRectRendering; }
+    QRectF rect() const override { return QRectF(0.0, 0.0, 1.0, 1.0); }
+
+  private:
+    QQuickWindow* window_{nullptr};
+    std::function<void(QQuickWindow*)> probe_;
+    bool fired_{false};
+  };
+
+  class RenderProbe final : public QQuickItem {
+  public:
+    explicit RenderProbe(QQuickItem* parent) : QQuickItem(parent) {
+      setFlag(QQuickItem::ItemHasContents, true);
+      setSize(QSizeF(1.0, 1.0));
+      setVisible(true);
+    }
+
+    void set_probe(std::function<void(QQuickWindow*)> probe) {
+      {
+        const std::lock_guard lock(probe_mutex_);
+        probe_ = std::move(probe);
+      }
+      update();
+    }
+
+    QSGNode* updatePaintNode(QSGNode* old_node, UpdatePaintNodeData*) override {
+      auto* node = dynamic_cast<RenderProbeNode*>(old_node);
+      if (node == nullptr) {
+        delete old_node;
+        node = new RenderProbeNode;
+      }
+      std::function<void(QQuickWindow*)> probe;
+      {
+        const std::lock_guard lock(probe_mutex_);
+        probe = probe_;
+      }
+      node->set_probe(window(), std::move(probe));
+      return node;
+    }
+
+  private:
+    std::mutex probe_mutex_;
+    std::function<void(QQuickWindow*)> probe_;
+  };
+
   class Background final : public QQuickPaintedItem {
   public:
     explicit Background(QQuickItem* parent) : QQuickPaintedItem(parent) {
@@ -609,16 +678,18 @@ public:
     std::uint64_t texture_revision_{0};
   };
 
-    explicit QuickCanvasItem(QQmlEngine* engine, QQmlContext* context) : QQuickItem() {
-      background_ = new Background(this);
-      composite_frame_ = new CompositeFrame(this);
-      layers_ = new Layers(this);
+  explicit QuickCanvasItem(QQmlEngine* engine, QQmlContext* context) : QQuickItem() {
+    background_ = new Background(this);
+    composite_frame_ = new CompositeFrame(this);
+    layers_ = new Layers(this);
+    render_probe_ = new RenderProbe(this);
 #ifdef PATCHY_GPU_SHADER_COMPOSITOR
       shader_layers_ = new GpuShaderCompositor(engine, context, this);
 #endif
-      background_->setZ(0.0);
-      composite_frame_->setZ(1.0);
-      layers_->setZ(2.0);
+    background_->setZ(0.0);
+    composite_frame_->setZ(1.0);
+    layers_->setZ(2.0);
+    render_probe_->setZ(-1.0);
 #ifdef PATCHY_GPU_SHADER_COMPOSITOR
       shader_layers_->setZ(3.0);
       shader_layers_->setVisible(false);
@@ -672,17 +743,25 @@ public:
     background_->set_document_rect({}, Qt::transparent);
   }
 
+  void set_render_thread_probe(std::function<void(QQuickWindow*)> probe) {
+    if (render_probe_ != nullptr) {
+      render_probe_->set_probe(std::move(probe));
+    }
+  }
+
 protected:
   void geometryChange(const QRectF& new_geometry, const QRectF& old_geometry) override {
     QQuickItem::geometryChange(new_geometry, old_geometry);
     background_->setSize(new_geometry.size());
     composite_frame_->setSize(new_geometry.size());
     layers_->setSize(new_geometry.size());
+    render_probe_->setPosition(QPointF(0.0, 0.0));
   }
 private:
   Background* background_{nullptr};
   CompositeFrame* composite_frame_{nullptr};
   Layers* layers_{nullptr};
+  RenderProbe* render_probe_{nullptr};
 #ifdef PATCHY_GPU_SHADER_COMPOSITOR
   GpuShaderCompositor* shader_layers_{nullptr};
 #endif
@@ -837,6 +916,12 @@ void CanvasGraphicsSurface::request_update(const QRegion& region) {
 void CanvasGraphicsSurface::set_overlay_painter(std::function<void(QPainter&, QRect)> painter) {
   if (overlay_widget_ != nullptr) {
     overlay_widget_->set_painter(std::move(painter));
+  }
+}
+
+void CanvasGraphicsSurface::set_render_thread_probe(std::function<void(QQuickWindow*)> probe) {
+  if (quick_item_ != nullptr) {
+    quick_item_->set_render_thread_probe(std::move(probe));
   }
 }
 
