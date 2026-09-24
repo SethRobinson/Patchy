@@ -165,7 +165,10 @@ the Dawn backend is recreated, so recovery cannot reuse resources from a lost
 device. Every non-empty composition plan records all of its tile passes and
 regional copies in one command buffer, followed by one queue submission and one
 wait before mapping the readbacks. Bind groups are retained while their five
-resource views remain valid. The CPU path remains the output authority.
+resource views remain valid. A controlled submit/readback failure discards these
+device-owned caches before recreation, and the destination frame is published
+only after the complete retry succeeds. The CPU path remains the output
+authority.
 
 The optional `patchy_webgpu_equivalence_tests` executable prints `[METRIC]`
 records for `full_cold`, `full_warm`, `dirty_single`, `dirty_multiple`, and
