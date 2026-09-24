@@ -9,6 +9,7 @@
 
 #if QT_CONFIG(vulkan)
 #include <QVulkanInstance>
+#include <QVulkanFunctions>
 #include <vulkan/vulkan.h>
 #endif
 
@@ -78,12 +79,22 @@ VulkanQtInteropReport probe_vulkan_qt_interop(
   report.qt_queue_observed = queue != nullptr && *queue != VK_NULL_HANDLE;
   report.qt_physical_device_observed = physical_device != nullptr && *physical_device != VK_NULL_HANDLE;
   report.qt_instance_observed = instance != nullptr && instance->vkInstance() != VK_NULL_HANDLE;
+  if (report.qt_physical_device_observed && instance != nullptr && instance->functions() != nullptr) {
+    VkPhysicalDeviceProperties properties{};
+    instance->functions()->vkGetPhysicalDeviceProperties(*physical_device, &properties);
+    report.qt_adapter_identity_observed = true;
+    report.qt_vendor_id = properties.vendorID;
+    report.qt_device_id = properties.deviceID;
+  }
 #if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
   report.qt_queue_family_observed = queue_family != nullptr;
   report.qt_queue_index_observed = queue_index != nullptr;
 #endif
   report.dawn_instance_matches_qt = report.qt_instance_observed && dawn.native_instance_observed &&
                                     handle_key(instance->vkInstance()) == dawn.native_instance;
+  report.dawn_adapter_identity_matches_qt = report.qt_adapter_identity_observed && dawn.adapter_identity_observed &&
+                                            report.qt_vendor_id == dawn.vendor_id &&
+                                            report.qt_device_id == dawn.device_id;
 
   patchy::ZeroCopyInteropRequirements requirements;
   requirements.compositor_api = dawn.compositor_api;
@@ -98,15 +109,22 @@ VulkanQtInteropReport probe_vulkan_qt_interop(
   requirements.synchronization = false;
   report.decision = patchy::evaluate_zero_copy_interop(requirements);
 
-  report.summary = QStringLiteral("Qt Vulkan resources: device=%1, queue=%2, physical-device=%3, instance=%4, queue-family=%5, queue-index=%6; Dawn instance=%7; instance-match=%8; zero-copy=%9")
+  report.summary = QStringLiteral("Qt Vulkan resources: device=%1, queue=%2, physical-device=%3, instance=%4, queue-family=%5, queue-index=%6, vendor-id=%7, device-id=%8; Dawn instance=%9, adapter-observed=%10, instance-match=%11, adapter-match=%12, external-images=%13; native-device-adoption=no, qt-image-export=no, external-sync=no; zero-copy=%14")
                        .arg(report.qt_device_observed ? QStringLiteral("yes") : QStringLiteral("no"))
                        .arg(report.qt_queue_observed ? QStringLiteral("yes") : QStringLiteral("no"))
                        .arg(report.qt_physical_device_observed ? QStringLiteral("yes") : QStringLiteral("no"))
                        .arg(report.qt_instance_observed ? QStringLiteral("yes") : QStringLiteral("no"))
                        .arg(report.qt_queue_family_observed ? QStringLiteral("yes") : QStringLiteral("no"))
                        .arg(report.qt_queue_index_observed ? QStringLiteral("yes") : QStringLiteral("no"))
+                       .arg(report.qt_adapter_identity_observed ? QString::number(report.qt_vendor_id, 16)
+                                                               : QStringLiteral("unknown"))
+                       .arg(report.qt_adapter_identity_observed ? QString::number(report.qt_device_id, 16)
+                                                               : QStringLiteral("unknown"))
                        .arg(dawn.native_instance_observed ? QStringLiteral("yes") : QStringLiteral("no"))
+                       .arg(dawn.adapter_identity_observed ? QStringLiteral("yes") : QStringLiteral("no"))
                        .arg(report.dawn_instance_matches_qt ? QStringLiteral("yes") : QStringLiteral("no"))
+                       .arg(report.dawn_adapter_identity_matches_qt ? QStringLiteral("yes") : QStringLiteral("no"))
+                       .arg(dawn.external_image_api_available ? QStringLiteral("yes") : QStringLiteral("no"))
                        .arg(QString::fromStdString(report.decision.reason));
   return report;
 #endif

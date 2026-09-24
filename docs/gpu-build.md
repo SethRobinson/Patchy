@@ -399,12 +399,25 @@ echo "Terminal remains open."
 ```
 
 The report observes Qt's Vulkan device, queue, physical device, and instance on the scene-graph
-render thread and compares the Dawn Vulkan instance when the native Dawn target is available. The
-current result must remain ineligible: Dawn creates its own device, the compositor does not export
-a compatible image allocation for Qt, and no external semaphore or queue-ownership protocol has
-been installed. A `zero-copy remains disabled` line is therefore the correct result. The regional
-readback and Qt Quick `QImage` path remain the only published path until a future bridge proves
-shared-device ownership, native texture import, and synchronization together.
+render thread. It also compares the Vulkan adapter identity reported by Qt with Dawn's
+`vendorID`/`deviceID` pair and compares the Vulkan instance when the native Dawn target is
+available. Matching adapter identity is useful evidence that both APIs selected the same physical
+GPU, but it is not proof that they share the same `VkDevice` or queue ownership.
+
+The current result must remain ineligible: the pinned Dawn public Vulkan bridge exposes external
+image import/export helpers but this compositor still creates its own device, Qt has not exported a
+compatible image allocation for this path, and no external semaphore or queue-ownership protocol
+has been installed. A `zero-copy remains disabled` line is therefore the correct result. The
+regional readback and Qt Quick `QImage` path remain the only published path until a future bridge
+proves shared-device ownership, native texture import, and synchronization together.
+
+This boundary follows Qt's non-owning import rules for an existing device and native texture in
+[`QRhi::create`](https://doc.qt.io/qt-6/qrhi.html) and
+[`QRhiTexture::createFrom`](https://doc.qt.io/qt-6/qrhitexture.html). The pinned Dawn Vulkan
+surface is the [`VulkanBackend.h`](https://github.com/google/dawn/blob/fc6c889358e176fe1b86f3fad0ce0bdb9e252ca9/include/dawn/native/VulkanBackend.h)
+API: it exposes native-instance observation plus external-image import/export helpers, but this
+Patchy compositor does not yet adopt Qt's device or provide the external memory and semaphore
+descriptors needed to use those helpers safely.
 
 The zero-copy interop contract is validated by the ordinary core build; it does
 not enable a native bridge or require a graphics device. Run the focused check
