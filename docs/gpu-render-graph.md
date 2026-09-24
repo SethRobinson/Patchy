@@ -43,7 +43,7 @@ When `PATCHY_ENABLE_WEBGPU=ON` finds the pinned Dawn package, `WebGpuRenderBacke
 
 The bridge is intentionally all-or-nothing. Adapter creation, graph validation, queue composition, any tile readback, or device recovery may fail without publishing a partial frame. The caller then keeps the individual Qt RHI layers or the CPU compositor. A successful Dawn frame is presented by the existing Qt Quick surface, so this step does not add a second window, input path, or mandatory WebGPU dependency. The current implementation still uploads each visible source layer for a composition call and does not claim zero-copy interoperation with Qt Quick.
 
-Zero-copy presentation, shader implementations of all Photoshop filters, HDR/16-bit output, and native device-loss recovery remain later milestones. The tile scheduler, comparison policy, logical recovery path, and now the Dawn tile executor can be developed independently. Native validation on Intel, AMD, NVIDIA, macOS, and Windows is still required before those paths are advertised as production capabilities.
+Zero-copy presentation, shader implementations of all Photoshop filters, HDR/16-bit output, and platform-native device-loss recovery remain later milestones. The tile scheduler, comparison policy, controlled Dawn recovery path, and now the Dawn tile executor can be developed independently. Native validation on Intel, AMD, NVIDIA, macOS, and Windows is still required before those paths are advertised as production capabilities.
 
 The first zero-copy-specific step is deliberately a pure eligibility contract in
 `src/render/gpu_presentation_interop.hpp`. `evaluate_zero_copy_interop()` requires
@@ -61,6 +61,13 @@ the planned tile count, three graph passes per tile, regional readback size, and
 the all-or-nothing output contract. The target is manual and hardware-backed;
 the normal CTest suite continues to use the fake backend and remains independent
 of Dawn.
+
+The same target includes a controlled recovery check. It injects a one-shot
+failure before submission and another before regional readback, verifies that no
+partial frame is published, and requires `recover()` to recreate the Dawn-owned
+resources before the retry is compared with the CPU compositor. This validates
+the backend's atomic recovery contract; it does not simulate a platform driver
+reset or claim native device-loss handling.
 
 ## Validation
 
