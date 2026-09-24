@@ -94,5 +94,13 @@ grep -Fq 'adapter-match=%12' \
   "$REPO_ROOT/src/ui/vulkan_qt_interop_probe.cpp"
 grep -Fq 'native-device-adoption=no' \
   "$REPO_ROOT/src/ui/vulkan_qt_interop_probe.cpp"
+grep -Fq 'PATCHY_WEBGPU_INJECT_DEVICE_LOSS' \
+  "$REPO_ROOT/src/ui/webgpu_document_compositor.cpp"
+grep -Fq 'controlled WebGPU device loss before queue submit' \
+  "$REPO_ROOT/src/ui/webgpu_document_compositor.cpp"
+grep -Fq 'controlled WebGPU device loss before tile readback' \
+  "$REPO_ROOT/src/ui/webgpu_document_compositor.cpp"
+grep -Fq 'last_composition_metrics_ = {};' \
+  "$REPO_ROOT/src/ui/webgpu_render_backend.cpp"
 
 echo 'Dawn helper syntax and lock checks passed'

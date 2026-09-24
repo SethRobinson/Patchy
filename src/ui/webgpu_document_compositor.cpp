@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -350,6 +351,29 @@ bool wait_for_future(WGPUInstance instance, WGPUFuture future, QString* reason) 
   }
   if (reason != nullptr) {
     *reason = QStringLiteral("WebGPU asynchronous operation did not complete");
+  }
+  return false;
+}
+
+enum class DeviceLossInjectionStage : std::uint8_t {
+  None,
+  BeforeSubmit,
+  BeforeReadback,
+};
+
+bool consume_device_loss_injection(DeviceLossInjectionStage requested_stage) {
+  const auto value = patchy::environment_variable("PATCHY_WEBGPU_INJECT_DEVICE_LOSS");
+  if (!value.has_value()) {
+    return false;
+  }
+  const auto stage = QString::fromStdString(*value).trimmed().toLower();
+  static std::atomic_bool before_submit_consumed{false};
+  static std::atomic_bool before_readback_consumed{false};
+  if (requested_stage == DeviceLossInjectionStage::BeforeSubmit && stage == QStringLiteral("before-submit")) {
+    return !before_submit_consumed.exchange(true, std::memory_order_acq_rel);
+  }
+  if (requested_stage == DeviceLossInjectionStage::BeforeReadback && stage == QStringLiteral("before-readback")) {
+    return !before_readback_consumed.exchange(true, std::memory_order_acq_rel);
   }
   return false;
 }
@@ -798,11 +822,18 @@ public:
       if (!commands) {
         return fail(reason, QStringLiteral("WebGPU could not finish the batch command buffer"));
       }
+      if (consume_device_loss_injection(DeviceLossInjectionStage::BeforeSubmit)) {
+        return fail(reason, QStringLiteral("controlled WebGPU device loss before queue submit"));
+      }
       WGPUCommandBuffer command = commands.get();
       wgpuQueueSubmit(queue_.get(), 1, &command);
       ++last_metrics_.queue_submissions;
       if (!wait_for_queue(reason)) {
         return false;
+      }
+
+      if (consume_device_loss_injection(DeviceLossInjectionStage::BeforeReadback)) {
+        return fail(reason, QStringLiteral("controlled WebGPU device loss before tile readback"));
       }
 
       for (auto& pending : pending_tiles) {

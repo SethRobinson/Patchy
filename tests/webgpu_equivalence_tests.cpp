@@ -8,6 +8,7 @@
 #include "ui/webgpu_render_backend.hpp"
 
 #include <QCoreApplication>
+#include <QByteArray>
 #include <QImage>
 #include <QRegion>
 #include <QString>
@@ -297,6 +298,64 @@ void dirty_regions_recompute_only_intersecting_tiles(patchy::ui::WebGpuRenderBac
   CHECK(idle_frame == incremental_frame);
 }
 
+void device_loss_recovery_rebuilds_dawn_resources() {
+  struct InjectionEnvironmentReset final {
+    ~InjectionEnvironmentReset() { qunsetenv("PATCHY_WEBGPU_INJECT_DEVICE_LOSS"); }
+  } injection_environment_reset;
+
+  auto document = make_document(513, 257);
+  patchy::ui::WebGpuRenderBackend backend;
+  if (!backend.initialize()) {
+    throw std::runtime_error("device-loss backend initialization failed: " + std::string(backend.last_error()));
+  }
+
+  const auto initial_snapshot = gpu_document_from(document);
+  QImage initial_frame;
+  QString reason;
+  if (!backend.compose(initial_snapshot, initial_frame, &reason)) {
+    throw std::runtime_error("device-loss baseline composition failed: " + reason.toStdString());
+  }
+  require_equivalent(document, initial_frame, "device-loss baseline frame");
+
+  qputenv("PATCHY_WEBGPU_INJECT_DEVICE_LOSS", QByteArrayLiteral("before-submit"));
+  QImage failed_frame = initial_frame;
+  CHECK(!backend.compose(initial_snapshot, failed_frame, &reason));
+  qunsetenv("PATCHY_WEBGPU_INJECT_DEVICE_LOSS");
+  CHECK(backend.state() == patchy::GpuBackendState::Lost);
+  CHECK(failed_frame == initial_frame);
+  CHECK(reason.contains(QStringLiteral("controlled WebGPU device loss")));
+  CHECK(backend.recover());
+  CHECK(backend.state() == patchy::GpuBackendState::Ready);
+  CHECK(backend.last_composition_metrics().queue_submissions == 0U);
+
+  QImage recovered_frame;
+  if (!backend.compose(initial_snapshot, recovered_frame, &reason)) {
+    throw std::runtime_error("device-loss submit recovery failed: " + reason.toStdString());
+  }
+  require_equivalent(document, recovered_frame, "device-loss submit recovery frame");
+
+  auto& overlay = document.layers().back();
+  overlay.pixels().pixel(204, 80)[0] = 12;
+  const auto changed_snapshot = gpu_document_from(document);
+  const QRegion dirty_region(QRect(300, 120, 1, 1));
+  qputenv("PATCHY_WEBGPU_INJECT_DEVICE_LOSS", QByteArrayLiteral("before-readback"));
+  QImage failed_incremental = recovered_frame;
+  CHECK(!backend.compose_incremental(changed_snapshot, dirty_region, recovered_frame, failed_incremental, &reason));
+  qunsetenv("PATCHY_WEBGPU_INJECT_DEVICE_LOSS");
+  CHECK(backend.state() == patchy::GpuBackendState::Lost);
+  CHECK(failed_incremental == recovered_frame);
+  CHECK(reason.contains(QStringLiteral("controlled WebGPU device loss")));
+  CHECK(backend.recover());
+
+  QImage recovered_incremental;
+  if (!backend.compose_incremental(changed_snapshot, dirty_region, recovered_frame, recovered_incremental, &reason)) {
+    throw std::runtime_error("device-loss readback recovery failed: " + reason.toStdString());
+  }
+  require_equivalent(document, recovered_incremental, "device-loss readback recovery frame");
+  CHECK(backend.last_rendered_tile_count() == 1U);
+  CHECK(backend.last_composition_metrics().source_upload_bytes > 0U);
+}
+
 std::uint64_t cpu_reference_time_ns(const patchy::Document& document) {
   const auto start = std::chrono::steady_clock::now();
   const auto frame = cpu_frame(document);
@@ -430,6 +489,8 @@ int main(int argc, char** argv) {
                        [&backend] { supported_shader_features_match_cpu(backend); });
   failures += run_test("webgpu_dirty_regions_recompute_only_intersecting_tiles",
                        [&backend] { dirty_regions_recompute_only_intersecting_tiles(backend); });
+  failures += run_test("webgpu_device_loss_recovery_rebuilds_resources",
+                       device_loss_recovery_rebuilds_dawn_resources);
   failures += run_test("webgpu_resource_reuse_benchmark",
                        [] {
                          patchy::ui::WebGpuRenderBackend benchmark_backend;

@@ -362,6 +362,17 @@ the target is one of each per non-empty full or dirty plan, even when that plan
 contains multiple tiles. The assembled frame is still copied to a CPU-readable
 `QImage` for Qt Quick presentation.
 
+The executable also contains a deterministic recovery check named
+`webgpu_device_loss_recovery_rebuilds_resources`. It injects a one-shot failure
+before queue submission and another one-shot failure before regional readback.
+After each failure, the backend must leave the destination image unchanged,
+discard resources owned by the lost Dawn device, recreate the compositor, and
+produce a frame equivalent to the CPU compositor. Run the check as part of the
+same manual executable; it is intentionally not a CTest requirement. For a
+focused diagnostic, set `PATCHY_WEBGPU_INJECT_DEVICE_LOSS=before-submit` or
+`before-readback`. The variable is consumed once per stage, and the normal
+application does not enable it.
+
 ## Opt-in Vulkan/Qt RHI interop probe
 
 The repository also contains an opt-in diagnostic for the next zero-copy milestone. Enable
