@@ -7628,10 +7628,6 @@ RGB：%2, %3, %4</translation>
         <translation>版本 %1 (建置於 %2)</translation>
     </message>
     <message>
-        <source>Created by Seth A. Robinson</source>
-        <translation>由 Seth A. Robinson 製作</translation>
-    </message>
-    <message>
         <source>Code contributions from %1</source>
         <translation>程式碼貢獻者：%1</translation>
     </message>
@@ -8462,6 +8458,22 @@ RGB：%2, %3, %4</translation>
     <message>
         <source>Stroke Color</source>
         <translation>筆畫顏色</translation>
+    </message>
+    <message>
+        <source>User data folder (fonts, scripts):</source>
+        <translation>使用者資料夾 (字型、指令碼):</translation>
+    </message>
+    <message>
+        <source>Open Data Folder</source>
+        <translation>開啟使用者資料夾</translation>
+    </message>
+    <message>
+        <source>Could not open data folder.</source>
+        <translation>無法開啟使用者資料夾。</translation>
+    </message>
+    <message>
+        <source>Created by %1</source>
+        <translation>由 %1 製作</translation>
     </message>
 </context>
 <context>

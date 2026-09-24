@@ -1,5 +1,6 @@
 #include "support/cli_flags.hpp"
 #include "ui/action_icons.hpp"
+#include "ui/app_data_migration.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/ui_font.hpp"
 #include "ui/background_workers.hpp"
@@ -387,7 +388,9 @@ int main(int argc, char* argv[]) {
   app.setApplicationVersion(QStringLiteral(PATCHY_VERSION));
   // Keep the internal app identity for settings without letting Qt append " - Patchy" to every native window title.
   app.setApplicationDisplayName(QString());
-  app.setOrganizationName(QStringLiteral("Seth A. Robinson"));
+  // Keys the per-user app-data folder (fonts, scripts); see app_data_migration.hpp before
+  // changing it. Preferences name their own organization in app_settings().
+  app.setOrganizationName(QStringLiteral("RTsoft"));
   app.setWindowIcon(patchy::ui::patchy_app_icon());
   // Qt 6 caps every image decode at 256 MB and fails bigger ones with a bare
   // "Unable to read image data" (a large-bed flatbed scan at 600 DPI is
@@ -404,6 +407,8 @@ int main(int argc, char* argv[]) {
     QFont::insertSubstitution(QString::fromLatin1(alias.missing), QString::fromLatin1(alias.bundled));
   }
 #endif
+  // Before anything reads AppDataLocation: moves 0.98-era fonts and scripts across.
+  patchy::ui::app_data_migration::migrate_legacy_app_data();
   patchy::ui::user_fonts::restore_user_fonts_at_startup();
   patchy::ui::install_font_database_psd_font_resolver();
   patchy::ui::LocalizationManager::instance().load_saved_language();

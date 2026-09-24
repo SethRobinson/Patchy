@@ -875,6 +875,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/action_icons.cpp
       src/ui/icon_theme.hpp
       src/ui/icon_theme.cpp
+      src/ui/app_data_migration.hpp
+      src/ui/app_data_migration.cpp
       src/ui/app_settings.hpp
       src/ui/app_settings.cpp
       src/ui/background_workers.hpp

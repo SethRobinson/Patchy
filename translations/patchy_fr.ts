@@ -7645,10 +7645,6 @@ RVB : %2, %3, %4</translation>
         <translation>Version %1 (compilée le %2)</translation>
     </message>
     <message>
-        <source>Created by Seth A. Robinson</source>
-        <translation>Créé par Seth A. Robinson</translation>
-    </message>
-    <message>
         <source>Code contributions from %1</source>
         <translation>Contributions au code de %1</translation>
     </message>
@@ -8489,6 +8485,22 @@ RVB : %2, %3, %4</translation>
     <message>
         <source>Stroke Color</source>
         <translation>Couleur du contour</translation>
+    </message>
+    <message>
+        <source>User data folder (fonts, scripts):</source>
+        <translation>Dossier des données utilisateur (polices, scripts) :</translation>
+    </message>
+    <message>
+        <source>Open Data Folder</source>
+        <translation>Ouvrir le dossier des données</translation>
+    </message>
+    <message>
+        <source>Could not open data folder.</source>
+        <translation>Impossible d&apos;ouvrir le dossier des données.</translation>
+    </message>
+    <message>
+        <source>Created by %1</source>
+        <translation>Créé par %1</translation>
     </message>
 </context>
 <context>

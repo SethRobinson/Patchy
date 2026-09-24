@@ -4410,12 +4410,6 @@ RenderedTextPixels render_text_pixels_with_local_rect(const TextToolSettings& se
                             text_layout_metrics_for_plan(plan, settings, rich_text_runs)};
 }
 
-PixelBuffer render_text_pixels(const TextToolSettings& settings, QColor color, std::int32_t max_width,
-                               const QString& paragraph_runs = QString(),
-                               const QString& rich_text_runs = QString()) {
-  return render_text_pixels_with_local_rect(settings, color, max_width, paragraph_runs, rich_text_runs).pixels;
-}
-
 struct TransformedTextPixels {
   PixelBuffer pixels;
   Rect bounds{};

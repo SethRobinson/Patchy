@@ -7645,10 +7645,6 @@ RGB: %2, %3, %4</translation>
         <translation>Version %1 (erstellt am %2)</translation>
     </message>
     <message>
-        <source>Created by Seth A. Robinson</source>
-        <translation>Erstellt von Seth A. Robinson</translation>
-    </message>
-    <message>
         <source>Code contributions from %1</source>
         <translation>Code-Beiträge von %1</translation>
     </message>
@@ -8489,6 +8485,22 @@ RGB: %2, %3, %4</translation>
     <message>
         <source>Stroke Color</source>
         <translation>Konturfarbe</translation>
+    </message>
+    <message>
+        <source>User data folder (fonts, scripts):</source>
+        <translation>Benutzerdatenordner (Schriften, Skripte):</translation>
+    </message>
+    <message>
+        <source>Open Data Folder</source>
+        <translation>Datenordner öffnen</translation>
+    </message>
+    <message>
+        <source>Could not open data folder.</source>
+        <translation>Der Datenordner konnte nicht geöffnet werden.</translation>
+    </message>
+    <message>
+        <source>Created by %1</source>
+        <translation>Erstellt von %1</translation>
     </message>
 </context>
 <context>

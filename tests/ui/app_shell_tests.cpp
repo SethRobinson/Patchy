@@ -61,6 +61,7 @@
 #include "ui/icon_theme.hpp"
 #include "ui/theme_palette.hpp"
 #include "ui/theme_qss.hpp"
+#include "ui/app_data_migration.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/build_info.hpp"
 #include "ui/update_checker.hpp"
@@ -92,7 +93,9 @@
 #include <QDialogButtonBox>
 #include <QDataStream>
 #include <QDockWidget>
+#include <QCoreApplication>
 #include <QDir>
+#include <QStandardPaths>
 #include <QDoubleSpinBox>
 #include <QDragEnterEvent>
 #include <QDragMoveEvent>
@@ -2484,6 +2487,35 @@ void ui_language_catalog_covers_dialog_status_and_properties() {
   CHECK(open_settings_folder == QStringLiteral("設定フォルダーを開く"));
   const auto settings_folder_failed = QCoreApplication::translate("QObject", "Could not open settings folder.");
   CHECK(settings_folder_failed == QStringLiteral("設定フォルダーを開けませんでした。"));
+  const auto data_folder = QCoreApplication::translate("QObject", "User data folder (fonts, scripts):");
+  CHECK(data_folder == QStringLiteral("ユーザーデータフォルダー (フォント、スクリプト):"));
+  const auto open_data_folder = QCoreApplication::translate("QObject", "Open Data Folder");
+  CHECK(open_data_folder == QStringLiteral("データフォルダーを開く"));
+  const auto data_folder_failed = QCoreApplication::translate("QObject", "Could not open data folder.");
+  CHECK(data_folder_failed == QStringLiteral("データフォルダーを開けませんでした。"));
+
+  // The About dialog's folder rows must translate in every shipped language, not only the
+  // Japanese pins above: a string that comes back as its English source means the entry is
+  // missing from that catalog or carries the wrong context.
+  auto& manager = patchy::ui::LocalizationManager::instance();
+  for (const auto& language : manager.languages()) {
+    if (language.code == QStringLiteral("en")) {
+      continue;
+    }
+    CHECK(manager.set_language(language.code, false));
+    QApplication::processEvents();
+    for (const char* source : {"Settings file:", "Open Settings Folder", "Could not open settings folder.",
+                               "User data folder (fonts, scripts):", "Open Data Folder",
+                               "Could not open data folder."}) {
+      const auto translated = QCoreApplication::translate("QObject", source);
+      if (translated == QString::fromUtf8(source)) {
+        std::cerr << "untranslated in " << language.code.toStdString() << ": " << source << "\n";
+      }
+      CHECK(translated != QString::fromUtf8(source));
+    }
+  }
+  CHECK(manager.set_language(QStringLiteral("ja"), false));
+  QApplication::processEvents();
   const auto checking_updates = QCoreApplication::translate("QObject", "Checking for updates...");
   CHECK(checking_updates == QStringLiteral("更新を確認しています..."));
   const auto up_to_date = QCoreApplication::translate("QObject", "Patchy is up to date (%1).");
@@ -2635,6 +2667,16 @@ void ui_about_dialog_shows_labeled_external_links() {
     CHECK(credit_labels.first()->text().startsWith(QStringLiteral("Version ")));
     CHECK(credit_labels.first()->text().endsWith(
         QStringLiteral("(built %1)").arg(patchy::ui::build_timestamp_text())));
+    // The credit names Seth and links to his GitHub profile in the themed link color.
+    auto* credit = credit_labels.last();
+    CHECK(credit->textFormat() == Qt::RichText);
+    CHECK(credit->openExternalLinks());
+    CHECK(credit->text().startsWith(QStringLiteral("Created by ")));
+    CHECK(credit->text().contains(QStringLiteral("href=\"https://github.com/SethRobinson\"")));
+    CHECK(credit->text().contains(QStringLiteral(">Seth A. Robinson</a>")));
+    CHECK(!credit->text().contains(QStringLiteral("@splash_link_text")));
+    CHECK(credit->text().contains(
+        QStringLiteral("color:%1;").arg(patchy::ui::theme().splash_link_text.name(QColor::HexRgb))));
 
     auto* contributors = dialog->findChild<QLabel*>(QStringLiteral("splashContributors"));
     CHECK(contributors != nullptr);
@@ -2661,6 +2703,28 @@ void ui_about_dialog_shows_labeled_external_links() {
     CHECK(open_settings_folder != nullptr);
     CHECK(open_settings_folder->text() == QStringLiteral("Open Settings Folder"));
 
+    // The per-user data folder (dropped fonts, user scripts) gets the same treatment.
+    auto* data_caption = dialog->findChild<QLabel*>(QStringLiteral("splashDataCaption"));
+    CHECK(data_caption != nullptr);
+    CHECK(data_caption->text() == QStringLiteral("User data folder (fonts, scripts):"));
+    auto* data_path = dialog->findChild<QLabel*>(QStringLiteral("splashDataPath"));
+    CHECK(data_path != nullptr);
+    CHECK(data_path->text() == QDir::toNativeSeparators(
+                                   QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)));
+    CHECK(data_path->textInteractionFlags().testFlag(Qt::TextSelectableByMouse));
+    CHECK(data_path->wordWrap());
+    auto* open_data_folder = dialog->findChild<QPushButton*>(QStringLiteral("splashOpenDataFolderButton"));
+    CHECK(open_data_folder != nullptr);
+    CHECK(open_data_folder->text() == QStringLiteral("Open Data Folder"));
+
+    // The dialog is as tall as its content at its fixed width; a shorter fixed height
+    // squeezed every row on Windows until the first move relaid the column out.
+    CHECK(dialog->layout() != nullptr);
+    CHECK(dialog->height() >= dialog->layout()->totalHeightForWidth(dialog->width()));
+    CHECK(dialog->minimumHeight() == dialog->maximumHeight());
+    CHECK(open_data_folder->height() >= open_data_folder->sizeHint().height());
+    CHECK(data_path->height() >= data_path->heightForWidth(data_path->width()));
+
     save_widget_artifact("ui_about_dialog_links", *dialog);
     inspected = true;
     dialog->accept();
@@ -2668,6 +2732,79 @@ void ui_about_dialog_shows_labeled_external_links() {
 
   patchy::ui::show_about_splash();
   CHECK(inspected);
+}
+
+// The organization name changed from "Seth A. Robinson" to "RTsoft" after 0.98, which
+// moves AppDataLocation (user fonts, user scripts). Startup merges the old folder into the
+// new one without overwriting, drops identical leftovers, keeps differing ones, and removes
+// the emptied legacy tree down to the organization folder.
+void ui_app_data_migration_merges_legacy_folder() {
+  namespace migration = patchy::ui::app_data_migration;
+  QTemporaryDir temp;
+  CHECK(temp.isValid());
+  const auto root = temp.path();
+  const auto legacy = root + QStringLiteral("/Seth A. Robinson/Patchy");
+  const auto current = root + QStringLiteral("/RTsoft/Patchy");
+  const auto write = [](const QString& path, const QByteArray& bytes) {
+    QDir().mkpath(QFileInfo(path).absolutePath());
+    QFile file(path);
+    CHECK(file.open(QIODevice::WriteOnly));
+    file.write(bytes);
+  };
+  const auto read = [](const QString& path) {
+    QFile file(path);
+    return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray();
+  };
+
+  // No legacy folder: nothing happens and the current folder is not created.
+  auto result = migration::migrate_app_data_directory(legacy, current);
+  CHECK(!result.legacy_found);
+  CHECK(!QDir(current).exists());
+
+  write(legacy + QStringLiteral("/user-fonts/Dropped.ttf"), "font-bytes");
+  write(legacy + QStringLiteral("/user-fonts/Same.ttf"), "same");
+  write(legacy + QStringLiteral("/scripts/Demos/mine.js"), "legacy edit");
+  write(legacy + QStringLiteral("/scripts/Empty/.keep"), "");
+  QDir().mkpath(legacy + QStringLiteral("/scripts/Nothing"));
+  write(current + QStringLiteral("/user-fonts/Same.ttf"), "same");
+  write(current + QStringLiteral("/user-fonts/Newer.ttf"), "newer");
+  write(current + QStringLiteral("/scripts/Demos/mine.js"), "current edit");
+
+  result = migration::migrate_app_data_directory(legacy, current);
+  CHECK(result.legacy_found);
+  CHECK(result.files_moved == 2);        // Dropped.ttf and .keep
+  CHECK(result.duplicates_removed == 1); // Same.ttf
+  CHECK(result.conflicts_kept == 1);     // mine.js
+  CHECK(!result.completed);
+  CHECK(read(current + QStringLiteral("/user-fonts/Dropped.ttf")) == "font-bytes");
+  CHECK(read(current + QStringLiteral("/user-fonts/Newer.ttf")) == "newer");
+  CHECK(read(current + QStringLiteral("/scripts/Demos/mine.js")) == "current edit");
+  CHECK(QFileInfo::exists(current + QStringLiteral("/scripts/Empty/.keep")));
+  CHECK(!QFileInfo::exists(legacy + QStringLiteral("/user-fonts/Dropped.ttf")));
+  CHECK(!QFileInfo::exists(legacy + QStringLiteral("/user-fonts/Same.ttf")));
+  CHECK(!QDir(legacy + QStringLiteral("/user-fonts")).exists());
+  CHECK(!QDir(legacy + QStringLiteral("/scripts/Empty")).exists());
+  CHECK(!QDir(legacy + QStringLiteral("/scripts/Nothing")).exists());
+  CHECK(read(legacy + QStringLiteral("/scripts/Demos/mine.js")) == "legacy edit");
+
+  // A second run is a no-op for the conflict, and once the user resolves it the legacy
+  // tree disappears entirely, organization folder included.
+  result = migration::migrate_app_data_directory(legacy, current);
+  CHECK(result.legacy_found && result.conflicts_kept == 1 && result.files_moved == 0);
+  CHECK(QFile::remove(legacy + QStringLiteral("/scripts/Demos/mine.js")));
+  result = migration::migrate_app_data_directory(legacy, current);
+  CHECK(result.legacy_found && result.completed);
+  CHECK(!QDir(root + QStringLiteral("/Seth A. Robinson")).exists());
+  CHECK(read(current + QStringLiteral("/scripts/Demos/mine.js")) == "current edit");
+
+  // The running app resolves the legacy folder from the legacy organization name and
+  // restores the current name afterwards.
+  const auto organization = QCoreApplication::organizationName();
+  QCoreApplication::setOrganizationName(QStringLiteral("RTsoft"));
+  const auto legacy_dir = migration::legacy_app_data_directory();
+  CHECK(legacy_dir.contains(QStringLiteral("Seth A. Robinson")));
+  CHECK(QCoreApplication::organizationName() == QStringLiteral("RTsoft"));
+  QCoreApplication::setOrganizationName(organization);
 }
 
 void ui_about_dialog_shows_memory_row() {
@@ -3955,6 +4092,7 @@ std::vector<patchy::test::TestCase> app_shell_tests() {
       {"ui_filter_gallery_action_retranslates", ui_filter_gallery_action_retranslates},
       {"ui_about_dialog_shows_labeled_external_links", ui_about_dialog_shows_labeled_external_links},
       {"ui_about_dialog_shows_memory_row", ui_about_dialog_shows_memory_row},
+      {"ui_app_data_migration_merges_legacy_folder", ui_app_data_migration_merges_legacy_folder},
       {"ui_frameless_window_edges_resize", ui_frameless_window_edges_resize},
       {"ui_right_edge_scrollbars_remain_draggable", ui_right_edge_scrollbars_remain_draggable},
       {"ui_svg_icon_resources_are_registered", ui_svg_icon_resources_are_registered},

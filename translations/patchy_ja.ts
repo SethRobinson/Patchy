@@ -1904,10 +1904,6 @@ RGB: %2, %3, %4</translation>
         <translation>バージョン %1（ビルド日: %2）</translation>
     </message>
     <message>
-        <source>Created by Seth A. Robinson</source>
-        <translation>作成: Seth A. Robinson</translation>
-    </message>
-    <message>
         <source>Code contributions from %1</source>
         <translation>コード貢献者: %1</translation>
     </message>
@@ -8462,6 +8458,22 @@ Mixed selection</source>
     <message>
         <source>Stroke Color</source>
         <translation>境界線の色</translation>
+    </message>
+    <message>
+        <source>User data folder (fonts, scripts):</source>
+        <translation>ユーザーデータフォルダー (フォント、スクリプト):</translation>
+    </message>
+    <message>
+        <source>Open Data Folder</source>
+        <translation>データフォルダーを開く</translation>
+    </message>
+    <message>
+        <source>Could not open data folder.</source>
+        <translation>データフォルダーを開けませんでした。</translation>
+    </message>
+    <message>
+        <source>Created by %1</source>
+        <translation>作成: %1</translation>
     </message>
 </context>
 <context>

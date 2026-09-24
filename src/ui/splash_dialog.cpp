@@ -22,12 +22,15 @@
 #include <QPoint>
 #include <QPushButton>
 #include <QPointer>
+#include <QStandardPaths>
 #include <QString>
 #include <QTimer>
 #include <QUrl>
 #include <QVBoxLayout>
 #include <QWidget>
 #include <QWindow>
+
+#include <algorithm>
 
 #ifndef PATCHY_VERSION
 #define PATCHY_VERSION "0.0.0"
@@ -70,12 +73,15 @@ bool refresh_memory_label(QLabel& label) {
 // panel carries the branding and the startup update check lives in MainWindow.
 class PatchySplashDialog final : public QDialog {
 public:
+  static constexpr int kDialogWidth = 650;
+  static constexpr int kMinimumDialogHeight = 435;
+
   explicit PatchySplashDialog(QWidget* parent = nullptr) : QDialog(parent) {
     setObjectName(QStringLiteral("patchySplashScreen"));
     setWindowFlags(Qt::Dialog | Qt::FramelessWindowHint);
     apply_frameless_window_effects_on_show(*this, WindowCornerRadius::Standard);
     setModal(true);
-    setFixedSize(650, 435);
+    setFixedWidth(kDialogWidth);
     set_themed_style(*this, QStringLiteral(R"(
       QDialog#patchySplashScreen {
         background: @splash_bg;
@@ -116,23 +122,23 @@ public:
         color: @splash_status_text;
         font-size: 12px;
       }
-      QLabel#splashSettingsCaption {
+      QLabel#splashSettingsCaption, QLabel#splashDataCaption {
         color: @splash_body_text;
         font-size: 12px;
         font-weight: 700;
       }
-      QLabel#splashSettingsPath {
+      QLabel#splashSettingsPath, QLabel#splashDataPath {
         color: @splash_caption_text;
         font-size: 11px;
       }
-      QPushButton#splashOpenSettingsFolderButton {
+      QPushButton#splashOpenSettingsFolderButton, QPushButton#splashOpenDataFolderButton {
         background: @splash_button_bg;
         color: @splash_body_text;
         border: 1px solid @splash_button_border;
         padding: 5px 12px;
         min-width: 120px;
       }
-      QPushButton#splashOpenSettingsFolderButton:hover {
+      QPushButton#splashOpenSettingsFolderButton:hover, QPushButton#splashOpenDataFolderButton:hover {
         background: @splash_button_hover_bg;
       }
       QPushButton#splashCloseButton {
@@ -183,16 +189,22 @@ public:
     version->setTextFormat(Qt::PlainText);
     copy->addWidget(version);
 
-    auto* credit = new QLabel(QObject::tr("Created by Seth A. Robinson"), this);
-    credit->setObjectName(QStringLiteral("splashCredit"));
-    credit->setTextFormat(Qt::PlainText);
-    copy->addWidget(credit);
-
     // The link colors live inside the rich text, where QSS cannot reach, so they
     // go through set_themed_label_text. Handing the token-bearing markup straight
     // to QLabel leaves "color:@splash_link_text" in the HTML, which the rich-text
     // parser cannot read: the links fall back to Qt's default blue, which is
     // close to unreadable on the dark About surface.
+    auto* credit = new QLabel(this);
+    credit->setObjectName(QStringLiteral("splashCredit"));
+    credit->setTextFormat(Qt::RichText);
+    set_themed_label_text(
+        *credit, QObject::tr("Created by %1")
+                     .arg(QStringLiteral("<a style=\"color:@splash_link_text; text-decoration:none;\" "
+                                         "href=\"https://github.com/SethRobinson\">Seth A. Robinson</a>")));
+    credit->setTextInteractionFlags(Qt::TextBrowserInteraction);
+    credit->setOpenExternalLinks(true);
+    copy->addWidget(credit);
+
     auto* contributors = new QLabel(this);
     contributors->setObjectName(QStringLiteral("splashContributors"));
     contributors->setTextFormat(Qt::RichText);
@@ -221,41 +233,57 @@ public:
     add_home_link(QObject::tr("Seth's site: %1").arg(seth_site_link));
 
 #ifndef Q_OS_WASM
-    // The wasm settings store is window.localStorage, so there is no settings
-    // file to display and no folder a file manager could open.
+    // The wasm settings store is window.localStorage and its user data lives in
+    // IndexedDB, so there is no file to display and no folder a file manager could open.
+    // Each row: bold caption, selectable path, and a button that opens the folder
+    // (creating it first, since the data folder only appears once something is saved).
+    const auto add_folder_row = [this, copy](const QString& caption_text, const QString& path_text,
+                                             const QString& folder_path, const QString& button_text,
+                                             const QString& failure_text, const char* caption_name,
+                                             const char* path_name, const char* button_name) {
+      auto* caption = new QLabel(caption_text, this);
+      caption->setObjectName(QString::fromLatin1(caption_name));
+      caption->setTextFormat(Qt::PlainText);
+      copy->addWidget(caption);
+
+      auto* path = new QLabel(QDir::toNativeSeparators(path_text), this);
+      path->setObjectName(QString::fromLatin1(path_name));
+      path->setTextFormat(Qt::PlainText);
+      path->setTextInteractionFlags(Qt::TextSelectableByMouse);
+      path->setWordWrap(true);
+      copy->addWidget(path);
+
+      auto* button_row = new QHBoxLayout();
+      button_row->setContentsMargins(0, 0, 0, 0);
+      auto* open_folder = new QPushButton(button_text, this);
+      open_folder->setObjectName(QString::fromLatin1(button_name));
+      connect(open_folder, &QPushButton::clicked, this, [this, folder_path, failure_text] {
+        if (folder_path.isEmpty() || !QDir().mkpath(folder_path) ||
+            !QDesktopServices::openUrl(QUrl::fromLocalFile(folder_path))) {
+          auto* status = findChild<QLabel*>(QStringLiteral("splashStatus"));
+          if (status != nullptr) {
+            status->setText(failure_text);
+          }
+        }
+      });
+      button_row->addWidget(open_folder, 0);
+      button_row->addStretch(1);
+      copy->addLayout(button_row);
+    };
+
     auto settings = app_settings();
     const auto settings_file_path = settings.fileName();
-    const QFileInfo settings_file_info(settings_file_path);
-    const auto settings_dir_path = settings_file_info.absolutePath();
+    add_folder_row(QObject::tr("Settings file:"), settings_file_path,
+                   QFileInfo(settings_file_path).absolutePath(), QObject::tr("Open Settings Folder"),
+                   QObject::tr("Could not open settings folder."), "splashSettingsCaption",
+                   "splashSettingsPath", "splashOpenSettingsFolderButton");
 
-    auto* settings_caption = new QLabel(QObject::tr("Settings file:"), this);
-    settings_caption->setObjectName(QStringLiteral("splashSettingsCaption"));
-    settings_caption->setTextFormat(Qt::PlainText);
-    copy->addWidget(settings_caption);
-
-    auto* settings_path = new QLabel(QDir::toNativeSeparators(settings_file_path), this);
-    settings_path->setObjectName(QStringLiteral("splashSettingsPath"));
-    settings_path->setTextFormat(Qt::PlainText);
-    settings_path->setTextInteractionFlags(Qt::TextSelectableByMouse);
-    settings_path->setWordWrap(true);
-    copy->addWidget(settings_path);
-
-    auto* settings_button_row = new QHBoxLayout();
-    settings_button_row->setContentsMargins(0, 0, 0, 0);
-    auto* open_settings_folder = new QPushButton(QObject::tr("Open Settings Folder"), this);
-    open_settings_folder->setObjectName(QStringLiteral("splashOpenSettingsFolderButton"));
-    connect(open_settings_folder, &QPushButton::clicked, this, [this, settings_dir_path] {
-      if (settings_dir_path.isEmpty() || !QDir().mkpath(settings_dir_path) ||
-          !QDesktopServices::openUrl(QUrl::fromLocalFile(settings_dir_path))) {
-        auto* status = findChild<QLabel*>(QStringLiteral("splashStatus"));
-        if (status != nullptr) {
-          status->setText(QObject::tr("Could not open settings folder."));
-        }
-      }
-    });
-    settings_button_row->addWidget(open_settings_folder, 0);
-    settings_button_row->addStretch(1);
-    copy->addLayout(settings_button_row);
+    // Dropped fonts and user scripts (QStandardPaths::AppDataLocation, keyed by the
+    // organization name; see app_data_migration.hpp).
+    const auto data_folder_path = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    add_folder_row(QObject::tr("User data folder (fonts, scripts):"), data_folder_path, data_folder_path,
+                   QObject::tr("Open Data Folder"), QObject::tr("Could not open data folder."),
+                   "splashDataCaption", "splashDataPath", "splashOpenDataFolderButton");
 #endif
 
     // Live memory readout, mainly for the wasm build where the heap ceiling is
@@ -291,6 +319,12 @@ public:
     close->setObjectName(QStringLiteral("splashCloseButton"));
     connect(close, &QPushButton::clicked, this, &QDialog::accept);
     bottom->addWidget(close, 0);
+
+    // The height follows the content at the fixed width: the folder rows wrap their
+    // paths and the memory row only exists on platforms with a probe, so a fixed
+    // height compressed the column on Windows until a move forced a relayout.
+    layout->activate();
+    setFixedHeight(std::max(kMinimumDialogHeight, layout->totalHeightForWidth(kDialogWidth)));
   }
 
 #ifndef Q_OS_WASM

@@ -7636,10 +7636,6 @@ RGB: %2, %3, %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Created by Seth A. Robinson</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Code contributions from %1</source>
         <translation type="unfinished"></translation>
     </message>
@@ -8479,6 +8475,22 @@ RGB: %2, %3, %4</source>
     </message>
     <message>
         <source>Stroke Color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>User data folder (fonts, scripts):</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open Data Folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not open data folder.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Created by %1</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
