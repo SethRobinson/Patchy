@@ -60,6 +60,10 @@ bool WebGpuRenderBackend::recover() {
   compositor_.reset();
   state_ = patchy::GpuBackendState::Uninitialized;
   last_error_.clear();
+  last_submitted_pass_count_ = 0;
+  last_rendered_tile_count_ = 0;
+  last_readback_bytes_ = 0;
+  last_composition_metrics_ = {};
   return initialize();
 }
 
