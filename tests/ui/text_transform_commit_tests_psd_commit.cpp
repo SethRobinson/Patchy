@@ -1,4 +1,5 @@
 #include "ui/canvas_widget.hpp"
+#include "ui/main_window_shared.hpp"
 #include "ui/qt_paths.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/contour_presets.hpp"
@@ -531,6 +532,7 @@ struct PhotoshopTextCommitProbe {
   patchy::Rect committed_ink;
   double committed_mid_alpha_fraction{0.0};
   int committed_box_width_metadata{0};
+  std::optional<patchy::Layer> committed_layer;  // the re-rendered layer, for pixel and PSD checks
 };
 
 // `required_family` (optional) is the face the caller's tolerances were measured against: the
@@ -669,6 +671,7 @@ std::optional<PhotoshopTextCommitProbe> run_photoshop_text_commit_probe(const st
       width_value != committed->metadata().end()) {
     probe.committed_box_width_metadata = std::atoi(width_value->second.c_str());
   }
+  probe.committed_layer = *committed;
   save_widget_artifact(artifact_name, *canvas);
   return probe;
 }
@@ -1269,6 +1272,109 @@ void ui_dungeon_scroll_psd_text_commit_keeps_placement_if_available() {
       };
   inspect(document.layers());
   CHECK(checked_faux_bold);
+}
+
+// Issue 20, the reporter's own file ("La methode.psd" in Balmoral LET Plain; both live only in
+// the gitignored local fixtures, so this skips elsewhere). A connected script face: most glyphs
+// start LEFT of the pen (the "\xc3\xa9" by 9 px at this 1011 px size) and the last one overruns its
+// advance. The re-render used to clip that ink at the buffer edge, and the ink-to-ink anchoring
+// then slid the whole layer left by the clipped amount on an unchanged apply (the "\xc3\xa9" ended in
+// a hard vertical cut and hid behind the "M"). Photoshop's stored rasters are the reference:
+// (793.998, 700.075) and (1634.951, 709.961) are its anchors, so its rounded line starts are
+// (794, 700) and (1635, 710).
+void ui_la_methode_psd_text_commit_keeps_glyph_overhang_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("La methode.psd");
+  if (!std::filesystem::exists(path)) {
+    return;
+  }
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::BalmoralLet);
+  if (!QFontDatabase::hasFamily(QStringLiteral("Balmoral LET"))) {
+    std::printf("[SKIP] Balmoral LET Plain.ttf is not in local-test-fixtures/fonts\n");
+    return;
+  }
+  // The reader names the face through DirectWrite only when the font is installed system-wide;
+  // as an application font it falls to the PostScript-name heuristic ("Balmoral Let Plain"),
+  // which the renderer resolves as family "Balmoral Let" + style "Plain". Either way the layer
+  // must draw with the real face or the tolerances below mean nothing.
+  {
+    const auto document = patchy::psd::DocumentIo::read_file(path);
+    bool checked = false;
+    for (const auto& layer : document.layers()) {
+      if (const auto font = layer.metadata().find(patchy::kLayerMetadataTextFont); font != layer.metadata().end()) {
+        const auto missing = patchy::ui::missing_text_families_for_layer(layer);
+        std::printf("  layer \"%s\": font \"%s\"%s\n", layer.name().c_str(), font->second.c_str(),
+                    missing.isEmpty() ? "" : " (MISSING here)");
+        if (!missing.isEmpty()) {
+          std::printf("[SKIP] the fixture's face does not resolve on this machine\n");
+          return;
+        }
+        checked = true;
+      }
+    }
+    CHECK(checked);
+  }
+  struct Probe {
+    const char* needle;
+    const char* artifact;
+    double photoshop_tx;
+    double photoshop_ty;
+  };
+  const std::array<Probe, 2> probes{{
+      {"thode", "ui_la_methode_ethode_commit", 1635.0, 710.0},
+      {"M", "ui_la_methode_m_commit", 794.0, 700.0},
+  }};
+  for (const auto& entry : probes) {
+    const auto probe =
+        run_photoshop_text_commit_probe(path, entry.needle, 0.25, entry.artifact, nullptr, /*commit_cycles*/ 2);
+    if (!probe.has_value()) {
+      continue;
+    }
+    std::printf("  %-6s photoshop ink (%d,%d %dx%d) -> patchy ink (%d,%d %dx%d)  d=(%+d,%+d) dsize=(%+d,%+d)\n",
+                entry.needle, probe->original_ink.x, probe->original_ink.y, probe->original_ink.width,
+                probe->original_ink.height, probe->committed_ink.x, probe->committed_ink.y,
+                probe->committed_ink.width, probe->committed_ink.height,
+                probe->committed_ink.x - probe->original_ink.x, probe->committed_ink.y - probe->original_ink.y,
+                probe->committed_ink.width - probe->original_ink.width,
+                probe->committed_ink.height - probe->original_ink.height);
+    std::fflush(stdout);
+    // Position within a pixel of Photoshop; size within the whole-percent stretch quantization
+    // (H/V 0.96/0.93 renders through QFont::setStretch(103) for 103.2, ~2 px over the 965 px "M").
+    CHECK(std::abs(probe->committed_ink.x - probe->original_ink.x) <= 1);
+    CHECK(std::abs(probe->committed_ink.y - probe->original_ink.y) <= 1);
+    CHECK(std::abs(probe->committed_ink.width - probe->original_ink.width) <= 3);
+    CHECK(std::abs(probe->committed_ink.height - probe->original_ink.height) <= 3);
+    // The second unchanged apply reproduces the first.
+    CHECK(probe->cycle_bands.size() == 2U);
+    if (probe->cycle_bands.size() == 2U) {
+      const auto& first = probe->cycle_bands[0];
+      const auto& second = probe->cycle_bands[1];
+      CHECK(first.size() == second.size());
+      for (std::size_t index = 0; index < std::min(first.size(), second.size()); ++index) {
+        CHECK(first[index].top == second[index].top && first[index].bottom == second[index].bottom);
+      }
+    }
+    CHECK(probe->committed_layer.has_value());
+    if (!probe->committed_layer.has_value()) {
+      continue;
+    }
+    // Nothing was cut off: the raster keeps a clear margin on every side.
+    CHECK(pixel_buffer_border_is_clear(probe->committed_layer->pixels()));
+    // The saved TySh anchors the layer at Photoshop's own rounded pen (tx) and baseline (ty),
+    // not at the buffer corner that now sits left of the pen.
+    patchy::Document saved(3529, 924, patchy::PixelFormat::rgba8());
+    saved.add_layer(*probe->committed_layer);
+    const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(saved);
+    const auto transforms = tysh_transforms_in_psd(bytes);
+    CHECK(transforms.size() == 1U);
+    if (!transforms.empty()) {
+      std::printf("  %-6s saved TySh anchor (%.3f, %.3f), photoshop (%.0f, %.0f)\n", entry.needle, transforms[0][4],
+                  transforms[0][5], entry.photoshop_tx, entry.photoshop_ty);
+      std::fflush(stdout);
+      CHECK(std::abs(transforms[0][4] - entry.photoshop_tx) <= 1.0);
+      CHECK(std::abs(transforms[0][5] - entry.photoshop_ty) <= 1.0);
+    }
+  }
 }
 
 // The reported UI symptom on the same file: clicking into 'Dungeon:' came up Bold + Italic,
@@ -2879,6 +2985,8 @@ std::vector<patchy::test::TestCase> text_transform_commit_tests_part2() {
        ui_psd_centered_text_commit_rounds_line_start_like_photoshop},
       {"ui_dungeon_scroll_psd_text_commit_keeps_placement_if_available",
        ui_dungeon_scroll_psd_text_commit_keeps_placement_if_available},
+      {"ui_la_methode_psd_text_commit_keeps_glyph_overhang_if_available",
+       ui_la_methode_psd_text_commit_keeps_glyph_overhang_if_available},
       {"ui_dungeon_scroll_faux_bold_reads_as_faux_not_bold_if_available",
        ui_dungeon_scroll_faux_bold_reads_as_faux_not_bold_if_available},
       {"ui_psd_sheared_point_text_edit_lands_on_glyphs",

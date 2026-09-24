@@ -691,6 +691,13 @@ int alpha_row_band_span(const std::vector<AlphaRowBand>& bands);
 
 std::optional<QRect> alpha_pixel_bounds_in_rows(const patchy::PixelBuffer& pixels, int top, int bottom);
 
+// True when no pixel on the buffer's outer rows or columns has alpha above `threshold`: a text
+// raster that kept its bleed, so no glyph ink was cut off at the buffer edge.
+bool pixel_buffer_border_is_clear(const patchy::PixelBuffer& pixels, int threshold = 0);
+
+// Every TySh transform (xx xy yx yy tx ty) in a PSD, in layer order (bottom layer first).
+std::vector<std::array<double, 6>> tysh_transforms_in_psd(const std::vector<std::uint8_t>& bytes);
+
 patchy::Layer* preview_layer_for_editor(patchy::Document& document, const QTextEdit& editor);
 
 int count_internal_text_preview_layers(const std::vector<patchy::Layer>& layers);

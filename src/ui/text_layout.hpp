@@ -148,6 +148,22 @@ struct PhotoshopLineMetrics {
 // Line x positions stay Qt's own (alignment against the layout width).
 [[nodiscard]] PhotoshopTextLayoutPlan photoshop_text_layout_plan(const QTextDocument& document, bool boxed);
 
+// Union of the INK boxes of every glyph a line draws (QRawFont::boundingRect per glyph, the
+// font's design bounds at the pixel size, so side bearings and overshoots count), translated to
+// the origin the line is drawn at. Qt's line rect is the ADVANCE box: a negative left side bearing
+// (script and italic faces), ink past the last advance, or an accent above the ascent all lie
+// outside it, and a raster sized from it cuts them off. A stretched face (Character-panel
+// horizontal scale) widens each box about its glyph origin by the stretch, because the
+// DirectWrite engine's glyph boxes ignore the stretch its advances apply; faux bold adds half its
+// stroke; faux italic adds the descender lean. Null when the line has no glyphs.
+[[nodiscard]] QRectF line_glyph_ink_rect(const QTextBlock& block, const QTextLine& line, QPointF block_origin);
+
+// The same union over positioned line items, or over the document's natural layout (the
+// drawContents path).
+[[nodiscard]] QRectF line_items_glyph_ink_rect(const QTextDocument& document,
+                                               const std::vector<BoxTextLineRenderItem>& lines);
+[[nodiscard]] QRectF document_glyph_ink_rect(const QTextDocument& document);
+
 // ---- Vertical (tategaki) text ----
 //
 // Photoshop's Vertical Type model, calibrated against PS 2026 renders and DOM read-backs

@@ -1047,6 +1047,57 @@ std::optional<QRect> alpha_pixel_bounds_in_rows(const patchy::PixelBuffer& pixel
   return QRect(QPoint(min_x, min_y), QPoint(max_x, max_y));
 }
 
+bool pixel_buffer_border_is_clear(const patchy::PixelBuffer& pixels, int threshold) {
+  if (pixels.empty() || pixels.width() <= 0 || pixels.height() <= 0) {
+    return false;
+  }
+  const auto channels = pixels.format().channels;
+  if (channels != 1U && channels < 4U) {
+    return false;
+  }
+  const auto alpha_channel = channels == 1U ? 0U : 3U;
+  const auto stride = pixels.stride_bytes();
+  const auto bytes = pixels.data();
+  const auto alpha_at = [&](int x, int y) {
+    const auto offset = static_cast<std::size_t>(y) * stride + static_cast<std::size_t>(x) * channels + alpha_channel;
+    return offset < bytes.size() ? static_cast<int>(bytes[offset]) : 0;
+  };
+  for (int x = 0; x < pixels.width(); ++x) {
+    if (alpha_at(x, 0) > threshold || alpha_at(x, pixels.height() - 1) > threshold) {
+      return false;
+    }
+  }
+  for (int y = 0; y < pixels.height(); ++y) {
+    if (alpha_at(0, y) > threshold || alpha_at(pixels.width() - 1, y) > threshold) {
+      return false;
+    }
+  }
+  return true;
+}
+
+std::vector<std::array<double, 6>> tysh_transforms_in_psd(const std::vector<std::uint8_t>& bytes) {
+  std::vector<std::array<double, 6>> transforms;
+  const std::string haystack(bytes.begin(), bytes.end());
+  std::size_t at = 0;
+  while ((at = haystack.find("8BIMTySh", at)) != std::string::npos) {
+    const auto payload = at + 12U;
+    if (payload + 2U + 48U > haystack.size()) {
+      break;
+    }
+    std::array<double, 6> transform{};
+    for (std::size_t index = 0; index < transform.size(); ++index) {
+      std::uint64_t bits = 0;
+      for (std::size_t byte = 0; byte < 8U; ++byte) {
+        bits = (bits << 8U) | static_cast<std::uint8_t>(haystack[payload + 2U + index * 8U + byte]);
+      }
+      std::memcpy(&transform[index], &bits, sizeof(double));
+    }
+    transforms.push_back(transform);
+    at = payload;
+  }
+  return transforms;
+}
+
 patchy::Layer* preview_layer_for_editor(patchy::Document& document, const QTextEdit& editor) {
   if (!editor.property("patchy.textPreviewLayerId").isValid()) {
     return nullptr;

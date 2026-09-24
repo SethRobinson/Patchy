@@ -116,9 +116,12 @@ The renderer records what it drew (`text_layout_metrics_for_plan`, stored by
 `store_text_layout_metrics` at every site that gives a layer a text render, editor commits and
 transform re-renders included) and the Qt-free writer turns it into geometry:
 
-- `patchy.text.first_baseline`: the first line's baseline below the raster's top row, in plan
-  units. `point_text_baseline_offset` anchors ty there; the ink-bottom scan stays the fallback
-  for rasters no Patchy render measured (synthetic test layers, GDI regeneration).
+- `patchy.text.first_baseline`: the first line's baseline in plan units, below the text-local
+  origin for point text (the transform origin, which is the raster's top row unless glyph ink
+  overshoots the first line top, "Glyph ink outside the advance box" below) and below the
+  raster's top row for box text. `point_text_baseline_offset` anchors ty there; the ink-bottom
+  scan stays the fallback for rasters no Patchy render measured (synthetic test layers, GDI
+  regeneration).
 - `patchy.text.box_baseline_inset` (Qt-natural box text only): Qt's first baseline minus
   (space before + the line's max `QFontMetricsF::capHeight`), rounded to 1/64 px (QFixed's grid,
   exact in binary). The writer moves the TRANSFORM ORIGIN down by it (`translate_text_geometry_local`),
@@ -241,6 +244,26 @@ PS 27.9 COM captures (September 2026): "Hg", Arial 48 px, Sharp, placed at x or 
   `psd_text_anchor_captures_keep_fractional_transform`, and for centered text
   `ui_psd_centered_text_commit_rounds_line_start_like_photoshop` on
   `photoshop-text-anchor-center{,90}-{whole,third}.psd` plus the Dungeon Scroll probes.
+- **Glyph ink outside the advance box is kept, and the buffer grows around the origin.**
+  Qt's line rect is the advance box; a negative left side bearing (script and italic faces: the
+  Balmoral LET "é" starts 9 px left of the pen at 1011 px), ink past the last advance, or a swash
+  above Qt's ascent lies outside it, and Photoshop rasterizes all of it. `build_text_render_plan`
+  measures the real ink per line (`line_glyph_ink_rect`: `QRawFont::boundingRect` per glyph,
+  widened by any stretch because the DirectWrite engine's boxes ignore it, plus half the faux-bold
+  stroke and the faux-italic descender lean) and `grow_point_text_rect_to_glyph_ink` extends
+  `local_rect` by 2 px past whichever edge the ink exceeds; ink that fits leaves the rect and
+  every pinned raster untouched. Local (0, 0) stays the line start / first line top, so the
+  transform still names the pen and the buffer starts at transform + `local_rect.topLeft()`
+  (`rendered_text_bounds_for_editor`, the resample offset in commit and preview, the SVG and
+  Affinity placements); the PSD pins convert buffer-space ink to local space before comparing.
+  Issue 20 was the clipped case: the ink-to-ink anchor put the cut edge on Photoshop's ink column,
+  which slid "éthode" 9 px left and hid the "é" behind the "M" on an unchanged apply. Pinned by
+  `ui_point_text_render_keeps_glyph_overhang` (Arial Italic "jf": transform at the pen, re-entry
+  byte-identical, TySh tx at the pen) and, with the reporter's file and font in the local
+  fixtures, `ui_la_methode_psd_text_commit_keeps_glyph_overhang_if_available` (ink within 1 px of
+  Photoshop's, size within the stretch quantization, clear buffer margins, TySh at Photoshop's
+  rounded pen). Known gap: box text keeps its 2 px `kHorizontalBleed` and still clips an
+  overhanging first or last glyph; its frame-origin contract differs and is untouched.
 - **Known gap: per-glyph x rounding.** Photoshop also rounds EACH glyph's absolute x position: at
   x 100.5 the "H" moved one column while the "g" (100.5 + 34.67 = 135.17 -> 135, the same column
   as 134.67) stayed, and the centered/right "Hg" right edge moves at .7 while the left edge does

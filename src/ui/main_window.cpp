@@ -3947,6 +3947,40 @@ VerticalRenderPlan vertical_render_plan_for_editor(const QTextEdit& editor, cons
   return vertical_render_plan(layout_document, settings, 1.0, frame_layout_scale);
 }
 
+// Photoshop rasterizes every glyph whole; Qt's line rect is the ADVANCE box. Ink outside it --
+// a negative left side bearing (script and italic faces), ink past the last advance, an accent or
+// swash above Qt's ascent -- used to be cut off at the buffer edge, and the imported-layer
+// anchoring, which pins ink to ink, then moved the whole line by the clipped amount (issue 20:
+// Balmoral LET's "é" lost 9 px on the left and the text slid left by the same 9 px on every
+// unchanged commit). Grow the buffer around the ORIGIN only where the measured ink exceeds it:
+// local (0, 0) stays the line start / first line top, so a raster whose ink fits keeps its exact
+// pinned bytes, and one that overhangs starts left of or above the origin. Every placement adds
+// local_rect.topLeft() to the transform translation (docs/text-tool.md).
+void grow_point_text_rect_to_glyph_ink(QRectF& local_rect, const QRectF& ink) {
+  if (ink.isNull() || !std::isfinite(ink.left()) || !std::isfinite(ink.top()) || !std::isfinite(ink.right()) ||
+      !std::isfinite(ink.bottom())) {
+    return;
+  }
+  constexpr qreal kInkBleed = 2.0;
+  auto left = local_rect.left();
+  auto top = local_rect.top();
+  auto right = local_rect.right();
+  auto bottom = local_rect.bottom();
+  if (ink.left() < left) {
+    left = std::floor(ink.left()) - kInkBleed;
+  }
+  if (ink.top() < top) {
+    top = std::floor(ink.top()) - kInkBleed;
+  }
+  if (ink.right() > right) {
+    right = std::ceil(ink.right()) + kInkBleed;
+  }
+  if (ink.bottom() > bottom) {
+    bottom = std::ceil(ink.bottom()) + kInkBleed;
+  }
+  local_rect = QRectF(QPointF(left, top), QPointF(right, bottom));
+}
+
 TextRenderPlan build_text_render_plan(const TextToolSettings& settings, QColor color, std::int32_t max_width,
                                       const QString& paragraph_runs, const QString& rich_text_runs,
                                       std::optional<QRectF> requested_local_rect, double metric_scale,
@@ -4074,12 +4108,14 @@ TextRenderPlan build_text_render_plan(const TextToolSettings& settings, QColor c
     const auto bottom = std::max<qreal>(top + 1.0, std::ceil(ink.bottom()) + 2.0);
     local_rect = QRectF(0.0, top, std::max<qreal>(1.0, std::ceil(size.width()) + 2.0), bottom - top);
     line_render_items = std::move(photoshop_plan.lines);
+    grow_point_text_rect_to_glyph_ink(local_rect, line_items_glyph_ink_rect(document, line_render_items));
     for (auto& item : line_render_items) {
       item.clip_rect = local_rect;
     }
   } else {
     local_rect = QRectF(0.0, 0.0, std::max<qreal>(1.0, std::ceil(size.width()) + 2.0),
                         std::max<qreal>(1.0, std::ceil(size.height()) + 2.0));
+    grow_point_text_rect_to_glyph_ink(local_rect, document_glyph_ink_rect(document));
   }
   if (!std::isfinite(local_rect.left()) || !std::isfinite(local_rect.top()) ||
       !std::isfinite(local_rect.right()) || !std::isfinite(local_rect.bottom()) ||
@@ -4219,8 +4255,10 @@ void draw_text_render_plan(const TextRenderPlan& plan, QPainter& painter) {
 
 // The metrics the PSD writer needs to put Photoshop's re-layout on the pixels this plan draws
 // (docs/text-render-calibration.md, "Patchy text re-renders where Patchy drew it"):
-// - first_baseline: the first drawn line's baseline below the raster's top row (the plan's
-//   local_rect top), in the plan's local units. Photoshop anchors point text at ty = baseline.
+// - first_baseline: the first drawn line's baseline in the plan's local units, below the
+//   text-local origin for point text (the transform origin; equal to the raster's top row unless
+//   glyph ink overshoots the first line top) and below the raster's top row (the plan's
+//   local_rect top) for box text. Photoshop anchors point text at ty = baseline.
 // - box_baseline_inset: Qt's first baseline minus Photoshop's box rule for a Patchy-authored
 //   block (space before + the line's max CAP HEIGHT: PS 27.9 re-renders of the same block with
 //   Arial, Times, Georgia and Verdana at 268 px all put the first baseline at capHeight x size,
@@ -4270,7 +4308,10 @@ TextLayoutMetrics text_layout_metrics_for_plan(const TextRenderPlan& plan, const
     first_baseline = item.block_origin.y() + item.line.y() + item.line.ascent();
   }
   if (std::isfinite(first_baseline)) {
-    metrics.first_baseline = first_baseline - plan.local_rect.top();
+    // Point text: from the text-local origin (the transform's), which the PSD writer starts
+    // from; the raster begins above it whenever glyph ink overshoots the first line's top
+    // (grow_point_text_rect_to_glyph_ink). Box text keeps the raster-top convention.
+    metrics.first_baseline = settings.boxed ? first_baseline - plan.local_rect.top() : first_baseline;
   }
   if (settings.photoshop_layout) {
     return metrics;
@@ -4812,16 +4853,25 @@ Rect rendered_text_bounds_for_editor(const QTextEdit& editor, QPoint document_po
                 rendered.pixels.width(),
                 rendered.pixels.height()};
   }
+  if (!text_flow_is_box(editor.property("patchy.documentTextFlow").toString())) {
+    // Point text: the document point is the text-local origin; the buffer starts
+    // local_rect.topLeft() from it (left of / above it when glyph ink overhangs the line start
+    // or top; the identity render's local_rect is already whole pixels). Box text keeps its
+    // frame-corner placement (its rect carries the line bleed above the frame).
+    return Rect{document_point.x() + static_cast<std::int32_t>(std::floor(rendered.local_rect.left())),
+                document_point.y() + static_cast<std::int32_t>(std::floor(rendered.local_rect.top())),
+                rendered.pixels.width(), rendered.pixels.height()};
+  }
   return Rect{document_point.x(), document_point.y(), rendered.pixels.width(), rendered.pixels.height()};
 }
 
 std::optional<LayerAffineTransform> anchored_text_transform_for_pixels(const QTextEdit& editor,
-                                                                       const PixelBuffer& pixels) {
+                                                                       const RenderedTextPixels& rendered) {
   const auto anchor = text_editor_source_visible_anchor(editor);
   if (!anchor.has_value()) {
     return std::nullopt;
   }
-  const auto visible_bounds = visible_alpha_local_bounds(pixels);
+  const auto visible_bounds = visible_alpha_local_bounds(rendered.pixels);
   if (!visible_bounds.has_value()) {
     return std::nullopt;
   }
@@ -4852,16 +4902,19 @@ std::optional<LayerAffineTransform> anchored_text_transform_for_pixels(const QTe
   if (!text_editor_is_vertical(editor)) {
     anchor_x = snap_to_pixel_grid(anchor_x);
   }
+  // The pin places the BUFFER; the transform names the text-local origin, which sits
+  // local_rect.topLeft() inside it (left of / above the buffer corner only when glyph ink
+  // overhangs the line start or top, grow_point_text_rect_to_glyph_ink).
   return LayerAffineTransform{1.0,
                               0.0,
                               0.0,
                               1.0,
-                              anchor_x - static_cast<double>(visible_bounds->x),
-                              anchor_y - static_cast<double>(visible_bounds->y)};
+                              anchor_x - static_cast<double>(visible_bounds->x) - rendered.local_rect.left(),
+                              anchor_y - static_cast<double>(visible_bounds->y) - rendered.local_rect.top()};
 }
 
-bool update_text_editor_transform_from_source_anchor(QTextEdit& editor, const PixelBuffer& pixels) {
-  const auto transform = anchored_text_transform_for_pixels(editor, pixels);
+bool update_text_editor_transform_from_source_anchor(QTextEdit& editor, const RenderedTextPixels& rendered) {
+  const auto transform = anchored_text_transform_for_pixels(editor, rendered);
   if (!transform.has_value()) {
     return false;
   }
@@ -4870,8 +4923,8 @@ bool update_text_editor_transform_from_source_anchor(QTextEdit& editor, const Pi
   return true;
 }
 
-std::optional<PixelBuffer> render_text_editor_pixels_for_source_anchor(const QTextEdit& editor, double zoom,
-                                                                       QColor fallback_color) {
+std::optional<RenderedTextPixels> render_text_editor_pixels_for_source_anchor(const QTextEdit& editor, double zoom,
+                                                                              QColor fallback_color) {
   // Untrimmed: run offsets index the full document text (see calibrated_box_text_metric_scale_for_editor).
   const auto text = editor.toPlainText();
   if (text.trimmed().isEmpty()) {
@@ -4909,19 +4962,19 @@ std::optional<PixelBuffer> render_text_editor_pixels_for_source_anchor(const QTe
   const auto rich_text_runs = rich_text_runs_from_document(*document_text, settings, text_color);
   const auto paragraph_runs = paragraph_runs_from_document(*document_text);
   settings.html = document_html_from_text_runs(document_text->toPlainText(), rich_text_runs, settings, text_color);
-  auto pixels = render_text_pixels(settings, text_color, text_width, paragraph_runs, rich_text_runs);
-  if (pixels.empty()) {
+  auto rendered = render_text_pixels_with_local_rect(settings, text_color, text_width, paragraph_runs, rich_text_runs);
+  if (rendered.pixels.empty()) {
     return std::nullopt;
   }
-  return pixels;
+  return rendered;
 }
 
 bool update_text_editor_transform_from_source_anchor(QTextEdit& editor, double zoom, QColor fallback_color) {
-  const auto pixels = render_text_editor_pixels_for_source_anchor(editor, zoom, fallback_color);
-  if (!pixels.has_value()) {
+  const auto rendered = render_text_editor_pixels_for_source_anchor(editor, zoom, fallback_color);
+  if (!rendered.has_value()) {
     return false;
   }
-  return update_text_editor_transform_from_source_anchor(editor, *pixels);
+  return update_text_editor_transform_from_source_anchor(editor, *rendered);
 }
 
 std::optional<QTransform> text_transform_for_editor_or_layer(const QTextEdit& editor, const Layer& layer) {
@@ -5225,7 +5278,7 @@ LayerAffineTransform affine_with_local_translation(const LayerAffineTransform& t
 }
 
 std::optional<LayerAffineTransform> psd_point_text_local_bounds_transform_for_pixels(const Layer& layer,
-                                                                                    const PixelBuffer& pixels,
+                                                                                    const RenderedTextPixels& rendered,
                                                                                     bool boxed_text,
                                                                                     double alignment_factor) {
   if (boxed_text || !layer.metadata().contains(kLayerMetadataPsdTextTransform) ||
@@ -5244,12 +5297,14 @@ std::optional<LayerAffineTransform> psd_point_text_local_bounds_transform_for_pi
     return std::nullopt;
   }
   const auto psd_local_rect = psd_point_text_local_visual_rect(layer);
-  const auto visible_bounds = visible_alpha_local_bounds(pixels);
+  const auto visible_bounds = visible_alpha_local_bounds(rendered.pixels);
   if (!psd_local_rect.has_value() || !visible_bounds.has_value()) {
     return std::nullopt;
   }
 
-  const QRectF visible_rect(visible_bounds->x, visible_bounds->y, visible_bounds->width, visible_bounds->height);
+  // Pixel (0, 0) of the identity render is local point local_rect.topLeft().
+  const QRectF visible_rect(rendered.local_rect.left() + visible_bounds->x, rendered.local_rect.top() + visible_bounds->y,
+                            visible_bounds->width, visible_bounds->height);
   const auto transform_qt = qtransform_from_affine(*transform);
   const auto anchor_index = visual_top_left_corner_index(*psd_local_rect, transform_qt);
   auto delta = rect_corner(*psd_local_rect, anchor_index) - rect_corner(visible_rect, anchor_index);
@@ -5301,7 +5356,7 @@ std::optional<LayerAffineTransform> psd_point_text_local_bounds_transform_for_pi
 // A local translation shifts the mapped bounding box rigidly, so the pin is exact for any
 // invertible affine.
 std::optional<LayerAffineTransform> psd_point_text_document_bounds_transform_for_pixels(
-    const Layer& layer, const PixelBuffer& pixels, bool boxed_text, double alignment_factor) {
+    const Layer& layer, const RenderedTextPixels& rendered, bool boxed_text, double alignment_factor) {
   if (boxed_text || !layer.metadata().contains(kLayerMetadataPsdTextTransform)) {
     return std::nullopt;
   }
@@ -5310,7 +5365,7 @@ std::optional<LayerAffineTransform> psd_point_text_document_bounds_transform_for
     return std::nullopt;
   }
   const auto source_visible = visible_alpha_local_bounds(layer.pixels());
-  const auto render_visible = visible_alpha_local_bounds(pixels);
+  const auto render_visible = visible_alpha_local_bounds(rendered.pixels);
   if (!source_visible.has_value() || !render_visible.has_value()) {
     return std::nullopt;
   }
@@ -5318,7 +5373,9 @@ std::optional<LayerAffineTransform> psd_point_text_document_bounds_transform_for
                           static_cast<double>(layer.bounds().y + source_visible->y),
                           static_cast<double>(source_visible->width),
                           static_cast<double>(source_visible->height));
-  const QRectF render_local(render_visible->x, render_visible->y, render_visible->width,
+  // Pixel (0, 0) of the identity render is local point local_rect.topLeft().
+  const QRectF render_local(rendered.local_rect.left() + render_visible->x,
+                            rendered.local_rect.top() + render_visible->y, render_visible->width,
                             render_visible->height);
   const auto transform_qt = qtransform_from_affine(*transform);
   const auto mapped = transform_qt.mapRect(render_local);
@@ -5376,20 +5433,23 @@ std::optional<LayerAffineTransform> psd_point_text_document_bounds_transform_for
 }
 
 bool update_text_editor_transform_from_psd_local_bounds(QTextEdit& editor, const Layer& layer,
-                                                        const PixelBuffer& pixels, bool boxed_text) {
+                                                        const RenderedTextPixels& rendered, bool boxed_text) {
   const auto alignment_factor = text_editor_anchor_alignment_factor(editor);
   auto transform =
-      psd_point_text_local_bounds_transform_for_pixels(layer, pixels, boxed_text, alignment_factor);
+      psd_point_text_local_bounds_transform_for_pixels(layer, rendered, boxed_text, alignment_factor);
   if (!transform.has_value()) {
     transform =
-        psd_point_text_document_bounds_transform_for_pixels(layer, pixels, boxed_text, alignment_factor);
+        psd_point_text_document_bounds_transform_for_pixels(layer, rendered, boxed_text, alignment_factor);
   }
   if (!transform.has_value()) {
     return false;
   }
   set_text_editor_transform_override(editor, *transform);
-  if (const auto visible_bounds = visible_alpha_local_bounds(pixels); visible_bounds.has_value()) {
-    set_text_editor_visible_local_rect(editor, *visible_bounds);
+  if (const auto visible_bounds = visible_alpha_local_bounds(rendered.pixels); visible_bounds.has_value()) {
+    set_text_editor_visible_local_rect(
+        editor, Rect{visible_bounds->x + static_cast<std::int32_t>(std::floor(rendered.local_rect.left())),
+                     visible_bounds->y + static_cast<std::int32_t>(std::floor(rendered.local_rect.top())),
+                     visible_bounds->width, visible_bounds->height});
   }
   return true;
 }
@@ -5617,9 +5677,9 @@ std::optional<QTransform> imported_preview_text_plan_transform(const Layer& laye
   }
   const auto factor = layer_anchor_alignment_factor(layer);
   if (has_linear_part) {
-    auto aligned = psd_point_text_local_bounds_transform_for_pixels(layer, rendered.pixels, false, factor);
+    auto aligned = psd_point_text_local_bounds_transform_for_pixels(layer, rendered, false, factor);
     if (!aligned.has_value()) {
-      aligned = psd_point_text_document_bounds_transform_for_pixels(layer, rendered.pixels, false, factor);
+      aligned = psd_point_text_document_bounds_transform_for_pixels(layer, rendered, false, factor);
     }
     if (!aligned.has_value()) {
       return std::nullopt;
@@ -6411,11 +6471,11 @@ bool rerender_text_layer_through_stored_transform(Layer& layer) {
     const auto flow = layer.metadata().find(kLayerMetadataTextFlow);
     const bool boxed =
         flow != layer.metadata().end() && text_flow_is_box(QString::fromStdString(flow->second));
-    const auto base_pixels = render_text_layer_pixels_from_metadata(layer);
-    if (!base_pixels.has_value()) {
+    const auto base = render_text_layer_from_metadata(layer);
+    if (!base.has_value() || base->pixels.empty()) {
       return false;
     }
-    const auto aligned = psd_point_text_local_bounds_transform_for_pixels(layer, *base_pixels, boxed,
+    const auto aligned = psd_point_text_local_bounds_transform_for_pixels(layer, *base, boxed,
                                                                           layer_anchor_alignment_factor(layer));
     if (!aligned.has_value()) {
       return false;
@@ -8464,9 +8524,9 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
                             editor->property("patchy.documentTextY").toInt());
   } else if (editing_layer.has_value()) {
     if (auto* layer = document().find_layer(*editing_layer); layer != nullptr) {
-      if (const auto pixels = render_text_editor_pixels_for_source_anchor(*editor, canvas_->zoom(), text_color);
-          pixels.has_value() &&
-          update_text_editor_transform_from_psd_local_bounds(*editor, *layer, *pixels, boxed_text)) {
+      if (const auto rendered = render_text_editor_pixels_for_source_anchor(*editor, canvas_->zoom(), text_color);
+          rendered.has_value() &&
+          update_text_editor_transform_from_psd_local_bounds(*editor, *layer, *rendered, boxed_text)) {
         document_point = QPoint(editor->property("patchy.documentTextX").toInt(),
                                 editor->property("patchy.documentTextY").toInt());
         if (const auto transform = text_editor_transform_override(*editor); transform.has_value()) {
@@ -8867,13 +8927,13 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
         // updates below would re-anchor the text at the warped ink and drift it every commit.
         warped_text_layer = layer_has_active_text_warp(*layer);
         if (!warped_text_layer) {
-          updated_transform = update_text_editor_transform_from_psd_local_bounds(*editor, *layer, rendered.pixels,
+          updated_transform = update_text_editor_transform_from_psd_local_bounds(*editor, *layer, rendered,
                                                                                 boxed_text);
         }
       }
     }
     if (!updated_transform && !warped_text_layer) {
-      update_text_editor_transform_from_source_anchor(*editor, rendered.pixels);
+      update_text_editor_transform_from_source_anchor(*editor, rendered);
     }
     document_point = QPoint(editor->property("patchy.documentTextX").toInt(),
                             editor->property("patchy.documentTextY").toInt());
@@ -8939,10 +8999,16 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
   if (!committed_warp_used.has_value() && text_transform.has_value() &&
       !editor->property("patchy.usesPsdTextFrame").toBool() && !anchor_places_rendered_pixels) {
     auto transform_for_pixels = *text_transform;
-    const bool has_local_offset =
-        text_editor_render_local_rect(*editor).has_value() &&
-        (std::abs(rendered.local_rect.left()) > 0.0001 || std::abs(rendered.local_rect.top()) > 0.0001);
-    if (has_local_offset) {
+    const bool rendered_off_origin =
+        std::abs(rendered.local_rect.left()) > 0.0001 || std::abs(rendered.local_rect.top()) > 0.0001;
+    const bool has_local_offset = text_editor_render_local_rect(*editor).has_value() && rendered_off_origin;
+    // Point text whose glyph ink overhangs the origin renders into a buffer that starts left of
+    // or above it (grow_point_text_rect_to_glyph_ink); the resample below maps that buffer, so
+    // it needs the offset folded in. The crisp path re-renders the plan through the transform
+    // and derives its bounds from the plan's own rect, so it must get the plain transform.
+    const bool point_local_offset =
+        !boxed_text && !text_editor_render_local_rect(*editor).has_value() && rendered_off_origin;
+    if (has_local_offset || point_local_offset) {
       transform_for_pixels = qtransform_from_affine(
           affine_with_local_translation(affine_from_qtransform(*text_transform), rendered.local_rect.topLeft()));
     }
@@ -8953,7 +9019,7 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
     if (auto crisp = render_crisp_transformed_text_for_editor(*editor, psd_anchored_text, boxed_text,
                                                               has_local_offset, settings, text_color, text_width,
                                                               paragraph_runs, rich_text_runs, *text_transform,
-                                                              transform_for_pixels);
+                                                              *text_transform);
         crisp.has_value()) {
       committed_bounds = crisp->bounds;
       pixels = std::move(crisp->pixels);
@@ -9030,6 +9096,13 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
             serialize_layer_affine_transform(committed_text_transform(document_point, text_affine_transform));
       } else if (text_affine_transform.has_value()) {
         layer->metadata()[kLayerMetadataTextTransform] = serialize_layer_affine_transform(*text_affine_transform);
+      } else if (!settings.vertical) {
+        // Horizontal point text always records its pen: the raster may start left of or above
+        // it (glyph ink overhanging the line start or top, grow_point_text_rect_to_glyph_ink),
+        // so the layer corner no longer identifies the text origin for the next session or the
+        // PSD writer. Vertical point text keeps recovering its anchor from the raster.
+        layer->metadata()[kLayerMetadataTextTransform] =
+            serialize_layer_affine_transform(committed_text_transform(document_point, std::nullopt));
       }
       if (committed_warp_used.has_value()) {
         layer->metadata()[kLayerMetadataTextWarp] = serialize_text_warp(*committed_warp_used);
@@ -9049,8 +9122,10 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
         removed_provisional.has_value() ? *removed_provisional : document().allocate_layer_id();
     committed_layer_id = new_layer_id;
     Layer text_layer(new_layer_id, name.toStdString(), std::move(pixels));
+    // committed_bounds, not the document point: the buffer starts left of or above the pen when
+    // glyph ink overhangs it (rendered_text_bounds_for_editor).
     text_layer.set_bounds(
-        Rect{document_point.x(), document_point.y(), text_layer.pixels().width(), text_layer.pixels().height()});
+        Rect{committed_bounds.x, committed_bounds.y, text_layer.pixels().width(), text_layer.pixels().height()});
     store_patchy_text_metadata(text_layer, settings, text_color, rich_text_runs, paragraph_runs, text_width,
                                boxed_text ? text_height : text_layer.pixels().height());
     store_text_layout_metrics(text_layer, rendered.metrics);
@@ -9060,7 +9135,8 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
     if (editor->property(kTextEditorLineAwareBoxPreviewProperty).toBool()) {
       text_layer.metadata()[kLayerMetadataTextLineAwareBoxPreview] = "true";
     }
-    if (boxed_text) {
+    if (boxed_text || !settings.vertical) {
+      // Point text records its pen too (see the existing-layer branch above).
       text_layer.metadata()[kLayerMetadataTextTransform] =
           serialize_layer_affine_transform(committed_text_transform(document_point, std::nullopt));
     }
@@ -9221,7 +9297,7 @@ bool MainWindow::apply_text_warp_to_layer(Layer& layer, const patchy::TextWarp& 
                                                          inputs->paragraph_runs, inputs->rich_text_runs);
     if (!base.pixels.empty()) {
       if (const auto aligned = psd_point_text_local_bounds_transform_for_pixels(
-              layer, base.pixels, false, layer_anchor_alignment_factor(layer));
+              layer, base, false, layer_anchor_alignment_factor(layer));
           aligned.has_value()) {
         transform = qtransform_from_affine(*aligned);
         have_transform = true;
@@ -9234,7 +9310,9 @@ bool MainWindow::apply_text_warp_to_layer(Layer& layer, const patchy::TextWarp& 
         const auto psd_local_rect = psd_point_text_local_visual_rect(layer);
         const auto visible = visible_alpha_local_bounds(base.pixels);
         if (psd_local_rect.has_value() && visible.has_value()) {
-          const QRectF visible_rect(visible->x, visible->y, visible->width, visible->height);
+          // Pixel (0, 0) of the identity render is local point local_rect.topLeft().
+          const QRectF visible_rect(base.local_rect.left() + visible->x, base.local_rect.top() + visible->y,
+                                    visible->width, visible->height);
           QPointF delta = psd_local_rect->topLeft() - visible_rect.topLeft();
           const auto factor = layer_anchor_alignment_factor(layer);
           if (factor > 0.0) {
@@ -10101,9 +10179,10 @@ void MainWindow::render_pending_svg_text_layers(Document& target) {
         ascent = QFontMetricsF(font).ascent();
       }
       const double shift = anchor == "middle" ? pixels->width() / 2.0 : anchor == "end" ? pixels->width() : 0.0;
-      const Rect placed{static_cast<std::int32_t>(std::lround(baseline_x - shift)),
-                        static_cast<std::int32_t>(std::lround(baseline_y - ascent)), pixels->width(),
-                        pixels->height()};
+      // The buffer starts local_rect.topLeft() from the text origin (overhanging glyph ink).
+      const Rect placed{static_cast<std::int32_t>(std::lround(baseline_x - shift + rendered_text->local_rect.left())),
+                        static_cast<std::int32_t>(std::lround(baseline_y - ascent + rendered_text->local_rect.top())),
+                        pixels->width(), pixels->height()};
       // set_pixels resets bounds to the buffer at the origin, so the bounds
       // must follow it (the text-commit ordering convention).
       layer.set_pixels(std::move(*pixels));
@@ -10240,8 +10319,9 @@ void MainWindow::render_pending_af_text_layers(Document& target) {
         continue;  // stays an empty text layer; the text tool can still edit it
       }
       auto pixels = std::optional<PixelBuffer>(std::move(rendered_text->pixels));
-      double top = anchored_top;
-      double left = frame[0];
+      // The buffer starts local_rect.topLeft() from the text origin (overhanging glyph ink).
+      double top = anchored_top + rendered_text->local_rect.top();
+      double left = frame[0] + rendered_text->local_rect.left();
       const double frame_width = frame[2] - frame[0];
       if (align > 0 && frame_width > 0.0) {
         const double slack = frame_width - pixels->width();
@@ -10396,7 +10476,8 @@ void MainWindow::record_text_layout_metrics_for_reopened_text(Document& target) 
             kept_ink.has_value() && fresh_ink.has_value() && kept_ink->height == fresh_ink->height &&
             kept_ink->y == fresh_ink->y) {
           const double ink_bottom = static_cast<double>(kept_ink->y + kept_ink->height);
-          const double delta = *rendered->metrics.first_baseline - ink_bottom;
+          // first_baseline is origin-relative; the kept raster's rows start at local_rect.top().
+          const double delta = *rendered->metrics.first_baseline - rendered->local_rect.top() - ink_bottom;
           if (std::isfinite(delta) && std::abs(delta) > 0.01) {
             auto moved = *transform;
             moved[5] += delta;
@@ -11645,11 +11726,11 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
     // geometry from the layer raster, which holds the WARPED ink.
     bool updated_transform = false;
     if (source != nullptr) {
-      updated_transform = update_text_editor_transform_from_psd_local_bounds(*editor, *source, rendered.pixels,
+      updated_transform = update_text_editor_transform_from_psd_local_bounds(*editor, *source, rendered,
                                                                             boxed_text);
     }
     if (!updated_transform) {
-      update_text_editor_transform_from_source_anchor(*editor, rendered.pixels);
+      update_text_editor_transform_from_source_anchor(*editor, rendered);
     }
   }
 
@@ -11663,11 +11744,15 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
         !(text_editor_render_local_rect(*editor).has_value() &&
           text_editor_source_visible_anchor(*editor).has_value() &&
           !qtransform_has_non_translation_linear_part(*transform))) {
-      const bool has_local_offset =
-          text_editor_render_local_rect(*editor).has_value() &&
-          (std::abs(rendered.local_rect.left()) > 0.0001 || std::abs(rendered.local_rect.top()) > 0.0001);
+      const bool rendered_off_origin =
+          std::abs(rendered.local_rect.left()) > 0.0001 || std::abs(rendered.local_rect.top()) > 0.0001;
+      const bool has_local_offset = text_editor_render_local_rect(*editor).has_value() && rendered_off_origin;
+      // Same split as commit_text_editor: an overhanging point-text buffer is resampled with its
+      // offset folded in, while the crisp re-render takes the plain transform.
+      const bool point_local_offset =
+          !boxed_text && !text_editor_render_local_rect(*editor).has_value() && rendered_off_origin;
       auto transform_for_pixels = *transform;
-      if (has_local_offset) {
+      if (has_local_offset || point_local_offset) {
         transform_for_pixels = qtransform_from_affine(
             affine_with_local_translation(affine_from_qtransform(*transform), rendered.local_rect.topLeft()));
       }
@@ -11677,7 +11762,7 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
       if (auto crisp = render_crisp_transformed_text_for_editor(
               *editor, source->metadata().contains(kLayerMetadataPsdTextTransform), boxed_text,
               has_local_offset, settings, text_color, text_width, paragraph_runs, rich_text_runs, *transform,
-              transform_for_pixels);
+              *transform);
           crisp.has_value()) {
         pixels = std::move(crisp->pixels);
         preview_bounds = crisp->bounds;

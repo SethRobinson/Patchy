@@ -132,6 +132,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QPointer>
+#include <QRawFont>
 #include <QPolygonF>
 #include <QThread>
 #include <QPaintEvent>
@@ -1282,6 +1283,162 @@ void ui_text_edit_entry_leaves_the_pixels_alone() {
   check_text_edit_entry_leaves_pixels_alone(true);
 }
 
+// Glyph ink outside the advance box (Arial Italic: the "j" hook starts left of the pen, the "f"
+// overruns its advance) must survive a point-text render, and the buffer that grows around the
+// origin to hold it must not move the text: the transform still names the pen, re-entering and
+// re-applying reproduce the pixels, and the saved TySh anchors at the pen (issue 20).
+void ui_point_text_render_keeps_glyph_overhang() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  QFont probe_font(QStringLiteral("Arial"));
+  probe_font.setItalic(true);
+  probe_font.setPixelSize(96);
+  const auto raw = QRawFont::fromFont(probe_font);
+  if (!raw.isValid() || raw.familyName() != QStringLiteral("Arial") || !raw.styleName().contains(QStringLiteral("Italic"))) {
+    std::printf("[SKIP] Arial Italic is not registered (glyph overhang probe)\n");
+    return;
+  }
+  const auto glyphs = raw.glyphIndexesForString(QStringLiteral("jf"));
+  if (glyphs.size() != 2) {
+    std::printf("[SKIP] Arial Italic has no glyphs for \"jf\"\n");
+    return;
+  }
+  const auto j_left = raw.boundingRect(glyphs[0]).left();
+  const auto f_overhang = raw.boundingRect(glyphs[1]).right() - raw.advancesForGlyphIndexes({glyphs[1]}).value(0).x();
+  std::printf("  Arial Italic 96 px: j ink starts %.2f px from the pen, f overruns its advance by %.2f px\n",
+              j_left, f_overhang);
+  std::fflush(stdout);
+  if (j_left > -1.0 || f_overhang < 1.0) {
+    std::printf("[SKIP] this Arial Italic has no overhanging glyphs to probe\n");
+    return;
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::Document document(800, 500, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(800, 500, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  document.print_settings().horizontal_ppi = 72.0;  // 96 pt = 96 px
+  document.print_settings().vertical_ppi = 72.0;
+  window.add_document_session(std::move(document), QStringLiteral("Glyph Overhang"));
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  canvas->set_primary_color(QColor(0, 0, 0));
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  QApplication::processEvents();
+  auto* font_combo = window.findChild<QFontComboBox*>(QStringLiteral("textFontCombo"));
+  auto* size_spin = window.findChild<QDoubleSpinBox*>(QStringLiteral("textSizeSpin"));
+  CHECK(font_combo != nullptr && size_spin != nullptr);
+  if (font_combo == nullptr || size_spin == nullptr) {
+    return;
+  }
+  font_combo->setCurrentFont(QFont(QStringLiteral("Arial")));
+  size_spin->setValue(96.0);
+  QApplication::processEvents();
+
+  const QPoint pen(100, 200);
+  const auto widget_point = canvas->widget_position_for_document_point(pen);
+  send_mouse(*canvas, QEvent::MouseButtonPress, widget_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, widget_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  QPointer<QTextEdit> editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+  editor->setPlainText(QStringLiteral("jf"));
+  editor->setFocus(Qt::OtherFocusReason);
+  editor->selectAll();
+  QTest::keyClick(editor.data(), Qt::Key_I, Qt::ControlModifier);  // the real Italic face
+  QApplication::processEvents();
+  process_events_for(150);
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  process_events_for(150);
+
+  auto& live_document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto layer_id = live_document.active_layer_id();
+  CHECK(layer_id.has_value());
+  auto* committed = layer_id.has_value() ? live_document.find_layer(*layer_id) : nullptr;
+  CHECK(committed != nullptr);
+  if (committed == nullptr) {
+    return;
+  }
+  const auto committed_bounds = committed->bounds();
+  const auto committed_pixels = committed->pixels();
+  const auto transform_value = committed->metadata().find(patchy::kLayerMetadataTextTransform);
+  CHECK(transform_value != committed->metadata().end());
+  const auto transform = transform_value != committed->metadata().end()
+                             ? patchy::parse_layer_affine_transform(transform_value->second)
+                             : std::nullopt;
+  CHECK(transform.has_value());
+  const auto italic = committed->metadata().find(patchy::kLayerMetadataTextItalic);
+  CHECK(italic != committed->metadata().end() && italic->second == "true");
+  std::printf("  committed %dx%d at (%d,%d); transform (%.3f, %.3f)\n", committed_bounds.width, committed_bounds.height,
+              committed_bounds.x, committed_bounds.y, transform.has_value() ? (*transform)[4] : 0.0,
+              transform.has_value() ? (*transform)[5] : 0.0);
+  std::fflush(stdout);
+  // The buffer starts left of the pen to hold the "j" hook, and keeps a clear margin all round.
+  CHECK(committed_bounds.x < pen.x());
+  CHECK(pixel_buffer_border_is_clear(committed_pixels));
+  // The transform still names the pen.
+  if (transform.has_value()) {
+    CHECK(std::abs((*transform)[4] - pen.x()) < 1e-6);
+    CHECK(std::abs((*transform)[5] - pen.y()) < 1e-6);
+  }
+
+  // Re-enter on the glyphs: the preview and a second apply reproduce the pixels in place.
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const QPoint reenter(committed_bounds.x + committed_bounds.width / 2, committed_bounds.y + committed_bounds.height / 2);
+  const auto reenter_point = canvas->widget_position_for_document_point(reenter);
+  send_mouse(*canvas, QEvent::MouseButtonPress, reenter_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, reenter_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  process_events_for(150);
+  auto* reentered = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(reentered != nullptr);
+  bool preview_matches = false;
+  if (reentered != nullptr) {
+    CHECK(reentered->property("patchy.editingLayerId").toULongLong() == static_cast<qulonglong>(*layer_id));
+    if (auto* preview = preview_layer_for_editor(live_document, *reentered); preview != nullptr) {
+      preview_matches = preview->bounds().x == committed_bounds.x && preview->bounds().y == committed_bounds.y &&
+                        patchy::ui::pixel_buffers_equal(preview->pixels(), committed_pixels);
+      if (!preview_matches) {
+        std::printf("  entry preview %dx%d at (%d,%d) differs from the committed raster\n", preview->bounds().width,
+                    preview->bounds().height, preview->bounds().x, preview->bounds().y);
+      }
+    }
+  }
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  process_events_for(150);
+  CHECK(preview_matches);
+  auto* recommitted = live_document.find_layer(*layer_id);
+  CHECK(recommitted != nullptr);
+  if (recommitted == nullptr) {
+    return;
+  }
+  CHECK(recommitted->bounds().x == committed_bounds.x);
+  CHECK(recommitted->bounds().y == committed_bounds.y);
+  CHECK(patchy::ui::pixel_buffers_equal(recommitted->pixels(), committed_pixels));
+
+  // The saved TySh anchors at the pen: tx is the pen, ty the pen plus the recorded first baseline
+  // (measured from the text origin, not from the raster's top row).
+  const auto baseline_value = recommitted->metadata().find(patchy::kLayerMetadataTextFirstBaseline);
+  CHECK(baseline_value != recommitted->metadata().end());
+  const double first_baseline =
+      baseline_value != recommitted->metadata().end() ? std::stod(baseline_value->second) : 0.0;
+  CHECK(first_baseline > 50.0 && first_baseline < 100.0);  // Arial's ascent at 96 px is ~87
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(live_document);
+  const auto transforms = tysh_transforms_in_psd(bytes);
+  CHECK(transforms.size() == 1U);
+  if (!transforms.empty()) {
+    std::printf("  saved TySh anchor (%.3f, %.3f); first baseline %.3f\n", transforms[0][4], transforms[0][5],
+                first_baseline);
+    std::fflush(stdout);
+    CHECK(std::abs(transforms[0][4] - pen.x()) < 0.01);
+    CHECK(std::abs(transforms[0][5] - (pen.y() + first_baseline)) < 0.01);
+  }
+}
+
 // Drag-selecting with the mouse, and Shift+Arrow selecting with the keyboard, must both produce
 // a highlight that covers the glyphs it claims to cover. `reenter` runs the checks on a re-opened
 // session (the layer's stored metadata rebuilds the editor) rather than the session that created
@@ -2047,6 +2204,7 @@ std::vector<patchy::test::TestCase> text_editor_font_picker_tests() {
       {"ui_text_edit_hides_editor_glyphs_and_shows_selection_over_style_preview",
        ui_text_edit_hides_editor_glyphs_and_shows_selection_over_style_preview},
       {"ui_text_edit_entry_leaves_the_pixels_alone", ui_text_edit_entry_leaves_the_pixels_alone},
+      {"ui_point_text_render_keeps_glyph_overhang", ui_point_text_render_keeps_glyph_overhang},
       {"ui_text_commit_is_zoom_independent", ui_text_commit_is_zoom_independent},
       {"ui_text_mouse_and_keyboard_selection_match_glyphs",
        ui_text_mouse_and_keyboard_selection_match_glyphs},

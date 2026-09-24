@@ -2,7 +2,7 @@
 
 The inline text editor's session machinery, commit/cancel semantics, and the Character panel. The Photoshop layout/measurement model (engine units, leading, faux bold/italic, whole-pixel folding, run-format columns) lives in [text-render-calibration.md](text-render-calibration.md); Warp Text lives in [warp.md](warp.md) and offscreen font registration in [testing.md](testing.md).
 
-Do NOT attempt to split the remaining text code out of main_window.cpp as a pure file move: the render pipeline is shared between too many members; it is a "design a module with its own header" job, not a file split.
+Do NOT split the remaining text code out of main_window.cpp as a pure file move: the render pipeline is shared between too many members; it is a "design a module with its own header" job.
 
 ## One layout authority (src/ui/text_layout.hpp)
 
@@ -18,9 +18,9 @@ Caret and selection geometry MUST go through `TextLineGeometry`, never Qt's natu
 `blockBoundingRect` origins: those drift roughly (leading - Qt line spacing) px per line on a
 PS-model layer (pinned by `ui_psd_text_caret_follows_photoshop_leading`). `BoxTextLineRenderItem::block_position` exists only for this:
 `QTextLine::lineNumber()` is an index within its own block's layout, so the owning block cannot be
-recovered from the line alone. Caret lookup resolves the owning block FIRST, the way
-`QTextDocument::findBlock` does, because a block's last line ends before the paragraph separator
-and a document-wide scan answers the previous block for a position at the start of the next one.
+recovered from the line alone. Caret lookup resolves the owning block FIRST (as
+`QTextDocument::findBlock` does): a document-wide line scan answers the previous block for a
+position at the start of the next one.
 
 **The caret layout must be built with the same SCALES as the render pass**, not just the same
 document. `build_text_editor_document_space_layout` mirrors `update_text_editor_preview` argument
@@ -44,9 +44,8 @@ falls through to QTextEdit. `ui_psd_text_click_returns_to_the_caret_it_drew` pin
 click exactly where the caret is drawn and the caret must come back to that position.
 
 The editor widget is SIZED from that layout too, not from `QTextDocument::size()`. The widget's
-rect is its hit area, so a widget shorter than the glyphs makes the lines past its bottom edge
-unclickable: the click falls through to the canvas and the focus-loss auto-commit ends the
-session.
+rect is its hit area: lines past a too-short widget's bottom edge are unclickable, and the click
+falls through to the canvas, whose focus-loss auto-commit ends the session.
 `ui_transformed_text_click_returns_to_the_caret_it_drew` covers it on the rotated fixed-leading
 fixture (transform inverse plus leading divergence).
 
@@ -54,7 +53,11 @@ fixture (transform inverse plus leading divergence).
 post-fold residual transform) + `draw_text_render_plan(plan, QPainter&)`. The raster path draws
 the plan into a QImage; `draw_text_layer_to_painter` (`ui/text_layer_painter.hpp`, editable PDF
 export) draws the same plan through the layer's canonical text transform, so PDF text lands on
-the raster. Keep the two consumers on one plan. The render also returns the plan's layout
+the raster. Keep the two consumers on one plan. `local_rect` is text-local (origin = line start and
+first line top = the transform origin) and starts left of or above (0, 0) when glyph ink
+overhangs, so placements add `local_rect.topLeft()` to the transform translation; the buffer
+corner is not the pen ([text-render-calibration.md](text-render-calibration.md), "Glyph ink").
+The render also returns the plan's layout
 metrics (first baseline, box baseline inset, auto-leading fraction); every caller that stores the
 pixels on a layer hands them to `store_text_layout_metrics` for the PSD writer
 ([text-render-calibration.md](text-render-calibration.md), "re-renders where Patchy drew it").
@@ -72,13 +75,11 @@ An edit session must never produce a frame with no glyphs in it:
   preview pixels are in place, returning the vacated region so hide and reveal land in ONE
   `document_changed_effect_bounds` call. Hiding up front blanks the text for the first-preview
   delay.
-- **The debounce never removes the preview.** An expensive style re-renders on the longer delay,
-  but the last good preview keeps drawing until the new one replaces it; tearing it out first
-  flashes every keystroke.
+- **The debounce never removes the preview.** An expensive style re-renders on the longer delay;
+  the last good preview keeps drawing until the new one replaces it.
 
-`kTextEditorPreviewPaintProperty` therefore means "the glyphs come from somewhere other than this
-widget", true for the whole of any previewed session; pinned by
-`ui_expensive_text_style_preview_never_blanks_while_typing`.
+`kTextEditorPreviewPaintProperty` means "the glyphs come from somewhere other than this widget",
+true for any previewed session; pinned by `ui_expensive_text_style_preview_never_blanks_while_typing`.
 
 Re-editing an existing layer must not MOVE its text. Every such session renders live through
 `render_text_pixels`, plain unstyled text included (`kTextEditorForceBakedPreviewProperty`),
@@ -101,7 +102,7 @@ committed pixels carry the text through the handover.
 - A Type-tool click inserts a provisional 1x1 text layer (marker `patchy.internal.provisional_text`); `commit_text_editor` removes it via the marker-checked `MainWindow::take_provisional_text_layer`, then snapshots and recreates the committed layer under the same id; cancel/empty-commit leaves history and modified state untouched.
 - **Commit invalidation must cover old ∪ preview ∪ new.** The restore/remove teardown pair invalidates its regions BEFORE the layer mutates, so those rects are recomposited with the pre-commit pixels; `commit_text_editor` captures the old layer and preview render bounds up front and unions them into the post-mutation `document_changed_effect_bounds`, or the old render stays baked in the canvas cache wherever the new bounds do not cover it (routine on warped layers, whose bounds change shape per edit). Same rule for `hide_text_editor_source_layer`: it returns the vacated rect and never invalidates itself, so every caller must consume the return.
 - **Warped text layers get a warp-aware session**: entry resolves a Move-corrected unwarped transform and gates off every raster-derived anchor (the raster is the warped ink). See the Warp Text section of [warp.md](warp.md).
-- Clicking off commits through the focus-loss handler, which arms `swallow_next_canvas_left_press_` so the press that caused the commit cannot start the next session; a release clears a stale flag. MainWindow's canvas event filter must leave that flag alone for input delivered during a blocking processing wait: on wasm the mouseup arrives re-entrantly inside the commit's undo-snapshot wait, and clearing the flag there opened a new session from one click off (input-reentry rules in [wasm.md](wasm.md); pinned by `ui_text_click_off_commit_ignores_reentrant_release_during_wait`).
+- Clicking off commits through the focus-loss handler, which arms `swallow_next_canvas_left_press_` so the press that caused the commit cannot start the next session; a release clears a stale flag. MainWindow's canvas event filter must leave that flag alone during a blocking processing wait: on wasm the mouseup arrives re-entrantly inside the commit's undo-snapshot wait and would open a new session from one click off ([wasm.md](wasm.md); pinned by `ui_text_click_off_commit_ignores_reentrant_release_during_wait`).
 - Mutating actions that take no focus (layer lock buttons) must call `finish_active_text_editor()` first, or they operate on a half-committed session.
 
 ## Delete semantics
@@ -124,10 +125,10 @@ application focus widget, so the editor silently loses focus and the session com
 under whoever was mid-call. `configure()` runs on every cursor move, selection change and preview
 refresh, so that fires constantly.
 
-Tests that ask "would a real click reach the right widget" must use
-`click_widget_like_a_user` (tests/ui/ui_test_support.cpp), which routes the press to the deepest
-child under the point and applies the focus policy walk first; `send_mouse` straight to the canvas
-answers a different question.
+Tests that ask whether a real click reaches the right widget must use
+`click_widget_like_a_user` (tests/ui/ui_test_support.cpp), which applies the focus policy walk
+before routing the press to the deepest child; `send_mouse` straight to the canvas answers a
+different question.
 
 ## Options bar while an editor is open
 
@@ -248,10 +249,9 @@ style must not render nothing).
     family and face DirectWrite derives. When the WIN32 family differs from the name built above,
     the reader stores it, keeps the WIN32 subfamily as the style only when the flags cannot
     express it, and reads bold/italic from that subfamily's words. Issue 16: Balmoral LET (one
-    "Plain" face at OS/2 weight class 5) is DirectWrite family "Balmoral LET Plain" plus a
-    synthesized "Medium" face, so "Balmoral LET Plain Medium" raised the missing-font prompt for
-    an installed font; Franklin Gothic Medium (DirectWrite "Franklin Gothic" + "Medium", weight
-    400) came back as the nonexistent family "Franklin Gothic". Simulated DirectWrite faces are
+    "Plain" face, OS/2 weight class 5) is DirectWrite family "Balmoral LET Plain" plus a
+    synthesized "Medium" face; Franklin Gothic Medium is DirectWrite "Franklin Gothic" +
+    "Medium" (weight 400), a nonexistent GDI family. Simulated DirectWrite faces are
     skipped. The writer looks a GDI family DirectWrite lacks up by
     the same WIN32 strings before its prefix split, so the PostScript name round-trips.
   - The bold flag is NOT set alongside it: the name already carries the weight, and Qt would
@@ -316,8 +316,8 @@ text layer's `patchy.text.transform` (`compose_text_layer_transform`, document_g
 BEFORE mutating the layer, so the implicit case can materialize translate(bounds) from
 pre-operation bounds. A layer with no stored transform gets one only under a matrix with a
 linear part (scale/rotate/flip); a pure translation already rides in the bounds the operation
-moves. Skipping this left the transform stale, and the next metadata re-render (an edit commit,
-`--append-text`, a PSD save) put the text back where and how big it was BEFORE the operation.
+moves. Without it the next metadata re-render (an edit commit, `--append-text`, a PSD save) used the
+stale transform.
 The `ui_*_keeps_text_transform_in_sync` and `ui_layer_flip_keeps_text_mirrored_across_reedit`
 probes pin each operation with a no-change re-edit. `patchy.psd.text.*` stays untouched on
 purpose: it is the import snapshot, and diverging from it is exactly what routes the PSD writer

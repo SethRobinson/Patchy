@@ -2,6 +2,7 @@
 
 #include <QAbstractTextDocumentLayout>
 #include <QFontMetricsF>
+#include <QGlyphRun>
 #include <QHash>
 #include <QLatin1Char>
 #include <QLatin1String>
@@ -13,6 +14,7 @@
 #include <QTextBoundaryFinder>
 #include <QTextCharFormat>
 #include <QTextDocument>
+#include <QTextFragment>
 #include <QTextLayout>
 
 #include <algorithm>
@@ -256,6 +258,120 @@ PhotoshopTextLayoutPlan photoshop_text_layout_plan(const QTextDocument& document
   }
   plan.valid = !plan.lines.empty();
   return plan;
+}
+
+namespace {
+
+// Per-line inflation the drawn glyphs need beyond their design boxes: the largest stretch of
+// any char format on the line (applied about each glyph origin), half the widest faux-bold
+// stroke, and the faux-italic lean of the deepest descender.
+struct GlyphInkInflation {
+  double stretch{1.0};
+  double stroke{0.0};
+  double italic_lean{0.0};
+};
+
+GlyphInkInflation glyph_ink_inflation(const QTextBlock& block, const QTextLine& line) {
+  GlyphInkInflation inflation;
+  const auto line_start = block.position() + line.textStart();
+  const auto line_end = line_start + std::max(1, line.textLength());
+  const auto fold = [&inflation](const QTextCharFormat& format) {
+    const auto font = format.font();
+    if (font.stretch() > 100) {
+      inflation.stretch = std::max(inflation.stretch, font.stretch() / 100.0);
+    }
+    const auto outline = format.textOutline();
+    if (outline.style() != Qt::NoPen && outline.widthF() > 0.0) {
+      inflation.stroke = std::max(inflation.stroke, outline.widthF() / 2.0);
+    }
+    if (format.property(kTextFauxItalicFormatProperty).toBool()) {
+      inflation.italic_lean =
+          std::max(inflation.italic_lean, kFauxItalicSlant * QFontMetricsF(font).descent());
+    }
+  };
+  bool found = false;
+  for (auto it = block.begin(); !it.atEnd(); ++it) {
+    const auto fragment = it.fragment();
+    if (!fragment.isValid() || fragment.length() <= 0 || fragment.position() + fragment.length() <= line_start ||
+        fragment.position() >= line_end) {
+      continue;
+    }
+    fold(fragment.charFormat());
+    found = true;
+  }
+  if (!found) {
+    fold(block.charFormat());
+  }
+  return inflation;
+}
+
+}  // namespace
+
+QRectF line_glyph_ink_rect(const QTextBlock& block, const QTextLine& line, QPointF block_origin) {
+  if (!line.isValid() || line.textLength() <= 0) {
+    return QRectF();
+  }
+  const auto inflation = glyph_ink_inflation(block, line);
+  QRectF ink;
+  for (const auto& run : line.glyphRuns()) {
+    const auto raw_font = run.rawFont();
+    const auto indexes = run.glyphIndexes();
+    const auto positions = run.positions();
+    for (int index = 0; index < indexes.size() && index < positions.size(); ++index) {
+      auto box = raw_font.boundingRect(indexes[index]);
+      if (!box.isValid() || box.isEmpty()) {
+        continue;
+      }
+      if (inflation.stretch > 1.0) {
+        // Widen about the glyph origin (x 0 of the design box) by the stretch; the engine that
+        // already stretched its boxes gets a harmless extra bleed.
+        box.setLeft(std::min(box.left(), box.left() * inflation.stretch));
+        box.setRight(std::max(box.right(), box.right() * inflation.stretch));
+      }
+      box.translate(positions[index]);
+      ink = ink.isNull() ? box : ink.united(box);
+    }
+  }
+  if (ink.isNull()) {
+    return QRectF();
+  }
+  ink.adjust(-inflation.stroke - inflation.italic_lean, -inflation.stroke, inflation.stroke, inflation.stroke);
+  return ink.translated(block_origin);
+}
+
+QRectF line_items_glyph_ink_rect(const QTextDocument& document, const std::vector<BoxTextLineRenderItem>& lines) {
+  QRectF ink;
+  for (const auto& item : lines) {
+    const auto rect = line_glyph_ink_rect(document.findBlock(item.block_position), item.line, item.block_origin);
+    if (rect.isNull()) {
+      continue;
+    }
+    ink = ink.isNull() ? rect : ink.united(rect);
+  }
+  return ink;
+}
+
+QRectF document_glyph_ink_rect(const QTextDocument& document) {
+  const auto* layout = document.documentLayout();
+  if (layout == nullptr) {
+    return QRectF();
+  }
+  QRectF ink;
+  for (auto block = document.begin(); block.isValid(); block = block.next()) {
+    auto* text_layout = block.layout();
+    if (text_layout == nullptr) {
+      continue;
+    }
+    const auto origin = layout->blockBoundingRect(block).topLeft();
+    for (int i = 0; i < text_layout->lineCount(); ++i) {
+      const auto rect = line_glyph_ink_rect(block, text_layout->lineAt(i), origin);
+      if (rect.isNull()) {
+        continue;
+      }
+      ink = ink.isNull() ? rect : ink.united(rect);
+    }
+  }
+  return ink;
 }
 
 void VerticalTextLayoutPlan::translate(double dx, double dy) {

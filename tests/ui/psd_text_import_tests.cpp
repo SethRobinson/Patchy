@@ -561,30 +561,6 @@ void ui_text_transform_rerender_rounds_anchor_like_photoshop() {
   CHECK(std::abs(half.ty - 148.5) < 1e-9);
 }
 
-// Every TySh transform in a PSD, in layer order (bottom layer first).
-std::vector<std::array<double, 6>> tysh_transforms_in_psd(const std::vector<std::uint8_t>& bytes) {
-  std::vector<std::array<double, 6>> transforms;
-  const std::string haystack(bytes.begin(), bytes.end());
-  std::size_t at = 0;
-  while ((at = haystack.find("8BIMTySh", at)) != std::string::npos) {
-    const auto payload = at + 12U;
-    if (payload + 2U + 48U > haystack.size()) {
-      break;
-    }
-    std::array<double, 6> transform{};
-    for (std::size_t index = 0; index < transform.size(); ++index) {
-      std::uint64_t bits = 0;
-      for (std::size_t byte = 0; byte < 8U; ++byte) {
-        bits = (bits << 8U) | static_cast<std::uint8_t>(haystack[payload + 2U + index * 8U + byte]);
-      }
-      std::memcpy(&transform[index], &bits, sizeof(double));
-    }
-    transforms.push_back(transform);
-    at = payload;
-  }
-  return transforms;
-}
-
 // Every /BoxBounds top written into the PSD's engine data, in layer order.
 std::vector<double> box_bounds_tops_in_psd(const std::vector<std::uint8_t>& bytes) {
   std::vector<double> tops;
