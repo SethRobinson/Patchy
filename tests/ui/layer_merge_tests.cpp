@@ -340,6 +340,21 @@ void ui_layer_merge_dialog_cancel_accept_and_history() {
         dialog->findChild<QCheckBox*>(QStringLiteral("mergeWithinGroupsCheck"))->setChecked(true);
         CHECK(dialog->findChild<QCheckBox*>(QStringLiteral("mergeSeparateVectorTypesCheck"))->isChecked());
         CHECK(dialog->findChild<QLabel*>(QStringLiteral("mergeLayersSummaryLabel"))->text().contains(QStringLiteral("2 vector layers")));
+        // The vector-types choice only applies while vectors are kept, so it
+        // greys out (and must look greyed out: the theme paints a disabled
+        // checkbox with the disabled field tokens, otherwise it reads as a
+        // checkbox that refuses to toggle) and comes back with the option.
+        auto* keep = dialog->findChild<QCheckBox*>(QStringLiteral("mergeKeepVectorsCheck"));
+        auto* types = dialog->findChild<QCheckBox*>(QStringLiteral("mergeSeparateVectorTypesCheck"));
+        CHECK(types->isEnabled());
+        const auto enabled_look = types->grab().toImage();
+        keep->setChecked(false);
+        CHECK(!types->isEnabled());
+        CHECK(types->isChecked());
+        CHECK(types->grab().toImage() != enabled_look);
+        keep->setChecked(true);
+        CHECK(types->isEnabled());
+        CHECK(types->grab().toImage() == enabled_look);
         CHECK(psd::DocumentIo::write_layered_rgb8(doc) == bytes);
         CHECK(MainWindowTestAccess::active_session_undo_depth(window) == history);
         save_widget_artifact("ui_layer_merge_dialog", *dialog);

@@ -290,20 +290,31 @@ interface PatchyLayer {
    */
   applyFilter(filterId: string, params?: Record<string, number | boolean | string>): void;
   /**
-   * Edit > Remove Object: fills the document selection from its surroundings.
-   * `method` "contentAware" (default) is the deterministic exemplar fill (an
-   * exhaustive best-patch search over the nearby image, no AI); it falls back
-   * to "nearestEdge" when no clean source patch is in reach. "nearestEdge" is
-   * the selection form of Spot Healing (a mirrored patch of the nearby
-   * texture blended by the healing membrane); calling it again on the same
-   * selection tries the next source candidate, and `attempt` picks one
-   * explicitly (0-based, wrapping). The layer must be the document's active
-   * layer and a selection must exist. Returns the method that ran, the number
-   * of patches copied (content-aware), and the 1-based source used plus the
-   * candidate count (nearest edge).
+   * Edit > Remove Object: fills the document selection from its surroundings
+   * (the dialog's fill, without the dialog). `method` "contentAware"
+   * (default) is the deterministic exemplar fill (an exhaustive best-patch
+   * search over the nearby image, no AI); it falls back to "nearestEdge" when
+   * no clean source patch is in reach. For it, `attempt` is the variation:
+   * 0 (default) is the best-match fill and each N > 0 is a different,
+   * reproducible near-best fill (the dialog's Reroll); `toneMatch` (0..100,
+   * default 0) scales the tone match that follows the fill, 0 keeping the
+   * raw fill; `feather` (px, default 0) softens the fill's edge outward from
+   * the selection on top of the selection's own feather. "nearestEdge" is the
+   * selection form of Spot Healing (a mirrored patch of the nearby texture
+   * blended by the healing membrane); calling it again on the same selection
+   * tries the next source candidate, and `attempt` picks one explicitly
+   * (0-based, wrapping); `feather` applies, `toneMatch` does not. The layer
+   * must be the document's active layer and a selection must exist. Returns
+   * the method that ran, the number of patches copied (content-aware), the
+   * 1-based source used plus the candidate count (nearest edge), and the
+   * 0-based `attempt` that ran.
    */
-  removeObject(options?: { method?: "contentAware" | "nearestEdge"; attempt?: number }):
-      { method: "contentAware" | "nearestEdge"; patches: number; source: number; sourceCount: number };
+  removeObject(options?: {
+    method?: "contentAware" | "nearestEdge";
+    attempt?: number;
+    toneMatch?: number;
+    feather?: number;
+  }): { method: "contentAware" | "nearestEdge"; patches: number; source: number; sourceCount: number; attempt: number };
   /**
    * A copy of the layer's pixels (empty layers report width/height 0). Layers
    * that store opaque 8-bit RGB (photos opened from JPEG and similar) are

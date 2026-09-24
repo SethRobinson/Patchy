@@ -548,6 +548,13 @@ QString photoshop_style_template() {
       border-color: @checkbox_accent_border;
       image: url(@icon(checkmark));
     }
+    QToolBar#Options QCheckBox:disabled {
+      color: @text_disabled;
+    }
+    QToolBar#Options QCheckBox::indicator:disabled {
+      background: @field_bg_disabled;
+      border-color: @field_border_disabled;
+    }
     QToolBar#Options QSlider::groove:horizontal {
       height: 4px;
       background: @slider_groove_bg;
@@ -965,6 +972,18 @@ QString photoshop_style_template() {
       background: @accent;
       border-color: @checkbox_accent_border;
       image: url(@icon(checkmark));
+    }
+    /* A disabled checkbox must read as disabled: without these rules the label
+       and box paint exactly like an enabled one, so a greyed-out option looks
+       like a checkbox that refuses to toggle (the Merge Layers "vector types"
+       report, September 2026). The checked glyph stays so the stored value is
+       still visible; only the colors drop to the disabled field tokens. */
+    QCheckBox:disabled {
+      color: @text_disabled;
+    }
+    QCheckBox::indicator:disabled {
+      background: @field_bg_disabled;
+      border-color: @field_border_disabled;
     }
     QTabWidget::pane {
       border-top: 1px solid @tab_pane_border;

@@ -1101,6 +1101,15 @@ private:
   void fill_active_layer_with_color(QColor color, QString label);
   void clear_active_layer();
   void stroke_selection();
+  // Edit > Remove Object: the dialog (Reroll, Tone match, Edge feather,
+  // Duplicate to New Layer) that fills on a worker thread, previews into the
+  // active layer, and pushes one history entry on OK.
+  void remove_object_dialog();
+  // Variation continuity: a dialog opened again on the same selection (a
+  // hash of the selection region) continues after the last variation it
+  // showed instead of repeating variation 1; another selection starts fresh.
+  std::uint64_t remove_object_last_selection_hash_{0};
+  int remove_object_last_attempt_{-1};
   void apply_brush_tip_to_canvas(CanvasWidget* canvas);
   void import_brush_tips_from_abr();
   void open_brush_tip_manager();

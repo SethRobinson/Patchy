@@ -9928,6 +9928,14 @@ RGB：%2, %3, %4</translation>
         <source>Resize Selection</source>
         <translation>调整选区大小</translation>
     </message>
+    <message>
+        <source>Removed object with content-aware fill, variation %1 (%2 patches)</source>
+        <translation>已使用内容识别填充移除对象，变体 %1（%2 个补丁）</translation>
+    </message>
+    <message>
+        <source>Remove Object was cancelled</source>
+        <translation>移除对象已取消</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -17176,10 +17184,6 @@ Y: %2
         <translation>轴心:</translation>
     </message>
     <message>
-        <source>Remove &amp;Object</source>
-        <translation>移除对象(&amp;O)</translation>
-    </message>
-    <message>
         <source>Remove Object</source>
         <translation>移除对象</translation>
     </message>
@@ -17338,6 +17342,94 @@ Y: %2
     <message>
         <source>Brush tip: Square</source>
         <translation>画笔笔尖: 方形</translation>
+    </message>
+    <message>
+        <source>Remove &amp;Object...</source>
+        <translation>移除对象(&amp;O)...</translation>
+    </message>
+    <message>
+        <source>Remove Object needs a selection: select the area to remove first</source>
+        <translation>移除对象需要选区：请先选择要移除的区域</translation>
+    </message>
+    <message>
+        <source>Tone match</source>
+        <translation>色调匹配</translation>
+    </message>
+    <message>
+        <source>How strongly the fill&apos;s brightness is smoothed to its own edges (0 keeps the raw fill)</source>
+        <translation>填充亮度向其自身边缘平滑的强度（0 保留原始填充）</translation>
+    </message>
+    <message>
+        <source>Edge feather</source>
+        <translation>边缘羽化</translation>
+    </message>
+    <message>
+        <source> px</source>
+        <translation> px</translation>
+    </message>
+    <message>
+        <source>Reroll</source>
+        <translation>重新生成</translation>
+    </message>
+    <message>
+        <source>Fill again with the next variation</source>
+        <translation>使用下一个变体重新填充</translation>
+    </message>
+    <message>
+        <source>Variation %1</source>
+        <translation>变体 %1</translation>
+    </message>
+    <message>
+        <source>Content-aware fill (%1 patches)</source>
+        <translation>内容识别填充（%1 个补丁）</translation>
+    </message>
+    <message>
+        <source>No clean source patches nearby; used the nearest edge (source %1 of %2)</source>
+        <translation>附近没有干净的来源补丁，已改用最近边缘（来源 %1/%2）</translation>
+    </message>
+    <message>
+        <source>Cancelled Remove Object</source>
+        <translation>已取消移除对象</translation>
+    </message>
+    <message>
+        <source>Removed object with content-aware fill, variation %1 (%2 patches)</source>
+        <translation>已使用内容识别填充移除对象，变体 %1（%2 个补丁）</translation>
+    </message>
+    <message>
+        <source>Removed object with the nearest edge (source %1 of %2)</source>
+        <translation>已使用最近边缘移除对象（来源 %1/%2）</translation>
+    </message>
+    <message>
+        <source>Softens the fill&apos;s edge outward from the selection, on top of its own feather. The filled area grows by the feather, so keep it small when the selection hugs an edge</source>
+        <translation>在选区自身羽化之外，向选区外侧柔化填充边缘。填充区域会随羽化扩大，选区紧贴边缘时请保持较小</translation>
+    </message>
+    <message>
+        <source>Duplicate to New Layer</source>
+        <translation>复制到新图层</translation>
+    </message>
+    <message>
+        <source>Copies this variation&apos;s filled area onto a new hidden layer above this one, so several variations can be kept and compared</source>
+        <translation>将此变体的填充区域复制到上方的新隐藏图层，以便保留并比较多个变体</translation>
+    </message>
+    <message>
+        <source>Filling...</source>
+        <translation>正在填充...</translation>
+    </message>
+    <message>
+        <source>Filling... %1%</source>
+        <translation>正在填充... %1%</translation>
+    </message>
+    <message>
+        <source>Duplicate Remove Object variation to layer</source>
+        <translation>将移除对象变体复制到图层</translation>
+    </message>
+    <message>
+        <source>Remove Object variation %1</source>
+        <translation>移除对象变体 %1</translation>
+    </message>
+    <message>
+        <source>Copied variation %1 to the hidden layer &quot;%2&quot;</source>
+        <translation>已将变体 %1 复制到隐藏图层“%2”</translation>
     </message>
 </context>
 <context>

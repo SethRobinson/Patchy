@@ -1516,8 +1516,9 @@ PixelBuffer ScriptEngineHost::pixels_limited_to_selection(std::int64_t session_i
 }
 
 bool ScriptEngineHost::remove_object_in_selection(std::int64_t session_id, LayerId layer_id, bool content_aware,
-                                                  int attempt, bool* used_content_aware, int* source,
-                                                  int* source_count, std::int64_t* patches) {
+                                                  int attempt, int tone_match, int feather, bool* used_content_aware,
+                                                  int* source, int* source_count, std::int64_t* patches,
+                                                  int* attempt_used) {
   pump_progress_indicator();
   auto* session = window_.session_with_id(session_id);
   if (session == nullptr || session->canvas == nullptr) {
@@ -1548,9 +1549,14 @@ bool ScriptEngineHost::remove_object_in_selection(std::int64_t session_id, Layer
     throw_js_error(tr("The document is no longer open."));
     return false;
   }
-  const auto result = canvas->remove_object_in_selection(content_aware ? CanvasWidget::RemoveObjectMethod::ContentAware
-                                                                       : CanvasWidget::RemoveObjectMethod::NearestEdge,
-                                                         attempt, /*record_history=*/false);
+  CanvasWidget::RemoveObjectOptions options;
+  options.method =
+      content_aware ? CanvasWidget::RemoveObjectMethod::ContentAware : CanvasWidget::RemoveObjectMethod::NearestEdge;
+  options.attempt = attempt;
+  options.tone_match = tone_match;
+  options.feather = feather;
+  options.record_history = false;
+  const auto result = canvas->remove_object_in_selection(options);
   if (!result.applied) {
     throw_js_error(result.error);
     return false;
@@ -1566,6 +1572,9 @@ bool ScriptEngineHost::remove_object_in_selection(std::int64_t session_id, Layer
   }
   if (patches != nullptr) {
     *patches = result.patches;
+  }
+  if (attempt_used != nullptr) {
+    *attempt_used = result.attempt;
   }
   note_pixels_changed(session_id, canvas->selected_document_rect().value_or(QRect()));
   return true;

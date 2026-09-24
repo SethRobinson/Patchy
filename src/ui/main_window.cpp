@@ -7608,6 +7608,13 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
       push_undo_snapshot(*target_session, std::move(label));
     }
   });
+  // The Patch tool's Enter with an outline and no drag opens the Remove
+  // Object dialog, the same command as the Edit menu entry.
+  canvas->set_remove_object_requested_callback([this, canvas] {
+    if (canvas == canvas_) {
+      remove_object_dialog();
+    }
+  });
   canvas->set_smart_filter_mask_committed_callback(
       [this, canvas](LayerId layer_id, QString label, PixelBuffer pixels,
                      QRegion) {

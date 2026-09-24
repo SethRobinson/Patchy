@@ -9928,6 +9928,14 @@ Mixed selection</source>
         <source>Resize Selection</source>
         <translation>選択範囲のサイズ変更</translation>
     </message>
+    <message>
+        <source>Removed object with content-aware fill, variation %1 (%2 patches)</source>
+        <translation>コンテンツに応じた塗りつぶしでオブジェクトを除去しました、バリエーション %1 (%2 パッチ)</translation>
+    </message>
+    <message>
+        <source>Remove Object was cancelled</source>
+        <translation>オブジェクトを除去はキャンセルされました</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -17176,10 +17184,6 @@ Clipped to the layer below</source>
         <translation>基準点:</translation>
     </message>
     <message>
-        <source>Remove &amp;Object</source>
-        <translation>オブジェクトを除去(&amp;O)</translation>
-    </message>
-    <message>
         <source>Remove Object</source>
         <translation>オブジェクトを除去</translation>
     </message>
@@ -17338,6 +17342,94 @@ Clipped to the layer below</source>
     <message>
         <source>Brush tip: Square</source>
         <translation>ブラシ先端: 正方形</translation>
+    </message>
+    <message>
+        <source>Remove &amp;Object...</source>
+        <translation>オブジェクトを除去(&amp;O)...</translation>
+    </message>
+    <message>
+        <source>Remove Object needs a selection: select the area to remove first</source>
+        <translation>オブジェクトを除去には選択範囲が必要です。先に除去する領域を選択してください</translation>
+    </message>
+    <message>
+        <source>Tone match</source>
+        <translation>トーン一致</translation>
+    </message>
+    <message>
+        <source>How strongly the fill&apos;s brightness is smoothed to its own edges (0 keeps the raw fill)</source>
+        <translation>塗りつぶしの明るさをその縁に合わせて滑らかにする強さ (0 で生の塗りつぶしを保持)</translation>
+    </message>
+    <message>
+        <source>Edge feather</source>
+        <translation>境界のぼかし</translation>
+    </message>
+    <message>
+        <source> px</source>
+        <translation> px</translation>
+    </message>
+    <message>
+        <source>Reroll</source>
+        <translation>リロール</translation>
+    </message>
+    <message>
+        <source>Fill again with the next variation</source>
+        <translation>次のバリエーションで再度塗りつぶします</translation>
+    </message>
+    <message>
+        <source>Variation %1</source>
+        <translation>バリエーション %1</translation>
+    </message>
+    <message>
+        <source>Content-aware fill (%1 patches)</source>
+        <translation>コンテンツに応じた塗りつぶし (%1 パッチ)</translation>
+    </message>
+    <message>
+        <source>No clean source patches nearby; used the nearest edge (source %1 of %2)</source>
+        <translation>近くにきれいなソースパッチがないため、最寄りの端を使用しました (ソース %1/%2)</translation>
+    </message>
+    <message>
+        <source>Cancelled Remove Object</source>
+        <translation>オブジェクトを除去をキャンセルしました</translation>
+    </message>
+    <message>
+        <source>Removed object with content-aware fill, variation %1 (%2 patches)</source>
+        <translation>コンテンツに応じた塗りつぶしでオブジェクトを除去しました、バリエーション %1 (%2 パッチ)</translation>
+    </message>
+    <message>
+        <source>Removed object with the nearest edge (source %1 of %2)</source>
+        <translation>最寄りの端でオブジェクトを除去しました (ソース %1/%2)</translation>
+    </message>
+    <message>
+        <source>Softens the fill&apos;s edge outward from the selection, on top of its own feather. The filled area grows by the feather, so keep it small when the selection hugs an edge</source>
+        <translation>選択範囲自身のぼかしに加えて、塗りつぶしの縁を選択範囲の外側へぼかします。塗りつぶし範囲はぼかしの分だけ広がるため、選択範囲が縁に接している場合は小さくしてください</translation>
+    </message>
+    <message>
+        <source>Duplicate to New Layer</source>
+        <translation>新規レイヤーに複製</translation>
+    </message>
+    <message>
+        <source>Copies this variation&apos;s filled area onto a new hidden layer above this one, so several variations can be kept and compared</source>
+        <translation>このバリエーションの塗りつぶし範囲を上の新しい非表示レイヤーにコピーし、複数のバリエーションを保存して比較できるようにします</translation>
+    </message>
+    <message>
+        <source>Filling...</source>
+        <translation>塗りつぶし中...</translation>
+    </message>
+    <message>
+        <source>Filling... %1%</source>
+        <translation>塗りつぶし中... %1%</translation>
+    </message>
+    <message>
+        <source>Duplicate Remove Object variation to layer</source>
+        <translation>オブジェクトを除去のバリエーションをレイヤーに複製</translation>
+    </message>
+    <message>
+        <source>Remove Object variation %1</source>
+        <translation>オブジェクトを除去 バリエーション %1</translation>
+    </message>
+    <message>
+        <source>Copied variation %1 to the hidden layer &quot;%2&quot;</source>
+        <translation>バリエーション %1 を非表示レイヤー &quot;%2&quot; にコピーしました</translation>
     </message>
 </context>
 <context>

@@ -13,8 +13,17 @@
 #include "ui_test_access.hpp"
 #include "ui_test_groups.hpp"
 #include "ui_test_support.hpp"
+#include "remove_object_fixture.hpp"
 
 #include <QApplication>
+
+#include <functional>
+#include <memory>
+#include <QTimer>
+#include <QSpinBox>
+#include <QLabel>
+#include <QDialog>
+#include <QDialogButtonBox>
 #include <QCheckBox>
 #include <QColor>
 #include <QComboBox>
@@ -286,9 +295,9 @@ void ui_remove_object_parallel_heal_detaches_shared_pixels() {
 
 // Edit > Remove Object (the content-aware default): on a periodic texture the
 // exhaustive exemplar search finds exact source patches, so the marked block
-// is restored to the pattern (the tone match that follows the fill may move
-// a value by a few levels, since a box blur of a period-8 stripe is not
-// constant) and nothing outside the selection moves.
+// is restored to the pattern (the default Tone match of 0 leaves the raw
+// fill; the tolerance predates that default) and nothing outside the
+// selection moves.
 void ui_remove_object_content_aware_restores_stripes() {
   constexpr std::int32_t width = 96;
   constexpr std::int32_t height = 48;
@@ -336,35 +345,363 @@ void ui_remove_object_content_aware_restores_stripes() {
   CHECK(outside[0] == stripe(60).red() && outside[1] == stripe(60).green() && outside[2] == stripe(60).blue());
 }
 
-// The menu action and the Patch options-bar button share one history entry
-// per run, and Undo restores the pixels.
-void ui_remove_object_action_is_undoable() {
+// Finds the open Remove Object dialog (nullptr when none is up).
+QDialog* find_remove_object_dialog() {
+  for (auto* widget : QApplication::topLevelWidgets()) {
+    if (widget->objectName() == QStringLiteral("patchyRemoveObjectDialog")) {
+      return qobject_cast<QDialog*>(widget);
+    }
+  }
+  return nullptr;
+}
+
+// Edit > Remove Object opens the non-modal dialog at once and fills on a
+// worker thread: the preview lands in the layer with no history entry, Reroll
+// advances the variation (a fill in flight is cancelled and replaced), a
+// settled Tone match / Edge feather value re-runs the fill, Duplicate to New
+// Layer copies the current result onto a new hidden layer as its own history
+// entry, OK pushes ONE history entry for the fill (Undo restores the object)
+// and persists the two settings under their new keys, and Cancel (from the
+// Patch options-bar button and from the Patch tool's Enter) leaves the pixels
+// and the history untouched. A reopened dialog on the same selection
+// continues after the last variation instead of repeating variation 1.
+// Every fill runs on an explicit click or a settled value, never per slider
+// move (US 8050498; see canvas_widget_spot_healing.cpp).
+void ui_remove_object_dialog_previews_rerolls_and_is_undoable() {
+  SettingsValueRestorer tone_restorer(QStringLiteral("tools/removeObjectToneMatch"));
+  SettingsValueRestorer feather_restorer(QStringLiteral("tools/removeObjectFeather"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("tools/removeObjectToneMatch"));
+    settings.remove(QStringLiteral("tools/removeObjectFeather"));
+  }
   patchy::ui::MainWindow window;
   show_window(window);
   auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto active = document.active_layer_id();
+  CHECK(active.has_value());
+  auto* layer = active.has_value() ? document.find_layer(*active) : nullptr;
+  CHECK(layer != nullptr);
+  if (layer == nullptr) {
+    return;
+  }
+  const auto layer_id = layer->id();
+  // A dark block on the white background is the object; the fill heals it.
+  for (std::int32_t y = 30; y < 50; ++y) {
+    for (std::int32_t x = 30; x < 50; ++x) {
+      auto* px = layer->pixels().pixel(x, y);
+      px[0] = px[1] = px[2] = 20;
+      px[3] = 255;
+    }
+  }
+  canvas->document_changed();
+  const auto object_pixel = [&] {
+    const auto* found = document.find_layer(layer_id);
+    return found != nullptr ? std::as_const(*found).pixels().pixel(40, 40)[0] : -1;
+  };
+  CHECK(object_pixel() == 20);
+  const auto layer_count = [&] { return document.layers().size(); };
+  const auto initial_layers = layer_count();
+
   canvas->set_tool(patchy::ui::CanvasTool::Marquee);
-  drag(*canvas, canvas->widget_position_for_document_point(QPoint(20, 20)),
-       canvas->widget_position_for_document_point(QPoint(60, 60)));
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(26, 26)),
+       canvas->widget_position_for_document_point(QPoint(54, 54)));
   QApplication::processEvents();
   CHECK(canvas->has_selection());
 
   const auto depth = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  // The dialog shows at once while the first fill runs on a worker; the
+  // driver re-arms until it is up, and waits for each result (OK enabled)
+  // with a deadline so a stuck worker fails the CHECKs instead of hanging.
+  int driver_tries = 0;
+  std::function<void(std::function<void(QDialog&)>)> when_dialog_ready;
+  when_dialog_ready = [&](std::function<void(QDialog&)> body) {
+    driver_tries = 0;
+    auto poll = std::make_shared<std::function<void()>>();
+    *poll = [&, body = std::move(body), poll]() {
+      auto* dialog = find_remove_object_dialog();
+      if (dialog == nullptr || !dialog->isVisible()) {
+        if (++driver_tries < 500) {
+          QTimer::singleShot(10, *poll);
+        }
+        return;
+      }
+      body(*dialog);
+    };
+    QTimer::singleShot(10, *poll);
+  };
+  const auto wait_for_result = [](QDialog& dialog) {
+    auto* buttons = dialog.findChild<QDialogButtonBox*>();
+    auto* ok = buttons != nullptr ? buttons->button(QDialogButtonBox::Ok) : nullptr;
+    auto* label = dialog.findChild<QLabel*>(QStringLiteral("removeObjectVariationLabel"));
+    for (int i = 0; i < 400; ++i) {
+      if (ok != nullptr && ok->isEnabled() && label != nullptr && !label->text().isEmpty()) {
+        return true;
+      }
+      process_events_for(25);
+    }
+    return false;
+  };
+  const auto variation_text = [](QDialog& dialog) {
+    auto* label = dialog.findChild<QLabel*>(QStringLiteral("removeObjectVariationLabel"));
+    return label != nullptr ? label->text() : QString();
+  };
+  bool saw_dialog = false;
+  bool dialog_non_modal = false;
+  bool first_result = false;
+  bool preview_had_no_history = false;
+  bool preview_healed = false;
+  QString first_label;
+  bool reroll_result = false;
+  QString rerolled_label;
+  bool duplicate_added_hidden_layer = false;
+  bool duplicate_pushed_history = false;
+  bool settled_result = false;
+  when_dialog_ready([&](QDialog& dialog) {
+    saw_dialog = true;
+    dialog_non_modal = !dialog.isModal() && dialog.windowModality() == Qt::NonModal;
+    first_result = wait_for_result(dialog);
+    preview_had_no_history = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth;
+    preview_healed = object_pixel() > 200;
+    first_label = variation_text(dialog);
+    auto* reroll = dialog.findChild<QPushButton*>(QStringLiteral("removeObjectRerollButton"));
+    if (reroll != nullptr) {
+      reroll->click();
+      reroll_result = wait_for_result(dialog);
+    }
+    rerolled_label = variation_text(dialog);
+    auto* duplicate = dialog.findChild<QPushButton*>(QStringLiteral("removeObjectDuplicateButton"));
+    if (duplicate != nullptr) {
+      duplicate->click();
+      QApplication::processEvents();
+      duplicate_pushed_history = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth + 1;
+      for (const auto& candidate : document.layers()) {
+        if (candidate.name() == "Remove Object variation 2" && !candidate.visible()) {
+          duplicate_added_hidden_layer = true;
+        }
+      }
+    }
+    // Settled spin values re-run the fill once each (coalesced by the settle
+    // timer); the second change cancels the first's fill in flight.
+    auto* tone = dialog.findChild<QSpinBox*>(QStringLiteral("removeObjectToneMatchSpin"));
+    auto* feather = dialog.findChild<QSpinBox*>(QStringLiteral("removeObjectFeatherSpin"));
+    if (tone != nullptr && feather != nullptr) {
+      tone->setValue(40);
+      process_events_for(300);
+      feather->setValue(3);
+      settled_result = wait_for_result(dialog);
+    }
+    dialog.accept();
+  });
   require_action(window, "editRemoveObjectAction")->trigger();
   QApplication::processEvents();
-  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+  CHECK(saw_dialog);
+  CHECK(dialog_non_modal);
+  CHECK(first_result);
+  CHECK(preview_had_no_history);
+  CHECK(preview_healed);
+  CHECK(first_label == QStringLiteral("Variation 1"));
+  CHECK(reroll_result);
+  CHECK(rerolled_label == QStringLiteral("Variation 2"));
+  CHECK(duplicate_pushed_history);
+  CHECK(duplicate_added_hidden_layer);
+  CHECK(layer_count() == initial_layers + 1);
+  CHECK(settled_result);
+  CHECK(find_remove_object_dialog() == nullptr);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth + 2);
+  CHECK(object_pixel() > 200);
+  {
+    auto settings = patchy::ui::app_settings();
+    CHECK(settings.value(QStringLiteral("tools/removeObjectToneMatch")).toInt() == 40);
+    CHECK(settings.value(QStringLiteral("tools/removeObjectFeather")).toInt() == 3);
+  }
   patchy::ui::MainWindowTestAccess::undo(window);
   QApplication::processEvents();
-  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+  CHECK(object_pixel() == 20);
+  CHECK(layer_count() == initial_layers + 1);  // the duplicate is its own entry
+  // Undo restored the selection it ran against.
+  CHECK(canvas->has_selection());
 
+  // The Patch options-bar button opens the same dialog, remembering the
+  // settings and continuing the variations (the last shown was 2, so this
+  // one opens on 3); Cancel restores the object with no history entry.
   canvas->set_tool(patchy::ui::CanvasTool::PatchTool);
   QApplication::processEvents();
   auto* button = window.findChild<QPushButton*>(QStringLiteral("patchRemoveObjectButton"));
   CHECK(button != nullptr);
+  bool remembered = false;
+  bool cancelled_dialog = false;
+  QString continued_label;
+  when_dialog_ready([&](QDialog& dialog) {
+    auto* tone = dialog.findChild<QSpinBox*>(QStringLiteral("removeObjectToneMatchSpin"));
+    auto* feather = dialog.findChild<QSpinBox*>(QStringLiteral("removeObjectFeatherSpin"));
+    remembered = tone != nullptr && feather != nullptr && tone->value() == 40 && feather->value() == 3;
+    (void)wait_for_result(dialog);
+    continued_label = variation_text(dialog);
+    cancelled_dialog = true;
+    dialog.reject();
+  });
   if (button != nullptr) {
     button->click();
     QApplication::processEvents();
-    CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
   }
+  CHECK(cancelled_dialog);
+  CHECK(remembered);
+  CHECK(continued_label == QStringLiteral("Variation 3"));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+  CHECK(object_pixel() == 20);
+
+  // Enter with the Patch tool (outline, no drag) asks the window for the
+  // dialog too; cancelling while the fill is still in flight is safe.
+  bool enter_opened = false;
+  when_dialog_ready([&](QDialog& dialog) {
+    enter_opened = true;
+    dialog.reject();
+  });
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(enter_opened);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+  CHECK(object_pixel() == 20);
+
+  // A different selection starts the variations over.
+  canvas->set_tool(patchy::ui::CanvasTool::Marquee);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(70, 70)),
+       canvas->widget_position_for_document_point(QPoint(90, 90)));
+  QApplication::processEvents();
+  QString fresh_label;
+  when_dialog_ready([&](QDialog& dialog) {
+    (void)wait_for_result(dialog);
+    fresh_label = variation_text(dialog);
+    dialog.reject();
+  });
+  require_action(window, "editRemoveObjectAction")->trigger();
+  QApplication::processEvents();
+  CHECK(fresh_label == QStringLiteral("Variation 1"));
+}
+
+// Issue #23's banner (tests/remove_object_fixture.hpp) through the canvas
+// command: the content-aware fill of the "1" stays as dark as the band and
+// keeps the grungy stripe (the tone match reads only the fill's own hole
+// cells), variations 2 and 3 are different fills that are each reproducible,
+// Tone match 0 is the raw fill, and Edge feather softens the write outward
+// past the selection. Before/after frames land in the artifact folder for a
+// look (ui_remove_object_banner_*).
+void ui_remove_object_banner_variations_tone_and_feather() {
+  const auto fixture = patchy::test::make_banner_fixture();
+  patchy::Document document(fixture.width, fixture.height, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer pixels(fixture.width, fixture.height, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < fixture.height; ++y) {
+    std::memcpy(pixels.row(y).data(), fixture.pixel(0, y), static_cast<std::size_t>(fixture.width) * 4U);
+  }
+  const auto original = pixels;
+  auto& layer = document.add_pixel_layer("Banner", std::move(pixels));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(fixture.width * 2 + 8, fixture.height * 2 + 8);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Marquee);
+  canvas.show();
+  canvas.set_zoom(2.0);
+  QApplication::processEvents();
+  save_widget_artifact("ui_remove_object_banner_before", canvas);
+  const QRect hole(fixture.hole_x, fixture.hole_y, fixture.hole_width, fixture.hole_height);
+  select_document_rect(canvas, hole);
+
+  const auto reset = [&] {
+    layer.set_pixels(original);
+    canvas.document_changed();
+  };
+  const auto run = [&](int attempt, int tone_match, int feather) {
+    reset();
+    patchy::ui::CanvasWidget::RemoveObjectOptions options;
+    options.attempt = attempt;
+    options.tone_match = tone_match;
+    options.feather = feather;
+    const auto result = canvas.remove_object_in_selection(options);
+    CHECK(result.applied);
+    CHECK(result.method == patchy::ui::CanvasWidget::RemoveObjectMethod::ContentAware);
+    CHECK(result.attempt == std::max(0, attempt));
+    return std::as_const(layer).pixels();
+  };
+  const auto differing = [&](const patchy::PixelBuffer& a, const patchy::PixelBuffer& b, bool inside_hole) {
+    std::int64_t count = 0;
+    for (std::int32_t y = 0; y < fixture.height; ++y) {
+      for (std::int32_t x = 0; x < fixture.width; ++x) {
+        if (hole.contains(QPoint(x, y)) != inside_hole) {
+          continue;
+        }
+        if (std::memcmp(a.pixel(x, y), b.pixel(x, y), 4U) != 0) {
+          ++count;
+        }
+      }
+    }
+    return count;
+  };
+  const auto band_mean = [&](const patchy::PixelBuffer& image, bool stripe_rows) {
+    double sum = 0.0;
+    std::int32_t count = 0;
+    for (std::int32_t y = hole.top(); y <= hole.bottom(); ++y) {
+      if (fixture.in_stripe(y) != stripe_rows) {
+        continue;
+      }
+      for (std::int32_t x = hole.left(); x <= hole.right(); ++x) {
+        const auto* px = image.pixel(x, y);
+        sum += (px[0] * 77 + px[1] * 150 + px[2] * 29) >> 8;
+        ++count;
+      }
+    }
+    return sum / std::max(1, count);
+  };
+
+  const auto first = run(0, 100, 0);
+  save_widget_artifact("ui_remove_object_banner_variation_1", canvas);
+  CHECK(std::abs(band_mean(first, false) - fixture.band_value) <= 12.0);
+  CHECK(band_mean(first, true) - band_mean(first, false) >= 0.5 * (fixture.stripe_value - fixture.band_value));
+  CHECK(differing(first, original, false) == 0);
+  const auto identical = [&](const patchy::PixelBuffer& a, const patchy::PixelBuffer& b) {
+    return differing(a, b, true) == 0 && differing(a, b, false) == 0;
+  };
+  CHECK(identical(run(0, 100, 0), first));
+
+  const auto second = run(1, 100, 0);
+  save_widget_artifact("ui_remove_object_banner_variation_2", canvas);
+  CHECK(differing(second, first, true) > 0);
+  CHECK(differing(second, original, false) == 0);
+  CHECK(identical(run(1, 100, 0), second));
+  const auto third = run(2, 100, 0);
+  save_widget_artifact("ui_remove_object_banner_variation_3", canvas);
+  CHECK(differing(third, second, true) > 0);
+  CHECK(differing(third, first, true) > 0);
+  CHECK(std::abs(band_mean(second, false) - fixture.band_value) <= 20.0);
+  CHECK(std::abs(band_mean(third, false) - fixture.band_value) <= 20.0);
+
+  // Tone match 0 is the raw exemplar fill; 100 moves some hole pixels.
+  const auto raw = run(0, 0, 0);
+  save_widget_artifact("ui_remove_object_banner_tone_off", canvas);
+  CHECK(differing(raw, first, true) > 0);
+  CHECK(differing(raw, original, false) == 0);
+  CHECK(std::abs(band_mean(raw, false) - fixture.band_value) <= 12.0);
+
+  // Edge feather writes a soft skirt past the selection; without it nothing
+  // outside the selection moves.
+  const auto feathered = run(0, 100, 4);
+  save_widget_artifact("ui_remove_object_banner_feather_4", canvas);
+  CHECK(differing(feathered, original, false) > 0);
+  const QRect skirt = hole.adjusted(-12, -12, 12, 12);
+  bool skirt_only = true;
+  for (std::int32_t y = 0; y < fixture.height && skirt_only; ++y) {
+    for (std::int32_t x = 0; x < fixture.width; ++x) {
+      if (!skirt.contains(QPoint(x, y)) && std::memcmp(feathered.pixel(x, y), original.pixel(x, y), 4U) != 0) {
+        skirt_only = false;
+        break;
+      }
+    }
+  }
+  CHECK(skirt_only);
+  canvas.clear_selection();
 }
 
 // Draws the Patch tool's freehand outline as a rectangle-ish loop and returns
@@ -834,7 +1171,9 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part2() {
       {"ui_remove_object_heals_selection_and_cycles_sources",
        ui_remove_object_heals_selection_and_cycles_sources},
       {"ui_remove_object_content_aware_restores_stripes", ui_remove_object_content_aware_restores_stripes},
-      {"ui_remove_object_action_is_undoable", ui_remove_object_action_is_undoable},
+      {"ui_remove_object_dialog_previews_rerolls_and_is_undoable",
+       ui_remove_object_dialog_previews_rerolls_and_is_undoable},
+      {"ui_remove_object_banner_variations_tone_and_feather", ui_remove_object_banner_variations_tone_and_feather},
       {"ui_remove_object_parallel_heal_detaches_shared_pixels",
        ui_remove_object_parallel_heal_detaches_shared_pixels},
       {"ui_patch_tool_enter_removes_object", ui_patch_tool_enter_removes_object},

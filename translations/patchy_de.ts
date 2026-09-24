@@ -9955,6 +9955,14 @@ RGB: %2, %3, %4</translation>
         <source>Resize Selection</source>
         <translation>Auswahlgröße ändern</translation>
     </message>
+    <message>
+        <source>Removed object with content-aware fill, variation %1 (%2 patches)</source>
+        <translation>Objekt mit inhaltsbasierter Füllung entfernt, Variante %1 (%2 Patches)</translation>
+    </message>
+    <message>
+        <source>Remove Object was cancelled</source>
+        <translation>Objekt entfernen wurde abgebrochen</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -17221,10 +17229,6 @@ Y: %2
         <translation>Drehpunkt:</translation>
     </message>
     <message>
-        <source>Remove &amp;Object</source>
-        <translation>&amp;Objekt entfernen</translation>
-    </message>
-    <message>
         <source>Remove Object</source>
         <translation>Objekt entfernen</translation>
     </message>
@@ -17385,6 +17389,94 @@ Y: %2
     <message>
         <source>Brush tip: Square</source>
         <translation>Pinselspitze: Quadrat</translation>
+    </message>
+    <message>
+        <source>Remove &amp;Object...</source>
+        <translation>&amp;Objekt entfernen...</translation>
+    </message>
+    <message>
+        <source>Remove Object needs a selection: select the area to remove first</source>
+        <translation>Objekt entfernen benötigt eine Auswahl: Wählen Sie zuerst den zu entfernenden Bereich aus</translation>
+    </message>
+    <message>
+        <source>Tone match</source>
+        <translation>Tonwertabgleich</translation>
+    </message>
+    <message>
+        <source>How strongly the fill&apos;s brightness is smoothed to its own edges (0 keeps the raw fill)</source>
+        <translation>Wie stark die Helligkeit der Füllung an ihre eigenen Ränder angeglichen wird (0 behält die rohe Füllung)</translation>
+    </message>
+    <message>
+        <source>Edge feather</source>
+        <translation>Weiche Kante</translation>
+    </message>
+    <message>
+        <source> px</source>
+        <translation> px</translation>
+    </message>
+    <message>
+        <source>Reroll</source>
+        <translation>Neu würfeln</translation>
+    </message>
+    <message>
+        <source>Fill again with the next variation</source>
+        <translation>Erneut mit der nächsten Variante füllen</translation>
+    </message>
+    <message>
+        <source>Variation %1</source>
+        <translation>Variante %1</translation>
+    </message>
+    <message>
+        <source>Content-aware fill (%1 patches)</source>
+        <translation>Inhaltsbasierte Füllung (%1 Patches)</translation>
+    </message>
+    <message>
+        <source>No clean source patches nearby; used the nearest edge (source %1 of %2)</source>
+        <translation>In der Nähe keine sauberen Quellbereiche; die nächste Kante wurde verwendet (Quelle %1 von %2)</translation>
+    </message>
+    <message>
+        <source>Cancelled Remove Object</source>
+        <translation>Objekt entfernen abgebrochen</translation>
+    </message>
+    <message>
+        <source>Removed object with content-aware fill, variation %1 (%2 patches)</source>
+        <translation>Objekt mit inhaltsbasierter Füllung entfernt, Variante %1 (%2 Patches)</translation>
+    </message>
+    <message>
+        <source>Removed object with the nearest edge (source %1 of %2)</source>
+        <translation>Objekt mit der nächsten Kante entfernt (Quelle %1 von %2)</translation>
+    </message>
+    <message>
+        <source>Softens the fill&apos;s edge outward from the selection, on top of its own feather. The filled area grows by the feather, so keep it small when the selection hugs an edge</source>
+        <translation>Weicht den Rand der Füllung von der Auswahl nach außen auf, zusätzlich zu ihrer eigenen weichen Kante. Der gefüllte Bereich wächst um die weiche Kante; nahe an einer Kante klein halten</translation>
+    </message>
+    <message>
+        <source>Duplicate to New Layer</source>
+        <translation>In neue Ebene duplizieren</translation>
+    </message>
+    <message>
+        <source>Copies this variation&apos;s filled area onto a new hidden layer above this one, so several variations can be kept and compared</source>
+        <translation>Kopiert den gefüllten Bereich dieser Variante auf eine neue, ausgeblendete Ebene darüber, damit mehrere Varianten aufbewahrt und verglichen werden können</translation>
+    </message>
+    <message>
+        <source>Filling...</source>
+        <translation>Wird gefüllt...</translation>
+    </message>
+    <message>
+        <source>Filling... %1%</source>
+        <translation>Wird gefüllt... %1%</translation>
+    </message>
+    <message>
+        <source>Duplicate Remove Object variation to layer</source>
+        <translation>Objekt-entfernen-Variante in Ebene duplizieren</translation>
+    </message>
+    <message>
+        <source>Remove Object variation %1</source>
+        <translation>Objekt entfernen Variante %1</translation>
+    </message>
+    <message>
+        <source>Copied variation %1 to the hidden layer &quot;%2&quot;</source>
+        <translation>Variante %1 in die ausgeblendete Ebene &quot;%2&quot; kopiert</translation>
     </message>
 </context>
 <context>

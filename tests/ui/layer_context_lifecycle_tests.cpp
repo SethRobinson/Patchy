@@ -460,9 +460,36 @@ void ui_selection_context_menu_offers_remove_object() {
     QApplication::processEvents();
   }
 
-  // Picking Remove Object from the menu runs the command: one history entry.
+  // Picking Remove Object from the menu opens its dialog while the first fill
+  // runs on a worker; accepting it once the result is in commits one history
+  // entry. The driver re-arms until then and gives up after five seconds.
   canvas->set_tool(patchy::ui::CanvasTool::Marquee);
   const auto depth = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  bool accepted_dialog = false;
+  int driver_tries = 0;
+  auto poll = std::make_shared<std::function<void()>>();
+  *poll = [&, poll] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* dialog = qobject_cast<QDialog*>(widget);
+      if (dialog == nullptr || dialog->objectName() != QStringLiteral("patchyRemoveObjectDialog") ||
+          !dialog->isVisible()) {
+        continue;
+      }
+      // The fill runs on a worker; OK enables once its result is in.
+      auto* buttons = dialog->findChild<QDialogButtonBox*>();
+      auto* ok = buttons != nullptr ? buttons->button(QDialogButtonBox::Ok) : nullptr;
+      if (ok == nullptr || !ok->isEnabled()) {
+        break;
+      }
+      accepted_dialog = true;
+      dialog->accept();
+      return;
+    }
+    if (++driver_tries < 500) {
+      QTimer::singleShot(10, *poll);
+    }
+  };
+  QTimer::singleShot(10, *poll);
   menu = right_click_move_canvas(*canvas, QPoint(50, 50));
   CHECK(menu != nullptr);
   if (menu != nullptr) {
@@ -474,6 +501,7 @@ void ui_selection_context_menu_offers_remove_object() {
     menu->close();
     QApplication::processEvents();
   }
+  CHECK(accepted_dialog);
   CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
 }
 

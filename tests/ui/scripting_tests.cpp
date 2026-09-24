@@ -560,6 +560,14 @@ void ui_script_remove_object_heals_selection() {
     var r2 = layer.removeObject({method: 'nearestEdge'});
     var r3 = layer.removeObject({method: 'nearestEdge', attempt: 0});
     console.log('sources=' + r1.source + ',' + r2.source + ',' + r3.source + ' of ' + r1.sourceCount);
+    var v = layer.removeObject({attempt: 2, toneMatch: 0, feather: 2});
+    console.log('variation=' + v.attempt + ' method=' + v.method + ' patches=' + (v.patches > 0));
+    try {
+      layer.removeObject({sharpen: 1});
+      console.log('option-no-throw');
+    } catch (e) {
+      console.log('option-refused=' + (e.message.indexOf('sharpen') >= 0));
+    }
     var px = new Uint8Array(layer.getPixels().data);
     var i = (31 * 64 + 31) * 4;
     console.log('healed=' + px[i] + ',' + px[i + 1] + ',' + px[i + 2] + ',' + px[i + 3]);
@@ -573,6 +581,9 @@ void ui_script_remove_object_heals_selection() {
   )JS")));
   CHECK(backlog_contains(window, QStringLiteral("method=contentAware patches=true")));
   CHECK(backlog_contains(window, QStringLiteral("sources=1,2,1 of ")));
+  CHECK(backlog_contains(window, QStringLiteral("variation=2 method=contentAware patches=true")));
+  CHECK(backlog_contains(window, QStringLiteral("option-refused=true")));
+  CHECK(!backlog_contains(window, QStringLiteral("option-no-throw")));
   CHECK(backlog_contains(window, QStringLiteral("healed=40,80,160,255")));
   CHECK(backlog_contains(window, QStringLiteral("refused=true")));
   CHECK(!backlog_contains(window, QStringLiteral("no-throw")));

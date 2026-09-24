@@ -690,6 +690,8 @@ void ScriptLayerObject::applyFilter(const QString& filterId, const QJSValue& par
 QJSValue ScriptLayerObject::removeObject(const QJSValue& options) {
   const ScriptApiCall api_call(host_);
   int attempt = -1;
+  int tone_match = 0;
+  int feather = 0;
   bool content_aware = true;
   if (options.isObject()) {
     QJSValueIterator it(options);
@@ -697,6 +699,10 @@ QJSValue ScriptLayerObject::removeObject(const QJSValue& options) {
       it.next();
       if (it.name() == QLatin1String("attempt")) {
         attempt = std::max(0, it.value().toInt());
+      } else if (it.name() == QLatin1String("toneMatch")) {
+        tone_match = std::clamp(it.value().toInt(), 0, 100);
+      } else if (it.name() == QLatin1String("feather")) {
+        feather = std::clamp(it.value().toInt(), 0, 250);
       } else if (it.name() == QLatin1String("method")) {
         const auto method = it.value().toString();
         if (method == QLatin1String("contentAware")) {
@@ -717,8 +723,9 @@ QJSValue ScriptLayerObject::removeObject(const QJSValue& options) {
   int source = 0;
   int source_count = 0;
   std::int64_t patches = 0;
-  if (!host_.remove_object_in_selection(session_id_, layer_id_, content_aware, attempt, &used_content_aware, &source,
-                                        &source_count, &patches)) {
+  int attempt_used = 0;
+  if (!host_.remove_object_in_selection(session_id_, layer_id_, content_aware, attempt, tone_match, feather,
+                                        &used_content_aware, &source, &source_count, &patches, &attempt_used)) {
     return QJSValue();
   }
   auto result = host_.engine()->newObject();
@@ -727,6 +734,7 @@ QJSValue ScriptLayerObject::removeObject(const QJSValue& options) {
   result.setProperty(QStringLiteral("patches"), static_cast<double>(patches));
   result.setProperty(QStringLiteral("source"), source);
   result.setProperty(QStringLiteral("sourceCount"), source_count);
+  result.setProperty(QStringLiteral("attempt"), attempt_used);
   return result;
 }
 

@@ -2830,7 +2830,11 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
     if (patch_tool_dragging_) {
       release_patch_tool_drag(document_position(last_mouse_position_));
     } else if (has_selection()) {
-      remove_object_in_selection();
+      if (remove_object_requested_callback_) {
+        remove_object_requested_callback_();
+      } else {
+        remove_object_in_selection();
+      }
     }
     event->accept();
     return;

@@ -202,7 +202,7 @@ flatpak install --user -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 ### 0.98 - September 24, 2026
 
 - The right mouse button now opens context menus on the canvas instead of panning.  (middle mouse button or holding space bar still pans)
-- Edit > Remove Object fills a selection with content-aware texture taken from its surroundings.  It's slow as shit but seems to work pretty well.
+- Edit > Remove Object fills a selection with content-aware texture taken from its surroundings.  It's slow as shit but seems to work pretty well.  Its dialog has a Reroll button (each variation is a different fill), a Tone match slider (0 keeps the raw fill), and an Edge feather setting.
 - Move tool alignment: magenta guides show when a dragged layer snaps to another layer's edges or center or to the canvas, a Snap checkbox in the options bar turns it off, also a bunch of new alignment buttons are on the Move tool's options bar, and the Align and Distribute commands in the Layer menu work on multiple selected layers
 - Changing the pivot point in the free transform affects rotation now, it was always supposed to but it was broken.  Should probably make the pivot point draggable, hrm.
 - Free Transform numeric fields (and a few other places) accept typed units (px, in, cm, mm, pt, %, deg)

@@ -473,7 +473,7 @@ a tab past recovery on a slow script. Three pumps are compiled out under
 script_engine.cpp), the processing-overlay tick, and the overlay-show pump
 (`show_processing_overlay`), both canvas_widget_render.cpp. Long
 synchronous bursts show no progress until they yield; long filter work
-already runs on a worker. Companion guards: `call_script_callback` refuses
+and the Remove Object fill run on a worker instead. Companion guards: `call_script_callback` refuses
 reentry while script code is executing; the script canvas frame timer is
 single-shot, re-armed per frame.
 

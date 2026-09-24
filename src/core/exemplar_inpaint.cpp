@@ -35,6 +35,23 @@ struct Candidate {
 // and in unknown cells, so the source bytes there never count.
 constexpr std::int32_t kChunk = 16;
 
+// splitmix64 (Steele, Lea, Flood 2014): the variation pick's only source of
+// randomness. The uniform mapping below is explicit multiply-high, never a
+// standard distribution (implementation-defined output).
+inline std::uint64_t splitmix64(std::uint64_t value) noexcept {
+  value += 0x9E3779B97F4A7C15ULL;
+  value = (value ^ (value >> 30U)) * 0xBF58476D1CE4E5B9ULL;
+  value = (value ^ (value >> 27U)) * 0x94D049BB133111EBULL;
+  return value ^ (value >> 31U);
+}
+
+inline std::int64_t uniform_below(std::uint64_t draw, std::int64_t count) noexcept {
+  // count fits 32 bits (a candidate window holds far fewer centres), so the
+  // top 32 bits of the draw times count, shifted down, is uniform enough and
+  // identical on every toolchain.
+  return static_cast<std::int64_t>(((draw >> 32U) * static_cast<std::uint64_t>(count)) >> 32U);
+}
+
 // Sum over `chunks` 16-byte chunks of |(source & mask) - target|. The SIMD
 // paths and the scalar path produce the same integer, so results are
 // identical across toolchains (the determinism rule).
@@ -376,6 +393,10 @@ ExemplarInpaintResult exemplar_inpaint(std::uint8_t* image, std::int32_t width, 
   std::vector<std::uint8_t> target_rows(static_cast<std::size_t>(patch) * row_bytes);
   std::vector<std::uint8_t> mask_rows(static_cast<std::size_t>(patch) * row_bytes);
   while (remaining > 0) {
+    if (options.cancel != nullptr && options.cancel->load(std::memory_order_relaxed)) {
+      result.cancelled = true;
+      return result;
+    }
     if (stale * 2U > front.size()) {
       front.erase(std::remove_if(front.begin(), front.end(),
                                  [&](std::int32_t index) { return priority[static_cast<std::size_t>(index)] < 0; }),
@@ -419,6 +440,7 @@ ExemplarInpaintResult exemplar_inpaint(std::uint8_t* image, std::int32_t width, 
     // The patch's confidence, for the cells it fills, and the masked target
     // rows for the distance (unknown cells and padding read as 0 on both sides).
     std::int64_t target_conf_sum = 0;
+    std::int64_t known_pixels = 0;
     std::fill(target_rows.begin(), target_rows.end(), std::uint8_t{0});
     std::fill(mask_rows.begin(), mask_rows.end(), std::uint8_t{0});
     for (std::int32_t y = ty0; y <= ty1; ++y) {
@@ -432,6 +454,7 @@ ExemplarInpaintResult exemplar_inpaint(std::uint8_t* image, std::int32_t width, 
         }
         std::memcpy(target_row + static_cast<std::size_t>(x - tx0) * 4U, px.data() + cell * 4U, 4U);
         std::memset(mask_row + static_cast<std::size_t>(x - tx0) * 4U, 0xFF, 4U);
+        ++known_pixels;
       }
     }
     const auto new_conf = static_cast<std::uint8_t>(
@@ -593,6 +616,125 @@ ExemplarInpaintResult exemplar_inpaint(std::uint8_t* image, std::int32_t width, 
       // whole fill (the caller falls back); the image is untouched.
       return result;
     }
+    if (options.attempt > 0) {
+      // Variation N (Efros-Leung 1999 epsilon selection): every candidate
+      // within a fixed slack of the best distance is admissible, and the copy
+      // comes from one of them. The admissible set is recomputed here from a
+      // second full scan of the SAME windows against that fixed threshold,
+      // used once, and dropped: nothing about it persists to another target
+      // or another run. The pick is the k-th admissible candidate in scan
+      // order, so the row strips only count (sums in row order) and the
+      // result matches a serial scan whatever the strip split.
+      const auto slack = std::max<std::int64_t>(best.distance / 8, known_pixels * 8);
+      const auto threshold = best.distance + slack;
+      // One candidate against the fixed threshold: false once a partial sum
+      // exceeds it (the same row order and integer sums as the best-match
+      // scan, so an admissible candidate here scored the same there).
+      const auto admissible = [&](std::int32_t sx, std::int32_t sy) {
+        std::int64_t distance =
+            static_cast<std::int64_t>(std::abs(sx - tx) + std::abs(sy - ty)) * options.offset_penalty;
+        for (std::int32_t r = 0; r < patch_h; ++r) {
+          const auto source_y = sy + (ty0 - ty) + r;
+          const auto* source = px.data() + (static_cast<std::size_t>(source_y) * lw + (sx + (tx0 - tx))) * 4U;
+          distance += masked_row_distance(source, target_rows.data() + static_cast<std::size_t>(r) * row_bytes,
+                                          mask_rows.data() + static_cast<std::size_t>(r) * row_bytes, row_chunks);
+          if (distance > threshold) {
+            return false;
+          }
+        }
+        return true;
+      };
+      // Walks one scan row's valid centres on the stride grid (the best-match
+      // scan's stepping) and calls `visit(sx, sy)`; a false return stops the
+      // row.
+      const auto walk_row = [&](const Window& window, std::int32_t stride, std::int32_t row, auto&& visit) {
+        const auto sy = window.y0 + row * stride;
+        const auto* row_next = next_valid.data() + static_cast<std::size_t>(sy) * lw;
+        for (std::int32_t sx = window.x0; sx <= window.x1;) {
+          const std::int32_t valid_x = row_next[sx];
+          if (valid_x > window.x1) {
+            break;
+          }
+          if (valid_x != sx) {
+            const auto off_grid = (valid_x - window.x0) % stride;
+            sx = off_grid == 0 ? valid_x : valid_x + (stride - off_grid);
+            continue;
+          }
+          if (!visit(sx, sy)) {
+            return;
+          }
+          sx += stride;
+        }
+      };
+      std::int64_t admissible_total = 0;
+      std::int64_t window_counts[6] = {0, 0, 0, 0, 0, 0};
+      for (std::int32_t w = 0; w < scanned; ++w) {
+        const auto& window = windows[w];
+        const auto stride = strides[w];
+        const auto rows = (window.y1 - window.y0) / stride + 1;
+        const auto count_rows = [&](std::int32_t row_begin, std::int32_t row_end) {
+          std::int64_t count = 0;
+          for (std::int32_t row = row_begin; row < row_end; ++row) {
+            walk_row(window, stride, row, [&](std::int32_t sx, std::int32_t sy) {
+              count += admissible(sx, sy) ? 1 : 0;
+              return true;
+            });
+          }
+          return count;
+        };
+        const auto scan_width = (window.x1 - window.x0) / stride + 1;
+        std::int64_t count = 0;
+        if (!single_threaded && static_cast<std::int64_t>(rows) * scan_width >= 4096 && rows >= workers * 2) {
+          std::vector<std::future<std::int64_t>> strips;
+          const auto rows_per_strip = (rows + workers - 1) / workers;
+          for (std::int32_t start = 0; start < rows; start += rows_per_strip) {
+            strips.push_back(std::async(std::launch::async, count_rows, start, std::min(start + rows_per_strip, rows)));
+          }
+          for (auto& strip : strips) {
+            count += strip.get();
+          }
+        } else {
+          count = count_rows(0, rows);
+        }
+        window_counts[w] = count;
+        admissible_total += count;
+      }
+      // The best candidate itself is admissible, so admissible_total >= 1. The seed
+      // mixes the variation number with the target's image coordinates, so a
+      // given variation is reproducible and different targets draw apart.
+      const auto target_cell = static_cast<std::uint64_t>(wy0 + ty) * static_cast<std::uint64_t>(width) +
+                               static_cast<std::uint64_t>(wx0 + tx);
+      const auto seed = (static_cast<std::uint64_t>(options.attempt) << 40U) ^ target_cell;
+      auto k = uniform_below(splitmix64(seed), std::max<std::int64_t>(1, admissible_total));
+      for (std::int32_t w = 0; w < scanned; ++w) {
+        if (k >= window_counts[w]) {
+          k -= window_counts[w];
+          continue;
+        }
+        const auto& window = windows[w];
+        const auto stride = strides[w];
+        const auto rows = (window.y1 - window.y0) / stride + 1;
+        const auto scan_width = (window.x1 - window.x0) / stride + 1;
+        std::int64_t picked = -1;
+        for (std::int32_t row = 0; row < rows && picked < 0; ++row) {
+          walk_row(window, stride, row, [&](std::int32_t sx, std::int32_t sy) {
+            if (!admissible(sx, sy)) {
+              return true;
+            }
+            if (k == 0) {
+              picked = index_bases[w] + static_cast<std::int64_t>(row) * scan_width + (sx - window.x0) / stride;
+              return false;
+            }
+            --k;
+            return true;
+          });
+        }
+        if (picked >= 0) {
+          best.index = picked;
+        }
+        break;
+      }
+    }
     std::int32_t chosen = scanned - 1;
     while (chosen > 0 && best.index < index_bases[chosen]) {
       --chosen;
@@ -649,15 +791,24 @@ ExemplarInpaintResult exemplar_inpaint(std::uint8_t* image, std::int32_t width, 
   return result;
 }
 
-void exemplar_match_tone(std::uint8_t* filled, const std::uint8_t* original, std::int32_t width,
-                         std::int32_t height, const std::uint8_t* hole, Rect bounds, std::int32_t blur_radius) {
-  if (filled == nullptr || original == nullptr || hole == nullptr || width <= 0 || height <= 0 ||
-      bounds.width <= 0 || bounds.height <= 0) {
+void exemplar_match_tone(std::uint8_t* filled, std::int32_t width, std::int32_t height, const std::uint8_t* hole,
+                         Rect bounds, std::int32_t blur_radius, std::int32_t strength_percent) {
+  const auto strength = std::clamp(strength_percent, 0, 100);
+  if (filled == nullptr || hole == nullptr || width <= 0 || height <= 0 || bounds.width <= 0 || bounds.height <= 0 ||
+      strength == 0) {
     return;
   }
   const auto radius = std::max(1, blur_radius);
-  // Membrane grid: the hole bounds plus a one-cell Dirichlet ring; the blurs
-  // read `radius` further out so the ring's low-pass is well founded.
+  // Membrane grid: the hole bounds plus a one-cell Dirichlet ring. Every
+  // low-pass value below is a box average over HOLE cells of the filled image
+  // only (normalized by the count in the box), for ring and interior cells
+  // alike: the ring cell next to a hole edge reads the fill just inside it,
+  // never the content beyond the edge. A box normalized over the original
+  // KNOWN pixels instead let whatever lay a blur radius past the edge take
+  // the weight of the excluded hole cells (issue #23: a hole that ran 3 px
+  // short of a dark band's edges had white background above and below, so
+  // the ring read 170 where the fill was 26 and the membrane lifted the whole
+  // fill toward gray; the fixture in tests/remove_object_fixture.hpp pins it).
   const auto gx0 = std::max(0, bounds.x - 1);
   const auto gy0 = std::max(0, bounds.y - 1);
   const auto gx1 = std::min(width, bounds.x + bounds.width + 1);
@@ -667,12 +818,12 @@ void exemplar_match_tone(std::uint8_t* filled, const std::uint8_t* original, std
   if (gw <= 0 || gh <= 0) {
     return;
   }
-  const auto bx0 = std::max(0, gx0 - radius);
-  const auto by0 = std::max(0, gy0 - radius);
-  const auto bx1 = std::min(width, gx1 + radius);
-  const auto by1 = std::min(height, gy1 + radius);
-  const auto bw = bx1 - bx0;
-  const auto bh = by1 - by0;
+  // The blur boxes reach `radius` past the grid, but only hole cells count,
+  // and those lie inside `bounds`; the integral covers the bounds alone.
+  const auto bx0 = bounds.x;
+  const auto by0 = bounds.y;
+  const auto bw = bounds.width;
+  const auto bh = bounds.height;
   const auto iw = static_cast<std::size_t>(bw) + 1U;
   const auto hole_at = [&](std::int32_t x, std::int32_t y) {
     if (x < bounds.x || y < bounds.y || x >= bounds.x + bounds.width || y >= bounds.y + bounds.height) {
@@ -680,49 +831,42 @@ void exemplar_match_tone(std::uint8_t* filled, const std::uint8_t* original, std
     }
     return hole[static_cast<std::size_t>(y - bounds.y) * bounds.width + (x - bounds.x)] != 0U;
   };
-  // Integral images over the blur region: the filled image (all cells) and
-  // the original known cells with their count.
-  std::vector<std::int64_t> sum_filled((static_cast<std::size_t>(bh) + 1U) * iw * 3U, 0);
-  std::vector<std::int64_t> sum_known((static_cast<std::size_t>(bh) + 1U) * iw * 3U, 0);
-  std::vector<std::int32_t> count_known((static_cast<std::size_t>(bh) + 1U) * iw, 0);
+  std::vector<std::int64_t> sum_hole((static_cast<std::size_t>(bh) + 1U) * iw * 3U, 0);
+  std::vector<std::int32_t> count_hole((static_cast<std::size_t>(bh) + 1U) * iw, 0);
   for (std::int32_t y = 0; y < bh; ++y) {
-    std::int64_t row_filled[3] = {0, 0, 0};
-    std::int64_t row_known[3] = {0, 0, 0};
+    std::int64_t row_sum[3] = {0, 0, 0};
     std::int32_t row_count = 0;
     for (std::int32_t x = 0; x < bw; ++x) {
       const auto ix = bx0 + x;
       const auto iy = by0 + y;
-      const auto* f = filled + (static_cast<std::size_t>(iy) * width + ix) * 4U;
-      const auto* o = original + (static_cast<std::size_t>(iy) * width + ix) * 4U;
-      const bool known = !hole_at(ix, iy);
-      for (int c = 0; c < 3; ++c) {
-        row_filled[c] += f[c];
-        if (known) {
-          row_known[c] += o[c];
+      if (ix >= 0 && iy >= 0 && ix < width && iy < height && hole_at(ix, iy)) {
+        const auto* f = filled + (static_cast<std::size_t>(iy) * width + ix) * 4U;
+        for (int c = 0; c < 3; ++c) {
+          row_sum[c] += f[c];
         }
+        ++row_count;
       }
-      row_count += known ? 1 : 0;
       const auto here = (static_cast<std::size_t>(y) + 1U) * iw + x + 1U;
       const auto above = static_cast<std::size_t>(y) * iw + x + 1U;
       for (int c = 0; c < 3; ++c) {
-        sum_filled[here * 3U + c] = sum_filled[above * 3U + c] + row_filled[c];
-        sum_known[here * 3U + c] = sum_known[above * 3U + c] + row_known[c];
+        sum_hole[here * 3U + c] = sum_hole[above * 3U + c] + row_sum[c];
       }
-      count_known[here] = count_known[above] + row_count;
+      count_hole[here] = count_hole[above] + row_count;
     }
   }
-  const auto box = [&](const std::vector<std::int64_t>& integral, std::int32_t x0, std::int32_t y0, std::int32_t x1,
-                       std::int32_t y1, int c) {
-    return integral[(static_cast<std::size_t>(y1) * iw + x1) * 3U + c] - integral[(static_cast<std::size_t>(y0) * iw + x1) * 3U + c] -
-           integral[(static_cast<std::size_t>(y1) * iw + x0) * 3U + c] + integral[(static_cast<std::size_t>(y0) * iw + x0) * 3U + c];
+  const auto box = [&](std::int32_t x0, std::int32_t y0, std::int32_t x1, std::int32_t y1, int c) {
+    return sum_hole[(static_cast<std::size_t>(y1) * iw + x1) * 3U + c] -
+           sum_hole[(static_cast<std::size_t>(y0) * iw + x1) * 3U + c] -
+           sum_hole[(static_cast<std::size_t>(y1) * iw + x0) * 3U + c] +
+           sum_hole[(static_cast<std::size_t>(y0) * iw + x0) * 3U + c];
   };
   const auto box_count = [&](std::int32_t x0, std::int32_t y0, std::int32_t x1, std::int32_t y1) {
-    return count_known[static_cast<std::size_t>(y1) * iw + x1] - count_known[static_cast<std::size_t>(y0) * iw + x1] -
-           count_known[static_cast<std::size_t>(y1) * iw + x0] + count_known[static_cast<std::size_t>(y0) * iw + x0];
+    return count_hole[static_cast<std::size_t>(y1) * iw + x1] - count_hole[static_cast<std::size_t>(y0) * iw + x1] -
+           count_hole[static_cast<std::size_t>(y1) * iw + x0] + count_hole[static_cast<std::size_t>(y0) * iw + x0];
   };
-  // Membrane: Dirichlet cells (ring) carry the surroundings' low-pass; the
-  // interior receives its harmonic interpolation. Low-pass of the fill is
-  // kept per cell to subtract.
+  // Membrane: ring cells carry the hole-side low-pass; the interior receives
+  // its harmonic interpolation. The interior's own low-pass is kept per cell
+  // to subtract.
   const auto cells = static_cast<std::size_t>(gw) * static_cast<std::size_t>(gh);
   std::vector<std::uint8_t> interior(cells, 0U);
   std::vector<std::int16_t> membrane(cells * 3U, 0);
@@ -732,24 +876,23 @@ void exemplar_match_tone(std::uint8_t* filled, const std::uint8_t* original, std
       const auto ix = gx0 + x;
       const auto iy = gy0 + y;
       const auto cell = static_cast<std::size_t>(y) * gw + x;
-      // Blur box in blur-region coordinates (exclusive upper bounds).
-      const auto x0 = std::max(0, ix - radius - bx0);
-      const auto y0 = std::max(0, iy - radius - by0);
-      const auto x1 = std::min(bw, ix + radius + 1 - bx0);
-      const auto y1 = std::min(bh, iy + radius + 1 - by0);
-      const auto area = static_cast<std::int64_t>(x1 - x0) * (y1 - y0);
+      // Blur box in bounds coordinates (exclusive upper bounds), clipped.
+      const auto x0 = std::clamp(ix - radius - bx0, 0, bw);
+      const auto y0 = std::clamp(iy - radius - by0, 0, bh);
+      const auto x1 = std::clamp(ix + radius + 1 - bx0, 0, bw);
+      const auto y1 = std::clamp(iy + radius + 1 - by0, 0, bh);
+      const auto count = x1 > x0 && y1 > y0 ? box_count(x0, y0, x1, y1) : 0;
       for (int c = 0; c < 3; ++c) {
-        fill_low[cell * 3U + c] = static_cast<std::int16_t>(box(sum_filled, x0, y0, x1, y1, c) / std::max<std::int64_t>(1, area));
+        // A ring cell with no hole cell in reach never neighbours the
+        // interior, so its value is inert.
+        fill_low[cell * 3U + c] = count > 0 ? static_cast<std::int16_t>(box(x0, y0, x1, y1, c) / count) : 0;
       }
       if (hole_at(ix, iy)) {
         interior[cell] = 1U;
         continue;
       }
-      const auto known = box_count(x0, y0, x1, y1);
       for (int c = 0; c < 3; ++c) {
-        // A ring cell with no known neighbour in reach keeps the fill's tone.
-        membrane[cell * 3U + c] = known > 0 ? static_cast<std::int16_t>(box(sum_known, x0, y0, x1, y1, c) / known)
-                                            : fill_low[cell * 3U + c];
+        membrane[cell * 3U + c] = fill_low[cell * 3U + c];
       }
     }
   }
@@ -762,7 +905,12 @@ void exemplar_match_tone(std::uint8_t* filled, const std::uint8_t* original, std
       }
       auto* f = filled + (static_cast<std::size_t>(gy0 + y) * width + (gx0 + x)) * 4U;
       for (int c = 0; c < 3; ++c) {
-        const auto value = static_cast<std::int32_t>(f[c]) - fill_low[cell * 3U + c] + membrane[cell * 3U + c];
+        // Integer scaling, rounded half away from zero, so 100 is exactly the
+        // full replacement.
+        const auto correction = static_cast<std::int32_t>(membrane[cell * 3U + c]) - fill_low[cell * 3U + c];
+        const auto scaled =
+            correction >= 0 ? (correction * strength + 50) / 100 : -((-correction * strength + 50) / 100);
+        const auto value = static_cast<std::int32_t>(f[c]) + scaled;
         f[c] = static_cast<std::uint8_t>(std::clamp(value, 0, 255));
       }
     }

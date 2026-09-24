@@ -3,6 +3,7 @@
 #include "ui/script_stroke.hpp"
 
 #include "core/document.hpp"
+#include "core/exemplar_inpaint.hpp"
 #include "core/layer_alignment.hpp"
 #include "core/magnetic_lasso.hpp"
 #include "core/pattern_resource.hpp"
@@ -700,25 +701,83 @@ public:
   void run_selection_command(QString label, const std::function<void()>& command);
   // Edit > Remove Object: fill the current selection from its surroundings
   // (canvas_widget_spot_healing.cpp). ContentAware is the exhaustive exemplar
-  // fill of core/exemplar_inpaint.hpp (deterministic; falls back to
-  // NearestEdge when no clean source patch is in reach). NearestEdge is the
-  // selection form of Spot Healing: one shape-derived mirror or shift, where
-  // `attempt` < 0 continues the canvas's own cycle (running again on the same
-  // selection walks the geometry-only candidates) and >= 0 forces that
-  // candidate (wrapping) and becomes the cycle's position. `record_history`
-  // false runs the pixel-edit prechecks without the history push, for callers
-  // that already own an undo snapshot (the script API).
+  // fill of core/exemplar_inpaint.hpp (deterministic per variation; falls
+  // back to NearestEdge when no clean source patch is in reach). NearestEdge
+  // is the selection form of Spot Healing: one shape-derived mirror or shift.
   enum class RemoveObjectMethod { ContentAware, NearestEdge };
+  struct RemoveObjectOptions {
+    RemoveObjectMethod method{RemoveObjectMethod::ContentAware};
+    // NearestEdge: < 0 continues the canvas's own cycle (running again on the
+    // same selection walks the geometry-only candidates), >= 0 forces that
+    // candidate (wrapping) and becomes the cycle's position. ContentAware:
+    // the variation, where 0 (or any negative value) is the byte-stable
+    // best-match fill and N > 0 is variation N (a deterministic near-best
+    // pick per patch; see core/exemplar_inpaint.hpp).
+    int attempt{-1};
+    // ContentAware only: strength of the tone match that follows the fill,
+    // 0 (the raw exemplar fill, the default) to 100 (the full low-pass
+    // replacement).
+    int tone_match{0};
+    // Extra edge feather in pixels, grown outward from the selection (a
+    // gaussian of this sigma over the coverage) on top of the selection's own
+    // feather: the fill covers the widened footprint and the soft skirt
+    // blends its edge. 0 keeps the selection's coverage as is.
+    int feather{0};
+    // false runs the pixel-edit prechecks without the history push, for
+    // callers that already own an undo snapshot (the script API) or that
+    // preview into the layer and push on accept (the Remove Object dialog).
+    bool record_history{true};
+  };
   struct RemoveObjectResult {
     bool applied{false};
     RemoveObjectMethod method{RemoveObjectMethod::ContentAware};  // the method that ran (fallback included)
     int source_index{0};  // NearestEdge: 1-based candidate that was used
     int source_count{0};  // NearestEdge: candidates available
+    int attempt{0};       // ContentAware: the variation that ran (0 = best match)
     std::int64_t patches{0};  // ContentAware: source patches copied
     QString error;  // the refusal (also reported to the status bar) when !applied
   };
+  RemoveObjectResult remove_object_in_selection(const RemoveObjectOptions& options);
+  // The same run in stages, so a host can keep the UI thread free: prepare
+  // (UI thread: the prechecks, the padded coverage, the retouch snapshot),
+  // compute (ANY thread: the exemplar fill and tone match over the job's own
+  // copies, cancellable per patch; nothing to do for NearestEdge), commit
+  // (UI thread: the source map, the history push, the heal write, the
+  // status). remove_object_in_selection(options) is the three in turn under
+  // the progress overlay. A job's snapshot must be the document as it should
+  // look BEFORE the fill: a host that previews into the layer restores the
+  // original before preparing the next job.
+  struct RemoveObjectJob {
+    RemoveObjectOptions options;
+    QRect bounds;                     // padded write bounds (selection + ring + feather reach)
+    std::vector<std::uint8_t> mask;   // coverage over bounds, 0 on the ring
+    QImage snapshot;                  // RGBA8888 retouch snapshot
+    bool valid{false};
+    QString error;                    // the refusal (also reported to the status bar) when !valid
+  };
+  struct RemoveObjectComputed {
+    bool cancelled{false};
+    bool fell_back{false};            // ContentAware found no clean source patch: NearestEdge runs
+    QImage filled;                    // ContentAware: the snapshot with the hole filled
+    ExemplarInpaintResult inpaint;
+  };
+  [[nodiscard]] RemoveObjectJob prepare_remove_object(const RemoveObjectOptions& options);
+  [[nodiscard]] static RemoveObjectComputed compute_remove_object(const RemoveObjectJob& job,
+                                                                  const std::atomic<bool>* cancel,
+                                                                  const std::function<void(int)>& progress_percent);
+  RemoveObjectResult commit_remove_object(const RemoveObjectJob& job, const RemoveObjectComputed& computed);
+  // The historical form: method, attempt, record_history, defaults otherwise.
   RemoveObjectResult remove_object_in_selection(RemoveObjectMethod method = RemoveObjectMethod::ContentAware,
                                                 int attempt = -1, bool record_history = true);
+  // Set by the host: the Patch tool's Enter with an outline and no drag asks
+  // the host to run Remove Object (MainWindow opens its dialog). Without a
+  // callback the canvas runs the default fill directly.
+  void set_remove_object_requested_callback(std::function<void()> callback);
+  // Read-only press-time precheck of begin_edit's pixel-layer branch (8-bit
+  // pixel layer, pixel lock, text/smart-object/shape refusals) WITHOUT the
+  // history push, for gestures that defer begin_edit to release (Spot Healing,
+  // Patch). Reports the same status errors / rasterize prompt when `report`.
+  bool can_begin_pixel_edit(bool report);
   void set_marquee_style(MarqueeStyle style) noexcept;
   [[nodiscard]] MarqueeStyle marquee_style() const noexcept;
   void set_marquee_fixed_size(int width, int height) noexcept;
@@ -1508,11 +1567,6 @@ private:
   [[nodiscard]] QRect widget_rect_for_document_rect(QRect document_rect) const;
   [[nodiscard]] QRectF widget_rect_for_document_rect(QRectF document_rect) const;
   bool begin_edit(QString label);
-  // Read-only press-time precheck of begin_edit's pixel-layer branch (8-bit
-  // pixel layer, pixel lock, text/smart-object/shape refusals) WITHOUT the
-  // history push, for gestures that defer begin_edit to release (Spot Healing,
-  // Patch). Reports the same status errors / rasterize prompt when `report`.
-  bool can_begin_pixel_edit(bool report);
   [[nodiscard]] CanvasTool effective_tool_for_input() const noexcept;
   void clear_brush_stroke_tracking() noexcept;
   void begin_axis_constrained_stroke(QPointF document_point) noexcept;
@@ -2313,6 +2367,7 @@ private:
   bool remove_object_has_last_{false};
   QRect remove_object_last_bounds_;
   std::uint64_t remove_object_last_mask_hash_{0};
+  std::function<void()> remove_object_requested_callback_;
   // Crop tool session state (canvas_widget_crop.cpp). All rects/points are in
   // document space; crop_rect_ may extend past the canvas (commit expands).
   bool crop_session_active_{false};

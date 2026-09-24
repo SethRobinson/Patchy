@@ -240,8 +240,8 @@ public:
   // layer must be the document's active layer. The pixel edit rides this
   // run's undo snapshot. False (with a JS error thrown) on refusal.
   bool remove_object_in_selection(std::int64_t session_id, LayerId layer_id, bool content_aware, int attempt,
-                                  bool* used_content_aware, int* source, int* source_count,
-                                  std::int64_t* patches);
+                                  int tone_match, int feather, bool* used_content_aware, int* source,
+                                  int* source_count, std::int64_t* patches, int* attempt_used);
   // Layer > Arrange > Align / Distribute over `root_ids` (empty = the
   // session's layer selection) through its canvas, riding this run's undo
   // snapshot. Returns the number of layers moved; -1 with a JS error thrown

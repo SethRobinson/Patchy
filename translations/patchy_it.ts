@@ -9955,6 +9955,14 @@ RGB: %2, %3, %4</translation>
         <source>Resize Selection</source>
         <translation>Ridimensiona selezione</translation>
     </message>
+    <message>
+        <source>Removed object with content-aware fill, variation %1 (%2 patches)</source>
+        <translation>Oggetto rimosso con il riempimento in base al contenuto, variante %1 (%2 toppe)</translation>
+    </message>
+    <message>
+        <source>Remove Object was cancelled</source>
+        <translation>Rimuovi oggetto è stato annullato</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -17221,10 +17229,6 @@ Y: %2
         <translation>Perno:</translation>
     </message>
     <message>
-        <source>Remove &amp;Object</source>
-        <translation>Rimuovi &amp;oggetto</translation>
-    </message>
-    <message>
         <source>Remove Object</source>
         <translation>Rimuovi oggetto</translation>
     </message>
@@ -17385,6 +17389,94 @@ Y: %2
     <message>
         <source>Brush tip: Square</source>
         <translation>Punta pennello: Quadrato</translation>
+    </message>
+    <message>
+        <source>Remove &amp;Object...</source>
+        <translation>Rimuovi &amp;oggetto...</translation>
+    </message>
+    <message>
+        <source>Remove Object needs a selection: select the area to remove first</source>
+        <translation>Rimuovi oggetto richiede una selezione: seleziona prima l&apos;area da rimuovere</translation>
+    </message>
+    <message>
+        <source>Tone match</source>
+        <translation>Corrispondenza tonale</translation>
+    </message>
+    <message>
+        <source>How strongly the fill&apos;s brightness is smoothed to its own edges (0 keeps the raw fill)</source>
+        <translation>Quanto la luminosità del riempimento viene uniformata ai suoi bordi (0 mantiene il riempimento grezzo)</translation>
+    </message>
+    <message>
+        <source>Edge feather</source>
+        <translation>Sfumatura del bordo</translation>
+    </message>
+    <message>
+        <source> px</source>
+        <translation> px</translation>
+    </message>
+    <message>
+        <source>Reroll</source>
+        <translation>Rigenera</translation>
+    </message>
+    <message>
+        <source>Fill again with the next variation</source>
+        <translation>Riempi di nuovo con la variante successiva</translation>
+    </message>
+    <message>
+        <source>Variation %1</source>
+        <translation>Variante %1</translation>
+    </message>
+    <message>
+        <source>Content-aware fill (%1 patches)</source>
+        <translation>Riempimento in base al contenuto (%1 toppe)</translation>
+    </message>
+    <message>
+        <source>No clean source patches nearby; used the nearest edge (source %1 of %2)</source>
+        <translation>Nessuna toppa sorgente pulita nelle vicinanze; è stato usato il bordo più vicino (sorgente %1 di %2)</translation>
+    </message>
+    <message>
+        <source>Cancelled Remove Object</source>
+        <translation>Annullato: Rimuovi oggetto</translation>
+    </message>
+    <message>
+        <source>Removed object with content-aware fill, variation %1 (%2 patches)</source>
+        <translation>Oggetto rimosso con il riempimento in base al contenuto, variante %1 (%2 toppe)</translation>
+    </message>
+    <message>
+        <source>Removed object with the nearest edge (source %1 of %2)</source>
+        <translation>Oggetto rimosso con il bordo più vicino (sorgente %1 di %2)</translation>
+    </message>
+    <message>
+        <source>Softens the fill&apos;s edge outward from the selection, on top of its own feather. The filled area grows by the feather, so keep it small when the selection hugs an edge</source>
+        <translation>Ammorbidisce il bordo del riempimento verso l&apos;esterno della selezione, oltre alla sua sfumatura. L&apos;area riempita cresce della sfumatura; tienila piccola quando la selezione rasenta un bordo</translation>
+    </message>
+    <message>
+        <source>Duplicate to New Layer</source>
+        <translation>Duplica in un nuovo livello</translation>
+    </message>
+    <message>
+        <source>Copies this variation&apos;s filled area onto a new hidden layer above this one, so several variations can be kept and compared</source>
+        <translation>Copia l&apos;area riempita di questa variante su un nuovo livello nascosto sopra questo, per conservare e confrontare più varianti</translation>
+    </message>
+    <message>
+        <source>Filling...</source>
+        <translation>Riempimento...</translation>
+    </message>
+    <message>
+        <source>Filling... %1%</source>
+        <translation>Riempimento... %1%</translation>
+    </message>
+    <message>
+        <source>Duplicate Remove Object variation to layer</source>
+        <translation>Duplica variante di Rimuovi oggetto in un livello</translation>
+    </message>
+    <message>
+        <source>Remove Object variation %1</source>
+        <translation>Rimuovi oggetto variante %1</translation>
+    </message>
+    <message>
+        <source>Copied variation %1 to the hidden layer &quot;%2&quot;</source>
+        <translation>Variante %1 copiata nel livello nascosto &quot;%2&quot;</translation>
     </message>
 </context>
 <context>

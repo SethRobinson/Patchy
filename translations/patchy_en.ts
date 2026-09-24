@@ -9946,6 +9946,14 @@ RGB: %2, %3, %4</source>
         <source>Resize Selection</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Removed object with content-aware fill, variation %1 (%2 patches)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove Object was cancelled</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -17177,10 +17185,6 @@ Y: %2
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Remove &amp;Object</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Remove Object</source>
         <translation type="unfinished"></translation>
     </message>
@@ -17340,6 +17344,94 @@ Y: %2
     </message>
     <message>
         <source>Brush tip: Square</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove &amp;Object...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove Object needs a selection: select the area to remove first</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tone match</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>How strongly the fill&apos;s brightness is smoothed to its own edges (0 keeps the raw fill)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Edge feather</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source> px</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reroll</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fill again with the next variation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Variation %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Content-aware fill (%1 patches)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No clean source patches nearby; used the nearest edge (source %1 of %2)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cancelled Remove Object</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Removed object with content-aware fill, variation %1 (%2 patches)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Removed object with the nearest edge (source %1 of %2)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Softens the fill&apos;s edge outward from the selection, on top of its own feather. The filled area grows by the feather, so keep it small when the selection hugs an edge</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Duplicate to New Layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copies this variation&apos;s filled area onto a new hidden layer above this one, so several variations can be kept and compared</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Filling...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Filling... %1%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Duplicate Remove Object variation to layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove Object variation %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copied variation %1 to the hidden layer &quot;%2&quot;</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

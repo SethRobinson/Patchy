@@ -6,17 +6,22 @@
 // footprint's SHAPE alone, never from pixel content) supplies the texture, and
 // the classic healing membrane of the expired US 6587592
 // (core/heal_membrane.hpp) interpolates the boundary tone differences across
-// the interior. Remove Object's only extra input is the user's repeat count,
-// which walks the geometrically valid candidates in their fixed order. Do not
-// add PatchMatch-style offset propagation or perturbation, reshuffling, or
-// gradient-domain compositing of source gradients: those are claimed by
-// Adobe's active patents (US 8285055, US 8340463, US 8355592, into 2031) and
-// US 9058699 (to 2029); a content-driven source search must be the exhaustive
-// exemplar search docs/legal-constraints.md clears. Live classify-and-display
-// during brush input is claimed by US 8050498 (to Nov 3, 2029), so the drag
-// shows only the raw footprint overlay. See docs/legal-constraints.md and the
-// dated records in docs/patent-research.md and
-// docs/patent-research-inpainting.md.
+// the interior. Remove Object's nearest-edge mode takes only the user's repeat
+// count, which walks the geometrically valid candidates in their fixed order;
+// its content-aware mode is the exhaustive exemplar search of
+// core/exemplar_inpaint.hpp, whose variation number (the dialog's Reroll) is a
+// per-patch near-best pick from a fresh full scan, never a perturbed or
+// propagated offset. Do not add PatchMatch-style offset propagation or
+// perturbation, reshuffling, or gradient-domain compositing of source
+// gradients: those are claimed by Adobe's active patents (US 8285055,
+// US 8340463, US 8355592, into 2031) and US 9058699 (to 2029); a
+// content-driven source search must be the exhaustive exemplar search
+// docs/legal-constraints.md clears. Live classify-and-display during input is
+// claimed by US 8050498 (to Nov 3, 2029), so the drag shows only the raw
+// footprint overlay, and the Remove Object dialog (main_window_layer_ops.cpp)
+// runs a fill only on a button click or a settled slider value, never per
+// slider move or pointer move. See docs/legal-constraints.md and the dated
+// records in docs/patent-research.md and docs/patent-research-inpainting.md.
 
 #include "ui/canvas_widget.hpp"
 #include "ui/canvas_widget_shared.hpp"
@@ -24,9 +29,11 @@
 #include "core/blend_math.hpp"
 #include "core/exemplar_inpaint.hpp"
 #include "core/heal_membrane.hpp"
+#include "core/layer_render_utils.hpp"
 #include "core/pixel_tools.hpp"
 #include "core/spot_heal.hpp"
 #include "core/worker_budget.hpp"
+#include "ui/background_workers.hpp"
 #include "ui/edit_conversions.hpp"
 #include "ui/qt_geometry.hpp"
 
@@ -35,10 +42,12 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <cstring>
 #include <future>
+#include <memory>
 #include <span>
 #include <vector>
 
@@ -201,21 +210,34 @@ void CanvasWidget::finish_spot_heal_stroke() {
   drop_stroke_state();
 }
 
-// Edit > Remove Object: the selection is the footprint and its own feather is
-// the write's skirt. ContentAware fills a copy of the snapshot with the
-// exhaustive exemplar search (core/exemplar_inpaint.hpp) and writes it through
-// the shared heal with an identity map (the membrane then solves to zero, so
-// the fill lands as computed). NearestEdge is the stroke's source map plus
-// membrane; running it again on the same selection walks the geometry-only
-// candidates (the user's repeat is the only thing that changes the pick).
+// Edit > Remove Object: the selection is the footprint and its own feather
+// (plus the requested extra feather) is the write's skirt. ContentAware fills
+// a copy of the snapshot with the exhaustive exemplar search
+// (core/exemplar_inpaint.hpp) and writes it through the shared heal with an
+// identity map (the membrane then solves to zero, so the fill lands as
+// computed). NearestEdge is the stroke's source map plus membrane; running it
+// again on the same selection walks the geometry-only candidates (the user's
+// repeat is the only thing that changes the pick).
 CanvasWidget::RemoveObjectResult CanvasWidget::remove_object_in_selection(RemoveObjectMethod method, int attempt,
                                                                           bool record_history) {
-  RemoveObjectResult result;
-  result.method = method;
+  RemoveObjectOptions options;
+  options.method = method;
+  options.attempt = attempt;
+  options.record_history = record_history;
+  return remove_object_in_selection(options);
+}
+
+void CanvasWidget::set_remove_object_requested_callback(std::function<void()> callback) {
+  remove_object_requested_callback_ = std::move(callback);
+}
+
+CanvasWidget::RemoveObjectJob CanvasWidget::prepare_remove_object(const RemoveObjectOptions& options) {
+  RemoveObjectJob job;
+  job.options = options;
   const auto refuse = [&](QString message) {
-    result.error = std::move(message);
-    report_status_error(result.error);
-    return result;
+    job.error = std::move(message);
+    report_status_error(job.error);
+    return job;
   };
   if (document_ == nullptr) {
     return refuse(tr("Remove Object needs an open document"));
@@ -223,19 +245,29 @@ CanvasWidget::RemoveObjectResult CanvasWidget::remove_object_in_selection(Remove
   if (!has_selection()) {
     return refuse(tr("Remove Object needs a selection: select the area to remove first"));
   }
-  // Padded by one cell so the mask carries an uncovered ring: the source map
-  // finds its nearest boundary there and the membrane gets its Dirichlet
-  // cells (a selection flush with the canvas edge simply has none there).
+  // The extra feather is a gaussian of sigma `feather` over the coverage,
+  // Photoshop's mask-feather approximation (three box passes); its full
+  // support is the sum of the box radii, and the bounds grow by that much so
+  // the blurred skirt fits inside them.
+  const auto feather = std::clamp(options.feather, 0, 250);
+  const auto feather_radii = feather > 0 ? patchy::mask_feather_box_radii(static_cast<double>(feather))
+                                         : std::array<std::int32_t, 3>{0, 0, 0};
+  const auto feather_reach = feather_radii[0] + feather_radii[1] + feather_radii[2];
+  // Padded by one cell (plus the feather's reach) so the mask carries an
+  // uncovered ring: the source map finds its nearest boundary there and the
+  // membrane gets its Dirichlet cells (a selection flush with the canvas edge
+  // simply has none there).
   const QRect canvas_rect(0, 0, document_->width(), document_->height());
-  const auto bounds = selection_.boundingRect().adjusted(-1, -1, 1, 1).intersected(canvas_rect);
+  const auto pad = 1 + feather_reach;
+  const auto bounds = selection_.boundingRect().adjusted(-pad, -pad, pad, pad).intersected(canvas_rect);
   if (bounds.isEmpty() || selection_.boundingRect().intersected(canvas_rect).isEmpty()) {
     return refuse(tr("Remove Object needs a selection on the canvas"));
   }
-  if (!can_begin_pixel_edit(record_history)) {
+  if (!can_begin_pixel_edit(options.record_history)) {
     // Interactive runs let the precheck report its own refusal (lock, layer
     // kind, rasterize prompt); the script path gets the plain error instead.
-    result.error = tr("Remove Object needs an editable pixel layer");
-    return result;
+    job.error = tr("Remove Object needs an editable pixel layer");
+    return job;
   }
 
   // The selection's coverage over the padded bounds, feather included (the
@@ -257,57 +289,115 @@ CanvasWidget::RemoveObjectResult CanvasWidget::remove_object_in_selection(Remove
       }
     }
   }
+  if (feather > 0) {
+    // Blur the coverage outward on a 16-bit plane (the mask-feather passes are
+    // edge-clamped; the padded ring is 0, so nothing bleeds past the bounds
+    // unless the selection is flush with the canvas edge, where the clamp
+    // repeats the coverage as the selection's own feather would).
+    std::vector<std::uint16_t> plane(mask.size());
+    for (std::size_t i = 0; i < mask.size(); ++i) {
+      plane[i] = static_cast<std::uint16_t>(mask[i] * 257U);
+    }
+    patchy::mask_feather_blur(plane, width, height, feather_radii);
+    for (std::size_t i = 0; i < mask.size(); ++i) {
+      mask[i] = static_cast<std::uint8_t>((plane[i] + 128U) / 257U);
+    }
+  }
 
-  const auto snapshot = retouch_source_snapshot();
+  auto snapshot = retouch_source_snapshot();
   if (snapshot.isNull() || snapshot.format() != QImage::Format_RGBA8888 ||
       snapshot.bytesPerLine() != snapshot.width() * 4) {
     return refuse(tr("Remove Object could not read the document pixels"));
   }
+  job.bounds = bounds;
+  job.mask = std::move(mask);
+  job.snapshot = std::move(snapshot);
+  job.valid = true;
+  return job;
+}
 
-  QImage filled;
-  ExemplarInpaintResult inpaint;
+// Static and self-contained: reads the job's own copies only, so it can run
+// on a worker thread while the UI stays live. Cancellation is polled per
+// copied patch.
+CanvasWidget::RemoveObjectComputed CanvasWidget::compute_remove_object(
+    const RemoveObjectJob& job, const std::atomic<bool>* cancel, const std::function<void(int)>& progress_percent) {
+  RemoveObjectComputed computed;
+  if (!job.valid || job.options.method != RemoveObjectMethod::ContentAware) {
+    return computed;
+  }
+  computed.filled = job.snapshot.copy();
+  ExemplarInpaintOptions inpaint_options;
+  inpaint_options.patch_size = 9;
+  // Reach grows with the selection so the sources for a wide object are in
+  // the window, capped so the exhaustive scan stays interactive.
+  inpaint_options.search_radius = std::clamp(std::max(job.bounds.width(), job.bounds.height()) / 2 + 32, 48, 96);
+  inpaint_options.attempt = std::max(0, job.options.attempt);
+  inpaint_options.single_threaded = qEnvironmentVariableIsSet("PATCHY_RENDER_SINGLE_THREADED");
+  inpaint_options.cancel = cancel;
+  int last_percent = -1;
+  computed.inpaint = exemplar_inpaint(
+      computed.filled.bits(), computed.filled.width(), computed.filled.height(), job.mask.data(),
+      to_core_rect(job.bounds), inpaint_options, [&](std::int64_t done, std::int64_t total) {
+        if (!progress_percent) {
+          return;
+        }
+        const auto percent = static_cast<int>(total > 0 ? done * 100 / total : 100);
+        if (percent != last_percent) {
+          last_percent = percent;
+          progress_percent(percent);
+        }
+      });
+  if (computed.inpaint.cancelled) {
+    computed.cancelled = true;
+    computed.filled = QImage();
+    return computed;
+  }
+  if (!computed.inpaint.filled) {
+    // No fully known source patch in reach (the selection fills the
+    // neighbourhood): the shape-derived mirror still has something to say.
+    computed.fell_back = true;
+    computed.filled = QImage();
+    return computed;
+  }
+  if (job.options.tone_match > 0) {
+    // Frequency separation through the cleared membrane: the fill keeps its
+    // grain, its low-pass follows its own edge values smoothly (the
+    // brightness polygons where fill fronts meet go; the fill's own tone
+    // stays, since only hole cells are read). 0 keeps the raw fill.
+    exemplar_match_tone(computed.filled.bits(), computed.filled.width(), computed.filled.height(), job.mask.data(),
+                        to_core_rect(job.bounds), 24, std::clamp(job.options.tone_match, 0, 100));
+  }
+  return computed;
+}
+
+CanvasWidget::RemoveObjectResult CanvasWidget::commit_remove_object(const RemoveObjectJob& job,
+                                                                    const RemoveObjectComputed& computed) {
+  RemoveObjectResult result;
+  auto method = job.options.method;
+  result.method = method;
+  const auto refuse = [&](QString message) {
+    result.error = std::move(message);
+    report_status_error(result.error);
+    return result;
+  };
+  if (!job.valid) {
+    result.error = job.error;
+    return result;
+  }
+  if (document_ == nullptr) {
+    return refuse(tr("Remove Object needs an open document"));
+  }
+  if (computed.cancelled) {
+    result.error = tr("Remove Object was cancelled");
+    return result;
+  }
+  const auto& bounds = job.bounds;
+  const auto& mask = job.mask;
+  const auto variation = std::max(0, job.options.attempt);
   bool fell_back = false;
-  if (method == RemoveObjectMethod::ContentAware) {
-    filled = snapshot.copy();
-    ExemplarInpaintOptions options;
-    options.patch_size = 9;
-    // Reach grows with the selection so the sources for a wide object are in
-    // the window, capped so the exhaustive scan stays interactive.
-    options.search_radius = std::clamp(std::max(bounds.width(), bounds.height()) / 2 + 32, 48, 96);
-    options.single_threaded = qEnvironmentVariableIsSet("PATCHY_RENDER_SINGLE_THREADED");
-    begin_processing_operation(tr("Removing object..."));
-    // Progress is reported per patch; the overlay text and event pump are
-    // throttled so they cost nothing next to the search.
-    auto last_report = std::chrono::steady_clock::now();
-    int last_percent = -1;
-    inpaint = exemplar_inpaint(
-        filled.bits(), filled.width(), filled.height(), mask.data(), to_core_rect(bounds), options,
-        [this, &last_report, &last_percent](std::int64_t done, std::int64_t total) {
-          const auto now = std::chrono::steady_clock::now();
-          if (now - last_report < std::chrono::milliseconds(80)) {
-            return;
-          }
-          last_report = now;
-          const auto percent = static_cast<int>(total > 0 ? done * 100 / total : 100);
-          if (percent != last_percent) {
-            last_percent = percent;
-            set_processing_operation_message(tr("Removing object... %1%").arg(percent));
-          }
-          tick_processing_operation();
-        });
-    if (inpaint.filled) {
-      // Frequency separation through the cleared membrane: the fill keeps its
-      // grain, its brightness follows the surroundings smoothly.
-      exemplar_match_tone(filled.bits(), snapshot.constBits(), filled.width(), filled.height(), mask.data(),
-                          to_core_rect(bounds), 24);
-    }
-    end_processing_operation();
-    if (!inpaint.filled) {
-      // No fully known source patch in reach (the selection fills the
-      // neighbourhood): the shape-derived mirror still has something to say.
-      method = RemoveObjectMethod::NearestEdge;
-      fell_back = true;
-    }
+  if (method == RemoveObjectMethod::ContentAware && (computed.fell_back || computed.filled.isNull())) {
+    method = RemoveObjectMethod::NearestEdge;
+    fell_back = true;
   }
   result.method = method;
 
@@ -323,8 +413,8 @@ CanvasWidget::RemoveObjectResult CanvasWidget::remove_object_in_selection(Remove
     }
     const bool same_selection = remove_object_has_last_ && remove_object_last_bounds_ == bounds &&
                                 remove_object_last_mask_hash_ == mask_hash;
-    if (attempt >= 0) {
-      remove_object_attempt_ = attempt;
+    if (job.options.attempt >= 0) {
+      remove_object_attempt_ = job.options.attempt;
     } else {
       remove_object_attempt_ = same_selection ? remove_object_attempt_ + 1 : 0;
     }
@@ -344,7 +434,7 @@ CanvasWidget::RemoveObjectResult CanvasWidget::remove_object_in_selection(Remove
     source_map.shift = 0.0;
     source_map.candidate_count = 1;
   }
-  if (record_history && !begin_edit(tr("Remove Object"))) {
+  if (job.options.record_history && !begin_edit(tr("Remove Object"))) {
     result.error = tr("Remove Object needs an editable pixel layer");
     return result;
   }
@@ -353,20 +443,25 @@ CanvasWidget::RemoveObjectResult CanvasWidget::remove_object_in_selection(Remove
     return refuse(tr("Remove Object needs a pixel layer"));
   }
 
-  heal_mask_from_surroundings(bounds, mask, method == RemoveObjectMethod::ContentAware ? filled : snapshot, source_map,
-                              *layer, /*clip_to_selection=*/false);
+  heal_mask_from_surroundings(bounds, mask, method == RemoveObjectMethod::ContentAware ? computed.filled : job.snapshot,
+                              source_map, *layer, /*clip_to_selection=*/false);
   result.applied = true;
   if (method == RemoveObjectMethod::ContentAware) {
-    result.patches = inpaint.patches;
+    result.patches = computed.inpaint.patches;
     result.source_index = 1;
     result.source_count = 1;
+    result.attempt = variation;
     if (status_callback_) {
-      status_callback_(tr("Removed object with content-aware fill (%1 patches)").arg(result.patches));
+      status_callback_(variation > 0 ? tr("Removed object with content-aware fill, variation %1 (%2 patches)")
+                                           .arg(variation + 1)
+                                           .arg(result.patches)
+                                     : tr("Removed object with content-aware fill (%1 patches)").arg(result.patches));
     }
   } else {
     const auto count = std::max(1, source_map.candidate_count);
     result.source_count = count;
     result.source_index = ((remove_object_attempt_ % count) + count) % count + 1;
+    result.attempt = result.source_index - 1;
     if (status_callback_) {
       status_callback_(fell_back ? tr("Remove Object found no clean source patches nearby; used the nearest edge "
                                       "instead (source %1 of %2)")
@@ -379,6 +474,65 @@ CanvasWidget::RemoveObjectResult CanvasWidget::remove_object_in_selection(Remove
   }
   update();
   return result;
+}
+
+// The synchronous command: prepare and commit on this thread, the fill on a
+// worker under the progress overlay ("Removing object... N%"). The main
+// thread waits in wait_for_processing_operation and polls the percent the
+// worker publishes. Computing here and pumping from the progress callback
+// painted fine on desktop, but on wasm no pump can paint (the browser gets
+// no turn until the main thread suspends in an event loop; docs/wasm.md),
+// so a long fill looked like a frozen tab with no overlay at all. The wait's
+// nested loop suspends properly there and ticks the overlay everywhere.
+CanvasWidget::RemoveObjectResult CanvasWidget::remove_object_in_selection(const RemoveObjectOptions& options) {
+  const auto job = prepare_remove_object(options);
+  if (!job.valid) {
+    RemoveObjectResult result;
+    result.method = options.method;
+    result.error = job.error;
+    return result;
+  }
+  RemoveObjectComputed computed;
+  if (options.method == RemoveObjectMethod::ContentAware) {
+    begin_processing_operation(tr("Removing object..."));
+    const auto progress = std::make_shared<std::atomic<int>>(-1);
+    const auto compute = [&job, progress] {
+      return compute_remove_object(job, nullptr,
+                                   [progress](int percent) { progress->store(percent, std::memory_order_relaxed); });
+    };
+    bool run_inline = false;
+#if defined(Q_OS_WASM) && defined(__EMSCRIPTEN_PTHREADS__)
+    // Same pool contract as the processing renders: no idle pre-spawned
+    // worker means the blocked path cannot rely on a lazy spawn, and the
+    // candidate scan's own strip fan-out must fit the pool without the
+    // compute's worker (worker_budget.hpp).
+    const auto idle_pool = patchy::idle_prespawned_pool_workers();
+    run_inline = idle_pool < 1;
+    const patchy::BlockingFanoutBudgetScope fanout_budget(run_inline ? -1 : std::max(0, idle_pool - 3));
+#endif
+    try {
+      if (run_inline) {
+        computed = compute();
+      } else {
+        auto future = launch_async(compute);
+        int last_percent = -1;
+        wait_for_processing_operation([&] {
+          const auto percent = progress->load(std::memory_order_relaxed);
+          if (percent >= 0 && percent != last_percent) {
+            last_percent = percent;
+            set_processing_operation_message(tr("Removing object... %1%").arg(percent));
+          }
+          return future.wait_for(std::chrono::milliseconds(16)) == std::future_status::ready;
+        });
+        computed = future.get();
+      }
+    } catch (...) {
+      end_processing_operation();
+      throw;
+    }
+    end_processing_operation();
+  }
+  return commit_remove_object(job, computed);
 }
 
 // The healing membrane plus the write, shared by the stroke and the command:

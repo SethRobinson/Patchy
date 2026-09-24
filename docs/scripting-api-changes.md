@@ -1,5 +1,12 @@
 # Scripting API compatibility
 
+2026-09-24 (API 1): `layer.removeObject(options?)` gains `toneMatch` (0..100, default
+0, the raw exemplar fill), `feather` (px, default 0; softens the fill's edge
+outward), and, for the content-aware method, `attempt` as the variation number (0 = the
+best-match fill, each n > 0 a different reproducible fill, the dialog's Reroll). The
+result gains `attempt`. Existing calls are unchanged. Additive; apiVersion unchanged.
+See [healing.md](healing.md).
+
 2026-09-22 (API 1): `doc.alignLayers(edge, options?)` and `doc.distributeLayers(mode,
 options?)` run Layer > Arrange > Align / Distribute (`edge` ids `left`, `hcenter`, `right`,
 `top`, `vcenter`, `bottom`; Distribute adds `hspacing`, `vspacing`; options `layers` and,

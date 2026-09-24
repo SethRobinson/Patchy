@@ -334,7 +334,7 @@ void MainWindow::bind_action_translations(ActionBuildContext& ctx) {
       {ctx.border_selection_action, QT_TR_NOOP("&Border...")},
       {ctx.layer_transparency_action, QT_TR_NOOP("Load Layer &Transparency")},
       {ctx.stroke_selection_action, QT_TR_NOOP("&Stroke Selection...")},
-      {ctx.remove_object_action, QT_TR_NOOP("Remove &Object")},
+      {ctx.remove_object_action, QT_TR_NOOP("Remove &Object...")},
       {ctx.define_brush_tip_action, QT_TR_NOOP("Define Brush Tip from Selection")},
       {ctx.layer_new_menu->menuAction(), QT_TR_NOOP("&New")},
       {ctx.add_layer_action, QT_TR_NOOP("&New Layer")},

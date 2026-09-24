@@ -3609,6 +3609,443 @@ std::optional<StrokeSelectionSettings> request_stroke_selection_settings(QWidget
 
 }  // namespace
 
+namespace {
+
+// Persisted Remove Object dialog settings (new keys, September 2026).
+const QString kRemoveObjectToneMatchKey = QStringLiteral("tools/removeObjectToneMatch");
+const QString kRemoveObjectFeatherKey = QStringLiteral("tools/removeObjectFeather");
+constexpr int kRemoveObjectFeatherMax = 50;
+
+// One fill in flight on a worker thread: the job it computes, its cancel
+// flag (polled per copied patch), and the percent it has reached.
+struct RemoveObjectWorker {
+  CanvasWidget::RemoveObjectJob job;
+  std::atomic<bool> cancel{false};
+  std::atomic<int> percent{0};
+  std::future<CanvasWidget::RemoveObjectComputed> future;
+  int attempt{0};
+};
+
+std::uint64_t remove_object_selection_hash(const QRegion& region) {
+  std::uint64_t hash = 14695981039346656037ULL;
+  const auto mix = [&hash](int value) {
+    hash ^= static_cast<std::uint64_t>(static_cast<std::uint32_t>(value));
+    hash *= 1099511628211ULL;
+  };
+  for (const auto& rect : region) {
+    mix(rect.left());
+    mix(rect.top());
+    mix(rect.width());
+    mix(rect.height());
+  }
+  return hash;
+}
+
+}  // namespace
+
+// Edit > Remove Object: a non-modal dialog with Reroll (the next content-aware
+// variation), Tone match (0 = the raw exemplar fill), Edge feather, and
+// Duplicate to New Layer. Every fill is one CanvasWidget::RemoveObjectJob:
+// prepared on the UI thread from the ORIGINAL layer (the previous preview is
+// restored first), computed on a worker thread (the UI stays live; the
+// status label shows the percent), and committed into the layer as the
+// preview under the preview edit lock. A changed setting or a Reroll cancels
+// the fill in flight and starts the new one. OK restores the original,
+// pushes one history entry, and puts the last result back, so the session is
+// a single undo step; Cancel (or an unwinding call) restores the original
+// with no history entry. Duplicate to New Layer copies the current result's
+// filled region onto a new hidden layer above the active one as its own
+// history entry, so several variations can be kept and compared. Reopening
+// on the same selection continues after the last variation shown.
+//
+// Legal: a fill runs only on an explicit click (Reroll), on a slider release,
+// or on a settled spin/step value (one run per discrete change, coalesced),
+// never per slider move or pointer move: US 8050498 (live classify-and-
+// display, to Nov 3, 2029) bars a live per-move healing preview. See
+// docs/legal-constraints.md and docs/patent-research-inpainting.md.
+void MainWindow::remove_object_dialog() {
+  if (canvas_ == nullptr) {
+    return;
+  }
+  if (!canvas_->has_selection()) {
+    show_status_error(tr("Remove Object needs a selection: select the area to remove first"));
+    return;
+  }
+  // The canvas precheck reports its own refusal (lock, layer kind, rasterize
+  // prompt) and may rasterize the layer, so the layer is looked up after it.
+  if (!canvas_->can_begin_pixel_edit(true)) {
+    return;
+  }
+  auto& doc = document();
+  const auto active = doc.active_layer_id();
+  if (!active.has_value()) {
+    return;
+  }
+  auto* layer = doc.find_layer(*active);
+  if (layer == nullptr || layer->kind() != LayerKind::Pixel) {
+    show_status_error(tr("Select an editable pixel layer first"));
+    return;
+  }
+  const auto active_id = *active;
+  const Layer original = *layer;
+  // A reopened dialog on the same selection continues the variations.
+  const auto selection_hash = remove_object_selection_hash(canvas_->selected_document_region());
+  const int first_attempt =
+      selection_hash == remove_object_last_selection_hash_ && remove_object_last_attempt_ >= 0
+          ? remove_object_last_attempt_ + 1
+          : 0;
+
+  int remembered_tone = 0;  // both settings start at 0 on a new install (Seth, September 2026)
+  int remembered_feather = 0;
+  {
+    auto settings = app_settings();
+    remembered_tone = std::clamp(settings.value(kRemoveObjectToneMatchKey, remembered_tone).toInt(), 0, 100);
+    remembered_feather =
+        std::clamp(settings.value(kRemoveObjectFeatherKey, remembered_feather).toInt(), 0, kRemoveObjectFeatherMax);
+  }
+
+  QDialog dialog(this);
+  dialog.setObjectName(QStringLiteral("patchyRemoveObjectDialog"));
+  dialog.setWindowTitle(tr("Remove Object"));
+  auto* layout = new QVBoxLayout(&dialog);
+  auto* form = new QFormLayout();
+  auto* tone_spin = add_dialog_slider_spin_row(form, &dialog, tr("Tone match"),
+                                               QStringLiteral("removeObjectToneMatchSlider"),
+                                               QStringLiteral("removeObjectToneMatchSpin"), 0, 100, remembered_tone,
+                                               QStringLiteral("%"));
+  tone_spin->setToolTip(tr("How strongly the fill's brightness is smoothed to its own edges (0 keeps the raw fill)"));
+  auto* feather_spin = add_dialog_slider_spin_row(form, &dialog, tr("Edge feather"),
+                                                  QStringLiteral("removeObjectFeatherSlider"),
+                                                  QStringLiteral("removeObjectFeatherSpin"), 0,
+                                                  kRemoveObjectFeatherMax, remembered_feather, tr(" px"));
+  feather_spin->setToolTip(tr("Softens the fill's edge outward from the selection, on top of its own feather. The "
+                              "filled area grows by the feather, so keep it small when the selection hugs an edge"));
+  layout->addLayout(form);
+
+  auto* variation_row = new QHBoxLayout();
+  auto* reroll_button = new QPushButton(tr("Reroll"), &dialog);
+  reroll_button->setObjectName(QStringLiteral("removeObjectRerollButton"));
+  reroll_button->setToolTip(tr("Fill again with the next variation"));
+  variation_row->addWidget(reroll_button);
+  auto* duplicate_button = new QPushButton(tr("Duplicate to New Layer"), &dialog);
+  duplicate_button->setObjectName(QStringLiteral("removeObjectDuplicateButton"));
+  duplicate_button->setToolTip(
+      tr("Copies this variation's filled area onto a new hidden layer above this one, so several variations can be "
+         "kept and compared"));
+  variation_row->addWidget(duplicate_button);
+  auto* variation_label = new QLabel(&dialog);
+  variation_label->setObjectName(QStringLiteral("removeObjectVariationLabel"));
+  variation_row->addWidget(variation_label, 1);
+  layout->addLayout(variation_row);
+  auto* status_label = new QLabel(&dialog);
+  status_label->setObjectName(QStringLiteral("removeObjectStatusLabel"));
+  status_label->setWordWrap(true);
+  layout->addWidget(status_label);
+
+  auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+  layout->addWidget(buttons);
+  QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+  QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+  auto* ok_button = buttons->button(QDialogButtonBox::Ok);
+
+  // Preview state: the last committed result's layer and the settings it
+  // ran with (a settled value equal to the applied one runs nothing), plus
+  // the fill in flight. Cancelled workers are kept until their future is
+  // ready so no thread outlives the dialog.
+  int attempt = first_attempt;           // the variation shown (committed)
+  int requested_attempt = first_attempt;  // the variation asked for (in flight or committed)
+  int applied_tone = -1;
+  int applied_feather = -1;
+  std::optional<Layer> result_layer;
+  CanvasWidget::RemoveObjectJob result_job;
+  CanvasWidget::RemoveObjectResult last_result;
+  std::shared_ptr<RemoveObjectWorker> worker;
+  std::vector<std::shared_ptr<RemoveObjectWorker>> retired;
+  const auto changed_rect = [&] {
+    auto rect = to_qrect(original.bounds());
+    if (const auto* current = doc.find_layer(active_id); current != nullptr) {
+      rect = rect.united(to_qrect(current->bounds()));
+    }
+    return rect;
+  };
+  const auto restore_original = [&] {
+    if (auto* target = doc.find_layer(active_id); target != nullptr) {
+      const auto rect = changed_rect();
+      *target = original;
+      if (canvas_ != nullptr) {
+        canvas_->document_changed(rect);
+      }
+    }
+  };
+  // Settled slider and spin values coalesce into one run; a slider that is
+  // still held runs nothing until it is released. While the change is
+  // pending (or a fill is in flight) OK and Duplicate wait, so nothing is
+  // accepted or copied that the pending settings would replace.
+  QTimer settle;
+  settle.setSingleShot(true);
+  settle.setInterval(250);
+  const auto update_buttons = [&] {
+    const bool busy = worker != nullptr || settle.isActive();
+    if (ok_button != nullptr) {
+      ok_button->setEnabled(!busy && result_layer.has_value());
+    }
+    duplicate_button->setEnabled(!busy && result_layer.has_value());
+  };
+  const auto retire_worker = [&] {
+    if (worker == nullptr) {
+      return;
+    }
+    worker->cancel.store(true, std::memory_order_relaxed);
+    retired.push_back(std::move(worker));
+    worker.reset();
+  };
+  // A waited drain never blocks this thread outright: the canvas processing
+  // wait pumps (desktop) or suspends in a nested event loop (threaded wasm).
+  // A plain future.wait() on the wasm main thread froze the tab on Cancel
+  // mid-fill (September 2026): the fill's strip threads only start and
+  // return to the pool through the main thread's JS event loop, so a
+  // blocked main thread waited forever on a worker waiting on it.
+  const auto drain_retired = [&](bool wait) {
+    for (auto it = retired.begin(); it != retired.end();) {
+      auto& old = *it;
+      if (wait) {
+        auto& future = old->future;
+        const auto ready = [&future] {
+          return future.wait_for(std::chrono::milliseconds(16)) == std::future_status::ready;
+        };
+        if (canvas_ != nullptr) {
+          canvas_->wait_for_processing_operation(ready, false);
+        } else {
+          future.wait();
+        }
+      }
+      if (old->future.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+        (void)old->future.get();
+        it = retired.erase(it);
+      } else {
+        ++it;
+      }
+    }
+  };
+  QTimer poll;
+  poll.setInterval(50);
+  const auto start_job = [&](int next_attempt) {
+    if (canvas_ == nullptr || doc.find_layer(active_id) == nullptr) {
+      return;
+    }
+    const auto tone = tone_spin->value();
+    const auto feather = feather_spin->value();
+    if (worker == nullptr && result_layer.has_value() && next_attempt == attempt && tone == applied_tone &&
+        feather == applied_feather) {
+      return;
+    }
+    retire_worker();
+    requested_attempt = next_attempt;
+    // The job's snapshot must be the document before any fill: put the
+    // original back (the canvas shows it while the new fill computes).
+    if (result_layer.has_value()) {
+      restore_original();
+    }
+    CanvasWidget::RemoveObjectOptions options;
+    options.method = CanvasWidget::RemoveObjectMethod::ContentAware;
+    options.attempt = next_attempt;
+    options.tone_match = tone;
+    options.feather = feather;
+    options.record_history = false;
+    auto next = std::make_shared<RemoveObjectWorker>();
+    next->job = canvas_->prepare_remove_object(options);
+    next->attempt = next_attempt;
+    if (!next->job.valid) {
+      status_label->setText(next->job.error);
+      update_buttons();
+      return;
+    }
+    status_label->setText(tr("Filling..."));
+    variation_label->setText(tr("Variation %1").arg(next_attempt + 1));
+    worker = next;
+    worker->future = launch_async([next] {
+      return CanvasWidget::compute_remove_object(next->job, &next->cancel, [next](int percent) {
+        next->percent.store(percent, std::memory_order_relaxed);
+      });
+    });
+    update_buttons();
+    poll.start();
+  };
+  // Completion runs on the UI thread from the poll: the commit writes the
+  // preview into the layer; a cancelled or superseded fill is dropped.
+  const auto poll_worker = [&] {
+    drain_retired(false);
+    if (worker == nullptr) {
+      if (retired.empty()) {
+        poll.stop();
+      }
+      return;
+    }
+    if (worker->future.wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
+      status_label->setText(tr("Filling... %1%").arg(worker->percent.load(std::memory_order_relaxed)));
+      return;
+    }
+    auto finished = std::move(worker);
+    worker.reset();
+    const auto computed = finished->future.get();
+    if (computed.cancelled || canvas_ == nullptr || doc.find_layer(active_id) == nullptr) {
+      update_buttons();
+      return;
+    }
+    const auto result = canvas_->commit_remove_object(finished->job, computed);
+    if (!result.applied) {
+      status_label->setText(result.error);
+      update_buttons();
+      return;
+    }
+    attempt = finished->attempt;
+    applied_tone = finished->job.options.tone_match;
+    applied_feather = finished->job.options.feather;
+    last_result = result;
+    result_job = finished->job;
+    if (const auto* current = doc.find_layer(active_id); current != nullptr) {
+      result_layer = *current;
+    }
+    remove_object_last_selection_hash_ = selection_hash;
+    remove_object_last_attempt_ = attempt;
+    variation_label->setText(tr("Variation %1").arg(attempt + 1));
+    status_label->setText(result.method == CanvasWidget::RemoveObjectMethod::ContentAware
+                              ? tr("Content-aware fill (%1 patches)").arg(result.patches)
+                              : tr("No clean source patches nearby; used the nearest edge (source %1 of %2)")
+                                    .arg(result.source_index)
+                                    .arg(result.source_count));
+    update_buttons();
+  };
+  QObject::connect(&poll, &QTimer::timeout, &dialog, poll_worker);
+  QObject::connect(&settle, &QTimer::timeout, &dialog, [&] {
+    start_job(requested_attempt);
+    update_buttons();
+  });
+  const auto wire_row = [&](QSpinBox* spin, const QString& slider_name) {
+    QObject::connect(spin, qOverload<int>(&QSpinBox::valueChanged), &dialog, [&, slider_name] {
+      auto* slider = dialog.findChild<QSlider*>(slider_name);
+      if (slider != nullptr && slider->isSliderDown()) {
+        return;
+      }
+      settle.start();
+      update_buttons();
+    });
+    if (auto* slider = dialog.findChild<QSlider*>(slider_name); slider != nullptr) {
+      QObject::connect(slider, &QSlider::sliderReleased, &dialog, [&] {
+        settle.stop();
+        start_job(requested_attempt);
+      });
+    }
+  };
+  wire_row(tone_spin, QStringLiteral("removeObjectToneMatchSlider"));
+  wire_row(feather_spin, QStringLiteral("removeObjectFeatherSlider"));
+  QObject::connect(reroll_button, &QPushButton::clicked, &dialog, [&] {
+    settle.stop();
+    start_job(requested_attempt + 1);
+  });
+  // Duplicate to New Layer: the current result's filled area (coverage > 0)
+  // on a transparent layer above the active one, hidden so the next preview
+  // stays visible; its own history entry, pushed with the original in place
+  // so Undo never captures a preview.
+  QObject::connect(duplicate_button, &QPushButton::clicked, &dialog, [&] {
+    if (worker != nullptr || !result_layer.has_value() || canvas_ == nullptr) {
+      return;
+    }
+    auto copy = make_solid_pixels(doc.width(), doc.height(), QColor(0, 0, 0, 0), PixelFormat::rgba8());
+    const auto& bounds = result_job.bounds;
+    const auto source_bounds = result_layer->bounds();
+    const auto& source_pixels = std::as_const(*result_layer).pixels();
+    const auto source_channels = source_pixels.format().channels;
+    for (int y = 0; y < bounds.height(); ++y) {
+      for (int x = 0; x < bounds.width(); ++x) {
+        if (result_job.mask[static_cast<std::size_t>(y) * static_cast<std::size_t>(bounds.width()) + x] == 0U) {
+          continue;
+        }
+        const auto doc_x = bounds.left() + x;
+        const auto doc_y = bounds.top() + y;
+        const auto sx = doc_x - source_bounds.x;
+        const auto sy = doc_y - source_bounds.y;
+        if (sx < 0 || sy < 0 || sx >= source_bounds.width || sy >= source_bounds.height || doc_x < 0 || doc_y < 0 ||
+            doc_x >= doc.width() || doc_y >= doc.height()) {
+          continue;
+        }
+        const auto* src = source_pixels.pixel(sx, sy);
+        auto* dst = copy.pixel(doc_x, doc_y);
+        dst[0] = src[0];
+        dst[1] = src[1];
+        dst[2] = src[2];
+        dst[3] = source_channels >= 4 ? src[3] : 255;
+      }
+    }
+    restore_original();
+    push_undo_snapshot(tr("Duplicate Remove Object variation to layer"));
+    std::set<std::string> existing_names;
+    collect_layer_names(doc.layers(), existing_names);
+    const auto base_name = tr("Remove Object variation %1").arg(attempt + 1);
+    auto name = base_name.toStdString();
+    for (int suffix = 2; existing_names.contains(name); ++suffix) {
+      name = QStringLiteral("%1 (%2)").arg(base_name).arg(suffix).toStdString();
+    }
+    Layer copy_layer(doc.allocate_layer_id(), name, std::move(copy));
+    copy_layer.set_opacity(1.0F);
+    copy_layer.set_blend_mode(BlendMode::Normal);
+    copy_layer.set_visible(false);
+    insert_layer_after_anchor(doc, std::move(copy_layer), active_id);
+    if (auto* target = doc.find_layer(active_id); target != nullptr) {
+      *target = *result_layer;
+    }
+    refresh_layer_list();
+    refresh_layer_controls();
+    canvas_->document_changed();
+    status_label->setText(tr("Copied variation %1 to the hidden layer \"%2\"")
+                              .arg(attempt + 1)
+                              .arg(QString::fromStdString(name)));
+  });
+
+  auto preview_edit_lock = lock_preview_dialog_edits();
+  auto preview_cleanup = qScopeGuard([&] {
+    settle.stop();
+    poll.stop();
+    retire_worker();
+    drain_retired(true);
+    restore_original();
+  });
+  update_buttons();
+  start_job(first_attempt);
+  const auto code = run_non_modal_dialog(dialog);
+  settle.stop();
+  poll.stop();
+  retire_worker();
+  drain_retired(true);
+  restore_original();
+  preview_cleanup.dismiss();
+  preview_edit_lock.release();
+  if (code != QDialog::Accepted || !result_layer.has_value()) {
+    statusBar()->showMessage(tr("Cancelled Remove Object"));
+    return;
+  }
+  {
+    auto settings = app_settings();
+    settings.setValue(kRemoveObjectToneMatchKey, applied_tone);
+    settings.setValue(kRemoveObjectFeatherKey, applied_feather);
+  }
+  push_undo_snapshot(tr("Remove Object"));
+  auto* target = doc.find_layer(active_id);
+  if (target == nullptr) {
+    return;
+  }
+  const auto rect = to_qrect(original.bounds()).united(to_qrect(result_layer->bounds()));
+  *target = *result_layer;
+  canvas_->document_changed(rect);
+  statusBar()->showMessage(last_result.method == CanvasWidget::RemoveObjectMethod::ContentAware
+                               ? tr("Removed object with content-aware fill, variation %1 (%2 patches)")
+                                     .arg(attempt + 1)
+                                     .arg(last_result.patches)
+                               : tr("Removed object with the nearest edge (source %1 of %2)")
+                                     .arg(last_result.source_index)
+                                     .arg(last_result.source_count));
+}
+
 void MainWindow::stroke_selection() {
   auto& doc = document();
   const auto active = doc.active_layer_id();

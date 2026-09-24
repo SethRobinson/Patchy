@@ -599,20 +599,18 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   auto* border_selection_action = new QAction(tr("&Border..."), this);
   auto* layer_transparency_action = new QAction(tr("Load Layer &Transparency"), this);
   auto* stroke_selection_action = edit_menu->addAction(tr("&Stroke Selection..."));
-  // Remove Object: the content-aware exemplar fill of the selection (no
-  // dialog). Also the first entry of the canvas context menu's selection
-  // section. The nearest-edge mirror has no menu entry (Seth, September 2026:
-  // confusing next to this one); it stays as the automatic fallback and the
-  // script API's "nearestEdge" method.
-  auto* remove_object_action = edit_menu->addAction(tr("Remove &Object"));
+  // Remove Object: the content-aware exemplar fill of the selection through
+  // the Remove Object dialog (Reroll, Tone match, Edge feather;
+  // main_window_layer_ops.cpp). Also the first entry of the canvas context
+  // menu's selection section and the Patch options bar's button. The
+  // nearest-edge mirror has no menu entry (Seth, September 2026: confusing
+  // next to this one); it stays as the automatic fallback and the script
+  // API's "nearestEdge" method.
+  auto* remove_object_action = edit_menu->addAction(tr("Remove &Object..."));
   remove_object_action->setObjectName(QStringLiteral("editRemoveObjectAction"));
   remove_object_action->setIcon(simple_icon(QStringLiteral("RO")));
   register_hotkey(remove_object_action, "edit.remove_object");
-  connect(remove_object_action, &QAction::triggered, this, [this] {
-    if (canvas_ != nullptr) {
-      canvas_->remove_object_in_selection();
-    }
-  });
+  connect(remove_object_action, &QAction::triggered, this, [this] { remove_object_dialog(); });
   auto* define_brush_tip_action = edit_menu->addAction(tr("Define Brush Tip from Selection"));
   define_brush_tip_action->setObjectName(QStringLiteral("editDefineBrushTipAction"));
   register_hotkey(define_brush_tip_action, "edit.define_brush_tip");
