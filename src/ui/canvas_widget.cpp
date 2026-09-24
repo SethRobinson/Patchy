@@ -345,9 +345,6 @@ void CanvasWidget::initialize_graphics_canvas() {
       }
       const auto report = probe_vulkan_qt_interop(window, dawn_interop_observation);
       QMetaObject::invokeMethod(this, [this, report] {
-        if (graphics_surface_ != nullptr) {
-          graphics_surface_->set_render_thread_probe({});
-        }
         qInfo().noquote() << "Patchy Vulkan/Qt RHI interop probe:" << report.summary;
         qInfo().noquote()
             << "Patchy zero-copy remains disabled:" << QString::fromStdString(report.decision.reason);
