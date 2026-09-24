@@ -479,6 +479,9 @@ public:
     if (wgpuAdapterGetInfo(adapter_.get(), &info) == WGPUStatus_Success) {
       adapter_name_ = string_view_to_qstring(info.device);
       native_backend_name_ = backend_name(info.backendType);
+      adapter_identity_observed_ = true;
+      adapter_vendor_id_ = info.vendorID;
+      adapter_device_id_ = info.deviceID;
       QString hardware_reason;
       const bool hardware = hardware_adapter(info, &hardware_reason);
       wgpuAdapterInfoFreeMembers(info);
@@ -864,6 +867,10 @@ public:
         observation.native_instance_observed = true;
         observation.native_instance = native_handle_key(instance);
       }
+      observation.adapter_identity_observed = adapter_identity_observed_;
+      observation.vendor_id = adapter_vendor_id_;
+      observation.device_id = adapter_device_id_;
+      observation.external_image_api_available = true;
     }
 #endif
     return observation;
@@ -1078,6 +1085,9 @@ private:
   ComputePipelineHandle pipeline_;
   QString adapter_name_;
   QString native_backend_name_;
+  bool adapter_identity_observed_{false};
+  std::uint32_t adapter_vendor_id_{0};
+  std::uint32_t adapter_device_id_{0};
   WebGpuCompositionMetrics last_metrics_;
   std::unordered_map<std::uint64_t, CachedLayerResources> layer_resource_cache_;
   std::unordered_map<std::uint64_t, std::vector<TextureData>> scratch_texture_pool_;

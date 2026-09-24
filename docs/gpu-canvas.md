@@ -127,8 +127,10 @@ and can compare the Dawn Vulkan instance when Dawn's native Vulkan target is
 available. This is a diagnostic proof of resource visibility, not a zero-copy
 bridge. The current compositor still owns a separate Dawn device, does not
 export a compatible image allocation for Qt, and has no explicit external
-semaphore or queue-ownership protocol. The probe therefore reports zero-copy
-as ineligible and leaves regional readback followed by `QImage` presentation
+semaphore or queue-ownership protocol. The probe also compares vendor/device
+identity, but a match only identifies the same physical GPU; it does not prove
+shared `VkDevice` ownership. The probe therefore reports zero-copy as
+ineligible and leaves regional readback followed by `QImage` presentation
 unchanged.
 
 When the optional Dawn prefix is found at configure time, `WebGpuRenderBackend`
