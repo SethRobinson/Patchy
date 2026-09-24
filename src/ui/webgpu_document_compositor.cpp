@@ -9,6 +9,9 @@
 
 #ifdef PATCHY_WEBGPU_AVAILABLE
 #include <webgpu/webgpu.h>
+#ifdef PATCHY_DAWN_NATIVE_AVAILABLE
+#include <dawn/native/VulkanBackend.h>
+#endif
 #endif
 
 #include <algorithm>
@@ -20,6 +23,7 @@
 #include <cstring>
 #include <memory>
 #include <string>
+#include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -270,6 +274,17 @@ struct AdapterRequest {
   WGPURequestAdapterStatus status{WGPURequestAdapterStatus_Error};
   QString message;
 };
+
+#ifdef PATCHY_DAWN_NATIVE_AVAILABLE
+template <typename Handle>
+std::uintptr_t native_handle_key(Handle handle) noexcept {
+  if constexpr (std::is_pointer_v<Handle>) {
+    return reinterpret_cast<std::uintptr_t>(handle);
+  } else {
+    return static_cast<std::uintptr_t>(handle);
+  }
+}
+#endif
 
 void on_adapter_request(WGPURequestAdapterStatus status, WGPUAdapter adapter, WGPUStringView message,
                         void* userdata1, void*) {
@@ -836,6 +851,23 @@ public:
   [[nodiscard]] QString adapter_name() const { return adapter_name_; }
   [[nodiscard]] QString native_backend_name() const { return native_backend_name_; }
   [[nodiscard]] WebGpuCompositionMetrics last_metrics() const noexcept { return last_metrics_; }
+  [[nodiscard]] DawnVulkanInteropObservation vulkan_interop_observation() const noexcept {
+    DawnVulkanInteropObservation observation;
+    if (native_backend_name_.compare(QStringLiteral("Vulkan"), Qt::CaseInsensitive) == 0) {
+      observation.compositor_api = patchy::GpuPresentationApi::Vulkan;
+    }
+    observation.device_created = static_cast<bool>(device_);
+#ifdef PATCHY_DAWN_NATIVE_AVAILABLE
+    if (observation.compositor_api == patchy::GpuPresentationApi::Vulkan && device_) {
+      const auto instance = dawn::native::vulkan::GetInstance(device_.get());
+      if (instance != VK_NULL_HANDLE) {
+        observation.native_instance_observed = true;
+        observation.native_instance = native_handle_key(instance);
+      }
+    }
+#endif
+    return observation;
+  }
 
 private:
   bool fail(QString* reason, QString value) {
@@ -1169,6 +1201,16 @@ WebGpuCompositionMetrics WebGpuDocumentCompositor::last_metrics() const noexcept
 #ifdef PATCHY_WEBGPU_AVAILABLE
   return implementation_ != nullptr ? static_cast<WebGpuImplementation*>(implementation_)->last_metrics()
                                     : WebGpuCompositionMetrics{};
+#else
+  return {};
+#endif
+}
+
+DawnVulkanInteropObservation WebGpuDocumentCompositor::vulkan_interop_observation() const noexcept {
+#ifdef PATCHY_WEBGPU_AVAILABLE
+  return implementation_ != nullptr
+             ? static_cast<WebGpuImplementation*>(implementation_)->vulkan_interop_observation()
+             : DawnVulkanInteropObservation{};
 #else
   return {};
 #endif

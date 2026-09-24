@@ -54,6 +54,7 @@ public:
   [[nodiscard]] std::size_t last_rendered_tile_count() const noexcept;
   [[nodiscard]] std::size_t last_readback_bytes() const noexcept;
   [[nodiscard]] WebGpuCompositionMetrics last_composition_metrics() const noexcept;
+  [[nodiscard]] DawnVulkanInteropObservation vulkan_interop_observation() const noexcept;
 
 private:
   bool fail(patchy::GpuBackendState state, QString reason, QString* failure_reason = nullptr);

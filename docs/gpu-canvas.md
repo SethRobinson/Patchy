@@ -121,6 +121,16 @@ test seam only; it does not import a Qt or Dawn resource and it is not a native
 zero-copy implementation. This distinction is required because the current Dawn
 path owns a separate device and publishes a CPU-readable `QImage` to Qt Quick.
 
+An opt-in `PATCHY_ENABLE_VULKAN_QT_INTEROP_PROBE` build can observe Qt's Vulkan
+device, queue, physical device, and instance on the scene-graph render thread,
+and can compare the Dawn Vulkan instance when Dawn's native Vulkan target is
+available. This is a diagnostic proof of resource visibility, not a zero-copy
+bridge. The current compositor still owns a separate Dawn device, does not
+export a compatible image allocation for Qt, and has no explicit external
+semaphore or queue-ownership protocol. The probe therefore reports zero-copy
+as ineligible and leaves regional readback followed by `QImage` presentation
+unchanged.
+
 When the optional Dawn prefix is found at configure time, `WebGpuRenderBackend`
 adds one more gate before the existing `WebGpuDocumentCompositor` publishes a
 frame. It validates a full or dirty render graph and executes its mip-0 tiles
