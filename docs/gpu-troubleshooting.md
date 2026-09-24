@@ -252,6 +252,18 @@ only active path. A future bridge may change this only after all three gate
 conditions—shared device, verified native texture import, and explicit
 synchronization—are independently proven.
 
+### Controlled device-loss validation fails
+
+The manual `patchy_webgpu_equivalence_tests` executable includes a one-shot
+failure before queue submission and another before regional readback. Set
+`PATCHY_WEBGPU_INJECT_DEVICE_LOSS=before-submit` or `before-readback` only when
+running that executable. A passing recovery check reports that the failed
+destination image was preserved, the Dawn-owned resource caches were discarded,
+and the recreated backend produced a CPU-equivalent frame. The ordinary
+application does not enable the variable. A real queue or device failure still
+falls back atomically to Qt RHI or CPU; platform-native device-loss recovery is
+not claimed by this test.
+
 ### No graphics log appears
 
 The application may have exited before constructing a scene graph, forwarded the request to another single-instance process, or never opened a document with visible content. Use:
