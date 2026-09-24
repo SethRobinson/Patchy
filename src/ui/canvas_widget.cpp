@@ -331,6 +331,30 @@ void CanvasWidget::initialize_graphics_canvas() {
   graphics_surface_->set_overlay_painter([this](QPainter& painter, QRect exposed_rect) {
     paint_gpu_overlay(painter, exposed_rect);
   });
+#ifdef PATCHY_VULKAN_QT_INTEROP_PROBE
+  // Capture the Dawn observation on the GUI thread. The render-thread probe
+  // must query only Qt's scene-graph resources and never touch the Dawn
+  // compositor while its queue may be submitting work.
+  const auto dawn_interop_observation = webgpu_compositor_ != nullptr
+                                            ? webgpu_compositor_->vulkan_interop_observation()
+                                            : DawnVulkanInteropObservation{};
+  if (qEnvironmentVariableIsSet("PATCHY_VULKAN_QT_INTEROP_PROBE")) {
+    graphics_surface_->set_render_thread_probe([this, dawn_interop_observation](QQuickWindow* window) {
+      if (vulkan_qt_interop_probe_reported_.exchange(true, std::memory_order_acq_rel)) {
+        return;
+      }
+      const auto report = probe_vulkan_qt_interop(window, dawn_interop_observation);
+      QMetaObject::invokeMethod(this, [this, report] {
+        if (graphics_surface_ != nullptr) {
+          graphics_surface_->set_render_thread_probe({});
+        }
+        qInfo().noquote() << "Patchy Vulkan/Qt RHI interop probe:" << report.summary;
+        qInfo().noquote()
+            << "Patchy zero-copy remains disabled:" << QString::fromStdString(report.decision.reason);
+      }, Qt::QueuedConnection);
+    });
+  }
+#endif
   graphics_surface_->setGeometry(rect());
   graphics_surface_->lower();
 }

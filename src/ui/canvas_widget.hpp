@@ -1324,6 +1324,9 @@ private:
   QImage webgpu_frame_cache_;
   std::uint64_t webgpu_frame_cache_key_{0};
   bool webgpu_compositor_reported_{false};
+#ifdef PATCHY_VULKAN_QT_INTEROP_PROBE
+  std::atomic_bool vulkan_qt_interop_probe_reported_{false};
+#endif
 #endif
   void paint_canvas(QPainter& painter, const QRect& exposed_rect);
 
