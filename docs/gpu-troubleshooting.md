@@ -228,6 +228,26 @@ QSG_INFO=1 \
 
 Forcing an unavailable or software API should produce a safe fallback. It should not make the process use software rendering as hardware acceleration.
 
+### Vulkan/Qt RHI interop probe reports zero-copy disabled
+
+The probe is deliberately opt-in and diagnostic. Build with
+`PATCHY_ENABLE_VULKAN_QT_INTEROP_PROBE=ON`, set
+`PATCHY_VULKAN_QT_INTEROP_PROBE=1`, and force `QSG_RHI_BACKEND=vulkan` on a
+native desktop session. The report observes Qt's Vulkan device, queue,
+physical device, and instance from the scene-graph render thread. It also
+reports whether Dawn exposed its native Vulkan instance and whether the two
+instances match.
+
+The expected current result is `zero-copy remains disabled`. Qt resource
+visibility alone is insufficient: the current Dawn compositor creates a
+separate device, does not export a compatible image allocation for Qt, and
+does not establish external semaphore or queue-ownership synchronization.
+The probe never imports, retains, destroys, or publishes a native resource.
+Regional Dawn readback followed by Qt Quick `QImage` presentation remains the
+only active path. A future bridge may change this only after all three gate
+conditions—shared device, verified native texture import, and explicit
+synchronization—are independently proven.
+
 ### No graphics log appears
 
 The application may have exited before constructing a scene graph, forwarded the request to another single-instance process, or never opened a document with visible content. Use:
