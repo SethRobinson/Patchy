@@ -420,7 +420,7 @@ preview. PNG export may reserve one extra palette entry for transparency.
 | `layer.blendMode` | Blend mode id string, e.g. `"multiply"` (full list in `patchy.d.ts`). |
 | `layer.x` / `layer.y` / `layer.moveTo(x, y)` | Content offset in document pixels. Moving via `x`/`y` is cheap, so animate sprites this way. Fractions round like Photoshop (halves up); layers always sit on whole pixels. |
 | `layer.bounds` | The content bounding box. |
-| `layer.isGroup` / `layer.children` / `layer.isText` / `layer.text` | Group and text access. Setting `text` re-renders the layer. |
+| `layer.isGroup` / `layer.children` / `layer.isText` / `layer.text` | Group and text access. Setting `text` re-renders the layer; the new text keeps the first character's formatting. |
 | `layer.textOrientation` / `layer.textDirection` | Text layers: `"horizontal"` or `"vertical"`, and the paragraph direction `"auto"`, `"ltr"` or `"rtl"`. Setting either re-renders the layer. |
 | `layer.duplicate(targetDocument?)` / `layer.remove()` | Copy above itself, or into another open document above its active layer; or delete. |
 | `layer.ungroup()` | Releases a folder's layers into its parent (top to bottom) and removes the folder. |

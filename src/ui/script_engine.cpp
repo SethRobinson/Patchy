@@ -1910,9 +1910,21 @@ bool ScriptEngineHost::set_text_layer_text(std::int64_t session_id, LayerId laye
   }
   auto cursor = editor->textCursor();
   cursor.select(QTextCursor::Document);
-  cursor.removeSelectedText();
+  // Replace the selection in one step, as retyping it in the editor does. Deleting everything
+  // first left an empty block whose char format is only the session's fallback font, so the
+  // inserted text lost the run properties the commit renders from (the exact fractional size,
+  // the Character-panel glyph scales, leading, tracking, faux styles): an imported Photoshop
+  // layer with VerticalScale 0.93 re-rendered 7.5% taller than the same layer applied
+  // interactively. Photoshop gives retyped text the first selected character's attributes.
+  QTextCharFormat format;
+  {
+    auto first = cursor;
+    first.setPosition(0);
+    first.setPosition(std::min(1, first.document()->characterCount() - 1), QTextCursor::KeepAnchor);
+    format = first.charFormat();
+  }
+  cursor.insertText(text, format);
   editor->setTextCursor(cursor);
-  editor->insertPlainText(text);
   QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
   window_.finish_active_text_editor();
   QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);

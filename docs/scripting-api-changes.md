@@ -1,5 +1,12 @@
 # Scripting API compatibility
 
+2026-09-25 (API 1): the `layer.text` setter replaces the text the way retyping it in the
+editor does, so the new text keeps the first character's run formatting (exact fractional
+size, Character-panel glyph scales, leading, tracking, faux styles). It used to delete the
+text first and re-insert at the session's fallback font, so an imported Photoshop layer
+with a 0.93 vertical glyph scale re-rendered 7.5% taller than the same layer applied
+interactively. Behavioral fix; apiVersion unchanged. See [text-tool.md](text-tool.md).
+
 2026-09-24 (API 1): `layer.removeObject(options?)` gains `toneMatch` (0..100, default
 0, the raw exemplar fill), `feather` (px, default 0; softens the fill's edge
 outward), and, for the content-aware method, `attempt` as the variation number (0 = the

@@ -249,7 +249,8 @@ interface PatchyLayer {
   strokePath(path: PatchyVectorPath, options?: PatchyBrushSettings & {pressure?: number; durationMs?: number}): void;
   /** Child layers (groups only). */
   readonly children: PatchyLayer[];
-  /** Text layers: setting text re-renders the layer; an empty string clears its ink. */
+  /** Text layers: setting text re-renders the layer with the first character's formatting
+   * (size, glyph scales, leading, tracking); an empty string clears its ink. */
   text: string;
   /** Text layers: "horizontal" or "vertical" (columns top to bottom, right to left). Setting it re-renders. */
   textOrientation: 'horizontal' | 'vertical';

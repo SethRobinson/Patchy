@@ -54,6 +54,7 @@
 #include "ui/localization.hpp"
 #include "ui/main_window.hpp"
 #include "ui/print_dialog.hpp"
+#include "ui/script_engine.hpp"
 #include "ui/selection_outline.hpp"
 #include "ui/sprite_sheet_dialog.hpp"
 #include "ui/splash_dialog.hpp"
@@ -1374,6 +1375,125 @@ void ui_la_methode_psd_text_commit_keeps_glyph_overhang_if_available() {
       CHECK(std::abs(transforms[0][4] - entry.photoshop_tx) <= 1.0);
       CHECK(std::abs(transforms[0][5] - entry.photoshop_ty) <= 1.0);
     }
+  }
+}
+
+// The scripting API's `layer.text` setter retypes the whole layer through the same session the
+// Type tool uses, so an unchanged assignment must commit the same raster as the interactive
+// unchanged apply above. It used to delete the text before inserting the new value, which left
+// the inserted run with only the session's fallback font: the exact fractional size and the
+// Character-panel glyph scales (V 0.93 here) were dropped, the "M" re-rendered 1004x749 instead
+// of 964x697 (Photoshop 965x697) and the saved TySh baseline landed at 745 instead of 700.
+void ui_la_methode_script_text_setter_matches_interactive_commit_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("La methode.psd");
+  if (!std::filesystem::exists(path)) {
+    return;
+  }
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::BalmoralLet);
+  if (!QFontDatabase::hasFamily(QStringLiteral("Balmoral LET"))) {
+    std::printf("[SKIP] Balmoral LET Plain.ttf is not in local-test-fixtures/fonts\n");
+    return;
+  }
+  {
+    const auto document = patchy::psd::DocumentIo::read_file(path);
+    for (const auto& layer : document.layers()) {
+      if (layer.metadata().contains(patchy::kLayerMetadataTextFont) &&
+          !patchy::ui::missing_text_families_for_layer(layer).isEmpty()) {
+        std::printf("[SKIP] the fixture's face does not resolve on this machine\n");
+        return;
+      }
+    }
+  }
+  const auto interactive =
+      run_photoshop_text_commit_probe(path, "M", 0.25, "ui_la_methode_m_interactive_reference");
+  if (!interactive.has_value()) {
+    return;
+  }
+
+  auto document = patchy::psd::DocumentIo::read_file(path);
+  patchy::LayerId layer_id = 0;
+  for (const auto& layer : std::as_const(document).layers()) {
+    if (const auto it = layer.metadata().find(patchy::kLayerMetadataText);
+        it != layer.metadata().end() && it->second == "M") {
+      layer_id = layer.id();
+    }
+  }
+  CHECK(layer_id != 0);
+  if (layer_id == 0) {
+    return;
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("La methode script"));
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(0.25);
+  QApplication::processEvents();
+
+  auto& host = window.script_engine_host();
+  patchy::ui::ScriptEngineHost::RunOptions options;
+  options.name = QStringLiteral("la-methode-recommit");
+  (void)host.run_source(QStringLiteral(R"JS(
+    var doc = app.activeDocument;
+    var target = null;
+    for (var i = 0; i < doc.layers.length; ++i) {
+      if (doc.layers[i].isText && doc.layers[i].text == 'M') {
+        target = doc.layers[i];
+      }
+    }
+    target.text = target.text;
+    console.log('recommitted=' + (target.text == 'M'));
+  )JS"), std::move(options));
+  QElapsedTimer timer;
+  timer.start();
+  while (host.run_active() && timer.elapsed() < 30000) {
+    QApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 20);
+  }
+  QApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 20);
+  CHECK(!host.run_active());
+  CHECK(!host.last_run_had_error());
+  bool recommitted = false;
+  for (const auto& line : host.message_backlog()) {
+    recommitted = recommitted || line.contains(QStringLiteral("recommitted=true"));
+  }
+  CHECK(recommitted);
+
+  auto& live_document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto* committed = std::as_const(live_document).find_layer(layer_id);
+  CHECK(committed != nullptr);
+  if (committed == nullptr) {
+    return;
+  }
+  CHECK(committed->metadata().at(patchy::kLayerMetadataTextRasterStatus) == "patchy_raster");
+  const auto visible = alpha_pixel_bounds_in_rows(committed->pixels(), 0, committed->pixels().height());
+  CHECK(visible.has_value());
+  if (!visible.has_value()) {
+    return;
+  }
+  const patchy::Rect scripted_ink{committed->bounds().x + visible->left(), committed->bounds().y + visible->top(),
+                                  visible->width(), visible->height()};
+  std::printf("  M      interactive ink (%d,%d %dx%d) -> scripted ink (%d,%d %dx%d)\n",
+              interactive->committed_ink.x, interactive->committed_ink.y, interactive->committed_ink.width,
+              interactive->committed_ink.height, scripted_ink.x, scripted_ink.y, scripted_ink.width,
+              scripted_ink.height);
+  std::fflush(stdout);
+  // The two sessions commit the same layout: the same size, glyph scales and pen.
+  CHECK(std::abs(scripted_ink.x - interactive->committed_ink.x) <= 1);
+  CHECK(std::abs(scripted_ink.y - interactive->committed_ink.y) <= 1);
+  CHECK(std::abs(scripted_ink.width - interactive->committed_ink.width) <= 1);
+  CHECK(std::abs(scripted_ink.height - interactive->committed_ink.height) <= 1);
+  CHECK(pixel_buffer_border_is_clear(committed->pixels()));
+  // And the saved TySh keeps Photoshop's baseline (ty 700), not the unscaled 745.
+  patchy::Document saved(3529, 924, patchy::PixelFormat::rgba8());
+  saved.add_layer(*committed);
+  const auto transforms = tysh_transforms_in_psd(patchy::psd::DocumentIo::write_layered_rgb8(saved));
+  CHECK(transforms.size() == 1U);
+  if (!transforms.empty()) {
+    std::printf("  M      scripted TySh anchor (%.3f, %.3f), photoshop (794, 700)\n", transforms[0][4],
+                transforms[0][5]);
+    std::fflush(stdout);
+    CHECK(std::abs(transforms[0][4] - 794.0) <= 1.0);
+    CHECK(std::abs(transforms[0][5] - 700.0) <= 1.0);
   }
 }
 
@@ -2987,6 +3107,8 @@ std::vector<patchy::test::TestCase> text_transform_commit_tests_part2() {
        ui_dungeon_scroll_psd_text_commit_keeps_placement_if_available},
       {"ui_la_methode_psd_text_commit_keeps_glyph_overhang_if_available",
        ui_la_methode_psd_text_commit_keeps_glyph_overhang_if_available},
+      {"ui_la_methode_script_text_setter_matches_interactive_commit_if_available",
+       ui_la_methode_script_text_setter_matches_interactive_commit_if_available},
       {"ui_dungeon_scroll_faux_bold_reads_as_faux_not_bold_if_available",
        ui_dungeon_scroll_faux_bold_reads_as_faux_not_bold_if_available},
       {"ui_psd_sheared_point_text_edit_lands_on_glyphs",
