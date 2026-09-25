@@ -138,7 +138,7 @@ These are corpus-specific results, not universal product ratings. See the [full 
 
 ## Download
 
-**Latest release: 0.98** · September 24, 2026 · [Release notes](#whats-new) · [All releases](https://github.com/SethRobinson/Patchy/releases)
+**Latest release: 0.99** · September 25, 2026 · [Release notes](#whats-new) · [All releases](https://github.com/SethRobinson/Patchy/releases)
 
 Windows releases are code signed by Seth A. Robinson; the macOS app is signed and
 notarized (Robinson Technologies Corporation). Every release is published on the
@@ -204,6 +204,19 @@ flatpak install --user -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 
 ## What's New
 
+### 0.99 - September 25, 2026
+
+- Automatic document recovery: a recovery copy of every modified document is written every 10 minutes (Preferences > Application sets the interval or turns it off). After a crash, a kill, or a power cut, the next launch reopens them as "(Recovered)" documents. Saving also writes to a temporary file first and swaps it in, so a crash or a full disk mid-save can no longer damage the original
+- Files as Layers: drop image files on the Layers panel, use File > Import > Files as Layers, or paste copied files, and each file becomes its own layer, with a cancellable progress dialog for big batches (issue 25)
+- Fill (paint bucket) tool: Tolerance and Contiguous options in the options bar, and Opacity and Soft now actually apply to the fill (issue 30)
+- Remove Object: the Reroll button, Tone match slider, and Edge feather setting the 0.98 notes described ship in this build (they missed the 0.98 packages), plus a Duplicate to New Layer option, and the fill runs on a worker thread so the dialog stays responsive and cancels cleanly
+- Layers panel: F2 or a double-click on the name renames a layer in place, and double-clicking a shape layer's row opens Layer Style like every other row
+- Imported Photoshop text renders pixel-exact against Photoshop on all three font engines, and glyph ink that overhangs the advance box is kept, so an unchanged edit of imported PSD text no longer shifts it (issue 20)
+- Scripting: setting layer.text keeps the first character's formatting, so retyped Photoshop layers commit at their interactive size
+- Downloads come from GitHub Releases now, with rtsoft.com as a mirror, and the in-app update check points there (issue 26)
+- The user-data folder moved from "Seth A. Robinson" to "RTsoft" (migrated automatically on first launch); the About dialog shows where it is
+- Options bar number boxes size themselves to their widest value, so the Fill tool's Tolerance no longer clips at 255
+
 ### 0.98 - September 24, 2026
 
 - The right mouse button now opens context menus on the canvas instead of panning.  (middle mouse button or holding space bar still pans)
@@ -219,19 +232,6 @@ flatpak install --user -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 - Rectangular and Elliptical Marquee selections can be resized after they are drawn: with the marquee tool active, drag a handle on an edge or corner (Shift on a corner keeps the proportions, and holding Space mid-drag slides the whole selection, as it does while drawing one), or drag inside the selection to move it as before. Feathered and rounded selections are redrawn at the new size, and Undo steps back through each resize
 - Text positioning between Patchy->Photoshop is more accurate
 - Square brush preset added, square brush 'tip' is now handled programmatically, not with a bmp
-
-### 0.97 - September 21, 2026
-
-- Vertical text: type layers can be laid out vertically (tategaki style) with a toggle in the Type tool's options bar, and paragraphs can run right-to-left. A "Rotate Latin (vertical text)" checkbox in the Character panel lays Latin letters on their side the way Photoshop's Standard Vertical Roman Alignment does. Both round-trip through PSD so Photoshop lays the text out the same way, and scripts can set them
-- Typing with an IME (Japanese and others) previews the composition inline and the candidate window follows the caret instead of covering the text. Characters the current font cannot draw, such as kana typed into Arial, switch to a font that can, so the PSD reopens in Photoshop with real glyphs
-- Character panel: the leading field is editable again (entering a value turns Auto leading off, as in Photoshop), the numeric fields gain -/+ step buttons, tracking is written the way Photoshop expects so it re-lays out tracked type correctly, and the Type tool's initial size scales with the document
-- Layer mask Density and Feather set in Photoshop now render correctly and survive a round trip through Patchy, for both painted and vector masks, and the vector-mask feather matches Photoshop's blur
-- PSD files where a layer has both a painted mask and a vector mask now load the painted mask correctly
-- New Add Layer Mask button in the Layers panel footer
-- Free Transform takes a linked layer mask along with the layer and previews masked layers faster, with much less per-frame work on painted masks during the drag
-- Every Layer Style slider, including Blend If, gains -/+ step buttons
-- PSD text set in a font that Windows reports under a different name (Balmoral LET Plain, for example) now resolves to the installed family instead of showing as missing
-- The Linux Flatpak installs without root or a preconfigured Flathub remote
 
 [Older releases](RELEASE-HISTORY.md)
 

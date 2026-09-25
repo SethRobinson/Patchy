@@ -3,6 +3,19 @@
 Older Patchy release notes are collected here. The two most recent releases
 remain in [README.md](README.md#whats-new).
 
+## 0.97 - September 21, 2026
+
+- Vertical text: type layers can be laid out vertically (tategaki style) with a toggle in the Type tool's options bar, and paragraphs can run right-to-left. A "Rotate Latin (vertical text)" checkbox in the Character panel lays Latin letters on their side the way Photoshop's Standard Vertical Roman Alignment does. Both round-trip through PSD so Photoshop lays the text out the same way, and scripts can set them
+- Typing with an IME (Japanese and others) previews the composition inline and the candidate window follows the caret instead of covering the text. Characters the current font cannot draw, such as kana typed into Arial, switch to a font that can, so the PSD reopens in Photoshop with real glyphs
+- Character panel: the leading field is editable again (entering a value turns Auto leading off, as in Photoshop), the numeric fields gain -/+ step buttons, tracking is written the way Photoshop expects so it re-lays out tracked type correctly, and the Type tool's initial size scales with the document
+- Layer mask Density and Feather set in Photoshop now render correctly and survive a round trip through Patchy, for both painted and vector masks, and the vector-mask feather matches Photoshop's blur
+- PSD files where a layer has both a painted mask and a vector mask now load the painted mask correctly
+- New Add Layer Mask button in the Layers panel footer
+- Free Transform takes a linked layer mask along with the layer and previews masked layers faster, with much less per-frame work on painted masks during the drag
+- Every Layer Style slider, including Blend If, gains -/+ step buttons
+- PSD text set in a font that Windows reports under a different name (Balmoral LET Plain, for example) now resolves to the installed family instead of showing as missing
+- The Linux Flatpak installs without root or a preconfigured Flathub remote
+
 ## 0.96 - September 17, 2026
 
 - Canvas Size preserves each layer's off-canvas pixels and masks when shrinking or enlarging the canvas. An optional "Also crop each actual layer to the canvas area" checkbox enables destructive cropping and starts unchecked every time the dialog opens

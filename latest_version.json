@@ -1,15 +1,15 @@
 {
   "platforms": {
     "windows": {
-      "version": "0.98",
+      "version": "0.99",
       "download_url": "https://github.com/SethRobinson/Patchy/releases/latest/download/PatchyWindowsInstaller.exe"
     },
     "macos": {
-      "version": "0.98",
+      "version": "0.99",
       "download_url": "https://github.com/SethRobinson/Patchy/releases/latest/download/PatchyMacOS.dmg"
     },
     "linux": {
-      "version": "0.98",
+      "version": "0.99",
       "download_url": "https://github.com/SethRobinson/Patchy/releases/latest/download/PatchyLinux.flatpak"
     }
   }
