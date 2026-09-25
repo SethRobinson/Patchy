@@ -112,6 +112,8 @@ Non-interactive shells set `NoDefaultCurrentDirectoryInExePath`, so cmd will not
 
 Inside a parenthesized block such as `if errorlevel 1 ( ... )`, an unescaped `)` in echo text closes the block early and the resulting parse error ends the whole calling chain, even when the condition is false. Escape as `^)` or reword.
 
+Batch files must have CRLF line endings on disk (`.gitattributes` says so, but a file written by a tool with LF, or checked out before the attribute existed, stays LF). cmd re-seeks the file after a parenthesized block and gets the offset wrong in an LF-only file, so a later line starts mid-word: `publish-github-release.bat` once ran `ile ...` instead of `powershell ... -File ...` and died with 9009. When a `.bat` fails with a truncated command name, check `git ls-files --eol` and convert to CRLF (`git checkout -- <file>` for an unmodified file, otherwise `perl -pi -e 's/\r?\n/\r\n/'`).
+
 ## scripts\vs-env.bat, not VsDevCmd.bat
 
 Every build entry point (`scripts\release\build-release.bat`, `scripts\run-tests.ps1`, `scripts\make-readme-screenshots.ps1`, the handoff command in AGENTS.md) enters the developer environment through `scripts\vs-env.bat`, which forwards its arguments to VsDevCmd.bat. It is the only place that knows where Visual Studio is installed, and it prepends the VS Installer directory to `PATH`, which is what silences the harmless but alarming `'vswhere.exe' is not recognized` line. If some caller prints that line, check whether it went through vs-env.bat rather than chasing the message.
