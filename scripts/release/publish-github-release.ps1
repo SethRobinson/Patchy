@@ -56,7 +56,11 @@ if ($LASTEXITCODE -ne 0 -or -not $repoRoot) { Fail 'not inside the Patchy git ch
 $repoRoot = $repoRoot.Trim()
 Set-Location $repoRoot
 
-if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { Fail 'gh (GitHub CLI) is not on PATH' }
+# A profile can alias gh to Get-History (Seth's does); make sure gh below means gh.exe.
+Remove-Item Alias:gh -Force -ErrorAction SilentlyContinue
+$ghExe = Get-Command gh.exe -CommandType Application -ErrorAction SilentlyContinue
+if (-not $ghExe) { Fail 'gh.exe (GitHub CLI) is not on PATH' }
+Set-Alias -Name gh -Value $ghExe.Source -Scope Script
 gh auth status 2>&1 | Out-Null
 if ($LASTEXITCODE -ne 0) { Fail 'gh is not logged in (run: gh auth login)' }
 
