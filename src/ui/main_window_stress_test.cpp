@@ -20,6 +20,8 @@
 #include "ui/main_window_shared.hpp"
 #include "ui/stress_test.hpp"
 
+#include "patchy_version.hpp"
+
 #include "core/adjustment_layer.hpp"
 #include "core/document_path.hpp"
 #include "core/layer_metadata.hpp"

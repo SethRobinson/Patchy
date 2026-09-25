@@ -14,7 +14,7 @@ sandbox build at lower priority with the same job count.
 
 When bumping the release version, update the version fields:
 
-- `CMakeLists.txt` (`project(... VERSION x.y)`)
+- `CMakeLists.txt` (`project(... VERSION x.y)`). The version reaches the code through the configure-time generated `patchy_version.hpp` (from `cmake/patchy_version.hpp.in`), not a target-wide define, so a bump recompiles only the handful of files that include it rather than all of `patchy_ui`.
 - `latest_version.json`: the per-platform `version` entries: windows always; macos/linux only when those artifacts actually ship. This is the update-check manifest served to the app from raw.githubusercontent.com on main, and only takes effect once pushed.
 - The `<release>` tag in `packaging/linux/com.rtsoft.patchy.metainfo.xml`
 - The latest-release line in `README.md`'s Download section, with the published

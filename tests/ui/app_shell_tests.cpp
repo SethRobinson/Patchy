@@ -23,6 +23,7 @@
 #include "psd/asl_io.hpp"
 #include "psd/psd_binary.hpp"
 #include "psd/psd_layer_effects.hpp"
+
 #include "core/style_presets.hpp"
 #include "ui/brush_tip_library.hpp"
 #include "ui/brush_tip_manager_dialog.hpp"
@@ -64,10 +65,12 @@
 #include "ui/app_data_migration.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/build_info.hpp"
+
 #include "ui/update_checker.hpp"
 #include "ui/visual_filter_gallery_dialog.hpp"
 #include "ui/zoomable_image_preview.hpp"
 #include "ui/zoom_status_bar.hpp"
+
 #include "filters/builtin_filters.hpp"
 #include "psd/psd_document_io.hpp"
 #include "psd/psd_filter_effects.hpp"
@@ -76,6 +79,7 @@
 #include "test_fonts.hpp"
 #include "test_harness.hpp"
 #include "local_psd_fixtures.hpp"
+#include "patchy_version.hpp"
 
 #include <QAbstractItemModel>
 #include <QAbstractSpinBox>
@@ -3303,8 +3307,13 @@ void ui_start_panel_shows_about_info_and_update_status() {
   CHECK(tagline->text() == QStringLiteral("Open source photo editing. Free forever, no subscriptions."));
   auto* version = window.findChild<QLabel*>(QStringLiteral("startPanelVersion"));
   CHECK(version != nullptr);
-  CHECK(version->text().startsWith(QStringLiteral("Version ")));
-  CHECK(version->text().endsWith(QStringLiteral("(built %1)").arg(patchy::ui::build_timestamp_text())));
+  // The number comes from the configure-time generated patchy_version.hpp
+  // (cmake/patchy_version.hpp.in), so the label must show the configured
+  // version verbatim: an empty or placeholder value means the header broke.
+  CHECK(version->text() == QStringLiteral("Version %1 (built %2)")
+                               .arg(QStringLiteral(PATCHY_VERSION), patchy::ui::build_timestamp_text()));
+  CHECK(!QStringLiteral(PATCHY_VERSION).isEmpty());
+  CHECK(QStringLiteral(PATCHY_VERSION) != QStringLiteral("0.0.0"));
   auto* credit = window.findChild<QLabel*>(QStringLiteral("startPanelCredit"));
   CHECK(credit != nullptr);
   CHECK(credit->textFormat() == Qt::RichText);

@@ -263,9 +263,7 @@
 #include <tpcshrd.h>
 #endif
 
-#ifndef PATCHY_VERSION
-#define PATCHY_VERSION "0.0.0"
-#endif
+#include "patchy_version.hpp"
 
 // Icon resources live in the static patchy_ui library; force registration before first use.
 int qInitResources_icons();

@@ -32,9 +32,7 @@
 
 #include <algorithm>
 
-#ifndef PATCHY_VERSION
-#define PATCHY_VERSION "0.0.0"
-#endif
+#include "patchy_version.hpp"
 
 namespace patchy::ui {
 namespace {

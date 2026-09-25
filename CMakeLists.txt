@@ -1211,7 +1211,18 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       patchy_color
       $<$<PLATFORM_ID:Windows>:dwmapi>
     )
-    target_compile_definitions(patchy_ui PRIVATE PATCHY_VERSION="${PROJECT_VERSION}")
+    # PATCHY_VERSION lives in a configure-time generated header, not a
+    # target-wide compile definition: Ninja treats a changed command line as a
+    # changed input, so a define on patchy_ui made every version bump recompile
+    # the whole library. configure_file leaves the header untouched when its
+    # content is unchanged, so only the translation units that include it (the
+    # About/start-panel text, the update check, the stress report, main.cpp)
+    # rebuild after a bump. The directory is PUBLIC so patchy and patchy-mcp
+    # see the same header through their patchy_ui link.
+    set(PATCHY_VERSION_HEADER_DIR "${CMAKE_BINARY_DIR}/generated/version")
+    configure_file("${PROJECT_SOURCE_DIR}/cmake/patchy_version.hpp.in"
+                   "${PATCHY_VERSION_HEADER_DIR}/patchy_version.hpp" @ONLY)
+    target_include_directories(patchy_ui PUBLIC "${PATCHY_VERSION_HEADER_DIR}")
     # The build stamp shown beside the version must be fresh in every binary.
     # A custom target is always out of date, so each build rewrites the
     # generated header before patchy_ui compiles; the include directory is
@@ -1394,7 +1405,7 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
     if(NOT EMSCRIPTEN)
       add_executable(patchy-mcp src/app/main.cpp src/app/mcp_server.cpp src/app/mcp_stdio.cpp)
       target_link_libraries(patchy-mcp PRIVATE patchy_ui)
-      target_compile_definitions(patchy-mcp PRIVATE PATCHY_MCP_EXECUTABLE=1 PATCHY_VERSION="${PROJECT_VERSION}")
+      target_compile_definitions(patchy-mcp PRIVATE PATCHY_MCP_EXECUTABLE=1)
       patchy_configure_target(patchy-mcp)
       patchy_copy_translations(patchy-mcp)
       patchy_copy_qt_runtime(patchy-mcp)
@@ -1413,7 +1424,6 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       endif()
       install(TARGETS patchy-mcp RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
     endif()
-    target_compile_definitions(patchy PRIVATE PATCHY_VERSION="${PROJECT_VERSION}")
     patchy_configure_target(patchy)
     patchy_copy_translations(patchy)
     patchy_copy_qt_runtime(patchy)
