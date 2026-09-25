@@ -9,7 +9,9 @@ namespace {
 
 // Persisted identifiers: never rename them (see AGENTS.md).
 QString gui_scale_key() { return QStringLiteral("preferences/guiScalePercent"); }
+#ifndef Q_OS_WASM
 QString recovery_enabled_key() { return QStringLiteral("recovery/enabled"); }
+#endif
 QString recovery_interval_key() { return QStringLiteral("recovery/intervalMinutes"); }
 
 }  // namespace

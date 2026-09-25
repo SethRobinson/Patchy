@@ -1977,6 +1977,7 @@ bool ScriptIoObject::deleteFile(const QString& path) {
 // ---------------------------------------------------------------------------
 // ScriptRecoveryObject
 
+#ifndef Q_OS_WASM
 namespace {
 
 QJSValue recovery_entry_value(ScriptEngineHost& host, const QString& directory,
@@ -1995,6 +1996,7 @@ QJSValue recovery_entry_value(ScriptEngineHost& host, const QString& directory,
 }
 
 }  // namespace
+#endif
 
 ScriptRecoveryObject::ScriptRecoveryObject(ScriptEngineHost& host) : host_(host) {}
 
