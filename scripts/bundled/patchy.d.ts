@@ -256,6 +256,8 @@ interface PatchyLayer {
   textOrientation: 'horizontal' | 'vertical';
   /** Text layers: paragraph base direction, "auto" (first strong character), "ltr" or "rtl". Setting it re-renders. */
   textDirection: 'auto' | 'ltr' | 'rtl';
+  /** Text layers: the font family name the layer uses; "" for other layers. */
+  readonly textFont: string;
 
   /**
    * Finite signed 32-bit positions; throws if the position or resulting bounds overflow.
@@ -485,7 +487,9 @@ interface PatchyDocument {
    * zoom and the document PPI (the Character panel shows the pt equivalent).
    * orientation "vertical" stacks upright glyphs in columns that advance right
    * to left (Photoshop's Vertical Type); direction sets the paragraph base
-   * direction ("auto" follows the first strong character).
+   * direction ("auto" follows the first strong character). font is a family
+   * name ("Georgia") or family plus face ("Arial Black"); a font that is not
+   * installed renders in a fallback and logs a console warning.
    */
   addTextLayer(text: string, options?: {
     font?: string; size?: number; x?: number; y?: number;

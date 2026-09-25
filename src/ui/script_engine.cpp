@@ -1754,6 +1754,16 @@ QString ScriptEngineHost::text_layer_orientation(std::int64_t session_id, LayerI
              : QStringLiteral("horizontal");
 }
 
+QString ScriptEngineHost::text_layer_font(std::int64_t session_id, LayerId layer_id) const {
+  const auto* document = session_document_const(session_id);
+  const auto* layer = document != nullptr ? document->find_layer(layer_id) : nullptr;
+  if (layer == nullptr || !layer_is_text(*layer)) {
+    return QString();
+  }
+  const auto found = layer->metadata().find(kLayerMetadataTextFont);
+  return found != layer->metadata().end() ? QString::fromStdString(found->second) : QString();
+}
+
 QString ScriptEngineHost::text_layer_direction(std::int64_t session_id, LayerId layer_id) const {
   const auto* document = session_document_const(session_id);
   const auto* layer = document != nullptr ? document->find_layer(layer_id) : nullptr;
@@ -1860,11 +1870,14 @@ std::optional<LayerId> ScriptEngineHost::add_text_layer(std::int64_t session_id,
   if (editor == nullptr) {
     return std::nullopt;
   }
+  if (!params.family.isEmpty()) {
+    // The options bar's font picker path: besides the char format, the commit reads the family
+    // from the session property and the per-run display family, so a bare QFont family was
+    // dropped and every script-made layer rendered in the bar's current font.
+    window_.apply_text_family_to_editor(*editor, params.family);
+  }
   QTextCharFormat format = editor->currentCharFormat();
   QFont font = format.font();
-  if (!params.family.isEmpty()) {
-    font.setFamily(params.family);
-  }
   if (params.size_px > 0.0) {
     // The inline editor's font lives in editor pixels (document px * zoom, see
     // the interactive path in main_window.cpp). A point-sized font here would
@@ -1910,6 +1923,16 @@ std::optional<LayerId> ScriptEngineHost::add_text_layer(std::int64_t session_id,
   };
   find_new(std::as_const(session->document).layers());
   note_structure_changed(session_id);
+  if (created.has_value()) {
+    // A family that is not installed renders in a fallback face; say so instead of letting the
+    // caller discover it from the pixels.
+    if (const auto* layer = std::as_const(session->document).find_layer(*created); layer != nullptr) {
+      if (const auto missing = missing_text_families_for_layer(*layer); !missing.isEmpty()) {
+        emit_message(MessageKind::Warn, tr("addTextLayer: font not available, rendered with a fallback: %1")
+                                            .arg(missing.join(QStringLiteral(", "))));
+      }
+    }
+  }
   return created;
 }
 

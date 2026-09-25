@@ -1057,48 +1057,87 @@ QString substituted_text_family(const QString& family, const QString& demanded) 
   return cannot_draw(ui_family) ? family : ui_family;
 }
 
-// A font registered with Windows can still be missing from Qt's database
-// (this machine's Arial Narrow: present in the CurrentVersion\Fonts key and
-// in C:\Windows\Fonts, absent from both the family list and Arial's style
-// list). Load every registry entry whose display name starts with the
-// requested family as an application font so the face resolves; each family
-// is attempted once per run. Never removed afterwards (removeApplicationFont
-// can crash live font users - the testing notes' standing rule).
+// Windows font files the system knows about: the machine-wide CurrentVersion\Fonts
+// key (relative names live in %WINDIR%\Fonts) plus the per-user key Windows fills
+// when a font is installed without elevation (absolute paths).
+struct WindowsRegistryFont {
+  QString display_name;  // the full face name Windows shows, e.g. "Futura Extra Black BT (TrueType)"
+  QString file;
+};
+
+std::vector<WindowsRegistryFont> windows_registry_fonts() {
+  std::vector<WindowsRegistryFont> fonts_found;
+  const QDir fonts_dir(QDir(QString::fromLocal8Bit(qgetenv("WINDIR"))).filePath(QStringLiteral("Fonts")));
+  for (const auto& root : {QStringLiteral("HKEY_LOCAL_MACHINE\\SOFTWARE"), QStringLiteral("HKEY_CURRENT_USER\\Software")}) {
+    const QSettings fonts(root + QStringLiteral("\\Microsoft\\Windows NT\\CurrentVersion\\Fonts"),
+                          QSettings::NativeFormat);
+    for (const auto& name : fonts.allKeys()) {
+      auto file = fonts.value(name).toString();
+      if (file.isEmpty()) {
+        continue;
+      }
+      if (!QFileInfo(file).isAbsolute()) {
+        file = fonts_dir.filePath(file);
+      }
+      fonts_found.push_back(WindowsRegistryFont{name, file});
+    }
+  }
+  return fonts_found;
+}
+
+// Called when a requested family resolves to nothing. Two different gaps, both filled
+// by registering the installed files as application fonts (never removed afterwards:
+// removeApplicationFont can crash live font users, the testing notes' standing rule):
+//
+// - A --headless run is on the offscreen platform, which sees NO system fonts at all.
+//   The first miss loads every installed font once, so the database then holds the
+//   fonts' real family and style names and the ordinary matching resolves a request
+//   exactly as the desktop app would (a family, "Futura XBlk BT", or family plus face,
+//   "Arial Black"). Matching registry display names against the request would be
+//   guesswork: the registry stores full face names, not families. The visual test
+//   suites are offscreen too and deliberately stay hermetic: main.cpp marks a headless
+//   run with PATCHY_HEADLESS=1, which the suites never set (docs/testing.md).
+// - On the desktop, a font registered with Windows can still be missing from Qt's
+//   database (this machine's Arial Narrow: in the registry and C:\Windows\Fonts, absent
+//   from both the family list and Arial's style list). There the registry display name
+//   does begin with the family, so the entries starting with the request are loaded;
+//   each family is attempted once per run.
 bool try_register_missing_system_font_family(const QString& family) {
 #ifdef Q_OS_WIN
-  // The offscreen platform (the visual test suite) deliberately sees NO
-  // system fonts - tests register exactly what they need, and pulling registry
-  // fonts there would make test layouts machine-dependent. A --headless app run
-  // is offscreen too, but its user wants their installed fonts: main.cpp marks
-  // it with PATCHY_HEADLESS=1, which the suites never set (docs/testing.md).
-  if (QGuiApplication::platformName() == QLatin1String("offscreen") &&
-      !qEnvironmentVariableIsSet("PATCHY_HEADLESS")) {
+  const bool offscreen = QGuiApplication::platformName() == QLatin1String("offscreen");
+  if (offscreen && !qEnvironmentVariableIsSet("PATCHY_HEADLESS")) {
     return false;
   }
-  static QSet<QString> attempted;
   const auto requested = family.trimmed();
+  if (requested.isEmpty()) {
+    return false;
+  }
+  if (offscreen) {
+    static bool loaded = false;
+    if (loaded) {
+      return false;  // everything installed is already in the database
+    }
+    loaded = true;
+    bool added = false;
+    for (const auto& entry : windows_registry_fonts()) {
+      if (QFileInfo::exists(entry.file) && QFontDatabase::addApplicationFont(entry.file) >= 0) {
+        added = true;
+      }
+    }
+    return added;
+  }
+  static QSet<QString> attempted;
   const auto key = requested.toLower();
-  if (requested.isEmpty() || attempted.contains(key)) {
+  if (attempted.contains(key)) {
     return false;
   }
   attempted.insert(key);
-  const QSettings fonts(
-      QStringLiteral("HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts"),
-      QSettings::NativeFormat);
-  const QDir fonts_dir(QDir(QString::fromLocal8Bit(qgetenv("WINDIR"))).filePath(QStringLiteral("Fonts")));
   bool added = false;
-  for (const auto& name : fonts.allKeys()) {
-    if (!name.startsWith(requested, Qt::CaseInsensitive)) {
+  for (const auto& entry : windows_registry_fonts()) {
+    if (!entry.display_name.startsWith(requested, Qt::CaseInsensitive)) {
       continue;
     }
-    auto file = fonts.value(name).toString();
-    if (file.isEmpty()) {
-      continue;
-    }
-    if (!QFileInfo(file).isAbsolute()) {
-      file = fonts_dir.filePath(file);
-    }
-    if (QFileInfo::exists(file) && QFontDatabase::addApplicationFont(file) >= 0) {
+    if (QFileInfo::exists(entry.file) && QFontDatabase::addApplicationFont(entry.file) >= 0) {
       added = true;
     }
   }

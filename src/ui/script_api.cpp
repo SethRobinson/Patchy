@@ -454,6 +454,11 @@ QString ScriptLayerObject::text_direction() const {
   return host_.text_layer_direction(session_id_, layer_id_);
 }
 
+QString ScriptLayerObject::text_font() const {
+  const ScriptApiCall api_call(host_);
+  return host_.text_layer_font(session_id_, layer_id_);
+}
+
 void ScriptLayerObject::set_text_direction(const QString& direction) {
   const ScriptApiCall api_call(host_);
   if (!host_.layer_is_text_layer(session_id_, layer_id_)) {

@@ -18929,6 +18929,10 @@ Y: %2
         <source>intervalMinutes must be 5, 10, 15, 30, or 60</source>
         <translation>intervalMinutes muss 5, 10, 15, 30 oder 60 sein</translation>
     </message>
+    <message>
+        <source>addTextLayer: font not available, rendered with a fallback: %1</source>
+        <translation>addTextLayer: Schriftart nicht verfügbar, mit Ersatzschrift dargestellt: %1</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::StartPanel</name>

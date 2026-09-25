@@ -278,6 +278,8 @@ public:
   [[nodiscard]] QString text_layer_orientation(std::int64_t session_id, LayerId layer_id) const;
   bool set_text_layer_orientation(std::int64_t session_id, LayerId layer_id, const QString& orientation);
   [[nodiscard]] QString text_layer_direction(std::int64_t session_id, LayerId layer_id) const;
+  // The layer's primary font family as stored (the requested name, even when it is not installed).
+  [[nodiscard]] QString text_layer_font(std::int64_t session_id, LayerId layer_id) const;
   bool set_text_layer_direction(std::int64_t session_id, LayerId layer_id, const QString& direction);
   [[nodiscard]] bool layer_is_text_layer(std::int64_t session_id, LayerId layer_id) const;
   bool edit_text_layer_session(std::int64_t session_id, LayerId layer_id,

@@ -12,6 +12,7 @@
 #include "formats/document_flatten.hpp"
 #include "formats/pdf_document_io.hpp"
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QJsonObject>
 #include "ui/canvas_widget.hpp"
 #include "ui/canvas_widget_shared.hpp"
@@ -38,6 +39,7 @@
 #include "unicode_path_names.hpp"
 
 #include <QAction>
+#include <QFontDatabase>
 #include <QApplication>
 #include <QCheckBox>
 #include <QClipboard>
@@ -947,6 +949,47 @@ void ui_script_text_size_is_zoom_independent() {
                             close(a.bounds.height, b.bounds.height)));
   )JS")));
   CHECK(backlog_contains(window, QStringLiteral("match=true")));
+}
+
+// addTextLayer's font option used to be dropped: the script set the family on the editor's
+// char format only, while the commit reads the session family, so every script-made text layer
+// rendered in the options bar's current font (September 2026; an AI-built poster fell back to
+// drawing its lettering as vector outlines). Two different registered families both have to
+// stick, whichever one the bar happens to hold.
+void ui_script_text_font_option_applies() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  QStringList families;
+  for (const auto& family : QFontDatabase::families()) {
+    if (!family.startsWith(QLatin1Char('.')) && !QFontDatabase::isPrivateFamily(family) &&
+        !QFontDatabase::styles(family).isEmpty()) {
+      families.push_back(family);
+    }
+  }
+  CHECK(families.size() >= 2);
+  if (families.size() < 2) {
+    return;
+  }
+  const auto first = families.front();
+  const auto second = families.back();
+  const auto js_string = [](const QString& text) {
+    const auto array = QString::fromUtf8(QJsonDocument(QJsonArray{text}).toJson(QJsonDocument::Compact));
+    return array.mid(1, array.size() - 2);  // the quoted element without the brackets
+  };
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var doc = app.activeDocument;
+    var a = doc.addTextLayer('Font probe', {font: %1, size: 24, x: 10, y: 40});
+    var b = doc.addTextLayer('Font probe', {font: %2, size: 24, x: 10, y: 120});
+    console.log('first=' + a.textFont);
+    console.log('second=' + b.textFont);
+    var c = doc.addTextLayer('Font probe', {font: 'Patchy No Such Family', size: 24, x: 10, y: 200});
+    console.log('plain=' + JSON.stringify(doc.addLayer('Plain').textFont));
+  )JS")
+                             .arg(js_string(first), js_string(second))));
+  CHECK(backlog_contains(window, QStringLiteral("first=") + first));
+  CHECK(backlog_contains(window, QStringLiteral("second=") + second));
+  CHECK(backlog_contains(window, QStringLiteral("font not available, rendered with a fallback: Patchy No Such Family")));
+  CHECK(backlog_contains(window, QStringLiteral("plain=\"\"")));
 }
 
 void ui_script_text_layer_with_uncovered_script_does_not_crash() {
@@ -3162,6 +3205,7 @@ std::vector<patchy::test::TestCase> scripting_tests() {
       {"ui_script_console_and_error_line_numbers", ui_script_console_and_error_line_numbers},
       {"ui_script_filters_and_text_layers", ui_script_filters_and_text_layers},
       {"ui_script_text_size_is_zoom_independent", ui_script_text_size_is_zoom_independent},
+      {"ui_script_text_font_option_applies", ui_script_text_font_option_applies},
       {"ui_script_text_layer_with_uncovered_script_does_not_crash",
        ui_script_text_layer_with_uncovered_script_does_not_crash},
       {"ui_script_run_command_writes_output_file", ui_script_run_command_writes_output_file},

@@ -887,6 +887,41 @@ void psd_layered_writer_uses_rle_for_compressible_layer_channels() {
   CHECK(*read.layers().front().mask()->pixels.pixel(31, 3) == 255);
 }
 
+// Photoshop reads a pixel record without a transparency channel as its Background layer,
+// opaque over the whole canvas whatever its bounds. September 2026: an imported opaque photo
+// (an RGB layer) above other layers blanked everything beneath it in Photoshop. Only the
+// bottom record covering exactly the canvas may omit the channel.
+void psd_opaque_rgb_layers_write_transparency_unless_background() {
+  const auto channel_ids = [](const patchy::Document& document) {
+    std::vector<std::int16_t> ids;
+    for (const auto& record : psd_layer_channel_records(patchy::psd::DocumentIo::write_layered_rgb8(document))) {
+      ids.push_back(record.id);
+    }
+    return ids;
+  };
+
+  patchy::Document stacked(8, 6, patchy::PixelFormat::rgb8());
+  stacked.add_pixel_layer("Background", solid_rgb(8, 6, 250, 240, 20));
+  patchy::Layer photo(stacked.allocate_layer_id(), "Photo", solid_rgb(4, 3, 10, 20, 30));
+  photo.set_bounds(patchy::Rect{2, 1, 4, 3});
+  stacked.add_layer(std::move(photo));
+  CHECK((channel_ids(stacked) == std::vector<std::int16_t>{0, 1, 2, 0, 1, 2, -1}));
+
+  const auto read = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(stacked));
+  CHECK(read.layers().size() == 2U);
+  const auto& read_photo = read.layers().back();
+  CHECK(read_photo.pixels().format().channels == 4U);
+  CHECK(read_photo.pixels().pixel(3, 2)[3] == 255U);
+  CHECK(read_photo.pixels().pixel(3, 2)[0] == 10U);
+
+  // A bottom layer that does not cover the canvas is not a Background either.
+  patchy::Document partial(8, 6, patchy::PixelFormat::rgb8());
+  patchy::Layer lone(partial.allocate_layer_id(), "Photo", solid_rgb(4, 3, 10, 20, 30));
+  lone.set_bounds(patchy::Rect{2, 1, 4, 3});
+  partial.add_layer(std::move(lone));
+  CHECK((channel_ids(partial) == std::vector<std::int16_t>{0, 1, 2, -1}));
+}
+
 void psd_layer_locks_import_and_export_lspf() {
   for (const auto flags :
        {patchy::kLayerLockTransparentPixels, patchy::kLayerLockImagePixels, patchy::kLayerLockPosition,
@@ -2304,6 +2339,8 @@ std::vector<patchy::test::TestCase> psd_core_io_tests() {
        psd_stroke_only_shape_layers_fixture_loads_if_available},
       {"psd_layered_writer_uses_rle_for_compressible_layer_channels",
        psd_layered_writer_uses_rle_for_compressible_layer_channels},
+      {"psd_opaque_rgb_layers_write_transparency_unless_background",
+       psd_opaque_rgb_layers_write_transparency_unless_background},
       {"psd_layer_locks_import_and_export_lspf", psd_layer_locks_import_and_export_lspf},
       {"psd_layer_masks_render_and_round_trip", psd_layer_masks_render_and_round_trip},
       {"psd_group_layer_mask_round_trips", psd_group_layer_mask_round_trips},

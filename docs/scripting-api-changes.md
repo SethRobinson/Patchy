@@ -1,5 +1,12 @@
 # Scripting API compatibility
 
+2026-09-26 (API 1): `doc.addTextLayer`'s `font` option now takes effect. The script path
+set the family on the editor's character format only, while the commit read the session's
+family, so every script-made text layer rendered in the options bar's current font. A
+family that is not installed now logs a console warning naming it, and text layers expose
+a read-only `layer.textFont` (the stored family name, `""` for other layers). Behavioral
+fix plus an additive property; apiVersion unchanged. See [text-tool.md](text-tool.md).
+
 2026-09-25 (API 1): `patchy.recovery` exposes the automatic document recovery store:
 `enabled` and `intervalMinutes` (the Preferences values), `directory`, `writeNow()`,
 `listFiles()`, `listOrphaned()`, `recoverAll()`, and `discardOrphaned()`. Additive;

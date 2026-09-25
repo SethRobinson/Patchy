@@ -537,7 +537,10 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
 void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bool strip_smart_object_blocks,
                         bool large_document, std::uint32_t synthesized_photoshop_layer_id,
                         Rect canvas);
-void append_encoded_layers(const Layer& layer, std::vector<EncodedLayer>& encoded_layers, bool large_document);
+// `canvas` identifies Photoshop's Background record: the only pixel record written without a
+// transparency channel is the bottom one covering exactly the canvas (see encode_layer).
+void append_encoded_layers(const Layer& layer, std::vector<EncodedLayer>& encoded_layers, bool large_document,
+                           Rect canvas);
 
 // Vector shape/path codec: vmsk/vsms path records, SoCo/GdFl/PtFl fill
 // content, vstk stroke style, vogk live-shape origination, and the saved-path

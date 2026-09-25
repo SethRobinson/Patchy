@@ -333,7 +333,7 @@ Field types: `number`, `slider`, `checkbox`, `choice`, `text`, `color`, `folder`
 | `doc.layers` | Top-level layers, bottom to top. Groups expose `.children`. |
 | `doc.activeLayer` | Get or set the targeted layer. |
 | `doc.addLayer(name)` | New empty pixel layer on top, made active. |
-| `doc.addTextLayer(text, options)` | Text layer through the real text engine. Options: `font`, `size`, `x`, `y`, `color`, `bold`, `italic`, `orientation` (`"horizontal"` or `"vertical"`), `direction` (`"auto"`, `"ltr"`, `"rtl"`). `size` is the text height in document pixels; for vertical text `x`/`y` is the first column's top centre. |
+| `doc.addTextLayer(text, options)` | Text layer through the real text engine. Options: `font`, `size`, `x`, `y`, `color`, `bold`, `italic`, `orientation` (`"horizontal"` or `"vertical"`), `direction` (`"auto"`, `"ltr"`, `"rtl"`). `size` is the text height in document pixels; for vertical text `x`/`y` is the first column's top centre. `font` is a family name, or family plus face such as `"Arial Black"`; a font that is not installed renders in a fallback and logs a warning. Prefer real text layers over drawing letters as shapes: they stay editable in Patchy and Photoshop. |
 | `doc.importFilesAsLayers(paths)` | Files as Layers: each path (a string or an array of strings) becomes a layer directly above the active layer, bottom to top in argument order, the last file ending on top and active. A multi-layer file (a PSD, an animated GIF) becomes a folder named after it. Pixels keep their size: a file the document's size lands exactly, others center on the canvas. Throws and adds nothing when a file cannot be read. Returns the new layers in argument order. |
 | `doc.findLayer(name)` | First layer with that exact name, or `undefined`. |
 | `doc.combineShapes(layers, op)` | Combine Shapes: merges sibling shape layers into the bottom-most one and returns it. `op` is `"unite"`, `"subtract"` (front shapes cut from the base), `"intersect"`, or `"exclude"`. |
@@ -423,6 +423,7 @@ preview. PNG export may reserve one extra palette entry for transparency.
 | `layer.bounds` | The content bounding box. |
 | `layer.isGroup` / `layer.children` / `layer.isText` / `layer.text` | Group and text access. Setting `text` re-renders the layer; the new text keeps the first character's formatting. |
 | `layer.textOrientation` / `layer.textDirection` | Text layers: `"horizontal"` or `"vertical"`, and the paragraph direction `"auto"`, `"ltr"` or `"rtl"`. Setting either re-renders the layer. |
+| `layer.textFont` | Text layers: the font family name the layer uses (read-only; `""` for other layers). |
 | `layer.duplicate(targetDocument?)` / `layer.remove()` | Copy above itself, or into another open document above its active layer; or delete. |
 | `layer.ungroup()` | Releases a folder's layers into its parent (top to bottom) and removes the folder. |
 | `layer.fill(color)` | Fills the selection (or everything on an empty layer). |

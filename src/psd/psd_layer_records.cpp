@@ -236,7 +236,7 @@ std::uint8_t vector_parameter_flags(const LayerVectorMask& mask) {
   return flags;
 }
 
-EncodedLayer encode_layer(const Layer& layer, bool large_document) {
+EncodedLayer encode_layer(const Layer& layer, bool large_document, bool bottom_record, Rect canvas) {
   if (layer.kind() != LayerKind::Pixel) {
     throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "Layered PSD export currently supports pixel and group layers only"));
   }
@@ -273,7 +273,14 @@ EncodedLayer encode_layer(const Layer& layer, bool large_document) {
   encoded.bounds = layer.bounds().empty() ? Rect::from_size(pixels.width(), pixels.height()) : layer.bounds();
   encoded.blending_ranges = &layer.raw_psd_blending_ranges();
   std::vector<std::uint16_t> channel_ids{kChannelRed, kChannelGreen, kChannelBlue};
-  if (pixels.format().channels >= 4) {
+  // Photoshop reads a pixel record with no transparency channel as its Background layer: opaque
+  // over the WHOLE canvas, whatever the record bounds say. It writes one only as the bottom
+  // record covering exactly the canvas, so an opaque (RGB) layer anywhere else gets an all-255
+  // transparency channel; without it an imported photo painted over every layer beneath it
+  // (September 2026: a poster that rendered blank in Photoshop).
+  const bool photoshop_background = bottom_record && encoded.bounds.x == canvas.x && encoded.bounds.y == canvas.y &&
+                                    encoded.bounds.width == canvas.width && encoded.bounds.height == canvas.height;
+  if (pixels.format().channels >= 4 || !photoshop_background) {
     channel_ids.push_back(kChannelTransparency);
   }
   if (layer.mask().has_value() && !layer.mask()->pixels.empty()) {
@@ -309,10 +316,12 @@ EncodedLayer encode_layer(const Layer& layer, bool large_document) {
                                                 mask_pixels.data(), large_document));
     } else {
       std::vector<std::uint8_t> channel;
-      channel.resize(pixel_count);
+      channel.resize(pixel_count, 255U);
       const auto source_channel = channel_id == kChannelTransparency ? 3 : channel_index;
-      for (std::size_t i = 0; i < pixel_count; ++i) {
-        channel[i] = pixels.data()[i * pixels.format().channels + source_channel];
+      if (source_channel < static_cast<std::size_t>(pixels.format().channels)) {
+        for (std::size_t i = 0; i < pixel_count; ++i) {
+          channel[i] = pixels.data()[i * pixels.format().channels + source_channel];
+        }
       }
       encoded.channels.push_back(encode_channel(channel_id, pixels.width(), pixels.height(), channel, large_document));
     }
@@ -1110,9 +1119,10 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
   write_length_prefixed_block(writer, extra.bytes());
 }
 
-void append_encoded_layers(const Layer& layer, std::vector<EncodedLayer>& encoded_layers, bool large_document) {
+void append_encoded_layers(const Layer& layer, std::vector<EncodedLayer>& encoded_layers, bool large_document,
+                           Rect canvas) {
   if (layer.kind() == LayerKind::Pixel) {
-    encoded_layers.push_back(encode_layer(layer, large_document));
+    encoded_layers.push_back(encode_layer(layer, large_document, encoded_layers.empty(), canvas));
     return;
   }
 
@@ -1124,7 +1134,7 @@ void append_encoded_layers(const Layer& layer, std::vector<EncodedLayer>& encode
   if (layer.kind() == LayerKind::Group) {
     encoded_layers.push_back(encode_group_boundary(layer));
     for (const auto& child : layer.children()) {
-      append_encoded_layers(child, encoded_layers, large_document);
+      append_encoded_layers(child, encoded_layers, large_document, canvas);
     }
     encoded_layers.push_back(encode_group(layer, large_document));
     return;

@@ -1475,7 +1475,8 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
   // Photoshop stores layer records in stack order from bottom to top. Patchy's
   // document model uses the same order, so write it directly instead of reversing.
   for (const auto& layer : document.layers()) {
-    append_encoded_layers(layer, encoded_layers, options.large_document);
+    append_encoded_layers(layer, encoded_layers, options.large_document,
+                          Rect::from_size(document.width(), document.height()));
   }
 
   BigEndianWriter layer_info;

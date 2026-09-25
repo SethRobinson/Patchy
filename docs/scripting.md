@@ -232,23 +232,19 @@ everywhere a bundled script is resolved.
   application-modal window is marked blocked by it, and a blocked window is skipped by
   the key-delivery path, which on wasm is permanent and leaves the game window unable
   to receive a single keystroke (see docs/wasm.md).
-  Side effect: the pump runs the coalesced refresh flush, so
-  scripts that push pixels repeatedly (generative-art batches, fancy-background
-  chunks) paint progressively. A pure-JS loop with no API calls cannot pump - heavy
-  bundled scripts write their buffer to the layer a few times mid-computation for
-  exactly this reason (setPixels REPLACES the layer's pixels, so they re-send the
-  whole buffer, never partial strips).
-- **Palette mode**: `setPixels` and `fill` are tool-like writes and snap to the document
-  palette (`apply_palette_to_pixels`, dither None, the editing alpha threshold);
-  `applyFilter` deliberately stays advisory, matching interactive filters.
-  `doc.getPalette/setPalette/loadPalette/savePalette` expose native palette metadata
-  and file I/O to scripts and MCP. Set/load validate before Undo, preserve layer
-  pixels, and default to enabled mode. The host assigns globally unique palette
-  revisions, synchronizes indexed export metadata, and invalidates the canvas and
-  palette panel. Disabled mode retains an attached table; getters read const and
-  return detached copies. PNG save/export uses the existing indexed writer;
-  previews remain truecolor. Optional parallel `names` arrays carry color labels
-  through GPL, PSD and indexed PNG metadata. See [palette-mode.md](palette-mode.md).
+  Side effect: the pump runs the coalesced refresh flush, so scripts that push pixels
+  repeatedly paint progressively. A pure-JS loop with no API calls cannot pump, so heavy
+  bundled scripts write their buffer to the layer a few times mid-computation
+  (setPixels REPLACES the layer's pixels: re-send the whole buffer, never strips).
+- **Palette mode**: `setPixels` and `fill` snap to the document palette like tools
+  (`apply_palette_to_pixels`, dither None, the editing alpha threshold); `applyFilter`
+  stays advisory, as interactive filters are. `doc.getPalette/setPalette/loadPalette/
+  savePalette` expose palette metadata and file I/O; set/load validate before Undo, keep
+  layer pixels, and default to enabled mode. The host assigns globally unique palette
+  revisions, syncs indexed export metadata, and invalidates canvas and panel. Disabled
+  mode keeps an attached table; getters read const and return copies. PNG save/export
+  uses the indexed writer; previews stay truecolor. Optional parallel `names` arrays
+  carry color labels through GPL, PSD and indexed PNG. See [palette-mode.md](palette-mode.md).
 - **Text layers go through the real pipeline.** `addTextLayer` and the `text` setter
   drive actual inline-editor sessions (the `cli_append_text_to_text_layers` technique),
   so rasters render through the normal commit path. `addTextLayer` clears the active
@@ -256,7 +252,9 @@ everywhere a bundled script is resolved.
   the text height in DOCUMENT PIXELS: the inline editor's font lives in editor pixels
   (document px * canvas zoom), so the script path must set `setPixelSize(size * zoom)` -
   a point-sized font commits at a zoom-dependent size (pinned by
-  `ui_script_text_size_is_zoom_independent`). The `text` setter replaces the selection
+  `ui_script_text_size_is_zoom_independent`). Its `font` goes through
+  `apply_text_family_to_editor` (the font picker's path): the commit reads the session
+  family, not the char format (pinned by `ui_script_text_font_option_applies`). The `text` setter replaces the selection
   in one `insertText(text, format)` with the first character's format, never
   delete-then-insert: an emptied block's char format is the fallback font only, so the
   run would lose the exact size and glyph scales it renders from (pinned by

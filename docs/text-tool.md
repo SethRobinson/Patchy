@@ -88,36 +88,35 @@ back BEFORE `remove_text_editor_preview`, in commit and cancel.
 
 - A Type-tool click inserts a provisional 1x1 text layer (marker `patchy.internal.provisional_text`); `commit_text_editor` removes it via the marker-checked `MainWindow::take_provisional_text_layer`, then snapshots and recreates the committed layer under the same id; cancel/empty-commit leaves history and modified state untouched.
 - **Commit invalidation must cover old ∪ preview ∪ new.** The restore/remove teardown pair invalidates its regions BEFORE the layer mutates, so `commit_text_editor` captures the old layer and preview render bounds up front and unions them into the post-mutation `document_changed_effect_bounds`, or the old render stays baked in the canvas cache wherever the new bounds do not cover it (routine on warped layers). Same rule for `hide_text_editor_source_layer`: it returns the vacated rect and never invalidates itself, so every caller must consume the return.
-- **Warped text layers get a warp-aware session**: entry resolves a Move-corrected unwarped transform and gates off every raster-derived anchor (the raster is the warped ink). See the Warp Text section of [warp.md](warp.md).
+- **Warped text layers get a warp-aware session**: entry resolves a Move-corrected unwarped transform and gates off every raster-derived anchor (the raster is the warped ink). See Warp Text in [warp.md](warp.md).
 - Clicking off commits through the focus-loss handler, which arms `swallow_next_canvas_left_press_` so the press that caused the commit cannot start the next session; a release clears a stale flag. The canvas event filter must leave that flag alone during a blocking processing wait: on wasm the mouseup arrives re-entrantly inside the commit's undo-snapshot wait ([wasm.md](wasm.md); `ui_text_click_off_commit_ignores_reentrant_release_during_wait`).
-- Mutating actions that take no focus (layer lock buttons) must call `finish_active_text_editor()` first, or they operate on a half-committed session.
+- Mutating actions that take no focus (layer lock buttons) call `finish_active_text_editor()` first, or they act on a half-committed session.
 
 ## Delete semantics
 
-Delete on a text layer deletes the OBJECT, never its pixels (clearing would leave an invisible layer whose metadata resurrects the text); `clear_active_layer` special-cases it, and mixed selections clear pixels and delete text layers in one undo step.
+Delete on a text layer deletes the OBJECT, never its pixels (clearing would leave an invisible layer whose metadata resurrects the text); `clear_active_layer` special-cases it; mixed selections clear pixels and delete text layers in one undo step.
 
 ## The overlay must accept click focus
 
 `TransformedTextEditOverlay` covers the text it is editing, so it is what a click on transformed
 text hits, and it must take `Qt::ClickFocus`: with `Qt::NoFocus` Qt's focus-before-press walk
 (`giveFocusAccordingToFocusPolicy`) skips to the CanvasWidget behind and the focus-loss
-auto-commit reads that as clicking off. The overlay path is only reached from the SECOND edit of
-an imported layer on (committing writes a patchy transform that moves the next session off the
+auto-commit reads that as clicking off. The overlay path is reached from the SECOND edit of an
+imported layer on (committing writes a patchy transform that moves the next session off the
 PSD-frame path, where the QTextEdit takes focus itself). Focus landing on the overlay is exempt
 from the auto-commit (`is_text_option_widget` objectName match); `mousePressEvent` hands focus
 back to the editor. Do NOT use a focus proxy: clearing one while it holds focus makes Qt reassign
 the application focus widget, so the session commits out from under whoever was mid-call, and
-`configure()` runs on every cursor move. Tests that ask whether a real click reaches the right
-widget must use `click_widget_like_a_user` (tests/ui/ui_test_support.cpp), which applies the
-focus policy walk before routing the press; `send_mouse` straight to the canvas answers a
-different question.
+`configure()` runs on every cursor move. Tests asking whether a real click reaches the right
+widget use `click_widget_like_a_user` (tests/ui/ui_test_support.cpp), which applies the focus
+policy walk before routing the press; `send_mouse` straight to the canvas asks something else.
 
 ## Options bar while an editor is open
 
 - The options bar shows session apply/cancel buttons (`textApplyButton`/`textCancelButton`) while an editor is open; they must keep `Qt::NoFocus`, or the focus-loss auto-commit fires on mouse press and Cancel commits instead of canceling.
 - The font combo is a `FontPickerCombo` (src/ui/font_picker.*, a QFontComboBox whose overridden showPopup opens a searchable list + writing-system preview); its popup objectName `textFontPickerPopup` must stay matched by `is_text_option_widget` (a Qt::Popup is a window, so isAncestorOf-based ownership misses it and focusing the search box would auto-commit the session).
 - **A popup pick must apply even when its row is already current.** A family the database lacks has no row, so a control set to one parks on another family while `currentFont()` names the missing one; the commit sets the index, then pushes the family through `setCurrentFont` when `currentFont().families().value(0)` still disagrees.
-- Any new UI that must coexist with an open text session needs the same `is_text_option_widget` exemption from the focus-loss auto-commit.
+- New UI that must coexist with an open text session needs the same `is_text_option_widget` exemption.
 - The inline editor claims the standard Bold and Italic shortcuts in `ShortcutOverride` before the app-level Ctrl+B Color Balance and Ctrl+I Invert actions can consume them. The key press routes to `toggle_text_bold_face` / `toggle_text_italic_face` (see the style picker section below).
 
 ## Boxed-text render clipping
@@ -127,31 +126,30 @@ the frame bottom draws completely (its clip band extends below the frame by the 
 and lines wholly past the frame stay hidden. The editor, Photoshop-layout and metadata re-render
 paths share this rule in `render_text_pixels_with_local_rect` (skipping the line plan cuts the
 straddling line mid-glyph; Affinity and Photoshop draw it whole). The metadata path keeps the
-buffer origin and width at the frame's and grows only the bottom, because pixels-only callers
-place the buffer at the frame corner.
+buffer origin and width at the frame's and grows only the bottom: pixels-only callers place
+the buffer at the frame corner.
 
 ## The style picker, and what bold + italic cannot say
 
-A family's faces are an arbitrary list; bold and italic can only name four of them. The options
+A family's faces are an arbitrary list; bold and italic name only four of them. The options
 bar's style picker (`textStyleCombo`) is the ONLY face control, like Photoshop (no B/I buttons).
 `PsdTextStyleRun::style` / runs v5 column 12 persist a face the flags cannot express;
 `render_text_font_for_display_family` takes it as its last argument, applying `setStyleName`
-when the family offers it and falling back to the flags otherwise (a stray style must not
-render nothing).
+when the family offers it and falling back to the flags otherwise (a stray style must
+not render nothing).
 
 - **A style is recorded only when the flags cannot express it.** The DirectWrite resolver and the
   picker both drop Regular/Bold/Italic/Bold Italic/Oblique variants
   (`text_style_is_flag_expressible` mirrors the reader's list), so ordinary imports and picks
   stay on runs v1-v4 and the byte-stability canaries do not move. The picker derives those four
   rows from `bold`/`italic` and previews each row in its own face (per-item `Qt::FontRole`).
-- **A face name's flags union the database's answer; the database never vetoes the name**
-  (`text_style_flags_for_style`): `QFontDatabase::bold` calls only weight >= 700 bold, and
-  Bookman Old Style declares Bold at 600, which collapsed a "Bold Italic" pick to plain italic.
-  The database still adds axes for localized face names.
+- **A face name's flags union the database's answer; the database never vetoes the name.**
+  (`text_style_flags_for_style`): `QFontDatabase::bold` calls only weight >= 700 bold;
+  Bookman Old Style declares Bold at 600, which collapsed a "Bold Italic" pick to plain italic;
+  the database still adds axes for localized face names.
 - **Ctrl+B / Ctrl+I toggle the face axis during a session** (`toggle_text_bold_face` /
   `toggle_text_italic_face`): the real face when `family_offers_face_axis` says the family ships
-  one, FAUX bold/italic otherwise (Ctrl+I on Century Gothic, which has no italic, applies the
-  synthetic slant). The axis state folds the faux flag in, so a second press always turns the
+  one, FAUX bold/italic otherwise (Ctrl+I on Century Gothic, which has no italic, slants). The axis state folds the faux flag in, so a second press always turns the
   axis off, and the toggle clears any recorded exotic style (Ctrl+B on a Black run selects the
   Bold face, as Photoshop does). `family_offers_face_axis` is asked ONE AXIS AT A TIME and
   `real_face_style_name` masks the flags the same way, so bold + italic on Century Gothic renders
@@ -163,18 +161,18 @@ render nothing).
   combinations with `QRawFont` (forcing Qt's lazy per-family population), re-queries for faces
   only the database knows (Light, Semibold, Black), orders the four standard faces first, and
   caches per family with `fontDatabaseChanged` invalidation. A family that is not installed still
-  offers the four standard faces so the toggles do not synthesize on top of a substituted face.
+  offers the four standard faces so the toggles never synthesize on top of a substituted face.
 - New text seeds from the picker's selection (`add_text_at`).
 - On export, `photoshop_font_name_for_run` resolves the recorded style (or the face split off a
   compound display family) to that face's PostScript name: "Arial" + "Black" writes `Arial-Black`
   instead of flattening onto `Arial-BoldMT`. Style-empty runs keep the weight-based lookup
-  byte-identical, and a split whose remainder names no real face exports verbatim like any unknown
+  byte-identical; a split whose remainder names no real face exports verbatim like any unknown
   family.
 - `textStyleCombo` needs the `is_text_option_widget` exemption or focusing it auto-commits.
 
-**Options-bar changes with NO selection apply to the whole type object**, as Photoshop does:
-`merge_text_char_format` selects the whole document for a bare caret instead of falling through to
-`mergeCurrentCharFormat`, which only formats the NEXT typed character.
+**Options-bar changes with NO selection apply to the whole type object**, as in Photoshop:
+`merge_text_char_format` selects the whole document for a bare caret instead of falling through
+to `mergeCurrentCharFormat`, which only formats the NEXT typed character.
 
 ## No session: every selected text layer (GitHub issue 31)
 
@@ -212,8 +210,8 @@ render nothing).
   docs/testing.md).
 
 - **A family that resolves but covers none of the layer's characters counts as MISSING.** The
-  bundled Noto Naskh Arabic (third_party/fonts) has no Latin letters in its cmap, so an
-  installed-only check rendered a Latin layer entirely in the fallback with no warning.
+  bundled Noto Naskh Arabic has no Latin glyphs, so an installed-only check rendered a Latin
+  layer in the fallback with no warning.
   `text_family_draws_any_of` probes per writing system with `QRawFont::fromFont(font, system)`
   and requires the face that comes back to BE the requested family (asking without the writing
   system resolves through the default script and reports full coverage). "Any", not "all": one
@@ -222,13 +220,15 @@ render nothing).
   the "T" tile and names the font in the thumbnail tooltip.
 - `render_text_font_for_display_family` resolves a display name first as a family, then as
   family + style ("Arial Black" -> "Arial"/"Black"). If BOTH fail on Windows,
-  `try_register_missing_system_font_family` loads every CurrentVersion\Fonts registry entry whose
-  name starts with the requested family as an application font and retries: Qt's Windows database
-  can miss registered fonts entirely (Arial Narrow, registered and on disk yet absent from the
-  database, fell to Tahoma). `append_missing_text_family` asks the same rescue before calling a
-  family missing, so the prompt and the badge never fire on a font Windows has. Attempted families
-  are cached per run; application fonts are never removed (removeApplicationFont can crash live
-  font users).
+  `try_register_missing_system_font_family` registers installed fonts from the machine and
+  per-user CurrentVersion\Fonts registry keys and retries. Desktop: the entries whose display
+  name starts with the family (Qt's Windows database can miss registered fonts: Arial Narrow,
+  on disk and registered, fell to Tahoma). `--headless` (offscreen sees no system fonts): the
+  first miss loads EVERY installed font once, so requests resolve by real family and style
+  names; display names are full face names ("Futura Extra Black BT"), so prefix-matching a
+  family against them is guesswork. `append_missing_text_family` asks the same rescue before
+  calling a family missing. Attempted families are cached per run; application fonts are never
+  removed (removeApplicationFont can crash live font users).
 - On wasm, `available_text_family_match` also resolves common system families through the bundled
   metric-compatible alias table, and every text render appends a Noto Sans JP fallback family. See
   [fonts.md](fonts.md).
@@ -237,18 +237,17 @@ render nothing).
   on Windows, the font database elsewhere (`src/ui/psd_font_resolver.hpp`), the suffix
   heuristic last (wasm stays heuristic-only so alias families never reach imported
   metadata). Flattening Demi/Semi (600) onto the family's BOLD face renders heavier
-  and taller than Photoshop (ITC Lubalin Graph Demi measured 995x868 against Photoshop's 982x826
-  on the entry_poster.psd body copy; the real face matches the width exactly). Gated on
-  the face NAME, not the raw weight: a face whose name the flags can already express is never
-  baked into the family, whatever weight it declares (Bookman Old Style ships its whole family at
-  weight 500, so "BookmanOldStyle-Italic" must resolve to the plain family plus the italic flag).
+  and taller than Photoshop (ITC Lubalin Graph Demi: 995x868 vs Photoshop's 982x826 on the
+  entry_poster.psd body copy; the real face matches the width exactly). Gated on the face NAME,
+  not the raw weight: a face whose name the flags can express is never baked into the family,
+  whatever weight it declares (Bookman Old Style ships its whole family at weight 500, so
+  "BookmanOldStyle-Italic" must resolve to the plain family plus the italic flag).
   "Plain" and "Roman" (older fonts' upright regular face) are flag-expressible too; the reader's
   `face_name_is_flag_expressible` and main_window.cpp's `text_style_is_flag_expressible` must
   change together. Three further rules make the kept faces work:
   - The kept name is `family + " " + faceName`, what Qt calls such a face when it splits it into
     its own family ("ITC Lubalin Graph Demi"). The DirectWrite FULL_NAME can be a PostScript-style
-    name ("LubalinGraphITCbyBT-Demi") that matches nothing in the database and falls through to a
-    substitute.
+    name ("LubalinGraphITCbyBT-Demi") that matches nothing in the database and falls to a substitute.
   - **The stored family must be a name Qt's Windows database lists, which is the GDI name**
     (DirectWrite's WIN32_FAMILY_NAMES / WIN32_SUBFAMILY_NAMES), not the weight-stretch-style
     family and face DirectWrite derives. When the WIN32 family differs from the name built above,

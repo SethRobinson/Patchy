@@ -49,6 +49,7 @@ class ScriptLayerObject : public QObject {
   Q_PROPERTY(QString text READ text WRITE set_text)
   Q_PROPERTY(QString textOrientation READ text_orientation WRITE set_text_orientation)
   Q_PROPERTY(QString textDirection READ text_direction WRITE set_text_direction)
+  Q_PROPERTY(QString textFont READ text_font)
 
 public:
   ScriptLayerObject(ScriptEngineHost& host, std::int64_t session_id, LayerId layer_id);
@@ -90,6 +91,7 @@ public:
   [[nodiscard]] QString text_orientation() const;
   void set_text_orientation(const QString& orientation);
   [[nodiscard]] QString text_direction() const;
+  [[nodiscard]] QString text_font() const;
   void set_text_direction(const QString& direction);
 
   Q_INVOKABLE void moveTo(double x, double y);
