@@ -17504,11 +17504,11 @@ Y : %2
     </message>
     <message>
         <source>None of the files could be added as layers</source>
-        <translation>Aucun des fichiers n'a pu être ajouté comme calque</translation>
+        <translation>Aucun des fichiers n&apos;a pu être ajouté comme calque</translation>
     </message>
     <message>
         <source>The drop target is no longer in the document</source>
-        <translation>La cible du dépôt n'est plus dans le document</translation>
+        <translation>La cible du dépôt n&apos;est plus dans le document</translation>
     </message>
     <message>
         <source>Add files as layers</source>
@@ -17518,7 +17518,7 @@ Y : %2
         <source>These files could not be added as layers:
 
 %1</source>
-        <translation>Ces fichiers n'ont pas pu être ajoutés comme calques :
+        <translation>Ces fichiers n&apos;ont pas pu être ajoutés comme calques :
 
 %1</translation>
     </message>
@@ -17532,6 +17532,18 @@ Y : %2
     <message>
         <source>Files as Layers</source>
         <translation>Fichiers en calques</translation>
+    </message>
+    <message>
+        <source>The document is no longer open.</source>
+        <translation>Le document n'est plus ouvert.</translation>
+    </message>
+    <message>
+        <source>Adding file %1 of %2...</source>
+        <translation>Ajout du fichier %1 sur %2...</translation>
+    </message>
+    <message>
+        <source>Cancelled adding files as layers</source>
+        <translation>Ajout des fichiers en calques annulé</translation>
     </message>
 </context>
 <context>
@@ -18858,7 +18870,7 @@ Y : %2
     </message>
     <message>
         <source>No layers were added.</source>
-        <translation>Aucun calque n'a été ajouté.</translation>
+        <translation>Aucun calque n&apos;a été ajouté.</translation>
     </message>
 </context>
 <context>

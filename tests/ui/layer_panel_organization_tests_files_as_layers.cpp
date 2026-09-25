@@ -25,10 +25,13 @@
 #include <QListWidget>
 #include <QMimeData>
 #include <QPoint>
+#include <QProgressDialog>
 #include <QStatusBar>
 #include <QStringList>
+#include <QTimer>
 #include <QUrl>
 
+#include <functional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -93,7 +96,11 @@ struct DropOutcome {
 };
 
 // The window's file drops offer Copy|Move like a real Explorer/Finder drag.
-DropOutcome send_mime_drop(QWidget& target, QPoint position, const QMimeData& mime) {
+// after_drop runs once the drop event returned and before the event pump that
+// delivers the deferred add, so a QTimer::singleShot(0) registered there fires
+// inside that add's own event pump (where the progress dialog is visible).
+DropOutcome send_mime_drop(QWidget& target, QPoint position, const QMimeData& mime,
+                           const std::function<void()>& after_drop = {}) {
   DropOutcome outcome;
   QDragEnterEvent enter(position, Qt::CopyAction | Qt::MoveAction, &mime, Qt::LeftButton, Qt::NoModifier);
   QApplication::sendEvent(&target, &enter);
@@ -105,19 +112,39 @@ DropOutcome send_mime_drop(QWidget& target, QPoint position, const QMimeData& mi
   QApplication::sendEvent(&target, &drop);
   outcome.dropped = drop.isAccepted();
   outcome.action = drop.dropAction();
+  if (after_drop) {
+    after_drop();
+  }
   QApplication::processEvents();
   QApplication::processEvents();
   return outcome;
 }
 
-DropOutcome send_file_drop(QWidget& target, QPoint position, const QStringList& paths) {
+DropOutcome send_file_drop(QWidget& target, QPoint position, const QStringList& paths,
+                           const std::function<void()>& after_drop = {}) {
   QMimeData mime;
   QList<QUrl> urls;
   for (const auto& path : paths) {
     urls.push_back(QUrl::fromLocalFile(path));
   }
   mime.setUrls(urls);
-  return send_mime_drop(target, position, mime);
+  return send_mime_drop(target, position, mime, after_drop);
+}
+
+// Registers an observer that fires inside the add's event pump: records whether
+// the progress dialog is up with the expected label, optionally cancelling it.
+void observe_progress_dialog(bool& seen, QString& label, bool cancel = false) {
+  QTimer::singleShot(0, [&seen, &label, cancel] {
+    auto* dialog = qobject_cast<QProgressDialog*>(find_top_level_dialog(QStringLiteral("filesAsLayersProgressDialog")));
+    if (dialog == nullptr || !dialog->isVisible()) {
+      return;
+    }
+    seen = true;
+    label = dialog->labelText();
+    if (cancel) {
+      dialog->cancel();
+    }
+  });
 }
 
 struct OpenedTarget {
@@ -160,11 +187,17 @@ void ui_layer_panel_file_drop_adds_layers_at_drop_position() {
   // A translucent file: its flat alpha becomes a layer mask on open.
   const auto b = write_image(QStringLiteral("b.png"), 8, 8, QColor(30, 200, 30, 128));
 
+  bool saw_progress = false;
+  QString progress_label;
   const auto outcome =
       send_file_drop(*target.layer_list->viewport(), top_edge_of_row(*target.layer_list, QStringLiteral("Background")),
-                     {a, b});
+                     {a, b}, [&] { observe_progress_dialog(saw_progress, progress_label); });
   CHECK(outcome.entered && outcome.moved && outcome.dropped);
   CHECK(outcome.action == Qt::CopyAction);
+  // The "Adding file 1 of 2..." dialog was up while the files decoded.
+  CHECK(saw_progress);
+  CHECK(progress_label.contains(QStringLiteral("1 of 2")));
+  CHECK(find_top_level_dialog(QStringLiteral("filesAsLayersProgressDialog")) == nullptr);
 
   const auto& document = std::as_const(*target.document);
   CHECK(root_names(document) == std::vector<std::string>({"Background", "a", "b", "Mark", "Set"}));
@@ -359,10 +392,44 @@ void ui_import_files_as_layers_action_registered_and_inserts_above_selection() {
   CHECK(patchy::ui::MainWindowTestAccess::undo_depth_for_canvas(window, target.canvas) == 1);
 }
 
+// The Import command shows the same progress dialog, and Cancel adds nothing:
+// with two files the observer cancels during the first file's pump, so the
+// second file's progress step stops the add before anything reaches the document.
+void ui_import_files_as_layers_progress_dialog_cancels_cleanly() {
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  const auto target = open_target(window);
+  const auto i = write_image(QStringLiteral("i.png"), 4, 4, QColor(1, 1, 1, 255));
+  const auto j = write_image(QStringLiteral("j.png"), 4, 4, QColor(2, 2, 2, 255));
+
+  bool saw_progress = false;
+  QString progress_label;
+  observe_progress_dialog(saw_progress, progress_label, true);
+  patchy::ui::MainWindowTestAccess::import_files_as_layers_with_paths(window, {i, j});
+  QApplication::processEvents();
+  CHECK(saw_progress);
+  CHECK(progress_label.contains(QStringLiteral("1 of 2")));
+  CHECK(root_names(std::as_const(*target.document)) == std::vector<std::string>({"Background", "Mark", "Set"}));
+  CHECK(patchy::ui::MainWindowTestAccess::undo_depth_for_canvas(window, target.canvas) == 0);
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("Cancelled")));
+  CHECK(find_top_level_dialog(QStringLiteral("filesAsLayersProgressDialog")) == nullptr);
+
+  // Without a cancel the same call adds both.
+  saw_progress = false;
+  observe_progress_dialog(saw_progress, progress_label);
+  patchy::ui::MainWindowTestAccess::import_files_as_layers_with_paths(window, {i, j});
+  QApplication::processEvents();
+  CHECK(saw_progress);
+  CHECK(root_names(std::as_const(*target.document)) == std::vector<std::string>({"Background", "Mark", "i", "j", "Set"}));
+  CHECK(patchy::ui::MainWindowTestAccess::undo_depth_for_canvas(window, target.canvas) == 1);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> layer_panel_organization_tests_files_as_layers_part() {
   return {
+      {"ui_import_files_as_layers_progress_dialog_cancels_cleanly",
+       ui_import_files_as_layers_progress_dialog_cancels_cleanly},
       {"ui_layer_panel_file_drop_adds_layers_at_drop_position", ui_layer_panel_file_drop_adds_layers_at_drop_position},
       {"ui_layer_panel_file_drop_targets_folder_and_stack_ends",
        ui_layer_panel_file_drop_targets_folder_and_stack_ends},

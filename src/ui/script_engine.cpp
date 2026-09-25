@@ -1167,7 +1167,11 @@ std::vector<LayerId> ScriptEngineHost::import_files_as_layers(std::int64_t sessi
   QString failure;
   auto result = window_.add_files_as_layers(
       *session, paths, std::nullopt, MainWindow::FailedFilesPolicy::AbortOnAnyFailure,
-      [this, session_id] { return prepare_mutation(session_id); }, &failure);
+      [this](int, int) {
+        pump_progress_indicator();
+        return !engine_ || !engine_->isInterrupted();
+      },
+      [this, session_id](MainWindow::DocumentSession&) { return prepare_mutation(session_id); }, &failure);
   if (result.added_root_ids_top_to_bottom.empty()) {
     if (error != nullptr) {
       *error = failure.isEmpty() ? tr("No layers were added.") : failure;

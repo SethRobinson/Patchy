@@ -17485,6 +17485,18 @@ Clipped to the layer below</source>
         <source>Files as Layers</source>
         <translation>ファイルをレイヤーへ</translation>
     </message>
+    <message>
+        <source>The document is no longer open.</source>
+        <translation>ドキュメントはすでに閉じられています。</translation>
+    </message>
+    <message>
+        <source>Adding file %1 of %2...</source>
+        <translation>ファイルを追加中 %1 / %2...</translation>
+    </message>
+    <message>
+        <source>Cancelled adding files as layers</source>
+        <translation>ファイルをレイヤーとして追加する処理をキャンセルしました</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>

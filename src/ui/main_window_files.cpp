@@ -1515,12 +1515,12 @@ QStringList MainWindow::supported_layer_drop_paths(const QMimeData* mime_data) c
   return supported_local_open_paths(mime_data);
 }
 
-MainWindow::AddFilesAsLayersResult MainWindow::add_files_as_layers(DocumentSession& target, const QStringList& paths,
-                                                                   std::optional<LayerInsertionTarget> drop_target,
-                                                                   FailedFilesPolicy policy,
-                                                                   const std::function<bool()>& before_mutation,
-                                                                   QString* error) {
+MainWindow::AddFilesAsLayersResult MainWindow::add_files_as_layers(
+    DocumentSession& target, const QStringList& paths, std::optional<LayerInsertionTarget> drop_target,
+    FailedFilesPolicy policy, const std::function<bool(int, int)>& progress,
+    const std::function<bool(DocumentSession&)>& before_mutation, QString* error) {
   AddFilesAsLayersResult result;
+  const auto target_session_id = target.session_id;
   const auto fail = [&](const QString& message) {
     if (error != nullptr) {
       *error = message;
@@ -1546,7 +1546,13 @@ MainWindow::AddFilesAsLayersResult MainWindow::add_files_as_layers(DocumentSessi
   }
   std::vector<Document> loaded_documents;
   loaded_documents.reserve(static_cast<std::size_t>(unique_paths.size()));
-  for (const auto& path : unique_paths) {
+  const int total = static_cast<int>(unique_paths.size());
+  for (int index = 0; index < total; ++index) {
+    const auto& path = unique_paths[index];
+    if (progress && !progress(index + 1, total)) {
+      result.cancelled = true;
+      return result;
+    }
     try {
       auto loaded = load_document_from_path(path);
       auto& document = loaded.document;
@@ -1591,12 +1597,17 @@ MainWindow::AddFilesAsLayersResult MainWindow::add_files_as_layers(DocumentSessi
   if (policy == FailedFilesPolicy::AbortOnAnyFailure && !result.failed_paths.isEmpty()) {
     return fail(result.failure_messages.join(QLatin1Char('\n')));
   }
+  // The progress pump may have closed the document (or the window) meanwhile.
+  auto* live_target = shutting_down_ ? nullptr : session_with_id(target_session_id);
+  if (live_target == nullptr) {
+    return fail(tr("The document is no longer open."));
+  }
 
   // Phase 2: build the new stack in a staged copy, so a refusal part-way leaves
   // the live document untouched (there is no partial undo to fall back on).
   // Each copy lands above the active layer and becomes active, so the files
   // stack upward in path order: the last file ends on top.
-  Document staged = target.document;
+  Document staged = live_target->document;
   std::vector<LayerId> added_top_to_bottom;
   for (const auto& loaded : loaded_documents) {
     const std::vector<LayerId> root_ids{loaded.layers().front().id()};
@@ -1618,11 +1629,11 @@ MainWindow::AddFilesAsLayersResult MainWindow::add_files_as_layers(DocumentSessi
       return fail(tr("The drop target is no longer in the document"));
     }
   }
-  if (!before_mutation()) {
+  if (!before_mutation(*live_target)) {
     result.added_root_ids_top_to_bottom.clear();
     return result;
   }
-  target.document = std::move(staged);
+  live_target->document = std::move(staged);
   result.added_root_ids_top_to_bottom = std::move(added_top_to_bottom);
   return result;
 }
@@ -1646,15 +1657,54 @@ bool MainWindow::add_files_as_layers_interactive(const QStringList& paths,
       drop_target = LayerInsertionTarget{selected.front(), LayerDropPosition::AboveItem};
     }
   }
-  auto& target = session();
+  const auto target_session_id = session().session_id;
+  // Decoding many files takes a while: the same cancellable progress dialog and
+  // per-file event pump as Open Folder, so the window keeps painting and nobody
+  // takes the pause for a hang. The dialog is window-modal, so the document
+  // cannot change under the loop, and the core re-resolves the session anyway.
+  QProgressDialog progress(tr("Adding file %1 of %2...").arg(1).arg(paths.size()), tr("Cancel"), 0,
+                           static_cast<int>(paths.size()), this);
+  progress.setObjectName(QStringLiteral("filesAsLayersProgressDialog"));
+  progress.setWindowTitle(failure_title);
+  progress.setWindowModality(Qt::WindowModal);
+  progress.setMinimumDuration(0);
+  progress.setAutoClose(false);
+  progress.setAutoReset(false);
+  remember_dialog_position(progress);
+  progress.setValue(0);
+  progress.show();  // at once, not after QProgressDialog's force timer
   QString error;
   auto result = add_files_as_layers(
-      target, paths, drop_target, FailedFilesPolicy::SkipFailed,
-      [this, &target] {
-        push_undo_snapshot(target, tr("Add files as layers"));
+      session(), paths, drop_target, FailedFilesPolicy::SkipFailed,
+      [&progress, this](int index, int total) {
+        progress.setMaximum(total);
+        progress.setLabelText(tr("Adding file %1 of %2...").arg(index).arg(total));
+        progress.setValue(index - 1);
+        QApplication::processEvents(QEventLoop::AllEvents);
+        return !progress.wasCanceled();
+      },
+      [this](DocumentSession& live_target) {
+        push_undo_snapshot(live_target, tr("Add files as layers"));
         return true;
       },
       &error);
+  progress.setValue(progress.maximum());
+  progress.close();
+  if (shutting_down_ || !isVisible()) {
+    return false;
+  }
+  auto* live_target = session_with_id(target_session_id);
+  if (live_target == nullptr) {
+    return false;
+  }
+  if (live_target != active_session()) {
+    activate_document_session(*live_target);
+  }
+  auto& target = *live_target;
+  if (result.cancelled) {
+    statusBar()->showMessage(tr("Cancelled adding files as layers"));
+    return false;
+  }
   const auto failure_text = result.failure_messages.join(QLatin1Char('\n'));
   const auto& added = result.added_root_ids_top_to_bottom;
   if (added.empty()) {

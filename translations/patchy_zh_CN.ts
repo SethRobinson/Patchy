@@ -17485,6 +17485,18 @@ Y: %2
         <source>Files as Layers</source>
         <translation>文件转为图层</translation>
     </message>
+    <message>
+        <source>The document is no longer open.</source>
+        <translation>文档已不再打开。</translation>
+    </message>
+    <message>
+        <source>Adding file %1 of %2...</source>
+        <translation>正在添加文件 %1 / %2...</translation>
+    </message>
+    <message>
+        <source>Cancelled adding files as layers</source>
+        <translation>已取消将文件添加为图层</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>

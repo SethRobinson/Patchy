@@ -17533,6 +17533,18 @@ Y: %2
         <source>Files as Layers</source>
         <translation>File come livelli</translation>
     </message>
+    <message>
+        <source>The document is no longer open.</source>
+        <translation>Il documento non è più aperto.</translation>
+    </message>
+    <message>
+        <source>Adding file %1 of %2...</source>
+        <translation>Aggiunta del file %1 di %2...</translation>
+    </message>
+    <message>
+        <source>Cancelled adding files as layers</source>
+        <translation>Aggiunta dei file come livelli annullata</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>

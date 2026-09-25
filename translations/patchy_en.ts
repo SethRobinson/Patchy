@@ -17487,6 +17487,18 @@ Y: %2
         <source>Files as Layers</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>The document is no longer open.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Adding file %1 of %2...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cancelled adding files as layers</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>

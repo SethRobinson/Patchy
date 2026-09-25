@@ -607,25 +607,34 @@ private:
     std::vector<LayerId> added_root_ids_top_to_bottom;  // one per file that loaded
     QStringList failed_paths;                          // input order
     QStringList failure_messages;                      // "name: reason", parallel to failed_paths
+    bool cancelled{false};                             // progress said stop; nothing was added
   };
   // Two phases. Every path decodes first through load_document_from_path (PSD
   // trees, SVG vectors, RAW defaults, PDF page 1, GIF frames, flat alpha as a
   // mask); a lone root is renamed to the file's base name and several roots are
-  // wrapped in a pass-through folder named after it. Then each file's root is
-  // copied into a staged copy of target.document with
-  // copy_layers_between_documents (keep-position placement: exact when the sizes
-  // match, else centered on the canvas), the stack is repositioned to
-  // drop_target, before_mutation runs once, and the staged document replaces the
-  // live one. Mutates target.document only: no undo push, refresh, or selection.
-  // Empty ids with *error set when nothing was added.
+  // wrapped in a pass-through folder named after it. progress(index, total) runs
+  // before each decode (1-based; the UI drives its progress dialog and pumps
+  // events there, scripts their interrupt check) and returning false cancels the
+  // whole add. Then each file's root is copied into a staged copy of the target's
+  // document with copy_layers_between_documents (keep-position placement: exact
+  // when the sizes match, else centered on the canvas), the stack is repositioned
+  // to drop_target, before_mutation runs once with the live session, and the
+  // staged document replaces the live one. The session is re-resolved by id after
+  // the decodes because the progress pump can close documents. Mutates the
+  // target document only: no undo push, refresh, or selection. Empty ids with
+  // *error set when nothing was added.
   AddFilesAsLayersResult add_files_as_layers(DocumentSession& target, const QStringList& paths,
                                              std::optional<LayerInsertionTarget> drop_target,
                                              FailedFilesPolicy policy,
-                                             const std::function<bool()>& before_mutation, QString* error);
+                                             const std::function<bool(int, int)>& progress,
+                                             const std::function<bool(DocumentSession&)>& before_mutation,
+                                             QString* error);
   // The interactive wrapper shared by the panel drop, the Import command, and
-  // Paste: one "Add files as layers" snapshot, refresh, selection of every new
-  // root (topmost active), the status line, and the failure box (suppressed
-  // when unattended). Returns true when at least one layer was added.
+  // Paste: the cancellable filesAsLayersProgressDialog ("Adding file N of M",
+  // an event pump per file so the window keeps painting), one "Add files as
+  // layers" snapshot, refresh, selection of every new root (topmost active), the
+  // status line, and the failure box (suppressed when unattended). Cancel adds
+  // nothing. Returns true when at least one layer was added.
   bool add_files_as_layers_interactive(const QStringList& paths, std::optional<LayerInsertionTarget> drop_target,
                                        const QString& failure_title);
   void import_files_as_layers();
