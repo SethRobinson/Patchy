@@ -1676,7 +1676,7 @@ bool MainWindow::add_files_as_layers_interactive(const QStringList& paths,
   QString error;
   auto result = add_files_as_layers(
       session(), paths, drop_target, FailedFilesPolicy::SkipFailed,
-      [&progress, this](int index, int total) {
+      [&progress](int index, int total) {
         progress.setMaximum(total);
         progress.setLabelText(tr("Adding file %1 of %2...").arg(index).arg(total));
         progress.setValue(index - 1);
