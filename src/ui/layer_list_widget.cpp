@@ -5,6 +5,7 @@
 #include "ui/theme_qss.hpp"
 
 #include <QApplication>
+#include <QBoxLayout>
 #include <QCoreApplication>
 #include <QByteArray>
 #include <QCursor>
@@ -14,8 +15,11 @@
 #include <QDragMoveEvent>
 #include <QDropEvent>
 #include <QEvent>
+#include <QFocusEvent>
 #include <QItemSelection>
 #include <QKeyEvent>
+#include <QLabel>
+#include <QLineEdit>
 #include <QMimeData>
 #include <QMouseEvent>
 #include <QPainter>
@@ -682,6 +686,30 @@ bool LayerListWidget::eventFilter(QObject* watched, QEvent* event) {
       default:
         break;
     }
+  }
+  if (!inline_rename_edit_.isNull() && watched == inline_rename_edit_.data()) {
+    // The inline rename editor owns its own mouse input (caret placement, text
+    // selection): none of the row selection or drag branches below may see it.
+    if (event->type() == QEvent::KeyPress) {
+      auto* key_event = static_cast<QKeyEvent*>(event);
+      if (key_event->key() == Qt::Key_Escape) {
+        finish_inline_rename(/*commit=*/false);
+        event->accept();
+        return true;
+      }
+      if (key_event->key() == Qt::Key_Return || key_event->key() == Qt::Key_Enter) {
+        finish_inline_rename(/*commit=*/true);
+        event->accept();
+        return true;
+      }
+    } else if (event->type() == QEvent::FocusOut) {
+      // A popup (the edit's own context menu) hands focus back when it closes;
+      // every other focus loss is the click-elsewhere commit.
+      if (static_cast<QFocusEvent*>(event)->reason() != Qt::PopupFocusReason) {
+        finish_inline_rename(/*commit=*/true);
+      }
+    }
+    return false;
   }
   switch (event->type()) {
     case QEvent::MouseButtonPress:
@@ -1728,8 +1756,142 @@ bool LayerListWidget::handle_item_double_click(QListWidgetItem* item, QPoint vie
       return true;
     }
   }
+  // Photoshop splits the row: the name's text edits in place, the rest of the
+  // row (including the empty space right of a short name, since the label is
+  // stretched across the row) opens the layer's editor dialog.
+  if (inline_rename_callback_) {
+    if (auto* row = itemWidget(item); row != nullptr) {
+      auto* name = row->findChild<QLabel*>(QStringLiteral("layerRowName"));
+      const auto global_pos = viewport()->mapToGlobal(viewport_pos);
+      if (name != nullptr && name->isVisible()) {
+        auto text_rect = name->contentsRect();
+        text_rect.setWidth(std::min(text_rect.width(),
+                                    name->fontMetrics().horizontalAdvance(name->text()) + 6));
+        if (text_rect.contains(name->mapFromGlobal(global_pos)) && begin_inline_rename(item)) {
+          return true;
+        }
+      }
+    }
+  }
   item_double_click_callback_(item);
   return true;
+}
+
+void LayerListWidget::set_inline_rename_callback(std::function<void(LayerId, const QString&)> callback) {
+  inline_rename_callback_ = std::move(callback);
+}
+
+bool LayerListWidget::inline_rename_active() const noexcept {
+  return !inline_rename_edit_.isNull();
+}
+
+bool LayerListWidget::begin_inline_rename(QListWidgetItem* item) {
+  if (item == nullptr || !inline_rename_callback_) {
+    return false;
+  }
+  const auto layer_id = static_cast<LayerId>(item->data(kLayerIdRole).toULongLong());
+  if (layer_id == 0) {
+    return false;
+  }
+  if (!inline_rename_edit_.isNull()) {
+    if (inline_rename_layer_id_ == layer_id) {
+      inline_rename_edit_->selectAll();
+      inline_rename_edit_->setFocus(Qt::OtherFocusReason);
+      return true;
+    }
+    finish_inline_rename(/*commit=*/true);
+  }
+  auto* row = itemWidget(item);
+  auto* name = row != nullptr ? row->findChild<QLabel*>(QStringLiteral("layerRowName")) : nullptr;
+  if (name == nullptr) {
+    return false;
+  }
+  scrollToItem(item);
+
+  auto* edit = new QLineEdit(name->text(), name->parentWidget());
+  edit->setObjectName(QStringLiteral("layerRowNameEdit"));
+  edit->setFont(name->font());
+  edit->setContextMenuPolicy(Qt::DefaultContextMenu);
+  const auto label_height = name->height() > 0 ? name->height() : name->sizeHint().height();
+  edit->setFixedHeight(std::max(label_height, edit->fontMetrics().height() + 2));
+  // The label sits in a sub-layout of the row; put the edit in its slot so the
+  // row's geometry does not move. The overlay fallback covers a row whose
+  // layout cannot be found (never expected, but cheaper than a crash).
+  bool placed = false;
+  for (auto* layout : row->findChildren<QLayout*>()) {
+    auto* box = qobject_cast<QBoxLayout*>(layout);
+    if (box == nullptr) {
+      continue;
+    }
+    const auto index = box->indexOf(name);
+    if (index >= 0) {
+      box->insertWidget(index, edit);
+      placed = true;
+      break;
+    }
+  }
+  if (!placed) {
+    edit->setGeometry(name->geometry());
+  }
+  name->hide();
+  edit->show();
+  edit->selectAll();
+  edit->installEventFilter(this);
+  edit->setFocus(Qt::OtherFocusReason);
+
+  inline_rename_edit_ = edit;
+  inline_rename_label_ = name;
+  inline_rename_layer_id_ = layer_id;
+  inline_rename_finishing_ = false;
+  return true;
+}
+
+void LayerListWidget::cancel_inline_rename() {
+  if (!inline_rename_edit_.isNull()) {
+    finish_inline_rename(/*commit=*/false);
+  }
+}
+
+void LayerListWidget::finish_inline_rename(bool commit) {
+  if (inline_rename_finishing_ || inline_rename_edit_.isNull()) {
+    return;
+  }
+  inline_rename_finishing_ = true;
+  auto* edit = inline_rename_edit_.data();
+  const auto layer_id = inline_rename_layer_id_;
+  const auto text = edit->text().trimmed();
+  const auto original = !inline_rename_label_.isNull() ? inline_rename_label_->text() : QString();
+
+  edit->removeEventFilter(this);
+  edit->hide();
+  if (!inline_rename_label_.isNull()) {
+    inline_rename_label_->show();
+  }
+  // The edit may be inside its own key or focus event; deleteLater keeps the
+  // event delivery alive. The QPointer clears when it goes.
+  edit->deleteLater();
+  inline_rename_edit_.clear();
+  inline_rename_label_.clear();
+  inline_rename_layer_id_ = 0;
+  if (edit->hasFocus() || QApplication::focusWidget() == edit) {
+    setFocus(Qt::OtherFocusReason);
+  }
+  inline_rename_finishing_ = false;
+
+  if (!commit || text.isEmpty() || text == original || !inline_rename_callback_) {
+    return;
+  }
+  // Deferred: the callback rebuilds every row, and a focus-out commit can run
+  // inside the press that selects another row. Layer ids restart per document,
+  // so a focus loss to another document's tab drops the commit instead of
+  // renaming that document's layer with the same id (refresh_layer_list stamps
+  // the session id on every rebuild).
+  const auto session_id = drag_source_session_id_;
+  QTimer::singleShot(0, this, [this, layer_id, text, session_id] {
+    if (inline_rename_callback_ && session_id == drag_source_session_id_) {
+      inline_rename_callback_(layer_id, text);
+    }
+  });
 }
 
 void LayerListWidget::paintEvent(QPaintEvent* event) {

@@ -191,8 +191,9 @@ layers.
 
 ## Appearance editing and fill layers
 
-The Shape Appearance dialog opens from the vector badge, the row
-double-click, the layer context menu, the canvas right-click menu's shape
+The Shape Appearance dialog opens from the vector badge, the layer context
+menu (a shape row's double-click opens Layer Style, like every row), the
+canvas right-click menu's shape
 section ([tools.md](tools.md)), the options-bar
 Appearance... button (Shape mode, or Path / Direct Select on an editable
 shape), Layer > Shape > Shape Appearance... (`layer.shape_appearance`),

@@ -902,7 +902,13 @@ private:
   // destination document (another open session, or a new document the
   // source's size).
   void duplicate_layer_to_document();
+  // Rename Layer (menu, context menu, footer button, F2): edits the active
+  // layer's name in place in the Layers panel when its row is visible and it is
+  // the only selected layer (Photoshop), else through the rename dialog.
   void rename_active_layer();
+  // Shared commit for the dialog and the inline editor: trims, ignores an empty
+  // or unchanged name, records one "Rename layer" undo step.
+  void apply_layer_rename(LayerId id, const QString& name);
   // Animation Preview's name-token edits: stamps (a value) or strips (nullopt) the
   // trailing frame-time token on the selected (else active) layers' names, as one
   // undoable rename batch.

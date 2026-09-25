@@ -890,6 +890,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   auto* merge_down_action = layer_menu->addAction(tr("Merge &Down"));
   merge_down_action->setObjectName(QStringLiteral("layerMergeDownAction"));
   auto* rename_layer_action = layer_menu->addAction(tr("&Rename Layer..."));
+  rename_layer_action->setObjectName(QStringLiteral("layerRenameAction"));
   auto* delete_layer_action = layer_menu->addAction(tr("&Delete Layer"));
   // (No separator before the fill group: the Layer menu's 23-row bound paid
   // for the Shape submenu with it.)
@@ -1096,7 +1097,8 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   register_hotkey(edit_adjustment_action, "layer.edit_adjustment");
   register_hotkey(layer_blending_options_action_, "layer.styles");
   register_hotkey(duplicate_layer_action, "layer.duplicate");
-  register_hotkey(rename_layer_action, "layer.rename");
+  // F2: the Explorer, Blender and VS Code rename key on every platform.
+  register_hotkey(rename_layer_action, "layer.rename", QKeySequence(Qt::Key_F2));
   register_hotkey(delete_layer_action, "layer.delete");
   register_hotkey(flip_h_action, "layer.flip_horizontal");
   register_hotkey(flip_v_action, "layer.flip_vertical");

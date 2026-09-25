@@ -4,6 +4,7 @@
 #include "ui/ui_test_access.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/contour_presets.hpp"
+#include "core/vector_shape.hpp"
 #include "core/gradient_presets.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/pattern_presets.hpp"
@@ -2198,6 +2199,308 @@ void ui_layer_thumbnail_double_click_zooms_canvas_to_layer() {
   save_widget_artifact("ui_layer_thumbnail_double_click_zoom", window);
 }
 
+namespace {
+
+QLabel* require_layer_row_label(QListWidget& layer_list, const QString& layer_name, const QString& label_name) {
+  auto* item = require_layer_item(layer_list, layer_name);
+  auto* row = layer_list.itemWidget(item);
+  CHECK(row != nullptr);
+  auto* label = row->findChild<QLabel*>(label_name);
+  CHECK(label != nullptr);
+  return label;
+}
+
+QLineEdit* find_inline_rename_edit(QListWidget& layer_list) {
+  return layer_list.findChild<QLineEdit*>(QStringLiteral("layerRowNameEdit"));
+}
+
+// The name label is stretched across the row; only its text extent renames.
+QPoint name_text_center(const QLabel& name) {
+  return QPoint(std::max(2, name.fontMetrics().horizontalAdvance(name.text()) / 2), name.height() / 2);
+}
+
+}  // namespace
+
+// Photoshop's split: a double-click on the name edits it in place (Return
+// commits as one undo step, Escape cancels, focus loss commits), while a
+// double-click on the rest of the row still opens the layer's editor dialog.
+void ui_layer_row_name_double_click_renames_inline() {
+  patchy::Document document(64, 48, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(64, 48, patchy::PixelFormat::rgb8(), QColor(245, 245, 245)));
+  document.add_pixel_layer("Sketch", solid_pixels(64, 48, patchy::PixelFormat::rgba8(), QColor(40, 80, 220)));
+  const auto sketch_id = *document.active_layer_id();
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Inline Rename"));
+  QApplication::processEvents();
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+  const auto layer_name = [&doc, sketch_id] {
+    return QString::fromStdString(std::as_const(doc).find_layer(sketch_id)->name());
+  };
+  const auto undo_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+
+  // Return commits.
+  auto* name = require_layer_row_label(*layer_list, QStringLiteral("Sketch"), QStringLiteral("layerRowName"));
+  const auto name_height = name->height();
+  const auto row_height = layer_list->visualItemRect(require_layer_item(*layer_list, QStringLiteral("Sketch"))).height();
+  send_double_click(*name, name_text_center(*name));
+  auto* edit = find_inline_rename_edit(*layer_list);
+  CHECK(edit != nullptr);
+  CHECK(edit->text() == QStringLiteral("Sketch"));
+  CHECK(edit->selectedText() == QStringLiteral("Sketch"));
+  // The editor takes the label's slot: same height, so the row does not move.
+  CHECK(edit->height() == std::max(name_height, edit->fontMetrics().height() + 2));
+  CHECK(layer_list->visualItemRect(require_layer_item(*layer_list, QStringLiteral("Sketch"))).height() == row_height);
+  CHECK(!name->isVisible());
+  save_widget_artifact("ui_layer_row_name_inline_rename_editor", window);
+  edit->setText(QStringLiteral("  Line art  "));
+  send_key(*edit, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(find_inline_rename_edit(*layer_list) == nullptr);
+  CHECK(layer_name() == QStringLiteral("Line art"));
+  CHECK(require_layer_item(*layer_list, QStringLiteral("Line art")) != nullptr);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before + 1);
+
+  // Escape cancels without an undo entry.
+  name = require_layer_row_label(*layer_list, QStringLiteral("Line art"), QStringLiteral("layerRowName"));
+  send_double_click(*name, name_text_center(*name));
+  edit = find_inline_rename_edit(*layer_list);
+  CHECK(edit != nullptr);
+  edit->setText(QStringLiteral("Discarded"));
+  send_key(*edit, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(find_inline_rename_edit(*layer_list) == nullptr);
+  CHECK(layer_name() == QStringLiteral("Line art"));
+  CHECK(name->isVisible());
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before + 1);
+  // The list keeps its own Escape (deselect all layers) out of the editor's
+  // Escape: the row stays selected.
+  CHECK(require_layer_item(*layer_list, QStringLiteral("Line art"))->isSelected());
+
+  // Focus loss commits (the click-elsewhere case), keyed by layer id so a
+  // click that selects another row still renames the edited one.
+  send_double_click(*name, name_text_center(*name));
+  edit = find_inline_rename_edit(*layer_list);
+  CHECK(edit != nullptr);
+  edit->setText(QStringLiteral("Inks"));
+  // The commit rebuilds the rows between press and release, so the label is
+  // refetched per event (the click_layer_row_thumbnail pattern).
+  auto* background_name =
+      require_layer_row_label(*layer_list, QStringLiteral("Background"), QStringLiteral("layerRowName"));
+  send_mouse(*background_name, QEvent::MouseButtonPress, background_name->rect().center(), Qt::LeftButton,
+             Qt::LeftButton, Qt::NoModifier);
+  layer_list->setFocus();
+  QApplication::processEvents();
+  background_name =
+      require_layer_row_label(*layer_list, QStringLiteral("Background"), QStringLiteral("layerRowName"));
+  send_mouse(*background_name, QEvent::MouseButtonRelease, background_name->rect().center(), Qt::LeftButton,
+             Qt::NoButton, Qt::NoModifier);
+  QApplication::processEvents();
+  CHECK(find_inline_rename_edit(*layer_list) == nullptr);
+  CHECK(layer_name() == QStringLiteral("Inks"));
+  CHECK(require_layer_item(*layer_list, QStringLiteral("Background"))->isSelected());
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before + 2);
+
+  // An unchanged commit records nothing.
+  name = require_layer_row_label(*layer_list, QStringLiteral("Inks"), QStringLiteral("layerRowName"));
+  send_double_click(*name, name_text_center(*name));
+  edit = find_inline_rename_edit(*layer_list);
+  CHECK(edit != nullptr);
+  send_key(*edit, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before + 2);
+
+  patchy::ui::MainWindowTestAccess::undo(window);
+  patchy::ui::MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  CHECK(layer_name() == QStringLiteral("Sketch"));
+
+  // The rest of the row keeps the editor dialog: the details line, and the
+  // stretched name label's empty space right of the text.
+  const auto expect_style_dialog = [&](QWidget& target, QPoint position) {
+    bool saw_style_dialog = false;
+    QTimer::singleShot(0, [&] {
+      if (auto* dialog = find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")); dialog != nullptr) {
+        saw_style_dialog = true;
+        dialog->reject();
+      }
+    });
+    send_double_click(target, position);
+    QApplication::processEvents();
+    CHECK(saw_style_dialog);
+    CHECK(find_inline_rename_edit(*layer_list) == nullptr);
+  };
+  auto* details = require_layer_row_label(*layer_list, QStringLiteral("Sketch"), QStringLiteral("layerRowDetails"));
+  expect_style_dialog(*details, details->rect().center());
+  name = require_layer_row_label(*layer_list, QStringLiteral("Sketch"), QStringLiteral("layerRowName"));
+  CHECK(name->width() > name->fontMetrics().horizontalAdvance(name->text()) + 40);
+  expect_style_dialog(*name, QPoint(name->width() - 4, name->height() / 2));
+}
+
+// A shape row's double-click opens Layer Style like every other row (layer
+// styles apply to shapes too); Shape Appearance stays on the vector badge.
+void ui_layer_shape_row_double_click_opens_layer_style() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(100, 100)),
+       canvas->widget_position_for_document_point(QPoint(400, 300)));
+  QApplication::processEvents();
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+  const auto shape_id = doc.active_layer_id();
+  CHECK(shape_id.has_value());
+  CHECK(patchy::layer_is_vector_shape(*std::as_const(doc).find_layer(*shape_id)));
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* item = layer_list->currentItem();
+  CHECK(item != nullptr);
+  auto* details = layer_list->itemWidget(item)->findChild<QLabel*>(QStringLiteral("layerRowDetails"));
+  CHECK(details != nullptr);
+  bool saw_style_dialog = false;
+  QTimer::singleShot(0, [&] {
+    CHECK(find_top_level_dialog(QStringLiteral("shapeAppearanceDialog")) == nullptr);
+    if (auto* dialog = find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")); dialog != nullptr) {
+      saw_style_dialog = true;
+      dialog->reject();
+    }
+  });
+  send_double_click(*details, details->rect().center());
+  QApplication::processEvents();
+  CHECK(saw_style_dialog);
+}
+
+// Layer ids restart per document: a commit whose focus loss went to another
+// document's tab is dropped rather than renaming that document's same-id layer.
+void ui_layer_inline_rename_drops_commit_after_document_switch() {
+  patchy::Document document(64, 48, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(64, 48, patchy::PixelFormat::rgb8(), QColor(245, 245, 245)));
+  const auto background_id = *document.active_layer_id();
+
+  patchy::ui::MainWindow window;
+  show_window(window);  // Untitled-1: its Background shares layer id 1.
+  auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+  CHECK(tabs != nullptr);
+  CHECK(tabs->count() == 1);
+  auto& untitled = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(std::as_const(untitled).find_layer(background_id) != nullptr);
+  const auto untitled_name = std::as_const(untitled).find_layer(background_id)->name();
+  window.add_document_session(std::move(document), QStringLiteral("Second"));
+  QApplication::processEvents();
+  CHECK(tabs->currentIndex() == 1);
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* name = require_layer_row_label(*layer_list, QStringLiteral("Background"), QStringLiteral("layerRowName"));
+  send_double_click(*name, name_text_center(*name));
+  auto* edit = find_inline_rename_edit(*layer_list);
+  CHECK(edit != nullptr);
+  edit->setText(QStringLiteral("Wrong document"));
+  // Focus loss queues the commit; the tab switch lands before it runs.
+  layer_list->setFocus();
+  tabs->setCurrentIndex(0);
+  QApplication::processEvents();
+  QApplication::processEvents();
+  CHECK(find_inline_rename_edit(*layer_list) == nullptr);
+  auto& active = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(&active == &untitled);
+  CHECK(std::as_const(active).find_layer(background_id)->name() == untitled_name);
+  tabs->setCurrentIndex(1);
+  QApplication::processEvents();
+  CHECK(std::as_const(patchy::ui::MainWindowTestAccess::document(window)).find_layer(background_id)->name() ==
+        "Background");
+  CHECK(require_layer_item(*layer_list, QStringLiteral("Background")) != nullptr);
+}
+
+// Rename Layer (F2 by default) edits in place when the active layer's row is on
+// screen and it is the only selected layer; a multi-selection or a filtered-out
+// row falls back to the rename dialog.
+void ui_layer_rename_hotkey_enters_inline_edit() {
+  patchy::Document document(64, 48, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(64, 48, patchy::PixelFormat::rgb8(), QColor(245, 245, 245)));
+  document.add_pixel_layer("Alpha", solid_pixels(64, 48, patchy::PixelFormat::rgba8(), QColor(40, 80, 220)));
+  document.add_pixel_layer("Beta", solid_pixels(64, 48, patchy::PixelFormat::rgba8(), QColor(220, 80, 40)));
+  const auto beta_id = *document.active_layer_id();
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Rename Hotkey"));
+  QApplication::processEvents();
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* rename = require_action(window, "layerRenameAction");
+  CHECK(rename->shortcut() == QKeySequence(Qt::Key_F2));
+  CHECK(require_hotkey_action(window, QStringLiteral("layer.rename")) == rename);
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+
+  rename->trigger();
+  QApplication::processEvents();
+  auto* edit = find_inline_rename_edit(*layer_list);
+  CHECK(edit != nullptr);
+  CHECK(edit->text() == QStringLiteral("Beta"));
+  // A second F2 while editing keeps the same editor instead of restarting it.
+  rename->trigger();
+  QApplication::processEvents();
+  CHECK(find_inline_rename_edit(*layer_list) == edit);
+  edit->setText(QStringLiteral("Gamma"));
+  send_key(*edit, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(QString::fromStdString(std::as_const(doc).find_layer(beta_id)->name()) == QStringLiteral("Gamma"));
+
+  // Two selected rows: the dialog.
+  auto* gamma_item = require_layer_item(*layer_list, QStringLiteral("Gamma"));
+  auto* alpha_item = require_layer_item(*layer_list, QStringLiteral("Alpha"));
+  layer_list->setCurrentItem(gamma_item);
+  gamma_item->setSelected(true);
+  alpha_item->setSelected(true);
+  QApplication::processEvents();
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&] {
+    if (auto* dialog = find_top_level_dialog(QStringLiteral("patchyRenameLayerDialog")); dialog != nullptr) {
+      saw_dialog = true;
+      dialog->reject();
+    }
+  });
+  rename->trigger();
+  QApplication::processEvents();
+  CHECK(saw_dialog);
+  CHECK(find_inline_rename_edit(*layer_list) == nullptr);
+
+  // The active row hidden by the name filter: the dialog again.
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(gamma_item);
+  gamma_item->setSelected(true);
+  QApplication::processEvents();
+  auto* filter = window.findChild<QLineEdit*>(QStringLiteral("layerNameFilterEdit"));
+  CHECK(filter != nullptr);
+  filter->setText(QStringLiteral("Alpha"));
+  QApplication::processEvents();
+  CHECK(doc.active_layer_id() == beta_id);
+  saw_dialog = false;
+  QTimer::singleShot(0, [&] {
+    if (auto* dialog = find_top_level_dialog(QStringLiteral("patchyRenameLayerDialog")); dialog != nullptr) {
+      saw_dialog = true;
+      dialog->reject();
+    }
+  });
+  rename->trigger();
+  QApplication::processEvents();
+  CHECK(saw_dialog);
+  CHECK(find_inline_rename_edit(*layer_list) == nullptr);
+  filter->clear();
+  QApplication::processEvents();
+}
+
 void ui_move_auto_select_reveals_layers_in_collapsed_folders() {
   patchy::Document document(48, 48, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Background",
@@ -3406,6 +3709,11 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
        ui_layer_folder_ctrl_alt_click_toggles_all_folders},
       {"ui_layer_thumbnail_double_click_zooms_canvas_to_layer",
        ui_layer_thumbnail_double_click_zooms_canvas_to_layer},
+      {"ui_layer_row_name_double_click_renames_inline", ui_layer_row_name_double_click_renames_inline},
+      {"ui_layer_rename_hotkey_enters_inline_edit", ui_layer_rename_hotkey_enters_inline_edit},
+      {"ui_layer_inline_rename_drops_commit_after_document_switch",
+       ui_layer_inline_rename_drops_commit_after_document_switch},
+      {"ui_layer_shape_row_double_click_opens_layer_style", ui_layer_shape_row_double_click_opens_layer_style},
       {"ui_layer_eye_alt_click_isolates_and_restores", ui_layer_eye_alt_click_isolates_and_restores},
       {"ui_layer_eye_alt_click_folder_isolates_group", ui_layer_eye_alt_click_folder_isolates_group},
       {"ui_layer_eye_alt_click_reisolate_keeps_original_snapshot",

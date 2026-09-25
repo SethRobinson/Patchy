@@ -3044,6 +3044,12 @@ void MainWindow::refresh_layer_list(bool retire_automation_rows, const std::func
   const auto horizontal_scroll_value =
       layer_list_->horizontalScrollBar() != nullptr ? layer_list_->horizontalScrollBar()->value() : 0;
   updating_layer_list_ = true;
+  // A rebuild destroys the row holding an open inline rename editor; drop it
+  // without committing rather than letting the destruction's focus-out commit
+  // a half-typed name.
+  if (auto* list = dynamic_cast<LayerListWidget*>(layer_list_); list != nullptr) {
+    list->cancel_inline_rename();
+  }
   QSignalBlocker blocker(layer_list_);
   layer_list_->setUpdatesEnabled(false);
   const auto clear_started = std::chrono::steady_clock::now();

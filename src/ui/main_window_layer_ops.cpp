@@ -2182,14 +2182,35 @@ void MainWindow::rename_active_layer() {
     return;
   }
 
+  // In-place editing needs the row on screen and a single selection; a filtered
+  // or collapsed-away row and a multi-selection fall back to the dialog.
+  if (auto* list = dynamic_cast<LayerListWidget*>(layer_list_);
+      list != nullptr && list->isVisible() && selected_layer_ids().size() <= 1) {
+    if (auto* item = list->item_for_layer_id(layer->id()); item != nullptr && list->begin_inline_rename(item)) {
+      return;
+    }
+  }
+
   const auto new_name = request_text_input(this, QStringLiteral("patchyRenameLayerDialog"), tr("Rename Layer"),
                                            tr("Name"), QString::fromStdString(layer->name()));
-  if (!new_name.has_value() || new_name->trimmed().isEmpty()) {
+  if (!new_name.has_value()) {
+    return;
+  }
+  apply_layer_rename(layer->id(), *new_name);
+}
+
+void MainWindow::apply_layer_rename(LayerId id, const QString& name) {
+  if (!has_active_document()) {
+    return;
+  }
+  auto* layer = document().find_layer(id);
+  const auto trimmed = name.trimmed();
+  if (layer == nullptr || trimmed.isEmpty() || trimmed.toStdString() == layer->name()) {
     return;
   }
 
   push_undo_snapshot(tr("Rename layer"));
-  layer->set_name(new_name->trimmed().toStdString());
+  layer->set_name(trimmed.toStdString());
   refresh_layer_list();
   refresh_layer_controls();
 }

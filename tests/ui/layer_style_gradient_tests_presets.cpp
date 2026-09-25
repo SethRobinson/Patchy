@@ -865,7 +865,7 @@ void ui_layer_style_open_pattern_as_image_defers_until_dialog_closes() {
   CHECK(layer_list != nullptr);
   auto* row_widget = layer_list->itemWidget(layer_list->item(0));
   CHECK(row_widget != nullptr);
-  auto* row_name = row_widget->findChild<QLabel*>(QStringLiteral("layerRowName"));
+  auto* row_name = row_widget->findChild<QLabel*>(QStringLiteral("layerRowDetails"));
   CHECK(row_name != nullptr);
 
   bool drove_style_dialog = false;

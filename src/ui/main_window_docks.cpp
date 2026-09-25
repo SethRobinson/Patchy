@@ -1230,17 +1230,15 @@ void MainWindow::create_docks() {
       edit_active_adjustment_layer();
       return;
     }
-    if (layer != nullptr && layer_is_vector_shape(*layer) && vector_lock_reason(*layer).empty()) {
-      // Shape and fill layers open their appearance editor (the adjustment-
-      // layer precedent); layer styles stay reachable from the context menu.
-      edit_active_shape_appearance();
-      return;
-    }
-    // Smart objects deliberately fall through to the layer styles dialog too:
-    // their contents open via the row's smart-object badge button (or the
-    // Smart Objects menus), so double-click stays consistent for every layer.
+    // Smart objects and shape layers deliberately fall through to the layer
+    // styles dialog too: their contents / appearance open via the row's
+    // smart-object or vector badge button (or the menus), and layer styles
+    // apply to shapes as well, so double-click stays consistent for every
+    // layer (Seth, September 2026).
     edit_active_layer_style();
   });
+  layer_list->set_inline_rename_callback(
+      [this](LayerId id, const QString& name) { apply_layer_rename(id, name); });
   layer_list->set_content_thumbnail_double_click_callback([this](QListWidgetItem* item) {
     const auto layer_id = static_cast<LayerId>(item->data(kLayerIdRole).toULongLong());
     if (layer_id == 0) {

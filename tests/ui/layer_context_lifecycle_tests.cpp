@@ -1117,7 +1117,7 @@ void ui_layer_row_double_click_opens_blending_options_dialog() {
   CHECK(item != nullptr);
   auto* row_widget = layer_list->itemWidget(item);
   CHECK(row_widget != nullptr);
-  auto* row_name = row_widget->findChild<QLabel*>(QStringLiteral("layerRowName"));
+  auto* row_name = row_widget->findChild<QLabel*>(QStringLiteral("layerRowDetails"));
   CHECK(row_name != nullptr);
 
   bool saw_blending_options = false;
@@ -1313,7 +1313,7 @@ void ui_layer_row_double_click_opens_folder_styles_and_edits_adjustments() {
     auto* item = require_layer_item(*layer_list, layer_name);
     auto* row_widget = layer_list->itemWidget(item);
     CHECK(row_widget != nullptr);
-    auto* row_name = row_widget->findChild<QLabel*>(QStringLiteral("layerRowName"));
+    auto* row_name = row_widget->findChild<QLabel*>(QStringLiteral("layerRowDetails"));
     CHECK(row_name != nullptr);
     return row_name;
   };

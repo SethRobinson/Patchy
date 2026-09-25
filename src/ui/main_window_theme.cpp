@@ -728,6 +728,18 @@ QString photoshop_style_template() {
       color: @layer_row_name_text;
       font-size: 12px;
     }
+    /* The inline rename editor takes the name label's slot, so it keeps the
+       label's height and font instead of the generic 20 px field. */
+    QLineEdit#layerRowNameEdit {
+      background: @field_bg;
+      color: @layer_row_name_text;
+      border: 1px solid @accent_bright;
+      border-radius: 0;
+      padding: 0 1px;
+      margin: 0;
+      min-height: 0px;
+      font-size: 12px;
+    }
     QLabel#layerRowDetails {
       color: @layer_row_details_text;
       font-size: 10px;

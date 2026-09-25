@@ -22,6 +22,8 @@ class QDragEnterEvent;
 class QDragLeaveEvent;
 class QDragMoveEvent;
 class QDropEvent;
+class QLabel;
+class QLineEdit;
 class QListWidgetItem;
 class QMimeData;
 class QMouseEvent;
@@ -84,6 +86,19 @@ public:
   // keeps the plain item double-click behavior.
   void set_content_thumbnail_double_click_callback(std::function<void(QListWidgetItem*)> callback);
   void set_smart_filter_double_click_callback(std::function<void(QListWidgetItem*, std::size_t)> callback);
+  // Photoshop's in-place rename: a double-click on the row's name label (or
+  // begin_inline_rename from the Rename command) swaps the label for a line
+  // edit. Return or focus loss commits through this callback with the row's
+  // layer id and the trimmed text; Escape cancels. The callback rebuilds the
+  // rows, so it runs deferred.
+  void set_inline_rename_callback(std::function<void(LayerId, const QString&)> callback);
+  // False when the item has no row widget or name label (no editor opened).
+  bool begin_inline_rename(QListWidgetItem* item);
+  [[nodiscard]] bool inline_rename_active() const noexcept;
+  // Drops an open editor without committing; refresh_layer_list calls it
+  // before clearing the rows so a rebuild never commits a half-typed name.
+  void cancel_inline_rename();
+  [[nodiscard]] QListWidgetItem* item_for_layer_id(LayerId id) const;
   [[nodiscard]] bool drop_in_progress() const noexcept;
   // Blocks drag reordering while the layer name filter hides rows; a reorder
   // would silently move the filtered-out layers sitting between visible ones.
@@ -141,7 +156,7 @@ private:
   void set_current_item_preserving_scroll(QListWidgetItem* item, QItemSelectionModel::SelectionFlags command);
   void finish_pending_single_select();
   [[nodiscard]] std::vector<LayerId> selected_layer_ids_top_to_bottom() const;
-  [[nodiscard]] QListWidgetItem* item_for_layer_id(LayerId id) const;
+  void finish_inline_rename(bool commit);
   [[nodiscard]] QListWidgetItem* parent_item_for(QListWidgetItem* item) const;
   [[nodiscard]] DropTarget drop_target_at(QPoint viewport_position) const;
   [[nodiscard]] LayerDropPosition inferred_drop_position(QListWidgetItem* target_item,
@@ -218,6 +233,11 @@ private:
   std::function<void(QListWidgetItem*)> item_double_click_callback_;
   std::function<void(QListWidgetItem*)> content_thumbnail_double_click_callback_;
   std::function<void(QListWidgetItem*, std::size_t)> smart_filter_double_click_callback_;
+  std::function<void(LayerId, const QString&)> inline_rename_callback_;
+  QPointer<QLineEdit> inline_rename_edit_;
+  QPointer<QLabel> inline_rename_label_;
+  LayerId inline_rename_layer_id_{0};
+  bool inline_rename_finishing_{false};
 };
 
 }  // namespace patchy::ui
