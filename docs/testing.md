@@ -178,6 +178,7 @@ Useful diagnostic variables:
 - `PATCHY_PROCESSING_OVERLAY_MIN_PIXELS` overrides the processing-overlay threshold.
 - `PATCHY_NO_SOUND=1` suppresses script audio; offscreen suites rely on it.
 - `PATCHY_SETTINGS_DIR=<dir>` redirects the app's ini settings store (automation isolation).
+- `PATCHY_RECOVERY_DIR=<dir>` redirects the automatic document recovery store (the UI suite sets it to `test-artifacts/recovery`); `PATCHY_RECOVERY_INTERVAL_MS=<ms>` overrides the recovery timer interval. See [document-recovery.md](document-recovery.md).
 - `PATCHY_HEADLESS=1` marks a `--headless` app run (main.cpp sets it). Never set it for the suites: it re-enables the registry font rescue and makes layouts machine-dependent.
 - `QT_COMMAND_LINE_PARSER_NO_GUI_MESSAGE_BOXES=1` makes `patchy.exe --help` and command-line parse errors print to the redirected stdout/stderr instead of a modal Win32 message box (patchy.exe is a GUI-subsystem binary), which is what an automated `--help` check needs.
 - `PATCHY_UI_TEST_FILTER` selects a UI test substring.

@@ -23,6 +23,8 @@
 #include "core/layer_render_utils.hpp"
 #include "core/pixel_tools.hpp"
 #include "ui/main_window.hpp"
+#include "ui/app_settings.hpp"
+#include "ui/document_recovery.hpp"
 #include "ui/layer_merge.hpp"
 #include "ui/qt_geometry.hpp"
 #include "ui/qt_paths.hpp"
@@ -1932,6 +1934,124 @@ bool ScriptIoObject::deleteFile(const QString& path) {
 
 // ---------------------------------------------------------------------------
 // ScriptUiObject
+
+// ---------------------------------------------------------------------------
+// ScriptRecoveryObject
+
+namespace {
+
+QJSValue recovery_entry_value(ScriptEngineHost& host, const QString& directory,
+                              const patchy::recovery::RecoveryEntry& entry, bool with_directory) {
+  auto value = host.engine()->newObject();
+  if (with_directory) {
+    value.setProperty(QStringLiteral("directory"), directory);
+  }
+  value.setProperty(QStringLiteral("file"), directory + QLatin1Char('/') + QString::fromStdString(entry.file_stem) +
+                                                QLatin1String(patchy::recovery::kDocumentExtension.data(),
+                                                              static_cast<int>(patchy::recovery::kDocumentExtension.size())));
+  value.setProperty(QStringLiteral("title"), QString::fromStdString(entry.title));
+  value.setProperty(QStringLiteral("originalPath"), QString::fromStdString(entry.original_path));
+  value.setProperty(QStringLiteral("savedAt"), static_cast<double>(entry.saved_at_unix_ms));
+  return value;
+}
+
+}  // namespace
+
+ScriptRecoveryObject::ScriptRecoveryObject(ScriptEngineHost& host) : host_(host) {}
+
+bool ScriptRecoveryObject::enabled() const { return stored_recovery_enabled(); }
+
+void ScriptRecoveryObject::set_enabled(bool enabled) {
+  const ScriptApiCall api_call(host_);
+  set_stored_recovery_enabled(enabled);
+#ifndef Q_OS_WASM
+  host_.window().apply_recovery_preferences();
+#endif
+}
+
+int ScriptRecoveryObject::interval_minutes() const { return stored_recovery_interval_minutes(); }
+
+void ScriptRecoveryObject::set_interval_minutes(int minutes) {
+  const ScriptApiCall api_call(host_);
+  if (normalize_recovery_interval_minutes(minutes) != minutes) {
+    host_.throw_js_error(ScriptEngineHost::tr("intervalMinutes must be 5, 10, 15, 30, or 60"));
+    return;
+  }
+  set_stored_recovery_interval_minutes(minutes);
+#ifndef Q_OS_WASM
+  host_.window().apply_recovery_preferences();
+#endif
+}
+
+QString ScriptRecoveryObject::directory() const {
+#ifdef Q_OS_WASM
+  return QString();
+#else
+  return QDir::fromNativeSeparators(host_.window().recovery_directory());
+#endif
+}
+
+QStringList ScriptRecoveryObject::writeNow() {
+  const ScriptApiCall api_call(host_);
+#ifdef Q_OS_WASM
+  return {};
+#else
+  auto written = host_.window().write_recovery_now(/*wait=*/true);
+  for (auto& path : written) {
+    path = QDir::fromNativeSeparators(path);
+  }
+  return written;
+#endif
+}
+
+QJSValue ScriptRecoveryObject::listFiles() {
+  const ScriptApiCall api_call(host_);
+  auto array = host_.engine()->newArray();
+#ifndef Q_OS_WASM
+  const auto directory = this->directory();
+  quint32 index = 0;
+  for (const auto& entry : host_.window().list_recovery_entries()) {
+    array.setProperty(index++, recovery_entry_value(host_, directory, entry, false));
+  }
+#endif
+  return array;
+}
+
+QJSValue ScriptRecoveryObject::listOrphaned() {
+  const ScriptApiCall api_call(host_);
+  auto array = host_.engine()->newArray();
+#ifndef Q_OS_WASM
+  quint32 index = 0;
+  for (const auto& orphan : host_.window().list_orphaned_recovery()) {
+    const auto directory = QDir::fromNativeSeparators(to_qstring(orphan.directory));
+    for (const auto& entry : orphan.entries) {
+      array.setProperty(index++, recovery_entry_value(host_, directory, entry, true));
+    }
+  }
+#endif
+  return array;
+}
+
+QJSValue ScriptRecoveryObject::recoverAll() {
+  const ScriptApiCall api_call(host_);
+  auto array = host_.engine()->newArray();
+#ifndef Q_OS_WASM
+  quint32 index = 0;
+  for (const auto id : host_.window().recover_orphaned_documents()) {
+    array.setProperty(index++, make_document_value(host_, id));
+  }
+#endif
+  return array;
+}
+
+int ScriptRecoveryObject::discardOrphaned() {
+  const ScriptApiCall api_call(host_);
+#ifdef Q_OS_WASM
+  return 0;
+#else
+  return host_.window().discard_orphaned_recovery();
+#endif
+}
 
 ScriptUiObject::ScriptUiObject(ScriptEngineHost& host) : host_(host) {}
 

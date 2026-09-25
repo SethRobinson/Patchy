@@ -2953,6 +2953,32 @@ void MainWindow::toggle_animation_preview_window() {
   animation_preview_window_->activateWindow();
 }
 
+#ifndef Q_OS_WASM
+bool MainWindow::open_recovered_document(const QString& psb_path, const QString& title, const QString& original_path,
+                                         std::int64_t* session_id) {
+  try {
+    // The copy is Patchy's own PSB: no prompts, no raw dialog, and the same
+    // post-open text fix-up the regular open path applies.
+    auto loaded = load_document_interactive(this, psb_path, /*interactive=*/false, /*allow_raw_dialog=*/false);
+    if (!loaded.has_value()) {
+      return false;
+    }
+    record_text_layout_metrics_for_reopened_text(loaded->document);
+    add_document_session(std::move(loaded->document), title, original_path, tr("Recover"));
+    auto& recovered = session();
+    // Recovered content is by definition unsaved: Save goes to the original path.
+    mark_session_modified(recovered);
+    if (session_id != nullptr) {
+      *session_id = recovered.session_id;
+    }
+    return true;
+  } catch (const std::exception& error) {
+    fprintf(stderr, "Recovery failed: %s (%s)\n", error.what(), psb_path.toUtf8().constData());
+    return false;
+  }
+}
+#endif
+
 bool MainWindow::save_document() {
   if (!has_active_document()) {
     show_status_error(tr("No document"));

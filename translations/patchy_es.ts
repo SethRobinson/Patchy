@@ -8502,6 +8502,10 @@ RGB: %2, %3, %4</translation>
         <source>Created by %1</source>
         <translation>Creado por %1</translation>
     </message>
+    <message>
+        <source>Could not write PSD file</source>
+        <translation>No se pudo escribir el archivo PSD</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -17490,6 +17494,47 @@ Y: %2
         <source>Copied variation %1 to the hidden layer &quot;%2&quot;</source>
         <translation>Variante %1 copiada en la capa oculta &quot;%2&quot;</translation>
     </message>
+    <message>
+        <source>Recover</source>
+        <translation>Recuperar</translation>
+    </message>
+    <message>
+        <source>Automatically save recovery information every</source>
+        <translation>Guardar automáticamente la información de recuperación cada</translation>
+    </message>
+    <message>
+        <source>Writes a copy of each changed document to a recovery folder so it can be reopened after a crash. The file you saved is never touched, and the copies are removed when Patchy quits normally.</source>
+        <translation>Escribe una copia de cada documento modificado en una carpeta de recuperación para poder reabrirlo tras un bloqueo. El archivo que guardó nunca se toca, y las copias se eliminan cuando Patchy se cierra normalmente.</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n minute(s)</source>
+        <translation>
+            <numerusform>%n minuto</numerusform>
+            <numerusform>%n minutos</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Could not save recovery information: %1</source>
+        <translation>No se pudo guardar la información de recuperación: %1</translation>
+    </message>
+    <message>
+        <source>%1 (Recovered)</source>
+        <translation>%1 (Recuperado)</translation>
+    </message>
+    <message numerus="yes">
+        <source>Recovered %n unsaved document(s) from the last session</source>
+        <translation>
+            <numerusform>Se recuperó %n documento sin guardar de la última sesión</numerusform>
+            <numerusform>Se recuperaron %n documentos sin guardar de la última sesión</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n recovery file(s) could not be opened; see %1</source>
+        <translation>
+            <numerusform>No se pudo abrir %n archivo de recuperación; consulte %1</numerusform>
+            <numerusform>No se pudieron abrir %n archivos de recuperación; consulte %1</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -18808,6 +18853,10 @@ Y: %2
     <message>
         <source>distributeLayers needs at least three movable layers.</source>
         <translation>distributeLayers necesita al menos tres capas movibles.</translation>
+    </message>
+    <message>
+        <source>intervalMinutes must be 5, 10, 15, 30, or 60</source>
+        <translation>intervalMinutes debe ser 5, 10, 15, 30 o 60</translation>
     </message>
 </context>
 <context>

@@ -181,6 +181,11 @@ int main(int argc, char* argv[]) {
   const auto test_settings_path = QDir::current().filePath(QStringLiteral("test-artifacts/settings"));
   CHECK(QDir().mkpath(test_settings_path));
   QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, test_settings_path);
+  // Every test window owns a recovery instance folder; keep them out of the real
+  // per-user AutoRecover store (a test window is never a crashed user session).
+  if (qEnvironmentVariableIsEmpty("PATCHY_RECOVERY_DIR")) {
+    qputenv("PATCHY_RECOVERY_DIR", QDir::current().filePath(QStringLiteral("test-artifacts/recovery")).toUtf8());
+  }
   {
     auto settings = patchy::ui::app_settings();
     settings.remove(QStringLiteral("tools"));
@@ -255,6 +260,7 @@ int main(int argc, char* argv[]) {
            svg_ui_tests,
            image_trace_ui_tests,
            scripting_tests,
+           document_recovery_tests,
            mcp_tests,
            unicode_path_tests,
            history_panel_tests,

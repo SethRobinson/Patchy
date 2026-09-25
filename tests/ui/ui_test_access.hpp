@@ -232,6 +232,10 @@ public:
     return window.session().path;
   }
 
+  static QString active_session_title(MainWindow& window) {
+    return window.session().title;
+  }
+
   static bool register_legacy_plugin_path(MainWindow& window, const QString& path, QStringList* report) {
     return window.register_legacy_plugin_path(path, report);
   }

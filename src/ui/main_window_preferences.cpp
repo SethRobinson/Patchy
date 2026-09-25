@@ -509,6 +509,29 @@ void MainWindow::show_preferences() {
   update_check->setObjectName(QStringLiteral("preferencesCheckForUpdatesCheck"));
   update_check->setChecked(settings.value(QStringLiteral("updates/checkOnStartup"), true).toBool());
   application_form->addRow(update_check);
+  // Automatic document recovery (docs/document-recovery.md): a checkbox and the
+  // interval combo on one row, the way Photoshop's File Handling page lays it out.
+  auto* recovery_row = new QWidget(application_group);
+  auto* recovery_layout = new QHBoxLayout(recovery_row);
+  recovery_layout->setContentsMargins(0, 0, 0, 0);
+  auto* recovery_check = new QCheckBox(tr("Automatically save recovery information every"), recovery_row);
+  recovery_check->setObjectName(QStringLiteral("preferencesRecoveryEnabledCheck"));
+  recovery_check->setToolTip(
+      tr("Writes a copy of each changed document to a recovery folder so it can be reopened after a "
+         "crash. The file you saved is never touched, and the copies are removed when Patchy quits normally."));
+  recovery_check->setChecked(stored_recovery_enabled());
+  auto* recovery_combo = new QComboBox(recovery_row);
+  recovery_combo->setObjectName(QStringLiteral("preferencesRecoveryIntervalCombo"));
+  for (const int minutes : kRecoveryIntervalMinutes) {
+    recovery_combo->addItem(tr("%n minute(s)", nullptr, minutes), minutes);
+  }
+  recovery_combo->setCurrentIndex(recovery_combo->findData(stored_recovery_interval_minutes()));
+  recovery_combo->setEnabled(recovery_check->isChecked());
+  connect(recovery_check, &QCheckBox::toggled, recovery_combo, &QComboBox::setEnabled);
+  recovery_layout->addWidget(recovery_check);
+  recovery_layout->addWidget(recovery_combo);
+  recovery_layout->addStretch(1);
+  application_form->addRow(recovery_row);
 #endif
   auto* psd_import_warnings_check =
       new QCheckBox(tr("Show import warnings and notes in a popup (status bar otherwise)"), application_group);
@@ -1097,6 +1120,9 @@ void MainWindow::show_preferences() {
         std::clamp(static_cast<int>(std::lround(grid_spacing_spin->value() * 32.0)), 1, 320000);
 #ifndef Q_OS_WASM
     settings.setValue(QStringLiteral("updates/checkOnStartup"), update_check->isChecked());
+    set_stored_recovery_enabled(recovery_check->isChecked());
+    set_stored_recovery_interval_minutes(recovery_combo->currentData().toInt());
+    apply_recovery_preferences();
 #endif
     settings.setValue(QStringLiteral("imports/showPsdWarningsAndInfo"), psd_import_warnings_check->isChecked());
     settings.setValue(QStringLiteral("imports/showRawDevelopDialog"), raw_develop_check->isChecked());

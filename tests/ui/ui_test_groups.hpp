@@ -56,6 +56,7 @@ std::vector<patchy::test::TestCase> vector_scripting_tests();
 std::vector<patchy::test::TestCase> svg_ui_tests();
 std::vector<patchy::test::TestCase> image_trace_ui_tests();
 std::vector<patchy::test::TestCase> scripting_tests();
+std::vector<patchy::test::TestCase> document_recovery_tests();
 std::vector<patchy::test::TestCase> mcp_tests();
 std::vector<patchy::test::TestCase> unicode_path_tests();
 std::vector<patchy::test::TestCase> history_panel_tests();

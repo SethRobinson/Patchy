@@ -8475,6 +8475,10 @@ RGB：%2, %3, %4</translation>
         <source>Created by %1</source>
         <translation>由 %1 製作</translation>
     </message>
+    <message>
+        <source>Could not write PSD file</source>
+        <translation>無法寫入 PSD 檔案</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -17443,6 +17447,44 @@ Y：%2
         <source>Copied variation %1 to the hidden layer &quot;%2&quot;</source>
         <translation>已將變化 %1 複製到隱藏圖層「%2」</translation>
     </message>
+    <message>
+        <source>Recover</source>
+        <translation>復原</translation>
+    </message>
+    <message>
+        <source>Automatically save recovery information every</source>
+        <translation>自動儲存復原資訊，間隔</translation>
+    </message>
+    <message>
+        <source>Writes a copy of each changed document to a recovery folder so it can be reopened after a crash. The file you saved is never touched, and the copies are removed when Patchy quits normally.</source>
+        <translation>將每個已變更文件的副本寫入復原資料夾，以便在當機後重新開啟。您儲存的檔案絕不會被更動，Patchy 正常結束時會刪除這些副本。</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n minute(s)</source>
+        <translation>
+            <numerusform>%n 分鐘</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Could not save recovery information: %1</source>
+        <translation>無法儲存復原資訊：%1</translation>
+    </message>
+    <message>
+        <source>%1 (Recovered)</source>
+        <translation>%1（已復原）</translation>
+    </message>
+    <message numerus="yes">
+        <source>Recovered %n unsaved document(s) from the last session</source>
+        <translation>
+            <numerusform>已從上次工作階段復原 %n 個未儲存的文件</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n recovery file(s) could not be opened; see %1</source>
+        <translation>
+            <numerusform>%n 個復原檔案無法開啟；請查看 %1</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -18760,6 +18802,10 @@ Y：%2
     <message>
         <source>distributeLayers needs at least three movable layers.</source>
         <translation>distributeLayers 需要至少三個可移動的圖層。</translation>
+    </message>
+    <message>
+        <source>intervalMinutes must be 5, 10, 15, 30, or 60</source>
+        <translation>intervalMinutes 必須為 5、10、15、30 或 60</translation>
     </message>
 </context>
 <context>

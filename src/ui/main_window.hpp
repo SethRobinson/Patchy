@@ -2,6 +2,7 @@
 
 #include "core/adjustment_layer.hpp"
 #include "core/document.hpp"
+#include "core/document_recovery_store.hpp"
 #include "core/layer_alignment.hpp"
 #include "core/smart_filter.hpp"
 #include "core/text_warp.hpp"
@@ -110,6 +111,8 @@ class BrushTipLibrary;
 class BrushAutomationLibrary;
 class BrushTipPicker;
 class DocumentFloatWindow;
+class RecoveryInstanceFolder;
+struct OrphanedRecoveryFolder;
 class CustomShapeLibrary;
 class AnimationPreviewWindow;
 class PalettePanel;
@@ -194,6 +197,38 @@ public:
   // data-loss confirms). Set before opening files.
   void set_cli_automation_mode(bool enabled) { cli_automation_mode_ = enabled; }
   [[nodiscard]] bool unattended_automation() const;
+#ifndef Q_OS_WASM
+  // Automatic document recovery (docs/document-recovery.md, main_window_recovery.cpp):
+  // a timer writes a PSB copy of every modified document into this instance's
+  // recovery folder; a launch after a crash reopens what it finds. The web build has
+  // no recovery store.
+  // Re-reads the recovery preferences and restarts or stops the timer.
+  void apply_recovery_preferences();
+  // The timer tick, callable on demand: writes a recovery copy of every modified
+  // document whose state changed since its last copy. Returns the PSB paths it
+  // started writing; empty when the app is busy (a modal dialog, a canvas gesture,
+  // a write still in flight) or nothing changed. `wait` pumps events until the
+  // background write has finished, so the files exist when it returns.
+  QStringList write_recovery_now(bool wait);
+  [[nodiscard]] QString recovery_directory() const;
+  // The recovery copies this instance holds right now.
+  [[nodiscard]] std::vector<recovery::RecoveryEntry> list_recovery_entries() const;
+  // Recovery folders left by instances that are no longer running.
+  [[nodiscard]] std::vector<OrphanedRecoveryFolder> list_orphaned_recovery() const;
+  // Reopens every orphaned recovery copy as a modified document titled
+  // "<name> (Recovered)" (its path set to the original file when known) and moves
+  // the copy into this instance's folder. Returns the new session ids. Files that
+  // fail to open stay where they are and are reported in the status bar.
+  std::vector<std::int64_t> recover_orphaned_documents();
+  // Deletes every orphaned recovery folder; returns how many documents were dropped.
+  int discard_orphaned_recovery();
+  // The document state a recovery copy holds (see recovery_marks_).
+  struct RecoveryMark {
+    std::int64_t session_id{0};
+    std::int64_t revision{0};
+    std::int64_t state_id{0};
+  };
+#endif
   // The JS scripting engine (lazily created; see main_window_scripting.cpp and
   // docs/scripting.md).
   [[nodiscard]] ScriptEngineHost& script_engine_host();
@@ -535,6 +570,26 @@ private:
   void set_session_saved(DocumentSession& target_session);
   void mark_session_modified(DocumentSession& target_session);
   [[nodiscard]] bool session_is_modified(const DocumentSession& target_session) const noexcept;
+  // True while any canvas runs a pointer gesture, a transform, a crop session, or an
+  // inline text edit (the scripting host's manual-edit check and the recovery
+  // timer's busy check share it).
+  [[nodiscard]] bool any_canvas_interaction_active() const;
+#ifndef Q_OS_WASM
+  void start_document_recovery();
+  [[nodiscard]] bool recovery_busy() const;
+  void discard_recovery_for_session(std::int64_t session_id);
+  void finish_recovery_write(const std::vector<RecoveryMark>& marks, const QStringList& errors);
+  // Opens one recovery copy as a new modified session (main_window_files.cpp).
+  bool open_recovered_document(const QString& psb_path, const QString& title, const QString& original_path,
+                               std::int64_t* session_id);
+  std::shared_ptr<RecoveryInstanceFolder> recovery_folder_;
+  QTimer* recovery_timer_{nullptr};
+  bool recovery_write_in_flight_{false};
+  // Per session id: the (revision, state id) pair its current recovery copy holds.
+  // `revision` alone is not monotonic (undo restores the old value), so the pair is
+  // what identifies a distinct document state.
+  std::unordered_map<std::int64_t, RecoveryMark> recovery_marks_;
+#endif
   // Display title shared by tab text and float-window titles: "Untitled" fallback
   // plus the modified '*' suffix.
   [[nodiscard]] QString session_display_title(const DocumentSession& target_session) const;

@@ -169,14 +169,7 @@ bool ScriptEngineHost::automation_ready() const {
 }
 
 bool ScriptEngineHost::manual_edit_in_progress() const {
-  if (window_.preview_dialog_edit_locked()) { return true; }
-  for (const auto& session : window_.sessions_) {
-    const auto* canvas = session->canvas;
-    if (canvas && (canvas->pointer_gesture_active() || canvas->free_transform_active() ||
-                   canvas->warp_transform_active() || canvas->path_transform_active() || canvas->crop_session_active() ||
-                   canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")))) { return true; }
-  }
-  return false;
+  return window_.preview_dialog_edit_locked() || window_.any_canvas_interaction_active();
 }
 
 QImage ScriptEngineHost::render_preview(std::int64_t id, const QJsonObject& options, QJsonObject* metadata) {

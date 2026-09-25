@@ -730,6 +730,12 @@ bool MainWindow::close_document_session(DocumentSession& target_session) {
   if (!confirm_close_session(*live_session)) {
     return false;
   }
+#ifndef Q_OS_WASM
+  // The session is going away with the user's consent: its recovery copy has no
+  // purpose any more (a copy that outlived the session would be "recovered" as a
+  // phantom document after a later crash).
+  discard_recovery_for_session(target_id);
+#endif
   auto* canvas = live_session->canvas;
   auto* float_window = live_session->float_window;
   live_session->float_window = nullptr;
@@ -1519,6 +1525,10 @@ void MainWindow::refresh_document_window_title() {
 
 void MainWindow::set_session_saved(DocumentSession& target_session) {
   target_session.saved_revision = target_session.revision;
+#ifndef Q_OS_WASM
+  // The file on disk is now the newest state; the recovery copy is stale.
+  discard_recovery_for_session(target_session.session_id);
+#endif
   refresh_document_tab_titles();  update_undo_redo_actions();
   refresh_document_info();
 }

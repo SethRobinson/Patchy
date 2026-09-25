@@ -1,5 +1,10 @@
 # Scripting API compatibility
 
+2026-09-25 (API 1): `patchy.recovery` exposes the automatic document recovery store:
+`enabled` and `intervalMinutes` (the Preferences values), `directory`, `writeNow()`,
+`listFiles()`, `listOrphaned()`, `recoverAll()`, and `discardOrphaned()`. Additive;
+apiVersion unchanged. See [document-recovery.md](document-recovery.md).
+
 2026-09-25 (API 1): the `layer.text` setter replaces the text the way retyping it in the
 editor does, so the new text keeps the first character's run formatting (exact fractional
 size, Character-panel glyph scales, leading, tracking, faux styles). It used to delete the

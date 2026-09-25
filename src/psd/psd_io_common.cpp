@@ -19,6 +19,7 @@
 #include "psd/psd_patterns.hpp"
 #include "psd/psd_smart_objects.hpp"
 #include "render/compositor.hpp"
+#include "support/atomic_file_write.hpp"
 #include "support/string_utils.hpp"
 #include "support/translate_noop.hpp"
 
@@ -136,11 +137,9 @@ std::vector<std::uint8_t> read_file_bytes(const std::filesystem::path& path) {
 }
 
 void write_file_bytes(const std::filesystem::path& path, std::span<const std::uint8_t> bytes) {
-  std::ofstream file(path, std::ios::binary);
-  if (!file) {
-    throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "Could not open PSD file for writing"));
-  }
-  file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+  // Temp-then-rename: a crash or a full disk mid-save leaves the old file intact.
+  write_file_bytes_atomically(path, bytes, PATCHY_TRANSLATE_NOOP("QObject", "Could not open PSD file for writing"),
+                              PATCHY_TRANSLATE_NOOP("QObject", "Could not write PSD file"));
 }
 
 bool is_source_color_channel(std::uint16_t channel_id, std::uint16_t source_color_mode) noexcept {

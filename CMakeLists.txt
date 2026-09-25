@@ -100,6 +100,8 @@ add_library(patchy_core
   src/core/document.cpp
   src/core/document_channel.cpp
   src/core/document_memory.cpp
+  src/core/document_recovery_store.cpp
+  src/support/atomic_file_write.cpp
   src/core/environment.cpp
   src/core/document_geometry.cpp
   src/core/document_path.cpp
@@ -1010,6 +1012,9 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/main_window_preferences.cpp
       src/ui/main_window_scripting.cpp
       src/ui/main_window_sessions.cpp
+      src/ui/main_window_recovery.cpp
+      src/ui/document_recovery.hpp
+      src/ui/document_recovery.cpp
       src/ui/main_window_shared.hpp
       src/ui/main_window_shared.cpp
       src/ui/main_window_smart_objects.cpp
@@ -1580,6 +1585,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/flat_formats_bmp_tests.cpp
     tests/core/flat_formats_misc_tests.cpp
     tests/core/unicode_path_tests.cpp
+    tests/core/atomic_write_recovery_tests.cpp
     tests/core/font_zip_tests.cpp
     tests/core/gradients_interior_effects_tests.cpp
     tests/core/image_trace_tests.cpp
@@ -1707,6 +1713,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/svg_ui_tests.cpp
       tests/ui/image_trace_ui_tests.cpp
       tests/ui/scripting_tests.cpp
+      tests/ui/document_recovery_tests.cpp
       tests/ui/mcp_tests.cpp
       tests/ui/unicode_path_tests.cpp
       tests/ui/history_panel_tests.cpp

@@ -173,6 +173,7 @@ int main(int argc, char** argv) {
            af_format_tests,
            composite_corpus_tests,
            translation_marker_tests,
+           atomic_write_recovery_tests,
        }) {
     auto group = registration();
     tests.insert(tests.end(), std::make_move_iterator(group.begin()),

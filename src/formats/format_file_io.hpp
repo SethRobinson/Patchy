@@ -27,10 +27,11 @@ namespace patchy::formats {
 // formats.
 void rename_first_layer_to_stem(Document& document, const std::filesystem::path& path);
 
-// Write bytes to path; throws
-// std::runtime_error("Could not open <format_name> file for writing") when the
-// file cannot be created and ("Could not write <format_name> file") when the
-// write fails.
+// Write bytes to path atomically (a sibling temporary file and a replace-existing
+// rename, see support/atomic_file_write.hpp, so a failed save never truncates the
+// old file); throws std::runtime_error("Could not open <format_name> file for
+// writing") when the temporary file cannot be created and ("Could not write
+// <format_name> file") when the write or the rename fails.
 void write_file_bytes(const std::filesystem::path& path, const std::vector<std::uint8_t>& bytes,
                       std::string_view format_name);
 
