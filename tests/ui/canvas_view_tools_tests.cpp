@@ -295,14 +295,14 @@ void ui_options_bar_spinboxes_fit_widest_value() {
   // no room for the suffix once the popup chevron claimed its 14px text margin.
   // configure_toolbar_spinbox now treats the requested width as a minimum and
   // grows the box to fit its widest value text; require chevron + box chrome
-  // clearance (14 + 20 in dialog_utils.cpp) beyond the min/max text on every
+  // clearance (14 + 14 in dialog_utils.cpp) beyond the min/max text on every
   // options-bar spin box.
   patchy::ui::MainWindow window;
   show_window(window);
   auto* toolbar = window.findChild<QToolBar*>(QStringLiteral("Options"));
   CHECK(toolbar != nullptr);
   const auto require_fits = [](const QWidget* spin, const QString& text) {
-    const int required = spin->fontMetrics().horizontalAdvance(text) + 34;
+    const int required = spin->fontMetrics().horizontalAdvance(text) + 28;
     if (spin->minimumWidth() < required) {
       std::fprintf(stderr, "  %s: width %d < %d needed for \"%s\"\n",
                    qPrintable(spin->objectName()), spin->minimumWidth(), required,

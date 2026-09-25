@@ -913,12 +913,14 @@ void install_save_file_recent_dropdown(QFileDialog& dialog, const QStringList& r
 namespace {
 
 // Frame, QSS padding, line-edit text margins, and the caret around the value
-// text of an options-bar spin box. The stylesheet is not applied yet when the
-// bar is built, so this cannot be read from the widget: the box's 1px borders
-// and 4px left padding, QLineEdit's 2px margin on each side, and the caret
-// with a few pixels to spare. "255" in the Fill tool's Tol box overran its
-// chevron on screen (September 2026) with the previous 14.
-constexpr int kToolbarSpinboxChromeWidth = 20;
+// text of an options-bar spin box: the box's 1px borders and 4px left padding,
+// QLineEdit's 2px margin on each side, and the caret with a few pixels to
+// spare. The stylesheet is not applied yet when the bar is built, so this
+// cannot be read from the widget. Do not widen it to fix a clipped value: the
+// tool rows are budgeted for one line (ui_brush_tip_picker_keeps_options_bar_height),
+// and a value that overruns by a whole digit means the box was measured with
+// a different font than the one drawing it, which the refresher below handles.
+constexpr int kToolbarSpinboxChromeWidth = 14;
 constexpr auto kToolbarSpinboxMinWidthProperty = "patchy.toolbarSpinboxMinWidth";
 constexpr auto kToolbarSpinboxRefresherProperty = "patchy.toolbarSpinboxRefresherInstalled";
 
@@ -948,8 +950,9 @@ void refresh_toolbar_spinbox_width(SpinBox* spin) {
 // The width is measured from the box's font, and the theme stylesheet (or a
 // later font change) replaces that font after the options bar is built. A box
 // sized from the construction-time font can be too narrow for its widest value
-// once the real font lands, so re-measure on every event that carries a new
-// font or style.
+// once the real font lands ("255" in the Fill tool's Tol box overran its
+// chevron on screen, September 2026), so re-measure on every event that
+// carries a new font or style.
 template <typename SpinBox>
 class ToolbarSpinboxWidthRefresher final : public QObject {
 public:
