@@ -1,5 +1,10 @@
 # Scripting API compatibility
 
+2026-09-25 (API 1): `patchy.recovery` exposes the automatic document recovery store:
+`enabled` and `intervalMinutes` (the Preferences values), `directory`, `writeNow()`,
+`listFiles()`, `listOrphaned()`, `recoverAll()`, and `discardOrphaned()`. Additive;
+apiVersion unchanged. See [document-recovery.md](document-recovery.md).
+
 2026-09-25 (API 1): `doc.importFilesAsLayers(paths)` adds image files as layers directly
 above the active layer, bottom to top in argument order (the core behind File > Import >
 Files as Layers, the Layers-panel file drop, and Paste with copied files). A multi-layer

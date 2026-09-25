@@ -8502,6 +8502,10 @@ RGB: %2, %3, %4</translation>
         <source>Created by %1</source>
         <translation>Erstellt von %1</translation>
     </message>
+    <message>
+        <source>Could not write PSD file</source>
+        <translation>Die PSD-Datei konnte nicht geschrieben werden</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -17545,6 +17549,47 @@ Y: %2
         <source>Cancelled adding files as layers</source>
         <translation>Hinzufügen der Dateien als Ebenen abgebrochen</translation>
     </message>
+    <message>
+        <source>Recover</source>
+        <translation>Wiederherstellen</translation>
+    </message>
+    <message>
+        <source>Automatically save recovery information every</source>
+        <translation>Wiederherstellungsinformationen automatisch speichern alle</translation>
+    </message>
+    <message>
+        <source>Writes a copy of each changed document to a recovery folder so it can be reopened after a crash. The file you saved is never touched, and the copies are removed when Patchy quits normally.</source>
+        <translation>Schreibt eine Kopie jedes geänderten Dokuments in einen Wiederherstellungsordner, damit es nach einem Absturz wieder geöffnet werden kann. Die von Ihnen gespeicherte Datei wird nie verändert, und die Kopien werden entfernt, wenn Patchy normal beendet wird.</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n minute(s)</source>
+        <translation>
+            <numerusform>%n Minute</numerusform>
+            <numerusform>%n Minuten</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Could not save recovery information: %1</source>
+        <translation>Wiederherstellungsinformationen konnten nicht gespeichert werden: %1</translation>
+    </message>
+    <message>
+        <source>%1 (Recovered)</source>
+        <translation>%1 (Wiederhergestellt)</translation>
+    </message>
+    <message numerus="yes">
+        <source>Recovered %n unsaved document(s) from the last session</source>
+        <translation>
+            <numerusform>%n ungespeichertes Dokument aus der letzten Sitzung wiederhergestellt</numerusform>
+            <numerusform>%n ungespeicherte Dokumente aus der letzten Sitzung wiederhergestellt</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n recovery file(s) could not be opened; see %1</source>
+        <translation>
+            <numerusform>%n Wiederherstellungsdatei konnte nicht geöffnet werden; siehe %1</numerusform>
+            <numerusform>%n Wiederherstellungsdateien konnten nicht geöffnet werden; siehe %1</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -18871,6 +18916,10 @@ Y: %2
     <message>
         <source>No layers were added.</source>
         <translation>Es wurden keine Ebenen hinzugefügt.</translation>
+    </message>
+    <message>
+        <source>intervalMinutes must be 5, 10, 15, 30, or 60</source>
+        <translation>intervalMinutes muss 5, 10, 15, 30 oder 60 sein</translation>
     </message>
 </context>
 <context>

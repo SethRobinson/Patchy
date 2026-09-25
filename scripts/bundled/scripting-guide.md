@@ -471,6 +471,20 @@ Sound is best-effort per platform: Windows and macOS play through the OS directl
 | `patchy.io.fileExists(path)` / `patchy.io.fileSize(path)` | Whether a file exists, and its size in bytes (-1 when missing). Never throw. |
 | `patchy.io.makeDir(path)` / `patchy.io.deleteFile(path)` | Create a folder (with parents) or remove one file; both return true on success. |
 
+### Recovery (patchy.recovery)
+
+Patchy writes a PSB copy of every modified document to a recovery folder on a timer (Preferences > Application, on by default every 10 minutes) and reopens the copies after a crash. These members let a script force a write, inspect the store, and drive the reopen. The web build has no store: `enabled` is false and every list is empty.
+
+| Member | Meaning |
+| --- | --- |
+| `patchy.recovery.enabled` / `patchy.recovery.intervalMinutes` | The Preferences values (persisted). The interval must be 5, 10, 15, 30, or 60. |
+| `patchy.recovery.directory` | This instance's recovery folder. |
+| `patchy.recovery.writeNow()` | Writes a copy of every modified document whose state changed since its last copy and waits for the files. Returns the PSB paths written (empty when nothing changed or a dialog or gesture was active). |
+| `patchy.recovery.listFiles()` | `{file, title, originalPath, savedAt}` for each copy this instance holds. |
+| `patchy.recovery.listOrphaned()` | The same, plus `directory`, for copies left by instances that no longer run. |
+| `patchy.recovery.recoverAll()` | Reopens every orphaned copy as a modified "(Recovered)" document and returns the documents. |
+| `patchy.recovery.discardOrphaned()` | Deletes every orphaned folder; returns how many documents were dropped. |
+
 ### Command-line arguments (patchy.args)
 
 Each `--script-arg key=value` on the command line becomes `patchy.args.key` (always a string). `patchy.isMainScript()` is `true` in the script the user ran and `false` inside an `include()`d file, so one file can be both a library and a runnable script.

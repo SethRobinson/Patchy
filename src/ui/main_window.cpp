@@ -1,6 +1,7 @@
 #include "ui/main_window.hpp"
 #include "ui/main_window_shared.hpp"
 #include "ui/background_workers.hpp"
+#include "ui/document_recovery.hpp"
 
 #include "core/blend_math.hpp"
 #include "core/layer_metadata.hpp"
@@ -6800,6 +6801,9 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   // subclass that hosts the zoom percentage box (see ui/zoom_status_bar.hpp).
   zoom_status_bar_ = new ZoomStatusBar(this);
   setStatusBar(zoom_status_bar_);
+#ifndef Q_OS_WASM
+  start_document_recovery();
+#endif
   register_builtin_filters(filters_);
   install_ico_png_codec();
   install_rttex_jpeg_codec();
@@ -7835,6 +7839,12 @@ void MainWindow::closeEvent(QCloseEvent* event) {
   // Flush any tool-option change still waiting on the save debounce; the timer
   // will not fire once the window is gone.
   save_tool_settings();
+#ifndef Q_OS_WASM
+  // A consented quit: no more recovery writes, and the destructor drops the folder.
+  if (recovery_timer_ != nullptr) {
+    recovery_timer_->stop();
+  }
+#endif
   // Close the tile preview with the main window: left visible, it has no visible
   // transient parent anymore, so it blocks lastWindowClosed and the process
   // lingers headless with only the preview on screen.
@@ -7881,6 +7891,17 @@ MainWindow::~MainWindow() {
   // down; the commit path must see this flag and bail before touching any member
   // container (observed as an uncaught "No active document" on macOS teardown).
   shutting_down_ = true;
+#ifndef Q_OS_WASM
+  // Reaching the destructor means the process is exiting on purpose (a crash never
+  // gets here): the recovery folder is deleted by whichever owner releases it last,
+  // this window or a background write still running (main() waits for those).
+  if (recovery_timer_ != nullptr) {
+    recovery_timer_->stop();
+  }
+  if (recovery_folder_ != nullptr) {
+    recovery_folder_->discard_on_release();
+  }
+#endif
   // The color-picker palette hook captures this window; drop it so a picker
   // created after teardown (tests build windows serially) cannot call into a
   // destroyed MainWindow.

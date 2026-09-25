@@ -111,6 +111,7 @@ constexpr const char* kBootstrapSource = R"JS(
     app: g.app,
     io: g.__patchy_io,
     ui: g.__patchy_ui,
+    recovery: g.__patchy_recovery,
     apiVersion: g.app.apiVersion,
     version: g.app.version,
     args: g.__patchy_args,
@@ -369,6 +370,10 @@ void ScriptEngineHost::install_bindings(const RunOptions& options) {
   auto* ui_object = new ScriptUiObject(*this);
   ui_object->setParent(&engine);
   global.setProperty(QStringLiteral("__patchy_ui"), engine.newQObject(ui_object));
+
+  auto* recovery_object = new ScriptRecoveryObject(*this);
+  recovery_object->setParent(&engine);
+  global.setProperty(QStringLiteral("__patchy_recovery"), engine.newQObject(recovery_object));
 
   const QJSValue bootstrap = engine.evaluate(QString::fromLatin1(kBootstrapSource),
                                              QStringLiteral("<patchy-bootstrap>"), 1);

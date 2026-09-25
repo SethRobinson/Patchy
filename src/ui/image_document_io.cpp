@@ -32,6 +32,7 @@
 #include <QImage>
 #include <QImageWriter>
 #include <QObject>
+#include <QSaveFile>
 #include <QString>
 #include <QtGlobal>
 
@@ -2147,6 +2148,34 @@ QImage flat_export_qimage(const Document& document, bool preserve_alpha) {
   return qimage_from_document(document, preserve_alpha);
 }
 
+namespace {
+
+// QImageWriter through a QSaveFile: the encoded bytes land in a sibling temporary
+// file and replace the target only on commit, so a crash, a full disk, or an
+// encoder failure never truncates the user's existing file (the byte-based
+// writers use support/atomic_file_write.hpp for the same reason). The format is
+// the lowercase extension, exactly what QImageWriter(path) derives from a suffix.
+// `quality` < 0 keeps the plugin default.
+void write_qimage_atomically(const QImage& image, const QString& path, const std::string& format, int quality) {
+  QSaveFile file(path);
+  if (!file.open(QIODevice::WriteOnly)) {
+    throw std::runtime_error(file.errorString().toStdString());
+  }
+  QImageWriter writer(&file, QByteArray::fromStdString(format));
+  if (quality >= 0) {
+    writer.setQuality(quality);
+  }
+  if (!writer.write(image)) {
+    file.cancelWriting();
+    throw std::runtime_error(writer.errorString().toStdString());
+  }
+  if (!file.commit()) {
+    throw std::runtime_error(file.errorString().toStdString());
+  }
+}
+
+}  // namespace
+
 void write_flat_image_file(const Document& document, const QString& path, const QString& extension,
                            const ImageSaveOptions& options, std::vector<std::string>* notices) {
   const auto extension_bytes = extension.toStdString();
@@ -2251,24 +2280,19 @@ void write_flat_image_file(const Document& document, const QString& path, const 
   // (converting to RGB mode first restores plain RGBA PNG export).
   if (extension.compare(QStringLiteral("png"), Qt::CaseInsensitive) == 0 &&
       document.palette_editing().has_value() && !document.palette_editing()->palette.colors.empty()) {
-    QImageWriter indexed_writer(path);
-    if (!indexed_writer.write(indexed_png8_image(document))) {
-      throw std::runtime_error(indexed_writer.errorString().toStdString());
-    }
+    write_qimage_atomically(indexed_png8_image(document), path, lower, -1);
     return;
   }
 
-  QImageWriter writer(path);
+  int quality = -1;
   if (is_jpeg_extension(extension_bytes)) {
-    writer.setQuality(std::clamp(options.jpeg_quality, 0, 100));
+    quality = std::clamp(options.jpeg_quality, 0, 100);
   } else if (lower == "webp") {
     // Qt's WebP plugin encodes losslessly at quality 100 and lossy below it.
-    writer.setQuality(options.webp_lossless ? 100 : std::clamp(options.webp_quality, 0, 100));
+    quality = options.webp_lossless ? 100 : std::clamp(options.webp_quality, 0, 100);
   }
-  const QImage image = flat_export_qimage(document, image_format_preserves_alpha(extension_bytes));
-  if (!writer.write(image)) {
-    throw std::runtime_error(writer.errorString().toStdString());
-  }
+  write_qimage_atomically(flat_export_qimage(document, image_format_preserves_alpha(extension_bytes)), path, lower,
+                          quality);
 }
 
 void write_animated_gif_file(const Document& document, const QString& path, const ImageSaveOptions& options,

@@ -8502,6 +8502,10 @@ RVB : %2, %3, %4</translation>
         <source>Created by %1</source>
         <translation>Créé par %1</translation>
     </message>
+    <message>
+        <source>Could not write PSD file</source>
+        <translation>Impossible d&apos;écrire le fichier PSD</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -17535,7 +17539,7 @@ Y : %2
     </message>
     <message>
         <source>The document is no longer open.</source>
-        <translation>Le document n'est plus ouvert.</translation>
+        <translation>Le document n&apos;est plus ouvert.</translation>
     </message>
     <message>
         <source>Adding file %1 of %2...</source>
@@ -17544,6 +17548,47 @@ Y : %2
     <message>
         <source>Cancelled adding files as layers</source>
         <translation>Ajout des fichiers en calques annulé</translation>
+    </message>
+    <message>
+        <source>Recover</source>
+        <translation>Récupérer</translation>
+    </message>
+    <message>
+        <source>Automatically save recovery information every</source>
+        <translation>Enregistrer automatiquement les informations de récupération toutes les</translation>
+    </message>
+    <message>
+        <source>Writes a copy of each changed document to a recovery folder so it can be reopened after a crash. The file you saved is never touched, and the copies are removed when Patchy quits normally.</source>
+        <translation>Écrit une copie de chaque document modifié dans un dossier de récupération afin de pouvoir le rouvrir après un plantage. Le fichier que vous avez enregistré n&apos;est jamais touché, et les copies sont supprimées lorsque Patchy se ferme normalement.</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n minute(s)</source>
+        <translation>
+            <numerusform>%n minute</numerusform>
+            <numerusform>%n minutes</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Could not save recovery information: %1</source>
+        <translation>Impossible d&apos;enregistrer les informations de récupération : %1</translation>
+    </message>
+    <message>
+        <source>%1 (Recovered)</source>
+        <translation>%1 (Récupéré)</translation>
+    </message>
+    <message numerus="yes">
+        <source>Recovered %n unsaved document(s) from the last session</source>
+        <translation>
+            <numerusform>%n document non enregistré récupéré de la dernière session</numerusform>
+            <numerusform>%n documents non enregistrés récupérés de la dernière session</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n recovery file(s) could not be opened; see %1</source>
+        <translation>
+            <numerusform>%n fichier de récupération n&apos;a pas pu être ouvert ; voir %1</numerusform>
+            <numerusform>%n fichiers de récupération n&apos;ont pas pu être ouverts ; voir %1</numerusform>
+        </translation>
     </message>
 </context>
 <context>
@@ -18871,6 +18916,10 @@ Y : %2
     <message>
         <source>No layers were added.</source>
         <translation>Aucun calque n&apos;a été ajouté.</translation>
+    </message>
+    <message>
+        <source>intervalMinutes must be 5, 10, 15, 30, or 60</source>
+        <translation>intervalMinutes doit valoir 5, 10, 15, 30 ou 60</translation>
     </message>
 </context>
 <context>

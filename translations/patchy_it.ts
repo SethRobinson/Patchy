@@ -8502,6 +8502,10 @@ RGB: %2, %3, %4</translation>
         <source>Created by %1</source>
         <translation>Creato da %1</translation>
     </message>
+    <message>
+        <source>Could not write PSD file</source>
+        <translation>Impossibile scrivere il file PSD</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -17545,6 +17549,47 @@ Y: %2
         <source>Cancelled adding files as layers</source>
         <translation>Aggiunta dei file come livelli annullata</translation>
     </message>
+    <message>
+        <source>Recover</source>
+        <translation>Recupera</translation>
+    </message>
+    <message>
+        <source>Automatically save recovery information every</source>
+        <translation>Salva automaticamente le informazioni di ripristino ogni</translation>
+    </message>
+    <message>
+        <source>Writes a copy of each changed document to a recovery folder so it can be reopened after a crash. The file you saved is never touched, and the copies are removed when Patchy quits normally.</source>
+        <translation>Scrive una copia di ogni documento modificato in una cartella di ripristino, così da poterlo riaprire dopo un arresto anomalo. Il file salvato non viene mai toccato e le copie vengono rimosse quando Patchy si chiude normalmente.</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n minute(s)</source>
+        <translation>
+            <numerusform>%n minuto</numerusform>
+            <numerusform>%n minuti</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Could not save recovery information: %1</source>
+        <translation>Impossibile salvare le informazioni di ripristino: %1</translation>
+    </message>
+    <message>
+        <source>%1 (Recovered)</source>
+        <translation>%1 (Recuperato)</translation>
+    </message>
+    <message numerus="yes">
+        <source>Recovered %n unsaved document(s) from the last session</source>
+        <translation>
+            <numerusform>Recuperato %n documento non salvato dall&apos;ultima sessione</numerusform>
+            <numerusform>Recuperati %n documenti non salvati dall&apos;ultima sessione</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n recovery file(s) could not be opened; see %1</source>
+        <translation>
+            <numerusform>%n file di ripristino non è stato aperto; vedere %1</numerusform>
+            <numerusform>%n file di ripristino non sono stati aperti; vedere %1</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -18871,6 +18916,10 @@ Y: %2
     <message>
         <source>No layers were added.</source>
         <translation>Nessun livello è stato aggiunto.</translation>
+    </message>
+    <message>
+        <source>intervalMinutes must be 5, 10, 15, 30, or 60</source>
+        <translation>intervalMinutes deve essere 5, 10, 15, 30 o 60</translation>
     </message>
 </context>
 <context>

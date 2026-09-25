@@ -795,6 +795,35 @@ interface PatchyIo {
   deleteFile(path: string): boolean;
 }
 
+/**
+ * Automatic document recovery: Patchy writes a PSB copy of every modified document
+ * to a per-instance recovery folder on a timer (Preferences > Application) and, after
+ * a crash, reopens the copies on the next launch as "(Recovered)" documents. The web
+ * build has no recovery store: enabled is false and every list is empty.
+ */
+interface PatchyRecovery {
+  /** The Preferences checkbox (persisted). Setting it re-arms the timer. */
+  enabled: boolean;
+  /** The timer interval, one of 5, 10, 15, 30, or 60 (persisted); other values throw. */
+  intervalMinutes: number;
+  /** This instance's recovery folder ("/" separators). It exists once something was written. */
+  readonly directory: string;
+  /**
+   * Writes a recovery copy of every modified document whose state changed since its
+   * last copy and waits for the files. Returns the PSB paths written; empty when
+   * nothing changed or the app was busy (a modal dialog, a canvas gesture).
+   */
+  writeNow(): string[];
+  /** This instance's copies: file (PSB path), title, originalPath ("" when never saved), savedAt (Unix ms). */
+  listFiles(): { file: string; title: string; originalPath: string; savedAt: number }[];
+  /** Copies left by instances that no longer run, with the folder each lives in. */
+  listOrphaned(): { directory: string; file: string; title: string; originalPath: string; savedAt: number }[];
+  /** Reopens every orphaned copy as a modified "(Recovered)" document and returns them. */
+  recoverAll(): PatchyDocument[];
+  /** Deletes every orphaned folder; returns how many documents were dropped. */
+  discardOrphaned(): number;
+}
+
 interface PatchyNamespace {
   /** Set the structured result returned by MCP (null by default). Supports timer callbacks.
    * JSON serializable values only, up to 4 Mi characters. Does not end the run. */
@@ -802,6 +831,7 @@ interface PatchyNamespace {
   readonly app: PatchyApp;
   readonly io: PatchyIo;
   readonly ui: PatchyUi;
+  readonly recovery: PatchyRecovery;
   readonly brushes: PatchyBrushes;
   readonly apiVersion: number;
   readonly version: string;

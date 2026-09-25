@@ -8475,6 +8475,10 @@ Mixed selection</source>
         <source>Created by %1</source>
         <translation>作成: %1</translation>
     </message>
+    <message>
+        <source>Could not write PSD file</source>
+        <translation>PSD ファイルを書き込めませんでした</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -17497,6 +17501,44 @@ Clipped to the layer below</source>
         <source>Cancelled adding files as layers</source>
         <translation>ファイルをレイヤーとして追加する処理をキャンセルしました</translation>
     </message>
+    <message>
+        <source>Recover</source>
+        <translation>復元</translation>
+    </message>
+    <message>
+        <source>Automatically save recovery information every</source>
+        <translation>復元情報を自動保存する間隔</translation>
+    </message>
+    <message>
+        <source>Writes a copy of each changed document to a recovery folder so it can be reopened after a crash. The file you saved is never touched, and the copies are removed when Patchy quits normally.</source>
+        <translation>変更した各ドキュメントのコピーを復元フォルダーに書き込み、クラッシュ後に再度開けるようにします。保存したファイルには一切触れず、Patchy が正常に終了するとコピーは削除されます。</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n minute(s)</source>
+        <translation>
+            <numerusform>%n 分</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Could not save recovery information: %1</source>
+        <translation>復元情報を保存できませんでした: %1</translation>
+    </message>
+    <message>
+        <source>%1 (Recovered)</source>
+        <translation>%1 (復元済み)</translation>
+    </message>
+    <message numerus="yes">
+        <source>Recovered %n unsaved document(s) from the last session</source>
+        <translation>
+            <numerusform>前回のセッションから未保存のドキュメントを %n 件復元しました</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n recovery file(s) could not be opened; see %1</source>
+        <translation>
+            <numerusform>%n 件の復元ファイルを開けませんでした。%1 を確認してください</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -18822,6 +18864,10 @@ Clipped to the layer below</source>
     <message>
         <source>No layers were added.</source>
         <translation>レイヤーは追加されませんでした。</translation>
+    </message>
+    <message>
+        <source>intervalMinutes must be 5, 10, 15, 30, or 60</source>
+        <translation>intervalMinutes は 5、10、15、30、60 のいずれかにしてください</translation>
     </message>
 </context>
 <context>

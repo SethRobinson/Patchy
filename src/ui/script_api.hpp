@@ -310,6 +310,45 @@ private:
   ScriptEngineHost& host_;
 };
 
+// patchy.recovery: the automatic document recovery store (docs/document-recovery.md),
+// exposed so scripts and tests can force a recovery write and inspect or reopen
+// what the store holds. The web build reports enabled === false and holds nothing.
+class ScriptRecoveryObject : public QObject {
+  Q_OBJECT
+  Q_PROPERTY(bool enabled READ enabled WRITE set_enabled)
+  Q_PROPERTY(int intervalMinutes READ interval_minutes WRITE set_interval_minutes)
+  Q_PROPERTY(QString directory READ directory)
+
+public:
+  explicit ScriptRecoveryObject(ScriptEngineHost& host);
+
+  // The persisted preferences; setting either re-arms the timer. The interval
+  // must be one of the Preferences steps (5, 10, 15, 30, 60), else it throws.
+  [[nodiscard]] bool enabled() const;
+  void set_enabled(bool enabled);
+  [[nodiscard]] int interval_minutes() const;
+  void set_interval_minutes(int minutes);
+  // This instance's recovery folder ("/" separators); it exists once something
+  // was written.
+  [[nodiscard]] QString directory() const;
+  // Writes a recovery copy of every modified document whose state changed since
+  // its last copy and waits for the files. Returns the PSB paths written; empty
+  // when nothing changed or the app was busy.
+  Q_INVOKABLE QStringList writeNow();
+  // {file, title, originalPath, savedAt}[] for this instance's copies.
+  Q_INVOKABLE QJSValue listFiles();
+  // {directory, file, title, originalPath, savedAt}[] for copies left by instances
+  // that no longer run.
+  Q_INVOKABLE QJSValue listOrphaned();
+  // Reopens every orphaned copy as a modified "(Recovered)" document; returns them.
+  Q_INVOKABLE QJSValue recoverAll();
+  // Deletes every orphaned folder; returns how many documents were dropped.
+  Q_INVOKABLE int discardOrphaned();
+
+private:
+  ScriptEngineHost& host_;
+};
+
 class ScriptUiObject : public QObject {
   Q_OBJECT
 

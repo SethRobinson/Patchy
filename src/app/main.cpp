@@ -749,6 +749,14 @@ int main(int argc, char* argv[]) {
   files += app.pending_file_opens;
   app.pending_file_opens.clear();
 
+#ifndef Q_OS_WASM
+  // Documents a crashed instance left recovery copies of come back first, as
+  // modified "(Recovered)" sessions (docs/document-recovery.md). Never for a
+  // screenshot or headless launch: nobody is there to save them.
+  if (!headless_mode && !screenshot_mode) {
+    window.recover_orphaned_documents();
+  }
+#endif
   if (!files.isEmpty()) {
     window.open_command_line_files(files);
   }
