@@ -3520,6 +3520,8 @@ void MainWindow::refresh_layer_thumbnails() {
 void MainWindow::refresh_layer_controls() {
   const UiProfileScope profile_scope("refresh_layer_controls");
   sync_text_character_dialog_from_editor();
+  sync_text_options_from_active_layer();
+  sync_text_alignment_buttons_from_editor();
   refresh_convert_for_smart_filters_action_state();
   refresh_add_layer_mask_button_state();
   if (canvas_ != nullptr) {

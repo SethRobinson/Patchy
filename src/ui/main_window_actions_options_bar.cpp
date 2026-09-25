@@ -2885,6 +2885,10 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   });
   text_size_spin_->setDecimals(3);
   text_size_spin_->setRange(0.01, 10000.0);
+  // Applies on Enter, focus loss or a step, like the Character panel fields: with no session
+  // every value change commits a re-render of each selected text layer as an undo step, so
+  // typing "120" must not land three of them.
+  text_size_spin_->setKeyboardTracking(false);
   // Typing accepts up to 10000 pt, but the popup slider stays usable at 0..200.
   text_size_spin_->setProperty(kToolbarSpinboxSliderMaxProperty, 200.0);
   text_size_spin_->setSingleStep(0.25);

@@ -1743,6 +1743,328 @@ void ui_text_character_panel_edits_selected_layer_without_session() {
   }
 }
 
+// Three rendered, unwarped text layers for the no-session tests (GitHub issue 31): a Text
+// options-bar or Character-panel change with no inline session must reach every SELECTED
+// text layer, not only the active one, as one undo step.
+struct NoSessionTextLayers {
+  patchy::LayerId alpha{0};
+  patchy::LayerId beta{0};
+  patchy::LayerId gamma{0};
+};
+
+NoSessionTextLayers build_no_session_text_layers(patchy::ui::MainWindow& window, const char* session_name) {
+  patchy::Document built(520, 360, patchy::PixelFormat::rgba8());
+  built.add_pixel_layer("Background", solid_pixels(520, 360, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  const auto family = QApplication::font().family().toStdString();
+  const auto add = [&](const char* name, QPoint origin, const char* size) {
+    patchy::Layer layer(built.allocate_layer_id(), name,
+                        solid_pixels(1, 1, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0)));
+    const auto id = layer.id();
+    layer.set_bounds(patchy::Rect{origin.x(), origin.y(), 1, 1});
+    layer.metadata()[patchy::kLayerMetadataText] = name;
+    layer.metadata()[patchy::kLayerMetadataTextSize] = size;
+    layer.metadata()[patchy::kLayerMetadataTextColor] = "#101010";
+    layer.metadata()[patchy::kLayerMetadataTextFont] = family;
+    built.add_layer(std::move(layer));
+    return id;
+  };
+  NoSessionTextLayers ids;
+  ids.alpha = add("Alpha", QPoint(40, 40), "36");
+  ids.beta = add("Beta", QPoint(40, 150), "24");
+  ids.gamma = add("Gamma", QPoint(40, 260), "30");
+  built.set_active_layer(ids.alpha);
+  window.add_document_session(std::move(built), QString::fromLatin1(session_name));
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  for (const auto id : {ids.alpha, ids.beta, ids.gamma}) {
+    // An identity warp is a plain render: real bounds and pixels for the hidden sessions.
+    CHECK(patchy::ui::MainWindowTestAccess::apply_text_warp(window, *document.find_layer(id), patchy::TextWarp{}));
+  }
+  patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+  return ids;
+}
+
+// Selects exactly `names` in the Layers panel; the last one is the current (active) row.
+void select_layer_rows(patchy::ui::MainWindow& window, const QStringList& names) {
+  auto* list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(list != nullptr);
+  if (list == nullptr || names.isEmpty()) {
+    return;
+  }
+  list->setCurrentItem(require_layer_item(*list, names.back()), QItemSelectionModel::ClearAndSelect);
+  for (const auto& name : names) {
+    require_layer_item(*list, name)->setSelected(true);
+  }
+  QApplication::processEvents();
+}
+
+QStringList selected_layer_row_names(patchy::ui::MainWindow& window) {
+  QStringList names;
+  auto* list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  if (list == nullptr) {
+    return names;
+  }
+  for (int row = 0; row < list->count(); ++row) {
+    if (list->item(row)->isSelected()) {
+      names << list->item(row)->text();
+    }
+  }
+  names.sort();
+  return names;
+}
+
+std::string text_layer_metadata(const patchy::Document& document, patchy::LayerId id, const char* key) {
+  const auto* layer = document.find_layer(id);
+  if (layer == nullptr) {
+    return {};
+  }
+  const auto found = layer->metadata().find(key);
+  return found == layer->metadata().end() ? std::string() : found->second;
+}
+
+// One column of the first patchy.text.runs line (3 = bold, 8 = tracking), 0 when the layer
+// records no runs or the column is absent.
+int first_run_column(const patchy::Document& document, patchy::LayerId id, int column) {
+  const auto runs = QString::fromStdString(text_layer_metadata(document, id, patchy::kLayerMetadataTextRuns));
+  for (const auto& raw_line : runs.split(QLatin1Char('\n'))) {
+    const auto line = raw_line.trimmed();
+    if (line.isEmpty() || line.startsWith(QLatin1Char('v'))) {
+      continue;
+    }
+    const auto fields = line.split(QLatin1Char('\t'));
+    return fields.size() > column ? fields[column].toInt() : 0;
+  }
+  return 0;
+}
+
+int first_run_tracking(const patchy::Document& document, patchy::LayerId id) {
+  return first_run_column(document, id, 8);
+}
+
+bool first_run_bold(const patchy::Document& document, patchy::LayerId id) {
+  return first_run_column(document, id, 3) != 0;
+}
+
+bool layer_matches(const patchy::Document& document, patchy::LayerId id, const patchy::Layer& expected) {
+  const auto* layer = document.find_layer(id);
+  return layer != nullptr && std::ranges::equal(layer->pixels().data(), expected.pixels().data()) &&
+         layer->metadata() == expected.metadata() && layer->bounds().x == expected.bounds().x &&
+         layer->bounds().y == expected.bounds().y && layer->bounds().width == expected.bounds().width &&
+         layer->bounds().height == expected.bounds().height;
+}
+
+void ui_text_options_bar_size_applies_to_selected_layers_without_session() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  patchy::ui::MainWindow window;
+  const auto ids = build_no_session_text_layers(window, "OptionsBarSize");
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(0.75);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  select_layer_rows(window, {QStringLiteral("Alpha"), QStringLiteral("Beta")});
+  auto* size_spin = window.findChild<QDoubleSpinBox*>(QStringLiteral("textSizeSpin"));
+  CHECK(size_spin != nullptr);
+  if (size_spin == nullptr) {
+    return;
+  }
+  const auto points_per_pixel = 72.0 / document.print_settings().horizontal_ppi;
+  const auto before_alpha = *std::as_const(document).find_layer(ids.alpha);
+  const auto before_beta = *std::as_const(document).find_layer(ids.beta);
+  const auto before_gamma = *std::as_const(document).find_layer(ids.gamma);
+  const auto depth = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+
+  size_spin->setValue(60.0 * points_per_pixel);
+  QApplication::processEvents();
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Text);
+  // Both selected layers, one undo step; the unselected layer is untouched.
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+  CHECK(text_layer_metadata(document, ids.alpha, patchy::kLayerMetadataTextSize) == "60");
+  CHECK(text_layer_metadata(document, ids.beta, patchy::kLayerMetadataTextSize) == "60");
+  CHECK(!std::ranges::equal(std::as_const(document).find_layer(ids.alpha)->pixels().data(),
+                            before_alpha.pixels().data()));
+  CHECK(!std::ranges::equal(std::as_const(document).find_layer(ids.beta)->pixels().data(),
+                            before_beta.pixels().data()));
+  CHECK(layer_matches(document, ids.gamma, before_gamma));
+  // The commits rebuild the panel rows; the selection is put back and the bar shows the size.
+  CHECK(selected_layer_row_names(window) == (QStringList{QStringLiteral("Alpha"), QStringLiteral("Beta")}));
+  CHECK(std::abs(size_spin->value() - 60.0 * points_per_pixel) < 0.01);
+
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth);
+  CHECK(layer_matches(document, ids.alpha, before_alpha));
+  CHECK(layer_matches(document, ids.beta, before_beta));
+  CHECK(layer_matches(document, ids.gamma, before_gamma));
+  require_action_by_text(window, QStringLiteral("Redo"))->trigger();
+  CHECK(text_layer_metadata(document, ids.alpha, patchy::kLayerMetadataTextSize) == "60");
+  CHECK(text_layer_metadata(document, ids.beta, patchy::kLayerMetadataTextSize) == "60");
+  CHECK(text_layer_metadata(document, ids.gamma, patchy::kLayerMetadataTextSize) == "30");
+}
+
+void ui_text_options_bar_family_and_style_apply_to_selected_layers_without_session() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  patchy::ui::MainWindow window;
+  const auto ids = build_no_session_text_layers(window, "OptionsBarFamily");
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  select_layer_rows(window, {QStringLiteral("Alpha"), QStringLiteral("Beta")});
+  auto* font_combo = window.findChild<QFontComboBox*>(QStringLiteral("textFontCombo"));
+  auto* style_combo = window.findChild<QComboBox*>(QStringLiteral("textStyleCombo"));
+  CHECK(font_combo != nullptr && style_combo != nullptr);
+  if (font_combo == nullptr || style_combo == nullptr) {
+    return;
+  }
+  const auto primary = QApplication::font().family();
+  QString second;
+  for (const auto* candidate : {"Calibri", "Segoe UI", "Verdana", "Arial"}) {
+    const auto family = QString::fromLatin1(candidate);
+    if (family != primary && QFontDatabase::hasFamily(family)) {
+      second = family;
+      break;
+    }
+  }
+  CHECK(!second.isEmpty());
+  if (second.isEmpty()) {
+    return;
+  }
+  // With no session the bar mirrors the active layer, so the pick below is a real change.
+  CHECK(font_combo->currentFont().family() == primary);
+  const auto depth = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+
+  font_combo->setCurrentFont(QFont(second));
+  QApplication::processEvents();
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+  CHECK(text_layer_metadata(document, ids.alpha, patchy::kLayerMetadataTextFont) == second.toStdString());
+  CHECK(text_layer_metadata(document, ids.beta, patchy::kLayerMetadataTextFont) == second.toStdString());
+  CHECK(text_layer_metadata(document, ids.gamma, patchy::kLayerMetadataTextFont) == primary.toStdString());
+  CHECK(selected_layer_row_names(window) == (QStringList{QStringLiteral("Alpha"), QStringLiteral("Beta")}));
+
+  // The face picker resolves against each layer's own family; Bold is flag-expressible, so
+  // it lands in the runs' bold column rather than a recorded style.
+  const auto bold_index = style_combo->findData(QStringLiteral("Bold"));
+  CHECK(bold_index >= 0);
+  if (bold_index >= 0) {
+    CHECK(!first_run_bold(document, ids.alpha));
+    style_combo->setCurrentIndex(bold_index);
+    QApplication::processEvents();
+    CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+    CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth + 2);
+    CHECK(first_run_bold(document, ids.alpha));
+    CHECK(first_run_bold(document, ids.beta));
+    CHECK(!first_run_bold(document, ids.gamma));
+    CHECK(style_combo->currentData().toString() == QStringLiteral("Bold"));
+    require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+    CHECK(!first_run_bold(document, ids.alpha));
+  }
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth);
+  CHECK(text_layer_metadata(document, ids.alpha, patchy::kLayerMetadataTextFont) == primary.toStdString());
+  CHECK(text_layer_metadata(document, ids.beta, patchy::kLayerMetadataTextFont) == primary.toStdString());
+}
+
+void ui_text_options_bar_follows_active_text_layer() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  patchy::ui::MainWindow window;
+  const auto ids = build_no_session_text_layers(window, "OptionsBarMirror");
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  auto* font_combo = window.findChild<QFontComboBox*>(QStringLiteral("textFontCombo"));
+  auto* size_spin = window.findChild<QDoubleSpinBox*>(QStringLiteral("textSizeSpin"));
+  auto* align_left = window.findChild<QPushButton*>(QStringLiteral("textAlignLeftButton"));
+  CHECK(font_combo != nullptr && size_spin != nullptr);
+  if (font_combo == nullptr || size_spin == nullptr) {
+    return;
+  }
+  const auto points_per_pixel = 72.0 / document.print_settings().horizontal_ppi;
+  const auto depth = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  const auto before_beta = *std::as_const(document).find_layer(ids.beta);
+
+  // Selecting a text layer with no session shows ITS family and size, and mutates nothing.
+  select_layer_rows(window, {QStringLiteral("Beta")});
+  CHECK(std::abs(size_spin->value() - 24.0 * points_per_pixel) < 0.01);
+  CHECK(font_combo->currentFont().family() == QApplication::font().family());
+  select_layer_rows(window, {QStringLiteral("Gamma")});
+  CHECK(std::abs(size_spin->value() - 30.0 * points_per_pixel) < 0.01);
+  if (align_left != nullptr) {
+    CHECK(align_left->isChecked());
+  }
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth);
+  CHECK(layer_matches(document, ids.beta, before_beta));
+  // A pixel layer leaves the bar alone (it seeds the next new layer).
+  select_layer_rows(window, {QStringLiteral("Background")});
+  CHECK(std::abs(size_spin->value() - 30.0 * points_per_pixel) < 0.01);
+}
+
+void ui_text_character_panel_edits_all_selected_layers_without_session() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  patchy::ui::MainWindow window;
+  const auto ids = build_no_session_text_layers(window, "CharacterMulti");
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  // Alpha warped, Beta plain: faux bold is refused on the warped layer and still applied to
+  // the other one, with the refusal left on the status bar.
+  patchy::TextWarp warp;
+  warp.style = "warpArc";
+  warp.value = 60.0;
+  CHECK(patchy::ui::MainWindowTestAccess::apply_text_warp(window, *document.find_layer(ids.alpha), warp));
+  canvas->document_changed();
+  patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  select_layer_rows(window, {QStringLiteral("Beta"), QStringLiteral("Alpha")});
+  const auto before_gamma = *std::as_const(document).find_layer(ids.gamma);
+  const auto depth = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  bool drove = false;
+  QTimer::singleShot(0, [&] {
+    try {
+      auto* dialog = window.findChild<QDialog*>(QStringLiteral("textCharacterDialog"));
+      CHECK(dialog != nullptr);
+      auto* tracking = dialog->findChild<QSpinBox*>(QStringLiteral("textCharacterTrackingSpin"));
+      auto* faux_bold = dialog->findChild<QCheckBox*>(QStringLiteral("textCharacterFauxBold"));
+      CHECK(tracking != nullptr && faux_bold != nullptr);
+      tracking->setValue(100);
+      QApplication::processEvents();
+      CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+      CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+      CHECK(first_run_tracking(document, ids.alpha) == 100);
+      CHECK(first_run_tracking(document, ids.beta) == 100);
+      CHECK(layer_matches(document, ids.gamma, before_gamma));
+      CHECK(patchy::text_warp_from_layer(*std::as_const(document).find_layer(ids.alpha)).has_value());
+      CHECK(selected_layer_row_names(window) == (QStringList{QStringLiteral("Alpha"), QStringLiteral("Beta")}));
+
+      faux_bold->click();
+      QApplication::processEvents();
+      CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("Faux bold")));
+      CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth + 2);
+      CHECK(runs_metadata_uses_faux_bold(text_layer_metadata(document, ids.beta, patchy::kLayerMetadataTextRuns)));
+      CHECK(!runs_metadata_uses_faux_bold(text_layer_metadata(document, ids.alpha, patchy::kLayerMetadataTextRuns)));
+
+      require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+      require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+      CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth);
+      CHECK(first_run_tracking(document, ids.alpha) == 0);
+      CHECK(first_run_tracking(document, ids.beta) == 0);
+      CHECK(!runs_metadata_uses_faux_bold(text_layer_metadata(document, ids.beta, patchy::kLayerMetadataTextRuns)));
+      drove = true;
+      dialog->reject();
+    } catch (...) {
+      patchy::ui::unwind_non_modal_dialog_loop(std::current_exception());
+    }
+  });
+  window.findChild<QPushButton*>(QStringLiteral("textCharacterButton"))->click();
+  CHECK(drove);
+}
+
 void ui_text_thumbnail_double_click_selects_all_without_zoom() {
   patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
   for (const bool warped : {false, true}) {
@@ -2214,6 +2536,13 @@ std::vector<patchy::test::TestCase> warp_tests() {
       {"ui_warped_text_refuses_faux_bold_toggle", ui_warped_text_refuses_faux_bold_toggle},
       {"ui_text_character_panel_edits_selected_layer_without_session",
        ui_text_character_panel_edits_selected_layer_without_session},
+      {"ui_text_options_bar_size_applies_to_selected_layers_without_session",
+       ui_text_options_bar_size_applies_to_selected_layers_without_session},
+      {"ui_text_options_bar_family_and_style_apply_to_selected_layers_without_session",
+       ui_text_options_bar_family_and_style_apply_to_selected_layers_without_session},
+      {"ui_text_options_bar_follows_active_text_layer", ui_text_options_bar_follows_active_text_layer},
+      {"ui_text_character_panel_edits_all_selected_layers_without_session",
+       ui_text_character_panel_edits_all_selected_layers_without_session},
       {"ui_text_thumbnail_double_click_selects_all_without_zoom",
        ui_text_thumbnail_double_click_selects_all_without_zoom},
       {"ui_warped_text_allows_real_bold_face", ui_warped_text_allows_real_bold_face},

@@ -1496,6 +1496,9 @@ void MainWindow::choose_text_color() {
     if (editor != nullptr) {
       editor->setProperty("patchy.documentTextColor", color);
       apply_text_color_to_active_editor();
+    } else {
+      // No session when the panel opened: the selected text layers take the color (issue 31).
+      apply_text_color_to_selected_layers_debounced(color);
     }
     refresh_color_buttons();
     statusBar()->showMessage(tr("Text color changed"));
@@ -2503,6 +2506,8 @@ void MainWindow::refresh_options_bar() {
   // The non-modal Character dialog grays out (and shows its click-in-text hint) whenever
   // no live editor session exists; every session boundary funnels through this refresh.
   sync_text_character_dialog_from_editor();
+  // With no session the font, size, face and smoothing controls mirror the active text layer.
+  sync_text_options_from_active_layer();
   if (show_warp_options && warp_style_combo_ != nullptr && warp_bend_spin_ != nullptr) {
     // Mirror the canvas state (a handle drag flips the style back to Custom).
     QSignalBlocker combo_blocker(warp_style_combo_);

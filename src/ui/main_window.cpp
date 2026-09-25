@@ -8429,6 +8429,9 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
         text_font_combo_->setCurrentFont(text_font_combo_font_for_family(family));
       }
       if (text_size_spin_ != nullptr) {
+        // Blocked like the family combo: an unblocked write fires the size slot, which with no
+        // live editor yet would start a layer edit from inside this session's setup.
+        QSignalBlocker blocker(text_size_spin_);
         text_size_spin_->setValue(text_pixels_to_points(
             std::max(1, static_cast<int>(std::lround(document_text_size * text_size_display_scale))), document()));
       }
@@ -9146,7 +9149,9 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
   if (text.trimmed().isEmpty()) {
     restore_hidden_text_layer();
     if (layer_id.has_value() && !layer_id_locks_image_pixels(*layer_id)) {
-      push_undo_snapshot(tr("Type"));
+      if (!text_commit_snapshot_suppressed_) {
+        push_undo_snapshot(tr("Type"));
+      }
       if (auto* layer = document().find_layer(*layer_id); layer != nullptr) {
         auto& metadata = layer->metadata();
         metadata[kLayerMetadataText] = text.toStdString();
@@ -9339,7 +9344,11 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
   }
   // The layer the commit ends up owning, so the final repaint can be bounded to it.
   std::optional<LayerId> committed_layer_id = layer_id;
-  push_undo_snapshot(tr("Type"));
+  // A multi-layer hidden-session pass (apply_text_character_edit) snapshots once for all
+  // of its commits.
+  if (!text_commit_snapshot_suppressed_) {
+    push_undo_snapshot(tr("Type"));
+  }
   const auto name = text_layer_auto_name(settings.text);
   // A PSD-frame session rendered a document-space frame around raw-unit runs; persist the box
   // dims back in the runs' raw engine space so the stored runs + box + transform stay one
@@ -9920,14 +9929,36 @@ void MainWindow::open_text_character_dialog() {
   text_character_rotate_roman_ = nullptr;
 }
 
-const Layer* MainWindow::text_character_target_layer() const {
+std::vector<LayerId> MainWindow::text_character_target_layer_ids() const {
   if (canvas_ == nullptr || !has_active_document() || preview_dialog_edit_locked() ||
       canvas_->free_transform_active() || canvas_->warp_transform_active()) {
-    return nullptr;
+    return {};
   }
-  const auto id = document().active_layer_id();
-  const auto* layer = id.has_value() ? document().find_layer(*id) : nullptr;
-  return layer != nullptr && layer_is_text(*layer) && !layer_id_locks_image_pixels(*id) ? layer : nullptr;
+  // The active layer leads so text_character_target_layer() keeps answering what the panel
+  // and the options bar show; the rest of the panel selection follows in row order.
+  std::vector<LayerId> ids;
+  const auto active = document().active_layer_id();
+  const auto accept = [&](LayerId id) {
+    if (std::ranges::find(ids, id) != ids.end()) {
+      return;
+    }
+    const auto* layer = std::as_const(document()).find_layer(id);
+    if (layer != nullptr && layer_is_text(*layer) && !layer_id_locks_image_pixels(id)) {
+      ids.push_back(id);
+    }
+  };
+  if (active.has_value()) {
+    accept(*active);
+  }
+  for (const auto id : selected_or_active_layer_ids()) {
+    accept(id);
+  }
+  return ids;
+}
+
+const Layer* MainWindow::text_character_target_layer() const {
+  const auto ids = text_character_target_layer_ids();
+  return ids.empty() ? nullptr : std::as_const(document()).find_layer(ids.front());
 }
 
 void MainWindow::edit_text_layer(LayerId id) {
@@ -9957,47 +9988,87 @@ void MainWindow::apply_text_character_edit(const std::function<bool(QTextEdit&)>
   const QPointer<QWidget> previous_focus(QApplication::focusWidget());
   auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
   const bool session_open = editor != nullptr && !editor->property(kTextEditorFinishedProperty).toBool();
-  if (!session_open) {
-    const auto* layer = text_character_target_layer();
-    if (layer == nullptr) {
-      sync_text_character_dialog_from_editor();
-      return;
-    }
-    const auto bounds = layer->bounds();
-    add_text_at(QPoint(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2), {}, false);
-    editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
-    if (editor == nullptr) {
-      sync_text_character_dialog_from_editor();
-      return;
-    }
-    // Keep refreshes during the commit from treating the hidden transaction as
-    // an interactive session. The layer stays visible throughout.
-    editor->setObjectName(QString());
-  }
-  const auto cleanup = qScopeGuard([this, editor = QPointer<QTextEdit>(editor), session_open, previous_focus] {
-    if (!session_open && editor != nullptr && !editor->property(kTextEditorFinishedProperty).toBool()) {
-      const auto message = statusBar()->currentMessage();
-      cancel_text_editor(editor, static_cast<LayerId>(editor->property("patchy.editingLayerId").toULongLong()));
-      statusBar()->showMessage(message);
+  if (session_open) {
+    if (edit(*editor)) {
+      mark_text_editor_changed(editor);
+      schedule_text_editor_preview(editor);
     }
     sync_text_character_dialog_from_editor();
+    return;
+  }
+
+  // No session: every selected unlocked text layer gets the edit through its own hidden
+  // session (Photoshop applies a Character or options-bar change to all selected type
+  // layers), committed as ONE "Type" undo step. A nested call (a widget the hidden session
+  // rewrites firing its slot) must not start a second pass.
+  const auto targets = text_character_target_layer_ids();
+  if (targets.empty() || applying_text_options_to_layers_) {
+    sync_text_character_dialog_from_editor();
+    return;
+  }
+  applying_text_options_to_layers_ = true;
+  const auto original_active = document().active_layer_id();
+  const auto original_selection = selected_layer_ids();
+  // A refused layer's status error (its lambda showed one) must outlive the commits that
+  // follow it, which put their own "Type" label on the bar.
+  QString refusal_message;
+  const auto cleanup = qScopeGuard([this, previous_focus, original_active, original_selection, &refusal_message] {
+    applying_text_options_to_layers_ = false;
+    text_commit_snapshot_suppressed_ = false;
+    if (original_active.has_value() && document().find_layer(*original_active) != nullptr) {
+      document().set_active_layer(*original_active);
+    }
+    // Every commit rebuilds the layer rows, which collapses a multi-selection to the active
+    // row; put the selection back so a second change works on the same set.
+    if (original_selection.size() > 1U) {
+      select_layers_in_layer_list(original_selection, original_active.value_or(original_selection.front()));
+    }
+    refresh_layer_controls();
+    sync_text_options_from_active_layer();
+    sync_text_alignment_buttons_from_editor();
+    refresh_text_color_button();
+    sync_text_character_dialog_from_editor();
+    if (!refusal_message.isEmpty()) {
+      show_status_error(refusal_message);
+    }
     // Commit refreshes can temporarily disable the panel while snapshotting.
     // Keep subsequent typing in the control that initiated the layer edit.
-    if (!session_open && previous_focus != nullptr && previous_focus->isEnabled()) {
+    if (previous_focus != nullptr && previous_focus->isEnabled()) {
       previous_focus->setFocus(Qt::OtherFocusReason);
     }
   });
-  if (!edit(*editor)) {
-    return;
-  }
-  mark_text_editor_changed(editor);
-  if (session_open) {
-    schedule_text_editor_preview(editor);
-  } else {
-    const QPoint origin(editor->property("patchy.documentTextX").toInt(),
-                        editor->property("patchy.documentTextY").toInt());
-    const auto id = static_cast<LayerId>(editor->property("patchy.editingLayerId").toULongLong());
-    commit_text_editor(editor, origin, id);
+  bool snapshot_taken = false;
+  for (const auto id : targets) {
+    const auto* layer = std::as_const(document()).find_layer(id);
+    if (layer == nullptr) {
+      continue;
+    }
+    const auto bounds = layer->bounds();
+    document().set_active_layer(id);
+    add_text_at(QPoint(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2), {}, false);
+    QPointer<QTextEdit> hidden = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+    if (hidden == nullptr) {
+      continue;
+    }
+    // Keep refreshes during the commit from treating the hidden transaction as
+    // an interactive session. The layer stays visible throughout.
+    hidden->setObjectName(QString());
+    if (!edit(*hidden)) {
+      // Refused for this layer (faux bold on warped text); the others still get the edit.
+      refusal_message = statusBar()->currentMessage();
+      cancel_text_editor(hidden, id);
+      statusBar()->showMessage(refusal_message);
+      continue;
+    }
+    mark_text_editor_changed(hidden);
+    const QPoint origin(hidden->property("patchy.documentTextX").toInt(),
+                        hidden->property("patchy.documentTextY").toInt());
+    // The first commit that reaches a push site takes the snapshot (it still holds every
+    // layer's pre-edit state); the later commits skip theirs.
+    text_commit_snapshot_suppressed_ = snapshot_taken;
+    const auto depth_before = session().undo_stack.size();
+    commit_text_editor(hidden, origin, id);
+    snapshot_taken = snapshot_taken || session().undo_stack.size() != depth_before;
   }
 }
 
@@ -10248,26 +10319,38 @@ void MainWindow::refresh_text_style_combo(const QString& family, const QString& 
 }
 
 void MainWindow::apply_text_style_to_active_editor() {
-  if (canvas_ == nullptr || text_style_combo_ == nullptr) {
+  if (canvas_ == nullptr || text_style_combo_ == nullptr || applying_text_options_to_layers_) {
     return;
   }
+  const auto style = current_text_style_name();
   auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  if (editor != nullptr) {
+    if (editor->property(kTextEditorFinishedProperty).toBool()) {
+      return;
+    }
+    apply_text_style_to_editor(*editor, style);
+    relayout_text_editor(editor, true);
+    schedule_text_editor_preview(editor);
+    refresh_text_color_button();
+    return;
+  }
+  // No session: every selected text layer, each resolving the face against its own family.
+  apply_text_character_edit([this, style](QTextEdit& target) {
+    apply_text_style_to_editor(target, style);
+    return true;
+  });
+}
+
+void MainWindow::apply_text_style_to_editor(QTextEdit& editor, const QString& style) {
   const auto family_fallback =
       text_font_combo_ != nullptr ? text_font_combo_->currentFont().family() : QString();
-  const auto family = editor != nullptr
-                          ? text_display_family_from_format(text_editor_reference_format(*editor),
-                                                            family_fallback)
-                          : family_fallback;
-  const auto style = current_text_style_name();
+  const auto family = text_display_family_from_format(text_editor_reference_format(editor), family_fallback);
   const auto flags = text_style_flags_for_style(family, style);
   // A pick the flags can already express lives in the flags alone, matching the PSD reader:
   // ordinary Bold/Italic text stays on runs v3/v4 and only a face like Black or Demi records
   // the style name.
   const bool record_style = !style.isEmpty() && !text_style_is_flag_expressible(style);
-  if (editor == nullptr || editor->property(kTextEditorFinishedProperty).toBool()) {
-    return;
-  }
-  mutate_text_editor_character_formats(*editor, [&style, &family, flags, record_style](QTextCharFormat& format) {
+  mutate_text_editor_character_formats(editor, [&style, &family, flags, record_style](QTextCharFormat& format) {
     auto font = format.font();
     font.setBold(flags.bold);
     font.setItalic(flags.italic);
@@ -10287,10 +10370,7 @@ void MainWindow::apply_text_style_to_active_editor() {
       format.clearProperty(kTextStyleNameFormatProperty);
     }
   });
-  mark_text_editor_changed(editor);
-  relayout_text_editor(editor, true);
-  schedule_text_editor_preview(editor);
-  refresh_text_color_button();
+  mark_text_editor_changed(&editor);
 }
 
 void MainWindow::apply_text_character_faux_bold_to_active_editor() {
@@ -11289,8 +11369,11 @@ void MainWindow::sync_text_options_from_active_editor() {
   }
   auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
   if (editor == nullptr || editor->property(kTextEditorFinishedProperty).toBool()) {
+    sync_text_options_from_active_layer();
     return;
   }
+  // The session owns the bar; the next no-session sync must re-read its layer.
+  text_options_layer_sync_key_.clear();
 
   const auto format = text_editor_reference_format(*editor);
   const auto format_font = format.font();
@@ -11329,6 +11412,90 @@ void MainWindow::sync_text_options_from_active_editor() {
   }
   refresh_text_color_button();
   sync_text_character_dialog_from_editor();
+}
+
+void MainWindow::sync_text_options_from_active_layer() {
+  if (canvas_ == nullptr || text_font_combo_ == nullptr || text_size_spin_ == nullptr) {
+    return;
+  }
+  // A session (live, or tearing down) owns the bar; a hidden session has no object name and
+  // reaches here through the commit refreshes with the layer it just wrote, which is right.
+  if (canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) != nullptr) {
+    return;
+  }
+  const auto* layer = text_character_target_layer();
+  if (layer == nullptr) {
+    // Nothing to mirror: the bar keeps what it shows (the next new layer's seed), and the
+    // next text layer to become active is read afresh.
+    text_options_layer_sync_key_.clear();
+    return;
+  }
+  const auto& metadata = layer->metadata();
+  const auto read = [&metadata](const char* key) {
+    const auto found = metadata.find(key);
+    return found == metadata.end() ? QString() : QString::fromStdString(found->second);
+  };
+  // The same reads add_text_at does when it opens the layer, minus the font substitution
+  // prompt: this only shows what the layer records.
+  auto family = read(kLayerMetadataTextFont);
+  if (family.trimmed().isEmpty() || family.compare(QStringLiteral("PSD Text"), Qt::CaseInsensitive) == 0) {
+    family = text_font_combo_->currentFont().family();
+  } else {
+    family = canonical_text_display_family(family);
+  }
+  const auto size_text = read(kLayerMetadataTextSize);
+  const int document_text_size = size_text.isEmpty() ? 48 : std::max(1, size_text.toInt());
+  double size_display_scale = 1.0;
+  if (const auto affine = canonical_text_affine_transform_for_layer(*layer); affine.has_value()) {
+    const auto vertical_scale = std::hypot((*affine)[2], (*affine)[3]);
+    if (std::isfinite(vertical_scale) && vertical_scale > 0.01) {
+      size_display_scale = vertical_scale;
+    }
+  }
+  bool text_bold = read(kLayerMetadataTextBold) == QStringLiteral("true");
+  bool text_italic = read(kLayerMetadataTextItalic) == QStringLiteral("true");
+  const auto runs = read(kLayerMetadataTextRuns);
+  // A face pick lives in the runs (columns 3 and 4 of the first line), not the layer-level
+  // keys, so the picker must read them or a Bold pick shows Regular straight after applying.
+  for (const auto& raw_line : runs.split(QLatin1Char('\n'))) {
+    const auto fields = raw_line.trimmed().split(QLatin1Char('\t'));
+    if (fields.size() < 7) {
+      continue;  // version header / malformed line
+    }
+    text_bold = fields[3].toInt() != 0;
+    text_italic = fields[4].toInt() != 0;
+    break;
+  }
+  const auto style = first_text_run_style_name(runs);
+  const auto anti_alias_text = read(kLayerMetadataTextAntiAlias);
+  const int text_anti_alias = anti_alias_text.isEmpty() ? text_smoothing_combo_value(text_smoothing_combo_)
+                                                         : std::clamp(anti_alias_text.toInt(), 0, 16);
+  const auto key = QStringLiteral("%1|%2|%3|%4|%5|%6|%7|%8")
+                       .arg(static_cast<qulonglong>(layer->id()))
+                       .arg(family)
+                       .arg(document_text_size)
+                       .arg(size_display_scale)
+                       .arg(text_bold ? 1 : 0)
+                       .arg(text_italic ? 1 : 0)
+                       .arg(style)
+                       .arg(text_anti_alias);
+  if (key == text_options_layer_sync_key_) {
+    return;
+  }
+  text_options_layer_sync_key_ = key;
+  {
+    QSignalBlocker blocker(text_font_combo_);
+    text_font_combo_->setCurrentFont(text_font_combo_font_for_family(family));
+  }
+  {
+    QSignalBlocker blocker(text_size_spin_);
+    const auto display_size =
+        std::max(1, static_cast<int>(std::lround(document_text_size * size_display_scale)));
+    text_size_spin_->setValue(std::clamp(text_pixels_to_points(display_size, document()), text_size_spin_->minimum(),
+                                         text_size_spin_->maximum()));
+  }
+  refresh_text_style_combo(family, style, text_bold, text_italic);
+  set_text_smoothing_combo_value(text_smoothing_combo_, text_anti_alias);
 }
 
 void MainWindow::remove_text_editor_transform_overlay(QTextEdit* editor) {
@@ -12220,17 +12387,31 @@ void MainWindow::handle_canvas_view_changed(CanvasWidget* canvas) {
 }
 
 void MainWindow::apply_text_alignment_to_active_editor(Qt::Alignment alignment) {
-  if (canvas_ == nullptr) {
+  if (canvas_ == nullptr || applying_text_options_to_layers_) {
     return;
   }
   auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
-  if (editor == nullptr) {
+  if (editor != nullptr) {
+    apply_text_alignment_to_editor(*editor, alignment);
+    sync_text_alignment_buttons_from_editor();
+    schedule_text_editor_preview(editor);
     return;
   }
-  editor->setAlignment(alignment);
-  mark_text_editor_changed(editor);
+  // No session: paragraph-level like the direction combo, so the hidden session selects the
+  // whole object first (a bare caret would align only the first paragraph).
+  apply_text_character_edit([this, alignment](QTextEdit& target) {
+    auto cursor = target.textCursor();
+    cursor.select(QTextCursor::Document);
+    target.setTextCursor(cursor);
+    apply_text_alignment_to_editor(target, alignment);
+    return true;
+  });
   sync_text_alignment_buttons_from_editor();
-  schedule_text_editor_preview(editor);
+}
+
+void MainWindow::apply_text_alignment_to_editor(QTextEdit& editor, Qt::Alignment alignment) {
+  editor.setAlignment(alignment);
+  mark_text_editor_changed(&editor);
 }
 
 void MainWindow::apply_text_orientation(bool vertical, bool remember_default) {
@@ -12362,7 +12543,23 @@ void MainWindow::sync_text_alignment_buttons_from_editor() {
     return;
   }
   const auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
-  const auto alignment = editor != nullptr ? editor->alignment() : Qt::AlignLeft;
+  Qt::Alignment alignment = Qt::AlignLeft;
+  if (editor != nullptr) {
+    alignment = editor->alignment();
+  } else if (const auto* layer = text_character_target_layer(); layer != nullptr) {
+    // No session: the active text layer's first paragraph (column 2 of patchy.text.paragraph_runs).
+    if (const auto found = layer->metadata().find(kLayerMetadataTextParagraphRuns);
+        found != layer->metadata().end()) {
+      for (const auto& raw_line : QString::fromStdString(found->second).split(QLatin1Char('\n'))) {
+        const auto fields = raw_line.trimmed().split(QLatin1Char('\t'));
+        if (fields.size() < 3) {
+          continue;
+        }
+        alignment = paragraph_alignment_from_name(fields[2]);
+        break;
+      }
+    }
+  }
   const auto set_checked = [](QPushButton* button, bool checked) {
     QSignalBlocker blocker(button);
     button->setChecked(checked);
@@ -12374,65 +12571,87 @@ void MainWindow::sync_text_alignment_buttons_from_editor() {
 }
 
 void MainWindow::apply_text_family_to_active_editor() {
-  if (canvas_ == nullptr) {
+  if (canvas_ == nullptr || applying_text_options_to_layers_) {
     return;
   }
   auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
-  if (editor == nullptr) {
+  if (editor != nullptr) {
+    const auto family =
+        text_font_combo_ != nullptr
+            ? text_font_combo_->currentFont().family()
+            : text_display_family_from_format(text_editor_reference_format(*editor),
+                                              editor->property("patchy.documentTextFamily").toString());
+    apply_text_family_to_editor(*editor, family);
+    relayout_text_editor(editor, true);
+    schedule_text_editor_preview(editor);
     return;
   }
+  // No session: the selected text layers (issue 31). The value is read BEFORE the hidden
+  // sessions open, since each one rewrites the bar from the layer it edits.
+  if (text_font_combo_ == nullptr) {
+    return;
+  }
+  const auto family = text_font_combo_->currentFont().family();
+  apply_text_character_edit([this, family](QTextEdit& target) {
+    apply_text_family_to_editor(target, family);
+    return true;
+  });
+}
 
-  const auto family =
-      text_font_combo_ != nullptr
-          ? text_font_combo_->currentFont().family()
-          : text_display_family_from_format(text_editor_reference_format(*editor),
-                                            editor->property("patchy.documentTextFamily").toString());
+void MainWindow::apply_text_family_to_editor(QTextEdit& editor, const QString& family) {
   QTextCharFormat format;
   format.setFontFamilies(render_text_families_for_display_family(family));
   set_text_display_family(format, family);
-  merge_text_char_format(*editor, format);
-  auto editor_font = editor->font();
+  merge_text_char_format(editor, format);
+  auto editor_font = editor.font();
   editor_font.setFamilies(render_text_families_for_display_family(family));
-  editor->setFont(editor_font);
-  editor->document()->setDefaultFont(editor_font);
-  editor->setProperty("patchy.documentTextFamily", family);
-
-  mark_text_editor_changed(editor);
-  relayout_text_editor(editor, true);
-  schedule_text_editor_preview(editor);
+  editor.setFont(editor_font);
+  editor.document()->setDefaultFont(editor_font);
+  editor.setProperty("patchy.documentTextFamily", family);
+  mark_text_editor_changed(&editor);
 }
 
 void MainWindow::apply_text_size_to_active_editor() {
-  if (canvas_ == nullptr) {
+  if (canvas_ == nullptr || applying_text_options_to_layers_) {
     return;
   }
+  const std::optional<double> points =
+      text_size_spin_ != nullptr ? std::optional<double>(text_size_spin_->value()) : std::nullopt;
   auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
-  if (editor == nullptr) {
+  if (editor != nullptr) {
+    apply_text_size_to_editor(*editor, points);
+    relayout_text_editor(editor, true);
+    schedule_text_editor_preview(editor);
+    refresh_text_color_button();
     return;
   }
+  if (!points.has_value()) {
+    return;
+  }
+  apply_text_character_edit([this, points](QTextEdit& target) {
+    apply_text_size_to_editor(target, points);
+    return true;
+  });
+}
 
+void MainWindow::apply_text_size_to_editor(QTextEdit& editor, std::optional<double> points) {
   // The spinbox shows the effective (transform-folded) size for imported Photoshop text; the
   // editor and stored runs work in engine units, so divide the display scale back out.
-  const auto display_scale = text_editor_size_display_scale(*editor);
+  const auto display_scale = text_editor_size_display_scale(editor);
   const auto document_text_size =
-      text_size_spin_ != nullptr
-          ? std::max(1, static_cast<int>(std::lround(
-                            text_points_to_pixels(text_size_spin_->value(), document()) / display_scale)))
-          : std::max(1, editor->property("patchy.documentTextSize").toInt());
+      points.has_value()
+          ? std::max(1, static_cast<int>(std::lround(text_points_to_pixels(*points, document()) / display_scale)))
+          : std::max(1, editor.property("patchy.documentTextSize").toInt());
   const auto editor_pixel_size = std::max(8, static_cast<int>(std::round(document_text_size * canvas_->zoom())));
   QTextCharFormat format;
   format.setProperty(QTextFormat::FontPixelSize, editor_pixel_size);
-  editor->setProperty("patchy.documentTextSize", document_text_size);
-  merge_text_char_format(*editor, format);
-  auto editor_font = editor->font();
+  editor.setProperty("patchy.documentTextSize", document_text_size);
+  merge_text_char_format(editor, format);
+  auto editor_font = editor.font();
   editor_font.setPixelSize(editor_pixel_size);
-  editor->setFont(editor_font);
-  editor->document()->setDefaultFont(editor_font);
-
-  mark_text_editor_changed(editor);
-  relayout_text_editor(editor, true);
-  schedule_text_editor_preview(editor);
-  refresh_text_color_button();
+  editor.setFont(editor_font);
+  editor.document()->setDefaultFont(editor_font);
+  mark_text_editor_changed(&editor);
 }
 
 // Ctrl+B during a text session: the Bold FACE when the family ships one, Photoshop's faux bold
@@ -12528,14 +12747,38 @@ void MainWindow::apply_text_color_to_active_editor() {
   const auto text_color = editor->property("patchy.documentTextColor").value<QColor>().isValid()
                               ? editor->property("patchy.documentTextColor").value<QColor>()
                               : canvas_->primary_color();
-  QTextCharFormat format;
-  format.setForeground(QBrush(text_color));
-  merge_text_char_format(*editor, format);
-
-  mark_text_editor_changed(editor);
+  apply_text_color_to_editor(*editor, text_color);
   relayout_text_editor(editor, true);
   schedule_text_editor_preview(editor);
   refresh_text_color_button();
+}
+
+void MainWindow::apply_text_color_to_editor(QTextEdit& editor, QColor color) {
+  QTextCharFormat format;
+  format.setForeground(QBrush(color));
+  merge_text_char_format(editor, format);
+  mark_text_editor_changed(&editor);
+}
+
+void MainWindow::apply_text_color_to_selected_layers_debounced(QColor color) {
+  // The picker fires per change (a wheel drag is dozens); each no-session apply commits and
+  // re-renders every selected layer as an undo step, so wait for the picker to settle.
+  constexpr int kSettleDelayMs = 200;
+  const auto generation = ++text_layer_color_apply_generation_;
+  QTimer::singleShot(kSettleDelayMs, this, [this, color, generation] {
+    if (generation != text_layer_color_apply_generation_ || canvas_ == nullptr) {
+      return;
+    }
+    // A session opened meanwhile owns its own color.
+    if (canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) != nullptr) {
+      return;
+    }
+    apply_text_character_edit([this, color](QTextEdit& target) {
+      target.setProperty("patchy.documentTextColor", color);
+      apply_text_color_to_editor(target, color);
+      return true;
+    });
+  });
 }
 
 void MainWindow::apply_primary_color_to_active_text_editor(QColor color) {
@@ -12553,30 +12796,36 @@ void MainWindow::apply_primary_color_to_active_text_editor(QColor color) {
 }
 
 void MainWindow::apply_text_smoothing_to_active_editor() {
-  if (canvas_ == nullptr) {
+  if (canvas_ == nullptr || applying_text_options_to_layers_) {
     return;
   }
-  auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
-  if (editor == nullptr) {
-    return;
-  }
-
   const auto text_anti_alias = text_smoothing_combo_value(text_smoothing_combo_);
-  editor->setProperty("patchy.documentTextAntiAlias", text_anti_alias);
+  auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  if (editor != nullptr) {
+    apply_text_smoothing_to_editor(*editor, text_anti_alias);
+    relayout_text_editor(editor, true);
+    schedule_text_editor_preview(editor);
+    return;
+  }
+  apply_text_character_edit([this, text_anti_alias](QTextEdit& target) {
+    apply_text_smoothing_to_editor(target, text_anti_alias);
+    return true;
+  });
+}
 
-  auto editor_font = editor->font();
+void MainWindow::apply_text_smoothing_to_editor(QTextEdit& editor, int text_anti_alias) {
+  editor.setProperty("patchy.documentTextAntiAlias", text_anti_alias);
+
+  auto editor_font = editor.font();
   configure_text_font_smoothing(editor_font, text_anti_alias);
-  editor->setFont(editor_font);
-  editor->document()->setDefaultFont(editor_font);
+  editor.setFont(editor_font);
+  editor.document()->setDefaultFont(editor_font);
 
-  const auto cursor = editor->textCursor();
-  apply_text_smoothing_to_document(*editor->document(), text_anti_alias);
-  editor->setTextCursor(cursor);
-  editor->setCurrentCharFormat(text_format_with_smoothing(editor->currentCharFormat(), text_anti_alias));
-
-  mark_text_editor_changed(editor);
-  relayout_text_editor(editor, true);
-  schedule_text_editor_preview(editor);
+  const auto cursor = editor.textCursor();
+  apply_text_smoothing_to_document(*editor.document(), text_anti_alias);
+  editor.setTextCursor(cursor);
+  editor.setCurrentCharFormat(text_format_with_smoothing(editor.currentCharFormat(), text_anti_alias));
+  mark_text_editor_changed(&editor);
 }
 
 bool MainWindow::is_text_option_widget(QWidget* widget) const {

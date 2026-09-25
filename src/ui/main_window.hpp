@@ -1402,17 +1402,31 @@ private:
   void refresh_pattern_stamp_pattern_combo();
   void set_eraser_brush_settings_active(bool active);
   void sync_text_options_from_active_editor();
+  // With no session open the options bar mirrors the active text layer (family, size, face,
+  // smoothing), so a pick is always a real change and edits start from what the layer uses.
+  void sync_text_options_from_active_layer();
+  // The options-bar slots: a live session applies to its selection (or the whole object with
+  // a bare caret); with no session the change goes to every selected text layer through
+  // apply_text_character_edit. The `_to_editor` helpers hold the per-editor work.
   void apply_text_family_to_active_editor();
+  void apply_text_family_to_editor(QTextEdit& editor, const QString& family);
   void apply_text_size_to_active_editor();
+  void apply_text_size_to_editor(QTextEdit& editor, std::optional<double> points);
   // Ctrl+B / Ctrl+I during a text session: select the family's real Bold/Italic face when it
   // ships one, toggle the faux bold / faux italic character property when it does not
   // (Photoshop's fallback). A second press always turns the axis off, faux included.
   void toggle_text_bold_face();
   void toggle_text_italic_face();
   void apply_text_color_to_active_editor();
+  void apply_text_color_to_editor(QTextEdit& editor, QColor color);
+  // The text color panel is live; with no session each change would commit every selected
+  // layer, so the layer edit waits for the picker to settle on `color`.
+  void apply_text_color_to_selected_layers_debounced(QColor color);
   void apply_primary_color_to_active_text_editor(QColor color);
   void apply_text_smoothing_to_active_editor();
+  void apply_text_smoothing_to_editor(QTextEdit& editor, int text_anti_alias);
   void apply_text_alignment_to_active_editor(Qt::Alignment alignment);
+  void apply_text_alignment_to_editor(QTextEdit& editor, Qt::Alignment alignment);
   void sync_text_alignment_buttons_from_editor();
   // Vertical type (options-bar toggle / layer context menu): a live session re-lays out, the
   // selected text layer converts through a hidden session, otherwise the next new layer takes
@@ -1428,6 +1442,10 @@ private:
   // through a hidden session committed immediately without an unwarped preview.
   void open_text_character_dialog();
   void sync_text_character_dialog_from_editor();
+  // Every selected unlocked text layer (the active one when nothing is selected); the
+  // no-session apply path edits all of them, one hidden session each, as ONE "Type" undo
+  // step. `text_character_target_layer` is the first of them (the panel reads it back).
+  [[nodiscard]] std::vector<LayerId> text_character_target_layer_ids() const;
   [[nodiscard]] const Layer* text_character_target_layer() const;
   void apply_text_character_edit(const std::function<bool(QTextEdit&)>& edit);
   void apply_text_character_leading_to_active_editor();
@@ -1446,6 +1464,7 @@ private:
   [[nodiscard]] QString current_text_style_name() const;
   [[nodiscard]] QString current_text_family_for_editor(const QTextEdit& editor) const;
   void apply_text_style_to_active_editor();
+  void apply_text_style_to_editor(QTextEdit& editor, const QString& style);
   // Re-renders a text layer with `warp` applied (identity = unwarped) and refreshes
   // the warp/transform/raster-status metadata. Returns false when the layer's text
   // cannot be rendered.
@@ -1795,6 +1814,19 @@ private:
   // Toggling Vertical with nothing to convert arms the NEXT new type layer once; a new session
   // always starts horizontal otherwise (never persisted: a sticky default surprised users).
   bool text_vertical_next_{false};
+  // apply_text_character_edit runs one hidden session per selected text layer under a
+  // single snapshot: the first commit that reaches a push site takes it, the later commits
+  // are told to skip theirs.
+  bool text_commit_snapshot_suppressed_{false};
+  // Those hidden sessions rewrite the options-bar widgets from each layer they open (and
+  // the commits refresh the bar); the widget slots must not start a nested layer edit from
+  // those writes.
+  bool applying_text_options_to_layers_{false};
+  // Skips the layer-to-widgets sync when nothing it shows has changed (it runs from every
+  // layer-controls refresh).
+  QString text_options_layer_sync_key_;
+  // Bumped per text-color change so only the last debounced layer apply runs.
+  int text_layer_color_apply_generation_{0};
   QPushButton* text_warp_button_{nullptr};
   // Character panel (leading / tracking / glyph scales) for the live editor session;
   // the dialog and its controls are exempt from the focus-loss auto-commit via
