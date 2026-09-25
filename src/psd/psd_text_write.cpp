@@ -1118,7 +1118,28 @@ bool point_text_geometry_needs_baseline_anchor(const Layer& layer, const PsdText
   if (!finite_text_bounds(geometry.bounding_box) || text_bounds_height(geometry.bounding_box) <= 1.0) {
     return false;
   }
-  return geometry.bounding_box.top >= -0.5 && point_text_baseline_offset(layer, geometry) > 1.0;
+  if (point_text_baseline_offset(layer, geometry) <= 1.0) {
+    return false;
+  }
+  // A Patchy render records where its raster's top row sits relative to the text-local origin
+  // (kLayerMetadataTextRasterTop, 0 or negative when glyph ink overshoots the line top). When
+  // the layer's raster really sits there relative to ty, ty is still that origin and needs the
+  // baseline anchor; a raster an extra first_baseline higher means ty was already moved onto
+  // the baseline (a reopened layer, record_text_layout_metrics_for_reopened_text). The ink test
+  // below cannot tell a grown buffer from an anchored one: CoreText's smaller ascent grows the
+  // issue 20 "M" 146 px above its origin, and the ink then "starts above ty" although ty is
+  // the line top, which left the saved baseline an ascent high. Axis-aligned transforms only.
+  const auto raster_top = layer_metadata_value(layer, kLayerMetadataTextRasterTop);
+  const auto& transform = geometry.transform;
+  if (raster_top.has_value() && std::abs(transform[1]) <= 1e-9 && std::abs(transform[2]) <= 1e-9 &&
+      std::abs(transform[3]) > 1e-9) {
+    if (const auto stored = parse_double(*raster_top); stored.has_value() && std::isfinite(*stored)) {
+      const auto expected_offset = *stored * transform[3];
+      const auto actual_offset = static_cast<double>(layer.bounds().y) - transform[5];
+      return std::abs(actual_offset - expected_offset) <= 1.5;
+    }
+  }
+  return geometry.bounding_box.top >= -0.5;
 }
 
 }  // namespace

@@ -3303,7 +3303,12 @@ void ui_start_panel_shows_about_info_and_update_status() {
   CHECK(version->text().endsWith(QStringLiteral("(built %1)").arg(patchy::ui::build_timestamp_text())));
   auto* credit = window.findChild<QLabel*>(QStringLiteral("startPanelCredit"));
   CHECK(credit != nullptr);
-  CHECK(credit->text() == QStringLiteral("Created by Seth A. Robinson"));
+  CHECK(credit->textFormat() == Qt::RichText);
+  CHECK(credit->openExternalLinks());
+  CHECK(credit->text().startsWith(QStringLiteral("Created by ")));
+  CHECK(credit->text().contains(QStringLiteral("href=\"https://github.com/SethRobinson\"")));
+  CHECK(credit->text().contains(QStringLiteral(">Seth A. Robinson</a>")));
+  CHECK(!credit->text().contains(QStringLiteral("@link_text")));
   auto* contributors = window.findChild<QLabel*>(QStringLiteral("startPanelContributors"));
   CHECK(contributors != nullptr);
   CHECK(contributors->textFormat() == Qt::RichText);

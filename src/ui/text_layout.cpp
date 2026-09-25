@@ -335,7 +335,17 @@ QRectF line_glyph_ink_rect(const QTextBlock& block, const QTextLine& line, QPoin
   if (ink.isNull()) {
     return QRectF();
   }
-  ink.adjust(-inflation.stroke - inflation.italic_lean, -inflation.stroke, inflation.stroke, inflation.stroke);
+  // CoreText's glyph boxes come back a pixel tighter than its rasterization (the Balmoral LET
+  // accent of issue 20 reported as fitting the ascent, then painted its antialiased top row
+  // on the buffer edge), so on macOS the measured ink carries one pixel of slack. FreeType and
+  // DirectWrite boxes cover their pixels, and their pinned rasters stay byte-identical.
+#ifdef Q_OS_MACOS
+  constexpr double kEngineBoxSlack = 1.0;
+#else
+  constexpr double kEngineBoxSlack = 0.0;
+#endif
+  ink.adjust(-inflation.stroke - inflation.italic_lean - kEngineBoxSlack, -inflation.stroke - kEngineBoxSlack,
+             inflation.stroke + kEngineBoxSlack, inflation.stroke + kEngineBoxSlack);
   return ink.translated(block_origin);
 }
 

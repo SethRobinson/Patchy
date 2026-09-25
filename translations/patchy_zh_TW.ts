@@ -18813,10 +18813,6 @@ Y：%2
         <translation>版本 %1 (建置於 %2)</translation>
     </message>
     <message>
-        <source>Created by Seth A. Robinson</source>
-        <translation>由 Seth A. Robinson 製作</translation>
-    </message>
-    <message>
         <source>Code contributions from %1</source>
         <translation>程式碼貢獻者：%1</translation>
     </message>
@@ -18831,6 +18827,10 @@ Y：%2
     <message>
         <source>No matching recent files</source>
         <translation>沒有相符的最近使用檔案</translation>
+    </message>
+    <message>
+        <source>Created by %1</source>
+        <translation>由 %1 製作</translation>
     </message>
 </context>
 <context>

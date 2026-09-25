@@ -890,6 +890,65 @@ void psd_writer_point_text_first_baseline_beats_ink_bottom() {
   }
 }
 
+// A raster grown ABOVE the text-local origin (kLayerMetadataTextRasterTop negative: glyph ink
+// overshooting the line top, which CoreText's smaller ascent does to the issue 20 "M") still
+// gets its transform anchored on the baseline: the ink starting above ty no longer reads as
+// "already anchored". A layer whose ty already IS the baseline (raster an extra first_baseline
+// higher, the reopened-layer migration) is left alone, so nothing shifts twice.
+void psd_writer_point_text_grown_raster_still_anchors_baseline() {
+  const auto make_document = [](double ty) {
+    patchy::Document document(260, 160, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Background", solid_rgb(260, 160, 255, 255, 255));
+    auto pixels = solid_rgba(140, 80, 0, 0, 0, 0);
+    for (std::int32_t y = 0; y < 54; ++y) {  // ink from the raster's top row down
+      for (std::int32_t x = 0; x < 120; ++x) {
+        auto* pixel = pixels.pixel(x, y);
+        pixel[0] = 32;
+        pixel[1] = 32;
+        pixel[2] = 32;
+        pixel[3] = 255;
+      }
+    }
+    patchy::Layer text_layer(document.allocate_layer_id(), "Text: Swash", std::move(pixels));
+    auto& layer = document.add_layer(std::move(text_layer));
+    layer.set_bounds(patchy::Rect{40, 50, 140, 80});  // raster top 50, 20 px above the origin at 70
+    layer.metadata()[patchy::kLayerMetadataText] = "Swash";
+    layer.metadata()[patchy::kLayerMetadataTextRuns] = "v1\n0\t5\t48\t0\t0\t#202020\tArial";
+    layer.metadata()[patchy::kLayerMetadataTextParagraphRuns] = "v1\n0\t5\tleft";
+    layer.metadata()[patchy::kLayerMetadataTextFlow] = "point";
+    layer.metadata()[patchy::kLayerMetadataTextBoxWidth] = "140";
+    layer.metadata()[patchy::kLayerMetadataTextBoxHeight] = "80";
+    layer.metadata()[patchy::kLayerMetadataTextFont] = "Arial";
+    layer.metadata()[patchy::kLayerMetadataTextSize] = "48";
+    layer.metadata()[patchy::kLayerMetadataTextColor] = "#202020";
+    layer.metadata()[patchy::kLayerMetadataTextRasterStatus] = "patchy_raster";
+    layer.metadata()[patchy::kLayerMetadataTextFirstBaseline] = "43.5";
+    layer.metadata()[patchy::kLayerMetadataTextRasterTop] = "-20";
+    layer.metadata()[patchy::kLayerMetadataTextTransform] = "1 0 0 1 40 " + std::to_string(ty);
+    return document;
+  };
+  const auto tysh_ty = [](const patchy::Document& document) -> std::optional<double> {
+    const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+    const auto payload = psd_layer_block_payload(psd_layer_extra_data(bytes, 1), "TySh");
+    if (!payload.has_value()) {
+      return std::nullopt;
+    }
+    return read_f64_be_at(*payload, 42U);
+  };
+  // ty at the origin: the baseline anchor applies even though the ink starts 20 px above ty.
+  const auto anchored = tysh_ty(make_document(70.0));
+  CHECK(anchored.has_value());
+  if (anchored.has_value()) {
+    CHECK(std::abs(*anchored - 113.5) < 0.000001);
+  }
+  // ty already on the baseline (raster 63.5 above it, not 20): written as is.
+  const auto kept = tysh_ty(make_document(113.5));
+  CHECK(kept.has_value());
+  if (kept.has_value()) {
+    CHECK(std::abs(*kept - 113.5) < 0.000001);
+  }
+}
+
 // A Qt-natural layer's recorded line pitch (kLayerMetadataTextAutoLeading, a fraction of the
 // dominant size) becomes the paragraph /AutoLeading so Photoshop's auto leading advances like
 // Qt; it round-trips through the v3 paragraph column without flipping the layer into the
@@ -2687,6 +2746,8 @@ std::vector<patchy::test::TestCase> psd_text_tests() {
       {"psd_text_anchor_captures_keep_fractional_transform", psd_text_anchor_captures_keep_fractional_transform},
       {"psd_writer_box_text_baseline_inset_moves_box_bounds", psd_writer_box_text_baseline_inset_moves_box_bounds},
       {"psd_writer_point_text_first_baseline_beats_ink_bottom", psd_writer_point_text_first_baseline_beats_ink_bottom},
+      {"psd_writer_point_text_grown_raster_still_anchors_baseline",
+       psd_writer_point_text_grown_raster_still_anchors_baseline},
       {"psd_writer_qt_natural_auto_leading_fraction", psd_writer_qt_natural_auto_leading_fraction},
       {"psd_writer_writes_baseline_direction_for_vertical_type", psd_writer_writes_baseline_direction_for_vertical_type},
       {"psd_writer_writes_tracking_as_an_integer", psd_writer_writes_tracking_as_an_integer},

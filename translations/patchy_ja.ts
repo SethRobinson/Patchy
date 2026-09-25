@@ -18777,10 +18777,6 @@ Clipped to the layer below</source>
         <translation>バージョン %1（ビルド日: %2）</translation>
     </message>
     <message>
-        <source>Created by Seth A. Robinson</source>
-        <translation>作成: Seth A. Robinson</translation>
-    </message>
-    <message>
         <source>Code contributions from %1</source>
         <translation>コード貢献者: %1</translation>
     </message>
@@ -18831,6 +18827,10 @@ Clipped to the layer below</source>
     <message>
         <source>desktop version</source>
         <translation>デスクトップ版</translation>
+    </message>
+    <message>
+        <source>Created by %1</source>
+        <translation>作成: %1</translation>
     </message>
 </context>
 <context>

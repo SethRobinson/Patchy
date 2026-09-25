@@ -18817,10 +18817,6 @@ Y: %2
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Created by Seth A. Robinson</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Code contributions from %1</source>
         <translation type="unfinished"></translation>
     </message>
@@ -18834,6 +18830,10 @@ Y: %2
     </message>
     <message>
         <source>No matching recent files</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Created by %1</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

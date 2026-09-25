@@ -60,11 +60,18 @@ inline constexpr const char* kLayerMetadataPsdTextIndex = "patchy.psd.text.index
 //   (zero) on Photoshop-layout layers.
 // - auto_leading: Qt's baseline advance as a fraction of the dominant size; written as the
 //   paragraph /AutoLeading so Photoshop's auto leading matches Qt's natural line pitch.
-// The reader recovers box_baseline_inset from a Patchy-signed TySh; the other two only exist on
+// - raster_top: the raster's top row relative to the text-local origin for point text (0, or
+//   negative when glyph ink overshoots the first line top and the buffer grew upward). The
+//   writer compares it with the layer's real raster offset to tell a transform still at the
+//   origin (anchor it on the baseline) from one already at the baseline (leave it); the ink
+//   test it used before mistook a grown buffer for an anchored one (CoreText's smaller ascent
+//   grows the issue 20 "M", and its saved baseline landed an ascent high).
+// The reader recovers box_baseline_inset from a Patchy-signed TySh; the others only exist on
 // layers Patchy rendered in this session (the writer falls back to its raster heuristics).
 inline constexpr const char* kLayerMetadataTextFirstBaseline = "patchy.text.first_baseline";
 inline constexpr const char* kLayerMetadataTextBoxBaselineInset = "patchy.text.box_baseline_inset";
 inline constexpr const char* kLayerMetadataTextAutoLeading = "patchy.text.auto_leading";
+inline constexpr const char* kLayerMetadataTextRasterTop = "patchy.text.raster_top";
 
 // SVG import handoff (the Qt-free reader cannot decode PNGs or render text):
 // MainWindow's post-open pass decodes pending_image data URIs, renders

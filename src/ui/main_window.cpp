@@ -133,6 +133,7 @@
 #include <QFontInfo>
 #include <QFontMetrics>
 #include <QFormLayout>
+#include <QGlyphRun>
 #include <QFrame>
 #include <QGridLayout>
 #include <QGroupBox>
@@ -332,6 +333,11 @@ constexpr auto kTextEditorForceBakedPreviewProperty = "patchy.forceBakedPreview"
 constexpr auto kTextEditorTransformOverrideProperty = "patchy.textTransformOverride";
 constexpr auto kTextEditorSourceVisibleAnchorProperty = "patchy.sourceVisibleAnchor";
 constexpr auto kTextEditorSourceVisibleSizeProperty = "patchy.sourceVisibleSize";
+// Fraction (line start minus its whole-pixel rounding, in [-0.5, 0.5)) of the imported layer's
+// Photoshop line start, from the TySh anchor and advance box. The source raster's ink column
+// is already whole, so the anchor pin would otherwise lose it; the re-render needs it because
+// Photoshop rounds every glyph from the UNROUNDED start (docs/text-render-calibration.md).
+constexpr auto kTextEditorSourceLineStartFractionProperty = "patchy.sourceLineStartFraction";
 constexpr auto kTextEditorVisibleLocalRectProperty = "patchy.textVisibleLocalRect";
 constexpr auto kTextEditorRenderLocalRectProperty = "patchy.textRenderLocalRect";
 constexpr auto kTextEditorExtendedBoxPreviewProperty = "patchy.extendedBoxPreview";
@@ -2805,6 +2811,7 @@ private:
                          QString::fromStdString(serialize_layer_affine_transform(affine)));
     editor_->setProperty(kTextEditorSourceVisibleAnchorProperty, QVariant());
     editor_->setProperty(kTextEditorSourceVisibleSizeProperty, QVariant());
+    editor_->setProperty(kTextEditorSourceLineStartFractionProperty, QVariant());
     editor_->setProperty(kTextEditorVisibleLocalRectProperty, QVariant());
     // Box geometry changed: drop the import-frame render rect so glyphs lay out against the live
     // box instead of the original Photoshop frame (free helper isn't visible inside this class).
@@ -3646,6 +3653,7 @@ struct TextLayoutMetrics {
   std::optional<double> first_baseline;
   std::optional<double> box_baseline_inset;
   std::optional<double> auto_leading;
+  std::optional<double> raster_top;  // point text: local_rect.top(), the raster's top row from the origin
 };
 
 struct RenderedTextPixels {
@@ -3890,6 +3898,60 @@ double dominant_text_run_size(const TextToolSettings& settings, const QString& r
   return dominant > 0.0 ? dominant : static_cast<double>(std::max(1, settings.size));
 }
 
+// The width Photoshop's HorizontalScale asks for over what the dominant run's font really
+// renders. QFont::setStretch is a whole percent, so H/V 0.95/0.93 (102.15%) renders at 102% and
+// the 1080 px "ethode" of issue 20 came out a pixel narrow at its far edge. The ratio is
+// MEASURED on the font (set_stretch_for_advance_ratio may have picked a sqrt-encoded value on
+// CoreText, and a fallback engine may ignore stretch altogether), so the residual is exactly
+// what the matrix still has to supply. The dominant run is the largest pixel size, the same
+// choice dominant_text_run_size makes for the vertical fold.
+double dominant_run_width_residual(const QTextDocument& document) {
+  double best_size = 0.0;
+  QTextCharFormat best;
+  bool found = false;
+  for (auto block = document.begin(); block.isValid(); block = block.next()) {
+    for (auto it = block.begin(); !it.atEnd(); ++it) {
+      const auto fragment = it.fragment();
+      if (!fragment.isValid() || fragment.length() <= 0) {
+        continue;
+      }
+      const auto format = fragment.charFormat();
+      const auto font = format.font();
+      const auto size = std::max(static_cast<double>(font.pixelSize()), font.pointSizeF());
+      if (size > best_size) {
+        best_size = size;
+        best = format;
+        found = true;
+      }
+    }
+  }
+  if (!found) {
+    return 1.0;
+  }
+  const auto scale_property = [&best](int property_id) {
+    if (best.hasProperty(property_id)) {
+      const auto value = best.property(property_id).toDouble();
+      if (std::isfinite(value) && value > 0.01 && value < 100.0) {
+        return value;
+      }
+    }
+    return 1.0;
+  };
+  const auto wanted =
+      scale_property(kTextHorizontalScaleFormatProperty) / scale_property(kTextVerticalScaleFormatProperty);
+  QFont stretched = best.font();
+  stretched.setLetterSpacing(QFont::AbsoluteSpacing, 0.0);
+  QFont unstretched = stretched;
+  unstretched.setStretch(100);
+  const auto reference = QFontMetricsF(unstretched).horizontalAdvance(QLatin1Char('H'));
+  const auto current = QFontMetricsF(stretched).horizontalAdvance(QLatin1Char('H'));
+  if (!(reference > 0.0) || !(current > 0.0) || !std::isfinite(wanted) || wanted <= 0.0) {
+    return 1.0;
+  }
+  const auto residual = wanted / (current / reference);
+  return std::isfinite(residual) && residual > 0.5 && residual < 2.0 ? residual : 1.0;
+}
+
 // Everything the rasterizer decides BEFORE it touches a paint device: the laid-out
 // document, the line plan, the local rect, and the residual document transform. The
 // QImage render and the editable-PDF text export both draw the same plan, so the PDF's
@@ -3901,6 +3963,9 @@ struct TextRenderPlan {
   QTransform document_transform;  // post-fold residual (identity when none was supplied)
   bool has_document_transform{false};
   bool faux_italic_render{false};
+  // Photoshop layout through an axis-aligned transform: every glyph origin is moved onto
+  // the document pixel grid as it is drawn (draw_line_glyphs_pixel_aligned).
+  bool pixel_align_glyphs{false};
   // Vertical type: the cell plan replaces the line items (which stay empty).
   bool vertical{false};
   VerticalTextLayoutPlan vertical_plan;
@@ -4008,9 +4073,10 @@ TextRenderPlan build_text_render_plan(const TextToolSettings& settings, QColor c
                                                   : snap_to_pixel_grid(document_transform_in.dx()),
                                 snap_to_pixel_grid(document_transform_in.dy()));
   double fold_scale = 1.0;
-  if (settings.photoshop_layout && !document_transform_in.isIdentity()) {
-    const auto vertical_scale = std::hypot(document_transform_in.m21(), document_transform_in.m22());
-    if (std::isfinite(vertical_scale) && vertical_scale > 0.01 && std::abs(vertical_scale - 1.0) > 0.0001) {
+  if (settings.photoshop_layout) {
+    const auto vertical_scale =
+        document_transform_in.isIdentity() ? 1.0 : std::hypot(document_transform_in.m21(), document_transform_in.m22());
+    if (std::isfinite(vertical_scale) && vertical_scale > 0.01) {
       fold_scale = vertical_scale;
       // Fold only as far as a WHOLE pixel size and leave the remainder in the matrix. QFont
       // takes an integer pixel size and Qt quantizes a fractional point size to the same whole
@@ -4019,6 +4085,9 @@ TextRenderPlan build_text_render_plan(const TextToolSettings& settings, QColor c
       // pixel or two on edit) while 14.44444 x 0.9 = 13.0 was already whole and never moved.
       // The leftover ~1.0125 rides in document_transform, which the glyph rasterizer applies
       // exactly -- these lines are drawn THROUGH the matrix, not resampled after the fact.
+      // The same applies with no scaling transform at all: FontSize x VerticalScale is
+      // fractional as often as not (1086.61 x 0.93 = 1010.55 in issue 20's file), and the
+      // fraction it rounds away is a size error the matrix takes back.
       const auto exact_dominant_size =
           dominant_text_run_size(settings, rich_text_runs) * fold_scale *
           (std::isfinite(layout_scale_in) && layout_scale_in > 0.01 ? layout_scale_in : 1.0);
@@ -4026,10 +4095,14 @@ TextRenderPlan build_text_render_plan(const TextToolSettings& settings, QColor c
       if (whole_dominant_size >= 1.0 && std::abs(exact_dominant_size - whole_dominant_size) > 0.0001) {
         fold_scale *= whole_dominant_size / exact_dominant_size;
       }
-      document_transform =
-          QTransform(document_transform_in.m11() / fold_scale, document_transform_in.m12() / fold_scale,
-                     document_transform_in.m21() / fold_scale, document_transform_in.m22() / fold_scale,
-                     document_transform.dx(), document_transform.dy());
+      if (std::abs(fold_scale - 1.0) > 1e-9) {
+        document_transform =
+            QTransform(document_transform_in.m11() / fold_scale, document_transform_in.m12() / fold_scale,
+                       document_transform_in.m21() / fold_scale, document_transform_in.m22() / fold_scale,
+                       document_transform.dx(), document_transform.dy());
+      } else {
+        fold_scale = 1.0;
+      }
     }
   }
   const double layout_scale =
@@ -4040,6 +4113,15 @@ TextRenderPlan build_text_render_plan(const TextToolSettings& settings, QColor c
   auto& document = *result.built.document;
   const auto& font = result.built.font;
   const auto text_width = result.built.text_width;
+  if (settings.photoshop_layout && !settings.vertical) {
+    // Whatever width the whole-percent stretch could not express scales the local x axis
+    // (dominant_run_width_residual), applied before the document transform so rotation and
+    // shear still act on the corrected advances.
+    const auto width_residual = dominant_run_width_residual(document);
+    if (std::abs(width_residual - 1.0) > 1e-6) {
+      document_transform = QTransform::fromScale(width_residual, 1.0) * document_transform;
+    }
+  }
 
   const auto size = document.size();
   QRectF local_rect;
@@ -4134,7 +4216,14 @@ TextRenderPlan build_text_render_plan(const TextToolSettings& settings, QColor c
       item.clip_rect.setRight(item.clip_rect.right() + lean);
     }
   }
-  if (round_line_starts) {
+  // Photoshop rounds every glyph's absolute x from the UNROUNDED line start (the g of "Hg" at
+  // 100.5 + 34.67 = 135.17 lands on 135, not on 100.5 -> 101 + 34.67 = 135.67 -> 136), so a plan
+  // whose glyphs snap individually at draw time keeps its fractional line starts; the first
+  // glyph's own rounding is the line-start rule.
+  const bool pixel_align_glyphs = settings.photoshop_layout && !settings.vertical && !line_render_items.empty() &&
+                                  document_transform.m12() == 0.0 && document_transform.m21() == 0.0 &&
+                                  document_transform.m11() > 0.0 && document_transform.m22() > 0.0;
+  if (round_line_starts && !pixel_align_glyphs) {
     if (line_render_items.empty() || settings.vertical) {
       // No per-line plan to adjust (vertical type, drawContents fallback): the anchor rounds.
       document_transform =
@@ -4151,11 +4240,142 @@ TextRenderPlan build_text_render_plan(const TextToolSettings& settings, QColor c
     }
   }
   result.local_rect = local_rect;
+  result.pixel_align_glyphs = pixel_align_glyphs;
   result.line_render_items = std::move(line_render_items);
   result.document_transform = document_transform;
   result.has_document_transform = !document_transform.isIdentity();
   result.faux_italic_render = faux_italic_render;
   return result;
+}
+
+// Photoshop rasterizes each glyph with its absolute x rounded to a whole document pixel,
+// halves up, glyph by glyph rather than once per line: in the PS 27.9 anchor captures "Hg" at
+// x 100.5 moves the H a column while the g (100.5 + 34.67 = 135.17 -> 135) stays where the
+// 100.0 capture had it (docs/text-render-calibration.md, "Pixel grid"). QTextLine::draw places
+// glyphs at their fractional advances, so a Photoshop-layout line is drawn run by run instead,
+// each glyph origin moved onto the grid in DOCUMENT space and converted back through the
+// axis-aligned residual transform the painter already carries (the y rounding is what Qt did
+// anyway for untransformed text; it keeps later lines on whole rows under the residual). Per
+// fragment so the run keeps its own colour, and faux bold fills and strokes glyph paths the way
+// the vertical plan does, because drawGlyphRun ignores the char format's outline.
+void draw_line_glyphs_pixel_aligned(const QTextBlock& block, const BoxTextLineRenderItem& item,
+                                    const QTransform& document_transform, QPainter& painter) {
+  const auto& line = item.line;
+  if (!line.isValid() || line.textLength() <= 0) {
+    return;
+  }
+  const int line_start = block.position() + line.textStart();
+  const int line_end = line_start + line.textLength();
+  const double scale_x = document_transform.m11() > 0.0 ? document_transform.m11() : 1.0;
+  const double scale_y = document_transform.m22() > 0.0 ? document_transform.m22() : 1.0;
+  for (auto it = block.begin(); !it.atEnd(); ++it) {
+    const auto fragment = it.fragment();
+    if (!fragment.isValid() || fragment.length() <= 0) {
+      continue;
+    }
+    const int from = std::max(fragment.position(), line_start);
+    const int to = std::min(fragment.position() + fragment.length(), line_end);
+    if (to <= from) {
+      continue;
+    }
+    const auto format = fragment.charFormat();
+    auto color = format.foreground().color();
+    if (!color.isValid()) {
+      color = QColor(Qt::black);
+    }
+    const auto outline = format.textOutline();
+    const bool faux_bold = outline.style() != Qt::NoPen && outline.widthF() > 0.0;
+    // A stretched QFont is two different things to Qt's engines: FreeType (the offscreen
+    // suite) stretches the glyph images and the advances, DirectWrite (a Windows window)
+    // stretches the advances only and rasterizes every glyph at its design width, so the
+    // issue 20 "M" (103.2%) came out 3% narrow on screen while every pin passed. Drawing
+    // each glyph from the UNSTRETCHED face through an explicit x scale equal to the advance
+    // ratio this font really delivered (measured, like dominant_run_width_residual) puts the
+    // image on the advances on both engines. Unstretched runs keep the plain glyph-run draw.
+    QFont unstretched = format.font();
+    unstretched.setLetterSpacing(QFont::AbsoluteSpacing, 0.0);
+    double image_scale = 1.0;
+    if (unstretched.stretch() != 100 && unstretched.stretch() != QFont::AnyStretch) {
+      const auto current = QFontMetricsF(unstretched).horizontalAdvance(QLatin1Char('H'));
+      unstretched.setStretch(100);
+      const auto reference = QFontMetricsF(unstretched).horizontalAdvance(QLatin1Char('H'));
+      if (reference > 0.0 && current > 0.0) {
+        image_scale = current / reference;
+      }
+    }
+    const bool scale_images = std::abs(image_scale - 1.0) > 1e-6;
+    for (auto run : line.glyphRuns(from - block.position(), to - from)) {
+      auto positions = run.positions();
+      for (auto& position : positions) {
+        const auto document_point = document_transform.map(item.block_origin + position);
+        position.rx() += (snap_to_pixel_grid(document_point.x()) - document_point.x()) / scale_x;
+        position.ry() += (snap_to_pixel_grid(document_point.y()) - document_point.y()) / scale_y;
+      }
+      const auto indexes = run.glyphIndexes();
+      if (scale_images) {
+        // The run's own face (a fallback run names another family than the format), unstretched.
+        const auto run_font = run.rawFont();
+        QFont face = unstretched;
+        if (run_font.familyName() != QFontInfo(unstretched).family()) {
+          face = QFont(run_font.familyName());
+          face.setStyleName(run_font.styleName());
+          face.setHintingPreference(unstretched.hintingPreference());
+        }
+        auto image_font = QRawFont::fromFont(face);
+        if (image_font.isValid()) {
+          image_font.setPixelSize(run_font.pixelSize());
+        }
+        const bool own_face = image_font.isValid() && image_font.familyName() == run_font.familyName();
+        painter.save();
+        if (faux_bold) {
+          painter.setRenderHint(QPainter::Antialiasing, painter.testRenderHint(QPainter::TextAntialiasing));
+        } else {
+          painter.setPen(color);
+        }
+        for (int index = 0; index < indexes.size() && index < positions.size(); ++index) {
+          painter.save();
+          painter.translate(item.block_origin + positions[index]);
+          if (own_face) {
+            painter.scale(image_scale, 1.0);
+          }
+          const auto& glyph_font = own_face ? image_font : run_font;
+          if (faux_bold) {
+            const auto path = glyph_font.pathForGlyph(indexes[index]);
+            painter.fillPath(path, color);
+            painter.strokePath(path, outline);
+          } else {
+            QGlyphRun single;
+            single.setRawFont(glyph_font);
+            single.setGlyphIndexes({indexes[index]});
+            single.setPositions({QPointF(0.0, 0.0)});
+            single.setUnderline(run.underline());
+            single.setOverline(run.overline());
+            single.setStrikeOut(run.strikeOut());
+            painter.drawGlyphRun(QPointF(0.0, 0.0), single);
+          }
+          painter.restore();
+        }
+        painter.restore();
+        continue;
+      }
+      if (faux_bold) {
+        painter.save();
+        painter.setRenderHint(QPainter::Antialiasing, painter.testRenderHint(QPainter::TextAntialiasing));
+        const auto raw_font = run.rawFont();
+        for (int index = 0; index < indexes.size() && index < positions.size(); ++index) {
+          auto path = raw_font.pathForGlyph(indexes[index]);
+          path.translate(item.block_origin + positions[index]);
+          painter.fillPath(path, color);
+          painter.strokePath(path, outline);
+        }
+        painter.restore();
+        continue;
+      }
+      run.setPositions(positions);
+      painter.setPen(color);
+      painter.drawGlyphRun(item.block_origin, run);
+    }
+  }
 }
 
 // Draws a plan through `painter`, whose transform must already map the plan's DOCUMENT
@@ -4241,7 +4461,12 @@ void draw_text_render_plan(const TextRenderPlan& plan, QPainter& painter) {
         painter.setTransform(
             faux_italic_shear(item.block_origin.y() + item.line.y() + item.line.ascent()), true);
       }
-      item.line.draw(&painter, item.block_origin);
+      if (plan.pixel_align_glyphs) {
+        draw_line_glyphs_pixel_aligned(document.findBlock(item.block_position), item, plan.document_transform,
+                                       painter);
+      } else {
+        item.line.draw(&painter, item.block_origin);
+      }
       painter.restore();
     }
   } else {
@@ -4312,6 +4537,9 @@ TextLayoutMetrics text_layout_metrics_for_plan(const TextRenderPlan& plan, const
     // from; the raster begins above it whenever glyph ink overshoots the first line's top
     // (grow_point_text_rect_to_glyph_ink). Box text keeps the raster-top convention.
     metrics.first_baseline = settings.boxed ? first_baseline - plan.local_rect.top() : first_baseline;
+    if (!settings.boxed) {
+      metrics.raster_top = plan.local_rect.top();
+    }
   }
   if (settings.photoshop_layout) {
     return metrics;
@@ -4895,6 +5123,15 @@ std::optional<LayerAffineTransform> anchored_text_transform_for_pixels(const QTe
   }
   if (!text_editor_is_vertical(editor)) {
     anchor_x = snap_to_pixel_grid(anchor_x);
+    // Photoshop rounds every glyph from the UNROUNDED line start, and the render plan snaps
+    // each glyph itself (draw_line_glyphs_pixel_aligned), so the start it gets must carry the
+    // fraction the whole-pixel ink column lost. The first glyph rounds back onto that column.
+    if (text_editor_uses_photoshop_layout(editor)) {
+      const auto fraction = editor.property(kTextEditorSourceLineStartFractionProperty);
+      if (fraction.isValid() && std::isfinite(fraction.toDouble()) && std::abs(fraction.toDouble()) < 1.0) {
+        anchor_x += fraction.toDouble();
+      }
+    }
   }
   // The pin places the BUFFER; the transform names the text-local origin, which sits
   // local_rect.topLeft() inside it (left of / above the buffer corner only when glyph ink
@@ -5020,7 +5257,15 @@ std::optional<TransformedTextPixels> render_crisp_transformed_text_for_editor(
     const QTextEdit& editor, bool psd_anchored_text, bool boxed_text, bool has_local_offset,
     const TextToolSettings& settings, QColor text_color, int text_width, const QString& paragraph_runs,
     const QString& rich_text_runs, const QTransform& text_transform, const QTransform& transform_for_pixels) {
-  if (boxed_text || has_local_offset || !qtransform_has_non_translation_linear_part(text_transform)) {
+  // A translation whose x is fractional also renders through the transform: the plan rounds
+  // every glyph from that fractional line start (draw_line_glyphs_pixel_aligned), which a
+  // resample of the identity raster cannot reproduce (it smears the whole line by the fraction).
+  // Whole translations keep the byte-for-byte copy.
+  const bool fractional_translation =
+      settings.photoshop_layout && !settings.vertical &&
+      std::abs(text_transform.dx() - snap_to_pixel_grid(text_transform.dx())) > 1e-6;
+  if (boxed_text || has_local_offset ||
+      (!qtransform_has_non_translation_linear_part(text_transform) && !fractional_translation)) {
     return std::nullopt;
   }
   if (psd_anchored_text && !text_editor_transform_override(editor).has_value()) {
@@ -5334,7 +5579,13 @@ std::optional<LayerAffineTransform> psd_point_text_local_bounds_transform_for_pi
     // Qt-vs-Photoshop width difference must not move the start off Photoshop's column, while a
     // substituted face that is much wider keeps its right edge or centre where Photoshop had it.
     const auto width_correction = std::trunc((pinned[4] - photoshop_start_x) / pinned[0]) * pinned[0];
-    const auto document_shift = snap_to_pixel_grid(photoshop_start_x + width_correction) - pinned[4];
+    // The start keeps its fraction: the render plan rounds every glyph from it in document
+    // space (draw_line_glyphs_pixel_aligned), which puts the first glyph on this same rounded
+    // column and the rest where Photoshop's own per-glyph rounding puts them. Vertical type
+    // draws through the cell plan instead and keeps the whole-pixel start.
+    const auto origin_x = photoshop_start_x + width_correction;
+    const auto document_shift =
+        (layer_text_is_vertical(layer) ? snap_to_pixel_grid(origin_x) : origin_x) - pinned[4];
     if (std::isfinite(document_shift)) {
       pinned = affine_with_local_translation(pinned, QPointF(document_shift / pinned[0], 0.0));
     }
@@ -5417,7 +5668,16 @@ std::optional<LayerAffineTransform> psd_point_text_document_bounds_transform_for
     // pixels so a substituted wider face stays justified while same-face renders land on
     // Photoshop's column.
     const auto width_correction = std::trunc((pinned[4] - photoshop_start_x) / pinned[0]) * pinned[0];
-    const auto origin_x = snap_to_pixel_grid(photoshop_start_x + width_correction);
+    auto origin_x = snap_to_pixel_grid(photoshop_start_x + width_correction);
+    // Without the advance box the fraction of Photoshop's line start is estimated from the
+    // TySh anchor less the justification fraction of this render's width (a whole-pixel start
+    // column is all the raster can say); the plan then rounds every glyph from it.
+    if (!layer_text_is_vertical(layer)) {
+      const auto start_estimate = (*transform)[4] - alignment_factor * mapped.width();
+      if (std::isfinite(start_estimate)) {
+        origin_x += start_estimate - snap_to_pixel_grid(start_estimate);
+      }
+    }
     const auto document_shift = origin_x - pinned[4];
     if (std::isfinite(document_shift)) {
       pinned = affine_with_local_translation(pinned, QPointF(document_shift / pinned[0], 0.0));
@@ -6006,7 +6266,7 @@ bool text_editor_layer_is_warped(const Document& doc, const QTextEdit& editor) {
 }
 
 void clear_layer_text_metadata(Layer& layer) {
-  static constexpr std::array<const char*, 28> kTextMetadataKeys = {
+  static constexpr std::array<const char*, 29> kTextMetadataKeys = {
       kLayerMetadataText,
       kLayerMetadataTextOrientation,
       kLayerMetadataTextHtml,
@@ -6035,6 +6295,7 @@ void clear_layer_text_metadata(Layer& layer) {
       kLayerMetadataTextFirstBaseline,
       kLayerMetadataTextBoxBaselineInset,
       kLayerMetadataTextAutoLeading,
+      kLayerMetadataTextRasterTop,
   };
   for (const auto* key : kTextMetadataKeys) {
     layer.metadata().erase(key);
@@ -6106,6 +6367,7 @@ void store_patchy_text_metadata(Layer& layer, const TextToolSettings& settings, 
   layer.metadata().erase(kLayerMetadataTextFirstBaseline);
   layer.metadata().erase(kLayerMetadataTextBoxBaselineInset);
   layer.metadata().erase(kLayerMetadataTextAutoLeading);
+  layer.metadata().erase(kLayerMetadataTextRasterTop);
   clear_layer_psd_text_source(layer);
 }
 
@@ -6123,6 +6385,7 @@ void store_text_layout_metrics(Layer& layer, const TextLayoutMetrics& metrics) {
   store(kLayerMetadataTextFirstBaseline, metrics.first_baseline);
   store(kLayerMetadataTextBoxBaselineInset, metrics.box_baseline_inset);
   store(kLayerMetadataTextAutoLeading, metrics.auto_leading);
+  store(kLayerMetadataTextRasterTop, metrics.raster_top);
 }
 
 // Version number of a serialized runs string ("v3" -> 3); 0 when the first line is not a tag.
@@ -8023,6 +8286,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
   bool editing_layer_uses_line_aware_box_preview = false;
   std::optional<QPointF> editing_layer_source_visible_anchor;
   std::optional<QSizeF> editing_layer_source_visible_size;
+  std::optional<double> editing_layer_source_line_start_fraction;
   std::optional<QRectF> editing_layer_render_local_rect;
   bool editing_layer_is_warped_text = false;
   std::optional<QTransform> editing_layer_warp_session_transform;
@@ -8204,6 +8468,21 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
         if (psd_visible_rect.has_value()) {
           editing_layer_source_visible_anchor = psd_visible_rect->topLeft();
           editing_layer_source_visible_size = psd_visible_rect->size();
+          // Photoshop's line start: the anchor plus the advance box's left edge (0 for left
+          // text, minus half the width for centered), fractional in the file. Keep what its
+          // whole-pixel rounding drops so the re-render rounds each glyph from the same start.
+          // The canonical transform serves both a fresh import and a layer Patchy already
+          // committed (its stored tx keeps the fraction, committed_text_transform).
+          if (!layer_text_is_vertical(*layer)) {
+            const auto advance_rect = psd_text_metadata_local_rect(*layer, kLayerMetadataPsdTextBounds);
+            const double line_start = (*text_affine_transform)[4] +
+                                      (advance_rect.has_value()
+                                           ? advance_rect->left()
+                                           : -layer_anchor_alignment_factor(*layer) * psd_visible_rect->width());
+            if (std::isfinite(line_start)) {
+              editing_layer_source_line_start_fraction = line_start - snap_to_pixel_grid(line_start);
+            }
+          }
           document_point = QPoint(snapped_pixel_coordinate(psd_visible_rect->left()),
                                   snapped_pixel_coordinate(psd_visible_rect->top()));
         } else {
@@ -8438,6 +8717,9 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
   }
   if (editing_layer_source_visible_size.has_value()) {
     editor->setProperty(kTextEditorSourceVisibleSizeProperty, QVariant::fromValue(*editing_layer_source_visible_size));
+  }
+  if (editing_layer_source_line_start_fraction.has_value()) {
+    editor->setProperty(kTextEditorSourceLineStartFractionProperty, *editing_layer_source_line_start_fraction);
   }
   if (restore_active_layer.has_value()) {
     editor->setProperty("patchy.restoreActiveLayerId", QVariant::fromValue<qulonglong>(*restore_active_layer));

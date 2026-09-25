@@ -110,6 +110,7 @@ Read these before acting in the named area:
 - New non-modal dialogs use `run_non_modal_dialog`; closing-sensitive dialogs funnel through `done()`. See [docs/ui-conventions.md](docs/ui-conventions.md).
 - Open-dialog filter strings have a Windows/Qt-specific duplicated-pattern contract. Read [docs/file-formats.md](docs/file-formats.md) before changing them.
 - The local PSBtest tent and Content fixtures must never be overwritten. See [docs/smart-objects.md](docs/smart-objects.md).
+- Offscreen text on Windows is FreeType; a real window is DirectWrite, which ignores a QFont stretch for glyph images. Text pins pass offscreen and can still be wrong on screen; see the font-engine note in [docs/testing.md](docs/testing.md).
 
 ## Feature index
 

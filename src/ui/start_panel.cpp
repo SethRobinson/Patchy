@@ -278,10 +278,18 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
   });
   version->setObjectName(QStringLiteral("startPanelVersion"));
   version->setTextFormat(Qt::PlainText);
-  auto* credit = new QLabel(tr("Created by Seth A. Robinson"), this);
-  bind_translated_text(credit, QT_TR_NOOP("Created by Seth A. Robinson"), "patchy::ui::StartPanel");
+  // The credit links to Seth's GitHub profile, in the themed link color like the rows below.
+  auto* credit = new QLabel(this);
   credit->setObjectName(QStringLiteral("startPanelCredit"));
-  credit->setTextFormat(Qt::PlainText);
+  credit->setTextFormat(Qt::RichText);
+  credit->setTextInteractionFlags(Qt::TextBrowserInteraction);
+  credit->setOpenExternalLinks(true);
+  retranslation_callbacks_.push_back([credit] {
+    set_themed_label_text(
+        *credit, tr("Created by %1")
+                     .arg(QStringLiteral("<a style=\"color:@link_text; text-decoration:none;\" "
+                                         "href=\"https://github.com/SethRobinson\">Seth A. Robinson</a>")));
+  });
   add_footer_row({version, credit});
 
   auto* contributors = new QLabel(this);

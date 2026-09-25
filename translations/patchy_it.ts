@@ -18861,10 +18861,6 @@ Y: %2
         <translation>Versione %1 (compilata il %2)</translation>
     </message>
     <message>
-        <source>Created by Seth A. Robinson</source>
-        <translation>Creato da Seth A. Robinson</translation>
-    </message>
-    <message>
         <source>Code contributions from %1</source>
         <translation>Contributi al codice di %1</translation>
     </message>
@@ -18879,6 +18875,10 @@ Y: %2
     <message>
         <source>No matching recent files</source>
         <translation>Nessun file recente corrispondente</translation>
+    </message>
+    <message>
+        <source>Created by %1</source>
+        <translation>Creato da %1</translation>
     </message>
 </context>
 <context>
