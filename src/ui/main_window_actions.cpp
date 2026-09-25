@@ -446,6 +446,7 @@ void MainWindow::bind_action_translations(ActionBuildContext& ctx) {
       {gradient_reverse_check_, QT_TR_NOOP("Reverse")},
       {gradient_edit_stops_button_, QT_TR_NOOP("Edit Stops...")},
       {wand_contiguous_check_, QT_TR_NOOP("Contiguous")},
+      {fill_contiguous_check_, QT_TR_NOOP("Contiguous")},
       {wand_sample_all_layers_check_, QT_TR_NOOP("Sample All Layers")},
       {quick_select_sample_all_layers_check_, QT_TR_NOOP("Sample All Layers")},
       {quick_select_enhance_edge_check_, QT_TR_NOOP("Enhance Edge")},
@@ -503,10 +504,12 @@ void MainWindow::sync_tool_option_controls_from_canvas() {
     crop_ratio_h_spin_->setValue(canvas_->crop_ratio_height());
   }
   set_checked(wand_contiguous_check_, canvas_->wand_contiguous());
+  set_checked(fill_contiguous_check_, canvas_->fill_contiguous());
   set_checked(wand_sample_all_layers_check_, canvas_->wand_sample_all_layers());
   set_checked(quick_select_sample_all_layers_check_, canvas_->quick_select_sample_all_layers());
   set_checked(quick_select_enhance_edge_check_, canvas_->quick_select_enhance_edge());
   set_spin_value(QStringLiteral("wandToleranceSpin"), canvas_->wand_tolerance());
+  set_spin_value(QStringLiteral("fillToleranceSpin"), canvas_->fill_tolerance());
   set_spin_value(QStringLiteral("quickSelectSizeSpin"), canvas_->quick_select_size());
   set_slider_value(QStringLiteral("quickSelectSizeSlider"), canvas_->quick_select_size());
   set_spin_value(QStringLiteral("magneticLassoWidthSpin"), canvas_->magnetic_lasso_width());

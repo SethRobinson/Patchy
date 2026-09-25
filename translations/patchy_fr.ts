@@ -17590,6 +17590,14 @@ Y : %2
             <numerusform>%n fichiers de récupération n&apos;ont pas pu être ouverts ; voir %1</numerusform>
         </translation>
     </message>
+    <message>
+        <source>How far a pixel&apos;s color may differ from the clicked color and still be filled</source>
+        <translation>Écart de couleur maximal entre un pixel et la couleur cliquée pour qu&apos;il soit rempli</translation>
+    </message>
+    <message>
+        <source>Limit the fill to pixels connected to the click</source>
+        <translation>Limiter le remplissage aux pixels contigus au point cliqué</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>

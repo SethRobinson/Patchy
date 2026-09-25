@@ -2836,6 +2836,34 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       schedule_save_tool_settings();
     }
   });
+  // Tolerance and Contiguous belong to the Fill tool's flood only (the Fill command fills the
+  // whole selection). Same metric and range as the Magic Wand's Tol.
+  add_option_label(QT_TR_NOOP("Tol:"), {CanvasTool::Fill});
+  auto* fill_tolerance = new QSpinBox(toolbar);
+  fill_tolerance->setObjectName(QStringLiteral("fillToleranceSpin"));
+  fill_tolerance->setRange(0, 255);
+  fill_tolerance->setValue(canvas_defaults->fill_tolerance());
+  configure_toolbar_spinbox(fill_tolerance, 46);
+  bind_tooltip(fill_tolerance,
+               QT_TR_NOOP("How far a pixel's color may differ from the clicked color and still be filled"));
+  add_option_widget(fill_tolerance, {CanvasTool::Fill});
+  connect(fill_tolerance, &QSpinBox::valueChanged, this, [this](int value) {
+    if (canvas_ != nullptr) {
+      canvas_->set_fill_tolerance(value);
+      schedule_save_tool_settings();
+    }
+  });
+  fill_contiguous_check_ = new CheckGlyphBox(tr("Contiguous"), toolbar);
+  fill_contiguous_check_->setObjectName(QStringLiteral("fillContiguousCheck"));
+  fill_contiguous_check_->setChecked(canvas_defaults->fill_contiguous());
+  bind_tooltip(fill_contiguous_check_, QT_TR_NOOP("Limit the fill to pixels connected to the click"));
+  add_option_widget(fill_contiguous_check_, {CanvasTool::Fill});
+  connect(fill_contiguous_check_, &QCheckBox::toggled, this, [this](bool checked) {
+    if (canvas_ != nullptr) {
+      canvas_->set_fill_contiguous(checked);
+      save_tool_settings();
+    }
+  });
 
   add_option_label(QT_TR_NOOP("Font:"), {CanvasTool::Text});
   text_font_combo_ = new FontPickerCombo(toolbar);

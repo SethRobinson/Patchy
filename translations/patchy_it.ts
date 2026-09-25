@@ -17590,6 +17590,14 @@ Y: %2
             <numerusform>%n file di ripristino non sono stati aperti; vedere %1</numerusform>
         </translation>
     </message>
+    <message>
+        <source>How far a pixel&apos;s color may differ from the clicked color and still be filled</source>
+        <translation>Quanto può differire il colore di un pixel dal colore su cui si è fatto clic ed essere comunque riempito</translation>
+    </message>
+    <message>
+        <source>Limit the fill to pixels connected to the click</source>
+        <translation>Limita il riempimento ai pixel contigui al punto cliccato</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>

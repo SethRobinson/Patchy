@@ -17539,6 +17539,14 @@ Clipped to the layer below</source>
             <numerusform>%n 件の復元ファイルを開けませんでした。%1 を確認してください</numerusform>
         </translation>
     </message>
+    <message>
+        <source>How far a pixel&apos;s color may differ from the clicked color and still be filled</source>
+        <translation>クリックした色からどれだけ離れた色までを塗りつぶすか</translation>
+    </message>
+    <message>
+        <source>Limit the fill to pixels connected to the click</source>
+        <translation>塗りつぶしをクリック位置とつながったピクセルに限定します</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>

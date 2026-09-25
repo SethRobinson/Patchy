@@ -301,6 +301,16 @@ QImage active_layer_sample_image(const Layer& layer, QSize document_size) {
   return image;
 }
 
+void apply_fill_settings(EditOptions& options, const CanvasWidget& canvas) {
+  constexpr double kFillMaxFeatherPixels = 50.0;
+  options.primary.a = static_cast<std::uint8_t>(std::clamp(
+      std::lround(static_cast<double>(options.primary.a) * std::clamp(canvas.fill_opacity(), 1, 100) / 100.0), 1L,
+      255L));
+  options.fill_softness_feather = std::clamp(canvas.fill_softness(), 0, 100) / 100.0 * kFillMaxFeatherPixels;
+  options.flood_tolerance = std::clamp(canvas.fill_tolerance(), 0, 255);
+  options.flood_contiguous = canvas.fill_contiguous();
+}
+
 EditOptions edit_options(QColor primary, QColor secondary, int brush_size, int brush_opacity, int brush_softness,
                          bool fill_shapes, bool lock_transparent_pixels, const CanvasWidget& canvas,
                          int brush_roundness, double brush_angle_degrees) {

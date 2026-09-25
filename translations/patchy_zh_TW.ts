@@ -17539,6 +17539,14 @@ Y：%2
             <numerusform>%n 個復原檔案無法開啟；請查看 %1</numerusform>
         </translation>
     </message>
+    <message>
+        <source>How far a pixel&apos;s color may differ from the clicked color and still be filled</source>
+        <translation>像素顏色與點按顏色相差多少仍會被填滿</translation>
+    </message>
+    <message>
+        <source>Limit the fill to pixels connected to the click</source>
+        <translation>將填滿限制在與點按位置相連的像素</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>

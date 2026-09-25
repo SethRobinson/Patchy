@@ -1298,6 +1298,133 @@ void ui_filled_shape_preview_clears_after_commit() {
         repainted.pixelColor(canvas->widget_position_for_document_point(QPoint(170, 125))));
 }
 
+// Fill tool options: Tol and Contiguous live beside Opacity/Soft, persist, and follow the
+// current_* mirror onto new documents (GitHub issue 30).
+void ui_fill_tool_tolerance_and_contiguous_persist_across_documents() {
+  SettingsValueRestorer saved_tolerance(QStringLiteral("tools/fillTolerance"));
+  SettingsValueRestorer saved_contiguous(QStringLiteral("tools/fillContiguous"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("tools/fillTolerance"));
+    settings.remove(QStringLiteral("tools/fillContiguous"));
+    settings.sync();
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* tolerance = window.findChild<QSpinBox*>(QStringLiteral("fillToleranceSpin"));
+  auto* contiguous = window.findChild<QCheckBox*>(QStringLiteral("fillContiguousCheck"));
+  CHECK(tolerance != nullptr);
+  CHECK(contiguous != nullptr);
+  if (tolerance == nullptr || contiguous == nullptr) {
+    return;
+  }
+  CHECK(tolerance->minimum() == 0);
+  CHECK(tolerance->maximum() == 255);
+  CHECK(canvas->fill_tolerance() == 32);
+  CHECK(canvas->fill_contiguous());
+  CHECK(tolerance->value() == 32);
+  CHECK(contiguous->isChecked());
+
+  require_action(window, "toolBrushAction")->trigger();
+  QApplication::processEvents();
+  CHECK(!tolerance->isVisible());
+  CHECK(!contiguous->isVisible());
+  require_action(window, "toolFillAction")->trigger();
+  QApplication::processEvents();
+  CHECK(tolerance->isVisible());
+  CHECK(contiguous->isVisible());
+
+  tolerance->setValue(48);
+  contiguous->setChecked(false);
+  QApplication::processEvents();
+  CHECK(canvas->fill_tolerance() == 48);
+  CHECK(!canvas->fill_contiguous());
+  patchy::ui::MainWindowTestAccess::save_tool_settings(window);
+  {
+    auto settings = patchy::ui::app_settings();
+    CHECK(settings.value(QStringLiteral("tools/fillTolerance")).toInt() == 48);
+    CHECK(!settings.value(QStringLiteral("tools/fillContiguous"), true).toBool());
+  }
+
+  patchy::ui::MainWindowTestAccess::create_default_document(window);
+  QApplication::processEvents();
+  auto* second = require_canvas(window);
+  CHECK(second != canvas);
+  CHECK(second->fill_tolerance() == 48);
+  CHECK(!second->fill_contiguous());
+  CHECK(tolerance->value() == 48);
+  CHECK(!contiguous->isChecked());
+}
+
+// A Fill tool click honors the tool's own Tol, Contiguous, and Opacity (not the brush's).
+void ui_fill_tool_click_honors_tolerance_contiguous_and_opacity() {
+  patchy::Document document(64, 64, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer pixels(64, 64, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < 64; ++y) {
+    for (std::int32_t x = 0; x < 64; ++x) {
+      auto* px = pixels.pixel(x, y);
+      const bool bar = y >= 30 && y <= 33;
+      const std::uint8_t gray = ((x + y) % 2 == 0) ? 255 : 250;
+      px[0] = px[1] = px[2] = bar ? 0 : gray;
+      px[3] = 255;
+    }
+  }
+  const auto layer_id = document.add_pixel_layer("Background", std::move(pixels)).id();
+  document.set_active_layer(layer_id);
+  const auto pixel_at = [&](int x, int y) {
+    const auto* px = std::as_const(document).find_layer(layer_id)->pixels().pixel(x, y);
+    return QColor(px[0], px[1], px[2], px[3]);
+  };
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(320, 320);
+  canvas.set_document(&document);
+  canvas.set_zoom(4.0);
+  canvas.set_tool(patchy::ui::CanvasTool::Fill);
+  canvas.set_primary_color(QColor(0, 180, 210));
+  canvas.set_brush_opacity(10);  // must not leak into the fill
+  canvas.show();
+  QApplication::processEvents();
+  const auto click = [&](int x, int y) {
+    const auto position = canvas.widget_position_for_document_point(QPoint(x, y));
+    send_mouse(canvas, QEvent::MouseButtonPress, position, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(canvas, QEvent::MouseButtonRelease, position, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+  };
+
+  canvas.set_fill_tolerance(0);
+  click(2, 2);
+  CHECK(pixel_at(2, 2) == QColor(0, 180, 210));
+  CHECK(pixel_at(3, 2) == QColor(250, 250, 250));
+
+  canvas.set_fill_tolerance(32);
+  click(4, 4);
+  CHECK(pixel_at(3, 2) == QColor(0, 180, 210));
+  CHECK(pixel_at(63, 29) == QColor(0, 180, 210));
+  CHECK(pixel_at(10, 31) == QColor(0, 0, 0));
+  CHECK(pixel_at(10, 40) == QColor(255, 255, 255));
+
+  // Contiguous off at tolerance 0: the lower island's 255-gray pixels are a checkerboard,
+  // so none of them touch, yet one click fills them all; the 250 grays stay.
+  canvas.set_fill_contiguous(false);
+  canvas.set_fill_tolerance(0);
+  click(10, 40);
+  CHECK(pixel_at(10, 40) == QColor(0, 180, 210));
+  CHECK(pixel_at(12, 40) == QColor(0, 180, 210));
+  CHECK(pixel_at(60, 60) == QColor(0, 180, 210));
+  CHECK(pixel_at(11, 40) == QColor(250, 250, 250));
+  CHECK(pixel_at(10, 31) == QColor(0, 0, 0));
+
+  canvas.set_fill_contiguous(true);
+  canvas.set_fill_tolerance(0);
+  canvas.set_fill_opacity(50);
+  click(10, 31);
+  CHECK(color_close(pixel_at(10, 31), QColor(0, 90, 105), 3));
+  CHECK(color_close(pixel_at(50, 33), QColor(0, 90, 105), 3));
+  CHECK(pixel_at(10, 40) == QColor(0, 180, 210));
+}
+
 void ui_options_bar_tracks_active_tool() {
   SettingsValueRestorer saved_gradient_method(QStringLiteral("tools/gradientMethod"));
   SettingsValueRestorer saved_gradient_reverse(QStringLiteral("tools/gradientReverse"));
@@ -2709,6 +2836,10 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_tool_palette_icons_render_sheet", ui_tool_palette_icons_render_sheet},
       {"ui_filled_shape_preview_clears_after_commit", ui_filled_shape_preview_clears_after_commit},
       {"ui_options_bar_tracks_active_tool", ui_options_bar_tracks_active_tool},
+      {"ui_fill_tool_tolerance_and_contiguous_persist_across_documents",
+       ui_fill_tool_tolerance_and_contiguous_persist_across_documents},
+      {"ui_fill_tool_click_honors_tolerance_contiguous_and_opacity",
+       ui_fill_tool_click_honors_tolerance_contiguous_and_opacity},
       {"ui_gradient_toolbar_preset_popup_applies_stops", ui_gradient_toolbar_preset_popup_applies_stops},
       {"ui_options_bar_spinboxes_fit_widest_value", ui_options_bar_spinboxes_fit_widest_value},
       {"ui_right_docks_collapse_layers_show_metadata_and_info_updates",

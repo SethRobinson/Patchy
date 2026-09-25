@@ -3324,11 +3324,9 @@ void MainWindow::fill_active_layer_with_color(QColor color, QString label) {
   auto options = edit_options(*canvas_);
   options.primary = edit_color(color);
   // Fill honors its own Opacity and Soft settings (Fill tool options bar; default 100% / 0). Opacity
-  // scales the fill alpha; Soft feathers the fill inward from the selection edge.
-  constexpr double kFillMaxFeatherPixels = 50.0;
-  options.primary.a = static_cast<std::uint8_t>(
-      std::clamp(std::lround(static_cast<double>(options.primary.a) * canvas_->fill_opacity() / 100.0), 0L, 255L));
-  options.fill_softness_feather = std::clamp(canvas_->fill_softness(), 0, 100) / 100.0 * kFillMaxFeatherPixels;
+  // scales the fill alpha; Soft feathers the fill inward from the selection edge. Tol and
+  // Contiguous only matter to the Fill tool's flood.
+  apply_fill_settings(options, *canvas_);
   Rect affected;
   for (const auto id : fillable_ids) {
     auto* layer = doc.find_layer(id);

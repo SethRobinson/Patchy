@@ -17590,6 +17590,14 @@ Y: %2
             <numerusform>%n Wiederherstellungsdateien konnten nicht geöffnet werden; siehe %1</numerusform>
         </translation>
     </message>
+    <message>
+        <source>How far a pixel&apos;s color may differ from the clicked color and still be filled</source>
+        <translation>Wie stark sich die Farbe eines Pixels von der angeklickten Farbe unterscheiden darf und trotzdem gefüllt wird</translation>
+    </message>
+    <message>
+        <source>Limit the fill to pixels connected to the click</source>
+        <translation>Füllung auf Pixel beschränken, die mit dem Klickpunkt verbunden sind</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>

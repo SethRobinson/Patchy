@@ -7,7 +7,6 @@
 #include <cmath>
 #include <cstdlib>
 #include <limits>
-#include <queue>
 #include <utility>
 #include <vector>
 
@@ -290,14 +289,17 @@ float brush_shape_coverage(double distance_x, double distance_y, int radius, con
 // each inside pixel's distance to the nearest outside pixel, which a smoothstep maps to a factor that
 // is 0 at the selection edge and 1 once `band` pixels inside. Lets the Fill command feather its edges
 // by the brush Soft setting (band scales with brush size). Returns w*h factors, row-major.
-[[nodiscard]] std::vector<float> compute_fill_feather(const EditOptions& options, Rect region, double band) {
+// Inward feather factors over `region` for the area whose `coverage(x, y)` is at least 0.5:
+// a chamfer distance to the nearest uncovered pixel, eased over `band` pixels.
+template <typename Coverage>
+[[nodiscard]] std::vector<float> compute_fill_feather(const Coverage& coverage, Rect region, double band) {
   const auto w = region.width;
   const auto h = region.height;
   std::vector<float> dist(static_cast<std::size_t>(w) * static_cast<std::size_t>(h), 0.0F);
   constexpr float kInf = 1e9F;
   for (std::int32_t yy = 0; yy < h; ++yy) {
     for (std::int32_t xx = 0; xx < w; ++xx) {
-      const auto cov = selection_coverage(options, region.x + xx, region.y + yy);
+      const auto cov = coverage(region.x + xx, region.y + yy);
       dist[static_cast<std::size_t>(yy) * w + xx] = (cov >= 0.5F) ? kInf : 0.0F;
     }
   }
@@ -895,15 +897,6 @@ void capture_smudge_sample(SmudgeState& state, const Layer& layer, std::int32_t 
     }
   }
   state.initialized = true;
-}
-
-bool same_pixel(const std::uint8_t* px, const std::vector<std::uint8_t>& target, std::uint16_t channels) {
-  for (std::uint16_t channel = 0; channel < channels; ++channel) {
-    if (px[channel] != target[channel]) {
-      return false;
-    }
-  }
-  return true;
 }
 
 template <typename Callback>
@@ -1997,6 +1990,27 @@ Rect draw_ellipse(Document& document, LayerId layer_id, Rect rect, const EditOpt
   return render_shape(document, layer_id, rect, options, erase, ShapeKind::Ellipse);
 }
 
+bool color_within_tolerance(const std::uint8_t* a, const std::uint8_t* b, std::uint16_t channels,
+                            int tolerance) noexcept {
+  const auto compared = std::min<std::uint16_t>(channels, 4);
+  if (tolerance <= 0) {
+    for (std::uint16_t channel = 0; channel < compared; ++channel) {
+      if (a[channel] != b[channel]) {
+        return false;
+      }
+    }
+    return true;
+  }
+  const auto clamped = std::min(tolerance, 255);
+  const auto tolerance_squared = clamped * clamped * 4;
+  int distance_squared = 0;
+  for (std::uint16_t channel = 0; channel < compared; ++channel) {
+    const auto delta = static_cast<int>(a[channel]) - static_cast<int>(b[channel]);
+    distance_squared += delta * delta;
+  }
+  return distance_squared <= tolerance_squared;
+}
+
 Rect flood_fill(Document& document, LayerId layer_id, std::int32_t x, std::int32_t y, const EditOptions& options) {
   auto* layer = editable_layer(document, layer_id);
   if (layer == nullptr || !canvas_rect(document).contains(x, y) || !selection_allows(options, x, y)) {
@@ -2005,66 +2019,137 @@ Rect flood_fill(Document& document, LayerId layer_id, std::int32_t x, std::int32
 
   auto& pixels = layer->pixels();
   const auto bounds = layer->bounds();
+  const auto width = pixels.width();
+  const auto height = pixels.height();
   const auto local_start_x = x - bounds.x;
   const auto local_start_y = y - bounds.y;
-  if (local_start_x < 0 || local_start_y < 0 || local_start_x >= pixels.width() || local_start_y >= pixels.height()) {
+  if (local_start_x < 0 || local_start_y < 0 || local_start_x >= width || local_start_y >= height) {
     return {};
   }
 
   const auto channels = pixels.format().channels;
-  std::vector<std::uint8_t> target(channels);
+  const auto has_alpha = channels >= 4;
+  std::array<std::uint8_t, 4> target{};
   const auto* start_pixel = pixels.pixel(local_start_x, local_start_y);
-  for (std::uint16_t channel = 0; channel < channels; ++channel) {
+  for (std::uint16_t channel = 0; channel < channels && channel < target.size(); ++channel) {
     target[channel] = start_pixel[channel];
   }
-  if (options.lock_transparent_pixels && channels >= 4 && target[3] == 0) {
+  if (options.lock_transparent_pixels && has_alpha && target[3] == 0) {
     return {};
   }
 
-  std::vector<std::uint8_t> replacement{options.primary.r, options.primary.g, options.primary.b};
-  if (channels >= 4) {
-    replacement.push_back(options.lock_transparent_pixels ? target[3] : std::max<std::uint8_t>(1, options.primary.a));
-  }
-  if (options.palette_snap != nullptr) {
-    // Flood writes replacement bytes verbatim, so snapping it once up front keeps
-    // the whole filled region palette-exact.
-    snap_pixel_to_palette(replacement.data(), channels, *options.palette_snap);
-  }
-  if (same_pixel(replacement.data(), target, channels)) {
-    return {};
-  }
-
-  std::queue<std::pair<std::int32_t, std::int32_t>> queue;
-  queue.emplace(local_start_x, local_start_y);
-  Rect dirty;
+  // Pass 1: the region. Membership is decided against the clicked color, never against
+  // pixels already written, so a translucent fill cannot spread through its own output.
+  // Transparent pixels stay outside the region under the transparency lock, so the fill
+  // neither paints nor travels through them.
+  const auto tolerance = std::clamp(options.flood_tolerance, 0, 255);
+  const auto matches = [&](std::int32_t local_x, std::int32_t local_y) {
+    const auto* px = pixels.pixel(local_x, local_y);
+    if (options.lock_transparent_pixels && has_alpha && px[3] == 0) {
+      return false;
+    }
+    return color_within_tolerance(px, target.data(), channels, tolerance);
+  };
+  enum : std::uint8_t { kUnvisited = 0, kInRegion = 1, kRejected = 2 };
+  std::vector<std::uint8_t> state(static_cast<std::size_t>(width) * static_cast<std::size_t>(height), kUnvisited);
+  const auto state_at = [&](std::int32_t local_x, std::int32_t local_y) -> std::uint8_t& {
+    return state[static_cast<std::size_t>(local_y) * static_cast<std::size_t>(width) +
+                 static_cast<std::size_t>(local_x)];
+  };
+  Rect region_rect;
   std::size_t progress_counter = 0;
-  while (!queue.empty()) {
-    report_edit_progress_periodically(options, progress_counter);
-    const auto [local_x, local_y] = queue.front();
-    queue.pop();
-    if (local_x < 0 || local_y < 0 || local_x >= pixels.width() || local_y >= pixels.height()) {
-      continue;
+  if (options.flood_contiguous) {
+    std::vector<std::pair<std::int32_t, std::int32_t>> stack;
+    stack.emplace_back(local_start_x, local_start_y);
+    while (!stack.empty()) {
+      report_edit_progress_periodically(options, progress_counter);
+      const auto [local_x, local_y] = stack.back();
+      stack.pop_back();
+      if (local_x < 0 || local_y < 0 || local_x >= width || local_y >= height) {
+        continue;
+      }
+      auto& cell = state_at(local_x, local_y);
+      if (cell != kUnvisited) {
+        continue;
+      }
+      const auto doc_x = local_x + bounds.x;
+      const auto doc_y = local_y + bounds.y;
+      if (!selection_allows(options, doc_x, doc_y) || !matches(local_x, local_y)) {
+        cell = kRejected;
+        continue;
+      }
+      cell = kInRegion;
+      region_rect = unite_rect(region_rect, Rect{doc_x, doc_y, 1, 1});
+      stack.emplace_back(local_x + 1, local_y);
+      stack.emplace_back(local_x - 1, local_y);
+      stack.emplace_back(local_x, local_y + 1);
+      stack.emplace_back(local_x, local_y - 1);
     }
+  } else {
+    for (std::int32_t local_y = 0; local_y < height; ++local_y) {
+      for (std::int32_t local_x = 0; local_x < width; ++local_x) {
+        report_edit_progress_periodically(options, progress_counter);
+        const auto doc_x = local_x + bounds.x;
+        const auto doc_y = local_y + bounds.y;
+        if (!selection_allows(options, doc_x, doc_y) || !matches(local_x, local_y)) {
+          continue;
+        }
+        state_at(local_x, local_y) = kInRegion;
+        region_rect = unite_rect(region_rect, Rect{doc_x, doc_y, 1, 1});
+      }
+    }
+  }
+  if (region_rect.empty()) {
+    return {};
+  }
 
-    const auto doc_x = local_x + bounds.x;
-    const auto doc_y = local_y + bounds.y;
-    if (!selection_allows(options, doc_x, doc_y)) {
-      continue;
-    }
+  // Pass 2: the write. Soft feathers inward from the region's edge (the same chamfer the
+  // Fill command uses at the selection edge), Opacity rides primary.a through write_pixel,
+  // and palette mode snaps there too.
+  const auto band = options.fill_softness_feather;
+  const bool feather = band >= 1.0;
+  std::vector<float> feather_factors;
+  Rect feather_rect;
+  if (feather) {
+    const auto pad = static_cast<std::int32_t>(std::ceil(band)) + 1;
+    feather_rect = Rect{region_rect.x - pad, region_rect.y - pad, region_rect.width + 2 * pad,
+                        region_rect.height + 2 * pad};
+    const auto region_coverage = [&](std::int32_t doc_x, std::int32_t doc_y) -> float {
+      const auto local_x = doc_x - bounds.x;
+      const auto local_y = doc_y - bounds.y;
+      if (local_x < 0 || local_y < 0 || local_x >= width || local_y >= height ||
+          state_at(local_x, local_y) != kInRegion) {
+        return 0.0F;
+      }
+      return selection_coverage(options, doc_x, doc_y);
+    };
+    feather_factors = compute_fill_feather(region_coverage, feather_rect, band);
+  }
 
-    auto* px = pixels.pixel(local_x, local_y);
-    if (!same_pixel(px, target, channels)) {
-      continue;
+  Rect dirty;
+  for (std::int32_t doc_y = region_rect.y; doc_y < region_rect.y + region_rect.height; ++doc_y) {
+    const auto local_y = doc_y - bounds.y;
+    auto row = pixels.row(local_y);
+    for (std::int32_t doc_x = region_rect.x; doc_x < region_rect.x + region_rect.width; ++doc_x) {
+      const auto local_x = doc_x - bounds.x;
+      if (state_at(local_x, local_y) != kInRegion) {
+        continue;
+      }
+      report_edit_progress_periodically(options, progress_counter);
+      auto coverage = selection_coverage(options, doc_x, doc_y);
+      if (feather) {
+        const auto fx = doc_x - feather_rect.x;
+        const auto fy = doc_y - feather_rect.y;
+        coverage = std::min(coverage, feather_factors[static_cast<std::size_t>(fy) * feather_rect.width + fx]);
+      }
+      if (coverage <= 0.0F) {
+        continue;
+      }
+      auto* px = row.data() + static_cast<std::size_t>(local_x) * channels;
+      if (write_pixel(pixels, px, options, false, coverage)) {
+        dirty = unite_rect(dirty, Rect{doc_x, doc_y, 1, 1});
+      }
     }
-
-    for (std::uint16_t channel = 0; channel < channels; ++channel) {
-      px[channel] = replacement[channel];
-    }
-    dirty = unite_rect(dirty, Rect{doc_x, doc_y, 1, 1});
-    queue.emplace(local_x + 1, local_y);
-    queue.emplace(local_x - 1, local_y);
-    queue.emplace(local_x, local_y + 1);
-    queue.emplace(local_x, local_y - 1);
   }
   return dirty;
 }
@@ -2098,7 +2183,9 @@ Rect fill_rect(Document& document, LayerId layer_id, Rect rect, const EditOption
   if (feather) {
     const auto pad = static_cast<std::int32_t>(std::ceil(band)) + 1;
     feather_rect = Rect{affected.x - pad, affected.y - pad, affected.width + 2 * pad, affected.height + 2 * pad};
-    feather_factors = compute_fill_feather(options, feather_rect, band);
+    feather_factors = compute_fill_feather(
+        [&options](std::int32_t fx, std::int32_t fy) { return selection_coverage(options, fx, fy); }, feather_rect,
+        band);
   }
 
   for (std::int32_t y = affected.y; y < affected.y + affected.height; ++y) {

@@ -1996,6 +1996,10 @@ void MainWindow::load_tool_settings() {
   update_vector_swatch_icons();
   canvas_->set_fill_opacity(settings.value(QStringLiteral("tools/fillOpacity"), canvas_->fill_opacity()).toInt());
   canvas_->set_fill_softness(settings.value(QStringLiteral("tools/fillSoftness"), canvas_->fill_softness()).toInt());
+  canvas_->set_fill_tolerance(
+      settings.value(QStringLiteral("tools/fillTolerance"), canvas_->fill_tolerance()).toInt());
+  canvas_->set_fill_contiguous(
+      settings.value(QStringLiteral("tools/fillContiguous"), canvas_->fill_contiguous()).toBool());
   const auto sync_fill_widget = [this](const QString& spin_name, const QString& slider_name, int value) {
     if (auto* spin = findChild<QSpinBox*>(spin_name); spin != nullptr) {
       QSignalBlocker blocker(spin);
@@ -2008,6 +2012,10 @@ void MainWindow::load_tool_settings() {
   };
   sync_fill_widget(QStringLiteral("fillOpacitySpin"), QStringLiteral("fillOpacitySlider"), canvas_->fill_opacity());
   sync_fill_widget(QStringLiteral("fillSoftnessSpin"), QStringLiteral("fillSoftnessSlider"), canvas_->fill_softness());
+  if (auto* spin = findChild<QSpinBox*>(QStringLiteral("fillToleranceSpin")); spin != nullptr) {
+    QSignalBlocker blocker(spin);
+    spin->setValue(canvas_->fill_tolerance());
+  }
   const auto gradient_method = settings.value(QStringLiteral("tools/gradientMethod"),
                                               static_cast<int>(canvas_->gradient_method()))
                                    .toInt();
@@ -2143,6 +2151,8 @@ void MainWindow::save_tool_settings() const {
   }
   settings.setValue(QStringLiteral("tools/fillOpacity"), canvas_->fill_opacity());
   settings.setValue(QStringLiteral("tools/fillSoftness"), canvas_->fill_softness());
+  settings.setValue(QStringLiteral("tools/fillTolerance"), canvas_->fill_tolerance());
+  settings.setValue(QStringLiteral("tools/fillContiguous"), canvas_->fill_contiguous());
   settings.setValue(QStringLiteral("tools/gradientMethod"), static_cast<int>(canvas_->gradient_method()));
   settings.setValue(QStringLiteral("tools/gradientReverse"), canvas_->gradient_reverse());
   settings.setValue(QStringLiteral("tools/gradientOpacity"), canvas_->gradient_opacity());
@@ -2171,6 +2181,8 @@ void MainWindow::stash_active_brush_settings() {
   }
   current_fill_opacity_ = canvas_->fill_opacity();
   current_fill_softness_ = canvas_->fill_softness();
+  current_fill_tolerance_ = canvas_->fill_tolerance();
+  current_fill_contiguous_ = canvas_->fill_contiguous();
   current_quick_select_size_ = canvas_->quick_select_size();
   current_quick_select_sample_all_layers_ = canvas_->quick_select_sample_all_layers();
   current_quick_select_enhance_edge_ = canvas_->quick_select_enhance_edge();
@@ -2597,6 +2609,10 @@ void MainWindow::refresh_options_bar() {
   if (wand_contiguous_check_ != nullptr && canvas_ != nullptr) {
     QSignalBlocker blocker(wand_contiguous_check_);
     wand_contiguous_check_->setChecked(canvas_->wand_contiguous());
+  }
+  if (fill_contiguous_check_ != nullptr && canvas_ != nullptr) {
+    QSignalBlocker blocker(fill_contiguous_check_);
+    fill_contiguous_check_->setChecked(canvas_->fill_contiguous());
   }
   if (wand_sample_all_layers_check_ != nullptr && canvas_ != nullptr) {
     QSignalBlocker blocker(wand_sample_all_layers_check_);

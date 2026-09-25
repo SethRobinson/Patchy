@@ -550,6 +550,8 @@ void MainWindow::activate_document_canvas(CanvasWidget* canvas, const std::funct
   if (canvas_changed) {
     canvas_->set_fill_opacity(current_fill_opacity_);
     canvas_->set_fill_softness(current_fill_softness_);
+    canvas_->set_fill_tolerance(current_fill_tolerance_);
+    canvas_->set_fill_contiguous(current_fill_contiguous_);
     canvas_->set_quick_select_size(current_quick_select_size_);
     canvas_->set_quick_select_sample_all_layers(current_quick_select_sample_all_layers_);
     canvas_->set_quick_select_enhance_edge(current_quick_select_enhance_edge_);

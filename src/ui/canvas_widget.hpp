@@ -683,6 +683,12 @@ public:
   [[nodiscard]] int fill_opacity() const noexcept;
   void set_fill_softness(int softness) noexcept;
   [[nodiscard]] int fill_softness() const noexcept;
+  // Fill tool color tolerance (0..255, the Magic Wand's metric) and Contiguous; the Fill
+  // command ignores both (it fills the whole selection).
+  void set_fill_tolerance(int tolerance) noexcept;
+  [[nodiscard]] int fill_tolerance() const noexcept;
+  void set_fill_contiguous(bool enabled) noexcept;
+  [[nodiscard]] bool fill_contiguous() const noexcept;
   void set_selection_mode(SelectionMode mode) noexcept;
   [[nodiscard]] SelectionMode selection_mode() const noexcept;
   // Combine mode actually in effect right now, folding in any held Shift/Alt and
@@ -2274,6 +2280,8 @@ private:
   int shape_corner_radius_{0};
   int fill_opacity_{100};
   int fill_softness_{0};
+  int fill_tolerance_{32};
+  bool fill_contiguous_{true};
   bool auto_select_layer_{true};
   SelectionMode selection_mode_{SelectionMode::Replace};
   // Per-tool combine modes; selection_mode_ mirrors the active selection tool's

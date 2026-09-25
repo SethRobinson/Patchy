@@ -69,7 +69,6 @@
 #include <functional>
 #include <iostream>
 #include <limits>
-#include <queue>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -170,6 +169,22 @@ void CanvasWidget::set_fill_softness(int softness) noexcept {
 
 int CanvasWidget::fill_softness() const noexcept {
   return fill_softness_;
+}
+
+void CanvasWidget::set_fill_tolerance(int tolerance) noexcept {
+  fill_tolerance_ = std::clamp(tolerance, 0, 255);
+}
+
+int CanvasWidget::fill_tolerance() const noexcept {
+  return fill_tolerance_;
+}
+
+void CanvasWidget::set_fill_contiguous(bool enabled) noexcept {
+  fill_contiguous_ = enabled;
+}
+
+bool CanvasWidget::fill_contiguous() const noexcept {
+  return fill_contiguous_;
 }
 
 void CanvasWidget::set_shape_style(MarqueeStyle style) noexcept {
@@ -1100,10 +1115,12 @@ QRect CanvasWidget::flood_fill(QPoint start) {
     return {};
   }
 
-  return to_qrect(patchy::flood_fill(
-      *document_, *document_->active_layer_id(), start.x(), start.y(),
-      edit_options(primary_color_, secondary_color_, brush_size_, brush_opacity_, brush_softness_, fill_shapes_,
-                   active_layer_locks_transparent_pixels(), *this)));
+  // The Fill tool has its own Opacity/Soft/Tol/Contiguous (options bar), independent of the
+  // brush: build the options at full brush opacity and let apply_fill_settings scale them.
+  auto options = edit_options(primary_color_, secondary_color_, brush_size_, 100, brush_softness_, fill_shapes_,
+                              active_layer_locks_transparent_pixels(), *this);
+  apply_fill_settings(options, *this);
+  return to_qrect(patchy::flood_fill(*document_, *document_->active_layer_id(), start.x(), start.y(), options));
 }
 
 QRect CanvasWidget::draw_mask_line(QPoint from, QPoint to, bool erase) {
@@ -1283,54 +1300,78 @@ QRect CanvasWidget::flood_fill_mask(QPoint start) {
 
   const auto bounds = grayscale_target->bounds;
   auto* pixels = grayscale_target->pixels;
+  const auto width = pixels->width();
+  const auto height = pixels->height();
   const QPoint local_start(start.x() - bounds.x(), start.y() - bounds.y());
-  if (local_start.x() < 0 || local_start.y() < 0 || local_start.x() >= pixels->width() ||
-      local_start.y() >= pixels->height()) {
+  if (local_start.x() < 0 || local_start.y() < 0 || local_start.x() >= width || local_start.y() >= height) {
     return {};
   }
 
+  // Mask flood: the tool's Tol and Contiguous apply through the same metric as the layer
+  // flood (one gray channel); the mask value is written verbatim, as mask painting does.
   const auto target = *pixels->pixel(local_start.x(), local_start.y());
   const auto replacement = mask_value_from_color(primary_color_);
   if (target == replacement) {
     return {};
   }
-
-  std::queue<QPoint> queue;
-  std::vector<std::uint8_t> visited(static_cast<std::size_t>(pixels->width()) *
-                                    static_cast<std::size_t>(pixels->height()));
-  queue.push(local_start);
-  QRect dirty;
+  const auto tolerance = std::clamp(fill_tolerance_, 0, 255);
+  const auto matches = [&](int local_x, int local_y) {
+    return patchy::color_within_tolerance(pixels->pixel(local_x, local_y), &target, 1, tolerance);
+  };
+  enum : std::uint8_t { kUnvisited = 0, kInRegion = 1, kRejected = 2 };
+  std::vector<std::uint8_t> state(static_cast<std::size_t>(width) * static_cast<std::size_t>(height), kUnvisited);
+  const auto state_at = [&](int local_x, int local_y) -> std::uint8_t& {
+    return state[static_cast<std::size_t>(local_y) * static_cast<std::size_t>(width) +
+                 static_cast<std::size_t>(local_x)];
+  };
   std::size_t progress_counter = 0;
-  while (!queue.empty()) {
+  const auto tick = [&] {
     ++progress_counter;
     if (progress_counter % 4096U == 0U) {
       tick_processing_operation();
     }
-    const auto local = queue.front();
-    queue.pop();
-    if (local.x() < 0 || local.y() < 0 || local.x() >= pixels->width() || local.y() >= pixels->height()) {
-      continue;
+  };
+  QRect dirty;
+  const auto write = [&](int local_x, int local_y) {
+    *pixels->pixel(local_x, local_y) = replacement;
+    dirty = dirty.united(QRect(QPoint(bounds.x() + local_x, bounds.y() + local_y), QSize(1, 1)));
+  };
+  if (fill_contiguous_) {
+    std::vector<QPoint> stack;
+    stack.push_back(local_start);
+    while (!stack.empty()) {
+      tick();
+      const auto local = stack.back();
+      stack.pop_back();
+      if (local.x() < 0 || local.y() < 0 || local.x() >= width || local.y() >= height) {
+        continue;
+      }
+      auto& cell = state_at(local.x(), local.y());
+      if (cell != kUnvisited) {
+        continue;
+      }
+      const QPoint document_point(bounds.x() + local.x(), bounds.y() + local.y());
+      if (!selection_allows(document_point) || !matches(local.x(), local.y())) {
+        cell = kRejected;
+        continue;
+      }
+      cell = kInRegion;
+      write(local.x(), local.y());
+      stack.push_back(local + QPoint(1, 0));
+      stack.push_back(local + QPoint(-1, 0));
+      stack.push_back(local + QPoint(0, 1));
+      stack.push_back(local + QPoint(0, -1));
     }
-    const auto index = static_cast<std::size_t>(local.y()) * static_cast<std::size_t>(pixels->width()) +
-                       static_cast<std::size_t>(local.x());
-    if (visited[index] != 0U) {
-      continue;
+    return dirty;
+  }
+  for (int local_y = 0; local_y < height; ++local_y) {
+    for (int local_x = 0; local_x < width; ++local_x) {
+      tick();
+      if (!selection_allows(QPoint(bounds.x() + local_x, bounds.y() + local_y)) || !matches(local_x, local_y)) {
+        continue;
+      }
+      write(local_x, local_y);
     }
-    visited[index] = 1U;
-    const QPoint document_point(bounds.x() + local.x(), bounds.y() + local.y());
-    if (!selection_allows(document_point)) {
-      continue;
-    }
-    auto* px = pixels->pixel(local.x(), local.y());
-    if (*px != target) {
-      continue;
-    }
-    *px = replacement;
-    dirty = dirty.united(QRect(document_point, QSize(1, 1)));
-    queue.push(local + QPoint(1, 0));
-    queue.push(local + QPoint(-1, 0));
-    queue.push(local + QPoint(0, 1));
-    queue.push(local + QPoint(0, -1));
   }
   return dirty;
 }

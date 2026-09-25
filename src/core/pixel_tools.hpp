@@ -37,7 +37,13 @@ struct EditOptions {
   BrushDynamics brush_dynamics{};            // per-dab tip dynamics; default = disabled
   bool fill_shapes{false};
   int shape_corner_radius{0};
-  double fill_softness_feather{0.0};  // fill_rect: inward edge feather band (px); 0 = hard edge
+  double fill_softness_feather{0.0};  // fill_rect/flood_fill: inward edge feather band (px); 0 = hard edge
+  // flood_fill only. Tolerance is the Magic Wand's metric (color_within_tolerance), so Fill
+  // tolerance N accepts exactly the pixels Wand tolerance N selects; 0 is an exact match.
+  // Contiguous limits the fill to pixels connected to the click; off fills every matching
+  // pixel of the layer (within the selection), like Photoshop's Contiguous checkbox.
+  int flood_tolerance{0};
+  bool flood_contiguous{true};
   bool lock_transparent_pixels{false};
   // Palette-mode write constraint (non-owning, caller keeps the LUT alive for the
   // operation). When set, pixel writes binarize coverage at its threshold, blend
@@ -188,6 +194,15 @@ enum class CanvasAnchor {
                                   bool erase);
 [[nodiscard]] Rect draw_ellipse(Document& document, LayerId layer_id, Rect rect, const EditOptions& options,
                                 bool erase);
+// The Magic Wand's color metric, shared with flood_fill: the sum of squared per-channel
+// differences over the channels present (at most four) is within 4 * tolerance^2.
+// Tolerance 0 is an exact match. CanvasWidget's wand engines inline the same formula;
+// keep them in step (`tool_fill_bucket_tolerance_metric_matches_magic_wand` pins it).
+[[nodiscard]] bool color_within_tolerance(const std::uint8_t* a, const std::uint8_t* b, std::uint16_t channels,
+                                          int tolerance) noexcept;
+// Paint Bucket fill from (x, y): honors options.flood_tolerance, options.flood_contiguous,
+// options.primary.a (opacity, blended through the ordinary pixel writer), and
+// options.fill_softness_feather (feathered inward from the filled region's edge).
 [[nodiscard]] Rect flood_fill(Document& document, LayerId layer_id, std::int32_t x, std::int32_t y,
                               const EditOptions& options);
 [[nodiscard]] Rect fill_rect(Document& document, LayerId layer_id, Rect rect, const EditOptions& options);
