@@ -138,24 +138,29 @@ These are corpus-specific results, not universal product ratings. See the [full 
 
 ## Download
 
-**Latest release: 0.98** · September 23, 2026 · [Release notes](#whats-new)
+**Latest release: 0.98** · September 24, 2026 · [Release notes](#whats-new) · [All releases](https://github.com/SethRobinson/Patchy/releases)
 
 Windows releases are code signed by Seth A. Robinson; the macOS app is signed and
-notarized (Robinson Technologies Corporation).
+notarized (Robinson Technologies Corporation). Every release is published on the
+[GitHub Releases page](https://github.com/SethRobinson/Patchy/releases) with SHA-256
+checksums, and mirrored at rtsoft.com.
 
-| Platform                  | Package                     | Download                                                                                      |
-| ------------------------- | --------------------------- | --------------------------------------------------------------------------------------------- |
-| Windows 10/11 (64-bit)    | Installer                   | [PatchyWindowsInstaller.exe](https://rtsoft.com/files/PatchyWindowsInstaller.exe) (59 MB)     |
-| Windows 10/11 (64-bit)    | Portable ZIP (no installer) | [PatchyWindowsNoInstaller.zip](https://rtsoft.com/files/PatchyWindowsNoInstaller.zip) (59 MB) |
-| macOS 12+ (Apple Silicon) | DMG - drag to Applications  | [PatchyMacOS.dmg](https://rtsoft.com/files/PatchyMacOS.dmg) (64 MB)                           |
-| Linux                     | Flatpak bundle              | [PatchyLinux.flatpak](https://rtsoft.com/files/PatchyLinux.flatpak) (31 MB)                   |
-| Any modern browser        | Nothing to install          | [patchyimageeditor.com](https://www.patchyimageeditor.com) or [rtsoft.com/patchy](https://www.rtsoft.com/patchy/) |
+| Platform                  | Package                     | Download                                                                                                                |
+| ------------------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Windows 10/11 (64-bit)    | Installer                   | [PatchyWindowsInstaller.exe](https://github.com/SethRobinson/Patchy/releases/latest/download/PatchyWindowsInstaller.exe) (59 MB)     |
+| Windows 10/11 (64-bit)    | Portable ZIP (no installer) | [PatchyWindowsNoInstaller.zip](https://github.com/SethRobinson/Patchy/releases/latest/download/PatchyWindowsNoInstaller.zip) (59 MB) |
+| macOS 12+ (Apple Silicon) | DMG - drag to Applications  | [PatchyMacOS.dmg](https://github.com/SethRobinson/Patchy/releases/latest/download/PatchyMacOS.dmg) (64 MB)                           |
+| Linux                     | Flatpak bundle              | [PatchyLinux.flatpak](https://github.com/SethRobinson/Patchy/releases/latest/download/PatchyLinux.flatpak) (31 MB)                   |
+| Any modern browser        | Nothing to install          | [patchyimageeditor.com](https://www.patchyimageeditor.com) or [rtsoft.com/patchy](https://www.rtsoft.com/patchy/)                    |
+
+Mirror: the same files are also at [rtsoft.com/files](https://rtsoft.com/files/PatchyWindowsInstaller.exe)
+(`PatchyWindowsInstaller.exe`, `PatchyWindowsNoInstaller.zip`, `PatchyMacOS.dmg`, `PatchyLinux.flatpak`).
 
 Linux one-line install (paste into a terminal; fetches the bundle and installs it for
 your user, pulling the shared KDE runtime from Flathub automatically, no root needed):
 
 ```sh
-curl -L -o /tmp/PatchyLinux.flatpak https://rtsoft.com/files/PatchyLinux.flatpak && flatpak install --user -y /tmp/PatchyLinux.flatpak
+curl -L -o /tmp/PatchyLinux.flatpak https://github.com/SethRobinson/Patchy/releases/latest/download/PatchyLinux.flatpak && flatpak install --user -y /tmp/PatchyLinux.flatpak
 ```
 
 Optional: opening iPhone HEIC photos on Linux uses the shared Freedesktop codec

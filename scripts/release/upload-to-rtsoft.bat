@@ -38,7 +38,9 @@ if defined FAILED (
   exit /b 1
 )
 echo ==========================================================
-echo  All release uploads verified on rtsoft.com.
+echo  All release uploads verified on rtsoft.com ^(the mirror^).
+echo  GitHub is the canonical download: after the release commit
+echo  is pushed, run scripts\release\publish-github-release.bat.
 echo ==========================================================
 if not defined NO_PAUSE pause
 exit /b 0

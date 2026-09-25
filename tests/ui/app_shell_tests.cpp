@@ -1665,7 +1665,8 @@ void ui_update_available_dialog_warns_to_close_patchy_before_installing() {
     // remote-add step is shown.
     CHECK(!dialog->text().contains(QStringLiteral("flatpak remote-add")));
     CHECK(dialog->text().contains(
-        QStringLiteral("curl -L -o /tmp/PatchyLinux.flatpak https://rtsoft.com/files/PatchyLinux.flatpak && ")));
+        QStringLiteral("curl -L -o /tmp/PatchyLinux.flatpak "
+                       "https://github.com/SethRobinson/Patchy/releases/latest/download/PatchyLinux.flatpak && ")));
     CHECK(dialog->text().contains(QStringLiteral("flatpak install --user -y /tmp/PatchyLinux.flatpak")));
     CHECK(dialog->findChild<QAbstractButton*>(QStringLiteral("updateCopyCommandButton")) != nullptr);
 #else
@@ -1677,11 +1678,14 @@ void ui_update_available_dialog_warns_to_close_patchy_before_installing() {
   });
 
   // The Linux dialog embeds the bundle name from the download URL in its command, so
-  // that platform gets the real Flatpak URL; the others only show generic advice.
+  // that platform gets the real Flatpak URL (the GitHub latest-release permalink that
+  // latest_version.json carries); the others only show generic advice.
 #if defined(Q_OS_LINUX)
-  const QUrl download_url(QStringLiteral("https://rtsoft.com/files/PatchyLinux.flatpak"));
+  const QUrl download_url(
+      QStringLiteral("https://github.com/SethRobinson/Patchy/releases/latest/download/PatchyLinux.flatpak"));
 #else
-  const QUrl download_url(QStringLiteral("https://rtsoft.com/files/PatchyWindowsInstaller.exe"));
+  const QUrl download_url(
+      QStringLiteral("https://github.com/SethRobinson/Patchy/releases/latest/download/PatchyWindowsInstaller.exe"));
 #endif
   window.show_update_available({QStringLiteral("windows"), QStringLiteral("9.9"), download_url});
   CHECK(saw_dialog);

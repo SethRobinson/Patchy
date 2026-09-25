@@ -7,7 +7,8 @@ rem throttled, and a Windows PowerShell 5.1 PSModulePath so the inline powershel
 rem one-liners load the right modules even when launched from pwsh 7), logs the
 rem target to build\release-logs\<target>.log, and writes exit=<code> to
 rem build\release-logs\<target>.exit when it ends. Wait for the .exit files; never
-rem wait for the consoles. Targets: windows mac linux wasm upload-wasm upload-all.
+rem wait for the consoles. Targets: windows mac linux wasm upload-wasm upload-all
+rem upload-github (the GitHub Releases publish; needs the release commit pushed first).
 rem With no arguments it starts the four builders; name targets to run a subset,
 rem e.g. release-all-automated.bat windows wasm, or release-all-automated.bat upload-wasm.
 rem Always go through this script (or release-worker.bat) for an unattended run: a

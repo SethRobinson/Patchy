@@ -20,7 +20,7 @@ Keep this file at or below 30,000 bytes. Detailed implementation knowledge belon
 - When a test needs a capability Patchy lacks (an assertion surface, a file or state probe, a way to drive a flow without the desktop UI), prefer adding it to the JavaScript scripting API as a documented first-class `patchy.*` function over a test-only hook: the scripting system improves, and the same test can drive the real build through `--run-script`. Follow the API rules in [docs/scripting.md](docs/scripting.md) (d.ts, guide, change log, permanent identifiers).
 - When wasm work is finished, stop every local wasm server you started (`powershell -NoProfile -ExecutionPolicy Bypass -File scripts\wasm\free-server-port.ps1 -Port <port>` for each port used). Leftover servers are confusing; Seth restarts one manually when he wants it.
 
-The release process, including version bumps, README author crediting, batch-file order, and mandatory `NO_PAUSE=1` for non-interactive runs, lives in [docs/release-process.md](docs/release-process.md). Read it in full before bumping a version or running a release batch file.
+The release process, including version bumps, README author crediting, batch-file order, the GitHub Releases publish (`scripts\release\publish-github-release.bat`; GitHub is the canonical download, rtsoft.com the mirror, and the tag must point at the commit the packages were built from), and mandatory `NO_PAUSE=1` for non-interactive runs, lives in [docs/release-process.md](docs/release-process.md). Read it in full before bumping a version or running a release batch file.
 
 ## Build, test, and release handoff
 
