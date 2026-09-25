@@ -1456,6 +1456,45 @@ QJSValue ScriptDocumentObject::addLayer(const QString& name) {
   return make_layer_value(host_, session_id_, id);
 }
 
+QJSValue ScriptDocumentObject::importFilesAsLayers(const QJSValue& paths) {
+  const ScriptApiCall api_call(host_);
+  if (read_document() == nullptr) {
+    return QJSValue();
+  }
+  QStringList list;
+  if (paths.isString()) {
+    list.push_back(paths.toString());
+  } else if (paths.isArray()) {
+    const auto count = paths.property(QStringLiteral("length")).toUInt();
+    for (quint32 i = 0; i < count; ++i) {
+      const auto value = paths.property(i);
+      if (!value.isString() || value.toString().isEmpty()) {
+        list.clear();
+        break;
+      }
+      list.push_back(value.toString());
+    }
+  }
+  if (list.isEmpty()) {
+    host_.throw_js_error(
+        ScriptEngineHost::tr("importFilesAsLayers needs a file path or a non-empty array of paths."));
+    return QJSValue();
+  }
+  QString error;
+  const auto ids_top_to_bottom = host_.import_files_as_layers(session_id_, list, &error);
+  if (ids_top_to_bottom.empty()) {
+    host_.throw_js_error(error);
+    return QJSValue();
+  }
+  // Argument order is bottom to top: the first file is the lowest new layer.
+  auto result = host_.engine()->newArray(static_cast<uint>(ids_top_to_bottom.size()));
+  quint32 index = 0;
+  for (auto it = ids_top_to_bottom.rbegin(); it != ids_top_to_bottom.rend(); ++it) {
+    result.setProperty(index++, make_layer_value(host_, session_id_, *it));
+  }
+  return result;
+}
+
 QJSValue ScriptDocumentObject::addTextLayer(const QString& text, const QJSValue& options) {
   const ScriptApiCall api_call(host_);
   ScriptEngineHost::TextLayerParams params;

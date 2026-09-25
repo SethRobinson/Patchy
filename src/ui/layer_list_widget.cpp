@@ -448,6 +448,41 @@ std::optional<LayerDropRequest> LayerListWidget::take_drop_request() {
   return request;
 }
 
+void LayerListWidget::set_file_drop_paths_callback(std::function<QStringList(const QMimeData*)> callback) {
+  file_drop_paths_callback_ = std::move(callback);
+}
+
+std::optional<LayerListWidget::LayerFileDropRequest> LayerListWidget::take_file_drop_request() {
+  auto request = std::move(pending_file_drop_request_);
+  pending_file_drop_request_.reset();
+  return request;
+}
+
+bool LayerListWidget::is_layer_drag(const QMimeData* mime_data) const {
+  return !dragged_layer_ids_.empty() || !layer_ids_from_mime_data(mime_data).empty();
+}
+
+void LayerListWidget::accept_file_drag(QDropEvent* event) {
+  if ((event->possibleActions() & Qt::CopyAction) != 0) {
+    event->setDropAction(Qt::CopyAction);
+    event->accept();
+  } else {
+    event->acceptProposedAction();
+  }
+}
+
+QPoint LayerListWidget::drop_viewport_position(const QDropEvent& event) const {
+  const auto event_position = event.position().toPoint();
+  auto position = drop_event_uses_viewport_coordinates_ ? event_position : viewport()->mapFrom(this, event_position);
+  if (!viewport()->rect().contains(position)) {
+    const auto viewport_position = viewport()->mapFrom(this, event_position);
+    if (viewport()->rect().contains(viewport_position)) {
+      position = viewport_position;
+    }
+  }
+  return position;
+}
+
 void LayerListWidget::refresh_row_widths() {
   if (updating_row_widths_) {
     return;
@@ -1237,6 +1272,20 @@ void LayerListWidget::dragEnterEvent(QDragEnterEvent* event) {
     event->ignore();
     return;
   }
+  if (!is_layer_drag(event->mimeData())) {
+    // Not a layer drag: only OS files the owner can turn into layers are
+    // welcome (computed once here; the check may open files). Anything else,
+    // text say, is refused so it can never reach the reorder path.
+    file_drag_paths_ = file_drop_paths_callback_ ? file_drop_paths_callback_(event->mimeData()) : QStringList{};
+    if (file_drag_paths_.isEmpty()) {
+      event->ignore();
+      return;
+    }
+    update_drop_preview(event->position().toPoint());
+    update_auto_scroll(event->position().toPoint());
+    accept_file_drag(event);
+    return;
+  }
   keep_drag_anchor_selected();
   update_drop_preview(event->position().toPoint());
   update_auto_scroll(event->position().toPoint());
@@ -1252,6 +1301,16 @@ void LayerListWidget::dragMoveEvent(QDragMoveEvent* event) {
     event->ignore();
     return;
   }
+  if (!is_layer_drag(event->mimeData())) {
+    if (file_drag_paths_.isEmpty()) {
+      event->ignore();
+      return;
+    }
+    update_drop_preview(event->position().toPoint());
+    update_auto_scroll(event->position().toPoint());
+    accept_file_drag(event);
+    return;
+  }
   keep_drag_anchor_selected();
   update_drop_preview(event->position().toPoint());
   update_auto_scroll(event->position().toPoint());
@@ -1263,6 +1322,7 @@ void LayerListWidget::dragMoveEvent(QDragMoveEvent* event) {
 }
 
 void LayerListWidget::dragLeaveEvent(QDragLeaveEvent* event) {
+  file_drag_paths_.clear();
   keep_drag_anchor_selected();
   stop_auto_scroll();
   clear_drop_preview();
@@ -1278,20 +1338,36 @@ void LayerListWidget::dropEvent(QDropEvent* event) {
   }
   stop_auto_scroll();
   clear_drop_preview();
+  if (!is_layer_drag(event->mimeData())) {
+    // An OS file drop becomes a Files as Layers request at the previewed
+    // target; the selected-rows fallback below is for layer drags only.
+    auto paths = file_drag_paths_;
+    if (paths.isEmpty() && file_drop_paths_callback_) {
+      paths = file_drop_paths_callback_(event->mimeData());
+    }
+    file_drag_paths_.clear();
+    if (paths.isEmpty()) {
+      event->ignore();
+      return;
+    }
+    const auto target = drop_target_at(drop_viewport_position(*event));
+    pending_file_drop_request_ = LayerFileDropRequest{std::move(paths), target.layer_id, target.position};
+    accept_file_drag(event);
+    if (drop_finished_callback_) {
+      QTimer::singleShot(0, this, [this] {
+        if (drop_finished_callback_) {
+          drop_finished_callback_();
+        }
+      });
+    }
+    return;
+  }
   auto ids = !dragged_layer_ids_.empty() ? dragged_layer_ids_ : layer_ids_from_mime_data(event->mimeData());
   if (ids.empty()) {
     ids = selected_layer_ids_top_to_bottom();
   }
   if (!ids.empty()) {
-    const auto event_position = event->position().toPoint();
-    auto position = drop_event_uses_viewport_coordinates_ ? event_position : viewport()->mapFrom(this, event_position);
-    if (!viewport()->rect().contains(position)) {
-      const auto viewport_position = viewport()->mapFrom(this, event_position);
-      if (viewport()->rect().contains(viewport_position)) {
-        position = viewport_position;
-      }
-    }
-    const auto target = drop_target_at(position);
+    const auto target = drop_target_at(drop_viewport_position(*event));
     const bool copy = (event->modifiers() & Qt::AltModifier) != 0;
     pending_drop_request_ = LayerDropRequest{
         std::move(ids),

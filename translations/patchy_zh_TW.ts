@@ -17443,6 +17443,48 @@ Y：%2
         <source>Copied variation %1 to the hidden layer &quot;%2&quot;</source>
         <translation>已將變化 %1 複製到隱藏圖層「%2」</translation>
     </message>
+    <message>
+        <source>&amp;Files as Layers...</source>
+        <translation>檔案轉為圖層(&amp;F)...</translation>
+    </message>
+    <message>
+        <source>the file holds no layers</source>
+        <translation>檔案不包含圖層</translation>
+    </message>
+    <message>
+        <source>Folder</source>
+        <translation>檔案夾</translation>
+    </message>
+    <message>
+        <source>None of the files could be added as layers</source>
+        <translation>沒有檔案能作為圖層加入</translation>
+    </message>
+    <message>
+        <source>The drop target is no longer in the document</source>
+        <translation>放置目標已不在文件中</translation>
+    </message>
+    <message>
+        <source>Add files as layers</source>
+        <translation>將檔案加入為圖層</translation>
+    </message>
+    <message>
+        <source>These files could not be added as layers:
+
+%1</source>
+        <translation>這些檔案無法作為圖層加入：
+
+%1</translation>
+    </message>
+    <message numerus="yes">
+        <source>Added %n layer(s)</source>
+        <translation>
+            <numerusform>已加入 %n 個圖層</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Files as Layers</source>
+        <translation>檔案轉為圖層</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -18760,6 +18802,14 @@ Y：%2
     <message>
         <source>distributeLayers needs at least three movable layers.</source>
         <translation>distributeLayers 需要至少三個可移動的圖層。</translation>
+    </message>
+    <message>
+        <source>importFilesAsLayers needs a file path or a non-empty array of paths.</source>
+        <translation>importFilesAsLayers 需要一個檔案路徑或非空的路徑陣列。</translation>
+    </message>
+    <message>
+        <source>No layers were added.</source>
+        <translation>未加入任何圖層。</translation>
     </message>
 </context>
 <context>

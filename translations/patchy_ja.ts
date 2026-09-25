@@ -17443,6 +17443,48 @@ Clipped to the layer below</source>
         <source>Copied variation %1 to the hidden layer &quot;%2&quot;</source>
         <translation>バリエーション %1 を非表示レイヤー &quot;%2&quot; にコピーしました</translation>
     </message>
+    <message>
+        <source>&amp;Files as Layers...</source>
+        <translation>ファイルをレイヤーへ(&amp;F)...</translation>
+    </message>
+    <message>
+        <source>the file holds no layers</source>
+        <translation>ファイルにレイヤーがありません</translation>
+    </message>
+    <message>
+        <source>Folder</source>
+        <translation>フォルダー</translation>
+    </message>
+    <message>
+        <source>None of the files could be added as layers</source>
+        <translation>どのファイルもレイヤーとして追加できませんでした</translation>
+    </message>
+    <message>
+        <source>The drop target is no longer in the document</source>
+        <translation>ドロップ先はドキュメント内に存在しません</translation>
+    </message>
+    <message>
+        <source>Add files as layers</source>
+        <translation>ファイルをレイヤーとして追加</translation>
+    </message>
+    <message>
+        <source>These files could not be added as layers:
+
+%1</source>
+        <translation>これらのファイルはレイヤーとして追加できませんでした:
+
+%1</translation>
+    </message>
+    <message numerus="yes">
+        <source>Added %n layer(s)</source>
+        <translation>
+            <numerusform>%n 個のレイヤーを追加しました</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Files as Layers</source>
+        <translation>ファイルをレイヤーへ</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -18760,6 +18802,14 @@ Clipped to the layer below</source>
     <message>
         <source>distributeLayers needs at least three movable layers.</source>
         <translation>distributeLayers には移動可能なレイヤーが 3 つ以上必要です。</translation>
+    </message>
+    <message>
+        <source>importFilesAsLayers needs a file path or a non-empty array of paths.</source>
+        <translation>importFilesAsLayers にはファイルパスまたは空でないパスの配列が必要です。</translation>
+    </message>
+    <message>
+        <source>No layers were added.</source>
+        <translation>レイヤーは追加されませんでした。</translation>
     </message>
 </context>
 <context>

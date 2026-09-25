@@ -359,6 +359,12 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   import_image_sequence_action->setObjectName(QStringLiteral("fileImportImageSequenceAction"));
   register_hotkey(import_image_sequence_action, "file.import_image_sequence");
   connect(import_image_sequence_action, &QAction::triggered, this, [this] { import_image_sequence(); });
+  auto* import_files_as_layers_action = import_menu->addAction(tr("&Files as Layers..."));
+  bind_action_text(import_files_as_layers_action, QT_TR_NOOP("&Files as Layers..."));
+  import_files_as_layers_action->setObjectName(QStringLiteral("fileImportFilesAsLayersAction"));
+  register_hotkey(import_files_as_layers_action, "file.import_files_as_layers");
+  connect(import_files_as_layers_action, &QAction::triggered, this, [this] { import_files_as_layers(); });
+  register_document_action(import_files_as_layers_action);
   auto* place_embedded_action = file_menu->addAction(tr("Place &Embedded..."));
   bind_action_text(place_embedded_action, QT_TR_NOOP("Place &Embedded..."));
   place_embedded_action->setObjectName(QStringLiteral("filePlaceEmbeddedAction"));
@@ -419,6 +425,8 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   // so hotkey ids and wiring are stable; hidden actions do not render in the
   // menu. A browser has no host folders to open or write into either.
   export_image_sequence_action->setVisible(false);
+  // A browser pick is a MEMFS transfer path that only open_document_path releases.
+  import_files_as_layers_action->setVisible(false);
   export_documents_folder_action->setVisible(false);
   open_folder_action->setVisible(false);
   page_setup_action->setVisible(false);

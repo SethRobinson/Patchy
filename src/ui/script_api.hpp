@@ -209,6 +209,11 @@ public:
   Q_INVOKABLE QJSValue addPath(const QString& name, const QJSValue& data);
   Q_INVOKABLE QJSValue setWorkPath(const QJSValue& data);
   Q_INVOKABLE QJSValue addTextLayer(const QString& text, const QJSValue& options = QJSValue());
+  // Files as Layers: each path (a string or an array of strings) becomes a
+  // layer above the active layer, bottom to top in argument order; a
+  // multi-layer file becomes a folder named after it. Throws, adding nothing,
+  // when a file cannot be read. Returns the new layers in argument order.
+  Q_INVOKABLE QJSValue importFilesAsLayers(const QJSValue& paths);
   Q_INVOKABLE QJSValue findLayer(const QString& name);
   // Combine Shapes: merges the shape layers (siblings) into the bottom-most
   // one with op "unite" | "subtract" | "intersect" | "exclude"; returns it.

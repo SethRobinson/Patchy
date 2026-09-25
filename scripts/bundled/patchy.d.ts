@@ -493,6 +493,16 @@ interface PatchyDocument {
     orientation?: 'horizontal' | 'vertical';
     direction?: 'auto' | 'ltr' | 'rtl';
   }): PatchyLayer;
+  /**
+   * Files as Layers: adds each image file as a new layer directly above the
+   * active layer, bottom to top in argument order (the last file ends on top
+   * and active). A file with several layers (a PSD, an animated GIF) becomes
+   * a folder named after it. Pixels keep their size: a file the size of the
+   * document lands exactly, any other size is centered on the canvas.
+   * Throws, adding nothing, when a file cannot be read. Returns the new
+   * top-level layers in argument order.
+   */
+  importFilesAsLayers(paths: string | string[]): PatchyLayer[];
   /** First layer (depth-first) with this exact name, or undefined. */
   findLayer(name: string): PatchyLayer | undefined;
   /**

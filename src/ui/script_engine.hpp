@@ -193,6 +193,11 @@ public:
   // set on refusal; the target's undo rides this run's snapshot.
   std::vector<LayerId> duplicate_layers_to_session(std::int64_t source_session_id, std::vector<LayerId> ids,
                                                    std::int64_t target_session_id, QString* error);
+  // doc.importFilesAsLayers(paths): every file becomes a layer above the
+  // active layer (MainWindow::add_files_as_layers). All or nothing: a file that
+  // cannot be read leaves the document untouched with *error set. Returns the
+  // new root ids top to bottom; the mutation rides this run's snapshot.
+  std::vector<LayerId> import_files_as_layers(std::int64_t session_id, const QStringList& paths, QString* error);
 
   // Undo integration: the FIRST mutation a run makes to a session pushes one
   // "Script: <name>" snapshot; later mutations in the same run ride it, so the

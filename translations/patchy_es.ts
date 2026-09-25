@@ -17490,6 +17490,49 @@ Y: %2
         <source>Copied variation %1 to the hidden layer &quot;%2&quot;</source>
         <translation>Variante %1 copiada en la capa oculta &quot;%2&quot;</translation>
     </message>
+    <message>
+        <source>&amp;Files as Layers...</source>
+        <translation>&amp;Archivos como capas...</translation>
+    </message>
+    <message>
+        <source>the file holds no layers</source>
+        <translation>el archivo no contiene capas</translation>
+    </message>
+    <message>
+        <source>Folder</source>
+        <translation>Carpeta</translation>
+    </message>
+    <message>
+        <source>None of the files could be added as layers</source>
+        <translation>Ninguno de los archivos se pudo añadir como capa</translation>
+    </message>
+    <message>
+        <source>The drop target is no longer in the document</source>
+        <translation>El destino de la colocación ya no está en el documento</translation>
+    </message>
+    <message>
+        <source>Add files as layers</source>
+        <translation>Añadir archivos como capas</translation>
+    </message>
+    <message>
+        <source>These files could not be added as layers:
+
+%1</source>
+        <translation>Estos archivos no se pudieron añadir como capas:
+
+%1</translation>
+    </message>
+    <message numerus="yes">
+        <source>Added %n layer(s)</source>
+        <translation>
+            <numerusform>%n capa añadida</numerusform>
+            <numerusform>%n capas añadidas</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Files as Layers</source>
+        <translation>Archivos como capas</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -18808,6 +18851,14 @@ Y: %2
     <message>
         <source>distributeLayers needs at least three movable layers.</source>
         <translation>distributeLayers necesita al menos tres capas movibles.</translation>
+    </message>
+    <message>
+        <source>importFilesAsLayers needs a file path or a non-empty array of paths.</source>
+        <translation>importFilesAsLayers necesita una ruta de archivo o un array de rutas no vacío.</translation>
+    </message>
+    <message>
+        <source>No layers were added.</source>
+        <translation>No se añadió ninguna capa.</translation>
     </message>
 </context>
 <context>

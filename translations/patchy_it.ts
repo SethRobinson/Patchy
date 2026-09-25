@@ -17490,6 +17490,49 @@ Y: %2
         <source>Copied variation %1 to the hidden layer &quot;%2&quot;</source>
         <translation>Variante %1 copiata nel livello nascosto &quot;%2&quot;</translation>
     </message>
+    <message>
+        <source>&amp;Files as Layers...</source>
+        <translation>&amp;File come livelli...</translation>
+    </message>
+    <message>
+        <source>the file holds no layers</source>
+        <translation>il file non contiene livelli</translation>
+    </message>
+    <message>
+        <source>Folder</source>
+        <translation>Cartella</translation>
+    </message>
+    <message>
+        <source>None of the files could be added as layers</source>
+        <translation>Nessuno dei file è stato aggiunto come livello</translation>
+    </message>
+    <message>
+        <source>The drop target is no longer in the document</source>
+        <translation>La destinazione del rilascio non è più nel documento</translation>
+    </message>
+    <message>
+        <source>Add files as layers</source>
+        <translation>Aggiungi file come livelli</translation>
+    </message>
+    <message>
+        <source>These files could not be added as layers:
+
+%1</source>
+        <translation>Questi file non sono stati aggiunti come livelli:
+
+%1</translation>
+    </message>
+    <message numerus="yes">
+        <source>Added %n layer(s)</source>
+        <translation>
+            <numerusform>%n livello aggiunto</numerusform>
+            <numerusform>%n livelli aggiunti</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Files as Layers</source>
+        <translation>File come livelli</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -18808,6 +18851,14 @@ Y: %2
     <message>
         <source>distributeLayers needs at least three movable layers.</source>
         <translation>distributeLayers richiede almeno tre livelli spostabili.</translation>
+    </message>
+    <message>
+        <source>importFilesAsLayers needs a file path or a non-empty array of paths.</source>
+        <translation>importFilesAsLayers richiede un percorso di file o un array di percorsi non vuoto.</translation>
+    </message>
+    <message>
+        <source>No layers were added.</source>
+        <translation>Nessun livello è stato aggiunto.</translation>
     </message>
 </context>
 <context>

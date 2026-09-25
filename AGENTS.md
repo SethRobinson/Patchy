@@ -144,7 +144,7 @@ Read the linked document before working on the feature. The document, not this i
 - **SVG import/export:** [docs/svg.md](docs/svg.md).
 - **Trace Image to Shapes (raster to vector):** [docs/image-trace.md](docs/image-trace.md) and the "Vector tracing" boundary in [docs/legal-constraints.md](docs/legal-constraints.md).
 - **Float windows and document activation:** [docs/float-windows.md](docs/float-windows.md).
-- **Scanner, photocopy, Divide Scanned Photos, sprite-sheet, image-sequence, and seamless-tiling import:** [docs/import.md](docs/import.md).
+- **Scanner, photocopy, Divide Scanned Photos, sprite-sheet, image-sequence, seamless-tiling import, and Files as Layers (Layers-panel file drop, Import command, Paste of copied files):** [docs/import.md](docs/import.md).
 - **Plug-ins and legacy 8BF support:** [docs/plugins.md](docs/plugins.md).
 - **JavaScript scripting and bundled scripts:** [docs/scripting.md](docs/scripting.md).
 - **Single-instance forwarding, CLI screenshots, and `--headless` runs:** `src/app/main.cpp`, [docs/testing.md](docs/testing.md), and the CLI section of [docs/scripting.md](docs/scripting.md).

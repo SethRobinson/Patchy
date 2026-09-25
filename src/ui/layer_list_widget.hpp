@@ -10,6 +10,7 @@
 #include <QPoint>
 #include <QPointer>
 #include <QRect>
+#include <QStringList>
 
 #include <cstddef>
 #include <functional>
@@ -108,6 +109,18 @@ public:
   // Plain Escape with the list focused (Select > Deselect Layers).
   void set_escape_callback(std::function<void()> callback);
   [[nodiscard]] std::optional<LayerDropRequest> take_drop_request();
+  // OS file drops (Files as Layers, docs/import.md): the owner maps a drag's
+  // mime data to the local files that could become layers; an empty list
+  // refuses the drag, so text and other foreign drags never reach the reorder
+  // path. Such a drop records a LayerFileDropRequest at the insertion target
+  // the preview showed, then fires the drop-finished callback like a layer drop.
+  struct LayerFileDropRequest {
+    QStringList paths;
+    std::optional<LayerId> target_layer_id;
+    LayerDropPosition position{LayerDropPosition::OnViewport};
+  };
+  void set_file_drop_paths_callback(std::function<QStringList(const QMimeData*)> callback);
+  [[nodiscard]] std::optional<LayerFileDropRequest> take_file_drop_request();
   void refresh_row_widths();
   bool handle_drag_wheel_at_global_position(QPoint global_position, int primary_delta);
 
@@ -159,6 +172,13 @@ private:
   void finish_inline_rename(bool commit);
   [[nodiscard]] QListWidgetItem* parent_item_for(QListWidgetItem* item) const;
   [[nodiscard]] DropTarget drop_target_at(QPoint viewport_position) const;
+  // A drop's position in viewport coordinates whether it arrived at the list or
+  // its viewport (drop_event_uses_viewport_coordinates_).
+  [[nodiscard]] QPoint drop_viewport_position(const QDropEvent& event) const;
+  [[nodiscard]] bool is_layer_drag(const QMimeData* mime_data) const;
+  // CopyAction when the source offers it (the cursor shows the copy badge), else
+  // the proposed action; the window's file drop does the same.
+  static void accept_file_drag(QDropEvent* event);
   [[nodiscard]] LayerDropPosition inferred_drop_position(QListWidgetItem* target_item,
                                                          QPoint viewport_position) const;
   [[nodiscard]] int row_content_left(QListWidgetItem* item) const;
@@ -220,6 +240,11 @@ private:
   QWidget* insertion_indicator_{nullptr};
   QWidget* folder_highlight_indicator_{nullptr};
   std::optional<LayerDropRequest> pending_drop_request_;
+  std::function<QStringList(const QMimeData*)> file_drop_paths_callback_;
+  // The current external drag's usable files, computed once at enter (the
+  // check may open files) and cleared at leave or drop.
+  QStringList file_drag_paths_;
+  std::optional<LayerFileDropRequest> pending_file_drop_request_;
   std::function<void()> drop_finished_callback_;
   std::function<void()> drag_blocked_callback_;
   std::function<void()> escape_callback_;

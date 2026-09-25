@@ -1,5 +1,11 @@
 # Scripting API compatibility
 
+2026-09-25 (API 1): `doc.importFilesAsLayers(paths)` adds image files as layers directly
+above the active layer, bottom to top in argument order (the core behind File > Import >
+Files as Layers, the Layers-panel file drop, and Paste with copied files). A multi-layer
+file becomes a folder named after it; an unreadable file throws without adding anything.
+Additive; apiVersion unchanged. See [import.md](import.md).
+
 2026-09-25 (API 1): the `layer.text` setter replaces the text the way retyping it in the
 editor does, so the new text keeps the first character's run formatting (exact fractional
 size, Character-panel glyph scales, leading, tracking, faux styles). It used to delete the

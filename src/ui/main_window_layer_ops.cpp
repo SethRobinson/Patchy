@@ -1157,6 +1157,12 @@ void MainWindow::paste_clipboard(bool in_place) {
   } else {
     const auto image = QApplication::clipboard()->image();
     if (image.isNull()) {
+      // A file copied in a file manager carries URLs and no bitmap: paste the
+      // supported image files as layers (Files as Layers, docs/import.md).
+      if (const auto paths = supported_layer_drop_paths(QApplication::clipboard()->mimeData()); !paths.isEmpty()) {
+        add_files_as_layers_interactive(paths, std::nullopt, tr("Paste"));
+        return;
+      }
       show_status_error(tr("Clipboard does not contain an image"));
       return;
     }
@@ -1935,7 +1941,21 @@ std::vector<LayerId> MainWindow::copy_layers_between_sessions(DocumentSession& s
   if (&source == &target) {
     return fail(tr("Choose a different document to copy the layers into"));
   }
-  const auto& source_document = std::as_const(source.document);
+  return copy_layers_between_documents(std::as_const(source.document), std::move(ids), target.document, placement,
+                                       before_mutation, error);
+}
+
+std::vector<LayerId> MainWindow::copy_layers_between_documents(const Document& source_document,
+                                                               std::vector<LayerId> ids, Document& target_document,
+                                                               const CrossDocumentLayerPlacement& placement,
+                                                               const std::function<bool()>& before_mutation,
+                                                               QString* error) {
+  const auto fail = [error](const QString& message) {
+    if (error != nullptr) {
+      *error = message;
+    }
+    return std::vector<LayerId>{};
+  };
   ids = root_drop_layer_ids(source_document.layers(), ids);
   const auto roots = find_layers_top_to_bottom(source_document.layers(), ids);
   if (roots.empty()) {
@@ -1954,7 +1974,6 @@ std::vector<LayerId> MainWindow::copy_layers_between_sessions(DocumentSession& s
                                             payload.smart_filter_effect_records);
     collect_referenced_pattern_resources(*layer, source_document.metadata().patterns, payload.pattern_resources);
   }
-  auto& target_document = target.document;
   const auto caches_available = std::all_of(
       payload.layers_top_to_bottom.begin(), payload.layers_top_to_bottom.end(), [&](const Layer& layer) {
         return smart_filter_records_available_for_clone(layer, target_document.metadata().smart_filter_effects,

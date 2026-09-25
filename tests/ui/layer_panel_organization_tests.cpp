@@ -3636,6 +3636,7 @@ void ui_layer_list_row_masks_map_scroll_bars_without_warnings() {
 
 std::vector<patchy::test::TestCase> layer_panel_organization_tests_animation_part();
 std::vector<patchy::test::TestCase> layer_panel_organization_tests_cross_document_part();
+std::vector<patchy::test::TestCase> layer_panel_organization_tests_files_as_layers_part();
 
 std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
   std::vector<patchy::test::TestCase> tests{
@@ -3734,5 +3735,7 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
   tests.insert(tests.end(), animation_part.begin(), animation_part.end());
   auto cross_document_part = layer_panel_organization_tests_cross_document_part();
   tests.insert(tests.end(), cross_document_part.begin(), cross_document_part.end());
+  auto files_as_layers_part = layer_panel_organization_tests_files_as_layers_part();
+  tests.insert(tests.end(), files_as_layers_part.begin(), files_as_layers_part.end());
   return tests;
 }

@@ -17443,6 +17443,48 @@ Y: %2
         <source>Copied variation %1 to the hidden layer &quot;%2&quot;</source>
         <translation>已将变体 %1 复制到隐藏图层“%2”</translation>
     </message>
+    <message>
+        <source>&amp;Files as Layers...</source>
+        <translation>文件转为图层(&amp;F)...</translation>
+    </message>
+    <message>
+        <source>the file holds no layers</source>
+        <translation>文件不包含图层</translation>
+    </message>
+    <message>
+        <source>Folder</source>
+        <translation>文件夹</translation>
+    </message>
+    <message>
+        <source>None of the files could be added as layers</source>
+        <translation>没有文件能作为图层添加</translation>
+    </message>
+    <message>
+        <source>The drop target is no longer in the document</source>
+        <translation>放置目标已不在文档中</translation>
+    </message>
+    <message>
+        <source>Add files as layers</source>
+        <translation>将文件添加为图层</translation>
+    </message>
+    <message>
+        <source>These files could not be added as layers:
+
+%1</source>
+        <translation>这些文件无法作为图层添加：
+
+%1</translation>
+    </message>
+    <message numerus="yes">
+        <source>Added %n layer(s)</source>
+        <translation>
+            <numerusform>已添加 %n 个图层</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Files as Layers</source>
+        <translation>文件转为图层</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -18760,6 +18802,14 @@ Y: %2
     <message>
         <source>distributeLayers needs at least three movable layers.</source>
         <translation>distributeLayers 需要至少三个可移动的图层。</translation>
+    </message>
+    <message>
+        <source>importFilesAsLayers needs a file path or a non-empty array of paths.</source>
+        <translation>importFilesAsLayers 需要一个文件路径或非空的路径数组。</translation>
+    </message>
+    <message>
+        <source>No layers were added.</source>
+        <translation>未添加任何图层。</translation>
     </message>
 </context>
 <context>

@@ -3,6 +3,7 @@
 #include "core/adjustment_layer.hpp"
 #include "core/document.hpp"
 #include "core/layer_alignment.hpp"
+#include "core/layer_tree.hpp"
 #include "core/smart_filter.hpp"
 #include "core/text_warp.hpp"
 #include "filters/filter_registry.hpp"
@@ -591,6 +592,47 @@ private:
   // The testable core of open_folder; returns how many documents opened (0 when
   // the folder holds no supported image, with a status-bar message).
   int open_folder_path(const QString& directory);
+  // Files as Layers (issue 25): image files become new layers of an open
+  // document, one root per file, through a file drop on the Layers panel,
+  // File > Import > Files as Layers, Paste with copied files, and
+  // doc.importFilesAsLayers. See docs/import.md.
+  // Where the new roots land (a Layers-panel drop target); nullopt means
+  // directly above the active layer.
+  struct LayerInsertionTarget {
+    std::optional<LayerId> layer_id;
+    LayerDropPosition position{LayerDropPosition::AboveItem};
+  };
+  enum class FailedFilesPolicy { SkipFailed, AbortOnAnyFailure };
+  struct AddFilesAsLayersResult {
+    std::vector<LayerId> added_root_ids_top_to_bottom;  // one per file that loaded
+    QStringList failed_paths;                          // input order
+    QStringList failure_messages;                      // "name: reason", parallel to failed_paths
+  };
+  // Two phases. Every path decodes first through load_document_from_path (PSD
+  // trees, SVG vectors, RAW defaults, PDF page 1, GIF frames, flat alpha as a
+  // mask); a lone root is renamed to the file's base name and several roots are
+  // wrapped in a pass-through folder named after it. Then each file's root is
+  // copied into a staged copy of target.document with
+  // copy_layers_between_documents (keep-position placement: exact when the sizes
+  // match, else centered on the canvas), the stack is repositioned to
+  // drop_target, before_mutation runs once, and the staged document replaces the
+  // live one. Mutates target.document only: no undo push, refresh, or selection.
+  // Empty ids with *error set when nothing was added.
+  AddFilesAsLayersResult add_files_as_layers(DocumentSession& target, const QStringList& paths,
+                                             std::optional<LayerInsertionTarget> drop_target,
+                                             FailedFilesPolicy policy,
+                                             const std::function<bool()>& before_mutation, QString* error);
+  // The interactive wrapper shared by the panel drop, the Import command, and
+  // Paste: one "Add files as layers" snapshot, refresh, selection of every new
+  // root (topmost active), the status line, and the failure box (suppressed
+  // when unattended). Returns true when at least one layer was added.
+  bool add_files_as_layers_interactive(const QStringList& paths, std::optional<LayerInsertionTarget> drop_target,
+                                       const QString& failure_title);
+  void import_files_as_layers();
+  void import_files_as_layers_with_paths(const QStringList& paths);
+  // The local files in a drag or clipboard payload that could become layers;
+  // empty while a preview dialog holds the edit lock.
+  [[nodiscard]] QStringList supported_layer_drop_paths(const QMimeData* mime_data) const;
   // SVG post-open pass: renders text layers the Qt-free reader marked
   // kLayerMetadataSvgPendingText through the internal text pipeline and
   // positions them from their baseline point + text-anchor. Defined in
@@ -890,6 +932,13 @@ private:
                                                     const CrossDocumentLayerPlacement& placement,
                                                     const std::function<bool()>& before_mutation,
                                                     QString* error);
+  // The Document-level core of copy_layers_between_sessions, also used by Files
+  // as Layers, whose source is a temporary Document decoded from a file rather
+  // than a session. Same contract: mutates target only, before_mutation runs
+  // after validation, returns the new root ids top to bottom.
+  std::vector<LayerId> copy_layers_between_documents(const Document& source, std::vector<LayerId> ids,
+                                                     Document& target, const CrossDocumentLayerPlacement& placement,
+                                                     const std::function<bool()>& before_mutation, QString* error);
   // The interactive flow around copy_layers_between_sessions: the target's
   // undo snapshot, refresh, activation of the target, and selecting the
   // copies. Sessions are addressed by id: a document may close mid-drag.

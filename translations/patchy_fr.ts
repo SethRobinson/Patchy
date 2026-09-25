@@ -17490,6 +17490,49 @@ Y : %2
         <source>Copied variation %1 to the hidden layer &quot;%2&quot;</source>
         <translation>Variante %1 copiée dans le calque masqué &quot;%2&quot;</translation>
     </message>
+    <message>
+        <source>&amp;Files as Layers...</source>
+        <translation>&amp;Fichiers en calques...</translation>
+    </message>
+    <message>
+        <source>the file holds no layers</source>
+        <translation>le fichier ne contient aucun calque</translation>
+    </message>
+    <message>
+        <source>Folder</source>
+        <translation>Dossier</translation>
+    </message>
+    <message>
+        <source>None of the files could be added as layers</source>
+        <translation>Aucun des fichiers n'a pu être ajouté comme calque</translation>
+    </message>
+    <message>
+        <source>The drop target is no longer in the document</source>
+        <translation>La cible du dépôt n'est plus dans le document</translation>
+    </message>
+    <message>
+        <source>Add files as layers</source>
+        <translation>Ajouter des fichiers en calques</translation>
+    </message>
+    <message>
+        <source>These files could not be added as layers:
+
+%1</source>
+        <translation>Ces fichiers n'ont pas pu être ajoutés comme calques :
+
+%1</translation>
+    </message>
+    <message numerus="yes">
+        <source>Added %n layer(s)</source>
+        <translation>
+            <numerusform>%n calque ajouté</numerusform>
+            <numerusform>%n calques ajoutés</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Files as Layers</source>
+        <translation>Fichiers en calques</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -18808,6 +18851,14 @@ Y : %2
     <message>
         <source>distributeLayers needs at least three movable layers.</source>
         <translation>distributeLayers nécessite au moins trois calques déplaçables.</translation>
+    </message>
+    <message>
+        <source>importFilesAsLayers needs a file path or a non-empty array of paths.</source>
+        <translation>importFilesAsLayers requiert un chemin de fichier ou un tableau de chemins non vide.</translation>
+    </message>
+    <message>
+        <source>No layers were added.</source>
+        <translation>Aucun calque n'a été ajouté.</translation>
     </message>
 </context>
 <context>

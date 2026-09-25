@@ -330,6 +330,67 @@ void ui_external_clipboard_image_paste_creates_centered_layer() {
   QApplication::clipboard()->clear();
 }
 
+// A file copied in a file manager puts URLs and no bitmap on the clipboard: Paste
+// adds the supported image files as layers (Files as Layers, docs/import.md), one
+// undo step, and a non-image file keeps the usual "no image" refusal.
+void ui_paste_file_urls_adds_layers() {
+  QApplication::clipboard()->clear();
+  ensure_artifact_dir();
+  const auto dir = QFileInfo(QStringLiteral("test-artifacts/paste-files")).absoluteFilePath();
+  CHECK(QDir().mkpath(dir));
+  const auto write_png = [&](const QString& name, QColor color) {
+    QImage image(6, 4, QImage::Format_RGBA8888);
+    image.fill(color);
+    const auto path = QDir::toNativeSeparators(dir + QLatin1Char('/') + name);
+    QFile::remove(path);
+    CHECK(image.save(path));
+    return path;
+  };
+  const auto first = write_png(QStringLiteral("first.png"), QColor(200, 20, 20, 255));
+  const auto second = write_png(QStringLiteral("second.png"), QColor(20, 200, 20, 255));
+  const auto note = QDir::toNativeSeparators(dir + QStringLiteral("/note.txt"));
+  {
+    QFile file(note);
+    CHECK(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    file.write("not an image");
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  const auto layers_before = layer_list->count();
+  const auto undo_before = patchy::ui::MainWindowTestAccess::undo_depth_for_canvas(window, canvas);
+
+  auto* files = new QMimeData();
+  files->setUrls({QUrl::fromLocalFile(first), QUrl::fromLocalFile(second)});
+  QApplication::clipboard()->setMimeData(files);
+  QApplication::processEvents();
+  require_action(window, "editPasteAction")->trigger();
+  QApplication::processEvents();
+  CHECK(layer_list->count() == layers_before + 2);
+  CHECK(patchy::ui::MainWindowTestAccess::undo_depth_for_canvas(window, canvas) == undo_before + 1);
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("Added 2 layer")));
+  const auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto& layers = std::as_const(document).layers();
+  CHECK(layers.size() >= 2);
+  CHECK(layers[layers.size() - 2].name() == "first");
+  CHECK(layers.back().name() == "second");
+  CHECK(document.active_layer_id() == layers.back().id());
+  CHECK(layer_list->selectedItems().size() == 2);
+
+  auto* text_file = new QMimeData();
+  text_file->setUrls({QUrl::fromLocalFile(note)});
+  QApplication::clipboard()->setMimeData(text_file);
+  QApplication::processEvents();
+  require_action(window, "editPasteAction")->trigger();
+  QApplication::processEvents();
+  CHECK(layer_list->count() == layers_before + 2);
+  CHECK(patchy::ui::MainWindowTestAccess::undo_depth_for_canvas(window, canvas) == undo_before + 1);
+  QApplication::clipboard()->clear();
+}
+
 void ui_external_clipboard_image_paste_overrides_internal_payload() {
   QApplication::clipboard()->clear();
 
@@ -2534,6 +2595,7 @@ std::vector<patchy::test::TestCase> clipboard_free_transform_tests() {
   return {
       {"ui_copy_paste_and_transform_pasted_layer_work", ui_copy_paste_and_transform_pasted_layer_work},
       {"ui_paste_clears_selection_and_undo_restores_it", ui_paste_clears_selection_and_undo_restores_it},
+      {"ui_paste_file_urls_adds_layers", ui_paste_file_urls_adds_layers},
       {"ui_external_clipboard_image_paste_creates_centered_layer",
        ui_external_clipboard_image_paste_creates_centered_layer},
       {"ui_external_clipboard_image_paste_overrides_internal_payload",

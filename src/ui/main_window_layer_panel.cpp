@@ -2392,18 +2392,43 @@ bool MainWindow::handle_cross_document_layer_drag_event(QObject* watched, QEvent
 }
 
 void MainWindow::handle_layer_drop() {
+  auto* list = dynamic_cast<LayerListWidget*>(layer_list_);
+  // Both requests leave the list up front, so the lock branch cannot leave a
+  // stale one behind for the next drop.
+  std::optional<LayerListWidget::LayerFileDropRequest> file_request;
+  std::optional<LayerDropRequest> request;
+  if (list != nullptr) {
+    file_request = list->take_file_drop_request();
+    request = list->take_drop_request();
+  }
   if (preview_dialog_edit_locked()) {
     show_preview_dialog_edit_lock_message();
     refresh_layer_list();
     return;
   }
-  auto* list = dynamic_cast<LayerListWidget*>(layer_list_);
+  if (file_request.has_value()) {
+    // OS files dropped on the panel: Files as Layers at the drop position, or
+    // plain opens when no document is there to receive them. The list already
+    // deferred this past the native drop call.
+    if (shutting_down_ || !isVisible()) {
+      return;
+    }
+    if (!has_active_document()) {
+      for (const auto& path : file_request->paths) {
+        open_document_path(path);
+      }
+      return;
+    }
+    add_files_as_layers_interactive(file_request->paths,
+                                    LayerInsertionTarget{file_request->target_layer_id, file_request->position},
+                                    tr("Files as Layers"));
+    return;
+  }
   if (list == nullptr) {
     reorder_layers_from_list();
     return;
   }
 
-  auto request = list->take_drop_request();
   if (!request.has_value()) {
     reorder_layers_from_list();
     return;

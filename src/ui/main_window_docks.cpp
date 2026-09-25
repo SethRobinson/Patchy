@@ -1004,6 +1004,8 @@ void MainWindow::create_docks() {
 
   auto* layer_list = new LayerListWidget(layers_panel);
   layer_list->set_drop_finished_callback([this] { handle_layer_drop(); });
+  layer_list->set_file_drop_paths_callback(
+      [this](const QMimeData* mime_data) { return supported_layer_drop_paths(mime_data); });
   layer_list->set_drag_blocked_callback([this] {
     show_status_error(tr("Clear the layer name filter to reorder layers"));
   });

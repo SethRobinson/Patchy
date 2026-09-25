@@ -17490,6 +17490,49 @@ Y: %2
         <source>Copied variation %1 to the hidden layer &quot;%2&quot;</source>
         <translation>Variante %1 in die ausgeblendete Ebene &quot;%2&quot; kopiert</translation>
     </message>
+    <message>
+        <source>&amp;Files as Layers...</source>
+        <translation>&amp;Dateien als Ebenen...</translation>
+    </message>
+    <message>
+        <source>the file holds no layers</source>
+        <translation>die Datei enthält keine Ebenen</translation>
+    </message>
+    <message>
+        <source>Folder</source>
+        <translation>Ordner</translation>
+    </message>
+    <message>
+        <source>None of the files could be added as layers</source>
+        <translation>Keine der Dateien konnte als Ebene hinzugefügt werden</translation>
+    </message>
+    <message>
+        <source>The drop target is no longer in the document</source>
+        <translation>Das Ablageziel ist nicht mehr im Dokument</translation>
+    </message>
+    <message>
+        <source>Add files as layers</source>
+        <translation>Dateien als Ebenen hinzufügen</translation>
+    </message>
+    <message>
+        <source>These files could not be added as layers:
+
+%1</source>
+        <translation>Diese Dateien konnten nicht als Ebenen hinzugefügt werden:
+
+%1</translation>
+    </message>
+    <message numerus="yes">
+        <source>Added %n layer(s)</source>
+        <translation>
+            <numerusform>%n Ebene hinzugefügt</numerusform>
+            <numerusform>%n Ebenen hinzugefügt</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Files as Layers</source>
+        <translation>Dateien als Ebenen</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -18808,6 +18851,14 @@ Y: %2
     <message>
         <source>distributeLayers needs at least three movable layers.</source>
         <translation>distributeLayers benötigt mindestens drei verschiebbare Ebenen.</translation>
+    </message>
+    <message>
+        <source>importFilesAsLayers needs a file path or a non-empty array of paths.</source>
+        <translation>importFilesAsLayers benötigt einen Dateipfad oder ein nicht leeres Array von Pfaden.</translation>
+    </message>
+    <message>
+        <source>No layers were added.</source>
+        <translation>Es wurden keine Ebenen hinzugefügt.</translation>
     </message>
 </context>
 <context>

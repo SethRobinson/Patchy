@@ -1508,6 +1508,215 @@ int MainWindow::open_folder_path(const QString& directory) {
   return opened;
 }
 
+QStringList MainWindow::supported_layer_drop_paths(const QMimeData* mime_data) const {
+  if (preview_dialog_edit_locked()) {
+    return {};
+  }
+  return supported_local_open_paths(mime_data);
+}
+
+MainWindow::AddFilesAsLayersResult MainWindow::add_files_as_layers(DocumentSession& target, const QStringList& paths,
+                                                                   std::optional<LayerInsertionTarget> drop_target,
+                                                                   FailedFilesPolicy policy,
+                                                                   const std::function<bool()>& before_mutation,
+                                                                   QString* error) {
+  AddFilesAsLayersResult result;
+  const auto fail = [&](const QString& message) {
+    if (error != nullptr) {
+      *error = message;
+    }
+    result.added_root_ids_top_to_bottom.clear();
+    return result;
+  };
+  const auto note_failure = [&](const QString& path, const QString& reason) {
+    result.failed_paths.push_back(path);
+    result.failure_messages.push_back(QStringLiteral("%1: %2").arg(QFileInfo(path).fileName(), reason));
+    if (unattended_automation()) {
+      fprintf(stderr, "Add as layer failed: %s (%s)\n", reason.toUtf8().constData(), path.toUtf8().constData());
+    }
+  };
+
+  // Phase 1: decode every file before the document is touched.
+  QStringList unique_paths;
+  for (const auto& raw_path : paths) {
+    const auto path = QDir::toNativeSeparators(raw_path);
+    if (!path.isEmpty() && !unique_paths.contains(path)) {
+      unique_paths.push_back(path);
+    }
+  }
+  std::vector<Document> loaded_documents;
+  loaded_documents.reserve(static_cast<std::size_t>(unique_paths.size()));
+  for (const auto& path : unique_paths) {
+    try {
+      auto loaded = load_document_from_path(path);
+      auto& document = loaded.document;
+      render_pending_svg_text_layers(document);
+      render_pending_af_text_layers(document);
+      render_pending_pdf_text_layers(document);
+      render_pending_pdf_image_layers(document);
+      record_text_layout_metrics_for_reopened_text(document);
+      if (document.layers().empty()) {
+        note_failure(path, tr("the file holds no layers"));
+        continue;
+      }
+      const auto layer_name = QFileInfo(path).completeBaseName().toStdString();
+      if (document.layers().size() == 1U) {
+        if (!layer_name.empty()) {
+          document.layers().front().set_name(layer_name);
+        }
+      } else {
+        // A multi-layer file (a PSD, GIF frames, a layered SVG) stays one unit: a
+        // pass-through folder named after the file with its layers inside, in
+        // their own order.
+        Layer folder(document.allocate_layer_id(), layer_name.empty() ? tr("Folder").toStdString() : layer_name,
+                     LayerKind::Group);
+        folder.set_blend_mode(BlendMode::PassThrough);
+        for (auto& layer : document.layers()) {
+          folder.add_child(std::move(layer));
+        }
+        document.layers().clear();
+        const auto folder_id = folder.id();
+        document.layers().push_back(std::move(folder));
+        document.set_active_layer(folder_id);
+      }
+      loaded_documents.push_back(std::move(document));
+    } catch (const std::exception& load_error) {
+      note_failure(path, translated_file_message(load_error.what()));
+    }
+  }
+  if (loaded_documents.empty()) {
+    return fail(result.failure_messages.isEmpty() ? tr("None of the files could be added as layers")
+                                                  : result.failure_messages.join(QLatin1Char('\n')));
+  }
+  if (policy == FailedFilesPolicy::AbortOnAnyFailure && !result.failed_paths.isEmpty()) {
+    return fail(result.failure_messages.join(QLatin1Char('\n')));
+  }
+
+  // Phase 2: build the new stack in a staged copy, so a refusal part-way leaves
+  // the live document untouched (there is no partial undo to fall back on).
+  // Each copy lands above the active layer and becomes active, so the files
+  // stack upward in path order: the last file ends on top.
+  Document staged = target.document;
+  std::vector<LayerId> added_top_to_bottom;
+  for (const auto& loaded : loaded_documents) {
+    const std::vector<LayerId> root_ids{loaded.layers().front().id()};
+    QString copy_error;
+    const auto ids = copy_layers_between_documents(loaded, root_ids, staged,
+                                                   CrossDocumentLayerPlacement{std::nullopt, true},
+                                                   [] { return true; }, &copy_error);
+    if (ids.empty()) {
+      return fail(copy_error);
+    }
+    added_top_to_bottom.insert(added_top_to_bottom.begin(), ids.begin(), ids.end());
+  }
+  if (drop_target.has_value()) {
+    LayerDropRequest request;
+    request.layer_ids_top_to_bottom = added_top_to_bottom;
+    request.target_layer_id = drop_target->layer_id;
+    request.position = drop_target->position;
+    if (!move_layers_for_drop(staged.layers(), request)) {
+      return fail(tr("The drop target is no longer in the document"));
+    }
+  }
+  if (!before_mutation()) {
+    result.added_root_ids_top_to_bottom.clear();
+    return result;
+  }
+  target.document = std::move(staged);
+  result.added_root_ids_top_to_bottom = std::move(added_top_to_bottom);
+  return result;
+}
+
+bool MainWindow::add_files_as_layers_interactive(const QStringList& paths,
+                                                 std::optional<LayerInsertionTarget> drop_target,
+                                                 const QString& failure_title) {
+  if (!has_active_document()) {
+    return false;
+  }
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return false;
+  }
+  canvas_->finish_free_transform();
+  finish_active_text_editor();
+  if (!drop_target.has_value()) {
+    // Paste's rule: directly above the topmost selected row.
+    const auto selected = selected_layer_ids();
+    if (!selected.empty()) {
+      drop_target = LayerInsertionTarget{selected.front(), LayerDropPosition::AboveItem};
+    }
+  }
+  auto& target = session();
+  QString error;
+  auto result = add_files_as_layers(
+      target, paths, drop_target, FailedFilesPolicy::SkipFailed,
+      [this, &target] {
+        push_undo_snapshot(target, tr("Add files as layers"));
+        return true;
+      },
+      &error);
+  const auto failure_text = result.failure_messages.join(QLatin1Char('\n'));
+  const auto& added = result.added_root_ids_top_to_bottom;
+  if (added.empty()) {
+    show_status_error(error.section(QLatin1Char('\n'), 0, 0));
+    if (!result.failed_paths.isEmpty() && !unattended_automation()) {
+      show_information_message(this, failure_title,
+                               tr("These files could not be added as layers:\n\n%1").arg(failure_text),
+                               QStringLiteral("filesAsLayersFailedMessageBox"));
+    }
+    return false;
+  }
+  if (drop_target.has_value() && drop_target->position == LayerDropPosition::OnItem &&
+      drop_target->layer_id.has_value()) {
+    // A drop into a folder shows what it added (handle_layer_drop's rule).
+    if (const auto* folder = std::as_const(target.document).find_layer(*drop_target->layer_id);
+        folder != nullptr && folder->kind() == LayerKind::Group) {
+      target.collapsed_layer_groups.erase(*drop_target->layer_id);
+    }
+  }
+  refresh_layer_list();
+  refresh_layer_controls();
+  canvas_->document_changed();
+  // After the refreshes: a rebuild collapses the selection to the active row.
+  select_layers_in_layer_list(added, added.front());
+  auto status = tr("Added %n layer(s)", nullptr, static_cast<int>(added.size()));
+  if (!result.failed_paths.isEmpty()) {
+    status += tr(" (%n could not be opened)", nullptr, static_cast<int>(result.failed_paths.size()));
+    if (!unattended_automation()) {
+      show_information_message(this, failure_title,
+                               tr("These files could not be added as layers:\n\n%1").arg(failure_text),
+                               QStringLiteral("filesAsLayersFailedMessageBox"));
+    }
+  }
+  statusBar()->showMessage(status);
+  update_undo_redo_actions();
+  return true;
+}
+
+void MainWindow::import_files_as_layers() {
+  if (!has_active_document()) {
+    return;
+  }
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  const auto paths = get_open_file_names(this, tr("Files as Layers"), last_open_directory(), open_file_filter(),
+                                         nullptr, QStringLiteral("importFilesAsLayersFileDialog"),
+                                         FilterNameDetails::Hidden);
+  if (paths.isEmpty()) {
+    return;
+  }
+  if (!unattended_automation()) {
+    remember_open_directory_for_path(paths.front());
+  }
+  import_files_as_layers_with_paths(paths);
+}
+
+void MainWindow::import_files_as_layers_with_paths(const QStringList& paths) {
+  add_files_as_layers_interactive(paths, std::nullopt, tr("Files as Layers"));
+}
+
 bool MainWindow::accept_open_file_drag(QDropEvent* event) {
   if (preview_dialog_edit_locked()) {
     if (event != nullptr) {

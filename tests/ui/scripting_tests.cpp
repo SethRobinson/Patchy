@@ -3057,8 +3057,71 @@ void ui_script_export_pdf_writes_pages() {
   CHECK(second[0] == 150 && second[1] == 300);
 }
 
+// doc.importFilesAsLayers: array and string forms, argument order, the copy suffix
+// on a name collision, all-or-nothing on a missing file, and one undo step per run.
+void ui_script_import_files_as_layers() {
+  patchy::test::ui::ensure_artifact_dir();
+  const auto dir = QFileInfo(QStringLiteral("test-artifacts/script-files-as-layers")).absoluteFilePath();
+  CHECK(QDir().mkpath(dir));
+  const auto write_png = [&](const QString& name, int width, int height, QColor color) {
+    QImage image(width, height, QImage::Format_RGBA8888);
+    image.fill(color);
+    const auto path = QDir::toNativeSeparators(dir + QLatin1Char('/') + name);
+    QFile::remove(path);
+    CHECK(image.save(path));
+    return path;
+  };
+  const auto a = write_png(QStringLiteral("a.png"), 20, 12, QColor(200, 30, 30, 255));
+  const auto b = write_png(QStringLiteral("b.png"), 8, 8, QColor(30, 200, 30, 255));
+  const auto missing = QDir::toNativeSeparators(dir + QStringLiteral("/missing.png"));
+  QFile::remove(missing);
+  const auto json = [](const QString& path) {
+    return QString::fromUtf8(QJsonDocument(QJsonArray{path}).toJson(QJsonDocument::Compact)).chopped(1).mid(1);
+  };
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto undo_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var doc = app.activeDocument;
+    var before = doc.layers.length;
+    var added = doc.importFilesAsLayers([%1, %2]);
+    if (added.length !== 2) throw new Error('expected 2 layers, got ' + added.length);
+    if (added[0].name !== 'a' || added[1].name !== 'b') throw new Error('names ' + added[0].name + ',' + added[1].name);
+    if (doc.layers.length !== before + 2) throw new Error('layer count ' + doc.layers.length);
+    if (doc.layers[doc.layers.length - 1].name !== 'b') throw new Error('b is not on top');
+    if (doc.layers[doc.layers.length - 2].name !== 'a') throw new Error('a is not below b');
+    if (doc.activeLayer.name !== 'b') throw new Error('active ' + doc.activeLayer.name);
+    // The string form; the name collision earns the copy suffix.
+    var one = doc.importFilesAsLayers(%1);
+    if (one.length !== 1 || one[0].name !== 'a copy') throw new Error('string form: ' + one[0].name);
+    if (doc.layers.length !== before + 3) throw new Error('string form count');
+    var threw = false;
+    try { doc.importFilesAsLayers([%2, %3]); } catch (e) { threw = true; }
+    if (!threw) throw new Error('missing file accepted');
+    if (doc.layers.length !== before + 3) throw new Error('missing file changed the document');
+    threw = false;
+    try { doc.importFilesAsLayers([]); } catch (e) { threw = true; }
+    if (!threw) throw new Error('empty array accepted');
+    threw = false;
+    try { doc.importFilesAsLayers(42); } catch (e) { threw = true; }
+    if (!threw) throw new Error('number accepted');
+    console.log('files-ok');
+  )JS")
+                                .arg(json(a), json(b), json(missing))));
+  CHECK(backlog_contains(window, QStringLiteral("files-ok")));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before + 1);
+  const auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto& layers = std::as_const(document).layers();
+  CHECK(layers.size() >= 3);
+  CHECK(layers.back().name() == "a copy");
+  CHECK(layers[layers.size() - 2].name() == "b");
+  CHECK(layers[layers.size() - 3].name() == "a");
+}
+
 std::vector<patchy::test::TestCase> scripting_tests() {
   return {
+      {"ui_script_import_files_as_layers", ui_script_import_files_as_layers},
       {"ui_script_export_pdf_writes_pages", ui_script_export_pdf_writes_pages},
       {"ui_script_layer_move_to_rounds_like_photoshop", ui_script_layer_move_to_rounds_like_photoshop},
       {"ui_script_palette_validation_and_history", ui_script_palette_validation_and_history},
