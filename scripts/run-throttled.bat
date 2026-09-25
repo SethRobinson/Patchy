@@ -16,10 +16,23 @@ rem child's real code. Do not "simplify" this to `& if errorlevel 1 exit /b 1`:
 rem that comparison is false for the negative codes a crash produces, so an
 rem access violation (-1073741819) would be reported as success.
 rem
+rem A batch file must go through `cmd /c`: `start` runs a .bat/.cmd argument under
+rem `cmd /K`, which stays at an interactive prompt after the batch ends (with /b it
+rem sits invisibly on the caller's console, forever when stdin is a terminal) and
+rem reports exit 0 for a failed build once stdin hits EOF (September 25, 2026: a
+rem failed build-wasm.bat parked a remote session for two hours this way). The
+rem wrapper below applies it, so callers pass the batch file as-is.
+rem
 rem No setlocal: nothing here needs to be undone, and %ERRORLEVEL% must survive.
 if "%~1"=="" (
   echo usage: scripts\run-throttled.bat ^<command^> [args...]>&2
   exit /b 2
 )
+if /i "%~x1"==".bat" goto batch
+if /i "%~x1"==".cmd" goto batch
 start "" /b /wait /belownormal %*
+exit /b %ERRORLEVEL%
+
+:batch
+start "" /b /wait /belownormal cmd /s /c "%*"
 exit /b %ERRORLEVEL%
