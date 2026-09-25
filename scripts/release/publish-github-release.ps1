@@ -124,11 +124,27 @@ $stage = Join-Path $repoRoot "build\github-release\$tag"
 if (Test-Path -LiteralPath $stage) { Remove-Item -LiteralPath $stage -Recurse -Force }
 New-Item -ItemType Directory -Path $stage | Out-Null
 $sums = New-Object System.Collections.Generic.List[string]
+# Hash through .NET directly, not Get-FileHash: under pwsh 7 the inherited PSModulePath
+# makes Windows PowerShell 5.1 load an incompatible Microsoft.PowerShell.Utility and the
+# cmdlet is "not recognized" (the first v0.98 backfill published a SHA256SUMS.txt with
+# empty hashes that way). The .bat wrapper also resets PSModulePath, like release-worker.bat.
+function Get-Sha256Hex([string]$path) {
+  $sha = [System.Security.Cryptography.SHA256]::Create()
+  $stream = [System.IO.File]::OpenRead($path)
+  try {
+    $bytes = $sha.ComputeHash($stream)
+  } finally {
+    $stream.Dispose()
+    $sha.Dispose()
+  }
+  return ([System.BitConverter]::ToString($bytes) -replace '-', '').ToLowerInvariant()
+}
 foreach ($name in $assets.Keys) {
   $source = $assets[$name]
   $dest = Join-Path $stage $name
   Copy-Item -LiteralPath $source -Destination $dest
-  $hash = (Get-FileHash -LiteralPath $dest -Algorithm SHA256).Hash.ToLowerInvariant()
+  $hash = Get-Sha256Hex $dest
+  if ($hash -notmatch '^[0-9a-f]{64}$') { Fail "could not hash $name" }
   $sums.Add("$hash  $name")
   Write-Host ("  {0,-30} {1,12:N0} bytes  sha256 {2}  <- {3}" -f $name, (Get-Item -LiteralPath $dest).Length, $hash, $source)
 }
