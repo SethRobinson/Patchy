@@ -64,6 +64,7 @@ if(PATCHY_ENABLE_GPU_CANVAS AND EMSCRIPTEN)
 endif()
 
 set(PATCHY_GPU_CANVAS_AVAILABLE OFF)
+set(PATCHY_GPU_SHADER_COMPOSITOR_AVAILABLE OFF)
 
 set(PATCHY_WEBGPU_AVAILABLE OFF)
 set(PATCHY_WEBGPU_TARGET "")
@@ -641,15 +642,28 @@ if(PATCHY_BUILD_APP)
   endif()
   find_package(Qt6 QUIET COMPONENTS ${PATCHY_QT_COMPONENTS})
   if(PATCHY_ENABLE_GPU_CANVAS AND Qt6_FOUND)
-    # Keep this optional Qt add-on lookup separate so a missing OpenGL module
-    # cannot silently make the whole desktop application disappear.
+    # Keep optional Qt add-on lookups separate so missing OpenGL, Quick, or
+    # ShaderTools modules never make the desktop application disappear.
+    set(PATCHY_QT_BASE_FOUND ${Qt6_FOUND})
     find_package(Qt6 QUIET COMPONENTS OpenGLWidgets)
     if(TARGET Qt6::OpenGLWidgets)
       set(PATCHY_GPU_CANVAS_AVAILABLE ON)
+      find_package(Qt6 QUIET COMPONENTS Quick QuickWidgets)
+      if(TARGET Qt6::QuickWidgets)
+        find_package(Qt6 QUIET COMPONENTS ShaderTools)
+        if(TARGET Qt6::ShaderTools)
+          set(PATCHY_GPU_SHADER_COMPOSITOR_AVAILABLE ON)
+        else()
+          message(STATUS "Qt ShaderTools was not found; using the texture-only GPU canvas tier")
+        endif()
+      else()
+        message(STATUS "Qt QuickWidgets was not found; using the automatic OpenGL canvas backend")
+      endif()
     else()
       message(STATUS
               "Qt OpenGLWidgets was not found; using the automatic CPU canvas backend")
     endif()
+    set(Qt6_FOUND ${PATCHY_QT_BASE_FOUND})
   endif()
   if(PATCHY_ENABLE_WEBGPU AND PATCHY_GPU_CANVAS_AVAILABLE AND NOT EMSCRIPTEN)
     # Dawn is deliberately an external optional dependency. A machine without
@@ -1532,6 +1546,31 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       target_compile_definitions(patchy_ui PRIVATE
         PATCHY_VULKAN_QT_INTEROP_PROBE=1
         PATCHY_DAWN_NATIVE_AVAILABLE=1)
+    endif()
+    if(PATCHY_GPU_SHADER_COMPOSITOR_AVAILABLE)
+      target_sources(patchy_ui PRIVATE
+        src/ui/gpu_shader_compositor.hpp
+        src/ui/gpu_shader_compositor.cpp
+      )
+      target_link_libraries(patchy_ui PUBLIC
+        Qt6::Quick
+        Qt6::QuickWidgets
+        Qt6::ShaderTools
+      )
+      target_compile_definitions(patchy_ui PUBLIC PATCHY_GPU_SHADER_COMPOSITOR=1)
+      qt6_add_resources(patchy_ui "patchy_gpu_compositor_qml"
+        PREFIX "/patchy/ui"
+        BASE src/ui
+        FILES src/ui/gpu_layer_pass.qml
+      )
+      qt6_add_shaders(patchy_ui "patchy_gpu_compositor_shaders"
+        PREFIX "/patchy/shaders"
+        BASE src/ui
+        BATCHABLE
+        FILES
+          src/ui/gpu_layer_pass.vert
+          src/ui/gpu_layer_pass.frag
+      )
     endif()
     patchy_configure_target(patchy_ui)
 
