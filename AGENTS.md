@@ -44,9 +44,7 @@ Required release handoff steps:
 
    A git worktree has no `.deps`: configure its release preset once with `--preset release -DCMAKE_PREFIX_PATH=<main-checkout>/.deps/Qt/6.8.3/msvc2022_64` (the main checkout's Qt; `agents_local.md` has the concrete path) before the build command above; the build itself is unchanged.
 
-   A running `build\release\patchy.exe` locks the link step (`LNK1104`). Ask Seth to close it; never force-kill it because he may have unsaved work.
-
-   A running `build\release\patchy-mcp.exe` is handled by the `patchy-mcp` target's PRE_LINK step, which renames the locked connector aside as `patchy-mcp.stale-<stamp>.exe`; never kill the connector and never package a `.stale-` file. See [docs/release-process.md](docs/release-process.md).
+   A running `build\release\patchy.exe` or `patchy-mcp.exe` does not block the link: each target's PRE_LINK step (`cmake/unlock_locked_executable.cmake`) renames the locked image aside as `<name>.stale-<stamp>.exe`, the running instance keeps working from the renamed file, and the link writes a fresh one. Never kill either process (Seth may have unsaved work) and never package a `.stale-` file. Batch files must compare exit codes against 0, never `if errorlevel 1`: a failed link makes `cmake --build` exit negative, which that test ignores. See [docs/release-process.md](docs/release-process.md).
 
 2. Run release test binaries from `build\release`, scoped to the change:
 

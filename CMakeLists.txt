@@ -1424,6 +1424,17 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       endif()
       install(TARGETS patchy-mcp RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
     endif()
+    if(WIN32)
+      # Seth often has build\release\patchy.exe open while a build runs. A running
+      # image cannot be overwritten (LNK1104) but can be renamed, so move it aside
+      # exactly like the connector above; his instance keeps running the renamed
+      # copy and the link produces a fresh patchy.exe. Never kill it: it may hold
+      # unsaved work. See docs/release-process.md.
+      add_custom_command(TARGET patchy PRE_LINK
+        COMMAND ${CMAKE_COMMAND} -DPATCHY_LOCKED_EXECUTABLE=$<TARGET_FILE:patchy>
+                -P ${CMAKE_SOURCE_DIR}/cmake/unlock_locked_executable.cmake
+        VERBATIM)
+    endif()
     patchy_configure_target(patchy)
     patchy_copy_translations(patchy)
     patchy_copy_qt_runtime(patchy)

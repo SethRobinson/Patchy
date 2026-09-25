@@ -912,16 +912,82 @@ void install_save_file_recent_dropdown(QFileDialog& dialog, const QStringList& r
 
 namespace {
 
-// Frame, QSS padding, line-edit text margins, and cursor slack around the value
-// text of an options-bar spin box (the stylesheet is not applied yet when the
-// bar is built, so this cannot be read from the widget).
-constexpr int kToolbarSpinboxChromeWidth = 14;
+// Frame, QSS padding, line-edit text margins, and the caret around the value
+// text of an options-bar spin box. The stylesheet is not applied yet when the
+// bar is built, so this cannot be read from the widget: the box's 1px borders
+// and 4px left padding, QLineEdit's 2px margin on each side, and the caret
+// with a few pixels to spare. "255" in the Fill tool's Tol box overran its
+// chevron on screen (September 2026) with the previous 14.
+constexpr int kToolbarSpinboxChromeWidth = 20;
+constexpr auto kToolbarSpinboxMinWidthProperty = "patchy.toolbarSpinboxMinWidth";
+constexpr auto kToolbarSpinboxRefresherProperty = "patchy.toolbarSpinboxRefresherInstalled";
 
 int toolbar_spinbox_width(int width, const QFontMetrics& metrics, const QString& min_text,
                           const QString& max_text) {
   const int text_width = std::max(metrics.horizontalAdvance(min_text),
                                   metrics.horizontalAdvance(max_text));
   return std::max(width, text_width + kChevronAreaWidth + kToolbarSpinboxChromeWidth);
+}
+
+QString spinbox_value_text(const QSpinBox* spin, int value) {
+  return spin->prefix() + spin->locale().toString(value) + spin->suffix();
+}
+
+QString spinbox_value_text(const QDoubleSpinBox* spin, double value) {
+  return spin->prefix() + spin->locale().toString(value, 'f', spin->decimals()) + spin->suffix();
+}
+
+template <typename SpinBox>
+void refresh_toolbar_spinbox_width(SpinBox* spin) {
+  const int width = spin->property(kToolbarSpinboxMinWidthProperty).toInt();
+  spin->setFixedWidth(toolbar_spinbox_width(width, spin->fontMetrics(),
+                                            spinbox_value_text(spin, spin->minimum()),
+                                            spinbox_value_text(spin, spin->maximum())));
+}
+
+// The width is measured from the box's font, and the theme stylesheet (or a
+// later font change) replaces that font after the options bar is built. A box
+// sized from the construction-time font can be too narrow for its widest value
+// once the real font lands, so re-measure on every event that carries a new
+// font or style.
+template <typename SpinBox>
+class ToolbarSpinboxWidthRefresher final : public QObject {
+public:
+  explicit ToolbarSpinboxWidthRefresher(SpinBox* spin) : QObject(spin), spin_(spin) {
+    spin_->installEventFilter(this);
+  }
+
+protected:
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (watched == spin_) {
+      switch (event->type()) {
+        case QEvent::FontChange:
+        case QEvent::StyleChange:
+        case QEvent::Polish:
+          refresh_toolbar_spinbox_width(spin_);
+          break;
+        default:
+          break;
+      }
+    }
+    return QObject::eventFilter(watched, event);
+  }
+
+private:
+  SpinBox* spin_;
+};
+
+template <typename SpinBox>
+void configure_toolbar_spinbox_impl(SpinBox* spin, int width) {
+  spin->setButtonSymbols(QAbstractSpinBox::NoButtons);
+  spin->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+  spin->setProperty(kToolbarSpinboxMinWidthProperty, width);
+  refresh_toolbar_spinbox_width(spin);
+  if (!spin->property(kToolbarSpinboxRefresherProperty).toBool()) {
+    spin->setProperty(kToolbarSpinboxRefresherProperty, true);
+    new ToolbarSpinboxWidthRefresher<SpinBox>(spin);
+  }
+  install_numeric_popup(spin);
 }
 
 }  // namespace
@@ -954,25 +1020,11 @@ QFont offset_font(QFont font, int size_delta, bool bold) {
 }
 
 void configure_toolbar_spinbox(QSpinBox* spin, int width) {
-  spin->setButtonSymbols(QAbstractSpinBox::NoButtons);
-  spin->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-  const auto locale = spin->locale();
-  spin->setFixedWidth(toolbar_spinbox_width(
-      width, spin->fontMetrics(),
-      spin->prefix() + locale.toString(spin->minimum()) + spin->suffix(),
-      spin->prefix() + locale.toString(spin->maximum()) + spin->suffix()));
-  install_numeric_popup(spin);
+  configure_toolbar_spinbox_impl(spin, width);
 }
 
 void configure_toolbar_spinbox(QDoubleSpinBox* spin, int width) {
-  spin->setButtonSymbols(QAbstractSpinBox::NoButtons);
-  spin->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-  const auto locale = spin->locale();
-  spin->setFixedWidth(toolbar_spinbox_width(
-      width, spin->fontMetrics(),
-      spin->prefix() + locale.toString(spin->minimum(), 'f', spin->decimals()) + spin->suffix(),
-      spin->prefix() + locale.toString(spin->maximum(), 'f', spin->decimals()) + spin->suffix()));
-  install_numeric_popup(spin);
+  configure_toolbar_spinbox_impl(spin, width);
 }
 
 void configure_dialog_spinbox(QSpinBox* spin, int width) {

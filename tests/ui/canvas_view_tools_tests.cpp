@@ -295,13 +295,14 @@ void ui_options_bar_spinboxes_fit_widest_value() {
   // no room for the suffix once the popup chevron claimed its 14px text margin.
   // configure_toolbar_spinbox now treats the requested width as a minimum and
   // grows the box to fit its widest value text; require chevron + box chrome
-  // clearance beyond the min/max text on every options-bar spin box.
+  // clearance (14 + 20 in dialog_utils.cpp) beyond the min/max text on every
+  // options-bar spin box.
   patchy::ui::MainWindow window;
   show_window(window);
   auto* toolbar = window.findChild<QToolBar*>(QStringLiteral("Options"));
   CHECK(toolbar != nullptr);
   const auto require_fits = [](const QWidget* spin, const QString& text) {
-    const int required = spin->fontMetrics().horizontalAdvance(text) + 24;
+    const int required = spin->fontMetrics().horizontalAdvance(text) + 34;
     if (spin->minimumWidth() < required) {
       std::fprintf(stderr, "  %s: width %d < %d needed for \"%s\"\n",
                    qPrintable(spin->objectName()), spin->minimumWidth(), required,
@@ -331,6 +332,54 @@ void ui_options_bar_spinboxes_fit_widest_value() {
     ++checked;
   }
   CHECK(checked >= 10);
+}
+
+void ui_options_bar_spinboxes_show_their_extremes_unclipped() {
+  // "255" in the Fill tool's Tol box rendered as a clipped "55" on screen (September 2026).
+  // ui_options_bar_spinboxes_fit_widest_value only checks the requested width against a
+  // constant; this measures the live editor once the tool's row is shown, which is what
+  // loses the box's QSS padding and borders, the popup chevron's text margin, and
+  // QLineEdit's own horizontal margins before any text is drawn. It runs on the real
+  // windows platform too (DirectWrite advances are wider than offscreen FreeType's):
+  //   patchy_ui_visual_tests.exe ui_options_bar_spinboxes_show   (no QT_QPA_PLATFORM)
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* toolbar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+  CHECK(toolbar != nullptr);
+  int checked = 0;
+  for (const auto* action_name : {"toolFillAction", "toolMagicWandAction", "toolBrushAction"}) {
+    require_action(window, action_name)->trigger();
+    QApplication::processEvents();
+    for (const auto* spin : toolbar->findChildren<QSpinBox*>()) {
+      if (!spin->isVisible() || !spin->property("patchy.numericPopupInstalled").toBool()) {
+        continue;
+      }
+      const auto* editor = spin->findChild<QLineEdit*>();
+      CHECK(editor != nullptr);
+      if (editor == nullptr) {
+        continue;
+      }
+      // The editor sits inside the box's padding and borders, so a laid-out one is narrower.
+      CHECK(editor->width() < spin->width());
+      // QLineEdit keeps a 2px horizontal margin on each side of its text area.
+      const int available = editor->width() - editor->textMargins().left() -
+                            editor->textMargins().right() - 4;
+      const auto locale = spin->locale();
+      for (const auto& text : {spin->prefix() + locale.toString(spin->minimum()) + spin->suffix(),
+                               spin->prefix() + locale.toString(spin->maximum()) + spin->suffix()}) {
+        // The caret sits after the widest value while it is edited, so it needs room too.
+        const int needed = editor->fontMetrics().horizontalAdvance(text) + 2;
+        if (available < needed) {
+          std::fprintf(stderr, "  %s: editor shows %d px but \"%s\" needs %d px (box %d px)\n",
+                       qPrintable(spin->objectName()), available, qPrintable(text), needed,
+                       spin->width());
+        }
+        CHECK(available >= needed);
+      }
+      ++checked;
+    }
+  }
+  CHECK(checked >= 4);
 }
 
 void ui_canvas_wheel_matches_photoshop_navigation() {
@@ -2842,6 +2891,8 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
        ui_fill_tool_click_honors_tolerance_contiguous_and_opacity},
       {"ui_gradient_toolbar_preset_popup_applies_stops", ui_gradient_toolbar_preset_popup_applies_stops},
       {"ui_options_bar_spinboxes_fit_widest_value", ui_options_bar_spinboxes_fit_widest_value},
+      {"ui_options_bar_spinboxes_show_their_extremes_unclipped",
+       ui_options_bar_spinboxes_show_their_extremes_unclipped},
       {"ui_right_docks_collapse_layers_show_metadata_and_info_updates",
        ui_right_docks_collapse_layers_show_metadata_and_info_updates},
       {"ui_layer_opacity_control_defers_slow_rendering_and_undoes_once",

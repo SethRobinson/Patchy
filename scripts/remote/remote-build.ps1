@@ -48,31 +48,11 @@ $repoRoot = (git rev-parse --show-toplevel 2>$null)
 if (-not $repoRoot) { throw 'remote-build.ps1 must run inside the Patchy repository' }
 Push-Location $repoRoot.Trim()
 try {
-  # Snapshot the working tree with a temporary index; the real index stays untouched.
-  # PID-suffixed so concurrent invocations (e.g. -Target mac and -Target linux at once)
-  # don't clobber each other's snapshot.
-  $gitDir = (git rev-parse --absolute-git-dir).Trim()
-  $tmpIndex = Join-Path $gitDir "patchy-remote-$PID.index"
-  $env:GIT_INDEX_FILE = $tmpIndex
-  try {
-    git read-tree HEAD
-    if ($LASTEXITCODE -ne 0) { throw 'git read-tree failed' }
-    # Filter the per-file autocrlf normalization notices (pre-existing working-copy line
-    # endings vs .gitattributes); anything else on stderr still shows.
-    git add -A 2>&1 | Where-Object { $_ -notmatch 'will be replaced by (LF|CRLF)' } | ForEach-Object { Write-Host $_ }
-    if ($LASTEXITCODE -ne 0) { throw 'git add failed' }
-    $tree = (git write-tree).Trim()
-    $snap = (git commit-tree $tree -p HEAD -m 'patchy remote build snapshot').Trim()
-    if (-not $snap) { throw 'git commit-tree failed' }
-  }
-  finally {
-    Remove-Item Env:GIT_INDEX_FILE -ErrorAction SilentlyContinue
-    if (Test-Path $tmpIndex) { Remove-Item $tmpIndex -Force -ErrorAction SilentlyContinue }
-  }
-
-  Write-Host "== pushing snapshot $($snap.Substring(0, 12)) to $remoteHost =="
-  git push --force --quiet "${remoteHost}:patchy.git" "${snap}:refs/snapshots/dev"
-  if ($LASTEXITCODE -ne 0) { throw 'git push to the remote bare repo failed (run the setup script first?)' }
+  # Snapshot the working tree with a temporary index; the real index stays untouched
+  # (remote-snapshot.ps1, shared with the wasm-release-st offload).
+  . "$PSScriptRoot\remote-snapshot.ps1"
+  $snap = Push-PatchySnapshot -RemoteHost $remoteHost
+  Write-Host "== building snapshot $($snap.Substring(0, 12)) on $remoteHost =="
 
   if ($Target -eq 'windows') {
     # A Windows OpenSSH shell is Windows PowerShell 5.1: no &&, and every step's exit code is
