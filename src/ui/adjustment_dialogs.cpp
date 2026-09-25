@@ -102,11 +102,14 @@ std::array<int, 256> default_levels_histogram() {
   std::array<int, 256> histogram{};
   for (int index = 0; index < static_cast<int>(histogram.size()); ++index) {
     const auto x = static_cast<double>(index) / 255.0;
-    const auto shadow = std::exp(-std::pow((x - 0.18) / 0.17, 2.0)) * 1100.0;
-    const auto midtone = std::exp(-std::pow((x - 0.52) / 0.28, 2.0)) * 1450.0;
-    const auto highlight = std::exp(-std::pow((x - 0.82) / 0.08, 2.0)) * 2300.0;
+    // Shaped for the clipped-linear display (ceiling = 4x the mean bin): the
+    // humps peak at roughly 35%, 50% and 60% of the graph and the spikes at
+    // 50% to 75%, so the placeholder still reads as a photo histogram.
+    const auto shadow = std::exp(-std::pow((x - 0.18) / 0.09, 2.0)) * 1900.0;
+    const auto midtone = std::exp(-std::pow((x - 0.50) / 0.14, 2.0)) * 3000.0;
+    const auto highlight = std::exp(-std::pow((x - 0.82) / 0.05, 2.0)) * 3400.0;
     histogram[static_cast<std::size_t>(index)] =
-        static_cast<int>(std::round(80.0 + shadow + midtone + highlight));
+        static_cast<int>(std::round(50.0 + shadow + midtone + highlight));
   }
   histogram[188] += 2400;
   histogram[239] += 3800;
@@ -212,7 +215,13 @@ protected:
     painter.setPen(QPen(QColor(46, 46, 46), 1));
     painter.drawRect(graph.adjusted(0, 0, -1, -1));
 
-    const auto maximum = std::max(1, *std::max_element(histogram_.begin(), histogram_.end()));
+    std::uint64_t total = 0;
+    std::uint64_t non_empty = 0;
+    for (const auto count : histogram_) {
+      total += static_cast<std::uint64_t>(std::max(0, count));
+      non_empty += count > 0 ? 1 : 0;
+    }
+    const auto ceiling = histogram_display_ceiling(total, non_empty);
     painter.setPen(Qt::NoPen);
     painter.setBrush(QColor(218, 218, 218));
     for (int x = 0; x < graph.width(); ++x) {
@@ -222,8 +231,9 @@ protected:
       for (int bin = first_bin; bin < last_bin; ++bin) {
         count = std::max(count, histogram_[static_cast<std::size_t>(bin)]);
       }
-      // Square-root height like the Curves graph: matches Photoshop's dialogs.
-      const auto scaled = std::sqrt(static_cast<double>(count) / static_cast<double>(maximum));
+      // Linear with a ceiling of four times the mean non-empty bin, like the
+      // Curves graph: matches Photoshop's Levels dialog (issue 32).
+      const auto scaled = histogram_display_fraction(static_cast<std::uint64_t>(std::max(0, count)), ceiling);
       const auto bar_height = std::clamp(static_cast<int>(std::round(scaled * (graph.height() - 8))), 1,
                                          std::max(1, graph.height() - 4));
       painter.fillRect(QRect(graph.left() + x, graph.bottom() - bar_height, 1, bar_height), QColor(218, 218, 218));
