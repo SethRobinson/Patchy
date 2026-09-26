@@ -882,6 +882,284 @@ void psd_authored_shape_layer_writes_native_blocks() {
   CHECK(metrics.max_channel_delta == 0);
 }
 
+// Compound groups: several contours sharing one shape_group are ONE shape
+// filled even-odd (a donut, Convert to Shape glyph outlines, custom-shape
+// stamps). Photoshop's length-record encoding, pinned on 2026-09-26 by
+// byte-patched probes of Patchy's donut file (PS 2026 via COM): the group's
+// lead record carries the combine op with +6 field 1 (even-odd; PS's own
+// Convert to Shape writes 2 = nonzero winding), and every continuation record
+// carries op 0xFFFF with +6 field 0. Writing each contour with its own op and
+// +6 field 1 (Patchy before this change) made PS unite the inner circle with
+// the outer one: a solid disc, whatever the winding.
+patchy::PathSubpath circle_subpath(double cx, double cy, double radius, bool reverse, std::int32_t group,
+                                   PathCombineOp op = PathCombineOp::Add) {
+  const double k = 0.5523 * radius;
+  std::vector<patchy::PathAnchor> anchors(4);
+  const auto set = [&](std::size_t i, double x, double y, double in_x, double in_y, double out_x, double out_y) {
+    anchors[i].anchor_x = x;
+    anchors[i].anchor_y = y;
+    anchors[i].in_x = in_x;
+    anchors[i].in_y = in_y;
+    anchors[i].out_x = out_x;
+    anchors[i].out_y = out_y;
+    anchors[i].smooth = true;
+  };
+  set(0, cx + radius, cy, cx + radius, cy - k, cx + radius, cy + k);
+  set(1, cx, cy + radius, cx + k, cy + radius, cx - k, cy + radius);
+  set(2, cx - radius, cy, cx - radius, cy + k, cx - radius, cy - k);
+  set(3, cx, cy - radius, cx - k, cy - radius, cx + k, cy - radius);
+  if (reverse) {
+    std::reverse(anchors.begin(), anchors.end());
+    for (auto& anchor : anchors) {
+      std::swap(anchor.in_x, anchor.out_x);
+      std::swap(anchor.in_y, anchor.out_y);
+    }
+  }
+  patchy::PathSubpath subpath;
+  subpath.anchors = std::move(anchors);
+  subpath.closed = true;
+  subpath.op = op;
+  subpath.shape_group = group;
+  return subpath;
+}
+
+// 320x80 canvas, five 64 px cells, one shape layer per cell over a white
+// background (the fixture patchy-compound-group.psd is this document as
+// written by psd_compound_group_writes_continuation_records_and_round_trips):
+//   1 A: outer + inner circle, same winding, one group (hole expected)
+//   2 B: outer + inner circle, inner reversed, one group (hole)
+//   3 C: inner circle first, then outer, same winding, one group (hole)
+//   4 D: outer + hole + island, one group (ring and island filled)
+//   5 E: donut group 0 plus a separate united disc (group 1) over its right
+//        side (the disc fills part of the hole; groups still combine)
+patchy::Document make_compound_group_document() {
+  patchy::Document document(320, 80, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("bg", patchy::test::solid_rgba(320, 80, 255, 255, 255, 255));
+  const auto add_shape = [&](const char* layer_name, std::vector<patchy::PathSubpath> subpaths,
+                             patchy::RgbColor color) {
+    patchy::Layer shape(document.allocate_layer_id(), layer_name, patchy::PixelBuffer());
+    patchy::VectorShapeContent content;
+    content.path.subpaths = std::move(subpaths);
+    content.fill.kind = patchy::VectorFillKind::Solid;
+    content.fill.color = color;
+    shape.set_vector_shape(content);
+    shape.metadata()[patchy::kLayerMetadataVectorShape] = "1";
+    patchy::update_vector_shape_raster(shape, patchy::Rect::from_size(320, 80), nullptr);
+    document.add_layer(std::move(shape));
+  };
+  const double cy = 40.0;
+  add_shape("A same-winding donut", {circle_subpath(32, cy, 28, false, 0), circle_subpath(32, cy, 14, false, 0)},
+            patchy::RgbColor{220, 40, 40});
+  add_shape("B opposite-winding donut",
+            {circle_subpath(96, cy, 28, false, 0), circle_subpath(96, cy, 14, true, 0)},
+            patchy::RgbColor{40, 160, 60});
+  add_shape("C inner-first donut", {circle_subpath(160, cy, 14, false, 0), circle_subpath(160, cy, 28, false, 0)},
+            patchy::RgbColor{40, 80, 220});
+  add_shape("D nested island",
+            {circle_subpath(224, cy, 28, false, 0), circle_subpath(224, cy, 17, false, 0),
+             circle_subpath(224, cy, 7, false, 0)},
+            patchy::RgbColor{230, 140, 20});
+  add_shape("E donut plus united disc",
+            {circle_subpath(288, cy, 28, false, 0), circle_subpath(288, cy, 14, false, 0),
+             circle_subpath(304, cy, 10, false, 1)},
+            patchy::RgbColor{140, 40, 180});
+  return document;
+}
+
+struct PathLengthRecord {
+  std::uint16_t selector{0};
+  std::uint16_t knots{0};
+  std::uint16_t op{0};
+  std::uint16_t rule{0};  // the u16 at +6: 1 even-odd lead, 2 nonzero lead, 0 continuation
+  std::uint32_t group{0};
+  friend bool operator==(const PathLengthRecord&, const PathLengthRecord&) = default;
+};
+
+std::vector<PathLengthRecord> path_length_records(std::span<const std::uint8_t> payload, std::size_t offset) {
+  std::vector<PathLengthRecord> records;
+  const auto u16 = [&](std::size_t at) {
+    return static_cast<std::uint16_t>((static_cast<std::uint16_t>(payload[at]) << 8U) | payload[at + 1]);
+  };
+  for (; offset + 26 <= payload.size(); offset += 26) {
+    const auto selector = u16(offset);
+    if (selector == 0 || selector == 3) {
+      records.push_back(PathLengthRecord{selector, u16(offset + 2), u16(offset + 4), u16(offset + 6),
+                                         patchy::test::read_u32_be_at(payload, offset + 12)});
+    }
+  }
+  return records;
+}
+
+void check_compound_group_render(const Document& document, const char* stage) {
+  CHECK(document.layers().size() == 6);
+  const auto flat = patchy::Compositor{}.flatten_rgb8(document);
+  const auto is_white = [&](std::int32_t x, std::int32_t y) {
+    const auto* px = flat.pixel(x, y);
+    return px[0] == 255 && px[1] == 255 && px[2] == 255;
+  };
+  const auto is_color = [&](std::int32_t x, std::int32_t y, patchy::RgbColor color) {
+    const auto* px = flat.pixel(x, y);
+    return px[0] == color.red && px[1] == color.green && px[2] == color.blue;
+  };
+  const auto report = [&](bool ok, const char* what) {
+    if (!ok) {
+      std::fprintf(stderr, "compound group render (%s): %s\n", stage, what);
+      write_rgb8_bmp_artifact(std::string("psd_compound_group_") + stage, flat);
+    }
+    CHECK(ok);
+  };
+  // Holes: every same-group inner contour is a hole regardless of winding or order.
+  report(is_white(32, 40), "A hole");
+  report(is_white(96, 40), "B hole");
+  report(is_white(160, 40), "C hole");
+  report(is_color(32 + 21, 40, patchy::RgbColor{220, 40, 40}), "A ring");
+  report(is_color(96 + 21, 40, patchy::RgbColor{40, 160, 60}), "B ring");
+  report(is_color(160 + 21, 40, patchy::RgbColor{40, 80, 220}), "C ring");
+  // Nested even-odd: ring filled, annulus hollow, island filled.
+  report(is_color(224 + 22, 40, patchy::RgbColor{230, 140, 20}), "D ring");
+  report(is_white(224 + 12, 40), "D annulus");
+  report(is_color(224, 40, patchy::RgbColor{230, 140, 20}), "D island");
+  // A second group still unites over the compound group: the disc fills the
+  // hole's right side while the left side of the hole stays open.
+  report(is_color(288 + 8, 40, patchy::RgbColor{140, 40, 180}), "E disc inside hole");
+  report(is_white(288 - 8, 40), "E hole left");
+}
+
+void psd_compound_group_writes_continuation_records_and_round_trips() {
+  const auto document = make_compound_group_document();
+  check_compound_group_render(document, "authored");
+  const auto written = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  // The authored bytes are the fixture source (test-fixtures/psd/patchy-compound-group.psd)
+  // and the Photoshop COM acceptance input.
+  std::filesystem::create_directories("test-artifacts");
+  std::ofstream("test-artifacts/psd_compound_group_authored.psd", std::ios::binary)
+      .write(reinterpret_cast<const char*>(written.data()), static_cast<std::streamsize>(written.size()));
+
+  const auto records_of = [&](std::int16_t layer_index) {
+    const auto extra = patchy::test::psd_layer_extra_data(written, layer_index);
+    const auto vmsk = patchy::test::psd_layer_block_payload(extra, "vmsk");
+    CHECK(vmsk.has_value());
+    return path_length_records(*vmsk, 8);  // past u32 version + u32 flags
+  };
+  using R = PathLengthRecord;
+  const std::vector<R> donut{R{0, 4, 1, 1, 0}, R{0, 4, 0xFFFF, 0, 0}};
+  CHECK(records_of(1) == donut);
+  CHECK(records_of(2) == donut);
+  CHECK(records_of(3) == donut);
+  const std::vector<R> nested{R{0, 4, 1, 1, 0}, R{0, 4, 0xFFFF, 0, 0}, R{0, 4, 0xFFFF, 0, 0}};
+  CHECK(records_of(4) == nested);
+  // A new group after a continuation is a lead again: its own op, +6 field 1.
+  const std::vector<R> two_groups{R{0, 4, 1, 1, 0}, R{0, 4, 0xFFFF, 0, 0}, R{0, 4, 1, 1, 1}};
+  CHECK(records_of(5) == two_groups);
+
+  const auto reread = patchy::psd::DocumentIo::read(written, {});
+  CHECK(reread.layers().size() == 6);
+  for (std::size_t i = 1; i < 6; ++i) {
+    const auto* original = document.layers()[i].vector_shape();
+    const auto* restored = reread.layers()[i].vector_shape();
+    CHECK(original != nullptr && restored != nullptr);
+    CHECK(restored->path.subpaths.size() == original->path.subpaths.size());
+    for (std::size_t j = 0; j < original->path.subpaths.size(); ++j) {
+      const auto& a = original->path.subpaths[j];
+      const auto& b = restored->path.subpaths[j];
+      CHECK(b.op == a.op);  // continuations inherit the lead's op on read
+      CHECK(b.shape_group == a.shape_group);
+      CHECK(b.closed == a.closed);
+      CHECK(b.anchors.size() == a.anchors.size());
+      for (std::size_t k = 0; k < a.anchors.size(); ++k) {
+        CHECK(std::fabs(b.anchors[k].anchor_x - a.anchors[k].anchor_x) < 1e-4);
+        CHECK(std::fabs(b.anchors[k].anchor_y - a.anchors[k].anchor_y) < 1e-4);
+        CHECK(std::fabs(b.anchors[k].out_x - a.anchors[k].out_x) < 1e-4);
+        CHECK(std::fabs(b.anchors[k].in_y - a.anchors[k].in_y) < 1e-4);
+        CHECK(b.anchors[k].smooth == a.anchors[k].smooth);
+      }
+    }
+  }
+  check_compound_group_render(reread, "reread");
+  const auto metrics = rgb_diff_metrics(patchy::Compositor{}.flatten_rgb8(document),
+                                        patchy::Compositor{}.flatten_rgb8(reread));
+  CHECK(metrics.max_channel_delta <= 1);  // 8.24 fixed-point anchor rounding only
+
+  // The same record stream serves the path image resources: a work path with
+  // a compound group round-trips its ops and group too.
+  patchy::Document with_work_path(320, 80, patchy::PixelFormat::rgb8());
+  with_work_path.add_pixel_layer("bg", patchy::test::solid_rgba(320, 80, 255, 255, 255, 255));
+  patchy::VectorPath work;
+  work.subpaths = {circle_subpath(32, 40, 28, false, 0), circle_subpath(32, 40, 14, true, 0),
+                   circle_subpath(96, 40, 20, false, 1, PathCombineOp::Subtract)};
+  with_work_path.add_path(patchy::DocumentPath(with_work_path.allocate_path_id(), "", patchy::DocumentPathKind::Work,
+                                               work));
+  const auto work_written = patchy::psd::DocumentIo::write_layered_rgb8(with_work_path);
+  const auto work_reread = patchy::psd::DocumentIo::read(work_written, {});
+  CHECK(work_reread.paths().size() == 1);
+  const auto& restored_work = work_reread.paths().front().path();
+  CHECK(restored_work.subpaths.size() == 3);
+  CHECK(restored_work.subpaths[0].op == PathCombineOp::Add && restored_work.subpaths[0].shape_group == 0);
+  CHECK(restored_work.subpaths[1].op == PathCombineOp::Add && restored_work.subpaths[1].shape_group == 0);
+  CHECK(restored_work.subpaths[2].op == PathCombineOp::Subtract && restored_work.subpaths[2].shape_group == 1);
+}
+
+// patchy-compound-group.psd is the document above as Patchy writes it;
+// patchy-compound-group.bmp is Photoshop 2026's flatten of that file (COM,
+// 2026-09-26): every same-group inner contour is a hole, so Patchy's even-odd
+// group render matches Photoshop's reading of the continuation encoding.
+void psd_compound_group_fixture_matches_photoshop_flatten() {
+  const auto document = read_fixture("patchy-compound-group.psd");
+  check_compound_group_render(document, "fixture");
+  const auto* nested = layer_at(document, 4).vector_shape();
+  CHECK(nested != nullptr && nested->path.subpaths.size() == 3);
+  for (const auto& subpath : nested->path.subpaths) {
+    CHECK(subpath.op == PathCombineOp::Add && subpath.shape_group == 0);
+  }
+  check_flatten_matches_reference(document, "patchy-compound-group.bmp", "psd_compound_group");
+}
+
+// photoshop-compound-text.psd/bmp: Photoshop's OWN compound encoding (a "B8"
+// text work path made into a solid-color shape layer, PS 2026 via COM,
+// 2026-09-26): one group per glyph, the lead record op 1 with +6 field 2
+// (nonzero winding), the two counters of each glyph as continuation records
+// (op 0xFFFF, +6 field 0). Continuations inherit the lead's op on read, and
+// the glyph counters are holes in both renderers (font counters wind the
+// opposite way, so nonzero and even-odd agree; Patchy fills groups even-odd).
+void psd_photoshop_compound_text_fixture_reads_continuations() {
+  const auto document = read_fixture("photoshop-compound-text.psd");
+  CHECK(document.layers().size() == 2);
+  const auto* shape = layer_at(document, 1).vector_shape();
+  CHECK(shape != nullptr);
+  CHECK(shape->path.subpaths.size() == 6);
+  for (std::size_t i = 0; i < shape->path.subpaths.size(); ++i) {
+    CHECK(shape->path.subpaths[i].op == PathCombineOp::Add);
+    CHECK(shape->path.subpaths[i].shape_group == (i < 3 ? 0 : 1));
+  }
+  // An untouched layer re-emits PS's vmsk verbatim (the nonzero +6 field 2
+  // leads survive); an edited one regenerates the same group structure in
+  // Patchy's form (lead op with +6 field 1, counters as continuations).
+  const auto records_of = [](const std::vector<std::uint8_t>& bytes) {
+    const auto extra = patchy::test::psd_layer_extra_data(bytes, 1);
+    const auto vmsk = patchy::test::psd_layer_block_payload(extra, "vmsk");
+    CHECK(vmsk.has_value());
+    return path_length_records(*vmsk, 8);
+  };
+  const auto check_records = [&](const std::vector<PathLengthRecord>& records, std::uint16_t lead_rule) {
+    CHECK(records.size() == 6);
+    for (std::size_t i = 0; i < records.size(); ++i) {
+      const bool lead = i == 0 || i == 3;
+      CHECK(records[i].op == (lead ? 1 : 0xFFFF));
+      CHECK(records[i].rule == (lead ? lead_rule : 0));
+      CHECK(records[i].group == (i < 3 ? 0U : 1U));
+    }
+  };
+  check_records(records_of(patchy::psd::DocumentIo::write_layered_rgb8(document)), 2);
+  auto edited = document;
+  patchy::mark_layer_vector_block_dirty(*edited.find_layer(edited.layers()[1].id()));
+  const auto written = patchy::psd::DocumentIo::write_layered_rgb8(edited);
+  check_records(records_of(written), 1);
+  const auto reread = patchy::psd::DocumentIo::read(written, {});
+  CHECK(reread.layers()[1].vector_shape()->path.subpaths.size() == 6);
+  check_flatten_matches_reference(document, "photoshop-compound-text.bmp", "psd_compound_text");
+  check_flatten_matches_reference(reread, "photoshop-compound-text.bmp", "psd_compound_text_rewritten");
+}
+
 void psd_open_path_strokes_legacy_export_preserves_shape() {
   // Legacy Patchy file: one open L, a dashed L, a closed triangle, and two
   // open Ls sharing a layer. Photoshop closes only that last pair on open.
@@ -1535,8 +1813,9 @@ void psd_legacy_vmsk_unset_combine_op_fills_by_parity() {
     write_corner_knot(hi, hi);
     write_corner_knot(lo, hi);
   };
-  // The first subpath of the CS4 files carries op 1 / constant 2; the nested
-  // cutouts carry the unset 0xFFFF / 0 form.
+  // The first subpath of the CS4 files carries op 1 / +6 field 2; the nested
+  // cutouts carry the unset 0xFFFF / 0 form. Every record has group index 0,
+  // so the cutout is a continuation contour of the lead's compound group.
   write_square(1, 2, 0.125, 0.875);
   write_square(0xFFFFU, 0, 0.375, 0.625);
 
@@ -1596,7 +1875,10 @@ void psd_legacy_vmsk_unset_combine_op_fills_by_parity() {
   CHECK(content->fill.color.red == 210);
   CHECK(content->path.subpaths.size() == 2);
   CHECK(content->path.subpaths[0].op == PathCombineOp::Add);
-  CHECK(content->path.subpaths[1].op == PathCombineOp::Xor);
+  // Same group as the lead: the continuation inherits its op (the renderer
+  // fills the group even-odd, so the nested square is still a hole).
+  CHECK(content->path.subpaths[1].op == PathCombineOp::Add);
+  CHECK(content->path.subpaths[1].shape_group == content->path.subpaths[0].shape_group);
   CHECK(shape.metadata().count(patchy::kLayerMetadataVectorLock) == 0);
   // Canvas 16x16: outer square 2..14, cutout 6..10. The ring fills, the nested
   // cutout and the outside stay empty.
@@ -1919,6 +2201,11 @@ std::vector<patchy::test::TestCase> psd_vector_fixtures_tests() {
       {"psd_saved_paths_reorder_round_trips", psd_saved_paths_reorder_round_trips},
       {"psd_work_path_saved_as_named_round_trips", psd_work_path_saved_as_named_round_trips},
       {"psd_authored_shape_layer_writes_native_blocks", psd_authored_shape_layer_writes_native_blocks},
+      {"psd_compound_group_writes_continuation_records_and_round_trips",
+       psd_compound_group_writes_continuation_records_and_round_trips},
+      {"psd_compound_group_fixture_matches_photoshop_flatten", psd_compound_group_fixture_matches_photoshop_flatten},
+      {"psd_photoshop_compound_text_fixture_reads_continuations",
+       psd_photoshop_compound_text_fixture_reads_continuations},
       {"psd_open_path_strokes_legacy_export_preserves_shape", psd_open_path_strokes_legacy_export_preserves_shape},
       {"psd_open_path_strokes_preserve_opacity_and_foreign_edits", psd_open_path_strokes_preserve_opacity_and_foreign_edits},
       {"psd_open_path_strokes_group_opacity_without_fill", psd_open_path_strokes_group_opacity_without_fill},
