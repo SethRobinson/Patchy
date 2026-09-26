@@ -1,5 +1,9 @@
 # Scripting API compatibility
 
+2026-09-26 (API 1): `app.listFonts()` returns every family the text engine can use as
+`{family, styles, writingSystems}` objects sorted by family, loading the installed
+fonts first under `--headless` on Windows. Additive; apiVersion unchanged.
+
 2026-09-26 (API 1): `doc.addTextLayer`'s `font` option now takes effect. The script path
 set the family on the editor's character format only, while the commit read the session's
 family, so every script-made text layer rendered in the options bar's current font. A

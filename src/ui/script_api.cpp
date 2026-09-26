@@ -23,6 +23,7 @@
 #include "core/layer_render_utils.hpp"
 #include "core/pixel_tools.hpp"
 #include "ui/main_window.hpp"
+#include "ui/main_window_shared.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/document_recovery.hpp"
 #include "ui/layer_merge.hpp"
@@ -36,6 +37,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QFontDatabase>
 #include <QJSEngine>
 #include <QJSValueIterator>
 #include <QRegion>
@@ -1909,6 +1911,35 @@ bool ScriptAppObject::runCommand(const QString& commandId) {
 }
 
 QStringList ScriptAppObject::commandIds() { const ScriptApiCall api_call(host_); return host_.app_command_ids(); }
+
+QJSValue ScriptAppObject::listFonts() {
+  const ScriptApiCall api_call(host_);
+  ensure_headless_system_fonts_loaded();
+  auto* engine = host_.engine();
+  auto result = engine->newArray();
+  quint32 index = 0;
+  for (const auto& family : QFontDatabase::families()) {
+    if (QFontDatabase::isPrivateFamily(family)) {
+      continue;
+    }
+    auto entry = engine->newObject();
+    entry.setProperty(QStringLiteral("family"), family);
+    auto styles = engine->newArray();
+    quint32 style_index = 0;
+    for (const auto& style : QFontDatabase::styles(family)) {
+      styles.setProperty(style_index++, style);
+    }
+    entry.setProperty(QStringLiteral("styles"), styles);
+    auto scripts = engine->newArray();
+    quint32 script_index = 0;
+    for (const auto system : QFontDatabase::writingSystems(family)) {
+      scripts.setProperty(script_index++, QFontDatabase::writingSystemName(system));
+    }
+    entry.setProperty(QStringLiteral("writingSystems"), scripts);
+    result.setProperty(index++, entry);
+  }
+  return result;
+}
 
 // ---------------------------------------------------------------------------
 // ScriptIoObject

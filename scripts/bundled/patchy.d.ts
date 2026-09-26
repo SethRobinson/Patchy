@@ -599,6 +599,13 @@ interface PatchyApp {
   /** Every registered command id, sorted. */
   commandIds(): string[];
   /**
+   * Every font family the text engine can use right now (installed and user-added),
+   * with its face names and the writing systems it covers, sorted by family. Pass
+   * a family (or family plus face) as addTextLayer's font. Under --headless on
+   * Windows this also loads the installed fonts first.
+   */
+  listFonts(): {family: string; styles: string[]; writingSystems: string[]}[];
+  /**
    * Writes one PDF with a page per document, in array order, each page sized
    * from that document's pixels and resolution. A single document is accepted
    * in place of the array. options.lossless (default true) keeps images

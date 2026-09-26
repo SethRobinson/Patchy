@@ -1060,6 +1060,7 @@ QString substituted_text_family(const QString& family, const QString& demanded) 
 // Windows font files the system knows about: the machine-wide CurrentVersion\Fonts
 // key (relative names live in %WINDIR%\Fonts) plus the per-user key Windows fills
 // when a font is installed without elevation (absolute paths).
+#ifdef Q_OS_WIN
 struct WindowsRegistryFont {
   QString display_name;  // the full face name Windows shows, e.g. "Futura Extra Black BT (TrueType)"
   QString file;
@@ -1084,19 +1085,50 @@ std::vector<WindowsRegistryFont> windows_registry_fonts() {
   }
   return fonts_found;
 }
+#endif
+
+}  // namespace
+
+// The offscreen platform on Windows (a --headless run) enumerates no system fonts; macOS and
+// Linux offscreen go through CoreText / fontconfig and see them. Loads the installed fonts from
+// the registry once per process so the database holds their real family and style names. True
+// when this call loaded something new. A no-op on other platforms and for the offscreen SUITES
+// (no PATCHY_HEADLESS), which stay hermetic.
+bool ensure_headless_system_fonts_loaded() {
+#ifdef Q_OS_WIN
+  if (QGuiApplication::platformName() != QLatin1String("offscreen") ||
+      !qEnvironmentVariableIsSet("PATCHY_HEADLESS")) {
+    return false;
+  }
+  static bool loaded = false;
+  if (loaded) {
+    return false;
+  }
+  loaded = true;
+  bool added = false;
+  for (const auto& entry : windows_registry_fonts()) {
+    if (QFileInfo::exists(entry.file) && QFontDatabase::addApplicationFont(entry.file) >= 0) {
+      added = true;
+    }
+  }
+  return added;
+#else
+  return false;
+#endif
+}
+
+namespace {
 
 // Called when a requested family resolves to nothing. Two different gaps, both filled
 // by registering the installed files as application fonts (never removed afterwards:
 // removeApplicationFont can crash live font users, the testing notes' standing rule):
 //
-// - A --headless run is on the offscreen platform, which sees NO system fonts at all.
-//   The first miss loads every installed font once, so the database then holds the
-//   fonts' real family and style names and the ordinary matching resolves a request
-//   exactly as the desktop app would (a family, "Futura XBlk BT", or family plus face,
-//   "Arial Black"). Matching registry display names against the request would be
-//   guesswork: the registry stores full face names, not families. The visual test
-//   suites are offscreen too and deliberately stay hermetic: main.cpp marks a headless
-//   run with PATCHY_HEADLESS=1, which the suites never set (docs/testing.md).
+// - A --headless run on Windows sees NO system fonts (ensure_headless_system_fonts_loaded
+//   above): the first miss loads every installed font once, so the ordinary matching then
+//   resolves a request exactly as the desktop app would (a family, "Futura XBlk BT", or family
+//   plus face, "Arial Black"). Matching registry display names against the request would be
+//   guesswork: the registry stores full face names, not families. main.cpp marks a headless
+//   run with PATCHY_HEADLESS=1, which the offscreen suites never set (docs/testing.md).
 // - On the desktop, a font registered with Windows can still be missing from Qt's
 //   database (this machine's Arial Narrow: in the registry and C:\Windows\Fonts, absent
 //   from both the family list and Arial's style list). There the registry display name
@@ -1113,18 +1145,7 @@ bool try_register_missing_system_font_family(const QString& family) {
     return false;
   }
   if (offscreen) {
-    static bool loaded = false;
-    if (loaded) {
-      return false;  // everything installed is already in the database
-    }
-    loaded = true;
-    bool added = false;
-    for (const auto& entry : windows_registry_fonts()) {
-      if (QFileInfo::exists(entry.file) && QFontDatabase::addApplicationFont(entry.file) >= 0) {
-        added = true;
-      }
-    }
-    return added;
+    return ensure_headless_system_fonts_loaded();
   }
   static QSet<QString> attempted;
   const auto key = requested.toLower();

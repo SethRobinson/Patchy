@@ -282,6 +282,7 @@ public:
   // editableLayers, missingFontsAsImages }). A single document is accepted too.
   Q_INVOKABLE bool exportPdf(const QJSValue& documents, const QString& path, const QJSValue& options = QJSValue());
   Q_INVOKABLE QStringList commandIds();
+  Q_INVOKABLE QJSValue listFonts();
 
 private:
   ScriptEngineHost& host_;

@@ -992,6 +992,27 @@ void ui_script_text_font_option_applies() {
   CHECK(backlog_contains(window, QStringLiteral("plain=\"\"")));
 }
 
+// app.listFonts() reports what addTextLayer can resolve: a family registered in this process
+// shows up with its face names and writing systems, and Qt's private families stay out.
+void ui_script_list_fonts_reports_registered_families() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto noto_path = QStringLiteral(PATCHY_SOURCE_DIR "/third_party/fonts/noto_naskh_arabic/NotoNaskhArabic-Bold.ttf");
+  CHECK(QFontDatabase::addApplicationFont(noto_path) >= 0);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var fonts = app.listFonts();
+    var noto = fonts.filter(function (f) { return f.family === 'Noto Naskh Arabic'; })[0];
+    console.log('count-ok=' + (fonts.length >= 1));
+    console.log('noto=' + (noto ? noto.styles.indexOf('Bold') >= 0 && noto.writingSystems.indexOf('Arabic') >= 0 : 'missing'));
+    console.log('private=' + fonts.filter(function (f) { return f.family.charAt(0) === '.'; }).length);
+    var sorted = fonts.map(function (f) { return f.family; });
+    console.log('sorted=' + (JSON.stringify(sorted) === JSON.stringify(sorted.slice().sort(function (a, b) { return a.localeCompare(b); }))));
+  )JS")));
+  CHECK(backlog_contains(window, QStringLiteral("count-ok=true")));
+  CHECK(backlog_contains(window, QStringLiteral("noto=true")));
+  CHECK(backlog_contains(window, QStringLiteral("private=0")));
+}
+
 void ui_script_text_layer_with_uncovered_script_does_not_crash() {
   // No registered face covers Thai in the offscreen suite (the registry rescue is off), so
   // Qt answers the per-writing-system probe with its glyph-box engine. The missing-font
@@ -3206,6 +3227,7 @@ std::vector<patchy::test::TestCase> scripting_tests() {
       {"ui_script_filters_and_text_layers", ui_script_filters_and_text_layers},
       {"ui_script_text_size_is_zoom_independent", ui_script_text_size_is_zoom_independent},
       {"ui_script_text_font_option_applies", ui_script_text_font_option_applies},
+      {"ui_script_list_fonts_reports_registered_families", ui_script_list_fonts_reports_registered_families},
       {"ui_script_text_layer_with_uncovered_script_does_not_crash",
        ui_script_text_layer_with_uncovered_script_does_not_crash},
       {"ui_script_run_command_writes_output_file", ui_script_run_command_writes_output_file},

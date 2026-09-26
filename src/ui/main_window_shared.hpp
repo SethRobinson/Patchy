@@ -213,6 +213,11 @@ constexpr auto kTextEditorFinishedProperty = "patchy.textEditorFinished";
 // panel uses it for the missing-font badge and the Type tool for its substitution warning.
 [[nodiscard]] QStringList missing_text_families_for_layer(const Layer& layer);
 
+// Windows --headless runs see no system fonts until this loads them from the registry (once per
+// process; false when nothing new was loaded, including on every other platform). The text
+// engine calls it on the first unresolved family; app.listFonts() calls it up front.
+bool ensure_headless_system_fonts_loaded();
+
 
 // Layer-list row styling and edit-target highlighting, shared by the
 // layer-panel TU and the document/session code that stayed in main_window.cpp.
