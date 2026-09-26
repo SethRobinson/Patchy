@@ -50,6 +50,9 @@ class ScriptLayerObject : public QObject {
   Q_PROPERTY(QString textOrientation READ text_orientation WRITE set_text_orientation)
   Q_PROPERTY(QString textDirection READ text_direction WRITE set_text_direction)
   Q_PROPERTY(QString textFont READ text_font)
+  Q_PROPERTY(QJSValue textRuns READ text_runs)
+  Q_PROPERTY(QJSValue textBox READ text_box)
+  Q_PROPERTY(QString textAlign READ text_align WRITE set_text_align)
 
 public:
   ScriptLayerObject(ScriptEngineHost& host, std::int64_t session_id, LayerId layer_id);
@@ -93,6 +96,14 @@ public:
   [[nodiscard]] QString text_direction() const;
   [[nodiscard]] QString text_font() const;
   void set_text_direction(const QString& direction);
+  // The stored runs ({text, font, style, size, bold, italic, color}), the paragraph box
+  // ({width, height} or null for point text) and the paragraph alignment; setTextRuns replaces
+  // the content with formatted runs through the same session as `text`.
+  [[nodiscard]] QJSValue text_runs() const;
+  [[nodiscard]] QJSValue text_box() const;
+  [[nodiscard]] QString text_align() const;
+  void set_text_align(const QString& align);
+  Q_INVOKABLE void setTextRuns(const QJSValue& runs);
 
   Q_INVOKABLE void moveTo(double x, double y);
   Q_INVOKABLE QJSValue duplicate(const QJSValue& target = QJSValue());
@@ -210,7 +221,8 @@ public:
   Q_INVOKABLE QJSValue getPath(const QString& id) const;
   Q_INVOKABLE QJSValue addPath(const QString& name, const QJSValue& data);
   Q_INVOKABLE QJSValue setWorkPath(const QJSValue& data);
-  Q_INVOKABLE QJSValue addTextLayer(const QString& text, const QJSValue& options = QJSValue());
+  // `text` is a string or an array of runs ({text, font?, size?, bold?, italic?, color?}).
+  Q_INVOKABLE QJSValue addTextLayer(const QJSValue& text, const QJSValue& options = QJSValue());
   // Files as Layers: each path (a string or an array of strings) becomes a
   // layer above the active layer, bottom to top in argument order; a
   // multi-layer file becomes a folder named after it. Throws, adding nothing,

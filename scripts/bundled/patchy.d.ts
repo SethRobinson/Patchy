@@ -209,6 +209,17 @@ interface PatchyImageData {
   data: ArrayBuffer;
 }
 
+/** One run of formatted text: the layer options apply unless a field overrides them. */
+interface PatchyTextRun {
+  text: string;
+  font?: string; size?: number; bold?: boolean; italic?: boolean; color?: string;
+}
+
+/** A stored run read back from a text layer (see PatchyLayer.textRuns). */
+interface PatchyTextRunInfo {
+  text: string; font: string; style: string; size: number; bold: boolean; italic: boolean; color: string;
+}
+
 interface PatchyLayer {
   /** Decimal string identity, scoped to this open document. Re-query after undo/reopen. */
   readonly id: string;
@@ -258,6 +269,25 @@ interface PatchyLayer {
   textDirection: 'auto' | 'ltr' | 'rtl';
   /** Text layers: the font family name the layer uses; "" for other layers. */
   readonly textFont: string;
+  /**
+   * Text layers: the formatted runs in text order, each {text, font, style, size,
+   * bold, italic, color} (style is a recorded face beyond bold/italic such as
+   * "Black", size in document px before any layer transform). Concatenated
+   * texts equal `text`. Empty for other layers.
+   */
+  readonly textRuns: PatchyTextRunInfo[];
+  /** Text layers: the paragraph box {width, height}, or null for point text. */
+  readonly textBox: { width: number; height: number } | null;
+  /** Text layers: the first paragraph's alignment; setting it aligns every paragraph and re-renders. */
+  textAlign: 'left' | 'center' | 'right' | 'justify';
+  /**
+   * Text layers: replaces the content with formatted runs the way retyping
+   * does. Every run starts from the first character's current formatting and
+   * applies its own font, size, bold, italic and color on top, so
+   * setTextRuns([{text: "Ask "}, {text: "Seth", bold: true}]) keeps the
+   * layer's face and size and bolds one word.
+   */
+  setTextRuns(runs: (PatchyTextRun | string)[]): void;
 
   /**
    * Finite signed 32-bit positions; throws if the position or resulting bounds overflow.
@@ -480,9 +510,16 @@ interface PatchyDocument {
   /** Adds an empty pixel layer on top and makes it active. */
   addLayer(name: string): PatchyLayer;
   /**
-   * Adds a text layer rendered through Patchy's text engine. Options:
-   * {font, size, x, y, color, bold, italic, orientation, direction}; x/y is
-   * the text anchor point (for vertical text: the first column's top centre).
+   * Adds a text layer rendered through Patchy's text engine. text is a string
+   * or an array of runs ({text, font?, size?, bold?, italic?, color?}): each
+   * run is typed in its own format on top of the layer options, so one layer
+   * can mix faces, sizes and colors ("Hold the " + bold "LEFT TRIGGER").
+   * Options: {font, size, x, y, color, bold, italic, orientation, direction,
+   * box, align}; x/y is the text anchor point (for vertical text: the first
+   * column's top centre). box: {width, height} (each at least 16 document px)
+   * opens a paragraph text box with x/y as its top-left corner: lines wrap at
+   * the box width, exactly like dragging a box with the Type tool. align
+   * ("left", "center", "right", "justify") sets every paragraph's alignment.
    * size is the text height in DOCUMENT PIXELS, independent of the canvas
    * zoom and the document PPI (the Character panel shows the pt equivalent).
    * orientation "vertical" stacks upright glyphs in columns that advance right
@@ -492,18 +529,17 @@ interface PatchyDocument {
    * full or PostScript name ("Futura Extra Black BT"); a font that is not
    * installed renders in a fallback and logs a console warning. The face is
    * exactly what font/bold/italic name, never the options bar's current one.
-   * text may contain "
-": every line lands in the SAME layer, as point text
-   * with one line per paragraph, so a heading and its subline need no second
-   * layer. One layer has one font, size, color and face; a passage that mixes
-   * faces or colors is several layers, and there is no wrapping text box
-   * option yet (the interactive Type tool has both).
+   * text (and any run's text) may contain "\n": every line lands in the SAME
+   * layer as a new paragraph, so a heading and its subline need no second
+   * layer.
    */
-  addTextLayer(text: string, options?: {
+  addTextLayer(text: string | PatchyTextRun[], options?: {
     font?: string; size?: number; x?: number; y?: number;
     color?: string; bold?: boolean; italic?: boolean;
     orientation?: 'horizontal' | 'vertical';
     direction?: 'auto' | 'ltr' | 'rtl';
+    box?: { width: number; height: number };
+    align?: 'left' | 'center' | 'right' | 'justify';
   }): PatchyLayer;
   /**
    * Files as Layers: adds each image file as a new layer directly above the

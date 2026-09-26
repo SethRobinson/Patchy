@@ -107,6 +107,74 @@ bool parse_color(ScriptEngineHost& host, const QString& text, QColor* color) {
   return true;
 }
 
+namespace {
+
+bool text_align_name_is_valid(const QString& align) {
+  return align == QLatin1String("left") || align == QLatin1String("center") ||
+         align == QLatin1String("right") || align == QLatin1String("justify");
+}
+
+// An array of {text, font?, size?, bold?, italic?, color?} objects (a bare string counts as a
+// run with no overrides). False after throwing on a malformed run.
+bool parse_text_runs(ScriptEngineHost& host, const QJSValue& value, const char* verb,
+                     std::vector<ScriptEngineHost::TextRunParams>* runs) {
+  if (!value.isArray()) {
+    host.throw_js_error(ScriptEngineHost::tr("%1: runs must be an array of {text, font, size, bold, italic, color} objects.")
+                            .arg(QLatin1String(verb)));
+    return false;
+  }
+  const auto count = value.property(QStringLiteral("length")).toInt();
+  for (int index = 0; index < count; ++index) {
+    const auto item = value.property(static_cast<quint32>(index));
+    ScriptEngineHost::TextRunParams run;
+    if (item.isString()) {
+      run.text = item.toString();
+    } else if (item.isObject() && !item.isArray() && !item.isCallable()) {
+      const auto text = item.property(QStringLiteral("text"));
+      if (!text.isString()) {
+        host.throw_js_error(ScriptEngineHost::tr("%1: run %2 needs a text string.").arg(QLatin1String(verb)).arg(index));
+        return false;
+      }
+      run.text = text.toString();
+      if (const auto font = item.property(QStringLiteral("font")); font.isString()) {
+        run.family = font.toString();
+      }
+      if (const auto size = item.property(QStringLiteral("size")); size.isNumber()) {
+        run.size_px = size.toNumber();
+        if (!std::isfinite(run.size_px) || run.size_px <= 0.0) {
+          host.throw_js_error(ScriptEngineHost::tr("%1: run %2 has a non-positive size.").arg(QLatin1String(verb)).arg(index));
+          return false;
+        }
+      }
+      if (const auto bold = item.property(QStringLiteral("bold")); bold.isBool()) {
+        run.bold = bold.toBool();
+      }
+      if (const auto italic = item.property(QStringLiteral("italic")); italic.isBool()) {
+        run.italic = italic.toBool();
+      }
+      if (const auto color = item.property(QStringLiteral("color")); color.isString()) {
+        QColor parsed;
+        if (!parse_color(host, color.toString(), &parsed)) {
+          return false;
+        }
+        run.color = parsed;
+      }
+    } else {
+      host.throw_js_error(ScriptEngineHost::tr("%1: run %2 must be a string or an object.").arg(QLatin1String(verb)).arg(index));
+      return false;
+    }
+    runs->push_back(std::move(run));
+  }
+  if (runs->empty()) {
+    host.throw_js_error(ScriptEngineHost::tr("%1: runs must not be empty.").arg(QLatin1String(verb)));
+    return false;
+  }
+  return true;
+}
+
+}  // namespace
+
+
 // Locates the vector holding `id` plus its index, walking const for the search;
 // the caller re-walks non-const only when it actually mutates.
 const std::vector<Layer>* find_parent_vector(const Document& document, LayerId id,
@@ -459,6 +527,72 @@ QString ScriptLayerObject::text_direction() const {
 QString ScriptLayerObject::text_font() const {
   const ScriptApiCall api_call(host_);
   return host_.text_layer_font(session_id_, layer_id_);
+}
+
+QJSValue ScriptLayerObject::text_runs() const {
+  const ScriptApiCall api_call(host_);
+  const auto runs = host_.text_layer_runs(session_id_, layer_id_);
+  auto array = host_.engine()->newArray(static_cast<quint32>(runs.size()));
+  quint32 index = 0;
+  for (const auto& run : runs) {
+    auto object = host_.engine()->newObject();
+    object.setProperty(QStringLiteral("text"), run.text);
+    object.setProperty(QStringLiteral("font"), run.family);
+    object.setProperty(QStringLiteral("style"), run.style);
+    object.setProperty(QStringLiteral("size"), run.size);
+    object.setProperty(QStringLiteral("bold"), run.bold);
+    object.setProperty(QStringLiteral("italic"), run.italic);
+    object.setProperty(QStringLiteral("color"), run.color);
+    array.setProperty(index++, object);
+  }
+  return array;
+}
+
+QJSValue ScriptLayerObject::text_box() const {
+  const ScriptApiCall api_call(host_);
+  const auto box = host_.text_layer_box(session_id_, layer_id_);
+  if (!box.isValid()) {
+    return QJSValue(QJSValue::NullValue);
+  }
+  auto object = host_.engine()->newObject();
+  object.setProperty(QStringLiteral("width"), box.width());
+  object.setProperty(QStringLiteral("height"), box.height());
+  return object;
+}
+
+QString ScriptLayerObject::text_align() const {
+  const ScriptApiCall api_call(host_);
+  return host_.text_layer_align(session_id_, layer_id_);
+}
+
+void ScriptLayerObject::set_text_align(const QString& align) {
+  const ScriptApiCall api_call(host_);
+  if (!host_.layer_is_text_layer(session_id_, layer_id_)) {
+    host_.throw_js_error(ScriptEngineHost::tr("This layer is not a text layer."));
+    return;
+  }
+  if (!text_align_name_is_valid(align)) {
+    host_.throw_js_error(ScriptEngineHost::tr("textAlign must be 'left', 'center', 'right' or 'justify'."));
+    return;
+  }
+  if (!host_.set_text_layer_align(session_id_, layer_id_, align)) {
+    host_.throw_js_error(ScriptEngineHost::tr("Could not edit the text layer."));
+  }
+}
+
+void ScriptLayerObject::setTextRuns(const QJSValue& runs) {
+  const ScriptApiCall api_call(host_);
+  if (!host_.layer_is_text_layer(session_id_, layer_id_)) {
+    host_.throw_js_error(ScriptEngineHost::tr("This layer is not a text layer."));
+    return;
+  }
+  std::vector<ScriptEngineHost::TextRunParams> parsed;
+  if (!parse_text_runs(host_, runs, "setTextRuns", &parsed)) {
+    return;
+  }
+  if (!host_.set_text_layer_runs(session_id_, layer_id_, parsed)) {
+    host_.throw_js_error(ScriptEngineHost::tr("Could not edit the text layer."));
+  }
 }
 
 void ScriptLayerObject::set_text_direction(const QString& direction) {
@@ -1504,10 +1638,19 @@ QJSValue ScriptDocumentObject::importFilesAsLayers(const QJSValue& paths) {
   return result;
 }
 
-QJSValue ScriptDocumentObject::addTextLayer(const QString& text, const QJSValue& options) {
+QJSValue ScriptDocumentObject::addTextLayer(const QJSValue& text, const QJSValue& options) {
   const ScriptApiCall api_call(host_);
   ScriptEngineHost::TextLayerParams params;
-  params.text = text;
+  if (text.isString()) {
+    params.text = text.toString();
+  } else if (text.isArray()) {
+    if (!parse_text_runs(host_, text, "addTextLayer", &params.runs)) {
+      return QJSValue();
+    }
+  } else {
+    host_.throw_js_error(ScriptEngineHost::tr("addTextLayer: text must be a string or an array of runs."));
+    return QJSValue();
+  }
   if (options.isObject()) {
     const auto font = options.property(QStringLiteral("font"));
     if (font.isString()) {
@@ -1543,6 +1686,26 @@ QJSValue ScriptDocumentObject::addTextLayer(const QString& text, const QJSValue&
       if (params.direction != QLatin1String("auto") && params.direction != QLatin1String("ltr") &&
           params.direction != QLatin1String("rtl")) {
         host_.throw_js_error(ScriptEngineHost::tr("direction must be 'auto', 'ltr' or 'rtl'."));
+        return QJSValue();
+      }
+    }
+    if (const auto box = options.property(QStringLiteral("box")); !box.isUndefined() && !box.isNull()) {
+      const auto width = box.property(QStringLiteral("width"));
+      const auto height = box.property(QStringLiteral("height"));
+      // The Type tool's smallest drag box (kMinimumTextBoxDocumentSize in main_window.cpp);
+      // anything smaller would silently open as point text.
+      if (!box.isObject() || !width.isNumber() || !height.isNumber() || width.toNumber() < 16.0 ||
+          height.toNumber() < 16.0) {
+        host_.throw_js_error(ScriptEngineHost::tr("box must be {width, height} of at least 16 document pixels each."));
+        return QJSValue();
+      }
+      params.box = QSize(static_cast<int>(std::lround(width.toNumber())),
+                         static_cast<int>(std::lround(height.toNumber())));
+    }
+    if (const auto align = options.property(QStringLiteral("align")); align.isString()) {
+      params.align = align.toString();
+      if (!text_align_name_is_valid(params.align)) {
+        host_.throw_js_error(ScriptEngineHost::tr("align must be 'left', 'center', 'right' or 'justify'."));
         return QJSValue();
       }
     }

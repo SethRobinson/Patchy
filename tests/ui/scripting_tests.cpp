@@ -1111,6 +1111,108 @@ void ui_script_text_full_face_name_resolves_like_its_family() {
 #endif
 }
 
+// Rich runs: one layer typed from an array of runs keeps every run's own face, size and color,
+// reads them back in order, and a bold run really renders bolder than the plain layer.
+void ui_script_text_runs_create_and_read_back() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var doc = app.activeDocument;
+    var plain = doc.addTextLayer('Hold the LEFT TRIGGER', {font: 'Arial', size: 24, x: 10, y: 40});
+    var rich = doc.addTextLayer([{text: 'Hold the '}, {text: 'LEFT TRIGGER', bold: true, color: '#ff0000'},
+                                 {text: '\nsmall print', size: 12, italic: true}],
+                                {font: 'Arial', size: 24, x: 10, y: 140});
+    console.log('text=' + JSON.stringify(rich.text));
+    // The paragraph break is its own run: Qt gives the block separator the format of the text
+    // before it, so "\n" lands between the bold run and the italic one it was typed with.
+    var runs = rich.textRuns;
+    console.log('count=' + runs.length);
+    console.log('run0=' + runs[0].text + '|' + runs[0].bold + '|' + runs[0].size + '|' + runs[0].color + '|' + runs[0].font);
+    console.log('run1=' + runs[1].text + '|' + runs[1].bold + '|' + runs[1].size + '|' + runs[1].color);
+    console.log('run2=' + JSON.stringify(runs[2].text));
+    console.log('run3=' + runs[3].text + '|' + runs[3].italic + '|' + runs[3].size);
+    console.log('joined=' + (runs.map(function (r) { return r.text; }).join('') === rich.text));
+    console.log('font=' + rich.textFont);
+    console.log('bold-wider=' + (rich.bounds.width > plain.bounds.width));
+    console.log('two-lines=' + (rich.bounds.height > plain.bounds.height * 1.3));
+    console.log('plain-runs=' + plain.textRuns.length + '|' + plain.textRuns[0].text);
+  )JS")));
+  CHECK(backlog_contains(window, QStringLiteral("text=\"Hold the LEFT TRIGGER\\nsmall print\"")));
+  CHECK(backlog_contains(window, QStringLiteral("count=4")));
+  CHECK(backlog_contains(window, QStringLiteral("run0=Hold the |false|24|#000000|Arial")));
+  CHECK(backlog_contains(window, QStringLiteral("run1=LEFT TRIGGER|true|24|#ff0000")));
+  CHECK(backlog_contains(window, QStringLiteral("run2=\"\\n\"")));
+  CHECK(backlog_contains(window, QStringLiteral("run3=small print|true|12")));
+  CHECK(backlog_contains(window, QStringLiteral("joined=true")));
+  CHECK(backlog_contains(window, QStringLiteral("font=Arial")));
+  CHECK(backlog_contains(window, QStringLiteral("bold-wider=true")));
+  CHECK(backlog_contains(window, QStringLiteral("two-lines=true")));
+  CHECK(backlog_contains(window, QStringLiteral("plain-runs=1|Hold the LEFT TRIGGER")));
+}
+
+// A paragraph box wraps at its width and records its size; align sets every paragraph, and the
+// textAlign setter re-aligns an existing layer.
+void ui_script_text_box_wraps_and_aligns() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var doc = app.activeDocument;
+    var words = 'The modified emulator renders the scene once per viewpoint from a slightly different camera.';
+    var point = doc.addTextLayer(words, {font: 'Arial', size: 20, x: 10, y: 20});
+    var box = doc.addTextLayer(words, {font: 'Arial', size: 20, x: 10, y: 120, box: {width: 300, height: 400}});
+    console.log('point-box=' + JSON.stringify(point.textBox));
+    console.log('box=' + JSON.stringify(box.textBox));
+    console.log('wraps=' + (box.bounds.width <= 300 && box.bounds.height > point.bounds.height * 2));
+    console.log('align-default=' + box.textAlign);
+    var centered = doc.addTextLayer(words, {font: 'Arial', size: 20, x: 10, y: 560, box: {width: 300, height: 200}, align: 'center'});
+    console.log('align-option=' + centered.textAlign);
+    box.textAlign = 'right';
+    console.log('align-set=' + box.textAlign);
+    var threw = false;
+    try { doc.addTextLayer('x', {box: {width: 4, height: 4}}); } catch (e) { threw = true; }
+    console.log('tiny-box-throws=' + threw);
+  )JS")));
+  CHECK(backlog_contains(window, QStringLiteral("point-box=null")));
+  CHECK(backlog_contains(window, QStringLiteral("box={\"width\":300,\"height\":400}")));
+  CHECK(backlog_contains(window, QStringLiteral("wraps=true")));
+  CHECK(backlog_contains(window, QStringLiteral("align-default=left")));
+  CHECK(backlog_contains(window, QStringLiteral("align-option=center")));
+  CHECK(backlog_contains(window, QStringLiteral("align-set=right")));
+  CHECK(backlog_contains(window, QStringLiteral("tiny-box-throws=true")));
+}
+
+// setTextRuns retypes an existing layer with formatted runs on top of the first character's
+// formatting (the family and size survive, the runs' own bold and color apply), and a plain
+// `text` assignment afterwards keeps the first run's formatting as before.
+void ui_script_set_text_runs_edits_existing_layer() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var doc = app.activeDocument;
+    var layer = doc.addTextLayer('Ask Seth for a game', {font: 'Arial', size: 24, x: 10, y: 40, color: '#102030'});
+    var plainWidth = layer.bounds.width;
+    layer.setTextRuns([{text: 'Ask '}, {text: 'Seth', bold: true, color: '#ff0000'}, ' for a game']);
+    var runs = layer.textRuns;
+    console.log('text=' + layer.text);
+    console.log('count=' + runs.length);
+    console.log('kept=' + runs[0].font + '|' + runs[0].size + '|' + runs[0].color + '|' + runs[0].bold);
+    console.log('bolded=' + runs[1].text + '|' + runs[1].bold + '|' + runs[1].color);
+    console.log('wider=' + (layer.bounds.width > plainWidth));
+    layer.text = 'Ask Seth for a game';
+    console.log('back=' + layer.textRuns.length + '|' + layer.textRuns[0].bold);
+    var threw = false;
+    try { layer.setTextRuns([]); } catch (e) { threw = true; }
+    console.log('empty-throws=' + threw);
+  )JS")));
+  CHECK(backlog_contains(window, QStringLiteral("text=Ask Seth for a game")));
+  CHECK(backlog_contains(window, QStringLiteral("count=3")));
+  CHECK(backlog_contains(window, QStringLiteral("kept=Arial|24|#102030|false")));
+  CHECK(backlog_contains(window, QStringLiteral("bolded=Seth|true|#ff0000")));
+  CHECK(backlog_contains(window, QStringLiteral("wider=true")));
+  CHECK(backlog_contains(window, QStringLiteral("back=1|false")));
+  CHECK(backlog_contains(window, QStringLiteral("empty-throws=true")));
+}
+
 // app.listFonts() reports what addTextLayer can resolve: a family registered in this process
 // shows up with its face names and writing systems, and Qt's private families stay out.
 void ui_script_list_fonts_reports_registered_families() {
@@ -3349,6 +3451,9 @@ std::vector<patchy::test::TestCase> scripting_tests() {
       {"ui_script_text_face_ignores_the_options_bar_style", ui_script_text_face_ignores_the_options_bar_style},
       {"ui_script_text_size_survives_low_zoom_reedit", ui_script_text_size_survives_low_zoom_reedit},
       {"ui_script_text_full_face_name_resolves_like_its_family", ui_script_text_full_face_name_resolves_like_its_family},
+      {"ui_script_text_runs_create_and_read_back", ui_script_text_runs_create_and_read_back},
+      {"ui_script_text_box_wraps_and_aligns", ui_script_text_box_wraps_and_aligns},
+      {"ui_script_set_text_runs_edits_existing_layer", ui_script_set_text_runs_edits_existing_layer},
       {"ui_script_list_fonts_reports_registered_families", ui_script_list_fonts_reports_registered_families},
       {"ui_script_text_layer_with_uncovered_script_does_not_crash",
        ui_script_text_layer_with_uncovered_script_does_not_crash},

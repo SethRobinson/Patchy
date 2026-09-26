@@ -18933,6 +18933,42 @@ Y: %2
         <source>addTextLayer: font not available, rendered with a fallback: %1</source>
         <translation>addTextLayer: carattere non disponibile, reso con un carattere sostitutivo: %1</translation>
     </message>
+    <message>
+        <source>textAlign must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos; or &apos;justify&apos;.</source>
+        <translation>textAlign deve essere &apos;left&apos;, &apos;center&apos;, &apos;right&apos; o &apos;justify&apos;.</translation>
+    </message>
+    <message>
+        <source>%1: runs must be an array of {text, font, size, bold, italic, color} objects.</source>
+        <translation>%1: runs deve essere un array di oggetti {text, font, size, bold, italic, color}.</translation>
+    </message>
+    <message>
+        <source>%1: run %2 needs a text string.</source>
+        <translation>%1: il tratto %2 richiede una stringa di testo.</translation>
+    </message>
+    <message>
+        <source>%1: run %2 has a non-positive size.</source>
+        <translation>%1: il tratto %2 ha una dimensione non positiva.</translation>
+    </message>
+    <message>
+        <source>%1: run %2 must be a string or an object.</source>
+        <translation>%1: il tratto %2 deve essere una stringa o un oggetto.</translation>
+    </message>
+    <message>
+        <source>%1: runs must not be empty.</source>
+        <translation>%1: runs non può essere vuoto.</translation>
+    </message>
+    <message>
+        <source>addTextLayer: text must be a string or an array of runs.</source>
+        <translation>addTextLayer: text deve essere una stringa o un array di tratti.</translation>
+    </message>
+    <message>
+        <source>box must be {width, height} of at least 16 document pixels each.</source>
+        <translation>box deve essere {width, height} con almeno 16 pixel del documento ciascuno.</translation>
+    </message>
+    <message>
+        <source>align must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos; or &apos;justify&apos;.</source>
+        <translation>align deve essere &apos;left&apos;, &apos;center&apos;, &apos;right&apos; o &apos;justify&apos;.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::StartPanel</name>

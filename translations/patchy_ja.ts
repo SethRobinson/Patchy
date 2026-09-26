@@ -18881,6 +18881,42 @@ Clipped to the layer below</source>
         <source>addTextLayer: font not available, rendered with a fallback: %1</source>
         <translation>addTextLayer: フォントを使用できないため、代替フォントで描画しました: %1</translation>
     </message>
+    <message>
+        <source>textAlign must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos; or &apos;justify&apos;.</source>
+        <translation>textAlign は &apos;left&apos;、&apos;center&apos;、&apos;right&apos;、&apos;justify&apos; のいずれかにしてください。</translation>
+    </message>
+    <message>
+        <source>%1: runs must be an array of {text, font, size, bold, italic, color} objects.</source>
+        <translation>%1: runs は {text, font, size, bold, italic, color} オブジェクトの配列にしてください。</translation>
+    </message>
+    <message>
+        <source>%1: run %2 needs a text string.</source>
+        <translation>%1: ラン %2 には text 文字列が必要です。</translation>
+    </message>
+    <message>
+        <source>%1: run %2 has a non-positive size.</source>
+        <translation>%1: ラン %2 の size が正の値ではありません。</translation>
+    </message>
+    <message>
+        <source>%1: run %2 must be a string or an object.</source>
+        <translation>%1: ラン %2 は文字列またはオブジェクトにしてください。</translation>
+    </message>
+    <message>
+        <source>%1: runs must not be empty.</source>
+        <translation>%1: runs を空にはできません。</translation>
+    </message>
+    <message>
+        <source>addTextLayer: text must be a string or an array of runs.</source>
+        <translation>addTextLayer: text は文字列またはランの配列にしてください。</translation>
+    </message>
+    <message>
+        <source>box must be {width, height} of at least 16 document pixels each.</source>
+        <translation>box は {width, height} で、それぞれ 16 ドキュメントピクセル以上にしてください。</translation>
+    </message>
+    <message>
+        <source>align must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos; or &apos;justify&apos;.</source>
+        <translation>align は &apos;left&apos;、&apos;center&apos;、&apos;right&apos;、&apos;justify&apos; のいずれかにしてください。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::StartPanel</name>

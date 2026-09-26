@@ -1850,6 +1850,66 @@ bool ScriptEngineHost::set_text_layer_direction(std::int64_t session_id, LayerId
   });
 }
 
+namespace {
+
+Qt::Alignment text_alignment_for_name(const QString& name) {
+  if (name.compare(QLatin1String("center"), Qt::CaseInsensitive) == 0) {
+    return Qt::AlignHCenter;
+  }
+  if (name.compare(QLatin1String("right"), Qt::CaseInsensitive) == 0) {
+    return Qt::AlignRight;
+  }
+  if (name.compare(QLatin1String("justify"), Qt::CaseInsensitive) == 0) {
+    return Qt::AlignJustify;
+  }
+  return Qt::AlignLeft;
+}
+
+// The format a run is typed with: `base` (the session's typing format, or the first character's
+// on a re-edit) with the run's own family, size, face and color on top. The size lands in editor
+// units beside its exact value, exactly as the options bar's size spin does. A run that names a
+// family or a face drops any recorded style, which would otherwise override the request.
+void apply_text_run_to_format(MainWindow& window, QTextCharFormat& format,
+                              const ScriptEngineHost::TextRunParams& run, double zoom) {
+  if (!run.family.isEmpty()) {
+    window.apply_text_family_to_format(format, run.family);
+  }
+  if (run.size_px > 0.0) {
+    format.setProperty(QTextFormat::FontPixelSize,
+                       std::max(1, static_cast<int>(std::lround(run.size_px * zoom))));
+    format.setProperty(kTextExactSizeFormatProperty, run.size_px * zoom);
+  }
+  if (run.bold.has_value()) {
+    format.setFontWeight(*run.bold ? QFont::Bold : QFont::Normal);
+  }
+  if (run.italic.has_value()) {
+    format.setFontItalic(*run.italic);
+  }
+  if (run.color.isValid()) {
+    format.setForeground(QBrush(run.color));
+  }
+  if (!run.family.isEmpty() || run.bold.has_value() || run.italic.has_value()) {
+    format.clearProperty(kTextStyleNameFormatProperty);
+  }
+}
+
+// Replaces the editor's selection with the runs, each typed in its own format, and leaves the
+// cursor after the last one.
+void insert_text_runs(MainWindow& window, QTextEdit& editor, const QTextCharFormat& base,
+                      const std::vector<ScriptEngineHost::TextRunParams>& runs, double zoom) {
+  auto cursor = editor.textCursor();
+  cursor.beginEditBlock();
+  for (const auto& run : runs) {
+    QTextCharFormat format = base;
+    apply_text_run_to_format(window, format, run, zoom);
+    cursor.insertText(run.text, format);
+  }
+  cursor.endEditBlock();
+  editor.setTextCursor(cursor);
+}
+
+}  // namespace
+
 std::optional<LayerId> ScriptEngineHost::add_text_layer(std::int64_t session_id,
                                                         const TextLayerParams& params) {
   pump_progress_indicator();
@@ -1866,16 +1926,22 @@ std::optional<LayerId> ScriptEngineHost::add_text_layer(std::int64_t session_id,
   // add_text_at edits the ACTIVE layer when the point lands inside its bounds;
   // clearing the active layer guarantees a fresh text layer instead.
   session->document.clear_active_layer();
-  window_.add_text_at(params.position);
+  // A valid box opens the session as paragraph text (the Type tool's drag), wrapping at the
+  // box width; point text otherwise.
+  const QRect box = params.box.isValid() ? QRect(params.position, params.box) : QRect();
+  window_.add_text_at(params.position, box);
   QTextEdit* editor = wait_for_inline_text_editor(session->canvas);
   if (editor == nullptr) {
     return std::nullopt;
   }
-  if (!params.family.isEmpty()) {
+  const double zoom = std::max(0.01, session->canvas->zoom());
+  const auto layer_family =
+      !params.family.isEmpty() ? params.family : (params.runs.empty() ? QString() : params.runs.front().family);
+  if (!layer_family.isEmpty()) {
     // The options bar's font picker path: besides the char format, the commit reads the family
     // from the session property and the per-run display family, so a bare QFont family was
     // dropped and every script-made layer rendered in the bar's current font.
-    window_.apply_text_family_to_editor(*editor, params.family);
+    window_.apply_text_family_to_editor(*editor, layer_family);
   }
   QTextCharFormat format = editor->currentCharFormat();
   // A new session seeds its face from the options bar's style picker, as Photoshop seeds new
@@ -1888,7 +1954,6 @@ std::optional<LayerId> ScriptEngineHost::add_text_layer(std::int64_t session_id,
     // The inline editor's font lives in editor pixels (document px * zoom, see
     // the interactive path in main_window.cpp). A point-sized font here would
     // commit at a size that depends on the current canvas zoom.
-    const double zoom = std::max(0.01, session->canvas->zoom());
     font.setPixelSize(std::max(1, static_cast<int>(std::lround(params.size_px * zoom))));
     // The exact size travels alongside the whole-pixel editor font, so the committed size is
     // the requested one at every zoom rather than round(px / zoom).
@@ -1906,7 +1971,18 @@ std::optional<LayerId> ScriptEngineHost::add_text_layer(std::int64_t session_id,
   } else if (params.orientation == QLatin1String("horizontal")) {
     window_.apply_text_orientation(false, /*remember_default*/ false);
   }
-  editor->insertPlainText(params.text);
+  if (params.runs.empty()) {
+    editor->insertPlainText(params.text);
+  } else {
+    insert_text_runs(window_, *editor, format, params.runs, zoom);
+  }
+  if (!params.align.isEmpty()) {
+    // Paragraph-level, like the options bar's alignment buttons on a whole object.
+    auto all = editor->textCursor();
+    all.select(QTextCursor::Document);
+    editor->setTextCursor(all);
+    window_.apply_text_alignment_to_editor(*editor, text_alignment_for_name(params.align));
+  }
   if (const auto direction = layout_direction_for_name(params.direction); direction.has_value()) {
     auto all = editor->textCursor();
     all.select(QTextCursor::Document);
@@ -1947,54 +2023,140 @@ std::optional<LayerId> ScriptEngineHost::add_text_layer(std::int64_t session_id,
 
 bool ScriptEngineHost::set_text_layer_text(std::int64_t session_id, LayerId layer_id,
                                            const QString& text) {
-  pump_progress_indicator();
-  auto* session = window_.session_with_id(session_id);
-  if (session == nullptr || session->canvas == nullptr) {
-    return false;
+  TextRunParams run;
+  run.text = text;
+  return set_text_layer_runs(session_id, layer_id, {run});
+}
+
+bool ScriptEngineHost::set_text_layer_runs(std::int64_t session_id, LayerId layer_id,
+                                           const std::vector<TextRunParams>& runs) {
+  return edit_text_layer_session(session_id, layer_id, [this, session_id, &runs](QTextEdit& editor) {
+    const auto* session = window_.session_with_id(session_id);
+    const double zoom =
+        session != nullptr && session->canvas != nullptr ? std::max(0.01, session->canvas->zoom()) : 1.0;
+    auto cursor = editor.textCursor();
+    cursor.select(QTextCursor::Document);
+    // Replace the selection in one step, as retyping it in the editor does. Deleting everything
+    // first left an empty block whose char format is only the session's fallback font, so the
+    // inserted text lost the run properties the commit renders from (the exact fractional size,
+    // the Character-panel glyph scales, leading, tracking, faux styles): an imported Photoshop
+    // layer with VerticalScale 0.93 re-rendered 7.5% taller than the same layer applied
+    // interactively. Photoshop gives retyped text the first selected character's attributes;
+    // a run's own font, size, face and color go on top of them.
+    QTextCharFormat base;
+    {
+      auto first = cursor;
+      first.setPosition(0);
+      first.setPosition(std::min(1, first.document()->characterCount() - 1), QTextCursor::KeepAnchor);
+      base = first.charFormat();
+    }
+    editor.setTextCursor(cursor);
+    insert_text_runs(window_, editor, base, runs, zoom);
+  });
+}
+
+std::vector<ScriptEngineHost::TextRunInfo> ScriptEngineHost::text_layer_runs(std::int64_t session_id,
+                                                                            LayerId layer_id) const {
+  std::vector<TextRunInfo> runs;
+  const auto* document = session_document_const(session_id);
+  const auto* layer = document != nullptr ? document->find_layer(layer_id) : nullptr;
+  if (layer == nullptr || !layer_is_text(*layer)) {
+    return runs;
   }
-  const auto* layer = std::as_const(session->document).find_layer(layer_id);
-  if (layer == nullptr || !layer_is_text(*layer) || window_.layer_id_locks_image_pixels(layer_id)) {
-    return false;
+  const auto& metadata = layer->metadata();
+  const auto value = [&metadata](const char* key) {
+    const auto found = metadata.find(key);
+    return found == metadata.end() ? QString() : QString::fromStdString(found->second);
+  };
+  const auto decode = [](const QString& field) {
+    return QString::fromUtf8(QByteArray::fromPercentEncoding(field.toLatin1()));
+  };
+  const auto text = value(kLayerMetadataText);
+  // The run columns: start, length, size, bold, italic, color, family, then the optional
+  // Photoshop-layout columns, with the recorded face at column 12 (docs/text-tool.md).
+  for (const auto& raw_line : value(kLayerMetadataTextRuns).split(QLatin1Char('\n'))) {
+    const auto fields = raw_line.trimmed().split(QLatin1Char('\t'));
+    if (fields.size() < 7) {
+      continue;  // the version line
+    }
+    bool start_ok = false;
+    bool length_ok = false;
+    const auto start = fields[0].toInt(&start_ok);
+    const auto length = fields[1].toInt(&length_ok);
+    if (!start_ok || !length_ok || start < 0 || length <= 0 || start >= text.size()) {
+      continue;
+    }
+    TextRunInfo run;
+    run.text = text.mid(start, length);
+    run.size = fields[2].toDouble();
+    run.bold = fields[3].toInt() != 0;
+    run.italic = fields[4].toInt() != 0;
+    run.color = fields[5];
+    run.family = decode(fields[6]);
+    if (fields.size() >= 13) {
+      run.style = decode(fields[12]);
+    }
+    runs.push_back(std::move(run));
   }
-  window_.activate_document_session(*session);
-  if (!prepare_mutation(session_id)) {
-    return false;
+  if (runs.empty()) {
+    TextRunInfo run;
+    run.text = text;
+    run.family = value(kLayerMetadataTextFont);
+    run.size = value(kLayerMetadataTextSize).toDouble();
+    run.bold = value(kLayerMetadataTextBold) == QLatin1String("true");
+    run.italic = value(kLayerMetadataTextItalic) == QLatin1String("true");
+    run.color = value(kLayerMetadataTextColor);
+    runs.push_back(std::move(run));
   }
-  const auto bounds = layer->bounds();
-  const QPoint anchor(bounds.x + std::max(1, bounds.width) / 2,
-                      bounds.y + std::max(1, bounds.height) / 2);
-  session->document.set_active_layer(layer_id);
-  window_.add_text_at(anchor);
-  QTextEdit* editor = wait_for_inline_text_editor(session->canvas);
-  if (editor == nullptr) {
-    return false;
+  return runs;
+}
+
+QSize ScriptEngineHost::text_layer_box(std::int64_t session_id, LayerId layer_id) const {
+  const auto* document = session_document_const(session_id);
+  const auto* layer = document != nullptr ? document->find_layer(layer_id) : nullptr;
+  if (layer == nullptr || !layer_is_text(*layer)) {
+    return QSize();
   }
-  if (editor->property("patchy.editingLayerId").toULongLong() != static_cast<qulonglong>(layer_id)) {
-    window_.cancel_active_text_editor();
-    return false;
+  const auto& metadata = layer->metadata();
+  const auto value = [&metadata](const char* key) {
+    const auto found = metadata.find(key);
+    return found == metadata.end() ? QString() : QString::fromStdString(found->second);
+  };
+  // Point text stores its editor box too; only the flow flag says the box is a paragraph box.
+  if (value(kLayerMetadataTextFlow).compare(QLatin1String("box"), Qt::CaseInsensitive) != 0) {
+    return QSize();
   }
-  auto cursor = editor->textCursor();
-  cursor.select(QTextCursor::Document);
-  // Replace the selection in one step, as retyping it in the editor does. Deleting everything
-  // first left an empty block whose char format is only the session's fallback font, so the
-  // inserted text lost the run properties the commit renders from (the exact fractional size,
-  // the Character-panel glyph scales, leading, tracking, faux styles): an imported Photoshop
-  // layer with VerticalScale 0.93 re-rendered 7.5% taller than the same layer applied
-  // interactively. Photoshop gives retyped text the first selected character's attributes.
-  QTextCharFormat format;
-  {
-    auto first = cursor;
-    first.setPosition(0);
-    first.setPosition(std::min(1, first.document()->characterCount() - 1), QTextCursor::KeepAnchor);
-    format = first.charFormat();
+  const QSize box(value(kLayerMetadataTextBoxWidth).toInt(), value(kLayerMetadataTextBoxHeight).toInt());
+  return box.width() > 0 && box.height() > 0 ? box : QSize();
+}
+
+QString ScriptEngineHost::text_layer_align(std::int64_t session_id, LayerId layer_id) const {
+  const auto* document = session_document_const(session_id);
+  const auto* layer = document != nullptr ? document->find_layer(layer_id) : nullptr;
+  if (layer == nullptr || !layer_is_text(*layer)) {
+    return QString();
   }
-  cursor.insertText(text, format);
-  editor->setTextCursor(cursor);
-  QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
-  window_.finish_active_text_editor();
-  QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
-  note_structure_changed(session_id);
-  return true;
+  const auto found = layer->metadata().find(kLayerMetadataTextParagraphRuns);
+  if (found != layer->metadata().end()) {
+    for (const auto& raw_line : QString::fromStdString(found->second).split(QLatin1Char('\n'))) {
+      const auto fields = raw_line.trimmed().split(QLatin1Char('\t'));
+      if (fields.size() < 3) {
+        continue;
+      }
+      return fields[2].trimmed().toLower();
+    }
+  }
+  return QStringLiteral("left");
+}
+
+bool ScriptEngineHost::set_text_layer_align(std::int64_t session_id, LayerId layer_id, const QString& align) {
+  const auto alignment = text_alignment_for_name(align);
+  return edit_text_layer_session(session_id, layer_id, [this, alignment](QTextEdit& editor) {
+    auto all = editor.textCursor();
+    all.select(QTextCursor::Document);
+    editor.setTextCursor(all);
+    window_.apply_text_alignment_to_editor(editor, alignment);
+  });
 }
 
 QString ScriptEngineHost::text_layer_text(std::int64_t session_id, LayerId layer_id) const {

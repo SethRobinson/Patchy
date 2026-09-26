@@ -67,6 +67,7 @@ class QShowEvent;
 class QSlider;
 class QSpinBox;
 class QTabWidget;
+class QTextCharFormat;
 class QTextEdit;
 class QToolBar;
 class QToolButton;
@@ -131,6 +132,9 @@ class MainWindow final : public QMainWindow {
   Q_OBJECT
 
 public:
+  // One character format's family (the render families plus the display family the commit
+  // reads), for callers typing runs in several families into one session.
+  void apply_text_family_to_format(QTextCharFormat& format, const QString& family) const;
   explicit MainWindow(QWidget* parent = nullptr);
   ~MainWindow() override;
   // True only where Patchy draws its own window frame (Windows). macOS/Linux use the

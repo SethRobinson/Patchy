@@ -18887,6 +18887,42 @@ Y: %2
         <source>addTextLayer: font not available, rendered with a fallback: %1</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>textAlign must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos; or &apos;justify&apos;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: runs must be an array of {text, font, size, bold, italic, color} objects.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: run %2 needs a text string.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: run %2 has a non-positive size.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: run %2 must be a string or an object.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: runs must not be empty.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>addTextLayer: text must be a string or an array of runs.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>box must be {width, height} of at least 16 document pixels each.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>align must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos; or &apos;justify&apos;.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::StartPanel</name>

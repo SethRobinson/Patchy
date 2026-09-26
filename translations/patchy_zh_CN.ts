@@ -18881,6 +18881,42 @@ Y: %2
         <source>addTextLayer: font not available, rendered with a fallback: %1</source>
         <translation>addTextLayer：字体不可用，已使用替代字体渲染：%1</translation>
     </message>
+    <message>
+        <source>textAlign must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos; or &apos;justify&apos;.</source>
+        <translation>textAlign 必须是 &apos;left&apos;、&apos;center&apos;、&apos;right&apos; 或 &apos;justify&apos;。</translation>
+    </message>
+    <message>
+        <source>%1: runs must be an array of {text, font, size, bold, italic, color} objects.</source>
+        <translation>%1：runs 必须是 {text, font, size, bold, italic, color} 对象组成的数组。</translation>
+    </message>
+    <message>
+        <source>%1: run %2 needs a text string.</source>
+        <translation>%1：第 %2 段需要一个 text 字符串。</translation>
+    </message>
+    <message>
+        <source>%1: run %2 has a non-positive size.</source>
+        <translation>%1：第 %2 段的 size 不是正数。</translation>
+    </message>
+    <message>
+        <source>%1: run %2 must be a string or an object.</source>
+        <translation>%1：第 %2 段必须是字符串或对象。</translation>
+    </message>
+    <message>
+        <source>%1: runs must not be empty.</source>
+        <translation>%1：runs 不能为空。</translation>
+    </message>
+    <message>
+        <source>addTextLayer: text must be a string or an array of runs.</source>
+        <translation>addTextLayer：text 必须是字符串或由文本段组成的数组。</translation>
+    </message>
+    <message>
+        <source>box must be {width, height} of at least 16 document pixels each.</source>
+        <translation>box 必须是 {width, height}，且各不少于 16 个文档像素。</translation>
+    </message>
+    <message>
+        <source>align must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos; or &apos;justify&apos;.</source>
+        <translation>align 必须是 &apos;left&apos;、&apos;center&apos;、&apos;right&apos; 或 &apos;justify&apos;。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::StartPanel</name>

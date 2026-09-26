@@ -1,5 +1,13 @@
 # Scripting API compatibility
 
+2026-09-26 (API 1): rich text. `doc.addTextLayer` accepts an array of runs (`{text, font?,
+size?, bold?, italic?, color?}`) in place of the string, so one layer mixes faces, sizes and
+colors; options gain `box` (`{width, height}`: a wrapping paragraph text box with x/y as its
+top-left corner) and `align`. Text layers expose `textRuns` (the stored runs), `textBox`
+(`{width, height}` or null), `textAlign` (read/write) and `setTextRuns(runs)`, which retypes
+the layer with formatted runs on top of the first character's formatting. Additive;
+apiVersion unchanged. See [text-tool.md](text-tool.md).
+
 2026-09-26 (API 1): `doc.addTextLayer` renders exactly the face its options name. The
 session seeded its face from the options bar's style picker, so with the bar parked on a
 Semibold or Black layer every scripted layer in a family offering that face took it,

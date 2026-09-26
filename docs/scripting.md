@@ -259,6 +259,20 @@ everywhere a bundled script is resolved.
   delete-then-insert: an emptied block's char format is the fallback font only, so the
   run would lose the exact size and glyph scales it renders from (pinned by
   `ui_la_methode_script_text_setter_matches_interactive_commit_if_available`).
+  Rich runs (`addTextLayer([{text, font, size, bold, italic, color}, ...])`,
+  `layer.setTextRuns`) type each run with its own `QTextCharFormat` on top of the base
+  format through `apply_text_run_to_format` (`apply_text_family_to_format` for the family);
+  a paragraph break serializes as its own run because Qt gives the block separator the
+  preceding text's format. `box: {width, height}` passes the rect to `add_text_at`, which
+  opens the session as paragraph text; `align` and `textAlign` go through
+  `apply_text_alignment_to_editor` on the whole object. `textRuns`, `textBox` (null unless the
+  flow metadata says box) and `textAlign` read the stored runs, box and paragraph-run
+  metadata without a session. Scripted layers clear the options bar's recorded face
+  (`kTextStyleNameFormatProperty`) and carry `kTextExactSizeFormatProperty`, so the
+  requested face and size commit at every zoom (pinned by
+  `ui_script_text_face_ignores_the_options_bar_style`,
+  `ui_script_text_size_survives_low_zoom_reedit`, `ui_script_text_runs_create_and_read_back`,
+  `ui_script_text_box_wraps_and_aligns`, `ui_script_set_text_runs_edits_existing_layer`).
 - **Blend mode ids** (`script_blend_mode_id`) are a compatibility contract: scripts in
   the wild hard-code them. Append-only, aligned with the BlendMode enum, never rename.
 - **`app.apiVersion` is 1.** Bump only for breaking changes. Record additions and

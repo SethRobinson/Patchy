@@ -11,6 +11,7 @@
 #include "core/layer_alignment.hpp"
 
 #include <QColor>
+#include <QSize>
 #include <QElapsedTimer>
 #include <QFont>
 #include <QImage>
@@ -257,8 +258,19 @@ public:
 
   // Text layers, driven through the real inline-editor pipeline (the
   // cli_append_text_to_text_layers technique) so rasters render normally.
+  // One formatted run of a text layer. The layer-level values apply unless the run overrides
+  // them; `text` may contain "\n", which starts a new paragraph inside the same layer.
+  struct TextRunParams {
+    QString text;
+    QString family;               // empty = the layer's
+    double size_px{0.0};          // <= 0 = the layer's; document pixels
+    std::optional<bool> bold;
+    std::optional<bool> italic;
+    QColor color;                 // invalid = the layer's
+  };
   struct TextLayerParams {
     QString text;
+    std::vector<TextRunParams> runs;  // when non-empty, the layer's content instead of `text`
     QString family;      // empty = current default
     // Text height in DOCUMENT pixels (<= 0 = current default). The editor
     // font must be set in editor pixels (document px * canvas zoom); a
@@ -270,9 +282,33 @@ public:
     QPoint position{0, 0};
     QString orientation;  // "horizontal" / "vertical"; empty = horizontal
     QString direction;    // "auto" / "ltr" / "rtl"; empty = auto
+    QSize box;            // valid = a paragraph text box of that size at `position` (wrapping)
+    QString align;        // "left" / "center" / "right" / "justify"; empty = the default
+  };
+  // A stored run read back in text order (see text_layer_runs).
+  struct TextRunInfo {
+    QString text;
+    QString family;
+    QString style;   // the recorded face beyond bold/italic ("Black", "Demi"), or empty
+    double size{0.0};
+    bool bold{false};
+    bool italic{false};
+    QString color;   // #rrggbb
   };
   std::optional<LayerId> add_text_layer(std::int64_t session_id, const TextLayerParams& params);
   bool set_text_layer_text(std::int64_t session_id, LayerId layer_id, const QString& text);
+  // Replaces the layer's content with the runs, each typed in its own format on top of the
+  // first character's; the same hidden session `text` uses.
+  bool set_text_layer_runs(std::int64_t session_id, LayerId layer_id, const std::vector<TextRunParams>& runs);
+  // The layer's runs as stored (sizes in document pixels before any layer transform); a layer
+  // with no run data reports one run from its layer-level values.
+  [[nodiscard]] std::vector<TextRunInfo> text_layer_runs(std::int64_t session_id, LayerId layer_id) const;
+  // The paragraph text box size, invalid for point text.
+  [[nodiscard]] QSize text_layer_box(std::int64_t session_id, LayerId layer_id) const;
+  // The first paragraph's alignment name ("left" when nothing is recorded); the setter aligns
+  // every paragraph.
+  [[nodiscard]] QString text_layer_align(std::int64_t session_id, LayerId layer_id) const;
+  bool set_text_layer_align(std::int64_t session_id, LayerId layer_id, const QString& align);
   [[nodiscard]] QString text_layer_text(std::int64_t session_id, LayerId layer_id) const;
   // Vertical type and paragraph direction, through the same hidden session as `text`.
   [[nodiscard]] QString text_layer_orientation(std::int64_t session_id, LayerId layer_id) const;

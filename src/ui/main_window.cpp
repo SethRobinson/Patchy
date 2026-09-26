@@ -12741,6 +12741,11 @@ void MainWindow::apply_text_family_to_active_editor() {
   });
 }
 
+void MainWindow::apply_text_family_to_format(QTextCharFormat& format, const QString& family) const {
+  format.setFontFamilies(render_text_families_for_display_family(family));
+  set_text_display_family(format, family);
+}
+
 void MainWindow::apply_text_family_to_editor(QTextEdit& editor, const QString& family) {
   QTextCharFormat format;
   format.setFontFamilies(render_text_families_for_display_family(family));
