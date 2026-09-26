@@ -1,5 +1,6 @@
 1060fc12b49b796d arrows.psd
 7b0b17b25ffc630d patchy-compound-group.psd
+82b3b2f76a478139 patchy-gradient-empty-transparency.psd
 d416c48ba5c4bc3d patchy-open-path-strokes.psd
 db597474773a16b5 photoshop-bevel-default.psd
 4f9d639a6c4e7af3 photoshop-bevel-gloss.psd

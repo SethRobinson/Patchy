@@ -34,12 +34,30 @@ Drive PS from PowerShell: `(New-Object -ComObject Photoshop.Application).DoJavaS
 - `doc.saveAs`/`duplicate` fail with a fake "disk error (-1)" when smart-object layers reference missing global 'lnk2' data; workaround: selectAll, `selection.copy(true)`, paste into a fresh document, flatten, save BMP. `doc.colorSamplers` probes pixels (max 4; add/read/remove in a loop) but reads stale values on unflattened documents; sample a flattened duplicate.
 - Hygiene: `app.displayDialogs = DialogModes.NO`; close only documents you opened, with `SaveOptions.DONOTSAVECHANGES`; set `rulerUnits = Units.PIXELS` before coordinate APIs; never name a JSX top-level variable `name` or `fonts` (read-only app globals, silent failure).
 - Scratch tools that link Patchy's release libs (flattening a PSD through the reader outside the suites): see [testing.md](testing.md).
+- Unknown-data prompt checks: `scripts\dev\photoshop-open-check.ps1 -Files a.psd, b.psd` opens
+  each file over COM while a watcher polls Photoshop's top-level windows for the `PSDialogBox`
+  whose text says "unknown data", and prints CLEAN or UNKNOWN-DATA per file; `-InventoryDir`
+  records what Photoshop kept after Keep Layers (a discarded fill layer comes back as an empty
+  NORMAL layer, which is how the empty-Trns gradient was found). The prompt parks the COM call;
+  `-DismissUnknownData` clicks Keep Layers, which is desktop UI automation and needs Seth's
+  explicit permission for the session. Reading window titles and control text needs none.
 - Opening checks: `DialogModes.ALL` can show the file picker even with an explicit `app.open(File(...))` argument; complete that picker for warning-enabled validation. `DialogModes.ERROR` opens without the picker and still surfaces error alerts (a COM call that returns promptly saw none). `DialogModes.NO` can still block on a corrupt-layer composite-fallback prompt; a pending COM call is not proof that Photoshop is still loading.
 - **`maximizeCompatibility = true` is silently overridden by the app-level File Handling preference** (Never on this machine), leaving a fake all-white merged composite. Fixture scripts must force `queryAlways` via the `fileSavePrefs` descriptor and restore it.
 - Headless one-script PSDs embed a STALE maximize-compat composite; re-saving does not fix it. Render fixtures pin PS's flatten through the sibling BMP (duplicate + flatten + BMP), never the embedded composite.
 - `photoshop-saved-channels.psd`: resource 1053 identifies alpha channels only ([channels.md](channels.md)).
 
 ## Write rules pinned against PS (silent corruption otherwise)
+
+- **A gradient descriptor's `Trns` list is never empty.** Photoshop's own gradients carry at
+  least two transparency stops; an empty list (a scripted gradient fill authored without
+  alphaStops) makes Photoshop 2026 show the "discard unknown data to keep layers editable"
+  prompt on open and drop the gradient layer to an empty normal layer. The vector fill writer
+  supplies two fully opaque end stops when the model has none (the layer-style writers already
+  did); pinned by `psd_vector_gradient_fill_without_alpha_stops_writes_opaque_stops`. A file
+  that already carries an empty list heals on save: the reader marks such a layer's vector
+  blocks dirty and the fill/stroke payload builders refuse the byte-exact shortcut for a
+  stop-less gradient (`psd_vector_gradient_without_transparency_stops_heals_on_save`, on the
+  committed `patchy-gradient-empty-transparency.psd`).
 
 Vector automation uses group masks for an extra mask around shape artwork: a
 shape's native vector-path slot is already its geometry. Vector-mask

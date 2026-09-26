@@ -796,9 +796,20 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
         // and the writer's coverage gate keeps it out of regenerated saves.
         drop_partial_origination_blocks = true;
       }
+      // A gradient paint without transparency stops can only come from a Patchy build that
+      // wrote an empty Trns list (before September 2026): Photoshop treats that as unknown
+      // data and drops the layer on open. Mark the blocks dirty so the next save regenerates
+      // them with the writer's opaque default stops instead of re-emitting the preserved bytes.
+      const bool heals_gradient_stops =
+          (content.fill.kind == VectorFillKind::Gradient && content.fill.gradient.alpha_stops.empty()) ||
+          (content.stroke.enabled && content.stroke.content.kind == VectorFillKind::Gradient &&
+           content.stroke.content.gradient.alpha_stops.empty());
       layer.set_vector_shape(std::move(content));
       layer.metadata()[kLayerMetadataVectorShape] = "1";
       layer.metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPhotoshop;
+      if (heals_gradient_stops) {
+        mark_layer_vector_block_dirty(layer);
+      }
     } else if (vector_mask_block.has_value()) {
       // Vector mask on an ordinary layer. When Photoshop baked a derived plane
       // (density/feather set: mask-data flags bit 3), that plane seeds the

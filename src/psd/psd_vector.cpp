@@ -630,7 +630,22 @@ DescriptorObject gradient_object(const LayerStyleGradient& gradient) {
   put_value(object, "Clrs", std::move(colors));
   DescriptorValue transparency;
   transparency.type = DescriptorValue::Type::List;
-  for (const auto& stop : gradient.alpha_stops) {
+  // Photoshop's own gradients always carry at least two transparency stops. A gradient authored
+  // without any (the scripting API's gradient fills) used to write an empty Trns list, which
+  // Photoshop 2026 treats as unknown data: the "discard unknown data to keep layers editable"
+  // prompt on open, and the gradient layer comes back empty. Fully opaque end stops say what
+  // an absent list meant.
+  auto alpha_stops = gradient.alpha_stops;
+  if (alpha_stops.empty()) {
+    GradientAlphaStop opaque;
+    opaque.opacity = 1.0F;
+    opaque.location = 0.0F;
+    opaque.midpoint = 0.5F;
+    alpha_stops.push_back(opaque);
+    opaque.location = 1.0F;
+    alpha_stops.push_back(opaque);
+  }
+  for (const auto& stop : alpha_stops) {
     DescriptorObject alpha_stop;
     alpha_stop.class_id = "TrnS";
     put_value(alpha_stop, "Opct", make_unit_value("#Prc", stop.opacity * 100.0F));
@@ -812,12 +827,16 @@ std::vector<std::uint8_t> vector_fill_block_payload(const VectorFill& fill,
                                                     const UnknownPsdBlock* original) {
   // Patch-in-place: parse the original descriptor and overwrite only the
   // modeled keys so unmodeled data and id forms survive byte-exactly.
+  // A gradient without transparency stops is a Patchy-authored defect (an empty Trns list
+  // Photoshop rejects), never an original worth keeping byte-exact: patch it so the
+  // gradient_object default stops land in the block.
+  const bool heals_gradient_stops = fill.kind == VectorFillKind::Gradient && fill.gradient.alpha_stops.empty();
   if (original != nullptr) {
     // Photoshop stores color doubles the 8-bit model quantizes (213.9995...);
     // when the model still equals the original's parse, keep its exact bytes.
     if (const auto reparsed =
             parse_vector_fill_block(original->key, original->payload, CmykColorConverter{});
-        reparsed.has_value() && *reparsed == fill) {
+        !heals_gradient_stops && reparsed.has_value() && *reparsed == fill) {
       return original->payload;
     }
     if (auto descriptor = read_block_descriptor(original->payload); descriptor.has_value()) {
@@ -837,9 +856,11 @@ std::vector<std::uint8_t> vector_fill_block_payload(const VectorFill& fill,
 std::vector<std::uint8_t> vector_stroke_block_payload(const VectorStroke& stroke,
                                                       const UnknownPsdBlock* original) {
   DescriptorObject descriptor;
+  const bool heals_gradient_stops =
+      stroke.content.kind == VectorFillKind::Gradient && stroke.content.gradient.alpha_stops.empty();
   if (original != nullptr) {
     if (const auto reparsed = parse_vector_stroke_block(original->payload, CmykColorConverter{});
-        reparsed.has_value() && *reparsed == stroke) {
+        !heals_gradient_stops && reparsed.has_value() && *reparsed == stroke) {
       return original->payload;
     }
     if (auto parsed = read_block_descriptor(original->payload);

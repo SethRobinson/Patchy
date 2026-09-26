@@ -111,6 +111,8 @@ Read these before acting in the named area:
 - Open-dialog filter strings have a Windows/Qt-specific duplicated-pattern contract. Read [docs/file-formats.md](docs/file-formats.md) before changing them.
 - The local PSBtest tent and Content fixtures must never be overwritten. See [docs/smart-objects.md](docs/smart-objects.md).
 - Offscreen text on Windows is FreeType; a real window is DirectWrite, which ignores a QFont stretch for glyph images. Text pins pass offscreen and can still be wrong on screen; see the font-engine note in [docs/testing.md](docs/testing.md).
+- Every gradient descriptor Patchy writes carries at least two transparency stops, and a file that already has none heals on save. An empty `Trns` list makes Photoshop discard the layer behind its "unknown data" prompt; `scripts\dev\photoshop-open-check.ps1` detects that prompt per file. See [docs/ps-compat.md](docs/ps-compat.md).
+- Agent tooling: the Claude Code Bash tool rewrites backslash escapes inside heredocs (a doubled backslash before `n` in a Python patch reached the target file as a real newline, September 2026). Write patch scripts and any content with backslashes through the file-writing tool and run them from disk.
 
 ## Feature index
 

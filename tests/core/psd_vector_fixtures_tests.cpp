@@ -1457,6 +1457,105 @@ void psd_pattern_fill_shape_embeds_patt_block() {
   CHECK(rgb_diff_metrics(flat_original, flat_reread).max_channel_delta == 0);
 }
 
+// A gradient fill authored without transparency stops (the scripting API's gradient paints)
+// used to write an empty Trns list. Photoshop 2026 treats that as unknown data: the "discard
+// unknown data to keep layers editable" prompt on open, and the gradient layer comes back
+// empty (the September 2026 AI-built poster, whose background glow and header bar vanished).
+// Photoshop's own gradients always carry at least two stops, so the writer supplies the two
+// fully opaque end stops an absent list meant; authored stops are written as they are.
+void psd_vector_gradient_fill_without_alpha_stops_writes_opaque_stops() {
+  patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("bg", patchy::test::solid_rgba(64, 64, 255, 255, 255, 255));
+  patchy::Layer gradient_fill(document.allocate_layer_id(), "Glow", patchy::PixelBuffer());
+  patchy::VectorShapeContent content;
+  patchy::PathSubpath rect;
+  for (const auto& [x, y] : {std::pair{8.0, 8.0}, {56.0, 8.0}, {56.0, 56.0}, {8.0, 56.0}}) {
+    patchy::PathAnchor anchor;
+    anchor.anchor_x = anchor.in_x = anchor.out_x = x;
+    anchor.anchor_y = anchor.in_y = anchor.out_y = y;
+    rect.anchors.push_back(anchor);
+  }
+  content.path.subpaths.push_back(rect);
+  content.fill.kind = patchy::VectorFillKind::Gradient;
+  content.fill.gradient.type = patchy::LayerStyleGradientType::Radial;
+  content.fill.gradient.angle_degrees = 90.0F;
+  content.fill.gradient.color_stops = {patchy::GradientColorStop{0.0F, patchy::RgbColor{27, 39, 102}, 0.5F},
+                                       patchy::GradientColorStop{1.0F, patchy::RgbColor{11, 16, 38}, 0.5F}};
+  content.fill.gradient.alpha_stops.clear();
+  gradient_fill.set_vector_shape(content);
+  gradient_fill.metadata()[patchy::kLayerMetadataVectorShape] = "1";
+  patchy::update_vector_shape_raster(gradient_fill, patchy::Rect::from_size(document.width(), document.height()),
+                                     &document.metadata().patterns);
+  document.add_layer(std::move(gradient_fill));
+
+  const auto written = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto reread = patchy::psd::DocumentIo::read(written, {});
+  CHECK(reread.layers().size() == 2);
+  if (reread.layers().size() != 2) {
+    return;
+  }
+  const auto* roundtrip = reread.layers()[1].vector_shape();
+  CHECK(roundtrip != nullptr);
+  if (roundtrip == nullptr) {
+    return;
+  }
+  CHECK(roundtrip->fill.kind == patchy::VectorFillKind::Gradient);
+  const auto& alpha_stops = roundtrip->fill.gradient.alpha_stops;
+  CHECK(alpha_stops.size() == 2);
+  if (alpha_stops.size() == 2) {
+    CHECK(std::fabs(alpha_stops[0].location - 0.0F) < 0.001F);
+    CHECK(std::fabs(alpha_stops[0].opacity - 1.0F) < 0.001F);
+    CHECK(std::fabs(alpha_stops[1].location - 1.0F) < 0.001F);
+    CHECK(std::fabs(alpha_stops[1].opacity - 1.0F) < 0.001F);
+  }
+  CHECK(roundtrip->fill.gradient.color_stops.size() == 2);
+}
+
+// A Patchy-authored gradient from before the Trns fix (the committed 48x32 fixture: one gradient
+// fill layer with an empty Trns list) heals on save. The reader marks the layer's blocks dirty,
+// the fill payload builder refuses the byte-exact shortcut for a stop-less gradient, and the
+// written block carries the two opaque stops, so Photoshop opens the re-saved file without the
+// discard prompt (verified over COM, September 2026).
+void psd_vector_gradient_without_transparency_stops_heals_on_save() {
+  const auto document =
+      patchy::psd::DocumentIo::read_file(committed_psd_fixture_path("patchy-gradient-empty-transparency.psd"));
+  CHECK(document.layers().size() == 2);
+  if (document.layers().size() != 2) {
+    return;
+  }
+  const auto& glow = document.layers()[1];
+  const auto* shape = glow.vector_shape();
+  CHECK(shape != nullptr);
+  if (shape == nullptr) {
+    return;
+  }
+  CHECK(shape->fill.kind == patchy::VectorFillKind::Gradient);
+  CHECK(shape->fill.gradient.alpha_stops.empty());
+  CHECK(patchy::layer_vector_block_dirty(glow));
+
+  const auto written = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto reread = patchy::psd::DocumentIo::read(written, {});
+  CHECK(reread.layers().size() == 2);
+  if (reread.layers().size() != 2) {
+    return;
+  }
+  const auto* healed = reread.layers()[1].vector_shape();
+  CHECK(healed != nullptr);
+  if (healed == nullptr) {
+    return;
+  }
+  CHECK(healed->fill.kind == patchy::VectorFillKind::Gradient);
+  CHECK(healed->fill.gradient.alpha_stops.size() == 2);
+  if (healed->fill.gradient.alpha_stops.size() == 2) {
+    CHECK(std::fabs(healed->fill.gradient.alpha_stops[0].opacity - 1.0F) < 0.001F);
+    CHECK(std::fabs(healed->fill.gradient.alpha_stops[1].opacity - 1.0F) < 0.001F);
+    CHECK(std::fabs(healed->fill.gradient.alpha_stops[1].location - 1.0F) < 0.001F);
+  }
+  CHECK(healed->fill.gradient.color_stops.size() == 2);
+  // Healed once, the layer is an ordinary untouched import again.
+  CHECK(!patchy::layer_vector_block_dirty(reread.layers()[1]));
+}
+
 void psd_pattern_params_probe_render_parity_if_available() {
   // PS 27.8's own render of non-default pattern placement on a full-canvas
   // pattern fill layer (angle 30 + scale 150% + phase (10,20), single-op Mk
@@ -2196,6 +2295,10 @@ std::vector<patchy::test::TestCase> psd_vector_fixtures_tests() {
        psd_vector_dirty_regeneration_reproduces_unchanged_bytes},
       {"psd_vector_move_translates_model_and_round_trips", psd_vector_move_translates_model_and_round_trips},
       {"psd_vector_mask_and_params_write_round_trip", psd_vector_mask_and_params_write_round_trip},
+      {"psd_vector_gradient_fill_without_alpha_stops_writes_opaque_stops",
+       psd_vector_gradient_fill_without_alpha_stops_writes_opaque_stops},
+      {"psd_vector_gradient_without_transparency_stops_heals_on_save",
+       psd_vector_gradient_without_transparency_stops_heals_on_save},
       {"psd_authored_group_vector_mask_and_raster_parameters_round_trip", psd_authored_group_vector_mask_and_raster_parameters_round_trip},
       {"psd_saved_paths_write_round_trips_and_edits", psd_saved_paths_write_round_trips_and_edits},
       {"psd_saved_paths_reorder_round_trips", psd_saved_paths_reorder_round_trips},
