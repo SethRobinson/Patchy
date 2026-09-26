@@ -4707,7 +4707,38 @@ TextLayoutMetrics text_layout_metrics_for_plan(const TextRenderPlan& plan, const
   const bool second_line_in_first_block = natural.size() >= 2U && natural[1].block == natural[0].block;
   const double pitch = second_line_in_first_block ? natural[1].baseline - natural[0].baseline
                                                   : natural.front().line.height();
-  const auto dominant = dominant_text_run_size(settings, rich_text_runs);
+  // The divisor is the largest run size ON THE LINES THE PITCH WAS MEASURED ON, not the layer's
+  // largest run: Photoshop applies the fraction per line to that line's own sizes, so a layer
+  // whose 49 px lines are separated by a 155 px spacer paragraph wrote 55 / 155 = 0.35 and
+  // Photoshop stacked the 49 px lines 17 px apart (the September 2026 Steam Frame poster). The
+  // layer-wide maximum stays the fallback for a line with no fragments (an empty paragraph).
+  const auto line_max_size = [](const NaturalLine& natural_line) {
+    double best = 0.0;
+    const auto line_start = natural_line.block.position() + natural_line.line.textStart();
+    const auto line_end = line_start + std::max(1, natural_line.line.textLength());
+    for (auto fragment_it = natural_line.block.begin(); !fragment_it.atEnd(); ++fragment_it) {
+      const auto fragment = fragment_it.fragment();
+      if (!fragment.isValid() || fragment.length() <= 0 || fragment.position() + fragment.length() <= line_start ||
+          fragment.position() >= line_end) {
+        continue;
+      }
+      const auto format = fragment.charFormat();
+      double vertical_scale = 1.0;
+      if (format.hasProperty(kTextVerticalScaleFormatProperty)) {
+        const auto value = format.property(kTextVerticalScaleFormatProperty).toDouble();
+        if (std::isfinite(value) && value > 0.01 && value < 100.0) {
+          vertical_scale = value;
+        }
+      }
+      best = std::max(best, photoshop_char_exact_size(format) * vertical_scale);
+    }
+    return best;
+  };
+  double dominant = std::max(line_max_size(natural.front()),
+                             second_line_in_first_block ? line_max_size(natural[1]) : 0.0);
+  if (!(std::isfinite(dominant) && dominant > 0.0)) {
+    dominant = dominant_text_run_size(settings, rich_text_runs);
+  }
   if (std::isfinite(pitch) && pitch > 0.0 && std::isfinite(dominant) && dominant > 0.0) {
     const auto fraction = pitch / dominant;
     if (fraction > 0.01 && fraction < 10.0) {

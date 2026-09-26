@@ -1213,6 +1213,51 @@ void ui_script_set_text_runs_edits_existing_layer() {
   CHECK(backlog_contains(window, QStringLiteral("empty-throws=true")));
 }
 
+// The auto-leading fraction the PSD writer hands Photoshop is the measured line pitch over the
+// largest run size ON THOSE LINES. It used to divide by the layer's largest run, so a layer whose
+// 49 px lines were separated by a 155 px spacer paragraph wrote 0.35 and Photoshop stacked the
+// 49 px lines 17 px apart (the September 2026 Steam Frame poster). The spacer layer must record
+// the same fraction as the identical layer without the spacer.
+void ui_script_text_auto_leading_ignores_spacer_paragraphs() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var doc = app.activeDocument;
+    var plain = doc.addTextLayer('Play VR games, or regular\ngames on a virtual screen.\n\nStream from a PC: supported\ngames also run on the headset.',
+                                 {font: 'Arial', size: 49, x: 10, y: 10, box: {width: 970, height: 600}});
+    plain.name = 'Plain block';
+    var spaced = doc.addTextLayer([{text: 'Play VR games, or regular\ngames on a virtual screen.\n'},
+                                   {text: '\n', size: 155},
+                                   {text: 'Stream from a PC: supported\ngames also run on the headset.'}],
+                                  {font: 'Arial', size: 49, x: 10, y: 10, box: {width: 970, height: 600}});
+    spaced.name = 'Spaced block';
+    console.log('runs=' + spaced.textRuns.length);
+  )JS")));
+  CHECK(backlog_contains(window, QStringLiteral("runs=")));
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto fraction_of = [&document](const char* name) -> std::optional<double> {
+    for (const auto& layer : document.layers()) {
+      if (layer.name() != name) {
+        continue;
+      }
+      const auto found = layer.metadata().find(patchy::kLayerMetadataTextAutoLeading);
+      if (found == layer.metadata().end()) {
+        return std::nullopt;
+      }
+      return std::stod(found->second);
+    }
+    return std::nullopt;
+  };
+  const std::optional<double> without_spacer = fraction_of("Plain block");
+  const std::optional<double> with_spacer = fraction_of("Spaced block");
+  CHECK(without_spacer.has_value() && with_spacer.has_value());
+  if (!without_spacer.has_value() || !with_spacer.has_value()) {
+    return;
+  }
+  CHECK(*without_spacer > 0.9 && *without_spacer < 1.6);
+  CHECK(std::abs(*with_spacer - *without_spacer) < 0.0005);
+}
+
 // app.listFonts() reports what addTextLayer can resolve: a family registered in this process
 // shows up with its face names and writing systems, and Qt's private families stay out.
 void ui_script_list_fonts_reports_registered_families() {
@@ -3454,6 +3499,7 @@ std::vector<patchy::test::TestCase> scripting_tests() {
       {"ui_script_text_runs_create_and_read_back", ui_script_text_runs_create_and_read_back},
       {"ui_script_text_box_wraps_and_aligns", ui_script_text_box_wraps_and_aligns},
       {"ui_script_set_text_runs_edits_existing_layer", ui_script_set_text_runs_edits_existing_layer},
+      {"ui_script_text_auto_leading_ignores_spacer_paragraphs", ui_script_text_auto_leading_ignores_spacer_paragraphs},
       {"ui_script_list_fonts_reports_registered_families", ui_script_list_fonts_reports_registered_families},
       {"ui_script_text_layer_with_uncovered_script_does_not_crash",
        ui_script_text_layer_with_uncovered_script_does_not_crash},

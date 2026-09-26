@@ -201,6 +201,17 @@ to `mergeCurrentCharFormat`, which only formats the NEXT typed character.
   `ui_text_options_bar_follows_active_text_layer`,
   `ui_text_character_panel_edits_all_selected_layers_without_session`.
 
+## Auto leading handed to Photoshop
+
+The PSD writer sends Photoshop one paragraph `/AutoLeading` fraction per layer
+(`kLayerMetadataTextAutoLeading`, recorded by `text_layout_metrics_for_plan` at render time):
+Qt's baseline pitch between the first paragraph's first two lines (else the first line's height)
+over the largest run size on those same lines. Dividing by the layer's largest run instead wrote
+0.35 for a layer whose 49 px lines sat around a 155 px spacer paragraph, and Photoshop stacked
+the 49 px lines 17 px apart. Test: `ui_script_text_auto_leading_ignores_spacer_paragraphs`.
+Photoshop paragraph list styles (bullets, numbering) are not modeled; scripted posters type a
+bullet character into the line instead.
+
 ## Font resolution
 
 Lives in [font-resolution.md](font-resolution.md): how a display family name becomes a Qt font (family, family + face, the Windows registry rescue, the DirectWrite name lookup for full and PostScript names), why only Regular and Bold flatten onto flags, the GDI-name rule the PSD reader follows, and the exact-size rule that keeps re-edits from drifting. Read it before touching `render_text_font_for_display_family`, `available_text_family_style_match`, or `psd_text_read.cpp`'s DirectWrite resolver.
