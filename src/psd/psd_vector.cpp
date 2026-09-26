@@ -42,7 +42,7 @@ std::uint32_t read_u32_at(std::span<const std::uint8_t> bytes, std::size_t offse
 
 // Walks the 26-byte path records: selector 6 (fill rule) and 8 (initial fill)
 // header records, then per subpath a length record (selector 0 closed /
-// 3 open: knot count, combine op, constant 1, subpath/shape-group index)
+// 3 open: knot count, combine op, fill-rule field, subpath/shape-group index)
 // followed by its knot records (1/2 closed linked/corner, 4/5 open). Knot
 // records hold (in, anchor, out) pairs, each (y, x) as i32 8.24 fixed-point
 // fractions of the canvas extent. Selector 7 (clipboard) is skipped; any
@@ -70,13 +70,24 @@ std::optional<VectorPath> parse_records(std::span<const std::uint8_t> payload, s
         }
         const auto knot_count = read_u16_at(record, 2);
         auto operation = read_u16_at(record, 4);
+        const auto shape_group = static_cast<std::int32_t>(read_u32_at(record, 12));
         if (operation == 0xFFFFU) {
-          // CS4-era length records leave the combine op unset (0xFFFF, with the
-          // modern constant-1 field 0): legacy shapes fill by subpath parity.
-          // Xor over the accumulated coverage reproduces that in the sequential
-          // renderer, matching Photoshop's own composite of such files (the
-          // Flat-filter-list.psd icons render nested cutouts as holes).
-          operation = 0U;
+          if (current != nullptr && current->shape_group == shape_group) {
+            // Continuation contour of a compound group (Photoshop's own
+            // encoding for Convert to Shape outlines and custom shapes, and
+            // Patchy's since September 2026): op 0xFFFF, +6 field 0, the
+            // group's index. The group's lead record carries the op; the
+            // renderer fills the group's contours together (even-odd).
+            operation = static_cast<std::uint16_t>(current->op);
+          } else {
+            // CS4-era length records leave the combine op unset (0xFFFF, with
+            // the modern constant-1 field 0) on contours with distinct group
+            // indices: legacy shapes fill by subpath parity. Xor over the
+            // accumulated coverage reproduces that in the sequential renderer,
+            // matching Photoshop's own composite of such files (the
+            // Flat-filter-list.psd icons render nested cutouts as holes).
+            operation = 0U;
+          }
         }
         if (operation > 3U) {
           return std::nullopt;
@@ -84,7 +95,7 @@ std::optional<VectorPath> parse_records(std::span<const std::uint8_t> payload, s
         PathSubpath subpath;
         subpath.closed = selector == 0;
         subpath.op = static_cast<PathCombineOp>(operation);
-        subpath.shape_group = static_cast<std::int32_t>(read_u32_at(record, 12));
+        subpath.shape_group = shape_group;
         subpath.anchors.reserve(knot_count);
         path.subpaths.push_back(std::move(subpath));
         current = &path.subpaths.back();
@@ -462,13 +473,23 @@ void append_path_records(std::vector<std::uint8_t>& out, const VectorPath& path,
   auto initial_fill = append_record();
   write_u16_at(out, initial_fill, 8);
   write_u16_at(out, initial_fill + 2, path.initial_fill_value);
+  const PathSubpath* previous = nullptr;
   for (const auto& subpath : path.subpaths) {
+    // A subpath sharing the previous record's group is a continuation contour
+    // of one compound shape: op 0xFFFF and +6 field 0, so Photoshop fills it
+    // with the group's lead contour under one fill rule instead of uniting it
+    // as a separate shape (which fills a donut solid). The lead keeps its op
+    // and +6 field 1 (even-odd group; 2 would select nonzero winding), the
+    // rule Patchy's renderer applies within a group. Single-subpath groups are
+    // unchanged (docs/vector-tools.md, docs/ps-compat.md).
+    const bool continuation = previous != nullptr && previous->shape_group == subpath.shape_group;
     const auto length_record = append_record();
     write_u16_at(out, length_record, subpath.closed ? 0 : 3);
     write_u16_at(out, length_record + 2, static_cast<std::uint16_t>(subpath.anchors.size()));
-    write_u16_at(out, length_record + 4, static_cast<std::uint16_t>(subpath.op));
-    write_u16_at(out, length_record + 6, 1);
+    write_u16_at(out, length_record + 4, continuation ? 0xFFFFU : static_cast<std::uint16_t>(subpath.op));
+    write_u16_at(out, length_record + 6, continuation ? 0U : 1U);
     write_i32_at(out, length_record + 12, subpath.shape_group);
+    previous = &subpath;
     for (const auto& anchor : subpath.anchors) {
       const auto knot = append_record();
       const std::uint16_t selector =
