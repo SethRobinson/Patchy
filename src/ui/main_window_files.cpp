@@ -4134,6 +4134,7 @@ void MainWindow::rebuild_recent_files_menu() {
       const auto page_end = std::min(page_start + kRecentFilesMenuPageSize, recent_count);
       auto* page_menu = recent_files_menu_->addMenu(tr("Recent Files %1-%2").arg(page_start + 1).arg(page_end));
       page_menu->setObjectName(QStringLiteral("fileOpenRecentRangeMenu%1").arg(page_start + 1));
+      page_menu->menuAction()->setMenuRole(QAction::NoRole);  // submenus never merge on macOS (docs/platform.md)
       configure_recent_files_context_menu(page_menu);
       for (int index = page_start; index < page_end; ++index) {
         add_recent_action(page_menu, recent_files_[index], index + 1);
@@ -4317,6 +4318,7 @@ void MainWindow::rebuild_recent_folders_menu() {
       const auto page_end = std::min(page_start + kRecentFilesMenuPageSize, recent_count);
       auto* page_menu = recent_folders_menu_->addMenu(tr("Recent Folders %1-%2").arg(page_start + 1).arg(page_end));
       page_menu->setObjectName(QStringLiteral("fileOpenRecentFolderRangeMenu%1").arg(page_start + 1));
+      page_menu->menuAction()->setMenuRole(QAction::NoRole);  // submenus never merge on macOS (docs/platform.md)
       configure_recent_files_context_menu(page_menu);
       page_menu->setProperty(kRecentFoldersMenuProperty, true);
       for (int index = page_start; index < page_end; ++index) {

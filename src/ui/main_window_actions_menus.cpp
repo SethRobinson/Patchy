@@ -261,6 +261,24 @@ void bind_translated_status_tip(QObject* object, const char* source,
   object->setProperty(kTranslationStatusTipProperty, QString::fromLatin1(source));
 }
 
+// Qt's Cocoa plugin merges a menubar item into the application menu when its title starts
+// with the translated "About", "Config", "Preference", "Options", "Setting", "Setup", "Quit"
+// or "Exit" (the QCocoaMenuItem::sync text heuristic), re-checking on every sync. A submenu
+// that flips to merged after a runtime language switch ("Ajustes", "Réglages") leaves its
+// QCocoaMenu pointing at a freed NSMenuItem, and the next key-window change crashes in
+// setSubmenu: (GitHub issue 29, Qt 6.8.3). Submenus never belong in the app menu, so every
+// submenu action opts out; plain actions keep the heuristic. See docs/platform.md.
+void exclude_submenus_from_native_menu_roles(QMenu& menu) {
+  for (auto* action : menu.actions()) {
+    auto* submenu = action->menu();
+    if (submenu == nullptr) {
+      continue;
+    }
+    action->setMenuRole(QAction::NoRole);
+    exclude_submenus_from_native_menu_roles(*submenu);
+  }
+}
+
 }  // namespace
 
 void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
@@ -1957,6 +1975,12 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   ctx.scripting_guide_action = scripting_guide_action;
   ctx.about_action = about_action;
   ctx.ai_setup_action = ai_setup_action;
+
+  for (auto* action : menuBar()->actions()) {
+    if (auto* menu = action->menu()) {
+      exclude_submenus_from_native_menu_roles(*menu);
+    }
+  }
 }
 
 }  // namespace patchy::ui

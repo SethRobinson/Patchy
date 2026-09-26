@@ -2302,6 +2302,69 @@ void ui_language_switch_updates_existing_window() {
   CHECK(tabs->count() == initial_tab_count);
 }
 
+void ui_language_switch_survives_window_reactivation() {
+  // GitHub issue 29. On macOS Qt merges a menubar item whose title starts with its translated
+  // "Setting", "Setup", "Options", "About", "Quit"... into the application menu. A runtime switch
+  // to Spanish or French renamed Image > Adjustments to "Ajustes"/"Réglages" (Chinese renames
+  // Window > Set Screen Size), Qt swapped that submenu's native item for the merged one and freed
+  // the old one while the submenu still pointed at it, and the next key-window change crashed in
+  // setSubmenu:. Offscreen has no native menubar: reproduce on a mac with
+  // PATCHY_UI_TEST_PLATFORM=cocoa NSZombieEnabled=YES (zombies turn the message to the freed item
+  // into an abort; in a short run the freed memory is often still intact and nothing shows).
+  // ui_menubar_submenus_have_no_native_menu_role is the platform-independent guard.
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.raise();
+  window.activateWindow();
+  process_events_for(150);
+  for (const char* code : {"es", "fr", "zh_CN", "en"}) {
+    choose_preferences_language(window, QString::fromLatin1(code));
+    CHECK(patchy::ui::LocalizationManager::instance().current_language() == QString::fromLatin1(code));
+    // Another window takes key, then the main window regains it: the menubar re-sync that crashed.
+    QDialog other(&window);
+    other.setObjectName(QStringLiteral("languageSwitchOtherWindow"));
+    other.resize(200, 100);
+    other.show();
+    other.raise();
+    other.activateWindow();
+    process_events_for(150);
+    other.close();
+    window.raise();
+    window.activateWindow();
+    process_events_for(150);
+  }
+  CHECK(patchy::ui::LocalizationManager::instance().current_language() == QStringLiteral("en"));
+  CHECK(top_level_menu_texts(*window.menuBar()).contains(QStringLiteral("Image")));
+}
+
+void ui_menubar_submenus_have_no_native_menu_role() {
+  // Every submenu under the menubar opts out of Qt's macOS menu-role text heuristic; see
+  // ui_language_switch_survives_window_reactivation for the crash a merged submenu causes.
+  patchy::ui::MainWindow window;
+  show_window(window);
+  int submenus = 0;
+  std::function<void(QMenu&)> walk = [&](QMenu& menu) {
+    for (auto* action : menu.actions()) {
+      auto* submenu = action->menu();
+      if (submenu == nullptr) {
+        continue;
+      }
+      ++submenus;
+      if (action->menuRole() != QAction::NoRole) {
+        fprintf(stderr, "submenu keeps a native menu role: %s\n", qPrintable(action->text()));
+      }
+      CHECK(action->menuRole() == QAction::NoRole);
+      walk(*submenu);
+    }
+  };
+  for (auto* action : window.menuBar()->actions()) {
+    if (auto* menu = action->menu()) {
+      walk(*menu);
+    }
+  }
+  CHECK(submenus >= 20);
+}
+
 void ui_language_preference_applies_at_startup() {
   {
     auto settings = patchy::ui::app_settings();
@@ -4097,6 +4160,8 @@ std::vector<patchy::test::TestCase> app_shell_tests() {
       {"ui_transform_snap_preference_persists_and_reaches_canvas",
        ui_transform_snap_preference_persists_and_reaches_canvas},
       {"ui_language_switch_updates_existing_window", ui_language_switch_updates_existing_window},
+      {"ui_language_switch_survives_window_reactivation", ui_language_switch_survives_window_reactivation},
+      {"ui_menubar_submenus_have_no_native_menu_role", ui_menubar_submenus_have_no_native_menu_role},
       {"ui_language_preference_applies_at_startup", ui_language_preference_applies_at_startup},
       {"ui_language_missing_preference_uses_system_language", ui_language_missing_preference_uses_system_language},
       {"ui_language_saved_preference_overrides_system_language",

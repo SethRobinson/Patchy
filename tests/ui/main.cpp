@@ -163,7 +163,11 @@ int main(int argc, char* argv[]) {
     abort();
   });
 #endif
-  qputenv("QT_QPA_PLATFORM", QByteArray("offscreen"));
+  // PATCHY_UI_TEST_PLATFORM=<qpa plugin> runs the suite on a real platform (cocoa, windows,
+  // xcb) instead of offscreen: the way to reach native menubar and window-activation code
+  // (GitHub issue 29). Screens and fonts then differ, so run a filter, not the whole suite.
+  const QByteArray native_platform = qgetenv("PATCHY_UI_TEST_PLATFORM");
+  qputenv("QT_QPA_PLATFORM", native_platform.isEmpty() ? QByteArray("offscreen") : native_platform);
   QApplication app(argc, argv);
   // Child mode for ui_bundled_web_fonts_register_and_create_engines: register and
   // validate the bundled web-font inventory without polluting the parent suite's

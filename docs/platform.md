@@ -92,7 +92,7 @@ macOS (arm64, preset `mac-release`, Qt at `.deps/Qt/6.8.3/macos`) and Linux (pre
 
 ### Windows offload build (on request only)
 
-`remote-build.ps1 -Target windows` builds the real MSVC `release` preset on a second Windows machine. Use it only when Seth explicitly asks to offload a Windows build, typically when several sessions are building on the dev box at once. It does not replace the handoff: the local `build\release` stays the release gate and the only packaging source.
+`remote-build.ps1 -Target windows` builds the real MSVC `release` preset on a second Windows machine. Use it only when Seth explicitly asks to offload a Windows build. The local `build\release` stays the release gate and the only packaging source.
 
 - **Layout.** The bare repo is `~\patchy.git` (same push URL shape as mac/linux) and the work tree is the host config's `workTree`. Qt is the dev box's `.deps\Qt\6.8.3\msvc2022_64`, copied to the same relative path, so the unmodified `release` preset resolves it.
 - **Toolchain.** VS 2026 Build Tools (MSVC x64, Windows SDK 10.0.26100, VS-bundled CMake and Ninja), Git for Windows, and Python 3.13 (the release configure requires a Python 3.8+ interpreter; the WindowsApps `python.exe` is only a Store alias). `scripts\vs-env.bat` finds Build Tools through vswhere when the dev box's Community path is absent. The bootstrapper is `https://aka.ms/vs/18/stable/vs_buildtools.exe`; `aka.ms/vs/18/release/...` redirects to Bing.
@@ -104,7 +104,7 @@ macOS (arm64, preset `mac-release`, Qt at `.deps/Qt/6.8.3/macos`) and Linux (pre
 
 ## AddressSanitizer runs (order-dependent heap bugs)
 
-The `linux-asan` preset (RelWithDebInfo + `-fsanitize=address`, own `build/linux-asan` dir) is the tool for crashes that only reproduce in the full ordered suite: it found the July 2026 ~MainWindow teardown and SmartObjectStore reallocation use-after-frees behind the pen-test segfault. Sync the tree with `remote-build.ps1 -Target linux -SkipTests`, then build and run the instrumented suites on the box:
+The `linux-asan` preset (RelWithDebInfo + `-fsanitize=address`, own `build/linux-asan` dir) is the tool for crashes that only reproduce in the full ordered suite (it found the July 2026 ~MainWindow teardown and SmartObjectStore use-after-frees). Sync the tree with `remote-build.ps1 -Target linux -SkipTests`, then build and run the instrumented suites on the box:
 
     ssh <linux-build-host> "ASAN_OPTIONS='quarantine_size_mb=8192:malloc_context_size=25:detect_leaks=0' \
       bash ~/patchy/src/scripts/remote/build-and-test.sh linux-asan"
@@ -157,11 +157,15 @@ Text tests additionally gate on the fixture's own face. All three guards live in
 
 `local-test-fixtures/` is copied to the mac and linux build hosts, so both remotes run the fixture-gated text tests and every suite is expected to pass there; a `[SKIP]` line reports each thing a machine cannot cover, including one line per `local-test-fixtures` PSD a test names that is not present. The core result includes `composite_corpus_flatten_digests_are_stable` against the tracked baselines in `test-fixtures/psd`: the CPU compositor is byte-identical across Windows, macOS arm64/clang, Linux x86-64/GCC, and wasm. Do not re-pin those baselines per machine.
 
-What the corpus exposed was Windows-font assumptions in the tests, not product defects. Most are now the face gates listed above; three tests needed something else:
+Most corpus differences are the face gates listed above; three tests needed something else:
 
 - `ui_warp_text_render_matches_photoshop_if_available` (macOS only - Linux has no Arial) compares Patchy's warp against Photoshop PNGs of Windows Arial. CoreText costs ~0.06 of IoU and ~2px of ink extent on the point-text cases without moving the warp geometry, so off Windows the IoU floors scale by 0.90 and the bounds tolerance gains 2px. Every case reports its numbers before the test fails, so one run shows the whole picture.
 - `ui_duke_psd_text_runs_survive_reedit` reflows `Duke nukem mobile.psd`'s body between the first and second apply. Its face (FuturaLT-ExtraBold) is installed nowhere, so what reflows is each platform's substitute: 30px on Windows, 102 on macOS, 127 on Linux. Windows keeps the measured 64/32px bound; elsewhere it is a tenth of the block. The fixed point that follows (identical metadata, byte-identical third apply) is platform-independent and unchanged.
 - `ui_font_picker_applies_a_pick_the_control_already_shows` sets the picker to a family the database lacks. Doing that makes CoreText (and fontconfig on its first miss) fill in font-family aliases lazily, and that repopulation re-emits the combo's current row, whose handler writes the displayed family back over the missing one - so the control never held the state under test. Aliases fill in once, so the test sets it a second time. `ui_text_font_picker_preview_shows_supported_scripts` has the same shape of fix: it takes the first Japanese family the PICKER lists rather than the font database's first, because `QFontComboBox`'s model drops families the database still reports.
+
+## macOS menubar submenus and Qt's menu-role heuristic
+
+Qt's Cocoa plugin merges an item directly under a top-level menu into the app menu when its title starts with the translated "About", "Config", "Preference", "Options", "Setting", "Setup", "Quit" or "Exit", re-checking on every sync, so a runtime language switch flips items ("Ajustes", "Réglages"). A merged SUBMENU crashes Qt 6.8.3 on the next window activation (`setSubmenu:` on its freed old `NSMenuItem`; GitHub issue 29). Every menubar submenu action gets `QAction::NoRole` (`exclude_submenus_from_native_menu_roles` and the dynamic submenu builders; `ui_menubar_submenus_have_no_native_menu_role` guards it, `ui_language_switch_survives_window_reactivation` under `PATCHY_UI_TEST_PLATFORM=cocoa NSZombieEnabled=YES` reproduces the crash). New dynamic submenus need it too.
 
 ## macOS synthesized font stretch (Photoshop HorizontalScale)
 
