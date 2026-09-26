@@ -970,24 +970,19 @@ std::optional<ResolvedPhotoshopFont> directwrite_resolved_photoshop_font(std::st
           }
           return value;
         }();
-        // Black/Heavy faces (weight >= 800) keep their full face name: the renderer's
-        // family+style matcher then finds the real face ("Arial Black" -> family "Arial",
-        // style "Black") instead of flattening it to the Bold face (~15% narrower glyphs on
-        // the SNES box blurb). The bold flag stays set so an uninstalled face still falls
-        // back to Bold exactly as before.
-        if (weight >= DWRITE_FONT_WEIGHT_EXTRA_BOLD) {
-          if (const auto full_name =
-                  directwrite_font_info_string(font.Get(), DWRITE_INFORMATIONAL_STRING_FULL_NAME);
-              full_name.has_value() && !full_name->empty() && *full_name != family) {
-            return ResolvedPhotoshopFont{*full_name, declared_style, true, italic};
-          }
-        }
         // Only Regular (400) and Bold (700) survive being flattened into a family plus a bold
         // flag. Every weight between them loses its face that way: Demi/Semi (600) flattened
         // onto the family's BOLD face, which renders visibly heavier and taller than Photoshop
         // (ITC Lubalin Graph Demi measured 995x868 against Photoshop's own 982x826 on the
         // entry_poster.psd body copy). Keep the real face, and do NOT also set the bold flag:
         // the name already carries the weight, and Qt would synthesise bold on top of it.
+        // Black/Heavy faces (weight >= 800) keep the face name the same way ("Arial Black" ->
+        // family "Arial", style "Black", ~15% wider than the Bold face it used to flatten to)
+        // and additionally keep the bold flag, so an uninstalled face still falls back to Bold.
+        // They used to return DirectWrite's FULL_NAME string early instead, which skipped the
+        // GDI-name normalization below: Futura Extra Black BT (a legacy face DirectWrite names
+        // by its full name) came back as the family "Futura Extra Black BT", a name no font
+        // database lists, so an unchanged edit of such a layer re-rendered in a substitute.
         //
         // Use "family + face" rather than the FULL_NAME string: that is the name Qt gives such a
         // face when it splits it into its own family ("ITC Lubalin Graph Demi"), whereas
@@ -999,9 +994,10 @@ std::optional<ResolvedPhotoshopFont> directwrite_resolved_photoshop_font(std::st
         // Style ships its whole family at weight 500, so "BookmanOldStyle-Italic" used to come
         // back as family "Bookman Old Style Italic" - a name the font database cannot list
         // faces for, which emptied the style picker and diverted Bold/Italic to faux.
+        const bool heavy = weight >= DWRITE_FONT_WEIGHT_EXTRA_BOLD;
         auto resolved = weight != DWRITE_FONT_WEIGHT_NORMAL && weight != DWRITE_FONT_WEIGHT_BOLD &&
                                 !declared_style.empty()
-                            ? ResolvedPhotoshopFont{family + ' ' + declared_style, declared_style, false, italic}
+                            ? ResolvedPhotoshopFont{family + ' ' + declared_style, declared_style, heavy, italic}
                             : ResolvedPhotoshopFont{family, declared_style,
                                                     weight >= DWRITE_FONT_WEIGHT_SEMI_BOLD, italic};
         // Qt's Windows font database lists the GDI (name-table family/subfamily) names, which are
@@ -1024,7 +1020,11 @@ std::optional<ResolvedPhotoshopFont> directwrite_resolved_photoshop_font(std::st
           const auto face_key = ascii_lower_copy(win32_face);
           resolved.family = *win32_family;
           resolved.style = face_name_is_flag_expressible(win32_face) ? std::string() : win32_face;
-          resolved.bold = face_key.find("bold") != std::string::npos;
+          // Black and Heavy count as bold, as the renderer's own style-flag reading does
+          // (text_style_flags_for_name), so the uninstalled fallback of such a face stays Bold.
+          resolved.bold = face_key.find("bold") != std::string::npos ||
+                          face_key.find("black") != std::string::npos ||
+                          face_key.find("heavy") != std::string::npos;
           resolved.italic = italic || face_key.find("italic") != std::string::npos ||
                             face_key.find("oblique") != std::string::npos;
         }
@@ -1126,6 +1126,15 @@ std::atomic<PhotoshopFontResolver> installed_photoshop_font_resolver{nullptr};
 
 void set_photoshop_font_resolver(PhotoshopFontResolver resolver) {
   installed_photoshop_font_resolver.store(resolver, std::memory_order_relaxed);
+}
+
+std::optional<ResolvedPhotoshopFont> installed_font_for_name(std::string_view name) {
+#ifdef _WIN32
+  return directwrite_resolved_photoshop_font(name);
+#else
+  (void)name;
+  return std::nullopt;
+#endif
 }
 
 namespace {

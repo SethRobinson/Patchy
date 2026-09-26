@@ -229,6 +229,29 @@ to `mergeCurrentCharFormat`, which only formats the NEXT typed character.
   family against them is guesswork. `append_missing_text_family` asks the same rescue before
   calling a family missing. Attempted families are cached per run; application fonts are never
   removed (removeApplicationFont can crash live font users).
+- **A name the database lists neither as a family nor as family + face is asked of the
+  platform** (`platform_installed_family_style_match`, the second half of
+  `available_text_family_style_match`): a full name ("Futura Extra Black BT", the registry's
+  display name and what older documents stored for that face), a PostScript name
+  ("FuturaBT-ExtraBlack"), or DirectWrite's own family for a legacy face. On Windows the PSD
+  reader's DirectWrite lookup (`psd::installed_font_for_name`) answers in the GDI family and
+  subfamily the database lists ("Futura XBlk BT" + "Extra Black"), which is mapped back onto
+  the database; a face the database lacks falls to the flag face the name implies. Cached per
+  name and cleared on fontDatabaseChanged (the headless rescue and user font drops grow the
+  database after a miss). Nothing answers off Windows, so the offscreen suites stay hermetic.
+  The writer runs the same full-name/PostScript-name lookup before its prefix split, so such a
+  family exports as its real face instead of verbatim. Tests:
+  `ui_script_text_full_face_name_resolves_like_its_family`,
+  `psd_text_heavy_legacy_face_keeps_the_gdi_family_if_available` (both skip unless Futura
+  Extra Black BT is installed and copied to `local-test-fixtures/fonts/FUTURAXK.TTF`).
+- **Every run carries its exact size through an inline session** (`kTextExactSizeFormatProperty`,
+  in editor units, set by the runs applier, the new-session typing format, the options-bar
+  size change and the script path). The editor's font is whole editor pixels (document px x
+  zoom), and a commit that recovered the size as round(px / zoom) turned an untouched 60 px
+  layer into 58 px at a 15% zoom, so headings changed size when merely clicked into. The
+  commit re-derives the pixel size from the exact value; a whole-pixel exact size does not opt
+  the runs into the Photoshop-layout columns, so plain layers serialize as before. Test:
+  `ui_script_text_size_survives_low_zoom_reedit`.
 - On wasm, `available_text_family_match` also resolves common system families through the bundled
   metric-compatible alias table, and every text render appends a Noto Sans JP fallback family. See
   [fonts.md](fonts.md).
@@ -261,7 +284,11 @@ to `mergeCurrentCharFormat`, which only formats the NEXT typed character.
   - The bold flag is NOT set alongside it: the name already carries the weight, and Qt would
     synthesise bold on top of the face, the same "heavier and wider" bug by another route.
     Black/Heavy (>= 800) is the deliberate exception, keeping the flag as an uninstalled-face
-    fallback; its calibration is pinned by the SNES box-blurb probe.
+    fallback; its calibration is pinned by the SNES box-blurb probe. Heavy faces take the same
+    `family + face` path and the same WIN32 normalization as every other face (the WIN32
+    subfamily's Black/Heavy words set the flag); they used to return DirectWrite's FULL_NAME
+    early, which for a legacy face DirectWrite names by its full name (Futura Extra Black BT)
+    stored a family no database lists, so an unchanged edit re-rendered in a substitute.
 
 ## Character panel
 

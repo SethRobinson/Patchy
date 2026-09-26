@@ -488,8 +488,16 @@ interface PatchyDocument {
    * orientation "vertical" stacks upright glyphs in columns that advance right
    * to left (Photoshop's Vertical Type); direction sets the paragraph base
    * direction ("auto" follows the first strong character). font is a family
-   * name ("Georgia") or family plus face ("Arial Black"); a font that is not
-   * installed renders in a fallback and logs a console warning.
+   * name ("Georgia"), family plus face ("Arial Black"), or on Windows a face's
+   * full or PostScript name ("Futura Extra Black BT"); a font that is not
+   * installed renders in a fallback and logs a console warning. The face is
+   * exactly what font/bold/italic name, never the options bar's current one.
+   * text may contain "
+": every line lands in the SAME layer, as point text
+   * with one line per paragraph, so a heading and its subline need no second
+   * layer. One layer has one font, size, color and face; a passage that mixes
+   * faces or colors is several layers, and there is no wrapping text box
+   * option yet (the interactive Type tool has both).
    */
   addTextLayer(text: string, options?: {
     font?: string; size?: number; x?: number; y?: number;

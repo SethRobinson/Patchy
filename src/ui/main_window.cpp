@@ -497,11 +497,7 @@ struct AvailableTextFamilyStyle {
 // (the Windows database exposes the legacy family directly, so this is a fallback).  Find the
 // longest available family that prefixes the requested name and whose remaining words name one
 // of that family's styles.
-std::optional<AvailableTextFamilyStyle> available_text_family_style_match(const QString& family) {
-  const auto requested = family.trimmed();
-  if (requested.isEmpty()) {
-    return std::nullopt;
-  }
+std::optional<AvailableTextFamilyStyle> font_database_family_style_split(const QString& requested) {
   std::optional<AvailableTextFamilyStyle> best;
   for (const auto& candidate : QFontDatabase::families()) {
     if (candidate.isEmpty() || requested.size() <= candidate.size() ||
@@ -527,6 +523,77 @@ std::optional<AvailableTextFamilyStyle> available_text_family_style_match(const 
     }
   }
   return best;
+}
+
+// The face the platform knows under a name the font database lists neither as a family nor as
+// family + face: a full name ("Futura Extra Black BT", which is also what an older PSD reader
+// stored for that face), a PostScript name ("FuturaBT-ExtraBlack"), or DirectWrite's own family
+// for a legacy face. The PSD reader's DirectWrite lookup answers in the GDI family + subfamily
+// the database uses ("Futura XBlk BT" + "Extra Black"); that answer is mapped back onto the
+// database, and a face it does not list falls back to the flag face the name implies. Cached
+// per name: the lookup scans the system collection, and the options bar asks on every caret
+// move. The database can grow after a miss (the headless registry rescue, a user font drop),
+// so fontDatabaseChanged clears the cache. Nothing off Windows answers, which keeps the
+// offscreen suites hermetic.
+std::optional<AvailableTextFamilyStyle> platform_installed_family_style_match(const QString& requested) {
+  static QHash<QString, std::optional<AvailableTextFamilyStyle>> cache;
+  static bool invalidation_connected = false;
+  if (!invalidation_connected && qGuiApp != nullptr) {
+    invalidation_connected = true;
+    QObject::connect(qGuiApp, &QGuiApplication::fontDatabaseChanged, qGuiApp, [] { cache.clear(); });
+  }
+  const auto cache_key = requested.toCaseFolded();
+  if (const auto it = cache.constFind(cache_key); it != cache.constEnd()) {
+    return *it;
+  }
+  std::optional<AvailableTextFamilyStyle> match;
+  if (const auto installed = psd::installed_font_for_name(requested.toUtf8().toStdString());
+      installed.has_value()) {
+    const auto family = QString::fromStdString(installed->family).trimmed();
+    auto style = QString::fromStdString(installed->style).trimmed();
+    auto resolved_family = available_text_family_match(family);
+    if (!resolved_family.has_value()) {
+      // The reader keeps "family + face" for the faces bold + italic cannot name.
+      if (const auto split = font_database_family_style_split(family); split.has_value()) {
+        resolved_family = split->family;
+        if (style.isEmpty()) {
+          style = split->style;
+        }
+      }
+    }
+    if (resolved_family.has_value()) {
+      if (style.isEmpty()) {
+        style = installed->bold ? (installed->italic ? QStringLiteral("Bold Italic") : QStringLiteral("Bold"))
+                                : (installed->italic ? QStringLiteral("Italic") : QString());
+      }
+      QString available_style;
+      for (const auto& candidate : QFontDatabase::styles(*resolved_family)) {
+        if (candidate.compare(style, Qt::CaseInsensitive) == 0) {
+          available_style = candidate;
+          break;
+        }
+      }
+      match = AvailableTextFamilyStyle{*resolved_family, available_style};
+    }
+  }
+  cache.insert(cache_key, match);
+  return match;
+}
+
+// The family + face a display name resolves to when it is not a family of its own. The
+// database's family + face split first ("Arial Black" -> "Arial"/"Black"); a name the database
+// cannot split is asked of the platform (full names, PostScript names, DirectWrite families).
+// The returned style can be empty when the platform vouches for the family but the database
+// lists no such face; callers then render the family's flag face.
+std::optional<AvailableTextFamilyStyle> available_text_family_style_match(const QString& family) {
+  const auto requested = family.trimmed();
+  if (requested.isEmpty()) {
+    return std::nullopt;
+  }
+  if (const auto split = font_database_family_style_split(requested); split.has_value()) {
+    return split;
+  }
+  return platform_installed_family_style_match(requested);
 }
 
 // Bold/italic as the style NAME describes them, so the flags every downstream reader still uses
@@ -1194,7 +1261,9 @@ QFont render_text_font_for_display_family(const QString& family, int pixel_size,
     }
     if (match.has_value()) {
       font.setFamilies(QStringList{match->family});
-      font.setStyleName(match->style);
+      if (!match->style.isEmpty()) {
+        font.setStyleName(match->style);
+      }
     }
   }
   // An explicit face name wins over everything above: a family's styles are an arbitrary list
@@ -3033,7 +3102,12 @@ QString rich_text_runs_from_document(const QTextDocument& document, const TextTo
       if (std::isfinite(exact) && exact > 0.0 &&
           static_cast<int>(std::lround(exact * run.vertical_scale)) == std::max(1, size)) {
         run.size = exact;
-        photoshop_layout = true;
+        // Only a fractional size (or a vertical glyph scale) needs the Photoshop-layout
+        // columns; every run carries an exact size now, and a whole-pixel one serializes
+        // exactly as it always did.
+        if (std::abs(exact - std::round(exact)) > 0.0001 || std::abs(run.vertical_scale - 1.0) > 0.0001) {
+          photoshop_layout = true;
+        }
       }
     }
     run.bold = format_font.weight() >= QFont::Bold;
@@ -3335,7 +3409,6 @@ void apply_patchy_text_runs_to_document(QTextDocument& document, const QString& 
     const auto start = std::clamp(fields[0].toInt(&start_ok), 0, std::max(0, plain_length));
     const auto length = std::max(0, fields[1].toInt(&length_ok));
     const auto exact_document_size = std::max(1.0, fields[2].toDouble(&size_ok));
-    const auto document_size = std::max(1, static_cast<int>(std::lround(exact_document_size)));
     if (!start_ok || !length_ok || !size_ok || length <= 0 || start >= plain_length) {
       continue;
     }
@@ -3390,13 +3463,14 @@ void apply_patchy_text_runs_to_document(QTextDocument& document, const QString& 
       format.setProperty(kTextStyleNameFormatProperty, style_name.trimmed());
     }
     format.setForeground(QBrush(color));
+    // The exact size excludes the vertical glyph scale: it is the leading/tracking basis
+    // (FontSize), while the font's pixel size above folds V in. Every run carries it, integral
+    // sizes included: the editor's font is whole editor pixels (document px x zoom), and a
+    // commit that had only that to go on recovered the document size as round(px / zoom),
+    // which at a 15% zoom turned an untouched 60 px layer into 58 px (the "text shrinks when I
+    // click into it" report). The commit re-derives the pixel size from this value instead.
     const auto scaled_exact_size = exact_document_size * std::max(0.0, scale);
-    if (std::abs(exact_document_size - document_size) > 0.0001 ||
-        std::abs(vertical_glyph_scale - 1.0) > 0.0001) {
-      // The exact size excludes the vertical glyph scale: it is the leading/tracking basis
-      // (FontSize), while the font's pixel size above folds V in.
-      format.setProperty(kTextExactSizeFormatProperty, scaled_exact_size);
-    }
+    format.setProperty(kTextExactSizeFormatProperty, scaled_exact_size);
     if (std::abs(horizontal_glyph_scale - 1.0) > 0.0001) {
       format.setProperty(kTextHorizontalScaleFormatProperty, horizontal_glyph_scale);
     }
@@ -3637,6 +3711,12 @@ std::optional<double> text_leading_from_document_formats(const QTextDocument& do
 }
 
 int document_text_size_from_editor_format(const QTextCharFormat& format, double zoom, int fallback) noexcept {
+  if (format.hasProperty(kTextExactSizeFormatProperty)) {
+    const auto exact = format.property(kTextExactSizeFormatProperty).toDouble();
+    if (std::isfinite(exact) && exact > 0.0) {
+      return std::max(1, static_cast<int>(std::round(exact / std::max(0.001, zoom))));
+    }
+  }
   const auto font = format.font();
   int editor_pixel_size = font.pixelSize();
   if (editor_pixel_size <= 0 && font.pointSizeF() > 0.0) {
@@ -8844,6 +8924,9 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
     QTextCursor cursor(editor->document());
     cursor.select(QTextCursor::Document);
     auto format = text_editor_typing_format(editor_font, text_color);
+    // The exact document size in editor units, so the commit does not recover the size from
+    // the whole-pixel editor font divided by the zoom (see the rich-text runs applier).
+    format.setProperty(kTextExactSizeFormatProperty, document_text_size * canvas_->zoom());
     if (!text_style.isEmpty()) {
       format.setProperty(kTextStyleNameFormatProperty, text_style);
     }
@@ -12705,6 +12788,7 @@ void MainWindow::apply_text_size_to_editor(QTextEdit& editor, std::optional<doub
   const auto editor_pixel_size = std::max(8, static_cast<int>(std::round(document_text_size * canvas_->zoom())));
   QTextCharFormat format;
   format.setProperty(QTextFormat::FontPixelSize, editor_pixel_size);
+  format.setProperty(kTextExactSizeFormatProperty, document_text_size * canvas_->zoom());
   editor.setProperty("patchy.documentTextSize", document_text_size);
   merge_text_char_format(editor, format);
   auto editor_font = editor.font();

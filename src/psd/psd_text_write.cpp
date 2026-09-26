@@ -1251,6 +1251,37 @@ Microsoft::WRL::ComPtr<IDWriteFont> directwrite_font_with_win32_names(IDWriteFon
   return flags_match ? flags_match : first_match;
 }
 
+// The installed font whose full name or PostScript name is `name`. How a display family that is
+// neither a DirectWrite nor a GDI family still exports as its real face: "Futura Extra Black BT"
+// is FUTURAXK.TTF's full name (DirectWrite's family for it, GDI's being "Futura XBlk BT"), and a
+// PostScript name kept as a family exports as itself. Simulated faces are skipped: they share
+// the real face's names and would export the same PostScript name for a synthesized weight.
+Microsoft::WRL::ComPtr<IDWriteFont> directwrite_font_with_full_or_postscript_name(IDWriteFontCollection* collection,
+                                                                                  std::string_view name) {
+  const auto family_count = collection->GetFontFamilyCount();
+  for (UINT32 family_index = 0; family_index < family_count; ++family_index) {
+    Microsoft::WRL::ComPtr<IDWriteFontFamily> font_family;
+    if (FAILED(collection->GetFontFamily(family_index, &font_family)) || !font_family) {
+      continue;
+    }
+    const auto font_count = font_family->GetFontCount();
+    for (UINT32 font_index = 0; font_index < font_count; ++font_index) {
+      Microsoft::WRL::ComPtr<IDWriteFont> font;
+      if (FAILED(font_family->GetFont(font_index, &font)) || !font ||
+          font->GetSimulations() != DWRITE_FONT_SIMULATIONS_NONE) {
+        continue;
+      }
+      for (const auto id : {DWRITE_INFORMATIONAL_STRING_FULL_NAME, DWRITE_INFORMATIONAL_STRING_POSTSCRIPT_NAME}) {
+        if (const auto candidate = directwrite_font_info_string(font.Get(), id);
+            candidate.has_value() && directwrite_font_names_match(*candidate, name)) {
+          return font;
+        }
+      }
+    }
+  }
+  return {};
+}
+
 std::string photoshop_font_name_for_run(std::string_view family, std::string_view style, bool bold,
                                         bool italic) {
   const auto fallback = family.empty() ? std::string("Arial") : std::string(family);
@@ -1283,6 +1314,13 @@ std::string photoshop_font_name_for_run(std::string_view family, std::string_vie
     // the reader stored, so the same PostScript name round-trips.
     if (const auto font = directwrite_font_with_win32_names(collection.Get(), fallback, style, bold, italic);
         font) {
+      if (auto name = directwrite_postscript_name(font.Get()); !name.empty()) {
+        return name;
+      }
+    }
+    // A full name or PostScript name names one exact face, so it wins over the prefix split
+    // below, which could otherwise strand a legacy full name on an unrelated shorter family.
+    if (const auto font = directwrite_font_with_full_or_postscript_name(collection.Get(), fallback); font) {
       if (auto name = directwrite_postscript_name(font.Get()); !name.empty()) {
         return name;
       }

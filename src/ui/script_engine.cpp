@@ -23,6 +23,7 @@
 #include "ui/script_canvas_window.hpp"
 #include "ui/script_folders.hpp"
 #include "ui/sound_effects.hpp"
+#include "ui/text_layout.hpp"
 #include "ui/theme_qss.hpp"
 #include "ui/theme_palette.hpp"
 
@@ -1877,6 +1878,11 @@ std::optional<LayerId> ScriptEngineHost::add_text_layer(std::int64_t session_id,
     window_.apply_text_family_to_editor(*editor, params.family);
   }
   QTextCharFormat format = editor->currentCharFormat();
+  // A new session seeds its face from the options bar's style picker, as Photoshop seeds new
+  // type from its toolbar. A script names the face itself (font, bold, italic), so the picker's
+  // face must not ride along: with the bar parked on a Semibold layer, every scripted layer in
+  // any family offering that face rendered Semibold, whatever the script asked for.
+  format.clearProperty(kTextStyleNameFormatProperty);
   QFont font = format.font();
   if (params.size_px > 0.0) {
     // The inline editor's font lives in editor pixels (document px * zoom, see
@@ -1884,6 +1890,9 @@ std::optional<LayerId> ScriptEngineHost::add_text_layer(std::int64_t session_id,
     // commit at a size that depends on the current canvas zoom.
     const double zoom = std::max(0.01, session->canvas->zoom());
     font.setPixelSize(std::max(1, static_cast<int>(std::lround(params.size_px * zoom))));
+    // The exact size travels alongside the whole-pixel editor font, so the committed size is
+    // the requested one at every zoom rather than round(px / zoom).
+    format.setProperty(kTextExactSizeFormatProperty, params.size_px * zoom);
   }
   font.setBold(params.bold);
   font.setItalic(params.italic);

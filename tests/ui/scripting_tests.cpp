@@ -25,8 +25,11 @@
 #include "ui/app_settings.hpp"
 #include "ui/ai_setup_dialog.hpp"
 #include "ui/localization.hpp"
+#include "psd/psd_text_runs.hpp"
 #include "ui/main_window.hpp"
 #include "ui/script_editor_dialog.hpp"
+#include <QFileInfo>
+#include <QFontComboBox>
 #include "ui/script_engine.hpp"
 #include "ui/script_folders.hpp"
 #include "ui/sound_effects.hpp"
@@ -990,6 +993,122 @@ void ui_script_text_font_option_applies() {
   CHECK(backlog_contains(window, QStringLiteral("second=") + second));
   CHECK(backlog_contains(window, QStringLiteral("font not available, rendered with a fallback: Patchy No Such Family")));
   CHECK(backlog_contains(window, QStringLiteral("plain=\"\"")));
+}
+
+// A scripted layer names its own face. A new session seeds its face from the options bar's
+// style picker (Photoshop seeds new type from its toolbar the same way), and that face used to
+// ride along into the scripted layer: with the picker parked on a Black layer, a script asking
+// for plain Arial got Arial Black. The picker is put on Black by hand here, since the leak needs
+// a face the bold/italic flags cannot name; a database that does not list Black under Arial
+// (font files vary per machine) skips.
+void ui_script_text_face_ignores_the_options_bar_style() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::ArialBlack);
+  auto* family_combo = window.findChild<QFontComboBox*>(QStringLiteral("textFontCombo"));
+  auto* style_combo = window.findChild<QComboBox*>(QStringLiteral("textStyleCombo"));
+  CHECK(family_combo != nullptr);
+  CHECK(style_combo != nullptr);
+  if (family_combo == nullptr || style_combo == nullptr) {
+    return;
+  }
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var doc = app.activeDocument;
+    var plain = doc.addTextLayer('Face probe', {font: 'Arial', size: 40, x: 10, y: 40});
+    console.log('plain=' + plain.bounds.width + 'x' + plain.bounds.height);
+    // A picker change applies to the selected text layer (issue 31); park the selection on a
+    // pixel layer so the probe layer keeps its face and only the bar's state changes.
+    doc.addLayer('Spacer');
+  )JS")));
+  family_combo->setCurrentFont(QFont(QStringLiteral("Arial")));
+  int black_row = -1;
+  for (int row = 0; row < style_combo->count(); ++row) {
+    if (style_combo->itemData(row).toString().compare(QStringLiteral("Black"), Qt::CaseInsensitive) == 0) {
+      black_row = row;
+      break;
+    }
+  }
+  if (black_row < 0) {
+    std::cout << "[SKIP] the font database lists no Black face under Arial (picker face leak)\n";
+    return;
+  }
+  style_combo->setCurrentIndex(black_row);
+  QApplication::processEvents();
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var doc = app.activeDocument;
+    var plain = doc.findLayer('Face probe');
+    var again = doc.addTextLayer('Face probe', {font: 'Arial', size: 40, x: 10, y: 140});
+    var black = doc.addTextLayer('Face probe', {font: 'Arial Black', size: 40, x: 10, y: 240});
+    console.log('again-matches-plain=' + (again.bounds.width === plain.bounds.width &&
+                                          again.bounds.height === plain.bounds.height));
+    console.log('black-is-wider=' + (black.bounds.width > plain.bounds.width));
+  )JS")));
+  CHECK(backlog_contains(window, QStringLiteral("again-matches-plain=true")));
+  CHECK(backlog_contains(window, QStringLiteral("black-is-wider=true")));
+}
+
+// The committed size is the requested document size at every zoom, and an unchanged re-edit
+// keeps it. The inline editor's font is whole editor pixels (document px x zoom); a commit that
+// recovered the size as round(px / zoom) turned 60 px into 62 px at 13% and 58 px at 15.5%,
+// which is how an AI-built poster's untouched headings changed size when clicked into. Every
+// run now carries its exact size through the session.
+void ui_script_text_size_survives_low_zoom_reedit() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var doc = app.activeDocument;
+    app.zoom = 100;
+    var a = doc.addTextLayer('Zoom probe', {size: 60, x: 10, y: 40});
+    var w = a.bounds.width, h = a.bounds.height;
+    app.zoom = 13;
+    var b = doc.addTextLayer('Zoom probe', {size: 60, x: 10, y: 200});
+    a.text = a.text;
+    console.log('low-zoom-new=' + (b.bounds.width === w && b.bounds.height === h));
+    console.log('low-zoom-reedit=' + (a.bounds.width === w && a.bounds.height === h));
+    app.zoom = 100;
+    a.text = a.text;
+    console.log('back-at-100=' + (a.bounds.width === w && a.bounds.height === h));
+  )JS")));
+  CHECK(backlog_contains(window, QStringLiteral("low-zoom-new=true")));
+  CHECK(backlog_contains(window, QStringLiteral("low-zoom-reedit=true")));
+  CHECK(backlog_contains(window, QStringLiteral("back-at-100=true")));
+}
+
+// Windows: a face's full name ("Futura Extra Black BT", the registry's display name and what an
+// older PSD reader stored for the face) renders the same face as the family + style the font
+// database lists ("Futura XBlk BT" + "Extra Black"), with no missing-font warning, and an
+// unchanged re-edit of a layer carrying the full name keeps that face. The database only knows
+// the face once the fixture file is registered; the lookup itself asks DirectWrite, so the test
+// skips unless the font is installed on this machine and copied into local-test-fixtures.
+void ui_script_text_full_face_name_resolves_like_its_family() {
+#ifdef Q_OS_WIN
+  const auto fixture = QStringLiteral(PATCHY_SOURCE_DIR "/local-test-fixtures/fonts/FUTURAXK.TTF");
+  if (!QFileInfo::exists(fixture) || !patchy::psd::installed_font_for_name("Futura Extra Black BT").has_value()) {
+    std::cout << "[SKIP] Futura Extra Black BT is not installed and staged (full face name resolution)\n";
+    return;
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(QFontDatabase::addApplicationFont(fixture) >= 0);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var doc = app.activeDocument;
+    var family = doc.addTextLayer('Diorama', {font: 'Futura XBlk BT', size: 40, x: 10, y: 40});
+    var full = doc.addTextLayer('Diorama', {font: 'Futura Extra Black BT', size: 40, x: 10, y: 140});
+    var same = function () {
+      return full.bounds.width === family.bounds.width && full.bounds.height === family.bounds.height;
+    };
+    console.log('full-name-matches=' + same());
+    full.text = full.text;
+    console.log('reedit-keeps-face=' + same());
+    console.log('stored=' + full.textFont);
+  )JS")));
+  CHECK(backlog_contains(window, QStringLiteral("full-name-matches=true")));
+  CHECK(backlog_contains(window, QStringLiteral("reedit-keeps-face=true")));
+  CHECK(backlog_contains(window, QStringLiteral("stored=Futura Extra Black BT")));
+  CHECK(!backlog_contains(window, QStringLiteral("font not available")));
+#else
+  std::cout << "[SKIP] DirectWrite-only (full face name resolution)\n";
+#endif
 }
 
 // app.listFonts() reports what addTextLayer can resolve: a family registered in this process
@@ -3227,6 +3346,9 @@ std::vector<patchy::test::TestCase> scripting_tests() {
       {"ui_script_filters_and_text_layers", ui_script_filters_and_text_layers},
       {"ui_script_text_size_is_zoom_independent", ui_script_text_size_is_zoom_independent},
       {"ui_script_text_font_option_applies", ui_script_text_font_option_applies},
+      {"ui_script_text_face_ignores_the_options_bar_style", ui_script_text_face_ignores_the_options_bar_style},
+      {"ui_script_text_size_survives_low_zoom_reedit", ui_script_text_size_survives_low_zoom_reedit},
+      {"ui_script_text_full_face_name_resolves_like_its_family", ui_script_text_full_face_name_resolves_like_its_family},
       {"ui_script_list_fonts_reports_registered_families", ui_script_list_fonts_reports_registered_families},
       {"ui_script_text_layer_with_uncovered_script_does_not_crash",
        ui_script_text_layer_with_uncovered_script_does_not_crash},

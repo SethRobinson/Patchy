@@ -126,4 +126,13 @@ std::string humanized_postscript_font_name(std::string_view font_name);
 using PhotoshopFontResolver = std::optional<ResolvedPhotoshopFont> (*)(std::string_view font_name);
 void set_photoshop_font_resolver(PhotoshopFontResolver resolver);
 
+// The installed face the platform knows under `name` as a full name ("Futura Extra Black
+// BT"), a PostScript name ("FuturaBT-ExtraBlack"), or DirectWrite's family or family + face,
+// described the way the reader stores it: the GDI family and subfamily Qt's font database
+// lists, plus the flags the face implies. The text engine's last resort for a display name
+// the database cannot find as a family or as family + face. Windows only (DirectWrite);
+// std::nullopt elsewhere and for names no installed font carries. Each call scans the system
+// font collection, so callers cache per name.
+std::optional<ResolvedPhotoshopFont> installed_font_for_name(std::string_view name);
+
 }  // namespace patchy::psd

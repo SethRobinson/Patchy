@@ -1,5 +1,15 @@
 # Scripting API compatibility
 
+2026-09-26 (API 1): `doc.addTextLayer` renders exactly the face its options name. The
+session seeded its face from the options bar's style picker, so with the bar parked on a
+Semibold or Black layer every scripted layer in a family offering that face took it,
+whatever `font`, `bold` and `italic` said. The requested `size` is now committed exactly
+at every canvas zoom, and an unchanged `layer.text` re-edit keeps the size (the whole-pixel
+editor font divided by a low zoom used to shift it by a pixel or two). On Windows `font`
+also accepts a face's full name or PostScript name ("Futura Extra Black BT",
+"FuturaBT-ExtraBlack") for the face the database lists as family + style. Behavioral fixes;
+apiVersion unchanged. See [text-tool.md](text-tool.md).
+
 2026-09-26 (API 1): `app.listFonts()` returns every family the text engine can use as
 `{family, styles, writingSystems}` objects sorted by family, loading the installed
 fonts first under `--headless` on Windows. Additive; apiVersion unchanged.

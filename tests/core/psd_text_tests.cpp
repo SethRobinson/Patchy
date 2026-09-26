@@ -37,6 +37,7 @@
 #include "psd/psd_layer_effects.hpp"
 #include "psd/psd_patterns.hpp"
 #include "psd/psd_smart_objects.hpp"
+#include "psd/psd_text_runs.hpp"
 #include "core/text_warp.hpp"
 #include "core/warp_mesh.hpp"
 #include "psd/psd_document_io.hpp"
@@ -1567,6 +1568,71 @@ void psd_text_gdi_family_wins_when_directwrite_renames_the_face() {
 #endif
 }
 
+void psd_text_heavy_legacy_face_keeps_the_gdi_family_if_available() {
+  // A heavy face (weight >= 800) used to return DirectWrite's FULL_NAME string early, skipping
+  // the GDI-name normalization every other face gets. Futura Extra Black BT (FUTURAXK.TTF, a
+  // legacy face DirectWrite names by its full name; GDI lists "Futura XBlk BT" + "Extra Black")
+  // therefore came back as the family "Futura Extra Black BT", which no font database lists,
+  // so an unchanged edit of a scripted poster headline re-rendered in Tahoma. With the font
+  // installed the reader stores the GDI family and face (bold set: Black counts as bold for the
+  // uninstalled fallback), the writer resolves that pair back to the PostScript name, and a
+  // document that stored the full name as its family exports the real face as well.
+#ifdef _WIN32
+  if (!patchy::psd::installed_font_for_name("FuturaBT-ExtraBlack").has_value()) {
+    std::cout << "[SKIP] Futura Extra Black BT is not installed (heavy legacy face round trip)\n";
+    return;
+  }
+  const auto read = patchy::psd::DocumentIo::read(single_run_text_psd("Diorama\r", "FuturaBT-ExtraBlack"));
+  CHECK(read.layers().size() == 1);
+  if (read.layers().empty()) {
+    return;
+  }
+  const auto& metadata = read.layers().front().metadata();
+  CHECK(metadata.at(patchy::kLayerMetadataTextFont) == "Futura XBlk BT");
+  CHECK(metadata.at(patchy::kLayerMetadataTextBold) == "true");
+  const auto fields = first_run_fields(metadata.at(patchy::kLayerMetadataTextRuns));
+  CHECK(fields.family == "Futura%20XBlk%20BT");
+  CHECK(fields.style == "Extra%20Black");
+
+  const auto postscript = utf16be_test_bytes("FuturaBT-ExtraBlack");
+  {
+    const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(read);
+    const auto written = psd_layer_block_payload(psd_layer_extra_data(bytes, 0), "TySh");
+    CHECK(written.has_value());
+    if (written.has_value()) {
+      CHECK(std::search(written->begin(), written->end(), postscript.begin(), postscript.end()) != written->end());
+    }
+  }
+
+  // The full name stored by the older reader: the writer's full-name lookup exports the face
+  // instead of the name verbatim, and the engine-side lookup (main_window.cpp) renders it.
+  patchy::Document document(240, 120, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(240, 120, 255, 255, 255));
+  patchy::Layer legacy(document.allocate_layer_id(), "Text: Diorama", solid_rgba(180, 64, 0, 0, 0, 0));
+  auto& layer = document.add_layer(std::move(legacy));
+  layer.set_bounds(patchy::Rect{18, 22, 180, 64});
+  layer.metadata()[patchy::kLayerMetadataText] = "Diorama";
+  layer.metadata()[patchy::kLayerMetadataTextRuns] =
+      "v1\n0\t7\t32\t1\t0\t#202020\tFutura%20Extra%20Black%20BT";
+  layer.metadata()[patchy::kLayerMetadataTextFont] = "Futura Extra Black BT";
+  layer.metadata()[patchy::kLayerMetadataTextSize] = "32";
+  layer.metadata()[patchy::kLayerMetadataTextColor] = "#202020";
+  layer.metadata()[patchy::kLayerMetadataTextBold] = "true";
+  layer.metadata()[patchy::kLayerMetadataTextItalic] = "false";
+  layer.metadata()[patchy::kLayerMetadataTextRasterStatus] = "patchy_raster";
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto written = psd_layer_block_payload(psd_layer_extra_data(bytes, 1), "TySh");
+  CHECK(written.has_value());
+  if (written.has_value()) {
+    CHECK(std::search(written->begin(), written->end(), postscript.begin(), postscript.end()) != written->end());
+    const auto verbatim = utf16be_test_bytes("Futura Extra Black BT");
+    CHECK(std::search(written->begin(), written->end(), verbatim.begin(), verbatim.end()) == written->end());
+  }
+#else
+  std::cout << "[SKIP] DirectWrite-only (heavy legacy face round trip)\n";
+#endif
+}
+
 void psd_text_balmoral_let_plain_never_bakes_a_synthesized_weight_if_available() {
   // The reporter's font (issue 16): Balmoral LET is an old TrueType font whose only face is
   // "Plain" at OS/2 weight class 5, which DirectWrite reads as Medium (500) and files as family
@@ -2789,6 +2855,8 @@ std::vector<patchy::test::TestCase> psd_text_tests() {
       {"psd_text_recorded_style_resolves_the_exact_face", psd_text_recorded_style_resolves_the_exact_face},
       {"psd_text_gdi_family_wins_when_directwrite_renames_the_face",
        psd_text_gdi_family_wins_when_directwrite_renames_the_face},
+      {"psd_text_heavy_legacy_face_keeps_the_gdi_family_if_available",
+       psd_text_heavy_legacy_face_keeps_the_gdi_family_if_available},
       {"psd_text_balmoral_let_plain_never_bakes_a_synthesized_weight_if_available",
        psd_text_balmoral_let_plain_never_bakes_a_synthesized_weight_if_available},
       {"psd_text_engine_data_preserves_paragraph_layout_runs",
