@@ -1853,15 +1853,39 @@ PsdTextGeometry text_geometry_for_layer(const Layer& layer, const Rect& text_bou
 
 }  // namespace
 
+namespace {
+
+// Overwrites the TextIndex a finished TySh payload carries (the descriptor's "TextIndex" long
+// item), for the template path that copies an imported layer's original descriptor bytes.
+void override_text_index_in_payload(std::vector<std::uint8_t>& payload, std::int32_t text_index) {
+  static constexpr std::string_view kKey = "TextIndexlong";
+  const auto it = std::search(payload.begin(), payload.end(), kKey.begin(), kKey.end());
+  if (it == payload.end() || std::distance(it, payload.end()) < static_cast<std::ptrdiff_t>(kKey.size() + 4)) {
+    return;
+  }
+  auto* target = &*(it + static_cast<std::ptrdiff_t>(kKey.size()));
+  const auto value = static_cast<std::uint32_t>(std::max(0, text_index));
+  target[0] = static_cast<std::uint8_t>(value >> 24);
+  target[1] = static_cast<std::uint8_t>(value >> 16);
+  target[2] = static_cast<std::uint8_t>(value >> 8);
+  target[3] = static_cast<std::uint8_t>(value);
+}
+
+}  // namespace
+
 std::optional<std::vector<std::uint8_t>> photoshop_type_tool_payload_for_layer(const Layer& layer,
-                                                                               const Rect& bounds) {
+                                                                               const Rect& bounds,
+                                                                               std::optional<std::int32_t> text_index_override) {
   const auto text = layer_metadata_value(layer, kLayerMetadataText);
   if (!text.has_value() || text->empty()) {
     return std::nullopt;
   }
   if (should_preserve_imported_text_geometry(layer)) {
-    if (const auto templated_payload = photoshop_type_tool_payload_from_template(layer, *text);
+    if (auto templated_payload = photoshop_type_tool_payload_from_template(layer, *text);
         templated_payload.has_value()) {
+      if (text_index_override.has_value()) {
+        override_text_index_in_payload(*templated_payload, *text_index_override);
+      }
       return templated_payload;
     }
   }
@@ -1902,8 +1926,11 @@ std::optional<std::vector<std::uint8_t>> photoshop_type_tool_payload_for_layer(c
   }
   const auto warp = text_warp_from_layer(layer);
   const bool warp_active = warp.has_value() && !text_warp_is_identity(*warp);
-  const auto geometry = text_geometry_for_layer(layer, text_bounds, boxed_text,
-                                                warp_active ? &*warp : nullptr);
+  auto geometry = text_geometry_for_layer(layer, text_bounds, boxed_text,
+                                          warp_active ? &*warp : nullptr);
+  if (text_index_override.has_value()) {
+    geometry.text_index = *text_index_override;
+  }
   const auto anti_alias_metadata = layer_metadata_value(layer, kLayerMetadataTextAntiAlias);
   const auto anti_alias = anti_alias_metadata.has_value() ? parse_int_or(*anti_alias_metadata, 3) : 3;
   const auto engine_data = engine_data_for_text(*text, runs, paragraph_runs, boxed_text, geometry.box_bounds,

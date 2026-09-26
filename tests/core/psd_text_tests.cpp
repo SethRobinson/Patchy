@@ -1633,6 +1633,65 @@ void psd_text_heavy_legacy_face_keeps_the_gdi_family_if_available() {
 #endif
 }
 
+// Photoshop's document-level text engine block ('Txt2') is trusted over the layers' own TySh:
+// a preserved one made Photoshop read a layer Patchy had retyped in Bahnschrift Light as
+// Bahnschrift Bold, silently, through the stale object the layer's TextIndex pointed at
+// (September 2026 COM capture). The block stays (dropping it demotes every layer), and a
+// regenerated type layer gets an index no object has, so Photoshop reads that layer from its
+// TySh while untouched layers keep theirs. An untouched round trip keeps every index.
+void psd_text_regenerated_layer_gets_an_index_outside_the_text_engine_block() {
+  const auto path = patchy::test::committed_psd_fixture_path("photoshop-text-tracking.psd");
+  auto document = patchy::psd::DocumentIo::read_file(path);
+  const auto has_text_engine_block = [](const std::vector<std::uint8_t>& bytes) {
+    static constexpr std::string_view kMarker = "8BIMTxt2";
+    return std::search(bytes.begin(), bytes.end(), kMarker.begin(), kMarker.end()) != bytes.end();
+  };
+  const auto text_index_of = [](const std::vector<std::uint8_t>& bytes, int layer_index) -> std::optional<std::int32_t> {
+    const auto payload =
+        psd_layer_block_payload(psd_layer_extra_data(bytes, static_cast<std::int16_t>(layer_index)), "TySh");
+    if (!payload.has_value()) {
+      return std::nullopt;
+    }
+    static constexpr std::string_view kKey = "TextIndexlong";
+    const auto it = std::search(payload->begin(), payload->end(), kKey.begin(), kKey.end());
+    if (it == payload->end() || std::distance(it, payload->end()) < static_cast<std::ptrdiff_t>(kKey.size() + 4)) {
+      return std::nullopt;
+    }
+    const auto* p = &*(it + static_cast<std::ptrdiff_t>(kKey.size()));
+    return static_cast<std::int32_t>((static_cast<std::uint32_t>(p[0]) << 24) | (static_cast<std::uint32_t>(p[1]) << 16) |
+                                     (static_cast<std::uint32_t>(p[2]) << 8) | static_cast<std::uint32_t>(p[3]));
+  };
+  std::vector<int> text_layer_indices;
+  for (std::size_t i = 0; i < document.layers().size(); ++i) {
+    if (patchy::layer_is_text(document.layers()[i])) {
+      text_layer_indices.push_back(static_cast<int>(i));
+    }
+  }
+  CHECK(text_layer_indices.size() == 2);
+  if (text_layer_indices.size() != 2) {
+    return;
+  }
+  const auto untouched = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  CHECK(has_text_engine_block(untouched));
+  const auto first_index = text_index_of(untouched, text_layer_indices[0]);
+  const auto second_index = text_index_of(untouched, text_layer_indices[1]);
+  CHECK(first_index.has_value() && second_index.has_value());
+  if (!first_index.has_value() || !second_index.has_value()) {
+    return;
+  }
+  CHECK(*first_index < 100000 && *second_index < 100000);
+
+  // What a commit leaves behind on the first text layer: Patchy's own raster and runs.
+  document.layers()[static_cast<std::size_t>(text_layer_indices[0])].metadata()[patchy::kLayerMetadataTextRasterStatus] =
+      "patchy_raster";
+  const auto retyped = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  CHECK(has_text_engine_block(retyped));
+  const auto regenerated_index = text_index_of(retyped, text_layer_indices[0]);
+  const auto kept_index = text_index_of(retyped, text_layer_indices[1]);
+  CHECK(regenerated_index.has_value() && *regenerated_index >= 100000);
+  CHECK(kept_index.has_value() && kept_index == second_index);
+}
+
 void psd_text_balmoral_let_plain_never_bakes_a_synthesized_weight_if_available() {
   // The reporter's font (issue 16): Balmoral LET is an old TrueType font whose only face is
   // "Plain" at OS/2 weight class 5, which DirectWrite reads as Medium (500) and files as family
@@ -2857,6 +2916,8 @@ std::vector<patchy::test::TestCase> psd_text_tests() {
        psd_text_gdi_family_wins_when_directwrite_renames_the_face},
       {"psd_text_heavy_legacy_face_keeps_the_gdi_family_if_available",
        psd_text_heavy_legacy_face_keeps_the_gdi_family_if_available},
+      {"psd_text_regenerated_layer_gets_an_index_outside_the_text_engine_block",
+       psd_text_regenerated_layer_gets_an_index_outside_the_text_engine_block},
       {"psd_text_balmoral_let_plain_never_bakes_a_synthesized_weight_if_available",
        psd_text_balmoral_let_plain_never_bakes_a_synthesized_weight_if_available},
       {"psd_text_engine_data_preserves_paragraph_layout_runs",

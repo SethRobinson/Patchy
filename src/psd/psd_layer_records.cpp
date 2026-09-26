@@ -934,7 +934,8 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
   }
 
   const auto generated_text_payload = should_write_generated_text_block(encoded)
-                                          ? photoshop_type_tool_payload_for_layer(*encoded.layer, encoded.bounds)
+                                          ? photoshop_type_tool_payload_for_layer(*encoded.layer, encoded.bounds,
+                                                                                  encoded.text_index_override)
                                           : std::optional<std::vector<std::uint8_t>>{};
   if (generated_text_payload.has_value()) {
     write_additional_layer_block(extra, {'T', 'y', 'S', 'h'}, *generated_text_payload, large_document);

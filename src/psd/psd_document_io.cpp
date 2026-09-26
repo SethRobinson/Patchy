@@ -53,6 +53,11 @@
 
 namespace patchy::psd {
 
+// TextIndex of the first regenerated type layer in a document that keeps a Photoshop 'Txt2'
+// block: beyond any text object Photoshop indexes contiguously from 0 (a 999 probe already
+// read the layer from its TySh), and far from indices Patchy preserves.
+inline constexpr std::int32_t kRegeneratedTextIndexBase = 100000;
+
 namespace {
 
 void append_document_channels_for_write(
@@ -1512,6 +1517,26 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
   // ids continue above the largest preserved one; assignment follows record
   // order so repeated saves stay deterministic.
   auto next_layer_id = next_photoshop_layer_id(document.layers());
+  // Photoshop's document-level text engine block ('Txt2') holds one text object per type layer,
+  // addressed by the layer's TextIndex, and Photoshop trusts it over the layer's TySh: a layer
+  // Patchy had retyped in Bahnschrift Light read back as Bahnschrift Bold, silently, through the
+  // stale object its index pointed at (September 2026 COM captures). The block cannot be
+  // authored or edited here (an undocumented numerically keyed serialization), so a regenerated
+  // TySh gets an index no object has: Photoshop then reads that one layer from its TySh (its
+  // old-text path, which asks whether to update the layer) while every untouched layer keeps
+  // its object, variable-font instances included. Dropping the block instead demoted every
+  // layer. Documents without the block keep index 0, byte-stable.
+  const bool keeps_text_engine_block =
+      std::any_of(global_blocks.begin(), global_blocks.end(),
+                  [](const UnknownPsdBlock& block) { return block.key == "Txt2"; });
+  if (keeps_text_engine_block) {
+    std::int32_t next_text_index = kRegeneratedTextIndexBase;
+    for (auto& encoded : encoded_layers) {
+      if (should_write_generated_text_block(encoded)) {
+        encoded.text_index_override = next_text_index++;
+      }
+    }
+  }
   for (const auto& encoded : encoded_layers) {
     const bool needs_layer_id = has_smart_object_sources && encoded.layer != nullptr &&
                                 layer_is_smart_object(*encoded.layer) &&

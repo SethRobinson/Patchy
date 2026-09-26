@@ -27,47 +27,35 @@ checked, say so. Driving Photoshop through COM is always authorized
 
 ## COM scripting techniques
 
-Drive PS from PowerShell: `(New-Object -ComObject Photoshop.Application).DoJavaScript($jsx)`.
-
-- Learn an encoding: save two PSDs differing in one UI toggle and byte-diff (mask flags bit 0 = unlinked; "use global light" = `uglg` + resources 1037/1049, psd_document_io.cpp).
-- Read back interpretation with Action Manager getters (`executeActionGet` on a layer reference). Compare renders by diffing PS's exported flatten against `Compositor::flatten_rgb8`.
-- `doc.saveAs`/`duplicate` fail with a fake "disk error (-1)" when smart-object layers reference missing global 'lnk2' data; workaround: selectAll, `selection.copy(true)`, paste into a fresh document, flatten, save BMP. `doc.colorSamplers` probes pixels (max 4; add/read/remove in a loop) but reads stale values on unflattened documents; sample a flattened duplicate.
-- Hygiene: `app.displayDialogs = DialogModes.NO`; close only documents you opened, with `SaveOptions.DONOTSAVECHANGES`; set `rulerUnits = Units.PIXELS` before coordinate APIs; never name a JSX top-level variable `name` or `fonts` (read-only app globals, silent failure).
-- Scratch tools that link Patchy's release libs (flattening a PSD through the reader outside the suites): see [testing.md](testing.md).
-- Unknown-data prompt checks: `scripts\dev\photoshop-open-check.ps1 -Files a.psd, b.psd` opens
-  each file over COM while a watcher polls Photoshop's top-level windows for the `PSDialogBox`
-  whose text says "unknown data", and prints CLEAN or UNKNOWN-DATA per file; `-InventoryDir`
-  records what Photoshop kept after Keep Layers (a discarded fill layer comes back as an empty
-  NORMAL layer, which is how the empty-Trns gradient was found). The prompt parks the COM call;
-  `-DismissUnknownData` clicks Keep Layers, which is desktop UI automation and needs Seth's
-  explicit permission for the session. Reading window titles and control text needs none.
-- Opening checks: `DialogModes.ALL` can show the file picker even with an explicit `app.open(File(...))` argument; complete that picker for warning-enabled validation. `DialogModes.ERROR` opens without the picker and still surfaces error alerts (a COM call that returns promptly saw none). `DialogModes.NO` can still block on a corrupt-layer composite-fallback prompt; a pending COM call is not proof that Photoshop is still loading.
-- **`maximizeCompatibility = true` is silently overridden by the app-level File Handling preference** (Never on this machine), leaving a fake all-white merged composite. Fixture scripts must force `queryAlways` via the `fileSavePrefs` descriptor and restore it.
-- Headless one-script PSDs embed a STALE maximize-compat composite; re-saving does not fix it. Render fixtures pin PS's flatten through the sibling BMP (duplicate + flatten + BMP), never the embedded composite.
-- `photoshop-saved-channels.psd`: resource 1053 identifies alpha channels only ([channels.md](channels.md)).
+Lives in [photoshop-com.md](photoshop-com.md): the PowerShell entry point, dialog-mode caveats, the composite and saveAs workarounds, hygiene rules, and `scripts\dev\photoshop-open-check.ps1`, which reports the "unknown data" prompt per file. Read it before any capture or acceptance run.
 
 ## Write rules pinned against PS (silent corruption otherwise)
 
-- **A gradient descriptor's `Trns` list is never empty.** Photoshop's own gradients carry at
-  least two transparency stops; an empty list (a scripted gradient fill authored without
-  alphaStops) makes Photoshop 2026 show the "discard unknown data to keep layers editable"
-  prompt on open and drop the gradient layer to an empty normal layer. The vector fill writer
-  supplies two fully opaque end stops when the model has none (the layer-style writers already
-  did); pinned by `psd_vector_gradient_fill_without_alpha_stops_writes_opaque_stops`. A file
-  that already carries an empty list heals on save: the reader marks such a layer's vector
-  blocks dirty and the fill/stroke payload builders refuse the byte-exact shortcut for a
-  stop-less gradient (`psd_vector_gradient_without_transparency_stops_heals_on_save`, on the
-  committed `patchy-gradient-empty-transparency.psd`).
-
-Vector automation uses group masks for an extra mask around shape artwork: a
-shape's native vector-path slot is already its geometry. Vector-mask
-density/feather (a shape's own path included) write the mask-data parameters
-form with only the SET bits plus the derived plain-coverage plane (PS 27.9
-captures, [vector-tools.md](vector-tools.md)); see
-[vector-automation.md](vector-automation.md). Authored None paints write
-disabled `vstk` fill/stroke flags, including shapes with both paints off;
-the descriptors' placeholder color then never shows on reopen.
-
+- **A regenerated type layer gets a TextIndex outside Photoshop's document-level text engine
+  block (`Txt2`).** The block holds one text object per type layer (by TextIndex) and Photoshop
+  trusts it over the TySh: a layer Patchy had retyped in Bahnschrift Light read back as
+  Bahnschrift Bold, silently (September 2026 COM captures). The block is preserved byte-exact
+  (dropping it demoted every layer to the old-text path); each regenerated TySh gets
+  `kRegeneratedTextIndexBase` + n instead, so Photoshop reads that layer from its TySh (its
+  old-text path: `oldText = true`, the "Some text layers might need to be updated" prompt) while
+  untouched layers keep their objects, variable-font instances included. Pinned by
+  `psd_text_regenerated_layer_gets_an_index_outside_the_text_engine_block`. Patchy cannot author
+  the block (an undocumented numerically keyed serialization; a hollow one leaves layers old, a
+  skeleton makes Photoshop refuse the file), so every Patchy-authored PSD shows that prompt on
+  first selection of a type layer, and **variable-font named instances are static-substituted on
+  layers read through the old-text path** ("Bahnschrift-SemiBold", the name Photoshop itself
+  writes, reads back as Regular; Photoshop's own objects carry the instance axes). Patchy renders
+  named instances correctly in both engines (the Bahnschrift weights share advance widths, so
+  compare ink, not bounds). Authoring Txt2 is the remaining step for variable-font parity.
+- **A gradient descriptor's `Trns` list is never empty.** Photoshop's gradients carry at least
+  two transparency stops; an empty list (a scripted gradient fill without alphaStops) raises the
+  "discard unknown data" prompt and the layer comes back empty. The vector fill writer supplies
+  two opaque end stops when the model has none (the layer-style writers already did), and a file
+  that already carries an empty list heals on save: the reader marks the layer's blocks dirty
+  and the fill/stroke payload builders skip the byte-exact shortcut. Pinned by
+  `psd_vector_gradient_fill_without_alpha_stops_writes_opaque_stops` and
+  `psd_vector_gradient_without_transparency_stops_heals_on_save`
+  (`patchy-gradient-empty-transparency.psd`).
 - **Do not author unknown per-layer tagged keys.** Even correctly padded private tags trigger Photoshop's unknown-data warning. Merged vector associations use image resource 4211 in the documented plug-in resource range (4000-4999), with native `lyid` references; legacy `pvcl`/`pvfi` tags remain read-only. See [layer-merging.md](layer-merging.md) and the [Adobe file-format specification](https://www.adobe.com/devnet-apps/photoshop/fileformatashtml/).
 - **Patchy-only style options ride a plug-in image resource, never descriptor keys.** The continuous (long) drop shadow's `continuous`/`fade` fields travel in resource 4212 (layout in psd_io_internal.hpp) keyed by the layer's `lyid`, which `prepare_compound_vector_psd` assigns on save. The lfx2 keeps the pinned 12-item DrSh with `Dstn` = sweep length, so PS shows a plain shadow at Distance and may drop the resource on resave.
 - **Compound path groups use Photoshop's continuation records.** Contours sharing one vmsk group index are one shape: the lead length record carries the combine op with +6 field 1 (even-odd; PS's own compound shapes write 2 = nonzero), every continuation record op 0xFFFF and +6 field 0. Giving each contour its own op unites them: PS fills a donut solid (2026-09-26 probes; `patchy-compound-group.psd/bmp`). Detail in [vector-tools.md](vector-tools.md).

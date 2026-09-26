@@ -94,7 +94,9 @@ Read these before acting in the named area:
 | Platform-guarded code, macOS/Linux behavior, remote builds | [docs/platform.md](docs/platform.md) |
 | WebAssembly builds, the wasm-core preset, emsdk provisioning | [docs/wasm.md](docs/wasm.md); wasm memory/telemetry in [docs/wasm-memory.md](docs/wasm-memory.md); wasm input/focus/hotkeys in [docs/wasm-input.md](docs/wasm-input.md) |
 | Patents, licensing, trademarks, bundled assets, or a feature adjacent to a legal boundary | [docs/legal-constraints.md](docs/legal-constraints.md), with the underlying research record in [docs/patent-research.md](docs/patent-research.md), [docs/patent-research-inpainting.md](docs/patent-research-inpainting.md), and [docs/patent-research-alignment.md](docs/patent-research-alignment.md) |
-| PSD descriptors, layer styles, COM verification, write/corruption rules | [docs/ps-compat.md](docs/ps-compat.md) |
+| PSD descriptors, layer styles, write/corruption rules | [docs/ps-compat.md](docs/ps-compat.md) |
+| Photoshop COM captures and acceptance runs, the unknown-data prompt check | [docs/photoshop-com.md](docs/photoshop-com.md) |
+| Font resolution (display names, DirectWrite lookup, GDI names, exact sizes) | [docs/font-resolution.md](docs/font-resolution.md) |
 | Adjustment/auto-adjustment calibration (Brightness/Contrast, Curves, Hue/Saturation) | [docs/adjustments-calibration.md](docs/adjustments-calibration.md) |
 | Layer-effect render calibration (Blend If, Satin, Stroke, shadows/glows, interior effects) | [docs/layer-effects-render.md](docs/layer-effects-render.md) |
 | Native Smart Filter descriptors, FEid cache, per-filter render semantics | [docs/smart-filters-native.md](docs/smart-filters-native.md) |
@@ -111,6 +113,7 @@ Read these before acting in the named area:
 - Open-dialog filter strings have a Windows/Qt-specific duplicated-pattern contract. Read [docs/file-formats.md](docs/file-formats.md) before changing them.
 - The local PSBtest tent and Content fixtures must never be overwritten. See [docs/smart-objects.md](docs/smart-objects.md).
 - Offscreen text on Windows is FreeType; a real window is DirectWrite, which ignores a QFont stretch for glyph images. Text pins pass offscreen and can still be wrong on screen; see the font-engine note in [docs/testing.md](docs/testing.md).
+- Photoshop reads a document's text fonts and content from its own `Txt2` block, not the layers, so a regenerated type layer gets a TextIndex outside that block (Photoshop then reads it from its TySh); Patchy cannot author the block, which is why variable-font named instances read back as the regular face on such layers. See [docs/ps-compat.md](docs/ps-compat.md).
 - Every gradient descriptor Patchy writes carries at least two transparency stops, and a file that already has none heals on save. An empty `Trns` list makes Photoshop discard the layer behind its "unknown data" prompt; `scripts\dev\photoshop-open-check.ps1` detects that prompt per file. See [docs/ps-compat.md](docs/ps-compat.md).
 - Agent tooling: the Claude Code Bash tool rewrites backslash escapes inside heredocs (a doubled backslash before `n` in a Python patch reached the target file as a real newline, September 2026). Write patch scripts and any content with backslashes through the file-writing tool and run them from disk.
 

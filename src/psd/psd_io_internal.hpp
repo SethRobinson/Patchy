@@ -266,6 +266,10 @@ struct EncodedLayer {
   Rect bounds;
   std::vector<EncodedChannel> channels;
   const std::vector<std::uint8_t>* blending_ranges{nullptr};
+  // A regenerated type layer's TextIndex when the document keeps a preserved 'Txt2' block: an
+  // index no text object in that block has, so Photoshop reads this layer from its own TySh
+  // instead of the stale object (see write_layered_rgb8 in psd_document_io.cpp).
+  std::optional<std::int32_t> text_index_override;
 };
 
 struct ImageResource {
@@ -686,6 +690,7 @@ std::optional<PixelBuffer> render_regenerated_imported_text_pixels(const LayerRe
                                                                    std::int32_t width,
                                                                    std::int32_t height);
 std::optional<std::vector<std::uint8_t>> photoshop_type_tool_payload_for_layer(const Layer& layer,
-                                                                               const Rect& bounds);
+                                                                               const Rect& bounds,
+                                                                               std::optional<std::int32_t> text_index_override = std::nullopt);
 bool should_write_generated_text_block(const EncodedLayer& encoded);
 }  // namespace patchy::psd
