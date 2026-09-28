@@ -108,6 +108,56 @@
     </message>
 </context>
 <context>
+    <name>LegacyPluginFolder</name>
+    <message>
+        <source>Legacy Photoshop plug-ins run on Windows only.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The plug-ins folder could not be created: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>LegacyPluginRunner</name>
+    <message>
+        <source>The plug-in host was given an invalid image.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The plug-in host program is missing: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Not enough memory to hand the layer to the plug-in.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The plug-in host could not be contacted: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The plug-in host program could not be started: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The plug-in host did not respond.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The plug-in host program does not match this Patchy build.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The plug-in crashed (host exit code %1).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The plug-in reported an error.</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>QObject</name>
     <message>
         <source>Patchy raster image editor.</source>
@@ -2111,26 +2161,6 @@
     </message>
     <message>
         <source>Legacy Photoshop plug-ins are Windows binaries; they require the Windows build of Patchy.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>32-bit Photoshop plug-ins require a 32-bit compatibility host.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Plug-in architecture does not match this Patchy build.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Automation plug-ins are recognized but not supported by the first compatibility adapter.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Classic Photoshop filter plug-in candidate. Runtime execution will be isolated out-of-process.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Classic Photoshop file-format plug-in candidate. Runtime execution will be isolated out-of-process.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -8505,6 +8535,50 @@ RGB: %2, %3, %4</source>
         <source>The source color mode is Grayscale; Patchy converted the gray values to RGB/RGBA for editing and will export RGB PSD data from this document.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Not a Windows plug-in binary.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unsupported plug-in architecture; only 32-bit and 64-bit x86 plug-ins run.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>File-format and automation plug-ins are not supported; only filter (.8bf) plug-ins run.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This plug-in is not a filter; only filter (.8bf) plug-ins run.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Photoshop filter plug-in (32-bit).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Photoshop filter plug-in (64-bit).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Plug-ins folder (.8bf filters):</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open Plug-ins Folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not open the plug-ins folder.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blend Clipped Layers as Group</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Keep the layers clipped to this one under its interior effects; turn this off together with Blend Interior Effects as Group to draw them over the overlays instead</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -10736,10 +10810,6 @@ RGB: %2, %3, %4</source>
     </message>
     <message>
         <source>Shift &amp;Seams to Center</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&amp;Scan Legacy Photoshop Plug-ins...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -15547,20 +15617,6 @@ Y: %2
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Scan Legacy Photoshop Plug-ins</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Photoshop Plug-ins (*.8bf *.8bi *.8li);;All Files (*.*)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>%1 plug-in action(s) available under Plug-ins &gt; Legacy Photoshop Plug-ins.
-
-%2</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>%1: %2 (%3, %4)</source>
         <translation type="unfinished"></translation>
     </message>
@@ -15574,14 +15630,6 @@ Y: %2
     </message>
     <message>
         <source>Legacy Photoshop Plug-in</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>%1 was scanned and is available, but this build only has compatibility shims for the bundled Greyscale and White to Transparent test filters. A full 8BF host still needs the out-of-process Photoshop SDK adapter.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Legacy plug-in</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -17679,6 +17727,113 @@ Y: %2
             <numerusform></numerusform>
         </translation>
     </message>
+    <message>
+        <source>Add Plug-in Folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No plug-ins found (put .8bf files in the plugins folder)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Run the %1 plug-in on the active layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Plug-in: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 could not run.
+
+%2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Legacy Photoshop plug-ins run on Windows only.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The selection does not touch the active layer.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Running %1...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The layer no longer exists.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Photoshop filter plug-ins (.8bf, 32-bit or 64-bit) are found in these folders and their subfolders and listed under Plugins &gt; Legacy Photoshop Plug-ins. Only run plug-ins you trust: they execute with your permissions.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Always scanned:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add Folder...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Added folders:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Plug-ins</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open Plug-ins &amp;Folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Rescan Plug-in Folders</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not open the plug-ins folder.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Plug-in scan finished: %1 available</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Plug-in scan finished: %1 available, %2 not usable</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scanning plug-in folders...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Whole monitor</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Plug-in windows open on the monitor showing Patchy. Plug-ins with full-screen interfaces size themselves to this screen size, so a smaller size keeps them usable on large monitors.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Screen size for plug-in windows:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 via Patchy</source>
+        <extracomment>Title of the movable window a full-screen plug-in interface is shown in; %1 is the plug-in&apos;s name.</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: same plug-in as %2, listed once</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Plug-ins work on one layer at a time. Select a single layer and run it again.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -19056,6 +19211,30 @@ Y: %2
     </message>
     <message>
         <source>%1: paragraph.%2 must be a number (document pixels).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>applyPlugin: unknown option %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unknown plug-in id: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Plug-in %1 cannot run: %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>applyPlugin needs a pixel layer.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Plug-in %1 was cancelled.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Plug-in %1 failed: %2</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

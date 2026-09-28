@@ -108,6 +108,56 @@
     </message>
 </context>
 <context>
+    <name>LegacyPluginFolder</name>
+    <message>
+        <source>Legacy Photoshop plug-ins run on Windows only.</source>
+        <translation>従来の Photoshop プラグインは Windows でのみ実行できます。</translation>
+    </message>
+    <message>
+        <source>The plug-ins folder could not be created: %1</source>
+        <translation>プラグインフォルダーを作成できませんでした: %1</translation>
+    </message>
+</context>
+<context>
+    <name>LegacyPluginRunner</name>
+    <message>
+        <source>The plug-in host was given an invalid image.</source>
+        <translation>プラグインホストに無効な画像が渡されました。</translation>
+    </message>
+    <message>
+        <source>The plug-in host program is missing: %1</source>
+        <translation>プラグインホストプログラムが見つかりません: %1</translation>
+    </message>
+    <message>
+        <source>Not enough memory to hand the layer to the plug-in.</source>
+        <translation>レイヤーをプラグインに渡すためのメモリが不足しています。</translation>
+    </message>
+    <message>
+        <source>The plug-in host could not be contacted: %1</source>
+        <translation>プラグインホストに接続できませんでした: %1</translation>
+    </message>
+    <message>
+        <source>The plug-in host program could not be started: %1</source>
+        <translation>プラグインホストプログラムを起動できませんでした: %1</translation>
+    </message>
+    <message>
+        <source>The plug-in host did not respond.</source>
+        <translation>プラグインホストが応答しませんでした。</translation>
+    </message>
+    <message>
+        <source>The plug-in host program does not match this Patchy build.</source>
+        <translation>プラグインホストプログラムがこの Patchy ビルドと一致しません。</translation>
+    </message>
+    <message>
+        <source>The plug-in crashed (host exit code %1).</source>
+        <translation>プラグインがクラッシュしました (ホストの終了コード %1)。</translation>
+    </message>
+    <message>
+        <source>The plug-in reported an error.</source>
+        <translation>プラグインがエラーを報告しました。</translation>
+    </message>
+</context>
+<context>
     <name>QObject</name>
     <message>
         <source>Rotate Canvas</source>
@@ -7622,26 +7672,6 @@ Mixed selection</source>
         <translation>レガシー Photoshop プラグインは Windows バイナリのため、Windows 版の Patchy が必要です。</translation>
     </message>
     <message>
-        <source>32-bit Photoshop plug-ins require a 32-bit compatibility host.</source>
-        <translation>32 ビットの Photoshop プラグインには 32 ビット互換ホストが必要です。</translation>
-    </message>
-    <message>
-        <source>Plug-in architecture does not match this Patchy build.</source>
-        <translation>プラグインのアーキテクチャがこの Patchy ビルドと一致しません。</translation>
-    </message>
-    <message>
-        <source>Automation plug-ins are recognized but not supported by the first compatibility adapter.</source>
-        <translation>オートメーションプラグインは認識されますが、最初の互換アダプターでは対応していません。</translation>
-    </message>
-    <message>
-        <source>Classic Photoshop filter plug-in candidate. Runtime execution will be isolated out-of-process.</source>
-        <translation>従来の Photoshop フィルタープラグインの候補です。実行時は別プロセスに分離されます。</translation>
-    </message>
-    <message>
-        <source>Classic Photoshop file-format plug-in candidate. Runtime execution will be isolated out-of-process.</source>
-        <translation>従来の Photoshop ファイル形式プラグインの候補です。実行時は別プロセスに分離されます。</translation>
-    </message>
-    <message>
         <source>Plugin identifier cannot be empty</source>
         <translation>プラグイン識別子は空にできません</translation>
     </message>
@@ -8486,6 +8516,50 @@ Mixed selection</source>
     <message>
         <source>The source color mode is Grayscale; Patchy converted the gray values to RGB/RGBA for editing and will export RGB PSD data from this document.</source>
         <translation>元のカラーモードはグレースケールです。Patchy は編集用にグレー値を RGB/RGBA に変換しました。このドキュメントからは RGB PSD データを書き出します。</translation>
+    </message>
+    <message>
+        <source>Not a Windows plug-in binary.</source>
+        <translation>Windows プラグインのバイナリではありません。</translation>
+    </message>
+    <message>
+        <source>Unsupported plug-in architecture; only 32-bit and 64-bit x86 plug-ins run.</source>
+        <translation>サポートされていないプラグインのアーキテクチャです。32 ビットと 64 ビットの x86 プラグインのみ実行できます。</translation>
+    </message>
+    <message>
+        <source>File-format and automation plug-ins are not supported; only filter (.8bf) plug-ins run.</source>
+        <translation>ファイル形式プラグインと自動化プラグインはサポートされていません。フィルタープラグイン (.8bf) のみ実行できます。</translation>
+    </message>
+    <message>
+        <source>This plug-in is not a filter; only filter (.8bf) plug-ins run.</source>
+        <translation>このプラグインはフィルターではありません。フィルタープラグイン (.8bf) のみ実行できます。</translation>
+    </message>
+    <message>
+        <source>Photoshop filter plug-in (32-bit).</source>
+        <translation>Photoshop フィルタープラグイン (32 ビット)。</translation>
+    </message>
+    <message>
+        <source>Photoshop filter plug-in (64-bit).</source>
+        <translation>Photoshop フィルタープラグイン (64 ビット)。</translation>
+    </message>
+    <message>
+        <source>Plug-ins folder (.8bf filters):</source>
+        <translation>プラグインフォルダー (.8bf フィルター):</translation>
+    </message>
+    <message>
+        <source>Open Plug-ins Folder</source>
+        <translation>プラグインフォルダーを開く</translation>
+    </message>
+    <message>
+        <source>Could not open the plug-ins folder.</source>
+        <translation>プラグインフォルダーを開けませんでした。</translation>
+    </message>
+    <message>
+        <source>Blend Clipped Layers as Group</source>
+        <translation>クリップされたレイヤーをグループとして描画</translation>
+    </message>
+    <message>
+        <source>Keep the layers clipped to this one under its interior effects; turn this off together with Blend Interior Effects as Group to draw them over the overlays instead</source>
+        <translation>このレイヤーにクリップされたレイヤーを内側の効果の下に置きます。「内側の効果をグループとして描画」と一緒にオフにすると、オーバーレイの上に描画されます</translation>
     </message>
 </context>
 <context>
@@ -11527,10 +11601,6 @@ Either way Patchy writes a copy; the open document keeps its layers and unsaved 
         <translation>%1 をアクティブレイヤーに適用</translation>
     </message>
     <message>
-        <source>&amp;Scan Legacy Photoshop Plug-ins...</source>
-        <translation>従来の Photoshop プラグインをスキャン(&amp;S)...</translation>
-    </message>
-    <message>
         <source>Legacy 8BF plug-ins run on Windows only</source>
         <translation>レガシー 8BF プラグインは Windows でのみ動作します</translation>
     </message>
@@ -12754,22 +12824,6 @@ To update, paste this into a terminal:
         <translation>ペン</translation>
     </message>
     <message>
-        <source>Scan Legacy Photoshop Plug-ins</source>
-        <translation>従来の Photoshop プラグインをスキャン</translation>
-    </message>
-    <message>
-        <source>Photoshop Plug-ins (*.8bf *.8bi *.8li);;All Files (*.*)</source>
-        <translation>Photoshop プラグイン (*.8bf *.8bi *.8li);;すべてのファイル (*.*)</translation>
-    </message>
-    <message>
-        <source>%1 plug-in action(s) available under Plug-ins &gt; Legacy Photoshop Plug-ins.
-
-%2</source>
-        <translation>%1 個のプラグイン操作が プラグイン &gt; 従来の Photoshop プラグイン で利用できます。
-
-%2</translation>
-    </message>
-    <message>
         <source>%1: %2 (%3, %4)</source>
         <translation>%1: %2 (%3, %4)</translation>
     </message>
@@ -12784,14 +12838,6 @@ To update, paste this into a terminal:
     <message>
         <source>Legacy Photoshop Plug-in</source>
         <translation>従来の Photoshop プラグイン</translation>
-    </message>
-    <message>
-        <source>%1 was scanned and is available, but this build only has compatibility shims for the bundled Greyscale and White to Transparent test filters. A full 8BF host still needs the out-of-process Photoshop SDK adapter.</source>
-        <translation>%1 はスキャンされ利用可能ですが、このビルドには同梱の Greyscale と White to Transparent テストフィルター用の互換シムしかありません。完全な 8BF ホストには、引き続き別プロセスの Photoshop SDK アダプターが必要です。</translation>
-    </message>
-    <message>
-        <source>Legacy plug-in</source>
-        <translation>従来のプラグイン</translation>
     </message>
     <message>
         <source>Applied %1</source>
@@ -17673,6 +17719,115 @@ Clipped to the layer below</source>
             <numerusform>スマートオブジェクトを %n 個のレイヤーに変換しました</numerusform>
         </translation>
     </message>
+    <message>
+        <source>Add Plug-in Folder</source>
+        <translation>プラグインフォルダーを追加</translation>
+    </message>
+    <message>
+        <source>No plug-ins found (put .8bf files in the plugins folder)</source>
+        <translation>プラグインが見つかりません (.8bf ファイルを plugins フォルダーに置いてください)</translation>
+    </message>
+    <message>
+        <source>Run the %1 plug-in on the active layer</source>
+        <translation>アクティブなレイヤーでプラグイン %1 を実行</translation>
+    </message>
+    <message>
+        <source>Plug-in: %1</source>
+        <translation>プラグイン: %1</translation>
+    </message>
+    <message>
+        <source>%1 could not run.
+
+%2</source>
+        <translation>%1 を実行できませんでした。
+
+%2</translation>
+    </message>
+    <message>
+        <source>Legacy Photoshop plug-ins run on Windows only.</source>
+        <translation>従来の Photoshop プラグインは Windows でのみ実行できます。</translation>
+    </message>
+    <message>
+        <source>The selection does not touch the active layer.</source>
+        <translation>選択範囲がアクティブなレイヤーに触れていません。</translation>
+    </message>
+    <message>
+        <source>Running %1...</source>
+        <translation>%1 を実行中...</translation>
+    </message>
+    <message>
+        <source>The layer no longer exists.</source>
+        <translation>レイヤーは既に存在しません。</translation>
+    </message>
+    <message>
+        <source>Photoshop filter plug-ins (.8bf, 32-bit or 64-bit) are found in these folders and their subfolders and listed under Plugins &gt; Legacy Photoshop Plug-ins. Only run plug-ins you trust: they execute with your permissions.</source>
+        <translation>Photoshop フィルタープラグイン (.8bf、32 ビットまたは 64 ビット) はこれらのフォルダーとそのサブフォルダーから検索され、「Plugins &gt; 従来の Photoshop プラグイン」に表示されます。信頼できるプラグインだけを実行してください。プラグインはあなたの権限で実行されます。</translation>
+    </message>
+    <message>
+        <source>Always scanned:</source>
+        <translation>常に検索:</translation>
+    </message>
+    <message>
+        <source>Add Folder...</source>
+        <translation>フォルダーを追加...</translation>
+    </message>
+    <message>
+        <source>Added folders:</source>
+        <translation>追加したフォルダー:</translation>
+    </message>
+    <message>
+        <source>Plug-ins</source>
+        <translation>プラグイン</translation>
+    </message>
+    <message>
+        <source>Open Plug-ins &amp;Folder</source>
+        <translation>プラグインフォルダーを開く(&amp;F)</translation>
+    </message>
+    <message>
+        <source>&amp;Rescan Plug-in Folders</source>
+        <translation>プラグインフォルダーを再検索(&amp;R)</translation>
+    </message>
+    <message>
+        <source>Could not open the plug-ins folder.</source>
+        <translation>プラグインフォルダーを開けませんでした。</translation>
+    </message>
+    <message>
+        <source>Plug-in scan finished: %1 available</source>
+        <translation>プラグインの検索が完了しました: %1 個が利用可能</translation>
+    </message>
+    <message>
+        <source>Plug-in scan finished: %1 available, %2 not usable</source>
+        <translation>プラグインの検索が完了しました: %1 個が利用可能、%2 個は使用不可</translation>
+    </message>
+    <message>
+        <source>Scanning plug-in folders...</source>
+        <translation>プラグインフォルダーを検索中...</translation>
+    </message>
+    <message>
+        <source>Whole monitor</source>
+        <translation>モニター全体</translation>
+    </message>
+    <message>
+        <source>Plug-in windows open on the monitor showing Patchy. Plug-ins with full-screen interfaces size themselves to this screen size, so a smaller size keeps them usable on large monitors.</source>
+        <translation>プラグインのウィンドウは Patchy を表示しているモニターに開きます。全画面インターフェースのプラグインはこの画面サイズに合わせて表示されるため、小さいサイズにすると大きなモニターでも使いやすくなります。</translation>
+    </message>
+    <message>
+        <source>Screen size for plug-in windows:</source>
+        <translation>プラグインウィンドウの画面サイズ:</translation>
+    </message>
+    <message>
+        <source>%1 via Patchy</source>
+        <extracomment>Title of the movable window a full-screen plug-in interface is shown in; %1 is the plug-in&apos;s name.</extracomment>
+        <translation>%1 (Patchy 経由)</translation>
+    </message>
+    <message>
+        <source>%1: same plug-in as %2, listed once</source>
+        <translation>%1: %2 と同じプラグインのため 1 回だけ表示します</translation>
+    </message>
+    <message>
+        <source>Plug-ins work on one layer at a time. Select a single layer and run it again.</source>
+        <translation>プラグインは一度に 1 つのレイヤーにしか適用できません。レイヤーを 1 つだけ選択してから、もう一度実行してください。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -19050,6 +19205,30 @@ Clipped to the layer below</source>
     <message>
         <source>%1: paragraph.%2 must be a number (document pixels).</source>
         <translation>%1: paragraph.%2 は数値にしてください（ドキュメントピクセル）。</translation>
+    </message>
+    <message>
+        <source>applyPlugin: unknown option %1.</source>
+        <translation>applyPlugin: 不明なオプション %1。</translation>
+    </message>
+    <message>
+        <source>Unknown plug-in id: %1</source>
+        <translation>不明なプラグイン ID: %1</translation>
+    </message>
+    <message>
+        <source>Plug-in %1 cannot run: %2</source>
+        <translation>プラグイン %1 を実行できません: %2</translation>
+    </message>
+    <message>
+        <source>applyPlugin needs a pixel layer.</source>
+        <translation>applyPlugin にはピクセルレイヤーが必要です。</translation>
+    </message>
+    <message>
+        <source>Plug-in %1 was cancelled.</source>
+        <translation>プラグイン %1 はキャンセルされました。</translation>
+    </message>
+    <message>
+        <source>Plug-in %1 failed: %2</source>
+        <translation>プラグイン %1 が失敗しました: %2</translation>
     </message>
 </context>
 <context>

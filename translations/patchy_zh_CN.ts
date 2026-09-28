@@ -108,6 +108,56 @@
     </message>
 </context>
 <context>
+    <name>LegacyPluginFolder</name>
+    <message>
+        <source>Legacy Photoshop plug-ins run on Windows only.</source>
+        <translation>旧版 Photoshop 插件只能在 Windows 上运行。</translation>
+    </message>
+    <message>
+        <source>The plug-ins folder could not be created: %1</source>
+        <translation>无法创建插件文件夹：%1</translation>
+    </message>
+</context>
+<context>
+    <name>LegacyPluginRunner</name>
+    <message>
+        <source>The plug-in host was given an invalid image.</source>
+        <translation>传给插件宿主的图像无效。</translation>
+    </message>
+    <message>
+        <source>The plug-in host program is missing: %1</source>
+        <translation>缺少插件宿主程序：%1</translation>
+    </message>
+    <message>
+        <source>Not enough memory to hand the layer to the plug-in.</source>
+        <translation>内存不足，无法将图层交给插件。</translation>
+    </message>
+    <message>
+        <source>The plug-in host could not be contacted: %1</source>
+        <translation>无法联系插件宿主：%1</translation>
+    </message>
+    <message>
+        <source>The plug-in host program could not be started: %1</source>
+        <translation>无法启动插件宿主程序：%1</translation>
+    </message>
+    <message>
+        <source>The plug-in host did not respond.</source>
+        <translation>插件宿主没有响应。</translation>
+    </message>
+    <message>
+        <source>The plug-in host program does not match this Patchy build.</source>
+        <translation>插件宿主程序与此 Patchy 版本不匹配。</translation>
+    </message>
+    <message>
+        <source>The plug-in crashed (host exit code %1).</source>
+        <translation>插件崩溃了（宿主退出代码 %1）。</translation>
+    </message>
+    <message>
+        <source>The plug-in reported an error.</source>
+        <translation>插件报告了一个错误。</translation>
+    </message>
+</context>
+<context>
     <name>QObject</name>
     <message>
         <source>Patchy raster image editor.</source>
@@ -2112,26 +2162,6 @@
     <message>
         <source>Legacy Photoshop plug-ins are Windows binaries; they require the Windows build of Patchy.</source>
         <translation>旧版 Photoshop 增效工具是 Windows 二进制文件，需要 Windows 版本的 Patchy。</translation>
-    </message>
-    <message>
-        <source>32-bit Photoshop plug-ins require a 32-bit compatibility host.</source>
-        <translation>32 位 Photoshop 增效工具需要 32 位兼容宿主。</translation>
-    </message>
-    <message>
-        <source>Plug-in architecture does not match this Patchy build.</source>
-        <translation>增效工具的架构与此 Patchy 版本不匹配。</translation>
-    </message>
-    <message>
-        <source>Automation plug-ins are recognized but not supported by the first compatibility adapter.</source>
-        <translation>已识别自动化增效工具，但第一代兼容适配器不支持它。</translation>
-    </message>
-    <message>
-        <source>Classic Photoshop filter plug-in candidate. Runtime execution will be isolated out-of-process.</source>
-        <translation>经典 Photoshop 滤镜增效工具候选项。运行时将在独立进程中隔离执行。</translation>
-    </message>
-    <message>
-        <source>Classic Photoshop file-format plug-in candidate. Runtime execution will be isolated out-of-process.</source>
-        <translation>经典 Photoshop 文件格式增效工具候选项。运行时将在独立进程中隔离执行。</translation>
     </message>
     <message>
         <source>Plugin identifier cannot be empty</source>
@@ -8487,6 +8517,50 @@ RGB：%2, %3, %4</translation>
         <source>The source color mode is Grayscale; Patchy converted the gray values to RGB/RGBA for editing and will export RGB PSD data from this document.</source>
         <translation>源颜色模式为灰度；Patchy 已将灰度值转换为 RGB/RGBA 以便编辑，并将从此文档导出 RGB PSD 数据。</translation>
     </message>
+    <message>
+        <source>Not a Windows plug-in binary.</source>
+        <translation>不是 Windows 插件二进制文件。</translation>
+    </message>
+    <message>
+        <source>Unsupported plug-in architecture; only 32-bit and 64-bit x86 plug-ins run.</source>
+        <translation>不支持的插件架构；只能运行 32 位和 64 位 x86 插件。</translation>
+    </message>
+    <message>
+        <source>File-format and automation plug-ins are not supported; only filter (.8bf) plug-ins run.</source>
+        <translation>不支持文件格式和自动化插件；只能运行滤镜 (.8bf) 插件。</translation>
+    </message>
+    <message>
+        <source>This plug-in is not a filter; only filter (.8bf) plug-ins run.</source>
+        <translation>此插件不是滤镜；只能运行滤镜 (.8bf) 插件。</translation>
+    </message>
+    <message>
+        <source>Photoshop filter plug-in (32-bit).</source>
+        <translation>Photoshop 滤镜插件（32 位）。</translation>
+    </message>
+    <message>
+        <source>Photoshop filter plug-in (64-bit).</source>
+        <translation>Photoshop 滤镜插件（64 位）。</translation>
+    </message>
+    <message>
+        <source>Plug-ins folder (.8bf filters):</source>
+        <translation>插件文件夹（.8bf 滤镜）：</translation>
+    </message>
+    <message>
+        <source>Open Plug-ins Folder</source>
+        <translation>打开插件文件夹</translation>
+    </message>
+    <message>
+        <source>Could not open the plug-ins folder.</source>
+        <translation>无法打开插件文件夹。</translation>
+    </message>
+    <message>
+        <source>Blend Clipped Layers as Group</source>
+        <translation>将剪贴图层混合成组</translation>
+    </message>
+    <message>
+        <source>Keep the layers clipped to this one under its interior effects; turn this off together with Blend Interior Effects as Group to draw them over the overlays instead</source>
+        <translation>将剪贴到此图层的图层保持在其内部效果之下;与“将内部效果混合成组”一起关闭时,改为绘制在叠加之上</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -10719,10 +10793,6 @@ RGB：%2, %3, %4</translation>
     <message>
         <source>Shift &amp;Seams to Center</source>
         <translation>将接缝移到中心(&amp;S)</translation>
-    </message>
-    <message>
-        <source>&amp;Scan Legacy Photoshop Plug-ins...</source>
-        <translation>扫描旧版 Photoshop 增效工具(&amp;S)...</translation>
     </message>
     <message>
         <source>Legacy Photoshop Plug-ins</source>
@@ -15548,22 +15618,6 @@ Y: %2
         <translation>已从选区建立工作路径。</translation>
     </message>
     <message>
-        <source>Scan Legacy Photoshop Plug-ins</source>
-        <translation>扫描旧版 Photoshop 增效工具</translation>
-    </message>
-    <message>
-        <source>Photoshop Plug-ins (*.8bf *.8bi *.8li);;All Files (*.*)</source>
-        <translation>Photoshop 增效工具 (*.8bf *.8bi *.8li);;所有文件 (*.*)</translation>
-    </message>
-    <message>
-        <source>%1 plug-in action(s) available under Plug-ins &gt; Legacy Photoshop Plug-ins.
-
-%2</source>
-        <translation>%1 个增效工具操作可在“增效工具 &gt; 旧版 Photoshop 增效工具”下使用。
-
-%2</translation>
-    </message>
-    <message>
         <source>%1: %2 (%3, %4)</source>
         <translation>%1: %2 (%3, %4)</translation>
     </message>
@@ -15578,14 +15632,6 @@ Y: %2
     <message>
         <source>Legacy Photoshop Plug-in</source>
         <translation>旧版 Photoshop 增效工具</translation>
-    </message>
-    <message>
-        <source>%1 was scanned and is available, but this build only has compatibility shims for the bundled Greyscale and White to Transparent test filters. A full 8BF host still needs the out-of-process Photoshop SDK adapter.</source>
-        <translation>%1 已扫描并可用，但此版本仅为随附的“灰度”和“白色转透明”测试滤镜提供兼容性适配。完整的 8BF 宿主仍需要进程外的 Photoshop SDK 适配器。</translation>
-    </message>
-    <message>
-        <source>Legacy plug-in</source>
-        <translation>旧版增效工具</translation>
     </message>
     <message>
         <source>Preferences</source>
@@ -17673,6 +17719,115 @@ Y: %2
             <numerusform>已将智能对象转换为 %n 个图层</numerusform>
         </translation>
     </message>
+    <message>
+        <source>Add Plug-in Folder</source>
+        <translation>添加插件文件夹</translation>
+    </message>
+    <message>
+        <source>No plug-ins found (put .8bf files in the plugins folder)</source>
+        <translation>未找到插件（请将 .8bf 文件放入 plugins 文件夹）</translation>
+    </message>
+    <message>
+        <source>Run the %1 plug-in on the active layer</source>
+        <translation>在当前图层上运行 %1 插件</translation>
+    </message>
+    <message>
+        <source>Plug-in: %1</source>
+        <translation>插件：%1</translation>
+    </message>
+    <message>
+        <source>%1 could not run.
+
+%2</source>
+        <translation>%1 无法运行。
+
+%2</translation>
+    </message>
+    <message>
+        <source>Legacy Photoshop plug-ins run on Windows only.</source>
+        <translation>旧版 Photoshop 插件只能在 Windows 上运行。</translation>
+    </message>
+    <message>
+        <source>The selection does not touch the active layer.</source>
+        <translation>选区未触及当前图层。</translation>
+    </message>
+    <message>
+        <source>Running %1...</source>
+        <translation>正在运行 %1...</translation>
+    </message>
+    <message>
+        <source>The layer no longer exists.</source>
+        <translation>该图层已不存在。</translation>
+    </message>
+    <message>
+        <source>Photoshop filter plug-ins (.8bf, 32-bit or 64-bit) are found in these folders and their subfolders and listed under Plugins &gt; Legacy Photoshop Plug-ins. Only run plug-ins you trust: they execute with your permissions.</source>
+        <translation>Patchy 会在这些文件夹及其子文件夹中查找 Photoshop 滤镜插件（.8bf，32 位或 64 位），并将其列在“Plugins &gt; 旧版 Photoshop 插件”下。只运行你信任的插件：它们以你的权限执行。</translation>
+    </message>
+    <message>
+        <source>Always scanned:</source>
+        <translation>始终扫描：</translation>
+    </message>
+    <message>
+        <source>Add Folder...</source>
+        <translation>添加文件夹...</translation>
+    </message>
+    <message>
+        <source>Added folders:</source>
+        <translation>已添加的文件夹：</translation>
+    </message>
+    <message>
+        <source>Plug-ins</source>
+        <translation>插件</translation>
+    </message>
+    <message>
+        <source>Open Plug-ins &amp;Folder</source>
+        <translation>打开插件文件夹(&amp;F)</translation>
+    </message>
+    <message>
+        <source>&amp;Rescan Plug-in Folders</source>
+        <translation>重新扫描插件文件夹(&amp;R)</translation>
+    </message>
+    <message>
+        <source>Could not open the plug-ins folder.</source>
+        <translation>无法打开插件文件夹。</translation>
+    </message>
+    <message>
+        <source>Plug-in scan finished: %1 available</source>
+        <translation>插件扫描完成：%1 个可用</translation>
+    </message>
+    <message>
+        <source>Plug-in scan finished: %1 available, %2 not usable</source>
+        <translation>插件扫描完成：%1 个可用，%2 个不可用</translation>
+    </message>
+    <message>
+        <source>Scanning plug-in folders...</source>
+        <translation>正在扫描插件文件夹...</translation>
+    </message>
+    <message>
+        <source>Whole monitor</source>
+        <translation>整个显示器</translation>
+    </message>
+    <message>
+        <source>Plug-in windows open on the monitor showing Patchy. Plug-ins with full-screen interfaces size themselves to this screen size, so a smaller size keeps them usable on large monitors.</source>
+        <translation>插件窗口会在显示 Patchy 的显示器上打开。全屏界面的插件会按此屏幕尺寸显示，较小的尺寸可让它们在大显示器上保持可用。</translation>
+    </message>
+    <message>
+        <source>Screen size for plug-in windows:</source>
+        <translation>插件窗口的屏幕尺寸:</translation>
+    </message>
+    <message>
+        <source>%1 via Patchy</source>
+        <extracomment>Title of the movable window a full-screen plug-in interface is shown in; %1 is the plug-in&apos;s name.</extracomment>
+        <translation>%1 (通过 Patchy)</translation>
+    </message>
+    <message>
+        <source>%1: same plug-in as %2, listed once</source>
+        <translation>%1: 与 %2 是同一插件，仅列出一次</translation>
+    </message>
+    <message>
+        <source>Plug-ins work on one layer at a time. Select a single layer and run it again.</source>
+        <translation>插件一次只能处理一个图层。请选择单个图层后再运行。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -19050,6 +19205,30 @@ Y: %2
     <message>
         <source>%1: paragraph.%2 must be a number (document pixels).</source>
         <translation>%1: paragraph.%2 必须是数值（文档像素）。</translation>
+    </message>
+    <message>
+        <source>applyPlugin: unknown option %1.</source>
+        <translation>applyPlugin：未知选项 %1。</translation>
+    </message>
+    <message>
+        <source>Unknown plug-in id: %1</source>
+        <translation>未知插件 ID：%1</translation>
+    </message>
+    <message>
+        <source>Plug-in %1 cannot run: %2</source>
+        <translation>插件 %1 无法运行：%2</translation>
+    </message>
+    <message>
+        <source>applyPlugin needs a pixel layer.</source>
+        <translation>applyPlugin 需要一个像素图层。</translation>
+    </message>
+    <message>
+        <source>Plug-in %1 was cancelled.</source>
+        <translation>插件 %1 已取消。</translation>
+    </message>
+    <message>
+        <source>Plug-in %1 failed: %2</source>
+        <translation>插件 %1 失败：%2</translation>
     </message>
 </context>
 <context>

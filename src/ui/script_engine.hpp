@@ -330,6 +330,14 @@ public:
   // Filter application onto a layer's pixel buffer by registry id.
   bool apply_filter_to_layer(std::int64_t session_id, LayerId layer_id, const QString& filter_id,
                              const QJSValue& params);
+  // Legacy Photoshop plug-in by identifier (patchy.plugins.list()), limited to
+  // the session's selection; the dialog is skipped for unattended runs.
+  bool apply_legacy_plugin_to_layer(std::int64_t session_id, LayerId layer_id, const QString& plugin_id,
+                                    bool show_dialog, const QString& capture_dialog_path = QString());
+  // The plug-in files the last scan saw, as script objects.
+  [[nodiscard]] QJSValue legacy_plugin_list();
+  // Rescans the plug-in folders (patchy.plugins.rescan / folders setter).
+  void rescan_legacy_plugins();
 
   // Interactive helpers (suppressed for unattended runs - CLI automation mode
   // or a forwarded --run-script: alert logs instead, prompt returns its

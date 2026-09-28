@@ -194,7 +194,8 @@ flatpak install --user -y flathub org.freedesktop.Platform.ffmpeg-full//24.08
 - Opens camera raw files (CR2/CR3/NEF/ARW/RAF/DNG and more) through a 16-bit develop dialog with a Natural rendering profile, ISO-based noise reduction, and per-photo settings saved beside the original, and HEIC/HEIF photos through platform codecs
 - Opens HDR screenshots saved as JPEG XR (.jxr), the format NVIDIA's in-game capture uses, tone mapping the high dynamic range down to 8-bit so highlights keep their detail instead of clipping to white
 - Photoshop-compatible document resolution, physical measurement units, rulers, image sizing, and printing
-- Pen/stylus pressure and size dynamics, GUI scaling, scanner import (Windows and macOS), camera import (Windows), legacy .8bf plugins, and command line options
+- Pen/stylus pressure and size dynamics, GUI scaling, scanner import (Windows and macOS), camera import (Windows), and command line options
+- Classic Photoshop filter plug-ins (.8bf, 32-bit and 64-bit) on Windows: see [Photoshop plug-ins](#photoshop-plug-ins-8bf-windows-only) below
 - JavaScript scripting: a built-in Script Manager (File > Scripts) with a folder tree over the bundled and user scripts, a code editor with live run status, a documented API covering documents, layers, text, selections, pixels, filters, form dialogs, file pickers, and batch processing, bundled examples ranging from CSV data merge, contact sheets, icon export, and versioned saves to glitch/duotone effects and playable Breakout and Pong (scripts can call other scripts), safe editing of bundled scripts (your saved copy overrides the original and can be reverted), and a --run-script command line flag with script arguments so external tools and AI agents can drive Patchy (add --headless to run with no display, on a server or in CI). See the [scripting guide](scripts/bundled/scripting-guide.md) (also under Help inside the app)
 - Local AI control through the bundled MCP connector: native pressure-aware brush strokes, reusable brush presets, editable vector shapes and paths, palette controls, image previews, and persistent document sessions. Help > Set up AI Control provides setup instructions and example prompts; see the [AI control guide](docs/ai-control.md)
 - Cross-platform: Windows is the lead platform, with native macOS (Apple Silicon) and Linux (Flatpak) builds
@@ -278,6 +279,37 @@ macOS produces `build/mac-release/Patchy.app`; Linux produces
 `packaging/linux/make-flatpak.sh` create the distributable artifacts. Both test suites
 run offscreen on all three platforms (`QT_QPA_PLATFORM=offscreen`).
 
+## Photoshop plug-ins (.8bf, Windows only)
+
+The Windows build runs classic Photoshop filter plug-ins, the `.8bf` files that
+third-party filter packs have shipped for decades. Both 32-bit and 64-bit plug-ins work.
+
+1. Choose Plugins > Open Plug-ins Folder (also on the About screen). That is the `plugins`
+   folder next to `patchy.exe`; it ships with a README that says the same thing.
+2. Copy your `.8bf` files into it, subfolders included.
+3. Choose Plugins > Rescan Plug-in Folders, or just restart Patchy.
+
+Each plug-in then appears under Plugins > Legacy Photoshop Plug-ins, grouped by the category
+it declares, and runs on the active pixel layer inside the current selection with its own
+settings dialog and preview, as one undoable step:
+
+<a href="docs/images/screenshots/plugin_dialog.png"><img src="docs/images/screenshots/plugin_dialog.png" width="540" alt="A third-party Photoshop filter plug-in showing its own settings dialog and preview inside Patchy"></a>
+
+Even the big 1990s suites work. This is Kai's Power Tools 5 (Orb-It) drawing its full-screen interface and live preview over a Patchy layer:
+
+<a href="docs/images/screenshots/plugin_kpt5.png"><img src="docs/images/screenshots/plugin_kpt5.png" width="540" alt="Kai's Power Tools 5 Orb-It running from Patchy, its full-screen MetaOS interface previewing the photo as 3D orbs"></a>
+
+Every run happens in a separate helper program (`patchy-8bf-host32.exe` or
+`patchy-8bf-host64.exe`), so a crashing plug-in cannot take Patchy down. It still runs with
+your user permissions, so only install plug-ins from sources you trust. Plug-in windows open on
+the monitor showing Patchy. Plug-ins with full-screen interfaces (KPT and friends predate
+multiple monitors) get a movable window of their own, titled "<plug-in> via Patchy", sized to
+the screen size chosen under File > Preferences > Plug-ins (1280 x 1024 by default), so they
+stay usable on a 4K display. Extra folders can be added on the same tab. Only filter plug-ins
+run; file-format (`.8bi`) and
+automation (`.8li`) plug-ins are listed as unsupported. The plug-ins are Windows programs, so
+the macOS and Linux builds cannot run them. Details for developers: [docs/plugins.md](docs/plugins.md).
+
 ## Windows Release Package
 
 Create local Windows release artifacts:
@@ -330,7 +362,7 @@ Patchy is released under the MIT License. Third-party runtime notices are tracke
 
 ## Trademark Notice
 
-Adobe and Photoshop are either registered trademarks or trademarks of Adobe in the United States and/or other countries. Patchy is an independent project and is not authorized, endorsed, or sponsored by Adobe. References to Photoshop and its file formats (PSD, Smart Objects, Smart Filters) are only there to describe compatibility.
+Adobe and Photoshop are either registered trademarks or trademarks of Adobe in the United States and/or other countries. Patchy is an independent project and is not authorized, endorsed, or sponsored by Adobe. References to Photoshop, its file formats (PSD, Smart Objects, Smart Filters) and its plug-in format (8BF) are only there to describe compatibility.
 
 ## AI Disclosure
 

@@ -116,6 +116,14 @@ public:
   Q_INVOKABLE void fill(const QString& color);
   Q_INVOKABLE void fillRect(int x, int y, int width, int height, const QString& color);
   Q_INVOKABLE void applyFilter(const QString& filterId, const QJSValue& params = QJSValue());
+  // Runs a legacy Photoshop plug-in (an id from patchy.plugins.list()) on this
+  // layer, limited to the document selection. Options {dialog, captureDialog}:
+  // dialog false skips the plug-in's own settings dialog and reuses its last
+  // (or default) settings; captureDialog is a PNG path that receives an image
+  // of the dialog while it is up. Unattended runs never show the dialog unless
+  // captureDialog asks for it, and then answer it automatically. Windows only;
+  // throws elsewhere.
+  Q_INVOKABLE void applyPlugin(const QString& pluginId, const QJSValue& options = QJSValue());
   // Edit > Remove Object on the document selection; the layer must be the
   // document's active layer. Options {method, attempt}; returns {method,
   // patches, source, sourceCount}.
@@ -323,6 +331,33 @@ public:
   Q_INVOKABLE bool makeDir(const QString& path);
   // Removes one file (never a folder); true when it was removed.
   Q_INVOKABLE bool deleteFile(const QString& path);
+
+private:
+  ScriptEngineHost& host_;
+};
+
+// patchy.plugins: the legacy Photoshop plug-ins Patchy found (docs/plugins.md).
+class ScriptPluginsObject : public QObject {
+  Q_OBJECT
+  Q_PROPERTY(QStringList folders READ folders WRITE set_folders)
+  Q_PROPERTY(QString folder READ folder)
+
+public:
+  explicit ScriptPluginsObject(ScriptEngineHost& host);
+
+  // The plug-ins folder next to the application ("/" separators), created
+  // with its README when read; empty on platforms without one.
+  [[nodiscard]] QString folder() const;
+
+  // The user-added plug-in folders (persisted); setting rescans.
+  [[nodiscard]] QStringList folders() const;
+  void set_folders(const QStringList& folders);
+  // Every plug-in file the last scan saw: {id, name, category, path, supported,
+  // reason, architecture}. Unsupported files (formats, automation, other
+  // platforms) carry the reason.
+  Q_INVOKABLE QJSValue list();
+  // Rescans the automatic and user folders; returns list().
+  Q_INVOKABLE QJSValue rescan();
 
 private:
   ScriptEngineHost& host_;

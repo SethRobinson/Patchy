@@ -108,6 +108,56 @@
     </message>
 </context>
 <context>
+    <name>LegacyPluginFolder</name>
+    <message>
+        <source>Legacy Photoshop plug-ins run on Windows only.</source>
+        <translation>Ältere Photoshop-Plug-ins laufen nur unter Windows.</translation>
+    </message>
+    <message>
+        <source>The plug-ins folder could not be created: %1</source>
+        <translation>Der Plug-in-Ordner konnte nicht erstellt werden: %1</translation>
+    </message>
+</context>
+<context>
+    <name>LegacyPluginRunner</name>
+    <message>
+        <source>The plug-in host was given an invalid image.</source>
+        <translation>Der Plug-in-Host hat ein ungültiges Bild erhalten.</translation>
+    </message>
+    <message>
+        <source>The plug-in host program is missing: %1</source>
+        <translation>Das Plug-in-Host-Programm fehlt: %1</translation>
+    </message>
+    <message>
+        <source>Not enough memory to hand the layer to the plug-in.</source>
+        <translation>Nicht genug Speicher, um die Ebene an das Plug-in zu übergeben.</translation>
+    </message>
+    <message>
+        <source>The plug-in host could not be contacted: %1</source>
+        <translation>Der Plug-in-Host konnte nicht erreicht werden: %1</translation>
+    </message>
+    <message>
+        <source>The plug-in host program could not be started: %1</source>
+        <translation>Das Plug-in-Host-Programm konnte nicht gestartet werden: %1</translation>
+    </message>
+    <message>
+        <source>The plug-in host did not respond.</source>
+        <translation>Der Plug-in-Host hat nicht geantwortet.</translation>
+    </message>
+    <message>
+        <source>The plug-in host program does not match this Patchy build.</source>
+        <translation>Das Plug-in-Host-Programm passt nicht zu diesem Patchy-Build.</translation>
+    </message>
+    <message>
+        <source>The plug-in crashed (host exit code %1).</source>
+        <translation>Das Plug-in ist abgestürzt (Host-Exit-Code %1).</translation>
+    </message>
+    <message>
+        <source>The plug-in reported an error.</source>
+        <translation>Das Plug-in hat einen Fehler gemeldet.</translation>
+    </message>
+</context>
+<context>
     <name>QObject</name>
     <message>
         <source>Patchy raster image editor.</source>
@@ -2112,26 +2162,6 @@
     <message>
         <source>Legacy Photoshop plug-ins are Windows binaries; they require the Windows build of Patchy.</source>
         <translation>Ältere Photoshop-Zusatzmodule sind Windows-Binärdateien; sie erfordern die Windows-Version von Patchy.</translation>
-    </message>
-    <message>
-        <source>32-bit Photoshop plug-ins require a 32-bit compatibility host.</source>
-        <translation>32-Bit-Photoshop-Zusatzmodule erfordern einen 32-Bit-Kompatibilitätshost.</translation>
-    </message>
-    <message>
-        <source>Plug-in architecture does not match this Patchy build.</source>
-        <translation>Die Architektur des Zusatzmoduls passt nicht zu dieser Patchy-Version.</translation>
-    </message>
-    <message>
-        <source>Automation plug-ins are recognized but not supported by the first compatibility adapter.</source>
-        <translation>Automatisierungs-Zusatzmodule werden erkannt, aber vom ersten Kompatibilitätsadapter nicht unterstützt.</translation>
-    </message>
-    <message>
-        <source>Classic Photoshop filter plug-in candidate. Runtime execution will be isolated out-of-process.</source>
-        <translation>Kandidat für ein klassisches Photoshop-Filter-Zusatzmodul. Die Ausführung wird isoliert in einem separaten Prozess erfolgen.</translation>
-    </message>
-    <message>
-        <source>Classic Photoshop file-format plug-in candidate. Runtime execution will be isolated out-of-process.</source>
-        <translation>Kandidat für ein klassisches Photoshop-Dateiformat-Zusatzmodul. Die Ausführung wird isoliert in einem separaten Prozess erfolgen.</translation>
     </message>
     <message>
         <source>Plugin identifier cannot be empty</source>
@@ -8514,6 +8544,50 @@ RGB: %2, %3, %4</translation>
         <source>The source color mode is Grayscale; Patchy converted the gray values to RGB/RGBA for editing and will export RGB PSD data from this document.</source>
         <translation>Der Quellfarbmodus ist Graustufen. Patchy hat die Grauwerte zur Bearbeitung in RGB/RGBA konvertiert und exportiert aus diesem Dokument RGB-PSD-Daten.</translation>
     </message>
+    <message>
+        <source>Not a Windows plug-in binary.</source>
+        <translation>Keine Windows-Plug-in-Binärdatei.</translation>
+    </message>
+    <message>
+        <source>Unsupported plug-in architecture; only 32-bit and 64-bit x86 plug-ins run.</source>
+        <translation>Nicht unterstützte Plug-in-Architektur; nur 32-Bit- und 64-Bit-x86-Plug-ins werden ausgeführt.</translation>
+    </message>
+    <message>
+        <source>File-format and automation plug-ins are not supported; only filter (.8bf) plug-ins run.</source>
+        <translation>Dateiformat- und Automatisierungs-Plug-ins werden nicht unterstützt; nur Filter-Plug-ins (.8bf) werden ausgeführt.</translation>
+    </message>
+    <message>
+        <source>This plug-in is not a filter; only filter (.8bf) plug-ins run.</source>
+        <translation>Dieses Plug-in ist kein Filter; nur Filter-Plug-ins (.8bf) werden ausgeführt.</translation>
+    </message>
+    <message>
+        <source>Photoshop filter plug-in (32-bit).</source>
+        <translation>Photoshop-Filter-Plug-in (32-Bit).</translation>
+    </message>
+    <message>
+        <source>Photoshop filter plug-in (64-bit).</source>
+        <translation>Photoshop-Filter-Plug-in (64-Bit).</translation>
+    </message>
+    <message>
+        <source>Plug-ins folder (.8bf filters):</source>
+        <translation>Plug-in-Ordner (.8bf-Filter):</translation>
+    </message>
+    <message>
+        <source>Open Plug-ins Folder</source>
+        <translation>Plug-in-Ordner öffnen</translation>
+    </message>
+    <message>
+        <source>Could not open the plug-ins folder.</source>
+        <translation>Der Plug-in-Ordner konnte nicht geöffnet werden.</translation>
+    </message>
+    <message>
+        <source>Blend Clipped Layers as Group</source>
+        <translation>Beschnittene Ebenen als Gruppe mischen</translation>
+    </message>
+    <message>
+        <source>Keep the layers clipped to this one under its interior effects; turn this off together with Blend Interior Effects as Group to draw them over the overlays instead</source>
+        <translation>Die an diese Ebene geschnittenen Ebenen unter ihren inneren Effekten halten; zusammen mit „Interne Effekte als Gruppe mischen“ ausschalten, um sie stattdessen über die Überlagerungen zu zeichnen</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -10746,10 +10820,6 @@ RGB: %2, %3, %4</translation>
     <message>
         <source>Shift &amp;Seams to Center</source>
         <translation>Naht&amp;stellen in die Mitte verschieben</translation>
-    </message>
-    <message>
-        <source>&amp;Scan Legacy Photoshop Plug-ins...</source>
-        <translation>Ältere Photoshop-Plug-ins &amp;suchen...</translation>
     </message>
     <message>
         <source>Legacy Photoshop Plug-ins</source>
@@ -15587,22 +15657,6 @@ Y: %2
         <translation>Arbeitspfad aus der Auswahl erstellt.</translation>
     </message>
     <message>
-        <source>Scan Legacy Photoshop Plug-ins</source>
-        <translation>Ältere Photoshop-Plug-ins scannen</translation>
-    </message>
-    <message>
-        <source>Photoshop Plug-ins (*.8bf *.8bi *.8li);;All Files (*.*)</source>
-        <translation>Photoshop-Plug-ins (*.8bf *.8bi *.8li);;Alle Dateien (*.*)</translation>
-    </message>
-    <message>
-        <source>%1 plug-in action(s) available under Plug-ins &gt; Legacy Photoshop Plug-ins.
-
-%2</source>
-        <translation>%1 Plug-in-Aktion(en) verfügbar unter Plug-ins &gt; Ältere Photoshop-Plug-ins.
-
-%2</translation>
-    </message>
-    <message>
         <source>%1: %2 (%3, %4)</source>
         <translation>%1: %2 (%3, %4)</translation>
     </message>
@@ -15617,14 +15671,6 @@ Y: %2
     <message>
         <source>Legacy Photoshop Plug-in</source>
         <translation>Älteres Photoshop-Plug-in</translation>
-    </message>
-    <message>
-        <source>%1 was scanned and is available, but this build only has compatibility shims for the bundled Greyscale and White to Transparent test filters. A full 8BF host still needs the out-of-process Photoshop SDK adapter.</source>
-        <translation>%1 wurde gescannt und ist verfügbar, aber dieser Build enthält nur Kompatibilitäts-Shims für die mitgelieferten Testfilter Greyscale und White to Transparent. Ein vollständiger 8BF-Host benötigt weiterhin den Out-of-Process-Adapter für das Photoshop SDK.</translation>
-    </message>
-    <message>
-        <source>Legacy plug-in</source>
-        <translation>Älteres Plug-in</translation>
     </message>
     <message>
         <source>Preferences</source>
@@ -17725,6 +17771,115 @@ Y: %2
             <numerusform>Smartobjekt in %n Ebenen konvertiert</numerusform>
         </translation>
     </message>
+    <message>
+        <source>Add Plug-in Folder</source>
+        <translation>Plug-in-Ordner hinzufügen</translation>
+    </message>
+    <message>
+        <source>No plug-ins found (put .8bf files in the plugins folder)</source>
+        <translation>Keine Plug-ins gefunden (.8bf-Dateien in den Ordner „plugins“ legen)</translation>
+    </message>
+    <message>
+        <source>Run the %1 plug-in on the active layer</source>
+        <translation>Das Plug-in %1 auf der aktiven Ebene ausführen</translation>
+    </message>
+    <message>
+        <source>Plug-in: %1</source>
+        <translation>Plug-in: %1</translation>
+    </message>
+    <message>
+        <source>%1 could not run.
+
+%2</source>
+        <translation>%1 konnte nicht ausgeführt werden.
+
+%2</translation>
+    </message>
+    <message>
+        <source>Legacy Photoshop plug-ins run on Windows only.</source>
+        <translation>Ältere Photoshop-Plug-ins laufen nur unter Windows.</translation>
+    </message>
+    <message>
+        <source>The selection does not touch the active layer.</source>
+        <translation>Die Auswahl berührt die aktive Ebene nicht.</translation>
+    </message>
+    <message>
+        <source>Running %1...</source>
+        <translation>%1 wird ausgeführt...</translation>
+    </message>
+    <message>
+        <source>The layer no longer exists.</source>
+        <translation>Die Ebene existiert nicht mehr.</translation>
+    </message>
+    <message>
+        <source>Photoshop filter plug-ins (.8bf, 32-bit or 64-bit) are found in these folders and their subfolders and listed under Plugins &gt; Legacy Photoshop Plug-ins. Only run plug-ins you trust: they execute with your permissions.</source>
+        <translation>Photoshop-Filter-Plug-ins (.8bf, 32-Bit oder 64-Bit) werden in diesen Ordnern und ihren Unterordnern gesucht und unter „Plugins &gt; Ältere Photoshop-Plug-ins“ aufgeführt. Führen Sie nur Plug-ins aus, denen Sie vertrauen: Sie laufen mit Ihren Berechtigungen.</translation>
+    </message>
+    <message>
+        <source>Always scanned:</source>
+        <translation>Immer durchsucht:</translation>
+    </message>
+    <message>
+        <source>Add Folder...</source>
+        <translation>Ordner hinzufügen...</translation>
+    </message>
+    <message>
+        <source>Added folders:</source>
+        <translation>Hinzugefügte Ordner:</translation>
+    </message>
+    <message>
+        <source>Plug-ins</source>
+        <translation>Plug-ins</translation>
+    </message>
+    <message>
+        <source>Open Plug-ins &amp;Folder</source>
+        <translation>Plug-in-&amp;Ordner öffnen</translation>
+    </message>
+    <message>
+        <source>&amp;Rescan Plug-in Folders</source>
+        <translation>Plug-in-Ordner &amp;erneut durchsuchen</translation>
+    </message>
+    <message>
+        <source>Could not open the plug-ins folder.</source>
+        <translation>Der Plug-in-Ordner konnte nicht geöffnet werden.</translation>
+    </message>
+    <message>
+        <source>Plug-in scan finished: %1 available</source>
+        <translation>Plug-in-Suche abgeschlossen: %1 verfügbar</translation>
+    </message>
+    <message>
+        <source>Plug-in scan finished: %1 available, %2 not usable</source>
+        <translation>Plug-in-Suche abgeschlossen: %1 verfügbar, %2 nicht nutzbar</translation>
+    </message>
+    <message>
+        <source>Scanning plug-in folders...</source>
+        <translation>Plug-in-Ordner werden durchsucht...</translation>
+    </message>
+    <message>
+        <source>Whole monitor</source>
+        <translation>Ganzer Monitor</translation>
+    </message>
+    <message>
+        <source>Plug-in windows open on the monitor showing Patchy. Plug-ins with full-screen interfaces size themselves to this screen size, so a smaller size keeps them usable on large monitors.</source>
+        <translation>Plug-in-Fenster öffnen sich auf dem Monitor, der Patchy anzeigt. Plug-ins mit Vollbild-Oberfläche richten sich nach dieser Bildschirmgröße; eine kleinere Größe hält sie auf großen Monitoren benutzbar.</translation>
+    </message>
+    <message>
+        <source>Screen size for plug-in windows:</source>
+        <translation>Bildschirmgröße für Plug-in-Fenster:</translation>
+    </message>
+    <message>
+        <source>%1 via Patchy</source>
+        <extracomment>Title of the movable window a full-screen plug-in interface is shown in; %1 is the plug-in&apos;s name.</extracomment>
+        <translation>%1 über Patchy</translation>
+    </message>
+    <message>
+        <source>%1: same plug-in as %2, listed once</source>
+        <translation>%1: dasselbe Plug-in wie %2, einmal aufgeführt</translation>
+    </message>
+    <message>
+        <source>Plug-ins work on one layer at a time. Select a single layer and run it again.</source>
+        <translation>Plug-ins arbeiten mit jeweils einer Ebene. Wählen Sie eine einzelne Ebene aus und führen Sie es erneut aus.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -19103,6 +19258,30 @@ Y: %2
     <message>
         <source>%1: paragraph.%2 must be a number (document pixels).</source>
         <translation>%1: paragraph.%2 muss eine Zahl sein (Dokumentpixel).</translation>
+    </message>
+    <message>
+        <source>applyPlugin: unknown option %1.</source>
+        <translation>applyPlugin: unbekannte Option %1.</translation>
+    </message>
+    <message>
+        <source>Unknown plug-in id: %1</source>
+        <translation>Unbekannte Plug-in-ID: %1</translation>
+    </message>
+    <message>
+        <source>Plug-in %1 cannot run: %2</source>
+        <translation>Plug-in %1 kann nicht ausgeführt werden: %2</translation>
+    </message>
+    <message>
+        <source>applyPlugin needs a pixel layer.</source>
+        <translation>applyPlugin benötigt eine Pixelebene.</translation>
+    </message>
+    <message>
+        <source>Plug-in %1 was cancelled.</source>
+        <translation>Plug-in %1 wurde abgebrochen.</translation>
+    </message>
+    <message>
+        <source>Plug-in %1 failed: %2</source>
+        <translation>Plug-in %1 ist fehlgeschlagen: %2</translation>
     </message>
 </context>
 <context>

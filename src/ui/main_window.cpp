@@ -7104,7 +7104,16 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   });
   recent_history_timer->start();
   update_start_panel_visibility();
-  load_bundled_legacy_plugins();
+#ifdef Q_OS_WIN
+  // Plug-in folders are probed on a worker after the window is up, so a folder
+  // full of .8bf files never delays the first paint (docs/plugins.md). The
+  // in-flight flag is raised now so a wait for the scan cannot miss it.
+  legacy_plugin_scan_in_flight_ = true;
+  QTimer::singleShot(0, this, [this] {
+    legacy_plugin_scan_in_flight_ = false;
+    start_legacy_plugin_scan(false);
+  });
+#endif
   create_docks();
   hotkey_registry_.apply_to_actions();
   refresh_layer_list();
@@ -13390,6 +13399,10 @@ void MainWindow::register_document_action(QAction* action) {
     return;
   }
   document_actions_.push_back(action);
+}
+
+void MainWindow::unregister_document_action(QAction* action) {
+  std::erase(document_actions_, action);
 }
 
 void MainWindow::register_hotkey(QAction* action, QString id, QList<QKeySequence> default_shortcuts,

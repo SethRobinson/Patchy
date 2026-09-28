@@ -513,6 +513,12 @@ struct LayerStyle {
   // applies to its pixels alone and the interior effects blend over that with
   // their own modes. See docs/ps-compat.md.
   bool blend_interior_elements{false};
+  // Photoshop's "Blend Clipped Layers as Group" blending option ('clbl', on by
+  // default). Rendered only through its interaction with blend_interior_elements
+  // (off + on folds the base's interior effects under its clipped layers; every
+  // other combination draws the base's effects over them). The base's blend
+  // mode still carries the clipped layers either way. See docs/ps-compat.md.
+  bool blend_clipped_elements{true};
   std::vector<LayerDropShadow> drop_shadows;
   std::vector<LayerInnerShadow> inner_shadows;
   std::vector<LayerOuterGlow> outer_glows;

@@ -353,6 +353,10 @@ int text_points_to_pixels(double points, const Document& document) noexcept {
   return std::max(1, static_cast<int>(std::lround(std::max(0.01, points) * text_size_ppi(document) / 72.0)));
 }
 
+QString escape_qaction_ampersands(QString text) {
+  return text.replace(QLatin1Char('&'), QStringLiteral("&&"));
+}
+
 void set_layer_pixels_preserving_origin(Layer& layer, PixelBuffer pixels, Rect original_bounds) {
   const auto x = original_bounds.x;
   const auto y = original_bounds.y;

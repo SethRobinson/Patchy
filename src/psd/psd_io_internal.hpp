@@ -232,6 +232,7 @@ struct LayerRecord {
   std::uint32_t protection_flags{0};
   bool layer_mask_hides_effects{false};
   bool blend_interior_elements{false};
+  bool blend_clipped_elements{true};
   // 'brst' channel blending restrictions: the big-endian u32 channel indices
   // the block excludes from compositing. nullopt = no brst block; malformed
   // marks a payload whose length is not a multiple of four.

@@ -88,11 +88,17 @@ Snapshot snapshot(const QObject& root) {
 }
 
 void show_translation_window(patchy::ui::MainWindow& window, bool with_document) {
+  // The plug-in menu's placeholder note changes identity when the startup scan
+  // finishes ("Scanning plug-in folders..." becomes "No plug-ins found"), so a
+  // window snapshotted mid-scan never matches one snapshotted after it. Wait
+  // for the scan before either snapshot.
   if (!with_document) {
     show_window_empty(window);
+    wait_for_legacy_plugin_scan(window);
     return;
   }
   show_window(window);
+  wait_for_legacy_plugin_scan(window);
   // Layer names are document content. Use the same user-owned name in every
   // locale while still checking the translated property labels around it.
   auto& document = patchy::ui::MainWindowTestAccess::document(window);

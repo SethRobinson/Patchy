@@ -18,6 +18,7 @@
 #include "ui/mcp_activity.hpp"
 #include "ui/pdf_export.hpp"
 #include <QScopedValueRollback>
+#include "ui/localization.hpp"
 #include "ui/qt_geometry.hpp"
 #include "ui/script_api.hpp"
 #include "ui/script_canvas_window.hpp"
@@ -113,6 +114,7 @@ constexpr const char* kBootstrapSource = R"JS(
     io: g.__patchy_io,
     ui: g.__patchy_ui,
     recovery: g.__patchy_recovery,
+    plugins: g.__patchy_plugins,
     apiVersion: g.app.apiVersion,
     version: g.app.version,
     args: g.__patchy_args,
@@ -375,6 +377,10 @@ void ScriptEngineHost::install_bindings(const RunOptions& options) {
   auto* recovery_object = new ScriptRecoveryObject(*this);
   recovery_object->setParent(&engine);
   global.setProperty(QStringLiteral("__patchy_recovery"), engine.newQObject(recovery_object));
+
+  auto* plugins_object = new ScriptPluginsObject(*this);
+  plugins_object->setParent(&engine);
+  global.setProperty(QStringLiteral("__patchy_plugins"), engine.newQObject(plugins_object));
 
   const QJSValue bootstrap = engine.evaluate(QString::fromLatin1(kBootstrapSource),
                                              QStringLiteral("<patchy-bootstrap>"), 1);
@@ -2317,6 +2323,78 @@ bool ScriptEngineHost::apply_filter_to_layer(std::int64_t session_id, LayerId la
   registry.apply(*normalized, layer->pixels());
   note_pixels_changed(session_id, before_bounds);
   return true;
+}
+
+bool ScriptEngineHost::apply_legacy_plugin_to_layer(std::int64_t session_id, LayerId layer_id,
+                                                    const QString& plugin_id, bool show_dialog,
+                                                    const QString& capture_dialog_path) {
+  pump_progress_indicator();
+  auto* session = window_.session_with_id(session_id);
+  if (session == nullptr) {
+    throw_js_error(tr("The document is no longer open."));
+    return false;
+  }
+  const auto* entry = window_.find_legacy_plugin(plugin_id.toStdString());
+  if (entry == nullptr) {
+    throw_js_error(tr("Unknown plug-in id: %1").arg(plugin_id));
+    return false;
+  }
+  if (!entry->probe.supported) {
+    throw_js_error(tr("Plug-in %1 cannot run: %2").arg(plugin_id, translate_data_text(entry->probe.reason)));
+    return false;
+  }
+  auto* layer = session->document.find_layer(layer_id);
+  if (layer == nullptr) {
+    throw_js_error(tr("The layer no longer exists."));
+    return false;
+  }
+  if (layer->kind() != LayerKind::Pixel) {
+    throw_js_error(tr("applyPlugin needs a pixel layer."));
+    return false;
+  }
+  if (std::as_const(*layer).pixels().empty()) {
+    return true;  // nothing to filter
+  }
+  const auto before_bounds = to_qrect(layer_render_bounds(std::as_const(*layer)));
+  QString error;
+  const auto status = window_.apply_legacy_plugin(
+      *session, layer_id, *entry, show_dialog && (!unattended_run() || !capture_dialog_path.isEmpty()),
+      [this, session_id] { (void)prepare_mutation(session_id); }, &error,
+      capture_dialog_path.isEmpty() ? QString() : QDir::toNativeSeparators(capture_dialog_path),
+      /*auto_accept_dialogs=*/unattended_run());
+  switch (status) {
+    case MainWindow::LegacyPluginApplyStatus::Applied:
+      note_pixels_changed(session_id, before_bounds);
+      return true;
+    case MainWindow::LegacyPluginApplyStatus::NoChange:
+      return true;
+    case MainWindow::LegacyPluginApplyStatus::Cancelled:
+      throw_js_error(tr("Plug-in %1 was cancelled.").arg(plugin_id));
+      return false;
+    case MainWindow::LegacyPluginApplyStatus::Error:
+      throw_js_error(tr("Plug-in %1 failed: %2").arg(plugin_id, error));
+      return false;
+  }
+  return false;
+}
+
+void ScriptEngineHost::rescan_legacy_plugins() { window_.rescan_legacy_plugin_folders(); }
+
+QJSValue ScriptEngineHost::legacy_plugin_list() {
+  auto array = engine()->newArray();
+  quint32 index = 0;
+  for (const auto& entry : window_.legacy_plugins_) {
+    auto value = engine()->newObject();
+    value.setProperty(QStringLiteral("id"), QString::fromStdString(entry.identifier));
+    value.setProperty(QStringLiteral("name"), QString::fromStdString(entry.probe.display_name));
+    value.setProperty(QStringLiteral("category"), QString::fromStdString(entry.probe.category));
+    value.setProperty(QStringLiteral("path"), QDir::fromNativeSeparators(entry.path));
+    value.setProperty(QStringLiteral("supported"), entry.probe.supported);
+    value.setProperty(QStringLiteral("reason"), translate_data_text(entry.probe.reason));
+    value.setProperty(QStringLiteral("architecture"), QString::fromStdString(entry.probe.architecture));
+    array.setProperty(index++, value);
+  }
+  return array;
 }
 
 // ---------------------------------------------------------------------------

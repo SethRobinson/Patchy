@@ -444,6 +444,10 @@ void MainWindow::show_preferences() {
   auto* tabs = new QTabWidget(&dialog);
   tabs->setObjectName(QStringLiteral("preferencesTabWidget"));
   tabs->setDocumentMode(true);
+  // Every tab stays visible: without scroll buttons the tab bar's minimum
+  // width is the full row, which the layout passes on to the dialog, so the
+  // last tabs never hide behind arrows.
+  tabs->setUsesScrollButtons(false);
   suppress_native_tab_bar_base(*tabs);
 
   auto [application_page, application_layout] = make_tab_page(tabs);
@@ -1029,6 +1033,102 @@ void MainWindow::show_preferences() {
   hotkeys_layout->addStretch(1);
   tabs->addTab(hotkeys_page, tr("Hotkeys"));
 
+#ifdef Q_OS_WIN
+  // Plug-ins: the folders scanned for legacy Photoshop .8bf filters (Windows
+  // only, where they can run). The two automatic folders are fixed; the list
+  // holds the user-added ones (docs/plugins.md). Scanning never runs a plug-in.
+  auto [plugins_page, plugins_layout] = make_tab_page(tabs);
+  auto* plugins_group = new QFrame(plugins_page);
+  plugins_group->setObjectName(QStringLiteral("preferencesPluginsGroup"));
+  configure_panel(plugins_group);
+  auto* plugins_form = new QFormLayout(plugins_group);
+  configure_form(plugins_form);
+  auto* plugins_intro = new QLabel(
+      tr("Photoshop filter plug-ins (.8bf, 32-bit or 64-bit) are found in these folders and their "
+         "subfolders and listed under Plugins > Legacy Photoshop Plug-ins. Only run plug-ins you trust: "
+         "they execute with your permissions."),
+      plugins_group);
+  plugins_intro->setWordWrap(true);
+  plugins_intro->setObjectName(QStringLiteral("preferencesPluginsIntro"));
+  plugins_form->addRow(plugins_intro);
+  auto* plugins_auto_label = new QLabel(plugins_group);
+  plugins_auto_label->setObjectName(QStringLiteral("preferencesPluginsAutomaticFolders"));
+  plugins_auto_label->setWordWrap(true);
+  plugins_auto_label->setTextInteractionFlags(Qt::TextSelectableByMouse);
+  {
+    // The scan roots minus the user list (and the developer fixture folder).
+    QStringList fixed;
+    const auto user_folders = stored_legacy_plugin_folders();
+    for (const auto& scan_root : legacy_plugin_scan_roots()) {
+      if (!user_folders.contains(scan_root) &&
+          !scan_root.endsWith(QStringLiteral("test-fixtures/photoshop-plugins"))) {
+        fixed << QDir::toNativeSeparators(scan_root);
+      }
+    }
+    plugins_auto_label->setText(fixed.join(QLatin1Char('\n')));
+  }
+  plugins_form->addRow(tr("Always scanned:"), plugins_auto_label);
+  auto* plugin_folders_list = new QListWidget(plugins_group);
+  plugin_folders_list->setObjectName(QStringLiteral("preferencesPluginFoldersList"));
+  plugin_folders_list->setSelectionMode(QAbstractItemView::SingleSelection);
+  const auto entry_plugin_folders = stored_legacy_plugin_folders();
+  for (const auto& folder : entry_plugin_folders) {
+    plugin_folders_list->addItem(QDir::toNativeSeparators(folder));
+  }
+  auto* plugin_folder_buttons = new QWidget(plugins_group);
+  auto* plugin_folder_buttons_layout = new QHBoxLayout(plugin_folder_buttons);
+  plugin_folder_buttons_layout->setContentsMargins(0, 0, 0, 0);
+  auto* add_plugin_folder = new QPushButton(tr("Add Folder..."), plugin_folder_buttons);
+  add_plugin_folder->setObjectName(QStringLiteral("preferencesAddPluginFolderButton"));
+  auto* remove_plugin_folder = new QPushButton(tr("Remove"), plugin_folder_buttons);
+  remove_plugin_folder->setObjectName(QStringLiteral("preferencesRemovePluginFolderButton"));
+  remove_plugin_folder->setEnabled(false);
+  plugin_folder_buttons_layout->addWidget(add_plugin_folder);
+  plugin_folder_buttons_layout->addWidget(remove_plugin_folder);
+  plugin_folder_buttons_layout->addStretch(1);
+  connect(plugin_folders_list, &QListWidget::itemSelectionChanged, &dialog,
+          [plugin_folders_list, remove_plugin_folder] {
+            remove_plugin_folder->setEnabled(!plugin_folders_list->selectedItems().isEmpty());
+          });
+  connect(add_plugin_folder, &QPushButton::clicked, &dialog, [&dialog, plugin_folders_list] {
+    const auto chosen = QFileDialog::getExistingDirectory(&dialog, tr("Add Plug-in Folder"), QString());
+    if (chosen.isEmpty()) {
+      return;
+    }
+    const auto native = QDir::toNativeSeparators(chosen);
+    for (int row = 0; row < plugin_folders_list->count(); ++row) {
+      if (plugin_folders_list->item(row)->text() == native) {
+        return;
+      }
+    }
+    plugin_folders_list->addItem(native);
+  });
+  connect(remove_plugin_folder, &QPushButton::clicked, &dialog, [plugin_folders_list] {
+    qDeleteAll(plugin_folders_list->selectedItems());
+  });
+  plugins_form->addRow(tr("Added folders:"), plugin_folders_list);
+  plugins_form->addRow(QString(), plugin_folder_buttons);
+  // The virtual screen (docs/plugins.md): plug-in windows open on the monitor
+  // showing Patchy; full-screen plug-in interfaces size themselves to this.
+  auto* plugin_screen_combo = new QComboBox(plugins_group);
+  plugin_screen_combo->setObjectName(QStringLiteral("preferencesPluginScreenSizeCombo"));
+  for (const auto& [screen_width, screen_height] : kLegacyPluginScreenSizes) {
+    plugin_screen_combo->addItem(screen_width == 0 ? tr("Whole monitor")
+                                                   : QStringLiteral("%1 x %2").arg(screen_width).arg(screen_height),
+                                 QSize(screen_width, screen_height));
+  }
+  const auto entry_plugin_screen = stored_legacy_plugin_screen_size();
+  plugin_screen_combo->setCurrentIndex(
+      plugin_screen_combo->findData(QSize(entry_plugin_screen.first, entry_plugin_screen.second)));
+  plugin_screen_combo->setToolTip(
+      tr("Plug-in windows open on the monitor showing Patchy. Plug-ins with full-screen interfaces size "
+         "themselves to this screen size, so a smaller size keeps them usable on large monitors."));
+  plugins_form->addRow(tr("Screen size for plug-in windows:"), plugin_screen_combo);
+  plugins_layout->addWidget(plugins_group);
+  plugins_layout->addStretch(1);
+  tabs->addTab(plugins_page, tr("Plug-ins"));
+#endif
+
   content->addWidget(tabs, 1);
 
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok, &dialog);
@@ -1102,6 +1202,18 @@ void MainWindow::show_preferences() {
   // final word (see docs/ui-conventions.md).
   append_themed_style(dialog, dialog_spinbox_button_style());
 
+  // Wide enough for every tab: the explicit minimum size above keeps the
+  // layout from raising the dialog's minimum itself, so take the layout's
+  // minimum width (the full tab row, styled) by hand.
+  root->activate();
+  const int needed_width = root->totalMinimumSize().width();
+  if (needed_width > dialog.minimumWidth()) {
+    dialog.setMinimumWidth(needed_width);
+  }
+  if (dialog.width() < needed_width) {
+    dialog.resize(needed_width, dialog.height());
+  }
+
   if (exec_dialog(dialog) == QDialog::Accepted) {
     if (const auto code = language_combo->currentData().toString(); !code.isEmpty()) {
       LocalizationManager::instance().set_language(code);
@@ -1119,6 +1231,20 @@ void MainWindow::show_preferences() {
     set_stored_recovery_enabled(recovery_check->isChecked());
     set_stored_recovery_interval_minutes(recovery_combo->currentData().toInt());
     apply_recovery_preferences();
+#endif
+#ifdef Q_OS_WIN
+    {
+      QStringList plugin_folders;
+      for (int row = 0; row < plugin_folders_list->count(); ++row) {
+        plugin_folders << QDir::fromNativeSeparators(plugin_folders_list->item(row)->text());
+      }
+      if (plugin_folders != entry_plugin_folders) {
+        set_stored_legacy_plugin_folders(plugin_folders);
+        start_legacy_plugin_scan(true);
+      }
+      const auto chosen_screen = plugin_screen_combo->currentData().toSize();
+      set_stored_legacy_plugin_screen_size({chosen_screen.width(), chosen_screen.height()});
+    }
 #endif
     settings.setValue(QStringLiteral("imports/showPsdWarningsAndInfo"), psd_import_warnings_check->isChecked());
     settings.setValue(QStringLiteral("imports/showRawDevelopDialog"), raw_develop_check->isChecked());

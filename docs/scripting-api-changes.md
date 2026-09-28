@@ -1,5 +1,17 @@
 # Scripting API compatibility
 
+2026-09-28 (API 1): `patchy.plugins.folder` (the plug-ins folder next to the application,
+created with its README on read; "" off Windows) and the `captureDialog` option of
+`layer.applyPlugin` (a PNG of the plug-in's own dialog while it is up). Additive;
+apiVersion unchanged. See [plugins.md](plugins.md).
+
+2026-09-28 (API 1): legacy Photoshop plug-ins. `patchy.plugins` (`list()`, `rescan()`,
+`folders` get/set) exposes the `.8bf` filters found in the plug-in folders, and
+`layer.applyPlugin(id, {dialog?})` runs one on a pixel layer inside the selection as one
+undoable edit (`{dialog: false}` skips the plug-in's own dialog; unattended runs never show
+it). Windows only; elsewhere every entry lists as unsupported and `applyPlugin` throws.
+Additive; apiVersion unchanged. See [plugins.md](plugins.md).
+
 2026-09-27 (API 1): paragraph metrics. Text layers expose `textParagraph` (read/write:
 `{firstLineIndent, startIndent, endIndent, spaceBefore, spaceAfter}` in document pixels;
 reading gives the first paragraph, setting merges the given fields into every paragraph), and

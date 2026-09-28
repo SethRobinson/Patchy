@@ -2136,6 +2136,13 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       QObject::tr("Put the layer's blend mode over its overlays, satin, and inner glow "
                   "instead of letting them blend with their own modes"));
   blending_form->addRow(QString(), blend_interior);
+  auto* blend_clipped = new QCheckBox(QObject::tr("Blend Clipped Layers as Group"), blending_group);
+  blend_clipped->setObjectName(QStringLiteral("layerStyleBlendClippedCheck"));
+  blend_clipped->setChecked(style.blend_clipped_elements);
+  blend_clipped->setToolTip(
+      QObject::tr("Keep the layers clipped to this one under its interior effects; turn this off "
+                  "together with Blend Interior Effects as Group to draw them over the overlays instead"));
+  blending_form->addRow(QString(), blend_clipped);
   blending_layout->addWidget(blending_group);
 
   struct BlendIfRowWidgets {
@@ -3264,6 +3271,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     result.effects_visible = show_effects->isChecked();
     result.layer_mask_hides_effects = mask_hides_effects->isChecked();
     result.blend_interior_elements = blend_interior->isChecked();
+    result.blend_clipped_elements = blend_clipped->isChecked();
     apply_enabled_states(result);
     save_controls_to_style(result, category);
     // Accepting any style edit regenerates the complete native lfx2 descriptor.
@@ -3880,6 +3888,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   QObject::connect(show_effects, &QCheckBox::toggled, &dialog, [&emit_preview](bool) { emit_preview(true); });
   QObject::connect(mask_hides_effects, &QCheckBox::toggled, &dialog, [&emit_preview](bool) { emit_preview(true); });
   QObject::connect(blend_interior, &QCheckBox::toggled, &dialog, [&emit_preview](bool) { emit_preview(true); });
+  QObject::connect(blend_clipped, &QCheckBox::toggled, &dialog, [&emit_preview](bool) { emit_preview(true); });
   for (auto* channel_check : {channel_red, channel_green, channel_blue}) {
     QObject::connect(channel_check, &QCheckBox::toggled, &dialog, [&emit_preview](bool) { emit_preview(true); });
   }
@@ -4055,6 +4064,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     // does not carry stay as the user set them.
     applied.layer_mask_hides_effects = mask_hides_effects->isChecked();
     applied.blend_interior_elements = blend_interior->isChecked();
+    applied.blend_clipped_elements = blend_clipped->isChecked();
     applied.effects_visible = true;
     loading_controls = true;
     show_effects->setChecked(true);
@@ -4087,6 +4097,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     cleared.effects_visible = show_effects->isChecked();
     cleared.layer_mask_hides_effects = mask_hides_effects->isChecked();
     cleared.blend_interior_elements = blend_interior->isChecked();
+    cleared.blend_clipped_elements = blend_clipped->isChecked();
     style = std::move(cleared);
     rebuild_category_list(LayerStyleEffectKind::None, kStylesCategoryIndex);
     load_controls_from_style(categories->currentItem());

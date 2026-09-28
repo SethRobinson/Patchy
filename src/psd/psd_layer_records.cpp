@@ -145,7 +145,8 @@ bool should_skip_layer_block(const EncodedLayer& encoded, const UnknownPsdBlock&
   // per-layer keys make Photoshop warn that editable data will be discarded.
   if (block.key == "pvcl" || block.key == "pvfi" ||
       block.key == "luni" || block.key == "plFX" || block.key == "lspf" || block.key == "lmgm" ||
-      block.key == "infx" || (block.key == "plAD" && encoded.kind == EncodedLayerKind::Adjustment)) {
+      block.key == "infx" || block.key == "clbl" ||
+      (block.key == "plAD" && encoded.kind == EncodedLayerKind::Adjustment)) {
     return true;
   }
   // A modeled channel restriction regenerates 'brst' (or drops it when nothing
@@ -685,6 +686,11 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
         // "Blend Interior Effects as Group" blending option (first byte is the bool).
         record.blend_interior_elements = record.additional_blocks.back().payload[0] != 0;
       }
+      if (key == "clbl" && !record.additional_blocks.back().payload.empty()) {
+        // "Blend Clipped Layers as Group" blending option (first byte is the bool;
+        // Photoshop's default is on and absence means on).
+        record.blend_clipped_elements = record.additional_blocks.back().payload[0] != 0;
+      }
       if (key == "brst") {
         // Advanced Blending "Channels": a bare list of big-endian u32 channel
         // indices EXCLUDED from compositing, no count prefix (length/4 =
@@ -1058,6 +1064,16 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
       blend_interior.write_u8(0);
       blend_interior.write_u16(0);
       write_additional_layer_block(extra, {'i', 'n', 'f', 'x'}, blend_interior.bytes(), large_document);
+    }
+
+    if (!encoded.layer->layer_style().blend_clipped_elements) {
+      // "Blend Clipped Layers as Group" blending option; Photoshop's default is
+      // on and it reads absence as on, so only the off state needs a block.
+      BigEndianWriter blend_clipped;
+      blend_clipped.write_u8(0);
+      blend_clipped.write_u8(0);
+      blend_clipped.write_u16(0);
+      write_additional_layer_block(extra, {'c', 'l', 'b', 'l'}, blend_clipped.bytes(), large_document);
     }
 
     if (encoded.layer->channel_restriction_supported() &&

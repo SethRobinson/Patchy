@@ -17,7 +17,7 @@ Vector-preserving merge planning, output preparation, and its dialog live in `ui
 - `main_window_layer_ops.cpp` - clipboard operations, transform/warp dialogs, layer/folder operations, masks, layer styles and context menu, delete/move, merge-visible, fill/clear/stroke, selection geometry, flips, crop-to-selection, and canvas rotation. `rasterize_active_layers`, `rasterize_active_layer_styles`, and `merge_down` stay in `main_window.cpp` because they render text through the internal text pipeline.
 - `main_window_tool_options.cpp` - preset-library accessors, brush-tip import/define, per-layer controls, colors and gradients, tool activation/settings, transform-session controls, options-bar registration, selection-mode buttons, and brush-control synchronization. `current_text_color` and `sync_text_options_from_active_editor` stay in `main_window.cpp` because they use internal text helpers.
 - `main_window_theme.cpp` - `photoshop_style()` and application-wide QSS, declared in `main_window_shared.hpp`.
-- `main_window_plugins.cpp` - legacy Photoshop plug-in scanning, registration, and execution.
+- `main_window_plugins.cpp` - legacy Photoshop plug-in folder scanning, the category submenu, and running a plug-in through the out-of-process host (`legacy_plugin_runner_win.cpp`); see docs/plugins.md.
 - `main_window_layer_panel.cpp` - layer-row widgets, thumbnails, summaries, refresh, drag, and visibility plumbing.
 - `main_window_files.cpp` - the single `file_format_entries()` definition, open/save/export/print/import, and recent files/folders.
 - `main_window_smart_objects.cpp` - smart-object export, commit, refresh, relink, embed, replace, convert, and place flows.

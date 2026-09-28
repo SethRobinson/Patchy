@@ -489,6 +489,18 @@ Patchy writes a PSB copy of every modified document to a recovery folder on a ti
 | `patchy.recovery.recoverAll()` | Reopens every orphaned copy as a modified "(Recovered)" document and returns the documents. |
 | `patchy.recovery.discardOrphaned()` | Deletes every orphaned folder; returns how many documents were dropped. |
 
+### Legacy Photoshop plug-ins (patchy.plugins)
+
+Windows builds run classic Photoshop filter plug-ins (`.8bf`, 32-bit and 64-bit) found in the `plugins` folder next to `patchy.exe`, in `%APPDATA%\RTsoft\Patchy\plugins`, and in the folders added under Preferences > Plug-ins. Scanning never runs a plug-in; running one executes it with your permissions in a separate helper process.
+
+| Member | Meaning |
+| --- | --- |
+| `patchy.plugins.folder` | The plug-ins folder next to the application (created with its README when read); `""` on macOS and Linux. |
+| `patchy.plugins.folders` | The added folders (persisted). Setting it rescans. |
+| `patchy.plugins.list()` | `{id, name, category, path, supported, reason, architecture}` for every plug-in file the last scan saw. |
+| `patchy.plugins.rescan()` | Rescans every folder and returns `list()`. |
+| `layer.applyPlugin(id, {dialog, captureDialog})` | Runs the plug-in on a pixel layer inside the selection, one undo step. `{dialog: false}` skips its settings dialog (last or default settings; a plug-in that opens one anyway gets its OK pressed); unattended runs never show it. `{captureDialog: "shot.png"}` saves an image of the plug-in's dialog while it is up (an unattended run shows the dialog for the capture and answers it itself). |
+
 ### Command-line arguments (patchy.args)
 
 Each `--script-arg key=value` on the command line becomes `patchy.args.key` (always a string). `patchy.isMainScript()` is `true` in the script the user ran and `false` inside an `include()`d file, so one file can be both a library and a runnable script.

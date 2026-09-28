@@ -387,7 +387,6 @@ void MainWindow::bind_action_translations(ActionBuildContext& ctx) {
       {ctx.rotate_ccw_action, QT_TR_NOOP("Rotate &Left")},
       {ctx.rotate_arbitrary_action, QT_TR_NOOP("Rotate &Arbitrary...")},
       {ctx.shift_seams_action, QT_TR_NOOP("Shift &Seams to Center")},
-      {ctx.scan_legacy_plugins_action, QT_TR_NOOP("&Scan Legacy Photoshop Plug-ins...")},
       {legacy_plugins_menu_->menuAction(), QT_TR_NOOP("Legacy Photoshop Plug-ins")},
       {ctx.zoom_in, QT_TR_NOOP("Zoom &In")},
       {ctx.zoom_out, QT_TR_NOOP("Zoom &Out")},
@@ -585,6 +584,7 @@ void MainWindow::retranslate_ui() {
   rebuild_recent_files_menu();
   refresh_vector_preview_action();
   rebuild_recent_folders_menu();
+  rebuild_legacy_plugins_menu();  // translated status tips and the empty-menu note
   refresh_layer_list();
   refresh_layer_controls();
   refresh_channel_panel();

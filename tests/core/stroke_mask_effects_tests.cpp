@@ -187,6 +187,29 @@ void psd_blend_interior_elements_round_trip() {
   }
 }
 
+void psd_blend_clipped_elements_round_trip() {
+  // "Blend Clipped Layers as Group" ('clbl'). Photoshop's default is on and it
+  // reads absence as on, so only the off state writes a block; an imported
+  // explicit block is regenerated from the model rather than re-emitted raw.
+  for (const auto grouped : {true, false}) {
+    patchy::Document document(4, 2, patchy::PixelFormat::rgb8());
+    auto& layer = document.add_pixel_layer("Styled", solid_rgba(4, 2, 10, 20, 30, 255));
+    layer.layer_style().blend_clipped_elements = grouped;
+
+    const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+    const auto payload = psd_layer_block_payload(psd_first_layer_extra_data(bytes), "clbl");
+    CHECK(payload.has_value() == !grouped);
+    if (payload.has_value()) {
+      CHECK(payload->size() == 4U);
+      CHECK((*payload)[0] == 0U);
+    }
+
+    const auto read = patchy::psd::DocumentIo::read(bytes);
+    CHECK(read.layers().size() == 1);
+    CHECK(read.layers().front().layer_style().blend_clipped_elements == grouped);
+  }
+}
+
 void psd_channel_restrictions_round_trip() {
   // Advanced Blending "Channels" ('brst'): ascending big-endian u32 indices of
   // the EXCLUDED channels, written only when at least one channel is
@@ -1230,6 +1253,7 @@ std::vector<patchy::test::TestCase> stroke_mask_effects_tests() {
       {"layer_mask_shapes_effects_regardless_of_link", layer_mask_shapes_effects_regardless_of_link},
       {"psd_layer_mask_hides_effects_round_trip", psd_layer_mask_hides_effects_round_trip},
       {"psd_blend_interior_elements_round_trip", psd_blend_interior_elements_round_trip},
+      {"psd_blend_clipped_elements_round_trip", psd_blend_clipped_elements_round_trip},
       {"psd_channel_restrictions_round_trip", psd_channel_restrictions_round_trip},
       {"psd_channel_restrictions_unsupported_payload_preserved",
        psd_channel_restrictions_unsupported_payload_preserved},

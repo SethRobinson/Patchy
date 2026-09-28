@@ -4,6 +4,7 @@
 #include "ui/app_settings.hpp"
 #include "ui/build_info.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/legacy_plugin_folder.hpp"
 #include "ui/memory_info.hpp"
 #include "ui/splash_artwork.hpp"
 #include "ui/update_checker.hpp"
@@ -31,6 +32,7 @@
 #include <QWindow>
 
 #include <algorithm>
+#include <functional>
 
 #include "patchy_version.hpp"
 
@@ -238,7 +240,8 @@ public:
     const auto add_folder_row = [this, copy](const QString& caption_text, const QString& path_text,
                                              const QString& folder_path, const QString& button_text,
                                              const QString& failure_text, const char* caption_name,
-                                             const char* path_name, const char* button_name) {
+                                             const char* path_name, const char* button_name,
+                                             std::function<void()> before_open = {}) {
       auto* caption = new QLabel(caption_text, this);
       caption->setObjectName(QString::fromLatin1(caption_name));
       caption->setTextFormat(Qt::PlainText);
@@ -255,7 +258,10 @@ public:
       button_row->setContentsMargins(0, 0, 0, 0);
       auto* open_folder = new QPushButton(button_text, this);
       open_folder->setObjectName(QString::fromLatin1(button_name));
-      connect(open_folder, &QPushButton::clicked, this, [this, folder_path, failure_text] {
+      connect(open_folder, &QPushButton::clicked, this, [this, folder_path, failure_text, before_open] {
+        if (before_open) {
+          before_open();
+        }
         if (folder_path.isEmpty() || !QDir().mkpath(folder_path) ||
             !QDesktopServices::openUrl(QUrl::fromLocalFile(folder_path))) {
           auto* status = findChild<QLabel*>(QStringLiteral("splashStatus"));
@@ -282,6 +288,15 @@ public:
     add_folder_row(QObject::tr("User data folder (fonts, scripts):"), data_folder_path, data_folder_path,
                    QObject::tr("Open Data Folder"), QObject::tr("Could not open data folder."),
                    "splashDataCaption", "splashDataPath", "splashOpenDataFolderButton");
+#ifdef Q_OS_WIN
+    // Classic Photoshop .8bf filters (Windows only): the folder next to the
+    // application, created with its README on first open (docs/plugins.md).
+    const auto plugins_folder_path = legacy_plugins_folder_path();
+    add_folder_row(QObject::tr("Plug-ins folder (.8bf filters):"), plugins_folder_path, plugins_folder_path,
+                   QObject::tr("Open Plug-ins Folder"), QObject::tr("Could not open the plug-ins folder."),
+                   "splashPluginsCaption", "splashPluginsPath", "splashOpenPluginsFolderButton",
+                   [] { (void)ensure_legacy_plugins_folder(); });
+#endif
 #endif
 
     // Live memory readout, mainly for the wasm build where the heap ceiling is

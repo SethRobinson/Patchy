@@ -332,6 +332,16 @@ interface PatchyLayer {
    */
   applyFilter(filterId: string, params?: Record<string, number | boolean | string>): void;
   /**
+   * Runs a legacy Photoshop filter plug-in (an id from patchy.plugins.list()) on this
+   * layer, limited to the document selection, as one undoable edit. {dialog: false}
+   * skips the plug-in's own settings dialog and reuses its last (or default) settings
+   * (a plug-in that opens its dialog anyway gets its OK pressed); unattended runs never
+   * show it. {captureDialog: "<png path>"} saves an image of the plug-in's dialog while
+   * it is up (an unattended run then shows the dialog for the capture and answers it
+   * itself). Windows only; unknown or unsupported ids throw.
+   */
+  applyPlugin(pluginId: string, options?: { dialog?: boolean; captureDialog?: string }): void;
+  /**
    * Edit > Remove Object: fills the document selection from its surroundings
    * (the dialog's fill, without the dialog). `method` "contentAware"
    * (default) is the deterministic exemplar fill (an exhaustive best-patch
@@ -869,6 +879,32 @@ interface PatchyIo {
  * a crash, reopens the copies on the next launch as "(Recovered)" documents. The web
  * build has no recovery store: enabled is false and every list is empty.
  */
+interface PatchyPlugins {
+  /**
+   * The plug-ins folder next to the application ("/" separators), the place Plugins >
+   * Open Plug-ins Folder shows; created with its README.txt when read. "" on macOS and
+   * Linux, which cannot run these plug-ins.
+   */
+  readonly folder: string;
+  /** The user-added plug-in folders (persisted, Preferences > Plug-ins). Setting it rescans. */
+  folders: string[];
+  /**
+   * Every plug-in file the last scan saw, in menu order. `supported` is false for files
+   * that cannot run (not a filter, wrong platform), with the reason.
+   */
+  list(): {
+    id: string;
+    name: string;
+    category: string;
+    path: string;
+    supported: boolean;
+    reason: string;
+    architecture: string;
+  }[];
+  /** Rescans the automatic and user folders and returns list(). */
+  rescan(): ReturnType<PatchyPlugins["list"]>;
+}
+
 interface PatchyRecovery {
   /** The Preferences checkbox (persisted). Setting it re-arms the timer. */
   enabled: boolean;
@@ -900,6 +936,7 @@ interface PatchyNamespace {
   readonly io: PatchyIo;
   readonly ui: PatchyUi;
   readonly recovery: PatchyRecovery;
+  readonly plugins: PatchyPlugins;
   readonly brushes: PatchyBrushes;
   readonly apiVersion: number;
   readonly version: string;

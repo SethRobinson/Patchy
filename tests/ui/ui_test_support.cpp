@@ -3,7 +3,9 @@
 #include "ui/qt_paths.hpp"
 #include "ui_test_access.hpp"
 
+#include <QCoreApplication>
 #include <QDir>
+#include <QEvent>
 #include <QFont>
 #include <QLabel>
 #include <QFontDatabase>
@@ -1242,7 +1244,17 @@ bool skip_without_psd_text_face(const patchy::Layer& layer, const QString& expec
   return skip_without_font_face(expected_family, "imported-PSD text fixture face");
 }
 
+void wait_for_legacy_plugin_scan(patchy::ui::MainWindow& window) {
+  // Startup schedules the scan from a zero-delay timer; deliver that first.
+  QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
+  CHECK(process_events_until([&window] { return !window.legacy_plugin_scan_in_flight(); }, 60000));
+  QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+}
+
 QAction* require_legacy_plugin_action(QWidget& root, const QString& text) {
+  if (auto* window = qobject_cast<patchy::ui::MainWindow*>(&root); window != nullptr) {
+    wait_for_legacy_plugin_scan(*window);
+  }
   for (auto* action : root.findChildren<QAction*>(QStringLiteral("legacyPluginAction"))) {
     if (action->text().contains(text, Qt::CaseInsensitive)) {
       return action;

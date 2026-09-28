@@ -51,6 +51,24 @@ struct CompositeSample {
   float alpha{0.0F};
 };
 
+// A clipping run's merged content for the base layer's effect pipeline: the
+// base's own source pixels with its clipped members already composited over
+// them, straight RGBA over `rect` (a sub-rectangle of the base's render
+// bounds that covers the pipeline's draw rectangle). composite_pixel_layer
+// reads the base's COLOR from it and keeps every effect mask on the real
+// source, whose alpha the members cannot widen, so the base's overlays, satin,
+// inner glow/shadow, bevel and stroke land over the members the way Photoshop
+// draws them (docs/ps-compat.md "Clipping masks").
+struct ClipRunContent {
+  const PixelBuffer* pixels{nullptr};
+  Rect rect{};
+  // The interior overlays and satin were folded into the content colors
+  // BEFORE the members landed ("Blend Clipped Layers as Group" off with
+  // "Blend Interior Effects as Group" on), so the pipeline must not apply
+  // them again.
+  bool interiors_prefolded{false};
+};
+
 [[nodiscard]] inline bool layer_has_rendered_blend_if(const Layer& layer) noexcept {
   return layer.blend_if_payload_status() == BlendIfPayloadStatus::Supported &&
          !blend_if_is_identity(layer.blend_if());
@@ -790,6 +808,35 @@ struct PreparedInteriorOverlay {
   return styled;
 }
 
+// Folds the prepared satins into one styled color, after the overlays
+// (Photoshop's interior stack puts Satin above them). Deliberately not routed
+// through fold_effect_color: this fold keeps the plain model for the
+// burn/dodge modes, and changing that would move pinned satin bytes. Dissolve
+// is handled here for the same reason.
+[[nodiscard]] inline std::array<std::uint8_t, 3> fold_prepared_satins(std::array<std::uint8_t, 3> color,
+                                                                      const std::vector<PreparedSatin>& satins,
+                                                                      std::int32_t x, std::int32_t y) {
+  for (const auto& prepared : satins) {
+    const auto mask_index = static_cast<std::size_t>(y - prepared.mask_bounds.y) *
+                                static_cast<std::size_t>(prepared.mask_bounds.width) +
+                            static_cast<std::size_t>(x - prepared.mask_bounds.x);
+    const auto coverage = prepared.entry->primary[mask_index] * clamp_unit(prepared.effect->opacity);
+    if (coverage <= 0.0F) {
+      continue;
+    }
+    const auto& effect_color = prepared.effect->color;
+    if (prepared.effect->blend_mode == BlendMode::Dissolve) {
+      if (dissolve_coverage(x, y, coverage, DissolveField::Satin) > 0.0F) {
+        color = {effect_color.red, effect_color.green, effect_color.blue};
+      }
+      continue;
+    }
+    color = composite_blended_rgb({effect_color.red, effect_color.green, effect_color.blue}, color,
+                                  prepared.effect->blend_mode, coverage, 1.0F);
+  }
+  return color;
+}
+
 template <typename Target>
 void render_drop_shadow(Target& destination, const Layer& layer, const PixelBuffer& source, Rect clip, Rect bounds,
                         const LayerDropShadow& shadow, std::optional<Rect> layer_mask_bounds,
@@ -949,7 +996,11 @@ void render_inner_shadow(Target& destination, const Layer& layer, const PixelBuf
                          const LayerInnerShadow& shadow, std::optional<Rect> layer_mask_bounds,
                          StyleMaskProvider* masks = nullptr, std::uint32_t effect_index = 0,
                          const StrokeKnockoutPlane* knockout = nullptr) {
-  if (!shadow.enabled || shadow.opacity <= 0.0F || shadow.size <= 0.0F) {
+  // Size 0 still renders: Photoshop draws the inverse matte offset by the
+  // rounded distance vector as a hard band (7 px at distance 10 / angle 135,
+  // whatever the choke; photoshop-size-zero-effects.psd, September 2026), which
+  // is exactly what the interior soft mask degenerates to without a blur.
+  if (!shadow.enabled || shadow.opacity <= 0.0F) {
     return;
   }
   const auto draw_rect = intersect_rect(clip, bounds);
@@ -1015,7 +1066,12 @@ void render_inner_glow(Target& destination, const Layer& layer, const PixelBuffe
                        const LayerInnerGlow& glow, std::optional<Rect> layer_mask_bounds,
                        StyleMaskProvider* masks = nullptr, std::uint32_t effect_index = 0,
                        const StrokeKnockoutPlane* knockout = nullptr) {
-  if (!glow.enabled || glow.opacity <= 0.0F || glow.size <= 0.0F) {
+  // Size 0: an Edge glow has no reach and renders nothing; a Center glow is the
+  // complement of that empty edge field, so it fills the whole shape
+  // (photoshop-size-zero-effects.psd, September 2026). The Softer and the
+  // historical Center paths both produce that from the unblurred matte.
+  if (!glow.enabled || glow.opacity <= 0.0F ||
+      (glow.size <= 0.0F && glow.source != LayerInnerGlowSource::Center)) {
     return;
   }
   const auto draw_rect = intersect_rect(clip, bounds);
@@ -2249,7 +2305,8 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
                            bool throw_on_unsupported_pixel_format, StyleMaskProvider* masks = nullptr,
                            const CompositeSnapshot* blend_if_backdrop_override = nullptr,
                            const PatternStore* patterns = nullptr,
-                           bool suppress_channel_restriction = false) {
+                           bool suppress_channel_restriction = false,
+                           const ClipRunContent* clip_content = nullptr) {
   // Styled groups and group clipping bases route through this pipeline: the group's
   // flattened children arrive as an override pixel buffer and the group plays
   // the layer's role. Other plain groups use composite_layer's group branch.
@@ -2271,7 +2328,7 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
     // isolated buffer the base's backdrop is transparent black.
     with_channel_restriction(destination, channel_restriction, [&](auto& restricted) {
       composite_pixel_layer(restricted, layer, clip, overrides, throw_on_unsupported_pixel_format, masks,
-                            blend_if_backdrop_override, patterns, true);
+                            blend_if_backdrop_override, patterns, true, clip_content);
     });
     return;
   }
@@ -2294,6 +2351,12 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
   const auto layer_mask_bounds = layer_mask_bounds_for_render(layer, overrides);
   const auto& style = layer.layer_style();
   const auto draw_rect = intersect_rect(clip, bounds);
+  // A clipping run hands the base pass its merged content (base plus clipped
+  // members) in place of the source's colors; every effect below keeps
+  // reading the source, whose alpha the members cannot widen.
+  const PixelBuffer& content = clip_content != nullptr ? *clip_content->pixels : source;
+  const Rect content_origin = clip_content != nullptr ? clip_content->rect : bounds;
+  const bool interiors_prefolded = clip_content != nullptr && clip_content->interiors_prefolded;
   const auto has_blend_if = layer_has_rendered_blend_if(layer);
   const auto blend_if = has_blend_if ? layer.blend_if() : LayerBlendIf{};
   const auto has_underlying_blend_if = has_blend_if && blend_if_has_underlying_ranges(blend_if);
@@ -2337,7 +2400,7 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
   }
 
   std::vector<PreparedSatin> prepared_satins;
-  if (!draw_rect.empty() && style.effects_visible) {
+  if (!draw_rect.empty() && style.effects_visible && !interiors_prefolded) {
     prepared_satins.reserve(style.satins.size());
     for (std::uint32_t index = 0; index < style.satins.size(); ++index) {
       const auto& satin = style.satins[index];
@@ -2399,7 +2462,7 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
   // re-stamp cannot reproduce the per-pixel gate.
   const PixelBuffer* interior_source = &source;
   const PixelBuffer* stroke_restamp = nullptr;
-  if (style.effects_visible && !has_blend_if) {
+  if (style.effects_visible && !has_blend_if && clip_content == nullptr) {
     if (const auto* shape = layer.vector_shape();
         shape != nullptr && !shape->stroke_cache.empty() && !shape->fill_cache.empty() &&
         &source == &layer.pixels() && shape->fill_cache.width() == source.width() &&
@@ -2431,8 +2494,8 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
   // Fill Opacity (which scales the layer's pixels but not its effects, so the
   // overlay cannot ride the base alpha) and the vector fill/stroke split
   // (folding would tint the stroke) keep the legacy passes.
-  const bool fold_interior_overlays_into_base =
-      style.effects_visible && !has_blend_if && fill_opacity == 1.0F && stroke_restamp == nullptr;
+  const bool fold_interior_overlays_into_base = style.effects_visible && !has_blend_if && fill_opacity == 1.0F &&
+                                                stroke_restamp == nullptr && !interiors_prefolded;
   std::vector<PreparedInteriorOverlay> folded_overlays;
   if (fold_interior_overlays_into_base && !draw_rect.empty()) {
     profile_compositor_step(destination, layer, "interior_overlays", draw_rect, [&] {
@@ -2457,10 +2520,10 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
 
   if (!draw_rect.empty()) {
     profile_compositor_step(destination, layer, "base_pixels", draw_rect, [&] {
-      const auto format = source.format();
+      const auto format = content.format();
       const auto channels = format.channels;
-      const auto* source_bytes = source.data().data();
-      const auto source_stride = source.stride_bytes();
+      const auto* source_bytes = content.data().data();
+      const auto source_stride = content.stride_bytes();
       const auto has_enabled_mask = (layer.mask().has_value() && !layer.mask()->disabled) ||
                                     layer_has_enabled_vector_mask(layer);
       const auto has_folded_overlays = !folded_overlays.empty();
@@ -2476,8 +2539,8 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
                         target.composite_source_row(x, y, row, width, channel_count, opacity);
                       }) {
           for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
-            const auto sy = y - bounds.y;
-            const auto sx = draw_rect.x - bounds.x;
+            const auto sy = y - content_origin.y;
+            const auto sx = draw_rect.x - content_origin.x;
             const auto* source_row =
                 source_bytes + static_cast<std::size_t>(sy) * source_stride + static_cast<std::size_t>(sx) * channels;
             destination.composite_source_row(draw_rect.x, y, source_row, draw_rect.width, channels, layer.opacity());
@@ -2502,8 +2565,8 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
                         target.composite_blended_row(x, y, row, mask_row, width, channel_count, opacity, mode);
                       }) {
           for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
-            const auto sy = y - bounds.y;
-            const auto sx = draw_rect.x - bounds.x;
+            const auto sy = y - content_origin.y;
+            const auto sx = draw_rect.x - content_origin.x;
             const auto* source_row =
                 source_bytes + static_cast<std::size_t>(sy) * source_stride + static_cast<std::size_t>(sx) * channels;
             const auto* mask_row = mask_plane.empty()
@@ -2519,14 +2582,14 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
       if (!composited_by_target) {
         const auto special_fill = fill_opacity != 1.0F && blend_mode_has_special_fill(layer.blend_mode());
         for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
-          const auto sy = y - bounds.y;
+          const auto sy = y - content_origin.y;
           const auto* source_row = source_bytes + static_cast<std::size_t>(sy) * source_stride;
           const auto* mask_row = mask_plane.empty()
                                      ? nullptr
                                      : mask_plane.data() + static_cast<std::size_t>(y - draw_rect.y) *
                                                                static_cast<std::size_t>(draw_rect.width);
           for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
-            const auto sx = x - bounds.x;
+            const auto sx = x - content_origin.x;
             const auto* src = source_row + static_cast<std::size_t>(sx) * channels;
             const auto source_alpha = channels >= 4 ? static_cast<float>(src[3]) / 255.0F : 1.0F;
             // Without a mask the chain returns 1.0F and multiplying by it is
@@ -2570,30 +2633,7 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
                 color = fold_interior_overlays(color, folded_overlays, x, y);
               }
               if (!has_blend_if && fill_opacity == 1.0F) {
-                for (const auto& prepared : prepared_satins) {
-                  const auto mask_index =
-                      static_cast<std::size_t>(y - prepared.mask_bounds.y) *
-                          static_cast<std::size_t>(prepared.mask_bounds.width) +
-                      static_cast<std::size_t>(x - prepared.mask_bounds.x);
-                  const auto coverage =
-                      prepared.entry->primary[mask_index] * clamp_unit(prepared.effect->opacity);
-                  if (coverage <= 0.0F) {
-                    continue;
-                  }
-                  const auto& effect_color = prepared.effect->color;
-                  // Deliberately not routed through fold_effect_color: this
-                  // fold keeps the plain model for the burn/dodge modes, and
-                  // changing that would move pinned satin bytes. Dissolve is
-                  // handled here for the same reason.
-                  if (prepared.effect->blend_mode == BlendMode::Dissolve) {
-                    if (dissolve_coverage(x, y, coverage, DissolveField::Satin) > 0.0F) {
-                      color = {effect_color.red, effect_color.green, effect_color.blue};
-                    }
-                    continue;
-                  }
-                  color = composite_blended_rgb({effect_color.red, effect_color.green, effect_color.blue}, color,
-                                                prepared.effect->blend_mode, coverage, 1.0F);
-                }
+                color = fold_prepared_satins(color, prepared_satins, x, y);
               }
               return color;
             };
@@ -2690,7 +2730,7 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
     // last. The historical color-then-gradient order was inverted vs PS. These
     // destination passes only run for the cases the base-pass fold above cannot
     // take (Blend If, Fill Opacity, the vector fill/stroke split).
-    if (!fold_interior_overlays_into_base) {
+    if (!fold_interior_overlays_into_base && !interiors_prefolded) {
       for (const auto& overlay : style.pattern_overlays) {
         profile_compositor_step(destination, layer, "pattern_overlay", clip, [&] {
           render_pattern_overlay(destination, layer, *interior_source, clip, bounds, overlay,
@@ -3368,11 +3408,66 @@ struct is_group_masked_target : std::false_type {};
 template <typename T>
 struct is_group_masked_target<GroupMaskedTarget<T>> : std::true_type {};
 
+// The base's own content for a clipping run whose effects render over its
+// members: the raw source pixels over `rect` (no mask, opacity, Fill, Blend If
+// or effects; the pipeline applies each of them once to the merged result),
+// recorded as the clip matte. With prefold_interiors the interior overlays and
+// satin fold into the colors first, exactly as the base pass folds them with
+// "Blend Interior Effects as Group" on, so the members composited afterwards
+// cover them (Photoshop's clbl-off + infx-on ordering).
+inline void composite_clip_base_content(IsolatedClipGroupTarget& fill, const Layer& layer,
+                                        const PixelBuffer& source, Rect bounds, Rect rect, bool prefold_interiors,
+                                        std::optional<Rect> layer_mask_bounds, StyleMaskProvider* masks,
+                                        const PatternStore* patterns) {
+  const auto draw_rect = intersect_rect(rect, bounds);
+  if (draw_rect.empty() || source.empty() || source.format().bit_depth != BitDepth::UInt8 ||
+      source.format().channels < 3) {
+    return;
+  }
+  const auto channels = source.format().channels;
+  const auto* source_bytes = source.data().data();
+  const auto source_stride = source.stride_bytes();
+  if (!prefold_interiors) {
+    for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
+      const auto* source_row = source_bytes + static_cast<std::size_t>(y - bounds.y) * source_stride +
+                               static_cast<std::size_t>(draw_rect.x - bounds.x) * channels;
+      fill.composite_blended_row(draw_rect.x, y, source_row, nullptr, draw_rect.width, channels, 1.0F,
+                                 BlendMode::Normal);
+    }
+    return;
+  }
+  const auto& style = layer.layer_style();
+  const auto folded_overlays = prepare_interior_overlays(layer, style, source, bounds, patterns);
+  std::vector<PreparedSatin> prepared_satins;
+  for (std::uint32_t index = 0; index < style.satins.size(); ++index) {
+    const auto& satin = style.satins[index];
+    if (satin.enabled && satin.opacity > 0.0F) {
+      prepared_satins.push_back(
+          prepare_satin(layer, source, draw_rect, bounds, satin, layer_mask_bounds, masks, index));
+    }
+  }
+  for (std::int32_t y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
+    const auto* source_row = source_bytes + static_cast<std::size_t>(y - bounds.y) * source_stride;
+    for (std::int32_t x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
+      const auto* src = source_row + static_cast<std::size_t>(x - bounds.x) * channels;
+      const auto alpha = channels >= 4 ? static_cast<float>(src[3]) / 255.0F : 1.0F;
+      if (alpha <= 0.0F) {
+        continue;
+      }
+      auto color = fold_interior_overlays({src[0], src[1], src[2]}, folded_overlays, x, y);
+      color = fold_prepared_satins(color, prepared_satins, x, y);
+      fill.record_clip_coverage(x, y, alpha);
+      fill.composite_color(x, y, RgbColor{color[0], color[1], color[2]}, alpha, BlendMode::Normal);
+    }
+  }
+}
+
 // Composite one sibling list, folding Photoshop clipping groups: a base layer
 // plus the consecutive clipped() siblings above it composite into an isolated
-// buffer and merge with the base's blend mode. composite_one renders a single
-// non-run layer, so the UI path keeps its cached-style fast path for the common
-// unclipped case.
+// buffer (or, when the base has layer effects, into one merged content source
+// for the base's effect pipeline) and merge with the base's blend mode.
+// composite_one renders a single non-run layer, so the UI path keeps its
+// cached-style fast path for the common unclipped case.
 template <typename Target, typename CompositeOne>
 void composite_sibling_layers(Target& destination, const std::vector<Layer>& siblings, Rect clip,
                               const std::vector<LayerBoundsOverride>* overrides,
@@ -3404,6 +3499,52 @@ void composite_sibling_layers(Target& destination, const std::vector<Layer>& sib
                                  : layer_bounds_with_effects(layer, layer_bounds_for_render(layer, overrides));
     const auto group_rect = intersect_rect(clip, base_bounds);
     if (group_rect.empty()) {
+      index = run_end;
+      continue;
+    }
+    // Photoshop draws a clipping base's layer effects OVER its clipped members
+    // (COM probes September 2026, GitHub issue 41; docs/ps-compat.md "Clipping
+    // masks"): the members are part of the base's fill, so its overlays,
+    // satin, inner glow/shadow, bevel and stroke all land on top of them. The
+    // one exception is "Blend Clipped Layers as Group" off together with
+    // "Blend Interior Effects as Group" on, where the interior overlays and
+    // satin fold into the base first and the members cover them; inner shadow
+    // and stroke still paint over the members even then. Rendering the base's
+    // content plus its members as ONE source through the ordinary effect
+    // pipeline gives that ordering; the base's mask, opacity, Fill, blend
+    // mode and channel restriction then apply to the merged result exactly as
+    // the isolated buffer's merge did. Blend If bases keep the isolated path:
+    // its per-pixel gate is calibrated on the base's own colors.
+    const auto& base_style = layer.layer_style();
+    if (base_style.effects_visible && !base_style.empty() && !layer_has_rendered_blend_if(layer)) {
+      const bool prefold_interiors = !base_style.blend_clipped_elements && base_style.blend_interior_elements;
+      std::optional<PixelBuffer> flattened;
+      std::vector<LayerBoundsOverride> base_override;
+      const std::vector<LayerBoundsOverride>* base_overrides = overrides;
+      if (layer.kind() == LayerKind::Group) {
+        // A folder base supplies its merged children (see the isolated path
+        // below for the override's role).
+        flattened.emplace(group_silhouette_for_render(layer, base_bounds, overrides,
+                                                      throw_on_unsupported_pixel_format, masks, patterns));
+        const auto* outer_override = layer_override_for_render(layer, overrides);
+        base_override.push_back(LayerBoundsOverride{
+            layer.id(), base_bounds, &*flattened,
+            outer_override != nullptr ? outer_override->mask_bounds : std::nullopt, std::optional<bool>{}});
+        base_overrides = &base_override;
+      }
+      IsolatedClipGroupTarget fill(group_rect, /*records_clip_coverage=*/true);
+      composite_clip_base_content(fill, layer, layer_pixels_for_render(layer, base_overrides),
+                                  layer_bounds_for_render(layer, base_overrides), group_rect, prefold_interiors,
+                                  layer_mask_bounds_for_render(layer, base_overrides), masks, patterns);
+      fill.freeze_clip();
+      for (std::size_t member = index + 1; member < run_end; ++member) {
+        composite_layer(fill, siblings[member], group_rect, overrides, throw_on_unsupported_pixel_format, masks,
+                        nullptr, patterns);
+      }
+      const auto content = fill.to_pixel_buffer();
+      const ClipRunContent clip_content{&content, group_rect, prefold_interiors};
+      composite_pixel_layer(destination, layer, group_rect, base_overrides, throw_on_unsupported_pixel_format,
+                            masks, nullptr, patterns, /*suppress_channel_restriction=*/false, &clip_content);
       index = run_end;
       continue;
     }

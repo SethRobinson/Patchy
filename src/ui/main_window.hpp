@@ -9,6 +9,7 @@
 #include "core/text_warp.hpp"
 #include "filters/filter_registry.hpp"
 #include "formats/format_registry.hpp"
+#include "plugins/legacy_photoshop_adapter.hpp"
 #include "plugins/plugin_host.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/channel_panel.hpp"
@@ -37,6 +38,7 @@
 #include <array>
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <initializer_list>
 #include <memory>
 #include <optional>
@@ -135,6 +137,9 @@ class MainWindow final : public QMainWindow {
   Q_OBJECT
 
 public:
+  // Legacy plug-ins: true from the moment a folder scan is scheduled until its
+  // result is applied (tests and Preferences wait on it; docs/plugins.md).
+  [[nodiscard]] bool legacy_plugin_scan_in_flight() const noexcept;
   // One character format's family (the render families plus the display family the commit
   // reads), for callers typing runs in several families into one session.
   void apply_text_family_to_format(QTextCharFormat& format, const QString& family) const;
@@ -830,11 +835,48 @@ private:
   void rebuild_scripts_menu();
   void run_script_from_menu(const QString& path);
   void browse_user_scripts_folder();
-  void scan_legacy_plugins();
-  void load_bundled_legacy_plugins();
-  bool register_legacy_plugin_path(const QString& path, QStringList* report = nullptr);
-  void add_legacy_plugin_action(const PluginDescriptor& descriptor);
+  // Legacy Photoshop plug-ins (main_window_plugins.cpp, docs/plugins.md). A
+  // scan is a pure file read of each plug-in's property list; running one goes
+  // through the out-of-process host.
+  struct LegacyPluginEntry {
+    std::string identifier;  // legacy.photoshop.<file stem>, the persisted form
+    QString path;            // absolute
+    LegacyPhotoshopPluginProbe probe;
+  };
+  enum class LegacyPluginApplyStatus { Applied, NoChange, Cancelled, Error };
+  // Plugins menu / About dialog: create the plug-ins folder (with its README) and
+  // show it in the file manager.
+  void open_legacy_plugins_folder();
+  // The automatic folders, the remembered user folders, and (developer builds)
+  // the committed test plug-ins next to the binary.
+  [[nodiscard]] static QStringList legacy_plugin_scan_roots();
+  // Rebuilds legacy_plugins_ and the menu from the scan roots synchronously
+  // (scripts, tests, Preferences); `report` gets one line per file found.
+  void rescan_legacy_plugin_folders(QStringList* report = nullptr);
+  // The same scan on a worker thread: startup and the Rescan command use it so a
+  // folder full of plug-ins never blocks the UI. `announce` posts a status-bar
+  // summary when it finishes. A scan requested while one runs queues a rerun.
+  void start_legacy_plugin_scan(bool announce);
+  bool register_legacy_plugin_path(const QString& path, QStringList* report = nullptr, bool rebuild_menu = true);
+  [[nodiscard]] const LegacyPluginEntry* find_legacy_plugin(std::string_view identifier) const noexcept;
+  void rebuild_legacy_plugins_menu();
   void run_legacy_plugin(QString identifier);
+  // Runs `entry` on `layer_id` of `session`, limited to the session's selection.
+  // `before_write` runs once, right before the layer is modified (the menu path
+  // pushes its undo snapshot there; the script host has its own).
+  // `capture_dialog_path` (optional PNG path) saves an image of the plug-in's own
+  // dialog while it is up (docs/plugins.md, the README screenshot);
+  // `auto_accept_dialogs` answers whatever dialog appears (unattended runs).
+  LegacyPluginApplyStatus apply_legacy_plugin(DocumentSession& session, LayerId layer_id,
+                                              const LegacyPluginEntry& entry, bool show_dialog,
+                                              const std::function<void()>& before_write, QString* error,
+                                              const QString& capture_dialog_path = QString(),
+                                              bool auto_accept_dialogs = false);
+  // Adds one probed file to legacy_plugins_ (identifier, plugin_host_ entry);
+  // returns whether it is runnable. Shared by the sync and async scans.
+  bool add_legacy_plugin_entry(const QString& path, LegacyPhotoshopPluginProbe probe, QStringList* report);
+  void finish_legacy_plugin_scan(int generation,
+                                 std::vector<std::pair<QString, LegacyPhotoshopPluginProbe>> probes);
   void cut_selection();
   void copy_selection();
   void copy_merged();
@@ -1535,6 +1577,8 @@ private:
   void sync_mixer_combination_combo();
   void refresh_options_bar();
   void register_document_action(QAction* action);
+  // Forget an action that a menu rebuild is about to delete.
+  void unregister_document_action(QAction* action);
   void register_document_widget(QWidget* widget);
   void register_hotkey(QAction* action, QString id, QList<QKeySequence> default_shortcuts, QString category = {});
   void register_hotkey(QAction* action, QString id, QKeySequence default_shortcut = {}, QString category = {});
@@ -2026,6 +2070,14 @@ private:
   QMenu* scripts_menu_{nullptr};
   FilterRegistry filters_;
   PluginHost plugin_host_;
+  std::vector<LegacyPluginEntry> legacy_plugins_;
+  int legacy_plugin_scan_generation_{0};
+  bool legacy_plugin_scan_in_flight_{false};
+  bool legacy_plugin_scan_pending_{false};
+  bool legacy_plugin_scan_announce_{false};
+  // The parameter block each plug-in left after its last run, keyed by
+  // identifier, so running it again starts from the previous settings.
+  std::map<std::string, QByteArray> legacy_plugin_parameters_;
   QPageLayout print_page_layout_;
   std::optional<ClipboardPayload> clipboard_;
   struct LayerStyleClipboard {

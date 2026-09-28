@@ -68,6 +68,11 @@
 #include "test_fonts.hpp"
 #include "test_harness.hpp"
 #include "local_psd_fixtures.hpp"
+#include "ui/qt_paths.hpp"
+#include "ui/script_engine.hpp"
+
+#include <QCoreApplication>
+#include <QEvent>
 
 #include <QAbstractItemModel>
 #include <QAbstractSpinBox>
@@ -1403,14 +1408,43 @@ void ui_bundled_legacy_plugin_action_applies_filter() {
   CHECK(before.green() < 100);
   CHECK(before.blue() < 100);
 
+  wait_for_legacy_plugin_scan(window);
+  // The menu path runs the Parameters selector with the real window as the
+  // plug-in's owner. The bundled 64-bit Greyscale (the one the menu shows,
+  // standing for both bitnesses) cannot take that: Filter Foundry's 64-bit
+  // standalone build tries a dialog it does not carry and shows a
+  // "DialogBoxParam failed" box that waits for a click. A folder holding only
+  // a 32-bit copy gives the menu path a fixture whose Parameters is silent.
+  const auto menu_dir = QDir::current().filePath(QStringLiteral("test-artifacts/legacy-plugins/menu32-bundled"));
+  QDir(menu_dir).removeRecursively();
+  CHECK(QDir().mkpath(menu_dir));
+  CHECK(QFile::copy(patchy::ui::to_qstring(patchy::test::source_root_path() / "test-fixtures" / "photoshop-plugins" /
+                                            "Greyscale.8bf"),
+                    menu_dir + QStringLiteral("/Bundled Grey32.8bf")));
+  {
+    auto& host = window.script_engine_host();
+    patchy::ui::ScriptEngineHost::RunOptions options;
+    options.name = QStringLiteral("bundled-plugin-test");
+    (void)host.run_source(QStringLiteral("patchy.plugins.folders = ['%1'];").arg(menu_dir), std::move(options));
+    QElapsedTimer timer;
+    timer.start();
+    while (host.run_active() && timer.elapsed() < 60000) {
+      QApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 20);
+    }
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    CHECK(!host.last_run_had_error());
+  }
   QAction* greyscale = nullptr;
   for (auto* action : window.findChildren<QAction*>(QStringLiteral("legacyPluginAction"))) {
-    if (action->text().contains(QStringLiteral("Greyscale"), Qt::CaseInsensitive)) {
+    if (action->data().toString() == QStringLiteral("legacy.photoshop.Bundled Grey32")) {
       greyscale = action;
       break;
     }
   }
   CHECK(greyscale != nullptr);
+  if (greyscale == nullptr) {
+    return;
+  }
   greyscale->trigger();
   QApplication::processEvents();
 

@@ -108,6 +108,56 @@
     </message>
 </context>
 <context>
+    <name>LegacyPluginFolder</name>
+    <message>
+        <source>Legacy Photoshop plug-ins run on Windows only.</source>
+        <translation>舊版 Photoshop 外掛程式只能在 Windows 上執行。</translation>
+    </message>
+    <message>
+        <source>The plug-ins folder could not be created: %1</source>
+        <translation>無法建立外掛程式資料夾：%1</translation>
+    </message>
+</context>
+<context>
+    <name>LegacyPluginRunner</name>
+    <message>
+        <source>The plug-in host was given an invalid image.</source>
+        <translation>傳給外掛程式主機的影像無效。</translation>
+    </message>
+    <message>
+        <source>The plug-in host program is missing: %1</source>
+        <translation>缺少外掛程式主機程式：%1</translation>
+    </message>
+    <message>
+        <source>Not enough memory to hand the layer to the plug-in.</source>
+        <translation>記憶體不足，無法將圖層交給外掛程式。</translation>
+    </message>
+    <message>
+        <source>The plug-in host could not be contacted: %1</source>
+        <translation>無法連絡外掛程式主機：%1</translation>
+    </message>
+    <message>
+        <source>The plug-in host program could not be started: %1</source>
+        <translation>無法啟動外掛程式主機程式：%1</translation>
+    </message>
+    <message>
+        <source>The plug-in host did not respond.</source>
+        <translation>外掛程式主機沒有回應。</translation>
+    </message>
+    <message>
+        <source>The plug-in host program does not match this Patchy build.</source>
+        <translation>外掛程式主機程式與此 Patchy 組建不相符。</translation>
+    </message>
+    <message>
+        <source>The plug-in crashed (host exit code %1).</source>
+        <translation>外掛程式當機了（主機結束代碼 %1）。</translation>
+    </message>
+    <message>
+        <source>The plug-in reported an error.</source>
+        <translation>外掛程式回報了一個錯誤。</translation>
+    </message>
+</context>
+<context>
     <name>QObject</name>
     <message>
         <source>Patchy raster image editor.</source>
@@ -2112,26 +2162,6 @@
     <message>
         <source>Legacy Photoshop plug-ins are Windows binaries; they require the Windows build of Patchy.</source>
         <translation>舊版 Photoshop 增效模組是 Windows 二進位檔，需要 Windows 版的 Patchy。</translation>
-    </message>
-    <message>
-        <source>32-bit Photoshop plug-ins require a 32-bit compatibility host.</source>
-        <translation>32 位元 Photoshop 增效模組需要 32 位元相容性主機。</translation>
-    </message>
-    <message>
-        <source>Plug-in architecture does not match this Patchy build.</source>
-        <translation>增效模組架構與此 Patchy 組建不符。</translation>
-    </message>
-    <message>
-        <source>Automation plug-ins are recognized but not supported by the first compatibility adapter.</source>
-        <translation>已辨識自動化增效模組，但第一版相容性轉接器尚不支援。</translation>
-    </message>
-    <message>
-        <source>Classic Photoshop filter plug-in candidate. Runtime execution will be isolated out-of-process.</source>
-        <translation>可能是傳統 Photoshop 濾鏡增效模組。執行時將在獨立處理程序中隔離執行。</translation>
-    </message>
-    <message>
-        <source>Classic Photoshop file-format plug-in candidate. Runtime execution will be isolated out-of-process.</source>
-        <translation>可能是傳統 Photoshop 檔案格式增效模組。執行時將在獨立處理程序中隔離執行。</translation>
     </message>
     <message>
         <source>Plugin identifier cannot be empty</source>
@@ -8487,6 +8517,50 @@ RGB：%2, %3, %4</translation>
         <source>The source color mode is Grayscale; Patchy converted the gray values to RGB/RGBA for editing and will export RGB PSD data from this document.</source>
         <translation>來源色彩模式為灰階；Patchy 已將灰階值轉換為 RGB/RGBA 以供編輯，並將從此文件匯出 RGB 的 PSD 資料。</translation>
     </message>
+    <message>
+        <source>Not a Windows plug-in binary.</source>
+        <translation>不是 Windows 外掛程式二進位檔。</translation>
+    </message>
+    <message>
+        <source>Unsupported plug-in architecture; only 32-bit and 64-bit x86 plug-ins run.</source>
+        <translation>不支援的外掛程式架構；只能執行 32 位元和 64 位元 x86 外掛程式。</translation>
+    </message>
+    <message>
+        <source>File-format and automation plug-ins are not supported; only filter (.8bf) plug-ins run.</source>
+        <translation>不支援檔案格式和自動化外掛程式；只能執行濾鏡 (.8bf) 外掛程式。</translation>
+    </message>
+    <message>
+        <source>This plug-in is not a filter; only filter (.8bf) plug-ins run.</source>
+        <translation>此外掛程式不是濾鏡；只能執行濾鏡 (.8bf) 外掛程式。</translation>
+    </message>
+    <message>
+        <source>Photoshop filter plug-in (32-bit).</source>
+        <translation>Photoshop 濾鏡外掛程式（32 位元）。</translation>
+    </message>
+    <message>
+        <source>Photoshop filter plug-in (64-bit).</source>
+        <translation>Photoshop 濾鏡外掛程式（64 位元）。</translation>
+    </message>
+    <message>
+        <source>Plug-ins folder (.8bf filters):</source>
+        <translation>外掛程式資料夾（.8bf 濾鏡）：</translation>
+    </message>
+    <message>
+        <source>Open Plug-ins Folder</source>
+        <translation>開啟外掛程式資料夾</translation>
+    </message>
+    <message>
+        <source>Could not open the plug-ins folder.</source>
+        <translation>無法開啟外掛程式資料夾。</translation>
+    </message>
+    <message>
+        <source>Blend Clipped Layers as Group</source>
+        <translation>將剪裁圖層混合成群組</translation>
+    </message>
+    <message>
+        <source>Keep the layers clipped to this one under its interior effects; turn this off together with Blend Interior Effects as Group to draw them over the overlays instead</source>
+        <translation>將剪裁到此圖層的圖層保持在其內部效果之下；與「將內部效果混合成群組」一起關閉時，改為繪製在覆蓋之上</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -10719,10 +10793,6 @@ RGB：%2, %3, %4</translation>
     <message>
         <source>Shift &amp;Seams to Center</source>
         <translation>將接縫移至中央(&amp;S)</translation>
-    </message>
-    <message>
-        <source>&amp;Scan Legacy Photoshop Plug-ins...</source>
-        <translation>掃描舊版 Photoshop 增效模組(&amp;S)...</translation>
     </message>
     <message>
         <source>Legacy Photoshop Plug-ins</source>
@@ -15548,22 +15618,6 @@ Y：%2
         <translation>已從選取範圍製作工作路徑。</translation>
     </message>
     <message>
-        <source>Scan Legacy Photoshop Plug-ins</source>
-        <translation>掃描舊版 Photoshop 增效模組</translation>
-    </message>
-    <message>
-        <source>Photoshop Plug-ins (*.8bf *.8bi *.8li);;All Files (*.*)</source>
-        <translation>Photoshop 增效模組 (*.8bf *.8bi *.8li);;所有檔案 (*.*)</translation>
-    </message>
-    <message>
-        <source>%1 plug-in action(s) available under Plug-ins &gt; Legacy Photoshop Plug-ins.
-
-%2</source>
-        <translation>「增效模組 &gt; 舊版 Photoshop 增效模組」下已有 %1 個可用的增效模組動作。
-
-%2</translation>
-    </message>
-    <message>
         <source>%1: %2 (%3, %4)</source>
         <translation>%1：%2 (%3, %4)</translation>
     </message>
@@ -15578,14 +15632,6 @@ Y：%2
     <message>
         <source>Legacy Photoshop Plug-in</source>
         <translation>舊版 Photoshop 增效模組</translation>
-    </message>
-    <message>
-        <source>%1 was scanned and is available, but this build only has compatibility shims for the bundled Greyscale and White to Transparent test filters. A full 8BF host still needs the out-of-process Photoshop SDK adapter.</source>
-        <translation>已掃描到 %1 並可供使用，但這個版本只為內建的「灰階」和「白色轉透明」測試濾鏡提供相容層。完整的 8BF 主機仍需要跨處理程序的 Photoshop SDK 轉接器。</translation>
-    </message>
-    <message>
-        <source>Legacy plug-in</source>
-        <translation>舊版增效模組</translation>
     </message>
     <message>
         <source>Preferences</source>
@@ -17673,6 +17719,115 @@ Y：%2
             <numerusform>已將智慧型物件轉換為 %n 個圖層</numerusform>
         </translation>
     </message>
+    <message>
+        <source>Add Plug-in Folder</source>
+        <translation>新增外掛程式資料夾</translation>
+    </message>
+    <message>
+        <source>No plug-ins found (put .8bf files in the plugins folder)</source>
+        <translation>找不到外掛程式（請將 .8bf 檔案放入 plugins 資料夾）</translation>
+    </message>
+    <message>
+        <source>Run the %1 plug-in on the active layer</source>
+        <translation>在目前圖層上執行 %1 外掛程式</translation>
+    </message>
+    <message>
+        <source>Plug-in: %1</source>
+        <translation>外掛程式：%1</translation>
+    </message>
+    <message>
+        <source>%1 could not run.
+
+%2</source>
+        <translation>%1 無法執行。
+
+%2</translation>
+    </message>
+    <message>
+        <source>Legacy Photoshop plug-ins run on Windows only.</source>
+        <translation>舊版 Photoshop 外掛程式只能在 Windows 上執行。</translation>
+    </message>
+    <message>
+        <source>The selection does not touch the active layer.</source>
+        <translation>選取範圍未觸及目前圖層。</translation>
+    </message>
+    <message>
+        <source>Running %1...</source>
+        <translation>正在執行 %1...</translation>
+    </message>
+    <message>
+        <source>The layer no longer exists.</source>
+        <translation>此圖層已不存在。</translation>
+    </message>
+    <message>
+        <source>Photoshop filter plug-ins (.8bf, 32-bit or 64-bit) are found in these folders and their subfolders and listed under Plugins &gt; Legacy Photoshop Plug-ins. Only run plug-ins you trust: they execute with your permissions.</source>
+        <translation>Patchy 會在這些資料夾及其子資料夾中尋找 Photoshop 濾鏡外掛程式（.8bf，32 位元或 64 位元），並列在「Plugins &gt; 舊版 Photoshop 外掛程式」下。只執行你信任的外掛程式：它們會以你的權限執行。</translation>
+    </message>
+    <message>
+        <source>Always scanned:</source>
+        <translation>一律掃描：</translation>
+    </message>
+    <message>
+        <source>Add Folder...</source>
+        <translation>新增資料夾...</translation>
+    </message>
+    <message>
+        <source>Added folders:</source>
+        <translation>已新增的資料夾：</translation>
+    </message>
+    <message>
+        <source>Plug-ins</source>
+        <translation>外掛程式</translation>
+    </message>
+    <message>
+        <source>Open Plug-ins &amp;Folder</source>
+        <translation>開啟外掛程式資料夾(&amp;F)</translation>
+    </message>
+    <message>
+        <source>&amp;Rescan Plug-in Folders</source>
+        <translation>重新掃描外掛程式資料夾(&amp;R)</translation>
+    </message>
+    <message>
+        <source>Could not open the plug-ins folder.</source>
+        <translation>無法開啟外掛程式資料夾。</translation>
+    </message>
+    <message>
+        <source>Plug-in scan finished: %1 available</source>
+        <translation>外掛程式掃描完成：%1 個可用</translation>
+    </message>
+    <message>
+        <source>Plug-in scan finished: %1 available, %2 not usable</source>
+        <translation>外掛程式掃描完成：%1 個可用，%2 個無法使用</translation>
+    </message>
+    <message>
+        <source>Scanning plug-in folders...</source>
+        <translation>正在掃描外掛程式資料夾...</translation>
+    </message>
+    <message>
+        <source>Whole monitor</source>
+        <translation>整個螢幕</translation>
+    </message>
+    <message>
+        <source>Plug-in windows open on the monitor showing Patchy. Plug-ins with full-screen interfaces size themselves to this screen size, so a smaller size keeps them usable on large monitors.</source>
+        <translation>外掛程式視窗會在顯示 Patchy 的螢幕上開啟。全螢幕介面的外掛程式會依此螢幕尺寸顯示，較小的尺寸可讓它們在大型螢幕上保持可用。</translation>
+    </message>
+    <message>
+        <source>Screen size for plug-in windows:</source>
+        <translation>外掛程式視窗的螢幕尺寸:</translation>
+    </message>
+    <message>
+        <source>%1 via Patchy</source>
+        <extracomment>Title of the movable window a full-screen plug-in interface is shown in; %1 is the plug-in&apos;s name.</extracomment>
+        <translation>%1 (透過 Patchy)</translation>
+    </message>
+    <message>
+        <source>%1: same plug-in as %2, listed once</source>
+        <translation>%1: 與 %2 是同一外掛程式，僅列出一次</translation>
+    </message>
+    <message>
+        <source>Plug-ins work on one layer at a time. Select a single layer and run it again.</source>
+        <translation>外掛程式一次只能處理一個圖層。請選取單一圖層後再執行。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -19050,6 +19205,30 @@ Y：%2
     <message>
         <source>%1: paragraph.%2 must be a number (document pixels).</source>
         <translation>%1: paragraph.%2 必須是數值（文件像素）。</translation>
+    </message>
+    <message>
+        <source>applyPlugin: unknown option %1.</source>
+        <translation>applyPlugin：未知選項 %1。</translation>
+    </message>
+    <message>
+        <source>Unknown plug-in id: %1</source>
+        <translation>未知外掛程式 ID：%1</translation>
+    </message>
+    <message>
+        <source>Plug-in %1 cannot run: %2</source>
+        <translation>外掛程式 %1 無法執行：%2</translation>
+    </message>
+    <message>
+        <source>applyPlugin needs a pixel layer.</source>
+        <translation>applyPlugin 需要一個像素圖層。</translation>
+    </message>
+    <message>
+        <source>Plug-in %1 was cancelled.</source>
+        <translation>外掛程式 %1 已取消。</translation>
+    </message>
+    <message>
+        <source>Plug-in %1 failed: %2</source>
+        <translation>外掛程式 %1 失敗：%2</translation>
     </message>
 </context>
 <context>

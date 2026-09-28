@@ -716,6 +716,9 @@ bool skip_without_font_face(const QString& family, const char* fixture_role);
 bool skip_without_psd_text_face(const patchy::Layer& layer, const QString& expected_family);
 
 QAction* require_legacy_plugin_action(QWidget& root, const QString& text);
+// Blocks (pumping events) until the window's startup plug-in scan has applied
+// its result; the scan runs on a worker and the menu fills in afterwards.
+void wait_for_legacy_plugin_scan(patchy::ui::MainWindow& window);
 
 QListWidgetItem* find_layer_item(QListWidget& list, const QString& text);
 

@@ -108,6 +108,56 @@
     </message>
 </context>
 <context>
+    <name>LegacyPluginFolder</name>
+    <message>
+        <source>Legacy Photoshop plug-ins run on Windows only.</source>
+        <translation>Les anciens modules externes Photoshop ne s&apos;exécutent que sous Windows.</translation>
+    </message>
+    <message>
+        <source>The plug-ins folder could not be created: %1</source>
+        <translation>Le dossier des modules externes n&apos;a pas pu être créé : %1</translation>
+    </message>
+</context>
+<context>
+    <name>LegacyPluginRunner</name>
+    <message>
+        <source>The plug-in host was given an invalid image.</source>
+        <translation>L&apos;hôte de modules externes a reçu une image non valide.</translation>
+    </message>
+    <message>
+        <source>The plug-in host program is missing: %1</source>
+        <translation>Le programme hôte de modules externes est introuvable : %1</translation>
+    </message>
+    <message>
+        <source>Not enough memory to hand the layer to the plug-in.</source>
+        <translation>Mémoire insuffisante pour transmettre le calque au module externe.</translation>
+    </message>
+    <message>
+        <source>The plug-in host could not be contacted: %1</source>
+        <translation>Impossible de contacter l&apos;hôte de modules externes : %1</translation>
+    </message>
+    <message>
+        <source>The plug-in host program could not be started: %1</source>
+        <translation>Impossible de démarrer le programme hôte de modules externes : %1</translation>
+    </message>
+    <message>
+        <source>The plug-in host did not respond.</source>
+        <translation>L&apos;hôte de modules externes n&apos;a pas répondu.</translation>
+    </message>
+    <message>
+        <source>The plug-in host program does not match this Patchy build.</source>
+        <translation>Le programme hôte de modules externes ne correspond pas à cette version de Patchy.</translation>
+    </message>
+    <message>
+        <source>The plug-in crashed (host exit code %1).</source>
+        <translation>Le module externe a planté (code de sortie de l&apos;hôte %1).</translation>
+    </message>
+    <message>
+        <source>The plug-in reported an error.</source>
+        <translation>Le module externe a signalé une erreur.</translation>
+    </message>
+</context>
+<context>
     <name>QObject</name>
     <message>
         <source>Patchy raster image editor.</source>
@@ -2112,26 +2162,6 @@
     <message>
         <source>Legacy Photoshop plug-ins are Windows binaries; they require the Windows build of Patchy.</source>
         <translation>Les modules externes Photoshop hérités sont des binaires Windows ; ils nécessitent la version Windows de Patchy.</translation>
-    </message>
-    <message>
-        <source>32-bit Photoshop plug-ins require a 32-bit compatibility host.</source>
-        <translation>Les modules externes Photoshop 32 bits nécessitent un hôte de compatibilité 32 bits.</translation>
-    </message>
-    <message>
-        <source>Plug-in architecture does not match this Patchy build.</source>
-        <translation>L&apos;architecture du module externe ne correspond pas à cette version de Patchy.</translation>
-    </message>
-    <message>
-        <source>Automation plug-ins are recognized but not supported by the first compatibility adapter.</source>
-        <translation>Les modules externes d&apos;automatisation sont reconnus mais ne sont pas pris en charge par le premier adaptateur de compatibilité.</translation>
-    </message>
-    <message>
-        <source>Classic Photoshop filter plug-in candidate. Runtime execution will be isolated out-of-process.</source>
-        <translation>Module externe de filtre Photoshop classique candidat. L&apos;exécution sera isolée dans un processus séparé.</translation>
-    </message>
-    <message>
-        <source>Classic Photoshop file-format plug-in candidate. Runtime execution will be isolated out-of-process.</source>
-        <translation>Module externe de format de fichier Photoshop classique candidat. L&apos;exécution sera isolée dans un processus séparé.</translation>
     </message>
     <message>
         <source>Plugin identifier cannot be empty</source>
@@ -8514,6 +8544,50 @@ RVB : %2, %3, %4</translation>
         <source>The source color mode is Grayscale; Patchy converted the gray values to RGB/RGBA for editing and will export RGB PSD data from this document.</source>
         <translation>Le mode colorimétrique source est Niveaux de gris ; Patchy a converti les valeurs de gris en RVB/RVBA pour la modification et exportera des données PSD RVB à partir de ce document.</translation>
     </message>
+    <message>
+        <source>Not a Windows plug-in binary.</source>
+        <translation>Ce fichier n&apos;est pas un module externe Windows.</translation>
+    </message>
+    <message>
+        <source>Unsupported plug-in architecture; only 32-bit and 64-bit x86 plug-ins run.</source>
+        <translation>Architecture de module externe non prise en charge ; seuls les modules x86 32 bits et 64 bits s&apos;exécutent.</translation>
+    </message>
+    <message>
+        <source>File-format and automation plug-ins are not supported; only filter (.8bf) plug-ins run.</source>
+        <translation>Les modules externes de format de fichier et d&apos;automatisation ne sont pas pris en charge ; seuls les modules de filtre (.8bf) s&apos;exécutent.</translation>
+    </message>
+    <message>
+        <source>This plug-in is not a filter; only filter (.8bf) plug-ins run.</source>
+        <translation>Ce module externe n&apos;est pas un filtre ; seuls les modules de filtre (.8bf) s&apos;exécutent.</translation>
+    </message>
+    <message>
+        <source>Photoshop filter plug-in (32-bit).</source>
+        <translation>Module externe de filtre Photoshop (32 bits).</translation>
+    </message>
+    <message>
+        <source>Photoshop filter plug-in (64-bit).</source>
+        <translation>Module externe de filtre Photoshop (64 bits).</translation>
+    </message>
+    <message>
+        <source>Plug-ins folder (.8bf filters):</source>
+        <translation>Dossier des modules externes (filtres .8bf) :</translation>
+    </message>
+    <message>
+        <source>Open Plug-ins Folder</source>
+        <translation>Ouvrir le dossier des modules externes</translation>
+    </message>
+    <message>
+        <source>Could not open the plug-ins folder.</source>
+        <translation>Impossible d&apos;ouvrir le dossier des modules externes.</translation>
+    </message>
+    <message>
+        <source>Blend Clipped Layers as Group</source>
+        <translation>Fusionner les calques écrêtés en groupe</translation>
+    </message>
+    <message>
+        <source>Keep the layers clipped to this one under its interior effects; turn this off together with Blend Interior Effects as Group to draw them over the overlays instead</source>
+        <translation>Garde les calques écrêtés sur celui-ci sous ses effets intérieurs ; désactivez-le avec Fusionner les effets intérieurs en groupe pour les dessiner par-dessus les incrustations</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -10746,10 +10820,6 @@ RVB : %2, %3, %4</translation>
     <message>
         <source>Shift &amp;Seams to Center</source>
         <translation>&amp;Décaler les raccords au centre</translation>
-    </message>
-    <message>
-        <source>&amp;Scan Legacy Photoshop Plug-ins...</source>
-        <translation>&amp;Rechercher les anciens modules externes Photoshop...</translation>
     </message>
     <message>
         <source>Legacy Photoshop Plug-ins</source>
@@ -15587,22 +15657,6 @@ Y : %2
         <translation>Tracé de travail créé à partir de la sélection.</translation>
     </message>
     <message>
-        <source>Scan Legacy Photoshop Plug-ins</source>
-        <translation>Analyser les modules externes Photoshop hérités</translation>
-    </message>
-    <message>
-        <source>Photoshop Plug-ins (*.8bf *.8bi *.8li);;All Files (*.*)</source>
-        <translation>Modules externes Photoshop (*.8bf *.8bi *.8li);;Tous les fichiers (*.*)</translation>
-    </message>
-    <message>
-        <source>%1 plug-in action(s) available under Plug-ins &gt; Legacy Photoshop Plug-ins.
-
-%2</source>
-        <translation>%1 action(s) de module externe disponible(s) sous Modules externes &gt; Modules externes Photoshop hérités.
-
-%2</translation>
-    </message>
-    <message>
         <source>%1: %2 (%3, %4)</source>
         <translation>%1 : %2 (%3, %4)</translation>
     </message>
@@ -15617,14 +15671,6 @@ Y : %2
     <message>
         <source>Legacy Photoshop Plug-in</source>
         <translation>Module externe Photoshop hérité</translation>
-    </message>
-    <message>
-        <source>%1 was scanned and is available, but this build only has compatibility shims for the bundled Greyscale and White to Transparent test filters. A full 8BF host still needs the out-of-process Photoshop SDK adapter.</source>
-        <translation>%1 a été analysé et est disponible, mais cette version ne comporte que des couches de compatibilité pour les filtres de test fournis Niveaux de gris et Blanc vers transparent. Un hôte 8BF complet nécessite encore l&apos;adaptateur hors processus du SDK Photoshop.</translation>
-    </message>
-    <message>
-        <source>Legacy plug-in</source>
-        <translation>Module externe hérité</translation>
     </message>
     <message>
         <source>Preferences</source>
@@ -17725,6 +17771,115 @@ Y : %2
             <numerusform>Objet dynamique converti en %n calques</numerusform>
         </translation>
     </message>
+    <message>
+        <source>Add Plug-in Folder</source>
+        <translation>Ajouter un dossier de modules externes</translation>
+    </message>
+    <message>
+        <source>No plug-ins found (put .8bf files in the plugins folder)</source>
+        <translation>Aucun module externe trouvé (placez des fichiers .8bf dans le dossier plugins)</translation>
+    </message>
+    <message>
+        <source>Run the %1 plug-in on the active layer</source>
+        <translation>Exécuter le module externe %1 sur le calque actif</translation>
+    </message>
+    <message>
+        <source>Plug-in: %1</source>
+        <translation>Module externe : %1</translation>
+    </message>
+    <message>
+        <source>%1 could not run.
+
+%2</source>
+        <translation>%1 n&apos;a pas pu s&apos;exécuter.
+
+%2</translation>
+    </message>
+    <message>
+        <source>Legacy Photoshop plug-ins run on Windows only.</source>
+        <translation>Les anciens modules externes Photoshop ne s&apos;exécutent que sous Windows.</translation>
+    </message>
+    <message>
+        <source>The selection does not touch the active layer.</source>
+        <translation>La sélection ne touche pas le calque actif.</translation>
+    </message>
+    <message>
+        <source>Running %1...</source>
+        <translation>Exécution de %1...</translation>
+    </message>
+    <message>
+        <source>The layer no longer exists.</source>
+        <translation>Le calque n&apos;existe plus.</translation>
+    </message>
+    <message>
+        <source>Photoshop filter plug-ins (.8bf, 32-bit or 64-bit) are found in these folders and their subfolders and listed under Plugins &gt; Legacy Photoshop Plug-ins. Only run plug-ins you trust: they execute with your permissions.</source>
+        <translation>Les modules externes de filtre Photoshop (.8bf, 32 bits ou 64 bits) sont recherchés dans ces dossiers et leurs sous-dossiers et listés sous Plugins &gt; Anciens modules externes Photoshop. N&apos;exécutez que des modules de confiance : ils s&apos;exécutent avec vos autorisations.</translation>
+    </message>
+    <message>
+        <source>Always scanned:</source>
+        <translation>Toujours analysés :</translation>
+    </message>
+    <message>
+        <source>Add Folder...</source>
+        <translation>Ajouter un dossier...</translation>
+    </message>
+    <message>
+        <source>Added folders:</source>
+        <translation>Dossiers ajoutés :</translation>
+    </message>
+    <message>
+        <source>Plug-ins</source>
+        <translation>Modules externes</translation>
+    </message>
+    <message>
+        <source>Open Plug-ins &amp;Folder</source>
+        <translation>Ouvrir le &amp;dossier des modules externes</translation>
+    </message>
+    <message>
+        <source>&amp;Rescan Plug-in Folders</source>
+        <translation>&amp;Réanalyser les dossiers de modules externes</translation>
+    </message>
+    <message>
+        <source>Could not open the plug-ins folder.</source>
+        <translation>Impossible d&apos;ouvrir le dossier des modules externes.</translation>
+    </message>
+    <message>
+        <source>Plug-in scan finished: %1 available</source>
+        <translation>Analyse des modules externes terminée : %1 disponibles</translation>
+    </message>
+    <message>
+        <source>Plug-in scan finished: %1 available, %2 not usable</source>
+        <translation>Analyse des modules externes terminée : %1 disponibles, %2 inutilisables</translation>
+    </message>
+    <message>
+        <source>Scanning plug-in folders...</source>
+        <translation>Analyse des dossiers de modules externes...</translation>
+    </message>
+    <message>
+        <source>Whole monitor</source>
+        <translation>Écran entier</translation>
+    </message>
+    <message>
+        <source>Plug-in windows open on the monitor showing Patchy. Plug-ins with full-screen interfaces size themselves to this screen size, so a smaller size keeps them usable on large monitors.</source>
+        <translation>Les fenêtres des modules externes s&apos;ouvrent sur l&apos;écran qui affiche Patchy. Les modules externes à interface plein écran se dimensionnent selon cette taille d&apos;écran ; une taille plus petite les garde utilisables sur les grands écrans.</translation>
+    </message>
+    <message>
+        <source>Screen size for plug-in windows:</source>
+        <translation>Taille d&apos;écran pour les fenêtres des modules externes :</translation>
+    </message>
+    <message>
+        <source>%1 via Patchy</source>
+        <extracomment>Title of the movable window a full-screen plug-in interface is shown in; %1 is the plug-in&apos;s name.</extracomment>
+        <translation>%1 via Patchy</translation>
+    </message>
+    <message>
+        <source>%1: same plug-in as %2, listed once</source>
+        <translation>%1 : même module externe que %2, affiché une seule fois</translation>
+    </message>
+    <message>
+        <source>Plug-ins work on one layer at a time. Select a single layer and run it again.</source>
+        <translation>Les modules externes traitent un seul calque à la fois. Sélectionnez un seul calque et relancez-le.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -19103,6 +19258,30 @@ Y : %2
     <message>
         <source>%1: paragraph.%2 must be a number (document pixels).</source>
         <translation>%1 : paragraph.%2 doit être un nombre (pixels du document).</translation>
+    </message>
+    <message>
+        <source>applyPlugin: unknown option %1.</source>
+        <translation>applyPlugin : option inconnue %1.</translation>
+    </message>
+    <message>
+        <source>Unknown plug-in id: %1</source>
+        <translation>Identifiant de module externe inconnu : %1</translation>
+    </message>
+    <message>
+        <source>Plug-in %1 cannot run: %2</source>
+        <translation>Le module externe %1 ne peut pas s&apos;exécuter : %2</translation>
+    </message>
+    <message>
+        <source>applyPlugin needs a pixel layer.</source>
+        <translation>applyPlugin nécessite un calque de pixels.</translation>
+    </message>
+    <message>
+        <source>Plug-in %1 was cancelled.</source>
+        <translation>Le module externe %1 a été annulé.</translation>
+    </message>
+    <message>
+        <source>Plug-in %1 failed: %2</source>
+        <translation>Le module externe %1 a échoué : %2</translation>
     </message>
 </context>
 <context>

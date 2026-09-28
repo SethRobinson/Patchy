@@ -26,6 +26,7 @@
 #include "ui/main_window_shared.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/document_recovery.hpp"
+#include "ui/legacy_plugin_folder.hpp"
 #include "ui/layer_merge.hpp"
 #include "ui/qt_geometry.hpp"
 #include "ui/qt_paths.hpp"
@@ -881,6 +882,27 @@ void ScriptLayerObject::fillRect(int x, int y, int width, int height, const QStr
 void ScriptLayerObject::applyFilter(const QString& filterId, const QJSValue& params) {
   const ScriptApiCall api_call(host_);
   host_.apply_filter_to_layer(session_id_, layer_id_, filterId, params);
+}
+
+void ScriptLayerObject::applyPlugin(const QString& pluginId, const QJSValue& options) {
+  const ScriptApiCall api_call(host_);
+  bool dialog = true;
+  QString capture_path;
+  if (options.isObject()) {
+    QJSValueIterator it(options);
+    while (it.hasNext()) {
+      it.next();
+      if (it.name() == QLatin1String("dialog")) {
+        dialog = it.value().toBool();
+      } else if (it.name() == QLatin1String("captureDialog")) {
+        capture_path = it.value().toString();
+      } else {
+        host_.throw_js_error(ScriptEngineHost::tr("applyPlugin: unknown option %1.").arg(it.name()));
+        return;
+      }
+    }
+  }
+  host_.apply_legacy_plugin_to_layer(session_id_, layer_id_, pluginId, dialog, capture_path);
 }
 
 // Remove Object through the session's canvas, which is why the layer has to
@@ -2260,6 +2282,39 @@ QJSValue recovery_entry_value(ScriptEngineHost& host, const QString& directory,
 
 }  // namespace
 #endif
+
+// ---------------------------------------------------------------------------
+// ScriptPluginsObject
+
+ScriptPluginsObject::ScriptPluginsObject(ScriptEngineHost& host) : host_(host) {}
+
+QStringList ScriptPluginsObject::folders() const { return stored_legacy_plugin_folders(); }
+
+QString ScriptPluginsObject::folder() const {
+  const auto path = legacy_plugins_folder_path();
+  if (path.isEmpty()) {
+    return QString();
+  }
+  (void)ensure_legacy_plugins_folder();
+  return QDir::fromNativeSeparators(path);
+}
+
+void ScriptPluginsObject::set_folders(const QStringList& folders) {
+  const ScriptApiCall api_call(host_);
+  set_stored_legacy_plugin_folders(folders);
+  host_.rescan_legacy_plugins();
+}
+
+QJSValue ScriptPluginsObject::list() {
+  const ScriptApiCall api_call(host_);
+  return host_.legacy_plugin_list();
+}
+
+QJSValue ScriptPluginsObject::rescan() {
+  const ScriptApiCall api_call(host_);
+  host_.rescan_legacy_plugins();
+  return host_.legacy_plugin_list();
+}
 
 ScriptRecoveryObject::ScriptRecoveryObject(ScriptEngineHost& host) : host_(host) {}
 

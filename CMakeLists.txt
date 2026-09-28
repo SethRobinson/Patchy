@@ -340,10 +340,41 @@ patchy_configure_target(patchy_psd)
 
 add_library(patchy_plugins
   src/plugins/legacy_photoshop_adapter.cpp
+  src/plugins/pipl.cpp
   src/plugins/plugin_host.cpp
 )
 target_link_libraries(patchy_plugins PUBLIC patchy_core)
 patchy_configure_target(patchy_plugins)
+
+if(WIN32)
+  # The out-of-process host for classic Photoshop filter plug-ins
+  # (docs/plugins.md): one Qt-free Win32 program built twice. The 64-bit
+  # helper is an ordinary target of this build; the 32-bit helper is the same
+  # sources configured as their own Ninja project inside the x86 developer
+  # environment (scriptsuild-8bf-host32.bat), because a 64-bit process cannot
+  # load a 32-bit plug-in. Both land next to patchy.exe.
+  set(PATCHY_8BF_HOST_OUTPUT_DIR "${CMAKE_BINARY_DIR}")
+  set(PATCHY_8BF_HOST_NAME patchy-8bf-host64)
+  add_subdirectory(src/plugins/host)
+  set(PATCHY_8BF_HOST32_EXE "${CMAKE_BINARY_DIR}/patchy-8bf-host32.exe")
+  file(GLOB PATCHY_8BF_HOST_SOURCES CONFIGURE_DEPENDS
+       "${PROJECT_SOURCE_DIR}/src/plugins/host/*.cpp"
+       "${PROJECT_SOURCE_DIR}/src/plugins/host/*.hpp"
+       "${PROJECT_SOURCE_DIR}/src/plugins/host/CMakeLists.txt")
+  add_custom_command(
+    OUTPUT "${PATCHY_8BF_HOST32_EXE}"
+    COMMAND "${PROJECT_SOURCE_DIR}/scripts/build-8bf-host32.bat"
+            "${PROJECT_SOURCE_DIR}/src/plugins/host"
+            "${CMAKE_BINARY_DIR}/8bf-host32"
+            "${CMAKE_BINARY_DIR}"
+            "${CMAKE_COMMAND}"
+            "$<IF:$<CONFIG:Debug>,Debug,Release>"
+            "${CMAKE_MAKE_PROGRAM}"
+    DEPENDS ${PATCHY_8BF_HOST_SOURCES} "${PROJECT_SOURCE_DIR}/scripts/build-8bf-host32.bat"
+    COMMENT "Building the 32-bit legacy plug-in host (patchy-8bf-host32.exe)"
+    VERBATIM)
+  add_custom_target(patchy_8bf_host32 ALL DEPENDS "${PATCHY_8BF_HOST32_EXE}")
+endif()
 
 add_library(patchy_filters
   src/filters/auto_levels_math.cpp
@@ -1154,6 +1185,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/splash_artwork.hpp
       src/ui/splash_artwork.cpp
       src/ui/splash_dialog.cpp
+      src/ui/legacy_plugin_folder.hpp
+      src/ui/legacy_plugin_folder.cpp
       src/ui/tool_cursors.hpp
       src/ui/tool_cursors.cpp
       src/ui/single_instance.hpp
@@ -1275,7 +1308,9 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
     endif()
     if(WIN32)
       # WIA scanner/camera acquisition (File > Import > From Scanner or Camera...).
-      target_sources(patchy_ui PRIVATE src/ui/scanner_import_win.cpp)
+      # legacy_plugin_runner_win.cpp drives the out-of-process 8BF host.
+      target_sources(patchy_ui PRIVATE src/ui/scanner_import_win.cpp src/ui/legacy_plugin_runner_win.cpp)
+      add_dependencies(patchy_ui patchy-8bf-host64 patchy_8bf_host32)
       # winmm: PlaySound for the script sound effects (sound_effects.cpp).
       target_link_libraries(patchy_ui PUBLIC wiaguid winmm)
     endif()
@@ -1621,6 +1656,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/gradients_interior_effects_tests.cpp
     tests/core/image_trace_tests.cpp
     tests/core/infra_selection_tests.cpp
+    tests/core/pipl_tests.cpp
     tests/core/layer_alignment_tests.cpp
     tests/core/layer_metadata_tests.cpp
     tests/core/palette_tests.cpp
@@ -1664,6 +1700,10 @@ if(PATCHY_BUILD_TESTS)
   )
   patchy_configure_target(patchy_core_tests)
   target_compile_definitions(patchy_core_tests PRIVATE PATCHY_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+  if(WIN32)
+    # The legacy host self-tests run the helper executables next to the binary.
+    add_dependencies(patchy_core_tests patchy-8bf-host64 patchy_8bf_host32)
+  endif()
   add_test(NAME patchy_core_tests COMMAND patchy_core_tests)
 
   if(PATCHY_BUILD_APP AND Qt6_FOUND)
@@ -1750,6 +1790,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/document_recovery_tests.cpp
       tests/ui/mcp_tests.cpp
       tests/ui/unicode_path_tests.cpp
+      tests/ui/legacy_plugin_tests.cpp
       tests/ui/history_panel_tests.cpp
       tests/ui/composite_render_tests.cpp
       tests/ui/readme_screenshot_tests.cpp

@@ -20,7 +20,8 @@ change.
   `ScriptEngineHost` is a friend of MainWindow; the wrappers never touch MainWindow
   directly.
 - `src/ui/script_api.{hpp,cpp}`: the QObject wrappers JS sees (`app`, documents, layers,
-  selection, `patchy.io`, `patchy.ui`).
+  selection, `patchy.io`, `patchy.ui`, `patchy.recovery`, `patchy.plugins`; the last one
+  and `layer.applyPlugin` front the legacy 8BF host, see [plugins.md](plugins.md)).
 - `src/ui/script_vector*.{hpp,cpp}`: native shapes, paints, paths, masks,
   organization, and selection bindings. See [vector-automation.md](vector-automation.md)
   for shared operations, validation, and refresh contracts.

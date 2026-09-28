@@ -267,6 +267,7 @@ int main(int argc, char* argv[]) {
            document_recovery_tests,
            mcp_tests,
            unicode_path_tests,
+           legacy_plugin_tests,
            history_panel_tests,
            composite_render_tests,
            readme_screenshot_tests,

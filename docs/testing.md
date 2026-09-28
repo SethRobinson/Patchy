@@ -98,6 +98,13 @@ Offscreen does not clear `QApplication::keyboardModifiers()` after synthetic key
   Trace Image to Shapes dialog, which `layer.traceToShapes` bypasses and `app.runCommand`
   would block a script on.
 
+One scene stays manual: `scripts/dev/readme-shots/plugin-dialog.js` produces
+`docs/images/screenshots/plugin_dialog.png`, the dialog of a third-party 8bf plug-in
+(Mehdi's Absolute Color from `local-test-fixtures/photoshop-plugins/mehdi`) captured through
+`layer.applyPlugin(id, {captureDialog})` on Windows. It is not in the driver's table because
+the plug-in is not committed; run it by hand (see the script header) when the shot needs
+refreshing.
+
 Both pipelines round the corners of the window they captured, because DWM rounds Patchy's
 frameless windows in the compositor and a `QWidget::grab()` is therefore square. The offscreen
 side does it in `save_readme_shot` and `draw_readme_overlay` (which also rounds the shadow it

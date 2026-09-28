@@ -493,6 +493,8 @@ void ui_unicode_legacy_plugin_probe_from_unicode_dir() {
 
   patchy::ui::MainWindow window;
   show_window(window);
+  // The startup scan would replace the list when it lands; let it finish first.
+  patchy::test::ui::wait_for_legacy_plugin_scan(window);
   QStringList report;
   const bool registered = patchy::ui::MainWindowTestAccess::register_legacy_plugin_path(window, path, &report);
   CHECK(report.size() == 1);
@@ -500,11 +502,14 @@ void ui_unicode_legacy_plugin_probe_from_unicode_dir() {
   // The probe must have read the PE header through the Unicode path: the report
   // names the plug-in kind and architecture, not a "could not open" reason.
   CHECK(report.front().contains(QStringLiteral("x64")));
-#if defined(_WIN32) && defined(_M_X64)
+#if defined(_WIN32)
   CHECK(registered);
+  // The action shows the plug-in's PiPL name; its identifier carries the file
+  // stem, which is the part that crossed the Unicode path.
   bool found_action = false;
   for (auto* action : window.findChildren<QAction*>(QStringLiteral("legacyPluginAction"))) {
-    if (action->text().contains(q(kUnicodePathStems[0]))) {
+    if (action->data().toString().contains(q(kUnicodePathStems[0])) &&
+        action->text() == QStringLiteral("Greyscale")) {
       found_action = true;
     }
   }

@@ -4,7 +4,7 @@ How to cut and publish a Patchy release. Read this in full before bumping a vers
 
 ## Version bump checklist
 
-Desktop packages include `patchy-mcp` and the assembled `patchy-control` skill.
+Desktop packages include `patchy-mcp` and the assembled `patchy-control` skill; the Windows package also carries the two legacy plug-in hosts `patchy-8bf-host32.exe` and `patchy-8bf-host64.exe` (docs/plugins.md), which `build-release.bat` requires, stages and signs like the app.
 Staging and resource paths are specified in [ai-control.md](ai-control.md). Each
 desktop packaging script runs the installed connector's `--check` smoke test;
 Windows signs both executables and macOS deploys Qt for both. The remote build
@@ -129,7 +129,9 @@ Every build entry point (`scripts\release\build-release.bat`, `scripts\run-tests
 3. Wait for the `.exit` files, never for the consoles (`release-mac.bat` and `release-linux.bat` end in an unconditional `pause`, which is why the worker calls the `.ps1` files directly). Judge each target by its code and its log. Do not capture exit codes with Windows PowerShell 5.1's `Start-Process -PassThru` while redirecting output: its `ExitCode` comes back empty there. If you write your own marker, put the redirect first (`>"marker" echo exit=%ERRORLEVEL%`), never `echo %ERRORLEVEL%> "marker"`: cmd reads a digit directly before `>` as a file-handle number, so a zero exit redirects stdin and leaves the marker empty.
 4. In any wrapper of your own, invoke the test binaries as `.\patchy_core_tests.exe`, a path (a bare name exits 9009 under `NoDefaultCurrentDirectoryInExePath`), and directly, not through a second `start "" /b /wait`, which would make the recorded `%ERRORLEVEL%` always 0. Where a single command does need throttling, `scripts\run-throttled.bat` both lowers priority and returns the child's code.
 5. Run the suites one at a time and not alongside a build (they share the QSettings store; see [testing.md](testing.md)). The tests themselves tolerate a loaded machine: wall-clock limits are hang guards, not performance bounds.
-   The remote full-suite runs (`scriptsemoteemote-build.ps1 -Target mac|linux` without `-SkipTests`) print no summary: `build-and-test.sh` ends with the UI suite, so a finished log simply stops after the last test's `[PASS]`/`[FAIL]` line. Judge the run by its exit code and `[FAIL]` count, run it as a harness-tracked foreground or background command rather than a detached wrapper that writes a marker file (a detached wrapper can die with the marker unwritten), and give every wait a deadline.
+   The remote full-suite runs (`scripts
+emote
+emote-build.ps1 -Target mac|linux` without `-SkipTests`) print no summary: `build-and-test.sh` ends with the UI suite, so a finished log simply stops after the last test's `[PASS]`/`[FAIL]` line. Judge the run by its exit code and `[FAIL]` count, run it as a harness-tracked foreground or background command rather than a detached wrapper that writes a marker file (a detached wrapper can die with the marker unwritten), and give every wait a deadline.
 6. `upload-to-rtsoft.bat` passes the positional `nopause` argument to the per-platform upload scripts and skips its own final `pause` when `NO_PAUSE` is set (the worker's `upload-all` target); run by hand, it still pauses so the summary stays readable.
 
 Do not say a release was created unless the release preset build completed successfully.

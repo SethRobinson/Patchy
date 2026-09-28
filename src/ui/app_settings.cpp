@@ -13,6 +13,8 @@ QString gui_scale_key() { return QStringLiteral("preferences/guiScalePercent"); 
 QString recovery_enabled_key() { return QStringLiteral("recovery/enabled"); }
 #endif
 QString recovery_interval_key() { return QStringLiteral("recovery/intervalMinutes"); }
+QString legacy_plugin_folders_key() { return QStringLiteral("plugins/userFolders"); }
+QString legacy_plugin_screen_size_key() { return QStringLiteral("plugins/screenSize"); }
 
 }  // namespace
 
@@ -90,6 +92,48 @@ void set_stored_recovery_interval_minutes(int minutes) {
   auto settings = app_settings();
   settings.setValue(recovery_interval_key(), normalize_recovery_interval_minutes(minutes));
 #endif
+}
+
+QStringList stored_legacy_plugin_folders() {
+  QStringList folders = app_settings().value(legacy_plugin_folders_key()).toStringList();
+  folders.removeAll(QString());
+  folders.removeDuplicates();
+  return folders;
+}
+
+void set_stored_legacy_plugin_folders(const QStringList& folders) {
+  auto settings = app_settings();
+  QStringList cleaned = folders;
+  cleaned.removeAll(QString());
+  cleaned.removeDuplicates();
+  settings.setValue(legacy_plugin_folders_key(), cleaned);
+}
+
+std::pair<int, int> stored_legacy_plugin_screen_size() {
+  const auto stored = app_settings().value(legacy_plugin_screen_size_key()).toString().trimmed().toLower();
+  if (stored == QLatin1String("monitor")) {
+    return {0, 0};
+  }
+  const auto parts = stored.split(QLatin1Char('x'));
+  if (parts.size() == 2) {
+    const std::pair<int, int> size{parts[0].toInt(), parts[1].toInt()};
+    if (std::find(kLegacyPluginScreenSizes.begin(), kLegacyPluginScreenSizes.end(), size) !=
+        kLegacyPluginScreenSizes.end()) {
+      return size;
+    }
+  }
+  return kDefaultLegacyPluginScreenSize;
+}
+
+void set_stored_legacy_plugin_screen_size(std::pair<int, int> size) {
+  if (std::find(kLegacyPluginScreenSizes.begin(), kLegacyPluginScreenSizes.end(), size) ==
+      kLegacyPluginScreenSizes.end()) {
+    size = kDefaultLegacyPluginScreenSize;
+  }
+  auto settings = app_settings();
+  settings.setValue(legacy_plugin_screen_size_key(),
+                    size.first == 0 ? QStringLiteral("monitor")
+                                    : QStringLiteral("%1x%2").arg(size.first).arg(size.second));
 }
 
 }  // namespace patchy::ui

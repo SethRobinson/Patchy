@@ -1,8 +1,10 @@
 #pragma once
 
 #include <QSettings>
+#include <QStringList>
 
 #include <array>
+#include <utility>
 
 namespace patchy::ui {
 
@@ -56,5 +58,23 @@ inline constexpr int kDefaultRecoveryIntervalMinutes = 10;
 void set_stored_recovery_enabled(bool enabled);
 [[nodiscard]] int stored_recovery_interval_minutes();
 void set_stored_recovery_interval_minutes(int minutes);
+
+// Legacy Photoshop plug-in folders the user added (key `plugins/userFolders`, a
+// compatibility contract), on top of the automatic `plugins` folders next to the
+// application and in the per-user app-data directory. See docs/plugins.md.
+[[nodiscard]] QStringList stored_legacy_plugin_folders();
+void set_stored_legacy_plugin_folders(const QStringList& folders);
+
+// The largest screen a legacy plug-in is told about (key `plugins/screenSize`,
+// "<width>x<height>" or "monitor"; a compatibility contract). Plug-in windows
+// open on the monitor showing Patchy; full-screen plug-in interfaces size
+// themselves to this, so a cap keeps them usable on large monitors. (0, 0)
+// means the monitor's whole work area. The choices are the Preferences combo;
+// anything else stored falls back to the default. See docs/plugins.md.
+inline constexpr std::array<std::pair<int, int>, 5> kLegacyPluginScreenSizes{
+    {{0, 0}, {1920, 1200}, {1600, 1200}, {1280, 1024}, {1024, 768}}};
+inline constexpr std::pair<int, int> kDefaultLegacyPluginScreenSize{1280, 1024};
+[[nodiscard]] std::pair<int, int> stored_legacy_plugin_screen_size();
+void set_stored_legacy_plugin_screen_size(std::pair<int, int> size);
 
 }  // namespace patchy::ui

@@ -139,6 +139,9 @@ void clear_layer_psd_style_source(Layer& layer);
 [[nodiscard]] double text_pixels_to_points(int pixels, const Document& document) noexcept;
 [[nodiscard]] int text_points_to_pixels(double points, const Document& document) noexcept;
 
+// Doubles ampersands so a display name shows literally as QAction text.
+[[nodiscard]] QString escape_qaction_ampersands(QString text);
+
 // Replace a layer's pixels, keeping the old bounds origin.
 void set_layer_pixels_preserving_origin(Layer& layer, PixelBuffer pixels, Rect original_bounds);
 

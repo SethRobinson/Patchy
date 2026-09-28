@@ -955,6 +955,74 @@ void compositor_clip_group_blends_with_base_mode_and_opacity() {
   CHECK(flattened.pixel(1, 1)[2] == expected[2]);
 }
 
+void compositor_clip_base_effects_render_over_members() {
+  // GitHub issue 41, COM-probed against Photoshop 2026 (docs/ps-compat.md
+  // "Clipping masks"): a clipping base's Color Overlay draws OVER its clipped
+  // members unless "Blend Clipped Layers as Group" is off while "Blend Interior
+  // Effects as Group" is on, and an inside Stroke draws over them in every
+  // combination. The base is a 12x12 square at (2, 2) with a 6x6 member in
+  // its top-left corner.
+  struct Probe {
+    bool clipped_group;
+    bool interior_group;
+    std::array<int, 3> overlay_over_member;
+  };
+  const std::array<Probe, 4> probes{Probe{true, false, {127, 0, 128}}, Probe{true, true, {127, 0, 128}},
+                                    Probe{false, false, {127, 0, 128}}, Probe{false, true, {255, 0, 0}}};
+  const auto check_near = [](const patchy::PixelBuffer& flat, std::int32_t x, std::int32_t y,
+                             std::array<int, 3> expected) {
+    const auto* pixel = flat.pixel(x, y);
+    CHECK(std::abs(static_cast<int>(pixel[0]) - expected[0]) <= 1);
+    CHECK(std::abs(static_cast<int>(pixel[1]) - expected[1]) <= 1);
+    CHECK(std::abs(static_cast<int>(pixel[2]) - expected[2]) <= 1);
+  };
+  const auto build = [](const Probe& probe, bool stroke_arm) {
+    patchy::Document document(16, 16, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Background", solid_rgb(16, 16, 255, 255, 255));
+    patchy::Layer base(document.allocate_layer_id(), "Base",
+                       stroke_arm ? solid_rgba(12, 12, 0, 0, 255, 255) : solid_rgba(12, 12, 255, 255, 255, 255));
+    base.set_bounds(patchy::Rect{2, 2, 12, 12});
+    if (stroke_arm) {
+      patchy::LayerStroke stroke;
+      stroke.enabled = true;
+      stroke.blend_mode = patchy::BlendMode::Normal;
+      stroke.color = patchy::RgbColor{0, 255, 0};
+      stroke.opacity = 1.0F;
+      stroke.size = 3.0F;
+      stroke.position = patchy::LayerStrokePosition::Inside;
+      base.layer_style().strokes.push_back(stroke);
+    } else {
+      patchy::LayerColorOverlay overlay;
+      overlay.enabled = true;
+      overlay.blend_mode = patchy::BlendMode::Normal;
+      overlay.color = patchy::RgbColor{0, 0, 255};
+      overlay.opacity = 0.5F;
+      base.layer_style().color_overlays.push_back(overlay);
+    }
+    base.layer_style().blend_clipped_elements = probe.clipped_group;
+    base.layer_style().blend_interior_elements = probe.interior_group;
+    document.add_layer(std::move(base));
+    patchy::Layer member(document.allocate_layer_id(), "Member", solid_rgba(6, 6, 255, 0, 0, 255));
+    member.set_bounds(patchy::Rect{2, 2, 6, 6});
+    member.set_clipped(true);
+    document.add_layer(std::move(member));
+    return patchy::Compositor{}.flatten_rgb8(document);
+  };
+  for (const auto& probe : probes) {
+    const auto overlay = build(probe, false);
+    check_near(overlay, 4, 4, probe.overlay_over_member);
+    check_near(overlay, 10, 10, {127, 127, 255});  // the base alone: 50% blue over white
+    check_near(overlay, 0, 0, {255, 255, 255});
+    check_near(overlay, 15, 15, {255, 255, 255});
+
+    const auto stroke = build(probe, true);
+    check_near(stroke, 3, 3, {0, 255, 0});  // the inside stroke band covers the member
+    check_near(stroke, 6, 6, {255, 0, 0});  // the member inside the band
+    check_near(stroke, 9, 9, {0, 0, 255});  // the base inside the band
+    check_near(stroke, 0, 0, {255, 255, 255});
+  }
+}
+
 void compositor_clipped_adjustment_affects_base_only() {
   patchy::AdjustmentSettings warm;
   warm.kind = patchy::AdjustmentKind::ColorBalance;
@@ -1391,6 +1459,7 @@ std::vector<patchy::test::TestCase> psd_structure_tests() {
        compositor_clipped_layer_uses_own_blend_mode_and_opacity},
       {"compositor_clip_group_blends_with_base_mode_and_opacity",
        compositor_clip_group_blends_with_base_mode_and_opacity},
+      {"compositor_clip_base_effects_render_over_members", compositor_clip_base_effects_render_over_members},
       {"compositor_clipped_adjustment_affects_base_only", compositor_clipped_adjustment_affects_base_only},
       {"compositor_group_mask_attenuates_pass_through_children",
        compositor_group_mask_attenuates_pass_through_children},

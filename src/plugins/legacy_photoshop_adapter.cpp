@@ -1,5 +1,7 @@
 #include "plugins/legacy_photoshop_adapter.hpp"
 
+#include "plugins/pipl.hpp"
+
 #include "support/string_utils.hpp"
 #include "support/path_utils.hpp"
 #include "support/translate_noop.hpp"
@@ -46,18 +48,6 @@ std::string pe_machine_name(std::uint16_t machine) {
     default:
       return "unknown";
   }
-}
-
-std::string host_architecture() {
-#if defined(_M_X64) || defined(__x86_64__)
-  return "x64";
-#elif defined(_M_IX86) || defined(__i386__)
-  return "x86";
-#elif defined(_M_ARM64) || defined(__aarch64__)
-  return "arm64";
-#else
-  return "unknown";
-#endif
 }
 
 std::string detect_binary_architecture(std::span<const std::uint8_t> bytes) {
@@ -113,49 +103,70 @@ LegacyPhotoshopPluginKind kind_from_extension(const std::string& extension) {
 LegacyPhotoshopPluginProbe LegacyPhotoshopAdapter::probe(const std::filesystem::path& path) const {
   const auto extension = lower_extension(path);
   const auto kind = kind_from_extension(extension);
+  LegacyPhotoshopPluginProbe result;
+  result.kind = kind;
+  result.architecture = "unknown";
+  result.display_name = path_to_utf8(path.stem());
   if (kind == LegacyPhotoshopPluginKind::Unknown) {
-    return {kind, false, PATCHY_TRANSLATE_NOOP("QObject", "Unsupported legacy Photoshop plug-in extension."), "unknown"};
+    result.reason = PATCHY_TRANSLATE_NOOP("QObject", "Unsupported legacy Photoshop plug-in extension.");
+    return result;
   }
 
   if (!std::filesystem::exists(path) || !std::filesystem::is_regular_file(path)) {
-    return {kind, false, PATCHY_TRANSLATE_NOOP("QObject", "Plug-in file does not exist."), "unknown"};
+    result.reason = PATCHY_TRANSLATE_NOOP("QObject", "Plug-in file does not exist.");
+    return result;
   }
 
   const auto bytes = read_prefix(path);
   if (bytes.empty()) {
-    return {kind, false, PATCHY_TRANSLATE_NOOP("QObject", "Plug-in file could not be read."), "unknown"};
+    result.reason = PATCHY_TRANSLATE_NOOP("QObject", "Plug-in file could not be read.");
+    return result;
   }
 
-  const auto architecture = detect_binary_architecture(bytes);
+  result.architecture = detect_binary_architecture(bytes);
+  const bool windows_binary = result.architecture == "x86" || result.architecture == "x64" ||
+                              result.architecture == "arm64" || result.architecture == "pe-unknown";
+  if (windows_binary) {
+    // The property list names the plug-in and says which filter cases it takes.
+    // A pure file read: nothing is loaded.
+    result.pipl = pipl::read_pipl_from_pe_file(path);
+    if (result.pipl.found) {
+      if (!result.pipl.name.empty()) {
+        result.display_name = result.pipl.name;
+      }
+      result.category = result.pipl.category;
+      result.entry_point = result.architecture == "x86" ? result.pipl.entry_point_32 : result.pipl.entry_point_64;
+    }
+  }
 #if !defined(_WIN32)
   // Legacy Photoshop plug-ins are Windows PE binaries; probing one on macOS/Linux gets an
-  // honest platform answer instead of a misleading architecture comparison. (Without this,
-  // an x64 PE on an x64 Linux host would even probe as supported.)
-  if (architecture == "x86" || architecture == "x64" || architecture == "arm64" ||
-      architecture == "pe-unknown") {
-    return {kind, false, PATCHY_TRANSLATE_NOOP("QObject", "Legacy Photoshop plug-ins are Windows binaries; they require the Windows build of Patchy."),
-            architecture};
+  // honest platform answer instead of a misleading architecture comparison.
+  if (windows_binary) {
+    result.reason = PATCHY_TRANSLATE_NOOP("QObject", "Legacy Photoshop plug-ins are Windows binaries; they require the Windows build of Patchy.");
+    return result;
   }
 #endif
-  if (architecture == "x86" && host_architecture() != "x86") {
-    return {kind, false, PATCHY_TRANSLATE_NOOP("QObject", "32-bit Photoshop plug-ins require a 32-bit compatibility host."), architecture};
+  if (!windows_binary) {
+    result.reason = PATCHY_TRANSLATE_NOOP("QObject", "Not a Windows plug-in binary.");
+    return result;
   }
-  if ((architecture == "x64" || architecture == "arm64") && host_architecture() != architecture) {
-    return {kind, false, PATCHY_TRANSLATE_NOOP("QObject", "Plug-in architecture does not match this Patchy build."), architecture};
+  if (result.architecture != "x86" && result.architecture != "x64") {
+    result.reason = PATCHY_TRANSLATE_NOOP("QObject", "Unsupported plug-in architecture; only 32-bit and 64-bit x86 plug-ins run.");
+    return result;
   }
-
-  if (kind == LegacyPhotoshopPluginKind::Automation8li) {
-    return {kind, false, PATCHY_TRANSLATE_NOOP("QObject", "Automation plug-ins are recognized but not supported by the first compatibility adapter."),
-            architecture};
+  if (kind != LegacyPhotoshopPluginKind::Filter8bf) {
+    result.reason = PATCHY_TRANSLATE_NOOP("QObject", "File-format and automation plug-ins are not supported; only filter (.8bf) plug-ins run.");
+    return result;
   }
-  if (kind == LegacyPhotoshopPluginKind::Filter8bf) {
-    return {kind, true,
-            PATCHY_TRANSLATE_NOOP("QObject", "Classic Photoshop filter plug-in candidate. Runtime execution will be isolated out-of-process."),
-            architecture};
+  if (result.pipl.found && result.pipl.kind != 0 && !result.pipl.is_filter()) {
+    result.reason = PATCHY_TRANSLATE_NOOP("QObject", "This plug-in is not a filter; only filter (.8bf) plug-ins run.");
+    return result;
   }
-  return {kind, true,
-          PATCHY_TRANSLATE_NOOP("QObject", "Classic Photoshop file-format plug-in candidate. Runtime execution will be isolated out-of-process."),
-          architecture};
+  result.supported = true;
+  result.reason = result.architecture == "x86"
+                      ? PATCHY_TRANSLATE_NOOP("QObject", "Photoshop filter plug-in (32-bit).")
+                      : PATCHY_TRANSLATE_NOOP("QObject", "Photoshop filter plug-in (64-bit).");
+  return result;
 }
 
 }  // namespace patchy

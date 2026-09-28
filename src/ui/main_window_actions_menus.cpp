@@ -248,10 +248,6 @@ namespace patchy::ui {
 
 namespace {
 
-QString escape_qaction_ampersands(QString text) {
-  return text.replace(QLatin1Char('&'), QStringLiteral("&&"));
-}
-
 void bind_translated_status_tip(QObject* object, const char* source,
                                 const char* context = kMainWindowTranslationContext) {
   if (object == nullptr) {
@@ -1540,11 +1536,21 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
     register_document_action(action);
   }
 
-  auto* scan_legacy_plugins_action = plugins_menu->addAction(tr("&Scan Legacy Photoshop Plug-ins..."));
-  scan_legacy_plugins_action->setObjectName(QStringLiteral("pluginsScanLegacyAction"));
-  scan_legacy_plugins_action->setIcon(simple_icon(QStringLiteral("8BF")));
-  connect(scan_legacy_plugins_action, &QAction::triggered, this, [this] { scan_legacy_plugins(); });
-#ifndef Q_OS_WIN
+#ifdef Q_OS_WIN
+  // The plug-ins folder next to patchy.exe is the one obvious place for .8bf
+  // files; both commands exist only where the plug-ins can run (docs/plugins.md).
+  auto* open_plugins_folder_action = plugins_menu->addAction(tr("Open Plug-ins &Folder"));
+  open_plugins_folder_action->setObjectName(QStringLiteral("pluginsOpenFolderAction"));
+  open_plugins_folder_action->setIcon(simple_icon(QStringLiteral("8BF")));
+  register_hotkey(open_plugins_folder_action, "plugins.open_folder");
+  connect(open_plugins_folder_action, &QAction::triggered, this, [this] { open_legacy_plugins_folder(); });
+  bind_action_text(open_plugins_folder_action, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Open Plug-ins &Folder"));
+  auto* rescan_plugins_action = plugins_menu->addAction(tr("&Rescan Plug-in Folders"));
+  rescan_plugins_action->setObjectName(QStringLiteral("pluginsRescanAction"));
+  register_hotkey(rescan_plugins_action, "plugins.rescan");
+  connect(rescan_plugins_action, &QAction::triggered, this, [this] { start_legacy_plugin_scan(true); });
+  bind_action_text(rescan_plugins_action, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "&Rescan Plug-in Folders"));
+#else
   // 8BF plug-ins are Windows binaries (the probe rejects them here with the same
   // message); a disabled note manages expectations up front.
   auto* legacy_windows_only_note = plugins_menu->addAction(tr("Legacy 8BF plug-ins run on Windows only"));
@@ -1967,7 +1973,6 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   ctx.rotate_ccw_action = rotate_ccw_action;
   ctx.rotate_arbitrary_action = rotate_arbitrary_action;
   ctx.shift_seams_action = shift_seams_action;
-  ctx.scan_legacy_plugins_action = scan_legacy_plugins_action;
   ctx.zoom_in = zoom_in;
   ctx.zoom_out = zoom_out;
   ctx.fit_on_screen = fit_on_screen;

@@ -69,7 +69,7 @@ rem 2026), which "if errorlevel 1" does not catch, so every check in this file c
 rem against 0 instead. Belt and braces: delete the previous executables first, moving a
 rem running one aside the way the PRE_LINK steps in CMakeLists.txt do (a renamed image
 rem keeps running), so a failed link leaves no executable to package.
-for %%E in (patchy.exe patchy-mcp.exe) do (
+for %%E in (patchy.exe patchy-mcp.exe patchy-8bf-host32.exe patchy-8bf-host64.exe) do (
   "%CMAKE_EXE%" "-DPATCHY_LOCKED_EXECUTABLE=%BUILD_DIR:\=/%/%%E" -P "%REPO%\cmake\unlock_locked_executable.cmake"
   if exist "%BUILD_DIR%\%%E" (
     echo "%BUILD_DIR%\%%E" could not be deleted or moved aside. Close the program using it and rerun.
@@ -114,6 +114,20 @@ mkdir "%STAGE_DIR%" || goto fail
 echo Staging application and Qt runtime...
 copy /Y "%APP_EXE%" "%STAGE_DIR%\" >nul || goto fail
 copy /Y "%BUILD_DIR%\patchy-mcp.exe" "%STAGE_DIR%\" >nul || goto fail
+rem The legacy 8BF plug-in hosts (docs/plugins.md): both bitnesses ship next to patchy.exe.
+if not exist "%BUILD_DIR%\patchy-8bf-host32.exe" (
+  echo The 32-bit plug-in host was not created at "%BUILD_DIR%\patchy-8bf-host32.exe".
+  goto fail
+)
+if not exist "%BUILD_DIR%\patchy-8bf-host64.exe" (
+  echo The 64-bit plug-in host was not created at "%BUILD_DIR%\patchy-8bf-host64.exe".
+  goto fail
+)
+copy /Y "%BUILD_DIR%\patchy-8bf-host32.exe" "%STAGE_DIR%\" >nul || goto fail
+copy /Y "%BUILD_DIR%\patchy-8bf-host64.exe" "%STAGE_DIR%\" >nul || goto fail
+rem The plug-ins folder ships with its README so users see where .8bf files go.
+mkdir "%STAGE_DIR%\plugins" || goto fail
+copy /Y "%REPO%\packaging\plugins\README.txt" "%STAGE_DIR%\plugins\README.txt" >nul || goto fail
 xcopy /E /I /Y "%BUILD_DIR%\ai" "%STAGE_DIR%\ai" >nul || goto fail
 xcopy /E /I /Y "%BUILD_DIR%\scripts" "%STAGE_DIR%\scripts" >nul || goto fail
 "%WINDEPLOYQT%" --release ^
@@ -197,6 +211,10 @@ exit /b 0
 call :SignFile "%APP_EXE%"
 if not "!ERRORLEVEL!"=="0" exit /b !ERRORLEVEL!
 call :SignFile "%BUILD_DIR%\patchy-mcp.exe"
+if not "!ERRORLEVEL!"=="0" exit /b !ERRORLEVEL!
+call :SignFile "%BUILD_DIR%\patchy-8bf-host32.exe"
+if not "!ERRORLEVEL!"=="0" exit /b !ERRORLEVEL!
+call :SignFile "%BUILD_DIR%\patchy-8bf-host64.exe"
 exit /b %ERRORLEVEL%
 
 :SignInstaller

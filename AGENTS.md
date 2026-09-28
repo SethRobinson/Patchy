@@ -152,7 +152,7 @@ Read the linked document before working on the feature. The document, not this i
 - **Trace Image to Shapes (raster to vector):** [docs/image-trace.md](docs/image-trace.md) and the "Vector tracing" boundary in [docs/legal-constraints.md](docs/legal-constraints.md).
 - **Float windows and document activation:** [docs/float-windows.md](docs/float-windows.md).
 - **Scanner, photocopy, Divide Scanned Photos, sprite-sheet, image-sequence, seamless-tiling import, and Files as Layers (Layers-panel file drop, Import command, Paste of copied files):** [docs/import.md](docs/import.md).
-- **Plug-ins and legacy 8BF support:** [docs/plugins.md](docs/plugins.md).
+- **Plug-ins and legacy 8BF support (the Windows out-of-process host, 32-bit and 64-bit, the PiPL reader, plug-in folders):** [docs/plugins.md](docs/plugins.md), with the clean-room ABI boundary in [docs/legal-constraints.md](docs/legal-constraints.md).
 - **JavaScript scripting and bundled scripts:** [docs/scripting.md](docs/scripting.md).
 - **Automatic document recovery and atomic file writes:** [docs/document-recovery.md](docs/document-recovery.md). Recovery copies live per running instance under a QLockFile; every document writer goes through `write_file_bytes_atomically` or `QSaveFile`.
 - **Single-instance forwarding, CLI screenshots, and `--headless` runs:** `src/app/main.cpp`, [docs/testing.md](docs/testing.md), and the CLI section of [docs/scripting.md](docs/scripting.md).
