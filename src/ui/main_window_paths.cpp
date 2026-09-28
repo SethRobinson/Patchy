@@ -940,7 +940,7 @@ void MainWindow::make_selection_from_path() {
   auto* form = new QFormLayout();
   auto* feather = new UnitSpinBox(SpinUnit::Pixels, &dialog);
   feather->setObjectName(QStringLiteral("makeSelectionFeatherSpin"));
-  feather->setRange(0.0, 250.0);
+  feather->setRange(0.0, static_cast<double>(kMaxSelectionFeatherRadius));
   feather->setDecimals(1);
   form->addRow(tr("Feather:"), feather);
   auto* antialias = new QCheckBox(tr("Anti-alias"), &dialog);

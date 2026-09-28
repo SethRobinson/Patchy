@@ -330,6 +330,67 @@ void ui_external_clipboard_image_paste_creates_centered_layer() {
   QApplication::clipboard()->clear();
 }
 
+// A file copied in a file manager puts URLs and no bitmap on the clipboard: Paste
+// adds the supported image files as layers (Files as Layers, docs/import.md), one
+// undo step, and a non-image file keeps the usual "no image" refusal.
+void ui_paste_file_urls_adds_layers() {
+  QApplication::clipboard()->clear();
+  ensure_artifact_dir();
+  const auto dir = QFileInfo(QStringLiteral("test-artifacts/paste-files")).absoluteFilePath();
+  CHECK(QDir().mkpath(dir));
+  const auto write_png = [&](const QString& name, QColor color) {
+    QImage image(6, 4, QImage::Format_RGBA8888);
+    image.fill(color);
+    const auto path = QDir::toNativeSeparators(dir + QLatin1Char('/') + name);
+    QFile::remove(path);
+    CHECK(image.save(path));
+    return path;
+  };
+  const auto first = write_png(QStringLiteral("first.png"), QColor(200, 20, 20, 255));
+  const auto second = write_png(QStringLiteral("second.png"), QColor(20, 200, 20, 255));
+  const auto note = QDir::toNativeSeparators(dir + QStringLiteral("/note.txt"));
+  {
+    QFile file(note);
+    CHECK(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    file.write("not an image");
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  const auto layers_before = layer_list->count();
+  const auto undo_before = patchy::ui::MainWindowTestAccess::undo_depth_for_canvas(window, canvas);
+
+  auto* files = new QMimeData();
+  files->setUrls({QUrl::fromLocalFile(first), QUrl::fromLocalFile(second)});
+  QApplication::clipboard()->setMimeData(files);
+  QApplication::processEvents();
+  require_action(window, "editPasteAction")->trigger();
+  QApplication::processEvents();
+  CHECK(layer_list->count() == layers_before + 2);
+  CHECK(patchy::ui::MainWindowTestAccess::undo_depth_for_canvas(window, canvas) == undo_before + 1);
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("Added 2 layer")));
+  const auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto& layers = std::as_const(document).layers();
+  CHECK(layers.size() >= 2);
+  CHECK(layers[layers.size() - 2].name() == "first");
+  CHECK(layers.back().name() == "second");
+  CHECK(document.active_layer_id() == layers.back().id());
+  CHECK(layer_list->selectedItems().size() == 2);
+
+  auto* text_file = new QMimeData();
+  text_file->setUrls({QUrl::fromLocalFile(note)});
+  QApplication::clipboard()->setMimeData(text_file);
+  QApplication::processEvents();
+  require_action(window, "editPasteAction")->trigger();
+  QApplication::processEvents();
+  CHECK(layer_list->count() == layers_before + 2);
+  CHECK(patchy::ui::MainWindowTestAccess::undo_depth_for_canvas(window, canvas) == undo_before + 1);
+  QApplication::clipboard()->clear();
+}
+
 void ui_external_clipboard_image_paste_overrides_internal_payload() {
   QApplication::clipboard()->clear();
 
@@ -627,8 +688,11 @@ void ui_external_clipboard_paste_in_place_falls_back_to_view_center() {
   QApplication::clipboard()->setImage(image);
   QApplication::processEvents();
   auto* canvas = require_canvas(window);
-  canvas->zoom_to_document_rect(QRect(180, 120, 400, 300));
   for (const auto* action : {"editPasteAction", "editPasteInPlaceAction"}) {
+    // A paste activates the Move tool, whose options row can differ in height
+    // from the previous tool's and resize the viewport, so re-frame the view
+    // before each paste: the check is about the fallback to the view center.
+    canvas->zoom_to_document_rect(QRect(180, 120, 400, 300));
     require_action(window, action)->trigger();
     CHECK(canvas->active_layer_document_rect() == QRect(340, 240, 80, 60));
   }
@@ -704,6 +768,47 @@ void ui_transform_shift_frees_aspect_ratio_by_default() {
   CHECK(freed->height() < locked->height() + 20);
   const auto freed_ratio = static_cast<double>(freed->width()) / freed->height();
   CHECK(freed_ratio > locked_ratio + 0.5);
+}
+
+// A proportional corner drag scales by the pointer's distance from the anchor
+// projected onto the box diagonal. Along the diagonal the corner lands under
+// the pointer; a pull that leans against the diagonal shrinks the box. The old
+// rule let the axis pulled harder win, so the (-30, +30) pull below grew the
+// box, and the short side scaled faster than the long one.
+void ui_transform_proportional_corner_follows_diagonal_projection() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  CHECK(!canvas->shift_keeps_transform_aspect());
+
+  const auto filled_rect = fill_aspect_probe_rect(window, *canvas);
+  CHECK(filled_rect.has_value());
+  if (!filled_rect.has_value()) {
+    return;
+  }
+  const auto source_ratio = static_cast<double>(filled_rect->width()) / filled_rect->height();
+
+  // Along the diagonal the corner lands under the pointer: twice the size.
+  const auto doubled = transform_bottom_right_by(window, *canvas, *filled_rect,
+                                                 QPoint(filled_rect->width(), filled_rect->height()), Qt::NoModifier);
+  CHECK(doubled.has_value());
+  if (!doubled.has_value()) {
+    return;
+  }
+  CHECK(std::abs(doubled->left() - filled_rect->left()) <= 1 && std::abs(doubled->top() - filled_rect->top()) <= 1);
+  CHECK(std::abs(doubled->width() - 2 * filled_rect->width()) <= 2);
+  CHECK(std::abs(doubled->height() - 2 * filled_rect->height()) <= 2);
+
+  // Pulled in by 30 and out by 30: the old rule grew the box to the vertical
+  // pull (about +40 wide); the projection shrinks it slightly.
+  const auto leaned = transform_bottom_right_by(window, *canvas, *doubled, QPoint(-30, 30), Qt::NoModifier);
+  CHECK(leaned.has_value());
+  if (!leaned.has_value()) {
+    return;
+  }
+  CHECK(leaned->width() < doubled->width());
+  const auto leaned_ratio = static_cast<double>(leaned->width()) / leaned->height();
+  CHECK(std::abs(leaned_ratio - source_ratio) < 0.05);
 }
 
 void ui_transform_shift_aspect_preference_restores_legacy() {
@@ -963,17 +1068,24 @@ void ui_transform_fields_accept_unit_tokens() {
     return *controls;
   };
 
+  // The box snaps its edges to the pixel grid (Photoshop rounds each edge, halves up), so a
+  // Center reference typed for an odd extent re-reads .50: e.g. 192 on a 45 px box lands on
+  // 192.5 (top 169.5 -> 170, bottom 214.5 -> 215).
+  const auto snapped_reference = [&state](double target, bool horizontal) {
+    const auto extent = horizontal ? state().original_size.width() : state().original_size.height();
+    return std::floor(target - extent / 2.0 + 0.5) + extent / 2.0;
+  };
   commit_text(*x, QStringLiteral("50%"));
-  CHECK(std::abs(x->value() - document_width / 2.0) < 0.01);
-  CHECK(std::abs(state().reference_position.x() - document_width / 2.0) < 0.01);
+  CHECK(std::abs(x->value() - snapped_reference(document_width / 2.0, true)) < 0.01);
+  CHECK(std::abs(state().reference_position.x() - snapped_reference(document_width / 2.0, true)) < 0.01);
   commit_text(*y, QStringLiteral("25%"));
-  CHECK(std::abs(y->value() - document_height / 4.0) < 0.01);
-  CHECK(std::abs(state().reference_position.y() - document_height / 4.0) < 0.01);
+  CHECK(std::abs(y->value() - snapped_reference(document_height / 4.0, false)) < 0.01);
+  CHECK(std::abs(state().reference_position.y() - snapped_reference(document_height / 4.0, false)) < 0.01);
   commit_text(*x, QStringLiteral("2 in"));
-  CHECK(std::abs(x->value() - 600.0) < 0.01);
-  CHECK(std::abs(state().reference_position.x() - 600.0) < 0.01);
+  CHECK(std::abs(x->value() - snapped_reference(600.0, true)) < 0.01);
+  CHECK(std::abs(state().reference_position.x() - snapped_reference(600.0, true)) < 0.01);
   commit_text(*y, QStringLiteral("2.54 cm"));
-  CHECK(std::abs(y->value() - 300.0) < 0.01);
+  CHECK(std::abs(y->value() - snapped_reference(300.0, false)) < 0.01);
 
   const auto original_width = state().original_size.width();
   CHECK(original_width > 0.0);
@@ -995,9 +1107,9 @@ void ui_transform_fields_accept_unit_tokens() {
   CHECK(scale_y->suffix() == patchy::ui::percent_suffix());
   commit_text(*x, QStringLiteral("1 in"));
   CHECK(x->text() == QStringLiteral("1.00") + patchy::ui::inch_suffix());
-  CHECK(std::abs(state().reference_position.x() - 300.0) < 0.01);
+  CHECK(std::abs(state().reference_position.x() - snapped_reference(300.0, true)) < 0.01);
   commit_text(*x, QStringLiteral("600 px"));
-  CHECK(x->text() == QStringLiteral("600.00") + patchy::ui::pixel_suffix());
+  CHECK(x->text() == QString::number(snapped_reference(600.0, true), 'f', 2) + patchy::ui::pixel_suffix());
 
   commit_text(*rotation, QStringLiteral("2 in"));
   CHECK(std::abs(rotation->value()) < 0.01);
@@ -1450,6 +1562,213 @@ void ui_options_bar_overflow_button_reveals_hidden_controls() {
   CHECK(wrapped_height > single_row_height);
 
   save_widget_artifact("ui_options_bar_overflow", window);
+}
+
+// A probe layer for the pixel-grid tests: an opaque, non-uniform block whose bytes are
+// compared before and after a numeric Free Transform.
+patchy::LayerId add_pixel_grid_probe_layer(patchy::ui::MainWindow& window, patchy::Rect bounds) {
+  patchy::Document document(400, 300, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(400, 300, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  auto pixels = solid_pixels(bounds.width, bounds.height, patchy::PixelFormat::rgba8(), QColor(40, 130, 230, 255));
+  fill_pixel_rect(pixels, QRect(0, 0, bounds.width / 2, bounds.height / 2), QColor(230, 60, 35, 255));
+  fill_pixel_rect(pixels, QRect(bounds.width / 3, bounds.height / 3, 7, 11), QColor(20, 200, 90, 255));
+  patchy::Layer layer(document.allocate_layer_id(), "Probe", std::move(pixels));
+  const auto id = layer.id();
+  layer.set_bounds(bounds);
+  document.add_layer(std::move(layer));
+  document.set_active_layer(id);
+  window.add_document_session(std::move(document), QStringLiteral("Pixel Grid Probe"));
+  QApplication::processEvents();
+  return id;
+}
+
+std::vector<std::uint8_t> pixel_grid_probe_bytes(patchy::ui::MainWindow& window, patchy::LayerId id) {
+  const auto* layer = std::as_const(patchy::ui::MainWindowTestAccess::document(window)).find_layer(id);
+  CHECK(layer != nullptr);
+  if (layer == nullptr) {
+    return {};
+  }
+  const auto data = layer->pixels().data();
+  return std::vector<std::uint8_t>(data.begin(), data.end());
+}
+
+struct PixelGridSession {
+  QDoubleSpinBox* x{nullptr};
+  QDoubleSpinBox* y{nullptr};
+  QDoubleSpinBox* rotation{nullptr};
+  QPushButton* apply{nullptr};
+};
+
+PixelGridSession begin_pixel_grid_session(patchy::ui::MainWindow& window, patchy::ui::CanvasWidget& canvas) {
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas.free_transform_active());
+  PixelGridSession session;
+  session.x = window.findChild<QDoubleSpinBox*>(QStringLiteral("freeTransformXSpin"));
+  session.y = window.findChild<QDoubleSpinBox*>(QStringLiteral("freeTransformYSpin"));
+  session.rotation = window.findChild<QDoubleSpinBox*>(QStringLiteral("freeTransformRotationSpin"));
+  session.apply = window.findChild<QPushButton*>(QStringLiteral("freeTransformApplyButton"));
+  CHECK(session.x != nullptr);
+  CHECK(session.y != nullptr);
+  CHECK(session.rotation != nullptr);
+  CHECK(session.apply != nullptr);
+  return session;
+}
+
+// Photoshop lands a typed X of 3.4 on 3 (halves round up: 0.5 -> 1) and the pixels stay
+// crisp; the field re-displays the snapped value so what it shows is what was applied.
+void ui_transform_numeric_fraction_snaps_to_pixel_grid() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto id = add_pixel_grid_probe_layer(window, patchy::Rect{100, 80, 60, 45});
+  auto* canvas = require_canvas(window);
+  const auto original = pixel_grid_probe_bytes(window, id);
+  CHECK(canvas->snap_transforms_to_pixel_grid());
+
+  auto session = begin_pixel_grid_session(window, *canvas);
+  const auto start_x = session.x->value();
+  const auto start_y = session.y->value();
+  CHECK(std::abs(start_x - 130.0) < 1e-6);
+  CHECK(std::abs(start_y - 102.5) < 1e-6);
+  session.x->setValue(start_x + 0.4);
+  QApplication::processEvents();
+  CHECK(std::abs(session.x->value() - start_x) < 1e-6);
+  session.x->setValue(start_x + 3.4);
+  session.y->setValue(start_y + 0.5);
+  QApplication::processEvents();
+  CHECK(std::abs(session.x->value() - (start_x + 3.0)) < 1e-6);
+  CHECK(std::abs(session.y->value() - (start_y + 1.0)) < 1e-6);
+  const auto state = canvas->transform_controls_state();
+  CHECK(state.has_value());
+  if (state.has_value()) {
+    CHECK(std::abs(state->reference_position.x() - (start_x + 3.0)) < 1e-6);
+  }
+  session.apply->click();
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+
+  const auto* layer = std::as_const(patchy::ui::MainWindowTestAccess::document(window)).find_layer(id);
+  CHECK(layer != nullptr);
+  if (layer == nullptr) {
+    return;
+  }
+  CHECK(layer->bounds().x == 103);
+  CHECK(layer->bounds().y == 81);
+  CHECK(layer->bounds().width == 60);
+  CHECK(layer->bounds().height == 45);
+  CHECK(pixel_grid_probe_bytes(window, id) == original);
+}
+
+// Photoshop rounds each destination EDGE, so an odd-sized layer under the Center pivot keeps
+// a half-pixel reference: X 140 on a 61-wide layer puts the left edge on 110 (109.5 rounds
+// up) and the field re-reads 140.50, exactly what Photoshop's options bar shows.
+void ui_transform_numeric_odd_layer_keeps_half_pixel_reference() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto id = add_pixel_grid_probe_layer(window, patchy::Rect{100, 80, 61, 45});
+  auto* canvas = require_canvas(window);
+
+  auto session = begin_pixel_grid_session(window, *canvas);
+  CHECK(std::abs(session.x->value() - 130.5) < 1e-6);
+  session.x->setValue(140.0);
+  QApplication::processEvents();
+  CHECK(std::abs(session.x->value() - 140.5) < 1e-6);
+  session.apply->click();
+  QApplication::processEvents();
+
+  const auto* layer = std::as_const(patchy::ui::MainWindowTestAccess::document(window)).find_layer(id);
+  CHECK(layer != nullptr);
+  if (layer == nullptr) {
+    return;
+  }
+  CHECK(layer->bounds().x == 110);
+  CHECK(layer->bounds().width == 61);
+  CHECK(layer->bounds().y == 80);
+}
+
+// With the preference off the typed fraction is honored: the rect keeps 3.4, the commit
+// floors the origin and resamples the sub-pixel phase into one extra column.
+void ui_transform_snap_preference_off_keeps_fraction() {
+  SettingsValueRestorer restore_snap(QStringLiteral("input/snapTransformsToPixelGrid"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("input/snapTransformsToPixelGrid"), false);
+    settings.sync();
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto id = add_pixel_grid_probe_layer(window, patchy::Rect{100, 80, 60, 45});
+  auto* canvas = require_canvas(window);
+  CHECK(!canvas->snap_transforms_to_pixel_grid());
+  const auto original = pixel_grid_probe_bytes(window, id);
+
+  auto session = begin_pixel_grid_session(window, *canvas);
+  const auto start_x = session.x->value();
+  session.x->setValue(start_x + 3.4);
+  QApplication::processEvents();
+  CHECK(std::abs(session.x->value() - (start_x + 3.4)) < 1e-6);
+  session.apply->click();
+  QApplication::processEvents();
+
+  const auto* layer = std::as_const(patchy::ui::MainWindowTestAccess::document(window)).find_layer(id);
+  CHECK(layer != nullptr);
+  if (layer == nullptr) {
+    return;
+  }
+  CHECK(layer->bounds().x == 103);
+  CHECK(layer->bounds().width == 61);
+  CHECK(pixel_grid_probe_bytes(window, id) != original);
+}
+
+// A rotated box cannot sit on the pixel grid, so numeric entry keeps the fraction there.
+void ui_transform_snap_skips_rotated_sessions() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  add_pixel_grid_probe_layer(window, patchy::Rect{100, 80, 60, 45});
+  auto* canvas = require_canvas(window);
+
+  auto session = begin_pixel_grid_session(window, *canvas);
+  const auto start_x = session.x->value();
+  session.rotation->setValue(15.0);
+  session.x->setValue(start_x + 3.4);
+  QApplication::processEvents();
+  CHECK(std::abs(session.x->value() - (start_x + 3.4)) < 1e-6);
+  const auto state = canvas->transform_controls_state();
+  CHECK(state.has_value());
+  if (state.has_value()) {
+    CHECK(std::abs(state->reference_position.x() - (start_x + 3.4)) < 1e-6);
+  }
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+}
+
+// The default bicubic kernel is Catmull-Rom (interpolating), so a whole-pixel move through
+// the resampler is byte-identical: no fast path is needed, and this pins that it stays so.
+void ui_transform_integer_move_is_lossless_through_bicubic() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto id = add_pixel_grid_probe_layer(window, patchy::Rect{100, 80, 60, 45});
+  auto* canvas = require_canvas(window);
+  const auto original = pixel_grid_probe_bytes(window, id);
+
+  auto session = begin_pixel_grid_session(window, *canvas);
+  session.x->setValue(session.x->value() + 7.0);
+  session.y->setValue(session.y->value() - 3.0);
+  QApplication::processEvents();
+  session.apply->click();
+  QApplication::processEvents();
+
+  const auto* layer = std::as_const(patchy::ui::MainWindowTestAccess::document(window)).find_layer(id);
+  CHECK(layer != nullptr);
+  if (layer == nullptr) {
+    return;
+  }
+  CHECK(layer->bounds().x == 107);
+  CHECK(layer->bounds().y == 77);
+  CHECK(layer->bounds().width == 60);
+  CHECK(layer->bounds().height == 45);
+  CHECK(pixel_grid_probe_bytes(window, id) == original);
 }
 
 void ui_transform_numeric_controls_accept_negative_scale() {
@@ -2276,6 +2595,7 @@ std::vector<patchy::test::TestCase> clipboard_free_transform_tests() {
   return {
       {"ui_copy_paste_and_transform_pasted_layer_work", ui_copy_paste_and_transform_pasted_layer_work},
       {"ui_paste_clears_selection_and_undo_restores_it", ui_paste_clears_selection_and_undo_restores_it},
+      {"ui_paste_file_urls_adds_layers", ui_paste_file_urls_adds_layers},
       {"ui_external_clipboard_image_paste_creates_centered_layer",
        ui_external_clipboard_image_paste_creates_centered_layer},
       {"ui_external_clipboard_image_paste_overrides_internal_payload",
@@ -2294,11 +2614,20 @@ std::vector<patchy::test::TestCase> clipboard_free_transform_tests() {
       {"ui_free_transform_uses_opaque_pixel_bounds", ui_free_transform_uses_opaque_pixel_bounds},
       {"ui_transform_shift_frees_aspect_ratio_by_default",
        ui_transform_shift_frees_aspect_ratio_by_default},
+      {"ui_transform_proportional_corner_follows_diagonal_projection",
+       ui_transform_proportional_corner_follows_diagonal_projection},
       {"ui_transform_shift_aspect_preference_restores_legacy",
        ui_transform_shift_aspect_preference_restores_legacy},
       {"ui_free_transform_arrow_keys_nudge_bounding_box", ui_free_transform_arrow_keys_nudge_bounding_box},
       {"ui_transform_numeric_controls_apply_values", ui_transform_numeric_controls_apply_values},
       {"ui_transform_fields_accept_unit_tokens", ui_transform_fields_accept_unit_tokens},
+      {"ui_transform_numeric_fraction_snaps_to_pixel_grid", ui_transform_numeric_fraction_snaps_to_pixel_grid},
+      {"ui_transform_numeric_odd_layer_keeps_half_pixel_reference",
+       ui_transform_numeric_odd_layer_keeps_half_pixel_reference},
+      {"ui_transform_snap_preference_off_keeps_fraction", ui_transform_snap_preference_off_keeps_fraction},
+      {"ui_transform_snap_skips_rotated_sessions", ui_transform_snap_skips_rotated_sessions},
+      {"ui_transform_integer_move_is_lossless_through_bicubic",
+       ui_transform_integer_move_is_lossless_through_bicubic},
       {"ui_transform_rotate_drag_pivots_on_reference_point", ui_transform_rotate_drag_pivots_on_reference_point},
       {"ui_transform_alt_drag_scales_about_reference_point", ui_transform_alt_drag_scales_about_reference_point},
       {"ui_transform_handle_drag_on_rotated_box_uses_local_axes",

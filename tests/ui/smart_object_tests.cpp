@@ -1071,6 +1071,190 @@ void ui_smart_object_convert_composites_identically_and_undoes() {
   CHECK(document.layers().size() == 3U);
 }
 
+// Builds base / red / blue / cover, then converts red + blue into a Smart
+// Object named "blue" that sits between base and cover.
+patchy::LayerId build_convert_to_layers_smart_object(patchy::ui::MainWindow& window) {
+  patchy::Document built(64, 48, patchy::PixelFormat::rgba8());
+  built.add_pixel_layer("base", solid_pixels(64, 48, patchy::PixelFormat::rgba8(), QColor(255, 255, 255, 255)));
+  patchy::Layer red(built.allocate_layer_id(), "red",
+                    solid_pixels(16, 12, patchy::PixelFormat::rgba8(), QColor(220, 30, 30, 255)));
+  red.set_bounds(patchy::Rect{8, 6, 16, 12});
+  built.add_layer(std::move(red));
+  patchy::Layer blue(built.allocate_layer_id(), "blue",
+                     solid_pixels(10, 8, patchy::PixelFormat::rgba8(), QColor(30, 60, 220, 255)));
+  blue.set_bounds(patchy::Rect{20, 10, 10, 8});
+  blue.set_blend_mode(patchy::BlendMode::Multiply);
+  built.add_layer(std::move(blue));
+  patchy::Layer cover(built.allocate_layer_id(), "cover",
+                      solid_pixels(4, 4, patchy::PixelFormat::rgba8(), QColor(20, 180, 60, 255)));
+  cover.set_bounds(patchy::Rect{56, 40, 4, 4});
+  built.add_layer(std::move(cover));
+  window.add_document_session(std::move(built), QStringLiteral("ConvertToLayers"));
+
+  // Rows are top-to-bottom: cover, blue, red, base.
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr && layer_list->count() == 4);
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(layer_list->item(1));
+  layer_list->item(1)->setSelected(true);
+  layer_list->item(2)->setSelected(true);
+  QApplication::processEvents();
+  require_action(window, "layerConvertSmartObjectAction")->trigger();
+  QApplication::processEvents();
+  const auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(document.layers().size() == 3U);
+  CHECK(patchy::layer_is_smart_object(document.layers()[1]));
+  return document.layers()[1].id();
+}
+
+// Layer > Smart Objects > Convert to Layers (GitHub issue 35): the contents'
+// layers come back as a folder in the Smart Object's slot, at their exact
+// positions and with their own names and blend modes, compositing identically,
+// in one undo step.
+void ui_smart_object_convert_to_layers_restores_layers_in_place() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto smart_id = build_convert_to_layers_smart_object(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(document.active_layer_id() == smart_id);
+  const auto before = patchy::ui::qimage_from_document(document, true);
+  const auto source_uuid = patchy::smart_object_source_uuid(*document.find_layer(smart_id));
+  CHECK(document.metadata().smart_objects.find(source_uuid) != nullptr);
+
+  auto* action = require_action(window, "layerSmartObjectToLayersAction");
+  CHECK(action->text() == QStringLiteral("Convert to Layers"));
+  action->trigger();
+  QApplication::processEvents();
+
+  CHECK(document.layers().size() == 3U);
+  CHECK(document.layers()[0].name() == "base");
+  CHECK(document.layers()[2].name() == "cover");
+  const auto& folder = document.layers()[1];
+  CHECK(folder.kind() == patchy::LayerKind::Group);
+  CHECK(folder.name() == "blue");
+  CHECK(folder.blend_mode() == patchy::BlendMode::Normal);  // isolated, like the Smart Object
+  CHECK(document.active_layer_id() == folder.id());
+  CHECK(folder.children().size() == 2U);
+  const auto& red = folder.children()[0];
+  const auto& blue = folder.children()[1];
+  CHECK(red.name() == "red");
+  CHECK(blue.name() == "blue");  // no "copy" suffix although the Smart Object had the name
+  const auto same_rect = [](patchy::Rect a, patchy::Rect b) {
+    return a.x == b.x && a.y == b.y && a.width == b.width && a.height == b.height;
+  };
+  CHECK(same_rect(red.bounds(), patchy::Rect{8, 6, 16, 12}));
+  CHECK(same_rect(blue.bounds(), patchy::Rect{20, 10, 10, 8}));
+  CHECK(blue.blend_mode() == patchy::BlendMode::Multiply);
+  CHECK(!patchy::layer_is_smart_object(red) && !patchy::layer_is_smart_object(blue));
+  const auto after = patchy::ui::qimage_from_document(document, true);
+  CHECK(before == after);
+  // The orphaned source stays in the store, like Rasterize leaves it.
+  CHECK(document.metadata().smart_objects.find(source_uuid) != nullptr);
+
+  // The layered result must open in Photoshop like any other Patchy PSD, so the
+  // writer leaves the unreferenced element (and its emptied lnk2) out.
+  ensure_artifact_dir();
+  const std::filesystem::path artifact("test-artifacts/ui_smart_object_converted_to_layers.psd");
+  patchy::psd::DocumentIo::write_layered_rgb8_file(document, artifact);
+  {
+    std::ifstream stream(artifact, std::ios::binary);
+    const std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>());
+    CHECK(patchy::psd::DocumentIo::read({bytes.data(), bytes.size()}).metadata().smart_objects.empty());
+  }
+
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(document.layers().size() == 3U);
+  CHECK(patchy::layer_is_smart_object(document.layers()[1]));
+  CHECK(document.metadata().smart_objects.find(source_uuid) != nullptr);
+
+  // Not a Smart Object: refused without touching the document.
+  auto& base = document.layers()[0];
+  document.set_active_layer(base.id());
+  action->trigger();
+  QApplication::processEvents();
+  CHECK(document.layers().size() == 3U);
+  CHECK(patchy::layer_is_smart_object(document.layers()[1]));
+}
+
+// Rasterize and Delete keep the now-unreferenced source in the store (Photoshop
+// keeps orphans too, and Undo brings the layer back), but the PSD writer leaves
+// a Patchy-authored element nothing references out of the file: Photoshop 2026
+// refuses to open such a file ("program error"; docs/smart-objects.md).
+void ui_smart_object_orphaned_source_is_not_written() {
+  ensure_artifact_dir();
+  for (const auto* action_name : {"layerSmartObjectToNormalAction", "layerDeleteAction"}) {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    const auto smart_id = build_convert_to_layers_smart_object(window);
+    auto& document = patchy::ui::MainWindowTestAccess::document(window);
+    const auto source_uuid = patchy::smart_object_source_uuid(*document.find_layer(smart_id));
+    require_action(window, action_name)->trigger();
+    QApplication::processEvents();
+    const auto* remaining = document.find_layer(smart_id);
+    CHECK(remaining == nullptr || !patchy::layer_is_smart_object(*remaining));
+    CHECK(document.metadata().smart_objects.find(source_uuid) != nullptr);
+
+    const auto artifact = std::filesystem::path("test-artifacts") /
+                          (std::string("ui_smart_object_orphan_") +
+                           (std::string_view(action_name) == "layerDeleteAction" ? "deleted" : "rasterized") + ".psd");
+    patchy::psd::DocumentIo::write_layered_rgb8_file(document, artifact);
+    std::ifstream stream(artifact, std::ios::binary);
+    const std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>());
+    CHECK(!bytes.empty());
+    const auto reread = patchy::psd::DocumentIo::read({bytes.data(), bytes.size()});
+    CHECK(reread.metadata().smart_objects.find(source_uuid) == nullptr);
+    CHECK(reread.metadata().smart_objects.empty());  // no empty lnk2 block either
+    CHECK(document.metadata().smart_objects.find(source_uuid) != nullptr);  // writing never mutates
+
+    require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+    QApplication::processEvents();
+    const auto* restored = document.find_layer(smart_id);
+    CHECK(restored != nullptr && patchy::layer_is_smart_object(*restored));
+  }
+}
+
+// A scaled placement maps the unpacked layers through the same transform the
+// preview renders through.
+void ui_smart_object_convert_to_layers_follows_scaled_placement() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto smart_id = build_convert_to_layers_smart_object(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  {
+    auto* smart = document.find_layer(smart_id);
+    CHECK(smart != nullptr);
+    auto placement = patchy::smart_object_placement_from_layer(*smart);
+    CHECK(placement.has_value());
+    // The 22 x 12 contents at twice their size, still anchored at (8, 6).
+    placement->transform = {8.0, 6.0, 52.0, 6.0, 52.0, 30.0, 8.0, 30.0};
+    patchy::store_smart_object_placement(*smart, *placement);
+    patchy::mark_layer_smart_object_block_dirty(*smart);
+    CHECK(patchy::ui::refresh_smart_object_layer_preview(
+        document, *smart, patchy::ui::CanvasWidget::TransformInterpolation::Bicubic, false));
+  }
+  const auto before = patchy::ui::qimage_from_document(document, true);
+
+  require_action(window, "layerSmartObjectToLayersAction")->trigger();
+  QApplication::processEvents();
+
+  const auto& folder = document.layers()[1];
+  CHECK(folder.kind() == patchy::LayerKind::Group);
+  CHECK(folder.children().size() == 2U);
+  const auto rect_near = [](patchy::Rect actual, patchy::Rect expected) {
+    return std::abs(actual.x - expected.x) <= 1 && std::abs(actual.y - expected.y) <= 1 &&
+           std::abs(actual.width - expected.width) <= 2 && std::abs(actual.height - expected.height) <= 2;
+  };
+  // Child (0, 0, 16, 12) and (12, 4, 10, 8) through scale 2 about the origin, then (8, 6).
+  CHECK(rect_near(folder.children()[0].bounds(), patchy::Rect{8, 6, 32, 24}));
+  CHECK(rect_near(folder.children()[1].bounds(), patchy::Rect{32, 14, 20, 16}));
+  const auto after = patchy::ui::qimage_from_document(document, true);
+  CHECK(color_close(after.pixelColor(16, 12), before.pixelColor(16, 12), 6));   // red only
+  CHECK(color_close(after.pixelColor(36, 22), before.pixelColor(36, 22), 6));   // blue multiplied over red
+  CHECK(color_close(after.pixelColor(48, 28), before.pixelColor(48, 28), 6));   // blue only
+  CHECK(color_close(after.pixelColor(4, 40), QColor(255, 255, 255), 2));        // untouched base
+}
+
 void ui_smart_object_edit_commit_keeps_canvas_transparency() {
   // The July 2026 "transparent parts turn black" repro: convert a shape on a
   // transparent canvas to a smart object, edit the contents, save. The commit decodes
@@ -1752,6 +1936,11 @@ std::vector<patchy::test::TestCase> smart_object_tests() {
       {"ui_smart_object_psbtest_repro_decodes_transparent_if_available",
        ui_smart_object_psbtest_repro_decodes_transparent_if_available},
       {"ui_smart_object_place_embedded_centers_and_fits", ui_smart_object_place_embedded_centers_and_fits},
+      {"ui_smart_object_convert_to_layers_restores_layers_in_place",
+       ui_smart_object_convert_to_layers_restores_layers_in_place},
+      {"ui_smart_object_convert_to_layers_follows_scaled_placement",
+       ui_smart_object_convert_to_layers_follows_scaled_placement},
+      {"ui_smart_object_orphaned_source_is_not_written", ui_smart_object_orphaned_source_is_not_written},
       {"ui_smart_object_via_copy_diverges_and_transform_rerenders",
        ui_smart_object_via_copy_diverges_and_transform_rerenders},
       {"ui_smart_object_image_size_scales_placement_and_rerenders",

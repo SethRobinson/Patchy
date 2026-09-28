@@ -111,7 +111,7 @@ window registers them for immediate use and persists them:
   non-font extensions, sanitizes to basenames, and enforces allocation caps
   (64 MB/file, 256 MB and 256 entries per archive) as the zip-bomb defense.
 - Persistence stores: desktop copies each font into
-  `<AppDataLocation>/user-fonts` and registers that copy (persist first, then
+  `<AppDataLocation>/user-fonts` (see "Per-user app-data folder" below) and registers that copy (persist first, then
   register, so the live font's backing file can never vanish); wasm registers
   a MEMFS copy and fire-and-forgets an IndexedDB put (DB `PatchyUserFonts`,
   store `fonts` keyed by file name, so a same-named font overwrites across
@@ -140,3 +140,20 @@ Tests: `tests/core/font_zip_tests.cpp` (extractor) and the two `ui_user_fonts`
 `third_party/fonts-web` inventory but registers it in a child process
 (`--bundled-web-fonts-probe`) so the suite's font database stays clean; see
 [testing.md](testing.md).
+
+## Per-user app-data folder
+
+`QStandardPaths::AppDataLocation` holds the dropped-font store (`user-fonts/`) and the
+user scripts folder (`scripts/`, `MainWindow::user_scripts_directory()`). Qt builds it
+from the organization name set in `src/app/main.cpp`: `%APPDATA%\RTsoft\Patchy` on
+Windows, `~/Library/Application Support/RTsoft/Patchy` on macOS,
+`~/.local/share/RTsoft/Patchy` on Linux. Preferences are separate: `app_settings()` names
+its own organization ("Patchy"), so `Patchy.ini` never moves with this name.
+
+Releases through 0.98 used the organization name "Seth A. Robinson". Startup calls
+`app_data_migration::migrate_legacy_app_data()` (`src/ui/app_data_migration.{hpp,cpp}`)
+before the font restore: it merges the legacy folder into the current one without
+overwriting (identical leftovers are deleted, differing ones stay for the user), then
+removes the emptied legacy tree. Treat the organization name as a persisted identifier;
+changing it again means another migration step, not an edit to this one. Test:
+`ui_app_data_migration_merges_legacy_folder` in `tests/ui/app_shell_tests.cpp`.

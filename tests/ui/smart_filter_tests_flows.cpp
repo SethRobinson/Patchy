@@ -766,10 +766,14 @@ void ui_smart_filter_gaussian_dialog_mask_rows_edit_toggle_delete() {
     CHECK(radius_slider != nullptr);
     CHECK(std::abs(radius->value() - 2.0) < 0.000001);
     CHECK(std::abs(radius->singleStep() - 0.01) < 0.000001);
-    CHECK(radius->maximum() == 12.0);
-    CHECK(radius_slider->maximum() == 1190);
-    radius->setValue(12.0);
-    CHECK(std::abs(radius->value() - 12.0) < 0.000001);
+    // Photoshop's typed range (to 1000 px) with a 0.1..100 px slider.
+    CHECK(radius->maximum() == 1000.0);
+    CHECK(radius_slider->maximum() == 9990);
+    radius->setValue(500.0);
+    CHECK(std::abs(radius->value() - 500.0) < 0.000001);
+    CHECK(radius_slider->value() == radius_slider->maximum());
+    radius->setValue(100.0);
+    CHECK(std::abs(radius->value() - 100.0) < 0.000001);
     CHECK(radius_slider->value() == radius_slider->maximum());
     radius->setValue(2.5);
     CHECK(process_events_until(
@@ -1011,9 +1015,11 @@ void ui_smart_filter_gaussian_dialog_mask_rows_edit_toggle_delete() {
         QStringLiteral("filterRadiusSlider"));
     CHECK(imported_spin != nullptr && imported_slider != nullptr);
     CHECK(std::abs(imported_spin->value() - 18.75) < 0.000001);
-    CHECK(std::abs(imported_spin->maximum() - 18.75) < 0.000001);
-    CHECK(imported_slider->maximum() == 1190);
-    CHECK(imported_slider->value() == imported_slider->maximum());
+    // The typed range already covers Photoshop's 1000 px, so an imported
+    // radius sits inside the 0.1..100 px slider instead of widening it.
+    CHECK(std::abs(imported_spin->maximum() - 1000.0) < 0.000001);
+    CHECK(imported_slider->maximum() == 9990);
+    CHECK(imported_slider->value() == 1865);
     retained_imported_radius = true;
     dialog->accept();
   });

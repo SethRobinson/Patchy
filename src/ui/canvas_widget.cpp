@@ -249,7 +249,8 @@ bool CanvasWidget::pointer_gesture_active() const noexcept {
          move_drag_pending_ ||
          moving_layer_ || dragging_transform_ || dragging_warp_handle_ || selecting_ ||
          lassoing_ || quick_selecting_ || spot_healing_stroke_active_ || patch_tool_dragging_ ||
-         moving_selection_ || dragging_guide_ || crop_dragging_out_ || crop_rotating_ ||
+         moving_selection_ || marquee_resize_handle_ != TransformHandle::None || dragging_guide_ ||
+         crop_dragging_out_ || crop_rotating_ ||
          crop_drag_handle_ != TransformHandle::None || pen_handle_dragging_ ||
          pen_session_drag_anchor_ >= 0 || path_drag_mode_ != PathEditDrag::None ||
          path_transform_drag_handle_ != TransformHandle::None;
@@ -449,6 +450,7 @@ void CanvasWidget::set_tool(CanvasTool tool) {
     moving_layers_.clear();
     move_readout_base_rect_.reset();
     drag_readout_dirty_rect_ = QRect();
+    clear_move_snap_guides();
     move_preview_delta_ = QPoint();
     move_preview_patches_.clear();
     move_preview_patches_delta_.reset();
@@ -492,6 +494,7 @@ void CanvasWidget::set_edit_locked(bool locked) noexcept {
     moving_layers_.clear();
     move_readout_base_rect_.reset();
     drag_readout_dirty_rect_ = QRect();
+    clear_move_snap_guides();
     move_preview_delta_ = QPoint();
     move_preview_patches_.clear();
     move_preview_patches_delta_.reset();

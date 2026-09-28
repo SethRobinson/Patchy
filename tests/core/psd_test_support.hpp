@@ -123,6 +123,11 @@ std::optional<std::vector<std::uint8_t>> psd_layer_block_payload(std::span<const
 void write_test_layer_block(patchy::psd::BigEndianWriter& writer, const char (&key)[5],
                             std::span<const std::uint8_t> payload);
 
+// A minimal 240x120 RGB PSD with one "Text Layer" (bounds 10,12 200x70, no channels)
+// whose only tagged block is `key` (a modern "TySh" or a PS 5.x "tySh") with `payload`.
+std::vector<std::uint8_t> single_text_layer_psd(std::span<const std::uint8_t> text_payload,
+                                                const char (&key)[5] = "TySh");
+
 std::optional<std::vector<std::uint8_t>> test_image_resource_payload(std::span<const std::uint8_t> resources,
                                                                      std::uint16_t id);
 

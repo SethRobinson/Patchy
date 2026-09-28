@@ -243,10 +243,6 @@
 #include <tpcshrd.h>
 #endif
 
-#ifndef PATCHY_VERSION
-#define PATCHY_VERSION "0.0.0"
-#endif
-
 // Icon resources live in the static patchy_ui library; force registration before first use.
 int qInitResources_icons();
 
@@ -2392,18 +2388,43 @@ bool MainWindow::handle_cross_document_layer_drag_event(QObject* watched, QEvent
 }
 
 void MainWindow::handle_layer_drop() {
+  auto* list = dynamic_cast<LayerListWidget*>(layer_list_);
+  // Both requests leave the list up front, so the lock branch cannot leave a
+  // stale one behind for the next drop.
+  std::optional<LayerListWidget::LayerFileDropRequest> file_request;
+  std::optional<LayerDropRequest> request;
+  if (list != nullptr) {
+    file_request = list->take_file_drop_request();
+    request = list->take_drop_request();
+  }
   if (preview_dialog_edit_locked()) {
     show_preview_dialog_edit_lock_message();
     refresh_layer_list();
     return;
   }
-  auto* list = dynamic_cast<LayerListWidget*>(layer_list_);
+  if (file_request.has_value()) {
+    // OS files dropped on the panel: Files as Layers at the drop position, or
+    // plain opens when no document is there to receive them. The list already
+    // deferred this past the native drop call.
+    if (shutting_down_ || !isVisible()) {
+      return;
+    }
+    if (!has_active_document()) {
+      for (const auto& path : file_request->paths) {
+        open_document_path(path);
+      }
+      return;
+    }
+    add_files_as_layers_interactive(file_request->paths,
+                                    LayerInsertionTarget{file_request->target_layer_id, file_request->position},
+                                    tr("Files as Layers"));
+    return;
+  }
   if (list == nullptr) {
     reorder_layers_from_list();
     return;
   }
 
-  auto request = list->take_drop_request();
   if (!request.has_value()) {
     reorder_layers_from_list();
     return;
@@ -2743,6 +2764,7 @@ void MainWindow::deselect_all_layers() {
   }
   report_layer_selection_count({});
   refresh_combine_shapes_action_states();
+  refresh_layer_alignment_action_states();
   restyle_layer_rows(layer_list_);
   refresh_layer_controls();
   refresh_options_bar();
@@ -3043,6 +3065,12 @@ void MainWindow::refresh_layer_list(bool retire_automation_rows, const std::func
   const auto horizontal_scroll_value =
       layer_list_->horizontalScrollBar() != nullptr ? layer_list_->horizontalScrollBar()->value() : 0;
   updating_layer_list_ = true;
+  // A rebuild destroys the row holding an open inline rename editor; drop it
+  // without committing rather than letting the destruction's focus-out commit
+  // a half-typed name.
+  if (auto* list = dynamic_cast<LayerListWidget*>(layer_list_); list != nullptr) {
+    list->cancel_inline_rename();
+  }
   QSignalBlocker blocker(layer_list_);
   layer_list_->setUpdatesEnabled(false);
   const auto clear_started = std::chrono::steady_clock::now();
@@ -3492,6 +3520,8 @@ void MainWindow::refresh_layer_thumbnails() {
 void MainWindow::refresh_layer_controls() {
   const UiProfileScope profile_scope("refresh_layer_controls");
   sync_text_character_dialog_from_editor();
+  sync_text_options_from_active_layer();
+  sync_text_alignment_buttons_from_editor();
   refresh_convert_for_smart_filters_action_state();
   refresh_add_layer_mask_button_state();
   if (canvas_ != nullptr) {
@@ -3503,6 +3533,7 @@ void MainWindow::refresh_layer_controls() {
   if (!updating_layer_controls_) {
     finish_pending_layer_opacity_edit();
     finish_pending_layer_fill_opacity_edit();
+    finish_pending_layer_blend_edit();
   }
   updating_layer_controls_ = true;
   const auto reset = [this] {
@@ -3528,6 +3559,7 @@ void MainWindow::refresh_layer_controls() {
     }
     refresh_layer_style_action_states();
     refresh_combine_shapes_action_states();
+    refresh_layer_alignment_action_states();
     if (layer_rasterize_action_ != nullptr) {
       layer_rasterize_action_->setEnabled(false);
     }
@@ -3643,6 +3675,7 @@ void MainWindow::refresh_layer_controls() {
   }
   refresh_layer_style_action_states();
   refresh_combine_shapes_action_states();
+  refresh_layer_alignment_action_states();
   const auto active_pixels_locked = layer_id_locks_image_pixels(layer->id());
   // The rasterize actions act on the whole selection, folders expanded to
   // their contents, so their enabled state weighs the same set of layers.
@@ -3786,6 +3819,7 @@ void MainWindow::refresh_layer_controls() {
 
 void MainWindow::refresh_document_info() {
   const UiProfileScope profile_scope("refresh_document_info");
+  sync_vector_shape_size_spins();
   refresh_palette_panel();
   schedule_palette_compliance_check();
   if (zoom_status_edit_ != nullptr) {
@@ -3805,7 +3839,7 @@ void MainWindow::refresh_document_info() {
     set_property_label_text(document_info_label_, tr("No document"));
     set_property_label_text(active_layer_info_label_, tr("Layer: No active layer"));
     for (auto* label : {active_layer_geometry_label_, active_layer_mask_label_, active_layer_adjustment_label_,
-                        active_layer_text_label_, active_tool_info_label_}) {
+                        active_layer_text_label_, active_layer_shape_label_, active_tool_info_label_}) {
       set_property_label_text(label, QString());
     }
     if (canvas_info_label_ != nullptr) {
@@ -3842,7 +3876,7 @@ void MainWindow::refresh_document_info() {
   if (layer == nullptr) {
     set_property_label_text(active_layer_info_label_, tr("Layer: No active layer"));
     for (auto* label : {active_layer_geometry_label_, active_layer_mask_label_, active_layer_adjustment_label_,
-                        active_layer_text_label_}) {
+                        active_layer_text_label_, active_layer_shape_label_}) {
       set_property_label_text(label, QString());
     }
   } else {

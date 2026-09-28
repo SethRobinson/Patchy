@@ -19,7 +19,7 @@ root (GitHub issue 14, CachyOS, September 2026):
   For a full end-to-end check, point `FLATPAK_SYSTEM_DIR` and `FLATPAK_USER_DIR` at two
   empty directories (a machine with no runtimes and no remotes) and run `flatpak install
   --user -y <bundle>`: flatpak must create the `flathub` remote and pull the runtime by
-  itself. Verified 2026-09 on glados; the pre-fix 0.97 bundle fails there with the
+  itself. Verified 2026-09 on the linux build host; the pre-fix 0.97 bundle fails there with the
   exact error from the issue.
 - Every documented command uses `--user`. Without it flatpak targets the system
   installation and asks polkit for root, which is the permission error normal users hit.
@@ -51,7 +51,7 @@ root (GitHub issue 14, CachyOS, September 2026):
   extracted from the native layers of `src/app/patchy.ico`. Bump the metainfo
   `<release>` tag with each version (see `docs/release-process.md`).
 - `make-flatpak.sh` — builds the bundle on a machine with `flatpak-builder`
-  (glados.local): `bash packaging/linux/make-flatpak.sh`. One-time setup is in the
+  (the linux build host): `bash packaging/linux/make-flatpak.sh`. One-time setup is in the
   script header. `scripts/remote/release-linux.ps1` drives it from Windows.
 
 The source manifest excludes root `test-artifacts`, including Unix sockets left
@@ -76,7 +76,7 @@ the private `/tmp` in each invocation cannot support this attachment.
 nothing installed) before `flatpak build-bundle` and fails unless the script output ends
 in `[done]`, so a bundle that cannot run headless is never produced.
 
-The Patchy Flatpak installed on glados is a manual test install and the release flow
+The Patchy Flatpak installed on the linux build host is a manual test install and the release flow
 never refreshes it (September 2026: it still reported 0.88 after the 0.91 release). To
 test the shipped bundle there, reinstall it first:
 `flatpak install --user -y --reinstall --bundle build/package/Patchy-<version>.flatpak`,

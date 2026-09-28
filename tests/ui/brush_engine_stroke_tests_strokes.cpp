@@ -24,6 +24,7 @@
 #include "psd/psd_binary.hpp"
 #include "psd/psd_layer_effects.hpp"
 #include "core/style_presets.hpp"
+#include "ui/brush_automation.hpp"
 #include "ui/brush_tip_library.hpp"
 #include "ui/brush_tip_manager_dialog.hpp"
 #include "ui/brush_tip_picker.hpp"
@@ -1397,6 +1398,80 @@ void ui_deep_zoom_brush_repaint_stays_responsive() {
   CHECK(paint_layer.pixels().pixel(1, 1)[3] == 255);
 }
 
+void ui_square_brush_preset_paints_square_tip_and_round_presets_restore_round() {
+  clear_brush_tip_test_state();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* brush_preset = window.findChild<QComboBox*>(QStringLiteral("brushPresetCombo"));
+  auto* picker = window.findChild<patchy::ui::BrushTipPicker*>(QStringLiteral("brushTipPicker"));
+  CHECK(brush_preset != nullptr);
+  CHECK(picker != nullptr);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_primary_color(Qt::black);
+
+  // Square sits right under Round and selects the procedural Square tip: no bitmap, no
+  // library entry, the picker face and the canvas footprint both say Square.
+  const auto square_index = brush_preset->findData(QStringLiteral("square"));
+  CHECK(square_index >= 0);
+  CHECK(square_index == brush_preset->findData(QStringLiteral("round")) + 1);
+  brush_preset->setCurrentIndex(square_index);
+  QApplication::processEvents();
+  CHECK(!canvas->has_brush_tip());
+  CHECK(canvas->brush_shape() == patchy::BrushShape::Square);
+  CHECK(picker->current_tip_id() == patchy::ui::builtin_square_brush_tip_id());
+  CHECK(window.brush_tip_library().entries().empty());
+  CHECK(canvas->brush_size() == 25);
+  CHECK(canvas->brush_opacity() == 100);
+  CHECK(canvas->brush_softness() == 0);
+  CHECK(!canvas->brush_build_up());
+  CHECK(canvas->current_script_brush().tip_id == patchy::ui::builtin_square_brush_tip_id());
+
+  canvas->set_zoom(1.0);
+  canvas->set_brush_size(40);  // radius 20: a 41 px square anchored on the pressed pixel
+  const auto center = canvas->widget_position_for_document_point(QPoint(150, 120));
+  send_mouse(*canvas, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  const auto solid_black = [](QColor color) { return color.red() == 0 && color.green() == 0 && color.blue() == 0; };
+  CHECK(solid_black(canvas_pixel(*canvas, QPoint(150, 120))));
+  CHECK(solid_black(canvas_pixel(*canvas, QPoint(130, 100))));  // corners are fully covered
+  CHECK(solid_black(canvas_pixel(*canvas, QPoint(170, 140))));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(171, 120)), QColor(Qt::white), 4));  // no fringe
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(129, 120)), QColor(Qt::white), 4));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(150, 141)), QColor(Qt::white), 4));
+  CHECK(color_close(canvas_pixel(*canvas, QPoint(150, 99)), QColor(Qt::white), 4));
+
+  // The Round family switches back to the procedural Round tip.
+  brush_preset->setCurrentIndex(brush_preset->findData(QStringLiteral("hard_round")));
+  QApplication::processEvents();
+  CHECK(!canvas->has_brush_tip());
+  CHECK(canvas->brush_shape() == patchy::BrushShape::Round);
+  CHECK(picker->current_tip_id() == patchy::ui::builtin_round_brush_tip_id());
+
+  // The picker's Square entry is the same tip.
+  window.set_active_brush_tip(patchy::ui::builtin_square_brush_tip_id(), false);
+  CHECK(canvas->brush_shape() == patchy::BrushShape::Square);
+  window.set_active_brush_tip(patchy::ui::builtin_round_brush_tip_id(), false);
+  CHECK(canvas->brush_shape() == patchy::BrushShape::Round);
+
+  // Scripting sees both procedural tips and the preset's tip id.
+  auto& automation = window.brush_automation_library();
+  automation.refresh();
+  CHECK(automation.preset(QStringLiteral("square"))["settings"].toObject()["tipId"].toString() ==
+        patchy::ui::builtin_square_brush_tip_id());
+  CHECK(!automation.preset(QStringLiteral("round"))["settings"].toObject().contains("tipId"));
+  bool lists_square = false;
+  for (const auto& tip : automation.tips()) {
+    lists_square = lists_square || tip.toObject()["id"].toString() == patchy::ui::builtin_square_brush_tip_id();
+  }
+  CHECK(lists_square);
+  const auto resolved = automation.resolve(QJsonObject{{"presetId", QStringLiteral("square")}});
+  CHECK(resolved.tip == nullptr);
+  CHECK(resolved.tip_id == patchy::ui::builtin_square_brush_tip_id());
+  clear_brush_tip_test_state();
+}
+
 void ui_airbrush_preset_builds_while_stationary() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -1584,7 +1659,7 @@ void ui_pattern_stamp_alignment_palette_and_psd_round_trip() {
       auto* slider = window.findChild<QSlider*>(base_name + QStringLiteral("PopupSlider"));
       CHECK(popup != nullptr && popup->isVisible());
       CHECK(slider != nullptr);
-      slider->setValue(value);
+      patchy::ui::set_slider_to_value(*slider, value);
       CHECK(spin->value() == value);
       popup->close();
       QApplication::processEvents();
@@ -3324,6 +3399,8 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part1() {
        ui_max_zoom_brush_skips_noop_stroke_repaints},
       {"ui_deep_zoom_brush_repaint_stays_responsive",
        ui_deep_zoom_brush_repaint_stays_responsive},
+      {"ui_square_brush_preset_paints_square_tip_and_round_presets_restore_round",
+       ui_square_brush_preset_paints_square_tip_and_round_presets_restore_round},
       {"ui_airbrush_preset_builds_while_stationary",
        ui_airbrush_preset_builds_while_stationary},
       {"ui_brush_flow_builds_only_to_opacity_cap_and_round_trips_psd",

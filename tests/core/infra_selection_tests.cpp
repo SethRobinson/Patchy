@@ -59,6 +59,7 @@
 #include "support/string_utils.hpp"
 #include "test_harness.hpp"
 #include "local_psd_fixtures.hpp"
+#include "remove_object_fixture.hpp"
 #include "synthetic_dng.hpp"
 
 #include <algorithm>
@@ -1062,6 +1063,152 @@ void exemplar_inpaint_restores_periodic_stripes_deterministically() {
   CHECK(crowded == image);
 }
 
+// GitHub issue #23's banner (tests/remove_object_fixture.hpp): a 35 x 35 hole
+// around a white "1" on a dark band that runs 3 px past the hole above and
+// below, white background beyond it. The raw fill is dark; the tone match
+// must keep it so (its low-pass reads hole cells of the fill only, so the
+// background past the band's edges cannot lift it) and keep the grungy
+// stripe's contrast; its strength scales the correction and 0 is the raw
+// fill. Attempt 0 is the byte-stable best-match fill; attempts 1 and 2 are
+// different fills, each reproducible and identical single-threaded.
+void exemplar_inpaint_banner_tone_match_stays_dark_and_varies_by_attempt() {
+  const auto f = patchy::test::make_banner_fixture();
+  const patchy::Rect bounds{f.hole_x, f.hole_y, f.hole_width, f.hole_height};
+  const auto hole = f.hole_mask();
+  patchy::ExemplarInpaintOptions options;
+  options.patch_size = 9;
+  options.search_radius = std::clamp(std::max(bounds.width, bounds.height) / 2 + 32, 48, 96);
+  const auto run = [&](std::int32_t attempt, bool single_threaded) {
+    auto image = f.pixels;
+    auto run_options = options;
+    run_options.attempt = attempt;
+    run_options.single_threaded = single_threaded;
+    const auto result = patchy::exemplar_inpaint(image.data(), f.width, f.height, hole.data(), bounds, run_options);
+    CHECK(result.filled);
+    return image;
+  };
+  struct HoleStats {
+    double band_mean{0.0};    // hole rows outside the stripe
+    double stripe_mean{0.0};  // hole rows inside the stripe
+    std::int32_t bright{0};   // hole pixels lighter than 160 (copied glyph or background)
+  };
+  const auto stats = [&](const std::vector<std::uint8_t>& image) {
+    HoleStats result;
+    double band_sum = 0.0;
+    double stripe_sum = 0.0;
+    std::int32_t band_count = 0;
+    std::int32_t stripe_count = 0;
+    for (std::int32_t y = f.hole_y; y < f.hole_y + f.hole_height; ++y) {
+      for (std::int32_t x = f.hole_x; x < f.hole_x + f.hole_width; ++x) {
+        const auto* px = image.data() + (static_cast<std::size_t>(y) * f.width + x) * 4U;
+        const auto luminance = (px[0] * 77 + px[1] * 150 + px[2] * 29) >> 8;
+        if (luminance > 160) {
+          ++result.bright;
+        }
+        if (f.in_stripe(y)) {
+          stripe_sum += luminance;
+          ++stripe_count;
+        } else {
+          band_sum += luminance;
+          ++band_count;
+        }
+      }
+    }
+    result.band_mean = band_sum / std::max(1, band_count);
+    result.stripe_mean = stripe_sum / std::max(1, stripe_count);
+    return result;
+  };
+  const auto outside_untouched = [&](const std::vector<std::uint8_t>& image) {
+    std::int64_t mismatches = 0;
+    for (std::int32_t y = 0; y < f.height; ++y) {
+      for (std::int32_t x = 0; x < f.width; ++x) {
+        if (f.in_hole(x, y)) {
+          continue;
+        }
+        const auto offset = (static_cast<std::size_t>(y) * f.width + x) * 4U;
+        if (std::memcmp(image.data() + offset, f.pixels.data() + offset, 4U) != 0) {
+          ++mismatches;
+        }
+      }
+    }
+    return mismatches == 0;
+  };
+
+  const auto fill0 = run(0, false);
+  CHECK(run(0, false) == fill0);
+  CHECK(run(0, true) == fill0);
+  CHECK(outside_untouched(fill0));
+  const auto raw = stats(fill0);
+
+  const auto band = static_cast<double>(f.band_value);
+  const auto stripe_contrast = static_cast<double>(f.stripe_value) - band;
+  std::cout << "banner raw band=" << raw.band_mean << " stripe=" << raw.stripe_mean << " bright=" << raw.bright << "\n";
+  CHECK(std::abs(raw.band_mean - band) <= 12.0);
+  // The hole-only normalization holds at any radius (the old known-pixel
+  // normalization lifted this band to 82 at radius 24 and to 94 at radius 8);
+  // 24 is Remove Object's radius and keeps the stripe's contrast almost
+  // whole, where a small radius flattens it.
+  for (const auto radius : {8, 24}) {
+    auto toned = fill0;
+    patchy::exemplar_match_tone(toned.data(), f.width, f.height, hole.data(), bounds, radius);
+    const auto toned_stats = stats(toned);
+    std::cout << "banner tone r=" << radius << " band=" << toned_stats.band_mean
+              << " stripe=" << toned_stats.stripe_mean << " bright=" << toned_stats.bright << "\n";
+    CHECK(std::abs(toned_stats.band_mean - band) <= 12.0);
+    CHECK(toned_stats.stripe_mean - toned_stats.band_mean >= 0.5 * stripe_contrast);
+    CHECK(outside_untouched(toned));
+  }
+  constexpr std::int32_t adaptive_radius = 24;
+  auto adaptive = fill0;
+  patchy::exemplar_match_tone(adaptive.data(), f.width, f.height, hole.data(), bounds, adaptive_radius);
+  const auto adaptive_stats = stats(adaptive);
+  CHECK(adaptive_stats.stripe_mean - adaptive_stats.band_mean >= 0.9 * stripe_contrast);
+
+  // Strength: 0 leaves the raw fill; 50 moves every hole pixel at most as far
+  // as 100 does, in the same direction.
+  auto none = fill0;
+  patchy::exemplar_match_tone(none.data(), f.width, f.height, hole.data(), bounds, adaptive_radius, 0);
+  CHECK(none == fill0);
+  auto half = fill0;
+  patchy::exemplar_match_tone(half.data(), f.width, f.height, hole.data(), bounds, adaptive_radius, 50);
+  bool half_bounded = true;
+  bool half_moves = false;
+  for (std::int32_t y = f.hole_y; y < f.hole_y + f.hole_height; ++y) {
+    for (std::int32_t x = f.hole_x; x < f.hole_x + f.hole_width; ++x) {
+      const auto offset = (static_cast<std::size_t>(y) * f.width + x) * 4U;
+      for (std::size_t c = 0; c < 3; ++c) {
+        const auto full = static_cast<int>(adaptive[offset + c]) - static_cast<int>(fill0[offset + c]);
+        const auto part = static_cast<int>(half[offset + c]) - static_cast<int>(fill0[offset + c]);
+        if (part != 0) {
+          half_moves = true;
+        }
+        if (std::abs(part) > std::abs(full) || (part != 0 && (part > 0) != (full > 0))) {
+          half_bounded = false;
+        }
+      }
+    }
+  }
+  CHECK(half_bounded);
+  CHECK(half_moves);
+
+  // Variations.
+  const auto fill1 = run(1, false);
+  CHECK(fill1 != fill0);
+  CHECK(run(1, false) == fill1);
+  CHECK(run(1, true) == fill1);
+  CHECK(outside_untouched(fill1));
+  const auto fill2 = run(2, false);
+  CHECK(fill2 != fill1);
+  CHECK(fill2 != fill0);
+  CHECK(run(2, true) == fill2);
+  const auto stats1 = stats(fill1);
+  const auto stats2 = stats(fill2);
+  std::cout << "banner attempt1 band=" << stats1.band_mean << " bright=" << stats1.bright
+            << " | attempt2 band=" << stats2.band_mean << " bright=" << stats2.bright << "\n";
+  CHECK(std::abs(stats1.band_mean - band) <= 20.0);
+  CHECK(std::abs(stats2.band_mean - band) <= 20.0);
+}
+
 void heal_membrane_interpolates_boundary_offsets() {
   constexpr std::int32_t size = 32;
   // Interior disc; Dirichlet cells everywhere else.
@@ -1178,6 +1325,8 @@ std::vector<patchy::test::TestCase> infra_selection_tests() {
        spot_heal_source_map_attempt_cycles_valid_candidates},
       {"exemplar_inpaint_restores_periodic_stripes_deterministically",
        exemplar_inpaint_restores_periodic_stripes_deterministically},
+      {"exemplar_inpaint_banner_tone_match_stays_dark_and_varies_by_attempt",
+       exemplar_inpaint_banner_tone_match_stays_dark_and_varies_by_attempt},
       {"heal_membrane_interpolates_boundary_offsets", heal_membrane_interpolates_boundary_offsets},
       {"cli_headless_flag_matches_exact_token", cli_headless_flag_matches_exact_token},
   };

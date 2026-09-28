@@ -233,6 +233,7 @@ void MainWindow::rebuild_scripts_menu() {
         for (const auto& entry : entries) {
           if (entry.is_folder) {
             auto* submenu = menu->addMenu(script_folder_display_name(entry.name));
+            submenu->menuAction()->setMenuRole(QAction::NoRole);  // submenus never merge on macOS (docs/platform.md)
             if (mark) {
               submenu->menuAction()->setProperty(kDynamicScriptActionProperty, true);
             }

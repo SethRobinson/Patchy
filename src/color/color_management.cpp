@@ -19,14 +19,13 @@ namespace {
 // naive conversion silently rather than spam stderr.
 void ignore_lcms_error(cmsContext /*context*/, cmsUInt32Number /*code*/, const char* /*text*/) {}
 
-}  // namespace
-
-struct CmykToRgbTransform::Impl {
+// State shared by the embedded-profile-to-sRGB transforms (CMYK and gray).
+struct IccToSrgbState {
   cmsContext context{nullptr};
   cmsHTRANSFORM transform{nullptr};
   std::string description;
 
-  ~Impl() {
+  ~IccToSrgbState() {
     if (transform != nullptr) {
       cmsDeleteTransform(transform);
     }
@@ -36,43 +35,56 @@ struct CmykToRgbTransform::Impl {
   }
 };
 
-std::optional<CmykToRgbTransform> CmykToRgbTransform::from_icc_profile(
-    std::span<const std::uint8_t> profile_bytes) {
+// Opens `profile_bytes`, requires its color space to be `expected_space`, and builds the
+// transform from `input_format` to packed 8-bit sRGB with relative colorimetric intent,
+// black point compensation (Photoshop's conversion defaults) and no pixel cache. Returns
+// false, leaving `state` without a transform, when anything is unusable.
+bool open_icc_to_srgb(IccToSrgbState& state, std::span<const std::uint8_t> profile_bytes,
+                      cmsColorSpaceSignature expected_space, cmsUInt32Number input_format) {
   if (profile_bytes.empty() || profile_bytes.size() > 0xFFFFFFFFULL) {
-    return std::nullopt;
+    return false;
   }
-  auto impl = std::make_unique<Impl>();
-  impl->context = cmsCreateContext(nullptr, nullptr);
-  if (impl->context == nullptr) {
-    return std::nullopt;
+  state.context = cmsCreateContext(nullptr, nullptr);
+  if (state.context == nullptr) {
+    return false;
   }
-  cmsSetLogErrorHandlerTHR(impl->context, ignore_lcms_error);
+  cmsSetLogErrorHandlerTHR(state.context, ignore_lcms_error);
 
-  cmsHPROFILE cmyk_profile = cmsOpenProfileFromMemTHR(
-      impl->context, profile_bytes.data(), static_cast<cmsUInt32Number>(profile_bytes.size()));
-  if (cmyk_profile == nullptr) {
-    return std::nullopt;
+  cmsHPROFILE source_profile = cmsOpenProfileFromMemTHR(
+      state.context, profile_bytes.data(), static_cast<cmsUInt32Number>(profile_bytes.size()));
+  if (source_profile == nullptr) {
+    return false;
   }
-  if (cmsGetColorSpace(cmyk_profile) != cmsSigCmykData) {
-    cmsCloseProfile(cmyk_profile);
-    return std::nullopt;
+  if (cmsGetColorSpace(source_profile) != expected_space) {
+    cmsCloseProfile(source_profile);
+    return false;
   }
 
   std::array<char, 256> description{};
-  if (cmsGetProfileInfoASCII(cmyk_profile, cmsInfoDescription, "en", "US", description.data(),
+  if (cmsGetProfileInfoASCII(source_profile, cmsInfoDescription, "en", "US", description.data(),
                              static_cast<cmsUInt32Number>(description.size())) > 0) {
-    impl->description = description.data();
+    state.description = description.data();
   }
 
-  cmsHPROFILE srgb_profile = cmsCreate_sRGBProfileTHR(impl->context);
+  cmsHPROFILE srgb_profile = cmsCreate_sRGBProfileTHR(state.context);
   if (srgb_profile != nullptr) {
-    impl->transform = cmsCreateTransformTHR(impl->context, cmyk_profile, TYPE_CMYK_8_REV,
+    state.transform = cmsCreateTransformTHR(state.context, source_profile, input_format,
                                             srgb_profile, TYPE_RGB_8, INTENT_RELATIVE_COLORIMETRIC,
                                             cmsFLAGS_BLACKPOINTCOMPENSATION | cmsFLAGS_NOCACHE);
     cmsCloseProfile(srgb_profile);
   }
-  cmsCloseProfile(cmyk_profile);
-  if (impl->transform == nullptr) {
+  cmsCloseProfile(source_profile);
+  return state.transform != nullptr;
+}
+
+}  // namespace
+
+struct CmykToRgbTransform::Impl : IccToSrgbState {};
+
+std::optional<CmykToRgbTransform> CmykToRgbTransform::from_icc_profile(
+    std::span<const std::uint8_t> profile_bytes) {
+  auto impl = std::make_unique<Impl>();
+  if (!open_icc_to_srgb(*impl, profile_bytes, cmsSigCmykData, TYPE_CMYK_8_REV)) {
     return std::nullopt;
   }
   return CmykToRgbTransform(std::move(impl));
@@ -101,6 +113,37 @@ RgbColor CmykToRgbTransform::convert_single(std::uint8_t cyan_inverted,
 }
 
 const std::string& CmykToRgbTransform::profile_description() const {
+  return impl_->description;
+}
+
+struct GrayToRgbTransform::Impl : IccToSrgbState {};
+
+std::optional<GrayToRgbTransform> GrayToRgbTransform::from_icc_profile(
+    std::span<const std::uint8_t> profile_bytes) {
+  auto impl = std::make_unique<Impl>();
+  if (!open_icc_to_srgb(*impl, profile_bytes, cmsSigGrayData, TYPE_GRAY_8)) {
+    return std::nullopt;
+  }
+  return GrayToRgbTransform(std::move(impl));
+}
+
+GrayToRgbTransform::GrayToRgbTransform(std::unique_ptr<Impl> impl) : impl_(std::move(impl)) {}
+GrayToRgbTransform::GrayToRgbTransform(GrayToRgbTransform&&) noexcept = default;
+GrayToRgbTransform& GrayToRgbTransform::operator=(GrayToRgbTransform&&) noexcept = default;
+GrayToRgbTransform::~GrayToRgbTransform() = default;
+
+void GrayToRgbTransform::convert(const std::uint8_t* gray, std::uint8_t* rgb_out,
+                                 std::size_t pixel_count) const {
+  cmsDoTransform(impl_->transform, gray, rgb_out, static_cast<cmsUInt32Number>(pixel_count));
+}
+
+RgbColor GrayToRgbTransform::convert_single(std::uint8_t gray) const {
+  std::array<std::uint8_t, 3> rgb{};
+  convert(&gray, rgb.data(), 1);
+  return RgbColor{rgb[0], rgb[1], rgb[2]};
+}
+
+const std::string& GrayToRgbTransform::profile_description() const {
   return impl_->description;
 }
 

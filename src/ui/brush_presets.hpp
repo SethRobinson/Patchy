@@ -13,6 +13,9 @@ struct BrushPreset {
   int flow{100};
   int softness{75};
   bool build_up{false};
+  // Built-in procedural tip id the preset selects (builtin_square_brush_tip_id()); empty =
+  // the procedural Round tip. Library (bitmap) tips are never preset targets.
+  QString tip_id;
 };
 
 [[nodiscard]] std::span<const BrushPreset> builtin_brush_presets();

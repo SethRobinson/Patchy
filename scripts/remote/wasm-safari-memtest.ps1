@@ -1,5 +1,5 @@
 <#
-Runs a Safari memory diagnostics session for the wasm app on studiomac and
+Runs a Safari memory diagnostics session for the wasm app on the mac build host and
 brings the measurements back. Windows entry point; the Mac-side pieces are
 scripts/wasm/serve.py (COOP/COEP server + telemetry sink) and
 scripts/remote/safari-memtest.py (Safari driver + footprint sampler). See
@@ -14,7 +14,7 @@ loop), idle (boot and sit), interactive (opens the real patchy.html, keeps
 Safari and the server alive afterwards for hand testing).
 
 Requires build\package\wasm-site staged by scripts\release\build-wasm.bat.
--Driver webdriver needs the one-time studiomac setup (sudo safaridriver
+-Driver webdriver needs the one-time mac setup (sudo safaridriver
 --enable plus Safari's Allow Remote Automation); the default open driver needs
 nothing. Results land in build\memtest-results\<run-id>\.
 #>
@@ -34,7 +34,8 @@ param(
 # terminating error; failures are handled via explicit LASTEXITCODE checks.
 $ErrorActionPreference = 'Continue'
 
-$remoteHost = 'seth@studiomac.local'
+. (Join-Path $PSScriptRoot 'remote-hosts.ps1')
+$remoteHost = (Get-PatchyRemoteHost mac).ssh
 $port = 8993  # distinct from the 8973 dev server and testy's 8901
 
 $repoRoot = (git rev-parse --show-toplevel 2>$null)
@@ -54,7 +55,7 @@ try {
   if (-not $SkipPush) {
     Write-Host "== pushing site + scripts to ${remoteHost}:~/$remoteBase =="
     ssh $remoteHost "mkdir -p ~/$remoteBase/site ~/$remoteResults"
-    if ($LASTEXITCODE -ne 0) { throw 'ssh mkdir failed (is studiomac reachable?)' }
+    if ($LASTEXITCODE -ne 0) { throw 'ssh mkdir failed (is the mac build host reachable?)' }
     # Identity files only: the .br/.gz variants halve the copy but serve.py
     # would then hand Safari brotli it may cache oddly; measurement runs favor
     # deterministic identity responses.

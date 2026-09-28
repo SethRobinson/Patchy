@@ -869,7 +869,10 @@ void ui_new_text_size_scales_with_the_document() {
   process_events_for(150);
 }
 
-// A fresh session always starts horizontal; the toggle with nothing selected arms one layer.
+// A fresh session always starts horizontal. With no session open the toggle reads the text
+// layers selected in the Layers panel (the layers a click would convert, GitHub issue 31), even
+// when the document has no active layer; only a real deselect (Select > Deselect Layers) makes
+// it read the one-shot default for the next new layer, which is horizontal.
 void ui_new_text_starts_horizontal_after_vertical_layer() {
   register_test_fonts(TestFontRole::UiDefault);
   patchy::ui::MainWindow window;
@@ -889,12 +892,15 @@ void ui_new_text_starts_horizontal_after_vertical_layer() {
   }
   const auto* vertical_layer = live_document.find_layer(*created.id);
   CHECK(vertical_layer != nullptr && layer_is_vertical_metadata(*vertical_layer));
-  // Deselect so the next click starts a NEW layer; the toggle reads horizontal and the new
-  // session is horizontal even though the previous layer was vertical.
+
+  // Clearing only the document's active layer leaves the vertical layer's row selected, so it
+  // is still the options-bar target and the toggle reads vertical. A click on empty canvas
+  // still opens a NEW session, and that session is horizontal: a new layer never inherits the
+  // selected layer's orientation.
   live_document.clear_active_layer();
   require_action_by_text(window, QStringLiteral("Type"))->trigger();
   QApplication::processEvents();
-  CHECK(!toggle->isChecked());
+  CHECK(toggle->isChecked());
   patchy::ui::MainWindowTestAccess::add_text_at(window, QPoint(40, 200));
   auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
   CHECK(editor != nullptr);
@@ -902,8 +908,38 @@ void ui_new_text_starts_horizontal_after_vertical_layer() {
     return;
   }
   CHECK(editor->property("patchy.documentTextOrientation").toString().isEmpty());
+  CHECK(editor->property("patchy.editingLayerId").toULongLong() != *created.id);
+  CHECK(!toggle->isChecked());
   require_action_by_text(window, QStringLiteral("Move"))->trigger();
   process_events_for(150);
+  vertical_layer = live_document.find_layer(*created.id);
+  CHECK(vertical_layer != nullptr && layer_is_vertical_metadata(*vertical_layer));
+
+  // Select > Deselect Layers clears the panel rows and the active layer together: nothing is
+  // targeted, the toggle reads horizontal, and the next new session is horizontal.
+  auto* deselect_layers = window.findChild<QAction*>(QStringLiteral("selectDeselectLayersAction"));
+  CHECK(deselect_layers != nullptr);
+  if (deselect_layers == nullptr) {
+    return;
+  }
+  deselect_layers->trigger();
+  QApplication::processEvents();
+  CHECK(!live_document.active_layer_id().has_value());
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  QApplication::processEvents();
+  CHECK(!toggle->isChecked());
+  patchy::ui::MainWindowTestAccess::add_text_at(window, QPoint(40, 300));
+  editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+  CHECK(editor->property("patchy.documentTextOrientation").toString().isEmpty());
+  CHECK(!toggle->isChecked());
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  process_events_for(150);
+  vertical_layer = live_document.find_layer(*created.id);
+  CHECK(vertical_layer != nullptr && layer_is_vertical_metadata(*vertical_layer));
 }
 
 // The IME candidate list is placed from Qt::ImCursorRectangle. QTextEdit's own answer for a

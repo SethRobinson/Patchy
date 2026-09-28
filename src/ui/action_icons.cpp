@@ -610,4 +610,49 @@ QIcon up_direction_arrow_icon(int direction) {
                            &ThemePalette::icon_ink, std::move(glyph));
 }
 
+QIcon align_edge_icon(AlignEdge edge) {
+  // Drawn in a 22-unit square: the anchor line marks the edge or center the
+  // bars line up with; the bars are 10 and 6 units long so the metaphor reads
+  // at the options bar's 18 px render size.
+  auto glyph = [edge](QPainter& painter, const QColor& ink) {
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setPen(QPen(ink, 1.6, Qt::SolidLine, Qt::FlatCap));
+    painter.setBrush(ink);
+    constexpr double kLong = 10.0;
+    constexpr double kShort = 6.0;
+    constexpr double kThickness = 3.6;
+    const bool horizontal = align_edge_is_horizontal(edge);
+    // Anchor coordinate along the aligned axis and the bar placement rule.
+    double anchor = 11.0;
+    if (edge == AlignEdge::Left || edge == AlignEdge::Top) {
+      anchor = 4.0;
+    } else if (edge == AlignEdge::Right || edge == AlignEdge::Bottom) {
+      anchor = 18.0;
+    }
+    const auto bar_start = [&](double length) {
+      if (edge == AlignEdge::Left || edge == AlignEdge::Top) {
+        return anchor + 1.0;
+      }
+      if (edge == AlignEdge::Right || edge == AlignEdge::Bottom) {
+        return anchor - 1.0 - length;
+      }
+      return anchor - length / 2.0;
+    };
+    painter.setPen(Qt::NoPen);
+    if (horizontal) {
+      painter.drawRect(QRectF(bar_start(kLong), 5.0, kLong, kThickness));
+      painter.drawRect(QRectF(bar_start(kShort), 13.4, kShort, kThickness));
+      painter.setPen(QPen(ink, 1.6, Qt::SolidLine, Qt::FlatCap));
+      painter.drawLine(QPointF(anchor, 2.5), QPointF(anchor, 19.5));
+    } else {
+      painter.drawRect(QRectF(5.0, bar_start(kLong), kThickness, kLong));
+      painter.drawRect(QRectF(13.4, bar_start(kShort), kThickness, kShort));
+      painter.setPen(QPen(ink, 1.6, Qt::SolidLine, Qt::FlatCap));
+      painter.drawLine(QPointF(2.5, anchor), QPointF(19.5, anchor));
+    }
+  };
+  return themed_glyph_icon(QStringLiteral("align-edge-%1").arg(static_cast<int>(edge)), 22.0,
+                           &ThemePalette::icon_ink, std::move(glyph));
+}
+
 }  // namespace patchy::ui

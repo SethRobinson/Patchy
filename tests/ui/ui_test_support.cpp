@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <cstdio>
 #include <functional>
+#include <memory>
 
 namespace patchy::test::ui {
 
@@ -1046,6 +1047,57 @@ std::optional<QRect> alpha_pixel_bounds_in_rows(const patchy::PixelBuffer& pixel
   return QRect(QPoint(min_x, min_y), QPoint(max_x, max_y));
 }
 
+bool pixel_buffer_border_is_clear(const patchy::PixelBuffer& pixels, int threshold) {
+  if (pixels.empty() || pixels.width() <= 0 || pixels.height() <= 0) {
+    return false;
+  }
+  const auto channels = pixels.format().channels;
+  if (channels != 1U && channels < 4U) {
+    return false;
+  }
+  const auto alpha_channel = channels == 1U ? 0U : 3U;
+  const auto stride = pixels.stride_bytes();
+  const auto bytes = pixels.data();
+  const auto alpha_at = [&](int x, int y) {
+    const auto offset = static_cast<std::size_t>(y) * stride + static_cast<std::size_t>(x) * channels + alpha_channel;
+    return offset < bytes.size() ? static_cast<int>(bytes[offset]) : 0;
+  };
+  for (int x = 0; x < pixels.width(); ++x) {
+    if (alpha_at(x, 0) > threshold || alpha_at(x, pixels.height() - 1) > threshold) {
+      return false;
+    }
+  }
+  for (int y = 0; y < pixels.height(); ++y) {
+    if (alpha_at(0, y) > threshold || alpha_at(pixels.width() - 1, y) > threshold) {
+      return false;
+    }
+  }
+  return true;
+}
+
+std::vector<std::array<double, 6>> tysh_transforms_in_psd(const std::vector<std::uint8_t>& bytes) {
+  std::vector<std::array<double, 6>> transforms;
+  const std::string haystack(bytes.begin(), bytes.end());
+  std::size_t at = 0;
+  while ((at = haystack.find("8BIMTySh", at)) != std::string::npos) {
+    const auto payload = at + 12U;
+    if (payload + 2U + 48U > haystack.size()) {
+      break;
+    }
+    std::array<double, 6> transform{};
+    for (std::size_t index = 0; index < transform.size(); ++index) {
+      std::uint64_t bits = 0;
+      for (std::size_t byte = 0; byte < 8U; ++byte) {
+        bits = (bits << 8U) | static_cast<std::uint8_t>(haystack[payload + 2U + index * 8U + byte]);
+      }
+      std::memcpy(&transform[index], &bits, sizeof(double));
+    }
+    transforms.push_back(transform);
+    at = payload;
+  }
+  return transforms;
+}
+
 patchy::Layer* preview_layer_for_editor(patchy::Document& document, const QTextEdit& editor) {
   if (!editor.property("patchy.textPreviewLayerId").isValid()) {
     return nullptr;
@@ -1423,6 +1475,49 @@ void accept_integer_dialog(const QString& object_name, int value) {
   });
 }
 
+void accept_stroke_selection_dialog(int width, const QString& location, std::optional<QColor> color) {
+  // Retried rather than a single zero-delay shot: a context-menu click opens the dialog from
+  // the menu's mouse release, one pumped event after the press that would fire a one-shot.
+  auto* timer = new QTimer(QApplication::instance());
+  auto attempts = std::make_shared<int>(0);
+  timer->setInterval(5);
+  QObject::connect(timer, &QTimer::timeout, timer, [timer, attempts, width, location, color] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() != QStringLiteral("patchyStrokeSelectionDialog") || !widget->isVisible()) {
+        continue;
+      }
+      timer->stop();
+      timer->deleteLater();
+      auto* dialog = qobject_cast<QDialog*>(widget);
+      CHECK(dialog != nullptr);
+      auto* spin = dialog->findChild<QSpinBox*>(QStringLiteral("strokeSelectionWidthSpin"));
+      auto* combo = dialog->findChild<QComboBox*>(QStringLiteral("strokeSelectionLocationCombo"));
+      auto* swatch = dialog->findChild<QPushButton*>(QStringLiteral("strokeSelectionColorSwatch"));
+      CHECK(spin != nullptr);
+      CHECK(combo != nullptr);
+      CHECK(swatch != nullptr);
+      CHECK(spin->minimum() <= width);
+      CHECK(spin->maximum() >= width);
+      CHECK(spin->buttonSymbols() == QAbstractSpinBox::NoButtons);
+      spin->setValue(width);
+      const auto index = combo->findData(location);
+      CHECK(index >= 0);
+      combo->setCurrentIndex(index);
+      if (color.has_value()) {
+        swatch->setProperty("strokeColor", *color);
+      }
+      dialog->accept();
+      return;
+    }
+    if (++*attempts > 400) {
+      timer->stop();
+      timer->deleteLater();
+      CHECK(false);  // the Stroke Selection dialog never appeared
+    }
+  });
+  timer->start();
+}
+
 void accept_canvas_size_dialog(int width_value, int height_value) {
   QTimer::singleShot(0, [width_value, height_value] {
     for (auto* widget : QApplication::topLevelWidgets()) {
@@ -1749,12 +1844,12 @@ void accept_layer_style_dialog(bool stroke_enabled, bool gradient_enabled, bool 
       bevel_size_slider->setValue(7);
       CHECK(bevel_size->value() == 7);
       categories->setCurrentItem(outer_glow_item);
-      outer_glow_size_slider->setValue(8);
+      patchy::ui::set_slider_to_value(*outer_glow_size_slider, 8);
       CHECK(outer_glow_size->value() == 8);
       outer_glow_blue_slider->setValue(210);
       CHECK(outer_glow_blue->value() == 210);
       categories->setCurrentItem(inner_glow_item);
-      inner_glow_size_slider->setValue(9);
+      patchy::ui::set_slider_to_value(*inner_glow_size_slider, 9);
       CHECK(inner_glow_size->value() == 9);
       categories->setCurrentItem(gradient_enabled ? gradient_item : blending_item);
       gradient_angle_slider->setValue(0);
@@ -1766,7 +1861,7 @@ void accept_layer_style_dialog(bool stroke_enabled, bool gradient_enabled, bool 
       CHECK(shadow_red->value() == 245);
       shadow_green->setValue(246);
       shadow_blue->setValue(247);
-      shadow_distance_slider->setValue(10);
+      patchy::ui::set_slider_to_value(*shadow_distance_slider, 10);
       CHECK(shadow_distance->value() == 10);
       categories->setCurrentItem(gradient_enabled ? gradient_item : blending_item);
       CHECK(gradient_stop_location->value() == 0);
@@ -1777,7 +1872,7 @@ void accept_layer_style_dialog(bool stroke_enabled, bool gradient_enabled, bool 
       send_key(*gradient_stop_hex, Qt::Key_Return);
       CHECK(gradient_stop_hex->text() == QStringLiteral("#FFA000"));
       categories->setCurrentItem(inner_shadow_item);
-      inner_shadow_distance_slider->setValue(3);
+      patchy::ui::set_slider_to_value(*inner_shadow_distance_slider, 3);
       CHECK(inner_shadow_distance->value() == 3);
       categories->setCurrentItem(inner_glow_item);
       add_inner_glow_instance->click();

@@ -61,6 +61,19 @@ feather halos so neighboring pixels contribute to the visible tile's result.
 Raster layers and raster masks sample their original pixels; vector masks
 regenerate their coverage at the display scale.
 
+The document bake (`update_vector_shape_raster`) is not clipped to the canvas
+either: `shape_bake_domain` extends it to the shape's padded path hull, like a
+pixel layer keeps pixels past the edge (a shape transformed onto the pasteboard
+used to bake to nothing, which the Move tool could not grab; a half-off shape
+kept only its on-canvas half). Coverage buffers are sized to the shape, so a
+far-off shape costs its own size. Disabled, inverted, and subtract-first paths
+(coverage fills the whole clip) and hulls over max(16 Mpx, 4x the canvas) keep
+the canvas. The extended bake passes `VectorPaintBounds{canvas}` so unaligned
+gradients and pattern phase keep their canvas geometry and on-canvas pixels are
+unchanged; aligned gradients follow the whole shape, as in Photoshop
+(`update_vector_shape_raster_keeps_off_canvas_shape`,
+`ui_shape_moved_off_canvas_by_free_transform_moves_back`).
+
 `VectorPaintBounds` separates a vector raster clip from the full paint coordinates,
 so gradients do not restart at tile edges. Unpainted native path coverage anchors
 gradients with transparent stops; painted

@@ -69,7 +69,6 @@
 #include <functional>
 #include <iostream>
 #include <limits>
-#include <queue>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -170,6 +169,22 @@ void CanvasWidget::set_fill_softness(int softness) noexcept {
 
 int CanvasWidget::fill_softness() const noexcept {
   return fill_softness_;
+}
+
+void CanvasWidget::set_fill_tolerance(int tolerance) noexcept {
+  fill_tolerance_ = std::clamp(tolerance, 0, 255);
+}
+
+int CanvasWidget::fill_tolerance() const noexcept {
+  return fill_tolerance_;
+}
+
+void CanvasWidget::set_fill_contiguous(bool enabled) noexcept {
+  fill_contiguous_ = enabled;
+}
+
+bool CanvasWidget::fill_contiguous() const noexcept {
+  return fill_contiguous_;
 }
 
 void CanvasWidget::set_shape_style(MarqueeStyle style) noexcept {
@@ -722,6 +737,10 @@ void CanvasWidget::draw_drag_size_readout(QPainter& painter) const {
   } else if (selecting_ && (tool_ == CanvasTool::Marquee || tool_ == CanvasTool::EllipticalMarquee)) {
     rect = marquee_selection_rect(selection_start_, selection_current_);
     corner = selection_current_;
+  } else if (marquee_resize_handle_ != TransformHandle::None && marquee_shape_.has_value()) {
+    // Resizing a committed marquee by a handle: the readout follows the pointer.
+    rect = marquee_shape_->rect;
+    corner = document_position(last_mouse_position_);
   } else if (crop_dragging_out_) {
     rect = crop_drag_rect(crop_anchor_document_, crop_current_document_);
     corner = crop_current_document_;
@@ -838,6 +857,103 @@ void CanvasWidget::clear_drag_readout() {
   const auto dirty = drag_readout_dirty_rect_;
   drag_readout_dirty_rect_ = QRect();
   drag_readout_status_text_.clear();
+  if (!dirty.isEmpty()) {
+    update(dirty.adjusted(-2, -2, 2, 2));
+  }
+}
+
+namespace {
+
+// Alignment guides extend a little past the two boxes they bridge, like
+// Photoshop's, so a line landing exactly on an edge still reads as a line.
+constexpr int kSnapGuideOverhangPixels = 4;
+
+bool snap_match_draws_line(const std::optional<CanvasWidget::SnapMatch>& match) {
+  // Guides already draw themselves and the grid has no single line to show.
+  return match.has_value() && match->kind != CanvasWidget::SnapMatch::Kind::Guide &&
+         match->kind != CanvasWidget::SnapMatch::Kind::Grid;
+}
+
+}  // namespace
+
+QRect CanvasWidget::move_snap_guides_widget_rect() const {
+  if (!moving_layer_ || document_ == nullptr) {
+    return {};
+  }
+  QRect rect;
+  const auto extent = [](const SnapMatch& match, bool vertical) {
+    const auto lo = vertical ? std::min(match.source_span.top(), match.target_span.top())
+                             : std::min(match.source_span.left(), match.target_span.left());
+    const auto hi = vertical ? std::max(match.source_span.bottom(), match.target_span.bottom())
+                             : std::max(match.source_span.right(), match.target_span.right());
+    return std::pair<double, double>{lo, hi};
+  };
+  if (snap_match_draws_line(move_snap_x_)) {
+    const auto [top, bottom] = extent(*move_snap_x_, true);
+    const auto x = widget_position_f(QPointF(move_snap_x_->position, 0.0)).x();
+    const auto y0 = widget_position_f(QPointF(0.0, top)).y() - kSnapGuideOverhangPixels;
+    const auto y1 = widget_position_f(QPointF(0.0, bottom)).y() + kSnapGuideOverhangPixels;
+    rect = rect.united(QRectF(x - 1.5, y0, 3.0, y1 - y0).toAlignedRect());
+  }
+  if (snap_match_draws_line(move_snap_y_)) {
+    const auto [left, right] = extent(*move_snap_y_, false);
+    const auto y = widget_position_f(QPointF(0.0, move_snap_y_->position)).y();
+    const auto x0 = widget_position_f(QPointF(left, 0.0)).x() - kSnapGuideOverhangPixels;
+    const auto x1 = widget_position_f(QPointF(right, 0.0)).x() + kSnapGuideOverhangPixels;
+    rect = rect.united(QRectF(x0, y - 1.5, x1 - x0, 3.0).toAlignedRect());
+  }
+  // A document-edge line at deep zoom is enormous; only the visible part matters.
+  return rect.intersected(this->rect());
+}
+
+void CanvasWidget::draw_move_snap_guides(QPainter& painter) const {
+  if (!moving_layer_ || document_ == nullptr ||
+      (!snap_match_draws_line(move_snap_x_) && !snap_match_draws_line(move_snap_y_))) {
+    return;
+  }
+  painter.save();
+  QPen pen(theme().canvas_snap_guide, 1.0, Qt::SolidLine);
+  pen.setCosmetic(true);
+  painter.setPen(pen);
+  // Crisp 1 px lines on the pixel-aligned view, like the guides overlay.
+  const auto pixel_aligned_coordinate = [](double coordinate, double zoom) {
+    return uses_pixel_aligned_view(zoom) ? std::round(coordinate) : coordinate;
+  };
+  if (snap_match_draws_line(move_snap_x_)) {
+    const auto& match = *move_snap_x_;
+    const auto top = std::min(match.source_span.top(), match.target_span.top());
+    const auto bottom = std::max(match.source_span.bottom(), match.target_span.bottom());
+    const auto x = pixel_aligned_coordinate(widget_position_f(QPointF(match.position, 0.0)).x(), zoom_);
+    const auto y0 = widget_position_f(QPointF(0.0, top)).y() - kSnapGuideOverhangPixels;
+    const auto y1 = widget_position_f(QPointF(0.0, bottom)).y() + kSnapGuideOverhangPixels;
+    painter.drawLine(QPointF(x, y0), QPointF(x, y1));
+  }
+  if (snap_match_draws_line(move_snap_y_)) {
+    const auto& match = *move_snap_y_;
+    const auto left = std::min(match.source_span.left(), match.target_span.left());
+    const auto right = std::max(match.source_span.right(), match.target_span.right());
+    const auto y = pixel_aligned_coordinate(widget_position_f(QPointF(0.0, match.position)).y(), zoom_);
+    const auto x0 = widget_position_f(QPointF(left, 0.0)).x() - kSnapGuideOverhangPixels;
+    const auto x1 = widget_position_f(QPointF(right, 0.0)).x() + kSnapGuideOverhangPixels;
+    painter.drawLine(QPointF(x0, y), QPointF(x1, y));
+  }
+  painter.restore();
+}
+
+void CanvasWidget::update_move_snap_guides_region() {
+  const auto next = move_snap_guides_widget_rect();
+  const auto dirty = move_snap_guides_dirty_rect_.united(next);
+  move_snap_guides_dirty_rect_ = next;
+  if (!dirty.isEmpty()) {
+    update(dirty.adjusted(-2, -2, 2, 2));
+  }
+}
+
+void CanvasWidget::clear_move_snap_guides() {
+  move_snap_x_.reset();
+  move_snap_y_.reset();
+  const auto dirty = move_snap_guides_dirty_rect_;
+  move_snap_guides_dirty_rect_ = QRect();
   if (!dirty.isEmpty()) {
     update(dirty.adjusted(-2, -2, 2, 2));
   }
@@ -999,10 +1115,12 @@ QRect CanvasWidget::flood_fill(QPoint start) {
     return {};
   }
 
-  return to_qrect(patchy::flood_fill(
-      *document_, *document_->active_layer_id(), start.x(), start.y(),
-      edit_options(primary_color_, secondary_color_, brush_size_, brush_opacity_, brush_softness_, fill_shapes_,
-                   active_layer_locks_transparent_pixels(), *this)));
+  // The Fill tool has its own Opacity/Soft/Tol/Contiguous (options bar), independent of the
+  // brush: build the options at full brush opacity and let apply_fill_settings scale them.
+  auto options = edit_options(primary_color_, secondary_color_, brush_size_, 100, brush_softness_, fill_shapes_,
+                              active_layer_locks_transparent_pixels(), *this);
+  apply_fill_settings(options, *this);
+  return to_qrect(patchy::flood_fill(*document_, *document_->active_layer_id(), start.x(), start.y(), options));
 }
 
 QRect CanvasWidget::draw_mask_line(QPoint from, QPoint to, bool erase) {
@@ -1182,54 +1300,78 @@ QRect CanvasWidget::flood_fill_mask(QPoint start) {
 
   const auto bounds = grayscale_target->bounds;
   auto* pixels = grayscale_target->pixels;
+  const auto width = pixels->width();
+  const auto height = pixels->height();
   const QPoint local_start(start.x() - bounds.x(), start.y() - bounds.y());
-  if (local_start.x() < 0 || local_start.y() < 0 || local_start.x() >= pixels->width() ||
-      local_start.y() >= pixels->height()) {
+  if (local_start.x() < 0 || local_start.y() < 0 || local_start.x() >= width || local_start.y() >= height) {
     return {};
   }
 
+  // Mask flood: the tool's Tol and Contiguous apply through the same metric as the layer
+  // flood (one gray channel); the mask value is written verbatim, as mask painting does.
   const auto target = *pixels->pixel(local_start.x(), local_start.y());
   const auto replacement = mask_value_from_color(primary_color_);
   if (target == replacement) {
     return {};
   }
-
-  std::queue<QPoint> queue;
-  std::vector<std::uint8_t> visited(static_cast<std::size_t>(pixels->width()) *
-                                    static_cast<std::size_t>(pixels->height()));
-  queue.push(local_start);
-  QRect dirty;
+  const auto tolerance = std::clamp(fill_tolerance_, 0, 255);
+  const auto matches = [&](int local_x, int local_y) {
+    return patchy::color_within_tolerance(pixels->pixel(local_x, local_y), &target, 1, tolerance);
+  };
+  enum : std::uint8_t { kUnvisited = 0, kInRegion = 1, kRejected = 2 };
+  std::vector<std::uint8_t> state(static_cast<std::size_t>(width) * static_cast<std::size_t>(height), kUnvisited);
+  const auto state_at = [&](int local_x, int local_y) -> std::uint8_t& {
+    return state[static_cast<std::size_t>(local_y) * static_cast<std::size_t>(width) +
+                 static_cast<std::size_t>(local_x)];
+  };
   std::size_t progress_counter = 0;
-  while (!queue.empty()) {
+  const auto tick = [&] {
     ++progress_counter;
     if (progress_counter % 4096U == 0U) {
       tick_processing_operation();
     }
-    const auto local = queue.front();
-    queue.pop();
-    if (local.x() < 0 || local.y() < 0 || local.x() >= pixels->width() || local.y() >= pixels->height()) {
-      continue;
+  };
+  QRect dirty;
+  const auto write = [&](int local_x, int local_y) {
+    *pixels->pixel(local_x, local_y) = replacement;
+    dirty = dirty.united(QRect(QPoint(bounds.x() + local_x, bounds.y() + local_y), QSize(1, 1)));
+  };
+  if (fill_contiguous_) {
+    std::vector<QPoint> stack;
+    stack.push_back(local_start);
+    while (!stack.empty()) {
+      tick();
+      const auto local = stack.back();
+      stack.pop_back();
+      if (local.x() < 0 || local.y() < 0 || local.x() >= width || local.y() >= height) {
+        continue;
+      }
+      auto& cell = state_at(local.x(), local.y());
+      if (cell != kUnvisited) {
+        continue;
+      }
+      const QPoint document_point(bounds.x() + local.x(), bounds.y() + local.y());
+      if (!selection_allows(document_point) || !matches(local.x(), local.y())) {
+        cell = kRejected;
+        continue;
+      }
+      cell = kInRegion;
+      write(local.x(), local.y());
+      stack.push_back(local + QPoint(1, 0));
+      stack.push_back(local + QPoint(-1, 0));
+      stack.push_back(local + QPoint(0, 1));
+      stack.push_back(local + QPoint(0, -1));
     }
-    const auto index = static_cast<std::size_t>(local.y()) * static_cast<std::size_t>(pixels->width()) +
-                       static_cast<std::size_t>(local.x());
-    if (visited[index] != 0U) {
-      continue;
+    return dirty;
+  }
+  for (int local_y = 0; local_y < height; ++local_y) {
+    for (int local_x = 0; local_x < width; ++local_x) {
+      tick();
+      if (!selection_allows(QPoint(bounds.x() + local_x, bounds.y() + local_y)) || !matches(local_x, local_y)) {
+        continue;
+      }
+      write(local_x, local_y);
     }
-    visited[index] = 1U;
-    const QPoint document_point(bounds.x() + local.x(), bounds.y() + local.y());
-    if (!selection_allows(document_point)) {
-      continue;
-    }
-    auto* px = pixels->pixel(local.x(), local.y());
-    if (*px != target) {
-      continue;
-    }
-    *px = replacement;
-    dirty = dirty.united(QRect(document_point, QSize(1, 1)));
-    queue.push(local + QPoint(1, 0));
-    queue.push(local + QPoint(-1, 0));
-    queue.push(local + QPoint(0, 1));
-    queue.push(local + QPoint(0, -1));
   }
   return dirty;
 }

@@ -20,6 +20,8 @@
 #include "ui/main_window_shared.hpp"
 #include "ui/stress_test.hpp"
 
+#include "patchy_version.hpp"
+
 #include "core/adjustment_layer.hpp"
 #include "core/document_path.hpp"
 #include "core/layer_metadata.hpp"
@@ -1243,6 +1245,7 @@ private:
     const auto index = w.blend_combo_ != nullptr ? w.blend_combo_->findData(static_cast<int>(mode)) : -1;
     if (index >= 0) {
       w.set_active_layer_blend(index);
+      w.finish_pending_layer_blend_edit();
     }
   }
 

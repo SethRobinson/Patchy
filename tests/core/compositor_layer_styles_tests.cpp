@@ -538,6 +538,105 @@ void compositor_drop_shadow_preserves_connected_antialias_alpha() {
 // Patchy's continuous (long) shadow: the matte is swept from the layer out to
 // the offset, so a hard shadow forms one unbroken band, Fade thins it toward
 // the far end, and a diagonal offset follows its digital line.
+// Photoshop's 30000 px Distance: every shadow path must stay bounded by the
+// canvas and the layer instead of allocating by the offset. Inner shadows
+// past the layer's extent are fully shadowed, long shadows sweep across the
+// whole canvas, and styled groups (isolated and pass-through) render their
+// children unchanged when the shadow lands off-canvas.
+void compositor_shadow_distance_30000_stays_bounded() {
+  constexpr float kFar = 30000.0F;
+  const auto red = [](const patchy::PixelBuffer& pixels, int x, int y) {
+    return static_cast<int>(pixels.pixel(x, y)[0]);
+  };
+
+  // Inner shadow: a 10x10 red layer; past 10 + size + 2 px every interior
+  // sample reads outside the layer, so the whole layer is shadowed black.
+  const auto inner = [](float distance) {
+    patchy::Document document(48, 16, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Base", solid_rgb(48, 16, 255, 255, 255));
+    patchy::Layer layer(document.allocate_layer_id(), "Bar", solid_rgba(10, 10, 220, 20, 20, 255));
+    auto& source = document.add_layer(std::move(layer));
+    source.set_bounds(patchy::Rect{4, 3, 10, 10});
+    patchy::LayerInnerShadow shadow;
+    shadow.enabled = true;
+    shadow.blend_mode = patchy::BlendMode::Normal;
+    shadow.color = patchy::RgbColor{0, 0, 0};
+    shadow.opacity = 1.0F;
+    shadow.angle_degrees = 180.0F;
+    shadow.distance = distance;
+    shadow.size = 2.0F;
+    source.layer_style().inner_shadows.push_back(shadow);
+    return patchy::Compositor{}.flatten_rgb8(document);
+  };
+  for (const auto distance : {20.0F, kFar}) {
+    const auto shadowed = inner(distance);
+    for (int y = 3; y < 13; ++y) {
+      for (int x = 4; x < 14; ++x) {
+        CHECK(red(shadowed, x, y) == 0);
+      }
+    }
+    CHECK(red(shadowed, 2, 8) == 255);
+  }
+  // A short offset still shades only the leading edge.
+  const auto short_offset = inner(3.0F);
+  CHECK(red(short_offset, 5, 8) < 60);
+  CHECK(red(short_offset, 12, 8) == 220);
+
+  // Long (continuous) drop shadow at 30000 px toward +x: everything right of
+  // the bar on its rows is swept, the rest of the canvas is untouched.
+  {
+    patchy::Document document(48, 16, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Base", solid_rgb(48, 16, 255, 255, 255));
+    patchy::Layer layer(document.allocate_layer_id(), "Bar", solid_rgba(2, 4, 220, 20, 20, 255));
+    auto& source = document.add_layer(std::move(layer));
+    source.set_bounds(patchy::Rect{4, 4, 2, 4});
+    patchy::LayerDropShadow shadow;
+    shadow.enabled = true;
+    shadow.blend_mode = patchy::BlendMode::Normal;
+    shadow.color = patchy::RgbColor{0, 0, 0};
+    shadow.opacity = 1.0F;
+    shadow.angle_degrees = 180.0F;
+    shadow.distance = kFar;
+    shadow.size = 0.0F;
+    shadow.continuous = true;
+    source.layer_style().drop_shadows.push_back(shadow);
+    const auto swept = patchy::Compositor{}.flatten_rgb8(document);
+    for (int x = 6; x < 48; ++x) {
+      CHECK(red(swept, x, 5) == 0);
+    }
+    CHECK(red(swept, 3, 5) == 255);
+    CHECK(red(swept, 20, 3) == 255);
+  }
+
+  // Styled groups, pass-through and isolated: a 30000 px shadow lands
+  // off-canvas and the child renders exactly as it does without the style.
+  for (const auto mode : {patchy::BlendMode::PassThrough, patchy::BlendMode::Normal}) {
+    const auto render = [mode](bool styled) {
+      patchy::Document document(24, 12, patchy::PixelFormat::rgb8());
+      document.add_pixel_layer("Base", solid_rgb(24, 12, 255, 255, 255));
+      patchy::Layer group(document.allocate_layer_id(), "Group", patchy::LayerKind::Group);
+      group.set_blend_mode(mode);
+      patchy::Layer child(document.allocate_layer_id(), "Child", solid_rgba(6, 4, 30, 140, 200, 255));
+      child.set_bounds(patchy::Rect{8, 4, 6, 4});
+      group.add_child(std::move(child));
+      if (styled) {
+        patchy::LayerDropShadow shadow;
+        shadow.enabled = true;
+        shadow.opacity = 1.0F;
+        shadow.angle_degrees = 90.0F;
+        shadow.distance = kFar;
+        shadow.size = 4.0F;
+        group.layer_style().drop_shadows.push_back(shadow);
+      }
+      document.add_layer(std::move(group));
+      return patchy::Compositor{}.flatten_rgb8(document);
+    };
+    const auto plain = render(false);
+    const auto styled = render(true);
+    CHECK(std::equal(plain.data().begin(), plain.data().end(), styled.data().begin(), styled.data().end()));
+  }
+}
+
 void compositor_continuous_drop_shadow_sweeps_to_offset_and_fades() {
   const auto render = [](bool continuous, float fade, float angle, float distance, patchy::Rect bounds) {
     patchy::Document document(48, 16, patchy::PixelFormat::rgb8());
@@ -1201,6 +1300,7 @@ std::vector<patchy::test::TestCase> compositor_layer_styles_tests() {
        compositor_drop_shadow_soft_mask_has_smooth_falloff},
       {"compositor_continuous_drop_shadow_sweeps_to_offset_and_fades",
        compositor_continuous_drop_shadow_sweeps_to_offset_and_fades},
+      {"compositor_shadow_distance_30000_stays_bounded", compositor_shadow_distance_30000_stays_bounded},
       {"compositor_outer_glow_preserves_source_alpha",
        compositor_outer_glow_preserves_source_alpha},
       {"compositor_outer_glow_antialias_strength_does_not_create_streaks",

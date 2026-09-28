@@ -460,9 +460,36 @@ void ui_selection_context_menu_offers_remove_object() {
     QApplication::processEvents();
   }
 
-  // Picking Remove Object from the menu runs the command: one history entry.
+  // Picking Remove Object from the menu opens its dialog while the first fill
+  // runs on a worker; accepting it once the result is in commits one history
+  // entry. The driver re-arms until then and gives up after five seconds.
   canvas->set_tool(patchy::ui::CanvasTool::Marquee);
   const auto depth = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  bool accepted_dialog = false;
+  int driver_tries = 0;
+  auto poll = std::make_shared<std::function<void()>>();
+  *poll = [&, poll] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* dialog = qobject_cast<QDialog*>(widget);
+      if (dialog == nullptr || dialog->objectName() != QStringLiteral("patchyRemoveObjectDialog") ||
+          !dialog->isVisible()) {
+        continue;
+      }
+      // The fill runs on a worker; OK enables once its result is in.
+      auto* buttons = dialog->findChild<QDialogButtonBox*>();
+      auto* ok = buttons != nullptr ? buttons->button(QDialogButtonBox::Ok) : nullptr;
+      if (ok == nullptr || !ok->isEnabled()) {
+        break;
+      }
+      accepted_dialog = true;
+      dialog->accept();
+      return;
+    }
+    if (++driver_tries < 500) {
+      QTimer::singleShot(10, *poll);
+    }
+  };
+  QTimer::singleShot(10, *poll);
   menu = right_click_move_canvas(*canvas, QPoint(50, 50));
   CHECK(menu != nullptr);
   if (menu != nullptr) {
@@ -474,7 +501,145 @@ void ui_selection_context_menu_offers_remove_object() {
     menu->close();
     QApplication::processEvents();
   }
+  CHECK(accepted_dialog);
   CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+}
+
+// Regression (September 2026 crash): Stroke Selection picked from the canvas context
+// menu opens a modal dialog from inside the popup menu's own mouse release. The menu
+// must survive that nested loop, and ordinary mouse input afterwards must not touch a
+// dead widget.
+void ui_stroke_selection_from_context_menu_survives_following_mouse_input() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(patchy::ui::CanvasTool::Marquee);
+  canvas->set_primary_color(Qt::black);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(20, 20)),
+       canvas->widget_position_for_document_point(QPoint(80, 80)));
+  QApplication::processEvents();
+  CHECK(canvas->has_selection());
+  const auto selection = canvas->selected_document_region().boundingRect();
+
+  auto* menu = right_click_move_canvas(*canvas, QPoint(50, 50));
+  CHECK(menu != nullptr);
+  if (menu == nullptr) {
+    return;
+  }
+  QAction* stroke = nullptr;
+  for (auto* action : menu->actions()) {
+    if (action->objectName() == QStringLiteral("editStrokeSelectionAction")) {
+      stroke = action;
+    }
+  }
+  CHECK(stroke != nullptr);
+  const QPointer<QMenu> menu_guard(menu);
+  accept_stroke_selection_dialog(2, QStringLiteral("center"));
+  // Through the window handle, not sendEvent on the QMenu: the crash lived in the
+  // window-level mouse dispatcher that keeps running after the menu's release handler.
+  CHECK(menu->windowHandle() != nullptr);
+  QTest::mouseClick(menu->windowHandle(), Qt::LeftButton, Qt::NoModifier, menu->actionGeometry(stroke).center());
+  QApplication::processEvents();
+  process_events_for(50);
+
+  // The band landed on the selection edge, and the menu was released only after the pick
+  // finished dispatching (deferred delete processed once control returned to the loop).
+  {
+    const auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+    const auto* layer = doc.find_layer(*doc.active_layer_id());
+    CHECK(layer != nullptr);
+    CHECK(layer->pixels().pixel(selection.left(), selection.center().y())[3] == 255);
+  }
+  CHECK(menu_guard.isNull());
+
+  // What the user does next: move over the canvas, click, drag a little.
+  const auto inside = canvas->widget_position_for_document_point(QPoint(50, 50));
+  const auto outside = canvas->widget_position_for_document_point(QPoint(120, 100));
+  send_mouse(*canvas, QEvent::MouseMove, inside, Qt::NoButton, Qt::NoButton);
+  send_mouse(*canvas, QEvent::MouseMove, outside, Qt::NoButton, Qt::NoButton);
+  QApplication::processEvents();
+  send_mouse(*canvas, QEvent::MouseButtonPress, outside, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, outside + QPoint(10, 10), Qt::NoButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, outside + QPoint(10, 10), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  process_events_for(50);
+  auto* second = right_click_move_canvas(*canvas, QPoint(125, 105));
+  if (second != nullptr) {
+    second->close();
+    QApplication::processEvents();
+  }
+  CHECK(window.isVisible());
+}
+
+// A Move-tool right-click inside the active raster layer's Move outline ends
+// the menu with Free Transform, as the shape section does for shape layers;
+// off the layer, with another tool, or on a position-locked layer it does not.
+void ui_move_context_menu_offers_free_transform_on_raster_layer() {
+  patchy::Document document(160, 120, patchy::PixelFormat::rgba8());
+  patchy::Layer photo(document.allocate_layer_id(), "Photo",
+      solid_pixels(40, 40, patchy::PixelFormat::rgba8(), QColor(Qt::red)));
+  photo.set_bounds({20, 20, 40, 40});
+  const auto photo_id = photo.id();
+  document.add_layer(std::move(photo));
+  document.set_active_layer(photo_id);
+
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  window.add_document_session(std::move(document), QStringLiteral("Raster Free Transform"));
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_rulers_visible(false);
+  QApplication::processEvents();
+
+  const auto free_transform_in = [](QMenu& menu) -> QAction* {
+    for (auto* action : menu.actions()) {
+      if (action->objectName() == QStringLiteral("editFreeTransformAction")) {
+        return action;
+      }
+    }
+    return nullptr;
+  };
+
+  auto* menu = right_click_move_canvas(*canvas, QPoint(30, 30));
+  CHECK(menu != nullptr);
+  if (menu != nullptr) {
+    // The layer entry first, then the separator and Free Transform.
+    CHECK(menu->actions().size() == 3);
+    CHECK(menu->actions().front()->data().toULongLong() == photo_id);
+    auto* transform = free_transform_in(*menu);
+    CHECK(transform != nullptr && transform == menu->actions().back());
+    save_widget_artifact("ui_move_context_menu_free_transform", *menu);
+    if (transform != nullptr) {
+      transform->trigger();
+    }
+    menu->close();
+    QApplication::processEvents();
+  }
+  CHECK(canvas->free_transform_active());
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+
+  // Off the layer there is nothing under the pointer and no menu.
+  CHECK(right_click_move_canvas(*canvas, QPoint(120, 100)) == nullptr);
+
+  // Other tools keep a right-click on a raster layer menu-free.
+  canvas->set_tool(patchy::ui::CanvasTool::Brush);
+  CHECK(right_click_move_canvas(*canvas, QPoint(30, 30)) == nullptr);
+
+  // A position-locked layer would refuse Free Transform, so it is not offered.
+  canvas->set_tool(patchy::ui::CanvasTool::Move);
+  if (auto* layer = patchy::ui::MainWindowTestAccess::document(window).find_layer(photo_id)) {
+    patchy::set_layer_locks_position(*layer, true);
+  }
+  menu = right_click_move_canvas(*canvas, QPoint(30, 30));
+  CHECK(menu != nullptr);
+  if (menu != nullptr) {
+    CHECK(free_transform_in(*menu) == nullptr);
+    menu->close();
+    QApplication::processEvents();
+  }
 }
 
 void ui_move_layer_menu_preserves_pan_and_cancels_stale_clicks() {
@@ -952,7 +1117,7 @@ void ui_layer_row_double_click_opens_blending_options_dialog() {
   CHECK(item != nullptr);
   auto* row_widget = layer_list->itemWidget(item);
   CHECK(row_widget != nullptr);
-  auto* row_name = row_widget->findChild<QLabel*>(QStringLiteral("layerRowName"));
+  auto* row_name = row_widget->findChild<QLabel*>(QStringLiteral("layerRowDetails"));
   CHECK(row_name != nullptr);
 
   bool saw_blending_options = false;
@@ -1148,7 +1313,7 @@ void ui_layer_row_double_click_opens_folder_styles_and_edits_adjustments() {
     auto* item = require_layer_item(*layer_list, layer_name);
     auto* row_widget = layer_list->itemWidget(item);
     CHECK(row_widget != nullptr);
-    auto* row_name = row_widget->findChild<QLabel*>(QStringLiteral("layerRowName"));
+    auto* row_name = row_widget->findChild<QLabel*>(QStringLiteral("layerRowDetails"));
     CHECK(row_name != nullptr);
     return row_name;
   };
@@ -2447,6 +2612,10 @@ std::vector<patchy::test::TestCase> layer_context_lifecycle_tests() {
        ui_move_layer_menu_preserves_pan_and_cancels_stale_clicks},
       {"ui_right_drag_does_not_pan_canvas", ui_right_drag_does_not_pan_canvas},
       {"ui_selection_context_menu_offers_remove_object", ui_selection_context_menu_offers_remove_object},
+      {"ui_stroke_selection_from_context_menu_survives_following_mouse_input",
+       ui_stroke_selection_from_context_menu_survives_following_mouse_input},
+      {"ui_move_context_menu_offers_free_transform_on_raster_layer",
+       ui_move_context_menu_offers_free_transform_on_raster_layer},
       {"ui_layer_style_color_overlay_patch_double_click_opens_picker",
        ui_layer_style_color_overlay_patch_double_click_opens_picker},
       {"ui_layer_context_menu_exposes_blending_options_dialog",

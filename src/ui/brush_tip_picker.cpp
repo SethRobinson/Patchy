@@ -46,6 +46,16 @@ protected:
   return QObject::tr("Round");
 }
 
+[[nodiscard]] QString square_tip_display_name() {
+  return QObject::tr("Square");
+}
+
+[[nodiscard]] QString builtin_tip_display_name(const QString& id) {
+  return id == builtin_square_brush_tip_id() ? square_tip_display_name() : round_tip_display_name();
+}
+
+[[nodiscard]] QPixmap builtin_tip_thumbnail(const QString& id, int extent);
+
 [[nodiscard]] QPixmap round_tip_thumbnail(int extent) {
   QPixmap pixmap(extent, extent);
   pixmap.fill(Qt::transparent);
@@ -65,6 +75,27 @@ protected:
   painter.setBrush(gradient);
   painter.drawEllipse(margin, margin, extent - 2 * margin, extent - 2 * margin);
   return pixmap;
+}
+
+// The procedural Square: a hard black square on the same paper chip.
+[[nodiscard]] QPixmap square_tip_thumbnail(int extent) {
+  QPixmap pixmap(extent, extent);
+  pixmap.fill(Qt::transparent);
+  QPainter painter(&pixmap);
+  painter.setRenderHint(QPainter::Antialiasing);
+  painter.setPen(QColor(0, 0, 0, 70));
+  painter.setBrush(QColor(0xE9, 0xE9, 0xE9));
+  painter.drawRoundedRect(QRectF(0.5, 0.5, extent - 1.0, extent - 1.0), 3.5, 3.5);
+  const auto margin = extent / 4;
+  painter.setRenderHint(QPainter::Antialiasing, false);
+  painter.setPen(Qt::NoPen);
+  painter.setBrush(QColor(0, 0, 0));
+  painter.drawRect(margin, margin, extent - 2 * margin, extent - 2 * margin);
+  return pixmap;
+}
+
+QPixmap builtin_tip_thumbnail(const QString& id, int extent) {
+  return id == builtin_square_brush_tip_id() ? square_tip_thumbnail(extent) : round_tip_thumbnail(extent);
 }
 
 }  // namespace
@@ -99,7 +130,7 @@ const QString& BrushTipPicker::current_tip_id() const noexcept {
 
 void BrushTipPicker::refresh() {
   if (!working_preview_.isNull()) { update_button_face(); return; }
-  if (current_tip_id_ != builtin_round_brush_tip_id() && library_.find_entry(current_tip_id_) == nullptr) {
+  if (!is_builtin_brush_tip_id(current_tip_id_) && library_.find_entry(current_tip_id_) == nullptr) {
     current_tip_id_ = builtin_round_brush_tip_id();
     emit tip_selected(current_tip_id_);
   }
@@ -113,10 +144,10 @@ void BrushTipPicker::update_button_face() {
     setToolTip(tr("Brush tip: %1").arg(working_name_));
     return;
   }
-  if (current_tip_id_ == builtin_round_brush_tip_id()) {
-    setIcon(QIcon(round_tip_thumbnail(kThumbnailExtent)));
-    setText(round_tip_display_name());
-    setToolTip(tr("Brush tip: %1").arg(round_tip_display_name()));
+  if (is_builtin_brush_tip_id(current_tip_id_)) {
+    setIcon(QIcon(builtin_tip_thumbnail(current_tip_id_, kThumbnailExtent)));
+    setText(builtin_tip_display_name(current_tip_id_));
+    setToolTip(tr("Brush tip: %1").arg(builtin_tip_display_name(current_tip_id_)));
     return;
   }
   const auto* entry = library_.find_entry(current_tip_id_);
@@ -143,10 +174,19 @@ void BrushTipPicker::rebuild_popup_list(QListWidget* list, const QString& folder
   list->clear();
   QListWidgetItem* round_item = nullptr;
   if (folder_filter.isEmpty()) {
-    round_item = new QListWidgetItem(QIcon(round_tip_thumbnail(kThumbnailExtent)), round_tip_display_name());
-    round_item->setData(Qt::UserRole, builtin_round_brush_tip_id());
-    round_item->setToolTip(round_tip_display_name());
-    list->addItem(round_item);
+    // The two procedural brushes lead the list: Round, then Square right under it.
+    for (const auto& id : {builtin_round_brush_tip_id(), builtin_square_brush_tip_id()}) {
+      auto* item = new QListWidgetItem(QIcon(builtin_tip_thumbnail(id, kThumbnailExtent)), builtin_tip_display_name(id));
+      item->setData(Qt::UserRole, id);
+      item->setToolTip(builtin_tip_display_name(id));
+      list->addItem(item);
+      if (id == builtin_round_brush_tip_id()) {
+        round_item = item;
+      }
+      if (id == current_tip_id_) {
+        list->setCurrentItem(item);
+      }
+    }
   }
   for (const auto& entry : library_.entries()) {
     if (!folder_filter.isEmpty() && entry.folder != folder_filter) {

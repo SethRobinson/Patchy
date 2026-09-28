@@ -13,6 +13,7 @@
 #include "core/adjustment_layer.hpp"
 #include "core/blend_math.hpp"
 #include "core/layer_metadata.hpp"
+#include "core/pixel_grid.hpp"
 #include "core/smart_object.hpp"
 #include "core/smart_filter.hpp"
 #include "core/layer_render_utils.hpp"
@@ -82,6 +83,20 @@ namespace patchy::ui {
 namespace {
 
 constexpr double kMinimumTransformScalePercent = 0.01;
+// A numeric rotation this small still counts as axis-aligned for pixel-grid snapping.
+constexpr double kPixelGridSnapAngleTolerance = 0.01;
+
+// Photoshop lands an axis-aligned transform on the pixel grid by rounding each destination
+// edge (halves up): 4.75..35.25 becomes 5..35, so a typed X of 3.4 moves the layer by 3 and
+// a 152.5% width of 30.5 px comes out 30 wide (PS 27.9 COM captures, September 2026). A
+// rotated box cannot sit on the grid and is left alone.
+QRectF snap_transform_rect_to_pixel_grid(const QRectF& rect) {
+  const auto left = snap_to_pixel_grid(rect.left());
+  const auto top = snap_to_pixel_grid(rect.top());
+  const auto right = std::max(left + 1.0, snap_to_pixel_grid(rect.right()));
+  const auto bottom = std::max(top + 1.0, snap_to_pixel_grid(rect.bottom()));
+  return QRectF(QPointF(left, top), QPointF(right, bottom));
+}
 
 // Latch thresholds for the drag-time proxy preview, measured on the larger of
 // the unclipped transformed-source AABB (what resample_transformed_rgba8
@@ -344,6 +359,44 @@ QTransform free_transform_delta(QRectF original_rect, QRectF current_rect, doubl
   transform.scale(scale_x_sign * std::max(1.0, current_rect.width()) / original_width,
                   scale_y_sign * std::max(1.0, current_rect.height()) / original_height);
   transform.translate(-original_rect.center().x(), -original_rect.center().y());
+  return transform;
+}
+
+// Free Transform's box on a shape layer hugs the ink (fill plus any stroke
+// reaching past the path), but the commit transforms only the path: the stroke
+// keeps its width, as in Photoshop. Mapping the path through the box delta
+// therefore landed the redrawn ink off the dragged box by the stroke overhang
+// times the scale change, so even the fixed corner crept and the error grew
+// with every transform. This maps the path's own box onto the dragged box
+// inset by the same per-side overhang instead, so the redrawn ink fills the
+// dragged box. The inset happens in the box's unrotated frame and the result
+// turns about the box center like free_transform_delta. Degenerate boxes (a
+// straight line, an overhang wider than the new box) keep the plain delta.
+QTransform shape_free_transform_delta(QRectF original_rect, QRectF current_rect, double angle_degrees,
+                                      double scale_x_sign, double scale_y_sign, const VectorPathBounds& path) {
+  const QRectF path_rect(path.left, path.top, path.right - path.left, path.bottom - path.top);
+  auto left = path_rect.left() - original_rect.left();
+  auto top = path_rect.top() - original_rect.top();
+  auto right = original_rect.right() - path_rect.right();
+  auto bottom = original_rect.bottom() - path_rect.bottom();
+  // A mirrored axis carries each side's overhang to the opposite edge.
+  if (scale_x_sign < 0.0) {
+    std::swap(left, right);
+  }
+  if (scale_y_sign < 0.0) {
+    std::swap(top, bottom);
+  }
+  const QRectF target(current_rect.left() + left, current_rect.top() + top, current_rect.width() - left - right,
+                      current_rect.height() - top - bottom);
+  if (path_rect.width() < 1.0 || path_rect.height() < 1.0 || target.width() < 1.0 || target.height() < 1.0) {
+    return free_transform_delta(original_rect, current_rect, angle_degrees, scale_x_sign, scale_y_sign);
+  }
+  QTransform transform;
+  transform.translate(current_rect.center().x(), current_rect.center().y());
+  transform.rotate(angle_degrees);
+  transform.translate(target.center().x() - current_rect.center().x(), target.center().y() - current_rect.center().y());
+  transform.scale(scale_x_sign * target.width() / path_rect.width(), scale_y_sign * target.height() / path_rect.height());
+  transform.translate(-path_rect.center().x(), -path_rect.center().y());
   return transform;
 }
 
@@ -1274,9 +1327,14 @@ std::optional<QRectF> CanvasWidget::transform_controls_rect_for_layer(const Laye
   return QRectF(bounds.x + local_rect->x(), bounds.y + local_rect->y(), local_rect->width(), local_rect->height());
 }
 
-std::optional<QRectF> CanvasWidget::move_transform_controls_rect() const {
-  if (document_ == nullptr || tool_ != CanvasTool::Move || !show_transform_controls_ || moving_layer_ ||
-      transforming_layer_ || dragging_transform_) {
+// The document rect a Move-tool Free Transform would start on for the current
+// selection: the single target's session rect, or the union of a folder's or
+// multi-selection's flattened target set. Empty when a session is in flight or
+// the session would refuse (position lock, no pixel targets), so the passive
+// controls hide and the double-click stays inert in the same cases.
+std::optional<QRectF> CanvasWidget::move_transform_target_rect() const {
+  if (document_ == nullptr || tool_ != CanvasTool::Move || moving_layer_ || transforming_layer_ ||
+      dragging_transform_) {
     return std::nullopt;
   }
 
@@ -1314,6 +1372,31 @@ std::optional<QRectF> CanvasWidget::move_transform_controls_rect() const {
     return std::nullopt;
   }
   return union_rect;
+}
+
+std::optional<QRectF> CanvasWidget::move_transform_controls_rect() const {
+  if (!show_transform_controls_) {
+    return std::nullopt;
+  }
+  return move_transform_target_rect();
+}
+
+std::vector<LayerId> CanvasWidget::free_transform_snap_exclude_ids() const {
+  std::vector<LayerId> ids;
+  if (!transforming_layer_) {
+    return ids;
+  }
+  if (!transform_targets_.empty()) {
+    ids.reserve(transform_targets_.size());
+    for (const auto& target : transform_targets_) {
+      ids.push_back(target.id);
+    }
+    return ids;
+  }
+  if (transform_layer_id_.has_value()) {
+    ids.push_back(*transform_layer_id_);
+  }
+  return ids;
 }
 
 void CanvasWidget::set_move_transform_controls_layer(std::optional<LayerId> layer_id) {
@@ -2103,11 +2186,37 @@ bool CanvasWidget::show_transform_drag_values() const noexcept {
   return show_transform_drag_values_;
 }
 
+void CanvasWidget::set_snap_transforms_to_pixel_grid(bool enabled) noexcept {
+  snap_transforms_to_pixel_grid_ = enabled;
+}
+
+bool CanvasWidget::snap_transforms_to_pixel_grid() const noexcept {
+  return snap_transforms_to_pixel_grid_;
+}
+
 std::optional<CanvasWidget::DragReadout> CanvasWidget::transform_drag_readout() const {
   if (!show_transform_drag_values_) {
     return std::nullopt;
   }
   DragReadout readout;
+  if (dragging_guide_) {
+    // Guide drag: the guide's position in the ruler unit, measured the way the
+    // ruler along its axis measures it. Nothing while the drop would remove it.
+    if (document_ == nullptr || guide_drag_remove_) {
+      return std::nullopt;
+    }
+    const bool vertical = guide_drag_orientation_ == GuideOrientation::Vertical;
+    const auto pixels = static_cast<double>(guide_drag_position_32_) / 32.0;
+    const auto value = pixels / std::max(ruler_pixels_per_unit(vertical), 1e-9);
+    // Guides sit on 1/32 px steps: whole pixels print plainly, fractions with two places.
+    const auto decimals = ruler_unit_ == MeasurementUnit::Pixels
+                              ? (guide_drag_position_32_ % 32 == 0 ? 0 : 2)
+                              : measurement_unit_decimals(ruler_unit_);
+    const auto position = format_measurement(value, ruler_unit_, decimals);
+    readout.lines << (vertical ? tr("Guide X: %1") : tr("Guide Y: %1")).arg(position);
+    readout.canvas_lines << (vertical ? tr("X: %1") : tr("Y: %1")).arg(position);
+    return readout;
+  }
   if (moving_layer_ && move_readout_base_rect_.has_value()) {
     // Move drag: the reference point of the moving set's box, plus the delta.
     const auto rect = move_readout_base_rect_->translated(QPointF(move_preview_delta_));
@@ -2239,6 +2348,12 @@ bool CanvasWidget::set_transform_controls_state(QPointF reference_position, doub
   const auto center = reference_position - anchor_offset;
   const auto previous_preview_rect = transform_preview_document_rect();
   transform_current_rect_ = QRectF(center.x() - width / 2.0, center.y() - height / 2.0, width, height);
+  if (snap_transforms_to_pixel_grid_ && std::abs(rotation_degrees) <= kPixelGridSnapAngleTolerance) {
+    // Typed fractions (and unit conversions such as 1 cm at 300 ppi) snap the way Photoshop
+    // does; the options bar re-reads the snapped rect, so the field shows what was applied.
+    // Integer inputs snap to themselves, which keeps every pinned commit byte-identical.
+    transform_current_rect_ = snap_transform_rect_to_pixel_grid(transform_current_rect_);
+  }
   transform_scale_x_sign_ = scale_x_sign;
   transform_scale_y_sign_ = scale_y_sign;
   transform_angle_ = rotation_degrees;
@@ -2424,6 +2539,11 @@ void CanvasWidget::draw_transform_controls(QPainter& painter, QRectF document_re
   painter.drawLine(QPointF(0.0, -rect.height() / 2.0), QPointF(0.0, -rect.height() / 2.0 - 32.0));
   painter.restore();
 
+  draw_transform_handle_squares(painter, document_rect, angle_degrees, /*include_rotate=*/true);
+}
+
+void CanvasWidget::draw_transform_handle_squares(QPainter& painter, QRectF document_rect, double angle_degrees,
+                                                 bool include_rotate) const {
   constexpr double kHandleSize = 8.0;
   const std::array<TransformHandle, 9> handles = {
       TransformHandle::TopLeft,    TransformHandle::Top,    TransformHandle::TopRight,
@@ -2432,13 +2552,15 @@ void CanvasWidget::draw_transform_controls(QPainter& painter, QRectF document_re
   painter.save();
   painter.setPen(QPen(QColor(10, 14, 20), 1.0));
   for (const auto handle : handles) {
+    if (handle == TransformHandle::Rotate && !include_rotate) {
+      continue;
+    }
     const auto point = transform_handle_position(handle, document_rect, angle_degrees);
     const QRectF handle_rect(point.x() - kHandleSize / 2.0, point.y() - kHandleSize / 2.0, kHandleSize, kHandleSize);
     painter.setBrush(handle == TransformHandle::Rotate ? QColor(95, 170, 255) : QColor(245, 248, 252));
     painter.drawRect(handle_rect);
   }
   painter.restore();
-
 }
 
 void CanvasWidget::draw_move_transform_controls(QPainter& painter) const {
@@ -2490,10 +2612,16 @@ void CanvasWidget::update_free_transform_preview(QPointF document_point, Qt::Key
   }
   const auto previous_preview_rect = transform_preview_document_rect();
   auto rect = transform_drag_start_rect_;
-  const auto drag_delta = document_point - transform_drag_start_point_;
 
   if (transform_drag_handle_ == TransformHandle::Move) {
-    rect.translate(drag_delta);
+    // The end point above is whole-pixel (snapped_document_point_f rounds
+    // before it snaps), so the start rounds the same way: a pointer resting on
+    // a half pixel (a fractional pan at 100%) otherwise turned a motionless
+    // press and release inside the box, the first half of the double-click
+    // that commits, into a 1 px nudge, and every drag overshot by one.
+    const QPointF rounded_start(static_cast<double>(std::lround(transform_drag_start_point_.x())),
+                                static_cast<double>(std::lround(transform_drag_start_point_.y())));
+    rect.translate(document_point - rounded_start);
     transform_current_rect_ = rect;
     refresh_transform_preview_for_drag();
     update_transform_preview_region(previous_preview_rect);
@@ -2579,40 +2707,52 @@ void CanvasWidget::update_free_transform_preview(QPointF document_point, Qt::Key
   const bool keeps_aspect = corner_handle && transform_drag_keeps_aspect(modifiers) && start_size.height() > 0.0;
   if (keeps_aspect) {
     QPointF anchor;
+    QPointF corner;
     switch (transform_drag_handle_) {
       case TransformHandle::TopLeft:
         anchor = start_local.bottomRight();
+        corner = start_local.topLeft();
         break;
       case TransformHandle::TopRight:
         anchor = start_local.bottomLeft();
+        corner = start_local.topRight();
         break;
       case TransformHandle::BottomLeft:
         anchor = start_local.topRight();
+        corner = start_local.bottomLeft();
         break;
       case TransformHandle::BottomRight:
       default:
         anchor = start_local.topLeft();
+        corner = start_local.bottomRight();
         break;
     }
 
-    const auto ratio = start_size.width() / start_size.height();
-    const auto dx = local_point.x() - anchor.x();
-    const auto dy = local_point.y() - anchor.y();
-    const auto sign_x = dx < 0.0 ? -1.0 : 1.0;
-    const auto sign_y = dy < 0.0 ? -1.0 : 1.0;
-    auto new_width = std::max(1.0, std::abs(dx));
-    auto new_height = std::max(1.0, std::abs(dy));
-    if (new_width / ratio > new_height) {
-      new_height = new_width / ratio;
-    } else {
-      new_width = new_height * ratio;
-    }
+    // The shared scale is the pointer's distance from the anchor projected
+    // onto the box diagonal (per axis in absolute value), so every pixel of
+    // travel scales at the same rate whichever way the pointer leans. Taking
+    // the axis the pointer pulled harder instead scaled `aspect` times faster
+    // along the short side, jumped in rate when the winning axis switched,
+    // and ignored the other axis outright (pulling the corner in on one axis
+    // could still grow the box). Each axis keeps its own sign from the side
+    // of the anchor the pointer is on, so a straight pull across the anchor
+    // mirrors that axis alone.
+    const auto diagonal = corner - anchor;
+    const auto span_x = std::abs(diagonal.x());
+    const auto span_y = std::abs(diagonal.y());
+    const auto offset = local_point - anchor;
+    const auto factor = std::max(1.0 / std::max(1.0, std::min(span_x, span_y)),
+                                 (std::abs(offset.x()) * span_x + std::abs(offset.y()) * span_y) /
+                                     (span_x * span_x + span_y * span_y));
+    const auto sign_x = (offset.x() < 0.0) == (diagonal.x() < 0.0) ? 1.0 : -1.0;
+    const auto sign_y = (offset.y() < 0.0) == (diagonal.y() < 0.0) ? 1.0 : -1.0;
     // Write the aspect-locked corner back through the same setters as the
     // non-Shift path so the dragged-corner/anchor relationship is preserved.
     // Building a QRectF directly from the anchor would invert width/height for
     // handles whose anchor is not the top-left, which the flip detection below
     // would then misread as a mirror (a 180° flip when both axes invert).
-    const QPointF locked_corner(anchor.x() + sign_x * new_width, anchor.y() + sign_y * new_height);
+    const QPointF locked_corner(anchor.x() + sign_x * factor * diagonal.x(),
+                                anchor.y() + sign_y * factor * diagonal.y());
     switch (transform_drag_handle_) {
       case TransformHandle::TopLeft:
         local.setTopLeft(locked_corner);
@@ -2674,17 +2814,23 @@ void CanvasWidget::update_free_transform_preview(QPointF document_point, Qt::Key
       factor_y = (local_point.y() - reference.y()) / (handle_start.y() - reference.y());
     }
     if (keeps_aspect) {
-      // One shared factor: the axis the pointer pulled harder wins.
-      std::optional<double> shared;
+      // One shared magnitude, the same projection rule as the plain corner
+      // drag above (per-axis factors weighted by the squared reference-to-
+      // handle spans); each axis keeps its own sign.
       if (factor_x.has_value() && factor_y.has_value()) {
-        shared = std::abs(*factor_x) >= std::abs(*factor_y) ? *factor_x : *factor_y;
-      } else if (factor_x.has_value()) {
-        shared = *factor_x;
-      } else if (factor_y.has_value()) {
-        shared = *factor_y;
+        const auto span_x = handle_start.x() - reference.x();
+        const auto span_y = handle_start.y() - reference.y();
+        const auto magnitude = (std::abs(*factor_x) * span_x * span_x + std::abs(*factor_y) * span_y * span_y) /
+                               (span_x * span_x + span_y * span_y);
+        factor_x = *factor_x < 0.0 ? -magnitude : magnitude;
+        factor_y = *factor_y < 0.0 ? -magnitude : magnitude;
+      } else {
+        // The reference sits on one dragged edge: the other axis's factor
+        // drives both.
+        const auto shared = factor_x.has_value() ? factor_x : factor_y;
+        factor_x = shared;
+        factor_y = shared;
       }
-      factor_x = shared;
-      factor_y = shared;
     }
     if (factor_x.has_value()) {
       const auto width = start_size.width() * *factor_x;
@@ -2794,10 +2940,16 @@ void CanvasWidget::commit_free_transform() {
       }
     } else if (layer_is_vector_shape(*layer) || layer->vector_mask() != nullptr) {
       // The text-layer pattern for vectors: apply the affine to the path
-      // model and re-rasterize crisply (replacing the resampled pixels).
-      const auto delta = free_transform_delta(transform_original_rect_, transform_current_rect_,
-                                              transform_angle_, transform_scale_x_sign_,
-                                              transform_scale_y_sign_);
+      // model and re-rasterize crisply (replacing the resampled pixels). A
+      // shape layer's own path maps so its unscaled stroke fills the box.
+      const auto* shape = layer_is_vector_shape(*layer) ? layer->vector_shape() : nullptr;
+      const auto path_bounds = shape != nullptr ? shape->path.bounds() : std::nullopt;
+      const auto delta =
+          path_bounds.has_value()
+              ? shape_free_transform_delta(transform_original_rect_, transform_current_rect_, transform_angle_,
+                                           transform_scale_x_sign_, transform_scale_y_sign_, *path_bounds)
+              : free_transform_delta(transform_original_rect_, transform_current_rect_, transform_angle_,
+                                     transform_scale_x_sign_, transform_scale_y_sign_);
       const std::array<double, 6> matrix{delta.m11(), delta.m12(), delta.m21(),
                                          delta.m22(), delta.dx(),  delta.dy()};
       patchy::transform_layer_vector_data(

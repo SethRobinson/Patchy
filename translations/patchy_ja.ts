@@ -1904,10 +1904,6 @@ RGB: %2, %3, %4</translation>
         <translation>バージョン %1（ビルド日: %2）</translation>
     </message>
     <message>
-        <source>Created by Seth A. Robinson</source>
-        <translation>作成: Seth A. Robinson</translation>
-    </message>
-    <message>
         <source>Code contributions from %1</source>
         <translation>コード貢献者: %1</translation>
     </message>
@@ -7938,10 +7934,6 @@ Mixed selection</source>
         <translation>初期版の PSD リーダーは現在、8、16、32 ビットのファイルのみ対応しています</translation>
     </message>
     <message>
-        <source>The starter PSD reader currently supports RGB and CMYK files only</source>
-        <translation>初期版の PSD リーダーは現在、RGB と CMYK のファイルのみ対応しています</translation>
-    </message>
-    <message>
         <source>PSD files cannot contain more than 56 channels</source>
         <translation>PSD ファイルに 56 を超えるチャンネルは含められません</translation>
     </message>
@@ -8443,6 +8435,58 @@ Mixed selection</source>
         <source>How much the long shadow fades out by its far end</source>
         <translation>ロングシャドウが先端に向かってどれだけ薄くなるか</translation>
     </message>
+    <message>
+        <source>Change all four corner radii together</source>
+        <translation>4 つの角の半径をまとめて変更</translation>
+    </message>
+    <message>
+        <source>Stroke Selection</source>
+        <translation>選択範囲の境界線を描く</translation>
+    </message>
+    <message>
+        <source>Stroke color</source>
+        <translation>境界線の色</translation>
+    </message>
+    <message>
+        <source>Choose the stroke color (starts from the foreground color)</source>
+        <translation>境界線の色を選択（描画色から始まります）</translation>
+    </message>
+    <message>
+        <source>Stroke Color</source>
+        <translation>境界線の色</translation>
+    </message>
+    <message>
+        <source>User data folder (fonts, scripts):</source>
+        <translation>ユーザーデータフォルダー (フォント、スクリプト):</translation>
+    </message>
+    <message>
+        <source>Open Data Folder</source>
+        <translation>データフォルダーを開く</translation>
+    </message>
+    <message>
+        <source>Could not open data folder.</source>
+        <translation>データフォルダーを開けませんでした。</translation>
+    </message>
+    <message>
+        <source>Created by %1</source>
+        <translation>作成: %1</translation>
+    </message>
+    <message>
+        <source>Could not write PSD file</source>
+        <translation>PSD ファイルを書き込めませんでした</translation>
+    </message>
+    <message>
+        <source>The starter PSD reader currently supports RGB, CMYK, and Grayscale files only</source>
+        <translation>初期版の PSD リーダーは現在、RGB、CMYK、グレースケールのファイルのみ対応しています</translation>
+    </message>
+    <message>
+        <source>Grayscale PSD file must contain at least 1 channel</source>
+        <translation>グレースケールの PSD ファイルには少なくとも 1 つのチャンネルが必要です</translation>
+    </message>
+    <message>
+        <source>The source color mode is Grayscale; Patchy converted the gray values to RGB/RGBA for editing and will export RGB PSD data from this document.</source>
+        <translation>元のカラーモードはグレースケールです。Patchy は編集用にグレー値を RGB/RGBA に変換しました。このドキュメントからは RGB PSD データを書き出します。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -8785,6 +8829,10 @@ Mixed selection</source>
         <source>timeMs: complete timeline required</source>
         <translation>timeMs: すべての入力点に時刻が必要です</translation>
     </message>
+    <message>
+        <source>Square</source>
+        <translation>正方形</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushDynamicsButton</name>
@@ -8799,6 +8847,10 @@ Mixed selection</source>
     <message>
         <source>Brush dynamics and effects for the Round brush (this session only; resets on the next launch)</source>
         <translation>丸ブラシのダイナミクスと効果（このセッション限定。次回起動時にリセットされます）</translation>
+    </message>
+    <message>
+        <source>Brush dynamics and effects for the Square brush (this session only; resets on the next launch)</source>
+        <translation>四角ブラシのダイナミクスと効果（このセッション限定。次回起動時にリセットされます）</translation>
     </message>
 </context>
 <context>
@@ -9888,6 +9940,42 @@ Mixed selection</source>
         <source>Removing object... %1%</source>
         <translation>オブジェクトを除去しています... %1%</translation>
     </message>
+    <message>
+        <source>Align Layers</source>
+        <translation>レイヤーを整列</translation>
+    </message>
+    <message>
+        <source>Distribute Layers</source>
+        <translation>レイヤーを分布</translation>
+    </message>
+    <message>
+        <source>Resize Selection</source>
+        <translation>選択範囲のサイズ変更</translation>
+    </message>
+    <message>
+        <source>Removed object with content-aware fill, variation %1 (%2 patches)</source>
+        <translation>コンテンツに応じた塗りつぶしでオブジェクトを除去しました、バリエーション %1 (%2 パッチ)</translation>
+    </message>
+    <message>
+        <source>Remove Object was cancelled</source>
+        <translation>オブジェクトを除去はキャンセルされました</translation>
+    </message>
+    <message>
+        <source>Guide X: %1</source>
+        <translation>ガイド X: %1</translation>
+    </message>
+    <message>
+        <source>Guide Y: %1</source>
+        <translation>ガイド Y: %1</translation>
+    </message>
+    <message>
+        <source>X: %1</source>
+        <translation>X: %1</translation>
+    </message>
+    <message>
+        <source>Y: %1</source>
+        <translation>Y: %1</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -10671,10 +10759,6 @@ Mixed selection</source>
     <message>
         <source>Load Layer &amp;Transparency</source>
         <translation>レイヤーの透明部分を読み込み(&amp;T)</translation>
-    </message>
-    <message>
-        <source>&amp;Stroke Selection</source>
-        <translation>選択範囲の境界線を描く(&amp;S)</translation>
     </message>
     <message>
         <source>Select All</source>
@@ -17140,10 +17224,6 @@ Clipped to the layer below</source>
         <translation>基準点:</translation>
     </message>
     <message>
-        <source>Remove &amp;Object</source>
-        <translation>オブジェクトを除去(&amp;O)</translation>
-    </message>
-    <message>
         <source>Remove Object</source>
         <translation>オブジェクトを除去</translation>
     </message>
@@ -17154,6 +17234,444 @@ Clipped to the layer below</source>
     <message>
         <source>Fill the selection from its surroundings with the content-aware search (Enter)</source>
         <translation>コンテンツに応じた検索で周囲から選択範囲を塗りつぶします (Enter)</translation>
+    </message>
+    <message>
+        <source>&amp;Align</source>
+        <translation>整列(&amp;A)</translation>
+    </message>
+    <message>
+        <source>&amp;Distribute</source>
+        <translation>分布(&amp;D)</translation>
+    </message>
+    <message>
+        <source>Snap</source>
+        <translation>スナップ</translation>
+    </message>
+    <message>
+        <source>Align &amp;Left Edges</source>
+        <translation>左端を整列(&amp;L)</translation>
+    </message>
+    <message>
+        <source>Align &amp;Horizontal Centers</source>
+        <translation>水平方向の中央を整列(&amp;H)</translation>
+    </message>
+    <message>
+        <source>Align &amp;Right Edges</source>
+        <translation>右端を整列(&amp;R)</translation>
+    </message>
+    <message>
+        <source>Align &amp;Top Edges</source>
+        <translation>上端を整列(&amp;T)</translation>
+    </message>
+    <message>
+        <source>Align &amp;Vertical Centers</source>
+        <translation>垂直方向の中央を整列(&amp;V)</translation>
+    </message>
+    <message>
+        <source>Align &amp;Bottom Edges</source>
+        <translation>下端を整列(&amp;B)</translation>
+    </message>
+    <message>
+        <source>Align To: &amp;Selection</source>
+        <translation>整列の基準: 選択範囲(&amp;S)</translation>
+    </message>
+    <message>
+        <source>Align To: &amp;Canvas</source>
+        <translation>整列の基準: カンバス(&amp;C)</translation>
+    </message>
+    <message>
+        <source>Distribute &amp;Left Edges</source>
+        <translation>左端を分布(&amp;L)</translation>
+    </message>
+    <message>
+        <source>Distribute &amp;Horizontal Centers</source>
+        <translation>水平方向の中央を分布(&amp;H)</translation>
+    </message>
+    <message>
+        <source>Distribute &amp;Right Edges</source>
+        <translation>右端を分布(&amp;R)</translation>
+    </message>
+    <message>
+        <source>Distribute &amp;Top Edges</source>
+        <translation>上端を分布(&amp;T)</translation>
+    </message>
+    <message>
+        <source>Distribute &amp;Vertical Centers</source>
+        <translation>垂直方向の中央を分布(&amp;V)</translation>
+    </message>
+    <message>
+        <source>Distribute &amp;Bottom Edges</source>
+        <translation>下端を分布(&amp;B)</translation>
+    </message>
+    <message>
+        <source>Distribute Horizontal &amp;Spacing</source>
+        <translation>水平方向の間隔を分布(&amp;S)</translation>
+    </message>
+    <message>
+        <source>Distribute Vertical S&amp;pacing</source>
+        <translation>垂直方向の間隔を分布(&amp;P)</translation>
+    </message>
+    <message>
+        <source>Snap moved layers to other layers, guides, the grid, and the canvas (View &gt; Snap). Choose the targets under View &gt; Snap To.</source>
+        <translation>移動したレイヤーを他のレイヤー、ガイド、グリッド、カンバスにスナップします (表示 &gt; スナップ)。スナップ先は 表示 &gt; スナップ先 で選択します。</translation>
+    </message>
+    <message>
+        <source>Distribute layers and choose what to align to</source>
+        <translation>レイヤーを分布し、整列の基準を選択します</translation>
+    </message>
+    <message>
+        <source>Finish the current drag before aligning layers</source>
+        <translation>レイヤーを整列する前に現在のドラッグを終了してください</translation>
+    </message>
+    <message>
+        <source>Return to the layer view to align layers</source>
+        <translation>レイヤーを整列するにはレイヤー表示に戻ってください</translation>
+    </message>
+    <message>
+        <source>Select a movable layer to align</source>
+        <translation>整列する移動可能なレイヤーを選択してください</translation>
+    </message>
+    <message>
+        <source>The selected layers are already aligned</source>
+        <translation>選択したレイヤーはすでに整列しています</translation>
+    </message>
+    <message numerus="yes">
+        <source>Aligned %n layer(s)</source>
+        <translation>
+            <numerusform>%n 個のレイヤーを整列しました</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Select at least three layers to distribute</source>
+        <translation>分布するには 3 つ以上のレイヤーを選択してください</translation>
+    </message>
+    <message>
+        <source>The selected layers are already distributed</source>
+        <translation>選択したレイヤーはすでに分布しています</translation>
+    </message>
+    <message numerus="yes">
+        <source>Distributed %n layer(s)</source>
+        <translation>
+            <numerusform>%n 個のレイヤーを分布しました</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Rectangular Marquee: drag to select. Drag a handle to resize the selection, or drag inside it to move it.</source>
+        <translation>長方形選択: ドラッグして選択します。ハンドルをドラッグすると選択範囲のサイズを変更し、内側をドラッグすると移動します。</translation>
+    </message>
+    <message>
+        <source>Elliptical Marquee: drag to select. Drag a handle to resize the selection, or drag inside it to move it.</source>
+        <translation>楕円形選択: ドラッグして選択します。ハンドルをドラッグすると選択範囲のサイズを変更し、内側をドラッグすると移動します。</translation>
+    </message>
+    <message>
+        <source>Snap transforms to the pixel grid</source>
+        <translation>変形をピクセルグリッドにスナップ</translation>
+    </message>
+    <message>
+        <source>Positions and sizes typed into the Free Transform bar land on whole pixels, like Photoshop&apos;s &quot;Snap Vector Tools and Transforms to Pixel Grid&quot;. Rotated transforms are not snapped. When off, a typed fraction such as 3.4 px is kept and the pixels are resampled.</source>
+        <translation>自由変形バーに入力した位置とサイズは、Photoshop の「ベクトルツールと変形をピクセルグリッドにスナップ」と同様に整数ピクセルに揃います。回転した変形はスナップされません。オフにすると、3.4 px のような小数の入力はそのまま保持され、ピクセルが再サンプルされます。</translation>
+    </message>
+    <message>
+        <source>&amp;Stroke Selection...</source>
+        <translation>選択範囲の境界線を描く(&amp;S)...</translation>
+    </message>
+    <message>
+        <source>Nothing to stroke</source>
+        <translation>境界線を描く対象がありません</translation>
+    </message>
+    <message>
+        <source>Brush tip: Square</source>
+        <translation>ブラシ先端: 正方形</translation>
+    </message>
+    <message>
+        <source>Remove &amp;Object...</source>
+        <translation>オブジェクトを除去(&amp;O)...</translation>
+    </message>
+    <message>
+        <source>Remove Object needs a selection: select the area to remove first</source>
+        <translation>オブジェクトを除去には選択範囲が必要です。先に除去する領域を選択してください</translation>
+    </message>
+    <message>
+        <source>Tone match</source>
+        <translation>トーン一致</translation>
+    </message>
+    <message>
+        <source>How strongly the fill&apos;s brightness is smoothed to its own edges (0 keeps the raw fill)</source>
+        <translation>塗りつぶしの明るさをその縁に合わせて滑らかにする強さ (0 で生の塗りつぶしを保持)</translation>
+    </message>
+    <message>
+        <source>Edge feather</source>
+        <translation>境界のぼかし</translation>
+    </message>
+    <message>
+        <source> px</source>
+        <translation> px</translation>
+    </message>
+    <message>
+        <source>Reroll</source>
+        <translation>リロール</translation>
+    </message>
+    <message>
+        <source>Fill again with the next variation</source>
+        <translation>次のバリエーションで再度塗りつぶします</translation>
+    </message>
+    <message>
+        <source>Variation %1</source>
+        <translation>バリエーション %1</translation>
+    </message>
+    <message>
+        <source>Content-aware fill (%1 patches)</source>
+        <translation>コンテンツに応じた塗りつぶし (%1 パッチ)</translation>
+    </message>
+    <message>
+        <source>No clean source patches nearby; used the nearest edge (source %1 of %2)</source>
+        <translation>近くにきれいなソースパッチがないため、最寄りの端を使用しました (ソース %1/%2)</translation>
+    </message>
+    <message>
+        <source>Cancelled Remove Object</source>
+        <translation>オブジェクトを除去をキャンセルしました</translation>
+    </message>
+    <message>
+        <source>Removed object with content-aware fill, variation %1 (%2 patches)</source>
+        <translation>コンテンツに応じた塗りつぶしでオブジェクトを除去しました、バリエーション %1 (%2 パッチ)</translation>
+    </message>
+    <message>
+        <source>Removed object with the nearest edge (source %1 of %2)</source>
+        <translation>最寄りの端でオブジェクトを除去しました (ソース %1/%2)</translation>
+    </message>
+    <message>
+        <source>Softens the fill&apos;s edge outward from the selection, on top of its own feather. The filled area grows by the feather, so keep it small when the selection hugs an edge</source>
+        <translation>選択範囲自身のぼかしに加えて、塗りつぶしの縁を選択範囲の外側へぼかします。塗りつぶし範囲はぼかしの分だけ広がるため、選択範囲が縁に接している場合は小さくしてください</translation>
+    </message>
+    <message>
+        <source>Duplicate to New Layer</source>
+        <translation>新規レイヤーに複製</translation>
+    </message>
+    <message>
+        <source>Copies this variation&apos;s filled area onto a new hidden layer above this one, so several variations can be kept and compared</source>
+        <translation>このバリエーションの塗りつぶし範囲を上の新しい非表示レイヤーにコピーし、複数のバリエーションを保存して比較できるようにします</translation>
+    </message>
+    <message>
+        <source>Filling...</source>
+        <translation>塗りつぶし中...</translation>
+    </message>
+    <message>
+        <source>Filling... %1%</source>
+        <translation>塗りつぶし中... %1%</translation>
+    </message>
+    <message>
+        <source>Duplicate Remove Object variation to layer</source>
+        <translation>オブジェクトを除去のバリエーションをレイヤーに複製</translation>
+    </message>
+    <message>
+        <source>Remove Object variation %1</source>
+        <translation>オブジェクトを除去 バリエーション %1</translation>
+    </message>
+    <message>
+        <source>Copied variation %1 to the hidden layer &quot;%2&quot;</source>
+        <translation>バリエーション %1 を非表示レイヤー &quot;%2&quot; にコピーしました</translation>
+    </message>
+    <message>
+        <source>&amp;Files as Layers...</source>
+        <translation>ファイルをレイヤーへ(&amp;F)...</translation>
+    </message>
+    <message>
+        <source>the file holds no layers</source>
+        <translation>ファイルにレイヤーがありません</translation>
+    </message>
+    <message>
+        <source>Folder</source>
+        <translation>フォルダー</translation>
+    </message>
+    <message>
+        <source>None of the files could be added as layers</source>
+        <translation>どのファイルもレイヤーとして追加できませんでした</translation>
+    </message>
+    <message>
+        <source>The drop target is no longer in the document</source>
+        <translation>ドロップ先はドキュメント内に存在しません</translation>
+    </message>
+    <message>
+        <source>Add files as layers</source>
+        <translation>ファイルをレイヤーとして追加</translation>
+    </message>
+    <message>
+        <source>These files could not be added as layers:
+
+%1</source>
+        <translation>これらのファイルはレイヤーとして追加できませんでした:
+
+%1</translation>
+    </message>
+    <message numerus="yes">
+        <source>Added %n layer(s)</source>
+        <translation>
+            <numerusform>%n 個のレイヤーを追加しました</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Files as Layers</source>
+        <translation>ファイルをレイヤーへ</translation>
+    </message>
+    <message>
+        <source>The document is no longer open.</source>
+        <translation>ドキュメントはすでに閉じられています。</translation>
+    </message>
+    <message>
+        <source>Adding file %1 of %2...</source>
+        <translation>ファイルを追加中 %1 / %2...</translation>
+    </message>
+    <message>
+        <source>Cancelled adding files as layers</source>
+        <translation>ファイルをレイヤーとして追加する処理をキャンセルしました</translation>
+    </message>
+    <message>
+        <source>Recover</source>
+        <translation>復元</translation>
+    </message>
+    <message>
+        <source>Automatically save recovery information every</source>
+        <translation>復元情報を自動保存する間隔</translation>
+    </message>
+    <message>
+        <source>Writes a copy of each changed document to a recovery folder so it can be reopened after a crash. The file you saved is never touched, and the copies are removed when Patchy quits normally.</source>
+        <translation>変更した各ドキュメントのコピーを復元フォルダーに書き込み、クラッシュ後に再度開けるようにします。保存したファイルには一切触れず、Patchy が正常に終了するとコピーは削除されます。</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n minute(s)</source>
+        <translation>
+            <numerusform>%n 分</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Could not save recovery information: %1</source>
+        <translation>復元情報を保存できませんでした: %1</translation>
+    </message>
+    <message>
+        <source>%1 (Recovered)</source>
+        <translation>%1 (復元済み)</translation>
+    </message>
+    <message numerus="yes">
+        <source>Recovered %n unsaved document(s) from the last session</source>
+        <translation>
+            <numerusform>前回のセッションから未保存のドキュメントを %n 件復元しました</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n recovery file(s) could not be opened; see %1</source>
+        <translation>
+            <numerusform>%n 件の復元ファイルを開けませんでした。%1 を確認してください</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>How far a pixel&apos;s color may differ from the clicked color and still be filled</source>
+        <translation>クリックした色からどれだけ離れた色までを塗りつぶすか</translation>
+    </message>
+    <message>
+        <source>Limit the fill to pixels connected to the click</source>
+        <translation>塗りつぶしをクリック位置とつながったピクセルに限定します</translation>
+    </message>
+    <message>
+        <source>Paragraph</source>
+        <translation>段落</translation>
+    </message>
+    <message>
+        <source>Justify (last line left)</source>
+        <translation>均等配置（最終行左揃え）</translation>
+    </message>
+    <message>
+        <source>Paragraph alignment; Justify spreads every line but the last across the box</source>
+        <translation>段落の配置。均等配置は最終行以外の各行をテキストボックスの幅いっぱいに広げます</translation>
+    </message>
+    <message>
+        <source>Alignment:</source>
+        <translation>配置:</translation>
+    </message>
+    <message>
+        <source>First line indent:</source>
+        <translation>1 行目インデント:</translation>
+    </message>
+    <message>
+        <source>Indent of each paragraph&apos;s first line; negative with a left indent makes a hanging indent</source>
+        <translation>各段落の 1 行目のインデント。左インデントと組み合わせて負の値にするとぶら下げインデントになります</translation>
+    </message>
+    <message>
+        <source>Left indent:</source>
+        <translation>左インデント:</translation>
+    </message>
+    <message>
+        <source>Space between the box edge and every line&apos;s start</source>
+        <translation>テキストボックスの端と各行の先頭との間隔</translation>
+    </message>
+    <message>
+        <source>Right indent:</source>
+        <translation>右インデント:</translation>
+    </message>
+    <message>
+        <source>Space between every line&apos;s end and the box edge</source>
+        <translation>各行の末尾とテキストボックスの端との間隔</translation>
+    </message>
+    <message>
+        <source>Space before:</source>
+        <translation>段落前の間隔:</translation>
+    </message>
+    <message>
+        <source>Extra space above each paragraph</source>
+        <translation>各段落の上に追加する間隔</translation>
+    </message>
+    <message>
+        <source>Space after:</source>
+        <translation>段落後の間隔:</translation>
+    </message>
+    <message>
+        <source>Extra space below each paragraph</source>
+        <translation>各段落の下に追加する間隔</translation>
+    </message>
+    <message>
+        <source>Paragraph...</source>
+        <translation>段落...</translation>
+    </message>
+    <message>
+        <source>Paragraph panel (alignment, indents, spacing)</source>
+        <translation>段落パネル（配置・インデント・間隔）</translation>
+    </message>
+    <message>
+        <source>Convert to Layers</source>
+        <translation>レイヤーに変換</translation>
+    </message>
+    <message>
+        <source>Replace the smart object with a folder holding the layers of its contents</source>
+        <translation>スマートオブジェクトを、その内容のレイヤーを収めたフォルダーに置き換えます</translation>
+    </message>
+    <message>
+        <source>Embed the linked Smart Object before converting it to layers</source>
+        <translation>レイヤーに変換する前に、リンクされたスマートオブジェクトを埋め込んでください</translation>
+    </message>
+    <message>
+        <source>Delete the Smart Filters before converting this Smart Object to layers</source>
+        <translation>このスマートオブジェクトをレイヤーに変換する前に、スマートフィルターを削除してください</translation>
+    </message>
+    <message>
+        <source>A warped or perspective Smart Object can&apos;t be converted to layers; rasterize it instead</source>
+        <translation>ワープまたは遠近法が適用されたスマートオブジェクトはレイヤーに変換できません。代わりにラスタライズしてください</translation>
+    </message>
+    <message>
+        <source>The smart object&apos;s contents have no layers to convert</source>
+        <translation>スマートオブジェクトの内容に変換できるレイヤーがありません</translation>
+    </message>
+    <message>
+        <source>The contents contain Smart Filters, which can&apos;t be moved out of the Smart Object yet</source>
+        <translation>内容にスマートフィルターが含まれているため、まだスマートオブジェクトの外に移動できません</translation>
+    </message>
+    <message>
+        <source>Could not convert the smart object to layers</source>
+        <translation>スマートオブジェクトをレイヤーに変換できませんでした</translation>
+    </message>
+    <message numerus="yes">
+        <source>Converted the smart object to %n layer(s)</source>
+        <translation>
+            <numerusform>スマートオブジェクトを %n 個のレイヤーに変換しました</numerusform>
+        </translation>
     </message>
 </context>
 <context>
@@ -18433,6 +18951,106 @@ Clipped to the layer below</source>
         <source>removeObject: method must be contentAware or nearestEdge.</source>
         <translation>removeObject: method は contentAware または nearestEdge でなければなりません。</translation>
     </message>
+    <message>
+        <source>%1: options must be an object.</source>
+        <translation>%1: options はオブジェクトである必要があります。</translation>
+    </message>
+    <message>
+        <source>%1: layers must be a nonempty array of layers of this document.</source>
+        <translation>%1: layers はこのドキュメントのレイヤーの空でない配列である必要があります。</translation>
+    </message>
+    <message>
+        <source>%1: alignTo must be &quot;selection&quot; or &quot;canvas&quot;.</source>
+        <translation>%1: alignTo は &quot;selection&quot; または &quot;canvas&quot; である必要があります。</translation>
+    </message>
+    <message>
+        <source>%1: unknown option %2.</source>
+        <translation>%1: 不明なオプション %2 です。</translation>
+    </message>
+    <message>
+        <source>alignLayers: unknown edge %1 (left, hcenter, right, top, vcenter, bottom)</source>
+        <translation>alignLayers: 不明な辺 %1 です (left, hcenter, right, top, vcenter, bottom)</translation>
+    </message>
+    <message>
+        <source>distributeLayers: unknown mode %1 (left, hcenter, right, top, vcenter, bottom, hspacing, vspacing)</source>
+        <translation>distributeLayers: 不明なモード %1 です (left, hcenter, right, top, vcenter, bottom, hspacing, vspacing)</translation>
+    </message>
+    <message>
+        <source>%1 needs layers of this document.</source>
+        <translation>%1 にはこのドキュメントのレイヤーが必要です。</translation>
+    </message>
+    <message>
+        <source>%1: finish the pending transform first.</source>
+        <translation>%1: 先に保留中の変形を終了してください。</translation>
+    </message>
+    <message>
+        <source>alignLayers needs at least one movable layer.</source>
+        <translation>alignLayers には移動可能なレイヤーが 1 つ以上必要です。</translation>
+    </message>
+    <message>
+        <source>distributeLayers needs at least three movable layers.</source>
+        <translation>distributeLayers には移動可能なレイヤーが 3 つ以上必要です。</translation>
+    </message>
+    <message>
+        <source>importFilesAsLayers needs a file path or a non-empty array of paths.</source>
+        <translation>importFilesAsLayers にはファイルパスまたは空でないパスの配列が必要です。</translation>
+    </message>
+    <message>
+        <source>No layers were added.</source>
+        <translation>レイヤーは追加されませんでした。</translation>
+    </message>
+    <message>
+        <source>intervalMinutes must be 5, 10, 15, 30, or 60</source>
+        <translation>intervalMinutes は 5、10、15、30、60 のいずれかにしてください</translation>
+    </message>
+    <message>
+        <source>addTextLayer: font not available, rendered with a fallback: %1</source>
+        <translation>addTextLayer: フォントを使用できないため、代替フォントで描画しました: %1</translation>
+    </message>
+    <message>
+        <source>textAlign must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos; or &apos;justify&apos;.</source>
+        <translation>textAlign は &apos;left&apos;、&apos;center&apos;、&apos;right&apos;、&apos;justify&apos; のいずれかにしてください。</translation>
+    </message>
+    <message>
+        <source>%1: runs must be an array of {text, font, size, bold, italic, color} objects.</source>
+        <translation>%1: runs は {text, font, size, bold, italic, color} オブジェクトの配列にしてください。</translation>
+    </message>
+    <message>
+        <source>%1: run %2 needs a text string.</source>
+        <translation>%1: ラン %2 には text 文字列が必要です。</translation>
+    </message>
+    <message>
+        <source>%1: run %2 has a non-positive size.</source>
+        <translation>%1: ラン %2 の size が正の値ではありません。</translation>
+    </message>
+    <message>
+        <source>%1: run %2 must be a string or an object.</source>
+        <translation>%1: ラン %2 は文字列またはオブジェクトにしてください。</translation>
+    </message>
+    <message>
+        <source>%1: runs must not be empty.</source>
+        <translation>%1: runs を空にはできません。</translation>
+    </message>
+    <message>
+        <source>addTextLayer: text must be a string or an array of runs.</source>
+        <translation>addTextLayer: text は文字列またはランの配列にしてください。</translation>
+    </message>
+    <message>
+        <source>box must be {width, height} of at least 16 document pixels each.</source>
+        <translation>box は {width, height} で、それぞれ 16 ドキュメントピクセル以上にしてください。</translation>
+    </message>
+    <message>
+        <source>align must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos; or &apos;justify&apos;.</source>
+        <translation>align は &apos;left&apos;、&apos;center&apos;、&apos;right&apos;、&apos;justify&apos; のいずれかにしてください。</translation>
+    </message>
+    <message>
+        <source>%1: paragraph must be an object with firstLineIndent, startIndent, endIndent, spaceBefore and spaceAfter numbers (document pixels).</source>
+        <translation>%1: paragraph は firstLineIndent、startIndent、endIndent、spaceBefore、spaceAfter の数値を持つオブジェクトにしてください（ドキュメントピクセル）。</translation>
+    </message>
+    <message>
+        <source>%1: paragraph.%2 must be a number (document pixels).</source>
+        <translation>%1: paragraph.%2 は数値にしてください（ドキュメントピクセル）。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::StartPanel</name>
@@ -18447,10 +19065,6 @@ Clipped to the layer below</source>
     <message>
         <source>Version %1 (built %2)</source>
         <translation>バージョン %1（ビルド日: %2）</translation>
-    </message>
-    <message>
-        <source>Created by Seth A. Robinson</source>
-        <translation>作成: Seth A. Robinson</translation>
     </message>
     <message>
         <source>Code contributions from %1</source>
@@ -18503,6 +19117,10 @@ Clipped to the layer below</source>
     <message>
         <source>desktop version</source>
         <translation>デスクトップ版</translation>
+    </message>
+    <message>
+        <source>Created by %1</source>
+        <translation>作成: %1</translation>
     </message>
 </context>
 <context>

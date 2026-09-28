@@ -1664,20 +1664,25 @@ void ui_filter_gallery_heavy_thumbnail_queue_yields_to_event_loop() {
   patchy::register_builtin_filters(registry);
   auto slow_started = std::make_shared<std::atomic_bool>(false);
   auto release_slow = std::make_shared<std::atomic_bool>(false);
+  auto slow_running = std::make_shared<std::atomic_bool>(false);
   patchy::FilterCatalogMetadata slow_catalog;
   slow_catalog.category = patchy::FilterCategory::Render;
   slow_catalog.execute =
-      [slow_started, release_slow](
+      [slow_started, release_slow, slow_running](
           const patchy::FilterRegistry&, const patchy::FilterInvocation&,
           patchy::PixelBuffer& pixels, const patchy::FilterProgress*) {
         if (pixels.width() > 200) {
+          slow_running->store(true, std::memory_order_release);
           slow_started->store(true, std::memory_order_release);
-          for (int wait = 0;
-               wait < 500 &&
-               !release_slow->load(std::memory_order_acquire);
-               ++wait) {
+          // Self-release is a hang guard for a failed run; the test releases
+          // the worker explicitly.
+          QElapsedTimer parked;
+          parked.start();
+          while (parked.elapsed() < 5000 &&
+                 !release_slow->load(std::memory_order_acquire)) {
             QThread::msleep(1);
           }
+          slow_running->store(false, std::memory_order_release);
         }
       };
   registry.register_filter({"test.filters.slow_proxy", "Slow Proxy Test",
@@ -1740,7 +1745,20 @@ void ui_filter_gallery_heavy_thumbnail_queue_yields_to_event_loop() {
     looks->setCurrentItem(slow);
     CHECK(process_events_until([&] { return central_marker; }, 500));
     CHECK(responsiveness.elapsed() < 180);
-    CHECK(slow_started->load(std::memory_order_acquire));
+    // The center preview is debounced, so the worker may start after the
+    // marker on a busy machine; wait for it instead of assuming the order.
+    CHECK(process_events_until(
+        [&] { return slow_started->load(std::memory_order_acquire); }, 10000));
+    // A UI tick delivered while the slow filter is still parked proves the
+    // center render runs off the event loop, independent of machine load.
+    bool parked_marker = false;
+    bool slow_parked_at_marker = false;
+    QTimer::singleShot(0, dialog, [&] {
+      parked_marker = true;
+      slow_parked_at_marker = slow_running->load(std::memory_order_acquire);
+    });
+    CHECK(process_events_until([&] { return parked_marker; }, 10000));
+    CHECK(slow_parked_at_marker);
     auto* clouds_after_slow = require_gallery_filter_item(
         *looks, QStringLiteral("patchy.filters.clouds"));
     looks->setCurrentItem(clouds_after_slow);
@@ -2062,10 +2080,10 @@ void ui_filter_gallery_smart_filter_badges_and_tooltips() {
     CHECK(outcome->text() == plain_outcome);
     looks->setCurrentItem(gaussian);
     QApplication::processEvents();
-    auto* radius = dialog->findChild<QSpinBox*>(
+    auto* radius = dialog->findChild<QDoubleSpinBox*>(
         QStringLiteral("filterRadiusSpin"));
     CHECK(radius != nullptr);
-    radius->setValue(5);
+    radius->setValue(5.0);
     QApplication::processEvents();
     CHECK(outcome->text() == plain_outcome);
 

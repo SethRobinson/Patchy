@@ -19,10 +19,13 @@ VERSION=$(sed -nE 's/^[[:space:]]*VERSION[[:space:]]+([0-9.]+).*$/\1/p' "$ROOT/C
 [ -n "$VERSION" ] || { echo "ERROR: could not read the project version from CMakeLists.txt"; exit 1; }
 
 mkdir -p "$PACKAGE_DIR"
+# Every core but four (at least one), so the remote machine stays usable.
+JOBS=$(( $(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 5) - 4 ))
+[ "$JOBS" -ge 1 ] || JOBS=1
 # Delete ALL previous bundles up front (not just this version's): if the build fails,
 # nothing stale remains for the newest-file upload script to pick up by accident.
 rm -f "$PACKAGE_DIR"/Patchy-*.flatpak
-nice -n 10 flatpak-builder --jobs=6 --force-clean --repo="$REPO_DIR" "$BUILD_DIR" "flatpak/$APP_ID.yml"
+nice -n 10 flatpak-builder --jobs="$JOBS" --force-clean --repo="$REPO_DIR" "$BUILD_DIR" "flatpak/$APP_ID.yml"
 
 # Proves the sandboxed app runs with no display before any bundle exists. The Qt
 # offscreen platform comes from the org.kde.Platform runtime, not from this repo, so

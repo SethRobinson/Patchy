@@ -50,6 +50,33 @@ private:
   std::unique_ptr<Impl> impl_;
 };
 
+// Converts single-channel gray data to sRGB through an ICC gray profile (Dot Gain 20%,
+// Gray Gamma 2.2, sGray, ...). Inputs use the PSD channel convention: 0 = black,
+// 255 = white. Same intent, black point compensation and cache-free construction as the
+// CMYK transform, so instances are thread-safe and output is independent of chunking.
+class GrayToRgbTransform {
+public:
+  // Returns nullopt when the bytes are not a usable gray ICC profile.
+  [[nodiscard]] static std::optional<GrayToRgbTransform> from_icc_profile(
+      std::span<const std::uint8_t> profile_bytes);
+
+  GrayToRgbTransform(GrayToRgbTransform&&) noexcept;
+  GrayToRgbTransform& operator=(GrayToRgbTransform&&) noexcept;
+  GrayToRgbTransform(const GrayToRgbTransform&) = delete;
+  GrayToRgbTransform& operator=(const GrayToRgbTransform&) = delete;
+  ~GrayToRgbTransform();
+
+  // Gray pixels (1 byte each) to packed sRGB (3 bytes each).
+  void convert(const std::uint8_t* gray, std::uint8_t* rgb_out, std::size_t pixel_count) const;
+  [[nodiscard]] RgbColor convert_single(std::uint8_t gray) const;
+  [[nodiscard]] const std::string& profile_description() const;
+
+private:
+  struct Impl;
+  explicit GrayToRgbTransform(std::unique_ptr<Impl> impl);
+  std::unique_ptr<Impl> impl_;
+};
+
 // Converts CIELAB (D50) pixels to sRGB through lcms2's built-in profiles. Input is the
 // ICC v4 Lab16 PCS encoding (L: 0..65535 = 0..100; a/b: 0..65535 with 0x8080 = 0, i.e.
 // value/257 - 128) - the encoding Affinity .af LABA16 documents store on the wire, fed

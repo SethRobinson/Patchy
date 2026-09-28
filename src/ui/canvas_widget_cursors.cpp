@@ -464,18 +464,30 @@ void CanvasWidget::update_tool_cursor() {
     painter.setRenderHint(QPainter::Antialiasing);
     const QPoint center(extent / 2, extent / 2);
     const auto radius = std::max(2, std::min(diameter, extent - 5) / 2);
+    const bool square = brush_shape_ == patchy::BrushShape::Square && tool_paints_with_brush_tip(tool_);
+    const auto draw_footprint = [&](int half) {
+      if (square) {
+        painter.save();
+        painter.translate(center);
+        painter.rotate(brush_base_angle_degrees_);
+        painter.drawRect(QRectF(-half, -half, 2.0 * half, 2.0 * half));
+        painter.restore();
+      } else {
+        painter.drawEllipse(center, half, half);
+      }
+    };
     painter.setPen(QPen(tool_ == CanvasTool::Eraser ? QColor(255, 255, 255) : QColor(25, 25, 25), 1));
     painter.setBrush(Qt::NoBrush);
-    painter.drawEllipse(center, radius, radius);
+    draw_footprint(radius);
     painter.setPen(QPen(tool_ == CanvasTool::Eraser ? QColor(25, 25, 25) : QColor(255, 255, 255), 1));
-    painter.drawEllipse(center, std::max(1, radius - 1), std::max(1, radius - 1));
+    draw_footprint(std::max(1, radius - 1));
     if (brush_softness_ > 0 && tool_ != CanvasTool::Eraser) {
       const auto edge_width = std::max(1, static_cast<int>(std::round(static_cast<double>(radius) *
                                                                       static_cast<double>(brush_softness_) / 100.0)));
       const auto inner_radius = std::max(1, radius - edge_width);
       QPen softness_pen(QColor(105, 150, 210, 175), 1, Qt::DashLine);
       painter.setPen(softness_pen);
-      painter.drawEllipse(center, inner_radius, inner_radius);
+      draw_footprint(inner_radius);
     }
     painter.drawLine(center + QPoint(-3, 0), center + QPoint(3, 0));
     painter.drawLine(center + QPoint(0, -3), center + QPoint(0, 3));

@@ -1059,7 +1059,6 @@ VisualFilterGalleryResult request_visual_filter_gallery(
     FilterParameterPanelOptions panel_options;
     panel_options.plus_minus_spin_buttons = true;
     panel_options.double_spin_width = 84;
-    panel_options.integer_spin_uses_typed_range = false;
     panel_options.slider_row_spacing = 6;
     panel_options.form_margins = QMargins(0, 4, 0, 0);
     panel_options.form_horizontal_spacing = 8;

@@ -170,6 +170,120 @@ void tool_brush_opacity_and_bounded_layer_expansion_work() {
   write_bmp_artifact("tool_brush_expand_layer", document);
 }
 
+void tool_square_brush_dabs_are_pixel_snapped_and_solid() {
+  const auto count_alpha = [](const patchy::PixelBuffer& pixels, std::uint8_t at_least) {
+    int count = 0;
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        if (pixels.pixel(x, y)[3] >= at_least) {
+          ++count;
+        }
+      }
+    }
+    return count;
+  };
+
+  // A hard square dab at a sub-pixel position covers exactly (2 * radius + 1)^2 whole pixels.
+  {
+    auto document = make_tool_document();
+    const auto layer_id = active_tool_layer(document);
+    auto options = tool_options(0, 0, 0);
+    options.brush_shape = patchy::BrushShape::Square;
+    options.brush_size = 5;
+    CHECK(!patchy::paint_brush_dab(document, layer_id, 10.4, 10.7, options, false).empty());
+    const auto& pixels = document.find_layer(layer_id)->pixels();
+    CHECK(count_alpha(pixels, 255) == 25);
+    CHECK(count_alpha(pixels, 1) == 25);
+    CHECK(pixels.pixel(8, 8)[3] == 255);
+    CHECK(pixels.pixel(12, 12)[3] == 255);
+    CHECK(pixels.pixel(7, 10)[3] == 0);
+    CHECK(pixels.pixel(13, 10)[3] == 0);
+    CHECK(pixels.pixel(10, 7)[3] == 0);
+    CHECK(pixels.pixel(10, 13)[3] == 0);
+  }
+  // Any other fraction gives the same footprint, anchored on the pixel under the dab.
+  {
+    auto document = make_tool_document();
+    const auto layer_id = active_tool_layer(document);
+    auto options = tool_options(0, 0, 0);
+    options.brush_shape = patchy::BrushShape::Square;
+    options.brush_size = 5;
+    CHECK(!patchy::paint_brush_dab(document, layer_id, 30.95, 30.05, options, false).empty());
+    const auto& pixels = document.find_layer(layer_id)->pixels();
+    CHECK(count_alpha(pixels, 255) == 25);
+    CHECK(count_alpha(pixels, 1) == 25);
+    CHECK(pixels.pixel(28, 28)[3] == 255);
+    CHECK(pixels.pixel(32, 32)[3] == 255);
+    CHECK(pixels.pixel(33, 30)[3] == 0);
+  }
+  // Size 1 is the single pixel under the dab.
+  {
+    auto document = make_tool_document();
+    const auto layer_id = active_tool_layer(document);
+    auto options = tool_options(0, 0, 0);
+    options.brush_shape = patchy::BrushShape::Square;
+    options.brush_size = 1;
+    CHECK(!patchy::paint_brush_dab(document, layer_id, 40.6, 20.2, options, false).empty());
+    const auto& pixels = document.find_layer(layer_id)->pixels();
+    CHECK(count_alpha(pixels, 1) == 1);
+    CHECK(pixels.pixel(40, 20)[3] == 255);
+  }
+  // A hard stroke is one continuous, fully opaque band with square ends.
+  {
+    auto document = make_tool_document();
+    const auto layer_id = active_tool_layer(document);
+    auto options = tool_options(0, 0, 0);
+    options.brush_shape = patchy::BrushShape::Square;
+    options.brush_size = 5;
+    CHECK(!patchy::paint_brush_segment(document, layer_id, 5.0, 10.0, 30.0, 10.0, options, false).empty());
+    const auto& pixels = document.find_layer(layer_id)->pixels();
+    for (std::int32_t y = 8; y <= 12; ++y) {
+      for (std::int32_t x = 3; x <= 32; ++x) {
+        CHECK(pixels.pixel(x, y)[3] == 255);
+      }
+    }
+    CHECK(pixels.pixel(2, 10)[3] == 0);
+    CHECK(pixels.pixel(33, 10)[3] == 0);
+    CHECK(pixels.pixel(10, 7)[3] == 0);
+    CHECK(pixels.pixel(10, 13)[3] == 0);
+    CHECK(count_alpha(pixels, 1) == 30 * 5);
+  }
+  // Rotation uses the geometric footprint: a 45 degree square reaches past the axis box along
+  // the axes but leaves that box's corners untouched.
+  {
+    auto document = make_tool_document();
+    const auto layer_id = active_tool_layer(document);
+    auto options = tool_options(0, 0, 0);
+    options.brush_shape = patchy::BrushShape::Square;
+    options.brush_size = 9;
+    options.brush_angle_degrees = 45.0;
+    CHECK(!patchy::paint_brush_dab(document, layer_id, 20.0, 20.0, options, false).empty());
+    const auto& pixels = document.find_layer(layer_id)->pixels();
+    CHECK(pixels.pixel(20, 20)[3] == 255);
+    CHECK(pixels.pixel(25, 20)[3] == 255);
+    CHECK(pixels.pixel(26, 20)[3] == 0);
+    CHECK(pixels.pixel(24, 24)[3] == 0);
+    CHECK(pixels.pixel(22, 22)[3] == 255);
+  }
+  // Soft squares feather inward from the edge and keep their corners.
+  {
+    auto document = make_tool_document();
+    const auto layer_id = active_tool_layer(document);
+    auto options = tool_options(0, 0, 0);
+    options.brush_shape = patchy::BrushShape::Square;
+    options.brush_size = 21;
+    options.brush_softness = 50;
+    CHECK(!patchy::paint_brush_dab(document, layer_id, 30.0, 24.0, options, false).empty());
+    const auto& pixels = document.find_layer(layer_id)->pixels();
+    CHECK(pixels.pixel(30, 24)[3] == 255);
+    const auto edge = pixels.pixel(39, 24)[3];
+    const auto corner = pixels.pixel(39, 33)[3];
+    CHECK(edge > 0 && edge < 255);
+    CHECK(corner == edge);  // Chebyshev feather: the corner is as opaque as the edge midpoint
+    CHECK(pixels.pixel(41, 24)[3] == 0);
+  }
+}
+
 void tool_brush_softness_feathers_edge_alpha() {
   auto document = make_tool_document();
   const auto layer_id = active_tool_layer(document);
@@ -1760,6 +1874,7 @@ std::vector<patchy::test::TestCase> brush_engine_tests() {
       {"tool_brush_opacity_and_bounded_layer_expansion_work",
        tool_brush_opacity_and_bounded_layer_expansion_work},
       {"tool_brush_softness_feathers_edge_alpha", tool_brush_softness_feathers_edge_alpha},
+      {"tool_square_brush_dabs_are_pixel_snapped_and_solid", tool_square_brush_dabs_are_pixel_snapped_and_solid},
       {"tool_brush_repaints_translucent_pixels_without_color_halo",
        tool_brush_repaints_translucent_pixels_without_color_halo},
       {"brush_tip_mips_and_scaling_preserve_shape", brush_tip_mips_and_scaling_preserve_shape},

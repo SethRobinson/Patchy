@@ -277,7 +277,7 @@ smart_filter_descriptor_spec(const SmartFilterEntry &entry) {
     const auto *motion = std::get_if<MotionBlurSmartFilter>(&entry.parameters);
     if (motion == nullptr || motion->angle_degrees < -360 ||
         motion->angle_degrees > 360 || motion->distance_pixels < 1 ||
-        motion->distance_pixels > 999) {
+        motion->distance_pixels > 2000) {
       return std::nullopt;
     }
     spec.angle_degrees = motion->angle_degrees;
@@ -1080,7 +1080,7 @@ std::optional<SmartFilterStack> smart_filter_stack_from_descriptor(
             distance != nullptr &&
             distance->type == DescriptorValue::Type::UnitFloat &&
             distance->unit == "#Pxl" && std::isfinite(distance->double_value) &&
-            distance->double_value >= 1.0 && distance->double_value <= 999.0 &&
+            distance->double_value >= 1.0 && distance->double_value <= 2000.0 &&
             std::floor(distance->double_value) == distance->double_value) {
           entry.kind = SmartFilterKind::MotionBlur;
           entry.parameters = MotionBlurSmartFilter{

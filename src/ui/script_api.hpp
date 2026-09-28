@@ -49,6 +49,11 @@ class ScriptLayerObject : public QObject {
   Q_PROPERTY(QString text READ text WRITE set_text)
   Q_PROPERTY(QString textOrientation READ text_orientation WRITE set_text_orientation)
   Q_PROPERTY(QString textDirection READ text_direction WRITE set_text_direction)
+  Q_PROPERTY(QString textFont READ text_font)
+  Q_PROPERTY(QJSValue textRuns READ text_runs)
+  Q_PROPERTY(QJSValue textBox READ text_box)
+  Q_PROPERTY(QString textAlign READ text_align WRITE set_text_align)
+  Q_PROPERTY(QJSValue textParagraph READ text_paragraph WRITE set_text_paragraph)
 
 public:
   ScriptLayerObject(ScriptEngineHost& host, std::int64_t session_id, LayerId layer_id);
@@ -90,7 +95,18 @@ public:
   [[nodiscard]] QString text_orientation() const;
   void set_text_orientation(const QString& orientation);
   [[nodiscard]] QString text_direction() const;
+  [[nodiscard]] QString text_font() const;
   void set_text_direction(const QString& direction);
+  // The stored runs ({text, font, style, size, bold, italic, color}), the paragraph box
+  // ({width, height} or null for point text) and the paragraph alignment; setTextRuns replaces
+  // the content with formatted runs through the same session as `text`.
+  [[nodiscard]] QJSValue text_runs() const;
+  [[nodiscard]] QJSValue text_box() const;
+  [[nodiscard]] QString text_align() const;
+  void set_text_align(const QString& align);
+  [[nodiscard]] QJSValue text_paragraph() const;
+  void set_text_paragraph(const QJSValue& paragraph);
+  Q_INVOKABLE void setTextRuns(const QJSValue& runs);
 
   Q_INVOKABLE void moveTo(double x, double y);
   Q_INVOKABLE QJSValue duplicate(const QJSValue& target = QJSValue());
@@ -208,12 +224,25 @@ public:
   Q_INVOKABLE QJSValue getPath(const QString& id) const;
   Q_INVOKABLE QJSValue addPath(const QString& name, const QJSValue& data);
   Q_INVOKABLE QJSValue setWorkPath(const QJSValue& data);
-  Q_INVOKABLE QJSValue addTextLayer(const QString& text, const QJSValue& options = QJSValue());
+  // `text` is a string or an array of runs ({text, font?, size?, bold?, italic?, color?}).
+  Q_INVOKABLE QJSValue addTextLayer(const QJSValue& text, const QJSValue& options = QJSValue());
+  // Files as Layers: each path (a string or an array of strings) becomes a
+  // layer above the active layer, bottom to top in argument order; a
+  // multi-layer file becomes a folder named after it. Throws, adding nothing,
+  // when a file cannot be read. Returns the new layers in argument order.
+  Q_INVOKABLE QJSValue importFilesAsLayers(const QJSValue& paths);
   Q_INVOKABLE QJSValue findLayer(const QString& name);
   // Combine Shapes: merges the shape layers (siblings) into the bottom-most
   // one with op "unite" | "subtract" | "intersect" | "exclude"; returns it.
   Q_INVOKABLE QJSValue combineShapes(const QJSValue& layers, const QString& op);
   Q_INVOKABLE QJSValue mergeLayers(const QJSValue& layers, const QJSValue& options = QJSValue());
+  // Layer > Arrange > Align / Distribute. `edge` is "left" | "hcenter" |
+  // "right" | "top" | "vcenter" | "bottom" (Distribute adds "hspacing" |
+  // "vspacing"); options {layers?: PatchyLayer[], alignTo?: "selection" |
+  // "canvas"} default to the layer selection and "selection". Both return the
+  // number of layers moved and ride the run's single undo entry.
+  Q_INVOKABLE int alignLayers(const QString& edge, const QJSValue& options = QJSValue());
+  Q_INVOKABLE int distributeLayers(const QString& mode, const QJSValue& options = QJSValue());
   Q_INVOKABLE void flatten();
   Q_INVOKABLE void resizeImage(int width, int height);
   Q_INVOKABLE void resizeCanvas(int width, int height);
@@ -268,6 +297,7 @@ public:
   // editableLayers, missingFontsAsImages }). A single document is accepted too.
   Q_INVOKABLE bool exportPdf(const QJSValue& documents, const QString& path, const QJSValue& options = QJSValue());
   Q_INVOKABLE QStringList commandIds();
+  Q_INVOKABLE QJSValue listFonts();
 
 private:
   ScriptEngineHost& host_;
@@ -293,6 +323,45 @@ public:
   Q_INVOKABLE bool makeDir(const QString& path);
   // Removes one file (never a folder); true when it was removed.
   Q_INVOKABLE bool deleteFile(const QString& path);
+
+private:
+  ScriptEngineHost& host_;
+};
+
+// patchy.recovery: the automatic document recovery store (docs/document-recovery.md),
+// exposed so scripts and tests can force a recovery write and inspect or reopen
+// what the store holds. The web build reports enabled === false and holds nothing.
+class ScriptRecoveryObject : public QObject {
+  Q_OBJECT
+  Q_PROPERTY(bool enabled READ enabled WRITE set_enabled)
+  Q_PROPERTY(int intervalMinutes READ interval_minutes WRITE set_interval_minutes)
+  Q_PROPERTY(QString directory READ directory)
+
+public:
+  explicit ScriptRecoveryObject(ScriptEngineHost& host);
+
+  // The persisted preferences; setting either re-arms the timer. The interval
+  // must be one of the Preferences steps (5, 10, 15, 30, 60), else it throws.
+  [[nodiscard]] bool enabled() const;
+  void set_enabled(bool enabled);
+  [[nodiscard]] int interval_minutes() const;
+  void set_interval_minutes(int minutes);
+  // This instance's recovery folder ("/" separators); it exists once something
+  // was written.
+  [[nodiscard]] QString directory() const;
+  // Writes a recovery copy of every modified document whose state changed since
+  // its last copy and waits for the files. Returns the PSB paths written; empty
+  // when nothing changed or the app was busy.
+  Q_INVOKABLE QStringList writeNow();
+  // {file, title, originalPath, savedAt}[] for this instance's copies.
+  Q_INVOKABLE QJSValue listFiles();
+  // {directory, file, title, originalPath, savedAt}[] for copies left by instances
+  // that no longer run.
+  Q_INVOKABLE QJSValue listOrphaned();
+  // Reopens every orphaned copy as a modified "(Recovered)" document; returns them.
+  Q_INVOKABLE QJSValue recoverAll();
+  // Deletes every orphaned folder; returns how many documents were dropped.
+  Q_INVOKABLE int discardOrphaned();
 
 private:
   ScriptEngineHost& host_;

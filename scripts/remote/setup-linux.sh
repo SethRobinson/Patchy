@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # One-time (idempotent) provisioning of an Ubuntu/Debian machine for Patchy remote builds.
 # Run from the Windows box:
-#   scp scripts/remote/setup-linux.sh glados@glados.local:
-#   ssh glados@glados.local 'bash setup-linux.sh'
+#   scp scripts/remote/setup-linux.sh <user>@<linux-build-host>:
+#   ssh <user>@<linux-build-host> 'bash setup-linux.sh'
 # Sudo-free where possible: pip is bootstrapped with get-pip.py --user, ninja is the
 # static release binary, and Qt installs via aqtinstall into the work tree's .deps/Qt so
 # the linux-* CMake presets resolve it exactly like on Windows. Only the apt package

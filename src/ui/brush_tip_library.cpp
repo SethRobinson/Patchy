@@ -144,6 +144,15 @@ const QString& builtin_round_brush_tip_id() {
   return id;
 }
 
+const QString& builtin_square_brush_tip_id() {
+  static const QString id = QStringLiteral("builtin.square");
+  return id;
+}
+
+bool is_builtin_brush_tip_id(const QString& id) {
+  return id == builtin_round_brush_tip_id() || id == builtin_square_brush_tip_id();
+}
+
 patchy::BrushTip brush_tip_from_coverage_image(const QImage& coverage_mask, double spacing) {
   patchy::BrushTip tip;
   tip.default_spacing = clamp_spacing(spacing);
@@ -293,7 +302,7 @@ void BrushTipLibrary::reload() {
 }
 
 std::shared_ptr<const patchy::BrushTip> BrushTipLibrary::tip(const QString& id) const {
-  if (id.isEmpty() || id == builtin_round_brush_tip_id()) {
+  if (id.isEmpty() || is_builtin_brush_tip_id(id)) {
     return nullptr;
   }
   for (auto& cached : tip_cache_) {

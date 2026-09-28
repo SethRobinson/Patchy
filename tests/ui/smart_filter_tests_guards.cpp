@@ -240,10 +240,10 @@ void ui_smart_filter_gallery_native_recipe_applies_atomically() {
                  gaussian_item->data(Qt::UserRole + 5).toBool();
         },
         10000));
-    auto* radius = dialog.findChild<QSpinBox*>(
+    auto* radius = dialog.findChild<QDoubleSpinBox*>(
         QStringLiteral("filterRadiusSpin"));
     CHECK(radius != nullptr);
-    radius->setValue(3);
+    radius->setValue(3.0);
     duplicate->click();
     QApplication::processEvents();
     if (mixed_recipe) {

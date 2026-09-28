@@ -84,8 +84,9 @@ RgbColor color(const DescriptorObject &stop) {
   if (c == nullptr)
     return {};
   if (c->class_id == "Grsc") {
+    // 'Gry ' is Photoshop's black percentage (100 = black), as in lfx2 'Grsc' colors.
     const auto gray = static_cast<std::uint8_t>(
-        std::clamp(std::lround(number(*c, "Gry ") * 2.55), 0L, 255L));
+        std::clamp(std::lround((100.0 - number(*c, "Gry ")) * 2.55), 0L, 255L));
     return RgbColor{gray, gray, gray};
   }
   return RgbColor{static_cast<std::uint8_t>(

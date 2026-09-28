@@ -2438,10 +2438,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>The starter PSD reader currently supports RGB and CMYK files only</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>PSD files cannot contain more than 56 channels</source>
         <translation type="unfinished"></translation>
     </message>
@@ -7636,10 +7632,6 @@ RGB: %2, %3, %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Created by Seth A. Robinson</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Code contributions from %1</source>
         <translation type="unfinished"></translation>
     </message>
@@ -8461,6 +8453,58 @@ RGB: %2, %3, %4</source>
         <source>How much the long shadow fades out by its far end</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Change all four corner radii together</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Stroke Selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Stroke color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Choose the stroke color (starts from the foreground color)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Stroke Color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>User data folder (fonts, scripts):</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open Data Folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not open data folder.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Created by %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not write PSD file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The starter PSD reader currently supports RGB, CMYK, and Grayscale files only</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Grayscale PSD file must contain at least 1 channel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The source color mode is Grayscale; Patchy converted the gray values to RGB/RGBA for editing and will export RGB PSD data from this document.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -8803,6 +8847,10 @@ RGB: %2, %3, %4</source>
         <source>preview write</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Square</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushDynamicsButton</name>
@@ -8816,6 +8864,10 @@ RGB: %2, %3, %4</source>
     </message>
     <message>
         <source>Brush dynamics and effects for the active brush tip</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Brush dynamics and effects for the Square brush (this session only; resets on the next launch)</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -9906,6 +9958,42 @@ RGB: %2, %3, %4</source>
         <source>Removing object... %1%</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Align Layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Distribute Layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Resize Selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Removed object with content-aware fill, variation %1 (%2 patches)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove Object was cancelled</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Guide X: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Guide Y: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>X: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Y: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -10440,10 +10528,6 @@ RGB: %2, %3, %4</source>
     </message>
     <message>
         <source>Load Layer &amp;Transparency</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&amp;Stroke Selection</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -17141,10 +17225,6 @@ Y: %2
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Remove &amp;Object</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Remove Object</source>
         <translation type="unfinished"></translation>
     </message>
@@ -17155,6 +17235,449 @@ Y: %2
     <message>
         <source>Fill the selection from its surroundings with the content-aware search (Enter)</source>
         <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Align</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Distribute</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Snap</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Align &amp;Left Edges</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Align &amp;Horizontal Centers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Align &amp;Right Edges</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Align &amp;Top Edges</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Align &amp;Vertical Centers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Align &amp;Bottom Edges</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Align To: &amp;Selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Align To: &amp;Canvas</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Distribute &amp;Left Edges</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Distribute &amp;Horizontal Centers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Distribute &amp;Right Edges</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Distribute &amp;Top Edges</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Distribute &amp;Vertical Centers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Distribute &amp;Bottom Edges</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Distribute Horizontal &amp;Spacing</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Distribute Vertical S&amp;pacing</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Snap moved layers to other layers, guides, the grid, and the canvas (View &gt; Snap). Choose the targets under View &gt; Snap To.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Distribute layers and choose what to align to</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Finish the current drag before aligning layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Return to the layer view to align layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select a movable layer to align</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The selected layers are already aligned</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>Aligned %n layer(s)</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Select at least three layers to distribute</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The selected layers are already distributed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>Distributed %n layer(s)</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Rectangular Marquee: drag to select. Drag a handle to resize the selection, or drag inside it to move it.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Elliptical Marquee: drag to select. Drag a handle to resize the selection, or drag inside it to move it.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Snap transforms to the pixel grid</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Positions and sizes typed into the Free Transform bar land on whole pixels, like Photoshop&apos;s &quot;Snap Vector Tools and Transforms to Pixel Grid&quot;. Rotated transforms are not snapped. When off, a typed fraction such as 3.4 px is kept and the pixels are resampled.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Stroke Selection...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Nothing to stroke</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Brush tip: Square</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove &amp;Object...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove Object needs a selection: select the area to remove first</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tone match</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>How strongly the fill&apos;s brightness is smoothed to its own edges (0 keeps the raw fill)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Edge feather</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source> px</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reroll</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fill again with the next variation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Variation %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Content-aware fill (%1 patches)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No clean source patches nearby; used the nearest edge (source %1 of %2)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cancelled Remove Object</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Removed object with content-aware fill, variation %1 (%2 patches)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Removed object with the nearest edge (source %1 of %2)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Softens the fill&apos;s edge outward from the selection, on top of its own feather. The filled area grows by the feather, so keep it small when the selection hugs an edge</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Duplicate to New Layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copies this variation&apos;s filled area onto a new hidden layer above this one, so several variations can be kept and compared</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Filling...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Filling... %1%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Duplicate Remove Object variation to layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove Object variation %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copied variation %1 to the hidden layer &quot;%2&quot;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Files as Layers...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>the file holds no layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>None of the files could be added as layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The drop target is no longer in the document</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add files as layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>These files could not be added as layers:
+
+%1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>Added %n layer(s)</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Files as Layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The document is no longer open.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Adding file %1 of %2...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cancelled adding files as layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Recover</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Automatically save recovery information every</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Writes a copy of each changed document to a recovery folder so it can be reopened after a crash. The file you saved is never touched, and the copies are removed when Patchy quits normally.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>%n minute(s)</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Could not save recovery information: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 (Recovered)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>Recovered %n unsaved document(s) from the last session</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n recovery file(s) could not be opened; see %1</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>How far a pixel&apos;s color may differ from the clicked color and still be filled</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Limit the fill to pixels connected to the click</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Paragraph</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Justify (last line left)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Paragraph alignment; Justify spreads every line but the last across the box</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Alignment:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>First line indent:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Indent of each paragraph&apos;s first line; negative with a left indent makes a hanging indent</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Left indent:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Space between the box edge and every line&apos;s start</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Right indent:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Space between every line&apos;s end and the box edge</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Space before:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Extra space above each paragraph</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Space after:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Extra space below each paragraph</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Paragraph...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Paragraph panel (alignment, indents, spacing)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Convert to Layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Replace the smart object with a folder holding the layers of its contents</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Embed the linked Smart Object before converting it to layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete the Smart Filters before converting this Smart Object to layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A warped or perspective Smart Object can&apos;t be converted to layers; rasterize it instead</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The smart object&apos;s contents have no layers to convert</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The contents contain Smart Filters, which can&apos;t be moved out of the Smart Object yet</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not convert the smart object to layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>Converted the smart object to %n layer(s)</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
     </message>
 </context>
 <context>
@@ -18435,6 +18958,106 @@ Y: %2
         <source>removeObject: method must be contentAware or nearestEdge.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>%1: options must be an object.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: layers must be a nonempty array of layers of this document.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: alignTo must be &quot;selection&quot; or &quot;canvas&quot;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: unknown option %2.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>alignLayers: unknown edge %1 (left, hcenter, right, top, vcenter, bottom)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>distributeLayers: unknown mode %1 (left, hcenter, right, top, vcenter, bottom, hspacing, vspacing)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 needs layers of this document.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: finish the pending transform first.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>alignLayers needs at least one movable layer.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>distributeLayers needs at least three movable layers.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>importFilesAsLayers needs a file path or a non-empty array of paths.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No layers were added.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>intervalMinutes must be 5, 10, 15, 30, or 60</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>addTextLayer: font not available, rendered with a fallback: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>textAlign must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos; or &apos;justify&apos;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: runs must be an array of {text, font, size, bold, italic, color} objects.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: run %2 needs a text string.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: run %2 has a non-positive size.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: run %2 must be a string or an object.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: runs must not be empty.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>addTextLayer: text must be a string or an array of runs.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>box must be {width, height} of at least 16 document pixels each.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>align must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos; or &apos;justify&apos;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: paragraph must be an object with firstLineIndent, startIndent, endIndent, spaceBefore and spaceAfter numbers (document pixels).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: paragraph.%2 must be a number (document pixels).</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::StartPanel</name>
@@ -18487,10 +19110,6 @@ Y: %2
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Created by Seth A. Robinson</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Code contributions from %1</source>
         <translation type="unfinished"></translation>
     </message>
@@ -18504,6 +19123,10 @@ Y: %2
     </message>
     <message>
         <source>No matching recent files</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Created by %1</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

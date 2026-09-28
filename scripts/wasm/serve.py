@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Static file server for the wasm app build (stdlib only, python 3.9+).
 
-Mirror of serve.mjs for machines without node (studiomac): sends the COOP/COEP
+Mirror of serve.mjs for machines without node (the mac build host): sends the COOP/COEP
 headers cross-origin isolation needs, the wasm MIME types, and the .br/.gz
 precompressed-variant negotiation. Additionally accepts POST /memtest-sample
 from scripts/wasm/stress-harness.html and appends one JSON line per sample to

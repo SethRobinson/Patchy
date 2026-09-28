@@ -3,6 +3,42 @@
 Older Patchy release notes are collected here. The two most recent releases
 remain in [README.md](README.md#whats-new).
 
+## 0.98 - September 24, 2026
+
+- The right mouse button now opens context menus on the canvas instead of panning.  (middle mouse button or holding space bar still pans)
+- Edit > Remove Object fills a selection with content-aware texture taken from its surroundings.  It's slow as shit but seems to work pretty well.  Its dialog has a Reroll button (each variation is a different fill), a Tone match slider (0 keeps the raw fill), and an Edge feather setting.
+- Move tool alignment: magenta guides show when a dragged layer snaps to another layer's edges or center or to the canvas, a Snap checkbox in the options bar turns it off, also a bunch of new alignment buttons are on the Move tool's options bar, and the Align and Distribute commands in the Layer menu work on multiple selected layers
+- Changing the pivot point in the free transform affects rotation now, it was always supposed to but it was broken.  Should probably make the pivot point draggable, hrm.
+- Free Transform numeric fields (and a few other places) accept typed units (px, in, cm, mm, pt, %, deg)
+- New Continuous (long shadow) option for Drop Shadow with a Fade control. Photoshop has no equivalent, so it saves in a way Photoshop ignores and the layer style dialog marks it as Patchy-only
+- Shape tools: a click without a drag opens a Create Shape dialog for exact sizes, and the options bar's W and H resize the active shape. The Shape Appearance dialog adds layer, fill, and stroke opacity, Photoshop-compatible Feather and Density, linked Width/Height and corner radii, a Reset button, and -/+ steppers, and opens from the options bar, Layer > Shape, the Properties panel, or a right-click on a shape layer
+- Right-click a tool palette button to open its tool flyout, and edit a vector shape's width and height from the Properties panel ([@ifloppy](https://github.com/ifloppy)). Flyouts also open with a double-click or a shorter press-and-hold
+- PDF: multi-page PDFs open each page as its own document, with a progress dialog and pages appearing as they load. File > Export > Multi-Page PDF saves open documents or top-level groups as pages, and PDF export is much faster and smaller, with quality presets and grayscale detection; pages that came from an imported PDF and were not edited keep their original image data. The print dialog gains a paper size setting... I need to work on this more, we really need full Artboard support but that's a big job, but at least it's possible to round-trip editing multipage pdfs in a somewhat reasonable way now.
+- File > Open Folder opens every image in a folder as tabs (dropping a folder on the window does the same), and File > Export > Documents to Folder saves open documents as numbered images, layered PSDs, or Aseprite files. The export commands now live together in a File > Export submenu
+- Rectangular and Elliptical Marquee selections can be resized after they are drawn: with the marquee tool active, drag a handle on an edge or corner (Shift on a corner keeps the proportions, and holding Space mid-drag slides the whole selection, as it does while drawing one), or drag inside the selection to move it as before. Feathered and rounded selections are redrawn at the new size, and Undo steps back through each resize
+- Text positioning between Patchy->Photoshop is more accurate
+- Square brush preset added, square brush 'tip' is now handled programmatically, not with a bmp
+
+## 0.97 - September 21, 2026
+
+- Vertical text: type layers can be laid out vertically (tategaki style) with a toggle in the Type tool's options bar, and paragraphs can run right-to-left. A "Rotate Latin (vertical text)" checkbox in the Character panel lays Latin letters on their side the way Photoshop's Standard Vertical Roman Alignment does. Both round-trip through PSD so Photoshop lays the text out the same way, and scripts can set them
+- Typing with an IME (Japanese and others) previews the composition inline and the candidate window follows the caret instead of covering the text. Characters the current font cannot draw, such as kana typed into Arial, switch to a font that can, so the PSD reopens in Photoshop with real glyphs
+- Character panel: the leading field is editable again (entering a value turns Auto leading off, as in Photoshop), the numeric fields gain -/+ step buttons, tracking is written the way Photoshop expects so it re-lays out tracked type correctly, and the Type tool's initial size scales with the document
+- Layer mask Density and Feather set in Photoshop now render correctly and survive a round trip through Patchy, for both painted and vector masks, and the vector-mask feather matches Photoshop's blur
+- PSD files where a layer has both a painted mask and a vector mask now load the painted mask correctly
+- New Add Layer Mask button in the Layers panel footer
+- Free Transform takes a linked layer mask along with the layer and previews masked layers faster, with much less per-frame work on painted masks during the drag
+- Every Layer Style slider, including Blend If, gains -/+ step buttons
+- PSD text set in a font that Windows reports under a different name (Balmoral LET Plain, for example) now resolves to the installed family instead of showing as missing
+- The Linux Flatpak installs without root or a preconfigured Flathub remote
+
+## 0.96 - September 17, 2026
+
+- Canvas Size preserves each layer's off-canvas pixels and masks when shrinking or enlarging the canvas. An optional "Also crop each actual layer to the canvas area" checkbox enables destructive cropping and starts unchecked every time the dialog opens
+- Clipping masks above layer groups now use the group's combined transparency correctly
+- Merge Visible to New Layer (Copy) preserves transparency in the merged copy
+- Switching languages updates menus, panels, tool options, and the start screen consistently
+
 ## 0.95 - September 16, 2026
 
 - The interface now supports German, Spanish, French, Italian, Japanese, and Simplified and Traditional Chinese alongside English. It follows your system language or your choice in File > Preferences.  I had to add 20 mb to the filesize to include fonts to do this proper, but.. I think that's ok in the grand scheme of things.\

@@ -1,5 +1,6 @@
 #include "ui/script_vector.hpp"
 #include "ui/script_api.hpp"
+#include "ui/qt_geometry.hpp"
 #include <algorithm>
 
 namespace patchy::ui {
@@ -199,7 +200,7 @@ void ScriptSelectionObject::fromPath(const QJSValue& data, const QJSValue& optio
   guarded(host_, [&] {
     const auto path = parse_path(object(data), false);
     const auto args = object(options, true); keys(args, {"operation", "feather", "antialias"});
-    const auto feather = number(args, "feather", 0, 0, 250);
+    const auto feather = number(args, "feather", 0, 0, kMaxSelectionFeatherRadius);
     const auto aa = boolean(args, "antialias", true);
     const auto op = string(args, "operation", "replace");
     if (!QStringList{"replace", "add", "subtract", "intersect"}.contains(op)) { invalid("operation"); }

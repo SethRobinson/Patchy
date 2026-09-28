@@ -80,6 +80,12 @@ QString format_degrees(double degrees, int decimals, bool show_sign) {
   return format_readout_number(degrees, decimals, show_sign) + degree_suffix();
 }
 
+QString format_measurement(double value, MeasurementUnit unit, int decimals, bool show_sign) {
+  const auto suffix = unit == MeasurementUnit::Percent ? percent_suffix()
+                                                       : QStringLiteral(" ") + measurement_unit_suffix(unit);
+  return format_readout_number(value, decimals, show_sign) + suffix;
+}
+
 QString measurement_unit_name(MeasurementUnit unit) {
   switch (unit) {
     case MeasurementUnit::Pixels:

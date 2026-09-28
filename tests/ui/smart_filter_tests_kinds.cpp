@@ -226,9 +226,9 @@ void ui_gaussian_blur_normal_pixel_layer_stays_destructive() {
         find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
     CHECK(dialog != nullptr);
     auto* radius =
-        dialog->findChild<QSpinBox*>(QStringLiteral("filterRadiusSpin"));
+        dialog->findChild<QDoubleSpinBox*>(QStringLiteral("filterRadiusSpin"));
     CHECK(radius != nullptr);
-    radius->setValue(3);
+    radius->setValue(3.0);
     accepted = true;
     dialog->accept();
   });
@@ -290,7 +290,7 @@ void ui_high_pass_normal_pixel_layer_stays_destructive() {
     CHECK(radius != nullptr && slider != nullptr);
     CHECK(std::abs(radius->minimum() - 0.1) < 0.000001);
     CHECK(std::abs(radius->maximum() - 1000.0) < 0.000001);
-    CHECK(slider->maximum() == 119);
+    CHECK(slider->maximum() == 999);
     CHECK(std::abs(radius->value() - 10.0) < 0.000001);
     radius->setValue(4.25);
     accepted = true;
@@ -623,7 +623,7 @@ void ui_smart_filter_high_pass_add_edit_and_reopen() {
     CHECK(std::abs(radius->value() - 10.0) < 0.000001);
     CHECK(std::abs(radius->minimum() - 0.1) < 0.000001);
     CHECK(std::abs(radius->maximum() - 1000.0) < 0.000001);
-    CHECK(slider->maximum() == 1190);
+    CHECK(slider->maximum() == 9990);
     radius->setValue(4.25);
     applied = true;
     dialog->accept();
@@ -1409,7 +1409,7 @@ void ui_smart_filter_unsharp_motion_add_edit_and_reopen() {
         dialog->findChild<QSpinBox *>(QStringLiteral("filterDistanceSpin"));
     CHECK(angle != nullptr && distance != nullptr);
     CHECK(angle->minimum() == -360 && angle->maximum() == 360);
-    CHECK(distance->minimum() == 1 && distance->maximum() == 999);
+    CHECK(distance->minimum() == 1 && distance->maximum() == 2000);
     angle->setValue(37);
     distance->setValue(12);
     motion_added = true;

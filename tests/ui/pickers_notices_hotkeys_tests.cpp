@@ -676,6 +676,19 @@ void ui_compatibility_report_flags_cmyk_rgb_conversion() {
   CHECK(text.contains(QStringLiteral("RGB/RGBA")));
 }
 
+void ui_compatibility_report_flags_grayscale_rgb_conversion() {
+  patchy::Document document(120, 90, patchy::PixelFormat::rgb8());
+  document.metadata().values["psd.color_mode"] = "Grayscale";
+  document.add_pixel_layer("Background", solid_pixels(120, 90, patchy::PixelFormat::rgb8(), QColor(Qt::white)));
+
+  const auto warnings = patchy::ui::compatibility_warnings_for_document(document);
+  CHECK(!warnings.isEmpty());
+  const auto text = warnings.join(QLatin1Char('\n'));
+  CHECK(text.contains(QStringLiteral("Grayscale")));
+  CHECK(text.contains(QStringLiteral("converted")));
+  CHECK(text.contains(QStringLiteral("RGB/RGBA")));
+}
+
 void ui_compatibility_report_flags_unrendered_styles_on_groups() {
   // Group layer effects RENDER since July 2026, so a styled group must NOT
   // raise a compatibility warning anymore (the Satin-contour warning below
@@ -1023,7 +1036,8 @@ void ui_photoshop_shortcuts_are_registered() {
   CHECK(require_action_by_text(window, QStringLiteral("Save As..."))->shortcut() ==
         QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_S));
   // Photoshop's Save for Web key.
-  CHECK(require_action_by_text(window, QStringLiteral("Export Flat Image..."))->shortcut() ==
+  // File > Export > Flat Image... (the submenu title carries the verb).
+  CHECK(require_action(window, "fileExportFlatAction")->shortcut() ==
         QKeySequence(Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_S));
   CHECK(require_action_by_text(window, QStringLiteral("Close"))->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_W));
   CHECK(require_action_by_text(window, QStringLiteral("Close All"))->shortcut() ==
@@ -1192,7 +1206,7 @@ void ui_photoshop_shortcuts_are_registered() {
   CHECK(brush_softness_slider != nullptr);
   CHECK(brush_preset != nullptr);
   CHECK(brush_size->maximum() == patchy::ui::kMaxBrushSize);
-  CHECK(brush_size_slider->maximum() == patchy::ui::kMaxBrushSize);
+  CHECK(brush_size_slider->maximum() == patchy::ui::kCurvedSliderPositions);
   CHECK(brush_size->buttonSymbols() == QAbstractSpinBox::NoButtons);
   CHECK(brush_opacity->buttonSymbols() == QAbstractSpinBox::NoButtons);
   CHECK(brush_flow->buttonSymbols() == QAbstractSpinBox::NoButtons);
@@ -1227,10 +1241,10 @@ void ui_photoshop_shortcuts_are_registered() {
   // the current size, so at 20 px the plain step is +2 (10%) and Shift is +6
   // (30%), and grow-then-shrink returns to the same size.
   brush_size->setValue(20);
-  CHECK(brush_size_slider->value() == 20);
+  CHECK(patchy::ui::slider_value(*brush_size_slider) == 20);
   require_action(window, "brushLargerAction")->trigger();
   CHECK(brush_size->value() == 22);
-  CHECK(brush_size_slider->value() == 22);
+  CHECK(patchy::ui::slider_value(*brush_size_slider) == 22);
   CHECK(canvas->brush_size() == 22);
   require_action(window, "brushSmallerAction")->trigger();
   CHECK(brush_size->value() == 20);
@@ -1253,7 +1267,7 @@ void ui_photoshop_shortcuts_are_registered() {
   require_action(window, "brushMuchSmallerAction")->trigger();
   CHECK(brush_size->value() == 100);
   brush_size->setValue(patchy::ui::kMaxBrushSize);
-  CHECK(brush_size_slider->value() == patchy::ui::kMaxBrushSize);
+  CHECK(patchy::ui::slider_value(*brush_size_slider) == patchy::ui::kMaxBrushSize);
   CHECK(canvas->brush_size() == patchy::ui::kMaxBrushSize);
   require_action(window, "brushLargerAction")->trigger();
   CHECK(brush_size->value() == patchy::ui::kMaxBrushSize);
@@ -1318,6 +1332,118 @@ void ui_brush_flow_popup_slider_updates_canvas() {
   save_widget_artifact("ui_brush_flow_popup", *popup);
   popup->close();
   QApplication::processEvents();
+}
+
+// Size-like sliders use SliderCurve::FineLowEnd: the value grows with the
+// square of the handle position, so small sizes get most of the track.
+void ui_size_sliders_give_the_low_end_most_of_the_track() {
+  using patchy::ui::kCurvedSliderPositions;
+  CHECK(patchy::ui::curved_slider_value(0, 1.0, 1024.0) == 1.0);
+  CHECK(patchy::ui::curved_slider_value(kCurvedSliderPositions, 1.0, 1024.0) == 1024.0);
+  CHECK(patchy::ui::curved_slider_value(kCurvedSliderPositions / 2, 0.0, 1000.0) == 250.0);
+  CHECK(patchy::ui::curved_slider_position(250.0, 0.0, 1000.0) == kCurvedSliderPositions / 2);
+  CHECK(patchy::ui::curved_slider_position(-5.0, 0.0, 1000.0) == 0);
+  CHECK(patchy::ui::curved_slider_position(5000.0, 0.0, 1000.0) == kCurvedSliderPositions);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  auto* canvas = require_canvas(window);
+  auto* brush_size = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
+  auto* slider = window.findChild<QSlider*>(QStringLiteral("brushSizeSlider"));
+  CHECK(brush_size != nullptr && slider != nullptr);
+  CHECK(slider->minimum() == 0 && slider->maximum() == kCurvedSliderPositions);
+
+  // Half the track is a quarter of 1..1024, and the first quarter of the track
+  // covers 1..65.
+  slider->setValue(kCurvedSliderPositions / 2);
+  CHECK(brush_size->value() == 257);
+  CHECK(canvas->brush_size() == 257);
+  slider->setValue(kCurvedSliderPositions / 4);
+  CHECK(brush_size->value() == 65);
+  // Typed values move the handle to the matching position.
+  brush_size->setValue(20);
+  CHECK(patchy::ui::slider_value(*slider) == 20);
+  brush_size->setValue(patchy::ui::kMaxBrushSize);
+  CHECK(slider->value() == kCurvedSliderPositions);
+
+  // A drag keeps the handle under the mouse instead of snapping it to the
+  // value's canonical position (301 and 302 both show 94).
+  slider->setSliderDown(true);
+  slider->setSliderPosition(301);
+  CHECK(brush_size->value() == 94);
+  CHECK(slider->value() == 301);
+  slider->setSliderDown(false);
+
+  // Keyboard and wheel steps change the value by one unit even where one
+  // position is far less than one pixel of brush.
+  brush_size->setValue(1);
+  CHECK(slider->value() == 0);
+  slider->triggerAction(QAbstractSlider::SliderSingleStepAdd);
+  CHECK(brush_size->value() == 2);
+  slider->triggerAction(QAbstractSlider::SliderSingleStepAdd);
+  CHECK(brush_size->value() == 3);
+  slider->triggerAction(QAbstractSlider::SliderSingleStepSub);
+  CHECK(brush_size->value() == 2);
+  const QPointF center(slider->width() / 2.0, slider->height() / 2.0);
+  QWheelEvent wheel(center, slider->mapToGlobal(center), QPoint(), QPoint(0, 120), Qt::NoButton,
+                    Qt::NoModifier, Qt::NoScrollPhase, false);
+  QApplication::sendEvent(slider, &wheel);
+  CHECK(std::abs(brush_size->value() - 2) == 1);
+
+  const auto open_popup_slider = [&window](const QString& base_name) -> QSlider* {
+    auto* action = window.findChild<QAction*>(base_name + QStringLiteral("PopupAction"));
+    CHECK(action != nullptr);
+    action->trigger();
+    QApplication::processEvents();
+    auto* popup_slider = window.findChild<QSlider*>(base_name + QStringLiteral("PopupSlider"));
+    CHECK(popup_slider != nullptr);
+    return popup_slider;
+  };
+  const auto close_popup = [&window](const QString& base_name) {
+    auto* popup = window.findChild<QFrame*>(base_name + QStringLiteral("Popup"));
+    CHECK(popup != nullptr);
+    popup->close();
+    QApplication::processEvents();
+  };
+
+  // The brush size popup shares the curve and keeps the options-bar slider in step.
+  auto* size_popup_slider = open_popup_slider(QStringLiteral("brushSize"));
+  CHECK(size_popup_slider->maximum() == kCurvedSliderPositions);
+  size_popup_slider->setValue(kCurvedSliderPositions / 2);
+  CHECK(brush_size->value() == 257);
+  CHECK(slider->value() == kCurvedSliderPositions / 2);
+  close_popup(QStringLiteral("brushSize"));
+
+  auto* feather = window.findChild<QSpinBox*>(QStringLiteral("selectionFeatherSpin"));
+  CHECK(feather != nullptr);
+  auto* feather_slider = open_popup_slider(QStringLiteral("selectionFeather"));
+  CHECK(feather_slider->maximum() == kCurvedSliderPositions);
+  feather_slider->setValue(kCurvedSliderPositions / 2);
+  CHECK(feather->value() == 250);
+  patchy::ui::set_slider_to_value(*feather_slider, 12);
+  CHECK(feather->value() == 12);
+  close_popup(QStringLiteral("selectionFeather"));
+
+  auto* line_weight = window.findChild<QSpinBox*>(QStringLiteral("vectorLineWeightSpin"));
+  CHECK(line_weight != nullptr);
+  auto* line_weight_slider = open_popup_slider(QStringLiteral("vectorLineWeight"));
+  CHECK(line_weight_slider->maximum() == kCurvedSliderPositions);
+  line_weight_slider->setValue(kCurvedSliderPositions / 2);
+  CHECK(line_weight->value() == 251);
+  close_popup(QStringLiteral("vectorLineWeight"));
+
+  // Percent popups stay linear.
+  auto* opacity_slider = open_popup_slider(QStringLiteral("brushOpacity"));
+  CHECK(opacity_slider->maximum() == 100);
+  close_popup(QStringLiteral("brushOpacity"));
+
+  auto* quick_select_size = window.findChild<QSpinBox*>(QStringLiteral("quickSelectSizeSpin"));
+  auto* quick_select_slider = window.findChild<QSlider*>(QStringLiteral("quickSelectSizeSlider"));
+  CHECK(quick_select_size != nullptr && quick_select_slider != nullptr);
+  CHECK(quick_select_slider->maximum() == kCurvedSliderPositions);
+  quick_select_slider->setValue(kCurvedSliderPositions / 2);
+  CHECK(quick_select_size->value() == 129);
 }
 
 // Snapshots and restores the whole "hotkeys" settings group so hotkey tests
@@ -1693,6 +1819,8 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
        ui_compatibility_report_pins_native_vs_private_adjustment_kinds},
       {"ui_compatibility_report_flags_cmyk_rgb_conversion",
        ui_compatibility_report_flags_cmyk_rgb_conversion},
+      {"ui_compatibility_report_flags_grayscale_rgb_conversion",
+       ui_compatibility_report_flags_grayscale_rgb_conversion},
       {"ui_compatibility_report_flags_unrendered_styles_on_groups",
        ui_compatibility_report_flags_unrendered_styles_on_groups},
       {"ui_compatibility_report_handles_supported_unsupported_and_boundary_blend_if",
@@ -1715,6 +1843,8 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
       {"ui_photoshop_shortcuts_are_registered", ui_photoshop_shortcuts_are_registered},
       {"ui_brush_flow_popup_slider_updates_canvas",
        ui_brush_flow_popup_slider_updates_canvas},
+      {"ui_size_sliders_give_the_low_end_most_of_the_track",
+       ui_size_sliders_give_the_low_end_most_of_the_track},
       {"ui_hotkey_resolution_rules", ui_hotkey_resolution_rules},
       {"ui_hotkey_defaults_have_no_conflicts", ui_hotkey_defaults_have_no_conflicts},
       {"ui_hotkey_override_applies_at_startup", ui_hotkey_override_applies_at_startup},

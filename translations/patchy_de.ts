@@ -2438,10 +2438,6 @@
         <translation>Der einfache PSD-Reader unterstützt derzeit nur 8-, 16- und 32-Bit-Dateien</translation>
     </message>
     <message>
-        <source>The starter PSD reader currently supports RGB and CMYK files only</source>
-        <translation>Der einfache PSD-Reader unterstützt derzeit nur RGB- und CMYK-Dateien</translation>
-    </message>
-    <message>
         <source>PSD files cannot contain more than 56 channels</source>
         <translation>PSD-Dateien dürfen nicht mehr als 56 Kanäle enthalten</translation>
     </message>
@@ -7645,10 +7641,6 @@ RGB: %2, %3, %4</translation>
         <translation>Version %1 (erstellt am %2)</translation>
     </message>
     <message>
-        <source>Created by Seth A. Robinson</source>
-        <translation>Erstellt von Seth A. Robinson</translation>
-    </message>
-    <message>
         <source>Code contributions from %1</source>
         <translation>Code-Beiträge von %1</translation>
     </message>
@@ -8470,6 +8462,58 @@ RGB: %2, %3, %4</translation>
         <source>How much the long shadow fades out by its far end</source>
         <translation>Wie stark der lange Schatten zu seinem fernen Ende hin ausblendet</translation>
     </message>
+    <message>
+        <source>Change all four corner radii together</source>
+        <translation>Alle vier Eckenradien gemeinsam ändern</translation>
+    </message>
+    <message>
+        <source>Stroke Selection</source>
+        <translation>Kontur füllen</translation>
+    </message>
+    <message>
+        <source>Stroke color</source>
+        <translation>Konturfarbe</translation>
+    </message>
+    <message>
+        <source>Choose the stroke color (starts from the foreground color)</source>
+        <translation>Konturfarbe wählen (beginnt mit der Vordergrundfarbe)</translation>
+    </message>
+    <message>
+        <source>Stroke Color</source>
+        <translation>Konturfarbe</translation>
+    </message>
+    <message>
+        <source>User data folder (fonts, scripts):</source>
+        <translation>Benutzerdatenordner (Schriften, Skripte):</translation>
+    </message>
+    <message>
+        <source>Open Data Folder</source>
+        <translation>Datenordner öffnen</translation>
+    </message>
+    <message>
+        <source>Could not open data folder.</source>
+        <translation>Der Datenordner konnte nicht geöffnet werden.</translation>
+    </message>
+    <message>
+        <source>Created by %1</source>
+        <translation>Erstellt von %1</translation>
+    </message>
+    <message>
+        <source>Could not write PSD file</source>
+        <translation>Die PSD-Datei konnte nicht geschrieben werden</translation>
+    </message>
+    <message>
+        <source>The starter PSD reader currently supports RGB, CMYK, and Grayscale files only</source>
+        <translation>Der einfache PSD-Reader unterstützt derzeit nur RGB-, CMYK- und Graustufen-Dateien</translation>
+    </message>
+    <message>
+        <source>Grayscale PSD file must contain at least 1 channel</source>
+        <translation>Eine Graustufen-PSD-Datei muss mindestens 1 Kanal enthalten</translation>
+    </message>
+    <message>
+        <source>The source color mode is Grayscale; Patchy converted the gray values to RGB/RGBA for editing and will export RGB PSD data from this document.</source>
+        <translation>Der Quellfarbmodus ist Graustufen. Patchy hat die Grauwerte zur Bearbeitung in RGB/RGBA konvertiert und exportiert aus diesem Dokument RGB-PSD-Daten.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -8812,6 +8856,10 @@ RGB: %2, %3, %4</translation>
         <source>preview write</source>
         <translation>Vorschau schreiben</translation>
     </message>
+    <message>
+        <source>Square</source>
+        <translation>Quadrat</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushDynamicsButton</name>
@@ -8826,6 +8874,10 @@ RGB: %2, %3, %4</translation>
     <message>
         <source>Brush dynamics and effects for the active brush tip</source>
         <translation>Pinseldynamik und Effekte für die aktive Pinselspitze</translation>
+    </message>
+    <message>
+        <source>Brush dynamics and effects for the Square brush (this session only; resets on the next launch)</source>
+        <translation>Pinseldynamik und Effekte für den quadratischen Pinsel (nur in dieser Sitzung; wird beim nächsten Start zurückgesetzt)</translation>
     </message>
 </context>
 <context>
@@ -9915,6 +9967,42 @@ RGB: %2, %3, %4</translation>
         <source>Removing object... %1%</source>
         <translation>Objekt wird entfernt... %1%</translation>
     </message>
+    <message>
+        <source>Align Layers</source>
+        <translation>Ebenen ausrichten</translation>
+    </message>
+    <message>
+        <source>Distribute Layers</source>
+        <translation>Ebenen verteilen</translation>
+    </message>
+    <message>
+        <source>Resize Selection</source>
+        <translation>Auswahlgröße ändern</translation>
+    </message>
+    <message>
+        <source>Removed object with content-aware fill, variation %1 (%2 patches)</source>
+        <translation>Objekt mit inhaltsbasierter Füllung entfernt, Variante %1 (%2 Patches)</translation>
+    </message>
+    <message>
+        <source>Remove Object was cancelled</source>
+        <translation>Objekt entfernen wurde abgebrochen</translation>
+    </message>
+    <message>
+        <source>Guide X: %1</source>
+        <translation>Hilfslinie X: %1</translation>
+    </message>
+    <message>
+        <source>Guide Y: %1</source>
+        <translation>Hilfslinie Y: %1</translation>
+    </message>
+    <message>
+        <source>X: %1</source>
+        <translation>X: %1</translation>
+    </message>
+    <message>
+        <source>Y: %1</source>
+        <translation>Y: %1</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -10450,10 +10538,6 @@ RGB: %2, %3, %4</translation>
     <message>
         <source>Load Layer &amp;Transparency</source>
         <translation>Ebenen&amp;transparenz laden</translation>
-    </message>
-    <message>
-        <source>&amp;Stroke Selection</source>
-        <translation>&amp;Kontur füllen</translation>
     </message>
     <message>
         <source>Define Brush Tip from Selection</source>
@@ -17185,10 +17269,6 @@ Y: %2
         <translation>Drehpunkt:</translation>
     </message>
     <message>
-        <source>Remove &amp;Object</source>
-        <translation>&amp;Objekt entfernen</translation>
-    </message>
-    <message>
         <source>Remove Object</source>
         <translation>Objekt entfernen</translation>
     </message>
@@ -17199,6 +17279,451 @@ Y: %2
     <message>
         <source>Fill the selection from its surroundings with the content-aware search (Enter)</source>
         <translation>Die Auswahl mit der inhaltsbasierten Suche aus ihrer Umgebung füllen (Enter)</translation>
+    </message>
+    <message>
+        <source>&amp;Align</source>
+        <translation>&amp;Ausrichten</translation>
+    </message>
+    <message>
+        <source>&amp;Distribute</source>
+        <translation>&amp;Verteilen</translation>
+    </message>
+    <message>
+        <source>Snap</source>
+        <translation>Ausrichten</translation>
+    </message>
+    <message>
+        <source>Align &amp;Left Edges</source>
+        <translation>&amp;Linke Kanten ausrichten</translation>
+    </message>
+    <message>
+        <source>Align &amp;Horizontal Centers</source>
+        <translation>&amp;Horizontale Mitten ausrichten</translation>
+    </message>
+    <message>
+        <source>Align &amp;Right Edges</source>
+        <translation>&amp;Rechte Kanten ausrichten</translation>
+    </message>
+    <message>
+        <source>Align &amp;Top Edges</source>
+        <translation>&amp;Obere Kanten ausrichten</translation>
+    </message>
+    <message>
+        <source>Align &amp;Vertical Centers</source>
+        <translation>&amp;Vertikale Mitten ausrichten</translation>
+    </message>
+    <message>
+        <source>Align &amp;Bottom Edges</source>
+        <translation>&amp;Untere Kanten ausrichten</translation>
+    </message>
+    <message>
+        <source>Align To: &amp;Selection</source>
+        <translation>Ausrichten an: &amp;Auswahl</translation>
+    </message>
+    <message>
+        <source>Align To: &amp;Canvas</source>
+        <translation>Ausrichten an: &amp;Arbeitsfläche</translation>
+    </message>
+    <message>
+        <source>Distribute &amp;Left Edges</source>
+        <translation>&amp;Linke Kanten verteilen</translation>
+    </message>
+    <message>
+        <source>Distribute &amp;Horizontal Centers</source>
+        <translation>&amp;Horizontale Mitten verteilen</translation>
+    </message>
+    <message>
+        <source>Distribute &amp;Right Edges</source>
+        <translation>&amp;Rechte Kanten verteilen</translation>
+    </message>
+    <message>
+        <source>Distribute &amp;Top Edges</source>
+        <translation>&amp;Obere Kanten verteilen</translation>
+    </message>
+    <message>
+        <source>Distribute &amp;Vertical Centers</source>
+        <translation>&amp;Vertikale Mitten verteilen</translation>
+    </message>
+    <message>
+        <source>Distribute &amp;Bottom Edges</source>
+        <translation>&amp;Untere Kanten verteilen</translation>
+    </message>
+    <message>
+        <source>Distribute Horizontal &amp;Spacing</source>
+        <translation>Horizontale Ab&amp;stände verteilen</translation>
+    </message>
+    <message>
+        <source>Distribute Vertical S&amp;pacing</source>
+        <translation>Vertikale A&amp;bstände verteilen</translation>
+    </message>
+    <message>
+        <source>Snap moved layers to other layers, guides, the grid, and the canvas (View &gt; Snap). Choose the targets under View &gt; Snap To.</source>
+        <translation>Verschobene Ebenen an anderen Ebenen, Hilfslinien, dem Raster und der Arbeitsfläche ausrichten (Ansicht &gt; Ausrichten). Die Ziele wählen Sie unter Ansicht &gt; Ausrichten an.</translation>
+    </message>
+    <message>
+        <source>Distribute layers and choose what to align to</source>
+        <translation>Ebenen verteilen und festlegen, woran ausgerichtet wird</translation>
+    </message>
+    <message>
+        <source>Finish the current drag before aligning layers</source>
+        <translation>Beenden Sie das Ziehen, bevor Sie Ebenen ausrichten</translation>
+    </message>
+    <message>
+        <source>Return to the layer view to align layers</source>
+        <translation>Wechseln Sie zur Ebenenansicht, um Ebenen auszurichten</translation>
+    </message>
+    <message>
+        <source>Select a movable layer to align</source>
+        <translation>Wählen Sie eine verschiebbare Ebene zum Ausrichten aus</translation>
+    </message>
+    <message>
+        <source>The selected layers are already aligned</source>
+        <translation>Die ausgewählten Ebenen sind bereits ausgerichtet</translation>
+    </message>
+    <message numerus="yes">
+        <source>Aligned %n layer(s)</source>
+        <translation>
+            <numerusform>%n Ebene ausgerichtet</numerusform>
+            <numerusform>%n Ebenen ausgerichtet</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Select at least three layers to distribute</source>
+        <translation>Wählen Sie mindestens drei Ebenen zum Verteilen aus</translation>
+    </message>
+    <message>
+        <source>The selected layers are already distributed</source>
+        <translation>Die ausgewählten Ebenen sind bereits verteilt</translation>
+    </message>
+    <message numerus="yes">
+        <source>Distributed %n layer(s)</source>
+        <translation>
+            <numerusform>%n Ebene verteilt</numerusform>
+            <numerusform>%n Ebenen verteilt</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Rectangular Marquee: drag to select. Drag a handle to resize the selection, or drag inside it to move it.</source>
+        <translation>Auswahlrechteck: Ziehen, um auszuwählen. Griff ziehen, um die Auswahlgröße zu ändern, oder innerhalb ziehen, um sie zu verschieben.</translation>
+    </message>
+    <message>
+        <source>Elliptical Marquee: drag to select. Drag a handle to resize the selection, or drag inside it to move it.</source>
+        <translation>Auswahlellipse: Ziehen, um auszuwählen. Griff ziehen, um die Auswahlgröße zu ändern, oder innerhalb ziehen, um sie zu verschieben.</translation>
+    </message>
+    <message>
+        <source>Snap transforms to the pixel grid</source>
+        <translation>Transformationen am Pixelraster ausrichten</translation>
+    </message>
+    <message>
+        <source>Positions and sizes typed into the Free Transform bar land on whole pixels, like Photoshop&apos;s &quot;Snap Vector Tools and Transforms to Pixel Grid&quot;. Rotated transforms are not snapped. When off, a typed fraction such as 3.4 px is kept and the pixels are resampled.</source>
+        <translation>In die Frei-transformieren-Leiste eingegebene Positionen und Größen landen auf ganzen Pixeln, wie Photoshops „Vektorwerkzeuge und Transformationen am Pixelraster ausrichten“. Gedrehte Transformationen werden nicht ausgerichtet. Wenn aus, bleibt ein eingegebener Bruchteil wie 3,4 px erhalten und die Pixel werden neu berechnet.</translation>
+    </message>
+    <message>
+        <source>&amp;Stroke Selection...</source>
+        <translation>&amp;Kontur füllen...</translation>
+    </message>
+    <message>
+        <source>Nothing to stroke</source>
+        <translation>Nichts zu konturieren</translation>
+    </message>
+    <message>
+        <source>Brush tip: Square</source>
+        <translation>Pinselspitze: Quadrat</translation>
+    </message>
+    <message>
+        <source>Remove &amp;Object...</source>
+        <translation>&amp;Objekt entfernen...</translation>
+    </message>
+    <message>
+        <source>Remove Object needs a selection: select the area to remove first</source>
+        <translation>Objekt entfernen benötigt eine Auswahl: Wählen Sie zuerst den zu entfernenden Bereich aus</translation>
+    </message>
+    <message>
+        <source>Tone match</source>
+        <translation>Tonwertabgleich</translation>
+    </message>
+    <message>
+        <source>How strongly the fill&apos;s brightness is smoothed to its own edges (0 keeps the raw fill)</source>
+        <translation>Wie stark die Helligkeit der Füllung an ihre eigenen Ränder angeglichen wird (0 behält die rohe Füllung)</translation>
+    </message>
+    <message>
+        <source>Edge feather</source>
+        <translation>Weiche Kante</translation>
+    </message>
+    <message>
+        <source> px</source>
+        <translation> px</translation>
+    </message>
+    <message>
+        <source>Reroll</source>
+        <translation>Neu würfeln</translation>
+    </message>
+    <message>
+        <source>Fill again with the next variation</source>
+        <translation>Erneut mit der nächsten Variante füllen</translation>
+    </message>
+    <message>
+        <source>Variation %1</source>
+        <translation>Variante %1</translation>
+    </message>
+    <message>
+        <source>Content-aware fill (%1 patches)</source>
+        <translation>Inhaltsbasierte Füllung (%1 Patches)</translation>
+    </message>
+    <message>
+        <source>No clean source patches nearby; used the nearest edge (source %1 of %2)</source>
+        <translation>In der Nähe keine sauberen Quellbereiche; die nächste Kante wurde verwendet (Quelle %1 von %2)</translation>
+    </message>
+    <message>
+        <source>Cancelled Remove Object</source>
+        <translation>Objekt entfernen abgebrochen</translation>
+    </message>
+    <message>
+        <source>Removed object with content-aware fill, variation %1 (%2 patches)</source>
+        <translation>Objekt mit inhaltsbasierter Füllung entfernt, Variante %1 (%2 Patches)</translation>
+    </message>
+    <message>
+        <source>Removed object with the nearest edge (source %1 of %2)</source>
+        <translation>Objekt mit der nächsten Kante entfernt (Quelle %1 von %2)</translation>
+    </message>
+    <message>
+        <source>Softens the fill&apos;s edge outward from the selection, on top of its own feather. The filled area grows by the feather, so keep it small when the selection hugs an edge</source>
+        <translation>Weicht den Rand der Füllung von der Auswahl nach außen auf, zusätzlich zu ihrer eigenen weichen Kante. Der gefüllte Bereich wächst um die weiche Kante; nahe an einer Kante klein halten</translation>
+    </message>
+    <message>
+        <source>Duplicate to New Layer</source>
+        <translation>In neue Ebene duplizieren</translation>
+    </message>
+    <message>
+        <source>Copies this variation&apos;s filled area onto a new hidden layer above this one, so several variations can be kept and compared</source>
+        <translation>Kopiert den gefüllten Bereich dieser Variante auf eine neue, ausgeblendete Ebene darüber, damit mehrere Varianten aufbewahrt und verglichen werden können</translation>
+    </message>
+    <message>
+        <source>Filling...</source>
+        <translation>Wird gefüllt...</translation>
+    </message>
+    <message>
+        <source>Filling... %1%</source>
+        <translation>Wird gefüllt... %1%</translation>
+    </message>
+    <message>
+        <source>Duplicate Remove Object variation to layer</source>
+        <translation>Objekt-entfernen-Variante in Ebene duplizieren</translation>
+    </message>
+    <message>
+        <source>Remove Object variation %1</source>
+        <translation>Objekt entfernen Variante %1</translation>
+    </message>
+    <message>
+        <source>Copied variation %1 to the hidden layer &quot;%2&quot;</source>
+        <translation>Variante %1 in die ausgeblendete Ebene &quot;%2&quot; kopiert</translation>
+    </message>
+    <message>
+        <source>&amp;Files as Layers...</source>
+        <translation>&amp;Dateien als Ebenen...</translation>
+    </message>
+    <message>
+        <source>the file holds no layers</source>
+        <translation>die Datei enthält keine Ebenen</translation>
+    </message>
+    <message>
+        <source>Folder</source>
+        <translation>Ordner</translation>
+    </message>
+    <message>
+        <source>None of the files could be added as layers</source>
+        <translation>Keine der Dateien konnte als Ebene hinzugefügt werden</translation>
+    </message>
+    <message>
+        <source>The drop target is no longer in the document</source>
+        <translation>Das Ablageziel ist nicht mehr im Dokument</translation>
+    </message>
+    <message>
+        <source>Add files as layers</source>
+        <translation>Dateien als Ebenen hinzufügen</translation>
+    </message>
+    <message>
+        <source>These files could not be added as layers:
+
+%1</source>
+        <translation>Diese Dateien konnten nicht als Ebenen hinzugefügt werden:
+
+%1</translation>
+    </message>
+    <message numerus="yes">
+        <source>Added %n layer(s)</source>
+        <translation>
+            <numerusform>%n Ebene hinzugefügt</numerusform>
+            <numerusform>%n Ebenen hinzugefügt</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Files as Layers</source>
+        <translation>Dateien als Ebenen</translation>
+    </message>
+    <message>
+        <source>The document is no longer open.</source>
+        <translation>Das Dokument ist nicht mehr geöffnet.</translation>
+    </message>
+    <message>
+        <source>Adding file %1 of %2...</source>
+        <translation>Datei %1 von %2 wird hinzugefügt...</translation>
+    </message>
+    <message>
+        <source>Cancelled adding files as layers</source>
+        <translation>Hinzufügen der Dateien als Ebenen abgebrochen</translation>
+    </message>
+    <message>
+        <source>Recover</source>
+        <translation>Wiederherstellen</translation>
+    </message>
+    <message>
+        <source>Automatically save recovery information every</source>
+        <translation>Wiederherstellungsinformationen automatisch speichern alle</translation>
+    </message>
+    <message>
+        <source>Writes a copy of each changed document to a recovery folder so it can be reopened after a crash. The file you saved is never touched, and the copies are removed when Patchy quits normally.</source>
+        <translation>Schreibt eine Kopie jedes geänderten Dokuments in einen Wiederherstellungsordner, damit es nach einem Absturz wieder geöffnet werden kann. Die von Ihnen gespeicherte Datei wird nie verändert, und die Kopien werden entfernt, wenn Patchy normal beendet wird.</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n minute(s)</source>
+        <translation>
+            <numerusform>%n Minute</numerusform>
+            <numerusform>%n Minuten</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Could not save recovery information: %1</source>
+        <translation>Wiederherstellungsinformationen konnten nicht gespeichert werden: %1</translation>
+    </message>
+    <message>
+        <source>%1 (Recovered)</source>
+        <translation>%1 (Wiederhergestellt)</translation>
+    </message>
+    <message numerus="yes">
+        <source>Recovered %n unsaved document(s) from the last session</source>
+        <translation>
+            <numerusform>%n ungespeichertes Dokument aus der letzten Sitzung wiederhergestellt</numerusform>
+            <numerusform>%n ungespeicherte Dokumente aus der letzten Sitzung wiederhergestellt</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n recovery file(s) could not be opened; see %1</source>
+        <translation>
+            <numerusform>%n Wiederherstellungsdatei konnte nicht geöffnet werden; siehe %1</numerusform>
+            <numerusform>%n Wiederherstellungsdateien konnten nicht geöffnet werden; siehe %1</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>How far a pixel&apos;s color may differ from the clicked color and still be filled</source>
+        <translation>Wie stark sich die Farbe eines Pixels von der angeklickten Farbe unterscheiden darf und trotzdem gefüllt wird</translation>
+    </message>
+    <message>
+        <source>Limit the fill to pixels connected to the click</source>
+        <translation>Füllung auf Pixel beschränken, die mit dem Klickpunkt verbunden sind</translation>
+    </message>
+    <message>
+        <source>Paragraph</source>
+        <translation>Absatz</translation>
+    </message>
+    <message>
+        <source>Justify (last line left)</source>
+        <translation>Blocksatz (letzte Zeile links)</translation>
+    </message>
+    <message>
+        <source>Paragraph alignment; Justify spreads every line but the last across the box</source>
+        <translation>Absatzausrichtung; Blocksatz verteilt jede Zeile außer der letzten über die Textbox</translation>
+    </message>
+    <message>
+        <source>Alignment:</source>
+        <translation>Ausrichtung:</translation>
+    </message>
+    <message>
+        <source>First line indent:</source>
+        <translation>Einzug erste Zeile:</translation>
+    </message>
+    <message>
+        <source>Indent of each paragraph&apos;s first line; negative with a left indent makes a hanging indent</source>
+        <translation>Einzug der ersten Zeile jedes Absatzes; negativ mit linkem Einzug ergibt einen hängenden Einzug</translation>
+    </message>
+    <message>
+        <source>Left indent:</source>
+        <translation>Linker Einzug:</translation>
+    </message>
+    <message>
+        <source>Space between the box edge and every line&apos;s start</source>
+        <translation>Abstand zwischen dem Boxrand und dem Anfang jeder Zeile</translation>
+    </message>
+    <message>
+        <source>Right indent:</source>
+        <translation>Rechter Einzug:</translation>
+    </message>
+    <message>
+        <source>Space between every line&apos;s end and the box edge</source>
+        <translation>Abstand zwischen dem Ende jeder Zeile und dem Boxrand</translation>
+    </message>
+    <message>
+        <source>Space before:</source>
+        <translation>Abstand davor:</translation>
+    </message>
+    <message>
+        <source>Extra space above each paragraph</source>
+        <translation>Zusätzlicher Abstand über jedem Absatz</translation>
+    </message>
+    <message>
+        <source>Space after:</source>
+        <translation>Abstand danach:</translation>
+    </message>
+    <message>
+        <source>Extra space below each paragraph</source>
+        <translation>Zusätzlicher Abstand unter jedem Absatz</translation>
+    </message>
+    <message>
+        <source>Paragraph...</source>
+        <translation>Absatz...</translation>
+    </message>
+    <message>
+        <source>Paragraph panel (alignment, indents, spacing)</source>
+        <translation>Absatz-Bedienfeld (Ausrichtung, Einzüge, Abstände)</translation>
+    </message>
+    <message>
+        <source>Convert to Layers</source>
+        <translation>In Ebenen konvertieren</translation>
+    </message>
+    <message>
+        <source>Replace the smart object with a folder holding the layers of its contents</source>
+        <translation>Ersetzt das Smartobjekt durch einen Ordner mit den Ebenen seines Inhalts</translation>
+    </message>
+    <message>
+        <source>Embed the linked Smart Object before converting it to layers</source>
+        <translation>Betten Sie das verknüpfte Smartobjekt ein, bevor Sie es in Ebenen konvertieren</translation>
+    </message>
+    <message>
+        <source>Delete the Smart Filters before converting this Smart Object to layers</source>
+        <translation>Löschen Sie die Smartfilter, bevor Sie dieses Smartobjekt in Ebenen konvertieren</translation>
+    </message>
+    <message>
+        <source>A warped or perspective Smart Object can&apos;t be converted to layers; rasterize it instead</source>
+        <translation>Ein verkrümmtes oder perspektivisch verzerrtes Smartobjekt kann nicht in Ebenen konvertiert werden; rastern Sie es stattdessen</translation>
+    </message>
+    <message>
+        <source>The smart object&apos;s contents have no layers to convert</source>
+        <translation>Der Inhalt des Smartobjekts enthält keine Ebenen zum Konvertieren</translation>
+    </message>
+    <message>
+        <source>The contents contain Smart Filters, which can&apos;t be moved out of the Smart Object yet</source>
+        <translation>Der Inhalt enthält Smartfilter, die noch nicht aus dem Smartobjekt herausgelöst werden können</translation>
+    </message>
+    <message>
+        <source>Could not convert the smart object to layers</source>
+        <translation>Das Smartobjekt konnte nicht in Ebenen konvertiert werden</translation>
+    </message>
+    <message numerus="yes">
+        <source>Converted the smart object to %n layer(s)</source>
+        <translation>
+            <numerusform>Smartobjekt in %n Ebene konvertiert</numerusform>
+            <numerusform>Smartobjekt in %n Ebenen konvertiert</numerusform>
+        </translation>
     </message>
 </context>
 <context>
@@ -18479,6 +19004,106 @@ Y: %2
         <source>removeObject: method must be contentAware or nearestEdge.</source>
         <translation>removeObject: method muss contentAware oder nearestEdge sein.</translation>
     </message>
+    <message>
+        <source>%1: options must be an object.</source>
+        <translation>%1: options muss ein Objekt sein.</translation>
+    </message>
+    <message>
+        <source>%1: layers must be a nonempty array of layers of this document.</source>
+        <translation>%1: layers muss ein nicht leeres Array von Ebenen dieses Dokuments sein.</translation>
+    </message>
+    <message>
+        <source>%1: alignTo must be &quot;selection&quot; or &quot;canvas&quot;.</source>
+        <translation>%1: alignTo muss &quot;selection&quot; oder &quot;canvas&quot; sein.</translation>
+    </message>
+    <message>
+        <source>%1: unknown option %2.</source>
+        <translation>%1: unbekannte Option %2.</translation>
+    </message>
+    <message>
+        <source>alignLayers: unknown edge %1 (left, hcenter, right, top, vcenter, bottom)</source>
+        <translation>alignLayers: unbekannte Kante %1 (left, hcenter, right, top, vcenter, bottom)</translation>
+    </message>
+    <message>
+        <source>distributeLayers: unknown mode %1 (left, hcenter, right, top, vcenter, bottom, hspacing, vspacing)</source>
+        <translation>distributeLayers: unbekannter Modus %1 (left, hcenter, right, top, vcenter, bottom, hspacing, vspacing)</translation>
+    </message>
+    <message>
+        <source>%1 needs layers of this document.</source>
+        <translation>%1 benötigt Ebenen dieses Dokuments.</translation>
+    </message>
+    <message>
+        <source>%1: finish the pending transform first.</source>
+        <translation>%1: Schließen Sie zuerst die ausstehende Transformation ab.</translation>
+    </message>
+    <message>
+        <source>alignLayers needs at least one movable layer.</source>
+        <translation>alignLayers benötigt mindestens eine verschiebbare Ebene.</translation>
+    </message>
+    <message>
+        <source>distributeLayers needs at least three movable layers.</source>
+        <translation>distributeLayers benötigt mindestens drei verschiebbare Ebenen.</translation>
+    </message>
+    <message>
+        <source>importFilesAsLayers needs a file path or a non-empty array of paths.</source>
+        <translation>importFilesAsLayers benötigt einen Dateipfad oder ein nicht leeres Array von Pfaden.</translation>
+    </message>
+    <message>
+        <source>No layers were added.</source>
+        <translation>Es wurden keine Ebenen hinzugefügt.</translation>
+    </message>
+    <message>
+        <source>intervalMinutes must be 5, 10, 15, 30, or 60</source>
+        <translation>intervalMinutes muss 5, 10, 15, 30 oder 60 sein</translation>
+    </message>
+    <message>
+        <source>addTextLayer: font not available, rendered with a fallback: %1</source>
+        <translation>addTextLayer: Schriftart nicht verfügbar, mit Ersatzschrift dargestellt: %1</translation>
+    </message>
+    <message>
+        <source>textAlign must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos; or &apos;justify&apos;.</source>
+        <translation>textAlign muss &apos;left&apos;, &apos;center&apos;, &apos;right&apos; oder &apos;justify&apos; sein.</translation>
+    </message>
+    <message>
+        <source>%1: runs must be an array of {text, font, size, bold, italic, color} objects.</source>
+        <translation>%1: runs muss ein Array aus {text, font, size, bold, italic, color}-Objekten sein.</translation>
+    </message>
+    <message>
+        <source>%1: run %2 needs a text string.</source>
+        <translation>%1: Lauf %2 braucht eine Textzeichenkette.</translation>
+    </message>
+    <message>
+        <source>%1: run %2 has a non-positive size.</source>
+        <translation>%1: Lauf %2 hat eine Größe, die nicht positiv ist.</translation>
+    </message>
+    <message>
+        <source>%1: run %2 must be a string or an object.</source>
+        <translation>%1: Lauf %2 muss eine Zeichenkette oder ein Objekt sein.</translation>
+    </message>
+    <message>
+        <source>%1: runs must not be empty.</source>
+        <translation>%1: runs darf nicht leer sein.</translation>
+    </message>
+    <message>
+        <source>addTextLayer: text must be a string or an array of runs.</source>
+        <translation>addTextLayer: text muss eine Zeichenkette oder ein Array von Läufen sein.</translation>
+    </message>
+    <message>
+        <source>box must be {width, height} of at least 16 document pixels each.</source>
+        <translation>box muss {width, height} mit jeweils mindestens 16 Dokumentpixeln sein.</translation>
+    </message>
+    <message>
+        <source>align must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos; or &apos;justify&apos;.</source>
+        <translation>align muss &apos;left&apos;, &apos;center&apos;, &apos;right&apos; oder &apos;justify&apos; sein.</translation>
+    </message>
+    <message>
+        <source>%1: paragraph must be an object with firstLineIndent, startIndent, endIndent, spaceBefore and spaceAfter numbers (document pixels).</source>
+        <translation>%1: paragraph muss ein Objekt mit den Zahlen firstLineIndent, startIndent, endIndent, spaceBefore und spaceAfter sein (Dokumentpixel).</translation>
+    </message>
+    <message>
+        <source>%1: paragraph.%2 must be a number (document pixels).</source>
+        <translation>%1: paragraph.%2 muss eine Zahl sein (Dokumentpixel).</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::StartPanel</name>
@@ -18531,10 +19156,6 @@ Y: %2
         <translation>Version %1 (erstellt am %2)</translation>
     </message>
     <message>
-        <source>Created by Seth A. Robinson</source>
-        <translation>Erstellt von Seth A. Robinson</translation>
-    </message>
-    <message>
         <source>Code contributions from %1</source>
         <translation>Code-Beiträge von %1</translation>
     </message>
@@ -18549,6 +19170,10 @@ Y: %2
     <message>
         <source>No matching recent files</source>
         <translation>Keine passenden zuletzt verwendeten Dateien</translation>
+    </message>
+    <message>
+        <source>Created by %1</source>
+        <translation>Erstellt von %1</translation>
     </message>
 </context>
 <context>

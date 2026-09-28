@@ -499,7 +499,7 @@ namespace {
 
 // Floor division for the digital-line intercepts (C++ integer division
 // truncates toward zero, which would bend lines with negative slopes).
-constexpr int floor_div(int numerator, int denominator) noexcept {
+constexpr std::int64_t floor_div(std::int64_t numerator, std::int64_t denominator) noexcept {
   const auto quotient = numerator / denominator;
   const auto remainder = numerator % denominator;
   return (remainder != 0 && ((remainder < 0) != (denominator < 0))) ? quotient - 1 : quotient;
@@ -547,7 +547,9 @@ void sweep_layer_style_mask_in_place(std::vector<float>& mask, int width, int he
   int min_minor = 0;
   int max_minor = 0;
   for (int u = 0; u < axes.major_extent; ++u) {
-    const auto value = floor_div(2 * u * axes.minor_step + length, 2 * length);
+    // 64-bit: a 30000 px sweep across a wide domain overflows 2 * u * step.
+    const auto value = static_cast<int>(floor_div(
+        std::int64_t{2} * u * axes.minor_step + length, std::int64_t{2} * length));
     line_minor[static_cast<std::size_t>(u)] = value;
     min_minor = std::min(min_minor, value);
     max_minor = std::max(max_minor, value);

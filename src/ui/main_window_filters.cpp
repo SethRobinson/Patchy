@@ -217,10 +217,6 @@
 #include <tpcshrd.h>
 #endif
 
-#ifndef PATCHY_VERSION
-#define PATCHY_VERSION "0.0.0"
-#endif
-
 // Icon resources live in the static patchy_ui library; force registration before first use.
 int qInitResources_icons();
 
@@ -444,8 +440,7 @@ FilterInvocation editable_smart_filter_invocation(SmartFilterKind kind) {
   return invocation;
 }
 
-FilterDialogSpec editable_smart_filter_dialog_spec(
-    SmartFilterKind kind, const FilterInvocation& initial_invocation) {
+FilterDialogSpec editable_smart_filter_dialog_spec(SmartFilterKind kind) {
   const auto high_pass = kind == SmartFilterKind::HighPass;
   const auto median = kind == SmartFilterKind::Median;
   const auto dust = kind == SmartFilterKind::DustAndScratches;
@@ -554,7 +549,7 @@ FilterDialogSpec editable_smart_filter_dialog_spec(
     radius_control.label = QObject::tr("Radius");
     radius_control.object_name = QStringLiteral("filterRadius");
     radius_control.minimum = 1;
-    radius_control.maximum = 12;
+    radius_control.maximum = 100;
     radius_control.value = 1;
     radius_control.suffix = QObject::tr(" px");
     radius_control.parameter_key = "radius";
@@ -704,7 +699,7 @@ FilterDialogSpec editable_smart_filter_dialog_spec(
     distance.kind = FilterParameterKind::Integer;
     distance.default_value = std::int64_t{12};
     distance.typed_minimum = 1.0;
-    distance.typed_maximum = 999.0;
+    distance.typed_maximum = 2000.0;
     distance.step = 1.0;
     spec.controls.push_back(std::move(distance));
     return spec;
@@ -714,7 +709,9 @@ FilterDialogSpec editable_smart_filter_dialog_spec(
   radius.label = QObject::tr("Radius");
   radius.object_name = QStringLiteral("filterRadius");
   radius.minimum = dust || median || surface ? 1 : 0;
-  radius.maximum = dust || median ? 500 : (surface ? 25 : 12);
+  // Gaussian Blur, High Pass and Unsharp Mask sliders cover 0.1..100 px like
+  // the destructive catalog; the spin box takes Photoshop's full 1000 px.
+  radius.maximum = dust || median ? 500 : (surface ? 25 : 100);
   radius.value = surface ? 5 : (dust || median ? 1 : (high_pass ? 10 : 2));
   radius.suffix = QObject::tr(" px");
   radius.parameter_key = "radius";
@@ -728,13 +725,7 @@ FilterDialogSpec editable_smart_filter_dialog_spec(
   radius.typed_minimum = dust || median || surface ? 1.0 : 0.1;
   radius.typed_maximum =
       surface ? 100.0
-              : (dust || median
-                     ? 500.0
-                     : (high_pass || unsharp
-                            ? 1000.0
-                            : std::max(12.0,
-                                       smart_filter_radius_from_invocation(
-                                           initial_invocation, 2.0))));
+              : (dust || median ? 500.0 : 1000.0);
   // Native descriptors retain fractional radius values. Gaussian Blur changes
   // at hundredths; Median currently floors for rendering but must not round a
   // value merely because the dialog was opened and accepted.
@@ -822,7 +813,7 @@ SmartFilterStack smart_filter_stack_with_invocation(
     motion->angle_degrees = smart_filter_integer_from_invocation(
         invocation, "angle", motion->angle_degrees, -360, 360);
     motion->distance_pixels = smart_filter_integer_from_invocation(
-        invocation, "distance", motion->distance_pixels, 1, 999);
+        invocation, "distance", motion->distance_pixels, 1, 2000);
   } else if (entry.kind == SmartFilterKind::PlasticWrap) {
     auto *plastic = std::get_if<PlasticWrapSmartFilter>(&entry.parameters);
     if (plastic == nullptr) {
@@ -1016,7 +1007,7 @@ SmartFilterEntry make_editable_smart_filter_entry(
     entry.parameters = MotionBlurSmartFilter{
         smart_filter_integer_from_invocation(invocation, "angle", 0, -360, 360),
         smart_filter_integer_from_invocation(invocation, "distance", 12, 1,
-                                             999)};
+                                             2000)};
   } else if (surface) {
     entry.parameters =
         SurfaceBlurSmartFilter{std::clamp(radius, 1.0, 100.0),
@@ -1735,8 +1726,7 @@ void MainWindow::editable_smart_filter_dialog(
       canvas_->document_changed();
     }
   });
-  const auto dialog_spec =
-      editable_smart_filter_dialog_spec(kind, initial_invocation);
+  const auto dialog_spec = editable_smart_filter_dialog_spec(kind);
   const auto settings = request_filter_settings(
       this, dialog_spec, preview_changed, std::move(initial_invocation),
       nullptr, &blending_settings);

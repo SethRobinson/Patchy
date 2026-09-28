@@ -6,6 +6,7 @@
 #include "core/document_path.hpp"
 #include "core/pixel_buffer.hpp"
 #include "core/vector_shape.hpp"
+#include "core/vector_raster.hpp"
 #include "ui/default_custom_shapes.hpp"
 #include "ui/pattern_library.hpp"
 
@@ -623,6 +624,98 @@ void ui_free_transform_scales_shape_layer_crisply() {
   QApplication::processEvents();
   layer = document.find_layer(layer_id);
   CHECK(std::abs(layer->vector_shape()->path.subpaths[0].anchors[2].anchor_x - 300.0) < 0.5);
+}
+
+// Free Transform's box on a shape hugs the ink, stroke included, but the commit
+// transforms only the path and keeps the stroke width. The path must map so the
+// redrawn ink fills the dragged box: before, a 20 px outside stroke made the
+// fixed corner creep 3 px per transform and the dragged corner miss the box.
+void ui_free_transform_shape_with_outside_stroke_lands_on_box() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto layer_id = make_rect_shape_layer(window, *canvas);
+  {
+    auto* layer = document.find_layer(layer_id);
+    CHECK(layer != nullptr && layer->vector_shape() != nullptr);
+    auto content = *layer->vector_shape();
+    content.stroke.enabled = true;
+    content.stroke.width = 20.0;
+    content.stroke.alignment = patchy::VectorStrokeAlignment::Outside;
+    content.stroke.content.kind = patchy::VectorFillKind::Solid;
+    content.stroke.content.color = patchy::RgbColor{200, 30, 30};
+    layer->set_vector_shape(std::move(content));
+    patchy::update_vector_shape_raster(*layer, patchy::Rect::from_size(document.width(), document.height()),
+                                       &document.metadata().patterns);
+    canvas->document_changed();
+    QApplication::processEvents();
+  }
+  const auto ink = [&] { return document.find_layer(layer_id)->bounds(); };
+  CHECK(ink().x == 80 && ink().y == 80 && ink().width == 240 && ink().height == 160);
+
+  // Shift frees the aspect ratio (the Photoshop CC default pairing).
+  const QPoint targets[] = {QPoint(400, 300), QPoint(360, 330)};
+  for (const auto target : targets) {
+    const auto before = ink();
+    require_action(window, "editFreeTransformAction")->trigger();
+    QApplication::processEvents();
+    CHECK(canvas->free_transform_active());
+    drag(*canvas, canvas->widget_position_for_document_point(QPoint(before.x + before.width, before.y + before.height)),
+         canvas->widget_position_for_document_point(target), Qt::ShiftModifier);
+    QApplication::processEvents();
+    send_key(*canvas, Qt::Key_Return);
+    QApplication::processEvents();
+    CHECK(!canvas->free_transform_active());
+    const auto after = ink();
+    CHECK(std::abs(after.x - 80) <= 1 && std::abs(after.y - 80) <= 1);
+    CHECK(std::abs(after.x + after.width - target.x()) <= 1);
+    CHECK(std::abs(after.y + after.height - target.y()) <= 1);
+    const auto* content = document.find_layer(layer_id)->vector_shape();
+    CHECK(content != nullptr && content->stroke.width == 20.0);
+    const auto path = content->path.bounds();
+    CHECK(path.has_value() && std::abs(path->left - 100.0) < 1.0 && std::abs(path->right - (target.x() - 20.0)) < 1.0);
+  }
+}
+
+// A Free Transform that leaves a shape wholly on the pasteboard used to bake
+// it clipped to the canvas, i.e. to nothing: the Move tool reported "Click an
+// editable layer to move" and the shape could not be brought back. The bake
+// now covers the shape wherever it sits, so the plain Move drag returns it.
+void ui_shape_moved_off_canvas_by_free_transform_moves_back() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto layer_id = make_rect_shape_layer(window, *canvas);
+  canvas->set_tool(patchy::ui::CanvasTool::Move);
+  canvas->set_auto_select_layer(false);
+  canvas->set_zoom(0.25);
+  QApplication::processEvents();
+  const auto on_canvas = canvas->widget_position_for_document_point(QPoint(200, 160));
+  const auto below_canvas = canvas->widget_position_for_document_point(QPoint(200, 1300));
+
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  drag(*canvas, on_canvas, below_canvas);
+  QApplication::processEvents();
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+  const auto* layer = document.find_layer(layer_id);
+  CHECK(layer != nullptr && !layer->pixels().empty());
+  CHECK(layer->bounds().y > document.height() && layer->bounds().width == 200 && layer->bounds().height == 120);
+
+  drag(*canvas, below_canvas, on_canvas);
+  QApplication::processEvents();
+  layer = document.find_layer(layer_id);
+  CHECK(layer->bounds().x == 100 && layer->bounds().y == 100);
+  CHECK(layer->bounds().width == 200 && layer->bounds().height == 120);
+  const auto path = layer->vector_shape()->path.bounds();
+  CHECK(path.has_value() && std::abs(path->top - 100.0) < 0.5 && std::abs(path->bottom - 220.0) < 0.5);
 }
 
 void ui_polygon_tool_creates_polygons_and_stars() {
@@ -3069,6 +3162,63 @@ void ui_shape_size_spins_reflect_and_resize_active_shape() {
   CHECK(!width_spin->isEnabled());
 }
 
+void ui_shape_size_controls_follow_move_and_properties_selection() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+
+  require_action(window, "toolRectAction")->trigger();
+  QApplication::processEvents();
+  canvas->setFocus(Qt::MouseFocusReason);
+  shape_drag(*canvas, QPoint(100, 100), QPoint(300, 220));
+  const auto layer_id = *document.active_layer_id();
+
+  require_action(window, "toolMoveAction")->trigger();
+  QApplication::processEvents();
+  auto* options_width = window.findChild<QDoubleSpinBox*>(QStringLiteral("vectorShapeWidthSpin"));
+  auto* options_height = window.findChild<QDoubleSpinBox*>(QStringLiteral("vectorShapeHeightSpin"));
+  auto* properties_panel = window.findChild<QWidget*>(QStringLiteral("propertiesShapeSizePanel"));
+  auto* properties_width = window.findChild<QDoubleSpinBox*>(QStringLiteral("propertiesShapeWidthSpin"));
+  auto* properties_height = window.findChild<QDoubleSpinBox*>(QStringLiteral("propertiesShapeHeightSpin"));
+  CHECK(options_width != nullptr && options_height != nullptr);
+  CHECK(properties_panel != nullptr && properties_width != nullptr && properties_height != nullptr);
+  CHECK(options_width->isVisible() && options_width->isEnabled());
+  CHECK(!properties_panel->isHidden() && properties_panel->isEnabled());
+  CHECK(std::abs(options_width->value() - 200.0) < 0.5);
+  CHECK(std::abs(properties_width->value() - 200.0) < 0.5);
+  CHECK(std::abs(properties_height->value() - 120.0) < 0.5);
+  // The row must read at the dock's default width: the spins are fixed-width,
+  // so the values stay inside the visible panel (the first draft stretched
+  // them past the dock edge). Artifact: properties-shape-size-row.png.
+  if (auto* toggle = window.findChild<QToolButton*>(QStringLiteral("propertiesDockCollapseButton"));
+      toggle != nullptr && !toggle->isChecked()) {
+    toggle->click();
+  }
+  process_events_for(200);
+  CHECK(properties_width->width() <= 110);
+  if (auto* panel = window.findChild<QWidget*>(QStringLiteral("propertiesPanel"))) {
+    CHECK(properties_width->mapTo(panel, properties_width->rect().bottomRight()).x() <= panel->width());
+    save_widget_artifact("properties-shape-size-row", *panel);
+  }
+
+  properties_width->setValue(360.0);
+  process_events_for(450);
+  auto* layer = document.find_layer(layer_id);
+  CHECK(layer != nullptr);
+  CHECK(std::abs(layer->bounds().width - 360.0) <= 1.0);
+  CHECK(std::abs(options_width->value() - 360.0) < 0.5);
+  CHECK(std::abs(properties_width->value() - 360.0) < 0.5);
+
+  options_height->setValue(60.0);
+  process_events_for(450);
+  layer = document.find_layer(layer_id);
+  CHECK(layer != nullptr);
+  CHECK(std::abs(layer->bounds().height - 60.0) <= 1.0);
+  CHECK(std::abs(properties_height->value() - 60.0) < 0.5);
+}
+
 void ui_shape_style_row_is_pixel_only_and_greys_size_at_normal() {
   VectorSettingsGuard settings_guard;
   patchy::ui::MainWindow window;
@@ -3428,6 +3578,137 @@ void ui_shape_geometry_link_keeps_aspect() {
   CHECK(std::abs(content->origination[0].bottom - 340.0) < 0.5);
 }
 
+void ui_shape_geometry_radius_link_edits_all_corners() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* tool_radius = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
+  CHECK(tool_radius != nullptr);
+  tool_radius->setValue(20);  // every corner 20: the dialog opens linked
+  canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+  shape_drag(*canvas, QPoint(100, 100), QPoint(300, 220));
+  const auto layer_id = document.active_layer_id();
+  CHECK(layer_id.has_value());
+
+  const auto find_corners = [](QDialog& dialog) {
+    return std::array<QDoubleSpinBox*, 4>{
+        dialog.findChild<QDoubleSpinBox*>(QStringLiteral("shapeGeometryRadiusTopLeftSpin")),
+        dialog.findChild<QDoubleSpinBox*>(QStringLiteral("shapeGeometryRadiusTopRightSpin")),
+        dialog.findChild<QDoubleSpinBox*>(QStringLiteral("shapeGeometryRadiusBottomRightSpin")),
+        dialog.findChild<QDoubleSpinBox*>(QStringLiteral("shapeGeometryRadiusBottomLeftSpin"))};
+  };
+  bool first_open_checked = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = patchy::test::ui::find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* radius_link = dialog->findChild<QToolButton*>(QStringLiteral("shapeGeometryRadiusLinkButton"));
+    const auto corners = find_corners(*dialog);
+    CHECK(radius_link != nullptr && corners[0] != nullptr && corners[1] != nullptr &&
+          corners[2] != nullptr && corners[3] != nullptr);
+    if (radius_link == nullptr || corners[3] == nullptr) {
+      dialog->reject();
+      return;
+    }
+    // Equal corners at open: linked by default, and one edit moves all four.
+    CHECK(radius_link->isChecked());
+    corners[0]->setValue(30.0);
+    for (const auto* corner : corners) {
+      CHECK(std::abs(corner->value() - 30.0) < 1e-9);
+    }
+    // Unlinked: a corner edits alone.
+    radius_link->setChecked(false);
+    corners[1]->setValue(5.0);
+    CHECK(std::abs(corners[0]->value() - 30.0) < 1e-9);
+    CHECK(std::abs(corners[2]->value() - 30.0) < 1e-9);
+    CHECK(std::abs(corners[3]->value() - 30.0) < 1e-9);
+    // Relinking copies nothing by itself; the next edit brings them together.
+    radius_link->setChecked(true);
+    CHECK(std::abs(corners[1]->value() - 5.0) < 1e-9);
+    corners[3]->setValue(12.0);
+    for (const auto* corner : corners) {
+      CHECK(std::abs(corner->value() - 12.0) < 1e-9);
+    }
+    // Captured linked: the radius chain lit, the W / H chain off.
+    save_widget_artifact("shape-appearance-dialog-geometry-links", *dialog);
+    radius_link->setChecked(false);
+    corners[1]->setValue(5.0);
+    // Layout: each link is a normal small button centered between the rows
+    // it ties, sitting on a bracket widget that spans those rows, between the
+    // label column and the fields (the Image Size dialog's Width / Height link).
+    auto* size_link = dialog->findChild<QToolButton*>(QStringLiteral("shapeGeometryLinkButton"));
+    auto* size_bracket = dialog->findChild<QWidget*>(QStringLiteral("shapeGeometryLinkBracket"));
+    auto* radius_bracket = dialog->findChild<QWidget*>(QStringLiteral("shapeGeometryRadiusLinkBracket"));
+    auto* width = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeGeometryWidthSpin"));
+    auto* height = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeGeometryHeightSpin"));
+    CHECK(size_link != nullptr && size_bracket != nullptr && radius_bracket != nullptr &&
+          width != nullptr && height != nullptr);
+    if (size_link != nullptr && size_bracket != nullptr && radius_bracket != nullptr &&
+        width != nullptr && height != nullptr) {
+      const auto rect_in_dialog = [dialog](const QWidget& widget) {
+        return QRect(widget.mapTo(dialog, QPoint(0, 0)), widget.size());
+      };
+      const auto link_rect = rect_in_dialog(*size_link);
+      const auto bracket_rect = rect_in_dialog(*size_bracket);
+      const int width_top = width->mapTo(dialog, QPoint(0, 0)).y();
+      const int height_bottom = height->mapTo(dialog, QPoint(0, height->height())).y();
+      CHECK(link_rect.width() <= 26 && link_rect.height() <= 26);
+      CHECK(bracket_rect.top() <= width_top && bracket_rect.bottom() + 1 >= height_bottom);
+      CHECK(link_rect.top() > width_top && link_rect.bottom() < height_bottom);
+      CHECK(link_rect.right() < width->mapTo(dialog, QPoint(0, 0)).x());
+      const auto radius_rect = rect_in_dialog(*radius_link);
+      const auto radius_bracket_rect = rect_in_dialog(*radius_bracket);
+      const int corners_top = corners[0]->mapTo(dialog, QPoint(0, 0)).y();
+      const int corners_bottom = corners[3]->mapTo(dialog, QPoint(0, corners[3]->height())).y();
+      CHECK(radius_rect.width() <= 26 && radius_rect.height() <= 26);
+      CHECK(radius_bracket_rect.top() <= corners_top && radius_bracket_rect.bottom() + 1 >= corners_bottom);
+      CHECK(radius_rect.top() > corners_top && radius_rect.bottom() < corners_bottom);
+      CHECK(radius_rect.right() < corners[0]->mapTo(dialog, QPoint(0, 0)).x());
+      CHECK(radius_rect.left() == link_rect.left());
+      CHECK(radius_rect.top() > link_rect.bottom());
+    }
+    first_open_checked = true;
+    dialog->accept();
+  });
+  patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
+  QApplication::processEvents();
+  CHECK(first_open_checked);
+  const auto* content = document.find_layer(*layer_id)->vector_shape();
+  CHECK(content != nullptr && content->origination.size() == 1);
+  if (content != nullptr && content->origination.size() == 1) {
+    // Three corners from the linked edit, one from the lone edit.
+    const auto& radii = content->origination[0].corner_radii;
+    CHECK(std::abs(radii[0] - 12.0) < 1e-6);
+    CHECK(std::abs(radii[1] - 5.0) < 1e-6);
+    CHECK(std::abs(radii[2] - 12.0) < 1e-6);
+    CHECK(std::abs(radii[3] - 12.0) < 1e-6);
+  }
+
+  // Distinct corners: the dialog reopens unlinked, so one edit cannot flatten
+  // them by accident.
+  bool reopened = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = patchy::test::ui::find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* radius_link = dialog->findChild<QToolButton*>(QStringLiteral("shapeGeometryRadiusLinkButton"));
+    const auto corners = find_corners(*dialog);
+    CHECK(radius_link != nullptr && !radius_link->isChecked());
+    CHECK(corners[1] != nullptr && std::abs(corners[1]->value() - 5.0) < 1e-6);
+    reopened = true;
+    dialog->reject();
+  });
+  patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
+  QApplication::processEvents();
+  CHECK(reopened);
+}
+
 void ui_shape_appearance_dialog_fits_1080p_and_has_two_columns() {
   VectorSettingsGuard settings_guard;
   patchy::ui::MainWindow window;
@@ -3453,7 +3734,7 @@ void ui_shape_appearance_dialog_fits_1080p_and_has_two_columns() {
       if (opened_page != nullptr) {
         CHECK(dialog->height() <= opened_page->sizeHint().height() + 80);
       }
-      // Solid fill + stroke off: the left column's 12 rows set the height,
+      // Solid fill + stroke off: the left column's 11 rows set the height,
       // well under the all-rows-visible measurement (about 900 px).
       CHECK(dialog->height() <= 720);
     }
@@ -3731,6 +4012,105 @@ void ui_shape_appearance_entry_points_open_the_dialog() {
   CHECK(properties_button->isHidden());
 }
 
+
+// The active-shape W / H readouts belong to Shape mode: Path and Pixels have
+// no shape layer to size, and Pixels already carries the fixed-size Width /
+// Height row (two width/height pairs on one bar was the September 2026 bug).
+void ui_shape_size_row_shows_in_shape_mode_only() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* mode_combo = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
+  auto* width_spin = window.findChild<QDoubleSpinBox*>(QStringLiteral("vectorShapeWidthSpin"));
+  auto* link_button = window.findChild<QPushButton*>(QStringLiteral("vectorShapeLinkSizeButton"));
+  CHECK(mode_combo != nullptr && width_spin != nullptr && link_button != nullptr);
+  require_action(window, "toolRectAction")->trigger();
+  QApplication::processEvents();
+  mode_combo->setCurrentIndex(0);  // Shape
+  QApplication::processEvents();
+  CHECK(width_spin->isVisible());
+  CHECK(!width_spin->isEnabled());  // no shape layer yet: a disabled readout
+  mode_combo->setCurrentIndex(1);  // Path
+  QApplication::processEvents();
+  CHECK(!width_spin->isVisible());
+  CHECK(!link_button->isVisible());
+  mode_combo->setCurrentIndex(2);  // Pixels
+  QApplication::processEvents();
+  CHECK(!width_spin->isVisible());
+  mode_combo->setCurrentIndex(0);  // Shape
+  QApplication::processEvents();
+  CHECK(width_spin->isVisible());
+  // The path selection tools and Move show the row only with an editable
+  // shape layer.
+  require_action(window, "toolPathSelectAction")->trigger();
+  QApplication::processEvents();
+  CHECK(!width_spin->isVisible());
+  require_action(window, "toolMoveAction")->trigger();
+  QApplication::processEvents();
+  CHECK(!width_spin->isVisible());
+}
+
+// A right-click on the active shape layer adds the shape commands to the
+// canvas menu (docs/tools.md, "Canvas right-click menu").
+void ui_shape_context_menu_offers_shape_commands() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action(window, "toolRectAction")->trigger();
+  QApplication::processEvents();
+  canvas->setFocus(Qt::MouseFocusReason);
+  shape_drag(*canvas, QPoint(100, 100), QPoint(300, 220));
+  require_action(window, "toolMoveAction")->trigger();
+  QApplication::processEvents();
+
+  const auto visible_menu = [canvas]() -> QMenu* {
+    for (auto* menu : canvas->findChildren<QMenu*>(QStringLiteral("canvasContextMenu"))) {
+      if (menu->isVisible()) {
+        return menu;
+      }
+    }
+    return nullptr;
+  };
+  const auto right_click = [&](QPoint document_point) {
+    const auto point = canvas->widget_position_for_document_point(document_point);
+    send_mouse(*canvas, QEvent::MouseButtonPress, point, Qt::RightButton, Qt::RightButton);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, point, Qt::RightButton, Qt::NoButton);
+    QApplication::processEvents();
+    return visible_menu();
+  };
+  const auto find_action = [](QMenu& menu, const char* object_name) -> QAction* {
+    for (auto* action : menu.actions()) {
+      if (action->objectName() == QLatin1String(object_name)) {
+        return action;
+      }
+    }
+    return nullptr;
+  };
+
+  auto* menu = right_click(QPoint(200, 160));
+  CHECK(menu != nullptr);
+  if (menu != nullptr) {
+    auto* appearance = find_action(*menu, "layerShapeAppearanceAction");
+    CHECK(appearance != nullptr);
+    CHECK(appearance != nullptr && appearance->isEnabled());
+    CHECK(find_action(*menu, "editFreeTransformAction") != nullptr);
+    CHECK(find_action(*menu, "pathSimplifyAction") != nullptr);
+    CHECK(find_action(*menu, "editDefineCustomShapeAction") != nullptr);
+    save_widget_artifact("shape-context-menu", *menu);
+    menu->close();
+    QApplication::processEvents();
+  }
+
+  // Off the shape: no shape section.
+  menu = right_click(QPoint(600, 500));
+  CHECK(menu == nullptr || find_action(*menu, "layerShapeAppearanceAction") == nullptr);
+  if (menu != nullptr) {
+    menu->close();
+    QApplication::processEvents();
+  }
+}
+
 std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
   return {
       {"ui_shape_tool_creates_shape_layer_and_undoes", ui_shape_tool_creates_shape_layer_and_undoes},
@@ -3766,6 +4146,10 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
        ui_paths_panel_fill_stroke_and_make_selection},
       {"ui_free_transform_scales_shape_layer_crisply",
        ui_free_transform_scales_shape_layer_crisply},
+      {"ui_shape_moved_off_canvas_by_free_transform_moves_back",
+       ui_shape_moved_off_canvas_by_free_transform_moves_back},
+      {"ui_free_transform_shape_with_outside_stroke_lands_on_box",
+       ui_free_transform_shape_with_outside_stroke_lands_on_box},
       {"ui_polygon_tool_creates_polygons_and_stars", ui_polygon_tool_creates_polygons_and_stars},
       {"ui_custom_shape_stamps_and_defines", ui_custom_shape_stamps_and_defines},
       {"ui_custom_shape_builtin_geometry_refreshes", ui_custom_shape_builtin_geometry_refreshes},
@@ -3811,6 +4195,10 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
       {"ui_shape_tap_line_fixed_size_and_path_mode", ui_shape_tap_line_fixed_size_and_path_mode},
       {"ui_shape_size_spins_reflect_and_resize_active_shape",
        ui_shape_size_spins_reflect_and_resize_active_shape},
+      {"ui_shape_size_controls_follow_move_and_properties_selection",
+       ui_shape_size_controls_follow_move_and_properties_selection},
+      {"ui_shape_size_row_shows_in_shape_mode_only", ui_shape_size_row_shows_in_shape_mode_only},
+      {"ui_shape_context_menu_offers_shape_commands", ui_shape_context_menu_offers_shape_commands},
       {"ui_shape_style_row_is_pixel_only_and_greys_size_at_normal",
        ui_shape_style_row_is_pixel_only_and_greys_size_at_normal},
       {"ui_options_bar_never_shows_pixel_widgets_in_shape_mode",
@@ -3821,6 +4209,8 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
       {"ui_shape_appearance_dialog_edits_opacity_feather_and_stroke_opacity",
        ui_shape_appearance_dialog_edits_opacity_feather_and_stroke_opacity},
       {"ui_shape_geometry_link_keeps_aspect", ui_shape_geometry_link_keeps_aspect},
+      {"ui_shape_geometry_radius_link_edits_all_corners",
+       ui_shape_geometry_radius_link_edits_all_corners},
       {"ui_shape_appearance_dialog_fits_1080p_and_has_two_columns",
        ui_shape_appearance_dialog_fits_1080p_and_has_two_columns},
       {"ui_shape_appearance_spins_have_step_buttons", ui_shape_appearance_spins_have_step_buttons},

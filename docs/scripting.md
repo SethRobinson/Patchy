@@ -95,9 +95,8 @@ Header directives live in the `//` comment block at the top of a script and are 
   Example..." context entry show: quoted exe path + `--run-script` + quoted script path
   + the `@cli` tokens. Without `@cli` the fallback appends an ` example.png` positional
   placeholder for active-document scripts and nothing for `@window` scripts, so every
-  script gets a working example even with no metadata at all. The Utilities scripts
-  that take `--script-arg` options carry `@cli` lines; simple active-document effects
-  rely on the fallback.
+  script gets a working example. Utilities scripts that take `--script-arg` options
+  carry `@cli` lines; simple active-document effects rely on the fallback.
 
 A same-stem 128x128 PNG is the script icon, displayed at 32px in the tree and
 96px in its hover card; missing icons use `script_generic_icon`. User PNGs override
@@ -135,9 +134,8 @@ too:
 
 "Unattended" is `ScriptEngineHost::unattended_run()`: app-wide CLI automation mode OR
 the per-run `RunOptions.unattended` flag, which `run_script_command`/`run_cli_script`
-set for every `--run-script` execution - INCLUDING requests forwarded to a running GUI
-instance, so automation never blocks on a dialog. All the interactive helpers (alert,
-prompt, pickers, showDialog, showOptions) honor it.
+set for every `--run-script` execution, INCLUDING requests forwarded to a running GUI
+instance, so automation never blocks on a dialog. Every interactive helper honors it.
 
 The form dialog (shared by showDialog/showOptions, `run_form_dialog` in
 script_engine.cpp) also supports `folder` and `file` field types (path line edit +
@@ -234,23 +232,19 @@ everywhere a bundled script is resolved.
   application-modal window is marked blocked by it, and a blocked window is skipped by
   the key-delivery path, which on wasm is permanent and leaves the game window unable
   to receive a single keystroke (see docs/wasm.md).
-  Side effect: the pump runs the coalesced refresh flush, so
-  scripts that push pixels repeatedly (generative-art batches, fancy-background
-  chunks) paint progressively. A pure-JS loop with no API calls cannot pump - heavy
-  bundled scripts write their buffer to the layer a few times mid-computation for
-  exactly this reason (setPixels REPLACES the layer's pixels, so they re-send the
-  whole buffer, never partial strips).
-- **Palette mode**: `setPixels` and `fill` are tool-like writes and snap to the document
-  palette (`apply_palette_to_pixels`, dither None, the editing alpha threshold);
-  `applyFilter` deliberately stays advisory, matching interactive filters.
-  `doc.getPalette/setPalette/loadPalette/savePalette` expose native palette metadata
-  and file I/O to scripts and MCP. Set/load validate before Undo, preserve layer
-  pixels, and default to enabled mode. The host assigns globally unique palette
-  revisions, synchronizes indexed export metadata, and invalidates the canvas and
-  palette panel. Disabled mode retains an attached table; getters read const and
-  return detached copies. PNG save/export uses the existing indexed writer;
-  previews remain truecolor. Optional parallel `names` arrays carry color labels
-  through GPL, PSD and indexed PNG metadata. See [palette-mode.md](palette-mode.md).
+  Side effect: the pump runs the coalesced refresh flush, so scripts that push pixels
+  repeatedly paint progressively. A pure-JS loop with no API calls cannot pump, so heavy
+  bundled scripts write their buffer to the layer a few times mid-computation
+  (setPixels REPLACES the layer's pixels: re-send the whole buffer, never strips).
+- **Palette mode**: `setPixels` and `fill` snap to the document palette like tools
+  (`apply_palette_to_pixels`, dither None, the editing alpha threshold); `applyFilter`
+  stays advisory, as interactive filters are. `doc.getPalette/setPalette/loadPalette/
+  savePalette` expose palette metadata and file I/O; set/load validate before Undo, keep
+  layer pixels, and default to enabled mode. The host assigns globally unique palette
+  revisions, syncs indexed export metadata, and invalidates canvas and panel. Disabled
+  mode keeps an attached table; getters read const and return copies. PNG save/export
+  uses the indexed writer; previews stay truecolor. Optional parallel `names` arrays
+  carry color labels through GPL, PSD and indexed PNG. See [palette-mode.md](palette-mode.md).
 - **Text layers go through the real pipeline.** `addTextLayer` and the `text` setter
   drive actual inline-editor sessions (the `cli_append_text_to_text_layers` technique),
   so rasters render through the normal commit path. `addTextLayer` clears the active
@@ -258,7 +252,27 @@ everywhere a bundled script is resolved.
   the text height in DOCUMENT PIXELS: the inline editor's font lives in editor pixels
   (document px * canvas zoom), so the script path must set `setPixelSize(size * zoom)` -
   a point-sized font commits at a zoom-dependent size (pinned by
-  `ui_script_text_size_is_zoom_independent`).
+  `ui_script_text_size_is_zoom_independent`). Its `font` goes through
+  `apply_text_family_to_editor` (the font picker's path): the commit reads the session
+  family, not the char format (pinned by `ui_script_text_font_option_applies`). The `text` setter replaces the selection
+  in one `insertText(text, format)` with the first character's format, never
+  delete-then-insert: an emptied block's char format is the fallback font only, so the
+  run would lose the exact size and glyph scales it renders from (pinned by
+  `ui_la_methode_script_text_setter_matches_interactive_commit_if_available`).
+  Rich runs (`addTextLayer([{text, font, size, bold, italic, color}, ...])`,
+  `layer.setTextRuns`) type each run with its own `QTextCharFormat` on top of the base
+  format through `apply_text_run_to_format` (`apply_text_family_to_format` for the family);
+  a paragraph break serializes as its own run because Qt gives the block separator the
+  preceding text's format. `box: {width, height}` passes the rect to `add_text_at`, which
+  opens the session as paragraph text; `align` and `textAlign` go through
+  `apply_text_alignment_to_editor` on the whole object. `textRuns`, `textBox` (null unless the
+  flow metadata says box) and `textAlign` read the stored runs, box and paragraph-run
+  metadata without a session. Scripted layers clear the options bar's recorded face
+  (`kTextStyleNameFormatProperty`) and carry `kTextExactSizeFormatProperty`, so the
+  requested face and size commit at every zoom (pinned by
+  `ui_script_text_face_ignores_the_options_bar_style`,
+  `ui_script_text_size_survives_low_zoom_reedit`, `ui_script_text_runs_create_and_read_back`,
+  `ui_script_text_box_wraps_and_aligns`, `ui_script_set_text_runs_edits_existing_layer`).
 - **Blend mode ids** (`script_blend_mode_id`) are a compatibility contract: scripts in
   the wild hard-code them. Append-only, aligned with the BlendMode enum, never rename.
 - **`app.apiVersion` is 1.** Bump only for breaking changes. Record additions and
@@ -354,22 +368,22 @@ newlines. The bundled `Utilities/batch-export.js` is the reference consumer.
 
 An AI agent drives Patchy by writing a .js file, invoking `--run-script`, and polling the
 output file. `scripts/bundled/patchy.d.ts` is the machine-readable API description and
-`scripts/bundled/scripting-guide.md` the prose guide; point the agent at both.
+`scripts/bundled/scripting-guide.md` the prose guide.
 
 The Script Manager's C:\ button surfaces this whole flow to users: it shows a copyable,
 really-runnable command for the selected script (tree selection first, else the loaded
 file), built by `script_cli_example_command` from the live application path and the
 script's `@cli` directive. The metadata is re-read from disk on every click (never
 cached), and the dialog is opened with `open()` (window-modal, no nested event loop).
-Shell rule (a pasted command MUST run as pasted; footnotes are not read):
-the exe token stays unquoted whenever the path is plain, because that one form runs
-as pasted in Command Prompt, PowerShell, and batch files, while quoting the first
-token flips PowerShell into expression mode ("Unexpected token" on `--run-script`).
-When the path forces quotes (spaces - Program Files installs), the shells genuinely
-diverge (PowerShell needs the `& ` call operator, cmd rejects it), so the dialog shows
-TWO labeled copyable lines, one per shell, each with its own Copy button. The split is
-Windows-only: POSIX shells parse a quoted first token as a command, so on macOS/Linux
-one line always works as pasted and the dialog never shows the PowerShell flavor.
+Shell rule (a pasted command MUST run as pasted): the exe token stays unquoted
+whenever the path is plain, because that form runs as pasted in Command Prompt,
+PowerShell, and batch files, while quoting the first token flips PowerShell into
+expression mode ("Unexpected token" on `--run-script`). When the path forces quotes
+(spaces, Program Files installs), the shells diverge (PowerShell needs the `& ` call
+operator, cmd rejects it), so the dialog shows TWO labeled copyable lines, one per
+shell, each with a Copy button. The split is Windows-only: POSIX shells parse a quoted
+first token as a command, so on macOS/Linux one line always works and the dialog never
+shows the PowerShell flavor.
 
 ## Trust model
 
@@ -377,7 +391,7 @@ Scripts run with the application's privileges, like Photoshop or Affinity script
 sandbox is "only run scripts you trust", not a permission system. The engine exposes no
 file, network, or process API beyond the documented `patchy.io` helpers (text files,
 folder listing, single-file existence/size/delete, makeDir) and document save/export
-paths, and v1 binds no network access at all. The single-instance
+paths. The single-instance
 pipe is per-user, so `--run-script` adds no cross-user surface.
 
 ## Legal posture
@@ -401,11 +415,9 @@ pipe is per-user, so `--run-script` adds no cross-user surface.
   assertion surface (fresh per MainWindow).
 - Manual smoke: the bundled scripts all run from File > Scripts; `game-of-life.js`
   completes fully under `--run-script` unattended, and the active-document scripts
-  (`letter-physics.js`, `generative-art.js`, `fancy-background.js`, the Effects and
-  the document-based Utilities) run unattended against a positional file (with no
-  document they alert-and-finish clean; picker-driven scripts like `batch-export.js`,
-  `contact-sheet.js`, and `data-merge.js` take their folders/files via `--script-arg`
-  and cancel cleanly without them).
+  run unattended against a positional file (with no document they alert-and-finish
+  clean; picker-driven scripts like `batch-export.js` and `data-merge.js` take their
+  folders/files via `--script-arg` and cancel cleanly without them).
 
 ## Future work
 
@@ -413,8 +425,8 @@ Not built: document/save/command hooks with a reentrancy design, per-script hotk
 with stable path-based IDs, persistent script storage, macro recording, non-blocking
 batches, script packaging, and an editor REPL.
 
-Anti-goals: never freeze or fork the API surface, no undocumented escape hatches as the
-real API (test-driven additions go through the documented API too, per the AGENTS.md
+Anti-goals: never freeze or fork the API surface, no undocumented escape hatches
+(test-driven additions go through the documented API too, per the AGENTS.md
 scripting-for-testability rule), and scripts stay plain user-editable files.
 
 Unattended dispatch covers scripts forwarded to an existing GUI.

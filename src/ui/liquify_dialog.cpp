@@ -354,7 +354,8 @@ std::optional<LiquifyMesh> request_liquify(QWidget* parent,
       form, &dialog, QObject::tr("Size:"),
       QStringLiteral("liquifySizeSlider"),
       QStringLiteral("liquifySizeSpin"), 5, 2000, default_size,
-      SpinUnit::Pixels, {}, 80);
+      SpinUnit::Pixels, {}, 80, /*row_spacing=*/-1, /*step_buttons=*/false,
+      SliderCurve::FineLowEnd);
   auto* pressure = add_dialog_slider_spin_row(
       form, &dialog, QObject::tr("Pressure:"),
       QStringLiteral("liquifyPressureSlider"),

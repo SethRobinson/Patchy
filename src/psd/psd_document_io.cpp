@@ -32,6 +32,7 @@
 #include <iomanip>
 #include <iterator>
 #include <map>
+#include <set>
 #include <memory>
 #include <optional>
 #include <sstream>
@@ -53,7 +54,92 @@
 
 namespace patchy::psd {
 
+// TextIndex of the first regenerated type layer in a document that keeps a Photoshop 'Txt2'
+// block: beyond any text object Photoshop indexes contiguously from 0 (a 999 probe already
+// read the layer from its TySh), and far from indices Patchy preserves.
+inline constexpr std::int32_t kRegeneratedTextIndexBase = 100000;
+
 namespace {
+
+// Rebuilds the document-level text engine block for this save (docs/txt2.md). Starts from the
+// preserved block (or the Photoshop 2026 template when the document has none), strips every
+// cached layout tree, authors an object for each regenerated type layer at the index its TySh
+// will carry (the layer's imported index when that object exists, else appended), keeps the
+// objects of untouched imported layers, and records each new index in the encoded layer so the
+// TySh writer stamps it. Returns nullopt when there is nothing to author (no type layers) or the
+// preserved block cannot be parsed; the caller then falls back to the old-text indices.
+std::optional<std::vector<std::uint8_t>> build_text_engine_block(std::vector<EncodedLayer>& encoded_layers,
+                                                                 const std::vector<UnknownPsdBlock>& global_blocks) {
+  std::vector<EncodedLayer*> text_layers;
+  for (auto& encoded : encoded_layers) {
+    if (encoded.layer != nullptr && encoded.kind == EncodedLayerKind::Pixel && layer_is_text(*encoded.layer)) {
+      const auto text = encoded.layer->metadata().find(kLayerMetadataText);
+      if (text != encoded.layer->metadata().end() && !text->second.empty()) {
+        text_layers.push_back(&encoded);
+      }
+    }
+  }
+  if (text_layers.empty()) {
+    return std::nullopt;
+  }
+  // A Photoshop 5.x 'tySh' record only reads as text through Photoshop's old-text path, and
+  // the mere presence of a 'Txt2' block switches the whole document to the new engine: every
+  // untouched legacy layer then opens as a plain NORMAL layer (Title02.psd resaved through
+  // Patchy, COM readback, September 28, 2026; stripping the block restored all six). A document
+  // that keeps a verbatim tySh therefore gets no block unless it already had one; a regenerated
+  // TySh beside it is still read from its own bytes (docs/psd-legacy-text.md).
+  const bool keeps_legacy_type_record = std::any_of(text_layers.begin(), text_layers.end(), [](const EncodedLayer* encoded) {
+    return !should_write_generated_text_block(*encoded) &&
+           std::any_of(encoded->layer->unknown_psd_blocks().begin(), encoded->layer->unknown_psd_blocks().end(),
+                       [](const UnknownPsdBlock& block) { return block.key == "tySh"; });
+  });
+  const bool has_preserved_block = std::any_of(global_blocks.begin(), global_blocks.end(),
+                                               [](const UnknownPsdBlock& block) { return block.key == "Txt2"; });
+  if (keeps_legacy_type_record && !has_preserved_block) {
+    return std::nullopt;
+  }
+  std::optional<TextEngineBlock> block;
+  for (const auto& global : global_blocks) {
+    if (global.key == "Txt2") {
+      block = TextEngineBlock::parse(global.payload);
+      if (!block.has_value()) {
+        return std::nullopt;
+      }
+      break;
+    }
+  }
+  if (!block.has_value()) {
+    block = TextEngineBlock::from_template();
+  }
+  block->strip_layout_caches();
+  for (auto* encoded : text_layers) {
+    const auto& layer = *encoded->layer;
+    std::optional<std::size_t> stored_index;
+    if (const auto stored = layer.metadata().find(kLayerMetadataPsdTextIndex); stored != layer.metadata().end()) {
+      char* end = nullptr;
+      const auto value = std::strtol(stored->second.c_str(), &end, 10);
+      if (end != stored->second.c_str() && *end == '\0' && value >= 0 &&
+          static_cast<std::size_t>(value) < block->object_count()) {
+        stored_index = static_cast<std::size_t>(value);
+      }
+    }
+    const bool generated = should_write_generated_text_block(*encoded);
+    const bool regenerated = generated && !text_layer_keeps_photoshop_type_block(layer);
+    if (!regenerated) {
+      if (stored_index.has_value() || !generated) {
+        // The imported object stays, or (a verbatim TySh with no object) nothing can be indexed.
+        continue;
+      }
+    }
+    const auto inputs = text_engine_inputs_for_layer(layer, encoded->bounds);
+    if (!inputs.has_value()) {
+      continue;
+    }
+    const auto index = stored_index.has_value() ? block->set_object(*stored_index, *inputs) : block->append_object(*inputs);
+    encoded->text_index_override = static_cast<std::int32_t>(index);
+  }
+  return block->serialize();
+}
 
 void append_document_channels_for_write(
     const Document& document, std::vector<std::span<const std::uint8_t>>& planes,
@@ -99,12 +185,13 @@ bool records_look_like_legacy_top_to_bottom(const std::vector<Layer>& layers, st
 }
 
 Document read_flat_composite(BigEndianReader& reader, const Header& header,
-                             const CmykToRgbTransform* cmyk_icc,
+                             const CmykColorConverter& source_colors,
                              const ParsedCompositeChannelResources& channel_resources,
                              bool has_merged_transparency, std::size_t* damaged_rows = nullptr) {
   const auto format = format_from_header(header);
   const auto compression = reader.read_u16();
   const auto source_is_cmyk = is_cmyk_color_mode(header.color_mode);
+  const auto source_is_gray = is_grayscale_color_mode(header.color_mode);
 
   Document document(static_cast<std::int32_t>(header.width), static_cast<std::int32_t>(header.height), format);
   PixelBuffer pixels(static_cast<std::int32_t>(header.width), static_cast<std::int32_t>(header.height), format);
@@ -114,7 +201,9 @@ Document read_flat_composite(BigEndianReader& reader, const Header& header,
   if (source_is_cmyk) {
     convert_cmyk_planes_to_rgb(pixels, channel_data[0].data(), channel_data[1].data(),
                                channel_data[2].data(), channel_data[3].data(), channel_pixels,
-                               cmyk_icc);
+                               source_colors.icc);
+  } else if (source_is_gray) {
+    convert_gray_plane_to_rgb(pixels, channel_data[0].data(), channel_pixels, source_colors.gray_icc);
   } else {
     for (std::uint16_t channel = 0; channel < 3; ++channel) {
       for (std::size_t i = 0; i < channel_pixels; ++i) {
@@ -397,7 +486,7 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
                                            std::int32_t canvas_height, std::uint16_t source_color_mode,
                                            std::uint16_t depth, float global_light_angle,
                                            float global_light_altitude, bool large_document,
-                                           const CmykToRgbTransform* cmyk_icc,
+                                           const CmykColorConverter& source_colors,
                                            bool& has_merged_transparency,
                                            std::vector<std::string>* notices,
                                            std::size_t* damaged_rows) {
@@ -408,7 +497,7 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
   const auto layer_count = static_cast<std::uint16_t>(
       layer_count_raw < 0 ? -static_cast<std::int32_t>(layer_count_raw)
                           : static_cast<std::int32_t>(layer_count_raw));
-  const CmykColorConverter cmyk_converter{cmyk_icc};
+  const CmykColorConverter& cmyk_converter = source_colors;
   std::vector<LayerRecord> records;
   records.reserve(layer_count);
   for (std::uint16_t i = 0; i < layer_count; ++i) {
@@ -421,6 +510,7 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
     const auto width = std::max(0, record.bounds.width);
     const auto height = std::max(0, record.bounds.height);
     const auto source_is_cmyk = is_cmyk_color_mode(source_color_mode);
+    const auto source_is_gray = is_grayscale_color_mode(source_color_mode);
     const auto pixel_count = static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
     const auto has_color = std::any_of(record.channels.begin(), record.channels.end(), [source_color_mode](LayerChannelInfo channel) {
       return is_source_color_channel(channel.id, source_color_mode);
@@ -442,6 +532,7 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
         component.resize(pixel_count, 0);
       }
     }
+    std::vector<std::uint8_t> gray_plane;
 
     std::optional<LayerMask> decoded_mask;
     std::optional<LayerMask> decoded_real_user_mask;
@@ -529,6 +620,14 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
             pixels.data()[i * pixels.format().channels + 3U] = channel_data[i];
           }
         }
+      } else if (source_is_gray) {
+        if (channel.id == kChannelGray && channel_data.size() == pixel_count) {
+          gray_plane = std::move(channel_data);
+        } else if (target_channel == 3) {
+          for (std::size_t i = 0; i < channel_data.size(); ++i) {
+            pixels.data()[i * pixels.format().channels + 3U] = channel_data[i];
+          }
+        }
       } else {
         for (std::size_t i = 0; i < channel_data.size(); ++i) {
           if (target_channel >= 0 && target_channel < pixels.format().channels) {
@@ -540,7 +639,9 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
     if (source_is_cmyk) {
       convert_cmyk_planes_to_rgb(pixels, cmyk_channels[0].data(), cmyk_channels[1].data(),
                                  cmyk_channels[2].data(), cmyk_channels[3].data(), pixel_count,
-                                 cmyk_icc);
+                                 source_colors.icc);
+    } else if (source_is_gray && gray_plane.size() == pixel_count) {
+      convert_gray_plane_to_rgb(pixels, gray_plane.data(), pixel_count, source_colors.gray_icc);
     }
 
     bool text_placeholder_rendered = false;
@@ -796,9 +897,20 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
         // and the writer's coverage gate keeps it out of regenerated saves.
         drop_partial_origination_blocks = true;
       }
+      // A gradient paint without transparency stops can only come from a Patchy build that
+      // wrote an empty Trns list (before September 2026): Photoshop treats that as unknown
+      // data and drops the layer on open. Mark the blocks dirty so the next save regenerates
+      // them with the writer's opaque default stops instead of re-emitting the preserved bytes.
+      const bool heals_gradient_stops =
+          (content.fill.kind == VectorFillKind::Gradient && content.fill.gradient.alpha_stops.empty()) ||
+          (content.stroke.enabled && content.stroke.content.kind == VectorFillKind::Gradient &&
+           content.stroke.content.gradient.alpha_stops.empty());
       layer.set_vector_shape(std::move(content));
       layer.metadata()[kLayerMetadataVectorShape] = "1";
       layer.metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPhotoshop;
+      if (heals_gradient_stops) {
+        mark_layer_vector_block_dirty(layer);
+      }
     } else if (vector_mask_block.has_value()) {
       // Vector mask on an ordinary layer. When Photoshop baked a derived plane
       // (density/feather set: mask-data flags bit 3), that plane seeds the
@@ -928,7 +1040,16 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
         layer.metadata()[kLayerMetadataPsdTextBoundingBox] = serialize_text_bounds(record.text_geometry->bounding_box);
         layer.metadata()[kLayerMetadataPsdTextBoxBounds] = serialize_text_bounds(record.text_geometry->box_bounds);
         layer.metadata()[kLayerMetadataPsdTextTailBounds] = serialize_int_array(record.text_geometry->tail_bounds);
-        layer.metadata()[kLayerMetadataPsdTextIndex] = std::to_string(record.text_geometry->text_index);
+        // A PS 5.x 'tySh' record has no TextIndex. Storing its default 0 would make every
+        // edited legacy layer claim object 0 of the rebuilt 'Txt2' block (build_text_engine_block
+        // replaces a stored index in place), so the second edited layer's text would overwrite
+        // the first's; with no stored index each one appends its own object.
+        if (record.text_source_block != "tySh") {
+          layer.metadata()[kLayerMetadataPsdTextIndex] = std::to_string(record.text_geometry->text_index);
+        }
+        if (record.text_box_baseline_inset.has_value()) {
+          layer.metadata()[kLayerMetadataTextBoxBaselineInset] = serialize_paragraph_metric(*record.text_box_baseline_inset);
+        }
         if (record.text_geometry->vertical) {
           layer.metadata()[kLayerMetadataTextOrientation] = kTextOrientationVertical;
         }
@@ -952,7 +1073,7 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
 std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canvas_width, std::int32_t canvas_height,
                                std::uint16_t source_color_mode, std::uint16_t depth, float global_light_angle,
                                float global_light_altitude, bool large_document,
-                               const CmykToRgbTransform* cmyk_icc,
+                               const CmykColorConverter& source_colors,
                                bool& has_merged_transparency,
                                std::vector<std::string>* notices,
                                std::size_t* damaged_rows) {
@@ -966,7 +1087,7 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
 
   const auto layer_info_end = layer_reader.position() + static_cast<std::size_t>(layer_info_length);
   auto layers = read_layer_info_records(layer_reader, canvas_width, canvas_height, source_color_mode, depth,
-                                        global_light_angle, global_light_altitude, large_document, cmyk_icc,
+                                        global_light_angle, global_light_altitude, large_document, source_colors,
                                         has_merged_transparency, notices, damaged_rows);
   if (layer_reader.position() < layer_info_end) {
     layer_reader.skip(layer_info_end - layer_reader.position());
@@ -1099,7 +1220,32 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
       }
     }
   }
-  const auto* cmyk_icc = cmyk_icc_transform.has_value() ? &*cmyk_icc_transform : nullptr;
+  // Grayscale sources convert through their embedded gray profile the same way (Dot Gain
+  // 20%, Photoshop's default gray working space, lifts a 128 to sRGB 149); without a
+  // usable profile the gray values copy to RGB unchanged. As with CMYK, the profile is not
+  // promoted into color_state(): it does not describe the converted RGB pixels.
+  std::optional<GrayToRgbTransform> gray_icc_transform;
+  if (is_grayscale_color_mode(header.color_mode)) {
+    if (auto icc_profile = find_image_resource_payload(image_resources, kImageResourceIccProfile);
+        icc_profile.has_value()) {
+      gray_icc_transform = GrayToRgbTransform::from_icc_profile(*icc_profile);
+      if (options.notices != nullptr) {
+        if (gray_icc_transform.has_value()) {
+          const auto& description = gray_icc_transform->profile_description();
+          options.notices->push_back(
+              "Converted grayscale values to RGB using the document's embedded color profile" +
+              (description.empty() ? std::string(".") : " '" + description + "'."));
+        } else {
+          options.notices->push_back(
+              "The document's embedded grayscale color profile could not be used; gray values "
+              "were copied to RGB unchanged.");
+        }
+      }
+    }
+  }
+  const CmykColorConverter source_colors{cmyk_icc_transform.has_value() ? &*cmyk_icc_transform : nullptr,
+                                         gray_icc_transform.has_value() ? &*gray_icc_transform : nullptr};
+  const auto* cmyk_icc = source_colors.icc;
   if (auto resolution = find_image_resource_payload(image_resources, kImageResourceResolutionInfo);
       resolution.has_value()) {
     if (auto print_settings = print_settings_from_resolution_resource(*resolution); print_settings.has_value()) {
@@ -1141,7 +1287,7 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
     auto print_settings = document.print_settings();
     auto grid_settings = document.grid_settings();
     auto guides = std::move(document.guides());
-    document = read_flat_composite(reader, header, cmyk_icc, channel_resources,
+    document = read_flat_composite(reader, header, source_colors, channel_resources,
                                    has_merged_transparency, &damaged_rows);
     document.metadata() = std::move(metadata);
     document.color_state().embedded_icc_profile = std::move(color_state.embedded_icc_profile);
@@ -1164,7 +1310,7 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
     BigEndianReader layer_reader(layer_mask_payload);
     auto layers = read_layers(layer_reader, document.width(), document.height(), header.color_mode,
                               header.depth, global_light_angle, global_light_altitude, header.large_document,
-                              cmyk_icc, has_merged_transparency, options.notices, &damaged_rows);
+                              source_colors, has_merged_transparency, options.notices, &damaged_rows);
     const auto add_layer = [&document](const Layer& source) {
       document.add_layer(clone_layer_with_document_ids(document, source));
     };
@@ -1226,7 +1372,7 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
         BigEndianReader block_reader(payload);
         auto deep_layers = read_layer_info_records(
             block_reader, document.width(), document.height(), header.color_mode, header.depth,
-            global_light_angle, global_light_altitude, header.large_document, cmyk_icc,
+            global_light_angle, global_light_altitude, header.large_document, source_colors,
             has_merged_transparency, options.notices, &damaged_rows);
         // Always Photoshop's bottom-to-top order: legacy Patchy never wrote these
         // blocks, so the legacy-order heuristic used for the standard section
@@ -1288,7 +1434,7 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
     auto print_settings = document.print_settings();
     auto grid_settings = document.grid_settings();
     auto guides = std::move(document.guides());
-    document = read_flat_composite(reader, header, cmyk_icc, channel_resources,
+    document = read_flat_composite(reader, header, source_colors, channel_resources,
                                    has_merged_transparency, &damaged_rows);
     document.metadata() = std::move(metadata);
     document.color_state().embedded_icc_profile = std::move(color_state.embedded_icc_profile);
@@ -1309,7 +1455,7 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
     const auto saved_channel_count = static_cast<std::size_t>(header.channels - first_saved_channel);
     if (options.retain_flat_composite) {
       try {
-        auto flat_composite = read_flat_composite(reader, header, cmyk_icc, channel_resources,
+        auto flat_composite = read_flat_composite(reader, header, source_colors, channel_resources,
                                                   has_merged_transparency, &damaged_rows);
         if (!flat_composite.layers().empty() && flat_composite.layers().front().kind() == LayerKind::Pixel) {
           document.metadata().psd_flat_composite =
@@ -1472,7 +1618,8 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
   // Photoshop stores layer records in stack order from bottom to top. Patchy's
   // document model uses the same order, so write it directly instead of reversing.
   for (const auto& layer : document.layers()) {
-    append_encoded_layers(layer, encoded_layers, options.large_document);
+    append_encoded_layers(layer, encoded_layers, options.large_document,
+                          Rect::from_size(document.width(), document.height()));
   }
 
   BigEndianWriter layer_info;
@@ -1497,6 +1644,26 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
   // ids continue above the largest preserved one; assignment follows record
   // order so repeated saves stay deterministic.
   auto next_layer_id = next_photoshop_layer_id(document.layers());
+  // Photoshop's document-level text engine block ('Txt2') holds one text object per type layer,
+  // addressed by the layer's TextIndex, and Photoshop trusts it over the layer's TySh: a layer
+  // Patchy had retyped in Bahnschrift Light read back as Bahnschrift Bold, silently, through the
+  // stale object its index pointed at (September 2026 COM captures). The block is rebuilt here
+  // (docs/txt2.md): every regenerated type layer gets an authored object at its index, untouched
+  // imported layers keep theirs, and a document without a block starts from the Photoshop 2026
+  // template, so Photoshop reads every layer as native text. When the preserved block cannot be
+  // parsed, a regenerated TySh falls back to an index no object has, which makes Photoshop read
+  // that one layer from its TySh (its old-text path) instead of the stale object.
+  const auto text_engine_payload = build_text_engine_block(encoded_layers, global_blocks);
+  if (!text_engine_payload.has_value() &&
+      std::any_of(global_blocks.begin(), global_blocks.end(),
+                  [](const UnknownPsdBlock& block) { return block.key == "Txt2"; })) {
+    std::int32_t next_text_index = kRegeneratedTextIndexBase;
+    for (auto& encoded : encoded_layers) {
+      if (should_write_generated_text_block(encoded)) {
+        encoded.text_index_override = next_text_index++;
+      }
+    }
+  }
   for (const auto& encoded : encoded_layers) {
     const bool needs_layer_id = has_smart_object_sources && encoded.layer != nullptr &&
                                 layer_is_smart_object(*encoded.layer) &&
@@ -1548,9 +1715,58 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
   {
     const auto& store = document.metadata().smart_objects;
     const auto& filter_store = document.metadata().smart_filter_effects;
+    // Photoshop 2026 refuses to open a file whose embedded link block carries an
+    // element no layer references ("program error"), whether Patchy or Photoshop
+    // wrote the element, and drops such elements itself when it saves (September
+    // 2026 probes, docs/smart-objects.md). Rasterize, Delete, and Convert to
+    // Layers leave them in the store (Undo needs them), so the writer leaves them
+    // out: a block with an orphan regenerates from its remaining elements (each
+    // keeps its own verbatim bytes), and an emptied block is not written at all.
+    // Fully referenced blocks stay verbatim. Any placed layer whose source is
+    // unknown (an unparsed SoLd, or a placed block that never became metadata)
+    // turns the pruning off, since it might reference any element.
+    std::set<std::string> referenced_sources;
+    bool sources_fully_known = true;
+    const auto collect_sources = [&](const std::vector<Layer>& layers, const auto& recurse) -> void {
+      for (const auto& layer : layers) {
+        if (layer_is_smart_object(layer)) {
+          auto uuid = smart_object_source_uuid(layer);
+          if (uuid.empty()) {
+            sources_fully_known = false;
+          } else {
+            referenced_sources.insert(std::move(uuid));
+          }
+        } else if (std::any_of(layer.unknown_psd_blocks().begin(), layer.unknown_psd_blocks().end(),
+                               [](const UnknownPsdBlock& block) {
+                                 return block.key == "SoLd" || block.key == "SoLE" || block.key == "PlLd";
+                               })) {
+          sources_fully_known = false;
+        }
+        recurse(layer.children(), recurse);
+      }
+    };
+    collect_sources(document.layers(), collect_sources);
+    std::vector<bool> link_block_written(store.blocks.size(), true);
     std::vector<std::vector<std::uint8_t>> link_payloads(store.blocks.size());
     for (std::size_t i = 0; i < store.blocks.size(); ++i) {
-      link_payloads[i] = serialize_linked_layer_block(store.blocks[i]);
+      const auto& block = store.blocks[i];
+      const bool embedded_block = block.key == "lnk2" || block.key == "lnkD" || block.key == "lnk3";
+      const auto orphan = [&referenced_sources](const SmartObjectSource& source) {
+        return !referenced_sources.contains(source.uuid);
+      };
+      if (sources_fully_known && embedded_block && !block.opaque &&
+          std::any_of(block.sources.begin(), block.sources.end(), orphan)) {
+        auto pruned = block;
+        pruned.original_payload.reset();  // the element list changed; regenerate
+        std::erase_if(pruned.sources, orphan);
+        if (pruned.sources.empty()) {
+          link_block_written[i] = false;
+          continue;
+        }
+        link_payloads[i] = serialize_linked_layer_block(pruned);
+        continue;
+      }
+      link_payloads[i] = serialize_linked_layer_block(block);
     }
     std::vector<std::vector<std::uint8_t>> filter_payloads(filter_store.blocks.size());
     for (std::size_t i = 0; i < filter_store.blocks.size(); ++i) {
@@ -1571,8 +1787,10 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
           {global_blocks[i].original_global_index, GlobalEmissionKind::Unknown, i});
     }
     for (std::size_t i = 0; i < store.blocks.size(); ++i) {
-      emissions.push_back(
-          {store.blocks[i].original_global_index, GlobalEmissionKind::Link, i});
+      if (link_block_written[i]) {
+        emissions.push_back(
+            {store.blocks[i].original_global_index, GlobalEmissionKind::Link, i});
+      }
     }
     for (std::size_t i = 0; i < filter_store.blocks.size(); ++i) {
       emissions.push_back({filter_store.blocks[i].original_global_index,
@@ -1582,11 +1800,17 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
                      [](const GlobalEmission& lhs, const GlobalEmission& rhs) {
                        return lhs.original_index < rhs.original_index;
                      });
+    bool text_engine_emitted = false;
     for (const auto& emission : emissions) {
       switch (emission.kind) {
         case GlobalEmissionKind::Unknown: {
           const auto& block = global_blocks[emission.item_index];
-          emit_global_payload(block.key, block.payload, block.long_length);
+          if (block.key == "Txt2" && text_engine_payload.has_value()) {
+            emit_global_payload(block.key, *text_engine_payload, block.long_length);
+            text_engine_emitted = true;
+          } else {
+            emit_global_payload(block.key, block.payload, block.long_length);
+          }
           break;
         }
         case GlobalEmissionKind::Link: {
@@ -1600,6 +1824,10 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
           break;
         }
       }
+    }
+    if (text_engine_payload.has_value() && !text_engine_emitted) {
+      // A document that never had a block (Patchy-born) gets its authored one after the others.
+      emit_global_payload("Txt2", *text_engine_payload, false);
     }
   }
   {

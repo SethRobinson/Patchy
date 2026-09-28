@@ -450,6 +450,175 @@ void tool_fill_bucket_fills_region_and_writes_artifact() {
   write_bmp_artifact("tool_fill_bucket", document);
 }
 
+// Fill tool tolerance (GitHub issue 30): a "white" background that is really a checkerboard of
+// 255 and 250 grays (scan/JPEG noise), split into two islands by a black bar at rows 30..33.
+// At tolerance 0 the 250 and 255 pixels are different colors and, being 4-disconnected, a
+// click fills exactly one pixel; at the Wand's tolerance they are one region.
+patchy::Document make_noisy_background_document() {
+  patchy::Document document(64, 64, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer pixels(64, 64, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < 64; ++y) {
+    for (std::int32_t x = 0; x < 64; ++x) {
+      auto* px = pixels.pixel(x, y);
+      const bool bar = y >= 30 && y <= 33;
+      const std::uint8_t gray = ((x + y) % 2 == 0) ? 255 : 250;
+      px[0] = bar ? 0 : gray;
+      px[1] = bar ? 0 : gray;
+      px[2] = bar ? 0 : gray;
+      px[3] = 255;
+    }
+  }
+  document.add_pixel_layer("Background", std::move(pixels));
+  return document;
+}
+
+bool pixel_is(const patchy::Document& document, patchy::LayerId layer_id, std::int32_t x, std::int32_t y,
+              std::uint8_t r, std::uint8_t g, std::uint8_t b, std::uint8_t a = 255) {
+  const auto* px = document.find_layer(layer_id)->pixels().pixel(x, y);
+  return px[0] == r && px[1] == g && px[2] == b && px[3] == a;
+}
+
+void tool_fill_bucket_tolerance_metric_matches_magic_wand() {
+  // The Wand accepts sum of squared RGBA differences <= 4 * tolerance^2.
+  const std::array<std::uint8_t, 4> base{100, 100, 100, 255};
+  const std::array<std::uint8_t, 4> one_channel_20{120, 100, 100, 255};
+  const std::array<std::uint8_t, 4> one_channel_21{121, 100, 100, 255};
+  const std::array<std::uint8_t, 4> each_channel_10{110, 110, 110, 245};
+  const std::array<std::uint8_t, 4> each_channel_11{111, 111, 111, 244};
+  CHECK(patchy::color_within_tolerance(base.data(), one_channel_20.data(), 4, 10));
+  CHECK(!patchy::color_within_tolerance(base.data(), one_channel_21.data(), 4, 10));
+  CHECK(patchy::color_within_tolerance(base.data(), each_channel_10.data(), 4, 10));
+  CHECK(!patchy::color_within_tolerance(base.data(), each_channel_11.data(), 4, 10));
+  // Tolerance 0 is an exact match; three-channel buffers ignore the fourth byte.
+  CHECK(!patchy::color_within_tolerance(base.data(), one_channel_20.data(), 4, 0));
+  CHECK(patchy::color_within_tolerance(base.data(), base.data(), 4, 0));
+  const std::array<std::uint8_t, 4> alpha_only{100, 100, 100, 0};
+  CHECK(patchy::color_within_tolerance(base.data(), alpha_only.data(), 3, 0));
+  CHECK(!patchy::color_within_tolerance(base.data(), alpha_only.data(), 4, 0));
+  // Single gray channel (mask floods): |delta| <= 2 * tolerance.
+  const std::uint8_t g0 = 100;
+  const std::uint8_t g20 = 120;
+  const std::uint8_t g21 = 121;
+  CHECK(patchy::color_within_tolerance(&g0, &g20, 1, 10));
+  CHECK(!patchy::color_within_tolerance(&g0, &g21, 1, 10));
+}
+
+void tool_fill_bucket_tolerance_fills_near_colors_but_not_text() {
+  auto document = make_noisy_background_document();
+  const auto layer_id = document.layers().front().id();
+  auto options = tool_options(0, 180, 210);
+
+  // Tolerance 0 (the pre-tolerance behavior): the click's own pixel only.
+  options.flood_tolerance = 0;
+  const auto exact = patchy::flood_fill(document, layer_id, 2, 2, options);
+  CHECK(exact.width == 1);
+  CHECK(exact.height == 1);
+  CHECK(pixel_is(document, layer_id, 2, 2, 0, 180, 210));
+  CHECK(pixel_is(document, layer_id, 3, 2, 250, 250, 250));
+
+  // Wand-strength tolerance: the whole upper island, the bar untouched, the lower island
+  // unreachable (contiguous).
+  options.flood_tolerance = 32;
+  const auto island = patchy::flood_fill(document, layer_id, 4, 4, options);
+  CHECK(island.x == 0);
+  CHECK(island.y == 0);
+  CHECK(island.width == 64);
+  CHECK(island.height == 30);
+  CHECK(pixel_is(document, layer_id, 3, 2, 0, 180, 210));
+  CHECK(pixel_is(document, layer_id, 63, 29, 0, 180, 210));
+  CHECK(pixel_is(document, layer_id, 10, 31, 0, 0, 0));
+  CHECK(pixel_is(document, layer_id, 10, 40, 255, 255, 255));
+  CHECK(pixel_is(document, layer_id, 11, 40, 250, 250, 250));
+}
+
+void tool_fill_bucket_non_contiguous_fills_every_matching_pixel() {
+  auto document = make_noisy_background_document();
+  const auto layer_id = document.layers().front().id();
+  auto options = tool_options(0, 180, 210);
+  options.flood_tolerance = 32;
+  options.flood_contiguous = false;
+  const auto dirty = patchy::flood_fill(document, layer_id, 4, 4, options);
+  CHECK(dirty.width == 64);
+  CHECK(dirty.height == 64);
+  CHECK(pixel_is(document, layer_id, 10, 40, 0, 180, 210));
+  CHECK(pixel_is(document, layer_id, 11, 40, 0, 180, 210));
+  CHECK(pixel_is(document, layer_id, 10, 31, 0, 0, 0));
+
+  // A selection still clips the non-contiguous fill.
+  auto clipped = make_noisy_background_document();
+  const auto clipped_id = clipped.layers().front().id();
+  options.selection = patchy::Rect{0, 40, 64, 24};
+  options.selection_mask = [](std::int32_t, std::int32_t y) { return y >= 40; };
+  CHECK(!patchy::flood_fill(clipped, clipped_id, 4, 44, options).empty());
+  CHECK(pixel_is(clipped, clipped_id, 4, 44, 0, 180, 210));
+  CHECK(pixel_is(clipped, clipped_id, 4, 36, 255, 255, 255));
+  CHECK(pixel_is(clipped, clipped_id, 4, 4, 255, 255, 255));
+}
+
+void tool_fill_bucket_opacity_blends_and_terminates() {
+  // A translucent fill at maximum tolerance: every pixel matches the click, including the
+  // ones already written, so membership must come from the original pixels or the flood
+  // never ends. The result is a 50% blend, not a 50% alpha stamp.
+  auto document = make_noisy_background_document();
+  const auto layer_id = document.layers().front().id();
+  auto options = tool_options(0, 180, 210);
+  options.primary.a = 128;
+  options.flood_tolerance = 255;
+  const auto dirty = patchy::flood_fill(document, layer_id, 10, 31, options);
+  CHECK(dirty.width == 64);
+  CHECK(dirty.height == 64);
+  const auto* bar = document.find_layer(layer_id)->pixels().pixel(10, 31);
+  CHECK(bar[0] == 0);
+  CHECK(bar[1] >= 88 && bar[1] <= 92);
+  CHECK(bar[2] >= 103 && bar[2] <= 107);
+  CHECK(bar[3] == 255);
+  const auto* white = document.find_layer(layer_id)->pixels().pixel(2, 2);
+  CHECK(white[0] >= 126 && white[0] <= 129);
+  CHECK(white[3] == 255);
+}
+
+void tool_fill_bucket_softness_feathers_inward_from_region_edge() {
+  auto document = make_noisy_background_document();
+  const auto layer_id = document.layers().front().id();
+  auto options = tool_options(0, 180, 210);
+  options.flood_tolerance = 32;
+  options.fill_softness_feather = 8.0;
+  CHECK(!patchy::flood_fill(document, layer_id, 4, 4, options).empty());
+  // Deep inside the upper island: the full fill color.
+  CHECK(pixel_is(document, layer_id, 32, 15, 0, 180, 210));
+  // One pixel in from the island's top edge and from the black bar: mostly the original white.
+  const auto* top = document.find_layer(layer_id)->pixels().pixel(32, 1);
+  CHECK(top[0] > 200);
+  const auto* above_bar = document.find_layer(layer_id)->pixels().pixel(32, 28);
+  CHECK(above_bar[0] > 200);
+  // The bar itself is outside the region and untouched.
+  CHECK(pixel_is(document, layer_id, 32, 31, 0, 0, 0));
+}
+
+void tool_fill_bucket_transparency_lock_skips_transparent_pixels() {
+  patchy::Document document(32, 16, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer pixels(32, 16, patchy::PixelFormat::rgba8());
+  pixels.clear(0);
+  for (std::int32_t y = 0; y < 16; ++y) {
+    for (std::int32_t x = 16; x < 32; ++x) {
+      auto* px = pixels.pixel(x, y);
+      px[0] = px[1] = px[2] = 200;
+      px[3] = 255;
+    }
+  }
+  document.add_pixel_layer("Layer", std::move(pixels));
+  const auto layer_id = document.layers().front().id();
+  auto options = tool_options(0, 180, 210);
+  options.flood_tolerance = 255;
+  options.lock_transparent_pixels = true;
+  CHECK(patchy::flood_fill(document, layer_id, 4, 4, options).empty());
+  const auto dirty = patchy::flood_fill(document, layer_id, 20, 4, options);
+  CHECK(dirty.x == 16);
+  CHECK(dirty.width == 16);
+  CHECK(pixel_is(document, layer_id, 20, 4, 0, 180, 210));
+  CHECK(pixel_is(document, layer_id, 4, 4, 0, 0, 0, 0));
+}
+
 void tool_gradient_draws_foreground_to_background_and_writes_artifact() {
   auto document = make_tool_document();
   const auto layer_id = active_tool_layer(document);
@@ -943,6 +1112,16 @@ std::vector<patchy::test::TestCase> pixel_tools_tests() {
       {"tool_fill_rect_honors_opacity_and_softness_feather",
        tool_fill_rect_honors_opacity_and_softness_feather},
       {"tool_fill_bucket_fills_region_and_writes_artifact", tool_fill_bucket_fills_region_and_writes_artifact},
+      {"tool_fill_bucket_tolerance_metric_matches_magic_wand", tool_fill_bucket_tolerance_metric_matches_magic_wand},
+      {"tool_fill_bucket_tolerance_fills_near_colors_but_not_text",
+       tool_fill_bucket_tolerance_fills_near_colors_but_not_text},
+      {"tool_fill_bucket_non_contiguous_fills_every_matching_pixel",
+       tool_fill_bucket_non_contiguous_fills_every_matching_pixel},
+      {"tool_fill_bucket_opacity_blends_and_terminates", tool_fill_bucket_opacity_blends_and_terminates},
+      {"tool_fill_bucket_softness_feathers_inward_from_region_edge",
+       tool_fill_bucket_softness_feathers_inward_from_region_edge},
+      {"tool_fill_bucket_transparency_lock_skips_transparent_pixels",
+       tool_fill_bucket_transparency_lock_skips_transparent_pixels},
       {"tool_gradient_draws_foreground_to_background_and_writes_artifact",
        tool_gradient_draws_foreground_to_background_and_writes_artifact},
       {"tool_gradient_supports_custom_stops_radial_reverse_and_alpha",

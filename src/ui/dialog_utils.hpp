@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ui/curved_slider.hpp"
 #include "ui/theme_qss.hpp"
 #include "ui/unit_spin_box.hpp"
 
@@ -10,6 +11,7 @@
 #include <QSizeGrip>
 
 #include <exception>
+#include <limits>
 
 class QAction;
 class QBoxLayout;
@@ -51,6 +53,9 @@ void configure_toolbar_spinbox(QDoubleSpinBox* spin, int width);
 // spin box's maximum (the spin box itself keeps accepting larger typed values; the
 // slider extends to the current value when it already sits above the cap).
 inline constexpr char kToolbarSpinboxSliderMaxProperty[] = "patchy.popupSliderMax";
+// Set this bool property on an integer toolbar spin box to give its popup slider the
+// SliderCurve::FineLowEnd response (curved_slider.hpp) for size-like ranges.
+inline constexpr char kToolbarSpinboxSliderCurvedProperty[] = "patchy.popupSliderCurved";
 void configure_dialog_spinbox(QSpinBox* spin, int width = 92);
 void configure_dialog_spinbox(QDoubleSpinBox* spin, int width = 92);
 // Large-button spin box styling (24px - / + buttons with readable glyphs; decrement left,
@@ -94,10 +99,16 @@ QWidget* wrap_spin_with_step_buttons(QAbstractSpinBox* spin, QWidget* parent,
 // these widgets up by exact objectName, so each call site keeps its own naming
 // scheme. row_spacing < 0 keeps the layout's default spacing. step_buttons appends
 // the add_spin_step_buttons pair after the spin box for one-unit adjustments.
+// A slider_maximum below `maximum` stops the slider short of the spin box: the
+// slider covers the practical range while the spin box still accepts `maximum`
+// (a typed value past the slider parks the slider at its end). SliderCurve::FineLowEnd
+// suits size-like ranges; find the slider's value with slider_value(), never value().
 QSpinBox* add_dialog_slider_spin_row(QFormLayout* form, QWidget* parent, const QString& label,
                                      const QString& slider_object_name, const QString& spin_object_name,
                                      int minimum, int maximum, int value, const QString& suffix = QString(),
-                                     int spin_width = 72, int row_spacing = -1, bool step_buttons = false);
+                                     int spin_width = 72, int row_spacing = -1, bool step_buttons = false,
+                                     int slider_maximum = std::numeric_limits<int>::max(),
+                                     SliderCurve curve = SliderCurve::Linear);
 // Same row with a unit-entry spin box: the suffix comes from the native unit and typed
 // unit tokens convert on entry (px/in/cm/mm/pt/%/deg; see unit_spin_box.hpp). `provider`
 // supplies the PPI and percent basis; leave it empty for a plain 300 ppi, no-percent field.
@@ -105,7 +116,8 @@ UnitIntSpinBox* add_dialog_slider_spin_row(QFormLayout* form, QWidget* parent, c
                                            const QString& slider_object_name, const QString& spin_object_name,
                                            int minimum, int maximum, int value, SpinUnit unit,
                                            UnitIntSpinBox::ContextProvider provider = {}, int spin_width = 72,
-                                           int row_spacing = -1, bool step_buttons = false);
+                                           int row_spacing = -1, bool step_buttons = false,
+                                           SliderCurve curve = SliderCurve::Linear);
 // Moves a popup (already resized to its final size) directly below `anchor`:
 // clamps it inside the screen's available horizontal range and flips it above
 // the anchor when it would run past the bottom. Call before show().

@@ -24,13 +24,13 @@ icon art changes).
 Uses the existing Apple Developer account (Robinson Technologies Corporation).
 
 1. Ensure a **Developer ID Application** certificate is in the login keychain on
-   studiomac: `security find-identity -v -p codesigning` should list
+   the mac build host: `security find-identity -v -p codesigning` should list
    `Developer ID Application: Robinson Technologies Corporation (TEAMID)`. If not,
    create one at developer.apple.com > Certificates (type "Developer ID Application")
    and double-click the downloaded .cer.
 2. Store notarization credentials (App Store Connect API key or app-specific
    password): `xcrun notarytool store-credentials patchy-notary`
-3. Put both into `~/.patchy-release-env` on studiomac (sourced by the release script):
+3. Put both into `~/.patchy-release-env` on the mac build host (sourced by the release script):
 
    ```sh
    export PATCHY_MAC_SIGN_IDENTITY="Developer ID Application: Robinson Technologies Corporation (TEAMID)"
@@ -59,7 +59,7 @@ requiring both a non-zero-free assessment and the literal `source=Notarized Deve
 in the output, which is what separates a notarized dmg from a merely signed one. That
 `spctl` call used to end in `|| true`, which hid a rejection.
 
-Do not add `xcrun stapler validate` to that check. It blocks indefinitely on studiomac
+Do not add `xcrun stapler validate` to that check. It blocks indefinitely on the mac build host
 (September 2026: still running after ten minutes, killed at sixty seconds on a bounded
 retest) and would hang every release; `spctl` covers the same ground in about a third of
 a second.
@@ -110,7 +110,7 @@ and crashed at 17:03 with no Patchy build or ssh session running (the last remot
 was two days earlier); the iCloudHelper dialog followed at 17:08. The build scripts only
 ever unlock the keychain and never lock it, and a `SecKeychainGetStatus` probe from an
 ssh session reports that session, not the desktop. The login keychain password equals
-the login password on studiomac (verified September 11, 2026 with
+the login password on the mac build host (verified September 11, 2026 with
 `packaging/macos/check-keychain-password.sh`, which pipes the stored credential to
 `sudo -S` and prints only MATCH or DIFFERENT), so login and reboot unlock the keychain
 automatically; after a
@@ -130,8 +130,8 @@ the cause. Both scripts are run from Windows without any quoting, which PowerShe
 cmd would otherwise mangle (inner double quotes and `2>/dev/null` do not survive them):
 
 ```
-ssh seth@studiomac.local bash /Users/seth/patchy/src/packaging/macos/check-keychain-password.sh
-ssh seth@studiomac.local bash /Users/seth/patchy/src/packaging/macos/desktop-keychain-unlock.sh
+ssh <mac-build-host> bash ~/patchy/src/packaging/macos/check-keychain-password.sh
+ssh <mac-build-host> bash ~/patchy/src/packaging/macos/desktop-keychain-unlock.sh
 ```
 
 The mac checkout under `~/patchy/src` is the last remote-build snapshot, so a script

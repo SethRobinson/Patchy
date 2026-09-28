@@ -17,11 +17,15 @@
 #include "core/path_simplify.hpp"
 
 #include "core/layer_metadata.hpp"
+#include "core/pixel_grid.hpp"
 #include "formats/document_flatten.hpp"
 #include "formats/palette_io.hpp"
 #include "core/layer_render_utils.hpp"
 #include "core/pixel_tools.hpp"
 #include "ui/main_window.hpp"
+#include "ui/main_window_shared.hpp"
+#include "ui/app_settings.hpp"
+#include "ui/document_recovery.hpp"
 #include "ui/layer_merge.hpp"
 #include "ui/qt_geometry.hpp"
 #include "ui/qt_paths.hpp"
@@ -33,6 +37,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QFontDatabase>
 #include <QJSEngine>
 #include <QJSValueIterator>
 #include <QRegion>
@@ -101,6 +106,102 @@ bool parse_color(ScriptEngineHost& host, const QString& text, QColor* color) {
   *color = parsed;
   return true;
 }
+
+namespace {
+
+bool text_align_name_is_valid(const QString& align) {
+  return align == QLatin1String("left") || align == QLatin1String("center") ||
+         align == QLatin1String("right") || align == QLatin1String("justify");
+}
+
+// An array of {text, font?, size?, bold?, italic?, color?} objects (a bare string counts as a
+// run with no overrides). False after throwing on a malformed run.
+// Paragraph metrics object ({firstLineIndent, startIndent, endIndent, spaceBefore, spaceAfter},
+// document pixels; a missing field stays unset so the setter leaves it alone).
+bool parse_paragraph_metrics(ScriptEngineHost& host, const QJSValue& value, const char* verb,
+                             TextParagraphMetrics* out) {
+  if (!value.isObject() || value.isArray() || value.isCallable()) {
+    host.throw_js_error(ScriptEngineHost::tr("%1: paragraph must be an object with firstLineIndent, startIndent, "
+                                             "endIndent, spaceBefore and spaceAfter numbers (document pixels).")
+                            .arg(QString::fromLatin1(verb)));
+    return false;
+  }
+  const auto read = [&](const char* key, std::optional<double>* field) {
+    const auto property = value.property(QString::fromLatin1(key));
+    if (property.isUndefined() || property.isNull()) {
+      return true;
+    }
+    if (!property.isNumber() || !std::isfinite(property.toNumber())) {
+      host.throw_js_error(ScriptEngineHost::tr("%1: paragraph.%2 must be a number (document pixels).")
+                              .arg(QString::fromLatin1(verb), QString::fromLatin1(key)));
+      return false;
+    }
+    *field = property.toNumber();
+    return true;
+  };
+  return read("firstLineIndent", &out->first_line_indent) && read("startIndent", &out->start_indent) &&
+         read("endIndent", &out->end_indent) && read("spaceBefore", &out->space_before) &&
+         read("spaceAfter", &out->space_after);
+}
+
+bool parse_text_runs(ScriptEngineHost& host, const QJSValue& value, const char* verb,
+                     std::vector<ScriptEngineHost::TextRunParams>* runs) {
+  if (!value.isArray()) {
+    host.throw_js_error(ScriptEngineHost::tr("%1: runs must be an array of {text, font, size, bold, italic, color} objects.")
+                            .arg(QLatin1String(verb)));
+    return false;
+  }
+  const auto count = value.property(QStringLiteral("length")).toInt();
+  for (int index = 0; index < count; ++index) {
+    const auto item = value.property(static_cast<quint32>(index));
+    ScriptEngineHost::TextRunParams run;
+    if (item.isString()) {
+      run.text = item.toString();
+    } else if (item.isObject() && !item.isArray() && !item.isCallable()) {
+      const auto text = item.property(QStringLiteral("text"));
+      if (!text.isString()) {
+        host.throw_js_error(ScriptEngineHost::tr("%1: run %2 needs a text string.").arg(QLatin1String(verb)).arg(index));
+        return false;
+      }
+      run.text = text.toString();
+      if (const auto font = item.property(QStringLiteral("font")); font.isString()) {
+        run.family = font.toString();
+      }
+      if (const auto size = item.property(QStringLiteral("size")); size.isNumber()) {
+        run.size_px = size.toNumber();
+        if (!std::isfinite(run.size_px) || run.size_px <= 0.0) {
+          host.throw_js_error(ScriptEngineHost::tr("%1: run %2 has a non-positive size.").arg(QLatin1String(verb)).arg(index));
+          return false;
+        }
+      }
+      if (const auto bold = item.property(QStringLiteral("bold")); bold.isBool()) {
+        run.bold = bold.toBool();
+      }
+      if (const auto italic = item.property(QStringLiteral("italic")); italic.isBool()) {
+        run.italic = italic.toBool();
+      }
+      if (const auto color = item.property(QStringLiteral("color")); color.isString()) {
+        QColor parsed;
+        if (!parse_color(host, color.toString(), &parsed)) {
+          return false;
+        }
+        run.color = parsed;
+      }
+    } else {
+      host.throw_js_error(ScriptEngineHost::tr("%1: run %2 must be a string or an object.").arg(QLatin1String(verb)).arg(index));
+      return false;
+    }
+    runs->push_back(std::move(run));
+  }
+  if (runs->empty()) {
+    host.throw_js_error(ScriptEngineHost::tr("%1: runs must not be empty.").arg(QLatin1String(verb)));
+    return false;
+  }
+  return true;
+}
+
+}  // namespace
+
 
 // Locates the vector holding `id` plus its index, walking const for the search;
 // the caller re-walks non-const only when it actually mutates.
@@ -355,14 +456,17 @@ void ScriptLayerObject::moveTo(double x, double y) {
     return std::isfinite(value) && value >= std::numeric_limits<int>::min() &&
            value <= std::numeric_limits<int>::max();
   };
-  if (!valid_integer(x) || !valid_integer(y) ||
-      !valid_integer(x - bounds.x) || !valid_integer(y - bounds.y) ||
-      !valid_integer(x + bounds.width) || !valid_integer(y + bounds.height)) {
+  // Photoshop's whole-pixel rule (halves round up), not truncation toward zero.
+  const auto snapped_x = snap_to_pixel_grid(x);
+  const auto snapped_y = snap_to_pixel_grid(y);
+  if (!valid_integer(snapped_x) || !valid_integer(snapped_y) ||
+      !valid_integer(snapped_x - bounds.x) || !valid_integer(snapped_y - bounds.y) ||
+      !valid_integer(snapped_x + bounds.width) || !valid_integer(snapped_y + bounds.height)) {
     host_.throw_js_error(ScriptEngineHost::tr("Layer position is outside the supported range."));
     return;
   }
-  const int dx = static_cast<int>(x) - bounds.x;
-  const int dy = static_cast<int>(y) - bounds.y;
+  const int dx = static_cast<int>(snapped_x) - bounds.x;
+  const int dy = static_cast<int>(snapped_y) - bounds.y;
   if (dx == 0 && dy == 0) {
     return;
   }
@@ -446,6 +550,107 @@ void ScriptLayerObject::set_text_orientation(const QString& orientation) {
 QString ScriptLayerObject::text_direction() const {
   const ScriptApiCall api_call(host_);
   return host_.text_layer_direction(session_id_, layer_id_);
+}
+
+QString ScriptLayerObject::text_font() const {
+  const ScriptApiCall api_call(host_);
+  return host_.text_layer_font(session_id_, layer_id_);
+}
+
+QJSValue ScriptLayerObject::text_runs() const {
+  const ScriptApiCall api_call(host_);
+  const auto runs = host_.text_layer_runs(session_id_, layer_id_);
+  auto array = host_.engine()->newArray(static_cast<quint32>(runs.size()));
+  quint32 index = 0;
+  for (const auto& run : runs) {
+    auto object = host_.engine()->newObject();
+    object.setProperty(QStringLiteral("text"), run.text);
+    object.setProperty(QStringLiteral("font"), run.family);
+    object.setProperty(QStringLiteral("style"), run.style);
+    object.setProperty(QStringLiteral("size"), run.size);
+    object.setProperty(QStringLiteral("bold"), run.bold);
+    object.setProperty(QStringLiteral("italic"), run.italic);
+    object.setProperty(QStringLiteral("color"), run.color);
+    array.setProperty(index++, object);
+  }
+  return array;
+}
+
+QJSValue ScriptLayerObject::text_box() const {
+  const ScriptApiCall api_call(host_);
+  const auto box = host_.text_layer_box(session_id_, layer_id_);
+  if (!box.isValid()) {
+    return QJSValue(QJSValue::NullValue);
+  }
+  auto object = host_.engine()->newObject();
+  object.setProperty(QStringLiteral("width"), box.width());
+  object.setProperty(QStringLiteral("height"), box.height());
+  return object;
+}
+
+QString ScriptLayerObject::text_align() const {
+  const ScriptApiCall api_call(host_);
+  return host_.text_layer_align(session_id_, layer_id_);
+}
+
+void ScriptLayerObject::set_text_align(const QString& align) {
+  const ScriptApiCall api_call(host_);
+  if (!host_.layer_is_text_layer(session_id_, layer_id_)) {
+    host_.throw_js_error(ScriptEngineHost::tr("This layer is not a text layer."));
+    return;
+  }
+  if (!text_align_name_is_valid(align)) {
+    host_.throw_js_error(ScriptEngineHost::tr("textAlign must be 'left', 'center', 'right' or 'justify'."));
+    return;
+  }
+  if (!host_.set_text_layer_align(session_id_, layer_id_, align)) {
+    host_.throw_js_error(ScriptEngineHost::tr("Could not edit the text layer."));
+  }
+}
+
+QJSValue ScriptLayerObject::text_paragraph() const {
+  const ScriptApiCall api_call(host_);
+  if (!host_.layer_is_text_layer(session_id_, layer_id_)) {
+    return QJSValue(QJSValue::NullValue);
+  }
+  const auto metrics = host_.text_layer_paragraph(session_id_, layer_id_);
+  auto object = host_.engine()->newObject();
+  object.setProperty(QStringLiteral("firstLineIndent"), metrics.first_line_indent.value_or(0.0));
+  object.setProperty(QStringLiteral("startIndent"), metrics.start_indent.value_or(0.0));
+  object.setProperty(QStringLiteral("endIndent"), metrics.end_indent.value_or(0.0));
+  object.setProperty(QStringLiteral("spaceBefore"), metrics.space_before.value_or(0.0));
+  object.setProperty(QStringLiteral("spaceAfter"), metrics.space_after.value_or(0.0));
+  return object;
+}
+
+void ScriptLayerObject::set_text_paragraph(const QJSValue& paragraph) {
+  const ScriptApiCall api_call(host_);
+  if (!host_.layer_is_text_layer(session_id_, layer_id_)) {
+    host_.throw_js_error(ScriptEngineHost::tr("This layer is not a text layer."));
+    return;
+  }
+  TextParagraphMetrics metrics;
+  if (!parse_paragraph_metrics(host_, paragraph, "textParagraph", &metrics)) {
+    return;
+  }
+  if (!host_.set_text_layer_paragraph(session_id_, layer_id_, metrics)) {
+    host_.throw_js_error(ScriptEngineHost::tr("Could not edit the text layer."));
+  }
+}
+
+void ScriptLayerObject::setTextRuns(const QJSValue& runs) {
+  const ScriptApiCall api_call(host_);
+  if (!host_.layer_is_text_layer(session_id_, layer_id_)) {
+    host_.throw_js_error(ScriptEngineHost::tr("This layer is not a text layer."));
+    return;
+  }
+  std::vector<ScriptEngineHost::TextRunParams> parsed;
+  if (!parse_text_runs(host_, runs, "setTextRuns", &parsed)) {
+    return;
+  }
+  if (!host_.set_text_layer_runs(session_id_, layer_id_, parsed)) {
+    host_.throw_js_error(ScriptEngineHost::tr("Could not edit the text layer."));
+  }
 }
 
 void ScriptLayerObject::set_text_direction(const QString& direction) {
@@ -686,6 +891,8 @@ void ScriptLayerObject::applyFilter(const QString& filterId, const QJSValue& par
 QJSValue ScriptLayerObject::removeObject(const QJSValue& options) {
   const ScriptApiCall api_call(host_);
   int attempt = -1;
+  int tone_match = 0;
+  int feather = 0;
   bool content_aware = true;
   if (options.isObject()) {
     QJSValueIterator it(options);
@@ -693,6 +900,10 @@ QJSValue ScriptLayerObject::removeObject(const QJSValue& options) {
       it.next();
       if (it.name() == QLatin1String("attempt")) {
         attempt = std::max(0, it.value().toInt());
+      } else if (it.name() == QLatin1String("toneMatch")) {
+        tone_match = std::clamp(it.value().toInt(), 0, 100);
+      } else if (it.name() == QLatin1String("feather")) {
+        feather = std::clamp(it.value().toInt(), 0, 250);
       } else if (it.name() == QLatin1String("method")) {
         const auto method = it.value().toString();
         if (method == QLatin1String("contentAware")) {
@@ -713,8 +924,9 @@ QJSValue ScriptLayerObject::removeObject(const QJSValue& options) {
   int source = 0;
   int source_count = 0;
   std::int64_t patches = 0;
-  if (!host_.remove_object_in_selection(session_id_, layer_id_, content_aware, attempt, &used_content_aware, &source,
-                                        &source_count, &patches)) {
+  int attempt_used = 0;
+  if (!host_.remove_object_in_selection(session_id_, layer_id_, content_aware, attempt, tone_match, feather,
+                                        &used_content_aware, &source, &source_count, &patches, &attempt_used)) {
     return QJSValue();
   }
   auto result = host_.engine()->newObject();
@@ -723,6 +935,7 @@ QJSValue ScriptLayerObject::removeObject(const QJSValue& options) {
   result.setProperty(QStringLiteral("patches"), static_cast<double>(patches));
   result.setProperty(QStringLiteral("source"), source);
   result.setProperty(QStringLiteral("sourceCount"), source_count);
+  result.setProperty(QStringLiteral("attempt"), attempt_used);
   return result;
 }
 
@@ -1444,10 +1657,58 @@ QJSValue ScriptDocumentObject::addLayer(const QString& name) {
   return make_layer_value(host_, session_id_, id);
 }
 
-QJSValue ScriptDocumentObject::addTextLayer(const QString& text, const QJSValue& options) {
+QJSValue ScriptDocumentObject::importFilesAsLayers(const QJSValue& paths) {
+  const ScriptApiCall api_call(host_);
+  if (read_document() == nullptr) {
+    return QJSValue();
+  }
+  QStringList list;
+  if (paths.isString()) {
+    list.push_back(paths.toString());
+  } else if (paths.isArray()) {
+    const auto count = paths.property(QStringLiteral("length")).toUInt();
+    for (quint32 i = 0; i < count; ++i) {
+      const auto value = paths.property(i);
+      if (!value.isString() || value.toString().isEmpty()) {
+        list.clear();
+        break;
+      }
+      list.push_back(value.toString());
+    }
+  }
+  if (list.isEmpty()) {
+    host_.throw_js_error(
+        ScriptEngineHost::tr("importFilesAsLayers needs a file path or a non-empty array of paths."));
+    return QJSValue();
+  }
+  QString error;
+  const auto ids_top_to_bottom = host_.import_files_as_layers(session_id_, list, &error);
+  if (ids_top_to_bottom.empty()) {
+    host_.throw_js_error(error);
+    return QJSValue();
+  }
+  // Argument order is bottom to top: the first file is the lowest new layer.
+  auto result = host_.engine()->newArray(static_cast<uint>(ids_top_to_bottom.size()));
+  quint32 index = 0;
+  for (auto it = ids_top_to_bottom.rbegin(); it != ids_top_to_bottom.rend(); ++it) {
+    result.setProperty(index++, make_layer_value(host_, session_id_, *it));
+  }
+  return result;
+}
+
+QJSValue ScriptDocumentObject::addTextLayer(const QJSValue& text, const QJSValue& options) {
   const ScriptApiCall api_call(host_);
   ScriptEngineHost::TextLayerParams params;
-  params.text = text;
+  if (text.isString()) {
+    params.text = text.toString();
+  } else if (text.isArray()) {
+    if (!parse_text_runs(host_, text, "addTextLayer", &params.runs)) {
+      return QJSValue();
+    }
+  } else {
+    host_.throw_js_error(ScriptEngineHost::tr("addTextLayer: text must be a string or an array of runs."));
+    return QJSValue();
+  }
   if (options.isObject()) {
     const auto font = options.property(QStringLiteral("font"));
     if (font.isString()) {
@@ -1486,6 +1747,32 @@ QJSValue ScriptDocumentObject::addTextLayer(const QString& text, const QJSValue&
         return QJSValue();
       }
     }
+    if (const auto box = options.property(QStringLiteral("box")); !box.isUndefined() && !box.isNull()) {
+      const auto width = box.property(QStringLiteral("width"));
+      const auto height = box.property(QStringLiteral("height"));
+      // The Type tool's smallest drag box (kMinimumTextBoxDocumentSize in main_window.cpp);
+      // anything smaller would silently open as point text.
+      if (!box.isObject() || !width.isNumber() || !height.isNumber() || width.toNumber() < 16.0 ||
+          height.toNumber() < 16.0) {
+        host_.throw_js_error(ScriptEngineHost::tr("box must be {width, height} of at least 16 document pixels each."));
+        return QJSValue();
+      }
+      params.box = QSize(static_cast<int>(std::lround(width.toNumber())),
+                         static_cast<int>(std::lround(height.toNumber())));
+    }
+    if (const auto align = options.property(QStringLiteral("align")); align.isString()) {
+      params.align = align.toString();
+      if (!text_align_name_is_valid(params.align)) {
+        host_.throw_js_error(ScriptEngineHost::tr("align must be 'left', 'center', 'right' or 'justify'."));
+        return QJSValue();
+      }
+    }
+    if (const auto paragraph = options.property(QStringLiteral("paragraph"));
+        !paragraph.isUndefined() && !paragraph.isNull()) {
+      if (!parse_paragraph_metrics(host_, paragraph, "addTextLayer", &params.paragraph)) {
+        return QJSValue();
+      }
+    }
   }
   const auto created = host_.add_text_layer(session_id_, params);
   if (!created.has_value()) {
@@ -1517,6 +1804,115 @@ QJSValue ScriptDocumentObject::findLayer(const QString& name) {
   };
   search(document->layers());
   return found.has_value() ? make_layer_value(host_, session_id_, *found) : QJSValue();
+}
+
+namespace {
+
+// Shared option parsing for alignLayers / distributeLayers: an optional array
+// of this document's layer wrappers plus, for Align, the alignTo choice.
+struct AlignmentOptions {
+  std::vector<LayerId> layer_ids;
+  bool align_to_canvas{false};
+  bool valid{true};
+};
+
+AlignmentOptions parse_alignment_options(ScriptEngineHost& host, const Document& document, std::int64_t session_id,
+                                         const QJSValue& options, const char* verb, bool allow_align_to) {
+  AlignmentOptions parsed;
+  if (options.isUndefined() || options.isNull()) {
+    return parsed;
+  }
+  if (!options.isObject() || options.isArray() || options.isCallable()) {
+    host.throw_js_error(ScriptEngineHost::tr("%1: options must be an object.").arg(QLatin1String(verb)));
+    parsed.valid = false;
+    return parsed;
+  }
+  QJSValueIterator it(options);
+  while (it.hasNext()) {
+    it.next();
+    if (it.name() == QLatin1String("layers")) {
+      const auto layers = it.value();
+      const auto length = layers.isArray() ? layers.property(QStringLiteral("length")).toUInt() : 0U;
+      if (!layers.isArray() || length == 0) {
+        host.throw_js_error(
+            ScriptEngineHost::tr("%1: layers must be a nonempty array of layers of this document.")
+                .arg(QLatin1String(verb)));
+        parsed.valid = false;
+        return parsed;
+      }
+      for (quint32 i = 0; i < length; ++i) {
+        const auto* wrapper = qobject_cast<ScriptLayerObject*>(layers.property(i).toQObject());
+        if (wrapper == nullptr || wrapper->session_id() != session_id ||
+            document.find_layer(wrapper->layer_id()) == nullptr) {
+          host.throw_js_error(
+              ScriptEngineHost::tr("%1: layers must be a nonempty array of layers of this document.")
+                  .arg(QLatin1String(verb)));
+          parsed.valid = false;
+          return parsed;
+        }
+        parsed.layer_ids.push_back(wrapper->layer_id());
+      }
+    } else if (allow_align_to && it.name() == QLatin1String("alignTo")) {
+      const auto value = it.value().toString();
+      if (value == QLatin1String("canvas")) {
+        parsed.align_to_canvas = true;
+      } else if (value == QLatin1String("selection")) {
+        parsed.align_to_canvas = false;
+      } else {
+        host.throw_js_error(
+            ScriptEngineHost::tr("%1: alignTo must be \"selection\" or \"canvas\".").arg(QLatin1String(verb)));
+        parsed.valid = false;
+        return parsed;
+      }
+    } else {
+      host.throw_js_error(
+          ScriptEngineHost::tr("%1: unknown option %2.").arg(QLatin1String(verb), it.name()));
+      parsed.valid = false;
+      return parsed;
+    }
+  }
+  return parsed;
+}
+
+}  // namespace
+
+int ScriptDocumentObject::alignLayers(const QString& edge, const QJSValue& options) {
+  const ScriptApiCall api_call(host_);
+  const auto* document = read_document();
+  if (document == nullptr) {
+    return -1;
+  }
+  const auto parsed_edge = align_edge_from_id(edge.toStdString());
+  if (!parsed_edge.has_value()) {
+    host_.throw_js_error(ScriptEngineHost::tr("alignLayers: unknown edge %1 (left, hcenter, right, top, vcenter, bottom)")
+                             .arg(edge));
+    return -1;
+  }
+  const auto parsed = parse_alignment_options(host_, *document, session_id_, options, "alignLayers", true);
+  if (!parsed.valid) {
+    return -1;
+  }
+  return host_.align_layers(session_id_, parsed.layer_ids, *parsed_edge, parsed.align_to_canvas);
+}
+
+int ScriptDocumentObject::distributeLayers(const QString& mode, const QJSValue& options) {
+  const ScriptApiCall api_call(host_);
+  const auto* document = read_document();
+  if (document == nullptr) {
+    return -1;
+  }
+  const auto parsed_mode = distribute_mode_from_id(mode.toStdString());
+  if (!parsed_mode.has_value()) {
+    host_.throw_js_error(ScriptEngineHost::tr("distributeLayers: unknown mode %1 (left, hcenter, right, top, "
+                                              "vcenter, bottom, hspacing, vspacing)")
+                             .arg(mode));
+    return -1;
+  }
+  const auto parsed = parse_alignment_options(host_, *document, session_id_, options, "distributeLayers", false);
+  if (!parsed.valid) {
+    return -1;
+  }
+  return host_.distribute_layers(session_id_, parsed.layer_ids, *parsed_mode);
 }
 
 void ScriptDocumentObject::flatten() {
@@ -1743,6 +2139,35 @@ bool ScriptAppObject::runCommand(const QString& commandId) {
 
 QStringList ScriptAppObject::commandIds() { const ScriptApiCall api_call(host_); return host_.app_command_ids(); }
 
+QJSValue ScriptAppObject::listFonts() {
+  const ScriptApiCall api_call(host_);
+  ensure_headless_system_fonts_loaded();
+  auto* engine = host_.engine();
+  auto result = engine->newArray();
+  quint32 index = 0;
+  for (const auto& family : QFontDatabase::families()) {
+    if (QFontDatabase::isPrivateFamily(family)) {
+      continue;
+    }
+    auto entry = engine->newObject();
+    entry.setProperty(QStringLiteral("family"), family);
+    auto styles = engine->newArray();
+    quint32 style_index = 0;
+    for (const auto& style : QFontDatabase::styles(family)) {
+      styles.setProperty(style_index++, style);
+    }
+    entry.setProperty(QStringLiteral("styles"), styles);
+    auto scripts = engine->newArray();
+    quint32 script_index = 0;
+    for (const auto system : QFontDatabase::writingSystems(family)) {
+      scripts.setProperty(script_index++, QFontDatabase::writingSystemName(system));
+    }
+    entry.setProperty(QStringLiteral("writingSystems"), scripts);
+    result.setProperty(index++, entry);
+  }
+  return result;
+}
+
 // ---------------------------------------------------------------------------
 // ScriptIoObject
 
@@ -1811,6 +2236,126 @@ bool ScriptIoObject::deleteFile(const QString& path) {
 
 // ---------------------------------------------------------------------------
 // ScriptUiObject
+
+// ---------------------------------------------------------------------------
+// ScriptRecoveryObject
+
+#ifndef Q_OS_WASM
+namespace {
+
+QJSValue recovery_entry_value(ScriptEngineHost& host, const QString& directory,
+                              const patchy::recovery::RecoveryEntry& entry, bool with_directory) {
+  auto value = host.engine()->newObject();
+  if (with_directory) {
+    value.setProperty(QStringLiteral("directory"), directory);
+  }
+  value.setProperty(QStringLiteral("file"), directory + QLatin1Char('/') + QString::fromStdString(entry.file_stem) +
+                                                QLatin1String(patchy::recovery::kDocumentExtension.data(),
+                                                              static_cast<int>(patchy::recovery::kDocumentExtension.size())));
+  value.setProperty(QStringLiteral("title"), QString::fromStdString(entry.title));
+  value.setProperty(QStringLiteral("originalPath"), QString::fromStdString(entry.original_path));
+  value.setProperty(QStringLiteral("savedAt"), static_cast<double>(entry.saved_at_unix_ms));
+  return value;
+}
+
+}  // namespace
+#endif
+
+ScriptRecoveryObject::ScriptRecoveryObject(ScriptEngineHost& host) : host_(host) {}
+
+bool ScriptRecoveryObject::enabled() const { return stored_recovery_enabled(); }
+
+void ScriptRecoveryObject::set_enabled(bool enabled) {
+  const ScriptApiCall api_call(host_);
+  set_stored_recovery_enabled(enabled);
+#ifndef Q_OS_WASM
+  host_.window().apply_recovery_preferences();
+#endif
+}
+
+int ScriptRecoveryObject::interval_minutes() const { return stored_recovery_interval_minutes(); }
+
+void ScriptRecoveryObject::set_interval_minutes(int minutes) {
+  const ScriptApiCall api_call(host_);
+  if (normalize_recovery_interval_minutes(minutes) != minutes) {
+    host_.throw_js_error(ScriptEngineHost::tr("intervalMinutes must be 5, 10, 15, 30, or 60"));
+    return;
+  }
+  set_stored_recovery_interval_minutes(minutes);
+#ifndef Q_OS_WASM
+  host_.window().apply_recovery_preferences();
+#endif
+}
+
+QString ScriptRecoveryObject::directory() const {
+#ifdef Q_OS_WASM
+  return QString();
+#else
+  return QDir::fromNativeSeparators(host_.window().recovery_directory());
+#endif
+}
+
+QStringList ScriptRecoveryObject::writeNow() {
+  const ScriptApiCall api_call(host_);
+#ifdef Q_OS_WASM
+  return {};
+#else
+  auto written = host_.window().write_recovery_now(/*wait=*/true);
+  for (auto& path : written) {
+    path = QDir::fromNativeSeparators(path);
+  }
+  return written;
+#endif
+}
+
+QJSValue ScriptRecoveryObject::listFiles() {
+  const ScriptApiCall api_call(host_);
+  auto array = host_.engine()->newArray();
+#ifndef Q_OS_WASM
+  const auto directory = this->directory();
+  quint32 index = 0;
+  for (const auto& entry : host_.window().list_recovery_entries()) {
+    array.setProperty(index++, recovery_entry_value(host_, directory, entry, false));
+  }
+#endif
+  return array;
+}
+
+QJSValue ScriptRecoveryObject::listOrphaned() {
+  const ScriptApiCall api_call(host_);
+  auto array = host_.engine()->newArray();
+#ifndef Q_OS_WASM
+  quint32 index = 0;
+  for (const auto& orphan : host_.window().list_orphaned_recovery()) {
+    const auto directory = QDir::fromNativeSeparators(to_qstring(orphan.directory));
+    for (const auto& entry : orphan.entries) {
+      array.setProperty(index++, recovery_entry_value(host_, directory, entry, true));
+    }
+  }
+#endif
+  return array;
+}
+
+QJSValue ScriptRecoveryObject::recoverAll() {
+  const ScriptApiCall api_call(host_);
+  auto array = host_.engine()->newArray();
+#ifndef Q_OS_WASM
+  quint32 index = 0;
+  for (const auto id : host_.window().recover_orphaned_documents()) {
+    array.setProperty(index++, make_document_value(host_, id));
+  }
+#endif
+  return array;
+}
+
+int ScriptRecoveryObject::discardOrphaned() {
+  const ScriptApiCall api_call(host_);
+#ifdef Q_OS_WASM
+  return 0;
+#else
+  return host_.window().discard_orphaned_recovery();
+#endif
+}
 
 ScriptUiObject::ScriptUiObject(ScriptEngineHost& host) : host_(host) {}
 

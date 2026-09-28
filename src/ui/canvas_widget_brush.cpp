@@ -320,6 +320,21 @@ bool CanvasWidget::has_brush_tip() const noexcept {
   return brush_tip_ != nullptr;
 }
 
+void CanvasWidget::set_brush_shape(patchy::BrushShape shape) {
+  if (brush_shape_ == shape) {
+    return;
+  }
+  brush_shape_ = shape;
+  brush_tip_scaled_cache_.clear();  // the dynamics stamp is shape-specific
+  brush_tip_stroke_state_ = {};
+  brush_cursor_cache_.reset();
+  update_tool_cursor();
+}
+
+patchy::BrushShape CanvasWidget::brush_shape() const noexcept {
+  return brush_shape_;
+}
+
 void CanvasWidget::set_brush_dynamics(const patchy::BrushDynamics& dynamics) noexcept {
   brush_dynamics_ = dynamics;
 }
@@ -376,6 +391,20 @@ const patchy::BrushTipMipChain& round_dynamics_tip_mips() {
   return chain;
 }
 
+// The Square counterpart: a solid 256px square, so scatter, count, and jitter stamp squares.
+const patchy::BrushTipMipChain& square_dynamics_tip_mips() {
+  static const patchy::BrushTipMipChain chain = [] {
+    constexpr std::int32_t kSize = 256;
+    patchy::BrushTip tip;
+    tip.width = kSize;
+    tip.height = kSize;
+    tip.default_spacing = kRoundDynamicsTipSpacing;
+    tip.mask.assign(static_cast<std::size_t>(kSize) * kSize, std::uint8_t{255});
+    return patchy::build_brush_tip_mips(tip);
+  }();
+  return chain;
+}
+
 }  // namespace
 
 std::shared_ptr<const patchy::ScaledBrushTip> CanvasWidget::scaled_brush_tip_for(int size,
@@ -387,7 +416,7 @@ std::shared_ptr<const patchy::ScaledBrushTip> CanvasWidget::scaled_brush_tip_for
     if (!brush_dynamics_.active()) {
       return nullptr;
     }
-    mips = &round_dynamics_tip_mips();
+    mips = brush_shape_ == patchy::BrushShape::Square ? &square_dynamics_tip_mips() : &round_dynamics_tip_mips();
   }
   size = std::max(1, size);
   softness = std::clamp(softness, 0, 100);
@@ -417,6 +446,9 @@ std::shared_ptr<const patchy::ScaledBrushTip> CanvasWidget::scaled_brush_tip_for
 }
 
 void CanvasWidget::apply_brush_tip_to_options(EditOptions& options, int brush_size, int brush_softness) const {
+  // The procedural footprint rides along even when no stamp applies (no tip, no dynamics).
+  options.brush_shape = brush_tip_ == nullptr && tool_paints_with_brush_tip(tool_) ? brush_shape_
+                                                                                   : patchy::BrushShape::Round;
   auto scaled = scaled_brush_tip_for(brush_size, brush_softness);
   if (scaled == nullptr) {
     return;
@@ -658,21 +690,32 @@ void CanvasWidget::draw_brush_hover_outline(QPainter& painter) const {
                         brush_outline_overlay_image_);
     }
   } else {
-    // Large procedural brush: the same circle the cursor draws, just unbounded.
+    // Large procedural brush: the same outline the cursor draws, just unbounded.
     painter.setRenderHint(QPainter::Antialiasing, true);
     const auto radius = std::max(2.0, static_cast<double>(active_outline_brush_size()) * zoom_ / 2.0);
+    const bool square = brush_shape_ == patchy::BrushShape::Square && tool_paints_with_brush_tip(tool_);
+    const auto draw_footprint = [&](double half) {
+      if (square) {
+        painter.save();
+        painter.translate(QPointF(center));
+        painter.rotate(brush_base_angle_degrees_);
+        painter.drawRect(QRectF(-half, -half, 2.0 * half, 2.0 * half));
+        painter.restore();
+      } else {
+        painter.drawEllipse(QPointF(center), half, half);
+      }
+    };
     painter.setBrush(Qt::NoBrush);
     painter.setPen(QPen(tool_ == CanvasTool::Eraser ? QColor(255, 255, 255) : QColor(25, 25, 25), 1));
-    painter.drawEllipse(QPointF(center), radius, radius);
+    draw_footprint(radius);
     painter.setPen(QPen(tool_ == CanvasTool::Eraser ? QColor(25, 25, 25) : QColor(255, 255, 255), 1));
-    painter.drawEllipse(QPointF(center), std::max(1.0, radius - 1.0), std::max(1.0, radius - 1.0));
+    draw_footprint(std::max(1.0, radius - 1.0));
     if (brush_softness_ > 0 && tool_ != CanvasTool::Eraser && tool_ != CanvasTool::QuickSelect) {
       const auto edge_width =
           std::max(1.0, radius * static_cast<double>(std::clamp(brush_softness_, 0, 100)) / 100.0);
       QPen softness_pen(QColor(105, 150, 210, 175), 1, Qt::DashLine);
       painter.setPen(softness_pen);
-      const auto inner_radius = std::max(1.0, radius - edge_width);
-      painter.drawEllipse(QPointF(center), inner_radius, inner_radius);
+      draw_footprint(std::max(1.0, radius - edge_width));
     }
   }
   painter.setPen(QPen(QColor(255, 255, 255), 1));

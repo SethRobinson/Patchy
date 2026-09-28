@@ -67,13 +67,16 @@ struct ShapeRasterResult {
   PixelBuffer stroke_pixels{};
 };
 
-// Optional paint geometry for a clipped display render. Coverage still uses
-// the requested clip; gradients retain their full canvas/fill/stroke anchors
-// instead of restarting inside each tile. Null keeps the document bake exact.
+// Optional paint geometry for a render whose clip is not the canvas: a
+// clipped display tile, or the document bake's extended domain. Coverage
+// still uses the requested clip; gradients and patterns keep their canvas
+// anchor, and the aligned fill/stroke bounds when given, instead of
+// restarting inside the clip. An absent fill/stroke rect aligns to the
+// painted coverage as usual.
 struct VectorPaintBounds {
   Rect canvas;
-  Rect fill;
-  Rect stroke;
+  std::optional<Rect> fill;
+  std::optional<Rect> stroke;
 };
 
 // Rasterizes fill coverage and paints the fill appearance (solid, gradient

@@ -1,5 +1,6 @@
 #include "support/cli_flags.hpp"
 #include "ui/action_icons.hpp"
+#include "ui/app_data_migration.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/ui_font.hpp"
 #include "ui/background_workers.hpp"
@@ -8,6 +9,7 @@
 #include "ui/main_window.hpp"
 #include "ui/mcp_attachment.hpp"
 #include "ui/script_engine.hpp"
+#include "ui/single_instance.hpp"
 #include "ui/psd_font_resolver.hpp"
 #include "ui/stress_test.hpp"
 #include "ui/theme_manager.hpp"
@@ -47,9 +49,7 @@
 #include <memory>
 #include <optional>
 
-#ifndef PATCHY_VERSION
-#define PATCHY_VERSION "0.0.0"
-#endif
+#include "patchy_version.hpp"
 
 namespace {
 
@@ -184,6 +184,8 @@ bool forward_to_running_instance(const QStringList& files) {
   if (!socket.waitForConnected(300)) {
     return false;
   }
+  // Grant before sending: once the payload lands the receiver may activate at any moment.
+  (void)patchy::ui::allow_local_socket_server_to_take_foreground(socket);
   QByteArray payload;
   QDataStream stream(&payload, QIODevice::WriteOnly);
   stream.setVersion(QDataStream::Qt_5_15);
@@ -387,7 +389,9 @@ int main(int argc, char* argv[]) {
   app.setApplicationVersion(QStringLiteral(PATCHY_VERSION));
   // Keep the internal app identity for settings without letting Qt append " - Patchy" to every native window title.
   app.setApplicationDisplayName(QString());
-  app.setOrganizationName(QStringLiteral("Seth A. Robinson"));
+  // Keys the per-user app-data folder (fonts, scripts); see app_data_migration.hpp before
+  // changing it. Preferences name their own organization in app_settings().
+  app.setOrganizationName(QStringLiteral("RTsoft"));
   app.setWindowIcon(patchy::ui::patchy_app_icon());
   // Qt 6 caps every image decode at 256 MB and fails bigger ones with a bare
   // "Unable to read image data" (a large-bed flatbed scan at 600 DPI is
@@ -404,6 +408,8 @@ int main(int argc, char* argv[]) {
     QFont::insertSubstitution(QString::fromLatin1(alias.missing), QString::fromLatin1(alias.bundled));
   }
 #endif
+  // Before anything reads AppDataLocation: moves 0.98-era fonts and scripts across.
+  patchy::ui::app_data_migration::migrate_legacy_app_data();
   patchy::ui::user_fonts::restore_user_fonts_at_startup();
   patchy::ui::install_font_database_psd_font_resolver();
   patchy::ui::LocalizationManager::instance().load_saved_language();
@@ -686,6 +692,17 @@ int main(int argc, char* argv[]) {
               deferred.append(entry);
             }
           }
+          // Come forward now, as the dispatch below will for this request (files, or a bare
+          // relaunch): that waits out modal dialogs and a running script, and Windows only
+          // honors the relaunch's foreground grant for a moment.
+          bool has_files = false;
+          bool has_run_script = false;
+          for (const auto& entry : deferred) {
+            (entry.startsWith(kRunScriptCommandPrefix) ? has_run_script : has_files) = true;
+          }
+          if (has_files || (!handled_command && !has_run_script)) {
+            window.bring_to_front_for_second_instance();
+          }
           if (!deferred.isEmpty() || !handled_command) {
             forwarded_requests.push_back(std::move(deferred));
             forwarded_request_timer.start();
@@ -744,6 +761,14 @@ int main(int argc, char* argv[]) {
   files += app.pending_file_opens;
   app.pending_file_opens.clear();
 
+#ifndef Q_OS_WASM
+  // Documents a crashed instance left recovery copies of come back first, as
+  // modified "(Recovered)" sessions (docs/document-recovery.md). Never for a
+  // screenshot or headless launch: nobody is there to save them.
+  if (!headless_mode && !screenshot_mode) {
+    window.recover_orphaned_documents();
+  }
+#endif
   if (!files.isEmpty()) {
     window.open_command_line_files(files);
   }

@@ -148,7 +148,10 @@ int main(int argc, char** argv) {
            adjustments_curves_tests,
            psd_structure_tests,
            psd_text_tests,
+           psd_legacy_text_tests,
+           text_engine_block_tests,
            layer_metadata_tests,
+           layer_alignment_tests,
            brush_engine_tests,
            pat_asl_abr_tests,
            pixel_tools_tests,
@@ -172,6 +175,7 @@ int main(int argc, char** argv) {
            af_format_tests,
            composite_corpus_tests,
            translation_marker_tests,
+           atomic_write_recovery_tests,
        }) {
     auto group = registration();
     tests.insert(tests.end(), std::make_move_iterator(group.begin()),

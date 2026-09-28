@@ -19,6 +19,7 @@
 #include "psd/psd_patterns.hpp"
 #include "psd/psd_smart_objects.hpp"
 #include "render/compositor.hpp"
+#include "support/atomic_file_write.hpp"
 #include "support/string_utils.hpp"
 #include "support/translate_noop.hpp"
 
@@ -112,8 +113,9 @@ PixelFormat format_from_header(const Header& header) {
   if (header.depth != 8 && header.depth != 16 && header.depth != 32) {
     throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "The starter PSD reader currently supports 8, 16, and 32-bit files only"));
   }
-  if (header.color_mode != kColorModeRgb && header.color_mode != kColorModeCmyk) {
-    throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "The starter PSD reader currently supports RGB and CMYK files only"));
+  if (header.color_mode != kColorModeRgb && header.color_mode != kColorModeCmyk &&
+      header.color_mode != kColorModeGrayscale) {
+    throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "The starter PSD reader currently supports RGB, CMYK, and Grayscale files only"));
   }
   if (header.channels > kMaximumPhotoshopChannelCount) {
     throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "PSD files cannot contain more than 56 channels"));
@@ -123,6 +125,9 @@ PixelFormat format_from_header(const Header& header) {
   }
   if (header.color_mode == kColorModeCmyk && header.channels < 4) {
     throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "CMYK PSD file must contain at least 4 channels"));
+  }
+  if (header.color_mode == kColorModeGrayscale && header.channels < 1) {
+    throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "Grayscale PSD file must contain at least 1 channel"));
   }
   return PixelFormat::rgb8();
 }
@@ -136,15 +141,19 @@ std::vector<std::uint8_t> read_file_bytes(const std::filesystem::path& path) {
 }
 
 void write_file_bytes(const std::filesystem::path& path, std::span<const std::uint8_t> bytes) {
-  std::ofstream file(path, std::ios::binary);
-  if (!file) {
-    throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "Could not open PSD file for writing"));
-  }
-  file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+  // Temp-then-rename: a crash or a full disk mid-save leaves the old file intact.
+  write_file_bytes_atomically(path, bytes, PATCHY_TRANSLATE_NOOP("QObject", "Could not open PSD file for writing"),
+                              PATCHY_TRANSLATE_NOOP("QObject", "Could not write PSD file"));
 }
 
 bool is_source_color_channel(std::uint16_t channel_id, std::uint16_t source_color_mode) noexcept {
-  return is_cmyk_color_mode(source_color_mode) ? channel_id <= kChannelBlack : channel_id <= kChannelBlue;
+  if (is_cmyk_color_mode(source_color_mode)) {
+    return channel_id <= kChannelBlack;
+  }
+  if (is_grayscale_color_mode(source_color_mode)) {
+    return channel_id == kChannelGray;
+  }
+  return channel_id <= kChannelBlue;
 }
 
 std::uint32_t read_section_length(BigEndianReader& reader, const char* section_name) {

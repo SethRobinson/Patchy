@@ -2,8 +2,8 @@
 rem Builds all four releases at once, each in its own console window so the
 rem progress of every one is visible:
 rem   - Windows: build-release.bat (local build, zip + installer, code signing)
-rem   - macOS:   scripts\remote\release-mac.bat (build on studiomac, sign, notarize, dmg)
-rem   - Linux:   scripts\remote\release-linux.bat (build on glados, flatpak bundle)
+rem   - macOS:   scripts\remote\release-mac.bat (build on the mac build host, sign, notarize, dmg)
+rem   - Linux:   scripts\remote\release-linux.bat (build on the linux build host, flatpak bundle)
 rem   - Web:     build-wasm.bat (local Qt-for-WebAssembly build, staged for rtsoft.com/patchy)
 rem Every builder deletes its previous artifacts up front, so a failed window leaves
 rem nothing stale behind. When all three windows are done, run upload-to-rtsoft.bat.

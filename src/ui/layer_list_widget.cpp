@@ -5,6 +5,7 @@
 #include "ui/theme_qss.hpp"
 
 #include <QApplication>
+#include <QBoxLayout>
 #include <QCoreApplication>
 #include <QByteArray>
 #include <QCursor>
@@ -14,8 +15,11 @@
 #include <QDragMoveEvent>
 #include <QDropEvent>
 #include <QEvent>
+#include <QFocusEvent>
 #include <QItemSelection>
 #include <QKeyEvent>
+#include <QLabel>
+#include <QLineEdit>
 #include <QMimeData>
 #include <QMouseEvent>
 #include <QPainter>
@@ -444,6 +448,41 @@ std::optional<LayerDropRequest> LayerListWidget::take_drop_request() {
   return request;
 }
 
+void LayerListWidget::set_file_drop_paths_callback(std::function<QStringList(const QMimeData*)> callback) {
+  file_drop_paths_callback_ = std::move(callback);
+}
+
+std::optional<LayerListWidget::LayerFileDropRequest> LayerListWidget::take_file_drop_request() {
+  auto request = std::move(pending_file_drop_request_);
+  pending_file_drop_request_.reset();
+  return request;
+}
+
+bool LayerListWidget::is_layer_drag(const QMimeData* mime_data) const {
+  return !dragged_layer_ids_.empty() || !layer_ids_from_mime_data(mime_data).empty();
+}
+
+void LayerListWidget::accept_file_drag(QDropEvent* event) {
+  if ((event->possibleActions() & Qt::CopyAction) != 0) {
+    event->setDropAction(Qt::CopyAction);
+    event->accept();
+  } else {
+    event->acceptProposedAction();
+  }
+}
+
+QPoint LayerListWidget::drop_viewport_position(const QDropEvent& event) const {
+  const auto event_position = event.position().toPoint();
+  auto position = drop_event_uses_viewport_coordinates_ ? event_position : viewport()->mapFrom(this, event_position);
+  if (!viewport()->rect().contains(position)) {
+    const auto viewport_position = viewport()->mapFrom(this, event_position);
+    if (viewport()->rect().contains(viewport_position)) {
+      position = viewport_position;
+    }
+  }
+  return position;
+}
+
 void LayerListWidget::refresh_row_widths() {
   if (updating_row_widths_) {
     return;
@@ -682,6 +721,30 @@ bool LayerListWidget::eventFilter(QObject* watched, QEvent* event) {
       default:
         break;
     }
+  }
+  if (!inline_rename_edit_.isNull() && watched == inline_rename_edit_.data()) {
+    // The inline rename editor owns its own mouse input (caret placement, text
+    // selection): none of the row selection or drag branches below may see it.
+    if (event->type() == QEvent::KeyPress) {
+      auto* key_event = static_cast<QKeyEvent*>(event);
+      if (key_event->key() == Qt::Key_Escape) {
+        finish_inline_rename(/*commit=*/false);
+        event->accept();
+        return true;
+      }
+      if (key_event->key() == Qt::Key_Return || key_event->key() == Qt::Key_Enter) {
+        finish_inline_rename(/*commit=*/true);
+        event->accept();
+        return true;
+      }
+    } else if (event->type() == QEvent::FocusOut) {
+      // A popup (the edit's own context menu) hands focus back when it closes;
+      // every other focus loss is the click-elsewhere commit.
+      if (static_cast<QFocusEvent*>(event)->reason() != Qt::PopupFocusReason) {
+        finish_inline_rename(/*commit=*/true);
+      }
+    }
+    return false;
   }
   switch (event->type()) {
     case QEvent::MouseButtonPress:
@@ -1209,6 +1272,20 @@ void LayerListWidget::dragEnterEvent(QDragEnterEvent* event) {
     event->ignore();
     return;
   }
+  if (!is_layer_drag(event->mimeData())) {
+    // Not a layer drag: only OS files the owner can turn into layers are
+    // welcome (computed once here; the check may open files). Anything else,
+    // text say, is refused so it can never reach the reorder path.
+    file_drag_paths_ = file_drop_paths_callback_ ? file_drop_paths_callback_(event->mimeData()) : QStringList{};
+    if (file_drag_paths_.isEmpty()) {
+      event->ignore();
+      return;
+    }
+    update_drop_preview(event->position().toPoint());
+    update_auto_scroll(event->position().toPoint());
+    accept_file_drag(event);
+    return;
+  }
   keep_drag_anchor_selected();
   update_drop_preview(event->position().toPoint());
   update_auto_scroll(event->position().toPoint());
@@ -1224,6 +1301,16 @@ void LayerListWidget::dragMoveEvent(QDragMoveEvent* event) {
     event->ignore();
     return;
   }
+  if (!is_layer_drag(event->mimeData())) {
+    if (file_drag_paths_.isEmpty()) {
+      event->ignore();
+      return;
+    }
+    update_drop_preview(event->position().toPoint());
+    update_auto_scroll(event->position().toPoint());
+    accept_file_drag(event);
+    return;
+  }
   keep_drag_anchor_selected();
   update_drop_preview(event->position().toPoint());
   update_auto_scroll(event->position().toPoint());
@@ -1235,6 +1322,7 @@ void LayerListWidget::dragMoveEvent(QDragMoveEvent* event) {
 }
 
 void LayerListWidget::dragLeaveEvent(QDragLeaveEvent* event) {
+  file_drag_paths_.clear();
   keep_drag_anchor_selected();
   stop_auto_scroll();
   clear_drop_preview();
@@ -1250,20 +1338,36 @@ void LayerListWidget::dropEvent(QDropEvent* event) {
   }
   stop_auto_scroll();
   clear_drop_preview();
+  if (!is_layer_drag(event->mimeData())) {
+    // An OS file drop becomes a Files as Layers request at the previewed
+    // target; the selected-rows fallback below is for layer drags only.
+    auto paths = file_drag_paths_;
+    if (paths.isEmpty() && file_drop_paths_callback_) {
+      paths = file_drop_paths_callback_(event->mimeData());
+    }
+    file_drag_paths_.clear();
+    if (paths.isEmpty()) {
+      event->ignore();
+      return;
+    }
+    const auto target = drop_target_at(drop_viewport_position(*event));
+    pending_file_drop_request_ = LayerFileDropRequest{std::move(paths), target.layer_id, target.position};
+    accept_file_drag(event);
+    if (drop_finished_callback_) {
+      QTimer::singleShot(0, this, [this] {
+        if (drop_finished_callback_) {
+          drop_finished_callback_();
+        }
+      });
+    }
+    return;
+  }
   auto ids = !dragged_layer_ids_.empty() ? dragged_layer_ids_ : layer_ids_from_mime_data(event->mimeData());
   if (ids.empty()) {
     ids = selected_layer_ids_top_to_bottom();
   }
   if (!ids.empty()) {
-    const auto event_position = event->position().toPoint();
-    auto position = drop_event_uses_viewport_coordinates_ ? event_position : viewport()->mapFrom(this, event_position);
-    if (!viewport()->rect().contains(position)) {
-      const auto viewport_position = viewport()->mapFrom(this, event_position);
-      if (viewport()->rect().contains(viewport_position)) {
-        position = viewport_position;
-      }
-    }
-    const auto target = drop_target_at(position);
+    const auto target = drop_target_at(drop_viewport_position(*event));
     const bool copy = (event->modifiers() & Qt::AltModifier) != 0;
     pending_drop_request_ = LayerDropRequest{
         std::move(ids),
@@ -1728,8 +1832,142 @@ bool LayerListWidget::handle_item_double_click(QListWidgetItem* item, QPoint vie
       return true;
     }
   }
+  // Photoshop splits the row: the name's text edits in place, the rest of the
+  // row (including the empty space right of a short name, since the label is
+  // stretched across the row) opens the layer's editor dialog.
+  if (inline_rename_callback_) {
+    if (auto* row = itemWidget(item); row != nullptr) {
+      auto* name = row->findChild<QLabel*>(QStringLiteral("layerRowName"));
+      const auto global_pos = viewport()->mapToGlobal(viewport_pos);
+      if (name != nullptr && name->isVisible()) {
+        auto text_rect = name->contentsRect();
+        text_rect.setWidth(std::min(text_rect.width(),
+                                    name->fontMetrics().horizontalAdvance(name->text()) + 6));
+        if (text_rect.contains(name->mapFromGlobal(global_pos)) && begin_inline_rename(item)) {
+          return true;
+        }
+      }
+    }
+  }
   item_double_click_callback_(item);
   return true;
+}
+
+void LayerListWidget::set_inline_rename_callback(std::function<void(LayerId, const QString&)> callback) {
+  inline_rename_callback_ = std::move(callback);
+}
+
+bool LayerListWidget::inline_rename_active() const noexcept {
+  return !inline_rename_edit_.isNull();
+}
+
+bool LayerListWidget::begin_inline_rename(QListWidgetItem* item) {
+  if (item == nullptr || !inline_rename_callback_) {
+    return false;
+  }
+  const auto layer_id = static_cast<LayerId>(item->data(kLayerIdRole).toULongLong());
+  if (layer_id == 0) {
+    return false;
+  }
+  if (!inline_rename_edit_.isNull()) {
+    if (inline_rename_layer_id_ == layer_id) {
+      inline_rename_edit_->selectAll();
+      inline_rename_edit_->setFocus(Qt::OtherFocusReason);
+      return true;
+    }
+    finish_inline_rename(/*commit=*/true);
+  }
+  auto* row = itemWidget(item);
+  auto* name = row != nullptr ? row->findChild<QLabel*>(QStringLiteral("layerRowName")) : nullptr;
+  if (name == nullptr) {
+    return false;
+  }
+  scrollToItem(item);
+
+  auto* edit = new QLineEdit(name->text(), name->parentWidget());
+  edit->setObjectName(QStringLiteral("layerRowNameEdit"));
+  edit->setFont(name->font());
+  edit->setContextMenuPolicy(Qt::DefaultContextMenu);
+  const auto label_height = name->height() > 0 ? name->height() : name->sizeHint().height();
+  edit->setFixedHeight(std::max(label_height, edit->fontMetrics().height() + 2));
+  // The label sits in a sub-layout of the row; put the edit in its slot so the
+  // row's geometry does not move. The overlay fallback covers a row whose
+  // layout cannot be found (never expected, but cheaper than a crash).
+  bool placed = false;
+  for (auto* layout : row->findChildren<QLayout*>()) {
+    auto* box = qobject_cast<QBoxLayout*>(layout);
+    if (box == nullptr) {
+      continue;
+    }
+    const auto index = box->indexOf(name);
+    if (index >= 0) {
+      box->insertWidget(index, edit);
+      placed = true;
+      break;
+    }
+  }
+  if (!placed) {
+    edit->setGeometry(name->geometry());
+  }
+  name->hide();
+  edit->show();
+  edit->selectAll();
+  edit->installEventFilter(this);
+  edit->setFocus(Qt::OtherFocusReason);
+
+  inline_rename_edit_ = edit;
+  inline_rename_label_ = name;
+  inline_rename_layer_id_ = layer_id;
+  inline_rename_finishing_ = false;
+  return true;
+}
+
+void LayerListWidget::cancel_inline_rename() {
+  if (!inline_rename_edit_.isNull()) {
+    finish_inline_rename(/*commit=*/false);
+  }
+}
+
+void LayerListWidget::finish_inline_rename(bool commit) {
+  if (inline_rename_finishing_ || inline_rename_edit_.isNull()) {
+    return;
+  }
+  inline_rename_finishing_ = true;
+  auto* edit = inline_rename_edit_.data();
+  const auto layer_id = inline_rename_layer_id_;
+  const auto text = edit->text().trimmed();
+  const auto original = !inline_rename_label_.isNull() ? inline_rename_label_->text() : QString();
+
+  edit->removeEventFilter(this);
+  edit->hide();
+  if (!inline_rename_label_.isNull()) {
+    inline_rename_label_->show();
+  }
+  // The edit may be inside its own key or focus event; deleteLater keeps the
+  // event delivery alive. The QPointer clears when it goes.
+  edit->deleteLater();
+  inline_rename_edit_.clear();
+  inline_rename_label_.clear();
+  inline_rename_layer_id_ = 0;
+  if (edit->hasFocus() || QApplication::focusWidget() == edit) {
+    setFocus(Qt::OtherFocusReason);
+  }
+  inline_rename_finishing_ = false;
+
+  if (!commit || text.isEmpty() || text == original || !inline_rename_callback_) {
+    return;
+  }
+  // Deferred: the callback rebuilds every row, and a focus-out commit can run
+  // inside the press that selects another row. Layer ids restart per document,
+  // so a focus loss to another document's tab drops the commit instead of
+  // renaming that document's layer with the same id (refresh_layer_list stamps
+  // the session id on every rebuild).
+  const auto session_id = drag_source_session_id_;
+  QTimer::singleShot(0, this, [this, layer_id, text, session_id] {
+    if (inline_rename_callback_ && session_id == drag_source_session_id_) {
+      inline_rename_callback_(layer_id, text);
+    }
+  });
 }
 
 void LayerListWidget::paintEvent(QPaintEvent* event) {

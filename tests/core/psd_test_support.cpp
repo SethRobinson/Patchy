@@ -244,4 +244,51 @@ bool layer_has_psd_block(const patchy::Layer& layer, const std::string& key) {
                      [&key](const patchy::UnknownPsdBlock& block) { return block.key == key; });
 }
 
+std::vector<std::uint8_t> single_text_layer_psd(std::span<const std::uint8_t> text_payload,
+                                                const char (&key)[5]) {
+  patchy::psd::BigEndianWriter layer_extra;
+  layer_extra.write_u32(0);
+  layer_extra.write_u32(0);
+  write_pascal_padded(layer_extra, "Text Layer", 4);
+  write_test_layer_block(layer_extra, key, text_payload);
+
+  patchy::psd::BigEndianWriter layer_info;
+  layer_info.write_u16(1);
+  layer_info.write_u32(12);
+  layer_info.write_u32(10);
+  layer_info.write_u32(82);
+  layer_info.write_u32(210);
+  layer_info.write_u16(0);
+  write_ascii4(layer_info, "8BIM");
+  write_ascii4(layer_info, "norm");
+  layer_info.write_u8(255);
+  layer_info.write_u8(0);
+  layer_info.write_u8(0);
+  layer_info.write_u8(0);
+  layer_info.write_u32(static_cast<std::uint32_t>(layer_extra.bytes().size()));
+  layer_info.write_bytes(layer_extra.bytes());
+  if ((layer_info.bytes().size() % 2U) != 0) {
+    layer_info.write_u8(0);
+  }
+
+  patchy::psd::BigEndianWriter layer_mask;
+  layer_mask.write_u32(static_cast<std::uint32_t>(layer_info.bytes().size()));
+  layer_mask.write_bytes(layer_info.bytes());
+  layer_mask.write_u32(0);
+
+  constexpr std::uint32_t width = 240;
+  constexpr std::uint32_t height = 120;
+  patchy::psd::BigEndianWriter writer;
+  patchy::psd::write_header(writer, patchy::psd::Header{false, 3, height, width, 8, 3});
+  writer.write_u32(0);
+  writer.write_u32(0);
+  writer.write_u32(static_cast<std::uint32_t>(layer_mask.bytes().size()));
+  writer.write_bytes(layer_mask.bytes());
+  writer.write_u16(0);
+  for (std::size_t i = 0; i < static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * 3U; ++i) {
+    writer.write_u8(255);
+  }
+  return writer.bytes();
+}
+
 }  // namespace patchy::test

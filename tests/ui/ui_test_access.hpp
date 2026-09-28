@@ -94,6 +94,9 @@ public:
   static void add_text_at(MainWindow& window, QPoint document_point) {
     window.add_text_at(document_point, QRect());
   }
+  static void record_text_layout_metrics_for_reopened_text(MainWindow& window, Document& document) {
+    window.record_text_layout_metrics_for_reopened_text(document);
+  }
 
   static void edit_active_shape_appearance(MainWindow& window) {
     window.edit_active_shape_appearance();
@@ -169,6 +172,11 @@ public:
     window.place_embedded_file_with_path(path);
   }
 
+  // File > Import > Files as Layers without the file dialog (docs/import.md).
+  static void import_files_as_layers_with_paths(MainWindow& window, const QStringList& paths) {
+    window.import_files_as_layers_with_paths(paths);
+  }
+
   static void paste_clipboard(MainWindow& window) {
     window.paste_clipboard();
   }
@@ -227,6 +235,10 @@ public:
 
   static QString active_session_path(MainWindow& window) {
     return window.session().path;
+  }
+
+  static QString active_session_title(MainWindow& window) {
+    return window.session().title;
   }
 
   static bool register_legacy_plugin_path(MainWindow& window, const QString& path, QStringList* report) {
@@ -313,6 +325,29 @@ public:
 
   static void undo(MainWindow& window) {
     window.undo();
+  }
+
+  // True while Layers-panel blend mode changes are still merging into one undo entry.
+  static bool layer_blend_edit_pending(const MainWindow& window) {
+    return window.pending_layer_blend_edit_active_;
+  }
+
+  // Layer > Arrange > Align / Distribute entry points and their persisted
+  // Align To choice (docs/alignment.md).
+  static void align_selected_layers(MainWindow& window, AlignEdge edge) {
+    window.align_selected_layers(edge);
+  }
+
+  static void distribute_selected_layers(MainWindow& window, DistributeMode mode) {
+    window.distribute_selected_layers(mode);
+  }
+
+  static bool align_to_canvas(MainWindow& window) {
+    return window.align_to_canvas();
+  }
+
+  static void save_tool_settings(MainWindow& window) {
+    window.save_tool_settings();
   }
 
   static void redo(MainWindow& window) {

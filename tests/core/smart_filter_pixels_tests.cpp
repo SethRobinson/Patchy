@@ -1801,6 +1801,244 @@ void smart_filter_motion_blur_matches_photoshop_axis_kernel_and_growth() {
   }
 }
 
+// The single-threaded per-tap Motion Blur kernel as it stood before the
+// merged, axis, and running-sum kernels (September 2026). The tap kernel and
+// the axis sum must stay byte-identical to it.
+patchy::PixelBuffer reference_tap_motion_blur(const patchy::PixelBuffer &input,
+                                              std::int32_t angle_degrees,
+                                              std::int32_t distance_pixels) {
+  constexpr std::int64_t kScale = 65536;
+  constexpr std::uint64_t kSampleWeight =
+      static_cast<std::uint64_t>(kScale) * kScale;
+  constexpr double kPi = 3.14159265358979323846;
+  const auto radians = static_cast<double>(angle_degrees) * kPi / 180.0;
+  const auto step_x =
+      static_cast<std::int64_t>(std::llround(std::cos(radians) * kScale));
+  const auto step_y =
+      static_cast<std::int64_t>(std::llround(-std::sin(radians) * kScale));
+  const auto first_sample = -distance_pixels / 2;
+  const auto last_sample = first_sample + distance_pixels;
+  const auto sample_count = static_cast<std::uint64_t>(distance_pixels) + 1U;
+  const auto width = input.width();
+  const auto height = input.height();
+  const auto maximum_x = static_cast<std::int64_t>(width - 1) * kScale;
+  const auto maximum_y = static_cast<std::int64_t>(height - 1) * kScale;
+  patchy::PixelBuffer output(width, height, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < height; ++y) {
+    for (std::int32_t x = 0; x < width; ++x) {
+      std::array<std::uint64_t, 3> premultiplied{};
+      std::uint64_t alpha_sum = 0U;
+      for (auto sample = first_sample; sample <= last_sample; ++sample) {
+        const auto sample_x = std::clamp<std::int64_t>(
+            x * kScale + static_cast<std::int64_t>(sample) * step_x, 0,
+            maximum_x);
+        const auto sample_y = std::clamp<std::int64_t>(
+            y * kScale + static_cast<std::int64_t>(sample) * step_y, 0,
+            maximum_y);
+        const auto x0 = static_cast<std::int32_t>(sample_x / kScale);
+        const auto y0 = static_cast<std::int32_t>(sample_y / kScale);
+        const auto x1 = std::min(width - 1, x0 + 1);
+        const auto y1 = std::min(height - 1, y0 + 1);
+        const auto fraction_x = static_cast<std::uint64_t>(sample_x % kScale);
+        const auto fraction_y = static_cast<std::uint64_t>(sample_y % kScale);
+        const std::array<std::uint64_t, 4> weights{
+            (kScale - fraction_x) * (kScale - fraction_y),
+            fraction_x * (kScale - fraction_y),
+            (kScale - fraction_x) * fraction_y, fraction_x * fraction_y};
+        const std::array<const std::uint8_t *, 4> pixels{
+            input.pixel(x0, y0), input.pixel(x1, y0), input.pixel(x0, y1),
+            input.pixel(x1, y1)};
+        for (std::size_t corner = 0; corner < pixels.size(); ++corner) {
+          const auto alpha_weight =
+              static_cast<std::uint64_t>(pixels[corner][3]) * weights[corner];
+          alpha_sum += alpha_weight;
+          for (std::size_t channel = 0; channel < 3U; ++channel) {
+            premultiplied[channel] +=
+                static_cast<std::uint64_t>(pixels[corner][channel]) *
+                alpha_weight;
+          }
+        }
+      }
+      auto *destination = output.pixel(x, y);
+      for (std::size_t channel = 0; channel < 3U; ++channel) {
+        destination[channel] =
+            alpha_sum == 0U
+                ? 0U
+                : static_cast<std::uint8_t>(std::min<std::uint64_t>(
+                      255U,
+                      (premultiplied[channel] + alpha_sum / 2U) / alpha_sum));
+      }
+      const auto alpha_denominator = sample_count * kSampleWeight;
+      destination[3] = static_cast<std::uint8_t>(std::min<std::uint64_t>(
+          255U, (alpha_sum + alpha_denominator / 2U) / alpha_denominator));
+    }
+  }
+  return output;
+}
+
+// Smooth gradients, hard-edged blocks, and varying alpha (fully transparent
+// patches included) from a fixed splitmix64 stream.
+patchy::PixelBuffer motion_blur_test_image(std::int32_t width,
+                                           std::int32_t height,
+                                           std::uint64_t seed) {
+  auto next = [&seed] {
+    seed += 0x9E3779B97F4A7C15ULL;
+    auto z = seed;
+    z = (z ^ (z >> 30U)) * 0xBF58476D1CE4E5B9ULL;
+    z = (z ^ (z >> 27U)) * 0x94D049BB133111EBULL;
+    return z ^ (z >> 31U);
+  };
+  patchy::PixelBuffer image(width, height, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < height; ++y) {
+    for (std::int32_t x = 0; x < width; ++x) {
+      auto *pixel = image.pixel(x, y);
+      const auto block = ((x / 7) + (y / 5)) % 3;
+      pixel[0] = static_cast<std::uint8_t>((x * 255) / std::max(1, width - 1));
+      pixel[1] = static_cast<std::uint8_t>(block == 0 ? 240 : (y * 3) % 256);
+      pixel[2] = static_cast<std::uint8_t>(next() % 256U);
+      pixel[3] = static_cast<std::uint8_t>(
+          block == 2 ? 0U : (block == 1 ? 255U : 64U + next() % 192U));
+    }
+  }
+  return image;
+}
+
+bool same_pixels(const patchy::PixelBuffer &left,
+                 const patchy::PixelBuffer &right) {
+  return left.width() == right.width() && left.height() == right.height() &&
+         std::equal(left.data().begin(), left.data().end(),
+                    right.data().begin(), right.data().end());
+}
+
+void motion_blur_tap_and_axis_kernels_match_reference_bytes() {
+  const auto image = motion_blur_test_image(41, 29, 7U);
+  const auto bounds = patchy::Rect::from_size(image.width(), image.height());
+  const std::array<std::int32_t, 15> angles{
+      0, 90, 180, 270, 360, -90, -180, -270, -360, 1, 30, -61, 45, 135, 299};
+  const std::array<std::int32_t, 6> distances{1, 2, 5, 12, 33, 64};
+  for (const auto angle : angles) {
+    for (const auto distance : distances) {
+      const auto expected = reference_tap_motion_blur(image, angle, distance);
+      const auto automatic = patchy::render_photoshop_motion_blur(
+          image, bounds, angle, distance);
+      const auto taps = patchy::render_photoshop_motion_blur(
+          image, bounds, angle, distance, nullptr,
+          patchy::MotionBlurKernel::Taps);
+      if (!same_pixels(automatic.pixels, expected) ||
+          !same_pixels(taps.pixels, expected)) {
+        std::cerr << "motion blur mismatch at angle " << angle
+                  << " distance " << distance << "\n";
+      }
+      CHECK(same_pixels(automatic.pixels, expected));
+      CHECK(same_pixels(taps.pixels, expected));
+    }
+  }
+  // Axis angles stay exact past the tap threshold (the reference is slow, so
+  // this uses a narrow strip).
+  const auto strip = motion_blur_test_image(23, 9, 11U);
+  const auto strip_bounds =
+      patchy::Rect::from_size(strip.width(), strip.height());
+  for (const auto angle : {0, 90, -90, 180, 270}) {
+    for (const auto distance : {65, 400, 2000}) {
+      CHECK(same_pixels(patchy::render_photoshop_motion_blur(
+                            strip, strip_bounds, angle, distance)
+                            .pixels,
+                        reference_tap_motion_blur(strip, angle, distance)));
+    }
+  }
+  // Large enough to fan out to worker threads.
+  const auto wide = motion_blur_test_image(700, 400, 13U);
+  const auto wide_bounds = patchy::Rect::from_size(wide.width(), wide.height());
+  for (const auto angle : {0, 90, 23}) {
+    CHECK(same_pixels(
+        patchy::render_photoshop_motion_blur(wide, wide_bounds, angle, 40)
+            .pixels,
+        reference_tap_motion_blur(wide, angle, 40)));
+  }
+}
+
+void motion_blur_running_sum_tracks_tap_kernel() {
+  const auto image = motion_blur_test_image(160, 120, 17U);
+  const auto bounds = patchy::Rect::from_size(image.width(), image.height());
+  for (const auto angle : {1, 17, 30, 45, -61, 89, 91, 135, 200, 299}) {
+    for (const auto distance : {65, 90}) {
+      const auto taps = patchy::render_photoshop_motion_blur(
+          image, bounds, angle, distance, nullptr,
+          patchy::MotionBlurKernel::Taps);
+      const auto running = patchy::render_photoshop_motion_blur(
+          image, bounds, angle, distance, nullptr,
+          patchy::MotionBlurKernel::RunningSum);
+      const auto automatic =
+          patchy::render_photoshop_motion_blur(image, bounds, angle, distance);
+      CHECK(same_pixels(automatic.pixels, running.pixels));
+      std::array<int, 4> channel_maximum{};
+      std::uint64_t total_difference = 0U;
+      std::uint64_t counted = 0U;
+      for (std::int32_t y = 0; y < image.height(); ++y) {
+        for (std::int32_t x = 0; x < image.width(); ++x) {
+          const auto *left = taps.pixels.pixel(x, y);
+          const auto *right = running.pixels.pixel(x, y);
+          // Color is only meaningful where the pixel is visible.
+          const std::size_t first_channel =
+              std::min(left[3], right[3]) < 8U ? 3U : 0U;
+          for (auto channel = first_channel; channel < 4U; ++channel) {
+            const auto difference =
+                std::abs(static_cast<int>(left[channel]) - right[channel]);
+            channel_maximum[channel] =
+                std::max(channel_maximum[channel], difference);
+            total_difference += static_cast<std::uint64_t>(difference);
+            ++counted;
+          }
+        }
+      }
+      const auto mean_difference = static_cast<double>(total_difference) /
+                                   static_cast<double>(counted);
+      // The smooth red ramp catches any positional shift. Elsewhere the
+      // kernels differ only in cross-line softness, largest near the
+      // diagonals, where the taps' bilinear smear is softer (measured
+      // September 2026: max 23, mean 1.8 at 45 degrees; max 4, mean 0.4 at
+      // the other angles).
+      const auto diagonal = angle == 45 || angle == 135;
+      CHECK(channel_maximum[0] <= 2);
+      CHECK(*std::max_element(channel_maximum.begin(), channel_maximum.end()) <=
+            (diagonal ? 24 : 4));
+      CHECK(mean_difference < (diagonal ? 2.0 : 0.5));
+    }
+  }
+
+  // A flat opaque image stays exactly flat, and the edges clamp like the taps.
+  const auto flat = solid_rgba(90, 70, 12, 200, 99, 255);
+  const auto flat_bounds = patchy::Rect::from_size(90, 70);
+  for (const auto angle : {13, -61, 120}) {
+    const auto running = patchy::render_photoshop_motion_blur(
+        flat, flat_bounds, angle, 1500, nullptr,
+        patchy::MotionBlurKernel::RunningSum);
+    CHECK(same_pixels(running.pixels, flat));
+  }
+}
+
+void motion_blur_cancel_stops_parallel_workers() {
+  const auto image = motion_blur_test_image(900, 700, 23U);
+  const auto bounds = patchy::Rect::from_size(image.width(), image.height());
+  for (const auto kernel : {patchy::MotionBlurKernel::Taps,
+                            patchy::MotionBlurKernel::RunningSum}) {
+    int calls = 0;
+    patchy::FilterProgress cancel_early{
+        [&calls](int, int, patchy::FilterProgressStage) {
+          return ++calls < 3;
+        }};
+    bool cancelled = false;
+    try {
+      (void)patchy::render_photoshop_motion_blur(image, bounds, 37, 64,
+                                                 &cancel_early, kernel);
+    } catch (const patchy::FilterCancelled &) {
+      cancelled = true;
+    }
+    CHECK(cancelled);
+    CHECK(calls == 3);
+  }
+}
+
 void plastic_wrap_is_deterministic_preserves_alpha_and_uses_native_paths() {
   patchy::PixelBuffer source(9, 7, patchy::PixelFormat::rgba8());
   for (std::int32_t y = 0; y < source.height(); ++y) {
@@ -2309,6 +2547,12 @@ std::vector<patchy::test::TestCase> smart_filter_pixels_tests() {
        smart_filter_unsharp_mask_matches_photoshop_scaled_threshold},
       {"smart_filter_motion_blur_matches_photoshop_axis_kernel_and_growth",
        smart_filter_motion_blur_matches_photoshop_axis_kernel_and_growth},
+      {"motion_blur_tap_and_axis_kernels_match_reference_bytes",
+       motion_blur_tap_and_axis_kernels_match_reference_bytes},
+      {"motion_blur_running_sum_tracks_tap_kernel",
+       motion_blur_running_sum_tracks_tap_kernel},
+      {"motion_blur_cancel_stops_parallel_workers",
+       motion_blur_cancel_stops_parallel_workers},
       {"plastic_wrap_is_deterministic_preserves_alpha_and_uses_native_paths",
        plastic_wrap_is_deterministic_preserves_alpha_and_uses_native_paths},
   };

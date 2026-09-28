@@ -29,10 +29,6 @@ struct FilterParameterPanelOptions {
   bool plus_minus_spin_buttons{false};
   int integer_spin_width{78};
   int double_spin_width{78};
-  // The direct dialog lets integer spin boxes accept the full typed range
-  // while the slider covers the practical range; the gallery clamps both to
-  // the practical range.
-  bool integer_spin_uses_typed_range{true};
   // -1 keeps the Qt default.
   int slider_row_spacing{-1};
   QMargins form_margins{-1, -1, -1, -1};

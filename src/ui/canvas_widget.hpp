@@ -3,6 +3,8 @@
 #include "ui/script_stroke.hpp"
 
 #include "core/document.hpp"
+#include "core/exemplar_inpaint.hpp"
+#include "core/layer_alignment.hpp"
 #include "core/magnetic_lasso.hpp"
 #include "core/pattern_resource.hpp"
 #include "core/pixel_tools.hpp"
@@ -46,6 +48,7 @@
 #include <functional>
 #include <limits>
 #include <memory>
+#include <mutex>
 #include <future>
 #include <optional>
 #include <unordered_map>
@@ -240,6 +243,19 @@ public:
     Destination
   };
 
+  // The shape a Rectangular or Elliptical Marquee drag-out committed, kept so
+  // its edges and corners can be dragged afterwards (the selection is then
+  // re-rasterized from this rather than scaled). Set only by a Replace-mode
+  // marquee commit; moves translate it; every other selection write clears it.
+  struct MarqueeShape {
+    QRect rect;             // document space, deliberately not clipped to the canvas
+    bool ellipse{false};
+    int corner_radius{0};   // Radius option at creation (rectangle only)
+    int feather{0};
+    bool antialias{true};
+    bool operator==(const MarqueeShape&) const = default;
+  };
+
   // Full selection state, captured so selection edits (marquee/lasso/wand drags,
   // Select All, Deselect, Invert, ...) can participate in the undo/redo history.
   struct SelectionSnapshot {
@@ -247,6 +263,7 @@ public:
     QRegion display_region;
     QRect mask_bounds;
     QImage mask_alpha;
+    std::optional<MarqueeShape> marquee_shape;
     // Quick Mask is temporary canvas state rather than document data. History
     // snapshots carry its COW buffer so a gesture can undo without copying or
     // serializing the document, and can still restore the resulting selection
@@ -503,6 +520,10 @@ public:
   void set_brush_tip(std::shared_ptr<const patchy::BrushTip> tip, const QString& tip_id);
   [[nodiscard]] const QString& brush_tip_id() const noexcept;
   [[nodiscard]] bool has_brush_tip() const noexcept;
+  // Procedural footprint painted while no bitmap tip is set (Brush, Eraser). A hard,
+  // unrotated Square snaps to the pixel grid; see square_brush_coverage in core/pixel_tools.
+  void set_brush_shape(patchy::BrushShape shape);
+  [[nodiscard]] patchy::BrushShape brush_shape() const noexcept;
   // Per-dab tip dynamics + static tip shape, applied per tip by MainWindow (bitmap tips read
   // them from the library entry; the Round brush carries session-only values). Dynamics only
   // affect Brush strokes: erase strokes strip them, and a dynamics-active Round brush stamps
@@ -589,8 +610,72 @@ public:
   [[nodiscard]] std::optional<DragReadout> transform_drag_readout() const;
   // Widget-space panel rect of the readout; empty when nothing is shown.
   [[nodiscard]] QRect drag_readout_widget_rect() const;
+
+  // One axis of a Move-drag snap: which target line the moving set landed on,
+  // where it is in document space, and the two extents an alignment guide
+  // bridges (docs/alignment.md). Guides draw themselves and grid snaps draw
+  // nothing, so only Document / Selection / Layer matches paint a line.
+  struct SnapMatch {
+    enum class Kind { Guide, Grid, Document, Selection, Layer };
+    Kind kind{Kind::Document};
+    double position{0.0};   // document coordinate of the matched line
+    QRectF source_span{};   // union of the moving rects carrying the matched feature
+    QRectF target_span{};   // the matched layer rect, selection rect, or document rect
+  };
+  struct MoveSnapResult {
+    QPoint delta{};
+    std::optional<SnapMatch> x{};
+    std::optional<SnapMatch> y{};
+  };
+  // One snap target line: its document position, the extent it belongs to
+  // (for the alignment guide), and what kind of target it is.
+  struct SnapCandidate {
+    double position{0.0};
+    QRectF span{};
+    SnapMatch::Kind kind{SnapMatch::Kind::Document};
+  };
+  // The alignment guides currently shown for the live Move drag (x = vertical
+  // line, y = horizontal line); both empty outside a snapped drag.
+  [[nodiscard]] const std::optional<SnapMatch>& move_snap_match_x() const noexcept { return move_snap_x_; }
+  [[nodiscard]] const std::optional<SnapMatch>& move_snap_match_y() const noexcept { return move_snap_y_; }
+
+  // One Align/Distribute unit: a selected root (a folder moves as one block)
+  // with the movable leaves under it and the union of their Move rects.
+  struct AlignmentUnit {
+    LayerId root{};
+    std::vector<LayerId> leaf_ids{};
+    Rect bounds{};
+  };
+  // Units for `root_ids` (normalized through root_drop_layer_ids; empty means
+  // the canvas's layer selection with the movable_layer_ids fallbacks). Roots
+  // with no movable leaf or no measurable rect are dropped.
+  [[nodiscard]] std::vector<AlignmentUnit> alignment_units(const std::vector<LayerId>& root_ids) const;
+  // How many units alignment_units(root_ids) would return, without measuring
+  // rects (the enable-state refresh calls this on every selection change).
+  [[nodiscard]] int alignment_unit_count(const std::vector<LayerId>& root_ids) const;
+  struct LayerAlignmentResult {
+    int unit_count{0};
+    int moved_layers{0};
+    QRegion dirty{};
+  };
+  // Layer > Arrange > Align: lines the units' `edge` up with the reference rect
+  // (the selection bounds when one exists and `align_to_canvas` is false, the
+  // document when `align_to_canvas` is set or only one unit exists, else the
+  // units' union). One "Align Layers" history entry unless `record_history` is
+  // false (the script route rides the run's snapshot). Callers repaint `dirty`.
+  [[nodiscard]] LayerAlignmentResult align_layers(AlignEdge edge, bool align_to_canvas,
+                                                  const std::vector<LayerId>& root_ids,
+                                                  bool record_history = true);
+  // Layer > Arrange > Distribute over three or more units; see
+  // compute_distribute_deltas for the layout rules.
+  [[nodiscard]] LayerAlignmentResult distribute_layers(DistributeMode mode, const std::vector<LayerId>& root_ids,
+                                                       bool record_history = true);
   void set_show_transform_drag_values(bool enabled) noexcept;
   [[nodiscard]] bool show_transform_drag_values() const noexcept;
+  // Numeric Free Transform entries land on whole pixels like Photoshop's "Snap Vector Tools
+  // and Transforms to Pixel Grid"; off keeps the typed fraction and resamples sub-pixel.
+  void set_snap_transforms_to_pixel_grid(bool enabled) noexcept;
+  [[nodiscard]] bool snap_transforms_to_pixel_grid() const noexcept;
   void set_fill_shapes(bool fill_shapes) noexcept;
   [[nodiscard]] bool fill_shapes() const noexcept;
   void set_shape_corner_radius(int radius) noexcept;
@@ -599,6 +684,12 @@ public:
   [[nodiscard]] int fill_opacity() const noexcept;
   void set_fill_softness(int softness) noexcept;
   [[nodiscard]] int fill_softness() const noexcept;
+  // Fill tool color tolerance (0..255, the Magic Wand's metric) and Contiguous; the Fill
+  // command ignores both (it fills the whole selection).
+  void set_fill_tolerance(int tolerance) noexcept;
+  [[nodiscard]] int fill_tolerance() const noexcept;
+  void set_fill_contiguous(bool enabled) noexcept;
+  [[nodiscard]] bool fill_contiguous() const noexcept;
   void set_selection_mode(SelectionMode mode) noexcept;
   [[nodiscard]] SelectionMode selection_mode() const noexcept;
   // Combine mode actually in effect right now, folding in any held Shift/Alt and
@@ -617,25 +708,83 @@ public:
   void run_selection_command(QString label, const std::function<void()>& command);
   // Edit > Remove Object: fill the current selection from its surroundings
   // (canvas_widget_spot_healing.cpp). ContentAware is the exhaustive exemplar
-  // fill of core/exemplar_inpaint.hpp (deterministic; falls back to
-  // NearestEdge when no clean source patch is in reach). NearestEdge is the
-  // selection form of Spot Healing: one shape-derived mirror or shift, where
-  // `attempt` < 0 continues the canvas's own cycle (running again on the same
-  // selection walks the geometry-only candidates) and >= 0 forces that
-  // candidate (wrapping) and becomes the cycle's position. `record_history`
-  // false runs the pixel-edit prechecks without the history push, for callers
-  // that already own an undo snapshot (the script API).
+  // fill of core/exemplar_inpaint.hpp (deterministic per variation; falls
+  // back to NearestEdge when no clean source patch is in reach). NearestEdge
+  // is the selection form of Spot Healing: one shape-derived mirror or shift.
   enum class RemoveObjectMethod { ContentAware, NearestEdge };
+  struct RemoveObjectOptions {
+    RemoveObjectMethod method{RemoveObjectMethod::ContentAware};
+    // NearestEdge: < 0 continues the canvas's own cycle (running again on the
+    // same selection walks the geometry-only candidates), >= 0 forces that
+    // candidate (wrapping) and becomes the cycle's position. ContentAware:
+    // the variation, where 0 (or any negative value) is the byte-stable
+    // best-match fill and N > 0 is variation N (a deterministic near-best
+    // pick per patch; see core/exemplar_inpaint.hpp).
+    int attempt{-1};
+    // ContentAware only: strength of the tone match that follows the fill,
+    // 0 (the raw exemplar fill, the default) to 100 (the full low-pass
+    // replacement).
+    int tone_match{0};
+    // Extra edge feather in pixels, grown outward from the selection (a
+    // gaussian of this sigma over the coverage) on top of the selection's own
+    // feather: the fill covers the widened footprint and the soft skirt
+    // blends its edge. 0 keeps the selection's coverage as is.
+    int feather{0};
+    // false runs the pixel-edit prechecks without the history push, for
+    // callers that already own an undo snapshot (the script API) or that
+    // preview into the layer and push on accept (the Remove Object dialog).
+    bool record_history{true};
+  };
   struct RemoveObjectResult {
     bool applied{false};
     RemoveObjectMethod method{RemoveObjectMethod::ContentAware};  // the method that ran (fallback included)
     int source_index{0};  // NearestEdge: 1-based candidate that was used
     int source_count{0};  // NearestEdge: candidates available
+    int attempt{0};       // ContentAware: the variation that ran (0 = best match)
     std::int64_t patches{0};  // ContentAware: source patches copied
     QString error;  // the refusal (also reported to the status bar) when !applied
   };
+  RemoveObjectResult remove_object_in_selection(const RemoveObjectOptions& options);
+  // The same run in stages, so a host can keep the UI thread free: prepare
+  // (UI thread: the prechecks, the padded coverage, the retouch snapshot),
+  // compute (ANY thread: the exemplar fill and tone match over the job's own
+  // copies, cancellable per patch; nothing to do for NearestEdge), commit
+  // (UI thread: the source map, the history push, the heal write, the
+  // status). remove_object_in_selection(options) is the three in turn under
+  // the progress overlay. A job's snapshot must be the document as it should
+  // look BEFORE the fill: a host that previews into the layer restores the
+  // original before preparing the next job.
+  struct RemoveObjectJob {
+    RemoveObjectOptions options;
+    QRect bounds;                     // padded write bounds (selection + ring + feather reach)
+    std::vector<std::uint8_t> mask;   // coverage over bounds, 0 on the ring
+    QImage snapshot;                  // RGBA8888 retouch snapshot
+    bool valid{false};
+    QString error;                    // the refusal (also reported to the status bar) when !valid
+  };
+  struct RemoveObjectComputed {
+    bool cancelled{false};
+    bool fell_back{false};            // ContentAware found no clean source patch: NearestEdge runs
+    QImage filled;                    // ContentAware: the snapshot with the hole filled
+    ExemplarInpaintResult inpaint;
+  };
+  [[nodiscard]] RemoveObjectJob prepare_remove_object(const RemoveObjectOptions& options);
+  [[nodiscard]] static RemoveObjectComputed compute_remove_object(const RemoveObjectJob& job,
+                                                                  const std::atomic<bool>* cancel,
+                                                                  const std::function<void(int)>& progress_percent);
+  RemoveObjectResult commit_remove_object(const RemoveObjectJob& job, const RemoveObjectComputed& computed);
+  // The historical form: method, attempt, record_history, defaults otherwise.
   RemoveObjectResult remove_object_in_selection(RemoveObjectMethod method = RemoveObjectMethod::ContentAware,
                                                 int attempt = -1, bool record_history = true);
+  // Set by the host: the Patch tool's Enter with an outline and no drag asks
+  // the host to run Remove Object (MainWindow opens its dialog). Without a
+  // callback the canvas runs the default fill directly.
+  void set_remove_object_requested_callback(std::function<void()> callback);
+  // Read-only press-time precheck of begin_edit's pixel-layer branch (8-bit
+  // pixel layer, pixel lock, text/smart-object/shape refusals) WITHOUT the
+  // history push, for gestures that defer begin_edit to release (Spot Healing,
+  // Patch). Reports the same status errors / rasterize prompt when `report`.
+  bool can_begin_pixel_edit(bool report);
   void set_marquee_style(MarqueeStyle style) noexcept;
   [[nodiscard]] MarqueeStyle marquee_style() const noexcept;
   void set_marquee_fixed_size(int width, int height) noexcept;
@@ -874,6 +1023,12 @@ public:
   // Callers pair begin at worker spawn with end in the queued completion.
   void begin_preview_render();
   void end_preview_render();
+  // True while a background full refresh (the deferred-async route that keeps
+  // the previous frame on screen) or a deferred Move commit job has been
+  // running longer than the standard overlay delay: the frame on screen is
+  // then known to be out of date, and the overlay says "Processing..." so a
+  // multi-second catch-up on a heavy document reads as working, not stuck.
+  [[nodiscard]] bool background_refresh_overlay_visible() const noexcept;
   bool wait_for_processing_operation(std::function<bool()> operation_ready, bool allow_overlay = true);
   // True while a blocking processing wait is running. Input that arrives then is
   // wasm's re-entrant DOM delivery into the nested wait loop (docs/wasm.md); the
@@ -985,6 +1140,9 @@ public:
   [[nodiscard]] bool has_selection() const noexcept;
   [[nodiscard]] bool selection_contains(QPoint point) const noexcept;
   [[nodiscard]] QPoint widget_position_for_document_point(QPoint document_position) const;
+  // Fractional counterpart: tests use it to land presses on exact document
+  // coordinates whatever the centred pan is.
+  [[nodiscard]] QPointF widget_position_f(QPointF document_position) const;
   // The document pixel under a widget-local point, for drop handlers outside
   // the widget (document_position itself stays private).
   [[nodiscard]] QPoint document_point_for_widget_position(QPoint widget_position) const {
@@ -1040,6 +1198,13 @@ public:
   // lands on the selection (Remove Object, Fill, Stroke, ...); a nullptr entry
   // is a separator. The actions stay owned by the host.
   void set_selection_context_actions_callback(std::function<QList<QAction*>()> callback);
+  // The commands the host offers when a right-click lands on the active vector
+  // shape layer (Shape Appearance, Free Transform, ...); same contract.
+  void set_shape_context_actions_callback(std::function<QList<QAction*>()> callback);
+  // The commands the host offers when a Move-tool right-click lands inside the
+  // Move outline of the active layer that is not a shape or a group (Free
+  // Transform); same contract.
+  void set_layer_context_actions_callback(std::function<QList<QAction*>()> callback);
   // Blocking refusals (the tool action did NOT happen) report through this
   // callback so the host can present them as errors; unset, they fall back to
   // the plain status callback.
@@ -1297,6 +1462,10 @@ private:
   void draw_selection_overlay(QPainter& painter) const;
   void draw_free_transform(QPainter& painter) const;
   void draw_transform_controls(QPainter& painter, QRectF document_rect, double angle_degrees) const;
+  // The filled handle squares alone (no box, no rotate stem); shared by the
+  // transform controls and the marquee resize handles.
+  void draw_transform_handle_squares(QPainter& painter, QRectF document_rect, double angle_degrees,
+                                     bool include_rotate) const;
   void draw_move_transform_controls(QPainter& painter) const;
   void draw_grid_overlay(QPainter& painter, const QRectF& target_rect, QRect exposed_rect) const;
   void draw_guides_overlay(QPainter& painter) const;
@@ -1319,14 +1488,28 @@ private:
   [[nodiscard]] QPoint document_position(const QPoint& widget_position) const;
   [[nodiscard]] QPointF document_position_f(QPointF widget_position) const;
   [[nodiscard]] QPoint widget_position(const QPoint& document_position) const;
-  [[nodiscard]] QPointF widget_position_f(QPointF document_position) const;
   [[nodiscard]] QPoint snapped_document_point(QPoint point) const;
+  // Layers a pending Free Transform session owns: their pre-session edges are
+  // not snap targets for the session's own drags.
+  [[nodiscard]] std::vector<LayerId> free_transform_snap_exclude_ids() const;
   [[nodiscard]] QPointF snapped_document_point_f(QPointF point) const;
+  // Every enabled snap target except the grid, in the order guides, document,
+  // selection, layers (the tie-break order every snap path shares). Layers
+  // whose id is in `exclude_ids` (the moving set) contribute nothing.
+  void collect_snap_candidates(const std::vector<LayerId>& exclude_ids, std::vector<SnapCandidate>& x_candidates,
+                               std::vector<SnapCandidate>& y_candidates) const;
   void append_snap_target_candidates(std::vector<double>& x_candidates,
                                      std::vector<double>& y_candidates) const;
   [[nodiscard]] QPoint snapped_rect_delta(QRect source_rect, QPoint raw_delta) const;
   [[nodiscard]] QPoint snapped_marquee_current_point(QPoint anchor, QPoint current) const;
   [[nodiscard]] QPoint snapped_move_delta(QPoint raw_delta) const;
+  [[nodiscard]] MoveSnapResult snapped_move_delta_with_matches(QPoint raw_delta) const;
+  // Alignment-guide overlay bookkeeping (the drag-readout pattern: bounded
+  // repaints over the previous and next widget rects, cleared on release).
+  [[nodiscard]] QRect move_snap_guides_widget_rect() const;
+  void update_move_snap_guides_region();
+  void clear_move_snap_guides();
+  void draw_move_snap_guides(QPainter& painter) const;
   [[nodiscard]] int guide_at_widget_position(QPoint widget_position) const;
   [[nodiscard]] GuideOrientation guide_orientation_from_ruler(QPoint widget_position) const noexcept;
   [[nodiscard]] bool widget_position_in_ruler(QPoint widget_position) const noexcept;
@@ -1375,6 +1558,11 @@ private:
   // the hit leaf layers under the pointer. Returns whether any entry was added.
   bool add_move_layer_menu_entries(QMenu& menu, QPoint widget_point);
   void close_canvas_context_menu();
+  // Canvas context menus are never deleted while the click that picked an entry is still
+  // being dispatched (see show_canvas_context_menu). A hidden menu is retired here and
+  // reaped later, once its pick has finished or at the next menu at the same loop level.
+  void retire_canvas_context_menu(QMenu* menu);
+  void reap_retired_context_menus();
   void begin_move_drag(const std::vector<LayerId>& layer_ids, QPoint document_point, QPoint widget_point);
   void begin_move_layer_selection(QMouseEvent* event, const Layer* clicked_layer, bool rectangle_allowed);
   bool update_move_layer_selection(QMouseEvent* event);
@@ -1386,11 +1574,6 @@ private:
   [[nodiscard]] QRect widget_rect_for_document_rect(QRect document_rect) const;
   [[nodiscard]] QRectF widget_rect_for_document_rect(QRectF document_rect) const;
   bool begin_edit(QString label);
-  // Read-only press-time precheck of begin_edit's pixel-layer branch (8-bit
-  // pixel layer, pixel lock, text/smart-object/shape refusals) WITHOUT the
-  // history push, for gestures that defer begin_edit to release (Spot Healing,
-  // Patch). Reports the same status errors / rasterize prompt when `report`.
-  bool can_begin_pixel_edit(bool report);
   [[nodiscard]] CanvasTool effective_tool_for_input() const noexcept;
   void clear_brush_stroke_tracking() noexcept;
   void begin_axis_constrained_stroke(QPointF document_point) noexcept;
@@ -1675,6 +1858,29 @@ private:
   // clamped to half of `rect`, 0 for other tools or a zero setting.
   [[nodiscard]] double marquee_effective_corner_radius(QRect rect) const noexcept;
   [[nodiscard]] QImage marquee_selection_mask(QPoint anchor, QPoint current, QRect& bounds) const;
+  // The live tool state (tool, Radius, Feather, Anti-alias) packed around `rect`.
+  [[nodiscard]] MarqueeShape current_marquee_shape(QRect rect) const;
+  // Rasterizers shared by the drag-out and the resize handles; they read only
+  // the shape, never the live options, so a resize redraws what was drawn.
+  [[nodiscard]] QRegion marquee_shape_region(const MarqueeShape& shape) const;
+  [[nodiscard]] QImage marquee_shape_mask(const MarqueeShape& shape, QRect& bounds) const;
+  // Replaces the selection with `shape` and remembers it as resizable.
+  void apply_marquee_shape(const MarqueeShape& shape);
+  // The remembered marquee rect while a marquee tool can resize it (not in
+  // Quick Mask, no gesture in flight); nullopt hides the handles.
+  [[nodiscard]] std::optional<QRect> resizable_marquee_rect() const;
+  [[nodiscard]] TransformHandle marquee_resize_handle_at(QPoint widget_point,
+                                                          Qt::KeyboardModifiers modifiers) const;
+  void update_marquee_resize_drag(QPoint document_point, Qt::KeyboardModifiers modifiers);
+  void apply_marquee_resize_rect(QRect rect);
+  // True while a gesture rewrites selection_ on every pointer move (a Replace
+  // marquee drag-out or a handle resize); Add/Subtract/Intersect drag-outs keep
+  // the existing selection until release, so it stays a snap target for them.
+  [[nodiscard]] bool selection_is_live_gesture_output() const noexcept {
+    return (selecting_ && selection_operation_ == SelectionMode::Replace) ||
+           marquee_resize_handle_ != TransformHandle::None;
+  }
+  void draw_marquee_resize_handles(QPainter& painter) const;
   [[nodiscard]] QImage lasso_selection_mask(const QPolygon& polygon, QRect& bounds) const;
   [[nodiscard]] QImage lasso_selection_mask(const QPolygonF& polygon, QRect& bounds) const;
   // Magnetic Lasso trace lifecycle. The hover trace only maintains a snapped path polyline
@@ -1696,6 +1902,10 @@ private:
   [[nodiscard]] int magnetic_anchor_spacing() const noexcept;  // SCREEN px between auto anchors
   void set_selection_from_region(QRegion selection);
   void set_selection_from_mask(QRegion selection, QRect mask_bounds, QImage mask_alpha);
+  // Snapshot / drop the pre-gesture selection (region, display region, mask,
+  // marquee shape) that restore_selection_before_edit and the history entry use.
+  void capture_selection_before_edit();
+  void clear_selection_before_edit();
   void restore_selection_before_edit();
   void finish_quick_mask_edit();
   void invalidate_quick_mask_display() noexcept;
@@ -1703,6 +1913,11 @@ private:
   // that writes selection_ / selection_display_region_ directly instead of
   // going through the setters above.
   void invalidate_selection_outline() noexcept;
+  // The rasterized-selection lookup behind selection_alpha_at (see
+  // selection_lookup_bits_): drops it, builds it, and answers one query.
+  void invalidate_selection_lookup() noexcept;
+  void build_selection_lookup() const;
+  [[nodiscard]] bool selection_lookup_contains(QPoint point) const noexcept;
   // Lazily retraces the outline loops after a selection change and refreshes
   // the cached device-space path when zoom/pan/viewport differ from the key it
   // was built for; animation ticks then only restroke the cached path.
@@ -1728,6 +1943,19 @@ private:
   void combine_selection_from_mask(QRect candidate_bounds, QImage candidate_alpha);
   void combine_selection_from_mask(QRegion candidate, QRect candidate_bounds, QImage candidate_alpha);
   [[nodiscard]] std::vector<LayerId> movable_layer_ids() const;
+  // Appends the movable leaves under `root` (position locks inherited from
+  // `ancestor_flags`, no duplicates) to `ids`: the shared walk behind
+  // movable_layer_ids and alignment_units.
+  void collect_movable_leaf_ids(const Layer& root, LayerLockFlags ancestor_flags, std::vector<LayerId>& ids) const;
+  // The selected roots alignment_units works from: `root_ids` normalized, or
+  // the canvas selection (falling back to the active layer) when empty.
+  [[nodiscard]] std::vector<LayerId> alignment_root_ids(const std::vector<LayerId>& root_ids) const;
+  // Moves each listed layer by its own delta in one history entry: the shared
+  // body of arrow-key nudges (move_active_layer_by) and Align/Distribute. Null
+  // deltas are skipped; all-null pushes no history. Returns the dirty region
+  // (partial when a Smart Filter re-render fails, mirroring the nudge path).
+  [[nodiscard]] QRegion offset_layers(const std::vector<std::pair<LayerId, QPoint>>& deltas,
+                                      const QString& undo_label, bool record_history = true);
   [[nodiscard]] std::optional<QRect> move_hover_outline_rect_at(QPoint widget_position,
                                                                 Qt::KeyboardModifiers modifiers) const;
   void update_move_hover_outline(QPoint widget_position, Qt::KeyboardModifiers modifiers);
@@ -1754,6 +1982,7 @@ private:
   void set_transform_cursor_for_handle(TransformHandle handle);
   void update_move_transform_controls_dirty(std::optional<QRectF> old_rect);
   [[nodiscard]] std::optional<QRectF> transform_controls_rect_for_layer(const Layer& layer) const;
+  [[nodiscard]] std::optional<QRectF> move_transform_target_rect() const;
   [[nodiscard]] std::optional<QRectF> move_transform_controls_rect() const;
   void set_move_transform_controls_layer(std::optional<LayerId> layer_id);
   void notify_transform_controls_changed();
@@ -2026,6 +2255,7 @@ private:
   QImage mixer_composite_snapshot_;
   std::shared_ptr<const patchy::BrushTip> brush_tip_;
   QString brush_tip_id_;
+  patchy::BrushShape brush_shape_{patchy::BrushShape::Round};
   patchy::BrushTipMipChain brush_tip_mips_;
   // Most-recently-used scaled stamps keyed by (target size, softness); pressure-driven size
   // changes hit this instead of rescaling the tip on every dab.
@@ -2056,6 +2286,8 @@ private:
   int shape_corner_radius_{0};
   int fill_opacity_{100};
   int fill_softness_{0};
+  int fill_tolerance_{32};
+  bool fill_contiguous_{true};
   bool auto_select_layer_{true};
   SelectionMode selection_mode_{SelectionMode::Replace};
   // Per-tool combine modes; selection_mode_ mirrors the active selection tool's
@@ -2076,6 +2308,11 @@ private:
   // context menu (canvas_widget_move.cpp). The right button never pans.
   std::optional<QPoint> context_press_pos_;
   QPointer<QMenu> canvas_context_menu_;
+  struct RetiredContextMenu {
+    QPointer<QMenu> menu;
+    int loop_level{0};  // QThread::loopLevel() when it hid; safe to delete at or below it
+  };
+  std::vector<RetiredContextMenu> retired_context_menus_;
   bool spacebar_panning_{false};
   bool spacebar_repositioning_drag_rect_{false};
   QPoint spacebar_reposition_last_document_position_{};
@@ -2144,6 +2381,7 @@ private:
   bool remove_object_has_last_{false};
   QRect remove_object_last_bounds_;
   std::uint64_t remove_object_last_mask_hash_{0};
+  std::function<void()> remove_object_requested_callback_;
   // Crop tool session state (canvas_widget_crop.cpp). All rects/points are in
   // document space; crop_rect_ may extend past the canvas (commit expands).
   bool crop_session_active_{false};
@@ -2204,10 +2442,21 @@ private:
   QRegion last_cleared_selection_display_region_;
   QRect last_cleared_selection_mask_bounds_;
   QImage last_cleared_selection_mask_alpha_;
+  std::optional<MarqueeShape> last_cleared_marquee_shape_;
   QRegion selection_before_edit_;
   QRegion selection_display_region_before_edit_;
   QRect selection_mask_before_edit_bounds_;
   QImage selection_mask_before_edit_alpha_;
+  std::optional<MarqueeShape> marquee_shape_before_edit_;
+  std::optional<MarqueeShape> marquee_shape_;
+  // A handle drag on the remembered marquee shape (None when idle).
+  TransformHandle marquee_resize_handle_{TransformHandle::None};
+  QRect marquee_resize_start_rect_;
+  // The rect the drag last applied; Space repositions from here and moves
+  // marquee_resize_start_rect_ along so the resize resumes in place.
+  QRect marquee_resize_current_rect_;
+  QRect spacebar_reposition_start_marquee_rect_;
+  QRect spacebar_reposition_start_marquee_start_rect_;
   bool selection_edges_visible_{true};
   bool quick_mask_active_{false};
   PixelBuffer quick_mask_pixels_;
@@ -2262,6 +2511,18 @@ private:
   mutable double selection_outline_screen_zoom_{0.0};
   mutable QPointF selection_outline_screen_pan_;
   mutable QRect selection_outline_screen_viewport_;
+  // Rasterized selection_ for the per-pixel lookups behind selection_alpha_at
+  // when the region holds more than a few rectangles: QRegion::contains scans
+  // every rectangle, so a wand selection of a background around a subject
+  // (thousands of row spans) made a 1.5 Mpx fill take about 45 s (GitHub
+  // issue 34). One bit per pixel over selection_lookup_bounds_, built on first
+  // use under selection_lookup_mutex_ (render/filter workers may query it in
+  // parallel), and dropped by invalidate_selection_outline() with the outline
+  // caches, which every selection write already calls.
+  mutable std::vector<std::uint8_t> selection_lookup_bits_;
+  mutable QRect selection_lookup_bounds_;
+  mutable std::atomic<bool> selection_lookup_valid_{false};
+  mutable std::mutex selection_lookup_mutex_;
   QBasicTimer processing_animation_timer_;
   bool processing_overlay_visible_{false};
   bool processing_render_wait_active_{false};
@@ -2279,6 +2540,10 @@ private:
   std::optional<DeferredWaitRelease> deferred_wait_release_;
   int preview_renders_in_flight_{0};
   QElapsedTimer preview_render_started_{};
+  // Started when a background refresh or deferred Move commit begins with
+  // nothing else of the kind in flight; invalid once both are idle.
+  QElapsedTimer background_refresh_started_{};
+  void note_background_refresh_state();
   int processing_operation_depth_{0};
   int processing_operation_delay_ms_{-1};  // <0 = processing_overlay_delay_ms()
   std::chrono::steady_clock::time_point processing_operation_started_{};
@@ -2424,12 +2689,18 @@ private:
   // the session resets must leave it alone.
   bool shift_keeps_transform_aspect_{false};
   bool show_transform_drag_values_{true};
+  bool snap_transforms_to_pixel_grid_{true};
   // Drag readout bookkeeping: the last painted panel rect (for the bounded
   // repaint union), the moving set's zero-delta extent captured when a Move
   // drag starts, and the last status-bar mirror text.
   QRect drag_readout_dirty_rect_{};
   std::optional<QRectF> move_readout_base_rect_{};
   QString drag_readout_status_text_{};
+  // Alignment guides of the live Move drag (docs/alignment.md) and the widget
+  // rect they last painted, for the bounded repaint union.
+  std::optional<SnapMatch> move_snap_x_{};
+  std::optional<SnapMatch> move_snap_y_{};
+  QRect move_snap_guides_dirty_rect_{};
   QImage transform_base_cache_{};
   std::vector<QImage> transform_base_display_mip_cache_{};
   qint64 transform_base_display_mip_source_key_{0};
@@ -2546,6 +2817,8 @@ private:
   std::function<void(std::vector<LayerId>, LayerId)> layer_selection_requested_callback_;
   std::function<void(QString)> status_callback_;
   std::function<QList<QAction*>()> selection_context_actions_callback_;
+  std::function<QList<QAction*>()> shape_context_actions_callback_;
+  std::function<QList<QAction*>()> layer_context_actions_callback_;
   bool vector_preview_enabled_{false};
   std::uint64_t vector_preview_generation_{1};
   std::uint64_t vector_preview_completed_generation_{0};

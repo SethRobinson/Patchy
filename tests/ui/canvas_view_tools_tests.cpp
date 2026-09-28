@@ -27,6 +27,7 @@
 #include "ui/brush_tip_manager_dialog.hpp"
 #include "ui/brush_tip_picker.hpp"
 #include "ui/blend_if_range_editor.hpp"
+#include "ui/blend_mode_ui.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/default_brush_tips.hpp"
 #include "ui/dialog_utils.hpp"
@@ -295,13 +296,14 @@ void ui_options_bar_spinboxes_fit_widest_value() {
   // no room for the suffix once the popup chevron claimed its 14px text margin.
   // configure_toolbar_spinbox now treats the requested width as a minimum and
   // grows the box to fit its widest value text; require chevron + box chrome
-  // clearance beyond the min/max text on every options-bar spin box.
+  // clearance (14 + 14 in dialog_utils.cpp) beyond the min/max text on every
+  // options-bar spin box.
   patchy::ui::MainWindow window;
   show_window(window);
   auto* toolbar = window.findChild<QToolBar*>(QStringLiteral("Options"));
   CHECK(toolbar != nullptr);
   const auto require_fits = [](const QWidget* spin, const QString& text) {
-    const int required = spin->fontMetrics().horizontalAdvance(text) + 24;
+    const int required = spin->fontMetrics().horizontalAdvance(text) + 28;
     if (spin->minimumWidth() < required) {
       std::fprintf(stderr, "  %s: width %d < %d needed for \"%s\"\n",
                    qPrintable(spin->objectName()), spin->minimumWidth(), required,
@@ -331,6 +333,54 @@ void ui_options_bar_spinboxes_fit_widest_value() {
     ++checked;
   }
   CHECK(checked >= 10);
+}
+
+void ui_options_bar_spinboxes_show_their_extremes_unclipped() {
+  // "255" in the Fill tool's Tol box rendered as a clipped "55" on screen (September 2026).
+  // ui_options_bar_spinboxes_fit_widest_value only checks the requested width against a
+  // constant; this measures the live editor once the tool's row is shown, which is what
+  // loses the box's QSS padding and borders, the popup chevron's text margin, and
+  // QLineEdit's own horizontal margins before any text is drawn. It runs on the real
+  // windows platform too (DirectWrite advances are wider than offscreen FreeType's):
+  //   patchy_ui_visual_tests.exe ui_options_bar_spinboxes_show   (no QT_QPA_PLATFORM)
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* toolbar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+  CHECK(toolbar != nullptr);
+  int checked = 0;
+  for (const auto* action_name : {"toolFillAction", "toolMagicWandAction", "toolBrushAction"}) {
+    require_action(window, action_name)->trigger();
+    QApplication::processEvents();
+    for (const auto* spin : toolbar->findChildren<QSpinBox*>()) {
+      if (!spin->isVisible() || !spin->property("patchy.numericPopupInstalled").toBool()) {
+        continue;
+      }
+      const auto* editor = spin->findChild<QLineEdit*>();
+      CHECK(editor != nullptr);
+      if (editor == nullptr) {
+        continue;
+      }
+      // The editor sits inside the box's padding and borders, so a laid-out one is narrower.
+      CHECK(editor->width() < spin->width());
+      // QLineEdit keeps a 2px horizontal margin on each side of its text area.
+      const int available = editor->width() - editor->textMargins().left() -
+                            editor->textMargins().right() - 4;
+      const auto locale = spin->locale();
+      for (const auto& text : {spin->prefix() + locale.toString(spin->minimum()) + spin->suffix(),
+                               spin->prefix() + locale.toString(spin->maximum()) + spin->suffix()}) {
+        // The caret sits after the widest value while it is edited, so it needs room too.
+        const int needed = editor->fontMetrics().horizontalAdvance(text) + 2;
+        if (available < needed) {
+          std::fprintf(stderr, "  %s: editor shows %d px but \"%s\" needs %d px (box %d px)\n",
+                       qPrintable(spin->objectName()), available, qPrintable(text), needed,
+                       spin->width());
+        }
+        CHECK(available >= needed);
+      }
+      ++checked;
+    }
+  }
+  CHECK(checked >= 4);
 }
 
 void ui_canvas_wheel_matches_photoshop_navigation() {
@@ -1053,6 +1103,25 @@ void ui_tool_flyout_double_click_opens_menu() {
   CHECK(button->defaultAction() == require_action(window, "toolMarqueeAction"));
 }
 
+void ui_tool_flyout_right_click_opens_menu() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* button = window.findChild<QToolButton*>(QStringLiteral("shapeToolButton"));
+  CHECK(button != nullptr);
+  auto* menu = button->menu();
+  CHECK(menu != nullptr);
+
+  bool shown = false;
+  QTimer::singleShot(0, [&] {
+    shown = menu->isVisible();
+    menu->close();
+  });
+  send_mouse(*button, QEvent::MouseButtonPress, button->rect().center(), Qt::RightButton, Qt::RightButton);
+  QApplication::processEvents();
+  CHECK(shown);
+  CHECK(!menu->isVisible());
+}
+
 void ui_shape_flyout_and_zoom_tool_work() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -1277,6 +1346,228 @@ void ui_filled_shape_preview_clears_after_commit() {
   CHECK(immediate.size() == repainted.size());
   CHECK(immediate.pixelColor(canvas->widget_position_for_document_point(QPoint(170, 125))) ==
         repainted.pixelColor(canvas->widget_position_for_document_point(QPoint(170, 125))));
+}
+
+// Fill tool options: Tol and Contiguous live beside Opacity/Soft, persist, and follow the
+// current_* mirror onto new documents (GitHub issue 30).
+void ui_fill_tool_tolerance_and_contiguous_persist_across_documents() {
+  SettingsValueRestorer saved_tolerance(QStringLiteral("tools/fillTolerance"));
+  SettingsValueRestorer saved_contiguous(QStringLiteral("tools/fillContiguous"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("tools/fillTolerance"));
+    settings.remove(QStringLiteral("tools/fillContiguous"));
+    settings.sync();
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* tolerance = window.findChild<QSpinBox*>(QStringLiteral("fillToleranceSpin"));
+  auto* contiguous = window.findChild<QCheckBox*>(QStringLiteral("fillContiguousCheck"));
+  CHECK(tolerance != nullptr);
+  CHECK(contiguous != nullptr);
+  if (tolerance == nullptr || contiguous == nullptr) {
+    return;
+  }
+  CHECK(tolerance->minimum() == 0);
+  CHECK(tolerance->maximum() == 255);
+  CHECK(canvas->fill_tolerance() == 32);
+  CHECK(canvas->fill_contiguous());
+  CHECK(tolerance->value() == 32);
+  CHECK(contiguous->isChecked());
+
+  require_action(window, "toolBrushAction")->trigger();
+  QApplication::processEvents();
+  CHECK(!tolerance->isVisible());
+  CHECK(!contiguous->isVisible());
+  require_action(window, "toolFillAction")->trigger();
+  QApplication::processEvents();
+  CHECK(tolerance->isVisible());
+  CHECK(contiguous->isVisible());
+
+  tolerance->setValue(48);
+  contiguous->setChecked(false);
+  QApplication::processEvents();
+  CHECK(canvas->fill_tolerance() == 48);
+  CHECK(!canvas->fill_contiguous());
+  patchy::ui::MainWindowTestAccess::save_tool_settings(window);
+  {
+    auto settings = patchy::ui::app_settings();
+    CHECK(settings.value(QStringLiteral("tools/fillTolerance")).toInt() == 48);
+    CHECK(!settings.value(QStringLiteral("tools/fillContiguous"), true).toBool());
+  }
+
+  patchy::ui::MainWindowTestAccess::create_default_document(window);
+  QApplication::processEvents();
+  auto* second = require_canvas(window);
+  CHECK(second != canvas);
+  CHECK(second->fill_tolerance() == 48);
+  CHECK(!second->fill_contiguous());
+  CHECK(tolerance->value() == 48);
+  CHECK(!contiguous->isChecked());
+}
+
+// A Fill tool click honors the tool's own Tol, Contiguous, and Opacity (not the brush's).
+void ui_fill_tool_click_honors_tolerance_contiguous_and_opacity() {
+  patchy::Document document(64, 64, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer pixels(64, 64, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < 64; ++y) {
+    for (std::int32_t x = 0; x < 64; ++x) {
+      auto* px = pixels.pixel(x, y);
+      const bool bar = y >= 30 && y <= 33;
+      const std::uint8_t gray = ((x + y) % 2 == 0) ? 255 : 250;
+      px[0] = px[1] = px[2] = bar ? 0 : gray;
+      px[3] = 255;
+    }
+  }
+  const auto layer_id = document.add_pixel_layer("Background", std::move(pixels)).id();
+  document.set_active_layer(layer_id);
+  const auto pixel_at = [&](int x, int y) {
+    const auto* px = std::as_const(document).find_layer(layer_id)->pixels().pixel(x, y);
+    return QColor(px[0], px[1], px[2], px[3]);
+  };
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(320, 320);
+  canvas.set_document(&document);
+  canvas.set_zoom(4.0);
+  canvas.set_tool(patchy::ui::CanvasTool::Fill);
+  canvas.set_primary_color(QColor(0, 180, 210));
+  canvas.set_brush_opacity(10);  // must not leak into the fill
+  canvas.show();
+  QApplication::processEvents();
+  const auto click = [&](int x, int y) {
+    const auto position = canvas.widget_position_for_document_point(QPoint(x, y));
+    send_mouse(canvas, QEvent::MouseButtonPress, position, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(canvas, QEvent::MouseButtonRelease, position, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+  };
+
+  canvas.set_fill_tolerance(0);
+  click(2, 2);
+  CHECK(pixel_at(2, 2) == QColor(0, 180, 210));
+  CHECK(pixel_at(3, 2) == QColor(250, 250, 250));
+
+  canvas.set_fill_tolerance(32);
+  click(4, 4);
+  CHECK(pixel_at(3, 2) == QColor(0, 180, 210));
+  CHECK(pixel_at(63, 29) == QColor(0, 180, 210));
+  CHECK(pixel_at(10, 31) == QColor(0, 0, 0));
+  CHECK(pixel_at(10, 40) == QColor(255, 255, 255));
+
+  // Contiguous off at tolerance 0: the lower island's 255-gray pixels are a checkerboard,
+  // so none of them touch, yet one click fills them all; the 250 grays stay.
+  canvas.set_fill_contiguous(false);
+  canvas.set_fill_tolerance(0);
+  click(10, 40);
+  CHECK(pixel_at(10, 40) == QColor(0, 180, 210));
+  CHECK(pixel_at(12, 40) == QColor(0, 180, 210));
+  CHECK(pixel_at(60, 60) == QColor(0, 180, 210));
+  CHECK(pixel_at(11, 40) == QColor(250, 250, 250));
+  CHECK(pixel_at(10, 31) == QColor(0, 0, 0));
+
+  canvas.set_fill_contiguous(true);
+  canvas.set_fill_tolerance(0);
+  canvas.set_fill_opacity(50);
+  click(10, 31);
+  CHECK(color_close(pixel_at(10, 31), QColor(0, 90, 105), 3));
+  CHECK(color_close(pixel_at(50, 33), QColor(0, 90, 105), 3));
+  CHECK(pixel_at(10, 40) == QColor(0, 180, 210));
+}
+
+// GitHub issue 34: wand-selecting the slightly uneven white background of a 1110 x 1388 image
+// and filling it took about 45 s with both the Fill tool and Layer > Fill. The selection is a
+// QRegion with thousands of row spans (the background weaves between the subject), and every
+// per-pixel selection query went through QRegion::contains, which scans all of them. The canvas
+// now rasterizes such a selection once; both fills must finish in a small fraction of a second.
+void ui_fill_of_wand_selection_with_many_spans_is_fast() {
+  constexpr int kWidth = 1110;
+  constexpr int kHeight = 1388;
+  constexpr int kDiscSpacing = 80;
+  constexpr int kDiscRadius = 24;
+  patchy::Document document(kWidth, kHeight, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer pixels(kWidth, kHeight, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < kHeight; ++y) {
+    for (std::int32_t x = 0; x < kWidth; ++x) {
+      // A near-white background (253..255, within the wand's tolerance) with a grid of dark
+      // discs on it: every row through a disc band crosses a dozen discs, so the wand's
+      // background region holds thousands of spans.
+      const auto dx = x % kDiscSpacing - kDiscSpacing / 2;
+      const auto dy = y % kDiscSpacing - kDiscSpacing / 2;
+      const bool disc = dx * dx + dy * dy <= kDiscRadius * kDiscRadius;
+      const auto gray = static_cast<std::uint8_t>(disc ? 30 : 253 + (x * 7 + y * 13) % 3);
+      auto* px = pixels.pixel(x, y);
+      px[0] = px[1] = px[2] = gray;
+      px[3] = 255;
+    }
+  }
+  const auto layer_id = document.add_pixel_layer("Background", std::move(pixels)).id();
+  document.set_active_layer(layer_id);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Issue 34"));
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  auto& edited = patchy::ui::MainWindowTestAccess::document(window);
+  const auto pixel_at = [&](int x, int y) {
+    const auto* px = std::as_const(edited).find_layer(layer_id)->pixels().pixel(x, y);
+    return QColor(px[0], px[1], px[2], px[3]);
+  };
+  const auto click = [&](int x, int y) {
+    const auto position = canvas->widget_position_for_document_point(QPoint(x, y));
+    send_mouse(*canvas, QEvent::MouseButtonPress, position, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, position, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+  };
+
+  canvas->set_tool(patchy::ui::CanvasTool::MagicWand);
+  canvas->set_wand_tolerance(32);
+  canvas->set_wand_contiguous(true);
+  canvas->set_wand_sample_all_layers(false);
+  canvas->set_selection_feather_radius(0);
+  click(2, 2);
+  const auto& selection = canvas->selected_document_region();
+  CHECK(selection.contains(QPoint(2, 2)));
+  CHECK(!selection.contains(QPoint(kDiscSpacing / 2, kDiscSpacing / 2)));
+  CHECK(selection.rectCount() > 5000);
+  CHECK(canvas->selection_alpha_at(QPoint(2, 2)) == 255U);
+  CHECK(canvas->selection_alpha_at(QPoint(kDiscSpacing / 2, kDiscSpacing / 2)) == 0U);
+  CHECK(canvas->selection_alpha_at(QPoint(kWidth - 3, kHeight - 3)) == 255U);
+  CHECK(canvas->selection_alpha_at(QPoint(kWidth, kHeight - 3)) == 0U);
+  CHECK(canvas->selection_alpha_at(QPoint(-1, 5)) == 0U);
+
+  // Layer > Fill (the background variant needs no dialog).
+  canvas->set_secondary_color(QColor(0, 180, 210));
+  auto* fill_background = window.findChild<QAction*>(QStringLiteral("layerFillBackgroundAction"));
+  CHECK(fill_background != nullptr);
+  QElapsedTimer fill_command_timer;
+  fill_command_timer.start();
+  fill_background->trigger();
+  QApplication::processEvents();
+  const auto fill_command_ms = fill_command_timer.elapsed();
+  CHECK(pixel_at(2, 2) == QColor(0, 180, 210));
+  CHECK(pixel_at(kWidth - 3, kHeight - 3) == QColor(0, 180, 210));
+  CHECK(pixel_at(kDiscSpacing / 2, kDiscSpacing / 2) == QColor(30, 30, 30));
+  CHECK(fill_command_ms < 3000);
+
+  // The Fill tool click inside the same selection floods the fresh fill color.
+  canvas->set_tool(patchy::ui::CanvasTool::Fill);
+  canvas->set_primary_color(QColor(200, 40, 60));
+  canvas->set_fill_tolerance(32);
+  canvas->set_fill_contiguous(true);
+  canvas->set_fill_opacity(100);
+  canvas->set_fill_softness(0);
+  QElapsedTimer fill_tool_timer;
+  fill_tool_timer.start();
+  click(2, 2);
+  const auto fill_tool_ms = fill_tool_timer.elapsed();
+  CHECK(pixel_at(2, 2) == QColor(200, 40, 60));
+  CHECK(pixel_at(kWidth - 3, kHeight - 3) == QColor(200, 40, 60));
+  CHECK(pixel_at(kDiscSpacing / 2, kDiscSpacing / 2) == QColor(30, 30, 30));
+  CHECK(fill_tool_ms < 3000);
+  std::cout << "  fill command " << fill_command_ms << " ms, fill tool " << fill_tool_ms << " ms over "
+            << selection.rectCount() << " selection spans\n";
 }
 
 void ui_options_bar_tracks_active_tool() {
@@ -1993,6 +2284,111 @@ void ui_layer_opacity_control_defers_slow_rendering_and_undoes_once() {
   CHECK(std::abs(edited_layer->opacity() - 1.0F) <= 0.001F);
 }
 
+// Every blend-mode combo steps with Left/Right like Up/Down, closed and with
+// the list open, as the Opacity and Fill fields beside it do.
+void ui_blend_mode_combos_step_with_left_and_right_arrows() {
+  QComboBox combo;
+  patchy::ui::add_blend_mode_items(&combo);
+  patchy::ui::add_blend_mode_items(&combo);  // a refill must not install the filter twice
+  combo.clear();
+  patchy::ui::add_blend_mode_items(&combo);
+  combo.show();
+  QApplication::processEvents();
+  CHECK(combo.currentText() == QStringLiteral("Normal"));
+  send_key(combo, Qt::Key_Right);
+  CHECK(combo.currentText() == QStringLiteral("Dissolve"));
+  send_key(combo, Qt::Key_Right);
+  CHECK(combo.currentText() == QStringLiteral("Darken"));
+  send_key(combo, Qt::Key_Left);
+  CHECK(combo.currentText() == QStringLiteral("Dissolve"));
+  send_key(combo, Qt::Key_Left);
+  send_key(combo, Qt::Key_Left);  // clamps at the first mode like Up does
+  CHECK(combo.currentIndex() == 0);
+  send_key(combo, Qt::Key_Right, Qt::ControlModifier);  // modified arrows keep their own meaning
+  CHECK(combo.currentIndex() == 0);
+
+  combo.showPopup();
+  QApplication::processEvents();
+  auto* view = combo.view();
+  CHECK(view != nullptr);
+  CHECK(view->currentIndex().row() == 0);
+  send_key(*view, Qt::Key_Right);
+  send_key(*view, Qt::Key_Right);
+  CHECK(view->currentIndex().row() == 2);
+  send_key(*view, Qt::Key_Left);
+  CHECK(view->currentIndex().row() == 1);
+  CHECK(combo.currentIndex() == 0);  // the open list only moves its highlight
+  combo.hidePopup();
+  QApplication::processEvents();
+}
+
+// Stepping the Layers-panel blend mode is one undo entry per run, like an
+// Opacity drag, and the run ends on a pause or at the next separate edit.
+void ui_layer_blend_mode_steps_coalesce_into_one_undo_entry() {
+  patchy::Document document(120, 90, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(120, 90, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  patchy::Layer layer(document.allocate_layer_id(), "Blend Target",
+                      solid_pixels(60, 40, patchy::PixelFormat::rgba8(), QColor(30, 150, 220, 255)));
+  const auto layer_id = layer.id();
+  layer.set_bounds(patchy::Rect{20, 20, 60, 40});
+  document.add_layer(std::move(layer));
+  document.set_active_layer(layer_id);
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Blend Steps"));
+  show_window(window);
+  QApplication::processEvents();
+
+  using Access = patchy::ui::MainWindowTestAccess;
+  auto* blend_combo = window.findChild<QComboBox*>(QStringLiteral("layerBlendModeCombo"));
+  CHECK(blend_combo != nullptr);
+  CHECK(blend_combo->currentText() == QStringLiteral("Normal"));
+  const auto blend_of_target = [&window, layer_id] {
+    const auto* target = std::as_const(Access::document(window)).find_layer(layer_id);
+    CHECK(target != nullptr);
+    return target->blend_mode();
+  };
+
+  const auto depth_before = Access::active_session_undo_depth(window);
+  send_key(*blend_combo, Qt::Key_Right);
+  send_key(*blend_combo, Qt::Key_Right);
+  send_key(*blend_combo, Qt::Key_Down);
+  CHECK(blend_combo->currentText() == QStringLiteral("Multiply"));
+  CHECK(blend_of_target() == patchy::BlendMode::Multiply);
+  CHECK(Access::active_session_undo_depth(window) == depth_before + 1);
+  CHECK(Access::layer_blend_edit_pending(window));
+
+  // A pause ends the run: the next step is a new entry.
+  QElapsedTimer pause;
+  pause.start();
+  while (Access::layer_blend_edit_pending(window) && pause.elapsed() < 3000) {
+    QApplication::processEvents(QEventLoop::AllEvents, 20);
+  }
+  CHECK(!Access::layer_blend_edit_pending(window));
+  send_key(*blend_combo, Qt::Key_Right);
+  CHECK(blend_of_target() == patchy::BlendMode::ColorBurn);
+  CHECK(Access::active_session_undo_depth(window) == depth_before + 2);
+
+  // A separate edit also ends the run instead of folding into it.
+  auto* opacity_spin = window.findChild<QSpinBox*>(QStringLiteral("layerOpacitySpin"));
+  CHECK(opacity_spin != nullptr);
+  opacity_spin->setValue(50);
+  QApplication::processEvents();
+  CHECK(!Access::layer_blend_edit_pending(window));
+  CHECK(Access::active_session_undo_depth(window) == depth_before + 3);
+
+  Access::undo(window);  // opacity
+  QApplication::processEvents();
+  CHECK(blend_of_target() == patchy::BlendMode::ColorBurn);
+  Access::undo(window);  // the single step after the pause
+  QApplication::processEvents();
+  CHECK(blend_of_target() == patchy::BlendMode::Multiply);
+  Access::undo(window);  // the whole first run at once
+  QApplication::processEvents();
+  CHECK(blend_of_target() == patchy::BlendMode::Normal);
+  CHECK(blend_combo->currentText() == QStringLiteral("Normal"));
+}
+
 void ui_collapsed_right_docks_keep_deep_layer_rows_readable() {
   patchy::Document document(128, 128, patchy::PixelFormat::rgba8());
   patchy::Layer root(document.allocate_layer_id(), "Root Folder", patchy::LayerKind::Group);
@@ -2686,15 +3082,26 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_shape_flyout_and_zoom_tool_work", ui_shape_flyout_and_zoom_tool_work},
       {"ui_stamp_and_gradient_flyouts_swap_tools", ui_stamp_and_gradient_flyouts_swap_tools},
       {"ui_tool_flyout_double_click_opens_menu", ui_tool_flyout_double_click_opens_menu},
+      {"ui_tool_flyout_right_click_opens_menu", ui_tool_flyout_right_click_opens_menu},
       {"ui_tool_palette_icons_render_sheet", ui_tool_palette_icons_render_sheet},
       {"ui_filled_shape_preview_clears_after_commit", ui_filled_shape_preview_clears_after_commit},
       {"ui_options_bar_tracks_active_tool", ui_options_bar_tracks_active_tool},
+      {"ui_fill_tool_tolerance_and_contiguous_persist_across_documents",
+       ui_fill_tool_tolerance_and_contiguous_persist_across_documents},
+      {"ui_fill_tool_click_honors_tolerance_contiguous_and_opacity",
+       ui_fill_tool_click_honors_tolerance_contiguous_and_opacity},
+      {"ui_fill_of_wand_selection_with_many_spans_is_fast", ui_fill_of_wand_selection_with_many_spans_is_fast},
       {"ui_gradient_toolbar_preset_popup_applies_stops", ui_gradient_toolbar_preset_popup_applies_stops},
       {"ui_options_bar_spinboxes_fit_widest_value", ui_options_bar_spinboxes_fit_widest_value},
+      {"ui_options_bar_spinboxes_show_their_extremes_unclipped",
+       ui_options_bar_spinboxes_show_their_extremes_unclipped},
       {"ui_right_docks_collapse_layers_show_metadata_and_info_updates",
        ui_right_docks_collapse_layers_show_metadata_and_info_updates},
       {"ui_layer_opacity_control_defers_slow_rendering_and_undoes_once",
        ui_layer_opacity_control_defers_slow_rendering_and_undoes_once},
+      {"ui_blend_mode_combos_step_with_left_and_right_arrows", ui_blend_mode_combos_step_with_left_and_right_arrows},
+      {"ui_layer_blend_mode_steps_coalesce_into_one_undo_entry",
+       ui_layer_blend_mode_steps_coalesce_into_one_undo_entry},
       {"ui_collapsed_right_docks_keep_deep_layer_rows_readable",
        ui_collapsed_right_docks_keep_deep_layer_rows_readable},
       {"ui_right_dock_panels_expand_within_window_height", ui_right_dock_panels_expand_within_window_height},

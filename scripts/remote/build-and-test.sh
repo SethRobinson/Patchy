@@ -26,11 +26,14 @@ if [ -d "$HOME/.patchy-tools/sysroot/usr" ]; then
 fi
 
 cd "$HOME/patchy/src"
+# Every core but four (at least one), so the remote machine stays usable.
+JOBS=$(( $(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 5) - 4 ))
+[ "$JOBS" -ge 1 ] || JOBS=1
 
 echo "== configure ($PRESET) =="
 cmake --preset "$PRESET"
 echo "== build ($PRESET) =="
-nice -n 10 cmake --build --preset "$PRESET" -j 6
+nice -n 10 cmake --build --preset "$PRESET" -j "$JOBS"
 
 if [ "$SKIP_TESTS" = "1" ]; then
   echo "== tests skipped =="

@@ -89,6 +89,10 @@ void remove_image_resource(std::vector<ImageResource>& resources, std::uint16_t 
                   resources.end());
 }
 
+double fixed_16_16_to_double(std::uint32_t value) noexcept {
+  return static_cast<double>(value) / 65536.0;
+}
+
 namespace {
 
 std::optional<std::vector<ImageResource>> read_image_resources(std::span<const std::uint8_t> bytes) {
@@ -253,10 +257,6 @@ DocumentChannelDisplayInfo display_info_from_photoshop_record(std::span<const st
 
 double sanitized_print_ppi(double value) noexcept {
   return std::isfinite(value) && value > 0.0 ? value : 300.0;
-}
-
-double fixed_16_16_to_double(std::uint32_t value) noexcept {
-  return static_cast<double>(value) / 65536.0;
 }
 
 std::uint32_t double_to_fixed_16_16(double value) noexcept {
@@ -514,7 +514,10 @@ ParsedCompositeChannelResources parse_composite_channel_resources(
 }
 
 std::uint16_t composite_color_channel_count(std::uint16_t color_mode) noexcept {
-  return is_cmyk_color_mode(color_mode) ? 4U : 3U;
+  if (is_cmyk_color_mode(color_mode)) {
+    return 4U;
+  }
+  return is_grayscale_color_mode(color_mode) ? 1U : 3U;
 }
 
 void add_saved_composite_channels(Document& document,

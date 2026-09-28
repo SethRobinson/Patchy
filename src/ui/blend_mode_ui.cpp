@@ -2,12 +2,54 @@
 
 #include "filters/filter_registry.hpp"
 
+#include <QAbstractItemView>
 #include <QComboBox>
+#include <QCoreApplication>
+#include <QKeyEvent>
 #include <QObject>
 
 #include <array>
 
 namespace patchy::ui {
+
+namespace {
+
+constexpr char kBlendModeArrowKeysProperty[] = "patchy.blendModeArrowKeys";
+
+// Qt steps a closed combo box with Up/Down only (Left/Right are keypad-navigation
+// only), while the Opacity and Fill fields beside the layer blend combo take all
+// four arrows. Left/Right are replayed as Up/Down to the same widget, so Qt's own
+// stepping (end clamping, disabled items) and the open list's highlight movement
+// apply unchanged.
+class BlendModeArrowKeys final : public QObject {
+public:
+  explicit BlendModeArrowKeys(QComboBox* combo) : QObject(combo) {
+    combo->installEventFilter(this);
+    combo->view()->installEventFilter(this);
+  }
+
+protected:
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (event->type() != QEvent::KeyPress) {
+      return false;
+    }
+    const auto* key_event = static_cast<QKeyEvent*>(event);
+    if ((key_event->key() != Qt::Key_Left && key_event->key() != Qt::Key_Right) ||
+        (key_event->modifiers() & ~Qt::KeypadModifier) != Qt::NoModifier) {
+      return false;
+    }
+    if (const auto* combo = qobject_cast<QComboBox*>(watched); combo != nullptr && combo->isEditable()) {
+      return false;  // the line edit owns Left/Right for its caret
+    }
+    QKeyEvent replacement(QEvent::KeyPress, key_event->key() == Qt::Key_Left ? Qt::Key_Up : Qt::Key_Down,
+                          key_event->modifiers(), QString(), key_event->isAutoRepeat(),
+                          static_cast<quint16>(key_event->count()));
+    QCoreApplication::sendEvent(watched, &replacement);
+    return true;
+  }
+};
+
+}  // namespace
 
 QString blend_mode_name(BlendMode mode) {
   switch (mode) {
@@ -91,6 +133,10 @@ void add_blend_mode_items(QComboBox* combo, BlendModeMenu menu) {
       continue;
     }
     combo->addItem(blend_mode_name(mode), static_cast<int>(mode));
+  }
+  if (!combo->property(kBlendModeArrowKeysProperty).toBool()) {
+    combo->setProperty(kBlendModeArrowKeysProperty, true);
+    new BlendModeArrowKeys(combo);
   }
 }
 

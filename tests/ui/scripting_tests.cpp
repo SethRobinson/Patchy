@@ -12,8 +12,10 @@
 #include "formats/document_flatten.hpp"
 #include "formats/pdf_document_io.hpp"
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QJsonObject>
 #include "ui/canvas_widget.hpp"
+#include "ui/canvas_widget_shared.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/palette_panel.hpp"
 #include "ui/qt_paths.hpp"
@@ -23,8 +25,11 @@
 #include "ui/app_settings.hpp"
 #include "ui/ai_setup_dialog.hpp"
 #include "ui/localization.hpp"
+#include "psd/psd_text_runs.hpp"
 #include "ui/main_window.hpp"
 #include "ui/script_editor_dialog.hpp"
+#include <QFileInfo>
+#include <QFontComboBox>
 #include "ui/script_engine.hpp"
 #include "ui/script_folders.hpp"
 #include "ui/sound_effects.hpp"
@@ -37,6 +42,7 @@
 #include "unicode_path_names.hpp"
 
 #include <QAction>
+#include <QFontDatabase>
 #include <QApplication>
 #include <QCheckBox>
 #include <QClipboard>
@@ -559,6 +565,14 @@ void ui_script_remove_object_heals_selection() {
     var r2 = layer.removeObject({method: 'nearestEdge'});
     var r3 = layer.removeObject({method: 'nearestEdge', attempt: 0});
     console.log('sources=' + r1.source + ',' + r2.source + ',' + r3.source + ' of ' + r1.sourceCount);
+    var v = layer.removeObject({attempt: 2, toneMatch: 0, feather: 2});
+    console.log('variation=' + v.attempt + ' method=' + v.method + ' patches=' + (v.patches > 0));
+    try {
+      layer.removeObject({sharpen: 1});
+      console.log('option-no-throw');
+    } catch (e) {
+      console.log('option-refused=' + (e.message.indexOf('sharpen') >= 0));
+    }
     var px = new Uint8Array(layer.getPixels().data);
     var i = (31 * 64 + 31) * 4;
     console.log('healed=' + px[i] + ',' + px[i + 1] + ',' + px[i + 2] + ',' + px[i + 3]);
@@ -572,6 +586,9 @@ void ui_script_remove_object_heals_selection() {
   )JS")));
   CHECK(backlog_contains(window, QStringLiteral("method=contentAware patches=true")));
   CHECK(backlog_contains(window, QStringLiteral("sources=1,2,1 of ")));
+  CHECK(backlog_contains(window, QStringLiteral("variation=2 method=contentAware patches=true")));
+  CHECK(backlog_contains(window, QStringLiteral("option-refused=true")));
+  CHECK(!backlog_contains(window, QStringLiteral("option-no-throw")));
   CHECK(backlog_contains(window, QStringLiteral("healed=40,80,160,255")));
   CHECK(backlog_contains(window, QStringLiteral("refused=true")));
   CHECK(!backlog_contains(window, QStringLiteral("no-throw")));
@@ -610,6 +627,54 @@ void ui_script_remove_object_then_reopen_large_document() {
   // Let every deferred refresh and background composite of both documents land
   // while the sessions are still alive.
   patchy::test::ui::process_events_for(1500);
+}
+
+void ui_script_align_and_distribute_layers() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var doc = app.activeDocument;
+    var a = doc.addLayer('A'); a.fillRect(10, 10, 20, 20, '#ff0000');
+    var b = doc.addLayer('B'); b.fillRect(60, 40, 30, 10, '#00ff00');
+    var c = doc.addLayer('C'); c.fillRect(100, 90, 20, 30, '#0000ff');
+    var moved = doc.alignLayers('left', {layers: [a, b, c]});
+    console.log('aligned=' + moved);
+    moved = doc.alignLayers('left', {layers: [a, b, c]});
+    console.log('again=' + moved);
+    moved = doc.distributeLayers('vcenter', {layers: [a, b, c]});
+    console.log('distributed=' + moved);
+    moved = doc.alignLayers('hcenter', {layers: [b], alignTo: 'canvas'});
+    console.log('canvas=' + moved);
+    try { doc.distributeLayers('left', {layers: [a, b]}); console.log('no-throw'); }
+    catch (e) { console.log('refused=' + (e.message.indexOf('three') >= 0)); }
+    try { doc.alignLayers('middle'); console.log('no-throw'); }
+    catch (e) { console.log('bad-edge=' + (e.message.indexOf('middle') >= 0)); }
+    try { doc.alignLayers('left', {bogus: 1}); console.log('no-throw'); }
+    catch (e) { console.log('bad-option=' + (e.message.indexOf('bogus') >= 0)); }
+  )JS")));
+  // Align works on the layers' opaque rects (A already sits at the union's left
+  // edge, so two layers move); vcenter distribute puts B's center at
+  // (20 + 105) / 2 = 62.5 -> 63 (top 58); the canvas hcenter centers B's 30 px.
+  CHECK(backlog_contains(window, QStringLiteral("aligned=2")));
+  CHECK(backlog_contains(window, QStringLiteral("again=0")));
+  CHECK(backlog_contains(window, QStringLiteral("distributed=1")));
+  CHECK(backlog_contains(window, QStringLiteral("canvas=1")));
+  const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  const auto opaque = [&](const char* name) {
+    const auto* layer = layer_named(document, name);
+    return layer != nullptr ? patchy::ui::move_layer_outline_bounds(*layer).value_or(patchy::Rect{})
+                            : patchy::Rect{};
+  };
+  CHECK(opaque("A").x == 10 && opaque("C").x == 10);
+  CHECK(opaque("A").y == 10 && opaque("C").y == 90);
+  CHECK(opaque("B").y == 58);
+  CHECK(opaque("B").x == document.width() / 2 - 15);
+  CHECK(backlog_contains(window, QStringLiteral("refused=true")));
+  CHECK(backlog_contains(window, QStringLiteral("bad-edge=true")));
+  CHECK(backlog_contains(window, QStringLiteral("bad-option=true")));
+  CHECK(!backlog_contains(window, QStringLiteral("no-throw")));
+  // Every mutation rode the run's single history entry.
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == 1);
 }
 
 void ui_script_canvas_window_receives_space_key() {
@@ -887,6 +952,382 @@ void ui_script_text_size_is_zoom_independent() {
                             close(a.bounds.height, b.bounds.height)));
   )JS")));
   CHECK(backlog_contains(window, QStringLiteral("match=true")));
+}
+
+// addTextLayer's font option used to be dropped: the script set the family on the editor's
+// char format only, while the commit reads the session family, so every script-made text layer
+// rendered in the options bar's current font (September 2026; an AI-built poster fell back to
+// drawing its lettering as vector outlines). Two different registered families both have to
+// stick, whichever one the bar happens to hold.
+void ui_script_text_font_option_applies() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  QStringList families;
+  for (const auto& family : QFontDatabase::families()) {
+    if (!family.startsWith(QLatin1Char('.')) && !QFontDatabase::isPrivateFamily(family) &&
+        !QFontDatabase::styles(family).isEmpty()) {
+      families.push_back(family);
+    }
+  }
+  CHECK(families.size() >= 2);
+  if (families.size() < 2) {
+    return;
+  }
+  const auto first = families.front();
+  const auto second = families.back();
+  const auto js_string = [](const QString& text) {
+    const auto array = QString::fromUtf8(QJsonDocument(QJsonArray{text}).toJson(QJsonDocument::Compact));
+    return array.mid(1, array.size() - 2);  // the quoted element without the brackets
+  };
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var doc = app.activeDocument;
+    var a = doc.addTextLayer('Font probe', {font: %1, size: 24, x: 10, y: 40});
+    var b = doc.addTextLayer('Font probe', {font: %2, size: 24, x: 10, y: 120});
+    console.log('first=' + a.textFont);
+    console.log('second=' + b.textFont);
+    var c = doc.addTextLayer('Font probe', {font: 'Patchy No Such Family', size: 24, x: 10, y: 200});
+    console.log('plain=' + JSON.stringify(doc.addLayer('Plain').textFont));
+  )JS")
+                             .arg(js_string(first), js_string(second))));
+  CHECK(backlog_contains(window, QStringLiteral("first=") + first));
+  CHECK(backlog_contains(window, QStringLiteral("second=") + second));
+  CHECK(backlog_contains(window, QStringLiteral("font not available, rendered with a fallback: Patchy No Such Family")));
+  CHECK(backlog_contains(window, QStringLiteral("plain=\"\"")));
+}
+
+// A scripted layer names its own face. A new session seeds its face from the options bar's
+// style picker (Photoshop seeds new type from its toolbar the same way), and that face used to
+// ride along into the scripted layer: with the picker parked on a Black layer, a script asking
+// for plain Arial got Arial Black. The picker is put on Black by hand here, since the leak needs
+// a face the bold/italic flags cannot name; a database that does not list Black under Arial
+// (font files vary per machine) skips.
+void ui_script_text_face_ignores_the_options_bar_style() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::ArialBlack);
+  auto* family_combo = window.findChild<QFontComboBox*>(QStringLiteral("textFontCombo"));
+  auto* style_combo = window.findChild<QComboBox*>(QStringLiteral("textStyleCombo"));
+  CHECK(family_combo != nullptr);
+  CHECK(style_combo != nullptr);
+  if (family_combo == nullptr || style_combo == nullptr) {
+    return;
+  }
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var doc = app.activeDocument;
+    var plain = doc.addTextLayer('Face probe', {font: 'Arial', size: 40, x: 10, y: 40});
+    console.log('plain=' + plain.bounds.width + 'x' + plain.bounds.height);
+    // A picker change applies to the selected text layer (issue 31); park the selection on a
+    // pixel layer so the probe layer keeps its face and only the bar's state changes.
+    doc.addLayer('Spacer');
+  )JS")));
+  family_combo->setCurrentFont(QFont(QStringLiteral("Arial")));
+  int black_row = -1;
+  for (int row = 0; row < style_combo->count(); ++row) {
+    if (style_combo->itemData(row).toString().compare(QStringLiteral("Black"), Qt::CaseInsensitive) == 0) {
+      black_row = row;
+      break;
+    }
+  }
+  if (black_row < 0) {
+    std::cout << "[SKIP] the font database lists no Black face under Arial (picker face leak)\n";
+    return;
+  }
+  style_combo->setCurrentIndex(black_row);
+  QApplication::processEvents();
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var doc = app.activeDocument;
+    var plain = doc.findLayer('Face probe');
+    var again = doc.addTextLayer('Face probe', {font: 'Arial', size: 40, x: 10, y: 140});
+    var black = doc.addTextLayer('Face probe', {font: 'Arial Black', size: 40, x: 10, y: 240});
+    console.log('again-matches-plain=' + (again.bounds.width === plain.bounds.width &&
+                                          again.bounds.height === plain.bounds.height));
+    console.log('black-is-wider=' + (black.bounds.width > plain.bounds.width));
+  )JS")));
+  CHECK(backlog_contains(window, QStringLiteral("again-matches-plain=true")));
+  CHECK(backlog_contains(window, QStringLiteral("black-is-wider=true")));
+}
+
+// The committed size is the requested document size at every zoom, and an unchanged re-edit
+// keeps it. The inline editor's font is whole editor pixels (document px x zoom); a commit that
+// recovered the size as round(px / zoom) turned 60 px into 62 px at 13% and 58 px at 15.5%,
+// which is how an AI-built poster's untouched headings changed size when clicked into. Every
+// run now carries its exact size through the session.
+void ui_script_text_size_survives_low_zoom_reedit() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var doc = app.activeDocument;
+    app.zoom = 100;
+    var a = doc.addTextLayer('Zoom probe', {size: 60, x: 10, y: 40});
+    var w = a.bounds.width, h = a.bounds.height;
+    app.zoom = 13;
+    var b = doc.addTextLayer('Zoom probe', {size: 60, x: 10, y: 200});
+    a.text = a.text;
+    console.log('low-zoom-new=' + (b.bounds.width === w && b.bounds.height === h));
+    console.log('low-zoom-reedit=' + (a.bounds.width === w && a.bounds.height === h));
+    app.zoom = 100;
+    a.text = a.text;
+    console.log('back-at-100=' + (a.bounds.width === w && a.bounds.height === h));
+  )JS")));
+  CHECK(backlog_contains(window, QStringLiteral("low-zoom-new=true")));
+  CHECK(backlog_contains(window, QStringLiteral("low-zoom-reedit=true")));
+  CHECK(backlog_contains(window, QStringLiteral("back-at-100=true")));
+}
+
+// Windows: a face's full name ("Futura Extra Black BT", the registry's display name and what an
+// older PSD reader stored for the face) renders the same face as the family + style the font
+// database lists ("Futura XBlk BT" + "Extra Black"), with no missing-font warning, and an
+// unchanged re-edit of a layer carrying the full name keeps that face. The database only knows
+// the face once the fixture file is registered; the lookup itself asks DirectWrite, so the test
+// skips unless the font is installed on this machine and copied into local-test-fixtures.
+void ui_script_text_full_face_name_resolves_like_its_family() {
+#ifdef Q_OS_WIN
+  const auto fixture = QStringLiteral(PATCHY_SOURCE_DIR "/local-test-fixtures/fonts/FUTURAXK.TTF");
+  if (!QFileInfo::exists(fixture) || !patchy::psd::installed_font_for_name("Futura Extra Black BT").has_value()) {
+    std::cout << "[SKIP] Futura Extra Black BT is not installed and staged (full face name resolution)\n";
+    return;
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(QFontDatabase::addApplicationFont(fixture) >= 0);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var doc = app.activeDocument;
+    var family = doc.addTextLayer('Diorama', {font: 'Futura XBlk BT', size: 40, x: 10, y: 40});
+    var full = doc.addTextLayer('Diorama', {font: 'Futura Extra Black BT', size: 40, x: 10, y: 140});
+    var same = function () {
+      return full.bounds.width === family.bounds.width && full.bounds.height === family.bounds.height;
+    };
+    console.log('full-name-matches=' + same());
+    full.text = full.text;
+    console.log('reedit-keeps-face=' + same());
+    console.log('stored=' + full.textFont);
+  )JS")));
+  CHECK(backlog_contains(window, QStringLiteral("full-name-matches=true")));
+  CHECK(backlog_contains(window, QStringLiteral("reedit-keeps-face=true")));
+  CHECK(backlog_contains(window, QStringLiteral("stored=Futura Extra Black BT")));
+  CHECK(!backlog_contains(window, QStringLiteral("font not available")));
+#else
+  std::cout << "[SKIP] DirectWrite-only (full face name resolution)\n";
+#endif
+}
+
+// Rich runs: one layer typed from an array of runs keeps every run's own face, size and color,
+// reads them back in order, and a bold run really renders bolder than the plain layer.
+void ui_script_text_runs_create_and_read_back() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var doc = app.activeDocument;
+    var plain = doc.addTextLayer('Hold the LEFT TRIGGER', {font: 'Arial', size: 24, x: 10, y: 40});
+    var rich = doc.addTextLayer([{text: 'Hold the '}, {text: 'LEFT TRIGGER', bold: true, color: '#ff0000'},
+                                 {text: '\nsmall print', size: 12, italic: true}],
+                                {font: 'Arial', size: 24, x: 10, y: 140});
+    console.log('text=' + JSON.stringify(rich.text));
+    // The paragraph break is its own run: Qt gives the block separator the format of the text
+    // before it, so "\n" lands between the bold run and the italic one it was typed with.
+    var runs = rich.textRuns;
+    console.log('count=' + runs.length);
+    console.log('run0=' + runs[0].text + '|' + runs[0].bold + '|' + runs[0].size + '|' + runs[0].color + '|' + runs[0].font);
+    console.log('run1=' + runs[1].text + '|' + runs[1].bold + '|' + runs[1].size + '|' + runs[1].color);
+    console.log('run2=' + JSON.stringify(runs[2].text));
+    console.log('run3=' + runs[3].text + '|' + runs[3].italic + '|' + runs[3].size);
+    console.log('joined=' + (runs.map(function (r) { return r.text; }).join('') === rich.text));
+    console.log('font=' + rich.textFont);
+    console.log('bold-wider=' + (rich.bounds.width > plain.bounds.width));
+    console.log('two-lines=' + (rich.bounds.height > plain.bounds.height * 1.3));
+    console.log('plain-runs=' + plain.textRuns.length + '|' + plain.textRuns[0].text);
+  )JS")));
+  CHECK(backlog_contains(window, QStringLiteral("text=\"Hold the LEFT TRIGGER\\nsmall print\"")));
+  CHECK(backlog_contains(window, QStringLiteral("count=4")));
+  CHECK(backlog_contains(window, QStringLiteral("run0=Hold the |false|24|#000000|Arial")));
+  CHECK(backlog_contains(window, QStringLiteral("run1=LEFT TRIGGER|true|24|#ff0000")));
+  CHECK(backlog_contains(window, QStringLiteral("run2=\"\\n\"")));
+  CHECK(backlog_contains(window, QStringLiteral("run3=small print|true|12")));
+  CHECK(backlog_contains(window, QStringLiteral("joined=true")));
+  CHECK(backlog_contains(window, QStringLiteral("font=Arial")));
+  CHECK(backlog_contains(window, QStringLiteral("bold-wider=true")));
+  CHECK(backlog_contains(window, QStringLiteral("two-lines=true")));
+  CHECK(backlog_contains(window, QStringLiteral("plain-runs=1|Hold the LEFT TRIGGER")));
+}
+
+// A paragraph box wraps at its width and records its size; align sets every paragraph, and the
+// textAlign setter re-aligns an existing layer.
+void ui_script_text_box_wraps_and_aligns() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var doc = app.activeDocument;
+    var words = 'The modified emulator renders the scene once per viewpoint from a slightly different camera.';
+    var point = doc.addTextLayer(words, {font: 'Arial', size: 20, x: 10, y: 20});
+    var box = doc.addTextLayer(words, {font: 'Arial', size: 20, x: 10, y: 120, box: {width: 300, height: 400}});
+    console.log('point-box=' + JSON.stringify(point.textBox));
+    console.log('box=' + JSON.stringify(box.textBox));
+    console.log('wraps=' + (box.bounds.width <= 300 && box.bounds.height > point.bounds.height * 2));
+    console.log('align-default=' + box.textAlign);
+    var centered = doc.addTextLayer(words, {font: 'Arial', size: 20, x: 10, y: 560, box: {width: 300, height: 200}, align: 'center'});
+    console.log('align-option=' + centered.textAlign);
+    box.textAlign = 'right';
+    console.log('align-set=' + box.textAlign);
+    var threw = false;
+    try { doc.addTextLayer('x', {box: {width: 4, height: 4}}); } catch (e) { threw = true; }
+    console.log('tiny-box-throws=' + threw);
+  )JS")));
+  CHECK(backlog_contains(window, QStringLiteral("point-box=null")));
+  CHECK(backlog_contains(window, QStringLiteral("box={\"width\":300,\"height\":400}")));
+  CHECK(backlog_contains(window, QStringLiteral("wraps=true")));
+  CHECK(backlog_contains(window, QStringLiteral("align-default=left")));
+  CHECK(backlog_contains(window, QStringLiteral("align-option=center")));
+  CHECK(backlog_contains(window, QStringLiteral("align-set=right")));
+  CHECK(backlog_contains(window, QStringLiteral("tiny-box-throws=true")));
+}
+
+// setTextRuns retypes an existing layer with formatted runs on top of the first character's
+// formatting (the family and size survive, the runs' own bold and color apply), and a plain
+// `text` assignment afterwards keeps the first run's formatting as before.
+void ui_script_set_text_runs_edits_existing_layer() {
+  // The family must be installed: an edit session moves a layer whose family is missing onto
+  // the substitute it draws with (substituted_text_family), and Linux has no Arial.
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  QString family;
+  for (const auto* candidate : {"Arial", "Liberation Sans", "DejaVu Sans"}) {
+    if (QFontDatabase::hasFamily(QString::fromLatin1(candidate))) {
+      family = QString::fromLatin1(candidate);
+      break;
+    }
+  }
+  if (family.isEmpty()) {
+    std::cout << "[SKIP] no Arial-class family installed (setTextRuns family check)\n";
+    return;
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var doc = app.activeDocument;
+    var layer = doc.addTextLayer('Ask Seth for a game', {font: '__FAMILY__', size: 24, x: 10, y: 40, color: '#102030'});
+    var plainWidth = layer.bounds.width;
+    layer.setTextRuns([{text: 'Ask '}, {text: 'Seth', bold: true, color: '#ff0000'}, ' for a game']);
+    var runs = layer.textRuns;
+    console.log('text=' + layer.text);
+    console.log('count=' + runs.length);
+    console.log('kept=' + runs[0].font + '|' + runs[0].size + '|' + runs[0].color + '|' + runs[0].bold);
+    console.log('bolded=' + runs[1].text + '|' + runs[1].bold + '|' + runs[1].color);
+    console.log('wider=' + (layer.bounds.width > plainWidth));
+    layer.text = 'Ask Seth for a game';
+    console.log('back=' + layer.textRuns.length + '|' + layer.textRuns[0].bold);
+    var threw = false;
+    try { layer.setTextRuns([]); } catch (e) { threw = true; }
+    console.log('empty-throws=' + threw);
+  )JS").replace(QStringLiteral("__FAMILY__"), family)));
+  CHECK(backlog_contains(window, QStringLiteral("text=Ask Seth for a game")));
+  CHECK(backlog_contains(window, QStringLiteral("count=3")));
+  CHECK(backlog_contains(window, QStringLiteral("kept=%1|24|#102030|false").arg(family)));
+  CHECK(backlog_contains(window, QStringLiteral("bolded=Seth|true|#ff0000")));
+  CHECK(backlog_contains(window, QStringLiteral("wider=true")));
+  CHECK(backlog_contains(window, QStringLiteral("back=1|false")));
+  CHECK(backlog_contains(window, QStringLiteral("empty-throws=true")));
+}
+
+// textParagraph reads the first paragraph's indents and spacing in document px, the addTextLayer
+// `paragraph` option seeds them, and the setter merges only the fields it is given into every
+// paragraph. Other layers read null; a non-number throws.
+void ui_script_text_paragraph_reads_and_sets_metrics() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var doc = app.activeDocument;
+    // The values travel through the editor's zoom, so compare them rounded.
+    function fmt(p) {
+      if (p === null) { return 'null'; }
+      return [p.firstLineIndent, p.startIndent, p.endIndent, p.spaceBefore, p.spaceAfter]
+          .map(function (v) { return Math.round(v * 100) / 100; }).join(',');
+    }
+    var layer = doc.addTextLayer('First paragraph\nSecond paragraph',
+                                 {font: 'Arial', size: 20, x: 10, y: 20, box: {width: 300, height: 200},
+                                  paragraph: {firstLineIndent: 12, startIndent: 8, spaceAfter: 6}});
+    console.log('set=' + fmt(layer.textParagraph));
+    var narrow = layer.bounds.width;
+    layer.textParagraph = {startIndent: 20};
+    console.log('merged=' + fmt(layer.textParagraph));
+    var plain = doc.addTextLayer('No indents', {font: 'Arial', size: 20, x: 10, y: 300});
+    console.log('plain=' + fmt(plain.textParagraph));
+    console.log('pixel=' + fmt(doc.addLayer('px').textParagraph));
+    var threw = false;
+    try { layer.textParagraph = {startIndent: 'wide'}; } catch (e) { threw = true; }
+    console.log('bad-throws=' + threw);
+    console.log('kept=' + fmt(layer.textParagraph));
+  )JS")));
+  CHECK(backlog_contains(window, QStringLiteral("set=12,8,0,0,6")));
+  CHECK(backlog_contains(window, QStringLiteral("merged=12,20,0,0,6")));
+  CHECK(backlog_contains(window, QStringLiteral("plain=0,0,0,0,0")));
+  CHECK(backlog_contains(window, QStringLiteral("pixel=null")));
+  CHECK(backlog_contains(window, QStringLiteral("bad-throws=true")));
+  CHECK(backlog_contains(window, QStringLiteral("kept=12,20,0,0,6")));
+}
+
+// The auto-leading fraction the PSD writer hands Photoshop is the measured line pitch over the
+// largest run size ON THOSE LINES. It used to divide by the layer's largest run, so a layer whose
+// 49 px lines were separated by a 155 px spacer paragraph wrote 0.35 and Photoshop stacked the
+// 49 px lines 17 px apart (the September 2026 Steam Frame poster). The spacer layer must record
+// the same fraction as the identical layer without the spacer.
+void ui_script_text_auto_leading_ignores_spacer_paragraphs() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var doc = app.activeDocument;
+    var plain = doc.addTextLayer('Play VR games, or regular\ngames on a virtual screen.\n\nStream from a PC: supported\ngames also run on the headset.',
+                                 {font: 'Arial', size: 49, x: 10, y: 10, box: {width: 970, height: 600}});
+    plain.name = 'Plain block';
+    var spaced = doc.addTextLayer([{text: 'Play VR games, or regular\ngames on a virtual screen.\n'},
+                                   {text: '\n', size: 155},
+                                   {text: 'Stream from a PC: supported\ngames also run on the headset.'}],
+                                  {font: 'Arial', size: 49, x: 10, y: 10, box: {width: 970, height: 600}});
+    spaced.name = 'Spaced block';
+    console.log('runs=' + spaced.textRuns.length);
+  )JS")));
+  CHECK(backlog_contains(window, QStringLiteral("runs=")));
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto fraction_of = [&document](const char* name) -> std::optional<double> {
+    for (const auto& layer : document.layers()) {
+      if (layer.name() != name) {
+        continue;
+      }
+      const auto found = layer.metadata().find(patchy::kLayerMetadataTextAutoLeading);
+      if (found == layer.metadata().end()) {
+        return std::nullopt;
+      }
+      return std::stod(found->second);
+    }
+    return std::nullopt;
+  };
+  const std::optional<double> without_spacer = fraction_of("Plain block");
+  const std::optional<double> with_spacer = fraction_of("Spaced block");
+  CHECK(without_spacer.has_value() && with_spacer.has_value());
+  if (!without_spacer.has_value() || !with_spacer.has_value()) {
+    return;
+  }
+  CHECK(*without_spacer > 0.9 && *without_spacer < 1.6);
+  CHECK(std::abs(*with_spacer - *without_spacer) < 0.0005);
+}
+
+// app.listFonts() reports what addTextLayer can resolve: a family registered in this process
+// shows up with its face names and writing systems, and Qt's private families stay out.
+void ui_script_list_fonts_reports_registered_families() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto noto_path = QStringLiteral(PATCHY_SOURCE_DIR "/third_party/fonts/noto_naskh_arabic/NotoNaskhArabic-Bold.ttf");
+  CHECK(QFontDatabase::addApplicationFont(noto_path) >= 0);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var fonts = app.listFonts();
+    var noto = fonts.filter(function (f) { return f.family === 'Noto Naskh Arabic'; })[0];
+    console.log('count-ok=' + (fonts.length >= 1));
+    console.log('noto=' + (noto ? noto.styles.indexOf('Bold') >= 0 && noto.writingSystems.indexOf('Arabic') >= 0 : 'missing'));
+    console.log('private=' + fonts.filter(function (f) { return f.family.charAt(0) === '.'; }).length);
+    var sorted = fonts.map(function (f) { return f.family; });
+    console.log('sorted=' + (JSON.stringify(sorted) === JSON.stringify(sorted.slice().sort(function (a, b) { return a.localeCompare(b); }))));
+  )JS")));
+  CHECK(backlog_contains(window, QStringLiteral("count-ok=true")));
+  CHECK(backlog_contains(window, QStringLiteral("noto=true")));
+  CHECK(backlog_contains(window, QStringLiteral("private=0")));
 }
 
 void ui_script_text_layer_with_uncovered_script_does_not_crash() {
@@ -2883,6 +3324,37 @@ void ui_script_advanced_brush_creation_preview_and_psd() {
   save_widget_artifact("advanced_brush_presets",window);
 }
 
+// moveTo and the x/y setters round like Photoshop (halves up), never truncate toward zero.
+void ui_script_layer_move_to_rounds_like_photoshop() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto bounds_of = [&document]() {
+    const auto* layer = layer_named(document, "Rounded");
+    CHECK(layer != nullptr);
+    return layer != nullptr ? layer->bounds() : patchy::Rect{};
+  };
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var layer = app.activeDocument.addLayer('Rounded');
+    layer.fill('#ff4000');
+    layer.moveTo(10.6, -10.9);
+  )JS")));
+  CHECK(bounds_of().x == 11);
+  CHECK(bounds_of().y == -11);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var layer = app.activeDocument.activeLayer;
+    layer.x = 3.4;
+    layer.y = 6.5;
+  )JS")));
+  CHECK(bounds_of().x == 3);
+  CHECK(bounds_of().y == 7);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    app.activeDocument.activeLayer.moveTo(-3.5, -3.5);
+  )JS")));
+  CHECK(bounds_of().x == -3);
+  CHECK(bounds_of().y == -3);
+}
+
 void ui_script_layer_duplicate_to_document() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -2966,9 +3438,73 @@ void ui_script_export_pdf_writes_pages() {
   CHECK(second[0] == 150 && second[1] == 300);
 }
 
+// doc.importFilesAsLayers: array and string forms, argument order, the copy suffix
+// on a name collision, all-or-nothing on a missing file, and one undo step per run.
+void ui_script_import_files_as_layers() {
+  patchy::test::ui::ensure_artifact_dir();
+  const auto dir = QFileInfo(QStringLiteral("test-artifacts/script-files-as-layers")).absoluteFilePath();
+  CHECK(QDir().mkpath(dir));
+  const auto write_png = [&](const QString& name, int width, int height, QColor color) {
+    QImage image(width, height, QImage::Format_RGBA8888);
+    image.fill(color);
+    const auto path = QDir::toNativeSeparators(dir + QLatin1Char('/') + name);
+    QFile::remove(path);
+    CHECK(image.save(path));
+    return path;
+  };
+  const auto a = write_png(QStringLiteral("a.png"), 20, 12, QColor(200, 30, 30, 255));
+  const auto b = write_png(QStringLiteral("b.png"), 8, 8, QColor(30, 200, 30, 255));
+  const auto missing = QDir::toNativeSeparators(dir + QStringLiteral("/missing.png"));
+  QFile::remove(missing);
+  const auto json = [](const QString& path) {
+    return QString::fromUtf8(QJsonDocument(QJsonArray{path}).toJson(QJsonDocument::Compact)).chopped(1).mid(1);
+  };
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto undo_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var doc = app.activeDocument;
+    var before = doc.layers.length;
+    var added = doc.importFilesAsLayers([%1, %2]);
+    if (added.length !== 2) throw new Error('expected 2 layers, got ' + added.length);
+    if (added[0].name !== 'a' || added[1].name !== 'b') throw new Error('names ' + added[0].name + ',' + added[1].name);
+    if (doc.layers.length !== before + 2) throw new Error('layer count ' + doc.layers.length);
+    if (doc.layers[doc.layers.length - 1].name !== 'b') throw new Error('b is not on top');
+    if (doc.layers[doc.layers.length - 2].name !== 'a') throw new Error('a is not below b');
+    if (doc.activeLayer.name !== 'b') throw new Error('active ' + doc.activeLayer.name);
+    // The string form; the name collision earns the copy suffix.
+    var one = doc.importFilesAsLayers(%1);
+    if (one.length !== 1 || one[0].name !== 'a copy') throw new Error('string form: ' + one[0].name);
+    if (doc.layers.length !== before + 3) throw new Error('string form count');
+    var threw = false;
+    try { doc.importFilesAsLayers([%2, %3]); } catch (e) { threw = true; }
+    if (!threw) throw new Error('missing file accepted');
+    if (doc.layers.length !== before + 3) throw new Error('missing file changed the document');
+    threw = false;
+    try { doc.importFilesAsLayers([]); } catch (e) { threw = true; }
+    if (!threw) throw new Error('empty array accepted');
+    threw = false;
+    try { doc.importFilesAsLayers(42); } catch (e) { threw = true; }
+    if (!threw) throw new Error('number accepted');
+    console.log('files-ok');
+  )JS")
+                                .arg(json(a), json(b), json(missing))));
+  CHECK(backlog_contains(window, QStringLiteral("files-ok")));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before + 1);
+  const auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto& layers = std::as_const(document).layers();
+  CHECK(layers.size() >= 3);
+  CHECK(layers.back().name() == "a copy");
+  CHECK(layers[layers.size() - 2].name() == "b");
+  CHECK(layers[layers.size() - 3].name() == "a");
+}
+
 std::vector<patchy::test::TestCase> scripting_tests() {
   return {
+      {"ui_script_import_files_as_layers", ui_script_import_files_as_layers},
       {"ui_script_export_pdf_writes_pages", ui_script_export_pdf_writes_pages},
+      {"ui_script_layer_move_to_rounds_like_photoshop", ui_script_layer_move_to_rounds_like_photoshop},
       {"ui_script_palette_validation_and_history", ui_script_palette_validation_and_history},
       {"ui_script_palette_unicode_files_and_indexed_png", ui_script_palette_unicode_files_and_indexed_png},
       {"ui_script_palette_named_controls_and_rename", ui_script_palette_named_controls_and_rename},
@@ -2991,6 +3527,7 @@ std::vector<patchy::test::TestCase> scripting_tests() {
       {"ui_script_remove_object_heals_selection", ui_script_remove_object_heals_selection},
       {"ui_script_remove_object_then_reopen_large_document",
        ui_script_remove_object_then_reopen_large_document},
+      {"ui_script_align_and_distribute_layers", ui_script_align_and_distribute_layers},
       {"ui_script_canvas_window_receives_space_key", ui_script_canvas_window_receives_space_key},
       {"ui_script_canvas_window_dismisses_stop_panel",
        ui_script_canvas_window_dismisses_stop_panel},
@@ -3006,6 +3543,16 @@ std::vector<patchy::test::TestCase> scripting_tests() {
       {"ui_script_console_and_error_line_numbers", ui_script_console_and_error_line_numbers},
       {"ui_script_filters_and_text_layers", ui_script_filters_and_text_layers},
       {"ui_script_text_size_is_zoom_independent", ui_script_text_size_is_zoom_independent},
+      {"ui_script_text_font_option_applies", ui_script_text_font_option_applies},
+      {"ui_script_text_face_ignores_the_options_bar_style", ui_script_text_face_ignores_the_options_bar_style},
+      {"ui_script_text_size_survives_low_zoom_reedit", ui_script_text_size_survives_low_zoom_reedit},
+      {"ui_script_text_full_face_name_resolves_like_its_family", ui_script_text_full_face_name_resolves_like_its_family},
+      {"ui_script_text_runs_create_and_read_back", ui_script_text_runs_create_and_read_back},
+      {"ui_script_text_box_wraps_and_aligns", ui_script_text_box_wraps_and_aligns},
+      {"ui_script_set_text_runs_edits_existing_layer", ui_script_set_text_runs_edits_existing_layer},
+      {"ui_script_text_paragraph_reads_and_sets_metrics", ui_script_text_paragraph_reads_and_sets_metrics},
+      {"ui_script_text_auto_leading_ignores_spacer_paragraphs", ui_script_text_auto_leading_ignores_spacer_paragraphs},
+      {"ui_script_list_fonts_reports_registered_families", ui_script_list_fonts_reports_registered_families},
       {"ui_script_text_layer_with_uncovered_script_does_not_crash",
        ui_script_text_layer_with_uncovered_script_does_not_crash},
       {"ui_script_run_command_writes_output_file", ui_script_run_command_writes_output_file},

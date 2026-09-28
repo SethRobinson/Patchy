@@ -288,6 +288,7 @@ void ui_crop_rotate_stroke_merge_and_filter_render_visually() {
   // coordinates instead of assuming the pre-crop pan.
   drag(*canvas, canvas->widget_position_for_document_point(QPoint(12, 12)),
        canvas->widget_position_for_document_point(QPoint(60, 50)));
+  accept_stroke_selection_dialog(3, QStringLiteral("center"));
   require_action(window, "editStrokeSelectionAction")->trigger();
   QApplication::processEvents();
   save_widget_artifact("ui_stroke_selection", *canvas);

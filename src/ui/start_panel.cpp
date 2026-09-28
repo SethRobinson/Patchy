@@ -28,9 +28,7 @@
 #include <algorithm>
 #include <initializer_list>
 
-#ifndef PATCHY_VERSION
-#define PATCHY_VERSION "0.0.0"
-#endif
+#include "patchy_version.hpp"
 
 namespace patchy::ui {
 
@@ -278,10 +276,18 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
   });
   version->setObjectName(QStringLiteral("startPanelVersion"));
   version->setTextFormat(Qt::PlainText);
-  auto* credit = new QLabel(tr("Created by Seth A. Robinson"), this);
-  bind_translated_text(credit, QT_TR_NOOP("Created by Seth A. Robinson"), "patchy::ui::StartPanel");
+  // The credit links to Seth's GitHub profile, in the themed link color like the rows below.
+  auto* credit = new QLabel(this);
   credit->setObjectName(QStringLiteral("startPanelCredit"));
-  credit->setTextFormat(Qt::PlainText);
+  credit->setTextFormat(Qt::RichText);
+  credit->setTextInteractionFlags(Qt::TextBrowserInteraction);
+  credit->setOpenExternalLinks(true);
+  retranslation_callbacks_.push_back([credit] {
+    set_themed_label_text(
+        *credit, tr("Created by %1")
+                     .arg(QStringLiteral("<a style=\"color:@link_text; text-decoration:none;\" "
+                                         "href=\"https://github.com/SethRobinson\">Seth A. Robinson</a>")));
+  });
   add_footer_row({version, credit});
 
   auto* contributors = new QLabel(this);
@@ -433,11 +439,9 @@ void StartPanel::set_recent_files(const QStringList& paths) {
     if (recent_paths_.size() >= kMaxRecentEntries) {
       break;
     }
-    const QFileInfo info(path);
-    if (!info.isFile()) {
-      continue;  // Recent entries can outlive their files; dead rows would just error on click.
-    }
-    recent_paths_ << info.absoluteFilePath();
+    // No stat here: MainWindow drops missing entries after its background
+    // existence check, and a click on one that vanished since reports it.
+    recent_paths_ << QFileInfo(path).absoluteFilePath();
   }
   rebuild_recent_rows();
 }

@@ -526,6 +526,41 @@ bool is_cmyk_color_mode(std::uint16_t color_mode) noexcept {
   return color_mode == kColorModeCmyk;
 }
 
+bool is_grayscale_color_mode(std::uint16_t color_mode) noexcept {
+  return color_mode == kColorModeGrayscale;
+}
+
+// A gray profile maps each of the 256 input values to one sRGB triple, so the transform
+// runs once over a ramp and the plane expands through that table: byte-identical to a
+// per-pixel conversion and cheap enough that no parallel strips are needed.
+void convert_gray_plane_to_rgb(PixelBuffer& pixels, const std::uint8_t* gray, std::size_t pixel_count,
+                               const GrayToRgbTransform* icc) {
+  const auto channels = static_cast<std::size_t>(pixels.format().channels);
+  auto* target = pixels.data().data();
+  if (icc == nullptr) {
+    for (std::size_t i = 0; i < pixel_count; ++i) {
+      auto* pixel = target + i * channels;
+      pixel[0] = gray[i];
+      pixel[1] = gray[i];
+      pixel[2] = gray[i];
+    }
+    return;
+  }
+  std::array<std::uint8_t, 256> ramp{};
+  for (std::size_t value = 0; value < ramp.size(); ++value) {
+    ramp[value] = static_cast<std::uint8_t>(value);
+  }
+  std::array<std::uint8_t, 256 * 3> table{};
+  icc->convert(ramp.data(), table.data(), ramp.size());
+  for (std::size_t i = 0; i < pixel_count; ++i) {
+    auto* pixel = target + i * channels;
+    const auto* rgb = table.data() + static_cast<std::size_t>(gray[i]) * 3U;
+    pixel[0] = rgb[0];
+    pixel[1] = rgb[1];
+    pixel[2] = rgb[2];
+  }
+}
+
 // CMYK-mode documents also carry CMYK colors in descriptors (lfx2 effect colors) and text
 // engine data, as ink fractions. Convert with the same naive mix as the pixel decode above
 // so effect/text colors keep their relationship to the converted pixels.

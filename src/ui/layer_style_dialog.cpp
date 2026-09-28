@@ -1074,12 +1074,26 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     }
     return spin_object_name + QStringLiteral("Slider");
   };
+  // Photoshop's Drop/Inner Shadow Distance maximum.
+  constexpr int kShadowDistanceMaximum = 30000;
   auto add_slider_spin_row = [&slider_object_name](QFormLayout* form, QWidget* parent, const QString& label,
                                                    const QString& spin_object_name, int minimum, int maximum,
-                                                   int value, const QString& suffix = {}, int spin_width = 72) {
+                                                   int value, const QString& suffix = {}, int spin_width = 72,
+                                                   int slider_maximum = std::numeric_limits<int>::max()) {
     return add_dialog_slider_spin_row(form, parent, label, slider_object_name(spin_object_name),
                                       spin_object_name, minimum, maximum, value, suffix, spin_width,
-                                      /*row_spacing=*/8, /*step_buttons=*/true);
+                                      /*row_spacing=*/8, /*step_buttons=*/true, slider_maximum);
+  };
+  // Effect sizes and distances: most picks are small, so the slider gives the
+  // low end most of its track (SliderCurve::FineLowEnd).
+  auto add_size_slider_spin_row = [&slider_object_name](QFormLayout* form, QWidget* parent, const QString& label,
+                                                        const QString& spin_object_name, int minimum,
+                                                        int maximum, int value,
+                                                        int slider_maximum = std::numeric_limits<int>::max()) {
+    return add_dialog_slider_spin_row(form, parent, label, slider_object_name(spin_object_name),
+                                      spin_object_name, minimum, maximum, value, {}, 72,
+                                      /*row_spacing=*/8, /*step_buttons=*/true, slider_maximum,
+                                      SliderCurve::FineLowEnd);
   };
   auto add_color_slider_row = [&slider_object_name](QVBoxLayout* layout, QWidget* parent, const QString& label,
                                                     const QString& spin_object_name, std::uint8_t value) {
@@ -2605,13 +2619,14 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       add_slider_spin_row(inner_shadow_form, inner_shadow_group, QObject::tr("Angle"),
                           QStringLiteral("layerStyleInnerShadowAngleSpin"), -180, 180,
                           static_cast<int>(std::round(inner_shadow.angle_degrees)));
+  // Photoshop's 0..30000 px typed range; the slider keeps its 0..1000 reach.
   auto* inner_shadow_distance =
-      add_slider_spin_row(inner_shadow_form, inner_shadow_group, QObject::tr("Distance"),
-                          QStringLiteral("layerStyleInnerShadowDistanceSpin"), 0, 1000,
-                          static_cast<int>(std::round(inner_shadow.distance)));
-  auto* inner_shadow_size = add_slider_spin_row(inner_shadow_form, inner_shadow_group, QObject::tr("Size"),
-                                                QStringLiteral("layerStyleInnerShadowSizeSpin"), 0, 1000,
-                                                static_cast<int>(std::round(inner_shadow.size)));
+      add_size_slider_spin_row(inner_shadow_form, inner_shadow_group, QObject::tr("Distance"),
+                               QStringLiteral("layerStyleInnerShadowDistanceSpin"), 0, kShadowDistanceMaximum,
+                               static_cast<int>(std::round(inner_shadow.distance)), 1000);
+  auto* inner_shadow_size = add_size_slider_spin_row(inner_shadow_form, inner_shadow_group, QObject::tr("Size"),
+                                                     QStringLiteral("layerStyleInnerShadowSizeSpin"), 0, 1000,
+                                                     static_cast<int>(std::round(inner_shadow.size)));
   auto* inner_shadow_choke =
       add_slider_spin_row(inner_shadow_form, inner_shadow_group, QObject::tr("Choke"),
                           QStringLiteral("layerStyleInnerShadowChokeSpin"), 0, 100,
@@ -2657,9 +2672,9 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       add_slider_spin_row(inner_glow_form, inner_glow_group, QObject::tr("Opacity"),
                           QStringLiteral("layerStyleInnerGlowOpacitySpin"), 0, 100,
                           static_cast<int>(std::round(inner_glow.opacity * 100.0F)), QStringLiteral("%"));
-  auto* inner_glow_size = add_slider_spin_row(inner_glow_form, inner_glow_group, QObject::tr("Size"),
-                                              QStringLiteral("layerStyleInnerGlowSizeSpin"), 0, 1000,
-                                              static_cast<int>(std::round(inner_glow.size)));
+  auto* inner_glow_size = add_size_slider_spin_row(inner_glow_form, inner_glow_group, QObject::tr("Size"),
+                                                   QStringLiteral("layerStyleInnerGlowSizeSpin"), 0, 1000,
+                                                   static_cast<int>(std::round(inner_glow.size)));
   auto* inner_glow_choke =
       add_slider_spin_row(inner_glow_form, inner_glow_group, QObject::tr("Choke"),
                           QStringLiteral("layerStyleInnerGlowChokeSpin"), 0, 100,
@@ -2713,12 +2728,12 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
                           QStringLiteral("layerStyleSatinAngleSpin"), -180, 180,
                           static_cast<int>(std::round(satin.angle_degrees)));
   auto* satin_distance =
-      add_slider_spin_row(satin_form, satin_group, QObject::tr("Distance"),
-                          QStringLiteral("layerStyleSatinDistanceSpin"), 0, 1000,
-                          static_cast<int>(std::round(satin.distance)));
-  auto* satin_size = add_slider_spin_row(satin_form, satin_group, QObject::tr("Size"),
-                                         QStringLiteral("layerStyleSatinSizeSpin"), 0, 1000,
-                                         static_cast<int>(std::round(satin.size)));
+      add_size_slider_spin_row(satin_form, satin_group, QObject::tr("Distance"),
+                               QStringLiteral("layerStyleSatinDistanceSpin"), 0, 1000,
+                               static_cast<int>(std::round(satin.distance)));
+  auto* satin_size = add_size_slider_spin_row(satin_form, satin_group, QObject::tr("Size"),
+                                              QStringLiteral("layerStyleSatinSizeSpin"), 0, 1000,
+                                              static_cast<int>(std::round(satin.size)));
   auto* satin_invert = new QCheckBox(QObject::tr("Invert"), satin_group);
   satin_invert->setObjectName(QStringLiteral("layerStyleSatinInvertCheck"));
   satin_invert->setChecked(satin.invert);
@@ -2819,9 +2834,9 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       add_slider_spin_row(outer_glow_form, outer_glow_group, QObject::tr("Opacity"),
                           QStringLiteral("layerStyleOuterGlowOpacitySpin"), 0, 100,
                           static_cast<int>(std::round(outer_glow.opacity * 100.0F)), QStringLiteral("%"));
-  auto* outer_glow_size = add_slider_spin_row(outer_glow_form, outer_glow_group, QObject::tr("Size"),
-                                              QStringLiteral("layerStyleOuterGlowSizeSpin"), 0, 1000,
-                                              static_cast<int>(std::round(outer_glow.size)));
+  auto* outer_glow_size = add_size_slider_spin_row(outer_glow_form, outer_glow_group, QObject::tr("Size"),
+                                                   QStringLiteral("layerStyleOuterGlowSizeSpin"), 0, 1000,
+                                                   static_cast<int>(std::round(outer_glow.size)));
   auto* outer_glow_spread = add_slider_spin_row(outer_glow_form, outer_glow_group, QObject::tr("Spread"),
                                                 QStringLiteral("layerStyleOuterGlowSpreadSpin"), 0, 100,
                                                 static_cast<int>(std::round(outer_glow.spread)),
@@ -2852,14 +2867,15 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto* shadow_angle = add_slider_spin_row(shadow_form, shadow_group, QObject::tr("Angle"),
                                            QStringLiteral("layerStyleDropShadowAngleSpin"), -180, 180,
                                            static_cast<int>(std::round(shadow.angle_degrees)));
-  // 0..2000 like Photopea's long-shadow range; Photoshop's own dialog stops
-  // at 30000, so any value here round-trips through DrSh.
-  auto* shadow_distance = add_slider_spin_row(shadow_form, shadow_group, QObject::tr("Distance"),
-                                              QStringLiteral("layerStyleDropShadowDistanceSpin"), 0, 2000,
-                                              static_cast<int>(std::round(shadow.distance)));
-  auto* shadow_size = add_slider_spin_row(shadow_form, shadow_group, QObject::tr("Size"),
-                                          QStringLiteral("layerStyleDropShadowSizeSpin"), 0, 1000,
-                                          static_cast<int>(std::round(shadow.size)));
+  // Photoshop's 0..30000 px typed range (it round-trips through DrSh); the
+  // slider keeps the 0..2000 reach of Photopea's long-shadow range.
+  auto* shadow_distance = add_size_slider_spin_row(shadow_form, shadow_group, QObject::tr("Distance"),
+                                                   QStringLiteral("layerStyleDropShadowDistanceSpin"), 0,
+                                                   kShadowDistanceMaximum,
+                                                   static_cast<int>(std::round(shadow.distance)), 2000);
+  auto* shadow_size = add_size_slider_spin_row(shadow_form, shadow_group, QObject::tr("Size"),
+                                               QStringLiteral("layerStyleDropShadowSizeSpin"), 0, 1000,
+                                               static_cast<int>(std::round(shadow.size)));
   auto* shadow_spread = add_slider_spin_row(shadow_form, shadow_group, QObject::tr("Spread"),
                                             QStringLiteral("layerStyleDropShadowSpreadSpin"), 0, 100,
                                             static_cast<int>(std::round(shadow.spread)), QStringLiteral("%"));

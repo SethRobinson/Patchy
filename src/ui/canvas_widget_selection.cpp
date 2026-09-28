@@ -68,6 +68,8 @@
 #include <functional>
 #include <iostream>
 #include <limits>
+#include <mutex>
+#include <new>
 #include <queue>
 #include <thread>
 #include <utility>
@@ -285,7 +287,7 @@ int CanvasWidget::marquee_corner_radius() const noexcept {
 }
 
 void CanvasWidget::set_selection_feather_radius(int pixels) noexcept {
-  selection_feather_radius_ = std::clamp(pixels, 0, 250);
+  selection_feather_radius_ = std::clamp(pixels, 0, kMaxSelectionFeatherRadius);
 }
 
 int CanvasWidget::selection_feather_radius() const noexcept {
@@ -344,6 +346,7 @@ void CanvasWidget::clear_selection() {
     last_cleared_selection_display_region_ = selection_display_region_;
     last_cleared_selection_mask_bounds_ = selection_mask_bounds_;
     last_cleared_selection_mask_alpha_ = selection_mask_alpha_;
+    last_cleared_marquee_shape_ = marquee_shape_;
   }
   set_selection_from_region(QRegion());
   selection_edges_visible_ = true;
@@ -363,6 +366,7 @@ void CanvasWidget::reselect() {
   }
   selection_mask_bounds_ = last_cleared_selection_mask_bounds_.intersected(QRect(0, 0, document_->width(), document_->height()));
   selection_mask_alpha_ = last_cleared_selection_mask_alpha_;
+  marquee_shape_ = last_cleared_marquee_shape_;
   refresh_info_display();
   if (status_callback_) {
     status_callback_(tr("Reselected previous selection"));
@@ -460,7 +464,7 @@ void CanvasWidget::contract_selection(int pixels) {
   if (document_ == nullptr || selection_.isEmpty() || pixels <= 0) {
     return;
   }
-  pixels = std::clamp(pixels, 0, 250);
+  pixels = std::clamp(pixels, 0, kMaxSelectionModifyRadius);
   const QRect canvas_rect(0, 0, document_->width(), document_->height());
   const QRegion canvas_region(canvas_rect);
   const auto padded_canvas_rect = canvas_rect.adjusted(-pixels, -pixels, pixels, pixels);
@@ -929,7 +933,95 @@ std::uint8_t CanvasWidget::selection_alpha_at(QPoint point) const noexcept {
   if (!selection_mask_alpha_.isNull()) {
     return alpha_at(selection_mask_alpha_, selection_mask_bounds_, point);
   }
-  return selection_.contains(point) ? 255 : 0;
+  // QRegion::contains checks every rectangle of the region in turn (a single
+  // rectangle and the region's inner rectangle are its only shortcuts), so a
+  // region with more than a handful of spans answers through the rasterized
+  // lookup instead: a wand selection of a background around a subject holds
+  // thousands of row spans, and filling it pixel by pixel through contains()
+  // took about 45 s for 1.5 Mpx (GitHub issue 34).
+  constexpr int kMaxRectsForDirectContains = 4;
+  if (selection_.rectCount() <= kMaxRectsForDirectContains) {
+    return selection_.contains(point) ? 255 : 0;
+  }
+  return selection_lookup_contains(point) ? 255 : 0;
+}
+
+void CanvasWidget::invalidate_selection_lookup() noexcept {
+  selection_lookup_valid_.store(false, std::memory_order_release);
+  std::vector<std::uint8_t>().swap(selection_lookup_bits_);
+  selection_lookup_bounds_ = QRect();
+}
+
+void CanvasWidget::build_selection_lookup() const {
+  const std::lock_guard<std::mutex> lock(selection_lookup_mutex_);
+  if (selection_lookup_valid_.load(std::memory_order_acquire)) {
+    return;
+  }
+  const auto bounds = selection_.boundingRect();
+  const auto width = bounds.width();
+  const auto height = bounds.height();
+  const auto stride = static_cast<std::size_t>((width + 7) / 8);
+  std::vector<std::uint8_t> bits;
+  try {
+    bits.assign(stride * static_cast<std::size_t>(height), 0U);
+  } catch (const std::bad_alloc&) {
+    // An empty lookup makes selection_lookup_contains fall back to QRegion::contains.
+    bits.clear();
+  }
+  if (!bits.empty()) {
+    for (const auto& rect : selection_) {
+      const auto first_x = rect.left() - bounds.left();
+      const auto last_x = rect.right() - bounds.left();
+      if (first_x < 0 || last_x < first_x || last_x >= width) {
+        continue;
+      }
+      const auto first_byte = static_cast<std::size_t>(first_x >> 3);
+      const auto last_byte = static_cast<std::size_t>(last_x >> 3);
+      const auto first_mask = static_cast<std::uint8_t>(0xFFU << (first_x & 7));
+      const auto last_mask = static_cast<std::uint8_t>(0xFFU >> (7 - (last_x & 7)));
+      for (int y = rect.top(); y <= rect.bottom(); ++y) {
+        const auto local_y = y - bounds.top();
+        if (local_y < 0 || local_y >= height) {
+          continue;
+        }
+        auto* row = bits.data() + static_cast<std::size_t>(local_y) * stride;
+        if (first_byte == last_byte) {
+          row[first_byte] |= static_cast<std::uint8_t>(first_mask & last_mask);
+          continue;
+        }
+        row[first_byte] |= first_mask;
+        if (last_byte > first_byte + 1) {
+          std::memset(row + first_byte + 1, 0xFF, last_byte - first_byte - 1);
+        }
+        row[last_byte] |= last_mask;
+      }
+    }
+  }
+  selection_lookup_bounds_ = bounds;
+  selection_lookup_bits_ = std::move(bits);
+  selection_lookup_valid_.store(true, std::memory_order_release);
+}
+
+bool CanvasWidget::selection_lookup_contains(QPoint point) const noexcept {
+  if (!selection_lookup_valid_.load(std::memory_order_acquire)) {
+    try {
+      build_selection_lookup();
+    } catch (...) {
+      return selection_.contains(point);
+    }
+  }
+  if (selection_lookup_bits_.empty()) {
+    return selection_.contains(point);
+  }
+  if (!selection_lookup_bounds_.contains(point)) {
+    return false;
+  }
+  const auto local_x = point.x() - selection_lookup_bounds_.left();
+  const auto local_y = point.y() - selection_lookup_bounds_.top();
+  const auto stride = static_cast<std::size_t>((selection_lookup_bounds_.width() + 7) / 8);
+  const auto byte = selection_lookup_bits_[static_cast<std::size_t>(local_y) * stride +
+                                           static_cast<std::size_t>(local_x >> 3)];
+  return ((byte >> (local_x & 7)) & 1U) != 0U;
 }
 
 bool CanvasWidget::selection_has_partial_alpha() const noexcept {
@@ -979,6 +1071,7 @@ void stroke_marching_ants(QPainter& painter, const QPolygon& polyline, int dash_
 void CanvasWidget::invalidate_selection_outline() noexcept {
   selection_outline_dirty_ = true;
   selection_outline_screen_valid_ = false;
+  invalidate_selection_lookup();
 }
 
 void CanvasWidget::ensure_selection_outline_screen_path() const {
@@ -1149,25 +1242,52 @@ QRect CanvasWidget::marquee_selection_rect(QPoint anchor, QPoint current) const 
   return rect;
 }
 
-double CanvasWidget::marquee_effective_corner_radius(QRect rect) const noexcept {
-  if (tool_ != CanvasTool::Marquee || marquee_corner_radius_ <= 0) {
+namespace {
+// A radius past half the rectangle collapses opposing arcs into each other;
+// clamping keeps the shape a stadium/circle instead of a malformed path.
+double clamped_corner_radius(int radius, QRect rect) noexcept {
+  if (radius <= 0) {
     return 0.0;
   }
-  // A radius past half the rectangle collapses opposing arcs into each other;
-  // clamping keeps the shape a stadium/circle instead of a malformed path.
-  return std::min({static_cast<double>(marquee_corner_radius_), rect.width() / 2.0, rect.height() / 2.0});
+  return std::min({static_cast<double>(radius), rect.width() / 2.0, rect.height() / 2.0});
+}
+
+double marquee_shape_corner_radius(const CanvasWidget::MarqueeShape& shape) noexcept {
+  return shape.ellipse ? 0.0 : clamped_corner_radius(shape.corner_radius, shape.rect);
+}
+}  // namespace
+
+double CanvasWidget::marquee_effective_corner_radius(QRect rect) const noexcept {
+  if (tool_ != CanvasTool::Marquee) {
+    return 0.0;
+  }
+  return clamped_corner_radius(marquee_corner_radius_, rect);
+}
+
+CanvasWidget::MarqueeShape CanvasWidget::current_marquee_shape(QRect rect) const {
+  MarqueeShape shape;
+  shape.rect = rect;
+  shape.ellipse = tool_ == CanvasTool::EllipticalMarquee;
+  shape.corner_radius = tool_ == CanvasTool::Marquee ? marquee_corner_radius_ : 0;
+  shape.feather = selection_feather_radius_;
+  shape.antialias = selection_antialias_;
+  return shape;
 }
 
 QRegion CanvasWidget::marquee_selection_region(QPoint anchor, QPoint current) const {
+  return marquee_shape_region(current_marquee_shape(marquee_selection_rect(anchor, current)));
+}
+
+QRegion CanvasWidget::marquee_shape_region(const MarqueeShape& shape) const {
   if (document_ == nullptr) {
     return {};
   }
 
-  const auto rect = marquee_selection_rect(anchor, current);
+  const auto rect = shape.rect;
   QRegion marquee;
-  if (tool_ == CanvasTool::EllipticalMarquee) {
+  if (shape.ellipse) {
     marquee = QRegion(rect, QRegion::Ellipse);
-  } else if (const auto radius = marquee_effective_corner_radius(rect); radius > 0.0) {
+  } else if (const auto radius = marquee_shape_corner_radius(shape); radius > 0.0) {
     QPainterPath path;
     path.addRoundedRect(QRectF(rect), radius, radius);
     marquee = QRegion(path.toFillPolygon().toPolygon(), Qt::WindingFill);
@@ -1178,37 +1298,165 @@ QRegion CanvasWidget::marquee_selection_region(QPoint anchor, QPoint current) co
 }
 
 QImage CanvasWidget::marquee_selection_mask(QPoint anchor, QPoint current, QRect& bounds) const {
+  return marquee_shape_mask(current_marquee_shape(marquee_selection_rect(anchor, current)), bounds);
+}
+
+QImage CanvasWidget::marquee_shape_mask(const MarqueeShape& shape, QRect& bounds) const {
   bounds = {};
   if (document_ == nullptr) {
     return {};
   }
 
   const auto canvas_rect = QRect(0, 0, document_->width(), document_->height());
-  const auto rect = marquee_selection_rect(anchor, current);
-  const auto feather = selection_feather_radius_;
+  const auto rect = shape.rect;
+  const auto feather = shape.feather;
   const auto padding = feather_mask_padding(feather);
   bounds = rect.adjusted(-padding, -padding, padding, padding).intersected(canvas_rect);
   if (bounds.isEmpty()) {
     return {};
   }
 
-  if (tool_ == CanvasTool::Marquee) {
-    const auto radius = marquee_effective_corner_radius(rect);
+  if (!shape.ellipse) {
+    const auto radius = marquee_shape_corner_radius(shape);
     if (radius <= 0.0) {
       return rectangle_selection_mask(rect, bounds, feather);
     }
     QPainterPath path;
     path.addRoundedRect(QRectF(rect), radius, radius);
-    return shape_mask_from_path(path, bounds, feather, selection_antialias_ || feather > 0);
+    return shape_mask_from_path(path, bounds, feather, shape.antialias || feather > 0);
   }
 
   QPainterPath path;
-  if (tool_ == CanvasTool::EllipticalMarquee) {
-    path.addEllipse(QRectF(rect));
+  path.addEllipse(QRectF(rect));
+  return shape_mask_from_path(path, bounds, feather, shape.antialias || feather > 0);
+}
+
+void CanvasWidget::apply_marquee_shape(const MarqueeShape& shape) {
+  // Same commit split as the drag-out release: soft or rounded edges go through
+  // the mask path so they pick up feather and anti-alias, hard shapes stay regions.
+  if (shape.feather > 0 || marquee_shape_corner_radius(shape) > 0.0) {
+    QRect mask_bounds;
+    auto mask = marquee_shape_mask(shape, mask_bounds);
+    const auto region = region_from_alpha_mask(mask, mask_bounds);
+    set_selection_from_mask(region, mask_bounds, std::move(mask));
   } else {
-    path.addRect(QRectF(rect));
+    set_selection_from_region(marquee_shape_region(shape));
   }
-  return shape_mask_from_path(path, bounds, feather, selection_antialias_ || feather > 0);
+  if (!selection_.isEmpty()) {
+    marquee_shape_ = shape;
+  }
+}
+
+std::optional<QRect> CanvasWidget::resizable_marquee_rect() const {
+  const bool marquee_tool = tool_ == CanvasTool::Marquee || tool_ == CanvasTool::EllipticalMarquee;
+  if (!marquee_tool || !marquee_shape_.has_value() || quick_mask_active_ || selection_.isEmpty() ||
+      selecting_ || moving_selection_ || marquee_resize_handle_ != TransformHandle::None) {
+    return std::nullopt;
+  }
+  return marquee_shape_->rect;
+}
+
+CanvasWidget::TransformHandle CanvasWidget::marquee_resize_handle_at(QPoint widget_point,
+                                                                     Qt::KeyboardModifiers modifiers) const {
+  const auto rect = resizable_marquee_rect();
+  // Shift/Alt at the press mean Add/Subtract, exactly as for the interior move.
+  if (!rect.has_value() || selection_operation(modifiers) != SelectionMode::Replace) {
+    return TransformHandle::None;
+  }
+  const auto handle = transform_handle_at(widget_point, QRectF(*rect), 0.0);
+  // The shared hit-test also reports the rotate stem and the interior; the
+  // interior stays the existing move-the-outline gesture.
+  if (handle == TransformHandle::Rotate || handle == TransformHandle::Move) {
+    return TransformHandle::None;
+  }
+  return handle;
+}
+
+void CanvasWidget::update_marquee_resize_drag(QPoint document_point, Qt::KeyboardModifiers modifiers) {
+  if (marquee_resize_handle_ == TransformHandle::None || !marquee_shape_before_edit_.has_value()) {
+    return;
+  }
+  if (spacebar_repositioning_drag_rect_) {
+    // Space held mid-drag slides the whole rect (the drag-out rule). The start
+    // rect follows so releasing Space resumes the resize where the rect now is.
+    const auto raw_delta = document_point - spacebar_reposition_origin_document_position_;
+    const auto delta = snapped_rect_delta(spacebar_reposition_start_marquee_rect_, raw_delta);
+    marquee_resize_start_rect_ = spacebar_reposition_start_marquee_start_rect_.translated(delta);
+    apply_marquee_resize_rect(spacebar_reposition_start_marquee_rect_.translated(delta));
+    return;
+  }
+  const auto point = snapped_document_point(document_point);
+  const auto start = marquee_resize_start_rect_;
+  const auto handle = marquee_resize_handle_;
+  const auto moves_left = handle == TransformHandle::TopLeft || handle == TransformHandle::Left ||
+                          handle == TransformHandle::BottomLeft;
+  const auto moves_right = handle == TransformHandle::TopRight || handle == TransformHandle::Right ||
+                           handle == TransformHandle::BottomRight;
+  const auto moves_top = handle == TransformHandle::TopLeft || handle == TransformHandle::Top ||
+                         handle == TransformHandle::TopRight;
+  const auto moves_bottom = handle == TransformHandle::BottomLeft || handle == TransformHandle::Bottom ||
+                            handle == TransformHandle::BottomRight;
+  const auto corner = (moves_left || moves_right) && (moves_top || moves_bottom);
+
+  QRect rect;
+  if (corner && (modifiers & Qt::ShiftModifier) != 0 && start.height() > 0) {
+    // Shift on a corner holds the drag-start aspect (the crop handle rule). The
+    // options-bar Style only shapes drag-outs, so it does not bind here.
+    const auto target_ratio = static_cast<double>(start.width()) / start.height();
+    const auto anchor_x = moves_left ? start.x() + start.width() : start.x();
+    const auto anchor_y = moves_top ? start.y() + start.height() : start.y();
+    auto width = std::max(1, std::abs(point.x() - anchor_x));
+    auto height = std::max(1, std::abs(point.y() - anchor_y));
+    if (static_cast<double>(width) / static_cast<double>(height) > target_ratio) {
+      width = std::max(1, static_cast<int>(std::round(height * target_ratio)));
+    } else {
+      height = std::max(1, static_cast<int>(std::round(width / target_ratio)));
+    }
+    const auto x = point.x() < anchor_x ? anchor_x - width : anchor_x;
+    const auto y = point.y() < anchor_y ? anchor_y - height : anchor_y;
+    rect = QRect(x, y, width, height);
+  } else {
+    auto left = start.x();
+    auto top = start.y();
+    auto right = start.x() + start.width();
+    auto bottom = start.y() + start.height();
+    if (moves_left) {
+      left = point.x();
+    }
+    if (moves_right) {
+      right = point.x();
+    }
+    if (moves_top) {
+      top = point.y();
+    }
+    if (moves_bottom) {
+      bottom = point.y();
+    }
+    // Dragging through the opposite edge flips cleanly, never below 1 px.
+    rect = QRect(std::min(left, right), std::min(top, bottom), std::max(1, std::abs(right - left)),
+                 std::max(1, std::abs(bottom - top)));
+  }
+  apply_marquee_resize_rect(rect);
+}
+
+void CanvasWidget::apply_marquee_resize_rect(QRect rect) {
+  marquee_resize_current_rect_ = rect;
+  auto shape = *marquee_shape_before_edit_;
+  shape.rect = rect;
+  apply_marquee_shape(shape);
+  // A rect dragged fully off the canvas rasterizes to nothing; keep the shape so
+  // dragging back on-canvas (or Escape) still knows what it was.
+  if (selection_.isEmpty()) {
+    marquee_shape_ = shape;
+  }
+}
+
+void CanvasWidget::draw_marquee_resize_handles(QPainter& painter) const {
+  const auto rect = resizable_marquee_rect();
+  if (!rect.has_value() || !selection_edges_visible_) {
+    return;
+  }
+  draw_transform_handle_squares(painter, QRectF(*rect), 0.0, /*include_rotate=*/false);
 }
 
 QImage CanvasWidget::lasso_selection_mask(const QPolygon& polygon, QRect& bounds) const {
@@ -1292,11 +1540,15 @@ void CanvasWidget::set_selection_from_region(QRegion selection) {
   selection_display_region_ = selection_;
   selection_mask_bounds_ = {};
   selection_mask_alpha_ = QImage();
+  // Any write through the setters is no longer the plain marquee shape; the
+  // marquee commit, resize, and move paths store the shape again afterwards.
+  marquee_shape_.reset();
   refresh_info_display();
 }
 
 void CanvasWidget::set_selection_from_mask(QRegion selection, QRect mask_bounds, QImage mask_alpha) {
   invalidate_selection_outline();
+  marquee_shape_.reset();
   if (document_ != nullptr) {
     const QRect canvas_rect(0, 0, document_->width(), document_->height());
     selection = selection.intersected(canvas_rect);
@@ -1370,6 +1622,11 @@ void CanvasWidget::apply_selection_move(QPoint delta) {
                             selection_mask_before_edit_bounds_.translated(delta),
                             selection_mask_before_edit_alpha_);
   }
+  // A moved marquee stays resizable: its handles travel with it.
+  if (marquee_shape_before_edit_.has_value() && !selection_.isEmpty()) {
+    marquee_shape_ = *marquee_shape_before_edit_;
+    marquee_shape_->rect.translate(delta);
+  }
 }
 
 void CanvasWidget::nudge_selection(QPoint delta) {
@@ -1383,11 +1640,31 @@ void CanvasWidget::nudge_selection(QPoint delta) {
     set_selection_from_mask(selection_.translated(delta), selection_mask_bounds_.translated(delta),
                             selection_mask_alpha_);
   }
+  if (before.marquee_shape.has_value() && !selection_.isEmpty()) {
+    marquee_shape_ = *before.marquee_shape;
+    marquee_shape_->rect.translate(delta);
+  }
   emit_info_for_widget_position(last_mouse_position_);
   update();
   // Coalesce consecutive nudges (incl. key auto-repeat) into one undo step that
   // returns to the position before the run started.
   record_selection_history(tr("Move Selection"), before, /*coalesce=*/true);
+}
+
+void CanvasWidget::capture_selection_before_edit() {
+  selection_before_edit_ = selection_;
+  selection_display_region_before_edit_ = selection_display_region_;
+  selection_mask_before_edit_bounds_ = selection_mask_bounds_;
+  selection_mask_before_edit_alpha_ = selection_mask_alpha_;
+  marquee_shape_before_edit_ = marquee_shape_;
+}
+
+void CanvasWidget::clear_selection_before_edit() {
+  selection_before_edit_ = QRegion();
+  selection_display_region_before_edit_ = QRegion();
+  selection_mask_before_edit_bounds_ = {};
+  selection_mask_before_edit_alpha_ = QImage();
+  marquee_shape_before_edit_.reset();
 }
 
 void CanvasWidget::restore_selection_before_edit() {
@@ -1399,13 +1676,14 @@ void CanvasWidget::restore_selection_before_edit() {
   }
   selection_mask_bounds_ = selection_mask_before_edit_bounds_;
   selection_mask_alpha_ = selection_mask_before_edit_alpha_;
+  marquee_shape_ = marquee_shape_before_edit_;
   refresh_info_display();
 }
 
 CanvasWidget::SelectionSnapshot CanvasWidget::capture_selection_snapshot() const {
   return SelectionSnapshot{
       selection_, selection_display_region_, selection_mask_bounds_,
-      selection_mask_alpha_,
+      selection_mask_alpha_, marquee_shape_,
       quick_mask_active_ ? std::optional<PixelBuffer>{quick_mask_pixels_}
                          : std::nullopt};
 }
@@ -1419,6 +1697,7 @@ void CanvasWidget::apply_selection_snapshot(const SelectionSnapshot& snapshot) {
   }
   selection_mask_bounds_ = snapshot.mask_bounds;
   selection_mask_alpha_ = snapshot.mask_alpha;
+  marquee_shape_ = snapshot.marquee_shape;
   if (quick_mask_active_) {
     if (snapshot.quick_mask_pixels.has_value()) {
       quick_mask_pixels_ = *snapshot.quick_mask_pixels;
@@ -1448,7 +1727,7 @@ void CanvasWidget::set_selection_dash_offset_for_testing(int offset) {
 CanvasWidget::SelectionSnapshot CanvasWidget::selection_snapshot_before_edit() const {
   return SelectionSnapshot{selection_before_edit_, selection_display_region_before_edit_,
                            selection_mask_before_edit_bounds_,
-                           selection_mask_before_edit_alpha_, std::nullopt};
+                           selection_mask_before_edit_alpha_, marquee_shape_before_edit_, std::nullopt};
 }
 
 namespace {
@@ -1464,7 +1743,7 @@ bool selection_snapshots_equal(const CanvasWidget::SelectionSnapshot& a,
   // Compare the committed selection region and any soft-edge mask; the display
   // region is derived from these, so it does not need its own comparison.
   if (a.selection != b.selection || a.mask_bounds != b.mask_bounds ||
-      a.mask_alpha != b.mask_alpha ||
+      a.mask_alpha != b.mask_alpha || a.marquee_shape != b.marquee_shape ||
       a.quick_mask_pixels.has_value() != b.quick_mask_pixels.has_value()) {
     return false;
   }

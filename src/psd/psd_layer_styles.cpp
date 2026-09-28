@@ -88,6 +88,10 @@ RgbColor descriptor_rgb_color(const DescriptorObject& object, std::string_view k
     };
     return cmyk.rgb_from_ink(ink("Cyn "), ink("Mgnt"), ink("Ylw "), ink("Blck"));
   }
+  if (color_object->class_id == "Grsc") {
+    // Grayscale-mode documents: 'Gry ' is the black percentage (100 = black).
+    return cmyk.rgb_from_gray(1.0 - descriptor_number(*color_object, "Gry ") / 100.0);
+  }
   return RgbColor{static_cast<std::uint8_t>(std::clamp(std::lround(descriptor_number(*color_object, "Rd  ")), 0L, 255L)),
                   static_cast<std::uint8_t>(
                       std::clamp(std::lround(descriptor_number(*color_object, "Grn ")), 0L, 255L)),
@@ -768,8 +772,12 @@ LayerStyle parse_lfx2_layer_style(std::span<const std::uint8_t> payload,
 
 namespace {
 
-// Photoshop's 10-byte color structure: a u16 color space, then four u16
-// components. Space 0 is RGB (0-65535 per channel), 2 is CMYK stored INVERTED
+}  // namespace
+
+// Photoshop's 10-byte color structure (shared by the PS 5.x 'lrFX' effects and the
+// PS 5.x 'tySh' type record): a u16 color space, then four u16 components. Space 0
+// is RGB (0-65535 per channel), 1 is HSB (hue 0-65535 = 0-360 degrees, saturation
+// and brightness 0-65535; Title02.psd's blue type layers), 2 is CMYK stored INVERTED
 // (0xFFFF = 0% ink, so 0/0/0/100% black reads as ffff ffff ffff 0000 and a white
 // highlight as ffff ffff ffff ffff), and 8 is Grayscale with the level in the
 // first component on a 0-10000 scale. The pre-2026 reader took every space as
@@ -780,6 +788,32 @@ RgbColor read_legacy_effect_color(BigEndianReader& reader, const CmykColorConver
   const std::array<std::uint16_t, 4> components{reader.read_u16(), reader.read_u16(), reader.read_u16(),
                                                 reader.read_u16()};
   switch (space) {
+    case 1U: {
+      const double hue = static_cast<double>(components[0]) * 360.0 / 65535.0;
+      const double saturation = static_cast<double>(components[1]) / 65535.0;
+      const double brightness = static_cast<double>(components[2]) / 65535.0;
+      const double sector_position = std::fmod(hue / 60.0, 6.0);
+      const int sector = static_cast<int>(std::floor(sector_position));
+      const double fraction = sector_position - static_cast<double>(sector);
+      const double p = brightness * (1.0 - saturation);
+      const double q = brightness * (1.0 - saturation * fraction);
+      const double t = brightness * (1.0 - saturation * (1.0 - fraction));
+      double red = brightness;
+      double green = t;
+      double blue = p;
+      switch (sector) {
+        case 1: red = q; green = brightness; blue = p; break;
+        case 2: red = p; green = brightness; blue = t; break;
+        case 3: red = p; green = q; blue = brightness; break;
+        case 4: red = t; green = p; blue = brightness; break;
+        case 5: red = brightness; green = p; blue = q; break;
+        default: break;
+      }
+      const auto level = [](double value) {
+        return static_cast<std::uint8_t>(std::clamp(std::lround(value * 255.0), 0L, 255L));
+      };
+      return RgbColor{level(red), level(green), level(blue)};
+    }
     case 2U: {
       const auto ink = [&components](std::size_t index) {
         return 1.0 - static_cast<double>(components[index]) / 65535.0;
@@ -797,8 +831,6 @@ RgbColor read_legacy_effect_color(BigEndianReader& reader, const CmykColorConver
                       static_cast<std::uint8_t>(components[2] / 257U)};
   }
 }
-
-}  // namespace
 
 LayerStyle parse_lrfx_layer_style(std::span<const std::uint8_t> payload, const CmykColorConverter& cmyk) {
   LayerStyle style;

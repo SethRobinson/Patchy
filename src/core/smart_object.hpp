@@ -116,7 +116,8 @@ struct SmartObjectStore {
   // paste; matching uuids reuse the existing source, Photoshop's shared-source rule).
   void adopt(const SmartObjectSource& source);
   // Removes the element (its block then regenerates on save). Returns true when found.
-  // Only for explicit swaps like Replace Contents; rasterize orphans stay (PS parity).
+  // Only for explicit swaps like Replace Contents; rasterize orphans stay for Undo,
+  // and the PSD writer leaves unreferenced elements out (Photoshop refuses them).
   bool remove(std::string_view uuid);
 };
 

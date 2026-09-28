@@ -1,5 +1,72 @@
 # Scripting API compatibility
 
+2026-09-27 (API 1): paragraph metrics. Text layers expose `textParagraph` (read/write:
+`{firstLineIndent, startIndent, endIndent, spaceBefore, spaceAfter}` in document pixels;
+reading gives the first paragraph, setting merges the given fields into every paragraph), and
+`doc.addTextLayer` takes the same object as its `paragraph` option. Additive; apiVersion
+unchanged. See [text-tool.md](text-tool.md).
+
+2026-09-26 (API 1): rich text. `doc.addTextLayer` accepts an array of runs (`{text, font?,
+size?, bold?, italic?, color?}`) in place of the string, so one layer mixes faces, sizes and
+colors; options gain `box` (`{width, height}`: a wrapping paragraph text box with x/y as its
+top-left corner) and `align`. Text layers expose `textRuns` (the stored runs), `textBox`
+(`{width, height}` or null), `textAlign` (read/write) and `setTextRuns(runs)`, which retypes
+the layer with formatted runs on top of the first character's formatting. Additive;
+apiVersion unchanged. See [text-tool.md](text-tool.md).
+
+2026-09-26 (API 1): `doc.addTextLayer` renders exactly the face its options name. The
+session seeded its face from the options bar's style picker, so with the bar parked on a
+Semibold or Black layer every scripted layer in a family offering that face took it,
+whatever `font`, `bold` and `italic` said. The requested `size` is now committed exactly
+at every canvas zoom, and an unchanged `layer.text` re-edit keeps the size (the whole-pixel
+editor font divided by a low zoom used to shift it by a pixel or two). On Windows `font`
+also accepts a face's full name or PostScript name ("Futura Extra Black BT",
+"FuturaBT-ExtraBlack") for the face the database lists as family + style. Behavioral fixes;
+apiVersion unchanged. See [text-tool.md](text-tool.md).
+
+2026-09-26 (API 1): `app.listFonts()` returns every family the text engine can use as
+`{family, styles, writingSystems}` objects sorted by family, loading the installed
+fonts first under `--headless` on Windows. Additive; apiVersion unchanged.
+
+2026-09-26 (API 1): `doc.addTextLayer`'s `font` option now takes effect. The script path
+set the family on the editor's character format only, while the commit read the session's
+family, so every script-made text layer rendered in the options bar's current font. A
+family that is not installed now logs a console warning naming it, and text layers expose
+a read-only `layer.textFont` (the stored family name, `""` for other layers). Behavioral
+fix plus an additive property; apiVersion unchanged. See [text-tool.md](text-tool.md).
+
+2026-09-25 (API 1): `patchy.recovery` exposes the automatic document recovery store:
+`enabled` and `intervalMinutes` (the Preferences values), `directory`, `writeNow()`,
+`listFiles()`, `listOrphaned()`, `recoverAll()`, and `discardOrphaned()`. Additive;
+apiVersion unchanged. See [document-recovery.md](document-recovery.md).
+
+2026-09-25 (API 1): `doc.importFilesAsLayers(paths)` adds image files as layers directly
+above the active layer, bottom to top in argument order (the core behind File > Import >
+Files as Layers, the Layers-panel file drop, and Paste with copied files). A multi-layer
+file becomes a folder named after it; an unreadable file throws without adding anything.
+Additive; apiVersion unchanged. See [import.md](import.md).
+
+2026-09-25 (API 1): the `layer.text` setter replaces the text the way retyping it in the
+editor does, so the new text keeps the first character's run formatting (exact fractional
+size, Character-panel glyph scales, leading, tracking, faux styles). It used to delete the
+text first and re-insert at the session's fallback font, so an imported Photoshop layer
+with a 0.93 vertical glyph scale re-rendered 7.5% taller than the same layer applied
+interactively. Behavioral fix; apiVersion unchanged. See [text-tool.md](text-tool.md).
+
+2026-09-24 (API 1): `layer.removeObject(options?)` gains `toneMatch` (0..100, default
+0, the raw exemplar fill), `feather` (px, default 0; softens the fill's edge
+outward), and, for the content-aware method, `attempt` as the variation number (0 = the
+best-match fill, each n > 0 a different reproducible fill, the dialog's Reroll). The
+result gains `attempt`. Existing calls are unchanged. Additive; apiVersion unchanged.
+See [healing.md](healing.md).
+
+2026-09-22 (API 1): `doc.alignLayers(edge, options?)` and `doc.distributeLayers(mode,
+options?)` run Layer > Arrange > Align / Distribute (`edge` ids `left`, `hcenter`, `right`,
+`top`, `vcenter`, `bottom`; Distribute adds `hspacing`, `vspacing`; options `layers` and,
+for Align, `alignTo: "selection" | "canvas"`). Both return the number of layers moved and
+ride the run's single undo entry. Additive; apiVersion unchanged. See
+[alignment.md](alignment.md).
+
 2026-09-22 (API 1): `layer.removeObject(options?)` runs Edit > Remove Object on the
 document selection. `{method}` is `"contentAware"` (default, the exhaustive exemplar
 fill) or `"nearestEdge"` (the selection form of Spot Healing, where `{attempt}` picks

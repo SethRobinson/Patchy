@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # One-time (idempotent) provisioning of a macOS machine for Patchy remote builds.
 # Run from the Windows box:
-#   scp scripts/remote/setup-mac.sh seth@studiomac.local:
-#   ssh seth@studiomac.local 'bash setup-mac.sh'
+#   scp scripts/remote/setup-mac.sh <user>@<mac-build-host>:
+#   ssh <user>@<mac-build-host> 'bash setup-mac.sh'
 # Installs pip tools (cmake/ninja/aqtinstall) into a venv, creates the bare repo +
 # work tree used by scripts/remote/remote-build.ps1, and installs Qt into the work
 # tree's .deps/Qt so the mac-* CMake presets resolve it exactly like on Windows.

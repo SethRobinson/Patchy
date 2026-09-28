@@ -40,4 +40,21 @@ inline constexpr int kDefaultGuiScalePercent = 100;
 // a compatibility contract, lives in exactly one place.
 void set_stored_gui_scale_percent(int percent);
 
+// Automatic document recovery (docs/document-recovery.md): the timer interval steps
+// offered in Preferences, in minutes. Photoshop's own list.
+inline constexpr std::array<int, 5> kRecoveryIntervalMinutes{5, 10, 15, 30, 60};
+inline constexpr int kDefaultRecoveryIntervalMinutes = 10;
+
+// Returns the stored interval when it is one of kRecoveryIntervalMinutes, the default
+// otherwise (a hand-edited ini, a step a later build dropped).
+[[nodiscard]] int normalize_recovery_interval_minutes(int stored);
+
+// The persisted recovery preferences (keys `recovery/enabled`, default true, and
+// `recovery/intervalMinutes`; both are compatibility contracts). The web build has no
+// recovery store, so it reports disabled and ignores writes.
+[[nodiscard]] bool stored_recovery_enabled();
+void set_stored_recovery_enabled(bool enabled);
+[[nodiscard]] int stored_recovery_interval_minutes();
+void set_stored_recovery_interval_minutes(int minutes);
+
 }  // namespace patchy::ui

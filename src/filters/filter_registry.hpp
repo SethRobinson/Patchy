@@ -147,6 +147,9 @@ struct FilterParameterDefinition {
   // use minimum/maximum above.
   std::optional<double> practical_minimum{};
   std::optional<double> practical_maximum{};
+  // A Double parameter that used to be an Integer keeps accepting stored
+  // integer values (Saved Looks, recipes) and normalizes them to doubles.
+  bool accepts_legacy_integer{false};
 };
 
 enum class FilterProgressStage {

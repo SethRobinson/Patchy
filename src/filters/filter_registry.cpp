@@ -22,8 +22,10 @@ bool parameter_value_matches(const FilterParameterDefinition &definition,
   case FilterParameterKind::Integer:
     return std::holds_alternative<std::int64_t>(value);
   case FilterParameterKind::Double:
-    return std::holds_alternative<double>(value) &&
-           std::isfinite(std::get<double>(value));
+    return (std::holds_alternative<double>(value) &&
+            std::isfinite(std::get<double>(value))) ||
+           (definition.accepts_legacy_integer &&
+            std::holds_alternative<std::int64_t>(value));
   case FilterParameterKind::Boolean:
     return std::holds_alternative<bool>(value);
   case FilterParameterKind::Option: {
@@ -423,8 +425,13 @@ FilterRegistry::normalize(const FilterInvocation &invocation) const {
     if (!parameter_value_matches(parameter, found->second)) {
       return std::nullopt;
     }
+    auto value = found->second;
+    if (const auto *legacy = std::get_if<std::int64_t>(&value);
+        legacy != nullptr && parameter.kind == FilterParameterKind::Double) {
+      value = static_cast<double>(*legacy);
+    }
     normalized.parameters[parameter.key] =
-        clamp_parameter_value(parameter, found->second);
+        clamp_parameter_value(parameter, std::move(value));
   }
   return normalized;
 }

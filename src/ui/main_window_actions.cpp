@@ -54,6 +54,7 @@
 #include "ui/gradient_stops_editor.hpp"
 #include "ui/gradient_library.hpp"
 #include "ui/gradient_manager_dialog.hpp"
+#include "ui/curved_slider.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/document_float_window.hpp"
 #include "ui/font_picker.hpp"
@@ -248,10 +249,6 @@
 #include <tpcshrd.h>
 #endif
 
-#ifndef PATCHY_VERSION
-#define PATCHY_VERSION "0.0.0"
-#endif
-
 // Icon resources live in the static patchy_ui library; force registration before first use.
 int qInitResources_icons();
 
@@ -333,8 +330,8 @@ void MainWindow::bind_action_translations(ActionBuildContext& ctx) {
       {ctx.contract_selection_action, QT_TR_NOOP("Con&tract...")},
       {ctx.border_selection_action, QT_TR_NOOP("&Border...")},
       {ctx.layer_transparency_action, QT_TR_NOOP("Load Layer &Transparency")},
-      {ctx.stroke_selection_action, QT_TR_NOOP("&Stroke Selection")},
-      {ctx.remove_object_action, QT_TR_NOOP("Remove &Object")},
+      {ctx.stroke_selection_action, QT_TR_NOOP("&Stroke Selection...")},
+      {ctx.remove_object_action, QT_TR_NOOP("Remove &Object...")},
       {ctx.define_brush_tip_action, QT_TR_NOOP("Define Brush Tip from Selection")},
       {ctx.layer_new_menu->menuAction(), QT_TR_NOOP("&New")},
       {ctx.add_layer_action, QT_TR_NOOP("&New Layer")},
@@ -345,6 +342,8 @@ void MainWindow::bind_action_translations(ActionBuildContext& ctx) {
       {ctx.vector_mask_menu->menuAction(), QT_TR_NOOP("&Vector Mask")},
       {ctx.layer_smart_objects_menu->menuAction(), QT_TR_NOOP("Smart Objects")},
       {ctx.layer_arrange_menu->menuAction(), QT_TR_NOOP("Arran&ge")},
+      {ctx.layer_align_menu->menuAction(), QT_TR_NOOP("&Align")},
+      {ctx.layer_distribute_menu->menuAction(), QT_TR_NOOP("&Distribute")},
       {ctx.layer_via_copy_action, QT_TR_NOOP("Layer Via &Copy")},
       {ctx.layer_via_cut_action, QT_TR_NOOP("Layer Via Cu&t")},
       {ctx.add_mask_action, QT_TR_NOOP("Add Layer &Mask")},
@@ -436,6 +435,7 @@ void MainWindow::bind_action_translations(ActionBuildContext& ctx) {
       {secondary_color_button_, QT_TR_NOOP("BG")},
       {move_auto_select_check_, QT_TR_NOOP("Auto-Select")},
       {move_show_transform_controls_check_, QT_TR_NOOP("Show Transform Controls")},
+      {move_snap_check_, QT_TR_NOOP("Snap")},
       {clone_aligned_check_, QT_TR_NOOP("Aligned")},
       {retouch_sample_all_layers_check_, QT_TR_NOOP("Sample All Layers")},
       {mixer_sample_all_layers_check_, QT_TR_NOOP("Sample All Layers")},
@@ -443,6 +443,7 @@ void MainWindow::bind_action_translations(ActionBuildContext& ctx) {
       {gradient_reverse_check_, QT_TR_NOOP("Reverse")},
       {gradient_edit_stops_button_, QT_TR_NOOP("Edit Stops...")},
       {wand_contiguous_check_, QT_TR_NOOP("Contiguous")},
+      {fill_contiguous_check_, QT_TR_NOOP("Contiguous")},
       {wand_sample_all_layers_check_, QT_TR_NOOP("Sample All Layers")},
       {quick_select_sample_all_layers_check_, QT_TR_NOOP("Sample All Layers")},
       {quick_select_enhance_edge_check_, QT_TR_NOOP("Enhance Edge")},
@@ -473,7 +474,7 @@ void MainWindow::sync_tool_option_controls_from_canvas() {
   const auto set_slider_value = [this](const QString& name, int value) {
     if (auto* slider = findChild<QSlider*>(name); slider != nullptr) {
       const QSignalBlocker blocker(slider);
-      slider->setValue(value);
+      set_slider_to_value(*slider, value);
     }
   };
   const auto set_checked = [](QCheckBox* check, bool value) {
@@ -500,10 +501,12 @@ void MainWindow::sync_tool_option_controls_from_canvas() {
     crop_ratio_h_spin_->setValue(canvas_->crop_ratio_height());
   }
   set_checked(wand_contiguous_check_, canvas_->wand_contiguous());
+  set_checked(fill_contiguous_check_, canvas_->fill_contiguous());
   set_checked(wand_sample_all_layers_check_, canvas_->wand_sample_all_layers());
   set_checked(quick_select_sample_all_layers_check_, canvas_->quick_select_sample_all_layers());
   set_checked(quick_select_enhance_edge_check_, canvas_->quick_select_enhance_edge());
   set_spin_value(QStringLiteral("wandToleranceSpin"), canvas_->wand_tolerance());
+  set_spin_value(QStringLiteral("fillToleranceSpin"), canvas_->fill_tolerance());
   set_spin_value(QStringLiteral("quickSelectSizeSpin"), canvas_->quick_select_size());
   set_slider_value(QStringLiteral("quickSelectSizeSlider"), canvas_->quick_select_size());
   set_spin_value(QStringLiteral("magneticLassoWidthSpin"), canvas_->magnetic_lasso_width());

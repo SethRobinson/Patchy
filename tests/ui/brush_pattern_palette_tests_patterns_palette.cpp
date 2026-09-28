@@ -351,9 +351,11 @@ void ui_brush_tip_softness_feathers_stroke_and_size_reaches_1024() {
   auto* size_spin = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
   auto* size_slider = window.findChild<QSlider*>(QStringLiteral("brushSizeSlider"));
   CHECK(size_spin != nullptr && size_spin->maximum() == patchy::ui::kMaxBrushSize);
-  CHECK(size_slider != nullptr && size_slider->maximum() == patchy::ui::kMaxBrushSize);
+  CHECK(size_slider != nullptr && size_slider->maximum() == patchy::ui::kCurvedSliderPositions);
   size_spin->setValue(patchy::ui::kMaxBrushSize);
   CHECK(canvas->brush_size() == patchy::ui::kMaxBrushSize);
+  CHECK(size_slider->value() == patchy::ui::kCurvedSliderPositions);
+  CHECK(patchy::ui::slider_value(*size_slider) == patchy::ui::kMaxBrushSize);
   size_spin->setValue(32);
 
   auto& library = window.brush_tip_library();

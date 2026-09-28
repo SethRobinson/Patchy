@@ -11,6 +11,7 @@
 #include "ui/gradient_library.hpp"
 #include "ui/pattern_library.hpp"
 #include "ui/measurement_units.hpp"
+#include "ui/theme_palette.hpp"
 #include "ui/theme_qss.hpp"
 #include "ui/action_icons.hpp"
 
@@ -22,10 +23,13 @@
 #include <QDialogButtonBox>
 #include <QDoubleSpinBox>
 #include <QFormLayout>
+#include <QGridLayout>
 #include <QGroupBox>
 #include <QIcon>
 #include <QLabel>
+#include <QPaintEvent>
 #include <QPainter>
+#include <QPen>
 #include <QPixmap>
 #include <QPushButton>
 #include <QSignalBlocker>
@@ -86,6 +90,44 @@ struct DialogState {
   // A PSD-authored dash pattern that matches no preset, restorable after
   // trying the presets.
   std::vector<double> custom_dashes;
+};
+
+// A chain button at the app's normal button size, centered on a thin bracket
+// that reaches the middle of the first and last rows it ties (the Image Size
+// dialog's Width / Height link). The bracket is painted here, behind the
+// button, from the live positions of the two end rows (siblings in the same
+// grid), so it follows any row height; it brightens while linked.
+class LinkBracket : public QWidget {
+public:
+  LinkBracket(QToolButton* button, QWidget* first_row, QWidget* last_row, QWidget* parent)
+      : QWidget(parent), button_(button), first_row_(first_row), last_row_(last_row) {
+    auto* layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+    layout->addStretch(1);
+    button_->setParent(this);
+    layout->addWidget(button_, 0, Qt::AlignHCenter);
+    layout->addStretch(1);
+    setFixedWidth(button_->maximumWidth());
+    QObject::connect(button_, &QToolButton::toggled, this, qOverload<>(&QWidget::update));
+  }
+
+protected:
+  void paintEvent(QPaintEvent* /*event*/) override {
+    const int top = first_row_->geometry().center().y() - y();
+    const int bottom = last_row_->geometry().center().y() - y();
+    const int x = width() / 2;
+    QPainter painter(this);
+    painter.setPen(QPen(button_->isChecked() ? theme().dlg_focus_border : theme().dlg_button_border, 1));
+    painter.drawLine(x, top, x, bottom);
+    painter.drawLine(x, top, width() - 1, top);
+    painter.drawLine(x, bottom, width() - 1, bottom);
+  }
+
+private:
+  QToolButton* button_;
+  QWidget* first_row_;
+  QWidget* last_row_;
 };
 
 }  // namespace
@@ -210,10 +252,52 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     auto* geometry_layout = new QVBoxLayout(geometry_group);
     geometry_layout->setContentsMargins(10, 8, 10, 8);
     geometry_layout->setSpacing(4);
-    auto* geometry_form = new QFormLayout();
-    geometry_form->setHorizontalSpacing(10);
-    geometry_form->setVerticalSpacing(8);
-    geometry_layout->addLayout(geometry_form);
+    // A grid rather than a form: the link buttons sit between the label and
+    // the field and span the rows they tie together (the Image Size dialog's
+    // Width / Height bracket), which a QFormLayout row cannot do. Column 1 is
+    // the link column; it stays empty on the rows without a link so every
+    // label and field lines up.
+    auto* geometry_grid = new QGridLayout();
+    geometry_grid->setContentsMargins(0, 0, 0, 0);
+    geometry_grid->setHorizontalSpacing(8);
+    geometry_grid->setVerticalSpacing(8);
+    geometry_grid->setColumnMinimumWidth(1, 24);
+    geometry_grid->setColumnStretch(2, 1);
+    geometry_layout->addLayout(geometry_grid);
+    std::vector<QWidget*> geometry_rows;  // the [spin] - + row widget per grid row
+    const auto add_geometry_row = [&field_rows, geometry_grid, geometry_group,
+                                   &geometry_rows](const QString& label, QAbstractSpinBox* spin) {
+      auto* row = wrap_spin_with_step_buttons(spin, geometry_group, label);
+      field_rows[spin] = row;
+      const int grid_row = static_cast<int>(geometry_rows.size());
+      geometry_grid->addWidget(new QLabel(label, geometry_group), grid_row, 0,
+                               Qt::AlignLeft | Qt::AlignVCenter);
+      geometry_grid->addWidget(row, grid_row, 2);
+      geometry_rows.push_back(row);
+      return grid_row;
+    };
+    // A normal-sized checkable chain button centered on a thin bracket that
+    // reaches the first and last of the `row_count` rows from `first_row`.
+    // `bracket_name` names the bracket widget (its objectName), `name` the
+    // button.
+    const auto make_link_button = [geometry_grid, geometry_group, &geometry_rows](
+                                      const char* name, const char* bracket_name,
+                                      const QString& tooltip, int first_row, int row_count) {
+      auto* button = new QToolButton(nullptr);
+      button->setObjectName(QLatin1String(name));
+      button->setProperty("geometryLink", true);
+      button->setCheckable(true);
+      button->setIcon(simple_icon(QStringLiteral("link"), QColor(220, 226, 235)));
+      button->setIconSize(QSize(18, 18));
+      button->setToolTip(tooltip);
+      button->setFixedSize(24, 24);
+      auto* bracket = new LinkBracket(button, geometry_rows[static_cast<std::size_t>(first_row)],
+                                      geometry_rows[static_cast<std::size_t>(first_row + row_count - 1)],
+                                      geometry_group);
+      bracket->setObjectName(QLatin1String(bracket_name));
+      geometry_grid->addWidget(bracket, first_row, 1, row_count, 1);
+      return button;
+    };
     const auto make_spin = [&](const char* name, double minimum, double maximum, double value) {
       auto* spin = new UnitSpinBox(SpinUnit::Pixels, geometry_group);
       spin->setObjectName(QLatin1String(name));
@@ -230,11 +314,11 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
       auto* end_x = make_spin("shapeGeometryLineEndXSpin", -30000, 30000, geometry.line_end_x);
       auto* end_y = make_spin("shapeGeometryLineEndYSpin", -30000, 30000, geometry.line_end_y);
       auto* weight = make_spin("shapeGeometryLineWeightSpin", 0.5, 1000, geometry.line_weight);
-      add_spin_row(geometry_form, QObject::tr("Start X:"), start_x);
-      add_spin_row(geometry_form, QObject::tr("Start Y:"), start_y);
-      add_spin_row(geometry_form, QObject::tr("End X:"), end_x);
-      add_spin_row(geometry_form, QObject::tr("End Y:"), end_y);
-      add_spin_row(geometry_form, QObject::tr("Weight:"), weight);
+      add_geometry_row(QObject::tr("Start X:"), start_x);
+      add_geometry_row(QObject::tr("Start Y:"), start_y);
+      add_geometry_row(QObject::tr("End X:"), end_x);
+      add_geometry_row(QObject::tr("End Y:"), end_y);
+      add_geometry_row(QObject::tr("Weight:"), weight);
       const auto apply_line = [state, notify, start_x, start_y, end_x, end_y, weight] {
         auto& params = *state->settings.geometry;
         params.line_start_x = start_x->value();
@@ -259,19 +343,15 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
           make_spin("shapeGeometryWidthSpin", 0.5, 60000, geometry.right - geometry.left);
       auto* height_spin =
           make_spin("shapeGeometryHeightSpin", 0.5, 60000, geometry.bottom - geometry.top);
-      add_spin_row(geometry_form, QObject::tr("X:"), x_spin);
-      add_spin_row(geometry_form, QObject::tr("Y:"), y_spin);
-      add_spin_row(geometry_form, QObject::tr("Width:"), width_spin);
+      add_geometry_row(QObject::tr("X:"), x_spin);
+      add_geometry_row(QObject::tr("Y:"), y_spin);
+      const int width_row = add_geometry_row(QObject::tr("Width:"), width_spin);
+      add_geometry_row(QObject::tr("Height:"), height_spin);
       // Link keeps the aspect ratio: editing one dimension moves the other by
       // the ratio captured when the link was switched on.
-      auto* link_button = new QToolButton(geometry_group);
-      link_button->setObjectName(QStringLiteral("shapeGeometryLinkButton"));
-      link_button->setCheckable(true);
-      link_button->setIcon(simple_icon(QStringLiteral("link"), QColor(220, 226, 235)));
-      link_button->setIconSize(QSize(18, 18));
-      link_button->setToolTip(QObject::tr("Keep width and height in proportion"));
-      geometry_form->addRow(QString(), link_button);
-      add_spin_row(geometry_form, QObject::tr("Height:"), height_spin);
+      auto* link_button = make_link_button("shapeGeometryLinkButton", "shapeGeometryLinkBracket",
+                                           QObject::tr("Keep width and height in proportion"),
+                                           width_row, 2);
       auto link_ratio = std::make_shared<double>(1.0);
       QObject::connect(link_button, &QToolButton::toggled, &dialog,
                        [link_ratio, width_spin, height_spin](bool checked) {
@@ -305,10 +385,40 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
         const std::array<QString, 4> labels{
             QObject::tr("Top left radius:"), QObject::tr("Top right radius:"),
             QObject::tr("Bottom right radius:"), QObject::tr("Bottom left radius:")};
+        const int first_radius_row = static_cast<int>(geometry_rows.size());
         for (std::size_t corner = 0; corner < 4; ++corner) {
           radius_spins[corner] =
               make_spin(names[corner], 0, 30000, geometry.corner_radii[corner]);
-          add_spin_row(geometry_form, labels[corner], radius_spins[corner]);
+          add_geometry_row(labels[corner], radius_spins[corner]);
+        }
+        // Linked, editing any corner sets all four. Starts linked when the
+        // corners already agree (the common case: one radius for the whole
+        // shape); a shape authored with distinct corners opens unlinked so
+        // one edit cannot flatten them.
+        auto* radius_link = make_link_button("shapeGeometryRadiusLinkButton",
+                                             "shapeGeometryRadiusLinkBracket",
+                                             QObject::tr("Change all four corner radii together"),
+                                             first_radius_row, 4);
+        const bool corners_agree =
+            std::abs(geometry.corner_radii[1] - geometry.corner_radii[0]) < 1e-9 &&
+            std::abs(geometry.corner_radii[2] - geometry.corner_radii[0]) < 1e-9 &&
+            std::abs(geometry.corner_radii[3] - geometry.corner_radii[0]) < 1e-9;
+        radius_link->setChecked(corners_agree);
+        // Connected before apply_box below (the same ordering as the W / H
+        // link) so every corner is already updated when the geometry applies.
+        for (auto* spin : radius_spins) {
+          QObject::connect(spin, &QDoubleSpinBox::valueChanged, &dialog,
+                           [radius_link, radius_spins, spin](double value) {
+            if (!radius_link->isChecked()) {
+              return;
+            }
+            for (auto* other : radius_spins) {
+              if (other != spin) {
+                QSignalBlocker blocker(other);
+                other->setValue(value);
+              }
+            }
+          });
         }
       }
       const auto apply_box = [state, notify, x_spin, y_spin, width_spin, height_spin,
@@ -340,6 +450,24 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
         }
       }
     }
+    // The link buttons: a flat chain glyph that lights up while linked (the
+    // Image Size dialog's Width / Height link).
+    append_themed_style(dialog, QStringLiteral(R"(
+      QDialog#shapeAppearanceDialog QToolButton[geometryLink="true"] {
+        background: @dlg_button_bg;
+        border: 1px solid @dlg_button_border;
+        border-radius: 4px;
+        padding: 0;
+        min-width: 24px;
+        max-width: 24px;
+        min-height: 24px;
+        max-height: 24px;
+      }
+      QDialog#shapeAppearanceDialog QToolButton[geometryLink="true"]:checked {
+        border-color: @dlg_focus_border;
+        background: @dlg_anchor_active_bg;
+      }
+    )"));
     left_column->addWidget(geometry_group);
   }
 

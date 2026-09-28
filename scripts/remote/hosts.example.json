@@ -1,0 +1,6 @@
+{
+  "//": "Copy to hosts.local.json (gitignored) in the main checkout and fill in the ssh targets this machine can reach. Omit targets you do not have. See docs/platform.md.",
+  "mac": { "ssh": "user@mac-build-host.local" },
+  "linux": { "ssh": "user@linux-build-host.local" },
+  "windows": { "ssh": "windows-build-host", "workTree": "C:/patchy/src" }
+}

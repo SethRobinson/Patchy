@@ -241,10 +241,6 @@
 #include <tpcshrd.h>
 #endif
 
-#ifndef PATCHY_VERSION
-#define PATCHY_VERSION "0.0.0"
-#endif
-
 // Icon resources live in the static patchy_ui library; force registration before first use.
 int qInitResources_icons();
 
@@ -263,6 +259,24 @@ void bind_translated_status_tip(QObject* object, const char* source,
   }
   object->setProperty(kTranslationContextProperty, QString::fromLatin1(context));
   object->setProperty(kTranslationStatusTipProperty, QString::fromLatin1(source));
+}
+
+// Qt's Cocoa plugin merges a menubar item into the application menu when its title starts
+// with the translated "About", "Config", "Preference", "Options", "Setting", "Setup", "Quit"
+// or "Exit" (the QCocoaMenuItem::sync text heuristic), re-checking on every sync. A submenu
+// that flips to merged after a runtime language switch ("Ajustes", "Réglages") leaves its
+// QCocoaMenu pointing at a freed NSMenuItem, and the next key-window change crashes in
+// setSubmenu: (GitHub issue 29, Qt 6.8.3). Submenus never belong in the app menu, so every
+// submenu action opts out; plain actions keep the heuristic. See docs/platform.md.
+void exclude_submenus_from_native_menu_roles(QMenu& menu) {
+  for (auto* action : menu.actions()) {
+    auto* submenu = action->menu();
+    if (submenu == nullptr) {
+      continue;
+    }
+    action->setMenuRole(QAction::NoRole);
+    exclude_submenus_from_native_menu_roles(*submenu);
+  }
 }
 
 }  // namespace
@@ -359,6 +373,12 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   import_image_sequence_action->setObjectName(QStringLiteral("fileImportImageSequenceAction"));
   register_hotkey(import_image_sequence_action, "file.import_image_sequence");
   connect(import_image_sequence_action, &QAction::triggered, this, [this] { import_image_sequence(); });
+  auto* import_files_as_layers_action = import_menu->addAction(tr("&Files as Layers..."));
+  bind_action_text(import_files_as_layers_action, QT_TR_NOOP("&Files as Layers..."));
+  import_files_as_layers_action->setObjectName(QStringLiteral("fileImportFilesAsLayersAction"));
+  register_hotkey(import_files_as_layers_action, "file.import_files_as_layers");
+  connect(import_files_as_layers_action, &QAction::triggered, this, [this] { import_files_as_layers(); });
+  register_document_action(import_files_as_layers_action);
   auto* place_embedded_action = file_menu->addAction(tr("Place &Embedded..."));
   bind_action_text(place_embedded_action, QT_TR_NOOP("Place &Embedded..."));
   place_embedded_action->setObjectName(QStringLiteral("filePlaceEmbeddedAction"));
@@ -419,6 +439,8 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   // so hotkey ids and wiring are stable; hidden actions do not render in the
   // menu. A browser has no host folders to open or write into either.
   export_image_sequence_action->setVisible(false);
+  // A browser pick is a MEMFS transfer path that only open_document_path releases.
+  import_files_as_layers_action->setVisible(false);
   export_documents_folder_action->setVisible(false);
   open_folder_action->setVisible(false);
   page_setup_action->setVisible(false);
@@ -536,6 +558,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   copy_merged_action->setObjectName(QStringLiteral("editCopyMergedAction"));
   paste_action->setObjectName(QStringLiteral("editPasteAction"));
   transform_action->setObjectName(QStringLiteral("editFreeTransformAction"));
+  free_transform_action_ = transform_action;
   warp_transform_action->setObjectName(QStringLiteral("editWarpTransformAction"));
   cut_action->setIcon(simple_icon(QStringLiteral("CT")));
   copy_action->setIcon(simple_icon(QStringLiteral("CP")));
@@ -597,21 +620,19 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   auto* contract_selection_action = new QAction(tr("Con&tract..."), this);
   auto* border_selection_action = new QAction(tr("&Border..."), this);
   auto* layer_transparency_action = new QAction(tr("Load Layer &Transparency"), this);
-  auto* stroke_selection_action = edit_menu->addAction(tr("&Stroke Selection"));
-  // Remove Object: the content-aware exemplar fill of the selection (no
-  // dialog). Also the first entry of the canvas context menu's selection
-  // section. The nearest-edge mirror has no menu entry (Seth, September 2026:
-  // confusing next to this one); it stays as the automatic fallback and the
-  // script API's "nearestEdge" method.
-  auto* remove_object_action = edit_menu->addAction(tr("Remove &Object"));
+  auto* stroke_selection_action = edit_menu->addAction(tr("&Stroke Selection..."));
+  // Remove Object: the content-aware exemplar fill of the selection through
+  // the Remove Object dialog (Reroll, Tone match, Edge feather;
+  // main_window_layer_ops.cpp). Also the first entry of the canvas context
+  // menu's selection section and the Patch options bar's button. The
+  // nearest-edge mirror has no menu entry (Seth, September 2026: confusing
+  // next to this one); it stays as the automatic fallback and the script
+  // API's "nearestEdge" method.
+  auto* remove_object_action = edit_menu->addAction(tr("Remove &Object..."));
   remove_object_action->setObjectName(QStringLiteral("editRemoveObjectAction"));
   remove_object_action->setIcon(simple_icon(QStringLiteral("RO")));
   register_hotkey(remove_object_action, "edit.remove_object");
-  connect(remove_object_action, &QAction::triggered, this, [this] {
-    if (canvas_ != nullptr) {
-      canvas_->remove_object_in_selection();
-    }
-  });
+  connect(remove_object_action, &QAction::triggered, this, [this] { remove_object_dialog(); });
   auto* define_brush_tip_action = edit_menu->addAction(tr("Define Brush Tip from Selection"));
   define_brush_tip_action->setObjectName(QStringLiteral("editDefineBrushTipAction"));
   register_hotkey(define_brush_tip_action, "edit.define_brush_tip");
@@ -620,6 +641,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   auto* define_custom_shape_action = edit_menu->addAction(tr("Define Custom Shape from Path"));
   bind_action_text(define_custom_shape_action, QT_TR_NOOP("Define Custom Shape from Path"));
   define_custom_shape_action->setObjectName(QStringLiteral("editDefineCustomShapeAction"));
+  define_custom_shape_action_ = define_custom_shape_action;
   register_hotkey(define_custom_shape_action, "edit.define_custom_shape");
   connect(define_custom_shape_action, &QAction::triggered, this,
           [this] { define_custom_shape_from_path(); });
@@ -814,6 +836,9 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   // still find "make this a plain layer again" where they look for it.
   layer_smart_object_to_normal_action_ = new QAction(tr("Convert to Normal Layer (Rasterize)"), this);
   bind_action_text(layer_smart_object_to_normal_action_, QT_TR_NOOP("Convert to Normal Layer (Rasterize)"));
+  // Photoshop's Convert to Layers: the contents' own layers replace the Smart Object.
+  layer_smart_object_to_layers_action_ = new QAction(tr("Convert to Layers"), this);
+  bind_action_text(layer_smart_object_to_layers_action_, QT_TR_NOOP("Convert to Layers"));
   auto* layer_smart_objects_menu = layer_menu->addMenu(tr("Smart Objects"));
   layer_smart_objects_menu->setObjectName(QStringLiteral("layerSmartObjectsMenu"));
   layer_smart_objects_menu->addAction(layer_convert_smart_object_action_);
@@ -825,6 +850,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   layer_smart_objects_menu->addAction(layer_smart_object_export_action_);
   layer_smart_objects_menu->addAction(layer_smart_object_via_copy_action_);
   layer_smart_objects_menu->addSeparator();
+  layer_smart_objects_menu->addAction(layer_smart_object_to_layers_action_);
   layer_smart_objects_menu->addAction(layer_smart_object_to_normal_action_);
   // Commands on existing shapes (docs/vector-commands.md). A submenu keeps the
   // Layer menu inside its wasm-viewport row bound.
@@ -890,6 +916,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   auto* merge_down_action = layer_menu->addAction(tr("Merge &Down"));
   merge_down_action->setObjectName(QStringLiteral("layerMergeDownAction"));
   auto* rename_layer_action = layer_menu->addAction(tr("&Rename Layer..."));
+  rename_layer_action->setObjectName(QStringLiteral("layerRenameAction"));
   auto* delete_layer_action = layer_menu->addAction(tr("&Delete Layer"));
   // (No separator before the fill group: the Layer menu's 23-row bound paid
   // for the Shape submenu with it.)
@@ -904,6 +931,99 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   layer_arrange_menu->addSeparator();
   auto* flip_h_action = layer_arrange_menu->addAction(tr("Flip Layer &Horizontal"));
   auto* flip_v_action = layer_arrange_menu->addAction(tr("Flip Layer &Vertical"));
+  // Align / Distribute nest under Arrange: the Layer menu sits at its 23-row
+  // cap (ui_main_window_renders_color_controls). The Move tool's options-bar
+  // buttons wrap these same QActions (docs/alignment.md).
+  layer_arrange_menu->addSeparator();
+  auto* layer_align_menu = layer_arrange_menu->addMenu(tr("&Align"));
+  layer_align_menu->setObjectName(QStringLiteral("layerAlignMenu"));
+  auto* layer_distribute_menu = layer_arrange_menu->addMenu(tr("&Distribute"));
+  layer_distribute_menu->setObjectName(QStringLiteral("layerDistributeMenu"));
+  {
+    struct AlignSpec {
+      AlignEdge edge;
+      const char* text;
+      const char* object_name;
+      const char* command_id;
+    };
+    const AlignSpec align_specs[] = {
+        {AlignEdge::Left, QT_TR_NOOP("Align &Left Edges"), "layerAlignLeftAction", "layer.align_left"},
+        {AlignEdge::HorizontalCenter, QT_TR_NOOP("Align &Horizontal Centers"), "layerAlignHCenterAction",
+         "layer.align_horizontal_centers"},
+        {AlignEdge::Right, QT_TR_NOOP("Align &Right Edges"), "layerAlignRightAction", "layer.align_right"},
+        {AlignEdge::Top, QT_TR_NOOP("Align &Top Edges"), "layerAlignTopAction", "layer.align_top"},
+        {AlignEdge::VerticalCenter, QT_TR_NOOP("Align &Vertical Centers"), "layerAlignVCenterAction",
+         "layer.align_vertical_centers"},
+        {AlignEdge::Bottom, QT_TR_NOOP("Align &Bottom Edges"), "layerAlignBottomAction", "layer.align_bottom"},
+    };
+    for (const auto& spec : align_specs) {
+      auto* action = layer_align_menu->addAction(tr(spec.text));
+      bind_action_text(action, spec.text);
+      action->setObjectName(QLatin1String(spec.object_name));
+      action->setIcon(align_edge_icon(spec.edge));
+      register_hotkey(action, spec.command_id);
+      connect(action, &QAction::triggered, this, [this, edge = spec.edge] { align_selected_layers(edge); });
+      register_document_action(action);
+      layer_align_actions_[static_cast<std::size_t>(spec.edge)] = action;
+    }
+    layer_align_menu->addSeparator();
+    auto* align_to_group = new QActionGroup(this);
+    align_to_group->setExclusive(true);
+    layer_align_to_selection_action_ = layer_align_menu->addAction(tr("Align To: &Selection"));
+    bind_action_text(layer_align_to_selection_action_, QT_TR_NOOP("Align To: &Selection"));
+    layer_align_to_selection_action_->setObjectName(QStringLiteral("layerAlignToSelectionAction"));
+    layer_align_to_selection_action_->setCheckable(true);
+    layer_align_to_selection_action_->setChecked(true);
+    align_to_group->addAction(layer_align_to_selection_action_);
+    register_hotkey(layer_align_to_selection_action_, "layer.align_to_selection");
+    layer_align_to_canvas_action_ = layer_align_menu->addAction(tr("Align To: &Canvas"));
+    bind_action_text(layer_align_to_canvas_action_, QT_TR_NOOP("Align To: &Canvas"));
+    layer_align_to_canvas_action_->setObjectName(QStringLiteral("layerAlignToCanvasAction"));
+    layer_align_to_canvas_action_->setCheckable(true);
+    align_to_group->addAction(layer_align_to_canvas_action_);
+    register_hotkey(layer_align_to_canvas_action_, "layer.align_to_canvas");
+    connect(layer_align_to_canvas_action_, &QAction::toggled, this,
+            [this](bool checked) { set_align_to_canvas(checked); });
+    register_document_action(layer_align_to_selection_action_);
+    register_document_action(layer_align_to_canvas_action_);
+
+    struct DistributeSpec {
+      DistributeMode mode;
+      const char* text;
+      const char* object_name;
+      const char* command_id;
+    };
+    const DistributeSpec distribute_specs[] = {
+        {DistributeMode::Left, QT_TR_NOOP("Distribute &Left Edges"), "layerDistributeLeftAction",
+         "layer.distribute_left"},
+        {DistributeMode::HorizontalCenter, QT_TR_NOOP("Distribute &Horizontal Centers"),
+         "layerDistributeHCenterAction", "layer.distribute_horizontal_centers"},
+        {DistributeMode::Right, QT_TR_NOOP("Distribute &Right Edges"), "layerDistributeRightAction",
+         "layer.distribute_right"},
+        {DistributeMode::Top, QT_TR_NOOP("Distribute &Top Edges"), "layerDistributeTopAction",
+         "layer.distribute_top"},
+        {DistributeMode::VerticalCenter, QT_TR_NOOP("Distribute &Vertical Centers"),
+         "layerDistributeVCenterAction", "layer.distribute_vertical_centers"},
+        {DistributeMode::Bottom, QT_TR_NOOP("Distribute &Bottom Edges"), "layerDistributeBottomAction",
+         "layer.distribute_bottom"},
+        {DistributeMode::HorizontalSpacing, QT_TR_NOOP("Distribute Horizontal &Spacing"),
+         "layerDistributeHSpacingAction", "layer.distribute_horizontal_spacing"},
+        {DistributeMode::VerticalSpacing, QT_TR_NOOP("Distribute Vertical S&pacing"),
+         "layerDistributeVSpacingAction", "layer.distribute_vertical_spacing"},
+    };
+    for (const auto& spec : distribute_specs) {
+      if (spec.mode == DistributeMode::HorizontalSpacing) {
+        layer_distribute_menu->addSeparator();
+      }
+      auto* action = layer_distribute_menu->addAction(tr(spec.text));
+      bind_action_text(action, spec.text);
+      action->setObjectName(QLatin1String(spec.object_name));
+      register_hotkey(action, spec.command_id);
+      connect(action, &QAction::triggered, this, [this, mode = spec.mode] { distribute_selected_layers(mode); });
+      register_document_action(action);
+      layer_distribute_actions_[static_cast<std::size_t>(spec.mode)] = action;
+    }
+  }
   add_layer_action->setObjectName(QStringLiteral("layerNewAction"));
   add_folder_action->setObjectName(QStringLiteral("layerNewFolderAction"));
   layer_via_copy_action->setObjectName(QStringLiteral("layerViaCopyAction"));
@@ -934,6 +1054,11 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   layer_smart_object_relink_action_->setObjectName(QStringLiteral("layerSmartObjectRelinkAction"));
   layer_smart_object_embed_action_->setObjectName(QStringLiteral("layerSmartObjectEmbedAction"));
   layer_smart_object_to_normal_action_->setObjectName(QStringLiteral("layerSmartObjectToNormalAction"));
+  layer_smart_object_to_layers_action_->setObjectName(QStringLiteral("layerSmartObjectToLayersAction"));
+  layer_smart_object_to_layers_action_->setStatusTip(
+      tr("Replace the smart object with a folder holding the layers of its contents"));
+  bind_translated_status_tip(layer_smart_object_to_layers_action_,
+                             "Replace the smart object with a folder holding the layers of its contents");
   duplicate_layer_action->setObjectName(QStringLiteral("layerDuplicateAction"));
   delete_layer_action->setObjectName(QStringLiteral("layerDeleteAction"));
   fill_layer_action->setObjectName(QStringLiteral("layerFillForegroundAction"));
@@ -1003,7 +1128,8 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   register_hotkey(edit_adjustment_action, "layer.edit_adjustment");
   register_hotkey(layer_blending_options_action_, "layer.styles");
   register_hotkey(duplicate_layer_action, "layer.duplicate");
-  register_hotkey(rename_layer_action, "layer.rename");
+  // F2: the Explorer, Blender and VS Code rename key on every platform.
+  register_hotkey(rename_layer_action, "layer.rename", QKeySequence(Qt::Key_F2));
   register_hotkey(delete_layer_action, "layer.delete");
   register_hotkey(flip_h_action, "layer.flip_horizontal");
   register_hotkey(flip_v_action, "layer.flip_vertical");
@@ -1056,6 +1182,8 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   connect(layer_smart_object_export_action_, &QAction::triggered, this, [this] { export_smart_object_contents(); });
   connect(layer_smart_object_via_copy_action_, &QAction::triggered, this, [this] { new_smart_object_via_copy(); });
   connect(layer_smart_object_to_normal_action_, &QAction::triggered, this, [this] { rasterize_active_layers(); });
+  connect(layer_smart_object_to_layers_action_, &QAction::triggered, this,
+          [this] { convert_smart_object_to_layers(); });
   connect(layer_smart_object_update_action_, &QAction::triggered, this, [this] { update_smart_object_content(); });
   connect(layer_smart_object_relink_action_, &QAction::triggered, this,
           [this] { relink_smart_object_contents(); });
@@ -1809,6 +1937,8 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   ctx.vector_mask_menu = vector_mask_menu;
   ctx.layer_smart_objects_menu = layer_smart_objects_menu;
   ctx.layer_arrange_menu = layer_arrange_menu;
+  ctx.layer_align_menu = layer_align_menu;
+  ctx.layer_distribute_menu = layer_distribute_menu;
   ctx.layer_via_copy_action = layer_via_copy_action;
   ctx.layer_via_cut_action = layer_via_cut_action;
   ctx.add_mask_action = add_mask_action;
@@ -1856,6 +1986,12 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   ctx.scripting_guide_action = scripting_guide_action;
   ctx.about_action = about_action;
   ctx.ai_setup_action = ai_setup_action;
+
+  for (auto* action : menuBar()->actions()) {
+    if (auto* menu = action->menu()) {
+      exclude_submenus_from_native_menu_roles(*menu);
+    }
+  }
 }
 
 }  // namespace patchy::ui

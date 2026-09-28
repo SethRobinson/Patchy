@@ -92,7 +92,7 @@ gesture; CanvasWidget shows the menu and reports through
 to every canvas in `apply_canvas_aid_settings`). `CanvasWidget::draw_rulers` picks 1-2-5
 tick steps in unit space via `ruler_tick_steps`; the Pixels unit reproduces the historical
 pixel ruler exactly (subdivisions never go below one pixel). Horizontal ruler uses
-horizontal_ppi, vertical uses vertical_ppi. Guides and the grid stay pixel-based. The doc
+horizontal_ppi, vertical uses vertical_ppi. Guides and the grid stay pixel-based; a guide drag's position readout reads in the ruler unit ([tools.md](tools.md)). The doc
 info line shows the physical size in the ruler unit (inches while the unit is px/percent).
 
 ## PSD resource 1005 (verified against Photoshop 2026)

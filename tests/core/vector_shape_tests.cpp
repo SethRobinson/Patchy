@@ -366,7 +366,9 @@ void geometry_ops_transform_vector_data() {
     CHECK(std::abs(content->origination[0].left - 0.0) < 1e-9);
     CHECK(std::abs(content->origination[0].bottom - 30.0) < 1e-9);
     CHECK(patchy::layer_vector_block_dirty(*layer));
-    CHECK(layer->bounds().x == 0);
+    // The bake keeps the centered 4 px stroke's overhang past the new edge
+    // (update_vector_shape_raster is not canvas-clipped).
+    CHECK(layer->bounds().x == -2);
     CHECK(document.paths()[0].dirty());
     CHECK(std::abs(document.paths()[0].path().subpaths[0].anchors[0].anchor_x - 50.0) < 1e-9);
   }

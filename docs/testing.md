@@ -26,7 +26,7 @@ for documents dropped into that directory only; a snapshot sync never copies it.
 
 ## Running and filtering
 
-Run `patchy_ui_visual_tests.exe` with `QT_QPA_PLATFORM=offscreen`. Both release test binaries accept a name substring as their first argument. The UI suite also reads `PATCHY_UI_TEST_FILTER`; there is no `--test` flag. The UI filter may also be a comma-separated list of substrings (a test runs if its name contains any of them), which is how to reproduce ordered cross-test interactions: select the state-leaking test and its victim in one run. The core suite takes a single substring only.
+Run `patchy_ui_visual_tests.exe` with `QT_QPA_PLATFORM=offscreen`. The harness forces offscreen itself; `PATCHY_UI_TEST_PLATFORM=<qpa plugin>` (`cocoa`, `windows`, `xcb`) runs it on a real platform instead, which is the only way to reach native menubar and window-activation code (the issue 29 macOS crash; add `NSZombieEnabled=YES` there so a message to a freed Cocoa object aborts instead of passing silently). Screens and fonts differ there, so run a filter, never the whole suite. Both release test binaries accept a name substring as their first argument. The UI suite also reads `PATCHY_UI_TEST_FILTER`; there is no `--test` flag. The UI filter may also be a comma-separated list of substrings (a test runs if its name contains any of them), which is how to reproduce ordered cross-test interactions: select the state-leaking test and its victim in one run. The core suite takes a single substring only.
 
 Never run two test processes (or a test process and the app) at the same time: they share the QSettings store, and a concurrent run rewrites preference keys mid-test, producing failures such as `ui_language_saved_preference_overrides_system_language` seeing its saved language clobbered. Run suites sequentially.
 
@@ -36,7 +36,9 @@ Tests save PNG artifacts through `save_widget_artifact(...)` into `test-artifact
 
 ## Offscreen fonts and input
 
-The offscreen platform does not enumerate installed Windows fonts. Register required faces through `tests/test_fonts.hpp` or `QFontDatabase::addApplicationFont`. Never remove an application font during the suite because invalidating an in-use font cache can crash it. The Windows registry font rescue (`try_register_missing_system_font_family`) is switched off under offscreen unless `PATCHY_HEADLESS` is set, which only a `--headless` app run does.
+**The offscreen platform on Windows rasterizes text through FreeType; a real window uses DirectWrite.** The two disagree: DirectWrite applies a QFont stretch to the advances only and draws every glyph at its design width (issue 20's 103% "M" came out 3% narrow on screen while every offscreen pin passed). Text rendering that must match on screen is drawn engine-independently (`draw_line_glyphs_pixel_aligned`, docs/text-render-calibration.md) and its DirectWrite acceptance is a fresh GUI instance of the release build, `PATCHY_NO_SINGLE_INSTANCE=1` plus `--run-script` without `--headless` (a window appears), exporting the layer for a pixel diff; the same run with `-platform windows:fontengine=freetype` reproduces the suite's engine.
+
+The offscreen platform does not enumerate installed Windows fonts. Register required faces through `tests/test_fonts.hpp` or `QFontDatabase::addApplicationFont`. Never remove an application font during the suite because invalidating an in-use font cache can crash it. The Windows registry font rescue (`try_register_missing_system_font_family`) is switched off under offscreen unless `PATCHY_HEADLESS` is set, which only a `--headless` app run does. A test that names a family must also work on the Linux host, which has no Arial, Segoe UI, Calibri or Verdana: include `Liberation Sans` / `DejaVu Sans` (the Linux `UiDefault` role) in its candidates, since a text edit session moves a layer with a missing family onto its substitute (`substituted_text_family`).
 
 Because fonts are never removed, every registration is permanent suite state: newly present families change which face Qt's missing-family fallback picks, which moves text metrics in every later test (the PSD text re-edit tests in `text_transform_commit_tests` pin committed rasters against that fallback and fail if a mass registration runs first). Register only the faces a test actually needs. A test that must register a large inventory runs it in a child process instead: `ui_bundled_web_fonts_register_and_create_engines` spawns `patchy_ui_visual_tests.exe --bundled-web-fonts-probe` (handled in `tests/ui/main.cpp` before the QSettings bootstrap, so the child never touches the parent's settings store).
 
@@ -58,6 +60,10 @@ Offscreen does not clear `QApplication::keyboardModifiers()` after synthetic key
   A fixed sleep is never a synchronization primitive; wait for the state itself
   (`process_events_until`, or the marker file a script writes, as `protocol_edges` in
   `tests/mcp_client_tests.py` does before it cancels).
+- A debounced worker's start is not a fixed offset from the trigger. To prove work runs
+  off the event loop, park the worker, wait for it to start, and check that a UI timer
+  fires while it is still parked
+  (`ui_filter_gallery_heavy_thumbnail_queue_yields_to_event_loop`).
 
 - The test `CHECK()` macro throws. A failure while a MainWindow still owns an open inline text editor can abort during unwind without printing a `[FAIL]` line. Commit or close the editor before assertions that may throw.
 - The test binaries can exit 0 even when tests fail. Never trust the exit code alone; grep the output for `[FAIL]` to judge a run. Both runners print `[PASS]` on stdout and `[FAIL]` on stderr, so when a run is captured to files, grep the stderr capture (a stdout-only grep reports zero failures for any run).
@@ -129,8 +135,8 @@ Run from the repository root. Artifacts stay under `test-artifacts/mcp`. The tes
 uses only owned offscreen processes and also accepts a connector in a staged
 package directory, exercising resource discovery without source-relative paths.
 Python is not required by the shipped connector.
-On studiomac, use `.deps/mcp-client-py312/bin/python` (project-local Python 3.12);
-its system Python 3.9 cannot install the MCP dependency. On glados, use
+On the mac build host, use `.deps/mcp-client-py312/bin/python` (project-local Python 3.12);
+its system Python 3.9 cannot install the MCP dependency. On the linux build host, use
 `.deps/mcp-client/bin/python`. Run from the remote repository root with
 `nice -n 10 <python> tests/mcp_client_tests.py <connector>`.
 The full suite includes both owned and attached workspaces, competing clients,
@@ -162,7 +168,7 @@ Never use Computer Use, desktop automation, or input injection for native QA wit
 
 `patchy.exe --stress-test[=quick|small|standard|huge] [--stress-report-dir <dir>]` builds the deterministic performance scene and exits. Reports default to `%APPDATA%\Patchy\stress-reports\`; read `stress-latest.json`. Use quick at 1024 px for iteration and standard at 4096 px for full-scale measurements. Meaningful timings require a real screen. See [performance.md](performance.md).
 
-`patchy.exe --headless ...` runs any of those modes with no display (Qt's offscreen platform). It never forwards to a running instance, so the exit code and the `--script-output` file belong to the run itself; prompts are suppressed and sound is muted. Prefer it for unattended `--run-script` runs from tooling and agents. Leave it off when a capture must show the real platform and its installed fonts (the offscreen platform sees only bundled fonts, plus, on Windows, families loaded on demand from the font registry).
+`patchy.exe --headless ...` runs any of those modes with no display (Qt's offscreen platform). It never forwards to a running instance, so the exit code and the `--script-output` file belong to the run itself; prompts are suppressed and sound is muted. Prefer it for unattended `--run-script` runs from tooling and agents. Leave it off when a capture must show the real platform and its installed fonts (the offscreen platform sees only bundled fonts; on Windows a headless run loads the installed fonts from the registry on the first text request instead).
 
 Useful diagnostic variables:
 
@@ -176,6 +182,7 @@ Useful diagnostic variables:
 - `PATCHY_PROCESSING_OVERLAY_MIN_PIXELS` overrides the processing-overlay threshold.
 - `PATCHY_NO_SOUND=1` suppresses script audio; offscreen suites rely on it.
 - `PATCHY_SETTINGS_DIR=<dir>` redirects the app's ini settings store (automation isolation).
+- `PATCHY_RECOVERY_DIR=<dir>` redirects the automatic document recovery store (the UI suite sets it to `test-artifacts/recovery`); `PATCHY_RECOVERY_INTERVAL_MS=<ms>` overrides the recovery timer interval. See [document-recovery.md](document-recovery.md).
 - `PATCHY_HEADLESS=1` marks a `--headless` app run (main.cpp sets it). Never set it for the suites: it re-enables the registry font rescue and makes layouts machine-dependent.
 - `QT_COMMAND_LINE_PARSER_NO_GUI_MESSAGE_BOXES=1` makes `patchy.exe --help` and command-line parse errors print to the redirected stdout/stderr instead of a modal Win32 message box (patchy.exe is a GUI-subsystem binary), which is what an automated `--help` check needs.
 - `PATCHY_UI_TEST_FILTER` selects a UI test substring.
@@ -188,3 +195,13 @@ Committed PSD corpus fixtures must decode; unreadable committed files fail the
 corpus test. Optional local files may still skip. The real-photo HEIC sweep skips
 only a recognized unavailable-codec/backend condition; decoding or assertion
 failures with an available decoder fail the test.
+
+## Scratch tools linking Patchy's release libs
+
+Scratch tools linking Patchy's release libs (e.g. flattening a PSD through the reader outside the test suite) compile with:
+
+```powershell
+cmd /s /c '<repo>\scripts\vs-env.bat -arch=x64 -host_arch=x64 >nul && cl /nologo /std:c++20 /EHsc /O2 /MD /I <repo>\src <tool>.cpp /link /LIBPATH:<repo>\build\release patchy_psd.lib patchy_render.lib patchy_core.lib patchy_color.lib patchy_filters.lib gdi32.lib user32.lib advapi32.lib dwrite.lib'
+```
+
+`/MD` is required to match the libs; `advapi32`/`dwrite` are needed by `psd_document_io`'s font-resolution code.

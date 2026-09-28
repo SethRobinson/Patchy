@@ -13,6 +13,7 @@
 #include "ui/image_sequence_dialog.hpp"
 #include "ui/main_window.hpp"
 #include "ui/qt_paths.hpp"
+#include "ui/script_engine.hpp"
 
 #include "core/document.hpp"
 #include "formats/bmp_document_io.hpp"
@@ -31,11 +32,15 @@
 #include <QColor>
 #include <QComboBox>
 #include <QDir>
+#include <QElapsedTimer>
+#include <QEventLoop>
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QImage>
 #include <QImageReader>
+#include <QJsonArray>
+#include <QJsonDocument>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMenu>
@@ -574,6 +579,59 @@ void ui_unicode_open_folder_reads_unicode_names() {
   CHECK(nfc(patchy::ui::MainWindowTestAccess::active_session_path(window)).contains(nfc(q(kUnicodeDirName))));
 }
 
+// Files as Layers reads files by path (the Import command and doc.importFilesAsLayers
+// share the core), so Unicode names must come back as layer names, not mojibake.
+void ui_unicode_files_as_layers_reads_unicode_names() {
+  const auto dir = unicode_dir(QStringLiteral("files-as-layers"));
+  QStringList paths;
+  QStringList stems;
+  for (int i = 0; i < 2; ++i) {
+    const auto stem = q(kUnicodePathStems[static_cast<std::size_t>(i)]);
+    const auto path = dir + QLatin1Char('/') + stem + QStringLiteral(".png");
+    QImage image(8 + i * 4, 6, QImage::Format_RGBA8888);
+    image.fill(QColor(10, 20, 30, 255));
+    CHECK(image.save(path));
+    paths.push_back(path);
+    stems.push_back(stem);
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto layers_before = std::as_const(document).layers().size();
+  patchy::ui::MainWindowTestAccess::import_files_as_layers_with_paths(window, paths);
+  QApplication::processEvents();
+  {
+    const auto& layers = std::as_const(document).layers();
+    CHECK(layers.size() == layers_before + 2);
+    CHECK(nfc(QString::fromStdString(layers[layers_before].name())) == nfc(stems[0]));
+    CHECK(nfc(QString::fromStdString(layers[layers_before + 1].name())) == nfc(stems[1]));
+  }
+
+  // The same paths through the script API (JSON-quoted, so the escapes round-trip).
+  const auto json = [](const QString& path) {
+    return QString::fromUtf8(QJsonDocument(QJsonArray{path}).toJson(QJsonDocument::Compact)).chopped(1).mid(1);
+  };
+  auto& host = window.script_engine_host();
+  patchy::ui::ScriptEngineHost::RunOptions options;
+  options.name = QStringLiteral("files-as-layers");
+  (void)host.run_source(QStringLiteral("app.activeDocument.importFilesAsLayers([%1, %2]);").arg(json(paths[0]), json(paths[1])),
+                        std::move(options));
+  QElapsedTimer timer;
+  timer.start();
+  while (host.run_active() && timer.elapsed() < 15000) {
+    QApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 20);
+  }
+  QApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 20);
+  CHECK(!host.run_active());
+  CHECK(!host.last_run_had_error());
+  const auto& layers = std::as_const(document).layers();
+  CHECK(layers.size() == layers_before + 4);
+  // Second copies collide with the first import's names, so they carry the copy suffix.
+  CHECK(nfc(QString::fromStdString(layers[layers_before + 2].name())) == nfc(stems[0] + QStringLiteral(" copy")));
+  CHECK(nfc(QString::fromStdString(layers[layers_before + 3].name())) == nfc(stems[1] + QStringLiteral(" copy")));
+}
+
 // File > Export Documents to Folder writes files, so it gets the standard coverage:
 // a Unicode folder AND a Unicode filename prefix, then one output reopened.
 void ui_unicode_export_documents_to_folder() {
@@ -644,6 +702,7 @@ std::vector<patchy::test::TestCase> unicode_path_tests() {
       {"ui_unicode_legacy_plugin_probe_from_unicode_dir", ui_unicode_legacy_plugin_probe_from_unicode_dir},
       {"ui_unicode_divide_photos_folder_save", ui_unicode_divide_photos_folder_save},
       {"ui_unicode_open_folder_reads_unicode_names", ui_unicode_open_folder_reads_unicode_names},
+      {"ui_unicode_files_as_layers_reads_unicode_names", ui_unicode_files_as_layers_reads_unicode_names},
       {"ui_unicode_export_documents_to_folder", ui_unicode_export_documents_to_folder},
       {"ui_save_as_aborts_when_the_owning_document_changes", ui_save_as_aborts_when_the_owning_document_changes},
   };

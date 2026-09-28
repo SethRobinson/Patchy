@@ -2438,10 +2438,6 @@
         <translation>初版 PSD 讀取器目前僅支援 8、16 和 32 位元檔案</translation>
     </message>
     <message>
-        <source>The starter PSD reader currently supports RGB and CMYK files only</source>
-        <translation>初版 PSD 讀取器目前僅支援 RGB 和 CMYK 檔案</translation>
-    </message>
-    <message>
         <source>PSD files cannot contain more than 56 channels</source>
         <translation>PSD 檔案不可包含超過 56 個色版</translation>
     </message>
@@ -7628,10 +7624,6 @@ RGB：%2, %3, %4</translation>
         <translation>版本 %1 (建置於 %2)</translation>
     </message>
     <message>
-        <source>Created by Seth A. Robinson</source>
-        <translation>由 Seth A. Robinson 製作</translation>
-    </message>
-    <message>
         <source>Code contributions from %1</source>
         <translation>程式碼貢獻者：%1</translation>
     </message>
@@ -8443,6 +8435,58 @@ RGB：%2, %3, %4</translation>
         <source>How much the long shadow fades out by its far end</source>
         <translation>長陰影向遠端淡出的程度</translation>
     </message>
+    <message>
+        <source>Change all four corner radii together</source>
+        <translation>同時變更四個角的圓角半徑</translation>
+    </message>
+    <message>
+        <source>Stroke Selection</source>
+        <translation>為選取範圍加上筆畫</translation>
+    </message>
+    <message>
+        <source>Stroke color</source>
+        <translation>筆畫顏色</translation>
+    </message>
+    <message>
+        <source>Choose the stroke color (starts from the foreground color)</source>
+        <translation>選擇筆畫顏色（從前景色開始）</translation>
+    </message>
+    <message>
+        <source>Stroke Color</source>
+        <translation>筆畫顏色</translation>
+    </message>
+    <message>
+        <source>User data folder (fonts, scripts):</source>
+        <translation>使用者資料夾 (字型、指令碼):</translation>
+    </message>
+    <message>
+        <source>Open Data Folder</source>
+        <translation>開啟使用者資料夾</translation>
+    </message>
+    <message>
+        <source>Could not open data folder.</source>
+        <translation>無法開啟使用者資料夾。</translation>
+    </message>
+    <message>
+        <source>Created by %1</source>
+        <translation>由 %1 製作</translation>
+    </message>
+    <message>
+        <source>Could not write PSD file</source>
+        <translation>無法寫入 PSD 檔案</translation>
+    </message>
+    <message>
+        <source>The starter PSD reader currently supports RGB, CMYK, and Grayscale files only</source>
+        <translation>初版 PSD 讀取器目前僅支援 RGB、CMYK 和灰階檔案</translation>
+    </message>
+    <message>
+        <source>Grayscale PSD file must contain at least 1 channel</source>
+        <translation>灰階 PSD 檔案必須至少包含 1 個色版</translation>
+    </message>
+    <message>
+        <source>The source color mode is Grayscale; Patchy converted the gray values to RGB/RGBA for editing and will export RGB PSD data from this document.</source>
+        <translation>來源色彩模式為灰階；Patchy 已將灰階值轉換為 RGB/RGBA 以供編輯，並將從此文件匯出 RGB 的 PSD 資料。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -8785,6 +8829,10 @@ RGB：%2, %3, %4</translation>
         <source>preview write</source>
         <translation>預視寫入</translation>
     </message>
+    <message>
+        <source>Square</source>
+        <translation>方形</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushDynamicsButton</name>
@@ -8799,6 +8847,10 @@ RGB：%2, %3, %4</translation>
     <message>
         <source>Brush dynamics and effects for the active brush tip</source>
         <translation>使用中筆刷筆尖的筆刷動態與效果</translation>
+    </message>
+    <message>
+        <source>Brush dynamics and effects for the Square brush (this session only; resets on the next launch)</source>
+        <translation>方形筆刷的筆刷動態與效果 (僅限本次工作階段,下次啟動時會重設)</translation>
     </message>
 </context>
 <context>
@@ -9888,6 +9940,42 @@ RGB：%2, %3, %4</translation>
         <source>Removing object... %1%</source>
         <translation>正在移除物件... %1%</translation>
     </message>
+    <message>
+        <source>Align Layers</source>
+        <translation>對齊圖層</translation>
+    </message>
+    <message>
+        <source>Distribute Layers</source>
+        <translation>分佈圖層</translation>
+    </message>
+    <message>
+        <source>Resize Selection</source>
+        <translation>調整選取範圍大小</translation>
+    </message>
+    <message>
+        <source>Removed object with content-aware fill, variation %1 (%2 patches)</source>
+        <translation>已使用內容感知填色移除物件,變化 %1 (%2 個修補片)</translation>
+    </message>
+    <message>
+        <source>Remove Object was cancelled</source>
+        <translation>移除物件已取消</translation>
+    </message>
+    <message>
+        <source>Guide X: %1</source>
+        <translation>參考線 X: %1</translation>
+    </message>
+    <message>
+        <source>Guide Y: %1</source>
+        <translation>參考線 Y: %1</translation>
+    </message>
+    <message>
+        <source>X: %1</source>
+        <translation>X: %1</translation>
+    </message>
+    <message>
+        <source>Y: %1</source>
+        <translation>Y: %1</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -10423,10 +10511,6 @@ RGB：%2, %3, %4</translation>
     <message>
         <source>Load Layer &amp;Transparency</source>
         <translation>載入圖層透明度(&amp;T)</translation>
-    </message>
-    <message>
-        <source>&amp;Stroke Selection</source>
-        <translation>為選取範圍加上筆畫(&amp;S)</translation>
     </message>
     <message>
         <source>Define Brush Tip from Selection</source>
@@ -17140,10 +17224,6 @@ Y：%2
         <translation>軸心:</translation>
     </message>
     <message>
-        <source>Remove &amp;Object</source>
-        <translation>移除物件(&amp;O)</translation>
-    </message>
-    <message>
         <source>Remove Object</source>
         <translation>移除物件</translation>
     </message>
@@ -17154,6 +17234,444 @@ Y：%2
     <message>
         <source>Fill the selection from its surroundings with the content-aware search (Enter)</source>
         <translation>使用內容感知搜尋以周圍內容填滿選取範圍 (Enter)</translation>
+    </message>
+    <message>
+        <source>&amp;Align</source>
+        <translation>對齊(&amp;A)</translation>
+    </message>
+    <message>
+        <source>&amp;Distribute</source>
+        <translation>分佈(&amp;D)</translation>
+    </message>
+    <message>
+        <source>Snap</source>
+        <translation>靠齊</translation>
+    </message>
+    <message>
+        <source>Align &amp;Left Edges</source>
+        <translation>左邊緣對齊(&amp;L)</translation>
+    </message>
+    <message>
+        <source>Align &amp;Horizontal Centers</source>
+        <translation>水平居中對齊(&amp;H)</translation>
+    </message>
+    <message>
+        <source>Align &amp;Right Edges</source>
+        <translation>右邊緣對齊(&amp;R)</translation>
+    </message>
+    <message>
+        <source>Align &amp;Top Edges</source>
+        <translation>頂邊緣對齊(&amp;T)</translation>
+    </message>
+    <message>
+        <source>Align &amp;Vertical Centers</source>
+        <translation>垂直居中對齊(&amp;V)</translation>
+    </message>
+    <message>
+        <source>Align &amp;Bottom Edges</source>
+        <translation>底邊緣對齊(&amp;B)</translation>
+    </message>
+    <message>
+        <source>Align To: &amp;Selection</source>
+        <translation>對齊至: 選取範圍(&amp;S)</translation>
+    </message>
+    <message>
+        <source>Align To: &amp;Canvas</source>
+        <translation>對齊至: 版面(&amp;C)</translation>
+    </message>
+    <message>
+        <source>Distribute &amp;Left Edges</source>
+        <translation>依左邊緣分佈(&amp;L)</translation>
+    </message>
+    <message>
+        <source>Distribute &amp;Horizontal Centers</source>
+        <translation>依水平中心分佈(&amp;H)</translation>
+    </message>
+    <message>
+        <source>Distribute &amp;Right Edges</source>
+        <translation>依右邊緣分佈(&amp;R)</translation>
+    </message>
+    <message>
+        <source>Distribute &amp;Top Edges</source>
+        <translation>依頂邊緣分佈(&amp;T)</translation>
+    </message>
+    <message>
+        <source>Distribute &amp;Vertical Centers</source>
+        <translation>依垂直中心分佈(&amp;V)</translation>
+    </message>
+    <message>
+        <source>Distribute &amp;Bottom Edges</source>
+        <translation>依底邊緣分佈(&amp;B)</translation>
+    </message>
+    <message>
+        <source>Distribute Horizontal &amp;Spacing</source>
+        <translation>水平間距分佈(&amp;S)</translation>
+    </message>
+    <message>
+        <source>Distribute Vertical S&amp;pacing</source>
+        <translation>垂直間距分佈(&amp;P)</translation>
+    </message>
+    <message>
+        <source>Snap moved layers to other layers, guides, the grid, and the canvas (View &gt; Snap). Choose the targets under View &gt; Snap To.</source>
+        <translation>將移動的圖層靠齊至其他圖層、參考線、格點和版面 (檢視 &gt; 靠齊)。在 檢視 &gt; 靠齊至 中選擇目標。</translation>
+    </message>
+    <message>
+        <source>Distribute layers and choose what to align to</source>
+        <translation>分佈圖層並選擇對齊目標</translation>
+    </message>
+    <message>
+        <source>Finish the current drag before aligning layers</source>
+        <translation>請先完成目前的拖曳，再對齊圖層</translation>
+    </message>
+    <message>
+        <source>Return to the layer view to align layers</source>
+        <translation>請返回圖層檢視以對齊圖層</translation>
+    </message>
+    <message>
+        <source>Select a movable layer to align</source>
+        <translation>請選擇一個可移動的圖層進行對齊</translation>
+    </message>
+    <message>
+        <source>The selected layers are already aligned</source>
+        <translation>所選圖層已對齊</translation>
+    </message>
+    <message numerus="yes">
+        <source>Aligned %n layer(s)</source>
+        <translation>
+            <numerusform>已對齊 %n 個圖層</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Select at least three layers to distribute</source>
+        <translation>請至少選擇三個圖層進行分佈</translation>
+    </message>
+    <message>
+        <source>The selected layers are already distributed</source>
+        <translation>所選圖層已分佈</translation>
+    </message>
+    <message numerus="yes">
+        <source>Distributed %n layer(s)</source>
+        <translation>
+            <numerusform>已分佈 %n 個圖層</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Rectangular Marquee: drag to select. Drag a handle to resize the selection, or drag inside it to move it.</source>
+        <translation>矩形選取畫面:拖曳以選取。拖曳控制點可調整選取範圍大小，在選取範圍內拖曳可移動它。</translation>
+    </message>
+    <message>
+        <source>Elliptical Marquee: drag to select. Drag a handle to resize the selection, or drag inside it to move it.</source>
+        <translation>橢圓選取畫面:拖曳以選取。拖曳控制點可調整選取範圍大小，在選取範圍內拖曳可移動它。</translation>
+    </message>
+    <message>
+        <source>Snap transforms to the pixel grid</source>
+        <translation>將變形對齊至像素格線</translation>
+    </message>
+    <message>
+        <source>Positions and sizes typed into the Free Transform bar land on whole pixels, like Photoshop&apos;s &quot;Snap Vector Tools and Transforms to Pixel Grid&quot;. Rotated transforms are not snapped. When off, a typed fraction such as 3.4 px is kept and the pixels are resampled.</source>
+        <translation>在任意變形列中輸入的位置與大小會落在整數像素上，與 Photoshop 的「將向量工具和變形對齊至像素格線」相同。旋轉的變形不會對齊。關閉時，輸入的小數（例如 3.4 px）會保留，並重新取樣像素。</translation>
+    </message>
+    <message>
+        <source>&amp;Stroke Selection...</source>
+        <translation>為選取範圍加上筆畫(&amp;S)...</translation>
+    </message>
+    <message>
+        <source>Nothing to stroke</source>
+        <translation>沒有可加上筆畫的內容</translation>
+    </message>
+    <message>
+        <source>Brush tip: Square</source>
+        <translation>筆尖：方形</translation>
+    </message>
+    <message>
+        <source>Remove &amp;Object...</source>
+        <translation>移除物件(&amp;O)...</translation>
+    </message>
+    <message>
+        <source>Remove Object needs a selection: select the area to remove first</source>
+        <translation>移除物件需要選取範圍:請先選取要移除的區域</translation>
+    </message>
+    <message>
+        <source>Tone match</source>
+        <translation>色調匹配</translation>
+    </message>
+    <message>
+        <source>How strongly the fill&apos;s brightness is smoothed to its own edges (0 keeps the raw fill)</source>
+        <translation>填色亮度向自身邊緣平滑的強度 (0 保留原始填色)</translation>
+    </message>
+    <message>
+        <source>Edge feather</source>
+        <translation>邊緣羽化</translation>
+    </message>
+    <message>
+        <source> px</source>
+        <translation> px</translation>
+    </message>
+    <message>
+        <source>Reroll</source>
+        <translation>重新產生</translation>
+    </message>
+    <message>
+        <source>Fill again with the next variation</source>
+        <translation>使用下一個變化重新填色</translation>
+    </message>
+    <message>
+        <source>Variation %1</source>
+        <translation>變化 %1</translation>
+    </message>
+    <message>
+        <source>Content-aware fill (%1 patches)</source>
+        <translation>內容感知填色 (%1 個修補片)</translation>
+    </message>
+    <message>
+        <source>No clean source patches nearby; used the nearest edge (source %1 of %2)</source>
+        <translation>附近沒有乾淨的來源修補片,已改用最近邊緣 (來源 %1/%2)</translation>
+    </message>
+    <message>
+        <source>Cancelled Remove Object</source>
+        <translation>已取消移除物件</translation>
+    </message>
+    <message>
+        <source>Removed object with content-aware fill, variation %1 (%2 patches)</source>
+        <translation>已使用內容感知填色移除物件,變化 %1 (%2 個修補片)</translation>
+    </message>
+    <message>
+        <source>Removed object with the nearest edge (source %1 of %2)</source>
+        <translation>已使用最近邊緣移除物件 (來源 %1/%2)</translation>
+    </message>
+    <message>
+        <source>Softens the fill&apos;s edge outward from the selection, on top of its own feather. The filled area grows by the feather, so keep it small when the selection hugs an edge</source>
+        <translation>在選取範圍自身羽化之外,向外柔化填色邊緣。填色範圍會隨羽化擴大,選取範圍緊貼邊緣時請保持較小</translation>
+    </message>
+    <message>
+        <source>Duplicate to New Layer</source>
+        <translation>複製到新圖層</translation>
+    </message>
+    <message>
+        <source>Copies this variation&apos;s filled area onto a new hidden layer above this one, so several variations can be kept and compared</source>
+        <translation>將此變化的填色範圍複製到上方的新隱藏圖層,以便保留並比較多個變化</translation>
+    </message>
+    <message>
+        <source>Filling...</source>
+        <translation>正在填色...</translation>
+    </message>
+    <message>
+        <source>Filling... %1%</source>
+        <translation>正在填色... %1%</translation>
+    </message>
+    <message>
+        <source>Duplicate Remove Object variation to layer</source>
+        <translation>將移除物件變化複製到圖層</translation>
+    </message>
+    <message>
+        <source>Remove Object variation %1</source>
+        <translation>移除物件變化 %1</translation>
+    </message>
+    <message>
+        <source>Copied variation %1 to the hidden layer &quot;%2&quot;</source>
+        <translation>已將變化 %1 複製到隱藏圖層「%2」</translation>
+    </message>
+    <message>
+        <source>&amp;Files as Layers...</source>
+        <translation>檔案轉為圖層(&amp;F)...</translation>
+    </message>
+    <message>
+        <source>the file holds no layers</source>
+        <translation>檔案不包含圖層</translation>
+    </message>
+    <message>
+        <source>Folder</source>
+        <translation>檔案夾</translation>
+    </message>
+    <message>
+        <source>None of the files could be added as layers</source>
+        <translation>沒有檔案能作為圖層加入</translation>
+    </message>
+    <message>
+        <source>The drop target is no longer in the document</source>
+        <translation>放置目標已不在文件中</translation>
+    </message>
+    <message>
+        <source>Add files as layers</source>
+        <translation>將檔案加入為圖層</translation>
+    </message>
+    <message>
+        <source>These files could not be added as layers:
+
+%1</source>
+        <translation>這些檔案無法作為圖層加入：
+
+%1</translation>
+    </message>
+    <message numerus="yes">
+        <source>Added %n layer(s)</source>
+        <translation>
+            <numerusform>已加入 %n 個圖層</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Files as Layers</source>
+        <translation>檔案轉為圖層</translation>
+    </message>
+    <message>
+        <source>The document is no longer open.</source>
+        <translation>文件已不再開啟。</translation>
+    </message>
+    <message>
+        <source>Adding file %1 of %2...</source>
+        <translation>正在加入檔案 %1 / %2...</translation>
+    </message>
+    <message>
+        <source>Cancelled adding files as layers</source>
+        <translation>已取消將檔案加入為圖層</translation>
+    </message>
+    <message>
+        <source>Recover</source>
+        <translation>復原</translation>
+    </message>
+    <message>
+        <source>Automatically save recovery information every</source>
+        <translation>自動儲存復原資訊，間隔</translation>
+    </message>
+    <message>
+        <source>Writes a copy of each changed document to a recovery folder so it can be reopened after a crash. The file you saved is never touched, and the copies are removed when Patchy quits normally.</source>
+        <translation>將每個已變更文件的副本寫入復原資料夾，以便在當機後重新開啟。您儲存的檔案絕不會被更動，Patchy 正常結束時會刪除這些副本。</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n minute(s)</source>
+        <translation>
+            <numerusform>%n 分鐘</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Could not save recovery information: %1</source>
+        <translation>無法儲存復原資訊：%1</translation>
+    </message>
+    <message>
+        <source>%1 (Recovered)</source>
+        <translation>%1（已復原）</translation>
+    </message>
+    <message numerus="yes">
+        <source>Recovered %n unsaved document(s) from the last session</source>
+        <translation>
+            <numerusform>已從上次工作階段復原 %n 個未儲存的文件</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n recovery file(s) could not be opened; see %1</source>
+        <translation>
+            <numerusform>%n 個復原檔案無法開啟；請查看 %1</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>How far a pixel&apos;s color may differ from the clicked color and still be filled</source>
+        <translation>像素顏色與點按顏色相差多少仍會被填滿</translation>
+    </message>
+    <message>
+        <source>Limit the fill to pixels connected to the click</source>
+        <translation>將填滿限制在與點按位置相連的像素</translation>
+    </message>
+    <message>
+        <source>Paragraph</source>
+        <translation>段落</translation>
+    </message>
+    <message>
+        <source>Justify (last line left)</source>
+        <translation>左右對齊 (末行靠左)</translation>
+    </message>
+    <message>
+        <source>Paragraph alignment; Justify spreads every line but the last across the box</source>
+        <translation>段落對齊方式；左右對齊會將除末行外的每一行填滿文字框</translation>
+    </message>
+    <message>
+        <source>Alignment:</source>
+        <translation>對齊:</translation>
+    </message>
+    <message>
+        <source>First line indent:</source>
+        <translation>首行縮排:</translation>
+    </message>
+    <message>
+        <source>Indent of each paragraph&apos;s first line; negative with a left indent makes a hanging indent</source>
+        <translation>每個段落首行的縮排；搭配左縮排使用負值可形成凸排</translation>
+    </message>
+    <message>
+        <source>Left indent:</source>
+        <translation>左縮排:</translation>
+    </message>
+    <message>
+        <source>Space between the box edge and every line&apos;s start</source>
+        <translation>文字框邊緣與每行起始位置之間的間距</translation>
+    </message>
+    <message>
+        <source>Right indent:</source>
+        <translation>右縮排:</translation>
+    </message>
+    <message>
+        <source>Space between every line&apos;s end and the box edge</source>
+        <translation>每行結尾與文字框邊緣之間的間距</translation>
+    </message>
+    <message>
+        <source>Space before:</source>
+        <translation>段前間距:</translation>
+    </message>
+    <message>
+        <source>Extra space above each paragraph</source>
+        <translation>每個段落上方的額外間距</translation>
+    </message>
+    <message>
+        <source>Space after:</source>
+        <translation>段後間距:</translation>
+    </message>
+    <message>
+        <source>Extra space below each paragraph</source>
+        <translation>每個段落下方的額外間距</translation>
+    </message>
+    <message>
+        <source>Paragraph...</source>
+        <translation>段落...</translation>
+    </message>
+    <message>
+        <source>Paragraph panel (alignment, indents, spacing)</source>
+        <translation>段落面板 (對齊、縮排、間距)</translation>
+    </message>
+    <message>
+        <source>Convert to Layers</source>
+        <translation>轉換為圖層</translation>
+    </message>
+    <message>
+        <source>Replace the smart object with a folder holding the layers of its contents</source>
+        <translation>以包含其內容圖層的檔案夾取代智慧型物件</translation>
+    </message>
+    <message>
+        <source>Embed the linked Smart Object before converting it to layers</source>
+        <translation>請先嵌入連結的智慧型物件，再將其轉換為圖層</translation>
+    </message>
+    <message>
+        <source>Delete the Smart Filters before converting this Smart Object to layers</source>
+        <translation>請先刪除智慧型濾鏡，再將這個智慧型物件轉換為圖層</translation>
+    </message>
+    <message>
+        <source>A warped or perspective Smart Object can&apos;t be converted to layers; rasterize it instead</source>
+        <translation>彎曲或透視的智慧型物件無法轉換為圖層；請改為點陣化</translation>
+    </message>
+    <message>
+        <source>The smart object&apos;s contents have no layers to convert</source>
+        <translation>智慧型物件的內容中沒有可轉換的圖層</translation>
+    </message>
+    <message>
+        <source>The contents contain Smart Filters, which can&apos;t be moved out of the Smart Object yet</source>
+        <translation>內容中包含智慧型濾鏡，目前還無法將其移出智慧型物件</translation>
+    </message>
+    <message>
+        <source>Could not convert the smart object to layers</source>
+        <translation>無法將智慧型物件轉換為圖層</translation>
+    </message>
+    <message numerus="yes">
+        <source>Converted the smart object to %n layer(s)</source>
+        <translation>
+            <numerusform>已將智慧型物件轉換為 %n 個圖層</numerusform>
+        </translation>
     </message>
 </context>
 <context>
@@ -18433,6 +18951,106 @@ Y：%2
         <source>removeObject: method must be contentAware or nearestEdge.</source>
         <translation>removeObject：method 必須是 contentAware 或 nearestEdge。</translation>
     </message>
+    <message>
+        <source>%1: options must be an object.</source>
+        <translation>%1: options 必須是一個物件。</translation>
+    </message>
+    <message>
+        <source>%1: layers must be a nonempty array of layers of this document.</source>
+        <translation>%1: layers 必須是此文件圖層的非空陣列。</translation>
+    </message>
+    <message>
+        <source>%1: alignTo must be &quot;selection&quot; or &quot;canvas&quot;.</source>
+        <translation>%1: alignTo 必須為 &quot;selection&quot; 或 &quot;canvas&quot;。</translation>
+    </message>
+    <message>
+        <source>%1: unknown option %2.</source>
+        <translation>%1: 未知選項 %2。</translation>
+    </message>
+    <message>
+        <source>alignLayers: unknown edge %1 (left, hcenter, right, top, vcenter, bottom)</source>
+        <translation>alignLayers: 未知邊緣 %1 (left, hcenter, right, top, vcenter, bottom)</translation>
+    </message>
+    <message>
+        <source>distributeLayers: unknown mode %1 (left, hcenter, right, top, vcenter, bottom, hspacing, vspacing)</source>
+        <translation>distributeLayers: 未知模式 %1 (left, hcenter, right, top, vcenter, bottom, hspacing, vspacing)</translation>
+    </message>
+    <message>
+        <source>%1 needs layers of this document.</source>
+        <translation>%1 需要此文件的圖層。</translation>
+    </message>
+    <message>
+        <source>%1: finish the pending transform first.</source>
+        <translation>%1: 請先完成待處理的變形。</translation>
+    </message>
+    <message>
+        <source>alignLayers needs at least one movable layer.</source>
+        <translation>alignLayers 需要至少一個可移動的圖層。</translation>
+    </message>
+    <message>
+        <source>distributeLayers needs at least three movable layers.</source>
+        <translation>distributeLayers 需要至少三個可移動的圖層。</translation>
+    </message>
+    <message>
+        <source>importFilesAsLayers needs a file path or a non-empty array of paths.</source>
+        <translation>importFilesAsLayers 需要一個檔案路徑或非空的路徑陣列。</translation>
+    </message>
+    <message>
+        <source>No layers were added.</source>
+        <translation>未加入任何圖層。</translation>
+    </message>
+    <message>
+        <source>intervalMinutes must be 5, 10, 15, 30, or 60</source>
+        <translation>intervalMinutes 必須為 5、10、15、30 或 60</translation>
+    </message>
+    <message>
+        <source>addTextLayer: font not available, rendered with a fallback: %1</source>
+        <translation>addTextLayer：字型無法使用，已改用替代字型轉譯：%1</translation>
+    </message>
+    <message>
+        <source>textAlign must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos; or &apos;justify&apos;.</source>
+        <translation>textAlign 必須是 &apos;left&apos;、&apos;center&apos;、&apos;right&apos; 或 &apos;justify&apos;。</translation>
+    </message>
+    <message>
+        <source>%1: runs must be an array of {text, font, size, bold, italic, color} objects.</source>
+        <translation>%1：runs 必須是 {text, font, size, bold, italic, color} 物件組成的陣列。</translation>
+    </message>
+    <message>
+        <source>%1: run %2 needs a text string.</source>
+        <translation>%1：第 %2 段需要一個 text 字串。</translation>
+    </message>
+    <message>
+        <source>%1: run %2 has a non-positive size.</source>
+        <translation>%1：第 %2 段的 size 不是正數。</translation>
+    </message>
+    <message>
+        <source>%1: run %2 must be a string or an object.</source>
+        <translation>%1：第 %2 段必須是字串或物件。</translation>
+    </message>
+    <message>
+        <source>%1: runs must not be empty.</source>
+        <translation>%1：runs 不能為空。</translation>
+    </message>
+    <message>
+        <source>addTextLayer: text must be a string or an array of runs.</source>
+        <translation>addTextLayer：text 必須是字串或由文字段組成的陣列。</translation>
+    </message>
+    <message>
+        <source>box must be {width, height} of at least 16 document pixels each.</source>
+        <translation>box 必須是 {width, height}，且各不少於 16 個文件像素。</translation>
+    </message>
+    <message>
+        <source>align must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos; or &apos;justify&apos;.</source>
+        <translation>align 必須是 &apos;left&apos;、&apos;center&apos;、&apos;right&apos; 或 &apos;justify&apos;。</translation>
+    </message>
+    <message>
+        <source>%1: paragraph must be an object with firstLineIndent, startIndent, endIndent, spaceBefore and spaceAfter numbers (document pixels).</source>
+        <translation>%1: paragraph 必須是包含 firstLineIndent、startIndent、endIndent、spaceBefore 和 spaceAfter 數值的物件（文件像素）。</translation>
+    </message>
+    <message>
+        <source>%1: paragraph.%2 must be a number (document pixels).</source>
+        <translation>%1: paragraph.%2 必須是數值（文件像素）。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::StartPanel</name>
@@ -18485,10 +19103,6 @@ Y：%2
         <translation>版本 %1 (建置於 %2)</translation>
     </message>
     <message>
-        <source>Created by Seth A. Robinson</source>
-        <translation>由 Seth A. Robinson 製作</translation>
-    </message>
-    <message>
         <source>Code contributions from %1</source>
         <translation>程式碼貢獻者：%1</translation>
     </message>
@@ -18503,6 +19117,10 @@ Y：%2
     <message>
         <source>No matching recent files</source>
         <translation>沒有相符的最近使用檔案</translation>
+    </message>
+    <message>
+        <source>Created by %1</source>
+        <translation>由 %1 製作</translation>
     </message>
 </context>
 <context>

@@ -163,7 +163,11 @@ int main(int argc, char* argv[]) {
     abort();
   });
 #endif
-  qputenv("QT_QPA_PLATFORM", QByteArray("offscreen"));
+  // PATCHY_UI_TEST_PLATFORM=<qpa plugin> runs the suite on a real platform (cocoa, windows,
+  // xcb) instead of offscreen: the way to reach native menubar and window-activation code
+  // (GitHub issue 29). Screens and fonts then differ, so run a filter, not the whole suite.
+  const QByteArray native_platform = qgetenv("PATCHY_UI_TEST_PLATFORM");
+  qputenv("QT_QPA_PLATFORM", native_platform.isEmpty() ? QByteArray("offscreen") : native_platform);
   QApplication app(argc, argv);
   // Child mode for ui_bundled_web_fonts_register_and_create_engines: register and
   // validate the bundled web-font inventory without polluting the parent suite's
@@ -181,6 +185,11 @@ int main(int argc, char* argv[]) {
   const auto test_settings_path = QDir::current().filePath(QStringLiteral("test-artifacts/settings"));
   CHECK(QDir().mkpath(test_settings_path));
   QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, test_settings_path);
+  // Every test window owns a recovery instance folder; keep them out of the real
+  // per-user AutoRecover store (a test window is never a crashed user session).
+  if (qEnvironmentVariableIsEmpty("PATCHY_RECOVERY_DIR")) {
+    qputenv("PATCHY_RECOVERY_DIR", QDir::current().filePath(QStringLiteral("test-artifacts/recovery")).toUtf8());
+  }
   {
     auto settings = patchy::ui::app_settings();
     settings.remove(QStringLiteral("tools"));
@@ -220,6 +229,7 @@ int main(int argc, char* argv[]) {
            brush_pattern_palette_tests,
            layer_panel_organization_tests,
            move_tool_processing_overlay_tests,
+           alignment_tests,
            selection_marquee_lasso_tests,
            crop_tool_tests,
            unit_spin_box_tests,
@@ -254,6 +264,7 @@ int main(int argc, char* argv[]) {
            svg_ui_tests,
            image_trace_ui_tests,
            scripting_tests,
+           document_recovery_tests,
            mcp_tests,
            unicode_path_tests,
            history_panel_tests,

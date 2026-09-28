@@ -541,6 +541,10 @@ void MainWindow::refresh_vector_tool_options_visibility() {
     update_vector_swatch_icons();
     return;
   }
+  if (current_tool_ == CanvasTool::Move) {
+    sync_vector_shape_size_spins();
+    return;
+  }
   if (!shape_tool) {
     return;  // per-tool visibility already hid every mode-specific widget
   }
@@ -1522,6 +1526,10 @@ patchy::Layer* MainWindow::editable_active_vector_shape_layer() {
   return layer;
 }
 
+bool MainWindow::vector_shape_size_controls_live() {
+  return editable_active_vector_shape_layer() != nullptr;
+}
+
 bool MainWindow::vector_appearance_controls_live() const {
   if (current_tool_ == CanvasTool::PathSelect || current_tool_ == CanvasTool::DirectSelect) {
     return true;
@@ -1642,9 +1650,12 @@ MainWindow::VectorOptionModeRules MainWindow::vector_option_mode_rules() {
                           current_tool_ == CanvasTool::CustomShape;
   rules.select_tool = current_tool_ == CanvasTool::PathSelect ||
                       current_tool_ == CanvasTool::DirectSelect;
-  rules.refine = shape_tool || rules.select_tool;
-  if (rules.select_tool) {
-    rules.live_shape = editable_active_vector_shape_layer() != nullptr;
+  rules.live_shape = editable_active_vector_shape_layer() != nullptr;
+  // Move exposes only the active shape's W/H readouts. The appearance controls
+  // remain scoped to shape and path tools, but size editing follows the selected
+  // shape layer just like the Properties panel does.
+  rules.refine = shape_tool || rules.select_tool || current_tool_ == CanvasTool::Move;
+  if (rules.select_tool || current_tool_ == CanvasTool::Move) {
     return rules;
   }
   // Pen/Polygon/Custom Shape never rasterize: a persisted Pixels mode behaves
@@ -1670,6 +1681,16 @@ bool MainWindow::vector_option_widget_visible(const VectorOptionModeRules& rules
   const auto in = [widget](const std::vector<QWidget*>& widgets) {
     return std::find(widgets.begin(), widgets.end(), widget) != widgets.end();
   };
+  if (in(vector_shape_size_option_widgets_)) {
+    // The W / H readouts: Shape mode keeps them as a disabled readout before
+    // the first shape exists (Path and Pixels modes have no shape layer to
+    // size, and Pixels already shows the fixed-size Width / Height row); Move
+    // and the path selection tools show them only with an editable shape layer.
+    if (rules.select_tool || current_tool_ == CanvasTool::Move) {
+      return rules.live_shape;
+    }
+    return rules.shape_mode;
+  }
   if (rules.select_tool) {
     // Appearance controls only while an editable shape layer is active; the
     // Combine combo keeps its per-tool visibility for plain path selections.
@@ -1696,33 +1717,82 @@ void MainWindow::sync_vector_shape_size_spins() {
     return;
   }
   std::optional<VectorPathBounds> bounds;
-  if (vector_appearance_controls_live()) {
-    if (const auto* layer = editable_active_vector_shape_layer(); layer != nullptr) {
-      if (const auto* content = std::as_const(*layer).vector_shape(); content != nullptr) {
-        bounds = content->path.bounds();
-      }
+  if (const auto* layer = editable_active_vector_shape_layer(); layer != nullptr) {
+    if (const auto* content = std::as_const(*layer).vector_shape(); content != nullptr) {
+      bounds = content->path.bounds();
     }
   }
   const bool live = bounds.has_value();
   const double width = live ? bounds->right - bounds->left : 0.0;
   const double height = live ? bounds->bottom - bounds->top : 0.0;
-  for (auto* spin : {vector_shape_width_spin_, vector_shape_height_spin_}) {
+  for (auto* spin : {vector_shape_width_spin_, vector_shape_height_spin_,
+                     properties_shape_width_spin_, properties_shape_height_spin_}) {
+    if (spin == nullptr) {
+      continue;
+    }
     QSignalBlocker blocker(spin);
-    spin->setValue(spin == vector_shape_width_spin_ ? width : height);
+    spin->setValue(spin == vector_shape_width_spin_ || spin == properties_shape_width_spin_ ? width : height);
     spin->setEnabled(live);
   }
-  if (vector_shape_link_size_button_ != nullptr) {
-    vector_shape_link_size_button_->setEnabled(live);
+  const bool linked = vector_shape_link_size_button_ != nullptr && vector_shape_link_size_button_->isChecked();
+  for (auto* link_button : {vector_shape_link_size_button_, properties_shape_link_size_button_}) {
+    if (link_button == nullptr) {
+      continue;
+    }
+    QSignalBlocker blocker(link_button);
+    link_button->setChecked(linked);
+    link_button->setEnabled(live);
   }
   if (vector_appearance_button_ != nullptr) {
-    vector_appearance_button_->setEnabled(live);
+    vector_appearance_button_->setEnabled(live && vector_appearance_controls_live());
+  }
+  if (properties_shape_size_panel_ != nullptr) {
+    properties_shape_size_panel_->setVisible(live);
+    properties_shape_size_panel_->setEnabled(live);
   }
   vector_shape_size_ratio_ = live && height > 1e-9 ? width / height : 1.0;
 }
 
+void MainWindow::handle_vector_shape_size_value_changed(bool width_changed, double value) {
+  if (vector_shape_width_spin_ == nullptr || vector_shape_height_spin_ == nullptr) {
+    return;
+  }
+  const bool linked = (vector_shape_link_size_button_ != nullptr && vector_shape_link_size_button_->isChecked()) ||
+                      (properties_shape_link_size_button_ != nullptr &&
+                       properties_shape_link_size_button_->isChecked());
+  double width = width_changed ? value : vector_shape_width_spin_->value();
+  double height = width_changed ? vector_shape_height_spin_->value() : value;
+  if (linked && vector_shape_size_ratio_ > 0.0) {
+    if (width_changed) {
+      height = value / vector_shape_size_ratio_;
+    } else {
+      width = value * vector_shape_size_ratio_;
+    }
+  }
+  const QSignalBlocker width_blocker(vector_shape_width_spin_);
+  const QSignalBlocker height_blocker(vector_shape_height_spin_);
+  const std::optional<QSignalBlocker> properties_width_blocker =
+      properties_shape_width_spin_ != nullptr
+          ? std::optional<QSignalBlocker>(std::in_place, properties_shape_width_spin_)
+          : std::nullopt;
+  const std::optional<QSignalBlocker> properties_height_blocker =
+      properties_shape_height_spin_ != nullptr
+          ? std::optional<QSignalBlocker>(std::in_place, properties_shape_height_spin_)
+          : std::nullopt;
+  vector_shape_width_spin_->setValue(width);
+  vector_shape_height_spin_->setValue(height);
+  if (properties_shape_width_spin_ != nullptr) {
+    properties_shape_width_spin_->setValue(width);
+  }
+  if (properties_shape_height_spin_ != nullptr) {
+    properties_shape_height_spin_->setValue(height);
+  }
+  schedule_vector_shape_size_apply();
+}
+
 bool MainWindow::apply_options_bar_size_to_active_shape() {
   if (canvas_ == nullptr || vector_shape_width_spin_ == nullptr ||
-      vector_shape_height_spin_ == nullptr || !vector_appearance_controls_live()) {
+      vector_shape_height_spin_ == nullptr || !vector_shape_size_controls_live()) {
     return false;
   }
   auto* layer = editable_active_vector_shape_layer();
@@ -1774,7 +1844,7 @@ bool MainWindow::apply_options_bar_size_to_active_shape() {
 }
 
 void MainWindow::schedule_vector_shape_size_apply() {
-  if (!vector_appearance_controls_live() || editable_active_vector_shape_layer() == nullptr) {
+  if (!vector_shape_size_controls_live()) {
     return;
   }
   if (vector_shape_size_apply_timer_ == nullptr) {

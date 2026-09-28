@@ -213,6 +213,11 @@ constexpr auto kTextEditorFinishedProperty = "patchy.textEditorFinished";
 // panel uses it for the missing-font badge and the Type tool for its substitution warning.
 [[nodiscard]] QStringList missing_text_families_for_layer(const Layer& layer);
 
+// Windows --headless runs see no system fonts until this loads them from the registry (once per
+// process; false when nothing new was loaded, including on every other platform). The text
+// engine calls it on the first unresolved family; app.listFonts() calls it up front.
+bool ensure_headless_system_fonts_loaded();
+
 
 // Layer-list row styling and edit-target highlighting, shared by the
 // layer-panel TU and the document/session code that stayed in main_window.cpp.
@@ -262,6 +267,12 @@ std::optional<Layer> clone_layer_tree_with_document_ids(
 // main_window_layer_ops.cpp and the text-editor preview plumbing in
 // main_window.cpp.
 void insert_layer_after_anchor(Document& document, Layer layer, std::optional<LayerId> anchor_id);
+
+// Re-rasterizes a text layer through its stored (already composed) transform; false
+// keeps the caller's raster (missing font, imported warped text). Defined in
+// main_window.cpp; shared by the free-transform commit callback, Image Size, and
+// Convert to Layers.
+bool rerender_text_layer_through_stored_transform(Layer& layer);
 
 // Photoshop-style "<name> copy" / "<name> copy N" naming (an existing
 // " copy"/" copy N" stem is stripped first so "X copy" duplicates to

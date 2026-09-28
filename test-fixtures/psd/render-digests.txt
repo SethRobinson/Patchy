@@ -1,4 +1,6 @@
 4c6e0fcdb5d7cbaa 0cc0c4c365647c1c arrows.psd
+f0e4b6fa1a4a423f 7b0b17b25ffc630d patchy-compound-group.psd
+284d06ae2c65ce6d 82b3b2f76a478139 patchy-gradient-empty-transparency.psd
 d9abf014b16ca2f3 d416c48ba5c4bc3d patchy-open-path-strokes.psd
 2b395ed4c9c29125 db597474773a16b5 photoshop-bevel-default.psd
 d7827ce82dff1295 4f9d639a6c4e7af3 photoshop-bevel-gloss.psd
@@ -16,6 +18,7 @@ dbe44fcc955c8025 241f758e61704165 photoshop-channel-restrictions.psd
 f980a29156bff7cf 5eb6a1308b31a4eb photoshop-cmyk-style-colors.psd
 cf8b789d734b2b2d 3a35db9013be5915 photoshop-color-balance-full.psd
 cf8b789d734b2b2d 3a35db9013be5915 photoshop-color-balance.psd
+432be6fb3533c8d8 c6dfa66168a0e490 photoshop-compound-text.psd
 9566d90f9991a025 48484118f51d9c65 photoshop-curves-clipped.psd
 eed6fe7f2ba81d25 60373566b39eefe5 photoshop-curves-masked.psd
 66abb1ecd47ae989 2621b901bd1dc22d photoshop-emboss-styles.psd
@@ -88,6 +91,12 @@ a249d71db1be5e65 f2bf42dce8c3d975 photoshop-smart-filter-surface-blur.psd
 3dab549b59a8e909 31fdbc9e993cd751 photoshop-stroke-partial-alpha.psd
 bd09d2e4364e4f7d 86ca8a884788408d photoshop-stroke-positions.psd
 617a8e6ef090d264 17f41a2d949ef82e photoshop-stroke-shapeburst.psd
+0aca6eb068b2c319 9d6ce1e6cb3c5e8b photoshop-text-anchor-center-third.psd
+f61dfac1073d01e9 7c975c5ebf7e2c95 photoshop-text-anchor-center-whole.psd
+5e363a662172164d 535d68f4439f7c79 photoshop-text-anchor-center90-third.psd
+c2bce5e70f4ff8cd a7930a707a89be19 photoshop-text-anchor-center90-whole.psd
+ecf6f74d201e2411 8e277126dab790bb photoshop-text-anchor-half.psd
+92a69b4787d5a111 d04a366077fb616d photoshop-text-anchor-whole.psd
 fbc5fa0891df96bd 96d7bbc80513c3a1 photoshop-text-box-auto-leading.psd
 dbd65737cbbe663d 05f817208a548c31 photoshop-text-hv-scale.psd
 ff816697719a152d 0aae12782dc13be1 photoshop-text-point-auto-leading.psd

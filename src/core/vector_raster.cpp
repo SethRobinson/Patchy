@@ -1021,12 +1021,62 @@ CoverageBuffer rasterize_vector_stroke(const VectorPath& path, const VectorStrok
   return band;
 }
 
+namespace {
+
+// The document bake covers the whole shape wherever it sits, the way a pixel
+// layer keeps its pixels past the canvas edge. Clipped to the canvas, a shape
+// transformed fully onto the pasteboard baked to nothing (the Move tool then
+// had nothing to grab, and the shape was gone), and a half-off shape moved
+// back in showed only its clipped half until something re-baked it. Coverage
+// buffers are sized to the shape, not the domain, so a far-off shape costs
+// its own size. Shapes whose coverage fills the whole clip (a disabled or
+// inverted path, a subtract-first combine) and oversized paths keep the
+// canvas.
+Rect shape_bake_domain(const VectorShapeContent& content, Rect canvas) {
+  if (content.path_disabled || content.path_inverted || content.path.empty() ||
+      content.path.subpaths.front().op == PathCombineOp::Subtract) {
+    return canvas;
+  }
+  const auto hull = content.path.bounds();
+  if (!hull.has_value()) {
+    return canvas;
+  }
+  // Stroke reach (outside alignment, square caps, modest miters) plus the
+  // antialiasing pixel; anything past it only loses off-canvas pixels.
+  const double pad = (content.stroke.enabled ? content.stroke.width * 4.0 : 0.0) + 2.0;
+  const auto left = static_cast<std::int64_t>(std::floor(hull->left - pad));
+  const auto top = static_cast<std::int64_t>(std::floor(hull->top - pad));
+  const auto right = static_cast<std::int64_t>(std::ceil(hull->right + pad));
+  const auto bottom = static_cast<std::int64_t>(std::ceil(hull->bottom + pad));
+  const auto area = (right - left) * (bottom - top);
+  const auto canvas_area = static_cast<std::int64_t>(canvas.width) * canvas.height;
+  constexpr std::int64_t kMinBudget = 16LL * 1024 * 1024;
+  constexpr std::int64_t kCoordinateLimit = 1LL << 29;
+  if (area <= 0 || area > std::max(kMinBudget, 4 * canvas_area) || left < -kCoordinateLimit ||
+      top < -kCoordinateLimit || right > kCoordinateLimit || bottom > kCoordinateLimit) {
+    return canvas;
+  }
+  const auto x0 = std::min<std::int64_t>(canvas.x, left);
+  const auto y0 = std::min<std::int64_t>(canvas.y, top);
+  const auto x1 = std::max<std::int64_t>(static_cast<std::int64_t>(canvas.x) + canvas.width, right);
+  const auto y1 = std::max<std::int64_t>(static_cast<std::int64_t>(canvas.y) + canvas.height, bottom);
+  return Rect{static_cast<std::int32_t>(x0), static_cast<std::int32_t>(y0), static_cast<std::int32_t>(x1 - x0),
+              static_cast<std::int32_t>(y1 - y0)};
+}
+
+}  // namespace
+
 void update_vector_shape_raster(Layer& layer, Rect canvas, const PatternStore* patterns) {
   const auto* shape = layer.vector_shape();
   if (shape == nullptr) {
     return;
   }
-  auto raster = rasterize_vector_shape(*shape, canvas, patterns, &layer);
+  const auto domain = shape_bake_domain(*shape, canvas);
+  // Paint geometry (unaligned gradients, pattern phase) stays on the canvas.
+  const VectorPaintBounds paint_bounds{canvas, std::nullopt, std::nullopt};
+  const bool extended = domain.x != canvas.x || domain.y != canvas.y || domain.width != canvas.width ||
+                        domain.height != canvas.height;
+  auto raster = rasterize_vector_shape(*shape, domain, patterns, &layer, extended ? &paint_bounds : nullptr);
   layer.set_pixels(std::move(raster.pixels));
   layer.set_bounds(raster.bounds);
   // The split planes ride the content so the compositor can apply interior
@@ -1370,11 +1420,17 @@ ShapeRasterResult rasterize_vector_shape(const VectorShapeContent& content, Rect
     struct PaintedPart { ShapeRasterResult raster; double opacity; };
     std::vector<PaintedPart> painted;
     painted.reserve(content.parts.size());
+    // Each part aligns to its own coverage, but keeps the caller's canvas.
+    std::optional<VectorPaintBounds> part_paint_bounds;
+    if (paint_bounds != nullptr) {
+      part_paint_bounds = VectorPaintBounds{paint_bounds->canvas, std::nullopt, std::nullopt};
+    }
     for (const auto& part : content.parts) {
       if (part.opacity <= 0.0F || part.fill_opacity <= 0.0F) { continue; }
       Layer anchor(0, {}, LayerKind::Pixel);
       set_layer_effects_reference_point(anchor, part.pattern_anchor[0], part.pattern_anchor[1]);
-      auto raster = rasterize_vector_shape(vector_shape_part_content(content, part), canvas, patterns, &anchor);
+      auto raster = rasterize_vector_shape(vector_shape_part_content(content, part), canvas, patterns, &anchor,
+                                           part_paint_bounds.has_value() ? &*part_paint_bounds : nullptr);
       result.bounds = union_rects(result.bounds, raster.bounds);
       painted.push_back({std::move(raster), static_cast<double>(part.opacity) * part.fill_opacity});
     }
@@ -1456,7 +1512,7 @@ ShapeRasterResult rasterize_vector_shape(const VectorShapeContent& content, Rect
   if (!fill_coverage.bounds.empty()) {
     const auto fill_pixels =
         paint_coverage(fill_coverage, content.fill, paint_bounds ? paint_bounds->canvas : canvas, patterns,
-                       layer_for_pattern_anchor, paint_bounds ? std::optional<Rect>(paint_bounds->fill) : std::nullopt);
+                       layer_for_pattern_anchor, paint_bounds ? paint_bounds->fill : std::nullopt);
     const auto* src = fill_pixels.data().data();
     const auto src_stride = fill_pixels.stride_bytes();
     if (split_planes) {
@@ -1484,7 +1540,7 @@ ShapeRasterResult rasterize_vector_shape(const VectorShapeContent& content, Rect
     // result.
     const auto stroke_pixels =
         paint_coverage(stroke_coverage, content.stroke.content, paint_bounds ? paint_bounds->canvas : canvas, patterns,
-                       layer_for_pattern_anchor, paint_bounds ? std::optional<Rect>(paint_bounds->stroke) : std::nullopt);
+                       layer_for_pattern_anchor, paint_bounds ? paint_bounds->stroke : std::nullopt);
     const auto* src = stroke_pixels.data().data();
     const auto src_stride = stroke_pixels.stride_bytes();
     if (split_planes) {

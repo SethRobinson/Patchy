@@ -34,6 +34,7 @@ enum class TestFontRole {
   TimesNewRoman,   // .af mixed-run text fixture face
   CourierNew,      // .af mixed-run text fixture face
   FranklinGothicMedium,  // a GDI family DirectWrite files as "Franklin Gothic" + face "Medium"
+  BalmoralLet,     // the issue 16/20 reporter's script face, from the gitignored local fixtures only
 };
 
 inline QStringList test_font_candidates(TestFontRole role) {
@@ -195,6 +196,15 @@ inline QStringList test_font_candidates(TestFontRole role) {
       };
 #else
       return {};  // the Windows-only GDI/DirectWrite naming split has no equivalent elsewhere
+#endif
+    case TestFontRole::BalmoralLet:
+      // A commercial face the reporter supplied with "La methode.psd" (issues 16 and 20). It
+      // lives only in the gitignored local-test-fixtures tree and is never committed; tests that
+      // need it skip when the file is absent.
+#ifdef PATCHY_SOURCE_DIR
+      return {QStringLiteral(PATCHY_SOURCE_DIR) + QStringLiteral("/local-test-fixtures/fonts/Balmoral LET Plain.ttf")};
+#else
+      return {};
 #endif
   }
   return {};

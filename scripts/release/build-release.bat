@@ -36,7 +36,7 @@ if not exist "%QTPATHS%" (
 )
 
 call "%REPO%\scripts\vs-env.bat" -arch=x64 -host_arch=x64 >nul
-if errorlevel 1 goto fail
+if not "!ERRORLEVEL!"=="0" goto fail
 
 if not defined PATCHY_PACKAGE_VERSION (
   for /f "usebackq delims=" %%V in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "$text = Get-Content -Raw -LiteralPath 'CMakeLists.txt'; $match = [regex]::Match($text, 'project\s*\([\s\S]*?\bVERSION\s+([0-9]+(?:\.[0-9]+){1,3})', [Text.RegularExpressions.RegexOptions]::IgnoreCase); if ($match.Success) { $match.Groups[1].Value } else { '0.0.0' }"`) do set "PATCHY_PACKAGE_VERSION=%%V"
@@ -63,31 +63,49 @@ if exist "%ZIP_PATH%" del /q "%ZIP_PATH%"
 if exist "%LEGACY_ZIP_PATH%" del /q "%LEGACY_ZIP_PATH%"
 if exist "%INSTALLER_PATH%" del /q "%INSTALLER_PATH%"
 
+rem The packaged executables must come from THIS build. cmake --build reports a
+rem failed link as a NEGATIVE exit code (a locked patchy.exe gave -1 on September 25,
+rem 2026), which "if errorlevel 1" does not catch, so every check in this file compares
+rem against 0 instead. Belt and braces: delete the previous executables first, moving a
+rem running one aside the way the PRE_LINK steps in CMakeLists.txt do (a renamed image
+rem keeps running), so a failed link leaves no executable to package.
+for %%E in (patchy.exe patchy-mcp.exe) do (
+  "%CMAKE_EXE%" "-DPATCHY_LOCKED_EXECUTABLE=%BUILD_DIR:\=/%/%%E" -P "%REPO%\cmake\unlock_locked_executable.cmake"
+  if exist "%BUILD_DIR%\%%E" (
+    echo "%BUILD_DIR%\%%E" could not be deleted or moved aside. Close the program using it and rerun.
+    goto fail
+  )
+)
+
 echo Configuring release build...
 "%CMAKE_EXE%" --preset release -DPATCHY_BUILD_APP=ON -DCMAKE_PREFIX_PATH="%QT_PREFIX%"
-if errorlevel 1 goto fail
+if not "!ERRORLEVEL!"=="0" goto fail
 
 echo Building release preset...
 "%CMAKE_EXE%" --build --preset release
-if errorlevel 1 goto fail
+if not "!ERRORLEVEL!"=="0" goto fail
 
 if not exist "%APP_EXE%" (
   echo Release executable was not created at "%APP_EXE%".
   goto fail
 )
+if not exist "%BUILD_DIR%\patchy-mcp.exe" (
+  echo The connector was not created at "%BUILD_DIR%\patchy-mcp.exe".
+  goto fail
+)
 
 echo Deploying Qt runtime...
 "%WINDEPLOYQT%" --release "%APP_EXE%"
-if errorlevel 1 goto fail
+if not "!ERRORLEVEL!"=="0" goto fail
 
 call :SignReleaseExe
-if errorlevel 1 goto fail
+if not "!ERRORLEVEL!"=="0" goto fail
 
 if not exist "%PACKAGE_ROOT%" mkdir "%PACKAGE_ROOT%"
 set "PATCHY_PACKAGE_ROOT=%PACKAGE_ROOT%"
 set "PATCHY_STAGE_DIR=%STAGE_DIR%"
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$root = [IO.Path]::GetFullPath($env:PATCHY_PACKAGE_ROOT); $target = [IO.Path]::GetFullPath($env:PATCHY_STAGE_DIR); if (-not $target.StartsWith($root + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { Write-Error 'Refusing to clear staging directory outside the package root.'; exit 1 }"
-if errorlevel 1 goto fail
+if not "!ERRORLEVEL!"=="0" goto fail
 
 if exist "%STAGE_DIR%" rmdir /s /q "%STAGE_DIR%"
 if exist "%STAGE_DIR%" goto fail
@@ -107,7 +125,7 @@ xcopy /E /I /Y "%BUILD_DIR%\scripts" "%STAGE_DIR%\scripts" >nul || goto fail
   --no-opengl-sw ^
   --exclude-plugins "qtuiotouchplugin,qminimal,qdirect2d,qgif,qico,qicns,qtga,qwbmp" ^
   "%STAGE_DIR%\patchy.exe"
-if errorlevel 1 goto fail
+if not "!ERRORLEVEL!"=="0" goto fail
 
 for %%F in (
   "%STAGE_DIR%\imageformats\qgif.dll"
@@ -121,22 +139,22 @@ for %%F in (
 if exist "%STAGE_DIR%\vc_redist.x64.exe" del /q "%STAGE_DIR%\vc_redist.x64.exe"
 
 call :CopyRequiredImageFormatPlugins
-if errorlevel 1 goto fail
+if not "!ERRORLEVEL!"=="0" goto fail
 
 call :CopyRequiredTlsPlugins
-if errorlevel 1 goto fail
+if not "!ERRORLEVEL!"=="0" goto fail
 
 call :CopyRequiredPlatformPlugins
-if errorlevel 1 goto fail
+if not "!ERRORLEVEL!"=="0" goto fail
 
 call :CopyMsvcRuntimeDlls
-if errorlevel 1 goto fail
+if not "!ERRORLEVEL!"=="0" goto fail
 
 call :CopyTranslations
-if errorlevel 1 goto fail
+if not "!ERRORLEVEL!"=="0" goto fail
 
 call :CopyBundledFonts
-if errorlevel 1 goto fail
+if not "!ERRORLEVEL!"=="0" goto fail
 
 copy /Y "%REPO%\README.md" "%STAGE_DIR%\README.md" >nul
 copy /Y "%REPO%\NOTICE-THIRD-PARTY.md" "%STAGE_DIR%\NOTICE-THIRD-PARTY.md" >nul
@@ -144,32 +162,32 @@ copy /Y "%REPO%\LICENSE" "%STAGE_DIR%\LICENSE" >nul || goto fail
 copy /Y "%APP_ICON%" "%STAGE_DIR%\Patchy.ico" >nul || goto fail
 
 call :CopyQtLicenseSbom
-if errorlevel 1 goto fail
+if not "!ERRORLEVEL!"=="0" goto fail
 
 call :HeadlessSmokeCheck
-if errorlevel 1 goto fail
+if not "!ERRORLEVEL!"=="0" goto fail
 "%STAGE_DIR%\patchy-mcp.exe" --check
-if errorlevel 1 goto fail
+if not "!ERRORLEVEL!"=="0" goto fail
 
 echo Writing install manifest...
 set "PATCHY_INSTALL_MANIFEST=%STAGE_DIR%\PatchyInstallManifest.txt"
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$stage = [IO.Path]::GetFullPath($env:PATCHY_STAGE_DIR).TrimEnd('\') + '\'; $manifest = [IO.Path]::GetFullPath($env:PATCHY_INSTALL_MANIFEST); $files = Get-ChildItem -LiteralPath $env:PATCHY_STAGE_DIR -Recurse -File | Where-Object { [IO.Path]::GetFullPath($_.FullName) -ne $manifest } | ForEach-Object { $_.FullName.Substring($stage.Length) } | Sort-Object; $files = @($files) + 'PatchyInstallManifest.txt'; Set-Content -LiteralPath $manifest -Value $files -Encoding ASCII"
-if errorlevel 1 goto fail
+if not "!ERRORLEVEL!"=="0" goto fail
 
 echo Creating zip package...
 set "PATCHY_ZIP_PATH=%ZIP_PATH%"
 powershell -NoProfile -ExecutionPolicy Bypass -Command "if (Test-Path -LiteralPath $env:PATCHY_ZIP_PATH) { Remove-Item -LiteralPath $env:PATCHY_ZIP_PATH -Force }; Compress-Archive -Path $env:PATCHY_STAGE_DIR -DestinationPath $env:PATCHY_ZIP_PATH -Force"
-if errorlevel 1 goto fail
+if not "!ERRORLEVEL!"=="0" goto fail
 if exist "%LEGACY_ZIP_PATH%" del /q "%LEGACY_ZIP_PATH%"
 
 echo Release zip created: "%ZIP_PATH%"
 
 echo Creating Windows installer...
 call :CreateWindowsInstaller
-if errorlevel 1 goto fail
+if not "!ERRORLEVEL!"=="0" goto fail
 
 call :SignInstaller
-if errorlevel 1 goto fail
+if not "!ERRORLEVEL!"=="0" goto fail
 
 echo Release installer created: "%INSTALLER_PATH%"
 popd
@@ -177,7 +195,7 @@ exit /b 0
 
 :SignReleaseExe
 call :SignFile "%APP_EXE%"
-if errorlevel 1 exit /b %ERRORLEVEL%
+if not "!ERRORLEVEL!"=="0" exit /b !ERRORLEVEL!
 call :SignFile "%BUILD_DIR%\patchy-mcp.exe"
 exit /b %ERRORLEVEL%
 
@@ -220,7 +238,7 @@ if not exist "%SIGNTOOL_EXE%" (
 
 powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Sleep -Seconds 2"
 call "%RT_PROJECTS%\Signing\sign.bat" "%SIGN_TARGET%" "%SIGN_DISPLAY_NAME%" "%SIGN_DOMAIN%"
-if errorlevel 1 exit /b %ERRORLEVEL%
+if not "!ERRORLEVEL!"=="0" exit /b !ERRORLEVEL!
 
 "%SIGNTOOL_EXE%" verify /pa /v "%SIGN_TARGET%"
 exit /b %ERRORLEVEL%
@@ -390,7 +408,7 @@ if not exist "%APP_ICON%" (
 
 set "PATCHY_INSTALLER_WORK_DIR=%INSTALLER_WORK_DIR%"
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$root = [IO.Path]::GetFullPath($env:PATCHY_PACKAGE_ROOT); $target = [IO.Path]::GetFullPath($env:PATCHY_INSTALLER_WORK_DIR); if (-not $target.StartsWith($root + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { Write-Error 'Refusing to clear installer work directory outside the package root.'; exit 1 }"
-if errorlevel 1 exit /b %ERRORLEVEL%
+if not "!ERRORLEVEL!"=="0" exit /b !ERRORLEVEL!
 
 if exist "%INSTALLER_WORK_DIR%" rmdir /s /q "%INSTALLER_WORK_DIR%"
 if exist "%INSTALLER_WORK_DIR%" exit /b 1
@@ -401,30 +419,30 @@ copy /Y "%ZIP_PATH%" "%INSTALLER_PAYLOAD_DIR%\%ZIP_FILE_NAME%" >nul || exit /b 1
 copy /Y "%WINDOWS_PACKAGING_DIR%\InstallPatchy.ps1" "%INSTALLER_PAYLOAD_DIR%\InstallPatchy.ps1" >nul || exit /b 1
 copy /Y "%APP_ICON%" "%INSTALLER_PAYLOAD_DIR%\Patchy.ico" >nul || exit /b 1
 powershell -NoProfile -ExecutionPolicy Bypass -Command "Set-Content -LiteralPath (Join-Path $env:PATCHY_INSTALLER_PAYLOAD_DIR 'PatchyVersion.txt') -Value $env:PATCHY_PACKAGE_VERSION -Encoding ASCII"
-if errorlevel 1 exit /b %ERRORLEVEL%
+if not "!ERRORLEVEL!"=="0" exit /b !ERRORLEVEL!
 
 "%CSC_EXE%" /nologo /target:winexe /platform:x64 /optimize+ /win32icon:"%APP_ICON%" /reference:System.Windows.Forms.dll /out:"%INSTALLER_PAYLOAD_DIR%\InstallPatchy.exe" "%WINDOWS_PACKAGING_DIR%\InstallPatchyLauncher.cs"
-if errorlevel 1 exit /b %ERRORLEVEL%
+if not "!ERRORLEVEL!"=="0" exit /b !ERRORLEVEL!
 
 if not exist "%WINDOWS_PACKAGING_DIR%\UninstallPatchy.cs" (
   echo Installer uninstaller source was not found: "%WINDOWS_PACKAGING_DIR%\UninstallPatchy.cs".
   exit /b 1
 )
 "%CSC_EXE%" /nologo /target:winexe /platform:x64 /optimize+ /win32icon:"%APP_ICON%" /out:"%INSTALLER_PAYLOAD_DIR%\UninstallPatchy.exe" "%WINDOWS_PACKAGING_DIR%\UninstallPatchy.cs"
-if errorlevel 1 exit /b %ERRORLEVEL%
+if not "!ERRORLEVEL!"=="0" exit /b !ERRORLEVEL!
 
 call :SignFile "%INSTALLER_PAYLOAD_DIR%\InstallPatchy.exe"
-if errorlevel 1 exit /b %ERRORLEVEL%
+if not "!ERRORLEVEL!"=="0" exit /b !ERRORLEVEL!
 
 call :SignFile "%INSTALLER_PAYLOAD_DIR%\UninstallPatchy.exe"
-if errorlevel 1 exit /b %ERRORLEVEL%
+if not "!ERRORLEVEL!"=="0" exit /b !ERRORLEVEL!
 
 set "PATCHY_INSTALLER_SED_TEMPLATE=%WINDOWS_PACKAGING_DIR%\PatchyWindowsInstaller.sed.in"
 set "PATCHY_INSTALLER_SED_PATH=%INSTALLER_SED_PATH%"
 set "PATCHY_INSTALLER_PATH=%INSTALLER_PATH%"
 set "PATCHY_APP_ICON_PATH=%APP_ICON%"
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$sed = Get-Content -Raw -LiteralPath $env:PATCHY_INSTALLER_SED_TEMPLATE; $sed = $sed.Replace('__INSTALLER_PATH__', $env:PATCHY_INSTALLER_PATH).Replace('__PAYLOAD_DIR__', $env:PATCHY_INSTALLER_PAYLOAD_DIR).Replace('__APP_ICON_PATH__', $env:PATCHY_APP_ICON_PATH); Set-Content -LiteralPath $env:PATCHY_INSTALLER_SED_PATH -Value $sed -Encoding ASCII"
-if errorlevel 1 exit /b %ERRORLEVEL%
+if not "!ERRORLEVEL!"=="0" exit /b !ERRORLEVEL!
 
 if exist "%INSTALLER_PATH%" del /q "%INSTALLER_PATH%"
 set "PATCHY_IEXPRESS_EXE=%IEXPRESS_EXE%"
@@ -434,7 +452,7 @@ set "IEXPRESS_EXIT_CODE=%ERRORLEVEL%"
 
 set "PATCHY_INSTALLER_WAIT_PATH=%INSTALLER_PATH%"
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$path = $env:PATCHY_INSTALLER_WAIT_PATH; $deadline = (Get-Date).AddSeconds(120); $lastSize = -1L; while ((Get-Date) -lt $deadline) { if (Test-Path -LiteralPath $path -PathType Leaf) { $size = (Get-Item -LiteralPath $path).Length; if ($size -gt 0 -and $size -eq $lastSize) { exit 0 }; $lastSize = $size }; Start-Sleep -Milliseconds 500 }; Write-Error ('IExpress completed, but the installer was not created at a stable nonzero size: ' + $path); exit 1"
-if errorlevel 1 exit /b %ERRORLEVEL%
+if not "!ERRORLEVEL!"=="0" exit /b !ERRORLEVEL!
 if not "%IEXPRESS_EXIT_CODE%"=="0" echo IExpress returned exit code %IEXPRESS_EXIT_CODE% after creating "%INSTALLER_PATH%"; continuing.
 exit /b 0
 

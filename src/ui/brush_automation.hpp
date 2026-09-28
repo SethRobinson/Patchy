@@ -8,6 +8,7 @@
 
 namespace patchy::ui {
 class BrushTipLibrary;
+struct BrushPreset;
 
 // Shared by scripting and the artist's preset controls. Only explicit library
 // methods persist; resolving a brush never edits a tip or a document.
@@ -32,6 +33,8 @@ class BrushAutomationLibrary : public QObject {
  signals:
   void changed();
  private:
+  // builtin(p) plus the preset's procedural tip id when it names one (Square).
+  [[nodiscard]] static QJsonObject builtin_preset(const BrushPreset& p);
   BrushTipLibrary& tips_;
   QString directory_, fingerprint_, tip_fingerprint_, revision_;
   QJsonArray presets_;

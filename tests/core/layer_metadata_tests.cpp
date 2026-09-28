@@ -406,12 +406,32 @@ void moved_layer_metadata_leaves_unlinked_masks_stationary() {
   CHECK(layer.unknown_psd_blocks().front().payload == vector_mask);
 }
 
+// Photoshop stores fractional anchors (tx 267.35); the serializer must round-trip every
+// double exactly so a move or a re-save never drifts the anchor off Photoshop's rounding.
+void layer_affine_transform_serialization_round_trips_every_double() {
+  const patchy::LayerAffineTransform transform{1.0772238306426084, 0.17364817766693, -0.17364817766693,
+                                               0.98480775301221,   267.35,            0.1 + 0.2};
+  const auto reparsed = patchy::parse_layer_affine_transform(patchy::serialize_layer_affine_transform(transform));
+  CHECK(reparsed.has_value());
+  if (!reparsed.has_value()) {
+    return;
+  }
+  for (std::size_t index = 0; index < transform.size(); ++index) {
+    CHECK((*reparsed)[index] == transform[index]);
+  }
+  // Integer transforms keep their short spelling (pinned metadata literals elsewhere).
+  CHECK(patchy::serialize_layer_affine_transform(patchy::LayerAffineTransform{1.0, 0.0, 0.0, 1.0, 5.0, 6.0}) ==
+        "1 0 0 1 5 6");
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> layer_metadata_tests() {
   return {
       {"layer_affine_transform_metadata_parses_serializes_and_composes",
        layer_affine_transform_metadata_parses_serializes_and_composes},
+      {"layer_affine_transform_serialization_round_trips_every_double",
+       layer_affine_transform_serialization_round_trips_every_double},
       {"layer_lock_flags_and_inheritance_work", layer_lock_flags_and_inheritance_work},
       {"moved_layer_metadata_translates_linked_masks_and_vector_paths",
        moved_layer_metadata_translates_linked_masks_and_vector_paths},

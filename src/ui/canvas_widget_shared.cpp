@@ -301,6 +301,16 @@ QImage active_layer_sample_image(const Layer& layer, QSize document_size) {
   return image;
 }
 
+void apply_fill_settings(EditOptions& options, const CanvasWidget& canvas) {
+  constexpr double kFillMaxFeatherPixels = 50.0;
+  options.primary.a = static_cast<std::uint8_t>(std::clamp(
+      std::lround(static_cast<double>(options.primary.a) * std::clamp(canvas.fill_opacity(), 1, 100) / 100.0), 1L,
+      255L));
+  options.fill_softness_feather = std::clamp(canvas.fill_softness(), 0, 100) / 100.0 * kFillMaxFeatherPixels;
+  options.flood_tolerance = std::clamp(canvas.fill_tolerance(), 0, 255);
+  options.flood_contiguous = canvas.fill_contiguous();
+}
+
 EditOptions edit_options(QColor primary, QColor secondary, int brush_size, int brush_opacity, int brush_softness,
                          bool fill_shapes, bool lock_transparent_pixels, const CanvasWidget& canvas,
                          int brush_roundness, double brush_angle_degrees) {
@@ -327,8 +337,10 @@ EditOptions edit_options(QColor primary, QColor secondary, int brush_size, int b
         options.selection_scan_rects.push_back(to_core_rect(rect));
       }
     }
-    options.selection_mask = [region](std::int32_t x, std::int32_t y) {
-      return region.contains(QPoint(x, y));
+    // Both per-pixel lookups go through selection_alpha_at, which rasterizes a
+    // many-span region once; QRegion::contains would scan every span per pixel.
+    options.selection_mask = [&canvas](std::int32_t x, std::int32_t y) {
+      return canvas.selection_alpha_at(QPoint(x, y)) != 0U;
     };
     options.selection_coverage = [&canvas](std::int32_t x, std::int32_t y) {
       return static_cast<float>(canvas.selection_alpha_at(QPoint(x, y))) / 255.0F;
@@ -355,7 +367,7 @@ QImage box_blur_mask(const QImage& source, int radius) {
     return source;
   }
 
-  radius = std::clamp(radius, 0, 250);
+  radius = std::clamp(radius, 0, kMaxSelectionFeatherRadius);
   const auto window = radius * 2 + 1;
   QImage horizontal(source.size(), QImage::Format_Grayscale8);
   QImage blurred(source.size(), QImage::Format_Grayscale8);
@@ -406,7 +418,7 @@ QImage box_blur_mask(const QImage& source, int radius) {
 }
 
 int feather_blur_pass_radius(int feather_radius) {
-  return std::max(1, (std::clamp(feather_radius, 0, 250) + 1) / 2);
+  return std::max(1, (std::clamp(feather_radius, 0, kMaxSelectionFeatherRadius) + 1) / 2);
 }
 
 }  // namespace

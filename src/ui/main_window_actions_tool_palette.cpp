@@ -244,10 +244,6 @@
 #include <tpcshrd.h>
 #endif
 
-#ifndef PATCHY_VERSION
-#define PATCHY_VERSION "0.0.0"
-#endif
-
 // Icon resources live in the static patchy_ui library; force registration before first use.
 int qInitResources_icons();
 
@@ -475,6 +471,12 @@ const char* tool_activation_hint_source(CanvasTool tool) {
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Convert Point: click a point to switch it between corner and smooth.");
     case CanvasTool::PatchTool:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Patch: draw around the area to fix, then drag the selection to a clean source area, or press Enter to remove the object automatically");
+    case CanvasTool::Marquee:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Rectangular Marquee: drag to select. Drag a handle to resize the selection, or drag "
+             "inside it to move it.");
+    case CanvasTool::EllipticalMarquee:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Elliptical Marquee: drag to select. Drag a handle to resize the selection, or drag "
+             "inside it to move it.");
     default:
       return nullptr;
   }
@@ -508,6 +510,37 @@ protected:
 
 private:
   std::function<void()> callback_;
+};
+
+class ToolFlyoutEventFilter final : public QObject {
+public:
+  ToolFlyoutEventFilter(std::function<void()> open_menu, QObject* parent)
+      : QObject(parent), open_menu_(std::move(open_menu)) {}
+
+protected:
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonDblClick) {
+      auto* mouse_event = static_cast<QMouseEvent*>(event);
+      if (mouse_event->button() == Qt::RightButton && event->type() == QEvent::MouseButtonPress) {
+        if (open_menu_) {
+          open_menu_();
+        }
+        mouse_event->accept();
+        return true;
+      }
+      if (mouse_event->button() == Qt::LeftButton && event->type() == QEvent::MouseButtonDblClick) {
+        if (open_menu_) {
+          open_menu_();
+        }
+        mouse_event->accept();
+        return true;
+      }
+    }
+    return QObject::eventFilter(watched, event);
+  }
+
+private:
+  std::function<void()> open_menu_;
 };
 
 // Stock QToolBar collapses an expanded overflow bar half a second after the
@@ -822,7 +855,7 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
     // mousePressEvent and restart the hold timer, so swallow it and open the
     // menu through the same showMenu() path the timer uses. The first click
     // of the pair still selects the default tool, as in Photoshop.
-    button->installEventFilter(new MouseDoubleClickFilter([button] { button->showMenu(); }, button));
+    button->installEventFilter(new ToolFlyoutEventFilter([button] { button->showMenu(); }, button));
     for (auto* action : actions) {
       QObject::connect(action, &QAction::triggered, button, [button, menu, action] {
         button->setDefaultAction(action);

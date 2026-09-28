@@ -1,9 +1,11 @@
 #include "ui/main_window.hpp"
 #include "ui/main_window_shared.hpp"
 #include "ui/background_workers.hpp"
+#include "ui/document_recovery.hpp"
 
 #include "core/blend_math.hpp"
 #include "core/layer_metadata.hpp"
+#include "core/pixel_grid.hpp"
 #include "core/smart_object.hpp"
 #include "core/text_warp.hpp"
 #include "core/warp_mesh.hpp"
@@ -132,6 +134,7 @@
 #include <QFontInfo>
 #include <QFontMetrics>
 #include <QFormLayout>
+#include <QGlyphRun>
 #include <QFrame>
 #include <QGridLayout>
 #include <QGroupBox>
@@ -256,10 +259,6 @@
 #include <tpcshrd.h>
 #endif
 
-#ifndef PATCHY_VERSION
-#define PATCHY_VERSION "0.0.0"
-#endif
-
 // Icon resources live in the static patchy_ui library; force registration before first use.
 int qInitResources_icons();
 
@@ -269,6 +268,8 @@ namespace {
 
 constexpr int kLayerOpacityApplyDelayMs = 33;
 constexpr int kLayerOpacityIdleFinishDelayMs = 250;
+// Longer than the opacity pause: people read each mode name between arrow presses.
+constexpr int kLayerBlendIdleFinishDelayMs = 1000;
 // Tool-option sliders apply to the canvas live but persist to disk only this
 // long after the last change, so dragging a slider does not write the whole
 // settings file on every intermediate value.
@@ -331,6 +332,11 @@ constexpr auto kTextEditorForceBakedPreviewProperty = "patchy.forceBakedPreview"
 constexpr auto kTextEditorTransformOverrideProperty = "patchy.textTransformOverride";
 constexpr auto kTextEditorSourceVisibleAnchorProperty = "patchy.sourceVisibleAnchor";
 constexpr auto kTextEditorSourceVisibleSizeProperty = "patchy.sourceVisibleSize";
+// Fraction (line start minus its whole-pixel rounding, in [-0.5, 0.5)) of the imported layer's
+// Photoshop line start, from the TySh anchor and advance box. The source raster's ink column
+// is already whole, so the anchor pin would otherwise lose it; the re-render needs it because
+// Photoshop rounds every glyph from the UNROUNDED start (docs/text-render-calibration.md).
+constexpr auto kTextEditorSourceLineStartFractionProperty = "patchy.sourceLineStartFraction";
 constexpr auto kTextEditorVisibleLocalRectProperty = "patchy.textVisibleLocalRect";
 constexpr auto kTextEditorRenderLocalRectProperty = "patchy.textRenderLocalRect";
 constexpr auto kTextEditorExtendedBoxPreviewProperty = "patchy.extendedBoxPreview";
@@ -493,11 +499,7 @@ struct AvailableTextFamilyStyle {
 // (the Windows database exposes the legacy family directly, so this is a fallback).  Find the
 // longest available family that prefixes the requested name and whose remaining words name one
 // of that family's styles.
-std::optional<AvailableTextFamilyStyle> available_text_family_style_match(const QString& family) {
-  const auto requested = family.trimmed();
-  if (requested.isEmpty()) {
-    return std::nullopt;
-  }
+std::optional<AvailableTextFamilyStyle> font_database_family_style_split(const QString& requested) {
   std::optional<AvailableTextFamilyStyle> best;
   for (const auto& candidate : QFontDatabase::families()) {
     if (candidate.isEmpty() || requested.size() <= candidate.size() ||
@@ -523,6 +525,77 @@ std::optional<AvailableTextFamilyStyle> available_text_family_style_match(const 
     }
   }
   return best;
+}
+
+// The face the platform knows under a name the font database lists neither as a family nor as
+// family + face: a full name ("Futura Extra Black BT", which is also what an older PSD reader
+// stored for that face), a PostScript name ("FuturaBT-ExtraBlack"), or DirectWrite's own family
+// for a legacy face. The PSD reader's DirectWrite lookup answers in the GDI family + subfamily
+// the database uses ("Futura XBlk BT" + "Extra Black"); that answer is mapped back onto the
+// database, and a face it does not list falls back to the flag face the name implies. Cached
+// per name: the lookup scans the system collection, and the options bar asks on every caret
+// move. The database can grow after a miss (the headless registry rescue, a user font drop),
+// so fontDatabaseChanged clears the cache. Nothing off Windows answers, which keeps the
+// offscreen suites hermetic.
+std::optional<AvailableTextFamilyStyle> platform_installed_family_style_match(const QString& requested) {
+  static QHash<QString, std::optional<AvailableTextFamilyStyle>> cache;
+  static bool invalidation_connected = false;
+  if (!invalidation_connected && qGuiApp != nullptr) {
+    invalidation_connected = true;
+    QObject::connect(qGuiApp, &QGuiApplication::fontDatabaseChanged, qGuiApp, [] { cache.clear(); });
+  }
+  const auto cache_key = requested.toCaseFolded();
+  if (const auto it = cache.constFind(cache_key); it != cache.constEnd()) {
+    return *it;
+  }
+  std::optional<AvailableTextFamilyStyle> match;
+  if (const auto installed = psd::installed_font_for_name(requested.toUtf8().toStdString());
+      installed.has_value()) {
+    const auto family = QString::fromStdString(installed->family).trimmed();
+    auto style = QString::fromStdString(installed->style).trimmed();
+    auto resolved_family = available_text_family_match(family);
+    if (!resolved_family.has_value()) {
+      // The reader keeps "family + face" for the faces bold + italic cannot name.
+      if (const auto split = font_database_family_style_split(family); split.has_value()) {
+        resolved_family = split->family;
+        if (style.isEmpty()) {
+          style = split->style;
+        }
+      }
+    }
+    if (resolved_family.has_value()) {
+      if (style.isEmpty()) {
+        style = installed->bold ? (installed->italic ? QStringLiteral("Bold Italic") : QStringLiteral("Bold"))
+                                : (installed->italic ? QStringLiteral("Italic") : QString());
+      }
+      QString available_style;
+      for (const auto& candidate : QFontDatabase::styles(*resolved_family)) {
+        if (candidate.compare(style, Qt::CaseInsensitive) == 0) {
+          available_style = candidate;
+          break;
+        }
+      }
+      match = AvailableTextFamilyStyle{*resolved_family, available_style};
+    }
+  }
+  cache.insert(cache_key, match);
+  return match;
+}
+
+// The family + face a display name resolves to when it is not a family of its own. The
+// database's family + face split first ("Arial Black" -> "Arial"/"Black"); a name the database
+// cannot split is asked of the platform (full names, PostScript names, DirectWrite families).
+// The returned style can be empty when the platform vouches for the family but the database
+// lists no such face; callers then render the family's flag face.
+std::optional<AvailableTextFamilyStyle> available_text_family_style_match(const QString& family) {
+  const auto requested = family.trimmed();
+  if (requested.isEmpty()) {
+    return std::nullopt;
+  }
+  if (const auto split = font_database_family_style_split(requested); split.has_value()) {
+    return split;
+  }
+  return platform_installed_family_style_match(requested);
 }
 
 // Bold/italic as the style NAME describes them, so the flags every downstream reader still uses
@@ -1053,48 +1126,108 @@ QString substituted_text_family(const QString& family, const QString& demanded) 
   return cannot_draw(ui_family) ? family : ui_family;
 }
 
-// A font registered with Windows can still be missing from Qt's database
-// (this machine's Arial Narrow: present in the CurrentVersion\Fonts key and
-// in C:\Windows\Fonts, absent from both the family list and Arial's style
-// list). Load every registry entry whose display name starts with the
-// requested family as an application font so the face resolves; each family
-// is attempted once per run. Never removed afterwards (removeApplicationFont
-// can crash live font users - the testing notes' standing rule).
-bool try_register_missing_system_font_family(const QString& family) {
+// Windows font files the system knows about: the machine-wide CurrentVersion\Fonts
+// key (relative names live in %WINDIR%\Fonts) plus the per-user key Windows fills
+// when a font is installed without elevation (absolute paths).
 #ifdef Q_OS_WIN
-  // The offscreen platform (the visual test suite) deliberately sees NO
-  // system fonts - tests register exactly what they need, and pulling registry
-  // fonts there would make test layouts machine-dependent. A --headless app run
-  // is offscreen too, but its user wants their installed fonts: main.cpp marks
-  // it with PATCHY_HEADLESS=1, which the suites never set (docs/testing.md).
-  if (QGuiApplication::platformName() == QLatin1String("offscreen") &&
+struct WindowsRegistryFont {
+  QString display_name;  // the full face name Windows shows, e.g. "Futura Extra Black BT (TrueType)"
+  QString file;
+};
+
+std::vector<WindowsRegistryFont> windows_registry_fonts() {
+  std::vector<WindowsRegistryFont> fonts_found;
+  const QDir fonts_dir(QDir(QString::fromLocal8Bit(qgetenv("WINDIR"))).filePath(QStringLiteral("Fonts")));
+  for (const auto& root : {QStringLiteral("HKEY_LOCAL_MACHINE\\SOFTWARE"), QStringLiteral("HKEY_CURRENT_USER\\Software")}) {
+    const QSettings fonts(root + QStringLiteral("\\Microsoft\\Windows NT\\CurrentVersion\\Fonts"),
+                          QSettings::NativeFormat);
+    for (const auto& name : fonts.allKeys()) {
+      auto file = fonts.value(name).toString();
+      if (file.isEmpty()) {
+        continue;
+      }
+      if (!QFileInfo(file).isAbsolute()) {
+        file = fonts_dir.filePath(file);
+      }
+      fonts_found.push_back(WindowsRegistryFont{name, file});
+    }
+  }
+  return fonts_found;
+}
+#endif
+
+}  // namespace
+
+// The offscreen platform on Windows (a --headless run) enumerates no system fonts; macOS and
+// Linux offscreen go through CoreText / fontconfig and see them. Loads the installed fonts from
+// the registry once per process so the database holds their real family and style names. True
+// when this call loaded something new. A no-op on other platforms and for the offscreen SUITES
+// (no PATCHY_HEADLESS), which stay hermetic.
+bool ensure_headless_system_fonts_loaded() {
+#ifdef Q_OS_WIN
+  if (QGuiApplication::platformName() != QLatin1String("offscreen") ||
       !qEnvironmentVariableIsSet("PATCHY_HEADLESS")) {
     return false;
   }
-  static QSet<QString> attempted;
+  static bool loaded = false;
+  if (loaded) {
+    return false;
+  }
+  loaded = true;
+  bool added = false;
+  for (const auto& entry : windows_registry_fonts()) {
+    if (QFileInfo::exists(entry.file) && QFontDatabase::addApplicationFont(entry.file) >= 0) {
+      added = true;
+    }
+  }
+  return added;
+#else
+  return false;
+#endif
+}
+
+namespace {
+
+// Called when a requested family resolves to nothing. Two different gaps, both filled
+// by registering the installed files as application fonts (never removed afterwards:
+// removeApplicationFont can crash live font users, the testing notes' standing rule):
+//
+// - A --headless run on Windows sees NO system fonts (ensure_headless_system_fonts_loaded
+//   above): the first miss loads every installed font once, so the ordinary matching then
+//   resolves a request exactly as the desktop app would (a family, "Futura XBlk BT", or family
+//   plus face, "Arial Black"). Matching registry display names against the request would be
+//   guesswork: the registry stores full face names, not families. main.cpp marks a headless
+//   run with PATCHY_HEADLESS=1, which the offscreen suites never set (docs/testing.md).
+// - On the desktop, a font registered with Windows can still be missing from Qt's
+//   database (this machine's Arial Narrow: in the registry and C:\Windows\Fonts, absent
+//   from both the family list and Arial's style list). There the registry display name
+//   does begin with the family, so the entries starting with the request are loaded;
+//   each family is attempted once per run.
+bool try_register_missing_system_font_family(const QString& family) {
+#ifdef Q_OS_WIN
+  const bool offscreen = QGuiApplication::platformName() == QLatin1String("offscreen");
+  if (offscreen && !qEnvironmentVariableIsSet("PATCHY_HEADLESS")) {
+    return false;
+  }
   const auto requested = family.trimmed();
+  if (requested.isEmpty()) {
+    return false;
+  }
+  if (offscreen) {
+    return ensure_headless_system_fonts_loaded();
+  }
+  static QSet<QString> attempted;
   const auto key = requested.toLower();
-  if (requested.isEmpty() || attempted.contains(key)) {
+  if (attempted.contains(key)) {
     return false;
   }
   attempted.insert(key);
-  const QSettings fonts(
-      QStringLiteral("HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts"),
-      QSettings::NativeFormat);
-  const QDir fonts_dir(QDir(QString::fromLocal8Bit(qgetenv("WINDIR"))).filePath(QStringLiteral("Fonts")));
   bool added = false;
-  for (const auto& name : fonts.allKeys()) {
-    if (!name.startsWith(requested, Qt::CaseInsensitive)) {
+  for (const auto& entry : windows_registry_fonts()) {
+    if (!entry.display_name.startsWith(requested, Qt::CaseInsensitive)) {
       continue;
     }
-    auto file = fonts.value(name).toString();
-    if (file.isEmpty()) {
-      continue;
-    }
-    if (!QFileInfo(file).isAbsolute()) {
-      file = fonts_dir.filePath(file);
-    }
-    if (QFileInfo::exists(file) && QFontDatabase::addApplicationFont(file) >= 0) {
+    if (QFileInfo::exists(entry.file) && QFontDatabase::addApplicationFont(entry.file) >= 0) {
       added = true;
     }
   }
@@ -1130,7 +1263,9 @@ QFont render_text_font_for_display_family(const QString& family, int pixel_size,
     }
     if (match.has_value()) {
       font.setFamilies(QStringList{match->family});
-      font.setStyleName(match->style);
+      if (!match->style.isEmpty()) {
+        font.setStyleName(match->style);
+      }
     }
   }
   // An explicit face name wins over everything above: a family's styles are an arbitrary list
@@ -1705,7 +1840,7 @@ void set_stretch_for_advance_ratio(QFont& font, double ratio, int naive_value) {
     return;
   }
   QFont unstretched = font;
-  unstretched.setStretch(100);
+  unstretched.setStretch(QFont::AnyStretch);
   const auto reference = QFontMetricsF(unstretched).horizontalAdvance(QLatin1Char('H'));
   if (!(reference > 0.0)) {
     font.setStretch(naive_value);
@@ -1732,7 +1867,7 @@ void scale_font_width(QFont& font, double scale) {
   // The current advance ratio is MEASURED rather than decoded from the stored value, so a
   // sqrt-compensated stretch (see set_stretch_for_advance_ratio) rescales correctly too.
   QFont unstretched = font;
-  unstretched.setStretch(100);
+  unstretched.setStretch(QFont::AnyStretch);
   const auto reference = QFontMetricsF(unstretched).horizontalAdvance(QLatin1Char('H'));
   const auto current = QFontMetricsF(font).horizontalAdvance(QLatin1Char('H'));
   const auto current_ratio =
@@ -2804,12 +2939,13 @@ private:
                          QString::fromStdString(serialize_layer_affine_transform(affine)));
     editor_->setProperty(kTextEditorSourceVisibleAnchorProperty, QVariant());
     editor_->setProperty(kTextEditorSourceVisibleSizeProperty, QVariant());
+    editor_->setProperty(kTextEditorSourceLineStartFractionProperty, QVariant());
     editor_->setProperty(kTextEditorVisibleLocalRectProperty, QVariant());
     // Box geometry changed: drop the import-frame render rect so glyphs lay out against the live
     // box instead of the original Photoshop frame (free helper isn't visible inside this class).
     editor_->setProperty(kTextEditorRenderLocalRectProperty, QVariant());
-    editor_->setProperty("patchy.documentTextX", static_cast<int>(std::floor(adjusted.dx())));
-    editor_->setProperty("patchy.documentTextY", static_cast<int>(std::floor(adjusted.dy())));
+    editor_->setProperty("patchy.documentTextX", snapped_pixel_coordinate(adjusted.dx()));
+    editor_->setProperty("patchy.documentTextY", snapped_pixel_coordinate(adjusted.dy()));
     editor_->setProperty("patchy.documentTextFlow", QString::fromLatin1(kTextFlowBox));
     editor_->setProperty("patchy.documentTextWidth", geometry->width);
     editor_->setProperty("patchy.documentTextHeight", geometry->height);
@@ -2968,7 +3104,12 @@ QString rich_text_runs_from_document(const QTextDocument& document, const TextTo
       if (std::isfinite(exact) && exact > 0.0 &&
           static_cast<int>(std::lround(exact * run.vertical_scale)) == std::max(1, size)) {
         run.size = exact;
-        photoshop_layout = true;
+        // Only a fractional size (or a vertical glyph scale) needs the Photoshop-layout
+        // columns; every run carries an exact size now, and a whole-pixel one serializes
+        // exactly as it always did.
+        if (std::abs(exact - std::round(exact)) > 0.0001 || std::abs(run.vertical_scale - 1.0) > 0.0001) {
+          photoshop_layout = true;
+        }
       }
     }
     run.bold = format_font.weight() >= QFont::Bold;
@@ -3270,7 +3411,6 @@ void apply_patchy_text_runs_to_document(QTextDocument& document, const QString& 
     const auto start = std::clamp(fields[0].toInt(&start_ok), 0, std::max(0, plain_length));
     const auto length = std::max(0, fields[1].toInt(&length_ok));
     const auto exact_document_size = std::max(1.0, fields[2].toDouble(&size_ok));
-    const auto document_size = std::max(1, static_cast<int>(std::lround(exact_document_size)));
     if (!start_ok || !length_ok || !size_ok || length <= 0 || start >= plain_length) {
       continue;
     }
@@ -3325,13 +3465,14 @@ void apply_patchy_text_runs_to_document(QTextDocument& document, const QString& 
       format.setProperty(kTextStyleNameFormatProperty, style_name.trimmed());
     }
     format.setForeground(QBrush(color));
+    // The exact size excludes the vertical glyph scale: it is the leading/tracking basis
+    // (FontSize), while the font's pixel size above folds V in. Every run carries it, integral
+    // sizes included: the editor's font is whole editor pixels (document px x zoom), and a
+    // commit that had only that to go on recovered the document size as round(px / zoom),
+    // which at a 15% zoom turned an untouched 60 px layer into 58 px (the "text shrinks when I
+    // click into it" report). The commit re-derives the pixel size from this value instead.
     const auto scaled_exact_size = exact_document_size * std::max(0.0, scale);
-    if (std::abs(exact_document_size - document_size) > 0.0001 ||
-        std::abs(vertical_glyph_scale - 1.0) > 0.0001) {
-      // The exact size excludes the vertical glyph scale: it is the leading/tracking basis
-      // (FontSize), while the font's pixel size above folds V in.
-      format.setProperty(kTextExactSizeFormatProperty, scaled_exact_size);
-    }
+    format.setProperty(kTextExactSizeFormatProperty, scaled_exact_size);
     if (std::abs(horizontal_glyph_scale - 1.0) > 0.0001) {
       format.setProperty(kTextHorizontalScaleFormatProperty, horizontal_glyph_scale);
     }
@@ -3572,6 +3713,12 @@ std::optional<double> text_leading_from_document_formats(const QTextDocument& do
 }
 
 int document_text_size_from_editor_format(const QTextCharFormat& format, double zoom, int fallback) noexcept {
+  if (format.hasProperty(kTextExactSizeFormatProperty)) {
+    const auto exact = format.property(kTextExactSizeFormatProperty).toDouble();
+    if (std::isfinite(exact) && exact > 0.0) {
+      return std::max(1, static_cast<int>(std::round(exact / std::max(0.001, zoom))));
+    }
+  }
   const auto font = format.font();
   int editor_pixel_size = font.pixelSize();
   if (editor_pixel_size <= 0 && font.pointSizeF() > 0.0) {
@@ -3637,9 +3784,21 @@ void preserve_text_editor_typing_format(QTextEdit& editor, const QFont& font, QC
   editor.viewport()->update();
 }
 
+// Layout metrics of a render, stored as kLayerMetadataTextFirstBaseline & co. so the Qt-free
+// PSD writer can place Photoshop's re-layout on this raster. An empty optional means "does not
+// apply" (vertical type; the inset and fraction on Photoshop-layout layers, whose plan already
+// follows Photoshop's rules and must stay byte-stable).
+struct TextLayoutMetrics {
+  std::optional<double> first_baseline;
+  std::optional<double> box_baseline_inset;
+  std::optional<double> auto_leading;
+  std::optional<double> raster_top;  // point text: local_rect.top(), the raster's top row from the origin
+};
+
 struct RenderedTextPixels {
   PixelBuffer pixels;
   QRectF local_rect;
+  TextLayoutMetrics metrics;
 };
 
 // Photoshop's faux bold, applied to every run that carries kTextFauxBoldFormatProperty: stroke
@@ -3878,6 +4037,65 @@ double dominant_text_run_size(const TextToolSettings& settings, const QString& r
   return dominant > 0.0 ? dominant : static_cast<double>(std::max(1, settings.size));
 }
 
+// The width Photoshop's HorizontalScale asks for over what the dominant run's font really
+// renders. QFont::setStretch is a whole percent, so H/V 0.95/0.93 (102.15%) renders at 102% and
+// the 1080 px "ethode" of issue 20 came out a pixel narrow at its far edge. The ratio is
+// MEASURED on the font (set_stretch_for_advance_ratio may have picked a sqrt-encoded value on
+// CoreText, and a fallback engine may ignore stretch altogether), so the residual is exactly
+// what the matrix still has to supply. The dominant run is the largest pixel size, the same
+// choice dominant_text_run_size makes for the vertical fold.
+double dominant_run_width_residual(const QTextDocument& document) {
+  double best_size = 0.0;
+  QTextCharFormat best;
+  bool found = false;
+  for (auto block = document.begin(); block.isValid(); block = block.next()) {
+    for (auto it = block.begin(); !it.atEnd(); ++it) {
+      const auto fragment = it.fragment();
+      if (!fragment.isValid() || fragment.length() <= 0) {
+        continue;
+      }
+      const auto format = fragment.charFormat();
+      const auto font = format.font();
+      const auto size = std::max(static_cast<double>(font.pixelSize()), font.pointSizeF());
+      if (size > best_size) {
+        best_size = size;
+        best = format;
+        found = true;
+      }
+    }
+  }
+  if (!found) {
+    return 1.0;
+  }
+  const auto scale_property = [&best](int property_id) {
+    if (best.hasProperty(property_id)) {
+      const auto value = best.property(property_id).toDouble();
+      if (std::isfinite(value) && value > 0.01 && value < 100.0) {
+        return value;
+      }
+    }
+    return 1.0;
+  };
+  const auto wanted =
+      scale_property(kTextHorizontalScaleFormatProperty) / scale_property(kTextVerticalScaleFormatProperty);
+  QFont stretched = best.font();
+  stretched.setLetterSpacing(QFont::AbsoluteSpacing, 0.0);
+  // The face at its OWN width is QFont::AnyStretch, never stretch 100: Qt synthesizes
+  // request / face-width-class, so 100 on a Condensed face (width class 75, Futura Bold
+  // Condensed BT) is a 133% stretch. Measuring that as the reference reported a 4/3 residual
+  // for a font with no stretch at all and drew Title02's WWW.COCKPITMASTER.COM a third wider
+  // than the caret layout (Seth's "the letter appears at the end of the string" report).
+  QFont unstretched = stretched;
+  unstretched.setStretch(QFont::AnyStretch);
+  const auto reference = QFontMetricsF(unstretched).horizontalAdvance(QLatin1Char('H'));
+  const auto current = QFontMetricsF(stretched).horizontalAdvance(QLatin1Char('H'));
+  if (!(reference > 0.0) || !(current > 0.0) || !std::isfinite(wanted) || wanted <= 0.0) {
+    return 1.0;
+  }
+  const auto residual = wanted / (current / reference);
+  return std::isfinite(residual) && residual > 0.5 && residual < 2.0 ? residual : 1.0;
+}
+
 // Everything the rasterizer decides BEFORE it touches a paint device: the laid-out
 // document, the line plan, the local rect, and the residual document transform. The
 // QImage render and the editable-PDF text export both draw the same plan, so the PDF's
@@ -3889,6 +4107,9 @@ struct TextRenderPlan {
   QTransform document_transform;  // post-fold residual (identity when none was supplied)
   bool has_document_transform{false};
   bool faux_italic_render{false};
+  // Photoshop layout through an axis-aligned transform: every glyph origin is moved onto
+  // the document pixel grid as it is drawn (draw_line_glyphs_pixel_aligned).
+  bool pixel_align_glyphs{false};
   // Vertical type: the cell plan replaces the line items (which stay empty).
   bool vertical{false};
   VerticalTextLayoutPlan vertical_plan;
@@ -3935,6 +4156,40 @@ VerticalRenderPlan vertical_render_plan_for_editor(const QTextEdit& editor, cons
   return vertical_render_plan(layout_document, settings, 1.0, frame_layout_scale);
 }
 
+// Photoshop rasterizes every glyph whole; Qt's line rect is the ADVANCE box. Ink outside it --
+// a negative left side bearing (script and italic faces), ink past the last advance, an accent or
+// swash above Qt's ascent -- used to be cut off at the buffer edge, and the imported-layer
+// anchoring, which pins ink to ink, then moved the whole line by the clipped amount (issue 20:
+// Balmoral LET's "é" lost 9 px on the left and the text slid left by the same 9 px on every
+// unchanged commit). Grow the buffer around the ORIGIN only where the measured ink exceeds it:
+// local (0, 0) stays the line start / first line top, so a raster whose ink fits keeps its exact
+// pinned bytes, and one that overhangs starts left of or above the origin. Every placement adds
+// local_rect.topLeft() to the transform translation (docs/text-tool.md).
+void grow_point_text_rect_to_glyph_ink(QRectF& local_rect, const QRectF& ink) {
+  if (ink.isNull() || !std::isfinite(ink.left()) || !std::isfinite(ink.top()) || !std::isfinite(ink.right()) ||
+      !std::isfinite(ink.bottom())) {
+    return;
+  }
+  constexpr qreal kInkBleed = 2.0;
+  auto left = local_rect.left();
+  auto top = local_rect.top();
+  auto right = local_rect.right();
+  auto bottom = local_rect.bottom();
+  if (ink.left() < left) {
+    left = std::floor(ink.left()) - kInkBleed;
+  }
+  if (ink.top() < top) {
+    top = std::floor(ink.top()) - kInkBleed;
+  }
+  if (ink.right() > right) {
+    right = std::ceil(ink.right()) + kInkBleed;
+  }
+  if (ink.bottom() > bottom) {
+    bottom = std::ceil(ink.bottom()) + kInkBleed;
+  }
+  local_rect = QRectF(QPointF(left, top), QPointF(right, bottom));
+}
+
 TextRenderPlan build_text_render_plan(const TextToolSettings& settings, QColor color, std::int32_t max_width,
                                       const QString& paragraph_runs, const QString& rich_text_runs,
                                       std::optional<QRectF> requested_local_rect, double metric_scale,
@@ -3945,11 +4200,27 @@ TextRenderPlan build_text_render_plan(const TextToolSettings& settings, QColor c
   // either way, so callers see identical geometry with crisper, correctly-sized glyphs.
   // layout_scale_in additionally scales run sizes WITHOUT scaling box dims -- a PSD-frame box
   // session works in a document-space frame while its runs stay in raw engine units.
-  QTransform document_transform = document_transform_in;
+  //
+  // Photoshop rasterizes a type layer with each LINE START (the anchor minus the justification
+  // offset, in document space) rounded to a whole pixel, halves up: for left-aligned text that is
+  // the anchor itself (tx 100.3 renders exactly like 100.0 and 100.5 like 101.0), while a centered
+  // line moves a column for the same .3 fraction because its start sits half a line width to the
+  // left of the anchor (PS 27.9 captures, docs/text-render-calibration.md, "Pixel grid"). The
+  // stored transform keeps its fraction; only the raster phase snaps. Axis-aligned transforms
+  // round per line below, once the lines are known; rotated or sheared ones keep the anchor
+  // rounding, the only rule those captures established. The baseline (dy) always rounds here.
+  const bool round_line_starts = !document_transform_in.isIdentity() && document_transform_in.m12() == 0.0 &&
+                                 document_transform_in.m21() == 0.0 && std::abs(document_transform_in.m11()) > 1e-9;
+  QTransform document_transform(document_transform_in.m11(), document_transform_in.m12(),
+                                document_transform_in.m21(), document_transform_in.m22(),
+                                round_line_starts ? document_transform_in.dx()
+                                                  : snap_to_pixel_grid(document_transform_in.dx()),
+                                snap_to_pixel_grid(document_transform_in.dy()));
   double fold_scale = 1.0;
-  if (settings.photoshop_layout && !document_transform_in.isIdentity()) {
-    const auto vertical_scale = std::hypot(document_transform_in.m21(), document_transform_in.m22());
-    if (std::isfinite(vertical_scale) && vertical_scale > 0.01 && std::abs(vertical_scale - 1.0) > 0.0001) {
+  if (settings.photoshop_layout) {
+    const auto vertical_scale =
+        document_transform_in.isIdentity() ? 1.0 : std::hypot(document_transform_in.m21(), document_transform_in.m22());
+    if (std::isfinite(vertical_scale) && vertical_scale > 0.01) {
       fold_scale = vertical_scale;
       // Fold only as far as a WHOLE pixel size and leave the remainder in the matrix. QFont
       // takes an integer pixel size and Qt quantizes a fractional point size to the same whole
@@ -3958,6 +4229,9 @@ TextRenderPlan build_text_render_plan(const TextToolSettings& settings, QColor c
       // pixel or two on edit) while 14.44444 x 0.9 = 13.0 was already whole and never moved.
       // The leftover ~1.0125 rides in document_transform, which the glyph rasterizer applies
       // exactly -- these lines are drawn THROUGH the matrix, not resampled after the fact.
+      // The same applies with no scaling transform at all: FontSize x VerticalScale is
+      // fractional as often as not (1086.61 x 0.93 = 1010.55 in issue 20's file), and the
+      // fraction it rounds away is a size error the matrix takes back.
       const auto exact_dominant_size =
           dominant_text_run_size(settings, rich_text_runs) * fold_scale *
           (std::isfinite(layout_scale_in) && layout_scale_in > 0.01 ? layout_scale_in : 1.0);
@@ -3965,10 +4239,14 @@ TextRenderPlan build_text_render_plan(const TextToolSettings& settings, QColor c
       if (whole_dominant_size >= 1.0 && std::abs(exact_dominant_size - whole_dominant_size) > 0.0001) {
         fold_scale *= whole_dominant_size / exact_dominant_size;
       }
-      document_transform =
-          QTransform(document_transform_in.m11() / fold_scale, document_transform_in.m12() / fold_scale,
-                     document_transform_in.m21() / fold_scale, document_transform_in.m22() / fold_scale,
-                     document_transform_in.dx(), document_transform_in.dy());
+      if (std::abs(fold_scale - 1.0) > 1e-9) {
+        document_transform =
+            QTransform(document_transform_in.m11() / fold_scale, document_transform_in.m12() / fold_scale,
+                       document_transform_in.m21() / fold_scale, document_transform_in.m22() / fold_scale,
+                       document_transform.dx(), document_transform.dy());
+      } else {
+        fold_scale = 1.0;
+      }
     }
   }
   const double layout_scale =
@@ -3979,6 +4257,15 @@ TextRenderPlan build_text_render_plan(const TextToolSettings& settings, QColor c
   auto& document = *result.built.document;
   const auto& font = result.built.font;
   const auto text_width = result.built.text_width;
+  if (settings.photoshop_layout && !settings.vertical) {
+    // Whatever width the whole-percent stretch could not express scales the local x axis
+    // (dominant_run_width_residual), applied before the document transform so rotation and
+    // shear still act on the corrected advances.
+    const auto width_residual = dominant_run_width_residual(document);
+    if (std::abs(width_residual - 1.0) > 1e-6) {
+      document_transform = QTransform::fromScale(width_residual, 1.0) * document_transform;
+    }
+  }
 
   const auto size = document.size();
   QRectF local_rect;
@@ -4047,12 +4334,14 @@ TextRenderPlan build_text_render_plan(const TextToolSettings& settings, QColor c
     const auto bottom = std::max<qreal>(top + 1.0, std::ceil(ink.bottom()) + 2.0);
     local_rect = QRectF(0.0, top, std::max<qreal>(1.0, std::ceil(size.width()) + 2.0), bottom - top);
     line_render_items = std::move(photoshop_plan.lines);
+    grow_point_text_rect_to_glyph_ink(local_rect, line_items_glyph_ink_rect(document, line_render_items));
     for (auto& item : line_render_items) {
       item.clip_rect = local_rect;
     }
   } else {
     local_rect = QRectF(0.0, 0.0, std::max<qreal>(1.0, std::ceil(size.width()) + 2.0),
                         std::max<qreal>(1.0, std::ceil(size.height()) + 2.0));
+    grow_point_text_rect_to_glyph_ink(local_rect, document_glyph_ink_rect(document));
   }
   if (!std::isfinite(local_rect.left()) || !std::isfinite(local_rect.top()) ||
       !std::isfinite(local_rect.right()) || !std::isfinite(local_rect.bottom()) ||
@@ -4071,12 +4360,166 @@ TextRenderPlan build_text_render_plan(const TextToolSettings& settings, QColor c
       item.clip_rect.setRight(item.clip_rect.right() + lean);
     }
   }
+  // Photoshop rounds every glyph's absolute x from the UNROUNDED line start (the g of "Hg" at
+  // 100.5 + 34.67 = 135.17 lands on 135, not on 100.5 -> 101 + 34.67 = 135.67 -> 136), so a plan
+  // whose glyphs snap individually at draw time keeps its fractional line starts; the first
+  // glyph's own rounding is the line-start rule.
+  const bool pixel_align_glyphs = settings.photoshop_layout && !settings.vertical && !line_render_items.empty() &&
+                                  document_transform.m12() == 0.0 && document_transform.m21() == 0.0 &&
+                                  document_transform.m11() > 0.0 && document_transform.m22() > 0.0;
+  if (round_line_starts && !pixel_align_glyphs) {
+    if (line_render_items.empty() || settings.vertical) {
+      // No per-line plan to adjust (vertical type, drawContents fallback): the anchor rounds.
+      document_transform =
+          QTransform(document_transform.m11(), document_transform.m12(), document_transform.m21(),
+                     document_transform.m22(), snap_to_pixel_grid(document_transform_in.dx()), document_transform.dy());
+    } else {
+      // Each line's start (its leftmost glyph origin) lands on a whole document pixel; the local
+      // shift is at most half a pixel over m11, well inside the buffer's bleed.
+      for (auto& item : line_render_items) {
+        const auto start_x = document_transform.map(QPointF(item.block_origin.x() + item.line.x(), 0.0)).x();
+        const auto delta = snap_to_pixel_grid(start_x) - start_x;
+        item.block_origin.rx() += delta / document_transform.m11();
+      }
+    }
+  }
   result.local_rect = local_rect;
+  result.pixel_align_glyphs = pixel_align_glyphs;
   result.line_render_items = std::move(line_render_items);
   result.document_transform = document_transform;
   result.has_document_transform = !document_transform.isIdentity();
   result.faux_italic_render = faux_italic_render;
   return result;
+}
+
+// Photoshop rasterizes each glyph with its absolute x rounded to a whole document pixel,
+// halves up, glyph by glyph rather than once per line: in the PS 27.9 anchor captures "Hg" at
+// x 100.5 moves the H a column while the g (100.5 + 34.67 = 135.17 -> 135) stays where the
+// 100.0 capture had it (docs/text-render-calibration.md, "Pixel grid"). QTextLine::draw places
+// glyphs at their fractional advances, so a Photoshop-layout line is drawn run by run instead,
+// each glyph origin moved onto the grid in DOCUMENT space and converted back through the
+// axis-aligned residual transform the painter already carries (the y rounding is what Qt did
+// anyway for untransformed text; it keeps later lines on whole rows under the residual). Per
+// fragment so the run keeps its own colour, and faux bold fills and strokes glyph paths the way
+// the vertical plan does, because drawGlyphRun ignores the char format's outline.
+void draw_line_glyphs_pixel_aligned(const QTextBlock& block, const BoxTextLineRenderItem& item,
+                                    const QTransform& document_transform, QPainter& painter) {
+  const auto& line = item.line;
+  if (!line.isValid() || line.textLength() <= 0) {
+    return;
+  }
+  const int line_start = block.position() + line.textStart();
+  const int line_end = line_start + line.textLength();
+  const double scale_x = document_transform.m11() > 0.0 ? document_transform.m11() : 1.0;
+  const double scale_y = document_transform.m22() > 0.0 ? document_transform.m22() : 1.0;
+  for (auto it = block.begin(); !it.atEnd(); ++it) {
+    const auto fragment = it.fragment();
+    if (!fragment.isValid() || fragment.length() <= 0) {
+      continue;
+    }
+    const int from = std::max(fragment.position(), line_start);
+    const int to = std::min(fragment.position() + fragment.length(), line_end);
+    if (to <= from) {
+      continue;
+    }
+    const auto format = fragment.charFormat();
+    auto color = format.foreground().color();
+    if (!color.isValid()) {
+      color = QColor(Qt::black);
+    }
+    const auto outline = format.textOutline();
+    const bool faux_bold = outline.style() != Qt::NoPen && outline.widthF() > 0.0;
+    // A stretched QFont is two different things to Qt's engines: FreeType (the offscreen
+    // suite) stretches the glyph images and the advances, DirectWrite (a Windows window)
+    // stretches the advances only and rasterizes every glyph at its design width, so the
+    // issue 20 "M" (103.2%) came out 3% narrow on screen while every pin passed. Drawing
+    // each glyph from the UNSTRETCHED face through an explicit x scale equal to the advance
+    // ratio this font really delivered (measured, like dominant_run_width_residual) puts the
+    // image on the advances on both engines. Unstretched runs keep the plain glyph-run draw.
+    QFont unstretched = format.font();
+    unstretched.setLetterSpacing(QFont::AbsoluteSpacing, 0.0);
+    double image_scale = 1.0;
+    if (unstretched.stretch() != 100 && unstretched.stretch() != QFont::AnyStretch) {
+      const auto current = QFontMetricsF(unstretched).horizontalAdvance(QLatin1Char('H'));
+      unstretched.setStretch(QFont::AnyStretch);
+      const auto reference = QFontMetricsF(unstretched).horizontalAdvance(QLatin1Char('H'));
+      if (reference > 0.0 && current > 0.0) {
+        image_scale = current / reference;
+      }
+    }
+    const bool scale_images = std::abs(image_scale - 1.0) > 1e-6;
+    for (auto run : line.glyphRuns(from - block.position(), to - from)) {
+      auto positions = run.positions();
+      for (auto& position : positions) {
+        const auto document_point = document_transform.map(item.block_origin + position);
+        position.rx() += (snap_to_pixel_grid(document_point.x()) - document_point.x()) / scale_x;
+        position.ry() += (snap_to_pixel_grid(document_point.y()) - document_point.y()) / scale_y;
+      }
+      const auto indexes = run.glyphIndexes();
+      if (scale_images) {
+        // The run's own face (a fallback run names another family than the format), unstretched.
+        const auto run_font = run.rawFont();
+        QFont face = unstretched;
+        if (run_font.familyName() != QFontInfo(unstretched).family()) {
+          face = QFont(run_font.familyName());
+          face.setStyleName(run_font.styleName());
+          face.setHintingPreference(unstretched.hintingPreference());
+        }
+        auto image_font = QRawFont::fromFont(face);
+        if (image_font.isValid()) {
+          image_font.setPixelSize(run_font.pixelSize());
+        }
+        const bool own_face = image_font.isValid() && image_font.familyName() == run_font.familyName();
+        painter.save();
+        if (faux_bold) {
+          painter.setRenderHint(QPainter::Antialiasing, painter.testRenderHint(QPainter::TextAntialiasing));
+        } else {
+          painter.setPen(color);
+        }
+        for (int index = 0; index < indexes.size() && index < positions.size(); ++index) {
+          painter.save();
+          painter.translate(item.block_origin + positions[index]);
+          if (own_face) {
+            painter.scale(image_scale, 1.0);
+          }
+          const auto& glyph_font = own_face ? image_font : run_font;
+          if (faux_bold) {
+            const auto path = glyph_font.pathForGlyph(indexes[index]);
+            painter.fillPath(path, color);
+            painter.strokePath(path, outline);
+          } else {
+            QGlyphRun single;
+            single.setRawFont(glyph_font);
+            single.setGlyphIndexes({indexes[index]});
+            single.setPositions({QPointF(0.0, 0.0)});
+            single.setUnderline(run.underline());
+            single.setOverline(run.overline());
+            single.setStrikeOut(run.strikeOut());
+            painter.drawGlyphRun(QPointF(0.0, 0.0), single);
+          }
+          painter.restore();
+        }
+        painter.restore();
+        continue;
+      }
+      if (faux_bold) {
+        painter.save();
+        painter.setRenderHint(QPainter::Antialiasing, painter.testRenderHint(QPainter::TextAntialiasing));
+        const auto raw_font = run.rawFont();
+        for (int index = 0; index < indexes.size() && index < positions.size(); ++index) {
+          auto path = raw_font.pathForGlyph(indexes[index]);
+          path.translate(item.block_origin + positions[index]);
+          painter.fillPath(path, color);
+          painter.strokePath(path, outline);
+        }
+        painter.restore();
+        continue;
+      }
+      run.setPositions(positions);
+      painter.setPen(color);
+      painter.drawGlyphRun(item.block_origin, run);
+    }
+  }
 }
 
 // Draws a plan through `painter`, whose transform must already map the plan's DOCUMENT
@@ -4162,7 +4605,12 @@ void draw_text_render_plan(const TextRenderPlan& plan, QPainter& painter) {
         painter.setTransform(
             faux_italic_shear(item.block_origin.y() + item.line.y() + item.line.ascent()), true);
       }
-      item.line.draw(&painter, item.block_origin);
+      if (plan.pixel_align_glyphs) {
+        draw_line_glyphs_pixel_aligned(document.findBlock(item.block_position), item, plan.document_transform,
+                                       painter);
+      } else {
+        item.line.draw(&painter, item.block_origin);
+      }
       painter.restore();
     }
   } else {
@@ -4172,6 +4620,139 @@ void draw_text_render_plan(const TextRenderPlan& plan, QPainter& painter) {
     }
     document.drawContents(&painter, plan.local_rect);
   }
+}
+
+// The metrics the PSD writer needs to put Photoshop's re-layout on the pixels this plan draws
+// (docs/text-render-calibration.md, "Patchy text re-renders where Patchy drew it"):
+// - first_baseline: the first drawn line's baseline in the plan's local units, below the
+//   text-local origin for point text (the transform origin; equal to the raster's top row unless
+//   glyph ink overshoots the first line top) and below the raster's top row (the plan's
+//   local_rect top) for box text. Photoshop anchors point text at ty = baseline.
+// - box_baseline_inset: Qt's first baseline minus Photoshop's box rule for a Patchy-authored
+//   block (space before + the line's max CAP HEIGHT: PS 27.9 re-renders of the same block with
+//   Arial, Times, Georgia and Verdana at 268 px all put the first baseline at capHeight x size,
+//   docs/text-render-calibration.md), so the writer can move the frame down by it. Qt-natural
+//   box text only. Rounded to 1/64 px (QFixed's own grid) so the writer's shift and the reader's
+//   restore are exact in binary and a reopened file re-saves byte-identically.
+// - auto_leading: Qt's baseline advance (line 2 minus line 1 of the first paragraph, else the
+//   first line's height, which is what Qt advances by) over the dominant run size, written as the
+//   paragraph /AutoLeading so Photoshop's second line lands where Qt's did. Qt-natural only.
+TextLayoutMetrics text_layout_metrics_for_plan(const TextRenderPlan& plan, const TextToolSettings& settings,
+                                               const QString& rich_text_runs) {
+  TextLayoutMetrics metrics;
+  if (plan.built.document == nullptr || plan.vertical || settings.vertical) {
+    return metrics;
+  }
+  const auto& document = *plan.built.document;
+  const auto* layout = document.documentLayout();
+  if (layout == nullptr) {
+    return metrics;
+  }
+  struct NaturalLine {
+    QTextBlock block;
+    QTextLine line;
+    double baseline{0.0};
+  };
+  std::vector<NaturalLine> natural;
+  for (auto block = document.begin(); block.isValid() && natural.size() < 2U; block = block.next()) {
+    auto* text_layout = block.layout();
+    if (text_layout == nullptr) {
+      continue;
+    }
+    const auto origin_y = layout->blockBoundingRect(block).top();
+    for (int i = 0; i < text_layout->lineCount() && natural.size() < 2U; ++i) {
+      const auto line = text_layout->lineAt(i);
+      if (!line.isValid()) {
+        continue;
+      }
+      natural.push_back(NaturalLine{block, line, origin_y + line.y() + line.ascent()});
+    }
+  }
+  if (natural.empty()) {
+    return metrics;
+  }
+  double first_baseline = natural.front().baseline;
+  if (!plan.line_render_items.empty() && plan.line_render_items.front().line.isValid()) {
+    const auto& item = plan.line_render_items.front();
+    first_baseline = item.block_origin.y() + item.line.y() + item.line.ascent();
+  }
+  if (std::isfinite(first_baseline)) {
+    // Point text: from the text-local origin (the transform's), which the PSD writer starts
+    // from; the raster begins above it whenever glyph ink overshoots the first line's top
+    // (grow_point_text_rect_to_glyph_ink). Box text keeps the raster-top convention.
+    metrics.first_baseline = settings.boxed ? first_baseline - plan.local_rect.top() : first_baseline;
+    if (!settings.boxed) {
+      metrics.raster_top = plan.local_rect.top();
+    }
+  }
+  if (settings.photoshop_layout) {
+    return metrics;
+  }
+  if (settings.boxed) {
+    const auto& first = natural.front();
+    const auto line_start = first.block.position() + first.line.textStart();
+    const auto line_end = line_start + std::max(1, first.line.textLength());
+    double cap_height = 0.0;
+    bool found_format = false;
+    for (auto fragment_it = first.block.begin(); !fragment_it.atEnd(); ++fragment_it) {
+      const auto fragment = fragment_it.fragment();
+      if (!fragment.isValid() || fragment.length() <= 0 || fragment.position() + fragment.length() <= line_start ||
+          fragment.position() >= line_end) {
+        continue;
+      }
+      cap_height = std::max(cap_height, QFontMetricsF(fragment.charFormat().font()).capHeight());
+      found_format = true;
+    }
+    if (!found_format) {
+      cap_height = QFontMetricsF(first.block.charFormat().font()).capHeight();
+    }
+    const auto inset = first.baseline - (std::max(0.0, first.block.blockFormat().topMargin()) + cap_height);
+    if (std::isfinite(inset)) {
+      metrics.box_baseline_inset = std::round(inset * 64.0) / 64.0;
+    }
+  }
+  const bool second_line_in_first_block = natural.size() >= 2U && natural[1].block == natural[0].block;
+  const double pitch = second_line_in_first_block ? natural[1].baseline - natural[0].baseline
+                                                  : natural.front().line.height();
+  // The divisor is the largest run size ON THE LINES THE PITCH WAS MEASURED ON, not the layer's
+  // largest run: Photoshop applies the fraction per line to that line's own sizes, so a layer
+  // whose 49 px lines are separated by a 155 px spacer paragraph wrote 55 / 155 = 0.35 and
+  // Photoshop stacked the 49 px lines 17 px apart (the September 2026 Steam Frame poster). The
+  // layer-wide maximum stays the fallback for a line with no fragments (an empty paragraph).
+  const auto line_max_size = [](const NaturalLine& natural_line) {
+    double best = 0.0;
+    const auto line_start = natural_line.block.position() + natural_line.line.textStart();
+    const auto line_end = line_start + std::max(1, natural_line.line.textLength());
+    for (auto fragment_it = natural_line.block.begin(); !fragment_it.atEnd(); ++fragment_it) {
+      const auto fragment = fragment_it.fragment();
+      if (!fragment.isValid() || fragment.length() <= 0 || fragment.position() + fragment.length() <= line_start ||
+          fragment.position() >= line_end) {
+        continue;
+      }
+      const auto format = fragment.charFormat();
+      double vertical_scale = 1.0;
+      if (format.hasProperty(kTextVerticalScaleFormatProperty)) {
+        const auto value = format.property(kTextVerticalScaleFormatProperty).toDouble();
+        if (std::isfinite(value) && value > 0.01 && value < 100.0) {
+          vertical_scale = value;
+        }
+      }
+      best = std::max(best, photoshop_char_exact_size(format) * vertical_scale);
+    }
+    return best;
+  };
+  double dominant = std::max(line_max_size(natural.front()),
+                             second_line_in_first_block ? line_max_size(natural[1]) : 0.0);
+  if (!(std::isfinite(dominant) && dominant > 0.0)) {
+    dominant = dominant_text_run_size(settings, rich_text_runs);
+  }
+  if (std::isfinite(pitch) && pitch > 0.0 && std::isfinite(dominant) && dominant > 0.0) {
+    const auto fraction = pitch / dominant;
+    if (fraction > 0.01 && fraction < 10.0) {
+      metrics.auto_leading = fraction;
+    }
+  }
+  return metrics;
 }
 
 RenderedTextPixels render_text_pixels_with_local_rect(const TextToolSettings& settings, QColor color,
@@ -4186,7 +4767,7 @@ RenderedTextPixels render_text_pixels_with_local_rect(const TextToolSettings& se
                                            requested_local_rect, metric_scale, document_transform_in,
                                            layout_scale_in);
   if (plan.built.document == nullptr) {
-    return RenderedTextPixels{PixelBuffer{}, QRectF()};
+    return RenderedTextPixels{PixelBuffer{}, QRectF(), TextLayoutMetrics{}};
   }
   const auto& local_rect = plan.local_rect;
   const auto& document_transform = plan.document_transform;
@@ -4206,7 +4787,7 @@ RenderedTextPixels render_text_pixels_with_local_rect(const TextToolSettings& se
   const auto image_height = std::clamp(image_bottom - image_top, 1, kMaxTextRasterDimension);
   QImage image(image_width, image_height, QImage::Format_RGBA8888);
   if (image.isNull()) {
-    return RenderedTextPixels{PixelBuffer{}, local_rect};
+    return RenderedTextPixels{PixelBuffer{}, local_rect, TextLayoutMetrics{}};
   }
   image.fill(Qt::transparent);
 
@@ -4228,18 +4809,14 @@ RenderedTextPixels render_text_pixels_with_local_rect(const TextToolSettings& se
   }
   return RenderedTextPixels{pixels_from_image_rgba(image),
                             QRectF(static_cast<qreal>(image_left), static_cast<qreal>(image_top),
-                                   static_cast<qreal>(image_width), static_cast<qreal>(image_height))};
-}
-
-PixelBuffer render_text_pixels(const TextToolSettings& settings, QColor color, std::int32_t max_width,
-                               const QString& paragraph_runs = QString(),
-                               const QString& rich_text_runs = QString()) {
-  return render_text_pixels_with_local_rect(settings, color, max_width, paragraph_runs, rich_text_runs).pixels;
+                                   static_cast<qreal>(image_width), static_cast<qreal>(image_height)),
+                            text_layout_metrics_for_plan(plan, settings, rich_text_runs)};
 }
 
 struct TransformedTextPixels {
   PixelBuffer pixels;
   Rect bounds{};
+  TextLayoutMetrics metrics;
 };
 
 std::optional<LayerAffineTransform> canonical_text_affine_transform_for_layer(const Layer& layer) {
@@ -4275,8 +4852,10 @@ std::optional<LayerAffineTransform> text_editor_transform_override(const QTextEd
 void set_text_editor_transform_override(QTextEdit& editor, const LayerAffineTransform& transform) {
   editor.setProperty(kTextEditorTransformOverrideProperty,
                      QString::fromStdString(serialize_layer_affine_transform(transform)));
-  editor.setProperty("patchy.documentTextX", static_cast<int>(std::floor(transform[4])));
-  editor.setProperty("patchy.documentTextY", static_cast<int>(std::floor(transform[5])));
+  // The raster is drawn from the anchor rounded like Photoshop (build_text_render_plan), so
+  // the document point that places it rounds the same way.
+  editor.setProperty("patchy.documentTextX", snapped_pixel_coordinate(transform[4]));
+  editor.setProperty("patchy.documentTextY", snapped_pixel_coordinate(transform[5]));
 }
 
 void set_text_editor_visible_local_rect(QTextEdit& editor, const Rect& bounds) {
@@ -4660,29 +5239,36 @@ Rect rendered_text_bounds_for_editor(const QTextEdit& editor, QPoint document_po
   if (text_editor_render_local_rect(editor).has_value()) {
     if (const auto anchor = text_editor_source_visible_anchor(editor); anchor.has_value()) {
       if (const auto visible_bounds = visible_alpha_local_bounds(rendered.pixels); visible_bounds.has_value()) {
-        return Rect{static_cast<std::int32_t>(std::floor(anchor->x() - static_cast<double>(visible_bounds->x))),
-                    static_cast<std::int32_t>(std::floor(anchor->y() - static_cast<double>(visible_bounds->y))),
+        return Rect{snapped_pixel_coordinate(anchor->x() - static_cast<double>(visible_bounds->x)),
+                    snapped_pixel_coordinate(anchor->y() - static_cast<double>(visible_bounds->y)),
                     rendered.pixels.width(),
                     rendered.pixels.height()};
       }
     }
-    return Rect{static_cast<std::int32_t>(std::floor(static_cast<double>(document_point.x()) +
-                                                     rendered.local_rect.left())),
-                static_cast<std::int32_t>(std::floor(static_cast<double>(document_point.y()) +
-                                                     rendered.local_rect.top())),
+    return Rect{snapped_pixel_coordinate(static_cast<double>(document_point.x()) + rendered.local_rect.left()),
+                snapped_pixel_coordinate(static_cast<double>(document_point.y()) + rendered.local_rect.top()),
                 rendered.pixels.width(),
                 rendered.pixels.height()};
+  }
+  if (!text_flow_is_box(editor.property("patchy.documentTextFlow").toString())) {
+    // Point text: the document point is the text-local origin; the buffer starts
+    // local_rect.topLeft() from it (left of / above it when glyph ink overhangs the line start
+    // or top; the identity render's local_rect is already whole pixels). Box text keeps its
+    // frame-corner placement (its rect carries the line bleed above the frame).
+    return Rect{document_point.x() + static_cast<std::int32_t>(std::floor(rendered.local_rect.left())),
+                document_point.y() + static_cast<std::int32_t>(std::floor(rendered.local_rect.top())),
+                rendered.pixels.width(), rendered.pixels.height()};
   }
   return Rect{document_point.x(), document_point.y(), rendered.pixels.width(), rendered.pixels.height()};
 }
 
 std::optional<LayerAffineTransform> anchored_text_transform_for_pixels(const QTextEdit& editor,
-                                                                       const PixelBuffer& pixels) {
+                                                                       const RenderedTextPixels& rendered) {
   const auto anchor = text_editor_source_visible_anchor(editor);
   if (!anchor.has_value()) {
     return std::nullopt;
   }
-  const auto visible_bounds = visible_alpha_local_bounds(pixels);
+  const auto visible_bounds = visible_alpha_local_bounds(rendered.pixels);
   if (!visible_bounds.has_value()) {
     return std::nullopt;
   }
@@ -4702,19 +5288,39 @@ std::optional<LayerAffineTransform> anchored_text_transform_for_pixels(const QTe
         anchor_y += factor * (source_size->height() - static_cast<double>(visible_bounds->height));
       }
     } else if (const auto factor = text_editor_anchor_alignment_factor(editor); factor > 0.0) {
-      anchor_x += factor * (source_size->width() - static_cast<double>(visible_bounds->width));
+      // Whole pixels only, toward zero: Photoshop rasterizes from its line start rounded to a
+      // whole pixel and this render's ink shares the glyphs' side bearing, so a width that
+      // differs by the usual Qt-vs-Photoshop pixel must not slide the raster onto a half-pixel
+      // phase (centered "Hg" at tx 100.0 sits on column 72 in Photoshop, and a 0.5 px shift put
+      // it on 73; docs/text-render-calibration.md, "Pixel grid").
+      anchor_x += std::trunc(factor * (source_size->width() - static_cast<double>(visible_bounds->width)));
     }
   }
+  if (!text_editor_is_vertical(editor)) {
+    anchor_x = snap_to_pixel_grid(anchor_x);
+    // Photoshop rounds every glyph from the UNROUNDED line start, and the render plan snaps
+    // each glyph itself (draw_line_glyphs_pixel_aligned), so the start it gets must carry the
+    // fraction the whole-pixel ink column lost. The first glyph rounds back onto that column.
+    if (text_editor_uses_photoshop_layout(editor)) {
+      const auto fraction = editor.property(kTextEditorSourceLineStartFractionProperty);
+      if (fraction.isValid() && std::isfinite(fraction.toDouble()) && std::abs(fraction.toDouble()) < 1.0) {
+        anchor_x += fraction.toDouble();
+      }
+    }
+  }
+  // The pin places the BUFFER; the transform names the text-local origin, which sits
+  // local_rect.topLeft() inside it (left of / above the buffer corner only when glyph ink
+  // overhangs the line start or top, grow_point_text_rect_to_glyph_ink).
   return LayerAffineTransform{1.0,
                               0.0,
                               0.0,
                               1.0,
-                              anchor_x - static_cast<double>(visible_bounds->x),
-                              anchor_y - static_cast<double>(visible_bounds->y)};
+                              anchor_x - static_cast<double>(visible_bounds->x) - rendered.local_rect.left(),
+                              anchor_y - static_cast<double>(visible_bounds->y) - rendered.local_rect.top()};
 }
 
-bool update_text_editor_transform_from_source_anchor(QTextEdit& editor, const PixelBuffer& pixels) {
-  const auto transform = anchored_text_transform_for_pixels(editor, pixels);
+bool update_text_editor_transform_from_source_anchor(QTextEdit& editor, const RenderedTextPixels& rendered) {
+  const auto transform = anchored_text_transform_for_pixels(editor, rendered);
   if (!transform.has_value()) {
     return false;
   }
@@ -4723,8 +5329,8 @@ bool update_text_editor_transform_from_source_anchor(QTextEdit& editor, const Pi
   return true;
 }
 
-std::optional<PixelBuffer> render_text_editor_pixels_for_source_anchor(const QTextEdit& editor, double zoom,
-                                                                       QColor fallback_color) {
+std::optional<RenderedTextPixels> render_text_editor_pixels_for_source_anchor(const QTextEdit& editor, double zoom,
+                                                                              QColor fallback_color) {
   // Untrimmed: run offsets index the full document text (see calibrated_box_text_metric_scale_for_editor).
   const auto text = editor.toPlainText();
   if (text.trimmed().isEmpty()) {
@@ -4762,19 +5368,19 @@ std::optional<PixelBuffer> render_text_editor_pixels_for_source_anchor(const QTe
   const auto rich_text_runs = rich_text_runs_from_document(*document_text, settings, text_color);
   const auto paragraph_runs = paragraph_runs_from_document(*document_text);
   settings.html = document_html_from_text_runs(document_text->toPlainText(), rich_text_runs, settings, text_color);
-  auto pixels = render_text_pixels(settings, text_color, text_width, paragraph_runs, rich_text_runs);
-  if (pixels.empty()) {
+  auto rendered = render_text_pixels_with_local_rect(settings, text_color, text_width, paragraph_runs, rich_text_runs);
+  if (rendered.pixels.empty()) {
     return std::nullopt;
   }
-  return pixels;
+  return rendered;
 }
 
 bool update_text_editor_transform_from_source_anchor(QTextEdit& editor, double zoom, QColor fallback_color) {
-  const auto pixels = render_text_editor_pixels_for_source_anchor(editor, zoom, fallback_color);
-  if (!pixels.has_value()) {
+  const auto rendered = render_text_editor_pixels_for_source_anchor(editor, zoom, fallback_color);
+  if (!rendered.has_value()) {
     return false;
   }
-  return update_text_editor_transform_from_source_anchor(editor, *pixels);
+  return update_text_editor_transform_from_source_anchor(editor, *rendered);
 }
 
 std::optional<QTransform> text_transform_for_editor_or_layer(const QTextEdit& editor, const Layer& layer) {
@@ -4807,7 +5413,8 @@ TransformedTextPixels apply_text_transform_to_pixels(const PixelBuffer& pixels, 
   painter.end();
 
   return TransformedTextPixels{pixels_from_image_rgba(transformed),
-                               Rect{left, top, transformed.width(), transformed.height()}};
+                               Rect{left, top, transformed.width(), transformed.height()},
+                               TextLayoutMetrics{}};
 }
 
 // Re-rasterize a text editor session's glyphs *through* the layer transform -- vector glyphs
@@ -4825,7 +5432,15 @@ std::optional<TransformedTextPixels> render_crisp_transformed_text_for_editor(
     const QTextEdit& editor, bool psd_anchored_text, bool boxed_text, bool has_local_offset,
     const TextToolSettings& settings, QColor text_color, int text_width, const QString& paragraph_runs,
     const QString& rich_text_runs, const QTransform& text_transform, const QTransform& transform_for_pixels) {
-  if (boxed_text || has_local_offset || !qtransform_has_non_translation_linear_part(text_transform)) {
+  // A translation whose x is fractional also renders through the transform: the plan rounds
+  // every glyph from that fractional line start (draw_line_glyphs_pixel_aligned), which a
+  // resample of the identity raster cannot reproduce (it smears the whole line by the fraction).
+  // Whole translations keep the byte-for-byte copy.
+  const bool fractional_translation =
+      settings.photoshop_layout && !settings.vertical &&
+      std::abs(text_transform.dx() - snap_to_pixel_grid(text_transform.dx())) > 1e-6;
+  if (boxed_text || has_local_offset ||
+      (!qtransform_has_non_translation_linear_part(text_transform) && !fractional_translation)) {
     return std::nullopt;
   }
   if (psd_anchored_text && !text_editor_transform_override(editor).has_value()) {
@@ -4840,7 +5455,7 @@ std::optional<TransformedTextPixels> render_crisp_transformed_text_for_editor(
   const Rect bounds{static_cast<std::int32_t>(std::floor(crisp.local_rect.left())),
                     static_cast<std::int32_t>(std::floor(crisp.local_rect.top())), crisp.pixels.width(),
                     crisp.pixels.height()};
-  return TransformedTextPixels{std::move(crisp.pixels), bounds};
+  return TransformedTextPixels{std::move(crisp.pixels), bounds, crisp.metrics};
 }
 
 std::vector<double> parse_space_separated_doubles(std::string_view text) {
@@ -5077,7 +5692,7 @@ LayerAffineTransform affine_with_local_translation(const LayerAffineTransform& t
 }
 
 std::optional<LayerAffineTransform> psd_point_text_local_bounds_transform_for_pixels(const Layer& layer,
-                                                                                    const PixelBuffer& pixels,
+                                                                                    const RenderedTextPixels& rendered,
                                                                                     bool boxed_text,
                                                                                     double alignment_factor) {
   if (boxed_text || !layer.metadata().contains(kLayerMetadataPsdTextTransform) ||
@@ -5096,12 +5711,14 @@ std::optional<LayerAffineTransform> psd_point_text_local_bounds_transform_for_pi
     return std::nullopt;
   }
   const auto psd_local_rect = psd_point_text_local_visual_rect(layer);
-  const auto visible_bounds = visible_alpha_local_bounds(pixels);
+  const auto visible_bounds = visible_alpha_local_bounds(rendered.pixels);
   if (!psd_local_rect.has_value() || !visible_bounds.has_value()) {
     return std::nullopt;
   }
 
-  const QRectF visible_rect(visible_bounds->x, visible_bounds->y, visible_bounds->width, visible_bounds->height);
+  // Pixel (0, 0) of the identity render is local point local_rect.topLeft().
+  const QRectF visible_rect(rendered.local_rect.left() + visible_bounds->x, rendered.local_rect.top() + visible_bounds->y,
+                            visible_bounds->width, visible_bounds->height);
   const auto transform_qt = qtransform_from_affine(*transform);
   const auto anchor_index = visual_top_left_corner_index(*psd_local_rect, transform_qt);
   auto delta = rect_corner(*psd_local_rect, anchor_index) - rect_corner(visible_rect, anchor_index);
@@ -5118,7 +5735,37 @@ std::optional<LayerAffineTransform> psd_point_text_local_bounds_transform_for_pi
   if (!std::isfinite(delta.x()) || !std::isfinite(delta.y())) {
     return std::nullopt;
   }
-  return affine_with_local_translation(*transform, delta);
+  auto pinned = affine_with_local_translation(*transform, delta);
+  // The pin puts Patchy's ink on Photoshop's DECLARED box, which is fractional. Photoshop's own
+  // raster starts at the LINE START rounded to a whole document pixel, halves up: the anchor plus
+  // the advance box's left edge (the ink box less Patchy's own side bearing stands in when the
+  // TySh carries no `bounds`). Patchy's raster origin (local x 0) is its line start, so for an
+  // axis-aligned transform move it onto that rounded column: the re-render lands on Photoshop's
+  // columns (centered "Hg" at tx 100.0 -> column 72, at 100.3 -> 73; docs/text-render-calibration.md,
+  // "Pixel grid") and a translation-only commit copies whole pixels instead of resampling at a
+  // half-pixel phase. Rotated or sheared layers keep the plain pin.
+  if (std::abs((*transform)[1]) <= 1e-9 && std::abs((*transform)[2]) <= 1e-9 && std::abs(pinned[0]) > 1e-9) {
+    const auto advance_rect = psd_text_metadata_local_rect(layer, kLayerMetadataPsdTextBounds);
+    const double line_start_psd_x =
+        advance_rect.has_value() ? advance_rect->left() : psd_local_rect->left() - visible_rect.left();
+    const auto photoshop_start_x = transform_qt.map(QPointF(line_start_psd_x, 0.0)).x();
+    // The pin's own correction (the justification fraction of the width difference between
+    // Photoshop's ink and this render's) survives in WHOLE local pixels: the usual sub-pixel
+    // Qt-vs-Photoshop width difference must not move the start off Photoshop's column, while a
+    // substituted face that is much wider keeps its right edge or centre where Photoshop had it.
+    const auto width_correction = std::trunc((pinned[4] - photoshop_start_x) / pinned[0]) * pinned[0];
+    // The start keeps its fraction: the render plan rounds every glyph from it in document
+    // space (draw_line_glyphs_pixel_aligned), which puts the first glyph on this same rounded
+    // column and the rest where Photoshop's own per-glyph rounding puts them. Vertical type
+    // draws through the cell plan instead and keeps the whole-pixel start.
+    const auto origin_x = photoshop_start_x + width_correction;
+    const auto document_shift =
+        (layer_text_is_vertical(layer) ? snap_to_pixel_grid(origin_x) : origin_x) - pinned[4];
+    if (std::isfinite(document_shift)) {
+      pinned = affine_with_local_translation(pinned, QPointF(document_shift / pinned[0], 0.0));
+    }
+  }
+  return pinned;
 }
 
 // Fallback for PSDs whose TySh descriptor predates the bounds/boundingBox fields (Photoshop
@@ -5129,7 +5776,7 @@ std::optional<LayerAffineTransform> psd_point_text_local_bounds_transform_for_pi
 // A local translation shifts the mapped bounding box rigidly, so the pin is exact for any
 // invertible affine.
 std::optional<LayerAffineTransform> psd_point_text_document_bounds_transform_for_pixels(
-    const Layer& layer, const PixelBuffer& pixels, bool boxed_text, double alignment_factor) {
+    const Layer& layer, const RenderedTextPixels& rendered, bool boxed_text, double alignment_factor) {
   if (boxed_text || !layer.metadata().contains(kLayerMetadataPsdTextTransform)) {
     return std::nullopt;
   }
@@ -5138,7 +5785,7 @@ std::optional<LayerAffineTransform> psd_point_text_document_bounds_transform_for
     return std::nullopt;
   }
   const auto source_visible = visible_alpha_local_bounds(layer.pixels());
-  const auto render_visible = visible_alpha_local_bounds(pixels);
+  const auto render_visible = visible_alpha_local_bounds(rendered.pixels);
   if (!source_visible.has_value() || !render_visible.has_value()) {
     return std::nullopt;
   }
@@ -5146,7 +5793,9 @@ std::optional<LayerAffineTransform> psd_point_text_document_bounds_transform_for
                           static_cast<double>(layer.bounds().y + source_visible->y),
                           static_cast<double>(source_visible->width),
                           static_cast<double>(source_visible->height));
-  const QRectF render_local(render_visible->x, render_visible->y, render_visible->width,
+  // Pixel (0, 0) of the identity render is local point local_rect.topLeft().
+  const QRectF render_local(rendered.local_rect.left() + render_visible->x,
+                            rendered.local_rect.top() + render_visible->y, render_visible->width,
                             render_visible->height);
   const auto transform_qt = qtransform_from_affine(*transform);
   const auto mapped = transform_qt.mapRect(render_local);
@@ -5181,24 +5830,55 @@ std::optional<LayerAffineTransform> psd_point_text_document_bounds_transform_for
   if (!std::isfinite(local_delta.x()) || !std::isfinite(local_delta.y())) {
     return std::nullopt;
   }
-  return affine_with_local_translation(*transform, local_delta);
+  auto pinned = affine_with_local_translation(*transform, local_delta);
+  // Photoshop rasterized this layer from its line start rounded to a whole pixel, and its ink
+  // column is that start plus the glyphs' side bearing, which this render shares. Without the
+  // TySh advance box the start is recovered from the raster: the source ink column less the
+  // render's own bearing (scaled), rounded. Put Patchy's raster origin (local x 0, its line
+  // start) there instead of on the fractional centre pin, so the Dungeon Scroll buttons re-render
+  // on their own columns (docs/text-render-calibration.md, "Pixel grid"). Axis-aligned only.
+  if (std::abs(pinned[1]) <= 1e-9 && std::abs(pinned[2]) <= 1e-9 && std::abs(pinned[0]) > 1e-9) {
+    const auto photoshop_start_x = source_doc.left() - render_local.left() * pinned[0];
+    // As in the local-bounds variant: keep the pin's justification correction in whole local
+    // pixels so a substituted wider face stays justified while same-face renders land on
+    // Photoshop's column.
+    const auto width_correction = std::trunc((pinned[4] - photoshop_start_x) / pinned[0]) * pinned[0];
+    auto origin_x = snap_to_pixel_grid(photoshop_start_x + width_correction);
+    // Without the advance box the fraction of Photoshop's line start is estimated from the
+    // TySh anchor less the justification fraction of this render's width (a whole-pixel start
+    // column is all the raster can say); the plan then rounds every glyph from it.
+    if (!layer_text_is_vertical(layer)) {
+      const auto start_estimate = (*transform)[4] - alignment_factor * mapped.width();
+      if (std::isfinite(start_estimate)) {
+        origin_x += start_estimate - snap_to_pixel_grid(start_estimate);
+      }
+    }
+    const auto document_shift = origin_x - pinned[4];
+    if (std::isfinite(document_shift)) {
+      pinned = affine_with_local_translation(pinned, QPointF(document_shift / pinned[0], 0.0));
+    }
+  }
+  return pinned;
 }
 
 bool update_text_editor_transform_from_psd_local_bounds(QTextEdit& editor, const Layer& layer,
-                                                        const PixelBuffer& pixels, bool boxed_text) {
+                                                        const RenderedTextPixels& rendered, bool boxed_text) {
   const auto alignment_factor = text_editor_anchor_alignment_factor(editor);
   auto transform =
-      psd_point_text_local_bounds_transform_for_pixels(layer, pixels, boxed_text, alignment_factor);
+      psd_point_text_local_bounds_transform_for_pixels(layer, rendered, boxed_text, alignment_factor);
   if (!transform.has_value()) {
     transform =
-        psd_point_text_document_bounds_transform_for_pixels(layer, pixels, boxed_text, alignment_factor);
+        psd_point_text_document_bounds_transform_for_pixels(layer, rendered, boxed_text, alignment_factor);
   }
   if (!transform.has_value()) {
     return false;
   }
   set_text_editor_transform_override(editor, *transform);
-  if (const auto visible_bounds = visible_alpha_local_bounds(pixels); visible_bounds.has_value()) {
-    set_text_editor_visible_local_rect(editor, *visible_bounds);
+  if (const auto visible_bounds = visible_alpha_local_bounds(rendered.pixels); visible_bounds.has_value()) {
+    set_text_editor_visible_local_rect(
+        editor, Rect{visible_bounds->x + static_cast<std::int32_t>(std::floor(rendered.local_rect.left())),
+                     visible_bounds->y + static_cast<std::int32_t>(std::floor(rendered.local_rect.top())),
+                     visible_bounds->width, visible_bounds->height});
   }
   return true;
 }
@@ -5297,13 +5977,21 @@ std::optional<LayerTextRenderInputs> text_render_inputs_from_layer(const Layer& 
                                rich_text_runs};
 }
 
-std::optional<PixelBuffer> render_text_layer_pixels_from_metadata(const Layer& layer) {
+std::optional<RenderedTextPixels> render_text_layer_from_metadata(const Layer& layer) {
   const auto inputs = text_render_inputs_from_layer(layer);
   if (!inputs.has_value()) {
     return std::nullopt;
   }
-  return render_text_pixels(inputs->settings, inputs->color, inputs->max_width, inputs->paragraph_runs,
-                            inputs->rich_text_runs);
+  return render_text_pixels_with_local_rect(inputs->settings, inputs->color, inputs->max_width,
+                                            inputs->paragraph_runs, inputs->rich_text_runs);
+}
+
+std::optional<PixelBuffer> render_text_layer_pixels_from_metadata(const Layer& layer) {
+  auto rendered = render_text_layer_from_metadata(layer);
+  if (!rendered.has_value()) {
+    return std::nullopt;
+  }
+  return std::move(rendered->pixels);
 }
 
 // Document-space Photoshop anchor of a vertical point layer: the layer raster is the plan's
@@ -5365,10 +6053,12 @@ std::optional<TransformedTextPixels> render_text_layer_pixels_through_transform(
                              .convertToFormat(QImage::Format_RGBA8888)
                              .copy(visible->x, visible->y, visible->width, visible->height);
     return TransformedTextPixels{pixels_from_image_rgba(cropped),
-                                 Rect{origin_x + visible->x, origin_y + visible->y, visible->width, visible->height}};
+                                 Rect{origin_x + visible->x, origin_y + visible->y, visible->width, visible->height},
+                                 rendered.metrics};
   }
   return TransformedTextPixels{rendered.pixels,
-                               Rect{origin_x, origin_y, rendered.pixels.width(), rendered.pixels.height()}};
+                               Rect{origin_x, origin_y, rendered.pixels.width(), rendered.pixels.height()},
+                               rendered.metrics};
 }
 
 // An imported type layer whose transform is still the PSD's own: Photoshop's raster kept as
@@ -5416,9 +6106,9 @@ std::optional<QTransform> imported_preview_text_plan_transform(const Layer& laye
   }
   const auto factor = layer_anchor_alignment_factor(layer);
   if (has_linear_part) {
-    auto aligned = psd_point_text_local_bounds_transform_for_pixels(layer, rendered.pixels, false, factor);
+    auto aligned = psd_point_text_local_bounds_transform_for_pixels(layer, rendered, false, factor);
     if (!aligned.has_value()) {
-      aligned = psd_point_text_document_bounds_transform_for_pixels(layer, rendered.pixels, false, factor);
+      aligned = psd_point_text_document_bounds_transform_for_pixels(layer, rendered, false, factor);
     }
     if (!aligned.has_value()) {
       return std::nullopt;
@@ -5698,9 +6388,10 @@ std::optional<TransformedTextPixels> render_warped_text_pixels_for_layer(const L
             .copy(visible->x, visible->y, visible->width, visible->height);
     return TransformedTextPixels{pixels_from_image_rgba(cropped),
                                  Rect{warped.bounds.x + visible->x, warped.bounds.y + visible->y,
-                                      visible->width, visible->height}};
+                                      visible->width, visible->height},
+                                 base.metrics};
   }
-  return TransformedTextPixels{std::move(pixels), warped.bounds};
+  return TransformedTextPixels{std::move(pixels), warped.bounds, base.metrics};
 }
 
 bool layer_has_active_text_warp(const Layer& layer) {
@@ -5750,7 +6441,7 @@ bool text_editor_layer_is_warped(const Document& doc, const QTextEdit& editor) {
 }
 
 void clear_layer_text_metadata(Layer& layer) {
-  static constexpr std::array<const char*, 25> kTextMetadataKeys = {
+  static constexpr std::array<const char*, 29> kTextMetadataKeys = {
       kLayerMetadataText,
       kLayerMetadataTextOrientation,
       kLayerMetadataTextHtml,
@@ -5776,6 +6467,10 @@ void clear_layer_text_metadata(Layer& layer) {
       kLayerMetadataPsdTextTailBounds,
       kLayerMetadataPsdTextIndex,
       kLayerMetadataTextLineAwareBoxPreview,
+      kLayerMetadataTextFirstBaseline,
+      kLayerMetadataTextBoxBaselineInset,
+      kLayerMetadataTextAutoLeading,
+      kLayerMetadataTextRasterTop,
   };
   for (const auto* key : kTextMetadataKeys) {
     layer.metadata().erase(key);
@@ -5842,7 +6537,30 @@ void store_patchy_text_metadata(Layer& layer, const TextToolSettings& settings, 
     layer.metadata().erase(kLayerMetadataTextOrientation);
   }
   layer.metadata()[kLayerMetadataTextRasterStatus] = "patchy_raster";
+  // The layout metrics describe one specific render; every caller stores the fresh ones right
+  // after this (store_text_layout_metrics) so a stale inset never outlives its raster.
+  layer.metadata().erase(kLayerMetadataTextFirstBaseline);
+  layer.metadata().erase(kLayerMetadataTextBoxBaselineInset);
+  layer.metadata().erase(kLayerMetadataTextAutoLeading);
+  layer.metadata().erase(kLayerMetadataTextRasterTop);
   clear_layer_psd_text_source(layer);
+}
+
+// Records the render's layout metrics (see TextLayoutMetrics) on the layer whose pixels it
+// became; a metric that does not apply is erased so the PSD writer falls back to its raster
+// heuristics rather than trusting a value from an older render.
+void store_text_layout_metrics(Layer& layer, const TextLayoutMetrics& metrics) {
+  const auto store = [&layer](const char* key, const std::optional<double>& value) {
+    if (value.has_value() && std::isfinite(*value)) {
+      layer.metadata()[key] = QString::number(*value, 'g', 12).toStdString();
+    } else {
+      layer.metadata().erase(key);
+    }
+  };
+  store(kLayerMetadataTextFirstBaseline, metrics.first_baseline);
+  store(kLayerMetadataTextBoxBaselineInset, metrics.box_baseline_inset);
+  store(kLayerMetadataTextAutoLeading, metrics.auto_leading);
+  store(kLayerMetadataTextRasterTop, metrics.raster_top);
 }
 
 // Version number of a serialized runs string ("v3" -> 3); 0 when the first line is not a tag.
@@ -5977,11 +6695,19 @@ QTransform fold_text_transform_scale_into_font_size(Layer& layer, const QTransfo
   return residual;
 }
 
+// The committed box origin is the integer document point, except that an anchor whose
+// Photoshop rounding already IS that point keeps its fraction: Photoshop stores fractional
+// click points (tx 100.4) and renders from their rounding, so overwriting 100.4 with 100
+// would shift the layer on the next Photoshop open whenever the fraction was >= .5.
 LayerAffineTransform committed_text_transform(QPoint document_point,
                                               const std::optional<LayerAffineTransform>& active_transform) {
   auto transform = active_transform.value_or(LayerAffineTransform{1.0, 0.0, 0.0, 1.0, 0.0, 0.0});
-  transform[4] = static_cast<double>(document_point.x());
-  transform[5] = static_cast<double>(document_point.y());
+  if (!active_transform.has_value() || snapped_pixel_coordinate(transform[4]) != document_point.x()) {
+    transform[4] = static_cast<double>(document_point.x());
+  }
+  if (!active_transform.has_value() || snapped_pixel_coordinate(transform[5]) != document_point.y()) {
+    transform[5] = static_cast<double>(document_point.y());
+  }
   return transform;
 }
 
@@ -6116,11 +6842,14 @@ bool text_layer_name_is_auto(const Layer& layer) {
   return false;
 }
 
+}  // namespace
+
 // Re-rasterize a text layer through its stored (already composed) transform. Shared by the
 // free-transform commit callback and the Image Size re-render pass, so both land the same
 // pixels for the same transform. Returns false when the layer keeps whatever raster the caller
 // already produced (the resampled bitmap), which is the right answer for imported text whose
-// font is missing or whose glyph alignment is unknown.
+// font is missing or whose glyph alignment is unknown. Declared in main_window_shared.hpp
+// for Convert to Layers.
 bool rerender_text_layer_through_stored_transform(Layer& layer) {
   const auto transform = canonical_text_affine_transform_for_layer(layer);
   if (!transform.has_value()) {
@@ -6151,6 +6880,7 @@ bool rerender_text_layer_through_stored_transform(Layer& layer) {
     }
     layer.set_pixels(std::move(rendered->pixels));
     layer.set_bounds(rendered->bounds);
+    store_text_layout_metrics(layer, rendered->metrics);
     layer.metadata()[kLayerMetadataTextWarp] = serialize_text_warp(refreshed);
     return true;
   }
@@ -6176,11 +6906,11 @@ bool rerender_text_layer_through_stored_transform(Layer& layer) {
     const auto flow = layer.metadata().find(kLayerMetadataTextFlow);
     const bool boxed =
         flow != layer.metadata().end() && text_flow_is_box(QString::fromStdString(flow->second));
-    const auto base_pixels = render_text_layer_pixels_from_metadata(layer);
-    if (!base_pixels.has_value()) {
+    const auto base = render_text_layer_from_metadata(layer);
+    if (!base.has_value() || base->pixels.empty()) {
       return false;
     }
-    const auto aligned = psd_point_text_local_bounds_transform_for_pixels(layer, *base_pixels, boxed,
+    const auto aligned = psd_point_text_local_bounds_transform_for_pixels(layer, *base, boxed,
                                                                           layer_anchor_alignment_factor(layer));
     if (!aligned.has_value()) {
       return false;
@@ -6191,6 +6921,7 @@ bool rerender_text_layer_through_stored_transform(Layer& layer) {
     }
     layer.set_pixels(std::move(rendered->pixels));
     layer.set_bounds(rendered->bounds);
+    store_text_layout_metrics(layer, rendered->metrics);
     return true;
   }
   // Patchy-authored text (point or box): fold the transform's scale into the point size (so the
@@ -6204,10 +6935,9 @@ bool rerender_text_layer_through_stored_transform(Layer& layer) {
   }
   layer.set_pixels(std::move(rendered->pixels));
   layer.set_bounds(rendered->bounds);
+  store_text_layout_metrics(layer, rendered->metrics);
   return true;
 }
-
-}  // namespace
 
 // Public (ui/psd_font_resolver.hpp): points the PSD reader's PostScript font-name
 // resolution at the font database. On Windows the hook is installed but never
@@ -6246,6 +6976,9 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   // subclass that hosts the zoom percentage box (see ui/zoom_status_bar.hpp).
   zoom_status_bar_ = new ZoomStatusBar(this);
   setStatusBar(zoom_status_bar_);
+#ifndef Q_OS_WASM
+  start_document_recovery();
+#endif
   register_builtin_filters(filters_);
   install_ico_png_codec();
   install_rttex_jpeg_codec();
@@ -6339,6 +7072,10 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   layer_fill_opacity_idle_timer_->setInterval(kLayerOpacityIdleFinishDelayMs);
   connect(layer_fill_opacity_idle_timer_, &QTimer::timeout, this,
           [this] { finish_pending_layer_fill_opacity_edit(); });
+  layer_blend_idle_timer_ = new QTimer(this);
+  layer_blend_idle_timer_->setSingleShot(true);
+  layer_blend_idle_timer_->setInterval(kLayerBlendIdleFinishDelayMs);
+  connect(layer_blend_idle_timer_, &QTimer::timeout, this, [this] { finish_pending_layer_blend_edit(); });
   tool_settings_save_timer_ = new QTimer(this);
   tool_settings_save_timer_->setSingleShot(true);
   tool_settings_save_timer_->setInterval(kToolSettingsSaveDelayMs);
@@ -6355,6 +7092,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   rebuild_recent_files_menu();
   load_recent_folders();
   rebuild_recent_folders_menu();
+  // The first existence check waits for the event loop, off the startup path.
+  QTimer::singleShot(0, this, [this] { schedule_recent_history_check(true); });
   auto* recent_history_timer = new QTimer(this);
   recent_history_timer->setInterval(2000);
   connect(recent_history_timer, &QTimer::timeout, this, [this] {
@@ -7281,6 +8020,12 @@ void MainWindow::closeEvent(QCloseEvent* event) {
   // Flush any tool-option change still waiting on the save debounce; the timer
   // will not fire once the window is gone.
   save_tool_settings();
+#ifndef Q_OS_WASM
+  // A consented quit: no more recovery writes, and the destructor drops the folder.
+  if (recovery_timer_ != nullptr) {
+    recovery_timer_->stop();
+  }
+#endif
   // Close the tile preview with the main window: left visible, it has no visible
   // transient parent anymore, so it blocks lastWindowClosed and the process
   // lingers headless with only the preview on screen.
@@ -7327,6 +8072,17 @@ MainWindow::~MainWindow() {
   // down; the commit path must see this flag and bail before touching any member
   // container (observed as an uncaught "No active document" on macOS teardown).
   shutting_down_ = true;
+#ifndef Q_OS_WASM
+  // Reaching the destructor means the process is exiting on purpose (a crash never
+  // gets here): the recovery folder is deleted by whichever owner releases it last,
+  // this window or a background write still running (main() waits for those).
+  if (recovery_timer_ != nullptr) {
+    recovery_timer_->stop();
+  }
+  if (recovery_folder_ != nullptr) {
+    recovery_folder_->discard_on_release();
+  }
+#endif
   // The color-picker palette hook captures this window; drop it so a picker
   // created after teardown (tests build windows serially) cannot call into a
   // destroyed MainWindow.
@@ -7369,6 +8125,13 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
     }
     if (auto* target_session = session_for_canvas(canvas); target_session != nullptr) {
       push_undo_snapshot(*target_session, std::move(label));
+    }
+  });
+  // The Patch tool's Enter with an outline and no drag opens the Remove
+  // Object dialog, the same command as the Edit menu entry.
+  canvas->set_remove_object_requested_callback([this, canvas] {
+    if (canvas == canvas_) {
+      remove_object_dialog();
     }
   });
   canvas->set_smart_filter_mask_committed_callback(
@@ -7554,6 +8317,15 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
   });
   canvas->set_status_callback([this](QString message) { statusBar()->showMessage(message); });
   canvas->set_selection_context_actions_callback([this] { return selection_context_actions_; });
+  // A right-click on the active shape layer: the Layer > Shape and Edit menus'
+  // own QActions (docs/tools.md, "Canvas right-click menu").
+  canvas->set_shape_context_actions_callback([this] {
+    return QList<QAction*>{layer_shape_appearance_action_, free_transform_action_, path_simplify_action_,
+                           nullptr, define_custom_shape_action_, layer_rasterize_action_};
+  });
+  // A Move-tool right-click on any other active leaf layer (pixel, text, smart
+  // object): Free Transform, as the shape section offers it.
+  canvas->set_layer_context_actions_callback([this] { return QList<QAction*>{free_transform_action_}; });
   canvas->set_vector_preview_status_callback([this, canvas](QString message, bool notice) {
     if (canvas == canvas_) {
       refresh_vector_preview_action();
@@ -7716,6 +8488,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
   bool editing_layer_uses_line_aware_box_preview = false;
   std::optional<QPointF> editing_layer_source_visible_anchor;
   std::optional<QSizeF> editing_layer_source_visible_size;
+  std::optional<double> editing_layer_source_line_start_fraction;
   std::optional<QRectF> editing_layer_render_local_rect;
   bool editing_layer_is_warped_text = false;
   std::optional<QTransform> editing_layer_warp_session_transform;
@@ -7841,6 +8614,9 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
         text_font_combo_->setCurrentFont(text_font_combo_font_for_family(family));
       }
       if (text_size_spin_ != nullptr) {
+        // Blocked like the family combo: an unblocked write fires the size slot, which with no
+        // live editor yet would start a layer edit from inside this session's setup.
+        QSignalBlocker blocker(text_size_spin_);
         text_size_spin_->setValue(text_pixels_to_points(
             std::max(1, static_cast<int>(std::lround(document_text_size * text_size_display_scale))), document()));
       }
@@ -7897,8 +8673,23 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
         if (psd_visible_rect.has_value()) {
           editing_layer_source_visible_anchor = psd_visible_rect->topLeft();
           editing_layer_source_visible_size = psd_visible_rect->size();
-          document_point = QPoint(static_cast<int>(std::floor(psd_visible_rect->left())),
-                                  static_cast<int>(std::floor(psd_visible_rect->top())));
+          // Photoshop's line start: the anchor plus the advance box's left edge (0 for left
+          // text, minus half the width for centered), fractional in the file. Keep what its
+          // whole-pixel rounding drops so the re-render rounds each glyph from the same start.
+          // The canonical transform serves both a fresh import and a layer Patchy already
+          // committed (its stored tx keeps the fraction, committed_text_transform).
+          if (!layer_text_is_vertical(*layer)) {
+            const auto advance_rect = psd_text_metadata_local_rect(*layer, kLayerMetadataPsdTextBounds);
+            const double line_start = (*text_affine_transform)[4] +
+                                      (advance_rect.has_value()
+                                           ? advance_rect->left()
+                                           : -layer_anchor_alignment_factor(*layer) * psd_visible_rect->width());
+            if (std::isfinite(line_start)) {
+              editing_layer_source_line_start_fraction = line_start - snap_to_pixel_grid(line_start);
+            }
+          }
+          document_point = QPoint(snapped_pixel_coordinate(psd_visible_rect->left()),
+                                  snapped_pixel_coordinate(psd_visible_rect->top()));
         } else {
           bool invertible = false;
           const auto inverse = text_transform->inverted(&invertible);
@@ -7906,12 +8697,12 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
             initial_cursor_local_position = inverse.map(QPointF(requested_document_point));
           }
           const auto transformed_origin = text_transform->map(QPointF(0.0, 0.0));
-          document_point = QPoint(static_cast<int>(std::floor(transformed_origin.x())),
-                                  static_cast<int>(std::floor(transformed_origin.y())));
+          document_point = QPoint(snapped_pixel_coordinate(transformed_origin.x()),
+                                  snapped_pixel_coordinate(transformed_origin.y()));
         }
       } else if (using_psd_frame) {
-        document_point = QPoint(static_cast<int>(std::floor(psd_frame->left())),
-                                static_cast<int>(std::floor(psd_frame->top())));
+        document_point = QPoint(snapped_pixel_coordinate(psd_frame->left()),
+                                snapped_pixel_coordinate(psd_frame->top()));
         document_editor_width =
             std::max(kMinimumTextBoxDocumentSize, static_cast<int>(std::ceil(psd_frame->width())));
         document_editor_height =
@@ -8132,6 +8923,9 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
   if (editing_layer_source_visible_size.has_value()) {
     editor->setProperty(kTextEditorSourceVisibleSizeProperty, QVariant::fromValue(*editing_layer_source_visible_size));
   }
+  if (editing_layer_source_line_start_fraction.has_value()) {
+    editor->setProperty(kTextEditorSourceLineStartFractionProperty, *editing_layer_source_line_start_fraction);
+  }
   if (restore_active_layer.has_value()) {
     editor->setProperty("patchy.restoreActiveLayerId", QVariant::fromValue<qulonglong>(*restore_active_layer));
   }
@@ -8175,6 +8969,9 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
     QTextCursor cursor(editor->document());
     cursor.select(QTextCursor::Document);
     auto format = text_editor_typing_format(editor_font, text_color);
+    // The exact document size in editor units, so the commit does not recover the size from
+    // the whole-pixel editor font divided by the zoom (see the rich-text runs applier).
+    format.setProperty(kTextExactSizeFormatProperty, document_text_size * canvas_->zoom());
     if (!text_style.isEmpty()) {
       format.setProperty(kTextStyleNameFormatProperty, text_style);
     }
@@ -8211,9 +9008,9 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
                             editor->property("patchy.documentTextY").toInt());
   } else if (editing_layer.has_value()) {
     if (auto* layer = document().find_layer(*editing_layer); layer != nullptr) {
-      if (const auto pixels = render_text_editor_pixels_for_source_anchor(*editor, canvas_->zoom(), text_color);
-          pixels.has_value() &&
-          update_text_editor_transform_from_psd_local_bounds(*editor, *layer, *pixels, boxed_text)) {
+      if (const auto rendered = render_text_editor_pixels_for_source_anchor(*editor, canvas_->zoom(), text_color);
+          rendered.has_value() &&
+          update_text_editor_transform_from_psd_local_bounds(*editor, *layer, *rendered, boxed_text)) {
         document_point = QPoint(editor->property("patchy.documentTextX").toInt(),
                                 editor->property("patchy.documentTextY").toInt());
         if (const auto transform = text_editor_transform_override(*editor); transform.has_value()) {
@@ -8540,7 +9337,9 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
   if (text.trimmed().isEmpty()) {
     restore_hidden_text_layer();
     if (layer_id.has_value() && !layer_id_locks_image_pixels(*layer_id)) {
-      push_undo_snapshot(tr("Type"));
+      if (!text_commit_snapshot_suppressed_) {
+        push_undo_snapshot(tr("Type"));
+      }
       if (auto* layer = document().find_layer(*layer_id); layer != nullptr) {
         auto& metadata = layer->metadata();
         metadata[kLayerMetadataText] = text.toStdString();
@@ -8614,13 +9413,13 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
         // updates below would re-anchor the text at the warped ink and drift it every commit.
         warped_text_layer = layer_has_active_text_warp(*layer);
         if (!warped_text_layer) {
-          updated_transform = update_text_editor_transform_from_psd_local_bounds(*editor, *layer, rendered.pixels,
+          updated_transform = update_text_editor_transform_from_psd_local_bounds(*editor, *layer, rendered,
                                                                                 boxed_text);
         }
       }
     }
     if (!updated_transform && !warped_text_layer) {
-      update_text_editor_transform_from_source_anchor(*editor, rendered.pixels);
+      update_text_editor_transform_from_source_anchor(*editor, rendered);
     }
     document_point = QPoint(editor->property("patchy.documentTextX").toInt(),
                             editor->property("patchy.documentTextY").toInt());
@@ -8686,10 +9485,16 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
   if (!committed_warp_used.has_value() && text_transform.has_value() &&
       !editor->property("patchy.usesPsdTextFrame").toBool() && !anchor_places_rendered_pixels) {
     auto transform_for_pixels = *text_transform;
-    const bool has_local_offset =
-        text_editor_render_local_rect(*editor).has_value() &&
-        (std::abs(rendered.local_rect.left()) > 0.0001 || std::abs(rendered.local_rect.top()) > 0.0001);
-    if (has_local_offset) {
+    const bool rendered_off_origin =
+        std::abs(rendered.local_rect.left()) > 0.0001 || std::abs(rendered.local_rect.top()) > 0.0001;
+    const bool has_local_offset = text_editor_render_local_rect(*editor).has_value() && rendered_off_origin;
+    // Point text whose glyph ink overhangs the origin renders into a buffer that starts left of
+    // or above it (grow_point_text_rect_to_glyph_ink); the resample below maps that buffer, so
+    // it needs the offset folded in. The crisp path re-renders the plan through the transform
+    // and derives its bounds from the plan's own rect, so it must get the plain transform.
+    const bool point_local_offset =
+        !boxed_text && !text_editor_render_local_rect(*editor).has_value() && rendered_off_origin;
+    if (has_local_offset || point_local_offset) {
       transform_for_pixels = qtransform_from_affine(
           affine_with_local_translation(affine_from_qtransform(*text_transform), rendered.local_rect.topLeft()));
     }
@@ -8700,7 +9505,7 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
     if (auto crisp = render_crisp_transformed_text_for_editor(*editor, psd_anchored_text, boxed_text,
                                                               has_local_offset, settings, text_color, text_width,
                                                               paragraph_runs, rich_text_runs, *text_transform,
-                                                              transform_for_pixels);
+                                                              *text_transform);
         crisp.has_value()) {
       committed_bounds = crisp->bounds;
       pixels = std::move(crisp->pixels);
@@ -8727,7 +9532,11 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
   }
   // The layer the commit ends up owning, so the final repaint can be bounded to it.
   std::optional<LayerId> committed_layer_id = layer_id;
-  push_undo_snapshot(tr("Type"));
+  // A multi-layer hidden-session pass (apply_text_character_edit) snapshots once for all
+  // of its commits.
+  if (!text_commit_snapshot_suppressed_) {
+    push_undo_snapshot(tr("Type"));
+  }
   const auto name = text_layer_auto_name(settings.text);
   // A PSD-frame session rendered a document-space frame around raw-unit runs; persist the box
   // dims back in the runs' raw engine space so the stored runs + box + transform stay one
@@ -8761,6 +9570,7 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
       layer->set_visible(restore_existing_visibility);
       store_patchy_text_metadata(*layer, settings, text_color, rich_text_runs, paragraph_runs, stored_box_width,
                                  boxed_text ? stored_box_height : local_text_height);
+      store_text_layout_metrics(*layer, rendered.metrics);
       if (settings.photoshop_layout) {
         // Imported layers keep their marker through store (it never clears the key); a native
         // layer that opted in via the Character panel's leading controls persists it here.
@@ -8776,6 +9586,13 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
             serialize_layer_affine_transform(committed_text_transform(document_point, text_affine_transform));
       } else if (text_affine_transform.has_value()) {
         layer->metadata()[kLayerMetadataTextTransform] = serialize_layer_affine_transform(*text_affine_transform);
+      } else if (!settings.vertical) {
+        // Horizontal point text always records its pen: the raster may start left of or above
+        // it (glyph ink overhanging the line start or top, grow_point_text_rect_to_glyph_ink),
+        // so the layer corner no longer identifies the text origin for the next session or the
+        // PSD writer. Vertical point text keeps recovering its anchor from the raster.
+        layer->metadata()[kLayerMetadataTextTransform] =
+            serialize_layer_affine_transform(committed_text_transform(document_point, std::nullopt));
       }
       if (committed_warp_used.has_value()) {
         layer->metadata()[kLayerMetadataTextWarp] = serialize_text_warp(*committed_warp_used);
@@ -8795,17 +9612,21 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
         removed_provisional.has_value() ? *removed_provisional : document().allocate_layer_id();
     committed_layer_id = new_layer_id;
     Layer text_layer(new_layer_id, name.toStdString(), std::move(pixels));
+    // committed_bounds, not the document point: the buffer starts left of or above the pen when
+    // glyph ink overhangs it (rendered_text_bounds_for_editor).
     text_layer.set_bounds(
-        Rect{document_point.x(), document_point.y(), text_layer.pixels().width(), text_layer.pixels().height()});
+        Rect{committed_bounds.x, committed_bounds.y, text_layer.pixels().width(), text_layer.pixels().height()});
     store_patchy_text_metadata(text_layer, settings, text_color, rich_text_runs, paragraph_runs, text_width,
                                boxed_text ? text_height : text_layer.pixels().height());
+    store_text_layout_metrics(text_layer, rendered.metrics);
     if (settings.photoshop_layout) {
       text_layer.metadata()[kLayerMetadataTextLayoutMode] = kTextLayoutModePhotoshop;
     }
     if (editor->property(kTextEditorLineAwareBoxPreviewProperty).toBool()) {
       text_layer.metadata()[kLayerMetadataTextLineAwareBoxPreview] = "true";
     }
-    if (boxed_text) {
+    if (boxed_text || !settings.vertical) {
+      // Point text records its pen too (see the existing-layer branch above).
       text_layer.metadata()[kLayerMetadataTextTransform] =
           serialize_layer_affine_transform(committed_text_transform(document_point, std::nullopt));
     }
@@ -8966,7 +9787,7 @@ bool MainWindow::apply_text_warp_to_layer(Layer& layer, const patchy::TextWarp& 
                                                          inputs->paragraph_runs, inputs->rich_text_runs);
     if (!base.pixels.empty()) {
       if (const auto aligned = psd_point_text_local_bounds_transform_for_pixels(
-              layer, base.pixels, false, layer_anchor_alignment_factor(layer));
+              layer, base, false, layer_anchor_alignment_factor(layer));
           aligned.has_value()) {
         transform = qtransform_from_affine(*aligned);
         have_transform = true;
@@ -8979,7 +9800,9 @@ bool MainWindow::apply_text_warp_to_layer(Layer& layer, const patchy::TextWarp& 
         const auto psd_local_rect = psd_point_text_local_visual_rect(layer);
         const auto visible = visible_alpha_local_bounds(base.pixels);
         if (psd_local_rect.has_value() && visible.has_value()) {
-          const QRectF visible_rect(visible->x, visible->y, visible->width, visible->height);
+          // Pixel (0, 0) of the identity render is local point local_rect.topLeft().
+          const QRectF visible_rect(base.local_rect.left() + visible->x, base.local_rect.top() + visible->y,
+                                    visible->width, visible->height);
           QPointF delta = psd_local_rect->topLeft() - visible_rect.topLeft();
           const auto factor = layer_anchor_alignment_factor(layer);
           if (factor > 0.0) {
@@ -9036,6 +9859,7 @@ bool MainWindow::apply_text_warp_to_layer(Layer& layer, const patchy::TextWarp& 
     }
     layer.set_pixels(std::move(rendered->pixels));
     layer.set_bounds(rendered->bounds);
+    store_text_layout_metrics(layer, rendered->metrics);
     layer.metadata()[kLayerMetadataTextWarp] = serialize_text_warp(effective);
   } else {
     // Style None: back to the plain affine text render (box text included, drawn through the
@@ -9051,17 +9875,19 @@ bool MainWindow::apply_text_warp_to_layer(Layer& layer, const patchy::TextWarp& 
         auto transformed = apply_text_transform_to_pixels(
             base.pixels, qtransform_from_affine(affine_with_local_translation(
                              affine_from_qtransform(transform), base.local_rect.topLeft())));
-        rendered = TransformedTextPixels{std::move(transformed.pixels), transformed.bounds};
+        rendered = TransformedTextPixels{std::move(transformed.pixels), transformed.bounds, base.metrics};
       } else {
         const auto mapped = transform.map(base.local_rect.topLeft());
         rendered = TransformedTextPixels{base.pixels,
                                          Rect{static_cast<std::int32_t>(std::floor(mapped.x())),
                                               static_cast<std::int32_t>(std::floor(mapped.y())),
-                                              base.pixels.width(), base.pixels.height()}};
+                                              base.pixels.width(), base.pixels.height()},
+                                         base.metrics};
       }
     }
     layer.set_pixels(std::move(rendered->pixels));
     layer.set_bounds(rendered->bounds);
+    store_text_layout_metrics(layer, rendered->metrics);
     layer.metadata().erase(kLayerMetadataTextWarp);
   }
   if (adopt_transform || !layer.metadata().contains(kLayerMetadataTextTransform)) {
@@ -9291,14 +10117,36 @@ void MainWindow::open_text_character_dialog() {
   text_character_rotate_roman_ = nullptr;
 }
 
-const Layer* MainWindow::text_character_target_layer() const {
+std::vector<LayerId> MainWindow::text_character_target_layer_ids() const {
   if (canvas_ == nullptr || !has_active_document() || preview_dialog_edit_locked() ||
       canvas_->free_transform_active() || canvas_->warp_transform_active()) {
-    return nullptr;
+    return {};
   }
-  const auto id = document().active_layer_id();
-  const auto* layer = id.has_value() ? document().find_layer(*id) : nullptr;
-  return layer != nullptr && layer_is_text(*layer) && !layer_id_locks_image_pixels(*id) ? layer : nullptr;
+  // The active layer leads so text_character_target_layer() keeps answering what the panel
+  // and the options bar show; the rest of the panel selection follows in row order.
+  std::vector<LayerId> ids;
+  const auto active = document().active_layer_id();
+  const auto accept = [&](LayerId id) {
+    if (std::ranges::find(ids, id) != ids.end()) {
+      return;
+    }
+    const auto* layer = std::as_const(document()).find_layer(id);
+    if (layer != nullptr && layer_is_text(*layer) && !layer_id_locks_image_pixels(id)) {
+      ids.push_back(id);
+    }
+  };
+  if (active.has_value()) {
+    accept(*active);
+  }
+  for (const auto id : selected_or_active_layer_ids()) {
+    accept(id);
+  }
+  return ids;
+}
+
+const Layer* MainWindow::text_character_target_layer() const {
+  const auto ids = text_character_target_layer_ids();
+  return ids.empty() ? nullptr : std::as_const(document()).find_layer(ids.front());
 }
 
 void MainWindow::edit_text_layer(LayerId id) {
@@ -9328,51 +10176,93 @@ void MainWindow::apply_text_character_edit(const std::function<bool(QTextEdit&)>
   const QPointer<QWidget> previous_focus(QApplication::focusWidget());
   auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
   const bool session_open = editor != nullptr && !editor->property(kTextEditorFinishedProperty).toBool();
-  if (!session_open) {
-    const auto* layer = text_character_target_layer();
-    if (layer == nullptr) {
-      sync_text_character_dialog_from_editor();
-      return;
-    }
-    const auto bounds = layer->bounds();
-    add_text_at(QPoint(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2), {}, false);
-    editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
-    if (editor == nullptr) {
-      sync_text_character_dialog_from_editor();
-      return;
-    }
-    // Keep refreshes during the commit from treating the hidden transaction as
-    // an interactive session. The layer stays visible throughout.
-    editor->setObjectName(QString());
-  }
-  const auto cleanup = qScopeGuard([this, editor = QPointer<QTextEdit>(editor), session_open, previous_focus] {
-    if (!session_open && editor != nullptr && !editor->property(kTextEditorFinishedProperty).toBool()) {
-      const auto message = statusBar()->currentMessage();
-      cancel_text_editor(editor, static_cast<LayerId>(editor->property("patchy.editingLayerId").toULongLong()));
-      statusBar()->showMessage(message);
+  if (session_open) {
+    if (edit(*editor)) {
+      mark_text_editor_changed(editor);
+      schedule_text_editor_preview(editor);
     }
     sync_text_character_dialog_from_editor();
+    return;
+  }
+
+  // No session: every selected unlocked text layer gets the edit through its own hidden
+  // session (Photoshop applies a Character or options-bar change to all selected type
+  // layers), committed as ONE "Type" undo step. A nested call (a widget the hidden session
+  // rewrites firing its slot) must not start a second pass.
+  const auto targets = text_character_target_layer_ids();
+  if (targets.empty() || applying_text_options_to_layers_) {
+    sync_text_character_dialog_from_editor();
+    return;
+  }
+  applying_text_options_to_layers_ = true;
+  const auto original_active = document().active_layer_id();
+  const auto original_selection = selected_layer_ids();
+  // A refused layer's status error (its lambda showed one) must outlive the commits that
+  // follow it, which put their own "Type" label on the bar.
+  QString refusal_message;
+  const auto cleanup = qScopeGuard([this, previous_focus, original_active, original_selection, &refusal_message] {
+    applying_text_options_to_layers_ = false;
+    text_commit_snapshot_suppressed_ = false;
+    if (original_active.has_value() && document().find_layer(*original_active) != nullptr) {
+      document().set_active_layer(*original_active);
+    }
+    // Every commit rebuilds the layer rows, which collapses a multi-selection to the active
+    // row; put the selection back so a second change works on the same set.
+    if (original_selection.size() > 1U) {
+      select_layers_in_layer_list(original_selection, original_active.value_or(original_selection.front()));
+    }
+    refresh_layer_controls();
+    sync_text_options_from_active_layer();
+    sync_text_alignment_buttons_from_editor();
+    refresh_text_color_button();
+    sync_text_character_dialog_from_editor();
+    if (!refusal_message.isEmpty()) {
+      show_status_error(refusal_message);
+    }
     // Commit refreshes can temporarily disable the panel while snapshotting.
     // Keep subsequent typing in the control that initiated the layer edit.
-    if (!session_open && previous_focus != nullptr && previous_focus->isEnabled()) {
+    if (previous_focus != nullptr && previous_focus->isEnabled()) {
       previous_focus->setFocus(Qt::OtherFocusReason);
     }
   });
-  if (!edit(*editor)) {
-    return;
-  }
-  mark_text_editor_changed(editor);
-  if (session_open) {
-    schedule_text_editor_preview(editor);
-  } else {
-    const QPoint origin(editor->property("patchy.documentTextX").toInt(),
-                        editor->property("patchy.documentTextY").toInt());
-    const auto id = static_cast<LayerId>(editor->property("patchy.editingLayerId").toULongLong());
-    commit_text_editor(editor, origin, id);
+  bool snapshot_taken = false;
+  for (const auto id : targets) {
+    const auto* layer = std::as_const(document()).find_layer(id);
+    if (layer == nullptr) {
+      continue;
+    }
+    const auto bounds = layer->bounds();
+    document().set_active_layer(id);
+    add_text_at(QPoint(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2), {}, false);
+    QPointer<QTextEdit> hidden = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+    if (hidden == nullptr) {
+      continue;
+    }
+    // Keep refreshes during the commit from treating the hidden transaction as
+    // an interactive session. The layer stays visible throughout.
+    hidden->setObjectName(QString());
+    if (!edit(*hidden)) {
+      // Refused for this layer (faux bold on warped text); the others still get the edit.
+      refusal_message = statusBar()->currentMessage();
+      cancel_text_editor(hidden, id);
+      statusBar()->showMessage(refusal_message);
+      continue;
+    }
+    mark_text_editor_changed(hidden);
+    const QPoint origin(hidden->property("patchy.documentTextX").toInt(),
+                        hidden->property("patchy.documentTextY").toInt());
+    // The first commit that reaches a push site takes the snapshot (it still holds every
+    // layer's pre-edit state); the later commits skip theirs.
+    text_commit_snapshot_suppressed_ = snapshot_taken;
+    const auto depth_before = session().undo_stack.size();
+    commit_text_editor(hidden, origin, id);
+    snapshot_taken = snapshot_taken || session().undo_stack.size() != depth_before;
   }
 }
 
 void MainWindow::sync_text_character_dialog_from_editor() {
+  // The Paragraph panel mirrors the same session-or-layer state at every one of these sites.
+  sync_text_paragraph_dialog_from_editor();
   if (text_character_dialog_ == nullptr || text_character_auto_leading_ == nullptr ||
       text_character_leading_spin_ == nullptr || text_character_tracking_spin_ == nullptr ||
       text_character_h_scale_spin_ == nullptr || text_character_v_scale_spin_ == nullptr ||
@@ -9543,6 +10433,225 @@ void MainWindow::apply_text_character_glyph_scales_to_active_editor() {
   });
 }
 
+void MainWindow::open_text_paragraph_dialog() {
+  if (text_paragraph_dialog_ != nullptr) {
+    text_paragraph_dialog_->show();
+    text_paragraph_dialog_->raise();
+    text_paragraph_dialog_->activateWindow();
+    sync_text_paragraph_dialog_from_editor();
+    return;
+  }
+  auto* dialog = new QDialog(this);
+  dialog->setAttribute(Qt::WA_DeleteOnClose);
+  dialog->setObjectName(QStringLiteral("textParagraphDialog"));
+  dialog->setWindowTitle(tr("Paragraph"));
+  text_paragraph_dialog_ = dialog;
+  auto* layout = new QFormLayout(dialog);
+
+  text_paragraph_hint_label_ =
+      new QLabel(tr("Select a text layer or click in text with the Type tool to edit these settings."), dialog);
+  text_paragraph_hint_label_->setObjectName(QStringLiteral("textParagraphHint"));
+  text_paragraph_hint_label_->setWordWrap(true);
+  set_themed_style(*text_paragraph_hint_label_, QStringLiteral("color: @hint_text;"));
+  layout->addRow(text_paragraph_hint_label_);
+
+  text_paragraph_align_combo_ = new QComboBox(dialog);
+  text_paragraph_align_combo_->setObjectName(QStringLiteral("textParagraphAlignCombo"));
+  text_paragraph_align_combo_->addItem(tr("Left"), QStringLiteral("left"));
+  text_paragraph_align_combo_->addItem(tr("Center"), QStringLiteral("center"));
+  text_paragraph_align_combo_->addItem(tr("Right"), QStringLiteral("right"));
+  text_paragraph_align_combo_->addItem(tr("Justify (last line left)"), QStringLiteral("justify"));
+  text_paragraph_align_combo_->setToolTip(tr("Paragraph alignment; Justify spreads every line but the last across the box"));
+  layout->addRow(tr("Alignment:"), text_paragraph_align_combo_);
+
+  const auto make_metric_spin = [this, dialog, layout](const char* object_name, const QString& label,
+                                                        const QString& tooltip) {
+    auto* spin = new UnitSpinBox(SpinUnit::Points, dialog);
+    spin->setObjectName(QString::fromLatin1(object_name));
+    spin->set_context_provider([this] {
+      return UnitConversionContext{has_active_document() ? text_size_ppi(document()) : 300.0, 0.0};
+    });
+    spin->setDecimals(2);
+    spin->setRange(-10000.0, 10000.0);
+    spin->setSingleStep(1.0);
+    spin->setToolTip(tooltip);
+    configure_dialog_spinbox(spin);
+    configure_text_character_spin(spin);
+    layout->addRow(label, spin);
+    return spin;
+  };
+  text_paragraph_first_line_indent_spin_ = make_metric_spin(
+      "textParagraphFirstLineIndentSpin", tr("First line indent:"),
+      tr("Indent of each paragraph's first line; negative with a left indent makes a hanging indent"));
+  text_paragraph_start_indent_spin_ =
+      make_metric_spin("textParagraphStartIndentSpin", tr("Left indent:"), tr("Space between the box edge and every line's start"));
+  text_paragraph_end_indent_spin_ =
+      make_metric_spin("textParagraphEndIndentSpin", tr("Right indent:"), tr("Space between every line's end and the box edge"));
+  text_paragraph_space_before_spin_ =
+      make_metric_spin("textParagraphSpaceBeforeSpin", tr("Space before:"), tr("Extra space above each paragraph"));
+  text_paragraph_space_after_spin_ =
+      make_metric_spin("textParagraphSpaceAfterSpin", tr("Space after:"), tr("Extra space below each paragraph"));
+
+  connect(text_paragraph_align_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+          [this](int) { apply_text_paragraph_alignment_from_dialog(); });
+  for (auto* spin : {text_paragraph_first_line_indent_spin_, text_paragraph_start_indent_spin_,
+                     text_paragraph_end_indent_spin_, text_paragraph_space_before_spin_,
+                     text_paragraph_space_after_spin_}) {
+    connect(spin, &QDoubleSpinBox::valueChanged, this, [this](double) { apply_text_paragraph_metrics_to_active_editor(); });
+  }
+
+  // Sub-control gotcha: the spin-button style must land AFTER all children exist.
+  append_themed_style(*dialog, dialog_spinbox_button_style());
+  sync_text_paragraph_dialog_from_editor();
+  run_non_modal_dialog(*dialog);
+  // WA_DeleteOnClose destroyed the dialog when the nested loop unwound.
+  text_paragraph_hint_label_ = nullptr;
+  text_paragraph_align_combo_ = nullptr;
+  text_paragraph_first_line_indent_spin_ = nullptr;
+  text_paragraph_start_indent_spin_ = nullptr;
+  text_paragraph_end_indent_spin_ = nullptr;
+  text_paragraph_space_before_spin_ = nullptr;
+  text_paragraph_space_after_spin_ = nullptr;
+}
+
+void MainWindow::sync_text_paragraph_dialog_from_editor() {
+  if (text_paragraph_dialog_ == nullptr || text_paragraph_hint_label_ == nullptr ||
+      text_paragraph_align_combo_ == nullptr || text_paragraph_first_line_indent_spin_ == nullptr ||
+      text_paragraph_start_indent_spin_ == nullptr || text_paragraph_end_indent_spin_ == nullptr ||
+      text_paragraph_space_before_spin_ == nullptr || text_paragraph_space_after_spin_ == nullptr) {
+    return;
+  }
+  auto* editor =
+      canvas_ != nullptr ? canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) : nullptr;
+  const bool session_open = editor != nullptr && !editor->property(kTextEditorFinishedProperty).toBool();
+  const auto* layer = session_open ? nullptr : text_character_target_layer();
+  const auto inputs = layer != nullptr ? text_render_inputs_from_layer(*layer) : std::nullopt;
+  const bool enabled = !preview_dialog_edit_locked() && (session_open || inputs.has_value());
+  text_paragraph_hint_label_->setVisible(!enabled);
+  text_paragraph_align_combo_->setEnabled(enabled);
+  for (auto* spin : {text_paragraph_first_line_indent_spin_, text_paragraph_start_indent_spin_,
+                     text_paragraph_end_indent_spin_, text_paragraph_space_before_spin_,
+                     text_paragraph_space_after_spin_}) {
+    spin->setEnabled(enabled);
+  }
+  if (!enabled) {
+    return;
+  }
+  QTextBlockFormat format;
+  QString alignment_name;
+  double zoom = 1.0;
+  double display_scale = 1.0;
+  if (session_open) {
+    // The caret's paragraph, the one a bare-caret edit changes.
+    format = editor->textCursor().blockFormat();
+    alignment_name = paragraph_alignment_name(editor->alignment());
+    zoom = std::max(0.01, canvas_->zoom());
+    display_scale = text_editor_size_display_scale(*editor);
+  } else {
+    const auto built = build_text_render_document(inputs->settings, inputs->color, inputs->max_width,
+                                                  inputs->paragraph_runs, inputs->rich_text_runs, 1.0);
+    format = built.document->begin().blockFormat();
+    alignment_name = paragraph_alignment_name(format.alignment());
+    if (const auto affine = canonical_text_affine_transform_for_layer(*layer); affine.has_value()) {
+      const auto scale = std::hypot((*affine)[2], (*affine)[3]);
+      if (std::isfinite(scale) && scale > 0.01) {
+        display_scale = scale;
+      }
+    }
+  }
+  const auto to_display_pt = [this, zoom, display_scale](double editor_px) {
+    return editor_px / zoom * display_scale * 72.0 / text_size_ppi(document());
+  };
+  const QSignalBlocker block_align(text_paragraph_align_combo_);
+  const auto align_index = text_paragraph_align_combo_->findData(alignment_name);
+  text_paragraph_align_combo_->setCurrentIndex(std::max(0, align_index));
+  const auto set_metric = [&to_display_pt](UnitSpinBox* spin, double editor_px) {
+    const QSignalBlocker blocker(spin);
+    const auto pt = to_display_pt(std::isfinite(editor_px) ? editor_px : 0.0);
+    spin->setValue(std::clamp(pt, spin->minimum(), spin->maximum()));
+  };
+  set_metric(text_paragraph_first_line_indent_spin_, format.textIndent());
+  set_metric(text_paragraph_start_indent_spin_, format.leftMargin());
+  set_metric(text_paragraph_end_indent_spin_, format.rightMargin());
+  set_metric(text_paragraph_space_before_spin_, format.topMargin());
+  set_metric(text_paragraph_space_after_spin_, format.bottomMargin());
+}
+
+void MainWindow::apply_text_paragraph_alignment_from_dialog() {
+  if (text_paragraph_align_combo_ == nullptr) {
+    return;
+  }
+  apply_text_alignment_to_active_editor(paragraph_alignment_from_name(text_paragraph_align_combo_->currentData().toString()));
+}
+
+void MainWindow::apply_text_paragraph_metrics_to_active_editor() {
+  if (canvas_ == nullptr || applying_text_options_to_layers_ || !has_active_document() ||
+      text_paragraph_first_line_indent_spin_ == nullptr || text_paragraph_start_indent_spin_ == nullptr ||
+      text_paragraph_end_indent_spin_ == nullptr || text_paragraph_space_before_spin_ == nullptr ||
+      text_paragraph_space_after_spin_ == nullptr) {
+    return;
+  }
+  // The panel shows points; the paragraph runs and Photoshop's sheets store document pixels.
+  const auto ppi = text_size_ppi(document());
+  const auto to_document_px = [ppi](double pt) { return pt * ppi / 72.0; };
+  TextParagraphMetrics metrics;
+  metrics.first_line_indent = to_document_px(text_paragraph_first_line_indent_spin_->value());
+  metrics.start_indent = to_document_px(text_paragraph_start_indent_spin_->value());
+  metrics.end_indent = to_document_px(text_paragraph_end_indent_spin_->value());
+  metrics.space_before = to_document_px(text_paragraph_space_before_spin_->value());
+  metrics.space_after = to_document_px(text_paragraph_space_after_spin_->value());
+  auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  if (editor != nullptr && !editor->property(kTextEditorFinishedProperty).toBool()) {
+    // The live session: the selection's paragraphs (a bare caret edits its own paragraph).
+    apply_text_paragraph_metrics_to_editor(*editor, metrics);
+    relayout_text_editor(editor, true);
+    schedule_text_editor_preview(editor);
+    return;
+  }
+  // No session: paragraph-level like the alignment buttons, so the hidden session selects the
+  // whole object first.
+  apply_text_character_edit([this, metrics](QTextEdit& target) {
+    auto cursor = target.textCursor();
+    cursor.select(QTextCursor::Document);
+    target.setTextCursor(cursor);
+    apply_text_paragraph_metrics_to_editor(target, metrics);
+    return true;
+  });
+}
+
+void MainWindow::apply_text_paragraph_metrics_to_editor(QTextEdit& editor, const TextParagraphMetrics& metrics) {
+  if (metrics.empty()) {
+    return;
+  }
+  // Block margins live in editor pixels (document px * zoom, the scale apply_paragraph_runs_to_document
+  // opened the session with); a PSD-frame session divides by its display scale like leading does.
+  const auto zoom = canvas_ != nullptr ? std::max(0.01, canvas_->zoom()) : 1.0;
+  const auto display_scale = text_editor_size_display_scale(editor);
+  const auto to_editor_px = [zoom, display_scale](double document_px) {
+    return (std::isfinite(document_px) ? document_px : 0.0) / display_scale * zoom;
+  };
+  QTextBlockFormat format;
+  if (metrics.first_line_indent.has_value()) {
+    format.setTextIndent(to_editor_px(*metrics.first_line_indent));
+  }
+  if (metrics.start_indent.has_value()) {
+    format.setLeftMargin(to_editor_px(*metrics.start_indent));
+  }
+  if (metrics.end_indent.has_value()) {
+    format.setRightMargin(to_editor_px(*metrics.end_indent));
+  }
+  if (metrics.space_before.has_value()) {
+    format.setTopMargin(to_editor_px(*metrics.space_before));
+  }
+  if (metrics.space_after.has_value()) {
+    format.setBottomMargin(to_editor_px(*metrics.space_after));
+  }
+  // mergeBlockFormat covers every block the selection touches, the caret's block alone otherwise.
+  auto cursor = editor.textCursor();
+  cursor.mergeBlockFormat(format);
+  mark_text_editor_changed(&editor);
+}
+
 // The family the session is actually set in: the run under the caret first, the options-bar combo
 // otherwise. Both Bold and Italic need it to ask whether the real face exists.
 QString MainWindow::current_text_family_for_editor(const QTextEdit& editor) const {
@@ -9619,26 +10728,38 @@ void MainWindow::refresh_text_style_combo(const QString& family, const QString& 
 }
 
 void MainWindow::apply_text_style_to_active_editor() {
-  if (canvas_ == nullptr || text_style_combo_ == nullptr) {
+  if (canvas_ == nullptr || text_style_combo_ == nullptr || applying_text_options_to_layers_) {
     return;
   }
+  const auto style = current_text_style_name();
   auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  if (editor != nullptr) {
+    if (editor->property(kTextEditorFinishedProperty).toBool()) {
+      return;
+    }
+    apply_text_style_to_editor(*editor, style);
+    relayout_text_editor(editor, true);
+    schedule_text_editor_preview(editor);
+    refresh_text_color_button();
+    return;
+  }
+  // No session: every selected text layer, each resolving the face against its own family.
+  apply_text_character_edit([this, style](QTextEdit& target) {
+    apply_text_style_to_editor(target, style);
+    return true;
+  });
+}
+
+void MainWindow::apply_text_style_to_editor(QTextEdit& editor, const QString& style) {
   const auto family_fallback =
       text_font_combo_ != nullptr ? text_font_combo_->currentFont().family() : QString();
-  const auto family = editor != nullptr
-                          ? text_display_family_from_format(text_editor_reference_format(*editor),
-                                                            family_fallback)
-                          : family_fallback;
-  const auto style = current_text_style_name();
+  const auto family = text_display_family_from_format(text_editor_reference_format(editor), family_fallback);
   const auto flags = text_style_flags_for_style(family, style);
   // A pick the flags can already express lives in the flags alone, matching the PSD reader:
   // ordinary Bold/Italic text stays on runs v3/v4 and only a face like Black or Demi records
   // the style name.
   const bool record_style = !style.isEmpty() && !text_style_is_flag_expressible(style);
-  if (editor == nullptr || editor->property(kTextEditorFinishedProperty).toBool()) {
-    return;
-  }
-  mutate_text_editor_character_formats(*editor, [&style, &family, flags, record_style](QTextCharFormat& format) {
+  mutate_text_editor_character_formats(editor, [&style, &family, flags, record_style](QTextCharFormat& format) {
     auto font = format.font();
     font.setBold(flags.bold);
     font.setItalic(flags.italic);
@@ -9658,10 +10779,7 @@ void MainWindow::apply_text_style_to_active_editor() {
       format.clearProperty(kTextStyleNameFormatProperty);
     }
   });
-  mark_text_editor_changed(editor);
-  relayout_text_editor(editor, true);
-  schedule_text_editor_preview(editor);
-  refresh_text_color_button();
+  mark_text_editor_changed(&editor);
 }
 
 void MainWindow::apply_text_character_faux_bold_to_active_editor() {
@@ -9828,10 +10946,11 @@ void MainWindow::render_pending_svg_text_layers(Document& target) {
       metadata.erase(kLayerMetadataSvgTextBaselineX);
       metadata.erase(kLayerMetadataSvgTextBaselineY);
 
-      auto pixels = render_text_layer_pixels_from_metadata(layer);
-      if (!pixels.has_value() || pixels->empty()) {
+      auto rendered_text = render_text_layer_from_metadata(layer);
+      if (!rendered_text.has_value() || rendered_text->pixels.empty()) {
         continue;  // stays an empty text layer; the text tool can still edit it
       }
+      auto pixels = std::optional<PixelBuffer>(std::move(rendered_text->pixels));
       const auto inputs = text_render_inputs_from_layer(layer);
       double ascent = inputs.has_value() ? static_cast<double>(inputs->settings.size) : 0.0;
       if (inputs.has_value()) {
@@ -9842,13 +10961,15 @@ void MainWindow::render_pending_svg_text_layers(Document& target) {
         ascent = QFontMetricsF(font).ascent();
       }
       const double shift = anchor == "middle" ? pixels->width() / 2.0 : anchor == "end" ? pixels->width() : 0.0;
-      const Rect placed{static_cast<std::int32_t>(std::lround(baseline_x - shift)),
-                        static_cast<std::int32_t>(std::lround(baseline_y - ascent)), pixels->width(),
-                        pixels->height()};
+      // The buffer starts local_rect.topLeft() from the text origin (overhanging glyph ink).
+      const Rect placed{static_cast<std::int32_t>(std::lround(baseline_x - shift + rendered_text->local_rect.left())),
+                        static_cast<std::int32_t>(std::lround(baseline_y - ascent + rendered_text->local_rect.top())),
+                        pixels->width(), pixels->height()};
       // set_pixels resets bounds to the buffer at the origin, so the bounds
       // must follow it (the text-commit ordering convention).
       layer.set_pixels(std::move(*pixels));
       layer.set_bounds(placed);
+      store_text_layout_metrics(layer, rendered_text->metrics);
       metadata[kLayerMetadataTextRasterStatus] = "patchy_raster";
     }
   };
@@ -9966,6 +11087,7 @@ void MainWindow::render_pending_af_text_layers(Document& target) {
         if (auto rendered = render_text_layer_pixels_through_transform(layer, combined)) {
           layer.set_pixels(std::move(rendered->pixels));
           layer.set_bounds(rendered->bounds);
+          store_text_layout_metrics(layer, rendered->metrics);
           metadata[kLayerMetadataTextTransform] = serialize_layer_affine_transform(
               {combined.m11(), combined.m12(), combined.m21(), combined.m22(), combined.dx(),
                combined.dy()});
@@ -9974,12 +11096,14 @@ void MainWindow::render_pending_af_text_layers(Document& target) {
         }
       }
 
-      auto pixels = render_text_layer_pixels_from_metadata(layer);
-      if (!pixels.has_value() || pixels->empty()) {
+      auto rendered_text = render_text_layer_from_metadata(layer);
+      if (!rendered_text.has_value() || rendered_text->pixels.empty()) {
         continue;  // stays an empty text layer; the text tool can still edit it
       }
-      double top = anchored_top;
-      double left = frame[0];
+      auto pixels = std::optional<PixelBuffer>(std::move(rendered_text->pixels));
+      // The buffer starts local_rect.topLeft() from the text origin (overhanging glyph ink).
+      double top = anchored_top + rendered_text->local_rect.top();
+      double left = frame[0] + rendered_text->local_rect.left();
       const double frame_width = frame[2] - frame[0];
       if (align > 0 && frame_width > 0.0) {
         const double slack = frame_width - pixels->width();
@@ -9992,6 +11116,7 @@ void MainWindow::render_pending_af_text_layers(Document& target) {
       // must follow it (the text-commit ordering convention).
       layer.set_pixels(std::move(*pixels));
       layer.set_bounds(placed);
+      store_text_layout_metrics(layer, rendered_text->metrics);
       metadata[kLayerMetadataTextRasterStatus] = "patchy_raster";
     }
   };
@@ -10074,10 +11199,90 @@ void MainWindow::render_pending_pdf_text_layers(Document& target) {
       if (auto rendered = render_text_layer_pixels_through_transform(layer, combined)) {
         layer.set_pixels(std::move(rendered->pixels));
         layer.set_bounds(rendered->bounds);
+        store_text_layout_metrics(layer, rendered->metrics);
         metadata[kLayerMetadataTextTransform] = serialize_layer_affine_transform(
             {combined.m11(), combined.m12(), combined.m21(), combined.m22(), combined.dx(), combined.dy()});
         metadata[kLayerMetadataTextRasterStatus] = "patchy_raster";
       }
+    }
+  };
+  process(process, target.layers());
+}
+
+// A Patchy PSD written before the layout metrics existed reopens with its raster kept and no
+// metrics, so a re-save would fall back to the writer's raster heuristics (box top, ink bottom).
+// Patchy's layout is deterministic, so laying the layer's text out again reproduces the kept
+// raster's geometry when its fonts are installed; record the metrics from that layout without
+// touching the pixels. Point layers still anchored by the old ink-bottom convention (transform
+// == the PSD's, stored boundingBox bottom at the origin) move ty onto the real first baseline,
+// with the PSD-local rects shifted along so the unedited-import invariants hold.
+void MainWindow::record_text_layout_metrics_for_reopened_text(Document& target) {
+  const auto process = [&](auto&& self, std::vector<Layer>& layers) -> void {
+    for (auto& layer : layers) {
+      if (!layer.children().empty()) {
+        self(self, layer.children());
+      }
+      auto& metadata = layer.metadata();
+      const auto value = [&metadata](const char* key) -> std::optional<std::string_view> {
+        const auto found = metadata.find(key);
+        if (found == metadata.end()) {
+          return std::nullopt;
+        }
+        return std::string_view(found->second);
+      };
+      if (!layer_is_text(layer) || metadata.contains(kLayerMetadataTextFirstBaseline) ||
+          value(kLayerMetadataTextRasterStatus) != "patchy_raster" ||
+          (value(kLayerMetadataTextSourceBlock) != "TySh" && value(kLayerMetadataTextSourceBlock) != "tySh") ||
+          value(kLayerMetadataTextLayoutMode) == kTextLayoutModePhotoshop || layer_text_is_vertical(layer) ||
+          layer_has_active_text_warp(layer) || !missing_text_families_for_layer(layer).isEmpty()) {
+        continue;
+      }
+      const auto rendered = render_text_layer_from_metadata(layer);
+      if (!rendered.has_value() || rendered->pixels.empty() || !rendered->metrics.first_baseline.has_value()) {
+        continue;
+      }
+      auto metrics = rendered->metrics;
+      // The inset read back from the file describes the raster that is actually kept; keep it.
+      if (const auto stored_inset = value(kLayerMetadataTextBoxBaselineInset); stored_inset.has_value()) {
+        metrics.box_baseline_inset = QString::fromUtf8(stored_inset->data(), static_cast<int>(stored_inset->size())).toDouble();
+      }
+      const bool boxed = text_flow_is_box(QString::fromStdString(std::string(value(kLayerMetadataTextFlow).value_or(""))));
+      if (!boxed && !layer_patchy_text_transform_overrides_psd_source(layer)) {
+        const auto transform = canonical_text_affine_transform_for_layer(layer);
+        const auto psd_bounding_box = parse_space_separated_doubles(
+            std::string(value(kLayerMetadataPsdTextBoundingBox).value_or("")));
+        const auto kept_ink = visible_alpha_local_bounds(layer.pixels());
+        const auto fresh_ink = visible_alpha_local_bounds(rendered->pixels);
+        if (transform.has_value() && !affine_transform_has_non_translation_linear_part(*transform) &&
+            psd_bounding_box.size() >= 4U && std::abs(psd_bounding_box[3]) < 0.5 && psd_bounding_box[1] < -0.5 &&
+            kept_ink.has_value() && fresh_ink.has_value() && kept_ink->height == fresh_ink->height &&
+            kept_ink->y == fresh_ink->y) {
+          const double ink_bottom = static_cast<double>(kept_ink->y + kept_ink->height);
+          // first_baseline is origin-relative; the kept raster's rows start at local_rect.top().
+          const double delta = *rendered->metrics.first_baseline - rendered->local_rect.top() - ink_bottom;
+          if (std::isfinite(delta) && std::abs(delta) > 0.01) {
+            auto moved = *transform;
+            moved[5] += delta;
+            const auto serialized = serialize_layer_affine_transform(moved);
+            metadata[kLayerMetadataTextTransform] = serialized;
+            metadata[kLayerMetadataPsdTextTransform] = serialized;
+            for (const char* key : {kLayerMetadataPsdTextBounds, kLayerMetadataPsdTextBoundingBox}) {
+              auto rect = parse_space_separated_doubles(std::string(value(key).value_or("")));
+              if (rect.size() < 4U) {
+                continue;
+              }
+              rect[1] -= delta;
+              rect[3] -= delta;
+              QStringList parts;
+              for (std::size_t index = 0; index < 4U; ++index) {
+                parts.push_back(QString::number(rect[index], 'g', 17));
+              }
+              metadata[key] = parts.join(QLatin1Char(' ')).toStdString();
+            }
+          }
+        }
+      }
+      store_text_layout_metrics(layer, metrics);
     }
   };
   process(process, target.layers());
@@ -10573,8 +11778,11 @@ void MainWindow::sync_text_options_from_active_editor() {
   }
   auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
   if (editor == nullptr || editor->property(kTextEditorFinishedProperty).toBool()) {
+    sync_text_options_from_active_layer();
     return;
   }
+  // The session owns the bar; the next no-session sync must re-read its layer.
+  text_options_layer_sync_key_.clear();
 
   const auto format = text_editor_reference_format(*editor);
   const auto format_font = format.font();
@@ -10613,6 +11821,90 @@ void MainWindow::sync_text_options_from_active_editor() {
   }
   refresh_text_color_button();
   sync_text_character_dialog_from_editor();
+}
+
+void MainWindow::sync_text_options_from_active_layer() {
+  if (canvas_ == nullptr || text_font_combo_ == nullptr || text_size_spin_ == nullptr) {
+    return;
+  }
+  // A session (live, or tearing down) owns the bar; a hidden session has no object name and
+  // reaches here through the commit refreshes with the layer it just wrote, which is right.
+  if (canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) != nullptr) {
+    return;
+  }
+  const auto* layer = text_character_target_layer();
+  if (layer == nullptr) {
+    // Nothing to mirror: the bar keeps what it shows (the next new layer's seed), and the
+    // next text layer to become active is read afresh.
+    text_options_layer_sync_key_.clear();
+    return;
+  }
+  const auto& metadata = layer->metadata();
+  const auto read = [&metadata](const char* key) {
+    const auto found = metadata.find(key);
+    return found == metadata.end() ? QString() : QString::fromStdString(found->second);
+  };
+  // The same reads add_text_at does when it opens the layer, minus the font substitution
+  // prompt: this only shows what the layer records.
+  auto family = read(kLayerMetadataTextFont);
+  if (family.trimmed().isEmpty() || family.compare(QStringLiteral("PSD Text"), Qt::CaseInsensitive) == 0) {
+    family = text_font_combo_->currentFont().family();
+  } else {
+    family = canonical_text_display_family(family);
+  }
+  const auto size_text = read(kLayerMetadataTextSize);
+  const int document_text_size = size_text.isEmpty() ? 48 : std::max(1, size_text.toInt());
+  double size_display_scale = 1.0;
+  if (const auto affine = canonical_text_affine_transform_for_layer(*layer); affine.has_value()) {
+    const auto vertical_scale = std::hypot((*affine)[2], (*affine)[3]);
+    if (std::isfinite(vertical_scale) && vertical_scale > 0.01) {
+      size_display_scale = vertical_scale;
+    }
+  }
+  bool text_bold = read(kLayerMetadataTextBold) == QStringLiteral("true");
+  bool text_italic = read(kLayerMetadataTextItalic) == QStringLiteral("true");
+  const auto runs = read(kLayerMetadataTextRuns);
+  // A face pick lives in the runs (columns 3 and 4 of the first line), not the layer-level
+  // keys, so the picker must read them or a Bold pick shows Regular straight after applying.
+  for (const auto& raw_line : runs.split(QLatin1Char('\n'))) {
+    const auto fields = raw_line.trimmed().split(QLatin1Char('\t'));
+    if (fields.size() < 7) {
+      continue;  // version header / malformed line
+    }
+    text_bold = fields[3].toInt() != 0;
+    text_italic = fields[4].toInt() != 0;
+    break;
+  }
+  const auto style = first_text_run_style_name(runs);
+  const auto anti_alias_text = read(kLayerMetadataTextAntiAlias);
+  const int text_anti_alias = anti_alias_text.isEmpty() ? text_smoothing_combo_value(text_smoothing_combo_)
+                                                         : std::clamp(anti_alias_text.toInt(), 0, 16);
+  const auto key = QStringLiteral("%1|%2|%3|%4|%5|%6|%7|%8")
+                       .arg(static_cast<qulonglong>(layer->id()))
+                       .arg(family)
+                       .arg(document_text_size)
+                       .arg(size_display_scale)
+                       .arg(text_bold ? 1 : 0)
+                       .arg(text_italic ? 1 : 0)
+                       .arg(style)
+                       .arg(text_anti_alias);
+  if (key == text_options_layer_sync_key_) {
+    return;
+  }
+  text_options_layer_sync_key_ = key;
+  {
+    QSignalBlocker blocker(text_font_combo_);
+    text_font_combo_->setCurrentFont(text_font_combo_font_for_family(family));
+  }
+  {
+    QSignalBlocker blocker(text_size_spin_);
+    const auto display_size =
+        std::max(1, static_cast<int>(std::lround(document_text_size * size_display_scale)));
+    text_size_spin_->setValue(std::clamp(text_pixels_to_points(display_size, document()), text_size_spin_->minimum(),
+                                         text_size_spin_->maximum()));
+  }
+  refresh_text_style_combo(family, style, text_bold, text_italic);
+  set_text_smoothing_combo_value(text_smoothing_combo_, text_anti_alias);
 }
 
 void MainWindow::remove_text_editor_transform_overlay(QTextEdit* editor) {
@@ -11303,11 +12595,11 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
     // geometry from the layer raster, which holds the WARPED ink.
     bool updated_transform = false;
     if (source != nullptr) {
-      updated_transform = update_text_editor_transform_from_psd_local_bounds(*editor, *source, rendered.pixels,
+      updated_transform = update_text_editor_transform_from_psd_local_bounds(*editor, *source, rendered,
                                                                             boxed_text);
     }
     if (!updated_transform) {
-      update_text_editor_transform_from_source_anchor(*editor, rendered.pixels);
+      update_text_editor_transform_from_source_anchor(*editor, rendered);
     }
   }
 
@@ -11321,11 +12613,15 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
         !(text_editor_render_local_rect(*editor).has_value() &&
           text_editor_source_visible_anchor(*editor).has_value() &&
           !qtransform_has_non_translation_linear_part(*transform))) {
-      const bool has_local_offset =
-          text_editor_render_local_rect(*editor).has_value() &&
-          (std::abs(rendered.local_rect.left()) > 0.0001 || std::abs(rendered.local_rect.top()) > 0.0001);
+      const bool rendered_off_origin =
+          std::abs(rendered.local_rect.left()) > 0.0001 || std::abs(rendered.local_rect.top()) > 0.0001;
+      const bool has_local_offset = text_editor_render_local_rect(*editor).has_value() && rendered_off_origin;
+      // Same split as commit_text_editor: an overhanging point-text buffer is resampled with its
+      // offset folded in, while the crisp re-render takes the plain transform.
+      const bool point_local_offset =
+          !boxed_text && !text_editor_render_local_rect(*editor).has_value() && rendered_off_origin;
       auto transform_for_pixels = *transform;
-      if (has_local_offset) {
+      if (has_local_offset || point_local_offset) {
         transform_for_pixels = qtransform_from_affine(
             affine_with_local_translation(affine_from_qtransform(*transform), rendered.local_rect.topLeft()));
       }
@@ -11335,7 +12631,7 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
       if (auto crisp = render_crisp_transformed_text_for_editor(
               *editor, source->metadata().contains(kLayerMetadataPsdTextTransform), boxed_text,
               has_local_offset, settings, text_color, text_width, paragraph_runs, rich_text_runs, *transform,
-              transform_for_pixels);
+              *transform);
           crisp.has_value()) {
         pixels = std::move(crisp->pixels);
         preview_bounds = crisp->bounds;
@@ -11500,17 +12796,31 @@ void MainWindow::handle_canvas_view_changed(CanvasWidget* canvas) {
 }
 
 void MainWindow::apply_text_alignment_to_active_editor(Qt::Alignment alignment) {
-  if (canvas_ == nullptr) {
+  if (canvas_ == nullptr || applying_text_options_to_layers_) {
     return;
   }
   auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
-  if (editor == nullptr) {
+  if (editor != nullptr) {
+    apply_text_alignment_to_editor(*editor, alignment);
+    sync_text_alignment_buttons_from_editor();
+    schedule_text_editor_preview(editor);
     return;
   }
-  editor->setAlignment(alignment);
-  mark_text_editor_changed(editor);
+  // No session: paragraph-level like the direction combo, so the hidden session selects the
+  // whole object first (a bare caret would align only the first paragraph).
+  apply_text_character_edit([this, alignment](QTextEdit& target) {
+    auto cursor = target.textCursor();
+    cursor.select(QTextCursor::Document);
+    target.setTextCursor(cursor);
+    apply_text_alignment_to_editor(target, alignment);
+    return true;
+  });
   sync_text_alignment_buttons_from_editor();
-  schedule_text_editor_preview(editor);
+}
+
+void MainWindow::apply_text_alignment_to_editor(QTextEdit& editor, Qt::Alignment alignment) {
+  editor.setAlignment(alignment);
+  mark_text_editor_changed(&editor);
 }
 
 void MainWindow::apply_text_orientation(bool vertical, bool remember_default) {
@@ -11642,7 +12952,23 @@ void MainWindow::sync_text_alignment_buttons_from_editor() {
     return;
   }
   const auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
-  const auto alignment = editor != nullptr ? editor->alignment() : Qt::AlignLeft;
+  Qt::Alignment alignment = Qt::AlignLeft;
+  if (editor != nullptr) {
+    alignment = editor->alignment();
+  } else if (const auto* layer = text_character_target_layer(); layer != nullptr) {
+    // No session: the active text layer's first paragraph (column 2 of patchy.text.paragraph_runs).
+    if (const auto found = layer->metadata().find(kLayerMetadataTextParagraphRuns);
+        found != layer->metadata().end()) {
+      for (const auto& raw_line : QString::fromStdString(found->second).split(QLatin1Char('\n'))) {
+        const auto fields = raw_line.trimmed().split(QLatin1Char('\t'));
+        if (fields.size() < 3) {
+          continue;
+        }
+        alignment = paragraph_alignment_from_name(fields[2]);
+        break;
+      }
+    }
+  }
   const auto set_checked = [](QPushButton* button, bool checked) {
     QSignalBlocker blocker(button);
     button->setChecked(checked);
@@ -11651,68 +12977,98 @@ void MainWindow::sync_text_alignment_buttons_from_editor() {
   set_checked(text_align_center_button_, (alignment & Qt::AlignHCenter) != 0);
   set_checked(text_align_right_button_, (alignment & Qt::AlignRight) != 0);
   sync_text_orientation_controls_from_editor();
+  // The Paragraph panel's alignment combo follows the buttons (no-op while it is closed).
+  sync_text_paragraph_dialog_from_editor();
 }
 
 void MainWindow::apply_text_family_to_active_editor() {
-  if (canvas_ == nullptr) {
+  if (canvas_ == nullptr || applying_text_options_to_layers_) {
     return;
   }
   auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
-  if (editor == nullptr) {
+  if (editor != nullptr) {
+    const auto family =
+        text_font_combo_ != nullptr
+            ? text_font_combo_->currentFont().family()
+            : text_display_family_from_format(text_editor_reference_format(*editor),
+                                              editor->property("patchy.documentTextFamily").toString());
+    apply_text_family_to_editor(*editor, family);
+    relayout_text_editor(editor, true);
+    schedule_text_editor_preview(editor);
     return;
   }
+  // No session: the selected text layers (issue 31). The value is read BEFORE the hidden
+  // sessions open, since each one rewrites the bar from the layer it edits.
+  if (text_font_combo_ == nullptr) {
+    return;
+  }
+  const auto family = text_font_combo_->currentFont().family();
+  apply_text_character_edit([this, family](QTextEdit& target) {
+    apply_text_family_to_editor(target, family);
+    return true;
+  });
+}
 
-  const auto family =
-      text_font_combo_ != nullptr
-          ? text_font_combo_->currentFont().family()
-          : text_display_family_from_format(text_editor_reference_format(*editor),
-                                            editor->property("patchy.documentTextFamily").toString());
+void MainWindow::apply_text_family_to_format(QTextCharFormat& format, const QString& family) const {
+  format.setFontFamilies(render_text_families_for_display_family(family));
+  set_text_display_family(format, family);
+}
+
+void MainWindow::apply_text_family_to_editor(QTextEdit& editor, const QString& family) {
   QTextCharFormat format;
   format.setFontFamilies(render_text_families_for_display_family(family));
   set_text_display_family(format, family);
-  merge_text_char_format(*editor, format);
-  auto editor_font = editor->font();
+  merge_text_char_format(editor, format);
+  auto editor_font = editor.font();
   editor_font.setFamilies(render_text_families_for_display_family(family));
-  editor->setFont(editor_font);
-  editor->document()->setDefaultFont(editor_font);
-  editor->setProperty("patchy.documentTextFamily", family);
-
-  mark_text_editor_changed(editor);
-  relayout_text_editor(editor, true);
-  schedule_text_editor_preview(editor);
+  editor.setFont(editor_font);
+  editor.document()->setDefaultFont(editor_font);
+  editor.setProperty("patchy.documentTextFamily", family);
+  mark_text_editor_changed(&editor);
 }
 
 void MainWindow::apply_text_size_to_active_editor() {
-  if (canvas_ == nullptr) {
+  if (canvas_ == nullptr || applying_text_options_to_layers_) {
     return;
   }
+  const std::optional<double> points =
+      text_size_spin_ != nullptr ? std::optional<double>(text_size_spin_->value()) : std::nullopt;
   auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
-  if (editor == nullptr) {
+  if (editor != nullptr) {
+    apply_text_size_to_editor(*editor, points);
+    relayout_text_editor(editor, true);
+    schedule_text_editor_preview(editor);
+    refresh_text_color_button();
     return;
   }
+  if (!points.has_value()) {
+    return;
+  }
+  apply_text_character_edit([this, points](QTextEdit& target) {
+    apply_text_size_to_editor(target, points);
+    return true;
+  });
+}
 
+void MainWindow::apply_text_size_to_editor(QTextEdit& editor, std::optional<double> points) {
   // The spinbox shows the effective (transform-folded) size for imported Photoshop text; the
   // editor and stored runs work in engine units, so divide the display scale back out.
-  const auto display_scale = text_editor_size_display_scale(*editor);
+  const auto display_scale = text_editor_size_display_scale(editor);
   const auto document_text_size =
-      text_size_spin_ != nullptr
-          ? std::max(1, static_cast<int>(std::lround(
-                            text_points_to_pixels(text_size_spin_->value(), document()) / display_scale)))
-          : std::max(1, editor->property("patchy.documentTextSize").toInt());
+      points.has_value()
+          ? std::max(1, static_cast<int>(std::lround(text_points_to_pixels(*points, document()) / display_scale)))
+          : std::max(1, editor.property("patchy.documentTextSize").toInt());
   const auto editor_pixel_size = std::max(8, static_cast<int>(std::round(document_text_size * canvas_->zoom())));
   QTextCharFormat format;
   format.setProperty(QTextFormat::FontPixelSize, editor_pixel_size);
-  editor->setProperty("patchy.documentTextSize", document_text_size);
-  merge_text_char_format(*editor, format);
-  auto editor_font = editor->font();
+  format.setProperty(kTextExactSizeFormatProperty, document_text_size * canvas_->zoom());
+  editor.setProperty("patchy.documentTextSize", document_text_size);
+  merge_text_char_format(editor, format);
+  auto editor_font = editor.font();
   editor_font.setPixelSize(editor_pixel_size);
-  editor->setFont(editor_font);
-  editor->document()->setDefaultFont(editor_font);
-
-  mark_text_editor_changed(editor);
-  relayout_text_editor(editor, true);
-  schedule_text_editor_preview(editor);
-  refresh_text_color_button();
+  editor.setFont(editor_font);
+  editor.document()->setDefaultFont(editor_font);
+  mark_text_editor_changed(&editor);
 }
 
 // Ctrl+B during a text session: the Bold FACE when the family ships one, Photoshop's faux bold
@@ -11808,14 +13164,38 @@ void MainWindow::apply_text_color_to_active_editor() {
   const auto text_color = editor->property("patchy.documentTextColor").value<QColor>().isValid()
                               ? editor->property("patchy.documentTextColor").value<QColor>()
                               : canvas_->primary_color();
-  QTextCharFormat format;
-  format.setForeground(QBrush(text_color));
-  merge_text_char_format(*editor, format);
-
-  mark_text_editor_changed(editor);
+  apply_text_color_to_editor(*editor, text_color);
   relayout_text_editor(editor, true);
   schedule_text_editor_preview(editor);
   refresh_text_color_button();
+}
+
+void MainWindow::apply_text_color_to_editor(QTextEdit& editor, QColor color) {
+  QTextCharFormat format;
+  format.setForeground(QBrush(color));
+  merge_text_char_format(editor, format);
+  mark_text_editor_changed(&editor);
+}
+
+void MainWindow::apply_text_color_to_selected_layers_debounced(QColor color) {
+  // The picker fires per change (a wheel drag is dozens); each no-session apply commits and
+  // re-renders every selected layer as an undo step, so wait for the picker to settle.
+  constexpr int kSettleDelayMs = 200;
+  const auto generation = ++text_layer_color_apply_generation_;
+  QTimer::singleShot(kSettleDelayMs, this, [this, color, generation] {
+    if (generation != text_layer_color_apply_generation_ || canvas_ == nullptr) {
+      return;
+    }
+    // A session opened meanwhile owns its own color.
+    if (canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) != nullptr) {
+      return;
+    }
+    apply_text_character_edit([this, color](QTextEdit& target) {
+      target.setProperty("patchy.documentTextColor", color);
+      apply_text_color_to_editor(target, color);
+      return true;
+    });
+  });
 }
 
 void MainWindow::apply_primary_color_to_active_text_editor(QColor color) {
@@ -11833,30 +13213,36 @@ void MainWindow::apply_primary_color_to_active_text_editor(QColor color) {
 }
 
 void MainWindow::apply_text_smoothing_to_active_editor() {
-  if (canvas_ == nullptr) {
+  if (canvas_ == nullptr || applying_text_options_to_layers_) {
     return;
   }
-  auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
-  if (editor == nullptr) {
-    return;
-  }
-
   const auto text_anti_alias = text_smoothing_combo_value(text_smoothing_combo_);
-  editor->setProperty("patchy.documentTextAntiAlias", text_anti_alias);
+  auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  if (editor != nullptr) {
+    apply_text_smoothing_to_editor(*editor, text_anti_alias);
+    relayout_text_editor(editor, true);
+    schedule_text_editor_preview(editor);
+    return;
+  }
+  apply_text_character_edit([this, text_anti_alias](QTextEdit& target) {
+    apply_text_smoothing_to_editor(target, text_anti_alias);
+    return true;
+  });
+}
 
-  auto editor_font = editor->font();
+void MainWindow::apply_text_smoothing_to_editor(QTextEdit& editor, int text_anti_alias) {
+  editor.setProperty("patchy.documentTextAntiAlias", text_anti_alias);
+
+  auto editor_font = editor.font();
   configure_text_font_smoothing(editor_font, text_anti_alias);
-  editor->setFont(editor_font);
-  editor->document()->setDefaultFont(editor_font);
+  editor.setFont(editor_font);
+  editor.document()->setDefaultFont(editor_font);
 
-  const auto cursor = editor->textCursor();
-  apply_text_smoothing_to_document(*editor->document(), text_anti_alias);
-  editor->setTextCursor(cursor);
-  editor->setCurrentCharFormat(text_format_with_smoothing(editor->currentCharFormat(), text_anti_alias));
-
-  mark_text_editor_changed(editor);
-  relayout_text_editor(editor, true);
-  schedule_text_editor_preview(editor);
+  const auto cursor = editor.textCursor();
+  apply_text_smoothing_to_document(*editor.document(), text_anti_alias);
+  editor.setTextCursor(cursor);
+  editor.setCurrentCharFormat(text_format_with_smoothing(editor.currentCharFormat(), text_anti_alias));
+  mark_text_editor_changed(&editor);
 }
 
 bool MainWindow::is_text_option_widget(QWidget* widget) const {
@@ -11884,9 +13270,12 @@ bool MainWindow::is_text_option_widget(QWidget* widget) const {
          owns(text_smoothing_combo_) || owns(text_color_button_) || owns(text_align_left_button_) ||
          owns(text_orientation_button_) || owns(text_direction_combo_) ||
          owns(text_align_center_button_) || owns(text_align_right_button_) || owns(text_apply_button_) ||
-         owns(text_cancel_button_) || owns(text_character_button_) || owns(primary_color_button_) ||
-         // The Character panel edits the LIVE session; focus moving into it must not commit.
+         owns(text_cancel_button_) || owns(text_character_button_) || owns(text_paragraph_button_) ||
+         owns(primary_color_button_) ||
+         // The Character and Paragraph panels edit the LIVE session; focus moving into them
+         // must not commit.
          in_named_ancestor(QStringLiteral("textCharacterDialog")) ||
+         in_named_ancestor(QStringLiteral("textParagraphDialog")) ||
          // The font picker popup is a Qt::Popup window, so isAncestorOf-based ownership stops
          // at its boundary; without the name match, focusing its search box would auto-commit
          // an open inline text editor.
@@ -12074,6 +13463,16 @@ void MainWindow::update_document_action_state() {
                            QStringLiteral("edit.copy_merged"), QStringLiteral("edit.paste"),
                            QStringLiteral("edit.free_transform"), QStringLiteral("edit.warp_transform"),
                            QStringLiteral("layer.flip_horizontal"), QStringLiteral("layer.flip_vertical"),
+                           QStringLiteral("layer.align_left"), QStringLiteral("layer.align_horizontal_centers"),
+                           QStringLiteral("layer.align_right"), QStringLiteral("layer.align_top"),
+                           QStringLiteral("layer.align_vertical_centers"), QStringLiteral("layer.align_bottom"),
+                           QStringLiteral("layer.distribute_left"),
+                           QStringLiteral("layer.distribute_horizontal_centers"),
+                           QStringLiteral("layer.distribute_right"), QStringLiteral("layer.distribute_top"),
+                           QStringLiteral("layer.distribute_vertical_centers"),
+                           QStringLiteral("layer.distribute_bottom"),
+                           QStringLiteral("layer.distribute_horizontal_spacing"),
+                           QStringLiteral("layer.distribute_vertical_spacing"),
                            QStringLiteral("tools.move"), QStringLiteral("tools.clone"),
                            QStringLiteral("tools.smudge"), QStringLiteral("tools.type"),
                            QStringLiteral("image.levels"), QStringLiteral("image.curves"),

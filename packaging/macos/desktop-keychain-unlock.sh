@@ -10,7 +10,7 @@
 # afterwards. iCloudHelper's next retry then succeeds silently. Run from Windows, with
 # no quoting (PowerShell and cmd mangle quoted remote commands):
 #
-#   ssh seth@studiomac.local bash /Users/seth/patchy/src/packaging/macos/desktop-keychain-unlock.sh
+#   ssh <user>@<mac-build-host> bash ~/patchy/src/packaging/macos/desktop-keychain-unlock.sh
 #
 # Prints one JSON line; status_before/status_after are SecKeychainGetStatus bits
 # (1 unlocked, 2 readable, 4 writable). Exit 1 when the keychain is still locked.

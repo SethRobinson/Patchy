@@ -180,9 +180,11 @@
 #include <cstdint>
 #include <cmath>
 #include <cstring>
+#include <cstdlib>
 #include <exception>
 #include <filesystem>
 #include <fstream>
+#include <sstream>
 #include <functional>
 #include <iostream>
 #include <limits>
@@ -452,6 +454,636 @@ void ui_psd_point_text_edit_origin_stays_at_glyph_top_after_transform() {
   // The origin must stay near the glyph top, comfortably above the baseline.
   CHECK(after_y <= baseline_y - 30);
   CHECK(after_y <= moved_bounds.y + 16);
+}
+
+// One point-text layer per session, re-rendered through a numeric Free Transform (X + 40), so
+// the raster comes back from the stored transform's anchor.
+struct TextAnchorProbe {
+  patchy::Rect bounds;
+  std::vector<std::uint8_t> bytes;
+  double tx{0.0};
+  double ty{0.0};
+};
+
+TextAnchorProbe text_anchor_probe(patchy::ui::MainWindow& window, double anchor_y) {
+  patchy::Document document(420, 260, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(420, 260, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  auto pixels = solid_pixels(240, 70, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  fill_pixel_rect(pixels, QRect(0, 0, 200, 44), QColor(24, 24, 24, 255));
+  patchy::Layer text_layer(document.allocate_layer_id(), "Text: Anchor", std::move(pixels));
+  const auto id = text_layer.id();
+  text_layer.set_bounds(patchy::Rect{100, 100, 240, 70});
+  text_layer.metadata()[patchy::kLayerMetadataText] = "Anchor";
+  text_layer.metadata()[patchy::kLayerMetadataTextRuns] = "v1\n0\t6\t48\t0\t0\t#181818\tArial";
+  text_layer.metadata()[patchy::kLayerMetadataTextParagraphRuns] = "v1\n0\t6\tleft";
+  text_layer.metadata()[patchy::kLayerMetadataTextFlow] = "point";
+  text_layer.metadata()[patchy::kLayerMetadataTextFont] = "Arial";
+  text_layer.metadata()[patchy::kLayerMetadataTextSize] = "48";
+  text_layer.metadata()[patchy::kLayerMetadataTextColor] = "#181818";
+  text_layer.metadata()[patchy::kLayerMetadataTextBold] = "false";
+  text_layer.metadata()[patchy::kLayerMetadataTextItalic] = "false";
+  text_layer.metadata()[patchy::kLayerMetadataTextAntiAlias] = "3";
+  text_layer.metadata()[patchy::kLayerMetadataTextTransform] =
+      patchy::serialize_layer_affine_transform(patchy::LayerAffineTransform{1.0, 0.0, 0.0, 1.0, 100.0, anchor_y});
+  document.add_layer(std::move(text_layer));
+  document.set_active_layer(id);
+  window.add_document_session(std::move(document), QStringLiteral("Text Anchor %1").arg(anchor_y));
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  auto* x_spin = window.findChild<QDoubleSpinBox*>(QStringLiteral("freeTransformXSpin"));
+  auto* apply = window.findChild<QPushButton*>(QStringLiteral("freeTransformApplyButton"));
+  CHECK(x_spin != nullptr);
+  CHECK(apply != nullptr);
+  if (x_spin == nullptr || apply == nullptr) {
+    return {};
+  }
+  x_spin->setValue(x_spin->value() + 40.0);
+  QApplication::processEvents();
+  apply->click();
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+
+  TextAnchorProbe probe;
+  const auto* moved = std::as_const(patchy::ui::MainWindowTestAccess::document(window)).find_layer(id);
+  CHECK(moved != nullptr);
+  if (moved == nullptr) {
+    return probe;
+  }
+  CHECK(moved->metadata().at(patchy::kLayerMetadataTextRasterStatus) == "patchy_raster");
+  probe.bounds = moved->bounds();
+  const auto data = moved->pixels().data();
+  probe.bytes.assign(data.begin(), data.end());
+  const auto transform = patchy::parse_layer_affine_transform(moved->metadata().at(patchy::kLayerMetadataTextTransform));
+  CHECK(transform.has_value());
+  if (transform.has_value()) {
+    probe.tx = (*transform)[4];
+    probe.ty = (*transform)[5];
+  }
+  return probe;
+}
+
+// Photoshop rasterizes type from its anchor rounded to a whole pixel (halves up): ty 148.3
+// renders exactly like 148.0 and 148.5 exactly like 149.0, while the stored transform keeps
+// the fraction (photoshop-text-anchor-*.psd pin the same rule on Photoshop's own rasters).
+void ui_text_transform_rerender_rounds_anchor_like_photoshop() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto whole = text_anchor_probe(window, 148.0);
+  const auto below_half = text_anchor_probe(window, 148.3);
+  const auto half = text_anchor_probe(window, 148.5);
+  const auto next = text_anchor_probe(window, 149.0);
+  CHECK(!whole.bytes.empty());
+
+  CHECK(below_half.bounds.x == whole.bounds.x);
+  CHECK(below_half.bounds.y == whole.bounds.y);
+  CHECK(below_half.bounds.width == whole.bounds.width);
+  CHECK(below_half.bounds.height == whole.bounds.height);
+  CHECK(below_half.bytes == whole.bytes);
+
+  CHECK(half.bounds.x == next.bounds.x);
+  CHECK(half.bounds.y == next.bounds.y);
+  CHECK(half.bounds.width == next.bounds.width);
+  CHECK(half.bounds.height == next.bounds.height);
+  CHECK(half.bytes == next.bytes);
+
+  CHECK(next.bounds.x == whole.bounds.x);
+  CHECK(next.bounds.y == whole.bounds.y + 1);
+  CHECK(next.bytes == whole.bytes);
+
+  // The numeric move composed a whole-pixel delta; the anchor's fraction survived it.
+  CHECK(std::abs(whole.tx - 140.0) < 1e-9);
+  CHECK(std::abs(below_half.ty - 148.3) < 1e-9);
+  CHECK(std::abs(half.ty - 148.5) < 1e-9);
+}
+
+// Every /BoxBounds top written into the PSD's engine data, in layer order.
+std::vector<double> box_bounds_tops_in_psd(const std::vector<std::uint8_t>& bytes) {
+  std::vector<double> tops;
+  const std::string haystack(bytes.begin(), bytes.end());
+  const std::string key = "/BoxBounds [ ";
+  std::size_t at = 0;
+  while ((at = haystack.find(key, at)) != std::string::npos) {
+    std::istringstream stream(haystack.substr(at + key.size(), 64));
+    double left = 0.0;
+    double top = 0.0;
+    stream >> left >> top;
+    tops.push_back(top);
+    at += key.size();
+  }
+  return tops;
+}
+
+std::optional<double> layer_metric(const patchy::Layer& layer, const char* key) {
+  const auto found = layer.metadata().find(key);
+  if (found == layer.metadata().end()) {
+    return std::nullopt;
+  }
+  return std::stod(found->second);
+}
+
+// Patchy-authored text re-renders in Photoshop where Patchy drew it: a box commit records how far
+// Qt's first baseline sits below Photoshop's box rule (winAscent minus typo ascender at the size)
+// and the writer moves /BoxBounds down by it; a point commit records its real first baseline and
+// the writer anchors ty there (not at the ink bottom of the "y" descender); both record Qt's line
+// pitch as the paragraph auto-leading fraction. The saved PSD reopens with the frame where it was
+// (no jump entering the layer) and re-saves the same type blocks. The document is kept under
+// test-artifacts so the Photoshop read-back can be re-measured by COM
+// (docs/text-render-calibration.md).
+void ui_text_commit_records_photoshop_baseline_metrics_and_round_trips_psd() {
+  if (skip_without_arial_for_psd_text_preview()) {
+    return;
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::Document document(1200, 900, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(1200, 900, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  // 72 ppi so the options bar's 96 pt is 96 px (the default 300 ppi would make it 400 px).
+  document.print_settings().horizontal_ppi = 72.0;
+  document.print_settings().vertical_ppi = 72.0;
+  window.add_document_session(std::move(document), QStringLiteral("Baseline Metrics"));
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  canvas->set_primary_color(QColor(0, 0, 0));
+  QApplication::processEvents();
+
+  auto& live_document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto set_type_tool = [&window] {
+    require_action_by_text(window, QStringLiteral("Type"))->trigger();
+    QApplication::processEvents();
+    auto* font_combo = window.findChild<QFontComboBox*>(QStringLiteral("textFontCombo"));
+    auto* size_spin = window.findChild<QDoubleSpinBox*>(QStringLiteral("textSizeSpin"));
+    CHECK(font_combo != nullptr && size_spin != nullptr);
+    if (font_combo != nullptr && size_spin != nullptr) {
+      font_combo->setCurrentFont(QFont(QStringLiteral("Arial")));
+      size_spin->setValue(96.0);  // 96 pt at the default 72 ppi = 96 px
+      QApplication::processEvents();
+    }
+  };
+  const auto commit_editor = [&window, canvas] {
+    process_events_for(150);
+    require_action_by_text(window, QStringLiteral("Move"))->trigger();
+    QApplication::processEvents();
+    process_events_for(150);
+    CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+    return patchy::ui::MainWindowTestAccess::document(window).active_layer_id();
+  };
+  const auto create_box = [&](QPoint top_left, QPoint bottom_right, const QString& text) {
+    set_type_tool();
+    drag(*canvas, canvas->widget_position_for_document_point(top_left),
+         canvas->widget_position_for_document_point(bottom_right));
+    QApplication::processEvents();
+    auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+    CHECK(editor != nullptr);
+    if (editor == nullptr) {
+      return std::optional<patchy::LayerId>{};
+    }
+    CHECK(editor->property("patchy.documentTextFlow").toString() == QStringLiteral("box"));
+    editor->setPlainText(text);
+    QApplication::processEvents();
+    return commit_editor();
+  };
+
+  const QPoint box_top_left(100, 100);
+  const auto box_id = create_box(box_top_left, QPoint(900, 380), QStringLiteral("Hey everyone!"));
+  CHECK(box_id.has_value());
+
+  set_type_tool();
+  patchy::ui::MainWindowTestAccess::add_text_at(window, QPoint(100, 480));
+  QApplication::processEvents();
+  auto* point_editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(point_editor != nullptr);
+  if (point_editor == nullptr) {
+    return;
+  }
+  point_editor->setPlainText(QStringLiteral("Hey"));
+  QApplication::processEvents();
+  const auto point_id = commit_editor();
+  CHECK(point_id.has_value());
+
+  const auto two_line_id = create_box(QPoint(100, 620), QPoint(900, 890), QStringLiteral("Two\nlines"));
+  CHECK(two_line_id.has_value());
+  if (!box_id.has_value() || !point_id.has_value() || !two_line_id.has_value()) {
+    return;
+  }
+
+  QFont arial(QStringLiteral("Arial"));
+  arial.setPixelSize(96);
+  const QFontMetricsF metrics(arial);
+  const double expected_inset = metrics.ascent() - metrics.capHeight();
+  std::printf("  Arial 96: ascent %.2f cap %.2f -> expected inset %.2f, line spacing %.2f\n", metrics.ascent(),
+              metrics.capHeight(), expected_inset, metrics.lineSpacing());
+  std::fflush(stdout);
+  CHECK(expected_inset > 12.0);  // Arial: (0.905 - 0.716) em
+
+  const auto* box_layer = std::as_const(live_document).find_layer(*box_id);
+  const auto* point_layer = std::as_const(live_document).find_layer(*point_id);
+  const auto* two_line_layer = std::as_const(live_document).find_layer(*two_line_id);
+  CHECK(box_layer != nullptr && point_layer != nullptr && two_line_layer != nullptr);
+  if (box_layer == nullptr || point_layer == nullptr || two_line_layer == nullptr) {
+    return;
+  }
+  const auto box_inset = layer_metric(*box_layer, patchy::kLayerMetadataTextBoxBaselineInset);
+  const auto box_baseline = layer_metric(*box_layer, patchy::kLayerMetadataTextFirstBaseline);
+  const auto box_leading = layer_metric(*box_layer, patchy::kLayerMetadataTextAutoLeading);
+  const auto point_baseline = layer_metric(*point_layer, patchy::kLayerMetadataTextFirstBaseline);
+  const auto point_leading = layer_metric(*point_layer, patchy::kLayerMetadataTextAutoLeading);
+  const auto two_line_leading = layer_metric(*two_line_layer, patchy::kLayerMetadataTextAutoLeading);
+  CHECK(box_inset.has_value() && box_baseline.has_value() && box_leading.has_value());
+  CHECK(point_baseline.has_value() && point_leading.has_value());
+  CHECK(!point_layer->metadata().contains(patchy::kLayerMetadataTextBoxBaselineInset));
+  CHECK(two_line_leading.has_value());
+  if (!box_inset.has_value() || !box_baseline.has_value() || !box_leading.has_value() ||
+      !point_baseline.has_value() || !two_line_leading.has_value()) {
+    return;
+  }
+  std::printf("  box inset %.3f baseline %.3f leading %.4f | point baseline %.3f | two-line leading %.4f\n",
+              *box_inset, *box_baseline, *box_leading, *point_baseline, *two_line_leading);
+  std::fflush(stdout);
+  CHECK(std::abs(*box_inset - expected_inset) < 0.75);
+  // The box raster may start a bleed row or two above the frame; the baseline it records is from
+  // its own top row, so raster top + baseline is the frame top + Qt's ascent.
+  CHECK(std::abs((box_layer->bounds().y + *box_baseline) - (box_top_left.y() + metrics.ascent())) < 1.0);
+  // Point text: the raster starts at the layout top, the baseline is one ascent down, and the
+  // "y" descender puts the ink bottom well below it (the old anchor).
+  CHECK(std::abs(*point_baseline - metrics.ascent()) < 1.0);
+  const auto point_ink = patchy::visible_alpha_local_bounds(point_layer->pixels());
+  CHECK(point_ink.has_value());
+  if (point_ink.has_value()) {
+    CHECK(point_ink->y + point_ink->height > *point_baseline + 10.0);
+  }
+  // Qt advances by the line height (ascent + descent + leading, whole pixels); the two-line layer
+  // measured its real second baseline, the single-line ones the first line's height.
+  CHECK(std::abs(*two_line_leading * 96.0 - std::ceil(metrics.lineSpacing())) < 1.5);
+  CHECK(std::abs(*box_leading - *two_line_leading) < 0.02);
+  CHECK(*two_line_leading > 1.0 && *two_line_leading < 1.3);
+
+  // The saved PSD carries the metrics as Photoshop geometry.
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(live_document);
+  {
+    std::filesystem::create_directories("test-artifacts");
+    std::ofstream out("test-artifacts/text_baseline_check.psd", std::ios::binary);
+    out.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+  }
+  const auto transforms = tysh_transforms_in_psd(bytes);
+  const auto box_tops = box_bounds_tops_in_psd(bytes);
+  CHECK(transforms.size() == 3U);
+  CHECK(box_tops.size() == 2U);
+  if (transforms.size() != 3U || box_tops.size() != 2U) {
+    return;
+  }
+  // Layer order in the file: box, point, two-line (bottom to top). The box origins moved down by
+  // the inset; /BoxBounds stays at the origin.
+  CHECK(std::abs(transforms[0][5] - (box_top_left.y() + *box_inset)) < 1e-6);
+  CHECK(std::abs(box_tops[0]) < 0.001);
+  CHECK(std::abs(box_tops[1]) < 0.001);
+  CHECK(std::abs(transforms[1][5] - (point_layer->bounds().y + *point_baseline)) < 0.001);
+  const std::string haystack(bytes.begin(), bytes.end());
+  bool found_fraction = false;
+  const std::string key = "/AutoLeading ";
+  for (auto at = haystack.find(key); at != std::string::npos; at = haystack.find(key, at + key.size())) {
+    const auto value_text = haystack.substr(at + key.size(), 32);
+    if (value_text.rfind("true", 0) == 0 || value_text.rfind("false", 0) == 0) {
+      continue;
+    }
+    found_fraction = found_fraction || std::abs(std::strtod(value_text.c_str(), nullptr) - *two_line_leading) < 0.0001;
+  }
+  CHECK(found_fraction);
+
+  // Reopen: the frame is back at the transform origin, entering the layer does not move it, and a
+  // re-save writes the same type blocks.
+  auto reopened_document = patchy::psd::DocumentIo::read(bytes);
+  const patchy::Layer* reopened_box = nullptr;
+  for (const auto& layer : reopened_document.layers()) {
+    if (layer.name() == box_layer->name()) {
+      reopened_box = &layer;
+    }
+  }
+  CHECK(reopened_box != nullptr);
+  if (reopened_box == nullptr) {
+    return;
+  }
+  CHECK(!reopened_box->metadata().contains(patchy::kLayerMetadataTextLayoutMode));
+  const auto reopened_inset = layer_metric(*reopened_box, patchy::kLayerMetadataTextBoxBaselineInset);
+  CHECK(reopened_inset.has_value() && std::abs(*reopened_inset - *box_inset) < 0.001);
+  CHECK(reopened_box->metadata().at(patchy::kLayerMetadataPsdTextBoxBounds).rfind("0 0 ", 0) == 0);
+  CHECK(reopened_box->metadata().at(patchy::kLayerMetadataPsdTextBounds).rfind("0 0 ", 0) == 0);
+  CHECK(reopened_box->bounds().y == box_layer->bounds().y);
+  const auto reopened_box_transform =
+      patchy::parse_layer_affine_transform(reopened_box->metadata().at(patchy::kLayerMetadataTextTransform));
+  CHECK(reopened_box_transform.has_value());
+  if (reopened_box_transform.has_value()) {
+    CHECK(std::abs((*reopened_box_transform)[5] - box_top_left.y()) < 1e-9);
+  }
+  const auto reopened_bytes = patchy::psd::DocumentIo::write_layered_rgb8(reopened_document);
+  const auto reopened_transforms = tysh_transforms_in_psd(reopened_bytes);
+  const auto reopened_tops = box_bounds_tops_in_psd(reopened_bytes);
+  CHECK(reopened_transforms.size() == 3U && reopened_tops.size() == 2U);
+  if (reopened_transforms.size() == 3U && reopened_tops.size() == 2U) {
+    for (std::size_t index = 0; index < 3U; ++index) {
+      CHECK(std::abs(reopened_transforms[index][5] - transforms[index][5]) < 1e-6);
+    }
+    CHECK(std::abs(reopened_tops[0] - box_tops[0]) < 1e-6);
+    CHECK(std::abs(reopened_tops[1] - box_tops[1]) < 1e-6);
+  }
+
+  patchy::ui::MainWindow reopened_window;
+  show_window(reopened_window);
+  reopened_window.add_document_session(std::move(reopened_document), QStringLiteral("Reopened Baseline Metrics"));
+  auto* reopened_canvas = require_canvas(reopened_window);
+  reopened_canvas->set_zoom(1.0);
+  QApplication::processEvents();
+  auto* reopened_layer_list = reopened_window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(reopened_layer_list != nullptr);
+  if (reopened_layer_list == nullptr) {
+    return;
+  }
+  auto* reopened_item = require_layer_item(*reopened_layer_list, QString::fromStdString(box_layer->name()));
+  reopened_layer_list->clearSelection();
+  reopened_layer_list->setCurrentItem(reopened_item);
+  reopened_item->setSelected(true);
+  QApplication::processEvents();
+  require_action_by_text(reopened_window, QStringLiteral("Type"))->trigger();
+  const auto hit = reopened_canvas->widget_position_for_document_point(box_top_left + QPoint(60, 60));
+  send_mouse(*reopened_canvas, QEvent::MouseButtonPress, hit, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*reopened_canvas, QEvent::MouseButtonRelease, hit, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  auto* reopened_editor = reopened_canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(reopened_editor != nullptr);
+  if (reopened_editor == nullptr) {
+    return;
+  }
+  CHECK(reopened_editor->toPlainText() == QStringLiteral("Hey everyone!"));
+  CHECK(reopened_editor->property("patchy.documentTextX").toInt() == box_top_left.x());
+  CHECK(reopened_editor->property("patchy.documentTextY").toInt() == box_top_left.y());
+  send_key(*reopened_editor, Qt::Key_Escape);
+  QApplication::processEvents();
+}
+
+// A Patchy PSD saved before the layout metrics existed: point text anchored at its ink bottom
+// (the "y" descender), no metrics. The post-open pass lays the text out again, records the
+// metrics from that layout, moves ty onto the real first baseline (PSD transform and local rects
+// along with it) and leaves the pixels alone; entering the layer afterwards does not move it, and
+// the re-save is on the new convention.
+void ui_reopened_old_convention_point_text_migrates_to_baseline_anchor() {
+  if (skip_without_arial_for_psd_text_preview()) {
+    return;
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::Document document(800, 400, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(800, 400, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  document.print_settings().horizontal_ppi = 72.0;
+  document.print_settings().vertical_ppi = 72.0;
+  window.add_document_session(std::move(document), QStringLiteral("Old Convention"));
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  canvas->set_primary_color(QColor(0, 0, 0));
+  QApplication::processEvents();
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  QApplication::processEvents();
+  auto* font_combo = window.findChild<QFontComboBox*>(QStringLiteral("textFontCombo"));
+  auto* size_spin = window.findChild<QDoubleSpinBox*>(QStringLiteral("textSizeSpin"));
+  CHECK(font_combo != nullptr && size_spin != nullptr);
+  if (font_combo == nullptr || size_spin == nullptr) {
+    return;
+  }
+  font_combo->setCurrentFont(QFont(QStringLiteral("Arial")));
+  size_spin->setValue(96.0);
+  QApplication::processEvents();
+  patchy::ui::MainWindowTestAccess::add_text_at(window, QPoint(100, 120));
+  QApplication::processEvents();
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+  editor->setPlainText(QStringLiteral("Hey"));
+  QApplication::processEvents();
+  process_events_for(150);
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  process_events_for(150);
+  auto& live_document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto id = live_document.active_layer_id();
+  CHECK(id.has_value());
+  if (!id.has_value()) {
+    return;
+  }
+  auto* layer = live_document.find_layer(*id);
+  CHECK(layer != nullptr);
+  if (layer == nullptr) {
+    return;
+  }
+  const auto first_baseline = layer_metric(*layer, patchy::kLayerMetadataTextFirstBaseline);
+  CHECK(first_baseline.has_value());
+  const auto ink = patchy::visible_alpha_local_bounds(layer->pixels());
+  CHECK(ink.has_value());
+  if (!first_baseline.has_value() || !ink.has_value()) {
+    return;
+  }
+  const auto layer_name = layer->name();
+  const auto original_bounds = layer->bounds();
+  const double ink_bottom = ink->y + ink->height;
+  CHECK(ink_bottom > *first_baseline + 10.0);
+  // Strip the metrics: the writer falls back to the ink bottom, the pre-metrics convention.
+  layer->metadata().erase(patchy::kLayerMetadataTextFirstBaseline);
+  layer->metadata().erase(patchy::kLayerMetadataTextBoxBaselineInset);
+  layer->metadata().erase(patchy::kLayerMetadataTextAutoLeading);
+  const auto old_bytes = patchy::psd::DocumentIo::write_layered_rgb8(live_document);
+  const auto old_transforms = tysh_transforms_in_psd(old_bytes);
+  CHECK(old_transforms.size() == 1U);
+  if (old_transforms.size() != 1U) {
+    return;
+  }
+  CHECK(std::abs(old_transforms[0][5] - (original_bounds.y + ink_bottom)) < 0.001);
+
+  auto reopened = patchy::psd::DocumentIo::read(old_bytes);
+  patchy::ui::MainWindow reopened_window;
+  show_window(reopened_window);
+  patchy::ui::MainWindowTestAccess::record_text_layout_metrics_for_reopened_text(reopened_window, reopened);
+  const patchy::Layer* migrated = nullptr;
+  for (const auto& candidate : reopened.layers()) {
+    if (candidate.name() == layer_name) {
+      migrated = &candidate;
+    }
+  }
+  CHECK(migrated != nullptr);
+  if (migrated == nullptr) {
+    return;
+  }
+  const auto migrated_baseline = layer_metric(*migrated, patchy::kLayerMetadataTextFirstBaseline);
+  CHECK(migrated_baseline.has_value() && std::abs(*migrated_baseline - *first_baseline) < 0.01);
+  CHECK(migrated->bounds().y == original_bounds.y);
+  const auto migrated_transform =
+      patchy::parse_layer_affine_transform(migrated->metadata().at(patchy::kLayerMetadataTextTransform));
+  const auto migrated_psd_transform =
+      patchy::parse_layer_affine_transform(migrated->metadata().at(patchy::kLayerMetadataPsdTextTransform));
+  CHECK(migrated_transform.has_value() && migrated_psd_transform.has_value());
+  if (!migrated_transform.has_value() || !migrated_psd_transform.has_value()) {
+    return;
+  }
+  std::printf("  old ty %.2f -> migrated ty %.2f (raster top %d, baseline %.2f)\n", old_transforms[0][5],
+              (*migrated_transform)[5], original_bounds.y, *first_baseline);
+  std::fflush(stdout);
+  CHECK(std::abs((*migrated_transform)[5] - (original_bounds.y + *first_baseline)) < 0.01);
+  CHECK(std::abs((*migrated_transform)[5] - (*migrated_psd_transform)[5]) < 1e-9);
+  const auto bounding_box = migrated->metadata().at(patchy::kLayerMetadataPsdTextBoundingBox);
+  std::istringstream box_stream(bounding_box);
+  double box_left = 0.0;
+  double box_top = 0.0;
+  double box_right = 0.0;
+  double box_bottom = 0.0;
+  box_stream >> box_left >> box_top >> box_right >> box_bottom;
+  // Ink relative to the new origin: the descender hangs below the baseline.
+  CHECK(std::abs(box_bottom - (ink_bottom - *first_baseline)) < 0.01);
+  CHECK(std::abs(box_top - (ink->y - *first_baseline)) < 0.01);
+
+  const auto new_bytes = patchy::psd::DocumentIo::write_layered_rgb8(reopened);
+  const auto new_transforms = tysh_transforms_in_psd(new_bytes);
+  CHECK(new_transforms.size() == 1U);
+  if (new_transforms.size() == 1U) {
+    CHECK(std::abs(new_transforms[0][5] - (original_bounds.y + *first_baseline)) < 0.01);
+  }
+
+  // Entering the migrated layer keeps it where it is.
+  reopened_window.add_document_session(std::move(reopened), QStringLiteral("Reopened Old Convention"));
+  auto* reopened_canvas = require_canvas(reopened_window);
+  reopened_canvas->set_zoom(1.0);
+  QApplication::processEvents();
+  auto* reopened_layer_list = reopened_window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(reopened_layer_list != nullptr);
+  if (reopened_layer_list == nullptr) {
+    return;
+  }
+  auto* item = require_layer_item(*reopened_layer_list, QString::fromStdString(layer_name));
+  reopened_layer_list->clearSelection();
+  reopened_layer_list->setCurrentItem(item);
+  item->setSelected(true);
+  QApplication::processEvents();
+  require_action_by_text(reopened_window, QStringLiteral("Type"))->trigger();
+  const auto hit = reopened_canvas->widget_position_for_document_point(
+      QPoint(original_bounds.x + ink->x + 10, original_bounds.y + ink->y + 10));
+  send_mouse(*reopened_canvas, QEvent::MouseButtonPress, hit, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*reopened_canvas, QEvent::MouseButtonRelease, hit, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  auto* reopened_editor = reopened_canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(reopened_editor != nullptr);
+  if (reopened_editor == nullptr) {
+    return;
+  }
+  CHECK(reopened_editor->toPlainText() == QStringLiteral("Hey"));
+  QTextCursor cursor(reopened_editor->document());
+  cursor.movePosition(QTextCursor::End);
+  reopened_editor->setTextCursor(cursor);
+  reopened_editor->insertPlainText(QStringLiteral("!"));
+  QApplication::processEvents();
+  process_events_for(150);
+  require_action_by_text(reopened_window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  process_events_for(150);
+  const auto& reopened_document = patchy::ui::MainWindowTestAccess::document(reopened_window);
+  const patchy::Layer* recommitted = nullptr;
+  for (const auto& candidate : reopened_document.layers()) {
+    if (candidate.name() == layer_name || candidate.name() == "Hey!") {
+      recommitted = &candidate;
+    }
+  }
+  CHECK(recommitted != nullptr);
+  if (recommitted == nullptr) {
+    return;
+  }
+  CHECK(recommitted->metadata().at(patchy::kLayerMetadataText) == "Hey!");
+  std::printf("  recommit bounds %d,%d -> %d,%d\n", original_bounds.x, original_bounds.y, recommitted->bounds().x,
+              recommitted->bounds().y);
+  std::fflush(stdout);
+  CHECK(std::abs(recommitted->bounds().y - original_bounds.y) <= 1);
+  CHECK(std::abs(recommitted->bounds().x - original_bounds.x) <= 1);
+}
+
+// Photoshop keeps a fractional click point (tx 100.4, ty 60.6) and renders from its rounding.
+// Editing box text without moving it keeps that fraction in the stored transform (so the layer
+// reopens in Photoshop where it was) while the raster lands on the rounded origin.
+void ui_box_text_edit_keeps_fractional_anchor() {
+  patchy::Document document(420, 260, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(420, 260, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  auto pixels = solid_pixels(180, 64, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  fill_pixel_rect(pixels, QRect(0, 0, 150, 40), QColor(32, 32, 32, 255));
+  patchy::Layer text_layer(document.allocate_layer_id(), "Text: Boxed", std::move(pixels));
+  const auto id = text_layer.id();
+  // Bounds at the ROUNDED anchor (100.4 -> 100, 60.6 -> 61), where a Photoshop import lands.
+  text_layer.set_bounds(patchy::Rect{100, 61, 180, 64});
+  text_layer.metadata()[patchy::kLayerMetadataText] = "Boxed";
+  text_layer.metadata()[patchy::kLayerMetadataTextFlow] = "box";
+  text_layer.metadata()[patchy::kLayerMetadataTextFont] = "Arial";
+  text_layer.metadata()[patchy::kLayerMetadataTextSize] = "36";
+  text_layer.metadata()[patchy::kLayerMetadataTextColor] = "#202020";
+  text_layer.metadata()[patchy::kLayerMetadataTextBold] = "false";
+  text_layer.metadata()[patchy::kLayerMetadataTextItalic] = "false";
+  text_layer.metadata()[patchy::kLayerMetadataTextAntiAlias] = "3";
+  text_layer.metadata()[patchy::kLayerMetadataTextBoxWidth] = "180";
+  text_layer.metadata()[patchy::kLayerMetadataTextBoxHeight] = "64";
+  text_layer.metadata()[patchy::kLayerMetadataTextTransform] =
+      patchy::serialize_layer_affine_transform(patchy::LayerAffineTransform{1.0, 0.0, 0.0, 1.0, 100.4, 60.6});
+  document.add_layer(std::move(text_layer));
+  document.set_active_layer(id);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Fractional Box Anchor"));
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto hit_point = canvas->widget_position_for_document_point(QPoint(150, 90));
+  send_mouse(*canvas, QEvent::MouseButtonPress, hit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, hit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+  CHECK(editor->toPlainText() == QStringLiteral("Boxed"));
+  CHECK(editor->property("patchy.documentTextX").toInt() == 100);
+  CHECK(editor->property("patchy.documentTextY").toInt() == 61);
+  QTextCursor cursor(editor->document());
+  cursor.movePosition(QTextCursor::End);
+  editor->setTextCursor(cursor);
+  editor->insertPlainText(QStringLiteral("!"));
+  QApplication::processEvents();
+
+  // Ctrl+T commits the editor before starting its session; Escape then cancels the session.
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+
+  const auto* committed = std::as_const(patchy::ui::MainWindowTestAccess::document(window)).find_layer(id);
+  CHECK(committed != nullptr);
+  if (committed == nullptr) {
+    return;
+  }
+  CHECK(committed->metadata().at(patchy::kLayerMetadataText) == "Boxed!");
+  // The box raster is placed at the rounded frame origin; its buffer carries the line
+  // clip band's top bleed above the frame, so y sits at most a few rows above 61.
+  CHECK(committed->bounds().x == 100);
+  CHECK(committed->bounds().y <= 61);
+  CHECK(committed->bounds().y >= 57);
+  const auto transform =
+      patchy::parse_layer_affine_transform(committed->metadata().at(patchy::kLayerMetadataTextTransform));
+  CHECK(transform.has_value());
+  if (transform.has_value()) {
+    CHECK(std::abs((*transform)[4] - 100.4) < 1e-9);
+    CHECK(std::abs((*transform)[5] - 60.6) < 1e-9);
+  }
 }
 
 void ui_imported_psd_text_preview_preserves_paragraph_layout() {
@@ -3326,6 +3958,13 @@ std::vector<patchy::test::TestCase> psd_text_import_tests() {
        ui_imported_psd_text_uses_photoshop_frame_after_commit},
       {"ui_psd_point_text_edit_origin_stays_at_glyph_top_after_transform",
        ui_psd_point_text_edit_origin_stays_at_glyph_top_after_transform},
+      {"ui_text_transform_rerender_rounds_anchor_like_photoshop",
+       ui_text_transform_rerender_rounds_anchor_like_photoshop},
+      {"ui_box_text_edit_keeps_fractional_anchor", ui_box_text_edit_keeps_fractional_anchor},
+      {"ui_text_commit_records_photoshop_baseline_metrics_and_round_trips_psd",
+       ui_text_commit_records_photoshop_baseline_metrics_and_round_trips_psd},
+      {"ui_reopened_old_convention_point_text_migrates_to_baseline_anchor",
+       ui_reopened_old_convention_point_text_migrates_to_baseline_anchor},
       {"ui_psd_point_text_edit_origin_survives_scale_transform_if_available",
        ui_psd_point_text_edit_origin_survives_scale_transform_if_available},
       {"ui_psd_point_text_transform_scales_crisply", ui_psd_point_text_transform_scales_crisply},

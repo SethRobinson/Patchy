@@ -1016,6 +1016,34 @@ void psd_photoshop_unsharp_motion_smart_filter_fixture_round_trips_and_edits() {
   CHECK(reread_motion.angle_degrees == -61);
   CHECK(reread_motion.distance_pixels == 27);
   CHECK(test_global_psd_blocks(reread) == original_globals);
+
+  // Photoshop's Motion Blur maximum is 2000 px (its render clamps there; a
+  // COM check, September 2026). The written file is kept as an artifact for
+  // the Photoshop open check.
+  auto longest = reread;
+  auto *longest_motion = longest.find_layer(
+      require_layer_named(reread, motion_layer.name()).id());
+  CHECK(longest_motion != nullptr);
+  auto longest_candidate = *longest_motion->smart_filter_stack();
+  std::get<patchy::MotionBlurSmartFilter>(
+      longest_candidate.entries.front().parameters)
+      .distance_pixels = 2000;
+  longest_motion->set_smart_filter_stack(std::move(longest_candidate));
+  patchy::mark_layer_smart_object_block_dirty(*longest_motion);
+  const auto longest_bytes =
+      patchy::psd::DocumentIo::write_layered_rgb8(longest);
+  const auto longest_reread = patchy::psd::DocumentIo::read(longest_bytes);
+  const auto &longest_stack =
+      require_smart_filter_stack(longest_reread, motion_layer.name());
+  CHECK(longest_stack.support == patchy::SmartFilterStackSupport::Supported);
+  CHECK(require_motion_blur_filter(longest_stack.entries.front())
+            .distance_pixels == 2000);
+  std::filesystem::create_directories("test-artifacts");
+  std::ofstream artifact("test-artifacts/psd_motion_blur_2000_smart_filter.psd",
+                         std::ios::binary);
+  artifact.write(reinterpret_cast<const char *>(longest_bytes.data()),
+                 static_cast<std::streamsize>(longest_bytes.size()));
+  CHECK(artifact.good());
 }
 
 void psd_photoshop_tilt_shift_smart_filter_fixture_is_preserved_and_preview_locked() {

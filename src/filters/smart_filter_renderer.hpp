@@ -29,9 +29,16 @@ render_photoshop_unsharp_mask(const PixelBuffer &pixels, Rect bounds,
                               double amount_percent, double radius_pixels,
                               std::int32_t threshold,
                               const FilterProgress *progress = nullptr);
+// Motion Blur kernels. Automatic is the product choice: axis angles use an
+// exact running sum, other angles the exact tap kernel through 64 px and the
+// O(1)-per-pixel sheared running sum above. Taps and RunningSum force one
+// kernel so tests can compare them (RunningSum still renders axis angles
+// with the exact axis sum).
+enum class MotionBlurKernel { Automatic, Taps, RunningSum };
 [[nodiscard]] FilterRenderResult render_photoshop_motion_blur(
     const PixelBuffer &pixels, Rect bounds, std::int32_t angle_degrees,
-    std::int32_t distance_pixels, const FilterProgress *progress = nullptr);
+    std::int32_t distance_pixels, const FilterProgress *progress = nullptr,
+    MotionBlurKernel kernel = MotionBlurKernel::Automatic);
 [[nodiscard]] FilterRenderResult render_plastic_wrap(
     const PixelBuffer &pixels, Rect bounds, std::int32_t highlight_strength,
     std::int32_t detail, std::int32_t smoothness,

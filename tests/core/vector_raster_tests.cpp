@@ -12,6 +12,7 @@
 #include "core_test_support.hpp"
 #include "test_harness.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
@@ -950,6 +951,63 @@ void update_vector_shape_raster_bakes_pixels() {
   CHECK(patchy::layer_has_enabled_vector_mask(layer) == false);
 }
 
+// The document bake covers the whole shape, like a pixel layer keeps pixels
+// past the canvas edge: clipped to the canvas, a shape transformed onto the
+// pasteboard baked to nothing (the Move tool could no longer grab it) and a
+// half-off shape kept only its on-canvas half.
+void update_vector_shape_raster_keeps_off_canvas_shape() {
+  const Rect canvas{0, 0, 40, 40};
+  const auto bake = [&](patchy::VectorShapeContent content) {
+    patchy::Layer layer(9, "shape", patchy::PixelBuffer());
+    layer.set_vector_shape(std::move(content));
+    patchy::update_vector_shape_raster(layer, canvas, nullptr);
+    return layer;
+  };
+  patchy::VectorShapeContent content;
+  content.fill.kind = patchy::VectorFillKind::Solid;
+  content.fill.color = patchy::RgbColor{10, 180, 90};
+
+  // Wholly off the canvas: still baked, where the path is.
+  content.path.subpaths = {rect_subpath(-30, -25, -10, -5, PathCombineOp::Add, 0)};
+  auto off = bake(content);
+  CHECK(off.bounds().x == -30 && off.bounds().y == -25 && off.bounds().width == 20 && off.bounds().height == 20);
+  const auto* px = std::as_const(off).pixels().pixel(10, 10);
+  CHECK(px[1] == 180 && px[3] == 255);
+
+  // Crossing the left edge: both halves.
+  content.path.subpaths = {rect_subpath(-10, 8, 10, 20, PathCombineOp::Add, 0)};
+  auto crossing = bake(content);
+  CHECK(crossing.bounds().x == -10 && crossing.bounds().width == 20);
+
+  // An unaligned gradient keeps its canvas geometry, so the on-canvas pixels
+  // match a canvas-clipped render byte for byte.
+  content.fill.kind = patchy::VectorFillKind::Gradient;
+  auto& gradient = content.fill.gradient;
+  gradient.color_stops = {{0.0F, patchy::RgbColor{255, 0, 0}, 0.5F}, {1.0F, patchy::RgbColor{0, 0, 255}, 0.5F}};
+  gradient.alpha_stops = {{0.0F, 1.0F, 0.5F}, {1.0F, 1.0F, 0.5F}};
+  gradient.align_with_layer = false;
+  const auto baked = bake(content);
+  const auto clipped = patchy::rasterize_vector_shape(content, canvas, nullptr, nullptr);
+  CHECK(clipped.bounds.x == 0 && baked.bounds().x == -10);
+  bool same = true;
+  for (std::int32_t y = 0; y < clipped.bounds.height; ++y) {
+    for (std::int32_t x = 0; x < clipped.bounds.width; ++x) {
+      const auto* a = clipped.pixels.pixel(x, y);
+      const auto* b = std::as_const(baked).pixels().pixel(x + clipped.bounds.x - baked.bounds().x,
+                                                          y + clipped.bounds.y - baked.bounds().y);
+      same = same && std::equal(a, a + 4, b);
+    }
+  }
+  CHECK(same);
+
+  // Coverage that fills the whole clip (an inverted path) stays on the canvas.
+  content.fill.kind = patchy::VectorFillKind::Solid;
+  content.path_inverted = true;
+  auto inverted = bake(content);
+  CHECK(inverted.bounds().x >= 0 && inverted.bounds().y >= 0);
+  CHECK(inverted.bounds().x + inverted.bounds().width <= 40);
+}
+
 patchy::Layer make_shape_layer(patchy::Document& document, const char* name, patchy::PathSubpath subpath,
                                patchy::RgbColor color) {
   patchy::Layer layer(document.allocate_layer_id(), name, patchy::PixelBuffer());
@@ -1172,6 +1230,7 @@ std::vector<patchy::test::TestCase> vector_raster_tests() {
       {"vector_mask_composites_in_flatten", vector_mask_composites_in_flatten},
       {"vector_mask_multiplies_with_raster_mask", vector_mask_multiplies_with_raster_mask},
       {"update_vector_shape_raster_bakes_pixels", update_vector_shape_raster_bakes_pixels},
+      {"update_vector_shape_raster_keeps_off_canvas_shape", update_vector_shape_raster_keeps_off_canvas_shape},
       {"combine_shape_layers_truth_table", combine_shape_layers_truth_table},
       {"combine_shape_candidates_refuses_mixed_parents_locks_and_fill_layers",
        combine_shape_candidates_refuses_mixed_parents_locks_and_fill_layers},

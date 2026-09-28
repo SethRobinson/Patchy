@@ -1745,6 +1745,57 @@ void psd_smart_object_layers_get_layer_ids_on_save() {
   CHECK(!plain_id.has_value());  // only smart-object layers need ids
 }
 
+// Photoshop 2026 refuses to open a PSD whose lnk2 holds an element no layer
+// references, whoever wrote it ("program error"; September 2026 probes).
+// The writer leaves such elements out while the store keeps them; referenced
+// elements, and documents with a placed layer of unknown source, keep everything.
+void psd_writer_omits_unreferenced_smart_object_sources() {
+  const auto embed = std::make_shared<const std::vector<std::uint8_t>>(odd_composite_mini_psb());
+  const auto contains_lnk2 = [](const std::vector<std::uint8_t>& bytes) {
+    static constexpr std::array<std::uint8_t, 8> kTag{'8', 'B', 'I', 'M', 'l', 'n', 'k', '2'};
+    return std::search(bytes.begin(), bytes.end(), kTag.begin(), kTag.end()) != bytes.end();
+  };
+
+  patchy::Document document(4, 2, patchy::PixelFormat::rgb8());
+  auto& used = document.add_pixel_layer("Used", solid_rgb(4, 2, 10, 20, 30));
+  used.unknown_psd_blocks().push_back(patchy::UnknownPsdBlock{"SoLd", {5, 6, 7, 8}});
+  used.metadata()[patchy::kLayerMetadataSmartObject] = "aaaa";
+  document.metadata().smart_objects.add_embedded("aaaa", "a.psb", "8BPB", embed);
+  document.metadata().smart_objects.add_embedded("orphan", "o.psb", "8BPB", embed);
+  const auto reread = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  CHECK(reread.metadata().smart_objects.find("aaaa") != nullptr);
+  CHECK(reread.metadata().smart_objects.find("orphan") == nullptr);
+  CHECK(document.metadata().smart_objects.find("orphan") != nullptr);  // writing never mutates
+
+  // Nothing referenced: the emptied lnk2 block is not written at all.
+  patchy::Document lone(4, 2, patchy::PixelFormat::rgb8());
+  lone.add_pixel_layer("Plain", solid_rgb(4, 2, 70, 80, 90));
+  lone.metadata().smart_objects.add_embedded("orphan", "o.psb", "8BPB", embed);
+  const auto lone_bytes = patchy::psd::DocumentIo::write_layered_rgb8(lone);
+  CHECK(!contains_lnk2(lone_bytes));
+  CHECK(patchy::psd::DocumentIo::read(lone_bytes).metadata().smart_objects.empty());
+
+  // A placed block that never became metadata might reference any element.
+  patchy::Document unknown(4, 2, patchy::PixelFormat::rgb8());
+  auto& mystery = unknown.add_pixel_layer("Mystery", solid_rgb(4, 2, 40, 50, 60));
+  mystery.unknown_psd_blocks().push_back(patchy::UnknownPsdBlock{"SoLd", {5, 6, 7, 8}});
+  unknown.metadata().smart_objects.add_embedded("orphan", "o.psb", "8BPB", embed);
+  CHECK(contains_lnk2(patchy::psd::DocumentIo::write_layered_rgb8(unknown)));
+
+  // Photoshop's own element goes too once its only layer is rasterized: Photoshop
+  // refuses that orphan as well, and drops it itself when it saves.
+  auto placed = patchy::psd::DocumentIo::read_file(
+      patchy::test::committed_psd_fixture_path("photoshop-place-embedded-png.psd"));
+  auto* placed_layer = const_cast<patchy::Layer*>(find_layer_named(placed.layers(), "small"));
+  CHECK(placed_layer != nullptr);
+  const auto uuid = patchy::smart_object_source_uuid(*placed_layer);
+  patchy::strip_layer_smart_object_data(*placed_layer);
+  const auto placed_bytes = patchy::psd::DocumentIo::write_layered_rgb8(placed);
+  CHECK(!contains_lnk2(placed_bytes));
+  CHECK(patchy::psd::DocumentIo::read(placed_bytes).metadata().smart_objects.find(uuid) == nullptr);
+  CHECK(placed.metadata().smart_objects.find(uuid) != nullptr);
+}
+
 // The July 2026 field failure: a Patchy-authored smart-filter PSD Photoshop
 // refused to open ("program error"), root causes odd embed-composite rows and
 // a missing 'lyid'. Resaving through the fixed writer must repair both.
@@ -1890,6 +1941,8 @@ std::vector<patchy::test::TestCase> smart_objects_warp_tests() {
        psd_composite_rle_rows_are_even_for_photoshop_embeds},
       {"psd_smart_object_embed_odd_composite_normalized_on_save",
        psd_smart_object_embed_odd_composite_normalized_on_save},
+      {"psd_writer_omits_unreferenced_smart_object_sources",
+       psd_writer_omits_unreferenced_smart_object_sources},
       {"psd_smart_object_layers_get_layer_ids_on_save",
        psd_smart_object_layers_get_layer_ids_on_save},
       {"psd_local_smart_filter_file_repairs_on_resave_if_available",

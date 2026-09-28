@@ -23,6 +23,7 @@
 #include "ui/script_canvas_window.hpp"
 #include "ui/script_folders.hpp"
 #include "ui/sound_effects.hpp"
+#include "ui/text_layout.hpp"
 #include "ui/theme_qss.hpp"
 #include "ui/theme_palette.hpp"
 
@@ -111,6 +112,7 @@ constexpr const char* kBootstrapSource = R"JS(
     app: g.app,
     io: g.__patchy_io,
     ui: g.__patchy_ui,
+    recovery: g.__patchy_recovery,
     apiVersion: g.app.apiVersion,
     version: g.app.version,
     args: g.__patchy_args,
@@ -369,6 +371,10 @@ void ScriptEngineHost::install_bindings(const RunOptions& options) {
   auto* ui_object = new ScriptUiObject(*this);
   ui_object->setParent(&engine);
   global.setProperty(QStringLiteral("__patchy_ui"), engine.newQObject(ui_object));
+
+  auto* recovery_object = new ScriptRecoveryObject(*this);
+  recovery_object->setParent(&engine);
+  global.setProperty(QStringLiteral("__patchy_recovery"), engine.newQObject(recovery_object));
 
   const QJSValue bootstrap = engine.evaluate(QString::fromLatin1(kBootstrapSource),
                                              QStringLiteral("<patchy-bootstrap>"), 1);
@@ -1154,6 +1160,34 @@ bool ScriptEngineHost::resize_session_image(std::int64_t session_id, int width, 
   return resized;
 }
 
+std::vector<LayerId> ScriptEngineHost::import_files_as_layers(std::int64_t session_id, const QStringList& paths,
+                                                              QString* error) {
+  pump_progress_indicator();
+  auto* session = window_.session_with_id(session_id);
+  if (session == nullptr) {
+    if (error != nullptr) {
+      *error = tr("The document is no longer open.");
+    }
+    return {};
+  }
+  QString failure;
+  auto result = window_.add_files_as_layers(
+      *session, paths, std::nullopt, MainWindow::FailedFilesPolicy::AbortOnAnyFailure,
+      [this](int, int) {
+        pump_progress_indicator();
+        return !engine_ || !engine_->isInterrupted();
+      },
+      [this, session_id](MainWindow::DocumentSession&) { return prepare_mutation(session_id); }, &failure);
+  if (result.added_root_ids_top_to_bottom.empty()) {
+    if (error != nullptr) {
+      *error = failure.isEmpty() ? tr("No layers were added.") : failure;
+    }
+    return {};
+  }
+  note_structure_changed(session_id);
+  return result.added_root_ids_top_to_bottom;
+}
+
 bool ScriptEngineHost::undo_enabled() const noexcept {
   return run_ == nullptr || run_->undo_enabled;
 }
@@ -1516,8 +1550,9 @@ PixelBuffer ScriptEngineHost::pixels_limited_to_selection(std::int64_t session_i
 }
 
 bool ScriptEngineHost::remove_object_in_selection(std::int64_t session_id, LayerId layer_id, bool content_aware,
-                                                  int attempt, bool* used_content_aware, int* source,
-                                                  int* source_count, std::int64_t* patches) {
+                                                  int attempt, int tone_match, int feather, bool* used_content_aware,
+                                                  int* source, int* source_count, std::int64_t* patches,
+                                                  int* attempt_used) {
   pump_progress_indicator();
   auto* session = window_.session_with_id(session_id);
   if (session == nullptr || session->canvas == nullptr) {
@@ -1548,9 +1583,14 @@ bool ScriptEngineHost::remove_object_in_selection(std::int64_t session_id, Layer
     throw_js_error(tr("The document is no longer open."));
     return false;
   }
-  const auto result = canvas->remove_object_in_selection(content_aware ? CanvasWidget::RemoveObjectMethod::ContentAware
-                                                                       : CanvasWidget::RemoveObjectMethod::NearestEdge,
-                                                         attempt, /*record_history=*/false);
+  CanvasWidget::RemoveObjectOptions options;
+  options.method =
+      content_aware ? CanvasWidget::RemoveObjectMethod::ContentAware : CanvasWidget::RemoveObjectMethod::NearestEdge;
+  options.attempt = attempt;
+  options.tone_match = tone_match;
+  options.feather = feather;
+  options.record_history = false;
+  const auto result = canvas->remove_object_in_selection(options);
   if (!result.applied) {
     throw_js_error(result.error);
     return false;
@@ -1567,8 +1607,94 @@ bool ScriptEngineHost::remove_object_in_selection(std::int64_t session_id, Layer
   if (patches != nullptr) {
     *patches = result.patches;
   }
+  if (attempt_used != nullptr) {
+    *attempt_used = result.attempt;
+  }
   note_pixels_changed(session_id, canvas->selected_document_rect().value_or(QRect()));
   return true;
+}
+
+namespace {
+
+// The Align/Distribute preamble both services share: the session must be
+// open, and every requested root must still exist in its document.
+bool alignment_session_ready(ScriptEngineHost& host, CanvasWidget* canvas, const Document* document,
+                             const std::vector<LayerId>& root_ids, const char* verb) {
+  if (canvas == nullptr || document == nullptr) {
+    host.throw_js_error(ScriptEngineHost::tr("The document is no longer open."));
+    return false;
+  }
+  for (const auto id : root_ids) {
+    if (document->find_layer(id) == nullptr) {
+      host.throw_js_error(ScriptEngineHost::tr("%1 needs layers of this document.").arg(QLatin1String(verb)));
+      return false;
+    }
+  }
+  if (canvas->free_transform_active() || canvas->warp_transform_active() || canvas->path_transform_active()) {
+    host.throw_js_error(
+        ScriptEngineHost::tr("%1: finish the pending transform first.").arg(QLatin1String(verb)));
+    return false;
+  }
+  return true;
+}
+
+}  // namespace
+
+int ScriptEngineHost::align_layers(std::int64_t session_id, const std::vector<LayerId>& root_ids, AlignEdge edge,
+                                   bool align_to_canvas) {
+  pump_progress_indicator();
+  auto* initial_session = window_.session_with_id(session_id);
+  auto* canvas = initial_session != nullptr ? initial_session->canvas : nullptr;
+  const Document* document = initial_session != nullptr ? &std::as_const(initial_session->document) : nullptr;
+  if (!alignment_session_ready(*this, canvas, document, root_ids, "alignLayers")) {
+    return -1;
+  }
+  if (canvas->alignment_unit_count(root_ids) == 0) {
+    throw_js_error(tr("alignLayers needs at least one movable layer."));
+    return -1;
+  }
+  if (!prepare_mutation(session_id)) {
+    return -1;
+  }
+  // prepare_mutation may pump input; re-resolve the session before mutating.
+  auto* session = window_.session_with_id(session_id);
+  if (session == nullptr || session->canvas != canvas) {
+    throw_js_error(tr("The document is no longer open."));
+    return -1;
+  }
+  const auto result = canvas->align_layers(edge, align_to_canvas, root_ids, /*record_history=*/false);
+  if (!result.dirty.isEmpty()) {
+    note_pixels_changed(session_id, result.dirty.boundingRect());
+  }
+  return result.moved_layers;
+}
+
+int ScriptEngineHost::distribute_layers(std::int64_t session_id, const std::vector<LayerId>& root_ids,
+                                        DistributeMode mode) {
+  pump_progress_indicator();
+  auto* initial_session = window_.session_with_id(session_id);
+  auto* canvas = initial_session != nullptr ? initial_session->canvas : nullptr;
+  const Document* document = initial_session != nullptr ? &std::as_const(initial_session->document) : nullptr;
+  if (!alignment_session_ready(*this, canvas, document, root_ids, "distributeLayers")) {
+    return -1;
+  }
+  if (canvas->alignment_unit_count(root_ids) < 3) {
+    throw_js_error(tr("distributeLayers needs at least three movable layers."));
+    return -1;
+  }
+  if (!prepare_mutation(session_id)) {
+    return -1;
+  }
+  auto* session = window_.session_with_id(session_id);
+  if (session == nullptr || session->canvas != canvas) {
+    throw_js_error(tr("The document is no longer open."));
+    return -1;
+  }
+  const auto result = canvas->distribute_layers(mode, root_ids, /*record_history=*/false);
+  if (!result.dirty.isEmpty()) {
+    note_pixels_changed(session_id, result.dirty.boundingRect());
+  }
+  return result.moved_layers;
 }
 
 // ---------------------------------------------------------------------------
@@ -1627,6 +1753,16 @@ QString ScriptEngineHost::text_layer_orientation(std::int64_t session_id, LayerI
   return found != layer->metadata().end() && found->second == kTextOrientationVertical
              ? QStringLiteral("vertical")
              : QStringLiteral("horizontal");
+}
+
+QString ScriptEngineHost::text_layer_font(std::int64_t session_id, LayerId layer_id) const {
+  const auto* document = session_document_const(session_id);
+  const auto* layer = document != nullptr ? document->find_layer(layer_id) : nullptr;
+  if (layer == nullptr || !layer_is_text(*layer)) {
+    return QString();
+  }
+  const auto found = layer->metadata().find(kLayerMetadataTextFont);
+  return found != layer->metadata().end() ? QString::fromStdString(found->second) : QString();
 }
 
 QString ScriptEngineHost::text_layer_direction(std::int64_t session_id, LayerId layer_id) const {
@@ -1714,6 +1850,66 @@ bool ScriptEngineHost::set_text_layer_direction(std::int64_t session_id, LayerId
   });
 }
 
+namespace {
+
+Qt::Alignment text_alignment_for_name(const QString& name) {
+  if (name.compare(QLatin1String("center"), Qt::CaseInsensitive) == 0) {
+    return Qt::AlignHCenter;
+  }
+  if (name.compare(QLatin1String("right"), Qt::CaseInsensitive) == 0) {
+    return Qt::AlignRight;
+  }
+  if (name.compare(QLatin1String("justify"), Qt::CaseInsensitive) == 0) {
+    return Qt::AlignJustify;
+  }
+  return Qt::AlignLeft;
+}
+
+// The format a run is typed with: `base` (the session's typing format, or the first character's
+// on a re-edit) with the run's own family, size, face and color on top. The size lands in editor
+// units beside its exact value, exactly as the options bar's size spin does. A run that names a
+// family or a face drops any recorded style, which would otherwise override the request.
+void apply_text_run_to_format(MainWindow& window, QTextCharFormat& format,
+                              const ScriptEngineHost::TextRunParams& run, double zoom) {
+  if (!run.family.isEmpty()) {
+    window.apply_text_family_to_format(format, run.family);
+  }
+  if (run.size_px > 0.0) {
+    format.setProperty(QTextFormat::FontPixelSize,
+                       std::max(1, static_cast<int>(std::lround(run.size_px * zoom))));
+    format.setProperty(kTextExactSizeFormatProperty, run.size_px * zoom);
+  }
+  if (run.bold.has_value()) {
+    format.setFontWeight(*run.bold ? QFont::Bold : QFont::Normal);
+  }
+  if (run.italic.has_value()) {
+    format.setFontItalic(*run.italic);
+  }
+  if (run.color.isValid()) {
+    format.setForeground(QBrush(run.color));
+  }
+  if (!run.family.isEmpty() || run.bold.has_value() || run.italic.has_value()) {
+    format.clearProperty(kTextStyleNameFormatProperty);
+  }
+}
+
+// Replaces the editor's selection with the runs, each typed in its own format, and leaves the
+// cursor after the last one.
+void insert_text_runs(MainWindow& window, QTextEdit& editor, const QTextCharFormat& base,
+                      const std::vector<ScriptEngineHost::TextRunParams>& runs, double zoom) {
+  auto cursor = editor.textCursor();
+  cursor.beginEditBlock();
+  for (const auto& run : runs) {
+    QTextCharFormat format = base;
+    apply_text_run_to_format(window, format, run, zoom);
+    cursor.insertText(run.text, format);
+  }
+  cursor.endEditBlock();
+  editor.setTextCursor(cursor);
+}
+
+}  // namespace
+
 std::optional<LayerId> ScriptEngineHost::add_text_layer(std::int64_t session_id,
                                                         const TextLayerParams& params) {
   pump_progress_indicator();
@@ -1730,22 +1926,38 @@ std::optional<LayerId> ScriptEngineHost::add_text_layer(std::int64_t session_id,
   // add_text_at edits the ACTIVE layer when the point lands inside its bounds;
   // clearing the active layer guarantees a fresh text layer instead.
   session->document.clear_active_layer();
-  window_.add_text_at(params.position);
+  // A valid box opens the session as paragraph text (the Type tool's drag), wrapping at the
+  // box width; point text otherwise.
+  const QRect box = params.box.isValid() ? QRect(params.position, params.box) : QRect();
+  window_.add_text_at(params.position, box);
   QTextEdit* editor = wait_for_inline_text_editor(session->canvas);
   if (editor == nullptr) {
     return std::nullopt;
   }
-  QTextCharFormat format = editor->currentCharFormat();
-  QFont font = format.font();
-  if (!params.family.isEmpty()) {
-    font.setFamily(params.family);
+  const double zoom = std::max(0.01, session->canvas->zoom());
+  const auto layer_family =
+      !params.family.isEmpty() ? params.family : (params.runs.empty() ? QString() : params.runs.front().family);
+  if (!layer_family.isEmpty()) {
+    // The options bar's font picker path: besides the char format, the commit reads the family
+    // from the session property and the per-run display family, so a bare QFont family was
+    // dropped and every script-made layer rendered in the bar's current font.
+    window_.apply_text_family_to_editor(*editor, layer_family);
   }
+  QTextCharFormat format = editor->currentCharFormat();
+  // A new session seeds its face from the options bar's style picker, as Photoshop seeds new
+  // type from its toolbar. A script names the face itself (font, bold, italic), so the picker's
+  // face must not ride along: with the bar parked on a Semibold layer, every scripted layer in
+  // any family offering that face rendered Semibold, whatever the script asked for.
+  format.clearProperty(kTextStyleNameFormatProperty);
+  QFont font = format.font();
   if (params.size_px > 0.0) {
     // The inline editor's font lives in editor pixels (document px * zoom, see
     // the interactive path in main_window.cpp). A point-sized font here would
     // commit at a size that depends on the current canvas zoom.
-    const double zoom = std::max(0.01, session->canvas->zoom());
     font.setPixelSize(std::max(1, static_cast<int>(std::lround(params.size_px * zoom))));
+    // The exact size travels alongside the whole-pixel editor font, so the committed size is
+    // the requested one at every zoom rather than round(px / zoom).
+    format.setProperty(kTextExactSizeFormatProperty, params.size_px * zoom);
   }
   font.setBold(params.bold);
   font.setItalic(params.italic);
@@ -1759,12 +1971,30 @@ std::optional<LayerId> ScriptEngineHost::add_text_layer(std::int64_t session_id,
   } else if (params.orientation == QLatin1String("horizontal")) {
     window_.apply_text_orientation(false, /*remember_default*/ false);
   }
-  editor->insertPlainText(params.text);
+  if (params.runs.empty()) {
+    editor->insertPlainText(params.text);
+  } else {
+    insert_text_runs(window_, *editor, format, params.runs, zoom);
+  }
+  if (!params.align.isEmpty()) {
+    // Paragraph-level, like the options bar's alignment buttons on a whole object.
+    auto all = editor->textCursor();
+    all.select(QTextCursor::Document);
+    editor->setTextCursor(all);
+    window_.apply_text_alignment_to_editor(*editor, text_alignment_for_name(params.align));
+  }
   if (const auto direction = layout_direction_for_name(params.direction); direction.has_value()) {
     auto all = editor->textCursor();
     all.select(QTextCursor::Document);
     editor->setTextCursor(all);
     window_.apply_text_direction_to_active_editor(*direction);
+  }
+  if (!params.paragraph.empty()) {
+    // Paragraph panel metrics on the whole object, like `align`.
+    auto all = editor->textCursor();
+    all.select(QTextCursor::Document);
+    editor->setTextCursor(all);
+    window_.apply_text_paragraph_metrics_to_editor(*editor, params.paragraph);
   }
   QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
   window_.finish_active_text_editor();
@@ -1785,47 +2015,207 @@ std::optional<LayerId> ScriptEngineHost::add_text_layer(std::int64_t session_id,
   };
   find_new(std::as_const(session->document).layers());
   note_structure_changed(session_id);
+  if (created.has_value()) {
+    // A family that is not installed renders in a fallback face; say so instead of letting the
+    // caller discover it from the pixels.
+    if (const auto* layer = std::as_const(session->document).find_layer(*created); layer != nullptr) {
+      if (const auto missing = missing_text_families_for_layer(*layer); !missing.isEmpty()) {
+        emit_message(MessageKind::Warn, tr("addTextLayer: font not available, rendered with a fallback: %1")
+                                            .arg(missing.join(QStringLiteral(", "))));
+      }
+    }
+  }
   return created;
 }
 
 bool ScriptEngineHost::set_text_layer_text(std::int64_t session_id, LayerId layer_id,
                                            const QString& text) {
-  pump_progress_indicator();
-  auto* session = window_.session_with_id(session_id);
-  if (session == nullptr || session->canvas == nullptr) {
-    return false;
+  TextRunParams run;
+  run.text = text;
+  return set_text_layer_runs(session_id, layer_id, {run});
+}
+
+bool ScriptEngineHost::set_text_layer_runs(std::int64_t session_id, LayerId layer_id,
+                                           const std::vector<TextRunParams>& runs) {
+  return edit_text_layer_session(session_id, layer_id, [this, session_id, &runs](QTextEdit& editor) {
+    const auto* session = window_.session_with_id(session_id);
+    const double zoom =
+        session != nullptr && session->canvas != nullptr ? std::max(0.01, session->canvas->zoom()) : 1.0;
+    auto cursor = editor.textCursor();
+    cursor.select(QTextCursor::Document);
+    // Replace the selection in one step, as retyping it in the editor does. Deleting everything
+    // first left an empty block whose char format is only the session's fallback font, so the
+    // inserted text lost the run properties the commit renders from (the exact fractional size,
+    // the Character-panel glyph scales, leading, tracking, faux styles): an imported Photoshop
+    // layer with VerticalScale 0.93 re-rendered 7.5% taller than the same layer applied
+    // interactively. Photoshop gives retyped text the first selected character's attributes;
+    // a run's own font, size, face and color go on top of them.
+    QTextCharFormat base;
+    {
+      auto first = cursor;
+      first.setPosition(0);
+      first.setPosition(std::min(1, first.document()->characterCount() - 1), QTextCursor::KeepAnchor);
+      base = first.charFormat();
+    }
+    editor.setTextCursor(cursor);
+    insert_text_runs(window_, editor, base, runs, zoom);
+  });
+}
+
+std::vector<ScriptEngineHost::TextRunInfo> ScriptEngineHost::text_layer_runs(std::int64_t session_id,
+                                                                            LayerId layer_id) const {
+  std::vector<TextRunInfo> runs;
+  const auto* document = session_document_const(session_id);
+  const auto* layer = document != nullptr ? document->find_layer(layer_id) : nullptr;
+  if (layer == nullptr || !layer_is_text(*layer)) {
+    return runs;
   }
-  const auto* layer = std::as_const(session->document).find_layer(layer_id);
-  if (layer == nullptr || !layer_is_text(*layer) || window_.layer_id_locks_image_pixels(layer_id)) {
-    return false;
+  const auto& metadata = layer->metadata();
+  const auto value = [&metadata](const char* key) {
+    const auto found = metadata.find(key);
+    return found == metadata.end() ? QString() : QString::fromStdString(found->second);
+  };
+  const auto decode = [](const QString& field) {
+    return QString::fromUtf8(QByteArray::fromPercentEncoding(field.toLatin1()));
+  };
+  const auto text = value(kLayerMetadataText);
+  // The run columns: start, length, size, bold, italic, color, family, then the optional
+  // Photoshop-layout columns, with the recorded face at column 12 (docs/text-tool.md).
+  for (const auto& raw_line : value(kLayerMetadataTextRuns).split(QLatin1Char('\n'))) {
+    const auto fields = raw_line.trimmed().split(QLatin1Char('\t'));
+    if (fields.size() < 7) {
+      continue;  // the version line
+    }
+    bool start_ok = false;
+    bool length_ok = false;
+    const auto start = fields[0].toInt(&start_ok);
+    const auto length = fields[1].toInt(&length_ok);
+    if (!start_ok || !length_ok || start < 0 || length <= 0 || start >= text.size()) {
+      continue;
+    }
+    TextRunInfo run;
+    run.text = text.mid(start, length);
+    run.size = fields[2].toDouble();
+    run.bold = fields[3].toInt() != 0;
+    run.italic = fields[4].toInt() != 0;
+    run.color = fields[5];
+    run.family = decode(fields[6]);
+    if (fields.size() >= 13) {
+      run.style = decode(fields[12]);
+    }
+    runs.push_back(std::move(run));
   }
-  window_.activate_document_session(*session);
-  if (!prepare_mutation(session_id)) {
-    return false;
+  if (runs.empty()) {
+    TextRunInfo run;
+    run.text = text;
+    run.family = value(kLayerMetadataTextFont);
+    run.size = value(kLayerMetadataTextSize).toDouble();
+    run.bold = value(kLayerMetadataTextBold) == QLatin1String("true");
+    run.italic = value(kLayerMetadataTextItalic) == QLatin1String("true");
+    run.color = value(kLayerMetadataTextColor);
+    runs.push_back(std::move(run));
   }
-  const auto bounds = layer->bounds();
-  const QPoint anchor(bounds.x + std::max(1, bounds.width) / 2,
-                      bounds.y + std::max(1, bounds.height) / 2);
-  session->document.set_active_layer(layer_id);
-  window_.add_text_at(anchor);
-  QTextEdit* editor = wait_for_inline_text_editor(session->canvas);
-  if (editor == nullptr) {
-    return false;
+  return runs;
+}
+
+QSize ScriptEngineHost::text_layer_box(std::int64_t session_id, LayerId layer_id) const {
+  const auto* document = session_document_const(session_id);
+  const auto* layer = document != nullptr ? document->find_layer(layer_id) : nullptr;
+  if (layer == nullptr || !layer_is_text(*layer)) {
+    return QSize();
   }
-  if (editor->property("patchy.editingLayerId").toULongLong() != static_cast<qulonglong>(layer_id)) {
-    window_.cancel_active_text_editor();
-    return false;
+  const auto& metadata = layer->metadata();
+  const auto value = [&metadata](const char* key) {
+    const auto found = metadata.find(key);
+    return found == metadata.end() ? QString() : QString::fromStdString(found->second);
+  };
+  // Point text stores its editor box too; only the flow flag says the box is a paragraph box.
+  if (value(kLayerMetadataTextFlow).compare(QLatin1String("box"), Qt::CaseInsensitive) != 0) {
+    return QSize();
   }
-  auto cursor = editor->textCursor();
-  cursor.select(QTextCursor::Document);
-  cursor.removeSelectedText();
-  editor->setTextCursor(cursor);
-  editor->insertPlainText(text);
-  QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
-  window_.finish_active_text_editor();
-  QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
-  note_structure_changed(session_id);
-  return true;
+  const QSize box(value(kLayerMetadataTextBoxWidth).toInt(), value(kLayerMetadataTextBoxHeight).toInt());
+  return box.width() > 0 && box.height() > 0 ? box : QSize();
+}
+
+QString ScriptEngineHost::text_layer_align(std::int64_t session_id, LayerId layer_id) const {
+  const auto* document = session_document_const(session_id);
+  const auto* layer = document != nullptr ? document->find_layer(layer_id) : nullptr;
+  if (layer == nullptr || !layer_is_text(*layer)) {
+    return QString();
+  }
+  const auto found = layer->metadata().find(kLayerMetadataTextParagraphRuns);
+  if (found != layer->metadata().end()) {
+    for (const auto& raw_line : QString::fromStdString(found->second).split(QLatin1Char('\n'))) {
+      const auto fields = raw_line.trimmed().split(QLatin1Char('\t'));
+      if (fields.size() < 3) {
+        continue;
+      }
+      return fields[2].trimmed().toLower();
+    }
+  }
+  return QStringLiteral("left");
+}
+
+TextParagraphMetrics ScriptEngineHost::text_layer_paragraph(std::int64_t session_id, LayerId layer_id) const {
+  TextParagraphMetrics metrics;
+  metrics.first_line_indent = 0.0;
+  metrics.start_indent = 0.0;
+  metrics.end_indent = 0.0;
+  metrics.space_before = 0.0;
+  metrics.space_after = 0.0;
+  const auto* document = session_document_const(session_id);
+  const auto* layer = document != nullptr ? document->find_layer(layer_id) : nullptr;
+  if (layer == nullptr || !layer_is_text(*layer)) {
+    return metrics;
+  }
+  const auto found = layer->metadata().find(kLayerMetadataTextParagraphRuns);
+  if (found == layer->metadata().end()) {
+    return metrics;
+  }
+  // The first paragraph's v2+ columns (first line indent, left, right, space before, space after).
+  for (const auto& raw_line : QString::fromStdString(found->second).split(QLatin1Char('\n'))) {
+    const auto fields = raw_line.trimmed().split(QLatin1Char('\t'));
+    if (fields.size() < 3) {
+      continue;
+    }
+    if (fields.size() >= 8) {
+      const auto metric = [&fields](int index) {
+        bool ok = false;
+        const auto value = fields[index].toDouble(&ok);
+        return ok && std::isfinite(value) ? value : 0.0;
+      };
+      metrics.first_line_indent = metric(3);
+      metrics.start_indent = metric(4);
+      metrics.end_indent = metric(5);
+      metrics.space_before = metric(6);
+      metrics.space_after = metric(7);
+    }
+    break;
+  }
+  return metrics;
+}
+
+bool ScriptEngineHost::set_text_layer_paragraph(std::int64_t session_id, LayerId layer_id,
+                                                const TextParagraphMetrics& metrics) {
+  if (metrics.empty()) {
+    return layer_is_text_layer(session_id, layer_id);
+  }
+  return edit_text_layer_session(session_id, layer_id, [this, metrics](QTextEdit& editor) {
+    auto all = editor.textCursor();
+    all.select(QTextCursor::Document);
+    editor.setTextCursor(all);
+    window_.apply_text_paragraph_metrics_to_editor(editor, metrics);
+  });
+}
+
+bool ScriptEngineHost::set_text_layer_align(std::int64_t session_id, LayerId layer_id, const QString& align) {
+  const auto alignment = text_alignment_for_name(align);
+  return edit_text_layer_session(session_id, layer_id, [this, alignment](QTextEdit& editor) {
+    auto all = editor.textCursor();
+    all.select(QTextCursor::Document);
+    editor.setTextCursor(all);
+    window_.apply_text_alignment_to_editor(editor, alignment);
+  });
 }
 
 QString ScriptEngineHost::text_layer_text(std::int64_t session_id, LayerId layer_id) const {

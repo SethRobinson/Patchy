@@ -20,7 +20,7 @@ keep the original defaults. See [vector-preview.md](vector-preview.md).
 
 ## GRD files
 
-`src/psd/grd_io.*` reads and writes Photoshop `8BGR` version 5 files containing a version-16 `GrdL` descriptor. It supports solid `CstS`, noise `ClNs`, dynamic `FrgC`/`BckC` stops, ZString display names, and the trailing `8BIMphry` hierarchy. Imports are limited to 32 MiB, 4096 gradients, and 256 stops per list. A damaged tail may return the valid decoded prefix with warnings; structural damage before the first usable gradient is an error.
+`src/psd/grd_io.*` reads and writes Photoshop `8BGR` version 5 files containing a version-16 `GrdL` descriptor. It supports solid `CstS`, noise `ClNs`, dynamic `FrgC`/`BckC` stops, ZString display names, and the trailing `8BIMphry` hierarchy. Imports are limited to 32 MiB, 4096 gradients, and 256 stops per list. A damaged tail may return the valid decoded prefix with warnings; structural damage before the first usable gradient is an error. Gray `Grsc` stops read `Gry ` as Photoshop's black percentage (100 = black), the same convention as lfx2 gray effect colors.
 
 The application library lives under the settings directory's `gradients/` folder. Each entry is one single-gradient `.grd` plus a JSON sidecar with its fixed storage id, canonical name, and folder path. Default ids and English names in `src/core/gradient_presets.cpp` are persisted and append-only. New defaults need a new `introduced_version` and a `kDefaultGradientsVersion` bump; never rename or reuse an existing id.
 

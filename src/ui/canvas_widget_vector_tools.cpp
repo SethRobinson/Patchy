@@ -2323,17 +2323,21 @@ bool CanvasWidget::handle_path_transform_move(QMouseEvent* event, QPointF docume
       if (transform_drag_keeps_aspect(event->modifiers()) && (moves_left || moves_right) &&
           (moves_top || moves_bottom) && std::abs(path_transform_drag_start_rect_.width()) > 1e-9 &&
           std::abs(path_transform_drag_start_rect_.height()) > 1e-9) {
-        // Aspect-locked corner: derive the shared factor from the dominant axis
-        // of the local delta.
-        const double from_x = (moves_left ? -local_delta.x() : local_delta.x()) /
-                              std::abs(path_transform_drag_start_rect_.width());
-        const double from_y = (moves_top ? -local_delta.y() : local_delta.y()) /
-                              std::abs(path_transform_drag_start_rect_.height());
-        const double factor = 1.0 + (std::abs(from_x) >= std::abs(from_y) ? from_x : from_y);
-        local_delta.setX((moves_left ? -1.0 : 1.0) * (factor - 1.0) *
-                         std::abs(path_transform_drag_start_rect_.width()));
-        local_delta.setY((moves_top ? -1.0 : 1.0) * (factor - 1.0) *
-                         std::abs(path_transform_drag_start_rect_.height()));
+        // Aspect-locked corner: one shared magnitude from the per-axis scales
+        // projected onto the box diagonal, each axis keeping its own sign, as
+        // in the pixel session (update_free_transform_preview), so neither
+        // axis is ignored and a pull straight across the anchor mirrors that
+        // axis alone.
+        const double width = std::abs(path_transform_drag_start_rect_.width());
+        const double height = std::abs(path_transform_drag_start_rect_.height());
+        const double scale_x = 1.0 + (moves_left ? -local_delta.x() : local_delta.x()) / width;
+        const double scale_y = 1.0 + (moves_top ? -local_delta.y() : local_delta.y()) / height;
+        const double magnitude = (std::abs(scale_x) * width * width + std::abs(scale_y) * height * height) /
+                                 (width * width + height * height);
+        const double factor_x = scale_x < 0.0 ? -magnitude : magnitude;
+        const double factor_y = scale_y < 0.0 ? -magnitude : magnitude;
+        local_delta.setX((moves_left ? -1.0 : 1.0) * (factor_x - 1.0) * width);
+        local_delta.setY((moves_top ? -1.0 : 1.0) * (factor_y - 1.0) * height);
       }
       if (moves_left) {
         rect.setLeft(rect.left() + local_delta.x());

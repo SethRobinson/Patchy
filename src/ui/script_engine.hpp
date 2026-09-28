@@ -5,11 +5,14 @@
 #include <QJsonValue>
 #include <QImage>
 #include "ui/script_stroke.hpp"
+#include "ui/text_paragraph_metrics.hpp"
 
 #include "core/document.hpp"
 #include "core/layer.hpp"
+#include "core/layer_alignment.hpp"
 
 #include <QColor>
+#include <QSize>
 #include <QElapsedTimer>
 #include <QFont>
 #include <QImage>
@@ -192,6 +195,11 @@ public:
   // set on refusal; the target's undo rides this run's snapshot.
   std::vector<LayerId> duplicate_layers_to_session(std::int64_t source_session_id, std::vector<LayerId> ids,
                                                    std::int64_t target_session_id, QString* error);
+  // doc.importFilesAsLayers(paths): every file becomes a layer above the
+  // active layer (MainWindow::add_files_as_layers). All or nothing: a file that
+  // cannot be read leaves the document untouched with *error set. Returns the
+  // new root ids top to bottom; the mutation rides this run's snapshot.
+  std::vector<LayerId> import_files_as_layers(std::int64_t session_id, const QStringList& paths, QString* error);
 
   // Undo integration: the FIRST mutation a run makes to a session pushes one
   // "Script: <name>" snapshot; later mutations in the same run ride it, so the
@@ -239,13 +247,31 @@ public:
   // layer must be the document's active layer. The pixel edit rides this
   // run's undo snapshot. False (with a JS error thrown) on refusal.
   bool remove_object_in_selection(std::int64_t session_id, LayerId layer_id, bool content_aware, int attempt,
-                                  bool* used_content_aware, int* source, int* source_count,
-                                  std::int64_t* patches);
+                                  int tone_match, int feather, bool* used_content_aware, int* source,
+                                  int* source_count, std::int64_t* patches, int* attempt_used);
+  // Layer > Arrange > Align / Distribute over `root_ids` (empty = the
+  // session's layer selection) through its canvas, riding this run's undo
+  // snapshot. Returns the number of layers moved; -1 with a JS error thrown
+  // on refusal (no movable unit, fewer than three units to distribute).
+  int align_layers(std::int64_t session_id, const std::vector<LayerId>& root_ids, AlignEdge edge,
+                   bool align_to_canvas);
+  int distribute_layers(std::int64_t session_id, const std::vector<LayerId>& root_ids, DistributeMode mode);
 
   // Text layers, driven through the real inline-editor pipeline (the
   // cli_append_text_to_text_layers technique) so rasters render normally.
+  // One formatted run of a text layer. The layer-level values apply unless the run overrides
+  // them; `text` may contain "\n", which starts a new paragraph inside the same layer.
+  struct TextRunParams {
+    QString text;
+    QString family;               // empty = the layer's
+    double size_px{0.0};          // <= 0 = the layer's; document pixels
+    std::optional<bool> bold;
+    std::optional<bool> italic;
+    QColor color;                 // invalid = the layer's
+  };
   struct TextLayerParams {
     QString text;
+    std::vector<TextRunParams> runs;  // when non-empty, the layer's content instead of `text`
     QString family;      // empty = current default
     // Text height in DOCUMENT pixels (<= 0 = current default). The editor
     // font must be set in editor pixels (document px * canvas zoom); a
@@ -257,14 +283,45 @@ public:
     QPoint position{0, 0};
     QString orientation;  // "horizontal" / "vertical"; empty = horizontal
     QString direction;    // "auto" / "ltr" / "rtl"; empty = auto
+    QSize box;            // valid = a paragraph text box of that size at `position` (wrapping)
+    QString align;        // "left" / "center" / "right" / "justify"; empty = the default
+    TextParagraphMetrics paragraph;  // indents and spacing in document px; unset fields keep the defaults
+  };
+  // A stored run read back in text order (see text_layer_runs).
+  struct TextRunInfo {
+    QString text;
+    QString family;
+    QString style;   // the recorded face beyond bold/italic ("Black", "Demi"), or empty
+    double size{0.0};
+    bool bold{false};
+    bool italic{false};
+    QString color;   // #rrggbb
   };
   std::optional<LayerId> add_text_layer(std::int64_t session_id, const TextLayerParams& params);
   bool set_text_layer_text(std::int64_t session_id, LayerId layer_id, const QString& text);
+  // Replaces the layer's content with the runs, each typed in its own format on top of the
+  // first character's; the same hidden session `text` uses.
+  bool set_text_layer_runs(std::int64_t session_id, LayerId layer_id, const std::vector<TextRunParams>& runs);
+  // The layer's runs as stored (sizes in document pixels before any layer transform); a layer
+  // with no run data reports one run from its layer-level values.
+  [[nodiscard]] std::vector<TextRunInfo> text_layer_runs(std::int64_t session_id, LayerId layer_id) const;
+  // The paragraph text box size, invalid for point text.
+  [[nodiscard]] QSize text_layer_box(std::int64_t session_id, LayerId layer_id) const;
+  // The first paragraph's alignment name ("left" when nothing is recorded); the setter aligns
+  // every paragraph.
+  [[nodiscard]] QString text_layer_align(std::int64_t session_id, LayerId layer_id) const;
+  bool set_text_layer_align(std::int64_t session_id, LayerId layer_id, const QString& align);
+  // The first paragraph's indents and spacing in document pixels (every field set, 0 when
+  // nothing is recorded); the setter merges the given fields into every paragraph.
+  [[nodiscard]] TextParagraphMetrics text_layer_paragraph(std::int64_t session_id, LayerId layer_id) const;
+  bool set_text_layer_paragraph(std::int64_t session_id, LayerId layer_id, const TextParagraphMetrics& metrics);
   [[nodiscard]] QString text_layer_text(std::int64_t session_id, LayerId layer_id) const;
   // Vertical type and paragraph direction, through the same hidden session as `text`.
   [[nodiscard]] QString text_layer_orientation(std::int64_t session_id, LayerId layer_id) const;
   bool set_text_layer_orientation(std::int64_t session_id, LayerId layer_id, const QString& orientation);
   [[nodiscard]] QString text_layer_direction(std::int64_t session_id, LayerId layer_id) const;
+  // The layer's primary font family as stored (the requested name, even when it is not installed).
+  [[nodiscard]] QString text_layer_font(std::int64_t session_id, LayerId layer_id) const;
   bool set_text_layer_direction(std::int64_t session_id, LayerId layer_id, const QString& direction);
   [[nodiscard]] bool layer_is_text_layer(std::int64_t session_id, LayerId layer_id) const;
   bool edit_text_layer_session(std::int64_t session_id, LayerId layer_id,

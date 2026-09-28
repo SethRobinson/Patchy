@@ -5,9 +5,9 @@ it into build\package\ next to the Windows artifacts.
   scripts\remote\release-linux.ps1
 
 Flow: snapshot push (scripts\remote\remote-build.ps1 -SkipTests validates the tree
-still builds against the aqt Qt), then packaging/linux/make-flatpak.sh on glados
+still builds against the aqt Qt), then packaging/linux/make-flatpak.sh on the linux build host
 (flatpak-builder against org.kde.Platform//6.8 -> flatpak build-bundle), then scp the
-bundle back. One-time glados setup is in the make-flatpak.sh header (needs
+bundle back. One-time build-host setup is in the make-flatpak.sh header (needs
 flatpak/flatpak-builder via apt).
 #>
 param()
@@ -16,7 +16,8 @@ param()
 # with 'Stop'. Failures are handled via the explicit LASTEXITCODE checks below.
 $ErrorActionPreference = 'Continue'
 
-$remoteHost = 'glados@glados.local'
+. (Join-Path $PSScriptRoot 'remote-hosts.ps1')
+$remoteHost = (Get-PatchyRemoteHost linux).ssh
 
 # Delete previous local copies up front so a failed run leaves nothing stale for the
 # newest-file upload script to pick up by accident (the remote side does the same).
@@ -31,7 +32,7 @@ Remove-Item (Join-Path $repoRoot 'build\package\PatchyLinux.flatpak') -Force -Er
 if ($LASTEXITCODE -ne 0) { throw 'remote linux build failed' }
 
 ssh $remoteHost 'bash ~/patchy/src/packaging/linux/make-flatpak.sh'
-if ($LASTEXITCODE -ne 0) { throw 'make-flatpak.sh failed on glados' }
+if ($LASTEXITCODE -ne 0) { throw 'make-flatpak.sh failed on the linux build host' }
 
 $repoRoot = (git rev-parse --show-toplevel).Trim()
 $dest = Join-Path $repoRoot 'build\package'

@@ -126,8 +126,8 @@ CurvesHistograms curves_histograms_from_pixels(const PixelBuffer* source,
   // One box-averaged sample per 2x2 block, the same light averaging as
   // Photoshop's cache-level-2 histograms. Averaging fills channel values absent
   // from quantized sources (no comb gaps); the kernel must stay small because a
-  // larger one collapses noisy channels into a few towering bins that crush the
-  // rest of the linear, max-normalized display.
+  // larger one collapses noisy channels into a few towering bins that
+  // misrepresent the distribution even under the clipped display.
   for (std::int32_t block_y = 0; block_y < height; block_y += 2) {
     const auto block_bottom = std::min<std::int32_t>(height, block_y + 2);
     for (std::int32_t block_x = 0; block_x < width; block_x += 2) {
@@ -167,6 +167,30 @@ CurvesHistograms curves_histograms_from_pixels(const PixelBuffer* source,
         static_cast<std::uint32_t>(std::min<std::uint64_t>(total, std::numeric_limits<std::uint32_t>::max()));
   }
   return result;
+}
+
+double histogram_display_ceiling(std::uint64_t total_samples, std::uint64_t non_empty_bins) {
+  if (total_samples == 0 || non_empty_bins == 0) {
+    return 0.0;
+  }
+  // Photoshop's Levels dialog (measured September 2026 with synthetic
+  // histograms of known counts): with all 256 bins occupied, bins holding
+  // 1/80, 1/96, 1/128, 1/192 and 1/256 of the samples drew 80, 67, 50, 34 and
+  // 25 px of a 100 px plot and everything from 1/64 up filled it; with only 12
+  // occupied bins the same shares drew about 21 times shorter, and with 122
+  // occupied bins (20 of them holding a single sample) the ceiling landed at
+  // 4 * total / 122 to within 1%. Linear with this ceiling, not sqrt or log:
+  // those kept the shape of a spike-free histogram but crushed every midtone
+  // peak once a clipping spike set the scale (issue 32).
+  return static_cast<double>(kHistogramCeilingMeanMultiple) * static_cast<double>(total_samples) /
+         static_cast<double>(non_empty_bins);
+}
+
+double histogram_display_fraction(std::uint64_t count, double ceiling) {
+  if (!(ceiling > 0.0) || count == 0) {
+    return 0.0;
+  }
+  return std::min(1.0, static_cast<double>(count) / ceiling);
 }
 
 class CurvesGraphWidget final : public QWidget {
@@ -416,8 +440,14 @@ private:
 
   void draw_histogram(QPainter& painter, const QRect& graph) const {
     const auto& histogram = histogram_for_channel(histograms_, active_channel_);
-    const auto maximum = *std::max_element(histogram.begin(), histogram.end());
-    if (maximum == 0) {
+    std::uint64_t total = 0;
+    std::uint64_t non_empty = 0;
+    for (const auto count : histogram) {
+      total += count;
+      non_empty += count > 0 ? 1 : 0;
+    }
+    const auto ceiling = histogram_display_ceiling(total, non_empty);
+    if (!(ceiling > 0.0)) {
       return;
     }
     // Crisp unantialiased columns inset one pixel from the frame: a clipping
@@ -437,10 +467,12 @@ private:
       if (count == 0) {
         continue;
       }
-      // Square-root of the max-normalized count: Photoshop's Curves/Levels
-      // dialogs compress bin heights this way (the Histogram panel is linear),
-      // keeping the distribution readable when one spike dominates.
-      const auto scaled = std::sqrt(static_cast<double>(count) / static_cast<double>(maximum));
+      // Linear in the count with a ceiling of four times the mean non-empty
+      // bin, the way Photoshop's Curves/Levels dialogs draw it: a clipping
+      // spike tops out instead of setting the scale, so the rest of the
+      // distribution stays readable (the Histogram panel is linear to the
+      // tallest bin).
+      const auto scaled = histogram_display_fraction(count, ceiling);
       const auto bar_height =
           std::max(1, static_cast<int>(std::lround(scaled * static_cast<double>(graph.height() - 1))));
       painter.fillRect(QRect(plot.left() + x, graph.bottom() - bar_height + 1, 1, bar_height), color);

@@ -583,10 +583,12 @@ BrushDynamicsButton::BrushDynamicsButton(QWidget* parent) : QToolButton(parent) 
 
 void BrushDynamicsButton::retranslate() {
   setText(tr("Dynamics"));
-  setToolTip(round_session_
-                 ? tr("Brush dynamics and effects for the Round brush "
+  setToolTip(!round_session_ ? tr("Brush dynamics and effects for the active brush tip")
+             : tip_id_ == builtin_square_brush_tip_id()
+                 ? tr("Brush dynamics and effects for the Square brush "
                       "(this session only; resets on the next launch)")
-                 : tr("Brush dynamics and effects for the active brush tip"));
+                 : tr("Brush dynamics and effects for the Round brush "
+                      "(this session only; resets on the next launch)"));
 }
 
 void BrushDynamicsButton::set_active_entry(const BrushTipEntry* entry) {

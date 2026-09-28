@@ -20,7 +20,7 @@ posterize: levels=4
 box_blur: radius=1
 sharpen: amount=100
 unsharp_mask: amount=150 radius=2 threshold=8
-gaussian_blur: radius=2
+gaussian_blur: radius=2.0
 motion_blur: angle=0 distance=12
 radial_blur: amount=35 samples=16 center_x=50.0 center_y=50.0
 edge_detect: strength=100
@@ -75,9 +75,9 @@ Text (`layer_is_text`) and shape (`layer_is_vector_shape`) layers re-create thei
 
 The prompt (`rasterizeOrConvertMessageBox`) offers Convert To Smart Object (AcceptRole, the default when present), Rasterize (DestructiveRole), and Cancel. Convert appears only when the follow-on path can succeed: a direct filter needs a native Smart Filter mapping (`native_smart_filter_kind_for`), the gallery always qualifies, and both need the document under the 64-megapixel editable-mask cap; Liquify and the adjustment dialogs refuse smart objects and never offer it. Rasterize commits its own "Rasterize layer" undo step first and persists even when the follow-on dialog is cancelled (Photoshop behavior). Convert runs the standard Convert to Smart Object step on that layer and re-enters the smart-object routing. Cancel reports "Cancelled %1" and leaves the layer untouched. The gate commits any active inline text edit first; CLI automation keeps the plug-in path's status refusal instead of a blocking prompt. Coverage: `ui_filter*_on_*_layer_*`, `ui_levels_on_text_layer_*`.
 
-The catalog generates dialog controls; existing Qt object names such as `filterAmountSpin` and `filterRadiusSlider` remain test contracts. Editors come from `FilterParameterDefinition` (types, units, defaults, ranges, object-name roots, option tokens) through the one shared `FilterParameterPanel` (`src/ui/filter_parameter_panel.{hpp,cpp}`); `FilterParameterPanelOptions` carries the presentation deltas (gallery PlusMinus spin buttons, 84 px double spins, practical-range integer spins).
+The catalog generates dialog controls; existing Qt object names such as `filterAmountSpin` and `filterRadiusSlider` remain test contracts. Editors come from `FilterParameterDefinition` (types, units, defaults, ranges, object-name roots, option tokens) through the one shared `FilterParameterPanel` (`src/ui/filter_parameter_panel.{hpp,cpp}`); `FilterParameterPanelOptions` carries the presentation deltas (gallery PlusMinus spin buttons, 84 px double spins).
 
-`practical_minimum`/`practical_maximum` may narrow a linked slider without narrowing the semantic range; the spin box, normalization, recipes, and persistence keep `minimum`/`maximum`. `FilterParameterPresentation` roles (an enum; not persisted, never replacing the parameter key or value) select specialized UI/render behavior: never key off parameter key, label, unit, or filter ID instead. The center, tilt width, and iris dimension roles drive the padding remaps under Spatial scaling and bounds.
+`practical_minimum`/`practical_maximum` may narrow a linked slider without narrowing the semantic range; every spin box (gallery included), normalization, recipes, and persistence keep `minimum`/`maximum`. `FilterParameterPresentation` roles (an enum; not persisted, never replacing the parameter key or value) select specialized UI/render behavior: never key off parameter key, label, unit, or filter ID instead. The center, tilt width, and iris dimension roles drive the padding remaps under Spatial scaling and bounds.
 
 Only eight catalog filter IDs are hotkey command IDs: Invert, Desaturate, Auto Tone, Auto Contrast, Auto Color, Brightness/Contrast, Threshold, Posterize. Catalog-generated direct Filter-menu actions are not HotkeyRegistry commands. Liquify uses `filter.liquify` (Ctrl+Shift+X). A catalog refactor must not silently add or remove commands.
 
@@ -90,7 +90,7 @@ The three autos share one Qt-free kernel, `src/filters/auto_levels_math.{hpp,cpp
 - Clip scan matches the Levels dialog Auto button: threshold `max(1, samples / 1000)` (0.1% per end), upward black scan, downward white scan bounded by `white > black + 1`. A scan that exhausts without exceeding the threshold leaves the channel unchanged (constant channels and 1x1 images are identity, as in Photoshop).
 - Application uses a 256-entry LUT from the kernel's own copy of the levels transfer, matching core `levels_channel` rounding: Auto Tone equals committing the Levels dialog's Auto scan per channel. The transfer formula is deliberately per-consumer (`clamp_levels_record`, `core/adjustment_layer.hpp`).
 - **Auto Tone** (`auto_tone`, Ctrl+Shift+L): per-channel clip scan and stretch; neutralizes color casts.
-- **Auto Contrast** (`auto_contrast`, Ctrl+Alt+Shift+L): one merged R+G+B histogram, a single black/white pair, the same LUT on all three channels; casts survive. The composite stretch replaced the per-channel original (August 2026); ID unchanged, affected pins re-derived.
+- **Auto Contrast** (`auto_contrast`, Ctrl+Alt+Shift+L): one merged R+G+B histogram, a single black/white pair, the same LUT on all three channels; casts survive.
 - **Auto Color** (`auto_color`, Ctrl+Shift+B): the per-channel scan plus a neutral-midtone snap. The channel's whole-image mean, normalized into the stretched range, selects the integer `gamma_percent` in [10, 999] whose curve maps it closest to 128, ties preferring the smaller gamma. Every result is a Levels dialog state.
 - Whole-layer analysis even with a selection; the wrapper restores unselected pixels afterward. Alpha untouched; UInt8 buffers with 3+ channels only.
 - Menu, hotkey, and scripting invocations of the three autos apply immediately at the catalog defaults with no dialog (August 2026). `amount` remains a catalog contract for recipes, Saved Looks, and explicit scripting invocations; `apply_filter` special-cases the immediate path (`filter_applies_without_settings_dialog`).
@@ -138,24 +138,25 @@ Object names: `filterDialogPreview` (a `ZoomableImagePreview`; `filterDialogRend
 
 ## Spatial scaling and bounds
 
-Proxies scale only pixel-distance parameters. Version-1 spatial keys: `radius` of box_blur, gaussian_blur, unsharp_mask, high_pass, median, dust_and_scratches, surface_blur, lens_blur; `blur` of iris_blur, tilt_shift_blur; motion_blur `distance`; emboss `height`; glowing_edges `edge_width` and `smoothness`; wave `amplitude` and `wavelength`; clouds `scale`; pixelate `block_size`; color_halftone `cell_size`. Angles, percentages, samples, intensity, detail, seed, and colors never scale. Scaling returns a normalized copy.
+Proxies scale only pixel-distance parameters. Version-1 spatial keys are the catalog parameters declared `FilterSpatialScale::Pixels` (pinned by the catalog test). Angles, percentages, samples, intensity, detail, seed, and colors never scale. Scaling returns a normalized copy.
 
 Ranges (`min..max`, practical slider limits in parentheses), growth, and translation support ("supp"); defaults are in the ID list above; unlisted filters neither grow nor advertise fixed support:
 
 ```text
-box_blur, gaussian_blur  grows by radius; supp = radius
+box_blur  radius int 1..2000 px (to 100); grows by radius; supp = radius
+gaussian_blur  radius 0.1..1000 px (to 100); grows/supp ceil(3*radius)
 sharpen, edge_detect  supp 1 px
-motion_blur  angle -360..360 deg (-180..180), distance 1..999 px (1..64); grows by distance; supp distance+1
-             (one fixed premultiplied-alpha line kernel; the +1 covers bilinear sampling)
+motion_blur  angle -360..360 deg (-180..180), distance 1..2000 px (1..64, PS max); grows by distance;
+             supp distance+1 (+1 covers bilinear taps); kernels in smart-filters-native.md
 radial_blur  amount 0..100, samples, center; growth notes below; supp none
 add_noise  amount 0.1..400 % (to 100), seed 0..999999999; bounds/alpha byte-identical; no growth/supp
-unsharp_mask  amount 1..500 %, radius 0.1..1000 px (to 12), threshold 0..255; no growth; supp ceil(3*radius)
-high_pass  radius 0.1..1000 px (to 12); bounds/alpha kept; supp 3*radius
+unsharp_mask  amount 1..500 %, radius 0.1..1000 px (to 100), threshold 0..255; no growth; supp ceil(3*radius)
+high_pass  radius 0.1..1000 px (to 100); bounds/alpha kept; supp 3*radius
 median  radius 1..500 px (full range); bounds kept; supp none
 dust_and_scratches  radius int 1..500 (full range, PS dialog max), threshold 0..255; bounds/alpha kept; supp none
 surface_blur  radius 1..100 px, 0.01 steps (to 25), threshold 2..255; grows <= effective radius; supp none
 lens_blur  radius 0..100 px (to 50), blades 3..8, curvature 0..100 %, rotation -180..180 deg; supp none
-iris_blur  blur 0..100 px (to 50), center 0..100 %, angle -180..180 deg, width/height 1..200 % of input
+iris_blur  blur 0..500 px (to 50), center 0..100 %, angle -180..180 deg, width/height 1..200 % of input
            W/H, focus 0..100 % of ellipse radius; Lens Blur's growth; supp none
 tilt_shift_blur  blur 0..500 px (to 50), center/focus_half_width/transition_width %; grows <= ceil(blur); supp none
 plastic_wrap  highlight_strength 0..20, detail 1..15, smoothness 1..15; bounds/alpha byte-exact; supp none
@@ -167,6 +168,8 @@ Calibration notes:
 
 - Radial Blur: historical centered growth kept for default compatibility; an edited center grows from the sampled corner sweep, uncapped, failing through the registry's checked padding path rather than clipping. Amount 0: no growth. Native Smart Filter mapping needs the default 50/50 center (Photoshop's `RdlB` stores no center), amount 1..100, and samples on a quality tier (Draft 8, Good 16, Best 32); Photoshop's Zoom method is unsupported and stays preview-locked.
 - Add Noise: deterministic position-hashed noise on RGB only, uniform or a sum-of-four-uniforms gaussian approximation with no transcendental calls. The seed feeds the hash so re-renders reproduce the same noise; amount does not scale for thumbnails (like Analog Grain).
+- Box Blur: radii to 12 keep the direct double path (pins, Smart Filter parity); larger ones use an exact int64 running sum.
+- Gaussian Blur: the Smart Filter's Photoshop Gaussian (`render_photoshop_gaussian_blur`); `accepts_legacy_integer` widens pre-decimal integer radii.
 - Unsharp Mask: Photoshop scales the signed detail before subtracting Threshold from its magnitude; the radius-2.5 low-pass has its own measured byte kernel.
 - Median: fractional radii floor for rendering without rewriting the stored value. Transparent pixels borrow straight RGB from the nearest visible source anywhere in the input (the shared nearest-visible extension; also Dust & Scratches, Surface Blur), so these, the ellipse/band blurs, Plastic Wrap, and Add Noise advertise no finite support and selected application renders with full-layer context.
 - Dust & Scratches: square per-channel RGB median over the extension; replaces the RGB triplet only when its maximum channel difference from the source exceeds Threshold.

@@ -291,7 +291,7 @@ smart_filter_entries_from_recipe(const FilterRecipe& recipe,
       const auto *angle = std::get_if<std::int64_t>(&angle_value->second);
       const auto *distance = std::get_if<std::int64_t>(&distance_value->second);
       if (angle == nullptr || *angle < -360 || *angle > 360 ||
-          distance == nullptr || *distance < 1 || *distance > 999) {
+          distance == nullptr || *distance < 1 || *distance > 2000) {
         return std::nullopt;
       }
       entry.kind = SmartFilterKind::MotionBlur;

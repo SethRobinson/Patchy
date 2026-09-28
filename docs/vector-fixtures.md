@@ -56,3 +56,20 @@ headless-stale (ps-compat.md).
   psd_shape_layer_feather_and_density_match_photoshop) without prompts, read
   feather 4/8 and density 153 back through executeActionGet, and its flatten
   matched the capture within 6/255 at the probe points.
+- patchy-compound-group.psd/bmp (September 2026): PATCHY-written (the
+  document `make_compound_group_document` builds in
+  psd_vector_fixtures_tests.cpp; `psd_compound_group_writes_continuation_records_and_round_trips`
+  dumps it to test-artifacts/psd_compound_group_authored.psd) with five
+  one-group shape layers: same-winding donut, opposite-winding donut,
+  inner-first donut, outer + hole + island, and a donut plus a united second
+  group. The .bmp is PS 2026's flatten of that file (COM, 2026-09-26): every
+  same-group inner contour is a hole. PS also opened it with error dialogs
+  enabled without a prompt and resaved the length records byte-identical.
+- photoshop-compound-text.psd/bmp (September 2026): PS's own compound
+  encoding. A "B8" Arial 64 px text work path (`textItem.createPath`) made
+  into a solid-color content layer: one group per glyph, lead op 1 with +6
+  field 2, the counters as 0xFFFF / 0 continuation records. Headless-stale
+  composite (ps-compat.md). Both pairs were captured by
+  local-test-fixtures/vector-probe/author-compound-group.ps1 (`-Dir` = the
+  folder holding the Patchy-written PSD); open-error-mode.ps1 beside it is
+  the DialogModes.ERROR open check.

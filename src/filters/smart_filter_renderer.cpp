@@ -2,14 +2,18 @@
 
 #include "core/blend_math.hpp"
 #include "core/rect_utils.hpp"
+#include "core/worker_budget.hpp"
 #include "filters/filter_support.hpp"
 #include "support/translate_noop.hpp"
 
 #include <algorithm>
 #include <array>
+#include <atomic>
+#include <chrono>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <future>
 #include <limits>
 #include <numeric>
 #include <span>
@@ -40,7 +44,7 @@ constexpr std::int32_t kMaximumUnsharpMaskThreshold = 255;
 constexpr std::int32_t kMinimumMotionBlurAngle = -360;
 constexpr std::int32_t kMaximumMotionBlurAngle = 360;
 constexpr std::int32_t kMinimumMotionBlurDistance = 1;
-constexpr std::int32_t kMaximumMotionBlurDistance = 999;
+constexpr std::int32_t kMaximumMotionBlurDistance = 2000;
 constexpr std::int32_t kMinimumPlasticWrapHighlightStrength = 0;
 constexpr std::int32_t kMaximumPlasticWrapHighlightStrength = 20;
 constexpr std::int32_t kMinimumPlasticWrapDetail = 1;
@@ -670,91 +674,604 @@ render_unsharp_mask(const FilterRenderResult &input, double amount_percent,
   return FilterRenderResult{std::move(output), input.bounds};
 }
 
+[[nodiscard]] std::int64_t floor_divide(std::int64_t numerator,
+                                        std::int64_t denominator) noexcept {
+  if (denominator < 0) {
+    numerator = -numerator;
+    denominator = -denominator;
+  }
+  const auto quotient = numerator / denominator;
+  return quotient - (numerator % denominator < 0 ? 1 : 0);
+}
+
+// Runs body(begin, end) over [0, count) in blocks. Large jobs fan out to
+// worker threads sized by the hardware and the wasm blocking fan-out budget.
+// Every block writes only its own output pixels, so the result never depends
+// on scheduling. Only the calling thread reports progress: callbacks and
+// FilterCancelled never cross threads, and a cancel stops the workers at their
+// next block before the exception propagates.
+template <typename Body>
+void run_filter_blocks(std::int32_t count, std::uint64_t work_per_item,
+                       const FilterProgress *progress,
+                       FilterProgressStage stage, const Body &body) {
+  if (count <= 0) {
+    report_progress(progress, 1, 1, stage);
+    return;
+  }
+  constexpr std::uint64_t kMinimumParallelWork = 1U << 22;
+  const auto total_work = static_cast<std::uint64_t>(count) *
+                          std::max<std::uint64_t>(1U, work_per_item);
+  const auto workers =
+      total_work < kMinimumParallelWork
+          ? 1
+          : max_blocking_fanout_workers(
+                std::clamp(std::min(hardware_worker_threads(), count), 1, 16));
+  const auto block =
+      workers < 2 ? 1 : std::max<std::int32_t>(1, count / (workers * 8));
+  std::atomic<std::int32_t> next{0};
+  std::atomic<std::int32_t> finished{0};
+  std::atomic<bool> stop{false};
+  const auto run_block = [&]() -> bool {
+    const auto begin = next.fetch_add(block);
+    if (begin >= count) {
+      return false;
+    }
+    const auto end = std::min(count, begin + block);
+    body(begin, end);
+    finished.fetch_add(end - begin);
+    return true;
+  };
+  std::vector<std::future<void>> helpers;
+  try {
+    for (int worker = 1; worker < workers; ++worker) {
+      helpers.push_back(std::async(std::launch::async, [&] {
+        try {
+          while (!stop.load() && run_block()) {
+          }
+        } catch (...) {
+          stop.store(true);
+          throw;
+        }
+      }));
+    }
+    report_progress(progress, 0, count, stage);
+    while (!stop.load() && run_block()) {
+      report_progress(progress, finished.load(), count, stage);
+    }
+    for (auto &helper : helpers) {
+      while (helper.wait_for(std::chrono::milliseconds(20)) !=
+             std::future_status::ready) {
+        report_progress(progress, finished.load(), count, stage);
+      }
+    }
+  } catch (...) {
+    stop.store(true);
+    for (auto &helper : helpers) {
+      helper.wait();
+    }
+    throw;
+  }
+  // get() rethrows a worker's exception (bad_alloc under memory pressure).
+  for (auto &helper : helpers) {
+    helper.get();
+  }
+  report_progress(progress, count, count, stage);
+}
+
+constexpr std::int64_t kMotionBlurCoordinateScale = 65536;
+constexpr std::uint64_t kMotionBlurSampleWeight =
+    static_cast<std::uint64_t>(kMotionBlurCoordinateScale) *
+    kMotionBlurCoordinateScale;
+// Longest non-axis distance the exact tap kernel renders; longer blurs use
+// the O(1)-per-pixel running-sum kernel. Axis angles are exact at every
+// distance.
+constexpr std::int32_t kMotionBlurTapKernelMaximumDistance = 64;
+// Sheared rows per pixel of the running-sum kernel. Quarter-pixel rows keep
+// its extra cross-line blend small: within 4 levels of the tap kernel at
+// 65 px on a noisy image, except near the diagonals, where the taps' own
+// bilinear smear is the softer one.
+constexpr std::int64_t kMotionBlurSubrows = 4;
+
+using MotionBlurSums = std::array<std::uint64_t, 4>;
+
+struct MotionBlurLine {
+  std::int64_t step_x{0};
+  std::int64_t step_y{0};
+  std::int32_t first_sample{0};
+  std::int32_t last_sample{0};
+};
+
+[[nodiscard]] MotionBlurLine motion_blur_line(std::int32_t angle_degrees,
+                                              std::int32_t distance_pixels) {
+  constexpr double kPi = 3.14159265358979323846;
+  const auto radians = static_cast<double>(angle_degrees) * kPi / 180.0;
+  MotionBlurLine line;
+  // Quantizing the direction before sampling keeps the bilinear envelope and
+  // tie behavior fixed across toolchains.
+  line.step_x = static_cast<std::int64_t>(
+      std::llround(std::cos(radians) * kMotionBlurCoordinateScale));
+  line.step_y = static_cast<std::int64_t>(
+      std::llround(-std::sin(radians) * kMotionBlurCoordinateScale));
+  line.first_sample = -distance_pixels / 2;
+  line.last_sample = line.first_sample + distance_pixels;
+  return line;
+}
+
+void store_motion_blur_pixel(std::uint8_t *destination,
+                             const MotionBlurSums &sums,
+                             std::uint64_t alpha_denominator) noexcept {
+  const auto alpha_sum = sums[3];
+  for (std::size_t channel = 0; channel < 3U; ++channel) {
+    destination[channel] =
+        alpha_sum == 0U
+            ? 0U
+            : static_cast<std::uint8_t>(std::min<std::uint64_t>(
+                  255U, (sums[channel] + alpha_sum / 2U) / alpha_sum));
+  }
+  destination[3] = static_cast<std::uint8_t>(std::min<std::uint64_t>(
+      255U, (alpha_sum + alpha_denominator / 2U) / alpha_denominator));
+}
+
+// The exact kernel: distance + 1 bilinear taps per pixel at fixed-point
+// offsets, each clamped to the input. The tap fractions do not depend on the
+// pixel, so interior pixels (no tap clamps) read one merged sparse kernel:
+// the same integer sums in another order, hence byte-identical.
+void motion_blur_taps(const PixelBuffer &input, const MotionBlurLine &line,
+                      std::uint8_t *output, const FilterProgress *progress) {
+  constexpr auto kScale = kMotionBlurCoordinateScale;
+  const auto width = input.width();
+  const auto height = input.height();
+  const auto stride = static_cast<std::ptrdiff_t>(input.stride_bytes());
+  const auto *source = input.data().data();
+  const auto maximum_x = static_cast<std::int64_t>(width - 1) * kScale;
+  const auto maximum_y = static_cast<std::int64_t>(height - 1) * kScale;
+  const auto sample_count =
+      static_cast<std::uint64_t>(line.last_sample - line.first_sample) + 1U;
+  const auto alpha_denominator = sample_count * kMotionBlurSampleWeight;
+
+  struct KernelCell {
+    std::int64_t dy{0};
+    std::int64_t dx{0};
+    std::uint64_t weight{0};
+  };
+  std::vector<KernelCell> cells;
+  cells.reserve(static_cast<std::size_t>(sample_count) * 4U);
+  for (auto sample = line.first_sample; sample <= line.last_sample; ++sample) {
+    const auto offset_x = static_cast<std::int64_t>(sample) * line.step_x;
+    const auto offset_y = static_cast<std::int64_t>(sample) * line.step_y;
+    const auto dx = floor_divide(offset_x, kScale);
+    const auto dy = floor_divide(offset_y, kScale);
+    const auto fraction_x = static_cast<std::uint64_t>(offset_x - dx * kScale);
+    const auto fraction_y = static_cast<std::uint64_t>(offset_y - dy * kScale);
+    const auto inverse_x = static_cast<std::uint64_t>(kScale) - fraction_x;
+    const auto inverse_y = static_cast<std::uint64_t>(kScale) - fraction_y;
+    const std::array<KernelCell, 4> corners{
+        KernelCell{dy, dx, inverse_x * inverse_y},
+        KernelCell{dy, dx + 1, fraction_x * inverse_y},
+        KernelCell{dy + 1, dx, inverse_x * fraction_y},
+        KernelCell{dy + 1, dx + 1, fraction_x * fraction_y}};
+    for (const auto &corner : corners) {
+      if (corner.weight != 0U) {
+        cells.push_back(corner);
+      }
+    }
+  }
+  std::sort(cells.begin(), cells.end(),
+            [](const KernelCell &left, const KernelCell &right) {
+              return left.dy != right.dy ? left.dy < right.dy
+                                         : left.dx < right.dx;
+            });
+  std::vector<std::ptrdiff_t> kernel_offsets;
+  std::vector<std::uint64_t> kernel_weights;
+  for (std::size_t index = 0; index < cells.size(); ++index) {
+    if (index > 0U && cells[index].dy == cells[index - 1U].dy &&
+        cells[index].dx == cells[index - 1U].dx) {
+      kernel_weights.back() += cells[index].weight;
+      continue;
+    }
+    kernel_offsets.push_back(
+        static_cast<std::ptrdiff_t>(cells[index].dy) * stride +
+        static_cast<std::ptrdiff_t>(cells[index].dx) * 4);
+    kernel_weights.push_back(cells[index].weight);
+  }
+
+  const auto reach_low_x =
+      std::min(static_cast<std::int64_t>(line.first_sample) * line.step_x,
+               static_cast<std::int64_t>(line.last_sample) * line.step_x);
+  const auto reach_high_x =
+      std::max(static_cast<std::int64_t>(line.first_sample) * line.step_x,
+               static_cast<std::int64_t>(line.last_sample) * line.step_x);
+  const auto reach_low_y =
+      std::min(static_cast<std::int64_t>(line.first_sample) * line.step_y,
+               static_cast<std::int64_t>(line.last_sample) * line.step_y);
+  const auto reach_high_y =
+      std::max(static_cast<std::int64_t>(line.first_sample) * line.step_y,
+               static_cast<std::int64_t>(line.last_sample) * line.step_y);
+  const auto interior_first_x = -floor_divide(reach_low_x, kScale);
+  const auto interior_last_x = floor_divide(maximum_x - reach_high_x, kScale);
+  const auto interior_first_y = -floor_divide(reach_low_y, kScale);
+  const auto interior_last_y = floor_divide(maximum_y - reach_high_y, kScale);
+
+  const auto clamped_pixel = [&](std::int32_t x, std::int32_t y,
+                                 std::uint8_t *destination) {
+    MotionBlurSums sums{};
+    for (auto sample = line.first_sample; sample <= line.last_sample;
+         ++sample) {
+      const auto sample_x = std::clamp<std::int64_t>(
+          static_cast<std::int64_t>(x) * kScale +
+              static_cast<std::int64_t>(sample) * line.step_x,
+          0, maximum_x);
+      const auto sample_y = std::clamp<std::int64_t>(
+          static_cast<std::int64_t>(y) * kScale +
+              static_cast<std::int64_t>(sample) * line.step_y,
+          0, maximum_y);
+      const auto x0 = static_cast<std::int32_t>(sample_x / kScale);
+      const auto y0 = static_cast<std::int32_t>(sample_y / kScale);
+      const auto x1 = std::min(width - 1, x0 + 1);
+      const auto y1 = std::min(height - 1, y0 + 1);
+      const auto fraction_x = static_cast<std::uint64_t>(sample_x % kScale);
+      const auto fraction_y = static_cast<std::uint64_t>(sample_y % kScale);
+      const auto inverse_x = static_cast<std::uint64_t>(kScale) - fraction_x;
+      const auto inverse_y = static_cast<std::uint64_t>(kScale) - fraction_y;
+      const std::array<std::uint64_t, 4> weights{
+          inverse_x * inverse_y, fraction_x * inverse_y,
+          inverse_x * fraction_y, fraction_x * fraction_y};
+      const std::array<const std::uint8_t *, 4> pixels{
+          input.pixel(x0, y0), input.pixel(x1, y0), input.pixel(x0, y1),
+          input.pixel(x1, y1)};
+      for (std::size_t corner = 0; corner < pixels.size(); ++corner) {
+        const auto alpha_weight =
+            static_cast<std::uint64_t>(pixels[corner][3]) * weights[corner];
+        sums[3] += alpha_weight;
+        for (std::size_t channel = 0; channel < 3U; ++channel) {
+          sums[channel] +=
+              static_cast<std::uint64_t>(pixels[corner][channel]) *
+              alpha_weight;
+        }
+      }
+    }
+    store_motion_blur_pixel(destination, sums, alpha_denominator);
+  };
+
+  const auto work_per_row =
+      static_cast<std::uint64_t>(width) * kernel_weights.size();
+  run_filter_blocks(
+      height, work_per_row, progress, FilterProgressStage::Blurring,
+      [&](std::int32_t begin, std::int32_t end) {
+        for (auto y = begin; y < end; ++y) {
+          auto *row = output + static_cast<std::ptrdiff_t>(y) * stride;
+          const auto interior_row = y >= interior_first_y && y <= interior_last_y;
+          const auto x_begin = static_cast<std::int32_t>(
+              interior_row ? std::clamp<std::int64_t>(interior_first_x, 0, width)
+                           : width);
+          const auto x_end = static_cast<std::int32_t>(
+              interior_row
+                  ? std::clamp<std::int64_t>(interior_last_x + 1, x_begin, width)
+                  : width);
+          for (std::int32_t x = 0; x < x_begin; ++x) {
+            clamped_pixel(x, y, row + static_cast<std::ptrdiff_t>(x) * 4);
+          }
+          for (auto x = x_begin; x < x_end; ++x) {
+            const auto *center = source +
+                                 static_cast<std::ptrdiff_t>(y) * stride +
+                                 static_cast<std::ptrdiff_t>(x) * 4;
+            MotionBlurSums sums{};
+            for (std::size_t cell = 0; cell < kernel_offsets.size(); ++cell) {
+              const auto *pixel = center + kernel_offsets[cell];
+              const auto alpha_weight =
+                  static_cast<std::uint64_t>(pixel[3]) * kernel_weights[cell];
+              sums[0] += static_cast<std::uint64_t>(pixel[0]) * alpha_weight;
+              sums[1] += static_cast<std::uint64_t>(pixel[1]) * alpha_weight;
+              sums[2] += static_cast<std::uint64_t>(pixel[2]) * alpha_weight;
+              sums[3] += alpha_weight;
+            }
+            store_motion_blur_pixel(row + static_cast<std::ptrdiff_t>(x) * 4,
+                                    sums, alpha_denominator);
+          }
+          for (auto x = x_end; x < width; ++x) {
+            clamped_pixel(x, y, row + static_cast<std::ptrdiff_t>(x) * 4);
+          }
+        }
+      });
+}
+
+// Axis angles (0, 90, 180, 270 and 360 degrees, either sign) quantize to
+// whole-pixel steps with zero fractions, so the exact kernel is an
+// edge-clamped box of distance + 1 pixels along the axis. A running sum
+// reproduces its integer sums in O(1) per pixel.
+void motion_blur_axis(const PixelBuffer &input, const MotionBlurLine &line,
+                      std::uint8_t *output, const FilterProgress *progress) {
+  const auto width = input.width();
+  const auto height = input.height();
+  const auto stride = static_cast<std::ptrdiff_t>(input.stride_bytes());
+  const auto *source = input.data().data();
+  const auto horizontal = line.step_y == 0;
+  const auto direction =
+      (horizontal ? line.step_x : line.step_y) > 0 ? std::int64_t{1}
+                                                   : std::int64_t{-1};
+  const auto reach_low = std::min(line.first_sample * direction,
+                                  line.last_sample * direction);
+  const auto reach_high = std::max(line.first_sample * direction,
+                                   line.last_sample * direction);
+  const auto sample_count =
+      static_cast<std::uint64_t>(line.last_sample - line.first_sample) + 1U;
+  const auto alpha_denominator = sample_count * kMotionBlurSampleWeight;
+  const auto add = [](MotionBlurSums &sums, const std::uint8_t *pixel) {
+    const auto alpha = static_cast<std::uint64_t>(pixel[3]);
+    sums[0] += pixel[0] * alpha;
+    sums[1] += pixel[1] * alpha;
+    sums[2] += pixel[2] * alpha;
+    sums[3] += alpha;
+  };
+  const auto subtract = [](MotionBlurSums &sums, const std::uint8_t *pixel) {
+    const auto alpha = static_cast<std::uint64_t>(pixel[3]);
+    sums[0] -= pixel[0] * alpha;
+    sums[1] -= pixel[1] * alpha;
+    sums[2] -= pixel[2] * alpha;
+    sums[3] -= alpha;
+  };
+  const auto store = [&](std::uint8_t *destination, const MotionBlurSums &sums) {
+    MotionBlurSums scaled{};
+    for (std::size_t channel = 0; channel < scaled.size(); ++channel) {
+      scaled[channel] = sums[channel] * kMotionBlurSampleWeight;
+    }
+    store_motion_blur_pixel(destination, scaled, alpha_denominator);
+  };
+
+  if (horizontal) {
+    const auto at = [&](std::int32_t y, std::int64_t x) {
+      return source + static_cast<std::ptrdiff_t>(y) * stride +
+             static_cast<std::ptrdiff_t>(
+                 std::clamp<std::int64_t>(x, 0, width - 1)) *
+                 4;
+    };
+    run_filter_blocks(
+        height, static_cast<std::uint64_t>(width) + sample_count, progress,
+        FilterProgressStage::Blurring,
+        [&](std::int32_t begin, std::int32_t end) {
+          for (auto y = begin; y < end; ++y) {
+            MotionBlurSums sums{};
+            for (auto offset = reach_low; offset <= reach_high; ++offset) {
+              add(sums, at(y, offset));
+            }
+            auto *row = output + static_cast<std::ptrdiff_t>(y) * stride;
+            for (std::int32_t x = 0; x < width; ++x) {
+              store(row + static_cast<std::ptrdiff_t>(x) * 4, sums);
+              add(sums, at(y, x + 1 + reach_high));
+              subtract(sums, at(y, x + reach_low));
+            }
+          }
+        });
+    return;
+  }
+
+  // Vertical: strips of columns keep per-column running sums while walking
+  // the rows in memory order.
+  constexpr std::int32_t kStripWidth = 64;
+  const auto strip_count = (width + kStripWidth - 1) / kStripWidth;
+  const auto at = [&](std::int64_t y, std::int32_t x) {
+    return source +
+           static_cast<std::ptrdiff_t>(
+               std::clamp<std::int64_t>(y, 0, height - 1)) *
+               stride +
+           static_cast<std::ptrdiff_t>(x) * 4;
+  };
+  run_filter_blocks(
+      strip_count,
+      static_cast<std::uint64_t>(kStripWidth) *
+          (static_cast<std::uint64_t>(height) + sample_count),
+      progress, FilterProgressStage::Blurring,
+      [&](std::int32_t begin, std::int32_t end) {
+        std::vector<MotionBlurSums> sums(static_cast<std::size_t>(kStripWidth));
+        for (auto strip = begin; strip < end; ++strip) {
+          const auto x_begin = strip * kStripWidth;
+          const auto x_end = std::min(width, x_begin + kStripWidth);
+          std::fill(sums.begin(), sums.end(), MotionBlurSums{});
+          for (auto offset = reach_low; offset <= reach_high; ++offset) {
+            for (auto x = x_begin; x < x_end; ++x) {
+              add(sums[static_cast<std::size_t>(x - x_begin)], at(offset, x));
+            }
+          }
+          for (std::int32_t y = 0; y < height; ++y) {
+            auto *row = output + static_cast<std::ptrdiff_t>(y) * stride;
+            for (auto x = x_begin; x < x_end; ++x) {
+              auto &column = sums[static_cast<std::size_t>(x - x_begin)];
+              store(row + static_cast<std::ptrdiff_t>(x) * 4, column);
+              add(column, at(y + 1 + reach_high, x));
+              subtract(column, at(y + reach_low, x));
+            }
+          }
+        }
+      });
+}
+
+// Long non-axis blurs. The input is resampled along sheared rows spaced a
+// quarter pixel apart: sheared row r samples the pixel at major-axis column c
+// and minor position r / 4 + c * slope, blending the two nearest minor-axis
+// pixels. Every blur line runs between two adjacent sheared rows, so an
+// output pixel blends the two rows' integrals over its window, and prefix
+// sums make each integral O(1). The window is the taps' parameter range
+// [first - 1/2, last + 1/2] projected onto the major axis, with fractional
+// end coverage. Positions are Q16 and blend weights Q8, all integer, so the
+// result is toolchain independent. It is not byte-identical to the tap
+// kernel, which stays the reference through the threshold.
+void motion_blur_running_sum(const PixelBuffer &input,
+                             const MotionBlurLine &line, std::uint8_t *output,
+                             const FilterProgress *progress) {
+  constexpr std::int64_t kPosition = 65536;
+  constexpr std::int64_t kBlend = 256;
+  const auto steep = std::abs(line.step_y) > std::abs(line.step_x);
+  const auto major_step = steep ? line.step_y : line.step_x;
+  const auto minor_step = steep ? line.step_x : line.step_y;
+  const std::int64_t major_size = steep ? input.height() : input.width();
+  const std::int64_t minor_size = steep ? input.width() : input.height();
+  const auto stride = static_cast<std::ptrdiff_t>(input.stride_bytes());
+  const std::ptrdiff_t major_stride = steep ? stride : 4;
+  const std::ptrdiff_t minor_stride = steep ? 4 : stride;
+  const auto *source = input.data().data();
+
+  // Window ends in Q8 pixels; the steps are Q16, the doubled parameters make
+  // the half-tap ends integral, and 2 * 65536 / 256 = 512.
+  const auto window_a =
+      (2 * static_cast<std::int64_t>(line.first_sample) - 1) * major_step;
+  const auto window_b =
+      (2 * static_cast<std::int64_t>(line.last_sample) + 1) * major_step;
+  const auto window_low = floor_divide(std::min(window_a, window_b) + 256, 512);
+  const auto window_high =
+      floor_divide(std::max(window_a, window_b) + 256, 512);
+  const auto window_length = window_high - window_low;
+  const auto alpha_denominator =
+      static_cast<std::uint64_t>(window_length) * kBlend * kBlend;
+
+  // Sample c covers [c - 1/2, c + 1/2), so z = u + 1/2 indexes it directly.
+  const auto first_column = floor_divide(window_low + kBlend / 2, kBlend);
+  const auto last_column =
+      floor_divide((major_size - 1) * kBlend + window_high + kBlend / 2,
+                   kBlend) +
+      1;
+  const auto column_count =
+      static_cast<std::size_t>(last_column - first_column + 1);
+  const auto minor_offset = [&](std::int64_t column) {
+    return floor_divide(column * minor_step * kPosition, major_step);
+  };
+  const auto subrow_spacing = kPosition / kMotionBlurSubrows;
+  std::vector<std::int64_t> column_offsets(column_count);
+  for (std::size_t index = 0; index < column_count; ++index) {
+    column_offsets[index] =
+        minor_offset(first_column + static_cast<std::int64_t>(index));
+  }
+  std::vector<std::int64_t> output_offsets(static_cast<std::size_t>(major_size));
+  for (std::int64_t u = 0; u < major_size; ++u) {
+    output_offsets[static_cast<std::size_t>(u)] = minor_offset(u);
+  }
+  // Output (u, v) lies on the line whose Q16 intercept is
+  // v * 65536 - offset(u); sheared row r holds the intercepts in
+  // [r * spacing, (r + 1) * spacing).
+  const auto [lowest_offset, highest_offset] =
+      std::minmax_element(output_offsets.begin(), output_offsets.end());
+  const auto first_row = floor_divide(-*highest_offset, subrow_spacing);
+  const auto last_row = floor_divide(
+      (minor_size - 1) * kPosition - *lowest_offset, subrow_spacing);
+  const auto row_count = static_cast<std::int32_t>(last_row - first_row + 1);
+
+  const auto build = [&](std::int64_t row, std::vector<MotionBlurSums> &prefix) {
+    prefix[0] = MotionBlurSums{};
+    const auto row_position = row * subrow_spacing;
+    for (std::size_t index = 0; index < column_count; ++index) {
+      const auto column = std::clamp<std::int64_t>(
+          first_column + static_cast<std::int64_t>(index), 0, major_size - 1);
+      // Signed right shifts are arithmetic (floor) since C++20.
+      const auto position = row_position + column_offsets[index];
+      const auto minor = position >> 16;
+      const auto *base = source + static_cast<std::ptrdiff_t>(column) * major_stride;
+      const auto *near_pixel =
+          base + static_cast<std::ptrdiff_t>(
+                     std::clamp<std::int64_t>(minor, 0, minor_size - 1)) *
+                     minor_stride;
+      const auto *far_pixel =
+          base + static_cast<std::ptrdiff_t>(
+                     std::clamp<std::int64_t>(minor + 1, 0, minor_size - 1)) *
+                     minor_stride;
+      const auto far_weight = static_cast<std::uint64_t>((position & 0xFFFF) >> 8);
+      const auto near_alpha = static_cast<std::uint64_t>(near_pixel[3]) *
+                              (static_cast<std::uint64_t>(kBlend) - far_weight);
+      const auto far_alpha =
+          static_cast<std::uint64_t>(far_pixel[3]) * far_weight;
+      const auto &previous = prefix[index];
+      auto &sums = prefix[index + 1U];
+      for (std::size_t channel = 0; channel < 3U; ++channel) {
+        sums[channel] = previous[channel] +
+                        near_pixel[channel] * near_alpha +
+                        far_pixel[channel] * far_alpha;
+      }
+      sums[3] = previous[3] + near_alpha + far_alpha;
+    }
+  };
+  // Integral of the piecewise-constant samples from 0 to z (Q8, relative to
+  // first_column).
+  const auto integral = [](const std::vector<MotionBlurSums> &prefix,
+                           std::int64_t z, std::size_t channel) {
+    const auto cell = static_cast<std::size_t>(z / kBlend);
+    const auto part = static_cast<std::uint64_t>(z % kBlend);
+    return prefix[cell][channel] * static_cast<std::uint64_t>(kBlend) +
+           (prefix[cell + 1U][channel] - prefix[cell][channel]) * part;
+  };
+
+  run_filter_blocks(
+      row_count,
+      static_cast<std::uint64_t>(column_count) +
+          static_cast<std::uint64_t>(major_size),
+      progress, FilterProgressStage::Blurring,
+      [&](std::int32_t begin, std::int32_t end) {
+        std::vector<MotionBlurSums> current(column_count + 1U);
+        std::vector<MotionBlurSums> next(column_count + 1U);
+        build(first_row + begin, current);
+        for (auto index = begin; index < end; ++index) {
+          const auto row = first_row + index;
+          build(row + 1, next);
+          const auto row_position = row * subrow_spacing;
+          for (std::int64_t u = 0; u < major_size; ++u) {
+            const auto start =
+                row_position + output_offsets[static_cast<std::size_t>(u)];
+            const auto minor = -((-start) >> 16);
+            const auto remainder = minor * kPosition - start;
+            if (remainder >= subrow_spacing || minor < 0 ||
+                minor >= minor_size) {
+              continue;
+            }
+            const auto low =
+                u * kBlend + window_low + kBlend / 2 - first_column * kBlend;
+            const auto high = low + window_length;
+            const auto far_weight = static_cast<std::uint64_t>(
+                remainder * kBlend / subrow_spacing);
+            const auto near_weight =
+                static_cast<std::uint64_t>(kBlend) - far_weight;
+            MotionBlurSums sums{};
+            for (std::size_t channel = 0; channel < sums.size(); ++channel) {
+              sums[channel] =
+                  near_weight * (integral(current, high, channel) -
+                                 integral(current, low, channel)) +
+                  far_weight * (integral(next, high, channel) -
+                                integral(next, low, channel));
+            }
+            store_motion_blur_pixel(
+                output + static_cast<std::ptrdiff_t>(u) * major_stride +
+                    static_cast<std::ptrdiff_t>(minor) * minor_stride,
+                sums, alpha_denominator);
+          }
+          std::swap(current, next);
+        }
+      });
+}
+
 [[nodiscard]] FilterRenderResult
 render_motion_blur(const FilterRenderResult &input, std::int32_t angle_degrees,
                    std::int32_t distance_pixels,
-                   const FilterProgress *progress) {
-  constexpr std::int64_t kCoordinateScale = 65536;
-  constexpr std::uint64_t kSampleWeight =
-      static_cast<std::uint64_t>(kCoordinateScale) * kCoordinateScale;
-  constexpr double kPi = 3.14159265358979323846;
-  const auto radians = static_cast<double>(angle_degrees) * kPi / 180.0;
-  // Quantizing the direction before sampling keeps the bilinear envelope and
-  // tie behavior fixed across toolchains.
-  const auto step_x = static_cast<std::int64_t>(
-      std::llround(std::cos(radians) * kCoordinateScale));
-  const auto step_y = static_cast<std::int64_t>(
-      std::llround(-std::sin(radians) * kCoordinateScale));
-  const auto first_sample = -distance_pixels / 2;
-  const auto last_sample = first_sample + distance_pixels;
-  const auto sample_count = static_cast<std::uint64_t>(distance_pixels) + 1U;
+                   const FilterProgress *progress,
+                   MotionBlurKernel kernel = MotionBlurKernel::Automatic) {
   const auto width = input.bounds.width;
   const auto height = input.bounds.height;
-  const auto maximum_x =
-      static_cast<std::int64_t>(std::max(0, width - 1)) * kCoordinateScale;
-  const auto maximum_y =
-      static_cast<std::int64_t>(std::max(0, height - 1)) * kCoordinateScale;
   PixelBuffer output(width, height, PixelFormat::rgba8());
   output.clear(0);
-
-  for (std::int32_t y = 0; y < height; ++y) {
-    report_progress(progress, y, height, FilterProgressStage::Blurring);
-    for (std::int32_t x = 0; x < width; ++x) {
-      std::array<std::uint64_t, 3> premultiplied{};
-      std::uint64_t alpha_sum = 0U;
-      for (auto sample = first_sample; sample <= last_sample; ++sample) {
-        const auto sample_x = std::clamp<std::int64_t>(
-            static_cast<std::int64_t>(x) * kCoordinateScale +
-                static_cast<std::int64_t>(sample) * step_x,
-            0, maximum_x);
-        const auto sample_y = std::clamp<std::int64_t>(
-            static_cast<std::int64_t>(y) * kCoordinateScale +
-                static_cast<std::int64_t>(sample) * step_y,
-            0, maximum_y);
-        const auto x0 = static_cast<std::int32_t>(sample_x / kCoordinateScale);
-        const auto y0 = static_cast<std::int32_t>(sample_y / kCoordinateScale);
-        const auto x1 = std::min(width - 1, x0 + 1);
-        const auto y1 = std::min(height - 1, y0 + 1);
-        const auto fraction_x = sample_x % kCoordinateScale;
-        const auto fraction_y = sample_y % kCoordinateScale;
-        const std::array<std::uint64_t, 4> weights{
-            static_cast<std::uint64_t>(kCoordinateScale - fraction_x) *
-                static_cast<std::uint64_t>(kCoordinateScale - fraction_y),
-            static_cast<std::uint64_t>(fraction_x) *
-                static_cast<std::uint64_t>(kCoordinateScale - fraction_y),
-            static_cast<std::uint64_t>(kCoordinateScale - fraction_x) *
-                static_cast<std::uint64_t>(fraction_y),
-            static_cast<std::uint64_t>(fraction_x) *
-                static_cast<std::uint64_t>(fraction_y)};
-        const std::array<const std::uint8_t *, 4> pixels{
-            input.pixels.pixel(x0, y0), input.pixels.pixel(x1, y0),
-            input.pixels.pixel(x0, y1), input.pixels.pixel(x1, y1)};
-        for (std::size_t corner = 0; corner < pixels.size(); ++corner) {
-          const auto alpha = static_cast<std::uint64_t>(pixels[corner][3]);
-          const auto alpha_weight = alpha * weights[corner];
-          alpha_sum += alpha_weight;
-          for (std::size_t channel = 0; channel < 3U; ++channel) {
-            premultiplied[channel] +=
-                static_cast<std::uint64_t>(pixels[corner][channel]) *
-                alpha_weight;
-          }
-        }
-      }
-      auto *destination = output.pixel(x, y);
-      for (std::size_t channel = 0; channel < 3U; ++channel) {
-        destination[channel] =
-            alpha_sum == 0U
-                ? 0U
-                : static_cast<std::uint8_t>(std::min<std::uint64_t>(
-                      255U,
-                      (premultiplied[channel] + alpha_sum / 2U) / alpha_sum));
-      }
-      const auto alpha_denominator = sample_count * kSampleWeight;
-      destination[3] = static_cast<std::uint8_t>(std::min<std::uint64_t>(
-          255U, (alpha_sum + alpha_denominator / 2U) / alpha_denominator));
-    }
+  if (width <= 0 || height <= 0) {
+    report_progress(progress, 1, 1, FilterProgressStage::Blurring);
+    return FilterRenderResult{std::move(output), input.bounds};
   }
-  report_progress(progress, height, height, FilterProgressStage::Blurring);
+  const auto line = motion_blur_line(angle_degrees, distance_pixels);
+  // Detach the fresh buffer here: the kernels write it from worker threads.
+  auto *destination = output.data().data();
+  const auto axis =
+      (line.step_y == 0 && std::abs(line.step_x) == kMotionBlurCoordinateScale) ||
+      (line.step_x == 0 && std::abs(line.step_y) == kMotionBlurCoordinateScale);
+  if (axis && kernel != MotionBlurKernel::Taps) {
+    motion_blur_axis(input.pixels, line, destination, progress);
+  } else if (axis || kernel == MotionBlurKernel::Taps ||
+             (kernel == MotionBlurKernel::Automatic &&
+              distance_pixels <= kMotionBlurTapKernelMaximumDistance)) {
+    motion_blur_taps(input.pixels, line, destination, progress);
+  } else {
+    motion_blur_running_sum(input.pixels, line, destination, progress);
+  }
   return FilterRenderResult{std::move(output), input.bounds};
 }
 
@@ -2545,7 +3062,8 @@ render_photoshop_unsharp_mask(const PixelBuffer &pixels, Rect bounds,
 
 FilterRenderResult render_photoshop_motion_blur(
     const PixelBuffer &pixels, Rect bounds, std::int32_t angle_degrees,
-    std::int32_t distance_pixels, const FilterProgress *progress) {
+    std::int32_t distance_pixels, const FilterProgress *progress,
+    MotionBlurKernel kernel) {
   if (pixels.format() != PixelFormat::rgba8() ||
       pixels.width() != bounds.width || pixels.height() != bounds.height ||
       angle_degrees < kMinimumMotionBlurAngle ||
@@ -2555,7 +3073,7 @@ FilterRenderResult render_photoshop_motion_blur(
     throw std::invalid_argument(PATCHY_TRANSLATE_NOOP("QObject", "Invalid Photoshop Motion Blur input"));
   }
   return render_motion_blur(FilterRenderResult{pixels, bounds}, angle_degrees,
-                            distance_pixels, progress);
+                            distance_pixels, progress, kernel);
 }
 
 FilterRenderResult render_plastic_wrap(

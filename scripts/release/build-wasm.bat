@@ -53,24 +53,79 @@ if exist "%SITE_DIR%" goto fail
 
 call "%REPO%\.deps\emsdk\emsdk_env.bat" >nul 2>&1
 call "%REPO%\scripts\vs-env.bat" -arch=x64 -host_arch=x64 >nul
-if errorlevel 1 goto fail
+if not "%ERRORLEVEL%"=="0" goto fail
+
+rem The single-threaded variant (wasm-release-st, served to Safari/WebKit) normally
+rem builds on the Windows offload host at the same time as the local wasm-release
+rem build; back to back the two took well over an hour. build-wasm-st-remote.ps1
+rem snapshots the working tree, builds there, copies the four outputs into
+rem build\wasm-release-st, and writes exit=<code> to a marker file when it ends.
+rem PATCHY_WASM_ST_LOCAL=1, or no "windows" host in hosts.local.json, keeps both
+rem builds local. See docs\release-process.md.
+set "ST_MODE=remote"
+if "%PATCHY_WASM_ST_LOCAL%"=="1" set "ST_MODE=local"
+set "ST_HOST="
+if "%ST_MODE%"=="remote" (
+  for /f "usebackq delims=" %%H in (`powershell -NoProfile -ExecutionPolicy Bypass -Command ". '%REPO%\scripts\remote\remote-hosts.ps1'; try { (Get-PatchyRemoteHost windows).ssh } catch { '' }"`) do set "ST_HOST=%%H"
+)
+if "%ST_MODE%"=="remote" if not defined ST_HOST (
+  echo No Windows offload host in scripts\remote\hosts.local.json; building wasm-release-st locally.
+  set "ST_MODE=local"
+)
+set "ST_LOG=%REPO%\build\release-logs\wasm-st-remote.log"
+set "ST_MARKER=%REPO%\build\release-logs\wasm-st-remote.exit"
+if "%ST_MODE%"=="remote" (
+  if not exist "%REPO%\build\release-logs" mkdir "%REPO%\build\release-logs"
+  if exist "%ST_MARKER%" del "%ST_MARKER%"
+  echo Starting the wasm-release-st build on %ST_HOST% in the background ^(log: "%ST_LOG%"^)...
+  start "Patchy wasm-release-st on %ST_HOST%" /b cmd /s /c ""%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "%REPO%\scripts\remote\build-wasm-st-remote.ps1" -Marker "%ST_MARKER%" > "%ST_LOG%" 2>&1"
+)
 
 echo Configuring wasm-release build...
 "%CMAKE_EXE%" --preset wasm-release
-if errorlevel 1 goto fail
+if not "%ERRORLEVEL%"=="0" goto fail
 
 echo Building wasm-release preset...
 "%CMAKE_EXE%" --build --preset wasm-release
-if errorlevel 1 goto fail
+if not "%ERRORLEVEL%"=="0" goto fail
 
 rem The single-threaded artifact, served to Safari/WebKit (its optimizing
 rem wasm compiler blows up on the threaded module; docs\wasm-memory.md).
+if "%ST_MODE%"=="remote" goto wait_st
 echo Configuring wasm-release-st build...
 "%CMAKE_EXE%" --preset wasm-release-st
-if errorlevel 1 goto fail
+if not "%ERRORLEVEL%"=="0" goto fail
 echo Building wasm-release-st preset...
 "%CMAKE_EXE%" --build --preset wasm-release-st
-if errorlevel 1 goto fail
+if not "%ERRORLEVEL%"=="0" goto fail
+goto st_ready
+
+:wait_st
+rem Poll for the marker the background driver writes when it ends, whatever
+rem happened; a driver that died without writing one is caught by the deadline.
+rem powershell sleeps because timeout.exe refuses to run without a console stdin.
+set /a ST_WAITED=0
+:wait_st_loop
+if exist "%ST_MARKER%" goto st_finished
+if %ST_WAITED% geq 10800 (
+  echo The remote wasm-release-st build did not finish within three hours; see "%ST_LOG%".
+  goto fail
+)
+powershell -NoProfile -Command "Start-Sleep -Seconds 15"
+set /a ST_WAITED+=15
+goto wait_st_loop
+:st_finished
+set "ST_EXIT="
+set /p ST_EXIT=<"%ST_MARKER%"
+echo ---- remote wasm-release-st log ^("%ST_LOG%"^) ----
+type "%ST_LOG%"
+echo ---- end of remote wasm-release-st log ----
+if not "%ST_EXIT%"=="exit=0" (
+  echo The remote wasm-release-st build on %ST_HOST% failed ^(%ST_EXIT%^).
+  goto fail
+)
+
+:st_ready
 
 echo Staging web site files...
 mkdir "%SITE_DIR%" || goto fail
@@ -108,14 +163,14 @@ rem index.html copy so https://rtsoft.com/patchy/ serves the app directly.
 set "PATCHY_WEB_TEMPLATE=%REPO%\packaging\web\patchy.html.in"
 set "PATCHY_WEB_SITE_DIR=%SITE_DIR%"
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$html = Get-Content -Raw -LiteralPath $env:PATCHY_WEB_TEMPLATE; $html = $html.Replace('__PATCHY_VERSION__', $env:PATCHY_PACKAGE_VERSION).Replace('__PATCHY_CACHE_TAG__', $env:PATCHY_WEB_CACHE_TAG).Replace('__PATCHY_WASM_SIZE_ST__', $env:PATCHY_WASM_SIZE_ST).Replace('__PATCHY_WASM_SIZE__', $env:PATCHY_WASM_SIZE); if ($html -match '__PATCHY_') { Write-Error 'patchy.html.in still contains an unreplaced __PATCHY_ placeholder.'; exit 1 }; Set-Content -LiteralPath (Join-Path $env:PATCHY_WEB_SITE_DIR 'patchy.html') -Value $html -NoNewline -Encoding UTF8; Set-Content -LiteralPath (Join-Path $env:PATCHY_WEB_SITE_DIR 'index.html') -Value $html -NoNewline -Encoding UTF8"
-if errorlevel 1 goto fail
+if not "%ERRORLEVEL%"=="0" goto fail
 
 rem Stage the memory-diagnostics harness with the same cache tag, plus the
 rem soak script it fetches. Production uploads never ship these (their upload
 rem list is explicit); the beta upload does (upload-wasm-to-rtsoft-beta.bat).
 set "PATCHY_WEB_HARNESS=%REPO%\scripts\wasm\stress-harness.html"
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$html = Get-Content -Raw -LiteralPath $env:PATCHY_WEB_HARNESS; $html = $html.Replace('__PATCHY_CACHE_TAG__', $env:PATCHY_WEB_CACHE_TAG); Set-Content -LiteralPath (Join-Path $env:PATCHY_WEB_SITE_DIR 'stress-harness.html') -Value $html -NoNewline -Encoding UTF8"
-if errorlevel 1 goto fail
+if not "%ERRORLEVEL%"=="0" goto fail
 copy /Y "%REPO%\scripts\wasm\memsoak.js" "%SITE_DIR%\memsoak.js" >nul || goto fail
 
 echo Precompressing site assets...
@@ -126,13 +181,19 @@ rem single node directory the SDK keeps (see docs/wasm.md).
 rem Pick a node dir that actually contains bin\node.exe: newer emsdk node
 rem packages (24.x) put node.exe at the directory root, and a second version
 rem directory appears whenever an alternate emsdk release was provisioned, so
-rem a blind last-directory glob can land on a layout without bin\.
+rem a blind last-directory glob can land on a layout without bin\. A checkout
+rem whose only node is the root layout (the Windows offload host) uses that.
 set "NODE_EXE="
 for /d %%D in ("%REPO%\.deps\emsdk\node\*") do (
   if exist "%%D\bin\node.exe" set "NODE_EXE=%%D\bin\node.exe"
 )
 if not defined NODE_EXE (
-  echo No node with a bin\node.exe layout was found under .deps\emsdk\node.
+  for /d %%D in ("%REPO%\.deps\emsdk\node\*") do (
+    if exist "%%D\node.exe" set "NODE_EXE=%%D\node.exe"
+  )
+)
+if not defined NODE_EXE (
+  echo No node.exe was found under .deps\emsdk\node.
   goto fail
 )
 "%NODE_EXE%" "%REPO%\scripts\wasm\precompress-site.mjs" "%SITE_DIR%" || goto fail

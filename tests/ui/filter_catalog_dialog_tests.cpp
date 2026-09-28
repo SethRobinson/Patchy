@@ -260,9 +260,9 @@ const std::vector<ExpectedFilterCatalogEntry>& expected_filter_catalog() {
       {"patchy.filters.threshold", Category::Adjustment, true,
        {{"threshold", "filterThreshold", 0, 255, 128, Unit::None}}},
       {"patchy.filters.posterize", Category::Adjustment, true,
-       {{"levels", "filterLevels", 2, 16, 4, Unit::None}}},
+       {{"levels", "filterLevels", 2, 255, 4, Unit::None}}},
       {"patchy.filters.box_blur", Category::Blur, false,
-       {{"radius", "filterRadius", 1, 12, 1, Unit::Pixels, Scale::Pixels}}},
+       {{"radius", "filterRadius", 1, 2000, 1, Unit::Pixels, Scale::Pixels}}},
       {"patchy.filters.sharpen", Category::Sharpen, false,
        {{"amount", "filterAmount", 0, 300, 100, Unit::Percent}}},
       {"patchy.filters.unsharp_mask",
@@ -273,13 +273,14 @@ const std::vector<ExpectedFilterCatalogEntry>& expected_filter_catalog() {
          Kind::Double, 0.1},
         {"threshold", "filterThreshold", 0, 255, 8, Unit::None}}},
       {"patchy.filters.gaussian_blur", Category::Blur, false,
-       {{"radius", "filterRadius", 1, 12, 2, Unit::Pixels, Scale::Pixels}}},
+       {{"radius", "filterRadius", 0.1, 1000, 2, Unit::Pixels, Scale::Pixels,
+         Kind::Double, 0.1}}},
       {"patchy.filters.motion_blur",
        Category::Blur,
        false,
        {{"angle", "filterAngle", -360, 360, 0, Unit::Degrees, Scale::None,
          Kind::Integer, 1.0, Presentation::Angle},
-        {"distance", "filterDistance", 1, 999, 12, Unit::Pixels,
+        {"distance", "filterDistance", 1, 2000, 12, Unit::Pixels,
          Scale::Pixels}}},
       {"patchy.filters.radial_blur",
        Category::Blur,
@@ -311,9 +312,9 @@ const std::vector<ExpectedFilterCatalogEntry>& expected_filter_catalog() {
         {"center_y", "filterCenterY", 0, 100, 50, Unit::Percent, Scale::None,
          Kind::Double, 0.1, Presentation::CenterYPercent}}},
       {"patchy.filters.wave", Category::Distort, false,
-       {{"amplitude", "filterAmplitude", 0, 64, 12, Unit::Pixels, Scale::Pixels,
+       {{"amplitude", "filterAmplitude", 0, 999, 12, Unit::Pixels, Scale::Pixels,
          Kind::Integer, 1.0, Presentation::WaveAmplitude},
-        {"wavelength", "filterWavelength", 4, 256, 48, Unit::Pixels, Scale::Pixels,
+        {"wavelength", "filterWavelength", 4, 999, 48, Unit::Pixels, Scale::Pixels,
          Kind::Integer, 1.0, Presentation::WaveWavelength},
         {"phase", "filterPhase", 0, 360, 0, Unit::Degrees, Scale::None,
          Kind::Integer, 1.0, Presentation::WavePhase}}},
@@ -331,9 +332,9 @@ const std::vector<ExpectedFilterCatalogEntry>& expected_filter_catalog() {
         {"contrast", "filterContrast", 0, 100, 40, Unit::Percent},
         {"seed", "filterSeed", 1, 9999, 1, Unit::None}}},
       {"patchy.filters.pixelate", Category::Pixelate, false,
-       {{"block_size", "filterBlockSize", 2, 32, 4, Unit::Pixels, Scale::Pixels}}},
+       {{"block_size", "filterBlockSize", 2, 200, 4, Unit::Pixels, Scale::Pixels}}},
       {"patchy.filters.color_halftone", Category::Pixelate, false,
-       {{"cell_size", "filterCellSize", 4, 64, 10, Unit::Pixels, Scale::Pixels},
+       {{"cell_size", "filterCellSize", 4, 127, 10, Unit::Pixels, Scale::Pixels},
         {"intensity", "filterIntensity", 0, 100, 75, Unit::Percent},
         {"contrast", "filterContrast", 0, 100, 60, Unit::Percent}}},
       {"patchy.filters.film_grain", Category::Noise, false,
@@ -374,7 +375,7 @@ const std::vector<ExpectedFilterCatalogEntry>& expected_filter_catalog() {
         {"rotation", "filterRotation", -180, 180, 0, Unit::Degrees,
          Scale::None, Kind::Integer, 1.0, Presentation::Angle}}},
       {"patchy.filters.iris_blur", Category::Blur, false,
-       {{"blur", "filterBlur", 0, 100, 15, Unit::Pixels, Scale::Pixels,
+       {{"blur", "filterBlur", 0, 500, 15, Unit::Pixels, Scale::Pixels,
          Kind::Double, 0.1},
         {"center_x", "filterCenterX", 0, 100, 50, Unit::Percent,
          Scale::None, Kind::Double, 0.1, Presentation::CenterXPercent},
@@ -511,7 +512,7 @@ void ui_filter_catalog_and_menu_contracts_are_stable() {
       if (actual_filter.identifier == "patchy.filters.high_pass" &&
           actual.key == "radius") {
         CHECK(actual.practical_minimum == 0.1);
-        CHECK(actual.practical_maximum == 12.0);
+        CHECK(actual.practical_maximum == 100.0);
       } else if (actual_filter.identifier ==
                      "patchy.filters.surface_blur" &&
                  actual.key == "radius") {
@@ -526,7 +527,7 @@ void ui_filter_catalog_and_menu_contracts_are_stable() {
       } else if (actual_filter.identifier == "patchy.filters.unsharp_mask" &&
                  actual.key == "radius") {
         CHECK(actual.practical_minimum == 0.1);
-        CHECK(actual.practical_maximum == 12.0);
+        CHECK(actual.practical_maximum == 100.0);
       } else if (actual_filter.identifier == "patchy.filters.motion_blur" &&
                  actual.key == "angle") {
         CHECK(actual.practical_minimum == -180.0);
@@ -551,6 +552,14 @@ void ui_filter_catalog_and_menu_contracts_are_stable() {
                  actual.key == "amount") {
         CHECK(actual.practical_minimum == 0.0);
         CHECK(actual.practical_maximum == 300.0);
+      } else if (actual_filter.identifier == "patchy.filters.box_blur" &&
+                 actual.key == "radius") {
+        CHECK(actual.practical_minimum == 1.0);
+        CHECK(actual.practical_maximum == 100.0);
+      } else if (actual_filter.identifier == "patchy.filters.gaussian_blur" &&
+                 actual.key == "radius") {
+        CHECK(actual.practical_minimum == 0.1);
+        CHECK(actual.practical_maximum == 100.0);
       } else if (actual_filter.identifier == "patchy.filters.add_noise" &&
                  actual.key == "amount") {
         CHECK(actual.practical_minimum == 0.1);
@@ -752,6 +761,17 @@ void ui_liquify_dialog_exposes_manual_tools_and_brush_controls() {
     CHECK(size != nullptr && pressure != nullptr && density != nullptr);
     CHECK(preview != nullptr && show_mask != nullptr && restore != nullptr);
     CHECK(size->minimum() == 5 && size->maximum() == 2000);
+    // Size uses the fine-low-end curve: the middle of the track is a quarter
+    // of the range, not half.
+    auto* size_slider = dialog->findChild<QSlider*>(QStringLiteral("liquifySizeSlider"));
+    CHECK(size_slider != nullptr);
+    CHECK(size_slider->maximum() == patchy::ui::kCurvedSliderPositions);
+    const int original_size = size->value();
+    CHECK(patchy::ui::slider_value(*size_slider) == original_size);
+    size_slider->setValue(patchy::ui::kCurvedSliderPositions / 2);
+    CHECK(size->value() == 504);
+    size->setValue(original_size);
+    CHECK(patchy::ui::slider_value(*size_slider) == original_size);
     CHECK(pressure->minimum() == 1 && pressure->maximum() == 100);
     CHECK(density->minimum() == 1 && density->maximum() == 100);
     CHECK(show_mask->isChecked());
@@ -890,7 +910,7 @@ void ui_filter_progress_callback_can_cancel_heavy_filter() {
     return completed < 4;
   }};
 
-  auto invocation = filter_invocation(registry, "patchy.filters.gaussian_blur");
+  auto invocation = filter_invocation(registry, "patchy.filters.box_blur");
   set_filter_integer(invocation, "radius", 12);
 
   bool cancelled = false;

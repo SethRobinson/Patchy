@@ -1,6 +1,7 @@
 #include "formats/format_file_io.hpp"
 
 #include "core/document.hpp"
+#include "support/atomic_file_write.hpp"
 #include "support/path_utils.hpp"
 
 #include <fstream>
@@ -27,14 +28,9 @@ void rename_first_layer_to_stem(Document& document, const std::filesystem::path&
 
 void write_file_bytes(const std::filesystem::path& path, const std::vector<std::uint8_t>& bytes,
                       std::string_view format_name) {
-  std::ofstream file(path, std::ios::binary);
-  if (!file) {
-    throw std::runtime_error("Could not open " + std::string(format_name) + " file for writing");
-  }
-  file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
-  if (!file) {
-    throw std::runtime_error("Could not write " + std::string(format_name) + " file");
-  }
+  // Temp-then-rename: a crash or a full disk mid-save leaves the old file intact.
+  write_file_bytes_atomically(path, bytes, "Could not open " + std::string(format_name) + " file for writing",
+                              "Could not write " + std::string(format_name) + " file");
 }
 
 }  // namespace patchy::formats

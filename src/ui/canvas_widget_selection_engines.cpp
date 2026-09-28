@@ -356,10 +356,7 @@ void CanvasWidget::finish_quick_select_stroke() {
   }
   quick_selecting_ = false;
   const auto clear_before_edit = [this] {
-    selection_before_edit_ = QRegion();
-    selection_display_region_before_edit_ = QRegion();
-    selection_mask_before_edit_bounds_ = {};
-    selection_mask_before_edit_alpha_ = QImage();
+    clear_selection_before_edit();
   };
   const auto drop_stroke_state = [this] {
     quick_select_seed_mask_ = QImage();
@@ -750,10 +747,7 @@ void CanvasWidget::finish_magnetic_lasso(bool magnetic_close) {
   // with Anti-alias on it must commit through the mask path for partial edge
   // coverage - the QRegion path is hard-edged (same rule as the marquee's
   // rounded corners).
-  selection_before_edit_ = selection_;
-  selection_display_region_before_edit_ = selection_display_region_;
-  selection_mask_before_edit_bounds_ = selection_mask_bounds_;
-  selection_mask_before_edit_alpha_ = selection_mask_alpha_;
+  capture_selection_before_edit();
   if (selection_feather_radius_ > 0 || selection_antialias_) {
     // The traced boundary is a dense integer pixel chain: nearly every segment
     // is grid-aligned, so rasterizing it directly gives the anti-aliaser
@@ -789,10 +783,7 @@ void CanvasWidget::finish_magnetic_lasso(bool magnetic_close) {
     combine_selection_from_region(region);
   }
   record_selection_history(tr("Magnetic Lasso"), selection_snapshot_before_edit());
-  selection_before_edit_ = QRegion();
-  selection_display_region_before_edit_ = QRegion();
-  selection_mask_before_edit_bounds_ = {};
-  selection_mask_before_edit_alpha_ = QImage();
+  clear_selection_before_edit();
   update();
 }
 

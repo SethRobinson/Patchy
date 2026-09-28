@@ -1,6 +1,12 @@
 # Local dependency installs
 /.deps/
 
+# Checkout/developer-specific agent notes and remote build hosts (see AGENTS.md).
+# This repository is public: machine names, users, and credentials stay out of it.
+/agents_local.md
+/agents_secret.md
+/scripts/remote/hosts.local.json
+
 # Testy compatibility-harness output and machine-local settings (see docs/testy.md)
 /testy/runs/
 /testy/cache/

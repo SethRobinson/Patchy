@@ -236,7 +236,7 @@ std::uint8_t vector_parameter_flags(const LayerVectorMask& mask) {
   return flags;
 }
 
-EncodedLayer encode_layer(const Layer& layer, bool large_document) {
+EncodedLayer encode_layer(const Layer& layer, bool large_document, bool bottom_record, Rect canvas) {
   if (layer.kind() != LayerKind::Pixel) {
     throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "Layered PSD export currently supports pixel and group layers only"));
   }
@@ -273,7 +273,14 @@ EncodedLayer encode_layer(const Layer& layer, bool large_document) {
   encoded.bounds = layer.bounds().empty() ? Rect::from_size(pixels.width(), pixels.height()) : layer.bounds();
   encoded.blending_ranges = &layer.raw_psd_blending_ranges();
   std::vector<std::uint16_t> channel_ids{kChannelRed, kChannelGreen, kChannelBlue};
-  if (pixels.format().channels >= 4) {
+  // Photoshop reads a pixel record with no transparency channel as its Background layer: opaque
+  // over the WHOLE canvas, whatever the record bounds say. It writes one only as the bottom
+  // record covering exactly the canvas, so an opaque (RGB) layer anywhere else gets an all-255
+  // transparency channel; without it an imported photo painted over every layer beneath it
+  // (September 2026: a poster that rendered blank in Photoshop).
+  const bool photoshop_background = bottom_record && encoded.bounds.x == canvas.x && encoded.bounds.y == canvas.y &&
+                                    encoded.bounds.width == canvas.width && encoded.bounds.height == canvas.height;
+  if (pixels.format().channels >= 4 || !photoshop_background) {
     channel_ids.push_back(kChannelTransparency);
   }
   if (layer.mask().has_value() && !layer.mask()->pixels.empty()) {
@@ -309,10 +316,12 @@ EncodedLayer encode_layer(const Layer& layer, bool large_document) {
                                                 mask_pixels.data(), large_document));
     } else {
       std::vector<std::uint8_t> channel;
-      channel.resize(pixel_count);
+      channel.resize(pixel_count, 255U);
       const auto source_channel = channel_id == kChannelTransparency ? 3 : channel_index;
-      for (std::size_t i = 0; i < pixel_count; ++i) {
-        channel[i] = pixels.data()[i * pixels.format().channels + source_channel];
+      if (source_channel < static_cast<std::size_t>(pixels.format().channels)) {
+        for (std::size_t i = 0; i < pixel_count; ++i) {
+          channel[i] = pixels.data()[i * pixels.format().channels + source_channel];
+        }
       }
       encoded.channels.push_back(encode_channel(channel_id, pixels.width(), pixels.height(), channel, large_document));
     }
@@ -526,7 +535,7 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
           record.name = *unicode_name;
         }
       }
-      if (key == "TySh" || key == "tySh") {
+      if (key == "TySh") {
         record.text_source_block = key;
         const auto& text_payload = record.additional_blocks.back().payload;
         record.text_patchy_generated_type_block =
@@ -585,6 +594,53 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
         }
         if (!record.text_geometry.has_value()) {
           record.text_geometry = extract_type_tool_geometry(text_payload);
+          if (record.text_geometry.has_value() && record.text_patchy_generated_type_block &&
+              record.text_box.has_value()) {
+            // Patchy moved the transform origin below its frame by the baseline inset and left
+            // the frame's top at -inset in 'bounds' (text_geometry_for_layer); put the origin
+            // back on the frame Patchy lays out, keeping every rect where it is on the page.
+            auto& geometry = *record.text_geometry;
+            if (std::isfinite(geometry.bounds.top) && geometry.bounds.top < -0.0005 &&
+                std::abs(geometry.box_bounds.top) < 0.0005) {
+              const double inset = -geometry.bounds.top;
+              geometry.transform[4] -= geometry.transform[2] * inset;
+              geometry.transform[5] -= geometry.transform[3] * inset;
+              // 'bounds' and 'boundingBox' were translated with the origin; /BoxBounds was
+              // written AT the moved origin (Photoshop's frame) and Patchy's frame is the
+              // restored origin, so it stays [0 0 w h].
+              for (auto* bounds : {&geometry.bounds, &geometry.bounding_box}) {
+                bounds->top += inset;
+                bounds->bottom += inset;
+              }
+              record.text_box_baseline_inset = inset;
+            }
+          }
+        }
+      } else if (key == "tySh") {
+        // Photoshop 5.0/5.5 "Type tool info": a fixed-layout record with no descriptor and no
+        // EngineData, so none of the TySh extractors above apply (extract_type_tool_geometry
+        // would misread its font section as a descriptor). psd_text_legacy.cpp decodes it into
+        // the same run model; the geometry keeps only the transform (tx/ty = the first
+        // baseline at the alignment point) with degenerate bounds, which the UI's CS-era
+        // fallback pins to the imported raster. Vertical PS 5 type stays a pixel layer.
+        record.text_source_block = key;
+        if (const auto legacy = extract_legacy_type_tool(record.additional_blocks.back().payload, cmyk);
+            legacy.has_value() && !legacy->unsupported_orientation && !legacy->runs.empty()) {
+          record.text = legacy->text;
+          const auto& first_run = legacy->runs.front();
+          record.text_font = first_run.family;
+          record.text_size = std::clamp(static_cast<int>(std::lround(first_run.size)), 1, kMaxTextSizePixels);
+          record.text_color = legacy->color;
+          record.text_bold = first_run.bold;
+          record.text_italic = first_run.italic;
+          record.text_anti_alias = legacy_type_tool_anti_alias(legacy->anti_alias_raw);
+          record.text_runs = serialize_patchy_text_runs(legacy->runs);
+          record.text_paragraph_runs = serialize_patchy_paragraph_runs(legacy->paragraph_runs);
+          record.text_html = html_from_text_runs(*record.text, legacy->runs, legacy->paragraph_runs);
+          PsdTextGeometry geometry;
+          geometry.transform = legacy->transform;
+          geometry.box_bounds = PsdTextBoundsD{0.0, 0.0, 1.0, 1.0};  // what a degenerate TySh 'bounds' yields
+          record.text_geometry = geometry;
         }
       }
       if (key == "lmfx") {
@@ -904,7 +960,8 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
   }
 
   const auto generated_text_payload = should_write_generated_text_block(encoded)
-                                          ? photoshop_type_tool_payload_for_layer(*encoded.layer, encoded.bounds)
+                                          ? photoshop_type_tool_payload_for_layer(*encoded.layer, encoded.bounds,
+                                                                                  encoded.text_index_override)
                                           : std::optional<std::vector<std::uint8_t>>{};
   if (generated_text_payload.has_value()) {
     write_additional_layer_block(extra, {'T', 'y', 'S', 'h'}, *generated_text_payload, large_document);
@@ -1089,9 +1146,10 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
   write_length_prefixed_block(writer, extra.bytes());
 }
 
-void append_encoded_layers(const Layer& layer, std::vector<EncodedLayer>& encoded_layers, bool large_document) {
+void append_encoded_layers(const Layer& layer, std::vector<EncodedLayer>& encoded_layers, bool large_document,
+                           Rect canvas) {
   if (layer.kind() == LayerKind::Pixel) {
-    encoded_layers.push_back(encode_layer(layer, large_document));
+    encoded_layers.push_back(encode_layer(layer, large_document, encoded_layers.empty(), canvas));
     return;
   }
 
@@ -1103,7 +1161,7 @@ void append_encoded_layers(const Layer& layer, std::vector<EncodedLayer>& encode
   if (layer.kind() == LayerKind::Group) {
     encoded_layers.push_back(encode_group_boundary(layer));
     for (const auto& child : layer.children()) {
-      append_encoded_layers(child, encoded_layers, large_document);
+      append_encoded_layers(child, encoded_layers, large_document, canvas);
     }
     encoded_layers.push_back(encode_group(layer, large_document));
     return;

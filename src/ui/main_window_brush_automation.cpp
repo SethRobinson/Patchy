@@ -71,7 +71,9 @@ void MainWindow::activate_automation_brush(const ScriptStroke& input) {
   current_brush_smoothing_catch_up_ = s.catch_up; current_brush_smoothing_catch_up_end_ = s.catch_up_end;
   current_brush_smoothing_zoom_adjust_ = s.zoom_adjust;
   stash_active_brush_settings(); sync_brush_controls_from_canvas();
-  if (brush_dynamics_button_) brush_dynamics_button_->set_round_session(builtin_round_brush_tip_id(), s.dynamics, s.angle, s.roundness);
+  if (brush_dynamics_button_) brush_dynamics_button_->set_round_session(
+      is_builtin_brush_tip_id(active_brush_tip_id_) ? active_brush_tip_id_ : builtin_round_brush_tip_id(),
+      s.dynamics, s.angle, s.roundness);
   if (brush_tip_picker_) brush_tip_picker_->set_current_tip_id(active_brush_tip_id_);
   if (brush_tip_picker_ && s.tip) brush_tip_picker_->set_working_preview(
       s.label.isEmpty() ? tr("Working brush") : s.label, brush_tip_thumbnail(*s.tip, 32));

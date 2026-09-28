@@ -40,6 +40,24 @@ struct CurvesHistograms {
 [[nodiscard]] CurvesHistograms curves_histograms_from_pixels(
     const PixelBuffer* source, std::span<const std::uint8_t> external_alpha = {});
 
+// A histogram graph's full-scale count is this multiple of the mean non-empty
+// bin. Measured against Photoshop's Levels dialog (September 2026, see
+// docs/adjustments-calibration.md).
+inline constexpr std::uint64_t kHistogramCeilingMeanMultiple = 4;
+
+// Full-scale count for drawing a histogram the way Photoshop's Levels and
+// Curves dialogs do: four times the mean of the non-empty bins
+// (total_samples / non_empty_bins). The ceiling depends on the samples and on
+// how many bins they occupy, never on the tallest bin, so one clipping spike
+// cannot flatten the rest of the distribution. Pass the sum and non-empty
+// count of the bins actually drawn (a channel total for a channel graph, the
+// composite total for the composite graph). Returns 0 for an empty histogram.
+[[nodiscard]] double histogram_display_ceiling(std::uint64_t total_samples, std::uint64_t non_empty_bins);
+
+// Bar height (0..1) for one bin: linear in the count and clipped at the
+// ceiling from histogram_display_ceiling. Returns 0 when the ceiling is 0.
+[[nodiscard]] double histogram_display_fraction(std::uint64_t count, double ceiling);
+
 // Reusable Curves editing panel. The host owns the authoritative adjustment:
 // every interaction reports a proposed copy through adjustment_changed, and
 // the host pushes accepted state back through set_adjustment(). Keeping the

@@ -1,4 +1,6 @@
 #include "ui/canvas_widget.hpp"
+#include "ui/measurement_units.hpp"
+#include "ui/theme_palette.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/contour_presets.hpp"
 #include "core/gradient_presets.hpp"
@@ -1038,6 +1040,95 @@ void ui_rulers_grid_guides_render_and_edit() {
   save_widget_artifact("ui_guides_editing", canvas);
 }
 
+// Dragging a guide shows its position beside the pointer in the ruler unit
+// (GitHub issue 36), mirrors it to the status bar, hides it while the drop
+// would remove the guide, and clears it on release.
+void ui_guide_drag_shows_position_readout() {
+  patchy::Document document(300, 200, patchy::PixelFormat::rgb8());
+  document.print_settings().horizontal_ppi = 100.0;
+  document.print_settings().vertical_ppi = 100.0;
+  document.add_pixel_layer("Background", solid_pixels(300, 200, patchy::PixelFormat::rgb8(), Qt::white));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(460, 340);
+  canvas.set_document(&document);
+  canvas.set_zoom(1.0);
+  canvas.set_rulers_visible(true);
+  canvas.set_guides_visible(true);
+  canvas.set_snap_enabled(false);
+  QString status_text;
+  canvas.set_status_callback([&status_text](QString text) { status_text = std::move(text); });
+  canvas.show();
+  QApplication::processEvents();
+  CHECK(canvas.show_transform_drag_values());
+  CHECK(!canvas.transform_drag_readout().has_value());
+
+  // Pixels: a horizontal guide from the top ruler reads its Y position.
+  const QPoint top_ruler(canvas.widget_position_for_document_point(QPoint(42, 0)).x(), 12);
+  const auto pixel_target = canvas.widget_position_for_document_point(QPoint(42, 60));
+  send_mouse(canvas, QEvent::MouseButtonPress, top_ruler, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, pixel_target, Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  auto readout = canvas.transform_drag_readout();
+  CHECK(readout.has_value());
+  CHECK(readout->canvas_lines.size() == 1);
+  CHECK(readout->canvas_lines[0] == QStringLiteral("Y: 60 px"));
+  CHECK(readout->lines.size() == 1);
+  CHECK(readout->lines[0].contains(QStringLiteral("60 px")));
+  CHECK(status_text == readout->lines[0]);
+  const auto panel = canvas.drag_readout_widget_rect();
+  CHECK(!panel.isEmpty());
+  CHECK(panel.contains(pixel_target + QPoint(20, 30)));
+  const auto frame = canvas.grab().toImage();
+  CHECK(color_close(frame.pixelColor(panel.left() + 3, panel.top() + 2), patchy::ui::theme().canvas_hud_bg, 24));
+  save_widget_artifact("ui_guide_drag_position_readout", canvas);
+
+  // Back over the ruler the drop would discard the guide: no readout.
+  send_mouse(canvas, QEvent::MouseMove, top_ruler, Qt::NoButton, Qt::LeftButton);
+  CHECK(!canvas.transform_drag_readout().has_value());
+  send_mouse(canvas, QEvent::MouseMove, pixel_target, Qt::NoButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseButtonRelease, pixel_target, Qt::LeftButton, Qt::NoButton);
+  CHECK(document.guides().size() == 1);
+  CHECK(!canvas.transform_drag_readout().has_value());
+  CHECK(canvas.drag_readout_widget_rect().isEmpty());
+
+  // Millimeters: moving that guide reads in mm through the document PPI.
+  canvas.set_ruler_unit(patchy::ui::MeasurementUnit::Millimeters);
+  canvas.set_tool(patchy::ui::CanvasTool::Move);
+  const auto mm_target = canvas.widget_position_for_document_point(QPoint(42, 100));
+  send_mouse(canvas, QEvent::MouseButtonPress, pixel_target, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, mm_target, Qt::NoButton, Qt::LeftButton);
+  readout = canvas.transform_drag_readout();
+  send_mouse(canvas, QEvent::MouseButtonRelease, mm_target, Qt::LeftButton, Qt::NoButton);
+  CHECK(readout.has_value());
+  const auto moved_pixels = document.guides().front().position_32 / 32.0;
+  CHECK(std::abs(moved_pixels - 100.0) <= 1.0 / 32.0);
+  CHECK(readout->canvas_lines[0] ==
+        QStringLiteral("Y: ") +
+            patchy::ui::format_measurement(moved_pixels * 25.4 / 100.0, patchy::ui::MeasurementUnit::Millimeters, 1));
+  CHECK(readout->canvas_lines[0].endsWith(QStringLiteral(" mm")));
+
+  // Inches: a vertical guide from the left ruler reads its X position.
+  canvas.set_ruler_unit(patchy::ui::MeasurementUnit::Inches);
+  const QPoint left_ruler(12, canvas.widget_position_for_document_point(QPoint(0, 150)).y());
+  const auto inch_target = canvas.widget_position_for_document_point(QPoint(150, 150));
+  send_mouse(canvas, QEvent::MouseButtonPress, left_ruler, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, inch_target, Qt::NoButton, Qt::LeftButton);
+  readout = canvas.transform_drag_readout();
+  CHECK(readout.has_value());
+  CHECK(readout->canvas_lines[0].startsWith(QStringLiteral("X: ")));
+  CHECK(readout->canvas_lines[0].endsWith(QStringLiteral(" in")));
+
+  // The Show Transformation Values preference governs guide drags too.
+  canvas.set_show_transform_drag_values(false);
+  CHECK(!canvas.transform_drag_readout().has_value());
+  canvas.set_show_transform_drag_values(true);
+  send_mouse(canvas, QEvent::MouseButtonRelease, inch_target, Qt::LeftButton, Qt::NoButton);
+  CHECK(document.guides().size() == 2);
+  CHECK(document.guides().back().orientation == patchy::GuideOrientation::Vertical);
+  CHECK(!canvas.transform_drag_readout().has_value());
+}
+
 void ui_deep_zoom_pixel_grid_matches_rendered_pixels() {
   patchy::Document document(24, 12, patchy::PixelFormat::rgb8());
   auto pixels = solid_pixels(24, 12, patchy::PixelFormat::rgb8(), Qt::white);
@@ -2058,6 +2149,7 @@ std::vector<patchy::test::TestCase> selection_marquee_lasso_tests_part1() {
       {"ui_marquee_space_drag_repositions_active_rect", ui_marquee_space_drag_repositions_active_rect},
       {"ui_info_panel_shows_selection_rect", ui_info_panel_shows_selection_rect},
       {"ui_rulers_grid_guides_render_and_edit", ui_rulers_grid_guides_render_and_edit},
+      {"ui_guide_drag_shows_position_readout", ui_guide_drag_shows_position_readout},
       {"ui_deep_zoom_pixel_grid_matches_rendered_pixels",
        ui_deep_zoom_pixel_grid_matches_rendered_pixels},
       {"ui_deep_zoom_one_pixel_brush_marks_match_pixel_grid",

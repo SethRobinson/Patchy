@@ -278,6 +278,11 @@ struct ThemePalette {
   // output to the raw pointer plus the leash-radius circle, drawn while a
   // smoothed Brush/Mixer/Eraser stroke is active (a violet, like Photoshop's).
   QColor brush_leash;
+  // The Move tool's alignment guides: the line drawn through a snapped edge or
+  // center while a drag is snapped to another layer, the selection, or the
+  // canvas (docs/alignment.md). Magenta like Photoshop's Smart Guides; drawn
+  // over artwork, so Light restates it instead of flipping it.
+  QColor canvas_snap_guide;
 
   // Scroll bars. The canvas track slaves to the canvas backdrop rather than the
   // window surface: it is document-window chrome sitting against the pasteboard,

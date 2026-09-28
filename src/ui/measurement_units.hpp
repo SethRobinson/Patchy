@@ -39,6 +39,9 @@ enum class MeasurementUnit {
 [[nodiscard]] QString format_pixels(double pixels, int decimals = 0, bool show_sign = false);
 [[nodiscard]] QString format_percent(double percent, int decimals = 1, bool show_sign = false);
 [[nodiscard]] QString format_degrees(double degrees, int decimals = 1, bool show_sign = false);
+// A value already converted into `unit`, with that unit's suffix ("12.5 mm", "40%").
+[[nodiscard]] QString format_measurement(double value, MeasurementUnit unit, int decimals,
+                                         bool show_sign = false);
 
 // Stable settings tokens ("px", "in", "cm", "mm", "pt", "percent"); tokens are
 // persisted in user settings, never rename them.

@@ -11,6 +11,7 @@
 #include "core/layer_metadata.hpp"
 #include "core/smart_object.hpp"
 #include "core/text_warp.hpp"
+#include "core/vector_shape.hpp"
 #include "core/warp_mesh.hpp"
 #include "core/layer_render_utils.hpp"
 #include "core/layer_tree.hpp"
@@ -239,10 +240,6 @@
 #include <tpcshrd.h>
 #endif
 
-#ifndef PATCHY_VERSION
-#define PATCHY_VERSION "0.0.0"
-#endif
-
 // Icon resources live in the static patchy_ui library; force registration before first use.
 int qInitResources_icons();
 
@@ -292,6 +289,81 @@ std::optional<SmartObjectWarp> rescaled_warp_for_replaced_contents(
     }
   }
   return warp;
+}
+
+// Convert to Layers under a scaled, rotated, or flipped placement: maps one
+// unpacked layer tree from the contents' canvas into the document the way the
+// multi-target Free Transform commit maps its targets. Pixels and raster masks
+// resample, text re-renders through its composed transform (keeping the resampled
+// raster when its font is missing), vector data transforms exactly, and nested
+// placements map their quads and re-render from their own sources.
+// A text layer's text-local -> document mapping: Patchy's stored transform, then
+// the imported Photoshop one, else the implicit translate(bounds).
+LayerAffineTransform unpacked_text_transform(const Layer& layer) {
+  for (const auto* key : {kLayerMetadataTextTransform, kLayerMetadataPsdTextTransform}) {
+    if (const auto found = layer.metadata().find(key); found != layer.metadata().end()) {
+      if (const auto parsed = parse_layer_affine_transform(found->second); parsed.has_value()) {
+        return *parsed;
+      }
+    }
+  }
+  const auto bounds = layer.bounds();
+  return LayerAffineTransform{1.0, 0.0, 0.0, 1.0, static_cast<double>(bounds.x), static_cast<double>(bounds.y)};
+}
+
+void map_unpacked_layer_tree(Document& document, Layer& layer, const QTransform& mapping,
+                             CanvasWidget::TransformInterpolation interpolation) {
+  const std::array<double, 6> matrix{mapping.m11(), mapping.m12(), mapping.m21(),
+                                     mapping.m22(), mapping.dx(),  mapping.dy()};
+  if (const auto& mask = std::as_const(layer).mask(); mask.has_value() && !mask->pixels.empty()) {
+    auto resampled = resample_transformed_gray8(
+        mask->pixels, mask->default_color,
+        QTransform::fromTranslate(mask->bounds.x, mask->bounds.y) * mapping, interpolation);
+    auto updated = *mask;
+    updated.pixels = std::move(resampled.pixels);
+    updated.bounds = resampled.bounds;
+    layer.set_mask(std::move(updated));
+  }
+  if (layer.kind() == LayerKind::Group) {
+    for (auto& child : layer.children()) {
+      map_unpacked_layer_tree(document, child, mapping, interpolation);
+    }
+    return;
+  }
+  const auto text_layer = layer_is_text(std::as_const(layer));
+  const auto vector_shape = layer_is_vector_shape(std::as_const(layer));
+  const auto old_bounds = std::as_const(layer).bounds();
+  if (!vector_shape && !std::as_const(layer).pixels().empty()) {
+    const auto original_text_transform =
+        text_layer ? unpacked_text_transform(std::as_const(layer)) : LayerAffineTransform{};
+    const auto resampled = resample_transformed_rgba8(
+        qimage_from_pixel_buffer(std::as_const(layer).pixels()),
+        QTransform::fromTranslate(old_bounds.x, old_bounds.y) * mapping, interpolation);
+    layer.set_pixels(pixels_from_image_rgba(resampled.image));
+    layer.set_bounds(resampled.bounds);
+    if (text_layer) {
+      const LayerAffineTransform outer{matrix[0], matrix[1], matrix[2], matrix[3], matrix[4], matrix[5]};
+      layer.metadata()[kLayerMetadataTextTransform] =
+          serialize_layer_affine_transform(compose_layer_affine_transform(outer, original_text_transform));
+      if (rerender_text_layer_through_stored_transform(layer)) {
+        layer.metadata()[kLayerMetadataTextRasterStatus] = "patchy_raster";
+      }
+    }
+  }
+  if (vector_shape || std::as_const(layer).vector_mask() != nullptr) {
+    transform_layer_vector_data(document, layer, matrix, Rect::from_size(document.width(), document.height()));
+  }
+  if (layer_is_smart_object(std::as_const(layer))) {
+    if (const auto placement = smart_object_placement_from_layer(std::as_const(layer)); placement.has_value()) {
+      store_smart_object_placement(layer, transformed_smart_object_placement(*placement, matrix));
+      mark_layer_smart_object_block_dirty(layer);
+      layer.metadata()[kLayerMetadataSmartObjectRasterStatus] = kSmartObjectRasterStatusPatchy;
+      if (smart_object_lock_reason(std::as_const(layer)).empty()) {
+        // A failed re-render keeps the resampled preview above.
+        static_cast<void>(refresh_smart_object_layer_preview(document, layer, interpolation, false));
+      }
+    }
+  }
 }
 
 }  // namespace
@@ -1607,6 +1679,174 @@ void MainWindow::new_smart_object_via_copy() {
   refresh_layer_controls();
   canvas_->document_changed();
   statusBar()->showMessage(tr("Created an independent smart object copy"));
+}
+
+void MainWindow::convert_smart_object_to_layers() {
+  if (!has_active_document()) {
+    return;
+  }
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  finish_active_text_editor();
+  if (canvas_ != nullptr) {
+    canvas_->finish_free_transform();
+  }
+  const auto& current = std::as_const(document());
+  const auto active = current.active_layer_id();
+  const auto* layer = active.has_value() ? current.find_layer(*active) : nullptr;
+  if (layer == nullptr || !layer_is_smart_object(*layer)) {
+    show_status_error(tr("Select a smart object layer first"));
+    return;
+  }
+  const auto lock_reason = smart_object_lock_reason(*layer);
+  if (lock_reason == "external") {
+    show_status_error(tr("Embed the linked Smart Object before converting it to layers"));
+    return;
+  }
+  if (lock_reason == "filters" || layer_tree_contains_smart_filters(*layer)) {
+    show_status_error(tr("Delete the Smart Filters before converting this Smart Object to layers"));
+    return;
+  }
+  if (lock_reason == "warp" || lock_reason == "non_affine") {
+    show_status_error(tr("A warped or perspective Smart Object can't be converted to layers; rasterize it instead"));
+    return;
+  }
+  const auto placement = smart_object_placement_from_layer(*layer);
+  if (!lock_reason.empty() || !placement.has_value()) {
+    show_status_error(tr("This smart object can only be preserved, not edited"));
+    return;
+  }
+  const auto* source = current.metadata().smart_objects.find(placement->uuid);
+  if (source == nullptr || source->kind != SmartObjectSourceKind::Embedded || source->file_bytes == nullptr) {
+    show_status_error(tr("This smart object's contents are not embedded in the document"));
+    return;
+  }
+  auto contents = decode_smart_object_source_document(*source);
+  if (!contents.has_value()) {
+    show_status_error(tr("Could not decode the embedded smart object contents"));
+    return;
+  }
+  // copy_layers_between_documents takes ids top to bottom; layers() is bottom to top.
+  std::vector<LayerId> root_ids;
+  const auto& content_roots = std::as_const(*contents).layers();
+  for (auto it = content_roots.rbegin(); it != content_roots.rend(); ++it) {
+    root_ids.push_back(it->id());
+  }
+  if (root_ids.empty() || contents->width() <= 0 || contents->height() <= 0) {
+    show_status_error(tr("The smart object's contents have no layers to convert"));
+    return;
+  }
+
+  // The same mapping the preview renders through: the contents' canvas onto the
+  // placement quad.
+  const auto content_width = static_cast<qreal>(contents->width());
+  const auto content_height = static_cast<qreal>(contents->height());
+  const auto& quad = placement->transform;
+  QTransform mapping;
+  if (!QTransform::quadToQuad(QPolygonF({QPointF(0.0, 0.0), QPointF(content_width, 0.0),
+                                         QPointF(content_width, content_height), QPointF(0.0, content_height)}),
+                              QPolygonF({QPointF(quad[0], quad[1]), QPointF(quad[2], quad[3]),
+                                         QPointF(quad[4], quad[5]), QPointF(quad[6], quad[7])}),
+                              mapping) ||
+      !mapping.isAffine()) {
+    show_status_error(tr("A warped or perspective Smart Object can't be converted to layers; rasterize it instead"));
+    return;
+  }
+  // An unscaled, unrotated placement moves the layers exactly, rounded onto the
+  // pixel grid; anything else resamples through the mapping.
+  constexpr double kLinearTolerance = 1e-6;
+  const bool translation_only =
+      std::abs(mapping.m11() - 1.0) < kLinearTolerance && std::abs(mapping.m22() - 1.0) < kLinearTolerance &&
+      std::abs(mapping.m12()) < kLinearTolerance && std::abs(mapping.m21()) < kLinearTolerance;
+  const QPoint offset = translation_only ? QPoint(static_cast<int>(std::lround(mapping.dx())),
+                                                  static_cast<int>(std::lround(mapping.dy())))
+                                         : QPoint();
+  const bool contents_move = !translation_only || !offset.isNull();
+  if (contents_move && std::any_of(std::as_const(*contents).layers().begin(), std::as_const(*contents).layers().end(),
+                                   [](const Layer& root) { return layer_tree_contains_smart_filters(root); })) {
+    show_status_error(tr("The contents contain Smart Filters, which can't be moved out of the Smart Object yet"));
+    return;
+  }
+
+  const auto smart_object_id = *active;
+  const auto smart_object = *layer;
+  auto staged = current;
+  staged.set_active_layer(smart_object_id);  // the copies land directly above it
+  CrossDocumentLayerPlacement unpack;
+  unpack.exact_offset = offset;
+  unpack.keep_names = true;
+  QString error;
+  const auto copied_ids = copy_layers_between_documents(std::as_const(*contents), root_ids, staged, unpack,
+                                                        [] { return true; }, &error);
+  if (copied_ids.empty()) {
+    show_status_error(error.isEmpty() ? tr("Could not convert the smart object to layers") : error);
+    return;
+  }
+
+  // A folder named after the Smart Object takes its place and its compositing:
+  // isolated like the Smart Object was (its own blend mode, never Pass Through),
+  // with its opacity, visibility, clipping, locks, masks, and layer style.
+  Layer folder(staged.allocate_layer_id(), smart_object.name(), LayerKind::Group);
+  const auto folder_id = folder.id();
+  folder.set_visible(smart_object.visible());
+  folder.set_clipped(smart_object.clipped());
+  folder.set_opacity(smart_object.opacity());
+  folder.set_fill_opacity(smart_object.fill_opacity());
+  folder.set_blend_mode(smart_object.blend_mode() == BlendMode::PassThrough ? BlendMode::Normal
+                                                                            : smart_object.blend_mode());
+  folder.set_lock_flags(smart_object.lock_flags());
+  if (smart_object.mask().has_value()) {
+    folder.set_mask(*smart_object.mask());
+    if (const auto linked = smart_object.metadata().find(kLayerMetadataMaskLinked);
+        linked != smart_object.metadata().end()) {
+      folder.metadata()[linked->first] = linked->second;
+    }
+  }
+  if (const auto* vector_mask = smart_object.vector_mask(); vector_mask != nullptr) {
+    folder.set_vector_mask(*vector_mask);
+    mark_layer_vector_block_dirty(folder);
+  }
+  folder.layer_style() = smart_object.layer_style();
+  std::vector<Layer> unpacked_top_to_bottom;
+  unpacked_top_to_bottom.reserve(copied_ids.size());
+  for (const auto id : copied_ids) {
+    if (auto taken = take_layer_from_tree(staged.layers(), id); taken.has_value()) {
+      unpacked_top_to_bottom.push_back(std::move(*taken));
+    }
+  }
+  for (auto it = unpacked_top_to_bottom.rbegin(); it != unpacked_top_to_bottom.rend(); ++it) {
+    folder.add_child(std::move(*it));
+  }
+  const auto location = find_layer_location(staged.layers(), smart_object_id);
+  if (!location.has_value()) {
+    show_status_error(tr("Could not convert the smart object to layers"));
+    return;
+  }
+  (*location->siblings)[location->index] = std::move(folder);
+
+  if (!translation_only) {
+    auto* installed = staged.find_layer(folder_id);
+    const auto interpolation = canvas_ != nullptr ? canvas_->transform_interpolation()
+                                                  : CanvasWidget::TransformInterpolation::Bicubic;
+    for (auto& child : installed->children()) {
+      map_unpacked_layer_tree(staged, child, mapping, interpolation);
+    }
+  }
+
+  // The source element stays in the store like every orphan; the PSD writer
+  // leaves unreferenced Patchy-written elements out of the file, which
+  // Photoshop requires (docs/smart-objects.md).
+  staged.set_active_layer(folder_id);
+  push_undo_snapshot(tr("Convert to Layers"));
+  document() = std::move(staged);
+  refresh_layer_list();
+  refresh_layer_controls();
+  refresh_document_info();
+  canvas_->document_changed();
+  statusBar()->showMessage(tr("Converted the smart object to %n layer(s)", nullptr,
+                              static_cast<int>(copied_ids.size())));
 }
 
 void MainWindow::place_embedded_file() {

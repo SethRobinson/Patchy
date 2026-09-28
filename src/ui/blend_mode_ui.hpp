@@ -16,6 +16,9 @@ namespace patchy::ui {
 enum class BlendModeMenu : std::uint8_t { Layer, Filter };
 
 [[nodiscard]] QString blend_mode_name(BlendMode mode);
+// Fills `combo` with the modes in Photoshop's menu order and makes Left/Right
+// step it like Up/Down (Qt handles only Up/Down on a combo box), both closed
+// and with the list open.
 void add_blend_mode_items(QComboBox* combo, BlendModeMenu menu = BlendModeMenu::Layer);
 
 }  // namespace patchy::ui

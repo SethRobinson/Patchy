@@ -1,4 +1,5 @@
 #include "ui/canvas_widget.hpp"
+#include "ui/brush_tip_library.hpp"
 #include <QScopeGuard>
 #include <cmath>
 #include <limits>
@@ -11,6 +12,7 @@ ScriptStroke CanvasWidget::current_script_brush() const {
   s.size = brush_size_; s.opacity = s.mixer ? 100 : brush_opacity_;
   s.flow = s.mixer ? mixer_flow_ : brush_flow_; s.softness = brush_softness_;
   s.tip = brush_tip_; s.tip_id = brush_tip_id_; s.dynamics = brush_dynamics_;
+  if (!brush_tip_ && brush_shape_ == patchy::BrushShape::Square) s.tip_id = builtin_square_brush_tip_id();
   s.angle = brush_base_angle_degrees_; s.roundness = brush_base_roundness_;
   s.spacing = script_brush_spacing_;
   if (!s.spacing && s.tip) s.spacing = s.tip->default_spacing;
@@ -33,6 +35,8 @@ void CanvasWidget::apply_script_brush(const ScriptStroke& s) {
   brush_size_ = s.size; brush_opacity_ = s.opacity; brush_flow_ = s.flow;
   brush_softness_ = s.softness; brush_build_up_ = s.airbrush;
   set_brush_tip(s.tip, s.tip_id); script_brush_spacing_ = s.spacing;
+  set_brush_shape(!s.tip && s.tip_id == builtin_square_brush_tip_id() ? patchy::BrushShape::Square
+                                                                     : patchy::BrushShape::Round);
   brush_dynamics_ = s.dynamics; brush_base_angle_degrees_ = s.angle; brush_base_roundness_ = s.roundness;
   mixer_wet_ = s.wet; mixer_load_ = s.load; mixer_mix_ = s.mix; mixer_flow_ = s.flow;
   mixer_sample_all_layers_ = s.sample_all_layers;

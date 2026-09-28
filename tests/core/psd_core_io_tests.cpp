@@ -42,6 +42,7 @@
 #include "core/text_warp.hpp"
 #include "core/warp_mesh.hpp"
 #include "psd/psd_document_io.hpp"
+#include "psd/psd_io_internal.hpp"
 #include "core/contour_presets.hpp"
 #include "core/magnetic_lasso.hpp"
 #include "core/palette.hpp"
@@ -885,6 +886,41 @@ void psd_layered_writer_uses_rle_for_compressible_layer_channels() {
   CHECK(read.layers().front().pixels().pixel(0, 0)[3] == 128);
   CHECK(read.layers().front().mask().has_value());
   CHECK(*read.layers().front().mask()->pixels.pixel(31, 3) == 255);
+}
+
+// Photoshop reads a pixel record without a transparency channel as its Background layer,
+// opaque over the whole canvas whatever its bounds. September 2026: an imported opaque photo
+// (an RGB layer) above other layers blanked everything beneath it in Photoshop. Only the
+// bottom record covering exactly the canvas may omit the channel.
+void psd_opaque_rgb_layers_write_transparency_unless_background() {
+  const auto channel_ids = [](const patchy::Document& document) {
+    std::vector<std::int16_t> ids;
+    for (const auto& record : psd_layer_channel_records(patchy::psd::DocumentIo::write_layered_rgb8(document))) {
+      ids.push_back(record.id);
+    }
+    return ids;
+  };
+
+  patchy::Document stacked(8, 6, patchy::PixelFormat::rgb8());
+  stacked.add_pixel_layer("Background", solid_rgb(8, 6, 250, 240, 20));
+  patchy::Layer photo(stacked.allocate_layer_id(), "Photo", solid_rgb(4, 3, 10, 20, 30));
+  photo.set_bounds(patchy::Rect{2, 1, 4, 3});
+  stacked.add_layer(std::move(photo));
+  CHECK((channel_ids(stacked) == std::vector<std::int16_t>{0, 1, 2, 0, 1, 2, -1}));
+
+  const auto read = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(stacked));
+  CHECK(read.layers().size() == 2U);
+  const auto& read_photo = read.layers().back();
+  CHECK(read_photo.pixels().format().channels == 4U);
+  CHECK(read_photo.pixels().pixel(3, 2)[3] == 255U);
+  CHECK(read_photo.pixels().pixel(3, 2)[0] == 10U);
+
+  // A bottom layer that does not cover the canvas is not a Background either.
+  patchy::Document partial(8, 6, patchy::PixelFormat::rgb8());
+  patchy::Layer lone(partial.allocate_layer_id(), "Photo", solid_rgb(4, 3, 10, 20, 30));
+  lone.set_bounds(patchy::Rect{2, 1, 4, 3});
+  partial.add_layer(std::move(lone));
+  CHECK((channel_ids(partial) == std::vector<std::int16_t>{0, 1, 2, -1}));
 }
 
 void psd_layer_locks_import_and_export_lspf() {
@@ -2263,6 +2299,372 @@ void psd_damaged_channel_cannot_consume_later_channels() {
   CHECK(has_damaged_row_notice(notices));
 }
 
+// ---- Grayscale-mode PSD import (issue 39) ----
+
+// A minimal ICC v2 gray profile with a linear (gamma 1.0) tone curve. lcms accepts it,
+// and mid-gray comes out visibly brighter in sRGB than a neutral copy would, so the
+// test can tell the profile path from the fallback.
+std::vector<std::uint8_t> test_linear_gray_icc_profile() {
+  const std::string description = "Patchy Test Linear Gray";
+  patchy::psd::BigEndianWriter desc;  // textDescriptionType
+  write_ascii4(desc, "desc");
+  desc.write_u32(0);
+  desc.write_u32(static_cast<std::uint32_t>(description.size() + 1U));
+  for (const char ch : description) {
+    desc.write_u8(static_cast<std::uint8_t>(ch));
+  }
+  desc.write_u8(0);
+  desc.write_u32(0);  // Unicode language code
+  desc.write_u32(0);  // Unicode count
+  desc.write_u16(0);  // ScriptCode code
+  desc.write_u8(0);   // ScriptCode count
+  for (int i = 0; i < 67; ++i) {
+    desc.write_u8(0);
+  }
+  patchy::psd::BigEndianWriter wtpt;  // XYZType, D50
+  write_ascii4(wtpt, "XYZ ");
+  wtpt.write_u32(0);
+  wtpt.write_u32(0x0000F6D6U);
+  wtpt.write_u32(0x00010000U);
+  wtpt.write_u32(0x0000D32DU);
+  patchy::psd::BigEndianWriter ktrc;  // curveType with one entry: gamma as u8Fixed8
+  write_ascii4(ktrc, "curv");
+  ktrc.write_u32(0);
+  ktrc.write_u32(1);
+  ktrc.write_u16(0x0100);
+  ktrc.write_u16(0);
+
+  struct TagEntry {
+    const char* signature;
+    const std::vector<std::uint8_t>* data;
+  };
+  const std::vector<TagEntry> tags{{"desc", &desc.bytes()}, {"wtpt", &wtpt.bytes()}, {"kTRC", &ktrc.bytes()}};
+  const auto padded = [](std::size_t size) { return (size + 3U) & ~static_cast<std::size_t>(3U); };
+  std::size_t total = 128U + 4U + 12U * tags.size();
+  for (const auto& tag : tags) {
+    total += padded(tag.data->size());
+  }
+
+  patchy::psd::BigEndianWriter profile;
+  profile.write_u32(static_cast<std::uint32_t>(total));
+  profile.write_u32(0);           // preferred CMM
+  profile.write_u32(0x02100000U);  // version 2.1
+  write_ascii4(profile, "mntr");
+  write_ascii4(profile, "GRAY");
+  write_ascii4(profile, "XYZ ");
+  for (int i = 0; i < 12; ++i) {
+    profile.write_u8(0);  // creation date
+  }
+  write_ascii4(profile, "acsp");
+  for (int i = 0; i < 24; ++i) {
+    profile.write_u8(0);  // platform, flags, manufacturer, model, attributes
+  }
+  profile.write_u32(0);  // rendering intent
+  profile.write_u32(0x0000F6D6U);
+  profile.write_u32(0x00010000U);
+  profile.write_u32(0x0000D32DU);
+  profile.write_u32(0);  // creator
+  for (int i = 0; i < 44; ++i) {
+    profile.write_u8(0);
+  }
+  CHECK(profile.bytes().size() == 128U);
+  profile.write_u32(static_cast<std::uint32_t>(tags.size()));
+  std::size_t offset = 128U + 4U + 12U * tags.size();
+  for (const auto& tag : tags) {
+    for (int i = 0; i < 4; ++i) {
+      profile.write_u8(static_cast<std::uint8_t>(tag.signature[i]));
+    }
+    profile.write_u32(static_cast<std::uint32_t>(offset));
+    profile.write_u32(static_cast<std::uint32_t>(tag.data->size()));
+    offset += padded(tag.data->size());
+  }
+  for (const auto& tag : tags) {
+    profile.write_bytes(*tag.data);
+    for (std::size_t pad = tag.data->size(); pad < padded(tag.data->size()); ++pad) {
+      profile.write_u8(0);
+    }
+  }
+  CHECK(profile.bytes().size() == total);
+  return profile.bytes();
+}
+
+bool has_notice_containing(const std::vector<std::string>& notices, std::string_view fragment) {
+  return std::any_of(notices.begin(), notices.end(), [fragment](const std::string& notice) {
+    return notice.find(fragment) != std::string::npos;
+  });
+}
+
+void psd_flat_raw_gray8_imports_as_rgb() {
+  const auto read = patchy::psd::DocumentIo::read(flat_psd_with_test_planes(false, 1, 2, 1, {{0, 200}}));
+  CHECK(read.format() == patchy::PixelFormat::rgb8());
+  CHECK(read.layers().size() == 1);
+  CHECK(read.metadata().values.at("psd.color_mode") == "Grayscale");
+  const auto* px0 = read.layers().front().pixels().pixel(0, 0);
+  const auto* px1 = read.layers().front().pixels().pixel(1, 0);
+  CHECK(px0[0] == 0 && px0[1] == 0 && px0[2] == 0);
+  CHECK(px1[0] == 200 && px1[1] == 200 && px1[2] == 200);
+}
+
+void psd_flat_rle_gray8_imports_as_rgb() {
+  const auto read =
+      patchy::psd::DocumentIo::read(flat_psd_with_test_planes(false, 1, 2, 1, {{37, 255}}, {}, 1));
+  CHECK(read.layers().size() == 1);
+  const auto* px0 = read.layers().front().pixels().pixel(0, 0);
+  const auto* px1 = read.layers().front().pixels().pixel(1, 0);
+  CHECK(px0[0] == 37 && px0[1] == 37 && px0[2] == 37);
+  CHECK(px1[0] == 255 && px1[1] == 255 && px1[2] == 255);
+}
+
+void psd_flat_gray16_imports_as_rgb() {
+  patchy::psd::BigEndianWriter writer;
+  patchy::psd::write_header(writer, patchy::psd::Header{false, 1, 1, 2, 16, 1});
+  writer.write_u32(0);
+  writer.write_u32(0);
+  writer.write_u32(0);
+  writer.write_u16(0);
+  writer.write_u16(0x8080);
+  writer.write_u16(0xFFFF);
+
+  const auto read = patchy::psd::DocumentIo::read(writer.bytes());
+  CHECK(read.format() == patchy::PixelFormat::rgb8());
+  CHECK(read.layers().size() == 1);
+  const auto* px0 = read.layers().front().pixels().pixel(0, 0);
+  const auto* px1 = read.layers().front().pixels().pixel(1, 0);
+  CHECK(px0[0] == 128 && px0[1] == 128 && px0[2] == 128);
+  CHECK(px1[0] == 255 && px1[1] == 255 && px1[2] == 255);
+}
+
+std::vector<std::uint8_t> layered_gray_psd_with_transparency() {
+  patchy::psd::BigEndianWriter layer_extra;
+  layer_extra.write_u32(0);
+  layer_extra.write_u32(0);
+  write_pascal_padded(layer_extra, "Gray Layer", 4);
+
+  patchy::psd::BigEndianWriter layer_info;
+  layer_info.write_u16(1);
+  layer_info.write_u32(0);
+  layer_info.write_u32(0);
+  layer_info.write_u32(1);
+  layer_info.write_u32(2);
+  layer_info.write_u16(2);
+  for (const auto channel_id : {0xFFFFU, 0U}) {
+    layer_info.write_u16(static_cast<std::uint16_t>(channel_id));
+    layer_info.write_u32(4);
+  }
+  write_ascii4(layer_info, "8BIM");
+  write_ascii4(layer_info, "norm");
+  layer_info.write_u8(255);
+  layer_info.write_u8(0);
+  layer_info.write_u8(0);
+  layer_info.write_u8(0);
+  layer_info.write_u32(static_cast<std::uint32_t>(layer_extra.bytes().size()));
+  layer_info.write_bytes(layer_extra.bytes());
+
+  const std::array<std::array<std::uint8_t, 2>, 2> channels{{
+      {255, 64},  // transparency
+      {0, 200},   // gray
+  }};
+  for (const auto& channel : channels) {
+    layer_info.write_u16(0);
+    layer_info.write_bytes(channel);
+  }
+  if ((layer_info.bytes().size() % 2U) != 0) {
+    layer_info.write_u8(0);
+  }
+
+  patchy::psd::BigEndianWriter layer_mask;
+  layer_mask.write_u32(static_cast<std::uint32_t>(layer_info.bytes().size()));
+  layer_mask.write_bytes(layer_info.bytes());
+  layer_mask.write_u32(0);
+
+  patchy::psd::BigEndianWriter writer;
+  patchy::psd::write_header(writer, patchy::psd::Header{false, 1, 1, 2, 8, 1});
+  writer.write_u32(0);
+  writer.write_u32(0);
+  writer.write_u32(static_cast<std::uint32_t>(layer_mask.bytes().size()));
+  writer.write_bytes(layer_mask.bytes());
+  writer.write_u16(0);
+  writer.write_u8(0);
+  writer.write_u8(0);
+  return writer.bytes();
+}
+
+void psd_layered_gray8_imports_as_rgba() {
+  const auto read = patchy::psd::DocumentIo::read(layered_gray_psd_with_transparency());
+  CHECK(read.layers().size() == 1);
+  const auto& layer = read.layers().front();
+  CHECK(layer.name() == "Gray Layer");
+  CHECK(layer.pixels().format() == patchy::PixelFormat::rgba8());
+  CHECK(read.metadata().values.at("psd.color_mode") == "Grayscale");
+  const auto* px0 = layer.pixels().pixel(0, 0);
+  const auto* px1 = layer.pixels().pixel(1, 0);
+  CHECK(px0[0] == 0 && px0[1] == 0 && px0[2] == 0 && px0[3] == 255);
+  CHECK(px1[0] == 200 && px1[1] == 200 && px1[2] == 200 && px1[3] == 64);
+}
+
+void psd_gray_extra_plane_imports_as_saved_channel() {
+  patchy::psd::BigEndianWriter resources;
+  write_test_image_resource(resources, 1006, "", test_alpha_channel_names_payload({"Spot"}));
+  write_test_image_resource(resources, 1053, "", test_alpha_identifiers_payload({77}));
+
+  const std::vector<std::vector<std::uint8_t>> planes{
+      {10, 250},  // gray
+      {7, 201},   // saved channel (after the single gray component)
+  };
+  for (const std::uint16_t compression : {std::uint16_t{0}, std::uint16_t{1}}) {
+    const auto bytes = flat_psd_with_test_planes(false, 1, 2, 1, planes, resources.bytes(), compression);
+    const auto read = patchy::psd::DocumentIo::read(bytes);
+    CHECK(read.metadata().values.at("psd.color_mode") == "Grayscale");
+    CHECK(read.layers().size() == 1);
+    CHECK(read.layers().front().pixels().pixel(1, 0)[0] == 250);
+    CHECK(read.channels().size() == 1);
+    CHECK(read.channels().front().name() == "Spot");
+    CHECK(read.channels().front().photoshop_identifier() == std::optional<std::uint32_t>{77});
+    CHECK(read.channels().front().pixels().pixel(0, 0)[0] == 7);
+    CHECK(read.channels().front().pixels().pixel(1, 0)[0] == 201);
+  }
+}
+
+void psd_gray_icc_profile_converts_pixels_and_is_not_exported() {
+  patchy::psd::BigEndianWriter resources;
+  write_test_image_resource(resources, 1039, "", test_linear_gray_icc_profile());
+  const auto bytes = flat_psd_with_test_planes(false, 1, 3, 1, {{0, 128, 255}}, resources.bytes());
+
+  std::vector<std::string> notices;
+  patchy::psd::ReadOptions options;
+  options.notices = &notices;
+  auto document = patchy::psd::DocumentIo::read(bytes, options);
+  CHECK(has_notice_containing(notices, "Patchy Test Linear Gray"));
+  // The gray profile describes the source, not the converted RGB pixels: preserved as a
+  // raw resource, never promoted into color_state() nor exported as an RGB profile.
+  CHECK(document.color_state().embedded_icc_profile.empty());
+  CHECK(test_image_resource_payload(document.metadata().raw_psd_image_resources, 1039).has_value());
+  CHECK(document.layers().size() == 1);
+  const auto& pixels = document.layers().front().pixels();
+  CHECK(pixels.pixel(0, 0)[0] == 0 && pixels.pixel(0, 0)[1] == 0 && pixels.pixel(0, 0)[2] == 0);
+  CHECK(pixels.pixel(2, 0)[0] == 255 && pixels.pixel(2, 0)[1] == 255 && pixels.pixel(2, 0)[2] == 255);
+  // Linear 128/255 encodes to sRGB 188 (lcms's 8-bit rounding may land a step either way).
+  const auto* mid = pixels.pixel(1, 0);
+  CHECK(mid[0] >= 186 && mid[0] <= 190);
+  CHECK(mid[0] == mid[1] && mid[1] == mid[2]);
+
+  const auto exported = psd_raw_image_resources(patchy::psd::DocumentIo::write_flat_rgb8(document));
+  CHECK(!test_image_resource_payload(exported, 1039).has_value());
+}
+
+void psd_gray_unusable_icc_profile_copies_gray_unchanged() {
+  patchy::psd::BigEndianWriter resources;
+  const std::vector<std::uint8_t> bogus_icc{1, 2, 3, 4};
+  write_test_image_resource(resources, 1039, "", bogus_icc);
+  const auto bytes = flat_psd_with_test_planes(false, 1, 1, 1, {{128}}, resources.bytes());
+
+  std::vector<std::string> notices;
+  patchy::psd::ReadOptions options;
+  options.notices = &notices;
+  const auto document = patchy::psd::DocumentIo::read(bytes, options);
+  CHECK(has_notice_containing(notices, "could not be used"));
+  const auto* pixel = document.layers().front().pixels().pixel(0, 0);
+  CHECK(pixel[0] == 128 && pixel[1] == 128 && pixel[2] == 128);
+}
+
+void psd_gray_descriptor_and_engine_colors_use_black_percentage() {
+  // Photoshop probe (September 2026): a Color Overlay with 'Grsc' 'Gry ' 30 rendered the
+  // same 179 as a 30% GrayColor fill, and 30% gray text stored /Type 0 /Values [1.0 .7].
+  patchy::psd::DescriptorObject gray_color;
+  gray_color.class_id = "Grsc";
+  patchy::psd::DescriptorValue gray;
+  gray.type = patchy::psd::DescriptorValue::Type::Double;
+  gray.double_value = 30.0;
+  gray_color.values["Gry "] = gray;
+  patchy::psd::DescriptorObject effect;
+  patchy::psd::DescriptorValue color_value;
+  color_value.type = patchy::psd::DescriptorValue::Type::Object;
+  color_value.object_value = std::make_shared<patchy::psd::DescriptorObject>(gray_color);
+  effect.values["Clr "] = color_value;
+
+  const patchy::psd::CmykColorConverter neutral{};
+  const auto descriptor_color =
+      patchy::psd::descriptor_rgb_color(effect, "Clr ", neutral, patchy::RgbColor{1, 2, 3});
+  CHECK(descriptor_color == (patchy::RgbColor{179, 179, 179}));
+
+  const std::string engine = "/FillColor << /Type 0 /Values [ 1.0 .7 ] >>";
+  const auto text_color = patchy::psd::extract_engine_data_fill_color(
+      std::span<const std::uint8_t>(reinterpret_cast<const std::uint8_t*>(engine.data()), engine.size()),
+      neutral);
+  CHECK(text_color.has_value());
+  CHECK(*text_color == (patchy::RgbColor{179, 179, 179}));
+}
+
+// The issue 39 reporter's file: 8-bit grayscale, nine pixel layers, Dot Gain 20% embedded.
+void psd_issue39_grayscale_fixture_imports_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("issue-39/grayscale.psd");
+  if (!std::filesystem::exists(path)) {
+    std::printf("[SKIP] psd_issue39_grayscale_fixture_imports_if_available (no local fixture)\n");
+    return;
+  }
+  std::vector<std::string> notices;
+  patchy::psd::ReadOptions options;
+  options.notices = &notices;
+  const auto document = patchy::psd::DocumentIo::read_file(path, options);
+  CHECK(document.width() == 2371);
+  CHECK(document.height() == 1973);
+  CHECK(document.layers().size() == 9);
+  CHECK(document.metadata().values.at("psd.color_mode") == "Grayscale");
+  CHECK(has_notice_containing(notices, "Dot Gain 20%"));
+
+  const patchy::Layer* background = nullptr;
+  const patchy::Layer* layer_one = nullptr;
+  for (const auto& layer : document.layers()) {
+    if (layer.name() == "Background") {
+      background = &layer;
+    } else if (layer.name() == "Layer 1") {
+      layer_one = &layer;
+    }
+  }
+  CHECK(background != nullptr);
+  CHECK(layer_one != nullptr);
+  if (background == nullptr || layer_one == nullptr) {
+    return;
+  }
+  CHECK(background->pixels().width() == 2371);
+  CHECK(background->pixels().height() == 1973);
+  const auto* paper = background->pixels().pixel(0, 0);
+  CHECK(paper[0] == 255 && paper[1] == 255 && paper[2] == 255);
+  const auto* ink = background->pixels().pixel(327, 1000);
+  CHECK(ink[0] == 0 && ink[1] == 0 && ink[2] == 0);
+  CHECK(layer_one->pixels().format() == patchy::PixelFormat::rgba8());
+  CHECK(layer_one->pixels().width() == 17);
+  CHECK(layer_one->pixels().height() == 7);
+}
+
+// A 256-step gray ramp saved by Photoshop with Dot Gain 20% embedded, pinned against
+// Photoshop's own Convert to Profile (sRGB, relative colorimetric, BPC, no dither) of
+// the same document. The residue is lcms2-vs-ACE curve interpolation, as for CMYK.
+void psd_gray_ramp_dotgain20_matches_photoshop_srgb_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("issue-39/gray-ramp-dotgain20.psd");
+  if (!std::filesystem::exists(path)) {
+    std::printf("[SKIP] psd_gray_ramp_dotgain20_matches_photoshop_srgb_if_available (no local fixture)\n");
+    return;
+  }
+  const auto document = patchy::psd::DocumentIo::read_file(path);
+  CHECK(document.width() == 256);
+  CHECK(document.layers().size() == 1);
+  const auto& pixels = document.layers().front().pixels();
+  struct Expected {
+    int gray;
+    int srgb;
+  };
+  constexpr std::array<Expected, 17> kPhotoshop{{{0, 0},     {16, 22},    {32, 46},    {48, 66},    {64, 85},
+                                                 {80, 102},   {96, 119},   {112, 134},  {128, 149},  {144, 164},
+                                                 {160, 178},  {176, 192},  {192, 205},  {208, 218},  {224, 231},
+                                                 {240, 243},  {255, 255}}};
+  for (const auto& expected : kPhotoshop) {
+    const auto* pixel = pixels.pixel(expected.gray, 0);
+    CHECK(std::abs(static_cast<int>(pixel[0]) - expected.srgb) <= 2);
+    CHECK(pixel[0] == pixel[1] && pixel[1] == pixel[2]);
+  }
+}
+
 std::vector<patchy::test::TestCase> psd_core_io_tests() {
   return {
       {"psd_flat_rgb8_round_trips", psd_flat_rgb8_round_trips},
@@ -2276,6 +2678,21 @@ std::vector<patchy::test::TestCase> psd_core_io_tests() {
       {"psd_layered_cmyk8_imports_as_rgba", psd_layered_cmyk8_imports_as_rgba},
       {"psd_imported_cmyk_icc_profile_is_not_exported_as_rgb_profile",
        psd_imported_cmyk_icc_profile_is_not_exported_as_rgb_profile},
+      {"psd_flat_raw_gray8_imports_as_rgb", psd_flat_raw_gray8_imports_as_rgb},
+      {"psd_flat_rle_gray8_imports_as_rgb", psd_flat_rle_gray8_imports_as_rgb},
+      {"psd_flat_gray16_imports_as_rgb", psd_flat_gray16_imports_as_rgb},
+      {"psd_layered_gray8_imports_as_rgba", psd_layered_gray8_imports_as_rgba},
+      {"psd_gray_extra_plane_imports_as_saved_channel", psd_gray_extra_plane_imports_as_saved_channel},
+      {"psd_gray_icc_profile_converts_pixels_and_is_not_exported",
+       psd_gray_icc_profile_converts_pixels_and_is_not_exported},
+      {"psd_gray_unusable_icc_profile_copies_gray_unchanged",
+       psd_gray_unusable_icc_profile_copies_gray_unchanged},
+      {"psd_gray_descriptor_and_engine_colors_use_black_percentage",
+       psd_gray_descriptor_and_engine_colors_use_black_percentage},
+      {"psd_issue39_grayscale_fixture_imports_if_available",
+       psd_issue39_grayscale_fixture_imports_if_available},
+      {"psd_gray_ramp_dotgain20_matches_photoshop_srgb_if_available",
+       psd_gray_ramp_dotgain20_matches_photoshop_srgb_if_available},
       {"psd_image_resources_round_trip_and_icc_profile_is_exposed",
        psd_image_resources_round_trip_and_icc_profile_is_exposed},
       {"psd_resolution_resource_units_are_display_only", psd_resolution_resource_units_are_display_only},
@@ -2304,6 +2721,8 @@ std::vector<patchy::test::TestCase> psd_core_io_tests() {
        psd_stroke_only_shape_layers_fixture_loads_if_available},
       {"psd_layered_writer_uses_rle_for_compressible_layer_channels",
        psd_layered_writer_uses_rle_for_compressible_layer_channels},
+      {"psd_opaque_rgb_layers_write_transparency_unless_background",
+       psd_opaque_rgb_layers_write_transparency_unless_background},
       {"psd_layer_locks_import_and_export_lspf", psd_layer_locks_import_and_export_lspf},
       {"psd_layer_masks_render_and_round_trip", psd_layer_masks_render_and_round_trip},
       {"psd_group_layer_mask_round_trips", psd_group_layer_mask_round_trips},

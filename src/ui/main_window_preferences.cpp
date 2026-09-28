@@ -242,10 +242,6 @@
 #include <tpcshrd.h>
 #endif
 
-#ifndef PATCHY_VERSION
-#define PATCHY_VERSION "0.0.0"
-#endif
-
 // Icon resources live in the static patchy_ui library; force registration before first use.
 int qInitResources_icons();
 
@@ -509,6 +505,29 @@ void MainWindow::show_preferences() {
   update_check->setObjectName(QStringLiteral("preferencesCheckForUpdatesCheck"));
   update_check->setChecked(settings.value(QStringLiteral("updates/checkOnStartup"), true).toBool());
   application_form->addRow(update_check);
+  // Automatic document recovery (docs/document-recovery.md): a checkbox and the
+  // interval combo on one row, the way Photoshop's File Handling page lays it out.
+  auto* recovery_row = new QWidget(application_group);
+  auto* recovery_layout = new QHBoxLayout(recovery_row);
+  recovery_layout->setContentsMargins(0, 0, 0, 0);
+  auto* recovery_check = new QCheckBox(tr("Automatically save recovery information every"), recovery_row);
+  recovery_check->setObjectName(QStringLiteral("preferencesRecoveryEnabledCheck"));
+  recovery_check->setToolTip(
+      tr("Writes a copy of each changed document to a recovery folder so it can be reopened after a "
+         "crash. The file you saved is never touched, and the copies are removed when Patchy quits normally."));
+  recovery_check->setChecked(stored_recovery_enabled());
+  auto* recovery_combo = new QComboBox(recovery_row);
+  recovery_combo->setObjectName(QStringLiteral("preferencesRecoveryIntervalCombo"));
+  for (const int minutes : kRecoveryIntervalMinutes) {
+    recovery_combo->addItem(tr("%n minute(s)", nullptr, minutes), minutes);
+  }
+  recovery_combo->setCurrentIndex(recovery_combo->findData(stored_recovery_interval_minutes()));
+  recovery_combo->setEnabled(recovery_check->isChecked());
+  connect(recovery_check, &QCheckBox::toggled, recovery_combo, &QComboBox::setEnabled);
+  recovery_layout->addWidget(recovery_check);
+  recovery_layout->addWidget(recovery_combo);
+  recovery_layout->addStretch(1);
+  application_form->addRow(recovery_row);
 #endif
   auto* psd_import_warnings_check =
       new QCheckBox(tr("Show import warnings and notes in a popup (status bar otherwise)"), application_group);
@@ -544,6 +563,15 @@ void MainWindow::show_preferences() {
          "percentages, or the angle and how far it turned."));
   transform_values_check->setChecked(show_transform_drag_values_);
   application_form->addRow(transform_values_check);
+  auto* transform_snap_check = new QCheckBox(tr("Snap transforms to the pixel grid"), application_group);
+  transform_snap_check->setObjectName(QStringLiteral("preferencesTransformSnapToPixelGridCheck"));
+  transform_snap_check->setToolTip(
+      tr("Positions and sizes typed into the Free Transform bar land on whole pixels, like "
+         "Photoshop's \"Snap Vector Tools and Transforms to Pixel Grid\". Rotated transforms are "
+         "not snapped. When off, a typed fraction such as 3.4 px is kept and the pixels are "
+         "resampled."));
+  transform_snap_check->setChecked(snap_transforms_to_pixel_grid_);
+  application_form->addRow(transform_snap_check);
   auto* zoom_thumbnails_check =
       new QCheckBox(tr("Zoom layer thumbnails to the layer content"), application_group);
   zoom_thumbnails_check->setObjectName(QStringLiteral("preferencesZoomLayerThumbnailsCheck"));
@@ -1088,6 +1116,9 @@ void MainWindow::show_preferences() {
         std::clamp(static_cast<int>(std::lround(grid_spacing_spin->value() * 32.0)), 1, 320000);
 #ifndef Q_OS_WASM
     settings.setValue(QStringLiteral("updates/checkOnStartup"), update_check->isChecked());
+    set_stored_recovery_enabled(recovery_check->isChecked());
+    set_stored_recovery_interval_minutes(recovery_combo->currentData().toInt());
+    apply_recovery_preferences();
 #endif
     settings.setValue(QStringLiteral("imports/showPsdWarningsAndInfo"), psd_import_warnings_check->isChecked());
     settings.setValue(QStringLiteral("imports/showRawDevelopDialog"), raw_develop_check->isChecked());
@@ -1123,6 +1154,7 @@ void MainWindow::show_preferences() {
     wheel_zooms_ = pen_wheel_zoom_check->isChecked();
     shift_keeps_transform_aspect_ = transform_shift_aspect_check->isChecked();
     show_transform_drag_values_ = transform_values_check->isChecked();
+    snap_transforms_to_pixel_grid_ = transform_snap_check->isChecked();
     if (zoom_layer_thumbnails_to_content_ != zoom_thumbnails_check->isChecked()) {
       zoom_layer_thumbnails_to_content_ = zoom_thumbnails_check->isChecked();
       // The mode is a shape input the revision-keyed cache does not track;
@@ -1376,6 +1408,7 @@ void MainWindow::apply_pen_input_settings(CanvasWidget* canvas) const {
   canvas->set_wheel_zooms(wheel_zooms_);
   canvas->set_shift_keeps_transform_aspect(shift_keeps_transform_aspect_);
   canvas->set_show_transform_drag_values(show_transform_drag_values_);
+  canvas->set_snap_transforms_to_pixel_grid(snap_transforms_to_pixel_grid_);
 }
 
 void MainWindow::handle_pen_button_action(PenButtonAction action) {
@@ -1451,6 +1484,8 @@ void MainWindow::load_pen_input_settings() {
   shift_keeps_transform_aspect_ =
       settings.value(QStringLiteral("input/shiftKeepsTransformAspect"), false).toBool();
   show_transform_drag_values_ = settings.value(QStringLiteral("view/showTransformValues"), true).toBool();
+  snap_transforms_to_pixel_grid_ =
+      settings.value(QStringLiteral("input/snapTransformsToPixelGrid"), true).toBool();
   apply_pen_input_settings(canvas_);
 }
 
@@ -1474,6 +1509,7 @@ void MainWindow::save_pen_input_settings() const {
   settings.setValue(QStringLiteral("input/wheelZooms"), wheel_zooms_);
   settings.setValue(QStringLiteral("input/shiftKeepsTransformAspect"), shift_keeps_transform_aspect_);
   settings.setValue(QStringLiteral("view/showTransformValues"), show_transform_drag_values_);
+  settings.setValue(QStringLiteral("input/snapTransformsToPixelGrid"), snap_transforms_to_pixel_grid_);
 }
 
 void MainWindow::load_view_settings() {

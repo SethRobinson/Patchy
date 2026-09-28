@@ -21,10 +21,13 @@ Three configurations share the pinned Emscripten 4.0.7 toolchain:
   staged as `st/` for Safari diagnostics, but current ST builds also die under
   workload, so auto-routing is disabled and only
   `?PATCHY_WASM_FORCE=st` selects it. See [wasm-memory.md](wasm-memory.md).
-  Provision with `setup-qt-wasm.ps1 -WasmArch wasm_singlethread`.
+  Provision with `setup-qt-wasm.ps1 -WasmArch wasm_singlethread`. The ST kit
+  declares `QThread::loopLevel()` without defining it (an ST-only link error);
+  `canvas_widget_move.cpp` reads `QThreadData` via `Qt6::CorePrivate` instead.
 
 The presets, the `if(EMSCRIPTEN)` CMake branches, the `Q_OS_WASM` gates,
-and `scripts/wasm/` are the whole wasm surface.
+and `scripts/wasm/` are the whole wasm surface. The stress/A-B harness is in
+[performance.md](performance.md).
 
 ## Toolchain setup
 
@@ -470,7 +473,7 @@ a tab past recovery on a slow script. Three pumps are compiled out under
 script_engine.cpp), the processing-overlay tick, and the overlay-show pump
 (`show_processing_overlay`), both canvas_widget_render.cpp. Long
 synchronous bursts show no progress until they yield; long filter work
-already runs on a worker. Companion guards: `call_script_callback` refuses
+and the Remove Object fill run on a worker instead. Companion guards: `call_script_callback` refuses
 reentry while script code is executing; the script canvas frame timer is
 single-shot, re-armed per frame.
 
@@ -512,12 +515,6 @@ also constructs the memory (bullet above), appends a plain-language hint to
 the crash screen when the abort text looks like out-of-memory, and versions
 the `patchy.data` fetch via `locateFile`. No special MIME is needed (the
 page compiles from bytes; streaming instantiation is unused).
-
-## Headless stress harness
-
-The wasm stress/A-B harness (hidden-tab timer shims, interleaved two-port
-comparisons, `--run-script` mode, the browser-file large-open regression) is
-documented in [performance.md](performance.md).
 
 ## Later steps (not built yet)
 

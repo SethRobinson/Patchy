@@ -1030,6 +1030,208 @@ void ui_text_box_commit_renders_paragraph_alignment() {
   CHECK(std::abs(committed_right_bounds->right() - active_right_bounds->right()) <= 4);
 }
 
+// The Paragraph panel (options bar > Paragraph...) edits the LIVE session: indents and spacing
+// apply to the selection's paragraphs in points, survive the commit as the paragraph runs' v2
+// columns in document px, drive the committed raster (the first line indent is the first
+// line's extra offset), reflect back on re-edit, and with no session open edit the selected
+// layer through a hidden session as one undo step. Like the Character panel it must not trip
+// the editor's focus-loss auto-commit (is_text_option_widget exemption).
+void ui_text_paragraph_panel_sets_indents_and_spacing() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  canvas->set_primary_color(QColor(Qt::black));
+  const auto click_widget_point = canvas->widget_position_for_document_point(QPoint(60, 90));
+  send_mouse(*canvas, QEvent::MouseButtonPress, click_widget_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, click_widget_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+  editor->setPlainText(QStringLiteral("Para panel top\nPara panel base"));
+  editor->selectAll();
+  QApplication::processEvents();
+
+  auto* paragraph_button = window.findChild<QPushButton*>(QStringLiteral("textParagraphButton"));
+  CHECK(paragraph_button != nullptr);
+  if (paragraph_button == nullptr) {
+    return;
+  }
+  const auto find_spins = [&window](QDialog* dialog, QDoubleSpinBox** first, QDoubleSpinBox** start,
+                                    QDoubleSpinBox** before, QDoubleSpinBox** after) {
+    (void)window;
+    *first = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("textParagraphFirstLineIndentSpin"));
+    *start = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("textParagraphStartIndentSpin"));
+    *before = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("textParagraphSpaceBeforeSpin"));
+    *after = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("textParagraphSpaceAfterSpin"));
+    return *first != nullptr && *start != nullptr && *before != nullptr && *after != nullptr;
+  };
+  // The panel runs a nested non-modal loop; drive it from a queued lambda. Points at the startup
+  // document's 72 ppi are document px.
+  QTimer::singleShot(0, [&window, &find_spins] {
+    auto* dialog = window.findChild<QDialog*>(QStringLiteral("textParagraphDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    QDoubleSpinBox* first = nullptr;
+    QDoubleSpinBox* start = nullptr;
+    QDoubleSpinBox* before = nullptr;
+    QDoubleSpinBox* after = nullptr;
+    auto* align = dialog->findChild<QComboBox*>(QStringLiteral("textParagraphAlignCombo"));
+    CHECK(find_spins(dialog, &first, &start, &before, &after) && align != nullptr);
+    if (first == nullptr || start == nullptr || after == nullptr || align == nullptr) {
+      dialog->reject();
+      return;
+    }
+    CHECK(first->isEnabled() && align->isEnabled());
+    CHECK(align->currentData().toString() == QStringLiteral("left"));
+    first->setValue(20.0);
+    start->setValue(10.0);
+    after->setValue(15.0);
+    QApplication::processEvents();
+    dialog->reject();
+  });
+  paragraph_button->click();
+  QApplication::processEvents();
+  // The panel interaction must have left the session alive (no focus-loss commit).
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) != nullptr);
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  patchy::Layer* committed = nullptr;
+  for (auto& layer : document.layers()) {
+    if (const auto it = layer.metadata().find(patchy::kLayerMetadataText);
+        it != layer.metadata().end() && it->second.find("Para panel top") != std::string::npos) {
+      committed = &layer;
+    }
+  }
+  CHECK(committed != nullptr);
+  if (committed == nullptr) {
+    return;
+  }
+  const auto paragraph_fields = [](const patchy::Layer& layer) {
+    std::vector<QStringList> lines;
+    const auto found = layer.metadata().find(patchy::kLayerMetadataTextParagraphRuns);
+    if (found == layer.metadata().end()) {
+      return lines;
+    }
+    for (const auto& line : QString::fromStdString(found->second).split(QLatin1Char('\n')).mid(1)) {
+      const auto fields = line.split(QLatin1Char('\t'));
+      if (fields.size() >= 8) {
+        lines.push_back(fields);
+      }
+    }
+    return lines;
+  };
+  auto runs = paragraph_fields(*committed);
+  CHECK(runs.size() == 2);
+  for (const auto& fields : runs) {
+    CHECK(std::abs(fields[3].toDouble() - 20.0) < 0.05);  // first line indent, document px
+    CHECK(std::abs(fields[4].toDouble() - 10.0) < 0.05);  // left (start) indent
+    CHECK(std::abs(fields[5].toDouble()) < 0.05);         // right (end) indent untouched
+    CHECK(std::abs(fields[7].toDouble() - 15.0) < 0.05);  // space after
+  }
+  // The first line of each paragraph starts 20 px further in than the paragraph's other lines
+  // would; with one line per paragraph both lines carry the indent, so compare against the
+  // left indent alone through the raster's ink columns: every band starts at 30 px from the
+  // layer's left edge (first line indent + left indent), never at the bare left indent.
+  const auto bands = alpha_row_bands(committed->pixels());
+  CHECK(bands.size() == 2);
+  if (bands.size() == 2) {
+    const auto top_ink = alpha_pixel_bounds_in_rows(committed->pixels(), bands[0].top, bands[0].bottom);
+    const auto base_ink = alpha_pixel_bounds_in_rows(committed->pixels(), bands[1].top, bands[1].bottom);
+    CHECK(top_ink.has_value() && base_ink.has_value());
+    if (top_ink.has_value() && base_ink.has_value()) {
+      CHECK(std::abs(top_ink->left() - base_ink->left()) <= 2);
+      CHECK(top_ink->left() >= 28);
+    }
+  }
+
+  // Re-edit: the panel reflects the committed values back for the caret's paragraph.
+  document.set_active_layer(committed->id());
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto reedit_point = canvas->widget_position_for_document_point(
+      QPoint(committed->bounds().x + committed->bounds().width / 2, committed->bounds().y + 8));
+  send_mouse(*canvas, QEvent::MouseButtonPress, reedit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, reedit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  process_events_for(200);
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) != nullptr);
+  QTimer::singleShot(0, [&window, &find_spins] {
+    auto* dialog = window.findChild<QDialog*>(QStringLiteral("textParagraphDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    QDoubleSpinBox* first = nullptr;
+    QDoubleSpinBox* start = nullptr;
+    QDoubleSpinBox* before = nullptr;
+    QDoubleSpinBox* after = nullptr;
+    if (find_spins(dialog, &first, &start, &before, &after)) {
+      CHECK(std::abs(first->value() - 20.0) < 0.05);
+      CHECK(std::abs(start->value() - 10.0) < 0.05);
+      CHECK(std::abs(after->value() - 15.0) < 0.05);
+    }
+    dialog->reject();
+  });
+  paragraph_button->click();
+  QApplication::processEvents();
+  send_key(*canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")), Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+
+  // No session: the selected layer gets the change through a hidden session, one undo step.
+  document.set_active_layer(committed->id());
+  patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+  const auto depth = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  const auto committed_id = committed->id();
+  QTimer::singleShot(0, [&window, &find_spins, &document, committed_id, depth, &paragraph_fields] {
+    auto* dialog = window.findChild<QDialog*>(QStringLiteral("textParagraphDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    QDoubleSpinBox* first = nullptr;
+    QDoubleSpinBox* start = nullptr;
+    QDoubleSpinBox* before = nullptr;
+    QDoubleSpinBox* after = nullptr;
+    if (!find_spins(dialog, &first, &start, &before, &after)) {
+      dialog->reject();
+      return;
+    }
+    CHECK(before->isEnabled());
+    CHECK(std::abs(first->value() - 20.0) < 0.05);
+    CHECK(std::abs(start->value() - 10.0) < 0.05);
+    before->setValue(5.0);
+    QApplication::processEvents();
+    CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+    const auto* changed = std::as_const(document).find_layer(committed_id);
+    CHECK(changed != nullptr);
+    if (changed != nullptr) {
+      const auto lines = paragraph_fields(*changed);
+      CHECK(lines.size() == 2);
+      for (const auto& fields : lines) {
+        CHECK(std::abs(fields[6].toDouble() - 5.0) < 0.05);   // space before
+        CHECK(std::abs(fields[3].toDouble() - 20.0) < 0.05);  // the earlier values survive
+      }
+    }
+    dialog->reject();
+  });
+  paragraph_button->click();
+  QApplication::processEvents();
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+}
+
 void ui_text_character_panel_sets_leading_tracking_and_scales() {
   // The Character panel (options bar > Character...) edits the LIVE session: fixed leading,
   // tracking, and glyph scales apply to the selection, survive the commit as v3 runs, drive
@@ -1366,6 +1568,7 @@ std::vector<patchy::test::TestCase> text_transform_commit_tests_part1() {
        ui_text_free_transform_clicking_current_move_tool_applies},
       {"ui_text_box_commit_renders_paragraph_alignment", ui_text_box_commit_renders_paragraph_alignment},
       {"ui_point_text_commit_renders_center_alignment", ui_point_text_commit_renders_center_alignment},
+      {"ui_text_paragraph_panel_sets_indents_and_spacing", ui_text_paragraph_panel_sets_indents_and_spacing},
       {"ui_text_character_panel_sets_leading_tracking_and_scales",
        ui_text_character_panel_sets_leading_tracking_and_scales},
       {"ui_text_character_panel_tracks_session_and_layer",

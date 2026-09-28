@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.26)
 
 project(
   Patchy
-  VERSION 0.97
+  VERSION 1.00
   DESCRIPTION "A native, PSD-oriented image editor foundation"
   LANGUAGES CXX
 )
@@ -100,12 +100,15 @@ add_library(patchy_core
   src/core/document.cpp
   src/core/document_channel.cpp
   src/core/document_memory.cpp
+  src/core/document_recovery_store.cpp
+  src/support/atomic_file_write.cpp
   src/core/environment.cpp
   src/core/document_geometry.cpp
   src/core/document_path.cpp
   src/core/heal_membrane.cpp
   src/core/image_trace.cpp
   src/core/layer.cpp
+  src/core/layer_alignment.cpp
   src/core/layer_metadata.cpp
   src/core/layer_render_utils.cpp
   src/core/layer_tree.cpp
@@ -308,6 +311,8 @@ add_library(patchy_psd
   src/psd/pat_reader.cpp
   src/psd/psd_adjustments.cpp
   src/psd/psd_binary.cpp
+  src/psd/engine_data.cpp
+  src/psd/engine_data.hpp
   src/psd/psd_channel_data.cpp
   src/psd/psd_descriptor.cpp
   src/psd/psd_document_io.cpp
@@ -319,6 +324,10 @@ add_library(patchy_psd
   src/psd/psd_layer_styles.cpp
   src/psd/psd_patterns.cpp
   src/psd/psd_smart_objects.cpp
+  src/psd/psd_text_engine_block.cpp
+  src/psd/psd_text_engine_block.hpp
+  src/psd/psd_text_engine_template.cpp
+  src/psd/psd_text_legacy.cpp
   src/psd/psd_text_read.cpp
   src/psd/psd_text_write.cpp
   src/psd/psd_vector.cpp
@@ -874,6 +883,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/action_icons.cpp
       src/ui/icon_theme.hpp
       src/ui/icon_theme.cpp
+      src/ui/app_data_migration.hpp
+      src/ui/app_data_migration.cpp
       src/ui/app_settings.hpp
       src/ui/app_settings.cpp
       src/ui/background_workers.hpp
@@ -928,6 +939,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/color_panel.cpp
       src/ui/compatibility_report.cpp
       src/ui/coalesced_preview_emitter.hpp
+      src/ui/curved_slider.hpp
+      src/ui/curved_slider.cpp
       src/ui/dialog_utils.cpp
       src/ui/document_float_window.hpp
       src/ui/document_float_window.cpp
@@ -1007,6 +1020,9 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/main_window_preferences.cpp
       src/ui/main_window_scripting.cpp
       src/ui/main_window_sessions.cpp
+      src/ui/main_window_recovery.cpp
+      src/ui/document_recovery.hpp
+      src/ui/document_recovery.cpp
       src/ui/main_window_shared.hpp
       src/ui/main_window_shared.cpp
       src/ui/main_window_smart_objects.cpp
@@ -1140,6 +1156,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/splash_dialog.cpp
       src/ui/tool_cursors.hpp
       src/ui/tool_cursors.cpp
+      src/ui/single_instance.hpp
+      src/ui/single_instance.cpp
       src/ui/update_checker.hpp
       src/ui/update_checker.cpp
       src/ui/user_fonts.hpp
@@ -1203,7 +1221,18 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       patchy_color
       $<$<PLATFORM_ID:Windows>:dwmapi>
     )
-    target_compile_definitions(patchy_ui PRIVATE PATCHY_VERSION="${PROJECT_VERSION}")
+    # PATCHY_VERSION lives in a configure-time generated header, not a
+    # target-wide compile definition: Ninja treats a changed command line as a
+    # changed input, so a define on patchy_ui made every version bump recompile
+    # the whole library. configure_file leaves the header untouched when its
+    # content is unchanged, so only the translation units that include it (the
+    # About/start-panel text, the update check, the stress report, main.cpp)
+    # rebuild after a bump. The directory is PUBLIC so patchy and patchy-mcp
+    # see the same header through their patchy_ui link.
+    set(PATCHY_VERSION_HEADER_DIR "${CMAKE_BINARY_DIR}/generated/version")
+    configure_file("${PROJECT_SOURCE_DIR}/cmake/patchy_version.hpp.in"
+                   "${PATCHY_VERSION_HEADER_DIR}/patchy_version.hpp" @ONLY)
+    target_include_directories(patchy_ui PUBLIC "${PATCHY_VERSION_HEADER_DIR}")
     # The build stamp shown beside the version must be fresh in every binary.
     # A custom target is always out of date, so each build rewrites the
     # generated header before patchy_ui compiles; the include directory is
@@ -1386,7 +1415,7 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
     if(NOT EMSCRIPTEN)
       add_executable(patchy-mcp src/app/main.cpp src/app/mcp_server.cpp src/app/mcp_stdio.cpp)
       target_link_libraries(patchy-mcp PRIVATE patchy_ui)
-      target_compile_definitions(patchy-mcp PRIVATE PATCHY_MCP_EXECUTABLE=1 PATCHY_VERSION="${PROJECT_VERSION}")
+      target_compile_definitions(patchy-mcp PRIVATE PATCHY_MCP_EXECUTABLE=1)
       patchy_configure_target(patchy-mcp)
       patchy_copy_translations(patchy-mcp)
       patchy_copy_qt_runtime(patchy-mcp)
@@ -1405,7 +1434,17 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       endif()
       install(TARGETS patchy-mcp RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
     endif()
-    target_compile_definitions(patchy PRIVATE PATCHY_VERSION="${PROJECT_VERSION}")
+    if(WIN32)
+      # Seth often has build\release\patchy.exe open while a build runs. A running
+      # image cannot be overwritten (LNK1104) but can be renamed, so move it aside
+      # exactly like the connector above; his instance keeps running the renamed
+      # copy and the link produces a fresh patchy.exe. Never kill it: it may hold
+      # unsaved work. See docs/release-process.md.
+      add_custom_command(TARGET patchy PRE_LINK
+        COMMAND ${CMAKE_COMMAND} -DPATCHY_LOCKED_EXECUTABLE=$<TARGET_FILE:patchy>
+                -P ${CMAKE_SOURCE_DIR}/cmake/unlock_locked_executable.cmake
+        VERBATIM)
+    endif()
     patchy_configure_target(patchy)
     patchy_copy_translations(patchy)
     patchy_copy_qt_runtime(patchy)
@@ -1577,10 +1616,12 @@ if(PATCHY_BUILD_TESTS)
     tests/core/flat_formats_bmp_tests.cpp
     tests/core/flat_formats_misc_tests.cpp
     tests/core/unicode_path_tests.cpp
+    tests/core/atomic_write_recovery_tests.cpp
     tests/core/font_zip_tests.cpp
     tests/core/gradients_interior_effects_tests.cpp
     tests/core/image_trace_tests.cpp
     tests/core/infra_selection_tests.cpp
+    tests/core/layer_alignment_tests.cpp
     tests/core/layer_metadata_tests.cpp
     tests/core/palette_tests.cpp
     tests/core/pat_asl_abr_tests.cpp
@@ -1590,6 +1631,8 @@ if(PATCHY_BUILD_TESTS)
     tests/core/psd_core_io_tests.cpp
     tests/core/psd_structure_tests.cpp
     tests/core/psd_text_tests.cpp
+    tests/core/psd_legacy_text_tests.cpp
+    tests/core/text_engine_block_tests.cpp
     tests/core/psd_vector_fixtures_tests.cpp
     tests/core/psd_writer_stability_tests.cpp
     tests/core/jxr_tests.cpp
@@ -1657,7 +1700,9 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/layer_panel_organization_tests.cpp
       tests/ui/layer_panel_organization_tests_animation.cpp
       tests/ui/layer_panel_organization_tests_cross_document.cpp
+      tests/ui/layer_panel_organization_tests_files_as_layers.cpp
       tests/ui/move_tool_processing_overlay_tests.cpp
+      tests/ui/alignment_tests.cpp
       tests/ui/selection_marquee_lasso_tests.cpp
       tests/ui/selection_marquee_lasso_tests_marquee_geometry.cpp
       tests/ui/selection_marquee_lasso_tests_regions_lasso.cpp
@@ -1702,6 +1747,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/svg_ui_tests.cpp
       tests/ui/image_trace_ui_tests.cpp
       tests/ui/scripting_tests.cpp
+      tests/ui/document_recovery_tests.cpp
       tests/ui/mcp_tests.cpp
       tests/ui/unicode_path_tests.cpp
       tests/ui/history_panel_tests.cpp

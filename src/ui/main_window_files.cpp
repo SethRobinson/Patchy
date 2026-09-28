@@ -263,9 +263,7 @@
 #include <tpcshrd.h>
 #endif
 
-#ifndef PATCHY_VERSION
-#define PATCHY_VERSION "0.0.0"
-#endif
+#include "patchy_version.hpp"
 
 // Icon resources live in the static patchy_ui library; force registration before first use.
 int qInitResources_icons();
@@ -280,6 +278,25 @@ constexpr int kOpenProgressTitleMinimumFileNameWidth = 180;
 constexpr int kMaxRecentFiles = 200;
 constexpr int kMaxRecentFolders = 200;
 constexpr int kRecentFilesMenuPageSize = 50;
+// Minimum spacing of the background recent-history existence checks that
+// File menu opens and the start panel's refresh timer start.
+constexpr qint64 kRecentHistoryCheckIntervalMs = 30000;
+
+// Network entries are never stat'ed: an asleep or unreachable host blocks a
+// stat for the SMB timeout. They stay listed; clicking one that is gone
+// reports it missing and drops it, like any other missing entry.
+bool is_network_recent_path(const QString& path) {
+  if (path.startsWith(QStringLiteral("\\\\")) || path.startsWith(QStringLiteral("//"))) {
+    return true;
+  }
+#ifdef Q_OS_WIN
+  if (path.size() >= 2 && path[1] == QLatin1Char(':') && path[0].isLetter()) {
+    const wchar_t root[] = {static_cast<wchar_t>(path[0].unicode()), L':', L'\\', L'\0'};
+    return GetDriveTypeW(root) == DRIVE_REMOTE;
+  }
+#endif
+  return false;
+}
 
 QString elided_open_progress_title_file_name(const QWidget& widget, const QString& file_name) {
   const int available_width =
@@ -1466,6 +1483,7 @@ int MainWindow::open_folder_path(const QString& directory) {
       render_pending_af_text_layers(loaded->document);
       render_pending_pdf_text_layers(loaded->document);
       render_pending_pdf_image_layers(loaded->document);
+      record_text_layout_metrics_for_reopened_text(loaded->document);
       add_document_session(std::move(loaded->document), loaded->file_name, path, tr("Open"),
                            SessionActivation::Background);
       ++opened;
@@ -1505,6 +1523,266 @@ int MainWindow::open_folder_path(const QString& directory) {
   statusBar()->showMessage(status);
   update_undo_redo_actions();
   return opened;
+}
+
+QStringList MainWindow::supported_layer_drop_paths(const QMimeData* mime_data) const {
+  if (preview_dialog_edit_locked()) {
+    return {};
+  }
+  return supported_local_open_paths(mime_data);
+}
+
+MainWindow::AddFilesAsLayersResult MainWindow::add_files_as_layers(
+    DocumentSession& target, const QStringList& paths, std::optional<LayerInsertionTarget> drop_target,
+    FailedFilesPolicy policy, const std::function<bool(int, int)>& progress,
+    const std::function<bool(DocumentSession&)>& before_mutation, QString* error) {
+  AddFilesAsLayersResult result;
+  const auto target_session_id = target.session_id;
+  const auto fail = [&](const QString& message) {
+    if (error != nullptr) {
+      *error = message;
+    }
+    result.added_root_ids_top_to_bottom.clear();
+    return result;
+  };
+  const auto note_failure = [&](const QString& path, const QString& reason) {
+    result.failed_paths.push_back(path);
+    result.failure_messages.push_back(QStringLiteral("%1: %2").arg(QFileInfo(path).fileName(), reason));
+    if (unattended_automation()) {
+      fprintf(stderr, "Add as layer failed: %s (%s)\n", reason.toUtf8().constData(), path.toUtf8().constData());
+    }
+  };
+
+  // Phase 1: decode every file before the document is touched.
+  QStringList unique_paths;
+  for (const auto& raw_path : paths) {
+    const auto path = QDir::toNativeSeparators(raw_path);
+    if (!path.isEmpty() && !unique_paths.contains(path)) {
+      unique_paths.push_back(path);
+    }
+  }
+  std::vector<Document> loaded_documents;
+  loaded_documents.reserve(static_cast<std::size_t>(unique_paths.size()));
+  const int total = static_cast<int>(unique_paths.size());
+  for (int index = 0; index < total; ++index) {
+    const auto& path = unique_paths[index];
+    if (progress && !progress(index + 1, total)) {
+      result.cancelled = true;
+      return result;
+    }
+    try {
+      auto loaded = load_document_from_path(path);
+      auto& document = loaded.document;
+      render_pending_svg_text_layers(document);
+      render_pending_af_text_layers(document);
+      render_pending_pdf_text_layers(document);
+      render_pending_pdf_image_layers(document);
+      record_text_layout_metrics_for_reopened_text(document);
+      if (document.layers().empty()) {
+        note_failure(path, tr("the file holds no layers"));
+        continue;
+      }
+      const auto layer_name = QFileInfo(path).completeBaseName().toStdString();
+      if (document.layers().size() == 1U) {
+        if (!layer_name.empty()) {
+          document.layers().front().set_name(layer_name);
+        }
+      } else {
+        // A multi-layer file (a PSD, GIF frames, a layered SVG) stays one unit: a
+        // pass-through folder named after the file with its layers inside, in
+        // their own order.
+        Layer folder(document.allocate_layer_id(), layer_name.empty() ? tr("Folder").toStdString() : layer_name,
+                     LayerKind::Group);
+        folder.set_blend_mode(BlendMode::PassThrough);
+        for (auto& layer : document.layers()) {
+          folder.add_child(std::move(layer));
+        }
+        document.layers().clear();
+        const auto folder_id = folder.id();
+        document.layers().push_back(std::move(folder));
+        document.set_active_layer(folder_id);
+      }
+      loaded_documents.push_back(std::move(document));
+    } catch (const std::exception& load_error) {
+      note_failure(path, translated_file_message(load_error.what()));
+    }
+  }
+  if (loaded_documents.empty()) {
+    return fail(result.failure_messages.isEmpty() ? tr("None of the files could be added as layers")
+                                                  : result.failure_messages.join(QLatin1Char('\n')));
+  }
+  if (policy == FailedFilesPolicy::AbortOnAnyFailure && !result.failed_paths.isEmpty()) {
+    return fail(result.failure_messages.join(QLatin1Char('\n')));
+  }
+  // The progress pump may have closed the document (or the window) meanwhile.
+  auto* live_target = shutting_down_ ? nullptr : session_with_id(target_session_id);
+  if (live_target == nullptr) {
+    return fail(tr("The document is no longer open."));
+  }
+
+  // Phase 2: build the new stack in a staged copy, so a refusal part-way leaves
+  // the live document untouched (there is no partial undo to fall back on).
+  // Each copy lands above the active layer and becomes active, so the files
+  // stack upward in path order: the last file ends on top.
+  Document staged = live_target->document;
+  std::vector<LayerId> added_top_to_bottom;
+  CrossDocumentLayerPlacement placement;
+  placement.keep_source_position = true;
+  for (const auto& loaded : loaded_documents) {
+    const std::vector<LayerId> root_ids{loaded.layers().front().id()};
+    QString copy_error;
+    const auto ids = copy_layers_between_documents(loaded, root_ids, staged, placement,
+                                                   [] { return true; }, &copy_error);
+    if (ids.empty()) {
+      return fail(copy_error);
+    }
+    added_top_to_bottom.insert(added_top_to_bottom.begin(), ids.begin(), ids.end());
+  }
+  if (drop_target.has_value()) {
+    LayerDropRequest request;
+    request.layer_ids_top_to_bottom = added_top_to_bottom;
+    request.target_layer_id = drop_target->layer_id;
+    request.position = drop_target->position;
+    if (!move_layers_for_drop(staged.layers(), request)) {
+      return fail(tr("The drop target is no longer in the document"));
+    }
+  }
+  if (!before_mutation(*live_target)) {
+    result.added_root_ids_top_to_bottom.clear();
+    return result;
+  }
+  live_target->document = std::move(staged);
+  result.added_root_ids_top_to_bottom = std::move(added_top_to_bottom);
+  return result;
+}
+
+bool MainWindow::add_files_as_layers_interactive(const QStringList& paths,
+                                                 std::optional<LayerInsertionTarget> drop_target,
+                                                 const QString& failure_title) {
+  if (!has_active_document()) {
+    return false;
+  }
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return false;
+  }
+  canvas_->finish_free_transform();
+  finish_active_text_editor();
+  if (!drop_target.has_value()) {
+    // Paste's rule: directly above the topmost selected row.
+    const auto selected = selected_layer_ids();
+    if (!selected.empty()) {
+      drop_target = LayerInsertionTarget{selected.front(), LayerDropPosition::AboveItem};
+    }
+  }
+  const auto target_session_id = session().session_id;
+  // Decoding many files takes a while: the same cancellable progress dialog and
+  // per-file event pump as Open Folder, so the window keeps painting and nobody
+  // takes the pause for a hang. The dialog is window-modal, so the document
+  // cannot change under the loop, and the core re-resolves the session anyway.
+  QProgressDialog progress(tr("Adding file %1 of %2...").arg(1).arg(paths.size()), tr("Cancel"), 0,
+                           static_cast<int>(paths.size()), this);
+  progress.setObjectName(QStringLiteral("filesAsLayersProgressDialog"));
+  progress.setWindowTitle(failure_title);
+  progress.setWindowModality(Qt::WindowModal);
+  progress.setMinimumDuration(0);
+  progress.setAutoClose(false);
+  progress.setAutoReset(false);
+  remember_dialog_position(progress);
+  progress.setValue(0);
+  progress.show();  // at once, not after QProgressDialog's force timer
+  QString error;
+  auto result = add_files_as_layers(
+      session(), paths, drop_target, FailedFilesPolicy::SkipFailed,
+      [&progress](int index, int total) {
+        progress.setMaximum(total);
+        progress.setLabelText(tr("Adding file %1 of %2...").arg(index).arg(total));
+        progress.setValue(index - 1);
+        QApplication::processEvents(QEventLoop::AllEvents);
+        return !progress.wasCanceled();
+      },
+      [this](DocumentSession& live_target) {
+        push_undo_snapshot(live_target, tr("Add files as layers"));
+        return true;
+      },
+      &error);
+  progress.setValue(progress.maximum());
+  progress.close();
+  if (shutting_down_ || !isVisible()) {
+    return false;
+  }
+  auto* live_target = session_with_id(target_session_id);
+  if (live_target == nullptr) {
+    return false;
+  }
+  if (live_target != active_session()) {
+    activate_document_session(*live_target);
+  }
+  auto& target = *live_target;
+  if (result.cancelled) {
+    statusBar()->showMessage(tr("Cancelled adding files as layers"));
+    return false;
+  }
+  const auto failure_text = result.failure_messages.join(QLatin1Char('\n'));
+  const auto& added = result.added_root_ids_top_to_bottom;
+  if (added.empty()) {
+    show_status_error(error.section(QLatin1Char('\n'), 0, 0));
+    if (!result.failed_paths.isEmpty() && !unattended_automation()) {
+      show_information_message(this, failure_title,
+                               tr("These files could not be added as layers:\n\n%1").arg(failure_text),
+                               QStringLiteral("filesAsLayersFailedMessageBox"));
+    }
+    return false;
+  }
+  if (drop_target.has_value() && drop_target->position == LayerDropPosition::OnItem &&
+      drop_target->layer_id.has_value()) {
+    // A drop into a folder shows what it added (handle_layer_drop's rule).
+    if (const auto* folder = std::as_const(target.document).find_layer(*drop_target->layer_id);
+        folder != nullptr && folder->kind() == LayerKind::Group) {
+      target.collapsed_layer_groups.erase(*drop_target->layer_id);
+    }
+  }
+  refresh_layer_list();
+  refresh_layer_controls();
+  canvas_->document_changed();
+  // After the refreshes: a rebuild collapses the selection to the active row.
+  select_layers_in_layer_list(added, added.front());
+  auto status = tr("Added %n layer(s)", nullptr, static_cast<int>(added.size()));
+  if (!result.failed_paths.isEmpty()) {
+    status += tr(" (%n could not be opened)", nullptr, static_cast<int>(result.failed_paths.size()));
+    if (!unattended_automation()) {
+      show_information_message(this, failure_title,
+                               tr("These files could not be added as layers:\n\n%1").arg(failure_text),
+                               QStringLiteral("filesAsLayersFailedMessageBox"));
+    }
+  }
+  statusBar()->showMessage(status);
+  update_undo_redo_actions();
+  return true;
+}
+
+void MainWindow::import_files_as_layers() {
+  if (!has_active_document()) {
+    return;
+  }
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  const auto paths = get_open_file_names(this, tr("Files as Layers"), last_open_directory(), open_file_filter(),
+                                         nullptr, QStringLiteral("importFilesAsLayersFileDialog"),
+                                         FilterNameDetails::Hidden);
+  if (paths.isEmpty()) {
+    return;
+  }
+  if (!unattended_automation()) {
+    remember_open_directory_for_path(paths.front());
+  }
+  import_files_as_layers_with_paths(paths);
+}
+
+void MainWindow::import_files_as_layers_with_paths(const QStringList& paths) {
+  add_files_as_layers_interactive(paths, std::nullopt, tr("Files as Layers"));
 }
 
 bool MainWindow::accept_open_file_drag(QDropEvent* event) {
@@ -1668,8 +1946,13 @@ void MainWindow::run_cli_export(const QString& output_path, const QString& appen
 }
 
 void MainWindow::activate_for_second_instance(const QStringList& paths) {
-  // Restore from a minimized/hidden state and pull the existing window in front so the user sees the
-  // file they just double-clicked open in this instance rather than a new process.
+  // Pull the existing window in front so the user sees the file they just double-clicked open in
+  // this instance rather than a new process.
+  bring_to_front_for_second_instance();
+  open_command_line_files(paths);
+}
+
+void MainWindow::bring_to_front_for_second_instance() {
   if (isMinimized()) {
     setWindowState(windowState() & ~Qt::WindowMinimized);
   }
@@ -1677,8 +1960,15 @@ void MainWindow::activate_for_second_instance(const QStringList& paths) {
     show();
   }
   raise();
-  activateWindow();
-  open_command_line_files(paths);
+  // A modal dialog owns the input (it disables this window), so it alone is activated: a second
+  // activation request for this window can land after the dialog's and leave it behind.
+  auto* modal = QApplication::activeModalWidget();
+  if (modal == nullptr || modal == this) {
+    activateWindow();
+    return;
+  }
+  modal->raise();
+  modal->activateWindow();
 }
 
 bool MainWindow::save_debug_screenshot(const QString& file_path, const QString& widget_name,
@@ -1806,6 +2096,7 @@ void MainWindow::open_document_path(QString path) {
     render_pending_af_text_layers(loaded->document);
     render_pending_pdf_text_layers(loaded->document);
     render_pending_pdf_image_layers(loaded->document);
+    record_text_layout_metrics_for_reopened_text(loaded->document);
     if (!unattended_automation() && is_affinity_document_extension(loaded->extension)) {
       maybe_convert_af_image_layers(loaded->document);
     }
@@ -1979,6 +2270,7 @@ void MainWindow::reopen_document_session(DocumentSession& target_session) {
     render_pending_af_text_layers(loaded->document);
     render_pending_pdf_text_layers(loaded->document);
     render_pending_pdf_image_layers(loaded->document);
+    record_text_layout_metrics_for_reopened_text(loaded->document);
     if (!unattended_automation() &&
         is_affinity_document_extension(QFileInfo(path).suffix().toLower())) {
       maybe_convert_af_image_layers(loaded->document);
@@ -2950,6 +3242,32 @@ void MainWindow::toggle_animation_preview_window() {
   animation_preview_window_->activateWindow();
 }
 
+#ifndef Q_OS_WASM
+bool MainWindow::open_recovered_document(const QString& psb_path, const QString& title, const QString& original_path,
+                                         std::int64_t* session_id) {
+  try {
+    // The copy is Patchy's own PSB: no prompts, no raw dialog, and the same
+    // post-open text fix-up the regular open path applies.
+    auto loaded = load_document_interactive(this, psb_path, /*interactive=*/false, /*allow_raw_dialog=*/false);
+    if (!loaded.has_value()) {
+      return false;
+    }
+    record_text_layout_metrics_for_reopened_text(loaded->document);
+    add_document_session(std::move(loaded->document), title, original_path, tr("Recover"));
+    auto& recovered = session();
+    // Recovered content is by definition unsaved: Save goes to the original path.
+    mark_session_modified(recovered);
+    if (session_id != nullptr) {
+      *session_id = recovered.session_id;
+    }
+    return true;
+  } catch (const std::exception& error) {
+    fprintf(stderr, "Recovery failed: %s (%s)\n", error.what(), psb_path.toUtf8().constData());
+    return false;
+  }
+}
+#endif
+
 bool MainWindow::save_document() {
   if (!has_active_document()) {
     show_status_error(tr("No document"));
@@ -3748,21 +4066,100 @@ void MainWindow::begin_startup_update_check() {
 void MainWindow::load_recent_files() {
   auto settings = recent_history_settings();
   settings.sync();
-  recent_files_ = settings.value(QStringLiteral("recentFiles")).toStringList();
-  recent_files_.erase(std::remove_if(recent_files_.begin(), recent_files_.end(), [](const QString& path) {
-                        return path.trimmed().isEmpty() || !QFileInfo::exists(path);
-                      }),
-                      recent_files_.end());
-  trim_recent_files(recent_files_);
+  set_recent_files_from_stored(settings.value(QStringLiteral("recentFiles")).toStringList());
 }
 
-void MainWindow::refresh_recent_history() {
+void MainWindow::set_recent_files_from_stored(QStringList stored) {
+  trim_recent_files(stored);
+  recent_files_stored_ = stored;
+  stored.erase(std::remove_if(stored.begin(), stored.end(),
+                              [this](const QString& path) {
+                                return path.trimmed().isEmpty() || recent_missing_files_.contains(path);
+                              }),
+               stored.end());
+  recent_files_ = std::move(stored);
+}
+
+// Rereads the stored lists (no disk access beyond the settings file) and
+// rebuilds whichever menu's displayed list changed. Returns whether a stored
+// list changed, which is when a new existence check is worth running.
+bool MainWindow::reload_recent_history() {
   const auto files = recent_files_;
   const auto folders = recent_folders_;
+  const auto stored_files = recent_files_stored_;
+  const auto stored_folders = recent_folders_stored_;
   load_recent_files();
   load_recent_folders();
   if (files != recent_files_) rebuild_recent_files_menu();
   if (folders != recent_folders_) rebuild_recent_folders_menu();
+  return stored_files != recent_files_stored_ || stored_folders != recent_folders_stored_;
+}
+
+void MainWindow::refresh_recent_history() {
+  schedule_recent_history_check(reload_recent_history());
+}
+
+// Existence checks run on a worker: a stat of a cold, spun-down or absent
+// volume can take seconds, and the File menu and start panel used to pay that
+// on the UI thread for every entry. Entries show until a check finds them
+// missing; the stored lists keep them, so an unplugged drive's entries return
+// with the drive.
+void MainWindow::schedule_recent_history_check(bool force) {
+  if (recent_check_in_flight_) {
+    recent_check_pending_ = recent_check_pending_ || force;
+    return;
+  }
+  if (!force && recent_check_clock_.isValid() && recent_check_clock_.elapsed() < kRecentHistoryCheckIntervalMs) {
+    return;
+  }
+  recent_check_clock_.start();
+  recent_check_in_flight_ = true;
+  recent_check_pending_ = false;
+  recent_confirmed_paths_.clear();
+  auto* app = QApplication::instance();
+  QPointer<MainWindow> window(this);
+  run_tracked_background_worker([app, window, files = recent_files_stored_, folders = recent_folders_stored_] {
+    QSet<QString> missing_files;
+    QSet<QString> missing_folders;
+    for (const auto& path : files) {
+      if (!path.trimmed().isEmpty() && !is_network_recent_path(path) && !QFileInfo::exists(path)) {
+        missing_files.insert(path);
+      }
+    }
+    for (const auto& dir : folders) {
+      if (!dir.trimmed().isEmpty() && !is_network_recent_path(dir) && !QFileInfo(dir).isDir()) {
+        missing_folders.insert(dir);
+      }
+    }
+    if (app == nullptr) {
+      return;
+    }
+    QMetaObject::invokeMethod(
+        app,
+        [window, missing_files = std::move(missing_files), missing_folders = std::move(missing_folders)]() mutable {
+          if (window == nullptr) {
+            return;
+          }
+          // A path opened or saved while the check ran exists now, whatever
+          // the worker saw.
+          for (const auto& path : std::as_const(window->recent_confirmed_paths_)) {
+            missing_files.remove(path);
+            missing_folders.remove(path);
+          }
+          window->recent_missing_files_ = std::move(missing_files);
+          window->recent_missing_folders_ = std::move(missing_folders);
+          window->recent_check_in_flight_ = false;
+          // Rebuilding under an open menu would delete its live filter row; the
+          // next File menu open or start-panel tick applies the result instead.
+          if (QApplication::activePopupWidget() == nullptr) {
+            window->reload_recent_history();
+          }
+          if (window->recent_check_pending_) {
+            window->schedule_recent_history_check(true);
+          }
+        },
+        Qt::QueuedConnection);
+  });
 }
 
 void MainWindow::add_recent_file(QString path) {
@@ -3770,8 +4167,10 @@ void MainWindow::add_recent_file(QString path) {
   if (path.isEmpty()) {
     return;
   }
-  recent_files_ = update_recent_history(QStringLiteral("recentFiles"), kMaxRecentFiles,
-      [&path](QStringList& paths) { paths.removeAll(path); paths.prepend(path); });
+  recent_missing_files_.remove(path);
+  recent_confirmed_paths_.insert(path);
+  set_recent_files_from_stored(update_recent_history(QStringLiteral("recentFiles"), kMaxRecentFiles,
+      [&path](QStringList& paths) { paths.removeAll(path); paths.prepend(path); }));
   rebuild_recent_files_menu();
   add_recent_folder(QFileInfo(path).absolutePath());
 }
@@ -3848,6 +4247,7 @@ void MainWindow::rebuild_recent_files_menu() {
       const auto page_end = std::min(page_start + kRecentFilesMenuPageSize, recent_count);
       auto* page_menu = recent_files_menu_->addMenu(tr("Recent Files %1-%2").arg(page_start + 1).arg(page_end));
       page_menu->setObjectName(QStringLiteral("fileOpenRecentRangeMenu%1").arg(page_start + 1));
+      page_menu->menuAction()->setMenuRole(QAction::NoRole);  // submenus never merge on macOS (docs/platform.md)
       configure_recent_files_context_menu(page_menu);
       for (int index = page_start; index < page_end; ++index) {
         add_recent_action(page_menu, recent_files_[index], index + 1);
@@ -3860,8 +4260,8 @@ void MainWindow::rebuild_recent_files_menu() {
     auto* clear_action = recent_files_menu_->addAction(tr("Clear Recent Files"));
     clear_action->setObjectName(QStringLiteral("fileClearRecentAction"));
     connect(clear_action, &QAction::triggered, this, [this] {
-      recent_files_ = update_recent_history(QStringLiteral("recentFiles"), kMaxRecentFiles,
-          [](QStringList& paths) { paths.clear(); });
+      set_recent_files_from_stored(update_recent_history(QStringLiteral("recentFiles"), kMaxRecentFiles,
+          [](QStringList& paths) { paths.clear(); }));
       rebuild_recent_files_menu();
     });
   }
@@ -3972,15 +4372,20 @@ bool MainWindow::handle_recent_files_filter_key(QKeyEvent& event) {
 void MainWindow::load_recent_folders() {
   auto settings = recent_history_settings();
   settings.sync();
-  recent_folders_ = settings.value(QStringLiteral("recentFolders")).toStringList();
-  recent_folders_.erase(std::remove_if(recent_folders_.begin(), recent_folders_.end(),
-                                       [](const QString& dir) {
-                                         return dir.trimmed().isEmpty() || !QFileInfo(dir).isDir();
-                                       }),
-                        recent_folders_.end());
-  while (recent_folders_.size() > kMaxRecentFolders) {
-    recent_folders_.removeLast();
+  set_recent_folders_from_stored(settings.value(QStringLiteral("recentFolders")).toStringList());
+}
+
+void MainWindow::set_recent_folders_from_stored(QStringList stored) {
+  while (stored.size() > kMaxRecentFolders) {
+    stored.removeLast();
   }
+  recent_folders_stored_ = stored;
+  stored.erase(std::remove_if(stored.begin(), stored.end(),
+                              [this](const QString& dir) {
+                                return dir.trimmed().isEmpty() || recent_missing_folders_.contains(dir);
+                              }),
+               stored.end());
+  recent_folders_ = std::move(stored);
 }
 
 void MainWindow::add_recent_folder(QString dir) {
@@ -3988,8 +4393,10 @@ void MainWindow::add_recent_folder(QString dir) {
   if (dir.isEmpty()) {
     return;
   }
-  recent_folders_ = update_recent_history(QStringLiteral("recentFolders"), kMaxRecentFolders,
-      [&dir](QStringList& paths) { paths.removeAll(dir); paths.prepend(dir); });
+  recent_missing_folders_.remove(dir);
+  recent_confirmed_paths_.insert(dir);
+  set_recent_folders_from_stored(update_recent_history(QStringLiteral("recentFolders"), kMaxRecentFolders,
+      [&dir](QStringList& paths) { paths.removeAll(dir); paths.prepend(dir); }));
   rebuild_recent_folders_menu();
 }
 
@@ -4031,6 +4438,7 @@ void MainWindow::rebuild_recent_folders_menu() {
       const auto page_end = std::min(page_start + kRecentFilesMenuPageSize, recent_count);
       auto* page_menu = recent_folders_menu_->addMenu(tr("Recent Folders %1-%2").arg(page_start + 1).arg(page_end));
       page_menu->setObjectName(QStringLiteral("fileOpenRecentFolderRangeMenu%1").arg(page_start + 1));
+      page_menu->menuAction()->setMenuRole(QAction::NoRole);  // submenus never merge on macOS (docs/platform.md)
       configure_recent_files_context_menu(page_menu);
       page_menu->setProperty(kRecentFoldersMenuProperty, true);
       for (int index = page_start; index < page_end; ++index) {
@@ -4044,8 +4452,8 @@ void MainWindow::rebuild_recent_folders_menu() {
     auto* clear_action = recent_folders_menu_->addAction(tr("Clear Recent Folders"));
     clear_action->setObjectName(QStringLiteral("fileClearRecentFoldersAction"));
     connect(clear_action, &QAction::triggered, this, [this] {
-      recent_folders_ = update_recent_history(QStringLiteral("recentFolders"), kMaxRecentFolders,
-          [](QStringList& paths) { paths.clear(); });
+      set_recent_folders_from_stored(update_recent_history(QStringLiteral("recentFolders"), kMaxRecentFolders,
+          [](QStringList& paths) { paths.clear(); }));
       rebuild_recent_folders_menu();
     });
   }
@@ -4162,8 +4570,8 @@ void MainWindow::reveal_path_in_file_explorer(const QString& path, bool is_file)
 
 void MainWindow::open_recent_document(QString path) {
   if (!QFileInfo::exists(path)) {
-    recent_files_ = update_recent_history(QStringLiteral("recentFiles"), kMaxRecentFiles,
-        [&path](QStringList& paths) { paths.removeAll(path); });
+    set_recent_files_from_stored(update_recent_history(QStringLiteral("recentFiles"), kMaxRecentFiles,
+        [&path](QStringList& paths) { paths.removeAll(path); }));
     rebuild_recent_files_menu();
     show_status_error(tr("Recent file is missing"));
     return;

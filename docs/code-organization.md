@@ -65,7 +65,7 @@ behavior to a viewport renderer's compositor call; normal renders have no contex
 
 ## PSD codec
 
-The PSD codec uses one TU per block family: `psd_channel_data`, `psd_image_resources`, `psd_adjustments`, `psd_layer_styles`, `psd_text_read`, `psd_text_write`, `psd_layer_records`, `psd_smart_objects`, `psd_vector`, `psd_filter_effects`, and `psd_patterns`, with shared descriptor and big-endian primitives in `psd_descriptor` and `psd_binary`. `psd_layer_styles` owns the `psd_layer_effects.hpp` exports used by ASL I/O.
+The PSD codec uses one TU per block family: `psd_channel_data`, `psd_image_resources`, `psd_adjustments`, `psd_layer_styles`, `psd_text_read`, `psd_text_write`, `psd_text_legacy` (the PS 5.x `tySh` record), `psd_layer_records`, `psd_smart_objects`, `psd_vector`, `psd_filter_effects`, and `psd_patterns`, with shared descriptor and big-endian primitives in `psd_descriptor` and `psd_binary`. `psd_layer_styles` owns the `psd_layer_effects.hpp` exports used by ASL I/O.
 
 Shared internal constants, record types, and declarations live in `psd_io_internal.hpp`; never include it outside `src/psd`. Shared plumbing definitions live in `psd_io_common.cpp`. `psd_document_io.cpp` keeps the read drivers and public `DocumentIo` API. The writer is byte-pinned, so any body change must satisfy the serialization canaries.
 

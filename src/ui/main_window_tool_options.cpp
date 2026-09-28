@@ -53,6 +53,7 @@
 #include "ui/gradient_library.hpp"
 #include "ui/gradient_manager_dialog.hpp"
 #include "ui/gradient_preset_popup.hpp"
+#include "ui/curved_slider.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/document_float_window.hpp"
 #include "ui/font_picker.hpp"
@@ -249,10 +250,6 @@
 #include <dwmapi.h>
 #include <tchar.h>
 #include <tpcshrd.h>
-#endif
-
-#ifndef PATCHY_VERSION
-#define PATCHY_VERSION "0.0.0"
 #endif
 
 // Icon resources live in the static patchy_ui library; force registration before first use.
@@ -790,16 +787,20 @@ void MainWindow::apply_brush_tip_to_canvas(CanvasWidget* canvas) {
   if (canvas == nullptr) {
     return;
   }
-  if (active_preset_tip_ || active_brush_tip_id_.isEmpty() || active_brush_tip_id_ == builtin_round_brush_tip_id()) {
+  if (active_preset_tip_ || active_brush_tip_id_.isEmpty() || is_builtin_brush_tip_id(active_brush_tip_id_)) {
     canvas->set_brush_tip(active_preset_tip_, QString());
-    // The Round brush carries session-only dynamics (reset every launch); while active they
-    // stamp through a synthesized disc tip inside CanvasWidget.
+    canvas->set_brush_shape(!active_preset_tip_ && active_brush_tip_id_ == builtin_square_brush_tip_id()
+                                ? patchy::BrushShape::Square
+                                : patchy::BrushShape::Round);
+    // The Round and Square brushes carry session-only dynamics (reset every launch); while
+    // active they stamp through a synthesized disc or square tip inside CanvasWidget.
     canvas->set_brush_dynamics(round_brush_dynamics_);
     canvas->set_brush_base_shape(round_brush_base_angle_degrees_,
                                  static_cast<int>(std::lround(round_brush_base_roundness_)));
     return;
   }
   auto tip = brush_tip_library().tip(active_brush_tip_id_);
+  canvas->set_brush_shape(patchy::BrushShape::Round);
   if (tip == nullptr) {
     canvas->set_brush_tip(nullptr, QString());
     canvas->set_brush_dynamics({});
@@ -827,7 +828,7 @@ void MainWindow::set_active_brush_tip(const QString& tip_id, bool announce,
   if (canvas_) apply_pen_input_settings(canvas_);
   auto effective = tip_id.isEmpty() ? builtin_round_brush_tip_id() : tip_id;
   const auto* entry = brush_tip_library().find_entry(effective);
-  if (effective != builtin_round_brush_tip_id() && entry == nullptr) {
+  if (!is_builtin_brush_tip_id(effective) && entry == nullptr) {
     effective = builtin_round_brush_tip_id();
     entry = nullptr;
   }
@@ -856,15 +857,16 @@ void MainWindow::set_active_brush_tip(const QString& tip_id, bool announce,
     if (entry != nullptr) {
       brush_dynamics_button_->set_active_entry(entry);
     } else {
-      brush_dynamics_button_->set_round_session(builtin_round_brush_tip_id(), round_brush_dynamics_,
+      brush_dynamics_button_->set_round_session(effective, round_brush_dynamics_,
                                                 round_brush_base_angle_degrees_,
                                                 round_brush_base_roundness_);
     }
   }
   schedule_save_tool_settings();
   if (announce) {
-    statusBar()->showMessage(entry != nullptr ? tr("Brush tip: %1").arg(entry->name)
-                                              : tr("Brush tip: Round"));
+    statusBar()->showMessage(entry != nullptr                                  ? tr("Brush tip: %1").arg(entry->name)
+                             : effective == builtin_square_brush_tip_id() ? tr("Brush tip: Square")
+                                                                          : tr("Brush tip: Round"));
   }
 }
 
@@ -1084,6 +1086,7 @@ void MainWindow::set_active_layer_from_selection() {
   // A pure multi-selection change (same active layer) still decides whether
   // Combine Shapes applies.
   refresh_combine_shapes_action_states();
+  refresh_layer_alignment_action_states();
   selection_progress();
   if (layer_list_->currentItem() == nullptr) {
     return;
@@ -1254,14 +1257,27 @@ void MainWindow::set_active_layer_blend(int index) {
     refresh_layer_controls();
     return;
   }
-  const auto ids = selected_or_active_layer_ids();
-  if (ids.empty()) {
-    return;
+  // Stepping through modes with the arrow keys or the wheel is one run and one
+  // undo entry, like an Opacity drag; the run ends after a pause or at the next
+  // history change or layer-control refresh.
+  if (!pending_layer_blend_edit_active_) {
+    if (!has_active_document()) {
+      return;
+    }
+    auto ids = selected_or_active_layer_ids();
+    if (ids.empty()) {
+      return;
+    }
+    push_undo_snapshot(tr("Blend mode"));
+    pending_layer_blend_ids_ = std::move(ids);
+    pending_layer_blend_edit_active_ = true;
+  }
+  if (layer_blend_idle_timer_ != nullptr) {
+    layer_blend_idle_timer_->start();
   }
   auto& doc = document();
-  push_undo_snapshot(tr("Blend mode"));
   Rect affected;
-  for (const auto id : ids) {
+  for (const auto id : pending_layer_blend_ids_) {
     auto* layer = doc.find_layer(id);
     if (layer == nullptr) {
       continue;
@@ -1270,6 +1286,14 @@ void MainWindow::set_active_layer_blend(int index) {
     affected = unite_rect(affected, layer_render_bounds(*layer));
   }
   canvas_->document_changed(to_qrect(affected));
+}
+
+void MainWindow::finish_pending_layer_blend_edit() {
+  if (layer_blend_idle_timer_ != nullptr) {
+    layer_blend_idle_timer_->stop();
+  }
+  pending_layer_blend_ids_.clear();
+  pending_layer_blend_edit_active_ = false;
 }
 
 void MainWindow::set_active_layer_visible(bool visible) {
@@ -1494,6 +1518,9 @@ void MainWindow::choose_text_color() {
     if (editor != nullptr) {
       editor->setProperty("patchy.documentTextColor", color);
       apply_text_color_to_active_editor();
+    } else {
+      // No session when the panel opened: the selected text layers take the color (issue 31).
+      apply_text_color_to_selected_layers_debounced(color);
     }
     refresh_color_buttons();
     statusBar()->showMessage(tr("Text color changed"));
@@ -1990,6 +2017,10 @@ void MainWindow::load_tool_settings() {
   update_vector_swatch_icons();
   canvas_->set_fill_opacity(settings.value(QStringLiteral("tools/fillOpacity"), canvas_->fill_opacity()).toInt());
   canvas_->set_fill_softness(settings.value(QStringLiteral("tools/fillSoftness"), canvas_->fill_softness()).toInt());
+  canvas_->set_fill_tolerance(
+      settings.value(QStringLiteral("tools/fillTolerance"), canvas_->fill_tolerance()).toInt());
+  canvas_->set_fill_contiguous(
+      settings.value(QStringLiteral("tools/fillContiguous"), canvas_->fill_contiguous()).toBool());
   const auto sync_fill_widget = [this](const QString& spin_name, const QString& slider_name, int value) {
     if (auto* spin = findChild<QSpinBox*>(spin_name); spin != nullptr) {
       QSignalBlocker blocker(spin);
@@ -2002,6 +2033,10 @@ void MainWindow::load_tool_settings() {
   };
   sync_fill_widget(QStringLiteral("fillOpacitySpin"), QStringLiteral("fillOpacitySlider"), canvas_->fill_opacity());
   sync_fill_widget(QStringLiteral("fillSoftnessSpin"), QStringLiteral("fillSoftnessSlider"), canvas_->fill_softness());
+  if (auto* spin = findChild<QSpinBox*>(QStringLiteral("fillToleranceSpin")); spin != nullptr) {
+    QSignalBlocker blocker(spin);
+    spin->setValue(canvas_->fill_tolerance());
+  }
   const auto gradient_method = settings.value(QStringLiteral("tools/gradientMethod"),
                                               static_cast<int>(canvas_->gradient_method()))
                                    .toInt();
@@ -2137,6 +2172,8 @@ void MainWindow::save_tool_settings() const {
   }
   settings.setValue(QStringLiteral("tools/fillOpacity"), canvas_->fill_opacity());
   settings.setValue(QStringLiteral("tools/fillSoftness"), canvas_->fill_softness());
+  settings.setValue(QStringLiteral("tools/fillTolerance"), canvas_->fill_tolerance());
+  settings.setValue(QStringLiteral("tools/fillContiguous"), canvas_->fill_contiguous());
   settings.setValue(QStringLiteral("tools/gradientMethod"), static_cast<int>(canvas_->gradient_method()));
   settings.setValue(QStringLiteral("tools/gradientReverse"), canvas_->gradient_reverse());
   settings.setValue(QStringLiteral("tools/gradientOpacity"), canvas_->gradient_opacity());
@@ -2165,6 +2202,8 @@ void MainWindow::stash_active_brush_settings() {
   }
   current_fill_opacity_ = canvas_->fill_opacity();
   current_fill_softness_ = canvas_->fill_softness();
+  current_fill_tolerance_ = canvas_->fill_tolerance();
+  current_fill_contiguous_ = canvas_->fill_contiguous();
   current_quick_select_size_ = canvas_->quick_select_size();
   current_quick_select_sample_all_layers_ = canvas_->quick_select_sample_all_layers();
   current_quick_select_enhance_edge_ = canvas_->quick_select_enhance_edge();
@@ -2425,7 +2464,11 @@ void MainWindow::refresh_options_bar() {
       // pre-initialization state has neither.
       enabled = enabled && brush_dynamics_button_->has_active_tip();
     }
-    widget->setEnabled(enabled);
+    // Buttons that mirror a menu QAction (the Move tool's Align row) take their
+    // enabled state from that action's own refresh, never from the tool row.
+    if (!widget->property("optionsBarMirrorsAction").toBool()) {
+      widget->setEnabled(enabled);
+    }
     // Buttons backed by a default action mirror that action's state, so keep the
     // action in sync too (otherwise it can override the widget flags we just set).
     if (auto* button = qobject_cast<QToolButton*>(widget);
@@ -2485,6 +2528,8 @@ void MainWindow::refresh_options_bar() {
   // The non-modal Character dialog grays out (and shows its click-in-text hint) whenever
   // no live editor session exists; every session boundary funnels through this refresh.
   sync_text_character_dialog_from_editor();
+  // With no session the font, size, face and smoothing controls mirror the active text layer.
+  sync_text_options_from_active_layer();
   if (show_warp_options && warp_style_combo_ != nullptr && warp_bend_spin_ != nullptr) {
     // Mirror the canvas state (a handle drag flips the style back to Custom).
     QSignalBlocker combo_blocker(warp_style_combo_);
@@ -2588,6 +2633,10 @@ void MainWindow::refresh_options_bar() {
     QSignalBlocker blocker(wand_contiguous_check_);
     wand_contiguous_check_->setChecked(canvas_->wand_contiguous());
   }
+  if (fill_contiguous_check_ != nullptr && canvas_ != nullptr) {
+    QSignalBlocker blocker(fill_contiguous_check_);
+    fill_contiguous_check_->setChecked(canvas_->fill_contiguous());
+  }
   if (wand_sample_all_layers_check_ != nullptr && canvas_ != nullptr) {
     QSignalBlocker blocker(wand_sample_all_layers_check_);
     wand_sample_all_layers_check_->setChecked(canvas_->wand_sample_all_layers());
@@ -2607,7 +2656,7 @@ void MainWindow::refresh_options_bar() {
     }
     if (auto* slider = findChild<QSlider*>(QStringLiteral("quickSelectSizeSlider")); slider != nullptr) {
       QSignalBlocker blocker(slider);
-      slider->setValue(canvas_->quick_select_size());
+      set_slider_to_value(*slider, canvas_->quick_select_size());
     }
     if (auto* spin = findChild<QSpinBox*>(QStringLiteral("magneticLassoWidthSpin")); spin != nullptr) {
       QSignalBlocker blocker(spin);
@@ -2710,7 +2759,7 @@ void MainWindow::sync_brush_controls_from_canvas() {
   if (auto* brush_size_slider = findChild<QSlider*>(QStringLiteral("brushSizeSlider"));
       brush_size_slider != nullptr) {
     QSignalBlocker blocker(brush_size_slider);
-    brush_size_slider->setValue(canvas_->brush_size());
+    set_slider_to_value(*brush_size_slider, canvas_->brush_size());
   }
   if (auto* brush_opacity = findChild<QSpinBox*>(QStringLiteral("brushOpacitySpin")); brush_opacity != nullptr) {
     QSignalBlocker blocker(brush_opacity);

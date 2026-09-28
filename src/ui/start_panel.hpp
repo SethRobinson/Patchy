@@ -24,9 +24,10 @@ class StartPanel final : public QWidget {
  public:
   explicit StartPanel(QWidget* parent = nullptr);
 
-  // Replaces the recent list with the first existing files from paths (capped);
-  // the whole Recent section hides when none survive the filter. The typed name
-  // filter, if any, is reapplied to the new list.
+  // Replaces the recent list with the first files from paths (capped; the caller
+  // has already dropped missing ones, and this never touches the disk). The
+  // whole Recent section hides when the list is empty. The typed name filter,
+  // if any, is reapplied to the new list.
   void set_recent_files(const QStringList& paths);
 
   // Footer update-check line; an empty text hides it. MainWindow pushes the

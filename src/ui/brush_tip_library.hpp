@@ -16,9 +16,12 @@
 
 namespace patchy::ui {
 
-// The reserved id of the built-in procedural round brush (no bitmap tip). It is not stored on
-// disk; the picker lists it first and selecting it clears the canvas brush tip.
+// The reserved ids of the built-in procedural brushes (no bitmap tip). They are not stored on
+// disk; the picker lists them first and selecting one clears the canvas brush tip and sets its
+// procedural footprint (core BrushShape). Script identifiers: never change them.
 [[nodiscard]] const QString& builtin_round_brush_tip_id();
+[[nodiscard]] const QString& builtin_square_brush_tip_id();
+[[nodiscard]] bool is_builtin_brush_tip_id(const QString& id);
 
 struct BrushTipEntry {
   QString id;        // storage filename stem (UUID); stable across sessions

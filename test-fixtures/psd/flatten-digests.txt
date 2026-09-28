@@ -1,4 +1,6 @@
 1060fc12b49b796d arrows.psd
+7b0b17b25ffc630d patchy-compound-group.psd
+82b3b2f76a478139 patchy-gradient-empty-transparency.psd
 d416c48ba5c4bc3d patchy-open-path-strokes.psd
 db597474773a16b5 photoshop-bevel-default.psd
 4f9d639a6c4e7af3 photoshop-bevel-gloss.psd
@@ -16,6 +18,7 @@ b7070b9de475b945 photoshop-brightness-contrast-modern.psd
 5eb6a1308b31a4eb photoshop-cmyk-style-colors.psd
 3a35db9013be5915 photoshop-color-balance-full.psd
 3a35db9013be5915 photoshop-color-balance.psd
+c6dfa66168a0e490 photoshop-compound-text.psd
 48484118f51d9c65 photoshop-curves-clipped.psd
 60373566b39eefe5 photoshop-curves-masked.psd
 2621b901bd1dc22d photoshop-emboss-styles.psd
@@ -88,6 +91,12 @@ ad771860686f8ee9 photoshop-stroke-aa-matte.psd
 fa21f1110746d111 photoshop-stroke-partial-alpha.psd
 16835e195f6491ed photoshop-stroke-positions.psd
 17f41a2d949ef82e photoshop-stroke-shapeburst.psd
+9d6ce1e6cb3c5e8b photoshop-text-anchor-center-third.psd
+7c975c5ebf7e2c95 photoshop-text-anchor-center-whole.psd
+535d68f4439f7c79 photoshop-text-anchor-center90-third.psd
+a7930a707a89be19 photoshop-text-anchor-center90-whole.psd
+8e277126dab790bb photoshop-text-anchor-half.psd
+d04a366077fb616d photoshop-text-anchor-whole.psd
 96d7bbc80513c3a1 photoshop-text-box-auto-leading.psd
 05f817208a548c31 photoshop-text-hv-scale.psd
 0aae12782dc13be1 photoshop-text-point-auto-leading.psd

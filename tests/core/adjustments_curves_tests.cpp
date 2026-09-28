@@ -2181,7 +2181,7 @@ void adjustment_posterize_threshold_math_lut_and_metadata_round_trip() {
   // range's edges, threshold at the shared default).
   patchy::FilterRegistry registry;
   patchy::register_builtin_filters(registry);
-  for (const int levels : {2, 4, 16}) {
+  for (const int levels : {2, 4, 16, 17, 255}) {
     auto adjusted = solid_rgb(16, 16, 0, 0, 0);
     auto filtered = solid_rgb(16, 16, 0, 0, 0);
     for (std::int32_t y = 0; y < 16; ++y) {

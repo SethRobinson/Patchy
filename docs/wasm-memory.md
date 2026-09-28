@@ -3,7 +3,7 @@
 Deep reference for wasm memory: how the shared memory is constructed, what
 the in-app numbers mean, the telemetry publisher, the in-app budgets, and
 the open Safari 26 tab-kill investigation. Build, toolchain, and threading
-rules live in [wasm.md](wasm.md); the measurement harness and the studiomac
+rules live in [wasm.md](wasm.md); the measurement harness and the mac-host
 workflow live in [performance.md](performance.md).
 
 ## Construction: the shell page owns the memory
@@ -62,7 +62,7 @@ floor 3 states/session) and the style caches shrink to 96/48 MB under
 
 ## Known issue: Safari 26 kills the tab within minutes (August 2026)
 
-Measured on studiomac (macOS 26.3.1, Safari 26.x) with the memtest harness
+Measured on the mac build host (macOS 26.3.1, Safari 26.x) with the memtest harness
 (see [performance.md](performance.md)): the app's WebContent process grows
 about 150 MB/s at IDLE with 400-1200% CPU and is killed by WebKit at
 roughly 2.5 minutes (footprint plateaued at 16 GB, ps rss reached 24 GB).

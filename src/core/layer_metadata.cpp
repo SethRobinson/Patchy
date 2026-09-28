@@ -271,7 +271,10 @@ std::optional<LayerAffineTransform> parse_layer_affine_transform(std::string_vie
 
 std::string serialize_layer_affine_transform(const LayerAffineTransform& transform) {
   std::ostringstream stream;
-  stream << std::setprecision(12);
+  // 17 significant digits round-trip every finite double, the same precision the PSD
+  // reader uses for the imported copy (psd_io_internal.hpp), so Photoshop's fractional
+  // anchors survive a move or a re-save without drifting.
+  stream << std::setprecision(17);
   for (std::size_t i = 0; i < transform.size(); ++i) {
     if (i != 0U) {
       stream << ' ';

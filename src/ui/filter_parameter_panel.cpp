@@ -273,17 +273,16 @@ void FilterParameterPanel::rebuild(const FilterDialogSpec& spec,
     } else {
       auto* spin = new QSpinBox(container);
       spin->setObjectName(control.object_name + QStringLiteral("Spin"));
+      // The slider covers the practical range; the spin box always accepts
+      // the full typed range (a typed 500 px blur must not clamp to the
+      // slider's end).
       slider->setRange(control.minimum, control.maximum);
-      if (options.integer_spin_uses_typed_range) {
-        const auto typed_minimum = static_cast<int>(
-            std::lround(control.typed_minimum.value_or(control.minimum)));
-        const auto typed_maximum = static_cast<int>(
-            std::lround(control.typed_maximum.value_or(control.maximum)));
-        spin->setRange(std::min(typed_minimum, typed_maximum),
-                       std::max(typed_minimum, typed_maximum));
-      } else {
-        spin->setRange(control.minimum, control.maximum);
-      }
+      const auto typed_minimum = static_cast<int>(
+          std::lround(control.typed_minimum.value_or(control.minimum)));
+      const auto typed_maximum = static_cast<int>(
+          std::lround(control.typed_maximum.value_or(control.maximum)));
+      spin->setRange(std::min(typed_minimum, typed_maximum),
+                     std::max(typed_minimum, typed_maximum));
       const auto number = std::clamp(
           static_cast<int>(std::lround(
               numeric_filter_value(initial_value, control.value))),

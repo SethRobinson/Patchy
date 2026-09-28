@@ -1,4 +1,5 @@
 #include "ui/canvas_widget.hpp"
+#include "ui/main_window_shared.hpp"
 #include "ui/qt_paths.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/contour_presets.hpp"
@@ -53,6 +54,7 @@
 #include "ui/localization.hpp"
 #include "ui/main_window.hpp"
 #include "ui/print_dialog.hpp"
+#include "ui/script_engine.hpp"
 #include "ui/selection_outline.hpp"
 #include "ui/sprite_sheet_dialog.hpp"
 #include "ui/splash_dialog.hpp"
@@ -531,6 +533,8 @@ struct PhotoshopTextCommitProbe {
   patchy::Rect committed_ink;
   double committed_mid_alpha_fraction{0.0};
   int committed_box_width_metadata{0};
+  std::optional<patchy::Layer> committed_layer;  // the re-rendered layer, for pixel and PSD checks
+  std::optional<patchy::Layer> original_layer;   // Photoshop's stored raster, for column comparisons
 };
 
 // `required_family` (optional) is the face the caller's tolerances were measured against: the
@@ -542,7 +546,8 @@ std::optional<PhotoshopTextCommitProbe> run_photoshop_text_commit_probe(const st
                                                                         double zoom,
                                                                         const char* artifact_name,
                                                                         const char* required_family = nullptr,
-                                                                        int commit_cycles = 1) {
+                                                                        int commit_cycles = 1,
+                                                                        bool edit_and_restore = false) {
   auto document = patchy::psd::DocumentIo::read_file(path);
   patchy::LayerId layer_id = 0;
   bool found = false;
@@ -600,6 +605,7 @@ std::optional<PhotoshopTextCommitProbe> run_photoshop_text_commit_probe(const st
   probe.original_ink = patchy::Rect{original->bounds().x + original_visible->left(),
                                     original->bounds().y + original_visible->top(),
                                     original_visible->width(), original_visible->height()};
+  probe.original_layer = *original;
 
   for (int cycle = 0; cycle < commit_cycles; ++cycle) {
     auto* live_layer = live_document.find_layer(layer_id);
@@ -610,7 +616,10 @@ std::optional<PhotoshopTextCommitProbe> run_photoshop_text_commit_probe(const st
     const auto bounds_now = live_layer->bounds();
     live_document.set_active_layer(layer_id);
     require_action_by_text(window, QStringLiteral("Type"))->trigger();
-    const QPoint click_doc(bounds_now.x + bounds_now.width / 2, bounds_now.y + 12);
+    // Stay inside short layers: a 12 px heading ends at y + 11, and the widget
+    // round trip at a fractional pan can land one row low, which turns the
+    // click into a new text layer instead of a re-edit.
+    const QPoint click_doc(bounds_now.x + bounds_now.width / 2, bounds_now.y + std::min(12, bounds_now.height / 2));
     const auto hit_point = canvas->widget_position_for_document_point(click_doc);
     accept_missing_psd_text_font_warning_if_present();
     send_mouse(*canvas, QEvent::MouseButtonPress, hit_point, Qt::LeftButton, Qt::LeftButton);
@@ -625,6 +634,20 @@ std::optional<PhotoshopTextCommitProbe> run_photoshop_text_commit_probe(const st
     // The canvas activates the TOPMOST text layer under the click (Photoshop-style), which may
     // not be the probed layer when text layers overlap -- keep the probes on unoccluded layers.
     CHECK(editor->property("patchy.editingLayerId").toULongLong() == static_cast<qulonglong>(layer_id));
+    if (edit_and_restore) {
+      // A real edit that ends with the original text: the session is "changed", so the commit
+      // takes the edited path rather than the unchanged apply.
+      auto cursor = editor->textCursor();
+      cursor.movePosition(QTextCursor::End);
+      cursor.insertText(QStringLiteral("x"));
+      editor->setTextCursor(cursor);
+      QApplication::processEvents();
+      process_events_for(150);
+      cursor.deletePreviousChar();
+      editor->setTextCursor(cursor);
+      QApplication::processEvents();
+      process_events_for(150);
+    }
     // Applying the unchanged session commits Patchy's own render of the layer (point text shows
     // the live layout from entry; see commit_text_editor).
     require_action_by_text(window, QStringLiteral("Move"))->trigger();
@@ -666,6 +689,7 @@ std::optional<PhotoshopTextCommitProbe> run_photoshop_text_commit_probe(const st
       width_value != committed->metadata().end()) {
     probe.committed_box_width_metadata = std::atoi(width_value->second.c_str());
   }
+  probe.committed_layer = *committed;
   save_widget_artifact(artifact_name, *canvas);
   return probe;
 }
@@ -1124,6 +1148,129 @@ void ui_restaurant_menu_other_layers_commit_match_if_available() {
   }
 }
 
+// photoshop-text-anchor-center{,90}-{whole,third}.psd: PS 27.9 point text "Hg" (Arial 48 px,
+// Sharp) CENTERED on anchor x 100.0 and 100.3, unscaled and under a 0.9 transform. Photoshop
+// rounds each line's START (the anchor minus the justification offset), not the anchor: the
+// centered raster moves one column for the .3 fraction (72 -> 73 unscaled, 75 -> 76 scaled)
+// while the left-aligned whole/half fixtures do not (docs/text-render-calibration.md, "Pixel
+// grid"). Rounding the anchor drew both members of a pair identically, so the pair deltas are the
+// sharp check; the absolute columns keep Patchy on Photoshop's ink within the usual pixel.
+void ui_psd_centered_text_commit_rounds_line_start_like_photoshop() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  struct Case {
+    const char* fixture;
+    const char* artifact;
+    int photoshop_left;
+  };
+  const std::array<Case, 4> cases{{
+      {"photoshop-text-anchor-center-whole.psd", "ui_psd_center_anchor_whole_commit", 72},
+      {"photoshop-text-anchor-center-third.psd", "ui_psd_center_anchor_third_commit", 73},
+      {"photoshop-text-anchor-center90-whole.psd", "ui_psd_center90_anchor_whole_commit", 75},
+      {"photoshop-text-anchor-center90-third.psd", "ui_psd_center90_anchor_third_commit", 76},
+  }};
+  std::array<std::optional<int>, 4> committed_left;
+  for (std::size_t i = 0; i < cases.size(); ++i) {
+    const auto& entry = cases[i];
+    const auto probe = run_photoshop_text_commit_probe(patchy::test::committed_psd_fixture_path(entry.fixture), "Hg",
+                                                       1.0, entry.artifact, "Arial");
+    if (!probe.has_value()) {
+      return;
+    }
+    std::printf("  %-44s photoshop ink (%d,%d %dx%d) -> patchy ink (%d,%d %dx%d)\n", entry.fixture,
+                probe->original_ink.x, probe->original_ink.y, probe->original_ink.width, probe->original_ink.height,
+                probe->committed_ink.x, probe->committed_ink.y, probe->committed_ink.width,
+                probe->committed_ink.height);
+    std::fflush(stdout);
+    CHECK(probe->original_ink.x == entry.photoshop_left);
+    CHECK(std::abs(probe->committed_ink.x - probe->original_ink.x) <= 1);
+    CHECK(std::abs(probe->committed_ink.width - probe->original_ink.width) <= 1);
+    committed_left[i] = probe->committed_ink.x;
+  }
+  // The .3 member of each pair sits one column right of its whole-pixel sibling, as in Photoshop.
+  if (committed_left[0].has_value() && committed_left[1].has_value()) {
+    CHECK(*committed_left[1] - *committed_left[0] == 1);
+  }
+  if (committed_left[2].has_value() && committed_left[3].has_value()) {
+    CHECK(*committed_left[3] - *committed_left[2] == 1);
+  }
+}
+
+// Document-space columns where the layer's ink reaches at least half alpha: the first and last
+// are the crisp left and right edges of the raster, immune to the antialiased fringe.
+std::optional<std::pair<int, int>> half_alpha_column_span(const patchy::Layer& layer) {
+  const auto& pixels = layer.pixels();
+  const auto channels = pixels.format().channels;
+  if (pixels.empty() || (channels != 1U && channels < 4U)) {
+    return std::nullopt;
+  }
+  const auto alpha_channel = channels == 1U ? 0U : 3U;
+  int left = -1;
+  int right = -1;
+  for (std::int32_t x = 0; x < pixels.width(); ++x) {
+    bool inked = false;
+    for (std::int32_t y = 0; y < pixels.height() && !inked; ++y) {
+      inked = pixels.pixel(x, y)[alpha_channel] >= 128;
+    }
+    if (inked) {
+      if (left < 0) {
+        left = x;
+      }
+      right = x;
+    }
+  }
+  if (left < 0) {
+    return std::nullopt;
+  }
+  return std::make_pair(layer.bounds().x + left, layer.bounds().x + right);
+}
+
+// photoshop-text-anchor-{whole,half}.psd: PS 27.9 point text "Hg" (Arial 48 px, Sharp), left
+// aligned at x 100.0 and 100.5. Photoshop rounds EACH glyph's absolute x to a whole pixel, so
+// the half capture moves the H one column right while the g stays put (100.5 + 34.67 = 135.17
+// rounds to the same 135 as 134.67). A line-level shift moved both. The re-rendered rasters must
+// keep Photoshop's crisp edges exactly, and the pair must show the same asymmetry: left edge +1,
+// right edge +0 (docs/text-render-calibration.md, "Pixel grid").
+void ui_psd_left_text_commit_rounds_each_glyph_like_photoshop() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  struct Case {
+    const char* fixture;
+    const char* artifact;
+  };
+  const std::array<Case, 2> cases{{
+      {"photoshop-text-anchor-whole.psd", "ui_psd_left_anchor_whole_commit"},
+      {"photoshop-text-anchor-half.psd", "ui_psd_left_anchor_half_commit"},
+  }};
+  std::array<std::optional<std::pair<int, int>>, 2> photoshop_span;
+  std::array<std::optional<std::pair<int, int>>, 2> committed_span;
+  for (std::size_t i = 0; i < cases.size(); ++i) {
+    const auto& entry = cases[i];
+    const auto probe = run_photoshop_text_commit_probe(patchy::test::committed_psd_fixture_path(entry.fixture), "Hg",
+                                                       1.0, entry.artifact, "Arial");
+    if (!probe.has_value() || !probe->original_layer.has_value() || !probe->committed_layer.has_value()) {
+      return;
+    }
+    photoshop_span[i] = half_alpha_column_span(*probe->original_layer);
+    committed_span[i] = half_alpha_column_span(*probe->committed_layer);
+    CHECK(photoshop_span[i].has_value() && committed_span[i].has_value());
+    if (!photoshop_span[i].has_value() || !committed_span[i].has_value()) {
+      return;
+    }
+    std::printf("  %-34s photoshop half-alpha columns %d..%d -> patchy %d..%d\n", entry.fixture,
+                photoshop_span[i]->first, photoshop_span[i]->second, committed_span[i]->first,
+                committed_span[i]->second);
+    std::fflush(stdout);
+    // Each edge within a pixel of Photoshop's on every font engine (CoreText draws Arial's g a
+    // column wider than DirectWrite at 48 px); the pair deltas below are the sharp check.
+    CHECK(std::abs(committed_span[i]->first - photoshop_span[i]->first) <= 1);
+    CHECK(std::abs(committed_span[i]->second - photoshop_span[i]->second) <= 1);
+  }
+  // The H (left edge) moves a column for the half-pixel anchor; the g (right edge) does not.
+  CHECK(photoshop_span[1]->first - photoshop_span[0]->first == 1);
+  CHECK(photoshop_span[1]->second - photoshop_span[0]->second == 0);
+  CHECK(committed_span[1]->first - committed_span[0]->first == 1);
+  CHECK(committed_span[1]->second - committed_span[0]->second == 0);
+}
+
 // Dungeon Scroll's Game_Screen.psd, the reported repro: point text authored in a much older
 // Photoshop, every button under a 0.9 free-transform, headings on the identity transform.
 // Editing a layer used to move it, and the two named causes are pinned here:
@@ -1179,8 +1326,23 @@ void ui_dungeon_scroll_psd_text_commit_keeps_placement_if_available() {
                 probe->committed_ink.height - probe->original_ink.height);
     std::fflush(stdout);
     // Width is the sharp signal: the real Bold Italic face ran +5px on 'Dungeon:', and the
-    // rounded-down 16px size ran -1/-2px on the 16.2px buttons.
-    CHECK(std::abs(probe->committed_ink.width - probe->original_ink.width) <= 1);
+    // rounded-down 16px size ran -1/-2px on the 16.2px buttons. The half-alpha edges are the
+    // crisp measure: this CS-era file's raster is a heavier antialiasing than Qt's, and the
+    // faint (alpha 12) extent also counted the smear of a glyph drawn at a fractional position,
+    // which the per-glyph pixel rounding removed ('Submit word' went 102 -> 101 against 103).
+    if (probe->original_layer.has_value() && probe->committed_layer.has_value()) {
+      const auto photoshop_span = half_alpha_column_span(*probe->original_layer);
+      const auto committed_span = half_alpha_column_span(*probe->committed_layer);
+      CHECK(photoshop_span.has_value() && committed_span.has_value());
+      if (photoshop_span.has_value() && committed_span.has_value()) {
+        std::printf("  %-12s half-alpha columns photoshop %d..%d -> patchy %d..%d\n", entry.needle,
+                    photoshop_span->first, photoshop_span->second, committed_span->first, committed_span->second);
+        std::fflush(stdout);
+        CHECK(std::abs(committed_span->first - photoshop_span->first) <= 1);
+        CHECK(std::abs(committed_span->second - photoshop_span->second) <= 1);
+      }
+    }
+    CHECK(std::abs(probe->committed_ink.width - probe->original_ink.width) <= 2);
     CHECK(std::abs(probe->committed_ink.height - probe->original_ink.height) <= 1);
     CHECK(std::abs(probe->committed_ink.x - probe->original_ink.x) <= 1);
     CHECK(std::abs(probe->committed_ink.y - probe->original_ink.y) <= 1);
@@ -1219,6 +1381,591 @@ void ui_dungeon_scroll_psd_text_commit_keeps_placement_if_available() {
       };
   inspect(document.layers());
   CHECK(checked_faux_bold);
+}
+
+// Issue 20, the reporter's own file ("La methode.psd" in Balmoral LET Plain; both live only in
+// the gitignored local fixtures, so this skips elsewhere). A connected script face: most glyphs
+// start LEFT of the pen (the "\xc3\xa9" by 9 px at this 1011 px size) and the last one overruns its
+// advance. The re-render used to clip that ink at the buffer edge, and the ink-to-ink anchoring
+// then slid the whole layer left by the clipped amount on an unchanged apply (the "\xc3\xa9" ended in
+// a hard vertical cut and hid behind the "M"). Photoshop's stored rasters are the reference:
+// (793.998, 700.075) and (1634.951, 709.961) are its anchors, so its rounded line starts are
+// (794, 700) and (1635, 710).
+void ui_la_methode_psd_text_commit_keeps_glyph_overhang_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("La methode.psd");
+  if (!std::filesystem::exists(path)) {
+    return;
+  }
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::BalmoralLet);
+  if (!QFontDatabase::hasFamily(QStringLiteral("Balmoral LET"))) {
+    std::printf("[SKIP] Balmoral LET Plain.ttf is not in local-test-fixtures/fonts\n");
+    return;
+  }
+  // The reader names the face through DirectWrite only when the font is installed system-wide;
+  // as an application font it falls to the PostScript-name heuristic ("Balmoral Let Plain"),
+  // which the renderer resolves as family "Balmoral Let" + style "Plain". Either way the layer
+  // must draw with the real face or the tolerances below mean nothing.
+  {
+    const auto document = patchy::psd::DocumentIo::read_file(path);
+    bool checked = false;
+    for (const auto& layer : document.layers()) {
+      if (const auto font = layer.metadata().find(patchy::kLayerMetadataTextFont); font != layer.metadata().end()) {
+        const auto missing = patchy::ui::missing_text_families_for_layer(layer);
+        std::printf("  layer \"%s\": font \"%s\"%s\n", layer.name().c_str(), font->second.c_str(),
+                    missing.isEmpty() ? "" : " (MISSING here)");
+        if (!missing.isEmpty()) {
+          std::printf("[SKIP] the fixture's face does not resolve on this machine\n");
+          return;
+        }
+        checked = true;
+      }
+    }
+    CHECK(checked);
+  }
+  struct Probe {
+    const char* needle;
+    const char* artifact;
+    double photoshop_tx;
+    double photoshop_ty;
+  };
+  const std::array<Probe, 2> probes{{
+      {"thode", "ui_la_methode_ethode_commit", 1635.0, 710.0},
+      {"M", "ui_la_methode_m_commit", 794.0, 700.0},
+  }};
+  for (const auto& entry : probes) {
+    const auto probe =
+        run_photoshop_text_commit_probe(path, entry.needle, 0.25, entry.artifact, nullptr, /*commit_cycles*/ 2);
+    if (!probe.has_value()) {
+      continue;
+    }
+    std::printf("  %-6s photoshop ink (%d,%d %dx%d) -> patchy ink (%d,%d %dx%d)  d=(%+d,%+d) dsize=(%+d,%+d)\n",
+                entry.needle, probe->original_ink.x, probe->original_ink.y, probe->original_ink.width,
+                probe->original_ink.height, probe->committed_ink.x, probe->committed_ink.y,
+                probe->committed_ink.width, probe->committed_ink.height,
+                probe->committed_ink.x - probe->original_ink.x, probe->committed_ink.y - probe->original_ink.y,
+                probe->committed_ink.width - probe->original_ink.width,
+                probe->committed_ink.height - probe->original_ink.height);
+    std::fflush(stdout);
+    // Position within a pixel of Photoshop. Size: the whole-percent stretch (H/V 0.96/0.93 is
+    // 103.2%, QFont::setStretch takes 103) and the whole-pixel size (1086.61 x 0.93 = 1010.55)
+    // both leave their remainder in the render matrix (dominant_run_width_residual and the fold
+    // in build_text_render_plan), so DirectWrite lands the "M" at exactly 965x697; the 3 px
+    // allowance is for the other font engines' own rounding.
+    CHECK(std::abs(probe->committed_ink.x - probe->original_ink.x) <= 1);
+    CHECK(std::abs(probe->committed_ink.y - probe->original_ink.y) <= 1);
+    CHECK(std::abs(probe->committed_ink.width - probe->original_ink.width) <= 3);
+    CHECK(std::abs(probe->committed_ink.height - probe->original_ink.height) <= 3);
+    // The second unchanged apply reproduces the first.
+    CHECK(probe->cycle_bands.size() == 2U);
+    if (probe->cycle_bands.size() == 2U) {
+      const auto& first = probe->cycle_bands[0];
+      const auto& second = probe->cycle_bands[1];
+      CHECK(first.size() == second.size());
+      for (std::size_t index = 0; index < std::min(first.size(), second.size()); ++index) {
+        CHECK(first[index].top == second[index].top && first[index].bottom == second[index].bottom);
+      }
+    }
+    CHECK(probe->committed_layer.has_value());
+    if (!probe->committed_layer.has_value()) {
+      continue;
+    }
+    // Nothing was cut off: the raster keeps a clear margin on every side.
+    CHECK(pixel_buffer_border_is_clear(probe->committed_layer->pixels()));
+    // The saved TySh anchors the layer at Photoshop's own rounded pen (tx) and baseline (ty),
+    // not at the buffer corner that now sits left of the pen.
+    patchy::Document saved(3529, 924, patchy::PixelFormat::rgba8());
+    saved.add_layer(*probe->committed_layer);
+    const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(saved);
+    const auto transforms = tysh_transforms_in_psd(bytes);
+    CHECK(transforms.size() == 1U);
+    if (!transforms.empty()) {
+      std::printf("  %-6s saved TySh anchor (%.3f, %.3f), photoshop (%.0f, %.0f)\n", entry.needle, transforms[0][4],
+                  transforms[0][5], entry.photoshop_tx, entry.photoshop_ty);
+      std::fflush(stdout);
+      CHECK(std::abs(transforms[0][4] - entry.photoshop_tx) <= 1.0);
+      CHECK(std::abs(transforms[0][5] - entry.photoshop_ty) <= 1.0);
+    }
+  }
+}
+
+// The committed raster must not depend on how the session was viewed or driven: the editor works
+// in screen units at the canvas zoom and converts back, and an edit that ends with the original
+// text takes the "changed" commit path. Every variant must reproduce the unchanged apply at 100%
+// byte for byte (a fractional zoom like the reporter's 223.84% is where a rounding slip shows).
+void ui_la_methode_psd_text_commit_is_zoom_and_edit_independent_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("La methode.psd");
+  if (!std::filesystem::exists(path)) {
+    return;
+  }
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::BalmoralLet);
+  if (!QFontDatabase::hasFamily(QStringLiteral("Balmoral LET"))) {
+    std::printf("[SKIP] Balmoral LET Plain.ttf is not in local-test-fixtures/fonts\n");
+    return;
+  }
+  {
+    const auto document = patchy::psd::DocumentIo::read_file(path);
+    for (const auto& layer : document.layers()) {
+      if (layer.metadata().contains(patchy::kLayerMetadataTextFont) &&
+          !patchy::ui::missing_text_families_for_layer(layer).isEmpty()) {
+        std::printf("[SKIP] the fixture's face does not resolve on this machine\n");
+        return;
+      }
+    }
+  }
+  const auto same_pixels = [](const patchy::Layer& a, const patchy::Layer& b) {
+    if (a.bounds().x != b.bounds().x || a.bounds().y != b.bounds().y || a.pixels().width() != b.pixels().width() ||
+        a.pixels().height() != b.pixels().height() || a.pixels().format().channels != b.pixels().format().channels) {
+      return false;
+    }
+    const auto row_bytes = static_cast<std::size_t>(a.pixels().width()) * a.pixels().format().channels;
+    for (std::int32_t y = 0; y < a.pixels().height(); ++y) {
+      if (std::memcmp(a.pixels().pixel(0, y), b.pixels().pixel(0, y), row_bytes) != 0) {
+        return false;
+      }
+    }
+    return true;
+  };
+  const auto reference =
+      run_photoshop_text_commit_probe(path, "thode", 1.0, "ui_la_methode_ethode_zoom_reference");
+  if (!reference.has_value() || !reference->committed_layer.has_value()) {
+    return;
+  }
+  struct Variant {
+    const char* label;
+    double zoom;
+    bool edit_and_restore;
+  };
+  const std::array<Variant, 4> variants{{
+      {"zoom 25%", 0.25, false},
+      {"zoom 223.84%", 2.2384, false},
+      {"zoom 337.5%", 3.375, false},
+      {"edit and restore at 100%", 1.0, true},
+  }};
+  for (const auto& variant : variants) {
+    const auto probe = run_photoshop_text_commit_probe(path, "thode", variant.zoom, "ui_la_methode_ethode_zoom_variant",
+                                                       nullptr, 1, variant.edit_and_restore);
+    if (!probe.has_value() || !probe->committed_layer.has_value()) {
+      continue;
+    }
+    const bool identical = same_pixels(*reference->committed_layer, *probe->committed_layer);
+    std::printf("  %-26s ink (%d,%d %dx%d) bounds (%d,%d %dx%d)%s\n", variant.label, probe->committed_ink.x,
+                probe->committed_ink.y, probe->committed_ink.width, probe->committed_ink.height,
+                probe->committed_layer->bounds().x, probe->committed_layer->bounds().y,
+                probe->committed_layer->pixels().width(), probe->committed_layer->pixels().height(),
+                identical ? "" : "  DIFFERS from the 100% unchanged apply");
+    std::fflush(stdout);
+    CHECK(identical);
+  }
+}
+
+// The LIVE preview while the session is open, not only the commit: issue 20 was first reported as
+// "the text shifts as soon as I enter edit mode". At the reporter's fractional zoom the baked
+// preview that replaces Photoshop's raster must sit on Photoshop's ink, before and after a real
+// edit that ends with the original text.
+void ui_la_methode_psd_text_preview_sits_on_photoshop_ink_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("La methode.psd");
+  if (!std::filesystem::exists(path)) {
+    return;
+  }
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::BalmoralLet);
+  if (!QFontDatabase::hasFamily(QStringLiteral("Balmoral LET"))) {
+    std::printf("[SKIP] Balmoral LET Plain.ttf is not in local-test-fixtures/fonts\n");
+    return;
+  }
+  auto document = patchy::psd::DocumentIo::read_file(path);
+  patchy::LayerId layer_id = 0;
+  for (const auto& layer : std::as_const(document).layers()) {
+    if (layer.metadata().contains(patchy::kLayerMetadataTextFont) &&
+        !patchy::ui::missing_text_families_for_layer(layer).isEmpty()) {
+      std::printf("[SKIP] the fixture's face does not resolve on this machine\n");
+      return;
+    }
+    if (const auto it = layer.metadata().find(patchy::kLayerMetadataText);
+        it != layer.metadata().end() && it->second.find("thode") != std::string::npos) {
+      layer_id = layer.id();
+    }
+  }
+  CHECK(layer_id != 0);
+  if (layer_id == 0) {
+    return;
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("La methode preview"));
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(2.2384);
+  QApplication::processEvents();
+  auto& live_document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* original = live_document.find_layer(layer_id);
+  CHECK(original != nullptr);
+  if (original == nullptr) {
+    return;
+  }
+  const patchy::Layer photoshop = *original;
+  const auto photoshop_visible = alpha_pixel_bounds_in_rows(photoshop.pixels(), 0, photoshop.pixels().height());
+  const auto photoshop_span = half_alpha_column_span(photoshop);
+  CHECK(photoshop_visible.has_value() && photoshop_span.has_value());
+  if (!photoshop_visible.has_value() || !photoshop_span.has_value()) {
+    return;
+  }
+
+  live_document.set_active_layer(layer_id);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto bounds = photoshop.bounds();
+  const QPoint click_doc(bounds.x + bounds.width / 2, bounds.y + std::min(12, bounds.height / 2));
+  const auto hit_point = canvas->widget_position_for_document_point(click_doc);
+  accept_missing_psd_text_font_warning_if_present();
+  send_mouse(*canvas, QEvent::MouseButtonPress, hit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, hit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  process_events_for(600);
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+  CHECK(editor->property("patchy.editingLayerId").toULongLong() == static_cast<qulonglong>(layer_id));
+
+  const auto compare = [&](const char* label) {
+    auto* preview = preview_layer_for_editor(live_document, *editor);
+    if (preview == nullptr) {
+      std::printf("  %-22s no baked preview layer (Photoshop's raster stays on screen)\n", label);
+      std::fflush(stdout);
+      return;
+    }
+    const auto visible = alpha_pixel_bounds_in_rows(preview->pixels(), 0, preview->pixels().height());
+    const auto span = half_alpha_column_span(*preview);
+    CHECK(visible.has_value() && span.has_value());
+    if (!visible.has_value() || !span.has_value()) {
+      return;
+    }
+    const int ink_x = preview->bounds().x + visible->left();
+    const int ink_y = preview->bounds().y + visible->top();
+    const int photoshop_x = photoshop.bounds().x + photoshop_visible->left();
+    const int photoshop_y = photoshop.bounds().y + photoshop_visible->top();
+    std::printf("  %-22s photoshop ink (%d,%d %dx%d) half-alpha %d..%d -> preview ink (%d,%d %dx%d) half-alpha %d..%d\n",
+                label, photoshop_x, photoshop_y, photoshop_visible->width(), photoshop_visible->height(),
+                photoshop_span->first, photoshop_span->second, ink_x, ink_y, visible->width(), visible->height(),
+                span->first, span->second);
+    std::fflush(stdout);
+    CHECK(std::abs(ink_x - photoshop_x) <= 1);
+    CHECK(std::abs(ink_y - photoshop_y) <= 1);
+    CHECK(std::abs(visible->width() - photoshop_visible->width()) <= 1);
+    CHECK(std::abs(visible->height() - photoshop_visible->height()) <= 1);
+    CHECK(std::abs(span->first - photoshop_span->first) <= 1);
+    CHECK(std::abs(span->second - photoshop_span->second) <= 1);
+  };
+  compare("on entry");
+
+  auto cursor = editor->textCursor();
+  cursor.movePosition(QTextCursor::End);
+  cursor.insertText(QStringLiteral("x"));
+  editor->setTextCursor(cursor);
+  QApplication::processEvents();
+  process_events_for(400);
+  cursor.deletePreviousChar();
+  editor->setTextCursor(cursor);
+  QApplication::processEvents();
+  process_events_for(600);
+  compare("after edit + restore");
+  save_widget_artifact("ui_la_methode_ethode_preview", *canvas);
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  process_events_for(200);
+}
+
+patchy::Rect live_document_layer_bounds_for_scroll(patchy::ui::MainWindow& window, patchy::LayerId layer_id) {
+  const auto* layer = patchy::ui::MainWindowTestAccess::document(window).find_layer(layer_id);
+  return layer != nullptr ? layer->bounds() : patchy::Rect{};
+}
+
+// The reporter's own flow at 223.84%: the view scrolled onto the word, the layer's transparency
+// loaded as a selection (its marching ants are the reference he compares against), the Type tool
+// clicked on the first glyph rather than the layer centre, and the unchanged session applied with
+// the Move tool. The preview during the session and the committed raster must both sit on
+// Photoshop's ink, and the selection must survive the edit untouched.
+void ui_la_methode_psd_text_commit_scrolled_with_selection_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("La methode.psd");
+  if (!std::filesystem::exists(path)) {
+    return;
+  }
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::BalmoralLet);
+  if (!QFontDatabase::hasFamily(QStringLiteral("Balmoral LET"))) {
+    std::printf("[SKIP] Balmoral LET Plain.ttf is not in local-test-fixtures/fonts\n");
+    return;
+  }
+  auto document = patchy::psd::DocumentIo::read_file(path);
+  patchy::LayerId layer_id = 0;
+  for (const auto& layer : std::as_const(document).layers()) {
+    if (layer.metadata().contains(patchy::kLayerMetadataTextFont) &&
+        !patchy::ui::missing_text_families_for_layer(layer).isEmpty()) {
+      std::printf("[SKIP] the fixture's face does not resolve on this machine\n");
+      return;
+    }
+    if (const auto it = layer.metadata().find(patchy::kLayerMetadataText);
+        it != layer.metadata().end() && it->second.find("thode") != std::string::npos) {
+      layer_id = layer.id();
+    }
+  }
+  CHECK(layer_id != 0);
+  if (layer_id == 0) {
+    return;
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.resize(1400, 900);
+  window.add_document_session(std::move(document), QStringLiteral("La methode scrolled"));
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(2.2384);
+  QApplication::processEvents();
+  auto* horizontal = canvas->findChild<QScrollBar*>(QStringLiteral("canvasHorizontalScrollBar"));
+  auto* vertical = canvas->findChild<QScrollBar*>(QStringLiteral("canvasVerticalScrollBar"));
+  CHECK(horizontal != nullptr && vertical != nullptr);
+  if (horizontal == nullptr || vertical == nullptr) {
+    return;
+  }
+  // Roughly the reporter's screenshot: the "\xc3\xa9tho" part of the word fills the view, with
+  // the accent of the first glyph a third of the way in from the left edge.
+  {
+    const auto text_bounds = live_document_layer_bounds_for_scroll(window, layer_id);
+    const QPointF focus(text_bounds.x + 70.0, text_bounds.y + text_bounds.height * 0.55);
+    const auto at = canvas->widget_position_f(focus);
+    horizontal->setValue(horizontal->value() + static_cast<int>(std::lround(at.x() - canvas->width() / 3.0)));
+    vertical->setValue(vertical->value() + static_cast<int>(std::lround(at.y() - canvas->height() / 2.0)));
+    QApplication::processEvents();
+    process_events_for(100);
+  }
+  auto& live_document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* original = live_document.find_layer(layer_id);
+  CHECK(original != nullptr);
+  if (original == nullptr) {
+    return;
+  }
+  const patchy::Layer photoshop = *original;
+  const auto photoshop_visible = alpha_pixel_bounds_in_rows(photoshop.pixels(), 0, photoshop.pixels().height());
+  const auto photoshop_span = half_alpha_column_span(photoshop);
+  CHECK(photoshop_visible.has_value() && photoshop_span.has_value());
+  if (!photoshop_visible.has_value() || !photoshop_span.has_value()) {
+    return;
+  }
+  const int photoshop_x = photoshop.bounds().x + photoshop_visible->left();
+  const int photoshop_y = photoshop.bounds().y + photoshop_visible->top();
+
+  live_document.set_active_layer(layer_id);
+  require_action_by_text(window, QStringLiteral("Load Layer Transparency"))->trigger();
+  QApplication::processEvents();
+  process_events_for(100);
+  CHECK(canvas->has_selection());
+  const auto selection_before = canvas->selected_document_region();
+  // A 2 px black stroke of that selection on a new layer: the outline the reporter compares the
+  // re-rendered glyphs against (his "Layer 3").
+  require_action_by_text(window, QStringLiteral("New Layer"))->trigger();
+  QApplication::processEvents();
+  process_events_for(100);
+  const auto stroke_layer_id = live_document.active_layer_id();
+  CHECK(stroke_layer_id.has_value() && *stroke_layer_id != layer_id);
+  accept_stroke_selection_dialog(2, QStringLiteral("center"), QColor(Qt::black));
+  require_action_by_text(window, QStringLiteral("Stroke Selection..."))->trigger();
+  QApplication::processEvents();
+  process_events_for(300);
+  if (stroke_layer_id.has_value()) {
+    auto* stroke_layer = live_document.find_layer(*stroke_layer_id);
+    CHECK(stroke_layer != nullptr && !stroke_layer->pixels().empty());
+  }
+  live_document.set_active_layer(layer_id);
+
+  const auto report = [&](const char* label, const patchy::Layer& layer) {
+    const auto visible = alpha_pixel_bounds_in_rows(layer.pixels(), 0, layer.pixels().height());
+    const auto span = half_alpha_column_span(layer);
+    CHECK(visible.has_value() && span.has_value());
+    if (!visible.has_value() || !span.has_value()) {
+      return;
+    }
+    const int ink_x = layer.bounds().x + visible->left();
+    const int ink_y = layer.bounds().y + visible->top();
+    std::printf("  %-22s photoshop ink (%d,%d %dx%d) half-alpha %d..%d -> patchy ink (%d,%d %dx%d) half-alpha %d..%d\n",
+                label, photoshop_x, photoshop_y, photoshop_visible->width(), photoshop_visible->height(),
+                photoshop_span->first, photoshop_span->second, ink_x, ink_y, visible->width(), visible->height(),
+                span->first, span->second);
+    std::fflush(stdout);
+    CHECK(std::abs(ink_x - photoshop_x) <= 1);
+    CHECK(std::abs(ink_y - photoshop_y) <= 1);
+    CHECK(std::abs(visible->width() - photoshop_visible->width()) <= 1);
+    CHECK(std::abs(visible->height() - photoshop_visible->height()) <= 1);
+    CHECK(std::abs(span->first - photoshop_span->first) <= 1);
+    CHECK(std::abs(span->second - photoshop_span->second) <= 1);
+  };
+
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  // On the accent of the "\xc3\xa9": the first glyph, well left of the layer centre.
+  const auto bounds = photoshop.bounds();
+  const QPointF click_doc(bounds.x + 70.0, bounds.y + bounds.height * 0.55);
+  const auto hit_point = canvas->widget_position_f(click_doc).toPoint();
+  std::printf("  click at document (%.0f,%.0f) -> widget (%d,%d), viewport %dx%d\n", click_doc.x(), click_doc.y(),
+              hit_point.x(), hit_point.y(), canvas->width(), canvas->height());
+  std::fflush(stdout);
+  CHECK(QRect(0, 0, canvas->width(), canvas->height()).contains(hit_point));
+  accept_missing_psd_text_font_warning_if_present();
+  send_mouse(*canvas, QEvent::MouseButtonPress, hit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, hit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  process_events_for(600);
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+  CHECK(editor->property("patchy.editingLayerId").toULongLong() == static_cast<qulonglong>(layer_id));
+  if (auto* preview = preview_layer_for_editor(live_document, *editor); preview != nullptr) {
+    report("preview on entry", *preview);
+  } else {
+    std::printf("  preview on entry       no baked preview layer (Photoshop's raster stays on screen)\n");
+    std::fflush(stdout);
+  }
+  save_widget_artifact("ui_la_methode_scrolled_session", *canvas);
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  process_events_for(200);
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
+  auto* committed = live_document.find_layer(layer_id);
+  CHECK(committed != nullptr);
+  if (committed == nullptr) {
+    return;
+  }
+  report("committed", *committed);
+  CHECK(canvas->has_selection());
+  CHECK(canvas->selected_document_region() == selection_before);
+  save_widget_artifact("ui_la_methode_scrolled_commit", *canvas);
+  // The same view with the selection dropped, so only the stroke layer outlines the glyphs.
+  if (auto* deselect = window.findChild<QAction*>(QStringLiteral("editDeselectAction")); deselect != nullptr) { deselect->trigger(); }
+  QApplication::processEvents();
+  process_events_for(200);
+  save_widget_artifact("ui_la_methode_scrolled_commit_no_ants", *canvas);
+}
+
+// The scripting API's `layer.text` setter retypes the whole layer through the same session the
+// Type tool uses, so an unchanged assignment must commit the same raster as the interactive
+// unchanged apply above. It used to delete the text before inserting the new value, which left
+// the inserted run with only the session's fallback font: the exact fractional size and the
+// Character-panel glyph scales (V 0.93 here) were dropped, the "M" re-rendered 1004x749 instead
+// of 964x697 (Photoshop 965x697) and the saved TySh baseline landed at 745 instead of 700.
+void ui_la_methode_script_text_setter_matches_interactive_commit_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("La methode.psd");
+  if (!std::filesystem::exists(path)) {
+    return;
+  }
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::BalmoralLet);
+  if (!QFontDatabase::hasFamily(QStringLiteral("Balmoral LET"))) {
+    std::printf("[SKIP] Balmoral LET Plain.ttf is not in local-test-fixtures/fonts\n");
+    return;
+  }
+  {
+    const auto document = patchy::psd::DocumentIo::read_file(path);
+    for (const auto& layer : document.layers()) {
+      if (layer.metadata().contains(patchy::kLayerMetadataTextFont) &&
+          !patchy::ui::missing_text_families_for_layer(layer).isEmpty()) {
+        std::printf("[SKIP] the fixture's face does not resolve on this machine\n");
+        return;
+      }
+    }
+  }
+  const auto interactive =
+      run_photoshop_text_commit_probe(path, "M", 0.25, "ui_la_methode_m_interactive_reference");
+  if (!interactive.has_value()) {
+    return;
+  }
+
+  auto document = patchy::psd::DocumentIo::read_file(path);
+  patchy::LayerId layer_id = 0;
+  for (const auto& layer : std::as_const(document).layers()) {
+    if (const auto it = layer.metadata().find(patchy::kLayerMetadataText);
+        it != layer.metadata().end() && it->second == "M") {
+      layer_id = layer.id();
+    }
+  }
+  CHECK(layer_id != 0);
+  if (layer_id == 0) {
+    return;
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("La methode script"));
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(0.25);
+  QApplication::processEvents();
+
+  auto& host = window.script_engine_host();
+  patchy::ui::ScriptEngineHost::RunOptions options;
+  options.name = QStringLiteral("la-methode-recommit");
+  (void)host.run_source(QStringLiteral(R"JS(
+    var doc = app.activeDocument;
+    var target = null;
+    for (var i = 0; i < doc.layers.length; ++i) {
+      if (doc.layers[i].isText && doc.layers[i].text == 'M') {
+        target = doc.layers[i];
+      }
+    }
+    target.text = target.text;
+    console.log('recommitted=' + (target.text == 'M'));
+  )JS"), std::move(options));
+  QElapsedTimer timer;
+  timer.start();
+  while (host.run_active() && timer.elapsed() < 30000) {
+    QApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 20);
+  }
+  QApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 20);
+  CHECK(!host.run_active());
+  CHECK(!host.last_run_had_error());
+  bool recommitted = false;
+  for (const auto& line : host.message_backlog()) {
+    recommitted = recommitted || line.contains(QStringLiteral("recommitted=true"));
+  }
+  CHECK(recommitted);
+
+  auto& live_document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto* committed = std::as_const(live_document).find_layer(layer_id);
+  CHECK(committed != nullptr);
+  if (committed == nullptr) {
+    return;
+  }
+  CHECK(committed->metadata().at(patchy::kLayerMetadataTextRasterStatus) == "patchy_raster");
+  const auto visible = alpha_pixel_bounds_in_rows(committed->pixels(), 0, committed->pixels().height());
+  CHECK(visible.has_value());
+  if (!visible.has_value()) {
+    return;
+  }
+  const patchy::Rect scripted_ink{committed->bounds().x + visible->left(), committed->bounds().y + visible->top(),
+                                  visible->width(), visible->height()};
+  std::printf("  M      interactive ink (%d,%d %dx%d) -> scripted ink (%d,%d %dx%d)\n",
+              interactive->committed_ink.x, interactive->committed_ink.y, interactive->committed_ink.width,
+              interactive->committed_ink.height, scripted_ink.x, scripted_ink.y, scripted_ink.width,
+              scripted_ink.height);
+  std::fflush(stdout);
+  // The two sessions commit the same layout: the same size, glyph scales and pen.
+  CHECK(std::abs(scripted_ink.x - interactive->committed_ink.x) <= 1);
+  CHECK(std::abs(scripted_ink.y - interactive->committed_ink.y) <= 1);
+  CHECK(std::abs(scripted_ink.width - interactive->committed_ink.width) <= 1);
+  CHECK(std::abs(scripted_ink.height - interactive->committed_ink.height) <= 1);
+  CHECK(pixel_buffer_border_is_clear(committed->pixels()));
+  // And the saved TySh keeps Photoshop's baseline (ty 700), not the unscaled 745.
+  patchy::Document saved(3529, 924, patchy::PixelFormat::rgba8());
+  saved.add_layer(*committed);
+  const auto transforms = tysh_transforms_in_psd(patchy::psd::DocumentIo::write_layered_rgb8(saved));
+  CHECK(transforms.size() == 1U);
+  if (!transforms.empty()) {
+    std::printf("  M      scripted TySh anchor (%.3f, %.3f), photoshop (794, 700)\n", transforms[0][4],
+                transforms[0][5]);
+    std::fflush(stdout);
+    CHECK(std::abs(transforms[0][4] - 794.0) <= 1.0);
+    CHECK(std::abs(transforms[0][5] - 700.0) <= 1.0);
+  }
 }
 
 // The reported UI symptom on the same file: clicking into 'Dungeon:' came up Bold + Italic,
@@ -2206,7 +2953,7 @@ void ui_psd_text_caret_follows_photoshop_leading() {
   const auto bounds_now = source->bounds();
   live_document.set_active_layer(layer_id);
   require_action_by_text(window, QStringLiteral("Type"))->trigger();
-  const QPoint click_doc(bounds_now.x + bounds_now.width / 2, bounds_now.y + 12);
+  const QPoint click_doc(bounds_now.x + bounds_now.width / 2, bounds_now.y + std::min(12, bounds_now.height / 2));
   const auto hit_point = canvas->widget_position_for_document_point(click_doc);
   accept_missing_psd_text_font_warning_if_present();
   send_mouse(*canvas, QEvent::MouseButtonPress, hit_point, Qt::LeftButton, Qt::LeftButton);
@@ -2341,7 +3088,7 @@ void ui_psd_text_click_returns_to_the_caret_it_drew() {
   const auto bounds_now = source->bounds();
   live_document.set_active_layer(layer_id);
   require_action_by_text(window, QStringLiteral("Type"))->trigger();
-  const QPoint click_doc(bounds_now.x + bounds_now.width / 2, bounds_now.y + 12);
+  const QPoint click_doc(bounds_now.x + bounds_now.width / 2, bounds_now.y + std::min(12, bounds_now.height / 2));
   const auto hit_point = canvas->widget_position_for_document_point(click_doc);
   accept_missing_psd_text_font_warning_if_present();
   send_mouse(*canvas, QEvent::MouseButtonPress, hit_point, Qt::LeftButton, Qt::LeftButton);
@@ -2660,6 +3407,400 @@ void ui_psd_frame_text_highlight_matches_scaled_glyphs() {
   CHECK(std::abs(highlight_right - ink.right()) <= 6);
 }
 
+// Seth's Title02 repro: on a Photoshop-layout point layer with tracking 400 (WWW.COCKPITMASTER.COM,
+// Photoshop 5.x), the caret sat in the middle of the glyphs while a typed letter appeared at the
+// end. Click the middle of the rendered ink and the cursor must land mid-text; select-all must
+// highlight the ink's span.
+void run_tracking_click_probe(double frame_scale) {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  const auto path = patchy::test::committed_psd_fixture_path("photoshop-text-point-fixed-leading.psd");
+  auto document = patchy::psd::DocumentIo::read_file(path);
+  patchy::LayerId layer_id = 0;
+  bool found = false;
+  std::function<void(const std::vector<patchy::Layer>&)> find_text_layer =
+      [&](const std::vector<patchy::Layer>& layers) {
+        for (const auto& layer : layers) {
+          if (!found) {
+            if (const auto it = layer.metadata().find(patchy::kLayerMetadataText);
+                it != layer.metadata().end() && it->second.find("HHHH") != std::string::npos) {
+              layer_id = layer.id();
+              found = true;
+            }
+          }
+          find_text_layer(layer.children());
+        }
+      };
+  find_text_layer(document.layers());
+  CHECK(found);
+  if (!found) {
+    return;
+  }
+  {
+    auto* layer = document.find_layer(layer_id);
+    CHECK(layer != nullptr);
+    if (layer == nullptr) {
+      return;
+    }
+    // One line of six equal glyphs, tracking 400 (0.4 em after every gap).
+    const auto runs = QString::fromStdString(layer->metadata().at(patchy::kLayerMetadataTextRuns));
+    const auto first_run = runs.split(QLatin1Char('\n')).value(1).split(QLatin1Char('\t'));
+    CHECK(first_run.size() >= 7);
+    if (first_run.size() < 7) {
+      return;
+    }
+    layer->metadata()[patchy::kLayerMetadataText] = "HHHHHH";
+    layer->metadata()[patchy::kLayerMetadataTextRuns] =
+        QStringLiteral("v3\n0\t6\t%1\t0\t0\t%2\t%3\tauto\t400\t1\t1")
+            .arg(first_run[2], first_run[5], first_run[6])
+            .toStdString();
+    layer->metadata()[patchy::kLayerMetadataTextParagraphRuns] = "v1\n0\t6\tleft";
+    layer->metadata().erase(patchy::kLayerMetadataTextHtml);
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Tracked PSD Text"));
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+
+  auto& live_document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* source = live_document.find_layer(layer_id);
+  CHECK(source != nullptr);
+  if (source == nullptr) {
+    return;
+  }
+  const auto bounds_now = source->bounds();
+  if (std::abs(frame_scale - 1.0) > 0.0001) {
+    // A PSD-frame session, like the Title02 layer (0.7722 on both transform keys).
+    QTransform scaled;
+    scaled.translate(bounds_now.x, bounds_now.y);
+    scaled.scale(frame_scale, frame_scale);
+    const auto affine = patchy::serialize_layer_affine_transform(patchy::LayerAffineTransform{
+        scaled.m11(), scaled.m12(), scaled.m21(), scaled.m22(), scaled.dx(), scaled.dy()});
+    source->metadata()[patchy::kLayerMetadataTextTransform] = affine;
+    source->metadata()[patchy::kLayerMetadataPsdTextTransform] = affine;
+  }
+  live_document.set_active_layer(layer_id);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto hit_point = canvas->widget_position_for_document_point(
+      QPoint(bounds_now.x + bounds_now.width / 2, bounds_now.y + std::min(12, bounds_now.height / 2)));
+  accept_missing_psd_text_font_warning_if_present();
+  send_mouse(*canvas, QEvent::MouseButtonPress, hit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, hit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  process_events_for(300);
+
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+  const bool overlay_active = editor->property("patchy.transformedPreviewOverlayActive").toBool();
+  const auto editor_origin_x = editor->property("patchy.documentTextX").toInt();
+  auto* overlay = canvas->findChild<QWidget*>(QStringLiteral("transformedTextEditOverlay"));
+
+  // Where the glyphs actually are, straight off the rendered preview (document space).
+  QRect ink;
+  if (auto* preview = preview_layer_for_editor(live_document, *editor); preview != nullptr) {
+    if (const auto alpha = alpha_pixel_bounds_in_rows(preview->pixels(), 0, preview->pixels().height());
+        alpha.has_value()) {
+      ink = alpha->translated(preview->bounds().x, preview->bounds().y);
+    }
+  }
+  // Flat session only: select-all must highlight the ink's span.
+  QRect highlight;
+  if (!overlay_active) {
+    editor->selectAll();
+    QApplication::processEvents();
+    for (const auto& value : editor->property("patchy.previewSelectionRects").toList()) {
+      highlight = highlight.united(value.toRect());
+    }
+  }
+
+  // The caret drawn for position 3, in document space.
+  double caret_three_x = -1.0;
+  {
+    auto mid = editor->textCursor();
+    mid.setPosition(3);
+    editor->setTextCursor(mid);
+    QApplication::processEvents();
+    if (overlay_active && overlay != nullptr) {
+      overlay->repaint();
+      const auto polygon = overlay->property("patchy.transformedTextCaretPolygon").toList();
+      if (polygon.size() == 4) {
+        QPointF centre;
+        for (const auto& value : polygon) {
+          centre += value.toPointF();
+        }
+        centre /= 4.0;
+        caret_three_x = canvas->document_point_for_widget_position(centre).x();
+      }
+    } else {
+      const auto caret = editor->property("patchy.previewCaretRect").toRect();
+      if (!caret.isEmpty()) {
+        caret_three_x = editor_origin_x + caret.left();
+      }
+    }
+  }
+
+  // Click the MIDDLE OF THE INK, a point derived from the render rather than from the layout,
+  // and the cursor has to land at position 3 (six equal glyphs).
+  int clicked_position = -1;
+  if (!ink.isEmpty()) {
+    auto clear_cursor = editor->textCursor();
+    clear_cursor.setPosition(0);
+    editor->setTextCursor(clear_cursor);
+    QApplication::processEvents();
+    if (overlay_active) {
+      const auto probe = canvas->widget_position_for_document_point(ink.center());
+      send_mouse(*canvas, QEvent::MouseButtonPress, probe, Qt::LeftButton, Qt::LeftButton);
+      send_mouse(*canvas, QEvent::MouseButtonRelease, probe, Qt::LeftButton, Qt::NoButton);
+    } else {
+      const auto caret_now = editor->property("patchy.previewCaretRect").toRect();
+      const QPoint probe(ink.center().x() - editor_origin_x,
+                         caret_now.isEmpty() ? 8 : (caret_now.top() + caret_now.bottom()) / 2);
+      send_mouse(*editor->viewport(), QEvent::MouseButtonPress, probe, Qt::LeftButton, Qt::LeftButton);
+      send_mouse(*editor->viewport(), QEvent::MouseButtonRelease, probe, Qt::LeftButton, Qt::NoButton);
+    }
+    QApplication::processEvents();
+    if (auto* still_open = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+        still_open != nullptr) {
+      clicked_position = still_open->textCursor().position();
+    }
+  }
+
+  if (canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) != nullptr) {
+    require_action_by_text(window, QStringLiteral("Move"))->trigger();
+    QApplication::processEvents();
+    process_events_for(150);
+  }
+
+  std::cout << "[tracking] scale " << frame_scale << " overlay " << overlay_active << " ink " << ink.left() << ".."
+            << ink.right() << " highlight " << (editor_origin_x + highlight.left()) << ".."
+            << (editor_origin_x + highlight.right()) << " clicked " << clicked_position << " caret@3 x "
+            << caret_three_x << '\n';
+  CHECK(!ink.isEmpty());
+  if (ink.isEmpty()) {
+    return;
+  }
+  CHECK(overlay_active == (std::abs(frame_scale - 1.0) > 0.0001));
+  CHECK(clicked_position == 3);
+  // The caret at position 3 stands in the middle of the ink (tracking after every gap, none
+  // after the last glyph, so the midpoint sits slightly past the ink centre).
+  CHECK(caret_three_x >= 0.0 && std::abs(caret_three_x - ink.center().x()) <= ink.width() / 8);
+  if (!overlay_active) {
+    CHECK(!highlight.isEmpty());
+    const auto highlight_left = editor_origin_x + highlight.left();
+    const auto highlight_right = editor_origin_x + highlight.right();
+    CHECK(std::abs(highlight_left - ink.left()) <= 6);
+    // Qt's letter spacing also trails the last glyph, so the highlight may run one gap past the ink.
+    CHECK(highlight_right >= ink.right() - 6 && highlight_right <= ink.right() + ink.width() / 5);
+  }
+}
+
+void ui_psd_text_tracking_click_lands_on_glyphs() {
+  run_tracking_click_probe(1.0);
+}
+
+void ui_psd_frame_text_tracking_click_lands_on_glyphs() {
+  run_tracking_click_probe(0.7722);
+}
+
+// Seth's report on Title02.psd (Photoshop 5.x, docs/psd-legacy-text.md): editing the tracking-400
+// layer WWW.COCKPITMASTER.COM, the caret sat mid-string while a typed letter appeared at the
+// end. Probe the real layer: the live preview must keep the imported raster's width, the caret
+// for a mid-string position must stand mid-ink, a click mid-ink must land mid-string, and a
+// letter typed there must widen the text where the caret was.
+void ui_title02_tracked_legacy_text_caret_matches_glyphs_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("Title02.psd");
+  if (!std::filesystem::exists(path)) {
+    return;
+  }
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  const auto futura = QStringLiteral(PATCHY_SOURCE_DIR) + QStringLiteral("/local-test-fixtures/fonts/FUTURABC.TTF");
+  const bool futura_registered = QFile::exists(futura) && QFontDatabase::addApplicationFont(futura) >= 0;
+  auto document = patchy::psd::DocumentIo::read_file(path);
+  patchy::LayerId layer_id = 0;
+  patchy::Rect source_bounds{};
+  bool found = false;
+  std::function<void(const std::vector<patchy::Layer>&)> find_text_layer =
+      [&](const std::vector<patchy::Layer>& layers) {
+        for (const auto& layer : layers) {
+          if (!found) {
+            if (const auto it = layer.metadata().find(patchy::kLayerMetadataText);
+                it != layer.metadata().end() && it->second == "WWW.COCKPITMASTER.COM") {
+              layer_id = layer.id();
+              source_bounds = layer.bounds();
+              found = true;
+            }
+          }
+          find_text_layer(layer.children());
+        }
+      };
+  find_text_layer(document.layers());
+  CHECK(found);
+  if (!found) {
+    return;
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Title02 tracked text"));
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+
+  auto& live_document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* source = live_document.find_layer(layer_id);
+  CHECK(source != nullptr);
+  if (source == nullptr) {
+    return;
+  }
+  const auto source_visible = alpha_pixel_bounds_in_rows(source->pixels(), 0, source->pixels().height());
+  CHECK(source_visible.has_value());
+  if (!source_visible.has_value()) {
+    return;
+  }
+  const QRect source_ink = source_visible->translated(source_bounds.x, source_bounds.y);
+
+  live_document.set_active_layer(layer_id);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto hit_point = canvas->widget_position_for_document_point(
+      QPoint(source_ink.left() + source_ink.width() / 2, source_ink.top() + source_ink.height() / 2));
+  accept_missing_psd_text_font_warning_if_present();
+  send_mouse(*canvas, QEvent::MouseButtonPress, hit_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, hit_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  process_events_for(300);
+
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+  const bool overlay_active = editor->property("patchy.transformedPreviewOverlayActive").toBool();
+  const bool uses_frame = editor->property("patchy.usesPsdTextFrame").toBool();
+  const auto display_scale = editor->property("patchy.textSizeDisplayScale").toDouble();
+  const bool source_raster = editor->property("patchy.sourceRasterPreview").toBool();
+  const auto editor_origin_x = editor->property("patchy.documentTextX").toInt();
+  auto* overlay = canvas->findChild<QWidget*>(QStringLiteral("transformedTextEditOverlay"));
+  const auto text = editor->toPlainText();
+
+  const auto preview_ink = [&]() -> QRect {
+    if (auto* preview = preview_layer_for_editor(live_document, *editor); preview != nullptr) {
+      if (const auto alpha = alpha_pixel_bounds_in_rows(preview->pixels(), 0, preview->pixels().height());
+          alpha.has_value()) {
+        return alpha->translated(preview->bounds().x, preview->bounds().y);
+      }
+    }
+    return {};
+  };
+  const auto caret_document_x = [&](int position) -> double {
+    auto cursor = editor->textCursor();
+    cursor.setPosition(position);
+    editor->setTextCursor(cursor);
+    QApplication::processEvents();
+    if (overlay_active && overlay != nullptr) {
+      overlay->repaint();
+      const auto polygon = overlay->property("patchy.transformedTextCaretPolygon").toList();
+      if (polygon.size() != 4) {
+        return -1.0;
+      }
+      QPointF centre;
+      for (const auto& value : polygon) {
+        centre += value.toPointF();
+      }
+      centre /= 4.0;
+      return canvas->document_point_for_widget_position(centre).x();
+    }
+    const auto caret = editor->property("patchy.previewCaretRect").toRect();
+    return caret.isEmpty() ? -1.0 : editor_origin_x + caret.left();
+  };
+
+  // Force the live render (a source-raster session shows Photoshop's pixels until the first
+  // keystroke) with an edit that changes nothing: type and delete a space at the end.
+  {
+    auto cursor = editor->textCursor();
+    cursor.movePosition(QTextCursor::End);
+    editor->setTextCursor(cursor);
+    cursor.insertText(QStringLiteral(" "));
+    QApplication::processEvents();
+    cursor.deletePreviousChar();
+    QApplication::processEvents();
+    process_events_for(300);
+  }
+  const auto ink_before = preview_ink();
+  const auto override_now = editor->property("patchy.textTransformOverride").toString();
+  const auto caret_mid = caret_document_x(10);  // after "WWW.COCKPI"
+
+  int clicked_position = -1;
+  if (!ink_before.isEmpty()) {
+    auto clear_cursor = editor->textCursor();
+    clear_cursor.setPosition(0);
+    editor->setTextCursor(clear_cursor);
+    QApplication::processEvents();
+    if (overlay_active) {
+      const auto probe = canvas->widget_position_for_document_point(ink_before.center());
+      send_mouse(*canvas, QEvent::MouseButtonPress, probe, Qt::LeftButton, Qt::LeftButton);
+      send_mouse(*canvas, QEvent::MouseButtonRelease, probe, Qt::LeftButton, Qt::NoButton);
+    } else {
+      const auto caret_now = editor->property("patchy.previewCaretRect").toRect();
+      const QPoint probe(ink_before.center().x() - editor_origin_x,
+                         caret_now.isEmpty() ? 8 : (caret_now.top() + caret_now.bottom()) / 2);
+      send_mouse(*editor->viewport(), QEvent::MouseButtonPress, probe, Qt::LeftButton, Qt::LeftButton);
+      send_mouse(*editor->viewport(), QEvent::MouseButtonRelease, probe, Qt::LeftButton, Qt::NoButton);
+    }
+    QApplication::processEvents();
+    if (auto* still_open = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+        still_open != nullptr) {
+      clicked_position = still_open->textCursor().position();
+    }
+  }
+
+  // Type a wide letter at position 10: the ink to the LEFT of the caret must stay put and the
+  // text must widen, so the new glyph lands where the caret was, not at the end.
+  QRect ink_after;
+  double caret_after = -1.0;
+  if (canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) != nullptr) {
+    auto cursor = editor->textCursor();
+    cursor.setPosition(10);
+    editor->setTextCursor(cursor);
+    QApplication::processEvents();
+    cursor.insertText(QStringLiteral("W"));
+    QApplication::processEvents();
+    process_events_for(300);
+    ink_after = preview_ink();
+    caret_after = caret_document_x(11);
+  }
+
+  if (canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) != nullptr) {
+    require_action_by_text(window, QStringLiteral("Move"))->trigger();
+    QApplication::processEvents();
+    process_events_for(150);
+  }
+
+  std::cout << "[title02] override '" << override_now.toStdString() << "' futura " << futura_registered << " text '" << text.toStdString() << "' overlay "
+            << overlay_active << " frame " << uses_frame << " display_scale " << display_scale << " source_raster "
+            << source_raster << " source_ink " << source_ink.left() << ".." << source_ink.right() << " preview_ink "
+            << ink_before.left() << ".." << ink_before.right() << " caret@10 " << caret_mid << " clicked "
+            << clicked_position << " after_insert_ink " << ink_after.left() << ".." << ink_after.right()
+            << " caret@11 " << caret_after << '\n';
+  CHECK(text == QStringLiteral("WWW.COCKPITMASTER.COM"));
+  CHECK(!ink_before.isEmpty());
+  if (ink_before.isEmpty()) {
+    return;
+  }
+  // The live render keeps the imported width (within 10%): tracking and size scale together.
+  CHECK(std::abs(ink_before.width() - source_ink.width()) <= source_ink.width() / 10);
+  // Position 10 of 21 sits near the middle of the ink.
+  CHECK(caret_mid > ink_before.left() + ink_before.width() * 0.35 &&
+        caret_mid < ink_before.left() + ink_before.width() * 0.62);
+  CHECK(clicked_position >= 9 && clicked_position <= 12);
+  // The inserted glyph widened the text and the caret after it moved right by about one cell.
+  CHECK(ink_after.width() > ink_before.width() + 4);
+  CHECK(caret_after > caret_mid + 4.0 && caret_after < ink_after.left() + ink_after.width() * 0.7);
+}
+
 void ui_psd_frame_text_second_session_still_takes_clicks() {
   // Seth's repro: click into a scaled PSD frame layer, click off without changing anything, then
   // click back in. The FIRST session takes mouse clicks; the second must too. Committing rewrites
@@ -2825,8 +3966,22 @@ std::vector<patchy::test::TestCase> text_transform_commit_tests_part2() {
        ui_restaurant_menu_other_layers_commit_match_if_available},
       {"ui_restaurant_menu_box_text_edit_commit_keeps_leading_if_available",
        ui_restaurant_menu_box_text_edit_commit_keeps_leading_if_available},
+      {"ui_psd_centered_text_commit_rounds_line_start_like_photoshop",
+       ui_psd_centered_text_commit_rounds_line_start_like_photoshop},
+      {"ui_psd_left_text_commit_rounds_each_glyph_like_photoshop",
+       ui_psd_left_text_commit_rounds_each_glyph_like_photoshop},
       {"ui_dungeon_scroll_psd_text_commit_keeps_placement_if_available",
        ui_dungeon_scroll_psd_text_commit_keeps_placement_if_available},
+      {"ui_la_methode_psd_text_commit_keeps_glyph_overhang_if_available",
+       ui_la_methode_psd_text_commit_keeps_glyph_overhang_if_available},
+      {"ui_la_methode_psd_text_commit_is_zoom_and_edit_independent_if_available",
+       ui_la_methode_psd_text_commit_is_zoom_and_edit_independent_if_available},
+      {"ui_la_methode_psd_text_preview_sits_on_photoshop_ink_if_available",
+       ui_la_methode_psd_text_preview_sits_on_photoshop_ink_if_available},
+      {"ui_la_methode_psd_text_commit_scrolled_with_selection_if_available",
+       ui_la_methode_psd_text_commit_scrolled_with_selection_if_available},
+      {"ui_la_methode_script_text_setter_matches_interactive_commit_if_available",
+       ui_la_methode_script_text_setter_matches_interactive_commit_if_available},
       {"ui_dungeon_scroll_faux_bold_reads_as_faux_not_bold_if_available",
        ui_dungeon_scroll_faux_bold_reads_as_faux_not_bold_if_available},
       {"ui_psd_sheared_point_text_edit_lands_on_glyphs",
@@ -2836,5 +3991,9 @@ std::vector<patchy::test::TestCase> text_transform_commit_tests_part2() {
       {"ui_text_tool_commits_rich_text_spans", ui_text_tool_commits_rich_text_spans},
       {"ui_text_options_follow_active_rich_text_span",
        ui_text_options_follow_active_rich_text_span},
+      {"ui_psd_text_tracking_click_lands_on_glyphs", ui_psd_text_tracking_click_lands_on_glyphs},
+      {"ui_psd_frame_text_tracking_click_lands_on_glyphs", ui_psd_frame_text_tracking_click_lands_on_glyphs},
+      {"ui_title02_tracked_legacy_text_caret_matches_glyphs_if_available",
+       ui_title02_tracked_legacy_text_caret_matches_glyphs_if_available},
   };
 }

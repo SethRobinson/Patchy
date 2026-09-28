@@ -49,6 +49,7 @@
 #include <QScreen>
 #include <QScrollArea>
 #include <QSettings>
+#include <QSignalBlocker>
 #include <QSize>
 #include <QSlider>
 #include <QSpinBox>
@@ -335,16 +336,20 @@ private:
 
     if constexpr (std::is_same_v<SpinBox, QSpinBox>) {
       const int maximum = static_cast<int>(std::lround(slider_maximum));
-      slider->setRange(spin_->minimum(), maximum);
-      slider->setPageStep(std::max(1, (maximum - spin_->minimum()) / 20));
-      slider->setValue(spin_->value());
-      QObject::connect(slider, &QSlider::valueChanged, spin_,
-                       &QSpinBox::setValue);
-      QObject::connect(spin_, &QSpinBox::valueChanged, popup,
-                       [slider](int new_value) {
-                         const QSignalBlocker blocker(slider);
-                         slider->setValue(new_value);
-                       });
+      if (spin_->property(kToolbarSpinboxSliderCurvedProperty).toBool()) {
+        bind_curved_slider(*slider, *spin_, maximum);
+      } else {
+        slider->setRange(spin_->minimum(), maximum);
+        slider->setPageStep(std::max(1, (maximum - spin_->minimum()) / 20));
+        slider->setValue(spin_->value());
+        QObject::connect(slider, &QSlider::valueChanged, spin_,
+                         &QSpinBox::setValue);
+        QObject::connect(spin_, &QSpinBox::valueChanged, popup,
+                         [slider](int new_value) {
+                           const QSignalBlocker blocker(slider);
+                           slider->setValue(new_value);
+                         });
+      }
     } else {
       const int decimal_places = std::clamp(spin_->decimals(), 0, 3);
       const double scale = std::pow(10.0, decimal_places);
@@ -912,16 +917,85 @@ void install_save_file_recent_dropdown(QFileDialog& dialog, const QStringList& r
 
 namespace {
 
-// Frame, QSS padding, line-edit text margins, and cursor slack around the value
-// text of an options-bar spin box (the stylesheet is not applied yet when the
-// bar is built, so this cannot be read from the widget).
+// Frame, QSS padding, line-edit text margins, and the caret around the value
+// text of an options-bar spin box: the box's 1px borders and 4px left padding,
+// QLineEdit's 2px margin on each side, and the caret with a few pixels to
+// spare. The stylesheet is not applied yet when the bar is built, so this
+// cannot be read from the widget. Do not widen it to fix a clipped value: the
+// tool rows are budgeted for one line (ui_brush_tip_picker_keeps_options_bar_height),
+// and a value that overruns by a whole digit means the box was measured with
+// a different font than the one drawing it, which the refresher below handles.
 constexpr int kToolbarSpinboxChromeWidth = 14;
+constexpr auto kToolbarSpinboxMinWidthProperty = "patchy.toolbarSpinboxMinWidth";
+constexpr auto kToolbarSpinboxRefresherProperty = "patchy.toolbarSpinboxRefresherInstalled";
 
 int toolbar_spinbox_width(int width, const QFontMetrics& metrics, const QString& min_text,
                           const QString& max_text) {
   const int text_width = std::max(metrics.horizontalAdvance(min_text),
                                   metrics.horizontalAdvance(max_text));
   return std::max(width, text_width + kChevronAreaWidth + kToolbarSpinboxChromeWidth);
+}
+
+QString spinbox_value_text(const QSpinBox* spin, int value) {
+  return spin->prefix() + spin->locale().toString(value) + spin->suffix();
+}
+
+QString spinbox_value_text(const QDoubleSpinBox* spin, double value) {
+  return spin->prefix() + spin->locale().toString(value, 'f', spin->decimals()) + spin->suffix();
+}
+
+template <typename SpinBox>
+void refresh_toolbar_spinbox_width(SpinBox* spin) {
+  const int width = spin->property(kToolbarSpinboxMinWidthProperty).toInt();
+  spin->setFixedWidth(toolbar_spinbox_width(width, spin->fontMetrics(),
+                                            spinbox_value_text(spin, spin->minimum()),
+                                            spinbox_value_text(spin, spin->maximum())));
+}
+
+// The width is measured from the box's font, and the theme stylesheet (or a
+// later font change) replaces that font after the options bar is built. A box
+// sized from the construction-time font can be too narrow for its widest value
+// once the real font lands ("255" in the Fill tool's Tol box overran its
+// chevron on screen, September 2026), so re-measure on every event that
+// carries a new font or style.
+template <typename SpinBox>
+class ToolbarSpinboxWidthRefresher final : public QObject {
+public:
+  explicit ToolbarSpinboxWidthRefresher(SpinBox* spin) : QObject(spin), spin_(spin) {
+    spin_->installEventFilter(this);
+  }
+
+protected:
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (watched == spin_) {
+      switch (event->type()) {
+        case QEvent::FontChange:
+        case QEvent::StyleChange:
+        case QEvent::Polish:
+          refresh_toolbar_spinbox_width(spin_);
+          break;
+        default:
+          break;
+      }
+    }
+    return QObject::eventFilter(watched, event);
+  }
+
+private:
+  SpinBox* spin_;
+};
+
+template <typename SpinBox>
+void configure_toolbar_spinbox_impl(SpinBox* spin, int width) {
+  spin->setButtonSymbols(QAbstractSpinBox::NoButtons);
+  spin->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+  spin->setProperty(kToolbarSpinboxMinWidthProperty, width);
+  refresh_toolbar_spinbox_width(spin);
+  if (!spin->property(kToolbarSpinboxRefresherProperty).toBool()) {
+    spin->setProperty(kToolbarSpinboxRefresherProperty, true);
+    new ToolbarSpinboxWidthRefresher<SpinBox>(spin);
+  }
+  install_numeric_popup(spin);
 }
 
 }  // namespace
@@ -954,25 +1028,11 @@ QFont offset_font(QFont font, int size_delta, bool bold) {
 }
 
 void configure_toolbar_spinbox(QSpinBox* spin, int width) {
-  spin->setButtonSymbols(QAbstractSpinBox::NoButtons);
-  spin->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-  const auto locale = spin->locale();
-  spin->setFixedWidth(toolbar_spinbox_width(
-      width, spin->fontMetrics(),
-      spin->prefix() + locale.toString(spin->minimum()) + spin->suffix(),
-      spin->prefix() + locale.toString(spin->maximum()) + spin->suffix()));
-  install_numeric_popup(spin);
+  configure_toolbar_spinbox_impl(spin, width);
 }
 
 void configure_toolbar_spinbox(QDoubleSpinBox* spin, int width) {
-  spin->setButtonSymbols(QAbstractSpinBox::NoButtons);
-  spin->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-  const auto locale = spin->locale();
-  spin->setFixedWidth(toolbar_spinbox_width(
-      width, spin->fontMetrics(),
-      spin->prefix() + locale.toString(spin->minimum(), 'f', spin->decimals()) + spin->suffix(),
-      spin->prefix() + locale.toString(spin->maximum(), 'f', spin->decimals()) + spin->suffix()));
-  install_numeric_popup(spin);
+  configure_toolbar_spinbox_impl(spin, width);
 }
 
 void configure_dialog_spinbox(QSpinBox* spin, int width) {
@@ -996,7 +1056,10 @@ namespace {
 QSpinBox* add_dialog_slider_spin_row_with(QFormLayout* form, QWidget* parent, const QString& label,
                                           const QString& slider_object_name, QSpinBox* spin, int minimum,
                                           int maximum, int value, int spin_width, int row_spacing,
-                                          bool step_buttons) {
+                                          bool step_buttons, int slider_maximum, SliderCurve curve) {
+  // The default (and any value at or past `maximum`) means no cap. A negative
+  // sentinel would collide with ranges like an angle's -180..180.
+  const auto slider_top = std::clamp(std::min(slider_maximum, maximum), minimum, maximum);
   auto* row = new QWidget(parent);
   auto* row_layout = new QHBoxLayout(row);
   row_layout->setContentsMargins(0, 0, 0, 0);
@@ -1005,8 +1068,6 @@ QSpinBox* add_dialog_slider_spin_row_with(QFormLayout* form, QWidget* parent, co
   }
   auto* slider = new QSlider(Qt::Horizontal, row);
   slider->setObjectName(slider_object_name);
-  slider->setRange(minimum, maximum);
-  slider->setValue(value);
   spin->setParent(row);
   spin->setRange(minimum, maximum);
   spin->setValue(value);
@@ -1024,8 +1085,24 @@ QSpinBox* add_dialog_slider_spin_row_with(QFormLayout* form, QWidget* parent, co
   } else {
     row_layout->addWidget(spin);
   }
+  if (curve == SliderCurve::FineLowEnd) {
+    bind_curved_slider(*slider, *spin, slider_top);
+    form->addRow(label, row);
+    return spin;
+  }
+  slider->setRange(minimum, slider_top);
+  slider->setValue(std::min(value, slider_top));
   QObject::connect(slider, &QSlider::valueChanged, spin, &QSpinBox::setValue);
-  QObject::connect(spin, qOverload<int>(&QSpinBox::valueChanged), slider, &QSlider::setValue);
+  if (slider_top == maximum) {
+    QObject::connect(spin, qOverload<int>(&QSpinBox::valueChanged), slider, &QSlider::setValue);
+  } else {
+    // A typed value past the slider's end must not echo back through the
+    // clamped slider and overwrite the spin box.
+    QObject::connect(spin, qOverload<int>(&QSpinBox::valueChanged), slider, [slider, slider_top](int value) {
+      const QSignalBlocker blocker(slider);
+      slider->setValue(std::min(value, slider_top));
+    });
+  }
   form->addRow(label, row);
   return spin;
 }
@@ -1035,26 +1112,27 @@ QSpinBox* add_dialog_slider_spin_row_with(QFormLayout* form, QWidget* parent, co
 QSpinBox* add_dialog_slider_spin_row(QFormLayout* form, QWidget* parent, const QString& label,
                                      const QString& slider_object_name, const QString& spin_object_name,
                                      int minimum, int maximum, int value, const QString& suffix,
-                                     int spin_width, int row_spacing, bool step_buttons) {
+                                     int spin_width, int row_spacing, bool step_buttons, int slider_maximum,
+                                     SliderCurve curve) {
   auto* spin = new QSpinBox();
   spin->setObjectName(spin_object_name);
   if (!suffix.isEmpty()) {
     spin->setSuffix(suffix);
   }
   return add_dialog_slider_spin_row_with(form, parent, label, slider_object_name, spin, minimum, maximum, value,
-                                         spin_width, row_spacing, step_buttons);
+                                         spin_width, row_spacing, step_buttons, slider_maximum, curve);
 }
 
 UnitIntSpinBox* add_dialog_slider_spin_row(QFormLayout* form, QWidget* parent, const QString& label,
                                            const QString& slider_object_name, const QString& spin_object_name,
                                            int minimum, int maximum, int value, SpinUnit unit,
                                            UnitIntSpinBox::ContextProvider provider, int spin_width,
-                                           int row_spacing, bool step_buttons) {
+                                           int row_spacing, bool step_buttons, SliderCurve curve) {
   auto* spin = new UnitIntSpinBox(unit);
   spin->setObjectName(spin_object_name);
   spin->set_context_provider(std::move(provider));
   add_dialog_slider_spin_row_with(form, parent, label, slider_object_name, spin, minimum, maximum, value,
-                                  spin_width, row_spacing, step_buttons);
+                                  spin_width, row_spacing, step_buttons, std::numeric_limits<int>::max(), curve);
   return spin;
 }
 

@@ -3,7 +3,7 @@
 # (PATCHY_KEYCHAIN_PASSWORD) is also the account login password, without printing
 # either: the stored value is piped to `sudo -S`, which accepts only the login password.
 # Quote-free from Windows, so PowerShell and cmd cannot mangle it:
-#   ssh seth@studiomac.local bash /Users/seth/patchy/src/packaging/macos/check-keychain-password.sh
+#   ssh <user>@<mac-build-host> bash ~/patchy/src/packaging/macos/check-keychain-password.sh
 set -u
 [ -f "$HOME/.patchy-release-env" ] || { echo "ERROR: ~/.patchy-release-env is missing" >&2; exit 2; }
 # shellcheck disable=SC1090

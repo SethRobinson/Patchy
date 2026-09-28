@@ -714,6 +714,98 @@ void ui_move_passive_transform_controls_frame_folder_and_multi_selection() {
   CHECK(!canvas->transform_controls_state().has_value());
 }
 
+// A Move-tool double-click neither starts nor commits Free Transform (it once
+// did both; a hand that slipped between the clicks dragged the box). Each
+// double-click replays the full sequence Qt delivers (press, release,
+// double-click, release). Inside a pending box the double-click is a second
+// motionless press, which must not nudge the box: it sits on a half pixel
+// (the drag start rounds like the end) 4 px inside the layer's pre-session
+// right edge at 60, within snap tolerance (the session's own layers are not
+// snap targets).
+void ui_move_double_click_leaves_free_transform_alone() {
+  patchy::Document document(200, 160, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(200, 160, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  auto red = patchy::Layer(document.allocate_layer_id(), "Red",
+                           solid_pixels(20, 20, patchy::PixelFormat::rgba8(), QColor(230, 30, 30)));
+  const auto red_id = red.id();
+  red.set_bounds(patchy::Rect{40, 40, 20, 20});
+  document.add_layer(std::move(red));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Move Double Click"));
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+  canvas->set_zoom(1.0);
+
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_auto_select_layer(false);
+  canvas->set_show_transform_controls(false);
+  select_layer_rows_by_id(*layer_list, {red_id});
+  QApplication::processEvents();
+
+  // Fractional widget positions map to exact document coordinates whatever
+  // the centred pan is, so the geometry below is deterministic.
+  const auto send_mouse_f = [&](QEvent::Type type, QPointF document_point, Qt::MouseButton button,
+                                Qt::MouseButtons buttons) {
+    const auto position = canvas->widget_position_f(document_point);
+    QMouseEvent event(type, position, canvas->mapToGlobal(position.toPoint()), button, buttons, Qt::NoModifier);
+    QApplication::sendEvent(canvas, &event);
+    QApplication::processEvents();
+  };
+  const auto double_click = [&](QPointF document_point) {
+    send_mouse_f(QEvent::MouseButtonPress, document_point, Qt::LeftButton, Qt::LeftButton);
+    send_mouse_f(QEvent::MouseButtonRelease, document_point, Qt::LeftButton, Qt::NoButton);
+    send_mouse_f(QEvent::MouseButtonDblClick, document_point, Qt::LeftButton, Qt::LeftButton);
+    send_mouse_f(QEvent::MouseButtonRelease, document_point, Qt::LeftButton, Qt::NoButton);
+  };
+
+  // On the selected layer, with the passive controls hidden or shown: no session.
+  double_click(QPointF(50.0, 50.0));
+  CHECK(!canvas->free_transform_active());
+  canvas->set_show_transform_controls(true);
+  QApplication::processEvents();
+  double_click(QPointF(50.0, 50.0));
+  CHECK(!canvas->free_transform_active());
+  canvas->set_show_transform_controls(false);
+  QApplication::processEvents();
+  const auto* unmoved = doc.find_layer(red_id);
+  CHECK(unmoved != nullptr);
+  if (unmoved != nullptr) {
+    CHECK(unmoved->bounds().x == 40);
+    CHECK(unmoved->bounds().y == 40);
+  }
+
+  // Drag the bottom-right handle out by 10 px; double-clicks inside and off
+  // the box keep the session, and Enter commits a 30 x 30 layer at the same
+  // origin.
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  send_mouse_f(QEvent::MouseButtonPress, QPointF(60.0, 60.0), Qt::LeftButton, Qt::LeftButton);
+  send_mouse_f(QEvent::MouseMove, QPointF(70.0, 70.0), Qt::NoButton, Qt::LeftButton);
+  send_mouse_f(QEvent::MouseButtonRelease, QPointF(70.0, 70.0), Qt::LeftButton, Qt::NoButton);
+  CHECK(canvas->free_transform_active());
+  double_click(QPointF(55.5, 55.5));
+  CHECK(canvas->free_transform_active());
+  double_click(QPointF(150.0, 120.0));
+  CHECK(canvas->free_transform_active());
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+  const auto* committed = doc.find_layer(red_id);
+  CHECK(committed != nullptr);
+  if (committed != nullptr) {
+    CHECK(committed->bounds().x == 40);
+    CHECK(committed->bounds().y == 40);
+    CHECK(committed->bounds().width == 30);
+    CHECK(committed->bounds().height == 30);
+  }
+}
+
 // The reported repro: the pinball PSD's folder must accept Ctrl-T, scale, and
 // restore byte-identically on one Undo.
 void ui_pinball_folder_free_transform_end_to_end() {
@@ -1063,6 +1155,8 @@ std::vector<patchy::test::TestCase> group_transform_tests() {
        ui_group_transform_selection_reemission_keeps_session},
       {"ui_move_passive_transform_controls_frame_folder_and_multi_selection",
        ui_move_passive_transform_controls_frame_folder_and_multi_selection},
+      {"ui_move_double_click_leaves_free_transform_alone",
+       ui_move_double_click_leaves_free_transform_alone},
       {"ui_pinball_folder_free_transform_end_to_end", ui_pinball_folder_free_transform_end_to_end},
       {"ui_select_all_free_transform_transforms_retronight_poster",
        ui_select_all_free_transform_transforms_retronight_poster},

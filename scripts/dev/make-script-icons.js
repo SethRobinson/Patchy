@@ -7,7 +7,7 @@
 //
 // Run from the repo root:
 //   patchy --run-script scripts/dev/make-script-icons.js ^
-//          --script-arg out=D:/projects/AI/codex/Patchy/scripts/bundled
+//          --script-arg out=<repo>/scripts/bundled
 // then commit the PNGs. The Fancy Background icon is that script's REAL
 // output at 64x64 (via include), everything else is drawn below.
 

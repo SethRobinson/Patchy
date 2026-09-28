@@ -240,10 +240,6 @@
 #include <tpcshrd.h>
 #endif
 
-#ifndef PATCHY_VERSION
-#define PATCHY_VERSION "0.0.0"
-#endif
-
 // Icon resources live in the static patchy_ui library; force registration before first use.
 int qInitResources_icons();
 
@@ -363,12 +359,13 @@ QString photoshop_style_template() {
       min-height: 20px;
       max-height: 20px;
     }
-    QToolButton#brushSmoothingOptionsButton {
+    QToolButton#brushSmoothingOptionsButton, QToolButton[optionsBarMenuButton="true"] {
       padding: 2px 1px;
       min-height: 20px;
       max-height: 20px;
     }
-    QToolButton#brushSmoothingOptionsButton::menu-indicator {
+    QToolButton#brushSmoothingOptionsButton::menu-indicator,
+    QToolButton[optionsBarMenuButton="true"]::menu-indicator {
       width: 0;
     }
     QToolButton#brushDynamicsButton[dynamicsActive="true"] {
@@ -547,6 +544,13 @@ QString photoshop_style_template() {
       border-color: @checkbox_accent_border;
       image: url(@icon(checkmark));
     }
+    QToolBar#Options QCheckBox:disabled {
+      color: @text_disabled;
+    }
+    QToolBar#Options QCheckBox::indicator:disabled {
+      background: @field_bg_disabled;
+      border-color: @field_border_disabled;
+    }
     QToolBar#Options QSlider::groove:horizontal {
       height: 4px;
       background: @slider_groove_bg;
@@ -718,6 +722,18 @@ QString photoshop_style_template() {
     }
     QLabel#layerRowName {
       color: @layer_row_name_text;
+      font-size: 12px;
+    }
+    /* The inline rename editor takes the name label's slot, so it keeps the
+       label's height and font instead of the generic 20 px field. */
+    QLineEdit#layerRowNameEdit {
+      background: @field_bg;
+      color: @layer_row_name_text;
+      border: 1px solid @accent_bright;
+      border-radius: 0;
+      padding: 0 1px;
+      margin: 0;
+      min-height: 0px;
       font-size: 12px;
     }
     QLabel#layerRowDetails {
@@ -964,6 +980,18 @@ QString photoshop_style_template() {
       background: @accent;
       border-color: @checkbox_accent_border;
       image: url(@icon(checkmark));
+    }
+    /* A disabled checkbox must read as disabled: without these rules the label
+       and box paint exactly like an enabled one, so a greyed-out option looks
+       like a checkbox that refuses to toggle (the Merge Layers "vector types"
+       report, September 2026). The checked glyph stays so the stored value is
+       still visible; only the colors drop to the disabled field tokens. */
+    QCheckBox:disabled {
+      color: @text_disabled;
+    }
+    QCheckBox::indicator:disabled {
+      background: @field_bg_disabled;
+      border-color: @field_border_disabled;
     }
     QTabWidget::pane {
       border-top: 1px solid @tab_pane_border;

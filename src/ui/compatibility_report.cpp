@@ -188,6 +188,9 @@ QStringList compatibility_warnings_for_document(const Document& document) {
     if (color_mode->second == "CMYK") {
       warnings << QObject::tr("The source color mode is CMYK; Patchy converted the pixels to RGB/RGBA for editing "
                               "and will export RGB PSD data from this document.");
+    } else if (color_mode->second == "Grayscale") {
+      warnings << QObject::tr("The source color mode is Grayscale; Patchy converted the gray values to RGB/RGBA "
+                              "for editing and will export RGB PSD data from this document.");
     } else {
       warnings << QObject::tr("The source color mode is %1; Patchy currently edits through RGB/RGBA workflows.")
                        .arg(QString::fromStdString(color_mode->second));

@@ -7,7 +7,7 @@ rem redirect first (>file echo ...): cmd treats a digit directly before > as a f
 rem handle, so echo %ERRORLEVEL%>file would leave an empty marker for exit code 0.
 setlocal EnableExtensions
 set "NO_PAUSE=1"
-set "CMAKE_BUILD_PARALLEL_LEVEL=6"
+set "CMAKE_BUILD_PARALLEL_LEVEL=20"
 set "PSModulePath=%USERPROFILE%\Documents\WindowsPowerShell\Modules;%ProgramFiles%\WindowsPowerShell\Modules;%SystemRoot%\system32\WindowsPowerShell\v1.0\Modules"
 cd /d "%~dp0..\.."
 if not exist build\release-logs mkdir build\release-logs
@@ -20,7 +20,8 @@ if /i "%~1"=="mac" ( powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0.
 if /i "%~1"=="linux" ( powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0..\remote\release-linux.ps1" > "%LOG%" 2>&1 & goto done )
 if /i "%~1"=="upload-wasm" ( call "%~dp0upload-wasm-to-rtsoft.bat" nopause > "%LOG%" 2>&1 & goto done )
 if /i "%~1"=="upload-all" ( call "%~dp0upload-to-rtsoft.bat" > "%LOG%" 2>&1 & goto done )
-echo Unknown release target "%~1" ^(expected windows, mac, linux, wasm, upload-wasm, or upload-all^). > "%LOG%"
+if /i "%~1"=="upload-github" ( call "%~dp0publish-github-release.bat" nopause > "%LOG%" 2>&1 & goto done )
+echo Unknown release target "%~1" ^(expected windows, mac, linux, wasm, upload-wasm, upload-all, or upload-github^). > "%LOG%"
 >"%MARKER%" echo exit=2
 exit /b 2
 

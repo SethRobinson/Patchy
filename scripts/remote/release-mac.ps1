@@ -5,7 +5,7 @@ build\package\ next to the Windows artifacts.
   scripts\remote\release-mac.ps1
 
 Flow: snapshot + remote mac-release build (scripts\remote\remote-build.ps1 -SkipTests),
-then packaging/macos/make-dmg.sh on studiomac (macdeployqt -> codesign -> dmg ->
+then packaging/macos/make-dmg.sh on the mac build host (macdeployqt -> codesign -> dmg ->
 notarize -> staple -> verify), then scp the dmg back.
 
 PATCHY_REQUIRE_SIGNING=1 is passed so make-dmg.sh treats a missing signing identity or
@@ -21,7 +21,8 @@ param()
 # with 'Stop'. Failures are handled via the explicit LASTEXITCODE checks below.
 $ErrorActionPreference = 'Continue'
 
-$remoteHost = 'seth@studiomac.local'
+. (Join-Path $PSScriptRoot 'remote-hosts.ps1')
+$remoteHost = (Get-PatchyRemoteHost mac).ssh
 
 # Delete previous local copies up front so a failed run leaves nothing stale for the
 # newest-file upload script to pick up by accident (the remote side does the same).
@@ -37,14 +38,14 @@ if ($LASTEXITCODE -ne 0) { throw 'remote mac build failed' }
 
 ssh $remoteHost 'source ~/.patchy-release-env 2>/dev/null || true; PATCHY_REQUIRE_SIGNING=1 bash ~/patchy/src/packaging/macos/make-dmg.sh'
 if ($LASTEXITCODE -ne 0) {
-  throw 'make-dmg.sh failed on studiomac (signing, notarization, and the Gatekeeper check are fatal here)'
+  throw 'make-dmg.sh failed on the mac build host (signing, notarization, and the Gatekeeper check are fatal here)'
 }
 
 $repoRoot = (git rev-parse --show-toplevel).Trim()
 $dest = Join-Path $repoRoot 'build\package'
 New-Item -ItemType Directory -Force $dest | Out-Null
 scp -q "${remoteHost}:patchy/src/build/package/Patchy-*.dmg" $dest
-if ($LASTEXITCODE -ne 0) { throw 'copying the dmg back from studiomac failed' }
+if ($LASTEXITCODE -ne 0) { throw 'copying the dmg back from the mac build host failed' }
 
 # upload-mac-to-rtsoft.bat picks the newest build\package\Patchy-*.dmg, so an empty
 # copy-back would leave it with nothing to publish (or something stale from an earlier

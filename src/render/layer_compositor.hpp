@@ -355,6 +355,19 @@ inline Rect layer_render_bounds_for_render(const Layer& layer, const std::vector
   return unite_rect(layer_render_bounds(layer), layer_bounds_with_effects(layer, override->bounds));
 }
 
+// A styled group's flattened children without the group's own effect
+// padding. The group's effects read this buffer and paint straight into the
+// destination, exactly like a pixel layer's unpadded source, so padding it
+// only allocated transparency (60000 px of it around a 30000 px drop shadow).
+// The children's own effects stay inside, since they are group content.
+inline Rect group_content_bounds_for_render(const Layer& group, const std::vector<LayerBoundsOverride>* overrides) {
+  Rect bounds;
+  for (const auto& child : group.children()) {
+    bounds = unite_rect(bounds, layer_render_bounds_for_render(child, overrides));
+  }
+  return bounds;
+}
+
 // Folds the layer's vector and raster mask factors over draw_rect into one
 // float plane, row-walked with raw pointers instead of the per-pixel
 // layer_mask_alpha_for_render call chain. The values are bit-identical to that
@@ -811,7 +824,14 @@ void render_drop_shadow(Target& destination, const Layer& layer, const PixelBuff
   // The sweep reads the matte up to the full offset behind every pixel, so the
   // continuous apron adds that reach as well.
   const auto sweep_reach = continuous ? std::max(std::abs(offset_x), std::abs(offset_y)) : 0;
-  const auto legacy_mask_bounds = clipped_mask_bounds(effect_bounds, draw_rect, radius + 2 + sweep_reach);
+  auto legacy_mask_bounds = clipped_mask_bounds(effect_bounds, draw_rect, radius + 2 + sweep_reach);
+  if (continuous) {
+    // The sweep only carries matte from the source, so the window plus the
+    // source bound every sample it can reach; without this a 30000 px long
+    // shadow would size the mask by the full offset around the window.
+    legacy_mask_bounds = intersect_rect(
+        legacy_mask_bounds, unite_rect(outset_rect(draw_rect, radius + 2), outset_rect(*source_bounds, radius + 2)));
+  }
   const auto [entry, mask_bounds] = style_mask_for_render(
       masks, layer, StyleMaskKind::DropShadow, effect_index, effect_bounds, effect_bounds, legacy_mask_bounds,
       bounds, layer_mask_bounds, [&](Rect domain) {
@@ -939,8 +959,16 @@ void render_inner_shadow(Target& destination, const Layer& layer, const PixelBuf
 
   constexpr float kPi = 3.14159265358979323846F;
   const auto radians = (180.0F - shadow.angle_degrees) * kPi / 180.0F;
-  const auto offset_x = static_cast<int>(std::lround(std::cos(radians) * shadow.distance));
-  const auto offset_y = static_cast<int>(std::lround(std::sin(radians) * shadow.distance));
+  // Past the layer's extent plus the blur reach every interior sample reads
+  // outside the layer (fully shadowed), so a farther offset renders
+  // identically; clamping keeps a 30000 px distance from sizing the domain.
+  const auto interior_reach = static_cast<int>(std::lround(std::max(0.0F, shadow.size))) + 2;
+  const auto reach_x = bounds.width + interior_reach;
+  const auto reach_y = bounds.height + interior_reach;
+  const auto offset_x =
+      std::clamp(static_cast<int>(std::lround(std::cos(radians) * shadow.distance)), -reach_x, reach_x);
+  const auto offset_y =
+      std::clamp(static_cast<int>(std::lround(std::sin(radians) * shadow.distance)), -reach_y, reach_y);
   // The COM-calibrated interior pipeline (July 2026, distance-0 probes at sizes
   // 5-40 and chokes 0-50 matched byte-for-byte): choke dilation of the inverse
   // matte, then the tent blur. Padding covers choke reach + tent reach + offset.
@@ -3493,7 +3521,7 @@ void composite_layer(Target& destination, const Layer& layer, Rect clip,
       // isolation buffer per group per preview frame). Coverage can only
       // exist where pixel children painted, so the bounded buffer merges
       // identically.
-      const auto isolated_rect = styled ? layer_render_bounds_for_render(layer, overrides)
+      const auto isolated_rect = styled ? group_content_bounds_for_render(layer, overrides)
                                  : !layer_has_rendered_blend_if(layer)
                                      ? intersect_rect(clip, layer_render_bounds_for_render(layer, overrides))
                                      : clip;
@@ -3591,7 +3619,7 @@ void composite_pass_through_group(Target& destination, const Layer& layer, Rect 
     // Override-aware: the children composite below WITH overrides, so a
     // preview-moved child outside the historical bounds must still land
     // inside the silhouette buffer.
-    silhouette_rect = layer_render_bounds_for_render(layer, overrides);
+    silhouette_rect = group_content_bounds_for_render(layer, overrides);
     if (!silhouette_rect.empty()) {
       silhouette = group_silhouette_for_render(layer, silhouette_rect, overrides,
                                                throw_on_unsupported_pixel_format, masks, patterns);

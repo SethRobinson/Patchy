@@ -87,7 +87,13 @@ std::int32_t guide_position_32(double pixels) noexcept {
   return static_cast<std::int32_t>(std::lround(pixels * 32.0));
 }
 
-void append_rect_snap_candidates(QRect rect, std::vector<double>& x_candidates, std::vector<double>& y_candidates) {
+using SnapCandidate = CanvasWidget::SnapCandidate;
+using SnapKind = CanvasWidget::SnapMatch::Kind;
+
+// The three snap lines per axis of a rect: both edges and the center. `rect`
+// is a QRect in document pixels, so its far edge is right() + 1.
+void append_rect_snap_candidates(QRect rect, SnapKind kind, std::vector<SnapCandidate>& x_candidates,
+                                 std::vector<SnapCandidate>& y_candidates) {
   if (rect.isEmpty()) {
     return;
   }
@@ -95,24 +101,45 @@ void append_rect_snap_candidates(QRect rect, std::vector<double>& x_candidates, 
   const auto top = static_cast<double>(rect.top());
   const auto right = static_cast<double>(rect.right() + 1);
   const auto bottom = static_cast<double>(rect.bottom() + 1);
-  x_candidates.push_back(left);
-  x_candidates.push_back((left + right) * 0.5);
-  x_candidates.push_back(right);
-  y_candidates.push_back(top);
-  y_candidates.push_back((top + bottom) * 0.5);
-  y_candidates.push_back(bottom);
+  const QRectF span(left, top, right - left, bottom - top);
+  x_candidates.push_back(SnapCandidate{left, span, kind});
+  x_candidates.push_back(SnapCandidate{(left + right) * 0.5, span, kind});
+  x_candidates.push_back(SnapCandidate{right, span, kind});
+  y_candidates.push_back(SnapCandidate{top, span, kind});
+  y_candidates.push_back(SnapCandidate{(top + bottom) * 0.5, span, kind});
+  y_candidates.push_back(SnapCandidate{bottom, span, kind});
 }
 
-void append_layer_snap_candidates(const std::vector<Layer>& layers, std::vector<double>& x_candidates,
-                                  std::vector<double>& y_candidates) {
+// Other layers' snap lines. A leaf contributes the rect the Move tool itself
+// shows for it (the opaque raster extent or a text frame, docs/alignment.md),
+// falling back to the effect-padded render bounds for layers that have no
+// Move rect (16-bit, adjustment, locked smart objects), so every document that
+// snapped before still does. Folders only recurse: their children are the
+// objects a user lines up with. Hidden trees, zero-opacity layers, and the
+// moving set itself (`exclude_ids`) contribute nothing.
+void append_layer_snap_candidates(const std::vector<Layer>& layers, const std::vector<LayerId>& exclude_ids,
+                                  std::vector<SnapCandidate>& x_candidates,
+                                  std::vector<SnapCandidate>& y_candidates) {
   for (const auto& layer : layers) {
-    if (!layer.visible()) {
+    if (!layer.visible() || layer.opacity() <= 0.0F) {
       continue;
     }
-    append_rect_snap_candidates(to_qrect(layer_render_bounds(layer)), x_candidates, y_candidates);
     if (layer.kind() == LayerKind::Group) {
-      append_layer_snap_candidates(layer.children(), x_candidates, y_candidates);
+      append_layer_snap_candidates(layer.children(), exclude_ids, x_candidates, y_candidates);
+      continue;
     }
+    if (std::find(exclude_ids.begin(), exclude_ids.end(), layer.id()) != exclude_ids.end()) {
+      continue;
+    }
+    auto rect = move_layer_outline_bounds(layer);
+    if (!rect.has_value() || rect->empty()) {
+      const auto render = layer_render_bounds(layer);
+      if (render.empty()) {
+        continue;
+      }
+      rect = render;
+    }
+    append_rect_snap_candidates(to_qrect(*rect), SnapKind::Layer, x_candidates, y_candidates);
   }
 }
 
@@ -408,13 +435,23 @@ QPoint CanvasWidget::snapped_document_point(QPoint point) const {
     }
   };
 
-  if (snap_to_guides_) {
-    for (const auto& guide : document_->guides()) {
-      if (guide.orientation == GuideOrientation::Vertical) {
-        consider_x(guide_position_pixels(guide));
-      } else {
-        consider_y(guide_position_pixels(guide));
-      }
+  // Historical consideration order (ties resolve to the last candidate):
+  // guides, grid, then document / selection / layers.
+  std::vector<SnapCandidate> x_candidates;
+  std::vector<SnapCandidate> y_candidates;
+  // A Free Transform drag must not snap to the edges the session's own layers
+  // still occupy in the document (the pixels only move at commit): a press
+  // inside the box a few pixels from the layer's old edge otherwise nudged the
+  // box onto it on release, so the double-click that commits moved the layer.
+  collect_snap_candidates(free_transform_snap_exclude_ids(), x_candidates, y_candidates);
+  for (const auto& candidate : x_candidates) {
+    if (candidate.kind == SnapKind::Guide) {
+      consider_x(candidate.position);
+    }
+  }
+  for (const auto& candidate : y_candidates) {
+    if (candidate.kind == SnapKind::Guide) {
+      consider_y(candidate.position);
     }
   }
 
@@ -431,28 +468,15 @@ QPoint CanvasWidget::snapped_document_point(QPoint point) const {
     }
   }
 
-  if (snap_to_document_) {
-    consider_x(0.0);
-    consider_x(static_cast<double>(document_->width()) * 0.5);
-    consider_x(static_cast<double>(document_->width()));
-    consider_y(0.0);
-    consider_y(static_cast<double>(document_->height()) * 0.5);
-    consider_y(static_cast<double>(document_->height()));
+  for (const auto& candidate : x_candidates) {
+    if (candidate.kind != SnapKind::Guide) {
+      consider_x(candidate.position);
+    }
   }
-
-  std::vector<double> x_candidates;
-  std::vector<double> y_candidates;
-  if (snap_to_selection_ && !selection_.isEmpty()) {
-    append_rect_snap_candidates(selection_.boundingRect(), x_candidates, y_candidates);
-  }
-  if (snap_to_layers_) {
-    append_layer_snap_candidates(document_->layers(), x_candidates, y_candidates);
-  }
-  for (const auto candidate : x_candidates) {
-    consider_x(candidate);
-  }
-  for (const auto candidate : y_candidates) {
-    consider_y(candidate);
+  for (const auto& candidate : y_candidates) {
+    if (candidate.kind != SnapKind::Guide) {
+      consider_y(candidate.position);
+    }
   }
 
   return QPoint(static_cast<int>(std::lround(snapped_x)), static_cast<int>(std::lround(snapped_y)));
@@ -464,34 +488,57 @@ QPointF CanvasWidget::snapped_document_point_f(QPointF point) const {
   return QPointF(snapped);
 }
 
-void CanvasWidget::append_snap_target_candidates(std::vector<double>& x_candidates,
-                                                 std::vector<double>& y_candidates) const {
+void CanvasWidget::collect_snap_candidates(const std::vector<LayerId>& exclude_ids,
+                                           std::vector<SnapCandidate>& x_candidates,
+                                           std::vector<SnapCandidate>& y_candidates) const {
   if (document_ == nullptr) {
     return;
   }
+  const auto& document = std::as_const(*document_);
+  const QRectF document_span(0.0, 0.0, static_cast<double>(document.width()),
+                             static_cast<double>(document.height()));
 
   if (snap_to_guides_) {
-    for (const auto& guide : document_->guides()) {
+    for (const auto& guide : document.guides()) {
+      const SnapCandidate candidate{guide_position_pixels(guide), document_span, SnapKind::Guide};
       if (guide.orientation == GuideOrientation::Vertical) {
-        x_candidates.push_back(guide_position_pixels(guide));
+        x_candidates.push_back(candidate);
       } else {
-        y_candidates.push_back(guide_position_pixels(guide));
+        y_candidates.push_back(candidate);
       }
     }
   }
   if (snap_to_document_) {
-    x_candidates.push_back(0.0);
-    x_candidates.push_back(static_cast<double>(document_->width()) * 0.5);
-    x_candidates.push_back(static_cast<double>(document_->width()));
-    y_candidates.push_back(0.0);
-    y_candidates.push_back(static_cast<double>(document_->height()) * 0.5);
-    y_candidates.push_back(static_cast<double>(document_->height()));
+    const auto width = static_cast<double>(document.width());
+    const auto height = static_cast<double>(document.height());
+    x_candidates.push_back(SnapCandidate{0.0, document_span, SnapKind::Document});
+    x_candidates.push_back(SnapCandidate{width * 0.5, document_span, SnapKind::Document});
+    x_candidates.push_back(SnapCandidate{width, document_span, SnapKind::Document});
+    y_candidates.push_back(SnapCandidate{0.0, document_span, SnapKind::Document});
+    y_candidates.push_back(SnapCandidate{height * 0.5, document_span, SnapKind::Document});
+    y_candidates.push_back(SnapCandidate{height, document_span, SnapKind::Document});
   }
-  if (snap_to_selection_ && !selection_.isEmpty()) {
-    append_rect_snap_candidates(selection_.boundingRect(), x_candidates, y_candidates);
+  // The selection a marquee gesture is writing must not be its own target:
+  // every move would otherwise snap back to where the rect was one event ago
+  // and the drag would stutter in tolerance-sized jumps.
+  if (snap_to_selection_ && !selection_.isEmpty() && !selection_is_live_gesture_output()) {
+    append_rect_snap_candidates(selection_.boundingRect(), SnapKind::Selection, x_candidates, y_candidates);
   }
   if (snap_to_layers_) {
-    append_layer_snap_candidates(document_->layers(), x_candidates, y_candidates);
+    append_layer_snap_candidates(document.layers(), exclude_ids, x_candidates, y_candidates);
+  }
+}
+
+void CanvasWidget::append_snap_target_candidates(std::vector<double>& x_candidates,
+                                                 std::vector<double>& y_candidates) const {
+  std::vector<SnapCandidate> x_lines;
+  std::vector<SnapCandidate> y_lines;
+  collect_snap_candidates({}, x_lines, y_lines);
+  for (const auto& candidate : x_lines) {
+    x_candidates.push_back(candidate.position);
+  }
+  for (const auto& candidate : y_lines) {
+    y_candidates.push_back(candidate.position);
   }
 }
 
@@ -634,8 +681,14 @@ QPoint CanvasWidget::snapped_marquee_current_point(QPoint anchor, QPoint current
 }
 
 QPoint CanvasWidget::snapped_move_delta(QPoint raw_delta) const {
+  return snapped_move_delta_with_matches(raw_delta).delta;
+}
+
+CanvasWidget::MoveSnapResult CanvasWidget::snapped_move_delta_with_matches(QPoint raw_delta) const {
+  MoveSnapResult result;
+  result.delta = raw_delta;
   if (document_ == nullptr || !snap_enabled_ || moving_layers_.empty()) {
-    return raw_delta;
+    return result;
   }
 
   const auto tolerance = kSnapToleranceScreenPixels / std::max(zoom_, 0.0001);
@@ -644,49 +697,44 @@ QPoint CanvasWidget::snapped_move_delta(QPoint raw_delta) const {
   double best_x = tolerance + 0.0001;
   double best_y = tolerance + 0.0001;
 
-  std::vector<double> target_x;
-  std::vector<double> target_y;
-  if (snap_to_guides_) {
-    for (const auto& guide : document_->guides()) {
-      if (guide.orientation == GuideOrientation::Vertical) {
-        target_x.push_back(guide_position_pixels(guide));
-      } else {
-        target_y.push_back(guide_position_pixels(guide));
-      }
-    }
+  // Every feature of every moving layer is a snap source regardless of where
+  // the drag was grabbed (docs/legal-constraints.md, alignment guides): the
+  // moving set itself is excluded from the targets so a layer never snaps back
+  // to its own start position.
+  std::vector<LayerId> moving_ids;
+  moving_ids.reserve(moving_layers_.size());
+  for (const auto& moving_layer : moving_layers_) {
+    moving_ids.push_back(moving_layer.id);
   }
-  if (snap_to_document_) {
-    target_x.push_back(0.0);
-    target_x.push_back(static_cast<double>(document_->width()) * 0.5);
-    target_x.push_back(static_cast<double>(document_->width()));
-    target_y.push_back(0.0);
-    target_y.push_back(static_cast<double>(document_->height()) * 0.5);
-    target_y.push_back(static_cast<double>(document_->height()));
-  }
-  if (snap_to_selection_ && !selection_.isEmpty()) {
-    append_rect_snap_candidates(selection_.boundingRect(), target_x, target_y);
-  }
-  if (snap_to_layers_) {
-    append_layer_snap_candidates(document_->layers(), target_x, target_y);
-  }
+  std::vector<SnapCandidate> target_x;
+  std::vector<SnapCandidate> target_y;
+  collect_snap_candidates(moving_ids, target_x, target_y);
 
-  auto consider_x = [&](double source, double target) {
-    const auto correction = target - (source + static_cast<double>(raw_delta.x()));
+  // The winning source feature per axis, so the guide can span every moving
+  // rect that shares it.
+  std::optional<double> matched_source_x;
+  std::optional<double> matched_source_y;
+  const auto consider_x = [&](double source, const SnapCandidate& target, QRectF source_span) {
+    const auto correction = target.position - (source + static_cast<double>(raw_delta.x()));
     const auto distance = std::abs(correction);
     if (distance <= best_x) {
       best_x = distance;
       adjusted_x = static_cast<double>(raw_delta.x()) + correction;
+      result.x = SnapMatch{target.kind, target.position, source_span, target.span};
+      matched_source_x = source;
     }
   };
-  auto consider_y = [&](double source, double target) {
-    const auto correction = target - (source + static_cast<double>(raw_delta.y()));
+  const auto consider_y = [&](double source, const SnapCandidate& target, QRectF source_span) {
+    const auto correction = target.position - (source + static_cast<double>(raw_delta.y()));
     const auto distance = std::abs(correction);
     if (distance <= best_y) {
       best_y = distance;
       adjusted_y = static_cast<double>(raw_delta.y()) + correction;
+      result.y = SnapMatch{target.kind, target.position, source_span, target.span};
+      matched_source_y = source;
     }
   };
-  const auto consider_grid_x = [&](double source) {
+  const auto consider_grid_x = [&](double source, QRectF source_span) {
     if (!snap_to_grid_ || !grid_visible_) {
       return;
     }
@@ -695,9 +743,10 @@ QPoint CanvasWidget::snapped_move_delta(QPoint raw_delta) const {
     if (step <= 0.0) {
       return;
     }
-    consider_x(source, std::round((source + static_cast<double>(raw_delta.x())) / step) * step);
+    const auto position = std::round((source + static_cast<double>(raw_delta.x())) / step) * step;
+    consider_x(source, SnapCandidate{position, QRectF(), SnapKind::Grid}, source_span);
   };
-  const auto consider_grid_y = [&](double source) {
+  const auto consider_grid_y = [&](double source, QRectF source_span) {
     if (!snap_to_grid_ || !grid_visible_) {
       return;
     }
@@ -706,14 +755,20 @@ QPoint CanvasWidget::snapped_move_delta(QPoint raw_delta) const {
     if (step <= 0.0) {
       return;
     }
-    consider_y(source, std::round((source + static_cast<double>(raw_delta.y())) / step) * step);
+    const auto position = std::round((source + static_cast<double>(raw_delta.y())) / step) * step;
+    consider_y(source, SnapCandidate{position, QRectF(), SnapKind::Grid}, source_span);
   };
 
+  const auto source_span_of = [](QRect rect) {
+    return QRectF(static_cast<double>(rect.left()), static_cast<double>(rect.top()),
+                  static_cast<double>(rect.width()), static_cast<double>(rect.height()));
+  };
   for (const auto& moving_layer : moving_layers_) {
     const auto rect = moving_layer_outline_rect(moving_layer, QPoint());
     if (rect.isEmpty()) {
       continue;
     }
+    const auto span = source_span_of(rect);
     const std::array<double, 3> source_x{static_cast<double>(rect.left()),
                                          static_cast<double>(rect.left() + rect.width() / 2.0),
                                          static_cast<double>(rect.right() + 1)};
@@ -721,20 +776,56 @@ QPoint CanvasWidget::snapped_move_delta(QPoint raw_delta) const {
                                          static_cast<double>(rect.top() + rect.height() / 2.0),
                                          static_cast<double>(rect.bottom() + 1)};
     for (const auto source : source_x) {
-      for (const auto target : target_x) {
-        consider_x(source, target);
+      for (const auto& target : target_x) {
+        consider_x(source, target, span);
       }
-      consider_grid_x(source);
+      consider_grid_x(source, span);
     }
     for (const auto source : source_y) {
-      for (const auto target : target_y) {
-        consider_y(source, target);
+      for (const auto& target : target_y) {
+        consider_y(source, target, span);
       }
-      consider_grid_y(source);
+      consider_grid_y(source, span);
     }
   }
 
-  return QPoint(static_cast<int>(std::lround(adjusted_x)), static_cast<int>(std::lround(adjusted_y)));
+  result.delta = QPoint(static_cast<int>(std::lround(adjusted_x)), static_cast<int>(std::lround(adjusted_y)));
+  // Report the matched lines where the set actually lands (the rounded delta),
+  // spanning every moving rect that carries the winning feature.
+  const auto finish_match = [&](std::optional<SnapMatch>& match, const std::optional<double>& matched_source,
+                                bool horizontal) {
+    if (!match.has_value() || !matched_source.has_value()) {
+      return;
+    }
+    QRectF span;
+    for (const auto& moving_layer : moving_layers_) {
+      const auto rect = moving_layer_outline_rect(moving_layer, result.delta);
+      if (rect.isEmpty()) {
+        continue;
+      }
+      const auto zero_rect = moving_layer_outline_rect(moving_layer, QPoint());
+      const auto width = static_cast<double>(zero_rect.width());
+      const auto height = static_cast<double>(zero_rect.height());
+      const std::array<double, 3> features =
+          horizontal ? std::array<double, 3>{static_cast<double>(zero_rect.left()),
+                                             static_cast<double>(zero_rect.left()) + width / 2.0,
+                                             static_cast<double>(zero_rect.right() + 1)}
+                     : std::array<double, 3>{static_cast<double>(zero_rect.top()),
+                                             static_cast<double>(zero_rect.top()) + height / 2.0,
+                                             static_cast<double>(zero_rect.bottom() + 1)};
+      if (std::any_of(features.begin(), features.end(),
+                      [&](double feature) { return std::abs(feature - *matched_source) < 1e-6; })) {
+        const auto moved = source_span_of(rect);
+        span = span.isNull() ? moved : span.united(moved);
+      }
+    }
+    if (!span.isNull()) {
+      match->source_span = span;
+    }
+  };
+  finish_match(result.x, matched_source_x, true);
+  finish_match(result.y, matched_source_y, false);
+  return result;
 }
 
 int CanvasWidget::guide_at_widget_position(QPoint widget_position) const {
@@ -870,17 +961,16 @@ void CanvasWidget::update_guide_drag(QPoint widget_position, Qt::KeyboardModifie
       consider(limit * 0.5);
       consider(limit);
     }
-    std::vector<double> x_candidates;
-    std::vector<double> y_candidates;
-    if (snap_to_selection_ && !selection_.isEmpty()) {
-      append_rect_snap_candidates(selection_.boundingRect(), x_candidates, y_candidates);
-    }
-    if (snap_to_layers_) {
-      append_layer_snap_candidates(document_->layers(), x_candidates, y_candidates);
-    }
+    // Selection and layer lines through the shared walker (guides and the
+    // document are handled above, so only those two kinds are consumed).
+    std::vector<SnapCandidate> x_candidates;
+    std::vector<SnapCandidate> y_candidates;
+    collect_snap_candidates({}, x_candidates, y_candidates);
     const auto& candidates = orientation == GuideOrientation::Vertical ? x_candidates : y_candidates;
-    for (const auto candidate : candidates) {
-      consider(candidate);
+    for (const auto& candidate : candidates) {
+      if (candidate.kind == SnapKind::Selection || candidate.kind == SnapKind::Layer) {
+        consider(candidate.position);
+      }
     }
   }
 
@@ -888,6 +978,8 @@ void CanvasWidget::update_guide_drag(QPoint widget_position, Qt::KeyboardModifie
   snapped_position = std::clamp(snapped_position, 0.0, limit);
   guide_drag_position_32_ = guide_position_32(snapped_position);
   update();
+  // The whole widget repaints above; this keeps the status-bar mirror current.
+  update_drag_readout_region();
 }
 
 void CanvasWidget::finish_guide_drag(QPoint widget_position, Qt::KeyboardModifiers modifiers) {
@@ -895,6 +987,7 @@ void CanvasWidget::finish_guide_drag(QPoint widget_position, Qt::KeyboardModifie
     return;
   }
   update_guide_drag(widget_position, modifiers);
+  clear_drag_readout();
 
   if (creating_guide_) {
     if (!guide_drag_remove_) {
@@ -943,6 +1036,7 @@ void CanvasWidget::cancel_guide_drag() {
   dragging_guide_ = false;
   creating_guide_ = false;
   guide_drag_remove_ = false;
+  clear_drag_readout();
   update();
 }
 

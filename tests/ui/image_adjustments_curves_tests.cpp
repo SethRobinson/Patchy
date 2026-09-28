@@ -727,15 +727,48 @@ void ui_levels_dialog_preserves_independent_channel_records() {
   CHECK(result->green.black_output == 0);
 }
 
-void ui_levels_histogram_sqrt_heights_and_auto_shared_sampler() {
-  // 90% of the 2x2 sample blocks sit at gray 60 and 10% at gray 180 (the
-  // bright pixels are block-aligned so averaging cannot mix the two), giving a
-  // composite histogram of 13,500 vs 1,500 counts.
+void ui_histogram_display_ceiling_is_four_times_the_mean_non_empty_bin() {
+  // Pinned by Photoshop Levels dialog captures of synthetic histograms
+  // (September 2026): 65,536 samples over all 256 bins clip at 1,024; the same
+  // samples over 12 bins clip at 21,845; 40,000 samples over 122 bins (20 of
+  // them holding a single sample) clip at 1,311.
+  CHECK(patchy::ui::histogram_display_ceiling(0, 0) == 0.0);
+  CHECK(patchy::ui::histogram_display_ceiling(65536, 0) == 0.0);
+  CHECK(std::abs(patchy::ui::histogram_display_ceiling(65536, 256) - 1024.0) < 1e-9);
+  CHECK(std::abs(patchy::ui::histogram_display_ceiling(65536, 12) - 21845.333) < 0.01);
+  CHECK(std::abs(patchy::ui::histogram_display_ceiling(40000, 122) - 1311.475) < 0.01);
+
+  // Bars are linear up to the ceiling and clip there; the tallest bin does
+  // not set the scale.
+  const auto ceiling = patchy::ui::histogram_display_ceiling(65536, 256);
+  CHECK(patchy::ui::histogram_display_fraction(0, ceiling) == 0.0);
+  CHECK(patchy::ui::histogram_display_fraction(100, 0.0) == 0.0);
+  CHECK(std::abs(patchy::ui::histogram_display_fraction(256, ceiling) - 0.25) < 1e-9);
+  CHECK(std::abs(patchy::ui::histogram_display_fraction(512, ceiling) - 0.5) < 1e-9);
+  CHECK(std::abs(patchy::ui::histogram_display_fraction(819, ceiling) - 0.7998) < 0.001);
+  CHECK(patchy::ui::histogram_display_fraction(900, ceiling) < 1.0);
+  CHECK(patchy::ui::histogram_display_fraction(1024, ceiling) == 1.0);
+  CHECK(patchy::ui::histogram_display_fraction(8192, ceiling) == 1.0);
+}
+
+void ui_levels_histogram_clipped_linear_heights_and_auto_shared_sampler() {
+  // Of the 10,000 2x2 sample blocks, 9,000 sit at gray 60, 100 at gray 180 and
+  // 900 spread over grays 61..150 (10 blocks each), all block-aligned so
+  // averaging cannot mix them. The composite histogram then holds 30,000
+  // samples over 92 non-empty bins, so the display ceiling is
+  // 4 * 30,000 / 92 = 1,304: bin 60 (27,000) clips at full height and bin 180
+  // (300) draws at 23%.
   patchy::PixelBuffer pixels(200, 100, patchy::PixelFormat::rgb8());
   for (std::int32_t y = 0; y < 100; ++y) {
     for (std::int32_t x = 0; x < 200; ++x) {
       auto* pixel = pixels.pixel(x, y);
-      const auto value = static_cast<std::uint8_t>(((x / 2) + (y / 2) * 100) % 10 == 0 ? 180 : 60);
+      const auto block = (x / 2) + (y / 2) * 100;
+      std::uint8_t value = 60;
+      if (block % 100 == 0) {
+        value = 180;
+      } else if (block % 100 <= 9) {
+        value = static_cast<std::uint8_t>(61 + ((block / 100) * 9 + (block % 100 - 1)) % 90);
+      }
       pixel[0] = value;
       pixel[1] = value;
       pixel[2] = value;
@@ -761,12 +794,22 @@ void ui_levels_histogram_sqrt_heights_and_auto_shared_sampler() {
     const auto graph_rect = QRect(0, 0, graph->width(), graph->height()).adjusted(8, 8, -8, -28);
     CHECK(graph_rect.width() >= 256);
     const auto column = graph_rect.left() + (180 * graph_rect.width()) / 256;
-    // The 1/9th-count bin draws sqrt(1/9) = 33% of the 72px bar scale = 24px.
-    // The 12px probe must be inside the bar (linear drew only 8px) and the
-    // 30px probe outside it (log drew ~57px).
+    // Bin 180 holds 300 of 30,000 samples: 23% of the ceiling, 17px of the
+    // 72px bar scale. The 12px probe must be inside the bar and the 24px probe
+    // outside it (sqrt-of-max drew 7px, and normalizing to the tallest bin
+    // would draw under 1px).
     CHECK(color_close(image.pixelColor(column, graph_rect.bottom() - 2), QColor(218, 218, 218), 8));
     CHECK(color_close(image.pixelColor(column, graph_rect.bottom() - 12), QColor(218, 218, 218), 8));
-    CHECK(color_close(image.pixelColor(column, graph_rect.bottom() - 30), QColor(55, 55, 55), 8));
+    CHECK(color_close(image.pixelColor(column, graph_rect.bottom() - 24), QColor(55, 55, 55), 8));
+    // Bin 60 holds 27,000 samples, 20 times the ceiling: it clips to the full
+    // 72px scale instead of stretching the graph.
+    const auto tall_column = graph_rect.left() + (60 * graph_rect.width()) / 256;
+    CHECK(color_close(image.pixelColor(tall_column, graph_rect.bottom() - 60), QColor(218, 218, 218), 8));
+    CHECK(color_close(image.pixelColor(tall_column, graph_rect.bottom() - 70), QColor(218, 218, 218), 8));
+    // A 30-sample bin draws 2% of the scale: visible as a baseline, not tall.
+    const auto floor_column = graph_rect.left() + (100 * graph_rect.width()) / 256;
+    CHECK(color_close(image.pixelColor(floor_column, graph_rect.bottom() - 1), QColor(218, 218, 218), 8));
+    CHECK(color_close(image.pixelColor(floor_column, graph_rect.bottom() - 6), QColor(55, 55, 55), 8));
 
     auto_button->click();
     CHECK(black_input->value() == 60);
@@ -2282,18 +2325,26 @@ void ui_curves_histograms_box_average_fills_missing_codes() {
   CHECK(tallest_bin * 2U < noisy_total);
 }
 
-void ui_curves_histogram_display_uses_sqrt_heights() {
+void ui_curves_histogram_display_is_linear_and_clips() {
   patchy::ui::CurvesEditorWidget editor;
   editor.resize(460, 520);
+  // A floor of 100 in every bin but 220 (the background reference), a
+  // dominant spike of 47,300 at bin 128, full-ceiling bins at 0, 40 and 255
+  // and a half-ceiling bin at 200: 76,500 samples over 255 non-empty bins, so
+  // the ceiling is 4 * 76,500 / 255 = 1,200.
   patchy::ui::CurvesHistograms histograms;
-  histograms.rgb[0] = 1000;
-  histograms.rgb[255] = 1000;
-  for (int bin = 39; bin <= 41; ++bin) {
-    histograms.rgb[static_cast<std::size_t>(bin)] = 1000;
+  histograms.rgb.fill(100);
+  histograms.rgb[220] = 0;
+  histograms.rgb[128] = 47300;
+  histograms.rgb[0] = 1200;
+  histograms.rgb[255] = 1200;
+  histograms.rgb[40] = 1200;
+  histograms.rgb[200] = 600;
+  std::uint64_t total = 0;
+  for (const auto count : histograms.rgb) {
+    total += count;
   }
-  for (int bin = 199; bin <= 201; ++bin) {
-    histograms.rgb[static_cast<std::size_t>(bin)] = 100;
-  }
+  CHECK(total == 76500);
   editor.set_histograms(histograms);
   editor.show();
   QApplication::processEvents();
@@ -2335,25 +2386,34 @@ void ui_curves_histogram_display_uses_sqrt_heights() {
 
   const auto tall_column = column_for_bin(40);
   const auto short_column = column_for_bin(200);
+  const auto spike_column = column_for_bin(128);
+  const auto floor_column = column_for_bin(100);
   const auto empty_column = column_for_bin(220);
   CHECK(tall_column > 0);
   CHECK(short_column > 0);
+  CHECK(spike_column > 0);
+  CHECK(floor_column > 0);
   CHECK(empty_column > 0);
 
-  // The max bin fills its column to the top and the short bin rises above the
-  // baseline under any scaling.
+  // A bin exactly at the ceiling fills its column, and the 40x taller spike
+  // clips to the same height instead of setting the scale (max-normalized
+  // display drew the ceiling bin at 2.5%).
   CHECK(!color_close(image.pixelColor(tall_column, row_at(0.90)),
                      image.pixelColor(empty_column, row_at(0.90)), 6));
-  CHECK(!color_close(image.pixelColor(short_column, row_at(0.05)),
-                     image.pixelColor(empty_column, row_at(0.05)), 6));
-  // Square-root display, matching Photoshop's dialogs: a bin at 10% of the max
-  // draws at sqrt(0.1) = 32% of the graph. It must cover the 22% probe (linear
-  // scaling topped out at 10%) but stay under the 40% probe (log scaling drew
-  // log(101)/log(1001) = 67%).
-  CHECK(!color_close(image.pixelColor(short_column, row_at(0.22)),
-                     image.pixelColor(empty_column, row_at(0.22)), 6));
-  CHECK(color_close(image.pixelColor(short_column, row_at(0.40)),
-                    image.pixelColor(empty_column, row_at(0.40)), 6));
+  CHECK(!color_close(image.pixelColor(spike_column, row_at(0.90)),
+                     image.pixelColor(empty_column, row_at(0.90)), 6));
+  // Linear below the ceiling, matching Photoshop's dialogs: the half-ceiling
+  // bin covers the 45% probe but not the 55% one (sqrt-of-max drew 11%, log
+  // drew 59%).
+  CHECK(!color_close(image.pixelColor(short_column, row_at(0.45)),
+                     image.pixelColor(empty_column, row_at(0.45)), 6));
+  CHECK(color_close(image.pixelColor(short_column, row_at(0.55)),
+                    image.pixelColor(empty_column, row_at(0.55)), 6));
+  // The 100-sample floor draws at 8%: above the baseline, under the 15% probe.
+  CHECK(!color_close(image.pixelColor(floor_column, row_at(0.04)),
+                     image.pixelColor(empty_column, row_at(0.04)), 6));
+  CHECK(color_close(image.pixelColor(floor_column, row_at(0.15)),
+                    image.pixelColor(empty_column, row_at(0.15)), 6));
 }
 
 double widget_fill_share(QWidget& widget, const QColor& target) {
@@ -3436,8 +3496,10 @@ std::vector<patchy::test::TestCase> image_adjustments_curves_tests() {
        ui_levels_dialog_adjusts_selected_color_channel_on_transparent_layer},
       {"ui_levels_dialog_preserves_independent_channel_records",
        ui_levels_dialog_preserves_independent_channel_records},
-      {"ui_levels_histogram_sqrt_heights_and_auto_shared_sampler",
-       ui_levels_histogram_sqrt_heights_and_auto_shared_sampler},
+      {"ui_levels_histogram_clipped_linear_heights_and_auto_shared_sampler",
+       ui_levels_histogram_clipped_linear_heights_and_auto_shared_sampler},
+      {"ui_histogram_display_ceiling_is_four_times_the_mean_non_empty_bin",
+       ui_histogram_display_ceiling_is_four_times_the_mean_non_empty_bin},
       {"ui_hue_saturation_dialog_adjusts_selected_pixels", ui_hue_saturation_dialog_adjusts_selected_pixels},
       {"ui_hue_saturation_creates_masked_adjustment_layer", ui_hue_saturation_creates_masked_adjustment_layer},
       {"ui_adjustment_layer_inserts_above_selection_with_white_mask",
@@ -3468,7 +3530,7 @@ std::vector<patchy::test::TestCase> image_adjustments_curves_tests() {
        ui_curves_transient_canvas_read_is_non_mutating},
       {"ui_curves_histograms_box_average_fills_missing_codes",
        ui_curves_histograms_box_average_fills_missing_codes},
-      {"ui_curves_histogram_display_uses_sqrt_heights", ui_curves_histogram_display_uses_sqrt_heights},
+      {"ui_curves_histogram_display_is_linear_and_clips", ui_curves_histogram_display_is_linear_and_clips},
       {"ui_curves_canvas_tool_buttons_show_checked_state",
        ui_curves_canvas_tool_buttons_show_checked_state},
       {"ui_curves_canvas_tools_before_and_clipping_hooks",

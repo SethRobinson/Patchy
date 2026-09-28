@@ -332,10 +332,164 @@ void filter_copy_sampled_pixel(PixelBuffer &pixels, const PixelBuffer &original,
   filter_write_accumulated_pixel(pixels, x, y, accum);
 }
 
+// Box Blur radii through the historical 1..12 range keep the direct
+// double-precision path byte for byte (pins and the Box Blur Smart Filter
+// parity depend on it); larger radii switch to the exact integer running-sum
+// path below. The weighted tent (Glowing Edges smoothing) stays on the direct
+// path; its radius never exceeds 12.
+constexpr int kDirectTentBlurMaximumRadius = 12;
+// Typed catalog ranges: Photoshop's Box Blur (1..2000 px, which the native
+// Smart Filter mapping already accepts) and Gaussian Blur (0.1..1000 px). The
+// linked sliders stop at kBlurSliderMaximumRadius; the spin boxes go further.
+constexpr int kBoxBlurMaximumRadius = 2000;
+constexpr double kGaussianBlurMinimumRadius = 0.1;
+constexpr double kGaussianBlurMaximumRadius = 1000.0;
+constexpr double kBlurSliderMaximumRadius = 100.0;
+// Photoshop's Gaussian tail is invisible past three radii; the destructive
+// filter grows the layer by that much, like the Smart Filter canvas margin.
+constexpr double kGaussianBlurMarginScale = 3.0;
+
+[[nodiscard]] int gaussian_blur_margin(double radius) {
+  return std::max(
+      1, static_cast<int>(std::ceil(
+             std::clamp(radius, kGaussianBlurMinimumRadius,
+                        kGaussianBlurMaximumRadius) *
+             kGaussianBlurMarginScale)));
+}
+
+// Large-radius box average with the same edge-clamped, alpha-weighted
+// sampling as the direct path, in O(1) work per pixel per axis whatever the
+// radius. Terms are raw bytes (color * alpha, alpha), so every sum is an
+// exact int64 (at most 4001^2 * 255 * 255) and the result is deterministic
+// across toolchains.
+void apply_box_blur_running(PixelBuffer &pixels, const PixelBuffer &original,
+                            int radius, const FilterProgress *progress) {
+  const auto width = original.width();
+  const auto height = original.height();
+  const auto channels = original.format().channels;
+  const auto color_channels = std::min<std::uint16_t>(channels, 3);
+  const auto has_alpha = channels >= 4;
+  const auto pixel_bytes = bytes_per_pixel(original.format());
+  const auto row_stride = static_cast<std::size_t>(width) * 4U;
+  const auto r = static_cast<std::int64_t>(radius);
+  const auto taps = static_cast<double>(2 * r + 1);
+  const auto total_weight = taps * taps;
+
+  const auto term = [&](const std::uint8_t *row, std::int64_t x,
+                        std::array<std::int64_t, 4> &out) {
+    const auto clamped = std::clamp<std::int64_t>(x, 0, width - 1);
+    const auto *px = row + static_cast<std::size_t>(clamped) * pixel_bytes;
+    const auto alpha = has_alpha ? static_cast<std::int64_t>(px[3]) : 255;
+    for (std::uint16_t channel = 0; channel < color_channels; ++channel) {
+      out[channel] = static_cast<std::int64_t>(px[channel]) * alpha;
+    }
+    out[3] = alpha;
+  };
+  // Horizontal window sums for one source row, written as width * 4 terms.
+  const auto build_h_row = [&](std::int32_t source_y, std::int64_t *out) {
+    const auto *row = original.row(source_y).data();
+    std::array<std::int64_t, 4> sample{};
+    std::array<std::int64_t, 4> sum{};
+    for (auto d = -r; d <= r; ++d) {
+      term(row, d, sample);
+      for (std::size_t c = 0; c < 4; ++c) {
+        sum[c] += sample[c];
+      }
+    }
+    std::array<std::int64_t, 4> entering{};
+    std::array<std::int64_t, 4> leaving{};
+    for (std::int32_t x = 0; x < width; ++x) {
+      auto *dst = out + static_cast<std::size_t>(x) * 4U;
+      for (std::size_t c = 0; c < 4; ++c) {
+        dst[c] = sum[c];
+      }
+      if (x + 1 >= width) {
+        break;
+      }
+      term(row, x + r + 1, entering);
+      term(row, x - r, leaving);
+      for (std::size_t c = 0; c < 4; ++c) {
+        sum[c] += entering[c] - leaving[c];
+      }
+    }
+  };
+
+  // Rows at or beyond an edge repeat that edge row, so cache both edge rows;
+  // every other row is rebuilt on demand into a scratch slot (O(width + r)).
+  std::vector<std::int64_t> first_row(row_stride);
+  std::vector<std::int64_t> last_row(row_stride);
+  build_h_row(0, first_row.data());
+  build_h_row(height - 1, last_row.data());
+  std::array<std::vector<std::int64_t>, 2> scratch_rows{
+      std::vector<std::int64_t>(row_stride),
+      std::vector<std::int64_t>(row_stride)};
+  const auto h_row = [&](std::int64_t source_y,
+                         std::size_t slot) -> const std::int64_t * {
+    if (source_y <= 0) {
+      return first_row.data();
+    }
+    if (source_y >= height - 1) {
+      return last_row.data();
+    }
+    build_h_row(static_cast<std::int32_t>(source_y), scratch_rows[slot].data());
+    return scratch_rows[slot].data();
+  };
+
+  std::vector<std::int64_t> sum(row_stride, 0);
+  // Rows above the top edge all repeat row 0: fold them into one add.
+  for (std::size_t i = 0; i < row_stride; ++i) {
+    sum[i] += first_row[i] * (r + 1);
+  }
+  for (auto k = std::int64_t{1}; k <= r; ++k) {
+    const auto *row = h_row(k, 0);
+    for (std::size_t i = 0; i < row_stride; ++i) {
+      sum[i] += row[i];
+    }
+  }
+
+  for (std::int32_t y = 0; y < height; ++y) {
+    report_filter_progress(progress, y, height, FilterProgressStage::Blurring);
+    for (std::int32_t x = 0; x < width; ++x) {
+      const auto *accum = sum.data() + static_cast<std::size_t>(x) * 4U;
+      auto *dst = pixels.pixel(x, y);
+      const auto alpha_sum = accum[3];
+      for (std::uint16_t channel = 0; channel < color_channels; ++channel) {
+        dst[channel] = filter_clamp_byte(
+            alpha_sum > 0 ? static_cast<double>(accum[channel]) /
+                                static_cast<double>(alpha_sum)
+                          : 0.0);
+      }
+      if (has_alpha) {
+        dst[3] = filter_clamp_byte(static_cast<double>(alpha_sum) /
+                                   total_weight);
+      }
+    }
+    if (y + 1 >= height) {
+      break;
+    }
+    const auto *entering = h_row(y + r + 1, 0);
+    const auto *leaving = h_row(y - r, 1);
+    for (std::size_t i = 0; i < row_stride; ++i) {
+      sum[i] += entering[i] - leaving[i];
+    }
+  }
+  report_filter_progress(progress, height, height,
+                         FilterProgressStage::Blurring);
+}
+
 void apply_separable_tent_blur(PixelBuffer &pixels, const PixelBuffer &original,
                                int radius, bool weighted,
                                const FilterProgress *progress) {
-  radius = std::clamp(radius, 1, 32);
+  radius = std::clamp(radius, 1,
+                      weighted ? kDirectTentBlurMaximumRadius
+                               : kBoxBlurMaximumRadius);
+  if (original.width() == 0 || original.height() == 0) {
+    return;
+  }
+  if (radius > kDirectTentBlurMaximumRadius) {
+    apply_box_blur_running(pixels, original, radius, progress);
+    return;
+  }
   const auto width = original.width();
   const auto height = original.height();
   if (width == 0 || height == 0) {
@@ -1457,8 +1611,8 @@ void apply_radial_blur_to_pixels(PixelBuffer &pixels,
 void apply_wave_to_pixels(PixelBuffer &pixels, const PixelBuffer &original,
                           int amplitude, int wavelength, int phase,
                           const FilterProgress *progress) {
-  amplitude = std::clamp(amplitude, 0, 64);
-  wavelength = std::clamp(wavelength, 4, 256);
+  amplitude = std::clamp(amplitude, 0, 999);
+  wavelength = std::clamp(wavelength, 4, 999);
   const auto phase_radians =
       static_cast<double>(std::clamp(phase, 0, 360)) * kFilterPi / 180.0;
   const auto frequency = 2.0 * kFilterPi / static_cast<double>(wavelength);
@@ -1594,7 +1748,7 @@ void apply_color_halftone_to_pixels(PixelBuffer &pixels,
                                     const PixelBuffer &original, int cell_size,
                                     int intensity, int contrast,
                                     const FilterProgress *progress) {
-  cell_size = std::clamp(cell_size, 4, 64);
+  cell_size = std::clamp(cell_size, 4, 127);
   intensity = std::clamp(intensity, 0, 100);
   contrast = std::clamp(contrast, 0, 100);
   constexpr std::array<double, 3> kAngles = {15.0, 75.0, 0.0};
@@ -1961,7 +2115,7 @@ void execute_builtin_filter(const FilterRegistry &registry,
 
   if (identifier == "patchy.filters.posterize") {
     const auto levels =
-        std::clamp(filter_value(invocation, "levels", 4), 2, 16);
+        std::clamp(filter_value(invocation, "levels", 4), 2, 255);
     for (std::int32_t y = 0; y < pixels.height(); ++y) {
       report_filter_row_progress(progress, y, pixels.height());
       for (std::int32_t x = 0; x < pixels.width(); ++x) {
@@ -1976,15 +2130,24 @@ void execute_builtin_filter(const FilterRegistry &registry,
     return;
   }
 
-  if (identifier == "patchy.filters.box_blur" ||
-      identifier == "patchy.filters.gaussian_blur") {
-    const auto radius = std::clamp(
-        filter_value(invocation, "radius",
-                     identifier == "patchy.filters.gaussian_blur" ? 2 : 1),
-        1, 12);
-    apply_separable_tent_blur(pixels, original, radius,
-                              identifier == "patchy.filters.gaussian_blur",
-                              progress);
+  if (identifier == "patchy.filters.box_blur") {
+    const auto radius = std::clamp(filter_value(invocation, "radius", 1), 1,
+                                   kBoxBlurMaximumRadius);
+    apply_separable_tent_blur(pixels, original, radius, false, progress);
+    return;
+  }
+
+  if (identifier == "patchy.filters.gaussian_blur") {
+    // The same Photoshop-calibrated Gaussian as the Gaussian Blur Smart
+    // Filter, so a radius means what it means in Photoshop.
+    const auto radius =
+        std::clamp(filter_number(invocation, "radius", 2.0),
+                   kGaussianBlurMinimumRadius, kGaussianBlurMaximumRadius);
+    stage_rgba_and_render(pixels, [&](const PixelBuffer &rgba) {
+      return render_photoshop_gaussian_blur(
+          rgba, Rect::from_size(rgba.width(), rgba.height()), radius,
+          progress);
+    });
     return;
   }
 
@@ -2046,7 +2209,7 @@ void execute_builtin_filter(const FilterRegistry &registry,
   if (identifier == "patchy.filters.iris_blur") {
     apply_iris_blur_filter(
         pixels,
-        std::clamp(filter_number(invocation, "blur", 15.0), 0.0, 100.0),
+        std::clamp(filter_number(invocation, "blur", 15.0), 0.0, 500.0),
         std::clamp(filter_number(invocation, "center_x", 50.0), 0.0,
                    100.0),
         std::clamp(filter_number(invocation, "center_y", 50.0), 0.0,
@@ -2132,7 +2295,7 @@ void execute_builtin_filter(const FilterRegistry &registry,
     apply_motion_blur_to_pixels(
         pixels, original,
         std::clamp(filter_value(invocation, "angle", 0), -360, 360),
-        std::clamp(filter_value(invocation, "distance", 12), 1, 999), progress);
+        std::clamp(filter_value(invocation, "distance", 12), 1, 2000), progress);
     return;
   }
 
@@ -2218,8 +2381,8 @@ void execute_builtin_filter(const FilterRegistry &registry,
   if (identifier == "patchy.filters.wave") {
     apply_wave_to_pixels(
         pixels, original,
-        std::clamp(filter_value(invocation, "amplitude", 12), 0, 64),
-        std::clamp(filter_value(invocation, "wavelength", 48), 4, 256),
+        std::clamp(filter_value(invocation, "amplitude", 12), 0, 999),
+        std::clamp(filter_value(invocation, "wavelength", 48), 4, 999),
         std::clamp(filter_value(invocation, "phase", 0), 0, 360), progress);
     return;
   }
@@ -2247,7 +2410,7 @@ void execute_builtin_filter(const FilterRegistry &registry,
 
   if (identifier == "patchy.filters.pixelate") {
     const auto block_size =
-        std::clamp(filter_value(invocation, "block_size", 4), 2, 32);
+        std::clamp(filter_value(invocation, "block_size", 4), 2, 200);
     for (std::int32_t block_y = 0; block_y < pixels.height();
          block_y += block_size) {
       report_filter_progress(progress, block_y, pixels.height(),
@@ -2278,7 +2441,7 @@ void execute_builtin_filter(const FilterRegistry &registry,
   if (identifier == "patchy.filters.color_halftone") {
     apply_color_halftone_to_pixels(
         pixels, original,
-        std::clamp(filter_value(invocation, "cell_size", 10), 4, 64),
+        std::clamp(filter_value(invocation, "cell_size", 10), 4, 127),
         std::clamp(filter_value(invocation, "intensity", 75), 0, 100),
         std::clamp(filter_value(invocation, "contrast", 60), 0, 100), progress);
     return;
@@ -2545,7 +2708,7 @@ void apply_lens_blur_filter(PixelBuffer &pixels, double radius_pixels,
   if (!std::isfinite(radius_pixels)) {
     throw std::invalid_argument(PATCHY_TRANSLATE_NOOP("QObject", "Invalid Lens Blur settings"));
   }
-  radius_pixels = std::clamp(radius_pixels, 0.0, 100.0);
+  radius_pixels = std::clamp(radius_pixels, 0.0, 500.0);
   blade_count = std::clamp(blade_count, 3, 8);
   blade_curvature_percent = std::clamp(blade_curvature_percent, 0, 100);
   rotation_degrees = std::clamp(rotation_degrees, -180, 180);
@@ -2613,7 +2776,7 @@ void apply_iris_blur_filter(PixelBuffer &pixels, double blur_pixels,
       !std::isfinite(focus_percent)) {
     throw std::invalid_argument(PATCHY_TRANSLATE_NOOP("QObject", "Invalid Iris Blur settings"));
   }
-  blur_pixels = std::clamp(blur_pixels, 0.0, 100.0);
+  blur_pixels = std::clamp(blur_pixels, 0.0, 500.0);
   center_x_percent = std::clamp(center_x_percent, 0.0, 100.0);
   center_y_percent = std::clamp(center_y_percent, 0.0, 100.0);
   angle_degrees = std::clamp(angle_degrees, -180, 180);
@@ -2969,12 +3132,14 @@ FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
   } else if (identifier == "patchy.filters.posterize") {
     metadata = catalog_metadata(
         Category::Adjustment, true,
-        {integer_parameter("levels", "Levels", "filterLevels", 2, 16, 4)});
+        {integer_parameter("levels", "Levels", "filterLevels", 2, 255, 4)});
   } else if (identifier == "patchy.filters.box_blur") {
-    metadata = catalog_metadata(
-        Category::Blur, false,
-        {integer_parameter("radius", "Radius", "filterRadius", 1, 12, 1,
-                           Unit::Pixels, Scale::Pixels)});
+    auto radius = integer_parameter("radius", "Radius", "filterRadius", 1,
+                                    kBoxBlurMaximumRadius, 1, Unit::Pixels,
+                                    Scale::Pixels);
+    radius.practical_minimum = 1.0;
+    radius.practical_maximum = kBlurSliderMaximumRadius;
+    metadata = catalog_metadata(Category::Blur, false, {std::move(radius)});
   } else if (identifier == "patchy.filters.sharpen") {
     metadata =
         catalog_metadata(Category::Sharpen, false,
@@ -2985,7 +3150,7 @@ FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
         double_parameter("radius", "Radius", "filterRadius", 0.1, 1000.0, 2.0,
                          0.1, Unit::Pixels, Scale::Pixels);
     radius.practical_minimum = 0.1;
-    radius.practical_maximum = 12.0;
+    radius.practical_maximum = kBlurSliderMaximumRadius;
     metadata =
         catalog_metadata(Category::Sharpen, false,
                          {integer_parameter("amount", "Amount", "filterAmount",
@@ -2998,7 +3163,7 @@ FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
                                    1000.0, 10.0, 0.1, Unit::Pixels,
                                    Scale::Pixels);
     radius.practical_minimum = 0.1;
-    radius.practical_maximum = 12.0;
+    radius.practical_maximum = kBlurSliderMaximumRadius;
     metadata = catalog_metadata(
         Category::Sharpen, false, {std::move(radius)});
   } else if (identifier == "patchy.filters.median") {
@@ -3049,7 +3214,7 @@ FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
                            180, 0, Unit::Degrees, Scale::None,
                            Presentation::Angle)});
   } else if (identifier == "patchy.filters.iris_blur") {
-    auto blur = double_parameter("blur", "Blur", "filterBlur", 0.0, 100.0,
+    auto blur = double_parameter("blur", "Blur", "filterBlur", 0.0, 500.0,
                                  15.0, 0.1, Unit::Pixels, Scale::Pixels);
     blur.practical_minimum = 0.0;
     blur.practical_maximum = 50.0;
@@ -3093,10 +3258,15 @@ FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
              0.0, 100.0, 20.0, 0.1, Unit::Percent, Scale::None,
              Presentation::TiltTransitionWidthPercent)});
   } else if (identifier == "patchy.filters.gaussian_blur") {
-    metadata = catalog_metadata(
-        Category::Blur, false,
-        {integer_parameter("radius", "Radius", "filterRadius", 1, 12, 2,
-                           Unit::Pixels, Scale::Pixels)});
+    // Photoshop's decimal radius. Recipes and Saved Looks from before the
+    // switch stored an integer, which still normalizes.
+    auto radius = double_parameter(
+        "radius", "Radius", "filterRadius", kGaussianBlurMinimumRadius,
+        kGaussianBlurMaximumRadius, 2.0, 0.1, Unit::Pixels, Scale::Pixels);
+    radius.practical_minimum = kGaussianBlurMinimumRadius;
+    radius.practical_maximum = kBlurSliderMaximumRadius;
+    radius.accepts_legacy_integer = true;
+    metadata = catalog_metadata(Category::Blur, false, {std::move(radius)});
   } else if (identifier == "patchy.filters.motion_blur") {
     auto angle =
         integer_parameter("angle", "Angle", "filterAngle", -360, 360, 0,
@@ -3104,7 +3274,7 @@ FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
     angle.practical_minimum = -180.0;
     angle.practical_maximum = 180.0;
     auto distance = integer_parameter("distance", "Distance", "filterDistance",
-                                      1, 999, 12, Unit::Pixels, Scale::Pixels);
+                                      1, 2000, 12, Unit::Pixels, Scale::Pixels);
     distance.practical_minimum = 1.0;
     distance.practical_maximum = 64.0;
     metadata = catalog_metadata(Category::Blur, false,
@@ -3170,11 +3340,11 @@ FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
   } else if (identifier == "patchy.filters.wave") {
     metadata = catalog_metadata(
         Category::Distort, false,
-        {integer_parameter("amplitude", "Amplitude", "filterAmplitude", 0, 64,
+        {integer_parameter("amplitude", "Amplitude", "filterAmplitude", 0, 999,
                            12, Unit::Pixels, Scale::Pixels,
                            Presentation::WaveAmplitude),
          integer_parameter("wavelength", "Wavelength", "filterWavelength", 4,
-                           256, 48, Unit::Pixels, Scale::Pixels,
+                           999, 48, Unit::Pixels, Scale::Pixels,
                            Presentation::WaveWavelength),
          integer_parameter("phase", "Phase", "filterPhase", 0, 360, 0,
                            Unit::Degrees, Scale::None,
@@ -3204,12 +3374,12 @@ FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
   } else if (identifier == "patchy.filters.pixelate") {
     metadata = catalog_metadata(
         Category::Pixelate, false,
-        {integer_parameter("block_size", "Block Size", "filterBlockSize", 2, 32,
+        {integer_parameter("block_size", "Block Size", "filterBlockSize", 2, 200,
                            4, Unit::Pixels, Scale::Pixels)});
   } else if (identifier == "patchy.filters.color_halftone") {
     metadata = catalog_metadata(
         Category::Pixelate, false,
-        {integer_parameter("cell_size", "Cell Size", "filterCellSize", 4, 64,
+        {integer_parameter("cell_size", "Cell Size", "filterCellSize", 4, 127,
                            10, Unit::Pixels, Scale::Pixels),
          integer_parameter("intensity", "Intensity", "filterIntensity", 0, 100,
                            75, Unit::Percent),
@@ -3247,20 +3417,22 @@ FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
   if (identifier == "patchy.filters.box_blur") {
     metadata.output_margin = [](const FilterInvocation &invocation,
                                 std::int32_t, std::int32_t) {
-      return std::clamp(catalog_integer(invocation, "radius", 1), 1, 12);
+      return std::clamp(catalog_integer(invocation, "radius", 1), 1,
+                        kBoxBlurMaximumRadius);
     };
     metadata.translation_support =
         [](const FilterInvocation &invocation) -> std::optional<int> {
-      return std::clamp(catalog_integer(invocation, "radius", 1), 1, 12);
+      return std::clamp(catalog_integer(invocation, "radius", 1), 1,
+                        kBoxBlurMaximumRadius);
     };
   } else if (identifier == "patchy.filters.gaussian_blur") {
     metadata.output_margin = [](const FilterInvocation &invocation,
                                 std::int32_t, std::int32_t) {
-      return std::clamp(catalog_integer(invocation, "radius", 2), 1, 12);
+      return gaussian_blur_margin(catalog_number(invocation, "radius", 2.0));
     };
     metadata.translation_support =
         [](const FilterInvocation &invocation) -> std::optional<int> {
-      return std::clamp(catalog_integer(invocation, "radius", 2), 1, 12);
+      return gaussian_blur_margin(catalog_number(invocation, "radius", 2.0));
     };
   } else if (identifier == "patchy.filters.unsharp_mask") {
     metadata.translation_support =
@@ -3290,7 +3462,7 @@ FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
                                        std::int32_t, std::int32_t) {
       const auto radius = std::clamp(
           catalog_number(invocation, is_lens ? "radius" : "blur", 15.0),
-          0.0, 100.0);
+          0.0, is_lens ? 100.0 : 500.0);
       if (radius <= 0.0) {
         return 0;
       }
@@ -3311,11 +3483,11 @@ FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
   } else if (identifier == "patchy.filters.motion_blur") {
     metadata.output_margin = [](const FilterInvocation &invocation,
                                 std::int32_t, std::int32_t) {
-      return std::clamp(catalog_integer(invocation, "distance", 12), 1, 999);
+      return std::clamp(catalog_integer(invocation, "distance", 12), 1, 2000);
     };
     metadata.translation_support =
         [](const FilterInvocation &invocation) -> std::optional<int> {
-      return std::clamp(catalog_integer(invocation, "distance", 12), 1, 999) +
+      return std::clamp(catalog_integer(invocation, "distance", 12), 1, 2000) +
              1;
     };
   } else if (identifier == "patchy.filters.radial_blur") {

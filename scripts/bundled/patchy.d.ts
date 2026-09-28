@@ -209,6 +209,17 @@ interface PatchyImageData {
   data: ArrayBuffer;
 }
 
+/** One run of formatted text: the layer options apply unless a field overrides them. */
+interface PatchyTextRun {
+  text: string;
+  font?: string; size?: number; bold?: boolean; italic?: boolean; color?: string;
+}
+
+/** A stored run read back from a text layer (see PatchyLayer.textRuns). */
+interface PatchyTextRunInfo {
+  text: string; font: string; style: string; size: number; bold: boolean; italic: boolean; color: string;
+}
+
 interface PatchyLayer {
   /** Decimal string identity, scoped to this open document. Re-query after undo/reopen. */
   readonly id: string;
@@ -249,14 +260,49 @@ interface PatchyLayer {
   strokePath(path: PatchyVectorPath, options?: PatchyBrushSettings & {pressure?: number; durationMs?: number}): void;
   /** Child layers (groups only). */
   readonly children: PatchyLayer[];
-  /** Text layers: setting text re-renders the layer; an empty string clears its ink. */
+  /** Text layers: setting text re-renders the layer with the first character's formatting
+   * (size, glyph scales, leading, tracking); an empty string clears its ink. */
   text: string;
   /** Text layers: "horizontal" or "vertical" (columns top to bottom, right to left). Setting it re-renders. */
   textOrientation: 'horizontal' | 'vertical';
   /** Text layers: paragraph base direction, "auto" (first strong character), "ltr" or "rtl". Setting it re-renders. */
   textDirection: 'auto' | 'ltr' | 'rtl';
+  /** Text layers: the font family name the layer uses; "" for other layers. */
+  readonly textFont: string;
+  /**
+   * Text layers: the formatted runs in text order, each {text, font, style, size,
+   * bold, italic, color} (style is a recorded face beyond bold/italic such as
+   * "Black", size in document px before any layer transform). Concatenated
+   * texts equal `text`. Empty for other layers.
+   */
+  readonly textRuns: PatchyTextRunInfo[];
+  /** Text layers: the paragraph box {width, height}, or null for point text. */
+  readonly textBox: { width: number; height: number } | null;
+  /** Text layers: the first paragraph's alignment; setting it aligns every paragraph and re-renders. */
+  textAlign: 'left' | 'center' | 'right' | 'justify';
+  /**
+   * Text layers: the first paragraph's indents and spacing in DOCUMENT PIXELS
+   * (Photoshop's Paragraph panel: first line indent, left indent, right indent,
+   * space before, space after). Setting it merges the given fields into every
+   * paragraph and re-renders; a field left out keeps its value. A negative
+   * firstLineIndent with a positive startIndent is a hanging indent. null for
+   * other layers.
+   */
+  textParagraph: { firstLineIndent: number; startIndent: number; endIndent: number; spaceBefore: number; spaceAfter: number } | null;
+  /**
+   * Text layers: replaces the content with formatted runs the way retyping
+   * does. Every run starts from the first character's current formatting and
+   * applies its own font, size, bold, italic and color on top, so
+   * setTextRuns([{text: "Ask "}, {text: "Seth", bold: true}]) keeps the
+   * layer's face and size and bolds one word.
+   */
+  setTextRuns(runs: (PatchyTextRun | string)[]): void;
 
-  /** Finite signed 32-bit positions; throws if the position or resulting bounds overflow. */
+  /**
+   * Finite signed 32-bit positions; throws if the position or resulting bounds overflow.
+   * Layers sit on whole pixels: a fraction rounds like Photoshop (halves up, 3.5 -> 4,
+   * -3.5 -> -3), the same rule `x`/`y` assignment uses.
+   */
   moveTo(x: number, y: number): void;
   /**
    * Inserts the copy directly above this layer and returns it. With another
@@ -286,20 +332,31 @@ interface PatchyLayer {
    */
   applyFilter(filterId: string, params?: Record<string, number | boolean | string>): void;
   /**
-   * Edit > Remove Object: fills the document selection from its surroundings.
-   * `method` "contentAware" (default) is the deterministic exemplar fill (an
-   * exhaustive best-patch search over the nearby image, no AI); it falls back
-   * to "nearestEdge" when no clean source patch is in reach. "nearestEdge" is
-   * the selection form of Spot Healing (a mirrored patch of the nearby
-   * texture blended by the healing membrane); calling it again on the same
-   * selection tries the next source candidate, and `attempt` picks one
-   * explicitly (0-based, wrapping). The layer must be the document's active
-   * layer and a selection must exist. Returns the method that ran, the number
-   * of patches copied (content-aware), and the 1-based source used plus the
-   * candidate count (nearest edge).
+   * Edit > Remove Object: fills the document selection from its surroundings
+   * (the dialog's fill, without the dialog). `method` "contentAware"
+   * (default) is the deterministic exemplar fill (an exhaustive best-patch
+   * search over the nearby image, no AI); it falls back to "nearestEdge" when
+   * no clean source patch is in reach. For it, `attempt` is the variation:
+   * 0 (default) is the best-match fill and each N > 0 is a different,
+   * reproducible near-best fill (the dialog's Reroll); `toneMatch` (0..100,
+   * default 0) scales the tone match that follows the fill, 0 keeping the
+   * raw fill; `feather` (px, default 0) softens the fill's edge outward from
+   * the selection on top of the selection's own feather. "nearestEdge" is the
+   * selection form of Spot Healing (a mirrored patch of the nearby texture
+   * blended by the healing membrane); calling it again on the same selection
+   * tries the next source candidate, and `attempt` picks one explicitly
+   * (0-based, wrapping); `feather` applies, `toneMatch` does not. The layer
+   * must be the document's active layer and a selection must exist. Returns
+   * the method that ran, the number of patches copied (content-aware), the
+   * 1-based source used plus the candidate count (nearest edge), and the
+   * 0-based `attempt` that ran.
    */
-  removeObject(options?: { method?: "contentAware" | "nearestEdge"; attempt?: number }):
-      { method: "contentAware" | "nearestEdge"; patches: number; source: number; sourceCount: number };
+  removeObject(options?: {
+    method?: "contentAware" | "nearestEdge";
+    attempt?: number;
+    toneMatch?: number;
+    feather?: number;
+  }): { method: "contentAware" | "nearestEdge"; patches: number; source: number; sourceCount: number; attempt: number };
   /**
    * A copy of the layer's pixels (empty layers report width/height 0). Layers
    * that store opaque 8-bit RGB (photos opened from JPEG and similar) are
@@ -462,21 +519,51 @@ interface PatchyDocument {
   /** Adds an empty pixel layer on top and makes it active. */
   addLayer(name: string): PatchyLayer;
   /**
-   * Adds a text layer rendered through Patchy's text engine. Options:
-   * {font, size, x, y, color, bold, italic, orientation, direction}; x/y is
-   * the text anchor point (for vertical text: the first column's top centre).
+   * Adds a text layer rendered through Patchy's text engine. text is a string
+   * or an array of runs ({text, font?, size?, bold?, italic?, color?}): each
+   * run is typed in its own format on top of the layer options, so one layer
+   * can mix faces, sizes and colors ("Hold the " + bold "LEFT TRIGGER").
+   * Options: {font, size, x, y, color, bold, italic, orientation, direction,
+   * box, align}; x/y is the text anchor point (for vertical text: the first
+   * column's top centre). box: {width, height} (each at least 16 document px)
+   * opens a paragraph text box with x/y as its top-left corner: lines wrap at
+   * the box width, exactly like dragging a box with the Type tool. align
+   * ("left", "center", "right", "justify") sets every paragraph's alignment;
+   * paragraph ({firstLineIndent, startIndent, endIndent, spaceBefore,
+   * spaceAfter}, document pixels, each optional) sets every paragraph's
+   * indents and spacing, like layer.textParagraph.
    * size is the text height in DOCUMENT PIXELS, independent of the canvas
    * zoom and the document PPI (the Character panel shows the pt equivalent).
    * orientation "vertical" stacks upright glyphs in columns that advance right
    * to left (Photoshop's Vertical Type); direction sets the paragraph base
-   * direction ("auto" follows the first strong character).
+   * direction ("auto" follows the first strong character). font is a family
+   * name ("Georgia"), family plus face ("Arial Black"), or on Windows a face's
+   * full or PostScript name ("Futura Extra Black BT"); a font that is not
+   * installed renders in a fallback and logs a console warning. The face is
+   * exactly what font/bold/italic name, never the options bar's current one.
+   * text (and any run's text) may contain "\n": every line lands in the SAME
+   * layer as a new paragraph, so a heading and its subline need no second
+   * layer.
    */
-  addTextLayer(text: string, options?: {
+  addTextLayer(text: string | PatchyTextRun[], options?: {
     font?: string; size?: number; x?: number; y?: number;
     color?: string; bold?: boolean; italic?: boolean;
     orientation?: 'horizontal' | 'vertical';
     direction?: 'auto' | 'ltr' | 'rtl';
+    box?: { width: number; height: number };
+    align?: 'left' | 'center' | 'right' | 'justify';
+    paragraph?: { firstLineIndent?: number; startIndent?: number; endIndent?: number; spaceBefore?: number; spaceAfter?: number };
   }): PatchyLayer;
+  /**
+   * Files as Layers: adds each image file as a new layer directly above the
+   * active layer, bottom to top in argument order (the last file ends on top
+   * and active). A file with several layers (a PSD, an animated GIF) becomes
+   * a folder named after it. Pixels keep their size: a file the size of the
+   * document lands exactly, any other size is centered on the canvas.
+   * Throws, adding nothing, when a file cannot be read. Returns the new
+   * top-level layers in argument order.
+   */
+  importFilesAsLayers(paths: string | string[]): PatchyLayer[];
   /** First layer (depth-first) with this exact name, or undefined. */
   findLayer(name: string): PatchyLayer | undefined;
   /**
@@ -496,6 +583,18 @@ interface PatchyDocument {
   mergeLayers(layers: PatchyLayer[], options?: {
     keepVectors?: boolean; withinGroups?: boolean; separateVectorTypes?: boolean;
   }): PatchyLayer[];
+  /** Layer > Arrange > Align: lines the layers' edges or centers up with the reference
+   *  (the selection when one exists and alignTo is "selection", the canvas when alignTo is
+   *  "canvas" or only one layer is given, else the layers' union). A group counts as one
+   *  unit. Defaults: the layer selection, alignTo "selection". Returns the layers moved;
+   *  rides the run's single undo entry. */
+  alignLayers(edge: "left" | "hcenter" | "right" | "top" | "vcenter" | "bottom",
+    options?: {layers?: PatchyLayer[]; alignTo?: "selection" | "canvas"}): number;
+  /** Layer > Arrange > Distribute over three or more units: feature modes keep the outermost
+   *  units and space the others evenly; "hspacing" / "vspacing" share one equal gap. Throws
+   *  with fewer than three movable units. Returns the layers moved. */
+  distributeLayers(mode: "left" | "hcenter" | "right" | "top" | "vcenter" | "bottom" | "hspacing" | "vspacing",
+    options?: {layers?: PatchyLayer[]}): number;
   flatten(): void;
   resizeImage(width: number, height: number): void;
   resizeCanvas(width: number, height: number): void;
@@ -556,6 +655,13 @@ interface PatchyApp {
   runCommand(commandId: string): boolean;
   /** Every registered command id, sorted. */
   commandIds(): string[];
+  /**
+   * Every font family the text engine can use right now (installed and user-added),
+   * with its face names and the writing systems it covers, sorted by family. Pass
+   * a family (or family plus face) as addTextLayer's font. Under --headless on
+   * Windows this also loads the installed fonts first.
+   */
+  listFonts(): {family: string; styles: string[]; writingSystems: string[]}[];
   /**
    * Writes one PDF with a page per document, in array order, each page sized
    * from that document's pixels and resolution. A single document is accepted
@@ -757,6 +863,35 @@ interface PatchyIo {
   deleteFile(path: string): boolean;
 }
 
+/**
+ * Automatic document recovery: Patchy writes a PSB copy of every modified document
+ * to a per-instance recovery folder on a timer (Preferences > Application) and, after
+ * a crash, reopens the copies on the next launch as "(Recovered)" documents. The web
+ * build has no recovery store: enabled is false and every list is empty.
+ */
+interface PatchyRecovery {
+  /** The Preferences checkbox (persisted). Setting it re-arms the timer. */
+  enabled: boolean;
+  /** The timer interval, one of 5, 10, 15, 30, or 60 (persisted); other values throw. */
+  intervalMinutes: number;
+  /** This instance's recovery folder ("/" separators). It exists once something was written. */
+  readonly directory: string;
+  /**
+   * Writes a recovery copy of every modified document whose state changed since its
+   * last copy and waits for the files. Returns the PSB paths written; empty when
+   * nothing changed or the app was busy (a modal dialog, a canvas gesture).
+   */
+  writeNow(): string[];
+  /** This instance's copies: file (PSB path), title, originalPath ("" when never saved), savedAt (Unix ms). */
+  listFiles(): { file: string; title: string; originalPath: string; savedAt: number }[];
+  /** Copies left by instances that no longer run, with the folder each lives in. */
+  listOrphaned(): { directory: string; file: string; title: string; originalPath: string; savedAt: number }[];
+  /** Reopens every orphaned copy as a modified "(Recovered)" document and returns them. */
+  recoverAll(): PatchyDocument[];
+  /** Deletes every orphaned folder; returns how many documents were dropped. */
+  discardOrphaned(): number;
+}
+
 interface PatchyNamespace {
   /** Set the structured result returned by MCP (null by default). Supports timer callbacks.
    * JSON serializable values only, up to 4 Mi characters. Does not end the run. */
@@ -764,6 +899,7 @@ interface PatchyNamespace {
   readonly app: PatchyApp;
   readonly io: PatchyIo;
   readonly ui: PatchyUi;
+  readonly recovery: PatchyRecovery;
   readonly brushes: PatchyBrushes;
   readonly apiVersion: number;
   readonly version: string;
