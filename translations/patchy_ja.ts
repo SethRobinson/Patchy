@@ -146,7 +146,7 @@
     </message>
     <message>
         <source>The plug-in host program does not match this Patchy build.</source>
-        <translation>プラグインホストプログラムがこの Patchy ビルドと一致しません。</translation>
+        <translation>プラグインホストプログラムがこの Lienzo ビルドと一致しません。</translation>
     </message>
     <message>
         <source>The plug-in crashed (host exit code %1).</source>
@@ -294,8 +294,8 @@ RGB: %2, %3, %4</translation>
         <translation>PSD のレイヤーマスクがレイヤーレコードの範囲を超えています。</translation>
     </message>
     <message>
-        <source>Patchy raster image editor.</source>
-        <translation>Patchy ラスター画像エディター。</translation>
+        <source>Lienzo raster image editor.</source>
+        <translation>Lienzo ラスター画像エディター。</translation>
     </message>
     <message>
         <source>Run the profiling stress test and exit (preset: quick, small, standard, or huge).</source>
@@ -306,8 +306,8 @@ RGB: %2, %3, %4</translation>
         <translation>ストレステストのレポート出力先ディレクトリ (--stress-test と併用)。</translation>
     </message>
     <message>
-        <source>Save a PNG of the Patchy window to &lt;path&gt;. With a running instance this forwards the request and exits; otherwise the new instance captures after startup and exits.</source>
-        <translation>Patchy ウィンドウの PNG を &lt;path&gt; に保存します。実行中のインスタンスがあればリクエストを転送して終了し、なければ新しいインスタンスが起動後にキャプチャして終了します。</translation>
+        <source>Save a PNG of the Lienzo window to &lt;path&gt;. With a running instance this forwards the request and exits; otherwise the new instance captures after startup and exits.</source>
+        <translation>Lienzo ウィンドウの PNG を &lt;path&gt; に保存します。実行中のインスタンスがあればリクエストを転送して終了し、なければ新しいインスタンスが起動後にキャプチャして終了します。</translation>
     </message>
     <message>
         <source>Limit --screenshot to the child widget with this Qt object name.</source>
@@ -322,8 +322,8 @@ RGB: %2, %3, %4</translation>
         <translation>指定したファイルを開いて &lt;path&gt; に保存し (形式は拡張子に従います)、終了します。無人実行のためプロンプトは表示されず、実行中のインスタンスも再利用されません。</translation>
     </message>
     <message>
-        <source>With --export: append this text to every text layer, re-rendering each through Patchy&apos;s text engine, before saving.</source>
-        <translation>--export と併用: 保存前にこのテキストをすべてのテキストレイヤーに追加し、各レイヤーを Patchy のテキストエンジンで再レンダリングします。</translation>
+        <source>With --export: append this text to every text layer, re-rendering each through Lienzo&apos;s text engine, before saving.</source>
+        <translation>--export と併用: 保存前にこのテキストをすべてのテキストレイヤーに追加し、各レイヤーを Lienzo のテキストエンジンで再レンダリングします。</translation>
     </message>
     <message>
         <source>JPEG Options</source>

@@ -174,7 +174,7 @@ stay as they were, and translations must not assume localized decimal separators
 - macOS: the bundle staging copies the whole `translations` directory and depends on every
   `.qm` CMake produced.
 - Linux: `install()` rules ship `${PATCHY_QM_FILES}` and `${PATCHY_QT_BASE_QM_FILES}`.
-  `packaging/linux/com.rtsoft.patchy.desktop` and the AppStream metainfo carry
+  `packaging/linux/com.nodalix.lienzo.desktop` and the AppStream metainfo carry
   `GenericName`, `Comment`, `summary` and description translations for every language.
 - Windows installer (`packaging/windows/InstallPatchy.ps1`): its four messages exist in
   every language and the script picks one from the UI culture with the same script-aware

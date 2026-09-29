@@ -1139,7 +1139,7 @@ void show_open_failed_message_box(QWidget* parent, const QString& error_text) {
     dialog.setDefaultButton(download_button);
     exec_dialog(dialog);
     if (dialog.clickedButton() == download_button) {
-      QDesktopServices::openUrl(QUrl(QStringLiteral("https://github.com/SethRobinson/Patchy#download")));
+      QDesktopServices::openUrl(QUrl(QStringLiteral("https://github.com/danielmigueltejedor/Patchy#download")));
     }
     return;
   }

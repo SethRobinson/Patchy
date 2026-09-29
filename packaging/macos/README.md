@@ -15,7 +15,7 @@ signatures; executing that intermediate connector can be killed by macOS.
 
 Bundle metadata lives in `Info.plist.in` (configured through CMake's
 `MACOSX_BUNDLE_*` properties; the version comes from the CMake project version).
-`patchy.icns` was generated from the native layers of `src/app/patchy.ico`
+`lienzo.icns` was generated from the native layers of `src/app/lienzo.ico`
 (largest layer is 256 px; regenerate with `iconutil -c icns` from an iconset if the
 icon art changes).
 

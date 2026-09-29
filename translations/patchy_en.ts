@@ -160,7 +160,7 @@
 <context>
     <name>QObject</name>
     <message>
-        <source>Patchy raster image editor.</source>
+        <source>Lienzo raster image editor.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -176,7 +176,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Save a PNG of the Patchy window to &lt;path&gt;. With a running instance this forwards the request and exits; otherwise the new instance captures after startup and exits.</source>
+        <source>Save a PNG of the Lienzo window to &lt;path&gt;. With a running instance this forwards the request and exits; otherwise the new instance captures after startup and exits.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -192,7 +192,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>With --export: append this text to every text layer, re-rendering each through Patchy&apos;s text engine, before saving.</source>
+        <source>With --export: append this text to every text layer, re-rendering each through Lienzo&apos;s text engine, before saving.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

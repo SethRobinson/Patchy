@@ -339,7 +339,7 @@ QString photoshop_style_template() {
     QToolButton {
       background: transparent;
       border: 1px solid transparent;
-      border-radius: 0;
+      border-radius: 6px;
       padding: 3px;
       min-width: 26px;
       min-height: 26px;
@@ -373,6 +373,10 @@ QString photoshop_style_template() {
     }
     QToolButton:hover {
       background: @button_hover_bg;
+      border-color: @button_hover_border;
+    }
+    QToolButton:pressed {
+      background: @window_chrome_pressed_bg;
       border-color: @button_hover_border;
     }
     QToolButton:checked {
@@ -459,129 +463,261 @@ QString photoshop_style_template() {
     }
     QToolBar#Options {
       background: @options_bar_bg;
-      min-height: 38px;
-      border-top: 1px solid @options_bar_top_edge;
+      min-height: 42px;
+      border-top: 0;
       border-bottom: 1px solid @toolbar_border;
-      spacing: 5px;
-      padding: 4px 7px;
+      spacing: 8px;
+      padding: 5px 10px;
     }
+
     QToolBar#Options QFrame#optionSeparator {
       color: @option_separator;
-      max-width: 2px;
+      max-width: 1px;
+      margin: 5px 4px;
     }
+
+    /* Labels such as Size, Opacity, Smooth, Preset...
+       are no longer boxed/biselled. */
     QToolBar#Options QLabel {
+      background: transparent;
       color: @text_secondary;
-      padding-left: 5px;
-      padding-right: 2px;
+      border: 0;
+      padding: 0 3px;
     }
+
     QToolBar#Options QLabel[optionLabel="true"] {
-      background: @option_chip_bg;
-      border: 1px solid @field_inset_border;
-      border-right: 0;
-      border-top-color: @field_bevel_top;
-      color: @text_bright;
-      min-height: 24px;
-      max-height: 24px;
-      padding: 0 7px;
+      background: transparent;
+      border: 0;
+      color: @text_secondary;
+      font-weight: 600;
+      min-height: 28px;
+      max-height: 28px;
+      padding: 0 3px;
     }
-    QToolBar#Options QSpinBox, QToolBar#Options QDoubleSpinBox, QToolBar#Options QComboBox, QToolBar#Options QFontComboBox {
-      min-height: 24px;
-      max-height: 24px;
-      padding-left: 4px;
+
+    /* Main option fields. */
+    QToolBar#Options QSpinBox,
+    QToolBar#Options QDoubleSpinBox,
+    QToolBar#Options QComboBox,
+    QToolBar#Options QFontComboBox {
       background: @field_bg;
-      border: 1px solid @field_inset_border;
-      border-top-color: @field_bevel_top;
+      color: @text_bright;
+      border: 1px solid @field_border;
+      border-radius: 7px;
+      min-height: 28px;
+      max-height: 28px;
+      padding: 0 8px;
+      selection-background-color: @accent;
+      selection-color: @text_on_accent;
     }
+
+    QToolBar#Options QSpinBox:hover,
+    QToolBar#Options QDoubleSpinBox:hover,
+    QToolBar#Options QComboBox:hover,
+    QToolBar#Options QFontComboBox:hover {
+      border-color: @button_hover_border_strong;
+    }
+
+    QToolBar#Options QSpinBox:focus,
+    QToolBar#Options QDoubleSpinBox:focus,
+    QToolBar#Options QComboBox:focus,
+    QToolBar#Options QFontComboBox:focus {
+      border-color: @accent_bright;
+    }
+
+    QToolBar#Options QComboBox::drop-down,
+    QToolBar#Options QFontComboBox::drop-down {
+      border: 0;
+      width: 22px;
+    }
+
+    QToolBar#Options QSpinBox::up-button,
+    QToolBar#Options QSpinBox::down-button,
+    QToolBar#Options QDoubleSpinBox::up-button,
+    QToolBar#Options QDoubleSpinBox::down-button {
+      background: transparent;
+      border: 0;
+      width: 16px;
+    }
+
+    /* Feather group behaves like a single modern control. */
     QWidget#selectionFeatherGroup {
       background: @field_bg;
-      border: 1px solid @field_inset_border;
-      border-top-color: @field_bevel_top;
-      min-height: 24px;
-      max-height: 24px;
+      border: 1px solid @field_border;
+      border-radius: 7px;
+      min-height: 28px;
+      max-height: 28px;
     }
+
     QWidget#selectionFeatherGroup QLabel {
-      background: @option_chip_bg;
+      background: transparent;
       border: 0;
-      border-right: 1px solid @field_inset_border;
-      color: @text_bright;
-      min-height: 24px;
-      max-height: 24px;
-      padding: 0 8px;
+      color: @text_secondary;
+      min-height: 28px;
+      max-height: 28px;
+      padding: 0 4px 0 8px;
     }
+
     QWidget#selectionFeatherGroup QSpinBox {
-      background: @field_bg;
+      background: transparent;
       border: 0;
-      min-height: 24px;
-      max-height: 24px;
-      padding-left: 6px;
+      min-height: 28px;
+      max-height: 28px;
+      padding-left: 4px;
     }
+
+    /* Tool/icon buttons in the options bar. */
+    QToolBar#Options QToolButton {
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 7px;
+      padding: 3px;
+    }
+
+    QToolBar#Options QToolButton:hover {
+      background: @button_hover_bg;
+      border-color: @button_hover_border;
+    }
+
+    QToolBar#Options QToolButton:pressed {
+      background: @window_chrome_pressed_bg;
+    }
+
+    QToolBar#Options QToolButton:checked {
+      background: @accent_checked_bg;
+      border-color: @accent_checked_border;
+    }
+
+    QToolBar#Options QToolButton[optionsBarButton="true"],
+    QToolBar#Options QToolButton[optionsBarMenuButton="true"],
+    QToolBar#Options QToolButton#brushTipPicker,
+    QToolBar#Options QToolButton#brushDynamicsButton,
+    QToolBar#Options QToolButton#brushSmoothingOptionsButton {
+      min-height: 28px;
+      max-height: 28px;
+      border-radius: 7px;
+    }
+
+    QToolBar#Options QToolButton#brushTipPicker,
+    QToolBar#Options QToolButton#brushDynamicsButton {
+      background: @field_bg;
+      border-color: @field_border;
+    }
+
+    QToolBar#Options QToolButton#brushTipPicker:hover,
+    QToolBar#Options QToolButton#brushDynamicsButton:hover {
+      background: @button_hover_bg;
+      border-color: @button_hover_border_strong;
+    }
+
+    /* Checkboxes. */
     QToolBar#Options QCheckBox {
-      color: @text_bright;
-      min-height: 24px;
-      max-height: 24px;
-      padding-left: 6px;
-      padding-right: 8px;
-      spacing: 6px;
+      color: @text_secondary;
+      background: transparent;
+      min-height: 28px;
+      max-height: 28px;
+      padding: 0 5px;
+      spacing: 7px;
+      border: 0;
     }
+
     QToolBar#Options QCheckBox#selectionAntiAliasCheck {
       background: @field_bg;
-      border: 1px solid @field_inset_border;
-      border-top-color: @field_bevel_top;
-      padding-left: 7px;
-      padding-right: 10px;
+      border: 1px solid @field_border;
+      border-radius: 7px;
+      padding: 0 9px;
     }
+
     QToolBar#Options QCheckBox::indicator {
       width: 14px;
       height: 14px;
       background: @checkbox_compact_bg;
       border: 1px solid @checkbox_compact_border;
+      border-radius: 4px;
     }
+
     QToolBar#Options QCheckBox::indicator:hover {
-      border-color: @checkbox_accent_border;
+      border-color: @accent_bright;
     }
+
     QToolBar#Options QCheckBox::indicator:checked {
       background: @accent;
-      border-color: @checkbox_accent_border;
+      border-color: @accent_bright;
       image: url(@icon(checkmark));
     }
+
     QToolBar#Options QCheckBox:disabled {
       color: @text_disabled;
     }
+
     QToolBar#Options QCheckBox::indicator:disabled {
       background: @field_bg_disabled;
       border-color: @field_border_disabled;
     }
+
+    /* Modern compact sliders. */
     QToolBar#Options QSlider::groove:horizontal {
       height: 4px;
       background: @slider_groove_bg;
-      border: 1px solid @slider_groove_border;
+      border: 0;
+      border-radius: 2px;
     }
+
     QToolBar#Options QSlider::sub-page:horizontal {
       background: @accent;
-      border: 1px solid @slider_fill_border;
+      border: 0;
+      border-radius: 2px;
     }
+
+    QToolBar#Options QSlider::add-page:horizontal {
+      background: @slider_groove_bg;
+      border: 0;
+      border-radius: 2px;
+    }
+
     QToolBar#Options QSlider::handle:horizontal {
-      background: @slider_handle_bg;
-      border: 1px solid @slider_handle_border;
-      width: 10px;
+      background: @accent_bright;
+      border: 2px solid @options_bar_bg;
+      border-radius: 7px;
+      width: 14px;
+      height: 14px;
       margin: -5px 0;
     }
+
+    QToolBar#Options QSlider::handle:horizontal:hover {
+      background: @accent_bright_hover;
+    }
+
+    /* Text/action buttons. */
     QToolBar#Options QPushButton {
-      min-height: 24px;
-      max-height: 24px;
       background: @options_button_bg;
-      border: 1px solid @field_inset_border;
-      border-top-color: @field_bevel_top;
-      padding: 1px 7px;
+      color: @text_primary;
+      border: 1px solid @field_border;
+      border-radius: 7px;
+      min-height: 28px;
+      max-height: 28px;
+      padding: 0 10px;
     }
+
+    QToolBar#Options QPushButton:hover {
+      background: @button_hover_bg;
+      border-color: @button_hover_border_strong;
+    }
+
+    QToolBar#Options QPushButton:pressed {
+      background: @window_chrome_pressed_bg;
+    }
+
     QToolBar#Options QPushButton[optionsSessionButton="true"] {
-      padding: 1px 2px; /* the 20px session icons need the width the default 7px padding eats */
+      padding: 0 4px;
     }
+
     QToolBar#Options QPushButton:checked {
       background: @accent_checked_bg;
       border-color: @accent_checked_border;
       color: @text_on_accent;
     }
+
     QDockWidget::title {
       background: @dock_title_bg;
       padding: 5px;
@@ -603,7 +739,7 @@ QString photoshop_style_template() {
       background: transparent;
       color: @dock_collapse_text;
       border: 1px solid transparent;
-      border-radius: 0;
+      border-radius: 5px;
       padding: 0;
       min-width: 18px;
       max-width: 18px;
@@ -902,12 +1038,17 @@ QString photoshop_style_template() {
       background: @button_bg;
       color: @text_primary;
       border: 1px solid @button_border;
-      border-radius: 0;
-      padding: 4px 8px;
+      border-radius: 7px;
+      padding: 5px 11px;
+      min-height: 24px;
     }
     QPushButton:hover {
       background: @button_hover_bg;
       border-color: @button_hover_border_strong;
+    }
+    QPushButton:pressed {
+      background: @window_chrome_pressed_bg;
+      border-color: @button_hover_border;
     }
     QPushButton:checked {
       background: @accent_checked_bg;
@@ -968,10 +1109,11 @@ QString photoshop_style_template() {
       border: none;
     }
     QCheckBox::indicator {
-      width: 12px;
-      height: 12px;
+      width: 13px;
+      height: 13px;
       background: @checkbox_indicator_bg;
       border: 1px solid @checkbox_indicator_border;
+      border-radius: 4px;
     }
     QCheckBox::indicator:hover {
       border-color: @checkbox_accent_border;
@@ -1156,8 +1298,891 @@ QString photoshop_style_template() {
       background: transparent;
     }
   )")
+         + QStringLiteral(R"(
+
+    /* --- Lienzo UI v3 ------------------------------------------------
+       Modern visual layer applied after the legacy Patchy stylesheet.
+       Keep functional/platform-specific geometry above; visual identity
+       belongs here.
+    ------------------------------------------------------------------ */
+
+    /* MENUBAR */
+
+    QMenuBar::item {
+      background: transparent;
+      border-radius: 6px;
+      min-height: 28px;
+      padding: 0 10px;
+      margin: 3px 1px;
+    }
+
+    QMenuBar::item:selected {
+      background: @menu_bar_item_hover_bg;
+    }
+
+    /* MENUS */
+
+    QMenu {
+      background: @menu_bg;
+      border: 1px solid @menu_border;
+      border-radius: 8px;
+      padding: 4px;
+    }
+
+    QMenu::item {
+      background: transparent;
+      border-radius: 5px;
+      padding: 7px 34px 7px 24px;
+      margin: 1px 3px;
+    }
+
+    QMenu::item:selected {
+      background: @menu_item_selected_bg;
+      color: @text_on_accent;
+    }
+
+    QMenu::separator {
+      height: 1px;
+      background: @menu_separator;
+      margin: 5px 8px;
+    }
+
+    /* TOOL PALETTE */
+
+    QToolBar#toolPalette {
+      padding: 5px 4px;
+      spacing: 2px;
+      border-right: 1px solid @tool_palette_border;
+    }
+
+    QToolBar#toolPalette QToolButton {
+      min-width: 28px;
+      max-width: 28px;
+      min-height: 28px;
+      max-height: 28px;
+      border-radius: 6px;
+      padding: 1px;
+    }
+
+    QToolBar#toolPalette QToolButton:hover {
+      background: @button_hover_bg;
+      border-color: @button_hover_border;
+    }
+
+    QToolBar#toolPalette QToolButton:checked {
+      background: @selection_soft_bg;
+      border-color: @accent;
+    }
+
+    QToolBar#toolPalette QPushButton {
+      min-width: 28px;
+      max-width: 28px;
+      min-height: 28px;
+      max-height: 28px;
+      border-radius: 6px;
+    }
+
+    /* DOCUMENT TABS */
+
+    QTabWidget::pane {
+      border: 0;
+      border-top: 1px solid @tab_pane_border;
+    }
+
+    QTabBar::tab {
+      background: transparent;
+      color: @text_secondary;
+      border: 1px solid transparent;
+      border-top-left-radius: 7px;
+      border-top-right-radius: 7px;
+      min-height: 26px;
+      padding: 4px 13px;
+      margin: 3px 2px 0 2px;
+    }
+
+    QTabBar::tab:hover:!selected {
+      background: @tab_hover_bg;
+      color: @text_bright;
+    }
+
+    QTabBar::tab:selected {
+      background: @tab_selected_bg;
+      color: @text_bright;
+      border-color: @toolbar_border;
+      border-bottom: 2px solid @accent_bright;
+    }
+
+    QTabBar#documentTabBar[documentTabsInactive="true"]::tab:selected {
+      background: transparent;
+      color: @text_secondary;
+      border-color: transparent;
+      border-bottom: 2px solid transparent;
+    }
+
+    /* DOCKS / SIDE PANELS */
+
+    QDockWidget {
+      background: @panel_bg;
+      border: 0;
+    }
+
+    QDockWidget::title {
+      background: @panel_title_bg;
+      color: @text_bright;
+      border: 0;
+      border-bottom: 1px solid @panel_title_border_bottom;
+      padding: 7px 8px;
+      font-weight: 600;
+    }
+
+    QWidget#historyDockTitle,
+    QWidget#channelsDockTitle,
+    QWidget#propertiesDockTitle,
+    QWidget#infoDockTitle,
+    QWidget#layersDockTitle,
+    QWidget#pathsDockTitle,
+    QWidget#paletteDockTitle {
+      background: @panel_title_bg;
+      border: 0;
+      border-bottom: 1px solid @panel_title_border_bottom;
+    }
+
+    QWidget#historyDockTitle QLabel,
+    QWidget#channelsDockTitle QLabel,
+    QWidget#propertiesDockTitle QLabel,
+    QWidget#infoDockTitle QLabel,
+    QWidget#layersDockTitle QLabel,
+    QWidget#pathsDockTitle QLabel,
+    QWidget#paletteDockTitle QLabel {
+      color: @text_bright;
+      font-weight: 600;
+      font-size: 11px;
+    }
+
+    QToolButton[dockCollapseButton="true"] {
+      border-radius: 5px;
+    }
+
+    /* GLOBAL INPUTS */
+
+    QLineEdit,
+    QSpinBox,
+    QDoubleSpinBox,
+    QComboBox,
+    QFontComboBox {
+      background: @field_bg_large;
+      color: @text_primary;
+      border: 1px solid @field_border;
+      border-radius: 6px;
+      min-height: 24px;
+      padding: 2px 7px;
+    }
+
+    QLineEdit:hover,
+    QSpinBox:hover,
+    QDoubleSpinBox:hover,
+    QComboBox:hover,
+    QFontComboBox:hover {
+      border-color: @button_hover_border_strong;
+    }
+
+    QLineEdit:focus,
+    QSpinBox:focus,
+    QDoubleSpinBox:focus,
+    QComboBox:focus,
+    QFontComboBox:focus {
+      border-color: @accent_bright;
+    }
+
+    QComboBox::drop-down,
+    QFontComboBox::drop-down {
+      border: 0;
+      width: 24px;
+    }
+
+    QSpinBox::up-button,
+    QSpinBox::down-button,
+    QDoubleSpinBox::up-button,
+    QDoubleSpinBox::down-button {
+      background: transparent;
+      border: 0;
+      width: 17px;
+    }
+
+    QTextEdit,
+    QPlainTextEdit {
+      background: @field_bg_large;
+      color: @text_primary;
+      border: 1px solid @field_border;
+      border-radius: 7px;
+      padding: 5px;
+    }
+
+    QTextEdit:focus,
+    QPlainTextEdit:focus {
+      border-color: @accent_bright;
+    }
+
+    /* BUTTONS */
+
+    QPushButton {
+      background: @button_bg;
+      color: @text_primary;
+      border: 1px solid @button_border;
+      border-radius: 7px;
+      min-height: 26px;
+      padding: 4px 11px;
+    }
+
+    QPushButton:hover {
+      background: @button_hover_bg;
+      border-color: @button_hover_border_strong;
+    }
+
+    QPushButton:pressed {
+      background: @window_chrome_pressed_bg;
+    }
+
+    QPushButton:checked {
+      background: @accent_checked_bg;
+      border-color: @accent_checked_border;
+      color: @text_on_accent;
+    }
+
+    /* Do not round native window controls. */
+    QToolButton[windowChromeButton="true"] {
+      border-radius: 0;
+    }
+
+    /* CHECKBOXES */
+
+    QCheckBox {
+      spacing: 7px;
+    }
+
+    QCheckBox::indicator {
+      width: 13px;
+      height: 13px;
+      border-radius: 4px;
+    }
+
+    QCheckBox::indicator:hover {
+      border-color: @accent_bright;
+    }
+
+    /* LISTS */
+
+    QListWidget,
+    QTreeWidget {
+      border-radius: 7px;
+      outline: 0;
+    }
+
+    QListWidget::item:selected,
+    QTreeWidget::item:selected {
+      background: @list_selection_bg;
+      color: @list_selection_text;
+      border: 0;
+      border-radius: 5px;
+    }
+
+    QListWidget::item:hover,
+    QTreeWidget::item:hover {
+      background: @list_row_hover_bg;
+      border-radius: 5px;
+    }
+
+    /* GROUP BOXES */
+
+    QGroupBox {
+      border: 1px solid @panel_inset_border;
+      border-radius: 8px;
+      margin-top: 10px;
+      padding: 8px;
+    }
+
+    QGroupBox::title {
+      subcontrol-origin: margin;
+      subcontrol-position: top left;
+      left: 9px;
+      padding: 0 5px;
+      background: @window_bg;
+      color: @text_secondary;
+    }
+
+    /* TABLE / TREE HEADERS */
+
+    QHeaderView::section {
+      background: @panel_title_bg;
+      color: @text_secondary;
+      border: 0;
+      border-right: 1px solid @panel_inset_border;
+      border-bottom: 1px solid @panel_inset_border;
+      padding: 6px 8px;
+      font-weight: 600;
+    }
+
+    /* SCROLLBARS */
+
+    QScrollBar:vertical {
+      background: transparent;
+      width: 10px;
+      margin: 0;
+    }
+
+    QScrollBar:horizontal {
+      background: transparent;
+      height: 10px;
+      margin: 0;
+    }
+
+    QScrollBar::handle:vertical,
+    QScrollBar::handle:horizontal {
+      background: @scrollbar_handle_bg;
+      border: 0;
+      border-radius: 5px;
+      margin: 2px;
+    }
+
+    QScrollBar::handle:vertical {
+      min-height: 28px;
+    }
+
+    QScrollBar::handle:horizontal {
+      min-width: 28px;
+    }
+
+    QScrollBar::handle:hover {
+      background: @scrollbar_handle_hover_bg;
+    }
+
+    QScrollBar::sub-line,
+    QScrollBar::add-line {
+      width: 0;
+      height: 0;
+      border: 0;
+      background: transparent;
+    }
+
+    QScrollBar::add-page,
+    QScrollBar::sub-page {
+      background: transparent;
+    }
+
+    /* CANVAS SCROLLBARS */
+
+    QScrollBar#canvasVerticalScrollBar:vertical {
+      width: 12px;
+    }
+
+    QScrollBar#canvasHorizontalScrollBar:horizontal {
+      height: 12px;
+    }
+
+    QScrollBar#canvasHorizontalScrollBar::handle,
+    QScrollBar#canvasVerticalScrollBar::handle {
+      border: 0;
+      border-radius: 5px;
+      margin: 2px;
+    }
+
+    /* STATUS BAR */
+
+    QStatusBar {
+      background: @status_bar_bg;
+      border-top: 1px solid @toolbar_border;
+      color: @status_text;
+    }
+
+    /* TOOLTIPS */
+
+    QToolTip {
+      background: @menu_bg;
+      color: @text_primary;
+      border: 1px solid @menu_border;
+      border-radius: 6px;
+      padding: 6px 8px;
+    }
+
+  )")
       ;
 }
+
+QString lienzo_refinement_style_template() {
+  return QStringLiteral(R"(
+
+    /* --- Lienzo refinement layer --- */
+
+    /*
+       TOP CHROME
+       Cleaner, calmer and less visually dense than the original UI.
+    */
+    QMenuBar {
+      background: @title_bar_bg;
+      border: 0;
+      border-bottom: 1px solid @toolbar_border;
+      min-height: 36px;
+      max-height: 36px;
+      padding-left: 38px;
+    }
+
+    QMenuBar::item {
+      background: transparent;
+      min-height: 28px;
+      padding: 0 11px;
+      margin: 4px 1px;
+      border-radius: 6px;
+    }
+
+    QMenuBar::item:selected {
+      background: @menu_bar_item_hover_bg;
+    }
+
+    QWidget#windowChromeControls {
+      background: @title_bar_bg;
+      border-bottom: 1px solid @toolbar_border;
+    }
+
+    QToolButton[windowChromeButton="true"] {
+      min-width: 44px;
+      max-width: 44px;
+      min-height: 36px;
+      max-height: 36px;
+      border-radius: 0;
+    }
+
+    /*
+       MENUS
+    */
+    QMenu {
+      background: @menu_bg;
+      border: 1px solid @menu_border;
+      border-radius: 8px;
+      padding: 4px;
+    }
+
+    QMenu::item {
+      background: transparent;
+      border-radius: 5px;
+      padding: 7px 34px 7px 24px;
+      margin: 1px 3px;
+    }
+
+    QMenu::item:selected {
+      background: @menu_item_selected_bg;
+      color: @text_on_accent;
+    }
+
+    QMenu::separator {
+      height: 1px;
+      background: @menu_separator;
+      margin: 5px 8px;
+    }
+
+    /*
+       DOCUMENT TABS
+    */
+    QTabWidget::pane {
+      border: 0;
+      border-top: 1px solid @tab_pane_border;
+    }
+
+    QTabBar#documentTabBar {
+      background: @toolbar_bg;
+    }
+
+    QTabBar#documentTabBar::tab {
+      background: transparent;
+      color: @text_secondary;
+      border: 0;
+      border-bottom: 2px solid transparent;
+      min-height: 30px;
+      padding: 3px 14px;
+      margin: 0;
+    }
+
+    QTabBar#documentTabBar::tab:hover:!selected {
+      background: @tab_hover_bg;
+      color: @text_bright;
+    }
+
+    QTabBar#documentTabBar::tab:selected {
+      background: @tab_selected_bg;
+      color: @text_bright;
+      border-bottom: 2px solid @accent_bright;
+    }
+
+    QTabBar#documentTabBar[documentTabsInactive="true"]::tab:selected {
+      background: transparent;
+      color: @text_secondary;
+      border-bottom: 2px solid transparent;
+    }
+
+    /*
+       TOOL PALETTE
+    */
+    QToolBar#toolPalette {
+      padding: 5px 4px;
+      spacing: 2px;
+    }
+
+    QToolBar#toolPalette QToolButton {
+      min-width: 28px;
+      max-width: 28px;
+      min-height: 28px;
+      max-height: 28px;
+      border-radius: 6px;
+      padding: 1px;
+    }
+
+    QToolBar#toolPalette QToolButton:hover {
+      background: @button_hover_bg;
+      border-color: @button_hover_border;
+    }
+
+    QToolBar#toolPalette QToolButton:checked {
+      background: @selection_soft_bg;
+      border-color: @accent;
+    }
+
+    /*
+       SIDE PANELS
+    */
+    QDockWidget {
+      background: @panel_bg;
+      border: 0;
+    }
+
+    QDockWidget::title {
+      background: @panel_title_bg;
+      border: 0;
+      border-bottom: 1px solid @panel_title_border_bottom;
+      padding: 7px 8px;
+      font-weight: 600;
+    }
+
+    QWidget#historyDockTitle,
+    QWidget#channelsDockTitle,
+    QWidget#propertiesDockTitle,
+    QWidget#infoDockTitle,
+    QWidget#layersDockTitle,
+    QWidget#pathsDockTitle,
+    QWidget#paletteDockTitle {
+      min-height: 30px;
+      max-height: 30px;
+      background: @panel_title_bg;
+      border: 0;
+      border-bottom: 1px solid @panel_title_border_bottom;
+    }
+
+    QWidget#historyDockTitle QLabel,
+    QWidget#channelsDockTitle QLabel,
+    QWidget#propertiesDockTitle QLabel,
+    QWidget#infoDockTitle QLabel,
+    QWidget#layersDockTitle QLabel,
+    QWidget#pathsDockTitle QLabel,
+    QWidget#paletteDockTitle QLabel {
+      color: @text_secondary;
+      font-size: 11px;
+      font-weight: 600;
+      padding-left: 4px;
+    }
+
+    QToolButton[dockCollapseButton="true"] {
+      min-width: 22px;
+      max-width: 22px;
+      min-height: 22px;
+      max-height: 22px;
+      border-radius: 6px;
+    }
+
+    /*
+       LAYERS PANEL
+    */
+    QListWidget#layerList {
+      background: @panel_bg;
+      border: 0;
+      border-radius: 0;
+      padding: 3px;
+      outline: 0;
+    }
+
+    QListWidget#layerList::item {
+      background: transparent;
+      border: 0;
+      border-radius: 6px;
+      margin: 1px 2px;
+    }
+
+    QListWidget#layerList::item:hover {
+      background: @list_row_hover_bg;
+    }
+
+    QListWidget#layerList::item:selected {
+      background: @list_selection_bg;
+      border: 0;
+    }
+
+    QPushButton[layerActionButton="true"],
+    QToolButton[layerActionButton="true"] {
+      min-width: 34px;
+      max-width: 34px;
+      min-height: 30px;
+      max-height: 30px;
+      border-radius: 7px;
+      margin: 2px;
+    }
+
+    QToolButton[channelActionButton="true"] {
+      min-width: 32px;
+      max-width: 32px;
+      min-height: 28px;
+      max-height: 28px;
+      border-radius: 7px;
+    }
+
+    /*
+       INPUTS
+    */
+    QLineEdit,
+    QSpinBox,
+    QDoubleSpinBox,
+    QComboBox,
+    QFontComboBox {
+      background: @field_bg_large;
+      color: @text_primary;
+      border: 1px solid @field_border;
+      border-radius: 7px;
+      min-height: 24px;
+      padding: 2px 7px;
+    }
+
+    QLineEdit:hover,
+    QSpinBox:hover,
+    QDoubleSpinBox:hover,
+    QComboBox:hover,
+    QFontComboBox:hover {
+      border-color: @button_hover_border_strong;
+    }
+
+    QLineEdit:focus,
+    QSpinBox:focus,
+    QDoubleSpinBox:focus,
+    QComboBox:focus,
+    QFontComboBox:focus {
+      border-color: @accent_bright;
+    }
+
+    QComboBox::drop-down,
+    QFontComboBox::drop-down {
+      border: 0;
+      width: 24px;
+    }
+
+    QSpinBox::up-button,
+    QSpinBox::down-button,
+    QDoubleSpinBox::up-button,
+    QDoubleSpinBox::down-button {
+      background: transparent;
+      border: 0;
+      width: 17px;
+    }
+
+    QTextEdit,
+    QPlainTextEdit {
+      background: @field_bg_large;
+      color: @text_primary;
+      border: 1px solid @field_border;
+      border-radius: 8px;
+      padding: 5px;
+    }
+
+    QTextEdit:focus,
+    QPlainTextEdit:focus {
+      border-color: @accent_bright;
+    }
+
+    /*
+       BUTTONS
+    */
+    QPushButton {
+      background: @button_bg;
+      color: @text_primary;
+      border: 1px solid @button_border;
+      border-radius: 7px;
+      min-height: 26px;
+      padding: 4px 11px;
+    }
+
+    QPushButton:hover {
+      background: @button_hover_bg;
+      border-color: @button_hover_border_strong;
+    }
+
+    QPushButton:pressed {
+      background: @window_chrome_pressed_bg;
+    }
+
+    QPushButton:checked {
+      background: @accent_checked_bg;
+      border-color: @accent_checked_border;
+      color: @text_on_accent;
+    }
+
+    /*
+       CHECKBOXES
+    */
+    QCheckBox {
+      spacing: 7px;
+    }
+
+    QCheckBox::indicator {
+      width: 13px;
+      height: 13px;
+      border-radius: 4px;
+    }
+
+    QCheckBox::indicator:hover {
+      border-color: @accent_bright;
+    }
+
+    /*
+       GENERIC LISTS/TREES
+    */
+    QListWidget,
+    QTreeWidget {
+      outline: 0;
+    }
+
+    QListWidget::item:selected,
+    QTreeWidget::item:selected {
+      background: @list_selection_bg;
+      color: @list_selection_text;
+      border: 0;
+    }
+
+    QListWidget::item:hover,
+    QTreeWidget::item:hover {
+      background: @list_row_hover_bg;
+    }
+
+    /*
+       GROUP BOXES
+    */
+    QGroupBox {
+      border: 1px solid @panel_inset_border;
+      border-radius: 8px;
+      margin-top: 10px;
+      padding: 8px;
+    }
+
+    QGroupBox::title {
+      subcontrol-origin: margin;
+      subcontrol-position: top left;
+      left: 9px;
+      padding: 0 5px;
+      background: @window_bg;
+      color: @text_secondary;
+    }
+
+    /*
+       TABLE HEADERS
+    */
+    QHeaderView::section {
+      background: @panel_title_bg;
+      color: @text_secondary;
+      border: 0;
+      border-right: 1px solid @panel_inset_border;
+      border-bottom: 1px solid @panel_inset_border;
+      padding: 6px 8px;
+      font-weight: 600;
+    }
+
+    /*
+       SCROLLBARS
+    */
+    QScrollBar:vertical {
+      background: transparent;
+      width: 10px;
+      margin: 0;
+    }
+
+    QScrollBar:horizontal {
+      background: transparent;
+      height: 10px;
+      margin: 0;
+    }
+
+    QScrollBar::handle:vertical,
+    QScrollBar::handle:horizontal {
+      background: @scrollbar_handle_bg;
+      border: 0;
+      border-radius: 5px;
+      margin: 2px;
+    }
+
+    QScrollBar::handle:vertical {
+      min-height: 28px;
+    }
+
+    QScrollBar::handle:horizontal {
+      min-width: 28px;
+    }
+
+    QScrollBar::handle:hover {
+      background: @scrollbar_handle_hover_bg;
+    }
+
+    QScrollBar::sub-line,
+    QScrollBar::add-line {
+      width: 0;
+      height: 0;
+      background: transparent;
+      border: 0;
+    }
+
+    QScrollBar::add-page,
+    QScrollBar::sub-page {
+      background: transparent;
+    }
+
+    /*
+       WINDOW SPLITTERS
+    */
+    QMainWindow::separator {
+      background: @dock_separator_bg;
+      width: 4px;
+      height: 4px;
+    }
+
+    QMainWindow::separator:hover {
+      background: @accent;
+    }
+
+    /*
+       STATUS
+    */
+    QStatusBar {
+      min-height: 24px;
+      max-height: 24px;
+      background: @status_bar_bg;
+      border-top: 1px solid @toolbar_border;
+    }
+
+    /*
+       TOOLTIPS
+    */
+    QToolTip {
+      background: @menu_bg;
+      color: @text_primary;
+      border: 1px solid @menu_border;
+      border-radius: 6px;
+      padding: 6px 8px;
+    }
+
+  )");
+}
+
 
 }  // namespace
 
@@ -1167,7 +2192,8 @@ QString photoshop_style() {
   static std::array<QString, 2> resolved;
   auto& cached = resolved[active_color_scheme() == ColorScheme::Light ? 1 : 0];
   if (cached.isEmpty()) {
-    cached = apply_theme_tokens(photoshop_style_template());
+    cached = apply_theme_tokens(
+        photoshop_style_template() + lienzo_refinement_style_template());
   }
   return cached;
 }

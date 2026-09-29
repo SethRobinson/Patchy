@@ -147,9 +147,9 @@ for %%F in (patchy.js patchy.wasm patchy.data qtloader.js) do (
   copy /Y "%BUILD_DIR_ST%\%%F" "%SITE_DIR%\st\" >nul || goto fail
 )
 for %%S in ("%SITE_DIR%\st\patchy.wasm") do set "PATCHY_WASM_SIZE_ST=%%~zS"
-copy /Y "%REPO%\packaging\linux\icons\hicolor\256x256\apps\com.rtsoft.patchy.png" "%SITE_DIR%\patchy-logo.png" >nul || goto fail
+copy /Y "%REPO%\packaging\linux\icons\hicolor\256x256\apps\com.nodalix.lienzo.png" "%SITE_DIR%\lienzo-logo.png" >nul || goto fail
 rem The browser-tab favicon is the app's own multi-size icon (16-256 px).
-copy /Y "%REPO%\src\app\patchy.ico" "%SITE_DIR%\favicon.ico" >nul || goto fail
+copy /Y "%REPO%\src\app\lienzo.ico" "%SITE_DIR%\favicon.ico" >nul || goto fail
 copy /Y "%REPO%\packaging\web\.htaccess" "%SITE_DIR%\.htaccess" >nul || goto fail
 rem The shell page needs the uncompressed wasm size: its progress bar counts
 rem decompressed bytes, which Content-Length cannot provide once the server

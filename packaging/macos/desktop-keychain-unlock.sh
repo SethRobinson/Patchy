@@ -19,7 +19,7 @@ set -euo pipefail
 
 [ -f "$HOME/.patchy-release-env" ] || { echo "ERROR: ~/.patchy-release-env is missing" >&2; exit 1; }
 
-LABEL=com.rtsoft.patchy.desktop-keychain-unlock
+LABEL=com.nodalix.lienzo.desktop-keychain-unlock
 WORK=$(mktemp -d /tmp/patchy-desktop-kc.XXXXXX)
 HELPER="$WORK/helper.py"
 PLIST="$WORK/$LABEL.plist"

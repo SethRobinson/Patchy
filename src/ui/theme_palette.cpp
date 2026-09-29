@@ -31,10 +31,10 @@ int g_generation = 0;
 const ThemePalette& dark_palette() {
   static const ThemePalette palette{
       // Base surfaces, text, and window frame.
-      .window_bg = rgb(0x262626),
-      .window_border = rgb(0x1f1f1f),
-      .text_primary = rgb(0xe6e6e6),
-      .script_accent = rgb(0x6fb1e8),
+      .window_bg = rgb(0x181b20),
+      .window_border = rgb(0x0f1216),
+      .text_primary = rgb(0xe8ebef),
+      .script_accent = rgb(0x2dd4bf),
       .script_card_border = rgb(0x626872),
       .script_card_bg = rgb(0x24272d),
       .script_card_title = rgb(0xf2f4f6),
@@ -49,9 +49,9 @@ const ThemePalette& dark_palette() {
       .script_string = rgb(0xce9178),
       .script_comment = rgb(0x6a9955),
 
-      .text_secondary = rgb(0xe1e1e1),
-      .text_bright = rgb(0xf0f0f0),
-      .text_disabled = rgb(0x737373),
+      .text_secondary = rgb(0xd1d6dc),
+      .text_bright = rgb(0xf4f7f9),
+      .text_disabled = rgb(0x69727d),
       .text_on_accent = rgb(0xffffff),
       .text_on_raised = rgb(0xffffff),
       .splitter_bg = rgb(0x1e2022),
@@ -59,47 +59,47 @@ const ThemePalette& dark_palette() {
       .dock_separator_bg = rgb(0x36383b),
 
       // The 34px chrome bar.
-      .title_bar_bg = rgb(0x4f4f4f),
-      .title_bar_border = rgb(0x343434),
+      .title_bar_bg = rgb(0x1b2026),
+      .title_bar_border = rgb(0x2a3038),
 
       // Menu bar and menus.
-      .menu_bar_item_hover_bg = rgb(0x3a3a3a),
+      .menu_bar_item_hover_bg = rgb(0x262c33),
       .menu_bar_text_disabled = rgb(0x9a9a9a),
-      .menu_bg = rgb(0x3a3a3a),
-      .menu_border = rgb(0x1f1f1f),
-      .menu_item_selected_bg = rgb(0x4e6f95),
-      .menu_separator = rgb(0x555555),
+      .menu_bg = rgb(0x20252b),
+      .menu_border = rgb(0x303740),
+      .menu_item_selected_bg = rgb(0x0f766e),
+      .menu_separator = rgb(0x343b44),
 
       // Generic toolbars and tool buttons.
-      .toolbar_bg = rgb(0x3b3b3b),
-      .toolbar_border = rgb(0x292929),
-      .button_hover_bg = rgb(0x4a4a4a),
-      .button_hover_border = rgb(0x696969),
-      .accent_pressed_bg = rgb(0x2f75bd),
-      .accent_border_bright = rgb(0x6bb3ff),
+      .toolbar_bg = rgb(0x1d2228),
+      .toolbar_border = rgb(0x2a3038),
+      .button_hover_bg = rgb(0x293038),
+      .button_hover_border = rgb(0x3b4651),
+      .accent_pressed_bg = rgb(0x0f766e),
+      .accent_border_bright = rgb(0x5eead4),
 
       // Custom window chrome.
-      .window_chrome_hover_bg = rgb(0x626262),
-      .window_chrome_pressed_bg = rgb(0x3c3c3c),
+      .window_chrome_hover_bg = rgb(0x2b323a),
+      .window_chrome_pressed_bg = rgb(0x15191e),
       .window_close_hover_bg = rgb(0xc42b1c),
       .window_close_pressed_bg = rgb(0x9f2117),
 
       // Tool palette.
-      .tool_palette_bg = rgb(0x535353),
-      .tool_palette_border = rgb(0x202020),
-      .tool_palette_separator = rgb(0x616161),
+      .tool_palette_bg = rgb(0x1b2026),
+      .tool_palette_border = rgb(0x2a3038),
+      .tool_palette_separator = rgb(0x303740),
 
       // Options bar.
-      .options_bar_bg = rgb(0x3d3d3d),
-      .options_bar_top_edge = rgb(0x5a5a5a),
-      .option_separator = rgb(0x565656),
-      .option_chip_bg = rgb(0x262626),
-      .field_bg = rgb(0x292929),
-      .field_inset_border = rgb(0x171717),
-      .field_bevel_top = rgb(0x5d5d5d),
-      .options_button_bg = rgb(0x303030),
-      .accent_checked_bg = rgb(0x1667b7),
-      .accent_checked_border = rgb(0x63adff),
+      .options_bar_bg = rgb(0x1d2228),
+      .options_bar_top_edge = rgb(0x2a3038),
+      .option_separator = rgb(0x303740),
+      .option_chip_bg = rgb(0x171b20),
+      .field_bg = rgb(0x13171b),
+      .field_inset_border = rgb(0x0d1014),
+      .field_bevel_top = rgb(0x2b323a),
+      .options_button_bg = rgb(0x242a31),
+      .accent_checked_bg = rgb(0x0f766e),
+      .accent_checked_border = rgb(0x5eead4),
 
       // Check boxes and sliders.
       .checkbox_compact_bg = rgb(0x1f1f1f),
@@ -107,7 +107,7 @@ const ThemePalette& dark_palette() {
       .checkbox_indicator_bg = rgb(0x4a4a4a),
       .checkbox_indicator_border = rgb(0x8a8a8a),
       .checkbox_accent_border = rgb(0x9ccfff),
-      .accent = rgb(0x1473e6),
+      .accent = rgb(0x14b8a6),
       .slider_groove_bg = rgb(0x1c1c1c),
       .slider_groove_border = rgb(0x555555),
       .slider_fill_border = rgb(0x5aa9ff),
@@ -121,40 +121,40 @@ const ThemePalette& dark_palette() {
       .spin_button_disabled_bevel = rgb(0x444444),
 
       // Docks and panels.
-      .dock_title_bg = rgb(0x323232),
-      .panel_border_strong = rgb(0x202020),
-      .panel_title_bg = rgb(0x2f3032),
-      .panel_title_bevel_top = rgb(0x45474b),
-      .panel_title_border_bottom = rgb(0x1b1c1e),
+      .dock_title_bg = rgb(0x1b2026),
+      .panel_border_strong = rgb(0x11151a),
+      .panel_title_bg = rgb(0x1f252b),
+      .panel_title_bevel_top = rgb(0x293038),
+      .panel_title_border_bottom = rgb(0x14181d),
       .dock_collapse_text = rgb(0xcfd3d8),
       .dock_collapse_hover_bg = rgb(0x3b3d40),
       .dock_collapse_hover_border = rgb(0x5b5e63),
-      .panel_bg = rgb(0x28292b),
-      .panel_inset_bg = rgb(0x24272b),
-      .panel_inset_border = rgb(0x3e454d),
+      .panel_bg = rgb(0x1b2026),
+      .panel_inset_bg = rgb(0x171b20),
+      .panel_inset_border = rgb(0x2c343d),
       .info_text = rgb(0xd7dde6),
 
       // Text entry and list widgets.
-      .field_bg_large = rgb(0x2b2b2b),
-      .field_border = rgb(0x5a5a5a),
+      .field_bg_large = rgb(0x171b20),
+      .field_border = rgb(0x343d47),
       .field_bg_disabled = rgb(0x242527),
       .field_text_disabled = rgb(0x6d7075),
       .field_border_disabled = rgb(0x3d3f42),
-      .list_selection_bg = rgb(0x3a414a),
+      .list_selection_bg = rgb(0x143e3a),
       .list_item_border = rgb(0x202225),
       .list_selection_text = rgb(0xf4f6f8),
-      .list_selection_border = rgb(0x67717d),
+      .list_selection_border = rgb(0x2dd4bf),
       .category_list_item_border = rgb(0x3b3b3b),
-      .category_selected_bg = rgb(0x2d4c6d),
-      .category_selected_border = rgb(0x4f91ca),
+      .category_selected_bg = rgb(0x143e3a),
+      .category_selected_border = rgb(0x2dd4bf),
       .history_future_text = rgb(0x737373),
 
       // Layer rows and the layers panel.
-      .layer_row_bg = rgb(0x242628),
-      .layer_row_border = rgb(0x303338),
-      .layer_row_group_bg = rgb(0x292d31),
-      .layer_row_selected_bg = rgb(0x2d4c6d),
-      .layer_row_selected_border = rgb(0x4f91ca),
+      .layer_row_bg = rgb(0x191d22),
+      .layer_row_border = rgb(0x252b32),
+      .layer_row_group_bg = rgb(0x1d2228),
+      .layer_row_selected_bg = rgb(0x143e3a),
+      .layer_row_selected_border = rgb(0x2dd4bf),
       .layer_row_name_text = rgb(0xf0f3f8),
       .layer_row_details_text = rgb(0xaeb6c2),
       .layer_glyph_text = rgb(0xd9e0ea),
@@ -178,22 +178,22 @@ const ThemePalette& dark_palette() {
       .layer_clip_badge = rgb(0x96cdff),
 
       // Bright accent.
-      .accent_bright = rgb(0x31a8ff),
-      .accent_bright_hover = rgb(0x5cbcff),
-      .accent_bright_border = rgb(0x6cc4ff),
-      .text_on_accent_bright = rgb(0x0d1420),
+      .accent_bright = rgb(0x2dd4bf),
+      .accent_bright_hover = rgb(0x5eead4),
+      .accent_bright_border = rgb(0x99f6e4),
+      .text_on_accent_bright = rgb(0x062521),
 
       // Push buttons.
-      .button_bg = rgb(0x3a3a3a),
-      .button_border = rgb(0x666666),
-      .button_hover_border_strong = rgb(0x8a8a8a),
+      .button_bg = rgb(0x252b32),
+      .button_border = rgb(0x36404a),
+      .button_hover_border_strong = rgb(0x52606d),
 
       // Status bar.
-      .status_bar_bg = rgb(0x252525),
+      .status_bar_bg = rgb(0x171b20),
       .status_text = rgb(0xcfcfcf),
       .status_text_disabled = rgb(0x6f6f6f),
-      .status_field_bg = rgb(0x1e1e1e),
-      .status_field_border = rgb(0x4a4a4a),
+      .status_field_bg = rgb(0x11151a),
+      .status_field_border = rgb(0x303840),
       .status_field_border_disabled = rgb(0x3a3a3a),
       .status_error_text = rgb(0xff6b68),
       .status_error_wash = rgb(0xa83232),
@@ -219,41 +219,41 @@ const ThemePalette& dark_palette() {
       .accent_control = rgb(0x4c9aff),
 
       // Tabs.
-      .tab_bg = rgb(0x2b2b2b),
-      .tab_hover_bg = rgb(0x353535),
-      .tab_selected_bg = rgb(0x3f3f3f),
-      .tab_pane_border = rgb(0x5c5c5c),
+      .tab_bg = rgb(0x1b2026),
+      .tab_hover_bg = rgb(0x242a31),
+      .tab_selected_bg = rgb(0x2b323a),
+      .tab_pane_border = rgb(0x303840),
 
       // The color picker's tab bar.
-      .picker_tab_bg = rgb(0x343434),
-      .picker_tab_border = rgb(0x2a2a2a),
-      .picker_tab_hover_bg = rgb(0x404040),
-      .picker_tab_selected_bg = rgb(0x5a5a5a),
+      .picker_tab_bg = rgb(0x1b2026),
+      .picker_tab_border = rgb(0x303840),
+      .picker_tab_hover_bg = rgb(0x242a31),
+      .picker_tab_selected_bg = rgb(0x2b323a),
 
       // Canvas chrome.
-      .canvas_backdrop = rgb(0x242629),
+      .canvas_backdrop = rgb(0x101317),
       .canvas_empty_text = rgb(0xaab0b8),
-      .canvas_document_border = rgb(0x5f656e),
-      .canvas_layer_selection_border = rgb(0x5faaff),
+      .canvas_document_border = rgb(0x3b444e),
+      .canvas_layer_selection_border = rgb(0x2dd4bf),
       .canvas_layer_selection_fill = QColor(95, 170, 255, 30),
-      .ruler_bar_bg = rgb(0x2a2d31),
-      .ruler_corner_bg = rgb(0x23262a),
+      .ruler_bar_bg = rgb(0x191e23),
+      .ruler_corner_bg = rgb(0x15191e),
       .ruler_edge = rgb(0x4e525a),
       .ruler_tick = rgb(0xb9bec6),
-      .canvas_hud_bg = rgb(0x1f2329),
-      .canvas_hud_border = rgb(0x4e5660),
+      .canvas_hud_bg = rgb(0x151a20),
+      .canvas_hud_border = rgb(0x35404a),
       .canvas_hud_text = rgb(0xeef2f7),
       .canvas_hud_spinner = rgb(0xeef4fa),
-      .dialog_busy_spinner = rgb(0x6fb1e8),
+      .dialog_busy_spinner = rgb(0x2dd4bf),
       .brush_leash = rgb(0xb48aff),
       .canvas_snap_guide = rgb(0xff46b4),
 
       // Scroll bars.
-      .canvas_scrollbar_track = rgb(0x262626),
-      .panel_scrollbar_track = rgb(0x262626),
-      .scrollbar_handle_bg = rgb(0x565656),
-      .scrollbar_handle_border = rgb(0x6e6e6e),
-      .scrollbar_handle_hover_bg = rgb(0x646464),
+      .canvas_scrollbar_track = rgb(0x15191e),
+      .panel_scrollbar_track = rgb(0x181c21),
+      .scrollbar_handle_bg = rgb(0x3a434d),
+      .scrollbar_handle_border = rgb(0x46515c),
+      .scrollbar_handle_hover_bg = rgb(0x4b5763),
 
       // macOS-only group boxes.
       .group_box_border = rgb(0x4f4f4f),
@@ -272,7 +272,7 @@ const ThemePalette& dark_palette() {
       .grid_preview_bg = rgb(0x202020),
       .grid_preview_border = rgb(0x575757),
 
-      .link_text = rgb(0x7fa8cf),
+      .link_text = rgb(0x5eead4),
 
       // Help > About.
       .splash_bg = rgb(0x171d26),
@@ -371,14 +371,14 @@ const ThemePalette& dark_palette() {
       .swatch_border = rgb(0x9aa4b2),
 
       // Shared button and surface families.
-      .primary_bg = rgb(0x354960),
-      .primary_border = rgb(0x6f9bd1),
-      .primary_hover_bg = rgb(0x3f5773),
+      .primary_bg = rgb(0x134e4a),
+      .primary_border = rgb(0x2dd4bf),
+      .primary_hover_bg = rgb(0x115e59),
       .neutral_button_hover_bg = rgb(0x454545),
       .neutral_button_hover_border = rgb(0x7d7d7d),
       .list_surface_bg = rgb(0x222222),
       .list_surface_border = rgb(0x1b1b1b),
-      .selection_soft_bg = rgb(0x33414f),
+      .selection_soft_bg = rgb(0x143e3a),
 
       // Start panel.
       .start_panel_title_text = rgb(0xe9e9e9),
@@ -391,9 +391,9 @@ const ThemePalette& dark_palette() {
 
       // Icon ink.
       .icon_ink = rgb(0xdce2eb),
-      .icon_accent = rgb(0x74c0ff),
-      .icon_accent_soft = rgb(0xb8dcff),
-      .icon_accent_tint = rgb(0xacd8ff),
+      .icon_accent = rgb(0x2dd4bf),
+      .icon_accent_soft = rgb(0x99f6e4),
+      .icon_accent_tint = rgb(0x5eead4),
       .icon_danger = rgb(0xff9696),
       .icon_warning = rgb(0xffc078),
       .icon_folder = rgb(0xf5cd69),
@@ -531,7 +531,7 @@ const ThemePalette& light_palette() {
 
     // Brand and state colors carry meaning, so they hold their hue rather than
     // being pushed to a mid tone. The blue accent already reads on both.
-    light.accent = rgb(0x1473e6);
+    light.accent = rgb(0x0f766e);
     light.window_close_hover_bg = rgb(0xc42b1c);
     light.window_close_pressed_bg = rgb(0x9f2117);
 
@@ -591,10 +591,10 @@ const ThemePalette& light_palette() {
     // pale tint. That is the convention in light themes, and it is what keeps the
     // white label on a highlighted menu item or a checked button readable: a
     // lightened selection with white text on it is illegible.
-    light.menu_item_selected_bg = rgb(0x2f6fb5);
-    light.category_selected_bg = rgb(0x2f6fb5);
-    light.accent_checked_bg = rgb(0x1667b7);
-    light.splash_primary_bg = rgb(0x2f7fc1);
+    light.menu_item_selected_bg = rgb(0x0f766e);
+    light.category_selected_bg = rgb(0x0f766e);
+    light.accent_checked_bg = rgb(0x0f766e);
+    light.splash_primary_bg = rgb(0x0f766e);
 
     // White-on-accent text stays white, because of the four roles above. Text on
     // a raised neutral surface has to invert instead.
@@ -653,14 +653,14 @@ const ThemePalette& light_palette() {
     // clamps it to a heavy navy; match the icon accent instead so it reads as
     // the same family of marker and holds up on both an unselected light row and
     // the blue of a selected one.
-    light.layer_clip_badge = rgb(0x1668c4);
+    light.layer_clip_badge = rgb(0x0f766e);
 
     // Icon ink. The flip lands close, but these are the most-looked-at pixels in
     // the app and deserve exact values.
     light.icon_ink = rgb(0x333a42);
-    light.icon_accent = rgb(0x1668c4);
-    light.icon_accent_soft = rgb(0x5f9fe0);
-    light.icon_accent_tint = rgb(0x5f9fe0);
+    light.icon_accent = rgb(0x0f766e);
+    light.icon_accent_soft = rgb(0x14b8a6);
+    light.icon_accent_tint = rgb(0x14b8a6);
     light.icon_danger = rgb(0xc0392b);
     light.icon_warning = rgb(0xb96a12);
     light.icon_folder = rgb(0xb98600);

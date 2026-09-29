@@ -16,7 +16,7 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
 ROOT = Path(__file__).resolve().parents[1]
-APP_ID = "com.rtsoft.patchy"
+APP_ID = "com.nodalix.lienzo"
 
 
 async def test():

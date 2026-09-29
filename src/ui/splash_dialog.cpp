@@ -86,6 +86,7 @@ public:
       QDialog#patchySplashScreen {
         background: @splash_bg;
         border: 1px solid @splash_border;
+        border-radius: 12px;
       }
       QWidget#splashArtwork {
         /* Transparent, not the global QWidget window_bg: the artwork paints its
@@ -95,8 +96,8 @@ public:
       }
       QLabel#splashTitle {
         color: @splash_title_text;
-        font-size: 32px;
-        font-weight: 800;
+        font-size: 34px;
+        font-weight: 700;
       }
       QLabel#splashSubtitle {
         color: @splash_subtitle_text;
@@ -135,8 +136,10 @@ public:
         background: @splash_button_bg;
         color: @splash_body_text;
         border: 1px solid @splash_button_border;
-        padding: 5px 12px;
+        border-radius: 7px;
+        padding: 6px 14px;
         min-width: 120px;
+        min-height: 28px;
       }
       QPushButton#splashOpenSettingsFolderButton:hover, QPushButton#splashOpenDataFolderButton:hover {
         background: @splash_button_hover_bg;
@@ -145,8 +148,10 @@ public:
         background: @splash_primary_bg;
         color: @text_on_accent;
         border: 1px solid @splash_primary_border;
-        padding: 5px 18px;
+        border-radius: 7px;
+        padding: 6px 18px;
         min-width: 74px;
+        min-height: 28px;
       }
       QPushButton#splashCloseButton:hover {
         background: @splash_primary_hover_bg;
@@ -226,7 +231,7 @@ public:
       copy->addWidget(label);
     };
     const auto github_link = QStringLiteral("<a style=\"color:@splash_link_text; text-decoration:none;\" "
-                                            "href=\"https://github.com/SethRobinson/Patchy\">SethRobinson/Patchy</a>");
+                                            "href=\"https://github.com/danielmigueltejedor/Patchy\">Lienzo</a>");
     add_home_link(QObject::tr("GitHub: %1").arg(github_link));
     const auto seth_site_link = QStringLiteral("<a style=\"color:@splash_link_text; text-decoration:none;\" "
                                                "href=\"https://rtsoft.com\">rtsoft.com</a>");

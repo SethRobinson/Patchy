@@ -68,7 +68,7 @@ QPageSize document_page_size(const Document& document) {
 
 void configure_document_page(QPdfWriter& writer, const Document& document) {
   const double horizontal_ppi = print_detail::document_horizontal_ppi(document);
-  writer.setCreator(QStringLiteral("Patchy"));
+  writer.setCreator(QStringLiteral("Lienzo"));
   writer.setPageSize(document_page_size(document));
   writer.setPageMargins(QMarginsF(0.0, 0.0, 0.0, 0.0));
   // The device resolution only sets the painter's logical grid; keeping it at the

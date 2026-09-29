@@ -1517,21 +1517,21 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       add_dependencies(patchy-mcp patchy_check_translation_runtime)
     endif()
     if(WIN32)
-      target_sources(patchy PRIVATE src/app/patchy.rc)
+      target_sources(patchy PRIVATE src/app/lienzo.rc)
     endif()
     if(APPLE)
       set_target_properties(patchy PROPERTIES
         OUTPUT_NAME "Patchy"
         MACOSX_BUNDLE_INFO_PLIST "${PROJECT_SOURCE_DIR}/packaging/macos/Info.plist.in"
         MACOSX_BUNDLE_BUNDLE_NAME "Patchy"
-        MACOSX_BUNDLE_GUI_IDENTIFIER "com.rtsoft.patchy"
+        MACOSX_BUNDLE_GUI_IDENTIFIER "com.nodalix.lienzo"
         MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
         MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
-        MACOSX_BUNDLE_ICON_FILE "patchy.icns"
+        MACOSX_BUNDLE_ICON_FILE "lienzo.icns"
       )
-      if(EXISTS "${PROJECT_SOURCE_DIR}/packaging/macos/patchy.icns")
-        target_sources(patchy PRIVATE "${PROJECT_SOURCE_DIR}/packaging/macos/patchy.icns")
-        set_source_files_properties("${PROJECT_SOURCE_DIR}/packaging/macos/patchy.icns"
+      if(EXISTS "${PROJECT_SOURCE_DIR}/packaging/macos/lienzo.icns")
+        target_sources(patchy PRIVATE "${PROJECT_SOURCE_DIR}/packaging/macos/lienzo.icns")
+        set_source_files_properties("${PROJECT_SOURCE_DIR}/packaging/macos/lienzo.icns"
           PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
       endif()
       # Stage runtime resources inside the bundle (the executable lives in
@@ -1618,12 +1618,12 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
         install(FILES ${PATCHY_QT_BASE_QM_FILES}
                 DESTINATION "${CMAKE_INSTALL_DATADIR}/patchy/translations")
       endif()
-      install(FILES "${PROJECT_SOURCE_DIR}/packaging/linux/com.rtsoft.patchy.desktop"
+      install(FILES "${PROJECT_SOURCE_DIR}/packaging/linux/com.nodalix.lienzo.desktop"
               DESTINATION "${CMAKE_INSTALL_DATADIR}/applications")
-      install(FILES "${PROJECT_SOURCE_DIR}/packaging/linux/com.rtsoft.patchy.metainfo.xml"
+      install(FILES "${PROJECT_SOURCE_DIR}/packaging/linux/com.nodalix.lienzo.metainfo.xml"
               DESTINATION "${CMAKE_INSTALL_DATADIR}/metainfo")
       foreach(icon_size 16 32 48 64 128 256)
-        install(FILES "${PROJECT_SOURCE_DIR}/packaging/linux/icons/hicolor/${icon_size}x${icon_size}/apps/com.rtsoft.patchy.png"
+        install(FILES "${PROJECT_SOURCE_DIR}/packaging/linux/icons/hicolor/${icon_size}x${icon_size}/apps/com.nodalix.lienzo.png"
                 DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/${icon_size}x${icon_size}/apps")
       endforeach()
     endif()

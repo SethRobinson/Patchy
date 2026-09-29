@@ -182,8 +182,8 @@ class AttachedProxy final : public QObject {
     disconnecting_ = false;
     if (!pending.isEmpty()) {
       const auto message = uncertain
-        ? QStringLiteral("The Patchy workspace disconnected during this request. Changes may have been made. Do not repeat the edit automatically. Open Patchy from the same installation, call get_info, and inspect the document before continuing.")
-        : QStringLiteral("The Patchy workspace is unavailable. Open Patchy from the same installation, or disconnect another attached client, then call get_info again. This MCP connection remains available. No separate workspace was created.");
+        ? QStringLiteral("The Lienzo workspace disconnected during this request. Changes may have been made. Do not repeat the edit automatically. Open Lienzo from the same installation, call get_info, and inspect the document before continuing.")
+        : QStringLiteral("The Lienzo workspace is unavailable. Open Lienzo from the same installation, or disconnect another attached client, then call get_info again. This MCP connection remains available. No separate workspace was created.");
       tool_reply(pending["id"], {{"error", uncertain ? "workspace_disconnected" : "workspace_unavailable"},
         {"message", message}, {"workspace", "attached"}, {"workspaceAvailable", false},
         {"liveWindowAttachment", false}, {"requiresExpectedState", true}, {"skillDirectory", kit_directory()},
@@ -222,7 +222,7 @@ int run_mcp_server(QApplication& app) {
   const auto args = app.arguments().mid(1);
   if (args == QStringList{QStringLiteral("--attach")}) { return run_attached_proxy(app); }
   if (!args.isEmpty() && args != QStringList{QStringLiteral("--visible")} && args != QStringList{QStringLiteral("--check")}) {
-    const auto usage = QStringLiteral("Usage: patchy-mcp [--attach | --visible | --check]. Default: hidden workspace. --visible: separate window. --attach: the running Patchy workspace.").toUtf8();
+    const auto usage = QStringLiteral("Usage: patchy-mcp [--attach | --visible | --check]. Default: hidden workspace. --visible: separate window. --attach: the running Lienzo workspace.").toUtf8();
     (void)std::fprintf(stderr, "%s\n", usage.constData());
     return args == QStringList{QStringLiteral("--help")} ? 0 : 2;
   }

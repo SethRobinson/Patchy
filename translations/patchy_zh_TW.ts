@@ -146,7 +146,7 @@
     </message>
     <message>
         <source>The plug-in host program does not match this Patchy build.</source>
-        <translation>外掛程式主機程式與此 Patchy 組建不相符。</translation>
+        <translation>外掛程式主機程式與此 Lienzo 組建不相符。</translation>
     </message>
     <message>
         <source>The plug-in crashed (host exit code %1).</source>
@@ -160,8 +160,8 @@
 <context>
     <name>QObject</name>
     <message>
-        <source>Patchy raster image editor.</source>
-        <translation>Patchy 點陣圖影像編輯器。</translation>
+        <source>Lienzo raster image editor.</source>
+        <translation>Lienzo 點陣圖影像編輯器。</translation>
     </message>
     <message>
         <source>Run without a display (Qt offscreen platform) and never reuse a running instance. Needs --run-script, --export, --stress-test, or --screenshot; exits 2 otherwise.</source>
@@ -176,8 +176,8 @@
         <translation>壓力測試報告的目錄 (搭配 --stress-test)。</translation>
     </message>
     <message>
-        <source>Save a PNG of the Patchy window to &lt;path&gt;. With a running instance this forwards the request and exits; otherwise the new instance captures after startup and exits.</source>
-        <translation>將 Patchy 視窗的 PNG 儲存至 &lt;path&gt;。若已有執行中的實體，會轉送此要求後結束；否則新實體會在啟動後擷取畫面再結束。</translation>
+        <source>Save a PNG of the Lienzo window to &lt;path&gt;. With a running instance this forwards the request and exits; otherwise the new instance captures after startup and exits.</source>
+        <translation>將 Lienzo 視窗的 PNG 儲存至 &lt;path&gt;。若已有執行中的實體，會轉送此要求後結束；否則新實體會在啟動後擷取畫面再結束。</translation>
     </message>
     <message>
         <source>Limit --screenshot to the child widget with this Qt object name.</source>
@@ -192,8 +192,8 @@
         <translation>開啟指定檔案，將其儲存至 &lt;path&gt; (格式依副檔名決定)，然後結束。以無人值守模式執行：會隱藏提示，且不會重複使用執行中的實體。</translation>
     </message>
     <message>
-        <source>With --export: append this text to every text layer, re-rendering each through Patchy&apos;s text engine, before saving.</source>
-        <translation>搭配 --export：在儲存前將此文字附加到每個文字圖層，並透過 Patchy 的文字引擎重新演算每個圖層。</translation>
+        <source>With --export: append this text to every text layer, re-rendering each through Lienzo&apos;s text engine, before saving.</source>
+        <translation>搭配 --export：在儲存前將此文字附加到每個文字圖層，並透過 Lienzo 的文字引擎重新演算每個圖層。</translation>
     </message>
     <message>
         <source>Run the JavaScript file. With a running instance this forwards the request and exits; otherwise a new unattended instance opens the given files, runs the script, and exits (0 = ok, 4 = script error).</source>

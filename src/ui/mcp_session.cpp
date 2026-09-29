@@ -51,7 +51,7 @@ QJsonArray mcp_tool_catalog() {
       {"annotations", QJsonObject{{"readOnlyHint", read}, {"destructiveHint", !read}, {"openWorldHint", !read}}}};
   };
   return {
-    tool("get_info", QStringLiteral("Discover Patchy versions, capabilities, and the installed control skill."), schema(), true),
+    tool("get_info", QStringLiteral("Discover Lienzo versions, capabilities, and the installed control skill."), schema(), true),
     tool("get_help", QStringLiteral("Read the scripting API, workflow, or a runnable example. Use before writing scripts."),
          schema({{"topic", QJsonObject{{"type", "string"}, {"enum", QJsonArray{"workflow", "api", "guide", "pixel-art", "painting", "edit-document", "reference-art", "vector-art", "edit-shape", "paths-masks", "painting-guide", "brush-swatches", "fur-strokes", "wet-paint", "brush-library", "timed-brush"}}}}}), true),
     tool("get_state", QStringLiteral("Inspect open documents, stable IDs, layers, selections, and undo availability."), schema(), true),
@@ -60,7 +60,7 @@ QJsonArray mcp_tool_catalog() {
     tool("draw_strokes", QStringLiteral("Paint a batch through the native Brush, Eraser, or Mixer Brush. Read get_help(painting-guide) for tips, dynamics, pen inputs, and timed strokes. Coordinates are document pixels. Normally the batch is one undo step; Slow mode gives each stroke its own step."),
          schema({{"documentId", str}, {"expectedState", str}, {"layerId", str}, {"strokes", QJsonObject{{"type", "array"}, {"minItems", 1}, {"maxItems", 1000}, {"items", QJsonObject{{"type", "object"}}}}}},
                 {"documentId", "layerId", "strokes"}), false),
-    tool("get_preview", QStringLiteral("Return a fresh canvas PNG image and coordinate metadata, or a capture of the connected Patchy window. No save path or document state changes."),
+    tool("get_preview", QStringLiteral("Return a fresh canvas PNG image and coordinate metadata, or a capture of the connected Lienzo window. No save path or document state changes."),
          schema({{"documentId", str}, {"target", QJsonObject{{"type", "string"}, {"enum", QJsonArray{"canvas", "window"}}}},
                  {"options", QJsonObject{{"type", "object"}}}}), true),
     tool("undo", QStringLiteral("Undo one edit in the named document."), schema({{"documentId", str}, {"expectedState", str}}, {"documentId"}), false),
@@ -73,7 +73,7 @@ QJsonObject mcp_initialize_result(const QJsonObject& params) {
   return {{"protocolVersion", requested == "2025-06-18" ? requested : QStringLiteral("2025-11-25")},
         {"capabilities", QJsonObject{{"tools", QJsonObject{}}}},
         {"serverInfo", QJsonObject{{"name", "patchy"}, {"version", QCoreApplication::applicationVersion()}}},
-        {"instructions", QStringLiteral("Read get_info to identify the workspace: isolated, or the user's open Patchy window with --attach. Read get_help(workflow) and get_help(api). In attached mode every mutating tool requires expectedState from a fresh get_state or preview. If state is stale, inspect again before editing. Use document/layer IDs, batch edits, inspect get_preview, and save checkpoints. JS globals reset between calls. Requests are serialized; failed scripts may leave undoable edits.")}};
+        {"instructions", QStringLiteral("Read get_info to identify the workspace: isolated, or the user's open Lienzo window with --attach. Read get_help(workflow) and get_help(api). In attached mode every mutating tool requires expectedState from a fresh get_state or preview. If state is stale, inspect again before editing. Use document/layer IDs, batch edits, inspect get_preview, and save checkpoints. JS globals reset between calls. Requests are serialized; failed scripts may leave undoable edits.")}};
 }
 
 QJsonObject mcp_help_result(const QJsonObject& args) {

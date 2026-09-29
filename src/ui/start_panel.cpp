@@ -242,7 +242,7 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
   wasm_note->setOpenExternalLinks(true);
   retranslation_callbacks_.push_back([wasm_note] {
     const auto desktop_link = QStringLiteral("<a style=\"color:@link_text; text-decoration:none;\" "
-                                             "href=\"https://github.com/SethRobinson/Patchy#download\">%1</a>")
+                                             "href=\"https://github.com/danielmigueltejedor/Patchy#download\">%1</a>")
                                   .arg(tr("desktop version"));
     set_themed_label_text(*wasm_note,
                           tr("Everything runs locally in your browser. Nothing you make is ever sent online.") +
@@ -314,7 +314,7 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
     return label;
   };
   const auto github_link = QStringLiteral("<a style=\"color:@link_text; text-decoration:none;\" "
-                                          "href=\"https://github.com/SethRobinson/Patchy\">SethRobinson/Patchy</a>");
+                                          "href=\"https://github.com/danielmigueltejedor/Patchy\">Lienzo</a>");
   const auto seth_site_link = QStringLiteral("<a style=\"color:@link_text; text-decoration:none;\" "
                                              "href=\"https://rtsoft.com\">rtsoft.com</a>");
   add_footer_row({make_home_label(QT_TR_NOOP("GitHub: %1"), github_link),
@@ -361,13 +361,13 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
     QLabel#startPanelTitle {
       background: transparent;
       color: @start_panel_title_text;
-      font-size: 30px;
+      font-size: 34px;
       font-weight: 700;
     }
     QLabel#startPanelTagline {
       background: transparent;
       color: @start_panel_tagline_text;
-      font-size: 12px;
+      font-size: 13px;
     }
     QLabel#startPanelVersion, QLabel#startPanelCredit, QLabel#startPanelContributors, QLabel#startPanelHome {
       background: transparent;
@@ -394,10 +394,10 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
     QWidget#startPanel QPushButton {
       background: @button_bg;
       border: 1px solid @field_border;
-      border-radius: 14px;
+      border-radius: 8px;
       color: @text_bright;
       min-width: 130px;
-      min-height: 28px;
+      min-height: 34px;
       padding: 0 18px;
     }
     QWidget#startPanel QPushButton:hover {
@@ -407,7 +407,8 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
     QWidget#startPanel QPushButton#startPanelNewButton {
       background: @primary_bg;
       border: 1px solid @primary_border;
-      font-weight: 700;
+      color: @text_on_accent;
+      font-weight: 600;
     }
     QWidget#startPanel QPushButton#startPanelNewButton:hover {
       background: @primary_hover_bg;
@@ -415,16 +416,17 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
     QListWidget#startPanelRecentList {
       background: @list_surface_bg;
       border: 1px solid @list_surface_border;
-      border-radius: 5px;
-      padding: 3px;
+      border-radius: 10px;
+      padding: 5px;
     }
     QLineEdit#startPanelRecentFilterEdit {
       background: @list_surface_bg;
       border: 1px solid @list_surface_border;
-      border-radius: 5px;
+      border-radius: 8px;
       color: @text_primary;
-      font-size: 11px;
-      padding: 0 8px;
+      font-size: 12px;
+      min-height: 30px;
+      padding: 0 10px;
     }
     QLineEdit#startPanelRecentFilterEdit:focus {
       border-color: @accent_bright;

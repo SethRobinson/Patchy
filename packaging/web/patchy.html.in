@@ -23,9 +23,9 @@
     <meta charset="utf-8">
     <!-- 1:1 mapping between CSS pixels and Qt device independent pixels on mobile. -->
     <meta name="viewport" content="width=device-width, height=device-height, user-scalable=0"/>
-    <title>Patchy Image Editor</title>
+    <title>Lienzo Image Editor</title>
     <link rel="icon" type="image/x-icon" href="favicon.ico?v=__PATCHY_CACHE_TAG__">
-    <link rel="apple-touch-icon" href="patchy-logo.png?v=__PATCHY_CACHE_TAG__">
+    <link rel="apple-touch-icon" href="lienzo-logo.png?v=__PATCHY_CACHE_TAG__">
     <style>
       html, body { padding: 0; margin: 0; overflow: hidden; height: 100%; background: #151a23; }
       #screen { width: 100%; height: 100%; display: none; }
@@ -64,12 +64,12 @@
   <body onload="init()">
     <div id="screen"></div>
     <div id="loader">
-      <img src="patchy-logo.png?v=__PATCHY_CACHE_TAG__" alt="Patchy logo">
-      <h1 id="title">Patchy <span>__PATCHY_VERSION__</span></h1>
-      <p class="info">Free, open-source image editor &middot; <a href="https://www.rtsoft.com/" target="_top">rtsoft.com</a> &middot; <a href="https://github.com/SethRobinson/Patchy" target="_top">Source</a> &middot; <a href="NOTICE-THIRD-PARTY.md" target="_top">Licenses</a></p>
+      <img src="lienzo-logo.png?v=__PATCHY_CACHE_TAG__" alt="Lienzo logo">
+      <h1 id="title">Lienzo <span>__PATCHY_VERSION__</span></h1>
+      <p class="info">Free, open-source image editor &middot; <a href="https://github.com/danielmigueltejedor/Patchy" target="_top">Source</a> &middot; <a href="NOTICE-THIRD-PARTY.md" target="_top">Licenses</a></p>
       <div id="bar"><div id="bar-fill"></div></div>
       <div id="status">Preparing...</div>
-      <noscript>JavaScript is disabled. Please enable JavaScript to use Patchy.</noscript>
+      <noscript>JavaScript is disabled. Please enable JavaScript to use Lienzo.</noscript>
     </div>
     <div id="stnote">
       <b id="stnote-title"></b>
@@ -128,7 +128,7 @@
         params.set('embedded', String(percent));
         const frame = document.createElement('iframe');
         frame.id = 'scaled-app';
-        frame.title = 'Patchy';
+        frame.title = 'Lienzo';
         frame.allow = 'fullscreen; clipboard-read; clipboard-write';
         const inverse = 10000 / percent; // 75% -> 133.33% layout, scaled to fit
         frame.style.cssText =
@@ -225,10 +225,10 @@
         let key;
         if (USE_ST) {
           title = 'Running in Safari compatibility mode';
-          text = 'A bug in Safari\'s WebAssembly optimizer can crash this tab, so Patchy is'
+          text = 'A bug in Safari\'s WebAssembly optimizer can crash this tab, so Lienzo is'
             + ' running in a slower single-threaded mode here. Heavy operations (large'
             + ' filters, big documents) may briefly freeze the display. For full speed,'
-            + ' open Patchy in Chrome or Firefox on a desktop.';
+            + ' open Lienzo in Chrome or Firefox on a desktop.';
           store = localStorage;
           key = 'patchySafariStNoticeDismissed';
         } else if (isWebKitBrowser()) {
@@ -236,7 +236,7 @@
           text = 'A bug in Safari\'s WebAssembly optimizer can make this tab run out of'
             + ' memory and close after a few minutes of use. Save your work often, and'
             + ' until the fix ships, Chrome, Firefox, or Edge on a desktop computer is'
-            + ' recommended for Patchy.';
+            + ' recommended for Lienzo.';
           store = sessionStorage;
           key = 'patchySafariMtWarningDismissed';
         } else {
@@ -289,7 +289,7 @@
             // (Emscripten's own heap-max value is baked at link time and does
             // not reflect the ceiling chosen here).
             globalThis.patchyWasmMemoryMaximumBytes = maxMb * 1024 * 1024;
-            console.info('Patchy wasm memory: initial=' + initialMb + 'MB max=' + maxMb
+            console.info('Lienzo wasm memory: initial=' + initialMb + 'MB max=' + maxMb
                 + 'MB pool=' + (globalThis.patchyPthreadPoolSize || 'default'));
             return memory;
           } catch (e) {
@@ -376,8 +376,8 @@
         el('screen').style.display = 'none';
         el('loader').style.display = 'flex';
         let message = exitData.crashed
-          ? 'Patchy stopped unexpectedly' + (exitData.text ? ':\n' + exitData.text : '.')
-          : 'Patchy exited' + (exitData.code !== undefined ? ' with code ' + exitData.code : '') + '.';
+          ? 'Lienzo stopped unexpectedly' + (exitData.text ? ':\n' + exitData.text : '.')
+          : 'Lienzo exited' + (exitData.code !== undefined ? ' with code ' + exitData.code : '') + '.';
         // A malloc failure against the heap ceiling aborts with an
         // out-of-memory message that funnels here through qtloader's onAbort
         // wrapper; translate it for people who are not reading the console.
@@ -415,7 +415,7 @@
             // rejects a shared one; Emscripten creates its own, and heap
             // growth needs no upfront reservation).
             if (!window.crossOriginIsolated) {
-              showError('Patchy cannot start: this page is not cross-origin isolated.\n'
+              showError('Lienzo cannot start: this page is not cross-origin isolated.\n'
                 + 'The server must send the Cross-Origin-Opener-Policy: same-origin and\n'
                 + 'Cross-Origin-Embedder-Policy: require-corp response headers.');
               return;
@@ -427,7 +427,7 @@
             // reservation is never doubled.
             wasmMemory = buildWasmMemory();
             if (!wasmMemory) {
-              showError('Patchy cannot start: the browser refused to allocate its working memory.\n'
+              showError('Lienzo cannot start: the browser refused to allocate its working memory.\n'
                 + 'This device may be low on memory. Close other tabs and reload to try again.');
               return;
             }
@@ -442,7 +442,7 @@
               USE_ST ? WASM_SIZE_ST : WASM_SIZE);
           el('loader').classList.remove('indeterminate');
           el('bar-fill').style.width = '100%';
-          setStatus('Starting Patchy...');
+          setStatus('Starting Lienzo...');
           // Compile here instead of passing wasmBinary: the compiled module is
           // what qtLoad and the pthread workers need, and the fetched bytes
           // become garbage collectable as soon as compile resolves.
@@ -463,7 +463,7 @@
           await qtLoad(loadConfig);
         } catch (e) {
           console.error(e);
-          showError('Patchy failed to load:\n' + (e && e.message ? e.message : e));
+          showError('Lienzo failed to load:\n' + (e && e.message ? e.message : e));
         }
       }
     </script>

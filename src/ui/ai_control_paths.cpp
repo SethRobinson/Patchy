@@ -59,13 +59,13 @@ QString ai_setup_blurb_text(const AiControlPaths& paths) {
   const auto flatpak_skill = QString::fromLatin1(kFlatpakSkillDirectory);
 
   QStringList lines;
-  lines << QStringLiteral("Please set up this AI assistant so it can control Patchy, the image "
+  lines << QStringLiteral("Please set up this AI assistant so it can control Lienzo, the image "
                           "editor installed on this computer. Do the setup yourself. Do not "
                           "change, remove, or reorder any other MCP servers, skills, or settings.")
         << QString() << QStringLiteral("Read the setup guide first:");
   if (paths.flatpak) {
     lines << QStringLiteral("  Online: %1").arg(url)
-          << QStringLiteral("  (Patchy runs as a Flatpak; the local copy is inside its sandbox at "
+          << QStringLiteral("  (Lienzo runs as a Flatpak; the local copy is inside its sandbox at "
                             "%1/references/setup.md)")
                  .arg(flatpak_skill);
   } else if (paths.setup_document_path.isEmpty()) {
@@ -76,7 +76,7 @@ QString ai_setup_blurb_text(const AiControlPaths& paths) {
           << QStringLiteral("  Online: %1").arg(url);
   }
   lines << QString() << QStringLiteral("Then:")
-        << QStringLiteral("1. Register Patchy's local MCP connector as a stdio server named "
+        << QStringLiteral("1. Register Lienzo's local MCP connector as a stdio server named "
                           "\"patchy\". It needs no Python or Node.");
   if (paths.flatpak) {
     lines << QStringLiteral("   Command: flatpak run --command=patchy-mcp %1").arg(app_id)
@@ -88,7 +88,7 @@ QString ai_setup_blurb_text(const AiControlPaths& paths) {
   } else {
     lines << QStringLiteral("   Command: %1").arg(quoted(paths.connector_path));
   }
-  lines << QStringLiteral("   For a new connection, use no connector arguments. Reuse an existing matching Patchy connection without changing its workspace mode.")
+  lines << QStringLiteral("   For a new connection, use no connector arguments. Reuse an existing matching Lienzo connection without changing its workspace mode.")
         << QStringLiteral("   This is a one-time setup. For later tasks, follow the workflow to use my open workspace, work visibly, or work in the background without reinstalling. Use the existing connector or the command-line API as appropriate.");
   lines << QStringLiteral("2. Create a \"patchy-control\" folder in your skills directory and "
                           "copy only SKILL.md from this folder into it. The skill fetches "

@@ -38,7 +38,7 @@ void publish_memory_stats(const MainWindow& window, bool log_to_console, double 
   emscripten::val::global("globalThis").set("patchyMemStats", stats);
   if (log_to_console) {
     const auto mb = [](double bytes) { return QString::number(bytes / 1048576.0, 'f', 1); };
-    const auto line = QStringLiteral("Patchy mem: used=%1MB peak=%2MB heap=%3MB history=%4MB limit=%5MB")
+    const auto line = QStringLiteral("Lienzo mem: used=%1MB peak=%2MB heap=%3MB history=%4MB limit=%5MB")
                           .arg(mb(used_bytes), mb(peak_used_bytes), mb(heap_bytes),
                                mb(history_bytes), mb(limit_bytes));
     emscripten::val::global("console").call<void>("info",

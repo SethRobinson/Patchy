@@ -69,6 +69,7 @@ private:
   void remove_translators();
   void persist_language(const QString& code) const;
 
+  QTranslator* brand_translator_{nullptr};
   std::vector<LanguageInfo> languages_;
   QString current_language_;
   QTranslator* patchy_translator_{nullptr};

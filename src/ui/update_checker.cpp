@@ -76,7 +76,7 @@ QString current_update_platform() {
 }
 
 QUrl update_manifest_url() {
-  return QUrl(QStringLiteral("https://raw.githubusercontent.com/SethRobinson/Patchy/main/latest_version.json"));
+  return QUrl(QStringLiteral("https://raw.githubusercontent.com/danielmigueltejedor/Patchy/main/latest_version.json"));
 }
 
 bool update_version_is_newer(const QString& latest_version, const QString& current_version) {

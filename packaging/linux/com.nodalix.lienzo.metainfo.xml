@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
-  <id>com.rtsoft.patchy</id>
+  <id>com.nodalix.lienzo</id>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>MIT</project_license>
-  <name>Patchy</name>
+  <name>Lienzo</name>
   <summary>PSD-oriented raster image editor</summary>
   <summary xml:lang="de">Rastergrafik-Editor mit Schwerpunkt auf dem PSD-Format</summary>
   <summary xml:lang="es">Editor de imágenes de mapa de bits centrado en el formato PSD</summary>
@@ -14,7 +14,7 @@
   <summary xml:lang="zh_TW">以 PSD 為核心的點陣圖影像編輯器</summary>
   <description>
     <p>
-      Patchy is a fast raster image editor built around the Photoshop PSD format:
+      Lienzo is a fast raster image editor built around the Photoshop PSD format:
       layers, folders, masks, adjustment layers, layer styles, and text layers
       round-trip with Photoshop. It ships Photoshop-style tools (marquee, lasso,
       magnetic lasso, magic wand, quick select, brushes with .abr import and
@@ -22,7 +22,7 @@
       editing for pixel artists, and exact indexed PNG-8/BMP export.
     </p>
     <p xml:lang="de">
-      Patchy ist ein schneller Rastergrafik-Editor, der auf dem Photoshop-Format
+      Lienzo ist ein schneller Rastergrafik-Editor, der auf dem Photoshop-Format
       PSD aufbaut: Ebenen, Ordner, Masken, Einstellungsebenen, Ebenenstile und
       Textebenen lassen sich verlustfrei mit Photoshop austauschen. Er bietet
       Werkzeuge im Photoshop-Stil (Auswahlrechteck, Lasso, magnetisches Lasso,
@@ -32,7 +32,7 @@
       indiziertes PNG-8/BMP.
     </p>
     <p xml:lang="es">
-      Patchy es un editor de imágenes de mapa de bits rápido, construido en torno
+      Lienzo es un editor de imágenes de mapa de bits rápido, construido en torno
       al formato PSD de Photoshop: las capas, las carpetas, las máscaras, las
       capas de ajuste, los estilos de capa y las capas de texto se conservan al
       intercambiar archivos con Photoshop. Incluye herramientas al estilo de
@@ -42,7 +42,7 @@
       de pixel art y exportación exacta a PNG-8/BMP indexado.
     </p>
     <p xml:lang="fr">
-      Patchy est un éditeur d'images matricielles rapide conçu autour du format
+      Lienzo est un éditeur d'images matricielles rapide conçu autour du format
       PSD de Photoshop : les calques, dossiers, masques, calques de réglage,
       styles de calque et calques de texte font l'aller-retour avec Photoshop
       sans perte. Il propose des outils dans l'esprit de Photoshop (rectangle de
@@ -53,7 +53,7 @@
       indexé.
     </p>
     <p xml:lang="it">
-      Patchy è un editor di immagini raster veloce costruito attorno al formato
+      Lienzo è un editor di immagini raster veloce costruito attorno al formato
       PSD di Photoshop: livelli, cartelle, maschere, livelli di regolazione,
       stili di livello e livelli di testo si scambiano con Photoshop senza
       perdite. Include strumenti in stile Photoshop (selezione rettangolare,
@@ -63,20 +63,20 @@
       ed esportazione esatta in PNG-8/BMP indicizzato.
     </p>
     <p xml:lang="ja">
-      Patchy は Photoshop の PSD 形式を中心に設計された高速なラスター画像エディタです。レイヤー、フォルダー、マスク、調整レイヤー、レイヤースタイル、テキストレイヤーを Photoshop と相互にやり取りできます。Photoshop 風のツール（長方形選択、なげなわ、マグネット選択、自動選択、クイック選択、.abr の読み込みとダイナミクスに対応したブラシ、コピースタンプ、指先、グラデーション）、ピクセルアーティスト向けのパレットに制限されたインデックスカラー編集、正確なインデックス PNG-8/BMP 書き出しを備えています。
+      Lienzo は Photoshop の PSD 形式を中心に設計された高速なラスター画像エディタです。レイヤー、フォルダー、マスク、調整レイヤー、レイヤースタイル、テキストレイヤーを Photoshop と相互にやり取りできます。Photoshop 風のツール（長方形選択、なげなわ、マグネット選択、自動選択、クイック選択、.abr の読み込みとダイナミクスに対応したブラシ、コピースタンプ、指先、グラデーション）、ピクセルアーティスト向けのパレットに制限されたインデックスカラー編集、正確なインデックス PNG-8/BMP 書き出しを備えています。
     </p>
     <p xml:lang="zh_CN">
-      Patchy 是一款围绕 Photoshop PSD 格式打造的快速位图图像编辑器：图层、文件夹、蒙版、调整图层、图层样式和文字图层都能与 Photoshop 无损往返。它提供 Photoshop 风格的工具（选框、套索、磁性套索、魔棒、快速选择、支持导入 .abr 并带有动态的画笔、仿制图章、涂抹、渐变），面向像素画作者的调色板受限索引颜色编辑，以及精确的索引 PNG-8/BMP 导出。
+      Lienzo 是一款围绕 Photoshop PSD 格式打造的快速位图图像编辑器：图层、文件夹、蒙版、调整图层、图层样式和文字图层都能与 Photoshop 无损往返。它提供 Photoshop 风格的工具（选框、套索、磁性套索、魔棒、快速选择、支持导入 .abr 并带有动态的画笔、仿制图章、涂抹、渐变），面向像素画作者的调色板受限索引颜色编辑，以及精确的索引 PNG-8/BMP 导出。
     </p>
     <p xml:lang="zh_TW">
-      Patchy 是一款以 Photoshop PSD 格式為核心的快速點陣圖影像編輯器：圖層、資料夾、遮色片、調整圖層、圖層樣式和文字圖層都能與 Photoshop 無損互通。它提供 Photoshop 風格的工具（選取畫面、套索、磁性套索、魔術棒、快速選取、支援匯入 .abr 並具備筆刷動態的筆刷、仿製印章、指尖、漸層），為像素藝術創作者設計的調色盤受限索引色編輯，以及精確的索引 PNG-8/BMP 匯出。
+      Lienzo 是一款以 Photoshop PSD 格式為核心的快速點陣圖影像編輯器：圖層、資料夾、遮色片、調整圖層、圖層樣式和文字圖層都能與 Photoshop 無損互通。它提供 Photoshop 風格的工具（選取畫面、套索、磁性套索、魔術棒、快速選取、支援匯入 .abr 並具備筆刷動態的筆刷、仿製印章、指尖、漸層），為像素藝術創作者設計的調色盤受限索引色編輯，以及精確的索引 PNG-8/BMP 匯出。
     </p>
   </description>
-  <launchable type="desktop-id">com.rtsoft.patchy.desktop</launchable>
-  <url type="homepage">https://github.com/SethRobinson/Patchy</url>
-  <url type="bugtracker">https://github.com/SethRobinson/Patchy/issues</url>
-  <developer id="com.rtsoft">
-    <name>Seth A. Robinson</name>
+  <launchable type="desktop-id">com.nodalix.lienzo.desktop</launchable>
+  <url type="homepage">https://github.com/danielmigueltejedor/Patchy</url>
+  <url type="bugtracker">https://github.com/danielmigueltejedor/Patchy/issues</url>
+  <developer id="com.nodalix">
+    <name>Nodalix</name>
   </developer>
   <content_rating type="oars-1.1"/>
   <supports>

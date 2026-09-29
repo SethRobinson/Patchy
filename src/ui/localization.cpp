@@ -16,6 +16,43 @@ namespace {
 
 constexpr auto kLanguageSettingsKey = "preferences/language";
 
+class LienzoCatalogTranslator final : public QTranslator {
+public:
+  using QTranslator::QTranslator;
+
+  QString translate(const char* context, const char* source_text,
+                    const char* disambiguation = nullptr, int n = -1) const override {
+    auto translated =
+        QTranslator::translate(context, source_text, disambiguation, n);
+    translated.replace(QStringLiteral("Patchy"), QStringLiteral("Lienzo"));
+    return translated;
+  }
+};
+
+class LienzoBrandTranslator final : public QTranslator {
+public:
+  using QTranslator::QTranslator;
+
+  QString translate(const char* context, const char* source_text,
+                    const char* disambiguation = nullptr, int n = -1) const override {
+    (void)context;
+    (void)disambiguation;
+    (void)n;
+
+    if (source_text == nullptr) {
+      return {};
+    }
+
+    auto text = QString::fromUtf8(source_text);
+    if (!text.contains(QStringLiteral("Patchy"))) {
+      return {};
+    }
+
+    text.replace(QStringLiteral("Patchy"), QStringLiteral("Lienzo"));
+    return text;
+  }
+};
+
 QStringList translation_directories() {
   QStringList directories;
   const auto add_directory = [&directories](QString path) {
@@ -81,7 +118,8 @@ QString LocalizationManager::source_language() {
 }
 
 LocalizationManager::LocalizationManager()
-    : languages_{{QStringLiteral("en"), QStringLiteral("English"), QStringLiteral("English")},
+    : brand_translator_(new LienzoBrandTranslator(qApp)),
+      languages_{{QStringLiteral("en"), QStringLiteral("English"), QStringLiteral("English")},
                  {QStringLiteral("de"), QStringLiteral("German"), QStringLiteral("Deutsch")},
                  {QStringLiteral("es"), QStringLiteral("Spanish"), QStringLiteral("Español")},
                  {QStringLiteral("fr"), QStringLiteral("French"), QStringLiteral("Français")},
@@ -90,8 +128,10 @@ LocalizationManager::LocalizationManager()
                  {QStringLiteral("zh_CN"), QStringLiteral("Chinese (Simplified)"), QStringLiteral("简体中文")},
                  {QStringLiteral("zh_TW"), QStringLiteral("Chinese (Traditional)"), QStringLiteral("繁體中文")}},
       current_language_(source_language()),
-      patchy_translator_(new QTranslator(qApp)),
-      qtbase_translator_(new QTranslator(qApp)) {}
+      patchy_translator_(new LienzoCatalogTranslator(qApp)),
+      qtbase_translator_(new QTranslator(qApp)) {
+  QCoreApplication::installTranslator(brand_translator_);
+}
 
 const std::vector<LanguageInfo>& LocalizationManager::languages() const noexcept {
   return languages_;

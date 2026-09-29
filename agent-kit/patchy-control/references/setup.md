@@ -52,7 +52,7 @@ table below.
 | Windows zip | `<unpacked folder>\patchy-mcp.exe` | `<unpacked folder>\ai\patchy-control` |
 | macOS | `/Applications/Patchy.app/Contents/MacOS/patchy-mcp` | `/Applications/Patchy.app/Contents/Resources/ai/patchy-control` |
 | Linux prefix install | `<prefix>/bin/patchy-mcp` | `<prefix>/share/patchy/ai/patchy-control` |
-| Linux Flatpak | program `flatpak`, arguments `run --command=patchy-mcp com.rtsoft.patchy` | `/app/share/patchy/ai/patchy-control` inside the sandbox |
+| Linux Flatpak | program `flatpak`, arguments `run --command=patchy-mcp com.nodalix.lienzo` | `/app/share/patchy/ai/patchy-control` inside the sandbox |
 | Source build | `build/<preset>/patchy-mcp` (`.exe` on Windows) | `build/<preset>/ai/patchy-control` |
 
 `%LOCALAPPDATA%` is normally `C:\Users\<name>\AppData\Local`. In PowerShell the
@@ -91,7 +91,7 @@ yourself if that would interrupt the conversation. Tell the user what is ready
 and the exact remaining restart step.
 
 For Flatpak, create the destination `patchy-control` folder, then copy the entry
-point with `flatpak run --command=cp com.rtsoft.patchy /app/share/patchy/ai/patchy-control/SKILL.md <destination>/SKILL.md`
+point with `flatpak run --command=cp com.nodalix.lienzo /app/share/patchy/ai/patchy-control/SKILL.md <destination>/SKILL.md`
 where the destination is a folder the sandbox can see. The full workflow stays
 inside the sandbox and is read through `get_help`.
 
@@ -147,7 +147,7 @@ Windows, double every backslash inside the JSON string.
 ```
 
 For Flatpak use `"command": "flatpak"` and
-`"args": ["run", "--command=patchy-mcp", "com.rtsoft.patchy"]`.
+`"args": ["run", "--command=patchy-mcp", "com.nodalix.lienzo"]`.
 Optional startup modes go in `args`; for Flatpak they follow the app ID.
 
 Install just `SKILL.md` in a `patchy-control` folder inside the client's skills

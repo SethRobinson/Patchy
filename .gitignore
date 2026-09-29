@@ -65,3 +65,4 @@ compile_commands.json
 .DS_Store
 Thumbs.db
 .claude
+/build-lienzo/

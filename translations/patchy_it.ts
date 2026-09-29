@@ -146,7 +146,7 @@
     </message>
     <message>
         <source>The plug-in host program does not match this Patchy build.</source>
-        <translation>Il programma host dei plug-in non corrisponde a questa build di Patchy.</translation>
+        <translation>Il programma host dei plug-in non corrisponde a questa build di Lienzo.</translation>
     </message>
     <message>
         <source>The plug-in crashed (host exit code %1).</source>
@@ -160,8 +160,8 @@
 <context>
     <name>QObject</name>
     <message>
-        <source>Patchy raster image editor.</source>
-        <translation>Editor di immagini raster Patchy.</translation>
+        <source>Lienzo raster image editor.</source>
+        <translation>Editor di immagini raster Lienzo.</translation>
     </message>
     <message>
         <source>Run without a display (Qt offscreen platform) and never reuse a running instance. Needs --run-script, --export, --stress-test, or --screenshot; exits 2 otherwise.</source>
@@ -176,8 +176,8 @@
         <translation>Cartella per i report dello stress test (con --stress-test).</translation>
     </message>
     <message>
-        <source>Save a PNG of the Patchy window to &lt;path&gt;. With a running instance this forwards the request and exits; otherwise the new instance captures after startup and exits.</source>
-        <translation>Salva un PNG della finestra di Patchy in &lt;path&gt;. Se c&apos;è un&apos;istanza in esecuzione, inoltra la richiesta ed esce; altrimenti la nuova istanza acquisisce l&apos;immagine dopo l&apos;avvio ed esce.</translation>
+        <source>Save a PNG of the Lienzo window to &lt;path&gt;. With a running instance this forwards the request and exits; otherwise the new instance captures after startup and exits.</source>
+        <translation>Salva un PNG della finestra di Lienzo in &lt;path&gt;. Se c&apos;è un&apos;istanza in esecuzione, inoltra la richiesta ed esce; altrimenti la nuova istanza acquisisce l&apos;immagine dopo l&apos;avvio ed esce.</translation>
     </message>
     <message>
         <source>Limit --screenshot to the child widget with this Qt object name.</source>
@@ -192,8 +192,8 @@
         <translation>Apre il file indicato, lo salva in &lt;path&gt; (il formato segue l&apos;estensione) ed esce. Viene eseguito senza supervisione: le richieste di conferma sono soppresse e nessuna istanza in esecuzione viene riutilizzata.</translation>
     </message>
     <message>
-        <source>With --export: append this text to every text layer, re-rendering each through Patchy&apos;s text engine, before saving.</source>
-        <translation>Con --export: aggiunge questo testo a ogni livello di testo, rieseguendo il rendering di ciascuno con il motore di testo di Patchy, prima del salvataggio.</translation>
+        <source>With --export: append this text to every text layer, re-rendering each through Lienzo&apos;s text engine, before saving.</source>
+        <translation>Con --export: aggiunge questo testo a ogni livello di testo, rieseguendo il rendering di ciascuno con il motore di testo di Lienzo, prima del salvataggio.</translation>
     </message>
     <message>
         <source>Run the JavaScript file. With a running instance this forwards the request and exits; otherwise a new unattended instance opens the given files, runs the script, and exits (0 = ok, 4 = script error).</source>

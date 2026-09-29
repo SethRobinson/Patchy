@@ -75,7 +75,7 @@ QString default_documents_path(QString filename) {
 
 void configure_printer(QPrinter& printer, const QPageLayout& page_layout, const QString& document_name) {
   printer.setDocName(document_name.isEmpty() ? QObject::tr("Patchy Document") : document_name);
-  printer.setCreator(QStringLiteral("Patchy"));
+  printer.setCreator(QStringLiteral("Lienzo"));
   printer.setColorMode(QPrinter::Color);
   printer.setPageLayout(valid_page_layout(page_layout));
 }

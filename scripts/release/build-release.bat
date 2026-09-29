@@ -54,7 +54,7 @@ set "INSTALLER_WORK_DIR=%PACKAGE_ROOT%\installer"
 set "INSTALLER_PAYLOAD_DIR=%INSTALLER_WORK_DIR%\payload"
 set "INSTALLER_SED_PATH=%INSTALLER_WORK_DIR%\PatchyWindowsInstaller.sed"
 set "WINDOWS_PACKAGING_DIR=%REPO%\packaging\windows"
-set "APP_ICON=%REPO%\src\app\patchy.ico"
+set "APP_ICON=%REPO%\src\app\lienzo.ico"
 set "APP_EXE=%BUILD_DIR%\patchy.exe"
 
 rem Delete the previous package outputs up front: if any later step fails, nothing

@@ -29,7 +29,7 @@ root (GitHub issue 14, CachyOS, September 2026):
   (`show_update_available`), the HEIC hint in `heif_document_io.cpp`, and the
   `app_shell_tests.cpp` assertion in step.
 
-- `flatpak/com.rtsoft.patchy.yml` — the manifest. Runtime `org.kde.Platform//6.8`
+- `flatpak/com.nodalix.lienzo.yml` — the manifest. Runtime `org.kde.Platform//6.8`
   matches the Qt line the app is developed against; Qt is deliberately not vendored.
   The manifest is kept Flathub-compliant so a Flathub submission stays a cheap later
   option. `--filesystem=home` is the deliberate v1 choice (recents, CLI file
@@ -45,10 +45,10 @@ root (GitHub issue 14, CachyOS, September 2026):
   Patchy bundles no HEVC code, and the block goes away if the runtime moves to
   6.10+, whose base inherits codecs-extra instead (auto-installed with the
   runtime, so HEIC then works with zero user action).
-- `com.rtsoft.patchy.desktop`, `com.rtsoft.patchy.metainfo.xml`, `icons/hicolor/*` —
+- `com.nodalix.lienzo.desktop`, `com.nodalix.lienzo.metainfo.xml`, `icons/hicolor/*` —
   freedesktop integration, installed by CMake's `UNIX AND NOT APPLE` install rules
   (binary in `bin/`, fonts/translations under `share/patchy/`). The icons were
-  extracted from the native layers of `src/app/patchy.ico`. Bump the metainfo
+  extracted from the native layers of `src/app/lienzo.ico`. Bump the metainfo
   `<release>` tag with each version (see `docs/release-process.md`).
 - `make-flatpak.sh` — builds the bundle on a machine with `flatpak-builder`
   (the linux build host): `bash packaging/linux/make-flatpak.sh`. One-time setup is in the
@@ -63,7 +63,7 @@ xdg-activation token), and clipboard content set by Patchy vanishes when the app
 exits (no clipboard manager in the sandbox). `--socket=fallback-x11` lets users force
 `QT_QPA_PLATFORM=xcb` if a Wayland quirk bites.
 
-Headless runs need no `--env`: `flatpak run com.rtsoft.patchy --headless --run-script
+Headless runs need no `--env`: `flatpak run com.nodalix.lienzo --headless --run-script
 /path/to/script.js --script-output /path/to/out.txt` selects Qt's offscreen platform
 inside the sandbox (the org.kde.Platform runtime ships the plugin), and
 `--filesystem=home` covers the script, the output file, and the documents it opens.
@@ -80,4 +80,4 @@ The Patchy Flatpak installed on the linux build host is a manual test install an
 never refreshes it (September 2026: it still reported 0.88 after the 0.91 release). To
 test the shipped bundle there, reinstall it first:
 `flatpak install --user -y --reinstall --bundle build/package/Patchy-<version>.flatpak`,
-then `flatpak run --user com.rtsoft.patchy --headless --run-script ...`.
+then `flatpak run --user com.nodalix.lienzo --headless --run-script ...`.

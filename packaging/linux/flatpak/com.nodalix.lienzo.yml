@@ -1,7 +1,7 @@
 # Flatpak manifest for the self-hosted Patchy bundle (see packaging/linux/README.md).
 # The org.kde.Platform 6.8 runtime ships the same Qt 6.8 line the app is developed
 # against -- Qt is deliberately NOT vendored here.
-app-id: com.rtsoft.patchy
+app-id: com.nodalix.lienzo
 runtime: org.kde.Platform
 runtime-version: '6.8'
 sdk: org.kde.Sdk

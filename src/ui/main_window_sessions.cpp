@@ -1499,7 +1499,7 @@ void MainWindow::refresh_document_window_title() {
     setWindowFilePath(QString());
     setWindowModified(false);
 #endif
-    setWindowTitle(QStringLiteral("Patchy"));
+    setWindowTitle(QStringLiteral("Lienzo"));
     return;
   }
 

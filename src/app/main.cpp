@@ -380,18 +380,18 @@ int main(int argc, char* argv[]) {
   std::setlocale(LC_NUMERIC, "C");
 #ifdef Q_OS_LINUX
   // Lets Wayland compositors match the window to its .desktop entry (taskbar icon,
-  // pinning); must match packaging/linux/com.rtsoft.patchy.desktop.
-  QGuiApplication::setDesktopFileName(QStringLiteral("com.rtsoft.patchy"));
+  // pinning); must match packaging/linux/com.nodalix.lienzo.desktop.
+  QGuiApplication::setDesktopFileName(QStringLiteral("com.nodalix.lienzo"));
 #endif
   // Slider grooves snap to the click; tool flyouts open on a short hold (see the style above).
   app.setStyle(new InteractionHintsStyle);
-  app.setApplicationName(QStringLiteral("Patchy"));
+  app.setApplicationName(QStringLiteral("Lienzo"));
   app.setApplicationVersion(QStringLiteral(PATCHY_VERSION));
   // Keep the internal app identity for settings without letting Qt append " - Patchy" to every native window title.
   app.setApplicationDisplayName(QString());
   // Keys the per-user app-data folder (fonts, scripts); see app_data_migration.hpp before
   // changing it. Preferences name their own organization in app_settings().
-  app.setOrganizationName(QStringLiteral("RTsoft"));
+  app.setOrganizationName(QStringLiteral("Nodalix"));
   app.setWindowIcon(patchy::ui::patchy_app_icon());
   // Qt 6 caps every image decode at 256 MB and fails bigger ones with a bare
   // "Unable to read image data" (a large-bed flatbed scan at 600 DPI is
@@ -429,7 +429,7 @@ int main(int argc, char* argv[]) {
   // Parse command-line arguments after translations load so option descriptions are localized.
   QCommandLineParser parser;
   parser.setApplicationDescription(
-      QCoreApplication::translate("QObject", "Patchy raster image editor."));
+      QCoreApplication::translate("QObject", "Lienzo raster image editor."));
   parser.addHelpOption();
   parser.addVersionOption();
   parser.addPositionalArgument(QStringLiteral("files"),
@@ -467,7 +467,7 @@ int main(int argc, char* argv[]) {
   QCommandLineOption screenshot_option(
       QStringLiteral("screenshot"),
       QCoreApplication::translate(
-          "QObject", "Save a PNG of the Patchy window to <path>. With a running instance this forwards "
+          "QObject", "Save a PNG of the Lienzo window to <path>. With a running instance this forwards "
                      "the request and exits; otherwise the new instance captures after startup and exits."),
       QStringLiteral("path"));
   parser.addOption(screenshot_option);
@@ -492,7 +492,7 @@ int main(int argc, char* argv[]) {
       QStringLiteral("append-text"),
       QCoreApplication::translate(
           "QObject", "With --export: append this text to every text layer, re-rendering each through "
-                     "Patchy's text engine, before saving."),
+                     "Lienzo's text engine, before saving."),
       QStringLiteral("text"));
   parser.addOption(append_text_option);
   QCommandLineOption run_script_option(
