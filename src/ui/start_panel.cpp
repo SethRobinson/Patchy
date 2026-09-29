@@ -147,7 +147,7 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
   auto* header_row = new QHBoxLayout();
   header_row->setSpacing(18);
   auto* artwork = new SplashArtwork(column);
-  artwork->setFixedSize(110, 141);
+  artwork->setFixedSize(112, 112);
   header_row->addStretch(1);
   header_row->addWidget(artwork);
   auto* header_text = new QVBoxLayout();

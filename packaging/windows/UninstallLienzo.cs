@@ -6,18 +6,18 @@ using System.Text;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
-internal static class UninstallPatchy
+internal static class UninstallLienzo
 {
-    private const string InstallManifestName = "PatchyInstallManifest.txt";
-    private const string UninstallKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\Patchy";
-    private const string ShortcutRelativePath = @"Microsoft\Windows\Start Menu\Programs\Patchy.lnk";
-    private const string DesktopShortcutName = "Patchy.lnk";
+    private const string InstallManifestName = "LienzoInstallManifest.txt";
+    private const string UninstallKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\Lienzo";
+    private const string ShortcutRelativePath = @"Microsoft\Windows\Start Menu\Programs\Lienzo.lnk";
+    private const string DesktopShortcutName = "Lienzo.lnk";
 
     private static readonly string[] LegacyInstalledRelativePaths = {
         "patchy.exe",
-        "Patchy.ico",
-        "UninstallPatchy.exe",
-        "UninstallPatchy.ps1",
+        "Lienzo.ico",
+        "UninstallLienzo.exe",
+        "UninstallLienzo.ps1",
         "LICENSE",
         "README.md",
         "NOTICE-THIRD-PARTY.md",
@@ -61,8 +61,8 @@ internal static class UninstallPatchy
             if (!quiet)
             {
                 DialogResult result = MessageBox.Show(
-                    "Remove Patchy from this computer?",
-                    "Patchy Setup",
+                    "Remove Lienzo from this computer?",
+                    "Lienzo Setup",
                     MessageBoxButtons.YesNo,
                     MessageBoxIcon.Question,
                     MessageBoxDefaultButton.Button2);
@@ -72,7 +72,7 @@ internal static class UninstallPatchy
                 }
             }
 
-            if (!CloseRunningPatchy(installRoot, quiet))
+            if (!CloseRunningLienzo(installRoot, quiet))
             {
                 return 1602;
             }
@@ -87,7 +87,7 @@ internal static class UninstallPatchy
         {
             if (!quiet)
             {
-                MessageBox.Show(ex.Message, "Patchy Setup", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(ex.Message, "Lienzo Setup", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             return 1;
         }
@@ -118,7 +118,7 @@ internal static class UninstallPatchy
         }
 
         paths.Add(InstallManifestName);
-        paths.Add("UninstallPatchy.exe");
+        paths.Add("UninstallLienzo.exe");
         string[] result = new string[paths.Count];
         paths.CopyTo(result);
         Array.Sort(result, StringComparer.OrdinalIgnoreCase);
@@ -149,7 +149,7 @@ internal static class UninstallPatchy
         return true;
     }
 
-    private static bool CloseRunningPatchy(string installRoot, bool quiet)
+    private static bool CloseRunningLienzo(string installRoot, bool quiet)
     {
         foreach (Process process in Process.GetProcessesByName("patchy"))
         {
@@ -161,8 +161,8 @@ internal static class UninstallPatchy
             if (!quiet)
             {
                 DialogResult result = MessageBox.Show(
-                    "Patchy is currently running. Setup needs to close it before uninstalling.",
-                    "Patchy Setup",
+                    "Lienzo is currently running. Setup needs to close it before uninstalling.",
+                    "Lienzo Setup",
                     MessageBoxButtons.OKCancel,
                     MessageBoxIcon.Warning);
                 if (result != DialogResult.OK)
@@ -189,8 +189,8 @@ internal static class UninstallPatchy
                 if (!quiet)
                 {
                     MessageBox.Show(
-                        "Patchy could not be closed. Close it manually and run uninstall again.",
-                        "Patchy Setup",
+                        "Lienzo could not be closed. Close it manually and run uninstall again.",
+                        "Lienzo Setup",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Error);
                 }

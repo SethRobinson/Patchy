@@ -13,8 +13,8 @@ rem shells set it), and the console closes too fast to read the error. See
 rem docs/release-process.md.
 rem This script lives in scripts\release, so %~dp0..\remote reaches scripts\remote.
 cd /d "%~dp0..\.."
-start "Patchy release - Windows" cmd /c "%~dp0build-release.bat"
-start "Patchy release - macOS" cmd /c "%~dp0..\remote\release-mac.bat"
-start "Patchy release - Linux" cmd /c "%~dp0..\remote\release-linux.bat"
-start "Patchy release - Web (wasm)" cmd /c "%~dp0build-wasm.bat"
+start "Lienzo release - Windows" cmd /c "%~dp0build-release.bat"
+start "Lienzo release - macOS" cmd /c "%~dp0..\remote\release-mac.bat"
+start "Lienzo release - Linux" cmd /c "%~dp0..\remote\release-linux.bat"
+start "Lienzo release - Web (wasm)" cmd /c "%~dp0build-wasm.bat"
 echo Four release windows launched. When they all finish, run scripts\release\upload-to-rtsoft.bat.

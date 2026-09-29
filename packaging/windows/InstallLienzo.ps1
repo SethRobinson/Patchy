@@ -10,7 +10,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-function ConvertFrom-PatchyUnicodeEscapes {
+function ConvertFrom-LienzoUnicodeEscapes {
     param([Parameter(Mandatory = $true)][string]$Text)
 
     return [regex]::Replace($Text, "\\u([0-9A-Fa-f]{4})", {
@@ -19,58 +19,58 @@ function ConvertFrom-PatchyUnicodeEscapes {
     })
 }
 
-$PatchyInstallerText = @{
+$LienzoInstallerText = @{
     en = @{
-        RunningPatchyRetryMessage = "Patchy is currently running. Save your work, close Patchy, then click Retry to continue installation."
-        RunningPatchyQuietMessage = "Patchy is currently running. Close Patchy and run setup again."
-        FileInUseQuietMessage = "Patchy could not be updated because installed files are in use. Close Patchy and run setup again."
+        RunningLienzoRetryMessage = "Lienzo is currently running. Save your work, close Lienzo, then click Retry to continue installation."
+        RunningLienzoQuietMessage = "Lienzo is currently running. Close Lienzo and run setup again."
+        FileInUseQuietMessage = "Lienzo could not be updated because installed files are in use. Close Lienzo and run setup again."
         InstallationCanceled = "Installation canceled."
     }
     ja = @{
-        RunningPatchyRetryMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy \u306F\u73FE\u5728\u5B9F\u884C\u4E2D\u3067\u3059\u3002\u4F5C\u696D\u3092\u4FDD\u5B58\u3057\u3066 Patchy \u3092\u9589\u3058\u3066\u304B\u3089\u3001[\u518D\u8A66\u884C] \u3092\u30AF\u30EA\u30C3\u30AF\u3057\u3066\u30A4\u30F3\u30B9\u30C8\u30FC\u30EB\u3092\u7D9A\u884C\u3057\u3066\u304F\u3060\u3055\u3044\u3002"
-        RunningPatchyQuietMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy \u306F\u73FE\u5728\u5B9F\u884C\u4E2D\u3067\u3059\u3002Patchy \u3092\u9589\u3058\u3066\u304B\u3089\u30BB\u30C3\u30C8\u30A2\u30C3\u30D7\u3092\u3082\u3046\u4E00\u5EA6\u5B9F\u884C\u3057\u3066\u304F\u3060\u3055\u3044\u3002"
-        FileInUseQuietMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy \u3092\u66F4\u65B0\u3067\u304D\u307E\u305B\u3093\u3067\u3057\u305F\u3002Patchy \u3092\u9589\u3058\u3066\u304B\u3089\u30BB\u30C3\u30C8\u30A2\u30C3\u30D7\u3092\u3082\u3046\u4E00\u5EA6\u5B9F\u884C\u3057\u3066\u304F\u3060\u3055\u3044\u3002"
-        InstallationCanceled = ConvertFrom-PatchyUnicodeEscapes "\u30A4\u30F3\u30B9\u30C8\u30FC\u30EB\u306F\u30AD\u30E3\u30F3\u30BB\u30EB\u3055\u308C\u307E\u3057\u305F\u3002"
+        RunningLienzoRetryMessage = ConvertFrom-LienzoUnicodeEscapes "Lienzo \u306F\u73FE\u5728\u5B9F\u884C\u4E2D\u3067\u3059\u3002\u4F5C\u696D\u3092\u4FDD\u5B58\u3057\u3066 Lienzo \u3092\u9589\u3058\u3066\u304B\u3089\u3001[\u518D\u8A66\u884C] \u3092\u30AF\u30EA\u30C3\u30AF\u3057\u3066\u30A4\u30F3\u30B9\u30C8\u30FC\u30EB\u3092\u7D9A\u884C\u3057\u3066\u304F\u3060\u3055\u3044\u3002"
+        RunningLienzoQuietMessage = ConvertFrom-LienzoUnicodeEscapes "Lienzo \u306F\u73FE\u5728\u5B9F\u884C\u4E2D\u3067\u3059\u3002Lienzo \u3092\u9589\u3058\u3066\u304B\u3089\u30BB\u30C3\u30C8\u30A2\u30C3\u30D7\u3092\u3082\u3046\u4E00\u5EA6\u5B9F\u884C\u3057\u3066\u304F\u3060\u3055\u3044\u3002"
+        FileInUseQuietMessage = ConvertFrom-LienzoUnicodeEscapes "Lienzo \u3092\u66F4\u65B0\u3067\u304D\u307E\u305B\u3093\u3067\u3057\u305F\u3002Lienzo \u3092\u9589\u3058\u3066\u304B\u3089\u30BB\u30C3\u30C8\u30A2\u30C3\u30D7\u3092\u3082\u3046\u4E00\u5EA6\u5B9F\u884C\u3057\u3066\u304F\u3060\u3055\u3044\u3002"
+        InstallationCanceled = ConvertFrom-LienzoUnicodeEscapes "\u30A4\u30F3\u30B9\u30C8\u30FC\u30EB\u306F\u30AD\u30E3\u30F3\u30BB\u30EB\u3055\u308C\u307E\u3057\u305F\u3002"
     }
     de = @{
-        RunningPatchyRetryMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy wird derzeit ausgef\u00FChrt. Speichern Sie Ihre Arbeit, schlie\u00DFen Sie Patchy und klicken Sie dann auf \u201EWiederholen\u201C, um die Installation fortzusetzen."
-        RunningPatchyQuietMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy wird derzeit ausgef\u00FChrt. Schlie\u00DFen Sie Patchy und f\u00FChren Sie das Setup erneut aus."
-        FileInUseQuietMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy konnte nicht aktualisiert werden, weil installierte Dateien gerade verwendet werden. Schlie\u00DFen Sie Patchy und f\u00FChren Sie das Setup erneut aus."
-        InstallationCanceled = ConvertFrom-PatchyUnicodeEscapes "Installation abgebrochen."
+        RunningLienzoRetryMessage = ConvertFrom-LienzoUnicodeEscapes "Lienzo wird derzeit ausgef\u00FChrt. Speichern Sie Ihre Arbeit, schlie\u00DFen Sie Lienzo und klicken Sie dann auf \u201EWiederholen\u201C, um die Installation fortzusetzen."
+        RunningLienzoQuietMessage = ConvertFrom-LienzoUnicodeEscapes "Lienzo wird derzeit ausgef\u00FChrt. Schlie\u00DFen Sie Lienzo und f\u00FChren Sie das Setup erneut aus."
+        FileInUseQuietMessage = ConvertFrom-LienzoUnicodeEscapes "Lienzo konnte nicht aktualisiert werden, weil installierte Dateien gerade verwendet werden. Schlie\u00DFen Sie Lienzo und f\u00FChren Sie das Setup erneut aus."
+        InstallationCanceled = ConvertFrom-LienzoUnicodeEscapes "Installation abgebrochen."
     }
     es = @{
-        RunningPatchyRetryMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy se est\u00E1 ejecutando. Guarde su trabajo, cierre Patchy y haga clic en Reintentar para continuar con la instalaci\u00F3n."
-        RunningPatchyQuietMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy se est\u00E1 ejecutando. Cierre Patchy y vuelva a ejecutar el instalador."
-        FileInUseQuietMessage = ConvertFrom-PatchyUnicodeEscapes "No se pudo actualizar Patchy porque los archivos instalados est\u00E1n en uso. Cierre Patchy y vuelva a ejecutar el instalador."
-        InstallationCanceled = ConvertFrom-PatchyUnicodeEscapes "Instalaci\u00F3n cancelada."
+        RunningLienzoRetryMessage = ConvertFrom-LienzoUnicodeEscapes "Lienzo se est\u00E1 ejecutando. Guarde su trabajo, cierre Lienzo y haga clic en Reintentar para continuar con la instalaci\u00F3n."
+        RunningLienzoQuietMessage = ConvertFrom-LienzoUnicodeEscapes "Lienzo se est\u00E1 ejecutando. Cierre Lienzo y vuelva a ejecutar el instalador."
+        FileInUseQuietMessage = ConvertFrom-LienzoUnicodeEscapes "No se pudo actualizar Lienzo porque los archivos instalados est\u00E1n en uso. Cierre Lienzo y vuelva a ejecutar el instalador."
+        InstallationCanceled = ConvertFrom-LienzoUnicodeEscapes "Instalaci\u00F3n cancelada."
     }
     fr = @{
-        RunningPatchyRetryMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy est en cours d'ex\u00E9cution. Enregistrez votre travail, fermez Patchy, puis cliquez sur R\u00E9essayer pour poursuivre l'installation."
-        RunningPatchyQuietMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy est en cours d'ex\u00E9cution. Fermez Patchy, puis relancez le programme d'installation."
-        FileInUseQuietMessage = ConvertFrom-PatchyUnicodeEscapes "Impossible de mettre \u00E0 jour Patchy, car des fichiers install\u00E9s sont en cours d'utilisation. Fermez Patchy, puis relancez le programme d'installation."
-        InstallationCanceled = ConvertFrom-PatchyUnicodeEscapes "Installation annul\u00E9e."
+        RunningLienzoRetryMessage = ConvertFrom-LienzoUnicodeEscapes "Lienzo est en cours d'ex\u00E9cution. Enregistrez votre travail, fermez Lienzo, puis cliquez sur R\u00E9essayer pour poursuivre l'installation."
+        RunningLienzoQuietMessage = ConvertFrom-LienzoUnicodeEscapes "Lienzo est en cours d'ex\u00E9cution. Fermez Lienzo, puis relancez le programme d'installation."
+        FileInUseQuietMessage = ConvertFrom-LienzoUnicodeEscapes "Impossible de mettre \u00E0 jour Lienzo, car des fichiers install\u00E9s sont en cours d'utilisation. Fermez Lienzo, puis relancez le programme d'installation."
+        InstallationCanceled = ConvertFrom-LienzoUnicodeEscapes "Installation annul\u00E9e."
     }
     it = @{
-        RunningPatchyRetryMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy \u00E8 in esecuzione. Salva il lavoro, chiudi Patchy e fai clic su Riprova per continuare l'installazione."
-        RunningPatchyQuietMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy \u00E8 in esecuzione. Chiudi Patchy ed esegui di nuovo il programma di installazione."
-        FileInUseQuietMessage = ConvertFrom-PatchyUnicodeEscapes "Impossibile aggiornare Patchy perch\u00E9 i file installati sono in uso. Chiudi Patchy ed esegui di nuovo il programma di installazione."
-        InstallationCanceled = ConvertFrom-PatchyUnicodeEscapes "Installazione annullata."
+        RunningLienzoRetryMessage = ConvertFrom-LienzoUnicodeEscapes "Lienzo \u00E8 in esecuzione. Salva il lavoro, chiudi Lienzo e fai clic su Riprova per continuare l'installazione."
+        RunningLienzoQuietMessage = ConvertFrom-LienzoUnicodeEscapes "Lienzo \u00E8 in esecuzione. Chiudi Lienzo ed esegui di nuovo il programma di installazione."
+        FileInUseQuietMessage = ConvertFrom-LienzoUnicodeEscapes "Impossibile aggiornare Lienzo perch\u00E9 i file installati sono in uso. Chiudi Lienzo ed esegui di nuovo il programma di installazione."
+        InstallationCanceled = ConvertFrom-LienzoUnicodeEscapes "Installazione annullata."
     }
     zh_CN = @{
-        RunningPatchyRetryMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy \u6B63\u5728\u8FD0\u884C\u3002\u8BF7\u4FDD\u5B58\u60A8\u7684\u5DE5\u4F5C\uFF0C\u5173\u95ED Patchy\uFF0C\u7136\u540E\u5355\u51FB\u201C\u91CD\u8BD5\u201D\u7EE7\u7EED\u5B89\u88C5\u3002"
-        RunningPatchyQuietMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy \u6B63\u5728\u8FD0\u884C\u3002\u8BF7\u5173\u95ED Patchy\uFF0C\u7136\u540E\u91CD\u65B0\u8FD0\u884C\u5B89\u88C5\u7A0B\u5E8F\u3002"
-        FileInUseQuietMessage = ConvertFrom-PatchyUnicodeEscapes "\u65E0\u6CD5\u66F4\u65B0 Patchy\uFF0C\u56E0\u4E3A\u5DF2\u5B89\u88C5\u7684\u6587\u4EF6\u6B63\u5728\u4F7F\u7528\u4E2D\u3002\u8BF7\u5173\u95ED Patchy\uFF0C\u7136\u540E\u91CD\u65B0\u8FD0\u884C\u5B89\u88C5\u7A0B\u5E8F\u3002"
-        InstallationCanceled = ConvertFrom-PatchyUnicodeEscapes "\u5B89\u88C5\u5DF2\u53D6\u6D88\u3002"
+        RunningLienzoRetryMessage = ConvertFrom-LienzoUnicodeEscapes "Lienzo \u6B63\u5728\u8FD0\u884C\u3002\u8BF7\u4FDD\u5B58\u60A8\u7684\u5DE5\u4F5C\uFF0C\u5173\u95ED Lienzo\uFF0C\u7136\u540E\u5355\u51FB\u201C\u91CD\u8BD5\u201D\u7EE7\u7EED\u5B89\u88C5\u3002"
+        RunningLienzoQuietMessage = ConvertFrom-LienzoUnicodeEscapes "Lienzo \u6B63\u5728\u8FD0\u884C\u3002\u8BF7\u5173\u95ED Lienzo\uFF0C\u7136\u540E\u91CD\u65B0\u8FD0\u884C\u5B89\u88C5\u7A0B\u5E8F\u3002"
+        FileInUseQuietMessage = ConvertFrom-LienzoUnicodeEscapes "\u65E0\u6CD5\u66F4\u65B0 Lienzo\uFF0C\u56E0\u4E3A\u5DF2\u5B89\u88C5\u7684\u6587\u4EF6\u6B63\u5728\u4F7F\u7528\u4E2D\u3002\u8BF7\u5173\u95ED Lienzo\uFF0C\u7136\u540E\u91CD\u65B0\u8FD0\u884C\u5B89\u88C5\u7A0B\u5E8F\u3002"
+        InstallationCanceled = ConvertFrom-LienzoUnicodeEscapes "\u5B89\u88C5\u5DF2\u53D6\u6D88\u3002"
     }
     zh_TW = @{
-        RunningPatchyRetryMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy \u6B63\u5728\u57F7\u884C\u4E2D\u3002\u8ACB\u5132\u5B58\u60A8\u7684\u5DE5\u4F5C\uFF0C\u95DC\u9589 Patchy\uFF0C\u7136\u5F8C\u6309\u4E00\u4E0B\u300C\u91CD\u8A66\u300D\u4EE5\u7E7C\u7E8C\u5B89\u88DD\u3002"
-        RunningPatchyQuietMessage = ConvertFrom-PatchyUnicodeEscapes "Patchy \u6B63\u5728\u57F7\u884C\u4E2D\u3002\u8ACB\u95DC\u9589 Patchy\uFF0C\u7136\u5F8C\u91CD\u65B0\u57F7\u884C\u5B89\u88DD\u7A0B\u5F0F\u3002"
-        FileInUseQuietMessage = ConvertFrom-PatchyUnicodeEscapes "\u7121\u6CD5\u66F4\u65B0 Patchy\uFF0C\u56E0\u70BA\u5DF2\u5B89\u88DD\u7684\u6A94\u6848\u6B63\u5728\u4F7F\u7528\u4E2D\u3002\u8ACB\u95DC\u9589 Patchy\uFF0C\u7136\u5F8C\u91CD\u65B0\u57F7\u884C\u5B89\u88DD\u7A0B\u5F0F\u3002"
-        InstallationCanceled = ConvertFrom-PatchyUnicodeEscapes "\u5B89\u88DD\u5DF2\u53D6\u6D88\u3002"
+        RunningLienzoRetryMessage = ConvertFrom-LienzoUnicodeEscapes "Lienzo \u6B63\u5728\u57F7\u884C\u4E2D\u3002\u8ACB\u5132\u5B58\u60A8\u7684\u5DE5\u4F5C\uFF0C\u95DC\u9589 Lienzo\uFF0C\u7136\u5F8C\u6309\u4E00\u4E0B\u300C\u91CD\u8A66\u300D\u4EE5\u7E7C\u7E8C\u5B89\u88DD\u3002"
+        RunningLienzoQuietMessage = ConvertFrom-LienzoUnicodeEscapes "Lienzo \u6B63\u5728\u57F7\u884C\u4E2D\u3002\u8ACB\u95DC\u9589 Lienzo\uFF0C\u7136\u5F8C\u91CD\u65B0\u57F7\u884C\u5B89\u88DD\u7A0B\u5F0F\u3002"
+        FileInUseQuietMessage = ConvertFrom-LienzoUnicodeEscapes "\u7121\u6CD5\u66F4\u65B0 Lienzo\uFF0C\u56E0\u70BA\u5DF2\u5B89\u88DD\u7684\u6A94\u6848\u6B63\u5728\u4F7F\u7528\u4E2D\u3002\u8ACB\u95DC\u9589 Lienzo\uFF0C\u7136\u5F8C\u91CD\u65B0\u57F7\u884C\u5B89\u88DD\u7A0B\u5F0F\u3002"
+        InstallationCanceled = ConvertFrom-LienzoUnicodeEscapes "\u5B89\u88DD\u5DF2\u53D6\u6D88\u3002"
     }
 }
 
-function Get-PatchyInstallerLanguage {
+function Get-LienzoInstallerLanguage {
     # Maps the Windows UI culture to one of the shipped installer languages; English is the fallback.
     $culture = [Globalization.CultureInfo]::CurrentUICulture.Name
     if ([string]::IsNullOrWhiteSpace($culture)) {
@@ -97,14 +97,14 @@ function Get-PatchyInstallerLanguage {
     return "en"
 }
 
-function Get-PatchyInstallerText {
+function Get-LienzoInstallerText {
     param([Parameter(Mandatory = $true)][string]$Key)
 
-    $language = Get-PatchyInstallerLanguage
-    if ($PatchyInstallerText.ContainsKey($language) -and $PatchyInstallerText[$language].ContainsKey($Key)) {
-        return $PatchyInstallerText[$language][$Key]
+    $language = Get-LienzoInstallerLanguage
+    if ($LienzoInstallerText.ContainsKey($language) -and $LienzoInstallerText[$language].ContainsKey($Key)) {
+        return $LienzoInstallerText[$language][$Key]
     }
-    return $PatchyInstallerText["en"][$Key]
+    return $LienzoInstallerText["en"][$Key]
 }
 
 function Test-PathInsideRoot {
@@ -138,7 +138,7 @@ function Test-PathAtOrInsideRoot {
         $fullPath.StartsWith($fullRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)
 }
 
-function Get-RunningInstalledPatchyProcess {
+function Get-RunningInstalledLienzoProcess {
     param([Parameter(Mandatory = $true)][string]$InstallRoot)
 
     Get-Process -Name "patchy" -ErrorAction SilentlyContinue | Where-Object {
@@ -152,16 +152,16 @@ function Get-RunningInstalledPatchyProcess {
     }
 }
 
-function Request-ClosePatchyRetry {
+function Request-CloseLienzoRetry {
     param([object]$Owner = $null)
 
     Add-Type -AssemblyName System.Windows.Forms
-    $message = Get-PatchyInstallerText "RunningPatchyRetryMessage"
+    $message = Get-LienzoInstallerText "RunningLienzoRetryMessage"
     if ($Owner -ne $null) {
         $result = [System.Windows.Forms.MessageBox]::Show(
             $Owner,
             $message,
-            "Patchy Setup",
+            "Lienzo Setup",
             [System.Windows.Forms.MessageBoxButtons]::RetryCancel,
             [System.Windows.Forms.MessageBoxIcon]::Warning,
             [System.Windows.Forms.MessageBoxDefaultButton]::Button1
@@ -169,7 +169,7 @@ function Request-ClosePatchyRetry {
     } else {
         $result = [System.Windows.Forms.MessageBox]::Show(
             $message,
-            "Patchy Setup",
+            "Lienzo Setup",
             [System.Windows.Forms.MessageBoxButtons]::RetryCancel,
             [System.Windows.Forms.MessageBoxIcon]::Warning,
             [System.Windows.Forms.MessageBoxDefaultButton]::Button1
@@ -178,7 +178,7 @@ function Request-ClosePatchyRetry {
     return $result -eq [System.Windows.Forms.DialogResult]::Retry
 }
 
-function Confirm-PatchyClosedForInstall {
+function Confirm-LienzoClosedForInstall {
     param(
         [Parameter(Mandatory = $true)]
         [string]$InstallRoot,
@@ -188,17 +188,17 @@ function Confirm-PatchyClosedForInstall {
         [object]$Owner = $null
     )
 
-    while (@(Get-RunningInstalledPatchyProcess -InstallRoot $InstallRoot).Count -gt 0) {
+    while (@(Get-RunningInstalledLienzoProcess -InstallRoot $InstallRoot).Count -gt 0) {
         if ($Quiet -or -not [Environment]::UserInteractive) {
-            throw (Get-PatchyInstallerText "RunningPatchyQuietMessage")
+            throw (Get-LienzoInstallerText "RunningLienzoQuietMessage")
         }
-        if (-not (Request-ClosePatchyRetry -Owner $Owner)) {
-            throw (New-Object System.OperationCanceledException (Get-PatchyInstallerText "InstallationCanceled"))
+        if (-not (Request-CloseLienzoRetry -Owner $Owner)) {
+            throw (New-Object System.OperationCanceledException (Get-LienzoInstallerText "InstallationCanceled"))
         }
     }
 }
 
-function Test-PatchyFileInUseInstallError {
+function Test-LienzoFileInUseInstallError {
     param([Parameter(Mandatory = $true)]$ErrorRecord)
 
     $exception = $ErrorRecord.Exception
@@ -217,7 +217,7 @@ function Test-PatchyFileInUseInstallError {
     return $false
 }
 
-function New-PatchyShortcut {
+function New-LienzoShortcut {
     param(
         [Parameter(Mandatory = $true)]
         [string]$ShortcutPath,
@@ -240,16 +240,16 @@ function New-PatchyShortcut {
     } else {
         $shortcut.IconLocation = "$TargetPath,0"
     }
-    $shortcut.Description = "Patchy"
+    $shortcut.Description = "Lienzo"
     $shortcut.Save()
 }
 
-$ManifestFileName = "PatchyInstallManifest.txt"
+$ManifestFileName = "LienzoInstallManifest.txt"
 $LegacyInstalledRelativePaths = @(
     "patchy.exe",
-    "Patchy.ico",
-    "UninstallPatchy.exe",
-    "UninstallPatchy.ps1",
+    "Lienzo.ico",
+    "UninstallLienzo.exe",
+    "UninstallLienzo.ps1",
     "LICENSE",
     "README.md",
     "NOTICE-THIRD-PARTY.md",
@@ -329,7 +329,7 @@ function Remove-EmptyInstallDirectories {
         }
 }
 
-function Remove-PatchyInstalledFiles {
+function Remove-LienzoInstalledFiles {
     param([Parameter(Mandatory = $true)][string]$InstallRoot)
 
     if (-not (Test-Path -LiteralPath $InstallRoot -PathType Container)) {
@@ -349,7 +349,7 @@ function Remove-PatchyInstalledFiles {
     Remove-EmptyInstallDirectories -InstallRoot $InstallRoot
 }
 
-function Add-PatchyInstalledRelativePath {
+function Add-LienzoInstalledRelativePath {
     param(
         [Parameter(Mandatory = $true)]
         [string]$InstallRoot,
@@ -376,7 +376,7 @@ function Add-PatchyInstalledRelativePath {
     }
 }
 
-function Invoke-PatchyInstall {
+function Invoke-LienzoInstall {
     param(
         [Parameter(Mandatory = $true)]
         [string]$PayloadZip,
@@ -409,7 +409,7 @@ function Invoke-PatchyInstall {
         [object]$Owner = $null
     )
 
-    $tempRoot = Join-Path ([IO.Path]::GetTempPath()) ("PatchyInstall-" + [guid]::NewGuid().ToString("N"))
+    $tempRoot = Join-Path ([IO.Path]::GetTempPath()) ("LienzoInstall-" + [guid]::NewGuid().ToString("N"))
 
     try {
         if (-not (Test-Path -LiteralPath $PayloadZip -PathType Leaf)) {
@@ -421,44 +421,44 @@ function Invoke-PatchyInstall {
         }
 
         New-Item -ItemType Directory -Path $InstallParent -Force | Out-Null
-        Confirm-PatchyClosedForInstall -InstallRoot $InstallRoot -Quiet $Quiet -Owner $Owner
+        Confirm-LienzoClosedForInstall -InstallRoot $InstallRoot -Quiet $Quiet -Owner $Owner
         New-Item -ItemType Directory -Path $tempRoot -Force | Out-Null
 
         Expand-Archive -LiteralPath $PayloadZip -DestinationPath $tempRoot -Force
-        $sourceRoot = Join-Path $tempRoot "Patchy"
+        $sourceRoot = Join-Path $tempRoot "Lienzo"
         $sourceExe = Join-Path $sourceRoot "patchy.exe"
         if (-not (Test-Path -LiteralPath $sourceExe -PathType Leaf)) {
-            throw "Installer payload does not contain Patchy\patchy.exe."
+            throw "Installer payload does not contain Lienzo\patchy.exe."
         }
 
-        Remove-PatchyInstalledFiles -InstallRoot $InstallRoot
+        Remove-LienzoInstalledFiles -InstallRoot $InstallRoot
         New-Item -ItemType Directory -Path $InstallRoot -Force | Out-Null
         Get-ChildItem -LiteralPath $sourceRoot -Force | ForEach-Object {
             Copy-Item -LiteralPath $_.FullName -Destination $InstallRoot -Recurse -Force
         }
 
         $payloadDirectory = Split-Path -Parent $PayloadZip
-        $uninstallerSource = Join-Path $payloadDirectory "UninstallPatchy.exe"
+        $uninstallerSource = Join-Path $payloadDirectory "UninstallLienzo.exe"
         $installedExe = Join-Path $InstallRoot "patchy.exe"
-        $installedIcon = Join-Path $InstallRoot "Patchy.ico"
-        $uninstallerExe = Join-Path $InstallRoot "UninstallPatchy.exe"
+        $installedIcon = Join-Path $InstallRoot "Lienzo.ico"
+        $uninstallerExe = Join-Path $InstallRoot "UninstallLienzo.exe"
         if (Test-Path -LiteralPath $uninstallerSource -PathType Leaf) {
             Copy-Item -LiteralPath $uninstallerSource -Destination $uninstallerExe -Force
         }
         if (-not (Test-Path -LiteralPath $uninstallerExe -PathType Leaf)) {
-            throw "Installer payload does not contain Patchy\UninstallPatchy.exe."
+            throw "Installer payload does not contain Lienzo\UninstallLienzo.exe."
         }
-        Add-PatchyInstalledRelativePath -InstallRoot $InstallRoot -RelativePath "UninstallPatchy.exe"
+        Add-LienzoInstalledRelativePath -InstallRoot $InstallRoot -RelativePath "UninstallLienzo.exe"
 
         New-Item -ItemType Directory -Path $StartMenuDirectory -Force | Out-Null
-        New-PatchyShortcut -ShortcutPath $StartMenuShortcut -TargetPath $installedExe -WorkingDirectory $InstallRoot -IconPath $installedIcon
+        New-LienzoShortcut -ShortcutPath $StartMenuShortcut -TargetPath $installedExe -WorkingDirectory $InstallRoot -IconPath $installedIcon
         if ($CreateDesktopShortcut) {
             try {
                 $desktopDirectory = Split-Path -Parent $DesktopShortcut
                 if (-not [string]::IsNullOrWhiteSpace($desktopDirectory)) {
                     New-Item -ItemType Directory -Path $desktopDirectory -Force | Out-Null
                 }
-                New-PatchyShortcut -ShortcutPath $DesktopShortcut -TargetPath $installedExe -WorkingDirectory $InstallRoot -IconPath $installedIcon
+                New-LienzoShortcut -ShortcutPath $DesktopShortcut -TargetPath $installedExe -WorkingDirectory $InstallRoot -IconPath $installedIcon
             } catch {
                 Write-Warning "Could not create the desktop shortcut: $($_.Exception.Message)"
             }
@@ -469,7 +469,7 @@ function Invoke-PatchyInstall {
         )
 
         New-Item -Path $UninstallKey -Force | Out-Null
-        New-ItemProperty -Path $UninstallKey -Name "DisplayName" -Value "Patchy" -PropertyType String -Force | Out-Null
+        New-ItemProperty -Path $UninstallKey -Name "DisplayName" -Value "Lienzo" -PropertyType String -Force | Out-Null
         New-ItemProperty -Path $UninstallKey -Name "DisplayVersion" -Value $Version -PropertyType String -Force | Out-Null
         New-ItemProperty -Path $UninstallKey -Name "Publisher" -Value "Seth A. Robinson" -PropertyType String -Force | Out-Null
         New-ItemProperty -Path $UninstallKey -Name "DisplayIcon" -Value $installedIcon -PropertyType String -Force | Out-Null
@@ -488,7 +488,7 @@ function Invoke-PatchyInstall {
     }
 }
 
-function Invoke-PatchyInstallWithRetry {
+function Invoke-LienzoInstallWithRetry {
     param(
         [Parameter(Mandatory = $true)]
         [string]$PayloadZip,
@@ -523,7 +523,7 @@ function Invoke-PatchyInstallWithRetry {
 
     while ($true) {
         try {
-            return Invoke-PatchyInstall `
+            return Invoke-LienzoInstall `
                 -PayloadZip $PayloadZip `
                 -InstallParent $InstallParent `
                 -InstallRoot $InstallRoot `
@@ -538,20 +538,20 @@ function Invoke-PatchyInstallWithRetry {
         } catch [System.OperationCanceledException] {
             throw
         } catch {
-            if (-not (Test-PatchyFileInUseInstallError -ErrorRecord $_)) {
+            if (-not (Test-LienzoFileInUseInstallError -ErrorRecord $_)) {
                 throw
             }
             if ($Quiet -or -not [Environment]::UserInteractive) {
-                throw (Get-PatchyInstallerText "FileInUseQuietMessage")
+                throw (Get-LienzoInstallerText "FileInUseQuietMessage")
             }
-            if (-not (Request-ClosePatchyRetry -Owner $Owner)) {
-                throw (New-Object System.OperationCanceledException (Get-PatchyInstallerText "InstallationCanceled"))
+            if (-not (Request-CloseLienzoRetry -Owner $Owner)) {
+                throw (New-Object System.OperationCanceledException (Get-LienzoInstallerText "InstallationCanceled"))
             }
         }
     }
 }
 
-function New-PatchyLogoBitmap {
+function New-LienzoLogoBitmap {
     param([int]$Size = 64)
 
     $bitmap = New-Object System.Drawing.Bitmap $Size, $Size, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
@@ -598,7 +598,7 @@ function New-PatchyLogoBitmap {
     return $bitmap
 }
 
-function Show-PatchyInstallerWizard {
+function Show-LienzoInstallerWizard {
     param(
         [Parameter(Mandatory = $true)]
         [string]$PayloadZip,
@@ -636,7 +636,7 @@ function Show-PatchyInstallerWizard {
     }
 
     $form = New-Object System.Windows.Forms.Form
-    $form.Text = "Patchy Setup"
+    $form.Text = "Lienzo Setup"
     $form.StartPosition = "CenterScreen"
     $form.FormBorderStyle = "FixedDialog"
     $form.MaximizeBox = $false
@@ -646,7 +646,7 @@ function Show-PatchyInstallerWizard {
     $form.BackColor = [System.Drawing.Color]::White
     $form.Tag = "ready"
     $formIcon = $null
-    $installerIconPath = Join-Path (Split-Path -Parent $PayloadZip) "Patchy.ico"
+    $installerIconPath = Join-Path (Split-Path -Parent $PayloadZip) "Lienzo.ico"
     if (Test-Path -LiteralPath $installerIconPath -PathType Leaf) {
         $formIcon = New-Object System.Drawing.Icon $installerIconPath
         $form.Icon = $formIcon
@@ -661,12 +661,12 @@ function Show-PatchyInstallerWizard {
     $logo = New-Object System.Windows.Forms.PictureBox
     $logo.Size = New-Object System.Drawing.Size 74, 74
     $logo.Location = New-Object System.Drawing.Point 37, 42
-    $logo.Image = New-PatchyLogoBitmap 74
+    $logo.Image = New-LienzoLogoBitmap 74
     $logo.SizeMode = [System.Windows.Forms.PictureBoxSizeMode]::CenterImage
     $leftPanel.Controls.Add($logo)
 
     $brand = New-Object System.Windows.Forms.Label
-    $brand.Text = "Patchy"
+    $brand.Text = "Lienzo"
     $brand.ForeColor = [System.Drawing.Color]::White
     $brand.BackColor = [System.Drawing.Color]::Transparent
     $brand.Font = New-Object System.Drawing.Font "Segoe UI Semibold", 18
@@ -676,7 +676,7 @@ function Show-PatchyInstallerWizard {
 
     $contentLeft = 176
     $title = New-Object System.Windows.Forms.Label
-    $title.Text = "Install Patchy"
+    $title.Text = "Install Lienzo"
     $title.Font = New-Object System.Drawing.Font "Segoe UI Semibold", 15
     $title.ForeColor = [System.Drawing.Color]::FromArgb(23, 30, 40)
     $title.AutoSize = $true
@@ -684,7 +684,7 @@ function Show-PatchyInstallerWizard {
     $form.Controls.Add($title)
 
     $body = New-Object System.Windows.Forms.Label
-    $body.Text = "Setup will install Patchy for the current Windows user and add a Start Menu shortcut."
+    $body.Text = "Setup will install Lienzo for the current Windows user and add a Start Menu shortcut."
     $body.ForeColor = [System.Drawing.Color]::FromArgb(63, 72, 84)
     $body.Size = New-Object System.Drawing.Size 340, 42
     $body.Location = New-Object System.Drawing.Point $contentLeft, 74
@@ -713,7 +713,7 @@ function Show-PatchyInstallerWizard {
     $form.Controls.Add($desktopShortcutCheck)
 
     $legalNotice = New-Object System.Windows.Forms.Label
-    $legalNotice.Text = "Patchy is provided under the MIT License as-is, without warranty. Keep backups of important files."
+    $legalNotice.Text = "Lienzo is provided under the MIT License as-is, without warranty. Keep backups of important files."
     $legalNotice.ForeColor = [System.Drawing.Color]::FromArgb(83, 92, 104)
     $legalNotice.Size = New-Object System.Drawing.Size 344, 36
     $legalNotice.Location = New-Object System.Drawing.Point $contentLeft, 218
@@ -735,7 +735,7 @@ function Show-PatchyInstallerWizard {
     $form.Controls.Add($progress)
 
     $launchCheck = New-Object System.Windows.Forms.CheckBox
-    $launchCheck.Text = "Launch Patchy now"
+    $launchCheck.Text = "Launch Lienzo now"
     $launchCheck.Checked = $true
     $launchCheck.AutoSize = $true
     $launchCheck.Location = New-Object System.Drawing.Point $contentLeft, 158
@@ -773,13 +773,13 @@ function Show-PatchyInstallerWizard {
         $installButton.Enabled = $false
         $cancelButton.Enabled = $false
         $progress.Visible = $true
-        $status.Text = "Installing Patchy..."
+        $status.Text = "Installing Lienzo..."
         $form.UseWaitCursor = $true
         $form.Refresh()
         [System.Windows.Forms.Application]::DoEvents()
 
         try {
-            $state.InstalledExe = Invoke-PatchyInstallWithRetry `
+            $state.InstalledExe = Invoke-LienzoInstallWithRetry `
                 -PayloadZip $PayloadZip `
                 -InstallParent $InstallParent `
                 -InstallRoot $InstallRoot `
@@ -793,8 +793,8 @@ function Show-PatchyInstallerWizard {
 
             $state.Completed = $true
             $form.Tag = "complete"
-            $title.Text = "Patchy has been installed"
-            $body.Text = "Setup finished installing Patchy on this computer."
+            $title.Text = "Lienzo has been installed"
+            $body.Text = "Setup finished installing Lienzo on this computer."
             $pathLabel.Visible = $false
             $pathBox.Visible = $false
             $desktopShortcutCheck.Visible = $false
@@ -803,7 +803,7 @@ function Show-PatchyInstallerWizard {
             $installButton.Text = "Finish"
             $cancelButton.Visible = $false
         } catch [System.OperationCanceledException] {
-            $status.Text = Get-PatchyInstallerText "InstallationCanceled"
+            $status.Text = Get-LienzoInstallerText "InstallationCanceled"
             $cancelButton.Enabled = $true
         } catch {
             $status.Text = "Installation failed."
@@ -811,7 +811,7 @@ function Show-PatchyInstallerWizard {
             [System.Windows.Forms.MessageBox]::Show(
                 $form,
                 $_.Exception.Message,
-                "Patchy Setup",
+                "Lienzo Setup",
                 [System.Windows.Forms.MessageBoxButtons]::OK,
                 [System.Windows.Forms.MessageBoxIcon]::Error
             ) | Out-Null
@@ -843,15 +843,15 @@ function Show-PatchyInstallerWizard {
 }
 
 $installParent = Join-Path $env:LOCALAPPDATA "Programs"
-$installRoot = Join-Path $installParent "Patchy"
+$installRoot = Join-Path $installParent "Lienzo"
 $startMenuDirectory = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs"
-$startMenuShortcut = Join-Path $startMenuDirectory "Patchy.lnk"
-$desktopShortcut = Join-Path ([System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::DesktopDirectory)) "Patchy.lnk"
-$uninstallKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Patchy"
+$startMenuShortcut = Join-Path $startMenuDirectory "Lienzo.lnk"
+$desktopShortcut = Join-Path ([System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::DesktopDirectory)) "Lienzo.lnk"
+$uninstallKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Lienzo"
 
 try {
     if ($Quiet -or -not [Environment]::UserInteractive) {
-        $installedExe = Invoke-PatchyInstallWithRetry `
+        $installedExe = Invoke-LienzoInstallWithRetry `
             -PayloadZip $PayloadZip `
             -InstallParent $installParent `
             -InstallRoot $installRoot `
@@ -862,11 +862,11 @@ try {
             -UninstallKey $uninstallKey `
             -Version $Version `
             -Quiet $true
-        Write-Host "Patchy installed to $installRoot"
+        Write-Host "Lienzo installed to $installRoot"
         exit 0
     }
 
-    $result = Show-PatchyInstallerWizard `
+    $result = Show-LienzoInstallerWizard `
         -PayloadZip $PayloadZip `
         -InstallParent $installParent `
         -InstallRoot $installRoot `
@@ -877,7 +877,7 @@ try {
         -Version $Version
 
     if ($result.Completed) {
-        Write-Host "Patchy installed to $installRoot"
+        Write-Host "Lienzo installed to $installRoot"
         if ($result.Launch -and (Test-Path -LiteralPath $result.InstalledExe -PathType Leaf)) {
             Start-Process -FilePath $result.InstalledExe -WorkingDirectory $installRoot
         }
@@ -890,7 +890,7 @@ try {
             Add-Type -AssemblyName System.Windows.Forms
             [System.Windows.Forms.MessageBox]::Show(
                 $_.Exception.Message,
-                "Patchy Setup",
+                "Lienzo Setup",
                 [System.Windows.Forms.MessageBoxButtons]::OK,
                 [System.Windows.Forms.MessageBoxIcon]::Error
             ) | Out-Null

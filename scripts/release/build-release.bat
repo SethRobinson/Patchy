@@ -10,8 +10,8 @@ if not exist "%CMAKE_EXE%" set "CMAKE_EXE=cmake"
 set "CSC_EXE=%SystemRoot%\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
 if not exist "%CSC_EXE%" set "CSC_EXE=csc.exe"
 
-set "APP_NAME=Patchy"
-set "SIGN_DISPLAY_NAME=Patchy"
+set "APP_NAME=Lienzo"
+set "SIGN_DISPLAY_NAME=Lienzo"
 set "SIGN_DOMAIN=rtsoft.com"
 set "SIGNTOOL_EXE=C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\signtool.exe"
 set "IEXPRESS_EXE=%SystemRoot%\System32\iexpress.exe"
@@ -44,15 +44,15 @@ if not defined PATCHY_PACKAGE_VERSION (
 
 set "BUILD_DIR=%REPO%\build\release"
 set "PACKAGE_ROOT=%REPO%\build\package"
-set "PACKAGE_NAME=Patchy"
+set "PACKAGE_NAME=Lienzo"
 set "STAGE_DIR=%PACKAGE_ROOT%\staging\%PACKAGE_NAME%"
-set "ZIP_FILE_NAME=PatchyWindowsNoInstaller.zip"
+set "ZIP_FILE_NAME=LienzoWindowsNoInstaller.zip"
 set "ZIP_PATH=%PACKAGE_ROOT%\%ZIP_FILE_NAME%"
-set "LEGACY_ZIP_PATH=%PACKAGE_ROOT%\PatchyWindows.zip"
-set "INSTALLER_PATH=%PACKAGE_ROOT%\PatchyWindowsInstaller.exe"
+set "LEGACY_ZIP_PATH=%PACKAGE_ROOT%\LienzoWindows.zip"
+set "INSTALLER_PATH=%PACKAGE_ROOT%\LienzoWindowsInstaller.exe"
 set "INSTALLER_WORK_DIR=%PACKAGE_ROOT%\installer"
 set "INSTALLER_PAYLOAD_DIR=%INSTALLER_WORK_DIR%\payload"
-set "INSTALLER_SED_PATH=%INSTALLER_WORK_DIR%\PatchyWindowsInstaller.sed"
+set "INSTALLER_SED_PATH=%INSTALLER_WORK_DIR%\LienzoWindowsInstaller.sed"
 set "WINDOWS_PACKAGING_DIR=%REPO%\packaging\windows"
 set "APP_ICON=%REPO%\src\app\lienzo.ico"
 set "APP_EXE=%BUILD_DIR%\patchy.exe"
@@ -173,7 +173,7 @@ if not "!ERRORLEVEL!"=="0" goto fail
 copy /Y "%REPO%\README.md" "%STAGE_DIR%\README.md" >nul
 copy /Y "%REPO%\NOTICE-THIRD-PARTY.md" "%STAGE_DIR%\NOTICE-THIRD-PARTY.md" >nul
 copy /Y "%REPO%\LICENSE" "%STAGE_DIR%\LICENSE" >nul || goto fail
-copy /Y "%APP_ICON%" "%STAGE_DIR%\Patchy.ico" >nul || goto fail
+copy /Y "%APP_ICON%" "%STAGE_DIR%\Lienzo.ico" >nul || goto fail
 
 call :CopyQtLicenseSbom
 if not "!ERRORLEVEL!"=="0" goto fail
@@ -184,8 +184,8 @@ if not "!ERRORLEVEL!"=="0" goto fail
 if not "!ERRORLEVEL!"=="0" goto fail
 
 echo Writing install manifest...
-set "PATCHY_INSTALL_MANIFEST=%STAGE_DIR%\PatchyInstallManifest.txt"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$stage = [IO.Path]::GetFullPath($env:PATCHY_STAGE_DIR).TrimEnd('\') + '\'; $manifest = [IO.Path]::GetFullPath($env:PATCHY_INSTALL_MANIFEST); $files = Get-ChildItem -LiteralPath $env:PATCHY_STAGE_DIR -Recurse -File | Where-Object { [IO.Path]::GetFullPath($_.FullName) -ne $manifest } | ForEach-Object { $_.FullName.Substring($stage.Length) } | Sort-Object; $files = @($files) + 'PatchyInstallManifest.txt'; Set-Content -LiteralPath $manifest -Value $files -Encoding ASCII"
+set "PATCHY_INSTALL_MANIFEST=%STAGE_DIR%\LienzoInstallManifest.txt"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$stage = [IO.Path]::GetFullPath($env:PATCHY_STAGE_DIR).TrimEnd('\') + '\'; $manifest = [IO.Path]::GetFullPath($env:PATCHY_INSTALL_MANIFEST); $files = Get-ChildItem -LiteralPath $env:PATCHY_STAGE_DIR -Recurse -File | Where-Object { [IO.Path]::GetFullPath($_.FullName) -ne $manifest } | ForEach-Object { $_.FullName.Substring($stage.Length) } | Sort-Object; $files = @($files) + 'LienzoInstallManifest.txt'; Set-Content -LiteralPath $manifest -Value $files -Encoding ASCII"
 if not "!ERRORLEVEL!"=="0" goto fail
 
 echo Creating zip package...
@@ -303,7 +303,7 @@ exit /b 0
 :HeadlessSmokeCheck
 rem Proves the STAGED tree runs with no display: Qt DLLs, platforms\qoffscreen.dll, the
 rem MSVC runtime, fonts, and translations all come from %STAGE_DIR%. --headless never
-rem forwards to a running Patchy; PATCHY_SETTINGS_DIR keeps the run out of the real
+rem forwards to a running Lienzo; PATCHY_SETTINGS_DIR keeps the run out of the real
 rem settings; the temp files live outside staging so the install manifest never sees
 rem them. The bounded wait turns a hang into a failure: Qt's "no platform plugin"
 rem MessageBox has no console to print to.
@@ -353,7 +353,7 @@ if not exist "%PATCHY_BUILD_TRANSLATIONS%\languages.txt" (
 )
 for /f "usebackq delims=" %%L in ("%PATCHY_BUILD_TRANSLATIONS%\languages.txt") do (
   if not exist "%PATCHY_BUILD_TRANSLATIONS%\patchy_%%L.qm" (
-    echo Patchy translation was not found: "%PATCHY_BUILD_TRANSLATIONS%\patchy_%%L.qm".
+    echo Lienzo translation was not found: "%PATCHY_BUILD_TRANSLATIONS%\patchy_%%L.qm".
     exit /b 1
   )
   if not exist "%PATCHY_BUILD_TRANSLATIONS%\qtbase_%%L.qm" (
@@ -404,18 +404,18 @@ if not exist "%IEXPRESS_EXE%" (
   exit /b 1
 )
 
-if not exist "%WINDOWS_PACKAGING_DIR%\InstallPatchyLauncher.cs" (
-  echo Installer launcher source was not found: "%WINDOWS_PACKAGING_DIR%\InstallPatchyLauncher.cs".
+if not exist "%WINDOWS_PACKAGING_DIR%\InstallLienzoLauncher.cs" (
+  echo Installer launcher source was not found: "%WINDOWS_PACKAGING_DIR%\InstallLienzoLauncher.cs".
   exit /b 1
 )
 
-if not exist "%WINDOWS_PACKAGING_DIR%\InstallPatchy.ps1" (
-  echo Installer PowerShell template was not found: "%WINDOWS_PACKAGING_DIR%\InstallPatchy.ps1".
+if not exist "%WINDOWS_PACKAGING_DIR%\InstallLienzo.ps1" (
+  echo Installer PowerShell template was not found: "%WINDOWS_PACKAGING_DIR%\InstallLienzo.ps1".
   exit /b 1
 )
 
-if not exist "%WINDOWS_PACKAGING_DIR%\PatchyWindowsInstaller.sed.in" (
-  echo IExpress template was not found: "%WINDOWS_PACKAGING_DIR%\PatchyWindowsInstaller.sed.in".
+if not exist "%WINDOWS_PACKAGING_DIR%\LienzoWindowsInstaller.sed.in" (
+  echo IExpress template was not found: "%WINDOWS_PACKAGING_DIR%\LienzoWindowsInstaller.sed.in".
   exit /b 1
 )
 
@@ -434,28 +434,28 @@ mkdir "%INSTALLER_PAYLOAD_DIR%" || exit /b 1
 
 set "PATCHY_INSTALLER_PAYLOAD_DIR=%INSTALLER_PAYLOAD_DIR%\"
 copy /Y "%ZIP_PATH%" "%INSTALLER_PAYLOAD_DIR%\%ZIP_FILE_NAME%" >nul || exit /b 1
-copy /Y "%WINDOWS_PACKAGING_DIR%\InstallPatchy.ps1" "%INSTALLER_PAYLOAD_DIR%\InstallPatchy.ps1" >nul || exit /b 1
-copy /Y "%APP_ICON%" "%INSTALLER_PAYLOAD_DIR%\Patchy.ico" >nul || exit /b 1
-powershell -NoProfile -ExecutionPolicy Bypass -Command "Set-Content -LiteralPath (Join-Path $env:PATCHY_INSTALLER_PAYLOAD_DIR 'PatchyVersion.txt') -Value $env:PATCHY_PACKAGE_VERSION -Encoding ASCII"
+copy /Y "%WINDOWS_PACKAGING_DIR%\InstallLienzo.ps1" "%INSTALLER_PAYLOAD_DIR%\InstallLienzo.ps1" >nul || exit /b 1
+copy /Y "%APP_ICON%" "%INSTALLER_PAYLOAD_DIR%\Lienzo.ico" >nul || exit /b 1
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Set-Content -LiteralPath (Join-Path $env:PATCHY_INSTALLER_PAYLOAD_DIR 'LienzoVersion.txt') -Value $env:PATCHY_PACKAGE_VERSION -Encoding ASCII"
 if not "!ERRORLEVEL!"=="0" exit /b !ERRORLEVEL!
 
-"%CSC_EXE%" /nologo /target:winexe /platform:x64 /optimize+ /win32icon:"%APP_ICON%" /reference:System.Windows.Forms.dll /out:"%INSTALLER_PAYLOAD_DIR%\InstallPatchy.exe" "%WINDOWS_PACKAGING_DIR%\InstallPatchyLauncher.cs"
+"%CSC_EXE%" /nologo /target:winexe /platform:x64 /optimize+ /win32icon:"%APP_ICON%" /reference:System.Windows.Forms.dll /out:"%INSTALLER_PAYLOAD_DIR%\InstallLienzo.exe" "%WINDOWS_PACKAGING_DIR%\InstallLienzoLauncher.cs"
 if not "!ERRORLEVEL!"=="0" exit /b !ERRORLEVEL!
 
-if not exist "%WINDOWS_PACKAGING_DIR%\UninstallPatchy.cs" (
-  echo Installer uninstaller source was not found: "%WINDOWS_PACKAGING_DIR%\UninstallPatchy.cs".
+if not exist "%WINDOWS_PACKAGING_DIR%\UninstallLienzo.cs" (
+  echo Installer uninstaller source was not found: "%WINDOWS_PACKAGING_DIR%\UninstallLienzo.cs".
   exit /b 1
 )
-"%CSC_EXE%" /nologo /target:winexe /platform:x64 /optimize+ /win32icon:"%APP_ICON%" /out:"%INSTALLER_PAYLOAD_DIR%\UninstallPatchy.exe" "%WINDOWS_PACKAGING_DIR%\UninstallPatchy.cs"
+"%CSC_EXE%" /nologo /target:winexe /platform:x64 /optimize+ /win32icon:"%APP_ICON%" /out:"%INSTALLER_PAYLOAD_DIR%\UninstallLienzo.exe" "%WINDOWS_PACKAGING_DIR%\UninstallLienzo.cs"
 if not "!ERRORLEVEL!"=="0" exit /b !ERRORLEVEL!
 
-call :SignFile "%INSTALLER_PAYLOAD_DIR%\InstallPatchy.exe"
+call :SignFile "%INSTALLER_PAYLOAD_DIR%\InstallLienzo.exe"
 if not "!ERRORLEVEL!"=="0" exit /b !ERRORLEVEL!
 
-call :SignFile "%INSTALLER_PAYLOAD_DIR%\UninstallPatchy.exe"
+call :SignFile "%INSTALLER_PAYLOAD_DIR%\UninstallLienzo.exe"
 if not "!ERRORLEVEL!"=="0" exit /b !ERRORLEVEL!
 
-set "PATCHY_INSTALLER_SED_TEMPLATE=%WINDOWS_PACKAGING_DIR%\PatchyWindowsInstaller.sed.in"
+set "PATCHY_INSTALLER_SED_TEMPLATE=%WINDOWS_PACKAGING_DIR%\LienzoWindowsInstaller.sed.in"
 set "PATCHY_INSTALLER_SED_PATH=%INSTALLER_SED_PATH%"
 set "PATCHY_INSTALLER_PATH=%INSTALLER_PATH%"
 set "PATCHY_APP_ICON_PATH=%APP_ICON%"

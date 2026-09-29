@@ -29,19 +29,19 @@ InstallPrompt=
 DisplayLicense=
 FinishMessage=
 TargetName=__INSTALLER_PATH__
-FriendlyName=Patchy
-AppLaunched=InstallPatchy.exe
+FriendlyName=Lienzo
+AppLaunched=InstallLienzo.exe
 PostInstallCmd=<None>
 AdminQuietInstCmd=
 UserQuietInstCmd=
 IconFile=__APP_ICON_PATH__
 IconIndex=0
-FILE0=InstallPatchy.exe
-FILE1=InstallPatchy.ps1
-FILE2=PatchyWindowsNoInstaller.zip
-FILE3=Patchy.ico
-FILE4=PatchyVersion.txt
-FILE5=UninstallPatchy.exe
+FILE0=InstallLienzo.exe
+FILE1=InstallLienzo.ps1
+FILE2=LienzoWindowsNoInstaller.zip
+FILE3=Lienzo.ico
+FILE4=LienzoVersion.txt
+FILE5=UninstallLienzo.exe
 
 [SourceFiles]
 SourceFiles0=__PAYLOAD_DIR__

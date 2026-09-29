@@ -32,7 +32,7 @@ nice -n 10 flatpak-builder --jobs="$JOBS" --force-clean --repo="$REPO_DIR" "$BUI
 # this is the one check that the runtime still ships it and that --headless works
 # inside the sandbox. flatpak-builder --run uses the build directory the bundle is
 # exported from, so nothing is installed on the build machine. --headless never
-# forwards to a running Patchy; PATCHY_SETTINGS_DIR keeps the run out of the real
+# forwards to a running Lienzo; PATCHY_SETTINGS_DIR keeps the run out of the real
 # settings; the temp directory lives under $HOME because that is what the sandbox
 # can see. The same check runs in the Windows and macOS packagers.
 echo "== headless smoke check (the sandboxed app must run with no display) =="

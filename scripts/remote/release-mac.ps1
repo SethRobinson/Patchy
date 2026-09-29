@@ -27,11 +27,11 @@ $remoteHost = (Get-PatchyRemoteHost mac).ssh
 # Delete previous local copies up front so a failed run leaves nothing stale for the
 # newest-file upload script to pick up by accident (the remote side does the same).
 $repoRoot = (git rev-parse --show-toplevel).Trim()
-Remove-Item (Join-Path $repoRoot 'build\package\Patchy-*.dmg') -Force -ErrorAction SilentlyContinue
+Remove-Item (Join-Path $repoRoot 'build\package\Lienzo-*.dmg') -Force -ErrorAction SilentlyContinue
 # The upload script's staging copy of the PREVIOUS version must go too: it carries the
 # final published name, so a stale one sitting beside a fresh versioned dmg reads as the
 # release being ready when it is not (Seth, September 2026).
-Remove-Item (Join-Path $repoRoot 'build\package\PatchyMacOS.dmg') -Force -ErrorAction SilentlyContinue
+Remove-Item (Join-Path $repoRoot 'build\package\LienzoMacOS.dmg') -Force -ErrorAction SilentlyContinue
 
 & "$PSScriptRoot\remote-build.ps1" -Target mac -SkipTests
 if ($LASTEXITCODE -ne 0) { throw 'remote mac build failed' }
@@ -44,13 +44,13 @@ if ($LASTEXITCODE -ne 0) {
 $repoRoot = (git rev-parse --show-toplevel).Trim()
 $dest = Join-Path $repoRoot 'build\package'
 New-Item -ItemType Directory -Force $dest | Out-Null
-scp -q "${remoteHost}:patchy/src/build/package/Patchy-*.dmg" $dest
+scp -q "${remoteHost}:patchy/src/build/package/Lienzo-*.dmg" $dest
 if ($LASTEXITCODE -ne 0) { throw 'copying the dmg back from the mac build host failed' }
 
-# upload-mac-to-rtsoft.bat picks the newest build\package\Patchy-*.dmg, so an empty
+# upload-mac-to-rtsoft.bat picks the newest build\package\Lienzo-*.dmg, so an empty
 # copy-back would leave it with nothing to publish (or something stale from an earlier
 # version, had the delete-previous step above not run).
-$dmgs = @(Get-ChildItem $dest -Filter 'Patchy-*.dmg')
-if ($dmgs.Count -eq 0) { throw "scp reported success but no Patchy-*.dmg landed in $dest" }
+$dmgs = @(Get-ChildItem $dest -Filter 'Lienzo-*.dmg')
+if ($dmgs.Count -eq 0) { throw "scp reported success but no Lienzo-*.dmg landed in $dest" }
 Write-Host "== dmg copied into $dest =="
 $dmgs | ForEach-Object { Write-Host ("{0}  ({1:N0} bytes)" -f $_.FullName, $_.Length) }

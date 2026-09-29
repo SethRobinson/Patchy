@@ -1521,9 +1521,9 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
     endif()
     if(APPLE)
       set_target_properties(patchy PROPERTIES
-        OUTPUT_NAME "Patchy"
+        OUTPUT_NAME "Lienzo"
         MACOSX_BUNDLE_INFO_PLIST "${PROJECT_SOURCE_DIR}/packaging/macos/Info.plist.in"
-        MACOSX_BUNDLE_BUNDLE_NAME "Patchy"
+        MACOSX_BUNDLE_BUNDLE_NAME "Lienzo"
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.nodalix.lienzo"
         MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
         MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"

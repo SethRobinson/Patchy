@@ -30,5 +30,5 @@ exit /b 0
 
 :launch
 if exist "build\release-logs\%~1.exit" del "build\release-logs\%~1.exit"
-start "Patchy release - %~1" /min /belownormal cmd /c ""%~dp0release-worker.bat" %~1"
+start "Lienzo release - %~1" /min /belownormal cmd /c ""%~dp0release-worker.bat" %~1"
 exit /b 0

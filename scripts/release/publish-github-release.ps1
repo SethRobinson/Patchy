@@ -1,5 +1,5 @@
 <#
-Publishes one Patchy release to GitHub Releases: tag v<version>, the four desktop
+Publishes one Lienzo release to GitHub Releases: tag v<version>, the four desktop
 artifacts under their stable names, and a SHA256SUMS.txt.
 
   scripts\release\publish-github-release.bat            (normal release, after release-all.bat)
@@ -19,8 +19,8 @@ The README table and latest_version.json use the /releases/latest/download/<name
 permalinks, which only work because the asset names never change between versions.
 
 Assets, taken from -AssetDir (default build\package):
-  PatchyWindowsInstaller.exe, PatchyWindowsNoInstaller.zip           (stable names)
-  Patchy-<version>.dmg -> PatchyMacOS.dmg, Patchy-<version>.flatpak -> PatchyLinux.flatpak
+  LienzoWindowsInstaller.exe, LienzoWindowsNoInstaller.zip           (stable names)
+  Lienzo-<version>.dmg -> LienzoMacOS.dmg, Lienzo-<version>.flatpak -> LienzoLinux.flatpak
   (the mac and Linux builders write versioned files; the stable-name copies that
   upload-mac/linux-to-rtsoft.bat leave in build\package are whatever shipped LAST, so
   they are never used here. When -AssetDir already holds the stable names and no
@@ -37,7 +37,7 @@ param(
   [string]$Version,
   [string]$Target,
   [string]$AssetDir,
-  [string]$Repo = 'SethRobinson/Patchy'
+  [string]$Repo = 'danielmigueltejedor/Patchy'
 )
 # 'Continue', not 'Stop': native stderr chatter (git, gh) would otherwise become a
 # terminating NativeCommandError under Windows PowerShell 5.1. Every native call
@@ -52,7 +52,7 @@ function Fail([string]$message) {
 }
 
 $repoRoot = (git rev-parse --show-toplevel 2>$null)
-if ($LASTEXITCODE -ne 0 -or -not $repoRoot) { Fail 'not inside the Patchy git checkout' }
+if ($LASTEXITCODE -ne 0 -or -not $repoRoot) { Fail 'not inside the Lienzo git checkout' }
 $repoRoot = $repoRoot.Trim()
 Set-Location $repoRoot
 
@@ -73,7 +73,7 @@ if (-not $Version) {
 }
 if ($Version -notmatch '^[0-9]+(\.[0-9]+){1,3}$') { Fail "'$Version' is not a dotted version" }
 $tag = "v$Version"
-$title = "Patchy $Version"
+$title = "Lienzo $Version"
 
 # Commit the tag will point at.
 git fetch origin --quiet
@@ -115,10 +115,10 @@ function Resolve-Asset([string]$stableName, [string]$versionedName) {
 }
 
 $assets = [ordered]@{
-  'PatchyWindowsInstaller.exe'   = Resolve-Asset 'PatchyWindowsInstaller.exe' $null
-  'PatchyWindowsNoInstaller.zip' = Resolve-Asset 'PatchyWindowsNoInstaller.zip' $null
-  'PatchyMacOS.dmg'              = Resolve-Asset 'PatchyMacOS.dmg' "Patchy-$Version.dmg"
-  'PatchyLinux.flatpak'          = Resolve-Asset 'PatchyLinux.flatpak' "Patchy-$Version.flatpak"
+  'LienzoWindowsInstaller.exe'   = Resolve-Asset 'LienzoWindowsInstaller.exe' $null
+  'LienzoWindowsNoInstaller.zip' = Resolve-Asset 'LienzoWindowsNoInstaller.zip' $null
+  'LienzoMacOS.dmg'              = Resolve-Asset 'LienzoMacOS.dmg' "Lienzo-$Version.dmg"
+  'LienzoLinux.flatpak'          = Resolve-Asset 'LienzoLinux.flatpak' "Lienzo-$Version.flatpak"
 }
 
 # Stage under the published names in a scratch folder (gh names an asset after its
@@ -189,12 +189,12 @@ $notesText += @"
 
 | Platform | File |
 | --- | --- |
-| Windows 10/11 (64-bit) installer | [PatchyWindowsInstaller.exe]($base/PatchyWindowsInstaller.exe) |
-| Windows 10/11 (64-bit) portable zip | [PatchyWindowsNoInstaller.zip]($base/PatchyWindowsNoInstaller.zip) |
-| macOS 12+ (Apple Silicon) | [PatchyMacOS.dmg]($base/PatchyMacOS.dmg) |
-| Linux Flatpak bundle | [PatchyLinux.flatpak]($base/PatchyLinux.flatpak) |
+| Windows 10/11 (64-bit) installer | [LienzoWindowsInstaller.exe]($base/LienzoWindowsInstaller.exe) |
+| Windows 10/11 (64-bit) portable zip | [LienzoWindowsNoInstaller.zip]($base/LienzoWindowsNoInstaller.zip) |
+| macOS 12+ (Apple Silicon) | [LienzoMacOS.dmg]($base/LienzoMacOS.dmg) |
+| Linux Flatpak bundle | [LienzoLinux.flatpak]($base/LienzoLinux.flatpak) |
 
-Windows builds are code signed; the macOS app is signed and notarized. Checksums are in [SHA256SUMS.txt]($base/SHA256SUMS.txt). The same files are mirrored at rtsoft.com, and the browser version runs at [patchyimageeditor.com](https://www.patchyimageeditor.com).
+Windows builds are code signed; the macOS app is signed and notarized. Checksums are in [SHA256SUMS.txt]($base/SHA256SUMS.txt). Source code and issue tracking are available from the Lienzo GitHub repository.
 "@
 $notesPath = Join-Path $stage 'release-notes.md'
 [IO.File]::WriteAllText($notesPath, $notesText)

@@ -22,11 +22,11 @@ $remoteHost = (Get-PatchyRemoteHost linux).ssh
 # Delete previous local copies up front so a failed run leaves nothing stale for the
 # newest-file upload script to pick up by accident (the remote side does the same).
 $repoRoot = (git rev-parse --show-toplevel).Trim()
-Remove-Item (Join-Path $repoRoot 'build\package\Patchy-*.flatpak') -Force -ErrorAction SilentlyContinue
+Remove-Item (Join-Path $repoRoot 'build\package\Lienzo-*.flatpak') -Force -ErrorAction SilentlyContinue
 # The upload script's staging copy of the PREVIOUS version must go too: it carries the
 # final published name, so a stale one sitting beside a fresh versioned bundle reads as the
 # release being ready when it is not (Seth, September 2026).
-Remove-Item (Join-Path $repoRoot 'build\package\PatchyLinux.flatpak') -Force -ErrorAction SilentlyContinue
+Remove-Item (Join-Path $repoRoot 'build\package\LienzoLinux.flatpak') -Force -ErrorAction SilentlyContinue
 
 & "$PSScriptRoot\remote-build.ps1" -Target linux -SkipTests
 if ($LASTEXITCODE -ne 0) { throw 'remote linux build failed' }
@@ -37,6 +37,6 @@ if ($LASTEXITCODE -ne 0) { throw 'make-flatpak.sh failed on the linux build host
 $repoRoot = (git rev-parse --show-toplevel).Trim()
 $dest = Join-Path $repoRoot 'build\package'
 New-Item -ItemType Directory -Force $dest | Out-Null
-scp -q "${remoteHost}:patchy/src/build/package/Patchy-*.flatpak" $dest
+scp -q "${remoteHost}:patchy/src/build/package/Lienzo-*.flatpak" $dest
 Write-Host "== flatpak bundle copied into $dest =="
-Get-ChildItem $dest -Filter 'Patchy-*.flatpak' | ForEach-Object { Write-Host $_.FullName }
+Get-ChildItem $dest -Filter 'Lienzo-*.flatpak' | ForEach-Object { Write-Host $_.FullName }

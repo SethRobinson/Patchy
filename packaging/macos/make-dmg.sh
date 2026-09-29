@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds the distributable macOS artifact: build/package/Patchy-<version>.dmg
+# Builds the distributable macOS artifact: build/package/Lienzo-<version>.dmg
 # Run from a built mac-release tree (scripts/remote/remote-build.ps1 -Target mac, or
 # locally: cmake --preset mac-release && cmake --build --preset mac-release):
 #   bash packaging/macos/make-dmg.sh
@@ -19,7 +19,7 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 
 BUILD_DIR=build/mac-release
-APP="$BUILD_DIR/Patchy.app"
+APP="$BUILD_DIR/Lienzo.app"
 QT_BIN=".deps/Qt/6.8.3/macos/bin"
 PACKAGE_DIR=build/package
 
@@ -27,20 +27,20 @@ PACKAGE_DIR=build/package
 [ -x "$QT_BIN/macdeployqt" ] || { echo "ERROR: $QT_BIN/macdeployqt not found."; exit 1; }
 
 VERSION=$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$APP/Contents/Info.plist")
-DMG="$PACKAGE_DIR/Patchy-$VERSION.dmg"
+DMG="$PACKAGE_DIR/Lienzo-$VERSION.dmg"
 mkdir -p "$PACKAGE_DIR"
 # Delete ALL previous dmgs up front (not just this version's): if any later step fails,
 # nothing stale remains for the newest-file upload script to pick up by accident.
-rm -f "$PACKAGE_DIR"/Patchy-*.dmg
+rm -f "$PACKAGE_DIR"/Lienzo-*.dmg
 
 STAGE=$(mktemp -d)
 trap 'rm -rf "$STAGE"' EXIT
-cp -R "$APP" "$STAGE/Patchy.app"
+cp -R "$APP" "$STAGE/Lienzo.app"
 # Dev-tree extras that are not part of the shipped app.
-rm -rf "$STAGE/Patchy.app/Contents/MacOS/test-fixtures"
+rm -rf "$STAGE/Lienzo.app/Contents/MacOS/test-fixtures"
 
 echo "== macdeployqt (bundling Qt frameworks and plugins) =="
-"$QT_BIN/macdeployqt" "$STAGE/Patchy.app" -executable="$STAGE/Patchy.app/Contents/MacOS/patchy-mcp"
+"$QT_BIN/macdeployqt" "$STAGE/Lienzo.app" -executable="$STAGE/Lienzo.app/Contents/MacOS/patchy-mcp"
 
 # macdeployqt bundles libqcocoa only; the offscreen platform is what --headless loads,
 # so it is copied by hand. It lands before codesign so the hardened-runtime signature
@@ -51,8 +51,8 @@ if [ ! -f "$QT_OFFSCREEN_PLUGIN" ]; then
   exit 1
 fi
 echo "== copy Qt offscreen platform plugin =="
-mkdir -p "$STAGE/Patchy.app/Contents/PlugIns/platforms"
-cp "$QT_OFFSCREEN_PLUGIN" "$STAGE/Patchy.app/Contents/PlugIns/platforms/libqoffscreen.dylib"
+mkdir -p "$STAGE/Lienzo.app/Contents/PlugIns/platforms"
+cp "$QT_OFFSCREEN_PLUGIN" "$STAGE/Lienzo.app/Contents/PlugIns/platforms/libqoffscreen.dylib"
 
 if [ -n "${PATCHY_MAC_SIGN_IDENTITY:-}" ]; then
   if [ -n "${PATCHY_KEYCHAIN_PASSWORD:-}" ]; then
@@ -64,8 +64,8 @@ if [ -n "${PATCHY_MAC_SIGN_IDENTITY:-}" ]; then
   fi
   unset PATCHY_KEYCHAIN_PASSWORD
   echo "== codesign (hardened runtime) =="
-  codesign --force --deep --options runtime --timestamp -s "$PATCHY_MAC_SIGN_IDENTITY" "$STAGE/Patchy.app"
-  codesign --verify --deep --strict "$STAGE/Patchy.app"
+  codesign --force --deep --options runtime --timestamp -s "$PATCHY_MAC_SIGN_IDENTITY" "$STAGE/Lienzo.app"
+  codesign --verify --deep --strict "$STAGE/Lienzo.app"
 elif [ "${PATCHY_REQUIRE_SIGNING:-0}" = "1" ]; then
   echo "ERROR: PATCHY_REQUIRE_SIGNING=1 but PATCHY_MAC_SIGN_IDENTITY is not set." >&2
   echo "A release dmg must be signed; Gatekeeper blocks an unsigned one. Check that" >&2
@@ -79,7 +79,7 @@ fi
 # Proves the staged bundle runs with no display before any artifact exists: the
 # frameworks, the hand-copied offscreen plugin, fonts, and translations all come from
 # $STAGE. On a release run this is the signed hardened-runtime bundle loading the
-# freshly signed plugin. --headless never forwards to a running Patchy, and
+# freshly signed plugin. --headless never forwards to a running Lienzo, and
 # PATCHY_SETTINGS_DIR keeps the run out of the real settings. macOS ships no
 # timeout(1), hence the watchdog.
 echo "== headless smoke check (the staged app must run with no display) =="
@@ -88,7 +88,7 @@ trap 'rm -rf "$STAGE" "$SMOKE"' EXIT
 mkdir -p "$SMOKE/settings"
 echo 'console.log("headless smoke")' > "$SMOKE/smoke.js"
 PATCHY_SETTINGS_DIR="$SMOKE/settings" PATCHY_NO_SOUND=1 \
-  "$STAGE/Patchy.app/Contents/MacOS/Patchy" --headless \
+  "$STAGE/Lienzo.app/Contents/MacOS/Lienzo" --headless \
   --run-script "$SMOKE/smoke.js" --script-output "$SMOKE/smoke-output.txt" \
   > "$SMOKE/smoke-console.txt" 2>&1 &
 smoke_pid=$!
@@ -120,14 +120,14 @@ echo "Headless smoke check passed."
 # macdeployqt rewrites Mach-O load commands, invalidating existing signatures.
 # Exercise the connector only after signing the final deployed bundle.
 echo "== MCP smoke check (the staged connector must run) =="
-"$STAGE/Patchy.app/Contents/MacOS/patchy-mcp" --check
+"$STAGE/Lienzo.app/Contents/MacOS/patchy-mcp" --check
 
 echo "== dmg =="
 DMG_STAGE=$(mktemp -d)
-cp -R "$STAGE/Patchy.app" "$DMG_STAGE/"
+cp -R "$STAGE/Lienzo.app" "$DMG_STAGE/"
 ln -s /Applications "$DMG_STAGE/Applications"
 rm -f "$DMG"
-hdiutil create -volname "Patchy $VERSION" -srcfolder "$DMG_STAGE" -ov -format UDZO "$DMG"
+hdiutil create -volname "Lienzo $VERSION" -srcfolder "$DMG_STAGE" -ov -format UDZO "$DMG"
 rm -rf "$DMG_STAGE"
 
 if [ -n "${PATCHY_MAC_SIGN_IDENTITY:-}" ]; then

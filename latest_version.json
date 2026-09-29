@@ -2,15 +2,15 @@
   "platforms": {
     "windows": {
       "version": "1.00",
-      "download_url": "https://github.com/SethRobinson/Patchy/releases/latest/download/PatchyWindowsInstaller.exe"
+      "download_url": "https://github.com/danielmigueltejedor/Patchy/releases/latest/download/LienzoWindowsInstaller.exe"
     },
     "macos": {
       "version": "1.00",
-      "download_url": "https://github.com/SethRobinson/Patchy/releases/latest/download/PatchyMacOS.dmg"
+      "download_url": "https://github.com/danielmigueltejedor/Patchy/releases/latest/download/LienzoMacOS.dmg"
     },
     "linux": {
       "version": "1.00",
-      "download_url": "https://github.com/SethRobinson/Patchy/releases/latest/download/PatchyLinux.flatpak"
+      "download_url": "https://github.com/danielmigueltejedor/Patchy/releases/latest/download/LienzoLinux.flatpak"
     }
   }
 }

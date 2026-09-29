@@ -164,7 +164,7 @@ public:
 
     auto* artwork = new SplashArtwork(this);
     artwork->setObjectName(QStringLiteral("splashArtwork"));
-    artwork->setFixedSize(210, 270);
+    artwork->setFixedSize(210, 210);
     layout->addWidget(artwork);
 
     auto* copy = new QVBoxLayout();

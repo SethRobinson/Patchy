@@ -3,7 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows.Forms;
 
-internal static class InstallPatchyLauncher
+internal static class InstallLienzoLauncher
 {
     [STAThread]
     private static int Main()
@@ -11,15 +11,15 @@ internal static class InstallPatchyLauncher
         Application.EnableVisualStyles();
 
         string payloadDirectory = AppDomain.CurrentDomain.BaseDirectory;
-        string scriptPath = Path.Combine(payloadDirectory, "InstallPatchy.ps1");
-        string payloadZip = Path.Combine(payloadDirectory, "PatchyWindowsNoInstaller.zip");
-        string uninstallerExe = Path.Combine(payloadDirectory, "UninstallPatchy.exe");
-        string versionPath = Path.Combine(payloadDirectory, "PatchyVersion.txt");
+        string scriptPath = Path.Combine(payloadDirectory, "InstallLienzo.ps1");
+        string payloadZip = Path.Combine(payloadDirectory, "LienzoWindowsNoInstaller.zip");
+        string uninstallerExe = Path.Combine(payloadDirectory, "UninstallLienzo.exe");
+        string versionPath = Path.Combine(payloadDirectory, "LienzoVersion.txt");
         string version = File.Exists(versionPath) ? File.ReadAllText(versionPath).Trim() : "0.0.0";
 
         if (!File.Exists(scriptPath) || !File.Exists(payloadZip) || !File.Exists(uninstallerExe))
         {
-            MessageBox.Show("The Patchy installer payload is incomplete.", "Patchy Setup",
+            MessageBox.Show("The Lienzo installer payload is incomplete.", "Lienzo Setup",
                 MessageBoxButtons.OK, MessageBoxIcon.Error);
             return 1;
         }
@@ -54,7 +54,7 @@ internal static class InstallPatchyLauncher
         }
         catch (Exception ex)
         {
-            MessageBox.Show(ex.Message, "Patchy Setup", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(ex.Message, "Lienzo Setup", MessageBoxButtons.OK, MessageBoxIcon.Error);
             return 1;
         }
     }
