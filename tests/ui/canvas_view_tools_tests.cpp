@@ -9,6 +9,8 @@
 #include "core/smart_object.hpp"
 #include "core/text_warp.hpp"
 #include "ui/edit_conversions.hpp"
+#include "ui/gpu_frame_invalidation.hpp"
+#include "ui/gpu_layer_image_cache.hpp"
 #include "ui/smart_object_render.hpp"
 #include "ui/webgpu_document_compositor.hpp"
 #include "core/layer_tree.hpp"
@@ -1036,6 +1038,111 @@ void ui_webgpu_blend_if_uniform_matches_shader_layout() {
   for (const auto& slot : identity) {
     CHECK(slot[0] == 0.0F && slot[1] == 0.0F && slot[2] == 255.0F && slot[3] == 255.0F);
   }
+}
+
+// Document invalidation for the GPU frame cache is driven by document-space
+// edits, never by the exposed widget region. A zoomed-in view that edits
+// pixels outside the viewport must leave exactly those tiles dirty, a
+// full-document change must force a full composition, and a repaint caused by
+// panning (no document change) must not invalidate anything.
+void ui_gpu_frame_invalidation_tracks_document_space_edits() {
+  const QRect document_bounds(0, 0, 2048, 1024);
+  patchy::ui::GpuFrameInvalidation invalidation;
+  CHECK(invalidation.empty());
+  CHECK(!invalidation.full());
+
+  // Viewport shows the top-left corner; the edit lands far outside it.
+  const QRect viewport(0, 0, 256, 256);
+  const QRect offscreen_edit(1800, 700, 100, 100);
+  invalidation.mark(QRegion(offscreen_edit), document_bounds);
+  CHECK(!invalidation.empty());
+  CHECK(!invalidation.full());
+  CHECK(invalidation.region() == QRegion(offscreen_edit));
+  CHECK(!invalidation.region().intersects(viewport));
+
+  // Publishing a frame consumes the damage; panning to the edited area is a
+  // pure repaint and records nothing, so the rebuilt tiles are reused.
+  invalidation.clear();
+  CHECK(invalidation.empty());
+
+  // Several edits accumulate and are clipped to the document.
+  invalidation.mark(QRegion(QRect(10, 10, 20, 20)), document_bounds);
+  invalidation.mark(QRegion(QRect(2000, 1000, 100, 100)), document_bounds);
+  CHECK(invalidation.region().rectCount() == 2);
+  CHECK(invalidation.region().boundingRect().right() <= document_bounds.right());
+  CHECK(invalidation.region().boundingRect().bottom() <= document_bounds.bottom());
+
+  // An unbounded change (empty region) means the whole document is stale, and
+  // later regional edits do not shrink that.
+  invalidation.mark(QRegion(), document_bounds);
+  CHECK(invalidation.full());
+  CHECK(!invalidation.empty());
+  CHECK(invalidation.region().isEmpty());
+  invalidation.mark(QRegion(QRect(0, 0, 1, 1)), document_bounds);
+  CHECK(invalidation.full());
+
+  invalidation.clear();
+  invalidation.mark_full();
+  CHECK(invalidation.full());
+  invalidation.clear();
+  CHECK(invalidation.empty());
+
+  // A region entirely outside the document is ignored.
+  invalidation.mark(QRegion(QRect(5000, 5000, 10, 10)), document_bounds);
+  CHECK(invalidation.empty());
+}
+
+// build_gpu_document runs per repaint; unchanged layers must not be copied
+// into new images again (docs/performance.md: nothing O(layer pixels) per
+// repaint). The cache is keyed by layer id and pixel/mask revision.
+void ui_gpu_layer_image_cache_reuses_unchanged_layers() {
+  patchy::ui::GpuLayerImageCache cache;
+  patchy::PixelBuffer pixels(8, 4, patchy::PixelFormat::rgba8());
+  pixels.clear(0);
+  pixels.pixel(1, 1)[0] = 200;
+
+  const auto first = cache.layer_image(7, 1, pixels);
+  CHECK(cache.conversions() == 1);
+  CHECK(first.format() == QImage::Format_RGBA8888);
+  CHECK(qRed(first.pixel(1, 1)) == 200);
+
+  // Same revision: shared image, no conversion.
+  const auto again = cache.layer_image(7, 1, pixels);
+  CHECK(cache.conversions() == 1);
+  CHECK(again.cacheKey() == first.cacheKey());
+
+  // Pixel edit bumps the revision: converted once more, new content visible.
+  pixels.pixel(1, 1)[0] = 20;
+  const auto edited = cache.layer_image(7, 2, pixels);
+  CHECK(cache.conversions() == 2);
+  CHECK(qRed(edited.pixel(1, 1)) == 20);
+  CHECK(edited.cacheKey() != first.cacheKey());
+
+  // A size change with the same revision is never trusted.
+  patchy::PixelBuffer resized(4, 4, patchy::PixelFormat::rgba8());
+  resized.clear(0);
+  (void)cache.layer_image(7, 2, resized);
+  CHECK(cache.conversions() == 3);
+
+  // Masks are tracked separately from pixels for the same layer.
+  patchy::PixelBuffer mask(8, 4, patchy::PixelFormat::gray8());
+  mask.clear(90);
+  const auto mask_image = cache.mask_image(7, 1, mask);
+  CHECK(cache.conversions() == 4);
+  CHECK(mask_image.format() == QImage::Format_Grayscale8);
+  CHECK(mask_image.constScanLine(0)[3] == 90);
+  (void)cache.mask_image(7, 1, mask);
+  CHECK(cache.conversions() == 4);
+
+  // Layers that left the snapshot are dropped; survivors keep their images.
+  (void)cache.layer_image(8, 1, resized);
+  CHECK(cache.size() == 2);
+  cache.retain_only({7});
+  CHECK(cache.size() == 1);
+  (void)cache.layer_image(7, 2, resized);
+  CHECK(cache.conversions() == 5);
+  cache.clear();
+  CHECK(cache.size() == 0);
 }
 
 void ui_canvas_renderer_honors_cpu_override() {
@@ -4084,6 +4191,9 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_gpu_mask_snapshot_preserves_mask_values_as_grayscale",
        ui_gpu_mask_snapshot_preserves_mask_values_as_grayscale},
       {"ui_webgpu_blend_if_uniform_matches_shader_layout", ui_webgpu_blend_if_uniform_matches_shader_layout},
+      {"ui_gpu_frame_invalidation_tracks_document_space_edits",
+       ui_gpu_frame_invalidation_tracks_document_space_edits},
+      {"ui_gpu_layer_image_cache_reuses_unchanged_layers", ui_gpu_layer_image_cache_reuses_unchanged_layers},
       {"ui_canvas_renderer_honors_cpu_override", ui_canvas_renderer_honors_cpu_override},
       {"ui_canvas_wheel_matches_photoshop_navigation", ui_canvas_wheel_matches_photoshop_navigation},
       {"ui_canvas_wheel_zoom_mode_zooms_at_cursor", ui_canvas_wheel_zoom_mode_zooms_at_cursor},
