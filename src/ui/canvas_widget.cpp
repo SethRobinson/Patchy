@@ -525,6 +525,10 @@ void CanvasWidget::request_graphics_canvas_update(const QRegion& region) {
   graphics_surface_->request_update(region);
 }
 
+bool CanvasWidget::gpu_document_snapshot(CanvasGpuDocument& document, QString* rejection_reason) const {
+  return build_gpu_document(document, rejection_reason);
+}
+
 bool CanvasWidget::build_gpu_document(CanvasGpuDocument& result, QString* rejection_reason) const {
   const auto reject = [rejection_reason](QString reason) {
     if (rejection_reason != nullptr) {

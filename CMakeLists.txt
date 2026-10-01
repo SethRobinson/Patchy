@@ -48,7 +48,7 @@ option(PATCHY_ENABLE_WEBGPU
        "Discover an optional installed Dawn/WebGPU document compositor (opt-in)"
        OFF)
 option(PATCHY_BUILD_WEBGPU_VALIDATION_TESTS
-       "Build manual hardware-backed Dawn/CPU equivalence checks"
+       "Build the hardware-backed Dawn/CPU equivalence checks and register them with CTest (skips without Dawn or an adapter)"
        OFF)
 option(PATCHY_ENABLE_VULKAN_QT_INTEROP_PROBE
        "Build the opt-in Vulkan/Qt RHI interop observation probe"
@@ -1923,8 +1923,19 @@ if(PATCHY_BUILD_WEBGPU_VALIDATION_TESTS)
   )
   target_link_libraries(patchy_webgpu_equivalence_tests PRIVATE patchy_ui)
   patchy_configure_target(patchy_webgpu_equivalence_tests)
-  # This target is deliberately not registered with CTest: it skips when Dawn or
-  # a hardware adapter is unavailable and must remain a separate manual smoke.
+  patchy_copy_translations(patchy_webgpu_equivalence_tests)
+  patchy_copy_qt_runtime(patchy_webgpu_equivalence_tests)
+  patchy_copy_bundled_fonts(patchy_webgpu_equivalence_tests)
+  # Registered with CTest only when this option is ON, so the default suite
+  # stays machine-independent. When Dawn or a hardware adapter is missing the
+  # executable exits with 77 and CTest reports "Not Run (Skipped)" instead of a
+  # pass; set PATCHY_WEBGPU_TESTS_REQUIRE_HARDWARE=1 to turn that into a failure
+  # on machines that are expected to have a GPU.
+  add_test(NAME patchy_webgpu_equivalence_tests COMMAND patchy_webgpu_equivalence_tests)
+  set_tests_properties(patchy_webgpu_equivalence_tests PROPERTIES
+    SKIP_RETURN_CODE 77
+    LABELS "hardware;gpu"
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;PATCHY_RENDER_BACKEND=cpu;PATCHY_NO_SOUND=1;LC_ALL=C.UTF-8;LANG=C.UTF-8;LANGUAGE=C;QT_SCALE_FACTOR=1")
 endif()
 
 if(PATCHY_BUILD_TESTS)

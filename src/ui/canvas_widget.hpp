@@ -439,6 +439,15 @@ public:
   [[nodiscard]] CanvasRenderBackend canvas_render_backend() const noexcept;
 
   void set_document(Document* document);
+#ifdef PATCHY_GPU_CANVAS
+  // Builds the GPU document snapshot exactly as the canvas hands it to the
+  // Qt RHI / Dawn tiers (capability gate, Fill folding, Grayscale8 masks,
+  // Blend If ranges, document-space rectangles). Returns false with the
+  // fallback reason when the document stays on the CPU compositor. Hardware
+  // equivalence checks compose this snapshot so the canvas-to-backend
+  // conversion itself is under test, not a test-side reimplementation.
+  [[nodiscard]] bool gpu_document_snapshot(CanvasGpuDocument& document, QString* rejection_reason = nullptr) const;
+#endif
   [[nodiscard]] bool pointer_gesture_active() const noexcept;
   [[nodiscard]] double zoom() const noexcept;
   void set_zoom(double zoom);
