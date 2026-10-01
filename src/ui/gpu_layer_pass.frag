@@ -146,7 +146,9 @@ float sample_mask(vec2 coordinate)
                   coordinate.x >= maskRect.x && coordinate.y >= maskRect.y &&
                   coordinate.x <= maskRect.x + maskRect.z &&
                   coordinate.y <= maskRect.y + maskRect.w;
-    float coverage = inside ? texture(maskTexture, coordinate).a : maskDefault;
+    // Masks are uploaded from Format_Grayscale8 images, so the coverage is the
+    // red channel (alpha is a constant 1.0 for those textures).
+    float coverage = inside ? texture(maskTexture, coordinate).r : maskDefault;
     return clamp(coverage * maskDensity + (1.0 - maskDensity), 0.0, 1.0);
 }
 
