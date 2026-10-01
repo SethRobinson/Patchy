@@ -1,5 +1,6 @@
 #include "render/gpu_document_capabilities.hpp"
 
+#include "core/blend_math.hpp"
 #include "core/document.hpp"
 #include "core/layer.hpp"
 
@@ -72,6 +73,13 @@ GpuDocumentCapability inspect_layer(const Layer& layer) {
   }
   if (!separable_shader_blend_mode(layer.blend_mode())) {
     return unsupported("document contains a non-separable or unsupported blend mode");
+  }
+  // The GPU tiers fold Fill into the layer opacity (opacity * fill). The CPU
+  // compositor instead runs composite_special_fill_rgb for the eight modes
+  // where Photoshop treats Fill differently from Opacity, so a GPU frame would
+  // diverge from the authoritative result. Those documents stay on the CPU.
+  if (layer.fill_opacity() < 1.0F && blend_mode_has_special_fill(layer.blend_mode())) {
+    return unsupported("document contains a special-Fill blend mode with Fill below 100%");
   }
   if (layer.mask().has_value() && !simple_mask_supported(*layer.mask())) {
     return unsupported("document contains a feathered or unsupported mask");
