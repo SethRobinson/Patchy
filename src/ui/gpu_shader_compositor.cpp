@@ -45,8 +45,11 @@ protected:
     if (texture_revision_ != revision_ || node->texture() == nullptr) {
       node->setOwnsTexture(false);
       delete node->texture();
-      const auto image = image_.format() == QImage::Format_Alpha8
-                             ? image_
+      // Grayscale8 masks become opaque RGBA with the mask value in every colour
+      // channel; the shader reads coverage from red. Colour layers stay
+      // premultiplied for the blend passes.
+      const auto image = image_.format() == QImage::Format_Grayscale8
+                             ? image_.convertToFormat(QImage::Format_RGBA8888)
                              : image_.convertToFormat(QImage::Format_RGBA8888_Premultiplied);
       node->setTexture(window->createTextureFromImage(image, QQuickWindow::TextureHasAlphaChannel));
       node->setOwnsTexture(true);
