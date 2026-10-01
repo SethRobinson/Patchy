@@ -1,22 +1,26 @@
+#include "core/blend_math.hpp"
 #include "core/document.hpp"
 #include "core/layer.hpp"
 #include "render/compositor.hpp"
 #include "render/gpu_document_capabilities.hpp"
 #include "render/pixel_comparison.hpp"
 #include "test_harness.hpp"
+#include "ui/canvas_widget.hpp"
 #include "ui/edit_conversions.hpp"
 #include "ui/webgpu_render_backend.hpp"
 
-#include <QCoreApplication>
+#include <QApplication>
 #include <QByteArray>
 #include <QImage>
 #include <QRegion>
 #include <QString>
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <exception>
 #include <functional>
@@ -30,6 +34,10 @@
 namespace {
 
 constexpr std::int32_t kTileSize = 256;
+
+// CTest maps this exit status to "Not Run (Skipped)" through SKIP_RETURN_CODE.
+// A skip is therefore visible as a skip, never counted as a pass.
+constexpr int kSkipExitCode = 77;
 
 std::size_t tile_count(std::int32_t width, std::int32_t height) {
   const auto horizontal = (width + kTileSize - 1) / kTileSize;
@@ -84,62 +92,40 @@ void require_opaque(const QImage& source, const std::string& label) {
   }
 }
 
+// The snapshot handed to the backend comes from CanvasWidget itself, so the
+// canvas-to-backend conversion (capability gate, Fill folding, Grayscale8
+// masks, Blend If ranges, document-space rectangles) is what gets validated.
+// The canvas is driven with the offscreen platform at zoom 1 with the view
+// anchored at the document origin; the Dawn tier only consumes document-space
+// rectangles, so the widget placement does not influence the result.
 patchy::ui::CanvasGpuDocument gpu_document_from(const patchy::Document& document) {
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(std::max(64, document.width()), std::max(64, document.height()));
+  canvas.set_document(const_cast<patchy::Document*>(&document));
+  canvas.set_zoom(1.0);
   patchy::ui::CanvasGpuDocument result;
-  result.document_size = QSize(document.width(), document.height());
-  result.canvas_rect = QRectF(0.0, 0.0, document.width(), document.height());
-  const auto capability = patchy::gpu_document_capability(document);
-  result.shader_composition = capability.mode == patchy::GpuDocumentRenderMode::PixelStackShader;
-  result.layers.reserve(document.layers().size());
-
-  for (const auto& layer : document.layers()) {
-    if (!layer.visible() || layer.opacity() <= 0.0F) {
-      continue;
-    }
-
-    patchy::ui::CanvasGpuLayer gpu_layer;
-    gpu_layer.id = layer.id();
-    gpu_layer.revision = layer.render_revision();
-    gpu_layer.pixel_revision = layer.pixel_revision();
-    gpu_layer.content_revision = layer.content_revision();
-    gpu_layer.mask_revision = layer.mask_revision();
-    gpu_layer.image = patchy::ui::qimage_from_pixel_buffer(layer.pixels());
-    const auto bounds = layer.bounds();
-    gpu_layer.document_rect = QRectF(bounds.x, bounds.y, bounds.width, bounds.height);
-    gpu_layer.rect = gpu_layer.document_rect;
-    gpu_layer.opacity = static_cast<qreal>(std::clamp(layer.opacity() * layer.fill_opacity(), 0.0F, 1.0F));
-    gpu_layer.blend_mode = static_cast<int>(layer.blend_mode());
-
-    const auto blend_if_status = layer.blend_if_payload_status();
-    if (blend_if_status == patchy::BlendIfPayloadStatus::Supported &&
-        !patchy::blend_if_is_identity(layer.blend_if())) {
-      const auto settings = layer.blend_if();
-      gpu_layer.has_blend_if = true;
-      for (std::size_t index = 0; index < settings.channels.size(); ++index) {
-        const auto copy_thresholds = [](const patchy::BlendIfThresholds& thresholds) {
-          return patchy::ui::CanvasGpuBlendIfThresholds{thresholds.black_low, thresholds.black_high,
-                                                        thresholds.white_low, thresholds.white_high};
-        };
-        gpu_layer.blend_if[index] =
-            patchy::ui::CanvasGpuBlendIfRanges{copy_thresholds(settings.channels[index].this_layer),
-                                               copy_thresholds(settings.channels[index].underlying_layer)};
-      }
-    }
-
-    if (layer.mask().has_value() && !layer.mask()->disabled) {
-      const auto& mask = *layer.mask();
-      gpu_layer.has_mask = true;
-      if (!mask.pixels.empty()) {
-        gpu_layer.mask_image = patchy::ui::grayscale_qimage_from_pixel_buffer(mask.pixels);
-        gpu_layer.mask_document_rect = QRectF(mask.bounds.x, mask.bounds.y, mask.bounds.width, mask.bounds.height);
-        gpu_layer.mask_rect = gpu_layer.mask_document_rect;
-      }
-      gpu_layer.mask_default = static_cast<qreal>(mask.default_color) / 255.0;
-      gpu_layer.mask_density = static_cast<qreal>(mask.density) / 255.0;
-    }
-    result.layers.push_back(std::move(gpu_layer));
+  QString reason;
+  if (!canvas.gpu_document_snapshot(result, &reason)) {
+    throw std::runtime_error("canvas rejected the document for GPU composition: " + reason.toStdString());
+  }
+  if (result.layers.empty()) {
+    throw std::runtime_error("canvas produced an empty GPU snapshot");
   }
   return result;
+}
+
+void require_cpu_fallback(const patchy::Document& document, const std::string& label) {
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(std::max(64, document.width()), std::max(64, document.height()));
+  canvas.set_document(const_cast<patchy::Document*>(&document));
+  patchy::ui::CanvasGpuDocument result;
+  QString reason;
+  if (canvas.gpu_document_snapshot(result, &reason)) {
+    throw std::runtime_error(label + ": canvas accepted a document that must stay on the CPU compositor");
+  }
+  if (reason.isEmpty()) {
+    throw std::runtime_error(label + ": canvas rejected the document without a reason");
+  }
 }
 
 patchy::PixelBuffer cpu_frame(const patchy::Document& document) {
@@ -196,6 +182,41 @@ patchy::Document make_document(std::int32_t width, std::int32_t height) {
   document.add_layer(std::move(overlay_layer));
   return document;
 }
+
+// A translucent overlay with an alpha gradient and fully transparent holes,
+// so partial source alpha, alpha accumulation and holes over the backdrop
+// are all exercised by every blend mode below.
+patchy::Document make_partial_alpha_document(std::int32_t width, std::int32_t height) {
+  auto document = make_document(width, height);
+  auto& overlay = document.layers().back();
+  auto& pixels = overlay.pixels();
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      auto* pixel = pixels.pixel(x, y);
+      const auto hole = ((x / 23) + (y / 19)) % 5 == 0;
+      pixel[3] = hole ? 0 : static_cast<std::uint8_t>(std::min(255, 8 + (x * 255) / std::max(1, pixels.width() - 1)));
+    }
+  }
+  return document;
+}
+
+struct BlendCase {
+  patchy::BlendMode mode;
+  const char* name;
+};
+
+constexpr std::array<BlendCase, 20> kAcceptedBlendModes{{
+    {patchy::BlendMode::Normal, "Normal"},           {patchy::BlendMode::Multiply, "Multiply"},
+    {patchy::BlendMode::Screen, "Screen"},           {patchy::BlendMode::Overlay, "Overlay"},
+    {patchy::BlendMode::Darken, "Darken"},           {patchy::BlendMode::Lighten, "Lighten"},
+    {patchy::BlendMode::ColorDodge, "ColorDodge"},   {patchy::BlendMode::ColorBurn, "ColorBurn"},
+    {patchy::BlendMode::HardLight, "HardLight"},     {patchy::BlendMode::SoftLight, "SoftLight"},
+    {patchy::BlendMode::Difference, "Difference"},   {patchy::BlendMode::LinearBurn, "LinearBurn"},
+    {patchy::BlendMode::PinLight, "PinLight"},       {patchy::BlendMode::Exclusion, "Exclusion"},
+    {patchy::BlendMode::LinearDodge, "LinearDodge"}, {patchy::BlendMode::Subtract, "Subtract"},
+    {patchy::BlendMode::Divide, "Divide"},           {patchy::BlendMode::VividLight, "VividLight"},
+    {patchy::BlendMode::LinearLight, "LinearLight"}, {patchy::BlendMode::HardMix, "HardMix"},
+}};
 
 patchy::Document make_masked_document() {
   auto document = make_document(257, 257);
@@ -255,6 +276,81 @@ void full_frames_match_cpu_for_boundaries(patchy::ui::WebGpuRenderBackend& backe
 void supported_shader_features_match_cpu(patchy::ui::WebGpuRenderBackend& backend) {
   compose_full_and_check(backend, make_masked_document(), "gray8 mask");
   compose_full_and_check(backend, make_blend_if_document(), "Blend If");
+}
+
+// Every blend mode the capability matrix accepts, each composed with an
+// opaque overlay, a partially transparent overlay, and reduced layer opacity.
+void all_accepted_blend_modes_match_cpu(patchy::ui::WebGpuRenderBackend& backend) {
+  for (const auto& blend : kAcceptedBlendModes) {
+    {
+      auto document = make_document(257, 129);
+      document.layers().back().set_blend_mode(blend.mode);
+      compose_full_and_check(backend, document, std::string("opaque ") + blend.name);
+    }
+    {
+      auto document = make_partial_alpha_document(257, 129);
+      document.layers().back().set_blend_mode(blend.mode);
+      compose_full_and_check(backend, document, std::string("partial alpha ") + blend.name);
+    }
+    {
+      auto document = make_partial_alpha_document(257, 129);
+      auto& overlay = document.layers().back();
+      overlay.set_blend_mode(blend.mode);
+      overlay.set_opacity(0.6F);
+      compose_full_and_check(backend, document, std::string("opacity 60% ") + blend.name);
+    }
+  }
+}
+
+// Fill is folded into opacity on the GPU. That matches the CPU for every mode
+// without special Fill handling; the eight special modes must be rejected by
+// the canvas while Fill is below 100% and accepted again at 100%.
+void fill_opacity_matches_cpu_or_stays_on_cpu(patchy::ui::WebGpuRenderBackend& backend) {
+  for (const auto& blend : kAcceptedBlendModes) {
+    auto document = make_partial_alpha_document(257, 129);
+    auto& overlay = document.layers().back();
+    overlay.set_blend_mode(blend.mode);
+    overlay.set_fill_opacity(0.45F);
+    if (patchy::blend_mode_has_special_fill(blend.mode)) {
+      require_cpu_fallback(document, std::string("special Fill ") + blend.name);
+      overlay.set_fill_opacity(1.0F);
+      compose_full_and_check(backend, document, std::string("Fill 100% ") + blend.name);
+      continue;
+    }
+    compose_full_and_check(backend, document, std::string("Fill 45% ") + blend.name);
+    overlay.set_opacity(0.7F);
+    compose_full_and_check(backend, document, std::string("Fill 45% opacity 70% ") + blend.name);
+  }
+}
+
+// Masks and Blend If combined with a non-Normal mode and partial alpha, so the
+// mask multiply, Blend If factor and blend math are exercised together.
+void masked_blend_if_partial_alpha_matches_cpu(patchy::ui::WebGpuRenderBackend& backend) {
+  auto document = make_partial_alpha_document(257, 257);
+  auto& overlay = document.layers().back();
+  overlay.set_blend_mode(patchy::BlendMode::Screen);
+  overlay.set_opacity(0.8F);
+  const auto bounds = overlay.bounds();
+  patchy::LayerMask mask;
+  mask.bounds = bounds;
+  mask.pixels = patchy::PixelBuffer(bounds.width, bounds.height, patchy::PixelFormat::gray8());
+  for (std::int32_t y = 0; y < bounds.height; ++y) {
+    for (std::int32_t x = 0; x < bounds.width; ++x) {
+      mask.pixels.pixel(x, y)[0] = static_cast<std::uint8_t>((x * 7 + y * 3) % 256);
+    }
+  }
+  mask.default_color = 255;
+  mask.density = 200;
+  overlay.set_mask(std::move(mask));
+  patchy::LayerBlendIf settings;
+  settings.channels[static_cast<std::size_t>(patchy::BlendIfChannel::Gray)].underlying_layer =
+      patchy::BlendIfThresholds{20, 70, 180, 240};
+  settings.channels[static_cast<std::size_t>(patchy::BlendIfChannel::Red)].this_layer =
+      patchy::BlendIfThresholds{0, 40, 200, 255};
+  if (!overlay.set_blend_if(settings)) {
+    throw std::runtime_error("could not install combined Blend If fixture");
+  }
+  compose_full_and_check(backend, document, "gray mask + Blend If + partial alpha + Screen 80%");
 }
 
 void dirty_regions_recompute_only_intersecting_tiles(patchy::ui::WebGpuRenderBackend& backend) {
@@ -470,12 +566,19 @@ int run_test(const char* name, const std::function<void()>& test) {
 }  // namespace
 
 int main(int argc, char** argv) {
-  QCoreApplication application(argc, argv);
+  // CanvasWidget needs a QApplication; the offscreen platform is enough
+  // because only the document snapshot is taken from it, never a painted frame.
+  if (qEnvironmentVariableIsEmpty("QT_QPA_PLATFORM")) {
+    qputenv("QT_QPA_PLATFORM", QByteArrayLiteral("offscreen"));
+  }
+  QApplication application(argc, argv);
   patchy::ui::WebGpuRenderBackend backend;
   if (!backend.initialize()) {
-    std::cout << "[SKIP] Dawn/WebGPU equivalence: " << backend.last_error() << '\n';
+    const bool require_hardware = qEnvironmentVariableIntValue("PATCHY_WEBGPU_TESTS_REQUIRE_HARDWARE") != 0;
+    std::cout << (require_hardware ? "[FAIL] " : "[SKIP] ") << "Dawn/WebGPU equivalence: " << backend.last_error()
+              << '\n';
     std::cout << "Configure with PATCHY_ENABLE_WEBGPU=ON and an installed Dawn prefix, then run on a hardware adapter.\n";
-    return 0;
+    return require_hardware ? 1 : kSkipExitCode;
   }
 
   int failures = 0;
@@ -483,6 +586,12 @@ int main(int argc, char** argv) {
                        [&backend] { full_frames_match_cpu_for_boundaries(backend); });
   failures += run_test("webgpu_supported_shader_features_match_cpu",
                        [&backend] { supported_shader_features_match_cpu(backend); });
+  failures += run_test("webgpu_all_accepted_blend_modes_match_cpu",
+                       [&backend] { all_accepted_blend_modes_match_cpu(backend); });
+  failures += run_test("webgpu_fill_opacity_matches_cpu_or_stays_on_cpu",
+                       [&backend] { fill_opacity_matches_cpu_or_stays_on_cpu(backend); });
+  failures += run_test("webgpu_masked_blend_if_partial_alpha_matches_cpu",
+                       [&backend] { masked_blend_if_partial_alpha_matches_cpu(backend); });
   failures += run_test("webgpu_dirty_regions_recompute_only_intersecting_tiles",
                        [&backend] { dirty_regions_recompute_only_intersecting_tiles(backend); });
   failures += run_test("webgpu_device_loss_recovery_rebuilds_resources",
