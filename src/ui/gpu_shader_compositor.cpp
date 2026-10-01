@@ -24,10 +24,15 @@ public:
   }
 
   void set_image(QImage image, QRectF rect, bool smooth) {
+    // The snapshot hands out implicitly shared images from the layer image
+    // cache, so an unchanged layer arrives with the same cacheKey and keeps
+    // its uploaded texture; only placement and filtering are refreshed.
+    if (image_.isNull() != image.isNull() || image_.cacheKey() != image.cacheKey()) {
+      ++revision_;
+    }
     image_ = std::move(image);
     rect_ = rect;
     smooth_ = smooth;
-    ++revision_;
     update();
   }
 
@@ -85,91 +90,113 @@ GpuShaderCompositor::~GpuShaderCompositor() {
 }
 
 void GpuShaderCompositor::clear_passes() {
-  for (auto* pass : passes_) {
-    if (pass != nullptr) {
-      pass->setParentItem(nullptr);
-      delete pass;
+  for (auto& pass : passes_) {
+    if (pass.item != nullptr) {
+      pass.item->setParentItem(nullptr);
+      delete pass.item;  // owns its TextureItem children
     }
   }
   passes_.clear();
-  textures_.clear();
-  masks_.clear();
 }
 
-QQuickItem* GpuShaderCompositor::create_pass(const CanvasGpuLayer& layer, QQuickItem* backdrop,
-                                              bool final_pass) {
+bool GpuShaderCompositor::ensure_pass_count(std::size_t count) {
   if (pass_component_ == nullptr || !pass_component_->isReady() || context_ == nullptr) {
-    return nullptr;
+    return false;
   }
-  auto* object = pass_component_->create(context_);
-  auto* pass = qobject_cast<QQuickItem*>(object);
-  if (pass == nullptr) {
-    delete object;
-    return nullptr;
+  while (passes_.size() > count) {
+    auto& last = passes_.back();
+    if (last.item != nullptr) {
+      last.item->setParentItem(nullptr);
+      delete last.item;
+    }
+    passes_.pop_back();
   }
-  pass->setParentItem(this);
-  pass->setSize(size());
-  pass->setVisible(final_pass);
-  pass->setProperty("backdropSource", QVariant::fromValue(backdrop));
-  pass->setProperty("blendMode", layer.blend_mode);
-  pass->setProperty("layerOpacity", layer.opacity);
-  pass->setProperty("hasMask", layer.has_mask);
-  pass->setProperty("maskDefault", layer.mask_default);
-  pass->setProperty("maskDensity", layer.mask_density);
-  pass->setProperty("hasBlendIf", layer.has_blend_if ? 1.0 : 0.0);
+  while (passes_.size() < count) {
+    auto* object = pass_component_->create(context_);
+    auto* item = qobject_cast<QQuickItem*>(object);
+    if (item == nullptr) {
+      delete object;
+      return false;
+    }
+    item->setParentItem(this);
+    item->setSize(size());
+    Pass pass;
+    pass.item = item;
+    pass.source = new TextureItem(item);
+    pass.source->setSize(size());
+    item->setProperty("sourceItem", QVariant::fromValue(static_cast<QQuickItem*>(pass.source)));
+    item->setProperty("maskItem", QVariant::fromValue(static_cast<QQuickItem*>(nullptr)));
+    passes_.push_back(pass);
+    ++passes_created_;
+  }
+  return true;
+}
+
+void GpuShaderCompositor::apply_mask_rect(Pass& pass, const QSizeF& size) {
+  const auto width = std::max<qreal>(1.0, size.width());
+  const auto height = std::max<qreal>(1.0, size.height());
+  pass.item->setProperty("maskRect", QRectF(pass.mask_rect.x() / width, pass.mask_rect.y() / height,
+                                            pass.mask_rect.width() / width, pass.mask_rect.height() / height));
+}
+
+void GpuShaderCompositor::update_pass(Pass& pass, const CanvasGpuLayer& layer, QQuickItem* backdrop,
+                                      bool final_pass) {
+  auto* item = pass.item;
+  item->setVisible(final_pass);
+  item->setProperty("backdropSource", QVariant::fromValue(backdrop));
+  item->setProperty("blendMode", layer.blend_mode);
+  item->setProperty("layerOpacity", layer.opacity);
+  item->setProperty("hasMask", layer.has_mask);
+  item->setProperty("maskDefault", layer.mask_default);
+  item->setProperty("maskDensity", layer.mask_density);
+  item->setProperty("hasBlendIf", layer.has_blend_if ? 1.0 : 0.0);
   const auto thresholds = [](const CanvasGpuBlendIfThresholds& value) {
     return QVector4D(static_cast<float>(value.black_low), static_cast<float>(value.black_high),
                      static_cast<float>(value.white_low), static_cast<float>(value.white_high));
   };
-  pass->setProperty("blendIfGrayThis", thresholds(layer.blend_if[0].this_layer));
-  pass->setProperty("blendIfRedThis", thresholds(layer.blend_if[1].this_layer));
-  pass->setProperty("blendIfGreenThis", thresholds(layer.blend_if[2].this_layer));
-  pass->setProperty("blendIfBlueThis", thresholds(layer.blend_if[3].this_layer));
-  pass->setProperty("blendIfGrayUnderlying", thresholds(layer.blend_if[0].underlying_layer));
-  pass->setProperty("blendIfRedUnderlying", thresholds(layer.blend_if[1].underlying_layer));
-  pass->setProperty("blendIfGreenUnderlying", thresholds(layer.blend_if[2].underlying_layer));
-  pass->setProperty("blendIfBlueUnderlying", thresholds(layer.blend_if[3].underlying_layer));
-  const auto width = std::max<qreal>(1.0, size().width());
-  const auto height = std::max<qreal>(1.0, size().height());
-  pass->setProperty("maskRect", QRectF(layer.mask_rect.x() / width, layer.mask_rect.y() / height,
-                                        layer.mask_rect.width() / width, layer.mask_rect.height() / height));
+  item->setProperty("blendIfGrayThis", thresholds(layer.blend_if[0].this_layer));
+  item->setProperty("blendIfRedThis", thresholds(layer.blend_if[1].this_layer));
+  item->setProperty("blendIfGreenThis", thresholds(layer.blend_if[2].this_layer));
+  item->setProperty("blendIfBlueThis", thresholds(layer.blend_if[3].this_layer));
+  item->setProperty("blendIfGrayUnderlying", thresholds(layer.blend_if[0].underlying_layer));
+  item->setProperty("blendIfRedUnderlying", thresholds(layer.blend_if[1].underlying_layer));
+  item->setProperty("blendIfGreenUnderlying", thresholds(layer.blend_if[2].underlying_layer));
+  item->setProperty("blendIfBlueUnderlying", thresholds(layer.blend_if[3].underlying_layer));
+  pass.mask_rect = layer.mask_rect;
+  apply_mask_rect(pass, size());
 
-  auto* source = new TextureItem(pass);
-  source->setSize(size());
-  source->set_image(layer.image, layer.rect, true);
-  textures_.push_back(source);
-  pass->setProperty("sourceItem", QVariant::fromValue(static_cast<QQuickItem*>(source)));
+  pass.source->set_image(layer.image, layer.rect, true);
 
-  if (layer.has_mask && !layer.mask_image.isNull()) {
-    auto* mask = new TextureItem(pass);
-    mask->setSize(size());
-    mask->set_image(layer.mask_image, layer.mask_rect, false);
-    masks_.push_back(mask);
-    pass->setProperty("maskItem", QVariant::fromValue(static_cast<QQuickItem*>(mask)));
-  } else {
-    pass->setProperty("maskItem", QVariant::fromValue(static_cast<QQuickItem*>(nullptr)));
+  const bool wants_mask = layer.has_mask && !layer.mask_image.isNull();
+  if (wants_mask && pass.mask == nullptr) {
+    pass.mask = new TextureItem(item);
+    pass.mask->setSize(size());
+    item->setProperty("maskItem", QVariant::fromValue(static_cast<QQuickItem*>(pass.mask)));
+  } else if (!wants_mask && pass.mask != nullptr) {
+    item->setProperty("maskItem", QVariant::fromValue(static_cast<QQuickItem*>(nullptr)));
+    pass.mask->setParentItem(nullptr);
+    delete pass.mask;
+    pass.mask = nullptr;
   }
-  passes_.push_back(pass);
-  return pass;
+  if (pass.mask != nullptr) {
+    pass.mask->set_image(layer.mask_image, layer.mask_rect, false);
+  }
 }
 
 bool GpuShaderCompositor::set_document(const CanvasGpuDocument& document) {
-  clear_passes();
   if (document.layers.empty()) {
+    clear_passes();
     setVisible(false);
     return true;
   }
-  if (pass_component_ == nullptr || !pass_component_->isReady()) {
+  if (!ensure_pass_count(document.layers.size())) {
+    clear_passes();
     return false;
   }
   QQuickItem* backdrop = nullptr;
   for (std::size_t index = 0; index < document.layers.size(); ++index) {
-    auto* pass = create_pass(document.layers[index], backdrop, index + 1U == document.layers.size());
-    if (pass == nullptr) {
-      clear_passes();
-      return false;
-    }
-    backdrop = pass;
+    update_pass(passes_[index], document.layers[index], backdrop, index + 1U == document.layers.size());
+    backdrop = passes_[index].item;
   }
   setVisible(true);
   update();
@@ -183,19 +210,18 @@ void GpuShaderCompositor::clear_document() {
 
 void GpuShaderCompositor::geometryChange(const QRectF& new_geometry, const QRectF& old_geometry) {
   QQuickItem::geometryChange(new_geometry, old_geometry);
-  for (auto* pass : passes_) {
-    if (pass != nullptr) {
-      pass->setSize(new_geometry.size());
+  for (auto& pass : passes_) {
+    if (pass.item != nullptr) {
+      pass.item->setSize(new_geometry.size());
+      // The shader samples the mask through normalized coordinates, so the
+      // rectangle must be re-normalized whenever the item size changes.
+      apply_mask_rect(pass, new_geometry.size());
     }
-  }
-  for (auto* texture : textures_) {
-    if (texture != nullptr) {
-      texture->setSize(new_geometry.size());
+    if (pass.source != nullptr) {
+      pass.source->setSize(new_geometry.size());
     }
-  }
-  for (auto* mask : masks_) {
-    if (mask != nullptr) {
-      mask->setSize(new_geometry.size());
+    if (pass.mask != nullptr) {
+      pass.mask->setSize(new_geometry.size());
     }
   }
 }
