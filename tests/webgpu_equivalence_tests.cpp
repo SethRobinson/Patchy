@@ -448,6 +448,65 @@ void device_loss_recovery_rebuilds_dawn_resources() {
   CHECK(backend.last_composition_metrics().source_upload_bytes > 0U);
 }
 
+// A zero frame budget makes the first queue wait expire immediately. That
+// exercises the real timeout path (no injected error): the composition fails
+// without exposing a frame, the backend reports Lost, recovery works once,
+// and after kMaxConsecutiveWaitTimeouts the backend refuses to recover so the
+// canvas stops paying the budget on every repaint. Restoring the budget must
+// let a fresh backend compose again.
+void wait_budget_timeout_fails_fast_and_disables_after_repeats() {
+  struct BudgetEnvironmentReset final {
+    ~BudgetEnvironmentReset() { qunsetenv("PATCHY_WEBGPU_FRAME_BUDGET_MS"); }
+  } budget_environment_reset;
+  auto document = make_document(513, 257);
+  const auto snapshot = gpu_document_from(document);
+  patchy::ui::WebGpuRenderBackend backend;
+  if (!backend.initialize()) {
+    throw std::runtime_error("wait-budget backend initialization failed: " + std::string(backend.last_error()));
+  }
+  QImage baseline;
+  QString reason;
+  if (!backend.compose(snapshot, baseline, &reason)) {
+    throw std::runtime_error("wait-budget baseline composition failed: " + reason.toStdString());
+  }
+  CHECK(backend.consecutive_wait_timeouts() == 0U);
+  CHECK(backend.last_composition_metrics().wait_timeouts == 0U);
+
+  qputenv("PATCHY_WEBGPU_FRAME_BUDGET_MS", QByteArrayLiteral("0"));
+  const auto first_start = std::chrono::steady_clock::now();
+  QImage untouched = baseline;
+  CHECK(!backend.compose(snapshot, untouched, &reason));
+  const auto first_elapsed = std::chrono::steady_clock::now() - first_start;
+  CHECK(first_elapsed < std::chrono::seconds(5));
+  CHECK(untouched == baseline);
+  CHECK(backend.state() == patchy::GpuBackendState::Lost);
+  CHECK(reason.contains(QStringLiteral("wait budget")));
+  CHECK(backend.last_composition_metrics().wait_timeouts >= 1U);
+  CHECK(backend.consecutive_wait_timeouts() == 1U);
+
+  CHECK(backend.recover());
+  CHECK(backend.state() == patchy::GpuBackendState::Ready);
+  CHECK(!backend.compose(snapshot, untouched, &reason));
+  CHECK(untouched == baseline);
+  CHECK(backend.consecutive_wait_timeouts() == patchy::ui::WebGpuRenderBackend::kMaxConsecutiveWaitTimeouts);
+
+  CHECK(!backend.recover());
+  CHECK(backend.state() == patchy::GpuBackendState::Failed);
+  CHECK(QString::fromStdString(std::string(backend.last_error())).contains(QStringLiteral("consecutive")));
+
+  qunsetenv("PATCHY_WEBGPU_FRAME_BUDGET_MS");
+  patchy::ui::WebGpuRenderBackend fresh;
+  if (!fresh.initialize()) {
+    throw std::runtime_error("wait-budget fresh backend initialization failed: " + std::string(fresh.last_error()));
+  }
+  QImage recovered;
+  if (!fresh.compose(snapshot, recovered, &reason)) {
+    throw std::runtime_error("wait-budget composition after restoring the budget failed: " + reason.toStdString());
+  }
+  CHECK(recovered == baseline);
+  CHECK(fresh.consecutive_wait_timeouts() == 0U);
+}
+
 std::uint64_t cpu_reference_time_ns(const patchy::Document& document) {
   const auto start = std::chrono::steady_clock::now();
   const auto frame = cpu_frame(document);
@@ -596,6 +655,8 @@ int main(int argc, char** argv) {
                        [&backend] { dirty_regions_recompute_only_intersecting_tiles(backend); });
   failures += run_test("webgpu_device_loss_recovery_rebuilds_resources",
                        device_loss_recovery_rebuilds_dawn_resources);
+  failures += run_test("webgpu_wait_budget_timeout_fails_fast_and_disables_after_repeats",
+                       wait_budget_timeout_fails_fast_and_disables_after_repeats);
   failures += run_test("webgpu_resource_reuse_benchmark",
                        [] {
                          patchy::ui::WebGpuRenderBackend benchmark_backend;
