@@ -580,11 +580,10 @@ bool CanvasWidget::build_gpu_document(CanvasGpuDocument& result, QString* reject
       const auto& mask = *layer.mask();
       gpu_layer.has_mask = true;
       if (!mask.pixels.empty()) {
-        gpu_layer.mask_image = QImage(mask.pixels.width(), mask.pixels.height(), QImage::Format_Alpha8);
-        for (int y = 0; y < mask.pixels.height(); ++y) {
-          std::memcpy(gpu_layer.mask_image.scanLine(y), mask.pixels.row(y).data(),
-                      static_cast<std::size_t>(mask.pixels.width()));
-        }
+        // Grayscale8 is the format every GPU tier samples from the red
+        // channel; see grayscale_qimage_from_pixel_buffer for why Alpha8 is
+        // not an option here.
+        gpu_layer.mask_image = grayscale_qimage_from_pixel_buffer(mask.pixels);
         gpu_layer.mask_document_rect =
             QRectF(mask.bounds.x, mask.bounds.y, mask.bounds.width, mask.bounds.height);
         gpu_layer.mask_rect = widget_rect_for_document_rect(gpu_layer.mask_document_rect);

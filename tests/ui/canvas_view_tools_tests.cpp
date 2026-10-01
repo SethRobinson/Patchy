@@ -8,6 +8,7 @@
 #include "core/smart_filter_effects.hpp"
 #include "core/smart_object.hpp"
 #include "core/text_warp.hpp"
+#include "ui/edit_conversions.hpp"
 #include "ui/smart_object_render.hpp"
 #include "ui/webgpu_document_compositor.hpp"
 #include "core/layer_tree.hpp"
@@ -954,6 +955,87 @@ void ui_webgpu_compositor_is_only_probed_on_explicit_request() {
   CHECK(!patchy::ui::WebGpuDocumentCompositor::should_try_automatically());
   qputenv("PATCHY_GPU_CANVAS", "webgpu");
   CHECK(patchy::ui::WebGpuDocumentCompositor::should_try_automatically());
+}
+
+// GPU tiers upload layer masks as single-channel textures and read coverage
+// from the red channel. The snapshot must therefore hand them a Grayscale8
+// image: Qt turns an Alpha8 image into opaque black when asked for Grayscale8,
+// which would silently discard every painted mask value on the GPU path.
+void ui_gpu_mask_snapshot_preserves_mask_values_as_grayscale() {
+  patchy::PixelBuffer mask(3, 2, patchy::PixelFormat::gray8());
+  const std::array<std::uint8_t, 6> values{0, 128, 255, 17, 200, 64};
+  for (int y = 0; y < 2; ++y) {
+    auto row = mask.row(y);
+    for (int x = 0; x < 3; ++x) {
+      row[static_cast<std::size_t>(x)] = values[static_cast<std::size_t>(y * 3 + x)];
+    }
+  }
+
+  const auto image = patchy::ui::grayscale_qimage_from_pixel_buffer(mask);
+  CHECK(!image.isNull());
+  CHECK(image.format() == QImage::Format_Grayscale8);
+  CHECK(image.width() == 3 && image.height() == 2);
+  for (int y = 0; y < 2; ++y) {
+    for (int x = 0; x < 3; ++x) {
+      CHECK(image.constScanLine(y)[x] == values[static_cast<std::size_t>(y * 3 + x)]);
+    }
+  }
+
+  // The Dawn compositor re-requests Grayscale8 before upload and the Qt tier
+  // expands to RGBA; both must keep the bytes intact.
+  const auto dawn_upload = image.convertToFormat(QImage::Format_Grayscale8);
+  const auto qt_upload = image.convertToFormat(QImage::Format_RGBA8888);
+  for (int y = 0; y < 2; ++y) {
+    for (int x = 0; x < 3; ++x) {
+      const auto expected = values[static_cast<std::size_t>(y * 3 + x)];
+      CHECK(dawn_upload.constScanLine(y)[x] == expected);
+      CHECK(qRed(qt_upload.pixel(x, y)) == expected);
+      CHECK(qAlpha(qt_upload.pixel(x, y)) == 255);
+    }
+  }
+
+  // Document the failure mode that motivated the format: the same bytes as an
+  // Alpha8 image do not survive a Grayscale8 conversion.
+  QImage alpha_only(3, 2, QImage::Format_Alpha8);
+  for (int y = 0; y < 2; ++y) {
+    std::memcpy(alpha_only.scanLine(y), values.data() + y * 3, 3U);
+  }
+  const auto lossy = alpha_only.convertToFormat(QImage::Format_Grayscale8);
+  CHECK(lossy.constScanLine(0)[1] != 128 || lossy.constScanLine(0)[2] != 255);
+
+  CHECK(patchy::ui::grayscale_qimage_from_pixel_buffer(patchy::PixelBuffer{}).isNull());
+}
+
+// The WGSL Params uniform declares blendIf{Gray,Red,Green,Blue}This followed by
+// blendIf{Gray,Red,Green,Blue}Underlying. The C++ packing must match that
+// order; interleaving this/underlying per channel feeds the Red "this" range
+// where the shader expects the Gray "underlying" range.
+void ui_webgpu_blend_if_uniform_matches_shader_layout() {
+  std::array<patchy::ui::CanvasGpuBlendIfRanges, 4> ranges{};
+  for (std::size_t channel = 0; channel < ranges.size(); ++channel) {
+    const auto base = static_cast<std::uint8_t>(channel * 10U);
+    ranges[channel].this_layer = {static_cast<std::uint8_t>(base + 1U), static_cast<std::uint8_t>(base + 2U),
+                                  static_cast<std::uint8_t>(base + 3U), static_cast<std::uint8_t>(base + 4U)};
+    ranges[channel].underlying_layer = {static_cast<std::uint8_t>(base + 101U), static_cast<std::uint8_t>(base + 102U),
+                                        static_cast<std::uint8_t>(base + 103U), static_cast<std::uint8_t>(base + 104U)};
+  }
+
+  const auto packed = patchy::ui::pack_webgpu_blend_if_uniform(ranges);
+  for (std::size_t channel = 0; channel < ranges.size(); ++channel) {
+    const auto base = static_cast<float>(channel * 10U);
+    const auto& this_slot = packed[channel];
+    const auto& underlying_slot = packed[4U + channel];
+    CHECK(this_slot[0] == base + 1.0F && this_slot[1] == base + 2.0F && this_slot[2] == base + 3.0F &&
+          this_slot[3] == base + 4.0F);
+    CHECK(underlying_slot[0] == base + 101.0F && underlying_slot[1] == base + 102.0F &&
+          underlying_slot[2] == base + 103.0F && underlying_slot[3] == base + 104.0F);
+  }
+
+  // Identity ranges pack to the shader's "no threshold" quadruple.
+  const auto identity = patchy::ui::pack_webgpu_blend_if_uniform({});
+  for (const auto& slot : identity) {
+    CHECK(slot[0] == 0.0F && slot[1] == 0.0F && slot[2] == 255.0F && slot[3] == 255.0F);
+  }
 }
 
 void ui_canvas_renderer_honors_cpu_override() {
@@ -3999,6 +4081,9 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
        ui_canvas_renderer_defaults_to_cpu_without_an_explicit_request},
       {"ui_webgpu_compositor_is_only_probed_on_explicit_request",
        ui_webgpu_compositor_is_only_probed_on_explicit_request},
+      {"ui_gpu_mask_snapshot_preserves_mask_values_as_grayscale",
+       ui_gpu_mask_snapshot_preserves_mask_values_as_grayscale},
+      {"ui_webgpu_blend_if_uniform_matches_shader_layout", ui_webgpu_blend_if_uniform_matches_shader_layout},
       {"ui_canvas_renderer_honors_cpu_override", ui_canvas_renderer_honors_cpu_override},
       {"ui_canvas_wheel_matches_photoshop_navigation", ui_canvas_wheel_matches_photoshop_navigation},
       {"ui_canvas_wheel_zoom_mode_zooms_at_cursor", ui_canvas_wheel_zoom_mode_zooms_at_cursor},

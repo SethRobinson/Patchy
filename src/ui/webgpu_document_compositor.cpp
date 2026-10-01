@@ -581,12 +581,6 @@ public:
     std::vector<LayerResources> layers;
     layers.reserve(document.layers.size());
     std::unordered_set<std::uint64_t> active_layer_ids;
-    const auto copy_thresholds = [](const CanvasGpuBlendIfThresholds& thresholds) {
-      return std::array<float, 4>{static_cast<float>(thresholds.black_low),
-                                  static_cast<float>(thresholds.black_high),
-                                  static_cast<float>(thresholds.white_low),
-                                  static_cast<float>(thresholds.white_high)};
-    };
 
     for (const auto& layer : document.layers) {
       if (layer.image.isNull() || layer.rect.isEmpty() || layer.opacity <= 0.0) {
@@ -658,10 +652,7 @@ public:
       params.mask_density = static_cast<float>(std::clamp(layer.mask_density, 0.0, 1.0));
       params.has_mask = layer.has_mask ? 1U : 0U;
       params.has_blend_if = layer.has_blend_if ? 1U : 0U;
-      for (std::size_t index = 0; index < layer.blend_if.size(); ++index) {
-        params.blend_if[index * 2U] = copy_thresholds(layer.blend_if[index].this_layer);
-        params.blend_if[index * 2U + 1U] = copy_thresholds(layer.blend_if[index].underlying_layer);
-      }
+      params.blend_if = pack_webgpu_blend_if_uniform(layer.blend_if);
       layers.push_back(std::move(resources));
     }
 
@@ -1127,6 +1118,19 @@ private:
 
 }  // namespace
 #endif
+
+WebGpuBlendIfUniform pack_webgpu_blend_if_uniform(const std::array<CanvasGpuBlendIfRanges, 4>& ranges) {
+  const auto thresholds = [](const CanvasGpuBlendIfThresholds& value) {
+    return std::array<float, 4>{static_cast<float>(value.black_low), static_cast<float>(value.black_high),
+                                static_cast<float>(value.white_low), static_cast<float>(value.white_high)};
+  };
+  WebGpuBlendIfUniform packed{};
+  for (std::size_t channel = 0; channel < ranges.size(); ++channel) {
+    packed[channel] = thresholds(ranges[channel].this_layer);
+    packed[ranges.size() + channel] = thresholds(ranges[channel].underlying_layer);
+  }
+  return packed;
+}
 
 std::unique_ptr<WebGpuDocumentCompositor> WebGpuDocumentCompositor::create(QString* failure_reason) {
 #ifndef PATCHY_WEBGPU_AVAILABLE
