@@ -138,8 +138,16 @@ adds one more gate before the existing `WebGpuDocumentCompositor` publishes a
 frame. It validates a full or dirty render graph and executes its mip-0 tiles
 with independent compute passes and regional readbacks. When a valid previous
 frame exists, clean tiles are reused and only tiles intersecting the document
-dirty region are rebuilt. This is real WebGPU tile execution, but it is not
-zero-copy presentation: the assembled `QImage` still crosses into the existing
+dirty region are rebuilt. That dirty region is document-space damage recorded
+by the `document_changed` family (`GpuFrameInvalidation`), not the widget
+region a paint event exposed: an edit outside the viewport dirties exactly its
+tiles, a change without a known extent forces a full composition, and panning
+or scrolling records nothing, so the cached frame is reused. The snapshot that
+feeds both tiers reuses layer and mask images through `GpuLayerImageCache`
+(keyed by layer id and pixel/mask revision), the ordinary texture path keys its
+scene-graph nodes by layer id, and the Qt shader tier refreshes its existing
+passes in place instead of recreating them on every update. This is real
+WebGPU tile execution, but it is not zero-copy presentation: the assembled `QImage` still crosses into the existing
 Qt Quick surface. If initialization, graph validation, composition, any tile
 readback, or recovery fails, the document remains on the Qt RHI/CPU path.
 
