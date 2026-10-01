@@ -31,7 +31,7 @@ Undo/redo diffs the two history states per layer (globally-unique revisions + vi
 
 ## Reads must not bump layer revisions
 
-Layer's mutable accessors bump render/content revisions on ACCESS, so read-only code must go through const layers (`std::as_const`), or it silently invalidates every revision-keyed cache. Document::find_layer once bumped every visited layer per lookup (thousands per frame); its walk is now const + const_cast. Hunt regressions with `PATCHY_REV_TRACE=1` (stderr REVBUMP lines per accessor+layer).
+Layer's mutable accessors bump render/content revisions on ACCESS, so read-only code must go through const layers (`std::as_const`), or it silently invalidates every revision-keyed cache. Document::find_layer once bumped every visited layer per lookup (thousands per frame); its walk is now const + const_cast.
 
 ## Nothing O(layer pixels) may run per repaint
 
