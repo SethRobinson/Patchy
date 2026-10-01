@@ -56,7 +56,6 @@
 #include <QTransform>
 #include <QWheelEvent>
 #include <QRandomGenerator>
-#include <QTimer>
 #include <QtGlobal>
 
 #include <algorithm>
@@ -440,29 +439,12 @@ void CanvasWidget::wheelEvent(QWheelEvent* event) {
 }
 
 void CanvasWidget::resizeEvent(QResizeEvent* event) {
-  const auto old_size = event->oldSize();
-  const auto old_pan = pan_;
-  // The canvas is resized several times while MainWindow is being assembled.  Those
-  // pre-show layout passes must retain the historical initial pan (40, 40); only a
-  // resize after the initial show is a user-visible viewport change whose document
-  // center should be preserved.
-  const bool preserve_document_center = has_completed_initial_show_ && old_size.width() > 0 && old_size.height() > 0 && document_ != nullptr &&
-                                        document_->width() > 0 && document_->height() > 0 && zoom_ > 0.0;
-  const QPointF old_document_center = preserve_document_center
-                                          ? QPointF((static_cast<double>(old_size.width()) / 2.0 - pan_.x()) / zoom_,
-                                                     (static_cast<double>(old_size.height()) / 2.0 - pan_.y()) / zoom_)
-                                          : QPointF();
   QWidget::resizeEvent(event);
 #ifdef PATCHY_GPU_CANVAS
+  // Keep the Qt Quick surface and its mask rect in step with the widget.
   resize_graphics_canvas_surface();
 #endif
-  if (preserve_document_center) {
-    pan_ = QPointF(static_cast<double>(width()) / 2.0 - old_document_center.x() * zoom_,
-                   static_cast<double>(height()) / 2.0 - old_document_center.y() * zoom_);
-  }
-  const bool pan_changed = pan_ != old_pan;
-  const bool pan_constrained = constrain_pan();
-  if (isVisible() && (pan_changed || pan_constrained)) {
+  if (isVisible() && constrain_pan()) {
     update();
     notify_view_changed();
   }
@@ -473,11 +455,6 @@ void CanvasWidget::resizeEvent(QResizeEvent* event) {
 
 void CanvasWidget::showEvent(QShowEvent* event) {
   QWidget::showEvent(event);
-  // MainWindow and QStackedWidget can post one more resize after showEvent. Marking
-  // the canvas as fully initialized synchronously would treat that layout pass as a
-  // user resize and move the historical test/document origin. Queue the marker so
-  // all resize events already waiting in the event loop retain the initial pan.
-  QTimer::singleShot(0, this, [this] { has_completed_initial_show_ = true; });
 #ifdef PATCHY_GPU_CANVAS
   show_graphics_canvas();
 #endif

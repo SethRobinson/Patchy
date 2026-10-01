@@ -183,3 +183,42 @@ speedup: the executable still performs regional readback and returns a
 CPU-readable `QImage` to Qt Quick. Zero-copy presentation, complete filter
 shaders, HDR/16-bit paths, and platform-specific device-loss recovery remain
 separate work.
+
+### Representative end-to-end benchmark (opt-in)
+
+The 513×257 two-layer scenarios above isolate Dawn and exclude what the canvas
+pays before and after composition. `PATCHY_WEBGPU_REPRESENTATIVE_BENCHMARK=1`
+adds `webgpu_representative_documents_benchmark`, which measures the whole
+canvas-side cost on realistic documents: 4096×2304 with two layers, 2048×1536
+with 24 layers (plain, then with gray masks and mixed separable blend modes),
+and 1024×1024 with 64 layers. Each scenario keeps one `CanvasWidget` alive and
+times `gpu_document_snapshot()` (layer and mask conversion through the image
+cache), the Dawn composition including readback, and the CPU reference
+`flatten_rgb8()`, reporting the cold first pass plus warm medians over four
+iterations, readback bytes, warm source uploads, wait-budget timeouts, process
+RSS before and after (`current_process_memory_mb()`), and whether the warm Dawn
+median exceeds the interactive 250 ms frame budget. The benchmark itself runs
+under a 20 s budget so it measures real durations; a scenario flagged
+`exceeds_default_frame_budget=1` is one the live canvas would hand back to the
+CPU compositor, which is exactly the information the maintenance decision needs. The record is
+`[METRIC] scenario=representative_<name> ...`, including peak RSS and the
+CPU/GPU comparison (`cpu_gpu_max_delta`, `cpu_gpu_differing_pixels`). The
+timings are printed rather than asserted. Frames are still compared with the
+CPU reference, but with a deep-stack allowance that documents a real
+limitation: the Dawn path stores the running backdrop, including accumulated
+alpha, in `RGBA8Unorm` scratch textures between layer passes, whereas the CPU
+compositor keeps a float alpha plane. Every masked translucent layer therefore
+re-quantises alpha on the GPU. Measured on Intel Iris Xe/Vulkan: the plain
+two- and 24-layer scenarios are byte-identical; 24 masked, translucent,
+mixed-mode layers differ by at most two levels on 79 of 3.1 M pixels; 64 such
+layers differ by at most three levels on 748 of 1 M pixels (mean 0.0003). The
+strict one-level policy remains in the equivalence tests; the benchmark fails
+only above four levels, 0.1% of pixels or a mean of 0.1, and records the actual
+deviation. Removing the drift requires 16-bit float intermediates (or a
+separate float alpha texture) and a final conversion pass; until then, documents
+with many masked translucent layers are a known shallow-deviation case and the
+CPU remains the output authority.
+Interpret them with the same caveats: presentation through the Qt Quick
+surface is not included, documents that the capability matrix rejects never
+reach this path, and a single machine (so far an Intel Iris Xe through Vulkan)
+is not a cross-vendor result.

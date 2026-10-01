@@ -10268,17 +10268,6 @@ void MainWindow::edit_text_layer(LayerId id) {
   if (canvas_ == nullptr || !has_active_document() || preview_dialog_edit_locked()) {
     return;
   }
-  const auto saved_zoom = canvas_->zoom();
-  const auto saved_pan = canvas_->view_pan();
-  const auto restore_view = [canvas = canvas_, saved_zoom, saved_pan] {
-    if (canvas == nullptr) {
-      return;
-    }
-    if (std::abs(canvas->zoom() - saved_zoom) >= 0.0001) {
-      canvas->set_zoom(saved_zoom);
-    }
-    canvas->set_view_pan(saved_pan);
-  };
   finish_active_text_editor();
   const auto* layer = std::as_const(document()).find_layer(id);
   if (layer == nullptr || !layer_is_text(*layer)) {
@@ -10288,10 +10277,6 @@ void MainWindow::edit_text_layer(LayerId id) {
   document().set_active_layer(id);
   reveal_layer_in_layer_list(id);
   add_text_at(QPoint(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2));
-  restore_view();
-  // Switching to the Type tool can post one more layout resize after the editor
-  // is created. Restore once after that queued layout as well.
-  QTimer::singleShot(0, canvas_, restore_view);
   if (auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
       editor != nullptr && editor->property("patchy.editingLayerId").toULongLong() == id) {
     editor->selectAll();
