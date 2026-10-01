@@ -306,9 +306,9 @@ void paint_brush_center_cross(QPainter& painter, QPoint center);
 QSize canvas_hud_pill_size(const QFontMetrics& metrics, const QString& text);
 void paint_canvas_hud_pill(QPainter& painter, const QRect& pill, const QString& text);
 
-// PATCHY_ZOOM_TRACE=1 prints paint/zoom phase timings over 2 ms to stderr (the
-// PATCHY_REV_TRACE pattern): run the real app with it set to attribute slow
-// zoom/pan/paint steps to a phase instead of guessing.
+// PATCHY_ZOOM_TRACE=1 prints paint/zoom phase timings over 2 ms to stderr;
+// run the real app with it set to attribute slow zoom/pan/paint steps to a
+// phase instead of guessing.
 bool zoom_trace_enabled();
 
 class ZoomTraceScope {
