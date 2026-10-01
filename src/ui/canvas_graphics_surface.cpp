@@ -122,8 +122,10 @@ GraphicsPreference graphics_preference() {
   if (!requested.has_value()) {
     requested = patchy::environment_variable("PATCHY_GPU_CANVAS");
   }
+  // The GPU presentation path is experimental and strictly opt-in: with no
+  // request, a GPU-enabled build behaves exactly like the CPU-only build.
   if (!requested.has_value() || requested->empty()) {
-    return GraphicsPreference::Auto;
+    return GraphicsPreference::Cpu;
   }
 
   const auto value = normalized_preference(*requested);
@@ -151,8 +153,8 @@ GraphicsPreference graphics_preference() {
     return GraphicsPreference::Direct3D12;
   }
 
-  qInfo().noquote() << "Unknown PATCHY_RENDER_BACKEND value:" << value << "; using auto";
-  return GraphicsPreference::Auto;
+  qInfo().noquote() << "Unknown PATCHY_RENDER_BACKEND value:" << value << "; using the CPU canvas";
+  return GraphicsPreference::Cpu;
 }
 
 QSGRendererInterface::GraphicsApi qt_api_for_preference(GraphicsPreference preference) {
