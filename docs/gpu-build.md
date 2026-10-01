@@ -367,8 +367,9 @@ The executable also contains a deterministic recovery check named
 before queue submission and another one-shot failure before regional readback.
 After each failure, the backend must leave the destination image unchanged,
 discard resources owned by the lost Dawn device, recreate the compositor, and
-produce a frame equivalent to the CPU compositor. Run the check as part of the
-same manual executable; it is intentionally not a CTest requirement. For a
+produce a frame equivalent to the CPU compositor. The check is part of the
+same executable; it joins CTest only when `PATCHY_BUILD_WEBGPU_VALIDATION_TESTS`
+is ON and skips (exit code 77) without Dawn or an adapter. For a
 focused diagnostic, set `PATCHY_WEBGPU_INJECT_DEVICE_LOSS=before-submit` or
 `before-readback`. The variable is consumed once per stage, and the normal
 application does not enable it.

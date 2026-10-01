@@ -58,7 +58,7 @@ Patchy WebGPU document compositor active on <adapter> via <API>; render-graph pa
 
 For pixel-level native validation, configure the optional
 `patchy_webgpu_equivalence_tests` target with
-`-DPATCHY_BUILD_WEBGPU_VALIDATION_TESTS=ON`. Its `[PASS]` lines mean that the
+`-DPATCHY_BUILD_WEBGPU_VALIDATION_TESTS=ON` (it is then a CTest entry that skips with exit code 77 when no adapter is available). Its `[PASS]` lines mean that the
 selected Dawn adapter matched the CPU compositor within the declared preview
 tolerance and that the dirty-region metrics matched the tile plan. Its `[SKIP]`
 line means that Dawn or a hardware adapter was unavailable; that is expected and
