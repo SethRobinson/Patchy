@@ -1151,12 +1151,14 @@ bool WebGpuDocumentCompositor::should_try_automatically() {
   if (!requested.has_value()) {
     requested = patchy::environment_variable("PATCHY_GPU_CANVAS");
   }
+  // Dawn is never probed unless the process explicitly asked for a GPU
+  // document compositor. A plain Qt RHI backend request ("auto", "vulkan",
+  // ...) presents through Qt only and leaves document composition on the CPU.
   if (!requested.has_value()) {
-    return true;
+    return false;
   }
   const auto value = QString::fromStdString(*requested).trimmed().toLower();
-  return value.isEmpty() || value == QStringLiteral("auto") || value == QStringLiteral("gpu") ||
-         value == QStringLiteral("webgpu");
+  return value == QStringLiteral("gpu") || value == QStringLiteral("webgpu");
 }
 
 WebGpuDocumentCompositor::WebGpuDocumentCompositor(void* implementation) : implementation_(implementation) {}
