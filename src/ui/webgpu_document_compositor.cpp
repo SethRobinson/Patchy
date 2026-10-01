@@ -68,66 +68,104 @@ struct Params {
 @group(0) @binding(3) var maskTexture: texture_2d<f32>;
 @group(0) @binding(4) var outputTexture: texture_storage_2d<rgba8unorm, write>;
 
-fn colorDodge(source: f32, backdrop: f32) -> f32 {
-  if (backdrop <= 0.0) { return 0.0; }
-  if (source >= 1.0) { return 1.0; }
-  return min(1.0, backdrop / max(0.000001, 1.0 - source));
-}
-
-fn colorBurn(source: f32, backdrop: f32) -> f32 {
-  if (backdrop >= 1.0) { return 1.0; }
-  if (source <= 0.0) { return 0.0; }
-  return 1.0 - min(1.0, (1.0 - backdrop) / max(0.000001, source));
-}
-
-fn softLight(source: f32, backdrop: f32) -> f32 {
+// Byte-exact transcription of blend_channel() in src/core/blend_math.cpp.
+// The CPU compositor blends in integer bytes (Photoshop-calibrated rounding
+// rules per mode); a float re-derivation differs by one level on a large
+// share of inputs, so the GPU uses the same integer kernel.
+fn nearestHalfUp(a: i32, b: i32) -> i32 { return (2 * a + b) / (2 * b); }
+fn nearestHalfDown(a: i32, b: i32) -> i32 { return (2 * a + b - 1) / (2 * b); }
+fn softLightByte(s: i32, d: i32) -> i32 {
+  let source = f32(s) / 255.0;
+  let base = f32(d) / 255.0;
+  var blended = base;
   if (source <= 0.5) {
-    return backdrop - (1.0 - 2.0 * source) * backdrop * (1.0 - backdrop);
+    blended = base - (1.0 - 2.0 * source) * base * (1.0 - base);
+  } else {
+    var dd = sqrt(base);
+    if (base <= 0.25) { dd = ((16.0 * base - 12.0) * base + 4.0) * base; }
+    blended = base + (2.0 * source - 1.0) * (dd - base);
   }
-  var base = sqrt(max(backdrop, 0.0));
-  if (backdrop <= 0.25) {
-    base = ((16.0 * backdrop - 12.0) * backdrop + 4.0) * backdrop;
-  }
-  return backdrop + (2.0 * source - 1.0) * (base - backdrop);
+  return i32(clamp(floor(blended * 255.0 + 0.5), 0.0, 255.0));
 }
-
-fn blendChannel(source: f32, backdrop: f32, mode: u32) -> f32 {
-  if (mode == 1u) { return source; }
-  if (mode == 2u) {
-    let sourceByte = u32(clamp(floor(source * 255.0 + 0.5), 0.0, 255.0));
-    let backdropByte = u32(clamp(floor(backdrop * 255.0 + 0.5), 0.0, 255.0));
-    return f32((sourceByte * backdropByte) / 255u) / 255.0;
+fn vividLightByte(s: i32, d: i32) -> i32 {
+  if (s == 0) { return 0; }
+  if (s == 255) { return 255; }
+  if (s < 128) {
+    let doubled = nearestHalfUp(s * 255, 128);
+    let numerator = d + doubled - 255;
+    if (numerator <= 0) { return 0; }
+    return min(255, nearestHalfDown(numerator * 255, doubled));
   }
-  if (mode == 3u) { return source + backdrop - source * backdrop; }
-  if (mode == 4u) { return select(2.0 * source * backdrop, 1.0 - 2.0 * (1.0 - source) * (1.0 - backdrop), backdrop >= 0.5); }
-  if (mode == 5u) { return min(source, backdrop); }
-  if (mode == 6u) { return max(source, backdrop); }
-  if (mode == 7u) { return colorDodge(source, backdrop); }
-  if (mode == 8u) { return colorBurn(source, backdrop); }
-  if (mode == 9u) { return select(2.0 * source * backdrop, 1.0 - 2.0 * (1.0 - source) * (1.0 - backdrop), source >= 0.5); }
-  if (mode == 10u) { return softLight(source, backdrop); }
-  if (mode == 11u) { return abs(backdrop - source); }
-  if (mode == 12u) { return max(0.0, source + backdrop - 1.0); }
-  if (mode == 13u) { return select(min(backdrop, 2.0 * source), max(backdrop, 2.0 * (source - 0.5)), source >= 0.5); }
-  if (mode == 16u) { return source + backdrop - 2.0 * source * backdrop; }
-  if (mode == 19u) { return min(1.0, source + backdrop); }
-  if (mode == 20u) { return max(0.0, backdrop - source); }
-  if (mode == 21u) { return select(1.0, min(1.0, backdrop / source), source > 0.0); }
-  if (mode == 22u) { return select(colorBurn(2.0 * source, backdrop), colorDodge(2.0 * (source - 0.5), backdrop), source >= 0.5); }
-  if (mode == 23u) { return clamp(backdrop + 2.0 * source - 1.0, 0.0, 1.0); }
-  if (mode == 24u) {
-    let vivid = select(1.0 - min(1.0, (1.0 - backdrop) / max(0.000001, 2.0 * source)),
-                       min(1.0, backdrop / max(0.000001, 2.0 * (1.0 - source))),
-                       source >= 0.5);
-    return select(0.0, 1.0, vivid > 0.5);
-  }
-  return source;
+  let divisor = 255 - nearestHalfUp((s - 128) * 255, 127);
+  if (divisor <= 0) { return 255; }
+  return min(255, nearestHalfUp(d * 255, divisor));
 }
-
+fn hardMixByte(s: i32, d: i32) -> i32 {
+  var vivid = 0;
+  if (s < 128) {
+    let doubled = 2 * s;
+    if (doubled == 0) {
+      vivid = select(255, 0, d < 255);
+    } else {
+      vivid = max(0, 255 - min(255, ((255 - d) * 255) / doubled));
+    }
+  } else {
+    let doubled = 2 * (s - 128);
+    vivid = min(255, (d * 255) / (255 - doubled));
+  }
+  return select(0, 255, vivid > 127);
+}
+fn blendChannelByte(s: i32, d: i32, mode: u32) -> i32 {
+  if (mode == 2u) { return (s * d) / 255; }
+  if (mode == 3u) { return 255 - ((255 - s) * (255 - d)) / 255; }
+  if (mode == 4u) {
+    if (d < 128) { return (2 * s * d) / 255; }
+    return 255 - (2 * (255 - s) * (255 - d)) / 255;
+  }
+  if (mode == 5u) { return min(s, d); }
+  if (mode == 6u) { return max(s, d); }
+  if (mode == 7u) {
+    if (d == 0) { return 0; }
+    if (s == 255) { return 255; }
+    return min(255, nearestHalfUp(d * 255, 255 - s));
+  }
+  if (mode == 8u) {
+    if (d == 255) { return 255; }
+    if (s == 0) { return 0; }
+    return 255 - min(255, nearestHalfUp((255 - d) * 255, s));
+  }
+  if (mode == 9u) {
+    if (s < 128) { return (2 * s * d) / 255; }
+    return 255 - (2 * (255 - s) * (255 - d)) / 255;
+  }
+  if (mode == 10u) { return softLightByte(s, d); }
+  if (mode == 11u) { return abs(d - s); }
+  if (mode == 12u) { return clamp(s + d - 255, 0, 255); }
+  if (mode == 13u) {
+    if (s < 128) { return min(d, clamp(2 * s, 0, 255)); }
+    return max(d, clamp(2 * (s - 128), 0, 255));
+  }
+  if (mode == 16u) { return s + d - 2 * ((s * d + 127) / 255); }
+  if (mode == 19u) { return min(255, s + d); }
+  if (mode == 20u) { return max(0, d - s); }
+  if (mode == 21u) {
+    if (s == 0) { return 255; }
+    return min(255, (d * 255 + s / 2) / s);
+  }
+  if (mode == 22u) { return vividLightByte(s, d); }
+  if (mode == 23u) { return clamp(d + 2 * s - 256, 0, 255); }
+  if (mode == 24u) { return hardMixByte(s, d); }
+  return s;
+}
+fn colorByte(value: f32) -> u32 {
+  return u32(clamp(floor(value * 255.0 + 0.5), 0.0, 255.0));
+}
 fn blendColor(source: vec3<f32>, backdrop: vec3<f32>, mode: u32) -> vec3<f32> {
-  return vec3<f32>(blendChannel(source.r, backdrop.r, mode),
-                   blendChannel(source.g, backdrop.g, mode),
-                   blendChannel(source.b, backdrop.b, mode));
+  let s = vec3<i32>(i32(colorByte(source.r)), i32(colorByte(source.g)), i32(colorByte(source.b)));
+  let d = vec3<i32>(i32(colorByte(backdrop.r)), i32(colorByte(backdrop.g)), i32(colorByte(backdrop.b)));
+  return vec3<f32>(f32(blendChannelByte(s.x, d.x, mode)),
+                   f32(blendChannelByte(s.y, d.y, mode)),
+                   f32(blendChannelByte(s.z, d.z, mode))) / 255.0;
 }
 
 fn blendIfThresholdAlphaByte(thresholds: vec4<f32>, value: u32) -> u32 {
@@ -147,10 +185,6 @@ fn blendIfThresholdAlphaByte(thresholds: vec4<f32>, value: u32) -> u32 {
     return (numerator * 255u) / denominator;
   }
   return 255u;
-}
-
-fn colorByte(value: f32) -> u32 {
-  return u32(clamp(floor(value * 255.0 + 0.5), 0.0, 255.0));
 }
 
 fn blendIfColorFactor(color: vec3<f32>, source: bool) -> f32 {
@@ -198,7 +232,10 @@ fn main(@builtin(global_invocation_id) invocation: vec3<u32>) {
   let sourceSample = select(vec4<f32>(0.0), textureLoad(sourceTexture, safeSourceRelative, 0), sourceInside);
   let backdropSample = textureLoad(backdropTexture, localCoord, 0);
   let coverage = maskCoverage(coord);
-  var sourceAlpha = clamp(sourceSample.a * params.layerOpacity * coverage, 0.0, 1.0);
+  // Same expression order as Rgb8PixelBufferTarget::composite_blended_row:
+  // byte / 255, times mask coverage, times layer opacity (separate float
+  // multiplies), then clamp.
+  var sourceAlpha = clamp((f32(colorByte(sourceSample.a)) / 255.0 * coverage) * params.layerOpacity, 0.0, 1.0);
   let backdropAlpha = clamp(backdropSample.a, 0.0, 1.0);
   let sourceColor = sourceSample.rgb;
   let backdropColor = backdropSample.rgb;
@@ -207,14 +244,16 @@ fn main(@builtin(global_invocation_id) invocation: vec3<u32>) {
     let underlyingFactor = blendIfColorFactor(backdropColor, false);
     sourceAlpha = sourceAlpha * ((1.0 - backdropAlpha) + backdropAlpha * underlyingFactor);
   }
-  // blend_rgb on the CPU returns bytes; quantize the blended color the same
-  // way before mixing so both sides feed identical values into the mix.
-  let blended = round(blendColor(sourceColor, backdropColor, params.blendMode) * 255.0) / 255.0;
+  let blended = blendColor(sourceColor, backdropColor, params.blendMode);
   let outputAlpha = sourceAlpha + backdropAlpha * (1.0 - sourceAlpha);
-  let mixed = blended * sourceAlpha * backdropAlpha +
-              sourceColor * sourceAlpha * (1.0 - backdropAlpha) +
+  // composite_blended_rgb: (src*sa*(1-da) + blended*sa*da + dst*da*(1-sa)) / outputAlpha,
+  // rounded to the nearest byte. Rounding here instead of leaving it to the
+  // unorm store keeps the rule identical to clamp_byte on the CPU.
+  let mixed = sourceColor * sourceAlpha * (1.0 - backdropAlpha) +
+              blended * sourceAlpha * backdropAlpha +
               backdropColor * backdropAlpha * (1.0 - sourceAlpha);
-  let outputRgb = select(vec3<f32>(0.0), mixed / max(outputAlpha, 0.000001), outputAlpha > 0.000001);
+  let straight = select(vec3<f32>(0.0), mixed / outputAlpha, outputAlpha > 0.0);
+  let outputRgb = clamp(floor(straight * 255.0 + 0.5), vec3<f32>(0.0), vec3<f32>(255.0)) / 255.0;
   textureStore(outputTexture, localCoord, vec4<f32>(outputRgb, outputAlpha));
 }
 )WGSL";
