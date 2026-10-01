@@ -33,4 +33,12 @@ namespace patchy::ui {
 // thumbnails, the mask view): 8-bit samples as they are, 16 and 32-bit scaled and rounded.
 [[nodiscard]] std::uint8_t coverage8_at(const PixelBuffer& pixels, int x, int y);
 
+// Converts an 8-bit single-channel PixelBuffer (a layer mask) to a
+// Format_Grayscale8 QImage whose bytes equal the mask values. GPU paths upload
+// this image as an R8 texture and read the mask from the red channel; it must
+// never be built as Format_Alpha8, because Qt converts alpha-only images to
+// grayscale as opaque black and the GPU would then treat every mask as empty.
+// Empty or non-8-bit buffers produce a null QImage.
+[[nodiscard]] QImage grayscale_qimage_from_pixel_buffer(const PixelBuffer& pixels);
+
 }  // namespace patchy::ui

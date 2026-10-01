@@ -130,11 +130,7 @@ patchy::ui::CanvasGpuDocument gpu_document_from(const patchy::Document& document
       const auto& mask = *layer.mask();
       gpu_layer.has_mask = true;
       if (!mask.pixels.empty()) {
-        gpu_layer.mask_image = QImage(mask.pixels.width(), mask.pixels.height(), QImage::Format_Grayscale8);
-        for (int y = 0; y < mask.pixels.height(); ++y) {
-          std::memcpy(gpu_layer.mask_image.scanLine(y), mask.pixels.row(y).data(),
-                      static_cast<std::size_t>(mask.pixels.width()));
-        }
+        gpu_layer.mask_image = patchy::ui::grayscale_qimage_from_pixel_buffer(mask.pixels);
         gpu_layer.mask_document_rect = QRectF(mask.bounds.x, mask.bounds.y, mask.bounds.width, mask.bounds.height);
         gpu_layer.mask_rect = gpu_layer.mask_document_rect;
       }

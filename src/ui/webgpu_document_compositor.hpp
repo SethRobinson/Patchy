@@ -7,11 +7,20 @@
 #include <QImage>
 #include <QString>
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
 
 namespace patchy::ui {
+
+// Packs the four CanvasGpuBlendIfRanges (Gray, Red, Green, Blue) into the
+// eight vec4 slots of the WGSL Params uniform, which declares the four
+// "this layer" ranges first and the four "underlying" ranges after them:
+// slots 0..3 = this (Gray, Red, Green, Blue), slots 4..7 = underlying.
+// Each vec4 is {black_low, black_high, white_low, white_high}.
+using WebGpuBlendIfUniform = std::array<std::array<float, 4>, 8>;
+[[nodiscard]] WebGpuBlendIfUniform pack_webgpu_blend_if_uniform(const std::array<CanvasGpuBlendIfRanges, 4>& ranges);
 
 struct WebGpuCompositionMetrics {
   std::size_t source_upload_bytes{0};
