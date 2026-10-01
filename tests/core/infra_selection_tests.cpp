@@ -59,6 +59,7 @@
 #include "render/gpu_render_backend.hpp"
 #include "render/gpu_render_graph.hpp"
 #include "render/gpu_tile_scheduler.hpp"
+#include "render/gpu_wait_budget.hpp"
 #include "render/layer_compositor.hpp"
 #include "render/pixel_comparison.hpp"
 #include "render/tile_cache.hpp"
@@ -391,6 +392,33 @@ void color_manager_assigns_profiles() {
   patchy::ColorManager manager;
   manager.assign_icc_profile(document, {1, 2, 3});
   CHECK(document.color_state().embedded_icc_profile.size() == 3);
+}
+
+void gpu_wait_budget_parses_overrides_and_keeps_defaults_on_bad_input() {
+  using namespace std::chrono_literals;
+  const auto fallback = 250ms;
+  CHECK(patchy::gpu_wait_budget_from_text(std::nullopt, fallback) == fallback);
+  CHECK(patchy::gpu_wait_budget_from_text(std::string(""), fallback) == fallback);
+  CHECK(patchy::gpu_wait_budget_from_text(std::string("  "), fallback) == fallback);
+  CHECK(patchy::gpu_wait_budget_from_text(std::string("abc"), fallback) == fallback);
+  CHECK(patchy::gpu_wait_budget_from_text(std::string("12ms"), fallback) == fallback);
+  CHECK(patchy::gpu_wait_budget_from_text(std::string("-5"), fallback) == fallback);
+  CHECK(patchy::gpu_wait_budget_from_text(std::string("0"), fallback) == 0ms);
+  CHECK(patchy::gpu_wait_budget_from_text(std::string(" 40 "), fallback) == 40ms);
+  CHECK(patchy::gpu_wait_budget_from_text(std::string("999999"), fallback) ==
+        std::chrono::milliseconds(patchy::kGpuWaitBudgetMaxMs));
+  const patchy::GpuWaitBudget defaults;
+  CHECK(defaults.frame < defaults.startup);
+  CHECK(defaults.frame <= 500ms);
+}
+
+void gpu_wait_deadline_expires_only_after_its_budget() {
+  using namespace std::chrono_literals;
+  const patchy::GpuWaitDeadline immediate(0ms);
+  CHECK(immediate.expired());
+  CHECK(immediate.budget() == 0ms);
+  const patchy::GpuWaitDeadline generous(60s);
+  CHECK(!generous.expired());
 }
 
 void gpu_document_capability_accepts_simple_pixel_stack() {
@@ -1659,6 +1687,9 @@ std::vector<patchy::test::TestCase> infra_selection_tests() {
       {"gpu_tile_renderer_rejects_unsupported_document_without_mixing_paths",
        gpu_tile_renderer_rejects_unsupported_document_without_mixing_paths},
       {"color_manager_assigns_profiles", color_manager_assigns_profiles},
+      {"gpu_wait_budget_parses_overrides_and_keeps_defaults_on_bad_input",
+       gpu_wait_budget_parses_overrides_and_keeps_defaults_on_bad_input},
+      {"gpu_wait_deadline_expires_only_after_its_budget", gpu_wait_deadline_expires_only_after_its_budget},
       {"gpu_document_capability_accepts_simple_pixel_stack",
        gpu_document_capability_accepts_simple_pixel_stack},
       {"gpu_document_capability_accepts_separable_blend_in_shader_tier",
