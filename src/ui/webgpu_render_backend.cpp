@@ -57,6 +57,11 @@ bool WebGpuRenderBackend::recover() {
     return false;
   }
 
+  if (consecutive_wait_timeouts_ >= kMaxConsecutiveWaitTimeouts) {
+    return fail(patchy::GpuBackendState::Failed,
+                QStringLiteral("Dawn/WebGPU backend disabled after %1 consecutive wait-budget timeouts")
+                    .arg(consecutive_wait_timeouts_));
+  }
   compositor_.reset();
   state_ = patchy::GpuBackendState::Uninitialized;
   last_error_.clear();
@@ -129,6 +134,7 @@ bool WebGpuRenderBackend::compose(const CanvasGpuDocument& document, QImage& out
   QImage composed;
   QString reason;
   if (!compositor_->compose_tiles(document, plan, nullptr, composed, &reason)) {
+    note_composition_failure();
     return fail(patchy::GpuBackendState::Lost,
                 reason.isEmpty() ? QStringLiteral("Dawn failed the WebGPU document composition") : reason,
                 failure_reason);
@@ -136,6 +142,7 @@ bool WebGpuRenderBackend::compose(const CanvasGpuDocument& document, QImage& out
 
   output = std::move(composed);
   last_composition_metrics_ = compositor_->last_metrics();
+  consecutive_wait_timeouts_ = 0;
   last_error_.clear();
   return true;
 }
@@ -206,12 +213,14 @@ bool WebGpuRenderBackend::compose_incremental(const CanvasGpuDocument& document,
   QImage composed;
   QString reason;
   if (!compositor_->compose_tiles(document, plan, previous_valid ? &previous_frame : nullptr, composed, &reason)) {
+    note_composition_failure();
     return fail(patchy::GpuBackendState::Lost,
                 reason.isEmpty() ? QStringLiteral("Dawn failed the dirty WebGPU tile composition") : reason,
                 failure_reason);
   }
   output = std::move(composed);
   last_composition_metrics_ = compositor_->last_metrics();
+  consecutive_wait_timeouts_ = 0;
   last_error_.clear();
   return true;
 }
@@ -243,6 +252,17 @@ WebGpuCompositionMetrics WebGpuRenderBackend::last_composition_metrics() const n
 DawnVulkanInteropObservation WebGpuRenderBackend::vulkan_interop_observation() const noexcept {
   return compositor_ != nullptr ? compositor_->vulkan_interop_observation()
                                 : DawnVulkanInteropObservation{};
+}
+
+void WebGpuRenderBackend::note_composition_failure() {
+  // Keep the partial metrics of the failed attempt visible to callers and
+  // track budget timeouts separately from device errors.
+  last_composition_metrics_ = compositor_ != nullptr ? compositor_->last_metrics() : WebGpuCompositionMetrics{};
+  if (last_composition_metrics_.wait_timeouts > 0) {
+    ++consecutive_wait_timeouts_;
+  } else {
+    consecutive_wait_timeouts_ = 0;
+  }
 }
 
 bool WebGpuRenderBackend::fail(patchy::GpuBackendState state, QString reason, QString* failure_reason) {

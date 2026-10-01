@@ -1,6 +1,7 @@
 #include "ui/webgpu_document_compositor.hpp"
 
 #include "core/environment.hpp"
+#include "render/gpu_wait_budget.hpp"
 
 #include <QByteArray>
 #include <QDebug>
@@ -335,9 +336,25 @@ std::uintptr_t native_handle_key(Handle handle) noexcept {
 }
 #endif
 
+// Dawn invokes WaitAnyOnly callbacks from a later wgpuInstanceWaitAny or
+// ProcessEvents call, which may happen after a budget timeout made the waiter
+// return. The callback therefore must not point at the waiter's stack: each
+// request is a shared_ptr, the callback receives its own heap-held copy
+// (`callback_token`) and releases that copy after writing the result.
+template <typename Request>
+void* callback_token(const std::shared_ptr<Request>& request) {
+  return new std::shared_ptr<Request>(request);
+}
+template <typename Request>
+std::shared_ptr<Request> take_callback_token(void* userdata) {
+  auto* token = static_cast<std::shared_ptr<Request>*>(userdata);
+  auto request = *token;
+  delete token;
+  return request;
+}
 void on_adapter_request(WGPURequestAdapterStatus status, WGPUAdapter adapter, WGPUStringView message,
                         void* userdata1, void*) {
-  auto* result = static_cast<AdapterRequest*>(userdata1);
+  auto result = take_callback_token<AdapterRequest>(userdata1);
   result->status = status;
   result->adapter = adapter;
   result->message = string_view_to_qstring(message);
@@ -351,7 +368,7 @@ struct DeviceRequest {
 
 void on_device_request(WGPURequestDeviceStatus status, WGPUDevice device, WGPUStringView message,
                        void* userdata1, void*) {
-  auto* result = static_cast<DeviceRequest*>(userdata1);
+  auto result = take_callback_token<DeviceRequest>(userdata1);
   result->status = status;
   result->device = device;
   result->message = string_view_to_qstring(message);
@@ -363,7 +380,7 @@ struct MapRequest {
 };
 
 void on_map_request(WGPUMapAsyncStatus status, WGPUStringView message, void* userdata1, void*) {
-  auto* result = static_cast<MapRequest*>(userdata1);
+  auto result = take_callback_token<MapRequest>(userdata1);
   result->status = status;
   result->message = string_view_to_qstring(message);
 }
@@ -374,7 +391,7 @@ struct QueueRequest {
 };
 
 void on_queue_done(WGPUQueueWorkDoneStatus status, WGPUStringView message, void* userdata1, void*) {
-  auto* result = static_cast<QueueRequest*>(userdata1);
+  auto result = take_callback_token<QueueRequest>(userdata1);
   result->status = status;
   result->message = string_view_to_qstring(message);
 }
@@ -383,24 +400,42 @@ void on_uncaptured_error(WGPUDevice const*, WGPUErrorType type, WGPUStringView m
   qWarning().noquote() << "Patchy WebGPU error" << static_cast<int>(type) << string_view_to_qstring(message);
 }
 
-bool wait_for_future(WGPUInstance instance, WGPUFuture future, QString* reason) {
+// Polls the future until it completes or `deadline` expires. The canvas calls
+// the compositor synchronously, so the deadline (GpuWaitBudget: 250 ms per
+// frame, 2 s for startup by default) is what keeps a stalled driver from
+// freezing the UI; the caller treats the timeout as a lost device and falls
+// back to the CPU compositor. `timed_out` is set only on the deadline path so
+// the caller can count it separately from ordinary failures.
+bool wait_for_future(WGPUInstance instance, WGPUFuture future, const patchy::GpuWaitDeadline& deadline,
+                     QString* reason, bool* timed_out = nullptr) {
   WGPUFutureWaitInfo wait = WGPU_FUTURE_WAIT_INFO_INIT;
   wait.future = future;
-  for (int attempt = 0; attempt < 60000; ++attempt) {
+  // The deadline is checked before each poll so a zero budget expires
+  // deterministically without depending on how fast the device finishes.
+  for (;;) {
+    if (deadline.expired()) {
+      if (timed_out != nullptr) {
+        *timed_out = true;
+      }
+      if (reason != nullptr) {
+        *reason = QStringLiteral("WebGPU asynchronous operation exceeded the %1 ms wait budget")
+                      .arg(deadline.budget().count());
+      }
+      return false;
+    }
     wait.completed = WGPU_FALSE;
     const auto status = wgpuInstanceWaitAny(instance, 1, &wait, 0);
     if (status == WGPUWaitStatus_Success && wait.completed) {
       return true;
     }
     if (status != WGPUWaitStatus_TimedOut && status != WGPUWaitStatus_Success) {
-      break;
+      if (reason != nullptr) {
+        *reason = QStringLiteral("WebGPU asynchronous operation failed while waiting");
+      }
+      return false;
     }
     QThread::msleep(1);
   }
-  if (reason != nullptr) {
-    *reason = QStringLiteral("WebGPU asynchronous operation did not complete");
-  }
-  return false;
 }
 
 enum class DeviceLossInjectionStage : std::uint8_t {
@@ -525,6 +560,7 @@ std::size_t padded_upload_bytes(QSize size, uint32_t channels) {
 class WebGpuImplementation final {
 public:
   bool initialize(QString* reason) {
+    const patchy::GpuWaitDeadline startup_deadline(patchy::gpu_wait_budget_from_environment().startup);
     WGPUInstanceDescriptor instance_descriptor = WGPU_INSTANCE_DESCRIPTOR_INIT;
     instance_.reset(wgpuCreateInstance(&instance_descriptor));
     if (!instance_) {
@@ -533,19 +569,21 @@ public:
 
     WGPURequestAdapterOptions adapter_options = WGPU_REQUEST_ADAPTER_OPTIONS_INIT;
     adapter_options.powerPreference = WGPUPowerPreference_HighPerformance;
-    AdapterRequest adapter_request;
+    auto adapter_request = std::make_shared<AdapterRequest>();
     WGPURequestAdapterCallbackInfo adapter_callback = WGPU_REQUEST_ADAPTER_CALLBACK_INFO_INIT;
     adapter_callback.mode = WGPUCallbackMode_WaitAnyOnly;
     adapter_callback.callback = on_adapter_request;
-    adapter_callback.userdata1 = &adapter_request;
-    if (!wait_for_future(instance_.get(), wgpuInstanceRequestAdapter(instance_.get(), &adapter_options, adapter_callback), reason)) {
+    adapter_callback.userdata1 = callback_token(adapter_request);
+    if (!wait_for_future(instance_.get(),
+                         wgpuInstanceRequestAdapter(instance_.get(), &adapter_options, adapter_callback),
+                         startup_deadline, reason)) {
       return false;
     }
-    if (adapter_request.status != WGPURequestAdapterStatus_Success || adapter_request.adapter == nullptr) {
-      return fail(reason, adapter_request.message.isEmpty() ? QStringLiteral("Dawn could not find a WebGPU adapter")
-                                                            : adapter_request.message);
+    if (adapter_request->status != WGPURequestAdapterStatus_Success || adapter_request->adapter == nullptr) {
+      return fail(reason, adapter_request->message.isEmpty() ? QStringLiteral("Dawn could not find a WebGPU adapter")
+                                                            : adapter_request->message);
     }
-    adapter_.reset(adapter_request.adapter);
+    adapter_.reset(adapter_request->adapter);
 
     WGPUAdapterInfo info = WGPU_ADAPTER_INFO_INIT;
     if (wgpuAdapterGetInfo(adapter_.get(), &info) == WGPUStatus_Success) {
@@ -568,19 +606,21 @@ public:
 
     WGPUDeviceDescriptor device_descriptor = WGPU_DEVICE_DESCRIPTOR_INIT;
     device_descriptor.uncapturedErrorCallbackInfo.callback = on_uncaptured_error;
-    DeviceRequest device_request;
+    auto device_request = std::make_shared<DeviceRequest>();
     WGPURequestDeviceCallbackInfo device_callback = WGPU_REQUEST_DEVICE_CALLBACK_INFO_INIT;
     device_callback.mode = WGPUCallbackMode_WaitAnyOnly;
     device_callback.callback = on_device_request;
-    device_callback.userdata1 = &device_request;
-    if (!wait_for_future(instance_.get(), wgpuAdapterRequestDevice(adapter_.get(), &device_descriptor, device_callback), reason)) {
+    device_callback.userdata1 = callback_token(device_request);
+    if (!wait_for_future(instance_.get(),
+                         wgpuAdapterRequestDevice(adapter_.get(), &device_descriptor, device_callback),
+                         startup_deadline, reason)) {
       return false;
     }
-    if (device_request.status != WGPURequestDeviceStatus_Success || device_request.device == nullptr) {
-      return fail(reason, device_request.message.isEmpty() ? QStringLiteral("Dawn could not create a WebGPU device")
-                                                           : device_request.message);
+    if (device_request->status != WGPURequestDeviceStatus_Success || device_request->device == nullptr) {
+      return fail(reason, device_request->message.isEmpty() ? QStringLiteral("Dawn could not create a WebGPU device")
+                                                           : device_request->message);
     }
-    device_.reset(device_request.device);
+    device_.reset(device_request->device);
     queue_.reset(wgpuDeviceGetQueue(device_.get()));
     if (!queue_) {
       return fail(reason, QStringLiteral("Dawn did not expose a WebGPU queue"));
@@ -607,6 +647,8 @@ public:
                                    const QImage* previous_frame, QImage& output, QString* reason) {
     last_metrics_ = {};
     const auto composition_start = std::chrono::steady_clock::now();
+    // One deadline for every queue and readback wait of this composition.
+    frame_deadline_ = patchy::GpuWaitDeadline(patchy::gpu_wait_budget_from_environment().frame);
     if (!device_ || !pipeline_ || !queue_) {
       return fail(reason, QStringLiteral("WebGPU compositor is not initialized"));
     }
@@ -877,20 +919,24 @@ public:
       }
 
       for (auto& pending : pending_tiles) {
-        MapRequest map_request;
+        auto map_request = std::make_shared<MapRequest>();
         WGPUBufferMapCallbackInfo map_callback = WGPU_BUFFER_MAP_CALLBACK_INFO_INIT;
         map_callback.mode = WGPUCallbackMode_WaitAnyOnly;
         map_callback.callback = on_map_request;
-        map_callback.userdata1 = &map_request;
+        map_callback.userdata1 = callback_token(map_request);
+        bool map_timed_out = false;
         if (!wait_for_future(instance_.get(),
                              wgpuBufferMapAsync(pending.readback.get(), WGPUMapMode_Read, 0, pending.readback_size,
                                                 map_callback),
-                             reason)) {
+                             frame_deadline_, reason, &map_timed_out)) {
+          if (map_timed_out) {
+            ++last_metrics_.wait_timeouts;
+          }
           return false;
         }
-        if (map_request.status != WGPUMapAsyncStatus_Success) {
-          return fail(reason, map_request.message.isEmpty() ? QStringLiteral("WebGPU tile readback mapping failed")
-                                                            : map_request.message);
+        if (map_request->status != WGPUMapAsyncStatus_Success) {
+          return fail(reason, map_request->message.isEmpty() ? QStringLiteral("WebGPU tile readback mapping failed")
+                                                            : map_request->message);
         }
         const auto* mapped = static_cast<const std::uint8_t*>(
             wgpuBufferGetConstMappedRange(pending.readback.get(), 0,
@@ -1132,17 +1178,22 @@ private:
 
   bool wait_for_queue(QString* reason) {
     ++last_metrics_.queue_waits;
-    QueueRequest request;
+    auto request = std::make_shared<QueueRequest>();
     WGPUQueueWorkDoneCallbackInfo callback = WGPU_QUEUE_WORK_DONE_CALLBACK_INFO_INIT;
     callback.mode = WGPUCallbackMode_WaitAnyOnly;
     callback.callback = on_queue_done;
-    callback.userdata1 = &request;
-    if (!wait_for_future(instance_.get(), wgpuQueueOnSubmittedWorkDone(queue_.get(), callback), reason)) {
+    callback.userdata1 = callback_token(request);
+    bool timed_out = false;
+    if (!wait_for_future(instance_.get(), wgpuQueueOnSubmittedWorkDone(queue_.get(), callback), frame_deadline_,
+                         reason, &timed_out)) {
+      if (timed_out) {
+        ++last_metrics_.wait_timeouts;
+      }
       return false;
     }
-    if (request.status != WGPUQueueWorkDoneStatus_Success) {
-      return fail(reason, request.message.isEmpty() ? QStringLiteral("WebGPU queue submission failed")
-                                                    : request.message);
+    if (request->status != WGPUQueueWorkDoneStatus_Success) {
+      return fail(reason, request->message.isEmpty() ? QStringLiteral("WebGPU queue submission failed")
+                                                     : request->message);
     }
     return true;
   }
@@ -1160,6 +1211,7 @@ private:
   std::uint32_t adapter_vendor_id_{0};
   std::uint32_t adapter_device_id_{0};
   WebGpuCompositionMetrics last_metrics_;
+  patchy::GpuWaitDeadline frame_deadline_{std::chrono::milliseconds{0}};
   std::unordered_map<std::uint64_t, CachedLayerResources> layer_resource_cache_;
   std::unordered_map<std::uint64_t, std::vector<TextureData>> scratch_texture_pool_;
   std::unordered_map<std::size_t, std::vector<BufferHandle>> readback_buffer_pool_;

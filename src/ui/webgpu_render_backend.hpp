@@ -55,8 +55,16 @@ public:
   [[nodiscard]] std::size_t last_readback_bytes() const noexcept;
   [[nodiscard]] WebGpuCompositionMetrics last_composition_metrics() const noexcept;
   [[nodiscard]] DawnVulkanInteropObservation vulkan_interop_observation() const noexcept;
+  // Compositions in a row that failed because a device wait exceeded its
+  // GpuWaitBudget. Reset by any successful composition. Once it reaches
+  // kMaxConsecutiveWaitTimeouts, recover() refuses to re-create the device and
+  // reports Failed, so the canvas drops the backend instead of paying the
+  // budget again on every repaint of a stalled driver.
+  [[nodiscard]] std::size_t consecutive_wait_timeouts() const noexcept { return consecutive_wait_timeouts_; }
+  static constexpr std::size_t kMaxConsecutiveWaitTimeouts = 2;
 
 private:
+  void note_composition_failure();
   bool fail(patchy::GpuBackendState state, QString reason, QString* failure_reason = nullptr);
 
   std::unique_ptr<WebGpuDocumentCompositor> compositor_;
@@ -67,6 +75,7 @@ private:
   std::size_t last_rendered_tile_count_{0};
   std::size_t last_readback_bytes_{0};
   WebGpuCompositionMetrics last_composition_metrics_{};
+  std::size_t consecutive_wait_timeouts_{0};
 };
 
 }  // namespace patchy::ui
