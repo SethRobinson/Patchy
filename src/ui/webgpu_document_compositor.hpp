@@ -35,6 +35,8 @@ struct WebGpuCompositionMetrics {
 class WebGpuDocumentCompositor final {
 public:
   static std::unique_ptr<WebGpuDocumentCompositor> create(QString* failure_reason = nullptr);
+  // True only when PATCHY_RENDER_BACKEND (or the PATCHY_GPU_CANVAS alias) is
+  // "webgpu" or "gpu". Absent or any other value keeps Dawn unprobed.
   static bool should_try_automatically();
 
   ~WebGpuDocumentCompositor();

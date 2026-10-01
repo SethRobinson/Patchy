@@ -30,7 +30,7 @@ At runtime, use a real desktop platform and a document with visible content:
 
 ```sh
 PATCHY_NO_SINGLE_INSTANCE=1 \
-PATCHY_RENDER_BACKEND=auto \
+PATCHY_RENDER_BACKEND=webgpu \
 QSG_INFO=1 \
 QT_LOGGING_RULES='qt.scenegraph.general=true;qt.rhi.general=true' \
 ./build/linux-release/patchy \
@@ -89,10 +89,10 @@ Remove the build directory before changing from a system Qt to a local Qt instal
 The application can still build with CPU rendering when Qt Widgets is available. CMake reports:
 
 ```text
-Qt QuickWidgets was not found; using the automatic CPU canvas backend
+Qt OpenGLWidgets, Quick, or QuickWidgets was not found; using the CPU canvas
 ```
 
-Install a Qt distribution containing Qt Quick and Qt Quick Widgets, then configure again. Do not add `PATCHY_GPU_CANVAS=1` manually to compiler flags. CMake owns the feature definition.
+Install a Qt distribution containing Qt OpenGL Widgets, Qt Quick, and Qt Quick Widgets, then configure again. Do not add `PATCHY_GPU_CANVAS=1` manually to compiler flags. CMake owns the feature definition.
 
 ### Qt ShaderTools is not found
 

@@ -62,6 +62,8 @@ if [[ "$WITH_DAWN" == "ON" ]]; then
   fi
 fi
 
+# Both options default to OFF in CMakeLists.txt. This helper exists to build
+# the opt-in GPU configuration, so it requests them explicitly here.
 CMAKE_ARGS=(
   -DPATCHY_ENABLE_GPU_CANVAS=ON
   -DPATCHY_ENABLE_WEBGPU="${ENABLE_WEBGPU}"

@@ -5,7 +5,7 @@ This guide describes how to configure, build, and verify Patchy's single desktop
 The implementation has four build-time layers:
 
 1. **Qt Widgets** is required for the native desktop application. If the base Qt component set is not found, CMake builds the core libraries and tests but skips the native application target.
-2. **Qt Quick and Qt Quick Widgets** enable the automatic Qt RHI canvas. If they are absent while Qt Widgets is available, the application keeps the ordinary QWidget/CPU canvas.
+2. **Qt OpenGL Widgets, Qt Quick, and Qt Quick Widgets** enable the opt-in Qt RHI canvas when `PATCHY_ENABLE_GPU_CANVAS=ON`. If any of them is absent while Qt Widgets is available, the application keeps the ordinary QWidget/CPU canvas and still builds.
 3. **Qt ShaderTools** enables the portable QSB shader tier. If it is absent, the texture-only GPU tier remains available and documents that need shader passes stay on the CPU compositor.
 4. **Dawn/WebGPU** is an external optional dependency. If it is absent, the same binary uses the Qt RHI and CPU paths. Dawn is never required for the application to configure or run.
 
@@ -283,7 +283,7 @@ For a real native-window smoke test, open a small image with a normal desktop Qt
 
 ```sh
 PATCHY_NO_SINGLE_INSTANCE=1 \
-PATCHY_RENDER_BACKEND=auto \
+PATCHY_RENDER_BACKEND=webgpu \
 QSG_INFO=1 \
 QT_LOGGING_RULES='qt.scenegraph.general=true;qt.rhi.general=true' \
 ./build/linux-release/patchy \
@@ -460,9 +460,9 @@ echo "Terminal remains open."
 
 The build options and runtime variables solve different problems:
 
-- `PATCHY_ENABLE_GPU_CANVAS=ON|OFF` controls whether the Qt Quick/RHI path is compiled.
-- `PATCHY_ENABLE_WEBGPU=ON|OFF` controls whether CMake searches for Dawn.
-- `PATCHY_RENDER_BACKEND=auto|webgpu|cpu|opengl|vulkan|metal|d3d11|d3d12` controls the preference of the running process.
+- `PATCHY_ENABLE_GPU_CANVAS=ON|OFF` controls whether the Qt Quick/RHI path is compiled (default `OFF`).
+- `PATCHY_ENABLE_WEBGPU=ON|OFF` controls whether CMake searches for Dawn (default `OFF`).
+- `PATCHY_RENDER_BACKEND=auto|webgpu|cpu|opengl|vulkan|metal|d3d11|d3d12` controls the preference of the running process; unset means `cpu`, and only `webgpu`/`gpu` probes Dawn.
 - `PATCHY_GPU_CANVAS=auto|cpu` is the older compatibility alias.
 - `QSG_RHI_BACKEND=opengl|vulkan|metal|d3d11|d3d12` is a Qt scene-graph diagnostic override. It does not enable a backend that was not compiled or supported by the Qt installation.
 - `QSG_INFO=1` and `QT_LOGGING_RULES='qt.scenegraph.general=true;qt.rhi.general=true'` expose Qt graphics diagnostics.
