@@ -10,7 +10,7 @@ This is intentionally all-or-nothing per document. Patchy never mixes an approxi
 
 ## Build
 
-Desktop builds enable the graphics path by default:
+Both GPU tiers are experimental and opt-in at build time and at run time. A default configure compiles the CPU-only canvas, and a build that enabled the GPU path still starts on the CPU canvas until the process requests a backend. Enable the path explicitly:
 
 ```sh
 cmake --preset qt-local -DPATCHY_ENABLE_GPU_CANVAS=ON
@@ -29,26 +29,26 @@ The helper accepts `--skip-tests`, reads `PATCHY_BUILD_JOBS`, and accepts
 the preset's default prefix. It always requests the GPU canvas, but it never
 turns an absent optional dependency into a configure error.
 
-The optional modules are `Qt Quick`, `Qt Quick Widgets`, and `Qt ShaderTools`. If Qt Quick is unavailable, CMake keeps the application target and compiles the CPU surface implementation from the same source tree. If ShaderTools is unavailable, Normal/source-over GPU presentation remains available, while shader-tier documents use the CPU compositor. `-DPATCHY_ENABLE_GPU_CANVAS=OFF` forces the CPU-only build. Dawn is also optional: `-DPATCHY_ENABLE_WEBGPU=ON` asks CMake to discover an installed Dawn package, but a missing package never fails the application build. WebAssembly keeps its existing browser rendering path and does not enable this desktop surface.
+The optional modules are `Qt OpenGL Widgets`, `Qt Quick`, `Qt Quick Widgets`, and `Qt ShaderTools`. The GPU canvas source includes Qt Quick directly, so CMake only defines `PATCHY_GPU_CANVAS` when OpenGL Widgets, Quick, and Quick Widgets are all present; if any of them is missing, the application target stays and compiles the CPU surface implementation from the same source tree. ShaderTools gates only the QSB shader tier: without it, Normal/source-over GPU presentation remains available while shader-tier documents use the CPU compositor. `PATCHY_ENABLE_GPU_CANVAS` defaults to `OFF`. Dawn is also optional and off by default: `-DPATCHY_ENABLE_WEBGPU=ON` asks CMake to discover an installed Dawn package, but a missing package never fails the application build. WebAssembly keeps its existing browser rendering path and does not enable this desktop surface.
 
 The output is one desktop binary. A machine without a usable graphics device does not need a second executable: the scene-graph failure or software-adapter check returns the process to the QWidget/CPU path, and a document outside the current GPU capability matrix also returns to the CPU compositor.
 
 ## Runtime graphics API selection
 
-`PATCHY_RENDER_BACKEND` controls the preference for the current process. The default is `auto`.
+`PATCHY_RENDER_BACKEND` controls the preference for the current process. When it is unset or empty, the process uses the CPU canvas: a GPU-enabled build behaves exactly like a CPU-only build until a backend is requested.
 
 | Value | Requested Qt Quick API | Behavior |
 |---|---|---|
-| `auto` | `Unknown` | Lets Qt choose the platform-native RHI backend, then accepts it only if it is hardware accelerated |
-| `webgpu` | Automatic Dawn probe plus Qt presentation | Tries the optional Dawn/WebGPU document compositor first; if Dawn, its adapter, or a document pass is unavailable, continues with the ordinary Qt RHI/CPU fallback |
-| `cpu` | No Qt Quick surface | Uses the ordinary QWidget canvas and CPU compositor |
+| unset / `cpu` | No Qt Quick surface | Uses the ordinary QWidget canvas and CPU compositor (the default) |
+| `auto` | `Unknown` | Lets Qt choose the platform-native RHI backend, then accepts it only if it is hardware accelerated; document composition stays on the CPU |
+| `webgpu` (or `gpu`) | Explicit Dawn probe plus Qt presentation | Tries the optional Dawn/WebGPU document compositor first; if Dawn, its adapter, or a document pass is unavailable, continues with the ordinary Qt RHI/CPU fallback |
 | `opengl` | OpenGL | Uses OpenGL when the context is available and the renderer is not a known software implementation |
 | `vulkan` | Vulkan | Uses Vulkan when the scene graph and physical device are available |
 | `metal` | Metal | Uses Metal on macOS when available |
 | `d3d11` | Direct3D 11 | Uses Direct3D 11 on Windows when available |
 | `d3d12` | Direct3D 12 | Uses Direct3D 12 on Qt versions that expose that scene-graph backend |
 
-The older `PATCHY_GPU_CANVAS=auto` and `PATCHY_GPU_CANVAS=cpu` spellings remain accepted as compatibility aliases. An unknown value is treated as `auto` and is reported in the diagnostic log. In `auto`, Dawn is attempted before the Qt document path only when it was found at configure time; no environment variable is required to activate it.
+The older `PATCHY_GPU_CANVAS=auto` and `PATCHY_GPU_CANVAS=cpu` spellings remain accepted as compatibility aliases. An unknown value is treated as `cpu` and is reported in the diagnostic log. Dawn is probed only for an explicit `webgpu` or `gpu` request and only when it was found at configure time; `auto` and the named Qt RHI backends present through Qt without touching Dawn.
 
 On supported desktop platforms, automatic selection follows Qt's native scene-graph policy. Linux normally chooses an available Vulkan or OpenGL path, Windows normally chooses Direct3D, and macOS normally chooses Metal. The exact choice remains a Qt and driver decision rather than a compile-time preprocessor branch.
 

@@ -9,6 +9,7 @@
 #include "core/smart_object.hpp"
 #include "core/text_warp.hpp"
 #include "ui/smart_object_render.hpp"
+#include "ui/webgpu_document_compositor.hpp"
 #include "core/layer_tree.hpp"
 #include "core/palette.hpp"
 #include "core/palette_presets.hpp"
@@ -882,6 +883,78 @@ void ui_canvas_renderer_selects_a_safe_runtime_backend() {
         after_show == patchy::ui::CanvasWidget::CanvasRenderBackend::Metal ||
         after_show == patchy::ui::CanvasWidget::CanvasRenderBackend::Direct3D11 ||
         after_show == patchy::ui::CanvasWidget::CanvasRenderBackend::Direct3D12);
+}
+
+// Saves PATCHY_RENDER_BACKEND and PATCHY_GPU_CANVAS for one test and restores
+// them on scope exit, so backend-selection tests never leak into each other.
+class ScopedRenderBackendEnvironment {
+public:
+  ScopedRenderBackendEnvironment()
+      : had_backend_(qEnvironmentVariableIsSet("PATCHY_RENDER_BACKEND")),
+        had_alias_(qEnvironmentVariableIsSet("PATCHY_GPU_CANVAS")),
+        backend_(qgetenv("PATCHY_RENDER_BACKEND")),
+        alias_(qgetenv("PATCHY_GPU_CANVAS")) {}
+  ~ScopedRenderBackendEnvironment() {
+    restore("PATCHY_RENDER_BACKEND", had_backend_, backend_);
+    restore("PATCHY_GPU_CANVAS", had_alias_, alias_);
+  }
+  ScopedRenderBackendEnvironment(const ScopedRenderBackendEnvironment&) = delete;
+  ScopedRenderBackendEnvironment& operator=(const ScopedRenderBackendEnvironment&) = delete;
+
+  static void clear() {
+    qunsetenv("PATCHY_RENDER_BACKEND");
+    qunsetenv("PATCHY_GPU_CANVAS");
+  }
+
+private:
+  static void restore(const char* name, bool had, const QByteArray& value) {
+    if (had) {
+      qputenv(name, value);
+    } else {
+      qunsetenv(name);
+    }
+  }
+  bool had_backend_;
+  bool had_alias_;
+  QByteArray backend_;
+  QByteArray alias_;
+};
+
+// The GPU tiers are opt-in: a process that never asked for a graphics backend
+// must get the QWidget/CPU canvas even in a build that compiled the GPU path.
+void ui_canvas_renderer_defaults_to_cpu_without_an_explicit_request() {
+  const ScopedRenderBackendEnvironment saved;
+  ScopedRenderBackendEnvironment::clear();
+
+  patchy::ui::CanvasWidget canvas;
+  CHECK(canvas.canvas_render_backend() == patchy::ui::CanvasWidget::CanvasRenderBackend::Cpu);
+  canvas.resize(320, 240);
+  canvas.show();
+  QApplication::processEvents();
+  CHECK(canvas.canvas_render_backend() == patchy::ui::CanvasWidget::CanvasRenderBackend::Cpu);
+}
+
+// Dawn is probed only for an explicit "webgpu"/"gpu" request. Absent, empty,
+// "auto", "cpu", and plain Qt RHI backend names never touch Dawn.
+void ui_webgpu_compositor_is_only_probed_on_explicit_request() {
+  const ScopedRenderBackendEnvironment saved;
+  ScopedRenderBackendEnvironment::clear();
+  CHECK(!patchy::ui::WebGpuDocumentCompositor::should_try_automatically());
+
+  for (const char* value : {"", "auto", "cpu", "software", "opengl", "vulkan", "metal", "d3d11", "d3d12", "nonsense"}) {
+    qputenv("PATCHY_RENDER_BACKEND", value);
+    CHECK(!patchy::ui::WebGpuDocumentCompositor::should_try_automatically());
+  }
+  for (const char* value : {"webgpu", "gpu", "WebGPU", " gpu "}) {
+    qputenv("PATCHY_RENDER_BACKEND", value);
+    CHECK(patchy::ui::WebGpuDocumentCompositor::should_try_automatically());
+  }
+
+  qunsetenv("PATCHY_RENDER_BACKEND");
+  qputenv("PATCHY_GPU_CANVAS", "auto");
+  CHECK(!patchy::ui::WebGpuDocumentCompositor::should_try_automatically());
+  qputenv("PATCHY_GPU_CANVAS", "webgpu");
+  CHECK(patchy::ui::WebGpuDocumentCompositor::should_try_automatically());
 }
 
 void ui_canvas_renderer_honors_cpu_override() {
@@ -4071,6 +4144,10 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_startup_defaults_to_round_brush", ui_startup_defaults_to_round_brush},
       {"ui_canvas_renderer_selects_a_safe_runtime_backend",
        ui_canvas_renderer_selects_a_safe_runtime_backend},
+      {"ui_canvas_renderer_defaults_to_cpu_without_an_explicit_request",
+       ui_canvas_renderer_defaults_to_cpu_without_an_explicit_request},
+      {"ui_webgpu_compositor_is_only_probed_on_explicit_request",
+       ui_webgpu_compositor_is_only_probed_on_explicit_request},
       {"ui_canvas_renderer_honors_cpu_override", ui_canvas_renderer_honors_cpu_override},
       {"ui_canvas_wheel_matches_photoshop_navigation", ui_canvas_wheel_matches_photoshop_navigation},
       {"ui_canvas_wheel_zoom_mode_zooms_at_cursor", ui_canvas_wheel_zoom_mode_zooms_at_cursor},
