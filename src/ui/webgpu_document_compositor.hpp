@@ -34,6 +34,8 @@ struct WebGpuCompositionMetrics {
   std::size_t bind_group_reuses{0};
   std::size_t queue_submissions{0};
   std::size_t queue_waits{0};
+  // Waits that hit the GpuWaitBudget deadline and failed the operation.
+  std::size_t wait_timeouts{0};
   std::uint64_t composition_time_ns{0};
 };
 

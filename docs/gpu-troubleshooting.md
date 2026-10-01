@@ -264,6 +264,26 @@ application does not enable the variable. A real queue or device failure still
 falls back atomically to Qt RHI or CPU; platform-native device-loss recovery is
 not claimed by this test.
 
+### The canvas stalls or the compositor reports a wait budget
+
+The Dawn compositor runs synchronously on the canvas path, so every wait on
+device work is bounded by a `GpuWaitBudget`: 2000 ms for adapter and device
+requests during (re)initialization and 250 ms for all queue and readback waits
+of one composition combined. A wait that reaches its deadline fails the
+composition with "exceeded the N ms wait budget", leaves the previous frame
+untouched, and marks the backend `Lost`; the canvas then recovers once and
+otherwise falls back to the Qt RHI or CPU compositor. After two consecutive
+budget timeouts `recover()` refuses to re-create the device and reports
+`Failed`, so a stalled driver costs at most two budgets rather than one per
+repaint. `PATCHY_WEBGPU_STARTUP_BUDGET_MS` and `PATCHY_WEBGPU_FRAME_BUDGET_MS`
+override the defaults (0 to 60000 ms; `0` expires immediately and is what the
+hardware check `webgpu_wait_budget_timeout_fails_fast_and_disables_after_repeats`
+uses). A frame that legitimately needs more than the budget on slow hardware
+shows up as repeated fallbacks with that message; raise the frame budget to
+confirm, then prefer reducing the document or keeping the CPU compositor.
+This bounds how long the UI can block; it does not make the composition
+asynchronous.
+
 ### No graphics log appears
 
 The application may have exited before constructing a scene graph, forwarded the request to another single-instance process, or never opened a document with visible content. Use:
