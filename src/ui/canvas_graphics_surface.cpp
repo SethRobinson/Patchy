@@ -584,7 +584,10 @@ public:
                          ? dynamic_cast<LayerNode*>(root->childAtIndex(static_cast<int>(index)))
                          : nullptr;
         if (node == nullptr || node->id != layer.id) {
+          // Without the id the comparison above never matches and every
+          // repaint re-creates the node and re-uploads the texture.
           auto* replacement = new LayerNode;
+          replacement->id = layer.id;
           if (index < static_cast<std::size_t>(root->childCount())) {
             auto* before = root->childAtIndex(static_cast<int>(index));
             root->insertChildNodeBefore(replacement, before);
