@@ -461,6 +461,41 @@ void gpu_document_capability_rejects_unsupported_blend_if_payload() {
   CHECK(capability.reason == "document contains unsupported Blend If settings");
 }
 
+// Fill differs from Opacity only in the eight special-Fill modes. The GPU tiers
+// multiply opacity by fill, which matches the CPU everywhere else, so those
+// modes must reject partial Fill while every other mode may fold it in.
+void gpu_document_capability_rejects_partial_fill_in_special_fill_modes() {
+  const auto capability_for = [](patchy::BlendMode mode, float fill) {
+    patchy::Document document(4, 4, patchy::PixelFormat::rgba8());
+    patchy::PixelBuffer pixels(4, 4, patchy::PixelFormat::rgba8());
+    pixels.clear(0);
+    document.add_pixel_layer("Paint", std::move(pixels));
+    document.layers().front().set_blend_mode(mode);
+    document.layers().front().set_fill_opacity(fill);
+    return patchy::gpu_document_capability(document);
+  };
+
+  for (const auto mode : {patchy::BlendMode::ColorBurn, patchy::BlendMode::LinearBurn, patchy::BlendMode::ColorDodge,
+                          patchy::BlendMode::LinearDodge, patchy::BlendMode::Difference, patchy::BlendMode::VividLight,
+                          patchy::BlendMode::LinearLight, patchy::BlendMode::HardMix}) {
+    CHECK(patchy::blend_mode_has_special_fill(mode));
+    const auto partial = capability_for(mode, 0.5F);
+    CHECK(partial.mode == patchy::GpuDocumentRenderMode::Unsupported);
+    CHECK(partial.reason == "document contains a special-Fill blend mode with Fill below 100%");
+    const auto full = capability_for(mode, 1.0F);
+    CHECK(full.mode == patchy::GpuDocumentRenderMode::PixelStackShader);
+    CHECK(full.reason.empty());
+  }
+
+  for (const auto mode : {patchy::BlendMode::Normal, patchy::BlendMode::Multiply, patchy::BlendMode::Screen,
+                          patchy::BlendMode::Overlay, patchy::BlendMode::SoftLight, patchy::BlendMode::Subtract}) {
+    CHECK(!patchy::blend_mode_has_special_fill(mode));
+    const auto partial = capability_for(mode, 0.5F);
+    CHECK(partial.mode != patchy::GpuDocumentRenderMode::Unsupported);
+    CHECK(partial.reason.empty());
+  }
+}
+
 void gpu_document_capability_rejects_non_separable_blend() {
   patchy::Document document(4, 4, patchy::PixelFormat::rgba8());
   patchy::PixelBuffer pixels(4, 4, patchy::PixelFormat::rgba8());
@@ -1634,6 +1669,8 @@ std::vector<patchy::test::TestCase> infra_selection_tests() {
        gpu_document_capability_accepts_supported_blend_if_in_shader_tier},
       {"gpu_document_capability_rejects_unsupported_blend_if_payload",
        gpu_document_capability_rejects_unsupported_blend_if_payload},
+      {"gpu_document_capability_rejects_partial_fill_in_special_fill_modes",
+       gpu_document_capability_rejects_partial_fill_in_special_fill_modes},
       {"gpu_document_capability_rejects_non_separable_blend",
        gpu_document_capability_rejects_non_separable_blend},
       {"quick_select_maxflow_solves_tiny_grid", quick_select_maxflow_solves_tiny_grid},
